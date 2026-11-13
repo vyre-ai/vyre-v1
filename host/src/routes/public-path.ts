@@ -171,9 +171,20 @@ export async function serve(
       return;
     }
     const rel = decodeURIComponent(rest.split("?")[0] ?? "").replace(/^\/+/, "");
-    const got = deps.file
-      ? await deps.file(site.target.folderId, rel === "" || rel.endsWith("/") ? `${rel}index.html` : rel)
-      : null;
+    let got: Awaited<ReturnType<NonNullable<typeof deps.file>>> | null = null;
+    try {
+      got = deps.file
+        ? await deps.file(site.target.folderId, rel === "" || rel.endsWith("/") ? `${rel}index.html` : rel)
+        : null;
+    } catch (e) {
+      // a file that lives at its provider (a Drive folder) and cannot be fetched right now is not "not found": the page is there, the provider is not reachable
+      const code =
+        (e as { error?: { code?: string }; code?: string } | null)?.error?.code ?? (e as { code?: string } | null)?.code;
+      if (!/^(provider\.|timeout\.|auth\.|rate_limit\.)/.test(String(code))) throw e;
+      res.setHeader("retry-after", "30");
+      page(res, 503, "Temporarily unavailable", "This page is stored with another service that cannot be reached right now. Try again in a minute.");
+      return;
+    }
     if (!got) {
       page(res, 404, "Not found", "There is nothing at this address.");
       return;

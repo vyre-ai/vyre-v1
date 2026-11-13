@@ -487,6 +487,35 @@ const isLive = (m: Pick<MountRec, "kind" | "mode">): boolean => m.mode === "live
 
 // ---- applying a pulled batch --------------------------------------------------------------------------------
 
+/**
+ * Items synced before shown_name existed (rc.26 and earlier) have none: it is learned from Files, a pass at a time. Only an item with no change waiting is read (an edit or rename in Vyre that has not
+ * gone out yet must not become "what the pass gave it"); until then the outbound comparison also accepts the names a pass would have given the item (see outbound-moves.ts).
+ */
+const BACKFILL_PER_PASS = 300;
+async function backfillShown(ctx: Ctx, rows: Row[]): Promise<void> {
+  let n = 0;
+  for (const r of rows) {
+    if (n >= BACKFILL_PER_PASS) break;
+    if (!isNull(r["shown_name"]) || isNull(r["remote_id"]) || flag(r["dirty"]) || flag(r["deleted"])) continue;
+    if (isNull(r["parent_key"])) continue;
+    const folder = flag(r["is_folder"]);
+    const id = r[folder ? "folder_id" : "file_id"];
+    if (isNull(id)) continue;
+    try {
+      const got = obj(
+        await ctx.call(folder ? "files.folder.get" : "files.get", { [folder ? "folderId" : "fileId"]: str(id) }),
+      );
+      const name = str(obj(got[folder ? "folder" : "file"])["name"]);
+      if (name !== "") {
+        patchItem(ctx, r, { shown_name: name });
+        n += 1;
+      }
+    } catch {
+      /* gone or unreadable: it keeps the fallback */
+    }
+  }
+}
+
 interface Applied {
   pulled: number;
   conflicts: number;
@@ -1010,6 +1039,7 @@ async function runPass(ctx: Ctx, mountId: string): Promise<PassResult> {
     const started = ctx.now();
     patchMount(ctx, row, { state: "syncing" });
     await markSource(ctx, row);
+    await backfillShown(ctx, rows);
     let pulled = 0;
     let conflicts = 0;
     let pushed = 0;

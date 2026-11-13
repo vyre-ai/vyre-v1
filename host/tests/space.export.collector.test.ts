@@ -462,3 +462,59 @@ test("cumulative root and descendant files are bounded before retained arrays gr
     /retained.*item|item.*limit/i,
   );
 });
+
+test("a file that lives at its provider and was never opened: the archive holds its fetched bytes, or the export fails naming the file; an empty placeholder is never exported as the document", async () => {
+  const run = async (readFile: (input: any) => any, bytes?: string): Promise<unknown> => {
+    const f = fixture();
+    let fetched = false;
+    const read = async (cap: string, input: any): Promise<any> => {
+      const out = await f.read(cap, input);
+      const live = input?.fileId === "fil_shared";
+      if (cap === "files.list" && input.folder) {
+        out.files = [
+          {
+            fileId: "fil_shared",
+            folderId: "fld_space",
+            name: "Plan.pdf",
+            kind: "pdf",
+            mime: "application/pdf",
+            size: 0,
+            version: 1,
+            label: 0,
+            source: { mountId: "mnt_d", provider: "Google Drive" },
+          },
+        ];
+      }
+      if (cap === "files.read" && live) {
+        const r = readFile(input);
+        if (r === "fetch") fetched = true;
+        else return r;
+      }
+      if (live && fetched && bytes !== undefined) {
+        const b = Buffer.from(bytes);
+        if (cap === "files.get") return { file: { ...out.file, name: "Plan.pdf", size: b.length, version: 2 } };
+        if (cap === "files.versions") return { versions: [{ versionId: "ver_2", n: 2, at: 1, by: "usr_owner" }] };
+        if (cap === "files.read")
+          return { base64: b.toString("base64"), size: b.length, version: 2, mime: "application/pdf", truncated: false };
+      }
+      return out;
+    };
+    return collectSpaceExport({
+      space: "spc_fixture",
+      requester: "usr_owner",
+      read,
+      recordScope: async () => "shared",
+      assertOwner: async () => undefined,
+      head: async () => 7,
+      now: () => 1000,
+    });
+  };
+  const down = () => {
+    throw Object.assign(new Error("down"), { error: { code: "provider.unavailable" } });
+  };
+  await assert.rejects(run(down), /Plan\.pdf lives in Google Drive and could not be fetched, so no archive was made/);
+  const ok = (await run(() => "fetch", "real pdf bytes")) as { entries?: { path: string; bytes?: Uint8Array }[] };
+  const entry = ok.entries?.find((e) => e.path === "files/fil_shared/versions/ver_2.bin");
+  assert.equal(Buffer.from(entry?.bytes ?? []).toString(), "real pdf bytes", "the archive holds the fetched bytes");
+
+});

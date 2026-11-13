@@ -280,3 +280,40 @@ test("a skipped item is asked about again on every pass: once what refused it is
   assert.equal(v["skippedCount"], undefined, "the count dropped");
   assert.ok(w.files.paths().includes("Drive/intro.pdf"), "the item is in");
 });
+
+test("items synced before shown_name existed: an edit before any pass does not look like a rename; a pass learns the name from Files and an edit after it is still an edit", async () => {
+  const w = harness();
+  listing(w, [f("d1x", "Budget.pdf"), f("d2x", "Budget.pdf", { modifiedTime: "2026-10-02T10:00:00.000Z" })]);
+  const added = await call(w, "mounts.add", { into: "fld_into", source: DRIVE, name: "Drive", mode: "server_copy" });
+  const mountId = String(added["mountId"]);
+  // the stored state rc.26 left: no shown_name on any row
+  for (const i of w.items(mountId))
+    w.ctx.db.run(
+      "UPDATE mounts_item SET shown_name = ? WHERE mount_id = ? AND item_key = ?",
+      null,
+      mountId,
+      i["item_key"],
+    );
+  assert.ok(w.items(mountId).every((i) => i["shown_name"] === null));
+  editInVyre(w, "Budget (Google Drive).pdf", "edited before the first pass", "usr_owner");
+  await call(w, "mounts.sync_now", { mountId });
+  assert.deepEqual(w.google.trashed, [], "an old row's edit is not read as a rename");
+  assert.deepEqual(
+    w.google.replaced.map((r) => r.remoteId),
+    ["d2x"],
+  );
+  // the pass learned the name of the item with no change waiting; the edited one is learned on the next pass
+  const shownOf = (): Record<string, unknown> =>
+    Object.fromEntries(
+      w
+        .items(mountId)
+        .filter((i) => i["remote_id"] === "d1x" || i["remote_id"] === "d2x")
+        .map((i) => [i["remote_id"], i["shown_name"]]),
+    );
+  assert.deepEqual(shownOf(), { d1x: "Budget.pdf", d2x: null });
+  await call(w, "mounts.sync_now", { mountId });
+  assert.deepEqual(shownOf(), { d1x: "Budget.pdf", d2x: "Budget (Google Drive).pdf" });
+  editInVyre(w, "Budget (Google Drive).pdf", "edited after", "agt_helper");
+  await call(w, "mounts.sync_now", { mountId });
+  assert.deepEqual(w.google.trashed, []);
+});

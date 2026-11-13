@@ -424,24 +424,30 @@ test("Redaction for AI: a person still finds a redacted word in a file they may 
   assert.equal(h.rows("SELECT n FROM search_agent_docs").length, 1);
 });
 
-test("a text file that lives at its provider and cannot be fetched right now is indexed by its name and path; any other read failure still fails the pass", async () => {
-  const down = (code: string) => () => {
-    throw Object.assign(new Error("down"), { error: { code } });
-  };
-  const files = (code: string) =>
-    harness({
-      respond: {
-        "files.get": (i) => ({
-          file: { fileId: i["fileId"], name: "Plan.md", kind: "markdown", folderId: "fld_a", label: 1, updatedAt: 9 },
-        }),
-        "files.folder.get": () => ({ folder: { path: "My Drive" } }),
-        "files.read": down(code),
+test("a text file that lives at its provider and cannot be fetched right now is marked failed and retried: provider down, then up, and its words become searchable without anyone touching the file", async () => {
+  let up = false;
+  const h = harness({
+    respond: {
+      "files.get": (i) => ({
+        file: { fileId: i["fileId"], name: "Plan.md", kind: "markdown", folderId: "fld_a", label: 1, updatedAt: 9 },
+      }),
+      "files.folder.get": () => ({ folder: { path: "My Drive" } }),
+      "files.read": () => {
+        if (!up) throw Object.assign(new Error("down"), { error: { code: "provider.unavailable" } });
+        return { text: "The retainer is due in March" };
       },
-    });
-  const h = files("provider.unavailable");
-  await indexApply(h.ctx, { entity: "file", id: "fil_drive", op: "upsert", seq: 1 });
-  assert.equal(row(h, "fil_drive")["path"], "My Drive/Plan.md");
-  assert.equal(row(h, "fil_drive")["body"], "");
-  const bad = files("internal.unexpected");
-  await assert.rejects(() => indexApply(bad.ctx, { entity: "file", id: "fil_x", op: "upsert", seq: 1 }));
+    },
+  });
+  // down: the pass throws (the event consumer's own retry takes it again) and the row is on the failed list
+  await assert.rejects(() => indexApply(h.ctx, { entity: "file", id: "fil_drive", op: "upsert", seq: 5 }));
+  assert.equal(h.rows("SELECT id FROM search_failed WHERE id = ?", "fil_drive").length, 1);
+  assert.equal(h.rows("SELECT id FROM search_docs WHERE id = ?", "fil_drive").length, 0);
+  // up: the retry indexes the body and clears the failed row
+  up = true;
+  await indexApply(h.ctx, { entity: "file", id: "fil_drive", op: "upsert", seq: 5 });
+  assert.equal(h.rows("SELECT id FROM search_failed WHERE id = ?", "fil_drive").length, 0);
+  assert.deepEqual(
+    (await query(h.ctx, { q: "retainer March", types: ["file"] })).hits.map((x) => x.id),
+    ["fil_drive"],
+  );
 });

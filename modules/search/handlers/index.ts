@@ -114,13 +114,7 @@ const fileSource: Source = async (ctx, id) => {
   const textual = TEXTUAL.has(text(f["kind"]));
   let body = "";
   if (textual) {
-    // a file that lives at its provider and cannot be fetched right now is indexed by its name and path; its words join the index when a later pass can read it
-    const r = await read<{ text?: string }>(ctx, "files.read", { fileId: id, as: "text", length: 20_000 }).catch(
-      (e: unknown) => {
-        if (/^(provider\.|timeout\.|auth\.|rate_limit\.)/.test(codeOf(e))) return null;
-        throw e;
-      },
-    );
+    const r = await read<{ text?: string }>(ctx, "files.read", { fileId: id, as: "text", length: 20_000 });
     body = text(r?.text);
   }
   // Redaction for AI: a person's search keeps the whole text (a person who may read the file finds a redacted word in it). When an agent may read less, the agent's view is kept beside it, and an
