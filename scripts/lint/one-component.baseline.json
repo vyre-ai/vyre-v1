@@ -43,7 +43,7 @@
     "read-hook": 1
   },
   "apps/app/src/console/shell/ui.tsx": {
-    "declared": 2
+    "declared": 3
   },
   "apps/app/src/machines/MachinesView.tsx": {
     "declared": 1
@@ -68,7 +68,7 @@
     "declared": 1
   },
   "apps/app/src/places/automations/operations/parts.tsx": {
-    "declared": 1
+    "declared": 2
   },
   "apps/app/src/places/automations/runs/data.tsx": {
     "read-hook": 1
@@ -207,5 +207,8 @@
   },
   "ui/src/HistoryTab/index.tsx": {
     "declared": 1
+  },
+  "ui/src/TaskPage/StatusDot.tsx": {
+    "declared": 2
   }
 }
