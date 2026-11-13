@@ -78,6 +78,40 @@ export async function browserOfDeleted(ctx: CompCtx, agentId: unknown): Promise<
   return true;
 }
 
+/**
+ * member.removed: a person left the Space. The browser profiles they had on shared agents (asker.ts) are marked for removal at the end of Trash time, as their Assistant's is (browserOfDeleted), and stopped now.
+ * Every agent of the Space is asked about, since nothing records which ones they used; a profile that was never made is skipped when it is removed.
+ */
+export async function browserOfLeaver(ctx: CompCtx, personId: unknown): Promise<string[]> {
+  if (typeof personId !== "string" || !personId.startsWith("usr_")) return [];
+  ensure(ctx.db);
+  let agents: string[] = [];
+  try {
+    const out = (await ctx.call("access.principals.list", { kind: "agent", limit: 500 })) as {
+      principals?: Array<{ id?: string }>;
+    };
+    agents = (out.principals ?? []).map((p) => p.id).filter((x): x is string => typeof x === "string");
+  } catch {
+    return [];
+  }
+  const sb = spaceBrowser();
+  const done: string[] = [];
+  for (const agentId of agents) {
+    const id = askerProfileId(agentId, personId);
+    if (!id) continue;
+    dropHold(ctx, id);
+    releaseRoom(ctx, id);
+    ctx.db.run(
+      "INSERT INTO computers_browser_gone (profile_id, deleted_at) VALUES (?, ?) ON CONFLICT (profile_id) DO NOTHING",
+      id,
+      ctx.now(),
+    );
+    if (sb) await sb.stop(id).catch(() => undefined);
+    done.push(id);
+  }
+  return done;
+}
+
 /** agent.restored: back from Trash, so its profile and sign-ins stay. */
 export function browserOfRestored(ctx: CompCtx, agentId: unknown): boolean {
   if (typeof agentId !== "string" || !profileIdOf(agentId)) return false;

@@ -8665,6 +8665,19 @@ export type ComputersBrowserGiveBackOut = {
     access: "owner" | "admin" | "viewer";
   };
 };
+export type ComputersBrowserMySignInsIn = {
+  agentId: string;
+};
+export type ComputersBrowserMySignInsOut = {
+  profile: "own" | "agent";
+  signIns: Array<{
+      kind: "browser";
+      site: string;
+      signedInAs?: string;
+      since: number;
+      lastSeen: number;
+    }>;
+};
 export type ComputersBrowserProfilesIn = Record<string, unknown>;
 export type ComputersBrowserProfilesOut = {
   profiles: Array<{
@@ -45368,6 +45381,7 @@ export interface CapMap {
   "company.status": { in: CompanyStatusIn; out: CompanyStatusOut };
   "company.sweep": { in: CompanySweepIn; out: CompanySweepOut };
   "computers.browser.give_back": { in: ComputersBrowserGiveBackIn; out: ComputersBrowserGiveBackOut };
+  "computers.browser.my_sign_ins": { in: ComputersBrowserMySignInsIn; out: ComputersBrowserMySignInsOut };
   "computers.browser.profiles": { in: ComputersBrowserProfilesIn; out: ComputersBrowserProfilesOut };
   "computers.browser.sessions": { in: ComputersBrowserSessionsIn; out: ComputersBrowserSessionsOut };
   "computers.browser.sign_out": { in: ComputersBrowserSignOutIn; out: ComputersBrowserSignOutOut };

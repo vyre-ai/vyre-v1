@@ -5,7 +5,9 @@ import { pageOf } from "../handlers/record.ts";
 import { waitingNote } from "../capacity.ts";
 import { actorOf, ensure, mintTicket, raise, redeemTicket, rowsOf, stepOf, stepOut } from "../projections.ts";
 import type { CompCtx } from "../projections.ts";
-import { mayTakeOver, profileAccess, profileIdOf } from "./policy.ts";
+import { hasOwnPlace } from "../../../lib/asker-place.ts";
+import { agentInfo } from "./agentinfo.ts";
+import { askerProfileId, mayTakeOver, profileAccess, profileIdOf } from "./policy.ts";
 import type { ProfileAccess, ProfileAgent } from "./policy.ts";
 import { spaceBrowser } from "./port.ts";
 import type { ProfileRow, SpaceBrowser } from "./port.ts";
@@ -363,6 +365,35 @@ export async function sessions(ctx: CompCtx, input: { agentId: string }) {
   }
 }
 
+/**
+ * The sign-ins of the profile this person's turns of the agent use: their own profile when the agent is shared with them and not theirs (sbrowser/asker.ts), the agent's own for its owner. Read as the person: it
+ * never names another person's. `signedInAs` is empty: a cookie jar does not say who.
+ */
+export async function mySignIns(ctx: CompCtx, input: { agentId: string }) {
+  const sb = browserOrRaise(ctx);
+  const person = personOf(ctx);
+  if (!profileIdOf(input.agentId)) raise(ctx, "validation.not_found", "There is no browser for that agent.");
+  const who = await agentInfo(ctx, input.agentId);
+  if (!who) raise(ctx, "validation.not_found", "There is no browser for that agent.");
+  const own = hasOwnPlace(who, input.agentId, person);
+  if (!own && who.ownerId !== person) raise(ctx, "validation.not_found", "There is no browser for that agent.");
+  const profile = own ? askerProfileId(input.agentId, person) : profileIdOf(input.agentId);
+  if (!profile) raise(ctx, "validation.not_found", "There is no browser for that agent.");
+  try {
+    return {
+      profile: own ? ("own" as const) : ("agent" as const),
+      signIns: signInSites(await sb.sessions(profile)).map((x) => ({
+        kind: "browser" as const,
+        site: x.site,
+        since: x.since,
+        lastSeen: x.lastSeen,
+      })),
+    };
+  } catch (e) {
+    refuse(ctx, e);
+  }
+}
+
 export async function signOut(ctx: CompCtx, input: { agentId: string; site: string }) {
   const sb = browserOrRaise(ctx);
   await mayWatch(ctx, input.agentId, true);
@@ -380,6 +411,7 @@ export async function signOut(ctx: CompCtx, input: { agentId: string; site: stri
 
 export const sbrowserHandlers = {
   "computers.browser.sessions": sessions,
+  "computers.browser.my_sign_ins": mySignIns,
   "computers.browser.sign_out": signOut,
   "computers.browser.timeline": timeline,
   "computers.browser.profiles": profiles,

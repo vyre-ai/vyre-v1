@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { bindSpaceBrowser } from "../sbrowser/port.ts";
 import type { SpaceBrowser } from "../sbrowser/port.ts";
-import { forgetExpired } from "../sbrowser/forget.ts";
+import { browserOfLeaver, forgetExpired } from "../sbrowser/forget.ts";
 import { askerProfileId } from "../sbrowser/policy.ts";
 import { harness } from "../fixtures/harness.ts";
 

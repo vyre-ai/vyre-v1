@@ -6,6 +6,7 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "computers.browser.give_back": Handler<"computers.browser.give_back", X>;
+  "computers.browser.my_sign_ins": Handler<"computers.browser.my_sign_ins", X>;
   "computers.browser.profiles": Handler<"computers.browser.profiles", X>;
   "computers.browser.sessions": Handler<"computers.browser.sessions", X>;
   "computers.browser.sign_out": Handler<"computers.browser.sign_out", X>;

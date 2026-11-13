@@ -35,7 +35,7 @@ import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
 import { bindFill, bindHost, boundHost, ensure as ensureSchema } from "./projections.ts";
 import { markOwnProfiles, reconcileClaims, turnActive, turnEnded, turnStarted } from "./sbrowser/room.ts";
-import { browserOfDeleted, browserOfRestored, forgetExpired } from "./sbrowser/forget.ts";
+import { browserOfDeleted, browserOfLeaver, browserOfRestored, forgetExpired } from "./sbrowser/forget.ts";
 import {
   nodeHomeCheck,
   nodeJobs,
@@ -1051,6 +1051,12 @@ export const consumers = {
       }
       turnEnded(ctx.space, typeof a === "string" ? a : "", t);
     },
+  },
+  /** A person left the Space: their own browser profiles on shared agents go after Trash time, like their Assistant's (sbrowser/forget.ts). */
+  "computers.browser_leaver": {
+    on: ["member.removed"],
+    run: async (ctx: CompCtx, event: { payload: { personId?: unknown } }): Promise<string[]> =>
+      browserOfLeaver(ctx, event.payload.personId),
   },
   "computers.browser_forget": {
     on: ["agent.deleted", "agent.restored"],

@@ -36,8 +36,8 @@ const OURS = [
   "computers.skill_from_step",
 ];
 
-test("the handler table holds the lifecycle capabilities, the 35 tools and the seven of the Space browser (list, live view, take over, give back, timeline, sites, sign out): all 66 computers capabilities, nothing else", () => {
-  assert.equal(mine.length, 66);
+test("the handler table holds the lifecycle capabilities, the 35 tools and the eight of the Space browser (list, live view, take over, give back, timeline, sites, sign out, my sign-ins): all 67 computers capabilities, nothing else", () => {
+  assert.equal(mine.length, 67);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const name of OURS) assert.ok(h[name], name);
 });

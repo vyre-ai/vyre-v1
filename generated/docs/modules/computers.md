@@ -4,9 +4,10 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat.
 
-## Capabilities (66)
+## Capabilities (67)
 
 - [computers.browser.give_back](../capabilities/computers.browser.give_back.md): Give an agent's browser back to the agent; the person who has the controls or an admin may
+- [computers.browser.my_sign_ins](../capabilities/computers.browser.my_sign_ins.md): The sites the browser profile your own turns of this agent use is signed in to, by site and when, never a value: a person who does not own a shared agent has a profile of their own on it. Nothing of another person's
 - [computers.browser.profiles](../capabilities/computers.browser.profiles.md): The agent browsers in this Space's browser that you may watch: running or asleep, tabs, whether the agent is using it, and who has the controls
 - [computers.browser.sessions](../capabilities/computers.browser.sessions.md): The sites an agent's browser is signed in to (cookies the profile holds), by site, never a value. Wakes the browser when it is asleep. Only for a browser you may watch
 - [computers.browser.sign_out](../capabilities/computers.browser.sign_out.md): Sign an agent's browser out of a site: its cookies and storage for that site are cleared. The owner and admins only
