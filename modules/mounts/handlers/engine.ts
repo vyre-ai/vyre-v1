@@ -22,6 +22,8 @@ import { mintUuid } from "../../../lib/ids.ts";
 import { isHostService } from "../../../lib/trust.ts";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
+import { displayName, freeNames } from "./names.ts";
+export { displayName, freeNames };
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { pushMoves } from "./outbound-moves.ts";
 import { DRIVE_ROOT_ALIAS, PROVIDER_LABEL, fetchable, isCloud, providerOf } from "./providers.ts";
@@ -93,26 +95,6 @@ const isMountLevel = (e: unknown): boolean => {
   const code = codeOf(e);
   return code === undefined || MOUNT_LEVEL.test(code);
 };
-
-/**
- * The name an outside item is shown under in Files, by one rule. The provider's name is the provider's: Files refuses a slash or backslash, control characters, "." and "..", an empty name and
- * more than 255 characters, and a person cannot rename a Drive item to dodge that. So a slash or backslash becomes "-", a control character becomes a space, the ends are trimmed, an empty or
- * dot-only name becomes "Untitled", and a name over 255 characters is cut in its stem (the extension stays). The provider's own name stays on the mount's item: it is what Open in Google Drive,
- * a write back and the next pass compare with.
- */
-export function displayName(name: string): string {
-  let n = name
-    .replace(/[\\/]/g, "-")
-    .replace(/[\u0000-\u001f]/g, " ")
-    .trim();
-  if (n === "" || n === "." || n === "..") return "Untitled";
-  if (n.length > 255) {
-    const dot = n.lastIndexOf(".");
-    const ext = dot > 0 && n.length - dot <= 20 ? n.slice(dot) : "";
-    n = `${n.slice(0, 255 - ext.length).trimEnd()}${ext}`;
-  }
-  return n;
-}
 
 /** The sentence a failing mount shows: the provider cannot be reached, or does not allow Vyre in, and what to do about it. Other messages are the provider's own and are kept. */
 function failureSentence(e: unknown, label: string): string {
@@ -203,6 +185,8 @@ function optStr(o: Row, key: string): string | undefined {
   return typeof v === "string" && v.length > 0 ? v : undefined;
 }
 
+/** The name an item has in Files: what the last pass gave it, else the provider's own. */
+export const shownOf = (r: Row): string => (typeof r["shown_name"] === "string" && r["shown_name"] !== "" ? r["shown_name"] : typeof r["name"] === "string" ? r["name"] : "");
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 const flag = (v: unknown): boolean => v === 1 || v === true;
@@ -276,6 +260,8 @@ interface NewItem {
   fileId?: string;
   folderId?: string;
   name: string;
+  /** The name it has in Files (see migration 0005); defaults to none, which reads as `name`. */
+  shown?: string;
   isFolder: boolean;
   native?: boolean;
   remoteVersion?: string | null;
@@ -310,6 +296,7 @@ function insertItem(ctx: Ctx, mountId: string, n: NewItem): Row {
     file_id: n.fileId ?? null,
     folder_id: n.folderId ?? null,
     name: n.name,
+    shown_name: n.shown ?? null,
     is_folder: n.isFolder ? 1 : 0,
     native: n.native ? 1 : 0,
     remote_version: n.remoteVersion ?? null,
@@ -413,18 +400,6 @@ async function filesWrite(
   return num(obj(r["file"])["version"]);
 }
 
-/** Most names one item tries before the pass gives up on it: its own, then "(Google Drive)", "(Google Drive 2)" and on. */
-const NAME_TRIES = 20;
-
-/** The names an item may take in its Vyre folder, in order: its own, then the provider's name in brackets, numbered. "Plan.docx" becomes "Plan (Google Drive).docx". */
-export function freeNames(name: string, label: string): string[] {
-  const dot = name.lastIndexOf(".");
-  const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
-  const out = [name];
-  for (let n = 1; out.length < NAME_TRIES; n++) out.push(`${stem} (${n === 1 ? label : `${label} ${n}`})${ext}`);
-  return out;
-}
-
 /**
  * Runs `make` with the first name the folder does not hold yet. Drive lets one folder hold several items of one name (and a Google-native file has no extension, so a Doc and a Sheet both
  * called "Plan" share it); a Vyre folder does not. `taken` is what the mount knows is in the folder already (the provider names it mapped there and the names this pass gave), so the
@@ -524,7 +499,7 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
     const key = str(parent["item_key"]);
     let set = names.get(key);
     if (!set) {
-      set = new Set(rows.filter((r) => r["parent_key"] === key && !flag(r["deleted"])).map((r) => str(r["name"])));
+      set = new Set(rows.filter((r) => r["parent_key"] === key && !flag(r["deleted"])).map((r) => shownOf(r)));
       names.set(key, set);
     }
     return set;
@@ -554,6 +529,7 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
           parentKey: str(parent["item_key"]),
           folderId: made.value,
           name: item.name,
+          shown: made.name,
           isFolder: true,
         });
         rows.push(created);
@@ -562,10 +538,10 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
         return;
       }
       if (row["name"] !== item.name) {
-        await withFreeName(ctx, item.name, label, namesIn(parent), (n) =>
+        const renamed = await withFreeName(ctx, item.name, label, namesIn(parent), (n) =>
           ctx.call("files.folder.rename", { folderId: str(row["folder_id"]), name: n }),
         );
-        patchItem(ctx, row, { name: item.name });
+        patchItem(ctx, row, { name: item.name, shown_name: renamed.name });
         pulled += 1;
       }
       if (row["parent_key"] !== parent["item_key"]) {
@@ -598,6 +574,7 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
         parentKey: str(parent["item_key"]),
         fileId: made.value.fileId,
         name: item.name,
+        shown: made.name,
         isFolder: false,
         native: item.native === true,
         remoteVersion: item.version ?? null,
@@ -611,10 +588,10 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
       return;
     }
     if (row["name"] !== item.name) {
-      await withFreeName(ctx, item.name, label, namesIn(parent), (n) =>
+      const renamed = await withFreeName(ctx, item.name, label, namesIn(parent), (n) =>
         ctx.call("files.rename", { fileId: str(row["file_id"]), name: n }),
       );
-      patchItem(ctx, row, { name: item.name });
+      patchItem(ctx, row, { name: item.name, shown_name: renamed.name });
       pulled += 1;
     }
     if (row["parent_key"] !== parent["item_key"]) {
@@ -1676,7 +1653,7 @@ async function ensureDir(ctx: Ctx, m: MountRec, rows: Row[], dir: string): Promi
       ctx,
       seg,
       "device",
-      new Set(rows.filter((r) => r["parent_key"] === at["item_key"]).map((r) => str(r["name"]))),
+      new Set(rows.filter((r) => r["parent_key"] === at["item_key"]).map((r) => shownOf(r))),
       (n) => filesCreateFolder(ctx, str(at["folder_id"]), n),
     );
     const created = insertItem(ctx, m.id, {
@@ -1684,6 +1661,7 @@ async function ensureDir(ctx: Ctx, m: MountRec, rows: Row[], dir: string): Promi
       parentKey: str(at["item_key"]),
       folderId: made.value,
       name: seg,
+      shown: made.name,
       isFolder: true,
     });
     rows.push(created);
@@ -1765,7 +1743,7 @@ async function applyLocal(
       ctx,
       leafOf(path),
       "device",
-      new Set(rows.filter((r) => r["parent_key"] === parent["item_key"]).map((r) => str(r["name"]))),
+      new Set(rows.filter((r) => r["parent_key"] === parent["item_key"]).map((r) => shownOf(r))),
       (n) => filesCreate(ctx, str(parent["folder_id"]), n, blobId),
     );
     rows.push(
@@ -1774,6 +1752,7 @@ async function applyLocal(
         parentKey: str(parent["item_key"]),
         fileId: made.value.fileId,
         name: leafOf(path),
+        shown: made.name,
         isFolder: false,
         remoteVersion: mtime,
         version: made.value.version,

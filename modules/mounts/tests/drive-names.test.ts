@@ -6,6 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { handlers } from "../impl.ts";
+import { localChangesConsumer } from "../projections.ts";
 import { harness, vyreErr } from "../fixtures/world.ts";
 import type { World } from "../fixtures/world.ts";
 
@@ -167,4 +168,80 @@ test("a folder on a computer: a file name Files cannot hold is shown under a saf
   assert.equal(v["state"], "idle");
   assert.equal(v["skippedCount"], 1);
   assert.equal((v["skipped"] as Row[])[0]?.["name"], "refused.txt");
+});
+
+// ---- what goes back to Drive: the display name is never written back and never compared with the source's name ----
+
+const LONG = `${"x".repeat(300)}.pdf`;
+
+/** A person or an agent edits the file in Vyre and the projection hears about it. */
+function editInVyre(w: World, display: string, text: string, actor: string): void {
+  const fileId = w.files.fileNamed(display).id;
+  const fn = localChangesConsumer.on["file.version_added"];
+  assert.ok(fn);
+  fn(w.ctx.db as never, {
+    at: w.now(),
+    actor,
+    payload: new TextEncoder().encode(JSON.stringify({ fileId, n: w.files.edit(fileId, text) })),
+  });
+}
+
+for (const actor of ["usr_owner", "agt_helper"]) {
+  test(`an edit by ${actor} of a Drive file whose real name Files cannot hold replaces it in place: same Drive id, same real name, nothing created, nothing deleted`, async () => {
+    const w = harness();
+    listing(w, [
+      f("s1", "Q3/Q4 plan.pdf"),
+      f("s2", "tab\tname.pdf"),
+      f("s3", LONG),
+      f("d1x", "Budget.pdf"),
+      f("d2x", "Budget.pdf", { modifiedTime: "2026-10-02T10:00:00.000Z" }),
+    ]);
+    const added = await call(w, "mounts.add", { into: "fld_into", source: DRIVE, name: "Drive", mode: "server_copy" });
+    const mountId = String(added["mountId"]);
+    const shown = w.files.paths().map((p) => p.replace("Drive/", ""));
+    assert.equal(shown.length, 5);
+    const before = w.items(mountId).map((i) => [i["remote_id"], i["name"]]);
+    for (const display of shown) editInVyre(w, display, `edited ${display.slice(0, 5)}`, actor);
+    await call(w, "mounts.sync_now", { mountId });
+    assert.deepEqual(w.google.trashed, [], "nothing is deleted at Drive");
+    assert.deepEqual(w.google.folders, [], "no folder is made");
+    assert.equal(w.google.uploads.length, 5, "one write per file");
+    assert.deepEqual(
+      w.google.replaced.map((r) => r.remoteId).sort(),
+      ["d1x", "d2x", "s1", "s2", "s3"],
+      "each file is replaced in place by its Drive id",
+    );
+    const realNames = new Map([
+      ["s1", "Q3/Q4 plan.pdf"],
+      ["s2", "tab\tname.pdf"],
+      ["s3", LONG],
+      ["d1x", "Budget.pdf"],
+      ["d2x", "Budget.pdf"],
+    ]);
+    // the Drive name is the Drive's: what is written back carries the real name, never the display name
+    for (const u of w.google.uploads) assert.ok([...realNames.values()].includes(u.name), `written back as ${u.name.slice(0, 12)}`);
+    assert.deepEqual(
+      w.items(mountId).map((i) => [i["remote_id"], i["name"]]),
+      before,
+      "the items keep their Drive ids and real names",
+    );
+  });
+}
+
+test("a rename typed in Vyre on a file whose display name differs changes the Drive name; an edit alone never does", async () => {
+  const w = harness();
+  listing(w, [f("s1", "Q3/Q4 plan.pdf")]);
+  const added = await call(w, "mounts.add", { into: "fld_into", source: DRIVE, name: "Drive", mode: "server_copy" });
+  const mountId = String(added["mountId"]);
+  const fileId = w.files.fileNamed("Q3-Q4 plan.pdf").id;
+  w.files.call("files.rename", { fileId, name: "Plan 2026.pdf" });
+  const fn = localChangesConsumer.on["file.renamed"];
+  assert.ok(fn);
+  fn(w.ctx.db as never, {
+    at: w.now(),
+    actor: "usr_owner",
+    payload: new TextEncoder().encode(JSON.stringify({ fileId, to: "Plan 2026.pdf" })),
+  });
+  await call(w, "mounts.sync_now", { mountId });
+  assert.ok(w.google.uploads.some((u) => u.name === "Plan 2026.pdf"), "the typed name goes to Drive");
 });

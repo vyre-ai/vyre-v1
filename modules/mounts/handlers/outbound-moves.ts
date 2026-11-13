@@ -22,6 +22,7 @@ import { mintUuid } from "../../../lib/ids.ts";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { MountRec, Provider } from "./providers.ts";
+import { displayName, freeNames } from "./names.ts";
 
 type Row = Record<string, unknown>;
 
@@ -325,7 +326,12 @@ export async function pushMoves(
         res.moved += 1;
         continue;
       }
-      if (here.name === str(row["name"]) && target["item_key"] === row["parent_key"]) continue; // a content change, not a move: the upload step sends it
+      // a content change, not a rename or a move: the upload step sends it. Files' name is compared with the name the pass gave the item (shown_name), never with the provider's own, which
+      // Files may not hold ("Q3/Q4 plan.pdf" is shown as "Q3-Q4 plan.pdf"). A row from before shown_name also accepts any name a pass would have given it.
+      const unchanged = !isNull(row["shown_name"])
+        ? here.name === str(row["shown_name"])
+        : here.name === str(row["name"]) || freeNames(displayName(str(row["name"])), provider.label).includes(here.name);
+      if (unchanged && target["item_key"] === row["parent_key"]) continue;
       const parentRemote = isNull(target["remote_id"]) ? undefined : str(target["remote_id"]);
       if (parentRemote === undefined) continue; // the new parent is not at the provider yet; the next pass
       const oldRemote = str(row["remote_id"]);
@@ -333,7 +339,7 @@ export async function pushMoves(
         if (!provider.createFolder || !provider.remove) continue;
         const made = await provider.createFolder(ctx, m, { name: here.name, parentRemote });
         for (const d of subtreeOf(rows, row).slice(1)) patch(d, { remote_id: null, remote_version: null, dirty: 1 });
-        patch(row, { name: here.name, parent_key: target["item_key"], remote_id: made.remoteId, dirty: 0 });
+        patch(row, { name: here.name, shown_name: here.name, parent_key: target["item_key"], remote_id: made.remoteId, dirty: 0 });
         res.moved += 1;
         await provider.remove(ctx, m, oldRemote, true);
       } else {
@@ -341,6 +347,7 @@ export async function pushMoves(
         const up = await provider.upload(ctx, m, { fileId: str(row["file_id"]), name: here.name, parentRemote });
         patch(row, {
           name: here.name,
+          shown_name: here.name,
           parent_key: target["item_key"],
           remote_id: up.remoteId,
           remote_version: up.version ?? null,
