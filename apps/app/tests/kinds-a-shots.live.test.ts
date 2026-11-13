@@ -46,7 +46,6 @@ test("f-kinds-a pictures", async (t) => {
     const agents = (await call("agents.list", {})).agents as { id: string; name: string }[];
     const agent = { id: (agents[0] as unknown as { agentId: string }).agentId };
     const own = await call("tasks.create", { title: "Book the launch venue", assigned: { kind: "agent", id: agent.id }, why: "The venue for launch day" }).catch(() => null);
-    await call("tasks.create", { title: "Write the launch announcement", assigned: { kind: "person", id: (await call("identity.whoami", {})).user?.id ?? (await call("identity.whoami", {})).me?.id } }).catch(() => null);
     await call("chat.start", { kind: "chat", agentIds: [agent.id], title: "Write the launch announcement" });
     const got = own?.task?.id ? await call("tasks.get", { taskId: own.task.id }).catch((e: Error) => ({ error: e.message })) : null;
     const recent = await call("chat.recent", { filter: "all" }).catch((e: Error) => ({ error: e.message }));
@@ -61,6 +60,7 @@ test("f-kinds-a pictures", async (t) => {
     const jr = await owner.request.post(`${web.origin}/v1/members/accept`, { data: { code, username: "maya", displayName: "Maya Lin", password: PASSWORD, deviceName: "Maya's laptop", deviceClass: "desktop", keys: KEYS } });
     assert.equal(jr.status(), 200, await jr.text());
     const maya = (await jr.json()).data as { personId: string; token: string };
+    await call("tasks.create", { title: "Write the launch announcement", assigned: { kind: "person", id: maya.personId } });   // same name as the chat started below, no link between them: two rows
     const qch = await call("channels.create", { name: "launch-questions", visibility: "public" });
     fs.writeFileSync(path.join(out, "question-channel.json"), JSON.stringify(qch, null, 1));
     const qThread = (qch.channel?.mainThreadId ?? qch.mainThreadId ?? qch.channel?.threadId ?? qch.threadId) as string;
@@ -111,9 +111,9 @@ test("f-kinds-a pictures", async (t) => {
       await page.waitForFunction(() => (document.querySelector("[data-testid=cmdk-list]")?.textContent ?? "").includes("launch"), undefined, { timeout: 20_000 });
       await shot("3-command-bar", skin);
       // a task and a chat that only share a name (not linked by id) are two rows; a task with its own thread is one
-      for (const [word, tag, expect] of [["Write the launch announcement", "3-command-bar-same-name-unlinked", "Write the launch announcement"], ["Book the launch venue", "3-command-bar-task-once", "Book the launch venue"]] as const) {
+      for (const [word, tag, expect] of [["announcement", "3-command-bar-same-name-unlinked", "announcement"], ["venue", "3-command-bar-task-once", "venue"]] as const) {
         await page.getByTestId("cmdk-input").fill(word);
-        await page.waitForFunction((w) => (document.querySelector("[data-testid=cmdk-list]")?.textContent ?? "").includes(w), expect, { timeout: 20_000 });
+        await page.waitForFunction((w) => { const t = document.querySelector("[data-testid=cmdk-list]")?.textContent ?? ""; return t.includes(w) && !t.includes("launch-week"); }, expect, { timeout: 20_000 });
         await page.waitForTimeout(600);   // the server's rows arrive after the device's
         await shot(tag, skin);
       }
@@ -124,6 +124,7 @@ test("f-kinds-a pictures", async (t) => {
     await openConsole(page, web.origin);
     await openConsolePage(page, "space");
     await page.getByTestId("space-id-copy").waitFor({ timeout: 20_000 });
+    await page.getByTestId("space-id-copy").scrollIntoViewIfNeeded();
     await shot("5-space-row-idle", "paper", "space-id");
     await page.evaluate(() => { Object.defineProperty(navigator, "clipboard", { value: { writeText: () => Promise.resolve() }, configurable: true }); });
     await page.getByTestId("space-id-copy").click(); await page.getByText("Copied", { exact: true }).waitFor({ timeout: 5000 });
