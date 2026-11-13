@@ -654,6 +654,8 @@ test("a goal's lead or helper agent does not show the goal to a person who may n
     assert.equal((await w.call("goals.get", { goalId: goal.id }, { id: agentId, kind: "agent" })).goal.id, goal.id, `${agentId} acting for nobody`);
   }
   assert.deepEqual((await w.call("goals.list", { scope: "helping" }, { id: LEAD, kind: "agent", actingFor: STRANGER })).goals, [], "and the list of what it leads is empty for a stranger");
+});
+
 test("the refusal tells the agent what to do: carry on, mention it once at the next check-in, and do not ask each time", async () => {
   const w = world({ count: 10 });
   const { goal } = await w.call("goals.create", labGoal());
