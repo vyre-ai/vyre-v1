@@ -1,3 +1,4 @@
 - The Chats sidebar has a new model behind it: needs you, now, pinned, chats, channels and team, each capped with an "N more" that shows what it hides, and one mark per row.
 - Every row in the new Chats sidebar has a right-click menu with the same items its keys reach; the word is Pin. A row says what it is by its shape (person, agent, Assistant, group, channel, project, goal) and wears one mark.
 - New keys, listed in Settings under Keyboard: Cmd-N new chat, Shift-Cmd-N new group chat, Option-Cmd-N new channel, Option-Cmd-G new goal, Option-Cmd-T new task, Option-Cmd-O new note, Option-Cmd-1 to 5 for the places, Cmd-Shift-backslash to hide the sidebar, Option-Shift-Down and Up for the next and previous unread chat.
+- The rail has one word under each place (Chats, Inbox, Records, Files, Automations), the foot button says More, and its dot is the accent colour. The rail is a little wider to fit "Automations".
