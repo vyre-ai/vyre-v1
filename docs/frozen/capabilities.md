@@ -157,8 +157,12 @@ Signed: the lead, 13 Nov 2026
 - Why: on rc.26 the Automations first page suggested setting up Google_DWD, and the assistant could not do it (above its clearance, and without the Connector builder role). A suggestion is now shown only when the assistant can finish it, and the Vault row, the first page and the setup press all ask this one question.
 - Also moved, not a contract: `modules/automations/tests/golden-replay/golden.json` holds the new words for a step that is missing an input ("Update a record: choose the record."), and `automations.steps.list` lists Google, Microsoft and GitHub steps only for apps connected on the Space that the caller may use (same input and output, fewer rows).
 
+Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff: optional, additive fields only; no input, output or error removed.
+
 ## 13 Nov 2026: what a model reads when a tool fails, and `automations.steps.list` gains `all` (lane f-auto2)
 
 - Model-facing error (not a capability contract, but what agents and MCP clients receive): `error.code` is now `error.supportCode`; the object now starts with `say` (a plain sentence and what to do) and `reply` (the rule: tell the person in plain words, no codes unless asked). `message`, `retryable`, `next`, `details` stay. In MCP `structuredContent.error` a `code` twin (the same value as `supportCode`) is kept for machine clients; the text a model reads has only `supportCode`.
 - `automations.steps.list@1` takes an optional `all` (boolean): every step the server can run, including apps not connected for the caller, for the editor of an Automation that already holds such a step. Without it the list is filtered to connected apps (the picker and the Assistant). Additive.
 - `automations.steps.list@1` also answers an optional `checked` (false only when the Space's connected apps could not be read, so an app missing from the list is unknown rather than unconnected; absent otherwise). Additive.
+
+Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff: optional, additive fields only; no input, output or error removed.
