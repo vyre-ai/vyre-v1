@@ -2,6 +2,7 @@
 // agent's mode menu), Helpers while any run, Stop and Stop all while any work, the pane toggle and a menu. Under it the last 50 messages (older ones stream in on request), the agent's
 // work folded into one line, and the shared composer with its who-will-reply line. A send shows on the page in the same frame, before chat.post answers; while an agent works, a plain
 // send queues for its next step and Interrupt sends it now.
+import { draftOf, setDraft } from "./drafts.ts";
 import { useFrameStore } from "./frame.ts";
 import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
@@ -431,9 +432,16 @@ function ConversationView(): ReactElement {
   /** A line with an Undo (a drop that shared something): the taking-back runs when it is pressed. */
   const [undo, setUndo] = useState<(() => void) | null>(null);
   // text asked for by a pane or a page ("Ask about this file"): taken when this conversation opens and whenever it is asked again, after what the person had typed
-  const [seed, setSeed] = useState<{ value: string; n: number }>(() => ({ value: data.fill?.take() ?? "", n: 0 }));
+  const [seed, setSeed] = useState<{ value: string; n: number }>(() => ({
+    value: data.fill?.take() ?? draftOf(data.threadId),
+    n: 0,
+  }));
   const [typed, setTyped] = useState(seed.value);
   const typedRef = useRef(seed.value);
+  // the unsent line is kept on this device, per chat; a send or an empty line clears it (the sidebar draws a pencil from it)
+  useEffect(() => {
+    setDraft(data.threadId, typed);
+  }, [data.threadId, typed]);
   const emptyRef = useRef(false);
   const [atEnd, setAtEnd] = useState(true);
   const [jump, setJump] = useState(0);
