@@ -21,6 +21,11 @@ test("a place is a folder, a history file, config and cache folders and a tmux s
     [p.env["HOME"], p.env["HISTFILE"], p.env["XDG_CONFIG_HOME"], p.env["XDG_CACHE_HOME"], p.env["TMUX_TMPDIR"]],
     [p.home, `${p.home}/.bash_history`, `${p.home}/.config`, `${p.home}/.cache`, "/tmp/vyre-tmux/usr_ben"],
   );
+  assert.match(
+    p.env["GIT_SSH_COMMAND"] ?? "",
+    /^ssh -F \/home\/agent\/people\/usr_ben\/\.ssh\/config -o IdentitiesOnly=yes -o IdentityFile=\/home\/agent\/people\/usr_ben\/\.ssh\/id_ed25519 /,
+    "git over ssh uses their keys only",
+  );
   assert.equal(folderOf("usr_../x y"), "usr____x_y", "nothing a path would carry survives");
   assert.deepEqual(ensureCommand(p).slice(0, 2), ["sh", "-c"]);
 });

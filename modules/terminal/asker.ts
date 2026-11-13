@@ -39,6 +39,8 @@ export function askerPlace(person: string): AskerPlace {
       XDG_DATA_HOME: `${home}/.local/share`,
       XDG_STATE_HOME: `${home}/.local/state`,
       TMUX_TMPDIR: `${TMUX_DIR}/${f}`,
+      // ssh looks for its keys and settings in the home the system lists for the user id (the agent's home), never in $HOME: so git over ssh is told, by name, to use this person's own and nothing else
+      GIT_SSH_COMMAND: `ssh -F ${home}/.ssh/config -o IdentitiesOnly=yes -o IdentityFile=${home}/.ssh/id_ed25519 -o IdentityFile=${home}/.ssh/id_rsa -o UserKnownHostsFile=${home}/.ssh/known_hosts`,
     },
     tmuxEnv: { TMUX_TMPDIR: `${TMUX_DIR}/${f}` },
   };
@@ -52,7 +54,8 @@ export function ensureCommand(p: AskerPlace): string[] {
   return [
     "sh",
     "-c",
-    'h="$1"; t="$2"; mkdir -p "$h/.config" "$h/.cache" "$h/.local/share" "$h/.local/state" "$t" && cp -rn /etc/skel/. "$h"/ 2>/dev/null; ' +
+    'h="$1"; t="$2"; mkdir -p "$h/.config" "$h/.cache" "$h/.local/share" "$h/.local/state" "$h/.ssh" "$t" && chmod 700 "$h/.ssh" && cp -rn /etc/skel/. "$h"/ 2>/dev/null; ' +
+      '[ -e "$h/.ssh/config" ] || : > "$h/.ssh/config"; ' +
       'for n in Vyre projects; do [ -e "$h/$n" ] || ln -s "/home/agent/$n" "$h/$n"; done; true',
     "sh",
     p.home,
