@@ -210,9 +210,17 @@ function lineCounts(base: Uint8Array | undefined, now: Uint8Array | undefined): 
 
 // ---- changesets ----
 
+/** A changeset is read by people who may view its folder (an agent for the person it acts for: authorize intersects them). */
+const mayViewFolderOf = (ctx: Ctx, r: Row): boolean => ctx.authorize({ perm: null, level: "view" }, { type: "folder", id: String(r.folder_id) }).effect === "allow";
 function mustChangeset(ctx: Ctx, id: string): Row {
   const r = one(ctx, "SELECT * FROM files_changeset WHERE id = ?", id);
   if (!r) return fail(ctx, "validation.not_found", "That changeset does not exist.", { changesetId: id });
+  return r;
+}
+/** The reads: a changeset in a folder the caller may not view does not exist for them. The writes keep their own edit checks and answers. */
+function mustViewChangeset(ctx: Ctx, id: string): Row {
+  const r = mustChangeset(ctx, id);
+  if (!mayViewFolderOf(ctx, r)) return fail(ctx, "validation.not_found", "That changeset does not exist.", { changesetId: id });
   return r;
 }
 const filesOf = (ctx: Ctx, csId: string): Row[] => many(ctx, "SELECT * FROM files_changeset_file WHERE changeset_id = ?", csId).sort((a, b) => String(a.path).localeCompare(String(b.path)));
@@ -413,6 +421,7 @@ async function list(ctx: Ctx, input: unknown): Promise<{ changesets: Record<stri
   const rows = many(ctx, "SELECT * FROM files_changeset")
     .filter((r) => (folderId === undefined || String(r.folder_id) === folderId) && (state === undefined || r.state === state))
     .filter((r) => o["mine"] !== true || String(r.on_behalf_of ?? "") === me || String(r.author) === me)
+    .filter((r) => mayViewFolderOf(ctx, r))
     .sort((a, b) => num(b.opened_at) - num(a.opened_at) || String(b.id).localeCompare(String(a.id)));
   const page = rows.slice(offset, offset + limit);
   const out: { changesets: Record<string, unknown>[]; next?: string; total: number } = { changesets: page.map((r) => rowOut(ctx, r)), total: rows.length };
@@ -421,7 +430,7 @@ async function list(ctx: Ctx, input: unknown): Promise<{ changesets: Record<stri
 }
 
 async function get(ctx: Ctx, input: unknown): Promise<{ changeset: Record<string, unknown>; files: { path: string; fileId?: string; status: Status; added: number; removed: number; conflict: boolean }[] }> {
-  const cs = mustChangeset(ctx, reqStr(ctx, record(ctx, input), "changesetId"));
+  const cs = mustViewChangeset(ctx, reqStr(ctx, record(ctx, input), "changesetId"));
   return {
     changeset: rowOut(ctx, cs),
     files: filesOf(ctx, String(cs.id)).map((f) => ({ path: String(f.path), ...(isNull(f.file_id) || String(f.status) === "added" ? {} : { fileId: String(f.file_id) }), status: String(f.status) as Status, added: num(f.added_lines), removed: num(f.removed_lines), conflict: flag(f.conflict) })),
@@ -451,7 +460,7 @@ async function sidesOf(ctx: Ctx, e: Row): Promise<Sides> {
 
 async function diff(ctx: Ctx, input: unknown) {
   const o = record(ctx, input);
-  const cs = mustChangeset(ctx, reqStr(ctx, o, "changesetId"));
+  const cs = mustViewChangeset(ctx, reqStr(ctx, o, "changesetId"));
   const e = entryOf(ctx, String(cs.id), reqStr(ctx, o, "path"));
   const mode = optStr(ctx, o, "mode");
   if (mode !== undefined && !["unified", "split", "words", "paragraph"].includes(mode)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "mode" });
@@ -783,7 +792,7 @@ function commentOut(c: Row): Record<string, unknown> {
 }
 
 async function commentsList(ctx: Ctx, input: unknown): Promise<{ comments: Record<string, unknown>[] }> {
-  const cs = mustChangeset(ctx, reqStr(ctx, record(ctx, input), "changesetId"));
+  const cs = mustViewChangeset(ctx, reqStr(ctx, record(ctx, input), "changesetId"));
   return { comments: commentsOf(ctx, String(cs.id)).map(commentOut) };
 }
 

@@ -622,3 +622,13 @@ test("files and change sets seal under the real seal on a Space id of the shape 
     assert.ok(docs.length > 0);
   }
 });
+
+test("changeset reads follow the folder: a caller who may not view the folder lists, reads, diffs and reads comments on nothing of it", async () => {
+  const { ctx, agent, plan } = await setup({ "settings.get": { row: { value: true } } });
+  const w = await handlers["files.write"](agent, { fileId: plan, content: { text: "the staged words" } });
+  const denied: Ctx = { ...ctx, authorize: () => ({ effect: "deny", reason: "test", decisionId: "dec_no" }) };
+  assert.equal((await handlers["changesets.list"](ctx, {})).changesets.length >= 1, true, "a viewer lists it");
+  assert.deepEqual((await handlers["changesets.list"](denied, {})).changesets, [], "list");
+  await expectCode("validation.not_found", () => handlers["changesets.get"](denied, { changesetId: w.changesetId! }));
+  await expectCode("validation.not_found", () => handlers["changesets.comments.list"](denied, { changesetId: w.changesetId! }));
+});
