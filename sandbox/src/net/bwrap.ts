@@ -6,6 +6,8 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { proxyEnv } from "../docker.ts";
+import { identityBinds } from "../identity.ts";
+import type { Who } from "../identity.ts";
 import { validateSpec } from "../policy.ts";
 import type { PolicyOptions } from "../policy.ts";
 import { SandboxError } from "../types.ts";
@@ -17,8 +19,7 @@ import { GUEST_BRIDGE, GUEST_CONNECT, GUEST_DIR, GUEST_PORT, GUEST_SOCKET } from
 import { startNetWall } from "./host.ts";
 import type { NetWall, NetWallOptions } from "./host.ts";
 
-// /etc/passwd and /etc/group give the user inside a name (whoami, id, git, ssh): the user that runs the sandbox is mapped in as itself, and with no entry it is only a number (13 Nov 2026).
-const SYSTEM_RO: readonly string[] = ["/usr", "/etc/ssl", "/etc/ca-certificates", "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/localtime", "/etc/passwd", "/etc/group"];
+const SYSTEM_RO: readonly string[] = ["/usr", "/etc/ssl", "/etc/ca-certificates", "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/localtime"];
 const HOME = "/home/agent";
 /** bwrap is started with an empty environment, so it must be found by path (an empty PATH finds nothing). */
 const BWRAP = ["/usr/bin/bwrap", "/usr/local/bin/bwrap", "/bin/bwrap"].find((p) => fs.existsSync(p)) ?? "bwrap";
@@ -37,6 +38,8 @@ export interface BwrapWallOptions {
    * Without this, Alpine's loader (/lib/ld-musl-*.so.1) is not where its programs look, and nothing starts.
    */
   splitUsr?: boolean;
+  /** The user the sandbox runs as (its uid and gid get the name `agent`). Default: the process's own. */
+  identity?: Who;
   /** What the engine may touch besides its work folder (engine-access.ts). */
   access?: EngineAccess;
   /** The PATH the program would have outside, which access.pathAdd goes in front of. Default: the sandbox's own. */
@@ -65,6 +68,7 @@ export function bwrapWallCommand(spec: SandboxSpec, roots: Roots, argv: readonly
   const a: string[] = ["--die-with-parent", "--new-session", "--unshare-all", "--cap-drop", "ALL"];
   const prefix = nodePrefix(node);
   for (const p of [...SYSTEM_RO, ...(prefix ? [prefix] : []), ...(o.programRead ?? [])]) a.push("--ro-bind-try", p, p);
+  a.push(...identityBinds(o.wallDir, o.identity));
   if (o.splitUsr === true) for (const p of ["/bin", "/sbin", "/lib", "/lib64"]) a.push("--ro-bind-try", p, p);
   else a.push("--symlink", "usr/bin", "/bin", "--symlink", "usr/sbin", "/sbin", "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib64", "/lib64");
   a.push("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp");

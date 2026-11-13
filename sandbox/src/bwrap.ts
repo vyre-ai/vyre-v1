@@ -1,14 +1,16 @@
 // The Linux person's sandbox (S8): bubblewrap with the same policy as the Mac's. New namespaces for everything, the system read only, an empty home, the person's folders bound in, all capabilities
 // dropped, and the process dies with its parent. Files are enforced by the kernel. The network is shared with the machine and steered through the egress proxy by variables: that is not a wall,
 // so `enforcement.network` says "proxy-env" and the engine driver may refuse to start where a wall is required. Windows has no native sandbox: its CLI engines run in WSL2 with this same profile.
+import os from "node:os";
 import { proxyEnv } from "./docker.ts";
+import { identityBinds } from "./identity.ts";
+import type { Who } from "./identity.ts";
 import { validateSpec } from "./policy.ts";
 import type { PolicyOptions } from "./policy.ts";
 import { SandboxError } from "./types.ts";
 import type { Roots, SandboxSpec } from "./types.ts";
 
-// /etc/passwd and /etc/group give the user inside a name (whoami, id, git, ssh): the user that runs the sandbox is mapped in as itself, and with no entry it is only a number (13 Nov 2026).
-const SYSTEM_RO: readonly string[] = ["/usr", "/etc/ssl", "/etc/ca-certificates", "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/localtime", "/etc/passwd", "/etc/group"];
+const SYSTEM_RO: readonly string[] = ["/usr", "/etc/ssl", "/etc/ca-certificates", "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/localtime"];
 const HOME = "/home/agent";
 
 export interface BwrapOptions {
@@ -16,6 +18,8 @@ export interface BwrapOptions {
   proxyPort?: number;
   /** Extra read-only folders for the program being run. */
   programRead?: readonly string[];
+  /** The user the sandbox runs as (its uid and gid get the name `agent`). Default: the process's own. */
+  identity?: Who;
 }
 
 export interface WrappedCommand {
@@ -31,6 +35,7 @@ export function bwrapCommand(spec: SandboxSpec, roots: Roots, argv: readonly str
   const a: string[] = ["--die-with-parent", "--new-session", "--unshare-all", "--cap-drop", "ALL"];
   if (o.proxyPort !== undefined) a.push("--share-net");
   for (const p of [...SYSTEM_RO, ...(o.programRead ?? [])]) a.push("--ro-bind-try", p, p);
+  a.push(...identityBinds(checked.scratch ?? os.tmpdir(), o.identity));
   a.push("--symlink", "usr/bin", "/bin", "--symlink", "usr/sbin", "/sbin", "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib64", "/lib64");
   a.push("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", HOME);
   for (const m of checked.mounts) a.push(m.mode === "rw" ? "--bind" : "--ro-bind", m.host, m.host);
