@@ -10,13 +10,11 @@ const NOISE = /ResizeObserver|Failed to load resource|favicon|net::ERR/i;
 const CRASH = /Minified React error|React error|Invalid hook call|Rendered (more|fewer) hooks|is not defined|Cannot read properties|is not a function|Uncaught|ReferenceError|TypeError/i;
 
 /**
- * Pages whose purpose is to show an id. A walk that visits one says so by name when it checks (`guard.check(where, { idsOnPurpose: "space-id" })`), and the reason is here, so the list can be read in one place
+ * Pages whose purpose is to show an id. None today: the owner's rule is that an id is never shown. An entry needs the owner's word. A walk that visits one says so by name when it checks (`guard.check(where, { idsOnPurpose: "space-id" })`), and the reason is here, so the list can be read in one place
  * and a test (crash-guard.test.ts) fails when it grows without the lead reading it. Do not add a name to skip a page that shows an id by mistake: fix the page.
  */
-export const IDS_ON_PURPOSE = {
-  "space-id": "Console > Space > General shows the Space ID in full beside Copy, so an admin can read it out and quote it to support.",
-} as const;
-export type IdsOnPurpose = keyof typeof IDS_ON_PURPOSE;
+export const IDS_ON_PURPOSE: Readonly<Record<string, string>> = {};
+export type IdsOnPurpose = string;
 
 /** What the scan does not read: text a person wrote or named (code, pre-formatted text, fields, editable text, anything marked data-user-content). The app's own text is everything else. */
 export const USER_CONTENT = "pre, code, kbd, samp, textarea, input, [contenteditable], [data-user-content]";
