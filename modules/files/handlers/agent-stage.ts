@@ -8,7 +8,7 @@
 // undeclared event. The changeset is announced when the manifest allows it and stays quiet when it does not (CONTRACT-CHANGE request to the lead: add changeset.opened and
 // changeset.updated to the emits of those four capabilities, and changesetId to their outputs). The reviewer still finds the changeset in changesets.list either way.
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import { MAX_INLINE, treeHandlers } from "./tree.ts";
+import { MAX_INLINE, TOO_LARGE_WORDS, treeHandlers } from "./tree.ts";
 import {
   changesetFor,
   currentBytes,
@@ -408,8 +408,7 @@ async function stageSave(ctx: Ctx, input: unknown, direct: StageHandler): Promis
       { name: String(at.file.name) },
     );
   const bytes = enc.encode(text);
-  if (bytes.byteLength > MAX_INLINE)
-    fail(ctx, "validation.too_large", "This file is over the size limit for a direct write.");
+  if (bytes.byteLength > MAX_INLINE) fail(ctx, "validation.too_large", TOO_LARGE_WORDS);
   const path = relPath(at.root, at.folder, String(at.file.name));
   const problems = lint.problems ?? [];
   const first = (sev: string): string | undefined => {

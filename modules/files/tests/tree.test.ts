@@ -769,3 +769,20 @@ test("an upload slot takes its bytes once: a used slot, a wrong token, a wrong s
     "an expired slot",
   );
 });
+
+test("a file over the direct-write limit is refused in words that give the limit and what to do (13 Nov 2026: an agent's files.create was too large and it was not told how large)", async () => {
+  const { ctx } = open();
+  const roots = await handlers["files.tree"](ctx, {});
+  const folderId = idOf(roots.roots.find((root) => root.key === "personal")?.folderId, "personal");
+  const err = await handlers["files.create"](ctx, {
+    folderId,
+    name: "big.txt",
+    content: { text: "a".repeat(300 * 1024) },
+  }).then(
+    () => null,
+    (e: { error?: { code?: string; message?: string } }) => e,
+  );
+  assert.equal(err?.error?.code, "validation.too_large");
+  assert.match(err?.error?.message ?? "", /256 KB/);
+  assert.match(err?.error?.message ?? "", /smaller|split|parts/i);
+});

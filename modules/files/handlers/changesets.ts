@@ -14,7 +14,7 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 import { boundedScope } from "../../../kernel/src/seal/scope.ts";
-import { MAX_INLINE, treeHandlers } from "./tree.ts";
+import { MAX_INLINE, TOO_LARGE_WORDS, treeHandlers } from "./tree.ts";
 import { addMarks, hunksOf, lcsPairs, lineOps, splitLines, splitParagraphs, versionHandlers } from "./versions.ts";
 import type { Hunk } from "./versions.ts";
 
@@ -390,8 +390,7 @@ async function stagedWrite(ctx: Ctx, input: unknown): Promise<WriteResult> {
   const prov = !file ? stagedByProvisional(ctx, fileId) : undefined;
   if (prov) {
     const bytes = contentBytes(ctx, o["content"]);
-    if (bytes.byteLength > MAX_INLINE)
-      fail(ctx, "validation.too_large", "This file is over the size limit for a direct write.");
+    if (bytes.byteLength > MAX_INLINE) fail(ctx, "validation.too_large", TOO_LARGE_WORDS);
     const counts = lineCounts(undefined, bytes);
     ctx.db.run(
       "UPDATE files_changeset_file SET content = ?, size = ?, added_lines = ?, removed_lines = ?, updated_at = ? WHERE changeset_id = ? AND path = ?",
@@ -417,8 +416,7 @@ async function stagedWrite(ctx: Ctx, input: unknown): Promise<WriteResult> {
   if (!folder || !root) return versionHandlers["files.write"](ctx, input);
 
   const bytes = contentBytes(ctx, o["content"]);
-  if (bytes.byteLength > MAX_INLINE)
-    fail(ctx, "validation.too_large", "This file is over the size limit for a direct write.");
+  if (bytes.byteLength > MAX_INLINE) fail(ctx, "validation.too_large", TOO_LARGE_WORDS);
   const path = relPath(root, folder, String(file.name));
   const { cs, fresh } = changesetFor(ctx, root);
   const existing = one(
@@ -517,8 +515,7 @@ async function stagedCreate(ctx: Ctx, input: unknown): Promise<CreateResult> {
   const mime = optStr(ctx, o, "mime") ?? "application/octet-stream";
   const bytes =
     o["content"] === undefined || o["content"] === null ? new Uint8Array() : contentBytes(ctx, o["content"]);
-  if (bytes.byteLength > MAX_INLINE)
-    fail(ctx, "validation.too_large", "This file is over the size limit for a direct write.");
+  if (bytes.byteLength > MAX_INLINE) fail(ctx, "validation.too_large", TOO_LARGE_WORDS);
   if (many(ctx, "SELECT * FROM files_file WHERE folder_id = ? AND name = ?", folderId, name).some(live))
     fail(ctx, "validation.duplicate", "That name is already in this folder.");
 

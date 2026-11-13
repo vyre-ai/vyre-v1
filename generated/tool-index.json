@@ -3111,7 +3111,7 @@
     {
       "deferred": false,
       "name": "files_create",
-      "summary": "Create a file in a folder from text, base64 or an uploaded blob",
+      "summary": "Create a file in a folder from text, base64 or an uploaded blob. A direct write holds at most 256 KB: split larger content into several files",
       "toolset": "files"
     },
     {
@@ -3351,7 +3351,7 @@
     {
       "deferred": false,
       "name": "files_write",
-      "summary": "Replace the content of a file. In a Review changes folder an agent write lands in a changeset and syncs only on Approve",
+      "summary": "Replace the content of a file, at most 256 KB at once. In a Review changes folder an agent write lands in a changeset and syncs only on Approve",
       "toolset": "files"
     },
     {

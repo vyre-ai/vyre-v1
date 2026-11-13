@@ -1,6 +1,6 @@
 # files.write
 
-Replace the content of a file. In a Review changes folder an agent write lands in a changeset and syncs only on Approve
+Replace the content of a file, at most 256 KB at once. In a Review changes folder an agent write lands in a changeset and syncs only on Approve
 
 | | |
 |---|---|

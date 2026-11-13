@@ -17,6 +17,8 @@ import { rawDbOf } from "../../../host/src/ctx/db.ts";
 export const TRASH_MS = 30 * 24 * 60 * 60 * 1000;
 export const MAX_INLINE = 256 * 1024;
 export const MAX_UPLOAD = 25 * 1024 * 1024;
+/** What a refused direct write says: the limit, and what to do (an agent that was only told "over the size limit" did not know how large was too large or what to try). */
+export const TOO_LARGE_WORDS = `This file is over the ${MAX_INLINE / 1024} KB limit for a direct write. Split the content into smaller files, each under ${MAX_INLINE / 1024} KB.`;
 const UPLOAD_MS = 15 * 60 * 1000;
 const PAGE_DEFAULT = 100;
 /** A deep list reads at most this many files, newest first, before access and paging. */
@@ -892,8 +894,7 @@ async function blobForPlain(
   plain: Uint8Array,
   mime: string,
 ): Promise<{ id: string; hash: string; size: number }> {
-  if (plain.byteLength > MAX_INLINE)
-    fail(ctx, "validation.too_large", "This file is over the size limit for a direct write.");
+  if (plain.byteLength > MAX_INLINE) fail(ctx, "validation.too_large", TOO_LARGE_WORDS);
   const hash = await sha256(plain);
   const existing = one(ctx, "SELECT * FROM files_blob WHERE hash = ?", hash);
   if (existing) return { id: String(existing.id), hash, size: num(existing.size) };

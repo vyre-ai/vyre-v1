@@ -20818,7 +20818,7 @@
       "blocks": [],
       "cap": "files.create",
       "deferred": false,
-      "description": "Create a file in a folder from text, base64 or an uploaded blob",
+      "description": "Create a file in a folder from text, base64 or an uploaded blob. A direct write holds at most 256 KB: split larger content into several files",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -22362,7 +22362,7 @@
       "blocks": [],
       "cap": "files.write",
       "deferred": false,
-      "description": "Replace the content of a file. In a Review changes folder an agent write lands in a changeset and syncs only on Approve",
+      "description": "Replace the content of a file, at most 256 KB at once. In a Review changes folder an agent write lands in a changeset and syncs only on Approve",
       "effects": "write",
       "inputSchema": {
         "properties": {
