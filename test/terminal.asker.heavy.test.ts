@@ -101,6 +101,24 @@ test(
     const asst = await w.turn(w.owner, "maya-2", [{ cmd: 'echo "$HOME"' }], w.assistant);
     assert.equal(asst[0]!.text, "/home/agent", "an Assistant's shell");
 
+    // git over ssh uses the person's own key files only: ssh reads the agent's home (the owner's keys) unless it is told otherwise, whatever $HOME says
+    const idents = await w.turn(w.ben, "ben-ssh", [
+      { cmd: 'D="$HOME/.s""sh"; mkdir -p "$D"; echo "$GIT_SSH_COMMAND" | head -c 20; echo' },
+      { cmd: 'eval "$GIT_SSH_COMMAND -G example.test" | grep -i "^identityfile" | tr "\\n" " "; echo' },
+      {
+        cmd: 'X="$(printf s; printf sh)"; $X -G example.test | grep -i "^identityfile" | head -2 | tr "\\n" " "; echo',
+      },
+    ]);
+    console.log("SSH ", JSON.stringify(idents));
+    assert.ok(
+      !idents[1]!.text.includes("/home/agent/.ssh/"),
+      `Ben's git over ssh names the owner's key folder: ${idents[1]!.text}`,
+    );
+    assert.ok(
+      idents[1]!.text.includes(`${mine}/.ssh/id_ed25519`),
+      `his own key file is the one named: ${idents[1]!.text}`,
+    );
+
     // after the workspace slept: Ben's session is made again in his own place, on his own tmux server
     const mgr = boundWorkspaces();
     assert.ok(mgr);
