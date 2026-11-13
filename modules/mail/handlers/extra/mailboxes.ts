@@ -143,8 +143,13 @@ export async function mailboxCreate(ctx: MailCtx, input: MailboxCreateIn): Promi
   const id = newId("mbx", ctx.now());
   const now = ctx.now();
   const title = input.title.trim() || address.split("@")[0] || address;
-  // The person who creates a shared inbox owns it; an agent that creates one leaves it to the Space.
-  const ownerId = ctx.principal.kind === "person" ? ctx.principal.id : null;
+  // The person who creates a shared inbox owns it, and so does the person an agent made it for; an agent acting for nobody leaves it to the Space.
+  const ownerId =
+    ctx.principal.kind === "person"
+      ? ctx.principal.id
+      : ctx.principal.kind === "agent" && typeof ctx.actingFor === "string" && ctx.actingFor.startsWith("usr_")
+        ? ctx.actingFor
+        : null;
   // An inbound-only mailbox has nothing to pull, so it is live from the start; Google and Microsoft ones wait for their first sync.
   const state = provider === "inbound_only" ? "syncing" : "pending";
   ctx.db.run(

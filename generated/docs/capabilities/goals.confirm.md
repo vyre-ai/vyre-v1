@@ -1,6 +1,6 @@
 # goals.confirm
 
-Start a drafted goal: the owner presses Start on its card, or an agent acting for the owner starts it with messageId, the message in which the owner asked for it, in the goal chat and under 15 minutes old. An agent start grants no permission. The standing permissions it names hold from this press
+Start a drafted goal: the owner presses Start, or an agent acting for the owner starts it in a turn the owner began with their own message (the server checks; messageId is no longer read). An agent start grants no permission. The standing permissions it names hold from this press
 
 | | |
 |---|---|
