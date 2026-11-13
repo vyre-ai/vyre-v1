@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppLogo } from "../../../../../../ui/src/AppLogo/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Dialog } from "../../../../../../ui/src/Dialog/index.tsx";
+import { glyphOf, tintOf } from "./glyphs.ts";
 import { addAppChoices, connectSheet } from "./model.ts";
 import type { AddChoice, PickApp } from "./model.ts";
 
@@ -63,10 +64,21 @@ export function ConnectSheet(p: ConnectSheetProps): ReactElement {
                     id={`cs-${r.id}`}
                     title={r.name}
                     {...(r.item ? { note: r.item } : {})}
+                    domProps={{ style: { minHeight: 48 } }}
                     leading={
-                      r.id === "another" ? undefined : (
-                        <AppLogo app={r.id} name={r.name} size={28} iconUrl={p.iconOf?.(r.id)} />
-                      )
+                      <View style={{ marginRight: 10 }}>
+                        {r.id === "another" ? (
+                          <AppLogo
+                            app="vyre:plug"
+                            name="Another app"
+                            size={28}
+                            glyph={glyphOf({ app: "vyre:plug", name: "" })}
+                            tint={tintOf({ app: "vyre:plug", name: "" })}
+                          />
+                        ) : (
+                          <AppLogo app={r.id} name={r.name} size={28} iconUrl={p.iconOf?.(r.id)} />
+                        )}
+                      </View>
                     }
                     trailing={
                       r.action.kind === "ready" ? (
@@ -96,7 +108,7 @@ export function ConnectSheet(p: ConnectSheetProps): ReactElement {
             placeholderTextColor="var(--ink-3)"
             accessibilityLabel="Which app?"
             testID="cs-add-search"
-            style={styles.search}
+            style={[styles.search, { outlineStyle: "none" } as object]}
           />
           {choices.map((c) => (
             <Row
@@ -127,15 +139,8 @@ const styles = StyleSheet.create({
   text: { flex: 1, minWidth: 0 },
   title: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
   quiet: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
-  btn: {
-    paddingHorizontal: 12,
-    height: 28,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "var(--hover)" as string,
-  },
-  btnText: { fontSize: 12.5, color: "var(--ink)" as string },
+  btn: { paddingHorizontal: 8, height: 28, alignItems: "center", justifyContent: "center" },
+  btnText: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
   search: {
     height: 36,
     paddingHorizontal: 12,

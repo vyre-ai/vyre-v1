@@ -104,7 +104,9 @@ export function CredentialCard(p: {
             <CardAction id="cc-stuck" label="I am stuck" onPress={() => send({ type: "stuck" })} />
           </>
         )}
-        <CardAction id="cc-close" label="Close" onPress={() => send({ type: "close" })} />
+        {p.credential.frame !== "chat" ? (
+          <CardAction id="cc-close" label="Close" onPress={() => send({ type: "close" })} />
+        ) : null}
       </View>
       {v.confirmClose ? (
         <View style={s.stuck}>
@@ -162,7 +164,7 @@ export function UnderstoodCard(p: {
       {/* ui-rows-lint: not a list (the lines of one card) */}
       {p.card.items.map((i) => (
         <View key={i.n} style={s.line}>
-          {i.app ? <AppLogo app={i.app.id} name={i.app.name} size={20} /> : null}
+          <AppLogo app={i.app?.id ?? "vyre"} name={i.app?.name ?? "Vyre"} size={20} />
           <Text style={s.body}>{i.text}</Text>
         </View>
       ))}
@@ -343,7 +345,19 @@ export function ResumeNeed(p: {
 }
 
 const s = StyleSheet.create({
-  trail: { gap: 4 },
+  trail: { gap: 6 },
+  trailLine: { fontSize: 14, lineHeight: 20, color: "var(--ink-2)" as string },
+  tick: { color: "var(--ok)" as string, fontWeight: "600" },
+  miniForm: {
+    width: "100%",
+    height: 70,
+    borderRadius: 8,
+    backgroundColor: "var(--raised)" as string,
+    padding: 8,
+    gap: 5,
+    justifyContent: "center",
+  },
+  miniBar: { height: 6, borderRadius: 3, backgroundColor: "var(--line)" as string },
   formChoice: { width: 150, gap: 4, padding: 8, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
   picture: { width: "100%", height: 70, borderRadius: 8 },
   card: {
@@ -355,10 +369,10 @@ const s = StyleSheet.create({
     borderColor: "var(--line)" as string,
   },
   head: { flexDirection: "row", alignItems: "center", gap: 8 },
-  title: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
-  body: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string, flexShrink: 1 },
-  quiet: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
-  warn: { fontSize: 12.5, color: "var(--warn)" as string },
+  title: { fontSize: 14.5, fontWeight: "600", color: "var(--ink)" as string },
+  body: { fontSize: 14, lineHeight: 20, color: "var(--ink)" as string, flexShrink: 1 },
+  quiet: { fontSize: 13, lineHeight: 18, color: "var(--ink-3)" as string },
+  warn: { fontSize: 13.5, color: "var(--warn)" as string },
   line: { flexDirection: "row", alignItems: "center", gap: 8 },
   step: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-2)" as string },
   mono: { fontSize: 12, color: "var(--ink-2)" as string, fontFamily: "var(--mono)" as string },
@@ -378,9 +392,8 @@ const s = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "var(--hover)" as string,
   },
-  btnText: { fontSize: 12.5, color: "var(--ink)" as string },
-  primary: { backgroundColor: "var(--accent)" as string },
+  btnText: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
+  primary: { backgroundColor: "var(--accent)" as string, paddingHorizontal: 14 },
   primaryText: { color: "var(--accent-ink)" as string },
 });

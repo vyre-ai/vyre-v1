@@ -233,3 +233,8 @@ test("a loop and parallel lanes read as one indented group under a one-line head
     ["When", "1", "2", "For each row in Leads:-", "3-", "4-", "5", "At the same time:-", "6-", "7-", "8"],
   );
 });
+
+test("while the Assistant's draft is proposed the head still offers Test and Turn on, as drawn", () => {
+  const m = story({ ...base, proposed: true, trigger: base.trigger, steps: [step({ id: "a" })] });
+  assert.deepEqual([m.head.test, m.head.primary?.label], [true, "Turn on"]);
+});

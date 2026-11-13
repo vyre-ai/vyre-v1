@@ -221,7 +221,7 @@ export function story(i: StoryIn): Story {
   const state = i.on ? (i.dirty ? "On, your changes are a draft" : "On") : hasContent ? "Off, saved as a draft" : "Off";
   let primary: Head["primary"] = null;
   let secondary: Head["secondary"] = null;
-  if (hasContent && !i.proposed) {
+  if (hasContent) {
     if (!i.on) {
       primary = { label: "Turn on" };
       if (needsYou > 0)
@@ -254,7 +254,7 @@ export function story(i: StoryIn): Story {
       text: `Test with ${i.test.caseName}. The test sent nothing.`,
       actions: ["Run again", "Done"],
     });
-  return { head: { name: i.name, state, primary, secondary, test: hasContent && !i.proposed }, bars, rows, needsYou };
+  return { head: { name: i.name, state, primary, secondary, test: hasContent }, bars, rows, needsYou };
 }
 
 export interface TestRow {

@@ -18,6 +18,8 @@ export interface AppLogoProps {
   iconUrl?: string | undefined;
   /** A Vyre group's glyph: stroke paths on a 16 px grid. */
   glyph?: readonly string[] | undefined;
+  /** The fill of a Vyre group's glyph tile (the glyph is drawn white on it). */
+  tint?: string | undefined;
   testID?: string;
 }
 
@@ -65,6 +67,7 @@ export const AppLogo = memo(function AppLogo({
   size = 28,
   iconUrl,
   glyph,
+  tint,
   testID,
 }: AppLogoProps): ReactElement {
   const [broken, setBroken] = useState(false);
@@ -78,7 +81,7 @@ export const AppLogo = memo(function AppLogo({
         testID={id}
         accessible={false}
         accessibilityLabel={name}
-        style={[tile(size) as object, { backgroundColor: "var(--hover)" as string }]}
+        style={[tile(size) as object, { backgroundColor: (tint ?? "var(--hover)") as string }]}
       >
         {web
           ? createElement("svg", {
@@ -87,8 +90,8 @@ export const AppLogo = memo(function AppLogo({
               height: s,
               "aria-hidden": true,
               fill: "none",
-              stroke: "var(--ink-2)",
-              strokeWidth: 1.3,
+              stroke: tint ? "#fff" : "var(--ink-2)",
+              strokeWidth: tint ? 1.5 : 1.3,
               strokeLinecap: "round",
               strokeLinejoin: "round",
               dangerouslySetInnerHTML: { __html: (glyph ?? []).map((d) => `<path d="${d}"/>`).join("") },

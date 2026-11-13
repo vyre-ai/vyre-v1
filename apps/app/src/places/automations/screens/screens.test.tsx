@@ -160,3 +160,48 @@ test("head: the state in words, Test, and the one primary; a disabled Turn on sa
   );
   assert.ok(textOf(root).includes("1 step needs you"));
 });
+
+test("the run page: numbered rows, the failed step in words with its one fix, Not sent, and Values to open per step", async () => {
+  const { runView } = await import("../run/model.ts");
+  const { RunView } = await import("./RunView.tsx");
+  const calls: string[] = [];
+  const steps = [step("a"), step("b", { writes: true })];
+  const v = runView(steps, {
+    a: { status: "ok", line: "Task for Lena", values: [["Title", "Follow up"]] },
+    b: { status: "failed", why: "The Twilio key is missing.", fix: "Add the key" },
+  });
+  const root = await mount(createRoot, <RunView view={v} onFix={() => calls.push("fix")} />);
+  const t = textOf(root);
+  for (const w of [
+    "Stopped at step 2, Create a task",
+    "The Twilio key is missing. Add it and run again.",
+    "Add the key",
+    "Task for Lena",
+    "Values",
+  ])
+    assert.ok(t.includes(w), w);
+  assert.ok(!t.includes("Follow up"), "values are closed until opened");
+  await press(find(root, "rv-values-a"));
+  assert.ok(textOf(root).includes("Follow up"));
+  await press(find(root, "rv-fix"));
+  assert.deepEqual(calls, ["fix"]);
+});
+
+test("the left list: a dot, the name, a quiet scope word, search, the count on the head", async () => {
+  const { listView } = await import("../list/model.ts");
+  const { ListView } = await import("./ListView.tsx");
+  const calls: string[] = [];
+  const rows = [
+    { id: "1", name: "Daily brief", state: "needs" as const, scope: "Space" as const },
+    { id: "2", name: "Weekly report", state: "on" as const, scope: null },
+  ];
+  const root = await mount(
+    createRoot,
+    <ListView rows={rows} onOpen={(id) => calls.push(id)} onHome={() => calls.push("home")} />,
+  );
+  const t = textOf(root);
+  assert.ok(t.includes("Automations") && t.includes("Daily brief") && t.includes("Space") && t.includes("1"));
+  await press(find(root, "row-al-2"));
+  await press(find(root, "al-home"));
+  assert.deepEqual(calls, ["2", "home"]);
+});

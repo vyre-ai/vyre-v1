@@ -1,0 +1,74 @@
+{
+  "targets": [
+    {
+      "id": "AUTO13_01-home",
+      "route": "/m/AUTO13_01?part=home",
+      "proto": "automations,{skin}",
+      "waitFor": "body",
+      "note": "First page"
+    },
+    {
+      "id": "AUTO13_01-builder",
+      "route": "/m/AUTO13_01?part=builder",
+      "proto": "automations,{skin}",
+      "waitFor": "body",
+      "note": "Builder, Assistant draft"
+    },
+    {
+      "id": "AUTO13_01-builder-live",
+      "route": "/m/AUTO13_01?part=builder-live",
+      "proto": "automations,{skin}",
+      "waitFor": "body",
+      "note": "Builder, live with draft changes"
+    },
+    {
+      "id": "AUTO13_01-picker",
+      "route": "/m/AUTO13_01?part=picker",
+      "proto": "automations,{skin}",
+      "waitFor": "body",
+      "note": "Step picker"
+    },
+    {
+      "id": "AUTO13_01-picker-app",
+      "route": "/m/AUTO13_01?part=picker-app",
+      "proto": "automations,{skin}",
+      "waitFor": "body",
+      "note": "Step picker, an app's actions"
+    },
+    {
+      "id": "AUTO13_01-picker-search",
+      "route": "/m/AUTO13_01?part=picker-search",
+      "proto": "automations,{skin}",
+      "waitFor": "body",
+      "note": "Step picker, search"
+    },
+    {
+      "id": "AUTO13_01-connect",
+      "route": "/m/AUTO13_01?part=connect",
+      "proto": "automations,{skin}",
+      "waitFor": "body",
+      "note": "Connect an app"
+    },
+    {
+      "id": "AUTO13_01-cards",
+      "route": "/m/AUTO13_01?part=cards",
+      "proto": "automations,{skin}",
+      "waitFor": "body",
+      "note": "The cards"
+    },
+    {
+      "id": "AUTO13_01-run",
+      "route": "/m/AUTO13_01?part=run",
+      "proto": "automations,{skin}",
+      "waitFor": "body",
+      "note": "A failed run"
+    },
+    {
+      "id": "AUTO13_01-list",
+      "route": "/m/AUTO13_01?part=list",
+      "proto": "automations,{skin}",
+      "waitFor": "body",
+      "note": "The left list"
+    }
+  ]
+}

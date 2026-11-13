@@ -8,7 +8,7 @@ import { AppLogo } from "../../../../../../ui/src/AppLogo/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
 import { RADIUS } from "../../../../../../ui/src/tokens/radius.ts";
-import { glyphOf } from "./glyphs.ts";
+import { glyphOf, tintOf } from "./glyphs.ts";
 import { pickerRows, submenuOf } from "./model.ts";
 import type { Mark, PickIn, PickRow } from "./model.ts";
 import { INITIAL, mainRows, step } from "./nav.ts";
@@ -24,12 +24,14 @@ export interface StepPickerProps {
   onClose(): void;
   /** The app's own icon as the server serves it, by app id. */
   iconOf?(appId: string): string | undefined;
+  /** Where the picker starts (the shots open it on an app or a search). */
+  initial?: Partial<Nav>;
 }
 
 const web = Platform.OS === "web";
 const FIXED = (web ? "fixed" : "absolute") as ViewStyle["position"];
-const MAIN_W = 320;
-const SUB_W = 300;
+const MAIN_W = 380;
+const SUB_W = 320;
 
 function Logo({
   mark,
@@ -40,13 +42,24 @@ function Logo({
   size: 20 | 24 | 28 | 32;
   iconOf?: StepPickerProps["iconOf"];
 }): ReactElement {
-  return <AppLogo app={mark.app} name={mark.name} size={size} iconUrl={iconOf?.(mark.app)} glyph={glyphOf(mark)} />;
+  return (
+    <View style={{ marginRight: 10 }}>
+      <AppLogo
+        app={mark.app}
+        name={mark.name}
+        size={size}
+        iconUrl={iconOf?.(mark.app)}
+        glyph={glyphOf(mark)}
+        tint={tintOf(mark)}
+      />
+    </View>
+  );
 }
 
 export function StepPicker(p: StepPickerProps): ReactElement {
   const win = useWindowDimensions();
   const phone = win.width < 560;
-  const [nav, setNav] = useState<Nav>(INITIAL);
+  const [nav, setNav] = useState<Nav>({ ...INITIAL, ...p.initial });
   const navRef = useRef(nav);
   navRef.current = nav;
   const send = (input: Input): void => {
@@ -67,7 +80,7 @@ export function StepPicker(p: StepPickerProps): ReactElement {
   }, [p.model, nav]);
 
   const left = Math.max(8, Math.min(p.x, win.width - MAIN_W - 8));
-  const top = Math.max(8, Math.min(p.y, win.height - 360));
+  const top = Math.max(8, Math.min(p.y, win.height - 580));
   const subLeft = left + MAIN_W + 6 + SUB_W > win.width - 8 ? Math.max(8, left - SUB_W - 6) : left + MAIN_W + 6;
 
   const onKeyDown = (e: {
@@ -104,45 +117,60 @@ export function StepPicker(p: StepPickerProps): ReactElement {
             testID="pk-main"
             style={[styles.panel, { left: phone ? 8 : left, top, width: phone ? win.width - 16 : MAIN_W }]}
           >
-            <TextInput
-              autoFocus
-              value={nav.query}
-              onChangeText={(t) => send({ type: t })}
-              placeholder="Search steps and apps"
-              placeholderTextColor="var(--ink-3)"
-              accessibilityLabel="Search"
-              testID="pk-search"
-              style={styles.search}
-            />
+            <View style={styles.searchRow}>
+              <Text style={styles.searchGlyph}>{"\u2315"}</Text>
+              <TextInput
+                autoFocus
+                value={nav.query}
+                onChangeText={(t) => send({ type: t })}
+                placeholder="Search steps and apps"
+                placeholderTextColor="var(--ink-3)"
+                accessibilityLabel="Search"
+                testID="pk-search"
+                style={styles.search}
+              />
+            </View>
             <View style={styles.list}>
               {/* ui-rows-lint: not a list (section headings and ui/Row items; PickRowView draws each item as a Row) */}
-              {rows.map((r, i) => (
-                <PickRowView
-                  key={r.kind === "heading" ? `h${i}` : `${r.kind}:${"id" in r ? r.id : "connect"}`}
-                  row={r}
-                  lit={
-                    litId !== null &&
-                    (r.kind === "connect" ? litId === "connect" : r.kind !== "heading" && litId === r.id)
-                  }
-                  send={send}
-                  p={p}
-                  onOpen={(id) =>
-                    setNav((n) => ({
-                      ...n,
-                      index: Math.max(
-                        0,
-                        mainRows(p.model, n).findIndex((x) => "id" in x && x.id === id),
-                      ),
-                      open: id,
-                      col: "sub",
-                      subIndex: 0,
-                    }))
-                  }
-                />
-              ))}
+              {rows
+                .filter((r) => r.kind !== "connect")
+                .map((r, i) => (
+                  <PickRowView
+                    key={r.kind === "heading" ? `h${i}` : `${r.kind}:${"id" in r ? r.id : "connect"}`}
+                    row={r}
+                    lit={
+                      litId !== null &&
+                      (r.kind === "connect" ? litId === "connect" : r.kind !== "heading" && litId === r.id)
+                    }
+                    send={send}
+                    p={p}
+                    onOpen={(id) =>
+                      setNav((n) => ({
+                        ...n,
+                        index: Math.max(
+                          0,
+                          mainRows(p.model, n).findIndex((x) => "id" in x && x.id === id),
+                        ),
+                        open: id,
+                        col: "sub",
+                        subIndex: 0,
+                      }))
+                    }
+                  />
+                ))}
               {mainRows(p.model, nav).every((r) => r.kind === "connect") && nav.query !== "" ? (
                 <Text style={styles.none}>{`Nothing called “${nav.query}” in your apps.`}</Text>
               ) : null}
+            </View>
+            <View style={styles.pinned}>
+              <Row
+                id="pk-connect"
+                title="Connect an app"
+                selected={litId === "connect"}
+                leading={<Logo mark={{ app: "vyre:plug", name: "Connect an app" }} size={28} iconOf={p.iconOf} />}
+                domProps={{ style: { minHeight: 40 } }}
+                onPress={p.onConnect}
+              />
             </View>
           </View>
         ) : null}
@@ -168,12 +196,14 @@ export function StepPicker(p: StepPickerProps): ReactElement {
               <Text style={styles.subTitle} numberOfLines={1}>
                 {sub.title}
               </Text>
+              <Text style={styles.meta}>{`${sub.items.length} ${sub.items.length === 1 ? "step" : "steps"}`}</Text>
             </View>
             {sub.items.map((item, i) => (
               <Row
                 key={item.id}
                 id={`pk-sub-${item.id}`}
                 title={item.title}
+                {...(item.desc ? { note: item.desc } : {})}
                 selected={nav.col === "sub" && nav.subIndex === i}
                 onPress={() => p.onChoose(item.id)}
                 domProps={{ onMouseEnter: () => setNav((n) => ({ ...n, col: "sub", subIndex: i })) }}
@@ -206,7 +236,7 @@ function PickRowView({
         {row.note ? <Text style={styles.headNote}>{row.note}</Text> : null}
       </View>
     );
-  if (row.kind === "connect") return <Row id="pk-connect" title={row.title} selected={lit} onPress={p.onConnect} />;
+  if (row.kind === "connect") return <></>;
   const opens = row.kind === "group" || row.kind === "app";
   const trailing = opens ? (
     <Text style={styles.meta}>{`${row.count}  \u203a`}</Text>
@@ -223,7 +253,7 @@ function PickRowView({
       selected={lit}
       leading={<Logo mark={row.mark} size={28} iconOf={p.iconOf} />}
       {...(trailing !== undefined ? { trailing } : {})}
-      {...(opens ? { domProps: { onMouseEnter: () => send({ hover: row.id }) } } : {})}
+      domProps={{ style: { minHeight: 40 }, ...(opens ? { onMouseEnter: () => send({ hover: row.id }) } : {}) }}
       onPress={() => (opens ? onOpen(row.id) : p.onChoose(row.id))}
     />
   );
@@ -234,7 +264,7 @@ const styles = StyleSheet.create({
   backdrop: { position: FIXED, left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "transparent" },
   panel: {
     position: FIXED,
-    maxHeight: 420,
+    maxHeight: 560,
     padding: 5,
     borderRadius: RADIUS,
     backgroundColor: "var(--raised)" as string,
@@ -242,17 +272,24 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...({ outlineStyle: "none" } as unknown as ViewStyle),
   },
-  search: {
-    height: 34,
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 10,
-    fontSize: 13,
-    color: "var(--ink)" as string,
     borderBottomWidth: 1,
     borderBottomColor: "var(--line)" as string,
     marginBottom: 4,
+  },
+  searchGlyph: { fontSize: 16, color: "var(--ink-3)" as string, marginRight: 8 },
+  search: {
+    flex: 1,
+    height: 40,
+    fontSize: 14,
+    color: "var(--ink)" as string,
     ...({ outlineStyle: "none" } as unknown as ViewStyle),
   },
-  list: { overflow: "scroll" as ViewStyle["overflow"], maxHeight: 370 },
+  pinned: { borderTopWidth: 1, borderTopColor: "var(--line)" as string, marginTop: 4, paddingTop: 4 },
+  list: { overflow: "scroll" as ViewStyle["overflow"], maxHeight: 440 },
   heading: {
     flexDirection: "row",
     justifyContent: "space-between",
