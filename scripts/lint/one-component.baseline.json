@@ -137,7 +137,7 @@
     "read-hook": 1
   },
   "apps/app/src/places/chats/rightpane/parts.tsx": {
-    "declared": 2
+    "declared": 1
   },
   "apps/app/src/places/chats/rightpane/PersonProfile.tsx": {
     "read-hook": 1
