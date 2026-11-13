@@ -136,7 +136,11 @@ test("raise-after-write: only the nothing-changed idiom with a lone refusal is e
   assert.equal(run(fn(`${upd}.changes === 1`, raise)).length, 1, "=== 1");
   assert.equal(run(fn(`${upd}.changes > 0`, raise)).length, 1, "> 0");
   assert.equal(run(fn(`${upd}.changes`, raise)).length, 1, "truthy");
-  assert.equal(run(fn(`ctx.db.run("INSERT INTO t VALUES (1)")`, `{\n    cleanup();\n    ${raise}\n  }`)).length, 1, "insert, other work, raise");
+  assert.equal(
+    run(fn(`ctx.db.run("INSERT INTO t VALUES (1)")`, `{\n    cleanup();\n    ${raise}\n  }`)).length,
+    1,
+    "insert, other work, raise",
+  );
   // a second write in the guarded block, then the refusal
   const second = fn(`${upd}.changes !== 1`, `{\n    ctx.db.run("DELETE FROM t");\n    ${raise}\n  }`);
   assert.equal(run(second).length, 1, "second write then raise");

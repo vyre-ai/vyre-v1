@@ -70,7 +70,10 @@ test("it is in the stable rules section of a turn's context", async () => {
     else if (c === ")" && --depth === 0) end = i;
   }
   assert.ok(end > start, "the rules call closes");
-  const call = src.slice(start + 1, end).trimEnd().replace(/,$/, "");
+  const call = src
+    .slice(start + 1, end)
+    .trimEnd()
+    .replace(/,$/, "");
   assert.match(call, /(?:^|[\s+])CAPABILITY_MAP$/, "CAPABILITY_MAP is the last part of the rules text");
 });
 
