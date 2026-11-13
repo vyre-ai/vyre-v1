@@ -26,14 +26,16 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 const stripComments = (s: string): string => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
-/** JSX text between tags ("<Text>The turn ended</Text>") is a string a person reads too. */
-const JSX_TEXT = />([^<>{}\n]*[A-Za-z][^<>{}\n]*)</g;
+/** JSX text between tags ("<Text>The turn ended</Text>") is a string a person reads too, on one line or wrapped over several (Prettier wraps long text). */
+const JSX_TEXT = />([^<>{}=;]*[A-Za-z][^<>{}=;]*)</g;
+/** A long string Prettier breaks is written as pieces joined by +, each on its own line: "The lead did not " +\n  "check in". Join the pieces back into the one string a person reads. */
+const joinPieces = (code: string): string => code.replace(/(["'`])\s*\+\s*\n\s*\1/g, "").replace(/(["'`])\s*\n\s*\+\s*\1/g, "");
 
 export function countIn(source: string): number {
-  const code = stripComments(source);
+  const code = joinPieces(stripComments(source));
   let n = 0;
   for (const m of code.match(LITERAL) ?? []) if (/\s/.test(m) && !/^["'`]\.{0,2}\//.test(m) && SYSTEM_WORDS.test(m)) n++;
-  for (const m of code.matchAll(JSX_TEXT)) if (SYSTEM_WORDS.test(m[1]!)) n++;
+  for (const m of code.matchAll(JSX_TEXT)) if (SYSTEM_WORDS.test(m[1]!.replace(/\s+/g, " "))) n++;
   return n;
 }
 
@@ -75,4 +77,20 @@ test("the check sees a system word in a string and in text, and ignores a commen
     'const e = "capability";',
   ].join("\n");
   assert.equal(countIn(sample), 3, "the two strings and the text; not the comment, the path, the verb or the one-word code");
+});
+
+test("the check sees a string that was wrapped over lines, and text that was wrapped inside JSX", () => {
+  const wrapped = [
+    'const a = "The lead agent did not check in after two " +',
+    '  "wake-ups and the work stopped";',
+    "const b = (",
+    "  <Text>",
+    "    The lead agent ended the",
+    "    turn without a check-in",
+    "  </Text>",
+    ");",
+    'const c = "The agent did not " +',
+    '  "report back";',
+  ].join("\n");
+  assert.equal(countIn(wrapped), 2, "a joined string and wrapped JSX text with a system word count; a joined string without one does not");
 });
