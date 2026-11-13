@@ -16,6 +16,8 @@ import { States } from "../../../../../ui/src/States/index.tsx";
 import { forgetKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { dropKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { CmdK, NewTabSearch } from "../cmdk/CmdK.tsx";
+import { lazySearch } from "../cmdk/lazy.ts";
+import type { CmdKData } from "../cmdk/controller.ts";
 import { PendingChat } from "../../places/chats/landing/PendingChat.tsx";
 import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
 import type { Hit } from "../cmdk/model.ts";
@@ -636,33 +638,30 @@ export function ShellHost({
     sessionTheme(target, false);
     onSwitchSpace(id);
   };
-  const renderNewTab = (): ReactElement =>
-    search ? (
-      <NewTabSearch
-        data={search}
-        {...(session
-          ? {
-              chatView: (c, a) => (
-                <PendingChat
-                  title={c.title}
-                  text={c.text}
-                  files={[]}
-                  lead={session.runtime.assistant.name}
-                  phase={c.phase}
-                  {...(session.runtime.turns
-                    ? { live: { turns: session.runtime.turns, asker: session.runtime.me.id, since: c.since } }
-                    : {})}
-                  {...(c.note ? { note: c.note } : {})}
-                  onRetry={a.retry}
-                  onDiscard={a.discard}
-                />
-              ),
-            }
-          : {})}
-      />
-    ) : (
-      <States kind="empty" title="Open anything, or start something" icon="search" />
-    );
+  // the "+" tab's search is there from the first press, even while the Space is still connecting: it hands over to the real search when that exists (cmdk/lazy.ts)
+  const searchRef = useRef<CmdKData | null>(null);
+  searchRef.current = search;
+  const lazyNewTab = useMemo(() => lazySearch(() => searchRef.current), []);
+  const renderNewTab = (): ReactElement => (
+    <NewTabSearch
+      data={lazyNewTab}
+      chatView={(c, a) => (
+        <PendingChat
+          title={c.title}
+          text={c.text}
+          files={[]}
+          lead={session?.runtime.assistant.name ?? "Assistant"}
+          phase={c.phase}
+          {...(session?.runtime.turns
+            ? { live: { turns: session.runtime.turns, asker: session.runtime.me.id, since: c.since } }
+            : {})}
+          {...(c.note ? { note: c.note } : {})}
+          onRetry={a.retry}
+          onDiscard={a.discard}
+        />
+      )}
+    />
+  );
   // the onboarding screen opens over whatever the shell shows, the first time a person enters a Space and when asked
   // the Personal Space on this computer, so a Team Space can offer "use the same AI account" (never copied without a yes)
   const personalCall = useMemo(() => {
