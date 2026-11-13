@@ -12,7 +12,6 @@ import {
   LessView,
   MoreView,
   NoneView,
-  SkeletonView,
   TasksRow,
   tipOf,
   tipText,
@@ -271,23 +270,17 @@ test("a failed section says what it could not load and has Retry; the rest of th
   const l = layoutOf([mk("chat", "agent")], { failed: new Set<SectionId>(["chats"]) });
   const html = renderToStaticMarkup(<ErrorView entry={entryOf(l, "error", "chats")} onRetry={() => {}} />);
   assert.match(html, /Couldn&#x27;t load chats|Couldn't load chats/);
-  assert.match(html, /aria-label="Retry loading chats"/);
+  assert.match(html, /Retry/);
+  assert.match(html, /data-testid="section-error-chats"/);
 });
 
-test("a filter that finds nothing says so with Show all; loading draws quiet bars at the real heights", () => {
+test("a filter that finds nothing says so with Show all; loading draws nothing per section", () => {
   const l = layoutOf([mk("chat", "agent")], { filter: "failed" });
   assert.match(
     renderToStaticMarkup(<NoneView entry={entryOf(l, "none")} onShowAll={() => {}} />),
     /Nothing matches[\s\S]*Show all/,
   );
-  const sk = layoutOf([], { loading: true });
-  const rows = sk.entries.filter((e) => e.type === "skeleton");
-  assert.ok(rows.length > 5);
-  for (const e of rows)
-    assert.match(
-      renderToStaticMarkup(<SkeletonView entry={e as Extract<LayoutEntry, { type: "skeleton" }>} />),
-      new RegExp(`height:${e.h}px`),
-    );
+  assert.deepEqual(layoutOf([], { loading: true }).entries, [], "loading draws nothing per section");
 });
 
 test("Tasks has a chevron that folds and a name that opens; folded, the count stays", () => {

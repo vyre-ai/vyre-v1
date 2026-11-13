@@ -333,5 +333,5 @@ export const ENTRY_KINDS_WITH_MENU = [
   "head",
   "more",
 ] as const;
-export const ENTRY_KINDS_WITHOUT_MENU = ["error", "none", "skeleton", "less", "hint"] as const;
+export const ENTRY_KINDS_WITHOUT_MENU = ["error", "none", "less", "hint"] as const;
 export const FILTER_IDS = FILTER_CHOICES.map((c) => c.id);

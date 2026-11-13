@@ -239,7 +239,6 @@ export type LayoutEntry = { key: string; y: number; h: number } & (
   | { type: "less"; section: SectionId }
   | { type: "error"; section: SectionId; what: string }
   | { type: "none" }
-  | { type: "skeleton"; head: boolean; width: number }
 );
 
 export interface LayoutInput {
@@ -361,15 +360,11 @@ export function buildLayout(i: LayoutInput): Layout {
   };
 
   if (i.loading === true) {
-    for (let g = 0; g < 3; g++) {
-      push({ key: `sk:${g}`, type: "skeleton", head: true, width: 40 }, H.head);
-      for (let r = 0; r < (g === 0 ? 3 : 4); r++)
-        push({ key: `sk:${g}:${r}`, type: "skeleton", head: false, width: 46 + ((g * 17 + r * 23) % 38) }, H.row);
-    }
+    // the list arrives as one answer: while it has not, the owner draws the shared quiet mark (Loadable); nothing is drawn per section
     return {
       ...base,
-      entries: out,
-      height: y,
+      entries: [],
+      height: 0,
       empty: false,
       loading: true,
       tasksCount: 0,

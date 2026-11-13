@@ -429,12 +429,12 @@ test("a Space with chats shows Tasks, then Chats; Pinned and Channels show only 
 
 // ---------------------------------------------------------------- loading and failing, per section
 
-test("loading draws quiet rows at real heights and no rail number", () => {
-  const l = buildLayout(input([], { loading: true }));
+test("loading: the list arrives as one answer, so nothing is drawn per section and there is no rail number", () => {
+  const l = buildLayout(input([mk("chat")], { loading: true }));
   assert.equal(l.loading, true);
-  assert.ok(l.entries.every((e) => e.type === "skeleton"));
+  assert.deepEqual(l.entries, []);
   assert.equal(l.rail, 0);
-  assert.ok(l.entries.some((e) => e.type === "skeleton" && !e.head && e.h === 32));
+  assert.equal(l.empty, false);
 });
 
 test("one section failing keeps its head and says so with Retry; the others draw", () => {

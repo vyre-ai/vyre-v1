@@ -6,6 +6,8 @@ import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { avatarOf } from "../../../../../../ui/src/Avatar/assistant.ts";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { LoadFailed } from "../../../../../../ui/src/States/Loads.tsx";
+import { MoreRow } from "../../../../../../ui/src/MoreRow/index.tsx";
 import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
 import { Glyph } from "./parts.tsx";
 import { aggMarks } from "./layout.ts";
@@ -436,7 +438,7 @@ export function HeadView({
   );
 }
 
-/** "N more": opens in place (under Needs you it opens Tasks), and carries the marks of what it hides. */
+/** "N more": the shared MoreRow, with the marks of what it hides; opened, it reads Show less. Under Needs you it opens the Tasks place instead (the list decides). */
 export function MoreView({
   entry,
   state,
@@ -448,17 +450,16 @@ export function MoreView({
 }): ReactElement {
   return wrap(
     entry,
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${entry.hidden} more in ${entry.section}`}
+    <MoreRow
+      count={entry.hidden}
+      open={false}
+      onToggle={on.press}
+      what={entry.section}
+      cursor={state.cursor}
       testID={`more-${entry.section}`}
-      onPress={on.press}
-      style={[s.more, state.cursor && s.headCursor] as never}
-      {...(on.dom ?? {})}
-    >
-      <Text style={s.moreText as never}>{`${entry.hidden} more`}</Text>
-      {marksOf(aggMarks(entry.agg), true)}
-    </Pressable>,
+      marks={marksOf(aggMarks(entry.agg), true)}
+      {...(on.dom ? { domProps: on.dom } : {})}
+    />,
   );
 }
 
@@ -473,36 +474,29 @@ export function LessView({
 }): ReactElement {
   return wrap(
     entry,
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Show fewer in ${entry.section}`}
+    <MoreRow
+      count={0}
+      open
+      onToggle={on.press}
+      what={entry.section}
+      cursor={state.cursor}
       testID={`less-${entry.section}`}
-      onPress={on.press}
-      style={[s.more, state.cursor && s.headCursor] as never}
-      {...(on.dom ?? {})}
-    >
-      <Text style={s.moreText as never}>Show less</Text>
-    </Pressable>,
+      {...(on.dom ? { domProps: on.dom } : {})}
+    />,
   );
 }
 
-/** One section failing: a short row that says so with Retry. The other sections keep drawing. */
+/** One section failing: the shared LoadFailed in its row-height form (the words and Retry). The other sections keep drawing. */
 export function ErrorView({ entry, onRetry }: { entry: Entry<"error">; onRetry(): void }): ReactElement {
   return wrap(
     entry,
-    <View testID={`section-error-${entry.section}`} style={s.err as never}>
-      <Glyph name="alert" size={15} color="var(--warn)" />
-      <Text numberOfLines={1} style={s.errText as never}>{`Couldn't load ${entry.what}`}</Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Retry loading ${entry.what}`}
-        testID={`retry-${entry.section}`}
-        onPress={onRetry}
-        style={s.retry as never}
-      >
-        <Text style={s.retryText as never}>Retry</Text>
-      </Pressable>
-    </View>,
+    <LoadFailed
+      compact
+      what={entry.what}
+      failure={{ message: "" }}
+      onRetry={onRetry}
+      testID={`section-error-${entry.section}`}
+    />,
   );
 }
 
@@ -514,17 +508,6 @@ export function NoneView({ entry, onShowAll }: { entry: Entry<"none">; onShowAll
       <Pressable accessibilityRole="button" accessibilityLabel="Show all" onPress={onShowAll} style={s.retry as never}>
         <Text style={s.retryText as never}>Show all</Text>
       </Pressable>
-    </View>,
-  );
-}
-
-/** Quiet bars at the real heights of what will come, so nothing moves when it arrives. */
-export function SkeletonView({ entry }: { entry: Entry<"skeleton"> }): ReactElement {
-  return wrap(
-    entry,
-    <View testID="skeleton" aria-hidden style={s.sk as never}>
-      {entry.head ? null : <View style={s.skDot as never} />}
-      <View style={[s.skBar, { width: `${entry.head ? 22 : entry.width}%` }] as never} />
     </View>,
   );
 }

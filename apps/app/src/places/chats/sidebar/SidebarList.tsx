@@ -10,17 +10,7 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { useContextMenu } from "../../../../../../ui/src/Menu/context.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/props.ts";
 import { detectPlatform } from "../../../shell/keyboard/useShellKeys.ts";
-import {
-  ErrorView,
-  HeadView,
-  HintView,
-  ItemRow,
-  LessView,
-  MoreView,
-  NoneView,
-  SkeletonView,
-  TasksRow,
-} from "./SideEntries.tsx";
+import { ErrorView, HeadView, HintView, ItemRow, LessView, MoreView, NoneView, TasksRow } from "./SideEntries.tsx";
 import { LANDS_ON, headOf, listKey, moveKey } from "./side-keys.ts";
 import { headMenu, rowMenu, tasksMenu } from "./side-menus.ts";
 import type { FixedDo, HeadDo, RowCan, RowDo } from "./side-menus.ts";
@@ -213,8 +203,6 @@ export function SidebarList(p: SidebarListProps): ReactElement {
         return <ErrorView entry={e} onRetry={() => p.retry(e.section)} />;
       case "none":
         return <NoneView entry={e} onShowAll={p.showAll} />;
-      case "skeleton":
-        return <SkeletonView entry={e} />;
     }
   };
 
