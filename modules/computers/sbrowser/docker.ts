@@ -236,10 +236,13 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       if (e instanceof ToolError) throw e;
       const said = e instanceof Error ? e.message : String(e);
       if (gone?.test(said)) return undefined;
-      throw new ToolError("unavailable", `The Space browser could not ${what}: ${said.replace(/\s+/g, " ").slice(0, 160)}. It will be tried again on the next call.`);
+      // the Engine's own words go to the server's log, not to the agent
+      log(`could not ${what}: ${said.replace(/\s+/g, " ").slice(0, 300)}`);
+      throw new ToolError("unavailable", `The Space browser could not ${what}. It will be tried again on the next call.`);
     }
   }
-  const GONE = /no such container|404|not found|removal of container .* is already in progress|already in progress|409/i;
+  // remove: only "not there" and "already being removed" mean the work is done; a 409 for a container that still runs is a real failure (it would not stop)
+  const GONE = /no such container|404|removal of container .* is already in progress/i;
   const EXISTS = /already in use|already exists|409|conflict/i;
   const STARTED = /already started|already running|304/i;
 
@@ -277,7 +280,8 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
           return;
         }
         log("replacing the container of an earlier release with this release's (the profiles and their sign-ins stay on the volume)");
-        await o.api.containerStop(name, 10).catch(() => undefined);
+        // a stop that fails is not hidden for ever: the remove below then fails for a container that still runs, and the call says so
+        await o.api.containerStop(name, 10).catch((e: unknown) => { log(`could not stop the container of the earlier release: ${e instanceof Error ? e.message.replace(/\s+/g, " ").slice(0, 300) : "unknown"}`); });
         // already gone, or already being removed, is what the step wanted
         await engineStep("remove the container of the earlier release", () => o.api.containerRemove(name), GONE);
       } else if (release === "same" && running) { current = true; return; }
@@ -287,7 +291,16 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       await engineStep("start its container", () => o.api.containerStart(name), STARTED);
       const deadline = Date.now() + (o.startTimeoutMs ?? 30_000);
       for (;;) {
-        try { await exec("status", {}); current = release !== null; return; } catch (e) {
+        try {
+          await exec("status", {});
+          // current only when the container that answers is of this release: read back from what it was made from, not from which calls returned (a create that said "already exists" may have left the old one)
+          const now = await releaseOf(full, net);
+          if (now === "other" && release === "other") throw new ToolError("unavailable", "The Space browser could not replace its container of the earlier release. It will be tried again on the next call.");
+          current = now === "same";
+          if (now === "other") recheckAt = Date.now() + (o.recheckMs ?? 30_000);
+          return;
+        } catch (e) {
+          if (e instanceof ToolError && /could not replace its container/.test(e.message)) throw e;
           if (Date.now() >= deadline) throw new ToolError("unavailable", `The Space browser did not answer in time: ${e instanceof Error ? e.message.slice(0, 160) : "unknown"}`);
           await sleep(400);
         }

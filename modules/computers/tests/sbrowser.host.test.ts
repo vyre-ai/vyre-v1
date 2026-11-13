@@ -280,7 +280,8 @@ test("a container of an earlier release that is busy or held is kept until it is
   const api = { ...e.api, async containerRemove(id: string) { removed += 1; await e.api.containerRemove(id); } };
   const enc = (v: unknown) => new TextEncoder().encode(JSON.stringify(v));
   const http = async (r: { method: string; path: string }) => {
-    if (r.method === "GET" && r.path === "/containers/vyre-sbrowser/json") return { status: 200, body: enc({ Id: "c-old", Image: "sha256:old", HostConfig: { NetworkMode: "bridge" }, Config: { Env: [] } }) };
+    // once this release has made its container, the Engine reports that one (made from the new image, after this daemon started)
+    if (r.method === "GET" && r.path === "/containers/vyre-sbrowser/json") return { status: 200, body: enc(e.created.length > 0 ? { Id: "c-new", Image: "sha256:new", Created: new Date(Date.now() + 1000).toISOString(), HostConfig: { NetworkMode: "vyre-sbrowsernet" }, Config: { Env: [] } } : { Id: "c-old", Image: "sha256:old", HostConfig: { NetworkMode: "bridge" }, Config: { Env: [] } }) };
     if (r.method === "GET" && r.path.startsWith("/images/")) return { status: 200, body: enc(r.path.includes("sha256%3Aold") || r.path.includes("sha256:old") ? { Id: "sha256:old", Created: "2026-11-01T00:00:00Z" } : { Id: "sha256:new", Created: "2026-11-12T00:00:00Z" }) };
     if (r.method === "GET" && r.path.startsWith("/networks/")) return { status: 200, body: enc({ IPAM: { Config: [{ Subnet: "172.30.0.0/16", Gateway: "172.30.0.1" }] } }) };
     return { status: r.path === "/networks/create" ? 201 : 200, body: new Uint8Array() };
@@ -349,7 +350,7 @@ test("the container is replaced only one way: an error is never a difference, an
     let removed = 0;
     const api = { ...e.api, async containerRemove(id: string) { removed += 1; await e.api.containerRemove(id); } };
     const http = async (r: { method: string; path: string }) => {
-      if (r.method === "GET" && r.path === "/containers/vyre-sbrowser/json") return { status: 200, body: enc(o.container) };
+      if (r.method === "GET" && r.path === "/containers/vyre-sbrowser/json") return { status: 200, body: enc(e.created.length > 0 ? { Image: "sha256:ours", Created: new Date(Date.now() + 1000).toISOString(), HostConfig: { NetworkMode: "vyre-sbrowsernet" }, Config: { Env: [] } } : o.container) };
       if (r.method === "GET" && r.path.startsWith("/images/")) {
         const id = decodeURIComponent(r.path.slice("/images/".length, -"/json".length));
         if (id === "sha256:theirs") return o.theirs === "missing" ? { status: 404, body: new Uint8Array() } : { status: 200, body: enc(o.theirs ?? { Id: "sha256:theirs", Created: "2026-11-01T00:00:00Z" }) };
