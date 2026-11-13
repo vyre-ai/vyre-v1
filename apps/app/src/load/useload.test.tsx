@@ -243,8 +243,23 @@ test("hooks that cannot answer a capability say so, instead of waiting for ever"
   try {
     const seen: Load<number>[] = [];
     const Probe = probe(() => useLoad<number>({ cap: "inbox.counts" }), seen);
-    await mount(createRoot, <ScreensProvider screens={hooksOf(() => { throw new Error("not a screen"); })}><Probe /></ScreensProvider>);
-    assert.equal(last(seen).state, "failed");
+    await mount(
+      createRoot,
+      <ScreensProvider
+        screens={hooksOf(() => {
+          throw new Error("not a screen");
+        })}
+      >
+        <Probe />
+      </ScreensProvider>,
+    );
+    const l = last(seen);
+    assert.equal(l.state, "failed");
+    assert.equal(
+      l.state === "failed" ? l.failure.code : "",
+      "load.cannot_read",
+      "marked as one that retrying cannot fix",
+    );
   } finally {
     restore();
   }

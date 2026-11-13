@@ -6,6 +6,7 @@
 import { useMemo, useRef, useSyncExternalStore } from "react";
 import type { LiveQuery, QueryState } from "../../../../client/src/index.ts";
 import { retryLoads } from "../../../../ui/src/States/Loads.tsx";
+import { CANNOT_READ } from "../../../../ui/src/States/Loadable.tsx";
 import type { Load } from "../../../../ui/src/States/Loadable.tsx";
 import { useScreens } from "./screens.tsx";
 
@@ -19,7 +20,10 @@ export interface LoadOptions {
 }
 
 const LOADING: QueryState<never> = { status: "loading" };
-const CANNOT: QueryState<never> = { status: "loading", error: { message: "This Space cannot read that here." } };
+const CANNOT: QueryState<never> = {
+  status: "loading",
+  error: { message: "This Space cannot read that here.", code: CANNOT_READ },
+};
 const UNABLE: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => CANNOT };
 const IDLE: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => LOADING };
 const WAITING: Load<never> = { state: "loading" };

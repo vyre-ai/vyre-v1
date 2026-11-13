@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../testing/dom.ts";
-import { Loadable } from "./Loadable.tsx";
+import { CANNOT_READ, Loadable } from "./Loadable.tsx";
 import type { Load } from "./Loadable.tsx";
 
 const failure = { message: "The server did not answer.", code: "internal.error", traceId: "tr_9" };
@@ -146,6 +146,30 @@ test("a refused read is drawn by LoadFailed, not by an error of Loadable's own",
       find(root, "load-failed"),
       "drawn by LoadFailed, with its test id, not by a second error of Loadable's own",
     );
+  } finally {
+    restore();
+  }
+});
+
+test("a failure that trying again cannot fix shows the words and no Retry", async () => {
+  const restore = installDom();
+  try {
+    const root = await mount(
+      createRoot,
+      <Loadable
+        load={{
+          state: "failed",
+          failure: { message: "This Space cannot read that here.", code: CANNOT_READ },
+          retry: () => undefined,
+        }}
+        what="the counts"
+      >
+        {body}
+      </Loadable>,
+    );
+    assert.match(textOf(find(root, "load-failed")), /Couldn't load the counts/);
+    assert.match(textOf(find(root, "load-failed")), /cannot read that here/);
+    assert.equal(find(root, "state-retry"), null, "nothing to retry");
   } finally {
     restore();
   }

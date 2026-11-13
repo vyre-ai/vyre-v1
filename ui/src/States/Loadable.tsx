@@ -2,6 +2,7 @@
 // A place never decides this alone, and an error is never left out: a read that failed is `failed` here, so it cannot sit behind an endless "Loading".
 // The pieces are the ones that already exist: Quiet (calm loading), LoadFailed (the error: whatever it decides about Retry for a refused read applies here too, there is no second rule in this file) and States kind=empty.
 import type { ReactElement, ReactNode } from "react";
+import { View } from "react-native";
 import { States } from "./index.tsx";
 import { LoadFailed } from "./Loads.tsx";
 import type { LoadFailure } from "./Loads.tsx";
@@ -13,6 +14,9 @@ export type Load<T> =
   | { state: "loading" }
   | { state: "failed"; failure: LoadFailure; retry(): void }
   | { state: "ready"; data: T };
+
+/** The code of a failure that trying again cannot fix (hooks that cannot answer this read at all): the words are shown and there is no Retry. */
+export const CANNOT_READ = "load.cannot_read";
 
 export interface LoadableProps<T> {
   load: Load<T>;
@@ -28,7 +32,14 @@ export interface LoadableProps<T> {
 
 export function Loadable<T>({ load, what, isEmpty, empty, loading, children }: LoadableProps<T>): ReactElement {
   if (load.state === "loading") return <>{loading ?? <Quiet />}</>;
-  if (load.state === "failed") return <LoadFailed what={what} failure={load.failure} onRetry={load.retry} />;
+  if (load.state === "failed")
+    return load.failure.code === CANNOT_READ ? (
+      <View testID="load-failed" style={{ flex: 1, minHeight: 0, alignItems: "center", justifyContent: "center" }}>
+        <States kind="error" message={`Couldn't load ${what}`} cause={load.failure.message} />
+      </View>
+    ) : (
+      <LoadFailed what={what} failure={load.failure} onRetry={load.retry} />
+    );
   if (isEmpty?.(load.data) === true)
     return (
       <States
