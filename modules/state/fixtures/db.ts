@@ -29,9 +29,12 @@ CREATE TABLE IF NOT EXISTS fx_entry (thing TEXT NOT NULL, pos INTEGER NOT NULL, 
 export const fixtureKind = (type: string, reopen: Reopen): StateKind => ({
   type,
   reopen,
-  audience: (db, thing) => (db.all("SELECT person FROM fx_member WHERE thing = ?", thing) as { person: string }[]).map((r) => r.person),
-  scope: (db, thing) => (db.all("SELECT scope FROM fx_thing WHERE id = ?", thing)[0] as { scope: string } | undefined)?.scope ?? "box:main",
-  entries: (db, thing) => db.all("SELECT pos, by FROM fx_entry WHERE thing = ? ORDER BY pos", thing) as { pos: number; by: string | null }[],
+  audience: (db, thing) =>
+    (db.all("SELECT person FROM fx_member WHERE thing = ?", thing) as { person: string }[]).map((r) => r.person),
+  scope: (db, thing) =>
+    (db.all("SELECT scope FROM fx_thing WHERE id = ?", thing)[0] as { scope: string } | undefined)?.scope ?? "box:main",
+  entries: (db, thing) =>
+    db.all("SELECT pos, by FROM fx_entry WHERE thing = ? ORDER BY pos", thing) as { pos: number; by: string | null }[],
   heads: (db) =>
     (
       db.all(
@@ -80,8 +83,16 @@ export function fxOn(db: HostDb): Fx {
       return { type, id };
     },
     insert(thing, by, at) {
-      const pos = ((db.all("SELECT COALESCE(MAX(pos), 0) AS p FROM fx_entry WHERE thing = ?", thing.id)[0] as { p: number }).p ?? 0) + 1;
-      db.run("INSERT INTO fx_entry (thing, pos, by, at) VALUES (?, ?, ?, ?)", thing.id, pos, by, at ?? (clock.t += 1000));
+      const pos =
+        ((db.all("SELECT COALESCE(MAX(pos), 0) AS p FROM fx_entry WHERE thing = ?", thing.id)[0] as { p: number }).p ??
+          0) + 1;
+      db.run(
+        "INSERT INTO fx_entry (thing, pos, by, at) VALUES (?, ?, ?, ?)",
+        thing.id,
+        pos,
+        by,
+        at ?? (clock.t += 1000),
+      );
       return pos;
     },
     post(thing, by, opts = {}) {
@@ -91,7 +102,11 @@ export function fxOn(db: HostDb): Fx {
       return pos;
     },
     removeNewest(thing) {
-      db.run("DELETE FROM fx_entry WHERE thing = ? AND pos = (SELECT MAX(pos) FROM fx_entry WHERE thing = ?)", thing.id, thing.id);
+      db.run(
+        "DELETE FROM fx_entry WHERE thing = ? AND pos = (SELECT MAX(pos) FROM fx_entry WHERE thing = ?)",
+        thing.id,
+        thing.id,
+      );
     },
   };
   return fx;

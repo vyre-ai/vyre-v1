@@ -6,6 +6,8 @@ import {
   blank,
   changedFlags,
   counted,
+  muteEnded,
+  unmuted,
   delta,
   joinScope,
   merge,
@@ -25,20 +27,46 @@ const own = (by: string | null, pos: number): Entry => ({ pos, by });
 
 test("no row means read, open, not starred, not followed, not muted", () => {
   const s = blank(7);
-  assert.deepEqual(s, { readUpto: 7, unread: 0, doneAt: null, starredAt: null, follow: null, alert: false, mutedUntil: null, hidden: false });
-  assert.equal(counted(s, NOW), false);
+  assert.deepEqual(s, {
+    readUpto: 7,
+    unread: 0,
+    doneAt: null,
+    starredAt: null,
+    follow: null,
+    alert: false,
+    mutedUntil: null,
+    hidden: false,
+  });
+  assert.equal(counted(s), false);
 });
 
 test("someone else's entry is one more unread; a row made now starts at the old head", () => {
-  const a = arrive(null, { headBefore: 4, pos: 5, person: "usr_maya", by: null, mentioned: false, reopen: "new_entry" });
+  const a = arrive(null, {
+    headBefore: 4,
+    pos: 5,
+    person: "usr_maya",
+    by: null,
+    mentioned: false,
+    reopen: "new_entry",
+  });
   assert.equal(a.readUpto, 4, "what came before you could see it counts as read");
   assert.equal(a.unread, 1);
-  assert.equal(arrive(a, { headBefore: 5, pos: 6, person: "usr_maya", by: null, mentioned: false, reopen: "new_entry" }).unread, 2);
+  assert.equal(
+    arrive(a, { headBefore: 5, pos: 6, person: "usr_maya", by: null, mentioned: false, reopen: "new_entry" }).unread,
+    2,
+  );
 });
 
 test("the author's own entry moves their cursor, clears their unread and never reopens their Done", () => {
   const done: PersonState = { ...blank(3), unread: 2, doneAt: NOW };
-  const mine = arrive(done, { headBefore: 5, pos: 6, person: "usr_maya", by: "usr_maya", mentioned: false, reopen: "new_entry" });
+  const mine = arrive(done, {
+    headBefore: 5,
+    pos: 6,
+    person: "usr_maya",
+    by: "usr_maya",
+    mentioned: false,
+    reopen: "new_entry",
+  });
   assert.equal(mine.readUpto, 6);
   assert.equal(mine.unread, 0);
   assert.equal(mine.doneAt, NOW);
@@ -58,7 +86,11 @@ test("what brings a done thing back is the kind's rule: any new entry, only a me
 test("read moves forward only; unread and fromPos move back", () => {
   const entries = [own(null, 1), own("usr_jonas", 2), own(null, 3), own(null, 4)];
   const row: PersonState = { ...blank(4), readUpto: 4 };
-  assert.equal(read({ ...row, readUpto: 2, unread: 2 }, 4, entries, "usr_maya", { upto: 1 })!.readUpto, 2, "upto never moves back");
+  assert.equal(
+    read({ ...row, readUpto: 2, unread: 2 }, 4, entries, "usr_maya", { upto: 1 })!.readUpto,
+    2,
+    "upto never moves back",
+  );
   assert.equal(read(blank(0), 4, entries, "usr_maya", { upto: 99 })!.readUpto, 4, "upto is held at the head");
   const back = read(row, 4, entries, "usr_maya", { fromPos: 3 })!;
   assert.equal(back.readUpto, 2);
@@ -66,7 +98,11 @@ test("read moves forward only; unread and fromPos move back", () => {
   const un = read(row, 4, entries, "usr_maya", { unread: true })!;
   assert.equal(un.readUpto, 3);
   assert.equal(un.unread, 1);
-  assert.equal(read(row, 1, [own("usr_maya", 1)], "usr_maya", { unread: true }), null, "nothing from anyone else to mark unread");
+  assert.equal(
+    read(row, 1, [own("usr_maya", 1)], "usr_maya", { unread: true }),
+    null,
+    "nothing from anyone else to mark unread",
+  );
 });
 
 test("unread skips the person's own entries", () => {
@@ -88,26 +124,37 @@ test("set: done, star, follow, alert and mute are separate; a field left out is 
 
 test("a badge counts a thing with something unread that is not done, not muted and not lost", () => {
   const unread: PersonState = { ...blank(0), unread: 3 };
-  assert.deepEqual(weigh(unread, NOW), { things: 1, entries: 3 });
-  assert.deepEqual(weigh({ ...unread, doneAt: NOW }, NOW), { things: 0, entries: 0 });
-  assert.deepEqual(weigh({ ...unread, mutedUntil: NOW + 1 }, NOW), { things: 0, entries: 0 });
-  assert.deepEqual(weigh({ ...unread, mutedUntil: NOW }, NOW), { things: 1, entries: 3 }, "a mute that has ended counts again");
-  assert.deepEqual(weigh({ ...unread, hidden: true }, NOW), { things: 0, entries: 0 });
-  assert.deepEqual(weigh(null, NOW), { things: 0, entries: 0 });
+  assert.deepEqual(weigh(unread), { things: 1, entries: 3 });
+  assert.deepEqual(weigh({ ...unread, doneAt: NOW }), { things: 0, entries: 0 });
+  assert.deepEqual(weigh({ ...unread, mutedUntil: NOW + 1 }), { things: 0, entries: 0 });
+  assert.deepEqual(
+    weigh({ ...unread, mutedUntil: NOW }),
+    { things: 0, entries: 0 },
+    "a mute that has run out still holds until a sweep clears it: a badge never depends on the clock",
+  );
+  assert.equal(muteEnded({ ...unread, mutedUntil: NOW }, NOW), true);
+  assert.equal(muteEnded({ ...unread, mutedUntil: NOW + 1 }, NOW), false);
+  assert.deepEqual(weigh(unmuted({ ...unread, mutedUntil: NOW })), { things: 1, entries: 3 });
+  assert.deepEqual(weigh({ ...unread, hidden: true }), { things: 0, entries: 0 });
+  assert.deepEqual(weigh(null), { things: 0, entries: 0 });
 });
 
 test("delta is what a change does to the badge", () => {
   const before: PersonState = { ...blank(0), unread: 2 };
-  assert.deepEqual(delta(null, before, NOW), { things: 1, entries: 2 });
-  assert.deepEqual(delta(before, { ...before, unread: 5 }, NOW), { things: 0, entries: 3 });
-  assert.deepEqual(delta(before, { ...before, doneAt: NOW }, NOW), { things: -1, entries: -2 });
-  assert.deepEqual(delta(before, null, NOW), { things: -1, entries: -2 });
+  assert.deepEqual(delta(null, before), { things: 1, entries: 2 });
+  assert.deepEqual(delta(before, { ...before, unread: 5 }), { things: 0, entries: 3 });
+  assert.deepEqual(delta(before, { ...before, doneAt: NOW }), { things: -1, entries: -2 });
+  assert.deepEqual(delta(before, null), { things: -1, entries: -2 });
 });
 
 test("changedFlags names what moved", () => {
   const before = blank(2);
   assert.deepEqual(changedFlags(before, { ...before, unread: 1 }, 2), ["read"]);
-  assert.deepEqual(changedFlags(before, set(before, 2, { done: true, star: true, mute: { until: NOW } }, NOW), 2), ["done", "star", "mute"]);
+  assert.deepEqual(changedFlags(before, set(before, 2, { done: true, star: true, mute: { until: NOW } }, NOW), 2), [
+    "done",
+    "star",
+    "mute",
+  ]);
   assert.deepEqual(changedFlags(null, blank(2), 2), []);
 });
 

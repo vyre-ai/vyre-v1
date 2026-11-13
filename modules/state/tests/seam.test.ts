@@ -15,7 +15,8 @@ const clean = (fx: Fx): void => {
   const r = stateOf(fx).verify({ deep: true });
   assert.deepEqual(r.problems, [], "stored heads, unread and counts equal what the entries and rows say");
 };
-const unreadOf = (fx: Fx, person: string, thing: { type: string; id: string }): number => stateOf(fx).stateOf(person, [thing])[0]!.unread;
+const unreadOf = (fx: Fx, person: string, thing: { type: string; id: string }): number =>
+  stateOf(fx).stateOf(person, [thing])[0]!.unread;
 const badge = (fx: Fx, person: string, scope = "box:main") => stateOf(fx).counts(person, [scope])[0]!;
 
 test("an arrival leaves the thing row, a row for each person and their counts, and they agree", () => {
@@ -23,7 +24,12 @@ test("an arrival leaves the thing row, a row for each person and their counts, a
   const c = fx.make("conversation", "cnv_one", [MAYA, JONAS]);
   assert.equal(fx.post(c, STRANGER), 1);
   assert.equal(fx.post(c, STRANGER), 2);
-  assert.deepEqual(fx.db.all("SELECT head, scope_type, scope_id FROM state_thing WHERE id = 'cnv_one'"), [{ head: 2, scope_type: "box", scope_id: "main" }]);
+  assert.deepEqual(
+    fx.db
+      .all("SELECT head, scope_type, scope_id FROM state_thing WHERE id = 'cnv_one'")
+      .map((r) => ({ ...(r as object) })),
+    [{ head: 2, scope_type: "box", scope_id: "main" }],
+  );
   assert.equal(unreadOf(fx, MAYA, c), 2);
   assert.equal(unreadOf(fx, JONAS, c), 2);
   assert.deepEqual(badge(fx, MAYA), { scope: "box:main", things: 1, entries: 2 });
@@ -35,11 +41,19 @@ test("arrive is idempotent on position: the same or an older position changes no
   const fx = openFx();
   const c = fx.make("conversation", "cnv_one", [MAYA]);
   const pos = fx.post(c, STRANGER);
-  const before = JSON.stringify([fx.db.all("SELECT * FROM state_person"), fx.db.all("SELECT * FROM state_count"), fx.db.all("SELECT * FROM state_thing")]);
+  const before = JSON.stringify([
+    fx.db.all("SELECT * FROM state_person"),
+    fx.db.all("SELECT * FROM state_count"),
+    fx.db.all("SELECT * FROM state_thing"),
+  ]);
   const again = stateOf(fx).arrive(c, { pos, by: STRANGER, at: fx.clock.t });
   assert.deepEqual(again, { applied: false, people: 0 });
   fx.post(c, STRANGER);
-  assert.equal(stateOf(fx).arrive(c, { pos: 1, by: STRANGER, at: fx.clock.t }).applied, false, "an older position is ignored too");
+  assert.equal(
+    stateOf(fx).arrive(c, { pos: 1, by: STRANGER, at: fx.clock.t }).applied,
+    false,
+    "an older position is ignored too",
+  );
   assert.equal(unreadOf(fx, MAYA, c), 2);
   assert.notEqual(before, "");
   clean(fx);
@@ -130,9 +144,19 @@ test("read only moves forward, unread and fromPos move back, and the count follo
   for (let i = 0; i < 4; i++) fx.post(c, STRANGER);
   stateOf(fx).read(MAYA, c, { upto: 4 });
   assert.equal(stateOf(fx).read(MAYA, c, { upto: 1 }).state.unread, 0, "upto never moves back");
+  assert.equal(
+    stateOf(fx).read(MAYA, c, { unread: true }).state.unread,
+    1,
+    "marking unread makes the newest entry unread again",
+  );
+  stateOf(fx).read(MAYA, c, { upto: 4 });
   assert.equal(stateOf(fx).read(MAYA, c, { fromPos: 3 }).state.unread, 2);
   assert.deepEqual(badge(fx, MAYA), { scope: "box:main", things: 1, entries: 2 });
-  assert.equal(stateOf(fx).read(MAYA, c, { unread: true }).state.unread, 1);
+  assert.equal(
+    stateOf(fx).read(MAYA, c, { unread: true }).state.unread,
+    2,
+    "already unread from further back: it stays",
+  );
   stateOf(fx).read(MAYA, c, { upto: 99 });
   assert.equal(unreadOf(fx, MAYA, c), 0, "upto is held at the head");
   clean(fx);
@@ -142,26 +166,51 @@ test("a thing the person cannot see is not found", () => {
   const fx = openFx();
   const c = fx.make("conversation", "cnv_one", [MAYA]);
   fx.post(c, STRANGER);
-  assert.throws(() => stateOf(fx).read(OMAR, c, { upto: 1 }), (e) => e instanceof StateRefusal && e.code === "not_found");
-  assert.throws(() => stateOf(fx).set(OMAR, c, { star: true }), (e) => e instanceof StateRefusal && e.code === "not_found");
-  assert.throws(() => stateOf(fx).set(OMAR, { type: "nothing", id: "x" }, { star: true }), (e) => e instanceof StateRefusal && e.code === "bad_input");
+  assert.throws(
+    () => stateOf(fx).read(OMAR, c, { upto: 1 }),
+    (e) => e instanceof StateRefusal && e.code === "not_found",
+  );
+  assert.throws(
+    () => stateOf(fx).set(OMAR, c, { star: true }),
+    (e) => e instanceof StateRefusal && e.code === "not_found",
+  );
+  assert.throws(
+    () => stateOf(fx).set(OMAR, { type: "nothing", id: "x" }, { star: true }),
+    (e) => e instanceof StateRefusal && e.code === "bad_input",
+  );
 });
 
 test("star, follow, alert and mute are separate flags; a mute leaves the badge and an ended mute comes back", () => {
   const fx = openFx();
   const c = fx.make("conversation", "cnv_one", [MAYA, JONAS]);
   fx.post(c, STRANGER);
-  const r = stateOf(fx).set(MAYA, c, { star: true, follow: "following", alert: true, mute: { until: fx.clock.t + 60_000 } });
+  const r = stateOf(fx).set(MAYA, c, {
+    star: true,
+    follow: "following",
+    alert: true,
+    mute: { until: fx.clock.t + 60_000 },
+  });
   assert.deepEqual(r.changed, ["star", "follow", "mute"]);
   assert.deepEqual(stateOf(fx).followersOf(c), [MAYA]);
   assert.deepEqual(badge(fx, MAYA), { scope: "box:main", things: 0, entries: 0 }, "muted");
-  assert.deepEqual(stateOf(fx).list(MAYA, { flag: "muted", limit: 5 }).rows.map((x) => x.thing.id), ["cnv_one"]);
+  assert.deepEqual(
+    stateOf(fx)
+      .list(MAYA, { flag: "muted", limit: 5 })
+      .rows.map((x) => x.thing.id),
+    ["cnv_one"],
+  );
   fx.clock.t += 120_000;
   assert.equal(stateOf(fx).list(MAYA, { flag: "muted", limit: 5 }).rows.length, 0, "the mute ended");
-  // the stored badge only learns of the end at the next verify, which repairs it
-  const found = stateOf(fx).verify({ repair: true });
-  assert.equal(found.problems.length, 1);
+  assert.equal(stateOf(fx).stateOf(MAYA, [c])[0]!.muted, null, "a person's view of an ended mute is not muted");
+  assert.deepEqual(
+    badge(fx, MAYA),
+    { scope: "box:main", things: 0, entries: 0 },
+    "the badge waits for the sweep: it never reads the clock",
+  );
+  assert.deepEqual(stateOf(fx).verify({}).problems, [], "so nothing is out of step");
+  assert.deepEqual(stateOf(fx).sweep(), [{ person: MAYA, thing: c }]);
   assert.deepEqual(badge(fx, MAYA), { scope: "box:main", things: 1, entries: 1 });
+  assert.deepEqual(stateOf(fx).sweep(), [], "and a second sweep finds nothing");
   stateOf(fx).set(MAYA, c, { mute: { until: MUTE_FOREVER } });
   assert.deepEqual(badge(fx, MAYA), { scope: "box:main", things: 0, entries: 0 });
   stateOf(fx).set(MAYA, c, { mute: null, follow: "left", star: false });
@@ -185,7 +234,11 @@ test("read_scope marks everything in one badge, or only what arrived before a ti
   const rest = stateOf(fx).readScope(MAYA, "box:main");
   assert.equal(rest.marked, 1);
   assert.deepEqual(badge(fx, MAYA), { scope: "box:main", things: 0, entries: 0 });
-  assert.deepEqual(badge(fx, MAYA, "box:other"), { scope: "box:other", things: 1, entries: 1 }, "another scope is untouched");
+  assert.deepEqual(
+    badge(fx, MAYA, "box:other"),
+    { scope: "box:other", things: 1, entries: 1 },
+    "another scope is untouched",
+  );
   clean(fx);
 });
 
@@ -194,11 +247,20 @@ test("a list pages by keyset and keeps its order", () => {
   const ids = ["cnv_1", "cnv_2", "cnv_3", "cnv_4", "cnv_5"];
   for (const id of ids) fx.post(fx.make("conversation", id, [MAYA]), STRANGER);
   const first = stateOf(fx).list(MAYA, { flag: "unread", limit: 2 });
-  assert.deepEqual(first.rows.map((r) => r.thing.id), ["cnv_5", "cnv_4"]);
+  assert.deepEqual(
+    first.rows.map((r) => r.thing.id),
+    ["cnv_5", "cnv_4"],
+  );
   const second = stateOf(fx).list(MAYA, { flag: "unread", limit: 2, cursor: first.next! });
-  assert.deepEqual(second.rows.map((r) => r.thing.id), ["cnv_3", "cnv_2"]);
+  assert.deepEqual(
+    second.rows.map((r) => r.thing.id),
+    ["cnv_3", "cnv_2"],
+  );
   const last = stateOf(fx).list(MAYA, { flag: "unread", limit: 2, cursor: second.next! });
-  assert.deepEqual(last.rows.map((r) => r.thing.id), ["cnv_1"]);
+  assert.deepEqual(
+    last.rows.map((r) => r.thing.id),
+    ["cnv_1"],
+  );
   assert.equal(last.next, undefined);
   assert.throws(() => stateOf(fx).list(MAYA, { flag: "unread", limit: 2, cursor: "nonsense" }), StateRefusal);
 });
@@ -229,7 +291,11 @@ test("merge keeps each person's flags and recounts the survivor", () => {
   stateOf(fx).merge(a, b);
   assert.equal(stateOf(fx).stateOf(MAYA, [b])[0]!.starred !== null, true, "Maya's star came along");
   assert.equal(unreadOf(fx, MAYA, b), 2);
-  assert.equal(unreadOf(fx, JONAS, b), 1, "Jonas had read the one in b; the one from a is new to him");
+  assert.equal(
+    unreadOf(fx, JONAS, b),
+    2,
+    "the contract's rule: the cursor is the lower one unless both were fully read, so the survivor shows unread",
+  );
   assert.equal(fx.db.all("SELECT 1 FROM state_person WHERE id = 'cnv_a'").length, 0);
   assert.equal(fx.db.all("SELECT 1 FROM state_thing WHERE id = 'cnv_a'").length, 0);
   clean(fx);
@@ -272,14 +338,20 @@ test("one seam call writes in one transaction: a failure part-way leaves no row 
   const fx = openFx();
   const c = fx.make("conversation", "cnv_one", [MAYA, JONAS]);
   // the second person's write fails; the first person's row, the thing row and the counts must not survive it
-  fx.db.exec(`CREATE TRIGGER fx_refuse BEFORE INSERT ON state_person WHEN NEW.person = '${JONAS}' BEGIN SELECT RAISE(ABORT, 'refused'); END;`);
+  fx.db.exec(
+    `CREATE TRIGGER fx_refuse BEFORE INSERT ON state_person WHEN NEW.person = '${JONAS}' BEGIN SELECT RAISE(ABORT, 'refused'); END;`,
+  );
   fx.insert(c, STRANGER);
   assert.throws(() => stateOf(fx).arrive(c, { pos: 1, by: STRANGER, at: fx.clock.t }), /refused/);
   assert.deepEqual(fx.db.all("SELECT * FROM state_person"), []);
   assert.deepEqual(fx.db.all("SELECT * FROM state_thing"), []);
   assert.deepEqual(fx.db.all("SELECT * FROM state_count"), []);
   fx.db.exec("DROP TRIGGER fx_refuse");
-  assert.equal(stateOf(fx).arrive(c, { pos: 1, by: STRANGER, at: fx.clock.t }).applied, true, "the position was not used up by the failed call");
+  assert.equal(
+    stateOf(fx).arrive(c, { pos: 1, by: STRANGER, at: fx.clock.t }).applied,
+    true,
+    "the position was not used up by the failed call",
+  );
   clean(fx);
 });
 
@@ -297,7 +369,11 @@ test("the process dies between a module's insert and its arrive: verify repairs 
 
     const next = fxOn(openDb(file)); // the next start: a new connection to the same file
     const found = stateOf(next).verify({});
-    assert.deepEqual(found.problems.map((p) => p.kind), ["head"], "verify sees the head is behind the entries");
+    assert.deepEqual(
+      found.problems.map((p) => p.kind),
+      ["head"],
+      "verify sees the head is behind the entries",
+    );
     assert.equal(unreadOf(next, JONAS, c), 1, "nothing is repaired until asked");
     const fixed = stateOf(next).verify({ repair: true });
     assert.equal(fixed.repaired, 1);
@@ -308,7 +384,11 @@ test("the process dies between a module's insert and its arrive: verify repairs 
     assert.equal(unreadOf(next, MAYA, c), 0, "her own reply is read");
     assert.equal(stateOf(next).stateOf(MAYA, [c])[0]!.readUpto, 3);
     assert.deepEqual(stateOf(next).verify({ deep: true }).problems, []);
-    assert.deepEqual(stateOf(next).verify({ repair: true }), { problems: [], repaired: 0 }, "and a second run finds nothing");
+    assert.deepEqual(
+      stateOf(next).verify({ repair: true }),
+      { problems: [], repaired: 0 },
+      "and a second run finds nothing",
+    );
     next.db.close();
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -321,10 +401,18 @@ test("verify finds and repairs a wrong badge, and a thing the module no longer h
   fx.post(c, STRANGER);
   fx.db.run("UPDATE state_count SET things = 4, entries = 9 WHERE person = ?", MAYA);
   const r = stateOf(fx).verify({ repair: true });
-  assert.deepEqual(r.problems.map((p) => p.kind), ["count"]);
+  assert.deepEqual(
+    r.problems.map((p) => p.kind),
+    ["count"],
+  );
   assert.deepEqual(badge(fx, MAYA), { scope: "box:main", things: 1, entries: 1 });
   fx.db.run("DELETE FROM fx_entry WHERE thing = 'cnv_one'");
-  assert.deepEqual(stateOf(fx).verify({ repair: true }).problems.map((p) => p.kind), ["head"]);
+  assert.deepEqual(
+    stateOf(fx)
+      .verify({ repair: true })
+      .problems.map((p) => p.kind),
+    ["head"],
+  );
   assert.equal(unreadOf(fx, MAYA, c), 0);
   assert.deepEqual(stateOf(fx).verify({ deep: true }).problems, []);
 });
@@ -339,7 +427,7 @@ function rng(seed: number): () => number {
   };
 }
 
-for (const seed of [1, 2, 3, 4, 5, 6]) {
+for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
   test(`property: random arrivals, reads, flags, retractions, merges, gains and losses keep every stored number equal to its recount (seed ${seed})`, () => {
     const r = rng(seed);
     const pick = <T>(xs: readonly T[]): T => xs[Math.floor(r() * xs.length)]!;
@@ -360,12 +448,15 @@ for (const seed of [1, 2, 3, 4, 5, 6]) {
     };
     for (let i = 0; i < 4; i++) open();
     const st = stateOf(fx);
+    const trail: string[] = [];
     for (let step = 0; step < 220; step++) {
       const t = pick([...alive.values()]);
       const ref = { type: t.type, id: t.id };
       const p = pick([...t.members]);
       const roll = r();
-      if (roll < 0.34) fx.post(ref, r() < 0.2 ? pick([...t.members]) : STRANGER, { mentions: r() < 0.3 ? [pick(people)] : [] });
+      trail.push(`${t.type}:${t.id} ${p} ${roll.toFixed(2)}`);
+      if (roll < 0.34)
+        fx.post(ref, r() < 0.2 ? pick([...t.members]) : STRANGER, { mentions: r() < 0.3 ? [pick(people)] : [] });
       else if (roll < 0.46) st.read(p, ref, { upto: Math.floor(r() * 12) });
       else if (roll < 0.52) st.read(p, ref, { fromPos: 1 + Math.floor(r() * 6) });
       else if (roll < 0.56) st.read(p, ref, { unread: true });
@@ -379,7 +470,9 @@ for (const seed of [1, 2, 3, 4, 5, 6]) {
         // merge: the module moves every entry of the other thing in after this one's newest, and members join
         const from = pick([...alive.values()].filter((x) => x.id !== t.id && x.type === t.type));
         if (from) {
-          const top = (fx.db.all("SELECT COALESCE(MAX(pos), 0) AS p FROM fx_entry WHERE thing = ?", t.id)[0] as { p: number }).p;
+          const top = (
+            fx.db.all("SELECT COALESCE(MAX(pos), 0) AS p FROM fx_entry WHERE thing = ?", t.id)[0] as { p: number }
+          ).p;
           fx.db.run("UPDATE fx_entry SET thing = ?, pos = pos + ? WHERE thing = ?", t.id, top, from.id);
           for (const m of from.members) t.members.add(m);
           fx.make(t.type, t.id, [...t.members], t.scope);
@@ -394,10 +487,23 @@ for (const seed of [1, 2, 3, 4, 5, 6]) {
           fx.make(t.type, t.id, [...t.members], t.scope);
           st.lose(who, t.scope);
           // losing a scope hides every thing of the scope for that person, so the model drops them from the others too
-          for (const o of alive.values()) if (o.scope === t.scope && o.members.delete(who)) fx.make(o.type, o.id, [...o.members], o.scope);
+          for (const o of [...alive.values()]) {
+            if (o.scope !== t.scope || !o.members.delete(who)) continue;
+            if (o.members.size > 0) fx.make(o.type, o.id, [...o.members], o.scope);
+            else {
+              // a thing nobody can see any more is gone
+              fx.db.run("DELETE FROM fx_entry WHERE thing = ?", o.id);
+              fx.db.run("DELETE FROM fx_thing WHERE id = ?", o.id);
+              fx.db.run("DELETE FROM fx_member WHERE thing = ?", o.id);
+              alive.delete(o.id);
+              st.forget({ type: o.type, id: o.id });
+            }
+          }
         } else if (!t.members.has(who)) {
           // gaining a scope is access to everything in it
-          for (const o of alive.values()) if (o.scope === t.scope && !o.members.has(who)) (o.members.add(who), fx.make(o.type, o.id, [...o.members], o.scope));
+          for (const o of alive.values())
+            if (o.scope === t.scope && !o.members.has(who))
+              (o.members.add(who), fx.make(o.type, o.id, [...o.members], o.scope));
           st.gain(who, t.scope);
         }
       } else if (roll < 0.9 && alive.size > 2) {
@@ -406,17 +512,16 @@ for (const seed of [1, 2, 3, 4, 5, 6]) {
         alive.delete(t.id);
         st.forget(ref);
       } else if (roll < 0.94) open();
+      else if (roll < 0.97) st.sweep();
       else fx.clock.t += Math.floor(r() * 4000);
-      // a mute that ended is the one thing a stored count learns only at a verify; take it as the doctor would
-      const found = st.verify({ deep: true, repair: false }).problems.filter((x) => !(x.kind === "count" && x.person !== undefined && mutedSomewhere(fx, x.person)));
-      assert.deepEqual(found, [], `seed ${seed}, step ${step}: ${JSON.stringify(found)}`);
+      const found = st.verify({ deep: true, repair: false }).problems;
+      assert.deepEqual(
+        found,
+        [],
+        `seed ${seed}, step ${step}: ${JSON.stringify(found)}\n${trail.slice(-4).join("\n")}`,
+      );
     }
-    assert.deepEqual(st.verify({ repair: true, deep: true }).problems.filter((x) => x.kind !== "count"), []);
+    assert.deepEqual(st.verify({ repair: true, deep: true }).problems, []);
     assert.deepEqual(st.verify({ deep: true }).problems, []);
   });
-}
-
-/** Does the person have a mute that has ended by now? */
-function mutedSomewhere(fx: Fx, person: string): boolean {
-  return fx.db.all("SELECT 1 FROM state_person WHERE person = ? AND muted_until IS NOT NULL AND muted_until <= ?", person, fx.clock.t).length > 0;
 }

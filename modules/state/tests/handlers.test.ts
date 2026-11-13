@@ -10,7 +10,8 @@ import type { Harness } from "../fixtures/db.ts";
 
 type H = (ctx: never, input: never) => Promise<unknown>;
 const call = (name: string): H => handlers[name] as unknown as H;
-const run = <T>(name: string, ctx: unknown, input: unknown): Promise<T> => call(name)(ctx as never, input as never) as Promise<T>;
+const run = <T>(name: string, ctx: unknown, input: unknown): Promise<T> =>
+  call(name)(ctx as never, input as never) as Promise<T>;
 const HOST = { kind: "service", id: "svc_host" } as const;
 
 function conformance(cap: string, side: "in" | "out", value: unknown): string[] {
@@ -40,11 +41,23 @@ test("state.get answers my state, and leaves out what I cannot see", async () =>
   const { h, c } = seeded();
   const none = { type: "conversation", id: "cnv_nobody" };
   const hidden = h.fx.make("conversation", "cnv_private", [OMAR]);
-  const out = await through<{ states: { thing: { id: string }; unread: number; done: number | null }[] }>(h, "state.get", h.person(MAYA), { things: [c, hidden, none] });
-  assert.deepEqual(out.states.map((s) => [s.thing.id, s.unread]), [["cnv_one", 2]], "the unseen thing is not in the answer, and nothing says it exists");
+  const out = await through<{ states: { thing: { id: string }; unread: number; done: number | null }[] }>(
+    h,
+    "state.get",
+    h.person(MAYA),
+    { things: [c, hidden, none] },
+  );
+  assert.deepEqual(
+    out.states.map((s) => [s.thing.id, s.unread]),
+    [["cnv_one", 2]],
+    "the unseen thing is not in the answer, and nothing says it exists",
+  );
   const jonas = await through<{ states: { unread: number }[] }>(h, "state.get", h.person(JONAS), { things: [c] });
   assert.equal(jonas.states[0]!.unread, 2, "Jonas has his own");
-  assert.equal(await failure(() => run("state.get", h.person(MAYA), { things: [{ type: "no_such_kind", id: "x" }] })), "validation.bad_input");
+  assert.equal(
+    await failure(() => run("state.get", h.person(MAYA), { things: [{ type: "no_such_kind", id: "x" }] })),
+    "validation.bad_input",
+  );
 });
 
 test("state.read marks up to a position; Maya's read does not touch Jonas; the event says who and what", async () => {
@@ -75,13 +88,21 @@ test("state.read takes exactly one of upto, unread and fromPos", async () => {
 test("a thing I cannot see is not found, for read and set", async () => {
   const { h } = seeded();
   const hidden = h.fx.make("conversation", "cnv_private", [OMAR]);
-  assert.equal(await failure(() => run("state.read", h.person(MAYA), { thing: hidden, upto: 1 })), "validation.not_found");
-  assert.equal(await failure(() => run("state.set", h.person(MAYA), { thing: hidden, star: true })), "validation.not_found");
+  assert.equal(
+    await failure(() => run("state.read", h.person(MAYA), { thing: hidden, upto: 1 })),
+    "validation.not_found",
+  );
+  assert.equal(
+    await failure(() => run("state.set", h.person(MAYA), { thing: hidden, star: true })),
+    "validation.not_found",
+  );
 });
 
 test("state.set: done and archive are one state; star, follow, alert and mute are apart; at least one field", async () => {
   const { h, c } = seeded();
-  const out = await through<{ state: { done: number | null; starred: number | null; follow: string | null; alert: boolean; muted: number | null } }>(h, "state.set", h.person(MAYA), {
+  const out = await through<{
+    state: { done: number | null; starred: number | null; follow: string | null; alert: boolean; muted: number | null };
+  }>(h, "state.set", h.person(MAYA), {
     thing: c,
     done: true,
     star: true,
@@ -95,7 +116,12 @@ test("state.set: done and archive are one state; star, follow, alert and mute ar
   assert.equal(out.state.alert, true);
   assert.equal(out.state.muted, MUTE_FOREVER);
   assert.deepEqual(h.emitted.at(-1)!.payload["changed"], ["done", "star", "follow", "mute"]);
-  const back = await through<{ state: { done: number | null; follow: string | null; muted: number | null } }>(h, "state.set", h.person(MAYA), { thing: c, done: false, follow: null, mute: null });
+  const back = await through<{ state: { done: number | null; follow: string | null; muted: number | null } }>(
+    h,
+    "state.set",
+    h.person(MAYA),
+    { thing: c, done: false, follow: null, mute: null },
+  );
   assert.equal(back.state.done, null);
   assert.equal(back.state.follow, null);
   assert.equal(back.state.muted, null);
@@ -112,11 +138,22 @@ test("state.list pages my starred, following, done, unread and muted things, wit
   assert.deepEqual(names(await through(h, "state.list", h.person(MAYA), { flag: "done" })), ["cnv_two"]);
   assert.deepEqual(names(await through(h, "state.list", h.person(MAYA), { flag: "unread" })), ["cnv_one"]);
   assert.deepEqual(names(await through(h, "state.list", h.person(MAYA), { flag: "muted" })), ["cnv_two"]);
-  assert.deepEqual(names(await through(h, "state.list", h.person(JONAS), { flag: "starred" })), [], "Jonas has none of Maya's");
-  const page = await through<{ rows: { title: string }[]; next?: string }>(h, "state.list", h.person(MAYA), { flag: "unread", type: "conversation", limit: 1 });
+  assert.deepEqual(
+    names(await through(h, "state.list", h.person(JONAS), { flag: "starred" })),
+    [],
+    "Jonas has none of Maya's",
+  );
+  const page = await through<{ rows: { title: string }[]; next?: string }>(h, "state.list", h.person(MAYA), {
+    flag: "unread",
+    type: "conversation",
+    limit: 1,
+  });
   assert.equal(page.rows[0]!.title, "cnv_one", "without a describer a row is titled by its id");
   let batches = 0;
-  const ctx = { ...h.person(MAYA), resources: { describeMany: (refs: readonly unknown[]) => (batches++, refs.map(() => ({ title: "A title" }))) } };
+  const ctx = {
+    ...h.person(MAYA),
+    resources: { describeMany: (refs: readonly unknown[]) => (batches++, refs.map(() => ({ title: "A title" }))) },
+  };
   const titled = await run<{ rows: { title: string }[] }>("state.list", ctx, { flag: "starred" });
   assert.equal(titled.rows[0]!.title, "A title");
   assert.equal(batches, 1, "one lookup for the whole page");
@@ -124,13 +161,27 @@ test("state.list pages my starred, following, done, unread and muted things, wit
 
 test("state.counts and state.read_scope", async () => {
   const { h } = seeded();
-  const all = await through<{ counts: { scope: string; things: number; entries: number }[] }>(h, "state.counts", h.person(MAYA), {});
+  const all = await through<{ counts: { scope: string; things: number; entries: number }[] }>(
+    h,
+    "state.counts",
+    h.person(MAYA),
+    {},
+  );
   assert.deepEqual(all.counts, [{ scope: "box:main", things: 2, entries: 3 }]);
-  const asked = await through<{ counts: unknown[] }>(h, "state.counts", h.person(MAYA), { scopes: ["box:main", "chats"] });
-  assert.deepEqual(asked.counts, [{ scope: "box:main", things: 2, entries: 3 }, { scope: "chats", things: 0, entries: 0 }]);
+  const asked = await through<{ counts: unknown[] }>(h, "state.counts", h.person(MAYA), {
+    scopes: ["box:main", "chats"],
+  });
+  assert.deepEqual(asked.counts, [
+    { scope: "box:main", things: 2, entries: 3 },
+    { scope: "chats", things: 0, entries: 0 },
+  ]);
   assert.deepEqual(await through(h, "state.read_scope", h.person(MAYA), { scope: "box:main" }), { marked: 2 });
   assert.deepEqual((await run<{ counts: unknown[] }>("state.counts", h.person(MAYA), {})).counts, []);
-  assert.equal((await run<{ counts: { things: number }[] }>("state.counts", h.person(JONAS), {})).counts[0]!.things, 1, "Jonas's badge is his own");
+  assert.equal(
+    (await run<{ counts: { things: number }[] }>("state.counts", h.person(JONAS), {})).counts[0]!.things,
+    1,
+    "Jonas's badge is his own",
+  );
 });
 
 test("an agent acting for Maya reads Maya's state, and only hers", async () => {
@@ -152,7 +203,11 @@ test("an agent changes a person's state only while that person has turned on sta
       ["state.read_scope", { scope: "box:main" }],
       ["state.set", { thing: c, done: true }],
     ] as const)
-      assert.equal(await failure(() => run(name, agent, input)), "permission.no_grant", `${name} refused while the switch is ${String(triage)}`);
+      assert.equal(
+        await failure(() => run(name, agent, input)),
+        "permission.no_grant",
+        `${name} refused while the switch is ${String(triage)}`,
+      );
   }
   assert.equal(stateOf(h.fx).stateOf(MAYA, [c])[0]!.unread, 2, "nothing moved");
   assert.equal(h.emitted.length, 0);
@@ -187,9 +242,19 @@ test("the host's own calls refuse everyone but the server", async () => {
     ["state.forget", { thing: c }],
     ["state.verify", {}],
   ];
-  const callers = [h.person(MAYA), h.as({ kind: "agent", id: HELPER }, { actingFor: MAYA }), h.as({ kind: "service", id: "svc_site_abc" }), h.as({ kind: "actor", id: "act_x" })];
+  const callers = [
+    h.person(MAYA),
+    h.as({ kind: "agent", id: HELPER }, { actingFor: MAYA }),
+    h.as({ kind: "service", id: "svc_site_abc" }),
+    h.as({ kind: "actor", id: "act_x" }),
+  ];
   for (const [name, input] of inputs)
-    for (const who of callers) assert.equal(await failure(() => run(name, who, input)), "permission.no_grant", `${name} refuses ${who.principal.kind}`);
+    for (const who of callers)
+      assert.equal(
+        await failure(() => run(name, who, input)),
+        "permission.no_grant",
+        `${name} refuses ${who.principal.kind}`,
+      );
   assert.equal(stateOf(h.fx).stateOf(MAYA, [c])[0]!.unread, 2, "nothing moved");
 });
 
@@ -197,12 +262,19 @@ test("the server's own calls work and conform", async () => {
   const { h, c } = seeded();
   const host = h.as(HOST);
   h.fx.insert(c, STRANGER);
-  assert.deepEqual(await through(h, "state.arrive", host, { thing: c, pos: 3, by: STRANGER, at: h.fx.clock.t }), { applied: true, people: 3 });
-  assert.deepEqual(await through(h, "state.arrive", host, { thing: c, pos: 3, by: STRANGER, at: h.fx.clock.t }), { applied: false, people: 0 });
+  assert.deepEqual(await through(h, "state.arrive", host, { thing: c, pos: 3, by: STRANGER, at: h.fx.clock.t }), {
+    applied: true,
+    people: 3,
+  });
+  assert.deepEqual(await through(h, "state.arrive", host, { thing: c, pos: 3, by: STRANGER, at: h.fx.clock.t }), {
+    applied: false,
+    people: 0,
+  });
   assert.deepEqual(await through(h, "state.verify", host, { deep: true }), { problems: [], repaired: 0 });
   assert.deepEqual(await through(h, "state.retract", host, { thing: c }), { ok: true });
   assert.deepEqual(await through(h, "state.lose", host, { person: JONAS, scope: "box:main" }), { rows: 1 });
-  assert.deepEqual(await through(h, "state.gain", host, { person: JONAS, scope: "box:main" }), { rows: 1 });
+  // gaining a scope is access to everything in it: the row that was hidden comes back and cnv_two, which Jonas had no row on, gets one
+  assert.deepEqual(await through(h, "state.gain", host, { person: JONAS, scope: "box:main" }), { rows: 2 });
   assert.deepEqual(await through(h, "state.forget", host, { thing: c }), { ok: true });
   const a = h.fx.make("conversation", "cnv_a", [MAYA]);
   const b = h.fx.make("conversation", "cnv_b", [MAYA]);
@@ -220,4 +292,24 @@ test("the module start job repairs what a crash left", async () => {
   await job.run(h.as(HOST));
   assert.equal(stateOf(h.fx).stateOf(MAYA, [c])[0]!.unread, 1);
   assert.deepEqual(stateOf(h.fx).counts(MAYA), [{ scope: "box:main", things: 1, entries: 1 }]);
+});
+
+test("the minute job clears a mute that has run out and tells the person's devices", async () => {
+  const { h, c } = seeded();
+  await run("state.set", h.person(MAYA), { thing: c, mute: { until: h.fx.clock.t + 60_000 } });
+  assert.deepEqual(
+    stateOf(h.fx).counts(MAYA, ["box:main"]),
+    [{ scope: "box:main", things: 1, entries: 1 }],
+    "only the other thing counts while it is muted",
+  );
+  h.emitted.length = 0;
+  await periodic["state.unmute"].run(h.as(HOST));
+  assert.equal(h.emitted.length, 0, "nothing has run out yet");
+  h.fx.clock.t += 120_000;
+  await periodic["state.unmute"].run(h.as(HOST));
+  assert.deepEqual(
+    h.emitted.map((e) => [e.name, e.payload["person"], e.payload["changed"]]),
+    [["state.changed", MAYA, ["mute"]]],
+  );
+  assert.deepEqual(stateOf(h.fx).counts(MAYA, ["box:main"]), [{ scope: "box:main", things: 2, entries: 3 }]);
 });

@@ -1,0 +1,1 @@
+- What each person has read, finished, starred, followed or muted now has a place of its own on the server, so one person's reading can never clear another's. Nothing changes on screen yet; the Inbox moves onto it next.
