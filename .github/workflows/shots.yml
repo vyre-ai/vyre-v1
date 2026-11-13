@@ -114,12 +114,6 @@ jobs:
           if grep -E "^skip |# SKIP|ℹ skipped [1-9]" real-app-e2e.out; then echo "a live test skipped; release evidence needs every one to run" >&2; exit 1; fi
       - name: Real app capture against the production export (scripts/shots/real-app.mjs, P-APP_03)
         run: node scripts/shots/real-app.mjs --dist apps/app/dist --out shots-evidence/real-app
-      - name: No dead buttons (scripts/click/dead-buttons.mjs); every button, menu item and link in the real app on WebKit under the desktop app's CSP, Personal and team Space, does something a person can see
-        run: |
-          set -o pipefail
-          npx playwright-core install --with-deps webkit
-          node scripts/click/dead-buttons.mjs --dist apps/app/dist --browser webkit --csp tauri --out shots-evidence/dead-buttons 2>&1 | tee dead-buttons.out
-          grep -q "^done in" dead-buttons.out
       - name: The export carries the daemon's registry hash (EXPO_PUBLIC_VYRE_REGISTRY_HASH)
         run: node scripts/shots/registry-hash-in-bundle.mjs apps/app/dist
       - name: No prototype seed in the production web bundle (P-UI_06b)
@@ -136,6 +130,45 @@ jobs:
         with:
           name: shots-evidence
           path: shots-evidence
+          retention-days: 14
+          if-no-files-found: error
+  release-evidence-clicks:
+    # The no-dead-buttons click-through, in a job of its own since 14 Nov 2026: inside release-evidence it started after the 14 minute real-app walk and the
+    # job was cancelled at its 35 minute cap, run after run, before the click-through finished (two fresh Spaces, up to 12 minutes of clicking each, plus WebKit).
+    # One job per Space kind, the same command and the same gate; no cap was raised and nothing is optional: aggregate-shots needs every part.
+    if: (inputs.walks || '') == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        space: [personal, team]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps
+      - name: Export the production app (apps/app) for the click-through
+        run: |
+          H="$(node -e 'import("./scripts/lib/registry-hash.mjs").then((m) => console.log(m.registryHash()))')"
+          (cd apps/app && rm -rf dist && CI=1 EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_VYRE_REGISTRY_HASH="$H" npx expo export --platform web --output-dir dist)
+      - name: Bubblewrap for the CLI engine's sandbox, and what this runner allows (the chat walks run a CLI under bwrap; without it a turn ends at once with no words)
+        run: |
+          command -v bwrap >/dev/null || { sudo -n apt-get update -q && sudo -n apt-get install -y -q bubblewrap; }
+          # Ubuntu 24.04 runners restrict unprivileged user namespaces through AppArmor (kernel.apparmor_restrict_unprivileged_userns = 1), so bwrap cannot start the CLI: lift it on this throwaway VM
+          sudo -n sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --version
+          sysctl kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces 2>/dev/null || true
+          if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib --symlink usr/lib64 /lib64 --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
+      - name: No dead buttons (scripts/click/dead-buttons.mjs); every button, menu item and link in the real app on WebKit under the desktop app's CSP, Personal and team Space, does something a person can see
+        run: |
+          set -o pipefail
+          npx playwright-core install --with-deps webkit
+          node scripts/click/dead-buttons.mjs --dist apps/app/dist --browser webkit --csp tauri --spaces "${{ matrix.space }}" --out "shots-evidence/dead-buttons-${{ matrix.space }}" 2>&1 | tee dead-buttons.out
+          grep -q "^done in" dead-buttons.out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dead-buttons-${{ matrix.space }}
+          path: shots-evidence/dead-buttons-${{ matrix.space }}
           retention-days: 14
           if-no-files-found: error
   release-evidence-walks:
@@ -195,7 +228,7 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
   aggregate-shots:
-    needs: [shots, release-evidence]
+    needs: [shots, release-evidence, release-evidence-clicks]
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 10
     steps:
