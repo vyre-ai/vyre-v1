@@ -145,7 +145,10 @@ export function EventPane(p: EventPaneProps): ReactElement {
   const [rev, setRev] = useState(0);
   const [edit, setEdit] = useState<EditDraft | null>(null);
   const [err, setErr] = useState("");
-  useEscapeLayer(edit !== null, () => { setEdit(null); setErr(""); });
+  useEscapeLayer(edit !== null, () => {
+    setEdit(null);
+    setErr("");
+  });
   const [close, setClose] = useState<Closeout | null>(null);
   const [rec, setRec] = useState<{ fileId?: string; transcript: boolean } | null>(null);
   const [tx, setTx] = useState<string[] | null>(null);

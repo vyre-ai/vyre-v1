@@ -57,7 +57,12 @@ export interface BlockViewProps<T = unknown> {
 }
 
 /** Capabilities of this part that require an idempotencyKey in their input (checked against the registry by the tests). */
-export const IDEMPOTENT_CAPS: ReadonlySet<string> = new Set(["changesets.approve", "sites.promote", "sites.rollback", "mounts.sync_now"]);
+export const IDEMPOTENT_CAPS: ReadonlySet<string> = new Set([
+  "changesets.approve",
+  "sites.promote",
+  "sites.rollback",
+  "mounts.sync_now",
+]);
 
 let keyCounter = 0;
 
@@ -68,14 +73,26 @@ export function newIdempotencyKey(block: Block, action: string): string {
 }
 
 /** What one press sends beyond the block's own ids: an idempotency key when the capability asks for one. */
-export function extraFor(type: PartOneType, action: string, block: Block, more: Record<string, unknown> = {}): Record<string, unknown> {
+export function extraFor(
+  type: PartOneType,
+  action: string,
+  block: Block,
+  more: Record<string, unknown> = {},
+): Record<string, unknown> {
   const spec = BLOCK_SPECS_A[type].actions.find((a) => a.key === action);
-  const key = spec !== undefined && IDEMPOTENT_CAPS.has(spec.cap) ? { idempotencyKey: newIdempotencyKey(block, action) } : {};
+  const key =
+    spec !== undefined && IDEMPOTENT_CAPS.has(spec.cap) ? { idempotencyKey: newIdempotencyKey(block, action) } : {};
   return { ...key, ...more };
 }
 
 /** One press: calls the capability the action declares, with the ids from the block data. Resolves false for an unknown action. */
-export function perform(host: BlockHost, type: PartOneType, action: string, block: Block, more: Record<string, unknown> = {}): Promise<boolean> {
+export function perform(
+  host: BlockHost,
+  type: PartOneType,
+  action: string,
+  block: Block,
+  more: Record<string, unknown> = {},
+): Promise<boolean> {
   return runAction(host, type, action, block.data, extraFor(type, action, block, more));
 }
 
@@ -90,7 +107,25 @@ function copyText(text: string): void {
   void nav?.clipboard?.writeText?.(text);
 }
 
-function Btn({ id, label, onPress, primary = false, quiet = false, danger = false, disabled = false, pressed }: { id: string; label: string; onPress: () => void; primary?: boolean; quiet?: boolean; danger?: boolean; disabled?: boolean; pressed?: boolean }): ReactElement {
+function Btn({
+  id,
+  label,
+  onPress,
+  primary = false,
+  quiet = false,
+  danger = false,
+  disabled = false,
+  pressed,
+}: {
+  id: string;
+  label: string;
+  onPress: () => void;
+  primary?: boolean;
+  quiet?: boolean;
+  danger?: boolean;
+  disabled?: boolean;
+  pressed?: boolean;
+}): ReactElement {
   return (
     <Pressable
       accessibilityRole="button"
@@ -99,24 +134,59 @@ function Btn({ id, label, onPress, primary = false, quiet = false, danger = fals
       disabled={disabled}
       onPress={onPress}
       testID={id}
-      style={({ hovered }: { hovered?: boolean }) => [styles.btn, primary && styles.btnPrimary, quiet && styles.btnQuiet, hovered === true && !primary && HOVER, disabled && styles.disabled]}
+      style={({ hovered }: { hovered?: boolean }) => [
+        styles.btn,
+        primary && styles.btnPrimary,
+        quiet && styles.btnQuiet,
+        hovered === true && !primary && HOVER,
+        disabled && styles.disabled,
+      ]}
     >
-      <Text style={[styles.btnText, primary && styles.btnTextPrimary, quiet && styles.btnTextQuiet, danger && styles.btnTextDanger]}>{label}</Text>
+      <Text
+        style={[
+          styles.btnText,
+          primary && styles.btnTextPrimary,
+          quiet && styles.btnTextQuiet,
+          danger && styles.btnTextDanger,
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
 
-function Head({ title, tag, right, onPress, testID }: { title: string; tag?: string | undefined; right?: ReactNode; onPress?: (() => void) | undefined; testID: string }): ReactElement {
+function Head({
+  title,
+  tag,
+  right,
+  onPress,
+  testID,
+}: {
+  title: string;
+  tag?: string | undefined;
+  right?: ReactNode;
+  onPress?: (() => void) | undefined;
+  testID: string;
+}): ReactElement {
   const inner = (
     <>
-      <Text numberOfLines={1} style={styles.headTitle}>{title}</Text>
+      <Text numberOfLines={1} style={styles.headTitle}>
+        {title}
+      </Text>
       {tag ? <Text style={styles.tag}>{tag}</Text> : null}
     </>
   );
   return (
     <View style={styles.head}>
       {onPress ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} testID={`${testID}-title`} style={({ hovered }: { hovered?: boolean }) => [styles.headPress, hovered === true && HOVER]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={title}
+          onPress={onPress}
+          testID={`${testID}-title`}
+          style={({ hovered }: { hovered?: boolean }) => [styles.headPress, hovered === true && HOVER]}
+        >
           {inner}
         </Pressable>
       ) : (
@@ -127,16 +197,49 @@ function Head({ title, tag, right, onPress, testID }: { title: string; tag?: str
   );
 }
 
-function StatusLine({ tone, text, testID }: { tone: "ok" | "bad" | "plain"; text: string; testID: string }): ReactElement {
-  return <Text testID={testID} style={[styles.status, tone === "ok" && styles.ok, tone === "bad" && styles.bad]}>{text}</Text>;
+function StatusLine({
+  tone,
+  text,
+  testID,
+}: {
+  tone: "ok" | "bad" | "plain";
+  text: string;
+  testID: string;
+}): ReactElement {
+  return (
+    <Text testID={testID} style={[styles.status, tone === "ok" && styles.ok, tone === "bad" && styles.bad]}>
+      {text}
+    </Text>
+  );
 }
 
 /** The card frame: raised surface, quiet ring, right-click or long-press menu. */
-function Card({ type, block, testID, menu, children }: { type: PartOneType; block: Block; testID: string; menu: () => MenuEntry[]; children: ReactNode }): ReactElement {
+function Card({
+  type,
+  block,
+  testID,
+  menu,
+  children,
+}: {
+  type: PartOneType;
+  block: Block;
+  testID: string;
+  menu: () => MenuEntry[];
+  children: ReactNode;
+}): ReactElement {
   const { element, show } = useMenu();
-  const trigger = useMemo(() => menuTrigger((x, y) => show(menu(), x, y, "context", { label: `${type} block` })), [menu, show, type]);
+  const trigger = useMemo(
+    () => menuTrigger((x, y) => show(menu(), x, y, "context", { label: `${type} block` })),
+    [menu, show, type],
+  );
   return (
-    <View testID={testID} accessibilityLabel={`${type} block`} {...webProps({ dataSet: { blockType: type, blockV: String(block.v), traceId: block.traceId } })} {...trigger} style={[styles.card, RING]}>
+    <View
+      testID={testID}
+      accessibilityLabel={`${type} block`}
+      {...webProps({ dataSet: { blockType: type, blockV: String(block.v), traceId: block.traceId } })}
+      {...trigger}
+      style={[styles.card, RING]}
+    >
       {children}
       {element}
     </View>
@@ -144,10 +247,19 @@ function Card({ type, block, testID, menu, children }: { type: PartOneType; bloc
 }
 
 /** The menu every card shares: open (when the block has a tab), its own actions, copy trace id. */
-function baseMenu(host: BlockHost, type: PartOneType, block: Block, actions: { key: string; label: string; danger?: boolean }[], run: (key: string) => void, extra: MenuEntry[] = []): MenuEntry[] {
+function baseMenu(
+  host: BlockHost,
+  type: PartOneType,
+  block: Block,
+  actions: { key: string; label: string; danger?: boolean }[],
+  run: (key: string) => void,
+  extra: MenuEntry[] = [],
+): MenuEntry[] {
   const items: MenuEntry[] = [];
-  if (BLOCK_SPECS_A[type].opens !== undefined) items.push({ label: "Open beside the chat", onSelect: () => void openTab(host, type, block.data) });
-  for (const a of actions) items.push({ label: a.label, ...(a.danger === true ? { danger: true } : {}), onSelect: () => run(a.key) });
+  if (BLOCK_SPECS_A[type].opens !== undefined)
+    items.push({ label: "Open beside the chat", onSelect: () => void openTab(host, type, block.data) });
+  for (const a of actions)
+    items.push({ label: a.label, ...(a.danger === true ? { danger: true } : {}), onSelect: () => run(a.key) });
   items.push(...extra);
   if (items.length > 0) items.push({ separator: true });
   items.push({ label: "Copy trace id", onSelect: () => copyText(block.traceId) });
@@ -167,14 +279,29 @@ function CommandLine({ command, host }: { command: string; host: BlockHost }): R
     if (risk !== null) return undefined;
     let live = true;
     void Promise.resolve(host.invoke("terminal.risk", { command })).then(
-      (r) => { const v = (r as { risk?: string } | null)?.risk; if (v === "read" || v === "change" || v === "danger") { riskSeen.set(command, v); if (live) setRisk(v); } },
+      (r) => {
+        const v = (r as { risk?: string } | null)?.risk;
+        if (v === "read" || v === "change" || v === "danger") {
+          riskSeen.set(command, v);
+          if (live) setRisk(v);
+        }
+      },
       () => undefined,
     );
-    return () => { live = false; };
+    return () => {
+      live = false;
+    };
   }, [command, host, risk]);
   return (
     <View style={styles.cmdLine}>
-      {risk ? <View testID={`cmd-risk-${risk}`} accessibilityRole="image" accessibilityLabel={RISK_TEXT[risk]} style={[styles.cmdDot, { backgroundColor: RISK_COLOR[risk] as string }]} /> : null}
+      {risk ? (
+        <View
+          testID={`cmd-risk-${risk}`}
+          accessibilityRole="image"
+          accessibilityLabel={RISK_TEXT[risk]}
+          style={[styles.cmdDot, { backgroundColor: RISK_COLOR[risk] as string }]}
+        />
+      ) : null}
       <Text style={styles.termDim}>{`$ ${command}`}</Text>
     </View>
   );
@@ -196,7 +323,10 @@ export function TerminalBlock({ block, host }: BlockViewProps): ReactElement {
         host,
         "terminal",
         block,
-        [...(acts.interrupt ? [{ key: "interrupt", label: "Interrupt" }] : []), ...(acts.close ? [{ key: "close", label: "Close terminal" }] : [])],
+        [
+          ...(acts.interrupt ? [{ key: "interrupt", label: "Interrupt" }] : []),
+          ...(acts.close ? [{ key: "close", label: "Close terminal" }] : []),
+        ],
         run,
         [{ label: starred ? "Remove the star" : "Star this terminal", onSelect: toggleStar }],
       ),
@@ -205,8 +335,14 @@ export function TerminalBlock({ block, host }: BlockViewProps): ReactElement {
   const shown = d.commands.slice(-3);
   const lines = tailLines(d.tail);
   const screen: ReactNode[] = [];
-  for (const [i, c] of shown.entries()) screen.push(<CommandLine key={`c${c.startedAt}-${i}`} command={c.command} host={host} />);
-  for (const [i, line] of lines.entries()) screen.push(<Text key={`l${i}`} style={styles.termLine}>{line === "" ? " " : line}</Text>);
+  for (const [i, c] of shown.entries())
+    screen.push(<CommandLine key={`c${c.startedAt}-${i}`} command={c.command} host={host} />);
+  for (const [i, line] of lines.entries())
+    screen.push(
+      <Text key={`l${i}`} style={styles.termLine}>
+        {line === "" ? " " : line}
+      </Text>,
+    );
   const totalMs = d.commands.reduce((sum, c) => sum + (c.durationMs ?? 0), 0);
   return (
     <Card type="terminal" block={block} testID={`blk-terminal-${block.id}`} menu={menu}>
@@ -216,18 +352,39 @@ export function TerminalBlock({ block, host }: BlockViewProps): ReactElement {
         onPress={() => void openTab(host, "terminal", block.data)}
         right={
           <>
-            <Btn id={`blk-terminal-${block.id}-open`} label="Open as tab" quiet onPress={() => void openTab(host, "terminal", block.data)} />
-            <Btn id={`blk-terminal-${block.id}-star`} label={starred ? "Starred" : "Star"} pressed={starred} onPress={toggleStar} />
+            <Btn
+              id={`blk-terminal-${block.id}-open`}
+              label="Open as tab"
+              quiet
+              onPress={() => void openTab(host, "terminal", block.data)}
+            />
+            <Btn
+              id={`blk-terminal-${block.id}-star`}
+              label={starred ? "Starred" : "Star"}
+              pressed={starred}
+              onPress={toggleStar}
+            />
           </>
         }
       />
-      <Text style={styles.sub}>{terminalTitle(d.commands.length, d.hostTitle)}{totalMs > 0 ? ` · ${durationLabel(totalMs)}` : ""}</Text>
+      <Text style={styles.sub}>
+        {terminalTitle(d.commands.length, d.hostTitle)}
+        {totalMs > 0 ? ` · ${durationLabel(totalMs)}` : ""}
+      </Text>
       <View testID={`blk-terminal-${block.id}-screen`} style={styles.term}>
         {screen}
       </View>
       <View style={styles.acts}>
-        <Text testID={`blk-terminal-${block.id}-exit`} style={[styles.sub, styles.grow]}>{d.state === "running" ? "Running" : d.state === "idle" && d.exitCode === null ? "Idle" : exitLabel(d.exitCode)}</Text>
-        {acts.interrupt ? <Btn id={`blk-terminal-${block.id}-interrupt`} label="Interrupt" onPress={() => run("interrupt")} /> : null}
+        <Text testID={`blk-terminal-${block.id}-exit`} style={[styles.sub, styles.grow]}>
+          {d.state === "running"
+            ? "Running"
+            : d.state === "idle" && d.exitCode === null
+              ? "Idle"
+              : exitLabel(d.exitCode)}
+        </Text>
+        {acts.interrupt ? (
+          <Btn id={`blk-terminal-${block.id}-interrupt`} label="Interrupt" onPress={() => run("interrupt")} />
+        ) : null}
         {acts.close ? <Btn id={`blk-terminal-${block.id}-close`} label="Close" onPress={() => run("close")} /> : null}
       </View>
     </Card>
@@ -248,13 +405,37 @@ export function ChangesetBlock({ block, host }: BlockViewProps): ReactElement {
     [host, block],
   );
   const menu = useCallback(
-    () => baseMenu(host, "changeset", block, open ? [{ key: "approve", label: "Allow and commit" }, { key: "request_changes", label: "Request changes" }, { key: "discard", label: "Discard", danger: true }] : [], run),
+    () =>
+      baseMenu(
+        host,
+        "changeset",
+        block,
+        open
+          ? [
+              { key: "approve", label: "Allow and commit" },
+              { key: "request_changes", label: "Request changes" },
+              { key: "discard", label: "Discard", danger: true },
+            ]
+          : [],
+        run,
+      ),
     [host, block, open, run],
   );
-  const closedWord = done === "approved" ? "Approved and committed" : done === "discarded" ? "Discarded" : done === "changes" ? "Changes requested" : d.state.charAt(0).toUpperCase() + d.state.slice(1);
+  const closedWord =
+    done === "approved"
+      ? "Approved and committed"
+      : done === "discarded"
+        ? "Discarded"
+        : done === "changes"
+          ? "Changes requested"
+          : d.state.charAt(0).toUpperCase() + d.state.slice(1);
   return (
     <Card type="changeset" block={block} testID={`blk-changeset-${block.id}`} menu={menu}>
-      <Head testID={`blk-changeset-${block.id}`} title={changesetTitle(d.fileCount, d.folderName)} onPress={() => void openTab(host, "changeset", block.data)} />
+      <Head
+        testID={`blk-changeset-${block.id}`}
+        title={changesetTitle(d.fileCount, d.folderName)}
+        onPress={() => void openTab(host, "changeset", block.data)}
+      />
       <View style={styles.acts}>
         <Text testID={`blk-changeset-${block.id}-counts`} style={styles.counts}>
           <Text style={styles.ok}>{`+${d.added}`}</Text>
@@ -262,16 +443,29 @@ export function ChangesetBlock({ block, host }: BlockViewProps): ReactElement {
           <Text style={styles.bad}>{`−${d.removed}`}</Text>
         </Text>
         <View style={styles.grow} />
-        <Btn id={`blk-changeset-${block.id}-review`} label="Review changes" primary={open} onPress={() => void openTab(host, "changeset", block.data)} />
+        <Btn
+          id={`blk-changeset-${block.id}-review`}
+          label="Review changes"
+          primary={open}
+          onPress={() => void openTab(host, "changeset", block.data)}
+        />
       </View>
       {open ? (
         <View style={styles.acts}>
           <Btn id={`blk-changeset-${block.id}-approve`} label="Allow and commit" onPress={() => run("approve")} />
-          <Btn id={`blk-changeset-${block.id}-request_changes`} label="Request changes" onPress={() => run("request_changes")} />
+          <Btn
+            id={`blk-changeset-${block.id}-request_changes`}
+            label="Request changes"
+            onPress={() => run("request_changes")}
+          />
           <Btn id={`blk-changeset-${block.id}-discard`} label="Discard" quiet danger onPress={() => run("discard")} />
         </View>
       ) : (
-        <StatusLine tone={done === "discarded" ? "plain" : "ok"} testID={`blk-changeset-${block.id}-state`} text={closedWord} />
+        <StatusLine
+          tone={done === "discarded" ? "plain" : "ok"}
+          testID={`blk-changeset-${block.id}-state`}
+          text={closedWord}
+        />
       )}
     </Card>
   );
@@ -316,9 +510,17 @@ export function QuestionBlock({ block, host }: BlockViewProps): ReactElement {
   return (
     <Card type="question" block={block} testID={`blk-question-${block.id}`} menu={menu}>
       <Head testID={`blk-question-${block.id}`} title={d.prompt.split("\n")[0] ?? d.prompt} />
-      {d.prompt.includes("\n") ? <Text testID={`blk-question-${block.id}-why`} style={styles.why}>{d.prompt.slice(d.prompt.indexOf("\n") + 1).trim()}</Text> : null}
+      {d.prompt.includes("\n") ? (
+        <Text testID={`blk-question-${block.id}-why`} style={styles.why}>
+          {d.prompt.slice(d.prompt.indexOf("\n") + 1).trim()}
+        </Text>
+      ) : null}
       {answered ? (
-        <StatusLine tone="ok" testID={`blk-question-${block.id}-answered`} text={`${whoAnswered(host, d.answeredBy)}: ${answerLine(d.options, sent)}`} />
+        <StatusLine
+          tone="ok"
+          testID={`blk-question-${block.id}-answered`}
+          text={`${whoAnswered(host, d.answeredBy)}: ${answerLine(d.options, sent)}`}
+        />
       ) : (
         <>
           {d.mode !== "free" ? (
@@ -340,11 +542,23 @@ export function QuestionBlock({ block, host }: BlockViewProps): ReactElement {
                 testID={`blk-question-${block.id}-text`}
                 style={styles.input}
               />
-              <Btn id={`blk-question-${block.id}-answer`} label="Answer" primary disabled={!canAnswer(d.mode, picked, text)} onPress={() => submit(picked, text)} />
+              <Btn
+                id={`blk-question-${block.id}-answer`}
+                label="Answer"
+                primary
+                disabled={!canAnswer(d.mode, picked, text)}
+                onPress={() => submit(picked, text)}
+              />
             </View>
           ) : d.mode === "multi" ? (
             <View style={styles.acts}>
-              <Btn id={`blk-question-${block.id}-answer`} label="Answer" primary disabled={!canAnswer(d.mode, picked, "")} onPress={() => submit(picked, "")} />
+              <Btn
+                id={`blk-question-${block.id}-answer`}
+                label="Answer"
+                primary
+                disabled={!canAnswer(d.mode, picked, "")}
+                onPress={() => submit(picked, "")}
+              />
             </View>
           ) : null}
         </>
@@ -375,7 +589,19 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
   }, [host, block]);
   const run = useCallback((key: string) => (key === "approve" ? approve() : reject()), [approve, reject]);
   const menu = useCallback(
-    () => baseMenu(host, "plan", block, waiting ? [{ key: "approve", label: "Allow" }, { key: "reject", label: "Deny", danger: true }] : [], run),
+    () =>
+      baseMenu(
+        host,
+        "plan",
+        block,
+        waiting
+          ? [
+              { key: "approve", label: "Allow" },
+              { key: "reject", label: "Deny", danger: true },
+            ]
+          : [],
+        run,
+      ),
     [host, block, waiting, run],
   );
   const toggleRemoved = (id: string): void =>
@@ -390,42 +616,67 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
   for (const [i, s] of steps.entries()) {
     const gone = removed.has(s.stepId);
     stepRows.push(
-            <View key={s.stepId} style={styles.step} testID={`blk-plan-${block.id}-step-${i}`}>
-              <Text style={styles.stepMark}>{waiting ? `${i + 1}.` : STEP_MARK[s.state]}</Text>
-              {editing && waiting ? (
-                <>
-                  <TextInput
-                    accessibilityLabel={`Step ${i + 1}`}
-                    value={texts[s.stepId] ?? s.text}
-                    onChangeText={(t) => setTexts((prev) => ({ ...prev, [s.stepId]: t }))}
-                    testID={`blk-plan-${block.id}-edit-${i}`}
-                    style={[styles.input, styles.grow, gone && styles.struck]}
-                  />
-                  <Btn id={`blk-plan-${block.id}-remove-${i}`} label={gone ? "Keep" : "Remove"} quiet onPress={() => toggleRemoved(s.stepId)} />
-                </>
-              ) : (
-                <View style={styles.grow}>
-                  <Text style={[styles.stepText, s.state === "skipped" && styles.struck]}>{s.text}</Text>
-                  {s.detail ? <Text style={styles.sub}>{s.detail}</Text> : null}
-                </View>
-              )}
-            </View>
+      <View key={s.stepId} style={styles.step} testID={`blk-plan-${block.id}-step-${i}`}>
+        <Text style={styles.stepMark}>{waiting ? `${i + 1}.` : STEP_MARK[s.state]}</Text>
+        {editing && waiting ? (
+          <>
+            <TextInput
+              accessibilityLabel={`Step ${i + 1}`}
+              value={texts[s.stepId] ?? s.text}
+              onChangeText={(t) => setTexts((prev) => ({ ...prev, [s.stepId]: t }))}
+              testID={`blk-plan-${block.id}-edit-${i}`}
+              style={[styles.input, styles.grow, gone && styles.struck]}
+            />
+            <Btn
+              id={`blk-plan-${block.id}-remove-${i}`}
+              label={gone ? "Keep" : "Remove"}
+              quiet
+              onPress={() => toggleRemoved(s.stepId)}
+            />
+          </>
+        ) : (
+          <View style={styles.grow}>
+            <Text style={[styles.stepText, s.state === "skipped" && styles.struck]}>{s.text}</Text>
+            {s.detail ? <Text style={styles.sub}>{s.detail}</Text> : null}
+          </View>
+        )}
+      </View>,
     );
   }
   return (
     <Card type="plan" block={block} testID={`blk-plan-${block.id}`} menu={menu}>
-      <Head testID={`blk-plan-${block.id}`} title={planTitle(d.title, steps.length)} tag={waiting ? "Plan mode on" : undefined} onPress={d.hasDoc ? () => void openTab(host, "plan", block.data) : undefined} />
-      <View style={styles.steps}>
-        {stepRows}
-      </View>
+      <Head
+        testID={`blk-plan-${block.id}`}
+        title={planTitle(d.title, steps.length)}
+        tag={waiting ? "Plan mode on" : undefined}
+        onPress={d.hasDoc ? () => void openTab(host, "plan", block.data) : undefined}
+      />
+      <View style={styles.steps}>{stepRows}</View>
       {waiting ? (
         <View style={styles.acts}>
-          <Btn id={`blk-plan-${block.id}-approve`} label={editing ? "Allow with edits" : "Allow"} primary onPress={approve} />
-          <Btn id={`blk-plan-${block.id}-edit`} label={editing ? "Cancel" : "Edit"} onPress={() => { setEditing((e) => !e); setTexts({}); setRemoved(new Set()); }} />
+          <Btn
+            id={`blk-plan-${block.id}-approve`}
+            label={editing ? "Allow with edits" : "Allow"}
+            primary
+            onPress={approve}
+          />
+          <Btn
+            id={`blk-plan-${block.id}-edit`}
+            label={editing ? "Cancel" : "Edit"}
+            onPress={() => {
+              setEditing((e) => !e);
+              setTexts({});
+              setRemoved(new Set());
+            }}
+          />
           <Btn id={`blk-plan-${block.id}-reject`} label="Deny" quiet danger onPress={reject} />
         </View>
       ) : state === "approved" ? (
-        <StatusLine tone="ok" testID={`blk-plan-${block.id}-state`} text={`Approved · plan mode is off · ${planProgress(steps)}`} />
+        <StatusLine
+          tone="ok"
+          testID={`blk-plan-${block.id}-state`}
+          text={`Approved · plan mode is off · ${planProgress(steps)}`}
+        />
       ) : state === "rejected" ? (
         <StatusLine tone="bad" testID={`blk-plan-${block.id}-state`} text="Rejected · tell it what to change" />
       ) : (
@@ -451,39 +702,78 @@ export function DeployBlock({ block, host }: BlockViewProps): ReactElement {
         host,
         "deploy",
         block,
-        [...(acts.promote ? [{ key: "promote", label: "Promote" }] : []), ...(acts.rollback ? [{ key: "rollback", label: "Roll back", danger: true }] : [])],
+        [
+          ...(acts.promote ? [{ key: "promote", label: "Promote" }] : []),
+          ...(acts.rollback ? [{ key: "rollback", label: "Roll back", danger: true }] : []),
+        ],
         run,
-        link !== null ? [{ label: "Open the preview link", onSelect: follow }, { label: "Copy link", onSelect: () => copyText(link) }] : [],
+        link !== null
+          ? [
+              { label: "Open the preview link", onSelect: follow },
+              { label: "Copy link", onSelect: () => copyText(link) },
+            ]
+          : [],
       ),
     [host, block, acts.promote, acts.rollback, link, run, follow],
   );
-  const dot = d.state === "ready" ? "var(--ok)" : d.state === "failed" ? "var(--danger)" : d.state === "stopped" ? "var(--ink-4)" : "var(--warn)";
+  const dot =
+    d.state === "ready"
+      ? "var(--ok)"
+      : d.state === "failed"
+        ? "var(--danger)"
+        : d.state === "stopped"
+          ? "var(--ink-4)"
+          : "var(--warn)";
   const checks = checksLine(d.checks);
   const failedChecks: ReactNode[] = [];
-  for (const c of d.checks) if (!c.ok) failedChecks.push(<Text key={c.name} style={[styles.sub, styles.bad]}>{`${c.name} failed`}</Text>);
+  for (const c of d.checks)
+    if (!c.ok) failedChecks.push(<Text key={c.name} style={[styles.sub, styles.bad]}>{`${c.name} failed`}</Text>);
   return (
     <Card type="deploy" block={block} testID={`blk-deploy-${block.id}`} menu={menu}>
-      <Head testID={`blk-deploy-${block.id}`} title={deployLine(d.env, d.state)} onPress={() => void openTab(host, "deploy", block.data)} />
+      <Head
+        testID={`blk-deploy-${block.id}`}
+        title={deployLine(d.env, d.state)}
+        onPress={() => void openTab(host, "deploy", block.data)}
+      />
       <View style={styles.dep}>
         <View style={[styles.dot, { backgroundColor: dot }]} />
-        <Text style={styles.sub}>{d.state === "ready" ? "Live" : d.state === "building" ? "Building" : d.state === "queued" ? "Waiting to build" : d.state === "failed" ? "Failed" : "Stopped"}{checks !== "" ? ` · ${checks}` : ""}</Text>
+        <Text style={styles.sub}>
+          {d.state === "ready"
+            ? "Live"
+            : d.state === "building"
+              ? "Building"
+              : d.state === "queued"
+                ? "Waiting to build"
+                : d.state === "failed"
+                  ? "Failed"
+                  : "Stopped"}
+          {checks !== "" ? ` · ${checks}` : ""}
+        </Text>
       </View>
-      {d.checks.some((c) => !c.ok) ? (
-        <View style={styles.steps}>
-          {failedChecks}
-        </View>
-      ) : null}
+      {d.checks.some((c) => !c.ok) ? <View style={styles.steps}>{failedChecks}</View> : null}
       <View style={styles.acts}>
         {link !== null ? (
-          <Pressable accessibilityRole="link" accessibilityLabel={`Open ${link}`} onPress={follow} testID={`blk-deploy-${block.id}-link`} style={styles.grow}>
-            <Text numberOfLines={1} style={styles.link}>{link.replace(/^https?:\/\//i, "")}</Text>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`Open ${link}`}
+            onPress={follow}
+            testID={`blk-deploy-${block.id}-link`}
+            style={styles.grow}
+          >
+            <Text numberOfLines={1} style={styles.link}>
+              {link.replace(/^https?:\/\//i, "")}
+            </Text>
           </Pressable>
         ) : (
           <View style={styles.grow} />
         )}
         {link !== null ? <Btn id={`blk-deploy-${block.id}-preview`} label="Open preview" onPress={follow} /> : null}
-        {acts.promote ? <Btn id={`blk-deploy-${block.id}-promote`} label="Promote" primary onPress={() => run("promote")} /> : null}
-        {acts.rollback ? <Btn id={`blk-deploy-${block.id}-rollback`} label="Roll back" quiet danger onPress={() => run("rollback")} /> : null}
+        {acts.promote ? (
+          <Btn id={`blk-deploy-${block.id}-promote`} label="Promote" primary onPress={() => run("promote")} />
+        ) : null}
+        {acts.rollback ? (
+          <Btn id={`blk-deploy-${block.id}-rollback`} label="Roll back" quiet danger onPress={() => run("rollback")} />
+        ) : null}
       </View>
     </Card>
   );
@@ -492,7 +782,17 @@ export function DeployBlock({ block, host }: BlockViewProps): ReactElement {
 /* ---------- mount ---------- */
 
 /** What sites.get says about an artifact that the card shows. */
-interface SiteBits { name?: string; owner?: string; access?: ArtifactInfo["access"]; updatedAt?: number; thumb?: string; chatId?: string; chatTitle?: string; sharedWith?: string[]; sharedAudience?: ("link" | "space")[] }
+interface SiteBits {
+  name?: string;
+  owner?: string;
+  access?: ArtifactInfo["access"];
+  updatedAt?: number;
+  thumb?: string;
+  chatId?: string;
+  chatTitle?: string;
+  sharedWith?: string[];
+  sharedAudience?: ("link" | "space")[];
+}
 
 /** Something a model made to show: a card with its picture, one quiet line, and Open, Copy link and "...". The whole card opens it. */
 export function ArtifactBlock({ block, host }: BlockViewProps): ReactElement {
@@ -506,30 +806,99 @@ export function ArtifactBlock({ block, host }: BlockViewProps): ReactElement {
     if (id === "") return undefined;
     let live = true;
     void Promise.resolve(host.invoke("sites.get", { siteId: id })).then(
-      (o) => { const s = (o as { site?: SiteBits } | null)?.site; if (live && s) setSite(s); },
+      (o) => {
+        const s = (o as { site?: SiteBits } | null)?.site;
+        if (live && s) setSite(s);
+      },
       () => undefined,
     );
-    return () => { live = false; };
+    return () => {
+      live = false;
+    };
   }, [host, id]);
-  const trigger = useMemo(() => menuTrigger((x, y) => show([{ label: "Open", onSelect: () => void openTab(host, "artifact", block.data) }, { separator: true }, { label: "Copy trace id", onSelect: () => copyText(block.traceId) }], x, y, "context", { label: "artifact block" })), [host, block, show]);
+  const trigger = useMemo(
+    () =>
+      menuTrigger((x, y) =>
+        show(
+          [
+            { label: "Open", onSelect: () => void openTab(host, "artifact", block.data) },
+            { separator: true },
+            { label: "Copy trace id", onSelect: () => copyText(block.traceId) },
+          ],
+          x,
+          y,
+          "context",
+          { label: "artifact block" },
+        ),
+      ),
+    [host, block, show],
+  );
   const me = host.meId ?? site?.owner ?? "";
-  const info: ArtifactInfo = { id, name: site?.name ?? title, owner: site?.owner ?? me, access: site?.access, updatedAt: site?.updatedAt, thumb: site?.thumb ?? (typeof data.thumb === "string" ? data.thumb : undefined), from: site?.chatId !== undefined && site.chatTitle !== undefined ? { id: site.chatId, title: site.chatTitle } : undefined, sharedWith: site?.sharedWith?.map((id) => host.nameOf?.(id) ?? id), audience: site?.sharedAudience };
+  const info: ArtifactInfo = {
+    id,
+    name: site?.name ?? title,
+    owner: site?.owner ?? me,
+    access: site?.access,
+    updatedAt: site?.updatedAt,
+    thumb: site?.thumb ?? (typeof data.thumb === "string" ? data.thumb : undefined),
+    from:
+      site?.chatId !== undefined && site.chatTitle !== undefined
+        ? { id: site.chatId, title: site.chatTitle }
+        : undefined,
+    sharedWith: site?.sharedWith?.map((id) => host.nameOf?.(id) ?? id),
+    audience: site?.sharedAudience,
+  };
   const address = useCallback(async (): Promise<string | null> => {
     try {
-      const o = (await host.invoke("sites.artifact_open", { artifactId: id, idempotencyKey: `card-${id}-${Date.now()}` })) as { path: string; url?: string };
+      const o = (await host.invoke("sites.artifact_open", {
+        artifactId: id,
+        idempotencyKey: `card-${id}-${Date.now()}`,
+      })) as { path: string; url?: string };
       return linkOf(o, (globalThis as { location?: { origin?: string } }).location?.origin);
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }, [host, id]);
-  if (gone) return <View testID={`blk-artifact-${block.id}`}><Text style={styles.sub}>{`${info.name} was deleted`}</Text></View>;
+  if (gone)
+    return (
+      <View testID={`blk-artifact-${block.id}`}>
+        <Text style={styles.sub}>{`${info.name} was deleted`}</Text>
+      </View>
+    );
   return (
-    <View testID={`blk-artifact-${block.id}`} accessibilityLabel="artifact block" {...webProps({ dataSet: { blockType: "artifact", blockV: String(block.v), traceId: block.traceId } })} {...trigger}>
+    <View
+      testID={`blk-artifact-${block.id}`}
+      accessibilityLabel="artifact block"
+      {...webProps({ dataSet: { blockType: "artifact", blockV: String(block.v), traceId: block.traceId } })}
+      {...trigger}
+    >
       <ArtifactCard
-        info={info} meId={me} now={Date.now()} {...(host.nameOf ? { nameOf: host.nameOf } : {})} testID={`blk-artifact-${block.id}-card`}
+        info={info}
+        meId={me}
+        now={Date.now()}
+        {...(host.nameOf ? { nameOf: host.nameOf } : {})}
+        testID={`blk-artifact-${block.id}-card`}
         onOpen={() => void openTab(host, "artifact", block.data)}
-        onCopyLink={() => copyText(`${((globalThis as { location?: { origin?: string } }).location?.origin ?? "").replace(/\/+$/, "")}/a/${id}`)}
+        onCopyLink={() =>
+          copyText(
+            `${((globalThis as { location?: { origin?: string } }).location?.origin ?? "").replace(/\/+$/, "")}/a/${id}`,
+          )
+        }
         onShare={() => host.open("artifact-share", { artifactId: id })}
-        onBrowser={() => void address().then((u) => { if (u) host.openUrl?.(u); })}
-        onDelete={info.owner === me ? () => void Promise.resolve(host.invoke("sites.delete", { siteId: id })).then(() => setGone(true), () => undefined) : undefined}
+        onBrowser={() =>
+          void address().then((u) => {
+            if (u) host.openUrl?.(u);
+          })
+        }
+        onDelete={
+          info.owner === me
+            ? () =>
+                void Promise.resolve(host.invoke("sites.delete", { siteId: id })).then(
+                  () => setGone(true),
+                  () => undefined,
+                )
+            : undefined
+        }
       />
       {element}
     </View>
@@ -546,14 +915,36 @@ export function MountBlock({ block, host }: BlockViewProps): ReactElement {
     },
     [host, block],
   );
-  const menu = useCallback(() => baseMenu(host, "mount", block, [{ key: "sync", label: "Sync now" }], run), [host, block, run]);
+  const menu = useCallback(
+    () => baseMenu(host, "mount", block, [{ key: "sync", label: "Sync now" }], run),
+    [host, block, run],
+  );
   const lag = lagLine(d.lagSeconds);
   return (
     <Card type="mount" block={block} testID={`blk-mount-${block.id}`} menu={menu}>
-      <Head testID={`blk-mount-${block.id}`} title={mountTitle(d.name, d.provider)} onPress={() => void openTab(host, "mount", block.data)} right={<Btn id={`blk-mount-${block.id}-open`} label="Open in Files" quiet onPress={() => void openTab(host, "mount", block.data)} />} />
+      <Head
+        testID={`blk-mount-${block.id}`}
+        title={mountTitle(d.name, d.provider)}
+        onPress={() => void openTab(host, "mount", block.data)}
+        right={
+          <Btn
+            id={`blk-mount-${block.id}-open`}
+            label="Open in Files"
+            quiet
+            onPress={() => void openTab(host, "mount", block.data)}
+          />
+        }
+      />
       <View style={styles.acts}>
-        <Text testID={`blk-mount-${block.id}-lag`} style={[styles.sub, styles.grow]}>{[d.state, lag].filter((x) => x !== "").join(" · ")}</Text>
-        <Btn id={`blk-mount-${block.id}-sync`} label={syncing ? "Syncing" : "Sync now"} disabled={syncing} onPress={() => run("sync")} />
+        <Text testID={`blk-mount-${block.id}-lag`} style={[styles.sub, styles.grow]}>
+          {[d.state, lag].filter((x) => x !== "").join(" · ")}
+        </Text>
+        <Btn
+          id={`blk-mount-${block.id}-sync`}
+          label={syncing ? "Syncing" : "Sync now"}
+          disabled={syncing}
+          onPress={() => run("sync")}
+        />
       </View>
     </Card>
   );
@@ -568,17 +959,28 @@ export function RecordCardBlock({ block, host }: BlockViewProps): ReactElement {
   for (const f of fields) {
     fieldViews.push(
       <View key={f.key} style={styles.field}>
-        <Text numberOfLines={1} style={styles.fieldKey}>{f.title}</Text>
-        <Text numberOfLines={1} style={styles.fieldVal}>{f.text}</Text>
+        <Text numberOfLines={1} style={styles.fieldKey}>
+          {f.title}
+        </Text>
+        <Text numberOfLines={1} style={styles.fieldVal}>
+          {f.text}
+        </Text>
       </View>,
     );
   }
   const go = (): void => void openTab(host, "record_card", block.data);
   const menu = useCallback(() => baseMenu(host, "record_card", block, [], () => undefined), [host, block]);
   const { element, show } = useMenu();
-  const trigger = useMemo(() => menuTrigger((x, y) => show(menu(), x, y, "context", { label: "record block" })), [menu, show]);
+  const trigger = useMemo(
+    () => menuTrigger((x, y) => show(menu(), x, y, "context", { label: "record block" })),
+    [menu, show],
+  );
   return (
-    <View testID={`blk-record_card-${block.id}`} {...webProps({ dataSet: { blockType: "record_card", blockV: String(block.v), traceId: block.traceId } })} style={[styles.card, RING, styles.cardFlush]}>
+    <View
+      testID={`blk-record_card-${block.id}`}
+      {...webProps({ dataSet: { blockType: "record_card", blockV: String(block.v), traceId: block.traceId } })}
+      style={[styles.card, RING, styles.cardFlush]}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Open ${d.title}`}
@@ -588,16 +990,18 @@ export function RecordCardBlock({ block, host }: BlockViewProps): ReactElement {
         style={({ hovered }: { hovered?: boolean }) => [styles.recPress, hovered === true && HOVER]}
       >
         <View style={styles.head}>
-          <Text numberOfLines={1} style={[styles.headTitle, styles.grow]}>{d.title}</Text>
+          <Text numberOfLines={1} style={[styles.headTitle, styles.grow]}>
+            {d.title}
+          </Text>
           {d.type ? <Text style={styles.tag}>{d.type}</Text> : null}
           {d.status ? <Text style={styles.sub}>{d.status}</Text> : null}
         </View>
-        {d.summary ? <Text numberOfLines={2} style={styles.sub}>{d.summary}</Text> : null}
-        {fields.length > 0 ? (
-          <View style={styles.fields}>
-            {fieldViews}
-          </View>
+        {d.summary ? (
+          <Text numberOfLines={2} style={styles.sub}>
+            {d.summary}
+          </Text>
         ) : null}
+        {fields.length > 0 ? <View style={styles.fields}>{fieldViews}</View> : null}
       </Pressable>
       {element}
     </View>
@@ -645,17 +1049,42 @@ function whoAnswered(host: BlockHost, answeredBy: string): string {
 }
 
 const styles = StyleSheet.create({
-  card: { marginVertical: 8, borderRadius: 12, backgroundColor: "var(--raised)" as string, paddingHorizontal: 12, paddingVertical: 10, maxWidth: 560, width: "100%" },
+  card: {
+    marginVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "var(--raised)" as string,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    maxWidth: 560,
+    width: "100%",
+  },
   cardFlush: { paddingHorizontal: 0, paddingVertical: 0, overflow: "hidden" },
   head: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
   headPress: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 6 },
   headRight: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 },
   headTitle: { ...textBase, fontWeight: "600", flexShrink: 1 },
-  tag: { height: 19, paddingHorizontal: 7, borderRadius: 99, overflow: "hidden", backgroundColor: "var(--accent-wash)" as string, color: "var(--accent)" as string, fontSize: 11, lineHeight: 19, fontWeight: "600" },
+  tag: {
+    height: 19,
+    paddingHorizontal: 7,
+    borderRadius: 99,
+    overflow: "hidden",
+    backgroundColor: "var(--accent-wash)" as string,
+    color: "var(--accent)" as string,
+    fontSize: 11,
+    lineHeight: 19,
+    fontWeight: "600",
+  },
   sub: { color: "var(--ink-3)" as string, fontSize: 12.5, lineHeight: 18 },
   grow: { flex: 1, minWidth: 0 },
   acts: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginTop: 8 },
-  btn: { height: 28, paddingHorizontal: 11, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--hover)" as string },
+  btn: {
+    height: 28,
+    paddingHorizontal: 11,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--hover)" as string,
+  },
   btnPrimary: { backgroundColor: "var(--accent)" as string },
   btnQuiet: { backgroundColor: "transparent" },
   btnText: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "500" },
@@ -673,12 +1102,30 @@ const styles = StyleSheet.create({
   termDim: { fontFamily: MONO, fontSize: 12, lineHeight: 18, color: "#8A8A92" },
   termLine: { fontFamily: MONO, fontSize: 12, lineHeight: 18, color: "#D8D8DE" },
   opts: { marginHorizontal: -6, gap: 2 },
-  opt: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 8 },
+  opt: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
   optMark: { color: "var(--ink-3)" as string, fontSize: 13, lineHeight: 19, width: 16 },
   why: { fontSize: 13, lineHeight: 19, color: "var(--ink-2)" as string, paddingHorizontal: 12, paddingBottom: 6 },
   optLabel: { ...textBase },
   free: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
-  input: { flex: 1, minWidth: 0, height: 28, borderRadius: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string, color: "var(--ink)" as string, fontSize: 13 },
+  input: {
+    flex: 1,
+    minWidth: 0,
+    height: 28,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "var(--field-line)",
+    backgroundColor: "var(--field)" as string,
+    color: "var(--ink)" as string,
+    fontSize: 13,
+  },
   steps: { gap: 3, marginBottom: 2 },
   step: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   stepMark: { width: 18, color: "var(--ink-3)" as string, fontSize: 13, lineHeight: 19, textAlign: "right" },

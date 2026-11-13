@@ -52,7 +52,21 @@ test("a record becomes its title and the words of its fields, never a credential
 test("a record's fields that hold ids (its folder, its people) are not words of it: no id reaches the index body or a snippet (owner, 13 Nov 2026)", async () => {
   const h = harness({
     respond: {
-      "records.get": (i) => ({ record: { id: i["recordId"], type: "project", label: 1, fields: { name: "Spring launch", folderId: "fld_01a1d27b165742ddb20032cbd182aaf9", lead: "usr_5b6f9d9e0e318704d0", members: ["usr_8923b33eafc2cebd5c", "Maya"], goal: "Launch on time" }, updatedAt: 5 } }),
+      "records.get": (i) => ({
+        record: {
+          id: i["recordId"],
+          type: "project",
+          label: 1,
+          fields: {
+            name: "Spring launch",
+            folderId: "fld_01a1d27b165742ddb20032cbd182aaf9",
+            lead: "usr_5b6f9d9e0e318704d0",
+            members: ["usr_8923b33eafc2cebd5c", "Maya"],
+            goal: "Launch on time",
+          },
+          updatedAt: 5,
+        },
+      }),
       "schema.types.get": (i) => ({ type: { key: i["type"], titleField: "name" } }),
     },
   });

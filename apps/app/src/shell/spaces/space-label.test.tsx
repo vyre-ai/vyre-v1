@@ -81,7 +81,10 @@ test("lint: no screen shows a Space id where a person reads it", () => {
 
 test("lint: the exemption list is exactly the one screen the owner named (13 Nov 2026), so it cannot grow quietly", () => {
   assert.deepEqual(SPACE_ID_ON_PURPOSE, ["console/pages/InfrastructureSettings.tsx"]);
-  assert.ok(fs.readFileSync(path.join(ROOT, "console/pages/InfrastructureSettings.tsx"), "utf8").includes("space-id-value"), "the exempt screen is the Space ID row");
+  assert.ok(
+    fs.readFileSync(path.join(ROOT, "console/pages/InfrastructureSettings.tsx"), "utf8").includes("space-id-value"),
+    "the exempt screen is the Space ID row",
+  );
 });
 
 test("lint: the rule catches what it is for", () => {

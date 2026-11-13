@@ -336,15 +336,33 @@ export const joinTemplate = (segs: readonly Seg[]): string =>
   segs.map((s) => (s.kind === "text" ? s.text : `{{ ${s.ref} }}`)).join("");
 
 /** The fields of what started a run that people know by a plain name. The picker's own words for the trigger are "What started the run"; a field that is only an id is named for what it points at. */
-const FRIENDLY_FIELD: Readonly<Record<string, string>> = { recordId: "The record that started this", threadId: "The chat that started this", taskId: "The task that started this", fileId: "The file that started this", contactId: "The contact that started this", projectId: "The project that started this" };
+const FRIENDLY_FIELD: Readonly<Record<string, string>> = {
+  recordId: "The record that started this",
+  threadId: "The chat that started this",
+  taskId: "The task that started this",
+  fileId: "The file that started this",
+  contactId: "The contact that started this",
+  projectId: "The project that started this",
+};
 
 /** A field's name as a person reads it: its words, and never the word "id" (contactId is Contact). A field that is only "id" is named Reference. */
 function fieldWords(path: string): string {
   const last = path.split(".").pop() ?? path;
   // words split at camelCase and underscores; an acronym (URL, AI) keeps its capitals, any other word is lower case, and the word "id" is never shown
-  const words = last.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2").replace(/[_-]+/g, " ").trim().split(/\s+/).filter(Boolean)
+  const words = last
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
     .map((w) => (/^[A-Z0-9]{2,}$/.test(w) && w.toLowerCase() !== "id" ? w : w.toLowerCase()));
-  const kept = words.length > 1 && words[words.length - 1] === "id" ? words.slice(0, -1) : words.length === 1 && words[0] === "id" ? ["reference"] : words;
+  const kept =
+    words.length > 1 && words[words.length - 1] === "id"
+      ? words.slice(0, -1)
+      : words.length === 1 && words[0] === "id"
+        ? ["reference"]
+        : words;
   return kept.join(" ").replace(/^\w/, (c) => c.toUpperCase());
 }
 
@@ -368,7 +386,12 @@ export const CHIP_CLOSE = "\u203a";
  */
 export function chipWords(text: string, titleOf: (stepId: string) => string): string {
   return text.replace(/\{\{\s*([^{}|]*?)\s*(?:\|[^{}]*)?\}\}/g, (_m, ref: string) => {
-    const words = /^(?:trigger|input|steps)(?:\.|$)/.test(ref) ? chipLabel(ref, titleOf) : ref.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_.-]+/g, " ").toLowerCase();
+    const words = /^(?:trigger|input|steps)(?:\.|$)/.test(ref)
+      ? chipLabel(ref, titleOf)
+      : ref
+          .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+          .replace(/[_.-]+/g, " ")
+          .toLowerCase();
     return `${CHIP_OPEN}${words}${CHIP_CLOSE}`;
   });
 }

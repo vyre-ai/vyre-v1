@@ -331,7 +331,10 @@ export function triggerCardHeight(count: number): number {
 export const REMOVED_KEY = "A removed AI account";
 
 /** The second line of a card: what the step does, from its inputs, in words. */
-export function subtitleOf(n: DefNode, names: { key?: (id: string) => string; step?: (id: string) => string } = {}): string {
+export function subtitleOf(
+  n: DefNode,
+  names: { key?: (id: string) => string; step?: (id: string) => string } = {},
+): string {
   // a `{{ }}` reference is never the text of a card: it reads as the chip it is in the editor (owner, 13 Nov 2026)
   return chipWords(subtitleRaw(n, names), names.step ?? (() => "an earlier step"));
 }
@@ -497,7 +500,13 @@ export function layout(
 
   const put = (n: DefNode, cx: number, y: number): CardNode => {
     const k = kindOfKey(n.key);
-    const names = { ...(opts.keyName ? { key: opts.keyName } : {}), step: (id: string): string => { const x = by.get(id); return x ? cardTitle(x) : "an earlier step"; } };
+    const names = {
+      ...(opts.keyName ? { key: opts.keyName } : {}),
+      step: (id: string): string => {
+        const x = by.get(id);
+        return x ? cardTitle(x) : "an earlier step";
+      },
+    };
     const card: CardNode = {
       id: n.id,
       type: "step",

@@ -240,13 +240,19 @@ test("question: a prompt with a second line shows it as the why, under the quest
 });
 
 test("question: the person who answered is named through the directory, never by the id the block stores (owner, 13 Nov 2026)", () => {
-  const by = (answeredBy: string): Block => ({ ...SAMPLE_QUESTION, data: { ...(SAMPLE_QUESTION.data as object), answer: { keys: ["45"] }, answeredBy } });
+  const by = (answeredBy: string): Block => ({
+    ...SAMPLE_QUESTION,
+    data: { ...(SAMPLE_QUESTION.data as object), answer: { keys: ["45"] }, answeredBy },
+  });
   const id = "usr_6c247944ef2a9503ef";
   const known = { ...fakeHost().host, nameOf: (x: string) => (x === id ? "Maya Chen" : x), meId: "usr_me" };
   assert.ok(html(by(id), known).includes("Maya Chen answered: 45 minutes"));
   assert.ok(html(by("usr_me"), known).includes("You answered: 45 minutes"));
   const unknown = html(by(id));
-  assert.ok(unknown.includes("Someone answered: 45 minutes") && !unknown.includes("usr_6c24"), "no directory: a plain word");
+  assert.ok(
+    unknown.includes("Someone answered: 45 minutes") && !unknown.includes("usr_6c24"),
+    "no directory: a plain word",
+  );
 });
 
 test("question: single choice shows each option; an answered one shows the answer and no options", () => {

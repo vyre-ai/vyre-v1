@@ -17,9 +17,37 @@ test("admin activity names what an act was on, and leaves out what it has no nam
 test("the same act by the same person in a row is one line with a count (owner, 13 Nov 2026: Dex posted a chat, four times)", () => {
   const name = (id: string): string => ({ agt_dex: "Dex", usr_tom: "Tom Reyes" })[id] ?? "Someone";
   const chat = (at: number) => ({ at, actor: "agt_dex", action: "chat.post" });
-  const rows = activityRows([chat(900), chat(890), chat(880), chat(870), { at: 860, actor: "usr_tom", action: "records.update", resource: "rec_1" }, { at: 850, actor: "usr_tom", action: "records.update", resource: "rec_1" }, chat(840)], (id) => (id === "rec_1" ? "Acme Legal" : name(id)));
-  assert.deepEqual(rows.map((r) => [r.title, r.count, r.at]), [["Dex posted 4 chats", 4, 900], ["Tom Reyes updated the record Acme Legal, 2 times", 2, 860], ["Dex posted a chat", 1, 840]]);
-  assert.equal(activityRows([{ at: 2, actor: "agt_dex", action: "chat.post" }, { at: 1, actor: "usr_tom", action: "chat.post" }], name).length, 2, "two people are two lines");
+  const rows = activityRows(
+    [
+      chat(900),
+      chat(890),
+      chat(880),
+      chat(870),
+      { at: 860, actor: "usr_tom", action: "records.update", resource: "rec_1" },
+      { at: 850, actor: "usr_tom", action: "records.update", resource: "rec_1" },
+      chat(840),
+    ],
+    (id) => (id === "rec_1" ? "Acme Legal" : name(id)),
+  );
+  assert.deepEqual(
+    rows.map((r) => [r.title, r.count, r.at]),
+    [
+      ["Dex posted 4 chats", 4, 900],
+      ["Tom Reyes updated the record Acme Legal, 2 times", 2, 860],
+      ["Dex posted a chat", 1, 840],
+    ],
+  );
+  assert.equal(
+    activityRows(
+      [
+        { at: 2, actor: "agt_dex", action: "chat.post" },
+        { at: 1, actor: "usr_tom", action: "chat.post" },
+      ],
+      name,
+    ).length,
+    2,
+    "two people are two lines",
+  );
 });
 
 test("a repeated line says its count in words", () => {

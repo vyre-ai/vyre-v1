@@ -21,7 +21,13 @@ const rowOf = (rows: readonly SettingRow[], key: string): SettingRow | undefined
 // ---------------------------------------------------------------- Sign-in and devices
 
 type DevicesOut = CapMap["devices.mine"]["out"];
-const CLASS_ICON: Record<string, string> = { desktop: "laptop", phone: "phone", web: "globe", extension: "grid", daemon: "chip" };
+const CLASS_ICON: Record<string, string> = {
+  desktop: "laptop",
+  phone: "phone",
+  web: "globe",
+  extension: "grid",
+  daemon: "chip",
+};
 
 export function whenLabel(at: number | undefined, now: number): string {
   if (at === undefined) return "never";
@@ -44,21 +50,44 @@ export function SignInPage(): ReactElement {
   const list: ReactElement[] = [];
   let others = 0;
   if (q.status === "ready") {
-    const devices = q.data.devices.filter((d) => d.revokedAt === undefined).sort((a, b) => (b.current ? 1 : 0) - (a.current ? 1 : 0));
+    const devices = q.data.devices
+      .filter((d) => d.revokedAt === undefined)
+      .sort((a, b) => (b.current ? 1 : 0) - (a.current ? 1 : 0));
     devices.forEach((d, i) => {
       if (!d.current) others++;
       const confirming = sure === d.id;
       list.push(
         <SettingsRow
-          key={d.id} id={`device.${d.id}`} label={d.name} first={i === 0} lead={<Glyph name={CLASS_ICON[d.class] ?? "laptop"} size={16} />}
+          key={d.id}
+          id={`device.${d.id}`}
+          label={d.name}
+          first={i === 0}
+          lead={<Glyph name={CLASS_ICON[d.class] ?? "laptop"} size={16} />}
           sub={`${d.current ? "This device" : `Last seen ${whenLabel(d.lastSeenAt, now)}`}${d.location ? `, ${d.location}` : ""}`}
           control={
-            d.current ? <Value text="This device" /> : confirming ? (
+            d.current ? (
+              <Value text="This device" />
+            ) : confirming ? (
               <>
                 <SmallButton label="Cancel" onPress={() => setSure(null)} />
-                <SmallButton label="Sign it out" danger testID={`revoke-yes-${d.id}`} onPress={() => void data.call("devices.revoke", { deviceId: d.id }).then(() => { setSure(null); saved.saved("Signed out"); }).catch(fail)} />
+                <SmallButton
+                  label="Sign it out"
+                  danger
+                  testID={`revoke-yes-${d.id}`}
+                  onPress={() =>
+                    void data
+                      .call("devices.revoke", { deviceId: d.id })
+                      .then(() => {
+                        setSure(null);
+                        saved.saved("Signed out");
+                      })
+                      .catch(fail)
+                  }
+                />
               </>
-            ) : <SmallButton label="Sign out" testID={`revoke-${d.id}`} onPress={() => setSure(d.id)} />
+            ) : (
+              <SmallButton label="Sign out" testID={`revoke-${d.id}`} onPress={() => setSure(d.id)} />
+            )
           }
         />,
       );
@@ -66,14 +95,79 @@ export function SignInPage(): ReactElement {
   }
   const sec = data.security;
   const cards: ReactElement[] = [];
-  if (sec) for (const sp of data.spaces) { const info = sec.spaces[sp.id]; if (info) cards.push(<SpaceSecurityCard key={sp.id} space={sp} info={info} />); }
+  if (sec)
+    for (const sp of data.spaces) {
+      const info = sec.spaces[sp.id];
+      if (info) cards.push(<SpaceSecurityCard key={sp.id} space={sp} info={info} />);
+    }
   return (
     <>
-      {sec ? <AccountCard sec={sec} /> : <Section title="Sign-in"><SettingsRow id="signin.password" label="Password" first control={<SmallButton label="Change..." testID="pw-change" onPress={() => data.nav.manageSecurity?.("password", data.space.id)} />} /><SettingsRow id="signin.recovery" label="Recovery code" sub="Make a new code; the old one stops working" control={<SmallButton label="Make a new code..." testID="recovery-new" onPress={() => data.nav.manageSecurity?.("recovery", data.space.id)} />} /><SettingsRow id="signin.authenticator" label="Authenticator app" sub="Set up or remove a second factor for this Space" control={<><SmallButton label="Set up" testID="totp-setup" onPress={() => data.nav.manageSecurity?.("totp-on", data.space.id)} /><SmallButton label="Remove" testID="totp-remove" onPress={() => data.nav.manageSecurity?.("totp-off", data.space.id)} /></>} /></Section>}
+      {sec ? (
+        <AccountCard sec={sec} />
+      ) : (
+        <Section title="Sign-in">
+          <SettingsRow
+            id="signin.password"
+            label="Password"
+            first
+            control={
+              <SmallButton
+                label="Change..."
+                testID="pw-change"
+                onPress={() => data.nav.manageSecurity?.("password", data.space.id)}
+              />
+            }
+          />
+          <SettingsRow
+            id="signin.recovery"
+            label="Recovery code"
+            sub="Make a new code; the old one stops working"
+            control={
+              <SmallButton
+                label="Make a new code..."
+                testID="recovery-new"
+                onPress={() => data.nav.manageSecurity?.("recovery", data.space.id)}
+              />
+            }
+          />
+          <SettingsRow
+            id="signin.authenticator"
+            label="Authenticator app"
+            sub="Set up or remove a second factor for this Space"
+            control={
+              <>
+                <SmallButton
+                  label="Set up"
+                  testID="totp-setup"
+                  onPress={() => data.nav.manageSecurity?.("totp-on", data.space.id)}
+                />
+                <SmallButton
+                  label="Remove"
+                  testID="totp-remove"
+                  onPress={() => data.nav.manageSecurity?.("totp-off", data.space.id)}
+                />
+              </>
+            }
+          />
+        </Section>
+      )}
       {cards}
       <Section title="Devices and computers">
         {list}
-        {others > 0 ? <SettingsRow id="revoke-others" label="Sign out of every other device" danger onPress={() => void data.call("devices.revoke_others", {}).then(() => saved.saved("Signed out of the others")).catch(fail)} control={<Glyph name="chevR" size={13} />} /> : null}
+        {others > 0 ? (
+          <SettingsRow
+            id="revoke-others"
+            label="Sign out of every other device"
+            danger
+            onPress={() =>
+              void data
+                .call("devices.revoke_others", {})
+                .then(() => saved.saved("Signed out of the others"))
+                .catch(fail)
+            }
+            control={<Glyph name="chevR" size={13} />}
+          />
+        ) : null}
       </Section>
       <ApprovalsSection />
       <YourSpaces />
@@ -88,13 +182,63 @@ function AccountCard({ sec }: { sec: NonNullable<SettingsData["security"]> }): R
   const first = data.spaces.find((sp) => sp.current)?.id ?? data.space.id;
   return (
     <Section title="Sign-in" testID="signin-account">
-      <SettingsRow id="signin.password" label="Password" first lead={<Glyph name="key" size={16} />} sub={`Changed ${sec.account.passwordChanged}`} control={<SmallButton label="Change..." testID="pw-change" onPress={() => data.nav.manageSecurity?.("password", first)} />} />
-      <SettingsRow id="signin.recovery" label="Recovery code" lead={<Glyph name="key" size={16} />} sub="Make a new code; the old one stops working" control={<SmallButton label="Make a new code..." testID="recovery-new" onPress={() => data.nav.manageSecurity?.("recovery", first)} />} />
-      {/* ui-rows-lint: not a list (each line is a SettingsRow, which draws a ui/Row itself) */}
-      {(sec.account.carried ?? []).slice(0, 3).map((c, i) => <SettingsRow key={`carried-${i}`} id={`signin.carried.${i}`} label={`Signed in from ${c.host}`} lead={<Glyph name="key" size={16} />} sub={`To bring your account to another Space, ${c.day}`} />)}
-      {data.spaces.length > 1 ? <SettingsRow id="signin.link" label="Use one account everywhere" lead={<Glyph name="key" size={16} />} sub="Two Vyre accounts? Keep one; your work stays where it is" control={<SmallButton label="Choose..." testID="link-open" onPress={() => data.nav.manageSecurity?.("link", first)} />} /> : null}
       <SettingsRow
-        id="signin.github" label="GitHub" lead={<Glyph name="github" size={16} />} sub={gh ? `Connected as @${gh}. Manage it in Settings, GitHub` : "Connect it in Settings, GitHub"}
+        id="signin.password"
+        label="Password"
+        first
+        lead={<Glyph name="key" size={16} />}
+        sub={`Changed ${sec.account.passwordChanged}`}
+        control={
+          <SmallButton
+            label="Change..."
+            testID="pw-change"
+            onPress={() => data.nav.manageSecurity?.("password", first)}
+          />
+        }
+      />
+      <SettingsRow
+        id="signin.recovery"
+        label="Recovery code"
+        lead={<Glyph name="key" size={16} />}
+        sub="Make a new code; the old one stops working"
+        control={
+          <SmallButton
+            label="Make a new code..."
+            testID="recovery-new"
+            onPress={() => data.nav.manageSecurity?.("recovery", first)}
+          />
+        }
+      />
+      {/* ui-rows-lint: not a list (each line is a SettingsRow, which draws a ui/Row itself) */}
+      {(sec.account.carried ?? []).slice(0, 3).map((c, i) => (
+        <SettingsRow
+          key={`carried-${i}`}
+          id={`signin.carried.${i}`}
+          label={`Signed in from ${c.host}`}
+          lead={<Glyph name="key" size={16} />}
+          sub={`To bring your account to another Space, ${c.day}`}
+        />
+      ))}
+      {data.spaces.length > 1 ? (
+        <SettingsRow
+          id="signin.link"
+          label="Use one account everywhere"
+          lead={<Glyph name="key" size={16} />}
+          sub="Two Vyre accounts? Keep one; your work stays where it is"
+          control={
+            <SmallButton
+              label="Choose..."
+              testID="link-open"
+              onPress={() => data.nav.manageSecurity?.("link", first)}
+            />
+          }
+        />
+      ) : null}
+      <SettingsRow
+        id="signin.github"
+        label="GitHub"
+        lead={<Glyph name="github" size={16} />}
+        sub={gh ? `Connected as @${gh}. Manage it in Settings, GitHub` : "Connect it in Settings, GitHub"}
         control={<SmallButton label="Open GitHub" testID="gh-open" onPress={() => goTo("github")} />}
       />
     </Section>
@@ -108,21 +252,65 @@ function SpaceSecurityCard({ space, info }: { space: SpaceTile; info: SpaceSecur
   return (
     <View style={s2.card} testID={`security-${space.id}`}>
       <View style={s2.head}>
-        <Text accessibilityRole="header" style={s2.title}>{space.name}</Text>
-        {space.current ? <Text style={s2.open}>Open now</Text> : <SmallButton label="Open" testID={`open-${space.id}`} onPress={() => data.nav.openSpace(space.id)} />}
+        <Text accessibilityRole="header" style={s2.title}>
+          {space.name}
+        </Text>
+        {space.current ? (
+          <Text style={s2.open}>Open now</Text>
+        ) : (
+          <SmallButton label="Open" testID={`open-${space.id}`} onPress={() => data.nav.openSpace(space.id)} />
+        )}
       </View>
       <View style={a.cardBox}>
         <SettingsRow
-          id={`signin.totp.${space.id}`} label="Authenticator app" first sub={info.totp ? "One-time codes on your phone" : "Not set up"}
-          control={<SmallButton label={info.totp ? "Remove" : "Set up"} testID={space.current ? (info.totp ? "totp-remove" : "totp-setup") : `totp-${space.id}`} onPress={() => data.nav.manageSecurity?.(info.totp ? "totp-off" : "totp-on", space.id)} />}
+          id={`signin.totp.${space.id}`}
+          label="Authenticator app"
+          first
+          sub={info.totp ? "One-time codes on your phone" : "Not set up"}
+          control={
+            <SmallButton
+              label={info.totp ? "Remove" : "Set up"}
+              testID={space.current ? (info.totp ? "totp-remove" : "totp-setup") : `totp-${space.id}`}
+              onPress={() => data.nav.manageSecurity?.(info.totp ? "totp-off" : "totp-on", space.id)}
+            />
+          }
         />
         <SettingsRow
-          id={`signin.passkey.${space.id}`} label="Passkeys" sub={info.passkeys.length > 0 ? info.passkeys.join(", ") : "None yet"}
-          control={<SmallButton label="Add a passkey" testID={`passkey-${space.id}`} onPress={() => data.nav.manageSecurity?.("passkey", space.id)} />}
+          id={`signin.passkey.${space.id}`}
+          label="Passkeys"
+          sub={info.passkeys.length > 0 ? info.passkeys.join(", ") : "None yet"}
+          control={
+            <SmallButton
+              label="Add a passkey"
+              testID={`passkey-${space.id}`}
+              onPress={() => data.nav.manageSecurity?.("passkey", space.id)}
+            />
+          }
         />
-        {team ? <SettingsRow id={`signin.floor.${space.id}`} label="Second factor required" sub={`Set by ${info.floorBy}`} control={<Value text={info.floor} />} /> : null}
-        {team ? <SettingsRow id={`signin.sso.${space.id}`} label="Single sign-on" sub={info.sso ? `Your admin signs you in with ${info.sso}` : "This Space uses its own password"} control={<Value text={info.sso ? "On" : "Off"} />} /> : null}
-        <SettingsRow id={`signin.devs.${space.id}`} label="Devices" sub={team ? `Signed in on ${info.devices} ${info.devices === 1 ? "device" : "devices"}` : "This computer only"} control={<Value text={String(info.devices)} />} />
+        {team ? (
+          <SettingsRow
+            id={`signin.floor.${space.id}`}
+            label="Second factor required"
+            sub={`Set by ${info.floorBy}`}
+            control={<Value text={info.floor} />}
+          />
+        ) : null}
+        {team ? (
+          <SettingsRow
+            id={`signin.sso.${space.id}`}
+            label="Single sign-on"
+            sub={info.sso ? `Your admin signs you in with ${info.sso}` : "This Space uses its own password"}
+            control={<Value text={info.sso ? "On" : "Off"} />}
+          />
+        ) : null}
+        <SettingsRow
+          id={`signin.devs.${space.id}`}
+          label="Devices"
+          sub={
+            team ? `Signed in on ${info.devices} ${info.devices === 1 ? "device" : "devices"}` : "This computer only"
+          }
+          control={<Value text={String(info.devices)} />}
+        />
       </View>
     </View>
   );
@@ -130,7 +318,14 @@ function SpaceSecurityCard({ space, info }: { space: SpaceTile; info: SpaceSecur
 
 const s2 = StyleSheet.create({
   card: { marginTop: 26 },
-  head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8, paddingHorizontal: 2, minHeight: 28 },
+  head: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+    paddingHorizontal: 2,
+    minHeight: 28,
+  },
   title: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
   open: { fontSize: 12.5, color: "var(--ink-3)" as string },
 });
@@ -138,14 +333,28 @@ const s2 = StyleSheet.create({
 // ---------------------------------------------------------------- Appearance (see Appearance.tsx)
 
 export function Shortcuts({ found }: { found: boolean }): ReactElement {
-
-  const mac = /Mac|iPhone|iPad/.test((globalThis as { navigator?: { platform?: string } }).navigator?.platform ?? "Mac");
+  const mac = /Mac|iPhone|iPad/.test(
+    (globalThis as { navigator?: { platform?: string } }).navigator?.platform ?? "Mac",
+  );
   const items: ReactElement[] = [];
   KEYBOARD_MAP.forEach((sc, i) => {
     const keys = formatCombo(sc.combo, mac ? "mac" : "other");
-    items.push(<SettingsRow key={sc.id} id={i === 0 ? "shortcuts" : `shortcut.${sc.id}`} label={sc.title} first={i === 0} found={found && i === 0} control={<Value text={sc.digits ? `${keys} to ${sc.digits[1]}` : keys} testID={`keys-${sc.id}`} />} />);
+    items.push(
+      <SettingsRow
+        key={sc.id}
+        id={i === 0 ? "shortcuts" : `shortcut.${sc.id}`}
+        label={sc.title}
+        first={i === 0}
+        found={found && i === 0}
+        control={<Value text={sc.digits ? `${keys} to ${sc.digits[1]}` : keys} testID={`keys-${sc.id}`} />}
+      />,
+    );
   });
-  return <Section title="Keyboard shortcuts" testID="shortcuts">{items}</Section>;
+  return (
+    <Section title="Keyboard shortcuts" testID="shortcuts">
+      {items}
+    </Section>
+  );
 }
 
 // ---------------------------------------------------------------- This computer and your Spaces
@@ -161,18 +370,53 @@ function YourSpaces(): ReactElement {
     const leaving = sure === sp.id;
     list.push(
       <SettingsRow
-        key={sp.id} id={i === 0 ? "signin.spaces" : `space.${sp.id}`} label={sp.name} first={i === 0} lead={<Mark name={sp.name} size={26} />}
-        sub={[addressWords(sp.addr, { fallback: "" }), sp.kind === "personal" ? "" : sp.role, sp.needsYou > 0 ? `${sp.needsYou} waiting on you` : ""].filter(Boolean).join(", ")}
+        key={sp.id}
+        id={i === 0 ? "signin.spaces" : `space.${sp.id}`}
+        label={sp.name}
+        first={i === 0}
+        lead={<Mark name={sp.name} size={26} />}
+        sub={[
+          addressWords(sp.addr, { fallback: "" }),
+          sp.kind === "personal" ? "" : sp.role,
+          sp.needsYou > 0 ? `${sp.needsYou} waiting on you` : "",
+        ]
+          .filter(Boolean)
+          .join(", ")}
         control={
           leaving ? (
             <>
               <SmallButton label="Cancel" onPress={() => setSure(null)} />
-              <SmallButton label="Leave" danger testID={`leave-yes-${sp.id}`} onPress={() => void data.call("spaces.leave", { confirm: true }).then(() => { setSure(null); saved.saved(`You left ${sp.name}`); }).catch((e: unknown) => saved.failed(e instanceof Error ? e.message : "That did not work."))} />
+              <SmallButton
+                label="Leave"
+                danger
+                testID={`leave-yes-${sp.id}`}
+                onPress={() =>
+                  void data
+                    .call("spaces.leave", { confirm: true })
+                    .then(() => {
+                      setSure(null);
+                      saved.saved(`You left ${sp.name}`);
+                    })
+                    .catch((e: unknown) => saved.failed(e instanceof Error ? e.message : "That did not work."))
+                }
+              />
             </>
           ) : (
             <>
-              {sp.current ? <Value text="Open now" /> : <SmallButton label="Open" testID={`open-${sp.id}`} onPress={() => data.nav.openSpace(sp.id)} />}
-              {sp.kind === "team" && sp.current ? (sp.role.toLowerCase() === "owner" ? <Text testID={`leave-blocked-${sp.id}`} style={{ fontSize: 12, color: "var(--ink-3)" as string }}>Transfer ownership first</Text> : <SmallButton label="Leave" testID={`leave-${sp.id}`} onPress={() => setSure(sp.id)} />) : null}
+              {sp.current ? (
+                <Value text="Open now" />
+              ) : (
+                <SmallButton label="Open" testID={`open-${sp.id}`} onPress={() => data.nav.openSpace(sp.id)} />
+              )}
+              {sp.kind === "team" && sp.current ? (
+                sp.role.toLowerCase() === "owner" ? (
+                  <Text testID={`leave-blocked-${sp.id}`} style={{ fontSize: 12, color: "var(--ink-3)" as string }}>
+                    Transfer ownership first
+                  </Text>
+                ) : (
+                  <SmallButton label="Leave" testID={`leave-${sp.id}`} onPress={() => setSure(sp.id)} />
+                )
+              ) : null}
             </>
           )
         }
@@ -181,16 +425,51 @@ function YourSpaces(): ReactElement {
   });
   return (
     <>
-      <Section title="Your Spaces" {...(sure ? { note: "Leaving removes this Space from this computer. Your private items there are lost unless you kept a recovery code." } : {})}>{list}</Section>
+      <Section
+        title="Your Spaces"
+        {...(sure
+          ? {
+              note: "Leaving removes this Space from this computer. Your private items there are lost unless you kept a recovery code.",
+            }
+          : {})}
+      >
+        {list}
+      </Section>
     </>
   );
 }
 
 const a = StyleSheet.create({
-  group: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string, marginTop: 20, marginBottom: 8, paddingHorizontal: 2 },
+  group: {
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: "var(--ink-2)" as string,
+    marginTop: 20,
+    marginBottom: 8,
+    paddingHorizontal: 2,
+  },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  tile: { width: "31.5%" as unknown as number, minWidth: 180, flexGrow: 1, height: 54, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 10, borderRadius: 11, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
-  cardBox: { borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, overflow: "hidden" },
+  tile: {
+    width: "31.5%" as unknown as number,
+    minWidth: 180,
+    flexGrow: 1,
+    height: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 10,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    backgroundColor: "var(--raised)" as string,
+  },
+  cardBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    backgroundColor: "var(--raised)" as string,
+    overflow: "hidden",
+  },
   tileOn: { borderColor: "var(--accent)" as string, borderWidth: 2 },
   swatch: { width: 34, height: 34, borderRadius: 9, borderWidth: 1, overflow: "hidden" },
   swSide: { position: "absolute", left: 0, top: 0, bottom: 0, width: 11 },
@@ -198,10 +477,32 @@ const a = StyleSheet.create({
   tileName: { fontSize: 13.5, color: "var(--ink)" as string },
   tileNote: { fontSize: 12, color: "var(--ink-3)" as string },
   foundBlock: { backgroundColor: "var(--accent-wash)" as string, borderRadius: 12 },
-  heading: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string, marginTop: 26, marginBottom: 8, paddingHorizontal: 2 },
+  heading: {
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: "var(--ink-2)" as string,
+    marginTop: 26,
+    marginBottom: 8,
+    paddingHorizontal: 2,
+  },
   foot: { fontSize: 12, color: "var(--ink-3)" as string, marginTop: 14, paddingHorizontal: 2 },
-  pvStage: { borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--sunk)" as string, paddingVertical: 20, alignItems: "center" },
-  pvWin: { width: "78%" as unknown as number, maxWidth: 400, height: 150, flexDirection: "row", borderRadius: 10, borderWidth: 1, overflow: "hidden" },
+  pvStage: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    backgroundColor: "var(--sunk)" as string,
+    paddingVertical: 20,
+    alignItems: "center",
+  },
+  pvWin: {
+    width: "78%" as unknown as number,
+    maxWidth: 400,
+    height: 150,
+    flexDirection: "row",
+    borderRadius: 10,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
   pvSide: { width: "28%" as unknown as number, padding: 8, gap: 2 },
   pvSpace: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 6 },
   pvDot: { width: 9, height: 9, borderRadius: 3 },

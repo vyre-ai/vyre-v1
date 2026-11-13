@@ -52,29 +52,46 @@ export function activityTitle(who: string, action: string, resource: string | un
 }
 
 const PLURAL_BREAK = /\b(?:to|of|in|for|on|from|with|by|at|into|about)\b/;
-const plural = (w: string): string => (/[^aeiou]y$/i.test(w) ? `${w.slice(0, -1)}ies` : /(?:s|x|z|ch|sh)$/i.test(w) ? `${w}es` : `${w}s`);
+const plural = (w: string): string =>
+  /[^aeiou]y$/i.test(w) ? `${w.slice(0, -1)}ies` : /(?:s|x|z|ch|sh)$/i.test(w) ? `${w}es` : `${w}s`;
 
 /** One line said n times in a row: "Dex posted a chat" four times is "Dex posted 4 chats"; a line that does not end in "a <thing>" keeps its words and says how many times ("Tom updated the record Acme, 3 times"). */
 export function repeatedTitle(title: string, n: number): string {
   if (n <= 1) return title;
   const m = /^(.+?) (?:a|an) ([A-Za-z]+(?: [A-Za-z]+)?)$/.exec(title);
-  if (m && !PLURAL_BREAK.test(m[2]!)) { const w = m[2]!.split(" "); w[w.length - 1] = plural(w[w.length - 1]!); return `${m[1]} ${n} ${w.join(" ")}`; }
+  if (m && !PLURAL_BREAK.test(m[2]!)) {
+    const w = m[2]!.split(" ");
+    w[w.length - 1] = plural(w[w.length - 1]!);
+    return `${m[1]} ${n} ${w.join(" ")}`;
+  }
   return `${title}, ${n} times`;
 }
 
-export interface ActivityRow { title: string; actor: string; at: number; count: number }
+export interface ActivityRow {
+  title: string;
+  actor: string;
+  at: number;
+  count: number;
+}
 
 /**
  * The admin activity list, one row per run of the same act by the same person in a row (owner, 13 Nov 2026: "Dex posted a chat" four times). The row is dated by the newest of the run, which the feed lists first.
  */
-export function activityRows(events: readonly { at: number; actor: string; action: string; resource?: string | undefined }[], name: (id: string) => string): ActivityRow[] {
+export function activityRows(
+  events: readonly { at: number; actor: string; action: string; resource?: string | undefined }[],
+  name: (id: string) => string,
+): ActivityRow[] {
   const out: ActivityRow[] = [];
   const last: { key: string; base: string }[] = [];
   for (const e of events) {
     const base = activityTitle(name(e.actor), e.action, namedResource(e.resource, name));
     const key = `${e.actor}|${base}`;
     const at = out.length - 1;
-    if (at >= 0 && last[at]!.key === key) { out[at]!.count += 1; out[at]!.title = repeatedTitle(base, out[at]!.count); continue; }
+    if (at >= 0 && last[at]!.key === key) {
+      out[at]!.count += 1;
+      out[at]!.title = repeatedTitle(base, out[at]!.count);
+      continue;
+    }
     out.push({ title: base, actor: e.actor, at: e.at, count: 1 });
     last.push({ key, base });
   }

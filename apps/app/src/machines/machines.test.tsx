@@ -371,9 +371,17 @@ test("the doctor line names vyre-server only on a server: a person's own compute
 });
 
 test("Pinned agents are named, never listed by their id (owner, 13 Nov 2026)", () => {
-  const pinned = row({ serverId: "srv_box", name: "Berlin box", mine: true, pins: ["agt_01a1d244cc8f49678f4eeecfb5b1c309", "agt_docs"] });
-  const names = (id: string): string => ({ agt_docs: "Docs", agt_01a1d244cc8f49678f4eeecfb5b1c309: "Scout" })[id] ?? "An agent";
-  const out = html(<Placement call={(() => Promise.resolve({})) as never} scope="space" who={names} m={pinned} onChanged={noop} />);
+  const pinned = row({
+    serverId: "srv_box",
+    name: "Berlin box",
+    mine: true,
+    pins: ["agt_01a1d244cc8f49678f4eeecfb5b1c309", "agt_docs"],
+  });
+  const names = (id: string): string =>
+    ({ agt_docs: "Docs", agt_01a1d244cc8f49678f4eeecfb5b1c309: "Scout" })[id] ?? "An agent";
+  const out = html(
+    <Placement call={(() => Promise.resolve({})) as never} scope="space" who={names} m={pinned} onChanged={noop} />,
+  );
   assert.ok(out.includes("Scout") && out.includes("Docs"), "each pinned agent is named");
   assert.ok(out.includes("Unpin Scout"), "the Unpin button is named too");
   assertNoRawIds(out, "Machine, Pinned agents");

@@ -10,7 +10,14 @@ import type { AskBundle } from "../ask/bundle.ts";
 import { installFocusRing } from "../a11y.ts";
 import { accountFixedLine, BUILDER_MODES, VAL_LABEL } from "../chrome.ts";
 import type { BuilderMode } from "../chrome.ts";
-import { accountDefaultInput, accountMenu, accountNeed, applyAccount, connectedOption, menuIsEmpty } from "../connect/accounts.ts";
+import {
+  accountDefaultInput,
+  accountMenu,
+  accountNeed,
+  applyAccount,
+  connectedOption,
+  menuIsEmpty,
+} from "../connect/accounts.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import { connectEntries } from "../../../shell/connect/model.ts";
 import type { AccountOption } from "../connect/accounts.ts";
@@ -25,7 +32,18 @@ import { RunStepIo } from "../builder/RunStepIo.tsx";
 import { StepTest } from "../builder/StepTest.tsx";
 import { CONNECT_LIMIT } from "../connect/trust-view.ts";
 import { Glyph } from "./icons.tsx";
-import { ERROR_MODES, REMOVED_KEY, groupOfKey, iconOfKey, kindOfKey, setBranch, subtitleOf, titleOfKey, updateStep, triggerMeta } from "./model.ts";
+import {
+  ERROR_MODES,
+  REMOVED_KEY,
+  groupOfKey,
+  iconOfKey,
+  kindOfKey,
+  setBranch,
+  subtitleOf,
+  titleOfKey,
+  updateStep,
+  triggerMeta,
+} from "./model.ts";
 import { SchemaForm } from "./SchemaForm.tsx";
 import { TriggerForm, usePersonZone } from "./TriggerForm.tsx";
 import { controlsFor, humanize, specOf } from "./form-model.ts";
@@ -36,9 +54,47 @@ import type { KeysStatus } from "./data.tsx";
 import { SendApproval, sendsOutward } from "./AskBeforeSending.tsx";
 import { IconButton, pointer, s as ps, webOnly } from "./parts.tsx";
 
-const show = (v: unknown): string => (typeof v === "string" ? v : v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
+const show = (v: unknown): string =>
+  typeof v === "string"
+    ? v
+    : v === undefined || v === null
+      ? ""
+      : typeof v === "object"
+        ? JSON.stringify(v)
+        : String(v);
 
-export function Inspector({ automationId, def, node, trigger, triggerIndex, issues, keys, onChange, onClose, onDelete, onRemoveTrigger, testID = "inspector", embedded = false, layout, initialAdvanced = false, mode = "basic", onMode, section = "configure", onSection, samples = {}, version = 0, onStoreSample, onAsk, keysStatus, accounts = [], inputSchema, lastPicks, kind: automationKind = "personal", runId, runLog }: {
+export function Inspector({
+  automationId,
+  def,
+  node,
+  trigger,
+  triggerIndex,
+  issues,
+  keys,
+  onChange,
+  onClose,
+  onDelete,
+  onRemoveTrigger,
+  testID = "inspector",
+  embedded = false,
+  layout,
+  initialAdvanced = false,
+  mode = "basic",
+  onMode,
+  section = "configure",
+  onSection,
+  samples = {},
+  version = 0,
+  onStoreSample,
+  onAsk,
+  keysStatus,
+  accounts = [],
+  inputSchema,
+  lastPicks,
+  kind: automationKind = "personal",
+  runId,
+  runLog,
+}: {
   /** The Automation this panel edits: the web request trigger shows its address. */
   automationId?: string;
   def: Definition;
@@ -86,7 +142,9 @@ export function Inspector({ automationId, def, node, trigger, triggerIndex, issu
   const [mapTarget, setMapTarget] = useState<MapTarget | null>(null);
   const ordered = layout ? frameFor(layout).ordered : false;
   const zone = usePersonZone();
-  useEffect(() => { installFocusRing(); }, []);
+  useEffect(() => {
+    installFocusRing();
+  }, []);
   const headerMode = onMode !== undefined;
   const [localAdvanced, setLocalAdvanced] = useState(initialAdvanced);
   const advanced = headerMode ? mode === "advanced" : localAdvanced;
@@ -111,20 +169,31 @@ export function Inspector({ automationId, def, node, trigger, triggerIndex, issu
     wroteDefault.current = mark;
     onChange(updateStep(def, node.id, { input: next }));
   }, [node, def, accounts, inputSchema, lastPicks, onChange]);
-  const prior = def.nodes.filter((item) => node ? def.nodes.indexOf(item) < def.nodes.indexOf(node) : true).map((item) => ({ id: item.id, title: item.title ?? titleOfKey(item.key), output: samples[item.id] })).filter((item) => item.output !== undefined);
+  const prior = def.nodes
+    .filter((item) => (node ? def.nodes.indexOf(item) < def.nodes.indexOf(node) : true))
+    .map((item) => ({ id: item.id, title: item.title ?? titleOfKey(item.key), output: samples[item.id] }))
+    .filter((item) => item.output !== undefined);
   const errorEntries = (): MenuEntry[] => {
     const out: MenuEntry[] = [];
     if (!node) return out;
     for (const m of ERROR_MODES) {
       out.push({
-        label: m.label, checked: (node.onError?.mode ?? "fail") === m.mode,
-        onSelect: () => onChange(updateStep(def, node.id, { onError: {
-          mode: m.mode,
-          ...(m.mode === "retry" ? { max: node.onError?.max ?? 3 } : {}),
-          ...(m.mode === "route" && node.onError?.route ? { route: node.onError.route } : {}),
-          ...(m.mode === "route" && node.onError?.codes?.length ? { codes: [...node.onError.codes] } : {}),
-          ...(m.mode === "substitute" && node.onError?.output !== undefined ? { output: node.onError.output } : {}),
-        } })),
+        label: m.label,
+        checked: (node.onError?.mode ?? "fail") === m.mode,
+        onSelect: () =>
+          onChange(
+            updateStep(def, node.id, {
+              onError: {
+                mode: m.mode,
+                ...(m.mode === "retry" ? { max: node.onError?.max ?? 3 } : {}),
+                ...(m.mode === "route" && node.onError?.route ? { route: node.onError.route } : {}),
+                ...(m.mode === "route" && node.onError?.codes?.length ? { codes: [...node.onError.codes] } : {}),
+                ...(m.mode === "substitute" && node.onError?.output !== undefined
+                  ? { output: node.onError.output }
+                  : {}),
+              },
+            }),
+          ),
       });
     }
     return out;
@@ -132,7 +201,21 @@ export function Inspector({ automationId, def, node, trigger, triggerIndex, issu
   const routeEntries = (): MenuEntry[] => {
     const out: MenuEntry[] = [];
     if (!node) return out;
-    for (const n of def.nodes) if (n.id !== node.id) out.push({ label: n.title ?? titleOfKey(n.key), onSelect: () => onChange(updateStep(def, node.id, { onError: { mode: "route", route: n.id, ...(node.onError?.codes?.length ? { codes: [...node.onError.codes] } : {}) } })) });
+    for (const n of def.nodes)
+      if (n.id !== node.id)
+        out.push({
+          label: n.title ?? titleOfKey(n.key),
+          onSelect: () =>
+            onChange(
+              updateStep(def, node.id, {
+                onError: {
+                  mode: "route",
+                  route: n.id,
+                  ...(node.onError?.codes?.length ? { codes: [...node.onError.codes] } : {}),
+                },
+              }),
+            ),
+        });
     return out;
   };
   const mine = issues.filter((i) => (node ? i.nodeId === node.id : i.nodeId === "trigger"));
@@ -145,33 +228,93 @@ export function Inspector({ automationId, def, node, trigger, triggerIndex, issu
       onChange({ ...def, triggers });
     };
     return (
-      <View style={paneStyle(embedded, layout)} testID={testID} accessibilityLabel={`${meta?.title ?? "Trigger"} settings`} {...webOnly({ dataSet: { vyreFocus: "1" } })}>
+      <View
+        style={paneStyle(embedded, layout)}
+        testID={testID}
+        accessibilityLabel={`${meta?.title ?? "Trigger"} settings`}
+        {...webOnly({ dataSet: { vyreFocus: "1" } })}
+      >
         <Head title={meta?.title ?? "Trigger"} sub="Trigger" icon={meta?.icon ?? "bolt"} onClose={onClose} />
         <ScrollView contentContainerStyle={i.body} keyboardShouldPersistTaps="handled">
           <SectionRow section={section} ordered={ordered} onSection={(next) => onSection?.(next)} />
-          {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} target={mapTarget} onPick={(_id, _expression, next) => { mapTarget?.commit(next); setMapTarget(null); }} /> : null}
-          {section === "test" ? <Text testID="trigger-test-note" style={i.hint}>A trigger is tested with the whole Automation. Press Test at the top: it runs every step with sample data, and what each step returns shows on the Data tab.</Text> : null}
+          {section === "data" ? (
+            <DataShelf
+              triggerSample={samples["trigger"]}
+              steps={prior}
+              target={mapTarget}
+              onPick={(_id, _expression, next) => {
+                mapTarget?.commit(next);
+                setMapTarget(null);
+              }}
+            />
+          ) : null}
+          {section === "test" ? (
+            <Text testID="trigger-test-note" style={i.hint}>
+              A trigger is tested with the whole Automation. Press Test at the top: it runs every step with sample data,
+              and what each step returns shows on the Data tab.
+            </Text>
+          ) : null}
           {section === "configure" ? (
             <MapTargetContext.Provider value={{ set: setMapTarget }}>
-              {trigger && triggerIndex !== null ? <TriggerForm trigger={trigger} onChange={editTrigger} openMenu={openMenu} zone={zone} {...(automationId ? { automationId } : {})} /> : null}
+              {trigger && triggerIndex !== null ? (
+                <TriggerForm
+                  trigger={trigger}
+                  onChange={editTrigger}
+                  openMenu={openMenu}
+                  zone={zone}
+                  {...(automationId ? { automationId } : {})}
+                />
+              ) : null}
               {trigger && advanced ? (
                 <Field
-                  label="Advanced · trigger as JSON" mono rows={6} testID="field-trigger-json" value={JSON.stringify({ ...(trigger.config ? { config: trigger.config } : {}), ...(trigger.filter !== undefined ? { filter: trigger.filter } : {}) }, null, 2)}
+                  label="Advanced · trigger as JSON"
+                  mono
+                  rows={6}
+                  testID="field-trigger-json"
+                  value={JSON.stringify(
+                    {
+                      ...(trigger.config ? { config: trigger.config } : {}),
+                      ...(trigger.filter !== undefined ? { filter: trigger.filter } : {}),
+                    },
+                    null,
+                    2,
+                  )}
                   onCommit={(t) => {
                     const edited = advancedInputEdit(t);
-                    if (!edited.ok) { setJsonError(edited.message); return; }
+                    if (!edited.ok) {
+                      setJsonError(edited.message);
+                      return;
+                    }
                     setJsonError(null);
                     const { config, filter } = edited.input as { config?: Record<string, unknown>; filter?: unknown };
-                    const next: DefTrigger = { key: trigger.key, ...(config && typeof config === "object" && !Array.isArray(config) ? { config } : {}), ...(filter !== undefined ? { filter } : {}) };
+                    const next: DefTrigger = {
+                      key: trigger.key,
+                      ...(config && typeof config === "object" && !Array.isArray(config) ? { config } : {}),
+                      ...(filter !== undefined ? { filter } : {}),
+                    };
                     editTrigger(next);
                   }}
                 />
               ) : null}
               {jsonError ? <Text style={i.hint}>{jsonError}</Text> : null}
-              <Text testID="plain-language" style={i.hint}>{trigger ? (def.triggers.length > 1 ? `This is trigger ${(triggerIndex ?? 0) + 1} of ${def.triggers.length}. Any one of them starts a run.` : specOf(trigger.key).note ? "" : "This starts a run.") : "Every trigger is listed on the card. Any one starts a run."}</Text>
+              <Text testID="plain-language" style={i.hint}>
+                {trigger
+                  ? def.triggers.length > 1
+                    ? `This is trigger ${(triggerIndex ?? 0) + 1} of ${def.triggers.length}. Any one of them starts a run.`
+                    : specOf(trigger.key).note
+                      ? ""
+                      : "This starts a run."
+                  : "Every trigger is listed on the card. Any one starts a run."}
+              </Text>
               <Problems list={mine} />
               {trigger && triggerIndex !== null && onRemoveTrigger ? (
-                <Pressable accessibilityRole="button" accessibilityLabel="Remove this trigger" testID="remove-trigger" onPress={() => onRemoveTrigger(triggerIndex)} style={[i.del, pointer]}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove this trigger"
+                  testID="remove-trigger"
+                  onPress={() => onRemoveTrigger(triggerIndex)}
+                  style={[i.del, pointer]}
+                >
                   <Glyph name="x" size={13} color="var(--danger)" />
                   <Text style={i.delText}>Remove this trigger</Text>
                 </Pressable>
@@ -200,24 +343,46 @@ export function Inspector({ automationId, def, node, trigger, triggerIndex, issu
     if (kind === "paths") {
       fields.push(
         <Field
-          key={`${node.id}-p${n}`} label={b.when === undefined ? "Otherwise" : `Path ${n + 1}, if`} value={b.when ?? ""} mono readOnly={b.when === undefined} placeholder="lead.phone is not empty" testID={`field-path-${n}`}
+          key={`${node.id}-p${n}`}
+          label={b.when === undefined ? "Otherwise" : `Path ${n + 1}, if`}
+          value={b.when ?? ""}
+          mono
+          readOnly={b.when === undefined}
+          placeholder="lead.phone is not empty"
+          testID={`field-path-${n}`}
           onCommit={(t) => onChange(updateStep(def, node.id, { branches: setBranch(node, n, { when: t }) }))}
         />,
       );
     } else if (kind === "parallel") {
-      fields.push(<Field key={`${node.id}-l${n}`} label={`Lane ${n + 1} name`} value={b.label} testID={`field-lane-${n}`} onCommit={(t) => onChange(updateStep(def, node.id, { branches: setBranch(node, n, { label: t }) }))} />);
+      fields.push(
+        <Field
+          key={`${node.id}-l${n}`}
+          label={`Lane ${n + 1} name`}
+          value={b.label}
+          testID={`field-lane-${n}`}
+          onCommit={(t) => onChange(updateStep(def, node.id, { branches: setBranch(node, n, { label: t }) }))}
+        />,
+      );
     }
   }
   const composer = node.key === "send_email" || node.key === "send_sms";
   const fixedAccount = accountFixedLine(accountPick?.value);
-  const hidden = new Set(node.key === "send_email"
-    ? ["subject", "body", "to", "cc", "fileIds", "message"]
-    : node.key === "send_sms"
-      ? ["body", "to", "message", "mediaFileIds"]
-      : []);
-  const skipAccount = (name: string): boolean => !!accountPick && (name === "connectionId" || name === "mailboxId" || name === "numberId" || (accountPick.field === "connectionId" && name === "connector"));
+  const hidden = new Set(
+    node.key === "send_email"
+      ? ["subject", "body", "to", "cc", "fileIds", "message"]
+      : node.key === "send_sms"
+        ? ["body", "to", "message", "mediaFileIds"]
+        : [],
+  );
+  const skipAccount = (name: string): boolean =>
+    !!accountPick &&
+    (name === "connectionId" ||
+      name === "mailboxId" ||
+      name === "numberId" ||
+      (accountPick.field === "connectionId" && name === "connector"));
   // Paths and Parallel keep their lanes on the step, and the fields above are where they are edited
-  const onTheStep = (name: string): boolean => (kind === "paths" && (name === "paths" || name === "otherwise")) || (kind === "parallel" && name === "branches");
+  const onTheStep = (name: string): boolean =>
+    (kind === "paths" && (name === "paths" || name === "otherwise")) || (kind === "parallel" && name === "branches");
   const skipField = (name: string): boolean => skipAccount(name) || onTheStep(name) || (composer && hidden.has(name));
   const writeInput = (name: string, next: unknown): void => {
     const input = { ...node.input };
@@ -231,137 +396,347 @@ export function Inspector({ automationId, def, node, trigger, triggerIndex, issu
   const stray: ReactElement[] = [];
   for (const k of inputKeys) {
     if (covered.has(k) || skipField(k)) continue;
-    stray.push(<Field key={`${node.id}-${k}`} label={humanize(k)} value={show(node.input[k])} testID={`field-${k}`} onCommit={(t) => {
-      onChange(updateStep(def, node.id, { input: basicFieldEdit(node.input ?? {}, k, t) }));
-    }} />);
+    stray.push(
+      <Field
+        key={`${node.id}-${k}`}
+        label={humanize(k)}
+        value={show(node.input[k])}
+        testID={`field-${k}`}
+        onCommit={(t) => {
+          onChange(updateStep(def, node.id, { input: basicFieldEdit(node.input ?? {}, k, t) }));
+        }}
+      />,
+    );
   }
-  fields.push(<SchemaForm key={`${node.id}-schema`} controls={controls} input={node.input ?? {}} openMenu={openMenu} skip={skipControl} onInput={(next) => onChange(updateStep(def, node.id, { input: next }))} />);
+  fields.push(
+    <SchemaForm
+      key={`${node.id}-schema`}
+      controls={controls}
+      input={node.input ?? {}}
+      openMenu={openMenu}
+      skip={skipControl}
+      onInput={(next) => onChange(updateStep(def, node.id, { input: next }))}
+    />,
+  );
   fields.push(...stray);
   return (
     <MapTargetContext.Provider value={{ set: setMapTarget }}>
-    <View style={paneStyle(embedded, layout)} testID={testID} accessibilityLabel={`${node.title ?? titleOfKey(node.key)} settings`} {...webOnly({ dataSet: { vyreFocus: "1" } })}>
-      <Head title={node.title ?? titleOfKey(node.key)} sub={groupOfKey(node.key)} icon={iconOfKey(node.key)} onClose={onClose} />
-      <ScrollView contentContainerStyle={i.body} keyboardShouldPersistTaps="handled">
-        <SectionRow section={section} ordered={ordered} onSection={(next) => onSection?.(next)} />
-        {section === "data" ? <DataShelf triggerSample={samples["trigger"]} steps={prior} target={mapTarget} onPick={(_id, _expression, next) => { mapTarget?.commit(next); setMapTarget(null); }} /> : null}
-        {section === "test" && runId ? <RunStepIo runId={runId} stepId={node.id} {...(runLog !== undefined ? { ready: runLog } : {})} /> : null}
-        {section === "test" ? <StepTest stepKey={node.key} nodeId={node.id} input={node.input ?? {}} version={version} samples={samples} onUseOutput={(output) => onStoreSample?.(node.id, asFixture(version, node.key, output))} /> : null}
-        {section === "configure" ? (
-          <>
-        {node.key === "connector_request" ? <Text style={i.hint}>{`${CONNECT_LIMIT} The request runs a named action on the connection.`}</Text> : null}
-        <Text testID="plain-language" style={i.hint}>{subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? REMOVED_KEY })}</Text>
-        {headerMode ? null : (
-          <View accessibilityLabel="Builder mode" testID="inspector-mode" style={i.seg}>
-            {/* ui-rows-lint: not a list (Basic and Advanced toggle) */}
-            {BUILDER_MODES.map((label) => {
-              const on = (label === "Advanced") === advanced;
-              return (
-                <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: on }} testID={label === "Advanced" ? "toggle-advanced" : "toggle-basic"} onPress={() => setAdvanced(label === "Advanced")} style={[i.segBtn, on && i.segBtnOn, pointer]}>
-                  <Text style={[i.segText, on && i.segTextOn]}>{label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-        <Field label="Name" value={node.title ?? ""} placeholder={titleOfKey(node.key)} testID="field-title" onCommit={(t) => onChange(updateStep(def, node.id, { title: t }))} />
-        {accountPick ? (
-          <Choice
-            label="Account"
-            value={accountPick.value}
-            testID="choose-account"
-            onOpen={(x, y) => {
-              const entries: MenuEntry[] = [];
-              for (const item of accountPick.items) {
-                // the "No accounts yet" row is not an account: with a way to connect it gives way to Connect
-                if (!item.account && openConnect) continue;
-                const onSelect = (): void => {
-                  if (!item.account) return;
-                  onChange(updateStep(def, node.id, { input: applyAccount(node.input ?? {}, accountPick.field, item.account) }));
-                };
-                entries.push(item.checked ? { label: item.label, checked: true, onSelect } : { label: item.label, onSelect });
-              }
-              const need = accountNeed(accountPick.field, node.input ?? {});
-              const empty = menuIsEmpty(accountPick);
-              openMenu(need ? connectEntries(entries, need, openConnect, (made) => onChange(updateStep(def, node.id, { input: applyAccount(node.input ?? {}, accountPick.field, connectedOption(made)) })), empty) : entries, x, y, "other");
-            }}
-          />
-        ) : null}
-        {fixedAccount ? <Text testID="account-fixed" style={i.hint}>{fixedAccount}</Text> : null}
-        {live ? <LiveStepForm def={def} node={node} onChange={onChange} openMenu={openMenu} kind={automationKind} keys={keys} /> : null}
-        {composer ? <MessageComposer stepKey={node.key} nodeId={node.id} input={node.input ?? {}} samples={samples} onInput={(input) => onChange(updateStep(def, node.id, { input }))} /> : null}
-        {live ? null : fields}
-        {advanced ? (
-          <Field label={VAL_LABEL} value={JSON.stringify(node.input ?? {}, null, 2)} testID="field-input-json" onCommit={(t) => {
-            const edited = advancedInputEdit(t);
-            if (!edited.ok) { setJsonError(edited.message); return; }
-            setJsonError(null);
-            onChange(updateStep(def, node.id, { input: edited.input }));
-          }} />
-        ) : null}
-        {jsonError ? <Text style={i.hint}>{jsonError}</Text> : null}
-        {inputKeys.length === 0 && kind === "plain" && !advanced && !accountPick ? <Text style={i.hint}>Nothing is set on this step yet. Add what it needs in the fields the check names below.</Text> : null}
-        {sendsOutward(node.key) && !(node.key === "http_request" && (node.input?.["method"] === undefined || node.input["method"] === "GET" || node.input["method"] === "HEAD")) ? <SendApproval on={node.askBeforeSending === true} onSet={(next) => onChange(updateStep(def, node.id, { askBeforeSending: next }))} /> : null}
-        <View style={i.group}>
-          <Text style={i.groupHead}>If this step fails</Text>
-          <Choice
-            label="Then"
-            value={ERROR_MODES.find((m) => m.mode === (node.onError?.mode ?? "fail"))?.label ?? "Stop the run"}
-            testID="choose-error"
-            onOpen={(x, y) => openMenu(errorEntries(), x, y, "other")}
-          />
-          {node.onError?.mode === "retry" ? <Field label="Tries" value={String(node.onError.max ?? 3)} testID="field-retries" onCommit={(t) => onChange(updateStep(def, node.id, { onError: { mode: "retry", max: Math.max(1, Math.min(10, Number.parseInt(t, 10) || 3)) } }))} /> : null}
-          {node.onError?.mode === "substitute" ? (
-            <Field
-              label="Result" testID="field-substitute" value={node.onError.output === undefined ? "" : JSON.stringify(node.onError.output)} placeholder={'{"ok":false}'}
-              onCommit={(t) => {
-                const trimmed = t.trim();
-                if (!trimmed) { onChange(updateStep(def, node.id, { onError: { mode: "substitute" } })); return; }
-                let output: unknown = t;
-                try { output = JSON.parse(t); } catch { output = t; }
-                onChange(updateStep(def, node.id, { onError: { mode: "substitute", output } }));
+      <View
+        style={paneStyle(embedded, layout)}
+        testID={testID}
+        accessibilityLabel={`${node.title ?? titleOfKey(node.key)} settings`}
+        {...webOnly({ dataSet: { vyreFocus: "1" } })}
+      >
+        <Head
+          title={node.title ?? titleOfKey(node.key)}
+          sub={groupOfKey(node.key)}
+          icon={iconOfKey(node.key)}
+          onClose={onClose}
+        />
+        <ScrollView contentContainerStyle={i.body} keyboardShouldPersistTaps="handled">
+          <SectionRow section={section} ordered={ordered} onSection={(next) => onSection?.(next)} />
+          {section === "data" ? (
+            <DataShelf
+              triggerSample={samples["trigger"]}
+              steps={prior}
+              target={mapTarget}
+              onPick={(_id, _expression, next) => {
+                mapTarget?.commit(next);
+                setMapTarget(null);
               }}
             />
           ) : null}
-          {node.onError?.mode === "route" ? (
+          {section === "test" && runId ? (
+            <RunStepIo runId={runId} stepId={node.id} {...(runLog !== undefined ? { ready: runLog } : {})} />
+          ) : null}
+          {section === "test" ? (
+            <StepTest
+              stepKey={node.key}
+              nodeId={node.id}
+              input={node.input ?? {}}
+              version={version}
+              samples={samples}
+              onUseOutput={(output) => onStoreSample?.(node.id, asFixture(version, node.key, output))}
+            />
+          ) : null}
+          {section === "configure" ? (
             <>
-              <Choice
-                label="Go to" value={def.nodes.find((n) => n.id === node.onError?.route)?.title ?? (node.onError.route ? titleOfKey(def.nodes.find((n) => n.id === node.onError?.route)?.key ?? "") : "Choose a step")} testID="choose-route"
-                onOpen={(x, y) => openMenu(routeEntries(), x, y, "other")}
-              />
+              {node.key === "connector_request" ? (
+                <Text style={i.hint}>{`${CONNECT_LIMIT} The request runs a named action on the connection.`}</Text>
+              ) : null}
+              <Text testID="plain-language" style={i.hint}>
+                {subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? REMOVED_KEY })}
+              </Text>
+              {headerMode ? null : (
+                <View accessibilityLabel="Builder mode" testID="inspector-mode" style={i.seg}>
+                  {/* ui-rows-lint: not a list (Basic and Advanced toggle) */}
+                  {BUILDER_MODES.map((label) => {
+                    const on = (label === "Advanced") === advanced;
+                    return (
+                      <Pressable
+                        key={label}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on }}
+                        testID={label === "Advanced" ? "toggle-advanced" : "toggle-basic"}
+                        onPress={() => setAdvanced(label === "Advanced")}
+                        style={[i.segBtn, on && i.segBtnOn, pointer]}
+                      >
+                        <Text style={[i.segText, on && i.segTextOn]}>{label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
               <Field
-                label="Only these errors" testID="field-error-codes" value={(node.onError.codes ?? []).join(", ")} placeholder="Any error"
-                onCommit={(t) => {
-                  const codes = t.split(",").map((part) => part.trim()).filter((part) => part.length > 0);
-                  const route = node.onError?.route;
-                  onChange(updateStep(def, node.id, { onError: { mode: "route", ...(route ? { route } : {}), ...(codes.length > 0 ? { codes } : {}) } }));
-                }}
+                label="Name"
+                value={node.title ?? ""}
+                placeholder={titleOfKey(node.key)}
+                testID="field-title"
+                onCommit={(t) => onChange(updateStep(def, node.id, { title: t }))}
               />
+              {accountPick ? (
+                <Choice
+                  label="Account"
+                  value={accountPick.value}
+                  testID="choose-account"
+                  onOpen={(x, y) => {
+                    const entries: MenuEntry[] = [];
+                    for (const item of accountPick.items) {
+                      // the "No accounts yet" row is not an account: with a way to connect it gives way to Connect
+                      if (!item.account && openConnect) continue;
+                      const onSelect = (): void => {
+                        if (!item.account) return;
+                        onChange(
+                          updateStep(def, node.id, {
+                            input: applyAccount(node.input ?? {}, accountPick.field, item.account),
+                          }),
+                        );
+                      };
+                      entries.push(
+                        item.checked ? { label: item.label, checked: true, onSelect } : { label: item.label, onSelect },
+                      );
+                    }
+                    const need = accountNeed(accountPick.field, node.input ?? {});
+                    const empty = menuIsEmpty(accountPick);
+                    openMenu(
+                      need
+                        ? connectEntries(
+                            entries,
+                            need,
+                            openConnect,
+                            (made) =>
+                              onChange(
+                                updateStep(def, node.id, {
+                                  input: applyAccount(node.input ?? {}, accountPick.field, connectedOption(made)),
+                                }),
+                              ),
+                            empty,
+                          )
+                        : entries,
+                      x,
+                      y,
+                      "other",
+                    );
+                  }}
+                />
+              ) : null}
+              {fixedAccount ? (
+                <Text testID="account-fixed" style={i.hint}>
+                  {fixedAccount}
+                </Text>
+              ) : null}
+              {live ? (
+                <LiveStepForm
+                  def={def}
+                  node={node}
+                  onChange={onChange}
+                  openMenu={openMenu}
+                  kind={automationKind}
+                  keys={keys}
+                />
+              ) : null}
+              {composer ? (
+                <MessageComposer
+                  stepKey={node.key}
+                  nodeId={node.id}
+                  input={node.input ?? {}}
+                  samples={samples}
+                  onInput={(input) => onChange(updateStep(def, node.id, { input }))}
+                />
+              ) : null}
+              {live ? null : fields}
+              {advanced ? (
+                <Field
+                  label={VAL_LABEL}
+                  value={JSON.stringify(node.input ?? {}, null, 2)}
+                  testID="field-input-json"
+                  onCommit={(t) => {
+                    const edited = advancedInputEdit(t);
+                    if (!edited.ok) {
+                      setJsonError(edited.message);
+                      return;
+                    }
+                    setJsonError(null);
+                    onChange(updateStep(def, node.id, { input: edited.input }));
+                  }}
+                />
+              ) : null}
+              {jsonError ? <Text style={i.hint}>{jsonError}</Text> : null}
+              {inputKeys.length === 0 && kind === "plain" && !advanced && !accountPick ? (
+                <Text style={i.hint}>
+                  Nothing is set on this step yet. Add what it needs in the fields the check names below.
+                </Text>
+              ) : null}
+              {sendsOutward(node.key) &&
+              !(
+                node.key === "http_request" &&
+                (node.input?.["method"] === undefined ||
+                  node.input["method"] === "GET" ||
+                  node.input["method"] === "HEAD")
+              ) ? (
+                <SendApproval
+                  on={node.askBeforeSending === true}
+                  onSet={(next) => onChange(updateStep(def, node.id, { askBeforeSending: next }))}
+                />
+              ) : null}
+              <View style={i.group}>
+                <Text style={i.groupHead}>If this step fails</Text>
+                <Choice
+                  label="Then"
+                  value={ERROR_MODES.find((m) => m.mode === (node.onError?.mode ?? "fail"))?.label ?? "Stop the run"}
+                  testID="choose-error"
+                  onOpen={(x, y) => openMenu(errorEntries(), x, y, "other")}
+                />
+                {node.onError?.mode === "retry" ? (
+                  <Field
+                    label="Tries"
+                    value={String(node.onError.max ?? 3)}
+                    testID="field-retries"
+                    onCommit={(t) =>
+                      onChange(
+                        updateStep(def, node.id, {
+                          onError: { mode: "retry", max: Math.max(1, Math.min(10, Number.parseInt(t, 10) || 3)) },
+                        }),
+                      )
+                    }
+                  />
+                ) : null}
+                {node.onError?.mode === "substitute" ? (
+                  <Field
+                    label="Result"
+                    testID="field-substitute"
+                    value={node.onError.output === undefined ? "" : JSON.stringify(node.onError.output)}
+                    placeholder={'{"ok":false}'}
+                    onCommit={(t) => {
+                      const trimmed = t.trim();
+                      if (!trimmed) {
+                        onChange(updateStep(def, node.id, { onError: { mode: "substitute" } }));
+                        return;
+                      }
+                      let output: unknown = t;
+                      try {
+                        output = JSON.parse(t);
+                      } catch {
+                        output = t;
+                      }
+                      onChange(updateStep(def, node.id, { onError: { mode: "substitute", output } }));
+                    }}
+                  />
+                ) : null}
+                {node.onError?.mode === "route" ? (
+                  <>
+                    <Choice
+                      label="Go to"
+                      value={
+                        def.nodes.find((n) => n.id === node.onError?.route)?.title ??
+                        (node.onError.route
+                          ? titleOfKey(def.nodes.find((n) => n.id === node.onError?.route)?.key ?? "")
+                          : "Choose a step")
+                      }
+                      testID="choose-route"
+                      onOpen={(x, y) => openMenu(routeEntries(), x, y, "other")}
+                    />
+                    <Field
+                      label="Only these errors"
+                      testID="field-error-codes"
+                      value={(node.onError.codes ?? []).join(", ")}
+                      placeholder="Any error"
+                      onCommit={(t) => {
+                        const codes = t
+                          .split(",")
+                          .map((part) => part.trim())
+                          .filter((part) => part.length > 0);
+                        const route = node.onError?.route;
+                        onChange(
+                          updateStep(def, node.id, {
+                            onError: {
+                              mode: "route",
+                              ...(route ? { route } : {}),
+                              ...(codes.length > 0 ? { codes } : {}),
+                            },
+                          }),
+                        );
+                      }}
+                    />
+                  </>
+                ) : null}
+              </View>
+              <MappingFix nodeIds={nodeIdSet(def)} value={node.input} />
+              <Problems list={mine} />
+              {mine.some((item) => item.severity === "error") ? (
+                <AskVyre
+                  bundle={{
+                    resource: "automation",
+                    nodeId: node.id,
+                    stepKey: node.key,
+                    definitionVersion: version,
+                    message: mine.find((item) => item.severity === "error")?.message ?? "",
+                  }}
+                  {...(onAsk ? { onOpen: onAsk } : {})}
+                />
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Delete this step"
+                testID="delete-step"
+                onPress={onDelete}
+                style={[i.del, pointer]}
+              >
+                <Glyph name="x" size={13} color="var(--danger)" />
+                <Text style={i.delText}>Delete this step</Text>
+              </Pressable>
             </>
           ) : null}
-        </View>
-        <MappingFix nodeIds={nodeIdSet(def)} value={node.input} />
-        <Problems list={mine} />
-        {mine.some((item) => item.severity === "error") ? <AskVyre bundle={{ resource: "automation", nodeId: node.id, stepKey: node.key, definitionVersion: version, message: mine.find((item) => item.severity === "error")?.message ?? "" }} {...(onAsk ? { onOpen: onAsk } : {})} /> : null}
-        <Pressable accessibilityRole="button" accessibilityLabel="Delete this step" testID="delete-step" onPress={onDelete} style={[i.del, pointer]}>
-          <Glyph name="x" size={13} color="var(--danger)" />
-          <Text style={i.delText}>Delete this step</Text>
-        </Pressable>
-          </>
-        ) : null}
-      </ScrollView>
-      {element}
-    </View>
+        </ScrollView>
+        {element}
+      </View>
     </MapTargetContext.Provider>
   );
 }
 
-function Head({ title, sub, icon, onClose }: { title: string; sub: string; icon: IconKey; onClose(): void }): ReactElement {
+function Head({
+  title,
+  sub,
+  icon,
+  onClose,
+}: {
+  title: string;
+  sub: string;
+  icon: IconKey;
+  onClose(): void;
+}): ReactElement {
   return (
     <View style={i.head}>
-      <View style={i.tile}><Glyph name={icon} size={16} color="var(--ink-2)" /></View>
+      <View style={i.tile}>
+        <Glyph name={icon} size={16} color="var(--ink-2)" />
+      </View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text accessibilityRole="header" numberOfLines={1} style={i.title}>{title}</Text>
-        <Text numberOfLines={1} style={i.sub}>{sub}</Text>
+        <Text accessibilityRole="header" numberOfLines={1} style={i.title}>
+          {title}
+        </Text>
+        <Text numberOfLines={1} style={i.sub}>
+          {sub}
+        </Text>
       </View>
       <IconButton icon="x" label="Close the step panel" onPress={onClose} testID="close-inspector" />
     </View>
@@ -371,12 +746,14 @@ function Head({ title, sub, icon, onClose }: { title: string; sub: string; icon:
 function Problems({ list }: { list: readonly Issue[] }): ReactElement | null {
   if (list.length === 0) return null;
   const rows: ReactElement[] = [];
-  list.forEach((p, n) => rows.push(
-    <View key={`${p.message}-${n}`} style={i.problem}>
-      <Glyph name="warn" size={13} color={p.severity === "error" ? "var(--danger)" : "var(--warn)"} />
-      <Text style={i.problemText}>{p.message}</Text>
-    </View>,
-  ));
+  list.forEach((p, n) =>
+    rows.push(
+      <View key={`${p.message}-${n}`} style={i.problem}>
+        <Glyph name="warn" size={13} color={p.severity === "error" ? "var(--danger)" : "var(--warn)"} />
+        <Text style={i.problemText}>{p.message}</Text>
+      </View>,
+    ),
+  );
   return (
     <View style={i.group} testID="step-problems" accessibilityRole="alert">
       <Text style={i.groupHead}>{list.some((x) => x.severity === "error") ? "To fix" : "To check"}</Text>
@@ -396,11 +773,40 @@ function paneStyle(embedded: boolean, layout?: StudioLayout) {
 }
 
 const i = StyleSheet.create({
-  pane: { width: 300, maxWidth: "100%", minWidth: 0, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
+  pane: {
+    width: 300,
+    maxWidth: "100%",
+    minWidth: 0,
+    borderLeftWidth: 1,
+    borderLeftColor: "var(--line)" as string,
+    backgroundColor: "var(--win)" as string,
+  },
   embedded: { width: "100%" as unknown as number, flex: 1, borderLeftWidth: 0 },
-  head: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, height: 52, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
-  tile: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--hover)" as string },
-  seg: { flexDirection: "row", gap: 2, alignSelf: "flex-start", padding: 2, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  head: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    height: 52,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
+  tile: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--hover)" as string,
+  },
+  seg: {
+    flexDirection: "row",
+    gap: 2,
+    alignSelf: "flex-start",
+    padding: 2,
+    borderRadius: 8,
+    backgroundColor: "var(--sunk)" as string,
+  },
   segBtn: { paddingHorizontal: 10, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   segBtnOn: { backgroundColor: "var(--win)" as string },
   segText: { fontSize: 12, color: "var(--ink-3)" as string },
@@ -411,13 +817,40 @@ const i = StyleSheet.create({
   hint: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
   field: { gap: 4 },
   label: { fontSize: 11.5, color: "var(--ink-3)" as string },
-  input: { height: 30, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, paddingHorizontal: 9, fontSize: 13, color: "var(--ink)" as string },
+  input: {
+    height: 30,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: "var(--field-line)" as string,
+    backgroundColor: "var(--field)" as string,
+    paddingHorizontal: 9,
+    fontSize: 13,
+    color: "var(--ink)" as string,
+  },
   group: { gap: 8, paddingTop: 6 },
   groupHead: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-2)" as string },
-  choice: { height: 30, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 6 },
+  choice: {
+    height: 30,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: "var(--field-line)" as string,
+    backgroundColor: "var(--field)" as string,
+    paddingHorizontal: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
   choiceText: { flex: 1, fontSize: 13, color: "var(--ink)" as string },
   problem: { flexDirection: "row", alignItems: "flex-start", gap: 7 },
   problemText: { flex: 1, fontSize: 12, lineHeight: 17, color: "var(--ink-2)" as string },
-  del: { flexDirection: "row", alignItems: "center", gap: 7, height: 30, paddingHorizontal: 9, borderRadius: 7, marginTop: 6 },
+  del: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    height: 30,
+    paddingHorizontal: 9,
+    borderRadius: 7,
+    marginTop: 6,
+  },
   delText: { fontSize: 13, color: "var(--danger)" as string },
 });
