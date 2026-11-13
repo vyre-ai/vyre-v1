@@ -33,6 +33,7 @@ import { agentInfo } from "../../sbrowser/agentinfo.ts";
 import { faceSvg } from "../../sbrowser/face.ts";
 import { waitingNote } from "../../capacity.ts";
 import { moveOf, settleMove } from "../../migrate.ts";
+import { fitPng, scaledNote } from "../../png-fit.ts";
 
 export type ToolArgs = Record<string, unknown>;
 export type ToolAnswer = Record<string, unknown>;
@@ -208,6 +209,10 @@ async function keepFrame(ctx: CompCtx, c: ComputerRow, frame: unknown, at: numbe
   try {
     const folderId = await agentFolder(ctx, c.agentId);
     if (!folderId) return undefined;
+    // a heavy page's picture is over the size limit for a direct write to Files: it is kept scaled down, not lost
+    const fit = fitPng(frame, { width: 0, height: 0 });
+    if (!fit.ok) return undefined;
+    frame = fit.shot.base64;
     const made = (await ctx.call("files.create", {
       folderId, name: `step-${new Date(at).toISOString().replace(/[:.]/g, "-")}.png`, kind: "image", mime: "image/png", content: { base64: frame }, idempotencyKey: `cmpstep:${c.computerId}:${mintId("stp", at)}`,
     })) as { file?: { fileId?: string } };
@@ -678,14 +683,25 @@ export function shape(ctx: CompCtx, tool: string, out: ToolAnswer, want: Shape):
 // ---- a picture kept in the agent's folder ------------------------------------------------------------------------------------------------------------
 
 /** Store a screenshot agentd returned (base64 PNG) in the agent's Files folder and answer as the screenshot capabilities do. */
-export async function keepShot(ctx: CompCtx, c: ComputerRow, tool: string, out: ToolAnswer): Promise<{ fileId: string; width: number; height: number }> {
+export async function keepShot(ctx: CompCtx, c: ComputerRow, tool: string, out: ToolAnswer, o: { fit?: boolean } = {}): Promise<{ fileId: string; width: number; height: number; note?: string }> {
   const got = shape(ctx, tool, out, { png: "s", width: "n", height: "n" });
   const folderId = await agentFolder(ctx, c.agentId);
   if (!folderId) raise(ctx, "validation.bad_input", "The agent has no folder to keep the picture in.");
+  // A picture over the size limit for a direct write to Files is scaled down to fit and the agent is told the size it got (13 Nov: a heavy page's screenshot failed with validation.too_large). The desktop's
+  // own screenshot is not scaled: its clicks are in the desktop's pixels.
+  let png = String(got["png"]);
+  let [width, height] = [Number(got["width"]), Number(got["height"])];
+  let note: string | undefined;
+  if (o.fit !== false) {
+    const fit = fitPng(png, { width, height });
+    if (!fit.ok) raise(ctx, "validation.bad_input", fit.why);
+    ({ base64: png, width, height } = fit.shot);
+    if (fit.shot.scaledFrom) note = scaledNote(fit.shot);
+  }
   const at = ctx.now();
   const made = (await ctx.call("files.create", {
-    folderId, name: `screenshot-${new Date(at).toISOString().replace(/[:.]/g, "-")}.png`, kind: "image", mime: "image/png", content: { base64: got["png"] }, idempotencyKey: `cmpshot:${c.computerId}:${mintId("shot", at)}`,
+    folderId, name: `screenshot-${new Date(at).toISOString().replace(/[:.]/g, "-")}.png`, kind: "image", mime: "image/png", content: { base64: png }, idempotencyKey: `cmpshot:${c.computerId}:${mintId("shot", at)}`,
   })) as { file: { fileId: string } };
   setComputer(ctx.db, c.computerId, { last_frame_at: at, last_frame_file: made.file.fileId });
-  return { fileId: made.file.fileId, width: Number(got["width"]), height: Number(got["height"]) };
+  return { fileId: made.file.fileId, width, height, ...(note ? { note } : {}) };
 }

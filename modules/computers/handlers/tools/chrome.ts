@@ -31,8 +31,10 @@ export async function screenshot(ctx: CompCtx, input: Base & { ref?: string; ful
   if (!r) raise(ctx, "validation.bad_input", "The computer is asleep.");
   const out = await call(ctx, r, spec, defined({ tabId: input.tabId, ref: input.ref, fullPage: input.fullPage }));
   const kept = await keepShot(ctx, r.computer, "chrome_screenshot", out);
-  // the first answer after the browser was reopened says so (browserStep)
-  return out["reopened"] === true ? { ...kept, reopened: true, ...(typeof out["note"] === "string" ? { note: out["note"] } : {}) } : kept;
+  // the first answer after the browser was reopened says so (browserStep); a picture scaled to fit says so too
+  const notes = [out["reopened"] === true && typeof out["note"] === "string" ? out["note"] : "", kept.note ?? ""].filter((x) => x !== "").join(" ");
+  const { note: _scaled, ...shot } = kept;
+  return { ...shot, ...(out["reopened"] === true ? { reopened: true } : {}), ...(notes ? { note: notes } : {}) };
 }
 
 export async function consoleMessages(ctx: CompCtx, input: Base & { level?: string; limit?: number }) {

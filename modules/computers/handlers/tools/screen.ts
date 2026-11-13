@@ -15,7 +15,7 @@ export async function screenshot(ctx: CompCtx, input: Base) {
   const spec: ToolSpec = { name: "screen_screenshot", caption: null };
   const r = await prepare(ctx, input.computerId, spec);
   if (!r) raise(ctx, "validation.bad_input", "The computer is asleep.");
-  return keepShot(ctx, r.computer, "screen_screenshot", await call(ctx, r, spec, {}));
+  return keepShot(ctx, r.computer, "screen_screenshot", await call(ctx, r, spec, {}), { fit: false });
 }
 
 export async function click(ctx: CompCtx, input: Base & { x: number; y: number; button?: string; double?: boolean }) {
