@@ -1,4 +1,5 @@
 {
+  "apps/app/src/console/objects/names.ts": 1,
   "apps/app/src/console/pages/Agents.tsx": 1,
   "apps/app/src/console/pages/AiSettings.tsx": 3,
   "apps/app/src/console/pages/comms/Numbers.tsx": 1,
