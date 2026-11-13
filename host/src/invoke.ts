@@ -18,6 +18,7 @@ import type { AgentGate } from "./seams/agent-read.ts";
 import { BindingError, OUTSIDE_AGENT_LINE, SELF_BINDING_LINE, isSelfBound, resolveResource, selfAuditNote, selfTarget } from "./routes/resource.ts";
 import { auditTargets } from "./routes/audit-targets.ts";
 import type { AuditTarget } from "./routes/audit-targets.ts";
+import { redact } from "../../lib/hooks.ts";
 import { codeForReason, fail, HostError, toVyreError } from "./routes/errors.ts";
 import type { ResourceRegistrar } from "./gateway/resources.ts";
 import type { PrincipalRegistrar } from "./gateway/principals.ts";
@@ -297,17 +298,36 @@ export function personalMatrix(o: {
   };
 }
 
-/** What an unexpected error says, with every known secret and every key-shaped token taken out. */
+/** What an unexpected error says, with every known secret and every key-shaped value (lib/hooks.ts redact) taken out. It never throws: a value that cannot be read says so. */
 export function unexpectedWords(e: unknown, secrets: readonly string[]): { message: string; stack: string } {
-  const clean = (t: string): string => {
-    let out = t;
-    for (const x of secrets) if (x.length >= 6) out = out.split(x).join("[REDACTED]");
-    return out.replace(/\b(?:sk|pk|rk|ghp|gho|xox[abp])[-_][A-Za-z0-9_-]{16,}/g, "[REDACTED]").replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{12,}/g, "$1 [REDACTED]");
-  };
-  const message = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-  return { message: clean(message).slice(0, 1000), stack: clean(e instanceof Error && e.stack ? e.stack : message).slice(0, 4000) };
+  try {
+    const clean = (t: string): string => {
+      let out = t;
+      for (const x of secrets) if (x.length >= 6) out = out.split(x).join("[hidden]");
+      return redact(out, 100_000);
+    };
+    const message = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+    // the frames only: the stack's first line repeats the message, and the message is kept apart
+    const frames = (e instanceof Error && typeof e.stack === "string" ? e.stack : "").split("\n").filter((l) => /^\s+at /.test(l));
+    return { message: clean(message).slice(0, 1000), stack: clean(frames.slice(0, 8).join("\n")) };
+  } catch { return { message: "an error that could not be read", stack: "" }; }
 }
-const writeUnexpected = (a: { cap: string; traceId: string; message: string; stack: string }): void => { process.stderr.write(`vyred: handler threw ${JSON.stringify(a)}\n`); };
+
+// at most one full line a minute for the same capability and message, then one line with the count: a poll or a retry loop into a broken capability cannot fill the log
+const written = new Map<string, { at: number; hidden: number }>();
+const REPEAT_MS = 60_000;
+function writeUnexpected(a: { cap: string; traceId: string; message: string; stack: string }, at: number = Date.now()): void {
+  try {
+    const key = `${a.cap}|${a.message.split("\n")[0]}`;
+    const was = written.get(key);
+    if (was && at - was.at < REPEAT_MS) { was.hidden++; return; }
+    if (written.size > 500) written.clear();
+    written.set(key, { at, hidden: 0 });
+    process.stderr.write(`vyred: handler threw ${JSON.stringify({ ...a, ...(was && was.hidden > 0 ? { repeated: was.hidden } : {}) })}\n`);
+  } catch { /* logging never throws into a call */ }
+}
+/** Tests: forget what was written. */
+export const resetUnexpectedLog = (): void => written.clear();
 
 export type Invoke = (cap: string, input: unknown, seed: CtxSeed) => Promise<InvokeResult>;
 
@@ -396,8 +416,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       if (unexpected) {
         // the caller only ever sees "Something went wrong on our side"; the server keeps what really happened, always (the logs.db row can be counted away as a repeat or trimmed, so it is also written to the server's own output)
         const said = unexpectedWords(e, deps.secrets?.() ?? []);
-        log.error("handler threw", { cap: capName, traceId, message: said.message, stack: said.stack });
-        (deps.onUnexpected ?? writeUnexpected)({ cap: capName, traceId, ...said });
+        // the row keeps the frames (4) and no message: the sink drops a message as content, and the stack no longer repeats it
+        log.error("handler threw", { cap: capName, traceId, stack: said.stack.split("\n").slice(0, 4).join("\n") });
+        try { (deps.onUnexpected ?? writeUnexpected)({ cap: capName, traceId, ...said }); } catch { /* never throws into the call */ }
       }
       // who was refused: without the caller and the person it acted for, a refusal in the log cannot be traced to a session
       log.info("invoke", { cap: capName, traceId, status: error.code, actor: seed.principal.id, ...(seed.actingFor ? { onBehalf: seed.actingFor } : {}) });
