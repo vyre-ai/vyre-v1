@@ -4,7 +4,18 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
-import { AllowCard, CredentialCard, MappingCard, TestLeadCard, UnderstoodCard, WaitingCard } from "./Cards.tsx";
+import {
+  AllowCard,
+  AskAdminCard,
+  CredentialCard,
+  FormChoiceView,
+  MappingCard,
+  ResumeNeed,
+  TestLeadCard,
+  TrailCard,
+  UnderstoodCard,
+  WaitingCard,
+} from "./Cards.tsx";
 import type { Credential } from "./model.ts";
 
 installDom();
@@ -179,4 +190,113 @@ test("the other cards: I understood, mapping, waiting, test lead and Allow each 
   );
   await press(find(a, "al-allow"));
   assert.deepEqual(calls, ["yes", "change", "map:notes", "check", "lead:run", "lead:skip", "allow:yes"]);
+});
+
+test("the trail draws a small header with the app's mark per app, then its ticked lines", async () => {
+  const root = await mount(
+    createRoot,
+    <TrailCard
+      groups={[
+        { app: null, lines: [{ text: "Your site is northwind.example", state: "done" }] },
+        {
+          app: { id: "slack", name: "Slack" },
+          lines: [
+            { text: "Read Slack's documentation", state: "done" },
+            { text: "Finding how Slack connects", state: "doing" },
+          ],
+        },
+      ]}
+    />,
+  );
+  const t = textOf(root);
+  assert.ok(
+    t.includes("Slack") && t.includes("Read Slack's documentation") && t.includes("Finding how Slack connects"),
+  );
+  assert.ok(find(root, "tr-done-0-0") && find(root, "tr-doing-1-1"));
+});
+
+test("Is this the one?: each form has a picture, a press picks it, Neither and I do not know are honest choices", async () => {
+  const calls: string[] = [];
+  const root = await mount(
+    createRoot,
+    <FormChoiceView
+      card={{
+        title: "I found 2 forms on x.example. Is this the one?",
+        choices: [
+          { id: "f1", label: "Contact", line: "/contact, made with WPForms", picture: "/shots/f1.png" },
+          { id: "f2", label: "Newsletter", line: "in the footer, made with WPForms" },
+        ],
+        actions: ["Neither"],
+      }}
+      onPick={(id) => calls.push(`pick:${id}`)}
+      onNeither={() => calls.push("neither")}
+    />,
+  );
+  assert.ok(find(root, "fc-picture-f1") && !find(root, "fc-picture-f2"));
+  await press(find(root, "fc-f2"));
+  await press(find(root, "fc-neither"));
+  assert.deepEqual(calls, ["pick:f2", "neither"]);
+  const q = await mount(
+    createRoot,
+    <FormChoiceView
+      card={{
+        title: "Which plugin sends your form?",
+        choices: [
+          { id: "WPForms", label: "WPForms" },
+          { id: "", label: "I do not know" },
+        ],
+        actions: [],
+      }}
+      onPick={(id) => calls.push(`plugin:${id}`)}
+      onNeither={() => undefined}
+    />,
+  );
+  await press(find(q, "fc-"));
+  assert.equal(calls.at(-1), "plugin:");
+});
+
+test("Ask-admin names the person and asks once; after asking it says so and cannot be pressed again", async () => {
+  const calls: string[] = [];
+  const root = await mount(
+    createRoot,
+    <AskAdminCard
+      card={{
+        title: "Ask Dana Whitfield to allow Microsoft 365?",
+        line: "only an admin",
+        actions: ["Ask Dana Whitfield"],
+      }}
+      asked={false}
+      onAsk={() => calls.push("ask")}
+    />,
+  );
+  await press(find(root, "aa-ask"));
+  const done = await mount(
+    createRoot,
+    <AskAdminCard
+      card={{
+        title: "Ask Dana Whitfield to allow Microsoft 365?",
+        line: "only an admin",
+        actions: ["Ask Dana Whitfield"],
+      }}
+      asked
+      onAsk={() => calls.push("ask again")}
+    />,
+  );
+  assert.equal(find(done, "aa-ask"), null);
+  assert.ok(textOf(done).includes("Asked Dana Whitfield"));
+  assert.deepEqual(calls, ["ask"]);
+});
+
+test("the resume line from Needs you says the one open thing and Continue reopens that card", async () => {
+  const calls: string[] = [];
+  const root = await mount(
+    createRoot,
+    <ResumeNeed
+      need={{ id: "n1", stage: 3, text: "Needs your Slack token", app: { id: "slack", name: "Slack" } }}
+      onContinue={(id) => calls.push(id)}
+    />,
+  );
+  assert.ok(textOf(root).includes("Needs your Slack token"));
+  await press(find(root, "rn-continue"));
+  assert.deepEqual(calls, ["n1"]);
 });

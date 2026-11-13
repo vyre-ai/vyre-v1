@@ -2,14 +2,17 @@
 // The credential card is one component. The value he types goes to `port.save`, which writes it to the Vault; it is never in an event or a line the card draws.
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppLogo } from "../../../../../../ui/src/AppLogo/index.tsx";
 import { CRED_START, credentialStep, credentialView } from "./model.ts";
 import type {
   AppRef,
   CredEvent,
   Credential,
+  FormChoiceCard,
+  TrailGroup,
   allowCard,
+  askAdminCard,
   mappingCard,
   testLeadCard,
   understoodCard,
@@ -240,7 +243,109 @@ export function AllowCard(p: {
   );
 }
 
+export function TrailCard(p: { groups: readonly TrailGroup[] }): ReactElement {
+  return (
+    <View style={s.trail}>
+      {/* ui-rows-lint: not a list (the ticked lines of one trail) */}
+      {p.groups.map((g, gi) => (
+        <View key={g.app?.id ?? "general"} style={s.trail}>
+          {g.app ? (
+            <View style={s.line}>
+              <AppLogo app={g.app.id} name={g.app.name} size={20} />
+              <Text style={s.title}>{g.app.name}</Text>
+            </View>
+          ) : null}
+          {/* ui-rows-lint: not a list (the ticked lines of one app) */}
+          {g.lines.map((l, li) => (
+            <Text
+              key={li}
+              testID={`tr-${l.state}-${gi}-${li}`}
+              style={s.quiet}
+            >{`${l.state === "done" ? "\u2713" : "\u2026"} ${l.text}`}</Text>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+export function FormChoiceView(p: { card: FormChoiceCard; onPick(id: string): void; onNeither(): void }): ReactElement {
+  return (
+    <View style={s.card}>
+      <Text style={s.title}>{p.card.title}</Text>
+      <View style={s.actions}>
+        {/* ui-rows-lint: not a list (the choices of one card) */}
+        {p.card.choices.map((c) => (
+          <Pressable
+            key={c.id}
+            testID={`fc-${c.id}`}
+            accessibilityRole="button"
+            onPress={() => p.onPick(c.id)}
+            style={s.formChoice}
+          >
+            {c.picture ? (
+              <Image
+                testID={`fc-picture-${c.id}`}
+                source={{ uri: c.picture }}
+                accessibilityLabel={`${c.label} form`}
+                style={s.picture}
+                resizeMode="cover"
+              />
+            ) : null}
+            <Text style={s.title}>{c.label}</Text>
+            {c.line ? <Text style={s.quiet}>{c.line}</Text> : null}
+          </Pressable>
+        ))}
+      </View>
+      {p.card.actions.length > 0 ? (
+        <View style={s.actions}>
+          <CardAction id="fc-neither" label={p.card.actions[0]!} onPress={p.onNeither} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+export function AskAdminCard(p: {
+  card: Pick<ReturnType<typeof askAdminCard>, "title" | "line" | "actions">;
+  asked: boolean;
+  onAsk(): void;
+}): ReactElement {
+  if (p.asked)
+    return (
+      <View style={s.card}>
+        <Text style={s.quiet}>{`Asked ${p.card.actions[0]!.replace(/^Ask /, "")}. It is in their Needs you.`}</Text>
+      </View>
+    );
+  return (
+    <View style={s.card}>
+      <Text style={s.title}>{p.card.title}</Text>
+      <Text style={s.quiet}>{p.card.line}</Text>
+      <View style={s.actions}>
+        <CardAction id="aa-ask" label={p.card.actions[0]!} primary onPress={p.onAsk} />
+      </View>
+    </View>
+  );
+}
+
+/** The one open Needs you line of a build he left midway: it names the thing and Continue reopens that card where it stopped. */
+export function ResumeNeed(p: {
+  need: { id: string; text: string; app: AppRef };
+  onContinue(id: string): void;
+}): ReactElement {
+  return (
+    <View style={[s.card, s.line]}>
+      <AppLogo app={p.need.app.id} name={p.need.app.name} size={24} />
+      <Text style={[s.body, { flex: 1 }]}>{p.need.text}</Text>
+      <CardAction id="rn-continue" label="Continue" primary onPress={() => p.onContinue(p.need.id)} />
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
+  trail: { gap: 4 },
+  formChoice: { width: 150, gap: 4, padding: 8, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
+  picture: { width: "100%", height: 70, borderRadius: 8 },
   card: {
     gap: 8,
     padding: 12,

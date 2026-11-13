@@ -178,3 +178,34 @@ test("Test runs the draft step by step, stops at the first step that needs somet
   );
   assert.deepEqual(t[2]!.need, { kind: "value", line: "Choose the file to send", button: "Choose the file" });
 });
+
+test("a step whose app he may not use is shown whole with one plain line, never dropped or broken", () => {
+  const m = story({
+    ...base,
+    steps: [
+      step({
+        id: "a",
+        app: { id: "microsoft", name: "Microsoft 365" },
+        action: "Send an Outlook message",
+        template: "Send {what} to {who}",
+        values: { what: { text: "the invoice" }, who: { text: "Sam" } },
+        needs: [
+          { kind: "value", line: "Choose the file", button: "Choose" },
+          {
+            kind: "no_access",
+            line: "You cannot use Microsoft 365. Dana Whitfield can.",
+            button: "Ask Dana Whitfield",
+          },
+        ],
+      }),
+    ],
+  });
+  const r = m.rows.find((x) => x.kind === "step")!;
+  assert.equal(r.kind === "step" && r.sentence.text, "Send the invoice to Sam");
+  assert.deepEqual(r.kind === "step" && r.need, {
+    kind: "no_access",
+    line: "You cannot use Microsoft 365. Dana Whitfield can.",
+    button: "Ask Dana Whitfield",
+  });
+  assert.equal(m.rows.length, 2);
+});

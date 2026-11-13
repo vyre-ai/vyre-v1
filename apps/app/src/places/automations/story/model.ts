@@ -4,7 +4,7 @@
 export type Value = { text: string } | { chip: { label: string; from: string; sample: string } };
 
 export interface Need {
-  kind: "allow" | "connect" | "ask_admin" | "unclear" | "unmapped" | "channel" | "value";
+  kind: "no_access" | "allow" | "connect" | "ask_admin" | "unclear" | "unmapped" | "channel" | "value";
   line: string;
   button: string;
   /** Not asked yet: one thing is asked at a time, so the step stays quiet until its turn. */
@@ -124,7 +124,16 @@ export interface Story {
   needsYou: number;
 }
 
-const MISSING_ORDER: Need["kind"][] = ["ask_admin", "allow", "connect", "unclear", "unmapped", "channel", "value"];
+const MISSING_ORDER: Need["kind"][] = [
+  "no_access",
+  "ask_admin",
+  "allow",
+  "connect",
+  "unclear",
+  "unmapped",
+  "channel",
+  "value",
+];
 
 /** One missing thing per step: the most important that is being asked now. */
 export function needOf(s: StepIn): Need | null {
