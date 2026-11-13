@@ -131,16 +131,15 @@ export function moveTab(state: TabsState, place: PlaceId, hash: string | undefin
   if (cur === undefined || cur.isNew === true || cur.place !== place) return openTab(state, tab);
   const other = holding(state, tab.key, cur);
   if (other !== undefined) return openTab(state, { ...tab, key: other.key });
-  // the tab already shows this item (the page reporting the address it was just opened on): its name stands, it does not start again from the place's name
-  if (cur.key === tab.key)
-    return hash === undefined || hash === "" || hash === cur.hash
-      ? state
-      : { tabs: state.tabs.map((t) => (t === cur ? { ...cur, hash } : t)), active: cur.key };
   const own = cur.key === place;
   const next: TabEntry = {
     key: own ? cur.key : tab.key,
     // a place's tab keeps its name; a tab that now shows another item starts from the place's name until that item's name arrives (hub.retitle)
-    title: own ? cur.title : (title ?? PLACE_TITLE[place]),
+    // the same chat the tab was just opened on (the page reporting its own address) keeps the name it has: the placeholder a chat address carries never replaces a real name
+    title:
+      own || (cur.key === tab.key && title === NEW_CHAT && cur.title !== NEW_CHAT)
+        ? cur.title
+        : (title ?? PLACE_TITLE[place]),
     place,
     ...(hash === undefined || hash === "" ? {} : { hash }),
     ...(cur.pinned === true ? { pinned: true } : {}),

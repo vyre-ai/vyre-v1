@@ -53,3 +53,9 @@ test("the page reporting where the tab is (moveTab, on the same chat the tab was
   assert.equal(sel.title, "Heyy");
   assert.notEqual(sel.empty, true);
 });
+
+test("moving to a place's landing on the same tab still clears its address", () => {
+  let s = openTab(EMPTY_TABS, placeTab("records", "type=person"));
+  s = moveTab(s, "records", "", undefined);
+  assert.equal(s.tabs.find((t) => t.key === s.active)?.hash, undefined);
+});
