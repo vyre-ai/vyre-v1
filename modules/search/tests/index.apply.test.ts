@@ -28,6 +28,19 @@ test("a record becomes its title and the words of its fields, never a credential
   assert.deepEqual(h.calls("records.get")[0]!.input, { recordId: "rec_a", type: "client" });
 });
 
+test("a record's fields that hold ids (its folder, its people) are not words of it: no id reaches the index body or a snippet (owner, 13 Nov 2026)", async () => {
+  const h = harness({
+    respond: {
+      "records.get": (i) => ({ record: { id: i["recordId"], type: "project", label: 1, fields: { name: "Spring launch", folderId: "fld_01a1d27b165742ddb20032cbd182aaf9", lead: "usr_5b6f9d9e0e318704d0", members: ["usr_8923b33eafc2cebd5c", "Maya"], goal: "Launch on time" }, updatedAt: 5 } }),
+      "schema.types.get": (i) => ({ type: { key: i["type"], titleField: "name" } }),
+    },
+  });
+  await indexApply(h.ctx, { entity: "record:project", id: "rec_p", op: "upsert", seq: 1 });
+  assert.equal(String(row(h, "rec_p")["body"]), "Maya Launch on time");
+  const hit = (await query(h.ctx, { q: "launch" })).hits.find((x) => x.id === "rec_p")!;
+  assert.doesNotMatch(`${hit.title} ${hit.snippet ?? ""}`, /\b(?:fld|usr)_/);
+});
+
 test("a file becomes its name, its folder path and, for text, its first twenty thousand characters", async () => {
   const h = harness({
     respond: {

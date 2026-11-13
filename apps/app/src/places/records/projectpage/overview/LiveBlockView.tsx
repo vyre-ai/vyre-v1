@@ -10,7 +10,7 @@ import { StatusMark } from "../../../../../../../ui/src/Plan/parts.tsx";
 import { Row } from "../../../../../../../ui/src/Row/index.tsx";
 import { injectCss } from "../../../../../../../ui/src/theme/css.ts";
 import { useProjectPageData } from "../data.tsx";
-import { dueWords, hiddenLine, kindOf, liveDescription, liveReady, liveTitle, metricLine, planStatus, stageWord, stateTone } from "./model.ts";
+import { dueWords, hiddenLine, kindOf, liveDescription, liveReady, liveRows, liveTitle, metricLine, planStatus, stateTone } from "./model.ts";
 import type { LiveOut, LiveRowOut, TypeName, View as LiveView } from "./model.ts";
 import { useZones } from "../../../../../../../ui/src/Time/index.tsx";
 import { isPhoneWidth } from "../../../../../../../ui/src/SidePane/layout.ts";
@@ -176,7 +176,7 @@ export function LiveBlockView({ projectId, attrs, readOnly, api, fresh = false, 
   } else {
     body = (
       <View>
-        {out.rows.length === 0 ? <Text testID="live-empty" style={s.dim}>Nothing here yet.</Text> : <Rows type={attrs.type} rows={attrs.type === "status" ? out.rows.map((r) => ({ ...r, title: stageWord(r.title) })) : out.rows} view={view} now={d.now()} open={open} />}
+        {out.rows.length === 0 ? <Text testID="live-empty" style={s.dim}>Nothing here yet.</Text> : <Rows type={attrs.type} rows={liveRows(attrs.type, out.rows, d.nameOf)} view={view} now={d.now()} open={open} />}
         {out.hidden > 0 ? <View style={s.hiddenRow} testID="live-hidden"><MenuIcon icon="lock" size={12} color="var(--ink-3)" /><Text style={s.hidden}>{hiddenLine(out.hidden)}</Text></View> : null}
       </View>
     );

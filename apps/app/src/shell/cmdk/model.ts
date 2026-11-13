@@ -1,6 +1,7 @@
 // Cmd-K model (spec 3.0, ARCH 7.0): query parsing, type filters, the local plus server merge and the row list. Pure functions, no React.
 // The device searches its own replica first and never waits for the server; server hits merge in as they arrive and never move a local row.
 import type { CapMap } from "../../../../../generated/types.ts";
+import { isRawId, withoutRawIds } from "../../../../../lib/id-shapes.ts";
 
 export type Hit = CapMap["search.query"]["out"]["hits"][number];
 export type HitKind = Hit["kind"];
@@ -130,24 +131,50 @@ export const plainMarks = (text: string): string => text.replace(/\[([^\[\]]+)\]
 /** The second line of a row is dropped when it only repeats the title (case and outer spaces do not count). */
 export const sameText = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
 
-/** One row per thing: the same title twice in a group (and a channel's own thread beside the channel) (a chat's title, then a message hit of that chat) is one row that keeps the first hit and takes a snippet from the later one when it has none. */
+/** A snippet as a person reads it: no [ ] marks, and no id from a record's raw fields (owner, 13 Nov 2026: the hit for a project read "fld_... usr_..."). Nothing left means no snippet. */
+const readable = (snippet: string | undefined): string | undefined => {
+  if (snippet === undefined) return undefined;
+  const t = withoutRawIds(plainMarks(snippet)).replace(/^[\s…]+$/, "");
+  return t === "" ? undefined : t;
+};
+
+/** The group a hit sits in for deciding whether two rows are one thing: a record of the task type is a task. */
+const thingOf = (h: Hit): string => (h.kind === "record" && h.recordType === "task" ? "task" : h.kind);
+
+/**
+ * One row per thing. The same title twice in a group is one row that keeps the first hit and takes a snippet from the later one when it has none (a chat's title, then a message hit of that chat).
+ * Two kinds that are one thing seen two ways are one row too: a task found as a task and as its record, a channel found as a chat (its own thread), and a project's own channel beside the project.
+ * No row is titled by an id, and no snippet carries one.
+ */
 export function oneEach(hits: readonly Hit[]): Hit[] {
   const at = new Map<string, number>(), out: Hit[] = [];
   for (const h of hits) {
-    const t = { ...h, title: plainMarks(h.title), ...(h.snippet !== undefined ? { snippet: plainMarks(h.snippet) } : {}) } as Hit;
-    const k = `${t.kind}:${t.title.trim().toLowerCase()}`, seen = at.get(k);
+    const title = plainMarks(h.title);
+    const snippet = readable(h.snippet);
+    const t = { ...h, title: isRawId(title) ? "Untitled" : title } as Hit;
+    if (snippet !== undefined) t.snippet = snippet; else delete t.snippet;
+    const k = `${thingOf(t)}:${t.title.trim().toLowerCase()}`, seen = at.get(k);
     if (seen === undefined) { at.set(k, out.length); out.push(t); continue; }
     const mine = out[seen]!;
-    if (mine.snippet === undefined && t.snippet !== undefined) out[seen] = { ...mine, snippet: t.snippet };
+    // the task itself is the row that stays over its record
+    const keep = mine.kind === "record" && t.kind === "task" ? t : mine;
+    const other = keep === mine ? t : mine;
+    out[seen] = keep.snippet === undefined && other.snippet !== undefined ? { ...keep, snippet: other.snippet } : keep;
   }
-  // a channel's own thread is found as a chat too: the channel row is the one that stays, and takes the snippet
-  const chan = new Map(out.filter((h) => h.kind === "channel").map((h) => [h.title.trim().toLowerCase(), h] as const));
+  // a channel's own thread is found as a chat too, and a project's own channel is found beside the project: the channel row goes (the project's page has its chat) or stays and takes the snippet
+  const name = (h: Hit): string => h.title.trim().toLowerCase();
+  const chan = new Map(out.filter((h) => h.kind === "channel").map((h) => [name(h), h] as const));
+  const projects = new Set(out.filter((h) => h.kind === "record" && h.recordType === "project").map(name));
+  const tasks = new Set(out.filter((h) => h.kind === "task").map(name));
   return out.filter((h) => {
-    const c = h.kind === "chat" ? chan.get(h.title.trim().toLowerCase()) : undefined;
+    if (h.kind === "channel" && projects.has(name(h))) return false;
+    // a chat named after a task is the task's own (the search lists tasks as chats): the task is the row
+    if (h.kind === "chat" && tasks.has(name(h))) return false;
+    const c = h.kind === "chat" ? chan.get(name(h)) : undefined;
     if (!c) return true;
     if (c.snippet === undefined && h.snippet !== undefined) out[out.indexOf(c)] = { ...c, snippet: h.snippet };
     return false;
-  });
+  }).filter((h, i, all) => all.findIndex((x) => x.kind === h.kind && x.id === h.id) === i);
 }
 
 export function groupRows(hits: readonly Hit[], cap: number): RowModel[] {

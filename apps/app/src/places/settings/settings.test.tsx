@@ -22,6 +22,7 @@ import type { SampleSettings } from "./sample.ts";
 const html = (s: SampleSettings, props: SettingsProps = {}): string =>
   renderToStaticMarkup(<SettingsDataProvider value={s.data}><SettingsPlace width={1280} {...props} /></SettingsDataProvider>).replaceAll("<!-- -->", "");
 import { MailPage } from "./MailPage.tsx";
+import { assertNoRawIds } from "../../../../../ui/src/testing/raw-ids.ts";
 const mailHtml = (s: SampleSettings): string => renderToStaticMarkup(<SettingsDataProvider value={s.data}><SavedProvider><MailPage /></SavedProvider></SettingsDataProvider>).replaceAll("<!-- -->", "");
 const has = (s: string, needle: string): boolean => s.includes(needle);
 const tag = (out: string, id: string): string => out.match(new RegExp(`<[^>]*data-testid="${id}"[^>]*>`))?.[0] ?? "";
@@ -235,6 +236,15 @@ test("Your Spaces, on Sign-in: each Space with its address and role; Open for th
   const out = html(createSampleSettings(northwind), { initialPage: "signin" });
   assert.ok(has(out, "northwind.vyre.run, Owner") && has(out, "harbor.vyre.run, Member, 2 waiting on you") && has(out, "Only on this computer") && !has(out, "Only on this computer, Owner"), "a Personal Space carries no role label");
   assert.ok(has(out, 'data-testid="open-harbor"') && !has(out, 'data-testid="leave-northwind"') && has(out, "Transfer ownership first") && !has(out, 'data-testid="leave-personal"') && !has(out, 'data-testid="leave-harbor"'));
+});
+
+test("a Space on a loopback address reads This computer on Sign-in, never 127.0.0.1 (owner, 13 Nov 2026)", () => {
+  const s = createSampleSettings(northwind);
+  const local = { ...s, data: { ...s.data, spaces: s.data.spaces.map((sp, i) => (i === 0 ? { ...sp, addr: "127.0.0.1:41471" } : sp)) } } as SampleSettings;
+  const out = html(local, { initialPage: "signin" });
+  assert.ok(has(out, "This computer, Owner"), "the loopback Space is named by where it is");
+  assert.ok(!has(out, "127.0.0.1"), "no loopback address is shown");
+  assertNoRawIds(out, "Settings, Sign-in");
 });
 
 test("Copy from another Space offers only what that Space has, never the title, and applying copies it here", async () => {

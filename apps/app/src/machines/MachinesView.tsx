@@ -405,7 +405,7 @@ function Stepper({ value, onChange, label, testID }: { value: number | null; onC
   );
 }
 
-function Placement({ call, m, who, onChanged }: MachinesViewProps & { m: MachineRow; onChanged(): void }): ReactElement {
+export function Placement({ call, m, who, onChanged }: MachinesViewProps & { m: MachineRow; onChanged(): void }): ReactElement {
   const [nick, setNick] = useState(m.nickname ?? "");
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState("");
@@ -447,7 +447,7 @@ function Placement({ call, m, who, onChanged }: MachinesViewProps & { m: Machine
       </Block>
       {error ? <Text accessibilityRole="alert" style={s.error} testID="machine-error">{error}</Text> : null}
       <Block title="Pinned agents" note="These always run here" testID="machine-pins">
-        {m.pins.map((id) => <Row key={id} id={`pin-${id}`} title={id} note={m.online ? "Always runs on this machine" : `Waits until ${displayName(m)} is back`} tall trailing={<Pressable accessibilityRole="button" accessibilityLabel={`Unpin ${id}`} testID={`unpin-${id}`} onPress={() => { void pin(id, false); }} style={[s.small, pointer]}><Text style={s.smallText}>Unpin</Text></Pressable>} />)}
+        {m.pins.map((id) => <Row key={id} id={`pin-${id}`} title={who(id)} note={m.online ? "Always runs on this machine" : `Waits until ${displayName(m)} is back`} tall trailing={<Pressable accessibilityRole="button" accessibilityLabel={`Unpin ${who(id)}`} testID={`unpin-${id}`} onPress={() => { void pin(id, false); }} style={[s.small, pointer]}><Text style={s.smallText}>Unpin</Text></Pressable>} />)}
         <Row id="pin-add" title="Pin an agent here" tall trailing={<Pressable ref={(r) => { pinBtn.current = r; }} accessibilityRole="button" accessibilityLabel="Choose an agent" testID="pin-choose" onPress={choose} style={[s.small, pointer]}><Text style={s.smallText}>Choose…</Text></Pressable>} />
       </Block>
       {menu.element}

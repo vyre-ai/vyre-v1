@@ -1,4 +1,5 @@
 // The rest of You: Sign-in and devices (with your Spaces), Appearance (skin and the keyboard list) and This computer.
+import { addressWords } from "../../../../../lib/address-words.ts";
 import { KEYBOARD_MAP, formatCombo } from "../../shell/keyboard/map.ts";
 import { useContext, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
@@ -161,7 +162,7 @@ function YourSpaces(): ReactElement {
     list.push(
       <SettingsRow
         key={sp.id} id={i === 0 ? "signin.spaces" : `space.${sp.id}`} label={sp.name} first={i === 0} lead={<Mark name={sp.name} size={26} />}
-        sub={`${sp.addr}${sp.kind === "personal" ? "" : `, ${sp.role}`}${sp.needsYou > 0 ? `, ${sp.needsYou} waiting on you` : ""}`}
+        sub={`${addressWords(sp.addr, "")}${sp.kind === "personal" ? "" : `, ${sp.role}`}${sp.needsYou > 0 ? `, ${sp.needsYou} waiting on you` : ""}`}
         control={
           leaving ? (
             <>

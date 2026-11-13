@@ -75,6 +75,8 @@ export function replicaHits(rt: ShellRuntime): readonly Hit[] {
     const data = recent.data as { today?: unknown[]; yesterday?: unknown[]; earlier?: unknown[]; starred?: unknown[] };
     for (const list of [data.starred, data.today, data.yesterday, data.earlier]) {
       for (const item of (list ?? []) as { threadId: string; title: string; kind: string }[]) {
+        // only a chat or a channel is a chat to find: an Ask pane on a task or a project carries that object's title, and the object is its own result (owner, 13 Nov 2026: the same task listed as a chat and as a task)
+        if (item.kind !== "chat" && item.kind !== "channel") continue;
         out.push({ kind: item.kind === "channel" ? "channel" : "chat", id: item.threadId, title: item.title, link: `vyre://chat/${item.threadId}`, score: 0.9 });
       }
     }

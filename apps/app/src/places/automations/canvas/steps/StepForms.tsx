@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import type { MenuEntry } from "../../../../../../../ui/src/Menu/index.tsx";
+import { unnamed } from "../../../chats/names.ts";
 import { Avatar } from "../../../../../../../ui/src/Avatar/index.tsx";
 import { ChipText, Choice, Field, Group, Hint, More, Rows, Segmented } from "../fields.tsx";
 import { useOpenConnect } from "../../../../shell/connect/context.ts";
@@ -146,7 +147,7 @@ export function CodeForm({ def, node, onChange }: Omit<Props, "openMenu">): Reac
 
 // ---------------------------------------------------------------- AI step
 
-const nameOf = (id: string, picks: readonly { assignee: Assignee; name: string }[], me: { id: string; name: string }): string => (id === me.id ? `${me.name} (you)` : (picks.find((p) => p.assignee.id === id)?.name ?? id));
+const nameOf = (id: string, picks: readonly { assignee: Assignee; name: string }[], me: { id: string; name: string }): string => (id === me.id ? `${me.name} (you)` : (picks.find((p) => p.assignee.id === id)?.name ?? unnamed(id)));
 
 export function AiForm({ def, node, onChange, openMenu, kind, keys, agents, who, me, lookup }: Props & {
   kind: "personal" | "space"; keys: readonly KeyChoice[]; agents: Load<AgentPick>; who: Load<WhoPick>; me: { id: string; name: string };

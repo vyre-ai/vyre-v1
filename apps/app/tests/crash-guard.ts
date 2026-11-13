@@ -1,6 +1,7 @@
 // One check every real-browser walk makes after each step (owner/lead, 5 Nov): no error boundary is on screen and no React or script error is in the console. A walk that shoots "Couldn't draw this page"
 // and still passes is a broken walk; with this, a crash is a red test. Use: `const guard = guardCrashes(page); ... await guard.check("after Plan");` and `guard.assertClean()` at the end.
 import assert from "node:assert/strict";
+import { rawIdsIn } from "../../../lib/id-shapes.ts";
 
 /** The words of the app's error pages (startup/AppRoot RootBoundary, shell PlaceHost, States kind=error). */
 export const BOUNDARY_TEXTS = ["Couldn't draw this page", "Couldn't open Vyre", "Something went wrong here"];
@@ -35,6 +36,10 @@ export function guardCrashes(page: PageLike): CrashGuard {
       const fresh = seen.slice(reported);
       reported = seen.length;
       assert.deepEqual(fresh, [], `${where}: a crash was logged at ${page.url()}`);
+      // an id is never shown to a person (owner, 13 Nov 2026): every walked screen is scanned
+      const ids = rawIdsIn(text);
+      const at = ids[0] === undefined ? 0 : text.indexOf(ids[0]);
+      assert.deepEqual(ids, [], `${where}: an id is shown to the person (${ids.join(", ")}) near "${text.slice(Math.max(0, at - 40), at + 60).replace(/\s+/g, " ")}" at ${page.url()}`);
     },
   };
 }

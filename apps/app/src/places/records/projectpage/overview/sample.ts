@@ -1,5 +1,6 @@
 // The stand-in behind the Overview's tests and screenshots: the projects.overview_doc.* capabilities and projects.live_block.query answered from memory, with revisions, Undo, templates, one editable
 // property, and rows a reader may not open. An agent's edit is made by `agentEdits(summary, markdown)`. The values are made up.
+import { unnamed } from "../../../chats/names.ts";
 import type { ProjectPageData } from "../data.tsx";
 import type { OverviewDoc, PageTemplate, Revision, LiveOut } from "./model.ts";
 
@@ -55,6 +56,8 @@ export function createSampleOverview(o: { markdown?: string } = {}): SampleOverv
   const live = (type: string, spec: Record<string, unknown>): LiveOut => {
     if (type === "tasks") return { type: "tasks", total: 6, hidden: 2, rows: [{ id: "t3", url: "/tasks/t3", title: "Draft the engagement letter", state: "doing", who: "agt_docs", due: Date.UTC(2025, 9, 28) }, { id: "t4", url: "/tasks/t4", title: "Send the letter for signature", state: "todo", who: "usr_maya", due: Date.UTC(2025, 9, 22) }, { id: "t5", url: "/tasks/t5", title: "Consult on Tuesday", state: "todo", who: "usr_omar", due: Date.UTC(2025, 9, 29) }, { id: "t6", url: "/tasks/t6", title: "Review the signed letter", state: "in_review", who: "usr_maya" }] };
     if (type === "records") return { type: "records", total: 3, hidden: 0, rows: [{ id: "inv104", title: "INV-104", state: "open", detail: "$4,200" }, { id: "inv105", title: "INV-105", state: "paid", detail: "$1,150" }, { id: "inv106", title: "INV-106", state: "overdue", detail: "$900" }] };
+    // what the server answers for People and agents: the principal's id as the row's title, the project role as its state, person or agent as its detail
+    if (type === "people") return { type: "people", total: 3, hidden: 0, rows: [{ id: "usr_ec028017ceefaf270b", title: "usr_ec028017ceefaf270b", state: "lead", detail: "person" }, { id: "usr_maya", title: "usr_maya", state: "member", detail: "person" }, { id: "agt_docs", title: "agt_docs", state: "member", detail: "agent" }, { id: "usr_8923b33eafc2cebd5c", title: "usr_8923b33eafc2cebd5c", state: "member", detail: "person" }] };
     if (type === "metric") return { type: "metric", total: 3, hidden: 0, rows: [], value: spec["op"] === "sum" ? 6250 : 3, label: String(spec["title"] ?? "Count") };
     return { type: type as LiveOut["type"], total: 1, hidden: 0, rows: [{ id: `${type}1`, title: `A ${type} item`, state: "ok" }] };
   };
@@ -119,7 +122,7 @@ export function createSampleOverview(o: { markdown?: string } = {}): SampleOverv
     }
   };
   const data: ProjectPageData = {
-    call, nameOf: (id) => NAMES[id] ?? id, me: { id: "usr_irfad", name: "Irfad Imtiaz" }, now: () => NOW + 3_600_000,
+    call, nameOf: (id) => NAMES[id] ?? unnamed(id), me: { id: "usr_irfad", name: "Irfad Imtiaz" }, now: () => NOW + 3_600_000,
     nav: { openChannel: (c) => opened.push(`channel:${c}`), openThread: (t) => opened.push(`thread:${t}`), openFolder: (f) => opened.push(`folder:${f}`), openFile: (f) => opened.push(`file:${f}`), openRecord: (t, r) => opened.push(`record:${t}:${r}`), openRecordPage: (t, r) => opened.push(`page:${t}:${r}`), openGoal: (g) => opened.push(`goal:${g}`) },
     changes: { subscribe: (l) => { listeners.add(l); return () => listeners.delete(l); } },
   };

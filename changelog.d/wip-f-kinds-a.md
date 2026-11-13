@@ -1,0 +1,5 @@
+- Project Overview, People and agents, names each member instead of showing ids, and a record with no title reads Untitled.
+- The command bar lists each task, project and channel once, and a record's line under its name never shows its raw fields or ids.
+- Console Home collapses a run of the same act by the same person: "Dex posted 4 chats" instead of four rows.
+- A Space on this computer reads "This computer" in Settings and Console instead of a 127.0.0.1 address, and the Space ID in Console has a Copy button instead of showing the id.
+- Pinned agents on a computer's page, an automation's assignee and an agent's home folder show names and words, not ids.

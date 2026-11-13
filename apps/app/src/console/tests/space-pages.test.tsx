@@ -1,6 +1,7 @@
 // Console > Space: General (identity, Defaults for new members, Plan and usage), Transfer or delete. Each control is pressed by its testID; the capability and its input are read from the recorded calls.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { assertNoRawIds } from "../../../../../ui/src/testing/raw-ids.ts";
 import { SpaceProfile, memberDefaults, dollars, spendLine, storageLine } from "../pages/InfrastructureSettings.tsx";
 import { createdLine } from "../pages/space-created.ts";
 import { SpaceDeletePage, deleteDate, deleteName } from "../pages/SpaceDelete.tsx";
@@ -34,6 +35,17 @@ test("General has no Save buttons: Identity rows, Defaults rows and a Details gr
     assert.ok(t.includes("Upload") && p.has("space-image-choose"), "Upload is the logo control");
     assert.ok(t.includes("UTC"), "time zone falls back to the id when nothing is set");
     assert.doesNotMatch(t, /\bSave\b/);
+  } finally { p.restore(); }
+});
+
+test("General shows no Space id and no loopback address as content: the id has a Copy button, the address reads This computer (owner, 13 Nov 2026)", async () => {
+  const p = await mountPage(createRoot, <SpaceProfile />, { "spaces.get": SPACE("usr_sample", { id: "spc_0a1b2c3d4e5f60718293a4b5", address: { mode: "relay", host: "127.0.0.1:41471" } }) });
+  try {
+    const t = p.text();
+    assert.ok(t.includes("Space ID") && p.has("space-id-copy"), "the Space ID row is there, with a Copy button");
+    assert.ok(t.includes("This computer"), "a loopback address reads This computer");
+    assert.doesNotMatch(t, /127\.0\.0\.1/);
+    assertNoRawIds(t, "Console, Space, General");
   } finally { p.restore(); }
 });
 
