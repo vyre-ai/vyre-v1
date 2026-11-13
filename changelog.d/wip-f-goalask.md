@@ -11,4 +11,4 @@
 - Only a message you typed counts as you asking an agent: a poke, a line the server posts in your name, or a retry of a watcher's turn does not.
 - An agent can promote an Automation to the Space or rotate its webhook address only in a turn you started with your own message.
 - An agent you asked can slow a goal's check-ins freely, and speed them up only on a goal that has a budget cap and never past once an hour.
-- When an agent is refused a control because you did not ask it yourself, it now tells you and asks you to say it again in your own message.
+- When an agent is refused a control because you did not ask it yourself, it carries on with the goal and mentions it once at its next check-in, instead of asking you each time.

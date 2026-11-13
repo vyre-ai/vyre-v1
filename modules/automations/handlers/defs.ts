@@ -852,7 +852,7 @@ export async function webhookGet(ctx: AutoCtx, input: In): Promise<unknown> {
 async function mustBeAskedIfAgent(ctx: AutoCtx, a: Automation): Promise<void> {
   if (ctx.principal.kind !== "agent") return;
   if (await ownerAsked(ctx as never, a.ownerId)) return;
-  raise(ctx, "validation.precondition_failed", "An agent can do that only in a turn the owner started with their own message. If you were asked to, ask the owner to say it again in their own message.", { reason: "owner_asked_only" });
+  raise(ctx, "validation.precondition_failed", "An agent can do that only in a turn the owner started with their own message. This needs the owner's own message. Carry on without it and mention it once at your next check-in; do not ask each time.", { reason: "owner_asked_only" });
 }
 export async function webhookRotate(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));

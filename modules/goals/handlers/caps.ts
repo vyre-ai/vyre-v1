@@ -127,7 +127,7 @@ export async function create(ctx: GoalsCtx, input: In) {
 export async function confirm(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
   const asked = isOwner(ctx, g) ? undefined : await ownerAsked(ctx, g.owner);
-  if (!isOwner(ctx, g) && !asked) raise(ctx, "validation.precondition_failed", "Only the owner starts a goal. An agent may start it only in a turn the owner began with their own message. If you were asked to, ask the owner to say it again in their own message; otherwise leave the Start button on the goal card for them.", { reason: "owner_only" });
+  if (!isOwner(ctx, g) && !asked) raise(ctx, "validation.precondition_failed", "Only the owner starts a goal. An agent may start it only in a turn the owner began with their own message. This needs the owner's own message. Carry on without it and mention it once at your next check-in; the Start button is on the goal card for them. Do not ask each time.", { reason: "owner_only" });
   if (g.status !== "draft") raise(ctx, "validation.precondition_failed", `This goal is ${g.status} already.`, { reason: "not_draft" });
   rememberAsked(ctx, asked);
   const press = isOwnerPress(ctx, g);

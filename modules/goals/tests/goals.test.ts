@@ -644,11 +644,11 @@ test("a new goal starts in the Space's time zone, not its creator's; a Space wit
   assert.equal((await none.call("goals.create", labGoal({ plan: [step("reminder", "Remind Lab 7 attendees")] }))).goal.zone, "Asia/Karachi");
 });
 
-test("the refusal tells the agent what to do: ask the owner to say it again in their own message", async () => {
+test("the refusal tells the agent what to do: carry on, mention it once at the next check-in, and do not ask each time", async () => {
   const w = world({ count: 10 });
   const { goal } = await w.call("goals.create", labGoal());
   w.state.turn = { kind: "wake", routine: false };
-  await assert.rejects(w.call("goals.pause", { goalId: goal.id }, { id: LEAD, kind: "agent", actingFor: OWNER }), /ask them to say it again in their own message/);
+  await assert.rejects(w.call("goals.pause", { goalId: goal.id }, { id: LEAD, kind: "agent", actingFor: OWNER }), /Carry on with the goal without it, and mention it once at your next check-in; do not ask the owner each time/);
   const draft = (await w.call("goals.create", labGoal({ idempotencyKey: "d1", sourceThreadId: "thr_chat" }), { id: LEAD, kind: "agent", actingFor: OWNER })).goal;
-  await assert.rejects(w.call("goals.confirm", { goalId: draft.id }, { id: LEAD, kind: "agent", actingFor: OWNER }), /ask the owner to say it again in their own message/);
+  await assert.rejects(w.call("goals.confirm", { goalId: draft.id }, { id: LEAD, kind: "agent", actingFor: OWNER }), /Carry on without it and mention it once at your next check-in/);
 });
