@@ -5,35 +5,14 @@
 //   gap     a time that does not exist (spring forward) fires at the first moment after the gap, the same day.
 //   repeat  a time that happens twice (fall back) fires once, at its first pass.
 //   every   an interval counts from the last due time, so a clock change cannot move it.
-import { offsetMinAt, partsIn, validZone } from "./zones.ts";
+import { instantOfWall, partsIn, validZone } from "./zones.ts";
+
+export { instantOfWall };
 
 const SECOND = 1_000;
-const MINUTE = 60_000;
 const DAY = 86_400_000;
 
 // ---- a wall clock reading to an instant
-
-/** The instant a wall clock reading has in a zone. `wall` is the reading written as if it were UTC (Date.UTC of its year, month, day, hour, minute, second). */
-export function instantOfWall(wall: number, zone: string): number {
-  // the offsets in force a day before the reading and a day after it: a clock change is the only thing that makes them differ
-  const before = offsetMinAt(wall - DAY, zone);
-  const after = offsetMinAt(wall + DAY, zone);
-  const reads = (t: number): boolean => {
-    const p = partsIn(t, zone);
-    return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) === wall;
-  };
-  const tries = [wall - before * MINUTE, wall - after * MINUTE].filter(reads);
-  if (tries.length > 0) return Math.min(...tries); // twice (fall back): the first pass
-  // it does not exist (spring forward): the gap ends where the offset changes, somewhere between the two instants the reading would have had
-  let lo = Math.min(wall - before * MINUTE, wall - after * MINUTE);
-  let hi = Math.max(wall - before * MINUTE, wall - after * MINUTE);
-  while (hi - lo > 1) {
-    const mid = Math.floor((lo + hi) / 2);
-    if (offsetMinAt(mid, zone) === after) hi = mid;
-    else lo = mid;
-  }
-  return hi;
-}
 
 /** The first instant of the day `at` falls in, on the clock of the zone. A day that starts in a gap (Havana skips midnight) starts when the gap ends. */
 export function startOfDay(at: number, zone: string): number {
@@ -184,12 +163,9 @@ export interface ZoneChain {
   person?: string | null | undefined;
 }
 
-/** A zone is a name. Intl also reads "+05:00" as a zone, and an offset does not follow daylight saving, so it is not one here. */
-const isName = (zone: unknown): zone is string => validZone(zone) && !/^[+-]/.test(zone);
-
-/** The wake's own zone, else the Space's, else the person's, else UTC. A name that is not a zone is skipped. */
+/** The wake's own zone, else the Space's, else the person's, else UTC. A value Intl does not know is skipped. A fixed offset ("+05:00") is a zone: one may already be stored on a live Space, and it keeps its meaning (a fixed clock, no daylight saving). */
 export function zoneOf(z: ZoneChain): string {
-  return [z.wake, z.space, z.person].find(isName) ?? "UTC";
+  return [z.wake, z.space, z.person].find(validZone) ?? "UTC";
 }
 
 /** A zone name stored somewhere (a goal, a profile setting) read as the clock reads it: a name Intl does not know, or none, is UTC. */

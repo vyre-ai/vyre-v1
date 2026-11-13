@@ -201,18 +201,34 @@ export function dueIn(at: number, z: Zones): string {
   return `${dateIn(at, z.space)}, ${clockIn(at, z.space)}`;
 }
 
-/** The instant of a wall clock reading in a zone ("2026-11-07T18:00"), settled so a time that does not exist (the hour skipped in spring) moves forward and one that happens twice takes the first. */
+/** The instant a wall clock reading has in a zone. `wall` is the reading written as if it were UTC (Date.UTC of its year, month, day, hour, minute, second). A reading the zone skips (spring forward) is the instant the gap ends; one that happens twice (fall back) takes the first pass. */
+export function instantOfWall(wall: number, zone: string): number {
+  // the offsets in force a day before the reading and a day after it: a clock change is the only thing that makes them differ
+  const before = offsetMinAt(wall - DAY, zone);
+  const after = offsetMinAt(wall + DAY, zone);
+  const reads = (t: number): boolean => {
+    const p = partsIn(t, zone);
+    return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) === wall;
+  };
+  const tries = [wall - before * MIN, wall - after * MIN].filter(reads);
+  if (tries.length > 0) return Math.min(...tries);
+  // it does not exist: the gap ends where the offset changes, somewhere between the two instants the reading would have had
+  let lo = Math.min(wall - before * MIN, wall - after * MIN);
+  let hi = Math.max(wall - before * MIN, wall - after * MIN);
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (offsetMinAt(mid, zone) === after) hi = mid;
+    else lo = mid;
+  }
+  return hi;
+}
+
+/** The instant of a wall clock reading in a zone ("2026-11-07T18:00"): a time the zone skips is the instant the gap ends, in every zone, and one that happens twice takes the first pass. Null when the text is not a reading. */
 export function instantOf(local: string, zone: string): number | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(local);
   if (!m) return null;
-  const wall = Date.UTC(+m[1]!, +m[2]! - 1, +m[3]!, +m[4]!, +m[5]!);
-  let guess = wall - offsetMinAt(wall, zone) * MIN;
-  const again = wall - offsetMinAt(guess, zone) * MIN;
-  if (again !== guess) guess = Math.min(guess, again);
-  const p = partsIn(guess, zone);
-  // a skipped hour lands an hour earlier on the wall: ask again with the later offset
-  if (p.hour !== +m[4]! || p.minute !== +m[5]!) return wall - offsetMinAt(wall + 2 * 60 * MIN, zone) * MIN;
-  return Number.isFinite(guess) ? guess : null;
+  const at = instantOfWall(Date.UTC(+m[1]!, +m[2]! - 1, +m[3]!, +m[4]!, +m[5]!), zone);
+  return Number.isFinite(at) ? at : null;
 }
 
 /** The wall clock of an instant in a zone as a datetime-local value ("2026-11-07T18:00"). */

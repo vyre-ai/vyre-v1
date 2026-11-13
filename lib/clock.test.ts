@@ -151,7 +151,12 @@ test("zoneOf takes the wake's zone, then the Space's, then the person's, then UT
   assert.equal(zoneOf({ wake: "Asia/Tokyo", space: NY, person: "Europe/Paris" }), "Asia/Tokyo");
   assert.equal(zoneOf({ wake: null, space: NY, person: "Europe/Paris" }), NY);
   assert.equal(zoneOf({ space: "Not/AZone", person: "Europe/Paris" }), "Europe/Paris");
-  assert.equal(zoneOf({ wake: "+05:00", space: undefined, person: "" }), "UTC", "an offset is not a zone");
+  assert.equal(
+    zoneOf({ wake: "+05:00", space: undefined, person: "" }),
+    "+05:00",
+    "a fixed offset may be stored on a live Space and keeps its meaning (no daylight saving)",
+  );
+  assert.equal(zoneOf({ wake: "nonsense", space: "-03:30" }), "-03:30");
 });
 
 test("a moment fires once and never again; an interval wake counts from its last due time", () => {

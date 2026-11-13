@@ -158,3 +158,7 @@ No capability contract, version, field or error changed, and no snapshot moved. 
 Every difference is listed with its justification in `lib/clock-golden-kit.test.ts`; `lib/clock.golden.test.ts` and `test/clock.golden.wrappers.test.ts` fail if any other recorded answer moves.
 
 Signed: (not yet signed; for the lead to sign, 13 Nov 2026)
+
+Added the same day (lead's ruling, 13 Nov 2026): a time zone given as a fixed offset ("+05:00", "-03:30") may already be stored on a live Space, so it keeps its meaning everywhere: `zones.ts` and the clock both read it as a fixed clock with no daylight saving (the clock used to read it as UTC), and `validZone` keeps accepting it; pickers still offer named zones only. And `instantOf` (a deadline typed into a goal, the zone-change example) now settles a time in a gap hour on the instant the gap ends in every zone; it kept the minutes and moved forward an hour west of Greenwich (3:30 AM for 2:30 AM in New York) and landed an hour before the gap east of it. `lib/zones.test.ts` ("a wall clock reading becomes an instant") changed to that rule; nothing else in it changed.
+
+Signed: (not yet signed; for the lead to sign, 13 Nov 2026)

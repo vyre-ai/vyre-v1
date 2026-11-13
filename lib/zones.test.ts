@@ -127,10 +127,22 @@ test("day words are counted in the zone, so midnight edges land on the right day
   assert.equal(dayWord(at("2026-11-04T07:30:00Z"), now, PK), "Today");
 });
 
-test("a wall clock reading becomes an instant: normal, the skipped spring hour moves forward, the repeated fall hour takes the first", () => {
+// 13 Nov 2026, lead's decision (P1 contract, Q2, and his ruling of the same day): a time typed in the hour a spring change skips is the instant the gap ends, in every zone. It used to keep its minutes and move
+// forward an hour west of Greenwich (3:30 AM here) and land an hour BEFORE the gap east of it (London, Sydney). See docs/frozen/capabilities.md.
+test("a wall clock reading becomes an instant: normal, the skipped spring hour is the instant the gap ends, the repeated fall hour takes the first", () => {
   assert.equal(instantOf("2026-11-07T18:00", PT), at("2026-11-08T02:00:00Z"));
   assert.equal(localInput(at("2026-11-08T02:00:00Z"), PT), "2026-11-07T18:00");
-  assert.equal(clockIn(instantOf("2026-03-08T02:30", PT)!, PT), "3:30 AM", "2:30 AM does not exist on 8 March");
+  assert.equal(
+    clockIn(instantOf("2026-03-08T02:30", PT)!, PT),
+    "3:00 AM",
+    "2:30 AM does not exist on 8 March: 3:00 AM is when the gap ends",
+  );
+  assert.equal(
+    instantOf("2026-03-29T01:30", "Europe/London"),
+    at("2026-03-29T01:00:00Z"),
+    "east of Greenwich too: the gap ends at 02:00 BST",
+  );
+  assert.equal(instantOf("2026-10-04T02:30", "Australia/Sydney"), at("2026-10-03T16:00:00Z"));
   assert.equal(
     instantOf("2026-11-01T01:30", PT),
     at("2026-11-01T08:30:00Z"),
