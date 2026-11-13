@@ -132,7 +132,10 @@ export function moveTab(state: TabsState, place: PlaceId, hash: string | undefin
   const other = holding(state, tab.key, cur);
   if (other !== undefined) return openTab(state, { ...tab, key: other.key });
   // the tab already shows this item (the page reporting the address it was just opened on): its name stands, it does not start again from the place's name
-  if (cur.key === tab.key) return hash === undefined || hash === "" || hash === cur.hash ? state : { tabs: state.tabs.map((t) => (t === cur ? { ...cur, hash } : t)), active: cur.key };
+  if (cur.key === tab.key)
+    return hash === undefined || hash === "" || hash === cur.hash
+      ? state
+      : { tabs: state.tabs.map((t) => (t === cur ? { ...cur, hash } : t)), active: cur.key };
   const own = cur.key === place;
   const next: TabEntry = {
     key: own ? cur.key : tab.key,
@@ -156,7 +159,10 @@ export function fillTab(state: TabsState, place: PlaceId, hash: string | undefin
   if (cur === undefined || cur.isNew !== true) return openTab(state, tab);
   const other = holding(state, tab.key, cur);
   if (other !== undefined) return { tabs: state.tabs.filter((t) => t !== cur), active: other.key };
-  return { tabs: state.tabs.map((t) => (t === cur ? { ...tab, ...(cur.pinned === true ? { pinned: true } : {}) } : t)), active: tab.key };
+  return {
+    tabs: state.tabs.map((t) => (t === cur ? { ...tab, ...(cur.pinned === true ? { pinned: true } : {}) } : t)),
+    active: tab.key,
+  };
 }
 
 /**

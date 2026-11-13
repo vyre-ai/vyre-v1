@@ -12,16 +12,32 @@ function world(o: { failStart?: boolean } = {}) {
   const titles: string[] = [];
   const filled: { place: string; hash: string; title: string }[] = [];
   const rt = {
-    space: { name: "Northwind", kind: "team" }, connection: { get: () => "online" }, assistant: { id: "agt_a", name: "Assistant" },
+    space: { name: "Northwind", kind: "team" },
+    connection: { get: () => "online" },
+    assistant: { id: "agt_a", name: "Assistant" },
     open: (t: { subject?: unknown }) => void opened.push(t),
     call: async (cap: string, input: Record<string, unknown>) => {
       sent.push({ cap, input });
       if (cap === "engine.last_pick.get") return { model: "m-1", provider: "p-1" };
-      if (cap === "chat.start") { if (o.failStart) throw new Error("down"); return { thread: { threadId: "thr_new" } }; }
+      if (cap === "chat.start") {
+        if (o.failStart) throw new Error("down");
+        return { thread: { threadId: "thr_new" } };
+      }
       return {};
     },
   };
-  const data = createGateSearch({ runtime: rt as never, nav: { go: (place: string, hash?: string) => void went.push({ place, ...(hash === undefined ? {} : { hash }) }), newTab: () => undefined, flash: () => undefined } as never, state: { away: false, offline: false }, recent: () => [], retitle: (t) => void titles.push(t), fill: (place, hash, title) => void filled.push({ place, hash, title }) });
+  const data = createGateSearch({
+    runtime: rt as never,
+    nav: {
+      go: (place: string, hash?: string) => void went.push({ place, ...(hash === undefined ? {} : { hash }) }),
+      newTab: () => undefined,
+      flash: () => undefined,
+    } as never,
+    state: { away: false, offline: false },
+    recent: () => [],
+    retitle: (t) => void titles.push(t),
+    fill: (place, hash, title) => void filled.push({ place, hash, title }),
+  });
   return { data, opened, sent, titles, went, filled };
 }
 
@@ -34,7 +50,21 @@ test("Enter's chat is the first screen's: the Assistant, the words as the first 
   assert.deepEqual(w.titles, [title], "the tab is named before anything is awaited");
   await sent;
   const start = w.sent.find((s) => s.cap === "chat.start")!;
-  assert.deepEqual(start.input, chatStartInput({ picked: [{ id: "agt_a", name: "Assistant", kind: "assistant" }], choice: { model: "m-1", provider: "p-1" }, text: "Heyy there, plan the week please", title, hasFiles: false, slash: false, key: "k_press" }, "agt_a"));
+  assert.deepEqual(
+    start.input,
+    chatStartInput(
+      {
+        picked: [{ id: "agt_a", name: "Assistant", kind: "assistant" }],
+        choice: { model: "m-1", provider: "p-1" },
+        text: "Heyy there, plan the week please",
+        title,
+        hasFiles: false,
+        slash: false,
+        key: "k_press",
+      },
+      "agt_a",
+    ),
+  );
   assert.equal(start.input["first"], "Heyy there, plan the week please");
   assert.equal(start.input["idempotencyKey"], "k_press");
   assert.deepEqual(w.filled, [{ place: "chats", hash: "subject=thread:thr_new", title }], "this tab becomes the chat");
@@ -50,5 +80,8 @@ test("a start that fails rejects `sent`, opens nothing and holds nothing; a retr
   assert.deepEqual(w.went, []);
   assert.equal(pendingFor("thr_new"), undefined);
   await assert.rejects(w.data.startChat!({ key: "k_1", text: "Heyy" }).sent);
-  assert.deepEqual(w.sent.filter((s) => s.cap === "chat.start").map((s) => s.input["idempotencyKey"]), ["k_1", "k_1"]);
+  assert.deepEqual(
+    w.sent.filter((s) => s.cap === "chat.start").map((s) => s.input["idempotencyKey"]),
+    ["k_1", "k_1"],
+  );
 });

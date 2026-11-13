@@ -25,7 +25,10 @@ test("the new tab on screen becomes the chat: one tab for it, named, selected, a
 test("a pinned new tab stays pinned; a chat already open in another tab is selected and the new tab goes", () => {
   let { s, tab } = withNewTab();
   s = { ...s, tabs: s.tabs.map((t) => (t.key === tab.key ? { ...t, pinned: true } : t)) };
-  assert.equal(fillTab(s, "chats", "subject=thread:t1", "Heyy").tabs.find((t) => t.hash === "subject=thread:t1")?.pinned, true);
+  assert.equal(
+    fillTab(s, "chats", "subject=thread:t1", "Heyy").tabs.find((t) => t.hash === "subject=thread:t1")?.pinned,
+    true,
+  );
   let { s: s2, tab: tab2 } = withNewTab();
   s2 = openTab(s2, placeTab("chats", "subject=thread:t9", "Nine"));
   s2 = openTab(s2, tab2);

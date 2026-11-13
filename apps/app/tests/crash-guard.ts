@@ -3,7 +3,12 @@
 import assert from "node:assert/strict";
 
 /** The words of the app's error pages (startup/AppRoot RootBoundary, shell PlaceHost, States kind=error). */
-export const BOUNDARY_TEXTS = ["Couldn't draw this page", "Couldn't open Vyre", "Vyre stopped working", "Something went wrong here"];
+export const BOUNDARY_TEXTS = [
+  "Couldn't draw this page",
+  "Couldn't open Vyre",
+  "Vyre stopped working",
+  "Something went wrong here",
+];
 /** Console and page errors that are not crashes: the Space refusing a read the page then handles, a resize observer notice. */
 const NOISE = /ResizeObserver|Failed to load resource|favicon|net::ERR/i;
 const CRASH =

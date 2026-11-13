@@ -21,22 +21,35 @@ const webOnly = (props: Record<string, unknown>): Record<string, unknown> => (Pl
 
 /* ---------- icons by kind ---------- */
 
-const SVG = (d: string): string => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const SVG = (d: string): string =>
+  `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 // The highlighted row takes the accent with white text (the prototype palette, ruling 82); the tokens the row reads are re-pointed inside it.
 // A plain object, not StyleSheet.create, like the shared Row's own wash: it is written inline, so it is in the markup and not behind a generated class.
-const LIT = { backgroundColor: "var(--accent)", borderRadius: 6, "--ink": "#FFFFFF", "--ink-2": "rgba(255,255,255,0.86)", "--ink-3": "rgba(255,255,255,0.74)" } as object;
+const LIT = {
+  backgroundColor: "var(--accent)",
+  borderRadius: 6,
+  "--ink": "#FFFFFF",
+  "--ink-2": "rgba(255,255,255,0.86)",
+  "--ink-3": "rgba(255,255,255,0.74)",
+} as object;
 const SPARK = SVG('<path d="M8 2v3M8 11v3M2 8h3M11 8h3M4 4l2 2M10 10l2 2M12 4l-2 2M6 10l-2 2"/>');
 const KIND_ICON: Partial<Record<Hit["kind"], string>> = {
   file: SVG('<path d="M4 2.500h5l3 3v8H4z"/><path d="M9 2.500v3h3"/>'),
   record: SVG('<rect x="2.500" y="3" width="11" height="10" rx="1.800"/><path d="M2.500 6.500h11M6.500 6.500v6.500"/>'),
   task: SVG('<circle cx="8" cy="8" r="5.500"/><path d="M5.500 8.200l1.700 1.700 3.300-3.600"/>'),
-  inbox: SVG('<path d="M2.500 9.500l1.700-5.500h7.600l1.700 5.500v3h-11z"/><path d="M2.500 9.500h3l.8 1.500h3.400l.8-1.500h3"/>'),
+  inbox: SVG(
+    '<path d="M2.500 9.500l1.700-5.500h7.600l1.700 5.500v3h-11z"/><path d="M2.500 9.500h3l.8 1.500h3.400l.8-1.500h3"/>',
+  ),
   automation: SVG('<path d="M9 2L4 9h3.500L7 14l5-7H8.500z"/>'),
-  app: SVG('<rect x="2.500" y="2.500" width="4.500" height="4.500" rx="1.200"/><rect x="9" y="2.500" width="4.500" height="4.500" rx="1.200"/><rect x="2.500" y="9" width="4.500" height="4.500" rx="1.200"/><rect x="9" y="9" width="4.500" height="4.500" rx="1.200"/>'),
+  app: SVG(
+    '<rect x="2.500" y="2.500" width="4.500" height="4.500" rx="1.200"/><rect x="9" y="2.500" width="4.500" height="4.500" rx="1.200"/><rect x="2.500" y="9" width="4.500" height="4.500" rx="1.200"/><rect x="9" y="9" width="4.500" height="4.500" rx="1.200"/>',
+  ),
   setting: SVG('<path d="M3 5h10M3 11h10"/><circle cx="6" cy="5" r="1.600"/><circle cx="10.500" cy="11" r="1.600"/>'),
   memory: SVG('<path d="M8 2.500a4.500 4.500 0 00-2 8.500v2h4v-2a4.500 4.500 0 00-2-8.500z"/>'),
   channel: SVG('<path d="M6.500 3L5.500 13M10.500 3l-1 10M3 6h10M3 10h10"/>'),
-  chat: SVG('<path d="M3 4.500a1.500 1.500 0 011.500-1.500h7A1.500 1.500 0 0113 4.500v5a1.500 1.500 0 01-1.500 1.500H7l-3 2.500V11a1.500 1.500 0 01-1-1.400z"/>'),
+  chat: SVG(
+    '<path d="M3 4.500a1.500 1.500 0 011.500-1.500h7A1.500 1.500 0 0113 4.500v5a1.500 1.500 0 01-1.500 1.500H7l-3 2.500V11a1.500 1.500 0 01-1-1.400z"/>',
+  ),
 };
 
 /** The 20 px tile before a result: the shared face for people and agents, a line icon for everything else. */
@@ -45,13 +58,23 @@ function Tile({ hit }: { hit: Hit }): ReactElement {
   const icon = KIND_ICON[hit.kind];
   return (
     <View style={styles.tile}>
-      {named ? <Avatar name={hit.title} seedId={hit.id} kind={hit.kind === "person" ? "person" : "agent"} size={20} /> : icon ? <MenuIcon icon={icon} color="var(--ink-3)" size={16} /> : <AppIcon brand={hit.title} name={hit.title} size={20} />}
+      {named ? (
+        <Avatar name={hit.title} seedId={hit.id} kind={hit.kind === "person" ? "person" : "agent"} size={20} />
+      ) : icon ? (
+        <MenuIcon icon={icon} color="var(--ink-3)" size={16} />
+      ) : (
+        <AppIcon brand={hit.title} name={hit.title} size={20} />
+      )}
     </View>
   );
 }
 
 function ActionTile({ action }: { action: CmdAction }): ReactElement {
-  return <View style={styles.tile}><MenuIcon icon={action.icon} color="var(--ink-3)" size={16} /></View>;
+  return (
+    <View style={styles.tile}>
+      <MenuIcon icon={action.icon} color="var(--ink-3)" size={16} />
+    </View>
+  );
 }
 
 /* ---------- the store hook ---------- */
@@ -97,15 +120,27 @@ function scopeLine(state: CmdKState): string | null {
   else if (state.parsed.prefix === ">") bits.push("Actions");
   if (state.filter.length) bits.push(filterLabels(state.filter));
   const lead = bits.length ? `Searching ${bits.join(", ")}` : null;
-  const note = state.scope === "device"
-    ? "this device only: results are what it holds"
-    : state.serverStatus === "offline" ? "offline: results are what this device holds"
-    : state.serverStatus === "error" ? "server results did not load" : null;
+  const note =
+    state.scope === "device"
+      ? "this device only: results are what it holds"
+      : state.serverStatus === "offline"
+        ? "offline: results are what this device holds"
+        : state.serverStatus === "error"
+          ? "server results did not load"
+          : null;
   if (lead && note) return `${lead} (${note})`;
   return lead ?? (note ? note.charAt(0).toUpperCase() + note.slice(1) : null);
 }
 
-export function CmdKBody({ controller, placeholder = "Search agents, chats, people, records, files, actions…", platform = "mac", inline = false, autoFocus = true, onClose, chatMode = false }: CmdKBodyProps): ReactElement {
+export function CmdKBody({
+  controller,
+  placeholder = "Search agents, chats, people, records, files, actions…",
+  platform = "mac",
+  inline = false,
+  autoFocus = true,
+  onClose,
+  chatMode = false,
+}: CmdKBodyProps): ReactElement {
   const state = useCmdKState(controller);
   const [menu, setMenu] = useState<{ items: MenuEntry[]; x: number; y: number } | null>(null);
   const input = useRef<unknown>(null);
@@ -118,18 +153,40 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
   const activeKey = state.rows[state.active]?.key;
   useEffect(() => {
     if (Platform.OS !== "web" || !activeKey) return;
-    const doc = (globalThis as { document?: { querySelector(s: string): { scrollIntoView?: (o: unknown) => void } | null } }).document;
+    const doc = (
+      globalThis as { document?: { querySelector(s: string): { scrollIntoView?: (o: unknown) => void } | null } }
+    ).document;
     doc?.querySelector(`[data-testid="row-${activeKey}"]`)?.scrollIntoView?.({ block: "nearest" });
   }, [activeKey]);
 
-  const onKey = (e: { key: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean; preventDefault?: () => void }): void => {
+  const onKey = (e: {
+    key: string;
+    metaKey?: boolean;
+    ctrlKey?: boolean;
+    shiftKey?: boolean;
+    altKey?: boolean;
+    preventDefault?: () => void;
+  }): void => {
     const stop = (): void => e.preventDefault?.();
-    if (e.key === "ArrowDown") { stop(); controller.move(1); }
-    else if (e.key === "ArrowUp") { stop(); controller.move(-1); }
-    else if (e.key === "Tab") { stop(); controller.move(e.shiftKey === true ? -1 : 1); }
-    else if (e.key === "Enter" && chatMode && e.altKey === true) { stop(); controller.askChord(); }
-    else if (e.key === "Enter") { stop(); controller.enter(e.metaKey === true || e.ctrlKey === true); }
-    else if (e.key === "Escape") { stop(); controller.escape(); }
+    if (e.key === "ArrowDown") {
+      stop();
+      controller.move(1);
+    } else if (e.key === "ArrowUp") {
+      stop();
+      controller.move(-1);
+    } else if (e.key === "Tab") {
+      stop();
+      controller.move(e.shiftKey === true ? -1 : 1);
+    } else if (e.key === "Enter" && chatMode && e.altKey === true) {
+      stop();
+      controller.askChord();
+    } else if (e.key === "Enter") {
+      stop();
+      controller.enter(e.metaKey === true || e.ctrlKey === true);
+    } else if (e.key === "Escape") {
+      stop();
+      controller.escape();
+    }
   };
 
   const openFilters = (x: number, y: number): void => {
@@ -150,17 +207,26 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
         { label: "Open in New Tab", onSelect: () => controller.choose(index, true) },
         { label: "Copy Link", onSelect: () => controller.copyLink(index) },
       ],
-      x, y,
+      x,
+      y,
     });
   };
 
   const rowNodes: ReactNode[] = [];
-  for (let i = 0; i < state.rows.length; i++) rowNodes.push(renderRow(state.rows[i] as RowModel, i, state, controller, platform, openRowMenu, chatMode));
+  for (let i = 0; i < state.rows.length; i++)
+    rowNodes.push(renderRow(state.rows[i] as RowModel, i, state, controller, platform, openRowMenu, chatMode));
   const line = scopeLine(state);
   // Sized by CSS on the web so it follows the window with no measuring; a fixed cap on native.
-  const listMax = inline ? undefined : ((Platform.OS === "web" ? "min(380px, calc(100vh - 220px))" : 380) as unknown as number);
+  const listMax = inline
+    ? undefined
+    : ((Platform.OS === "web" ? "min(380px, calc(100vh - 220px))" : 380) as unknown as number);
   return (
-    <View testID="cmdk" style={[styles.card, inline ? styles.cardInline : null]} accessibilityLabel={inline ? "Open anything" : "Command palette"} {...webOnly({ role: inline ? "search" : "dialog" })}>
+    <View
+      testID="cmdk"
+      style={[styles.card, inline ? styles.cardInline : null]}
+      accessibilityLabel={inline ? "Open anything" : "Command palette"}
+      {...webOnly({ role: inline ? "search" : "dialog" })}
+    >
       <View style={[styles.head, rowNodes.length === 0 ? styles.headAlone : null]}>
         <TextInput
           ref={input as never}
@@ -174,9 +240,12 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
           autoCorrect={false}
           spellCheck={false}
           returnKeyType="go"
-          onSubmitEditing={() => { if (Platform.OS !== "web") controller.enter(false); }}
+          onSubmitEditing={() => {
+            if (Platform.OS !== "web") controller.enter(false);
+          }}
           style={[styles.input, webOnly({ outlineStyle: "none", outlineWidth: 0 }) as object]}
-          onKeyPress={onKey as never} {...webOnly({ role: "combobox", "aria-expanded": true, "aria-controls": "cmdk-list" })}
+          onKeyPress={onKey as never}
+          {...webOnly({ role: "combobox", "aria-expanded": true, "aria-controls": "cmdk-list" })}
         />
         <Pressable
           testID="cmdk-filter"
@@ -186,28 +255,62 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
             const n = e.nativeEvent as unknown as { pageX?: number; pageY?: number };
             openFilters((n.pageX ?? 0) - 90, (n.pageY ?? 0) + 14);
           }}
-          style={({ hovered }: { hovered?: boolean }) => [styles.filterBtn, hovered === true ? { backgroundColor: "var(--hover)" } : null]}
+          style={({ hovered }: { hovered?: boolean }) => [
+            styles.filterBtn,
+            hovered === true ? { backgroundColor: "var(--hover)" } : null,
+          ]}
         >
-          <Text style={[styles.filterText, state.filter.length ? { color: "var(--accent)" } : null]}>{state.filter.length ? `Filter · ${state.filter.length}` : "Filter"}</Text>
+          <Text style={[styles.filterText, state.filter.length ? { color: "var(--accent)" } : null]}>
+            {state.filter.length ? `Filter · ${state.filter.length}` : "Filter"}
+          </Text>
         </Pressable>
         {onClose && !inline ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Close search" testID="cmdk-close" onPress={onClose} style={({ hovered }: { hovered?: boolean }) => [styles.closeBtn, hovered === true ? { backgroundColor: "var(--hover)" } : null]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close search"
+            testID="cmdk-close"
+            onPress={onClose}
+            style={({ hovered }: { hovered?: boolean }) => [
+              styles.closeBtn,
+              hovered === true ? { backgroundColor: "var(--hover)" } : null,
+            ]}
+          >
             <Text style={styles.filterText}>{"×"}</Text>
           </Pressable>
         ) : null}
       </View>
-      {chatMode && !state.ask && state.active < 0 && state.parsed.prefix === null && state.parsed.text !== "" ? <View testID="newtab-hint" style={styles.scopes}><Text style={styles.scopesText}>{"Press Enter to start a chat with this. Use the arrow keys to pick a result instead."}</Text></View> : null}
+      {chatMode && !state.ask && state.active < 0 && state.parsed.prefix === null && state.parsed.text !== "" ? (
+        <View testID="newtab-hint" style={styles.scopes}>
+          <Text style={styles.scopesText}>
+            {"Press Enter to start a chat with this. Use the arrow keys to pick a result instead."}
+          </Text>
+        </View>
+      ) : null}
       {state.ask ? <AnswerView ask={state.ask} controller={controller} /> : null}
-      {line && !state.ask ? <View testID="cmdk-scope" style={styles.scopes}><Text style={styles.scopesText} numberOfLines={2}>{line}</Text></View> : null}
+      {line && !state.ask ? (
+        <View testID="cmdk-scope" style={styles.scopes}>
+          <Text style={styles.scopesText} numberOfLines={2}>
+            {line}
+          </Text>
+        </View>
+      ) : null}
       {rowNodes.length === 0 ? null : (
-        <ScrollView nativeID="cmdk-list" testID="cmdk-list" style={[styles.list, listMax ? { maxHeight: listMax } : null]} keyboardShouldPersistTaps="handled" {...webOnly({ role: "listbox" })}>
+        <ScrollView
+          nativeID="cmdk-list"
+          testID="cmdk-list"
+          style={[styles.list, listMax ? { maxHeight: listMax } : null]}
+          keyboardShouldPersistTaps="handled"
+          {...webOnly({ role: "listbox" })}
+        >
           {rowNodes}
         </ScrollView>
       )}
       {!inline && Platform.OS === "web" ? (
         state.ask ? (
           <View style={styles.foot} testID="cmdk-foot-ask">
-            {state.rows.some((r) => r.type === "source") ? <Text style={styles.footText}>{"⏎ open source"}</Text> : null}
+            {state.rows.some((r) => r.type === "source") ? (
+              <Text style={styles.footText}>{"⏎ open source"}</Text>
+            ) : null}
             {state.rows.some((r) => r.type === "source") ? <Text style={styles.footText}>{"↑↓ to move"}</Text> : null}
             <Text style={[styles.footText, { marginLeft: "auto" }]}>esc back to results</Text>
           </View>
@@ -226,32 +329,112 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
 }
 
 function renderRow(
-  r: RowModel, i: number, state: CmdKState, ctl: CmdKController, platform: KeyPlatform,
+  r: RowModel,
+  i: number,
+  state: CmdKState,
+  ctl: CmdKController,
+  platform: KeyPlatform,
   rowMenu: (index: number, x: number, y: number) => void,
   chatMode = false,
 ): ReactNode {
-  if (r.type === "head") return <Text key={r.key} style={styles.gh} role="heading" aria-level={3}>{r.title}</Text>;
-  if (r.type === "empty") return <Text key={r.key} testID="cmdk-empty" style={styles.none}>{r.title}</Text>;
+  if (r.type === "head")
+    return (
+      <Text key={r.key} style={styles.gh} role="heading" aria-level={3}>
+        {r.title}
+      </Text>
+    );
+  if (r.type === "empty")
+    return (
+      <Text key={r.key} testID="cmdk-empty" style={styles.none}>
+        {r.title}
+      </Text>
+    );
   const on = i === state.active;
   let row: ReactElement;
   if (r.type === "ask") {
-    row = <Row id={r.key} title="Ask the Space" titleSuffix={r.question} leading={<View style={styles.tile}><MenuIcon icon={SPARK} color={on ? "#FFFFFF" : "var(--accent)"} size={16} /></View>} trailing={<Text style={styles.kind}>{chatMode ? askChord(platform) : "Answer"}</Text>} onPress={() => ctl.choose(i, false)} />;
+    row = (
+      <Row
+        id={r.key}
+        title="Ask the Space"
+        titleSuffix={r.question}
+        leading={
+          <View style={styles.tile}>
+            <MenuIcon icon={SPARK} color={on ? "#FFFFFF" : "var(--accent)"} size={16} />
+          </View>
+        }
+        trailing={<Text style={styles.kind}>{chatMode ? askChord(platform) : "Answer"}</Text>}
+        onPress={() => ctl.choose(i, false)}
+      />
+    );
   } else if (r.type === "source") {
     const meta = r.source.path ?? r.source.snippet;
-    row = <Row id={r.key} title={r.source.title} {...(meta ? { titleSuffix: meta } : {})} leading={<View style={styles.tile}><View style={[styles.num, on ? { backgroundColor: "rgba(255,255,255,0.22)" } : null]}><Text style={[styles.numText, on ? { color: "#FFFFFF" } : null]}>{r.source.n}</Text></View></View>} trailing={<Text style={styles.kind}>{r.source.where}</Text>} onPress={() => ctl.choose(i, false)} />;
+    row = (
+      <Row
+        id={r.key}
+        title={r.source.title}
+        {...(meta ? { titleSuffix: meta } : {})}
+        leading={
+          <View style={styles.tile}>
+            <View style={[styles.num, on ? { backgroundColor: "rgba(255,255,255,0.22)" } : null]}>
+              <Text style={[styles.numText, on ? { color: "#FFFFFF" } : null]}>{r.source.n}</Text>
+            </View>
+          </View>
+        }
+        trailing={<Text style={styles.kind}>{r.source.where}</Text>}
+        onPress={() => ctl.choose(i, false)}
+      />
+    );
   } else if (r.type === "hit") {
     // One line, as the prototype draws it: the title, the grey meta after it, the kind right aligned.
     const raw = r.hit.snippet ?? r.hit.path;
-    const meta = raw !== undefined && !sameText(raw, r.hit.title) ? raw : (r.hit.path !== undefined && r.hit.path !== raw && !sameText(r.hit.path, r.hit.title) ? r.hit.path : undefined);
-    row = <Row id={r.key} title={r.hit.title} {...(meta ? { titleSuffix: meta } : {})} leading={<Tile hit={r.hit} />} onPress={() => ctl.choose(i, false)} />;
+    const meta =
+      raw !== undefined && !sameText(raw, r.hit.title)
+        ? raw
+        : r.hit.path !== undefined && r.hit.path !== raw && !sameText(r.hit.path, r.hit.title)
+          ? r.hit.path
+          : undefined;
+    row = (
+      <Row
+        id={r.key}
+        title={r.hit.title}
+        {...(meta ? { titleSuffix: meta } : {})}
+        leading={<Tile hit={r.hit} />}
+        onPress={() => ctl.choose(i, false)}
+      />
+    );
   } else if (r.type === "action") {
-    row = <Row id={r.key} title={r.action.title} leading={<ActionTile action={r.action} />} trailing={r.action.keys ? <Text style={styles.keys}>{formatCombo(r.action.keys, platform)}</Text> : undefined} onPress={() => ctl.choose(i, false)} />;
+    row = (
+      <Row
+        id={r.key}
+        title={r.action.title}
+        leading={<ActionTile action={r.action} />}
+        trailing={r.action.keys ? <Text style={styles.keys}>{formatCombo(r.action.keys, platform)}</Text> : undefined}
+        onPress={() => ctl.choose(i, false)}
+      />
+    );
   } else {
-    row = <Row id={r.key} title={r.name} leading={<View style={styles.tile}><View style={[styles.dot, { backgroundColor: r.swatch ?? "var(--accent)" }]} /></View>} trailing={r.current ? <Text style={styles.keys}>Current</Text> : undefined} onPress={() => ctl.choose(i, false)} />;
+    row = (
+      <Row
+        id={r.key}
+        title={r.name}
+        leading={
+          <View style={styles.tile}>
+            <View style={[styles.dot, { backgroundColor: r.swatch ?? "var(--accent)" }]} />
+          </View>
+        }
+        trailing={r.current ? <Text style={styles.keys}>Current</Text> : undefined}
+        onPress={() => ctl.choose(i, false)}
+      />
+    );
   }
   const trigger = r.type === "hit" || r.type === "source" ? menuTrigger((x, y) => rowMenu(i, x, y)) : {};
   return (
-    <View key={r.key} style={on ? LIT : null} {...webOnly({ onPointerMove: () => ctl.hover(i), role: "option", "aria-selected": on })} {...(trigger as object)}>
+    <View
+      key={r.key}
+      style={on ? LIT : null}
+      {...webOnly({ onPointerMove: () => ctl.hover(i), role: "option", "aria-selected": on })}
+      {...(trigger as object)}
+    >
       {row}
     </View>
   );
@@ -263,7 +446,9 @@ const WORKING = "Looking through chats, records, files, tasks, notes and meeting
 
 function accountLine(a: AskState): string {
   if (!a.account) return "Asked of the Space";
-  return a.account.mine ? `Asked of the Space, on your ${a.account.title} account` : `Asked of the Space, on the Space's ${a.account.title} account`;
+  return a.account.mine
+    ? `Asked of the Space, on your ${a.account.title} account`
+    : `Asked of the Space, on the Space's ${a.account.title} account`;
 }
 
 /** The question stays in the field; this is the answer under it: the streamed text with numbered citation chips that open the source, a quiet line saying what it was drawn from, Copy and Continue in a chat. */
@@ -275,33 +460,87 @@ function AnswerView({ ask, controller }: { ask: AskState; controller: CmdKContro
     <View testID="cmdk-answer" style={styles.answer} {...webOnly({ "aria-live": "polite" })}>
       <View style={styles.askedRow}>
         <MenuIcon icon={SPARK} color="var(--accent)" size={14} />
-        <Text style={styles.asked} testID="cmdk-asked">{accountLine(ask)}</Text>
+        <Text style={styles.asked} testID="cmdk-asked">
+          {accountLine(ask)}
+        </Text>
       </View>
-      {ask.phase === "working" ? <Text style={styles.working} testID="cmdk-working">{WORKING}</Text> : null}
+      {ask.phase === "working" ? (
+        <Text style={styles.working} testID="cmdk-working">
+          {WORKING}
+        </Text>
+      ) : null}
       {ask.phase === "no_access" ? (
         <View>
-          <Text style={styles.answerText} testID="cmdk-noaccess">{"I can't see anything about that you can read."}</Text>
-          <Text style={styles.note}>It may be private to someone else, or not in this Space. Ask whoever owns it to share it with you.</Text>
+          <Text style={styles.answerText} testID="cmdk-noaccess">
+            {"I can't see anything about that you can read."}
+          </Text>
+          <Text style={styles.note}>
+            It may be private to someone else, or not in this Space. Ask whoever owns it to share it with you.
+          </Text>
         </View>
       ) : null}
-      {ask.phase === "no_account" ? <View><Text style={styles.answerText} testID="cmdk-noaccount">Connect an AI account to get an answer. These are what I found.</Text></View> : null}
-      {ask.phase === "failed" ? <View><Text style={styles.answerText} testID="cmdk-failed">I could not get an answer just now. These are what I found.</Text></View> : null}
-      {(ask.phase === "streaming" || answered) ? (
+      {ask.phase === "no_account" ? (
+        <View>
+          <Text style={styles.answerText} testID="cmdk-noaccount">
+            Connect an AI account to get an answer. These are what I found.
+          </Text>
+        </View>
+      ) : null}
+      {ask.phase === "failed" ? (
+        <View>
+          <Text style={styles.answerText} testID="cmdk-failed">
+            I could not get an answer just now. These are what I found.
+          </Text>
+        </View>
+      ) : null}
+      {ask.phase === "streaming" || answered ? (
         <Text style={styles.answerText} testID="cmdk-answer-text">
-          {parts.map((p, i) => "text" in p
-            ? <Text key={`t${i}`}>{p.text}</Text>
-            : (
-              <Text key={`c${i}`} testID={`cmdk-cite-${p.cite}`} accessibilityRole="button" accessibilityLabel={`Source ${p.cite}: ${ask.sources.find((s) => s.n === p.cite)?.title ?? ""}`} onPress={() => controller.openCitation(p.cite)} style={styles.cite}>{` ${p.cite} `}</Text>
-            ))}
+          {parts.map((p, i) =>
+            "text" in p ? (
+              <Text key={`t${i}`}>{p.text}</Text>
+            ) : (
+              <Text
+                key={`c${i}`}
+                testID={`cmdk-cite-${p.cite}`}
+                accessibilityRole="button"
+                accessibilityLabel={`Source ${p.cite}: ${ask.sources.find((s) => s.n === p.cite)?.title ?? ""}`}
+                onPress={() => controller.openCitation(p.cite)}
+                style={styles.cite}
+              >{` ${p.cite} `}</Text>
+            ),
+          )}
           {writing ? <Text style={styles.caret}>{" ▍"}</Text> : null}
         </Text>
       ) : null}
       {answered ? (
         <View>
-          <Text style={styles.note} testID="cmdk-from">{`From ${ask.sources.length} ${ask.sources.length === 1 ? "thing" : "things"} you can read. Nothing private to someone else is used.`}</Text>
+          <Text
+            style={styles.note}
+            testID="cmdk-from"
+          >{`From ${ask.sources.length} ${ask.sources.length === 1 ? "thing" : "things"} you can read. Nothing private to someone else is used.`}</Text>
           <View style={styles.actions}>
-            <Pressable accessibilityRole="button" testID="cmdk-copy" onPress={() => controller.copyAnswer()} style={({ hovered }: { hovered?: boolean }) => [styles.act, hovered === true ? { backgroundColor: "var(--hover)" } : null]}><Text style={styles.actText}>Copy</Text></Pressable>
-            <Pressable accessibilityRole="button" testID="cmdk-continue" onPress={() => controller.continueInChat()} style={({ hovered }: { hovered?: boolean }) => [styles.act, hovered === true ? { backgroundColor: "var(--hover)" } : null]}><Text style={styles.actText}>Continue in a chat</Text></Pressable>
+            <Pressable
+              accessibilityRole="button"
+              testID="cmdk-copy"
+              onPress={() => controller.copyAnswer()}
+              style={({ hovered }: { hovered?: boolean }) => [
+                styles.act,
+                hovered === true ? { backgroundColor: "var(--hover)" } : null,
+              ]}
+            >
+              <Text style={styles.actText}>Copy</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              testID="cmdk-continue"
+              onPress={() => controller.continueInChat()}
+              style={({ hovered }: { hovered?: boolean }) => [
+                styles.act,
+                hovered === true ? { backgroundColor: "var(--hover)" } : null,
+              ]}
+            >
+              <Text style={styles.actText}>Continue in a chat</Text>
+            </Pressable>
           </View>
         </View>
       ) : null}
@@ -321,7 +560,10 @@ export interface CmdKProps {
 
 /** The Cmd-K sheet. Mount it while it is open; Esc, a press outside or a choice calls onClose. */
 export function CmdK({ data, initialQuery = "", platform = "mac", onClose, onTiming }: CmdKProps): ReactElement | null {
-  const opts = useMemo<CmdKOptions>(() => ({ ...(onClose ? { onClose } : {}), ...(onTiming ? { onTiming } : {}) }), [onClose, onTiming]);
+  const opts = useMemo<CmdKOptions>(
+    () => ({ ...(onClose ? { onClose } : {}), ...(onTiming ? { onTiming } : {}) }),
+    [onClose, onTiming],
+  );
   const ctl = useCmdK(data, opts, initialQuery);
   const state = useCmdKState(ctl);
   if (!state.open) return null;
@@ -330,7 +572,12 @@ export function CmdK({ data, initialQuery = "", platform = "mac", onClose, onTim
       {/* the dim area outside the sheet closes it too; it is not a labelled button (the real one is the × in the sheet), and its middle is under the sheet */}
       <Pressable accessible={false} onPress={() => ctl.close()} style={StyleSheet.absoluteFill} />
       <View style={styles.sheet}>
-        <CmdKBody controller={ctl} platform={platform} onClose={() => ctl.close()} {...(data.spaceName ? { placeholder: `Search ${data.spaceName()}` } : {})} />
+        <CmdKBody
+          controller={ctl}
+          platform={platform}
+          onClose={() => ctl.close()}
+          {...(data.spaceName ? { placeholder: `Search ${data.spaceName()}` } : {})}
+        />
       </View>
     </View>
   );
@@ -343,15 +590,32 @@ export type NewTabChatView = (chat: ChatStart, actions: { retry: () => void; dis
  * Screen shell.new-tab: the same search, inline in a new tab. Enter on typed words starts a chat with them in this tab (nothing selected until the arrows or the pointer move it; then Enter opens that result, Cmd-Enter in a new tab).
  * The Ask the Space row is first in the results, reached by the arrows or by Alt+Enter.
  */
-export function NewTabSearch({ data, platform = "mac", chatView }: { data: CmdKData; platform?: KeyPlatform; chatView?: NewTabChatView }): ReactElement {
+export function NewTabSearch({
+  data,
+  platform = "mac",
+  chatView,
+}: {
+  data: CmdKData;
+  platform?: KeyPlatform;
+  chatView?: NewTabChatView;
+}): ReactElement {
   const opts = useMemo<CmdKOptions>(() => ({ enterStartsChat: data.startChat !== undefined }), [data]);
   const ctl = useCmdK(data, opts);
   const state = useCmdKState(ctl);
-  useEffect(() => { data.warm?.(); }, [data]);
-  if (state.chat && chatView) return chatView(state.chat, { retry: () => ctl.retryChat(), discard: () => ctl.discardChat() });
+  useEffect(() => {
+    data.warm?.();
+  }, [data]);
+  if (state.chat && chatView)
+    return chatView(state.chat, { retry: () => ctl.retryChat(), discard: () => ctl.discardChat() });
   return (
     <View testID="newtab-page" style={styles.newtab}>
-      <CmdKBody controller={ctl} platform={platform} inline chatMode={opts.enterStartsChat === true} placeholder={"Open anything, or start something…"} />
+      <CmdKBody
+        controller={ctl}
+        platform={platform}
+        inline
+        chatMode={opts.enterStartsChat === true}
+        placeholder={"Open anything, or start something…"}
+      />
     </View>
   );
 }
@@ -359,21 +623,59 @@ export function NewTabSearch({ data, platform = "mac", chatView }: { data: CmdKD
 const FIXED = (Platform.OS === "web" ? "fixed" : "absolute") as unknown as "absolute";
 
 const styles = StyleSheet.create({
-  veil: { position: FIXED, top: 0, left: 0, right: 0, bottom: 0, zIndex: 70, backgroundColor: "rgba(10,10,12,0.22)", alignItems: "center", paddingTop: (Platform.OS === "web" ? "14vh" : 72) as unknown as number },
+  veil: {
+    position: FIXED,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 70,
+    backgroundColor: "rgba(10,10,12,0.22)",
+    alignItems: "center",
+    paddingTop: (Platform.OS === "web" ? "14vh" : 72) as unknown as number,
+  },
   sheet: { width: "100%", maxWidth: 632, paddingHorizontal: 16 },
-  card: { width: "100%", backgroundColor: "var(--raised)", borderRadius: 14, overflow: "hidden", boxShadow: "var(--sh-pop), 0 30px 60px -20px rgba(0,0,0,0.35)" } as object,
-  cardInline: { width: "100%", maxWidth: 640, alignSelf: "center", borderRadius: 14, boxShadow: "none", borderWidth: 1, borderColor: "var(--line)" } as object,
+  card: {
+    width: "100%",
+    backgroundColor: "var(--raised)",
+    borderRadius: 14,
+    overflow: "hidden",
+    boxShadow: "var(--sh-pop), 0 30px 60px -20px rgba(0,0,0,0.35)",
+  } as object,
+  cardInline: {
+    width: "100%",
+    maxWidth: 640,
+    alignSelf: "center",
+    borderRadius: 14,
+    boxShadow: "none",
+    borderWidth: 1,
+    borderColor: "var(--line)",
+  } as object,
   newtab: { flex: 1, width: "100%", alignItems: "center", paddingTop: 40, paddingHorizontal: 16 },
   head: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "var(--line)" },
   headAlone: { borderBottomWidth: 0 },
-  input: { flex: 1, height: 52, paddingHorizontal: 18, fontSize: 16, color: "var(--ink)", backgroundColor: "transparent" },
+  input: {
+    flex: 1,
+    height: 52,
+    paddingHorizontal: 18,
+    fontSize: 16,
+    color: "var(--ink)",
+    backgroundColor: "transparent",
+  },
   closeBtn: { width: 26, height: 26, marginRight: 12, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   filterBtn: { height: 26, paddingHorizontal: 9, marginRight: 12, borderRadius: 6, justifyContent: "center" },
   filterText: { fontSize: 12, color: "var(--ink-3)" },
   scopes: { paddingVertical: 6, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: "var(--line)" },
   scopesText: { fontSize: 11.5, color: "var(--ink-3)" },
   list: { padding: 6, flexGrow: 0 },
-  gh: { paddingTop: 8, paddingBottom: 4, paddingHorizontal: 10, fontSize: 11, fontWeight: "600", color: "var(--ink-3)" },
+  gh: {
+    paddingTop: 8,
+    paddingBottom: 4,
+    paddingHorizontal: 10,
+    fontSize: 11,
+    fontWeight: "600",
+    color: "var(--ink-3)",
+  },
   none: { padding: 14, fontSize: 13, color: "var(--ink-3)" },
   tile: { width: 20, height: 20, marginRight: 10, alignItems: "center", justifyContent: "center" },
   dot: { width: 12, height: 12, borderRadius: 6 },
@@ -384,14 +686,36 @@ const styles = StyleSheet.create({
   asked: { fontSize: 12, color: "var(--ink-3)" },
   working: { fontSize: 12.5, color: "var(--ink-3)" },
   answerText: { fontSize: 14, lineHeight: 22, color: "var(--ink)" },
-  cite: { fontSize: 10.5, fontWeight: "600", color: "var(--accent)", backgroundColor: "var(--accent-wash)", borderRadius: 9, overflow: "hidden", paddingHorizontal: 3 } as object,
+  cite: {
+    fontSize: 10.5,
+    fontWeight: "600",
+    color: "var(--accent)",
+    backgroundColor: "var(--accent-wash)",
+    borderRadius: 9,
+    overflow: "hidden",
+    paddingHorizontal: 3,
+  } as object,
   caret: { color: "var(--accent)", opacity: 0.6 },
   note: { marginTop: 8, fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" },
   actions: { flexDirection: "row", gap: 6, marginTop: 10 },
   act: { height: 26, paddingHorizontal: 9, borderRadius: 7, justifyContent: "center" },
   actText: { fontSize: 12, fontWeight: "500", color: "var(--ink-2)" },
-  num: { width: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-wash)" },
+  num: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--accent-wash)",
+  },
   numText: { fontSize: 11, fontWeight: "600", color: "var(--accent)" },
-  foot: { flexDirection: "row", gap: 14, paddingVertical: 8, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: "var(--line)" },
+  foot: {
+    flexDirection: "row",
+    gap: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)",
+  },
   footText: { fontSize: 11.5, color: "var(--ink-3)" },
 });

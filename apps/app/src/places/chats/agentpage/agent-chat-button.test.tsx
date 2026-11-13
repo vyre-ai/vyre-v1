@@ -15,14 +15,35 @@ test("Chat opens the new-chat screen with the agent in the same press and calls 
     const s = createSample("owner");
     const started: { agentId: string; name: string }[] = [];
     const calls: string[] = [];
-    const data = { ...s.data, call: ((cap: string, input: unknown) => { calls.push(cap); return s.data.call(cap as never, input as never); }) as typeof s.data.call, nav: { ...s.data.nav, startChat: (agentId: string, name: string) => void started.push({ agentId, name }), openChat: () => { throw new Error("no chat is opened before one exists"); } } };
+    const data = {
+      ...s.data,
+      call: ((cap: string, input: unknown) => {
+        calls.push(cap);
+        return s.data.call(cap as never, input as never);
+      }) as typeof s.data.call,
+      nav: {
+        ...s.data.nav,
+        startChat: (agentId: string, name: string) => void started.push({ agentId, name }),
+        openChat: () => {
+          throw new Error("no chat is opened before one exists");
+        },
+      },
+    };
     const r = createRoot();
-    unmount = () => act(async () => { r.unmount(); });
-    await act(async () => { r.render(<AgentPage data={data} tab="chats" window={{ start: 0, end: 500 }} />); });
+    unmount = () =>
+      act(async () => {
+        r.unmount();
+      });
+    await act(async () => {
+      r.render(<AgentPage data={data} tab="chats" window={{ start: 0, end: 500 }} />);
+    });
     await flush();
     const before = calls.filter((c) => c === "chat.start").length;
     await press(find(r.container as unknown as Node, "chat-button"));
     assert.deepEqual(started, [{ agentId: s.data.agent.agentId, name: "Intake" }]);
     assert.equal(calls.filter((c) => c === "chat.start").length, before, "no chat is made by the press");
-  } finally { await unmount(); off(); }
+  } finally {
+    await unmount();
+    off();
+  }
 });

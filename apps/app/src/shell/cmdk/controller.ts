@@ -3,7 +3,22 @@
 // in when they arrive; a late answer for an older query is dropped. Everything the sheet does (move, choose, skin preview, filters,
 // Esc) is a method here, so it is tested in node without a DOM.
 import {
-  SKIN_ACTION, actionRows, answerParts, answerText, askable, effectiveTypes, filterCounts, groupRows, isQuestion, isSelectable, isSkinQuery, mergeHits, parseQuery, plainLength, searchText, stepActive,
+  SKIN_ACTION,
+  actionRows,
+  answerParts,
+  answerText,
+  askable,
+  effectiveTypes,
+  filterCounts,
+  groupRows,
+  isQuestion,
+  isSelectable,
+  isSkinQuery,
+  mergeHits,
+  parseQuery,
+  plainLength,
+  searchText,
+  stepActive,
 } from "./model.ts";
 import type { AskAnswer, AskSource, CmdAction, Hit, HitKind, ParsedQuery, RowModel } from "./model.ts";
 
@@ -54,7 +69,14 @@ export interface CmdKData {
 }
 
 /** A chat being started from the new tab: his words are on screen while the chat is made behind them. */
-export interface ChatStart { key: string; text: string; title: string; /** when the key was pressed (ms): the reply is found by who asked and when */ since: number; phase: "sending" | "failed"; note?: string }
+export interface ChatStart {
+  key: string;
+  text: string;
+  title: string;
+  /** when the key was pressed (ms): the reply is found by who asked and when */ since: number;
+  phase: "sending" | "failed";
+  note?: string;
+}
 
 export type ServerStatus = "idle" | "loading" | "done" | "offline" | "error";
 
@@ -130,12 +152,25 @@ export class CmdKController {
   /** The selection was moved by the arrows or the pointer since the last keystroke. */
   private moved = false;
 
-  constructor(private readonly data: CmdKData, private readonly opts: CmdKOptions = {}) {
+  constructor(
+    private readonly data: CmdKData,
+    private readonly opts: CmdKOptions = {},
+  ) {
     this.now = opts.now ?? defaultNow;
     this.pause = opts.pauseMs ?? SERVER_PAUSE_MS;
     this.s = {
-      raw: "", parsed: parseQuery(""), filter: [], rows: [], active: -1, counts: {}, serverStatus: "idle",
-      scope: data.scope(), timings: { localMs: null, mergedMs: null }, open: true, ask: null, chat: null,
+      raw: "",
+      parsed: parseQuery(""),
+      filter: [],
+      rows: [],
+      active: -1,
+      counts: {},
+      serverStatus: "idle",
+      scope: data.scope(),
+      timings: { localMs: null, mergedMs: null },
+      open: true,
+      ask: null,
+      chat: null,
     };
     this.rebuild(true);
   }
@@ -144,12 +179,18 @@ export class CmdKController {
 
   subscribe = (fn: () => void): (() => void) => {
     this.listeners.add(fn);
-    return () => { this.listeners.delete(fn); };
+    return () => {
+      this.listeners.delete(fn);
+    };
   };
 
-  private emit(): void { for (const l of this.listeners) l(); }
+  private emit(): void {
+    for (const l of this.listeners) l();
+  }
 
-  private set(patch: Partial<CmdKState>): void { this.s = { ...this.s, ...patch }; }
+  private set(patch: Partial<CmdKState>): void {
+    this.s = { ...this.s, ...patch };
+  }
 
   /** Rebuild the rows from what is held now. Keeps the highlighted row when it is still there. */
   private rebuild(first = false): void {
@@ -161,7 +202,13 @@ export class CmdKController {
       // the answer view lists the sources once the answer has been written (the arrows move through them, Enter opens one)
       const a = this.s.ask;
       const settled = a.phase === "answered" || a.phase === "no_account" || a.phase === "failed";
-      rows = settled && a.sources.length > 0 ? [{ type: "head", key: "h-sources", title: "Sources" }, ...a.sources.map((source): RowModel => ({ type: "source", key: `src-${source.n}`, source }))] : [];
+      rows =
+        settled && a.sources.length > 0
+          ? [
+              { type: "head", key: "h-sources", title: "Sources" },
+              ...a.sources.map((source): RowModel => ({ type: "source", key: `src-${source.n}`, source })),
+            ]
+          : [];
       const keep0 = prevKey ? rows.findIndex((r) => r.key === prevKey) : -1;
       this.set({ rows, active: keep0 >= 0 ? keep0 : stepActive(rows, -1, "first"), counts: {} });
       return;
@@ -169,11 +216,28 @@ export class CmdKController {
     if (parsed.prefix === ">") {
       if (isSkinQuery(parsed.text)) {
         const cur = this.data.currentSkin();
-        rows = [{ type: "head", key: "h-skins", title: "Skins" }, ...this.data.skins().map((k): RowModel => ({ type: "skin", key: `skin-${k.id}`, id: k.id, name: k.name, ...(k.swatch ? { swatch: k.swatch } : {}), current: k.id === cur }))];
+        rows = [
+          { type: "head", key: "h-skins", title: "Skins" },
+          ...this.data.skins().map(
+            (k): RowModel => ({
+              type: "skin",
+              key: `skin-${k.id}`,
+              id: k.id,
+              name: k.name,
+              ...(k.swatch ? { swatch: k.swatch } : {}),
+              current: k.id === cur,
+            }),
+          ),
+        ];
       } else rows = actionRows(this.data.actions(parsed.text), parsed.text);
     } else if (parsed.prefix === null && parsed.text === "" && filter.length === 0) {
       const recent = this.data.recent();
-      rows = recent.length ? [{ type: "head", key: "h-recent", title: "Recent" }, ...recent.slice(0, 8).map((hit): RowModel => ({ type: "hit", key: `rec-${hit.kind}:${hit.id}`, hit }))] : [];
+      rows = recent.length
+        ? [
+            { type: "head", key: "h-recent", title: "Recent" },
+            ...recent.slice(0, 8).map((hit): RowModel => ({ type: "hit", key: `rec-${hit.kind}:${hit.id}`, hit })),
+          ]
+        : [];
     } else {
       const merged = mergeHits(this.local, this.server);
       counts = filterCounts(merged);
@@ -181,14 +245,29 @@ export class CmdKController {
       const shown = kinds ? merged.filter((h) => kinds.includes(h.kind)) : merged;
       rows = groupRows(shown, parsed.prefix || filter.length ? 20 : 6);
       // Ask the Space sits with the hits: first, and the highlighted row, for a question; last for a plain phrase. Never with a type filter or without a Space to ask.
-      if (this.data.ask && filter.length === 0 && askable(parsed) && this.data.scope() === "space" && this.data.online()) {
-        const ask: RowModel[] = [{ type: "head", key: "h-ask", title: "Ask" }, { type: "ask", key: "ask", question: parsed.text.trim() }];
-        rows = this.opts.enterStartsChat || isQuestion(parsed.text) || rows.length === 0 ? [...ask, ...rows] : [...rows, ...ask];
+      if (
+        this.data.ask &&
+        filter.length === 0 &&
+        askable(parsed) &&
+        this.data.scope() === "space" &&
+        this.data.online()
+      ) {
+        const ask: RowModel[] = [
+          { type: "head", key: "h-ask", title: "Ask" },
+          { type: "ask", key: "ask", question: parsed.text.trim() },
+        ];
+        rows =
+          this.opts.enterStartsChat || isQuestion(parsed.text) || rows.length === 0
+            ? [...ask, ...rows]
+            : [...rows, ...ask];
       }
     }
     // Nothing typed and nothing recent is not a search with no results: the field stands alone until there is something to say.
     const asked = parsed.prefix !== null || parsed.text !== "" || filter.length > 0;
-    if (!rows.length && asked) rows = [{ type: "empty", key: "empty", title: this.chatDefault() ? "No results. Enter starts a chat." : "No results" }];
+    if (!rows.length && asked)
+      rows = [
+        { type: "empty", key: "empty", title: this.chatDefault() ? "No results. Enter starts a chat." : "No results" },
+      ];
     // the Ask row is not a place to stay: the highlight starts again at the top, where Ask is for a question and the best hit is not
     const keep = prevKey && prevKey !== "ask" ? rows.findIndex((r) => r.key === prevKey) : -1;
     // in the new tab nothing is selected until the arrows or the pointer move the selection: Enter is the chat until then
@@ -200,12 +279,22 @@ export class CmdKController {
   /** In the new tab, typed plain words with the selection not moved: what Enter would do is start a chat. */
   private chatDefault(): boolean {
     const p = this.s.parsed;
-    return this.opts.enterStartsChat === true && this.data.startChat !== undefined && this.s.ask === null && p.prefix === null && p.text !== "" && !this.moved;
+    return (
+      this.opts.enterStartsChat === true &&
+      this.data.startChat !== undefined &&
+      this.s.ask === null &&
+      p.prefix === null &&
+      p.text !== "" &&
+      !this.moved
+    );
   }
 
   private syncPreview(): void {
     const row = this.s.rows[this.s.active];
-    if (row?.type === "skin") { this.previewing = true; this.data.previewSkin(row.id); } else this.endPreview();
+    if (row?.type === "skin") {
+      this.previewing = true;
+      this.data.previewSkin(row.id);
+    } else this.endPreview();
   }
 
   private endPreview(): void {
@@ -223,7 +312,10 @@ export class CmdKController {
     if (this.timer) clearTimeout(this.timer);
     const parsed = parseQuery(raw);
     const types = parsed.types;
-    this.local = parsed.prefix === ">" || (parsed.prefix === null && parsed.text === "") ? [] : this.data.local(searchText(parsed), types);
+    this.local =
+      parsed.prefix === ">" || (parsed.prefix === null && parsed.text === "")
+        ? []
+        : this.data.local(searchText(parsed), types);
     this.server = [];
     this.set({ raw, parsed, serverStatus: "idle", timings: { localMs: null, mergedMs: null } });
     this.rebuild();
@@ -238,37 +330,48 @@ export class CmdKController {
   private scheduleServer(parsed: ParsedQuery): void {
     const wants = parsed.prefix !== ">" && (parsed.text !== "" || parsed.prefix !== null);
     if (!wants) return;
-    if (!this.data.online() || this.data.scope() === "device") { this.set({ serverStatus: "offline" }); return; }
+    if (!this.data.online() || this.data.scope() === "device") {
+      this.set({ serverStatus: "offline" });
+      return;
+    }
     const mine = this.seq;
     this.set({ serverStatus: "loading" });
     this.timer = setTimeout(() => {
-      this.data.server(searchText(parsed), parsed.types).then((hits) => {
-        if (mine !== this.seq || !this.s.open) return;
-        this.server = hits;
-        const mergedMs = this.now() - this.started;
-        this.set({ serverStatus: "done", timings: { ...this.s.timings, mergedMs } });
-        this.rebuild();
-        this.opts.onTiming?.("merged", mergedMs);
-        this.mark("cmdk.merged");
-        this.emit();
-      }, () => {
-        if (mine !== this.seq) return;
-        this.set({ serverStatus: "error" });
-        this.emit();
-      });
+      this.data.server(searchText(parsed), parsed.types).then(
+        (hits) => {
+          if (mine !== this.seq || !this.s.open) return;
+          this.server = hits;
+          const mergedMs = this.now() - this.started;
+          this.set({ serverStatus: "done", timings: { ...this.s.timings, mergedMs } });
+          this.rebuild();
+          this.opts.onTiming?.("merged", mergedMs);
+          this.mark("cmdk.merged");
+          this.emit();
+        },
+        () => {
+          if (mine !== this.seq) return;
+          this.set({ serverStatus: "error" });
+          this.emit();
+        },
+      );
     }, this.pause);
   }
 
   private mark(name: string): void {
     const p = (globalThis as { performance?: { mark?: (n: string) => void } }).performance;
-    try { p?.mark?.(name); } catch { /* marks are optional */ }
+    try {
+      p?.mark?.(name);
+    } catch {
+      /* marks are optional */
+    }
   }
 
   toggleFilter(id: string): void {
     const f = this.s.filter.includes(id) ? this.s.filter.filter((x) => x !== id) : [...this.s.filter, id];
     this.set({ filter: f });
     // A filter on an empty box browses that kind from the replica.
-    if (this.s.parsed.prefix === null && this.s.parsed.text === "") this.local = f.length ? this.data.local("", effectiveTypes({ ...this.s.parsed, types: null }, f)) : [];
+    if (this.s.parsed.prefix === null && this.s.parsed.text === "")
+      this.local = f.length ? this.data.local("", effectiveTypes({ ...this.s.parsed, types: null }, f)) : [];
     this.rebuild();
     this.emit();
   }
@@ -303,7 +406,13 @@ export class CmdKController {
   enter(newTab = false): void {
     if (this.s.chat) return;
     const p = this.s.parsed;
-    if (this.opts.enterStartsChat === true && this.data.startChat !== undefined && this.s.ask === null && p.prefix === null && !this.moved) {
+    if (
+      this.opts.enterStartsChat === true &&
+      this.data.startChat !== undefined &&
+      this.s.ask === null &&
+      p.prefix === null &&
+      !this.moved
+    ) {
       if (p.text !== "" && !newTab) this.startChat();
       return;
     }
@@ -330,19 +439,34 @@ export class CmdKController {
     const started = start({ key, text, ...(title ? { title } : {}) });
     const { sent } = started;
     title = started.title;
-    this.set({ chat: { key, text, title, since: this.s.chat?.key === key ? this.s.chat.since : Date.now(), phase: "sending" } });
-    this.emit();
-    sent.then(() => undefined, (e: unknown) => {
-      const c = this.s.chat;
-      if (!c || c.key !== key) return;
-      this.set({ chat: { ...c, phase: "failed", note: e instanceof Error && e.message === "no assistant yet" ? "Your Assistant is not ready yet. Try again in a moment." : "Could not start the chat." } });
-      this.emit();
+    this.set({
+      chat: { key, text, title, since: this.s.chat?.key === key ? this.s.chat.since : Date.now(), phase: "sending" },
     });
+    this.emit();
+    sent.then(
+      () => undefined,
+      (e: unknown) => {
+        const c = this.s.chat;
+        if (!c || c.key !== key) return;
+        this.set({
+          chat: {
+            ...c,
+            phase: "failed",
+            note:
+              e instanceof Error && e.message === "no assistant yet"
+                ? "Your Assistant is not ready yet. Try again in a moment."
+                : "Could not start the chat.",
+          },
+        });
+        this.emit();
+      },
+    );
   }
 
   /** Retry after a failed start: the same words under the same key, so a lost answer never makes a second chat. */
   retryChat(): void {
-    const c = this.s.chat, start = this.data.startChat;
+    const c = this.s.chat,
+      start = this.data.startChat;
     if (!c || !start || c.phase !== "failed") return;
     this.launch(start, c.key, c.text, c.title);
   }
@@ -365,12 +489,18 @@ export class CmdKController {
       return;
     }
     if (r.type === "action") {
-      if (r.action.key === SKIN_ACTION) { this.setRaw("> skin "); return; }
+      if (r.action.key === SKIN_ACTION) {
+        this.setRaw("> skin ");
+        return;
+      }
       this.close();
       this.data.runAction(r.action);
       return;
     }
-    if (r.type === "ask") { void this.startAsk(r.question); return; }
+    if (r.type === "ask") {
+      void this.startAsk(r.question);
+      return;
+    }
     if (r.type === "source") {
       this.close();
       this.data.recordOpened(r.source);
@@ -393,10 +523,21 @@ export class CmdKController {
     this.rebuild();
     this.emit();
     let out: AskAnswer;
-    try { out = await ask(question); } catch { out = { state: "failed", sources: [], cited: [] }; }
+    try {
+      out = await ask(question);
+    } catch {
+      out = { state: "failed", sources: [], cited: [] };
+    }
     if (mine !== this.askSeq || !this.s.ask) return;
     const text = out.answer ?? "";
-    const base = { question, text, shown: 0, sources: out.sources, cited: out.cited, ...(out.account ? { account: out.account } : {}) };
+    const base = {
+      question,
+      text,
+      shown: 0,
+      sources: out.sources,
+      cited: out.cited,
+      ...(out.account ? { account: out.account } : {}),
+    };
     if (out.state !== "answered") {
       this.set({ ask: { ...base, phase: out.state, shown: text.length } });
     } else if ((this.opts.revealMs ?? REVEAL_MS) === 0) {
@@ -406,10 +547,16 @@ export class CmdKController {
       const total = plainLength(answerParts(text));
       this.reveal = setInterval(() => {
         const a = this.s.ask;
-        if (!a || mine !== this.askSeq) { this.stopReveal(); return; }
+        if (!a || mine !== this.askSeq) {
+          this.stopReveal();
+          return;
+        }
         const shown = Math.min(total, a.shown + REVEAL_STEP);
         this.set({ ask: shown >= total ? { ...a, phase: "answered", shown } : { ...a, shown } });
-        if (shown >= total) { this.stopReveal(); this.rebuild(); }
+        if (shown >= total) {
+          this.stopReveal();
+          this.rebuild();
+        }
         this.emit();
       }, this.opts.revealMs ?? REVEAL_MS);
     }
@@ -417,7 +564,12 @@ export class CmdKController {
     this.emit();
   }
 
-  private stopReveal(): void { if (this.reveal) { clearInterval(this.reveal); this.reveal = null; } }
+  private stopReveal(): void {
+    if (this.reveal) {
+      clearInterval(this.reveal);
+      this.reveal = null;
+    }
+  }
 
   private endAsk(): void {
     this.askSeq += 1;
@@ -427,7 +579,10 @@ export class CmdKController {
 
   /** Esc: from the answer back to the results with the question still in the field; from the results, close. */
   escape(): void {
-    if (!this.s.ask) { this.close(); return; }
+    if (!this.s.ask) {
+      this.close();
+      return;
+    }
     this.endAsk();
     this.rebuild();
     this.emit();
@@ -437,25 +592,41 @@ export class CmdKController {
   openCitation(n: number): void {
     const i = this.s.rows.findIndex((r) => r.type === "source" && r.source.n === n);
     if (i >= 0) this.choose(i, false);
-    else { const src = this.s.ask?.sources.find((x) => x.n === n); if (src) { this.close(); this.data.recordOpened(src); this.data.open(src, { newTab: false }); } }
+    else {
+      const src = this.s.ask?.sources.find((x) => x.n === n);
+      if (src) {
+        this.close();
+        this.data.recordOpened(src);
+        this.data.open(src, { newTab: false });
+      }
+    }
   }
 
   copyAnswer(): void {
     const a = this.s.ask;
-    if (a && a.phase === "answered") this.data.copyText?.(answerText({ answer: a.text, sources: [...a.sources], cited: [...a.cited] }));
+    if (a && a.phase === "answered")
+      this.data.copyText?.(answerText({ answer: a.text, sources: [...a.sources], cited: [...a.cited] }));
   }
 
   /** Continue in a chat: the question and the answer open as a real chat with the assistant. */
   continueInChat(): void {
     const a = this.s.ask;
     if (!a || a.phase !== "answered" || !this.data.continueInChat) return;
-    const chat = { question: a.question, answer: answerText({ answer: a.text, sources: [...a.sources], cited: [...a.cited] }) };
+    const chat = {
+      question: a.question,
+      answer: answerText({ answer: a.text, sources: [...a.sources], cited: [...a.cited] }),
+    };
     // in the new tab the chat starts the way Enter starts one: his words (the question and the answer) are on screen from the press, in this same tab, and the chat is made behind them
     if (this.opts.enterStartsChat === true && this.data.startChat) {
       const text = `${chat.question}\n\nWhat the Space says:\n${chat.answer}`;
       const title = chat.question.length > 80 ? `${chat.question.slice(0, 77)}...` : chat.question;
       this.endAsk();
-      this.launch(this.data.startChat, this.data.newKey?.() ?? `k_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`, text, title);
+      this.launch(
+        this.data.startChat,
+        this.data.newKey?.() ?? `k_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+        text,
+        title,
+      );
       return;
     }
     this.close();

@@ -7,12 +7,22 @@ function world() {
   const opened: { screen?: string; args?: Record<string, unknown>; subject?: unknown }[] = [];
   const calls: string[] = [];
   const rt = {
-    space: { name: "Northwind", kind: "team" }, connection: { get: () => "online" }, assistant: { id: "agt_a", name: "Assistant" },
+    space: { name: "Northwind", kind: "team" },
+    connection: { get: () => "online" },
+    assistant: { id: "agt_a", name: "Assistant" },
     open: (t: { screen?: string; args?: Record<string, unknown> }) => void opened.push(t),
-    call: (cap: string) => { calls.push(cap); return new Promise(() => undefined); },
+    call: (cap: string) => {
+      calls.push(cap);
+      return new Promise(() => undefined);
+    },
   };
   const nav = { go: () => undefined, newTab: () => undefined, flash: () => undefined };
-  const data = createGateSearch({ runtime: rt as never, nav: nav as never, state: { away: false, offline: false }, recent: () => [] });
+  const data = createGateSearch({
+    runtime: rt as never,
+    nav: nav as never,
+    state: { away: false, offline: false },
+    recent: () => [],
+  });
   return { data, opened, calls };
 }
 

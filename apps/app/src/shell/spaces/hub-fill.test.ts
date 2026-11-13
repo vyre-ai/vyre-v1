@@ -4,7 +4,15 @@ import assert from "node:assert/strict";
 import { createShellHub } from "./hub.ts";
 import { SEED_DEFS } from "./model.ts";
 
-const hubOf = () => createShellHub({ spaces: SEED_DEFS, openId: SEED_DEFS[0]!.spaceId, personId: "irfad", deviceId: "web", storage: { getItem: () => null, setItem: () => undefined }, skeletonMs: 0 });
+const hubOf = () =>
+  createShellHub({
+    spaces: SEED_DEFS,
+    openId: SEED_DEFS[0]!.spaceId,
+    personId: "irfad",
+    deviceId: "web",
+    storage: { getItem: () => null, setItem: () => undefined },
+    skeletonMs: 0,
+  });
 const tabs = (hub: ReturnType<typeof hubOf>) => hub.session().tabs.state();
 
 test("fill: the new tab becomes the chat in place, selected, named, the page shows the chat; no second tab", () => {

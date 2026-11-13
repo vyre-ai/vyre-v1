@@ -6,8 +6,21 @@ import { createMountSample } from "./sample.ts";
 import { ChatsMounted } from "./ChatsMounted.tsx";
 import type { Shown } from "./route.ts";
 
-const shown = (first?: string): Shown => ({ route: { view: "ask", agentId: "assistant", scopeType: "", scopeId: "", bringFrom: null, ...(first ? { first } : {}) }, pane: false, terminalId: null, layer: null });
-const draw = (s: Shown): string => renderToStaticMarkup(<ChatsMounted rt={createMountSample().rt} initial={s} window={{ start: 0, end: 500 }} />);
+const shown = (first?: string): Shown => ({
+  route: {
+    view: "ask",
+    agentId: "assistant",
+    scopeType: "",
+    scopeId: "",
+    bringFrom: null,
+    ...(first ? { first } : {}),
+  },
+  pane: false,
+  terminalId: null,
+  layer: null,
+});
+const draw = (s: Shown): string =>
+  renderToStaticMarkup(<ChatsMounted rt={createMountSample().rt} initial={s} window={{ start: 0, end: 500 }} />);
 
 test("an Ask with a first message draws that message and the working mark before any thread exists", () => {
   const html = draw(shown("Summarise the open tasks for the Lisbon team"));

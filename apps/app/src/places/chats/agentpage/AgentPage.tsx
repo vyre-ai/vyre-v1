@@ -19,7 +19,14 @@ import { pause, removeOutside, resume, saveFace, saveRoleLine, startChat } from 
 import { FacePicker } from "../../../../../../ui/src/FacePicker/index.tsx";
 import { saveFaceFile } from "./face-file.ts";
 import type { PageDeps } from "./actions.ts";
-import { AgentPageDataProvider, paneDataOf, useAgentPageData, useOnline, useOptionalAgentPageData, useScreenQuery } from "./data.tsx";
+import {
+  AgentPageDataProvider,
+  paneDataOf,
+  useAgentPageData,
+  useOnline,
+  useOptionalAgentPageData,
+  useScreenQuery,
+} from "./data.tsx";
 import type { AgentPageData } from "./data.tsx";
 import { ChatsTab } from "./ChatsTab.tsx";
 import { TabMeasure, useFittedTabs, useTitleWidths } from "../rightpane/fit.tsx";
@@ -27,7 +34,18 @@ import { RoleLine } from "./RoleLine.tsx";
 import { WorkingOn } from "./WorkingOn.tsx";
 import { SettingsTab } from "./SettingsTab.tsx";
 import { ActivityTab } from "./ActivityTab.tsx";
-import { DEFAULT_TAB, OUTSIDE_LINE, OUTSIDE_TABS, TABS, collect, isOutside, offlineLine, spendRatio, statusLine, stripOf } from "./model.ts";
+import {
+  DEFAULT_TAB,
+  OUTSIDE_LINE,
+  OUTSIDE_TABS,
+  TABS,
+  collect,
+  isOutside,
+  offlineLine,
+  spendRatio,
+  statusLine,
+  stripOf,
+} from "./model.ts";
 import type { TabKey } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
@@ -55,7 +73,11 @@ export function AgentPage(props: AgentPageProps): ReactElement {
   const ctx = useOptionalAgentPageData();
   const value = props.data ?? ctx;
   if (!value) return <AgentPageLoading />;
-  return <AgentPageDataProvider value={value}><PageView {...props} /></AgentPageDataProvider>;
+  return (
+    <AgentPageDataProvider value={value}>
+      <PageView {...props} />
+    </AgentPageDataProvider>
+  );
 }
 
 /** The frame before data: a header and a strip the size of the real ones, so nothing moves when the data arrives. */
@@ -63,7 +85,13 @@ export function AgentPageLoading(): ReactElement {
   return (
     <View testID="agent-page-loading" accessibilityLabel="Loading" style={st.root}>
       <View style={st.col}>
-        <View style={st.skHead}><View style={st.skFace} /><View style={{ gap: 8 }}><View style={st.skName} /><View style={st.skRole} /></View></View>
+        <View style={st.skHead}>
+          <View style={st.skFace} />
+          <View style={{ gap: 8 }}>
+            <View style={st.skName} />
+            <View style={st.skRole} />
+          </View>
+        </View>
         <View style={st.skStrip} />
       </View>
     </View>
@@ -77,24 +105,38 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   const win = useWindowDimensions();
   const narrow = win.width > 0 && win.width < NARROW;
   // no capable host, no agent computers: no Computer tab, and the page opens on Chats
-  const noComputers = !usesWorkModel(data) && !hasComputers(data.space);   // the Computer tab (Terminal and Browser) is always there once the workspace and Space browser are bound
+  const noComputers = !usesWorkModel(data) && !hasComputers(data.space); // the Computer tab (Terminal and Browser) is always there once the workspace and Space browser are bound
   const agentId = data.agent.agentId;
   const agentQ = useScreenQuery<AgentOut>("agent", { agentId });
   const outside = agentQ.status !== "loading" && isOutside(agentQ.data.agent);
   const [own, setOwn] = useState<TabKey | null>(initialTab ?? null);
   const asked = controlled ?? own ?? (outside ? "activity" : noComputers ? "chats" : DEFAULT_TAB);
   // a tab an agent of this kind does not have opens the one it starts on
-  const tab: TabKey = outside ? (OUTSIDE_TABS.some((t) => t.key === asked) ? asked : "activity") : noComputers && asked === "computer" ? "chats" : asked === "activity" ? DEFAULT_TAB : asked;
-  const tabList = useMemo(() => (outside ? OUTSIDE_TABS : TABS.filter((t) => !(noComputers && t.key === "computer"))), [noComputers, outside]);
+  const tab: TabKey = outside
+    ? OUTSIDE_TABS.some((t) => t.key === asked)
+      ? asked
+      : "activity"
+    : noComputers && asked === "computer"
+      ? "chats"
+      : asked === "activity"
+        ? DEFAULT_TAB
+        : asked;
+  const tabList = useMemo(
+    () => (outside ? OUTSIDE_TABS : TABS.filter((t) => !(noComputers && t.key === "computer"))),
+    [noComputers, outside],
+  );
   const [colW, setColW] = useState(0);
   const titles = useTitleWidths();
   const [notice, setNotice] = useState<{ text: string; undo?: () => Promise<void> | void } | null>(null);
   const [sure, setSure] = useState(false);
   const [facing, setFacing] = useState(false);
-  const deps: PageDeps = useMemo(() => ({
-    call: data.call,
-    note: (text: string, undo?: () => Promise<void> | void) => setNotice(undo ? { text, undo } : { text }),
-  }), [data.call]);
+  const deps: PageDeps = useMemo(
+    () => ({
+      call: data.call,
+      note: (text: string, undo?: () => Promise<void> | void) => setNotice(undo ? { text, undo } : { text }),
+    }),
+    [data.call],
+  );
   useEffect(() => {
     if (notice === null) return;
     const t = setTimeout(() => setNotice(null), NOTICE_MS);
@@ -104,9 +146,15 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   // The page's tab strip folds like the pane's: the same fit and More menu (rightpane/fit.tsx), at the page column's own width (390 px phone: Settings never clips).
   const pageW = colW > 0 ? colW : win.width > 0 ? Math.min(win.width, 760) : 760;
   const { strip, select } = useFittedTabs(tabList, tab, pageW, {
-    chrome: STRIP_PADDING, measured: titles.widths,
-    menu, left: Math.max(0, (win.width - pageW) / 2) + 16, top: 330,
-    pick: (key) => { setOwn(key); onTab?.(key); },
+    chrome: STRIP_PADDING,
+    measured: titles.widths,
+    menu,
+    left: Math.max(0, (win.width - pageW) / 2) + 16,
+    top: 330,
+    pick: (key) => {
+      setOwn(key);
+      onTab?.(key);
+    },
   });
 
   const summaryQ = useScreenQuery<SummaryOut>("summary", { agentId });
@@ -118,73 +166,242 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   const name = agent.name;
   const paused = agent.status === "paused";
 
-  const chat = (): void => { if (data.nav.startChat) { data.nav.startChat(agentId, name); return; } void startChat(deps, agentId, name).then((id) => { if (id !== null) data.nav.openChat(id); }); };
-  const remove = (): void => { void removeOutside(deps, agentId, name, () => data.nav.closePage()); };
+  const chat = (): void => {
+    if (data.nav.startChat) {
+      data.nav.startChat(agentId, name);
+      return;
+    }
+    void startChat(deps, agentId, name).then((id) => {
+      if (id !== null) data.nav.openChat(id);
+    });
+  };
+  const remove = (): void => {
+    void removeOutside(deps, agentId, name, () => data.nav.closePage());
+  };
   const moreMenu = (x: number, y: number): void => {
-    menu.show([
-      { label: "Chat", onSelect: chat },
-      { label: "Automation Runs", onSelect: () => data.nav.openAutomationRuns(agentId) },
-      { label: "Open Folder", onSelect: () => data.nav.openFolder(agent.folderId) },
-      ...(!noComputers && (usesWorkModel(data) || (agent.hasComputer && data.agent.computerId)) ? [{ label: "Open Computer", onSelect: () => { setOwn("computer"); onTab?.("computer"); } }] : []),
-      ...(outside ? [{ separator: true as const }, { label: "Remove", onSelect: () => setSure(true) }] : data.canEdit ? [{ separator: true as const }, paused ? { label: "Resume", onSelect: () => void resume(deps, agentId, name) } : { label: "Pause", onSelect: () => void pause(deps, agentId, name, "Paused from the agent page") }] : []),
-    ], x, y, "other", { label: `${name}'s page` });
+    menu.show(
+      [
+        { label: "Chat", onSelect: chat },
+        { label: "Automation Runs", onSelect: () => data.nav.openAutomationRuns(agentId) },
+        { label: "Open Folder", onSelect: () => data.nav.openFolder(agent.folderId) },
+        ...(!noComputers && (usesWorkModel(data) || (agent.hasComputer && data.agent.computerId))
+          ? [
+              {
+                label: "Open Computer",
+                onSelect: () => {
+                  setOwn("computer");
+                  onTab?.("computer");
+                },
+              },
+            ]
+          : []),
+        ...(outside
+          ? [{ separator: true as const }, { label: "Remove", onSelect: () => setSure(true) }]
+          : data.canEdit
+            ? [
+                { separator: true as const },
+                paused
+                  ? { label: "Resume", onSelect: () => void resume(deps, agentId, name) }
+                  : { label: "Pause", onSelect: () => void pause(deps, agentId, name, "Paused from the agent page") },
+              ]
+            : []),
+      ],
+      x,
+      y,
+      "other",
+      { label: `${name}'s page` },
+    );
   };
 
   const stats = summary ? stripOf(summary).filter((x) => !outside || x.key === "chats" || x.key === "tasks") : [];
   const ratio = summary ? spendRatio(summary) : 0;
   return (
     <View testID="agent-page" accessibilityLabel={`${name}, agent page`} style={st.root}>
-      <View style={[st.col, narrow && st.colNarrow]} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== colW) setColW(w); }}>
+      <View
+        style={[st.col, narrow && st.colNarrow]}
+        onLayout={(e) => {
+          const w = Math.round(e.nativeEvent.layout.width);
+          if (w > 0 && w !== colW) setColW(w);
+        }}
+      >
         <View testID="agent-head" style={[st.head, narrow && st.headNarrow]}>
-          {data.canEdit && !outside ? <Pressable role="button" aria-label="Change the face" testID="agent-face" onPress={() => setFacing(true)}><Face name={name} seedId={agentId} size={narrow ? 48 : 56} pulse={agent.status === "working"} asleep={agent.status === "asleep"} /></Pressable> : <Face name={name} seedId={agentId} size={narrow ? 48 : 56} pulse={agent.status === "working"} asleep={agent.status === "asleep"} />}
+          {data.canEdit && !outside ? (
+            <Pressable role="button" aria-label="Change the face" testID="agent-face" onPress={() => setFacing(true)}>
+              <Face
+                name={name}
+                seedId={agentId}
+                size={narrow ? 48 : 56}
+                pulse={agent.status === "working"}
+                asleep={agent.status === "asleep"}
+              />
+            </Pressable>
+          ) : (
+            <Face
+              name={name}
+              seedId={agentId}
+              size={narrow ? 48 : 56}
+              pulse={agent.status === "working"}
+              asleep={agent.status === "asleep"}
+            />
+          )}
           <View style={st.who}>
             <View style={st.nameRow}>
-              <Text accessibilityRole="header" testID="agent-name" numberOfLines={1} style={st.name}>{name}</Text>
-              <View testID="agent-status" style={[st.status, agent.status === "working" && st.statusLive, paused && st.statusPaused]}>
+              <Text accessibilityRole="header" testID="agent-name" numberOfLines={1} style={st.name}>
+                {name}
+              </Text>
+              <View
+                testID="agent-status"
+                style={[st.status, agent.status === "working" && st.statusLive, paused && st.statusPaused]}
+              >
                 <View style={[st.dot, agent.status === "working" && st.dotLive, paused && st.dotPaused]} />
-                <Text numberOfLines={1} style={st.statusText}>{statusLine(agent, data.nameOf)}</Text>
+                <Text numberOfLines={1} style={st.statusText}>
+                  {statusLine(agent, data.nameOf)}
+                </Text>
               </View>
             </View>
-            {outside ? <Text testID="agent-outside-line" style={st.outsideLine}>{OUTSIDE_LINE}</Text> : <RoleLine value={agent.role ?? ""} canEdit={data.canEdit} onSave={(next) => void saveRoleLine(deps, agentId, next, agent.role ?? "")} />}
+            {outside ? (
+              <Text testID="agent-outside-line" style={st.outsideLine}>
+                {OUTSIDE_LINE}
+              </Text>
+            ) : (
+              <RoleLine
+                value={agent.role ?? ""}
+                canEdit={data.canEdit}
+                onSave={(next) => void saveRoleLine(deps, agentId, next, agent.role ?? "")}
+              />
+            )}
           </View>
           <View style={[st.actions, narrow && st.actionsNarrow]}>
             <TextButton label="Chat" primary testID="chat-button" onPress={chat} />
-            {outside && sure ? <><TextButton label="Cancel" testID="remove-cancel" onPress={() => setSure(false)} /><TextButton label="End its sign-in" testID="remove-sure" onPress={remove} /></> : null}
-            {outside && !sure ? <TextButton label="Remove" testID="remove-button" onPress={() => setSure(true)} /> : null}
-            {outside ? null : <TextButton label="Automation runs" testID="runs-button" onPress={() => data.nav.openAutomationRuns(agentId)} />}
-            <Tool icon="folder" label="Open folder" testID="folder-button" onPress={() => data.nav.openFolder(agent.folderId)} />
-            {!noComputers && (usesWorkModel(data) || (agent.hasComputer && data.agent.computerId)) ? <Tool icon="watch" label="Computer" testID="computer-button" onPress={() => { setOwn("computer"); onTab?.("computer"); }} /> : null}
+            {outside && sure ? (
+              <>
+                <TextButton label="Cancel" testID="remove-cancel" onPress={() => setSure(false)} />
+                <TextButton label="End its sign-in" testID="remove-sure" onPress={remove} />
+              </>
+            ) : null}
+            {outside && !sure ? (
+              <TextButton label="Remove" testID="remove-button" onPress={() => setSure(true)} />
+            ) : null}
+            {outside ? null : (
+              <TextButton
+                label="Automation runs"
+                testID="runs-button"
+                onPress={() => data.nav.openAutomationRuns(agentId)}
+              />
+            )}
+            <Tool
+              icon="folder"
+              label="Open folder"
+              testID="folder-button"
+              onPress={() => data.nav.openFolder(agent.folderId)}
+            />
+            {!noComputers && (usesWorkModel(data) || (agent.hasComputer && data.agent.computerId)) ? (
+              <Tool
+                icon="watch"
+                label="Computer"
+                testID="computer-button"
+                onPress={() => {
+                  setOwn("computer");
+                  onTab?.("computer");
+                }}
+              />
+            ) : null}
             <Tool icon="more" label="More" testID="more-button" onPress={moreMenu} />
           </View>
         </View>
-        {online ? null : <Text testID="agent-offline" style={st.offline}>Offline. Showing what this device keeps.</Text>}
-        {outside && agent.status === "asleep" ? <Text testID="agent-outside-offline" style={st.note}>{offlineLine(name)}</Text> : null}
+        {online ? null : (
+          <Text testID="agent-offline" style={st.offline}>
+            Offline. Showing what this device keeps.
+          </Text>
+        )}
+        {outside && agent.status === "asleep" ? (
+          <Text testID="agent-outside-offline" style={st.note}>
+            {offlineLine(name)}
+          </Text>
+        ) : null}
         {summary ? (
           <View testID="agent-strip" accessibilityRole="summary" style={st.strip}>
             {collect(stats, (s) => (
               <View key={s.key} testID={`stat-${s.key}`} style={st.stat}>
                 <Text style={st.statValue}>{s.value}</Text>
                 <Text style={st.statLabel}>{s.label}</Text>
-                {s.key === "spend" && ratio > 0 ? <View testID="spend-bar" style={st.bar}><View style={[st.barFill, { width: `${Math.round(ratio * 100)}%`, backgroundColor: (ratio >= 1 ? "var(--danger)" : "var(--accent)") as string }]} /></View> : null}
+                {s.key === "spend" && ratio > 0 ? (
+                  <View testID="spend-bar" style={st.bar}>
+                    <View
+                      style={[
+                        st.barFill,
+                        {
+                          width: `${Math.round(ratio * 100)}%`,
+                          backgroundColor: (ratio >= 1 ? "var(--danger)" : "var(--accent)") as string,
+                        },
+                      ]}
+                    />
+                  </View>
+                ) : null}
               </View>
             ))}
           </View>
-        ) : <View testID="agent-strip-loading" style={st.skStrip} />}
+        ) : (
+          <View testID="agent-strip-loading" style={st.skStrip} />
+        )}
         <WorkingOn />
         <TabMeasure titles={TAB_TITLES} onWidth={titles.set} />
         <TabStrip underline noOptions tabs={strip} active={tab} onSelect={select} label={`${name}'s page`} />
         <View testID={`page-body-${tab}`} style={st.body}>
           <RightPaneDataProvider value={paneDataOf(data)}>
-            {tab === "activity" ? <ActivityTab agentId={agentId} call={data.call} clock={data.clock()} openChat={data.nav.openChat} /> : null}
-            {tab === "chats" ? (summary ? <ChatsTab summary={summary} {...(window ? { window } : {})} /> : <View testID="chats-loading" accessibilityLabel="Loading" style={st.skStrip} />) : null}
-            {tab === "memory" ? <MemoryTab deps={deps} spaceName={data.space.name} {...(window ? { window } : {})} /> : null}
-            {tab === "files" ? <FilesTab deps={deps} folderId={agent.folderId} {...(window ? { window } : {})} /> : null}
+            {tab === "activity" ? (
+              <ActivityTab agentId={agentId} call={data.call} clock={data.clock()} openChat={data.nav.openChat} />
+            ) : null}
+            {tab === "chats" ? (
+              summary ? (
+                <ChatsTab summary={summary} {...(window ? { window } : {})} />
+              ) : (
+                <View testID="chats-loading" accessibilityLabel="Loading" style={st.skStrip} />
+              )
+            ) : null}
+            {tab === "memory" ? (
+              <MemoryTab deps={deps} spaceName={data.space.name} {...(window ? { window } : {})} />
+            ) : null}
+            {tab === "files" ? (
+              <FilesTab deps={deps} folderId={agent.folderId} {...(window ? { window } : {})} />
+            ) : null}
             {tab === "computer" ? <ComputerPane deps={deps} {...(window ? { window } : {})} /> : null}
           </RightPaneDataProvider>
           {tab === "settings" ? <SettingsTab agent={agent} deps={deps} {...(window ? { window } : {})} /> : null}
         </View>
-        {facing ? <FacePicker name={name} value={agent.face} saveImage={(url) => saveFaceFile(data.call, agent.folderId, url, () => `face-${agentId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)} onDone={(face) => { setFacing(false); if (face !== null) void saveFace(deps, agentId, face, agent.face); }} /> : null}
-        {notice ? <Notice text={notice.text} onClose={() => setNotice(null)} {...(notice.undo ? { onUndo: () => { const u = notice.undo; setNotice(null); void u?.(); } } : {})} /> : null}
+        {facing ? (
+          <FacePicker
+            name={name}
+            value={agent.face}
+            saveImage={(url) =>
+              saveFaceFile(
+                data.call,
+                agent.folderId,
+                url,
+                () => `face-${agentId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              )
+            }
+            onDone={(face) => {
+              setFacing(false);
+              if (face !== null) void saveFace(deps, agentId, face, agent.face);
+            }}
+          />
+        ) : null}
+        {notice ? (
+          <Notice
+            text={notice.text}
+            onClose={() => setNotice(null)}
+            {...(notice.undo
+              ? {
+                  onUndo: () => {
+                    const u = notice.undo;
+                    setNotice(null);
+                    void u?.();
+                  },
+                }
+              : {})}
+          />
+        ) : null}
       </View>
       {menu.element}
     </View>
@@ -202,7 +419,15 @@ const st = StyleSheet.create({
   who: { flex: 1, minWidth: 180, gap: 2 },
   nameRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10 },
   name: { flexShrink: 1, fontSize: 22, lineHeight: 28, fontWeight: "600", color: "var(--ink)" as string },
-  status: { flexDirection: "row", alignItems: "center", gap: 6, height: 22, paddingHorizontal: 8, borderRadius: 11, backgroundColor: "var(--sunk)" as string },
+  status: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    height: 22,
+    paddingHorizontal: 8,
+    borderRadius: 11,
+    backgroundColor: "var(--sunk)" as string,
+  },
   statusLive: { backgroundColor: "var(--accent-wash)" as string },
   statusPaused: { backgroundColor: "color-mix(in srgb, var(--warn) 14%, transparent)" as string },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },
@@ -212,9 +437,27 @@ const st = StyleSheet.create({
   actions: { flexDirection: "row", alignItems: "center", gap: 6 },
   actionsNarrow: { width: "100%" },
   offline: { paddingBottom: 6, fontSize: 11.5, color: "var(--ink-3)" as string },
-  note: { marginBottom: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string, backgroundColor: "var(--sunk)" as string },
+  note: {
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "var(--ink-2)" as string,
+    backgroundColor: "var(--sunk)" as string,
+  },
   outsideLine: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
-  strip: { flexDirection: "row", flexWrap: "wrap", gap: 18, paddingVertical: 10, marginBottom: 6, borderTopWidth: 1, borderBottomWidth: 1, borderColor: "var(--line)" as string },
+  strip: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 18,
+    paddingVertical: 10,
+    marginBottom: 6,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "var(--line)" as string,
+  },
   stat: { minWidth: 92, gap: 1 },
   statValue: { fontSize: 18, lineHeight: 24, fontWeight: "600", color: "var(--ink)" as string },
   statLabel: { fontSize: 11.5, color: "var(--ink-3)" as string },

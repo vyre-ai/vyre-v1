@@ -51,26 +51,55 @@ export async function realAssistant(
 }
 
 /** What a new chat starts on besides who answers: the model, provider and effort. */
-export interface StartChoice { model?: string; provider?: string; effort?: string }
+export interface StartChoice {
+  model?: string;
+  provider?: string;
+  effort?: string;
+}
 
 /**
  * The input of chat.start for a first message, the one place it is made: the first screen's composer and the new tab's Enter both start a chat with it, so they cannot drift apart. A slash command or a send with
  * nothing in it carries no first message (its words wait in the chat's composer); files go in after the chat exists, so a message with files carries only its title.
  */
-export function chatStartInput(s: { picked: readonly WithEntry[]; choice: StartChoice; text: string; title: string; hasFiles: boolean; slash: boolean; key: string }, assistantId: string): Record<string, unknown> {
+export function chatStartInput(
+  s: {
+    picked: readonly WithEntry[];
+    choice: StartChoice;
+    text: string;
+    title: string;
+    hasFiles: boolean;
+    slash: boolean;
+    key: string;
+  },
+  assistantId: string,
+): Record<string, unknown> {
   const c = s.choice;
   return {
-    kind: "chat", ...startInput(s.picked, assistantId),
+    kind: "chat",
+    ...startInput(s.picked, assistantId),
     ...(s.slash || s.title === "" ? {} : s.hasFiles ? { title: s.title } : { first: s.text, title: s.title }),
-    ...(c.model ? { model: c.model } : {}), ...(c.provider ? { provider: c.provider } : {}), ...(c.effort ? { effort: c.effort } : {}),
+    ...(c.model ? { model: c.model } : {}),
+    ...(c.provider ? { provider: c.provider } : {}),
+    ...(c.effort ? { effort: c.effort } : {}),
     idempotencyKey: s.key,
   };
 }
 
 /** The model, provider and effort this person picked last, anywhere (engine.last_pick.get): what a new chat starts on without asking again. Null when there is none or it could not be read. */
-export async function lastPick(call: (cap: string, input: unknown) => Promise<unknown> | unknown): Promise<{ model: string; provider?: string; effort?: string } | null> {
-  const out = await Promise.resolve(call("engine.last_pick.get", {})).catch(() => null) as { model?: string; provider?: string; effort?: string } | null | undefined;
-  return out?.model ? { model: out.model, ...(out.provider ? { provider: out.provider } : {}), ...(out.effort ? { effort: out.effort } : {}) } : null;
+export async function lastPick(
+  call: (cap: string, input: unknown) => Promise<unknown> | unknown,
+): Promise<{ model: string; provider?: string; effort?: string } | null> {
+  const out = (await Promise.resolve(call("engine.last_pick.get", {})).catch(() => null)) as
+    | { model?: string; provider?: string; effort?: string }
+    | null
+    | undefined;
+  return out?.model
+    ? {
+        model: out.model,
+        ...(out.provider ? { provider: out.provider } : {}),
+        ...(out.effort ? { effort: out.effort } : {}),
+      }
+    : null;
 }
 
 /** What the composer says when the first message could not start a chat: plain words, the draft stays. */

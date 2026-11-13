@@ -20,8 +20,12 @@ export { PANE_W, SIDEBAR_W };
 export function ChatsLoading(): ReactElement {
   return (
     <View testID="chats-place-loading" accessibilityLabel="Loading" style={st.row}>
-      <View style={st.side}><ChatsSidebarLoading /></View>
-      <View style={st.main}><ConversationLoading /></View>
+      <View style={st.side}>
+        <ChatsSidebarLoading />
+      </View>
+      <View style={st.main}>
+        <ConversationLoading />
+      </View>
     </View>
   );
 }
@@ -40,9 +44,25 @@ function ChatsOnPhone({ rt }: { rt: NonNullable<ReturnType<typeof useOptionalShe
 }
 
 // The shell keys the place by the Space and the place, not the link, so a link that arrives while Chats is open comes through here.
-function ChatsLinked({ rt, hub }: { rt: NonNullable<ReturnType<typeof useOptionalShellRuntime>>; hub: ShellHub }): ReactElement {
+function ChatsLinked({
+  rt,
+  hub,
+}: {
+  rt: NonNullable<ReturnType<typeof useOptionalShellRuntime>>;
+  hub: ShellHub;
+}): ReactElement {
   const { opened } = usePlaceHash();
-  return <ChatsMounted rt={rt} hash={useHubState(hub).hash} opened={opened} onSwitch={hub.hold} onTitle={(title) => hub.retitle(hub.session().tabs.state().active, title)} closeSelf={() => hub.closeTab()} openInNewTab={(h) => hub.go("chats", h, true)} />;
+  return (
+    <ChatsMounted
+      rt={rt}
+      hash={useHubState(hub).hash}
+      opened={opened}
+      onSwitch={hub.hold}
+      onTitle={(title) => hub.retitle(hub.session().tabs.state().active, title)}
+      closeSelf={() => hub.closeTab()}
+      openInNewTab={(h) => hub.go("chats", h, true)}
+    />
+  );
 }
 
 const st = StyleSheet.create({

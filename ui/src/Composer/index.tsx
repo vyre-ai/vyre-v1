@@ -35,7 +35,21 @@ export { COMPOSER_SYMBOLS, composerSymbols, symbolMark } from "./props.ts";
 export { Glyph, ICON_UP, plainText } from "./shared.tsx";
 export { TalkContext } from "./Talk.tsx";
 export type { TalkPort } from "./Talk.tsx";
-export { EFFORTS, MODES, answering, contextRing, deleteToken, effortBars, effortForKey, modeInfo, nextMode, sendControl, sizeLabel, stripName, tokenRanges } from "./brain.ts";
+export {
+  EFFORTS,
+  MODES,
+  answering,
+  contextRing,
+  deleteToken,
+  effortBars,
+  effortForKey,
+  modeInfo,
+  nextMode,
+  sendControl,
+  sizeLabel,
+  stripName,
+  tokenRanges,
+} from "./brain.ts";
 export type { ChatMode, ComposerAgent, Effort, SendControl, TokenRange } from "./brain.ts";
 export { ModelPanel, contextFor, lowSuggestion, resetLabel } from "./ModelPanel.tsx";
 export type { ModelPanelProps, PanelAccount, PanelModel, PanelScope, PanelUsage, UsageMeter } from "./ModelPanel.tsx";
@@ -58,7 +72,10 @@ export interface Prepared {
 
 /** Lowercased words of letters and digits. */
 export function wordsOf(s: string): string[] {
-  return s.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  return s
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
 }
 
 export function prepare(label: string): Prepared {
@@ -94,17 +111,25 @@ export function quality(query: string, p: Prepared): number {
 /* ---------- lists and triggers ---------- */
 
 /** A list entry is a name, or a name with a quiet second line and a kind. */
-export type ListItem = string | { t: string; s?: string; kind?: string; sealed?: number; body?: string;
-  /** Facts the preview pane and the place need (a record's type, a file's size). */
-  data?: Record<string, string>;
-  /** An id a pick keeps (a record, file, folder or channel), so what is sent names the thing and not only its title. */
-  ref?: string;
-  /** A command that takes words after its name: the hint for them. Picking it writes "/name " and waits instead of running. */
-  arg?: string;
-  /** Other words it is found by, past its name: a connected folder's provider ("Google Drive", "SharePoint"), so typing the provider finds it. */
-  find?: string;
-  /** In the @ menu: the group it is listed under (the place knows who is in the chat). Without it an agent is under Agents and a person under People. */
-  group?: string };
+export type ListItem =
+  | string
+  | {
+      t: string;
+      s?: string;
+      kind?: string;
+      sealed?: number;
+      body?: string;
+      /** Facts the preview pane and the place need (a record's type, a file's size). */
+      data?: Record<string, string>;
+      /** An id a pick keeps (a record, file, folder or channel), so what is sent names the thing and not only its title. */
+      ref?: string;
+      /** A command that takes words after its name: the hint for them. Picking it writes "/name " and waits instead of running. */
+      arg?: string;
+      /** Other words it is found by, past its name: a connected folder's provider ("Google Drive", "SharePoint"), so typing the provider finds it. */
+      find?: string;
+      /** In the @ menu: the group it is listed under (the place knows who is in the chat). Without it an agent is under Agents and a person under People. */
+      group?: string;
+    };
 
 export interface ComposerLists {
   people?: readonly ListItem[];
@@ -139,7 +164,11 @@ export interface Trigger {
 const SYMBOL_CHAR: Record<ComposerSymbol, "@" | "#" | "/"> = { at: "@", hash: "#", slash: "/" };
 
 /** The open trigger before the cursor: @, # or / at the start or after a space, or an unclosed [[ . */
-export function detectTrigger(text: string, cursor: number, allowed: readonly ComposerSymbol[] = ["at", "hash", "slash"]): Trigger | null {
+export function detectTrigger(
+  text: string,
+  cursor: number,
+  allowed: readonly ComposerSymbol[] = ["at", "hash", "slash"],
+): Trigger | null {
   const end = Math.max(0, Math.min(cursor, text.length));
   const before = text.slice(0, end);
   const link = /\[\[([^\]\n]*)$/.exec(before);
@@ -183,13 +212,19 @@ export function isPopupItem(entry: PopupEntry): entry is PopupItem {
 
 const nameOf = (x: ListItem): string => (typeof x === "string" ? x : x.t);
 const noteOf = (x: ListItem): string | undefined => (typeof x === "string" ? undefined : x.s);
-const kindOf = (x: ListItem, fallback: string): string => (typeof x === "string" ? fallback : x.kind ?? fallback);
+const kindOf = (x: ListItem, fallback: string): string => (typeof x === "string" ? fallback : (x.kind ?? fallback));
 const firstWord = (s: string): string => s.trim().split(/\s+/)[0] ?? s;
 
 export const MENTION_LIMIT = 8;
 export const GROUP_LIMIT = 4;
 
-function ranked(items: readonly ListItem[] | undefined, query: string, group: string, kind: string, limit: number): PopupItem[] {
+function ranked(
+  items: readonly ListItem[] | undefined,
+  query: string,
+  group: string,
+  kind: string,
+  limit: number,
+): PopupItem[] {
   const scored: { at: number; q: number; item: PopupItem }[] = [];
   (items ?? []).forEach((x, at) => {
     const label = nameOf(x).replace(/^[#/]/, "");
@@ -202,7 +237,21 @@ function ranked(items: readonly ListItem[] | undefined, query: string, group: st
     const ref = typeof x === "string" ? undefined : x.ref;
     const arg = typeof x === "string" ? undefined : x.arg;
     const data = typeof x === "string" ? undefined : x.data;
-    scored.push({ at, q, item: { group: (typeof x === "string" ? undefined : x.group) ?? group, label, kind: kindOf(x, kind), ...(note === undefined ? {} : { note }), ...(sealed === undefined ? {} : { sealed }), ...(body === undefined ? {} : { body }), ...(ref === undefined ? {} : { ref }), ...(arg === undefined ? {} : { arg }), ...(data === undefined ? {} : { data }) } });
+    scored.push({
+      at,
+      q,
+      item: {
+        group: (typeof x === "string" ? undefined : x.group) ?? group,
+        label,
+        kind: kindOf(x, kind),
+        ...(note === undefined ? {} : { note }),
+        ...(sealed === undefined ? {} : { sealed }),
+        ...(body === undefined ? {} : { body }),
+        ...(ref === undefined ? {} : { ref }),
+        ...(arg === undefined ? {} : { arg }),
+        ...(data === undefined ? {} : { data }),
+      },
+    });
   });
   scored.sort((a, b) => b.q - a.q || a.at - b.at);
   return scored.slice(0, limit).map((s) => s.item);
@@ -216,12 +265,22 @@ export type HashScope = "All" | HashGroup;
 export const SCOPED_LIMIT = 12;
 
 const HASH_LIST: Record<HashGroup, [keyof ComposerLists, string]> = {
-  Records: ["records", "Record"], Files: ["files", "File"], Folders: ["folders", "Folder"], Chats: ["chats", "Chat"],
-  Automations: ["automations", "Automation"], Projects: ["projects", "Project"], Channels: ["channels", "Channel"],
+  Records: ["records", "Record"],
+  Files: ["files", "File"],
+  Folders: ["folders", "Folder"],
+  Chats: ["chats", "Chat"],
+  Automations: ["automations", "Automation"],
+  Projects: ["projects", "Project"],
+  Channels: ["channels", "Channel"],
 };
 
 /** The suggestion popup for an open trigger. # is one search over every kind, grouped with section heads; a scope narrows it to one group and shows more of it. */
-export function popupFor(trigger: Trigger, lists: ComposerLists, _agentChat = true, scope: HashScope = "All"): PopupEntry[] {
+export function popupFor(
+  trigger: Trigger,
+  lists: ComposerLists,
+  _agentChat = true,
+  scope: HashScope = "All",
+): PopupEntry[] {
   const q = trigger.query;
   if (trigger.ch === "@") {
     // only mentions belong here: a stray menu row (Report a problem is added to menus, never to this list) is dropped
@@ -247,14 +306,27 @@ export function popupFor(trigger: Trigger, lists: ComposerLists, _agentChat = tr
     const skill = (x: ListItem): boolean => typeof x !== "string" && (x.kind === "Plugin" || x.kind === "Skill");
     const commands = (lists.commands ?? []).filter((x) => !skill(x));
     const skills = (lists.commands ?? []).filter(skill);
-    for (const [name, items, kind] of [["Commands", commands, "Command"], ["Skills", skills, "Skill"], ["Templates", lists.templates, "Template"], ["Snippets", lists.snippets, "Snippet"]] as const) {
+    for (const [name, items, kind] of [
+      ["Commands", commands, "Command"],
+      ["Skills", skills, "Skill"],
+      ["Templates", lists.templates, "Template"],
+      ["Snippets", lists.snippets, "Snippet"],
+    ] as const) {
       const found = ranked(items, q, name, kind, MENTION_LIMIT);
       if (found.length) out.push({ head: name }, ...found);
     }
     return out;
   }
   if (trigger.ch === ":") {
-    return findEmoji(q).map((e): PopupItem => ({ group: "Emoji", label: e.char, note: e.name.replace(/_/g, " "), kind: "Emoji", body: e.char }));
+    return findEmoji(q).map(
+      (e): PopupItem => ({
+        group: "Emoji",
+        label: e.char,
+        note: e.name.replace(/_/g, " "),
+        kind: "Emoji",
+        body: e.char,
+      }),
+    );
   }
   if (trigger.ch === "[[") {
     const found = ranked(lists.records, q, "Records", "Record", MENTION_LIMIT);
@@ -266,7 +338,10 @@ export function popupFor(trigger: Trigger, lists: ComposerLists, _agentChat = tr
   for (const name of HASH_GROUPS) {
     if (scope !== "All" && scope !== name) continue;
     const [key, kind] = HASH_LIST[name];
-    const sources = name === "Folders" ? (lists.folders ?? []).filter((x) => typeof x !== "string" && x.data?.["mount"] !== undefined).length : 0;
+    const sources =
+      name === "Folders"
+        ? (lists.folders ?? []).filter((x) => typeof x !== "string" && x.data?.["mount"] !== undefined).length
+        : 0;
     const limit = scope === "All" ? Math.min(SCOPED_LIMIT, Math.max(GROUP_LIMIT, sources + 2)) : SCOPED_LIMIT;
     const found = ranked(lists[key], q, name, kind, limit);
     if (found.length) groups.push({ name, found });
@@ -339,25 +414,42 @@ export const NO_AGENT_LINE = "No agent will reply. @mention one";
 export function whoAnswers(text: string, ctx: WhoContext): WhoAnswer {
   const agentNames = mentionsIn(text, ctx.agents);
   const personNames = mentionsIn(text, ctx.people);
-  const inChat = (n: string): boolean => ctx.members === undefined || ctx.members.some((x) => firstWord(x).toLowerCase() === firstWord(n).toLowerCase());
+  const inChat = (n: string): boolean =>
+    ctx.members === undefined || ctx.members.some((x) => firstWord(x).toLowerCase() === firstWord(n).toLowerCase());
   const thread: RouteThread = {
     ...(ctx.kind === undefined ? {} : { kind: ctx.kind }),
     ...(ctx.members === undefined ? {} : { people: personNames.filter(inChat) }),
     agents: [
-      ...(ctx.lead === undefined ? [] : [{ id: ctx.lead, ...(ctx.leadName ? { name: ctx.leadName } : {}), mode: "lead" as const }]),
+      ...(ctx.lead === undefined
+        ? []
+        : [{ id: ctx.lead, ...(ctx.leadName ? { name: ctx.leadName } : {}), mode: "lead" as const }]),
       ...(ctx.listening ?? []).filter((n) => n !== ctx.lead).map((id) => ({ id, mode: "listen" as const })),
     ],
   };
   const message: RouteMessage = {
     text,
     author: { kind: "person", id: "me" },
-    mentions: [...agentNames.map((id) => ({ kind: "agent" as const, id })), ...personNames.map((id) => ({ kind: "person" as const, id }))],
+    mentions: [
+      ...agentNames.map((id) => ({ kind: "agent" as const, id })),
+      ...personNames.map((id) => ({ kind: "person" as const, id })),
+    ],
   };
   const result = route(thread, message);
-  if (result.responders.length > 0) return { line: `${result.responders.join(" and ")} will reply`, responders: result.responders, dim: false, reason: result.reason };
+  if (result.responders.length > 0)
+    return {
+      line: `${result.responders.join(" and ")} will reply`,
+      responders: result.responders,
+      dim: false,
+      reason: result.reason,
+    };
   if (result.reason === "person_addressed") {
     const who = firstWord(personNames[0] ?? "They");
-    return { line: `Goes to ${who}; no agent will reply${ctx.leadName ? `. Ask ${ctx.leadName} too` : ""}`, responders: [], dim: true, reason: result.reason };
+    return {
+      line: `Goes to ${who}; no agent will reply${ctx.leadName ? `. Ask ${ctx.leadName} too` : ""}`,
+      responders: [],
+      dim: true,
+      reason: result.reason,
+    };
   }
   // owner ruling, 3 Nov 2026: agents listen until named, and the line says so plainly
   return { line: NO_AGENT_LINE, responders: [], dim: true, reason: result.reason };
@@ -365,19 +457,30 @@ export function whoAnswers(text: string, ctx: WhoContext): WhoAnswer {
 
 /** The line to show: computed when the text addresses someone or the caller gave a thread; otherwise the caller's own line. */
 export function answerLine(text: string, fallback: string, ctx: WhoContext | undefined): WhoAnswer {
-  if (ctx === undefined) return { line: fallback, responders: [], dim: /^no agent|no agent will/i.test(fallback), reason: "given" };
+  if (ctx === undefined)
+    return { line: fallback, responders: [], dim: /^no agent|no agent will/i.test(fallback), reason: "given" };
   const computed = whoAnswers(text, ctx);
   const addressed = computed.reason === "mention" || computed.reason === "person_addressed";
-  if (!addressed && fallback.length > 0) return { ...computed, line: fallback, dim: /no agent will reply/i.test(fallback) };
+  if (!addressed && fallback.length > 0)
+    return { ...computed, line: fallback, dim: /no agent will reply/i.test(fallback) };
   return computed;
 }
 
 /** A browser File, as far as the composer reads it. */
-interface FileLike { name: string; size?: number; type?: string }
+interface FileLike {
+  name: string;
+  size?: number;
+  type?: string;
+}
 
 /** The tray entry for a dropped, pasted or picked file: its name, and the file itself so the sender can read the bytes. */
 export function attachmentOf(f: FileLike, fallbackName = "File"): ComposerAttachment {
-  return { name: f.name || fallbackName, file: f, ...(typeof f.size === "number" ? { size: f.size } : {}), ...(f.type ? { mime: f.type } : {}) };
+  return {
+    name: f.name || fallbackName,
+    file: f,
+    ...(typeof f.size === "number" ? { size: f.size } : {}),
+    ...(f.type ? { mime: f.type } : {}),
+  };
 }
 
 /* ---------- state ---------- */
@@ -439,31 +542,72 @@ export function refsIn(state: Pick<ComposerState, "text" | "refs">): ComposerRef
 }
 
 /** The payload and the cleared state in one step: the field empties in the same call, before any server answer. */
-export function sendNow(state: ComposerState, answers: string, mode: SendMode = "queue"): { payload: ComposerSend; next: ComposerState } | null {
+export function sendNow(
+  state: ComposerState,
+  answers: string,
+  mode: SendMode = "queue",
+): { payload: ComposerSend; next: ComposerState } | null {
   if (!canSend(state)) return null;
-  const payload: ComposerSend = { text: state.text.trim(), chips: state.chips.slice(), files: state.files.slice(), folder: state.folder, links: linksIn(state.text), refs: refsIn(state), mode, answers };
+  const payload: ComposerSend = {
+    text: state.text.trim(),
+    chips: state.chips.slice(),
+    files: state.files.slice(),
+    folder: state.folder,
+    links: linksIn(state.text),
+    refs: refsIn(state),
+    mode,
+    answers,
+  };
   return { payload, next: { ...initialState("", state.folder), cursor: 0 } };
 }
 
 export type PickEffect = { kind: "command"; name: string } | { kind: "folder"; folder: string } | { kind: "none" };
 
 /** Applies a picked popup item to the state. */
-export function applyPick(state: ComposerState, trigger: Trigger, item: PopupItem, opts: { /** a picked folder sets the thread's folder chip; false where nothing takes the chip (a chat), so a folder with an id is linked like a file */ folderChip?: boolean } = {}): { next: ComposerState; effect: PickEffect } {
+export function applyPick(
+  state: ComposerState,
+  trigger: Trigger,
+  item: PopupItem,
+  opts: {
+    /** a picked folder sets the thread's folder chip; false where nothing takes the chip (a chat), so a folder with an id is linked like a file */ folderChip?: boolean;
+  } = {},
+): { next: ComposerState; effect: PickEffect } {
   const before = state.text.slice(0, trigger.start);
   const after = state.text.slice(trigger.end);
-  const place = (text: string, insertAt: number): ComposerState => ({ ...state, text, cursor: insertAt, active: -1, dismissedAt: -1 });
+  const place = (text: string, insertAt: number): ComposerState => ({
+    ...state,
+    text,
+    cursor: insertAt,
+    active: -1,
+    dismissedAt: -1,
+  });
   if (trigger.ch === "@") {
-    const insert = `@${item.kind === "Agent" ? item.label : firstWord(item.label)} `;   // an agent's whole name; a person's first name, as people say it
+    const insert = `@${item.kind === "Agent" ? item.label : firstWord(item.label)} `; // an agent's whole name; a person's first name, as people say it
     return { next: place(before + insert + after, before.length + insert.length), effect: { kind: "none" } };
   }
   if (trigger.ch === ":") {
     const insert = `${item.body ?? item.label} `;
-    return { next: place(before + insert + after.replace(/^ /, ""), before.length + insert.length), effect: { kind: "none" } };
+    return {
+      next: place(before + insert + after.replace(/^ /, ""), before.length + insert.length),
+      effect: { kind: "none" },
+    };
   }
   if (trigger.ch === "[[") {
     const insert = `[[${item.label}]] `;
     const next = place(before + insert + after, before.length + insert.length);
-    return { next: item.ref === undefined ? next : { ...next, refs: [...(state.refs ?? []).filter((r) => r.id !== item.ref), { kind: item.kind, id: item.ref, title: item.label }] }, effect: { kind: "none" } };
+    return {
+      next:
+        item.ref === undefined
+          ? next
+          : {
+              ...next,
+              refs: [
+                ...(state.refs ?? []).filter((r) => r.id !== item.ref),
+                { kind: item.kind, id: item.ref, title: item.label },
+              ],
+            },
+      effect: { kind: "none" },
+    };
   }
   if (trigger.ch === "/") {
     if (item.kind === "Template" || item.kind === "Snippet") {
@@ -485,20 +629,38 @@ export function applyPick(state: ComposerState, trigger: Trigger, item: PopupIte
   const insert = `#${item.label} `;
   const next = place(before + insert + after.replace(/^ /, ""), before.length + insert.length);
   if (item.ref === undefined) return { next, effect: { kind: "none" } };
-  return { next: { ...next, refs: [...(state.refs ?? []).filter((r) => r.id !== item.ref), { kind: item.kind, id: item.ref, title: item.label, token: "#" }] }, effect: { kind: "none" } };
+  return {
+    next: {
+      ...next,
+      refs: [
+        ...(state.refs ?? []).filter((r) => r.id !== item.ref),
+        { kind: item.kind, id: item.ref, title: item.label, token: "#" },
+      ],
+    },
+    effect: { kind: "none" },
+  };
 }
 
 /** From Files: the picked file joins the tray as the file itself (its id), and the # typed to find it goes. */
 export function applyAttachPick(state: ComposerState, trigger: Trigger, item: PopupItem): ComposerState {
   const text = state.text.slice(0, trigger.start) + state.text.slice(trigger.end);
   const size = Number(item.data?.["size"]);
-  const file: ComposerAttachment = { name: item.label, ...(item.ref === undefined ? {} : { fileId: item.ref }), ...(Number.isFinite(size) && item.data?.["size"] !== undefined ? { size } : {}) };
-  if (state.files.some((f) => f.fileId !== undefined && f.fileId === file.fileId)) return { ...state, text, cursor: trigger.start, active: -1, dismissedAt: -1 };
+  const file: ComposerAttachment = {
+    name: item.label,
+    ...(item.ref === undefined ? {} : { fileId: item.ref }),
+    ...(Number.isFinite(size) && item.data?.["size"] !== undefined ? { size } : {}),
+  };
+  if (state.files.some((f) => f.fileId !== undefined && f.fileId === file.fileId))
+    return { ...state, text, cursor: trigger.start, active: -1, dismissedAt: -1 };
   return { ...state, text, cursor: trigger.start, files: [...state.files, file], active: -1, dismissedAt: -1 };
 }
 
 /** What Enter does. Enter sends (Shift+Enter writes a line); in email mode Cmd/Ctrl+Enter sends. While an agent works a plain send queues and Option+Enter (or Cmd/Ctrl+Enter) sends now. */
-export function enterAction(key: { shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean; isComposing?: boolean }, enterSends: boolean, working: boolean): "send" | "interrupt" | "newline" {
+export function enterAction(
+  key: { shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean; isComposing?: boolean },
+  enterSends: boolean,
+  working: boolean,
+): "send" | "interrupt" | "newline" {
   if (key.isComposing === true) return "newline";
   const mod = key.metaKey === true || key.ctrlKey === true;
   const alt = key.altKey === true;
@@ -517,16 +679,23 @@ export function composerMenu(actions: { attach: () => void; paste: () => void; c
   ];
 }
 
-
 /* ---------- icons ---------- */
 
-const svg = (d: string, extra = ""): string => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"${extra}>${d}</svg>`;
-export const ICON_STOP = '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="2"/></svg>';
+const svg = (d: string, extra = ""): string =>
+  `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"${extra}>${d}</svg>`;
+export const ICON_STOP =
+  '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="2"/></svg>';
 export const ICON_PLUS = svg('<path d="M8 3.500v9M3.500 8h9"/>');
-export const ICON_CLIP = svg('<path d="M13 7.5L7.800 12.700a3 3 0 01-4.200-4.200l5.500-5.500a2 2 0 012.800 2.800L6.400 11.300a1 1 0 01-1.400-1.400l4.800-4.800"/>');
-export const ICON_FOLDER = svg('<path d="M2.500 4.500a1 1 0 011-1h3l1.500 1.500h4.500a1 1 0 011 1v6a1 1 0 01-1 1h-9a1 1 0 01-1-1z"/>');
+export const ICON_CLIP = svg(
+  '<path d="M13 7.5L7.800 12.700a3 3 0 01-4.200-4.200l5.500-5.500a2 2 0 012.800 2.800L6.400 11.300a1 1 0 01-1.400-1.400l4.800-4.800"/>',
+);
+export const ICON_FOLDER = svg(
+  '<path d="M2.500 4.500a1 1 0 011-1h3l1.500 1.500h4.500a1 1 0 011 1v6a1 1 0 01-1 1h-9a1 1 0 01-1-1z"/>',
+);
 export const ICON_FILE = svg('<path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/>');
-export const ICON_RECORD = svg('<rect x="2.500" y="2.500" width="11" height="11" rx="1.500"/><path d="M2.500 6h11M6.500 6v7.500"/>');
+export const ICON_RECORD = svg(
+  '<rect x="2.500" y="2.500" width="11" height="11" rx="1.500"/><path d="M2.500 6h11M6.500 6v7.500"/>',
+);
 
 /* ---------- the component ---------- */
 
@@ -617,11 +786,14 @@ const MAX_FIELD = 168;
 /** A field this tall or taller holds more than one line: the controls leave the text's row. */
 export const MULTI_LINE = 34;
 /** The field's cap in a window this tall: never more than about a third of it. */
-export const fieldCap = (windowHeight: number): number => (windowHeight > 0 ? Math.max(66, Math.min(MAX_FIELD, Math.floor(windowHeight * 0.3))) : MAX_FIELD);
+export const fieldCap = (windowHeight: number): number =>
+  windowHeight > 0 ? Math.max(66, Math.min(MAX_FIELD, Math.floor(windowHeight * 0.3))) : MAX_FIELD;
 const FIELD_STYLE = { outlineStyle: "none", outlineWidth: 0, backgroundColor: "transparent" } as unknown as TextStyle;
 const BOX_SHADOW = { boxShadow: "var(--sh-2), inset 0 0 0 1px var(--line)" } as unknown as ViewStyle;
 /** Focus shows on the pill only: an accent hairline and a soft wash around it. The field inside has no box and no ring of its own. */
-const FOCUS_SHADOW = { boxShadow: "var(--sh-2), inset 0 0 0 1px var(--accent-line), 0 0 0 4px var(--accent-wash)" } as unknown as ViewStyle;
+const FOCUS_SHADOW = {
+  boxShadow: "var(--sh-2), inset 0 0 0 1px var(--accent-line), 0 0 0 4px var(--accent-wash)",
+} as unknown as ViewStyle;
 const HOVER = { backgroundColor: "var(--hover)" };
 const web = Platform.OS === "web";
 /** Every control in the composer's bar is this tall and wide to press, centred on one line, with this gap between them. */
@@ -641,28 +813,48 @@ export const panelFitsInline = (boxWidth: number): boolean => boxWidth > 0 && bo
 export const isStacked = (boxWidth: number): boolean => boxWidth > 0 && boxWidth < STACK_BELOW;
 
 const KIND_LOOK: Record<string, { icon: string; tint: string }> = {
-  Record: { icon: I.record, tint: "#5a7be0" }, File: { icon: I.file, tint: "#d24b45" }, Folder: { icon: I.folder, tint: "#c98a16" }, Chat: { icon: I.chat, tint: "#7e7c77" },
-  Automation: { icon: I.bolt, tint: "#e0a33a" }, Project: { icon: I.project, tint: "#3f8f78" }, Channel: { icon: I.channel, tint: "#8b7cf6" },
+  Record: { icon: I.record, tint: "#5a7be0" },
+  File: { icon: I.file, tint: "#d24b45" },
+  Folder: { icon: I.folder, tint: "#c98a16" },
+  Chat: { icon: I.chat, tint: "#7e7c77" },
+  Automation: { icon: I.bolt, tint: "#e0a33a" },
+  Project: { icon: I.project, tint: "#3f8f78" },
+  Channel: { icon: I.channel, tint: "#8b7cf6" },
 };
 const lookOf = (kind: string): { icon: string; tint: string } => KIND_LOOK[kind] ?? { icon: I.hash, tint: "#7e7c77" };
 const MODE_ICON: Record<ChatMode, string> = { ask: I.lock, auto: I.bolt, plan: I.plan };
 
 function anchorOf(e: unknown): { x: number; y: number } {
-  const ev = e as { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } };
+  const ev = e as {
+    nativeEvent?: { pageX?: number; pageY?: number };
+    currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
+  };
   const box = ev.currentTarget?.getBoundingClientRect?.();
   if (box) return { x: box.left, y: box.bottom + 4 };
   return { x: ev.nativeEvent?.pageX ?? 0, y: ev.nativeEvent?.pageY ?? 0 };
 }
 
-interface TrayChip { key: string; icon: string; name: string; onRemove?: () => void }
+interface TrayChip {
+  key: string;
+  icon: string;
+  name: string;
+  onRemove?: () => void;
+}
 
 function Chip({ chip }: { chip: TrayChip }): ReactElement {
   return (
     <View style={styles.chip} testID={`composer-chip-${chip.key}`}>
       <MenuIcon icon={chip.icon} size={13} color="var(--ink-3)" />
-      <Text numberOfLines={1} style={styles.chipText}>{chip.name}</Text>
+      <Text numberOfLines={1} style={styles.chipText}>
+        {chip.name}
+      </Text>
       {chip.onRemove ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${chip.name}`} onPress={chip.onRemove} style={({ hovered }: { hovered?: boolean }) => [styles.chipX, hovered === true && HOVER]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Remove ${chip.name}`}
+          onPress={chip.onRemove}
+          style={({ hovered }: { hovered?: boolean }) => [styles.chipX, hovered === true && HOVER]}
+        >
           <Text style={styles.chipXText}>{"×"}</Text>
         </Pressable>
       ) : null}
@@ -678,26 +870,55 @@ function thumbOf(f: ComposerAttachment): string | null {
   if (!U?.createObjectURL) return null;
   let url = thumbs.get(file);
   if (url === undefined) {
-    try { url = U.createObjectURL(file); } catch { return null; }
+    try {
+      url = U.createObjectURL(file);
+    } catch {
+      return null;
+    }
     thumbs.set(file, url);
   }
   return url;
 }
 
 /** One attached file in the tray: a thumbnail or a file mark, the name, the size, and a remove button that shows on hover. */
-function FileCard({ f, onRemove, testID }: { f: ComposerAttachment; onRemove?: () => void; testID: string }): ReactElement {
+function FileCard({
+  f,
+  onRemove,
+  testID,
+}: {
+  f: ComposerAttachment;
+  onRemove?: () => void;
+  testID: string;
+}): ReactElement {
   const thumb = thumbOf(f);
   return (
     <View style={styles.card} testID={testID} {...webProps({ dataSet: { cmpCard: "1" } })}>
       <View style={styles.cardIc}>
-        {thumb ? createElement("img", { src: thumb, alt: "", style: { width: "100%", height: "100%", objectFit: "cover" } }) : <Glyph icon={I.file} native="□" size={15} color="var(--ink-2)" />}
+        {thumb ? (
+          createElement("img", { src: thumb, alt: "", style: { width: "100%", height: "100%", objectFit: "cover" } })
+        ) : (
+          <Glyph icon={I.file} native="□" size={15} color="var(--ink-2)" />
+        )}
       </View>
       <View style={styles.cardText}>
-        <Text numberOfLines={1} style={styles.cardName}>{f.name}</Text>
-        {f.size !== undefined ? <Text style={styles.cardSize}>{sizeLabel(f.size)}</Text> : f.fileId ? <Text style={styles.cardSize}>From Files</Text> : null}
+        <Text numberOfLines={1} style={styles.cardName}>
+          {f.name}
+        </Text>
+        {f.size !== undefined ? (
+          <Text style={styles.cardSize}>{sizeLabel(f.size)}</Text>
+        ) : f.fileId ? (
+          <Text style={styles.cardSize}>From Files</Text>
+        ) : null}
       </View>
       {onRemove ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${f.name}`} onPress={onRemove} testID={`${testID}-remove`} style={styles.cardRm} {...webProps({ dataSet: { cmpRm: "1" } })}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Remove ${f.name}`}
+          onPress={onRemove}
+          testID={`${testID}-remove`}
+          style={styles.cardRm}
+          {...webProps({ dataSet: { cmpRm: "1" } })}
+        >
           <Text style={styles.cardRmText}>{"×"}</Text>
         </Pressable>
       ) : null}
@@ -709,11 +930,41 @@ function FileCard({ f, onRemove, testID }: { f: ComposerAttachment; onRemove?: (
  * The one settings icon (prototype s-chat221): sliders, and a small dot while anything is off its default (a mode other than Auto, a chat that does not run on this computer, a
  * set effort, a pick that cannot run here). It names no model: the model, account, effort and the rest are in the menu it opens, under the model's own name.
  */
-export function offDefault({ mode, runsChip, effort, unavailable }: { mode?: ChatMode | undefined; runsChip?: string | undefined; effort?: string | undefined; unavailable?: boolean | undefined }): boolean {
-  return (mode !== undefined && mode !== "auto") || runsChip !== undefined || (effort !== undefined && effort !== "medium") || unavailable === true;
+export function offDefault({
+  mode,
+  runsChip,
+  effort,
+  unavailable,
+}: {
+  mode?: ChatMode | undefined;
+  runsChip?: string | undefined;
+  effort?: string | undefined;
+  unavailable?: boolean | undefined;
+}): boolean {
+  return (
+    (mode !== undefined && mode !== "auto") ||
+    runsChip !== undefined ||
+    (effort !== undefined && effort !== "medium") ||
+    unavailable === true
+  );
 }
 
-function AgentStrip({ list, onPress, open, mode, runsChip }: { list: readonly ComposerAgent[]; narrow?: boolean; onPress?: () => void; open: boolean; face?: boolean; mode?: ChatMode | undefined; runsChip?: string | undefined; ring?: unknown }): ReactElement {
+function AgentStrip({
+  list,
+  onPress,
+  open,
+  mode,
+  runsChip,
+}: {
+  list: readonly ComposerAgent[];
+  narrow?: boolean;
+  onPress?: () => void;
+  open: boolean;
+  face?: boolean;
+  mode?: ChatMode | undefined;
+  runsChip?: string | undefined;
+  ring?: unknown;
+}): ReactElement {
   const a = list[0] as ComposerAgent;
   const name = stripName(list);
   const dot = offDefault({ mode, runsChip, effort: a.effort, unavailable: a.unavailable });
@@ -724,10 +975,22 @@ function AgentStrip({ list, onPress, open, mode, runsChip }: { list: readonly Co
       {dot ? <View style={styles.setDot} testID="composer-settings-dot" /> : null}
     </>
   );
-  if (!onPress) return <View style={styles.setBtn} testID="composer-strip" accessibilityLabel={label}>{body}</View>;
+  if (!onPress)
+    return (
+      <View style={styles.setBtn} testID="composer-strip" accessibilityLabel={label}>
+        {body}
+      </View>
+    );
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ expanded: open }} testID="composer-strip" onPress={onPress} {...webProps({ title: "Model and settings" })}
-      style={({ hovered }: { hovered?: boolean }) => [styles.setBtn, (hovered === true || open) && HOVER]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ expanded: open }}
+      testID="composer-strip"
+      onPress={onPress}
+      {...webProps({ title: "Model and settings" })}
+      style={({ hovered }: { hovered?: boolean }) => [styles.setBtn, (hovered === true || open) && HOVER]}
+    >
       {body}
     </Pressable>
   );
@@ -738,24 +1001,57 @@ function AgentStrip({ list, onPress, open, mode, runsChip }: { list: readonly Co
  * wash behind a long draft stayed at 0 while the text scrolled under it and the boxes slid onto the wrong words (owner report, rc.20). The textarea's own scrollTop is the truth.
  */
 export function scrollTopOf(e: unknown): number {
-  const ev = e as { nativeEvent?: { contentOffset?: { y?: number }; target?: { scrollTop?: number } }; target?: { scrollTop?: number }; currentTarget?: { scrollTop?: number } } | null;
-  const y = ev?.nativeEvent?.contentOffset?.y ?? ev?.currentTarget?.scrollTop ?? ev?.target?.scrollTop ?? ev?.nativeEvent?.target?.scrollTop ?? 0;
+  const ev = e as {
+    nativeEvent?: { contentOffset?: { y?: number }; target?: { scrollTop?: number } };
+    target?: { scrollTop?: number };
+    currentTarget?: { scrollTop?: number };
+  } | null;
+  const y =
+    ev?.nativeEvent?.contentOffset?.y ??
+    ev?.currentTarget?.scrollTop ??
+    ev?.target?.scrollTop ??
+    ev?.nativeEvent?.target?.scrollTop ??
+    0;
   return Number.isFinite(y) ? Math.max(0, y) : 0;
 }
 
 /** The field's tokens, drawn behind the text: a wash under each #link, @mention and [[link]]. The text itself stays the field's own. */
-function TokenBackdrop({ text, ranges, scrollY, style, pad }: { text: string; ranges: readonly TokenRange[]; scrollY: number; style: TextStyle; pad: readonly (ViewStyle | false)[] }): ReactElement {
+function TokenBackdrop({
+  text,
+  ranges,
+  scrollY,
+  style,
+  pad,
+}: {
+  text: string;
+  ranges: readonly TokenRange[];
+  scrollY: number;
+  style: TextStyle;
+  pad: readonly (ViewStyle | false)[];
+}): ReactElement {
   const parts: ReactElement[] = [];
   let at = 0;
   ranges.forEach((r, i) => {
     if (r.start > at) parts.push(<Text key={`t${i}`}>{text.slice(at, r.start)}</Text>);
-    parts.push(<Text key={`k${i}`} style={styles.tok} testID={`composer-token-${r.kind}`}>{text.slice(r.start, r.end)}</Text>);
+    parts.push(
+      <Text key={`k${i}`} style={styles.tok} testID={`composer-token-${r.kind}`}>
+        {text.slice(r.start, r.end)}
+      </Text>,
+    );
     at = r.end;
   });
   if (at < text.length) parts.push(<Text key="rest">{text.slice(at)}</Text>);
   return (
-    <View pointerEvents="none" style={[styles.backdrop, ...pad, { transform: [{ translateY: -scrollY }] }]} testID="composer-tokens" aria-hidden>
-      <Text style={[style, styles.ghost]} {...webProps({ dataSet: { cmpGhost: "1" } })}>{parts}{"​"}</Text>
+    <View
+      pointerEvents="none"
+      style={[styles.backdrop, ...pad, { transform: [{ translateY: -scrollY }] }]}
+      testID="composer-tokens"
+      aria-hidden
+    >
+      <Text style={[style, styles.ghost]} {...webProps({ dataSet: { cmpGhost: "1" } })}>
+        {parts}
+        {"​"}
+      </Text>
     </View>
   );
 }
@@ -798,56 +1094,121 @@ export function Composer(props: ComposerProps): ReactElement {
   // the model menu is anchored to its composer: in a composer too narrow for a side list (the Thread pane) it fills the composer's width and its lists open inline
   const panelNarrow = narrow || panelFitsInline(boxW);
   // a composer opened with words in it (Ask about this file, New message) is ready to type after them
-  useEffect(() => { if ((props.value ?? "") !== "" || props.autoFocus === true) input.current?.focus?.(); }, []);
+  useEffect(() => {
+    if ((props.value ?? "") !== "" || props.autoFocus === true) input.current?.focus?.();
+  }, []);
 
   useEffect(() => {
-    if (props.value !== undefined && props.value !== stateRef.current.text) setState((s) => ({ ...s, text: props.value ?? "", cursor: (props.value ?? "").length }));
+    if (props.value !== undefined && props.value !== stateRef.current.text)
+      setState((s) => ({ ...s, text: props.value ?? "", cursor: (props.value ?? "").length }));
   }, [props.value]);
   useEffect(() => {
-    if (props.folder !== undefined) setState((s) => (s.folder === (props.folder ?? null) ? s : { ...s, folder: props.folder ?? null }));
+    if (props.folder !== undefined)
+      setState((s) => (s.folder === (props.folder ?? null) ? s : { ...s, folder: props.folder ?? null }));
   }, [props.folder]);
-  useEffect(() => () => {
-    if (blur.current !== null) clearTimeout(blur.current);
-  }, []);
-  useDismiss(plusOpen, () => setPlusOpen(false), () => [plusNode.current as never, plusBtn.current as never]);
-  useDismiss(panelOpen, () => setPanelOpen(false), () => [panelNode.current as never, stripNode.current as never]);
+  useEffect(
+    () => () => {
+      if (blur.current !== null) clearTimeout(blur.current);
+    },
+    [],
+  );
+  useDismiss(
+    plusOpen,
+    () => setPlusOpen(false),
+    () => [plusNode.current as never, plusBtn.current as never],
+  );
+  useDismiss(
+    panelOpen,
+    () => setPanelOpen(false),
+    () => [panelNode.current as never, stripNode.current as never],
+  );
 
   const lists = props.lists ?? {};
   const hasLead = props.lead !== undefined && props.lead.length > 0;
-  const whoCtx: WhoContext | undefined = hasLead || lists.agents !== undefined || lists.people !== undefined
-    ? { ...(hasLead ? { lead: props.lead as string } : {}), ...(props.listening === undefined ? {} : { listening: props.listening }), ...(props.members === undefined ? {} : { members: props.members }), ...(hasLead ? { leadName: props.lead as string } : {}), ...(lists.agents === undefined ? {} : { agents: lists.agents }), ...(lists.people === undefined ? {} : { people: lists.people }), ...(props.agentChat === false ? { kind: "channel" } : {}) }
-    : undefined;
+  const whoCtx: WhoContext | undefined =
+    hasLead || lists.agents !== undefined || lists.people !== undefined
+      ? {
+          ...(hasLead ? { lead: props.lead as string } : {}),
+          ...(props.listening === undefined ? {} : { listening: props.listening }),
+          ...(props.members === undefined ? {} : { members: props.members }),
+          ...(hasLead ? { leadName: props.lead as string } : {}),
+          ...(lists.agents === undefined ? {} : { agents: lists.agents }),
+          ...(lists.people === undefined ? {} : { people: lists.people }),
+          ...(props.agentChat === false ? { kind: "channel" } : {}),
+        }
+      : undefined;
   const who = answerLine(state.text, props.whoWillAnswer, whoCtx);
-  const answerers = props.sendsOutside === true || props.hideWho === true ? [] : answering(who.responders, props.agents);
+  const answerers =
+    props.sendsOutside === true || props.hideWho === true ? [] : answering(who.responders, props.agents);
   // the settings icon: whoever will answer, else the chat's first agent when the place can open the menu (a channel with an agent in it)
-  const settingsAgent: ComposerAgent | undefined = answerers[0] ?? (props.renderPanel !== undefined && props.sendsOutside !== true && props.hideWho !== true ? props.agents?.[0] : undefined);
+  const settingsAgent: ComposerAgent | undefined =
+    answerers[0] ??
+    (props.renderPanel !== undefined && props.sendsOutside !== true && props.hideWho !== true
+      ? props.agents?.[0]
+      : undefined);
 
-  const trigger = useMemo(() => detectTrigger(state.text, state.cursor, symbols), [state.text, state.cursor, symbols.join(",")]);
-  const searchKey = trigger !== null && (trigger.ch === "#" || trigger.ch === "[[") ? `${trigger.ch}\u0000${trigger.query}` : null;
+  const trigger = useMemo(
+    () => detectTrigger(state.text, state.cursor, symbols),
+    [state.text, state.cursor, symbols.join(",")],
+  );
+  const searchKey =
+    trigger !== null && (trigger.ch === "#" || trigger.ch === "[[") ? `${trigger.ch}\u0000${trigger.query}` : null;
   useEffect(() => {
     if (searchKey === null || !props.suggest || trigger === null) return undefined;
     let live = true;
     const ch = trigger.ch as "#" | "[[";
     const q = trigger.query;
     const t = setTimeout(() => {
-      void props.suggest?.(ch, q).then((l) => { if (live) setFound({ key: searchKey, lists: l }); }, () => undefined);
+      void props.suggest?.(ch, q).then(
+        (l) => {
+          if (live) setFound({ key: searchKey, lists: l });
+        },
+        () => undefined,
+      );
     }, 150);
-    return () => { live = false; clearTimeout(t); };
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
   }, [searchKey]);
-  useEffect(() => { if (trigger === null) { setAttachMode(false); setScope("All"); } }, [trigger === null]);
-  const effective: ComposerLists = found !== null && searchKey !== null && found.key.split("\u0000")[0] === trigger?.ch ? { ...lists, ...found.lists } : lists;
+  useEffect(() => {
+    if (trigger === null) {
+      setAttachMode(false);
+      setScope("All");
+    }
+  }, [trigger === null]);
+  const effective: ComposerLists =
+    found !== null && searchKey !== null && found.key.split("\u0000")[0] === trigger?.ch
+      ? { ...lists, ...found.lists }
+      : lists;
   const pickScope: HashScope = attachMode ? "Files" : scope;
-  const entries = useMemo(() => (trigger === null ? [] : popupFor(trigger, effective, true, trigger.ch === "#" ? pickScope : "All")), [trigger, effective, pickScope]);
+  const entries = useMemo(
+    () => (trigger === null ? [] : popupFor(trigger, effective, true, trigger.ch === "#" ? pickScope : "All")),
+    [trigger, effective, pickScope],
+  );
   const hashLike = trigger !== null && (trigger.ch === "#" || trigger.ch === "[[");
   const open = trigger !== null && focused && trigger.start !== state.dismissedAt && (entries.length > 0 || hashLike);
   const selectable = popupSelectable(entries);
-  const active = open ? (selectable.includes(state.active) ? state.active : selectable[0] ?? -1) : -1;
+  const active = open ? (selectable.includes(state.active) ? state.active : (selectable[0] ?? -1)) : -1;
   const activeItem = active >= 0 ? entries[active] : undefined;
-  const activeKey = activeItem && isPopupItem(activeItem) ? `${activeItem.kind}:${activeItem.ref ?? activeItem.label}` : null;
+  const activeKey =
+    activeItem && isPopupItem(activeItem) ? `${activeItem.kind}:${activeItem.ref ?? activeItem.label}` : null;
   useEffect(() => {
-    if (!open || !hashLike || !props.preview || activeKey === null || previews[activeKey] !== undefined || !activeItem || !isPopupItem(activeItem)) return;
+    if (
+      !open ||
+      !hashLike ||
+      !props.preview ||
+      activeKey === null ||
+      previews[activeKey] !== undefined ||
+      !activeItem ||
+      !isPopupItem(activeItem)
+    )
+      return;
     setPreviews((p) => ({ ...p, [activeKey]: "loading" }));
-    void props.preview(activeItem).then((pv) => setPreviews((p) => ({ ...p, [activeKey]: pv })), () => setPreviews((p) => ({ ...p, [activeKey]: null })));
+    void props.preview(activeItem).then(
+      (pv) => setPreviews((p) => ({ ...p, [activeKey]: pv })),
+      () => setPreviews((p) => ({ ...p, [activeKey]: null })),
+    );
   }, [open, activeKey]);
 
   const working = props.working === true;
@@ -857,7 +1218,10 @@ export function Composer(props: ComposerProps): ReactElement {
 
   const patch = useCallback((next: Partial<ComposerState>) => setState((s) => ({ ...s, ...next })), []);
   const talk = useTalk({
-    read: () => ({ text: stateRef.current.text, cursor: Math.min(stateRef.current.cursor, stateRef.current.text.length) }),
+    read: () => ({
+      text: stateRef.current.text,
+      cursor: Math.min(stateRef.current.cursor, stateRef.current.text.length),
+    }),
     write: (text, cursor) => {
       const next = { ...stateRef.current, text, cursor };
       stateRef.current = next;
@@ -867,57 +1231,88 @@ export function Composer(props: ComposerProps): ReactElement {
     focus: () => input.current?.focus?.(),
   });
 
-  const submit = useCallback((mode: SendMode) => {
-    talk.finish();
-    const cur = stateRef.current;
-    const answers = answerLine(cur.text, props.whoWillAnswer, whoCtx).line;
-    const sent = sendNow(cur, answers, mode);
-    if (sent === null) return;
-    stateRef.current = sent.next;
-    setState(sent.next);
-    setHeight(MIN_FIELD);
-    setSendError(null);
-    props.onSend?.(sent.payload.text);
-    const out = mode === "interrupt" ? props.onInterrupt?.(sent.payload) : props.onSubmit?.(sent.payload);
-    // never lose what the person wrote: a send that fails gives the draft back and says why
-    if (out && typeof (out as Promise<unknown>).then === "function") {
-      (out as Promise<unknown>).then(undefined, (e: unknown) => {
-        if (stateRef.current.text === "" && stateRef.current.files.length === 0 && (stateRef.current.refs?.length ?? 0) === 0) { stateRef.current = cur; setState(cur); }
-        setSendError({ reason: e instanceof Error && e.message.trim() !== "" ? e.message.slice(0, 200) : "It did not send.", mode });
-      });
-    }
-  }, [props.onSend, props.onSubmit, props.onInterrupt, props.whoWillAnswer, props.lead, props.listening, props.lists, talk.finish]);
+  const submit = useCallback(
+    (mode: SendMode) => {
+      talk.finish();
+      const cur = stateRef.current;
+      const answers = answerLine(cur.text, props.whoWillAnswer, whoCtx).line;
+      const sent = sendNow(cur, answers, mode);
+      if (sent === null) return;
+      stateRef.current = sent.next;
+      setState(sent.next);
+      setHeight(MIN_FIELD);
+      setSendError(null);
+      props.onSend?.(sent.payload.text);
+      const out = mode === "interrupt" ? props.onInterrupt?.(sent.payload) : props.onSubmit?.(sent.payload);
+      // never lose what the person wrote: a send that fails gives the draft back and says why
+      if (out && typeof (out as Promise<unknown>).then === "function") {
+        (out as Promise<unknown>).then(undefined, (e: unknown) => {
+          if (
+            stateRef.current.text === "" &&
+            stateRef.current.files.length === 0 &&
+            (stateRef.current.refs?.length ?? 0) === 0
+          ) {
+            stateRef.current = cur;
+            setState(cur);
+          }
+          setSendError({
+            reason: e instanceof Error && e.message.trim() !== "" ? e.message.slice(0, 200) : "It did not send.",
+            mode,
+          });
+        });
+      }
+    },
+    [
+      props.onSend,
+      props.onSubmit,
+      props.onInterrupt,
+      props.whoWillAnswer,
+      props.lead,
+      props.listening,
+      props.lists,
+      talk.finish,
+    ],
+  );
 
-  const pick = useCallback((entry: PopupEntry | undefined) => {
-    const cur = stateRef.current;
-    if (entry === undefined || !isPopupItem(entry)) return;
-    const t = detectTrigger(cur.text, cur.cursor, symbols);
-    if (t === null) return;
-    if (attachMode && entry.kind === "File") {
-      const next = applyAttachPick(cur, t, entry);
-      stateRef.current = next;
-      setState(next);
-      setAttachMode(false);
-      props.onChange?.(next.text);
+  const pick = useCallback(
+    (entry: PopupEntry | undefined) => {
+      const cur = stateRef.current;
+      if (entry === undefined || !isPopupItem(entry)) return;
+      const t = detectTrigger(cur.text, cur.cursor, symbols);
+      if (t === null) return;
+      if (attachMode && entry.kind === "File") {
+        const next = applyAttachPick(cur, t, entry);
+        stateRef.current = next;
+        setState(next);
+        setAttachMode(false);
+        props.onChange?.(next.text);
+        input.current?.focus?.();
+        return;
+      }
+      const done = applyPick(cur, t, entry, { folderChip: props.onFolder !== undefined });
+      stateRef.current = done.next;
+      setState(done.next);
+      if (done.effect.kind === "folder") props.onFolder?.(done.effect.folder);
+      if (done.effect.kind === "command") props.onCommand?.(done.effect.name);
+      props.onChange?.(done.next.text);
       input.current?.focus?.();
-      return;
-    }
-    const done = applyPick(cur, t, entry, { folderChip: props.onFolder !== undefined });
-    stateRef.current = done.next;
-    setState(done.next);
-    if (done.effect.kind === "folder") props.onFolder?.(done.effect.folder);
-    if (done.effect.kind === "command") props.onCommand?.(done.effect.name);
-    props.onChange?.(done.next.text);
-    input.current?.focus?.();
-  }, [props.onFolder, props.onCommand, props.onChange, symbols.join(","), attachMode]);
+    },
+    [props.onFolder, props.onCommand, props.onChange, symbols.join(","), attachMode],
+  );
 
-  const addFiles = useCallback((files: ComposerAttachment[]) => {
-    if (files.length === 0) return;
-    setState((s) => ({ ...s, files: [...s.files, ...files] }));
-    props.onFiles?.(files);
-  }, [props.onFiles]);
+  const addFiles = useCallback(
+    (files: ComposerAttachment[]) => {
+      if (files.length === 0) return;
+      setState((s) => ({ ...s, files: [...s.files, ...files] }));
+      props.onFiles?.(files);
+    },
+    [props.onFiles],
+  );
   // Dropped and pasted files go through the same tray as Upload. Inside a pane that takes drops for it (a chat), the pane is the drop zone; paste is always the field's own.
-  const takeFiles = useCallback((files: readonly FileLike[]) => addFiles(files.map((f) => attachmentOf(f))), [addFiles]);
+  const takeFiles = useCallback(
+    (files: readonly FileLike[]) => addFiles(files.map((f) => attachmentOf(f))),
+    [addFiles],
+  );
   const takesFiles = props.takesFiles !== false;
   const routed = useDropRoute(takesFiles ? takeFiles : null);
   const dropZone = useFileDrop(takeFiles, { drop: !routed, enabled: takesFiles });
@@ -925,7 +1320,10 @@ export function Composer(props: ComposerProps): ReactElement {
   /** Upload: the system picker on the web; a place's own sheet elsewhere. */
   const upload = useCallback(() => {
     const node = picker.current as { click?: () => void } | null;
-    if (node?.click) { node.click(); return; }
+    if (node?.click) {
+      node.click();
+      return;
+    }
     props.onAttach?.();
   }, [props.onAttach]);
 
@@ -941,12 +1339,17 @@ export function Composer(props: ComposerProps): ReactElement {
   };
   const fromFiles = (): void => {
     setPlusOpen(false);
-    if (props.onAttach) { props.onAttach(); return; }
+    if (props.onAttach) {
+      props.onAttach();
+      return;
+    }
     setAttachMode(true);
     setScope("Files");
     typeSymbol("#");
   };
-  const cycleMode = (): void => { if (props.mode && props.onMode) props.onMode(nextMode(props.mode)); };
+  const cycleMode = (): void => {
+    if (props.mode && props.onMode) props.onMode(nextMode(props.mode));
+  };
 
   // a draft that shrinks or grows moves the text under the wash without always raising a scroll event: read the field's own scrollTop after every change
   useEffect(() => {
@@ -954,7 +1357,10 @@ export function Composer(props: ComposerProps): ReactElement {
     if (web && el && typeof el.scrollTop === "number") setScrollY(el.scrollTop);
   }, [state.text, web]);
 
-  const names = useMemo(() => [...(lists.agents ?? []), ...(lists.people ?? [])].map((x) => (typeof x === "string" ? x : x.t)), [lists.agents, lists.people]);
+  const names = useMemo(
+    () => [...(lists.agents ?? []), ...(lists.people ?? [])].map((x) => (typeof x === "string" ? x : x.t)),
+    [lists.agents, lists.people],
+  );
   const ranges = useMemo(() => tokenRanges(state.text, state.refs, names), [state.text, state.refs, names]);
 
   const onKeyPress = (event: { nativeEvent: KeyLike; preventDefault?: () => void }): void => {
@@ -980,8 +1386,16 @@ export function Composer(props: ComposerProps): ReactElement {
         return;
       }
     }
-    if (k.key === "Escape" && panelOpen) { stop(); setPanelOpen(false); return; }
-    if (k.key === "Escape" && plusOpen) { stop(); setPlusOpen(false); return; }
+    if (k.key === "Escape" && panelOpen) {
+      stop();
+      setPanelOpen(false);
+      return;
+    }
+    if (k.key === "Escape" && plusOpen) {
+      stop();
+      setPlusOpen(false);
+      return;
+    }
     if (k.key === "Escape" && working && control === "stop") {
       stop();
       props.onStop?.();
@@ -1038,7 +1452,8 @@ export function Composer(props: ComposerProps): ReactElement {
   };
 
   const paste = async (): Promise<void> => {
-    const clip = (globalThis as { navigator?: { clipboard?: { readText?: () => Promise<string> } } }).navigator?.clipboard;
+    const clip = (globalThis as { navigator?: { clipboard?: { readText?: () => Promise<string> } } }).navigator
+      ?.clipboard;
     if (!clip?.readText) return;
     const text = plainText(await clip.readText());
     setState((s) => {
@@ -1047,24 +1462,52 @@ export function Composer(props: ComposerProps): ReactElement {
     });
   };
 
-  const menuItems = (): MenuEntry[] => composerMenu({
-    attach: upload,
-    paste: () => void paste(),
-    clear: () => {
-      setState((s) => ({ ...initialState("", s.folder), cursor: 0 }));
-      setHeight(MIN_FIELD);
-    },
-  });
+  const menuItems = (): MenuEntry[] =>
+    composerMenu({
+      attach: upload,
+      paste: () => void paste(),
+      clear: () => {
+        setState((s) => ({ ...initialState("", s.folder), cursor: 0 }));
+        setHeight(MIN_FIELD);
+      },
+    });
   const contextProps = menuTrigger((x, y) => menu.show(menuItems(), x, y, "context", { label: "Composer" }));
 
   /* ---------- the tray ---------- */
   const chips: TrayChip[] = [];
-  if (state.folder !== null) chips.push({ key: "folder", icon: ICON_FOLDER, name: state.folder, onRemove: () => { patch({ folder: null }); props.onFolder?.(null); } });
-  state.chips.forEach((c, i) => chips.push({ key: `c${i}`, icon: CHIP_ICON[c.kind] ?? "link", name: c.name, onRemove: () => setState((s) => ({ ...s, chips: s.chips.filter((_, j) => j !== i) })) }));
+  if (state.folder !== null)
+    chips.push({
+      key: "folder",
+      icon: ICON_FOLDER,
+      name: state.folder,
+      onRemove: () => {
+        patch({ folder: null });
+        props.onFolder?.(null);
+      },
+    });
+  state.chips.forEach((c, i) =>
+    chips.push({
+      key: `c${i}`,
+      icon: CHIP_ICON[c.kind] ?? "link",
+      name: c.name,
+      onRemove: () => setState((s) => ({ ...s, chips: s.chips.filter((_, j) => j !== i) })),
+    }),
+  );
   (props.chips ?? []).forEach((c, i) => chips.push({ key: `p${i}`, icon: CHIP_ICON[c.kind] ?? "link", name: c.name }));
   const cards: ReactElement[] = [];
-  state.files.forEach((f, i) => cards.push(<FileCard key={`f${i}`} f={f} testID={`composer-file-${i}`} onRemove={() => setState((s) => ({ ...s, files: s.files.filter((_, j) => j !== i) }))} />));
-  (props.attachments ?? []).forEach((f, i) => cards.push(<FileCard key={`a${i}`} f={f} testID={`composer-attachment-${i}`} />));
+  state.files.forEach((f, i) =>
+    cards.push(
+      <FileCard
+        key={`f${i}`}
+        f={f}
+        testID={`composer-file-${i}`}
+        onRemove={() => setState((s) => ({ ...s, files: s.files.filter((_, j) => j !== i) }))}
+      />,
+    ),
+  );
+  (props.attachments ?? []).forEach((f, i) =>
+    cards.push(<FileCard key={`a${i}`} f={f} testID={`composer-attachment-${i}`} />),
+  );
 
   /* ---------- popovers ---------- */
   const compact = props.density === "compact";
@@ -1072,92 +1515,303 @@ export function Composer(props: ComposerProps): ReactElement {
 
   const plusRows: ReactElement[] = [];
   const plusRow = (id: string, title: string, icon: string, onPress: () => void, trailing?: ReactNode): void => {
-    plusRows.push(<Row key={id} id={id} title={title} leading={<View style={styles.lead}><IconTile icon={icon} /></View>} {...(trailing ? { trailing } : {})} onPress={onPress} domProps={{ style: { minHeight: 38, borderRadius: RADIUS } }} />);
+    plusRows.push(
+      <Row
+        key={id}
+        id={id}
+        title={title}
+        leading={
+          <View style={styles.lead}>
+            <IconTile icon={icon} />
+          </View>
+        }
+        {...(trailing ? { trailing } : {})}
+        onPress={onPress}
+        domProps={{ style: { minHeight: 38, borderRadius: RADIUS } }}
+      />,
+    );
   };
   if (plusOpen) {
-    if (takesFiles) plusRow("plus-upload", "Upload files", I.file, () => { setPlusOpen(false); upload(); }, <Text style={styles.rowNote}>or drop</Text>);
-    if (takesFiles && (props.onAttach || (props.suggest && symbols.includes("hash")))) plusRow("plus-files", "From Files", I.folder, fromFiles);
-    if (symbols.includes("hash")) plusRow("composer-symbol-hash", "Link something", I.hash, () => { setPlusOpen(false); typeSymbol("#"); }, <Kbd k="#" />);
-    if (symbols.includes("at")) plusRow("composer-symbol-at", "Mention", I.at, () => { setPlusOpen(false); typeSymbol("@"); }, <Kbd k="@" />);
-    if (symbols.includes("slash")) plusRow("composer-symbol-slash", "Commands", I.slash, () => { setPlusOpen(false); typeSymbol("/"); }, <Kbd k="/" />);
+    if (takesFiles)
+      plusRow(
+        "plus-upload",
+        "Upload files",
+        I.file,
+        () => {
+          setPlusOpen(false);
+          upload();
+        },
+        <Text style={styles.rowNote}>or drop</Text>,
+      );
+    if (takesFiles && (props.onAttach || (props.suggest && symbols.includes("hash"))))
+      plusRow("plus-files", "From Files", I.folder, fromFiles);
+    if (symbols.includes("hash"))
+      plusRow(
+        "composer-symbol-hash",
+        "Link something",
+        I.hash,
+        () => {
+          setPlusOpen(false);
+          typeSymbol("#");
+        },
+        <Kbd k="#" />,
+      );
+    if (symbols.includes("at"))
+      plusRow(
+        "composer-symbol-at",
+        "Mention",
+        I.at,
+        () => {
+          setPlusOpen(false);
+          typeSymbol("@");
+        },
+        <Kbd k="@" />,
+      );
+    if (symbols.includes("slash"))
+      plusRow(
+        "composer-symbol-slash",
+        "Commands",
+        I.slash,
+        () => {
+          setPlusOpen(false);
+          typeSymbol("/");
+        },
+        <Kbd k="/" />,
+      );
     if ((showMode && props.mode) || props.onAddPeople) plusRows.push(<GroupHead key="g-chat" label="This chat" />);
-    if (props.onAddPeople) plusRow("plus-people", "Add people and agents", I.people, () => { setPlusOpen(false); props.onAddPeople?.(); });
-    if (showMode && props.mode) plusRow("plus-mode", `Mode: ${modeInfo(props.mode).label}`, MODE_ICON[props.mode], () => { setPlusOpen(false); cycleMode(); }, <Kbd k={"⇧⇥"} />);
+    if (props.onAddPeople)
+      plusRow("plus-people", "Add people and agents", I.people, () => {
+        setPlusOpen(false);
+        props.onAddPeople?.();
+      });
+    if (showMode && props.mode)
+      plusRow(
+        "plus-mode",
+        `Mode: ${modeInfo(props.mode).label}`,
+        MODE_ICON[props.mode],
+        () => {
+          setPlusOpen(false);
+          cycleMode();
+        },
+        <Kbd k={"⇧⇥"} />,
+      );
   }
 
   const listNodes: ReactElement[] = [];
   if (open) {
     for (const [i, entry] of entries.entries()) {
-      if (!isPopupItem(entry)) { listNodes.push(<GroupHead key={`h${entry.head}`} label={entry.head} />); continue; }
+      if (!isPopupItem(entry)) {
+        listNodes.push(<GroupHead key={`h${entry.head}`} label={entry.head} />);
+        continue;
+      }
       const hover = { onMouseEnter: () => patch({ active: i }), style: { minHeight: 38, borderRadius: RADIUS } };
       if (trigger?.ch === "@") {
         const agent = entry.kind === "Agent";
-        listNodes.push(<Row key={`${entry.group}:${entry.label}`} id={`pop-${i}`} title={entry.label} {...(entry.note === undefined ? {} : { note: entry.note })} selected={i === active} onPress={() => pick(entry)}
-          leading={<View style={styles.lead}><Avatar {...avatarOf({ ...(entry.ref === undefined ? {} : { id: entry.ref }), name: entry.label, kind: agent ? "agent" : "person" })} size={24} /></View>} domProps={hover} />);
+        listNodes.push(
+          <Row
+            key={`${entry.group}:${entry.label}`}
+            id={`pop-${i}`}
+            title={entry.label}
+            {...(entry.note === undefined ? {} : { note: entry.note })}
+            selected={i === active}
+            onPress={() => pick(entry)}
+            leading={
+              <View style={styles.lead}>
+                <Avatar
+                  {...avatarOf({
+                    ...(entry.ref === undefined ? {} : { id: entry.ref }),
+                    name: entry.label,
+                    kind: agent ? "agent" : "person",
+                  })}
+                  size={24}
+                />
+              </View>
+            }
+            domProps={hover}
+          />,
+        );
       } else if (trigger?.ch === ":") {
-        listNodes.push(<Row key={`emoji:${entry.label}`} id={`pop-${i}`} title={`:${entry.note?.replace(/ /g, "_") ?? ""}`} selected={i === active} onPress={() => pick(entry)} {...hover}
-          leading={<View style={styles.lead}><Text style={{ fontSize: 20 }}>{entry.label}</Text></View>} />);
+        listNodes.push(
+          <Row
+            key={`emoji:${entry.label}`}
+            id={`pop-${i}`}
+            title={`:${entry.note?.replace(/ /g, "_") ?? ""}`}
+            selected={i === active}
+            onPress={() => pick(entry)}
+            {...hover}
+            leading={
+              <View style={styles.lead}>
+                <Text style={{ fontSize: 20 }}>{entry.label}</Text>
+              </View>
+            }
+          />,
+        );
       } else if (trigger?.ch === "/") {
-        const icon = entry.kind === "Template" || entry.kind === "Snippet" ? I.template : entry.group === "Skills" ? I.skill : I.cmd;
+        const icon =
+          entry.kind === "Template" || entry.kind === "Snippet"
+            ? I.template
+            : entry.group === "Skills"
+              ? I.skill
+              : I.cmd;
         const title = entry.kind === "Template" || entry.kind === "Snippet" ? entry.label : `/${entry.label}`;
-        listNodes.push(<Row key={`${entry.group}:${entry.label}`} id={`pop-${i}`} title={title} {...(entry.note === undefined ? {} : { note: entry.note })} selected={i === active} onPress={() => pick(entry)} leading={<View style={styles.lead}><IconTile icon={icon} /></View>} domProps={hover} />);
+        listNodes.push(
+          <Row
+            key={`${entry.group}:${entry.label}`}
+            id={`pop-${i}`}
+            title={title}
+            {...(entry.note === undefined ? {} : { note: entry.note })}
+            selected={i === active}
+            onPress={() => pick(entry)}
+            leading={
+              <View style={styles.lead}>
+                <IconTile icon={icon} />
+              </View>
+            }
+            domProps={hover}
+          />,
+        );
       } else {
         const look = lookOf(entry.kind);
-        listNodes.push(<Row key={`${entry.group}:${entry.ref ?? entry.label}`} id={`pop-${i}`} title={entry.label} {...(entry.note === undefined ? {} : { note: entry.note })} selected={i === active} onPress={() => pick(entry)} leading={<View style={styles.lead}>{entry.data?.["brand"] ? <AppIcon brand={entry.data["brand"]} size={24} /> : <IconTile icon={look.icon} tint={look.tint} />}</View>} domProps={hover} />);
+        listNodes.push(
+          <Row
+            key={`${entry.group}:${entry.ref ?? entry.label}`}
+            id={`pop-${i}`}
+            title={entry.label}
+            {...(entry.note === undefined ? {} : { note: entry.note })}
+            selected={i === active}
+            onPress={() => pick(entry)}
+            leading={
+              <View style={styles.lead}>
+                {entry.data?.["brand"] ? (
+                  <AppIcon brand={entry.data["brand"]} size={24} />
+                ) : (
+                  <IconTile icon={look.icon} tint={look.tint} />
+                )}
+              </View>
+            }
+            domProps={hover}
+          />,
+        );
       }
     }
   }
   const showScopeMenu = (e: unknown): void => {
     const p = anchorOf(e);
-    menu.show(["All", ...HASH_GROUPS].map((g): MenuEntry => ({ label: g === "All" ? "Everything" : g, checked: pickScope === g, onSelect: () => { setScope(g as HashScope); setAttachMode(false); } })), p.x, p.y, "other", { label: "Search in" });
+    menu.show(
+      ["All", ...HASH_GROUPS].map(
+        (g): MenuEntry => ({
+          label: g === "All" ? "Everything" : g,
+          checked: pickScope === g,
+          onSelect: () => {
+            setScope(g as HashScope);
+            setAttachMode(false);
+          },
+        }),
+      ),
+      p.x,
+      p.y,
+      "other",
+      { label: "Search in" },
+    );
   };
   const pv = activeItem && isPopupItem(activeItem) ? activeItem : null;
   const pvData = activeKey !== null ? previews[activeKey] : undefined;
   const preview = pv ? (
     <View style={styles.pv} testID="composer-preview">
-      <View style={[styles.pvBig, { backgroundColor: lookOf(pv.kind).tint }]}><Glyph icon={lookOf(pv.kind).icon} native={"□"} size={20} color="#fff" /></View>
-      <Text style={styles.pvTitle} numberOfLines={2}>{pvData && pvData !== "loading" && pvData.title ? pvData.title : pv.label}</Text>
-      {(pvData && pvData !== "loading" && pvData.sub) || pv.note ? <Text style={styles.pvSub} numberOfLines={2}>{pvData && pvData !== "loading" && pvData.sub ? pvData.sub : pv.note}</Text> : null}
+      <View style={[styles.pvBig, { backgroundColor: lookOf(pv.kind).tint }]}>
+        <Glyph icon={lookOf(pv.kind).icon} native={"□"} size={20} color="#fff" />
+      </View>
+      <Text style={styles.pvTitle} numberOfLines={2}>
+        {pvData && pvData !== "loading" && pvData.title ? pvData.title : pv.label}
+      </Text>
+      {(pvData && pvData !== "loading" && pvData.sub) || pv.note ? (
+        <Text style={styles.pvSub} numberOfLines={2}>
+          {pvData && pvData !== "loading" && pvData.sub ? pvData.sub : pv.note}
+        </Text>
+      ) : null}
       {pvData === "loading" ? <Text style={styles.pvSub}>Loading</Text> : null}
       {pvData && pvData !== "loading" ? (
         <View style={styles.kv} testID="composer-preview-fields">
           {/* ui-rows-lint: not a list (key and value pairs in the # preview) */}
           {pvData.fields.map(([k, v]) => (
-            <View key={k} style={styles.kvRow}><Text style={styles.kvK}>{k}</Text><Text style={styles.kvV} numberOfLines={1}>{v}</Text></View>
+            <View key={k} style={styles.kvRow}>
+              <Text style={styles.kvK}>{k}</Text>
+              <Text style={styles.kvV} numberOfLines={1}>
+                {v}
+              </Text>
+            </View>
           ))}
         </View>
       ) : null}
-      <Text style={styles.pvAct}>{attachMode && pv.kind === "File" ? "↵ attaches it" : pv.kind === "Folder" ? "↵ files this chat in it" : "↵ links it · the agent can read it"}</Text>
+      <Text style={styles.pvAct}>
+        {attachMode && pv.kind === "File"
+          ? "↵ attaches it"
+          : pv.kind === "Folder"
+            ? "↵ files this chat in it"
+            : "↵ links it · the agent can read it"}
+      </Text>
     </View>
   ) : null;
 
-  const hashPop = open && hashLike ? (
-    <Pop testID="composer-popup" label={attachMode ? "Attach from Files" : "Link something"} style={[popLeft, styles.hashPop, narrow ? styles.hashNarrow : null] as ViewStyle[]}>
-      <View style={styles.hashLeft}>
-        <View style={styles.scopeBar}>
-          <Glyph icon={I.hash} native="#" size={14} color="var(--ink-3)" />
-          <Text style={styles.scopeLabel}>{attachMode ? "Attach" : trigger?.ch === "[[" ? "Link a record" : "Link"}</Text>
-          {trigger?.ch === "#" ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={`Search in: ${pickScope === "All" ? "Everything" : pickScope}`} testID="composer-scope" onPress={showScopeMenu} style={({ hovered }: { hovered?: boolean }) => [styles.scopeBtn, hovered === true && HOVER]}>
-              <Text style={styles.scopeValue}>{pickScope === "All" ? "Everything" : pickScope}</Text>
-              <Glyph icon={I.chev} native={"▾"} size={12} color="var(--ink-3)" />
-            </Pressable>
-          ) : null}
-          <Text style={styles.scopeQ} numberOfLines={1}>{trigger?.query ? `“${trigger.query}”` : "type to search"}</Text>
+  const hashPop =
+    open && hashLike ? (
+      <Pop
+        testID="composer-popup"
+        label={attachMode ? "Attach from Files" : "Link something"}
+        style={[popLeft, styles.hashPop, narrow ? styles.hashNarrow : null] as ViewStyle[]}
+      >
+        <View style={styles.hashLeft}>
+          <View style={styles.scopeBar}>
+            <Glyph icon={I.hash} native="#" size={14} color="var(--ink-3)" />
+            <Text style={styles.scopeLabel}>
+              {attachMode ? "Attach" : trigger?.ch === "[[" ? "Link a record" : "Link"}
+            </Text>
+            {trigger?.ch === "#" ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Search in: ${pickScope === "All" ? "Everything" : pickScope}`}
+                testID="composer-scope"
+                onPress={showScopeMenu}
+                style={({ hovered }: { hovered?: boolean }) => [styles.scopeBtn, hovered === true && HOVER]}
+              >
+                <Text style={styles.scopeValue}>{pickScope === "All" ? "Everything" : pickScope}</Text>
+                <Glyph icon={I.chev} native={"▾"} size={12} color="var(--ink-3)" />
+              </Pressable>
+            ) : null}
+            <Text style={styles.scopeQ} numberOfLines={1}>
+              {trigger?.query ? `“${trigger.query}”` : "type to search"}
+            </Text>
+          </View>
+          <View style={styles.scr} accessibilityRole="menu" {...webProps({ role: "listbox" })}>
+            {listNodes.length > 0 ? (
+              listNodes
+            ) : (
+              <Text style={styles.empty} testID="composer-popup-empty">
+                {trigger?.query ? `Nothing called “${trigger.query}”` : "Type to search"}
+              </Text>
+            )}
+            {trigger?.ch === "#" && effective.notice ? (
+              <Text style={styles.notice} testID="composer-popup-notice">
+                {effective.notice}
+              </Text>
+            ) : null}
+          </View>
         </View>
+        {narrow ? null : preview}
+      </Pop>
+    ) : null;
+  const listPop =
+    open && !hashLike ? (
+      <Pop
+        testID="composer-popup"
+        label={trigger?.ch === "@" ? "Mention" : trigger?.ch === ":" ? "Emoji" : "Commands"}
+        style={[popLeft, { width: trigger?.ch === "@" ? 300 : 340, maxWidth: "100%" } as ViewStyle]}
+      >
         <View style={styles.scr} accessibilityRole="menu" {...webProps({ role: "listbox" })}>
-          {listNodes.length > 0 ? listNodes : <Text style={styles.empty} testID="composer-popup-empty">{trigger?.query ? `Nothing called “${trigger.query}”` : "Type to search"}</Text>}
-          {trigger?.ch === "#" && effective.notice ? <Text style={styles.notice} testID="composer-popup-notice">{effective.notice}</Text> : null}
+          {listNodes}
         </View>
-      </View>
-      {narrow ? null : preview}
-    </Pop>
-  ) : null;
-  const listPop = open && !hashLike ? (
-    <Pop testID="composer-popup" label={trigger?.ch === "@" ? "Mention" : trigger?.ch === ":" ? "Emoji" : "Commands"} style={[popLeft, { width: trigger?.ch === "@" ? 300 : 340, maxWidth: "100%" } as ViewStyle]}>
-      <View style={styles.scr} accessibilityRole="menu" {...webProps({ role: "listbox" })}>{listNodes}</View>
-    </Pop>
-  ) : null;
+      </Pop>
+    ) : null;
 
   /* ---------- send ---------- */
   const sendTitle = enterSends ? "Send (↵)" : "Send (⌘↵)";
@@ -1165,24 +1819,56 @@ export function Composer(props: ComposerProps): ReactElement {
   if (control === "split") {
     sendNode = (
       <View style={styles.split} testID="composer-split">
-        <Pressable accessibilityRole="button" accessibilityLabel="Queue" testID="composer-send" onPress={() => submit("queue")} {...webProps({ title: "Send after this step" })} style={({ hovered }: { hovered?: boolean }) => [styles.splitBtn, hovered === true && styles.splitHover]}>
-          <Text style={styles.splitText}>Queue</Text><Text style={styles.splitKbd}>{"↵"}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Queue"
+          testID="composer-send"
+          onPress={() => submit("queue")}
+          {...webProps({ title: "Send after this step" })}
+          style={({ hovered }: { hovered?: boolean }) => [styles.splitBtn, hovered === true && styles.splitHover]}
+        >
+          <Text style={styles.splitText}>Queue</Text>
+          <Text style={styles.splitKbd}>{"↵"}</Text>
         </Pressable>
         <View style={styles.splitSep} />
-        <Pressable accessibilityRole="button" accessibilityLabel="Interrupt and send now" testID="composer-interrupt" onPress={() => submit("interrupt")} {...webProps({ title: "Interrupt and send now" })} style={({ hovered }: { hovered?: boolean }) => [styles.splitBtn, hovered === true && styles.splitHover]}>
-          <Text style={styles.splitText}>Now</Text><Text style={styles.splitKbd}>{"⌥↵"}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Interrupt and send now"
+          testID="composer-interrupt"
+          onPress={() => submit("interrupt")}
+          {...webProps({ title: "Interrupt and send now" })}
+          style={({ hovered }: { hovered?: boolean }) => [styles.splitBtn, hovered === true && styles.splitHover]}
+        >
+          <Text style={styles.splitText}>Now</Text>
+          <Text style={styles.splitKbd}>{"⌥↵"}</Text>
         </Pressable>
       </View>
     );
   } else if (control === "stop") {
     sendNode = (
-      <Pressable accessibilityRole="button" accessibilityLabel="Stop" testID="composer-send" onPress={() => props.onStop?.()} {...webProps({ title: "Stop" })} style={[styles.send, styles.sendStop]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Stop"
+        testID="composer-send"
+        onPress={() => props.onStop?.()}
+        {...webProps({ title: "Stop" })}
+        style={[styles.send, styles.sendStop]}
+      >
         <Glyph icon={STOP} native={"■"} size={14} color="var(--ink)" />
       </Pressable>
     );
   } else {
     sendNode = (
-      <Pressable accessibilityRole="button" accessibilityLabel="Send" accessibilityState={{ disabled: !hasContent }} disabled={!hasContent} onPress={() => submit("queue")} testID="composer-send" {...webProps({ title: sendTitle })} style={[styles.send, !hasContent && styles.sendOff]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Send"
+        accessibilityState={{ disabled: !hasContent }}
+        disabled={!hasContent}
+        onPress={() => submit("queue")}
+        testID="composer-send"
+        {...webProps({ title: sendTitle })}
+        style={[styles.send, !hasContent && styles.sendOff]}
+      >
         <Glyph icon={I.up} native={"↑"} size={16} color={hasContent ? "var(--accent-ink)" : "var(--ink-3)"} />
       </Pressable>
     );
@@ -1192,16 +1878,34 @@ export function Composer(props: ComposerProps): ReactElement {
   // an email keeps its own two rows: its bar holds sender and format buttons; everything else is the one-line pill
   const oneLine = props.sendsOutside !== true;
   // below about 560 px the field takes the full width on top and the controls sit under it, so the field is never squeezed to a few words wide
-  useEffect(() => { if (state.text === "") setGrown(false); else if (state.text.includes("\n")) setGrown(true); }, [state.text]);
+  useEffect(() => {
+    if (state.text === "") setGrown(false);
+    else if (state.text.includes("\n")) setGrown(true);
+  }, [state.text]);
   // one line when empty at any width (prototype s-chat221): the controls leave the text's row only once a draft takes more than a line
   const stacked = oneLine && grown;
   const row = oneLine && !stacked;
   // the field's padding, which the token wash behind it takes too: the same box, so a wash sits on its word in the one-line pill, the compact field and the regular one
-  const fieldPad: readonly (ViewStyle | false)[] = [styles.padRegular, row && styles.padLine, stacked && styles.padStack, !oneLine && compact && styles.padCompact];
+  const fieldPad: readonly (ViewStyle | false)[] = [
+    styles.padRegular,
+    row && styles.padLine,
+    stacked && styles.padStack,
+    !oneLine && compact && styles.padCompact,
+  ];
   const plusNode_ = (
     <View ref={plusBtn as never}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Attach a file" accessibilityState={{ expanded: plusOpen }} testID="composer-attach" onPress={() => { setPanelOpen(false); setPlusOpen((x) => !x); }} {...webProps({ title: "Add" })}
-        style={({ hovered }: { hovered?: boolean }) => [styles.tool, (hovered === true || plusOpen) && HOVER]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Attach a file"
+        accessibilityState={{ expanded: plusOpen }}
+        testID="composer-attach"
+        onPress={() => {
+          setPanelOpen(false);
+          setPlusOpen((x) => !x);
+        }}
+        {...webProps({ title: "Add" })}
+        style={({ hovered }: { hovered?: boolean }) => [styles.tool, (hovered === true || plusOpen) && HOVER]}
+      >
         <Glyph icon={I.plus} native="+" size={18} color="var(--ink-3)" />
       </Pressable>
     </View>
@@ -1209,16 +1913,40 @@ export function Composer(props: ComposerProps): ReactElement {
   const [chatFailed, setChatFailed] = useState(false);
   const useChat = web && props.chatField !== false && !chatFailed && canMountChatField();
   const fieldNode = (
-    <View style={[styles.fieldWrap, ...fieldPad, row && styles.fieldLine]} {...webProps({ dataSet: { cmpField: "1" } })}>
+    <View
+      style={[styles.fieldWrap, ...fieldPad, row && styles.fieldLine]}
+      {...webProps({ dataSet: { cmpField: "1" } })}
+    >
       {useChat ? (
         <ChatField
-          value={state.text} cursor={state.cursor} ranges={ranges} placeholder={props.placeholder ?? "Message"} label={props.label ?? "Message"} testID="composer-field" fontSize={compact ? 14 : 15} lineHeight={22} maxHeight={cap} onHeight={(h) => { if (h >= MULTI_LINE) setGrown(true); }}
-          onChange={onChange as never} onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })} onKeyPress={onKeyPress as never} onFocus={onFocus} onBlur={onBlur}
-          controlRef={(c) => { input.current = c as never; }} onFail={() => setChatFailed(true)} talking={talk.phase !== "idle"}
+          value={state.text}
+          cursor={state.cursor}
+          ranges={ranges}
+          placeholder={props.placeholder ?? "Message"}
+          label={props.label ?? "Message"}
+          testID="composer-field"
+          fontSize={compact ? 14 : 15}
+          lineHeight={22}
+          maxHeight={cap}
+          onHeight={(h) => {
+            if (h >= MULTI_LINE) setGrown(true);
+          }}
+          onChange={onChange as never}
+          onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })}
+          onKeyPress={onKeyPress as never}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          controlRef={(c) => {
+            input.current = c as never;
+          }}
+          onFail={() => setChatFailed(true)}
+          talking={talk.phase !== "idle"}
         />
       ) : (
         <>
-          {web && ranges.length > 0 ? <TokenBackdrop text={state.text} ranges={ranges} scrollY={scrollY} style={fieldText} pad={fieldPad} /> : null}
+          {web && ranges.length > 0 ? (
+            <TokenBackdrop text={state.text} ranges={ranges} scrollY={scrollY} style={fieldText} pad={fieldPad} />
+          ) : null}
           <TextInput
             ref={input}
             multiline
@@ -1229,7 +1957,11 @@ export function Composer(props: ComposerProps): ReactElement {
             onChange={onChange as never}
             onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })}
             onKeyPress={onKeyPress as never}
-            onContentSizeChange={(e) => { const h = Math.ceil(e.nativeEvent.contentSize.height); setHeight(Math.max(MIN_FIELD, Math.min(cap, h))); if (h >= MULTI_LINE) setGrown(true); }}
+            onContentSizeChange={(e) => {
+              const h = Math.ceil(e.nativeEvent.contentSize.height);
+              setHeight(Math.max(MIN_FIELD, Math.min(cap, h)));
+              if (h >= MULTI_LINE) setGrown(true);
+            }}
             onScroll={(e) => setScrollY(scrollTopOf(e))}
             onFocus={onFocus}
             onBlur={onBlur}
@@ -1242,99 +1974,168 @@ export function Composer(props: ComposerProps): ReactElement {
   );
   // an app's own control beside the model strip (the memory lock) sits in the same 32 px box as the others, centred on the same line
   const barExtraNode = props.barExtra ? <View style={styles.extraBox}>{props.barExtra}</View> : null;
-  const stripNode_ = settingsAgent !== undefined ? (
-    <View ref={stripNode as never} style={styles.stripWrap}>
-      <AgentStrip list={[settingsAgent]} open={panelOpen} mode={showMode ? props.mode : undefined} runsChip={props.runsChip} {...(props.renderPanel ? { onPress: () => { setPlusOpen(false); setPanelOpen((x) => !x); } } : {})} />
-    </View>
-  ) : null;
+  const stripNode_ =
+    settingsAgent !== undefined ? (
+      <View ref={stripNode as never} style={styles.stripWrap}>
+        <AgentStrip
+          list={[settingsAgent]}
+          open={panelOpen}
+          mode={showMode ? props.mode : undefined}
+          runsChip={props.runsChip}
+          {...(props.renderPanel
+            ? {
+                onPress: () => {
+                  setPlusOpen(false);
+                  setPanelOpen((x) => !x);
+                },
+              }
+            : {})}
+        />
+      </View>
+    ) : null;
 
   return (
     <DropHost bind={dropZone.bind} testID={`${props.testID ?? "composer"}-drop`}>
-    <View
-      style={[styles.box, compact && styles.boxCompact, focused ? FOCUS_SHADOW : BOX_SHADOW]}
-      onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); setBoxW((cur) => (cur === w ? cur : w)); }}
-      testID={props.testID ?? "composer"}
-      accessibilityLabel={props.label ?? "Message"}
-      {...contextProps}
-      {...webProps({
-        dataSet: { composer: "true", ...(focused ? { cmpFocus: "1" } : {}) },
-      })}
-    >
-      {props.sendsOutside ? <View style={styles.recipients} testID="composer-recipients">{props.recipients}</View> : null}
-      {props.banner ? <View style={styles.banner}>{props.banner}</View> : null}
-      {chips.length > 0 || cards.length > 0 ? (
-        <View style={styles.tray} testID="composer-tray">
-          {cards}
-          {/* ui-rows-lint: not a list (attachment and link chips in the tray) */}
-          {chips.map((c) => <Chip key={c.key} chip={c} />)}
-        </View>
-      ) : null}
-      {props.engineLine ? <Text style={styles.engine} testID="composer-engine-line">{props.engineLine}</Text> : null}
-      {props.hideWho === true ? null : <Text style={styles.srOnly} testID="composer-who" accessibilityRole="text" accessibilityLiveRegion="polite">{who.line}</Text>}
-      {/* one parent for both layouts, the field under a key: when a draft grows past a line and the controls move under it, the field is moved, not made again, so the caret and the typing stay */}
-      <View style={row ? styles.line : undefined}>
-        {row ? <Fragment key="plus">{plusNode_}</Fragment> : null}
-        <Fragment key="field">{fieldNode}</Fragment>
-        {row ? (
-          <Fragment key="rest">
-            {stripNode_}
-            {barExtraNode}
-            {props.whoExtra}
-            <TalkButton talk={talk} />
-            {sendNode}
-          </Fragment>
-        ) : (
-          <View key="bar" style={stacked ? styles.barStack : [styles.bar, compact && styles.barCompact]}>
-            {plusNode_}
-            {stacked ? <View style={styles.spacer} /> : stripNode_}
-            {stacked ? stripNode_ : null}
-            {barExtraNode}
-            {props.whoExtra}
-            {stacked ? null : <View style={styles.spacer} />}
-            <TalkButton talk={talk} />
-            {sendNode}
+      <View
+        style={[styles.box, compact && styles.boxCompact, focused ? FOCUS_SHADOW : BOX_SHADOW]}
+        onLayout={(e) => {
+          const w = Math.round(e.nativeEvent.layout.width);
+          setBoxW((cur) => (cur === w ? cur : w));
+        }}
+        testID={props.testID ?? "composer"}
+        accessibilityLabel={props.label ?? "Message"}
+        {...contextProps}
+        {...webProps({
+          dataSet: { composer: "true", ...(focused ? { cmpFocus: "1" } : {}) },
+        })}
+      >
+        {props.sendsOutside ? (
+          <View style={styles.recipients} testID="composer-recipients">
+            {props.recipients}
           </View>
+        ) : null}
+        {props.banner ? <View style={styles.banner}>{props.banner}</View> : null}
+        {chips.length > 0 || cards.length > 0 ? (
+          <View style={styles.tray} testID="composer-tray">
+            {cards}
+            {/* ui-rows-lint: not a list (attachment and link chips in the tray) */}
+            {chips.map((c) => (
+              <Chip key={c.key} chip={c} />
+            ))}
+          </View>
+        ) : null}
+        {props.engineLine ? (
+          <Text style={styles.engine} testID="composer-engine-line">
+            {props.engineLine}
+          </Text>
+        ) : null}
+        {props.hideWho === true ? null : (
+          <Text style={styles.srOnly} testID="composer-who" accessibilityRole="text" accessibilityLiveRegion="polite">
+            {who.line}
+          </Text>
         )}
-      </View>
-      <TalkLine talk={talk} />
-      {plusOpen ? (
-        <Pop testID="composer-plus" label="Add" style={[popLeft, styles.plusPop] as ViewStyle[]} nodeRef={(n) => { plusNode.current = n; }}>
-          <View style={styles.scr}>{plusRows}</View>
-        </Pop>
-      ) : null}
-      {panelOpen && settingsAgent !== undefined && props.renderPanel ? (
-        <Pop testID="composer-panel" label="Model" style={[panelNarrow ? styles.panelNarrow : styles.panelPop, panelNarrow ? { maxHeight: Math.max(240, Math.min(520, winH - 180)) } : null, props.panelBelow ? styles.panelBelow : null] as ViewStyle[]} nodeRef={(n) => { panelNode.current = n; }}>
-          {props.renderPanel(settingsAgent, () => setPanelOpen(false), panelNarrow)}
-        </Pop>
-      ) : null}
-      {hashPop}
-      {listPop}
-      {Platform.OS === "web" ? createElement("input", {
-        type: "file",
-        multiple: true,
-        hidden: true,
-        "aria-hidden": true,
-        tabIndex: -1,
-        ref: (node: unknown) => { picker.current = node; },
-        onChange: (e: { target: { files?: ArrayLike<FileLike>; value?: string } }) => {
-          addFiles(Array.from(e.target.files ?? [], attachmentOf));
-          e.target.value = "";
-        },
-      }) : null}
-      {sendError ? (
-        <View style={styles.sendError} testID="composer-send-error" accessibilityRole="alert">
-          <Text style={styles.sendErrorText}>{sendError.reason}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Try again" testID="composer-send-retry" onPress={() => submit(sendError.mode)}><Text style={styles.sendErrorRetry}>Try again</Text></Pressable>
+        {/* one parent for both layouts, the field under a key: when a draft grows past a line and the controls move under it, the field is moved, not made again, so the caret and the typing stay */}
+        <View style={row ? styles.line : undefined}>
+          {row ? <Fragment key="plus">{plusNode_}</Fragment> : null}
+          <Fragment key="field">{fieldNode}</Fragment>
+          {row ? (
+            <Fragment key="rest">
+              {stripNode_}
+              {barExtraNode}
+              {props.whoExtra}
+              <TalkButton talk={talk} />
+              {sendNode}
+            </Fragment>
+          ) : (
+            <View key="bar" style={stacked ? styles.barStack : [styles.bar, compact && styles.barCompact]}>
+              {plusNode_}
+              {stacked ? <View style={styles.spacer} /> : stripNode_}
+              {stacked ? stripNode_ : null}
+              {barExtraNode}
+              {props.whoExtra}
+              {stacked ? null : <View style={styles.spacer} />}
+              <TalkButton talk={talk} />
+              {sendNode}
+            </View>
+          )}
         </View>
-      ) : null}
-      {menu.element}
-      {dropZone.over ? <DropOverlay radius={compact ? 18 : 22} testID={`${props.testID ?? "composer"}-drop-overlay`} /> : null}
-    </View>
+        <TalkLine talk={talk} />
+        {plusOpen ? (
+          <Pop
+            testID="composer-plus"
+            label="Add"
+            style={[popLeft, styles.plusPop] as ViewStyle[]}
+            nodeRef={(n) => {
+              plusNode.current = n;
+            }}
+          >
+            <View style={styles.scr}>{plusRows}</View>
+          </Pop>
+        ) : null}
+        {panelOpen && settingsAgent !== undefined && props.renderPanel ? (
+          <Pop
+            testID="composer-panel"
+            label="Model"
+            style={
+              [
+                panelNarrow ? styles.panelNarrow : styles.panelPop,
+                panelNarrow ? { maxHeight: Math.max(240, Math.min(520, winH - 180)) } : null,
+                props.panelBelow ? styles.panelBelow : null,
+              ] as ViewStyle[]
+            }
+            nodeRef={(n) => {
+              panelNode.current = n;
+            }}
+          >
+            {props.renderPanel(settingsAgent, () => setPanelOpen(false), panelNarrow)}
+          </Pop>
+        ) : null}
+        {hashPop}
+        {listPop}
+        {Platform.OS === "web"
+          ? createElement("input", {
+              type: "file",
+              multiple: true,
+              hidden: true,
+              "aria-hidden": true,
+              tabIndex: -1,
+              ref: (node: unknown) => {
+                picker.current = node;
+              },
+              onChange: (e: { target: { files?: ArrayLike<FileLike>; value?: string } }) => {
+                addFiles(Array.from(e.target.files ?? [], attachmentOf));
+                e.target.value = "";
+              },
+            })
+          : null}
+        {sendError ? (
+          <View style={styles.sendError} testID="composer-send-error" accessibilityRole="alert">
+            <Text style={styles.sendErrorText}>{sendError.reason}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Try again"
+              testID="composer-send-retry"
+              onPress={() => submit(sendError.mode)}
+            >
+              <Text style={styles.sendErrorRetry}>Try again</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {menu.element}
+        {dropZone.over ? (
+          <DropOverlay radius={compact ? 18 : 22} testID={`${props.testID ?? "composer"}-drop-overlay`} />
+        ) : null}
+      </View>
     </DropHost>
   );
 }
 
-const CHIP_ICON: Record<string, string> = { Folder: ICON_FOLDER, Record: ICON_RECORD, File: ICON_FILE, Channel: "link" };
+const CHIP_ICON: Record<string, string> = {
+  Folder: ICON_FOLDER,
+  Record: ICON_RECORD,
+  File: ICON_FILE,
+  Channel: "link",
+};
 
 const styles = StyleSheet.create({
   box: { position: "relative", width: "100%", borderRadius: RADIUS, backgroundColor: "var(--raised)" as string },
@@ -1342,20 +2143,71 @@ const styles = StyleSheet.create({
   line: { flexDirection: "row", alignItems: "flex-end", gap: CTRL_GAP, padding: 8 },
   recipients: { paddingTop: 10, paddingHorizontal: 14 },
   banner: { paddingTop: 8, paddingHorizontal: 14 },
-  sendError: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingBottom: 10 },
+  sendError: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingBottom: 10,
+  },
   sendErrorText: { fontSize: 12.5, color: "var(--danger)" as string, flexShrink: 1 },
   sendErrorRetry: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },
   tray: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingTop: 10, paddingHorizontal: 12 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 5, height: 26, paddingLeft: 8, paddingRight: 3, borderRadius: RADIUS, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string, maxWidth: "100%", alignSelf: "center" },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    height: 26,
+    paddingLeft: 8,
+    paddingRight: 3,
+    borderRadius: RADIUS,
+    backgroundColor: "var(--sunk)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    maxWidth: "100%",
+    alignSelf: "center",
+  },
   chipText: { color: "var(--ink)" as string, fontSize: 12.5, lineHeight: 16, flexShrink: 1 },
   chipX: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   chipXText: { color: "var(--ink-3)" as string, fontSize: 14, lineHeight: 16 },
-  card: { position: "relative", flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, paddingLeft: 6, paddingRight: 10, borderRadius: RADIUS, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string, maxWidth: 220 },
-  cardIc: { width: 30, height: 30, borderRadius: RADIUS, alignItems: "center", justifyContent: "center", backgroundColor: "var(--raised)" as string, overflow: "hidden" },
+  card: {
+    position: "relative",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 6,
+    paddingLeft: 6,
+    paddingRight: 10,
+    borderRadius: RADIUS,
+    backgroundColor: "var(--sunk)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    maxWidth: 220,
+  },
+  cardIc: {
+    width: 30,
+    height: 30,
+    borderRadius: RADIUS,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--raised)" as string,
+    overflow: "hidden",
+  },
   cardText: { minWidth: 0, flexShrink: 1 },
   cardName: { fontSize: 12.5, color: "var(--ink)" as string },
   cardSize: { fontSize: 11.5, color: "var(--ink-3)" as string },
-  cardRm: { position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: 9, backgroundColor: "var(--ink)" as string, alignItems: "center", justifyContent: "center" },
+  cardRm: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "var(--ink)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   cardRmText: { color: "var(--win)" as string, fontSize: 12, lineHeight: 14 },
   engine: { color: "var(--ink-3)" as string, fontSize: 11.5, lineHeight: 16, paddingTop: 8, paddingHorizontal: 16 },
   fieldWrap: { position: "relative", overflow: "hidden" },
@@ -1363,7 +2215,14 @@ const styles = StyleSheet.create({
   padCompact: { paddingTop: 10, paddingHorizontal: 12 },
   padLine: { paddingTop: 5, paddingBottom: 5, paddingHorizontal: 6 },
   padStack: { paddingTop: 10, paddingBottom: 2, paddingHorizontal: 15 },
-  barStack: { flexDirection: "row", alignItems: "center", gap: CTRL_GAP, paddingTop: 2, paddingHorizontal: 8, paddingBottom: 8 },
+  barStack: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: CTRL_GAP,
+    paddingTop: 2,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+  },
   extraBox: { minWidth: CTRL, height: CTRL, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   // the field never gives its room to the model chip: past this width the chip is the one that shortens
   fieldLine: { flex: 1, minWidth: FIELD_MIN_LINE },
@@ -1371,20 +2230,62 @@ const styles = StyleSheet.create({
   fieldRegular: { fontSize: 15, lineHeight: 22 },
   fieldCompact: { fontSize: 14, lineHeight: 22 },
   backdrop: { position: "absolute", left: 0, right: 0, top: 0 },
-  ghost: { color: "transparent", whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "break-word" } as object,
-  tok: { backgroundColor: "var(--accent-wash)" as string, borderRadius: RADIUS, boxShadow: "0 0 0 2px var(--accent-wash)" } as object,
+  ghost: {
+    color: "transparent",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+    overflowWrap: "break-word",
+  } as object,
+  tok: {
+    backgroundColor: "var(--accent-wash)" as string,
+    borderRadius: RADIUS,
+    boxShadow: "0 0 0 2px var(--accent-wash)",
+  } as object,
   srOnly: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
   bar: { flexDirection: "row", alignItems: "center", gap: 4, paddingTop: 4, paddingHorizontal: 8, paddingBottom: 8 },
   barCompact: { paddingBottom: 6, paddingHorizontal: 6 },
   tool: { width: CTRL, height: CTRL, borderRadius: RADIUS, alignItems: "center", justifyContent: "center" },
   stripWrap: { flexShrink: 0 },
-  setBtn: { position: "relative", width: CTRL, height: CTRL, borderRadius: RADIUS, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  setDot: { position: "absolute", top: 6, right: 6, width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--accent)" as string, boxShadow: "0 0 0 2px var(--raised)" } as object,
+  setBtn: {
+    position: "relative",
+    width: CTRL,
+    height: CTRL,
+    borderRadius: RADIUS,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  setDot: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "var(--accent)" as string,
+    boxShadow: "0 0 0 2px var(--raised)",
+  } as object,
   spacer: { flex: 1 },
-  send: { width: CTRL, height: CTRL, borderRadius: CTRL / 2, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string, flexShrink: 0 },
+  send: {
+    width: CTRL,
+    height: CTRL,
+    borderRadius: CTRL / 2,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--accent)" as string,
+    flexShrink: 0,
+  },
   sendStop: { backgroundColor: "var(--sel)" as string },
   sendOff: { backgroundColor: "var(--sel)" as string },
-  split: { flexDirection: "row", alignItems: "center", height: CTRL, borderRadius: CTRL / 2, backgroundColor: "var(--accent)" as string, overflow: "hidden", flexShrink: 0 },
+  split: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: CTRL,
+    borderRadius: CTRL / 2,
+    backgroundColor: "var(--accent)" as string,
+    overflow: "hidden",
+    flexShrink: 0,
+  },
   splitBtn: { height: CTRL, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 5 },
   splitHover: { opacity: 0.85 },
   splitSep: { width: 1, height: 20, backgroundColor: "var(--accent-ink)" as string, opacity: 0.25 },
@@ -1400,14 +2301,36 @@ const styles = StyleSheet.create({
   hashPop: { flexDirection: "row", width: 640, maxWidth: "100%", overflow: "hidden" } as object,
   hashNarrow: { width: "100%", right: 6 } as object,
   hashLeft: { flex: 1, minWidth: 0 },
-  scopeBar: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  scopeBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   scopeLabel: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  scopeBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS },
+  scopeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADIUS,
+  },
   scopeValue: { fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string },
   scopeQ: { marginLeft: "auto", fontSize: 12, color: "var(--ink-4)" as string, flexShrink: 1 },
   empty: { fontSize: 12.5, color: "var(--ink-3)" as string, padding: 10 },
   notice: { fontSize: 12, color: "var(--ink-4)" as string, paddingHorizontal: 10, paddingVertical: 6 },
-  pv: { width: 240, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, padding: 16, gap: 10, backgroundColor: "var(--win)" as string },
+  pv: {
+    width: 240,
+    borderLeftWidth: 1,
+    borderLeftColor: "var(--line)" as string,
+    padding: 16,
+    gap: 10,
+    backgroundColor: "var(--win)" as string,
+  },
   pvBig: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   pvTitle: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
   pvSub: { fontSize: 12, color: "var(--ink-3)" as string },

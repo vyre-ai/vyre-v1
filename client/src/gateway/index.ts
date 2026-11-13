@@ -3,7 +3,13 @@
 // and the trace id, so a screen can show the line and quote the id. The route table is loaded on the first call, not at startup (it is large and the first paint does not need it).
 import type { Route } from "../../../generated/routes.ts";
 
-export interface CapErrorInit { code: string; message: string; traceId: string; status: number; details?: Record<string, unknown> }
+export interface CapErrorInit {
+  code: string;
+  message: string;
+  traceId: string;
+  status: number;
+  details?: Record<string, unknown>;
+}
 
 export class CapError extends Error {
   readonly code: string;
@@ -21,7 +27,11 @@ export class CapError extends Error {
 }
 
 export type RouteRow = Pick<Route, "method" | "path" | "cap" | "v"> & Partial<Pick<Route, "idempotency" | "effects">>;
-export type CapCall = (cap: string, input?: unknown, o?: { idempotencyKey?: string; signal?: AbortSignal }) => Promise<unknown>;
+export type CapCall = (
+  cap: string,
+  input?: unknown,
+  o?: { idempotencyKey?: string; signal?: AbortSignal },
+) => Promise<unknown>;
 
 export interface CapCallerOptions {
   /** The Space's address, e.g. http://127.0.0.1:7777. No trailing slash needed. */
@@ -69,7 +79,8 @@ export function queryString(input: unknown): string {
 
 function errorOf(status: number, body: unknown, trace: string | null): CapError {
   const e = isObj(body) && isObj(body["error"]) ? body["error"] : null;
-  const code = e && typeof e["code"] === "string" ? e["code"] : status === 401 ? "auth.unauthenticated" : "internal.unexpected";
+  const code =
+    e && typeof e["code"] === "string" ? e["code"] : status === 401 ? "auth.unauthenticated" : "internal.unexpected";
   const message = e && typeof e["message"] === "string" ? e["message"] : "Something went wrong on our side.";
   const traceId = e && typeof e["traceId"] === "string" ? e["traceId"] : (trace ?? "");
   const details = e && isObj(e["details"]) ? e["details"] : undefined;
@@ -81,7 +92,10 @@ export function vaultLocked(body: unknown): boolean {
   const e = isObj(body) && isObj(body["error"]) ? body["error"] : null;
   if (!e) return false;
   const d = isObj(e["details"]) ? e["details"] : null;
-  return d?.["reason"] === "vault_locked" || (typeof e["message"] === "string" && /vault key is locked|sign-ins are locked/i.test(e["message"]));
+  return (
+    d?.["reason"] === "vault_locked" ||
+    (typeof e["message"] === "string" && /vault key is locked|sign-ins are locked/i.test(e["message"]))
+  );
 }
 
 let mints = 0;
@@ -112,8 +126,19 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
   // The reads that open a chat (the thread and its last messages) go first: every other READ made through this caller (any screen) waits while one of them is out, at most HOLD_MS. Writes are never held. This caller is one signed-in session's.
   let first = 0;
   const idle: (() => void)[] = [];
-  const settle = (): void => { if (first === 0) for (const w of idle.splice(0)) w(); };
-  const waitForFirst = (): Promise<void> => (first === 0 ? Promise.resolve() : new Promise<void>((r) => { const t = setTimeout(r, HOLD_MS); idle.push(() => { clearTimeout(t); r(); }); }));
+  const settle = (): void => {
+    if (first === 0) for (const w of idle.splice(0)) w();
+  };
+  const waitForFirst = (): Promise<void> =>
+    first === 0
+      ? Promise.resolve()
+      : new Promise<void>((r) => {
+          const t = setTimeout(r, HOLD_MS);
+          idle.push(() => {
+            clearTimeout(t);
+            r();
+          });
+        });
 
   const call: CapCall = async (cap, input = {}, opts = {}) => {
     // The session token is read when the call is made, before anything is awaited: a session that ends while the route table loads must not send this call out without it.
@@ -127,9 +152,22 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
       const key = `${cap}\u0000${token ?? ""}\u0000${JSON.stringify(input)}`;
       const shared = sharing.get(key);
       if (shared !== undefined && shared.writes === writes) return shared.p;
-      const p = (async () => { if (!OPENS_A_CHAT.has(cap)) await waitForFirst(); else first += 1; try { return await send(cap, input, opts, token); } finally { if (OPENS_A_CHAT.has(cap)) { first -= 1; settle(); } } })();
+      const p = (async () => {
+        if (!OPENS_A_CHAT.has(cap)) await waitForFirst();
+        else first += 1;
+        try {
+          return await send(cap, input, opts, token);
+        } finally {
+          if (OPENS_A_CHAT.has(cap)) {
+            first -= 1;
+            settle();
+          }
+        }
+      })();
       sharing.set(key, { p, writes });
-      const done = (): void => { if (sharing.get(key)?.p === p) sharing.delete(key); };
+      const done = (): void => {
+        if (sharing.get(key)?.p === p) sharing.delete(key);
+      };
       p.then(done, done);
       return p;
     }
@@ -137,12 +175,25 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
   };
   return call;
 
-  async function send(cap: string, input: unknown, opts: { idempotencyKey?: string; signal?: AbortSignal }, token: string | null): Promise<unknown> {
+  async function send(
+    cap: string,
+    input: unknown,
+    opts: { idempotencyKey?: string; signal?: AbortSignal },
+    token: string | null,
+  ): Promise<unknown> {
     const route = (await index!).get(cap);
-    if (!route) throw new CapError({ code: "validation.unknown_capability", message: "There is no such endpoint.", traceId: "", status: 404, details: { cap } });
+    if (!route)
+      throw new CapError({
+        code: "validation.unknown_capability",
+        message: "There is no such endpoint.",
+        traceId: "",
+        status: 404,
+        details: { cap },
+      });
     const headers: Record<string, string> = { accept: "application/json" };
     if (token) headers["authorization"] = `Bearer ${token}`;
-    if (opts.idempotencyKey && route.idempotency !== "none" && route.idempotency !== "natural") headers["idempotency-key"] = opts.idempotencyKey;
+    if (opts.idempotencyKey && route.idempotency !== "none" && route.idempotency !== "natural")
+      headers["idempotency-key"] = opts.idempotencyKey;
     const get = route.method.toUpperCase() === "GET";
     if (!get) headers["content-type"] = "application/json";
     const res = await doFetch(`${base}${route.path}${get ? queryString(input) : ""}`, {
@@ -152,9 +203,14 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
       ...(opts.signal ? { signal: opts.signal } : {}),
     });
     let body: unknown = null;
-    try { body = await res.json(); } catch { /* an empty or non-JSON answer: the status decides */ }
+    try {
+      body = await res.json();
+    } catch {
+      /* an empty or non-JSON answer: the status decides */
+    }
     if (res.status === 401 && token && !vaultLocked(body)) o.onUnauthenticated?.();
-    if (res.status >= 400 || (isObj(body) && body["error"] !== undefined)) throw errorOf(res.status, body, res.headers.get("x-vyre-trace"));
+    if (res.status >= 400 || (isObj(body) && body["error"] !== undefined))
+      throw errorOf(res.status, body, res.headers.get("x-vyre-trace"));
     return isObj(body) ? body["data"] : undefined;
   }
 }

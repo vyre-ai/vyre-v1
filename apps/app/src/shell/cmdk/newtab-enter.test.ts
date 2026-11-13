@@ -17,10 +17,23 @@ function world(o: { fail?: boolean } = {}) {
   const d: CmdKData = {
     ...data,
     newKey: () => `key_${++n}`,
-    startChat: (chat) => { started.push({ key: chat.key, text: chat.text }); return { title: chat.title ?? chat.text.split(/\s+/).slice(0, 6).join(" "), sent: fail ? Promise.reject(new Error("no")) : new Promise<void>(() => undefined) }; },
+    startChat: (chat) => {
+      started.push({ key: chat.key, text: chat.text });
+      return {
+        title: chat.title ?? chat.text.split(/\s+/).slice(0, 6).join(" "),
+        sent: fail ? Promise.reject(new Error("no")) : new Promise<void>(() => undefined),
+      };
+    },
   };
   const c = new CmdKController(d, { enterStartsChat: true, revealMs: 0 });
-  return { c, calls, started, heal: () => { fail = false; } };
+  return {
+    c,
+    calls,
+    started,
+    heal: () => {
+      fail = false;
+    },
+  };
 }
 
 test("Enter with an empty box does nothing", () => {
@@ -38,7 +51,10 @@ test("Enter with words and no selection starts a chat with exactly those words, 
   w.c.enter();
   assert.deepEqual(w.started, [{ key: "key_1", text: "Heyy" }]);
   const chat = w.c.getState().chat!;
-  assert.equal(chat.phase, "sending"); assert.equal(chat.text, "Heyy"); assert.equal(chat.title, "Heyy"); assert.equal(chat.key, "key_1");
+  assert.equal(chat.phase, "sending");
+  assert.equal(chat.text, "Heyy");
+  assert.equal(chat.title, "Heyy");
+  assert.equal(chat.key, "key_1");
   w.c.enter();
   assert.equal(w.started.length, 1, "a second Enter while it is starting is one chat");
   assert.deepEqual(w.calls.opened, []);
@@ -113,7 +129,11 @@ test("a failed start shows Retry and Discard: Retry sends the same key and words
   w.heal();
   w.c.retryChat();
   assert.equal(w.c.getState().chat?.phase, "sending");
-  assert.deepEqual(w.started.map((s) => s.key), ["key_1", "key_1"], "the same key: a lost answer never makes a second chat");
+  assert.deepEqual(
+    w.started.map((s) => s.key),
+    ["key_1", "key_1"],
+    "the same key: a lost answer never makes a second chat",
+  );
   const v = world({ fail: true });
   v.c.setRaw("Heyy");
   v.c.enter();

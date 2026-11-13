@@ -27,24 +27,45 @@ const currentPath = (): string => (globalThis as { location?: { pathname?: strin
 
 /** Leave the claim address for Chats without a router: replace the history entry and read the path again. */
 function replacePath(path: string): void {
-  const h = (globalThis as { history?: { state: unknown; replaceState(state: unknown, title: string, url: string): void } }).history;
+  const h = (
+    globalThis as { history?: { state: unknown; replaceState(state: unknown, title: string, url: string): void } }
+  ).history;
   h?.replaceState(h.state, "", path);
 }
 
 /** The last net under the whole app: a crash outside any place (sign-in, the shell itself) is one themed page with a way to start over, never a blank window. */
 export class RootBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   override state = { failed: false };
-  static getDerivedStateFromError(): { failed: boolean } { return { failed: true }; }
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
   // the component stack names the screen that looped or threw (a production build gives only a React error number otherwise)
-  override componentDidCatch(error: Error, info?: { componentStack?: string | null }): void { console.error(`vyre root crashed: ${error.message.slice(0, 160)} ${(info?.componentStack ?? "").replace(/\s+/g, " ").slice(0, 600)}`); }
+  override componentDidCatch(error: Error, info?: { componentStack?: string | null }): void {
+    console.error(
+      `vyre root crashed: ${error.message.slice(0, 160)} ${(info?.componentStack ?? "").replace(/\s+/g, " ").slice(0, 600)}`,
+    );
+  }
   override render(): ReactNode {
     if (!this.state.failed) return this.props.children;
-    return <States kind="error" message="Vyre stopped working" cause="Something went wrong and this window could not carry on. Retry starts it again." retryable onRetry={() => (globalThis as { location?: { assign(url: string): void } }).location?.assign("/")} />;
+    return (
+      <States
+        kind="error"
+        message="Vyre stopped working"
+        cause="Something went wrong and this window could not carry on. Retry starts it again."
+        retryable
+        onRetry={() => (globalThis as { location?: { assign(url: string): void } }).location?.assign("/")}
+      />
+    );
   }
 }
 
 export function AppRoot(): ReactElement {
-  return <RootBoundary><AppRoute /><FirstFrame /></RootBoundary>;
+  return (
+    <RootBoundary>
+      <AppRoute />
+      <FirstFrame />
+    </RootBoundary>
+  );
 }
 
 function AppRoute(): ReactElement {
@@ -52,13 +73,31 @@ function AppRoute(): ReactElement {
   // The static export is one page per route and the daemon serves the root page for any address (a claim link included), so the first client render must be the page's own first frame;
   // the address decides what to draw only after mount (a hydration mismatch, React #418, otherwise).
   const [path, setPath] = useState<string | null>(null);
-  useEffect(() => { const p = currentPath(); setPath(p); const item = parseOpenPath(p); if (item) holdOpen(item); }, []);
+  useEffect(() => {
+    const p = currentPath();
+    setPath(p);
+    const item = parseOpenPath(p);
+    if (item) holdOpen(item);
+  }, []);
   const token = path === null ? null : claimToken(path);
-  const home = (): void => { replacePath("/chat"); setPath("/chat"); };
+  const home = (): void => {
+    replacePath("/chat");
+    setPath("/chat");
+  };
   // /oauth/callback: where an app sends a person back after approving a connection; it finishes the sign-in as the signed-in person
-  if (path === "/oauth/callback") return <Suspense fallback={<Opening />}><OAuthRoute /></Suspense>;
+  if (path === "/oauth/callback")
+    return (
+      <Suspense fallback={<Opening />}>
+        <OAuthRoute />
+      </Suspense>
+    );
   // /oauth/allow: an app outside Vyre asked to join; the normal sign-in, then the one press
-  if (path === "/oauth/allow") return <Suspense fallback={<Opening />}><AllowRoute /></Suspense>;
+  if (path === "/oauth/allow")
+    return (
+      <Suspense fallback={<Opening />}>
+        <AllowRoute />
+      </Suspense>
+    );
   if (token) {
     return (
       <Suspense fallback={<Opening />}>

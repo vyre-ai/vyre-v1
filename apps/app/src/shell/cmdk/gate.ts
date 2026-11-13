@@ -53,22 +53,37 @@ export interface GateSearchDeps {
 }
 
 const PLACE_OF: Record<HitKind, PlaceId> = {
-  person: "chats", agent: "chats", chat: "chats", channel: "chats", inbox: "inbox", record: "records", task: "records",
-  file: "files", automation: "automations", app: "apps", setting: "settings", memory: "home", note: "chats",
+  person: "chats",
+  agent: "chats",
+  chat: "chats",
+  channel: "chats",
+  inbox: "inbox",
+  record: "records",
+  task: "records",
+  file: "files",
+  automation: "automations",
+  app: "apps",
+  setting: "settings",
+  memory: "home",
+  note: "chats",
 };
 
 const SKIN = "appearance.skin";
 
 export const placeOfHit = (h: Hit): PlaceId => PLACE_OF[h.kind];
 /** A note opens in Notes, over the grid (its link is vyre://note/<id>); everything else opens as its subject. */
-export const hashOfHit = (h: Hit): string => (h.kind === "note" ? `screen=chats.notes&noteId=${encodeURIComponent(h.id)}` : `subject=${h.kind}:${h.id}`);
+export const hashOfHit = (h: Hit): string =>
+  h.kind === "note" ? `screen=chats.notes&noteId=${encodeURIComponent(h.id)}` : `subject=${h.kind}:${h.id}`;
 
 const matches = (h: Hit, q: string): boolean => `${h.title} ${h.snippet ?? ""}`.toLowerCase().includes(q.toLowerCase());
 /** Hits whose name holds the words first, the rest after, each group in its own order. */
 export function byTitleFirst(hits: readonly Hit[], q: string): Hit[] {
   const t = q.trim().toLowerCase();
   if (t === "") return [...hits];
-  return [...hits.filter((h) => h.title.toLowerCase().includes(t)), ...hits.filter((h) => !h.title.toLowerCase().includes(t))];
+  return [
+    ...hits.filter((h) => h.title.toLowerCase().includes(t)),
+    ...hits.filter((h) => !h.title.toLowerCase().includes(t)),
+  ];
 }
 
 /** People and agents from the replica's principals, and the chats the sidebar already holds. Empty until the replica has loaded them. */
@@ -77,7 +92,8 @@ export function replicaHits(rt: ShellRuntime): readonly Hit[] {
   const who = rt.principals.getSnapshot();
   if (who.status === "ready") {
     for (const p of who.data) {
-      if ((p.kind === "person" || p.kind === "agent") && offered(p)) out.push({ kind: p.kind, id: p.id, title: p.name, link: `vyre://${p.kind}/${p.id}`, score: 1 });
+      if ((p.kind === "person" || p.kind === "agent") && offered(p))
+        out.push({ kind: p.kind, id: p.id, title: p.name, link: `vyre://${p.kind}/${p.id}`, score: 1 });
     }
   }
   const recent = rt.screens.query("chats.sidebar", "recent", { filter: "all" }).getSnapshot();
@@ -85,7 +101,13 @@ export function replicaHits(rt: ShellRuntime): readonly Hit[] {
     const data = recent.data as { today?: unknown[]; yesterday?: unknown[]; earlier?: unknown[]; starred?: unknown[] };
     for (const list of [data.starred, data.today, data.yesterday, data.earlier]) {
       for (const item of (list ?? []) as { threadId: string; title: string; kind: string }[]) {
-        out.push({ kind: item.kind === "channel" ? "channel" : "chat", id: item.threadId, title: item.title, link: `vyre://chat/${item.threadId}`, score: 0.9 });
+        out.push({
+          kind: item.kind === "channel" ? "channel" : "chat",
+          id: item.threadId,
+          title: item.title,
+          link: `vyre://chat/${item.threadId}`,
+          score: 0.9,
+        });
       }
     }
   }
@@ -103,37 +125,93 @@ const CONSOLE_HIT = "shell:console";
 /** Settings and its pages from the Settings model's own list (one list, so the two never drift apart; review O6): the "you" pages a person has, each with its own line. */
 const SETTINGS_HITS: readonly { page: string; title: string; snippet: string }[] = [
   { page: "", title: "Settings", snippet: "Your profile, AI, notifications and look" },
-  ...PAGES.filter((p) => p.group === "you" && p.hidden !== true).map((p) => ({ page: p.key, title: p.title, snippet: (PAGE_SUB[p.key] ?? "").replace(/\.$/, "") })),
+  ...PAGES.filter((p) => p.group === "you" && p.hidden !== true).map((p) => ({
+    page: p.key,
+    title: p.title,
+    snippet: (PAGE_SUB[p.key] ?? "").replace(/\.$/, ""),
+  })),
 ];
 const SETTINGS_ROW = "shell:setting-row:";
 
 /** Rows inside Settings found by their name ("Passkeys", "Password"), through the Settings page's own search; each opens its page. */
 export function settingRowHits(text: string): Hit[] {
   if (text.trim().length < 3) return [];
-  return searchRows([], text).slice(0, 6).map((h): Hit => ({ kind: "setting", id: `${SETTINGS_ROW}${h.page}:${h.key}`, title: h.title, snippet: pageByKey(h.page).title, link: `vyre://settings/${h.page}`, score: 0.7 }));
+  return searchRows([], text)
+    .slice(0, 6)
+    .map(
+      (h): Hit => ({
+        kind: "setting",
+        id: `${SETTINGS_ROW}${h.page}:${h.key}`,
+        title: h.title,
+        snippet: pageByKey(h.page).title,
+        link: `vyre://settings/${h.page}`,
+        score: 0.7,
+      }),
+    );
 }
 
 /** Inbox and Connect email as results of their own. With nothing connected Inbox is off the rail, and both open the Email and calendar screen in Settings. Settings, its pages and the Console too. */
 export function shellHits(state: { inbox?: boolean }): readonly Hit[] {
   return [
-    { kind: "inbox", id: INBOX_HIT, title: "Inbox", snippet: state.inbox === false ? "Connect email and calendar" : "Mail, texts and calendar", link: "vyre://inbox", score: 0.8 },
-    { kind: "setting", id: MAIL_HIT, title: "Connect email", snippet: "Email and calendar", link: "vyre://settings/mail", score: 0.8 },
-    ...SETTINGS_HITS.map((x): Hit => ({ kind: "setting", id: `${SETTINGS_PAGE}${x.page}`, title: x.title, snippet: x.snippet, link: `vyre://settings${x.page ? `/${x.page}` : ""}`, score: 0.8 })),
-    { kind: "setting", id: CONSOLE_HIT, title: "Console", snippet: "Running this Space: people, agents, AI and servers", link: "vyre://console", score: 0.8 },
+    {
+      kind: "inbox",
+      id: INBOX_HIT,
+      title: "Inbox",
+      snippet: state.inbox === false ? "Connect email and calendar" : "Mail, texts and calendar",
+      link: "vyre://inbox",
+      score: 0.8,
+    },
+    {
+      kind: "setting",
+      id: MAIL_HIT,
+      title: "Connect email",
+      snippet: "Email and calendar",
+      link: "vyre://settings/mail",
+      score: 0.8,
+    },
+    ...SETTINGS_HITS.map(
+      (x): Hit => ({
+        kind: "setting",
+        id: `${SETTINGS_PAGE}${x.page}`,
+        title: x.title,
+        snippet: x.snippet,
+        link: `vyre://settings${x.page ? `/${x.page}` : ""}`,
+        score: 0.8,
+      }),
+    ),
+    {
+      kind: "setting",
+      id: CONSOLE_HIT,
+      title: "Console",
+      snippet: "Running this Space: people, agents, AI and servers",
+      link: "vyre://console",
+      score: 0.8,
+    },
   ];
 }
 
 /** Where a shell result goes: Inbox itself once something flows in, otherwise the connect screen; a Settings page; the Console. Null for any other result. */
 export function shellHitTarget(hit: Hit, state: { inbox?: boolean }): { place: PlaceId; hash: string } | null {
-  if (hit.id === MAIL_HIT || (hit.id === INBOX_HIT && state.inbox === false)) return { place: "settings", hash: MAIL_PAGE_HASH };
+  if (hit.id === MAIL_HIT || (hit.id === INBOX_HIT && state.inbox === false))
+    return { place: "settings", hash: MAIL_PAGE_HASH };
   if (hit.id === INBOX_HIT) return { place: "inbox", hash: "" };
-  if (hit.id.startsWith(SETTINGS_ROW)) { const page = hit.id.slice(SETTINGS_ROW.length).split(":")[0] ?? ""; return { place: "settings", hash: `page=${page}` }; }
-  if (hit.id.startsWith(SETTINGS_PAGE)) { const page = hit.id.slice(SETTINGS_PAGE.length); return { place: "settings", hash: page ? `page=${page}` : "" }; }
+  if (hit.id.startsWith(SETTINGS_ROW)) {
+    const page = hit.id.slice(SETTINGS_ROW.length).split(":")[0] ?? "";
+    return { place: "settings", hash: `page=${page}` };
+  }
+  if (hit.id.startsWith(SETTINGS_PAGE)) {
+    const page = hit.id.slice(SETTINGS_PAGE.length);
+    return { place: "settings", hash: page ? `page=${page}` : "" };
+  }
   if (hit.id === CONSOLE_HIT) return { place: "console", hash: "" };
   return null;
 }
 
-export function gateActions(state: { away: boolean; offline: boolean; terminal?: boolean}, team = true, signOut = false): readonly CmdAction[] {
+export function gateActions(
+  state: { away: boolean; offline: boolean; terminal?: boolean },
+  team = true,
+  signOut = false,
+): readonly CmdAction[] {
   return [
     { key: "task.new", title: "New task", icon: "plus" },
     // the Projects group in Chats shows only once a project exists, so on a new Space this is the way to the first one (client walk, 11 Nov 2026)
@@ -148,14 +226,25 @@ export function gateActions(state: { away: boolean; offline: boolean; terminal?:
   ];
 }
 
-const SPARK = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v3M8 11v3M2 8h3M11 8h3M4 4l2 2M10 10l2 2M12 4l-2 2M6 10l-2 2"/></svg>';
+const SPARK =
+  '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v3M8 11v3M2 8h3M11 8h3M4 4l2 2M10 10l2 2M12 4l-2 2M6 10l-2 2"/></svg>';
 export const ASK_HERE = "ask.here";
 
 /** Ask Vyre about this: in any place but Chats, the Ask pane opens beside what is on screen (the open object, else the place). */
 export function askActions(screen: ScreenContext | null): readonly CmdAction[] {
   if (screen === null || screen.place === "chats") return [];
   const thing = thingOfScreen(screen);
-  return [{ key: ASK_HERE, title: thing?.title ? `Ask Vyre about ${thing.title}` : thing ? "Ask Vyre about this" : `Ask Vyre about ${placeTitle(screen.place)}`, icon: SPARK }];
+  return [
+    {
+      key: ASK_HERE,
+      title: thing?.title
+        ? `Ask Vyre about ${thing.title}`
+        : thing
+          ? "Ask Vyre about this"
+          : `Ask Vyre about ${placeTitle(screen.place)}`,
+      icon: SPARK,
+    },
+  ];
 }
 
 /** The press: the pane opens in the place the person is in, with the place's own screen context as what the agent is told. */
@@ -167,10 +256,19 @@ export function askHere(screen: ScreenContext | null = currentScreen()): boolean
 }
 
 /** Keeps the results the viewer can open: a result whose place is not on their rail never shows (reach). */
-export function reachable(hits: readonly Hit[], viewer: Viewer | null, state: { inbox?: boolean }, mayConsole?: boolean): Hit[] {
+export function reachable(
+  hits: readonly Hit[],
+  viewer: Viewer | null,
+  state: { inbox?: boolean },
+  mayConsole?: boolean,
+): Hit[] {
   if (viewer === null) return mayConsole === false ? hits.filter((h) => h.id !== CONSOLE_HIT) : [...hits];
   // the Console is no place on the rail: it is listed for whoever may open its first page, as Settings' own Console row is
-  return hits.filter((h) => (h.id === CONSOLE_HIT ? (mayConsole ?? listable({ kind: h.kind, consolePage: "overview" }, viewer)) : listable({ kind: h.kind, place: livePlace(shellHitTarget(h, state)?.place ?? placeOfHit(h)) }, viewer)));
+  return hits.filter((h) =>
+    h.id === CONSOLE_HIT
+      ? (mayConsole ?? listable({ kind: h.kind, consolePage: "overview" }, viewer))
+      : listable({ kind: h.kind, place: livePlace(shellHitTarget(h, state)?.place ?? placeOfHit(h)) }, viewer),
+  );
 }
 
 export function createGateSearch(d: GateSearchDeps): CmdKData {
@@ -188,7 +286,11 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
   const callOf = rt.call as (cap: string, input: unknown) => Promise<unknown>;
   return {
     spaceName: () => rt.space.name,
-    warm: () => { void lastPick(callOf).then((p) => { if (p !== null) pick = p; }); },
+    warm: () => {
+      void lastPick(callOf).then((p) => {
+        if (p !== null) pick = p;
+      });
+    },
     // Enter on typed words in the new tab: a chat with those words, started as the first screen's composer starts one (the same input, the Assistant, the model last picked), in this tab. His words and the tab's name are on screen
     // from the key press (the page draws them; the tab is named here), and the tab opens on the chat when it exists.
     startChat: ({ key, text, title: given }) => {
@@ -197,13 +299,28 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
       const sent = (async (): Promise<void> => {
         const assistantId = await realAssistant(rt.assistant.id, (cap, input) => callOf(cap, input));
         if (assistantId === null) throw new Error("no assistant yet");
-        const out = await callOf("chat.start", chatStartInput({ picked: [{ id: rt.assistant.id, name: rt.assistant.name, kind: "assistant" }], choice: pick ?? {}, text, title, hasFiles: false, slash: false, key }, assistantId)) as { thread?: { threadId?: string } } | null;
+        const out = (await callOf(
+          "chat.start",
+          chatStartInput(
+            {
+              picked: [{ id: rt.assistant.id, name: rt.assistant.name, kind: "assistant" }],
+              choice: pick ?? {},
+              text,
+              title,
+              hasFiles: false,
+              slash: false,
+              key,
+            },
+            assistantId,
+          ),
+        )) as { thread?: { threadId?: string } } | null;
         const id = out?.thread?.threadId;
         if (!id) throw new Error(startFailure(null));
         holdPending(id, { title, text, files: [], lead: rt.assistant.name });
         // the new tab itself becomes the chat, the way a result opened from this page fills the tab (rt.open would open the thread in a tab of its own, beside this one)
         const hash = `subject=thread:${id}`;
-        if (d.fill) d.fill("chats", hash, title); else nav.go("chats", hash);
+        if (d.fill) d.fill("chats", hash, title);
+        else nav.go("chats", hash);
       })();
       return { title, sent };
     },
@@ -211,21 +328,46 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     online,
     // Inbox and Connect email answer a typed word only; the replica's people and chats stay the whole of an empty search
     // a result named by the words comes before one whose line under the name only mentions them (Notifications before Settings, whose line names notifications)
-    local: (text, types) => byTitleFirst(mine([...replicaHits(rt), ...(text.trim() === "" ? [] : [...shellHits(state), ...settingRowHits(text)])].filter((h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text)))), text),
+    local: (text, types) =>
+      byTitleFirst(
+        mine(
+          [...replicaHits(rt), ...(text.trim() === "" ? [] : [...shellHits(state), ...settingRowHits(text)])].filter(
+            (h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text)),
+          ),
+        ),
+        text,
+      ),
     server: async (text, types) => {
-      const out = (await rt.call("search.query", { q: text, ...(types ? { types: [...types] } : {}), limit: 20 })) as { hits: Hit[] };
+      const out = (await rt.call("search.query", { q: text, ...(types ? { types: [...types] } : {}), limit: 20 })) as {
+        hits: Hit[];
+      };
       return mine(out.hits);
     },
     recent: () => mine(d.recent()),
-    actions: (text) => [...askActions(currentScreen()), ...gateActions(state, rt.space.kind === "team", d.signOut !== undefined)].filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),
-    skins: () => [{ id: system.id, name: system.name }, ...skins.map((s) => ({ id: s.id, name: s.name, swatch: s.palette.accent }))],
-    currentSkin: () => (globalThis as { document?: { documentElement?: { getAttribute(k: string): string | null } } }).document?.documentElement?.getAttribute("data-skin") ?? "system",
+    actions: (text) =>
+      [...askActions(currentScreen()), ...gateActions(state, rt.space.kind === "team", d.signOut !== undefined)].filter(
+        (a) => !text || a.title.toLowerCase().includes(text.toLowerCase()),
+      ),
+    skins: () => [
+      { id: system.id, name: system.name },
+      ...skins.map((s) => ({ id: s.id, name: s.name, swatch: s.palette.accent })),
+    ],
+    currentSkin: () =>
+      (
+        globalThis as { document?: { documentElement?: { getAttribute(k: string): string | null } } }
+      ).document?.documentElement?.getAttribute("data-skin") ?? "system",
     previewSkin: () => undefined,
     // it opens where you pressed: the window changes at once, the setting follows, and you stay on the page you are on
-    setSkin: (id) => { applySkinToWindow(rt, id); void Promise.resolve(rt.call("settings.set", { key: "appearance.skin", value: id })).catch(() => nav.flash("Could not save the skin")); },
+    setSkin: (id) => {
+      applySkinToWindow(rt, id);
+      void Promise.resolve(rt.call("settings.set", { key: "appearance.skin", value: id })).catch(() =>
+        nav.flash("Could not save the skin"),
+      );
+    },
     open,
     copyLink: (hit) => {
-      const clip = (globalThis as { navigator?: { clipboard?: { writeText(s: string): Promise<void> } } }).navigator?.clipboard;
+      const clip = (globalThis as { navigator?: { clipboard?: { writeText(s: string): Promise<void> } } }).navigator
+        ?.clipboard;
       void clip?.writeText(hit.link);
       nav.flash("Link copied");
     },
@@ -234,7 +376,10 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
       else if (a.key === "presence.away") {
         state.away = !state.away;
         if (d.away) d.away(state.away);
-        else { nav.setAway(state.away); nav.flash(state.away ? "You are set as away" : "Welcome back"); }
+        else {
+          nav.setAway(state.away);
+          nav.flash(state.away ? "You are set as away" : "Welcome back");
+        }
       } else if (a.key === "network.offline") {
         state.offline = !state.offline;
         nav.setOnline(!state.offline && rt.connection.get() === "online", 0);
@@ -243,14 +388,17 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
       else if (a.key === "terminal.open") nav.go("chats", `screen=chats.terminal-list&at=${Date.now()}`);
       else if (a.key === "task.new") nav.go("home");
       else if (a.key === "project.new") rt.open({ screen: "records.projects", args: { create: true } });
-      else if (a.key === "channel.new") { nav.go("chats"); requestChannelSheet("new"); }
-      else if (a.key === SKIN) nav.go("settings", "page=appearance");
+      else if (a.key === "channel.new") {
+        nav.go("chats");
+        requestChannelSheet("new");
+      } else if (a.key === SKIN) nav.go("settings", "page=appearance");
       else if (a.key === "mail.connect") nav.go("settings", MAIL_PAGE_HASH);
     },
     // Ask the Space: the question is answered on the server from what this person may read, on their own AI account (search.ask); the answer and its sources come back whole and are written onto the page by the sheet
     ask: async (question) => (await rt.call("search.ask", { q: question })) as AskAnswer,
     copyText: (text) => {
-      const clip = (globalThis as { navigator?: { clipboard?: { writeText(s: string): Promise<void> } } }).navigator?.clipboard;
+      const clip = (globalThis as { navigator?: { clipboard?: { writeText(s: string): Promise<void> } } }).navigator
+        ?.clipboard;
       void clip?.writeText(text);
       nav.flash("Answer copied");
     },
@@ -259,16 +407,40 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
       const first = `${question}\n\nWhat the Space says:\n${answer}`;
       const heading = question.length > 80 ? `${question.slice(0, 77)}...` : question;
       // the chat opens at once on the person's own words (the question and the answer he is carrying on from) and is made behind them; a very long answer cannot ride in a link, so that one waits for its chat as before
-      if (first.length <= CARRIED_MAX) { rt.open({ screen: "chats.ask", args: { with: "assistant", first, heading } }); return; }
+      if (first.length <= CARRIED_MAX) {
+        rt.open({ screen: "chats.ask", args: { with: "assistant", first, heading } });
+        return;
+      }
       const key = `askchat_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-      void Promise.resolve(rt.call("chat.start", { kind: "chat", agentIds: [rt.assistant.id], title: heading, first, idempotencyKey: key }))
-        .then((out) => { const id = (out as { thread?: { threadId?: string } } | null)?.thread?.threadId; if (id) rt.open({ subject: { type: "thread", id } }); else nav.flash("Could not open a chat"); }, () => nav.flash("Could not open a chat"));
+      void Promise.resolve(
+        rt.call("chat.start", {
+          kind: "chat",
+          agentIds: [rt.assistant.id],
+          title: heading,
+          first,
+          idempotencyKey: key,
+        }),
+      ).then(
+        (out) => {
+          const id = (out as { thread?: { threadId?: string } } | null)?.thread?.threadId;
+          if (id) rt.open({ subject: { type: "thread", id } });
+          else nav.flash("Could not open a chat");
+        },
+        () => nav.flash("Could not open a chat"),
+      );
     },
-    recordOpened: (hit) => { if (shellHitTarget(hit, state)) return; void rt.call("search.recent.record", { kind: hit.kind, itemId: hit.id }).catch(() => undefined); },
+    recordOpened: (hit) => {
+      if (shellHitTarget(hit, state)) return;
+      void rt.call("search.recent.record", { kind: hit.kind, itemId: hit.id }).catch(() => undefined);
+    },
   };
 }
 
 /** Read Recent ahead of the sheet; resolves to what the Space keeps, or nothing when it cannot answer. */
 export async function loadRecent(rt: ShellRuntime): Promise<readonly Hit[]> {
-  try { return ((await rt.call("search.recent.list", { limit: 8 })) as { hits: Hit[] }).hits; } catch { return []; }
+  try {
+    return ((await rt.call("search.recent.list", { limit: 8 })) as { hits: Hit[] }).hits;
+  } catch {
+    return [];
+  }
 }

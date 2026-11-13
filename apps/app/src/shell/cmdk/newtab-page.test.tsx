@@ -9,18 +9,62 @@ import { NewTabSearch } from "./CmdK.tsx";
 import { createSampleData } from "./sample.ts";
 import type { CmdKData } from "./controller.ts";
 
-const keyEvent = (key: string, extra: Record<string, unknown> = {}) => ({ key, ...extra, nativeEvent: { key, isComposing: false, ...extra }, target: { blur() {} }, currentTarget: { blur() {} }, preventDefault() {}, stopPropagation() {}, isDefaultPrevented: () => false, isPropagationStopped: () => false, persist() {} });
+const keyEvent = (key: string, extra: Record<string, unknown> = {}) => ({
+  key,
+  ...extra,
+  nativeEvent: { key, isComposing: false, ...extra },
+  target: { blur() {} },
+  currentTarget: { blur() {} },
+  preventDefault() {},
+  stopPropagation() {},
+  isDefaultPrevented: () => false,
+  isPropagationStopped: () => false,
+  persist() {},
+});
 
 async function page(o: { fail?: boolean } = {}) {
   const { data, calls } = createSampleData({ ask: true, serverDelayMs: 5 });
   const started: { key: string; text: string }[] = [];
   let warmed = 0;
-  const d: CmdKData = { ...data, warm: () => { warmed += 1; }, newKey: () => `key_${started.length + 1}`, startChat: (c) => { started.push(c); return { title: c.text, sent: o.fail ? Promise.reject(new Error("x")) : new Promise<void>(() => undefined) }; } };
+  const d: CmdKData = {
+    ...data,
+    warm: () => {
+      warmed += 1;
+    },
+    newKey: () => `key_${started.length + 1}`,
+    startChat: (c) => {
+      started.push(c);
+      return { title: c.text, sent: o.fail ? Promise.reject(new Error("x")) : new Promise<void>(() => undefined) };
+    },
+  };
   const restore = installDom();
-  const root = await mount(createRoot, <NewTabSearch data={d} chatView={(c, a) => <View testID="pending-view"><Text testID="pending-text">{c.text}</Text><Text testID="pending-phase">{c.phase}</Text><Text testID="pending-retry" onPress={a.retry}>retry</Text><Text testID="pending-discard" onPress={a.discard}>discard</Text></View>} />);
+  const root = await mount(
+    createRoot,
+    <NewTabSearch
+      data={d}
+      chatView={(c, a) => (
+        <View testID="pending-view">
+          <Text testID="pending-text">{c.text}</Text>
+          <Text testID="pending-phase">{c.phase}</Text>
+          <Text testID="pending-retry" onPress={a.retry}>
+            retry
+          </Text>
+          <Text testID="pending-discard" onPress={a.discard}>
+            discard
+          </Text>
+        </View>
+      )}
+    />,
+  );
   const input = () => find(root, "cmdk-input")!;
-  const type = async (t: string) => { await typeInto(input(), t); };
-  const pressKey = async (key: string, extra: Record<string, unknown> = {}) => { await act(async () => { (input().props.onKeyDown as (e: unknown) => void)(keyEvent(key, extra)); }); };
+  const type = async (t: string) => {
+    await typeInto(input(), t);
+  };
+  const pressKey = async (key: string, extra: Record<string, unknown> = {}) => {
+    await act(async () => {
+      (input().props.onKeyDown as (e: unknown) => void)(keyEvent(key, extra));
+    });
+  };
   return { root, type, pressKey, started, calls, restore, warmed: () => warmed };
 }
 
@@ -35,7 +79,9 @@ test("type Heyy, press Enter: his words and the working state are on screen in t
     assert.equal(textOf(find(p.root, "pending-phase")!), "sending");
     assert.equal(find(p.root, "cmdk-input"), null, "the search is gone: this tab is the chat");
     assert.deepEqual(p.started, [{ key: "key_1", text: "Heyy" }]);
-  } finally { p.restore(); }
+  } finally {
+    p.restore();
+  }
 });
 
 test("Enter on an empty box does nothing; Enter with words and the arrow moved opens the result; the Ask row carries its chord and Alt+Enter runs the Ask", async () => {
@@ -56,8 +102,12 @@ test("Enter on an empty box does nothing; Enter with words and the arrow moved o
       await q.pressKey("Enter");
       assert.equal(q.started.length, 0);
       assert.equal(q.calls.opened.length, 1);
-    } finally { q.restore(); }
-  } finally { p.restore(); }
+    } finally {
+      q.restore();
+    }
+  } finally {
+    p.restore();
+  }
 });
 
 test("a failed start shows its failed state; Retry sends the same key; Discard brings the search back with his words in the field", async () => {
@@ -65,13 +115,22 @@ test("a failed start shows its failed state; Retry sends the same key; Discard b
   try {
     await p.type("Heyy");
     await p.pressKey("Enter");
-    await act(async () => { await new Promise((r) => setTimeout(r, 5)); });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 5));
+    });
     assert.equal(textOf(find(p.root, "pending-phase")!), "failed");
     await press(find(p.root, "pending-retry"));
-    assert.deepEqual(p.started.map((s) => s.key), ["key_1", "key_1"]);
-    await act(async () => { await new Promise((r) => setTimeout(r, 5)); });
+    assert.deepEqual(
+      p.started.map((s) => s.key),
+      ["key_1", "key_1"],
+    );
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 5));
+    });
     await press(find(p.root, "pending-discard"));
     assert.equal(find(p.root, "pending-view"), null);
     assert.equal(find(p.root, "cmdk-input")!.props.value, "Heyy");
-  } finally { p.restore(); }
+  } finally {
+    p.restore();
+  }
 });
