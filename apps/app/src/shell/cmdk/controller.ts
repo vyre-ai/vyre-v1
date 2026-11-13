@@ -66,6 +66,8 @@ export interface CmdKData {
   startChat?(chat: { key: string; text: string; title?: string }): { title: string; sent: Promise<void> };
   /** Called when the page opens: whatever a chat started from here needs ready (the model last picked), so the key press waits for nothing. */
   warm?(): void;
+  /** A pasted address of this Space that names a thing opens that thing: true when it did (the words were a link, not a message). */
+  openLink?(text: string): boolean;
 }
 
 /** A chat being started from the new tab: his words are on screen while the chat is made behind them. */
@@ -413,7 +415,10 @@ export class CmdKController {
       p.prefix === null &&
       !this.moved
     ) {
-      if (p.text !== "" && !newTab) this.startChat();
+      if (p.text !== "" && !newTab) {
+        if (this.data.openLink?.(this.s.raw.trim()) === true) return;
+        this.startChat();
+      }
       return;
     }
     this.choose(this.s.active, newTab);

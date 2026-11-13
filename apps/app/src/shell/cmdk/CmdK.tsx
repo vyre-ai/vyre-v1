@@ -165,8 +165,19 @@ export function CmdKBody({
     ctrlKey?: boolean;
     shiftKey?: boolean;
     altKey?: boolean;
+    isComposing?: boolean;
+    keyCode?: number;
+    nativeEvent?: { isComposing?: boolean; keyCode?: number };
     preventDefault?: () => void;
   }): void => {
+    // a key that belongs to an input method (a word being confirmed with Enter in Japanese, Chinese, Korean, Urdu...) is not a command: Enter there must never start or open anything
+    if (
+      e.isComposing === true ||
+      e.nativeEvent?.isComposing === true ||
+      e.keyCode === 229 ||
+      e.nativeEvent?.keyCode === 229
+    )
+      return;
     const stop = (): void => e.preventDefault?.();
     if (e.key === "ArrowDown") {
       stop();

@@ -134,3 +134,18 @@ test("a failed start shows its failed state; Retry sends the same key; Discard b
     p.restore();
   }
 });
+
+test("Enter that confirms a word in an input method (isComposing, or keyCode 229) never starts a chat; the same key after the composition does", async () => {
+  const p = await page();
+  try {
+    await p.type("こんにちは");
+    await p.pressKey("Enter", { isComposing: true });
+    await p.pressKey("Enter", { keyCode: 229 });
+    assert.equal(p.started.length, 0, "no chat while composing");
+    assert.equal(find(p.root, "pending-view"), null);
+    await p.pressKey("Enter");
+    assert.equal(p.started.length, 1);
+  } finally {
+    p.restore();
+  }
+});

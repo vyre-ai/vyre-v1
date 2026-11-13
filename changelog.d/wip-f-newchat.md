@@ -12,3 +12,7 @@
 - In a new tab nothing is selected until you press an arrow key or move the pointer onto a result. Then Enter opens that result, as before. Cmd+Enter (Ctrl+Enter elsewhere) still opens it in a new tab.
 - "Ask the Space" is now a row at the top of a new tab's results with its own shortcut, shown on the row: Option+Enter on a Mac, Alt+Enter elsewhere. "Continue in a chat" after an Ask also opens the chat in the same tab instead of leaving a "New tab" behind.
 - A new chat's tab keeps the name of your first words from the first moment. It no longer flashes "New chat" while the chat is being made, and a chat that cannot be read for a moment is no longer taken for a blank chat that "+" jumps to.
+- Pasting a link to a chat, file, record or other thing in this Space into a new tab and pressing Enter opens that thing. Any other pasted text starts a chat.
+- In a new tab, pressing Enter to confirm a word in an input method (Japanese, Chinese, Korean, Urdu and others) no longer starts a chat.
+- If you press Enter in a new tab and switch to another tab while the chat is being made, the chat appears in the tab you pressed Enter in, and you stay where you went.
+- Retry after a failed start in a new tab sends exactly the same message and settings as the first try.

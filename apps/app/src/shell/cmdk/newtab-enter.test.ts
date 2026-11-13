@@ -185,3 +185,33 @@ test("Continue in a chat from an Ask in the new tab starts the chat the same way
   assert.equal(w.c.getState().ask, null);
   assert.equal(w.calls.chats.length, 0, "the sheet's own Continue (a separate tab) is not used here");
 });
+
+test("a pasted link to a thing in this Space opens it and starts no chat; any other pasted text starts the chat", () => {
+  const { data } = createSampleData({ ask: true, serverDelayMs: 5 });
+  const opened: string[] = [];
+  const started: string[] = [];
+  const d: CmdKData = {
+    ...data,
+    openLink: (text) => {
+      if (text.startsWith("https://space.example.test/open/")) {
+        opened.push(text);
+        return true;
+      }
+      return false;
+    },
+    startChat: (c) => {
+      started.push(c.text);
+      return { title: c.text, sent: new Promise<void>(() => undefined) };
+    },
+  };
+  const a = new CmdKController(d, { enterStartsChat: true });
+  a.setRaw("https://space.example.test/open/thread/thr_1");
+  a.enter();
+  assert.deepEqual(opened, ["https://space.example.test/open/thread/thr_1"]);
+  assert.deepEqual(started, []);
+  assert.equal(a.getState().chat, null);
+  const b = new CmdKController(d, { enterStartsChat: true });
+  b.setRaw("https://news.example.test/article");
+  b.enter();
+  assert.deepEqual(started, ["https://news.example.test/article"]);
+});

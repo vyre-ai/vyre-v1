@@ -152,15 +152,24 @@ export function moveTab(state: TabsState, place: PlaceId, hash: string | undefin
  * The "+" tab on screen becomes what was opened from it (a chat started from its search): the same tab, no second one beside it, none left called "New tab". A chat already open in another tab is selected
  * and the "+" tab goes. When the selected tab is not a "+" tab this is an ordinary open.
  */
-export function fillTab(state: TabsState, place: PlaceId, hash: string | undefined, title?: string): TabsState {
-  const cur = activeEntry(state);
+export function fillTab(
+  state: TabsState,
+  place: PlaceId,
+  hash: string | undefined,
+  title?: string,
+  from?: string,
+): TabsState {
+  // the tab the press came from, by its key; the selected one when no key is given. The person may have gone to another tab while the chat was being made: that tab stays selected.
+  const cur = from === undefined ? activeEntry(state) : findTab(state, from);
   const tab = placeTab(place, hash, title);
   if (cur === undefined || cur.isNew !== true) return openTab(state, tab);
+  const wasActive = state.active === cur.key;
   const other = holding(state, tab.key, cur);
-  if (other !== undefined) return { tabs: state.tabs.filter((t) => t !== cur), active: other.key };
+  if (other !== undefined)
+    return { tabs: state.tabs.filter((t) => t !== cur), active: wasActive ? other.key : state.active };
   return {
     tabs: state.tabs.map((t) => (t === cur ? { ...tab, ...(cur.pinned === true ? { pinned: true } : {}) } : t)),
-    active: tab.key,
+    active: wasActive ? tab.key : state.active,
   };
 }
 
@@ -421,7 +430,7 @@ export interface TabsController {
   /** The person went somewhere inside the selected tab's place: the tab follows (moveTab). */
   move(place: PlaceId, hash?: string, title?: string): void;
   /** The "+" tab on screen becomes what was opened from it (fillTab). */
-  fill(place: PlaceId, hash?: string, title?: string): void;
+  fill(place: PlaceId, hash?: string, title?: string, from?: string): void;
   newTab(from: PlaceId): TabEntry;
   select(key: string): void;
   close(key: string): void;
@@ -514,9 +523,9 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
       if (hidden.includes(place)) return;
       set(moveTab(state, place, hash, title));
     },
-    fill(place, hash, title) {
+    fill(place, hash, title, from) {
       if (hidden.includes(place)) return;
-      set(fillTab(state, place, hash, title));
+      set(fillTab(state, place, hash, title, from));
     },
     land(place) {
       if (hidden.includes(place)) return;

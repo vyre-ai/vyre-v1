@@ -85,3 +85,65 @@ test("a start that fails rejects `sent`, opens nothing and holds nothing; a retr
     ["k_1", "k_1"],
   );
 });
+
+test("a retry sends exactly the input of the first press, even when the model pick loaded in between: the same key never meets different input", async () => {
+  let pickReady = false;
+  const sent: Record<string, unknown>[] = [];
+  let failNext = true;
+  const rt = {
+    space: { name: "Northwind", kind: "team" },
+    connection: { get: () => "online" },
+    assistant: { id: "agt_a", name: "Assistant" },
+    open: () => undefined,
+    call: async (cap: string, input: Record<string, unknown>) => {
+      if (cap === "engine.last_pick.get") return pickReady ? { model: "m-1" } : null;
+      if (cap === "chat.start") {
+        sent.push(input);
+        if (failNext) {
+          failNext = false;
+          throw new Error("down");
+        }
+        return { thread: { threadId: "thr_r" } };
+      }
+      return {};
+    },
+  };
+  const data = createGateSearch({
+    runtime: rt as never,
+    nav: { go: () => undefined, newTab: () => undefined, flash: () => undefined } as never,
+    state: { away: false, offline: false },
+    recent: () => [],
+    fill: () => undefined,
+  });
+  await assert.rejects(data.startChat!({ key: "k_same", text: "Heyy" }).sent);
+  pickReady = true;
+  data.warm!();
+  await new Promise((r) => setTimeout(r, 10));
+  await data.startChat!({ key: "k_same", text: "Heyy" }).sent;
+  assert.equal(sent.length, 2);
+  assert.deepEqual(sent[1], sent[0], "same key, same input");
+  releasePending("thr_r");
+});
+
+test("the chat fills the tab the press came from (its key at the press), not the one that is selected when the answer comes", async () => {
+  const w = world();
+  const filled: { place: string; hash: string; title: string; tab?: string }[] = [];
+  const data = createGateSearch({
+    runtime: {
+      space: { name: "N", kind: "team" },
+      connection: { get: () => "online" },
+      assistant: { id: "agt_a", name: "Assistant" },
+      open: () => undefined,
+      call: async (cap: string) => (cap === "chat.start" ? { thread: { threadId: "thr_t" } } : {}),
+    } as never,
+    nav: { go: () => undefined, newTab: () => undefined, flash: () => undefined } as never,
+    state: { away: false, offline: false },
+    recent: () => [],
+    activeTab: () => "new:1",
+    fill: (place, hash, title, tab) => void filled.push({ place, hash, title, ...(tab ? { tab } : {}) }),
+  });
+  void w;
+  await data.startChat!({ key: "k_t", text: "Heyy" }).sent;
+  assert.deepEqual(filled, [{ place: "chats", hash: "subject=thread:thr_t", title: "Heyy", tab: "new:1" }]);
+  releasePending("thr_t");
+});
