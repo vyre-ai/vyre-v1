@@ -12,6 +12,7 @@ import type { Block } from "../../kit/types.ts";
 import { menuTrigger, useMenu } from "../../Menu/index.tsx";
 import { Row } from "../../Row/index.tsx";
 import { ArtifactCard, linkOf } from "../../ArtifactCard/index.tsx";
+import { noLinkToGive, spaceLinkOrigin } from "../../link-origin.ts";
 import type { ArtifactInfo } from "../../ArtifactCard/index.tsx";
 import type { MenuEntry } from "../../Menu/index.tsx";
 import {
@@ -853,7 +854,7 @@ export function ArtifactBlock({ block, host }: BlockViewProps): ReactElement {
         artifactId: id,
         idempotencyKey: `card-${id}-${Date.now()}`,
       })) as { path: string; url?: string };
-      return linkOf(o, (globalThis as { location?: { origin?: string } }).location?.origin);
+      return linkOf(o, spaceLinkOrigin() || undefined);
     } catch {
       return null;
     }
@@ -878,11 +879,12 @@ export function ArtifactBlock({ block, host }: BlockViewProps): ReactElement {
         {...(host.nameOf ? { nameOf: host.nameOf } : {})}
         testID={`blk-artifact-${block.id}-card`}
         onOpen={() => void openTab(host, "artifact", block.data)}
-        onCopyLink={() =>
-          copyText(
-            `${((globalThis as { location?: { origin?: string } }).location?.origin ?? "").replace(/\/+$/, "")}/a/${id}`,
-          )
-        }
+        onCopyLink={() => {
+          // the Space's own address, never the page's (tauri://localhost in the desktop app); none: the app says so in words
+          const base = spaceLinkOrigin();
+          if (base === "") noLinkToGive();
+          else copyText(`${base}/a/${id}`);
+        }}
         onShare={() => host.open("artifact-share", { artifactId: id })}
         onBrowser={() =>
           void address().then((u) => {

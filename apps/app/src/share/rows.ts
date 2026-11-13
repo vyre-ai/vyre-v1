@@ -1,4 +1,5 @@
 // The rows and the directory the one Access sheet takes, from the access data every place reads (access.shares_of, the Space directory).
+import { setSpaceLinkOrigin } from "../../../../ui/src/link-origin.ts";
 import { notices } from "../shell/noticeslot/model.ts";
 import type { CapMap } from "../../../../generated/types.ts";
 import type { AccessEntry, ShareRow } from "../../../../ui/src/AccessSheet/index.tsx";
@@ -76,6 +77,7 @@ let spaceAddress: string | null = null;
 /** The Space this session is open on: set when the session opens, so a link is made from the Space's own address and not from the page the app runs in (the desktop app runs in tauri://localhost). */
 export function setLinkOrigin(address: string | null): void {
   spaceAddress = address;
+  setSpaceLinkOrigin(linkOrigin(), () => void notices.pass(NO_LINK_WORDS));
 }
 
 /**

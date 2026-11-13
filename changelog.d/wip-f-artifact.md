@@ -12,3 +12,4 @@
 - Sharing an artifact, file or folder now says what happened in the top bar ("Shared with Ada", or that it did not go through). Sharing with an agent, such as the Assistant, no longer fails because of an empty level.
 - An agent computer's live screen asks for a new stream ticket when its picture stream fails, instead of reusing one that is spent.
 - Copy link in the Share sheet (and every other Copy link: notes, files, chats, messages, agents, records) now copies the Space's own address. In the desktop app it copied an address that begins tauri://localhost, which opens nowhere. A Space with no public address says so in words instead of copying a dead link. An address under /a/ that is not an artifact's now answers a plain page, not a raw error.
+- The artifact card in a chat and a record's Copy link also copy the Space's own address, not the address of the page the app runs in.
