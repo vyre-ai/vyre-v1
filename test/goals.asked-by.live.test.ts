@@ -113,3 +113,35 @@ test("goals live (API engine): the owner asks an agent in another chat to move t
     await d.stop();
   }
 });
+
+test("goals live: a Personal Automation that posts in a chat as its owner is not the owner asking; the agent's owner control is refused (and what origin the run carried is the Automation's, not 'user')", { timeout: 120_000 }, async () => {
+  const m = stand();
+  const d = await boot(seededDir(), m.open);
+  const pumping = setInterval(() => void d.hooks?.pump?.(), 100);
+  try {
+    await connect(d);
+    const desk = await newAgent(d, "Lab Desk");
+    const dex = await newAgent(d, "Dex");
+    const made = await ok(d, "goals.create", {
+      title: "3 registrations for Lab 8", finish: { kind: "number", line: "Lab 8 registrations reach 3", target: 3, unit: "registrations", source: { kind: "records", type: "contact", label: "Lab 8 registrations" } },
+      deadline: clock.t + 4 * DAY, leadAgentId: desk.id, rhythm: { every: "hours", hours: 6 }, quiet: null, zone: "UTC", budget: { turns: 60 },
+    });
+    const goalId = made.goal.id as string;
+    const first = made.goal.deadline as number;
+    const threadId = (await ok(d, "chat.start", { kind: "chat", agentIds: [dex.id] })).thread.threadId as string;
+    // the owner's Personal Automation: when a contact is made, post this line in Dex's chat, as the owner
+    const def = { triggers: [{ key: "record_change", config: {}, filter: { type: "contact", op: "created" } }], nodes: [{ id: "say", key: "post_message", title: "Ask Dex", input: { threadId, text: `EXTEND ${goalId} ${first + 7 * DAY}` } }] };
+    const id = (await ok(d, "automations.create", { name: "Ask Dex", definition: def })).automation.id as string;
+    assert.equal((await ok(d, "automations.get", { automationId: id })).automation.kind, "personal");
+    await ok(d, "automations.set_enabled", { automationId: id, enabled: true });
+    await ok(d, "records.create", { type: "contact", fields: { name: "Dana Fox" } });
+    // the line really was posted, as a person, and Dex really did try the control
+    await waitFor(async () => (((await call(d, "chat.messages.list", { threadId })).data.messages as Array<{ author?: { kind?: string }; body?: string }>).some((x) => x.author?.kind === "person" && /^EXTEND /.test(x.body ?? "")) ? true : null), 60_000, () => hostLog(d));
+    const tried = await waitFor(async () => m.results.find((r) => r.turn === "asked") ?? null, 60_000, () => `${hostLog(d)} ${JSON.stringify(m.results)}`);
+    assert.equal(tried.ok, false, `an Automation's post counted as the owner asking: ${JSON.stringify(tried.content)}`);
+    assert.equal((await ok(d, "goals.get", { goalId })).goal.deadline, first);
+  } finally {
+    clearInterval(pumping);
+    await d.stop();
+  }
+});
