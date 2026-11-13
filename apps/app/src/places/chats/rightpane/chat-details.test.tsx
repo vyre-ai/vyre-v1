@@ -16,9 +16,9 @@ test("a channel's pane says what the channel is: name, topic, who can read it, a
     const root = await mount(createRoot as never, <ChatDetails threadId="thr_1" call={call} nameOf={(id) => NAMES[id] ?? id} meId="usr_me" openProfile={(id, asPerson) => opened.push(`${id}:${asPerson}`)} />);
     await flush(); await flush();
     assert.equal(textOf(find(root!, "chat-details-title")), "#launch-week");
-    assert.match(textOf(find(root!, "chat-details-line")), /Private channel/);
+    assert.match(textOf(find(root!, "chat-details-line")), /Private channel\. Only the people in it can read it\./);
     assert.equal(textOf(find(root!, "chat-details-topic")), "Everything for the 3 Dec launch");
-    assert.match(textOf(find(root!, "chat-details")), /People 2/);
+    assert.match(textOf(find(root!, "chat-details")), /People\s*2/);
     assert.match(textOf(find(root!, "row-chat-person-usr_me")), /You/);
     await press(find(root!, "row-chat-person-usr_maya"));
     await press(find(root!, "row-chat-agent-agt_dex"));
@@ -36,7 +36,7 @@ test("a group chat's pane is the group: its name and who is in it, no channel wo
     assert.ok(find(root!, "row-chat-agent-agt_dex"), "an agent on the chat's own list is a row");
     assert.equal(textOf(find(root!, "chat-details-line")), "Group chat");
     assert.equal(find(root!, "chat-details-topic"), null);
-    assert.equal(detailsLine({ kind: "channel" }, { visibility: "public" }), "Channel. Anyone in the Space can join.");
+    assert.equal(detailsLine({ kind: "channel" as const }, { visibility: "public" }), "Channel. Anyone in the Space can join.");
   } finally { restore(); }
 });
 
@@ -48,4 +48,39 @@ test("the tab for what the chat is comes first, before the agent's own tab; with
   assert.deepEqual(orderedTabs(open, { tabs: [face, maya] }).map((t) => t.title), ["Assistant", "Dex", "Maya"]);
   assert.deepEqual(orderedTabs(open, { first: "gone", tabs: [face] }).map((t) => t.title), ["Assistant", "Dex"]);
   assert.deepEqual(orderedTabs(open, undefined).map((t) => t.title), ["Assistant"]);
+});
+
+// B (review, 13 Nov): nothing about who can read a channel until the channel has been read; a failed read is an error, never the public sentence.
+test("a private channel is never described as open: no access line while its read is out, and an error when it fails", async () => {
+  const restore = installDom();
+  try {
+    assert.equal(detailsLine({ kind: "channel" as const }, null), null, "no channel read, no access line");
+    let release: (v: unknown) => void = () => undefined;
+    const slow = (cap: string): Promise<unknown> => (cap === "threads.get" ? Promise.resolve({ thread: thread("channel", "chn_1") }) : new Promise((r) => { release = r; }));
+    const waiting = await mount(createRoot as never, <ChatDetails threadId="thr_1" call={slow} nameOf={(id) => NAMES[id] ?? id} meId="usr_me" openProfile={() => undefined} />);
+    await flush();
+    assert.equal(find(waiting!, "chat-details-line"), null, "nothing is said while the channel read is out");
+    assert.doesNotMatch(textOf(waiting!), /Anyone in the Space/);
+    release({ channel: { channelId: "chn_1", mainThreadId: "thr_1", name: "launch-week", visibility: "invite", archived: false, members: [], agents: [], unread: 0 } });
+    await flush();
+    assert.match(textOf(find(waiting!, "chat-details-line")), /Private channel/);
+    const broken = async (cap: string): Promise<unknown> => { if (cap === "threads.get") return { thread: thread("channel", "chn_1") }; throw Object.assign(new Error("The server is busy."), { code: "internal.error" }); };
+    const failed = await mount(createRoot as never, <ChatDetails threadId="thr_1" call={broken} nameOf={(id) => NAMES[id] ?? id} meId="usr_me" openProfile={() => undefined} />);
+    await flush(); await flush();
+    assert.ok(find(failed!, "chat-details-failed"), "a failed read shows the pane's error state");
+    assert.doesNotMatch(textOf(failed!), /Anyone in the Space/);
+    assert.ok(find(failed!, "state-retry"), "a read that can work later keeps Retry");
+  } finally { restore(); }
+});
+
+test("the You row is one line: the name, then a quiet You after it", async () => {
+  const restore = installDom();
+  try {
+    const call = async (): Promise<unknown> => ({ thread: thread("chat") });
+    const root = await mount(createRoot as never, <ChatDetails threadId="thr_1" call={call} nameOf={(id) => NAMES[id] ?? id} meId="usr_me" openProfile={() => undefined} />);
+    await flush(); await flush();
+    const me = find(root!, "row-chat-person-usr_me")!;
+    assert.ok(find(me, "row-chat-person-usr_me-suffix"), "You is the title's suffix");
+    assert.equal(textOf(find(me, "row-chat-person-usr_me-suffix")), "You");
+  } finally { restore(); }
 });

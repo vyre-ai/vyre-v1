@@ -132,7 +132,7 @@ export function Notice({ text, onUndo, onClose }: { text: string; onUndo?: () =>
 
 export type Entry =
   | { key: string; type: "label"; text: string; right?: string }
-  | { key: string; type: "row"; title: string; note?: string; leading?: ReactNode; trailing?: ReactNode | ((over: boolean) => ReactNode); onPress?: () => void; menu?: MenuEntry[]; selected?: boolean; testID?: string }
+  | { key: string; type: "row"; title: string; /** quiet words after the title on the same line ("You") */ suffix?: string; note?: string; leading?: ReactNode; trailing?: ReactNode | ((over: boolean) => ReactNode); onPress?: () => void; menu?: MenuEntry[]; selected?: boolean; testID?: string }
   | { key: string; type: "block"; node: ReactElement }
   | { key: string; type: "empty"; text: string; testID?: string };
 
@@ -158,7 +158,7 @@ export function PaneList({ entries, window, testID, plain = false }: { entries: 
       case "row": {
         const row = (over: boolean): ReactElement => (
           <Row
-            id={e.testID ?? e.key} title={e.title} {...(e.note ? { note: e.note } : {})} selected={e.selected === true}
+            id={e.testID ?? e.key} title={e.title} {...(e.suffix ? { titleSuffix: e.suffix } : {})} {...(e.note ? { note: e.note } : {})} selected={e.selected === true}
             {...(e.onPress ? { onPress: e.onPress } : {})}
             {...(e.leading ? { leading: e.leading } : {})}
             {...(e.trailing ? { trailing: typeof e.trailing === "function" ? e.trailing(over) : e.trailing } : {})}
