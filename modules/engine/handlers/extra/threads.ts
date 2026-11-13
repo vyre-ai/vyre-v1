@@ -85,6 +85,8 @@ export function turnAskedBy(ctx: EngineCtx, _input: Record<string, never>): { ki
     if (!id) continue;
     const m = rows(ctx, "SELECT author_kind, author_id, at FROM engine_messages WHERE id = ? AND thread_id = ?", id, ctx.thread)[0];
     if (!m || str(m["author_kind"]) !== "person") continue;
+    // typed by the person themselves (the flag the Gate trusts); a poke, a helper's restart line or any line posted in their name is not
+    if (rows(ctx, "SELECT 1 AS x FROM engine_typed_message WHERE message_id = ?", id).length === 0) continue;
     if (person !== undefined && person !== str(m["author_id"])) continue;
     person = str(m["author_id"]);
     mine.push({ id, at: num(m["at"]) });
