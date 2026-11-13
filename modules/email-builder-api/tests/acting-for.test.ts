@@ -35,5 +35,5 @@ test("a design an agent makes for a person is owned by that person; an agent act
   await run(agentFor(w, "usr_alex"), "email_builder.create", { name: "Welcome", mode: "blocks" });
   await run(agentFor(w), "email_builder.create", { name: "Bare", mode: "blocks" });
   const owners = w.ctx.db.all("SELECT * FROM email_builder_api_email");
-  assert.deepEqual(owners.map((r) => [r["name"], r["owner"]]).sort(), [["Bare", "agt_dex"], ["Welcome", "usr_alex"]]);
+  assert.deepEqual((owners as Array<Record<string, unknown>>).map((r) => [r["name"], r["owner"]]).sort(), [["Bare", "agt_dex"], ["Welcome", "usr_alex"]]);
 });
