@@ -26,6 +26,9 @@ import {
 } from "./routes/resource.ts";
 import { auditTargets } from "./routes/audit-targets.ts";
 import type { AuditTarget } from "./routes/audit-targets.ts";
+import { redact } from "../../lib/hooks.ts";
+import { callSecretsOf, forgetCallSecrets, noteCallSecret } from "./call-secrets.ts";
+export { noteCallSecret };
 import { codeForReason, fail, HostError, toVyreError } from "./routes/errors.ts";
 import type { ResourceRegistrar } from "./gateway/resources.ts";
 import type { PrincipalRegistrar } from "./gateway/principals.ts";
@@ -202,6 +205,10 @@ export interface GateHook {
 export const NOT_SCHEDULING_COMPUTER = "not_scheduling_computer";
 
 export interface InvokeDeps {
+  /** Strings that must not reach a log line (the process's current secrets); an unexpected error's message and stack are scrubbed of them. */
+  secrets?(): readonly string[];
+  /** An unexpected error (a handler threw something that is not a shaped error): its message and stack, scrubbed, with the trace id. Absent: written to the server's own output. */
+  onUnexpected?(a: { cap: string; traceId: string; message: string; stack: string }): void;
   /** A Personal Space on several computers: does this computer hold the scheduled-work lease now. Absent: always. */
   scheduledHere?(): boolean;
   /** The Files mutation guard for connector sources (host/src/daemon/connector-source-guard.ts): an extra check on top of normal Files authorization. */
@@ -395,6 +402,76 @@ export function personalMatrix(o: {
   };
 }
 
+/** What an unexpected error says, with every known secret and every key-shaped value (lib/hooks.ts redact) taken out. It never throws: a value that cannot be read says so. */
+export function unexpectedWords(
+  e: unknown,
+  secrets: readonly string[],
+  o: { withhold?: boolean } = {},
+): { message: string; stack: string; head: string } {
+  try {
+    const clean = (t: string): string => {
+      let out = t;
+      for (const x of secrets) if (x.length >= 6) out = out.split(x).join("[hidden]");
+      return redact(out, 100_000);
+    };
+    const message = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+    const lines = (e instanceof Error && typeof e.stack === "string" ? e.stack : message).split("\n");
+    const frames = lines.filter((l) => /^\s+at /.test(l));
+    // a call that used a Vault value: what the error says may quote it, so only its class and the frames (file and line) are kept
+    if (o.withhold) {
+      const said = `${e instanceof Error ? e.name : "Error"}: (message withheld: this call used a Vault value)`;
+      return {
+        message: said,
+        stack: clean(frames.slice(0, 8).join("\n")),
+        head: [said, ...frames.slice(0, 4)].map(clean).join("\n"),
+      };
+    }
+    // `stack`: the frames (eight); `head`: what the logs.db row keeps, the same scrubbed text cut to five lines
+    return {
+      message: clean(message).slice(0, 1000),
+      stack: clean(frames.slice(0, 8).join("\n")),
+      head: clean(lines.slice(0, 5).join("\n")),
+    };
+  } catch {
+    return { message: "an error that could not be read", stack: "", head: "" };
+  }
+}
+
+// at most one full line a minute for the same capability and message, then one line with the count: a poll or a retry loop into a broken capability cannot fill the log
+const written = new Map<string, { at: number; hidden: number }>();
+const REPEAT_MS = 60_000;
+function writeUnexpected(
+  a: { cap: string; traceId: string; message: string; stack: string },
+  at: number = Date.now(),
+): void {
+  try {
+    const key = `${a.cap}|${a.message.split("\n")[0]}`;
+    const was = written.get(key);
+    if (was && at - was.at < REPEAT_MS) {
+      was.hidden++;
+      return;
+    }
+    if (written.size > 500) written.clear();
+    written.set(key, { at, hidden: 0 });
+    process.stderr.write(
+      `vyred: handler threw ${JSON.stringify({ ...a, ...(was && was.hidden > 0 ? { repeated: was.hidden } : {}) })}\n`,
+    );
+  } catch {
+    /* logging never throws into a call */
+  }
+}
+/** Does this call name a Vault value (a #Handle.field reference) or belong to the Vault: its errors are logged without their words. */
+export const usesVault = (cap: string, input: unknown): boolean => {
+  if (cap.startsWith("vault.")) return true;
+  try {
+    return /#[A-Za-z0-9_]+\.[A-Za-z0-9_]+/.test(JSON.stringify(input) ?? "");
+  } catch {
+    return false;
+  }
+};
+/** Tests: forget what was written. */
+export const resetUnexpectedLog = (): void => written.clear();
+
 export type Invoke = (cap: string, input: unknown, seed: CtxSeed) => Promise<InvokeResult>;
 
 /** The decision for a capability that needs membership only: allowed, with no scope (the handler narrows). */
@@ -581,6 +658,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       if (seed.approval && rawKey && result.status === "ok")
         await deps.idem?.settle?.(seed.principal.id, c.name, rawKey, input, result);
       span(result.status === "held" ? "held" : "ok");
+      if (depth === 0) forgetCallSecrets(traceId);
       return { ...result, traceId };
     } catch (e) {
       if ((e as { code?: unknown } | null)?.code === "idem_conflict")
@@ -591,8 +669,19 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       const { error, unexpected } = toVyreError(e, traceId);
       // the span first: the log can then tell a repeat of the same failure, which it counts, from a new one
       span(error.code.startsWith("permission.") ? "denied" : "error", error.code);
-      if (unexpected)
-        log.error("handler threw", { cap: capName, traceId, stack: e instanceof Error ? e.stack : String(e) });
+      if (unexpected) {
+        // the caller only ever sees "Something went wrong on our side"; the server keeps what really happened, always (the logs.db row can be counted away as a repeat or trimmed, so it is also written to the server's own output)
+        const said = unexpectedWords(e, [...(deps.secrets?.() ?? []), ...callSecretsOf(traceId)], {
+          withhold: usesVault(capName, input),
+        });
+        // the row keeps the scrubbed head of the stack (five lines): the sink drops a message key as content, and the stack text is scrubbed the same way as the line
+        log.error("handler threw", { cap: capName, traceId, stack: said.head });
+        try {
+          (deps.onUnexpected ?? writeUnexpected)({ cap: capName, traceId, message: said.message, stack: said.stack });
+        } catch {
+          /* never throws into the call */
+        }
+      }
       // who was refused: without the caller and the person it acted for, a refusal in the log cannot be traced to a session
       log.info("invoke", {
         cap: capName,
@@ -601,6 +690,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         actor: seed.principal.id,
         ...(seed.actingFor ? { onBehalf: seed.actingFor } : {}),
       });
+      if ((seed.depth ?? 0) === 0) forgetCallSecrets(traceId);
       throw new HostError(error);
     }
   };
