@@ -534,18 +534,36 @@ test("an asked agent changes a goal's words, deadline, rhythm and quiet hours, a
   const refused: Array<[string, Record<string, unknown>]> = [
     ["owner", { owner: ALIZA }], ["permissions", { permissions: [{ act: "send", target: "mail.send", label: "Send email from the Lab template" }] }], ["helpers", { helpers: [{ kind: "person", id: ALIZA }] }],
     ["leadAgentId", { leadAgentId: HELPER }], ["budget raised", { budget: { spendMicros: 99_000_000, turns: 20 } }], ["budget cap removed", { budget: { turns: 20 } }],
-    ["finish target", { finish: { ...goal.finish, target: 999 } }], ["finish source", { finish: { ...goal.finish, source: { kind: "records", type: "other", label: "Elsewhere" } } }], ["zone", { zone: "UTC" }],
+    ["finish target", { finish: { ...goal.finish, target: 999 } }], ["finish source", { finish: { ...goal.finish, source: { kind: "records", type: "other", label: "Elsewhere" } } }], ["project", { projectId: "prj_lab8" }],
   ];
   for (const [what, input] of refused) {
     await assert.rejects(w.call("goals.update", { goalId: goal.id, ...input }, agent), (e: { error?: { details?: { reason?: string } } }) => e.error?.details?.reason === "owner_press_only", what);
   }
   assert.equal(getGoal(w.db, goal.id)!.owner, OWNER);
   assert.equal(getGoal(w.db, goal.id)!.budget.spendMicros, 10_000_000);
+  // the rest of what a goal is made of is allowed when asked, and each is logged as asked
+  const more = await w.call("goals.update", { goalId: goal.id, zone: "Asia/Karachi", stuckAfter: 5, recordIds: ["rec_a", "rec_b"] }, agent);
+  assert.equal(more.goal.zone, "Asia/Karachi");
+  const edit = (await w.call("goals.activity", { goalId: goal.id }, owner)).activity.find((a: { kind: string; text: string }) => a.kind === "edit" && /time zone/.test(a.text));
+  assert.match(edit.tpl, /changed the .*time zone.*, asked by \{who:usr_owner\}\./);
+  assert.equal(edit.ref, "msg_ask");
   // lowering a budget is allowed
   const lower = await w.call("goals.update", { goalId: goal.id, budget: { spendMicros: 5_000_000, turns: 10 } }, agent);
   assert.equal(lower.goal.budget.spendMicros, 5_000_000);
   // the owner's own press can do all of it
   assert.equal((await w.call("goals.update", { goalId: goal.id, budget: { spendMicros: 20_000_000, turns: 40 } }, owner)).goal.budget.spendMicros, 20_000_000);
+});
+
+test("an asked agent rewrites the plan of a draft goal, and the plan stays a draft until the owner starts it", async () => {
+  const w = world({ count: 10 });
+  const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
+  const { goal } = await w.call("goals.create", labGoal(), agent);
+  assert.equal(goal.status, "draft");
+  w.state.turn = asking(OWNER, "msg_plan");
+  await w.call("goals.update", { goalId: goal.id, plan: [step("x", "A better first step")] }, agent);
+  const row = (await w.call("goals.activity", { goalId: goal.id }, owner)).activity.find((a: { kind: string; text: string }) => a.kind === "edit" && /plan/.test(a.text));
+  assert.equal(row.ref, "msg_plan");
+  assert.equal(getGoal(w.db, goal.id)!.status, "draft");
 });
 
 test("an asked agent may pause, resume and stop the owner's goal; done stays the owner's press", async () => {

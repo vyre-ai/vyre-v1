@@ -186,8 +186,8 @@ export async function activityList(ctx: GoalsCtx, input: In) {
 }
 
 /** What an agent the owner asked may change in a goal: its words, deadline and rhythm. Who owns it, what it may do on its own, whom it seats and what it may spend are the owner's own press on the goal's page. */
-const ASKED_MAY = new Set(["goalId", "title", "outcome", "finish", "deadline", "rhythm", "quiet", "idempotencyKey"]);
-const ASKED_WORDS: Record<string, string> = { owner: "owner", permissions: "standing permissions", helpers: "helpers", leadAgentId: "lead agent", budget: "budget", zone: "time zone", stuckAfter: "stuck threshold", recordIds: "linked records", projectId: "project", plan: "plan" };
+const ASKED_MAY = new Set(["goalId", "title", "outcome", "finish", "deadline", "rhythm", "quiet", "zone", "stuckAfter", "recordIds", "plan", "idempotencyKey"]);
+const ASKED_WORDS: Record<string, string> = { owner: "owner", permissions: "standing permissions", helpers: "helpers", leadAgentId: "lead agent", budget: "budget", projectId: "project (it opens the goal to the project's members and files its folder there)" };
 const sameJson = (a: unknown, b: unknown): boolean => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 /** A finish line changes in its words only: the line, and each condition's text. The number, its source, its direction and the conditions themselves stay. */
 function finishWordsOnly(old: Finish, next: Finish): boolean {
