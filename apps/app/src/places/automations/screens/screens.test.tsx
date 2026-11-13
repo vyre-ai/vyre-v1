@@ -40,6 +40,7 @@ test("the first page: Needs you cards each with their fix, one suggestion, one T
     createRoot,
     <FirstPageView
       page={page}
+      now={2 * 3600_000 + 1000}
       onFix={(id) => calls.push(`fix:${id}`)}
       onSeeRun={(id) => calls.push(`run:${id}`)}
       onSetUp={(id) => calls.push(`setup:${id}`)}
@@ -50,6 +51,7 @@ test("the first page: Needs you cards each with their fix, one suggestion, one T
     />,
   );
   const t = textOf(root);
+  assert.ok(find(root, "fp-when-n1"), "a card that needs him says since when");
   for (const w of [
     "Needs you",
     "New lead follow-up",
@@ -82,6 +84,7 @@ test("with nothing to show the first page draws only the Today line and the ways
     createRoot,
     <FirstPageView
       page={firstPage({ needs: [], suggestions: [], today: { ran: 0, failed: [] } })}
+      now={0}
       onFix={() => {}}
       onSeeRun={() => {}}
       onSetUp={() => {}}
@@ -204,4 +207,15 @@ test("the left list: a dot, the name, a quiet scope word, search, the count on t
   await press(find(root, "row-al-2"));
   await press(find(root, "al-home"));
   assert.deepEqual(calls, ["2", "home"]);
+});
+
+test("a slot between two steps adds a step there, and can be reached by keyboard", async () => {
+  const calls: string[] = [];
+  const m = story({ ...base, trigger: trig, steps: [step("a"), step("b")] });
+  const root = await mount(createRoot, <StoryView story={m} on={(a, id) => calls.push(id ? `${a}:${id}` : a)} />);
+  assert.equal(find(root, "sv-slot-b"), null, "no slot after the last row");
+  const slot = find(root, "sv-slot-a")!;
+  assert.equal(slot.props["aria-label"] ?? slot.props["accessibilityLabel"], "Add a step here");
+  await press(slot);
+  assert.deepEqual(calls, ["insert:a"]);
 });

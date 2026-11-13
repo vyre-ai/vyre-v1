@@ -7,7 +7,7 @@ import { glyphOf, tintOf } from "../picker/glyphs.ts";
 import type { Sentence, Story } from "../story/model.ts";
 import { look } from "./look.ts";
 
-export type StoryAction = "bar" | "need" | "open" | "add" | "test" | "primary" | "secondary" | "ask";
+export type StoryAction = "bar" | "need" | "open" | "add" | "test" | "primary" | "secondary" | "ask" | "insert";
 
 function Btn({
   id,
@@ -115,51 +115,63 @@ export function StoryView({ story, on }: { story: Story; on(action: StoryAction,
             );
           const split = r.kind === "trigger" ? splitHead(r.sentence) : null;
           return (
-            <Pressable
-              key={r.id}
-              testID={`sv-step-${r.id}`}
-              accessibilityRole="button"
-              onPress={() => on("open", r.id)}
-              style={[
-                s.row,
-                r.kind === "step" ? { marginLeft: r.depth * 20 } : null,
-                r.kind === "step" && r.proposed ? s.proposed : null,
-              ]}
-            >
-              <Text style={[s.no, r.kind === "trigger" ? s.when : null]}>
-                {r.kind === "trigger" ? "When" : String(r.number)}
-              </Text>
-              <AppLogo
-                app={r.app.id}
-                name={r.app.name}
-                size={32}
-                glyph={glyphOf({ app: r.app.id, name: r.app.name })}
-                tint={tintOf({ app: r.app.id, name: r.app.name })}
-              />
-              <View style={s.grow}>
-                {split ? (
-                  <>
-                    <Text style={s.sentence}>{split.head}</Text>
-                    {split.rest ? <Text style={look.quiet}>{split.rest}</Text> : null}
-                  </>
-                ) : (
-                  <SentenceText sentence={r.sentence} />
-                )}
-                {r.kind === "step" && r.need ? (
-                  <View style={s.needRow}>
-                    <Text style={[look.warn, { flexShrink: 1 }]}>{r.need.line}</Text>
-                    <Btn
-                      id={`sv-need-${r.id}`}
-                      label={r.need.button}
-                      kind="outlined"
-                      onPress={() => on("need", r.id)}
-                    />
-                  </View>
-                ) : r.kind === "step" ? (
-                  <Text style={look.quiet}>{r.proposed ? `${r.action} · proposed` : r.action}</Text>
-                ) : null}
-              </View>
-            </Pressable>
+            <View key={r.id}>
+              <Pressable
+                testID={`sv-step-${r.id}`}
+                accessibilityRole="button"
+                onPress={() => on("open", r.id)}
+                style={[
+                  s.row,
+                  r.kind === "step" ? { marginLeft: r.depth * 20 } : null,
+                  r.kind === "step" && r.proposed ? s.proposed : null,
+                ]}
+              >
+                <Text style={[s.no, r.kind === "trigger" ? s.when : null]}>
+                  {r.kind === "trigger" ? "When" : String(r.number)}
+                </Text>
+                <AppLogo
+                  app={r.app.id}
+                  name={r.app.name}
+                  size={32}
+                  glyph={glyphOf({ app: r.app.id, name: r.app.name })}
+                  tint={tintOf({ app: r.app.id, name: r.app.name })}
+                />
+                <View style={s.grow}>
+                  {split ? (
+                    <>
+                      <Text style={s.sentence}>{split.head}</Text>
+                      {split.rest ? <Text style={look.quiet}>{split.rest}</Text> : null}
+                    </>
+                  ) : (
+                    <SentenceText sentence={r.sentence} />
+                  )}
+                  {r.kind === "step" && r.need ? (
+                    <View style={s.needRow}>
+                      <Text style={[look.warn, { flexShrink: 1 }]}>{r.need.line}</Text>
+                      <Btn
+                        id={`sv-need-${r.id}`}
+                        label={r.need.button}
+                        kind="outlined"
+                        onPress={() => on("need", r.id)}
+                      />
+                    </View>
+                  ) : r.kind === "step" ? (
+                    <Text style={look.quiet}>{r.proposed ? `${r.action} · proposed` : r.action}</Text>
+                  ) : null}
+                </View>
+              </Pressable>
+              {story.slots.includes(r.id) ? (
+                <Pressable
+                  testID={`sv-slot-${r.id}`}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add a step here"
+                  onPress={() => on("insert", r.id)}
+                  style={s.slot}
+                >
+                  <Text style={s.addPlus}>+</Text>
+                </Pressable>
+              ) : null}
+            </View>
           );
         })}
         <Pressable testID="sv-add" accessibilityRole="button" onPress={() => on("add")} style={s.add}>
@@ -218,6 +230,7 @@ const s = StyleSheet.create({
   proposed: { borderStyle: "dashed", borderColor: "var(--accent-line)" as string },
   no: { width: 36, fontSize: 13, color: "var(--ink-3)" as string, textAlign: "center" },
   when: { fontWeight: "600", color: "var(--accent)" as string },
+  slot: { height: 22, alignItems: "flex-start", justifyContent: "center" },
   add: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, paddingHorizontal: 12 },
   addPlus: { width: 36, textAlign: "center", fontSize: 18, color: "var(--ink-3)" as string },
   off: { opacity: 0.45 },

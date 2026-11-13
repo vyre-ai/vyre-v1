@@ -125,6 +125,8 @@ export interface Story {
   rows: StoryRow[];
   /** Steps with their one missing thing showing. */
   needsYou: number;
+  /** Ids after which a step can be added: every trigger and step row but the last, branches included. */
+  slots: string[];
 }
 
 const MISSING_ORDER: Need["kind"][] = [
@@ -254,7 +256,14 @@ export function story(i: StoryIn): Story {
       text: `Test with ${i.test.caseName}. The test sent nothing.`,
       actions: ["Run again", "Done"],
     });
-  return { head: { name: i.name, state, primary, secondary, test: hasContent }, bars, rows, needsYou };
+  const ids = rows.flatMap((r) => (r.kind === "trigger" || r.kind === "step" ? [r.id] : []));
+  return {
+    head: { name: i.name, state, primary, secondary, test: hasContent },
+    bars,
+    rows,
+    needsYou,
+    slots: ids.slice(0, -1),
+  };
 }
 
 export interface TestRow {

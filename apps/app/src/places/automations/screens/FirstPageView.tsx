@@ -2,11 +2,14 @@
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { AppLogo } from "../../../../../../ui/src/AppLogo/index.tsx";
+import { When } from "../../../../../../ui/src/Time/index.tsx";
 import type { FirstPage } from "../first/model.ts";
 import { look } from "./look.ts";
 
 export interface FirstPageViewProps {
   page: FirstPage;
+  /** Now, for the "since when" line of a card. */
+  now: number;
   /** "5 on, 2 need you": the count line under the title. */
   summary?: string;
   onFix(needId: string): void;
@@ -65,6 +68,7 @@ export function FirstPageView(p: FirstPageViewProps): ReactElement {
             <View style={s.grow}>
               <Text style={look.title}>{n.automation}</Text>
               <Text style={[look.body, { color: "var(--ink-2)" }]}>{n.why}</Text>
+              <When at={n.at} now={p.now} testID={`fp-when-${n.id}`} style={look.quiet} />
             </View>
             {n.runId ? (
               <Btn

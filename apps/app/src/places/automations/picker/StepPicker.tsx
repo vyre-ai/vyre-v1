@@ -81,6 +81,18 @@ export function StepPicker(p: StepPickerProps): ReactElement {
 
   const left = Math.max(8, Math.min(p.x, win.width - MAIN_W - 8));
   const top = Math.max(8, Math.min(p.y, win.height - 580));
+  // the actions open beside the row they belong to: its place is read from the row's element (the layer is the overlay's, never inside a ScrollView)
+  const [subTop, setSubTop] = useState<number | null>(null);
+  useEffect(() => {
+    const doc = (
+      globalThis as {
+        document?: { querySelector?: (q: string) => { getBoundingClientRect(): { top: number } } | null };
+      }
+    ).document;
+    const el = nav.open && doc?.querySelector ? doc.querySelector(`[data-testid="row-pk-${nav.open}"]`) : null;
+    setSubTop(el ? el.getBoundingClientRect().top - 5 : null);
+  }, [nav.open, nav.query]);
+  const subY = subTop === null ? top : Math.max(8, Math.min(subTop, win.height - 380));
   const subLeft = left + MAIN_W + 6 + SUB_W > win.width - 8 ? Math.max(8, left - SUB_W - 6) : left + MAIN_W + 6;
 
   const onKeyDown = (e: {
@@ -138,10 +150,7 @@ export function StepPicker(p: StepPickerProps): ReactElement {
                   <PickRowView
                     key={r.kind === "heading" ? `h${i}` : `${r.kind}:${"id" in r ? r.id : "connect"}`}
                     row={r}
-                    lit={
-                      litId !== null &&
-                      (r.kind === "connect" ? litId === "connect" : r.kind !== "heading" && litId === r.id)
-                    }
+                    lit={litId !== null && r.kind !== "heading" && litId === r.id}
                     send={send}
                     p={p}
                     onOpen={(id) =>
@@ -179,7 +188,10 @@ export function StepPicker(p: StepPickerProps): ReactElement {
             testID="pk-sub"
             role="menu"
             aria-label={sub.title}
-            style={[styles.panel, { left: phone ? 8 : subLeft, top, width: phone ? win.width - 16 : SUB_W }]}
+            style={[
+              styles.panel,
+              { left: phone ? 8 : subLeft, top: phone ? top : subY, width: phone ? win.width - 16 : SUB_W },
+            ]}
           >
             <View style={styles.subHead}>
               {phone ? (

@@ -238,3 +238,16 @@ test("while the Assistant's draft is proposed the head still offers Test and Tur
   const m = story({ ...base, proposed: true, trigger: base.trigger, steps: [step({ id: "a" })] });
   assert.deepEqual([m.head.test, m.head.primary?.label], [true, "Turn on"]);
 });
+
+test("a step can be added between two steps: a slot after every row but the last, branches included", () => {
+  const m = story({
+    ...base,
+    steps: [
+      step({ id: "a" }),
+      step({ id: "b", yes: [step({ id: "b1" })], otherwise: [step({ id: "b2" })] }),
+      step({ id: "c" }),
+    ],
+  });
+  assert.deepEqual(m.slots, ["t", "a", "b", "b1", "b2"]);
+  assert.deepEqual(story({ ...base, trigger: null, steps: [] }).slots, []);
+});

@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { act } from "react";
+import { Dimensions } from "react-native";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
 import { StepPicker } from "./StepPicker.tsx";
@@ -119,4 +120,29 @@ test("nothing found says so and still offers Connect an app", async () => {
   await typeInto(find(root, "pk-search"), "zzzz");
   assert.ok(textOf(root).includes("Nothing called “zzzz” in your apps."));
   assert.ok(find(root, "row-pk-connect"));
+});
+
+test("the actions open beside the row they belong to, not at the top of the list", async () => {
+  const doc = globalThis as unknown as { document: { querySelector: (q: string) => unknown } };
+  const had = doc.document.querySelector;
+  (Dimensions as unknown as { set(d: object): void }).set({
+    window: { width: 1200, height: 900, scale: 1, fontScale: 1 },
+  });
+  doc.document.querySelector = (q: string) =>
+    q.includes("pk-app:google")
+      ? { getBoundingClientRect: () => ({ top: 300, left: 0, right: 0, bottom: 340, height: 40, width: 380 }) }
+      : null;
+  try {
+    const { el } = setup();
+    const root = await mount(createRoot, el);
+    for (const k of ["ArrowDown", "ArrowDown", "ArrowDown", "ArrowDown", "ArrowRight"]) await key(root, k);
+    await flush();
+    const sub = find(root, "pk-sub")!;
+    const style = ([] as Record<string, unknown>[]).concat(sub.props["style"] as never).flat(3);
+    const top = style.map((x) => (x as { top?: number }).top).find((t) => t !== undefined);
+    const y = parseFloat(String(top));
+    assert.ok(y >= 290 && y <= 300, `submenu top ${String(top)} is beside its row`);
+  } finally {
+    doc.document.querySelector = had;
+  }
 });

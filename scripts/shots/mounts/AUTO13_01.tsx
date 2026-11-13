@@ -140,6 +140,7 @@ export default function Mount(): ReactNode {
     return (
       <Frame>
         <FirstPageView
+          now={Date.now()}
           summary="5 on, 2 need you"
           onAsk={noop}
           page={firstPage({
