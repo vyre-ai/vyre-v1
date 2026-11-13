@@ -914,6 +914,8 @@ export default defineManifest({
           message: t.opt(t.str()),
           // a cancelled turn: why the engine stopped it (stop, interrupt, limit, left, moved; closing when a daemon stops or updates; lease when its host was lost)
           reason: t.opt(t.str()),
+          // a failed turn that hit a usage limit: when the account is usable again (epoch ms), when the provider said
+          resetsAt: t.opt(t.ts()),
           info: t.opt(turnInfoIn),
         },
         out: { turn: turnRow },
@@ -2089,7 +2091,15 @@ export default defineManifest({
       trigger: { title: "An agent turn finishes", fields: ["/agentId"] },
     }),
     ev("turn.failed", "A turn failed; the thread accepts the next message as a fresh turn", {
-      p: { turnId: id.turn, threadId: id.thread, agentId: id.agent, code: t.str(), message: t.str() },
+      p: {
+        turnId: id.turn,
+        threadId: id.thread,
+        agentId: id.agent,
+        code: t.str(),
+        message: t.str(),
+        // a usage limit that said when the account is usable again (epoch ms)
+        resetsAt: t.opt(t.ts()),
+      },
       subject: ["thread", "/threadId"],
       vis: "participants",
     }),

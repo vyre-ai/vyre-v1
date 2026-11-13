@@ -416,6 +416,7 @@ export async function turnRecord(
     costMicros?: number;
     code?: string;
     message?: string;
+    resetsAt?: number;
     info?: TurnInfo;
   },
 ): Promise<{ turn: TurnOut }> {
@@ -552,6 +553,11 @@ export async function turnRecord(
       agentId,
       code: input.code ?? "unknown",
       message: error?.message ?? "The turn failed.",
+      ...(input.code === "provider.rate_limited" &&
+      typeof input.resetsAt === "number" &&
+      Number.isFinite(input.resetsAt)
+        ? { resetsAt: Math.trunc(input.resetsAt) }
+        : {}),
     });
   } else {
     ctx.emit("turn.cancelled", threadId, {

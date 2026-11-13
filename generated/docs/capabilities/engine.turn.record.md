@@ -40,6 +40,7 @@ type In = {
   code?: string;
   message?: string;
   reason?: string;
+  resetsAt?: number;
   info?: {
     effort?: string;
     account?: {
@@ -176,6 +177,7 @@ type Out = {
     "phase": "started",
     "qseq": 1,
     "reason": "example",
+    "resetsAt": 1760000000000,
     "threadId": "thr_a1b2c3",
     "tokensIn": 1,
     "tokensOut": 1,

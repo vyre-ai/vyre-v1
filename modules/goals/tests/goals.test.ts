@@ -17,7 +17,7 @@ import {
   step,
   world,
 } from "../fixtures/world.ts";
-import { getGoal, inQuiet, nextCheckin, wakeById } from "../projections.ts";
+import { blockOf, getGoal, heldWake, inQuiet, nextCheckin, wakeById } from "../projections.ts";
 
 const claim = (w: ReturnType<typeof world>, e: { payload: Record<string, any> }) =>
   w.call("goals.wake_claim", { goalId: e.payload.goalId, wakeId: e.payload.wakeId, attempt: e.payload.attempt }, host); // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -565,19 +565,86 @@ test("the goal's folder keeps what its tasks hand in and what people drop in its
   assert.equal(listed.goals[0].folderId, goal.folderId, "the Files folder knows its goal");
 });
 
-test("a lead whose turn ends without a check-in is asked again at once, then the goal is stuck with why", async () => {
+test("a lead whose turn ends without a check-in is asked again with a longer wait each time, then the goal waits and says why, never silent", async () => {
   const w = world({ count: 10 });
   const { goal } = await w.call("goals.create", labGoal({ plan: [step("a", "Remind Lab 7")] }));
   await claim(w, w.woken()[0]!);
   await w.turn("turn.failed", { turnId: "trn_a", threadId: goal.threadId, agentId: LEAD, code: "engine.step_limit" });
-  const again = w.woken().at(-1)!;
-  assert.equal(again.payload.attempt, 2);
-  assert.match(again.payload.reason, /retry/);
-  await claim(w, again);
-  await w.turn("turn.completed", { turnId: "trn_b", threadId: goal.threadId, agentId: LEAD, costMicros: 1 });
+  // the first retry is a minute away, and not before
+  const sent = w.woken().length;
+  await w.sweep();
+  assert.equal(w.woken().length, sent, "not asked again before its time");
+  for (const [n, wait] of [
+    [2, 60_000],
+    [3, 5 * 60_000],
+    [4, 20 * 60_000],
+  ] as const) {
+    w.tick(wait + 1_000);
+    await w.sweep();
+    const again = w.woken().at(-1)!;
+    assert.equal(again.payload.attempt, n);
+    assert.match(again.payload.reason, /retry/);
+    await claim(w, again);
+    await w.turn("turn.completed", { turnId: `trn_${n}`, threadId: goal.threadId, agentId: LEAD, costMicros: 1 });
+  }
+  // it kept ending with no check-in: the goal waits, in words, and the owner was told once
   const g = getGoal(w.db, goal.id)!;
-  assert.equal(g.status, "stuck");
-  assert.equal(g.statusReason, "The lead agent did not check in after two tries: it ended without writing a check-in.");
+  assert.equal(g.status, "waiting");
+  assert.match(
+    g.statusReason ?? "",
+    /^Not being worked: it ended without writing a check-in\. It kept failing, so check-ins wait\./,
+  );
+  assert.equal(heldWake(w.db, goal.id)?.state, "waiting");
+});
+
+test("a usage limit that keeps coming back is waited for three times, then asked at each check-in only; a held goal is never called stuck", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal({ plan: [step("a", "Remind Lab 7")] }));
+  let first = w.woken()[0]!;
+  await claim(w, first);
+  const limit = (n: number) =>
+    w.turn("turn.failed", {
+      turnId: `trn_l${n}`,
+      threadId: goal.threadId,
+      agentId: LEAD,
+      code: "provider.rate_limited",
+      resetsAt: w.state.now + 60 * 60_000,
+    });
+  await limit(0);
+  assert.equal(blockOf(w.db, goal.id)?.cause, "limit");
+  assert.ok(blockOf(w.db, goal.id)?.until !== undefined, "waits for the reset");
+  for (let n = 1; n <= 3; n++) {
+    w.tick(2 * 60 * 60_000);
+    await w.sweep();
+    const again = w.woken().at(-1)!;
+    assert.equal(again.payload.attempt, n + 1, `resume ${n} asks again`);
+    await claim(w, again);
+    await limit(n);
+  }
+  assert.equal(blockOf(w.db, goal.id)?.until, undefined, "after three resumes the clock stops asking");
+  const sent = w.woken().length;
+  w.tick(3 * 60 * 60_000);
+  await w.sweep();
+  assert.equal(w.woken().length, sent, "nothing is sent while it waits");
+  assert.equal(getGoal(w.db, goal.id)!.status, "waiting");
+  assert.equal(heldWake(w.db, goal.id)?.state, "waiting");
+});
+
+test("a check-in that ran is what counts: goals.get says how many ran, not how many the clock asked for", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal({ plan: [step("a", "Remind Lab 7")] }));
+  await answer(w, goal.id);
+  const checkins = async () => (await w.call("goals.get", { goalId: goal.id }, owner)).goal.checkins;
+  assert.equal(await checkins(), 0, "the start is not a check-in");
+  w.tick(DAY);
+  await w.sweep();
+  assert.equal(await checkins(), 0, "asked for, not yet run");
+  await answer(w, goal.id);
+  assert.equal(await checkins(), 1, "answered: it ran");
+  w.tick(DAY);
+  await w.sweep();
+  assert.equal(getGoal(w.db, goal.id)!.checkins, 2, "the clock has asked twice");
+  assert.equal(await checkins(), 1, "the second has not run");
 });
 
 test("a watched page is a source: the number it last read, or how many times it changed; a watch that is gone or has read nothing says so", async () => {

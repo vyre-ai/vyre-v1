@@ -1,6 +1,7 @@
 // How a turn that ended without a reply reads in a chat. The engine bridge posts it as a turn_status block (modules/engine/handlers/bridge.ts); its name and codes are internal and never shown.
 import type { Message, MessageBlock } from "./model.ts";
 import { clockIn, currentZones, dateIn, dayIn } from "../../../../../../lib/zones.ts";
+import { FAILURE_WORDS } from "../../../../../../lib/words/failure.ts";
 
 const str = (v: unknown): string => (typeof v === "string" || typeof v === "number" ? String(v) : "");
 const dataOf = (b: MessageBlock): Record<string, unknown> =>
@@ -58,6 +59,9 @@ const SETUP_WORDS: Record<string, string> = {
   failed: "The setup did not finish.",
 };
 
+/** What happened, in the one sentence a goal's check-in says too (lib/words/failure.ts). */
+const say = (code: string): string => FAILURE_WORDS[code]!.what;
+
 const STATUS_WORDS: Record<
   string,
   { message: string; cause?: string; next?: { key: string; label: string }[]; retryable: boolean }
@@ -94,18 +98,18 @@ const STATUS_WORDS: Record<
     retryable: true,
   },
   "engine.vault_locked": {
-    message: "Your Vault key is not on this server.",
+    message: say("engine.vault_locked"),
     cause: "Your AI sign-in cannot be opened until you are signed in on a device. Open Vyre there, then send again.",
     retryable: true,
   },
   "engine.signin_unopenable": {
-    message: "Your AI sign-in can't be opened on this device.",
+    message: say("engine.signin_unopenable"),
     cause: "It was saved under an older key. Sign in again to replace it.",
     next: [{ key: "connect_ai", label: "Sign in again" }],
     retryable: false,
   },
   "engine.signin_missing": {
-    message: "Your sign-in for this AI is missing.",
+    message: say("engine.signin_missing"),
     cause: "Sign in again.",
     next: [{ key: "connect_ai", label: "Sign in again" }],
     retryable: false,
@@ -171,8 +175,8 @@ const STATUS_WORDS: Record<
   "engine.nothing_to_compact": { message: "There is nothing to compact yet.", retryable: false },
   "provider.error": { message: "Your AI provider stopped with an error.", retryable: true },
   "provider.filtered": { message: "Your AI provider declined to answer this.", retryable: false },
-  "engine.no_first_token": { message: "Your AI didn't answer in time", retryable: true },
-  "engine.timeout": { message: "The engine did not answer in time.", retryable: true },
+  "engine.no_first_token": { message: say("engine.no_first_token"), retryable: true },
+  "engine.timeout": { message: say("engine.timeout"), retryable: true },
   "engine.session_gone": {
     message: "The engine lost this chat's earlier session.",
     cause: "Try again: it starts from the chat's summary.",
@@ -187,7 +191,7 @@ const STATUS_WORDS: Record<
     retryable: false,
   },
   "engine.no_model": {
-    message: "No model is set for this chat.",
+    message: say("engine.no_model"),
     cause: "Pick one in the chat's model menu, or set the agent's model in its settings.",
     next: [{ key: "pick_model", label: "Choose a model" }],
     retryable: false,
@@ -199,19 +203,19 @@ const STATUS_WORDS: Record<
     retryable: false,
   },
   "engine.no_model_works": {
-    message: "None of your AI accounts can answer right now.",
+    message: say("engine.no_model_works"),
     cause: "Check your AI accounts, then try again.",
     next: [{ key: "connect_ai", label: "Open AI accounts" }],
     retryable: true,
   },
   "engine.no_account": {
-    message: "Connect your AI to get replies.",
+    message: say("engine.no_account"),
     cause: "No AI account is saved for this chat yet.",
     next: [{ key: "connect_ai", label: "Connect your AI" }],
     retryable: false,
   },
   "engine.account_unavailable": {
-    message: "Your AI account could not be reached just now.",
+    message: say("engine.account_unavailable"),
     next: [{ key: "connect_ai", label: "Check your AI account" }],
     retryable: true,
   },
@@ -227,25 +231,25 @@ const STATUS_WORDS: Record<
     retryable: false,
   },
   "provider.auth_failed": {
-    message: "Your AI account needs you to sign in again.",
+    message: say("provider.auth_failed"),
     next: [{ key: "connect_ai", label: "Sign in again" }],
     retryable: false,
   },
   "provider.rate_limited": {
-    message: "Your AI account reached its usage limit.",
+    message: say("provider.rate_limited"),
     cause: "Wait for it to reset, or use another account.",
     next: [{ key: "connect_ai", label: "Use another account" }],
     retryable: true,
   },
-  "provider.unavailable": { message: "Your AI provider is busy or down just now.", retryable: true },
-  "provider.overloaded": { message: "Your AI provider is busy just now.", retryable: true },
+  "provider.unavailable": { message: say("provider.unavailable"), retryable: true },
+  "provider.overloaded": { message: say("provider.overloaded"), retryable: true },
   "provider.network": {
-    message: "Your AI provider could not be reached.",
+    message: say("provider.network"),
     cause: "Check the connection, then try again.",
     retryable: true,
   },
   "provider.context_too_long": {
-    message: "This chat is too long for the model.",
+    message: say("provider.context_too_long"),
     cause: "Compact the chat, then try again.",
     retryable: false,
   },
@@ -266,24 +270,24 @@ const STATUS_WORDS: Record<
     cause: "Try again.",
     retryable: true,
   },
-  turn_timeout: { message: "That took too long, so it was stopped.", retryable: true },
+  turn_timeout: { message: say("turn_timeout"), retryable: true },
   paid_fallback: {
     message: "This account is out for now.",
     cause: "A paid key could answer. It is in your Tasks for you to say yes.",
     retryable: false,
   },
   host_lost: {
-    message: "The server stopped while this was running.",
+    message: say("host_lost"),
     cause: "It may have done part of the work. Check before running it again.",
     retryable: true,
   },
   agent_paused: {
-    message: "This agent is paused, so it did not answer.",
+    message: say("agent_paused"),
     cause: "Resume it from its page, then try again.",
     retryable: true,
   },
   // deleted, or made in a private chat the asker is not in (owner decision, 12 Nov 2026): both read the same, so neither tells a hidden agent from a gone one
-  agent_gone: { message: "This agent is no longer available to you.", retryable: false },
+  agent_gone: { message: say("agent_gone"), retryable: false },
   no_asker: {
     message: "No one asked for this, so it did not run.",
     cause: "An agent's message started it. Ask the agent yourself and it runs for you.",

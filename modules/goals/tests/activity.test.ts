@@ -59,7 +59,7 @@ test("a failed wake says why in plain words, keeps the code out of the sentence,
   const asOwner = await read(owner);
   assert.match(
     asOwner.tpl ?? asOwner.text,
-    /could not check in: Vyre's server restarted while it was working\. Asking once more\./,
+    /could not check in: the server stopped while this was running\. Trying again in 1 minute\./,
   );
   assert.ok(!/host_lost|\(/.test(asOwner.text), asOwner.text);
   assert.equal(asOwner.data, undefined, "a member never sees the code");

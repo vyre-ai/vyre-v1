@@ -1,6 +1,6 @@
 // Goals module (lane L6). The handlers, what it reads from the event log, and its clock.
 import { handlers } from "./handlers/index.ts";
-import { onMention, onMessage, onTask, onTurn, onWaiting, sweep } from "./handlers/events.ts";
+import { onCleared, onMention, onMessage, onTask, onTurn, onWaiting, sweep } from "./handlers/events.ts";
 import type { GoalsCtx } from "./projections.ts";
 
 export { handlers };
@@ -31,6 +31,11 @@ export const consumers = {
   "goals.turns": {
     on: ["turn.completed", "turn.failed"],
     run: (ctx: GoalsCtx, event: Ev): Promise<string[]> => onTurn(ctx, event),
+  },
+  /** What may have cleared a held check-in: a turn of the lead ended well, or an AI sign-in was saved. The held wake-up is asked again, once. */
+  "goals.cleared": {
+    on: ["turn.completed", "vault.item_created", "vault.item_updated"],
+    run: (ctx: GoalsCtx, event: Ev): Promise<string[]> => onCleared(ctx, event),
   },
   /** A turn in a goal's chat parked on a person: the goal waits on them. */
   "goals.waiting": {

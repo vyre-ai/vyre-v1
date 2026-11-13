@@ -1315,7 +1315,11 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
             }
           : {}),
         ...(ev.type === "turn.failed"
-          ? { code: ev.code, ...(ev.message ? { message: ev.message.slice(0, 500) } : {}) }
+          ? {
+              code: ev.code,
+              ...(ev.message ? { message: ev.message.slice(0, 500) } : {}),
+              ...(ev.resetsAt !== undefined ? { resetsAt: ev.resetsAt } : {}),
+            }
           : {}),
         // why a cancelled turn was stopped travels to the kernel event, so its readers can tell a person's Stop from a daemon stopping (reason closing): the terminal interrupts only the first
         ...(ev.type === "turn.cancelled" && typeof ev.reason === "string" ? { reason: ev.reason } : {}),

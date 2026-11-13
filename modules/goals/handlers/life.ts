@@ -5,24 +5,30 @@ import {
   ENDED,
   HOUR,
   LIVE,
+  MINUTE,
   POLL_MS,
   addReading,
   addTask,
   addThread,
   afterQuiet,
   better,
+  blockOf,
+  checkinsRan,
   clean,
   dispatch,
+  dropBlock,
   emit,
   ensure,
   getGoal,
   goalOfTask,
+  heldWake,
   inQuiet,
   label,
   note,
   money,
   nextCheckin,
   progressOf,
+  putBlock,
   queueWake,
   reached,
   saveGoal,
@@ -33,9 +39,11 @@ import {
   said,
   andList,
 } from "../projections.ts";
-import type { Ended, Goal, GoalsCtx, Who } from "../projections.ts";
+import type { Block, Ended, Goal, GoalsCtx, Wake, Who } from "../projections.ts";
 import { readSource, sourceWords } from "../sources.ts";
 import { atToken, whoToken } from "../../../lib/words/time.ts";
+import { failureWhy, lower } from "../../../lib/words/failure.ts";
+import type { Why } from "../../../lib/words/failure.ts";
 
 type Obj = Record<string, unknown>;
 const why = (e: unknown): string => {
@@ -429,9 +437,11 @@ export async function checkin(ctx: GoalsCtx, g: Goal): Promise<void> {
   g.nextCheckinAt = nextCheckin(g, now);
   const counts = taskCounts(ctx, g.id);
   const signal = signalOf(g, counts.done);
+  // while the lead cannot check in (its turn fails for a reason the owner has been told) a flat number says nothing about the work: it is not counted toward stuck
+  const held = heldWake(ctx.db, g.id) !== undefined;
   const flat = signal === undefined || (g.lastSignal !== undefined && !better(g, signal, g.lastSignal));
   if (g.lastSignal === undefined && signal !== undefined) g.flatCheckins = 0;
-  else g.flatCheckins = flat ? g.flatCheckins + 1 : 0;
+  else if (!held) g.flatCheckins = flat ? g.flatCheckins + 1 : 0;
   if (signal !== undefined) g.lastSignal = signal;
   note(
     ctx,
@@ -439,9 +449,12 @@ export async function checkin(ctx: GoalsCtx, g: Goal): Promise<void> {
     "checkin",
     `Check-in: ${numberLine(g)}${g.flatCheckins > 0 ? `. No progress for ${g.flatCheckins} check-in${g.flatCheckins === 1 ? "" : "s"}` : ""}.`,
   );
-  if (g.flatCheckins >= g.stuckAfter && g.status !== "stuck")
+  if (g.flatCheckins >= g.stuckAfter && g.status !== "stuck" && !held)
     await stuck(ctx, g, stuckReason(ctx, g), ["Change the plan", "Extend the deadline"]);
   queueWake(ctx, g, "checkin", undefined, `checkin:${g.id}:${g.checkins}`);
+  // a held wake-up that is waiting for a person is asked once at each check-in, never every minute; one waiting for a limit to lift waits for it
+  const b = blockOf(ctx.db, g.id);
+  if (b && b.cause !== "limit") resumeBlock(ctx, g);
 }
 export function stuckReason(ctx: GoalsCtx, g: Goal): string {
   const parts: string[] = [];
@@ -535,7 +548,7 @@ export function dropWait(ctx: GoalsCtx, g: Goal, taskId: string, how: string): b
     `${how === "Answered" ? `${whoToken(g.owner)} answered` : how}: ${String(row["title"])}`,
     taskId,
   );
-  if (g.status === "waiting" && waits(ctx, g.id).length === 0) setStatus(ctx, g, "active");
+  if (g.status === "waiting" && waits(ctx, g.id).length === 0 && !heldWake(ctx.db, g.id)) setStatus(ctx, g, "active");
   return true;
 }
 
@@ -605,6 +618,12 @@ export function summaryOf(ctx: GoalsCtx, g: Goal, outcome: Ended, extra?: string
         .join("; ")}.`,
     );
   lines.push(`Used ${budgetLine(g)}.`);
+  // a goal that ended while its check-ins were held back says so: the person was told when it began, and the end does not hide it
+  const held = blockOf(ctx.db, g.id);
+  if (held && heldWake(ctx.db, g.id))
+    lines.push(
+      `From ${when(held.since, g.zone)} the lead agent could not check in: ${lower(failureWhy(held.code).what)}${held.missed > 0 ? ` ${held.missed} check-in${held.missed === 1 ? "" : "s"} did not run.` : ""}`,
+    );
   if (extra) lines.push(extra);
   return lines.join(" ");
 }
@@ -667,9 +686,12 @@ async function endGoalOnce(ctx: GoalsCtx, g: Goal, outcome: Ended, extra?: strin
   );
   // one last turn for the lead: the retrospective. What was still out or queued no longer applies.
   ctx.db.run(
-    "UPDATE goals_wake SET state = 'dropped' WHERE goal_id = ? AND state IN ('pending', 'sent', 'claimed')",
+    "UPDATE goals_wake SET state = 'dropped' WHERE goal_id = ? AND state IN ('pending', 'sent', 'claimed', 'waiting')",
     g.id,
   );
+  const hadBlock = blockOf(ctx.db, g.id);
+  if (hadBlock?.taskId) await tryCall(ctx, "tasks.withdraw", { taskId: hadBlock.taskId, note: "The goal ended." });
+  dropBlock(ctx.db, g.id);
   queueWake(
     ctx,
     g,
@@ -819,6 +841,7 @@ async function tickOnce(ctx: GoalsCtx, id: string): Promise<void> {
     else if (g.pollAt === undefined || now >= g.pollAt) await readNow(ctx, g, "poll");
     if (g.nextCheckinAt === undefined && LIVE.has(g.status)) g.nextCheckinAt = nextCheckin(g, now);
     await retryUnanswered(ctx, g);
+    await tendBlock(ctx, g);
   }
   dispatch(ctx, g);
   saveGoal(ctx, g);
@@ -833,6 +856,11 @@ async function retryUnanswered(ctx: GoalsCtx, g: Goal): Promise<void> {
     now - 45 * 60_000,
   ) as Obj[]) {
     const id = String(r["id"]);
+    // the engine holds this goal's turn (its Vault is locked): the wake-up waits with the block, it is not asked again and the goal is not called stuck
+    if (blockOf(ctx.db, g.id)) {
+      ctx.db.run("UPDATE goals_wake SET state = 'waiting', due_at = ? WHERE id = ?", Number.MAX_SAFE_INTEGER, id);
+      continue;
+    }
     if (Number(r["attempt"]) < 2) {
       ctx.db.run(
         "UPDATE goals_wake SET state = 'pending', reason = reason || ',retry', due_at = ? WHERE id = ?",
@@ -850,3 +878,179 @@ async function retryUnanswered(ctx: GoalsCtx, g: Goal): Promise<void> {
     }
   }
 }
+
+// ---- a check-in that cannot run: wait, say so once, go on when the cause clears ----
+
+/** Waits before a passing trouble is tried again: after the first failure, the second, the third. The fourth failure is held. */
+export const BACKOFF_MS: readonly number[] = [MINUTE, 5 * MINUTE, 20 * MINUTE];
+export const MAX_TRIES = BACKOFF_MS.length + 1;
+/** A usage limit that never said when it lifts is looked at again after this; a limit that keeps coming back stops being waited for by the clock after this many resumes (the next check-in asks once). */
+const LIMIT_GUESS_MS = HOUR;
+const LIMIT_PAD_MS = MINUTE;
+export const LIMIT_RESUMES = 3;
+
+/** Does the cause need a person, whatever a retry does? (A cause with a thing to do says so in its `fix`.) */
+export const holdsAtOnce = (why: Why): boolean => why.cause === "person" || why.cause === "limit" || why.fix !== "";
+
+const minutes = (ms: number): string => {
+  const m = Math.max(1, Math.round(ms / MINUTE));
+  return `${m} minute${m === 1 ? "" : "s"}`;
+};
+
+/** The one thing to do, and for a limit when it lifts, as a sentence. `at` writes a time: a token in the goal's own lines (each reader sees their zone), plain words where nobody expands tokens. */
+function heldWords(why: Why, b: Pick<Block, "until">, at: (t: number) => string): { what: string; fix: string } {
+  if (why.cause === "limit") {
+    const lifts =
+      b.until !== undefined ? `It resets ${at(b.until - LIMIT_PAD_MS)}.` : "It has not said when it resets.";
+    return {
+      what: why.what,
+      fix: `${lifts} The check-in runs then. To go on sooner, let the agent use another AI account.`,
+    };
+  }
+  if (why.fix !== "") return { what: why.what, fix: why.fix };
+  return {
+    what: why.what,
+    fix: "It kept failing, so check-ins wait. Ask the agent in the goal chat what is wrong, or give the goal another lead agent.",
+  };
+}
+const plainAt =
+  (g: Goal) =>
+  (t: number): string =>
+    `${when(t, g.zone)} (${g.zone})`;
+
+async function leadName(ctx: GoalsCtx, g: Goal): Promise<string> {
+  const n = (
+    await tryCall<{ principal?: { name?: unknown } }>(ctx, "access.principals.get", {
+      principal: { kind: "agent", id: g.leadAgentId },
+    })
+  )?.principal?.name;
+  return typeof n === "string" && n !== "" && n !== g.leadAgentId ? n : "The lead agent";
+}
+
+/** What a held goal shows on its row and its page: the cause in plain words, the one thing to do, and when it goes on by itself. */
+export function blockedOut(g: Goal, b: Block, held: boolean): Record<string, unknown> | undefined {
+  if (!held) return undefined;
+  const why = failureWhy(b.code);
+  const w = heldWords(why, b, plainAt(g));
+  return clean({
+    cause: why.cause,
+    what: w.what,
+    fix: w.fix,
+    since: b.since,
+    until: b.until,
+    missed: b.missed,
+    code: b.code,
+  });
+}
+
+/** The lead's check-in turn failed in a way a minute's retry does not fix. The wake-up waits (it is not asked again every minute), the owner is told once with the one action that fixes it, and the goal says it is not being worked. */
+export async function hold(ctx: GoalsCtx, g: Goal, w: Wake, code: string, resetsAt: number | undefined): Promise<void> {
+  const now = ctx.now();
+  const why = failureWhy(code);
+  const old = blockOf(ctx.db, g.id);
+  const resumes = old?.resumes ?? 0;
+  const until =
+    why.cause === "limit" && resumes < LIMIT_RESUMES
+      ? (resetsAt !== undefined && resetsAt > now ? resetsAt : now + LIMIT_GUESS_MS) + LIMIT_PAD_MS
+      : undefined;
+  const b: Block = clean({
+    goalId: g.id,
+    wakeId: w.id,
+    code,
+    cause: why.cause,
+    since: old?.since ?? now,
+    fromStatus: old?.fromStatus ?? (g.status === "waiting" ? undefined : g.status),
+    until,
+    resumes,
+    missed: old?.missed ?? (w.reason.split(",").includes("checkin") ? 1 : 0),
+    taskId: old?.taskId,
+    toldAt: old?.toldAt,
+  }) as Block;
+  ctx.db.run(
+    "UPDATE goals_wake SET state = 'waiting', due_at = ?, reason = CASE WHEN (',' || reason || ',') LIKE '%,retry,%' THEN reason ELSE reason || ',retry' END WHERE id = ?",
+    until ?? Number.MAX_SAFE_INTEGER,
+    w.id,
+  );
+  putBlock(ctx.db, b);
+  const lead = whoToken(g.leadAgentId);
+  const words = heldWords(why, b, atToken);
+  // the row keeps the code for an admin; the sentence never has it
+  note(ctx, g.id, "wake", `${lead} could not check in: ${lower(words.what)} ${words.fix}`, w.id, {
+    code,
+    wakeId: w.id,
+    attempt: w.attempt,
+    ...(until !== undefined ? { until } : {}),
+  });
+  const plain = heldWords(why, b, plainAt(g));
+  if (LIVE.has(g.status) && !(g.status === "waiting" && waits(ctx, g.id).length > 0))
+    setStatus(ctx, g, "waiting", `Not being worked: ${lower(plain.what)} ${plain.fix}`);
+  await tellOwner(ctx, g, b, plain);
+}
+
+/** The owner hears once per hold, in the place Needs you already holds (an unblock item, which also reaches them as a notification when they have those on). */
+async function tellOwner(ctx: GoalsCtx, g: Goal, b: Block, words: { what: string; fix: string }): Promise<void> {
+  if (b.toldAt !== undefined && b.taskId !== undefined) return;
+  const name = await leadName(ctx, g);
+  const r = await tryCall<{ task?: { id?: string } }>(ctx, "tasks.create", {
+    kind: "unblock",
+    title: `Check-ins paused: ${g.title}`,
+    summary: `${name} could not check in on ${g.title}: ${lower(words.what)} ${words.fix}`,
+    assigned: { kind: "person", id: g.owner },
+    notes: { "goal.id": g.id, "goal.title": g.title },
+    idempotencyKey: `goal-block:${g.id}:${b.since}`,
+  });
+  if (r?.task?.id) {
+    addTask(ctx.db, g.id, r.task.id, "notice");
+    putBlock(ctx.db, { ...b, taskId: r.task.id, toldAt: ctx.now() });
+  }
+}
+
+/** The held wake-up asked again: now, with what went by said in its brief. The block stays until a check-in actually arrives (the cause may still be there). */
+export function resumeBlock(ctx: GoalsCtx, g: Goal): boolean {
+  const w = heldWake(ctx.db, g.id);
+  const b = blockOf(ctx.db, g.id);
+  if (!w || !b) return false;
+  // the held wake-up is itself the check-in that runs now; every other one since the block began did not run, and is not replayed
+  const missed = Math.max(0, b.missed - (w.reason.split(",").includes("checkin") ? 1 : 0));
+  const why = failureWhy(b.code);
+  const said =
+    missed > 0
+      ? `${missed} earlier check-in${missed === 1 ? " was" : "s were"} missed because ${lower(why.what).replace(/\.$/, "")}. They are not replayed: this one covers them.`
+      : undefined;
+  ctx.db.run(
+    "UPDATE goals_wake SET state = 'pending', due_at = ?, detail = ? WHERE id = ?",
+    ctx.now(),
+    [w.detail, said].filter((x): x is string => !!x).join("\n") || null,
+    w.id,
+  );
+  ctx.db.run(
+    "UPDATE goals_block SET until = NULL, resumes = resumes + ? WHERE goal_id = ?",
+    b.cause === "limit" ? 1 : 0,
+    g.id,
+  );
+  return true;
+}
+
+/** A check-in arrived: whatever held the goal is over. The held wake-up is answered, the Needs-you item is withdrawn, and the goal is on again. */
+export async function clearBlock(ctx: GoalsCtx, g: Goal): Promise<boolean> {
+  const b = blockOf(ctx.db, g.id);
+  if (!b) return false;
+  dropBlock(ctx.db, g.id);
+  if (b.taskId) await tryCall(ctx, "tasks.withdraw", { taskId: b.taskId, note: "The check-in ran." });
+  if (g.status === "waiting" && waits(ctx, g.id).length === 0) setStatus(ctx, g, b.fromStatus ?? "active");
+  note(ctx, g.id, "wake", `${whoToken(g.leadAgentId)} could check in again.`);
+  return true;
+}
+
+/** Everything the clock owes a held goal: the limit lifted (ask again), the owner not told yet (tell them). */
+export async function tendBlock(ctx: GoalsCtx, g: Goal): Promise<void> {
+  const b = blockOf(ctx.db, g.id);
+  if (!b || !heldWake(ctx.db, g.id)) return;
+  const now = ctx.now();
+  if (b.until !== undefined && now >= b.until) resumeBlock(ctx, g);
+  else if (b.toldAt === undefined || b.taskId === undefined)
+    await tellOwner(ctx, g, b, heldWords(failureWhy(b.code), b, plainAt(g)));
+}
+
+/** How many check-ins ran, for the goal's number. */
+export const ranOf = (ctx: GoalsCtx, g: Goal): number => checkinsRan(ctx.db, g.id);

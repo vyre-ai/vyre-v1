@@ -2,7 +2,8 @@
 // A turn that ended without a reply is a plain sentence with one action, never a card named after its internal status.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { installProgram, isTurnStatus, statusView, withoutAnswered, wordsFor } from "./status.ts";
+import { KNOWN_CODES, installProgram, isTurnStatus, statusView, withoutAnswered, wordsFor } from "./status.ts";
+import { FAILURE_WORDS } from "../../../../../../lib/words/failure.ts";
 
 const block = (data: Record<string, unknown>) =>
   ({ id: "b1", type: "turn_status", v: 1, state: "done", data, traceId: "t" }) as never;
@@ -529,4 +530,11 @@ test("engine.policy_model says the Space only allows certain models and opens th
   assert.equal(w.message, "This Space only allows certain AI models.");
   assert.deepEqual(w.next, [{ key: "pick_model", label: "Choose a model" }]);
   assert.equal(w.retryable, false);
+});
+
+test("a chat turn and a goal's check-in say the same sentence for the same cause", () => {
+  for (const [code, w] of Object.entries(FAILURE_WORDS)) {
+    assert.ok(KNOWN_CODES.includes(code), `${code} has words in the chat too`);
+    assert.equal(wordsFor(code).message, w.what, code);
+  }
 });

@@ -151,6 +151,14 @@ test(
       assert.equal(poked.ok, false, JSON.stringify(poked.content));
       assert.equal((await ok(d, "goals.get", { goalId })).goal.deadline, later, "the poke changed nothing");
 
+      // the first wake-up got no check-in, so it is asked again after a minute (a failed or empty turn waits, then retries with a longer wait each time): the minute passes
+      clock.t += 2 * 60_000;
+      await d.hooks!.runPeriodic("goals.clock");
+      await waitFor(
+        async () => (m.results.some((r) => r.turn.startsWith("other")) ? true : null),
+        60_000,
+        () => `${hostLog(d)} ${JSON.stringify(m.results)}`,
+      );
       // the owner presses Pause on the goal card: the card is posted as the owner by the server, not typed, so the lead's turn it may start is not asked
       await ok(d, "goals.pause", { goalId });
       // wait for the lead's turn the press starts (the thing, not a fixed time), and require that one ran: the check is empty without it

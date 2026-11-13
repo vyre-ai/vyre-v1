@@ -14,7 +14,9 @@ import {
   ensure,
   getGoal,
   goalOfTask,
+  blockOf,
   goalOut,
+  heldWake,
   isAdmin,
   isHelper,
   isLead,
@@ -57,6 +59,9 @@ import {
   seat,
   shareFolder,
   startGoal,
+  blockedOut,
+  clearBlock,
+  ranOf,
   stuck,
   syncGrants,
   taskCounts,
@@ -71,7 +76,15 @@ import { validZone } from "../../../lib/zones.ts";
 
 type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const me = (ctx: GoalsCtx): string => ctx.actingFor ?? ctx.principal.id;
-const out = (ctx: GoalsCtx, g: Goal) => ({ goal: goalOut(g, taskCounts(ctx, g.id)) });
+/** The goal as a person reads it: what held its check-ins back (if anything), and the check-ins that ran (not the times the clock asked for one). */
+const extrasOf = (ctx: GoalsCtx, g: Goal) => {
+  const b = blockOf(ctx.db, g.id);
+  return {
+    ran: ranOf(ctx, g),
+    ...(b ? { blocked: blockedOut(g, b, heldWake(ctx.db, g.id) !== undefined) } : {}),
+  };
+};
+const out = (ctx: GoalsCtx, g: Goal) => ({ goal: goalOut(g, taskCounts(ctx, g.id), extrasOf(ctx, g)) });
 /** The activity as an agent or an older app reads it: the tokens filled in, times in the goal's zone, names from the directory. `tpl` keeps the sentence with its tokens so an app can fill them in for its own reader. */
 async function worded(ctx: GoalsCtx, g: Goal, rows: ReturnType<typeof activity>) {
   const names = new Map<string, string>();
@@ -419,7 +432,7 @@ export async function list(ctx: GoalsCtx, input: In) {
       }
     })
     .filter((g) => input.open !== true || !ENDED.has(g.status));
-  return { goals: seen.map((g) => lineOut(g, taskCounts(ctx, g.id))) };
+  return { goals: seen.map((g) => lineOut(g, taskCounts(ctx, g.id), extrasOf(ctx, g))) };
 }
 
 /** Every goal of a project, counted without regard to who may open it; a number only. A manager of the project or the system may ask, anyone else is told there is no such project. */
@@ -857,10 +870,12 @@ export async function report(ctx: GoalsCtx, input: In) {
   );
   // a check-in answers every wake-up that is out: a wake that arrived while the lead was already working is covered by the turn that was running
   ctx.db.run(
-    "UPDATE goals_wake SET state = 'reported', reported_at = ? WHERE goal_id = ? AND state IN ('sent', 'claimed')",
+    "UPDATE goals_wake SET state = 'reported', reported_at = ? WHERE goal_id = ? AND state IN ('sent', 'claimed', 'waiting')",
     ctx.now(),
     g.id,
   );
+  // a check-in that arrived ends whatever held the goal back
+  await clearBlock(ctx, g);
   emit(ctx, g, "goal.reported", { wakeId: wake?.id, by: ctx.principal.id }, key);
   note(ctx, g.id, "report", input.summary, messageId);
   dispatch(ctx, g);
@@ -1200,7 +1215,7 @@ export function briefText(ctx: GoalsCtx, g: Goal): string {
       `Conditions:\n${(f.items ?? []).map((i) => `- [${i.done ? "x" : " "}] ${i.text}${i.taskId ? ` (done when task ${i.taskId} is done)` : ""}`).join("\n")}`,
     );
   else out.push("The owner says when it is done. When the work is finished, call goals_complete and it asks them.");
-  const wake = openWake(ctx.db, g.id);
+  const wake = openWake(ctx.db, g.id) ?? heldWake(ctx.db, g.id);
   if (wake)
     out.push(
       `You were woken because: ${reasonWords(wake.reason)}${wake.detail ? `\n${wake.detail}` : ""}\nwakeId ${wake.id}. End this turn with goals_checkin_post {goalId, wakeId, summary, done, next}${wake.reason.includes("ended") ? ", after goals_complete with the retrospective" : ""}.`,

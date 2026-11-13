@@ -172,7 +172,7 @@ const rand = (): string =>
 
 // ---- schema ----
 
-const SCHEMA = ["0001_goals.sql", "0002_activity_data.sql"]
+const SCHEMA = ["0001_goals.sql", "0002_activity_data.sql", "0003_block.sql"]
   .map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8"))
   .join("\n")
   .split(/;\s*\n/)
@@ -185,6 +185,7 @@ export function ensure(db: Db): void {
     db.all("SELECT id FROM goals_goal WHERE id = ?", "probe");
     db.all("SELECT goal_id FROM goals_activity WHERE goal_id = ?", "probe");
     db.all("SELECT goal_id FROM goals_activity_data WHERE goal_id = ?", "probe");
+    db.all("SELECT goal_id FROM goals_block WHERE goal_id = ?", "probe");
   } catch {
     for (const s of SCHEMA) db.run(s);
   }
@@ -746,7 +747,7 @@ export interface Wake {
   reason: string;
   detail?: string;
   dueAt: number;
-  state: "pending" | "sent" | "claimed" | "reported" | "dropped";
+  state: "pending" | "sent" | "claimed" | "waiting" | "reported" | "dropped";
   attempt: number;
   sentAt?: number;
   claimedAt?: number;
@@ -776,6 +777,89 @@ export const openWake = (db: Db, goalId: string): Wake | undefined => {
   )[0] as Raw | undefined;
   return r ? wakeOf(r) : undefined;
 };
+/** The wake-up held back by a block (its turn failed for a reason that is not a minute's retry): not open, not due, until the block clears. */
+export const heldWake = (db: Db, goalId: string): Wake | undefined => {
+  ensure(db);
+  const r = db.all(
+    "SELECT * FROM goals_wake WHERE goal_id = ? AND state = 'waiting' ORDER BY created_at DESC LIMIT 1",
+    goalId,
+  )[0] as Raw | undefined;
+  return r ? wakeOf(r) : undefined;
+};
+
+// ---- what holds a goal's check-ins back ----
+
+export type BlockCause = "person" | "limit" | "transient" | "other";
+export interface Block {
+  goalId: string;
+  wakeId: string;
+  code: string;
+  cause: BlockCause;
+  since: number;
+  /** the goal's status before it waited, so it goes back to it */ fromStatus?: Status;
+  until?: number;
+  resumes: number;
+  missed: number;
+  taskId?: string;
+  toldAt?: number;
+}
+const blockOfRow = (r: Raw): Block =>
+  clean({
+    goalId: String(r["goal_id"]),
+    wakeId: String(r["wake_id"]),
+    code: String(r["code"]),
+    cause: String(r["cause"]) as BlockCause,
+    since: Number(r["since"]),
+    fromStatus: str(r["from_status"]) as Status | undefined,
+    until: num(r["until"]),
+    resumes: Number(r["resumes"] ?? 0),
+    missed: Number(r["missed"] ?? 0),
+    taskId: str(r["task_id"]),
+    toldAt: num(r["told_at"]),
+  }) as Block;
+export const blockOf = (db: Db, goalId: string): Block | undefined => {
+  ensure(db);
+  const r = db.all("SELECT * FROM goals_block WHERE goal_id = ?", goalId)[0] as Raw | undefined;
+  return r ? blockOfRow(r) : undefined;
+};
+export const blocksWhere = (db: Db, where: string, ...args: unknown[]): Block[] => {
+  ensure(db);
+  return (db.all(`SELECT * FROM goals_block WHERE ${where}`, ...args) as Raw[]).map(blockOfRow);
+};
+export function putBlock(db: Db, b: Block): void {
+  ensure(db);
+  db.run(
+    "INSERT OR REPLACE INTO goals_block (goal_id, wake_id, code, cause, since, from_status, until, resumes, missed, task_id, told_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    b.goalId,
+    b.wakeId,
+    b.code,
+    b.cause,
+    b.since,
+    b.fromStatus ?? null,
+    b.until ?? null,
+    b.resumes,
+    b.missed,
+    b.taskId ?? null,
+    b.toldAt ?? null,
+  );
+}
+export const dropBlock = (db: Db, goalId: string): void => {
+  ensure(db);
+  db.run("DELETE FROM goals_block WHERE goal_id = ?", goalId);
+};
+/** Check-ins that ran: a wake-up for a check-in that the lead answered. What a person calls a check-in, not the times the clock asked for one. */
+export const checkinsRan = (db: Db, goalId: string): number => {
+  ensure(db);
+  return Number(
+    (
+      db.all(
+        "SELECT COUNT(*) AS n FROM goals_wake WHERE goal_id = ? AND state = 'reported' AND (',' || reason || ',') LIKE '%,checkin,%'",
+        goalId,
+      )[0] as Raw | undefined
+    )?.["n"] ?? 0,
+  );
+};
+
 /**
  * Ask for a wake-up. Wakes that arrive while one is pending fold into it (one turn hears every reason), and a wake in the owner's quiet hours waits for them to end. `key` makes a request idempotent:
  * the same key never queues twice, however many times the event that asked is read.
@@ -792,6 +876,24 @@ export function queueWake(
   const id = `gwk_${key.replace(/[^A-Za-z0-9_:.-]/g, "_").slice(0, 120)}`;
   if (wakeById(ctx.db, id)) return undefined;
   const due = afterQuiet(now, g);
+  // a wake-up held back by a block takes the new reason in and counts the check-in it did not run: nothing is replayed one by one, the next run is told how many went by
+  const held = heldWake(ctx.db, g.id);
+  if (held) {
+    const reasons = new Set(held.reason.split(","));
+    reasons.add(reason);
+    ctx.db.run("UPDATE goals_wake SET reason = ? WHERE id = ?", [...reasons].join(","), held.id);
+    if (reason === "checkin") ctx.db.run("UPDATE goals_block SET missed = missed + 1 WHERE goal_id = ?", g.id);
+    ctx.db.run(
+      "INSERT OR IGNORE INTO goals_wake (id, goal_id, reason, detail, due_at, state, attempt, created_at) VALUES (?, ?, ?, ?, ?, 'dropped', 0, ?)",
+      id,
+      g.id,
+      reason,
+      null,
+      due,
+      now,
+    );
+    return wakeById(ctx.db, held.id);
+  }
   const pending = ctx.db.all(
     "SELECT * FROM goals_wake WHERE goal_id = ? AND state = 'pending' ORDER BY created_at LIMIT 1",
     g.id,
@@ -948,7 +1050,13 @@ export function signalOf(g: Goal, tasksDone: number): number | undefined {
 export const better = (g: Goal, now: number, before: number): boolean =>
   g.finish.kind === "number" && g.finish.direction === "down" ? now < before : now > before;
 
-export function goalOut(g: Goal, tasks: { done: number; total: number }): Record<string, unknown> {
+export interface OutExtras {
+  /** check-ins that ran */ ran: number;
+  /** what holds the goal's check-ins back, in words, while something does */ blocked?:
+    | Record<string, unknown>
+    | undefined;
+}
+export function goalOut(g: Goal, tasks: { done: number; total: number }, x?: OutExtras): Record<string, unknown> {
   return clean({
     id: g.id,
     title: g.title,
@@ -973,7 +1081,8 @@ export function goalOut(g: Goal, tasks: { done: number; total: number }): Record
     progress: progressOf(g, tasks),
     nextCheckinAt: LIVE.has(g.status) ? g.nextCheckinAt : undefined,
     lastCheckinAt: g.lastCheckinAt,
-    checkins: g.checkins,
+    checkins: x ? x.ran : g.checkins,
+    blocked: x?.blocked,
     spentMicros: g.spentMicros,
     turns: g.turns,
     stuckAfter: g.stuckAfter,
@@ -986,7 +1095,7 @@ export function goalOut(g: Goal, tasks: { done: number; total: number }): Record
     updatedAt: g.updatedAt,
   });
 }
-export function lineOut(g: Goal, tasks: { done: number; total: number }): Record<string, unknown> {
+export function lineOut(g: Goal, tasks: { done: number; total: number }, x?: OutExtras): Record<string, unknown> {
   return clean({
     id: g.id,
     title: g.title,
@@ -999,6 +1108,7 @@ export function lineOut(g: Goal, tasks: { done: number; total: number }): Record
     deadline: g.deadline,
     nextCheckinAt: LIVE.has(g.status) ? g.nextCheckinAt : undefined,
     progress: progressOf(g, tasks),
+    blocked: x?.blocked,
     projectId: g.projectId,
     updatedAt: g.updatedAt,
   });
