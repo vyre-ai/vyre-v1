@@ -62,3 +62,21 @@ export async function connectionWorks(call: Call, id: string): Promise<void> {
     /* an admin can still dismiss it */
   }
 }
+
+/**
+ * A routine's agent was refused for something it can never do on its own (above its clearance, or a permission its role does not hold) and has stopped asking. The person the routine works for is told once, as a
+ * line in Needs you, in plain words: which agent, and that it needs more access or a different routine. One line per agent and tool, however many runs meet it.
+ */
+export async function agentRefusedNeedsYou(
+  call: Call,
+  n: { agentId: string; agentName?: string; asker: string; tool: string },
+): Promise<void> {
+  const who = n.agentName && n.agentName.trim() !== "" ? n.agentName.trim() : "An agent";
+  await connectionNeedsYou(call, {
+    id: `refusal:${n.agentId}:${n.tool}`,
+    title: `${who} was stopped by an access limit`,
+    summary: `${who} asked for something its access does not allow, in a routine of yours, and has stopped asking. Give it the access, or change the routine so it does not need it.`,
+    to: { kind: "person", id: n.asker },
+    from: "Vyre",
+  });
+}

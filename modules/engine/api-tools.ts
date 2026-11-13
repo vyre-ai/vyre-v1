@@ -6,6 +6,7 @@
 import { readFileSync } from "node:fs";
 import { createApiTools } from "../../agent/src/drivers/open/api-tools.ts";
 import type { ApiTools } from "../../agent/src/drivers/open/api-tools.ts";
+import { agentRefusedNeedsYou } from "../../lib/needs-you.ts";
 import { createToolSession } from "../../agent/src/tools/call.ts";
 import { decideLocal, dialFor, modePair } from "../../agent/src/tools/local.ts";
 import { localFacts } from "../../agent/src/tools/local-facts.ts";
@@ -101,6 +102,23 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
     zoneOf: (c) => zones.get(c.asker),
     levelFor: (asker, scope) => levels.get(levelKey(asker, scope)) ?? null,
     canEngineer: () => false,
+    // a routine whose agent met a refusal it can never fix tells the person it works for, once, in Needs you (agent/src/tools/call.ts)
+    ...(d.call
+      ? {
+          needsYou: (n: { agentId: string; tool: string; asker: string }): void => {
+            const call = d.call!;
+            void (async () => {
+              const got = (await call("agents.get", { agentId: n.agentId }, n.asker).catch(() => undefined)) as
+                | { agent?: { name?: string } }
+                | undefined;
+              await agentRefusedNeedsYou((cap, input) => call(cap, input, n.asker), {
+                ...n,
+                ...(got?.agent?.name ? { agentName: got.agent.name } : {}),
+              });
+            })();
+          },
+        }
+      : {}),
     // A local tool (terminal, Chrome, screen, files on the agent computer) follows the chat's mode, held to the owner's floor (the floor of Settings, This computer: Terminal prompts, Chrome prompts),
     // with the hard walls of the call itself (a path that leaves the work folder is refused, a delete outside it always asks). A "prompt" is not a refusal and not a silent run: the call is held at the Gate and
     // the person answers it in the chat. Settings are read as the asker before the turn (the tool session asks synchronously); one that cannot be read means the strictest mode.

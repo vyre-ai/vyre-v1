@@ -49,3 +49,26 @@ test("closes it when the connection works again, and never throws", async () => 
     { id: "con_2", title: "x", to },
   );
 });
+
+test("a routine's refusal opens one plain line for its owner, naming the agent and no tool, key or code", async () => {
+  const { agentRefusedNeedsYou } = await import("./needs-you.ts");
+  const made: Array<Record<string, unknown>> = [];
+  let open: unknown[] = [];
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    if (cap === "tasks.list") return { tasks: open };
+    if (cap === "tasks.create") {
+      made.push(input as Record<string, unknown>);
+      open = [{ id: "tsk_1", state: "todo", source: (input as { source: unknown }).source }];
+      return { task: open[0] };
+    }
+    return {};
+  };
+  const n = { agentId: "agt_dex", agentName: "Dex", asker: "usr_dana", tool: "vault_use" };
+  await agentRefusedNeedsYou(call, n);
+  await agentRefusedNeedsYou(call, n);
+  assert.equal(made.length, 1, "once, however many runs");
+  const t = made[0] as { title: string; summary: string; assigned: unknown };
+  assert.deepEqual(t.assigned, { kind: "person", id: "usr_dana" });
+  assert.match(t.title, /Dex/);
+  assert.ok(!/vault_use|above_clearance|permission\.|agt_/.test(`${t.title} ${t.summary}`), "no tool, code or id");
+});
