@@ -118,6 +118,8 @@ export interface CtxSeed {
    * that person instead, without a card: their own access decides, now; an audit row says which agent did it for whom under the grant. Never for an outward act. Set only by the MCP door, with askPerson.
    */
   setupGrant?: boolean | undefined;
+  /** Set only by the tool layer of an agent's turn: which tool made this call, whether it was the first call to that tool in the turn, and whether the last call to that tool was refused for its input (so this one is its retry). The log row of a refused call carries the first two; a retry that works leaves a row of its own. */
+  callMeta?: { tool: string; first: boolean; afterReject?: boolean } | undefined;
   /** The agent a call runs for when it runs as a person (the setup grant reruns an outside agent's call as the person): the read gate (seams/agent-read.ts) still treats it as the agent's. */
   forAgent?: string | undefined;
 }
@@ -460,6 +462,56 @@ function writeUnexpected(
     /* logging never throws into a call */
   }
 }
+/** The rules the generated validators (generated/validators/core.ts) put after a path. A text that is not one of them is not kept: it could carry what the caller wrote. */
+const INPUT_RULE =
+  /^(?:required|not the constant|not in enum|too short|too long|pattern|below minimum|above maximum|too few items|too many items|matches none of anyOf|expected (?:string|number|integer|boolean|array|object|null)(?:\|(?:string|number|integer|boolean|array|object|null))* got (?:string|number|integer|boolean|array|object|null))$/;
+type SchemaNode = {
+  properties?: Record<string, SchemaNode>;
+  items?: SchemaNode;
+  additionalProperties?: SchemaNode | boolean;
+  oneOf?: SchemaNode[];
+  anyOf?: SchemaNode[];
+  allOf?: SchemaNode[];
+};
+/** The schema node a path segment leads to, or null when the schema does not name it (a key the caller chose). */
+function stepInto(n: SchemaNode, seg: string): SchemaNode | null {
+  if (/^\d+$/.test(seg)) return n.items ?? {};
+  if (n.properties && Object.hasOwn(n.properties, seg)) return n.properties[seg] ?? {};
+  for (const alt of [...(n.oneOf ?? []), ...(n.anyOf ?? []), ...(n.allOf ?? [])]) {
+    const hit = stepInto(alt, seg);
+    if (hit) return hit;
+  }
+  return null;
+}
+/**
+ * The inputs a refused call got wrong, as the log row keeps them: a path and the rule it broke, from the validators' own list ("/title: required"). Never a value: a rule that is not one of the validators' words is
+ * left out, and with the capability's input schema a path segment the schema does not name (a key the caller chose) is written as "*". At most twenty are kept.
+ */
+export function rejectedFields(problems: readonly string[], schema?: unknown): Array<{ path: string; rule: string }> {
+  const out: Array<{ path: string; rule: string }> = [];
+  for (const p of problems) {
+    const i = p.indexOf(": ");
+    const path = i < 0 ? p : p.slice(0, i);
+    const rule = i < 0 ? "invalid" : p.slice(i + 2);
+    if (!/^(?:\/[A-Za-z0-9_$-]{1,60}){1,8}$/.test(path) || !INPUT_RULE.test(rule)) continue;
+    let shown = path;
+    if (schema !== undefined) {
+      let node: SchemaNode | null = schema as SchemaNode;
+      const parts: string[] = [];
+      for (const seg of path.slice(1).split("/")) {
+        const next: SchemaNode | null = node === null ? null : stepInto(node, seg);
+        parts.push(next === null && !/^\d+$/.test(seg) ? "*" : seg);
+        node =
+          next === null ? (typeof node?.additionalProperties === "object" ? node.additionalProperties : null) : next;
+        if (node === null) node = {};
+      }
+      shown = `/${parts.join("/")}`;
+    }
+    out.push({ path: shown, rule });
+    if (out.length === 20) break;
+  }
+  return out;
+}
 /** Does this call name a Vault value (a #Handle.field reference) or belong to the Vault: its errors are logged without their words. */
 export const usesVault = (cap: string, input: unknown): boolean => {
   if (cap.startsWith("vault.")) return true;
@@ -658,6 +710,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       if (seed.approval && rawKey && result.status === "ok")
         await deps.idem?.settle?.(seed.principal.id, c.name, rawKey, input, result);
       span(result.status === "held" ? "held" : "ok");
+      // a retry that worked after a refusal for input: one row, so the first-call record can say the second attempt succeeded
+      if (seed.callMeta?.afterReject === true && depth === 0)
+        log.info("invoke.retry_ok", { cap: capName, traceId, status: "ok", tool: seed.callMeta.tool, first: false });
       if (depth === 0) forgetCallSecrets(traceId);
       return { ...result, traceId };
     } catch (e) {
@@ -689,6 +744,16 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         status: error.code,
         actor: seed.principal.id,
         ...(seed.actingFor ? { onBehalf: seed.actingFor } : {}),
+        // which inputs a refused call got wrong (names and rules, never values), and which tool made it
+        ...(error.code === "validation.bad_input"
+          ? {
+              fields: rejectedFields(
+                ((error.details as { errors?: unknown } | undefined)?.errors as string[] | undefined) ?? [],
+                cap?.input,
+              ),
+            }
+          : {}),
+        ...(seed.callMeta ? { tool: seed.callMeta.tool, first: seed.callMeta.first } : {}),
       });
       if ((seed.depth ?? 0) === 0) forgetCallSecrets(traceId);
       throw new HostError(error);
