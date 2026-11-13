@@ -2,15 +2,31 @@
 // and for a cut name only when the text really is cut. Driven here with a fake window so no browser is needed.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { TIP_DELAY_MS, createTips } from "./tips.ts";
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-function el(o: { tt?: string; cut?: boolean; scrollWidth?: number; clientWidth?: number; keyboard?: boolean } = {}) {
-  const attrs: Record<string, string> = {};
+function el(
+  o: {
+    tt?: string;
+    title?: string;
+    label?: string;
+    cut?: boolean;
+    scrollWidth?: number;
+    clientWidth?: number;
+    keyboard?: boolean;
+    text?: string;
+  } = {},
+) {
+  const attrs: Record<string, string> = o.label ? { "aria-label": o.label } : {};
   const self = {
     dataset: { tt: o.tt, ...(o.cut ? { ttCut: "1" } : {}) } as Record<string, string | undefined>,
-    title: "",
+    title: o.title ?? "",
+    textContent: o.text ?? "",
+    isConnected: true,
+    getAttribute: (k: string) => attrs[k] ?? null,
     scrollWidth: o.scrollWidth ?? 50,
     clientWidth: o.clientWidth ?? 50,
     attrs,
@@ -41,14 +57,17 @@ function rig() {
       this.attrs[k] = v;
     },
   };
-  const doc = { createElement: () => label, body: { appendChild: () => undefined } };
+  const into: string[] = [];
+  const doc = { createElement: () => label, body: { appendChild: () => into.push("body") } };
+  const layer = { appendChild: () => into.push("layer") };
   const tips = createTips({
     document: doc,
+    layer: () => layer,
     innerWidth: 1000,
     addEventListener: (t: string, f: (e: never) => void) => handlers.set(t, f as (e: unknown) => void),
   });
   const fire = (type: string, e: unknown = {}): void => handlers.get(type)?.(e);
-  return { tips, fire, label };
+  return { tips, fire, label, into };
 }
 
 test("hover shows the tip after 350 ms and not before", async () => {
@@ -134,4 +153,68 @@ test("a list whose cursor is a row asks for the tip itself, and takes it back", 
   assert.equal(label.textContent, "Row name\nWho");
   tips.hide();
   assert.equal(label.style["display"], "none");
+});
+
+test("the tip is drawn through the overlay layer, above dialogs, sheets and menus", async () => {
+  const { fire, label, into } = rig();
+  fire("mouseover", { target: el({ tt: "A switch in a sheet" }) });
+  await wait(TIP_DELAY_MS + 40);
+  assert.deepEqual(into, ["layer"], "inside the overlay root, not the body below it");
+  assert.match(
+    label.attrs["style"] ?? "",
+    /z-index:2147483647/,
+    "above the menu layer (2147483000) and the dialog veil (99998) in that root",
+  );
+});
+
+test("when the element goes away while the tip shows, the tip goes too", async () => {
+  const { fire, label } = rig();
+  const target = el({ tt: "Delete" });
+  fire("mouseover", { target });
+  await wait(TIP_DELAY_MS + 40);
+  assert.equal(label.style["display"], "block");
+  target.isConnected = false;
+  await wait(260);
+  assert.equal(label.style["display"], "none");
+});
+
+test("a Tooltip that unmounts takes its own tip away, and only its own", async () => {
+  const { tips, label } = rig();
+  const a = el();
+  const b = el();
+  tips.show(a, "A");
+  tips.hideFor(b);
+  assert.equal(label.style["display"], "block");
+  tips.hideFor(a);
+  assert.equal(label.style["display"], "none");
+});
+
+test("an icon-only button keeps its accessible name when its title becomes the tip", async () => {
+  for (const name of ["Close", "Share", "More options"]) {
+    const { fire } = rig();
+    const button = el({ title: name });
+    fire("mouseover", { target: button });
+    assert.equal(button.title, "", `${name}: the title is taken for the tip`);
+    assert.equal(button.attrs["aria-label"], name, `${name}: and kept as the name`);
+  }
+  const named = el({ title: "Owner can change this", label: "Quiet hours" });
+  rig().fire("focusin", { target: named });
+  assert.equal(named.attrs["aria-label"], "Quiet hours", "a name that was there stays");
+});
+
+test("the tip for one thing is gone the moment another is armed", async () => {
+  const { fire, label } = rig();
+  fire("mouseover", { target: el({ tt: "First" }) });
+  await wait(TIP_DELAY_MS + 40);
+  assert.equal(label.style["display"], "block");
+  fire("mouseover", { target: el({ tt: "Second" }) });
+  assert.equal(label.style["display"], "none", "First does not stay up while Second waits");
+});
+
+test("the tip's layer order is above the Dialog and full-size Sheet veil and above the Menu layer", () => {
+  const src = (rel: string): string => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+  const tipZ = Number(/z-index:(\d+)/.exec(src("./tips.ts"))![1]);
+  const veilZ = Number(/veil: \{[^}]*zIndex: (\d+)/.exec(src("../Dialog/index.tsx"))![1]);
+  const menuZ = Number(/layer: \{[^}]*zIndex: (\d+)/.exec(src("../Menu/index.tsx"))![1]);
+  assert.ok(tipZ > veilZ && tipZ > menuZ, `tip ${tipZ} over veil ${veilZ} and menu ${menuZ}`);
 });

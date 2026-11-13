@@ -48,6 +48,9 @@ interface Entry {
   dirty: boolean;
   stale: boolean;
   /** Optimistic changes shown over `base`, the last real answer: each can be taken back alone, and the answer is always base with the rest applied. */
+  /** The failure of the last re-read of an answered query, kept beside the answer (never in it: the snapshot stays the same object). */
+  staleFail: { message: string; code?: string; traceId?: string } | null;
+  staleListeners: Set<() => void>;
   patches: { apply: (data: unknown) => unknown }[];
   base: { snap: QueryState<unknown>; json: string } | null;
   live: LiveQuery<unknown>;
@@ -109,6 +112,10 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
         const had = e.patches.length > 0;
         e.patches.length = 0;
         e.base = null;
+        if (e.staleFail !== null) {
+          e.staleFail = null;
+          for (const l of [...e.staleListeners]) l();
+        }
         if (e.snap.status !== "ready" || json !== e.json || had) {
           e.json = json;
           e.snap = { status: "ready", data };
@@ -124,6 +131,14 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
         }
         // Never answered: say why (a `ready` query keeps its last answer). The next read, when something changes, replaces this.
         // The same failure again keeps the same snapshot: a re-read that fails the same way must not look like a change (an effect that reacts to the snapshot would call, refresh, fail and react again, for ever).
+        if (e.snap.status === "ready") {
+          // the answer stays exactly as it is; one note beside it says the last re-read failed
+          const f = failureOf(err);
+          if (e.staleFail?.message !== f.message || e.staleFail?.code !== f.code) {
+            e.staleFail = f;
+            for (const l of [...e.staleListeners]) l();
+          }
+        }
         if (e.snap.status !== "ready") {
           const f = failureOf(err);
           const was = e.snap.error;
@@ -150,6 +165,8 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
       inflight: false,
       dirty: false,
       stale: false,
+      staleFail: null,
+      staleListeners: new Set(),
       patches: [],
       base: null,
       live: {
@@ -161,7 +178,17 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
           };
         },
         getSnapshot: () => made.snap,
-      },
+        // the side channel: `useLoad` reads it to say "Couldn't refresh" without the snapshot above ever changing
+        stale: {
+          subscribe(l: () => void) {
+            made.staleListeners.add(l);
+            return () => {
+              made.staleListeners.delete(l);
+            };
+          },
+          getSnapshot: () => made.staleFail,
+        },
+      } as LiveQuery<unknown>,
     };
     entries.set(key, made);
     e = made;

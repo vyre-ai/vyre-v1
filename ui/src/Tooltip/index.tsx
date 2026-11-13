@@ -6,7 +6,7 @@
 import { createElement, useEffect, useRef } from "react";
 import type { ReactElement } from "react";
 import { Platform } from "react-native";
-import { hideTip, showTip } from "./tips.ts";
+import { hideTip, hideTipFor, showTip } from "./tips.ts";
 import type { TipEl } from "./tips.ts";
 
 export function Tooltip({
@@ -21,6 +21,13 @@ export function Tooltip({
   open?: boolean;
 }): ReactElement {
   const ref = useRef<TipEl | null>(null);
+  // a Tooltip that goes away (a row deleted, a route change) takes its own tip with it
+  useEffect(
+    () => () => {
+      if (ref.current) hideTipFor(ref.current);
+    },
+    [],
+  );
   useEffect(() => {
     if (open === undefined || !ref.current) return undefined;
     if (open) showTip(ref.current, text);

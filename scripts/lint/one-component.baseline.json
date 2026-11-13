@@ -43,12 +43,15 @@
     "read-hook": 1
   },
   "apps/app/src/console/shell/ui.tsx": {
-    "declared": 2
+    "declared": 3
   },
   "apps/app/src/machines/MachinesView.tsx": {
     "declared": 1
   },
   "apps/app/src/mobile/sheets/Sheet.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/apps/shell/AppsPlace.tsx": {
     "declared": 1
   },
   "apps/app/src/places/apps/shell/data.tsx": {
@@ -68,7 +71,7 @@
     "declared": 1
   },
   "apps/app/src/places/automations/operations/parts.tsx": {
-    "declared": 1
+    "declared": 2
   },
   "apps/app/src/places/automations/runs/data.tsx": {
     "read-hook": 1
@@ -81,6 +84,9 @@
   },
   "apps/app/src/places/chats/computer/data.tsx": {
     "read-hook": 1
+  },
+  "apps/app/src/places/chats/computer/LiveScreen.tsx": {
+    "declared": 1
   },
   "apps/app/src/places/chats/conversation/Conversation.tsx": {
     "crew-poll": 1
@@ -169,6 +175,9 @@
   "apps/app/src/places/inbox/sidebar/data.tsx": {
     "read-hook": 1
   },
+  "apps/app/src/places/records/projectpage/overview/OverviewPage.tsx": {
+    "declared": 1
+  },
   "apps/app/src/places/records/projectpage/overview/Properties.tsx": {
     "declared": 1
   },
@@ -199,6 +208,9 @@
   "apps/app/src/places/vault/layout/data.tsx": {
     "read-hook": 1
   },
+  "apps/app/src/places/vault/layout/index.tsx": {
+    "declared": 1
+  },
   "apps/app/src/places/vault/layout/Sheet.tsx": {
     "declared": 1
   },
@@ -207,5 +219,8 @@
   },
   "ui/src/HistoryTab/index.tsx": {
     "declared": 1
+  },
+  "ui/src/TaskPage/StatusDot.tsx": {
+    "declared": 2
   }
 }
