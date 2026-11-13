@@ -18,6 +18,8 @@ import type { BrowserAnswer, BrowserToolCall, ProfileRow, SpaceBrowser } from ".
 export const DEFAULT_BROWSER_IMAGE = "vyre/space-browser:1";
 export const BROWSERD_CTL = "/opt/browserd/ctl";
 export const BROWSER_DATA_GUEST = "/data";
+import { BROWSER_CONTAINER } from "./names.ts";
+export { BROWSER_CONTAINER };
 export const BROWSER_NETWORK = "vyre-sbrowsernet";
 /** The network of a Space browser container: `vyre-sbrowsernet` for the usual one, `<name>net` for another (a test's). */
 export const browserNetworkOf = (name: string | undefined): string => (name === undefined || name === "vyre-sbrowser" ? BROWSER_NETWORK : `${name}net`);

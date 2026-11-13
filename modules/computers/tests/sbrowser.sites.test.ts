@@ -8,13 +8,15 @@ import { isSignInSite, signInSites } from "../sbrowser/sites.ts";
 import { DANA, harness } from "../fixtures/harness.ts";
 import { tool } from "./tools.fixture.ts";
 
-const KEPT = ["app.clio.com", "mail.google.com", "login.microsoftonline.com", "accounts.example.co.uk", "8.8.8.8"];
-const LEFT_OUT = ["127.0.0.1", "127.1.2.3", "localhost", "start.localhost", "::1", "[::1]", "0.0.0.0", "10.1.2.3", "172.18.0.4", "192.168.1.20", "169.254.169.254", "100.64.0.9", "fd12:3456::1", "fe80::1",
-  "vyre-space-browser", "host", "printer.local", "db.internal", "", " ", ".", "about:blank", "newtab"];
+const KEPT = ["app.clio.com", "mail.google.com", "login.microsoftonline.com", "accounts.example.co.uk", "8.8.8.8", "xn--bcher-kva.example",
+  // a firm's own systems on its network are real sign-ins and stay, so the person can see them and sign out
+  "10.0.0.5", "172.18.0.4", "192.168.1.20", "dms.firm.local", "files.office.lan", "wiki.corp.internal", "dms", "intranet", "100.64.0.9", "mylocalhost.com", "localhost.example.com"];
+const LEFT_OUT = ["127.0.0.1", "127.1.2.3", "127.0.0.1:3000", "127.0.0.1.", "localhost", "localhost.", "localhost:8080", "LOCALHOST", "start.localhost", "::1", "[::1]", "[::1]:3000", "0.0.0.0", "::",
+  "vyre-sbrowser", "vyre-sbrowser-test-ab12", "vyre-space-browser", "host.docker.internal", "vyred", "", " ", ".", "about:blank", "chrome://newtab", "a b"];
 
 test("the sites that count as a sign-in are real sites, never the browser's own addresses", () => {
   for (const s of KEPT) assert.equal(isSignInSite(s), true, `${s} is a site`);
-  for (const s of [...KEPT.map((x) => `.${x}`)]) assert.equal(isSignInSite(s), true, `${s} (a cookie's leading dot) is a site`);
+  for (const s of KEPT.map((x) => `.${x}`)) assert.equal(isSignInSite(s), true, `${s} (a cookie's leading dot) is a site`);
   for (const s of LEFT_OUT) assert.equal(isSignInSite(s), false, `${JSON.stringify(s)} is not a site an agent signed in to`);
   assert.deepEqual(signInSites([...LEFT_OUT, ...KEPT].map((site) => ({ site, since: 1 }))).map((x) => x.site), KEPT, "the order given is kept");
 });
