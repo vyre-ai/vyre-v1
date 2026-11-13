@@ -46,9 +46,15 @@ export interface ConversationNav {
 }
 
 /** A slash command a plugin adds. It runs `run` when it has one, else its `prompt` is sent as the message ($ARGUMENTS is replaced by what follows the name). */
-export interface PluginCommand { name: string; description: string; pluginId?: string; prompt?: string; run?(arg: string): Promise<string | void>;
+export interface PluginCommand {
+  name: string;
+  description: string;
+  pluginId?: string;
+  prompt?: string;
+  run?(arg: string): Promise<string | void>;
   /** Fills the command's prompt with what was typed after its name; the result is sent as the person's message. */
-  render?(arg: string): Promise<string> }
+  render?(arg: string): Promise<string>;
+}
 
 /** The live replies of a chat: a row for each reply that is being written or just finished and not yet saved. */
 export interface LiveTurns {
@@ -61,7 +67,10 @@ export interface LiveTurns {
   onGap(l: (threadId: string) => void): () => void;
 }
 
-export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
+export interface Connection {
+  get(): "online" | "offline";
+  subscribe(l: () => void): () => void;
+}
 
 export interface ConversationData {
   /** Names of the people typing in this chat now, when the place knows (presence); the row above the composer says so. */
@@ -72,7 +81,7 @@ export interface ConversationData {
   changes?: import("./use-follow.ts").Changes;
   connection: Connection;
   threadId: string;
-  
+
   /** A message to open on and mark (from a memory quote's link `vyre://thread/<id>?m=<messageId>`, a search result or a fork's link back): the page loads the messages around it. */
   focus?: string;
   /** Counts each time the same message is asked for again, so it is marked again. */
@@ -80,7 +89,11 @@ export interface ConversationData {
   /** The signed-in person: messages from them are the right-hand bubbles. */
   /** The viewer's own Assistant: the @ menu lists it first, as Yours. */
   assistantId?: string;
-  me: { id: string; name: string; /** Holds only the Guest role: the @ menu lists only the agents this chat allows. */ guest?: boolean };
+  me: {
+    id: string;
+    name: string;
+    /** Holds only the Guest role: the @ menu lists only the agents this chat allows. */ guest?: boolean;
+  };
   nameOf(id: string): string;
   kindOf(id: string): "person" | "agent";
   nav: ConversationNav;
@@ -104,7 +117,10 @@ export interface ConversationData {
   /** A Personal Space has no agent computers: the composer draws no computer button. */
   personal?: boolean;
   /** The other Spaces this person is in on this device, and a way to act in them. Left out when there is only this one. */
-  elsewhere?: { spaces: readonly { id: string; name: string }[]; call(spaceId: string, cap: string, input: unknown): Promise<unknown> };
+  elsewhere?: {
+    spaces: readonly { id: string; name: string }[];
+    call(spaceId: string, cap: string, input: unknown): Promise<unknown>;
+  };
   /** Slash commands that plugins add (name, one line, and what to run). Left out when no plugin offers any. */
   pluginCommands?(): readonly PluginCommand[];
   /** Replies being written in this chat, from the live socket. Left out where there is no live link: the reply then lands whole. */
@@ -122,7 +138,11 @@ export interface ConversationData {
   /** The shell has a terminal: a Run this card can type a command into one. */
   terminal?: boolean;
   /** The mount sheet for a Mount card in the chat: connect a folder from the source the card named, then hand back what was mounted. The shell draws it over the page. Left out where the shell has no Files. */
-  mountSheet?(p: { source: string; onMounted(info: { folderId: string; name: string }): void; onClose(): void }): ReactElement;
+  mountSheet?(p: {
+    source: string;
+    onMounted(info: { folderId: string; name: string }): void;
+    onClose(): void;
+  }): ReactElement;
   /** Drawn above the messages, scrolling with them: the page of a task sits on top of its thread. The feed then opens at the top. */
   head?: ReactElement;
   /** Drawn after the last message, scrolling with it: what is under way in this chat. */
@@ -152,15 +172,33 @@ export function createComposerFill(): ComposerFill {
   let waiting: string | undefined;
   const listeners = new Set<() => void>();
   return {
-    set(text) { waiting = text; for (const l of [...listeners]) l(); },
-    take() { const t = waiting; waiting = undefined; return t; },
-    subscribe(onChange) { listeners.add(onChange); return () => { listeners.delete(onChange); }; },
+    set(text) {
+      waiting = text;
+      for (const l of [...listeners]) l();
+    },
+    take() {
+      const t = waiting;
+      waiting = undefined;
+      return t;
+    },
+    subscribe(onChange) {
+      listeners.add(onChange);
+      return () => {
+        listeners.delete(onChange);
+      };
+    },
   };
 }
 
 const Ctx = createContext<ConversationData | null>(null);
 
-export function ConversationDataProvider({ value, children }: { value: ConversationData; children: ReactNode }): ReactElement {
+export function ConversationDataProvider({
+  value,
+  children,
+}: {
+  value: ConversationData;
+  children: ReactNode;
+}): ReactElement {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
@@ -177,7 +215,10 @@ export function useConversationData(): ConversationData {
 export function useScreenQuery<T>(screenId: string, name: string, state: Record<string, unknown> = {}): QueryState<T> {
   const { screens } = useConversationData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>, [screens, screenId, name, key]);
+  const q = useMemo(
+    () => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>,
+    [screens, screenId, name, key],
+  );
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 

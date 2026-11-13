@@ -9,7 +9,13 @@ export function createClock(start: number = CLOCK_START): FakeClock {
   let t = start;
   return {
     now: () => t,
-    advance(ms) { if (!(ms >= 0)) throw new RangeError("a clock only moves forward"); t += ms; return t; },
-    set(ms) { t = ms; },
+    advance(ms) {
+      if (!(ms >= 0)) throw new RangeError("a clock only moves forward");
+      t += ms;
+      return t;
+    },
+    set(ms) {
+      t = ms;
+    },
   };
 }

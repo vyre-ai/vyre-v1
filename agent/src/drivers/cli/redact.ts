@@ -23,7 +23,11 @@ export function redact(text: string, now: number = Date.now()): string {
 }
 
 /** The secrets held right now. */
-export function heldSecrets(now: number = Date.now()): string[] { return live(now); }
+export function heldSecrets(now: number = Date.now()): string[] {
+  return live(now);
+}
 
 /** For tests: forget everything. */
-export function forgetSecrets(): void { held.clear(); }
+export function forgetSecrets(): void {
+  held.clear();
+}

@@ -4,10 +4,23 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useAutomationsData } from "../canvas/data.tsx";
 import { stepsFromCall } from "../runs/ledger.ts";
-import { MIGRATION_DISABLED, cohortGroupLabel, cohortPreview, cohortsOf, previewGroups, safeRunIds } from "./cohorts.ts";
+import {
+  MIGRATION_DISABLED,
+  cohortGroupLabel,
+  cohortPreview,
+  cohortsOf,
+  previewGroups,
+  safeRunIds,
+} from "./cohorts.ts";
 import type { Cohort, CohortRun, CohortStep, PreviewGroup } from "./cohorts.ts";
 
-export function CohortMigration({ automationId, currentVersion }: { automationId: string; currentVersion: number }): ReactElement {
+export function CohortMigration({
+  automationId,
+  currentVersion,
+}: {
+  automationId: string;
+  currentVersion: number;
+}): ReactElement {
   const data = useAutomationsData();
   const [reload, setReload] = useState(0);
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
@@ -27,8 +40,15 @@ export function CohortMigration({ automationId, currentVersion }: { automationId
     setApplyError(null);
     void (async () => {
       try {
-        const listed = await data.call("runs.list", { scope: "subject", subject: { type: "automation", id: automationId }, limit: 20 });
-        const rows = listed && typeof listed === "object" && Array.isArray((listed as { runs?: unknown }).runs) ? (listed as { runs: Record<string, unknown>[] }).runs : null;
+        const listed = await data.call("runs.list", {
+          scope: "subject",
+          subject: { type: "automation", id: automationId },
+          limit: 20,
+        });
+        const rows =
+          listed && typeof listed === "object" && Array.isArray((listed as { runs?: unknown }).runs)
+            ? (listed as { runs: Record<string, unknown>[] }).runs
+            : null;
         if (!rows) throw new Error("The runs list did not return rows.");
         const cohortRuns: CohortRun[] = [];
         const byRun: Record<string, CohortStep[]> = {};
@@ -71,20 +91,32 @@ export function CohortMigration({ automationId, currentVersion }: { automationId
         setMessage(e instanceof Error ? e.message : "Pinned runs did not load.");
       }
     })();
-    return () => { live = false; };
+    return () => {
+      live = false;
+    };
   }, [data, automationId, currentVersion, reload]);
 
   async function apply(): Promise<void> {
     if (busy || safeIds.length === 0) return;
-    if (!confirming) { setConfirming(true); return; }
+    if (!confirming) {
+      setConfirming(true);
+      return;
+    }
     setBusy(true);
     setApplyError(null);
     try {
-      const out = await data.call("automations.migrate_runs", { automationId, toVersion: currentVersion, runIds: safeIds }) as { held?: unknown };
+      const out = (await data.call("automations.migrate_runs", {
+        automationId,
+        toVersion: currentVersion,
+        runIds: safeIds,
+      })) as { held?: unknown };
       const held = Array.isArray(out?.held) ? out.held.length : 0;
       setConfirming(false);
       setReload((n) => n + 1);
-      if (held > 0) setApplyError(`${held} ${held === 1 ? "run was" : "runs were"} held back because a step started. Try again when it finishes.`);
+      if (held > 0)
+        setApplyError(
+          `${held} ${held === 1 ? "run was" : "runs were"} held back because a step started. Try again when it finishes.`,
+        );
     } catch (e) {
       setApplyError(e instanceof Error ? e.message : "Those runs were not moved.");
     } finally {
@@ -95,16 +127,52 @@ export function CohortMigration({ automationId, currentVersion }: { automationId
   const cohorts = phase === "ready" ? cohortsOf(currentVersion, runs, steps) : [];
   return (
     <CohortView
-      currentVersion={currentVersion} phase={phase} message={message} cohorts={cohorts} groups={groups} safeCount={safeIds.length} previewNote={previewNote}
-      confirming={confirming} busy={busy} applyError={applyError} onApply={() => void apply()} onCancel={() => { setConfirming(false); setApplyError(null); }}
+      currentVersion={currentVersion}
+      phase={phase}
+      message={message}
+      cohorts={cohorts}
+      groups={groups}
+      safeCount={safeIds.length}
+      previewNote={previewNote}
+      confirming={confirming}
+      busy={busy}
+      applyError={applyError}
+      onApply={() => void apply()}
+      onCancel={() => {
+        setConfirming(false);
+        setApplyError(null);
+      }}
     />
   );
 }
 
 /** What the Versions tab draws once the runs and the preview are loaded. Apply asks once more before it moves anything. */
-export function CohortView({ currentVersion, phase, message = "", cohorts, groups, safeCount, previewNote = null, confirming, busy, applyError = null, onApply, onCancel }: {
-  currentVersion: number; phase: "loading" | "ready" | "error"; message?: string; cohorts: readonly Cohort[]; groups: readonly PreviewGroup[]; safeCount: number;
-  previewNote?: string | null; confirming: boolean; busy: boolean; applyError?: string | null; onApply(): void; onCancel(): void;
+export function CohortView({
+  currentVersion,
+  phase,
+  message = "",
+  cohorts,
+  groups,
+  safeCount,
+  previewNote = null,
+  confirming,
+  busy,
+  applyError = null,
+  onApply,
+  onCancel,
+}: {
+  currentVersion: number;
+  phase: "loading" | "ready" | "error";
+  message?: string;
+  cohorts: readonly Cohort[];
+  groups: readonly PreviewGroup[];
+  safeCount: number;
+  previewNote?: string | null;
+  confirming: boolean;
+  busy: boolean;
+  applyError?: string | null;
+  onApply(): void;
+  onCancel(): void;
 }): ReactElement {
   const canApply = phase === "ready" && safeCount > 0;
   return (
@@ -112,47 +180,78 @@ export function CohortView({ currentVersion, phase, message = "", cohorts, group
       <Text style={c.head}>Pinned versions</Text>
       {phase === "loading" ? <Text style={c.dim}>Loading pinned runs</Text> : null}
       {phase === "error" ? <Text style={c.err}>{message}</Text> : null}
-      {phase === "ready" && cohorts.length === 0 && groups.length === 0 ? <Text style={c.dim}>No runs are pinned to a definition version yet.</Text> : null}
+      {phase === "ready" && cohorts.length === 0 && groups.length === 0 ? (
+        <Text style={c.dim}>No runs are pinned to a definition version yet.</Text>
+      ) : null}
       {phase === "ready" && groups.length > 0 ? <CohortGroups currentVersion={currentVersion} groups={groups} /> : null}
       {/* ui-rows-lint: not a list (one card per pinned version) */}
-      {phase === "ready" && groups.length === 0 ? cohorts.map((cohort) => (
-        <View key={cohort.version} style={c.group}>
-          <Text style={c.ver}>{cohort.current ? `Version ${cohort.version}, current definition` : `Version ${cohort.version}, pinned`}</Text>
-          {/* ui-rows-lint: not a list (one sentence per pinned run) */}
-          {cohort.runs.map((member) => <Text key={member.id} style={c.dim}>{`${member.summary ?? member.id}. ${cohortPreview(member)}`}</Text>)}
-        </View>
-      )) : null}
+      {phase === "ready" && groups.length === 0
+        ? cohorts.map((cohort) => (
+            <View key={cohort.version} style={c.group}>
+              <Text style={c.ver}>
+                {cohort.current ? `Version ${cohort.version}, current definition` : `Version ${cohort.version}, pinned`}
+              </Text>
+              {/* ui-rows-lint: not a list (one sentence per pinned run) */}
+              {cohort.runs.map((member) => (
+                <Text key={member.id} style={c.dim}>{`${member.summary ?? member.id}. ${cohortPreview(member)}`}</Text>
+              ))}
+            </View>
+          ))
+        : null}
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ disabled: !canApply || busy }}
         disabled={!canApply || busy}
         testID="apply-migration"
-        onPress={() => { if (canApply) onApply(); }}
+        onPress={() => {
+          if (canApply) onApply();
+        }}
         style={canApply ? c.applyOn : c.apply}
       >
         <Text style={canApply ? c.applyOnText : c.applyText}>{confirming ? "Apply" : "Apply safe groups"}</Text>
       </Pressable>
-      {canApply && confirming ? <Text testID="migration-confirm" style={c.dim}>{`Move ${safeCount} ${safeCount === 1 ? "run" : "runs"} to version ${currentVersion}. Finished steps stay finished, and a step that is running is never moved.`}</Text> : null}
+      {canApply && confirming ? (
+        <Text
+          testID="migration-confirm"
+          style={c.dim}
+        >{`Move ${safeCount} ${safeCount === 1 ? "run" : "runs"} to version ${currentVersion}. Finished steps stay finished, and a step that is running is never moved.`}</Text>
+      ) : null}
       {canApply && confirming ? (
         <Pressable accessibilityRole="button" disabled={busy} testID="cancel-migration" onPress={onCancel}>
           <Text style={c.dim}>Cancel</Text>
         </Pressable>
       ) : null}
-      {!canApply && phase === "ready" ? <Text style={previewNote ? c.err : c.dim}>{previewNote ?? MIGRATION_DISABLED}</Text> : null}
+      {!canApply && phase === "ready" ? (
+        <Text style={previewNote ? c.err : c.dim}>{previewNote ?? MIGRATION_DISABLED}</Text>
+      ) : null}
       {applyError ? <Text style={c.err}>{applyError}</Text> : null}
     </View>
   );
 }
 
-export function CohortGroups({ currentVersion, groups }: { currentVersion: number; groups: readonly PreviewGroup[] }): ReactElement {
+export function CohortGroups({
+  currentVersion,
+  groups,
+}: {
+  currentVersion: number;
+  groups: readonly PreviewGroup[];
+}): ReactElement {
   return (
     <View testID="cohort-groups" style={c.wrap}>
       {/* ui-rows-lint: not a list (one card per preview group) */}
       {groups.map((group, index) => (
-        <View key={`${group.disposition}-${group.definitionVersion}-${index}`} testID={`cohort-${group.disposition}-${group.definitionVersion}`} style={c.group}>
+        <View
+          key={`${group.disposition}-${group.definitionVersion}-${index}`}
+          testID={`cohort-${group.disposition}-${group.definitionVersion}`}
+          style={c.group}
+        >
           <Text style={c.ver}>{cohortGroupLabel(currentVersion, group)}</Text>
           {/* ui-rows-lint: not a list (one id per preview group) */}
-          {group.runIds.map((id) => <Text key={id} style={c.dim}>{id}</Text>)}
+          {group.runIds.map((id) => (
+            <Text key={id} style={c.dim}>
+              {id}
+            </Text>
+          ))}
           {group.reason ? <Text style={c.dim}>{group.reason}</Text> : null}
         </View>
       ))}
@@ -167,8 +266,21 @@ const c = StyleSheet.create({
   group: { gap: 4 },
   dim: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
   err: { fontSize: 12.5, lineHeight: 18, color: "var(--danger)" as string },
-  apply: { alignSelf: "flex-start", opacity: 0.45, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7, backgroundColor: "var(--hover)" as string },
+  apply: {
+    alignSelf: "flex-start",
+    opacity: 0.45,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 7,
+    backgroundColor: "var(--hover)" as string,
+  },
   applyText: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  applyOn: { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7, backgroundColor: "var(--hover)" as string },
+  applyOn: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 7,
+    backgroundColor: "var(--hover)" as string,
+  },
   applyOnText: { fontSize: 12.5, color: "var(--ink)" as string },
 });

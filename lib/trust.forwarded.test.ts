@@ -11,7 +11,11 @@ test("isSystemCall: a call one level down is system, unless it was only forwarde
   assert.equal(isSystemCall({ depth: 1, principal: person }), true, "module code one level down");
   assert.equal(isSystemCall({ depth: 1, principal: person, forwarded: false }), true);
   assert.equal(isSystemCall({ depth: 0, principal: person }), false, "the gateway");
-  assert.equal(isSystemCall({ depth: 1, principal: person, forwarded: true }), false, "a stored schedule fired for a member");
+  assert.equal(
+    isSystemCall({ depth: 1, principal: person, forwarded: true }),
+    false,
+    "a stored schedule fired for a member",
+  );
   assert.equal(isSystemCall({ depth: 2, principal: person, forwarded: true }), false, "however deep it sits");
   assert.equal(isSystemCall({ depth: 7, principal: { kind: "agent", id: "agt_scout" }, forwarded: true }), false);
   assert.equal(isSystemCall({ principal: person, forwarded: true }), false, "no depth at all");

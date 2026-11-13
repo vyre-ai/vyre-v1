@@ -15,7 +15,13 @@ export function showToast(o) {
   const g = /** @type {any} */ (globalThis);
   const doc = g.document;
   const KEY = Symbol.for("vyre.toast");
-  if (g[KEY]) { try { g[KEY].remove(); } catch { /* gone */ } }
+  if (g[KEY]) {
+    try {
+      g[KEY].remove();
+    } catch {
+      /* gone */
+    }
+  }
   const host = doc.createElement("div");
   host.setAttribute("data-vyre-toast", "");
   host.style.cssText = "all:initial;position:fixed;top:14px;right:16px;z-index:2147483647;";
@@ -31,31 +37,69 @@ export function showToast(o) {
   const box = doc.createElement("div");
   box.className = o.error ? "t err" : "t";
   box.setAttribute("role", "status");
-  if (o.thumb) { const img = doc.createElement("img"); img.className = "th"; img.src = o.thumb; img.alt = ""; box.append(img); }
-  const txt = doc.createElement("div"); txt.className = "g";
-  const a = doc.createElement("div"); a.className = "a";
+  if (o.thumb) {
+    const img = doc.createElement("img");
+    img.className = "th";
+    img.src = o.thumb;
+    img.alt = "";
+    box.append(img);
+  }
+  const txt = doc.createElement("div");
+  txt.className = "g";
+  const a = doc.createElement("div");
+  a.className = "a";
   if (!o.error) {
     const NS = "http://www.w3.org/2000/svg";
-    const m = doc.createElementNS(NS, "svg"); m.setAttribute("width", "12"); m.setAttribute("height", "12"); m.setAttribute("viewBox", "0 0 24 24");
-    const p = doc.createElementNS(NS, "path"); p.setAttribute("d", "M5.2 6.4l6.3 11.2 4.9-8.6"); p.setAttribute("fill", "none"); p.setAttribute("stroke", "currentColor"); p.setAttribute("stroke-width", "3.1"); p.setAttribute("stroke-linecap", "round"); p.setAttribute("stroke-linejoin", "round");
-    const c = doc.createElementNS(NS, "circle"); c.setAttribute("cx", "18.6"); c.setAttribute("cy", "5.6"); c.setAttribute("r", "2.7"); c.setAttribute("fill", dark ? "#FF8A66" : "#EE5A38");
-    m.append(p, c); a.append(m);
+    const m = doc.createElementNS(NS, "svg");
+    m.setAttribute("width", "12");
+    m.setAttribute("height", "12");
+    m.setAttribute("viewBox", "0 0 24 24");
+    const p = doc.createElementNS(NS, "path");
+    p.setAttribute("d", "M5.2 6.4l6.3 11.2 4.9-8.6");
+    p.setAttribute("fill", "none");
+    p.setAttribute("stroke", "currentColor");
+    p.setAttribute("stroke-width", "3.1");
+    p.setAttribute("stroke-linecap", "round");
+    p.setAttribute("stroke-linejoin", "round");
+    const c = doc.createElementNS(NS, "circle");
+    c.setAttribute("cx", "18.6");
+    c.setAttribute("cy", "5.6");
+    c.setAttribute("r", "2.7");
+    c.setAttribute("fill", dark ? "#FF8A66" : "#EE5A38");
+    m.append(p, c);
+    a.append(m);
   }
   a.append(doc.createTextNode(o.title));
-  const b = doc.createElement("div"); b.className = "b"; b.textContent = o.detail;
-  txt.append(a, b); box.append(txt);
+  const b = doc.createElement("div");
+  b.className = "b";
+  b.textContent = o.detail;
+  txt.append(a, b);
+  box.append(txt);
   if (o.noteId) {
-    const open = doc.createElement("button"); open.textContent = "Open";
-    open.addEventListener("click", () => { try { g.chrome.runtime.sendMessage({ type: "vyre.openNote", noteId: o.noteId }); } catch { /* reloaded */ } host.remove(); });
+    const open = doc.createElement("button");
+    open.textContent = "Open";
+    open.addEventListener("click", () => {
+      try {
+        g.chrome.runtime.sendMessage({ type: "vyre.openNote", noteId: o.noteId });
+      } catch {
+        /* reloaded */
+      }
+      host.remove();
+    });
     box.append(open);
   }
-  const x = doc.createElement("button"); x.className = "x"; x.setAttribute("aria-label", "Dismiss"); x.textContent = "✕";
+  const x = doc.createElement("button");
+  x.className = "x";
+  x.setAttribute("aria-label", "Dismiss");
+  x.textContent = "✕";
   x.addEventListener("click", () => host.remove());
   box.append(x);
   root.append(st, box);
   doc.documentElement.append(host);
   g[KEY] = host;
-  g.setTimeout(() => { if (host.isConnected) host.remove(); }, 6000);
+  g.setTimeout(() => {
+    if (host.isConnected) host.remove();
+  }, 6000);
   return true;
 }
 
@@ -70,7 +114,13 @@ export function imageOf(dataUrl) {
  */
 export function createNotes({ ext, bridge, privacy, context }) {
   /** @param {number} tabId @param {Parameters<typeof showToast>[0]} o */
-  const toast = async (tabId, o) => { try { await ext.scripting.executeScript({ target: { tabId }, func: showToast, args: [o] }); } catch { /* a page we may not draw on */ } };
+  const toast = async (tabId, o) => {
+    try {
+      await ext.scripting.executeScript({ target: { tabId }, func: showToast, args: [o] });
+    } catch {
+      /* a page we may not draw on */
+    }
+  };
 
   return {
     toast,
@@ -82,26 +132,57 @@ export function createNotes({ ext, bridge, privacy, context }) {
       const may = await privacy.of(tab);
       if (may.why === "incognito") throw new BridgeFailure("incognito", "");
       if (!may.read) {
-        if (may.why === "never") await toast(tab.id, { title: "Not saved", detail: "This site is never sent to Vyre.", thumb: null, noteId: null, error: true });
+        if (may.why === "never")
+          await toast(tab.id, {
+            title: "Not saved",
+            detail: "This site is never sent to Vyre.",
+            thumb: null,
+            noteId: null,
+            error: true,
+          });
         throw new BridgeFailure(may.why === "never" ? "never_site" : "no_page", "");
       }
-      const sel = String(selection || "").trim().slice(0, 4000);
+      const sel = String(selection || "")
+        .trim()
+        .slice(0, 4000);
       const shot = await maskedShot(ext, tab.id, { maxW: 1280, quality: 0.8 });
       const page = await context.read(tab.id);
       /** @type {any} */
       let out;
       try {
         out = await bridge.invoke("notes.clip", {
-          url: String(tab.url).slice(0, 2000), title: String((page && page.title) || tab.title || "").slice(0, 500), ...(sel ? { selection: sel } : {}),
+          url: String(tab.url).slice(0, 2000),
+          title: String((page && page.title) || tab.title || "").slice(0, 500),
+          ...(sel ? { selection: sel } : {}),
           ...(shot ? { screenshot: imageOf(shot.dataUrl) } : {}),
         });
       } catch (e) {
-        await toast(tab.id, { title: "Not saved", detail: e instanceof BridgeFailure && e.code === "no_host" ? "Open the Vyre app and try again." : "Vyre could not save this. Try again.", thumb: null, noteId: null, error: true });
+        await toast(tab.id, {
+          title: "Not saved",
+          detail:
+            e instanceof BridgeFailure && e.code === "no_host"
+              ? "Open the Vyre app and try again."
+              : "Vyre could not save this. Try again.",
+          thumb: null,
+          noteId: null,
+          error: true,
+        });
         throw e;
       }
       const noteId = out && out.note && out.note.noteId ? String(out.note.noteId) : null;
-      const what = sel ? (shot ? "Selection, screenshot and link" : "Selection and link") : (shot ? "Screenshot and link" : "Link and page text");
-      await toast(tab.id, { title: "Saved to Notes", detail: `${what} · private`, thumb: shot ? shot.dataUrl : null, noteId });
+      const what = sel
+        ? shot
+          ? "Selection, screenshot and link"
+          : "Selection and link"
+        : shot
+          ? "Screenshot and link"
+          : "Link and page text";
+      await toast(tab.id, {
+        title: "Saved to Notes",
+        detail: `${what} · private`,
+        thumb: shot ? shot.dataUrl : null,
+        noteId,
+      });
       return { noteId, selection: Boolean(sel), screenshot: Boolean(shot) };
     },
   };

@@ -11,20 +11,40 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { configureFilesHost, handlers } from "../impl.ts";
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "migrations");
-type H = Record<string, (ctx: Ctx, input: unknown) => Promise<any>>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+type H = Record<string, (ctx: Ctx, input: unknown) => Promise<any>>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const run = handlers as unknown as H;
 
 function world() {
   const sql = new DatabaseSync(":memory:");
-  for (const f of readdirSync(dir).filter((x) => x.endsWith(".sql")).sort()) sql.exec(readFileSync(join(dir, f), "utf8"));
+  for (const f of readdirSync(dir)
+    .filter((x) => x.endsWith(".sql"))
+    .sort())
+    sql.exec(readFileSync(join(dir, f), "utf8"));
   configureFilesHost({ resources: { ensure: async () => {}, setLabel: async () => {} } });
   let clock = 1_790_000_000_000;
   const ctx = {
-    space: "spc_t", principal: { kind: "person", id: "usr_a" }, trace: { traceId: "t".repeat(32), spanId: "s".repeat(16) }, origin: "api", depth: 0, now: () => (clock += 1000),
-    db: { all: (q: string, ...a: unknown[]) => sql.prepare(q).all(...(a as never[])) as unknown[], run: (q: string, ...a: unknown[]) => ({ changes: Number(sql.prepare(q).run(...(a as never[])).changes) }) },
-    emit: ((_n: string, _s: string, p: unknown) => ({ payload: p })) as never, call: (async () => ({ rows: [], total: 0 })) as never,
-    seal: { seal(bytes: Uint8Array) { return { keyId: "test", nonce: "test", bytes: Buffer.from(bytes).toString("base64") }; }, unseal(value: { bytes: string }) { return Uint8Array.from(Buffer.from(value.bytes, "base64")); } },
-    log: { debug() {}, info() {}, warn() {}, error() {} }, authorize: (() => ({ effect: "allow", reason: "", decisionId: "d" })) as never,
+    space: "spc_t",
+    principal: { kind: "person", id: "usr_a" },
+    trace: { traceId: "t".repeat(32), spanId: "s".repeat(16) },
+    origin: "api",
+    depth: 0,
+    now: () => (clock += 1000),
+    db: {
+      all: (q: string, ...a: unknown[]) => sql.prepare(q).all(...(a as never[])) as unknown[],
+      run: (q: string, ...a: unknown[]) => ({ changes: Number(sql.prepare(q).run(...(a as never[])).changes) }),
+    },
+    emit: ((_n: string, _s: string, p: unknown) => ({ payload: p })) as never,
+    call: (async () => ({ rows: [], total: 0 })) as never,
+    seal: {
+      seal(bytes: Uint8Array) {
+        return { keyId: "test", nonce: "test", bytes: Buffer.from(bytes).toString("base64") };
+      },
+      unseal(value: { bytes: string }) {
+        return Uint8Array.from(Buffer.from(value.bytes, "base64"));
+      },
+    },
+    log: { debug() {}, info() {}, warn() {}, error() {} },
+    authorize: (() => ({ effect: "allow", reason: "", decisionId: "d" })) as never,
   } as unknown as Ctx;
   return { ctx, sql };
 }
@@ -32,15 +52,38 @@ function world() {
 async function agentFolder(ctx: Ctx, name = "Scout", subject = true) {
   const tree = (await run["files.tree"]!(ctx, {})) as { roots: { key: string; folderId?: string }[] };
   const agentsId = tree.roots.find((r) => r.key === "agents")!.folderId!;
-  const home = (await run["files.folder.create"]!(ctx, { parentId: agentsId, name, ...(subject ? { subject: { kind: "agent", id: `agt_${name.toLowerCase()}1` } } : {}), idempotencyKey: `f-${name}` })).folder.folderId as string;
-  const memory = (await run["files.folder.create"]!(ctx, { parentId: home, name: "memory", idempotencyKey: `m-${name}` })).folder.folderId as string;
-  const make = async (folderId: string, fname: string): Promise<string> => (await run["files.create"]!(ctx, { folderId, name: fname, content: { text: `# ${fname}\n` }, idempotencyKey: `c-${folderId}-${fname}-${++made}` })).file.fileId as string;
+  const home = (
+    await run["files.folder.create"]!(ctx, {
+      parentId: agentsId,
+      name,
+      ...(subject ? { subject: { kind: "agent", id: `agt_${name.toLowerCase()}1` } } : {}),
+      idempotencyKey: `f-${name}`,
+    })
+  ).folder.folderId as string;
+  const memory = (
+    await run["files.folder.create"]!(ctx, { parentId: home, name: "memory", idempotencyKey: `m-${name}` })
+  ).folder.folderId as string;
+  const make = async (folderId: string, fname: string): Promise<string> =>
+    (
+      await run["files.create"]!(ctx, {
+        folderId,
+        name: fname,
+        content: { text: `# ${fname}\n` },
+        idempotencyKey: `c-${folderId}-${fname}-${++made}`,
+      })
+    ).file.fileId as string;
   return { agentsId, home, memory, make };
 }
 
 let made = 0;
-const refusal = async (p: Promise<unknown>): Promise<{ code: string; message: string; details?: Record<string, unknown> }> => {
-  try { await p; } catch (e) { return (e as { error: { code: string; message: string; details?: Record<string, unknown> } }).error; }
+const refusal = async (
+  p: Promise<unknown>,
+): Promise<{ code: string; message: string; details?: Record<string, unknown> }> => {
+  try {
+    await p;
+  } catch (e) {
+    return (e as { error: { code: string; message: string; details?: Record<string, unknown> } }).error;
+  }
   assert.fail("the call was accepted");
 };
 
@@ -49,14 +92,32 @@ test("AGENT.md and agent.toml in an agent's folder cannot be deleted, moved or r
   const a = await agentFolder(w.ctx);
   const md = await a.make(a.home, "AGENT.md");
   const toml = await a.make(a.home, "agent.toml");
-  for (const [id, name] of [[md, "AGENT.md"], [toml, "agent.toml"]] as const) {
+  for (const [id, name] of [
+    [md, "AGENT.md"],
+    [toml, "agent.toml"],
+  ] as const) {
     const del = await refusal(run["files.delete"]!(w.ctx, { fileId: id }));
     assert.equal(del.code, "validation.precondition_failed");
-    assert.match(del.message, new RegExp(`${name.replace(".", "\\.")} is part of the agent, so it cannot be deleted\\. Edit it, or delete the agent`));
+    assert.match(
+      del.message,
+      new RegExp(
+        `${name.replace(".", "\\.")} is part of the agent, so it cannot be deleted\\. Edit it, or delete the agent`,
+      ),
+    );
     assert.equal(del.details?.["reason"], "agent_file");
-    assert.match((await refusal(run["files.rename"]!(w.ctx, { fileId: id, name: "other.txt" }))).message, /cannot be renamed/);
-    assert.match((await refusal(run["files.move"]!(w.ctx, { fileId: id, toFolderId: a.memory }))).message, /cannot be moved/);
-    assert.match((await refusal(run["files.move"]!(w.ctx, { fileId: id, toFolderId: a.home, name: "x.md" }))).message, /cannot be moved/, "a move that renames is a rename");
+    assert.match(
+      (await refusal(run["files.rename"]!(w.ctx, { fileId: id, name: "other.txt" }))).message,
+      /cannot be renamed/,
+    );
+    assert.match(
+      (await refusal(run["files.move"]!(w.ctx, { fileId: id, toFolderId: a.memory }))).message,
+      /cannot be moved/,
+    );
+    assert.match(
+      (await refusal(run["files.move"]!(w.ctx, { fileId: id, toFolderId: a.home, name: "x.md" }))).message,
+      /cannot be moved/,
+      "a move that renames is a rename",
+    );
     const still = (await run["files.get"]!(w.ctx, { fileId: id })).file;
     assert.deepEqual([still.name, still.folderId, still.deletedAt], [name, a.home, undefined], "nothing changed");
   }
@@ -72,19 +133,39 @@ test("editing them stays open, and so does everything else: the same names deepe
   const written = await run["files.write"]!(w.ctx, { fileId: md, content: { text: "# Scout\nmore\n" } });
   assert.equal(written.file.name, "AGENT.md", "a person edits AGENT.md");
   assert.equal((await run["files.rename"]!(w.ctx, { fileId: notes, name: "notes-2.md" })).file.name, "notes-2.md");
-  assert.equal((await run["files.delete"]!(w.ctx, { fileId: deeper })).deleted, true, "AGENT.md in a subfolder is only a file");
-  assert.equal((await run["files.delete"]!(w.ctx, { fileId: personal })).deleted, true, "agent.toml outside an agent's own folder is only a file");
-  assert.equal((await run["files.folder.delete"]!(w.ctx, { folderId: a.home })).deleted, true, "deleting the agent takes its folder, files and all");
+  assert.equal(
+    (await run["files.delete"]!(w.ctx, { fileId: deeper })).deleted,
+    true,
+    "AGENT.md in a subfolder is only a file",
+  );
+  assert.equal(
+    (await run["files.delete"]!(w.ctx, { fileId: personal })).deleted,
+    true,
+    "agent.toml outside an agent's own folder is only a file",
+  );
+  assert.equal(
+    (await run["files.folder.delete"]!(w.ctx, { folderId: a.home })).deleted,
+    true,
+    "deleting the agent takes its folder, files and all",
+  );
 });
 
 test("a folder made before agents carried a key counts when it sits under Agents/ and holds both files; a person's folder with one of them is only a folder", async () => {
   const w = world();
   const old = await agentFolder(w.ctx, "Legacy", false);
   const mdOld = await old.make(old.home, "AGENT.md");
-  assert.equal((await run["files.delete"]!(w.ctx, { fileId: mdOld })).deleted, true, "with only AGENT.md in it, it is a person's folder");
+  assert.equal(
+    (await run["files.delete"]!(w.ctx, { fileId: mdOld })).deleted,
+    true,
+    "with only AGENT.md in it, it is a person's folder",
+  );
   const mdAgain = await old.make(old.home, "AGENT.md");
   await old.make(old.home, "agent.toml");
-  assert.match((await refusal(run["files.delete"]!(w.ctx, { fileId: mdAgain }))).message, /part of the agent/, "with both files it is an agent's");
+  assert.match(
+    (await refusal(run["files.delete"]!(w.ctx, { fileId: mdAgain }))).message,
+    /part of the agent/,
+    "with both files it is an agent's",
+  );
 });
 
 test("a folder with the agent as its subject is the agent's even before both files exist", async () => {

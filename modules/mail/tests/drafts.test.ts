@@ -26,25 +26,41 @@ const addrs = (json: unknown): string[] => (JSON.parse(String(json)) as { addres
 test("a person's draft is saved as a draft row with no Gate line", async () => {
   const h = setup();
   const out = await draft(h.ctx, {
-    mailboxId: MBX, to: [{ address: "Pat@Acme.test", name: "Pat Lee" }], subject: "Hello Pat", text: "Thanks for your time.", idempotencyKey: key(),
+    mailboxId: MBX,
+    to: [{ address: "Pat@Acme.test", name: "Pat Lee" }],
+    subject: "Hello Pat",
+    text: "Thanks for your time.",
+    idempotencyKey: key(),
   });
   assert.deepEqual(contractErrors("mail.draft", "out", out), []);
   assert.equal(out.gateLine, undefined);
   const r = row(h, out.draftId);
-  assert.deepEqual([r.status, r.direction, r.fromAddress, r.subject, r.version], ["draft", "out", "maya@vyre.test", "Hello Pat", 1]);
+  assert.deepEqual(
+    [r.status, r.direction, r.fromAddress, r.subject, r.version],
+    ["draft", "out", "maya@vyre.test", "Hello Pat", 1],
+  );
   assert.equal(r.providerId, null);
   assert.equal(r.rfcMessageId, null);
   assert.equal(r.draftedByAgent, null);
   assert.equal(r.threadId, out.draftId);
   assert.deepEqual(JSON.parse(String(r.toAddresses)), [{ address: "pat@acme.test", name: "Pat Lee" }]);
   assert.equal(body(h, out.draftId).text, "Thanks for your time.");
-  assert.deepEqual(h.named("mail_draft.saved").map((e) => e.payload), [{ draftId: out.draftId, mailboxId: MBX }]);
+  assert.deepEqual(
+    h.named("mail_draft.saved").map((e) => e.payload),
+    [{ draftId: out.draftId, mailboxId: MBX }],
+  );
   assert.equal(h.calls("mail.send").length, 0);
 });
 
 test("an agent draft carries the Gate line and its agent", async () => {
   const h = setup({ principal: AGENT });
-  const out = await draft(h.ctx, { mailboxId: MBX, to: [{ address: "pat@acme.test" }], subject: "Follow up", text: "Hi Pat", idempotencyKey: key() });
+  const out = await draft(h.ctx, {
+    mailboxId: MBX,
+    to: [{ address: "pat@acme.test" }],
+    subject: "Follow up",
+    text: "Hi Pat",
+    idempotencyKey: key(),
+  });
   assert.match(out.gateLine ?? "", /person approves/);
   assert.equal(row(h, out.draftId).draftedByAgent, "agt_scout01");
   assert.equal(h.named("mail_draft.saved")[0]?.payload.byAgent, "agt_scout01");
@@ -53,34 +69,71 @@ test("an agent draft carries the Gate line and its agent", async () => {
 
 test("a person editing an agent draft keeps who drafted it and the Gate line", async () => {
   const h = setup({ principal: AGENT });
-  const made = await draft(h.ctx, { mailboxId: MBX, to: [{ address: "pat@acme.test" }], subject: "Follow up", text: "Hi Pat", idempotencyKey: key() });
+  const made = await draft(h.ctx, {
+    mailboxId: MBX,
+    to: [{ address: "pat@acme.test" }],
+    subject: "Follow up",
+    text: "Hi Pat",
+    idempotencyKey: key(),
+  });
   h.ctx.principal = PERSON;
   h.advance(60_000);
-  const edited = await draft(h.ctx, { mailboxId: MBX, draftId: made.draftId, subject: "Following up", text: "Hi Pat, quick note.", idempotencyKey: key() });
+  const edited = await draft(h.ctx, {
+    mailboxId: MBX,
+    draftId: made.draftId,
+    subject: "Following up",
+    text: "Hi Pat, quick note.",
+    idempotencyKey: key(),
+  });
   assert.equal(edited.draftId, made.draftId);
   assert.ok(edited.gateLine);
   const r = row(h, made.draftId);
-  assert.deepEqual([r.subject, r.version, r.draftedByAgent, r.sentAt], ["Following up", 2, "agt_scout01", NOW + 60_000]);
-  assert.deepEqual(addrs(r.toAddresses), ["pat@acme.test"]);   // untouched fields stay
+  assert.deepEqual(
+    [r.subject, r.version, r.draftedByAgent, r.sentAt],
+    ["Following up", 2, "agt_scout01", NOW + 60_000],
+  );
+  assert.deepEqual(addrs(r.toAddresses), ["pat@acme.test"]); // untouched fields stay
   assert.equal(body(h, made.draftId).text, "Hi Pat, quick note.");
   assert.equal(h.rows(`SELECT id FROM mail_message`).length, 1);
 });
 
 test("a person who edits an agent's draft teaches it: one correction to memory with what was and what is now, once per edit; their own draft and an agent's edit teach nothing", async () => {
   const h = setup({ principal: AGENT });
-  const made = await draft(h.ctx, { mailboxId: MBX, to: [{ address: "pat@acme.test" }], subject: "Follow up", text: "Hi Pat, I hope you are well. Here is the long version.", idempotencyKey: key() });
-  assert.equal(h.calls("memory.corrections.record").length, 0, "the agent writing its own draft is nobody's correction");
+  const made = await draft(h.ctx, {
+    mailboxId: MBX,
+    to: [{ address: "pat@acme.test" }],
+    subject: "Follow up",
+    text: "Hi Pat, I hope you are well. Here is the long version.",
+    idempotencyKey: key(),
+  });
+  assert.equal(
+    h.calls("memory.corrections.record").length,
+    0,
+    "the agent writing its own draft is nobody's correction",
+  );
   h.ctx.principal = PERSON;
   h.advance(60_000);
   await draft(h.ctx, { mailboxId: MBX, draftId: made.draftId, text: "Hi Pat, quick note.", idempotencyKey: key() });
   const rec = h.calls("memory.corrections.record");
   assert.equal(rec.length, 1);
-  assert.deepEqual(rec[0]!.input, { agentId: "agt_scout01", how: "edit", was: "Hi Pat, I hope you are well. Here is the long version.", now: "Hi Pat, quick note.", ref: `${made.draftId}:v1` });
+  assert.deepEqual(rec[0]!.input, {
+    agentId: "agt_scout01",
+    how: "edit",
+    was: "Hi Pat, I hope you are well. Here is the long version.",
+    now: "Hi Pat, quick note.",
+    ref: `${made.draftId}:v1`,
+  });
   // saving it again with the same words (a change of subject only) is not a correction
   await draft(h.ctx, { mailboxId: MBX, draftId: made.draftId, subject: "Following up", idempotencyKey: key() });
   assert.equal(h.calls("memory.corrections.record").length, 1);
   // a person's own draft, edited by them, teaches nothing
-  const mine = await draft(h.ctx, { mailboxId: MBX, to: [{ address: "pat@acme.test" }], subject: "Mine", text: "One", idempotencyKey: key() });
+  const mine = await draft(h.ctx, {
+    mailboxId: MBX,
+    to: [{ address: "pat@acme.test" }],
+    subject: "Mine",
+    text: "One",
+    idempotencyKey: key(),
+  });
   await draft(h.ctx, { mailboxId: MBX, draftId: mine.draftId, text: "Two", idempotencyKey: key() });
   assert.equal(h.calls("memory.corrections.record").length, 1);
 });
@@ -88,8 +141,13 @@ test("a person who edits an agent's draft teaches it: one correction to memory w
 test("one recipient field: an address appears once, To before Cc before Bcc", async () => {
   const h = setup();
   const out = await draft(h.ctx, {
-    mailboxId: MBX, subject: "Team", text: "x", idempotencyKey: key(),
-    to: [{ address: "a@x.test" }, { address: "B@x.test" }], cc: [{ address: "b@x.test" }, { address: "c@x.test" }], bcc: [{ address: "a@x.test" }, { address: "c@x.test" }, { address: "d@x.test" }],
+    mailboxId: MBX,
+    subject: "Team",
+    text: "x",
+    idempotencyKey: key(),
+    to: [{ address: "a@x.test" }, { address: "B@x.test" }],
+    cc: [{ address: "b@x.test" }, { address: "c@x.test" }],
+    bcc: [{ address: "a@x.test" }, { address: "c@x.test" }, { address: "d@x.test" }],
   });
   const r = row(h, out.draftId);
   assert.deepEqual(addrs(r.toAddresses), ["a@x.test", "b@x.test"]);
@@ -100,8 +158,18 @@ test("one recipient field: an address appears once, To before Cc before Bcc", as
 test("the same idempotency key returns the same draft and writes nothing more", async () => {
   const h = setup();
   const k = key();
-  const a = await draft(h.ctx, { mailboxId: MBX, to: [{ address: "pat@acme.test" }], subject: "Once", idempotencyKey: k });
-  const b = await draft(h.ctx, { mailboxId: MBX, to: [{ address: "pat@acme.test" }], subject: "Once", idempotencyKey: k });
+  const a = await draft(h.ctx, {
+    mailboxId: MBX,
+    to: [{ address: "pat@acme.test" }],
+    subject: "Once",
+    idempotencyKey: k,
+  });
+  const b = await draft(h.ctx, {
+    mailboxId: MBX,
+    to: [{ address: "pat@acme.test" }],
+    subject: "Once",
+    idempotencyKey: k,
+  });
   assert.equal(a.draftId, b.draftId);
   assert.equal(h.rows(`SELECT id FROM mail_message`).length, 1);
   assert.equal(h.named("mail_draft.saved").length, 1);
@@ -109,22 +177,50 @@ test("the same idempotency key returns the same draft and writes nothing more", 
 
 test("a reply draft takes the thread, the subject and the sender of the message it answers", async () => {
   const h = setup({ contacts: { "pat@acme.test": [{ recordId: "rec_pat01", score: 0.9 }] } });
-  const got = await ingest(h.ctx, letter("pat@acme.test", "<q@acme.test>", "g-q", { mailboxId: MBX, subject: "Question", threadKey: "thread-q" }));
-  const out = await draft(h.ctx, { mailboxId: MBX, replyToMessageId: got.messageId, text: "Yes.", idempotencyKey: key() });
+  const got = await ingest(
+    h.ctx,
+    letter("pat@acme.test", "<q@acme.test>", "g-q", { mailboxId: MBX, subject: "Question", threadKey: "thread-q" }),
+  );
+  const out = await draft(h.ctx, {
+    mailboxId: MBX,
+    replyToMessageId: got.messageId,
+    text: "Yes.",
+    idempotencyKey: key(),
+  });
   const r = row(h, out.draftId);
   assert.equal(r.subject, "Re: Question");
   assert.equal(r.threadId, "thread-q");
   assert.equal(r.contactId, "rec_pat01");
   assert.deepEqual(addrs(r.toAddresses), ["pat@acme.test"]);
-  const answered = await ingest(h.ctx, letter("pat@acme.test", "<q2@acme.test>", "g-q2", { mailboxId: MBX, subject: "Re: Question" }));
-  const again = await draft(h.ctx, { mailboxId: MBX, replyToMessageId: answered.messageId, text: "Thanks.", idempotencyKey: key() });
-  assert.equal(row(h, again.draftId).subject, "Re: Question");   // no second Re:
+  const answered = await ingest(
+    h.ctx,
+    letter("pat@acme.test", "<q2@acme.test>", "g-q2", { mailboxId: MBX, subject: "Re: Question" }),
+  );
+  const again = await draft(h.ctx, {
+    mailboxId: MBX,
+    replyToMessageId: answered.messageId,
+    text: "Thanks.",
+    idempotencyKey: key(),
+  });
+  assert.equal(row(h, again.draftId).subject, "Re: Question"); // no second Re:
 });
 
 test("a reply to mail we sent goes to its recipients and never to ourselves", async () => {
   const h = setup();
-  const sent = await ingest(h.ctx, letter("maya@vyre.test", "<s@vyre.test>", "g-s", { mailboxId: MBX, direction: "out", to: [{ address: "pat@acme.test" }, { address: "maya@vyre.test" }] }));
-  const out = await draft(h.ctx, { mailboxId: MBX, replyToMessageId: sent.messageId, subject: "Re: Hello", idempotencyKey: key() });
+  const sent = await ingest(
+    h.ctx,
+    letter("maya@vyre.test", "<s@vyre.test>", "g-s", {
+      mailboxId: MBX,
+      direction: "out",
+      to: [{ address: "pat@acme.test" }, { address: "maya@vyre.test" }],
+    }),
+  );
+  const out = await draft(h.ctx, {
+    mailboxId: MBX,
+    replyToMessageId: sent.messageId,
+    subject: "Re: Hello",
+    idempotencyKey: key(),
+  });
   assert.deepEqual(addrs(row(h, out.draftId).toAddresses), ["pat@acme.test"]);
 });
 
@@ -132,35 +228,65 @@ test("a reply to a message that is not in this mailbox is refused", async () => 
   const h = setup();
   seedMailbox(h, "mbx_other", "other@vyre.test");
   const got = await ingest(h.ctx, letter("pat@acme.test", "<o@acme.test>", "g-o", { mailboxId: "mbx_other" }));
-  await assert.rejects(() => draft(h.ctx, { mailboxId: MBX, replyToMessageId: got.messageId, idempotencyKey: key() }), (e) => codeOf(e) === "validation.not_found");
+  await assert.rejects(
+    () => draft(h.ctx, { mailboxId: MBX, replyToMessageId: got.messageId, idempotencyKey: key() }),
+    (e) => codeOf(e) === "validation.not_found",
+  );
   assert.equal(h.rows(`SELECT id FROM mail_message WHERE status = ?`, "draft").length, 0);
 });
 
 test("attachments are kept as file ids and checked", async () => {
   const h = setup();
-  const out = await draft(h.ctx, { mailboxId: MBX, to: [{ address: "pat@acme.test" }], subject: "Files", attachments: ["fil_a1", "fil_b2"], idempotencyKey: key() });
+  const out = await draft(h.ctx, {
+    mailboxId: MBX,
+    to: [{ address: "pat@acme.test" }],
+    subject: "Files",
+    attachments: ["fil_a1", "fil_b2"],
+    idempotencyKey: key(),
+  });
   assert.deepEqual(JSON.parse(String(row(h, out.draftId).attachments)), [{ fileId: "fil_a1" }, { fileId: "fil_b2" }]);
-  await assert.rejects(() => draft(h.ctx, { mailboxId: MBX, attachments: ["file one"], idempotencyKey: key() }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(
+    () => draft(h.ctx, { mailboxId: MBX, attachments: ["file one"], idempotencyKey: key() }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
 });
 
 test("an edit must name a draft of the same mailbox", async () => {
   const h = setup();
   seedMailbox(h, "mbx_other", "other@vyre.test");
   const made = await draft(h.ctx, { mailboxId: MBX, subject: "Mine", idempotencyKey: key() });
-  await assert.rejects(() => draft(h.ctx, { mailboxId: "mbx_other", draftId: made.draftId, idempotencyKey: key() }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(() => draft(h.ctx, { mailboxId: MBX, draftId: "eml_nothere", idempotencyKey: key() }), (e) => codeOf(e) === "validation.not_found");
+  await assert.rejects(
+    () => draft(h.ctx, { mailboxId: "mbx_other", draftId: made.draftId, idempotencyKey: key() }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  await assert.rejects(
+    () => draft(h.ctx, { mailboxId: MBX, draftId: "eml_nothere", idempotencyKey: key() }),
+    (e) => codeOf(e) === "validation.not_found",
+  );
   const got = await ingest(h.ctx, letter("pat@acme.test", "<n@acme.test>", "g-n", { mailboxId: MBX }));
-  await assert.rejects(() => draft(h.ctx, { mailboxId: MBX, draftId: got.messageId, idempotencyKey: key() }), (e) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(
+    () => draft(h.ctx, { mailboxId: MBX, draftId: got.messageId, idempotencyKey: key() }),
+    (e) => codeOf(e) === "validation.precondition_failed",
+  );
 });
 
 test("bad input is refused before anything is written", async () => {
   const h = setup();
   const bad = [
-    { mailboxId: "box" }, { mailboxId: "mbx_nope" }, { to: [{ address: "nope" }] }, { idempotencyKey: "" }, { contactId: "pat" },
-    { replyToMessageId: "msg_1" }, { to: "pat@acme.test" as unknown as { address: string }[] },
+    { mailboxId: "box" },
+    { mailboxId: "mbx_nope" },
+    { to: [{ address: "nope" }] },
+    { idempotencyKey: "" },
+    { contactId: "pat" },
+    { replyToMessageId: "msg_1" },
+    { to: "pat@acme.test" as unknown as { address: string }[] },
   ];
   for (const patch of bad) {
-    await assert.rejects(() => draft(h.ctx, { mailboxId: MBX, idempotencyKey: key(), ...patch }), (e) => ["validation.bad_input", "validation.not_found"].includes(codeOf(e)), JSON.stringify(patch));
+    await assert.rejects(
+      () => draft(h.ctx, { mailboxId: MBX, idempotencyKey: key(), ...patch }),
+      (e) => ["validation.bad_input", "validation.not_found"].includes(codeOf(e)),
+      JSON.stringify(patch),
+    );
   }
   assert.equal(h.rows(`SELECT id FROM mail_message`).length, 0);
 });
@@ -170,7 +296,13 @@ test("bad input is refused before anything is written", async () => {
 async function three(h: Harness): Promise<string[]> {
   const ids: string[] = [];
   for (const [i, who] of ["pat", "kim", "lee"].entries()) {
-    const out = await draft(h.ctx, { mailboxId: MBX, to: [{ address: `${who}@acme.test` }], subject: `Draft ${i}`, ...(who === "kim" ? { contactId: "rec_kim01" } : {}), idempotencyKey: key() });
+    const out = await draft(h.ctx, {
+      mailboxId: MBX,
+      to: [{ address: `${who}@acme.test` }],
+      subject: `Draft ${i}`,
+      ...(who === "kim" ? { contactId: "rec_kim01" } : {}),
+      idempotencyKey: key(),
+    });
     ids.push(out.draftId);
     h.advance(1000);
   }
@@ -181,19 +313,34 @@ test("drafts list newest first, filtered by mailbox and contact, with a cursor",
   const h = setup();
   const [a, b, c] = await three(h);
   const all = await draftsList(h.ctx, {});
-  assert.deepEqual(all.drafts.map((d) => d.id), [c, b, a]);
+  assert.deepEqual(
+    all.drafts.map((d) => d.id),
+    [c, b, a],
+  );
   assert.equal(all.total, 3);
   assert.equal(all.next, undefined);
   assert.deepEqual(contractErrors("mail.drafts.list", "out", all), []);
   const page1 = await draftsList(h.ctx, { mailboxId: MBX, limit: 2 });
-  assert.deepEqual(page1.drafts.map((d) => d.id), [c, b]);
+  assert.deepEqual(
+    page1.drafts.map((d) => d.id),
+    [c, b],
+  );
   assert.equal(page1.next, "2");
   const page2 = await draftsList(h.ctx, { mailboxId: MBX, limit: 2, cursor: page1.next });
-  assert.deepEqual(page2.drafts.map((d) => d.id), [a]);
+  assert.deepEqual(
+    page2.drafts.map((d) => d.id),
+    [a],
+  );
   assert.equal(page2.next, undefined);
-  assert.deepEqual((await draftsList(h.ctx, { contactId: "rec_kim01" })).drafts.map((d) => d.id), [b]);
+  assert.deepEqual(
+    (await draftsList(h.ctx, { contactId: "rec_kim01" })).drafts.map((d) => d.id),
+    [b],
+  );
   const first = all.drafts[2]!;
-  assert.deepEqual([first.status, first.direction, first.from.address, first.draftedByAgent, first.isPrivate], ["draft", "out", "maya@vyre.test", undefined, false]);
+  assert.deepEqual(
+    [first.status, first.direction, first.from.address, first.draftedByAgent, first.isPrivate],
+    ["draft", "out", "maya@vyre.test", undefined, false],
+  );
 });
 
 test("the list leaves out discarded drafts, received mail and mailboxes the caller may not read", async () => {
@@ -213,8 +360,19 @@ test("the list leaves out discarded drafts, received mail and mailboxes the call
 
 test("list refuses a malformed filter, limit or cursor", async () => {
   const h = setup();
-  for (const input of [{ mailboxId: "box" }, { contactId: "pat" }, { limit: 0 }, { limit: 501 }, { cursor: "-1" }, { cursor: "x" }]) {
-    await assert.rejects(() => draftsList(h.ctx, input), (e) => codeOf(e) === "validation.bad_input", JSON.stringify(input));
+  for (const input of [
+    { mailboxId: "box" },
+    { contactId: "pat" },
+    { limit: 0 },
+    { limit: 501 },
+    { cursor: "-1" },
+    { cursor: "x" },
+  ]) {
+    await assert.rejects(
+      () => draftsList(h.ctx, input),
+      (e) => codeOf(e) === "validation.bad_input",
+      JSON.stringify(input),
+    );
   }
 });
 
@@ -227,67 +385,179 @@ test("discard removes the draft from the list and says so once", async () => {
   assert.deepEqual(out, { discarded: true });
   assert.deepEqual(contractErrors("mail.drafts.discard", "out", out), []);
   assert.equal(row(h, made.draftId).deleted_at, NOW);
-  assert.deepEqual(h.named("mail_draft.discarded").map((e) => e.payload), [{ draftId: made.draftId }]);
+  assert.deepEqual(
+    h.named("mail_draft.discarded").map((e) => e.payload),
+    [{ draftId: made.draftId }],
+  );
   assert.equal((await draftsList(h.ctx, {})).drafts.length, 0);
-  await assert.rejects(() => draftsDiscard(h.ctx, { draftId: made.draftId }), (e) => codeOf(e) === "validation.not_found");
+  await assert.rejects(
+    () => draftsDiscard(h.ctx, { draftId: made.draftId }),
+    (e) => codeOf(e) === "validation.not_found",
+  );
 });
 
 test("discard refuses mail that is not a draft, a draft the caller may not use, and a bad id", async () => {
   const h = setup();
   const got = await ingest(h.ctx, letter("pat@acme.test", "<d@acme.test>", "g-d", { mailboxId: MBX }));
-  await assert.rejects(() => draftsDiscard(h.ctx, { draftId: got.messageId }), (e) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(
+    () => draftsDiscard(h.ctx, { draftId: got.messageId }),
+    (e) => codeOf(e) === "validation.precondition_failed",
+  );
   const made = await draft(h.ctx, { mailboxId: MBX, subject: "Locked", idempotencyKey: key() });
   h.denied.add(MBX);
-  await assert.rejects(() => draftsDiscard(h.ctx, { draftId: made.draftId }), (e) => codeOf(e) === "permission.no_grant");
-  await assert.rejects(() => draftsDiscard(h.ctx, { draftId: "nope" }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(
+    () => draftsDiscard(h.ctx, { draftId: made.draftId }),
+    (e) => codeOf(e) === "permission.no_grant",
+  );
+  await assert.rejects(
+    () => draftsDiscard(h.ctx, { draftId: "nope" }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
   assert.equal(row(h, made.draftId).deleted_at, null);
 });
 
 test("one pending draft per thread per agent: a new draft by the same agent on the thread takes the old one's place, and the earlier text is one click away", async () => {
   const h = setup({ principal: AGENT, contacts: { "josh@jcs.test": [{ recordId: "rec_josh1", score: 0.9 }] } });
-  const got = await ingest(h.ctx, letter("josh@jcs.test", "<j@jcs.test>", "g-j", { mailboxId: MBX, subject: "Call", threadKey: "thread-j" }));
-  const first = await draft(h.ctx, { mailboxId: MBX, replyToMessageId: got.messageId, text: "Thursday 3:00 am Pakistan time works.", idempotencyKey: key() });
+  const got = await ingest(
+    h.ctx,
+    letter("josh@jcs.test", "<j@jcs.test>", "g-j", { mailboxId: MBX, subject: "Call", threadKey: "thread-j" }),
+  );
+  const first = await draft(h.ctx, {
+    mailboxId: MBX,
+    replyToMessageId: got.messageId,
+    text: "Thursday 3:00 am Pakistan time works.",
+    idempotencyKey: key(),
+  });
   h.advance(60_000);
-  const second = await draft(h.ctx, { mailboxId: MBX, replyToMessageId: got.messageId, text: "2:00 PM Pacific works.", idempotencyKey: key() });
+  const second = await draft(h.ctx, {
+    mailboxId: MBX,
+    replyToMessageId: got.messageId,
+    text: "2:00 PM Pacific works.",
+    idempotencyKey: key(),
+  });
   assert.equal(second.draftId, first.draftId, "the same draft, updated");
   const list = await draftsList(h.ctx, { contactId: "rec_josh1" });
   assert.equal(list.drafts.length, 1, "one draft for the thread");
   assert.deepEqual(contractErrors("mail.drafts.list", "out", list), []);
   assert.equal(list.drafts[0]!.snippet.includes("2:00 PM"), true);
-  assert.deepEqual([list.drafts[0]!.earlier?.text, list.drafts[0]!.earlier?.at], ["Thursday 3:00 am Pakistan time works.", NOW]);
+  assert.deepEqual(
+    [list.drafts[0]!.earlier?.text, list.drafts[0]!.earlier?.at],
+    ["Thursday 3:00 am Pakistan time works.", NOW],
+  );
   // another agent on the same thread has its own draft; the same agent on another thread too
-  const other = await draft({ ...h.ctx, principal: { kind: "agent", id: "agt_other01" } } as never, { mailboxId: MBX, replyToMessageId: got.messageId, text: "A second opinion.", idempotencyKey: key() });
+  const other = await draft({ ...h.ctx, principal: { kind: "agent", id: "agt_other01" } } as never, {
+    mailboxId: MBX,
+    replyToMessageId: got.messageId,
+    text: "A second opinion.",
+    idempotencyKey: key(),
+  });
   assert.notEqual(other.draftId, first.draftId);
   assert.equal((await draftsList(h.ctx, { contactId: "rec_josh1" })).drafts.length, 2);
   // a person's own draft is never replaced by an agent's
   h.ctx.principal = PERSON;
-  const mine = await draft(h.ctx, { mailboxId: MBX, replyToMessageId: got.messageId, text: "My own words.", idempotencyKey: key() });
+  const mine = await draft(h.ctx, {
+    mailboxId: MBX,
+    replyToMessageId: got.messageId,
+    text: "My own words.",
+    idempotencyKey: key(),
+  });
   assert.notEqual(mine.draftId, first.draftId);
 });
 
 test("By contact shows only drafts to or from that contact: a draft to someone else filed under the contact is not theirs", async () => {
-  const h = setup({ principal: AGENT, contacts: { "josh@jcs.test": [{ recordId: "rec_josh1", score: 0.9 }], "osama@mail.test": [{ recordId: "rec_osama", score: 0.9 }] } });
-  const got = await ingest(h.ctx, letter("josh@jcs.test", "<j@jcs.test>", "g-j", { mailboxId: MBX, subject: "Call", threadKey: "thread-j" }));
+  const h = setup({
+    principal: AGENT,
+    contacts: {
+      "josh@jcs.test": [{ recordId: "rec_josh1", score: 0.9 }],
+      "osama@mail.test": [{ recordId: "rec_osama", score: 0.9 }],
+    },
+  });
+  const got = await ingest(
+    h.ctx,
+    letter("josh@jcs.test", "<j@jcs.test>", "g-j", { mailboxId: MBX, subject: "Call", threadKey: "thread-j" }),
+  );
   // the agent was asked in Josh's chat, writes to Osama, and names Josh as the contact
-  const wrong = await draft(h.ctx, { mailboxId: MBX, to: [{ address: "osama@mail.test" }], subject: "Cold email setup", text: "Osama, the setup is ready.", contactId: "rec_josh1", idempotencyKey: key() });
+  const wrong = await draft(h.ctx, {
+    mailboxId: MBX,
+    to: [{ address: "osama@mail.test" }],
+    subject: "Cold email setup",
+    text: "Osama, the setup is ready.",
+    contactId: "rec_josh1",
+    idempotencyKey: key(),
+  });
   assert.equal(row(h, wrong.draftId).contactId, null, "not filed under Josh");
-  const right = await draft(h.ctx, { mailboxId: MBX, replyToMessageId: got.messageId, text: "Josh, the call is set.", idempotencyKey: key() });
+  const right = await draft(h.ctx, {
+    mailboxId: MBX,
+    replyToMessageId: got.messageId,
+    text: "Josh, the call is set.",
+    idempotencyKey: key(),
+  });
   assert.equal(row(h, right.draftId).contactId, "rec_josh1");
-  assert.deepEqual((await draftsList(h.ctx, { contactId: "rec_josh1" })).drafts.map((d) => d.id), [right.draftId]);
+  assert.deepEqual(
+    (await draftsList(h.ctx, { contactId: "rec_josh1" })).drafts.map((d) => d.id),
+    [right.draftId],
+  );
   // an older row already filed under the wrong contact is left out of the list as well
   h.ctx.db.run(`UPDATE mail_message SET "contactId" = ? WHERE id = ?`, "rec_josh1", wrong.draftId);
-  assert.deepEqual((await draftsList(h.ctx, { contactId: "rec_josh1" })).drafts.map((d) => d.id), [right.draftId]);
+  assert.deepEqual(
+    (await draftsList(h.ctx, { contactId: "rec_josh1" })).drafts.map((d) => d.id),
+    [right.draftId],
+  );
 });
 
 test("two contacts who share a Cc: each contact's view shows only the drafts addressed to them, and the shared Cc files nothing under the other", async () => {
-  const h = setup({ principal: AGENT, contacts: { "josh@jcs.test": [{ recordId: "rec_josh1", score: 0.9 }], "osama@mail.test": [{ recordId: "rec_osama", score: 0.9 }], "aliza@mla.test": [{ recordId: "rec_aliza", score: 0.9 }] } });
-  const josh = await ingest(h.ctx, letter("josh@jcs.test", "<j@jcs.test>", "g-j", { mailboxId: MBX, subject: "Call", threadKey: "thread-j" }));
-  const osama = await ingest(h.ctx, letter("osama@mail.test", "<o@mail.test>", "g-o", { mailboxId: MBX, subject: "Cold email setup", threadKey: "thread-o" }));
-  const forJosh = await draft(h.ctx, { mailboxId: MBX, replyToMessageId: josh.messageId, cc: [{ address: "aliza@mla.test", contactId: "rec_aliza" } as never], text: "Josh, the call is set.", idempotencyKey: key() });
-  const forOsama = await draft(h.ctx, { mailboxId: MBX, replyToMessageId: osama.messageId, cc: [{ address: "aliza@mla.test", contactId: "rec_aliza" } as never], text: "Osama, the setup is ready.", contactId: "rec_josh1", idempotencyKey: key() });
+  const h = setup({
+    principal: AGENT,
+    contacts: {
+      "josh@jcs.test": [{ recordId: "rec_josh1", score: 0.9 }],
+      "osama@mail.test": [{ recordId: "rec_osama", score: 0.9 }],
+      "aliza@mla.test": [{ recordId: "rec_aliza", score: 0.9 }],
+    },
+  });
+  const josh = await ingest(
+    h.ctx,
+    letter("josh@jcs.test", "<j@jcs.test>", "g-j", { mailboxId: MBX, subject: "Call", threadKey: "thread-j" }),
+  );
+  const osama = await ingest(
+    h.ctx,
+    letter("osama@mail.test", "<o@mail.test>", "g-o", {
+      mailboxId: MBX,
+      subject: "Cold email setup",
+      threadKey: "thread-o",
+    }),
+  );
+  const forJosh = await draft(h.ctx, {
+    mailboxId: MBX,
+    replyToMessageId: josh.messageId,
+    cc: [{ address: "aliza@mla.test", contactId: "rec_aliza" } as never],
+    text: "Josh, the call is set.",
+    idempotencyKey: key(),
+  });
+  const forOsama = await draft(h.ctx, {
+    mailboxId: MBX,
+    replyToMessageId: osama.messageId,
+    cc: [{ address: "aliza@mla.test", contactId: "rec_aliza" } as never],
+    text: "Osama, the setup is ready.",
+    contactId: "rec_josh1",
+    idempotencyKey: key(),
+  });
   assert.equal(row(h, forJosh.draftId).contactId, "rec_josh1");
-  assert.equal(row(h, forOsama.draftId).contactId, "rec_osama", "the agent named Josh, the draft is to Osama: it is filed under Osama");
-  assert.deepEqual((await draftsList(h.ctx, { contactId: "rec_josh1" })).drafts.map((d) => d.id), [forJosh.draftId]);
-  assert.deepEqual((await draftsList(h.ctx, { contactId: "rec_osama" })).drafts.map((d) => d.id), [forOsama.draftId]);
-  assert.deepEqual((await draftsList(h.ctx, { contactId: "rec_aliza" })).drafts.map((d) => d.id), [], "Cc is not an address the draft is for");
+  assert.equal(
+    row(h, forOsama.draftId).contactId,
+    "rec_osama",
+    "the agent named Josh, the draft is to Osama: it is filed under Osama",
+  );
+  assert.deepEqual(
+    (await draftsList(h.ctx, { contactId: "rec_josh1" })).drafts.map((d) => d.id),
+    [forJosh.draftId],
+  );
+  assert.deepEqual(
+    (await draftsList(h.ctx, { contactId: "rec_osama" })).drafts.map((d) => d.id),
+    [forOsama.draftId],
+  );
+  assert.deepEqual(
+    (await draftsList(h.ctx, { contactId: "rec_aliza" })).drafts.map((d) => d.id),
+    [],
+    "Cc is not an address the draft is for",
+  );
 });

@@ -16,7 +16,8 @@ const PREFIX_PUB = "pm1.p.";
 const B64 = /^[A-Za-z0-9_-]+$/;
 
 /** A short public name of a memory public key. */
-export const memoryKeyTag = (pub: string): string => hkdf32(Buffer.from(pub, "base64url"), SALT, "tag").subarray(0, 12).toString("base64url");
+export const memoryKeyTag = (pub: string): string =>
+  hkdf32(Buffer.from(pub, "base64url"), SALT, "tag").subarray(0, 12).toString("base64url");
 
 /** Which form a sealed value is in: "own", "public", or null for anything else (a legacy server-sealed value). */
 export function memorySealForm(s: string): "own" | "public" | null {
@@ -56,7 +57,9 @@ export class PersonMemoryKey {
     seed.fill(0);
   }
 
-  static from(personKey: Uint8Array): PersonMemoryKey { return new PersonMemoryKey(personKey); }
+  static from(personKey: Uint8Array): PersonMemoryKey {
+    return new PersonMemoryKey(personKey);
+  }
 
   /** The own form: AES-256-GCM under the row key. */
   seal(plain: string, aad: string): string {
@@ -70,18 +73,34 @@ export class PersonMemoryKey {
     if (!this.#priv) throw new Error("this memory key was wiped");
     const p = sealed.split(".");
     if (p[0] !== "pm1" || p[2] !== this.tag) throw new Error("this value was sealed under a different key");
-    if (p[1] === "o" && p.length === 6) return aesUnwrap(this.#rows, { iv: p[3]!, ct: p[4]!, tag: p[5]! }, aad).toString("utf8");
+    if (p[1] === "o" && p.length === 6)
+      return aesUnwrap(this.#rows, { iv: p[3]!, ct: p[4]!, tag: p[5]! }, aad).toString("utf8");
     if (p[1] === "p" && p.length === 7) {
       const eph = p[3]!;
-      const shared = crypto.diffieHellman({ privateKey: this.#priv, publicKey: crypto.createPublicKey({ key: { kty: "OKP", crv: "X25519", x: eph }, format: "jwk" }) });
+      const shared = crypto.diffieHellman({
+        privateKey: this.#priv,
+        publicKey: crypto.createPublicKey({ key: { kty: "OKP", crv: "X25519", x: eph }, format: "jwk" }),
+      });
       const k = hkdf32(shared, eph, "vyre:seal:to:v1");
-      try { return aesUnwrap(k, { iv: p[4]!, ct: p[5]!, tag: p[6]! }, aad).toString("utf8"); } finally { k.fill(0); shared.fill(0); }
+      try {
+        return aesUnwrap(k, { iv: p[4]!, ct: p[5]!, tag: p[6]! }, aad).toString("utf8");
+      } finally {
+        k.fill(0);
+        shared.fill(0);
+      }
     }
     throw new Error("this sealed value is malformed");
   }
 
-  wipe(): void { this.#rows.fill(0); this.#priv = null; }
+  wipe(): void {
+    this.#rows.fill(0);
+    this.#priv = null;
+  }
 
-  toJSON(): { tag: string } { return { tag: this.tag }; }
-  toString(): string { return `PersonMemoryKey(${this.tag})`; }
+  toJSON(): { tag: string } {
+    return { tag: this.tag };
+  }
+  toString(): string {
+    return `PersonMemoryKey(${this.tag})`;
+  }
 }

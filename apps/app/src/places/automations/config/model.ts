@@ -23,7 +23,15 @@ export const subjectKey = (s: Subject): string => `${s.kind}:${s.id}`;
 
 /** "Maya Chen", "Maya Chen and Omar Haddad", "Maya Chen, Omar Haddad and the Ops leads role". */
 export function whoWords(who: readonly Subject[], name: (id: string) => string, me?: string): string {
-  const parts = who.map((s) => (s.kind === "role" ? `the ${name(s.id)} role` : s.kind === "group" ? `the ${name(s.id)} group` : s.id === me ? "you" : name(s.id)));
+  const parts = who.map((s) =>
+    s.kind === "role"
+      ? `the ${name(s.id)} role`
+      : s.kind === "group"
+        ? `the ${name(s.id)} group`
+        : s.id === me
+          ? "you"
+          : name(s.id),
+  );
   if (parts.length === 0) return "nobody";
   if (parts.length === 1) return parts[0]!;
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]!}`;
@@ -42,31 +50,65 @@ export function whenWords(when: Alerts["when"]): string {
 }
 
 /** The one sentence the Alerts tab opens with. A Personal Automation tells only its owner. */
-export function alertSentence(a: Pick<Automation, "kind" | "ownerId" | "alerts">, name: (id: string) => string, channelName: (id: string) => string, me?: string): string {
+export function alertSentence(
+  a: Pick<Automation, "kind" | "ownerId" | "alerts">,
+  name: (id: string) => string,
+  channelName: (id: string) => string,
+  me?: string,
+): string {
   const who = a.kind === "personal" ? (a.ownerId === me ? "you" : name(a.ownerId)) : whoWords(a.alerts.who, name, me);
   return `Tells ${who} ${whenWords(a.alerts.when)}, in ${whereWords(a.alerts.where, channelName)}.`;
 }
 
 export function escalationWords(step: Step, name: (id: string) => string): string {
-  const to = step.to.kind === "role" ? `the ${name(step.to.id)} role` : step.to.kind === "group" ? `the ${name(step.to.id)} group` : name(step.to.id);
+  const to =
+    step.to.kind === "role"
+      ? `the ${name(step.to.id)} role`
+      : step.to.kind === "group"
+        ? `the ${name(step.to.id)} group`
+        : name(step.to.id);
   return `After ${hoursWords(step.afterHours)}, ${to} is told as well`;
 }
 
-export const addWho = (a: Alerts, s: Subject): Alerts => (a.who.some((x) => subjectKey(x) === subjectKey(s)) ? a : { ...a, who: [...a.who, s] });
-export const removeWho = (a: Alerts, s: Subject): Alerts => ({ ...a, who: a.who.filter((x) => subjectKey(x) !== subjectKey(s)) });
-export const setWhen = (a: Alerts, mode: "every" | "after_n", n?: number): Alerts => ({ ...a, when: mode === "every" ? { mode } : { mode, n: n ?? a.when.n ?? 2 } });
+export const addWho = (a: Alerts, s: Subject): Alerts =>
+  a.who.some((x) => subjectKey(x) === subjectKey(s)) ? a : { ...a, who: [...a.who, s] };
+export const removeWho = (a: Alerts, s: Subject): Alerts => ({
+  ...a,
+  who: a.who.filter((x) => subjectKey(x) !== subjectKey(s)),
+});
+export const setWhen = (a: Alerts, mode: "every" | "after_n", n?: number): Alerts => ({
+  ...a,
+  when: mode === "every" ? { mode } : { mode, n: n ?? a.when.n ?? 2 },
+});
 export const setWhere = (a: Alerts, patch: Partial<Alerts["where"]>): Alerts => {
   const next = { ...a.where, ...patch };
   if (next.channelId === undefined) delete (next as { channelId?: string }).channelId;
   return { ...a, where: next };
 };
 /** The channel switch: on picks the first channel offered, off clears it. */
-export const withoutChannel = (a: Alerts): Alerts => { const w = { ...a.where }; delete (w as { channelId?: string }).channelId; return { ...a, where: w }; };
+export const withoutChannel = (a: Alerts): Alerts => {
+  const w = { ...a.where };
+  delete (w as { channelId?: string }).channelId;
+  return { ...a, where: w };
+};
 export const addStep = (a: Alerts, to: Subject, afterHours: number): Alerts =>
-  a.escalation.length >= MAX_ESCALATION_STEPS ? a : { ...a, escalation: [...a.escalation, { to, afterHours }].sort((x, y) => x.afterHours - y.afterHours) };
-export const removeStep = (a: Alerts, i: number): Alerts => ({ ...a, escalation: a.escalation.filter((_, n) => n !== i) });
-export const setStepHours = (a: Alerts, i: number, afterHours: number): Alerts => ({ ...a, escalation: a.escalation.map((s, n) => (n === i ? { ...s, afterHours } : s)).sort((x, y) => x.afterHours - y.afterHours) });
-export const setStepTo = (a: Alerts, i: number, to: Subject): Alerts => ({ ...a, escalation: a.escalation.map((s, n) => (n === i ? { ...s, to } : s)) });
+  a.escalation.length >= MAX_ESCALATION_STEPS
+    ? a
+    : { ...a, escalation: [...a.escalation, { to, afterHours }].sort((x, y) => x.afterHours - y.afterHours) };
+export const removeStep = (a: Alerts, i: number): Alerts => ({
+  ...a,
+  escalation: a.escalation.filter((_, n) => n !== i),
+});
+export const setStepHours = (a: Alerts, i: number, afterHours: number): Alerts => ({
+  ...a,
+  escalation: a.escalation
+    .map((s, n) => (n === i ? { ...s, afterHours } : s))
+    .sort((x, y) => x.afterHours - y.afterHours),
+});
+export const setStepTo = (a: Alerts, i: number, to: Subject): Alerts => ({
+  ...a,
+  escalation: a.escalation.map((s, n) => (n === i ? { ...s, to } : s)),
+});
 
 /** The hours a new step starts at: one level past the last, so a chain reads in order. */
 export function nextStepHours(a: Alerts): number {
@@ -77,14 +119,27 @@ export function nextStepHours(a: Alerts): number {
 /* ---------- scope ---------- */
 
 export const scopeLine = (a: Pick<Automation, "kind" | "ownerId">, name: (id: string) => string, me: string): string =>
-  a.kind === "personal" ? (a.ownerId === me ? "Personal, only you" : `Personal, shared by ${name(a.ownerId)}`) : `Space, owned by ${name(a.ownerId)}`;
+  a.kind === "personal"
+    ? a.ownerId === me
+      ? "Personal, only you"
+      : `Personal, shared by ${name(a.ownerId)}`
+    : `Space, owned by ${name(a.ownerId)}`;
 
 /** The AI steps of a definition with the key each one runs on, for "Runs on access given to it". */
-export function aiKeys(def: Automation["definition"], name: (id: string) => string): { nodeId: string; title: string; agent: string; key: string; backup: string | null }[] {
+export function aiKeys(
+  def: Automation["definition"],
+  name: (id: string) => string,
+): { nodeId: string; title: string; agent: string; key: string; backup: string | null }[] {
   const out: { nodeId: string; title: string; agent: string; key: string; backup: string | null }[] = [];
   for (const n of def.nodes) {
     if (!n.ai) continue;
-    out.push({ nodeId: n.id, title: n.title ?? n.key, agent: n.ai.agentId ? name(n.ai.agentId) : "An agent", key: n.ai.keyId ? name(n.ai.keyId) : "No key set", backup: n.ai.backupKeyId ? name(n.ai.backupKeyId) : null });
+    out.push({
+      nodeId: n.id,
+      title: n.title ?? n.key,
+      agent: n.ai.agentId ? name(n.ai.agentId) : "An agent",
+      key: n.ai.keyId ? name(n.ai.keyId) : "No key set",
+      backup: n.ai.backupKeyId ? name(n.ai.backupKeyId) : null,
+    });
   }
   return out;
 }
@@ -93,30 +148,65 @@ export const hasWebhook = (def: Automation["definition"]): boolean => def.trigge
 
 /* ---------- the Promote sheet (access diff, key replacement) ---------- */
 
-export const LEVEL_WORDS: Readonly<Record<Diff["grants"][number]["level"], string>> = { view: "View", use: "Use", edit: "Edit", manage: "Manage" };
-export const VIA_WORDS: Readonly<Record<Diff["grants"][number]["via"], string>> = { owner_access: "Taken from your access", role: "Through a role", new_grant: "A new grant to the Automation" };
+export const LEVEL_WORDS: Readonly<Record<Diff["grants"][number]["level"], string>> = {
+  view: "View",
+  use: "Use",
+  edit: "Edit",
+  manage: "Manage",
+};
+export const VIA_WORDS: Readonly<Record<Diff["grants"][number]["via"], string>> = {
+  owner_access: "Taken from your access",
+  role: "Through a role",
+  new_grant: "A new grant to the Automation",
+};
 
-export interface Choice { stepId: string; keyId: string }
+export interface Choice {
+  stepId: string;
+  keyId: string;
+}
 /** One replacement per step that needs one; a step with no choice yet keeps the key the server suggested only when it is not a subscription. */
 type PromoteKey = { id: string; kind: "subscription" | "api"; shared?: boolean };
 /** A Space automation can run only on a key shared with the Space. */
 const spaceKey = (x: PromoteKey): boolean => x.kind === "api" && x.shared !== false;
 export function initialChoices(diff: Diff, keys: readonly PromoteKey[]): Choice[] {
-  return diff.keysToReplace.map((k) => ({ stepId: k.stepId, keyId: keys.find((x) => spaceKey(x) && x.id !== k.keyId)?.id ?? "" }));
+  return diff.keysToReplace.map((k) => ({
+    stepId: k.stepId,
+    keyId: keys.find((x) => spaceKey(x) && x.id !== k.keyId)?.id ?? "",
+  }));
 }
-export const choiceFor = (choices: readonly Choice[], stepId: string): string => choices.find((c) => c.stepId === stepId)?.keyId ?? "";
-export const setChoice = (choices: readonly Choice[], stepId: string, keyId: string): Choice[] => choices.map((c) => (c.stepId === stepId ? { stepId, keyId } : c));
+export const choiceFor = (choices: readonly Choice[], stepId: string): string =>
+  choices.find((c) => c.stepId === stepId)?.keyId ?? "";
+export const setChoice = (choices: readonly Choice[], stepId: string, keyId: string): Choice[] =>
+  choices.map((c) => (c.stepId === stepId ? { stepId, keyId } : c));
 /** Promote is allowed once the server says it is ready and every step that needs a shared key has one that is an API key. */
 export function canPromote(p: PromoteDiff, choices: readonly Choice[], keys: readonly PromoteKey[]): boolean {
   if (!p.ready && p.diff.keysToReplace.length === 0) return false;
-  return p.diff.keysToReplace.every((k) => { const c = choiceFor(choices, k.stepId); const key = keys.find((x) => x.id === c); return c !== "" && key !== undefined && spaceKey(key); });
+  return p.diff.keysToReplace.every((k) => {
+    const c = choiceFor(choices, k.stepId);
+    const key = keys.find((x) => x.id === c);
+    return c !== "" && key !== undefined && spaceKey(key);
+  });
 }
-export const promoteInput = (automationId: string, ownerId: string, choices: readonly Choice[]): { automationId: string; confirm: true; ownerId: string; replaceKeys: Choice[] } => ({ automationId, confirm: true, ownerId, replaceKeys: choices.filter((c) => c.keyId !== "") });
+export const promoteInput = (
+  automationId: string,
+  ownerId: string,
+  choices: readonly Choice[],
+): { automationId: string; confirm: true; ownerId: string; replaceKeys: Choice[] } => ({
+  automationId,
+  confirm: true,
+  ownerId,
+  replaceKeys: choices.filter((c) => c.keyId !== ""),
+});
 
 /** The definition with the automation's AI account changed: the main (keyId) or the backup (backupKeyId). A cleared field is gone, and with both gone the whole block is (Automatic). */
-export function withAutomationAi(def: Automation["definition"], field: "keyId" | "backupKeyId", handle: string | undefined): Automation["definition"] {
+export function withAutomationAi(
+  def: Automation["definition"],
+  field: "keyId" | "backupKeyId",
+  handle: string | undefined,
+): Automation["definition"] {
   const next = { ...(def.ai ?? {}) } as { keyId?: string; backupKeyId?: string };
-  if (handle) next[field] = handle; else delete next[field];
+  if (handle) next[field] = handle;
+  else delete next[field];
   const { ai: _gone, ...rest } = def;
   return next.keyId || next.backupKeyId ? { ...rest, ai: next } : rest;
 }

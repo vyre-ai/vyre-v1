@@ -27,25 +27,88 @@ export function monthNote(s: Pick<StatusOut, "spentMicros" | "capMicros" | "capR
 export function MemorySpend(): ReactElement | null {
   const data = useSettingsData();
   const saved = useSaved();
-  const [s, setS] = useState<StatusOut | null>(() => { try { return (data.peek?.("memory.upkeep.status", {}) as StatusOut | undefined) ?? null; } catch { return null; } });
+  const [s, setS] = useState<StatusOut | null>(() => {
+    try {
+      return (data.peek?.("memory.upkeep.status", {}) as StatusOut | undefined) ?? null;
+    } catch {
+      return null;
+    }
+  });
   const [cap, setCap] = useState<number | null>(null);
-  useEffect(() => { void (data.call("memory.upkeep.status", {}) as Promise<StatusOut>).then((r) => { setS(r); setCap(Math.round(r.capMicros / 1_000_000)); }, () => undefined); }, [data]);
+  useEffect(() => {
+    void (data.call("memory.upkeep.status", {}) as Promise<StatusOut>).then(
+      (r) => {
+        setS(r);
+        setCap(Math.round(r.capMicros / 1_000_000));
+      },
+      () => undefined,
+    );
+  }, [data]);
   if (!s) return null;
   const dollarsCap = cap ?? Math.round(s.capMicros / 1_000_000);
   const change = (next: number): void => {
     const before = dollarsCap;
     setCap(next);
-    void data.call("settings.set_space", { key: "memory.upkeep_monthly_cap", value: next, idempotencyKey: `upkeep-cap-${next}-${data.clock().now}` }).then(
-      () => saved.saved("Monthly cap saved", () => data.call("settings.set_space", { key: "memory.upkeep_monthly_cap", value: before, idempotencyKey: `upkeep-cap-${before}-undo-${data.clock().now}` }).then(() => setCap(before))),
-      (e: unknown) => { setCap(before); saved.failed(e instanceof Error ? e.message : "That did not save."); },
-    );
+    void data
+      .call("settings.set_space", {
+        key: "memory.upkeep_monthly_cap",
+        value: next,
+        idempotencyKey: `upkeep-cap-${next}-${data.clock().now}`,
+      })
+      .then(
+        () =>
+          saved.saved("Monthly cap saved", () =>
+            data
+              .call("settings.set_space", {
+                key: "memory.upkeep_monthly_cap",
+                value: before,
+                idempotencyKey: `upkeep-cap-${before}-undo-${data.clock().now}`,
+              })
+              .then(() => setCap(before)),
+          ),
+        (e: unknown) => {
+          setCap(before);
+          saved.failed(e instanceof Error ? e.message : "That did not save.");
+        },
+      );
   };
   const last = s.lastNight;
   return (
     <Section title="Memory spend" help="What the nightly model pass costs. Rules-only upkeep is free.">
-      <SettingsRow id="memory.spend.night" label="Last night" first sub={last ? `${last.runs} ${last.runs === 1 ? "run" : "runs"}, ${last.tokensIn + last.tokensOut} tokens` : "No model pass ran"} control={<Value text={last ? dollars(last.costMicros) : "$0.00"} testID="spend-night" />} />
-      <SettingsRow id="memory.spend.month" label="This month" sub={monthNote(s)} control={<Value text={dollars(s.spentMicros)} accent={s.capReached} testID="spend-month" />} />
-      <SettingsRow id="memory.spend.cap" label="Monthly cap" sub="Upkeep stops using a model at this amount" control={<Stepper value={dollarsCap} onChange={change} min={0} max={1000} step={1} label="Monthly cap in dollars" format={(n) => `$${n}`} testID="ctl-memory-spend-cap" />} />
+      <SettingsRow
+        id="memory.spend.night"
+        label="Last night"
+        first
+        sub={
+          last
+            ? `${last.runs} ${last.runs === 1 ? "run" : "runs"}, ${last.tokensIn + last.tokensOut} tokens`
+            : "No model pass ran"
+        }
+        control={<Value text={last ? dollars(last.costMicros) : "$0.00"} testID="spend-night" />}
+      />
+      <SettingsRow
+        id="memory.spend.month"
+        label="This month"
+        sub={monthNote(s)}
+        control={<Value text={dollars(s.spentMicros)} accent={s.capReached} testID="spend-month" />}
+      />
+      <SettingsRow
+        id="memory.spend.cap"
+        label="Monthly cap"
+        sub="Upkeep stops using a model at this amount"
+        control={
+          <Stepper
+            value={dollarsCap}
+            onChange={change}
+            min={0}
+            max={1000}
+            step={1}
+            label="Monthly cap in dollars"
+            format={(n) => `$${n}`}
+            testID="ctl-memory-spend-cap"
+          />
+        }
+      />
     </Section>
   );
 }

@@ -4,7 +4,10 @@
 import { SandboxError } from "./types.ts";
 import type { CredentialFile } from "./types.ts";
 
-export interface DirEntry { name: string; dir: boolean }
+export interface DirEntry {
+  name: string;
+  dir: boolean;
+}
 
 /** The few file operations the store needs, so a test can watch every one. Nothing here follows a link. */
 export interface CredFs {
@@ -41,12 +44,15 @@ export interface CredentialStoreOptions {
 export function createCredentialStore(fs: CredFs, o: CredentialStoreOptions): CredentialStore {
   const random = o.random ?? ((n) => globalThis.crypto.getRandomValues(new Uint8Array(n)));
   const root = o.root.replace(/\/+$/, "");
-  if (!root.startsWith("/")) throw new SandboxError("sandbox.policy", "the credential directory must be an absolute path");
+  if (!root.startsWith("/"))
+    throw new SandboxError("sandbox.policy", "the credential directory must be an absolute path");
 
   const safeRel = (p: string): string[] => {
-    if (p === "" || p.startsWith("/") || p.includes("\0")) throw new SandboxError("sandbox.policy", `not a relative path: ${JSON.stringify(p).slice(0, 60)}`);
+    if (p === "" || p.startsWith("/") || p.includes("\0"))
+      throw new SandboxError("sandbox.policy", `not a relative path: ${JSON.stringify(p).slice(0, 60)}`);
     const segs = p.split("/");
-    if (segs.some((s) => s === "" || s === "." || s === "..")) throw new SandboxError("sandbox.policy", `a credential path may not climb or repeat: ${p.slice(0, 60)}`);
+    if (segs.some((s) => s === "" || s === "." || s === ".."))
+      throw new SandboxError("sandbox.policy", `a credential path may not climb or repeat: ${p.slice(0, 60)}`);
     return segs;
   };
 
@@ -62,13 +68,30 @@ export function createCredentialStore(fs: CredFs, o: CredentialStoreOptions): Cr
   async function remove(dir: string, failed: string[]): Promise<number> {
     let files = 0;
     let entries: DirEntry[];
-    try { entries = await fs.list(dir); } catch { return 0; }
+    try {
+      entries = await fs.list(dir);
+    } catch {
+      return 0;
+    }
     for (const e of entries) {
       const p = `${dir}/${e.name}`;
-      if (e.dir) { files += await remove(p, failed); continue; }
-      try { await overwriteAll(p); await fs.unlink(p); files++; } catch { failed.push(p); }
+      if (e.dir) {
+        files += await remove(p, failed);
+        continue;
+      }
+      try {
+        await overwriteAll(p);
+        await fs.unlink(p);
+        files++;
+      } catch {
+        failed.push(p);
+      }
     }
-    try { await fs.rmdir(dir); } catch { /* a folder that still holds a file we could not remove: the caller sees the file */ }
+    try {
+      await fs.rmdir(dir);
+    } catch {
+      /* a folder that still holds a file we could not remove: the caller sees the file */
+    }
     return files;
   }
 
@@ -85,7 +108,10 @@ export function createCredentialStore(fs: CredFs, o: CredentialStoreOptions): Cr
           const segs = safeRel(f.path);
           for (let i = 1; i < segs.length; i++) {
             const d = `${dir}/${segs.slice(0, i).join("/")}`;
-            if (!made.has(d)) { made.add(d); await fs.mkdir(d, 0o700); }
+            if (!made.has(d)) {
+              made.add(d);
+              await fs.mkdir(d, 0o700);
+            }
           }
           const full = `${dir}/${f.path}`;
           await fs.writeNew(full, f.data, 0o600);
@@ -104,7 +130,8 @@ export function createCredentialStore(fs: CredFs, o: CredentialStoreOptions): Cr
       if (!(await fs.exists(dir))) return { files: 0 };
       const failed: string[] = [];
       const files = await remove(dir, failed);
-      if (failed.length > 0) throw new SandboxError("sandbox.shred", `${failed.length} credential file(s) could not be removed`);
+      if (failed.length > 0)
+        throw new SandboxError("sandbox.shred", `${failed.length} credential file(s) could not be removed`);
       if (await fs.exists(dir)) throw new SandboxError("sandbox.shred", "the credential folder could not be removed");
       return { files };
     },
@@ -114,11 +141,21 @@ export function createCredentialStore(fs: CredFs, o: CredentialStoreOptions): Cr
       let files = 0;
       const failed: string[] = [];
       for (const e of await fs.list(root)) {
-        if (!e.dir) { try { await overwriteAll(`${root}/${e.name}`); await fs.unlink(`${root}/${e.name}`); files++; } catch { failed.push(e.name); } continue; }
+        if (!e.dir) {
+          try {
+            await overwriteAll(`${root}/${e.name}`);
+            await fs.unlink(`${root}/${e.name}`);
+            files++;
+          } catch {
+            failed.push(e.name);
+          }
+          continue;
+        }
         sessions++;
         files += await remove(`${root}/${e.name}`, failed);
       }
-      if (failed.length > 0) throw new SandboxError("sandbox.shred", `${failed.length} leftover credential file(s) could not be removed`);
+      if (failed.length > 0)
+        throw new SandboxError("sandbox.shred", `${failed.length} leftover credential file(s) could not be removed`);
       return { sessions, files };
     },
   };
@@ -130,20 +167,49 @@ export async function nodeCredFs(): Promise<CredFs> {
   const { constants } = await import("node:fs");
   const nofollow = constants.O_NOFOLLOW ?? 0;
   return {
-    mkdir: async (p, mode) => { await fsp.mkdir(p, { mode }); await fsp.chmod(p, mode); },
+    mkdir: async (p, mode) => {
+      await fsp.mkdir(p, { mode });
+      await fsp.chmod(p, mode);
+    },
     async writeNew(p, data, mode) {
       const fh = await fsp.open(p, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | nofollow, mode);
-      try { await fh.writeFile(data); await fh.sync(); } finally { await fh.close(); }
+      try {
+        await fh.writeFile(data);
+        await fh.sync();
+      } finally {
+        await fh.close();
+      }
       await fsp.chmod(p, mode);
     },
     async overwrite(p, data) {
       const fh = await fsp.open(p, constants.O_WRONLY | nofollow);
-      try { await fh.write(data, 0, data.length, 0); await fh.sync(); } finally { await fh.close(); }
+      try {
+        await fh.write(data, 0, data.length, 0);
+        await fh.sync();
+      } finally {
+        await fh.close();
+      }
     },
-    async size(p) { try { const s = await fsp.lstat(p); return s.isFile() ? s.size : 0; } catch { return null; } },
+    async size(p) {
+      try {
+        const s = await fsp.lstat(p);
+        return s.isFile() ? s.size : 0;
+      } catch {
+        return null;
+      }
+    },
     unlink: (p) => fsp.unlink(p),
     rmdir: (p) => fsp.rmdir(p),
-    async list(p) { return (await fsp.readdir(p, { withFileTypes: true })).map((e) => ({ name: e.name, dir: e.isDirectory() })); },
-    async exists(p) { try { await fsp.lstat(p); return true; } catch { return false; } },
+    async list(p) {
+      return (await fsp.readdir(p, { withFileTypes: true })).map((e) => ({ name: e.name, dir: e.isDirectory() }));
+    },
+    async exists(p) {
+      try {
+        await fsp.lstat(p);
+        return true;
+      } catch {
+        return false;
+      }
+    },
   };
 }

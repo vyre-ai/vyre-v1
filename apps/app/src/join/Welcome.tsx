@@ -15,16 +15,45 @@ export interface WelcomeProps {
 export function Welcome({ address, busy, error, onAddressChange, onSignIn, onGetStarted, onBack }: WelcomeProps) {
   const valid = !!normalizeSpaceAddress(address);
   const disabled = !valid || busy;
-  const go = (): void => { if (!disabled) onSignIn(); };
+  const go = (): void => {
+    if (!disabled) onSignIn();
+  };
   return (
     <Panel
-      below={<Links><TextButton testID="get-started" label="New here?" disabled={busy} onPress={onGetStarted} /></Links>}
-      bar={<Bar {...(onBack ? { onBack } : {})} cont={<Button testID="resolve-space" label={busy ? "Finding your Space" : "Continue"} busy={busy} disabled={!valid} onPress={go} />} />}
+      below={
+        <Links>
+          <TextButton testID="get-started" label="New here?" disabled={busy} onPress={onGetStarted} />
+        </Links>
+      }
+      bar={
+        <Bar
+          {...(onBack ? { onBack } : {})}
+          cont={
+            <Button
+              testID="resolve-space"
+              label={busy ? "Finding your Space" : "Continue"}
+              busy={busy}
+              disabled={!valid}
+              onPress={go}
+            />
+          }
+        />
+      }
     >
       <Step id="welcome">
         <Title title="Sign in" />
         <Group>
-          <Field testID="space-address" label="Space" value={address} onChange={onAddressChange} onSubmit={go} placeholder="your-space.vyre.run" autoComplete="url" autoFocus error={!!error} />
+          <Field
+            testID="space-address"
+            label="Space"
+            value={address}
+            onChange={onAddressChange}
+            onSubmit={go}
+            placeholder="your-space.vyre.run"
+            autoComplete="url"
+            autoFocus
+            error={!!error}
+          />
         </Group>
         <ErrorLine testID="space-error">{error}</ErrorLine>
       </Step>

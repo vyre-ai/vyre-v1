@@ -5,7 +5,11 @@
 export type DncChannel = "email" | "sms";
 export type DncReason = "do_not_contact" | "unsubscribe" | "stop" | "manual" | "bounce_hard" | "complaint";
 
-export interface DncGroup { channel: DncChannel; reason: DncReason; addresses: string[] }
+export interface DncGroup {
+  channel: DncChannel;
+  reason: DncReason;
+  addresses: string[];
+}
 export interface DncFile {
   /** Everyone the file would add, once each. */
   total: number;
@@ -17,7 +21,19 @@ export interface DncFile {
   groups: DncGroup[];
 }
 
-const HEADER_CELLS = new Set(["email", "emails", "email address", "e-mail", "address", "phone", "phones", "phone number", "number", "mobile", "cell"]);
+const HEADER_CELLS = new Set([
+  "email",
+  "emails",
+  "email address",
+  "e-mail",
+  "address",
+  "phone",
+  "phones",
+  "phone number",
+  "number",
+  "mobile",
+  "cell",
+]);
 const EMAIL = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
 const PHONE = /^\+?[\d\s().-]{6,}$/;
 
@@ -32,7 +48,8 @@ const WORDS: readonly [RegExp, DncReason][] = [
 /** The list reason a word in the reason column stands for, or null when it names none (the page's choice then applies). */
 export function reasonOf(word: string): DncReason | null {
   const w = word.trim().toLowerCase().replace(/[_-]+/g, " ");
-  for (const [pattern, reason] of WORDS) if (pattern.test(w.replace(/\s+/g, " ")) || pattern.test(w.replace(/\s+/g, ""))) return reason;
+  for (const [pattern, reason] of WORDS)
+    if (pattern.test(w.replace(/\s+/g, " ")) || pattern.test(w.replace(/\s+/g, ""))) return reason;
   return null;
 }
 
@@ -44,9 +61,16 @@ export function cellsOf(line: string): string[] {
   for (let i = 0; i < line.length; i++) {
     const c = line[i] ?? "";
     if (quoted) {
-      if (c === "\"" && line[i + 1] === "\"") { cur += "\""; i++; } else if (c === "\"") quoted = false; else cur += c;
-    } else if (c === "\"") quoted = true;
-    else if (c === "," || c === ";" || c === "\t") { out.push(cur.trim()); cur = ""; } else cur += c;
+      if (c === '"' && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else if (c === '"') quoted = false;
+      else cur += c;
+    } else if (c === '"') quoted = true;
+    else if (c === "," || c === ";" || c === "\t") {
+      out.push(cur.trim());
+      cur = "";
+    } else cur += c;
   }
   out.push(cur.trim());
   return out;
@@ -56,7 +80,10 @@ const digitsOf = (v: string): string => v.replace(/\D/g, "");
 
 /** Reads the text of a CSV file. `fallback` is the reason for rows that name none. */
 export function parseDncFile(text: string, fallback: DncReason): DncFile {
-  const lines = text.replace(/^﻿/, "").split(/\r?\n/).filter((l) => l.trim() !== "");
+  const lines = text
+    .replace(/^﻿/, "")
+    .split(/\r?\n/)
+    .filter((l) => l.trim() !== "");
   let reasonCol = -1;
   let start = 0;
   const head = lines[0] ? cellsOf(lines[0]) : [];
@@ -72,18 +99,29 @@ export function parseDncFile(text: string, fallback: DncReason): DncFile {
   for (const line of lines.slice(start)) {
     const cells = cellsOf(line);
     const value = (cells[0] ?? "").trim();
-    const channel: DncChannel | null = EMAIL.test(value) ? "email" : PHONE.test(value) && digitsOf(value).length >= 7 ? "sms" : null;
-    if (channel === null) { skipped++; continue; }
+    const channel: DncChannel | null = EMAIL.test(value)
+      ? "email"
+      : PHONE.test(value) && digitsOf(value).length >= 7
+        ? "sms"
+        : null;
+    if (channel === null) {
+      skipped++;
+      continue;
+    }
     const address = channel === "email" ? value.toLowerCase() : value;
     const key = channel === "email" ? address : `+${digitsOf(value)}`;
-    if (seen.has(key)) { skipped++; continue; }
+    if (seen.has(key)) {
+      skipped++;
+      continue;
+    }
     seen.add(key);
     const reason = (reasonCol >= 0 ? reasonOf(cells[reasonCol] ?? "") : null) ?? fallback;
     const slot = `${channel}:${reason}`;
     const group = groups.get(slot) ?? { channel, reason, addresses: [] };
     group.addresses.push(address);
     groups.set(slot, group);
-    if (channel === "email") emails++; else phones++;
+    if (channel === "email") emails++;
+    else phones++;
   }
   return { total: emails + phones, emails, phones, skipped, groups: [...groups.values()] };
 }
@@ -94,11 +132,18 @@ export function groupCsv(g: DncGroup): string {
 }
 
 /** The sentence on the confirm button. */
-export const addLabel = (n: number): string => `Add ${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"} to the do-not-contact list`;
+export const addLabel = (n: number): string =>
+  `Add ${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"} to the do-not-contact list`;
 
 /** What was in the file, said plainly under the button. */
 export function describeFile(f: DncFile): string {
-  const parts = [f.emails > 0 ? `${f.emails.toLocaleString("en-US")} ${f.emails === 1 ? "email" : "emails"}` : "", f.phones > 0 ? `${f.phones.toLocaleString("en-US")} ${f.phones === 1 ? "phone number" : "phone numbers"}` : ""].filter(Boolean);
-  const left = f.skipped > 0 ? ` ${f.skipped.toLocaleString("en-US")} ${f.skipped === 1 ? "row was" : "rows were"} left out: not an address, or a repeat.` : "";
+  const parts = [
+    f.emails > 0 ? `${f.emails.toLocaleString("en-US")} ${f.emails === 1 ? "email" : "emails"}` : "",
+    f.phones > 0 ? `${f.phones.toLocaleString("en-US")} ${f.phones === 1 ? "phone number" : "phone numbers"}` : "",
+  ].filter(Boolean);
+  const left =
+    f.skipped > 0
+      ? ` ${f.skipped.toLocaleString("en-US")} ${f.skipped === 1 ? "row was" : "rows were"} left out: not an address, or a repeat.`
+      : "";
   return `${parts.join(" and ")}.${left}`;
 }

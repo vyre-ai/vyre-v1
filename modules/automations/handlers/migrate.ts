@@ -7,11 +7,18 @@ import { planMigration, previewCohorts } from "../migration.ts";
 import type { Cohort, MigrationNode, MigrationRun } from "../migration.ts";
 import { canView, mustChange } from "./defs.ts";
 import {
-  clean, emitAuto, findRunLink, getAutomation, isOwner, raise, saveRunLink, versionDefinition,
+  clean,
+  emitAuto,
+  findRunLink,
+  getAutomation,
+  isOwner,
+  raise,
+  saveRunLink,
+  versionDefinition,
 } from "../projections.ts";
 import type { AutoCtx, Automation, Definition, Node } from "../projections.ts";
 
-type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const EFFECTS = new Map(registry.steps.map((s) => [s.key, s.effects] as const));
 const STATUSES = new Set(["queued", "running", "waiting", "succeeded", "failed", "stopped"]);
@@ -24,21 +31,40 @@ function effectsOf(key: string): MigrationNode["effects"] {
 }
 
 function nodesOf(def: Definition): MigrationNode[] {
-  return def.nodes.map((n: Node) => ({ id: n.id, key: n.key, effects: effectsOf(n.key), ...(n.next ? { next: n.next } : {}) }));
+  return def.nodes.map((n: Node) => ({
+    id: n.id,
+    key: n.key,
+    effects: effectsOf(n.key),
+    ...(n.next ? { next: n.next } : {}),
+  }));
 }
 
 function editable(ctx: AutoCtx, a: Automation): Automation {
   if (!canView(ctx, a)) raise(ctx, "permission.not_found", "That automation is not available.");
   if (isTrustedService(ctx.principal) || isOwner(ctx, a)) return a;
-  const allow = (level: "edit" | "manage"): boolean => ctx.authorize?.({ perm: null, level }, { type: "automation", id: a.id }).effect === "allow";
+  const allow = (level: "edit" | "manage"): boolean =>
+    ctx.authorize?.({ perm: null, level }, { type: "automation", id: a.id }).effect === "allow";
   if (allow("edit") || allow("manage")) return a;
-  raise(ctx, "permission.role_lacks_permission", "Only someone who can edit this automation can move its runs.", { reason: "edit_required" });
+  raise(ctx, "permission.role_lacks_permission", "Only someone who can edit this automation can move its runs.", {
+    reason: "edit_required",
+  });
 }
 
-interface ListedRun { id?: unknown; status?: unknown; definitionVersion?: unknown }
-interface StepRow { step?: unknown; state?: unknown }
+interface ListedRun {
+  id?: unknown;
+  status?: unknown;
+  definitionVersion?: unknown;
+}
+interface StepRow {
+  step?: unknown;
+  state?: unknown;
+}
 
-function currentOf(steps: readonly StepRow[]): { currentStepId: string | null; succeededStepIds: string[]; stepInFlight: boolean } {
+function currentOf(steps: readonly StepRow[]): {
+  currentStepId: string | null;
+  succeededStepIds: string[];
+  stepInFlight: boolean;
+} {
   const newest = new Map<string, string>();
   for (const row of steps) {
     if (typeof row.step !== "string" || typeof row.state !== "string") continue;
@@ -63,9 +89,15 @@ async function loadRuns(ctx: AutoCtx, a: Automation): Promise<MigrationRun[]> {
   const seen = new Set<string>();
   let cursor: string | undefined;
   for (let pageNo = 0; pageNo < 20; pageNo++) {
-    const listed = await ctx.call("runs.list", clean({
-      scope: "subject", subject: { type: "automation", id: a.id }, limit: 500, ...(cursor ? { cursor } : {}),
-    })) as { runs?: ListedRun[]; next?: string };
+    const listed = (await ctx.call(
+      "runs.list",
+      clean({
+        scope: "subject",
+        subject: { type: "automation", id: a.id },
+        limit: 500,
+        ...(cursor ? { cursor } : {}),
+      }),
+    )) as { runs?: ListedRun[]; next?: string };
     const batch = listed?.runs ?? [];
     for (const row of batch) {
       if (typeof row.id !== "string" || seen.has(row.id)) continue;
@@ -83,18 +115,28 @@ async function loadRuns(ctx: AutoCtx, a: Automation): Promise<MigrationRun[]> {
     const version = link?.version ?? (typeof row.definitionVersion === "number" ? row.definitionVersion : a.version);
     let steps: StepRow[] = [];
     try {
-      const got = await ctx.call("runs.steps", { runId: row.id }) as { steps?: StepRow[] };
+      const got = (await ctx.call("runs.steps", { runId: row.id })) as { steps?: StepRow[] };
       steps = got?.steps ?? [];
-    } catch { steps = []; }
+    } catch {
+      steps = [];
+    }
     const { currentStepId, succeededStepIds, stepInFlight } = currentOf(steps);
-    runs.push({ id: row.id, definitionVersion: version, status: row.status as MigrationRun["status"], currentStepId, succeededStepIds, stepInFlight });
+    runs.push({
+      id: row.id,
+      definitionVersion: version,
+      status: row.status as MigrationRun["status"],
+      currentStepId,
+      succeededStepIds,
+      stepInFlight,
+    });
   }
   return runs;
 }
 
 function cohortsFor(ctx: AutoCtx, a: Automation, runs: readonly MigrationRun[], toVersion: number): Cohort[] {
   const targetDef = versionDefinition(ctx.db, a.id, toVersion);
-  if (!targetDef) raise(ctx, "validation.not_found", "That version does not exist.", { reason: "no_version", version: toVersion });
+  if (!targetDef)
+    raise(ctx, "validation.not_found", "That version does not exist.", { reason: "no_version", version: toVersion });
   const target = nodesOf(targetDef);
   const byVersion = new Map<number, MigrationRun[]>();
   for (const run of runs) {
@@ -108,10 +150,14 @@ function cohortsFor(ctx: AutoCtx, a: Automation, runs: readonly MigrationRun[], 
     if (!sourceDef) {
       const active = group.some((run) => ACTIVE.has(run.status));
       cohorts.push({
-        definitionVersion: version, currentStepId: group[0]?.currentStepId ?? null, runIds: group.map((run) => run.id),
-        disposition: active ? "ambiguous" : "inactive", proposedStepId: null,
+        definitionVersion: version,
+        currentStepId: group[0]?.currentStepId ?? null,
+        runIds: group.map((run) => run.id),
+        disposition: active ? "ambiguous" : "inactive",
+        proposedStepId: null,
         reason: "The definition version these Runs started on is missing. Leave them pinned.",
-        repeatedEffects: [], skippedEffects: [],
+        repeatedEffects: [],
+        skippedEffects: [],
       });
       continue;
     }
@@ -124,7 +170,8 @@ export async function migrationPreview(ctx: AutoCtx, input: In): Promise<unknown
   const a = getAutomation(ctx, input.automationId);
   if (!canView(ctx, a)) raise(ctx, "permission.not_found", "That automation is not available.");
   const toVersion = input.toVersion;
-  if (typeof toVersion !== "number" || !Number.isInteger(toVersion) || toVersion < 1) raise(ctx, "validation.bad_input", "A definition version is a whole number.");
+  if (typeof toVersion !== "number" || !Number.isInteger(toVersion) || toVersion < 1)
+    raise(ctx, "validation.bad_input", "A definition version is a whole number.");
   return { cohorts: cohortsFor(ctx, a, await loadRuns(ctx, a), toVersion) };
 }
 
@@ -133,11 +180,17 @@ export async function migrateRuns(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = editable(ctx, getAutomation(ctx, input.automationId));
   await mustChange(ctx, a);
   const toVersion = input.toVersion;
-  if (typeof toVersion !== "number" || !Number.isInteger(toVersion) || toVersion < 1) raise(ctx, "validation.bad_input", "A definition version is a whole number.");
-  const requested = Array.isArray(input.runIds) ? input.runIds.filter((id: unknown): id is string => typeof id === "string") : [];
+  if (typeof toVersion !== "number" || !Number.isInteger(toVersion) || toVersion < 1)
+    raise(ctx, "validation.bad_input", "A definition version is a whole number.");
+  const requested = Array.isArray(input.runIds)
+    ? input.runIds.filter((id: unknown): id is string => typeof id === "string")
+    : [];
   const runs = await loadRuns(ctx, a);
   const known = new Set(runs.map((run) => run.id));
-  if (requested.some((id) => !known.has(id))) raise(ctx, "validation.precondition_failed", "A selected Run is not a run of this automation.", { reason: "not_a_run_of_this" });
+  if (requested.some((id) => !known.has(id)))
+    raise(ctx, "validation.precondition_failed", "A selected Run is not a run of this automation.", {
+      reason: "not_a_run_of_this",
+    });
   const plan = planMigration(cohortsFor(ctx, a, runs, toVersion), requested, toVersion);
   if (!plan.ok) raise(ctx, "validation.precondition_failed", plan.reason, { reason: "unsafe_cohort" });
   if (!ctx.call) raise(ctx, "internal.unavailable", "Runs are not available right now.");
@@ -156,8 +209,14 @@ export async function migrateRuns(ctx: AutoCtx, input: In): Promise<unknown> {
         const fromVersion = link?.version ?? row?.definitionVersion ?? a.version;
         if (fromVersion === toVersion) continue;
         // Look again right before the pin: a step that started since the preview keeps its run where it is.
-        const fresh = currentOf(((await ctx.call("runs.steps", { runId }).catch(() => ({ steps: [] }))) as { steps?: StepRow[] })?.steps ?? []);
-        if (fresh.stepInFlight || fresh.currentStepId !== item.atStepId) { held.push(runId); continue; }
+        const fresh = currentOf(
+          ((await ctx.call("runs.steps", { runId }).catch(() => ({ steps: [] }))) as { steps?: StepRow[] })?.steps ??
+            [],
+        );
+        if (fresh.stepInFlight || fresh.currentStepId !== item.atStepId) {
+          held.push(runId);
+          continue;
+        }
         await ctx.call("runs.pin_version", { runId, definitionVersion: toVersion });
         if (link) saveRunLink(ctx.db, { ...link, version: toVersion });
         moved.push({ runId, fromVersion, toVersion, atStepId: item.atStepId });

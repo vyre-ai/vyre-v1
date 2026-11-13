@@ -51,7 +51,10 @@ export interface McpServerDeps {
   /** A tool call finished: the Console's call counts, and for an outside agent its activity and its steps in the chat it is working in. */
   onCall?(caller: McpCaller, tool: string, outcome: "ok" | "error" | "held", detail?: CallDetail): void;
   /** An outside agent took a job in this chat: what the chat is, so its tools there follow the chat's mode. */
-  bindThread?(caller: McpCaller, threadId: string): Promise<Partial<Pick<McpCaller, "mode" | "planMode" | "threadKind" | "scope">>>;
+  bindThread?(
+    caller: McpCaller,
+    threadId: string,
+  ): Promise<Partial<Pick<McpCaller, "mode" | "planMode" | "threadKind" | "scope">>>;
   onClose?(caller: McpCaller): void;
   /** Does this outside agent act for its person including setup (owner ruling 3 Nov)? Read on every call, so taking it back counts at the next one. */
   setupGrant?(caller: McpCaller): boolean;
@@ -65,7 +68,12 @@ export interface McpServerDeps {
   maxBodyBytes?: number;
 }
 
-export interface CallDetail { cap: string; threadId?: string; taskId?: string; card?: WorkCard | null }
+export interface CallDetail {
+  cap: string;
+  threadId?: string;
+  taskId?: string;
+  card?: WorkCard | null;
+}
 
 export interface McpHttpRequest {
   method: string;
@@ -75,7 +83,11 @@ export interface McpHttpRequest {
   /** The address this request reached, as this host trusts it (never the Host header alone). A token bound to another address is refused. */
   origin?: string;
 }
-export interface McpHttpResponse { status: number; headers: Record<string, string>; body: string }
+export interface McpHttpResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+}
 
 export interface McpServer {
   handle(req: McpHttpRequest): Promise<McpHttpResponse>;

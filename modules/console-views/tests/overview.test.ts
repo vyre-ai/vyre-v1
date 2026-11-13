@@ -9,8 +9,22 @@ import { DAY, NOW, certOk, healthy, quiet, world } from "../fixtures/db.ts";
 const bad = {
   overall: "down",
   checks: [
-    { key: "sync.lag", title: "Sync lag", state: "degraded", checkedAt: NOW - 5000, module: "sync", next: "Check the relay." },
-    { key: "mail.send", title: "Sending", state: "down", checkedAt: NOW - 9000, module: "mail", next: "Reconnect the mail provider." },
+    {
+      key: "sync.lag",
+      title: "Sync lag",
+      state: "degraded",
+      checkedAt: NOW - 5000,
+      module: "sync",
+      next: "Check the relay.",
+    },
+    {
+      key: "mail.send",
+      title: "Sending",
+      state: "down",
+      checkedAt: NOW - 9000,
+      module: "mail",
+      next: "Reconnect the mail provider.",
+    },
     { key: "disk", title: "Disk", state: "healthy", checkedAt: NOW, module: "health", next: "Nothing to do." },
   ],
 };
@@ -29,12 +43,33 @@ test("attention items = failing checks + expired certs + failed runs + stuck upd
     "health.status": bad,
     "network.status": { ...certOk, certificate: { host: "maya.vyre.run", expiresAt: NOW - DAY, state: "down" } },
     "updates.status": { current: "1.0.0", channel: "stable", lastResult: "failed" },
-    "runs.list": { runs: [{ id: "run_a1", kind: "automation", name: "Welcome email", status: "failed", endedAt: NOW - 3000, startedAt: NOW - 4000, summary: "Step 2 timed out" }] },
-    "access.reviews.list": { reviews: [{ id: "rvw_1", state: "open", openedAt: NOW - 10 * DAY, items: 12, decided: 9 }] },
+    "runs.list": {
+      runs: [
+        {
+          id: "run_a1",
+          kind: "automation",
+          name: "Welcome email",
+          status: "failed",
+          endedAt: NOW - 3000,
+          startedAt: NOW - 4000,
+          summary: "Step 2 timed out",
+        },
+      ],
+    },
+    "access.reviews.list": {
+      reviews: [{ id: "rvw_1", state: "open", openedAt: NOW - 10 * DAY, items: 12, decided: 9 }],
+    },
   });
   const { items } = await handlers["console.attention"](w.ctx, {});
-  assert.deepEqual(items.map((i) => i.kind), ["failing_check", "failing_check", "expiring_certificate", "stuck_update", "failed_run", "access_review_due"]);
-  assert.deepEqual(items.slice(0, 2).map((i) => i.ref), ["mail.send", "sync.lag"], "down before degraded");
+  assert.deepEqual(
+    items.map((i) => i.kind),
+    ["failing_check", "failing_check", "expiring_certificate", "stuck_update", "failed_run", "access_review_due"],
+  );
+  assert.deepEqual(
+    items.slice(0, 2).map((i) => i.ref),
+    ["mail.send", "sync.lag"],
+    "down before degraded",
+  );
   assert.equal(items[0]!.next, "Reconnect the mail provider.");
   assert.match(items[2]!.title, /has expired/);
   assert.equal(items[4]!.ref, "run_a1");
@@ -50,7 +85,10 @@ test("attention items = failing checks + expired certs + failed runs + stuck upd
 });
 
 test("a certificate about to expire counts, a healthy one far from expiry does not", async () => {
-  const soon = world({ ...quiet, "network.status": { ...certOk, certificate: { host: "h.example", expiresAt: NOW + 5 * DAY, state: "healthy" } } });
+  const soon = world({
+    ...quiet,
+    "network.status": { ...certOk, certificate: { host: "h.example", expiresAt: NOW + 5 * DAY, state: "healthy" } },
+  });
   const a = (await handlers["console.attention"](soon.ctx, {})).items;
   assert.equal(a.length, 1);
   assert.match(a[0]!.title, /expires soon/);
@@ -58,15 +96,27 @@ test("a certificate about to expire counts, a healthy one far from expiry does n
 });
 
 test("a rolled-back update is stuck; an ok one is not", async () => {
-  const w = world({ ...quiet, "updates.status": { current: "1.0.0", channel: "stable", available: "1.0.1", lastResult: "rolled_back" } });
+  const w = world({
+    ...quiet,
+    "updates.status": { current: "1.0.0", channel: "stable", available: "1.0.1", lastResult: "rolled_back" },
+  });
   const a = (await handlers["console.attention"](w.ctx, {})).items;
-  assert.deepEqual(a.map((i) => i.kind), ["stuck_update"]);
+  assert.deepEqual(
+    a.map((i) => i.kind),
+    ["stuck_update"],
+  );
   assert.match(a[0]!.title, /rolled back/);
 });
 
 test("a source the caller may not read drops out; unreadable health reads degraded and says so", async () => {
   const denied = new Error("auth.forbidden");
-  const w = world({ ...quiet, "network.status": denied, "runs.list": denied, "audit.list": denied, "access.reviews.list": denied });
+  const w = world({
+    ...quiet,
+    "network.status": denied,
+    "runs.list": denied,
+    "audit.list": denied,
+    "access.reviews.list": denied,
+  });
   const out = await handlers["console.overview"](w.ctx, {});
   assert.equal(out.health, "healthy");
   assert.deepEqual(out.attention, []);
@@ -80,9 +130,36 @@ test("a source the caller may not read drops out; unreadable health reads degrad
 
 test("activity comes newest first from the audit log, with resources written type/id", async () => {
   const rows = [
-    { id: "aud_1", at: NOW - 3000, actor: { kind: "person", id: "usr_a" }, action: "grant.created", resource: { type: "folder", id: "fld_1" }, class: "sensitive", traceId: "x", seq: 1 },
-    { id: "aud_2", at: NOW - 1000, actor: { kind: "agent", id: "agt_b" }, onBehalfOf: { kind: "person", id: "usr_a" }, action: "role.assigned", class: "sensitive", traceId: "x", seq: 2 },
-    { id: "aud_3", at: NOW - 2000, actor: { kind: "person", id: "usr_c" }, action: "policy.changed", resource: { type: "space", id: "spc_test" }, class: "sensitive", traceId: "x", seq: 3 },
+    {
+      id: "aud_1",
+      at: NOW - 3000,
+      actor: { kind: "person", id: "usr_a" },
+      action: "grant.created",
+      resource: { type: "folder", id: "fld_1" },
+      class: "sensitive",
+      traceId: "x",
+      seq: 1,
+    },
+    {
+      id: "aud_2",
+      at: NOW - 1000,
+      actor: { kind: "agent", id: "agt_b" },
+      onBehalfOf: { kind: "person", id: "usr_a" },
+      action: "role.assigned",
+      class: "sensitive",
+      traceId: "x",
+      seq: 2,
+    },
+    {
+      id: "aud_3",
+      at: NOW - 2000,
+      actor: { kind: "person", id: "usr_c" },
+      action: "policy.changed",
+      resource: { type: "space", id: "spc_test" },
+      class: "sensitive",
+      traceId: "x",
+      seq: 3,
+    },
   ];
   const w = world({ ...quiet, "audit.list": { rows } });
   const out = await handlers["console.activity"](w.ctx, { limit: 2 });
@@ -90,17 +167,74 @@ test("activity comes newest first from the audit log, with resources written typ
     { at: NOW - 1000, actor: "agt_b", action: "role.assigned" },
     { at: NOW - 2000, actor: "usr_c", action: "policy.changed", resource: "space/spc_test" },
   ]);
-  assert.ok(Number(w.calls.find((c) => c.cap === "audit.list")!.input["limit"]) >= 2, "asks for at least what it shows");
+  assert.ok(
+    Number(w.calls.find((c) => c.cap === "audit.list")!.input["limit"]) >= 2,
+    "asks for at least what it shows",
+  );
 });
 
 test("a join is one line said of the person who joined; the Space's own join steps (account, role, first team) are not lines of their own", async () => {
   const join = "trace_join";
   const rows = [
-    { id: "aud_5", at: NOW - 900, actor: { kind: "person", id: "usr_owner" }, action: "members.invites.create", resource: { type: "space", id: "spc_test" }, class: "sensitive", traceId: "t0", seq: 5 },
-    { id: "aud_6", at: NOW - 800, actor: { kind: "service", id: "svc_host" }, action: "invites.accept_create_account", class: "sensitive", traceId: join, seq: 6 },
-    { id: "aud_7", at: NOW - 700, actor: { kind: "service", id: "svc_host" }, action: "access.roles.assign", after: { targets: [{ kind: "role", id: "rol_member" }, { kind: "person", id: "usr_maya" }] }, class: "sensitive", traceId: join, seq: 7 },
-    { id: "aud_8", at: NOW - 600, actor: { kind: "service", id: "svc_host" }, action: "access.groups.add_member", after: { targets: [{ kind: "group", id: "grp_everyone" }, { kind: "person", id: "usr_maya" }] }, class: "sensitive", traceId: join, seq: 8 },
-    { id: "aud_9", at: NOW - 500, actor: { kind: "actor", id: "act_pending_1" }, action: "members.accept", after: { targets: [{ kind: "person", id: "usr_maya" }] }, class: "sensitive", traceId: join, seq: 9 },
+    {
+      id: "aud_5",
+      at: NOW - 900,
+      actor: { kind: "person", id: "usr_owner" },
+      action: "members.invites.create",
+      resource: { type: "space", id: "spc_test" },
+      class: "sensitive",
+      traceId: "t0",
+      seq: 5,
+    },
+    {
+      id: "aud_6",
+      at: NOW - 800,
+      actor: { kind: "service", id: "svc_host" },
+      action: "invites.accept_create_account",
+      class: "sensitive",
+      traceId: join,
+      seq: 6,
+    },
+    {
+      id: "aud_7",
+      at: NOW - 700,
+      actor: { kind: "service", id: "svc_host" },
+      action: "access.roles.assign",
+      after: {
+        targets: [
+          { kind: "role", id: "rol_member" },
+          { kind: "person", id: "usr_maya" },
+        ],
+      },
+      class: "sensitive",
+      traceId: join,
+      seq: 7,
+    },
+    {
+      id: "aud_8",
+      at: NOW - 600,
+      actor: { kind: "service", id: "svc_host" },
+      action: "access.groups.add_member",
+      after: {
+        targets: [
+          { kind: "group", id: "grp_everyone" },
+          { kind: "person", id: "usr_maya" },
+        ],
+      },
+      class: "sensitive",
+      traceId: join,
+      seq: 8,
+    },
+    {
+      id: "aud_9",
+      at: NOW - 500,
+      actor: { kind: "actor", id: "act_pending_1" },
+      action: "members.accept",
+      after: { targets: [{ kind: "person", id: "usr_maya" }] },
+      class: "sensitive",
+      traceId: join,
+      seq: 9,
+    },
   ];
   const w = world({ ...quiet, "audit.list": { rows } });
   const out = await handlers["console.activity"](w.ctx, { limit: 5 });
@@ -112,20 +246,58 @@ test("a join is one line said of the person who joined; the Space's own join ste
 
 test("activity leaves out the log's own views: looking at the audit log is not something an admin did", async () => {
   const rows = [
-    { id: "aud_1", at: NOW - 3000, actor: { kind: "person", id: "usr_a" }, action: "grant.created", class: "sensitive", traceId: "x", seq: 1 },
-    { id: "aud_2", at: NOW - 1000, actor: { kind: "person", id: "usr_a" }, action: "audit.viewed", class: "sensitive", traceId: "x", seq: 2 },
-    { id: "aud_3", at: NOW - 500, actor: { kind: "person", id: "usr_a" }, action: "audit.viewed", class: "sensitive", traceId: "x", seq: 3 },
+    {
+      id: "aud_1",
+      at: NOW - 3000,
+      actor: { kind: "person", id: "usr_a" },
+      action: "grant.created",
+      class: "sensitive",
+      traceId: "x",
+      seq: 1,
+    },
+    {
+      id: "aud_2",
+      at: NOW - 1000,
+      actor: { kind: "person", id: "usr_a" },
+      action: "audit.viewed",
+      class: "sensitive",
+      traceId: "x",
+      seq: 2,
+    },
+    {
+      id: "aud_3",
+      at: NOW - 500,
+      actor: { kind: "person", id: "usr_a" },
+      action: "audit.viewed",
+      class: "sensitive",
+      traceId: "x",
+      seq: 3,
+    },
   ];
   const w = world({ ...quiet, "audit.list": { rows } });
   const out = await handlers["console.activity"](w.ctx, { limit: 5 });
-  assert.deepEqual(out.rows.map((r) => r.action), ["grant.created"]);
+  assert.deepEqual(
+    out.rows.map((r) => r.action),
+    ["grant.created"],
+  );
 });
 
 test("usage at a glance: turns today, cost this month, people and agents", async () => {
   const w = world({
     ...quiet,
-    "engine.usage.query": (i: Record<string, unknown>) => ({ rows: [], totals: { turns: (i["from"] as number) >= NOW - DAY ? 7 : 40, tokensIn: 1, tokensOut: 1, costMicros: (i["from"] as number) >= NOW - DAY ? 100 : 5_000 } }),
-    "access.principals.list": (i: Record<string, unknown>) => ({ principals: [], total: i["kind"] === "person" ? 9 : 4 }),
+    "engine.usage.query": (i: Record<string, unknown>) => ({
+      rows: [],
+      totals: {
+        turns: (i["from"] as number) >= NOW - DAY ? 7 : 40,
+        tokensIn: 1,
+        tokensOut: 1,
+        costMicros: (i["from"] as number) >= NOW - DAY ? 100 : 5_000,
+      },
+    }),
+    "access.principals.list": (i: Record<string, unknown>) => ({
+      principals: [],
+      total: i["kind"] === "person" ? 9 : 4,
+    }),
   });
   const { usage } = await handlers["console.overview"](w.ctx, {});
   assert.equal(usage.turnsToday, 7);
@@ -135,9 +307,22 @@ test("usage at a glance: turns today, cost this month, people and agents", async
 
 test("console.usage sorts by cost and always carries the design-beta sentence", async () => {
   const t = (c: number) => ({ turns: 1, tokensIn: 2, tokensOut: 3, costMicros: c });
-  const w = world({ ...quiet, "engine.usage.query": { rows: [{ key: "agt_a", title: "Scout", totals: t(10) }, { key: "agt_b", title: "Ana", totals: t(90) }, { key: "", title: "x", totals: t(1) }], totals: t(100) } });
+  const w = world({
+    ...quiet,
+    "engine.usage.query": {
+      rows: [
+        { key: "agt_a", title: "Scout", totals: t(10) },
+        { key: "agt_b", title: "Ana", totals: t(90) },
+        { key: "", title: "x", totals: t(1) },
+      ],
+      totals: t(100),
+    },
+  });
   const out = await handlers["console.usage"](w.ctx, { period: "week", by: "agent" });
-  assert.deepEqual(out.rows.map((r) => r.name), ["Ana", "Scout"]);
+  assert.deepEqual(
+    out.rows.map((r) => r.name),
+    ["Ana", "Scout"],
+  );
   assert.equal(out.note, "Vyre is in design beta. Contact Clearfield Labs for more information on plans and pricing.");
   const q = w.calls.find((c) => c.cap === "engine.usage.query")!.input;
   assert.equal(q["by"], "agent");
@@ -145,12 +330,18 @@ test("console.usage sorts by cost and always carries the design-beta sentence", 
 });
 
 test("console.nav hides pages the caller may not open, and empty groups", async () => {
-  const admin = (await handlers["console.nav"](world(quiet, ["console.access", "access.manage", "server.logs"]).ctx, {})).groups;
+  const admin = (
+    await handlers["console.nav"](world(quiet, ["console.access", "access.manage", "server.logs"]).ctx, {})
+  ).groups;
   const keys = (g: string) => admin.find((x) => x.key === g)?.pages.map((p) => p.key);
   assert.deepEqual(keys("overview"), ["console.overview", "console.usage"]);
   assert.ok(keys("access")!.includes("access.checker"));
   assert.ok(!keys("access")!.includes("access.policies"));
-  assert.equal(admin.find((g) => g.key === "audit"), undefined, "no audit.read: no Audit log group");
+  assert.equal(
+    admin.find((g) => g.key === "audit"),
+    undefined,
+    "no audit.read: no Audit log group",
+  );
   assert.ok(keys("infrastructure")!.includes("console.server-logs"));
   assert.ok(!keys("infrastructure")!.includes("console.network"));
   const none = (await handlers["console.nav"](world(quiet, []).ctx, {})).groups;
@@ -159,7 +350,16 @@ test("console.nav hides pages the caller may not open, and empty groups", async 
 
 test("an unhealthy overview still answers when every other source is down", async () => {
   const e = new Error("down");
-  const w = world({ "health.status": healthy, "network.status": e, "updates.status": e, "runs.list": e, "access.reviews.list": e, "audit.list": e, "engine.usage.query": e, "access.principals.list": e });
+  const w = world({
+    "health.status": healthy,
+    "network.status": e,
+    "updates.status": e,
+    "runs.list": e,
+    "access.reviews.list": e,
+    "audit.list": e,
+    "engine.usage.query": e,
+    "access.principals.list": e,
+  });
   const out = await handlers["console.overview"](w.ctx, {});
   assert.equal(out.health, "healthy");
   assert.deepEqual(out.usage, { turnsToday: 0, costMicrosMonth: 0, members: 0, agents: 0 });
@@ -168,12 +368,37 @@ test("an unhealthy overview still answers when every other source is down", asyn
 test("the Overview carries the server's CPU, memory and disk and the last backup, from the health probe and the backup log", async () => {
   const w = world({
     ...quiet,
-    "health.machine": { state: "healthy", machine: { cpuPercent: 12.5, memoryUsedBytes: 4_000, memoryTotalBytes: 16_000, diskFreeBytes: 700, diskTotalBytes: 1_000, junk: 9 } },
-    "backup.list": { backups: [{ backupId: "bkp_a", at: NOW - 2 * DAY, verified: true }, { backupId: "bkp_b", at: NOW - DAY, verified: false }] },
+    "health.machine": {
+      state: "healthy",
+      machine: {
+        cpuPercent: 12.5,
+        memoryUsedBytes: 4_000,
+        memoryTotalBytes: 16_000,
+        diskFreeBytes: 700,
+        diskTotalBytes: 1_000,
+        junk: 9,
+      },
+    },
+    "backup.list": {
+      backups: [
+        { backupId: "bkp_a", at: NOW - 2 * DAY, verified: true },
+        { backupId: "bkp_b", at: NOW - DAY, verified: false },
+      ],
+    },
   });
   const out = await handlers["console.overview"](w.ctx, {});
-  assert.deepEqual(out.machine, { cpuPercent: 12.5, memoryUsedBytes: 4_000, memoryTotalBytes: 16_000, diskFreeBytes: 700, diskTotalBytes: 1_000 });
-  assert.deepEqual(out.lastBackup, { at: NOW - DAY, result: "unverified" }, "the newest backup, whatever the order of the list");
+  assert.deepEqual(out.machine, {
+    cpuPercent: 12.5,
+    memoryUsedBytes: 4_000,
+    memoryTotalBytes: 16_000,
+    diskFreeBytes: 700,
+    diskTotalBytes: 1_000,
+  });
+  assert.deepEqual(
+    out.lastBackup,
+    { at: NOW - DAY, result: "unverified" },
+    "the newest backup, whatever the order of the list",
+  );
 });
 
 test("a caller who may not read the probe or the backup log still gets the Overview, without those tiles", async () => {
@@ -181,15 +406,23 @@ test("a caller who may not read the probe or the backup log still gets the Overv
   const out = await handlers["console.overview"](w.ctx, {});
   assert.equal("machine" in out, false);
   assert.equal("lastBackup" in out, false);
-  const none = await handlers["console.overview"](world({ ...quiet, "health.machine": { state: "degraded", detail: "The host has not reported this yet." }, "backup.list": { backups: [] } }).ctx, {});
+  const none = await handlers["console.overview"](
+    world({
+      ...quiet,
+      "health.machine": { state: "degraded", detail: "The host has not reported this yet." },
+      "backup.list": { backups: [] },
+    }).ctx,
+    {},
+  );
   assert.equal("machine" in none || "lastBackup" in none, false);
 });
 
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
 
-
 test("Console developers do not see people, group, role or grant administration", async () => {
-  const groups = (await handlers["console.nav"](world(quiet, ["console.access", "schema.manage", "server.logs"]).ctx, {})).groups;
+  const groups = (
+    await handlers["console.nav"](world(quiet, ["console.access", "schema.manage", "server.logs"]).ctx, {})
+  ).groups;
   const keys = groups.flatMap((group) => group.pages.map((page) => page.key));
   for (const key of ["access.people", "access.groups", "access.roles", "access.grants"]) assert.ok(!keys.includes(key));
   assert.ok(keys.includes("console.schema"));
@@ -197,21 +430,69 @@ test("Console developers do not see people, group, role or grant administration"
 });
 
 test("a Team Space with no AI account the team can use says so first; a shared key or the Space AI key clears it; a Personal Space never shows it", async () => {
-  const none = await handlers["console.attention"](world({ ...quiet, "spaces.get": { space: { kind: "team" } }, "providers.list": { providers: [{ id: "prv_1", scope: "mine" }] } }).ctx, {});
-  assert.deepEqual(none.items.map((i) => [i.kind, i.title]), [["no_ai_account", "Your team has no AI account"]]);
+  const none = await handlers["console.attention"](
+    world({
+      ...quiet,
+      "spaces.get": { space: { kind: "team" } },
+      "providers.list": { providers: [{ id: "prv_1", scope: "mine" }] },
+    }).ctx,
+    {},
+  );
+  assert.deepEqual(
+    none.items.map((i) => [i.kind, i.title]),
+    [["no_ai_account", "Your team has no AI account"]],
+  );
   assert.match(none.items[0]!.next, /Space AI key/);
-  const shared = await handlers["console.attention"](world({ ...quiet, "spaces.get": { space: { kind: "team" } }, "providers.list": { providers: [{ id: "prv_2", scope: "shared", spaceKey: true }] } }).ctx, {});
+  const shared = await handlers["console.attention"](
+    world({
+      ...quiet,
+      "spaces.get": { space: { kind: "team" } },
+      "providers.list": { providers: [{ id: "prv_2", scope: "shared", spaceKey: true }] },
+    }).ctx,
+    {},
+  );
   assert.deepEqual(shared.items, []);
-  const personal = await handlers["console.attention"](world({ ...quiet, "spaces.get": { space: { kind: "personal" } }, "providers.list": { providers: [] } }).ctx, {});
+  const personal = await handlers["console.attention"](
+    world({ ...quiet, "spaces.get": { space: { kind: "personal" } }, "providers.list": { providers: [] } }).ctx,
+    {},
+  );
   assert.deepEqual(personal.items, []);
 });
 
 test("a Space scheduled for deletion is the first thing that needs an admin: the date, and Cancel deletion as the next step; nothing scheduled shows nothing", async () => {
   const at = Date.UTC(2026, 10, 18, 9, 0, 0);
-  const scheduled = await handlers["console.attention"](world({ ...quiet, "spaces.get": { space: { kind: "team", deletionAt: at } }, "providers.list": { providers: [{ id: "prv_2", scope: "shared", spaceKey: true }] } }).ctx, {});
-  assert.deepEqual(scheduled.items.map((i) => [i.kind, i.title, i.next]), [["space_deletion_scheduled", "Scheduled for deletion on 18 November 2026", "Cancel deletion"]]);
-  const withAi = await handlers["console.attention"](world({ ...quiet, "spaces.get": { space: { kind: "team", deletionAt: at } }, "providers.list": { providers: [{ id: "prv_1", scope: "mine" }] } }).ctx, {});
-  assert.deepEqual(withAi.items.map((i) => i.kind), ["space_deletion_scheduled", "no_ai_account"], "the deletion comes first");
-  const none = await handlers["console.attention"](world({ ...quiet, "spaces.get": { space: { kind: "team" } }, "providers.list": { providers: [{ id: "prv_2", scope: "shared", spaceKey: true }] } }).ctx, {});
+  const scheduled = await handlers["console.attention"](
+    world({
+      ...quiet,
+      "spaces.get": { space: { kind: "team", deletionAt: at } },
+      "providers.list": { providers: [{ id: "prv_2", scope: "shared", spaceKey: true }] },
+    }).ctx,
+    {},
+  );
+  assert.deepEqual(
+    scheduled.items.map((i) => [i.kind, i.title, i.next]),
+    [["space_deletion_scheduled", "Scheduled for deletion on 18 November 2026", "Cancel deletion"]],
+  );
+  const withAi = await handlers["console.attention"](
+    world({
+      ...quiet,
+      "spaces.get": { space: { kind: "team", deletionAt: at } },
+      "providers.list": { providers: [{ id: "prv_1", scope: "mine" }] },
+    }).ctx,
+    {},
+  );
+  assert.deepEqual(
+    withAi.items.map((i) => i.kind),
+    ["space_deletion_scheduled", "no_ai_account"],
+    "the deletion comes first",
+  );
+  const none = await handlers["console.attention"](
+    world({
+      ...quiet,
+      "spaces.get": { space: { kind: "team" } },
+      "providers.list": { providers: [{ id: "prv_2", scope: "shared", spaceKey: true }] },
+    }).ctx,
+    {},
+  );
   assert.deepEqual(none.items, []);
 });

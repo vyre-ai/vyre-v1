@@ -6,7 +6,15 @@ import type { ReportDeps, SubmitResult } from "./controller.ts";
 import type { SubmitIn } from "./bundle.ts";
 
 export const PLACE_NAMES: Readonly<Record<string, string>> = {
-  home: "Home", chats: "Chats", inbox: "Inbox", records: "Records", files: "Files", apps: "Apps", automations: "Automations", vault: "Vault", settings: "Settings",
+  home: "Home",
+  chats: "Chats",
+  inbox: "Inbox",
+  records: "Records",
+  files: "Files",
+  apps: "Apps",
+  automations: "Automations",
+  vault: "Vault",
+  settings: "Settings",
 };
 
 /** The same ids the prototype sheet shows: tr_7a3f00 and every 977 after it. */
@@ -60,7 +68,10 @@ export function createSampleDeps(o: SampleOptions = {}): SampleRun {
       n += 1;
       return { reportId: `rpt_${n}`, taskId: `tsk_${n}`, sentToVyre: policy === "on" };
     },
-    sendToVyre: async (id) => { sentToVyre.push(id); return { issueNumber: 1234 }; },
+    sendToVyre: async (id) => {
+      sentToVyre.push(id);
+      return { issueNumber: 1234 };
+    },
     issueNumber: async () => 1234,
     captureScreenshot: async () => "fil_shot1",
     uploadLog: async () => "fil_log1",
@@ -70,5 +81,17 @@ export function createSampleDeps(o: SampleOptions = {}): SampleRun {
     now: () => Date.UTC(2026, 9, 24, 10, 0),
     newId: () => `t${ids++}`,
   };
-  return { deps, captures, outbox, submitted, sentToVyre, setOnline: (v) => { online = v; }, setPolicy: (v) => { policy = v; } };
+  return {
+    deps,
+    captures,
+    outbox,
+    submitted,
+    sentToVyre,
+    setOnline: (v) => {
+      online = v;
+    },
+    setPolicy: (v) => {
+      policy = v;
+    },
+  };
 }

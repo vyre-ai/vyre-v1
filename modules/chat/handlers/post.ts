@@ -2,7 +2,27 @@
 //   One message in a thread or channel, numbered by the thread (gap-free), with its hop depth, its blocks and its mentions. The turn engine reads message.received (ids and counts only, never the
 //   text) and routes to the lead agent or the @mentioned agents; this module does not start turns. People get message.mentioned, message.direct and thread.replied.
 import {
-  MAX_BLOCKS, MAX_BODY, MAX_MENTIONS, addAgent, agentsOf, askerOf, channelBy, encOf, ensure, hopLimit, insertMessage, isMember, lastMessage, membersOf, messageBy, messageOut, mintId, raise, refOf, refuseUnseenAgents, threadBy,
+  MAX_BLOCKS,
+  MAX_BODY,
+  MAX_MENTIONS,
+  addAgent,
+  agentsOf,
+  askerOf,
+  channelBy,
+  encOf,
+  ensure,
+  hopLimit,
+  insertMessage,
+  isMember,
+  lastMessage,
+  membersOf,
+  messageBy,
+  messageOut,
+  mintId,
+  raise,
+  refOf,
+  refuseUnseenAgents,
+  threadBy,
 } from "../projections.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
@@ -12,12 +32,22 @@ import { approveInChat } from "./agent-dm.ts";
 import { followersOf, joinThread } from "./follow.ts";
 import { recordMentions } from "./pace.ts";
 
-export interface Mention { kind: "person" | "agent"; id: string }
+export interface Mention {
+  kind: "person" | "agent";
+  id: string;
+}
 export interface PostInput {
   /** From a thread: also put this in the chat the thread hangs in, with a note that it came from the thread. The copy wakes no agent. */
   alsoToChat?: boolean;
-  threadId: string; body: string; blocks?: Array<{ type: string; v: number; data: unknown }>; attachments?: string[]; replyTo?: string; mentions?: Mention[]; via?: { routineOwner: string };
-  clientId?: string; idempotencyKey?: string;
+  threadId: string;
+  body: string;
+  blocks?: Array<{ type: string; v: number; data: unknown }>;
+  attachments?: string[];
+  replyTo?: string;
+  mentions?: Mention[];
+  via?: { routineOwner: string };
+  clientId?: string;
+  idempotencyKey?: string;
   /** Where the person sent this from (ScreenContext); kept beside the message for the agent's turn. */
   screen?: unknown;
 }
@@ -47,12 +77,28 @@ const isPrivateRoot = (root: ThreadRec): boolean => root.kind === "chat" || root
  */
 /** Does the caller see the Space as a whole (View on the Space)? A guest does not: they list only the channels they are in (l-perms). No authorize (module tests): yes. */
 export function seesSpace(ctx: ChatCtx): boolean {
-  const host = ctx as ChatCtx & { authorize?: (action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => { effect?: string } };
-  return typeof host.authorize !== "function" || host.authorize({ perm: null, level: "view" }, { type: "space", id: ctx.space }).effect === "allow";
+  const host = ctx as ChatCtx & {
+    authorize?: (
+      action: { perm: string | null; level: string },
+      resource: { type: string; id: string | null },
+    ) => { effect?: string };
+  };
+  return (
+    typeof host.authorize !== "function" ||
+    host.authorize({ perm: null, level: "view" }, { type: "space", id: ctx.space }).effect === "allow"
+  );
 }
 export function mayGovernChannel(ctx: ChatCtx, channelId: string): boolean {
-  const host = ctx as ChatCtx & { authorize?: (action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => { effect?: string } };
-  return typeof host.authorize === "function" && host.authorize({ perm: null, level: "manage" }, { type: "channel", id: channelId }).effect === "allow";
+  const host = ctx as ChatCtx & {
+    authorize?: (
+      action: { perm: string | null; level: string },
+      resource: { type: string; id: string | null },
+    ) => { effect?: string };
+  };
+  return (
+    typeof host.authorize === "function" &&
+    host.authorize({ perm: null, level: "manage" }, { type: "channel", id: channelId }).effect === "allow"
+  );
 }
 
 /**
@@ -64,7 +110,12 @@ function mayEnterChannel(ctx: ChatCtx, root: ThreadRec, thread: ThreadRec, asker
   if (!channel || channel.visibility !== "invite") return true;
   if (isTrustedService(ctx.principal)) return true;
   // an agent is in when it was added to the channel or its thread, or when the person it acts for is in
-  if (ctx.principal.kind === "agent" && (agentsOf(ctx.db, root.id).some((a) => a.agentId === ctx.principal.id) || agentsOf(ctx.db, thread.id).some((a) => a.agentId === ctx.principal.id))) return true;
+  if (
+    ctx.principal.kind === "agent" &&
+    (agentsOf(ctx.db, root.id).some((a) => a.agentId === ctx.principal.id) ||
+      agentsOf(ctx.db, thread.id).some((a) => a.agentId === ctx.principal.id))
+  )
+    return true;
   return isMember(ctx.db, root.id, asker) || root.starter === asker;
 }
 
@@ -75,7 +126,11 @@ export function canSpeak(ctx: ChatCtx, thread: ThreadRec): boolean {
   if (root.channelId !== undefined && !mayEnterChannel(ctx, root, thread, asker)) return false;
   if (!isPrivateRoot(root)) return true;
   if (isMember(ctx.db, root.id, asker) || root.starter === asker) return true;
-  if (ctx.principal.kind === "agent") return agentsOf(ctx.db, root.id).some((a) => a.agentId === ctx.principal.id) || agentsOf(ctx.db, thread.id).some((a) => a.agentId === ctx.principal.id);
+  if (ctx.principal.kind === "agent")
+    return (
+      agentsOf(ctx.db, root.id).some((a) => a.agentId === ctx.principal.id) ||
+      agentsOf(ctx.db, thread.id).some((a) => a.agentId === ctx.principal.id)
+    );
   return false;
 }
 
@@ -105,22 +160,49 @@ function otherOfTwo(ctx: Pick<ChatCtx, "db">, t: ThreadRec, author: string): str
 
 function cleanMentions(ctx: ChatCtx, raw: Mention[] | undefined): Mention[] {
   const out: Mention[] = [];
-  if ((raw?.length ?? 0) > MAX_MENTIONS) raise(ctx, "validation.bad_input", `A message can mention at most ${MAX_MENTIONS} people and agents.`);
+  if ((raw?.length ?? 0) > MAX_MENTIONS)
+    raise(ctx, "validation.bad_input", `A message can mention at most ${MAX_MENTIONS} people and agents.`);
   for (const m of raw ?? []) {
     const want = m.kind === "agent" ? "agt_" : "usr_";
-    if (!m.id.startsWith(want)) raise(ctx, "validation.bad_input", `That is not ${m.kind === "agent" ? "an agent" : "a person"} you can mention.`, { id: m.id });
+    if (!m.id.startsWith(want))
+      raise(
+        ctx,
+        "validation.bad_input",
+        `That is not ${m.kind === "agent" ? "an agent" : "a person"} you can mention.`,
+        { id: m.id },
+      );
     if (!out.some((o) => o.kind === m.kind && o.id === m.id)) out.push({ kind: m.kind, id: m.id });
   }
   return out;
 }
 
 function cleanBlocks(ctx: ChatCtx, raw: PostInput["blocks"]): Array<Record<string, unknown>> {
-  if ((raw?.length ?? 0) > MAX_BLOCKS) raise(ctx, "validation.bad_input", `A message can carry at most ${MAX_BLOCKS} blocks.`);
+  if ((raw?.length ?? 0) > MAX_BLOCKS)
+    raise(ctx, "validation.bad_input", `A message can carry at most ${MAX_BLOCKS} blocks.`);
   return (raw ?? []).map((b) => {
     if (!BLOCK_TYPE.test(b.type)) raise(ctx, "validation.bad_input", "That is not a block type.", { type: b.type });
-    if (OWN_TOOL.has(b.type)) raise(ctx, "validation.bad_input", "Questions and plans are made with ask_question and plan_propose, so they can be answered.", { type: b.type });
-    if (SERVER_ONLY.has(b.type)) raise(ctx, "validation.bad_input", "That card is written by Vyre itself. Use message_person to write to a teammate for your person.", { type: b.type });
-    return { type: b.type, v: b.v, id: mintId("blk", ctx.now()), data: b.type === "link_card" ? inertCard(b.data) : b.data, state: "done", traceId: ctx.trace.traceId };
+    if (OWN_TOOL.has(b.type))
+      raise(
+        ctx,
+        "validation.bad_input",
+        "Questions and plans are made with ask_question and plan_propose, so they can be answered.",
+        { type: b.type },
+      );
+    if (SERVER_ONLY.has(b.type))
+      raise(
+        ctx,
+        "validation.bad_input",
+        "That card is written by Vyre itself. Use message_person to write to a teammate for your person.",
+        { type: b.type },
+      );
+    return {
+      type: b.type,
+      v: b.v,
+      id: mintId("blk", ctx.now()),
+      data: b.type === "link_card" ? inertCard(b.data) : b.data,
+      state: "done",
+      traceId: ctx.trace.traceId,
+    };
   });
 }
 
@@ -132,7 +214,13 @@ export function inertCard(data: unknown): unknown {
   if (typeof data !== "object" || data === null || Array.isArray(data)) return data;
   const d = data as Record<string, unknown>;
   if (!Array.isArray(d["actions"])) return d;
-  return { ...d, actions: d["actions"].map((a) => { const { cap: _c, input: _i, ...rest } = (a ?? {}) as Record<string, unknown>; return rest; }) };
+  return {
+    ...d,
+    actions: d["actions"].map((a) => {
+      const { cap: _c, input: _i, ...rest } = (a ?? {}) as Record<string, unknown>;
+      return rest;
+    }),
+  };
 }
 
 /**
@@ -140,21 +228,43 @@ export function inertCard(data: unknown): unknown {
  * `author` is who the event names (the call's principal); a mention of a person who cannot see the thread notifies nobody (a private chat gains people only by threads.members.add, so a person it does not hold hears nothing).
  * `notify: false` sends message.received only. chat.start declares no message.direct, so the first message of a new direct message cannot notify the other person from there (a contract gap, see the packet comment).
  */
-export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions: Mention[], author: { kind: "person" | "agent" | "actor" | "service"; id: string }, opts: { notify?: boolean; job?: boolean; poke?: { agentId: string; by: string; outside?: boolean } } = {}): void {
+export function deliver(
+  ctx: ChatCtx,
+  thread: ThreadRec,
+  m: MessageRec,
+  mentions: Mention[],
+  author: { kind: "person" | "agent" | "actor" | "service"; id: string },
+  opts: { notify?: boolean; job?: boolean; poke?: { agentId: string; by: string; outside?: boolean } } = {},
+): void {
   ctx.emit("message.received", thread.id, {
-    messageId: m.id, threadId: thread.id, threadSeq: m.seq, author, kind: m.kind, depth: m.depth, mentions, hasBlocks: m.blocks.length > 0,
-    ...(m.via ? { via: m.via.routineOwner } : {}), ...(opts.job === true ? { job: true } : {}), ...(opts.copy === true ? { copy: true } : {}),
+    messageId: m.id,
+    threadId: thread.id,
+    threadSeq: m.seq,
+    author,
+    kind: m.kind,
+    depth: m.depth,
+    mentions,
+    hasBlocks: m.blocks.length > 0,
+    ...(m.via ? { via: m.via.routineOwner } : {}),
+    ...(opts.job === true ? { job: true } : {}),
+    ...(opts.copy === true ? { copy: true } : {}),
     // an agent speaks for the person it works for: the engine reads a private thread as that person when nobody has spoken in it yet
     ...(author.kind === "agent" && ctx.actingFor?.startsWith("usr_") ? { actingFor: ctx.actingFor } : {}),
     // a person typed this: not a line a module or the server posted in their name. Only these words can ask for an outward act (chat design, hole 3)
-    ...(author.kind === "person" && ctx.depth === 0 && (ctx.origin === "user" || ctx.origin === "sync") && opts.poke === undefined ? { typed: true } : {}),
+    ...(author.kind === "person" &&
+    ctx.depth === 0 &&
+    (ctx.origin === "user" || ctx.origin === "sync") &&
+    opts.poke === undefined
+      ? { typed: true }
+      : {}),
     // a poke starts a turn for that agent now (threads.poke); its line is never the person's own typed request
     ...(opts.poke ? { poke: opts.poke } : {}),
   });
   if (opts.notify === false) return;
   const root = rootOf(ctx, thread);
   const direct = author.kind === "person" ? otherOfTwo(ctx, root, author.id) : undefined;
-  if (direct !== undefined) ctx.emit("message.direct", thread.id, { messageId: m.id, threadId: thread.id, personId: direct, author });
+  if (direct !== undefined)
+    ctx.emit("message.direct", thread.id, { messageId: m.id, threadId: thread.id, personId: direct, author });
   for (const mention of mentions) {
     // an @mention is the one new message that brings an archived chat back into that person's list (a direct message gets message.direct instead, but the mention still counts)
     if (mention.kind === "person" && mention.id !== author.id) unarchiveForMention(ctx, root.id, mention.id);
@@ -164,7 +274,13 @@ export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions
     if (!readableBy(ctx, thread, mention.id)) continue;
     // a person @mentioned in a thread is in it from now on: its replies reach them, and it is on their Threads page
     joinThread(ctx, thread, mention.id);
-    ctx.emit("message.mentioned", thread.id, { messageId: m.id, threadId: thread.id, personId: mention.id, author, inThread: thread.kind === "thread" });
+    ctx.emit("message.mentioned", thread.id, {
+      messageId: m.id,
+      threadId: thread.id,
+      personId: mention.id,
+      author,
+      inThread: thread.kind === "thread",
+    });
   }
   if (thread.kind === "thread") {
     // The people who follow an inline thread (follow.ts): those in it, whoever wrote the message above it and everyone who replied, less anyone who muted or left it.
@@ -173,7 +289,12 @@ export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions
     // someone this message @mentions hears the mention, not the reply as well
     for (const mention of mentions) if (mention.kind === "person") follow.delete(mention.id);
     for (const personId of follow) {
-      ctx.emit("thread.replied", thread.id, { threadId: thread.id, ...(thread.parentThreadId !== undefined ? { parentThreadId: thread.parentThreadId } : {}), messageId: m.id, personId });
+      ctx.emit("thread.replied", thread.id, {
+        threadId: thread.id,
+        ...(thread.parentThreadId !== undefined ? { parentThreadId: thread.parentThreadId } : {}),
+        messageId: m.id,
+        personId,
+      });
     }
   }
 }
@@ -188,7 +309,14 @@ function readableBy(ctx: ChatCtx, thread: ThreadRec, person: string): boolean {
 /** A crew teammate's thread: a helper thread whose line in the chat that started it says `crew`. People and the lead steer it directly; a plain helper thread takes no messages. */
 function isCrewThread(ctx: ChatCtx, thread: ThreadRec): boolean {
   const line = thread.parentMessageId ? messageBy(ctx.db, thread.parentMessageId) : null;
-  return line?.blocks.some((b) => b["type"] === "helper" && (b["data"] as Record<string, unknown> | undefined)?.["crew"] === true && (b["data"] as Record<string, unknown>)["helperThreadId"] === thread.id) ?? false;
+  return (
+    line?.blocks.some(
+      (b) =>
+        b["type"] === "helper" &&
+        (b["data"] as Record<string, unknown> | undefined)?.["crew"] === true &&
+        (b["data"] as Record<string, unknown>)["helperThreadId"] === thread.id,
+    ) ?? false
+  );
 }
 
 /**
@@ -196,14 +324,26 @@ function isCrewThread(ctx: ChatCtx, thread: ThreadRec): boolean {
  * answering each other, so it does not count as a hop: a crew that runs while nobody is at the keyboard would otherwise stop after a few results. It also reaches the lead when the lead is the Job's own agent, which an
  * ordinary agent message never does. Only the real thing counts: the block names a Job's thread under this chat, and the poster is that Job's agent.
  */
-function isJobResult(ctx: ChatCtx, thread: ThreadRec, authorId: string, blocks: Array<Record<string, unknown>>): boolean {
+function isJobResult(
+  ctx: ChatCtx,
+  thread: ThreadRec,
+  authorId: string,
+  blocks: Array<Record<string, unknown>>,
+): boolean {
   for (const b of blocks) {
     const data = b["data"] as Record<string, unknown> | undefined;
     const crew = b["type"] === "crew_result";
     if (!crew && !(b["type"] === "helper" && (data?.["status"] === "done" || data?.["status"] === "failed"))) continue;
     const helperId = data?.["threadId"];
     const helper = typeof helperId === "string" ? threadBy(ctx.db, helperId) : null;
-    if (helper && helper.kind === "helper" && helper.parentThreadId === thread.id && isCrewThread(ctx, helper) === crew && agentsOf(ctx.db, helper.id).some((a) => a.agentId === authorId)) return true;
+    if (
+      helper &&
+      helper.kind === "helper" &&
+      helper.parentThreadId === thread.id &&
+      isCrewThread(ctx, helper) === crew &&
+      agentsOf(ctx.db, helper.id).some((a) => a.agentId === authorId)
+    )
+      return true;
   }
   return false;
 }
@@ -211,21 +351,36 @@ function isJobResult(ctx: ChatCtx, thread: ThreadRec, authorId: string, blocks: 
 export async function post(ctx: ChatCtx, input: PostInput) {
   ensure(ctx.db);
   const thread = threadBy(ctx.db, input.threadId);
-  if (!thread || !canSpeak(ctx, thread)) raise(ctx, "validation.not_found", "That chat does not exist or is not yours to write in.");
+  if (!thread || !canSpeak(ctx, thread))
+    raise(ctx, "validation.not_found", "That chat does not exist or is not yours to write in.");
   const author = ctx.principal;
-  if (thread.kind === "helper" && !isCrewThread(ctx, thread) && !(author.kind === "agent" && agentsOf(ctx.db, thread.id).some((a) => a.agentId === author.id))) {
-    raise(ctx, "validation.bad_input", "A helper chat takes no messages. Steer the helper from the chat that started it.");
+  if (
+    thread.kind === "helper" &&
+    !isCrewThread(ctx, thread) &&
+    !(author.kind === "agent" && agentsOf(ctx.db, thread.id).some((a) => a.agentId === author.id))
+  ) {
+    raise(
+      ctx,
+      "validation.bad_input",
+      "A helper chat takes no messages. Steer the helper from the chat that started it.",
+    );
   }
-  if (thread.closedAt !== undefined) raise(ctx, "validation.bad_input", "This chat is closed. Reopen it to write in it.");
+  if (thread.closedAt !== undefined)
+    raise(ctx, "validation.bad_input", "This chat is closed. Reopen it to write in it.");
 
   const body = input.body;
   const blocks = cleanBlocks(ctx, input.blocks);
   const attachments = [...new Set(input.attachments ?? [])];
-  if (body.trim() === "" && blocks.length === 0 && attachments.length === 0) raise(ctx, "validation.bad_input", "Write something, or attach a file.");
+  if (body.trim() === "" && blocks.length === 0 && attachments.length === 0)
+    raise(ctx, "validation.bad_input", "Write something, or attach a file.");
   if (body.length > MAX_BODY) raise(ctx, "validation.bad_input", `A message can hold at most ${MAX_BODY} characters.`);
   const mentions = cleanMentions(ctx, input.mentions);
-  await refuseUnseenAgents(ctx, mentions.filter((m) => m.kind === "agent").map((m) => m.id));
-  if (input.via !== undefined && author.kind !== "agent") raise(ctx, "validation.bad_input", "Only an agent posts on a routine.");
+  await refuseUnseenAgents(
+    ctx,
+    mentions.filter((m) => m.kind === "agent").map((m) => m.id),
+  );
+  if (input.via !== undefined && author.kind !== "agent")
+    raise(ctx, "validation.bad_input", "Only an agent posts on a routine.");
 
   // A resent message (the offline queue replays) carries the id the device gave it: the same id in the same thread is the same message.
   if (input.clientId !== undefined) {
@@ -238,7 +393,8 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   let replyTo: MessageRec | null = null;
   if (input.replyTo !== undefined) {
     replyTo = messageBy(ctx.db, input.replyTo);
-    if (!replyTo || replyTo.thread !== thread.id) raise(ctx, "validation.bad_input", "The message you reply to is not in this chat.");
+    if (!replyTo || replyTo.thread !== thread.id)
+      raise(ctx, "validation.bad_input", "The message you reply to is not in this chat.");
   }
 
   // Hops: an agent answering another agent is one hop further from the last person who spoke; a person's message starts again at 0. A Job's line (a helper's or a teammate's
@@ -253,14 +409,23 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     if (prev && refOf(prev.author).kind === "agent") depth = prev.author === author.id ? prev.depth : prev.depth + 1;
     if (depth >= 1) {
       const limit = await hopLimit(ctx);
-      if (depth > limit) raise(ctx, "permission.limit", `The agents have handed this back and forth ${limit} times. A person has to reply before they go on.`, { limit, depth });
+      if (depth > limit)
+        raise(
+          ctx,
+          "permission.limit",
+          `The agents have handed this back and forth ${limit} times. A person has to reply before they go on.`,
+          { limit, depth },
+        );
     }
   }
 
   // "@Billing, sum this up" in a chat of their own: a person who @mentions an agent that is not in the chat brings it in as a listener (it answers when mentioned, and the person who mentioned it pays for
   // the turn it causes). Only for a person's own chat and only for an agent they may see (refused above); a channel's agents are its managers' to add. A thread hangs off a message or a task, and anyone in it,
   // person or agent, may bring an agent into that one thread, wherever the thread hangs.
-  if ((author.kind === "person" && thread.kind === "chat" && thread.channelId === undefined) || ((author.kind === "person" || author.kind === "agent") && thread.kind === "thread")) {
+  if (
+    (author.kind === "person" && thread.kind === "chat" && thread.channelId === undefined) ||
+    ((author.kind === "person" || author.kind === "agent") && thread.kind === "thread")
+  ) {
     const here = new Set(agentsOf(ctx.db, thread.id).map((a) => a.agentId));
     for (const mention of mentions) {
       if (mention.kind !== "agent" || here.has(mention.id)) continue;
@@ -271,8 +436,16 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   }
 
   const m = insertMessage(ctx, thread.id, {
-    ...(input.clientId !== undefined ? { id: input.clientId } : {}), author: author.id, kind: author.kind === "agent" ? "agent" : "text", body, blocks,
-    ...(input.replyTo !== undefined ? { replyTo: input.replyTo } : {}), ...(input.via ? { via: { routineOwner: input.via.routineOwner } } : {}), ...(author.kind === "agent" && ctx.actingFor !== undefined && !ctx.sharedKey ? { paidBy: ctx.actingFor } : {}), depth, attachments,
+    ...(input.clientId !== undefined ? { id: input.clientId } : {}),
+    author: author.id,
+    kind: author.kind === "agent" ? "agent" : "text",
+    body,
+    blocks,
+    ...(input.replyTo !== undefined ? { replyTo: input.replyTo } : {}),
+    ...(input.via ? { via: { routineOwner: input.via.routineOwner } } : {}),
+    ...(author.kind === "agent" && ctx.actingFor !== undefined && !ctx.sharedKey ? { paidBy: ctx.actingFor } : {}),
+    depth,
+    attachments,
   });
   recordMentions(ctx, m.id, thread.id, mentions);
   // a person who replies in a thread is in it: its later replies reach them and it counts on their Threads row
@@ -283,11 +456,32 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   if (input.alsoToChat === true && thread.kind === "thread" && thread.parentThreadId !== undefined) {
     const root = threadBy(ctx.db, thread.parentThreadId);
     if (root && canSpeak(ctx, root) && root.kind !== "helper") {
-      const copy = insertMessage(ctx, root.id, { author: author.id, kind: author.kind === "agent" ? "agent" : "text", body, blocks: [{ type: "from_thread", v: 1, id: mintId("blk", ctx.now()), data: { threadId: thread.id, messageId: m.id }, state: "done", traceId: ctx.trace.traceId }], depth: 0 });
+      const copy = insertMessage(ctx, root.id, {
+        author: author.id,
+        kind: author.kind === "agent" ? "agent" : "text",
+        body,
+        blocks: [
+          {
+            type: "from_thread",
+            v: 1,
+            id: mintId("blk", ctx.now()),
+            data: { threadId: thread.id, messageId: m.id },
+            state: "done",
+            traceId: ctx.trace.traceId,
+          },
+        ],
+        depth: 0,
+      });
       deliver(ctx, root, copy, [], { kind: author.kind, id: author.id }, { notify: false, copy: true });
     }
   }
   // a person's own typed "send it" presses the "Send this to <name>?" card it answers (lane l-agentdm)
-  if (author.kind === "person" && ctx.depth === 0 && (ctx.origin === "user" || ctx.origin === "sync") && body.trim() !== "") await approveInChat(ctx, thread.id, body);
+  if (
+    author.kind === "person" &&
+    ctx.depth === 0 &&
+    (ctx.origin === "user" || ctx.origin === "sync") &&
+    body.trim() !== ""
+  )
+    await approveInChat(ctx, thread.id, body);
   return { message: messageOut(m, encOf(ctx.db, thread)) };
 }

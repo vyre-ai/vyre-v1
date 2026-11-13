@@ -22,15 +22,30 @@ export function mentionsIn(text: string, candidates: readonly Candidate[]): { ki
 export const ASK_AGENT_LABEL = "Ask an Agent…";
 
 /** What the picker needs to know about an agent: agents.list rows, as far as the label goes. */
-export interface AgentMeta { agentId: string; name: string; ownerId?: string; kind?: string }
+export interface AgentMeta {
+  agentId: string;
+  name: string;
+  ownerId?: string;
+  kind?: string;
+}
 
-export interface PickerAgent { id: string; label: string; mine: boolean; assistant?: boolean }
+export interface PickerAgent {
+  id: string;
+  label: string;
+  mine: boolean;
+  assistant?: boolean;
+}
 
 /**
  * The channel's agents for the picker, your own Assistant first, named "Assistant" (owner ruling 3 Nov: never "<Person> (Agent)"). Another person's Assistant and an outside agent (credited as
  * "<Person> (Agent)") are not offered. An agent not in this chat is not offered either: only an agent in the room can answer in it.
  */
-export function pickerAgents(thread: Pick<Thread, "agents">, meta: readonly AgentMeta[], meId: string, nameOf: (id: string) => string): PickerAgent[] {
+export function pickerAgents(
+  thread: Pick<Thread, "agents">,
+  meta: readonly AgentMeta[],
+  meId: string,
+  nameOf: (id: string) => string,
+): PickerAgent[] {
   const byId = new Map(meta.map((a) => [a.agentId, a]));
   const out: PickerAgent[] = [];
   for (const a of thread.agents) {
@@ -42,13 +57,20 @@ export function pickerAgents(thread: Pick<Thread, "agents">, meta: readonly Agen
     if ((assistant && !mine) || (!assistant && namesItsPerson(name))) continue;
     out.push({ id: a.agentId, label: assistant ? "Assistant" : name, mine, assistant });
   }
-  return [...out.filter((a) => a.assistant), ...out.filter((a) => !a.assistant && a.mine), ...out.filter((a) => !a.assistant && !a.mine)];
+  return [
+    ...out.filter((a) => a.assistant),
+    ...out.filter((a) => !a.assistant && a.mine),
+    ...out.filter((a) => !a.assistant && !a.mine),
+  ];
 }
 
 /** FNV-1a, base 36: a short stable id part. */
 function hash(s: string): string {
   let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
   return h.toString(36);
 }
 
@@ -58,35 +80,76 @@ export function askClientId(messageId: string, agentId: string, presserId: strin
 }
 
 /** The post that asks: the presser's words name the agent and reply to that exact message. */
-export function askPost(threadId: string, messageId: string, agent: { id: string; name: string }, presserId: string, key: string): CapMap["chat.post"]["in"] {
+export function askPost(
+  threadId: string,
+  messageId: string,
+  agent: { id: string; name: string },
+  presserId: string,
+  key: string,
+): CapMap["chat.post"]["in"] {
   const first = agent.name.trim().split(/\s+/)[0] ?? agent.name;
   return {
-    threadId, body: `@${first}`, mentions: [{ kind: "agent", id: agent.id }], replyTo: messageId,
-    clientId: askClientId(messageId, agent.id, presserId), idempotencyKey: key,
+    threadId,
+    body: `@${first}`,
+    mentions: [{ kind: "agent", id: agent.id }],
+    replyTo: messageId,
+    clientId: askClientId(messageId, agent.id, presserId),
+    idempotencyKey: key,
   };
 }
 
 /** The agents an edit newly names: in the edited words, not in the old ones, and in this chat. */
-export function addedAgentMentions(before: string, after: string, directory: readonly Candidate[], inChat: readonly string[]): string[] {
-  const had = new Set(mentionsIn(before, directory).filter((m) => m.kind === "agent").map((m) => m.id));
+export function addedAgentMentions(
+  before: string,
+  after: string,
+  directory: readonly Candidate[],
+  inChat: readonly string[],
+): string[] {
+  const had = new Set(
+    mentionsIn(before, directory)
+      .filter((m) => m.kind === "agent")
+      .map((m) => m.id),
+  );
   const here = new Set(inChat);
-  return [...new Set(mentionsIn(after, directory).filter((m) => m.kind === "agent" && !had.has(m.id) && here.has(m.id)).map((m) => m.id))];
+  return [
+    ...new Set(
+      mentionsIn(after, directory)
+        .filter((m) => m.kind === "agent" && !had.has(m.id) && here.has(m.id))
+        .map((m) => m.id),
+    ),
+  ];
 }
 
 /**
  * The message the quiet line hangs under: your own newest message in a channel with agents, when no agent will answer it (nobody named, no lead) and no agent has written since. Null
  * otherwise.
  */
-export function unansweredOwn(thread: Thread, rows: readonly Message[], meId: string, directory: readonly Candidate[], hasThread: (messageId: string) => boolean = () => false): Message | null {
+export function unansweredOwn(
+  thread: Thread,
+  rows: readonly Message[],
+  meId: string,
+  directory: readonly Candidate[],
+  hasThread: (messageId: string) => boolean = () => false,
+): Message | null {
   if (thread.kind !== "channel" || thread.agents.length === 0) return null;
   const last = rows[rows.length - 1];
-  if (!last || last.author.kind !== "person" || last.author.id !== meId || last.kind !== "text" || last.messageId.startsWith("pending:")) return null;
+  if (
+    !last ||
+    last.author.kind !== "person" ||
+    last.author.id !== meId ||
+    last.kind !== "text" ||
+    last.messageId.startsWith("pending:")
+  )
+    return null;
   // a copy from a thread ("Also post to the chat") is for reading, and wakes no agent: nobody is waiting on it
   if (last.blocks.some((b) => b.type === "from_thread")) return null;
   // an agent already answers under it (agents reply in threads): the footer under the message says so, and this line would say the opposite
   if (hasThread(last.messageId)) return null;
   const mentions = mentionsIn(last.body, directory);
-  if (mentions.some((m) => m.kind === "person")) return null;   // spoken to a person: nobody expects an agent
-  const answers = route({ agents: thread.agents.map((a) => ({ id: a.agentId, mode: a.mode })), kind: thread.kind }, { author: { kind: "person", id: meId }, mentions, text: last.body }).responders;
+  if (mentions.some((m) => m.kind === "person")) return null; // spoken to a person: nobody expects an agent
+  const answers = route(
+    { agents: thread.agents.map((a) => ({ id: a.agentId, mode: a.mode })), kind: thread.kind },
+    { author: { kind: "person", id: meId }, mentions, text: last.body },
+  ).responders;
   return answers.length === 0 ? last : null;
 }

@@ -20,8 +20,11 @@ guardFileDrops();
 
 // "/" opens the last place (app/index.tsx redirects there in the router); the root draws the same frame for every address, so it is done before the first render
 const loc = (globalThis as { location?: { pathname: string; search: string; hash: string } }).location;
-const hist = (globalThis as { history?: { state: unknown; replaceState(state: unknown, title: string, url: string): void } }).history;
-if (loc && hist && loc.pathname === "/") hist.replaceState(hist.state, "", `/${resolveLastPlace(webUiStateStore().read().lastPlace)}${loc.search}${loc.hash}`);
+const hist = (
+  globalThis as { history?: { state: unknown; replaceState(state: unknown, title: string, url: string): void } }
+).history;
+if (loc && hist && loc.pathname === "/")
+  hist.replaceState(hist.state, "", `/${resolveLastPlace(webUiStateStore().read().lastPlace)}${loc.search}${loc.hash}`);
 
 const styles = StyleSheet.create({ container: { flex: 1 } });
 

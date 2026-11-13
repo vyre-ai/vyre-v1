@@ -39,7 +39,10 @@ export function actionPhrase(action: string, resource?: string): string {
 }
 
 /** The act as a title: "Saved a file". */
-export const capPhrase = (action: string, resource?: string): string => { const t = auditPhrase(action, resource); return t.charAt(0).toUpperCase() + t.slice(1); };
+export const capPhrase = (action: string, resource?: string): string => {
+  const t = auditPhrase(action, resource);
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
 
 /** One line of the activity feed: who, what they did, and to what, in words. An actor the Space has no name for reads as "Someone" ("The owner" only for a claim). */
 export function activityTitle(who: string, action: string, resource: string | undefined): string {

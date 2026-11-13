@@ -5,7 +5,11 @@
 /** The host of an absolute https URL, or null. */
 export function hostOfUrl(raw: string): string | null {
   let u: URL;
-  try { u = new URL(raw.trim()); } catch { return null; }
+  try {
+    u = new URL(raw.trim());
+  } catch {
+    return null;
+  }
   if (u.protocol !== "https:" || u.username !== "" || u.password !== "") return null;
   const h = u.hostname.toLowerCase().replace(/\.$/, "");
   return h === "" ? null : h;
@@ -31,9 +35,15 @@ export function keyReadHost(input: unknown): string | null {
 
 /** A host as a person approves it: a DNS name or an IP literal, in the spelling hostOfUrl gives. Null otherwise. */
 export function approvableHost(raw: string): string | null {
-  const bare = raw.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+  const bare = raw
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/.*$/, "");
   // a connector's "*.x.com" (its declared format) stays a wildcard: it covers every name under x.com, not x.com itself, as the connector port reads it
-  if (bare.startsWith("*.")) { const rest = hostOfUrl(`https://${bare.slice(2)}/`); return rest !== null && rest.includes(".") && !rest.startsWith("[") ? `*.${rest}` : null; }
+  if (bare.startsWith("*.")) {
+    const rest = hostOfUrl(`https://${bare.slice(2)}/`);
+    return rest !== null && rest.includes(".") && !rest.startsWith("[") ? `*.${rest}` : null;
+  }
   return hostOfUrl(`https://${bare}/`);
 }
 

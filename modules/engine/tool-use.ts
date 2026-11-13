@@ -10,12 +10,22 @@ export const LEARNED_MIN_USES = 2;
 
 export function recordToolUse(db: Db, agentId: string, tool: string, now: number): void {
   ensure(db);
-  db.run(`INSERT INTO engine_tool_use (agent_id, tool, uses, last_at) VALUES (?, ?, 1, ?) ON CONFLICT(agent_id, tool) DO UPDATE SET uses = uses + 1, last_at = excluded.last_at`, agentId, tool, now);
+  db.run(
+    `INSERT INTO engine_tool_use (agent_id, tool, uses, last_at) VALUES (?, ?, 1, ?) ON CONFLICT(agent_id, tool) DO UPDATE SET uses = uses + 1, last_at = excluded.last_at`,
+    agentId,
+    tool,
+    now,
+  );
 }
 
 /** The agent's most used tools, most used first, then most recent. */
 export function topTools(db: Db, agentId: string, max: number = LEARNED_MAX): string[] {
   ensure(db);
-  const rows = db.all(`SELECT tool FROM engine_tool_use WHERE agent_id = ? AND uses >= ? ORDER BY uses DESC, last_at DESC, tool ASC LIMIT ?`, agentId, LEARNED_MIN_USES, max) as { tool: string }[];
+  const rows = db.all(
+    `SELECT tool FROM engine_tool_use WHERE agent_id = ? AND uses >= ? ORDER BY uses DESC, last_at DESC, tool ASC LIMIT ?`,
+    agentId,
+    LEARNED_MIN_USES,
+    max,
+  ) as { tool: string }[];
   return rows.map((r) => r.tool);
 }

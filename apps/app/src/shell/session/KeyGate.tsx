@@ -6,23 +6,62 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { View } from "react-native";
-import { isLoopbackUrl, keyDoor, keyStatusOnOwnNode, serverKeyState } from "../../../../../client/src/gateway/local-key.ts";
+import {
+  isLoopbackUrl,
+  keyDoor,
+  keyStatusOnOwnNode,
+  serverKeyState,
+} from "../../../../../client/src/gateway/local-key.ts";
 import { rehandKey, restoreKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { OFFLINE_OWN, SESSION_OVER, WRONG_PASSWORD, passwordKeyState } from "./key-unlock.ts";
 export { hasPasswordKey, passwordKeyState, unlockWithPassword } from "./key-unlock.ts";
-import { Bar, Button, ErrorLine, Field, Group, JoinFrame, Links, Opening, Panel, Step, TextButton, Title, useHoldFirstFrame } from "../../join/kit.tsx";
+import {
+  Bar,
+  Button,
+  ErrorLine,
+  Field,
+  Group,
+  JoinFrame,
+  Links,
+  Opening,
+  Panel,
+  Step,
+  TextButton,
+  Title,
+  useHoldFirstFrame,
+} from "../../join/kit.tsx";
 import { whenUsable } from "../../startup/marks.ts";
 import { MANY_TRIES, TOO_MANY } from "../../join/failure.ts";
 
 /** The app is mounted but not drawn yet: the first frame stays until the first place is usable. */
-function HoldUntilUsable(): null { useHoldFirstFrame(whenUsable); return null; }
+function HoldUntilUsable(): null {
+  useHoldFirstFrame(whenUsable);
+  return null;
+}
 
 /** An account with no password key: nothing to unlock here, said plainly, with the way on. */
-export function NoPasswordKey({ onContinue, onSignOut }: { onContinue: () => void; onSignOut?: () => void }): ReactElement {
+export function NoPasswordKey({
+  onContinue,
+  onSignOut,
+}: {
+  onContinue: () => void;
+  onSignOut?: () => void;
+}): ReactElement {
   return (
     <JoinFrame>
-      <Panel below={onSignOut ? <Links><TextButton label="Sign out" onPress={onSignOut} testID="lock-signout" /></Links> : undefined} bar={<Bar cont={<Button label="Continue" onPress={onContinue} testID="lock-continue" />} />}>
-        <Step id="nokey"><Title title="No password here" sub="This account signed in another way" /></Step>
+      <Panel
+        below={
+          onSignOut ? (
+            <Links>
+              <TextButton label="Sign out" onPress={onSignOut} testID="lock-signout" />
+            </Links>
+          ) : undefined
+        }
+        bar={<Bar cont={<Button label="Continue" onPress={onContinue} testID="lock-continue" />} />}
+      >
+        <Step id="nokey">
+          <Title title="No password here" sub="This account signed in another way" />
+        </Step>
       </Panel>
     </JoinFrame>
   );
@@ -39,7 +78,19 @@ type GateState = "checking" | "nopassword" | "open";
  * signed in (owner, 10 Nov: every Space is signed in after an update as it was before it): the shell opens and the Vault asks for the password once, where it is first needed. A saved sign-in is never
  * removed for a missing key. While the app runs it hands the key back to a node that restarted.
  */
-export function KeyGate({ baseUrl, token, onSignOut, children }: { baseUrl: string; token: string; name?: string; onSignOut?: () => void; /** kept for callers; there is no unlock sheet any more */ onForgot?: () => void; children: ReactNode }): ReactElement | null {
+export function KeyGate({
+  baseUrl,
+  token,
+  onSignOut,
+  children,
+}: {
+  baseUrl: string;
+  token: string;
+  name?: string;
+  onSignOut?: () => void;
+  /** kept for callers; there is no unlock sheet any more */ onForgot?: () => void;
+  children: ReactNode;
+}): ReactElement | null {
   const own = isLoopbackUrl(baseUrl);
   // a Space server reached over https holds the key while a signed-in device hands it over, so the app hands it over at launch
   const remote = !own && keyDoor(baseUrl) !== null;
@@ -52,27 +103,44 @@ export function KeyGate({ baseUrl, token, onSignOut, children }: { baseUrl: stri
       // a node still starting does not answer yet: ask again for a few seconds, never read silence as "no key"
       for (let i = 0; i < (own ? WAIT_TRIES : 1) && live; i++) {
         const next = await gateState({
-          own, restored,
-          status: () => own ? keyStatusOnOwnNode(baseUrl, token) : serverKeyState(baseUrl, token).then((k) => k === null ? "unreachable" as const : k.held ? "held" as const : "locked" as const),
+          own,
+          restored,
+          status: () =>
+            own
+              ? keyStatusOnOwnNode(baseUrl, token)
+              : serverKeyState(baseUrl, token).then((k) =>
+                  k === null ? ("unreachable" as const) : k.held ? ("held" as const) : ("locked" as const),
+                ),
           rehand: () => rehandKey(baseUrl, token),
           passwordKey: () => passwordKeyState(baseUrl, token),
         });
         if (!live) return;
-        if (next !== "wait") { setState(next); return; }
+        if (next !== "wait") {
+          setState(next);
+          return;
+        }
         await new Promise<void>((r) => setTimeout(r, WAIT_MS));
       }
       if (live) setState("open"); // it never answered: the shell shows its own offline state; the app is not held behind a blank screen
     })();
-    return () => { live = false; };
+    return () => {
+      live = false;
+    };
   }, [own, remote, baseUrl, token]);
   // while the app is open: a node that lost the key (a restart, a deploy) gets it back from this app, silently
   useEffect(() => {
     if (!(own || remote) || state !== "open") return undefined;
-    const timer = setInterval(() => { void rehandKey(baseUrl, token); }, own ? 3_000 : 30_000);
+    const timer = setInterval(
+      () => {
+        void rehandKey(baseUrl, token);
+      },
+      own ? 3_000 : 30_000,
+    );
     return () => clearInterval(timer);
   }, [own, remote, state, baseUrl, token]);
   if (state === "checking") return <Opening testID="lock-checking" />;
-  if (state === "nopassword") return <NoPasswordKey onContinue={() => setState("open")} {...(onSignOut ? { onSignOut } : {})} />;
+  if (state === "nopassword")
+    return <NoPasswordKey onContinue={() => setState("open")} {...(onSignOut ? { onSignOut } : {})} />;
   return (
     <View style={{ flex: 1 }}>
       <HoldUntilUsable />
@@ -95,7 +163,7 @@ export async function gateState(d: {
   const st = await d.status();
   if (st === "held") return "open";
   if (st === "unreachable") return d.own ? "wait" : "open";
-  if (d.restored && await d.rehand()) return "open";
+  if (d.restored && (await d.rehand())) return "open";
   const pw = await d.passwordKey();
   return pw === "no" ? "nopassword" : "open";
 }

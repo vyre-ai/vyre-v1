@@ -10,10 +10,18 @@ export const SMALL_TARGET = Object.freeze({ records: 500, channels: 40, agents: 
 export function discoverSeeds(root: string = REPO): { module: string; file: string }[] {
   const dir = path.join(root, "modules");
   if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => ({ module: d.name, file: path.join(dir, d.name, "fixtures/seed.ts") }))
-    .filter((s) => fs.existsSync(s.file)).sort((a, b) => (a.module < b.module ? -1 : 1));
+  return fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => ({ module: d.name, file: path.join(dir, d.name, "fixtures/seed.ts") }))
+    .filter((s) => fs.existsSync(s.file))
+    .sort((a, b) => (a.module < b.module ? -1 : 1));
 }
 
-export function smallRecipe(root: string = REPO): { name: "small"; target: typeof SMALL_TARGET; seeds: { module: string; file: string }[] } {
+export function smallRecipe(root: string = REPO): {
+  name: "small";
+  target: typeof SMALL_TARGET;
+  seeds: { module: string; file: string }[];
+} {
   return { name: "small", target: SMALL_TARGET, seeds: discoverSeeds(root) };
 }

@@ -7,19 +7,43 @@ export const CONNECTOR_SKILL = "connector-builder";
 
 /** What the connector-builder skill calls beyond the default tools. */
 export const CONNECTOR_TOOLS: readonly string[] = [
-  "automations_draft_connector", "automations_read_docs", "automations_try_read", "automations_connector_card",
-  "connectors_list", "connectors_get", "connectors_init", "connectors_define", "connectors_test", "connectors_publish",
-  "connections_list", "connections_create", "agents_builtin_skill_get",
+  "automations_draft_connector",
+  "automations_read_docs",
+  "automations_try_read",
+  "automations_connector_card",
+  "connectors_list",
+  "connectors_get",
+  "connectors_init",
+  "connectors_define",
+  "connectors_test",
+  "connectors_publish",
+  "connections_list",
+  "connections_create",
+  "agents_builtin_skill_get",
   // the app's own events: an Automation with a web request trigger, and its address for the person to paste into the app
-  "automations_create", "automations_webhook_url_get", "automations_test",
+  "automations_create",
+  "automations_webhook_url_get",
+  "automations_test",
 ];
 
 /** The titles of the chats Sync to Records (Vault), Bring in from your CRM (Records) and Edit mapping (the Sync page) start, the skill they run on, and the tools it uses beyond the defaults. */
 export const CRM_CHAT = /^(Sync .+ to Records|Bring my CRM into Records|Change how .+ syncs to Records)$/;
 export const CRM_SKILL = "crm-sync-builder";
 export const CRM_TOOLS: readonly string[] = [
-  "sync_specs_sample", "sync_specs_survey", "sync_specs_validate", "sync_specs_preview", "sync_specs_apply", "sync_specs_get", "sync_specs_backfill",
-  "automations_draft_connector", "automations_read_docs", "automations_connector_card", "schema_types_list", "vault_use", "vault_request", "runs_get",
+  "sync_specs_sample",
+  "sync_specs_survey",
+  "sync_specs_validate",
+  "sync_specs_preview",
+  "sync_specs_apply",
+  "sync_specs_get",
+  "sync_specs_backfill",
+  "automations_draft_connector",
+  "automations_read_docs",
+  "automations_connector_card",
+  "schema_types_list",
+  "vault_use",
+  "vault_request",
+  "runs_get",
 ];
 
 /** The tools that reach the agent's outside tool servers and connections (app hubs, OAuth and remote MCP servers), listed from the start in a chat: a CLI engine cannot pick up a tool found later, and
@@ -27,4 +51,14 @@ export const CRM_TOOLS: readonly string[] = [
 export const CONNECTION_TOOLS: readonly string[] = ["mcp_tools", "mcp_read", "mcp_call"];
 
 /** The crew tools, listed from the start in a chat inside a project: a person says "give it to a teammate", never a tool name, and the CLI cannot pick up a tool found later with tool_search. */
-export const CREW_TOOLS: readonly string[] = ["crew_start", "crew_list", "crew_message", "crew_stop", "crew_wait", "crew_merge", "crew_push", "projects_list", "projects_teammates_list"];
+export const CREW_TOOLS: readonly string[] = [
+  "crew_start",
+  "crew_list",
+  "crew_message",
+  "crew_stop",
+  "crew_wait",
+  "crew_merge",
+  "crew_push",
+  "projects_list",
+  "projects_teammates_list",
+];

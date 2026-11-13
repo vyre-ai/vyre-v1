@@ -35,7 +35,15 @@ export interface CodeHost {
   egress?: NetWallOptions["egress"];
 }
 
-export const LIMITS = Object.freeze({ cpuSeconds: 10, wallMs: 30_000, heapMb: 64, dataMb: 640, outputBytes: 1_000_000, sourceChars: 20_000, hosts: 10 });
+export const LIMITS = Object.freeze({
+  cpuSeconds: 10,
+  wallMs: 30_000,
+  heapMb: 64,
+  dataMb: 640,
+  outputBytes: 1_000_000,
+  sourceChars: 20_000,
+  hosts: 10,
+});
 const BWRAP = ["/usr/bin/bwrap", "/usr/local/bin/bwrap", "/bin/bwrap"];
 const MAX_LOGS = 50;
 const MAX_LOG = 500;
@@ -49,22 +57,29 @@ const waiting: Array<() => void> = [];
  * The name lookup the egress proxy uses. The proxy already refuses the addresses of its own list; this adds lib/address-guard.ts, the one list the public fetcher uses (tailnet 100.64/10, 198.18/15,
  * multicast and reserved, "::", NAT64 and the rest), and answers no address at all when any address of a name is on it, so a name that points inside is refused whole.
  */
-export function guardedLookup(base?: (host: string) => Promise<readonly string[]>): (host: string) => Promise<readonly string[]> {
-  const resolve = base ?? (async (host: string) => (await dns.lookup(host, { all: true, verbatim: true })).map((r) => r.address));
+export function guardedLookup(
+  base?: (host: string) => Promise<readonly string[]>,
+): (host: string) => Promise<readonly string[]> {
+  const resolve =
+    base ?? (async (host: string) => (await dns.lookup(host, { all: true, verbatim: true })).map((r) => r.address));
   return async (host) => {
     const ips = await resolve(host);
     return ips.some((ip) => refusesAddress(ip)) ? [] : ips;
   };
 }
 
-export function setCodeHost(next: CodeHost | null): void { host = next; }
+export function setCodeHost(next: CodeHost | null): void {
+  host = next;
+}
 
 /** Why Run code cannot run on this server, or null when it can. */
 export function codeAvailability(h: CodeHost | null = host): string | null {
   if (!h) return "Run code needs the agent runtime, which this server has not started.";
   if (h.unavailable) return h.unavailable;
-  if ((h.platform ?? process.platform) !== "linux") return "Run code needs a Linux server with bubblewrap. This computer cannot sandbox it, so the step is off here.";
-  if (!(h.bwrapPaths ?? BWRAP).some((p) => fs.existsSync(p))) return "Run code needs bubblewrap (bwrap) on the server, and it is not installed. Install it, or remove the Run code step.";
+  if ((h.platform ?? process.platform) !== "linux")
+    return "Run code needs a Linux server with bubblewrap. This computer cannot sandbox it, so the step is off here.";
+  if (!(h.bwrapPaths ?? BWRAP).some((p) => fs.existsSync(p)))
+    return "Run code needs bubblewrap (bwrap) on the server, and it is not installed. Install it, or remove the Run code step.";
   return null;
 }
 
@@ -97,24 +112,43 @@ try {
 `;
 
 /** How Node is started inside the sandbox: the run folder is the only path it may read or write, and the heap is capped. */
-export const nodeFlags = (dir: string, heapMb: number): string[] => ["--permission", `--allow-fs-read=${dir}`, `--allow-fs-write=${dir}`, `--max-old-space-size=${heapMb}`, "--max-semi-space-size=4"];
+export const nodeFlags = (dir: string, heapMb: number): string[] => [
+  "--permission",
+  `--allow-fs-read=${dir}`,
+  `--allow-fs-write=${dir}`,
+  `--max-old-space-size=${heapMb}`,
+  "--max-semi-space-size=4",
+];
 
 async function turn(): Promise<() => void> {
   if (running >= MAX_RUNNING) await new Promise<void>((resolve) => waiting.push(resolve));
   running += 1;
-  return () => { running -= 1; waiting.shift()?.(); };
+  return () => {
+    running -= 1;
+    waiting.shift()?.();
+  };
 }
 
-export interface CodeResult { result: unknown; logs: string[] }
+export interface CodeResult {
+  result: unknown;
+  logs: string[];
+}
 
 function hostsOf(value: unknown): string[] {
   if (value === undefined || value === null) return [];
-  if (!Array.isArray(value)) throw stepError("validation.bad_input", "Allowed hosts must be a list of host names.", false);
-  if (value.length > LIMITS.hosts) throw stepError("validation.bad_input", `Run code may name at most ${LIMITS.hosts} hosts.`, false);
+  if (!Array.isArray(value))
+    throw stepError("validation.bad_input", "Allowed hosts must be a list of host names.", false);
+  if (value.length > LIMITS.hosts)
+    throw stepError("validation.bad_input", `Run code may name at most ${LIMITS.hosts} hosts.`, false);
   const out: string[] = [];
   for (const raw of value) {
     const h = typeof raw === "string" ? raw.trim().toLowerCase() : "";
-    if (!validHostPattern(h)) throw stepError("validation.bad_input", `${typeof raw === "string" ? raw : "That"} is not a host name. Use api.example.com or *.example.com.`, false);
+    if (!validHostPattern(h))
+      throw stepError(
+        "validation.bad_input",
+        `${typeof raw === "string" ? raw : "That"} is not a host name. Use api.example.com or *.example.com.`,
+        false,
+      );
     if (!out.includes(h)) out.push(h);
   }
   return out;
@@ -124,7 +158,13 @@ function hostsOf(value: unknown): string[] {
 export const SPAWN_ENV: Readonly<Record<string, string>> = Object.freeze({});
 
 /** The bubblewrap command for one run: the limits, Node's flags and the run folder as the only writable path. Pure: it builds the command and starts nothing. */
-export function wallCommand(h: CodeHost, codeRoot: string, dir: string, hosts: readonly string[], wallDir: string): ReturnType<typeof bwrapWallCommand> {
+export function wallCommand(
+  h: CodeHost,
+  codeRoot: string,
+  dir: string,
+  hosts: readonly string[],
+  wallDir: string,
+): ReturnType<typeof bwrapWallCommand> {
   const node = h.node ?? process.execPath;
   const heap = h.heapMb ?? LIMITS.heapMb;
   const cpu = h.cpuSeconds ?? LIMITS.cpuSeconds;
@@ -132,26 +172,55 @@ export function wallCommand(h: CodeHost, codeRoot: string, dir: string, hosts: r
   fs.mkdirSync(scratch, { recursive: true });
   const roots: Roots = { work: [codeRoot], scratch: [scratch] };
   const spec: SandboxSpec = {
-    id: `vyre-code-${path.basename(dir).slice(4).toLowerCase().replace(/[^a-z0-9]/g, "")}`, person: "code", kind: "bwrap", scratch: fs.realpathSync(scratch),
-    mounts: [{ host: dir, mode: "rw" }], egressHosts: hosts, env: hosts.length > 0 ? { NODE_USE_ENV_PROXY: "1", VYRE_CODE_NET: "1" } : {},
+    id: `vyre-code-${path
+      .basename(dir)
+      .slice(4)
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "")}`,
+    person: "code",
+    kind: "bwrap",
+    scratch: fs.realpathSync(scratch),
+    mounts: [{ host: dir, mode: "rw" }],
+    egressHosts: hosts,
+    env: hosts.length > 0 ? { NODE_USE_ENV_PROXY: "1", VYRE_CODE_NET: "1" } : {},
   };
   // ulimit -t counts processor seconds: a loop is killed by the kernel, a wait on the network is not counted (the wall clock ends that).
   const dataKb = (h.dataMb ?? LIMITS.dataMb) * 1024;
   // ulimit -d bounds everything the process maps for data (brk and private writable mappings), so a Buffer or ArrayBuffer loop outside the V8 heap is stopped by the kernel too
-  const argv = ["/bin/sh", "-c", `ulimit -t ${cpu}; ulimit -d ${dataKb}; exec "$@"`, "sh", node, ...nodeFlags(dir, heap), path.join(dir, "runner.mjs"), dir];
-  return bwrapWallCommand(spec, roots, argv, { wallDir, node, ...(h.programRead ? { programRead: h.programRead } : {}) });
+  const argv = [
+    "/bin/sh",
+    "-c",
+    `ulimit -t ${cpu}; ulimit -d ${dataKb}; exec "$@"`,
+    "sh",
+    node,
+    ...nodeFlags(dir, heap),
+    path.join(dir, "runner.mjs"),
+    dir,
+  ];
+  return bwrapWallCommand(spec, roots, argv, {
+    wallDir,
+    node,
+    ...(h.programRead ? { programRead: h.programRead } : {}),
+  });
 }
 
 export async function runInSandbox(source: unknown, input: unknown, hostsRaw?: unknown): Promise<CodeResult> {
   const h = host;
   const why = codeAvailability(h);
   if (why !== null || !h) throw stepError("run.no_code", why ?? "Run code is not available.", false);
-  if (typeof source !== "string" || !source.trim()) throw stepError("validation.bad_input", "Run code needs source.", false);
-  if (source.length > LIMITS.sourceChars) throw stepError("validation.bad_input", `Run code is longer than ${LIMITS.sourceChars} characters.`, false);
+  if (typeof source !== "string" || !source.trim())
+    throw stepError("validation.bad_input", "Run code needs source.", false);
+  if (source.length > LIMITS.sourceChars)
+    throw stepError("validation.bad_input", `Run code is longer than ${LIMITS.sourceChars} characters.`, false);
   const hosts = hostsOf(hostsRaw);
   let inputText: string;
-  try { inputText = JSON.stringify(input ?? null); } catch { throw stepError("validation.bad_input", "The input to Run code must be JSON.", false); }
-  if (typeof inputText !== "string" || Buffer.byteLength(inputText) > LIMITS.outputBytes) throw stepError("validation.bad_input", "The input to Run code is over 1 MB.", false);
+  try {
+    inputText = JSON.stringify(input ?? null);
+  } catch {
+    throw stepError("validation.bad_input", "The input to Run code must be JSON.", false);
+  }
+  if (typeof inputText !== "string" || Buffer.byteLength(inputText) > LIMITS.outputBytes)
+    throw stepError("validation.bad_input", "The input to Run code is over 1 MB.", false);
 
   const release = await turn();
   const codeRoot = path.join(h.dataDir, "code");
@@ -164,24 +233,49 @@ export async function runInSandbox(source: unknown, input: unknown, hostsRaw?: u
     fs.writeFileSync(path.join(dir, "code.js"), source, { mode: 0o644 });
     fs.writeFileSync(path.join(dir, "input.json"), inputText, { mode: 0o644 });
     // one proxy for this run: it allows the named hosts and is closed when the run ends
-    net = await startNetWall({ allow: hosts, egress: { ...(h.egress ?? {}), lookup: guardedLookup(h.egress?.lookup) } });
+    net = await startNetWall({
+      allow: hosts,
+      egress: { ...(h.egress ?? {}), lookup: guardedLookup(h.egress?.lookup) },
+    });
     const heap = h.heapMb ?? LIMITS.heapMb;
     const cpu = h.cpuSeconds ?? LIMITS.cpuSeconds;
     const w = wallCommand(h, codeRoot, dir, hosts, net.dir);
-    const outcome = await new Promise<{ code: number | null; signal: NodeJS.Signals | null; stderr: string; timedOut: boolean }>((resolve) => {
+    const outcome = await new Promise<{
+      code: number | null;
+      signal: NodeJS.Signals | null;
+      stderr: string;
+      timedOut: boolean;
+    }>((resolve) => {
       // Its own process group: the wall clock ends everything the sandbox started, so a grandchild cannot keep the stderr pipe open and leave the run waiting for a close that never comes.
       const p = spawn(w.cmd, w.args, { env: { ...SPAWN_ENV }, stdio: ["ignore", "ignore", "pipe"], detached: true });
       let stderr = "";
       let timedOut = false;
       let done = false;
-      const finish = (code: number | null, signal: NodeJS.Signals | null): void => { if (done) return; done = true; clearTimeout(t); resolve({ code, signal, stderr, timedOut }); };
-      p.stderr.on("data", (d: Buffer) => { if (stderr.length < 4_000) stderr += d.toString("utf8"); });
+      const finish = (code: number | null, signal: NodeJS.Signals | null): void => {
+        if (done) return;
+        done = true;
+        clearTimeout(t);
+        resolve({ code, signal, stderr, timedOut });
+      };
+      p.stderr.on("data", (d: Buffer) => {
+        if (stderr.length < 4_000) stderr += d.toString("utf8");
+      });
       const t = setTimeout(() => {
         timedOut = true;
-        try { if (p.pid !== undefined) process.kill(-p.pid, "SIGKILL"); else p.kill("SIGKILL"); } catch { p.kill("SIGKILL"); }
+        try {
+          if (p.pid !== undefined) process.kill(-p.pid, "SIGKILL");
+          else p.kill("SIGKILL");
+        } catch {
+          p.kill("SIGKILL");
+        }
       }, h.wallMs ?? LIMITS.wallMs);
-      p.on("error", (err) => { stderr = `${stderr}${err.message}`; finish(null, null); });
-      p.on("exit", (code, signal) => { setTimeout(() => finish(code, signal), 500); });   // the pipe normally closes first; this does not wait for one that is held open
+      p.on("error", (err) => {
+        stderr = `${stderr}${err.message}`;
+        finish(null, null);
+      });
+      p.on("exit", (code, signal) => {
+        setTimeout(() => finish(code, signal), 500);
+      }); // the pipe normally closes first; this does not wait for one that is held open
       p.on("close", (code, signal) => finish(code, signal));
     });
     return readResult(dir, outcome, cpu, heap, 128, h.diagnose === true);
@@ -192,31 +286,61 @@ export async function runInSandbox(source: unknown, input: unknown, hostsRaw?: u
   }
 }
 
-export function readResult(dir: string, o: { code: number | null; signal: NodeJS.Signals | null; stderr: string; timedOut: boolean }, cpu: number, heap: number, memoryMb = heap, diagnose = false): CodeResult {
+export function readResult(
+  dir: string,
+  o: { code: number | null; signal: NodeJS.Signals | null; stderr: string; timedOut: boolean },
+  cpu: number,
+  heap: number,
+  memoryMb = heap,
+  diagnose = false,
+): CodeResult {
   const file = path.join(dir, "result.json");
   let raw: string | null = null;
   try {
     const size = fs.statSync(file).size;
-    if (size > LIMITS.outputBytes + 20_000) throw stepError("validation.too_large", "Run code returned more than 1 MB.", false);
+    if (size > LIMITS.outputBytes + 20_000)
+      throw stepError("validation.too_large", "Run code returned more than 1 MB.", false);
     raw = fs.readFileSync(file, "utf8");
   } catch (e) {
     if ((e as { error?: unknown }).error) throw e;
   }
   if (raw === null) {
     if (o.timedOut) throw stepError("timeout.deadline", "Run code took too long.", false);
-    if (o.signal === "SIGKILL" || o.signal === "SIGXCPU" || o.code === 137 || o.code === 152) throw stepError("timeout.deadline", `Run code used more than ${cpu} seconds of processor time.`, false);
-    if (/heap out of memory|allocation failed|ERR_WORKER_OUT_OF_MEMORY/i.test(o.stderr) || o.signal === "SIGABRT" || o.code === 134) throw stepError("validation.bad_input", `Run code used more than ${heap} MB of memory.`, false);
-    throw stepError("validation.bad_input", `The code did not finish.${diagnose ? ` [exit ${String(o.code)} signal ${String(o.signal)} stderr ${JSON.stringify(o.stderr.slice(0, 1500))}]` : ""}`, false);
+    if (o.signal === "SIGKILL" || o.signal === "SIGXCPU" || o.code === 137 || o.code === 152)
+      throw stepError("timeout.deadline", `Run code used more than ${cpu} seconds of processor time.`, false);
+    if (
+      /heap out of memory|allocation failed|ERR_WORKER_OUT_OF_MEMORY/i.test(o.stderr) ||
+      o.signal === "SIGABRT" ||
+      o.code === 134
+    )
+      throw stepError("validation.bad_input", `Run code used more than ${heap} MB of memory.`, false);
+    throw stepError(
+      "validation.bad_input",
+      `The code did not finish.${diagnose ? ` [exit ${String(o.code)} signal ${String(o.signal)} stderr ${JSON.stringify(o.stderr.slice(0, 1500))}]` : ""}`,
+      false,
+    );
   }
   let parsed: { ok?: boolean; text?: string; name?: string; message?: string; logs?: unknown };
-  try { parsed = JSON.parse(raw) as typeof parsed; } catch { throw stepError("validation.bad_input", "Run code must return JSON.", false); }
-  const logs = Array.isArray(parsed.logs) ? parsed.logs.filter((l): l is string => typeof l === "string").slice(0, MAX_LOGS) : [];
+  try {
+    parsed = JSON.parse(raw) as typeof parsed;
+  } catch {
+    throw stepError("validation.bad_input", "Run code must return JSON.", false);
+  }
+  const logs = Array.isArray(parsed.logs)
+    ? parsed.logs.filter((l): l is string => typeof l === "string").slice(0, MAX_LOGS)
+    : [];
   // the words of the failure are the code's own and may hold the data it was given: only its kind of error is passed on
   if (parsed.ok !== true) {
     if (parsed.name === "NotJson") throw stepError("validation.bad_input", "Run code must return JSON.", false);
-    if (parsed.name === "OutOfMemory") throw stepError("validation.bad_input", `Run code used more than ${memoryMb} MB of memory.`, false);
-    if (parsed.name === "OutputTooLarge") throw stepError("validation.too_large", "Run code returned more than 1 MB.", false);
+    if (parsed.name === "OutOfMemory")
+      throw stepError("validation.bad_input", `Run code used more than ${memoryMb} MB of memory.`, false);
+    if (parsed.name === "OutputTooLarge")
+      throw stepError("validation.too_large", "Run code returned more than 1 MB.", false);
     throw stepError("validation.bad_input", `The code threw ${parsed.name ?? "an error"}.`, false);
   }
-  try { return { result: JSON.parse(parsed.text ?? "null") as unknown, logs }; } catch { throw stepError("validation.bad_input", "Run code must return JSON.", false); }
+  try {
+    return { result: JSON.parse(parsed.text ?? "null") as unknown, logs };
+  } catch {
+    throw stepError("validation.bad_input", "Run code must return JSON.", false);
+  }
 }

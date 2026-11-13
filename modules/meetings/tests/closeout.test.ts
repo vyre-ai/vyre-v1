@@ -5,7 +5,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as m from "../handlers/index.ts";
-import { EVENT, HOUR, MAYA, NOW, PAT, START, contractErrors, eventErrors, harness, refusedWith } from "../fixtures/harness.ts";
+import {
+  EVENT,
+  HOUR,
+  MAYA,
+  NOW,
+  PAT,
+  START,
+  contractErrors,
+  eventErrors,
+  harness,
+  refusedWith,
+} from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { ANSWER, ASSISTANT, COMPANY, NEXT_AT, SAM, TRANSCRIPT } from "../fixtures/closeout.ts";
 
@@ -17,41 +28,120 @@ const ZED_ASSISTANT = "agt_zedasst01";
 function addRecord(h: Harness, id: string, type: string, fields: Json): void {
   h.store.set(id, { id, type, fields, version: 1, createdAt: NOW, updatedAt: NOW, deleted: false });
 }
-const person = (id: string, name: string) => ({ id, kind: "person", name, status: "active", roles: [], groups: [], createdAt: NOW });
+const person = (id: string, name: string) => ({
+  id,
+  kind: "person",
+  name,
+  status: "active",
+  roles: [],
+  groups: [],
+  createdAt: NOW,
+});
 const typeOf = (key: string, fields: Array<[string, string, string]>) => ({
-  key, title: key, plural: `${key}s`, icon: "user", label: "internal", system: true, titleField: "name", fields: fields.map(([k, type, title]) => ({ key: k, type, title })), version: 1,
+  key,
+  title: key,
+  plural: `${key}s`,
+  icon: "user",
+  label: "internal",
+  system: true,
+  titleField: "name",
+  fields: fields.map(([k, type, title]) => ({ key: k, type, title })),
+  version: 1,
 });
 
 /** Maya's world: Pat Lee of Lee Holdings is a contact, Sam is her colleague, her Assistant and mailbox are set up, and the outward capabilities count what they are asked. */
 function world() {
   const h = harness();
-  addRecord(h, PAT, "contact", { name: "Pat Lee", email: "pat@client.example", title: "Operations lead", company: [COMPANY] });
+  addRecord(h, PAT, "contact", {
+    name: "Pat Lee",
+    email: "pat@client.example",
+    title: "Operations lead",
+    company: [COMPANY],
+  });
   addRecord(h, COMPANY, "company", { name: "Lee Holdings", website: "" });
   h.contacts.set("pat@client.example", PAT);
   // the agents module's host seam: Maya's and Zed's Assistants (Zed joined today); Sam has not set one up
   const assistants: Record<string, string> = { [MAYA]: ASSISTANT, [ZED]: ZED_ASSISTANT };
-  h.script("agents.assistant_of", (i) => (assistants[String(i["personId"])] ? { agentId: assistants[String(i["personId"])] } : {}));
-  h.script("comms.senders.list", () => ({ senders: [{ id: "mbx_maya0001", channel: "email", name: "Maya Ortiz", address: "maya@firm.example", via: "Gmail", provider: "google", scope: "mine", default: true, usable: true }] }));
-  h.script("access.principals.list", () => ({ principals: [person(MAYA, "Maya Ortiz"), person(SAM, "Sam Reyes"), person(ZED, "Zed King")] }));
+  h.script("agents.assistant_of", (i) =>
+    assistants[String(i["personId"])] ? { agentId: assistants[String(i["personId"])] } : {},
+  );
+  h.script("comms.senders.list", () => ({
+    senders: [
+      {
+        id: "mbx_maya0001",
+        channel: "email",
+        name: "Maya Ortiz",
+        address: "maya@firm.example",
+        via: "Gmail",
+        provider: "google",
+        scope: "mine",
+        default: true,
+        usable: true,
+      },
+    ],
+  }));
+  h.script("access.principals.list", () => ({
+    principals: [person(MAYA, "Maya Ortiz"), person(SAM, "Sam Reyes"), person(ZED, "Zed King")],
+  }));
   h.script("schema.describe", (i) => ({
-    types: [i["type"] === "company"
-      ? typeOf("company", [["name", "text", "Name"], ["website", "url", "Website"], ["contacts", "relation", "People"]])
-      : typeOf("contact", [["name", "text", "Name"], ["title", "text", "Job title"], ["email", "email", "Email"], ["company", "relation", "Company"], ["owner", "person", "Owner"], ["pref_sms_consent", "choice", "SMS consent"]])],
+    types: [
+      i["type"] === "company"
+        ? typeOf("company", [
+            ["name", "text", "Name"],
+            ["website", "url", "Website"],
+            ["contacts", "relation", "People"],
+          ])
+        : typeOf("contact", [
+            ["name", "text", "Name"],
+            ["title", "text", "Job title"],
+            ["email", "email", "Email"],
+            ["company", "relation", "Company"],
+            ["owner", "person", "Owner"],
+            ["pref_sms_consent", "choice", "SMS consent"],
+          ]),
+    ],
   }));
   let n = 0;
-  h.script("records.comments.add", (i) => ({ comment: { commentId: `rcm_${++n}`, type: i["type"], recordId: i["recordId"], text: i["text"], by: MAYA, at: NOW, resolved: false, mentions: [], replying: [] } }));
+  h.script("records.comments.add", (i) => ({
+    comment: {
+      commentId: `rcm_${++n}`,
+      type: i["type"],
+      recordId: i["recordId"],
+      text: i["text"],
+      by: MAYA,
+      at: NOW,
+      resolved: false,
+      mentions: [],
+      replying: [],
+    },
+  }));
   // the Gate: a person's own send at a screen goes out; an agent's is held for approval (modules/mail/handlers/send.ts sendGateApplies)
-  h.script("mail.send", () => (h.ctx.principal.kind === "person" ? { messageId: `eml_sent${++n}`, status: "sent", suppressed: [] } : { status: "held", taskId: "tsk_held0001", suppressed: [] }));
+  h.script("mail.send", () =>
+    h.ctx.principal.kind === "person"
+      ? { messageId: `eml_sent${++n}`, status: "sent", suppressed: [] }
+      : { status: "held", taskId: "tsk_held0001", suppressed: [] },
+  );
   h.script("mail.draft", () => ({ draftId: `eml_draft${++n}` }));
   return h;
 }
 
 /** Maya's calendar brings the call in, then its transcript lands. */
 async function meeting(h: Harness): Promise<string> {
-  const got = out(await m.ingest(h.ctx, {
-    source: "calendar", providerRef: EVENT, calendarEventId: EVENT, title: "Lee Holdings renewal", startsAt: START, endsAt: START + HOUR,
-    attendees: [{ email: "maya@firm.example", name: "Maya Ortiz" }, { email: "sam@firm.example", name: "Sam Reyes" }, { email: "pat@client.example", name: "Pat Lee" }],
-  }));
+  const got = out(
+    await m.ingest(h.ctx, {
+      source: "calendar",
+      providerRef: EVENT,
+      calendarEventId: EVENT,
+      title: "Lee Holdings renewal",
+      startsAt: START,
+      endsAt: START + HOUR,
+      attendees: [
+        { email: "maya@firm.example", name: "Maya Ortiz" },
+        { email: "sam@firm.example", name: "Sam Reyes" },
+        { email: "pat@client.example", name: "Pat Lee" },
+      ],
+    }),
+  );
   const id = String(got.meetingId);
   await m.attachRecording(h.ctx, { meetingId: id, source: "upload", transcriptText: TRANSCRIPT });
   return id;
@@ -77,12 +167,29 @@ test("a recorded transcript becomes a close-out: the owner's Assistant gets the 
   assert.deepEqual(contractErrors("meetings.closeout.prepare", "out", started), []);
   assert.equal(started.state, "preparing");
   const ask = h.calls("tasks.create").at(-1)?.input as Json;
-  assert.deepEqual([ask.assigned, ask.source, ask.recordId], [{ kind: "agent", id: ASSISTANT }, { kind: "meeting", id }, id], "the task is her own Assistant's, from the meeting");
+  assert.deepEqual(
+    [ask.assigned, ask.source, ask.recordId],
+    [{ kind: "agent", id: ASSISTANT }, { kind: "meeting", id }, id],
+    "the task is her own Assistant's, from the meeting",
+  );
   const brief = String((ask.notes as Json).brief);
-  for (const said of ["Lee Holdings renewal", "Pat Lee <pat@client.example>", `contact ${PAT}`, "title: \"Operations lead\"", "Sam Reyes", "meetings.closeout.propose", "follow-up to Pat Lee", "in Maya Ortiz's voice", "I'll send the revised quote"]) {
+  for (const said of [
+    "Lee Holdings renewal",
+    "Pat Lee <pat@client.example>",
+    `contact ${PAT}`,
+    'title: "Operations lead"',
+    "Sam Reyes",
+    "meetings.closeout.propose",
+    "follow-up to Pat Lee",
+    "in Maya Ortiz's voice",
+    "I'll send the revised quote",
+  ]) {
     assert.ok(brief.includes(said), `the brief says ${said}`);
   }
-  assert.ok(!brief.includes("pref_sms_consent") && !brief.includes("owner:"), "consent and people fields are not the transcript's to change");
+  assert.ok(
+    !brief.includes("pref_sms_consent") && !brief.includes("owner:"),
+    "consent and people fields are not the transcript's to change",
+  );
 
   h.actAs("agent", ASSISTANT);
   const proposed = out(await m.closeoutPropose(h.ctx, { meetingId: id, ...ANSWER }));
@@ -96,26 +203,65 @@ test("a recorded transcript becomes a close-out: the owner's Assistant gets the 
   assert.equal(pkg.state, "ready");
   assert.equal(pkg.summary, ANSWER.summary);
   assert.deepEqual([pkg.decisions, pkg.questions], [ANSWER.decisions, ANSWER.questions]);
-  assert.deepEqual((pkg.attendees as Json[]).map((a) => [a.name, a.recordId]), [["Maya", undefined], ["Sam", undefined], ["Pat Lee", PAT]], "a contact's name from the record, anyone else's from the address");
+  assert.deepEqual(
+    (pkg.attendees as Json[]).map((a) => [a.name, a.recordId]),
+    [
+      ["Maya", undefined],
+      ["Sam", undefined],
+      ["Pat Lee", PAT],
+    ],
+    "a contact's name from the record, anyone else's from the address",
+  );
 
   const [quote, onboarding] = byKind(pkg, "task");
-  assert.deepEqual([quote?.title, quote?.assignee, quote?.ownerName, typeof quote?.due], ["Send Pat the revised quote", SAM, "Sam", "number"], "Sam said it, so Sam owns it, with the date he said");
+  assert.deepEqual(
+    [quote?.title, quote?.assignee, quote?.ownerName, typeof quote?.due],
+    ["Send Pat the revised quote", SAM, "Sam", "number"],
+    "Sam said it, so Sam owns it, with the date he said",
+  );
   assert.deepEqual([onboarding?.assignee, onboarding?.due], [MAYA, undefined]);
   const [pat, company] = byKind(pkg, "record");
-  assert.deepEqual([pat?.recordId, pat?.changes], [PAT, [{ field: "title", title: "Job title", from: "Operations lead", to: "Head of Operations" }]], "a value that does not fit its field is left out");
+  assert.deepEqual(
+    [pat?.recordId, pat?.changes],
+    [PAT, [{ field: "title", title: "Job title", from: "Operations lead", to: "Head of Operations" }]],
+    "a value that does not fit its field is left out",
+  );
   assert.match(String(pat?.note), /annual plan/);
-  assert.deepEqual([company?.recordId, company?.changes], [COMPANY, [{ field: "website", title: "Website", to: "https://leeholdings.example" }]]);
+  assert.deepEqual(
+    [company?.recordId, company?.changes],
+    [COMPANY, [{ field: "website", title: "Website", to: "https://leeholdings.example" }]],
+  );
   const [mail] = byKind(pkg, "email");
-  assert.deepEqual([mail?.to, mail?.subject, mail?.send], [[{ address: "pat@client.example", name: "Pat Lee" }], "Next steps on your renewal", "send"], "only the outside attendee gets the follow-up");
+  assert.deepEqual(
+    [mail?.to, mail?.subject, mail?.send],
+    [[{ address: "pat@client.example", name: "Pat Lee" }], "Next steps on your renewal", "send"],
+    "only the outside attendee gets the follow-up",
+  );
   const [hold] = byKind(pkg, "hold");
-  assert.deepEqual([hold?.title, hold?.startsAt, hold?.endsAt], ["Renewal: legal review", NEXT_AT, NEXT_AT + 30 * 60_000]);
+  assert.deepEqual(
+    [hold?.title, hold?.startsAt, hold?.endsAt],
+    ["Renewal: legal review", NEXT_AT, NEXT_AT + 30 * 60_000],
+  );
   assert.equal(h.fields(id)["summary"], ANSWER.summary, "the meeting keeps the summary too");
 
   const listed = out(await m.closeoutList(h.ctx, {}));
   assert.deepEqual(contractErrors("meetings.closeout.list", "out", listed), []);
-  assert.deepEqual([listed.ready, (listed.meetings as Json[]).map((r) => [r.meetingId, r.state, r.proposed, r.done])], [1, [[id, "ready", 6, 0]]]);
-  assert.deepEqual((out(await m.closeoutList(h.ctx, { recordId: PAT })).meetings as Json[]).length, 1, "Pat's record lists the meeting");
-  assert.equal(h.calls("mail.send").length + h.calls("records.update").filter((c) => c.input.type !== "meeting").length + h.calls("calendar.create_event").length, 0, "nothing went out or changed before approval");
+  assert.deepEqual(
+    [listed.ready, (listed.meetings as Json[]).map((r) => [r.meetingId, r.state, r.proposed, r.done])],
+    [1, [[id, "ready", 6, 0]]],
+  );
+  assert.deepEqual(
+    (out(await m.closeoutList(h.ctx, { recordId: PAT })).meetings as Json[]).length,
+    1,
+    "Pat's record lists the meeting",
+  );
+  assert.equal(
+    h.calls("mail.send").length +
+      h.calls("records.update").filter((c) => c.input.type !== "meeting").length +
+      h.calls("calendar.create_event").length,
+    0,
+    "nothing went out or changed before approval",
+  );
 });
 
 test("Approve all creates every item through its own capability, with exactly one email through the gated send, and the closed meeting links to what it made", async () => {
@@ -126,29 +272,63 @@ test("Approve all creates every item through its own capability, with exactly on
   assert.deepEqual(contractErrors("meetings.closeout.approve", "out", done), []);
   assert.equal(done.state, "closed");
 
-  const made = h.calls("tasks.create").slice(tasksBefore).map((c) => c.input);
-  assert.deepEqual(made.map((t) => [t.title, (t.assigned as Json).id, t.source, t.recordId]), [
-    ["Send Pat the revised quote", SAM, { kind: "meeting", id }, PAT],
-    ["Set up the onboarding call with the Lee Holdings team", MAYA, { kind: "meeting", id }, PAT],
-  ], "each task says it came from the meeting");
-  const updates = h.calls("records.update").filter((c) => c.input.type !== "meeting").map((c) => [c.input.recordId, c.input.patch]);
-  assert.deepEqual(updates, [[PAT, { title: "Head of Operations" }], [COMPANY, { website: "https://leeholdings.example" }]]);
+  const made = h
+    .calls("tasks.create")
+    .slice(tasksBefore)
+    .map((c) => c.input);
+  assert.deepEqual(
+    made.map((t) => [t.title, (t.assigned as Json).id, t.source, t.recordId]),
+    [
+      ["Send Pat the revised quote", SAM, { kind: "meeting", id }, PAT],
+      ["Set up the onboarding call with the Lee Holdings team", MAYA, { kind: "meeting", id }, PAT],
+    ],
+    "each task says it came from the meeting",
+  );
+  const updates = h
+    .calls("records.update")
+    .filter((c) => c.input.type !== "meeting")
+    .map((c) => [c.input.recordId, c.input.patch]);
+  assert.deepEqual(updates, [
+    [PAT, { title: "Head of Operations" }],
+    [COMPANY, { website: "https://leeholdings.example" }],
+  ]);
   assert.deepEqual(h.fields(PAT)["title"], "Head of Operations");
-  assert.deepEqual(h.calls("records.comments.add").map((c) => c.input.recordId), [PAT, COMPANY], "a meeting note on each record");
+  assert.deepEqual(
+    h.calls("records.comments.add").map((c) => c.input.recordId),
+    [PAT, COMPANY],
+    "a meeting note on each record",
+  );
   const sends = h.calls("mail.send");
   assert.equal(sends.length, 1, "exactly one email");
-  assert.deepEqual([sends[0]?.input.mailboxId, sends[0]?.input.to, sends[0]?.input.contactId], ["mbx_maya0001", [{ address: "pat@client.example", name: "Pat Lee" }], PAT]);
+  assert.deepEqual(
+    [sends[0]?.input.mailboxId, sends[0]?.input.to, sends[0]?.input.contactId],
+    ["mbx_maya0001", [{ address: "pat@client.example", name: "Pat Lee" }], PAT],
+  );
   assert.equal(h.calls("mail.draft").length, 0);
   const holds = h.calls("calendar.create_event");
-  assert.deepEqual(holds.map((c) => [c.input.startsAt, c.input.recordIds, c.input.attendees]), [[NEXT_AT, [id], undefined]], "a hold on her own calendar, nobody invited");
+  assert.deepEqual(
+    holds.map((c) => [c.input.startsAt, c.input.recordIds, c.input.attendees]),
+    [[NEXT_AT, [id], undefined]],
+    "a hold on her own calendar, nobody invited",
+  );
 
   const pkg = out(await m.closeoutGet(h.ctx, { meetingId: id }));
-  assert.ok(items(pkg).every((i) => i.status === "approved" && (i.made as Json[]).length > 0), "every item links to what it made");
-  assert.deepEqual((byKind(pkg, "email")[0]?.made as Json[]).map((x) => [x.type, x.title]), [["email", "Next steps on your renewal"]]);
+  assert.ok(
+    items(pkg).every((i) => i.status === "approved" && (i.made as Json[]).length > 0),
+    "every item links to what it made",
+  );
+  assert.deepEqual(
+    (byKind(pkg, "email")[0]?.made as Json[]).map((x) => [x.type, x.title]),
+    [["email", "Next steps on your renewal"]],
+  );
   const closed = h.named("meeting.closed");
   assert.equal(closed.length, 1);
   assert.deepEqual(eventErrors("meeting.closed", closed[0]?.payload), []);
-  assert.equal((closed[0]?.payload.made as Json[]).length, 8, "two tasks, two updates, two notes, the email and the hold");
+  assert.equal(
+    (closed[0]?.payload.made as Json[]).length,
+    8,
+    "two tasks, two updates, two notes, the email and the hold",
+  );
 
   // pressing it again (or both buttons at once) makes nothing more
   await Promise.all([m.closeoutApprove(h.ctx, { meetingId: id }), m.closeoutApprove(h.ctx, { meetingId: id })]);
@@ -164,10 +344,26 @@ test("an approved item goes one at a time; an edit and a skip change what is mad
   const quote = byKind(pkg, "task")[0] as Json;
   const mail = byKind(pkg, "email")[0] as Json;
   const hold = byKind(pkg, "hold")[0] as Json;
-  const edited = out(await m.closeoutEdit(h.ctx, { meetingId: id, itemId: String(quote.itemId), title: "Send Pat the revised annual quote", assignee: MAYA, due: null }));
+  const edited = out(
+    await m.closeoutEdit(h.ctx, {
+      meetingId: id,
+      itemId: String(quote.itemId),
+      title: "Send Pat the revised annual quote",
+      assignee: MAYA,
+      due: null,
+    }),
+  );
   assert.deepEqual(contractErrors("meetings.closeout.edit", "out", edited), []);
-  assert.deepEqual([(edited.item as Json).title, (edited.item as Json).assignee, (edited.item as Json).due], ["Send Pat the revised annual quote", MAYA, undefined]);
-  await m.closeoutEdit(h.ctx, { meetingId: id, itemId: String(mail.itemId), send: "draft", text: "Hi Pat,\n\nShort version: annual plan from January.\n\nMaya" });
+  assert.deepEqual(
+    [(edited.item as Json).title, (edited.item as Json).assignee, (edited.item as Json).due],
+    ["Send Pat the revised annual quote", MAYA, undefined],
+  );
+  await m.closeoutEdit(h.ctx, {
+    meetingId: id,
+    itemId: String(mail.itemId),
+    send: "draft",
+    text: "Hi Pat,\n\nShort version: annual plan from January.\n\nMaya",
+  });
   const skipped = out(await m.closeoutSkip(h.ctx, { meetingId: id, itemId: String(hold.itemId) }));
   assert.deepEqual(contractErrors("meetings.closeout.skip", "out", skipped), []);
   assert.equal((skipped.item as Json).status, "skipped");
@@ -177,17 +373,40 @@ test("an approved item goes one at a time; an edit and a skip change what is mad
   assert.deepEqual(h.calls("tasks.create").at(-1)?.input.title, "Send Pat the revised annual quote");
   await m.closeoutApprove(h.ctx, { meetingId: id });
   assert.equal(h.calls("mail.send").length, 0, "a draft, not a send");
-  assert.deepEqual(h.calls("mail.draft").map((c) => c.input.text), ["Hi Pat,\n\nShort version: annual plan from January.\n\nMaya"]);
+  assert.deepEqual(
+    h.calls("mail.draft").map((c) => c.input.text),
+    ["Hi Pat,\n\nShort version: annual plan from January.\n\nMaya"],
+  );
   assert.equal(h.calls("calendar.create_event").length, 0, "the skipped hold is not made");
-  assert.equal(await refusedWith(m.closeoutEdit(h.ctx, { meetingId: id, itemId: String(quote.itemId), title: "Too late" })), "validation.precondition_failed");
+  assert.equal(
+    await refusedWith(m.closeoutEdit(h.ctx, { meetingId: id, itemId: String(quote.itemId), title: "Too late" })),
+    "validation.precondition_failed",
+  );
 
   // the next follow-up is proposed as a draft too
   const h2 = h;
-  const second = out(await m.ingest(h2.ctx, { source: "calendar", providerRef: "cev_evt00009", calendarEventId: "cev_evt00009", title: "Lee Holdings check-in", startsAt: START + 48 * HOUR, endsAt: START + 49 * HOUR, attendees: [{ email: "pat@client.example" }] }));
-  await m.attachRecording(h2.ctx, { meetingId: String(second.meetingId), source: "upload", transcriptText: TRANSCRIPT });
+  const second = out(
+    await m.ingest(h2.ctx, {
+      source: "calendar",
+      providerRef: "cev_evt00009",
+      calendarEventId: "cev_evt00009",
+      title: "Lee Holdings check-in",
+      startsAt: START + 48 * HOUR,
+      endsAt: START + 49 * HOUR,
+      attendees: [{ email: "pat@client.example" }],
+    }),
+  );
+  await m.attachRecording(h2.ctx, {
+    meetingId: String(second.meetingId),
+    source: "upload",
+    transcriptText: TRANSCRIPT,
+  });
   await m.closeoutPrepare(h2.ctx, { meetingId: String(second.meetingId) });
   await m.closeoutPropose(h2.ctx, { meetingId: String(second.meetingId), ...ANSWER });
-  assert.equal(byKind(out(await m.closeoutGet(h2.ctx, { meetingId: String(second.meetingId) })), "email")[0]?.send, "draft");
+  assert.equal(
+    byKind(out(await m.closeoutGet(h2.ctx, { meetingId: String(second.meetingId) })), "email")[0]?.send,
+    "draft",
+  );
 });
 
 test("Redo asks the Assistant again and never makes anything twice", async () => {
@@ -206,17 +425,32 @@ test("Redo asks the Assistant again and never makes anything twice", async () =>
   assert.ok(redone.every((i) => !firstIds.includes(i.itemId)));
 
   await m.closeoutApprove(h.ctx, { meetingId: id });
-  const counts = () => [h.calls("tasks.create").length, h.calls("mail.send").length, h.calls("calendar.create_event").length, h.calls("records.comments.add").length];
+  const counts = () => [
+    h.calls("tasks.create").length,
+    h.calls("mail.send").length,
+    h.calls("calendar.create_event").length,
+    h.calls("records.comments.add").length,
+  ];
   const after = counts();
   // a redo after approval proposes nothing that was already made
   await m.closeoutPrepare(h.ctx, { meetingId: id, redo: true });
   h.actAs("agent", ASSISTANT);
-  const third = out(await m.closeoutPropose(h.ctx, { meetingId: id, ...ANSWER, actions: [...ANSWER.actions, { title: "Book the legal review" }] }));
+  const third = out(
+    await m.closeoutPropose(h.ctx, {
+      meetingId: id,
+      ...ANSWER,
+      actions: [...ANSWER.actions, { title: "Book the legal review" }],
+    }),
+  );
   h.actAs("person", MAYA);
   assert.deepEqual([third.state, third.items], ["ready", 1], "only the new action is proposed");
   await m.closeoutApprove(h.ctx, { meetingId: id });
   const end = counts();
-  assert.deepEqual(end, [after[0]! + 1 + 1, after[1], after[2], after[3]], "one more Assistant task and the one new task; no second email, hold or note");
+  assert.deepEqual(
+    end,
+    [after[0]! + 1 + 1, after[1], after[2], after[3]],
+    "one more Assistant task and the one new task; no second email, hold or note",
+  );
   assert.equal(items(out(await m.closeoutGet(h.ctx, { meetingId: id }))).length, 7);
 });
 
@@ -229,7 +463,10 @@ test("another person's private meeting never shows: not in their list, not opena
   assert.equal(await refusedWith(m.closeoutGet(h.ctx, { meetingId: id })), "validation.not_found");
   assert.equal(await refusedWith(m.closeoutApprove(h.ctx, { meetingId: id })), "validation.not_found");
   assert.equal(await refusedWith(m.closeoutPrepare(h.ctx, { meetingId: id, redo: true })), "validation.not_found");
-  assert.equal(await refusedWith(m.closeoutShare(h.ctx, { meetingId: id, projectId: "prj_ops00001", on: true })), "validation.not_found");
+  assert.equal(
+    await refusedWith(m.closeoutShare(h.ctx, { meetingId: id, projectId: "prj_ops00001", on: true })),
+    "validation.not_found",
+  );
   assert.equal(h.calls("mail.send").length, 0);
   // nor through an agent: one acting for Sam is Sam, and one acting for nobody sees only the close-out it was asked to prepare
   h.actAs("agent", "agt_samhelp1");
@@ -239,16 +476,27 @@ test("another person's private meeting never shows: not in their list, not opena
   assert.deepEqual(out(await m.closeoutList(h.ctx, {})).meetings, []);
   assert.equal(await refusedWith(m.closeoutGet(h.ctx, { meetingId: id })), "validation.not_found");
   h.actAs("agent", ASSISTANT);
-  assert.equal((out(await m.closeoutList(h.ctx, {})).meetings as Json[]).length, 1, "Maya's Assistant sees the one it prepared");
+  assert.equal(
+    (out(await m.closeoutList(h.ctx, {})).meetings as Json[]).length,
+    1,
+    "Maya's Assistant sees the one it prepared",
+  );
 
   // Maya shares it with the Ops project; Sam can read the project, Zed cannot
   const readers: Record<string, string[]> = { prj_ops00001: [MAYA, SAM] };
-  h.ctx.authorize = (_a, r) => ({ effect: (readers[String(r.id)] ?? []).includes(h.ctx.principal.id) ? "allow" : "deny" });
+  h.ctx.authorize = (_a, r) => ({
+    effect: (readers[String(r.id)] ?? []).includes(h.ctx.principal.id) ? "allow" : "deny",
+  });
   h.actAs("person", MAYA);
   await m.closeoutShare(h.ctx, { meetingId: id, projectId: "prj_ops00001", on: true });
   h.actAs("person", SAM);
-  assert.deepEqual((out(await m.closeoutList(h.ctx, {})).meetings as Json[]).map((r) => r.meetingId), [id]);
-  assert.deepEqual(out(await m.closeoutGet(h.ctx, { meetingId: id })).shared, [{ type: "project", id: "prj_ops00001" }]);
+  assert.deepEqual(
+    (out(await m.closeoutList(h.ctx, {})).meetings as Json[]).map((r) => r.meetingId),
+    [id],
+  );
+  assert.deepEqual(out(await m.closeoutGet(h.ctx, { meetingId: id })).shared, [
+    { type: "project", id: "prj_ops00001" },
+  ]);
   h.actAs("person", ZED);
   assert.deepEqual(out(await m.closeoutList(h.ctx, {})).meetings, []);
   assert.equal(await refusedWith(m.closeoutGet(h.ctx, { meetingId: id })), "validation.not_found");
@@ -258,7 +506,17 @@ test("a brand-new member's first meeting closes itself: the transcript lands, th
   const h = world();
   // Zed joined today and has never opened anything; his calendar brings the call in and the transcript lands
   h.actAs("person", ZED);
-  const got = out(await m.ingest(h.ctx, { source: "calendar", providerRef: "cev_evt00007", calendarEventId: "cev_evt00007", title: "Lee Holdings intro", startsAt: START, endsAt: START + HOUR, attendees: [{ email: "zed@firm.example" }, { email: "pat@client.example" }] }));
+  const got = out(
+    await m.ingest(h.ctx, {
+      source: "calendar",
+      providerRef: "cev_evt00007",
+      calendarEventId: "cev_evt00007",
+      title: "Lee Holdings intro",
+      startsAt: START,
+      endsAt: START + HOUR,
+      attendees: [{ email: "zed@firm.example" }, { email: "pat@client.example" }],
+    }),
+  );
   const id = String(got.meetingId);
   await m.attachRecording(h.ctx, { meetingId: id, source: "upload", transcriptText: TRANSCRIPT });
   const before = h.called.length;
@@ -268,19 +526,46 @@ test("a brand-new member's first meeting closes itself: the transcript lands, th
   await m.onTranscriptReady(h.ctx, { payload: { meetingId: id, source: "upload" } });
   const asks = h.calls("tasks.create").filter((c) => (c.input.source as Json | undefined)?.id === id);
   assert.equal(asks.length, 1, "one package per meeting, however often the transcript is heard");
-  assert.deepEqual([asks[0]?.input.assigned, h.calls("agents.assistant_of").at(-1)?.input], [{ kind: "agent", id: ZED_ASSISTANT }, { personId: ZED }], "found through the agents module's seam");
+  assert.deepEqual(
+    [asks[0]?.input.assigned, h.calls("agents.assistant_of").at(-1)?.input],
+    [{ kind: "agent", id: ZED_ASSISTANT }, { personId: ZED }],
+    "found through the agents module's seam",
+  );
   h.actAs("agent", ZED_ASSISTANT);
   await m.closeoutPropose(h.ctx, { meetingId: id, ...ANSWER });
-  assert.deepEqual(h.called.slice(before).filter((c) => c.cap === "meetings.closeout.sync" || c.cap === "agents.list").length, 0, "no visit, no list of agents");
+  assert.deepEqual(
+    h.called.slice(before).filter((c) => c.cap === "meetings.closeout.sync" || c.cap === "agents.list").length,
+    0,
+    "no visit, no list of agents",
+  );
   h.actAs("person", ZED);
   const pkg = out(await m.closeoutGet(h.ctx, { meetingId: id }));
   assert.equal(pkg.state, "ready");
-  assert.deepEqual(byKind(pkg, "email")[0]?.to, [{ address: "pat@client.example", name: "Pat Lee" }], "the follow-up goes to the contact; his own address is never a recipient");
-  assert.deepEqual((out(await m.closeoutList(h.ctx, {})).meetings as Json[]).map((r) => [r.meetingId, r.state]), [[id, "ready"]]);
+  assert.deepEqual(
+    byKind(pkg, "email")[0]?.to,
+    [{ address: "pat@client.example", name: "Pat Lee" }],
+    "the follow-up goes to the contact; his own address is never a recipient",
+  );
+  assert.deepEqual(
+    (out(await m.closeoutList(h.ctx, {})).meetings as Json[]).map((r) => [r.meetingId, r.state]),
+    [[id, "ready"]],
+  );
 
   // a person with no Assistant yet: the meeting waits, and the Meetings tab starts it once there is one
   h.actAs("person", SAM);
-  const sams = String(out(await m.ingest(h.ctx, { source: "calendar", providerRef: "cev_evt00008", calendarEventId: "cev_evt00008", title: "Supplier call", startsAt: START + 3 * HOUR, endsAt: START + 4 * HOUR, attendees: [{ email: "pat@client.example" }] })).meetingId);
+  const sams = String(
+    out(
+      await m.ingest(h.ctx, {
+        source: "calendar",
+        providerRef: "cev_evt00008",
+        calendarEventId: "cev_evt00008",
+        title: "Supplier call",
+        startsAt: START + 3 * HOUR,
+        endsAt: START + 4 * HOUR,
+        attendees: [{ email: "pat@client.example" }],
+      }),
+    ).meetingId,
+  );
   await m.attachRecording(h.ctx, { meetingId: sams, source: "upload", transcriptText: TRANSCRIPT });
   h.actAs("service", "svc_host");
   await m.onTranscriptReady(h.ctx, { payload: { meetingId: sams, source: "upload" } });
@@ -300,12 +585,30 @@ test("an Assistant that submits its task with the package as outputs still hands
   const made = h.calls("tasks.create").at(-1)?.input as Json;
   h.script("tasks.get", () => ({
     task: {
-      id: started.taskId, kind: "work", title: made.title, state: "done", assigned: made.assigned, actions: [], blocked: false, blocks: [], createdAt: NOW, createdBy: MAYA, dependsOn: [], fileIds: [],
-      followers: [], reviewLoops: 0, updatedAt: NOW, recordId: id, source: { kind: "meeting", id }, workingNotes: { outputs: JSON.stringify(ANSWER), summary: "Done" },
+      id: started.taskId,
+      kind: "work",
+      title: made.title,
+      state: "done",
+      assigned: made.assigned,
+      actions: [],
+      blocked: false,
+      blocks: [],
+      createdAt: NOW,
+      createdBy: MAYA,
+      dependsOn: [],
+      fileIds: [],
+      followers: [],
+      reviewLoops: 0,
+      updatedAt: NOW,
+      recordId: id,
+      source: { kind: "meeting", id },
+      workingNotes: { outputs: JSON.stringify(ANSWER), summary: "Done" },
     },
   }));
   h.actAs("service", "svc_host");
-  await m.onPrepareDone(h.ctx, { payload: { taskId: started.taskId, kind: "work", recordId: id, source: { kind: "meeting", id } } });
+  await m.onPrepareDone(h.ctx, {
+    payload: { taskId: started.taskId, kind: "work", recordId: id, source: { kind: "meeting", id } },
+  });
   h.actAs("person", MAYA);
   assert.equal(out(await m.closeoutGet(h.ctx, { meetingId: id })).state, "ready");
 
@@ -315,6 +618,9 @@ test("an Assistant that submits its task with the package as outputs still hands
   await m.closeoutApprove(h.ctx, { meetingId: id, itemIds: [String(mail.itemId)] });
   h.actAs("person", MAYA);
   const after = byKind(out(await m.closeoutGet(h.ctx, { meetingId: id })), "email")[0] as Json;
-  assert.deepEqual([after.status, after.made], ["approved", [{ type: "approval", id: "tsk_held0001", title: "Waiting for approval" }]]);
+  assert.deepEqual(
+    [after.status, after.made],
+    ["approved", [{ type: "approval", id: "tsk_held0001", title: "Waiting for approval" }]],
+  );
   assert.equal(h.calls("mail.send").length, 1, "one send, and the Gate held it");
 });

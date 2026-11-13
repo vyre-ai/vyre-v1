@@ -5,7 +5,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { receivePush } from "../handlers/workspace.ts";
 import { pullMailbox } from "../handlers/gmail.ts";
-import { userAppSet, userAppStatus, userComplete, userList, dropAccountsOf, userRemove, userSend, userStart } from "../handlers/personal.ts";
+import {
+  userAppSet,
+  userAppStatus,
+  userComplete,
+  userList,
+  dropAccountsOf,
+  userRemove,
+  userSend,
+  userStart,
+} from "../handlers/personal.ts";
 import { codeOf, fixture, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -20,7 +29,11 @@ async function app(h: Harness): Promise<void> {
   await userAppSet(h.ctx, { vaultItem: "#Google_Sign_In" });
 }
 
-async function signIn(h: Harness, code = "c1", email = MAYA): Promise<{ accountId: string; email: string; mailboxId?: string }> {
+async function signIn(
+  h: Harness,
+  code = "c1",
+  email = MAYA,
+): Promise<{ accountId: string; email: string; mailboxId?: string }> {
   h.on("GET", PROFILE, { body: { ...(fixture("gmail/profile.json") as object), emailAddress: email } });
   const { state } = await userStart(h.ctx, {});
   return userComplete(h.ctx, { state, code });
@@ -35,8 +48,16 @@ test("app: status says how to set it up, set reads the client from the Vault ite
   assert.deepEqual(await userAppStatus(h.ctx), { configured: false, redirectUri: "https://space.test/oauth/callback" });
   await expectCode(userAppSet(h.ctx, { vaultItem: "Google" }), "validation.bad_input");
   await expectCode(userAppSet(h.ctx, { vaultItem: "#Nothing" }), "provider.auth_failed");
-  assert.deepEqual(await userAppSet(h.ctx, { vaultItem: "#Google_Sign_In" }), { configured: true, clientId: "client-123.apps.googleusercontent.com" });
-  assert.deepEqual(await userAppStatus(h.ctx), { configured: true, clientId: "client-123.apps.googleusercontent.com", vaultItem: "#Google_Sign_In", redirectUri: "https://space.test/oauth/callback" });
+  assert.deepEqual(await userAppSet(h.ctx, { vaultItem: "#Google_Sign_In" }), {
+    configured: true,
+    clientId: "client-123.apps.googleusercontent.com",
+  });
+  assert.deepEqual(await userAppStatus(h.ctx), {
+    configured: true,
+    clientId: "client-123.apps.googleusercontent.com",
+    vaultItem: "#Google_Sign_In",
+    redirectUri: "https://space.test/oauth/callback",
+  });
 });
 
 test("start: refuses without an app; the link carries the client, the exact redirect, offline access, S256 and the hint", async () => {
@@ -55,7 +76,9 @@ test("start: refuses without an app; the link carries the client, the exact redi
   assert.equal(u.searchParams.get("state"), state);
   assert.match(state, /^gos_[0-9a-f]{48}$/);
   const row = h.rows(`SELECT * FROM google_user_oauth`)[0]!;
-  const digest = Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(row["verifier"])))).toString("base64url");
+  const digest = Buffer.from(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(row["verifier"]))),
+  ).toString("base64url");
   assert.equal(u.searchParams.get("code_challenge"), digest);
 });
 
@@ -73,7 +96,10 @@ test("complete: the code is traded, the address is Gmail's, the token is sealed,
   const connect = h.calls("mail.connect")[0]!.input;
   assert.deepEqual([connect["provider"], connect["address"], connect["connectionId"]], ["google", MAYA, out.accountId]);
   assert.equal(h.calls("mail.sync_now").length, 1);
-  assert.deepEqual(h.named("google.user_connected").map((e) => e.payload), [{ accountId: out.accountId, email: MAYA }]);
+  assert.deepEqual(
+    h.named("google.user_connected").map((e) => e.payload),
+    [{ accountId: out.accountId, email: MAYA }],
+  );
   // the refresh token is in the row only sealed, and in no output, event or call
   const row = h.rows(`SELECT * FROM google_user_account`)[0]!;
   assert.ok(!String(row["refreshSealed"]).includes("refresh-for-c1"));
@@ -104,7 +130,10 @@ test("complete: a declined sign-in ends cleanly; a refused exchange or profile r
   const h = harness();
   await app(h);
   const a = await userStart(h.ctx, {});
-  await assert.rejects(userComplete(h.ctx, { state: a.state, error: "access_denied" }), (e) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(
+    userComplete(h.ctx, { state: a.state, error: "access_denied" }),
+    (e) => codeOf(e) === "validation.precondition_failed",
+  );
   assert.equal(h.exchanges.length, 0);
 
   h.userState.exchangeFails = true;
@@ -131,7 +160,12 @@ test("complete: signing in again to the same address keeps the account and swaps
   assert.equal(h.calls("mail.sync_now").length, 2);
   // the new token is the one used
   h.on("GET", /\/history\?/, { body: { history: [], historyId: "1" } });
-  h.ctx.db.run(`INSERT INTO google_mailbox (email, "connectionId", "historyId") VALUES (?, ?, ?)`, MAYA, first.accountId, "1");
+  h.ctx.db.run(
+    `INSERT INTO google_mailbox (email, "connectionId", "historyId") VALUES (?, ?, ?)`,
+    MAYA,
+    first.accountId,
+    "1",
+  );
   await pullMailbox(h.ctx, { connectionId: first.accountId, mailbox: MAYA });
   assert.equal(h.refreshes.at(-1)!.refreshToken, "refresh-for-c2");
 });
@@ -140,7 +174,12 @@ test("list and remove: a person sees only their accounts; remove revokes, drops 
   const h = harness();
   await app(h);
   const out = await signIn(h);
-  h.ctx.db.run(`INSERT INTO google_mailbox (email, "connectionId", "historyId") VALUES (?, ?, ?)`, MAYA, out.accountId, "1");
+  h.ctx.db.run(
+    `INSERT INTO google_mailbox (email, "connectionId", "historyId") VALUES (?, ?, ?)`,
+    MAYA,
+    out.accountId,
+    "1",
+  );
   assert.deepEqual(userList(h.ctx), { accounts: [{ accountId: out.accountId, email: MAYA }] });
 
   const maya = h.ctx.principal;
@@ -160,10 +199,18 @@ test("token use: the unsealed refresh token goes to the host only; another perso
   const h = harness();
   await app(h);
   const out = await signIn(h);
-  h.ctx.db.run(`INSERT INTO google_mailbox (email, "connectionId", "historyId") VALUES (?, ?, ?)`, MAYA, out.accountId, "1");
+  h.ctx.db.run(
+    `INSERT INTO google_mailbox (email, "connectionId", "historyId") VALUES (?, ?, ?)`,
+    MAYA,
+    out.accountId,
+    "1",
+  );
   h.on("GET", /\/history\?/, { body: { history: [], historyId: "1" } });
   await pullMailbox(h.ctx, { connectionId: out.accountId, mailbox: MAYA });
-  assert.deepEqual(h.refreshes.map((r) => [r.appHandle, r.refreshToken, r.cacheKey]), [["#Google_Sign_In", "refresh-for-c1", out.accountId]]);
+  assert.deepEqual(
+    h.refreshes.map((r) => [r.appHandle, r.refreshToken, r.cacheKey]),
+    [["#Google_Sign_In", "refresh-for-c1", out.accountId]],
+  );
   assert.equal(h.hits(/\/history\?/)[0]!.headers["authorization"], "Bearer user-access-1");
 
   const maya = h.ctx.principal;
@@ -171,7 +218,7 @@ test("token use: the unsealed refresh token goes to the host only; another perso
   await expectCode(pullMailbox(h.ctx, { connectionId: out.accountId, mailbox: MAYA }), "validation.not_found");
   h.ctx.principal = { kind: "service", id: "svc_host" } as typeof maya;
   await pullMailbox(h.ctx, { connectionId: out.accountId, mailbox: MAYA });
-  assert.equal(h.hits(/\/history\?/).length, 2);   // the service read the mailbox; the access token was still fresh, so the host was not asked again
+  assert.equal(h.hits(/\/history\?/).length, 2); // the service read the mailbox; the access token was still fresh, so the host was not asked again
   h.ctx.principal = maya;
 });
 
@@ -181,7 +228,12 @@ test("poll with nobody signed in: a personal address is pulled, no calendar or M
   h.ctx.principal = { kind: "person", id: "usr_maya01" };
   const out = await signIn(h);
   h.ctx.principal = { kind: "service", id: "svc_host" } as never;
-  h.ctx.db.run(`INSERT INTO google_mailbox (email, "connectionId", "historyId") VALUES (?, ?, ?)`, MAYA, out.accountId, "1");
+  h.ctx.db.run(
+    `INSERT INTO google_mailbox (email, "connectionId", "historyId") VALUES (?, ?, ?)`,
+    MAYA,
+    out.accountId,
+    "1",
+  );
   h.on("GET", /\/history\?/, { body: { history: [], historyId: "2" } });
   const res = await receivePush(h.ctx, { kind: "gmail", messageId: "poll:1", mailbox: MAYA });
   assert.equal(res.accepted, true);
@@ -208,21 +260,39 @@ test("a lost sign-in: the first failed poll marks the mailbox, makes one Needs y
   const h = harness();
   await app(h);
   const out = await signIn(h);
-  h.ctx.db.run(`INSERT INTO google_mailbox (email, "connectionId", "historyId") VALUES (?, ?, ?)`, MAYA, out.accountId, "1");
+  h.ctx.db.run(
+    `INSERT INTO google_mailbox (email, "connectionId", "historyId") VALUES (?, ?, ?)`,
+    MAYA,
+    out.accountId,
+    "1",
+  );
   const maya = h.ctx.principal;
   h.ctx.principal = { kind: "service", id: "svc_host" } as never;
-  h.advance(2 * 3_600_000);   // the access token made at sign-in has ended
+  h.advance(2 * 3_600_000); // the access token made at sign-in has ended
   h.userState.refreshFails = true;
 
   await receivePush(h.ctx, { kind: "gmail", messageId: "poll:1", mailbox: MAYA });
   const state = h.calls("mail.mailbox.set_sync_state");
-  assert.deepEqual(state.map((c) => [c.input["mailboxId"], c.input["state"]]), [[out.mailboxId, "error"]]);
+  assert.deepEqual(
+    state.map((c) => [c.input["mailboxId"], c.input["state"]]),
+    [[out.mailboxId, "error"]],
+  );
   const made = h.calls("tasks.create");
   assert.equal(made.length, 1);
   assert.match(String(made[0]!.input["idempotencyKey"]), /-fix:/, "the call carries its idempotency key");
-  assert.deepEqual([made[0]!.input["kind"], made[0]!.input["assigned"], made[0]!.input["title"]], ["unblock", { kind: "person", id: "usr_maya01" }, `Sign in to ${MAYA} again`]);
-  assert.deepEqual((made[0]!.input["blocks"] as { type: string; data: Record<string, unknown> }[])[0], { type: "mail_signin", v: 1, data: { provider: "google", address: MAYA, accountId: out.accountId } });
-  assert.deepEqual((made[0]!.input["actions"] as { key: string }[]).map((a) => a.key), ["resolved"]);
+  assert.deepEqual(
+    [made[0]!.input["kind"], made[0]!.input["assigned"], made[0]!.input["title"]],
+    ["unblock", { kind: "person", id: "usr_maya01" }, `Sign in to ${MAYA} again`],
+  );
+  assert.deepEqual((made[0]!.input["blocks"] as { type: string; data: Record<string, unknown> }[])[0], {
+    type: "mail_signin",
+    v: 1,
+    data: { provider: "google", address: MAYA, accountId: out.accountId },
+  });
+  assert.deepEqual(
+    (made[0]!.input["actions"] as { key: string }[]).map((a) => a.key),
+    ["resolved"],
+  );
   assert.equal(h.scheduled.length, 0, "no poll is queued for a sign-in that is gone");
   assert.equal(h.rows(`SELECT "nextPollAt" FROM google_mailbox`)[0]!["nextPollAt"], null);
 
@@ -233,7 +303,10 @@ test("a lost sign-in: the first failed poll marks the mailbox, makes one Needs y
   h.ctx.principal = maya;
   const again = await signIn(h, "c2");
   assert.equal(again.accountId, out.accountId);
-  assert.deepEqual(h.calls("tasks.transition").map((c) => [c.input["taskId"], c.input["to"]]), [["tsk_fix1", "done"]]);
+  assert.deepEqual(
+    h.calls("tasks.transition").map((c) => [c.input["taskId"], c.input["to"]]),
+    [["tsk_fix1", "done"]],
+  );
   assert.equal(h.calls("mail.mailbox.set_sync_state").at(-1)!.input["state"], "syncing");
   assert.equal(h.calls("mail.sync_now").length, 2, "a pull starts again");
   assert.equal(h.rows(`SELECT "fixTaskId" FROM google_user_account`)[0]!["fixTaskId"], null);
@@ -243,20 +316,36 @@ test("remove while the sign-in task is open cancels the task", async () => {
   const h = harness();
   await app(h);
   const out = await signIn(h);
-  h.ctx.db.run(`INSERT INTO google_mailbox (email, "connectionId", "historyId") VALUES (?, ?, ?)`, MAYA, out.accountId, "1");
+  h.ctx.db.run(
+    `INSERT INTO google_mailbox (email, "connectionId", "historyId") VALUES (?, ?, ?)`,
+    MAYA,
+    out.accountId,
+    "1",
+  );
   h.advance(2 * 3_600_000);
   h.userState.refreshFails = true;
   await receivePush(h.ctx, { kind: "gmail", messageId: "poll:1", mailbox: MAYA });
   await userRemove(h.ctx, { accountId: out.accountId });
-  assert.deepEqual(h.calls("tasks.transition").map((c) => c.input["to"]), ["canceled"]);
+  assert.deepEqual(
+    h.calls("tasks.transition").map((c) => c.input["to"]),
+    ["canceled"],
+  );
 });
 
 test("send: the account's own Gmail sends as the account's address with its token; another person is refused", async () => {
   const h = harness();
   await app(h);
   const out = await signIn(h);
-  h.on("POST", "https://gmail.googleapis.com/gmail/v1/users/me/messages/send", { body: { id: "sent-1", threadId: "t9" } });
-  const sent = await userSend(h.ctx, { accountId: out.accountId, to: ["pat@acme.test"], subject: "Hello", text: "Hi Pat", idempotencyKey: "k1" });
+  h.on("POST", "https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+    body: { id: "sent-1", threadId: "t9" },
+  });
+  const sent = await userSend(h.ctx, {
+    accountId: out.accountId,
+    to: ["pat@acme.test"],
+    subject: "Hello",
+    text: "Hi Pat",
+    idempotencyKey: "k1",
+  });
   assert.deepEqual(sent, { id: "sent-1", threadId: "t9" });
   const req = h.hits("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", "POST")[0]!;
   assert.match(req.headers["authorization"] ?? "", /^Bearer user-access-\d+$/);
@@ -264,7 +353,10 @@ test("send: the account's own Gmail sends as the account's address with its toke
   assert.match(raw, /^From: .*maya@gmail\.test/m);
   assert.match(raw, /^Subject: Hello/m);
   h.ctx.principal = { kind: "person", id: "usr_other01" };
-  await expectCode(userSend(h.ctx, { accountId: out.accountId, to: ["pat@acme.test"], subject: "x", text: "y", idempotencyKey: "k2" }), "validation.not_found");
+  await expectCode(
+    userSend(h.ctx, { accountId: out.accountId, to: ["pat@acme.test"], subject: "x", text: "y", idempotencyKey: "k2" }),
+    "validation.not_found",
+  );
 });
 
 test("the removal wizard ends a person's sign-ins with their mailbox connections: tokens gone, their Needs you item cancelled, nobody else's account touched", async () => {
@@ -275,7 +367,10 @@ test("the removal wizard ends a person's sign-ins with their mailbox connections
   const theirs = await signIn(h, "c2", "pat@gmail.test");
   h.ctx.principal = { kind: "service", id: "svc_admin" } as never;
   assert.equal(await dropAccountsOf(h.ctx, "usr_maya01"), 1);
-  assert.deepEqual(h.rows(`SELECT "accountId" FROM google_user_account`).map((r) => r["accountId"]), [theirs.accountId]);
+  assert.deepEqual(
+    h.rows(`SELECT "accountId" FROM google_user_account`).map((r) => r["accountId"]),
+    [theirs.accountId],
+  );
   assert.notEqual(mine.accountId, theirs.accountId);
   assert.equal(await dropAccountsOf(h.ctx, "usr_maya01"), 0);
 });

@@ -18,18 +18,35 @@ export interface McpTool {
   /** The server says this tool only reads (annotations.readOnlyHint). */
   readOnly: boolean;
 }
-export interface McpContent { type: string; text?: string; [k: string]: unknown }
-export interface McpToolResult { isError: boolean; content: McpContent[]; structured?: unknown }
+export interface McpContent {
+  type: string;
+  text?: string;
+  [k: string]: unknown;
+}
+export interface McpToolResult {
+  isError: boolean;
+  content: McpContent[];
+  structured?: unknown;
+}
 
 export class McpError extends Error {
   readonly code: string;
-  constructor(code: string, message: string) { super(message); this.name = "McpError"; this.code = code; }
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "McpError";
+    this.code = code;
+  }
 }
 
 type Pending = { resolve(v: unknown): void; reject(e: Error): void; timer: ReturnType<typeof setTimeout> };
-const obj = (v: unknown): Record<string, unknown> => (typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+const obj = (v: unknown): Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 
-export interface ConnectOptions { name?: string; version?: string; timeoutMs?: number }
+export interface ConnectOptions {
+  name?: string;
+  version?: string;
+  timeoutMs?: number;
+}
 
 export class McpClient {
   private nextId = 1;
@@ -53,7 +70,13 @@ export class McpClient {
   static async connect(t: McpTransport, o: ConnectOptions = {}): Promise<McpClient> {
     const c = new McpClient(t, o.timeoutMs ?? 30_000);
     try {
-      const init = obj(await c.request("initialize", { protocolVersion: PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: o.name ?? "vyre", version: o.version ?? "1" } }));
+      const init = obj(
+        await c.request("initialize", {
+          protocolVersion: PROTOCOL_VERSION,
+          capabilities: {},
+          clientInfo: { name: o.name ?? "vyre", version: o.version ?? "1" },
+        }),
+      );
       const info = obj(init["serverInfo"]);
       c.serverName = typeof info["name"] === "string" ? info["name"] : "";
       c.serverVersion = typeof info["version"] === "string" ? info["version"] : "";
@@ -72,7 +95,10 @@ export class McpClient {
       if (msg["method"] === "notifications/tools/list_changed") this.toolsChanged = true;
       if (id !== undefined && id !== null) {
         // a request from the server: answer ping, refuse the rest (this client offers no roots, sampling or elicitation)
-        const reply = msg["method"] === "ping" ? { jsonrpc: "2.0", id, result: {} } : { jsonrpc: "2.0", id, error: { code: -32601, message: "Method not found" } };
+        const reply =
+          msg["method"] === "ping"
+            ? { jsonrpc: "2.0", id, result: {} }
+            : { jsonrpc: "2.0", id, error: { code: -32601, message: "Method not found" } };
         void this.t.send(reply).catch(() => undefined);
       }
       return;
@@ -84,21 +110,33 @@ export class McpClient {
     clearTimeout(p.timer);
     if (msg["error"] !== undefined) {
       const e = obj(msg["error"]);
-      p.reject(new McpError("mcp.server_error", typeof e["message"] === "string" ? e["message"] : "The server returned an error."));
+      p.reject(
+        new McpError(
+          "mcp.server_error",
+          typeof e["message"] === "string" ? e["message"] : "The server returned an error.",
+        ),
+      );
     } else p.resolve(msg["result"]);
   }
 
   private fail(why: string): void {
     if (this.closed !== null) return;
     this.closed = why;
-    for (const [id, p] of this.pending) { clearTimeout(p.timer); p.reject(new McpError("mcp.closed", why)); this.pending.delete(id); }
+    for (const [id, p] of this.pending) {
+      clearTimeout(p.timer);
+      p.reject(new McpError("mcp.closed", why));
+      this.pending.delete(id);
+    }
   }
 
   request(method: string, params: unknown, timeoutMs = this.timeoutMs): Promise<unknown> {
     if (this.closed !== null) return Promise.reject(new McpError("mcp.closed", this.closed));
     const id = this.nextId++;
     return new Promise<unknown>((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new McpError("mcp.timeout", `${method} took more than ${Math.round(timeoutMs / 1000)} seconds.`)); }, timeoutMs);
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new McpError("mcp.timeout", `${method} took more than ${Math.round(timeoutMs / 1000)} seconds.`));
+      }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
       this.t.send({ jsonrpc: "2.0", id, method, params }).catch((e: unknown) => {
         const p = this.pending.get(id);
@@ -110,7 +148,9 @@ export class McpClient {
     });
   }
 
-  get isClosed(): boolean { return this.closed !== null; }
+  get isClosed(): boolean {
+    return this.closed !== null;
+  }
 
   async listTools(): Promise<McpTool[]> {
     const out: McpTool[] = [];
@@ -121,8 +161,11 @@ export class McpClient {
         const t = obj(raw);
         if (typeof t["name"] !== "string") continue;
         out.push({
-          name: t["name"], description: typeof t["description"] === "string" ? t["description"] : (typeof t["title"] === "string" ? t["title"] : ""),
-          inputSchema: t["inputSchema"] ?? { type: "object", properties: {} }, readOnly: obj(t["annotations"])["readOnlyHint"] === true,
+          name: t["name"],
+          description:
+            typeof t["description"] === "string" ? t["description"] : typeof t["title"] === "string" ? t["title"] : "",
+          inputSchema: t["inputSchema"] ?? { type: "object", properties: {} },
+          readOnly: obj(t["annotations"])["readOnlyHint"] === true,
         });
       }
       cursor = typeof r["nextCursor"] === "string" && r["nextCursor"] !== "" ? r["nextCursor"] : undefined;
@@ -135,7 +178,11 @@ export class McpClient {
   async callTool(name: string, args: unknown, timeoutMs = 120_000): Promise<McpToolResult> {
     const r = obj(await this.request("tools/call", { name, arguments: obj(args) }, timeoutMs));
     const content = (Array.isArray(r["content"]) ? r["content"] : []).map((c) => obj(c) as McpContent);
-    return { isError: r["isError"] === true, content, ...(r["structuredContent"] !== undefined ? { structured: r["structuredContent"] } : {}) };
+    return {
+      isError: r["isError"] === true,
+      content,
+      ...(r["structuredContent"] !== undefined ? { structured: r["structuredContent"] } : {}),
+    };
   }
 
   async close(): Promise<void> {
@@ -146,7 +193,11 @@ export class McpClient {
 
 /** A tool result as the text a model reads: the text parts joined, other parts named, structured output when there is no text. */
 export function resultText(r: McpToolResult): string {
-  const parts = r.content.map((c) => (c.type === "text" && typeof c.text === "string" ? c.text : `[${c.type}${typeof c["mimeType"] === "string" ? ` ${c["mimeType"]}` : ""}]`));
+  const parts = r.content.map((c) =>
+    c.type === "text" && typeof c.text === "string"
+      ? c.text
+      : `[${c.type}${typeof c["mimeType"] === "string" ? ` ${c["mimeType"]}` : ""}]`,
+  );
   const text = parts.join("\n");
   return text !== "" ? text : r.structured !== undefined ? JSON.stringify(r.structured) : "";
 }

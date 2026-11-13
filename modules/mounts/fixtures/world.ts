@@ -17,19 +17,50 @@ export const TRACE = "0123456789abcdef0123456789abcdef";
 const here = dirname(fileURLToPath(import.meta.url));
 
 type Row = Record<string, unknown>;
-export interface Emitted { name: string; subject: string; payload: unknown }
-export interface Scheduled { at: number | string; cap: string; input: unknown }
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: unknown;
+}
+export interface Scheduled {
+  at: number | string;
+  cap: string;
+  input: unknown;
+}
 
 export const recorded = (file: string): Row => JSON.parse(readFileSync(join(here, file), "utf8")) as Row;
 
 export function vyreErr(code: string, message: string, retryable = false): VyreErr {
-  return new VyreErr({ code: code as never, message, retryable, traceId: TRACE, next: [{ kind: "report", label: "Report a problem" }] });
+  return new VyreErr({
+    code: code as never,
+    message,
+    retryable,
+    traceId: TRACE,
+    next: [{ kind: "report", label: "Report a problem" }],
+  });
 }
 
 // ---- the files module ---------------------------------------------------------------------------------------
 
-export interface FFolder { id: string; parentId: string | null; name: string; reviewChanges: boolean; deleted: boolean; source?: { mountId: string; provider: string } | null }
-export interface FFile { id: string; folderId: string; name: string; version: number; blob: string; mime?: string; kind?: string; deleted: boolean; reasons: string[] }
+export interface FFolder {
+  id: string;
+  parentId: string | null;
+  name: string;
+  reviewChanges: boolean;
+  deleted: boolean;
+  source?: { mountId: string; provider: string } | null;
+}
+export interface FFile {
+  id: string;
+  folderId: string;
+  name: string;
+  version: number;
+  blob: string;
+  mime?: string;
+  kind?: string;
+  deleted: boolean;
+  reasons: string[];
+}
 
 export class FakeFiles {
   readonly folders = new Map<string, FFolder>();
@@ -39,7 +70,13 @@ export class FakeFiles {
   private seq = 0;
 
   constructor() {
-    this.folders.set("fld_into", { id: "fld_into", parentId: null, name: "Files", reviewChanges: false, deleted: false });
+    this.folders.set("fld_into", {
+      id: "fld_into",
+      parentId: null,
+      name: "Files",
+      reviewChanges: false,
+      deleted: false,
+    });
   }
 
   blob(id: string, content: string): string {
@@ -53,8 +90,14 @@ export class FakeFiles {
   }
 
   private taken(folderId: string, name: string, exceptFile?: string, exceptFolder?: string): boolean {
-    return [...this.files.values()].some((f) => f.folderId === folderId && f.name === name && !f.deleted && f.id !== exceptFile)
-      || [...this.folders.values()].some((f) => f.parentId === folderId && f.name === name && !f.deleted && f.id !== exceptFolder);
+    return (
+      [...this.files.values()].some(
+        (f) => f.folderId === folderId && f.name === name && !f.deleted && f.id !== exceptFile,
+      ) ||
+      [...this.folders.values()].some(
+        (f) => f.parentId === folderId && f.name === name && !f.deleted && f.id !== exceptFolder,
+      )
+    );
   }
 
   /** Paths of live files, "Folder/sub/file", sorted. */
@@ -65,7 +108,10 @@ export class FakeFiles {
       const up = pathOf(f.parentId);
       return up === "" ? f.name : `${up}/${f.name}`;
     };
-    return [...this.files.values()].filter((f) => !f.deleted && this.live(f.folderId)).map((f) => `${pathOf(f.folderId)}/${f.name}`).sort();
+    return [...this.files.values()]
+      .filter((f) => !f.deleted && this.live(f.folderId))
+      .map((f) => `${pathOf(f.folderId)}/${f.name}`)
+      .sort();
   }
 
   folderPaths(): string[] {
@@ -75,11 +121,19 @@ export class FakeFiles {
       const up = pathOf(f.parentId);
       return up === "" ? f.name : `${up}/${f.name}`;
     };
-    return [...this.folders.values()].filter((f) => !f.deleted && f.id !== "fld_into").map((f) => pathOf(f.id)).sort();
+    return [...this.folders.values()]
+      .filter((f) => !f.deleted && f.id !== "fld_into")
+      .map((f) => pathOf(f.id))
+      .sort();
   }
 
   private live(folderId: string): boolean {
-    for (let at: FFolder | undefined = this.folders.get(folderId); at; at = at.parentId ? this.folders.get(at.parentId) : undefined) if (at.deleted) return false;
+    for (
+      let at: FFolder | undefined = this.folders.get(folderId);
+      at;
+      at = at.parentId ? this.folders.get(at.parentId) : undefined
+    )
+      if (at.deleted) return false;
     return true;
   }
 
@@ -97,7 +151,7 @@ export class FakeFiles {
 
   text(fileId: string): string {
     const f = this.files.get(fileId);
-    return f ? this.blobs.get(f.blob) ?? "" : "";
+    return f ? (this.blobs.get(f.blob) ?? "") : "";
   }
 
   /** A person edits a file in Vyre: a new version with this text. */
@@ -120,7 +174,9 @@ export class FakeFiles {
     if (cap === "files.get") {
       const f = this.files.get(String(i["fileId"]));
       if (!f) return missing("file");
-      return { file: { fileId: f.id, folderId: f.folderId, name: f.name, version: f.version, deletedAt: f.deleted ? 1 : null } };
+      return {
+        file: { fileId: f.id, folderId: f.folderId, name: f.name, version: f.version, deletedAt: f.deleted ? 1 : null },
+      };
     }
     if (cap === "files.folder.get") {
       const f = this.folders.get(String(i["folderId"]));
@@ -141,7 +197,11 @@ export class FakeFiles {
       if (!f) missing("folder");
       else {
         if (typeof i["reviewChanges"] === "boolean") f.reviewChanges = i["reviewChanges"];
-        if (i["source"] !== undefined) f.source = i["source"] === null ? null : { mountId: String(obj(i["source"])["mountId"]), provider: String(obj(i["source"])["provider"]) };
+        if (i["source"] !== undefined)
+          f.source =
+            i["source"] === null
+              ? null
+              : { mountId: String(obj(i["source"])["mountId"]), provider: String(obj(i["source"])["provider"]) };
       }
       return { folder: { folderId: String(i["folderId"]) } };
     }
@@ -170,9 +230,20 @@ export class FakeFiles {
       if (!this.folders.has(folderId)) missing("folder");
       if (this.taken(folderId, name)) dup();
       // no content: an empty placeholder, as a live mount makes for a file that has not been opened
-      const blobId = i["content"] === undefined ? this.blob(this.nextId("blb"), "") : String(obj(i["content"])["blobId"]);
+      const blobId =
+        i["content"] === undefined ? this.blob(this.nextId("blb"), "") : String(obj(i["content"])["blobId"]);
       const id = this.nextId("fil");
-      const file: FFile = { id, folderId, name, version: 1, blob: blobId, deleted: false, reasons: [], ...(typeof i["mime"] === "string" ? { mime: i["mime"] } : {}), ...(typeof i["kind"] === "string" ? { kind: i["kind"] } : {}) };
+      const file: FFile = {
+        id,
+        folderId,
+        name,
+        version: 1,
+        blob: blobId,
+        deleted: false,
+        reasons: [],
+        ...(typeof i["mime"] === "string" ? { mime: i["mime"] } : {}),
+        ...(typeof i["kind"] === "string" ? { kind: i["kind"] } : {}),
+      };
       this.files.set(id, file);
       return { file: { fileId: id, folderId, name, version: 1 } };
     }
@@ -180,7 +251,12 @@ export class FakeFiles {
       const f = this.files.get(String(i["fileId"]));
       if (!f || f.deleted) return missing("file");
       const blobId = String(obj(i["content"])["blobId"]);
-      this.writes.push({ fileId: f.id, blobId, ...(typeof i["reason"] === "string" ? { reason: i["reason"] } : {}), ...(typeof i["baseVersion"] === "number" ? { baseVersion: i["baseVersion"] } : {}) });
+      this.writes.push({
+        fileId: f.id,
+        blobId,
+        ...(typeof i["reason"] === "string" ? { reason: i["reason"] } : {}),
+        ...(typeof i["baseVersion"] === "number" ? { baseVersion: i["baseVersion"] } : {}),
+      });
       f.version += 1;
       f.blob = blobId;
       if (typeof i["reason"] === "string") f.reasons.push(i["reason"]);
@@ -260,15 +336,18 @@ export class FakeGoogle {
     const last = pages[pages.length - 1] ?? { files: [] };
     (last["files"] as Row[]).push(file);
     this.note(file);
-    if (file["mimeType"] === "application/vnd.google-apps.folder" && !this.listings.has(String(file["id"]))) this.listings.set(String(file["id"]), [{ files: [] }]);
+    if (file["mimeType"] === "application/vnd.google-apps.folder" && !this.listings.has(String(file["id"])))
+      this.listings.set(String(file["id"]), [{ files: [] }]);
   }
 
   drop(id: string): void {
-    for (const pages of this.listings.values()) for (const page of pages) page["files"] = (page["files"] as Row[]).filter((f) => f["id"] !== id);
+    for (const pages of this.listings.values())
+      for (const page of pages) page["files"] = (page["files"] as Row[]).filter((f) => f["id"] !== id);
   }
 
   find(id: string): Row | undefined {
-    for (const pages of this.listings.values()) for (const page of pages) for (const f of page["files"] as Row[]) if (f["id"] === id) return f;
+    for (const pages of this.listings.values())
+      for (const page of pages) for (const f of page["files"] as Row[]) if (f["id"] === id) return f;
     return undefined;
   }
 
@@ -280,18 +359,25 @@ export class FakeGoogle {
     this.note(f);
     if (typeof extra["headRevisionId"] === "string") {
       const list = this.revisions.get(id) ?? [];
-      list.push({ id: extra["headRevisionId"], modifiedTime: String(f["modifiedTime"] ?? ""), ...(extra["lastModifyingUser"] ? { lastModifyingUser: extra["lastModifyingUser"] } : {}) });
+      list.push({
+        id: extra["headRevisionId"],
+        modifiedTime: String(f["modifiedTime"] ?? ""),
+        ...(extra["lastModifyingUser"] ? { lastModifyingUser: extra["lastModifyingUser"] } : {}),
+      });
       this.revisions.set(id, list);
     }
   }
 
   /** Drive changes a file's modified time (someone edited it there). */
   touch(id: string, modifiedTime: string): void {
-    for (const pages of this.listings.values()) for (const page of pages) for (const f of page["files"] as Row[]) if (f["id"] === id) f["modifiedTime"] = modifiedTime;
+    for (const pages of this.listings.values())
+      for (const page of pages)
+        for (const f of page["files"] as Row[]) if (f["id"] === id) f["modifiedTime"] = modifiedTime;
   }
 
   private note(f: Row): void {
-    if (typeof f["id"] === "string" && typeof f["modifiedTime"] === "string") this.modified.set(f["id"], f["modifiedTime"]);
+    if (typeof f["id"] === "string" && typeof f["modifiedTime"] === "string")
+      this.modified.set(f["id"], f["modifiedTime"]);
   }
 
   /** the real id behind the "root" alias (My Drive) */
@@ -323,18 +409,30 @@ export class FakeGoogle {
     }
     if (cap === "google.drive.download_file" || cap === "google.drive.export_file") {
       const id = String(i["fileId"]);
-      const blobId = this.files.blob(`blb_g_${id}_${this.modified.get(id) ?? "0"}${cap.endsWith("export_file") ? "_x" : ""}`, `${cap.endsWith("export_file") ? "export" : "drive"}:${id}@${this.modified.get(id) ?? "0"}`);
-      return { blobId, size: 10, mimeType: cap.endsWith("export_file") ? String(i["mimeType"]) : "application/octet-stream" };
+      const blobId = this.files.blob(
+        `blb_g_${id}_${this.modified.get(id) ?? "0"}${cap.endsWith("export_file") ? "_x" : ""}`,
+        `${cap.endsWith("export_file") ? "export" : "drive"}:${id}@${this.modified.get(id) ?? "0"}`,
+      );
+      return {
+        blobId,
+        size: 10,
+        mimeType: cap.endsWith("export_file") ? String(i["mimeType"]) : "application/octet-stream",
+      };
     }
     if (cap === "google.drive.get_file") {
       // "root" is Drive's alias for My Drive; the file it names has its own id
-      if (i["fileId"] === "root") return { file: { id: this.myDrive, name: "My Drive", mimeType: "application/vnd.google-apps.folder" } };
+      if (i["fileId"] === "root")
+        return { file: { id: this.myDrive, name: "My Drive", mimeType: "application/vnd.google-apps.folder" } };
       const f = this.find(String(i["fileId"]));
       if (!f) throw vyreErr("validation.not_found", "No such file.");
       return { file: f };
     }
     if (cap === "google.drive.watch_changes") {
-      this.watches.push({ channelId: String(i["channelId"]), pageToken: String(i["pageToken"]), address: String(i["address"]) });
+      this.watches.push({
+        channelId: String(i["channelId"]),
+        pageToken: String(i["pageToken"]),
+        address: String(i["address"]),
+      });
       return { resourceId: `res_${this.watches.length}`, expiration: this.watchExpiry };
     }
     if (cap === "google.drive.stop_watch") {
@@ -343,31 +441,57 @@ export class FakeGoogle {
     }
     if (cap === "google.drive.list_revisions") return { revisions: this.revisions.get(String(i["fileId"])) ?? [] };
     if (cap === "google.drive.download_revision") {
-      return { blobId: this.files.blob(`blb_rev_${String(i["fileId"])}_${String(i["revisionId"])}`, `rev:${String(i["fileId"])}@${String(i["revisionId"])}`), size: 8, mimeType: "application/octet-stream" };
+      return {
+        blobId: this.files.blob(
+          `blb_rev_${String(i["fileId"])}_${String(i["revisionId"])}`,
+          `rev:${String(i["fileId"])}@${String(i["revisionId"])}`,
+        ),
+        size: 8,
+        mimeType: "application/octet-stream",
+      };
     }
-    const inPlace = cap === "google.drive.upload_file" && typeof i["remoteId"] === "string" ? this.find(i["remoteId"]) : undefined;
+    const inPlace =
+      cap === "google.drive.upload_file" && typeof i["remoteId"] === "string" ? this.find(i["remoteId"]) : undefined;
     if (inPlace) {
       // a write to a file that exists: replaced in place as a new revision, unless the head revision is not the one the write was based on
       if (this.holdUploads) throw vyreErr("permission.needs_approval", "Waiting for approval.");
-      if (typeof i["ifRevision"] === "string" && inPlace["headRevisionId"] !== i["ifRevision"]) return { file: inPlace, stale: true };
+      if (typeof i["ifRevision"] === "string" && inPlace["headRevisionId"] !== i["ifRevision"])
+        return { file: inPlace, stale: true };
       this.seq += 1;
-      this.replaced.push({ remoteId: String(i["remoteId"]), ...(typeof i["ifRevision"] === "string" ? { ifRevision: i["ifRevision"] } : {}) });
+      this.replaced.push({
+        remoteId: String(i["remoteId"]),
+        ...(typeof i["ifRevision"] === "string" ? { ifRevision: i["ifRevision"] } : {}),
+      });
       this.uploads.push({ fileId: String(i["fileId"]), name: String(i["name"]), parentId: String(i["parentId"]) });
-      this.decorate(String(i["remoteId"]), { modifiedTime: `2026-10-10T00:00:${String(this.seq).padStart(2, "0")}.000Z`, headRevisionId: `rev_up${this.seq}`, lastModifyingUser: { name: "Noah Reyes", email: ME } });
+      this.decorate(String(i["remoteId"]), {
+        modifiedTime: `2026-10-10T00:00:${String(this.seq).padStart(2, "0")}.000Z`,
+        headRevisionId: `rev_up${this.seq}`,
+        lastModifyingUser: { name: "Noah Reyes", email: ME },
+      });
       return { file: inPlace };
     }
     if (cap === "google.drive.upload_file") {
       if (this.holdUploads) throw vyreErr("permission.needs_approval", "Waiting for approval.");
       this.seq += 1;
       this.uploads.push({ fileId: String(i["fileId"]), name: String(i["name"]), parentId: String(i["parentId"]) });
-      const file = { id: `up${this.seq}`, name: String(i["name"]), mimeType: "application/octet-stream", modifiedTime: `2026-10-10T00:00:${String(this.seq).padStart(2, "0")}.000Z` };
+      const file = {
+        id: `up${this.seq}`,
+        name: String(i["name"]),
+        mimeType: "application/octet-stream",
+        modifiedTime: `2026-10-10T00:00:${String(this.seq).padStart(2, "0")}.000Z`,
+      };
       this.put(String(i["parentId"]), file);
       return { file };
     }
     if (cap === "google.drive.create_folder") {
       this.seq += 1;
       this.folders.push({ name: String(i["name"]), parentId: String(i["parentId"]) });
-      const file = { id: `nf${this.seq}`, name: String(i["name"]), mimeType: "application/vnd.google-apps.folder", modifiedTime: `2026-10-10T00:00:${String(this.seq).padStart(2, "0")}.000Z` };
+      const file = {
+        id: `nf${this.seq}`,
+        name: String(i["name"]),
+        mimeType: "application/vnd.google-apps.folder",
+        modifiedTime: `2026-10-10T00:00:${String(this.seq).padStart(2, "0")}.000Z`,
+      };
       this.put(String(i["parentId"]), file);
       return { file };
     }
@@ -400,7 +524,8 @@ export class FakeGraph {
 
   /** Graph reports more about an item in every page of the recorded delta (eTag, last editor). */
   decorate(id: string, extra: Row): void {
-    for (const page of this.deltas.values()) for (const it of page["changed"] as Row[]) if (it["id"] === id) Object.assign(it, extra);
+    for (const page of this.deltas.values())
+      for (const it of page["changed"] as Row[]) if (it["id"] === id) Object.assign(it, extra);
     if (typeof extra["eTag"] === "string") this.etags.set(id, extra["eTag"]);
   }
 
@@ -422,10 +547,14 @@ export class FakeGraph {
     }
     if (cap === "ms.drive.download_item") {
       const id = String(i["itemId"]);
-      return { blobId: this.files.blob(`blb_m_${id}_${this.calls.length}`, `graph:${id}#${this.calls.length}`), size: 5 };
+      return {
+        blobId: this.files.blob(`blb_m_${id}_${this.calls.length}`, `graph:${id}#${this.calls.length}`),
+        size: 5,
+      };
     }
     if (cap === "ms.drive.get_item") {
-      for (const page of this.deltas.values()) for (const it of page["changed"] as Row[]) if (it["id"] === i["itemId"]) return { item: it };
+      for (const page of this.deltas.values())
+        for (const it of page["changed"] as Row[]) if (it["id"] === i["itemId"]) return { item: it };
       throw vyreErr("validation.not_found", "No such item.");
     }
     if (cap === "ms.drive.subscribe") {
@@ -438,7 +567,14 @@ export class FakeGraph {
       return { removed: true };
     }
     if (cap === "ms.drive.list_versions") return { versions: this.versions.get(String(i["itemId"])) ?? [] };
-    if (cap === "ms.drive.download_version") return { blobId: this.files.blob(`blb_ver_${String(i["itemId"])}_${String(i["versionId"])}`, `ver:${String(i["itemId"])}@${String(i["versionId"])}`), size: 8 };
+    if (cap === "ms.drive.download_version")
+      return {
+        blobId: this.files.blob(
+          `blb_ver_${String(i["itemId"])}_${String(i["versionId"])}`,
+          `ver:${String(i["itemId"])}@${String(i["versionId"])}`,
+        ),
+        size: 8,
+      };
     if (cap === "ms.drive.upload_item" && typeof i["remoteId"] === "string") {
       const remoteId = i["remoteId"];
       if (typeof i["ifMatch"] === "string" && this.etags.get(remoteId) !== i["ifMatch"]) return { stale: true };
@@ -446,19 +582,36 @@ export class FakeGraph {
       this.uploads.push({ fileId: String(i["fileId"]), name: String(i["name"]), folderId: String(i["folderId"]) });
       const eTag = `etag_up${this.replaced.length}`;
       this.etags.set(remoteId, eTag);
-      return { item: { id: remoteId, name: String(i["name"]), eTag, lastModifiedDateTime: "2026-10-10T00:00:00Z", lastModifiedBy: { name: "Noah Reyes", email: ME } } };
+      return {
+        item: {
+          id: remoteId,
+          name: String(i["name"]),
+          eTag,
+          lastModifiedDateTime: "2026-10-10T00:00:00Z",
+          lastModifiedBy: { name: "Noah Reyes", email: ME },
+        },
+      };
     }
     if (cap === "ms.drive.upload_item") {
       this.uploads.push({ fileId: String(i["fileId"]), name: String(i["name"]), folderId: String(i["folderId"]) });
-      return { item: { id: `mu${this.uploads.length}`, name: String(i["name"]), lastModifiedDateTime: "2026-10-10T00:00:00Z" } };
+      return {
+        item: { id: `mu${this.uploads.length}`, name: String(i["name"]), lastModifiedDateTime: "2026-10-10T00:00:00Z" },
+      };
     }
-    if (cap === "ms.drive.create_folder") return { item: { id: `mf${this.calls.length}`, name: String(i["name"]), folder: true } };
+    if (cap === "ms.drive.create_folder")
+      return { item: { id: `mf${this.calls.length}`, name: String(i["name"]), folder: true } };
     if (cap === "ms.drive.delete_item") {
       this.deleted.push(String(i["itemId"]));
       return { deleted: true };
     }
     if (cap === "ms.drive.list_items") {
-      return { items: [{ id: "i1", name: "Shared Documents", folder: true }, { id: "i2", name: "notes.txt", size: 3 }], nextSkipToken: "s2" };
+      return {
+        items: [
+          { id: "i1", name: "Shared Documents", folder: true },
+          { id: "i2", name: "notes.txt", size: 3 },
+        ],
+        nextSkipToken: "s2",
+      };
     }
     return undefined;
   }
@@ -466,7 +619,13 @@ export class FakeGraph {
 
 // ---- the harness --------------------------------------------------------------------------------------------
 
-export function harness(o: { principal?: { kind: "person" | "agent" | "actor" | "service"; id: string }; now?: number; settings?: Record<string, unknown> } = {}) {
+export function harness(
+  o: {
+    principal?: { kind: "person" | "agent" | "actor" | "service"; id: string };
+    now?: number;
+    settings?: Record<string, unknown>;
+  } = {},
+) {
   const db = new MemoryDb();
   const files = new FakeFiles();
   const google = new FakeGoogle(files);
@@ -475,10 +634,18 @@ export function harness(o: { principal?: { kind: "person" | "agent" | "actor" | 
   const calls: { cap: string; input: unknown }[] = [];
   const scheduled: Scheduled[] = [];
   const gitCalls: { cap: string; input: Row }[] = [];
-  const git = { pull: { updated: true, sha: "a".repeat(40), conflicts: [] as string[] } as Row, failWith: null as VyreErr | null, initFailWith: null as VyreErr | null };
+  const git = {
+    pull: { updated: true, sha: "a".repeat(40), conflicts: [] as string[] } as Row,
+    failWith: null as VyreErr | null,
+    initFailWith: null as VyreErr | null,
+  };
   const hidden = new Set<string>();
   const levelFor = new Map<string, string>();
-  const settings: Record<string, unknown> = { "files.review_changes": { git: true, cloud_mount: true, plain: false }, "files.local_mount_default": "server_copy", ...(o.settings ?? {}) };
+  const settings: Record<string, unknown> = {
+    "files.review_changes": { git: true, cloud_mount: true, plain: false },
+    "files.local_mount_default": "server_copy",
+    ...(o.settings ?? {}),
+  };
   let clock = o.now ?? NOW;
   let schedulerOn = true;
 
@@ -504,7 +671,14 @@ export function harness(o: { principal?: { kind: "person" | "agent" | "actor" | 
       if (g !== undefined) return g;
       const m = cap.startsWith("ms.") ? graph.call(cap, i) : undefined;
       if (m !== undefined) return m;
-      if (cap === "github.repos.list") return { repos: [{ repo: "acme/site", private: false, defaultBranch: "main", url: "https://github.com/acme/site" }, { repo: "acme/secret", private: true, defaultBranch: "main", url: "https://github.com/acme/secret" }], next: "r2" };
+      if (cap === "github.repos.list")
+        return {
+          repos: [
+            { repo: "acme/site", private: false, defaultBranch: "main", url: "https://github.com/acme/site" },
+            { repo: "acme/secret", private: true, defaultBranch: "main", url: "https://github.com/acme/secret" },
+          ],
+          next: "r2",
+        };
       if (cap.startsWith("git.")) {
         gitCalls.push({ cap, input: i });
         if (cap === "git.init" || cap === "git.remote_add") {
@@ -537,12 +711,32 @@ export function harness(o: { principal?: { kind: "person" | "agent" | "actor" | 
   };
 
   return {
-    ctx, db, files, google, graph, git, gitCalls, events, calls, scheduled, hidden, levelFor, settings,
-    advance(ms: number) { clock += ms; },
+    ctx,
+    db,
+    files,
+    google,
+    graph,
+    git,
+    gitCalls,
+    events,
+    calls,
+    scheduled,
+    hidden,
+    levelFor,
+    settings,
+    advance(ms: number) {
+      clock += ms;
+    },
     now: () => clock,
-    noScheduler() { schedulerOn = false; },
-    as(principal: { kind: "person" | "agent" | "actor" | "service"; id: string }): Ctx { return { ...ctx, principal }; },
-    named(name: string): unknown[] { return events.filter((e) => e.name === name).map((e) => e.payload); },
+    noScheduler() {
+      schedulerOn = false;
+    },
+    as(principal: { kind: "person" | "agent" | "actor" | "service"; id: string }): Ctx {
+      return { ...ctx, principal };
+    },
+    named(name: string): unknown[] {
+      return events.filter((e) => e.name === name).map((e) => e.payload);
+    },
     mountRow(mountId: string): Row {
       const r = (db.rows("mounts_mount") as Row[]).find((x) => x["id"] === mountId);
       if (!r) throw new Error(`no mount ${mountId}`);

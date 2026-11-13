@@ -54,7 +54,8 @@ jobs:
   gates:
     # P-CI_03: ownership, boundaries, lint and typecheck run on every push, so evidence that claims them is verified here.
     runs-on: [self-hosted, linux, v1]
-    timeout-minutes: 5
+    # 15, not 5: on a branch that changes every source file (the one-time format, a mass rename) the Prettier and per-package typecheck steps alone pass five minutes; a normal branch still finishes in about one
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -103,6 +104,12 @@ jobs:
         run: |
           git fetch -q origin main
           node scripts/lint/run.ts --base "$(git merge-base origin/main HEAD)"
+      - name: Prettier on the files this branch changed (config in .prettierrc.json; the whole repository was formatted once, so only a changed file can fail; pinned to the version in package.json)
+        run: |
+          git fetch -q origin main
+          base="$(git merge-base origin/main HEAD)"
+          git diff --name-only --no-renames --diff-filter=d "$base"...HEAD | grep -E '\.(ts|tsx|mts|mjs|js|cjs|css)$' > prettier-files.txt || true
+          if [ -s prettier-files.txt ]; then npx --yes prettier@3.6.2 --version > /dev/null; xargs -d '\n' -P 4 -n 300 npx --yes prettier@3.6.2 --check < prettier-files.txt; else echo "no source files changed"; fi   # four at a time, 300 files each; xargs exits 123 if any batch fails
       - name: make-emits (enforced); a capability that makes a resource must emit an event whose subject is that type
         run: node scripts/lint/make-emits.ts --enforce
       - name: idem-calls (report mode until main reports 0 missing); ctx.call to a capability with idempotency key must pass idempotencyKey
@@ -157,8 +164,10 @@ jobs:
       - uses: ./.github/actions/deps
       - name: tools/gen's TypeScript (installed by the contracts gate script)
         run: '[ -x tools/gen/node_modules/.bin/tsc ] || bash tools/gen/check.sh'
-      - name: Typecheck ratchet (the count may only fall)
-        run: node scripts/typecheck-ratchet.ts
+      - name: Typecheck ratchets (the count may only fall); the baseline is read from the merge base with main on a push, or with the pull request's target
+        run: |
+          git fetch -q origin main
+          node scripts/typecheck-ratchet.ts
       - name: Typecheck ratchet for modules, host and packages/contracts (the count may only fall; nothing typechecked them before 12 Nov)
         run: node scripts/typecheck-ratchet.ts --project tsconfig.typecheck.server.json --baseline scripts/typecheck-baseline.server.json
   images-docker:

@@ -10,84 +10,395 @@ const m = (n: number): number => SAMPLE_CONN_NOW - n * 60_000;
 const h = (n: number): number => SAMPLE_CONN_NOW - n * 3_600_000;
 
 const row = (o: Partial<HomeRow> & Pick<HomeRow, "key" | "title" | "scope">): HomeRow => ({
-  kind: "mcp", name: o.key, share: o.scope === "space" ? ["everyone"] : [], transport: "http", address: "", source: "registry", enabled: true, health: "ok", usedBy: [], keys: [], needs: [], canManage: true, ...o,
+  kind: "mcp",
+  name: o.key,
+  share: o.scope === "space" ? ["everyone"] : [],
+  transport: "http",
+  address: "",
+  source: "registry",
+  enabled: true,
+  health: "ok",
+  usedBy: [],
+  keys: [],
+  needs: [],
+  canManage: true,
+  ...o,
 });
 
 export function sampleHome(o: { admin?: boolean; personal?: boolean; fresh?: boolean } = {}): Home {
   const admin = o.admin ?? true;
   return {
     mine: [
-      row({ key: "notion", title: "Notion", scope: "mine", connectionId: "mcs_notion", address: "https://mcp.notion.com/mcp", auth: "oauth", sourceRef: "com.notion/mcp", tools: 14, checkedAt: m(3), usedAt: m(12), usedBy: ["agt_research", "agt_assistant"] }),
-      row({ key: "github", title: "GitHub", scope: "mine", connectionId: "mcs_github", transport: "stdio", address: "npx -y @modelcontextprotocol/server-github", source: "import", sourceRef: ".mcp.json", tools: 26, keys: ["#Github_key.GITHUB_TOKEN"], usedAt: h(5), usedBy: ["agt_assistant"] }),
-      row({ key: "linear", title: "Linear", scope: "mine", connectionId: "mcs_linear", address: "https://mcp.linear.app/mcp", auth: "oauth", source: "paste", health: "needs_signin", healthNote: "linear needs to be signed in first." }),
+      row({
+        key: "notion",
+        title: "Notion",
+        scope: "mine",
+        connectionId: "mcs_notion",
+        address: "https://mcp.notion.com/mcp",
+        auth: "oauth",
+        sourceRef: "com.notion/mcp",
+        tools: 14,
+        checkedAt: m(3),
+        usedAt: m(12),
+        usedBy: ["agt_research", "agt_assistant"],
+      }),
+      row({
+        key: "github",
+        title: "GitHub",
+        scope: "mine",
+        connectionId: "mcs_github",
+        transport: "stdio",
+        address: "npx -y @modelcontextprotocol/server-github",
+        source: "import",
+        sourceRef: ".mcp.json",
+        tools: 26,
+        keys: ["#Github_key.GITHUB_TOKEN"],
+        usedAt: h(5),
+        usedBy: ["agt_assistant"],
+      }),
+      row({
+        key: "linear",
+        title: "Linear",
+        scope: "mine",
+        connectionId: "mcs_linear",
+        address: "https://mcp.linear.app/mcp",
+        auth: "oauth",
+        source: "paste",
+        health: "needs_signin",
+        healthNote: "linear needs to be signed in first.",
+      }),
     ],
-    space: o.personal ? [] : [
-      row({ key: "composio", title: "Composio", kind: "hub", hub: "composio", scope: "space", connectionId: "mcs_composio", address: "https://backend.composio.dev/v3/mcp/srv_nw/mcp", source: "hub", tools: 58, keys: ["#Composio_key.api_key"], usedAt: m(2), usedBy: ["agt_intake", "agt_billing", "agt_research"], canManage: admin }),
-      row({ key: "docs", title: "Clio docs", scope: "space", connectionId: "mcs_docs", share: ["grp_legal"], address: "https://mcp.clio.example/mcp", source: "hand", tools: 6, usedAt: h(30), usedBy: ["agt_intake"], canManage: admin }),
-      row({ key: "sentry", title: "Sentry", scope: "space", connectionId: "mcs_sentry", address: "https://mcp.sentry.dev/mcp", source: "registry", sourceRef: "io.sentry/mcp", health: "key_refused", healthNote: "sentry did not answer: The server answered 401.", keys: ["#Sentry_key.Authorization"], usedAt: h(52), canManage: admin }),
-      row({ key: "pdf-tools/pdf", title: "pdf", kind: "plugin", name: "pdf", scope: "space", pluginId: "plg_pdf", transport: "stdio", address: "node ${CLAUDE_PLUGIN_ROOT}/server.js", source: "plugin", sourceRef: "pdf-tools", health: "unknown", canManage: admin }),
-      row({ key: "skill:skl_contracts/contracts", title: "contracts", kind: "skill", name: "contracts", scope: "space", transport: "stdio", address: "uvx contracts-mcp", source: "skill", sourceRef: "contract-review", health: "needs_setup", needs: ["CLIO_TOKEN"], canManage: false }),
-    ],
-    agents: o.personal ? [] : [row({ key: "billing-db", title: "Billing database", scope: "agent", agentId: "agt_billing", connectionId: "mcs_billing", transport: "stdio", address: "npx -y @acme/postgres-mcp", source: "hand", health: "not_answering", healthNote: "billing-db did not start: no answer", canManage: admin })],
+    space: o.personal
+      ? []
+      : [
+          row({
+            key: "composio",
+            title: "Composio",
+            kind: "hub",
+            hub: "composio",
+            scope: "space",
+            connectionId: "mcs_composio",
+            address: "https://backend.composio.dev/v3/mcp/srv_nw/mcp",
+            source: "hub",
+            tools: 58,
+            keys: ["#Composio_key.api_key"],
+            usedAt: m(2),
+            usedBy: ["agt_intake", "agt_billing", "agt_research"],
+            canManage: admin,
+          }),
+          row({
+            key: "docs",
+            title: "Clio docs",
+            scope: "space",
+            connectionId: "mcs_docs",
+            share: ["grp_legal"],
+            address: "https://mcp.clio.example/mcp",
+            source: "hand",
+            tools: 6,
+            usedAt: h(30),
+            usedBy: ["agt_intake"],
+            canManage: admin,
+          }),
+          row({
+            key: "sentry",
+            title: "Sentry",
+            scope: "space",
+            connectionId: "mcs_sentry",
+            address: "https://mcp.sentry.dev/mcp",
+            source: "registry",
+            sourceRef: "io.sentry/mcp",
+            health: "key_refused",
+            healthNote: "sentry did not answer: The server answered 401.",
+            keys: ["#Sentry_key.Authorization"],
+            usedAt: h(52),
+            canManage: admin,
+          }),
+          row({
+            key: "pdf-tools/pdf",
+            title: "pdf",
+            kind: "plugin",
+            name: "pdf",
+            scope: "space",
+            pluginId: "plg_pdf",
+            transport: "stdio",
+            address: "node ${CLAUDE_PLUGIN_ROOT}/server.js",
+            source: "plugin",
+            sourceRef: "pdf-tools",
+            health: "unknown",
+            canManage: admin,
+          }),
+          row({
+            key: "skill:skl_contracts/contracts",
+            title: "contracts",
+            kind: "skill",
+            name: "contracts",
+            scope: "space",
+            transport: "stdio",
+            address: "uvx contracts-mcp",
+            source: "skill",
+            sourceRef: "contract-review",
+            health: "needs_setup",
+            needs: ["CLIO_TOKEN"],
+            canManage: false,
+          }),
+        ],
+    agents: o.personal
+      ? []
+      : [
+          row({
+            key: "billing-db",
+            title: "Billing database",
+            scope: "agent",
+            agentId: "agt_billing",
+            connectionId: "mcs_billing",
+            transport: "stdio",
+            address: "npx -y @acme/postgres-mcp",
+            source: "hand",
+            health: "not_answering",
+            healthNote: "billing-db did not start: no answer",
+            canManage: admin,
+          }),
+        ],
     // this sample's admin turned the allow-list on, to show the lock; a fresh Space has none (o.fresh, and the agents module's own default)
-    policy: o.fresh ? { spaceAdders: "managers", allowListOn: false, allowList: [] } : { spaceAdders: "managers", allowListOn: true, allowList: ["com.notion/mcp", "mcp.linear.app", "@modelcontextprotocol/server-github"] },
-    canAddSpace: admin && !o.personal, admin,
+    policy: o.fresh
+      ? { spaceAdders: "managers", allowListOn: false, allowList: [] }
+      : {
+          spaceAdders: "managers",
+          allowListOn: true,
+          allowList: ["com.notion/mcp", "mcp.linear.app", "@modelcontextprotocol/server-github"],
+        },
+    canAddSpace: admin && !o.personal,
+    admin,
   };
 }
 
 export const SAMPLE_ACCOUNTS: Account[] = [
-  { connectionId: "con_google", connector: "google", title: "irfad@northwind.example", owner: { kind: "person", id: "usr_irfad" }, state: "active", scopes: [], lastSyncAt: m(6), createdAt: 1, handles: [], filled: [] },
-  { connectionId: "con_slack", connector: "slack", title: "Northwind Slack", owner: { kind: "space", id: "spc_northwind" }, state: "active", scopes: [], lastSyncAt: m(1), createdAt: 1, handles: [], filled: [] },
-  { connectionId: "con_zoom", connector: "zoom", title: "Northwind Zoom", owner: { kind: "space", id: "spc_northwind" }, state: "needs_reconnect", scopes: [], createdAt: 1, handles: [], filled: [] },
+  {
+    connectionId: "con_google",
+    connector: "google",
+    title: "irfad@northwind.example",
+    owner: { kind: "person", id: "usr_irfad" },
+    state: "active",
+    scopes: [],
+    lastSyncAt: m(6),
+    createdAt: 1,
+    handles: [],
+    filled: [],
+  },
+  {
+    connectionId: "con_slack",
+    connector: "slack",
+    title: "Northwind Slack",
+    owner: { kind: "space", id: "spc_northwind" },
+    state: "active",
+    scopes: [],
+    lastSyncAt: m(1),
+    createdAt: 1,
+    handles: [],
+    filled: [],
+  },
+  {
+    connectionId: "con_zoom",
+    connector: "zoom",
+    title: "Northwind Zoom",
+    owner: { kind: "space", id: "spc_northwind" },
+    state: "needs_reconnect",
+    scopes: [],
+    createdAt: 1,
+    handles: [],
+    filled: [],
+  },
 ];
-export const SAMPLE_CONNECTORS = [{ key: "google", title: "Google Workspace" }, { key: "slack", title: "Slack" }, { key: "zoom", title: "Zoom" }] as unknown as Connector[];
+export const SAMPLE_CONNECTORS = [
+  { key: "google", title: "Google Workspace" },
+  { key: "slack", title: "Slack" },
+  { key: "zoom", title: "Zoom" },
+] as unknown as Connector[];
 /** The agents the Browser sheet lists, and the sites the Browser kind shows. */
-export const SAMPLE_AGENTS = [{ agentId: "agt_research", name: "Scout" }, { agentId: "agt_intake", name: "Intake" }, { agentId: "agt_billing", name: "Ledger" }];
+export const SAMPLE_AGENTS = [
+  { agentId: "agt_research", name: "Scout" },
+  { agentId: "agt_intake", name: "Intake" },
+  { agentId: "agt_billing", name: "Ledger" },
+];
 export const SAMPLE_SITES = [
-  { id: "bsi_ghl", host: "app.gohighlevel.com", runsIn: "chrome", rights: [{ agentId: "agt_research", right: "act" }, { agentId: "agt_intake", right: "read" }], at: m(900), updatedAt: m(60) },
-  { id: "bsi_clio", host: "app.clio.com", runsIn: "both", rights: [{ agentId: "agt_intake", right: "act" }], at: m(2000), updatedAt: m(500) },
-  { id: "bsi_irs", host: "sa.www4.irs.gov", runsIn: "computers", rights: [{ agentId: "agt_billing", right: "read" }], at: m(3000), updatedAt: m(3000) },
+  {
+    id: "bsi_ghl",
+    host: "app.gohighlevel.com",
+    runsIn: "chrome",
+    rights: [
+      { agentId: "agt_research", right: "act" },
+      { agentId: "agt_intake", right: "read" },
+    ],
+    at: m(900),
+    updatedAt: m(60),
+  },
+  {
+    id: "bsi_clio",
+    host: "app.clio.com",
+    runsIn: "both",
+    rights: [{ agentId: "agt_intake", right: "act" }],
+    at: m(2000),
+    updatedAt: m(500),
+  },
+  {
+    id: "bsi_irs",
+    host: "sa.www4.irs.gov",
+    runsIn: "computers",
+    rights: [{ agentId: "agt_billing", right: "read" }],
+    at: m(3000),
+    updatedAt: m(3000),
+  },
 ] as const as unknown as import("./browser.ts").BrowserSite[];
-export const SAMPLE_GROUPS: Array<{ id: string; name: string }> = [{ id: "grp_legal", name: "Legal" }, { id: "grp_ops", name: "Operations" }, { id: "grp_sales", name: "Sales" }];
+export const SAMPLE_GROUPS: Array<{ id: string; name: string }> = [
+  { id: "grp_legal", name: "Legal" },
+  { id: "grp_ops", name: "Operations" },
+  { id: "grp_sales", name: "Sales" },
+];
 
 /** A recorded slice of the official MCP registry, as plugins.registry.search answers it. */
 export const SAMPLE_CATALOG: Array<CatalogEntry & { allowed: boolean }> = [
-  { id: "official:com.notion/mcp", source: "official", name: "com.notion/mcp", title: "Notion", description: "Official Notion MCP server: search, read and write pages and databases.", version: "1.0.0", remote: { url: "https://mcp.notion.com/mcp", transport: "http", headers: [] }, signIn: "oauth", allowed: true },
-  { id: "official:io.github.awkoy/notion-mcp-server", source: "official", name: "io.github.awkoy/notion-mcp-server", title: "Notion MCP Server", description: "Notion pages and blocks with a Notion integration token.", version: "3.3.0", package: { registry: "npm", runner: "npx", identifier: "notion-mcp-server", version: "3.3.0", env: [{ name: "NOTION_TOKEN", description: "Your Notion integration token", required: true, secret: true }, { name: "NOTION_PAGE_ID", description: "The page it starts from", required: false, secret: false }] }, signIn: "key", allowed: false },
-  { id: "official:ai.smithery/smithery-notion", source: "official", name: "ai.smithery/smithery-notion", title: "Smithery Notion", description: "A Notion workspace through Smithery.", version: "1.0.0", remote: { url: "https://server.smithery.ai/@smithery/notion/mcp", transport: "http", headers: [{ name: "Authorization", description: "Bearer token for Smithery", required: true, secret: true, value: "Bearer {smithery_api_key}" }] }, signIn: "key", allowed: false },
-  { id: "official:com.mcparmory/notion", source: "official", name: "com.mcparmory/notion", title: "Notion (MCP Armory)", description: "Notion tools packaged for uvx.", version: "1.0.2", package: { registry: "pypi", runner: "uvx", identifier: "mcparmory-notion", version: "1.0.2", env: [] }, signIn: "none", allowed: false },
+  {
+    id: "official:com.notion/mcp",
+    source: "official",
+    name: "com.notion/mcp",
+    title: "Notion",
+    description: "Official Notion MCP server: search, read and write pages and databases.",
+    version: "1.0.0",
+    remote: { url: "https://mcp.notion.com/mcp", transport: "http", headers: [] },
+    signIn: "oauth",
+    allowed: true,
+  },
+  {
+    id: "official:io.github.awkoy/notion-mcp-server",
+    source: "official",
+    name: "io.github.awkoy/notion-mcp-server",
+    title: "Notion MCP Server",
+    description: "Notion pages and blocks with a Notion integration token.",
+    version: "3.3.0",
+    package: {
+      registry: "npm",
+      runner: "npx",
+      identifier: "notion-mcp-server",
+      version: "3.3.0",
+      env: [
+        { name: "NOTION_TOKEN", description: "Your Notion integration token", required: true, secret: true },
+        { name: "NOTION_PAGE_ID", description: "The page it starts from", required: false, secret: false },
+      ],
+    },
+    signIn: "key",
+    allowed: false,
+  },
+  {
+    id: "official:ai.smithery/smithery-notion",
+    source: "official",
+    name: "ai.smithery/smithery-notion",
+    title: "Smithery Notion",
+    description: "A Notion workspace through Smithery.",
+    version: "1.0.0",
+    remote: {
+      url: "https://server.smithery.ai/@smithery/notion/mcp",
+      transport: "http",
+      headers: [
+        {
+          name: "Authorization",
+          description: "Bearer token for Smithery",
+          required: true,
+          secret: true,
+          value: "Bearer {smithery_api_key}",
+        },
+      ],
+    },
+    signIn: "key",
+    allowed: false,
+  },
+  {
+    id: "official:com.mcparmory/notion",
+    source: "official",
+    name: "com.mcparmory/notion",
+    title: "Notion (MCP Armory)",
+    description: "Notion tools packaged for uvx.",
+    version: "1.0.2",
+    package: { registry: "pypi", runner: "uvx", identifier: "mcparmory-notion", version: "1.0.2", env: [] },
+    signIn: "none",
+    allowed: false,
+  },
 ];
 
-export function sampleConnectionsData(o: { admin?: boolean; personal?: boolean; fresh?: boolean } = {}): ConnectionsData {
-  return { home: sampleHome(o), accounts: SAMPLE_ACCOUNTS, connectors: SAMPLE_CONNECTORS, groups: new Map(SAMPLE_GROUPS.map((g) => [g.id, g.name] as const)), error: null, loaded: true, sites: SAMPLE_SITES };
+export function sampleConnectionsData(
+  o: { admin?: boolean; personal?: boolean; fresh?: boolean } = {},
+): ConnectionsData {
+  return {
+    home: sampleHome(o),
+    accounts: SAMPLE_ACCOUNTS,
+    connectors: SAMPLE_CONNECTORS,
+    groups: new Map(SAMPLE_GROUPS.map((g) => [g.id, g.name] as const)),
+    error: null,
+    loaded: true,
+    sites: SAMPLE_SITES,
+  };
 }
 
 /** Answers the calls the page and the sheet make; anything else goes to `rest` (the sample Vault). */
-export function sampleConnectionsCall(rest: (cap: string, input: unknown) => Promise<unknown>, o: { admin?: boolean; personal?: boolean; offline?: boolean; fresh?: boolean } = {}): (cap: string, input: unknown) => Promise<unknown> {
+export function sampleConnectionsCall(
+  rest: (cap: string, input: unknown) => Promise<unknown>,
+  o: { admin?: boolean; personal?: boolean; offline?: boolean; fresh?: boolean } = {},
+): (cap: string, input: unknown) => Promise<unknown> {
   const home = sampleHome(o);
   return async (cap, input) => {
     const i = (input ?? {}) as Record<string, unknown>;
     switch (cap) {
-      case "plugins.connections.home": return home;
-      case "connections.list": return { connections: SAMPLE_ACCOUNTS };
-      case "connectors.list": return { connectors: SAMPLE_CONNECTORS };
-      case "access.groups.list": return { groups: SAMPLE_GROUPS };
-      case "browser.sites.list": return { sites: SAMPLE_SITES };
-      case "browser.sites.set": return { site: { ...SAMPLE_SITES[0]!, host: String(i["host"]), runsIn: i["runsIn"], rights: i["rights"] } };
-      case "browser.sites.remove": return { ok: true };
-      case "agents.list": return { agents: SAMPLE_AGENTS };
+      case "plugins.connections.home":
+        return home;
+      case "connections.list":
+        return { connections: SAMPLE_ACCOUNTS };
+      case "connectors.list":
+        return { connectors: SAMPLE_CONNECTORS };
+      case "access.groups.list":
+        return { groups: SAMPLE_GROUPS };
+      case "browser.sites.list":
+        return { sites: SAMPLE_SITES };
+      case "browser.sites.set":
+        return { site: { ...SAMPLE_SITES[0]!, host: String(i["host"]), runsIn: i["runsIn"], rights: i["rights"] } };
+      case "browser.sites.remove":
+        return { ok: true };
+      case "agents.list":
+        return { agents: SAMPLE_AGENTS };
       case "plugins.registry.search": {
         const q = String(i["q"] ?? "").toLowerCase();
-        const found = SAMPLE_CATALOG.filter((e) => !q || `${e.name} ${e.title} ${e.description}`.toLowerCase().includes(q));
+        const found = SAMPLE_CATALOG.filter(
+          (e) => !q || `${e.name} ${e.title} ${e.description}`.toLowerCase().includes(q),
+        );
         // no allow-list (a fresh Space): everything may be added
-        return { entries: o.fresh ? found.map((e) => ({ ...e, allowed: true })) : found, offline: o.offline === true, fetchedAt: h(20), source: "official" };
+        return {
+          entries: o.fresh ? found.map((e) => ({ ...e, allowed: true })) : found,
+          offline: o.offline === true,
+          fetchedAt: h(20),
+          source: "official",
+        };
       }
-      case "plugins.connection.add_mine": case "plugins.connection.add": return { connection: { connectionId: "mcs_new", name: i["name"], scope: cap.endsWith("mine") ? "mine" : "space", owner: "usr_irfad" } };
-      case "plugins.connection.update": case "plugins.connection.forget": return { connectionId: i["connectionId"], removed: true };
-      case "plugins.connections.policy_set": return { policy: { ...home.policy, ...i } };
-      case "engine.mcp.tools": return { servers: [{ key: i["server"], name: i["server"], from: "connection", ok: true, tools: [{}, {}, {}, {}] }] };
-      case "connections.test": return { state: "healthy" };
-      default: return rest(cap, input);
+      case "plugins.connection.add_mine":
+      case "plugins.connection.add":
+        return {
+          connection: {
+            connectionId: "mcs_new",
+            name: i["name"],
+            scope: cap.endsWith("mine") ? "mine" : "space",
+            owner: "usr_irfad",
+          },
+        };
+      case "plugins.connection.update":
+      case "plugins.connection.forget":
+        return { connectionId: i["connectionId"], removed: true };
+      case "plugins.connections.policy_set":
+        return { policy: { ...home.policy, ...i } };
+      case "engine.mcp.tools":
+        return {
+          servers: [{ key: i["server"], name: i["server"], from: "connection", ok: true, tools: [{}, {}, {}, {}] }],
+        };
+      case "connections.test":
+        return { state: "healthy" };
+      default:
+        return rest(cap, input);
     }
   };
 }

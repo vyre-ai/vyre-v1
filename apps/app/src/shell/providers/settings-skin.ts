@@ -8,11 +8,22 @@ export function applySkinToWindow(rt: Pick<ShellRuntime, "me" | "space">, skin: 
   if (!doc) return false;
   const root = doc.documentElement;
   let storage: Storage | null = null;
-  try { storage = globalThis.localStorage ?? null; } catch { /* blocked storage keeps the theme in this window */ }
+  try {
+    storage = globalThis.localStorage ?? null;
+  } catch {
+    /* blocked storage keeps the theme in this window */
+  }
   const theme = createThemeController({
-    personId: rt.me.id, spaceId: rt.space.id, spaceSkin: { [rt.space.id]: root.getAttribute("data-skin") ?? "system" },
-    prefersDark: globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false, storage,
-    root: { setAttribute: (key, value) => root.setAttribute(key, value), setProperty: (key, value) => root.style.setProperty(key, value), removeProperty: (key) => root.style.removeProperty(key) },
+    personId: rt.me.id,
+    spaceId: rt.space.id,
+    spaceSkin: { [rt.space.id]: root.getAttribute("data-skin") ?? "system" },
+    prefersDark: globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false,
+    storage,
+    root: {
+      setAttribute: (key, value) => root.setAttribute(key, value),
+      setProperty: (key, value) => root.style.setProperty(key, value),
+      removeProperty: (key) => root.style.removeProperty(key),
+    },
   });
   theme.setSkin(skin);
   return true;

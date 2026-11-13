@@ -7,11 +7,17 @@ export type Edit<T> = { ok: true; value: T } | { ok: false; message: string };
 
 // ---- rows of name and value (query, headers, mapped input)
 
-export interface Pair { key: string; value: string }
+export interface Pair {
+  key: string;
+  value: string;
+}
 
 export function pairsOf(record: unknown): Pair[] {
   if (!record || typeof record !== "object" || Array.isArray(record)) return [];
-  return Object.entries(record as Record<string, unknown>).map(([key, v]) => ({ key, value: typeof v === "string" ? v : JSON.stringify(v) }));
+  return Object.entries(record as Record<string, unknown>).map(([key, v]) => ({
+    key,
+    value: typeof v === "string" ? v : JSON.stringify(v),
+  }));
 }
 
 /** A number, a true or false, null, or JSON typed into a value stays that; anything else is text. Templates ({{ ... }}) are text. */
@@ -22,7 +28,13 @@ export function typedText(text: string): unknown {
   if (t === "true") return true;
   if (t === "false") return false;
   if (t === "null") return null;
-  if (/^[[{]/.test(t) && !t.startsWith("{{")) { try { return JSON.parse(t) as unknown; } catch { return text; } }
+  if (/^[[{]/.test(t) && !t.startsWith("{{")) {
+    try {
+      return JSON.parse(t) as unknown;
+    } catch {
+      return text;
+    }
+  }
   return text;
 }
 
@@ -39,7 +51,8 @@ export function recordOf(pairs: readonly Pair[], typed: boolean): Record<string,
 
 export const withField = (input: Input, name: string, value: unknown): Input => {
   const next = { ...input };
-  if (value === undefined) delete next[name]; else next[name] = value;
+  if (value === undefined) delete next[name];
+  else next[name] = value;
   return next;
 };
 
@@ -49,7 +62,8 @@ export const HTTP_METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"] as
 export type HttpMethod = (typeof HTTP_METHODS)[number];
 export const readsOnly = (method: unknown): boolean => method === "GET" || method === "HEAD";
 const SECRET_NAME = /(authorization|cookie|token|secret|password|api[-_]?key|credential|x-auth)/i;
-const OWN_HEADER = /^(host|content-length|connection|transfer-encoding|upgrade|te|keep-alive|proxy-.*|trailer|expect)$/i;
+const OWN_HEADER =
+  /^(host|content-length|connection|transfer-encoding|upgrade|te|keep-alive|proxy-.*|trailer|expect)$/i;
 
 /** Why this header name cannot be typed into the definition, in words. */
 export function headerProblem(name: string): string | null {
@@ -64,16 +78,21 @@ export function headerProblem(name: string): string | null {
 /** The method; a read has no body, so choosing GET or HEAD takes it away. */
 export function setMethod(input: Input, method: HttpMethod): Input {
   const next = withField(input, "method", method);
-  if (readsOnly(method)) { delete next["json"]; delete next["text"]; }
+  if (readsOnly(method)) {
+    delete next["json"];
+    delete next["text"];
+  }
   return next;
 }
 
 export type BodyKind = "none" | "json" | "text";
-export const bodyKindOf = (input: Input): BodyKind => (input["json"] !== undefined ? "json" : input["text"] !== undefined ? "text" : "none");
+export const bodyKindOf = (input: Input): BodyKind =>
+  input["json"] !== undefined ? "json" : input["text"] !== undefined ? "text" : "none";
 
 export function setBodyKind(input: Input, kind: BodyKind): Input {
   const next = { ...input };
-  delete next["json"]; delete next["text"];
+  delete next["json"];
+  delete next["text"];
   if (kind === "json") next["json"] = bodyKindOf(input) === "json" ? input["json"] : {};
   if (kind === "text") next["text"] = "";
   return next;
@@ -81,11 +100,20 @@ export function setBodyKind(input: Input, kind: BodyKind): Input {
 
 export function setJsonBody(input: Input, text: string): Edit<Input> {
   if (text.trim() === "") return { ok: true, value: withField(input, "json", {}) };
-  try { return { ok: true, value: withField(input, "json", JSON.parse(text) as unknown) }; } catch { return { ok: false, message: "The body is not valid JSON yet." }; }
+  try {
+    return { ok: true, value: withField(input, "json", JSON.parse(text) as unknown) };
+  } catch {
+    return { ok: false, message: "The body is not valid JSON yet." };
+  }
 }
 
 export type AuthKind = "none" | "bearer" | "basic" | "header";
-export interface Auth { kind: AuthKind; handle: string; username: string; header: string }
+export interface Auth {
+  kind: AuthKind;
+  handle: string;
+  username: string;
+  header: string;
+}
 
 export function authOf(input: Input): Auth {
   const a = input["auth"];
@@ -101,7 +129,8 @@ export function splitHandle(handle: string): { item: string; field: string } {
   const at = handle.indexOf(".");
   return at < 0 ? { item: handle, field: "" } : { item: handle.slice(0, at), field: handle.slice(at + 1) };
 }
-export const joinHandle = (item: string, field: string): string => (item === "" ? "" : field.trim() === "" ? item : `${item}.${field.trim()}`);
+export const joinHandle = (item: string, field: string): string =>
+  item === "" ? "" : field.trim() === "" ? item : `${item}.${field.trim()}`;
 
 /** The other steps of this Automation that sign with the same Vault item, by title (or kind): the "also used by" line under a chosen key. */
 export function sameKeySteps(nodes: readonly DefNode[], self: string, itemHandle: string): string[] {
@@ -110,7 +139,8 @@ export function sameKeySteps(nodes: readonly DefNode[], self: string, itemHandle
   for (const n of nodes) {
     if (n.id === self) continue;
     const a = authOf((n.input ?? {}) as Input);
-    if (a.kind !== "none" && splitHandle(a.handle).item === itemHandle) out.push(n.title && n.title.trim() !== "" ? n.title : n.key);
+    if (a.kind !== "none" && splitHandle(a.handle).item === itemHandle)
+      out.push(n.title && n.title.trim() !== "" ? n.title : n.key);
   }
   return out;
 }
@@ -124,7 +154,12 @@ export function setAuth(input: Input, a: Auth): Input {
   return withField(input, "auth", block);
 }
 
-export const AUTH_LABEL: Readonly<Record<AuthKind, string>> = { none: "None", bearer: "Bearer token", basic: "User name and password", header: "A named header" };
+export const AUTH_LABEL: Readonly<Record<AuthKind, string>> = {
+  none: "None",
+  bearer: "Bearer token",
+  basic: "User name and password",
+  header: "A named header",
+};
 
 // ---- Run code
 
@@ -132,7 +167,9 @@ export const CODE_STARTER = "// input holds this step's mapped data. Return JSON
 const HOST = /^(\*\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 
 export function hostsOf(input: Input): string[] {
-  return Array.isArray(input["hosts"]) ? (input["hosts"] as unknown[]).filter((h): h is string => typeof h === "string") : [];
+  return Array.isArray(input["hosts"])
+    ? (input["hosts"] as unknown[]).filter((h): h is string => typeof h === "string")
+    : [];
 }
 
 /** One host per line (or comma). A name that is not a host name is named back; the list is kept lower case without repeats. */
@@ -141,7 +178,8 @@ export function setHosts(input: Input, text: string): Edit<Input> {
   for (const raw of text.split(/[\n,]+/)) {
     const h = raw.trim().toLowerCase();
     if (h === "") continue;
-    if (!HOST.test(h)) return { ok: false, message: `${raw.trim()} is not a host name. Use api.example.com or *.example.com.` };
+    if (!HOST.test(h))
+      return { ok: false, message: `${raw.trim()} is not a host name. Use api.example.com or *.example.com.` };
     if (!list.includes(h)) list.push(h);
   }
   if (list.length > 10) return { ok: false, message: "Run code may name at most 10 hosts." };
@@ -155,7 +193,8 @@ type Ai = NonNullable<DefNode["ai"]>;
 
 export function withAi<K extends keyof Ai>(ai: DefNode["ai"], field: K, value: Ai[K] | undefined): Ai {
   const next: Ai = { ...(ai ?? {}) };
-  if (value === undefined) delete next[field]; else next[field] = value;
+  if (value === undefined) delete next[field];
+  else next[field] = value;
   return next;
 }
 
@@ -169,7 +208,11 @@ export function setTimeoutMinutes(ai: DefNode["ai"], text: string): Edit<Ai> {
 
 export type AnswerKind = "text" | "json";
 export const answerKindOf = (input: Input): AnswerKind => (input["outputSchema"] !== undefined ? "json" : "text");
-export const EXAMPLE_SCHEMA = { type: "object", required: ["answer"], properties: { answer: { type: "string" } } } as const;
+export const EXAMPLE_SCHEMA = {
+  type: "object",
+  required: ["answer"],
+  properties: { answer: { type: "string" } },
+} as const;
 
 export function setAnswerKind(input: Input, kind: AnswerKind): Input {
   if (kind === "text") return withField(input, "outputSchema", undefined);
@@ -179,25 +222,37 @@ export function setAnswerKind(input: Input, kind: AnswerKind): Input {
 /** The shape typed as JSON Schema. It must be an object that says a type or properties, so a typo is caught before the step runs. */
 export function setSchemaText(input: Input, text: string): Edit<Input> {
   let parsed: unknown;
-  try { parsed = JSON.parse(text); } catch { return { ok: false, message: "The shape is not valid JSON yet." }; }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { ok: false, message: "The shape must be a JSON Schema object." };
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { ok: false, message: "The shape is not valid JSON yet." };
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+    return { ok: false, message: "The shape must be a JSON Schema object." };
   const s = parsed as Record<string, unknown>;
-  if (s["type"] === undefined && s["properties"] === undefined && s["enum"] === undefined && s["anyOf"] === undefined) return { ok: false, message: 'The shape needs a "type", for example {"type":"object"}.' };
+  if (s["type"] === undefined && s["properties"] === undefined && s["enum"] === undefined && s["anyOf"] === undefined)
+    return { ok: false, message: 'The shape needs a "type", for example {"type":"object"}.' };
   return { ok: true, value: withField(input, "outputSchema", parsed) };
 }
 
-export const assigneeName = (a: Assignee | undefined, names: (id: string) => string): string => (a ? names(a.id) : "Nobody");
+export const assigneeName = (a: Assignee | undefined, names: (id: string) => string): string =>
+  a ? names(a.id) : "Nobody";
 
 // ---- the agent task kind of the AI step
 
 export type AiMode = "answer" | "task";
 export const modeOf = (ai: DefNode["ai"]): AiMode => (ai?.mode === "task" ? "task" : "answer");
-export const setMode = (ai: DefNode["ai"], mode: AiMode): Ai => withAi(ai, "mode", mode === "task" ? "task" : undefined);
+export const setMode = (ai: DefNode["ai"], mode: AiMode): Ai =>
+  withAi(ai, "mode", mode === "task" ? "task" : undefined);
 
 /** What done means, one check per line. */
 export const doneMeansText = (ai: DefNode["ai"]): string => (ai?.doneMeans ?? []).join("\n");
 export function setDoneMeans(ai: DefNode["ai"], text: string): Ai {
-  const lines = text.split("\n").map((l) => l.replace(/^\s*[-*\u2022]\s*/, "").trim()).filter((l) => l !== "").slice(0, 20);
+  const lines = text
+    .split("\n")
+    .map((l) => l.replace(/^\s*[-*\u2022]\s*/, "").trim())
+    .filter((l) => l !== "")
+    .slice(0, 20);
   return withAi(ai, "doneMeans", lines.length > 0 ? lines : undefined);
 }
 
@@ -206,14 +261,16 @@ export function setTimeLimit(ai: DefNode["ai"], text: string, max: number): Edit
   const t = text.trim();
   if (t === "") return { ok: true, value: withAi(ai, "timeoutMinutes", undefined) };
   const n = Number(t);
-  if (!Number.isInteger(n) || n < 1 || n > max) return { ok: false, message: `Minutes is a whole number from 1 to ${max}.` };
+  if (!Number.isInteger(n) || n < 1 || n > max)
+    return { ok: false, message: `Minutes is a whole number from 1 to ${max}.` };
   return { ok: true, value: withAi(ai, "timeoutMinutes", n) };
 }
 export function setNudgeMinutes(ai: DefNode["ai"], text: string): Edit<Ai> {
   const t = text.trim();
   if (t === "") return { ok: true, value: withAi(ai, "nudgeMinutes", undefined) };
   const n = Number(t);
-  if (!Number.isInteger(n) || n < 1 || n > 1440) return { ok: false, message: "Minutes is a whole number from 1 to 1440." };
+  if (!Number.isInteger(n) || n < 1 || n > 1440)
+    return { ok: false, message: "Minutes is a whole number from 1 to 1440." };
   return { ok: true, value: withAi(ai, "nudgeMinutes", n) };
 }
 
@@ -227,7 +284,8 @@ export const FIELD_TYPES: ReadonlyArray<{ word: string; schema: Record<string, u
   { word: "list", schema: { type: "array", items: { type: "string" } } },
   { word: "record link", schema: { type: "string", pattern: "^rec_[a-z0-9]+$" } },
 ];
-const wordOf = (p: unknown): string | null => FIELD_TYPES.find((t) => JSON.stringify(t.schema) === JSON.stringify(p))?.word ?? null;
+const wordOf = (p: unknown): string | null =>
+  FIELD_TYPES.find((t) => JSON.stringify(t.schema) === JSON.stringify(p))?.word ?? null;
 
 /** The deliverable as a list of fields (name and type word), or null when the shape is more than a flat list of simple fields (then the raw shape is shown). */
 export function fieldsOf(schema: unknown): Pair[] | null {
@@ -252,7 +310,10 @@ export function schemaFromFields(pairs: readonly Pair[]): Record<string, unknown
   const named = pairs.filter((p) => p.key.trim() !== "");
   if (named.length === 0) return undefined;
   const properties: Record<string, unknown> = {};
-  for (const p of named) properties[p.key.trim()] = (FIELD_TYPES.find((t) => t.word === p.value.trim().toLowerCase()) ?? FIELD_TYPES[0]!).schema;
+  for (const p of named)
+    properties[p.key.trim()] = (
+      FIELD_TYPES.find((t) => t.word === p.value.trim().toLowerCase()) ?? FIELD_TYPES[0]!
+    ).schema;
   return { type: "object", required: named.map((p) => p.key.trim()), properties };
 }
 
@@ -271,7 +332,8 @@ export function splitTemplate(value: string): Seg[] {
   out.push({ kind: "text", text: value.slice(at) });
   return out;
 }
-export const joinTemplate = (segs: readonly Seg[]): string => segs.map((s) => (s.kind === "text" ? s.text : `{{ ${s.ref} }}`)).join("");
+export const joinTemplate = (segs: readonly Seg[]): string =>
+  segs.map((s) => (s.kind === "text" ? s.text : `{{ ${s.ref} }}`)).join("");
 
 /** What a chip says: where the data comes from, a dot, and which part of it (Trigger, Trigger · Name, Find rows · Count). */
 export function chipLabel(ref: string, titleOf: (stepId: string) => string): string {
@@ -288,9 +350,15 @@ export function chipLabel(ref: string, titleOf: (stepId: string) => string): str
 export function dropChip(segs: readonly Seg[], index: number): Seg[] {
   const out = segs.filter((_, i) => i !== index);
   const merged: Seg[] = [];
-  for (const s of out) { const last = merged[merged.length - 1]; if (last && last.kind === "text" && s.kind === "text") merged[merged.length - 1] = { kind: "text", text: last.text + s.text }; else merged.push(s); }
+  for (const s of out) {
+    const last = merged[merged.length - 1];
+    if (last && last.kind === "text" && s.kind === "text")
+      merged[merged.length - 1] = { kind: "text", text: last.text + s.text };
+    else merged.push(s);
+  }
   return merged;
 }
 
 /** Add a chip at the end of the text. */
-export const addChip = (value: string, ref: string): string => `${value}${value === "" || /\s$/.test(value) ? "" : " "}{{ ${ref} }}`;
+export const addChip = (value: string, ref: string): string =>
+  `${value}${value === "" || /\s$/.test(value) ? "" : " "}{{ ${ref} }}`;

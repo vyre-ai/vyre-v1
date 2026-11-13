@@ -25,12 +25,20 @@ export interface PanelAccount {
 }
 
 export interface PanelModel {
-  id: string; title: string; note?: string; window?: number; allowed?: boolean; reason?: string;
+  id: string;
+  title: string;
+  note?: string;
+  window?: number;
+  allowed?: boolean;
+  reason?: string;
   /** Effort levels the vendor offers for this model (its words); Effort shows only the ones Vyre has that it offers. Left out: the provider's usual set. */
   efforts?: readonly string[];
 }
 
-export interface UsageMeter { pct: number; resetsAt?: string | number | null }
+export interface UsageMeter {
+  pct: number;
+  resetsAt?: string | number | null;
+}
 export interface PanelUsage {
   context: { used: number; window: number; approximate?: boolean } | null;
   session: UsageMeter | null;
@@ -42,7 +50,13 @@ export interface PanelUsage {
 export type PanelScope = "chat" | "agent";
 
 /** One place a chat can run. */
-export interface RunsOption { key: string; name: string; note?: string; online: boolean; reason?: string }
+export interface RunsOption {
+  key: string;
+  name: string;
+  note?: string;
+  online: boolean;
+  reason?: string;
+}
 
 /** Where a chat runs, from engine.placement.options. `fixed` says why there is no choice (chats with other people always run on the Space). */
 export interface PanelRuns {
@@ -98,69 +112,161 @@ export function resetLabel(at: string | number | null | undefined, now = Date.no
   const t = typeof at === "number" ? at : Date.parse(at);
   if (!Number.isFinite(t)) return typeof at === "string" ? at : "";
   const d = new Date(t);
-  if (t - now < 24 * 3600 * 1000) return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  if (t - now < 24 * 3600 * 1000)
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()] ?? "";
 }
 
 /** The other account to suggest when this one runs low (session past 80 percent): the least used of the rest, known numbers first. Null when there is none or no need. */
-export function lowSuggestion(accounts: readonly PanelAccount[], current: string | null, session: number | null | undefined): PanelAccount | null {
+export function lowSuggestion(
+  accounts: readonly PanelAccount[],
+  current: string | null,
+  session: number | null | undefined,
+): PanelAccount | null {
   if (session === null || session === undefined || session <= 0.8) return null;
   const rest = accounts.filter((a) => a.ref !== current);
   if (rest.length === 0) return null;
-  const known = rest.filter((a) => typeof a.session === "number").sort((a, b) => (a.session as number) - (b.session as number));
+  const known = rest
+    .filter((a) => typeof a.session === "number")
+    .sort((a, b) => (a.session as number) - (b.session as number));
   const best = known[0];
   if (best && (best.session as number) < 0.8) return best;
   return known.length === 0 ? (rest[0] ?? null) : null;
 }
 
 /** The context meter follows the model: its window when the model says, the used tokens from the engine. */
-export function contextFor(usage: PanelUsage | null, model: PanelModel | undefined): { used: number; window: number; approximate?: boolean } | null {
+export function contextFor(
+  usage: PanelUsage | null,
+  model: PanelModel | undefined,
+): { used: number; window: number; approximate?: boolean } | null {
   if (!usage?.context) return null;
-  return { used: usage.context.used, window: model?.window ?? usage.context.window, ...(usage.context.approximate ? { approximate: true } : {}) };
+  return {
+    used: usage.context.used,
+    window: model?.window ?? usage.context.window,
+    ...(usage.context.approximate ? { approximate: true } : {}),
+  };
 }
 
-const providerTitle = (p: string): string => ({ anthropic: "Claude", claude: "Claude", claude_code: "Claude", openai: "ChatGPT", codex: "ChatGPT", grok: "Grok", xai: "Grok", google: "Gemini", openrouter: "OpenRouter", local: "Local", opencode_go: "OpenCode" } as Record<string, string>)[p] ?? p;
+const providerTitle = (p: string): string =>
+  (
+    ({
+      anthropic: "Claude",
+      claude: "Claude",
+      claude_code: "Claude",
+      openai: "ChatGPT",
+      codex: "ChatGPT",
+      grok: "Grok",
+      xai: "Grok",
+      google: "Gemini",
+      openrouter: "OpenRouter",
+      local: "Local",
+      opencode_go: "OpenCode",
+    }) as Record<string, string>
+  )[p] ?? p;
 
 function Mini({ v, testID }: { v: number | null | undefined; testID?: string }): ReactElement | null {
   if (typeof v !== "number") return null;
   return (
     <View style={st.mini} testID={testID}>
-      <View style={st.miniBar}><View style={[st.miniFill, { width: `${Math.round(Math.min(1, v) * 100)}%` }, v > 0.8 && st.warnFill]} /></View>
+      <View style={st.miniBar}>
+        <View style={[st.miniFill, { width: `${Math.round(Math.min(1, v) * 100)}%` }, v > 0.8 && st.warnFill]} />
+      </View>
       <Text style={st.miniText}>{pct(v)}</Text>
     </View>
   );
 }
 
-function Meter({ label, value, frac, testID }: { label: string; value: string; frac: number; testID: string }): ReactElement {
+function Meter({
+  label,
+  value,
+  frac,
+  testID,
+}: {
+  label: string;
+  value: string;
+  frac: number;
+  testID: string;
+}): ReactElement {
   return (
     <View style={st.lim} testID={testID}>
-      <View style={st.limHead}><Text style={st.limLabel}>{label}</Text><Text style={st.limValue}>{value}</Text></View>
-      <View style={st.meterBar}><View style={[st.meterFill, { width: `${Math.round(Math.min(1, frac) * 100)}%` }, frac > 0.8 && st.warnFill]} /></View>
+      <View style={st.limHead}>
+        <Text style={st.limLabel}>{label}</Text>
+        <Text style={st.limValue}>{value}</Text>
+      </View>
+      <View style={st.meterBar}>
+        <View style={[st.meterFill, { width: `${Math.round(Math.min(1, frac) * 100)}%` }, frac > 0.8 && st.warnFill]} />
+      </View>
     </View>
   );
 }
 
-function Seg<T extends string>({ items, on, pick, testID, tight }: { items: readonly { id: T; label: string }[]; on: T | undefined; pick: (id: T) => void; testID: string; tight?: boolean }): ReactElement {
+function Seg<T extends string>({
+  items,
+  on,
+  pick,
+  testID,
+  tight,
+}: {
+  items: readonly { id: T; label: string }[];
+  on: T | undefined;
+  pick: (id: T) => void;
+  testID: string;
+  tight?: boolean;
+}): ReactElement {
   return (
     <View style={tight ? st.eseg : st.seg} testID={testID} accessibilityRole="radiogroup">
       {/* ui-rows-lint: not a list (segmented control choices) */}
       {items.map((x) => (
-        <Pressable key={x.id} accessibilityRole="radio" accessibilityState={{ checked: x.id === on }} accessibilityLabel={x.label} testID={`${testID}-${x.id}`} onPress={() => pick(x.id)} style={[tight ? st.esegBtn : st.segBtn, x.id === on && st.segOn]}>
-          <Text style={[tight ? st.esegText : st.segText, x.id === on && st.segTextOn]}>{tight && x.label === "Medium" ? "Med" : x.label}</Text>
+        <Pressable
+          key={x.id}
+          accessibilityRole="radio"
+          accessibilityState={{ checked: x.id === on }}
+          accessibilityLabel={x.label}
+          testID={`${testID}-${x.id}`}
+          onPress={() => pick(x.id)}
+          style={[tight ? st.esegBtn : st.segBtn, x.id === on && st.segOn]}
+        >
+          <Text style={[tight ? st.esegText : st.segText, x.id === on && st.segTextOn]}>
+            {tight && x.label === "Medium" ? "Med" : x.label}
+          </Text>
         </Pressable>
       ))}
     </View>
   );
 }
 
-function Nav({ label, value, on, onPress, testID, lead }: { label: string; value: string; on: boolean; onPress: (e: unknown) => void; testID: string; lead?: ReactNode }): ReactElement {
+function Nav({
+  label,
+  value,
+  on,
+  onPress,
+  testID,
+  lead,
+}: {
+  label: string;
+  value: string;
+  on: boolean;
+  onPress: (e: unknown) => void;
+  testID: string;
+  lead?: ReactNode;
+}): ReactElement {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${label}${value ? `: ${value}` : ""}`} accessibilityState={{ expanded: on }} testID={testID} onPress={onPress}
-      style={({ hovered }: { hovered?: boolean }) => [st.item, on ? st.sel : hovered === true ? st.hover : null]}>
-      <Text numberOfLines={1} style={st.itemText}>{label}</Text>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label}${value ? `: ${value}` : ""}`}
+      accessibilityState={{ expanded: on }}
+      testID={testID}
+      onPress={onPress}
+      style={({ hovered }: { hovered?: boolean }) => [st.item, on ? st.sel : hovered === true ? st.hover : null]}
+    >
+      <Text numberOfLines={1} style={st.itemText}>
+        {label}
+      </Text>
       <View style={st.itemRight}>
         {lead}
-        <Text numberOfLines={1} style={st.itemValue}>{value}</Text>
+        <Text numberOfLines={1} style={st.itemValue}>
+          {value}
+        </Text>
         <Glyph icon={I.chevr} native="›" size={11} color="var(--ink-4)" />
       </View>
     </Pressable>
@@ -182,7 +288,9 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
   const [always, setAlways] = useState(false);
   const [find, setFind] = useState("");
   const node = useRef<{ focus?: () => void; getBoundingClientRect?: () => { right: number } } | null>(null);
-  useEffect(() => { node.current?.focus?.(); }, []);
+  useEffect(() => {
+    node.current?.focus?.();
+  }, []);
   // the pressed row's top inside the menu: the side list opens level with it (prototype s-chat221 place())
   const [subTop, setSubTop] = useState(0);
   const toggle = (next: Sub, e?: unknown): void => {
@@ -194,7 +302,10 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
     setSubTop(typeof row?.offsetTop === "number" ? row.offsetTop : 0);
     // the Compact form opens with the chat's standing words, ticked, so compacting again keeps them and unticking is a choice the person sees
     const standing = p.usage !== "loading" ? p.usage?.keepEvery : undefined;
-    if (next === "compact" && sub !== "compact" && standing) { setKeep(standing); setAlways(true); }
+    if (next === "compact" && sub !== "compact" && standing) {
+      setKeep(standing);
+      setAlways(true);
+    }
     setSub((cur) => (cur === next ? null : next));
     setFind("");
   };
@@ -215,54 +326,148 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
   const scopeLabel = p.scope === "chat" ? "This chat" : `Default for ${agentName.split(/[\s’']/)[0] ?? agentName}`;
   const noMeters = !ctx && !session && !week;
 
-  const onKeyDown = (e: { key: string; shiftKey?: boolean; preventDefault(): void; stopPropagation?(): void; target?: { tagName?: string } }): void => {
-    if (e.target?.tagName === "INPUT" || e.target?.tagName === "TEXTAREA") { if (e.key === "Escape") { e.preventDefault(); setSub(null); } return; }
+  const onKeyDown = (e: {
+    key: string;
+    shiftKey?: boolean;
+    preventDefault(): void;
+    stopPropagation?(): void;
+    target?: { tagName?: string };
+  }): void => {
+    if (e.target?.tagName === "INPUT" || e.target?.tagName === "TEXTAREA") {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSub(null);
+      }
+      return;
+    }
     const eff = effortForKey(e.key, efforts);
-    if (eff) { e.preventDefault(); p.onEffort(eff); return; }
-    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation?.(); if (sub) setSub(null); else p.onClose(); return; }
-    if (e.key === "Tab" && e.shiftKey === true && p.onMode && p.mode) { e.preventDefault(); const i = MODES.findIndex((m) => m.id === p.mode); p.onMode((MODES[(i + 1) % MODES.length] as { id: ChatMode }).id); }
+    if (eff) {
+      e.preventDefault();
+      p.onEffort(eff);
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation?.();
+      if (sub) setSub(null);
+      else p.onClose();
+      return;
+    }
+    if (e.key === "Tab" && e.shiftKey === true && p.onMode && p.mode) {
+      e.preventDefault();
+      const i = MODES.findIndex((m) => m.id === p.mode);
+      p.onMode((MODES[(i + 1) % MODES.length] as { id: ChatMode }).id);
+    }
   };
 
   const subBody = (): ReactElement | null => {
-    if (sub === "provider") return (
-      <View testID="model-accounts">
-        <Text style={st.grp}>Provider</Text>
-        <ScrollView testID="model-accounts-scroll" style={st.list} nestedScrollEnabled>
-        {accounts.map((a) => (
-          <Row key={a.ref} id={`model-account-${a.ref}`} title={a.name} note={`${providerTitle(a.provider)}${a.plan ? ` ${a.plan}` : ""}`} selected={a.ref === p.accountRef}
-            leading={<View style={st.brand}><BrandMark provider={a.provider} size={15} /></View>} trailing={<Mini v={a.session} testID={`model-account-${a.ref}-mini`} />}
-            onPress={() => { p.onAccount(a.ref); setFind(""); setSub("model"); }} />
-        ))}
-        </ScrollView>
-        {p.onAddProvider ? (
-          <>
-            <View style={st.dv} />
-            <Pressable accessibilityRole="button" accessibilityLabel="Connect another" testID="model-add-provider" onPress={() => { setSub(null); p.onAddProvider?.(); }} style={({ hovered }: { hovered?: boolean }) => [st.item, hovered === true && st.hover]}>
-              <Text style={st.itemText}>Connect another</Text>
-            </Pressable>
-          </>
-        ) : null}
-      </View>
-    );
+    if (sub === "provider")
+      return (
+        <View testID="model-accounts">
+          <Text style={st.grp}>Provider</Text>
+          <ScrollView testID="model-accounts-scroll" style={st.list} nestedScrollEnabled>
+            {accounts.map((a) => (
+              <Row
+                key={a.ref}
+                id={`model-account-${a.ref}`}
+                title={a.name}
+                note={`${providerTitle(a.provider)}${a.plan ? ` ${a.plan}` : ""}`}
+                selected={a.ref === p.accountRef}
+                leading={
+                  <View style={st.brand}>
+                    <BrandMark provider={a.provider} size={15} />
+                  </View>
+                }
+                trailing={<Mini v={a.session} testID={`model-account-${a.ref}-mini`} />}
+                onPress={() => {
+                  p.onAccount(a.ref);
+                  setFind("");
+                  setSub("model");
+                }}
+              />
+            ))}
+          </ScrollView>
+          {p.onAddProvider ? (
+            <>
+              <View style={st.dv} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Connect another"
+                testID="model-add-provider"
+                onPress={() => {
+                  setSub(null);
+                  p.onAddProvider?.();
+                }}
+                style={({ hovered }: { hovered?: boolean }) => [st.item, hovered === true && st.hover]}
+              >
+                <Text style={st.itemText}>Connect another</Text>
+              </Pressable>
+            </>
+          ) : null}
+        </View>
+      );
     if (sub === "model") {
       // a provider with many models (OpenCode Go, OpenRouter) scrolls inside the submenu and gets a find field; the panel itself never grows past the window
       const all = p.models ?? [];
       const q = find.trim().toLowerCase();
-      const shown = q === "" ? all : all.filter((m) => m.title.toLowerCase().includes(q) || m.id.toLowerCase().includes(q));
+      const shown =
+        q === "" ? all : all.filter((m) => m.title.toLowerCase().includes(q) || m.id.toLowerCase().includes(q));
       return (
         <View testID="model-models">
           <Text style={st.grp}>{account?.name ?? "Model"}</Text>
-          {all.length > FIND_FROM ? <TextInput testID="model-find" accessibilityLabel="Find a model" placeholder="Find a model" placeholderTextColor="var(--ink-4)" value={find} onChangeText={setFind} autoFocus style={st.find} /> : null}
-          {p.models === null ? <Text style={st.quiet}>Reading models</Text> : all.length === 0 ? <Text style={st.quiet}>This account lists no models.</Text> : shown.length === 0 ? <Text style={st.quiet}>No model matches.</Text> : null}
+          {all.length > FIND_FROM ? (
+            <TextInput
+              testID="model-find"
+              accessibilityLabel="Find a model"
+              placeholder="Find a model"
+              placeholderTextColor="var(--ink-4)"
+              value={find}
+              onChangeText={setFind}
+              autoFocus
+              style={st.find}
+            />
+          ) : null}
+          {p.models === null ? (
+            <Text style={st.quiet}>Reading models</Text>
+          ) : all.length === 0 ? (
+            <Text style={st.quiet}>This account lists no models.</Text>
+          ) : shown.length === 0 ? (
+            <Text style={st.quiet}>No model matches.</Text>
+          ) : null}
           <ScrollView testID="model-models-scroll" style={st.list} nestedScrollEnabled>
             {shown.map((m) => {
               const on = m.id === p.model;
               const off = m.allowed === false;
               // a model the account may not use stays visible with the reason, and does nothing when pressed
-              return <Row key={m.id} id={`model-${m.id}`} title={m.title} selected={on} {...(off ? { note: m.reason ?? "Not available on this account" } : m.note || m.window ? { note: [m.note, m.window ? windowWords(m.window) : ""].filter((x) => x).join(" · ") } : {})} trailing={on ? CHECK : null} {...(off ? {} : { onPress: () => { p.onModel(m.id); setSub(null); } })} />;
+              return (
+                <Row
+                  key={m.id}
+                  id={`model-${m.id}`}
+                  title={m.title}
+                  selected={on}
+                  {...(off
+                    ? { note: m.reason ?? "Not available on this account" }
+                    : m.note || m.window
+                      ? { note: [m.note, m.window ? windowWords(m.window) : ""].filter((x) => x).join(" · ") }
+                      : {})}
+                  trailing={on ? CHECK : null}
+                  {...(off
+                    ? {}
+                    : {
+                        onPress: () => {
+                          p.onModel(m.id);
+                          setSub(null);
+                        },
+                      })}
+                />
+              );
             })}
           </ScrollView>
-          {p.modelsLine && p.models !== null ? <Text style={st.quiet} testID="model-models-line">{p.modelsLine}</Text> : null}
+          {p.modelsLine && p.models !== null ? (
+            <Text style={st.quiet} testID="model-models-line">
+              {p.modelsLine}
+            </Text>
+          ) : null}
         </View>
       );
     }
@@ -273,36 +478,94 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
           <Text style={st.grp}>Runs on</Text>
           {r.fixed ? (
             <>
-              <View style={st.item}><Text style={st.itemText}>{r.fixed.name}</Text><Text style={st.itemValue}>{r.fixed.note}</Text></View>
+              <View style={st.item}>
+                <Text style={st.itemText}>{r.fixed.name}</Text>
+                <Text style={st.itemValue}>{r.fixed.note}</Text>
+              </View>
               <Text style={st.cap}>{r.fixed.line}</Text>
             </>
           ) : (
             <>
-              {r.options.map((o) => <Row key={o.key} id={`model-runs-${o.key}`} title={o.name} {...(o.note ? { note: o.note } : !o.online && o.reason ? { note: o.reason } : {})} selected={o.key === r.current} trailing={o.key === r.current ? CHECK : null} {...(o.online ? { onPress: () => { r.onPick(o.key); setSub(null); } } : {})} />)}
+              {r.options.map((o) => (
+                <Row
+                  key={o.key}
+                  id={`model-runs-${o.key}`}
+                  title={o.name}
+                  {...(o.note ? { note: o.note } : !o.online && o.reason ? { note: o.reason } : {})}
+                  selected={o.key === r.current}
+                  trailing={o.key === r.current ? CHECK : null}
+                  {...(o.online
+                    ? {
+                        onPress: () => {
+                          r.onPick(o.key);
+                          setSub(null);
+                        },
+                      }
+                    : {})}
+                />
+              ))}
               <Text style={st.cap}>Same chat wherever it runs. Only this Space's computers are listed.</Text>
             </>
           )}
         </View>
       );
     }
-    if (sub === "more") return (
-      <View testID="model-more">
-        <Text style={st.grp}>Applies to</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Applies to: ${scopeLabel}`} testID="model-scope" onPress={() => p.onScope(p.scope === "chat" ? "agent" : "chat")} style={({ hovered }: { hovered?: boolean }) => [st.item, hovered === true && st.hover]}>
-          <Text numberOfLines={1} style={st.itemText}>{scopeLabel}</Text>
-        </Pressable>
-      </View>
-    );
-    if (sub === "compact") return (
-      <View testID="model-compact-form" style={st.form}>
-        <TextInput accessibilityLabel="What should it keep?" testID="model-compact-keep" value={keep} onChangeText={setKeep} placeholder="What should it keep? Optional" placeholderTextColor="var(--ink-3)" style={st.field} />
-        <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: always }} aria-checked={always} testID="model-compact-always" onPress={() => setAlways((x) => !x)} style={st.check}>
-          <View style={[st.box, always && st.boxOn]}>{always ? <Glyph icon={I.check} native="✓" size={11} color="var(--accent-ink)" /> : null}</View>
-          <Text style={st.limLabel}>Keep this every time</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Compact" testID="model-compact-go" onPress={() => { p.onCompact?.(keep.trim(), always); p.onClose(); }} style={st.go}><Text style={st.goText}>Compact</Text></Pressable>
-      </View>
-    );
+    if (sub === "more")
+      return (
+        <View testID="model-more">
+          <Text style={st.grp}>Applies to</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Applies to: ${scopeLabel}`}
+            testID="model-scope"
+            onPress={() => p.onScope(p.scope === "chat" ? "agent" : "chat")}
+            style={({ hovered }: { hovered?: boolean }) => [st.item, hovered === true && st.hover]}
+          >
+            <Text numberOfLines={1} style={st.itemText}>
+              {scopeLabel}
+            </Text>
+          </Pressable>
+        </View>
+      );
+    if (sub === "compact")
+      return (
+        <View testID="model-compact-form" style={st.form}>
+          <TextInput
+            accessibilityLabel="What should it keep?"
+            testID="model-compact-keep"
+            value={keep}
+            onChangeText={setKeep}
+            placeholder="What should it keep? Optional"
+            placeholderTextColor="var(--ink-3)"
+            style={st.field}
+          />
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: always }}
+            aria-checked={always}
+            testID="model-compact-always"
+            onPress={() => setAlways((x) => !x)}
+            style={st.check}
+          >
+            <View style={[st.box, always && st.boxOn]}>
+              {always ? <Glyph icon={I.check} native="✓" size={11} color="var(--accent-ink)" /> : null}
+            </View>
+            <Text style={st.limLabel}>Keep this every time</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Compact"
+            testID="model-compact-go"
+            onPress={() => {
+              p.onCompact?.(keep.trim(), always);
+              p.onClose();
+            }}
+            style={st.go}
+          >
+            <Text style={st.goText}>Compact</Text>
+          </Pressable>
+        </View>
+      );
     return null;
   };
   const body = subBody();
@@ -311,19 +574,37 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
   const subNode = useRef<{ style?: { display: string; visibility: string } } | null>(null);
   // the menu and its side list stay 8 px inside the window: a menu taller than the room above scrolls, a side list level with its row is moved up or down until it fits (web)
   useLayoutEffect(() => {
-    const m = node.current as unknown as { getBoundingClientRect?: () => { top: number; bottom: number }; style?: Record<string, string> } | null;
+    const m = node.current as unknown as {
+      getBoundingClientRect?: () => { top: number; bottom: number };
+      style?: Record<string, string>;
+    } | null;
     const r = m?.getBoundingClientRect?.();
-    if (m?.style && r && r.top < 8) { m.style.maxHeight = `${Math.max(160, r.bottom - 8)}px`; m.style.overflowY = "auto"; }
+    if (m?.style && r && r.top < 8) {
+      m.style.maxHeight = `${Math.max(160, r.bottom - 8)}px`;
+      m.style.overflowY = "auto";
+    }
   }, [sub]);
   useLayoutEffect(() => {
-    const n = subNode.current as unknown as { getBoundingClientRect?: () => { top: number; bottom: number }; style?: Record<string, string> } | null;
+    const n = subNode.current as unknown as {
+      getBoundingClientRect?: () => { top: number; bottom: number };
+      style?: Record<string, string>;
+    } | null;
     const h = (globalThis as { innerHeight?: number }).innerHeight;
     const r = n?.getBoundingClientRect?.();
     if (!n?.style || !r || h === undefined) return;
     if (r.bottom > h - 8) n.style["top"] = `${subTop - (r.bottom - (h - 8))}px`;
     else if (r.top < 8) n.style["top"] = `${subTop + (8 - r.top)}px`;
   }, [sub, subTop, flip]);
-  useLayoutEffect(() => () => { const n = subNode.current; if (n?.style) { n.style.visibility = "hidden"; n.style.display = "none"; } }, []);
+  useLayoutEffect(
+    () => () => {
+      const n = subNode.current;
+      if (n?.style) {
+        n.style.visibility = "hidden";
+        n.style.display = "none";
+      }
+    },
+    [],
+  );
 
   return (
     <View
@@ -334,78 +615,228 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
       {...webOnly({ tabIndex: -1, onKeyDown, role: "dialog" })}
     >
       <View style={st.head} testID="model-head">
-        <Text numberOfLines={1} style={st.headModel} testID="model-head-name">{model?.title ?? p.agent.modelTitle ?? "Auto"}</Text>
-        <Text numberOfLines={1} style={st.headSub} testID="model-head-account">{account ? `${account.name}${account.plan ? ` · ${account.plan}` : ""}` : p.accounts === null ? "" : "No account chosen"}</Text>
+        <Text numberOfLines={1} style={st.headModel} testID="model-head-name">
+          {model?.title ?? p.agent.modelTitle ?? "Auto"}
+        </Text>
+        <Text numberOfLines={1} style={st.headSub} testID="model-head-account">
+          {account
+            ? `${account.name}${account.plan ? ` · ${account.plan}` : ""}`
+            : p.accounts === null
+              ? ""
+              : "No account chosen"}
+        </Text>
       </View>
       {p.onMode && p.mode ? (
         <>
-          <Seg items={MODES.map((m) => ({ id: m.id, label: m.label }))} on={p.mode} pick={(m) => p.onMode?.(m)} testID="model-mode" />
-          <Text style={st.modeNote} testID="model-mode-note">{modeInfo(p.mode).note}</Text>
+          <Seg
+            items={MODES.map((m) => ({ id: m.id, label: m.label }))}
+            on={p.mode}
+            pick={(m) => p.onMode?.(m)}
+            testID="model-mode"
+          />
+          <Text style={st.modeNote} testID="model-mode-note">
+            {modeInfo(p.mode).note}
+          </Text>
         </>
       ) : null}
       {p.accounts !== null && accounts.length === 0 ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Connect an AI account" testID="model-account" onPress={() => p.onAddProvider?.()} style={({ hovered }: { hovered?: boolean }) => [st.item, hovered === true && st.hover]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Connect an AI account"
+          testID="model-account"
+          onPress={() => p.onAddProvider?.()}
+          style={({ hovered }: { hovered?: boolean }) => [st.item, hovered === true && st.hover]}
+        >
           <Text style={st.itemText}>Connect an AI account</Text>
         </Pressable>
       ) : (
-        <Nav label="Provider" value={account?.name ?? (p.accounts === null ? "" : "Choose")} on={sub === "provider"} onPress={(e) => toggle("provider", e)} testID="model-account" lead={account ? <BrandMark provider={account.provider} size={13} /> : undefined} />
+        <Nav
+          label="Provider"
+          value={account?.name ?? (p.accounts === null ? "" : "Choose")}
+          on={sub === "provider"}
+          onPress={(e) => toggle("provider", e)}
+          testID="model-account"
+          lead={account ? <BrandMark provider={account.provider} size={13} /> : undefined}
+        />
       )}
-      <Nav label="Model" value={model?.title ?? p.agent.modelTitle ?? "Auto"} on={sub === "model"} onPress={(e) => toggle("model", e)} testID="model-model" />
+      <Nav
+        label="Model"
+        value={model?.title ?? p.agent.modelTitle ?? "Auto"}
+        on={sub === "model"}
+        onPress={(e) => toggle("model", e)}
+        testID="model-model"
+      />
       <View style={st.item}>
         <Text style={st.itemText}>Effort</Text>
-        <View style={st.itemRight}><Seg tight items={efforts} on={efforts.some((e) => e.id === p.effort) ? p.effort : "medium"} pick={(e) => p.onEffort(e)} testID="model-effort" /></View>
+        <View style={st.itemRight}>
+          <Seg
+            tight
+            items={efforts}
+            on={efforts.some((e) => e.id === p.effort) ? p.effort : "medium"}
+            pick={(e) => p.onEffort(e)}
+            testID="model-effort"
+          />
+        </View>
       </View>
-      {p.runs ? <Nav label="Runs on" value={p.runs.fixed?.name ?? p.runs.value} on={sub === "runs"} onPress={(e) => toggle("runs", e)} testID="model-runs-row" /> : null}
+      {p.runs ? (
+        <Nav
+          label="Runs on"
+          value={p.runs.fixed?.name ?? p.runs.value}
+          on={sub === "runs"}
+          onPress={(e) => toggle("runs", e)}
+          testID="model-runs-row"
+        />
+      ) : null}
       <Nav label="More" value="" on={sub === "more"} onPress={(e) => toggle("more", e)} testID="model-more-row" />
       {noMeters && p.usage !== "loading" ? null : (
         <>
           <View style={st.dv} />
           <View style={st.lims} testID="model-usage">
-            {session ? <Meter testID="meter-session" label={words.session} frac={session.pct} value={resetLabel(session.resetsAt, p.now) ? `resets ${resetLabel(session.resetsAt, p.now)}` : pct(session.pct)} /> : null}
-            {week ? <Meter testID="meter-week" label={words.week} frac={week.pct} value={resetLabel(week.resetsAt, p.now) ? `resets ${resetLabel(week.resetsAt, p.now)}` : pct(week.pct)} /> : null}
-            {ctx ? <Meter testID="meter-context" label="Context" frac={ctx.used / ctx.window} value={`${ctx.approximate ? "about " : ""}${Math.round((Math.min(ctx.used, ctx.window) / ctx.window) * 100)}% of ${kTokens(ctx.window)}`} /> : null}
+            {session ? (
+              <Meter
+                testID="meter-session"
+                label={words.session}
+                frac={session.pct}
+                value={
+                  resetLabel(session.resetsAt, p.now)
+                    ? `resets ${resetLabel(session.resetsAt, p.now)}`
+                    : pct(session.pct)
+                }
+              />
+            ) : null}
+            {week ? (
+              <Meter
+                testID="meter-week"
+                label={words.week}
+                frac={week.pct}
+                value={resetLabel(week.resetsAt, p.now) ? `resets ${resetLabel(week.resetsAt, p.now)}` : pct(week.pct)}
+              />
+            ) : null}
+            {ctx ? (
+              <Meter
+                testID="meter-context"
+                label="Context"
+                frac={ctx.used / ctx.window}
+                value={`${ctx.approximate ? "about " : ""}${Math.round((Math.min(ctx.used, ctx.window) / ctx.window) * 100)}% of ${kTokens(ctx.window)}`}
+              />
+            ) : null}
           </View>
         </>
       )}
       {better && account ? (
         <View style={st.low} testID="model-low" {...webOnly({ dataSet: { cmpLow: "1" } })}>
           <Text style={st.lowText}>{`Running low on ${account.name}.`}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Use ${better.name}`} testID="model-low-switch" onPress={() => p.onAccount(better.ref)}>
-            <Text style={st.lowBtn}>{`Use ${better.name}${typeof better.session === "number" ? ` · ${pct(better.session)}` : ""}`}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Use ${better.name}`}
+            testID="model-low-switch"
+            onPress={() => p.onAccount(better.ref)}
+          >
+            <Text
+              style={st.lowBtn}
+            >{`Use ${better.name}${typeof better.session === "number" ? ` · ${pct(better.session)}` : ""}`}</Text>
           </Pressable>
         </View>
       ) : null}
       {p.onFallback ? (
-        <Pressable accessibilityRole="switch" accessibilityState={{ checked: p.fallback === true }} aria-checked={p.fallback === true} accessibilityLabel="Switch when limits run out" testID="model-fallback" onPress={() => p.onFallback?.(!(p.fallback === true))} style={st.tog}>
-          <View style={st.togText}><Text style={st.itemText}>Switch when limits run out</Text><Text style={st.limLabel}>Moves to your next account. A paid key asks first</Text></View>
-          <View style={[st.sw, p.fallback === true && st.swOn]}><View style={[st.knob, p.fallback === true && st.knobOn]} /></View>
+        <Pressable
+          accessibilityRole="switch"
+          accessibilityState={{ checked: p.fallback === true }}
+          aria-checked={p.fallback === true}
+          accessibilityLabel="Switch when limits run out"
+          testID="model-fallback"
+          onPress={() => p.onFallback?.(!(p.fallback === true))}
+          style={st.tog}
+        >
+          <View style={st.togText}>
+            <Text style={st.itemText}>Switch when limits run out</Text>
+            <Text style={st.limLabel}>Moves to your next account. A paid key asks first</Text>
+          </View>
+          <View style={[st.sw, p.fallback === true && st.swOn]}>
+            <View style={[st.knob, p.fallback === true && st.knobOn]} />
+          </View>
         </Pressable>
       ) : null}
       {p.onCompact ? (
         <>
           <View style={st.dv} />
-          <Nav label="Compact" value="Free up context" on={sub === "compact"} onPress={(e) => toggle("compact", e)} testID="model-compact" />
+          <Nav
+            label="Compact"
+            value="Free up context"
+            on={sub === "compact"}
+            onPress={(e) => toggle("compact", e)}
+            testID="model-compact"
+          />
         </>
       ) : null}
       {/* no arrival animation of its own: the menu's rise already carries it, and a second animated layer outside the menu's box is the one that stayed painted */}
-      {body ? <View ref={subNode as never} testID="model-sub" style={p.narrow ? st.subInline : [st.sub, flip ? st.subLeft : st.subRight, { top: subTop, bottom: "auto" as unknown as number }]}>{body}</View> : null}
+      {body ? (
+        <View
+          ref={subNode as never}
+          testID="model-sub"
+          style={
+            p.narrow
+              ? st.subInline
+              : [st.sub, flip ? st.subLeft : st.subRight, { top: subTop, bottom: "auto" as unknown as number }]
+          }
+        >
+          {body}
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  head: { gap: 1, paddingHorizontal: 10, paddingTop: 6, paddingBottom: 8, marginHorizontal: 4, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  head: {
+    gap: 1,
+    paddingHorizontal: 10,
+    paddingTop: 6,
+    paddingBottom: 8,
+    marginHorizontal: 4,
+    marginBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   headModel: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
   headSub: { fontSize: 12, color: "var(--ink-3)" as string },
-  panel: { width: 286, padding: 6, backgroundColor: "var(--raised)" as string, borderRadius: RADIUS, outlineStyle: "none" } as object,
+  panel: {
+    width: 286,
+    padding: 6,
+    backgroundColor: "var(--raised)" as string,
+    borderRadius: RADIUS,
+    outlineStyle: "none",
+  } as object,
   panelNarrow: { width: "100%" },
-  seg: { flexDirection: "row", marginHorizontal: 4, marginTop: 4, padding: 2, borderRadius: RADIUS, backgroundColor: "var(--sunk)" as string },
+  seg: {
+    flexDirection: "row",
+    marginHorizontal: 4,
+    marginTop: 4,
+    padding: 2,
+    borderRadius: RADIUS,
+    backgroundColor: "var(--sunk)" as string,
+  },
   segBtn: { flex: 1, height: 27, alignItems: "center", justifyContent: "center", borderRadius: RADIUS },
   segOn: { backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-1)" } as object,
   segText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   segTextOn: { color: "var(--ink)" as string, fontWeight: "500" },
-  modeNote: { fontSize: 11.5, lineHeight: 15, color: "var(--ink-3)" as string, paddingHorizontal: 9, paddingTop: 6, paddingBottom: 6 },
-  item: { flexDirection: "row", alignItems: "center", gap: 9, minHeight: 32, paddingHorizontal: 9, paddingVertical: 6, borderRadius: RADIUS },
+  modeNote: {
+    fontSize: 11.5,
+    lineHeight: 15,
+    color: "var(--ink-3)" as string,
+    paddingHorizontal: 9,
+    paddingTop: 6,
+    paddingBottom: 6,
+  },
+  item: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    minHeight: 32,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: RADIUS,
+  },
   itemText: { fontSize: 13, color: "var(--ink)" as string },
   itemRight: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 },
   itemValue: { flexShrink: 1, fontSize: 12, color: "var(--ink-3)" as string },
@@ -427,31 +858,103 @@ const st = StyleSheet.create({
   miniBar: { width: 34, height: 4, borderRadius: 3, backgroundColor: "var(--line-2)" as string, overflow: "hidden" },
   miniFill: { height: "100%", backgroundColor: "var(--accent)" as string },
   miniText: { fontSize: 11, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] } as object,
-  sub: { position: "absolute", bottom: 0, width: 216, padding: 6, zIndex: 3, backgroundColor: "var(--raised)" as string, borderRadius: RADIUS, boxShadow: "var(--sh-pop)" } as object,
+  sub: {
+    position: "absolute",
+    bottom: 0,
+    width: 216,
+    padding: 6,
+    zIndex: 3,
+    backgroundColor: "var(--raised)" as string,
+    borderRadius: RADIUS,
+    boxShadow: "var(--sh-pop)",
+  } as object,
   subRight: { left: "100%", marginLeft: 6 },
   subTop: { bottom: "auto" as unknown as number, top: 0 },
   subLeft: { right: "100%", marginRight: 6 },
   list: { maxHeight: 320 },
-  find: { height: 30, marginHorizontal: 4, marginBottom: 4, paddingHorizontal: 9, borderRadius: RADIUS, fontSize: 13, color: "var(--ink)" as string, backgroundColor: "var(--sunk)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
+  find: {
+    height: 30,
+    marginHorizontal: 4,
+    marginBottom: 4,
+    paddingHorizontal: 9,
+    borderRadius: RADIUS,
+    fontSize: 13,
+    color: "var(--ink)" as string,
+    backgroundColor: "var(--sunk)" as string,
+    outlineStyle: "none",
+    outlineWidth: 0,
+  } as object,
   subInline: { marginTop: 4, padding: 4, borderRadius: RADIUS, backgroundColor: "var(--sunk)" as string },
   grp: { fontSize: 11.5, color: "var(--ink-4)" as string, paddingTop: 9, paddingBottom: 4, paddingHorizontal: 9 },
   brand: { width: 18, marginRight: 6, alignItems: "center" },
-  cap: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string, paddingHorizontal: 9, paddingTop: 2, paddingBottom: 8 },
+  cap: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: "var(--ink-3)" as string,
+    paddingHorizontal: 9,
+    paddingTop: 2,
+    paddingBottom: 8,
+  },
   quiet: { fontSize: 12, color: "var(--ink-3)" as string, paddingVertical: 4, paddingHorizontal: 9 },
-  low: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4, marginHorizontal: 4, paddingHorizontal: 9, paddingVertical: 7, borderRadius: RADIUS, backgroundColor: "var(--sunk)" as string },
+  low: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+    marginHorizontal: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    borderRadius: RADIUS,
+    backgroundColor: "var(--sunk)" as string,
+  },
   lowText: { flex: 1, fontSize: 12, color: "var(--ink-2)" as string },
   lowBtn: { fontSize: 12, fontWeight: "600", color: "var(--ink)" as string },
-  tog: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingHorizontal: 9, paddingVertical: 6 },
+  tog: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
   togText: { flex: 1, gap: 2 },
-  sw: { width: 30, height: 18, borderRadius: 999, backgroundColor: "var(--line-2)" as string, justifyContent: "center", paddingHorizontal: 2 },
+  sw: {
+    width: 30,
+    height: 18,
+    borderRadius: 999,
+    backgroundColor: "var(--line-2)" as string,
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
   swOn: { backgroundColor: "var(--accent)" as string },
   knob: { width: 14, height: 14, borderRadius: 7, backgroundColor: "#fff" },
   knobOn: { transform: [{ translateX: 12 }] },
   form: { gap: 8, padding: 4 },
-  field: { height: 34, borderRadius: RADIUS, paddingHorizontal: 11, fontSize: 13, color: "var(--ink)" as string, backgroundColor: "var(--field)" as string, outlineStyle: "none" } as object,
+  field: {
+    height: 34,
+    borderRadius: RADIUS,
+    paddingHorizontal: 11,
+    fontSize: 13,
+    color: "var(--ink)" as string,
+    backgroundColor: "var(--field)" as string,
+    outlineStyle: "none",
+  } as object,
   check: { flexDirection: "row", alignItems: "center", gap: 7 },
-  box: { width: 15, height: 15, borderRadius: RADIUS, alignItems: "center", justifyContent: "center", boxShadow: "inset 0 0 0 1.4px var(--line-2)" } as object,
+  box: {
+    width: 15,
+    height: 15,
+    borderRadius: RADIUS,
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "inset 0 0 0 1.4px var(--line-2)",
+  } as object,
   boxOn: { backgroundColor: "var(--accent)" as string, boxShadow: "none" } as object,
-  go: { height: 30, borderRadius: RADIUS, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string },
+  go: {
+    height: 30,
+    borderRadius: RADIUS,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--accent)" as string,
+  },
   goText: { fontSize: 13, fontWeight: "600", color: "var(--accent-ink)" as string },
 });

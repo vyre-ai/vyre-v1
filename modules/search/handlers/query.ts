@@ -2,7 +2,19 @@
 // `authorize` as the asker, so a row the asker cannot read never appears (and a private row is not here to find). 1-2 characters are type-ahead, newest first; from three
 // characters BM25 ranks every match (title over body); semantic and hybrid fuse the vector ranks with the full text ranks and recency. Also here: Recent, Related, the > actions
 // and `mergeHits`, which the client uses to put the server's answer after the local one.
-import { DIM, LABELS, askerOf, docOf, embed, ensure, matchText, rowsOf, str, vectorsOf, wordsOf } from "../projections.ts";
+import {
+  DIM,
+  LABELS,
+  askerOf,
+  docOf,
+  embed,
+  ensure,
+  matchText,
+  rowsOf,
+  str,
+  vectorsOf,
+  wordsOf,
+} from "../projections.ts";
 import type { DocRow, Kind, SearchCtx } from "../projections.ts";
 import { agentBound } from "../../../lib/redact.ts";
 
@@ -25,16 +37,27 @@ export interface Hit {
  * this index and its own access rule decides what comes back (notes: the asker's own notes and those shared with them; an agent, only what everyone in its chat may read).
  * Their hits follow the indexed hits on the first page. A provider that fails or is missing leaves the answer as it was.
  */
-export interface Federated { kind: Kind; cap: string; hits(out: unknown): Omit<Hit, "score">[] }
+export interface Federated {
+  kind: Kind;
+  cap: string;
+  hits(out: unknown): Omit<Hit, "score">[];
+}
 type NoteHit = { noteId?: unknown; title?: unknown; snippet?: unknown; updatedAt?: unknown };
 export const FEDERATED: readonly Federated[] = [
   {
-    kind: "note", cap: "notes.search",
-    hits: (out) => (((out as { notes?: NoteHit[] } | null)?.notes) ?? []).filter((n) => typeof n.noteId === "string").map((n) => ({
-      kind: "note" as const, id: n.noteId as string, title: typeof n.title === "string" && n.title ? n.title : "Untitled note",
-      ...(typeof n.snippet === "string" && n.snippet ? { snippet: n.snippet } : {}), link: `vyre://note/${n.noteId as string}`,
-      ...(typeof n.updatedAt === "number" ? { updatedAt: n.updatedAt } : {}),
-    })),
+    kind: "note",
+    cap: "notes.search",
+    hits: (out) =>
+      ((out as { notes?: NoteHit[] } | null)?.notes ?? [])
+        .filter((n) => typeof n.noteId === "string")
+        .map((n) => ({
+          kind: "note" as const,
+          id: n.noteId as string,
+          title: typeof n.title === "string" && n.title ? n.title : "Untitled note",
+          ...(typeof n.snippet === "string" && n.snippet ? { snippet: n.snippet } : {}),
+          link: `vyre://note/${n.noteId as string}`,
+          ...(typeof n.updatedAt === "number" ? { updatedAt: n.updatedAt } : {}),
+        })),
   },
 ];
 const FEDERATED_LIMIT = 5;
@@ -76,7 +99,8 @@ function visible(ctx: SearchCtx, d: DocRow): boolean {
  * the asker can open through the chat module's own rule (the same answer chat gives when they press it), asked as the asker. Anything else that says no, or fails, is not shown.
  */
 /** An agent's own home in Files (Agents/<name>/: AGENT.md, MAP.md, agent.toml and what the template put there) is Vyre's working set for the agent, not a firm's document: a person's search never offers it (client walk, 11 Nov 2026). */
-export const inAgentHome = (d: Pick<DocRow, "kind" | "path">): boolean => d.kind === "file" && d.path !== null && d.path.startsWith("Agents/");
+export const inAgentHome = (d: Pick<DocRow, "kind" | "path">): boolean =>
+  d.kind === "file" && d.path !== null && d.path.startsWith("Agents/");
 
 async function readable(ctx: SearchCtx, d: DocRow, seen: Map<string, boolean> = new Map()): Promise<boolean> {
   if (ctx.principal.kind !== "agent" && inAgentHome(d)) return false;
@@ -90,7 +114,9 @@ async function readable(ctx: SearchCtx, d: DocRow, seen: Map<string, boolean> = 
     if (d.kind === "chat") await ctx.call("chat.messages.list", { threadId: d.id, limit: 1 });
     else await ctx.call("channels.get", { channelId: d.id });
     ok = true;
-  } catch { ok = false; }
+  } catch {
+    ok = false;
+  }
   seen.set(k, ok);
   return ok;
 }
@@ -102,7 +128,12 @@ async function readable(ctx: SearchCtx, d: DocRow, seen: Map<string, boolean> = 
  * read it: its title, path and body from search_agent_docs, a file agents may not see not at all, and a match only when every typed word is in that text (the full text index and the vectors were
  * built from the whole file, so a redacted word or a meaning near it would otherwise find it).
  */
-interface AgentDoc { title: string; path: string | null; body: string; withheld: boolean }
+interface AgentDoc {
+  title: string;
+  path: string | null;
+  body: string;
+  withheld: boolean;
+}
 type AgentDocs = Map<number, AgentDoc> | null;
 
 function agentDocs(ctx: SearchCtx, ns: readonly number[]): AgentDocs {
@@ -112,7 +143,12 @@ function agentDocs(ctx: SearchCtx, ns: readonly number[]): AgentDocs {
     const chunk = ns.slice(i, i + 400).filter((n) => Number.isInteger(n));
     if (chunk.length === 0) continue;
     for (const r of rowsOf(ctx.db, `SELECT * FROM search_agent_docs WHERE n IN (${chunk.join(",")})`)) {
-      out.set(Number(r["n"]), { title: str(r["title"]), path: r["path"] === null ? null : str(r["path"]), body: str(r["body"]), withheld: Number(r["withheld"]) === 1 });
+      out.set(Number(r["n"]), {
+        title: str(r["title"]),
+        path: r["path"] === null ? null : str(r["path"]),
+        body: str(r["body"]),
+        withheld: Number(r["withheld"]) === 1,
+      });
     }
   }
   return out;
@@ -137,16 +173,26 @@ async function afterJoin(ctx: SearchCtx, d: DocRow, memo: Map<string, DocRow | n
   if (had !== undefined) return had;
   let out: DocRow | null = null;
   try {
-    const th = ((await ctx.call("threads.get", { threadId: d.id })) as { thread?: { joinedAt?: Record<string, unknown> } }).thread;
+    const th = (
+      (await ctx.call("threads.get", { threadId: d.id })) as { thread?: { joinedAt?: Record<string, unknown> } }
+    ).thread;
     const joins = Object.values(th?.joinedAt ?? {}).filter((x): x is number => typeof x === "number");
     if (joins.length === 0) out = d;
     else {
       const cut = Math.max(...joins);
-      const m = (await ctx.call("chat.messages.list", { threadId: d.id, limit: 200 })) as { messages?: Array<{ body?: unknown; enc?: unknown; createdAt?: unknown }> };
-      const body = (m.messages ?? []).filter((x) => Number(x.enc) !== 2 && Number(x.createdAt ?? 0) >= cut).map((x) => (typeof x.body === "string" ? x.body : "")).filter((t) => t.length > 0).join("\n");
+      const m = (await ctx.call("chat.messages.list", { threadId: d.id, limit: 200 })) as {
+        messages?: Array<{ body?: unknown; enc?: unknown; createdAt?: unknown }>;
+      };
+      const body = (m.messages ?? [])
+        .filter((x) => Number(x.enc) !== 2 && Number(x.createdAt ?? 0) >= cut)
+        .map((x) => (typeof x.body === "string" ? x.body : ""))
+        .filter((t) => t.length > 0)
+        .join("\n");
       out = body === "" ? null : { ...d, body };
     }
-  } catch { out = null; }
+  } catch {
+    out = null;
+  }
   memo.set(d.id, out);
   return out;
 }
@@ -156,7 +202,11 @@ const fold = (s: string): string => s.normalize("NFD").replace(/\p{M}/gu, "").to
 /** Is every typed word the start of a word of the title or body, as the full text index matches it (prefix, case and accents folded)? `any` asks for one word instead (Related). */
 function wordsIn(d: Pick<DocRow, "title" | "body">, words: readonly string[], any = false): boolean {
   const have = new Set(wordsOf(fold(`${d.title}\n${d.body}`)));
-  const has = (w: string): boolean => { const f = fold(w); for (const h of have) if (h.startsWith(f)) return true; return false; };
+  const has = (w: string): boolean => {
+    const f = fold(w);
+    for (const h of have) if (h.startsWith(f)) return true;
+    return false;
+  };
   const want = words.filter((w) => w.length > 0);
   if (want.length === 0) return true;
   return any ? want.some(has) : want.every(has);
@@ -173,7 +223,8 @@ export function snippetOf(d: Pick<DocRow, "title" | "body">, words: readonly str
         if (at > 0 && WORD_CHAR.test(low[at - 1]!)) continue;
         let end = at + w.length;
         while (end < text.length && WORD_CHAR.test(text[end]!)) end++;
-        const from = Math.max(0, at - 50), to = Math.min(text.length, end + 70);
+        const from = Math.max(0, at - 50),
+          to = Math.min(text.length, end + 70);
         return `${from > 0 ? "…" : ""}${text.slice(from, at)}[${text.slice(at, end)}]${text.slice(end, to)}${to < text.length ? "…" : ""}`;
       }
     }
@@ -184,8 +235,16 @@ export function snippetOf(d: Pick<DocRow, "title" | "body">, words: readonly str
 function hitOf(d: DocRow, score: number, words: readonly string[]): Hit {
   const snip = snippetOf(d, words);
   return {
-    kind: d.kind, id: d.id, title: d.title, ...(snip ? { snippet: snip } : {}), ...(d.path ? { path: d.path } : {}), ...(d.kind === "record" && d.recordType ? { recordType: d.recordType } : {}), link: d.link, label: LABELS[Math.max(0, Math.min(3, d.label))]!,
-    score, ...(d.updatedAt !== null ? { updatedAt: d.updatedAt } : {}),
+    kind: d.kind,
+    id: d.id,
+    title: d.title,
+    ...(snip ? { snippet: snip } : {}),
+    ...(d.path ? { path: d.path } : {}),
+    ...(d.kind === "record" && d.recordType ? { recordType: d.recordType } : {}),
+    link: d.link,
+    label: LABELS[Math.max(0, Math.min(3, d.label))]!,
+    score,
+    ...(d.updatedAt !== null ? { updatedAt: d.updatedAt } : {}),
   };
 }
 
@@ -194,18 +253,35 @@ function docsByRowid(ctx: SearchCtx, ns: readonly number[]): Map<number, DocRow>
   for (let i = 0; i < ns.length; i += 400) {
     const chunk = ns.slice(i, i + 400).filter((n) => Number.isInteger(n));
     if (chunk.length === 0) continue;
-    for (const r of rowsOf(ctx.db, `SELECT * FROM search_docs WHERE n IN (${chunk.join(",")})`)) { const d = docOf(r); out.set(d.n, d); }
+    for (const r of rowsOf(ctx.db, `SELECT * FROM search_docs WHERE n IN (${chunk.join(",")})`)) {
+      const d = docOf(r);
+      out.set(d.n, d);
+    }
   }
   return out;
 }
 
-export interface QueryInput { q: string; types?: readonly Kind[]; mode?: "keyword" | "semantic" | "hybrid"; folderId?: string; recordType?: string; cursor?: string; limit?: number }
-export interface Candidate { n: number }
+export interface QueryInput {
+  q: string;
+  types?: readonly Kind[];
+  mode?: "keyword" | "semantic" | "hybrid";
+  folderId?: string;
+  recordType?: string;
+  cursor?: string;
+  limit?: number;
+}
+export interface Candidate {
+  n: number;
+}
 
 /** The filters that are part of the MATCH, so a rare kind, type or folder is found by its own posting list, not by scanning every match of a broad prefix. */
 function filterMatch(input: QueryInput): string {
   let m = "";
-  if (input.types && input.types.length > 0) m += ` AND kind : (${input.types.filter((k) => SAFE.test(k)).map(quoted).join(" OR ")})`;
+  if (input.types && input.types.length > 0)
+    m += ` AND kind : (${input.types
+      .filter((k) => SAFE.test(k))
+      .map(quoted)
+      .join(" OR ")})`;
   if (input.recordType && SAFE.test(input.recordType)) m += ` AND rtype : ${quoted(input.recordType)}`;
   if (input.folderId && SAFE.test(input.folderId)) m += ` AND folder : ${quoted(input.folderId)}`;
   return m;
@@ -218,17 +294,29 @@ export function keywordCandidates(ctx: SearchCtx, input: QueryInput, cap: number
   const f = filterMatch(input);
   const longest = Math.max(...wordsOf(input.q).map((w) => [...w].length));
   const rows = (m: string, order: string): Candidate[] =>
-    rowsOf(ctx.db, `SELECT rowid AS n FROM search_fts WHERE search_fts MATCH ? ORDER BY ${order} LIMIT ?`, m, cap).map((r) => ({ n: Number(r["n"]) }));
+    rowsOf(ctx.db, `SELECT rowid AS n FROM search_fts WHERE search_fts MATCH ? ORDER BY ${order} LIMIT ?`, m, cap).map(
+      (r) => ({ n: Number(r["n"]) }),
+    );
   if (longest <= SHORT_QUERY) {
     const seen = new Set<number>();
     const out: Candidate[] = [];
-    for (const c of [...rows(`title : (${match})${f}`, "rowid DESC"), ...rows(`{title body} : (${match})${f}`, "rowid DESC")]) if (!seen.has(c.n)) { seen.add(c.n); out.push(c); }
+    for (const c of [
+      ...rows(`title : (${match})${f}`, "rowid DESC"),
+      ...rows(`{title body} : (${match})${f}`, "rowid DESC"),
+    ])
+      if (!seen.has(c.n)) {
+        seen.add(c.n);
+        out.push(c);
+      }
     return out.slice(0, cap);
   }
   return rows(`{title body} : (${match})${f}`, "bm25(search_fts, 8.0, 1.0, 0.0, 0.0, 0.0)");
 }
 
-export async function query(ctx: SearchCtx, input: QueryInput): Promise<{ hits: Hit[]; tookMs: number; next?: string; total?: number }> {
+export async function query(
+  ctx: SearchCtx,
+  input: QueryInput,
+): Promise<{ hits: Hit[]; tookMs: number; next?: string; total?: number }> {
   const t0 = performance.now();
   ensure(ctx.db);
   const limit = input.limit ?? 20;
@@ -252,10 +340,19 @@ export async function query(ctx: SearchCtx, input: QueryInput): Promise<{ hits: 
   // fuse: reciprocal rank of the full text order and of the cosine order, plus a little for recency
   const fused = new Map<number, { score: number }>();
   kw.forEach((c, i) => fused.set(c.n, { score: 1 / (RRF + i) }));
-  vec.forEach((v, i) => { const e = fused.get(v.n); if (e) e.score += 1 / (RRF + i); else fused.set(v.n, { score: 1 / (RRF + i) }); });
+  vec.forEach((v, i) => {
+    const e = fused.get(v.n);
+    if (e) e.score += 1 / (RRF + i);
+    else fused.set(v.n, { score: 1 / (RRF + i) });
+  });
   const docs = docsByRowid(ctx, [...fused.keys()]);
   if (!short) {
-    [...fused.keys()].filter((n) => docs.has(n)).sort((a, b) => (docs.get(b)!.updatedAt ?? 0) - (docs.get(a)!.updatedAt ?? 0)).forEach((n, i) => { fused.get(n)!.score += 0.25 / (RRF + i); });
+    [...fused.keys()]
+      .filter((n) => docs.has(n))
+      .sort((a, b) => (docs.get(b)!.updatedAt ?? 0) - (docs.get(a)!.updatedAt ?? 0))
+      .forEach((n, i) => {
+        fused.get(n)!.score += 0.25 / (RRF + i);
+      });
   }
   const order = [...fused.entries()].sort((a, b) => b[1].score - a[1].score || b[0] - a[0]);
 
@@ -277,23 +374,43 @@ export async function query(ctx: SearchCtx, input: QueryInput): Promise<{ hits: 
     if (input.recordType && d.recordType !== input.recordType) continue;
     if (input.folderId && d.folderId !== input.folderId) continue;
     if (!(await readable(ctx, d, opened))) continue;
-    if (hits.length === want) { more = true; break; }
+    if (hits.length === want) {
+      more = true;
+      break;
+    }
     hits.push(hitOf(d, e.score, words));
   }
   const page = [...hits.slice(offset, offset + limit), ...(await federated(ctx, input))];
-  return { hits: page, tookMs: Math.max(0, Math.round(performance.now() - t0)), ...(more ? { next: String(offset + limit) } : {}) };
+  return {
+    hits: page,
+    tookMs: Math.max(0, Math.round(performance.now() - t0)),
+    ...(more ? { next: String(offset + limit) } : {}),
+  };
 }
 
 // ---- Recent
 
-export async function recentList(ctx: SearchCtx, input: { types?: readonly Kind[]; limit?: number }): Promise<{ hits: Hit[] }> {
+export async function recentList(
+  ctx: SearchCtx,
+  input: { types?: readonly Kind[]; limit?: number },
+): Promise<{ hits: Hit[] }> {
   ensure(ctx.db);
   const limit = input.limit ?? 20;
   const kinds = input.types && input.types.length > 0 ? new Set<string>(input.types) : null;
   const hits: Hit[] = [];
-  for (const r of rowsOf(ctx.db, "SELECT kind, item_id, at FROM search_recent WHERE principal = ? ORDER BY at DESC LIMIT ?", askerOf(ctx), limit * 4)) {
+  for (const r of rowsOf(
+    ctx.db,
+    "SELECT kind, item_id, at FROM search_recent WHERE principal = ? ORDER BY at DESC LIMIT ?",
+    askerOf(ctx),
+    limit * 4,
+  )) {
     if (kinds && !kinds.has(str(r["kind"]))) continue;
-    const d = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", str(r["kind"]), str(r["item_id"]))[0];
+    const d = rowsOf(
+      ctx.db,
+      "SELECT * FROM search_docs WHERE kind = ? AND id = ?",
+      str(r["kind"]),
+      str(r["item_id"]),
+    )[0];
     if (!d) continue;
     const raw = docOf(d);
     const seenDoc = asSeen(raw, agentDocs(ctx, [raw.n]));
@@ -320,18 +437,46 @@ export async function resolveItem(ctx: SearchCtx, input: { kind: Kind; itemId: s
 
 // ---- Related
 
-const STOP = new Set(["that", "this", "with", "from", "have", "will", "your", "about", "there", "their", "which", "would", "could", "should", "been", "were", "they", "them", "than", "then"]);
+const STOP = new Set([
+  "that",
+  "this",
+  "with",
+  "from",
+  "have",
+  "will",
+  "your",
+  "about",
+  "there",
+  "their",
+  "which",
+  "would",
+  "could",
+  "should",
+  "been",
+  "were",
+  "they",
+  "them",
+  "than",
+  "then",
+]);
 
 /** The words that make an item itself: its title words and its most frequent longer words. */
 function termsOf(d: DocRow): string[] {
   const count = new Map<string, number>();
-  for (const w of wordsOf(d.body.toLowerCase())) if (w.length >= 4 && !STOP.has(w)) count.set(w, (count.get(w) ?? 0) + 1);
-  const body = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 8).map(([w]) => w);
+  for (const w of wordsOf(d.body.toLowerCase()))
+    if (w.length >= 4 && !STOP.has(w)) count.set(w, (count.get(w) ?? 0) + 1);
+  const body = [...count.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 8)
+    .map(([w]) => w);
   const title = wordsOf(d.title.toLowerCase()).filter((w) => w.length >= 3 && !STOP.has(w));
   return [...new Set([...title, ...body])].slice(0, 12);
 }
 
-export async function related(ctx: SearchCtx, input: { kind: Kind; itemId: string; limit?: number }): Promise<{ hits: Hit[] }> {
+export async function related(
+  ctx: SearchCtx,
+  input: { kind: Kind; itemId: string; limit?: number },
+): Promise<{ hits: Hit[] }> {
   ensure(ctx.db);
   const limit = input.limit ?? 10;
   const row = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", input.kind, input.itemId)[0];
@@ -345,9 +490,13 @@ export async function related(ctx: SearchCtx, input: { kind: Kind; itemId: strin
   const cands = rowsOf(
     ctx.db,
     "SELECT rowid AS n FROM search_fts WHERE search_fts MATCH ? ORDER BY bm25(search_fts, 8.0, 1.0, 0.0, 0.0, 0.0) LIMIT ?",
-    `{title body} : (${terms.map(quoted).join(" OR ")})`, MIN_CANDIDATES,
+    `{title body} : (${terms.map(quoted).join(" OR ")})`,
+    MIN_CANDIDATES,
   );
-  const docs = docsByRowid(ctx, cands.map((c) => Number(c["n"])));
+  const docs = docsByRowid(
+    ctx,
+    cands.map((c) => Number(c["n"])),
+  );
   const agent = agentDocs(ctx, [...docs.keys()]);
   const hits: Hit[] = [];
   const cuts = new Map<string, DocRow | null>();
@@ -365,7 +514,13 @@ export async function related(ctx: SearchCtx, input: { kind: Kind; itemId: strin
 
 // ---- the > actions
 
-export interface ActionRow { key: string; title: string; icon: string; cap?: string; keys?: string }
+export interface ActionRow {
+  key: string;
+  title: string;
+  icon: string;
+  cap?: string;
+  keys?: string;
+}
 
 export const ACTIONS: readonly ActionRow[] = [
   { key: "task.new", title: "New task", icon: "task", cap: "tasks.create", keys: "create todo add" },
@@ -376,7 +531,10 @@ export const ACTIONS: readonly ActionRow[] = [
 ];
 
 /** Every typed word must start a word of the title or the keywords; a title word counts for more, and the first word of the title for most. */
-export async function actionsList(_ctx: Pick<SearchCtx, "trace">, input: { q?: string }): Promise<{ actions: ActionRow[] }> {
+export async function actionsList(
+  _ctx: Pick<SearchCtx, "trace">,
+  input: { q?: string },
+): Promise<{ actions: ActionRow[] }> {
   const words = wordsOf((input.q ?? "").toLowerCase());
   const scored: Array<{ a: ActionRow; s: number }> = [];
   for (const a of ACTIONS) {
@@ -387,7 +545,10 @@ export async function actionsList(_ctx: Pick<SearchCtx, "trace">, input: { q?: s
     for (const w of words) {
       if (title.some((p) => p.startsWith(w))) s += title[0]?.startsWith(w) ? 3 : 2;
       else if (pool.some((p) => p.startsWith(w))) s += 1;
-      else { ok = false; break; }
+      else {
+        ok = false;
+        break;
+      }
     }
     if (ok) scored.push({ a, s });
   }
@@ -397,13 +558,27 @@ export async function actionsList(_ctx: Pick<SearchCtx, "trace">, input: { q?: s
 
 // ---- merge with the device's own answer
 
-export interface MergeHit { kind: string; id: string; title: string; snippet?: string; path?: string; link?: string; label?: string; score?: number; updatedAt?: number }
+export interface MergeHit {
+  kind: string;
+  id: string;
+  title: string;
+  snippet?: string;
+  path?: string;
+  link?: string;
+  label?: string;
+  score?: number;
+  updatedAt?: number;
+}
 
 /**
  * Cmd-K shows the device's own answer first (it never waits) and the server's as it arrives. A thing in both is shown once, at the local position, with whatever the server adds
  * (snippet, path, link, label); a thing only the server found follows, best first. The result is cut to `limit`.
  */
-export function mergeHits<T extends MergeHit, S extends MergeHit>(local: readonly T[], server: readonly S[], limit = 20): Array<T | S> {
+export function mergeHits<T extends MergeHit, S extends MergeHit>(
+  local: readonly T[],
+  server: readonly S[],
+  limit = 20,
+): Array<T | S> {
   const out: Array<T | S> = [];
   const at = new Map<string, number>();
   for (const l of local) {
@@ -415,12 +590,18 @@ export function mergeHits<T extends MergeHit, S extends MergeHit>(local: readonl
   for (const s of server) {
     const k = `${s.kind}\u0000${s.id}`;
     const i = at.get(k);
-    if (i === undefined) { at.set(k, out.length); out.push(s); continue; }
+    if (i === undefined) {
+      at.set(k, out.length);
+      out.push(s);
+      continue;
+    }
     const l = out[i]!;
     out[i] = {
       ...l,
-      ...(l.snippet === undefined && s.snippet !== undefined ? { snippet: s.snippet } : {}), ...(l.path === undefined && s.path !== undefined ? { path: s.path } : {}),
-      ...(l.link === undefined && s.link !== undefined ? { link: s.link } : {}), ...(l.label === undefined && s.label !== undefined ? { label: s.label } : {}),
+      ...(l.snippet === undefined && s.snippet !== undefined ? { snippet: s.snippet } : {}),
+      ...(l.path === undefined && s.path !== undefined ? { path: s.path } : {}),
+      ...(l.link === undefined && s.link !== undefined ? { link: s.link } : {}),
+      ...(l.label === undefined && s.label !== undefined ? { label: s.label } : {}),
     };
   }
   return out.slice(0, limit);

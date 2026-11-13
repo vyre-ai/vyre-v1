@@ -7,7 +7,7 @@ import { deflateSync } from "node:zlib";
 const CRC_TABLE = new Uint32Array(256);
 for (let n = 0; n < 256; n++) {
   let c = n;
-  for (let k = 0; k < 8; k++) c = (c & 1) !== 0 ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+  for (let k = 0; k < 8; k++) c = (c & 1) !== 0 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
   CRC_TABLE[n] = c >>> 0;
 }
 
@@ -59,13 +59,20 @@ export function pngFromText(text: string, width: number, height: number): Uint8A
   ihdr.writeUInt32BE(h, 4);
   ihdr[8] = 8;
   ihdr[9] = 2;
-  const comment = createHash("sha256").update(text).update(String(width)).update(String(height)).digest("hex").slice(0, 16);
+  const comment = createHash("sha256")
+    .update(text)
+    .update(String(width))
+    .update(String(height))
+    .digest("hex")
+    .slice(0, 16);
   const textChunk = Buffer.from(`Comment\0${comment}`, "latin1");
-  return new Uint8Array(Buffer.concat([
-    SIGNATURE,
-    chunk("IHDR", ihdr),
-    chunk("tEXt", textChunk),
-    chunk("IDAT", deflateSync(raw)),
-    chunk("IEND", Buffer.alloc(0)),
-  ]));
+  return new Uint8Array(
+    Buffer.concat([
+      SIGNATURE,
+      chunk("IHDR", ihdr),
+      chunk("tEXt", textChunk),
+      chunk("IDAT", deflateSync(raw)),
+      chunk("IEND", Buffer.alloc(0)),
+    ]),
+  );
 }

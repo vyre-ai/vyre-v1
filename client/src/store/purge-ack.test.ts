@@ -3,12 +3,23 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createPurgeAcker } from "./index.ts";
 
-const tick = async (): Promise<void> => { for (let i = 0; i < 20; i++) await new Promise<void>((r) => setImmediate(r)); };
+const tick = async (): Promise<void> => {
+  for (let i = 0; i < 20; i++) await new Promise<void>((r) => setImmediate(r));
+};
 
 test("the ack goes after the wipe, once, with the device id", async () => {
   const order: string[] = [];
-  const acker = createPurgeAcker(async (cap, input) => { order.push(`${cap} ${JSON.stringify(input)}`); return {}; }, { sleep: async () => {} });
-  const out = await acker.afterWipe("dev_a1", 3, async () => { order.push("wipe"); return { tables: 12 }; });
+  const acker = createPurgeAcker(
+    async (cap, input) => {
+      order.push(`${cap} ${JSON.stringify(input)}`);
+      return {};
+    },
+    { sleep: async () => {} },
+  );
+  const out = await acker.afterWipe("dev_a1", 3, async () => {
+    order.push("wipe");
+    return { tables: 12 };
+  });
   assert.deepEqual(out, { tables: 12 }, "the wipe's own result is returned");
   await tick();
   assert.deepEqual(order, ["wipe", 'devices.purge_ack {"deviceId":"dev_a1"}']);
@@ -26,7 +37,17 @@ test("the ack goes after the wipe, once, with the device id", async () => {
 test("a server that cannot be reached is retried with a growing delay until it answers", async () => {
   let fails = 3;
   const delays: number[] = [];
-  const acker = createPurgeAcker(async () => { if (fails-- > 0) throw new Error("offline"); return {}; }, { sleep: async (ms) => { delays.push(ms); } });
+  const acker = createPurgeAcker(
+    async () => {
+      if (fails-- > 0) throw new Error("offline");
+      return {};
+    },
+    {
+      sleep: async (ms) => {
+        delays.push(ms);
+      },
+    },
+  );
   await acker.afterWipe("dev_b2", 1, async () => ({}));
   await tick();
   assert.deepEqual(acker.status("dev_b2", 1), { tries: 4, acked: true });
@@ -35,7 +56,13 @@ test("a server that cannot be reached is retried with a growing delay until it a
 
 test("the retries stop after maxTries and the wipe is never held up by the server", async () => {
   let calls = 0;
-  const acker = createPurgeAcker(async () => { calls++; throw new Error("down"); }, { maxTries: 3, sleep: async () => {} });
+  const acker = createPurgeAcker(
+    async () => {
+      calls++;
+      throw new Error("down");
+    },
+    { maxTries: 3, sleep: async () => {} },
+  );
   const t0 = Date.now();
   await acker.afterWipe("dev_c3", 1, async () => "wiped");
   assert.ok(Date.now() - t0 < 1000, "the wipe returns without waiting for the ack");
@@ -46,8 +73,20 @@ test("the retries stop after maxTries and the wipe is never held up by the serve
 
 test("a wipe that fails acknowledges nothing", async () => {
   let calls = 0;
-  const acker = createPurgeAcker(async () => { calls++; return {}; }, { sleep: async () => {} });
-  await assert.rejects(() => acker.afterWipe("dev_d4", 2, async () => { throw new Error("purge left work undone"); }), /undone/);
+  const acker = createPurgeAcker(
+    async () => {
+      calls++;
+      return {};
+    },
+    { sleep: async () => {} },
+  );
+  await assert.rejects(
+    () =>
+      acker.afterWipe("dev_d4", 2, async () => {
+        throw new Error("purge left work undone");
+      }),
+    /undone/,
+  );
   await tick();
   assert.equal(calls, 0);
   assert.deepEqual(acker.status("dev_d4", 2), { tries: 0, acked: false });

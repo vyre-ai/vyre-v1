@@ -35,7 +35,10 @@ export interface ScreenProbe {
 }
 
 /** Starts timing a screen. A def without `perf` yields a probe that measures nothing. */
-export function startProbe(def: Pick<KitScreenDef, "id" | "perf">, timing: TimingApi | null = defaultTiming()): ScreenProbe {
+export function startProbe(
+  def: Pick<KitScreenDef, "id" | "perf">,
+  timing: TimingApi | null = defaultTiming(),
+): ScreenProbe {
   const id = probeId(def.id);
   const active = Boolean(def.perf) && timing !== null;
   const start = active ? timing!.now() : 0;
@@ -57,7 +60,8 @@ export function startProbe(def: Pick<KitScreenDef, "id" | "perf">, timing: Timin
     },
     result() {
       const budget = def.perf;
-      const within = budget && first !== null && done !== null ? first <= budget.firstPaintMs && done <= budget.completeMs : null;
+      const within =
+        budget && first !== null && done !== null ? first <= budget.firstPaintMs && done <= budget.completeMs : null;
       return { id, firstPaintMs: first, completeMs: done, withinBudget: within };
     },
   };

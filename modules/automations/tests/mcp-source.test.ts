@@ -15,10 +15,7 @@ const DRAFTED = [
 
 test("a tools array becomes one draft action per tool name", () => {
   const text = JSON.stringify({
-    tools: [
-      { name: "create_customer", description: INJECTION },
-      { name: "list_charges" },
-    ],
+    tools: [{ name: "create_customer", description: INJECTION }, { name: "list_charges" }],
   });
   const out = actionsFromMcpDocument("Stripe", text);
   assert.deepEqual(out, { ok: true, actions: DRAFTED });
@@ -45,10 +42,7 @@ test("a result.tools list becomes the same draft actions", () => {
 });
 
 test("a bare tool array becomes the same draft actions", () => {
-  const text = JSON.stringify([
-    { name: "create_customer", description: INJECTION },
-    { name: "list_charges" },
-  ]);
+  const text = JSON.stringify([{ name: "create_customer", description: INJECTION }, { name: "list_charges" }]);
   const out = actionsFromMcpDocument("Stripe", text);
   assert.deepEqual(out, { ok: true, actions: DRAFTED });
 });
@@ -60,11 +54,7 @@ test("prose is not a tool list", () => {
 });
 
 test("an empty tools array has no actions", () => {
-  const samples = [
-    JSON.stringify({ tools: [] }),
-    JSON.stringify({ result: { tools: [] } }),
-    "[]",
-  ];
+  const samples = [JSON.stringify({ tools: [] }), JSON.stringify({ result: { tools: [] } }), "[]"];
   for (const text of samples) {
     assert.deepEqual(actionsFromMcpDocument("Stripe", text), { ok: false, reason: NO_TOOLS });
   }
@@ -72,11 +62,7 @@ test("an empty tools array has no actions", () => {
 
 test("blank tool names are not actions", () => {
   const text = JSON.stringify({
-    tools: [
-      { name: "" },
-      { name: "   " },
-      { description: INJECTION },
-    ],
+    tools: [{ name: "" }, { name: "   " }, { description: INJECTION }],
   });
   const out = actionsFromMcpDocument("Stripe", text);
   assert.deepEqual(out, { ok: false, reason: NO_TOOLS });

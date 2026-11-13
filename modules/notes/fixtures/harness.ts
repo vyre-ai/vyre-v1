@@ -14,17 +14,46 @@ const picture = readFileSync(new URL("../migrations/0002_link_picture.sql", impo
 const source = readFileSync(new URL("../migrations/0003_note_source.sql", import.meta.url), "utf8");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 export const NOW = 1_762_160_000_000;
-export const ME = "usr_irfad", ALIZA = "usr_aliza", ANDREY = "usr_andrey";
+export const ME = "usr_irfad",
+  ALIZA = "usr_aliza",
+  ANDREY = "usr_andrey";
 
-export interface Ev { name: string; subject: string; payload: Record<string, unknown>; opts?: Record<string, unknown> | undefined }
-export interface Who { id: string; kind?: "person" | "agent"; actingFor?: string; thread?: string }
-type Callee = (input: any, who: Who) => unknown;   // eslint-disable-line @typescript-eslint/no-explicit-any
+export interface Ev {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+  opts?: Record<string, unknown> | undefined;
+}
+export interface Who {
+  id: string;
+  kind?: "person" | "agent";
+  actingFor?: string;
+  thread?: string;
+}
+type Callee = (input: any, who: Who) => unknown; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** A chat: its starter and person members, or the channel it is in. */
-export interface ThreadDef { starter?: string; members?: string[]; channelId?: string; kind?: string; parentThreadId?: string; title?: string }
-export interface ChannelDef { visibility: "public" | "invite"; members: string[] }
+export interface ThreadDef {
+  starter?: string;
+  members?: string[];
+  channelId?: string;
+  kind?: string;
+  parentThreadId?: string;
+  title?: string;
+}
+export interface ChannelDef {
+  visibility: "public" | "invite";
+  members: string[];
+}
 
-export function harness(o: { threads?: Record<string, ThreadDef>; channels?: Record<string, ChannelDef>; pages?: Record<string, string>; messages?: Record<string, { messageId: string; createdAt?: number }[]> } = {}) {
+export function harness(
+  o: {
+    threads?: Record<string, ThreadDef>;
+    channels?: Record<string, ChannelDef>;
+    pages?: Record<string, string>;
+    messages?: Record<string, { messageId: string; createdAt?: number }[]>;
+  } = {},
+) {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec(migration);
   sqlite.exec(picture);
@@ -54,11 +83,27 @@ export function harness(o: { threads?: Record<string, ThreadDef>; channels?: Rec
       if (!t) throw new Error("no such thread");
       const reader = who.kind === "agent" ? who.actingFor : who.id;
       const ch = t.channelId ? channels[t.channelId] : undefined;
-      const mayRead = ch ? ch.visibility === "public" || ch.members.includes(reader ?? "") : (t.starter === undefined && t.members === undefined) || t.starter === reader || (t.members ?? []).includes(reader ?? "");
+      const mayRead = ch
+        ? ch.visibility === "public" || ch.members.includes(reader ?? "")
+        : (t.starter === undefined && t.members === undefined) ||
+          t.starter === reader ||
+          (t.members ?? []).includes(reader ?? "");
       if (!mayRead) throw Object.assign(new Error("not found"), { error: { code: "permission.not_found" } });
-      return { thread: { kind: t.kind ?? (t.channelId ? "channel" : "chat"), title: t.title ?? "A chat", ...(t.starter ? { starter: t.starter } : {}), ...(t.channelId ? { channelId: t.channelId } : {}), ...(t.parentThreadId ? { parentThreadId: t.parentThreadId } : {}), members: (t.members ?? []).map((id) => ({ kind: "person", id })) } };
+      return {
+        thread: {
+          kind: t.kind ?? (t.channelId ? "channel" : "chat"),
+          title: t.title ?? "A chat",
+          ...(t.starter ? { starter: t.starter } : {}),
+          ...(t.channelId ? { channelId: t.channelId } : {}),
+          ...(t.parentThreadId ? { parentThreadId: t.parentThreadId } : {}),
+          members: (t.members ?? []).map((id) => ({ kind: "person", id })),
+        },
+      };
     },
-    "chat.messages.list": (i: { threadId: string }) => ({ messages: (messages[i.threadId] ?? []).slice(-1), hasMore: false }),
+    "chat.messages.list": (i: { threadId: string }) => ({
+      messages: (messages[i.threadId] ?? []).slice(-1),
+      hasMore: false,
+    }),
     "chat.message.get": (i: { threadId: string; messageId: string }) => {
       const m = (messages[i.threadId] ?? []).find((x) => x.messageId === i.messageId);
       if (!m) throw Object.assign(new Error("not found"), { error: { code: "validation.not_found" } });
@@ -76,7 +121,9 @@ export function harness(o: { threads?: Record<string, ThreadDef>; channels?: Rec
       const { preview, ...meta } = JSON.parse(page) as Record<string, unknown>;
       return { ok: true, finalUrl: i.url, kind: "html", text: "", meta, ...(i.preview && preview ? { preview } : {}) };
     },
-    "tasks.create": (i: { title: string; idempotencyKey: string }) => ({ task: { id: (taskKeys[i.idempotencyKey] ??= `tsk_${++n}`), title: i.title } }),   // the tasks module answers a key it has seen with the same task
+    "tasks.create": (i: { title: string; idempotencyKey: string }) => ({
+      task: { id: (taskKeys[i.idempotencyKey] ??= `tsk_${++n}`), title: i.title },
+    }), // the tasks module answers a key it has seen with the same task
     "records.create": () => ({ record: { id: `rec_${++n}` } }),
   };
   const emitsOf = (cap: string): Set<string> => new Set(registry.capabilities.find((c) => c.name === cap)?.emits ?? []);
@@ -84,17 +131,28 @@ export function harness(o: { threads?: Record<string, ThreadDef>; channels?: Rec
   function ctxFor(cap: string, who: Who): NotesCtx {
     const allowed = emitsOf(cap);
     return {
-      space: "spc_test", principal: { kind: who.kind ?? "person", id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}), ...(who.thread ? { thread: who.thread } : {}),
-      trace: { traceId: TRACE }, now: () => clock, db: scopedDb("notes", raw, TRACE),
+      space: "spc_test",
+      principal: { kind: who.kind ?? "person", id: who.id },
+      ...(who.actingFor ? { actingFor: who.actingFor } : {}),
+      ...(who.thread ? { thread: who.thread } : {}),
+      trace: { traceId: TRACE },
+      now: () => clock,
+      db: scopedDb("notes", raw, TRACE),
       emit(name, subject, payload, opts) {
         if (!allowed.has(name)) throw new Error(`${cap} emitted ${name}, which it does not declare`);
         const bad = validateEvent(name, payload);
         if (bad.length) throw new Error(`${name} payload is invalid: ${bad.join("; ")}`);
-        events.push({ name, subject, payload: payload as Record<string, unknown>, opts: opts as Record<string, unknown> | undefined });
+        events.push({
+          name,
+          subject,
+          payload: payload as Record<string, unknown>,
+          opts: opts as Record<string, unknown> | undefined,
+        });
         return {};
       },
       async call(c, input) {
-        if (c !== "threads.get" && c !== "channels.get" && c !== "chat.message.get" && c !== "chat.messages.list") calls.push({ cap: c, input: input as Record<string, unknown> });
+        if (c !== "threads.get" && c !== "channels.get" && c !== "chat.message.get" && c !== "chat.messages.list")
+          calls.push({ cap: c, input: input as Record<string, unknown> });
         const f = callees[c];
         if (!f) throw new Error(`unexpected call to ${c}`);
         return f(input, who);
@@ -106,7 +164,9 @@ export function harness(o: { threads?: Record<string, ThreadDef>; channels?: Rec
           blobs.set(id, { meta, bytes, ...(opts?.resource ? { resource: opts.resource } : {}) });
           return meta;
         },
-        async get(id) { return blobs.get(id) ?? null; },
+        async get(id) {
+          return blobs.get(id) ?? null;
+        },
       },
       log: { info: () => {}, warn: () => {} },
     };
@@ -114,10 +174,14 @@ export function harness(o: { threads?: Record<string, ThreadDef>; channels?: Rec
 
   let keys = 0;
   /** Call a capability the way the pipeline does: validate the input, run the handler, validate the output. Events of a failed call are dropped. */
-  async function call(cap: string, raw0: Record<string, unknown>, who: Who | string = ME): Promise<any> {   // eslint-disable-line @typescript-eslint/no-explicit-any
+  async function call(cap: string, raw0: Record<string, unknown>, who: Who | string = ME): Promise<any> {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
     const w: Who = typeof who === "string" ? { id: who } : who;
-    const needsKey = (registry.capabilities.find((c) => c.name === cap)?.input as { required?: string[] } | undefined)?.required?.includes("idempotencyKey");
-    const input = needsKey && raw0["idempotencyKey"] === undefined ? { ...raw0, idempotencyKey: `key_${++keys}` } : raw0;
+    const needsKey = (
+      registry.capabilities.find((c) => c.name === cap)?.input as { required?: string[] } | undefined
+    )?.required?.includes("idempotencyKey");
+    const input =
+      needsKey && raw0["idempotencyKey"] === undefined ? { ...raw0, idempotencyKey: `key_${++keys}` } : raw0;
     const bad = validateInput(cap, 1, input);
     if (bad.length) throw new Error(`${cap} input is invalid: ${bad.join("; ")}`);
     const h = (handlers as Record<string, (ctx: NotesCtx, input: unknown) => Promise<unknown>>)[cap];
@@ -131,18 +195,35 @@ export function harness(o: { threads?: Record<string, ThreadDef>; channels?: Rec
   }
 
   return {
-    call, db: raw, blobs, calls,
-    get events(): Ev[] { return events; }, allEvents: all,
-    advance(ms: number): void { clock += ms; },
+    call,
+    db: raw,
+    blobs,
+    calls,
+    get events(): Ev[] {
+      return events;
+    },
+    allEvents: all,
+    advance(ms: number): void {
+      clock += ms;
+    },
     /** an agent of `person`, asking in `thread` */
-    agent: (person: string, thread?: string): Who => ({ id: "agt_assistant", kind: "agent", actingFor: person, ...(thread ? { thread } : {}) }),
+    agent: (person: string, thread?: string): Who => ({
+      id: "agt_assistant",
+      kind: "agent",
+      actingFor: person,
+      ...(thread ? { thread } : {}),
+    }),
   };
 }
 
 export function codeOf(e: unknown): string | undefined {
   return (e as { error?: { code?: string } } | null)?.error?.code;
 }
-export const failed = (p: Promise<unknown>): Promise<string | undefined> => p.then(() => undefined, (e: unknown) => codeOf(e) ?? String(e));
+export const failed = (p: Promise<unknown>): Promise<string | undefined> =>
+  p.then(
+    () => undefined,
+    (e: unknown) => codeOf(e) ?? String(e),
+  );
 
 /** The smallest PNG: one transparent pixel. */
 export const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";

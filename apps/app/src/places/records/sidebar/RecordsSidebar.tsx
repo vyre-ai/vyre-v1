@@ -23,10 +23,28 @@ import { useRecordsState } from "./state.tsx";
 type TypesOut = CapMap["schema.types.list"]["out"];
 type ViewsOut = CapMap["views.list"]["out"];
 
-function SideRow({ id, title, glyph, selected, trailing, onPress, tile }: { id: string; title: string; glyph: IconName; selected: boolean; trailing?: ReactElement | null; onPress: () => void; tile?: ReactElement | null }): ReactElement {
+function SideRow({
+  id,
+  title,
+  glyph,
+  selected,
+  trailing,
+  onPress,
+  tile,
+}: {
+  id: string;
+  title: string;
+  glyph: IconName;
+  selected: boolean;
+  trailing?: ReactElement | null;
+  onPress: () => void;
+  tile?: ReactElement | null;
+}): ReactElement {
   return (
     <Row
-      id={`nav:${id}`} title={title} selected={selected}
+      id={`nav:${id}`}
+      title={title}
+      selected={selected}
       leading={<View style={styles.glyph}>{tile ?? <Glyph name={glyph} size={16} />}</View>}
       trailing={<View style={styles.trail}>{trailing ?? null}</View>}
       onPress={onPress}
@@ -34,10 +52,31 @@ function SideRow({ id, title, glyph, selected, trailing, onPress, tile }: { id: 
   );
 }
 
-function SectionHead({ id, label, closed, onToggle, onAdd }: { id: string; label: string; closed: boolean; onToggle: () => void; onAdd?: (() => void) | undefined }): ReactElement {
+function SectionHead({
+  id,
+  label,
+  closed,
+  onToggle,
+  onAdd,
+}: {
+  id: string;
+  label: string;
+  closed: boolean;
+  onToggle: () => void;
+  onAdd?: (() => void) | undefined;
+}): ReactElement {
   const head = (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ expanded: !closed }} testID={`sec-${id}`} onPress={onToggle} style={({ hovered }: { hovered?: boolean }) => [styles.sec, hovered === true && styles.secOver]}>
-      <View style={closed ? styles.chevShut : undefined}><Glyph name="chevd" size={10} /></View>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ expanded: !closed }}
+      testID={`sec-${id}`}
+      onPress={onToggle}
+      style={({ hovered }: { hovered?: boolean }) => [styles.sec, hovered === true && styles.secOver]}
+    >
+      <View style={closed ? styles.chevShut : undefined}>
+        <Glyph name="chevd" size={10} />
+      </View>
       <Text style={styles.secText}>{label}</Text>
     </Pressable>
   );
@@ -45,7 +84,15 @@ function SectionHead({ id, label, closed, onToggle, onAdd }: { id: string; label
   return (
     <View style={styles.secRow}>
       <View style={styles.secGrow}>{head}</View>
-      <Pressable accessibilityRole="button" accessibilityLabel="New record type" testID="sidebar-new-type" onPress={onAdd} style={({ hovered }: { hovered?: boolean }) => [styles.secAdd, hovered === true && styles.secOver]}><Glyph name="plus" size={12} /></Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="New record type"
+        testID="sidebar-new-type"
+        onPress={onAdd}
+        style={({ hovered }: { hovered?: boolean }) => [styles.secAdd, hovered === true && styles.secOver]}
+      >
+        <Glyph name="plus" size={12} />
+      </Pressable>
     </View>
   );
 }
@@ -53,29 +100,94 @@ function SectionHead({ id, label, closed, onToggle, onAdd }: { id: string; label
 /** The frame before data arrives: rows of the real height, so nothing moves when the types land. */
 export function SidebarLoading(): ReactElement {
   const bars: ReactElement[] = [];
-  for (let i = 0; i < 9; i++) bars.push(<View key={i} style={styles.skRow}><View style={styles.skDot} /><View style={[styles.skBar, { width: `${38 + ((i * 17) % 40)}%` }]} /></View>);
-  return <View style={styles.side} testID="records-sidebar-loading" accessibilityLabel="Loading">{bars}</View>;
+  for (let i = 0; i < 9; i++)
+    bars.push(
+      <View key={i} style={styles.skRow}>
+        <View style={styles.skDot} />
+        <View style={[styles.skBar, { width: `${38 + ((i * 17) % 40)}%` }]} />
+      </View>,
+    );
+  return (
+    <View style={styles.side} testID="records-sidebar-loading" accessibilityLabel="Loading">
+      {bars}
+    </View>
+  );
 }
 
 /** The stars of the person, as the runtime answers them (a runtime without them leaves the group out). Only starred records belong in the Records place. */
-function StarredRecords({ match, slot }: { match: (title: string) => boolean; slot: SidebarSlotApi | undefined }): ReactElement {
+function StarredRecords({
+  match,
+  slot,
+}: {
+  match: (title: string) => boolean;
+  slot: SidebarSlotApi | undefined;
+}): ReactElement {
   const data = useRecordsData();
   const { state, dispatch } = useRecordsState();
-  const query = useMemo(() => (data.live as unknown as (cap: string, input: Record<string, unknown>) => LiveQuery<StarsOut>)("stars.list", { type: "record" }), [data]);
-  return <StarredGroup query={query} typeOf={() => undefined} onOpen={(s) => { data.nav.openRecord(s.resource.id); slot?.openBody(); }} match={match} closed={state.closed.includes("starred")} onToggle={() => dispatch({ type: "section", key: "starred" })} />;
+  const query = useMemo(
+    () =>
+      (data.live as unknown as (cap: string, input: Record<string, unknown>) => LiveQuery<StarsOut>)("stars.list", {
+        type: "record",
+      }),
+    [data],
+  );
+  return (
+    <StarredGroup
+      query={query}
+      typeOf={() => undefined}
+      onOpen={(s) => {
+        data.nav.openRecord(s.resource.id);
+        slot?.openBody();
+      }}
+      match={match}
+      closed={state.closed.includes("starred")}
+      onToggle={() => dispatch({ type: "section", key: "starred" })}
+    />
+  );
 }
 
 /** The empty start of Records: Contacts, then a clear way to make the next record type and a line on what it is for. */
 function Invite({ onNew, onAsk }: { onNew(): void; onAsk: (() => void) | undefined }): ReactElement {
   return (
     <View style={styles.invite} testID="records-invite">
-      <Row id="nav:invite-new" title="New record type" note="Track clients, deals or anything else, and link it to Contacts." selected={false} leading={<View style={styles.glyph}><Glyph name="plus" size={16} /></View>} onPress={onNew} />
-      {onAsk ? <Row id="nav:invite-ask" title="Ask Vyre to set it up" selected={false} leading={<View style={styles.glyph}><Glyph name="spark" size={16} /></View>} onPress={onAsk} /> : null}
+      <Row
+        id="nav:invite-new"
+        title="New record type"
+        note="Track clients, deals or anything else, and link it to Contacts."
+        selected={false}
+        leading={
+          <View style={styles.glyph}>
+            <Glyph name="plus" size={16} />
+          </View>
+        }
+        onPress={onNew}
+      />
+      {onAsk ? (
+        <Row
+          id="nav:invite-ask"
+          title="Ask Vyre to set it up"
+          selected={false}
+          leading={
+            <View style={styles.glyph}>
+              <Glyph name="spark" size={16} />
+            </View>
+          }
+          onPress={onAsk}
+        />
+      ) : null}
     </View>
   );
 }
 
-function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; query: string; slot: SidebarSlotApi | undefined }): ReactElement {
+function Sidebar({
+  starred,
+  query,
+  slot,
+}: {
+  starred: ReactNode | undefined;
+  query: string;
+  slot: SidebarSlotApi | undefined;
+}): ReactElement {
   const data = useRecordsData();
   const { state, dispatch } = useRecordsState();
   const types = useScreenQuery<TypesOut>(SCREENS.types, "types");
@@ -94,10 +206,21 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
   const [making, setMaking] = useState(false);
   // the menu of a type: Open, Star (stars.toggle on the record_type), Copy Name and Edit Type; the stars are read live, a runtime without them shows every type unstarred
   const typeMenus = useContextMenu();
-  const typeStars = useMemo(() => (data.live as unknown as (cap: string, input: Record<string, unknown>) => LiveQuery<StarsOut>)("stars.list", { type: "record_type" }), [data]);
+  const typeStars = useMemo(
+    () =>
+      (data.live as unknown as (cap: string, input: Record<string, unknown>) => LiveQuery<StarsOut>)("stars.list", {
+        type: "record_type",
+      }),
+    [data],
+  );
   const typeStarState = useSyncExternalStore(typeStars.subscribe, typeStars.getSnapshot, typeStars.getSnapshot);
-  const starredTypes = new Set(typeStarState.status === "ready" ? typeStarState.data.stars.map((x) => x.resource.id) : []);
-  const copyText = (text: string): void => { const c = (globalThis as { navigator?: { clipboard?: { writeText(x: string): unknown } } }).navigator?.clipboard; if (c) void c.writeText(text); };
+  const starredTypes = new Set(
+    typeStarState.status === "ready" ? typeStarState.data.stars.map((x) => x.resource.id) : [],
+  );
+  const copyText = (text: string): void => {
+    const c = (globalThis as { navigator?: { clipboard?: { writeText(x: string): unknown } } }).navigator?.clipboard;
+    if (c) void c.writeText(text);
+  };
   const visible = groups.reduce((n, g) => n + g.items.length, 0);
   // A Space that holds only Contacts: the start is an invitation, not a bare list.
   const inviting = canEdit && types.status === "ready" && visible <= 1 && q === "";
@@ -109,25 +232,81 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
   for (const g of groups) {
     const items = g.items.filter((t) => hit(t.label));
     if (items.length === 0) continue;
-    sections.push(<SectionHead key={`h-${g.key}`} id={g.key} label={g.label} closed={closed(g.key)} onToggle={fold(g.key)} onAdd={sections.length === 0 ? addType : undefined} />);
+    sections.push(
+      <SectionHead
+        key={`h-${g.key}`}
+        id={g.key}
+        label={g.label}
+        closed={closed(g.key)}
+        onToggle={fold(g.key)}
+        onAdd={sections.length === 0 ? addType : undefined}
+      />,
+    );
     if (closed(g.key)) continue;
     for (const t of items) {
-      const menuOf = (): ReturnType<typeof typeMenu> => typeMenu(
-        { starred: starredTypes.has(t.key), canEdit },
-        {
-          open: () => { dispatch({ type: "open", key: t.key }); choose(); },
-          star: (on) => { void Promise.resolve(data.call("stars.toggle", { resource: { type: "record_type", id: t.key }, on })).catch(() => undefined); },
-          copyName: () => copyText(t.label),
-          editType: () => { data.nav.openRecordTypes(); choose(); },
-        },
-      );
+      const menuOf = (): ReturnType<typeof typeMenu> =>
+        typeMenu(
+          { starred: starredTypes.has(t.key), canEdit },
+          {
+            open: () => {
+              dispatch({ type: "open", key: t.key });
+              choose();
+            },
+            star: (on) => {
+              void Promise.resolve(
+                data.call("stars.toggle", { resource: { type: "record_type", id: t.key }, on }),
+              ).catch(() => undefined);
+            },
+            copyName: () => copyText(t.label),
+            editType: () => {
+              data.nav.openRecordTypes();
+              choose();
+            },
+          },
+        );
       sections.push(
         <View key={t.key} {...typeMenus.on(() => menuOf(), { label: `type:${t.key}` })}>
-        <SideRow
-          key={t.key} id={`type:${t.key}`} title={t.label} glyph={typeIcon(t.icon)} tile={syncs.get(t.key) ? <SyncLogo app={syncs.get(t.key)!.app} connector={syncs.get(t.key)!.connector} /> : <TypeTile icon={typeIcon(t.icon)} hue={typeHue(t.key)} syncedFrom={t.syncedFrom} />} selected={open === t.key && state.viewId === null}
-          trailing={<>{syncs.get(t.key) ? <SyncDot row={syncs.get(t.key)!} app={syncs.get(t.key)!.app?.title ?? "the app"} onPress={data.nav.openSync ? () => { data.nav.openSync!(t.key); choose(); } : undefined} /> : t.synced ? <Glyph name="sync" size={12} /> : null}<Text style={styles.count} testID={`count-${t.key}`}>{compact(t.count)}</Text></>}
-          onPress={() => { dispatch({ type: "open", key: t.key }); choose(); }}
-        />
+          <SideRow
+            key={t.key}
+            id={`type:${t.key}`}
+            title={t.label}
+            glyph={typeIcon(t.icon)}
+            tile={
+              syncs.get(t.key) ? (
+                <SyncLogo app={syncs.get(t.key)!.app} connector={syncs.get(t.key)!.connector} />
+              ) : (
+                <TypeTile icon={typeIcon(t.icon)} hue={typeHue(t.key)} syncedFrom={t.syncedFrom} />
+              )
+            }
+            selected={open === t.key && state.viewId === null}
+            trailing={
+              <>
+                {syncs.get(t.key) ? (
+                  <SyncDot
+                    row={syncs.get(t.key)!}
+                    app={syncs.get(t.key)!.app?.title ?? "the app"}
+                    onPress={
+                      data.nav.openSync
+                        ? () => {
+                            data.nav.openSync!(t.key);
+                            choose();
+                          }
+                        : undefined
+                    }
+                  />
+                ) : t.synced ? (
+                  <Glyph name="sync" size={12} />
+                ) : null}
+                <Text style={styles.count} testID={`count-${t.key}`}>
+                  {compact(t.count)}
+                </Text>
+              </>
+            }
+            onPress={() => {
+              dispatch({ type: "open", key: t.key });
+              choose();
+            }}
+          />
         </View>,
       );
     }
@@ -137,41 +316,152 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
   for (const v of saved) {
     viewRows.push(
       <SideRow
-        key={v.viewId} id={`view:${v.viewId}`} title={v.title} glyph={viewGlyph(v.kind)} trailing={v.shared ? <Glyph name="users" size={12} /> : null} selected={state.viewId === v.viewId}
-        onPress={() => { dispatch({ type: "open", key: v.type, viewId: v.viewId }); choose(); }}
+        key={v.viewId}
+        id={`view:${v.viewId}`}
+        title={v.title}
+        glyph={viewGlyph(v.kind)}
+        trailing={v.shared ? <Glyph name="users" size={12} /> : null}
+        selected={state.viewId === v.viewId}
+        onPress={() => {
+          dispatch({ type: "open", key: v.type, viewId: v.viewId });
+          choose();
+        }}
       />,
     );
   }
 
   const manage: ReactElement[] = [];
   const agentType = types.status === "ready" ? types.data.types.find((t) => t.key === MANAGE_TYPE) : undefined;
-  if (agentType && hit(agentType.plural)) manage.push(<SideRow key="agents" id={`type:${MANAGE_TYPE}`} title={agentType.plural} glyph={typeIcon(agentType.icon)} selected={open === MANAGE_TYPE && state.viewId === null} {...(data.nav.openAgent ? {} /* the Agents view lists agents.list: a count of old rows would be wrong */ : { trailing: <Text style={styles.count} testID={`count-${MANAGE_TYPE}`}>{compact(agentType.rowCount)}</Text> })} onPress={() => { dispatch({ type: "open", key: MANAGE_TYPE }); choose(); }} />);
-  if (hit("Record types")) manage.push(<SideRow key="types" id="manage:types" title="Record types" glyph="table" selected={data.screen === "records.types"} onPress={() => { data.nav.openRecordTypes(); choose(); }} />);
-  if (data.askVyre && hit("Ask Vyre")) manage.push(<SideRow key="ask" id="manage:ask" title="Ask Vyre" glyph="spark" selected={false} onPress={() => data.askVyre?.(open ? { type: open } : {})} />);
-  if (canEdit && !inviting && hit("New record type")) manage.push(<SideRow key="new-type" id="manage:new" title="New record type" glyph="plus" selected={false} onPress={() => setMaking(true)} />);
-  if (data.nav.bringInCrm && canEdit && hit("Bring in from your CRM")) manage.push(<SideRow key="bring" id="manage:bring" title="Bring in from your CRM" glyph="sync" selected={false} onPress={() => { data.nav.bringInCrm!(); choose(); }} />);
-  if (hit("Schema map")) manage.push(<SideRow key="map" id="manage:map" title="Schema map" glyph="schema" selected={data.screen === "records.schema-map"} onPress={() => { data.nav.openSchemaMap(); choose(); }} />);
+  if (agentType && hit(agentType.plural))
+    manage.push(
+      <SideRow
+        key="agents"
+        id={`type:${MANAGE_TYPE}`}
+        title={agentType.plural}
+        glyph={typeIcon(agentType.icon)}
+        selected={open === MANAGE_TYPE && state.viewId === null}
+        {...(data.nav.openAgent
+          ? {} /* the Agents view lists agents.list: a count of old rows would be wrong */
+          : {
+              trailing: (
+                <Text style={styles.count} testID={`count-${MANAGE_TYPE}`}>
+                  {compact(agentType.rowCount)}
+                </Text>
+              ),
+            })}
+        onPress={() => {
+          dispatch({ type: "open", key: MANAGE_TYPE });
+          choose();
+        }}
+      />,
+    );
+  if (hit("Record types"))
+    manage.push(
+      <SideRow
+        key="types"
+        id="manage:types"
+        title="Record types"
+        glyph="table"
+        selected={data.screen === "records.types"}
+        onPress={() => {
+          data.nav.openRecordTypes();
+          choose();
+        }}
+      />,
+    );
+  if (data.askVyre && hit("Ask Vyre"))
+    manage.push(
+      <SideRow
+        key="ask"
+        id="manage:ask"
+        title="Ask Vyre"
+        glyph="spark"
+        selected={false}
+        onPress={() => data.askVyre?.(open ? { type: open } : {})}
+      />,
+    );
+  if (canEdit && !inviting && hit("New record type"))
+    manage.push(
+      <SideRow
+        key="new-type"
+        id="manage:new"
+        title="New record type"
+        glyph="plus"
+        selected={false}
+        onPress={() => setMaking(true)}
+      />,
+    );
+  if (data.nav.bringInCrm && canEdit && hit("Bring in from your CRM"))
+    manage.push(
+      <SideRow
+        key="bring"
+        id="manage:bring"
+        title="Bring in from your CRM"
+        glyph="sync"
+        selected={false}
+        onPress={() => {
+          data.nav.bringInCrm!();
+          choose();
+        }}
+      />,
+    );
+  if (hit("Schema map"))
+    manage.push(
+      <SideRow
+        key="map"
+        id="manage:map"
+        title="Schema map"
+        glyph="schema"
+        selected={data.screen === "records.schema-map"}
+        onPress={() => {
+          data.nav.openSchemaMap();
+          choose();
+        }}
+      />,
+    );
 
   return (
     <View style={styles.content} testID="records-sidebar" accessibilityLabel="Records sidebar">
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollIn} testID="records-nav">
         {sections}
-        {inviting ? <Invite onNew={() => setMaking(true)} onAsk={data.askVyre ? () => data.askVyre?.({}) : undefined} /> : null}
+        {inviting ? (
+          <Invite onNew={() => setMaking(true)} onAsk={data.askVyre ? () => data.askVyre?.({}) : undefined} />
+        ) : null}
         {starred === undefined ? <StarredRecords match={hit} slot={slot} /> : starred}
-        {saved.length > 0 ? <SectionHead id="views" label="Saved views" closed={closed("views")} onToggle={fold("views")} /> : null}
+        {saved.length > 0 ? (
+          <SectionHead id="views" label="Saved views" closed={closed("views")} onToggle={fold("views")} />
+        ) : null}
         {closed("views") ? null : viewRows}
-        {manage.length > 0 ? <SectionHead id="manage" label="Manage" closed={closed("manage")} onToggle={fold("manage")} /> : null}
+        {manage.length > 0 ? (
+          <SectionHead id="manage" label="Manage" closed={closed("manage")} onToggle={fold("manage")} />
+        ) : null}
         {closed("manage") ? null : manage}
       </ScrollView>
       {typeMenus.element}
-      {making ? <TypeSheet call={data.call} takenKeys={types.status === "ready" ? types.data.types.map((t) => t.key) : []} connectTo={connectTo} {...(data.askVyre ? { onAsk: (a: { name: string }) => data.askVyre?.({ making: a.name }) } : {})} onClose={() => setMaking(false)} onDone={(key) => { dispatch({ type: "open", key }); choose(); }} /> : null}
+      {making ? (
+        <TypeSheet
+          call={data.call}
+          takenKeys={types.status === "ready" ? types.data.types.map((t) => t.key) : []}
+          connectTo={connectTo}
+          {...(data.askVyre ? { onAsk: (a: { name: string }) => data.askVyre?.({ making: a.name }) } : {})}
+          onClose={() => setMaking(false)}
+          onDone={(key) => {
+            dispatch({ type: "open", key });
+            choose();
+          }}
+        />
+      ) : null}
     </View>
   );
 }
 
 /** The Records sidebar's content. `starred` replaces the Starred group (the shot mounts and tests pass their own); left out, it draws the person's starred records from the runtime.
  * `query` is the shared search field's text; `slot` lets the phone leave the list for the view when a row is chosen. */
-export function RecordsSidebar({ starred, query = "", slot }: { starred?: ReactNode; query?: string; slot?: SidebarSlotApi | undefined } = {}): ReactElement {
+export function RecordsSidebar({
+  starred,
+  query = "",
+  slot,
+}: { starred?: ReactNode; query?: string; slot?: SidebarSlotApi | undefined } = {}): ReactElement {
   const data = useOptionalRecordsData();
   if (!data) return <SidebarLoading />;
   return <Sidebar starred={starred} query={query} slot={slot} />;
@@ -189,13 +479,28 @@ export function RecordsSidebarSlot({ starred }: { starred?: ReactNode } = {}): R
 const styles = StyleSheet.create({
   content: { flex: 1, minHeight: 0 },
   invite: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  side: { flex: 1, minWidth: 220, backgroundColor: "var(--side)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string, paddingTop: 8 },
+  side: {
+    flex: 1,
+    minWidth: 220,
+    backgroundColor: "var(--side)" as string,
+    borderRightWidth: 1,
+    borderRightColor: "var(--line)" as string,
+    paddingTop: 8,
+  },
   scroll: { flex: 1 },
   scrollIn: { paddingHorizontal: 6, paddingBottom: 12 },
   glyph: { width: 20, alignItems: "center", justifyContent: "center", marginRight: 6 },
   trail: { flexDirection: "row", alignItems: "center", gap: 6 },
   count: { fontSize: 11.5, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
-  sec: { flexDirection: "row", alignItems: "center", gap: 5, height: 26, marginTop: 10, paddingHorizontal: 8, borderRadius: 6 },
+  sec: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    height: 26,
+    marginTop: 10,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
   secRow: { flexDirection: "row", alignItems: "center" },
   secGrow: { flex: 1 },
   secAdd: { width: 24, height: 24, marginTop: 10, borderRadius: 6, alignItems: "center", justifyContent: "center" },

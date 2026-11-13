@@ -6,21 +6,72 @@
 export const IMPORTED_PREAMBLE = /^\s*Continue this imported session\b/i;
 
 const SMALL_TALK = new Set([
-  "hi", "hii", "hiya", "hey", "heya", "hello", "yo", "sup", "hola", "morning", "gm", "good morning", "good afternoon", "good evening", "thanks", "thank you", "thx", "ty", "cheers", "ok", "okay", "k", "kk",
-  "yes", "yeah", "yep", "yup", "no", "nope", "sure", "cool", "nice", "great", "good", "fine", "test", "testing", "ping", "continue", "go on", "go", "next", "done", "bye", "goodbye", "lol", "hmm", "wow",
+  "hi",
+  "hii",
+  "hiya",
+  "hey",
+  "heya",
+  "hello",
+  "yo",
+  "sup",
+  "hola",
+  "morning",
+  "gm",
+  "good morning",
+  "good afternoon",
+  "good evening",
+  "thanks",
+  "thank you",
+  "thx",
+  "ty",
+  "cheers",
+  "ok",
+  "okay",
+  "k",
+  "kk",
+  "yes",
+  "yeah",
+  "yep",
+  "yup",
+  "no",
+  "nope",
+  "sure",
+  "cool",
+  "nice",
+  "great",
+  "good",
+  "fine",
+  "test",
+  "testing",
+  "ping",
+  "continue",
+  "go on",
+  "go",
+  "next",
+  "done",
+  "bye",
+  "goodbye",
+  "lol",
+  "hmm",
+  "wow",
 ]);
 
 const MIN_LETTERS = 12;
 const MAX_CHARS = 2000;
 
 /** Letters only, lower case, for comparing with the small-talk list ("Hi!" and "hi'" are "hi"). */
-const bare = (s: string): string => s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
+const bare = (s: string): string =>
+  s
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 export function recallable(text: string): boolean {
   const t = text.trim();
   if (t === "" || t.startsWith("/")) return false;
   if (IMPORTED_PREAMBLE.test(t)) return false;
-  if (t.length > MAX_CHARS) return false;            // a pasted document or transcript is not a thing someone said
+  if (t.length > MAX_CHARS) return false; // a pasted document or transcript is not a thing someone said
   const b = bare(t);
   if (SMALL_TALK.has(b)) return false;
   return b.replace(/\s/g, "").length >= MIN_LETTERS;

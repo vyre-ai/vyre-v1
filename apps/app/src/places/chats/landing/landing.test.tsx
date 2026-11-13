@@ -6,8 +6,19 @@ import type { RecentOut } from "./model.ts";
 
 test("a new chat starts with who is picked, and with the Assistant when nobody is", () => {
   assert.deepEqual(startInput([], "agt_me"), { agentIds: ["agt_me"] });
-  assert.deepEqual(startInput([{ id: "agt_me", name: "Assistant", kind: "assistant" }], "agt_me"), { agentIds: ["agt_me"] });
-  assert.deepEqual(startInput([{ id: "a", name: "Mira", kind: "agent" }, { id: "p", name: "Sara", kind: "person" }], "agt_me"), { agentIds: ["a"], personId: "p" });
+  assert.deepEqual(startInput([{ id: "agt_me", name: "Assistant", kind: "assistant" }], "agt_me"), {
+    agentIds: ["agt_me"],
+  });
+  assert.deepEqual(
+    startInput(
+      [
+        { id: "a", name: "Mira", kind: "agent" },
+        { id: "p", name: "Sara", kind: "person" },
+      ],
+      "agt_me",
+    ),
+    { agentIds: ["a"], personId: "p" },
+  );
   assert.deepEqual(startInput([{ id: "p", name: "Sara", kind: "person" }], "agt_me"), { agentIds: [], personId: "p" });
 });
 
@@ -19,21 +30,45 @@ test("the top three need you and the rest are a line that leads to Tasks", () =>
 });
 
 test("what is running shows once per chat, with who is on it", () => {
-  const row = (threadId: string, working: boolean, agents: string[]) => ({ threadId, kind: "chat", title: threadId, agents, unread: 0, working, starred: false, lastAt: 1 });
-  const recent = { starred: [row("a", true, ["m", "e", "r"])], today: [row("a", true, ["m", "e", "r"]), row("b", false, ["m"])], yesterday: [], earlier: [], archived: [], nextUnread: null } as unknown as RecentOut;
+  const row = (threadId: string, working: boolean, agents: string[]) => ({
+    threadId,
+    kind: "chat",
+    title: threadId,
+    agents,
+    unread: 0,
+    working,
+    starred: false,
+    lastAt: 1,
+  });
+  const recent = {
+    starred: [row("a", true, ["m", "e", "r"])],
+    today: [row("a", true, ["m", "e", "r"]), row("b", false, ["m"])],
+    yesterday: [],
+    earlier: [],
+    archived: [],
+    nextUnread: null,
+  } as unknown as RecentOut;
   const w = workingChats(recent);
-  assert.deepEqual(w.map((x) => x.threadId), ["a"]);
+  assert.deepEqual(
+    w.map((x) => x.threadId),
+    ["a"],
+  );
   assert.equal(workingLine(w[0]!), "3 working in a");
   assert.deepEqual(workingChats(undefined), []);
 });
 
 test("a face opens one right tab per person or agent; closing it lands on its neighbour", async () => {
   const { afterClose, profileTab, withTab } = await import("../rightpane/ProfilePane.tsx");
-  const mira = profileTab("a", "Mira Lane", "agent"), sara = profileTab("p", "Sara Malik", "person");
+  const mira = profileTab("a", "Mira Lane", "agent"),
+    sara = profileTab("p", "Sara Malik", "person");
   assert.equal(mira.title, "Mira");
   assert.equal(profileTab("x", "Irfad's Assistant", "assistant").title, "Assistant");
   const tabs = withTab(withTab(withTab([], mira), sara), mira);
-  assert.deepEqual(tabs.map((t) => t.key), ["profile:a", "profile:p"], "opening it again finds it");
+  assert.deepEqual(
+    tabs.map((t) => t.key),
+    ["profile:a", "profile:p"],
+    "opening it again finds it",
+  );
   assert.equal(afterClose(tabs, "profile:p"), "profile:a");
   assert.equal(afterClose(tabs, "profile:a"), "profile:p");
   assert.equal(afterClose([mira], "profile:a"), null);
@@ -41,7 +76,10 @@ test("a face opens one right tab per person or agent; closing it lands on its ne
 
 test("the reaction picker offers the six, then searches every emoji", async () => {
   const { QUICK, reactionChoices } = await import("../conversation/ReactionPicker.tsx");
-  assert.deepEqual(reactionChoices("").map((e) => e.char), [...QUICK]);
+  assert.deepEqual(
+    reactionChoices("").map((e) => e.char),
+    [...QUICK],
+  );
   assert.ok(reactionChoices("smile").length > 0);
   assert.deepEqual(reactionChoices("zzzzq"), []);
 });

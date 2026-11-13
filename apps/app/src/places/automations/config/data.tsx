@@ -4,7 +4,10 @@ import { createContext, useContext } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { TaskState } from "../journeys/model.ts";
 
-export interface DirEntry { id: string; name: string }
+export interface DirEntry {
+  id: string;
+  name: string;
+}
 export interface ConfigDirectory {
   /** The lists are still being read. */
   loading?: boolean;
@@ -19,9 +22,16 @@ export interface ConfigDirectory {
   automationsLeaving?: readonly DirEntry[];
 }
 export type FieldType = "person" | "rel" | "date" | "choice" | "num" | "text" | "check" | "file" | "formula";
-export interface FieldEntry { name: string; type: FieldType }
+export interface FieldEntry {
+  name: string;
+  type: FieldType;
+}
 /** The fields of a Journey's record type: those it inherits from the template it was made from, and those of its own. */
-export interface RecordFields { template: string; inherited: readonly FieldEntry[]; own: readonly FieldEntry[] }
+export interface RecordFields {
+  template: string;
+  inherited: readonly FieldEntry[];
+  own: readonly FieldEntry[];
+}
 export interface ConfigExtras {
   directory: ConfigDirectory;
   /** The fields of a record type (a Journey's records), for the Fields tab. Without it the tab says there are none. */
@@ -44,7 +54,14 @@ export interface ConfigExtras {
   setLeaving?(journeyId: string, stageKey: string, automations: readonly string[]): void;
 }
 
-export const EMPTY_DIRECTORY: ConfigDirectory = { people: [], groups: [], roles: [], agents: [], channels: [], automations: [] };
+export const EMPTY_DIRECTORY: ConfigDirectory = {
+  people: [],
+  groups: [],
+  roles: [],
+  agents: [],
+  channels: [],
+  automations: [],
+};
 const Ctx = createContext<ConfigExtras>({ directory: EMPTY_DIRECTORY });
 
 export function ConfigExtrasProvider({ value, children }: { value: ConfigExtras; children: ReactNode }): ReactElement {

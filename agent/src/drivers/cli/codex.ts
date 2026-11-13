@@ -30,10 +30,19 @@ const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "
  * (`%b %-d{suffix}, %Y %-I:%M %p`). Codex writes it in the local time of the machine it runs on, which is the machine this runs on, so it is read the same way. Epoch ms, or null.
  */
 export function codexResetAt(text: string, now: number = Date.now()): number | null {
-  const full = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.? (\d{1,2})(?:st|nd|rd|th)?,? (\d{4}),? (\d{1,2}):(\d{2}) ?([AP]M)\b/i.exec(text);
+  const full =
+    /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.? (\d{1,2})(?:st|nd|rd|th)?,? (\d{4}),? (\d{1,2}):(\d{2}) ?([AP]M)\b/i.exec(
+      text,
+    );
   const hour = (h: string, ap: string): number => (Number(h) % 12) + (ap.toUpperCase() === "PM" ? 12 : 0);
   if (full) {
-    const at = new Date(Number(full[3]), MONTHS.indexOf(full[1]!.toLowerCase()), Number(full[2]), hour(full[4]!, full[6]!), Number(full[5])).getTime();
+    const at = new Date(
+      Number(full[3]),
+      MONTHS.indexOf(full[1]!.toLowerCase()),
+      Number(full[2]),
+      hour(full[4]!, full[6]!),
+      Number(full[5]),
+    ).getTime();
     return Number.isFinite(at) ? at : null;
   }
   const same = /\b(?:try again|resets?)(?: at)? (\d{1,2}):(\d{2}) ?([AP]M)\b/i.exec(text);
@@ -52,30 +61,45 @@ export function codexErrorText(raw: string): string {
     const o = obj(j as Json);
     const inner = obj(o?.["error"] as Json);
     return str(inner?.["message"]) || str(o?.["message"]) || t;
-  } catch { return t; }
+  } catch {
+    return t;
+  }
 }
 
 /** A Codex failure in plain words, with the code it means and, for a usage limit, when it lifts. Nothing of the vendor's URLs, request ids or JSON reaches a person. */
-export function codexFailure(raw: string, now: number = Date.now()): { code?: string; message: string; resetsAt?: number } {
+export function codexFailure(
+  raw: string,
+  now: number = Date.now(),
+): { code?: string; message: string; resetsAt?: number } {
   const text = codexErrorText(raw);
   const code = classifyCli(text);
   if (code === "provider.rate_limited" && /usage limit/i.test(text)) {
     const at = codexResetAt(text, now);
     const when = /try again at ([^.\n]+?)\s*\.?\s*$/i.exec(text.replace(/\s+/g, " "))?.[1];
-    return { code, message: `Codex reached its usage limit.${when ? ` It can be used again at ${when}.` : ""}`, ...(at !== null ? { resetsAt: at } : {}) };
+    return {
+      code,
+      message: `Codex reached its usage limit.${when ? ` It can be used again at ${when}.` : ""}`,
+      ...(at !== null ? { resetsAt: at } : {}),
+    };
   }
-  if (code === "provider.auth_failed") return { code, message: "Codex is signed out, or its sign-in has run out. Sign in again." };
+  if (code === "provider.auth_failed")
+    return { code, message: "Codex is signed out, or its sign-in has run out. Sign in again." };
   return { message: plainCli(text) };
 }
 
 /** The tool name of a started item, and whether it counts as activity worth showing. */
 function nameOf(item: Json): string {
   switch (str(item["type"])) {
-    case "mcp_tool_call": return `${str(item["server"])}.${str(item["tool"])}`;
-    case "command_execution": return "command";
-    case "file_change": return "file_change";
-    case "web_search": return "web_search";
-    default: return "";
+    case "mcp_tool_call":
+      return `${str(item["server"])}.${str(item["tool"])}`;
+    case "command_execution":
+      return "command";
+    case "file_change":
+      return "file_change";
+    case "web_search":
+      return "web_search";
+    default:
+      return "";
   }
 }
 
@@ -97,14 +121,27 @@ export function createCodexDecoder(): CliDecoder {
       const j = parseLine(line);
       if (!j) return [];
       switch (str(j["type"])) {
-        case "thread.started": return str(j["thread_id"]) !== "" ? [{ type: "session", id: str(j["thread_id"]) }] : [];
+        case "thread.started":
+          return str(j["thread_id"]) !== "" ? [{ type: "session", id: str(j["thread_id"]) }] : [];
         case "item.started": {
           const item = obj(j["item"]);
           const name = item ? nameOf(item) : "";
           if (!item || name === "" || str(item["id"]) === "" || called.has(str(item["id"]))) return [];
           called.add(str(item["id"]));
           // a command's own words are the step's input: they say whether it is a test run
-          return [{ type: "tool", phase: "call", id: str(item["id"]), name }, ...(str(item["type"]) === "command_execution" && str(item["command"]) !== "" ? [{ type: "tool" as const, phase: "input" as const, id: str(item["id"]), detail: str(item["command"]).slice(0, 160) }] : [])];
+          return [
+            { type: "tool", phase: "call", id: str(item["id"]), name },
+            ...(str(item["type"]) === "command_execution" && str(item["command"]) !== ""
+              ? [
+                  {
+                    type: "tool" as const,
+                    phase: "input" as const,
+                    id: str(item["id"]),
+                    detail: str(item["command"]).slice(0, 160),
+                  },
+                ]
+              : []),
+          ];
         }
         case "item.completed": {
           const item = obj(j["item"]);
@@ -115,9 +152,18 @@ export function createCodexDecoder(): CliDecoder {
           const name = nameOf(item);
           if (name === "" || str(item["id"]) === "") return [];
           const out: CliEvent[] = [];
-          if (!called.has(str(item["id"]))) { called.add(str(item["id"])); out.push({ type: "tool", phase: "call", id: str(item["id"]), name }); }
+          if (!called.has(str(item["id"]))) {
+            called.add(str(item["id"]));
+            out.push({ type: "tool", phase: "call", id: str(item["id"]), name });
+          }
           const said = str(item["type"]) === "command_execution" ? testLines(str(item["aggregated_output"])) : "";
-          out.push({ type: "tool", phase: "result", id: str(item["id"]), ok: okOf(item), ...(said !== "" ? { output: said } : {}) });
+          out.push({
+            type: "tool",
+            phase: "result",
+            id: str(item["id"]),
+            ok: okOf(item),
+            ...(said !== "" ? { output: said } : {}),
+          });
           return out;
         }
         case "turn.completed": {
@@ -129,8 +175,16 @@ export function createCodexDecoder(): CliDecoder {
           const output = num(u?.["output_tokens"]);
           // cached_input_tokens is the part of input_tokens read from the cache; reasoning_output_tokens is inside output_tokens. Codex reports no cache writes and no price.
           const cached = u && typeof u["cached_input_tokens"] === "number" ? num(u["cached_input_tokens"]) : undefined;
-          const reasoning = u && typeof u["reasoning_output_tokens"] === "number" ? num(u["reasoning_output_tokens"]) : undefined;
-          if (input > 0 || output > 0) out.push({ type: "usage", inputTokens: input, outputTokens: output, ...(cached !== undefined ? { cacheReadTokens: cached } : {}), ...(reasoning !== undefined ? { reasoningTokens: reasoning } : {}) });
+          const reasoning =
+            u && typeof u["reasoning_output_tokens"] === "number" ? num(u["reasoning_output_tokens"]) : undefined;
+          if (input > 0 || output > 0)
+            out.push({
+              type: "usage",
+              inputTokens: input,
+              outputTokens: output,
+              ...(cached !== undefined ? { cacheReadTokens: cached } : {}),
+              ...(reasoning !== undefined ? { reasoningTokens: reasoning } : {}),
+            });
           out.push({ type: "end" });
           return out;
         }
@@ -138,16 +192,20 @@ export function createCodexDecoder(): CliDecoder {
           if (ended) return [];
           ended = true;
           const e = obj(j["error"]);
-          return [{ type: "end", error: codexFailure(str(e?.["message"]) || lastError || "the engine reported an error") }];
+          return [
+            { type: "end", error: codexFailure(str(e?.["message"]) || lastError || "the engine reported an error") },
+          ];
         }
         case "error": {
           const message = str(j["message"]);
           if (message !== "") lastError = message;
           // Codex reports an MCP server that did not start as an error line and carries on without its tools.
-          if (MCP_FAILURE.test(message) && /vyre/i.test(message)) return [{ type: "mcp", status: "failed", detail: message.slice(0, 200) }];
+          if (MCP_FAILURE.test(message) && /vyre/i.test(message))
+            return [{ type: "mcp", status: "failed", detail: message.slice(0, 200) }];
           return [];
         }
-        default: return [];
+        default:
+          return [];
       }
     },
     finish() {
@@ -166,8 +224,10 @@ export function createCodexDecoder(): CliDecoder {
  * Nothing here is ever danger-full-access or --dangerously-bypass-approvals-and-sandbox. The one place that says it is Vyre's own sandbox wrapper (modules/engine/sandbox.ts codexInWall), and only where Codex's
  * sandbox cannot start inside Vyre's (a Mac, Linux as root): the run is then still entirely inside Vyre's wall.
  */
-export function codexSandbox(o: Pick<CommandOptions, "mode" | "planMode" | "workFolder" | "noTools">): "workspace-write" | "read-only" {
-  const mode = o.mode ?? (o.planMode ? "plan" : "auto");   // no mode: the older rule, writable inside a granted folder unless plan mode
+export function codexSandbox(
+  o: Pick<CommandOptions, "mode" | "planMode" | "workFolder" | "noTools">,
+): "workspace-write" | "read-only" {
+  const mode = o.mode ?? (o.planMode ? "plan" : "auto"); // no mode: the older rule, writable inside a granted folder unless plan mode
   return o.workFolder !== null && mode === "auto" && o.noTools !== true ? "workspace-write" : "read-only";
 }
 /**
@@ -178,14 +238,51 @@ export function codexSandbox(o: Pick<CommandOptions, "mode" | "planMode" | "work
  */
 export function codexLean(o: Pick<CommandOptions, "model" | "system">): string[] {
   const toml = (v: string): string => JSON.stringify(v);
-  const off = ["shell_tool", "unified_exec", "multi_agent", "goals", "view_image", "apps", "plugins", "skill_search", "image_generation", "hooks", "shell_snapshot"];
+  const off = [
+    "shell_tool",
+    "unified_exec",
+    "multi_agent",
+    "goals",
+    "view_image",
+    "apps",
+    "plugins",
+    "skill_search",
+    "image_generation",
+    "hooks",
+    "shell_snapshot",
+  ];
   return [
-    "codex", "exec", "--json", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "--ignore-rules",
-    "-c", `sandbox_mode=${toml("read-only")}`, "-c", `approval_policy=${toml("never")}`,
-    "-c", `instructions=${toml(o.system ?? "")}`,
-    "-c", "include_environment_context=false", "-c", "include_permissions_instructions=false", "-c", "include_apps_instructions=false", "-c", "include_collaboration_mode_instructions=false",
-    "-c", "project_doc_max_bytes=0", "-c", `web_search=${toml("disabled")}`, "-c", "skills.include_instructions=false", "-c", "skills.bundled.enabled=false",
-    "-c", `model_reasoning_effort=${toml("low")}`,
+    "codex",
+    "exec",
+    "--json",
+    "--skip-git-repo-check",
+    "--ephemeral",
+    "--ignore-user-config",
+    "--ignore-rules",
+    "-c",
+    `sandbox_mode=${toml("read-only")}`,
+    "-c",
+    `approval_policy=${toml("never")}`,
+    "-c",
+    `instructions=${toml(o.system ?? "")}`,
+    "-c",
+    "include_environment_context=false",
+    "-c",
+    "include_permissions_instructions=false",
+    "-c",
+    "include_apps_instructions=false",
+    "-c",
+    "include_collaboration_mode_instructions=false",
+    "-c",
+    "project_doc_max_bytes=0",
+    "-c",
+    `web_search=${toml("disabled")}`,
+    "-c",
+    "skills.include_instructions=false",
+    "-c",
+    "skills.bundled.enabled=false",
+    "-c",
+    `model_reasoning_effort=${toml("low")}`,
     ...off.flatMap((f) => ["--disable", f]),
     ...(o.model !== null ? ["-m", o.model] : []),
     "-",
@@ -193,7 +290,8 @@ export function codexLean(o: Pick<CommandOptions, "model" | "system">): string[]
 }
 
 /** `model_reasoning_effort` is the config key Codex itself writes (low, medium, high are the values its config files show); max is high, as xhigh is not proven on every account. */
-export const codexEffort = (e: Effort | null | undefined): string | null => (e === undefined || e === null ? null : e === "max" ? "high" : e);
+export const codexEffort = (e: Effort | null | undefined): string | null =>
+  e === undefined || e === null ? null : e === "max" ? "high" : e;
 
 const SECRET_REF = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/;
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -250,16 +348,25 @@ for (const s of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(s, () => child.kill(
  * the value to the name the server reads and drops Vyre's. Node rather than /bin/sh: there is no /bin/sh on Windows. Null when a name cannot be passed safely.
  * CHECKED against codex-cli 0.166 on a real run (see the overrides below).
  */
-export function codexServer(m: { command: string; args: readonly string[]; env: Readonly<Record<string, string>> }, node: string = process.execPath): { command: string; args: string[]; env: Record<string, string>; envVars: string[] } | null {
+export function codexServer(
+  m: { command: string; args: readonly string[]; env: Readonly<Record<string, string>> },
+  node: string = process.execPath,
+): { command: string; args: string[]; env: Record<string, string>; envVars: string[] } | null {
   const env: Record<string, string> = {};
   const moves: Array<[string, string]> = [];
   for (const [k, v] of Object.entries(m.env)) {
     if (!ENV_NAME.test(k)) return null;
     const ref = SECRET_REF.exec(v);
-    if (ref) moves.push([k, ref[1]!]); else env[k] = v;
+    if (ref) moves.push([k, ref[1]!]);
+    else env[k] = v;
   }
   if (moves.length === 0) return { command: m.command, args: [...m.args], env, envVars: [] };
-  return { command: node, args: ["-e", SERVER_SHIM, JSON.stringify(moves), m.command, ...m.args], env, envVars: moves.map(([, from]) => from) };
+  return {
+    command: node,
+    args: ["-e", SERVER_SHIM, JSON.stringify(moves), m.command, ...m.args],
+    env,
+    envVars: moves.map(([, from]) => from),
+  };
 }
 
 export const codex: CliAdapter = {
@@ -274,26 +381,48 @@ export const codex: CliAdapter = {
     if (o.lean === true) return codexLean(o);
     const toml = (v: string): string => JSON.stringify(v);
     return [
-      "codex", "exec", "--json", "--skip-git-repo-check",
+      "codex",
+      "exec",
+      "--json",
+      "--skip-git-repo-check",
       // Codex's own sandbox stays on inside ours: read-only unless a work folder was granted and the chat is not in plan mode.
-      "-c", `sandbox_mode=${toml(codexSandbox(o))}`,
+      "-c",
+      `sandbox_mode=${toml(codexSandbox(o))}`,
       // Codex's workspace-write sandbox cuts its commands off the network unless told otherwise; Vyre's wall around it applies the Space's internet setting, so the commands may use the network
       // the wall allows (npm install, git clone, curl). The key is from Codex's config reference ([sandbox_workspace_write] network_access); not yet seen on a live run.
-      "-c", "sandbox_workspace_write.network_access=true",
+      "-c",
+      "sandbox_workspace_write.network_access=true",
       ...(o.mode !== undefined ? ["-c", `approval_policy=${toml("never")}`] : []),
       ...(codexEffort(o.effort) !== null ? ["-c", `model_reasoning_effort=${toml(codexEffort(o.effort)!)}`] : []),
       // Codex's stdio server block takes command, args, env (plain values) and env_vars (names of variables passed on from Codex's environment). CHECKED against codex-cli 0.166 (a real run on a build box,
       // 3 Nov 2026): a plugin server started from these overrides saw its secret under its own name and its plain value, and neither Vyre's name for the secret nor Codex's own key. The HTTP form
       // (url, bearer_token_env_var) is still unproven.
-      ...(o.noTools === true ? [] : o.mcpStdio
-        ? ["-c", `mcp_servers.vyre.command=${toml(o.mcpStdio.command)}`, "-c", `mcp_servers.vyre.args=[${o.mcpStdio.args.map(toml).join(", ")}]`, "-c", `mcp_servers.vyre.env_vars=[${toml(TOKEN_ENV)}]`]
-        : ["-c", `mcp_servers.vyre.url=${toml(o.mcpUrl)}`, "-c", `mcp_servers.vyre.bearer_token_env_var=${toml(TOKEN_ENV)}`]),
+      ...(o.noTools === true
+        ? []
+        : o.mcpStdio
+          ? [
+              "-c",
+              `mcp_servers.vyre.command=${toml(o.mcpStdio.command)}`,
+              "-c",
+              `mcp_servers.vyre.args=[${o.mcpStdio.args.map(toml).join(", ")}]`,
+              "-c",
+              `mcp_servers.vyre.env_vars=[${toml(TOKEN_ENV)}]`,
+            ]
+          : [
+              "-c",
+              `mcp_servers.vyre.url=${toml(o.mcpUrl)}`,
+              "-c",
+              `mcp_servers.vyre.bearer_token_env_var=${toml(TOKEN_ENV)}`,
+            ]),
       // installed plugin MCP servers: a plain value is set in the server's env, a secret reaches it through codexServer below; the host fills the secret from the Vault into Codex's environment
       ...Object.entries(o.plugins?.mcpServers ?? {}).flatMap(([n, m0]) => {
         const m = codexServer(m0);
         if (!m) return [];
         return [
-          "-c", `mcp_servers.plugin_${n}.command=${toml(m.command)}`, "-c", `mcp_servers.plugin_${n}.args=[${m.args.map(toml).join(", ")}]`,
+          "-c",
+          `mcp_servers.plugin_${n}.command=${toml(m.command)}`,
+          "-c",
+          `mcp_servers.plugin_${n}.args=[${m.args.map(toml).join(", ")}]`,
           ...Object.entries(m.env).flatMap(([k, v]) => ["-c", `mcp_servers.plugin_${n}.env.${k}=${toml(v)}`]),
           ...(m.envVars.length ? ["-c", `mcp_servers.plugin_${n}.env_vars=[${m.envVars.map(toml).join(", ")}]`] : []),
         ];

@@ -14,13 +14,28 @@ import { configureBackup, handlers } from "../handlers/index.ts";
 import type { BackupCtx } from "../handlers/index.ts";
 
 interface RegCap {
-  name: string; module: string; v: number; input: JsonSchema; output: JsonSchema; emits: string[];
+  name: string;
+  module: string;
+  v: number;
+  input: JsonSchema;
+  output: JsonSchema;
+  emits: string[];
   examples: { name: string; input: unknown; output: unknown }[];
 }
-interface RegEvent { name: string; module: string; payload: JsonSchema }
-interface Registry { $defs: Record<string, JsonSchema>; capabilities: RegCap[]; events: RegEvent[] }
+interface RegEvent {
+  name: string;
+  module: string;
+  payload: JsonSchema;
+}
+interface Registry {
+  $defs: Record<string, JsonSchema>;
+  capabilities: RegCap[];
+  events: RegEvent[];
+}
 
-const registry = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as Registry;
+const registry = JSON.parse(
+  readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8"),
+) as Registry;
 const defs = registry.$defs;
 const caps = registry.capabilities.filter((c) => c.module === "backup");
 const eventSchemas = new Map(registry.events.filter((e) => e.module === "backup").map((e) => [e.name, e.payload]));
@@ -88,20 +103,39 @@ test("every declared event is emitted by the handler that declares it", async ()
     const w = await populated();
     prep?.(w);
     await run(cap, w.ctx, input);
-    for (const e of w.events) assert.deepEqual(validate(eventSchemas.get(e.name)!, e.payload, "", defs), [], `${e.name} payload`);
+    for (const e of w.events)
+      assert.deepEqual(validate(eventSchemas.get(e.name)!, e.payload, "", defs), [], `${e.name} payload`);
     return [...new Set(w.events.map((e) => e.name))].sort();
   };
   assert.deepEqual(await emitted("backup.run", {}), ["backup.completed"]);
-  assert.deepEqual(await emitted("backup.run", {}, (w) => { w.space.failSnapshot = true; }), ["backup.failed"]);
-  assert.deepEqual(await emitted("backup.config_set", { target: MEMORY_TARGET, schedule: "0 3 * * *", enabled: true }), ["backup.config_changed"]);
+  assert.deepEqual(
+    await emitted("backup.run", {}, (w) => {
+      w.space.failSnapshot = true;
+    }),
+    ["backup.failed"],
+  );
+  assert.deepEqual(
+    await emitted("backup.config_set", { target: MEMORY_TARGET, schedule: "0 3 * * *", enabled: true }),
+    ["backup.config_changed"],
+  );
   assert.deepEqual(await emitted("backup.verify", { backupId: EXAMPLE_BACKUP }), ["backup.verified"]);
   // restore: the safety backup is announced by backup.run, the restore by backup.restored
-  assert.deepEqual(await emitted("backup.restore", { backupId: EXAMPLE_BACKUP, confirm: true }), ["backup.completed", "backup.restored"]);
+  assert.deepEqual(await emitted("backup.restore", { backupId: EXAMPLE_BACKUP, confirm: true }), [
+    "backup.completed",
+    "backup.restored",
+  ]);
   // the other capabilities declare no events and emit none
-  for (const c of caps.filter((x) => x.emits.length === 0)) assert.deepEqual(await emitted(c.name, sample(c.input, 0, defs)), [], c.name);
+  for (const c of caps.filter((x) => x.emits.length === 0))
+    assert.deepEqual(await emitted(c.name, sample(c.input, 0, defs)), [], c.name);
   // and the events each capability declares are all in the registry
   const union = new Set(caps.flatMap((c) => c.emits));
-  assert.deepEqual([...union].sort(), ["backup.completed", "backup.config_changed", "backup.failed", "backup.restored", "backup.verified"]);
+  assert.deepEqual([...union].sort(), [
+    "backup.completed",
+    "backup.config_changed",
+    "backup.failed",
+    "backup.restored",
+    "backup.verified",
+  ]);
 });
 
 test("config, health and list answer a Space that has no target yet", async () => {

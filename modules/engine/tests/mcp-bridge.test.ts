@@ -15,7 +15,15 @@ function lines(c: net.Socket, n: number): Promise<string[]> {
     const got: string[] = [];
     let buf = "";
     c.setEncoding("utf8");
-    c.on("data", (d: string) => { buf += d; let i; while ((i = buf.indexOf("\n")) >= 0) { got.push(buf.slice(0, i)); buf = buf.slice(i + 1); if (got.length === n) ok(got); } });
+    c.on("data", (d: string) => {
+      buf += d;
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) {
+        got.push(buf.slice(0, i));
+        buf = buf.slice(i + 1);
+        if (got.length === n) ok(got);
+      }
+    });
     c.on("close", () => ok(got));
   });
 }
@@ -24,13 +32,16 @@ test("a line is posted to the endpoint with the session token, and the reply is 
   const seen: Array<{ auth: string | null; body: string }> = [];
   const f = (async (_u: string, init: RequestInit) => {
     seen.push({ auth: new Headers(init.headers).get("authorization"), body: String(init.body) });
-    return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { ok: true } }), { headers: { "content-type": "application/json", "mcp-session-id": "s1" } });
+    return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { ok: true } }), {
+      headers: { "content-type": "application/json", "mcp-session-id": "s1" },
+    });
   }) as unknown as typeof fetch;
   const b = await openMcpBridge({ url: "http://127.0.0.1:1/mcp", token: "tok" }, { scratch, fetch: f });
   assert.ok(fs.existsSync(path.join(scratch, "mcp-shim.mjs")));
   assert.equal(fs.readFileSync(path.join(scratch, "mcp-shim.mjs"), "utf8"), SHIM_SOURCE);
   // Windows: a named pipe (sandbox/src/sock.ts); elsewhere the socket is in the scratch folder
-  if (process.platform === "win32") assert.match(b.socket, /^\\\\\.\\pipe\\vyre-mcp-/); else assert.ok(b.socket.startsWith(scratch));
+  if (process.platform === "win32") assert.match(b.socket, /^\\\\\.\\pipe\\vyre-mcp-/);
+  else assert.ok(b.socket.startsWith(scratch));
   const c = net.connect(b.socket);
   const got = lines(c, 1);
   c.write(`${JSON.stringify({ auth: "tok" })}\n${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" })}\n`);
@@ -44,7 +55,10 @@ test("a line is posted to the endpoint with the session token, and the reply is 
 
 test("a wrong token is closed before anything is posted", async () => {
   let posted = 0;
-  const f = (async () => { posted++; return new Response("{}"); }) as unknown as typeof fetch;
+  const f = (async () => {
+    posted++;
+    return new Response("{}");
+  }) as unknown as typeof fetch;
   const b = await openMcpBridge({ url: "http://127.0.0.1:1/mcp", token: "tok" }, { scratch, fetch: f });
   const c = net.connect(b.socket);
   const got = lines(c, 1);
@@ -55,14 +69,22 @@ test("a wrong token is closed before anything is posted", async () => {
 });
 
 test("an event-stream reply gives one line per event, and an endpoint that is down gives an error line", async () => {
-  const sse = (async () => new Response('data: {"id":1}\n\ndata: {"id":2}\n\n', { headers: { "content-type": "text/event-stream" } })) as unknown as typeof fetch;
+  const sse = (async () =>
+    new Response('data: {"id":1}\n\ndata: {"id":2}\n\n', {
+      headers: { "content-type": "text/event-stream" },
+    })) as unknown as typeof fetch;
   const b = await openMcpBridge({ url: "http://x/mcp", token: "t" }, { scratch, fetch: sse });
   const c = net.connect(b.socket);
   const got = lines(c, 2);
   c.write(`${JSON.stringify({ auth: "t" })}\n{"jsonrpc":"2.0","id":1,"method":"x"}\n`);
-  assert.deepEqual((await got).map((l) => (JSON.parse(l) as { id: number }).id), [1, 2]);
+  assert.deepEqual(
+    (await got).map((l) => (JSON.parse(l) as { id: number }).id),
+    [1, 2],
+  );
   await b.close();
-  const down = (async () => { throw new Error("refused"); }) as unknown as typeof fetch;
+  const down = (async () => {
+    throw new Error("refused");
+  }) as unknown as typeof fetch;
   const b2 = await openMcpBridge({ url: "http://x/mcp", token: "t" }, { scratch, fetch: down });
   const c2 = net.connect(b2.socket);
   const g2 = lines(c2, 1);
@@ -81,16 +103,26 @@ test("a 120-character data folder still gives a bridge the shim reaches", async 
   while (dir.length < 120) dir = path.join(dir, "a-long-folder-name");
   const deep = path.join(dir, "scratch", "usr_dana");
   assert.ok(deep.length >= 120, `the folder is ${deep.length} characters`);
-  const f = (async () => new Response(JSON.stringify({ jsonrpc: "2.0", id: 7, result: { ok: true } }), { headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
+  const f = (async () =>
+    new Response(JSON.stringify({ jsonrpc: "2.0", id: 7, result: { ok: true } }), {
+      headers: { "content-type": "application/json" },
+    })) as unknown as typeof fetch;
   const b = await openMcpBridge({ url: "http://127.0.0.1:1/mcp", token: "tok" }, { scratch: deep, fetch: f });
   if (process.platform === "win32") assert.match(b.socket, /^\\\\\.\\pipe\\vyre-mcp-[0-9a-f]+$/);
   // the program the CLI starts, as it starts it: stdin in, stdout out
   const { spawn } = await import("node:child_process");
-  const p = spawn(b.stdio.command, b.stdio.args, { env: { ...process.env, VYRE_MCP_TOKEN: "tok" }, stdio: ["pipe", "pipe", "pipe"] });
+  const p = spawn(b.stdio.command, b.stdio.args, {
+    env: { ...process.env, VYRE_MCP_TOKEN: "tok" },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
   let out = "";
   let err = "";
-  p.stdout.setEncoding("utf8").on("data", (d: string) => { out += d; });
-  p.stderr.setEncoding("utf8").on("data", (d: string) => { err += d; });
+  p.stdout.setEncoding("utf8").on("data", (d: string) => {
+    out += d;
+  });
+  p.stderr.setEncoding("utf8").on("data", (d: string) => {
+    err += d;
+  });
   p.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 7, method: "tools/list" })}\n`);
   p.stdin.end();
   const code = await new Promise<number | null>((ok) => p.once("close", ok));

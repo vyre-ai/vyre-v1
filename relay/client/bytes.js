@@ -11,9 +11,9 @@ const enc = new TextEncoder();
 const dec = new TextDecoder();
 
 /** @param {string} s */
-export const utf8 = s => enc.encode(s);
+export const utf8 = (s) => enc.encode(s);
 /** @param {Uint8Array} b */
-export const fromUtf8 = b => dec.decode(b);
+export const fromUtf8 = (b) => dec.decode(b);
 
 /** @param {...Uint8Array} parts */
 export function concat(...parts) {
@@ -21,7 +21,10 @@ export function concat(...parts) {
   for (const p of parts) n += p.length;
   const out = new Uint8Array(n);
   let at = 0;
-  for (const p of parts) { out.set(p, at); at += p.length; }
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
   return out;
 }
 
@@ -44,20 +47,29 @@ export function equal(a, b) {
 }
 
 /** @param {Uint8Array} b */
-export const isZero = b => { let d = 0; for (let i = 0; i < b.length; i++) d |= b[i]; return d === 0; };
+export const isZero = (b) => {
+  let d = 0;
+  for (let i = 0; i < b.length; i++) d |= b[i];
+  return d === 0;
+};
 
 /** @param {Uint8Array} b */
-export const hex = b => Array.from(b, x => x.toString(16).padStart(2, "0")).join("");
+export const hex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
 
 const B32_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567";
 /** RFC 4648 base32, lowercase, no padding, byte for byte core/relay/wire.js's own base32, so a
  * route id or a key fingerprint computed here reads identically to the box's own. @param {Uint8Array} buf */
 export function base32(buf) {
-  let bits = 0, value = 0, out = "";
+  let bits = 0,
+    value = 0,
+    out = "";
   for (const byte of buf) {
     value = (value << 8) | byte;
     bits += 8;
-    while (bits >= 5) { out += B32_ALPHABET[(value >>> (bits - 5)) & 31]; bits -= 5; }
+    while (bits >= 5) {
+      out += B32_ALPHABET[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
   }
   if (bits > 0) out += B32_ALPHABET[(value << (5 - bits)) & 31];
   return out;
@@ -81,8 +93,13 @@ export function base64url(b) {
     const v = (b[i] << 16) | (b[i + 1] << 8) | b[i + 2];
     out += B64[v >> 18] + B64[(v >> 12) & 63] + B64[(v >> 6) & 63] + B64[v & 63];
   }
-  if (b.length - i === 1) { const v = b[i] << 16; out += B64[v >> 18] + B64[(v >> 12) & 63]; }
-  else if (b.length - i === 2) { const v = (b[i] << 16) | (b[i + 1] << 8); out += B64[v >> 18] + B64[(v >> 12) & 63] + B64[(v >> 6) & 63]; }
+  if (b.length - i === 1) {
+    const v = b[i] << 16;
+    out += B64[v >> 18] + B64[(v >> 12) & 63];
+  } else if (b.length - i === 2) {
+    const v = (b[i] << 16) | (b[i + 1] << 8);
+    out += B64[v >> 18] + B64[(v >> 12) & 63] + B64[(v >> 6) & 63];
+  }
   return out;
 }
 
@@ -90,14 +107,19 @@ export function base64url(b) {
 export function fromBase64url(s) {
   const t = String(s).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
   if (t.length % 4 === 1) throw new Error("bad base64");
-  const out = new Uint8Array(Math.floor(t.length * 3 / 4));
-  let bits = 0, value = 0, at = 0;
+  const out = new Uint8Array(Math.floor((t.length * 3) / 4));
+  let bits = 0,
+    value = 0,
+    at = 0;
   for (const c of t) {
     const v = REV.get(c);
     if (v === undefined) throw new Error("bad base64");
     value = (value << 6) | v;
     bits += 6;
-    if (bits >= 8) { bits -= 8; out[at++] = (value >> bits) & 255; }
+    if (bits >= 8) {
+      bits -= 8;
+      out[at++] = (value >> bits) & 255;
+    }
   }
   return out;
 }

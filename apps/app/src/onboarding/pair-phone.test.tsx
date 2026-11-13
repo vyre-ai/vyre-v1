@@ -13,13 +13,20 @@ async function open(fail = false) {
   installDom();
   let n = 0;
   const calls: string[] = [];
-  const call = (async (cap: string) => { calls.push(cap); if (fail) throw new Error("no"); return { code: `CODE-000${++n}`, expiresAt: 1 }; }) as unknown as CapCall;
+  const call = (async (cap: string) => {
+    calls.push(cap);
+    if (fail) throw new Error("no");
+    return { code: `CODE-000${++n}`, expiresAt: 1 };
+  }) as unknown as CapCall;
   const r = createRoot();
-  await act(async () => { r.render(<PairPhoneCard call={call} address="https://x.vyre.run" onPaired={() => undefined} />); });
+  await act(async () => {
+    r.render(<PairPhoneCard call={call} address="https://x.vyre.run" onPaired={() => undefined} />);
+  });
   await flush();
   return { calls, root: r.container as never };
 }
-const text = (n: { children?: unknown[] } | null): string => (n?.children ?? []).map((c) => (typeof c === "string" ? c : text(c as never))).join("");
+const text = (n: { children?: unknown[] } | null): string =>
+  (n?.children ?? []).map((c) => (typeof c === "string" ? c : text(c as never))).join("");
 
 test("the link is made on opening and shows as a QR code with the link text", async () => {
   const t = await open();
@@ -50,12 +57,25 @@ test("the QR path draws every dark module once", () => {
 });
 
 test("an address only this computer can use never gets a code or a QR", async () => {
-  for (const address of ["http://127.0.0.1:60649", "http://localhost:3000", "http://[::1]:80", "http://0.0.0.0:80", "http://169.254.3.4:80"]) {
+  for (const address of [
+    "http://127.0.0.1:60649",
+    "http://localhost:3000",
+    "http://[::1]:80",
+    "http://0.0.0.0:80",
+    "http://169.254.3.4:80",
+  ]) {
     installDom();
     const calls: string[] = [];
-    const call = (async (cap: string) => { calls.push(cap); return { code: "X", expiresAt: 1 }; }) as unknown as CapCall;
+    const call = (async (cap: string) => {
+      calls.push(cap);
+      return { code: "X", expiresAt: 1 };
+    }) as unknown as CapCall;
     const r = createRoot();
-    await act(async () => { r.render(<PairPhoneCard call={call} address={address} onPaired={() => undefined} onTeamSpace={() => undefined} />); });
+    await act(async () => {
+      r.render(
+        <PairPhoneCard call={call} address={address} onPaired={() => undefined} onTeamSpace={() => undefined} />,
+      );
+    });
     await flush();
     const root = r.container as never;
     assert.deepEqual(calls, ["network.phone"], `${address}: only the read of its phone name, never a pairing code`);
@@ -68,8 +88,17 @@ test("an address only this computer can use never gets a code or a QR", async ()
 
 test("phoneCanReach accepts names and Wi-Fi addresses, refuses this computer", async () => {
   const { phoneCanReach } = await import("../shell/session/desktop.ts");
-  for (const ok of ["https://x.vyre.run", "http://192.168.1.20:8420", "https://example.com"]) assert.equal(phoneCanReach(ok), true, ok);
-  for (const no of ["http://127.0.0.1:1", "http://localhost", "http://[::1]:2", "http://169.254.1.1", "http://[fe80::1]", "nonsense"]) assert.equal(phoneCanReach(no), false, no);
+  for (const ok of ["https://x.vyre.run", "http://192.168.1.20:8420", "https://example.com"])
+    assert.equal(phoneCanReach(ok), true, ok);
+  for (const no of [
+    "http://127.0.0.1:1",
+    "http://localhost",
+    "http://[::1]:2",
+    "http://169.254.1.1",
+    "http://[fe80::1]",
+    "nonsense",
+  ])
+    assert.equal(phoneCanReach(no), false, no);
 });
 
 test("a Space on this computer alone pairs a phone through the computer's vyre.run name once it has claimed one, with the box key in the link's fragment", async () => {
@@ -78,11 +107,19 @@ test("a Space on this computer alone pairs a phone through the computer's vyre.r
   const calls: string[] = [];
   const call = (async (cap: string) => {
     calls.push(cap);
-    if (cap === "network.phone") return { state: "claimed", url: "https://alex.vyre.run", link: `https://alex.vyre.run/#box=${KEY}`, online: true };
+    if (cap === "network.phone")
+      return {
+        state: "claimed",
+        url: "https://alex.vyre.run",
+        link: `https://alex.vyre.run/#box=${KEY}`,
+        online: true,
+      };
     return { code: "CODE-0001", expiresAt: 1 };
   }) as unknown as CapCall;
   const r = createRoot();
-  await act(async () => { r.render(<PairPhoneCard call={call} address="http://127.0.0.1:4310" onPaired={() => undefined} />); });
+  await act(async () => {
+    r.render(<PairPhoneCard call={call} address="http://127.0.0.1:4310" onPaired={() => undefined} />);
+  });
   await flush();
   assert.deepEqual(calls, ["network.phone", "identity.pair_create"]);
   assert.equal(text(find(r.container as never, "pair-link")), `https://alex.vyre.run/chat?pair=CODE-0001#box=${KEY}`);
@@ -93,7 +130,9 @@ test("without a claimed name a local Space still says a phone cannot reach it", 
   installDom();
   const call = (async () => ({ state: "none", online: false })) as unknown as CapCall;
   const r = createRoot();
-  await act(async () => { r.render(<PairPhoneCard call={call} address="http://127.0.0.1:4310" onPaired={() => undefined} />); });
+  await act(async () => {
+    r.render(<PairPhoneCard call={call} address="http://127.0.0.1:4310" onPaired={() => undefined} />);
+  });
   await flush();
   assert.ok(find(r.container as never, "pair-phone-local"));
 });

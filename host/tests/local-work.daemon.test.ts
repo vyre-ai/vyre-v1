@@ -9,22 +9,66 @@ import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 
 test("a device daemon says what runs on this computer, and hands over on drain, to the admin token only", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-daemon-busy-"));
-  const platform = fakePlatform({ os: "linux", hostname: "busy-test", free: 80e9, commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" } } });
-  const d = await startDaemon({ config: loadConfig(["--role", "device", "--data-dir", dir, "--port", "0"], {}, "1"), platform, fetch: caddyFetch, intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000 } });
+  const platform = fakePlatform({
+    os: "linux",
+    hostname: "busy-test",
+    free: 80e9,
+    commands: {
+      [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+      "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+    },
+  });
+  const d = await startDaemon({
+    config: loadConfig(["--role", "device", "--data-dir", dir, "--port", "0"], {}, "1"),
+    platform,
+    fetch: caddyFetch,
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000 },
+  });
   try {
     const busy = await fetch(`${d.url}/local/daemon/busy`, { headers: { authorization: `Bearer ${d.token}` } });
     assert.equal(busy.status, 200);
-    assert.deepEqual(((await busy.json()) as { data: unknown }).data, { turns: 0, sources: [{ name: "engine", turns: 0 }], chats: [] });
-    const drain = await fetch(`${d.url}/local/daemon/drain`, { method: "POST", headers: { authorization: `Bearer ${d.token}` } });
+    assert.deepEqual(((await busy.json()) as { data: unknown }).data, {
+      turns: 0,
+      sources: [{ name: "engine", turns: 0 }],
+      chats: [],
+    });
+    const drain = await fetch(`${d.url}/local/daemon/drain`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${d.token}` },
+    });
     assert.equal(((await drain.json()) as { data: { turns: number } }).data.turns, 0);
-    const stop = await fetch(`${d.url}/local/daemon/stop-turns`, { method: "POST", headers: { authorization: `Bearer ${d.token}` } });
-    assert.deepEqual(((await stop.json()) as { data: unknown }).data, { turns: 0, sources: [{ name: "engine", turns: 0 }], chats: [] }, "nothing runs: stop-turns ends nothing and says so");
+    const stop = await fetch(`${d.url}/local/daemon/stop-turns`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${d.token}` },
+    });
+    assert.deepEqual(
+      ((await stop.json()) as { data: unknown }).data,
+      { turns: 0, sources: [{ name: "engine", turns: 0 }], chats: [] },
+      "nothing runs: stop-turns ends nothing and says so",
+    );
     assert.equal((await fetch(`${d.url}/local/daemon/stop-turns`, { method: "POST" })).status, 401);
     assert.equal((await fetch(`${d.url}/local/daemon/busy`)).status, 401);
-    assert.equal((await fetch(`${d.url}/local/daemon/drain`, { method: "POST", headers: { authorization: "Bearer not-the-token" } })).status, 401);
-  } finally { await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
+    assert.equal(
+      (
+        await fetch(`${d.url}/local/daemon/drain`, {
+          method: "POST",
+          headers: { authorization: "Bearer not-the-token" },
+        })
+      ).status,
+      401,
+    );
+  } finally {
+    await d.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

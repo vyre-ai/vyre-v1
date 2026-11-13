@@ -10,7 +10,11 @@ export const NOW = 1_760_000_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
 export const SPACE = "spc_mcptest";
 
-export interface Emitted { name: string; subject: string; payload: Record<string, unknown> }
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+}
 
 export interface HarnessOptions {
   raw?: RawDb;
@@ -41,21 +45,38 @@ export function harness(o: HarnessOptions = {}) {
     principal: o.principal ?? { kind: "person", id: "usr_dana" },
     ...(o.actingFor === undefined ? {} : { actingFor: o.actingFor }),
     trace: { traceId: TRACE },
-    depth: 1,   // a call another capability made: the system halves refuse a direct call (P-SEC_10)
+    depth: 1, // a call another capability made: the system halves refuse a direct call (P-SEC_10)
     now: () => clock.t,
     db,
-    emit(name, subject, payload) { emitted.push({ name, subject, payload: payload as Record<string, unknown> }); return null; },
+    emit(name, subject, payload) {
+      emitted.push({ name, subject, payload: payload as Record<string, unknown> });
+      return null;
+    },
     authorize: (action) => ({ effect: allow(action) ? "allow" : "deny" }),
     log: { warn() {} },
   };
   return {
-    ctx, raw, db, emitted, clock,
-    advance(ms: number) { clock.t += ms; },
-    allowOnly(f: (action: { perm: string | null; level: string }) => boolean) { allow = f; },
-    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] { return db.all(sql, ...args) as Record<string, unknown>[]; },
-    named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },
+    ctx,
+    raw,
+    db,
+    emitted,
+    clock,
+    advance(ms: number) {
+      clock.t += ms;
+    },
+    allowOnly(f: (action: { perm: string | null; level: string }) => boolean) {
+      allow = f;
+    },
+    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] {
+      return db.all(sql, ...args) as Record<string, unknown>[];
+    },
+    named(name: string): Emitted[] {
+      return emitted.filter((e) => e.name === name);
+    },
     /** The same database as another principal (two hosts, or the outside tool calling in). */
-    as(principal: McpCtx["principal"], actingFor?: string): McpCtx { return { ...ctx, principal, ...(actingFor === undefined ? {} : { actingFor }) }; },
+    as(principal: McpCtx["principal"], actingFor?: string): McpCtx {
+      return { ...ctx, principal, ...(actingFor === undefined ? {} : { actingFor }) };
+    },
   };
 }
 

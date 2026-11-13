@@ -12,15 +12,38 @@ export const web = Platform.OS === "web";
 export const webOnly = (o: Record<string, unknown>): Record<string, unknown> => (web ? o : {});
 export const pointer = (web ? { cursor: "pointer" } : {}) as ViewStyle;
 
-export interface KeyEventLike { key?: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; preventDefault?: () => void; stopPropagation?: () => void }
+export interface KeyEventLike {
+  key?: string;
+  metaKey?: boolean;
+  ctrlKey?: boolean;
+  shiftKey?: boolean;
+  preventDefault?: () => void;
+  stopPropagation?: () => void;
+}
 
 /** A 24 px icon button; hover paints the quiet hover token. The label is the accessible name and the tooltip. */
-export function IconButton({ icon, label, onPress, size = 24, testID }: { icon: GlyphName; label: string; onPress?: (event: unknown) => void; size?: number; testID?: string }): ReactElement {
+export function IconButton({
+  icon,
+  label,
+  onPress,
+  size = 24,
+  testID,
+}: {
+  icon: GlyphName;
+  label: string;
+  onPress?: (event: unknown) => void;
+  size?: number;
+  testID?: string;
+}): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
-      accessibilityRole="button" accessibilityLabel={label} testID={testID} onPress={onPress}
-      onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      testID={testID}
+      onPress={onPress}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
       {...webOnly({ title: label })}
       style={[s.iconBtn, { width: size, height: size }, over && { backgroundColor: "var(--press)" }, pointer]}
     >
@@ -31,38 +54,109 @@ export function IconButton({ icon, label, onPress, size = 24, testID }: { icon: 
 
 export type QuietTone = "plain" | "accent" | "danger" | "filled";
 /** The prototype's .qb: 26 px, 12.5 px type, tinted on hover. */
-export function QuietButton({ label, icon, onPress, tone = "plain", disabled = false, testID, title }: { label: string; icon?: GlyphName; onPress?: (event: unknown) => void; tone?: QuietTone; disabled?: boolean; testID?: string; title?: string }): ReactElement {
+export function QuietButton({
+  label,
+  icon,
+  onPress,
+  tone = "plain",
+  disabled = false,
+  testID,
+  title,
+}: {
+  label: string;
+  icon?: GlyphName;
+  onPress?: (event: unknown) => void;
+  tone?: QuietTone;
+  disabled?: boolean;
+  testID?: string;
+  title?: string;
+}): ReactElement {
   const [over, setOver] = useState(false);
   const filled = tone === "filled";
-  const fg = filled ? "var(--win)" : tone === "accent" ? "var(--accent)" : tone === "danger" ? "var(--danger)" : over ? "var(--ink)" : "var(--ink-2)";
-  const wash = tone === "accent" ? "var(--accent-wash)" : tone === "danger" ? "color-mix(in srgb, var(--danger) 12%, transparent)" : "var(--hover)";
+  const fg = filled
+    ? "var(--win)"
+    : tone === "accent"
+      ? "var(--accent)"
+      : tone === "danger"
+        ? "var(--danger)"
+        : over
+          ? "var(--ink)"
+          : "var(--ink-2)";
+  const wash =
+    tone === "accent"
+      ? "var(--accent-wash)"
+      : tone === "danger"
+        ? "color-mix(in srgb, var(--danger) 12%, transparent)"
+        : "var(--hover)";
   return (
     <Pressable
-      accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} testID={testID} disabled={disabled} onPress={onPress}
-      onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      testID={testID}
+      disabled={disabled}
+      onPress={onPress}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
       {...webOnly({ dataSet: { tone }, ...(title ? { title } : {}) })}
-      style={[s.qb, filled && { backgroundColor: "var(--ink)" as string, paddingHorizontal: 12, borderRadius: 7 }, over && !disabled && !filled && { backgroundColor: wash as string }, disabled && { opacity: 0.4 }, pointer]}
+      style={[
+        s.qb,
+        filled && { backgroundColor: "var(--ink)" as string, paddingHorizontal: 12, borderRadius: 7 },
+        over && !disabled && !filled && { backgroundColor: wash as string },
+        disabled && { opacity: 0.4 },
+        pointer,
+      ]}
     >
       {icon ? <Glyph name={icon} size={13} color={fg} /> : null}
-      <Text style={[s.qbText, { color: fg as string }]} numberOfLines={1}>{label}</Text>
+      <Text style={[s.qbText, { color: fg as string }]} numberOfLines={1}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
 
-const STATUS_ICON: Readonly<Record<RunStatus, GlyphName>> = { succeeded: "check", failed: "x", waiting: "hourglass", running: "retry", stopped: "stop", queued: "clock" };
-const STATUS_COLOR: Readonly<Record<RunStatus, string>> = { succeeded: "var(--ok)", failed: "var(--danger)", waiting: "var(--warn)", running: "var(--accent)", stopped: "var(--ink-3)", queued: "var(--ink-3)" };
+const STATUS_ICON: Readonly<Record<RunStatus, GlyphName>> = {
+  succeeded: "check",
+  failed: "x",
+  waiting: "hourglass",
+  running: "retry",
+  stopped: "stop",
+  queued: "clock",
+};
+const STATUS_COLOR: Readonly<Record<RunStatus, string>> = {
+  succeeded: "var(--ok)",
+  failed: "var(--danger)",
+  waiting: "var(--warn)",
+  running: "var(--accent)",
+  stopped: "var(--ink-3)",
+  queued: "var(--ink-3)",
+};
 export const statusColor = (s: RunStatus): string => STATUS_COLOR[s];
 export const statusGlyph = (s: RunStatus): GlyphName => STATUS_ICON[s];
 
 /** The 20 px status mark at the left of a run row. */
 export function StatusMark({ status, size = 16 }: { status: RunStatus; size?: number }): ReactElement {
-  return <View testID={`status-${status}`} style={s.mark}><Glyph name={STATUS_ICON[status]} size={size} color={STATUS_COLOR[status]} /></View>;
+  return (
+    <View testID={`status-${status}`} style={s.mark}>
+      <Glyph name={STATUS_ICON[status]} size={size} color={STATUS_COLOR[status]} />
+    </View>
+  );
 }
 
 /** An Automation's tile: the accent wash with a bolt. */
 export function Tile({ size = 28 }: { size?: number }): ReactElement {
   return (
-    <View aria-hidden style={{ width: size, height: size, borderRadius: Math.round(size * 0.3), backgroundColor: "var(--accent-wash)" as string, alignItems: "center", justifyContent: "center" }}>
+    <View
+      aria-hidden
+      style={{
+        width: size,
+        height: size,
+        borderRadius: Math.round(size * 0.3),
+        backgroundColor: "var(--accent-wash)" as string,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
       <Glyph name="bolt" size={Math.round(size * 0.55)} color="var(--accent)" />
     </View>
   );
@@ -75,27 +169,76 @@ function hueOf(name: string): number {
 }
 
 /** A person is a circle, an agent a rounded square; the colour comes from the id (the name when no id is passed). */
-export function Face({ name, seedId, kind = "person", size = 24 }: { name: string; seedId?: string | undefined; kind?: string; size?: number }): ReactElement {
+export function Face({
+  name,
+  seedId,
+  kind = "person",
+  size = 24,
+}: {
+  name: string;
+  seedId?: string | undefined;
+  kind?: string;
+  size?: number;
+}): ReactElement {
   const hue = hueOf(seedId !== undefined && seedId !== "" ? seedId : name);
   return (
-    <View aria-hidden style={{ width: size, height: size, borderRadius: kind === "person" ? size : Math.round(size * 0.3), backgroundColor: `hsla(${hue}, 65%, 52%, 0.22)` as string, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ color: `hsl(${hue}, 55%, 46%)` as string, fontSize: Math.max(9, Math.round(size * 0.48)), fontWeight: "600" }}>{(name.trim()[0] ?? "?").toUpperCase()}</Text>
+    <View
+      aria-hidden
+      style={{
+        width: size,
+        height: size,
+        borderRadius: kind === "person" ? size : Math.round(size * 0.3),
+        backgroundColor: `hsla(${hue}, 65%, 52%, 0.22)` as string,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Text
+        style={{
+          color: `hsl(${hue}, 55%, 46%)` as string,
+          fontSize: Math.max(9, Math.round(size * 0.48)),
+          fontWeight: "600",
+        }}
+      >
+        {(name.trim()[0] ?? "?").toUpperCase()}
+      </Text>
     </View>
   );
 }
 
 /** The quiet "Test" badge beside a title. */
 export function TestBadge(): ReactElement {
-  return <View style={s.tbadge}><Glyph name="flask" size={11} color="var(--ink-3)" /><Text style={s.tbadgeText}>Test</Text></View>;
+  return (
+    <View style={s.tbadge}>
+      <Glyph name="flask" size={11} color="var(--ink-3)" />
+      <Text style={s.tbadgeText}>Test</Text>
+    </View>
+  );
 }
 
 /** The 52 px header of a main view: a tile, the title, a quiet meta line, and the controls at the right. */
-export function MainHead({ tile, title, meta, children }: { tile: ReactElement; title: string; meta?: string; children?: ReactNode }): ReactElement {
+export function MainHead({
+  tile,
+  title,
+  meta,
+  children,
+}: {
+  tile: ReactElement;
+  title: string;
+  meta?: string;
+  children?: ReactNode;
+}): ReactElement {
   return (
     <View style={s.head}>
       {tile}
-      <Text accessibilityRole="header" numberOfLines={1} style={s.headTitle}>{title}</Text>
-      {meta ? <Text numberOfLines={1} style={s.headMeta}>{meta}</Text> : null}
+      <Text accessibilityRole="header" numberOfLines={1} style={s.headTitle}>
+        {title}
+      </Text>
+      {meta ? (
+        <Text numberOfLines={1} style={s.headMeta}>
+          {meta}
+        </Text>
+      ) : null}
       <View style={{ flex: 1 }} />
       {children}
     </View>
@@ -103,7 +246,16 @@ export function MainHead({ tile, title, meta, children }: { tile: ReactElement; 
 }
 
 export const s = StyleSheet.create({
-  head: { height: 52, flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: 20, paddingRight: 12, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  head: {
+    height: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingLeft: 20,
+    paddingRight: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   headTitle: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string, flexShrink: 1 },
   headMeta: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 1 },
   iconBtn: { alignItems: "center", justifyContent: "center", borderRadius: 6 },
@@ -114,7 +266,10 @@ export const s = StyleSheet.create({
   tbadgeText: { fontSize: 11, lineHeight: 14, fontWeight: "500", color: "var(--ink-3)" as string },
 });
 
-interface RowNode { contains?(n: unknown): boolean; querySelector(sel: string): { focus?: () => void } | null }
+interface RowNode {
+  contains?(n: unknown): boolean;
+  querySelector(sel: string): { focus?: () => void } | null;
+}
 /** Moves the focus to the next or previous row inside `container` (the arrow keys in a list). Rows carry data-row; a row the list has not drawn yet is not reachable until it scrolls in. */
 export function moveRowFocus(container: unknown, from: unknown, dir: 1 | -1): boolean {
   const c = container as { querySelectorAll?(sel: string): ArrayLike<RowNode> } | null;

@@ -22,29 +22,77 @@ export interface FileMarkdownEditorProps {
   startView?: MarkdownView;
 }
 
-export function FileMarkdownEditor({ call, fileId, name, text, version, onText, startView = "styled" }: FileMarkdownEditorProps): ReactElement {
+export function FileMarkdownEditor({
+  call,
+  fileId,
+  name,
+  text,
+  version,
+  onText,
+  startView = "styled",
+}: FileMarkdownEditorProps): ReactElement {
   const fa = useFileAutosave({ call, fileId, saved: text, version, reason: "Edited in the viewer" });
   const [view, setView] = useState<MarkdownView>(startView);
-  useEffect(() => { onText?.(fa.base.text); }, [fa.base.text]);
+  useEffect(() => {
+    onText?.(fa.base.text);
+  }, [fa.base.text]);
   const status = fa.auto.status;
   return (
     <View testID="file-md-editor" style={st.wrap}>
       <View style={st.row}>
         <View style={st.grow} />
-        <Text style={st.status} testID="file-md-status" accessibilityLiveRegion="polite">{statusWords({ status, version: fa.auto.version, error: fa.auto.error })}</Text>
-        {fa.auto.undoTo !== null ? <Pressable accessibilityRole="button" accessibilityLabel="Undo" testID="file-md-undo" onPress={fa.undo} style={st.undo}><Text style={st.undoText}>Undo</Text></Pressable> : null}
+        <Text style={st.status} testID="file-md-status" accessibilityLiveRegion="polite">
+          {statusWords({ status, version: fa.auto.version, error: fa.auto.error })}
+        </Text>
+        {fa.auto.undoTo !== null ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Undo"
+            testID="file-md-undo"
+            onPress={fa.undo}
+            style={st.undo}
+          >
+            <Text style={st.undoText}>Undo</Text>
+          </Pressable>
+        ) : null}
         <ViewSwitch view={view} onView={setView} />
       </View>
-      {fa.line ? <Text style={[st.line, fa.line.kind === "error" && st.err]} testID="file-md-line">{fa.line.text}</Text> : null}
-      {status === "error" && fa.auto.error ? <Text style={[st.line, st.err]} testID="file-md-error">{fa.auto.error}</Text> : null}
-      <MarkdownEditor value={fa.draft} onChange={fa.edit} view={view} onView={setView} toggle={false} label={`Text of ${name}`} onSave={fa.flush} testID="file-md-text" placeholder="Write" />
+      {fa.line ? (
+        <Text style={[st.line, fa.line.kind === "error" && st.err]} testID="file-md-line">
+          {fa.line.text}
+        </Text>
+      ) : null}
+      {status === "error" && fa.auto.error ? (
+        <Text style={[st.line, st.err]} testID="file-md-error">
+          {fa.auto.error}
+        </Text>
+      ) : null}
+      <MarkdownEditor
+        value={fa.draft}
+        onChange={fa.edit}
+        view={view}
+        onView={setView}
+        toggle={false}
+        label={`Text of ${name}`}
+        onSave={fa.flush}
+        testID="file-md-text"
+        placeholder="Write"
+      />
     </View>
   );
 }
 
 const st = StyleSheet.create({
   wrap: { flex: 1, minWidth: 0 },
-  row: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   grow: { flex: 1 },
   status: { fontSize: 12, color: "var(--ink-3)" as string },
   undo: { paddingHorizontal: 6, height: 22, justifyContent: "center", borderRadius: 5 },

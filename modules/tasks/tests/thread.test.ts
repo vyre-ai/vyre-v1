@@ -21,11 +21,20 @@ test("a new task gets a thread named by the task, with its agents, and the peopl
   const id = r.task.id as string;
   assert.equal(r.task.threadId, `thr_${id.slice(4)}`);
   const start = h.threadCalls.find((c) => c.cap === "chat.start")!.input as Record<string, unknown>;
-  assert.deepEqual({ kind: start.kind, scopeType: start.scopeType, scopeId: start.scopeId, agentIds: start.agentIds }, { kind: "chat", scopeType: "task", scopeId: id, agentIds: [bot.id] });
+  assert.deepEqual(
+    { kind: start.kind, scopeType: start.scopeType, scopeId: start.scopeId, agentIds: start.agentIds },
+    { kind: "chat", scopeType: "task", scopeId: id, agentIds: [bot.id] },
+  );
   assert.equal(start.idempotencyKey, `task-thread:${id}`);
-  const people = h.threadCalls.filter((c) => c.cap === "threads.members.add").map((c) => (c.input as { personId: string }).personId);
+  const people = h.threadCalls
+    .filter((c) => c.cap === "threads.members.add")
+    .map((c) => (c.input as { personId: string }).personId);
   assert.deepEqual(people.sort(), [bob.id, cara.id].sort());
-  assert.deepEqual(h.calls.map((c) => c.cap), ["access.principals.get", "agents.outside.usable", "agents.get"], "nothing but the owner lookup, the check that this agent takes work from the asker, and the check that the asker may know of it (12 Nov 2026: an agent a private chat made is unknown to others)");
+  assert.deepEqual(
+    h.calls.map((c) => c.cap),
+    ["access.principals.get", "agents.outside.usable", "agents.get"],
+    "nothing but the owner lookup, the check that this agent takes work from the asker, and the check that the asker may know of it (12 Nov 2026: an agent a private chat made is unknown to others)",
+  );
 });
 
 test("every kind of task has a thread", async () => {
@@ -40,20 +49,20 @@ test("a task made in a chat gets its own thread and keeps the way back to the ch
   const h = withThreads();
   const ctx = h.ctxFor("tasks.create", me);
   ctx.thread = "thr_origin";
-  const handlers = (await import("../impl.ts")).handlers as Record<string, (c: typeof ctx, i: unknown) => Promise<any>>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+  const handlers = (await import("../impl.ts")).handlers as Record<string, (c: typeof ctx, i: unknown) => Promise<any>>; // eslint-disable-line @typescript-eslint/no-explicit-any
   const r = await handlers["tasks.create"]!(ctx, { ...newTask(), idempotencyKey: "k1" });
   assert.notEqual(r.task.threadId, "thr_origin");
   assert.equal(r.task.workingNotes["thread.origin"], "thr_origin");
 });
 
 test("chat cannot make a thread: the task is made all the same, and a made-in-chat task keeps that chat as its thread", async () => {
-  const h = harness();   // no chat.start callee: every call throws
+  const h = harness(); // no chat.start callee: every call throws
   const r = await h.call("tasks.create", newTask(), me);
   assert.equal(r.task.state, "todo");
   assert.equal(r.task.threadId, undefined);
   const ctx = h.ctxFor("tasks.create", me);
   ctx.thread = "thr_origin";
-  const handlers = (await import("../impl.ts")).handlers as Record<string, (c: typeof ctx, i: unknown) => Promise<any>>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+  const handlers = (await import("../impl.ts")).handlers as Record<string, (c: typeof ctx, i: unknown) => Promise<any>>; // eslint-disable-line @typescript-eslint/no-explicit-any
   const q = await handlers["tasks.create"]!(ctx, { ...newTask(), idempotencyKey: "k2" });
   assert.equal(q.task.threadId, "thr_origin");
 });
@@ -64,9 +73,17 @@ test("a new Reviewer or agent holder is brought into the thread", async () => {
   h.threadCalls.length = 0;
   await h.call("tasks.assign", { taskId: id, slot: "reviewer", to: bob }, me);
   await h.call("tasks.assign", { taskId: id, slot: "approver", to: bot2 }, me);
-  const people = new Set(h.threadCalls.filter((c) => c.cap === "threads.members.add").map((c) => (c.input as { personId: string }).personId));
-  assert.deepEqual([...people].sort(), [alice.id, bob.id].sort(), "adding someone already in the thread changes nothing, so the whole seat list is safe to send");
-  const agents = h.threadCalls.filter((c) => c.cap === "threads.add_agent").map((c) => c.input as { agentId: string; mode: string });
+  const people = new Set(
+    h.threadCalls.filter((c) => c.cap === "threads.members.add").map((c) => (c.input as { personId: string }).personId),
+  );
+  assert.deepEqual(
+    [...people].sort(),
+    [alice.id, bob.id].sort(),
+    "adding someone already in the thread changes nothing, so the whole seat list is safe to send",
+  );
+  const agents = h.threadCalls
+    .filter((c) => c.cap === "threads.add_agent")
+    .map((c) => c.input as { agentId: string; mode: string });
   assert.deepEqual(agents, [{ threadId: agents[0]!.threadId, agentId: bot2.id, mode: "listen" }]);
 });
 
@@ -76,7 +93,10 @@ test("tasks.update links a thread only to a task that has none", async () => {
   assert.equal((await h.call("tasks.get", { taskId: id }, me)).task.threadId, undefined);
   const a = await h.call("tasks.update", { taskId: id, threadId: "thr_late" }, me);
   assert.equal(a.task.threadId, "thr_late");
-  assert.deepEqual(h.events.map((e) => e.name), ["task.updated"]);
+  assert.deepEqual(
+    h.events.map((e) => e.name),
+    ["task.updated"],
+  );
   assert.deepEqual(h.events[0]!.payload.fields, ["threadId"]);
   const b = await h.call("tasks.update", { taskId: id, threadId: "thr_other" }, me);
   assert.equal(b.task.threadId, "thr_late", "a linked thread is never replaced");

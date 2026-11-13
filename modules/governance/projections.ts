@@ -18,11 +18,22 @@ export interface GovCtx {
   depth?: number;
   now(): number;
   db: GovDb;
-  emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
+  emit(
+    name: string,
+    subject: string,
+    payload: unknown,
+    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+  ): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
-  authorize?(action: { perm: string | null; level: string }, resource: { type: string; id: string | null }): { effect: string };
+  authorize?(
+    action: { perm: string | null; level: string },
+    resource: { type: string; id: string | null },
+  ): { effect: string };
   schedule?(at: number, cap: string, input: unknown): Promise<string>;
-  log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
+  log: {
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 export type Val = string | number | null;
@@ -41,11 +52,13 @@ export const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 export const text = (v: unknown): string => (typeof v === "string" ? v : "");
 export const strOrUndef = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
 export const str = (r: Row | null, k: string): string => (r && typeof r[k] === "string" ? (r[k] as string) : "");
-export const strOrNull = (r: Row | null, k: string): string | null => (r && typeof r[k] === "string" && r[k] !== "" ? (r[k] as string) : null);
+export const strOrNull = (r: Row | null, k: string): string | null =>
+  r && typeof r[k] === "string" && r[k] !== "" ? (r[k] as string) : null;
 export const num = (r: Row | null, k: string): number => (r && typeof r[k] === "number" ? (r[k] as number) : 0);
-export const numOrNull = (r: Row | null, k: string): number | null => (r && typeof r[k] === "number" ? (r[k] as number) : null);
+export const numOrNull = (r: Row | null, k: string): number | null =>
+  r && typeof r[k] === "number" ? (r[k] as number) : null;
 export const isInt = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v);
-export const codeOf = (err: unknown): string => ((err as { error?: { code?: string } } | null)?.error?.code ?? "");
+export const codeOf = (err: unknown): string => (err as { error?: { code?: string } } | null)?.error?.code ?? "";
 
 export function parseJson<T>(v: Val | undefined, fallback: T): T {
   if (typeof v !== "string" || v === "") return fallback;
@@ -77,18 +90,28 @@ export function keyOf(ctx: Pick<GovCtx, "trace">, input: unknown): string {
 // ---- ids and shapes
 
 export const newId = (prefix: string, now: number): string => `${prefix}_${mintUuid(now).replaceAll("-", "")}`;
-export const isId = (prefix: string, v: unknown): v is string => typeof v === "string" && new RegExp(`^${prefix}_[a-z0-9]+$`).test(v);
-export function pageOf<T>(items: readonly T[], cursor: string | undefined, limit: number | undefined): { page: T[]; next?: string; total: number } {
+export const isId = (prefix: string, v: unknown): v is string =>
+  typeof v === "string" && new RegExp(`^${prefix}_[a-z0-9]+$`).test(v);
+export function pageOf<T>(
+  items: readonly T[],
+  cursor: string | undefined,
+  limit: number | undefined,
+): { page: T[]; next?: string; total: number } {
   const start = cursor && /^\d+$/.test(cursor) ? Number(cursor) : 0;
   const size = limit ?? 100;
-  return { page: items.slice(start, start + size), ...(start + size < items.length ? { next: String(start + size) } : {}), total: items.length };
+  return {
+    page: items.slice(start, start + size),
+    ...(start + size < items.length ? { next: String(start + size) } : {}),
+    total: items.length,
+  };
 }
 
 /** page arguments, validated: a bad cursor or limit is a bad input, not a crash */
 export function paging(ctx: Pick<GovCtx, "trace">, o: Json): { cursor: string | undefined; limit: number | undefined } {
   const cursor = o["cursor"];
   const limit = o["limit"];
-  if (cursor !== undefined && (typeof cursor !== "string" || !/^\d+$/.test(cursor))) bad(ctx, "The cursor is not valid.");
+  if (cursor !== undefined && (typeof cursor !== "string" || !/^\d+$/.test(cursor)))
+    bad(ctx, "The cursor is not valid.");
   if (limit !== undefined && (!isInt(limit) || limit < 1 || limit > 500)) bad(ctx, "The limit is 1 to 500.");
   return { cursor: cursor as string | undefined, limit: limit as number | undefined };
 }
@@ -134,29 +157,71 @@ export function getState(ctx: Pick<GovCtx, "db">, key: string): string | null {
   return row && typeof row.value === "string" ? row.value : null;
 }
 export function setState(ctx: Pick<GovCtx, "db">, key: string, value: string): void {
-  if (getState(ctx, key) === null) ctx.db.run(`INSERT OR IGNORE INTO governance_state ("key", "value") VALUES (?, ?)`, key, value);
+  if (getState(ctx, key) === null)
+    ctx.db.run(`INSERT OR IGNORE INTO governance_state ("key", "value") VALUES (?, ?)`, key, value);
   else ctx.db.run(`UPDATE governance_state SET "value" = ? WHERE "key" = ?`, value, key);
 }
 
 // ---- retention definitions (a copy of manifests/governance.ts; the retention test compares the two)
 
-export const KINDS = ["trash", "run_logs", "transcripts", "audit", "file_versions", "logs", "events", "backups", "memory", "records"] as const;
+export const KINDS = [
+  "trash",
+  "run_logs",
+  "transcripts",
+  "audit",
+  "file_versions",
+  "logs",
+  "events",
+  "backups",
+  "memory",
+  "records",
+] as const;
 export type Kind = (typeof KINDS)[number];
 export const ERASE_KINDS = ["records", "files", "chats", "inbox", "mail", "calls", "memory", "runs"] as const;
 export type EraseKind = (typeof ERASE_KINDS)[number];
 export const HOLD_KINDS = ["file", "channel", "thread", "folder", "person"] as const;
 export type HoldKind = (typeof HOLD_KINDS)[number];
 
-export interface Def { key: Kind; title: string; default: string; holdable: boolean; tombstone: boolean }
+export interface Def {
+  key: Kind;
+  title: string;
+  default: string;
+  holdable: boolean;
+  tombstone: boolean;
+}
 export const DEFS: readonly Def[] = [
   { key: "trash", title: "Trash (records, files)", default: "30d", holdable: true, tombstone: false },
   { key: "run_logs", title: "Run logs and run chats", default: "90d", holdable: true, tombstone: false },
   { key: "transcripts", title: "Chat transcripts", default: "1y", holdable: true, tombstone: true },
-  { key: "audit", title: "Audit entries (then archived, never edited)", default: "2y", holdable: true, tombstone: false },
-  { key: "file_versions", title: "File versions (all for 30 days, then daily for 90 days, then monthly unless named)", default: "30d+daily90d+monthly", holdable: true, tombstone: false },
+  {
+    key: "audit",
+    title: "Audit entries (then archived, never edited)",
+    default: "2y",
+    holdable: true,
+    tombstone: false,
+  },
+  {
+    key: "file_versions",
+    title: "File versions (all for 30 days, then daily for 90 days, then monthly unless named)",
+    default: "30d+daily90d+monthly",
+    holdable: true,
+    tombstone: false,
+  },
   { key: "logs", title: "Logs (full 30 days, aggregates 180 days)", default: "30d", holdable: false, tombstone: false },
-  { key: "events", title: "Events (state-bearing forever; other payloads compacted after 30 days)", default: "forever", holdable: true, tombstone: true },
-  { key: "backups", title: "Backups (rotation per policy; an erase purges the next rotation)", default: "per_policy", holdable: false, tombstone: false },
+  {
+    key: "events",
+    title: "Events (state-bearing forever; other payloads compacted after 30 days)",
+    default: "forever",
+    holdable: true,
+    tombstone: true,
+  },
+  {
+    key: "backups",
+    title: "Backups (rotation per policy; an erase purges the next rotation)",
+    default: "per_policy",
+    holdable: false,
+    tombstone: false,
+  },
   { key: "memory", title: "Memory notes and facts", default: "forever", holdable: true, tombstone: true },
   { key: "records", title: "Records (per record type)", default: "forever", holdable: true, tombstone: true },
 ];
@@ -179,11 +244,28 @@ export function holdRow(ctx: Pick<GovCtx, "db">, kind: string, targetId: string)
 
 /** A run, started and finished through runs (kind other; the run kind named in the manifest is its name). */
 export async function startRun(ctx: GovCtx, name: string, key: string): Promise<string> {
-  const started = obj(await ctx.call("runs.start", { kind: "other", name, owner: ctx.principal.id, subject: { type: "space", id: ctx.space }, idempotencyKey: key }));
+  const started = obj(
+    await ctx.call("runs.start", {
+      kind: "other",
+      name,
+      owner: ctx.principal.id,
+      subject: { type: "space", id: ctx.space },
+      idempotencyKey: key,
+    }),
+  );
   const runId = text(started["runId"]);
   if (!isId("run", runId)) throw new Error("runs.start answered no id");
   return runId;
 }
-export async function finishRun(ctx: GovCtx, runId: string, ok: { summary: string } | { code: string; message: string }): Promise<void> {
-  await ctx.call("runs.finish", "summary" in ok ? { runId, status: "succeeded", summary: ok.summary } : { runId, status: "failed", error: { code: ok.code, message: ok.message } });
+export async function finishRun(
+  ctx: GovCtx,
+  runId: string,
+  ok: { summary: string } | { code: string; message: string },
+): Promise<void> {
+  await ctx.call(
+    "runs.finish",
+    "summary" in ok
+      ? { runId, status: "succeeded", summary: ok.summary }
+      : { runId, status: "failed", error: { code: ok.code, message: ok.message } },
+  );
 }

@@ -12,34 +12,58 @@ const TEAM = ["org", "space_ai", "workspace", "sign_in", "people", "invites", "a
 
 test("Finish setup entry: none on a brand-new Space, a true count once a step is done, gone when setup is done", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
-  if (!dist) { t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
+  if (!dist) {
+    t.skip("VYRE_APP_DIST required for production browser evidence");
+    return;
+  }
   const { chromium } = await import("playwright-core");
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
   const space = await bootFreshSpace();
   const web = await edge(dist, space.url);
   const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
-  const shots = process.env["VYRE_SETUP_CHIP_SHOTS"] ?? "/tmp/vyre-setup-chip-shots"; fs.mkdirSync(shots, { recursive: true });
+  const shots = process.env["VYRE_SETUP_CHIP_SHOTS"] ?? "/tmp/vyre-setup-chip-shots";
+  fs.mkdirSync(shots, { recursive: true });
   try {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await ctx.newPage();
     const guard = guardCrashes(page);
     await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
-    await page.getByTestId("claim-name").fill("Olivia Owner"); await page.getByTestId("claim-username").fill("olivia");
-    await page.getByTestId("claim-password").fill(PASSWORD); await page.getByTestId("claim-confirm").fill(PASSWORD);
-    await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click();
+    await page.getByTestId("claim-name").fill("Olivia Owner");
+    await page.getByTestId("claim-username").fill("olivia");
+    await page.getByTestId("claim-password").fill(PASSWORD);
+    await page.getByTestId("claim-confirm").fill(PASSWORD);
+    await page.getByTestId("claim-next").click();
+    await page.getByTestId("claim-saved").click();
+    await page.getByTestId("claim-create").click();
     await dismissOnboarding(page);
-    const token = await page.evaluate(() => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string);
-    const call = async (cap: string, data: unknown): Promise<any> => { // eslint-disable-line @typescript-eslint/no-explicit-any
-      const r = await ctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${token}` }, data });
+    const token = await page.evaluate(
+      () => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string,
+    );
+    const call = async (cap: string, data: unknown): Promise<any> => {
+      // eslint-disable-line @typescript-eslint/no-explicit-any
+      const r = await ctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, {
+        headers: { authorization: `Bearer ${token}` },
+        data,
+      });
       const body = await r.json();
       assert.equal(r.status(), 200, `${cap}: ${JSON.stringify(body).slice(0, 300)}`);
       return body.data;
     };
     const shoot = async (name: string): Promise<void> => {
       await guard.check(`before ${name}`);
-      for (const [skin, q] of [["paper", null], ["graphite", "graphite"]] as const) {
-        const u = new URL(page.url()); if (q) u.searchParams.set("skin", q); else u.searchParams.delete("skin");
-        if (q) { await page.goto(u.toString(), { waitUntil: "load" }); await page.getByTestId("shell").waitFor({ timeout: 30_000 }); await dismissOnboarding(page, { wait: 1500 }); await page.waitForTimeout(1500); }
+      for (const [skin, q] of [
+        ["paper", null],
+        ["graphite", "graphite"],
+      ] as const) {
+        const u = new URL(page.url());
+        if (q) u.searchParams.set("skin", q);
+        else u.searchParams.delete("skin");
+        if (q) {
+          await page.goto(u.toString(), { waitUntil: "load" });
+          await page.getByTestId("shell").waitFor({ timeout: 30_000 });
+          await dismissOnboarding(page, { wait: 1500 });
+          await page.waitForTimeout(1500);
+        }
         await guard.check(`${name} ${skin}`);
         await page.screenshot({ path: path.join(shots, `${name}-${skin}-1440.png`) });
       }
@@ -60,10 +84,15 @@ test("Finish setup entry: none on a brand-new Space, a true count once a step is
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
     await dismissOnboarding(page, { wait: 1500 });
     await page.getByTestId("resume-chip").waitFor({ timeout: 15_000 });
-    assert.match(await page.getByTestId("resume-open").getAttribute("aria-label") ?? "", /Finish setup, 1 of 6/, "one step done of the six");
+    assert.match(
+      (await page.getByTestId("resume-open").getAttribute("aria-label")) ?? "",
+      /Finish setup, 1 of 6/,
+      "one step done of the six",
+    );
     await shoot("setup-2-one-done");
 
-    for (const k of TEAM.slice(1)) await call("spaces.onboarding.mark", { flow: "team", step: k, state: k === "win" ? "later" : "done" });
+    for (const k of TEAM.slice(1))
+      await call("spaces.onboarding.mark", { flow: "team", step: k, state: k === "win" ? "later" : "done" });
     await page.reload({ waitUntil: "load" });
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
     await dismissOnboarding(page, { wait: 1500 });
@@ -72,5 +101,9 @@ test("Finish setup entry: none on a brand-new Space, a true count once a step is
     await shoot("setup-3-all-done");
     await guard.check("at the end");
     assert.deepEqual(guard.crashes(), [], "no crash");
-  } finally { await browser.close(); web.close(); await space.stop(); }
+  } finally {
+    await browser.close();
+    web.close();
+    await space.stop();
+  }
 });

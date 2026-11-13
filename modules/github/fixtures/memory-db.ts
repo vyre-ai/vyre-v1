@@ -6,9 +6,14 @@ import type { GithubDb } from "../projections.ts";
 
 type Val = string | number | null;
 type Row = Record<string, Val>;
-interface Table { pk: string[]; rows: Row[] }
+interface Table {
+  pk: string[];
+  rows: Row[];
+}
 
-export interface WriteLog { statements: string[] }
+export interface WriteLog {
+  statements: string[];
+}
 
 export function memoryDb(log?: WriteLog): GithubDb & { dump(): string } {
   const tables = new Map<string, Table>();
@@ -64,9 +69,12 @@ function insert(tables: Map<string, Table>, sql: string, args: unknown[]): { cha
   const table = must(tables, ident(m[2] ?? ""));
   const cols = splitCommas(m[3] ?? "").map((c) => ident(c));
   const marks = splitCommas(m[4] ?? "").map((v) => v.trim());
-  if (marks.some((v) => v !== "?") || marks.length !== args.length || cols.length !== args.length) throw new Error(`insert arity: ${sql}`);
+  if (marks.some((v) => v !== "?") || marks.length !== args.length || cols.length !== args.length)
+    throw new Error(`insert arity: ${sql}`);
   const row: Row = {};
-  cols.forEach((col, i) => { row[col] = norm(args[i]); });
+  cols.forEach((col, i) => {
+    row[col] = norm(args[i]);
+  });
   if (table.pk.length && table.rows.some((have) => table.pk.every((col) => have[col] === row[col]))) {
     if (m[1]) return { changes: 0 };
     throw new Error(`duplicate key in ${ident(m[2] ?? "")}`);
@@ -88,7 +96,9 @@ function update(tables: Map<string, Table>, sql: string, args: unknown[]): { cha
   let changes = 0;
   for (const row of table.rows) {
     if (!where.pred(row)) continue;
-    cols.forEach((col, i) => { row[col] = norm(args[i]); });
+    cols.forEach((col, i) => {
+      row[col] = norm(args[i]);
+    });
     changes++;
   }
   return { changes };
@@ -184,7 +194,10 @@ function compileWhere(src: string, args: unknown[]): { pred: (row: Row) => boole
       const col = ident(m[1] ?? "");
       const op = m[2];
       const value = Number(args[i++]);
-      preds.push((row) => { const v = Number(row[col]); return op === "<" ? v < value : op === "<=" ? v <= value : op === ">" ? v > value : v >= value; });
+      preds.push((row) => {
+        const v = Number(row[col]);
+        return op === "<" ? v < value : op === "<=" ? v <= value : op === ">" ? v > value : v >= value;
+      });
     } else if ((m = /^([\s\S]+?)\s*=\s*\?$/i.exec(t))) {
       const col = ident(m[1] ?? "");
       const value = norm(args[i++]);
@@ -231,7 +244,11 @@ function splitCommas(s: string): string[] {
   for (const c of s) {
     if (c === "(") depth++;
     else if (c === ")") depth = Math.max(0, depth - 1);
-    else if (c === "," && depth === 0) { out.push(cur); cur = ""; continue; }
+    else if (c === "," && depth === 0) {
+      out.push(cur);
+      cur = "";
+      continue;
+    }
     cur += c;
   }
   if (cur.trim()) out.push(cur);

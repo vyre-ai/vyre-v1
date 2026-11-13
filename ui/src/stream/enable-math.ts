@@ -5,5 +5,6 @@ import { setMathLoader } from "./loaders.ts";
 
 setMathLoader(async () => {
   const katex = (await import("katex")).default;
-  return async (tex, display) => katex.renderToString(tex, { displayMode: display, throwOnError: true, output: "mathml", trust: false });
+  return async (tex, display) =>
+    katex.renderToString(tex, { displayMode: display, throwOnError: true, output: "mathml", trust: false });
 });

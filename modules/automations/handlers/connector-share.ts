@@ -17,12 +17,24 @@ function actionsOf(value: unknown): { key: string; title: string }[] {
   return actions;
 }
 
-export function shareConnector(ctx: AutoCtx, input: unknown): { appName: string; actions: { key: string; title: string; level: "draft" | "tested" }[] } {
-  const row = typeof input === "object" && input !== null && !Array.isArray(input) ? input as Record<string, unknown> : {};
+export function shareConnector(
+  ctx: AutoCtx,
+  input: unknown,
+): { appName: string; actions: { key: string; title: string; level: "draft" | "tested" }[] } {
+  const row =
+    typeof input === "object" && input !== null && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
   const appName = typeof row.appName === "string" ? row.appName : "";
-  return shareTested(ctx.db as LevelDb, appName, actionsOf(row.actions), (key) => storedLevel(ctx.db as LevelDb, key) === "tested", ctx.now());
+  return shareTested(
+    ctx.db as LevelDb,
+    appName,
+    actionsOf(row.actions),
+    (key) => storedLevel(ctx.db as LevelDb, key) === "tested",
+    ctx.now(),
+  );
 }
 
-export function connectorShares(ctx: AutoCtx): { connectors: { appName: string; actions: { key: string; title: string; level: "draft" | "tested" }[] }[] } {
+export function connectorShares(ctx: AutoCtx): {
+  connectors: { appName: string; actions: { key: string; title: string; level: "draft" | "tested" }[] }[];
+} {
   return { connectors: listSharedConnectors(ctx.db as LevelDb) };
 }

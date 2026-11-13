@@ -4,7 +4,14 @@ import { skins } from "../../../../../ui/src/tokens/skins.ts";
 import type { CmdKData } from "./controller.ts";
 import type { AskAnswer, AskSource, CmdAction, Hit, HitKind } from "./model.ts";
 
-const hit = (kind: HitKind, id: string, title: string, extra: Partial<Hit> = {}): Hit => ({ kind, id, title, link: `vyre://${kind}/${id}`, score: 1, ...extra });
+const hit = (kind: HitKind, id: string, title: string, extra: Partial<Hit> = {}): Hit => ({
+  kind,
+  id,
+  title,
+  link: `vyre://${kind}/${id}`,
+  score: 1,
+  ...extra,
+});
 
 export const LOCAL_HITS: readonly Hit[] = [
   hit("agent", "ag_intake", "Intake", { snippet: "Intake agent, answers new enquiries", score: 0.9 }),
@@ -13,7 +20,10 @@ export const LOCAL_HITS: readonly Hit[] = [
   hit("person", "pe_maya", "Maya Chen", { snippet: "Northwind, partner", score: 0.9 }),
   hit("person", "pe_omar", "Omar Haddad", { snippet: "Harbor Legal", score: 0.8 }),
   hit("person", "pe_lena", "Lena Voss", { snippet: "Voss & Park", score: 0.8 }),
-  hit("chat", "ch_ref", "Referral questions", { snippet: "Intake: which referral source counts for the fee split?", score: 0.9 }),
+  hit("chat", "ch_ref", "Referral questions", {
+    snippet: "Intake: which referral source counts for the fee split?",
+    score: 0.9,
+  }),
   hit("chat", "ch_renew", "Harbor Legal renewal", { snippet: "Docs: renewal letter is ready for review", score: 0.7 }),
   hit("record", "rec_reflog", "Referral fee log", { snippet: "Record, 41 rows, updated today", score: 0.9 }),
   hit("record", "rec_northwind", "Northwind intake", { snippet: "Matter, open", score: 0.7 }),
@@ -27,10 +37,20 @@ export const LOCAL_HITS: readonly Hit[] = [
 
 /** Shared content the device may not hold yet. */
 export const SERVER_HITS: readonly Hit[] = [
-  hit("file", "fi_refpolicy", "Referral policy 2026.docx", { path: "Firm / Policies", snippet: "Referral fees follow the state bar rule", score: 0.95 }),
-  hit("record", "rec_refpartner", "Referral partners", { snippet: "Record, 18 rows, shared with Marketing", score: 0.85 }),
+  hit("file", "fi_refpolicy", "Referral policy 2026.docx", {
+    path: "Firm / Policies",
+    snippet: "Referral fees follow the state bar rule",
+    score: 0.95,
+  }),
+  hit("record", "rec_refpartner", "Referral partners", {
+    snippet: "Record, 18 rows, shared with Marketing",
+    score: 0.85,
+  }),
   hit("channel", "cn_refer", "#referrals", { snippet: "Channel: partner introductions", score: 0.8 }),
-  hit("record", "rec_reflog", "Referral fee log", { snippet: "Record, 41 rows, updated today: Q3 fee splits", score: 0.9 }),
+  hit("record", "rec_reflog", "Referral fee log", {
+    snippet: "Record, 41 rows, updated today: Q3 fee splits",
+    score: 0.9,
+  }),
 ];
 
 export const ACTIONS: readonly CmdAction[] = [
@@ -41,14 +61,23 @@ export const ACTIONS: readonly CmdAction[] = [
   { key: "network.offline", title: "Go offline", icon: "x" },
 ];
 
-const has = (h: Hit, q: string): boolean => `${h.title} ${h.snippet ?? ""} ${h.path ?? ""}`.toLowerCase().includes(q.toLowerCase());
+const has = (h: Hit, q: string): boolean =>
+  `${h.title} ${h.snippet ?? ""} ${h.path ?? ""}`.toLowerCase().includes(q.toLowerCase());
 
-const src = (n: number, kind: HitKind, id: string, title: string, where: string, extra: Partial<Hit> = {}): AskSource => ({ n, where, ...hit(kind, id, title, extra) });
+const src = (
+  n: number,
+  kind: HitKind,
+  id: string,
+  title: string,
+  where: string,
+  extra: Partial<Hit> = {},
+): AskSource => ({ n, where, ...hit(kind, id, title, extra) });
 
 /** The answer behind the Ask the Space scenes: Elena and the lease, four sources a person may read. */
 export const SAMPLE_ANSWER: AskAnswer = {
   state: "answered",
-  answer: "Elena asked for the lease documents by Thursday [1]. Intake booked her consult for Thursday at 10:00 [2], and the engagement letter is drafted and waits for her signature [3]. The project is in Drafting, due 14 Nov [4].",
+  answer:
+    "Elena asked for the lease documents by Thursday [1]. Intake booked her consult for Thursday at 10:00 [2], and the engagement letter is drafted and waits for her signature [3]. The project is in Drafting, due 14 Nov [4].",
   sources: [
     src(1, "inbox", "ib_lease", "Lease documents for Thursday", "Inbox", { snippet: "Elena Rivera, 2 Nov" }),
     src(2, "inbox", "ib_consult", "Rivera consult", "Meeting", { snippet: "Thursday 10:00, with Intake" }),
@@ -58,7 +87,13 @@ export const SAMPLE_ANSWER: AskAnswer = {
   cited: [1, 2, 3, 4],
   account: { title: "Claude", mine: true },
 };
-export const SAMPLE_NO_ACCESS: AskAnswer = { state: "no_access", answer: "I can't see anything about that you can read.", sources: [], cited: [], account: { title: "Claude", mine: true } };
+export const SAMPLE_NO_ACCESS: AskAnswer = {
+  state: "no_access",
+  answer: "I can't see anything about that you can read.",
+  sources: [],
+  cited: [],
+  account: { title: "Claude", mine: true },
+};
 
 export interface SampleOptions {
   /** Ask the Space on (the default answer, or your own). Left out: the search offers no Ask row. */
@@ -84,7 +119,17 @@ export interface SampleCalls {
 }
 
 export function createSampleData(opts: SampleOptions = {}): { data: CmdKData; calls: SampleCalls } {
-  const calls: SampleCalls = { previews: [], setSkins: [], opened: [], copied: [], ran: [], recorded: [], asked: [], answerCopied: [], chats: [] };
+  const calls: SampleCalls = {
+    previews: [],
+    setSkins: [],
+    opened: [],
+    copied: [],
+    ran: [],
+    recorded: [],
+    asked: [],
+    answerCopied: [],
+    chats: [],
+  };
   const local = opts.local ?? LOCAL_HITS;
   const server = opts.server ?? SERVER_HITS;
   const data: CmdKData = {
@@ -92,24 +137,49 @@ export function createSampleData(opts: SampleOptions = {}): { data: CmdKData; ca
     scope: () => opts.scope ?? "space",
     online: () => opts.online ?? true,
     local: (text, types) => local.filter((h) => (!types || types.includes(h.kind)) && (text === "" || has(h, text))),
-    server: (text, types) => new Promise((resolve) => {
-      setTimeout(() => resolve(server.filter((h) => (!types || types.includes(h.kind)) && (text === "" || has(h, text)))), opts.serverDelayMs ?? 120);
-    }),
+    server: (text, types) =>
+      new Promise((resolve) => {
+        setTimeout(
+          () => resolve(server.filter((h) => (!types || types.includes(h.kind)) && (text === "" || has(h, text)))),
+          opts.serverDelayMs ?? 120,
+        );
+      }),
     recent: () => [local[6] as Hit, local[3] as Hit, local[10] as Hit, local[0] as Hit],
     actions: (text) => ACTIONS.filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),
     skins: () => skins.map((s) => ({ id: s.id, name: s.name, swatch: s.palette.accent })),
     currentSkin: () => opts.skin ?? "paper",
-    previewSkin: (id) => { calls.previews.push(id); },
-    setSkin: (id) => { calls.setSkins.push(id); },
-    open: (h, o) => { calls.opened.push({ id: h.id, newTab: o.newTab }); },
-    copyLink: (h) => { calls.copied.push(h.link); },
-    runAction: (a) => { calls.ran.push(a.key); },
-    recordOpened: (h) => { calls.recorded.push(h.id); },
-    ...(opts.ask ? {
-      ask: (q: string) => { calls.asked.push(q); return typeof opts.ask === "function" ? opts.ask(q) : Promise.resolve(SAMPLE_ANSWER); },
-      copyText: (t: string) => { calls.answerCopied.push(t); },
-      continueInChat: (c: { question: string; answer: string }) => { calls.chats.push(c); },
-    } : {}),
+    previewSkin: (id) => {
+      calls.previews.push(id);
+    },
+    setSkin: (id) => {
+      calls.setSkins.push(id);
+    },
+    open: (h, o) => {
+      calls.opened.push({ id: h.id, newTab: o.newTab });
+    },
+    copyLink: (h) => {
+      calls.copied.push(h.link);
+    },
+    runAction: (a) => {
+      calls.ran.push(a.key);
+    },
+    recordOpened: (h) => {
+      calls.recorded.push(h.id);
+    },
+    ...(opts.ask
+      ? {
+          ask: (q: string) => {
+            calls.asked.push(q);
+            return typeof opts.ask === "function" ? opts.ask(q) : Promise.resolve(SAMPLE_ANSWER);
+          },
+          copyText: (t: string) => {
+            calls.answerCopied.push(t);
+          },
+          continueInChat: (c: { question: string; answer: string }) => {
+            calls.chats.push(c);
+          },
+        }
+      : {}),
   };
   return { data, calls };
 }

@@ -16,7 +16,10 @@ function world(t, o = {}) {
   forgetUnclaimed();
   const asked = /** @type {string[]} */ ([]);
   const rt = createRuntime({
-    worker, Class: W.RouteRelay, classes: { TICKETS: W.PairTicket, CODES: W.CodeSlot, SIGNIN: W.SigninSlot, HOSTS: W.HostSlot }, hibernateEveryEvent: o.hibernateEveryEvent,
+    worker,
+    Class: W.RouteRelay,
+    classes: { TICKETS: W.PairTicket, CODES: W.CodeSlot, SIGNIN: W.SigninSlot, HOSTS: W.HostSlot },
+    hibernateEveryEvent: o.hibernateEveryEvent,
     env: {
       NAMES_FETCH: async (/** @type {string} */ u) => {
         const name = new URL(u).searchParams.get("name") || "";
@@ -32,54 +35,108 @@ function world(t, o = {}) {
         const v = label.startsWith("zz-") ? false : (o.dns || (() => false))(label);
         if (v instanceof Error) throw v;
         // with the proxied wildcard in place every name, claimed or not, gets the zone's proxy addresses; only a host with an address of its own differs
-        const proxied = o.wildcard === false ? [] : [{ name: q, type: 1, data: "104.21.25.72" }, { name: q, type: 1, data: "172.67.223.243" }];
-        return new Response(JSON.stringify({ Status: 0, ...(v ? { Answer: [{ name: q, type: 1, data: "203.0.113.9" }] } : proxied.length ? { Answer: proxied } : {}) }), { status: 200 });
+        const proxied =
+          o.wildcard === false
+            ? []
+            : [
+                { name: q, type: 1, data: "104.21.25.72" },
+                { name: q, type: 1, data: "172.67.223.243" },
+              ];
+        return new Response(
+          JSON.stringify({
+            Status: 0,
+            ...(v
+              ? { Answer: [{ name: q, type: 1, data: "203.0.113.9" }] }
+              : proxied.length
+                ? { Answer: proxied }
+                : {}),
+          }),
+          { status: 200 },
+        );
       },
       // the host's own origin, for names no route holds
-      ORIGIN_FETCH: async (/** @type {Request} */ r) => new Response(`origin of ${new URL(r.url).hostname}`, { status: r.url.includes("down.") ? 522 : 200 }),
-      ASSETS: { fetch: async (/** @type {Request} */ r) => {
-        const p = new URL(r.url).pathname;
-        return p === "/__vyre/boot.js" ? new Response("boot()", { headers: { "content-type": "text/javascript" } }) : p === "/__vyre/sw.js" ? new Response("sw()", { headers: { "content-type": "application/octet-stream" } }) : new Response(null, { status: 404 });
-      } },
+      ORIGIN_FETCH: async (/** @type {Request} */ r) =>
+        new Response(`origin of ${new URL(r.url).hostname}`, { status: r.url.includes("down.") ? 522 : 200 }),
+      ASSETS: {
+        fetch: async (/** @type {Request} */ r) => {
+          const p = new URL(r.url).pathname;
+          return p === "/__vyre/boot.js"
+            ? new Response("boot()", { headers: { "content-type": "text/javascript" } })
+            : p === "/__vyre/sw.js"
+              ? new Response("sw()", { headers: { "content-type": "application/octet-stream" } })
+              : new Response(null, { status: 404 });
+        },
+      },
     },
   });
-  t.after(async () => { await rt.settle(); assert.deepEqual(rt.errors.map(String), [], "no errors inside the Worker"); });
+  t.after(async () => {
+    await rt.settle();
+    assert.deepEqual(rt.errors.map(String), [], "no errors inside the Worker");
+  });
   return Object.assign(rt, { asked });
 }
 
 function sock(rt, path) {
   const ws = new rt.WebSocket(`ws://relay.test${path}`);
   ws.binaryType = "arraybuffer";
-  const queue = [], waiters = [];
-  ws.onmessage = e => { const v = typeof e.data === "string" ? e.data : Buffer.from(e.data); const w = waiters.shift(); w ? w(v) : queue.push(v); };
+  const queue = [],
+    waiters = [];
+  ws.onmessage = (e) => {
+    const v = typeof e.data === "string" ? e.data : Buffer.from(e.data);
+    const w = waiters.shift();
+    w ? w(v) : queue.push(v);
+  };
   return {
     ws,
-    open: () => new Promise((res, rej) => { ws.onopen = () => res(undefined); ws.onerror = rej; }),
-    next: () => queue.length ? Promise.resolve(queue.shift()) : new Promise(res => waiters.push(res)),
-    json: async function () { return JSON.parse(String(await this.next())); },
+    open: () =>
+      new Promise((res, rej) => {
+        ws.onopen = () => res(undefined);
+        ws.onerror = rej;
+      }),
+    next: () => (queue.length ? Promise.resolve(queue.shift()) : new Promise((res) => waiters.push(res))),
+    json: async function () {
+      return JSON.parse(String(await this.next()));
+    },
   };
 }
 
 /** A box that has signed its route and been told it is ready. */
 async function box(rt) {
-  const key = newRouteKey(), route = routeId(key.pub);
+  const key = newRouteKey(),
+    route = routeId(key.pub);
   const s = sock(rt, `/v1/box?route=${route}`);
   await s.open();
   const ch = await s.json();
-  s.ws.send(JSON.stringify({ t: "auth", pub: key.pub.toString("base64url"), sig: signRoute(key.priv, authMessage(route, Buffer.from(ch.n, "base64url"))).toString("base64url") }));
+  s.ws.send(
+    JSON.stringify({
+      t: "auth",
+      pub: key.pub.toString("base64url"),
+      sig: signRoute(key.priv, authMessage(route, Buffer.from(ch.n, "base64url"))).toString("base64url"),
+    }),
+  );
   assert.equal((await s.json()).t, "ready");
-  const say = async (/** @type {any} */ m) => { s.ws.send(JSON.stringify(m)); return s.json(); };
+  const say = async (/** @type {any} */ m) => {
+    s.ws.send(JSON.stringify(m));
+    return s.json();
+  };
   return { s, route, say, close: () => s.ws.close(1000, "bye") };
 }
 
 for (const hibernateEveryEvent of [false, true]) {
   const mode = hibernateEveryEvent ? " (hibernating after every event)" : "";
 
-  test(`a box claims a name once, and only its own route can hold it${mode}`, async t => {
+  test(`a box claims a name once, and only its own route can hold it${mode}`, async (t) => {
     const rt = world(t, { hibernateEveryEvent });
-    const a = await box(rt), b = await box(rt);
+    const a = await box(rt),
+      b = await box(rt);
     assert.deepEqual(await a.say({ t: "host.status" }), { t: "host", op: "status", status: "none" });
-    assert.deepEqual(await a.say({ t: "host.claim", name: "alex-phone", label: "Home laptop" }), { t: "host", op: "claim", status: "claimed", name: "alex-phone", label: "Home laptop" });
+    assert.deepEqual(await a.say({ t: "host.claim", name: "alex-phone", label: "Home laptop" }), {
+      t: "host",
+      op: "claim",
+      status: "claimed",
+      name: "alex-phone",
+      label: "Home laptop",
+    });
     assert.deepEqual(rt.asked, ["alex-phone"]);
     // the same route says it again: still its own, the directory is not asked twice
     assert.equal((await a.say({ t: "host.claim", name: "alex-phone", label: "Home laptop" })).status, "claimed");
@@ -89,12 +146,18 @@ for (const hibernateEveryEvent of [false, true]) {
     assert.equal((await b.say({ t: "host.claim", name: "alex-phone" })).status, "taken");
     assert.deepEqual(rt.asked, ["alex-phone"]);
     // one name per route until it is released
-    assert.deepEqual(await a.say({ t: "host.claim", name: "other-name" }), { t: "host", op: "claim", status: "has_name", name: "alex-phone" });
+    assert.deepEqual(await a.say({ t: "host.claim", name: "other-name" }), {
+      t: "host",
+      op: "claim",
+      status: "has_name",
+      name: "alex-phone",
+    });
   });
 
-  test(`a released name is a tombstone: only the route that held it can take it back${mode}`, async t => {
+  test(`a released name is a tombstone: only the route that held it can take it back${mode}`, async (t) => {
     const rt = world(t, { hibernateEveryEvent });
-    const a = await box(rt), b = await box(rt);
+    const a = await box(rt),
+      b = await box(rt);
     await a.say({ t: "host.claim", name: "alex-phone", label: "Home laptop" });
     assert.equal((await a.say({ t: "host.release" })).status, "released");
     assert.equal((await a.say({ t: "host.status" })).status, "none");
@@ -108,25 +171,29 @@ for (const hibernateEveryEvent of [false, true]) {
   });
 }
 
-test("the names directory decides a new name: taken, reserved, invalid and silent all refuse", async t => {
-  const rt = world(t, { names: n => n === "taken-one" ? "taken" : n === "reserved-one" ? "reserved" : n === "silent-one" ? new Error("down") : "ok" });
+test("the names directory decides a new name: taken, reserved, invalid and silent all refuse", async (t) => {
+  const rt = world(t, {
+    names: (n) =>
+      n === "taken-one" ? "taken" : n === "reserved-one" ? "reserved" : n === "silent-one" ? new Error("down") : "ok",
+  });
   const a = await box(rt);
   assert.equal((await a.say({ t: "host.claim", name: "taken-one" })).status, "taken");
   assert.equal((await a.say({ t: "host.claim", name: "reserved-one" })).status, "reserved");
   assert.equal((await a.say({ t: "host.claim", name: "silent-one" })).status, "unavailable", "fails closed");
-  for (const bad of ["a", "Bad Name", "-lead", "relay", "names", "x".repeat(40), "emoji-\u{1F600}"]) assert.equal((await a.say({ t: "host.claim", name: bad })).status, "invalid", bad);
+  for (const bad of ["a", "Bad Name", "-lead", "relay", "names", "x".repeat(40), "emoji-\u{1F600}"])
+    assert.equal((await a.say({ t: "host.claim", name: bad })).status, "invalid", bad);
   assert.equal((await a.say({ t: "host.status" })).status, "none", "nothing was kept");
   assert.equal((await a.say({ t: "host.claim", name: "fine-one" })).status, "claimed");
 });
 
-test("a route claims at most ten times a day", async t => {
+test("a route claims at most ten times a day", async (t) => {
   const rt = world(t, { names: () => "taken" });
   const a = await box(rt);
   for (let i = 0; i < 10; i++) assert.equal((await a.say({ t: "host.claim", name: `try-${i}-name` })).status, "taken");
   assert.equal((await a.say({ t: "host.claim", name: "try-last-name" })).status, "limited");
 });
 
-test("the gateway: the shell while the box is online, '<nickname> is asleep' while it is not", async t => {
+test("the gateway: the shell while the box is online, '<nickname> is asleep' while it is not", async (t) => {
   const rt = world(t);
   const a = await box(rt);
   await a.say({ t: "host.claim", name: "alex-phone", label: "Home <laptop> ‮" });
@@ -141,7 +208,14 @@ test("the gateway: the shell while the box is online, '<nickname> is asleep' whi
   assert.match(csp, /connect-src 'self' wss:\/\/relay\.vyre\.run/);
   assert.equal(shell.headers.get("cache-control"), "no-store");
   const info = await (await rt.fetch("https://alex-phone.vyre.run/__vyre/info.json")).json();
-  assert.deepEqual(info, { name: "alex-phone", label: "Home <laptop>", route: a.route, relay: "wss://relay.vyre.run", online: true, hooks: true });
+  assert.deepEqual(info, {
+    name: "alex-phone",
+    label: "Home <laptop>",
+    route: a.route,
+    relay: "wss://relay.vyre.run",
+    online: true,
+    hooks: true,
+  });
   // assets: found, the service worker may scope the origin, a missing file is a plain 404, and a write is refused
   assert.equal(await (await rt.fetch("https://alex-phone.vyre.run/__vyre/boot.js")).text(), "boot()");
   const sw = await rt.fetch("https://alex-phone.vyre.run/__vyre/sw.js");
@@ -158,48 +232,75 @@ test("the gateway: the shell while the box is online, '<nickname> is asleep' whi
   assert.equal((await (await rt.fetch("https://alex-phone.vyre.run/__vyre/info.json")).json()).online, false);
 });
 
-test("the gateway leaves every host no route holds alone: the request goes to its own origin untouched", async t => {
+test("the gateway leaves every host no route holds alone: the request goes to its own origin untouched", async (t) => {
   const rt = world(t);
   assert.equal((await rt.fetch("https://relay.vyre.run/health")).status, 200);
   assert.equal((await rt.fetch("http://relay.test/health")).status, 200);
   // a download bucket, a site, a tunnel: no HostSlot, so the origin answers, and the second look is the cache's
-  for (const host of ["dl", "www", "prototype", "tracker", "nobody-here"]) assert.equal(await (await rt.fetch(`https://${host}.vyre.run/some/file?x=1`)).text(), `origin of ${host}.vyre.run`, host);
+  for (const host of ["dl", "www", "prototype", "tracker", "nobody-here"])
+    assert.equal(
+      await (await rt.fetch(`https://${host}.vyre.run/some/file?x=1`)).text(),
+      `origin of ${host}.vyre.run`,
+      host,
+    );
   assert.equal(await (await rt.fetch("https://dl.vyre.run/again")).text(), "origin of dl.vyre.run");
   // the shell's paths on a host nobody holds are the host's own too (another Worker's custom domain can have its own /__vyre/)
-  assert.equal(await (await rt.fetch("https://nobody-here.vyre.run/__vyre/boot.js")).text(), "origin of nobody-here.vyre.run");
+  assert.equal(
+    await (await rt.fetch("https://nobody-here.vyre.run/__vyre/boot.js")).text(),
+    "origin of nobody-here.vyre.run",
+  );
   // a Cloudflare error from the origin is a name nobody holds
   assert.equal((await rt.fetch("https://down.vyre.run/")).status, 404);
   // a failing lookup never takes a host down: the origin answers
-  rt.env.HOSTS = { idFromName: () => { throw new Error("boom"); }, get: () => { throw new Error("boom"); } };
+  rt.env.HOSTS = {
+    idFromName: () => {
+      throw new Error("boom");
+    },
+    get: () => {
+      throw new Error("boom");
+    },
+  };
   assert.equal(await (await rt.fetch("https://dl-other.vyre.run/")).text(), "origin of dl-other.vyre.run");
   // two labels deep is not a phone address, and not ours
   assert.equal(await (await rt.fetch("https://a.b-name.vyre.run/")).text(), "origin of a.b-name.vyre.run");
 });
 
-test("a claim never takes a host that already has an address of its own, with or without the proxied wildcard", async t => {
+test("a claim never takes a host that already has an address of its own, with or without the proxied wildcard", async (t) => {
   for (const wildcard of [true, false]) {
-  const rt = world(t, { wildcard, dns: n => n === "docs-site" || n === "dns-down" ? (n === "dns-down" ? new Error("down") : true) : false });
-  const a = await box(rt);
-  assert.equal((await a.say({ t: "host.claim", name: "docs-site" })).status, "taken");
-  assert.equal((await a.say({ t: "host.claim", name: "dns-down" })).status, "unavailable");
-  for (const n of ["dl", "prototype", "tracker", "www", "tess"]) assert.equal((await a.say({ t: "host.claim", name: n })).status, "invalid", n);
-  assert.equal((await a.say({ t: "host.claim", name: "free-name" })).status, "claimed", "a name that only gets the wildcard's answer is free");
+    const rt = world(t, {
+      wildcard,
+      dns: (n) => (n === "docs-site" || n === "dns-down" ? (n === "dns-down" ? new Error("down") : true) : false),
+    });
+    const a = await box(rt);
+    assert.equal((await a.say({ t: "host.claim", name: "docs-site" })).status, "taken");
+    assert.equal((await a.say({ t: "host.claim", name: "dns-down" })).status, "unavailable");
+    for (const n of ["dl", "prototype", "tracker", "www", "tess"])
+      assert.equal((await a.say({ t: "host.claim", name: n })).status, "invalid", n);
+    assert.equal(
+      (await a.say({ t: "host.claim", name: "free-name" })).status,
+      "claimed",
+      "a name that only gets the wildcard's answer is free",
+    );
   }
 });
 
-test("a staging Worker serves one named host so the whole path runs without the wildcard", async t => {
+test("a staging Worker serves one named host so the whole path runs without the wildcard", async (t) => {
   const rt = world(t);
   rt.env.STAGE_HOST = "phone-stage.vyre.run";
   rt.env.STAGE_NAME = "stage-phone";
   const a = await box(rt);
   await a.say({ t: "host.claim", name: "stage-phone", label: "Stage box" });
   assert.equal((await rt.fetch("https://phone-stage.vyre.run/")).status, 200);
-  assert.equal((await rt.fetch("https://phone-stage.vyre.run/health")).status, 200, "the staging host is the relay's too");
+  assert.equal(
+    (await rt.fetch("https://phone-stage.vyre.run/health")).status,
+    200,
+    "the staging host is the relay's too",
+  );
   assert.equal((await rt.fetch("https://phone-stage.vyre.run/__vyre/nope")).status, 404);
   assert.equal((await rt.fetch("https://stage-phone.vyre.run/")).status, 404, "only the staging host answers there");
 });
 
-test("a label the deploy fenced from the zone is never a phone name: no claim, and the gateway hands it on", async t => {
+test("a label the deploy fenced from the zone is never a phone name: no claim, and the gateway hands it on", async (t) => {
   const rt = world(t);
   rt.env.FENCE_HOSTS = "newhost, status-page";
   const a = await box(rt);
@@ -217,14 +318,31 @@ async function publicBox(t, rt, name, answer) {
   assert.equal((await b.say({ t: "host.claim", name, label: "Harbor" })).status, "claimed");
   const asked = [];
   const bodies = new Map();
-  const pump = () => b.s.next().then(v => {
-    const m = JSON.parse(String(v));
-    if (m.t === "p.req") { asked.push(m); bodies.set(m.id, []); if (!m.more) answer(m, Buffer.alloc(0), b.s.ws); }
-    if (m.t === "p.body") { bodies.get(m.id).push(Buffer.from(m.b, "base64")); if (m.end) answer(asked.find(a => a.id === m.id), Buffer.concat(bodies.get(m.id)), b.s.ws); }
-    return pump();
-  });
+  const pump = () =>
+    b.s.next().then((v) => {
+      const m = JSON.parse(String(v));
+      if (m.t === "p.req") {
+        asked.push(m);
+        bodies.set(m.id, []);
+        if (!m.more) answer(m, Buffer.alloc(0), b.s.ws);
+      }
+      if (m.t === "p.body") {
+        bodies.get(m.id).push(Buffer.from(m.b, "base64"));
+        if (m.end)
+          answer(
+            asked.find((a) => a.id === m.id),
+            Buffer.concat(bodies.get(m.id)),
+            b.s.ws,
+          );
+      }
+      return pump();
+    });
   void pump();
-  t.after(() => { try { b.close(); } catch {} });
+  t.after(() => {
+    try {
+      b.close();
+    } catch {}
+  });
   return { asked, box: b.s };
 }
 const call = (rt, url, init) => worker.fetch(new Request(url, init), rt.env);
@@ -235,7 +353,7 @@ const reply = (ws, m, status, headers, text = "") => {
 };
 const SANDBOX = "sandbox allow-scripts allow-forms allow-popups allow-downloads";
 
-test("a claimed name serves the shell on GET and refuses POST everywhere but /p/: why a bare /f/slug link cannot work on a phone address", async t => {
+test("a claimed name serves the shell on GET and refuses POST everywhere but /p/: why a bare /f/slug link cannot work on a phone address", async (t) => {
   const rt = world(t);
   await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, { "content-type": "text/plain" }, "from the box"));
   const page = await call(rt, "https://harbor.vyre.run/f/quote");
@@ -246,20 +364,56 @@ test("a claimed name serves the shell on GET and refuses POST everywhere but /p/
   assert.equal(await reached.text(), "from the box");
 });
 
-test("/p/: Cookie and Authorization never reach the box; Set-Cookie and origin-wide headers never leave; the page is sandboxed, without allow-same-origin", async t => {
+test("/p/: Cookie and Authorization never reach the box; Set-Cookie and origin-wide headers never leave; the page is sandboxed, without allow-same-origin", async (t) => {
   const rt = world(t);
-  const { asked } = await publicBox(t, rt, "harbor", (m, body, ws) => reply(ws, m, 200, {
-    "content-type": "text/html", "set-cookie": "s=1", "clear-site-data": "\"storage\"", "strict-transport-security": "max-age=9", nel: "{}", "report-to": "{}", link: "</x>; rel=preload",
-    "service-worker-allowed": "/", "access-control-allow-credentials": "true", "content-security-policy": "default-src *",
-  }, `got ${body.length}`));
-  const res = await call(rt, "https://harbor.vyre.run/p/forms/quote?t=abc", { method: "POST", body: "hello", headers: { cookie: "a=1", authorization: "Bearer zzz", "content-type": "application/json", "x-vyre-trace": "x", "cf-connecting-ip": "203.0.113.7" } });
+  const { asked } = await publicBox(t, rt, "harbor", (m, body, ws) =>
+    reply(
+      ws,
+      m,
+      200,
+      {
+        "content-type": "text/html",
+        "set-cookie": "s=1",
+        "clear-site-data": '"storage"',
+        "strict-transport-security": "max-age=9",
+        nel: "{}",
+        "report-to": "{}",
+        link: "</x>; rel=preload",
+        "service-worker-allowed": "/",
+        "access-control-allow-credentials": "true",
+        "content-security-policy": "default-src *",
+      },
+      `got ${body.length}`,
+    ),
+  );
+  const res = await call(rt, "https://harbor.vyre.run/p/forms/quote?t=abc", {
+    method: "POST",
+    body: "hello",
+    headers: {
+      cookie: "a=1",
+      authorization: "Bearer zzz",
+      "content-type": "application/json",
+      "x-vyre-trace": "x",
+      "cf-connecting-ip": "203.0.113.7",
+    },
+  });
   assert.equal(await res.text(), "got 5");
   const m = asked[0];
   assert.equal(m.method, "POST");
   assert.equal(m.path, "/p/forms/quote?t=abc");
   assert.equal(m.ip, "203.0.113.7");
   assert.deepEqual(m.headers, { "content-type": "application/json" });
-  for (const h of ["set-cookie", "clear-site-data", "strict-transport-security", "nel", "report-to", "link", "service-worker-allowed", "access-control-allow-credentials"]) assert.equal(res.headers.get(h), null, h);
+  for (const h of [
+    "set-cookie",
+    "clear-site-data",
+    "strict-transport-security",
+    "nel",
+    "report-to",
+    "link",
+    "service-worker-allowed",
+    "access-control-allow-credentials",
+  ])
+    assert.equal(res.headers.get(h), null, h);
   const policy = res.headers.get("content-security-policy");
   assert.match(policy, /default-src \*/, "the page's own policy stays");
   assert.ok(policy.includes(SANDBOX), "and the sandbox is added to it");
@@ -268,30 +422,62 @@ test("/p/: Cookie and Authorization never reach the box; Set-Cookie and origin-w
   assert.equal(res.headers.get("access-control-allow-origin"), "*");
 });
 
-test("/p/: a preflight is answered here, a redirect never lands on the app, other methods are refused, and HEAD has no body", async t => {
+test("/p/: a preflight is answered here, a redirect never lands on the app, other methods are refused, and HEAD has no body", async (t) => {
   const rt = world(t);
-  const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, m.path.includes("away") ? 302 : 200, m.path.includes("app") ? { location: "/__vyre/info.json" } : m.path.includes("away") ? { location: "https://example.com/x" } : m.path.includes("in") ? { location: "/p/site/next" } : {}, "body"));
+  const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) =>
+    reply(
+      ws,
+      m,
+      m.path.includes("away") ? 302 : 200,
+      m.path.includes("app")
+        ? { location: "/__vyre/info.json" }
+        : m.path.includes("away")
+          ? { location: "https://example.com/x" }
+          : m.path.includes("in")
+            ? { location: "/p/site/next" }
+            : {},
+      "body",
+    ),
+  );
   const pre = await call(rt, "https://harbor.vyre.run/p/forms/quote", { method: "OPTIONS" });
   assert.equal(pre.status, 204);
   assert.match(pre.headers.get("access-control-allow-methods"), /POST/);
   assert.equal(asked.length, 0);
   assert.equal((await call(rt, "https://harbor.vyre.run/p/x", { method: "DELETE" })).status, 405);
-  assert.equal((await call(rt, "https://harbor.vyre.run/p/away-app")).headers.get("location"), null, "an address on the app is dropped");
+  assert.equal(
+    (await call(rt, "https://harbor.vyre.run/p/away-app")).headers.get("location"),
+    null,
+    "an address on the app is dropped",
+  );
   assert.equal((await call(rt, "https://harbor.vyre.run/p/away")).headers.get("location"), "https://example.com/x");
   assert.equal(await (await call(rt, "https://harbor.vyre.run/p/x", { method: "HEAD" })).text(), "");
 });
 
-test("/p/: a body over the limit is refused, the rate limit holds, the kill switch answers 451, and an offline Space gets a clear page in the same sandbox", async t => {
+test("/p/: a body over the limit is refused, the rate limit holds, the kill switch answers 451, and an offline Space gets a clear page in the same sandbox", async (t) => {
   const rt = world(t);
   rt.env.P_BLOCKED = "harbor/bad, other";
   const { box, asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, {}, "ok"));
-  assert.equal((await call(rt, "https://harbor.vyre.run/p/x", { method: "POST", body: "x", headers: { "content-length": String(W.PUBLIC.maxBody + 1) } })).status, 413);
+  assert.equal(
+    (
+      await call(rt, "https://harbor.vyre.run/p/x", {
+        method: "POST",
+        body: "x",
+        headers: { "content-length": String(W.PUBLIC.maxBody + 1) },
+      })
+    ).status,
+    413,
+  );
   const taken = await call(rt, "https://harbor.vyre.run/p/bad/page");
   assert.equal(taken.status, 451);
   assert.ok(taken.headers.get("content-security-policy").includes(SANDBOX));
   assert.equal(asked.length, 0);
   let limited = 0;
-  for (let i = 0; i < W.PUBLIC.ipPerMinute + 2; i++) if ((await call(rt, "https://harbor.vyre.run/p/x", { headers: { "cf-connecting-ip": "198.51.100.1" } })).status === 429) limited++;
+  for (let i = 0; i < W.PUBLIC.ipPerMinute + 2; i++)
+    if (
+      (await call(rt, "https://harbor.vyre.run/p/x", { headers: { "cf-connecting-ip": "198.51.100.1" } })).status ===
+      429
+    )
+      limited++;
   assert.equal(limited, 2);
   box.ws.close();
   await rt.settle();
@@ -301,48 +487,100 @@ test("/p/: a body over the limit is refused, the rate limit holds, the kill swit
   assert.ok(off.headers.get("content-security-policy").includes(SANDBOX));
 });
 
-test("/p/: a response over one chunk streams back whole", async t => {
+test("/p/: a response over one chunk streams back whole", async (t) => {
   const rt = world(t);
   const big = "z".repeat(1 << 20);
   await publicBox(t, rt, "harbor", (m, _b, ws) => {
     ws.send(JSON.stringify({ t: "p.res", id: m.id, status: 200, headers: { "content-type": "text/plain" } }));
-    for (let at = 0; at < big.length; at += W.PUBLIC.chunk) ws.send(JSON.stringify({ t: "p.data", id: m.id, b: Buffer.from(big.slice(at, at + W.PUBLIC.chunk)).toString("base64") }));
+    for (let at = 0; at < big.length; at += W.PUBLIC.chunk)
+      ws.send(
+        JSON.stringify({
+          t: "p.data",
+          id: m.id,
+          b: Buffer.from(big.slice(at, at + W.PUBLIC.chunk)).toString("base64"),
+        }),
+      );
     ws.send(JSON.stringify({ t: "p.end", id: m.id }));
   });
   assert.equal((await (await call(rt, "https://harbor.vyre.run/p/x")).text()).length, big.length);
 });
 
-test("/a/: a plain artifact address opens the app; an address with a token in it is gone, and reaches nothing but the shell", async t => {
+test("/a/: a plain artifact address opens the app; an address with a token in it is gone, and reaches nothing but the shell", async (t) => {
   const rt = world(t);
   const token = "a".repeat(48);
-  const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, { "content-type": "text/html", "set-cookie": "x=1" }, "<p>made</p>"));
+  const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) =>
+    reply(ws, m, 200, { "content-type": "text/html", "set-cookie": "x=1" }, "<p>made</p>"),
+  );
   const plain = await call(rt, "https://harbor.vyre.run/a/sit_abc");
   assert.equal(plain.status, 302);
   assert.equal(plain.headers.get("location"), "/#subject=artifact:sit_abc");
-  const res = await call(rt, `https://harbor.vyre.run/a/sit_abc/k/${token}/index.html`, { headers: { cookie: "s=1", authorization: "Bearer x" } });
+  const res = await call(rt, `https://harbor.vyre.run/a/sit_abc/k/${token}/index.html`, {
+    headers: { cookie: "s=1", authorization: "Bearer x" },
+  });
   assert.notEqual(await res.text(), "<p>made</p>", "a token in the address serves nothing");
   assert.equal(res.headers.get("set-cookie"), null);
   assert.equal(asked.length, 0, "and never reaches the box");
 });
 
-test("the door: /mcp carries its token to the box and nowhere else, sign-in answers keep their headers, and nothing else on the host gets through", async t => {
+test("the door: /mcp carries its token to the box and nowhere else, sign-in answers keep their headers, and nothing else on the host gets through", async (t) => {
   const rt = world(t);
-  const b = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 401, { "www-authenticate": 'Bearer resource_metadata="https://harbor.vyre.run/.well-known/oauth-protected-resource/mcp"', "mcp-session-id": "ses_1", "set-cookie": "a=b", "content-type": "application/json" }, "{}"));
-  const mcp = await call(rt, "https://harbor.vyre.run/mcp", { method: "POST", headers: { authorization: "Bearer vya_token", cookie: "x=y", "content-type": "application/json", "mcp-protocol-version": "2025-06-18" }, body: "{}" });
+  const b = await publicBox(t, rt, "harbor", (m, _b, ws) =>
+    reply(
+      ws,
+      m,
+      401,
+      {
+        "www-authenticate":
+          'Bearer resource_metadata="https://harbor.vyre.run/.well-known/oauth-protected-resource/mcp"',
+        "mcp-session-id": "ses_1",
+        "set-cookie": "a=b",
+        "content-type": "application/json",
+      },
+      "{}",
+    ),
+  );
+  const mcp = await call(rt, "https://harbor.vyre.run/mcp", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer vya_token",
+      cookie: "x=y",
+      "content-type": "application/json",
+      "mcp-protocol-version": "2025-06-18",
+    },
+    body: "{}",
+  });
   assert.equal(mcp.status, 401);
   assert.match(mcp.headers.get("www-authenticate") || "", /resource_metadata/);
   assert.equal(mcp.headers.get("mcp-session-id"), "ses_1");
   assert.equal(mcp.headers.get("set-cookie"), null);
-  assert.equal(mcp.headers.get("content-security-policy"), null, "the sandbox of /p/ would stop the tab polling its own origin");
+  assert.equal(
+    mcp.headers.get("content-security-policy"),
+    null,
+    "the sandbox of /p/ would stop the tab polling its own origin",
+  );
   assert.equal(b.asked[0].headers.authorization, "Bearer vya_token");
   assert.equal(b.asked[0].headers.cookie, undefined);
   assert.equal(b.asked[0].door, true);
   b.asked.length = 0;
-  for (const path of ["/oauth/token", "/oauth/register", "/oauth/wait"]) await call(rt, `https://harbor.vyre.run${path}`, { method: "POST", headers: { authorization: "Bearer vya_token", cookie: "x=y" }, body: "a=1" });
+  for (const path of ["/oauth/token", "/oauth/register", "/oauth/wait"])
+    await call(rt, `https://harbor.vyre.run${path}`, {
+      method: "POST",
+      headers: { authorization: "Bearer vya_token", cookie: "x=y" },
+      body: "a=1",
+    });
   assert.equal(b.asked.length, 3);
-  for (const m of b.asked) { assert.equal(m.headers.authorization, undefined, m.path); assert.equal(m.headers.cookie, undefined, m.path); }
+  for (const m of b.asked) {
+    assert.equal(m.headers.authorization, undefined, m.path);
+    assert.equal(m.headers.cookie, undefined, m.path);
+  }
   b.asked.length = 0;
-  for (const path of ["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-authorization-server", "/oauth/authorize?client_id=x"]) assert.equal((await call(rt, `https://harbor.vyre.run${path}`)).status, 401);
+  for (const path of [
+    "/.well-known/oauth-protected-resource",
+    "/.well-known/oauth-protected-resource/mcp",
+    "/.well-known/oauth-authorization-server",
+    "/oauth/authorize?client_id=x",
+  ])
+    assert.equal((await call(rt, `https://harbor.vyre.run${path}`)).status, 401);
   assert.equal(b.asked.length, 4);
   b.asked.length = 0;
   const shell = await call(rt, "https://harbor.vyre.run/oauth/other");
@@ -360,17 +598,39 @@ test("the door: /mcp carries its token to the box and nowhere else, sign-in answ
   assert.match(await tab.text(), /asleep/);
 });
 
-test("one Personal Space on several computers: the name sends the phone to whichever computer is awake, and lists them all when every one sleeps", async t => {
+test("one Personal Space on several computers: the name sends the phone to whichever computer is awake, and lists them all when every one sleeps", async (t) => {
   const rt = world(t);
-  const laptop = await box(rt), office = await box(rt), stranger = await box(rt);
+  const laptop = await box(rt),
+    office = await box(rt),
+    stranger = await box(rt);
   await laptop.say({ t: "host.claim", name: "alex-phone", label: "Home laptop" });
   // only the computer that holds the name says which others serve it
-  assert.deepEqual(await stranger.say({ t: "host.members", members: [{ route: stranger.route, label: "Mine now" }] }), { t: "host", op: "members", status: "none" });
-  assert.deepEqual(await laptop.say({ t: "host.members", members: [{ route: office.route, label: "Office iMac" }, { route: "not-a-route", label: "x" }, { route: laptop.route, label: "self" }] }), { t: "host", op: "members", status: "ok", name: "alex-phone" });
+  assert.deepEqual(await stranger.say({ t: "host.members", members: [{ route: stranger.route, label: "Mine now" }] }), {
+    t: "host",
+    op: "members",
+    status: "none",
+  });
+  assert.deepEqual(
+    await laptop.say({
+      t: "host.members",
+      members: [
+        { route: office.route, label: "Office iMac" },
+        { route: "not-a-route", label: "x" },
+        { route: laptop.route, label: "self" },
+      ],
+    }),
+    { t: "host", op: "members", status: "ok", name: "alex-phone" },
+  );
   // both awake: the name's own computer first
   let info = await (await rt.fetch("https://alex-phone.vyre.run/__vyre/info.json")).json();
   assert.equal(info.route, laptop.route);
-  assert.deepEqual(info.computers.map((/** @type {any} */ c) => [c.label, c.online]), [["Home laptop", true], ["Office iMac", true]]);
+  assert.deepEqual(
+    info.computers.map((/** @type {any} */ c) => [c.label, c.online]),
+    [
+      ["Home laptop", true],
+      ["Office iMac", true],
+    ],
+  );
   // the laptop sleeps: the phone goes to the office computer, and the shell opens
   laptop.close();
   await rt.settle();
@@ -399,27 +659,50 @@ test("one Personal Space on several computers: the name sends the phone to which
   assert.match(await (await rt.fetch("https://solo-phone.vyre.run/")).text(), /Mac mini is asleep/);
 });
 
-test("a person's computers come before their server: a server that holds the name sends the phone to an awake computer first", async t => {
+test("a person's computers come before their server: a server that holds the name sends the phone to an awake computer first", async (t) => {
   const rt = world(t);
-  const server = await box(rt), laptop = await box(rt);
+  const server = await box(rt),
+    laptop = await box(rt);
   await server.say({ t: "host.claim", name: "dana-phone", label: "Home server" });
-  assert.equal((await server.say({ t: "host.members", selfKind: "server", members: [{ route: laptop.route, label: "Laptop", kind: "computer" }] })).status, "ok");
+  assert.equal(
+    (
+      await server.say({
+        t: "host.members",
+        selfKind: "server",
+        members: [{ route: laptop.route, label: "Laptop", kind: "computer" }],
+      })
+    ).status,
+    "ok",
+  );
   let info = await (await rt.fetch("https://dana-phone.vyre.run/__vyre/info.json")).json();
   assert.equal(info.route, laptop.route, "the computer that is awake first");
-  assert.deepEqual(info.computers.map((/** @type {any} */ c) => c.label), ["Laptop", "Home server"]);
+  assert.deepEqual(
+    info.computers.map((/** @type {any} */ c) => c.label),
+    ["Laptop", "Home server"],
+  );
   laptop.close();
   await rt.settle();
   info = await (await rt.fetch("https://dana-phone.vyre.run/__vyre/info.json")).json();
   assert.equal(info.route, server.route, "the laptop sleeps: the server answers");
 });
 
-test("the artifact host: <name>-a.vyre.run carries its own cookie to the box and its one safe Set-Cookie back; the app origin still drops both", async t => {
+test("the artifact host: <name>-a.vyre.run carries its own cookie to the box and its one safe Set-Cookie back; the app origin still drops both", async (t) => {
   const rt = world(t);
   const code = "b".repeat(48);
   const safe = "vyre_art=s1; Max-Age=43200; Path=/; HttpOnly; Secure; SameSite=Lax";
-  const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 302, { location: "/sit_abc/", "set-cookie": m.path.startsWith("/x/") ? safe : "evil=1; Domain=vyre.run; Path=/" }, ""));
+  const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) =>
+    reply(
+      ws,
+      m,
+      302,
+      { location: "/sit_abc/", "set-cookie": m.path.startsWith("/x/") ? safe : "evil=1; Domain=vyre.run; Path=/" },
+      "",
+    ),
+  );
   // the artifact host: a cookie goes in, the safe Set-Cookie comes out, the box is told which host it is
-  const x = await call(rt, `https://harbor-a.vyre.run/x/${code}`, { headers: { cookie: "vyre_art=s0", authorization: "Bearer z", "cf-connecting-ip": "203.0.113.9" } });
+  const x = await call(rt, `https://harbor-a.vyre.run/x/${code}`, {
+    headers: { cookie: "vyre_art=s0", authorization: "Bearer z", "cf-connecting-ip": "203.0.113.9" },
+  });
   assert.equal(x.status, 302);
   assert.equal(x.headers.get("set-cookie"), safe);
   assert.equal(x.headers.get("location"), "https://harbor-a.vyre.run/sit_abc/");
@@ -435,7 +718,16 @@ test("the artifact host: <name>-a.vyre.run carries its own cookie to the box and
   assert.equal(asked[1].headers.cookie, "vyre_art=s1");
   // only its own two kinds of path: not the app, not /p/, not the door, not a keyed /a/ address
   const before = asked.length;
-  for (const p of ["/", "/p/forms/x", "/mcp", "/__vyre/info.json", `/a/sit_abc/k/${code}/`, "/x/short", "/sit_abc/../etc"]) assert.equal((await call(rt, `https://harbor-a.vyre.run${p}`)).status, 404, p);
+  for (const p of [
+    "/",
+    "/p/forms/x",
+    "/mcp",
+    "/__vyre/info.json",
+    `/a/sit_abc/k/${code}/`,
+    "/x/short",
+    "/sit_abc/../etc",
+  ])
+    assert.equal((await call(rt, `https://harbor-a.vyre.run${p}`)).status, 404, p);
   assert.equal(asked.length, before, "nothing else reaches the box");
   // the app origin: a keyed artifact address is gone and nothing of the artifact host's paths reaches the box from it
   const before2 = asked.length;
@@ -447,14 +739,14 @@ test("the artifact host: <name>-a.vyre.run carries its own cookie to the box and
   assert.equal(asked.length, n, "the app origin never carries the code path to the box");
 });
 
-test("a name ending in -a is never claimed, so no one can stand on another name's artifact host", async t => {
+test("a name ending in -a is never claimed, so no one can stand on another name's artifact host", async (t) => {
   const rt = world(t);
   const a = await box(rt);
   assert.equal((await a.say({ t: "host.claim", name: "harbor-a" })).status, "invalid");
   assert.equal((await a.say({ t: "host.claim", name: "harbor" })).status, "claimed");
 });
 
-test("/health says ok and the version stamped at deploy (RELAY_VERSION), or dev where none was", async t => {
+test("/health says ok and the version stamped at deploy (RELAY_VERSION), or dev where none was", async (t) => {
   const rt = world(t);
   assert.deepEqual(await (await rt.fetch("https://relay.vyre.run/health")).json(), { ok: true, version: "dev" });
   const stamped = await worker.fetch(new Request("https://relay.vyre.run/health"), { RELAY_VERSION: "1.4.1" });
@@ -463,26 +755,57 @@ test("/health says ok and the version stamped at deploy (RELAY_VERSION), or dev 
 
 // ---- a web request trigger: POST /hooks/automation/<id>/<secret> reaches the box, that exact shape only, and every refusal is the same bare 404
 
-test("/hooks/: only a POST of the exact shape reaches the box, with only content-type and an idempotency key; every refusal is a bare 404; the secret is never logged", async t => {
+test("/hooks/: only a POST of the exact shape reaches the box, with only content-type and an idempotency key; every refusal is a bare 404; the secret is never logged", async (t) => {
   const rt = world(t);
   const SECRET = "s3cr3tHookValue_Zx81";
   const lines = [];
   const log = console.log;
-  console.log = (...a) => { lines.push(a.join(" ")); };
-  t.after(() => { console.log = log; });
+  console.log = (...a) => {
+    lines.push(a.join(" "));
+  };
+  t.after(() => {
+    console.log = log;
+  });
   let answer = 200;
-  const { asked } = await publicBox(t, rt, "harbor", (m, body, ws) => reply(ws, m, answer, { "content-type": "application/json", "set-cookie": "x=1" }, `{"accepted":true,"got":${body.length}}`));
+  const { asked } = await publicBox(t, rt, "harbor", (m, body, ws) =>
+    reply(
+      ws,
+      m,
+      answer,
+      { "content-type": "application/json", "set-cookie": "x=1" },
+      `{"accepted":true,"got":${body.length}}`,
+    ),
+  );
   const hook = `https://harbor.vyre.run/hooks/automation/aut_abc123/${SECRET}`;
-  const ok = await call(rt, hook, { method: "POST", body: '{"a":1}', headers: { "content-type": "application/json", "idempotency-key": "evt-1", cookie: "a=1", authorization: "Bearer z", "x-forwarded-for": "10.0.0.1", "cf-connecting-ip": "203.0.113.9" } });
+  const ok = await call(rt, hook, {
+    method: "POST",
+    body: '{"a":1}',
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": "evt-1",
+      cookie: "a=1",
+      authorization: "Bearer z",
+      "x-forwarded-for": "10.0.0.1",
+      "cf-connecting-ip": "203.0.113.9",
+    },
+  });
   assert.equal(ok.status, 200);
   assert.equal(await ok.text(), '{"accepted":true}', "the box's own body does not leave; the answer is fixed");
   assert.equal(ok.headers.get("set-cookie"), null);
   assert.equal(asked.length, 1);
   assert.equal(asked[0].path, `/hooks/automation/aut_abc123/${SECRET}`);
-  assert.deepEqual(asked[0].headers, { "content-type": "application/json", "idempotency-key": "evt-1" }, "no cookie, no authorization, no forwarded-for");
+  assert.deepEqual(
+    asked[0].headers,
+    { "content-type": "application/json", "idempotency-key": "evt-1" },
+    "no cookie, no authorization, no forwarded-for",
+  );
   assert.equal(asked[0].ip, "203.0.113.9");
-  const bare = async (url, init) => { const r = await call(rt, url, init); assert.equal(r.status, 404, `${init?.method ?? "GET"} ${url}`); assert.equal(await r.text(), ""); };
-  await bare(hook);   // GET
+  const bare = async (url, init) => {
+    const r = await call(rt, url, init);
+    assert.equal(r.status, 404, `${init?.method ?? "GET"} ${url}`);
+    assert.equal(await r.text(), "");
+  };
+  await bare(hook); // GET
   await bare(hook, { method: "PUT", body: "x" });
   await bare(`${hook}?x=1`, { method: "POST", body: "x" });
   await bare(`https://harbor.vyre.run/hooks/automation/aut_abc123/short`, { method: "POST", body: "x" });
@@ -492,20 +815,31 @@ test("/hooks/: only a POST of the exact shape reaches the box, with only content
   await bare(hook, { method: "POST", body: new Uint8Array((1 << 20) + 1) });
   assert.equal(asked.length, 1, "none of those reached the box");
   // the box says no (no such hook, paused, rotated): the same bare 404
-  for (const status of [404, 401, 500]) { answer = status; await bare(hook, { method: "POST", body: "{}" }); }
+  for (const status of [404, 401, 500]) {
+    answer = status;
+    await bare(hook, { method: "POST", body: "{}" });
+  }
   // the box's own rate limit is a 429 with Retry-After: it says nothing about the id or secret
   answer = 429;
   const limited = await call(rt, hook, { method: "POST", body: "{}" });
   assert.deepEqual([limited.status, limited.headers.get("retry-after"), await limited.text()], [429, "60", ""]);
   answer = 200;
   assert.ok(lines.length > 0, "requests are logged");
-  assert.ok(lines.every((l) => !l.includes(SECRET) && !l.includes("/hooks/automation")), `no log line carries the path: ${lines.join("\n")}`);
+  assert.ok(
+    lines.every((l) => !l.includes(SECRET) && !l.includes("/hooks/automation")),
+    `no log line carries the path: ${lines.join("\n")}`,
+  );
 });
 
-test("/hooks/: a Space takes 120 a minute and one hook 30; past that, a 429 with Retry-After and nothing reaches the box", async t => {
+test("/hooks/: a Space takes 120 a minute and one hook 30; past that, a 429 with Retry-After and nothing reaches the box", async (t) => {
   const rt = world(t);
   const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, {}, "{}"));
-  const post = (id, i) => call(rt, `https://harbor.vyre.run/hooks/automation/${id}/secretvalue${i}xx`, { method: "POST", body: "{}", headers: { "cf-connecting-ip": `198.51.100.${i % 250}` } });
+  const post = (id, i) =>
+    call(rt, `https://harbor.vyre.run/hooks/automation/${id}/secretvalue${i}xx`, {
+      method: "POST",
+      body: "{}",
+      headers: { "cf-connecting-ip": `198.51.100.${i % 250}` },
+    });
   let ok = 0;
   for (let i = 0; i < 40; i++) if ((await post("aut_one", i)).status === 200) ok++;
   assert.equal(ok, 30, "one hook: 30 a minute");
@@ -516,32 +850,60 @@ test("/hooks/: a Space takes 120 a minute and one hook 30; past that, a 429 with
   assert.equal(asked.length, 120);
 });
 
-test("/hooks/: one visitor takes 20 a minute on one hook, with a 429 and Retry-After; the same address on another hook, or another address, still gets through", async t => {
+test("/hooks/: one visitor takes 20 a minute on one hook, with a 429 and Retry-After; the same address on another hook, or another address, still gets through", async (t) => {
   const rt = world(t);
   const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, {}, "{}"));
-  const post = (ip, id, i) => call(rt, `https://harbor.vyre.run/hooks/automation/${id}/secretvalue${i}xx`, { method: "POST", body: "{}", headers: { "cf-connecting-ip": ip } });
+  const post = (ip, id, i) =>
+    call(rt, `https://harbor.vyre.run/hooks/automation/${id}/secretvalue${i}xx`, {
+      method: "POST",
+      body: "{}",
+      headers: { "cf-connecting-ip": ip },
+    });
   let mine = 0;
   for (let i = 0; i < 20; i++) if ((await post("203.0.113.50", "aut_shared", i)).status === 200) mine++;
   assert.equal(mine, 20);
   const limited = await post("203.0.113.50", "aut_shared", 20);
-  assert.deepEqual([limited.status, limited.headers.get("retry-after")], [429, "60"], "the 21st from one address on one hook");
-  assert.equal((await post("203.0.113.50", "aut_other", 21)).status, 200, "a shared sender address still reaches another customer's hook: the count is per address and hook");
+  assert.deepEqual(
+    [limited.status, limited.headers.get("retry-after")],
+    [429, "60"],
+    "the 21st from one address on one hook",
+  );
+  assert.equal(
+    (await post("203.0.113.50", "aut_other", 21)).status,
+    200,
+    "a shared sender address still reaches another customer's hook: the count is per address and hook",
+  );
   assert.equal((await post("203.0.113.51", "aut_shared", 22)).status, 200, "another address on the same hook");
   assert.equal(asked.length, 22);
 });
 
-test("/hooks/: a stranger spraying ids stops after 20 refusals, with the same 429 for real and made-up ids, and never spends the accepted budget; another address still gets through", async t => {
+test("/hooks/: a stranger spraying ids stops after 20 refusals, with the same 429 for real and made-up ids, and never spends the accepted budget; another address still gets through", async (t) => {
   const rt = world(t);
-  const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, m.path.includes("/aut_real/") ? 200 : 404, {}, m.path.includes("/aut_real/") ? "{}" : ""));
-  const post = (ip, id, i) => call(rt, `https://harbor.vyre.run/hooks/automation/${id}/secretvalue${i}xx`, { method: "POST", body: "{}", headers: { "cf-connecting-ip": ip } });
+  const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) =>
+    reply(ws, m, m.path.includes("/aut_real/") ? 200 : 404, {}, m.path.includes("/aut_real/") ? "{}" : ""),
+  );
+  const post = (ip, id, i) =>
+    call(rt, `https://harbor.vyre.run/hooks/automation/${id}/secretvalue${i}xx`, {
+      method: "POST",
+      body: "{}",
+      headers: { "cf-connecting-ip": ip },
+    });
   const got = [];
   for (let i = 0; i < 200; i++) got.push((await post("203.0.113.77", `aut_r${i}`, i)).status);
-  assert.deepEqual([got.filter((x) => x === 404).length, got.filter((x) => x === 429).length], [20, 180], "20 refusals reach the box, then 429");
+  assert.deepEqual(
+    [got.filter((x) => x === 404).length, got.filter((x) => x === 429).length],
+    [20, 180],
+    "20 refusals reach the box, then 429",
+  );
   assert.equal(asked.length, 20);
   assert.equal((await post("203.0.113.88", "aut_real", 900)).status, 200, "another address on a real hook");
   // over its count, the address gets one answer whatever the id: a real hook and a made-up one are both 429 until the minute ends
-  const real = await post("203.0.113.77", "aut_real", 901), madeUp = await post("203.0.113.77", "aut_madeup", 902);
-  assert.deepEqual([real.status, real.headers.get("retry-after"), madeUp.status, madeUp.headers.get("retry-after")], [429, "60", 429, "60"]);
+  const real = await post("203.0.113.77", "aut_real", 901),
+    madeUp = await post("203.0.113.77", "aut_madeup", 902);
+  assert.deepEqual(
+    [real.status, real.headers.get("retry-after"), madeUp.status, madeUp.headers.get("retry-after")],
+    [429, "60", 429, "60"],
+  );
   assert.equal(asked.length, 21, "neither reached the box");
   // the refusals spent none of the accepted budget: the real hook still takes 29 more
   let ok = 0;
@@ -549,7 +911,7 @@ test("/hooks/: a stranger spraying ids stops after 20 refusals, with the same 42
   assert.equal(ok, 29, "one hook takes 30 accepted a minute, one already used");
 });
 
-test("info.json says the relay carries web request triggers, so the box can tell its card the truth", async t => {
+test("info.json says the relay carries web request triggers, so the box can tell its card the truth", async (t) => {
   const rt = world(t);
   await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, {}, "{}"));
   const j = await (await call(rt, "https://harbor.vyre.run/__vyre/info.json")).json();

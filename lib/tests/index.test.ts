@@ -5,7 +5,20 @@ import { csr } from "../acme/csr.ts";
 import crypto from "node:crypto";
 
 test("index exports the public helpers", () => {
-  for (const k of ["mintId", "canonical", "covers", "tickHlc", "clampHlc", "frontmatter", "diffLines", "route", "parseExpr", "evalExpr", "holds"]) assert.equal(typeof (lib as Record<string, unknown>)[k], "function", k);
+  for (const k of [
+    "mintId",
+    "canonical",
+    "covers",
+    "tickHlc",
+    "clampHlc",
+    "frontmatter",
+    "diffLines",
+    "route",
+    "parseExpr",
+    "evalExpr",
+    "holds",
+  ])
+    assert.equal(typeof (lib as Record<string, unknown>)[k], "function", k);
 });
 
 test("acme csr: a DER SEQUENCE for an ECDSA key and two names", () => {

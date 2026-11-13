@@ -23,7 +23,13 @@ async function versionsPurge(ctx: Ctx, input: unknown) {
   const newest = new Map<string, number>();
   for (const v of rows) newest.set(String(v.file_id), Math.max(newest.get(String(v.file_id)) ?? 0, num(v.n)));
   const due: Row[] = rows
-    .filter((v) => num(v.at) < o.before && (v.name === null || v.name === undefined || v.name === "") && num(v.n) < (newest.get(String(v.file_id)) ?? 0) && !skip.has(String(v.file_id)))
+    .filter(
+      (v) =>
+        num(v.at) < o.before &&
+        (v.name === null || v.name === undefined || v.name === "") &&
+        num(v.n) < (newest.get(String(v.file_id)) ?? 0) &&
+        !skip.has(String(v.file_id)),
+    )
     .sort((a, b) => num(a.at) - num(b.at) || String(a.id).localeCompare(String(b.id)));
   const batch = due.slice(0, limit);
   for (const v of batch) {

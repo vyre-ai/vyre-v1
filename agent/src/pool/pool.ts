@@ -55,8 +55,20 @@ export interface Lease {
   readonly key: PoolKey;
 }
 
-export interface DriverStatus { driver: string; warm: number; busy: number; max: number; hits: number; misses: number; evictions: number }
-export interface PoolStatus { sessions: DriverStatus[]; totalWarm: number; totalBusy: number }
+export interface DriverStatus {
+  driver: string;
+  warm: number;
+  busy: number;
+  max: number;
+  hits: number;
+  misses: number;
+  evictions: number;
+}
+export interface PoolStatus {
+  sessions: DriverStatus[];
+  totalWarm: number;
+  totalBusy: number;
+}
 
 export interface EnginePool {
   /** A session for this turn: warm if there is one, else opened now. */
@@ -97,10 +109,19 @@ interface Entry {
   overflow: boolean;
 }
 
-interface Pending { key: string; thread: string | null; person: string; driver: string; promise: Promise<Entry | null> }
+interface Pending {
+  key: string;
+  thread: string | null;
+  person: string;
+  driver: string;
+  promise: Promise<Entry | null>;
+}
 
-
-interface Stats { hits: number; misses: number; evictions: number }
+interface Stats {
+  hits: number;
+  misses: number;
+  evictions: number;
+}
 
 export function createPool(o: PoolOptions): EnginePool {
   const now = o.now ?? Date.now;
@@ -118,7 +139,10 @@ export function createPool(o: PoolOptions): EnginePool {
 
   const statsOf = (driver: string): Stats => {
     let s = stats.get(driver);
-    if (!s) { s = { hits: 0, misses: 0, evictions: 0 }; stats.set(driver, s); }
+    if (!s) {
+      s = { hits: 0, misses: 0, evictions: 0 };
+      stats.set(driver, s);
+    }
     return s;
   };
   const driverOf = (id: string): PoolDriver => {
@@ -128,13 +152,21 @@ export function createPool(o: PoolOptions): EnginePool {
   };
   const threadOf = (kind: "api" | "cli", spec: PoolSpec): string | null => (kind === "cli" ? spec.threadId : null);
 
-  const matches = (e: { key: string; thread: string | null; person: string }, key: string, thread: string | null, person: string): boolean =>
-    e.key === key && e.person === person && (thread === null || e.thread === null || e.thread === thread);
+  const matches = (
+    e: { key: string; thread: string | null; person: string },
+    key: string,
+    thread: string | null,
+    person: string,
+  ): boolean => e.key === key && e.person === person && (thread === null || e.thread === null || e.thread === thread);
 
   async function drop(e: Entry, why: "evict" | "close"): Promise<void> {
     entries.delete(e.id);
     if (why === "evict") statsOf(e.parts.driver).evictions++;
-    try { await e.session.close(); } catch { /* a session that will not close is forgotten */ }
+    try {
+      await e.session.close();
+    } catch {
+      /* a session that will not close is forgotten */
+    }
   }
 
   const lru = (a: Entry, b: Entry): number => a.lastUsed - b.lastUsed;
@@ -148,9 +180,13 @@ export function createPool(o: PoolOptions): EnginePool {
     const cap = o.placement === "device" ? maxPerDriver : maxPerPerson;
     // The open that is asking for room is not one of the sessions it is making room for.
     const others = (): Pending[] => [...pending].filter((x) => x !== self);
-    const driverCount = (): number => [...entries.values()].filter((e) => mine(e.parts.driver, e.person)).length + others().filter((x) => mine(x.driver, x.person)).length;
+    const driverCount = (): number =>
+      [...entries.values()].filter((e) => mine(e.parts.driver, e.person)).length +
+      others().filter((x) => mine(x.driver, x.person)).length;
     while (driverCount() >= cap) {
-      const victim = [...entries.values()].filter((e) => e.state === "idle" && mine(e.parts.driver, e.person)).sort(lru)[0];
+      const victim = [...entries.values()]
+        .filter((e) => e.state === "idle" && mine(e.parts.driver, e.person))
+        .sort(lru)[0];
       if (!victim) return false;
       await drop(victim, "evict");
     }
@@ -167,22 +203,43 @@ export function createPool(o: PoolOptions): EnginePool {
     const room = await makeRoom(spec.key.driver, spec.person, self);
     const session = await d.open(spec.session);
     if (closed) {
-      try { await session.close(); } catch { /* closing anyway */ }
+      try {
+        await session.close();
+      } catch {
+        /* closing anyway */
+      }
       return null;
     }
     const e: Entry = {
-      id: ++next, key: keyString(spec.key), parts: spec.key, kind: d.kind, person: spec.person, thread: threadOf(d.kind, spec), session, state: "idle", lastUsed: now(), overflow: !room,
+      id: ++next,
+      key: keyString(spec.key),
+      parts: spec.key,
+      kind: d.kind,
+      person: spec.person,
+      thread: threadOf(d.kind, spec),
+      session,
+      state: "idle",
+      lastUsed: now(),
+      overflow: !room,
     };
     entries.set(e.id, e);
-    pending.delete(self);   // from here the session counts as a session, not as an open under way
+    pending.delete(self); // from here the session counts as a session, not as an open under way
     return e;
   }
 
   /** Start opening a session and count it against the caps from this moment, so a second acquire or hint for the same key waits for it instead of opening another. */
   function startOpen(spec: PoolSpec, thread: string | null): Pending {
-    const p: Pending = { key: keyString(spec.key), thread, person: spec.person, driver: spec.key.driver, promise: Promise.resolve(null) };
+    const p: Pending = {
+      key: keyString(spec.key),
+      thread,
+      person: spec.person,
+      driver: spec.key.driver,
+      promise: Promise.resolve(null),
+    };
     pending.add(p);
-    p.promise = open(spec, p).finally(() => { pending.delete(p); });
+    p.promise = open(spec, p).finally(() => {
+      pending.delete(p);
+    });
     return p;
   }
 
@@ -204,7 +261,9 @@ export function createPool(o: PoolOptions): EnginePool {
       for (let attempt = 0; attempt < 4; attempt++) {
         await pool.sweep();
         // The most recently used idle session that agrees on the key (and the thread, for a CLI).
-        const idle = [...entries.values()].filter((e) => e.state === "idle" && matches(e, key, thread, spec.person)).sort((a, b) => b.lastUsed - a.lastUsed)[0];
+        const idle = [...entries.values()]
+          .filter((e) => e.state === "idle" && matches(e, key, thread, spec.person))
+          .sort((a, b) => b.lastUsed - a.lastUsed)[0];
         if (idle) {
           if (started) statsOf(spec.key.driver).misses++;
           else statsOf(spec.key.driver).hits++;
@@ -214,11 +273,14 @@ export function createPool(o: PoolOptions): EnginePool {
         // An open that is already under way (a hint's): wait for it rather than start a second one.
         let coming = [...pending].find((p) => matches(p, key, thread, spec.person));
         const own = coming === undefined;
-        if (own) { coming = startOpen(spec, thread); started = true; } else waited = true;
+        if (own) {
+          coming = startOpen(spec, thread);
+          started = true;
+        } else waited = true;
         try {
           await coming?.promise;
         } catch (e) {
-          if (own) throw e;   // our own open failed: the caller sees why
+          if (own) throw e; // our own open failed: the caller sees why
           // a hint's open failed: the next pass opens one for this call
         }
         if (closed) throw new Error("the pool closed while a session was opening");
@@ -233,16 +295,22 @@ export function createPool(o: PoolOptions): EnginePool {
       const key = keyString(spec.key);
       const thread = threadOf(d.kind, spec);
       const have = [...entries.values()].find((e) => e.state === "idle" && matches(e, key, thread, spec.person));
-      if (have) { have.lastUsed = now(); return; }
+      if (have) {
+        have.lastUsed = now();
+        return;
+      }
       if ([...pending].some((p) => matches(p, key, thread, spec.person))) return;
-      startOpen(spec, thread).promise.catch(() => null);   // a hint that fails costs nothing: the acquire opens its own
+      startOpen(spec, thread).promise.catch(() => null); // a hint that fails costs nothing: the acquire opens its own
     },
 
     async release(l, rel) {
       const e = entries.get(l.id);
       if (!e) return;
       const reuse = rel?.reuse !== false && !closed && !e.overflow;
-      if (!reuse) { await drop(e, "close"); return; }
+      if (!reuse) {
+        await drop(e, "close");
+        return;
+      }
       e.state = "idle";
       e.lastUsed = now();
     },
@@ -254,10 +322,15 @@ export function createPool(o: PoolOptions): EnginePool {
       return stale.length;
     },
 
-    idleCount(person) { return [...entries.values()].filter((e) => e.state === "idle" && (person === undefined || e.person === person)).length; },
+    idleCount(person) {
+      return [...entries.values()].filter((e) => e.state === "idle" && (person === undefined || e.person === person))
+        .length;
+    },
 
     async closeIdle(person) {
-      const idle = [...entries.values()].filter((e) => e.state === "idle" && (person === undefined || e.person === person));
+      const idle = [...entries.values()].filter(
+        (e) => e.state === "idle" && (person === undefined || e.person === person),
+      );
       for (const e of idle) await drop(e, "close");
       return idle.length;
     },
@@ -274,9 +347,21 @@ export function createPool(o: PoolOptions): EnginePool {
       const sessions = [...names].sort().map((driver): DriverStatus => {
         const mine = [...entries.values()].filter((e) => e.parts.driver === driver);
         const s = statsOf(driver);
-        return { driver, warm: mine.filter((e) => e.state === "idle").length, busy: mine.filter((e) => e.state === "busy").length, max, hits: s.hits, misses: s.misses, evictions: s.evictions };
+        return {
+          driver,
+          warm: mine.filter((e) => e.state === "idle").length,
+          busy: mine.filter((e) => e.state === "busy").length,
+          max,
+          hits: s.hits,
+          misses: s.misses,
+          evictions: s.evictions,
+        };
       });
-      return { sessions, totalWarm: sessions.reduce((n, x) => n + x.warm, 0), totalBusy: sessions.reduce((n, x) => n + x.busy, 0) };
+      return {
+        sessions,
+        totalWarm: sessions.reduce((n, x) => n + x.warm, 0),
+        totalBusy: sessions.reduce((n, x) => n + x.busy, 0),
+      };
     },
 
     async settled() {

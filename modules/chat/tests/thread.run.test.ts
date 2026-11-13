@@ -10,9 +10,25 @@ import type { Harness } from "../fixtures/harness.ts";
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 let n = 0;
 const startRun = (hn: Harness, runId: string, extra: Record<string, unknown> = {}) =>
-  h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], scopeType: "run", scopeId: runId, title: "Welcome sequence", idempotencyKey: `r${++n}`, ...extra });
+  h["chat.start"]!(hn.ctx, {
+    kind: "chat",
+    agentIds: [INTAKE],
+    scopeType: "run",
+    scopeId: runId,
+    title: "Welcome sequence",
+    idempotencyKey: `r${++n}`,
+    ...extra,
+  });
 const projectChannel = async (hn: Harness, recordId = "rec_proj1") =>
-  (await h["channels.create"]!(hn.ctx, { name: "Smith matter", visibility: "invite", memberIds: [MAYA], recordId, idempotencyKey: `c${++n}` })).channel;
+  (
+    await h["channels.create"]!(hn.ctx, {
+      name: "Smith matter",
+      visibility: "invite",
+      memberIds: [MAYA],
+      recordId,
+      idempotencyKey: `c${++n}`,
+    })
+  ).channel;
 
 test("a Run gets one thread of kind run, named by the Run, kept out of Recent", async () => {
   const hn = harness();
@@ -22,7 +38,10 @@ test("a Run gets one thread of kind run, named by the Run, kept out of Recent", 
   assert.equal(thread.scopeId, "run_abc123");
   assert.equal(thread.listed, false);
   assert.equal(thread.title, "Welcome sequence");
-  assert.deepEqual(thread.agents.map((a: any) => [a.agentId, a.mode]), [[INTAKE, "lead"]]);
+  assert.deepEqual(
+    thread.agents.map((a: any) => [a.agentId, a.mode]),
+    [[INTAKE, "lead"]],
+  );
   assert.equal(thread.parentThreadId, undefined, "no channel for the record, no line posted");
   assert.deepEqual(hn.names(), ["thread.started", "agent.engaged"]);
   assert.equal(hn.named("thread.started")[0]!.payload["kind"], "run");
@@ -40,7 +59,11 @@ test("starting the chat of the same Run again opens the one that exists and anno
   assert.notEqual(c.threadId, a.threadId);
   assert.equal(hn.rows("SELECT id FROM chat_thread WHERE kind = 'run'").length, 2);
   // the database holds the rule too: a second run thread for one Run cannot be stored
-  assert.throws(() => hn.raw.run("INSERT INTO chat_thread (id, kind, scopeType, scopeId, listed, modePlan, createdAt, version) VALUES ('thr_dupe', 'run', 'run', 'run_abc123', 0, 0, 1, 0)"));
+  assert.throws(() =>
+    hn.raw.run(
+      "INSERT INTO chat_thread (id, kind, scopeType, scopeId, listed, modePlan, createdAt, version) VALUES ('thr_dupe', 'run', 'run', 'run_abc123', 0, 0, 1, 0)",
+    ),
+  );
 });
 
 test("a Run on a record with a channel posts one line there, and its chat hangs under that line", async () => {
@@ -86,10 +109,18 @@ test("people steer a run thread like any chat, and the agent's step lines are nu
   const ch = await projectChannel(hn);
   const { thread } = await startRun(hn, "run_abc123", { recordId: "rec_proj1", first: "Starting step 1" });
   assert.equal(lastMessages(hn.db, thread.threadId).length, 1);
-  const step = await h["chat.post"]!(hn.agent(INTAKE), { threadId: thread.threadId, body: "Drafted the email", idempotencyKey: "p1" });
+  const step = await h["chat.post"]!(hn.agent(INTAKE), {
+    threadId: thread.threadId,
+    body: "Drafted the email",
+    idempotencyKey: "p1",
+  });
   assert.equal(step.message.threadSeq, 2);
   assert.equal(step.message.enc, 0, "a run thread is not a private chat");
-  const steer = await h["chat.post"]!(hn.person(MAYA), { threadId: thread.threadId, body: "Use the short version", idempotencyKey: "p2" });
+  const steer = await h["chat.post"]!(hn.person(MAYA), {
+    threadId: thread.threadId,
+    body: "Use the short version",
+    idempotencyKey: "p2",
+  });
   assert.equal(steer.message.threadSeq, 3);
   assert.equal(lastMessages(hn.db, ch.mainThreadId).length, 1, "the channel keeps its single line");
 });
@@ -99,6 +130,11 @@ test("a Run is named by its Run id, belongs to the Run and is never an Ask pane"
   assert.equal(await failure(() => startRun(hn, "abc123")), "validation.bad_input");
   assert.equal(await failure(() => startRun(hn, "run_a1", { personId: MAYA })), "validation.bad_input");
   assert.equal(await failure(() => startRun(hn, "run_a1", { kind: "ask" })), "validation.bad_input");
-  assert.equal(await failure(() => h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], scopeType: "run", idempotencyKey: "k" })), "validation.bad_input");
+  assert.equal(
+    await failure(() =>
+      h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], scopeType: "run", idempotencyKey: "k" }),
+    ),
+    "validation.bad_input",
+  );
   assert.equal(hn.rows("SELECT id FROM chat_thread").length, 0);
 });

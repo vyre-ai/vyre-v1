@@ -4,7 +4,10 @@ import { frontmatter, headings, links, toPlain, excerpt, escapeMd, slug } from "
 import { diffLines, diffWords, diffStats, sideOf } from "../diff.ts";
 
 test("frontmatter: flat keys split from the body; anything else stays in the body", () => {
-  assert.deepEqual(frontmatter("---\ntitle: \"Plan\"\nowner: dana\n---\n# Hi\n"), { data: { title: "Plan", owner: "dana" }, body: "# Hi\n" });
+  assert.deepEqual(frontmatter('---\ntitle: "Plan"\nowner: dana\n---\n# Hi\n'), {
+    data: { title: "Plan", owner: "dana" },
+    body: "# Hi\n",
+  });
   assert.deepEqual(frontmatter("# no block"), { data: {}, body: "# no block" });
   const nested = "---\na:\n  - b\n---\nbody";
   assert.deepEqual(frontmatter(nested), { data: {}, body: nested });
@@ -12,7 +15,10 @@ test("frontmatter: flat keys split from the body; anything else stays in the bod
 
 test("headings: levels and 1-based lines, fenced code skipped", () => {
   const md = "# One\ntext\n```\n# not a heading\n```\n## Two ##\n####### seven";
-  assert.deepEqual(headings(md), [{ level: 1, text: "One", line: 1 }, { level: 2, text: "Two", line: 6 }]);
+  assert.deepEqual(headings(md), [
+    { level: 1, text: "One", line: 1 },
+    { level: 2, text: "Two", line: 6 },
+  ]);
 });
 
 test("links: wiki links with labels and plain urls, images excluded", () => {
@@ -22,7 +28,10 @@ test("links: wiki links with labels and plain urls, images excluded", () => {
 });
 
 test("toPlain and excerpt", () => {
-  assert.equal(toPlain("# Title\n\n**bold** and _it_ with `code` and [a link](u) and [[Wiki|shown]]\n- [ ] item"), "Title\n\nbold and it with code and a link and shown\nitem");
+  assert.equal(
+    toPlain("# Title\n\n**bold** and _it_ with `code` and [a link](u) and [[Wiki|shown]]\n- [ ] item"),
+    "Title\n\nbold and it with code and a link and shown\nitem",
+  );
   assert.equal(excerpt("short"), "short");
   const long = excerpt("word ".repeat(100), 40);
   assert.ok(long.length <= 40 && long.endsWith("…"), long);
@@ -34,7 +43,8 @@ test("escapeMd and slug", () => {
 });
 
 test("diffLines: eq/add/del and both sides rebuild exactly", () => {
-  const a = "one\ntwo\nthree\nfour", b = "one\n2\nthree\nfour\nfive";
+  const a = "one\ntwo\nthree\nfour",
+    b = "one\n2\nthree\nfour\nfive";
   const ops = diffLines(a, b);
   assert.equal(sideOf(ops, "a"), a);
   assert.equal(sideOf(ops, "b"), b);
@@ -50,7 +60,8 @@ test("diffWords keeps whitespace so each side restores", () => {
 });
 
 test("diffLines on large unrelated inputs falls back to one replaced block and still restores both sides", () => {
-  const a = Array.from({ length: 2500 }, (_, i) => `a${i}`).join("\n"), b = Array.from({ length: 2500 }, (_, i) => `b${i}`).join("\n");
+  const a = Array.from({ length: 2500 }, (_, i) => `a${i}`).join("\n"),
+    b = Array.from({ length: 2500 }, (_, i) => `b${i}`).join("\n");
   const ops = diffLines(a, b);
   assert.equal(sideOf(ops, "a"), a);
   assert.equal(sideOf(ops, "b"), b);

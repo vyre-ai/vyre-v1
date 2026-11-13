@@ -12,10 +12,27 @@
 import { noticeIdOf } from "../noticeslot/bridge.ts";
 import type { Notification } from "./model.ts";
 
-export interface OsBanner { title: string; body: string; link: string; tag: string }
+export interface OsBanner {
+  title: string;
+  body: string;
+  link: string;
+  tag: string;
+}
 
 /** The kinds of subject a link opens (reach/open-link.ts targetOfOpen); anything else opens the place the row is in. */
-const OPENS = new Set(["file", "folder", "task", "project", "agent", "automation", "run", "goal", "channel", "thread", "record"]);
+const OPENS = new Set([
+  "file",
+  "folder",
+  "task",
+  "project",
+  "agent",
+  "automation",
+  "run",
+  "goal",
+  "channel",
+  "thread",
+  "record",
+]);
 export const BANNERS_PER_MINUTE = 3;
 export const MEMORY_LIMIT = 500;
 const MINUTE = 60_000;
@@ -23,7 +40,8 @@ const MINUTE = 60_000;
 /** The link a banner opens: the thing the row is about, else its place. `address` is the Space's address, the one the desktop link names (session/desktop.ts routeDesktopLink). */
 export function bannerLink(n: Pick<Notification, "subject" | "place">, address: string): string {
   const at = `vyre://open?address=${encodeURIComponent(address)}`;
-  if (n.subject && OPENS.has(n.subject.type)) return `${at}&kind=${encodeURIComponent(n.subject.type)}&id=${encodeURIComponent(n.subject.id)}`;
+  if (n.subject && OPENS.has(n.subject.type))
+    return `${at}&kind=${encodeURIComponent(n.subject.type)}&id=${encodeURIComponent(n.subject.id)}`;
   return `${at}&kind=place&id=${encodeURIComponent(n.place)}`;
 }
 
@@ -39,15 +57,25 @@ export interface BannerView {
 }
 
 /** What this window remembers between reads: the notice ids it has seen (insertion order, oldest first), when its banners went, and when its last summary went. */
-export interface BannerMemory { ids: Set<string>; sent: number[]; summaryAt: number }
+export interface BannerMemory {
+  ids: Set<string>;
+  sent: number[];
+  summaryAt: number;
+}
 
 /**
  * What a fresh read of the shown notices asks of the operating system. `memory` null means the first read since the app opened, which raises nothing and only remembers. Answers at most
  * one banner and the memory for the next read.
  */
-export function osBanners(shown: readonly Notification[], memory: BannerMemory | null, view: BannerView): { banners: OsBanner[]; memory: BannerMemory } {
+export function osBanners(
+  shown: readonly Notification[],
+  memory: BannerMemory | null,
+  view: BannerView,
+): { banners: OsBanner[]; memory: BannerMemory } {
   const first = memory === null;
-  const m: BannerMemory = memory ? { ids: new Set(memory.ids), sent: memory.sent.filter((t) => view.now - t < MINUTE), summaryAt: memory.summaryAt } : { ids: new Set(), sent: [], summaryAt: -Infinity };
+  const m: BannerMemory = memory
+    ? { ids: new Set(memory.ids), sent: memory.sent.filter((t) => view.now - t < MINUTE), summaryAt: memory.summaryAt }
+    : { ids: new Set(), sent: [], summaryAt: -Infinity };
   const fresh: Notification[] = [];
   for (const n of shown) {
     const id = noticeIdOf(n);
@@ -64,15 +92,28 @@ export function osBanners(shown: readonly Notification[], memory: BannerMemory |
   const link = fresh.length === 1 ? bannerLink(newest, view.address) : bannerLink({ place: "inbox" }, view.address);
   if (m.sent.length < BANNERS_PER_MINUTE) {
     m.sent.push(view.now);
-    return { banners: [{ title, body: "", link, tag: fresh.length === 1 ? noticeIdOf(newest) : "ntf:several" }], memory: m };
+    return {
+      banners: [{ title, body: "", link, tag: fresh.length === 1 ? noticeIdOf(newest) : "ntf:several" }],
+      memory: m,
+    };
   }
   if (view.now - m.summaryAt < MINUTE) return { banners: [], memory: m };
   m.summaryAt = view.now;
-  return { banners: [{ title, body: "", link: bannerLink({ place: "inbox" }, view.address), tag: "ntf:summary" }], memory: m };
+  return {
+    banners: [{ title, body: "", link: bannerLink({ place: "inbox" }, view.address), tag: "ntf:summary" }],
+    memory: m,
+  };
 }
 
 /** The window is in front of the person: focused and visible (a minimised or hidden window is not). */
-export function windowFocused(doc: { hasFocus?: () => boolean; visibilityState?: string } | undefined = (globalThis as { document?: { hasFocus?: () => boolean; visibilityState?: string } }).document): boolean {
+export function windowFocused(
+  doc: { hasFocus?: () => boolean; visibilityState?: string } | undefined = (
+    globalThis as { document?: { hasFocus?: () => boolean; visibilityState?: string } }
+  ).document,
+): boolean {
   if (!doc) return false;
-  return (doc.visibilityState === undefined || doc.visibilityState === "visible") && (typeof doc.hasFocus !== "function" || doc.hasFocus());
+  return (
+    (doc.visibilityState === undefined || doc.visibilityState === "visible") &&
+    (typeof doc.hasFocus !== "function" || doc.hasFocus())
+  );
 }

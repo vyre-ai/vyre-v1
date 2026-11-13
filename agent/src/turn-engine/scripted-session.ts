@@ -1,6 +1,14 @@
 // A scripted engine session for the fake-provider path (ARCH 10.1): the engine is built and tested against this before any real driver plugs in via driver.ts.
 // Latency is injected before the first event, which is what the send budget subtracts. `beforeEvent` lets a test hold a turn between steps.
-import type { DriverEvent, EngineSession, OpenSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "./types.ts";
+import type {
+  DriverEvent,
+  EngineSession,
+  OpenSession,
+  SessionSpec,
+  StoredMessage,
+  ToolResult,
+  TurnInput,
+} from "./types.ts";
 
 export interface ScriptedOptions {
   script: readonly DriverEvent[] | ((input: TurnInput, spec: SessionSpec) => readonly DriverEvent[]);
@@ -45,12 +53,22 @@ export function scriptedProvider(opts: ScriptedOptions): ScriptedProvider {
     let cancelled = false;
     let closed = false;
     let wake: () => void = () => {};
-    const cancelSignal = new Promise<void>((resolve) => { wake = resolve; });
+    const cancelSignal = new Promise<void>((resolve) => {
+      wake = resolve;
+    });
 
     const session: ScriptedSession = {
-      spec, inputs, injected, toolResults, warm: false,
-      get cancelled() { return cancelled; },
-      get closed() { return closed; },
+      spec,
+      inputs,
+      injected,
+      toolResults,
+      warm: false,
+      get cancelled() {
+        return cancelled;
+      },
+      get closed() {
+        return closed;
+      },
       ...(opts.latencyMs === undefined ? {} : { providerLatencyMs: opts.latencyMs }),
       async *send(input) {
         sendCount += 1;
@@ -66,10 +84,19 @@ export function scriptedProvider(opts: ScriptedOptions): ScriptedProvider {
           yield ev;
         }
       },
-      sendToolResult(id, result) { toolResults.push({ id, result }); },
-      inject(msg) { injected.push(msg); },
-      async cancel() { cancelled = true; wake(); },
-      async close() { closed = true; },
+      sendToolResult(id, result) {
+        toolResults.push({ id, result });
+      },
+      inject(msg) {
+        injected.push(msg);
+      },
+      async cancel() {
+        cancelled = true;
+        wake();
+      },
+      async close() {
+        closed = true;
+      },
     };
     sessions.push(session);
     return session;

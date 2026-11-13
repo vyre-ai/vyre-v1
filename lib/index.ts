@@ -11,4 +11,12 @@ export { route, nextDepth, DEFAULT_AGENT_HOPS } from "./route.ts";
 export type { RouteThread, RouteMessage, RouteResult, RouteReason, RouteAgent, RouteMention } from "./route.ts";
 export { parseExpr, evalExpr, exprNames } from "./expr/expr.ts";
 export { LanguageError } from "./expr/errors.ts";
-export { holds, isEmpty, fieldState, fieldStates, stagesFor, stageNamesOf, defaultEvaluator } from "./expr/conditions.ts";
+export {
+  holds,
+  isEmpty,
+  fieldState,
+  fieldStates,
+  stagesFor,
+  stageNamesOf,
+  defaultEvaluator,
+} from "./expr/conditions.ts";

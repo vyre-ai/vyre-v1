@@ -5,7 +5,8 @@
 
 // A segment is a name, never a path step: no `.`, `..`, percent-encoding, backslash, NUL or control characters, and no
 // trailing dot or space (a Windows path resolves those away). A grant on a folder must not cover a path outside it.
-const okSegment = (/** @type {string} */ x) => x.length > 0 && x !== "." && x !== ".." && !/[%\\\u0000-\u001f\u007f]/.test(x) && !/[. ]$/.test(x);
+const okSegment = (/** @type {string} */ x) =>
+  x.length > 0 && x !== "." && x !== ".." && !/[%\\\u0000-\u001f\u007f]/.test(x) && !/[. ]$/.test(x);
 
 /** @param {string} urn @returns {string[] | null} the segments after `vyre://`, or null when it is not a URN */
 export function segments(urn) {
@@ -14,18 +15,23 @@ export function segments(urn) {
   return s.length >= 1 && s.every(okSegment) ? s : null;
 }
 
-export const spaceOf = (/** @type {string} */ urn) => { const s = segments(urn); return s ? s[0] : null; };
+export const spaceOf = (/** @type {string} */ urn) => {
+  const s = segments(urn);
+  return s ? s[0] : null;
+};
 
 /** Does `prefix` cover `urn`? A `*` segment matches one segment of any value. */
 export function covers(prefix, urn) {
-  const p = segments(prefix), u = segments(urn);
+  const p = segments(prefix),
+    u = segments(urn);
   if (!p || !u || p.length > u.length) return false;
   return p.every((seg, i) => seg === "*" || seg === u[i]);
 }
 
 /** Is selector prefix `deep` provably inside `wide`? Same or deeper, segment by segment, a `*` in `deep` only under a `*`. */
 export function containedPrefix(deep, wide) {
-  const d = segments(deep), w = segments(wide);
+  const d = segments(deep),
+    w = segments(wide);
   if (!d || !w || d.length < w.length) return false;
   return w.every((seg, i) => seg === "*" || (d[i] !== "*" && seg === d[i]));
 }

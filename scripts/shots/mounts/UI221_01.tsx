@@ -14,8 +14,12 @@ export default function Mount(): ReactNode {
   if (phone) return <Threads />;
   return (
     <View style={{ flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string }}>
-      <View testID="real-sidebar" style={{ width: 272, minWidth: 272 }}><ChatsSidebar data={data} window={{ start: 0, end: 500 }} /></View>
-      <View style={{ flex: 1, minWidth: 0 }}><Threads /></View>
+      <View testID="real-sidebar" style={{ width: 272, minWidth: 272 }}>
+        <ChatsSidebar data={data} window={{ start: 0, end: 500 }} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Threads />
+      </View>
     </View>
   );
 }

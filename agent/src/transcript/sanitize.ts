@@ -25,23 +25,47 @@ const VENDOR: readonly Rule[] = [
 
 /** Rules found by a secret's NAME or place rather than its prefix. A rule with a group replaces only that group, so the name in front of the value survives. */
 const GENERIC: readonly Rule[] = [
-  ["db-flag-password", /\b(?:mysql|mysqldump|mariadb|psql|mongosh?|redis-cli)\b[^\n]{0,120}?\s-p([^\s]{8,})/g, "password", 1],
+  [
+    "db-flag-password",
+    /\b(?:mysql|mysqldump|mariadb|psql|mongosh?|redis-cli)\b[^\n]{0,120}?\s-p([^\s]{8,})/g,
+    "password",
+    1,
+  ],
   ["curl-userpass", /\B-u\s+[^\s:]{1,64}:([^\s]{6,})/g, "password", 1],
   ["pem", /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, "private key"],
   // A key block with no end takes the rest of the text with it: a clipped paste loses its END line all the time.
   ["pem-open", /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*$/g, "private key"],
   ["conn-url", /\b([a-z][a-z0-9+.-]*:\/\/[^\s:@/?#]+):([^\s@/?&=#]{3,})@/gi, "url password", 2],
-  ["password", /(?:^|[\s{,"'`_-])((?:[A-Za-z0-9_.-]*[_.-])?pass(?:word|wd)?|passphrase)["']?\s*[:=]\s*["']?((?!\$\{|<|your|xxx|process\.env)[^\s"',;}\n]{8,})/gi, "password", 2],
-  ["named-secret", /\b(?:export\s+)?["']?((?:[A-Za-z0-9_.-]*[_.-])?(?:apikey|apisecret|authtoken|accesstoken|accesskey|secretkey|privatekey|clientsecret|refreshtoken|sessiontoken|token|secret|key|password|passwd|passphrase|credential|auth)(?:[_.-][A-Za-z0-9_.-]*)?)(?<!_FILE)(?<!_PATH)(?<!_file)(?<!_path)["']?\s*[:=]\s*["']?((?!\$\{|<|your|xxx|\.\.\.|changeme|placeholder|example|process\.env|import\.meta|\.{0,2}\/)[^\s"',;}()\n]{12,})/gi, "secret", 2],
-  ["camel-secret", /\b([a-z][A-Za-z0-9]*(?:Key|Secret|Token|Password|Passphrase|Credential|Auth))["']?\s*[:=]\s*["']?((?!\$\{|<|your|xxx|process\.env)[^\s"',;}()\n]{12,})/g, "secret", 2],
+  [
+    "password",
+    /(?:^|[\s{,"'`_-])((?:[A-Za-z0-9_.-]*[_.-])?pass(?:word|wd)?|passphrase)["']?\s*[:=]\s*["']?((?!\$\{|<|your|xxx|process\.env)[^\s"',;}\n]{8,})/gi,
+    "password",
+    2,
+  ],
+  [
+    "named-secret",
+    /\b(?:export\s+)?["']?((?:[A-Za-z0-9_.-]*[_.-])?(?:apikey|apisecret|authtoken|accesstoken|accesskey|secretkey|privatekey|clientsecret|refreshtoken|sessiontoken|token|secret|key|password|passwd|passphrase|credential|auth)(?:[_.-][A-Za-z0-9_.-]*)?)(?<!_FILE)(?<!_PATH)(?<!_file)(?<!_path)["']?\s*[:=]\s*["']?((?!\$\{|<|your|xxx|\.\.\.|changeme|placeholder|example|process\.env|import\.meta|\.{0,2}\/)[^\s"',;}()\n]{12,})/gi,
+    "secret",
+    2,
+  ],
+  [
+    "camel-secret",
+    /\b([a-z][A-Za-z0-9]*(?:Key|Secret|Token|Password|Passphrase|Credential|Auth))["']?\s*[:=]\s*["']?((?!\$\{|<|your|xxx|process\.env)[^\s"',;}()\n]{12,})/g,
+    "secret",
+    2,
+  ],
 ];
 
 export const PATTERNS: readonly Rule[] = [...VENDOR, ...GENERIC];
 
 /** Names that contain a secret word and are not secrets: a token count is a number, a cache key an identifier, a secretary a person. */
-const NOT_SECRET_NAME = /^(?:.*_(?:count|id|ids|name|names|length|size|type|version|at|on)|cache_key|idempotency_key|keychain|secretar\w*|authors?|public_key|ssh_public_key|.*_public_key)$/i;
+const NOT_SECRET_NAME =
+  /^(?:.*_(?:count|id|ids|name|names|length|size|type|version|at|on)|cache_key|idempotency_key|keychain|secretar\w*|authors?|public_key|ssh_public_key|.*_public_key)$/i;
 
-export interface Redacted { text: string; hits: string[] }
+export interface Redacted {
+  text: string;
+  hits: string[];
+}
 
 /** Replace each secret with a marker that keeps its kind and last four characters. Never throws, whatever it is given. */
 export function redact(input: unknown): Redacted {
@@ -58,10 +82,10 @@ export function redact(input: unknown): Redacted {
       if (/^(\[|x{4,}|\*{4,}|<[^>]+>|\$\{?\w+\}?|redacted|changeme|your[-_])/i.test(secret)) return m;
       // The checks below apply only to generic name/value rules. A vendor rule has proved what it found by its prefix.
       if (group) {
-        if (/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/.test(secret)) return m;            // a dotted identifier is code
+        if (/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/.test(secret)) return m; // a dotted identifier is code
         if (/^[A-Z][A-Z0-9_]*$/.test(secret) || /^[A-Z][A-Za-z_$]*$/.test(secret)) return m; // a CONSTANT or a TypeName is a variable
         if (name !== "password" && /^[A-Za-z_$]+(?:[-_][A-Za-z_$]+)+$/.test(secret)) return m; // words joined by hyphens are prose or configuration
-        if (/^[.*$|\\]/.test(secret)) return m;                                              // a shell or sed fragment
+        if (/^[.*$|\\]/.test(secret)) return m; // a shell or sed fragment
       }
       hits.push(name);
       // A private key shows nothing of itself, not even its last four characters: they are key material.

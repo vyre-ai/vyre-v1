@@ -11,7 +11,23 @@
 
 import { acts } from "./rights.js";
 import { hostUnder } from "../worker/match.js";
-import { applyFacts, callExpression, blurSecrets, collectPage, composeFacts, describeElement, focusElement, markSecret, pageRequest, pointInfo, probe, revealElement, scrollTo, scrubSecrets, selectOption } from "./page.js";
+import {
+  applyFacts,
+  callExpression,
+  blurSecrets,
+  collectPage,
+  composeFacts,
+  describeElement,
+  focusElement,
+  markSecret,
+  pageRequest,
+  pointInfo,
+  probe,
+  revealElement,
+  scrollTo,
+  scrubSecrets,
+  selectOption,
+} from "./page.js";
 import { AgentFailure, BATCHABLE, TAB_LIMIT, checkInput, errorOf, fail } from "./protocol.js";
 import { bareUrl, maskBody, maskHeaders, maskJson, maskUrl, scrub } from "./mask.js";
 import { refMap, renderTree, toSnapshot } from "./snapshot.js";
@@ -20,20 +36,47 @@ import * as consequence from "./consequence.js";
 import * as verify from "./verify.js";
 
 const HANDLE = /^#[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
-const ACTIVATORS = new Set(["button", "link", "menuitem", "menuitemcheckbox", "menuitemradio", "tab", "treeitem", "option"]);
+const ACTIVATORS = new Set([
+  "button",
+  "link",
+  "menuitem",
+  "menuitemcheckbox",
+  "menuitemradio",
+  "tab",
+  "treeitem",
+  "option",
+]);
 /** Tools that say nothing about the page, so they never take a picture. */
-const QUIET = new Set(["chrome_status", "chrome_stop", "chrome_resume", "chrome_plan", "chrome_tabs", "chrome_screenshot"]);
+const QUIET = new Set([
+  "chrome_status",
+  "chrome_stop",
+  "chrome_resume",
+  "chrome_plan",
+  "chrome_tabs",
+  "chrome_screenshot",
+]);
 const FRAME_EVERY_MS = 4000;
 const ALLOWED_WHILE_PAUSED = new Set(["chrome_status", "chrome_resume", "chrome_stop"]);
 const MAX_BODY = 120_000;
-const FORBIDDEN_HEADERS = /^(cookie|host|origin|referer|content-length|connection|user-agent|accept-encoding|sec-.*|proxy-.*)$/i;
+const FORBIDDEN_HEADERS =
+  /^(cookie|host|origin|referer|content-length|connection|user-agent|accept-encoding|sec-.*|proxy-.*)$/i;
 
 /** @type {Record<string, { key: string, code: string, vk: number, text?: string }>} */
 const KEYS = {
-  Enter: { key: "Enter", code: "Enter", vk: 13, text: "\r" }, Tab: { key: "Tab", code: "Tab", vk: 9 }, Escape: { key: "Escape", code: "Escape", vk: 27 },
-  Backspace: { key: "Backspace", code: "Backspace", vk: 8 }, Delete: { key: "Delete", code: "Delete", vk: 46 }, Space: { key: " ", code: "Space", vk: 32, text: " " },
-  ArrowUp: { key: "ArrowUp", code: "ArrowUp", vk: 38 }, ArrowDown: { key: "ArrowDown", code: "ArrowDown", vk: 40 }, ArrowLeft: { key: "ArrowLeft", code: "ArrowLeft", vk: 37 }, ArrowRight: { key: "ArrowRight", code: "ArrowRight", vk: 39 },
-  Home: { key: "Home", code: "Home", vk: 36 }, End: { key: "End", code: "End", vk: 35 }, PageUp: { key: "PageUp", code: "PageUp", vk: 33 }, PageDown: { key: "PageDown", code: "PageDown", vk: 34 },
+  Enter: { key: "Enter", code: "Enter", vk: 13, text: "\r" },
+  Tab: { key: "Tab", code: "Tab", vk: 9 },
+  Escape: { key: "Escape", code: "Escape", vk: 27 },
+  Backspace: { key: "Backspace", code: "Backspace", vk: 8 },
+  Delete: { key: "Delete", code: "Delete", vk: 46 },
+  Space: { key: " ", code: "Space", vk: 32, text: " " },
+  ArrowUp: { key: "ArrowUp", code: "ArrowUp", vk: 38 },
+  ArrowDown: { key: "ArrowDown", code: "ArrowDown", vk: 40 },
+  ArrowLeft: { key: "ArrowLeft", code: "ArrowLeft", vk: 37 },
+  ArrowRight: { key: "ArrowRight", code: "ArrowRight", vk: 39 },
+  Home: { key: "Home", code: "Home", vk: 36 },
+  End: { key: "End", code: "End", vk: 35 },
+  PageUp: { key: "PageUp", code: "PageUp", vk: 33 },
+  PageDown: { key: "PageDown", code: "PageDown", vk: 34 },
 };
 const MODS = { alt: 1, control: 2, ctrl: 2, meta: 4, cmd: 4, command: 4, shift: 8 };
 
@@ -60,16 +103,33 @@ export function parseKey(spec) {
 /** Agents browse the public web: not this computer, not a private network, not a bare internal name. Names that resolve to a private address are caught by the egress proxy on an agent computer. @param {string} u */
 export function isPublicUrl(u) {
   let x;
-  try { x = new URL(u); } catch { return false; }
+  try {
+    x = new URL(u);
+  } catch {
+    return false;
+  }
   if (!/^https?:$/.test(x.protocol)) return false;
-  const h = x.hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
+  const h = x.hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "")
+    .replace(/\.$/, "");
   if (!h || h === "localhost" || /\.(localhost|local|internal|lan|home\.arpa|corp|intranet)$/.test(h)) return false;
-  if (h.includes(":")) return !(h === "::1" || h === "::" || /^f[cd]/.test(h) || /^fe[89ab]/.test(h) || h.startsWith("::ffff:"));
+  if (h.includes(":"))
+    return !(h === "::1" || h === "::" || /^f[cd]/.test(h) || /^fe[89ab]/.test(h) || h.startsWith("::ffff:"));
   const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(h);
   if (m) {
     const a = Number(m[1]);
     const b = Number(m[2]);
-    return !(a === 0 || a === 10 || a === 127 || a >= 224 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127));
+    return !(
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      a >= 224 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 100 && b >= 64 && b <= 127)
+    );
   }
   return h.includes(".");
 }
@@ -79,7 +139,13 @@ const drivable = (u) => typeof u === "string" && (/^https?:\/\//i.test(u) || u =
 /** @param {{ name?: string, role: string }} c */
 const label = (c) => JSON.stringify(c.name || c.role);
 /** @param {"unbound" | "tied" | undefined} why */
-const miss = (why) => ({ ok: false, why: why === "tied" ? "More than one control matches that ref now, so nothing was pressed. Take a new snapshot." : "That control moved or changed since you looked, so nothing was pressed. Take a new snapshot." });
+const miss = (why) => ({
+  ok: false,
+  why:
+    why === "tied"
+      ? "More than one control matches that ref now, so nothing was pressed. Take a new snapshot."
+      : "That control moved or changed since you looked, so nothing was pressed. Take a new snapshot.",
+});
 
 /**
  * @param {{
@@ -107,8 +173,16 @@ export function createTools(kit) {
 
   /** Run a page.js function in the tab and return its value. @param {number} tabId @param {Function} fn @param {...unknown} args */
   async function evalPage(tabId, fn, ...args) {
-    const r = await cdp.send(tabId, "Runtime.evaluate", { expression: callExpression(fn, ...args), returnByValue: true, awaitPromise: true });
-    if (r && r.exceptionDetails) throw new AgentFailure("page_error", scrub(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text ?? "the page script failed"));
+    const r = await cdp.send(tabId, "Runtime.evaluate", {
+      expression: callExpression(fn, ...args),
+      returnByValue: true,
+      awaitPromise: true,
+    });
+    if (r && r.exceptionDetails)
+      throw new AgentFailure(
+        "page_error",
+        scrub(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text ?? "the page script failed"),
+      );
     return r && r.result ? r.result.value : undefined;
   }
 
@@ -122,7 +196,9 @@ export function createTools(kit) {
   /** A look taken while a page may be navigating: a missing context counts as "it moved on". @param {number} tabId */
   async function lookAfter(tabId) {
     for (let i = 0; i < 3; i++) {
-      try { return await look(tabId); } catch (e) {
+      try {
+        return await look(tabId);
+      } catch (e) {
         if (e instanceof AgentFailure && e.code === "no_tab") throw e;
         await sleep(150);
       }
@@ -139,7 +215,8 @@ export function createTools(kit) {
   /** Let a click's effects land: a short pause, then the load if a navigation began and has not finished. @param {number} tabId @param {{ navigations: number, loads: number }} before */
   async function settle(tabId, before) {
     if (settleMs > 0) await sleep(settleMs);
-    if (traffic.navigations(tabId) !== before.navigations && traffic.loads(tabId) === before.loads) await cdp.waitFor(tabId, (m) => m === "Page.loadEventFired", 8000);
+    if (traffic.navigations(tabId) !== before.navigations && traffic.loads(tabId) === before.loads)
+      await cdp.waitFor(tabId, (m) => m === "Page.loadEventFired", 8000);
   }
 
   /** What to compare after an action to know whether a navigation began. @param {number} tabId */
@@ -147,17 +224,52 @@ export function createTools(kit) {
 
   /** @param {number} tabId @param {string} type @param {number} x @param {number} y @param {"left" | "right" | "middle"} [button] @param {number} [clickCount] */
   const mouse = (tabId, type, x, y, button = "left", clickCount = 1) =>
-    cdp.send(tabId, "Input.dispatchMouseEvent", { type, x, y, button: type === "mouseMoved" ? "none" : button, buttons: type === "mouseReleased" ? 0 : button === "left" ? 1 : button === "right" ? 2 : 4, clickCount });
+    cdp.send(tabId, "Input.dispatchMouseEvent", {
+      type,
+      x,
+      y,
+      button: type === "mouseMoved" ? "none" : button,
+      buttons: type === "mouseReleased" ? 0 : button === "left" ? 1 : button === "right" ? 2 : 4,
+      clickCount,
+    });
 
   /** @param {number} tabId @param {ReturnType<typeof parseKey>} k */
   async function sendKey(tabId, k) {
-    const base = { key: k.key, code: k.code, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk, modifiers: k.modifiers };
-    await cdp.send(tabId, "Input.dispatchKeyEvent", { type: k.text ? "keyDown" : "rawKeyDown", ...base, ...(k.text ? { text: k.text } : {}) });
+    const base = {
+      key: k.key,
+      code: k.code,
+      windowsVirtualKeyCode: k.vk,
+      nativeVirtualKeyCode: k.vk,
+      modifiers: k.modifiers,
+    };
+    await cdp.send(tabId, "Input.dispatchKeyEvent", {
+      type: k.text ? "keyDown" : "rawKeyDown",
+      ...base,
+      ...(k.text ? { text: k.text } : {}),
+    });
     await cdp.send(tabId, "Input.dispatchKeyEvent", { type: "keyUp", ...base });
   }
 
   /** Select what the focused field holds so the next text replaces it. @param {number} tabId */
-  const selectAll = (tabId) => cdp.send(tabId, "Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", windowsVirtualKeyCode: 65, modifiers: 2, commands: ["selectAll"] }).then(() => cdp.send(tabId, "Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA", windowsVirtualKeyCode: 65, modifiers: 2 }));
+  const selectAll = (tabId) =>
+    cdp
+      .send(tabId, "Input.dispatchKeyEvent", {
+        type: "keyDown",
+        key: "a",
+        code: "KeyA",
+        windowsVirtualKeyCode: 65,
+        modifiers: 2,
+        commands: ["selectAll"],
+      })
+      .then(() =>
+        cdp.send(tabId, "Input.dispatchKeyEvent", {
+          type: "keyUp",
+          key: "a",
+          code: "KeyA",
+          windowsVirtualKeyCode: 65,
+          modifiers: 2,
+        }),
+      );
 
   // ---------- tabs
 
@@ -167,7 +279,11 @@ export function createTools(kit) {
     // A tab the agent found for the site the person asked about may be worked in (the ask was checked by the app before the call came).
     if (!o.owned && sessions.offeredTab(call.agent.id, tabId)) return;
     let tab;
-    try { tab = await ext.tabs.get(tabId); } catch { return fail("no_tab"); }
+    try {
+      tab = await ext.tabs.get(tabId);
+    } catch {
+      return fail("no_tab");
+    }
     // The tab the person has in front of them can be handed to an agent (use, or a tool that names it); it can never be closed by one.
     if (o.owned || !tab.active) fail("not_yours");
   }
@@ -184,11 +300,20 @@ export function createTools(kit) {
     } else tabId = sessions.currentTab(agentId);
     if (tabId === null && kit.mode() === "computer") {
       const [t] = await ext.tabs.query({ active: true, currentWindow: true });
-      if (t && t.id !== undefined && drivable(t.url)) { tabId = t.id; sessions.own(agentId, tabId); sessions.setCurrent(agentId, tabId); }
+      if (t && t.id !== undefined && drivable(t.url)) {
+        tabId = t.id;
+        sessions.own(agentId, tabId);
+        sessions.setCurrent(agentId, tabId);
+      }
     }
     if (tabId === null) return fail("no_tab");
     let tab;
-    try { tab = await ext.tabs.get(tabId); } catch { await sessions.tabGone(tabId); return fail("no_tab"); }
+    try {
+      tab = await ext.tabs.get(tabId);
+    } catch {
+      await sessions.tabGone(tabId);
+      return fail("no_tab");
+    }
     if (!drivable(tab.url)) fail("no_page", tab.url ? `(${bareUrl(String(tab.url))})` : "");
     sessions.own(agentId, tabId);
     sessions.setCurrent(agentId, tabId);
@@ -199,8 +324,17 @@ export function createTools(kit) {
   async function drive(call, input, fn) {
     const tabId = await tabFor(call, input);
     await sessions.begin(call, tabId);
-    try { await cdp.attach(tabId); } catch (e) { await sessions.release(tabId, "denied"); throw e; }
-    try { return await fn(tabId); } finally { sessions.touch(tabId); }
+    try {
+      await cdp.attach(tabId);
+    } catch (e) {
+      await sessions.release(tabId, "denied");
+      throw e;
+    }
+    try {
+      return await fn(tabId);
+    } finally {
+      sessions.touch(tabId);
+    }
   }
 
   /** @param {Call} call @param {string} url @param {boolean} active */
@@ -220,7 +354,11 @@ export function createTools(kit) {
 
   /** What the approval card shows for a held item; empty when the page cannot be read. @param {number} tabId @param {number | null} idx */
   async function cardOf(tabId, idx) {
-    try { return /** @type {Record<string, string>} */ (await evalPage(tabId, composeFacts, idx)) || undefined; } catch { return undefined; }
+    try {
+      return /** @type {Record<string, string>} */ (await evalPage(tabId, composeFacts, idx)) || undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   /** Press (click, double click, hover) a control, chosen by selector, against a fresh look. @param {Call} call @param {number} tabId @param {selector.Selector} sel @param {{ verb: "click" | "hover", button?: "left" | "right" | "middle", double?: boolean, mode?: "normal" | "approved", wantChecked?: boolean }} o */
@@ -230,25 +368,43 @@ export function createTools(kit) {
     if (!r.control) return miss(r.why);
     const c = r.control;
     if (c.enabled === false) return { ok: false, why: `${label(c)} is disabled right now` };
-    if (o.wantChecked !== undefined && c.checked === o.wantChecked) return { ok: true, why: `${label(c)} is already ${o.wantChecked ? "checked" : "unchecked"}` };
+    if (o.wantChecked !== undefined && c.checked === o.wantChecked)
+      return { ok: true, why: `${label(c)} is already ${o.wantChecked ? "checked" : "unchecked"}` };
     const button = o.button ?? "left";
     if (o.verb === "click" && o.mode !== "approved") {
       const v = consequence.of(c);
       if (v.consequential) {
-        const heldId = sessions.hold(call, tabId, { kind: v.kind, why: v.why, summary: `${v.kind}: ${label(c)} on ${bareUrl(before.url)}`, card: await cardOf(tabId, c.idx), selector: sel, action: { type: "click", button, double: Boolean(o.double) } });
+        const heldId = sessions.hold(call, tabId, {
+          kind: v.kind,
+          why: v.why,
+          summary: `${v.kind}: ${label(c)} on ${bareUrl(before.url)}`,
+          card: await cardOf(tabId, c.idx),
+          selector: sel,
+          action: { type: "click", button, double: Boolean(o.double) },
+        });
         return { ok: false, heldId, why: `${v.why}. It is held until the person approves it.` };
       }
     }
     const rect = await evalPage(tabId, revealElement, c.idx);
     if (!rect) return { ok: false, why: `${label(c)} is gone` };
-    if (rect.covered) return { ok: false, why: `${label(c)} is covered by ${JSON.stringify(rect.covered)}. Close or dismiss that first.` };
+    if (rect.covered)
+      return {
+        ok: false,
+        why: `${label(c)} is covered by ${JSON.stringify(rect.covered)}. Close or dismiss that first.`,
+      };
     await sessions.cursor(tabId, rect.cx, rect.cy, o.verb === "click");
     const nav = marks(tabId);
     await mouse(tabId, "mouseMoved", rect.cx, rect.cy);
-    if (o.verb === "hover") { if (settleMs > 0) await sleep(settleMs); return { ok: true, why: `moved over ${label(c)}` }; }
+    if (o.verb === "hover") {
+      if (settleMs > 0) await sleep(settleMs);
+      return { ok: true, why: `moved over ${label(c)}` };
+    }
     await mouse(tabId, "mousePressed", rect.cx, rect.cy, button, 1);
     await mouse(tabId, "mouseReleased", rect.cx, rect.cy, button, 1);
-    if (o.double) { await mouse(tabId, "mousePressed", rect.cx, rect.cy, button, 2); await mouse(tabId, "mouseReleased", rect.cx, rect.cy, button, 2); }
+    if (o.double) {
+      await mouse(tabId, "mousePressed", rect.cx, rect.cy, button, 2);
+      await mouse(tabId, "mouseReleased", rect.cx, rect.cy, button, 2);
+    }
     await settle(tabId, nav);
     const after = await lookAfter(tabId);
     if (!after) return { ok: true, pressed: true, why: `pressed ${label(c)}; the page is navigating` };
@@ -262,9 +418,21 @@ export function createTools(kit) {
     const k = parseKey(spec);
     if (mode !== "approved" && !k.modifiers && (k.key === "Enter" || k.key === " ")) {
       const activator = Boolean(ctl && ACTIVATORS.has(ctl.role));
-      const v = activator && ctl ? consequence.of(ctl) : k.key === "Enter" && ctl ? consequence.ofEnter(ctl) : { consequential: false, kind: "none", why: "" };
+      const v =
+        activator && ctl
+          ? consequence.of(ctl)
+          : k.key === "Enter" && ctl
+            ? consequence.ofEnter(ctl)
+            : { consequential: false, kind: "none", why: "" };
       if (v.consequential) {
-        const heldId = sessions.hold(call, tabId, { kind: v.kind, why: v.why, summary: `${v.kind}: ${spec} on ${ctl ? label(ctl) : "the page"}`, card: await cardOf(tabId, ctl ? ctl.idx : null), selector: ctl ? selector.of(ctl) : null, action: { type: "press", key: spec } });
+        const heldId = sessions.hold(call, tabId, {
+          kind: v.kind,
+          why: v.why,
+          summary: `${v.kind}: ${spec} on ${ctl ? label(ctl) : "the page"}`,
+          card: await cardOf(tabId, ctl ? ctl.idx : null),
+          selector: ctl ? selector.of(ctl) : null,
+          action: { type: "press", key: spec },
+        });
         return { ok: false, heldId, why: `${v.why}. It is held until the person approves it.` };
       }
     }
@@ -316,10 +484,18 @@ export function createTools(kit) {
       try {
         await selectAll(tabId);
         await cdp.send(tabId, "Input.insertText", { text: v });
-      } finally { v = ""; }
+      } finally {
+        v = "";
+      }
       await evalPage(tabId, markSecret, target.idx);
       // "Show what <agent> saw": the chat lists the handles the agent was given, never what they hold.
-      kit.emit({ event: "saw", agent: call.agent.id, name: call.agent.name, space: call.space, handle: text.slice(0, 120) });
+      kit.emit({
+        event: "saw",
+        agent: call.agent.id,
+        name: call.agent.name,
+        space: call.space,
+        handle: text.slice(0, 120),
+      });
       return { ok: true, why: `filled ${label(target)} from the Vault` };
     }
     if (replace) await selectAll(tabId);
@@ -342,7 +518,12 @@ export function createTools(kit) {
         note(`${snap.controls.length} controls on ${snap.title || snap.url}`);
         if (input["format"] === "text") {
           const text = await scrubbed(tabId, snap.text);
-          return { url: maskUrl(snap.url), title: snap.title, tree: text.slice(0, 60_000), truncated: text.length > 60_000 };
+          return {
+            url: maskUrl(snap.url),
+            title: snap.title,
+            tree: text.slice(0, 60_000),
+            truncated: text.length > 60_000,
+          };
         }
         const { tree, truncated } = publish(tabId, snap);
         return { url: maskUrl(snap.url), title: snap.title, tree, truncated };
@@ -357,13 +538,22 @@ export function createTools(kit) {
           if (!key) fail("bad_input", "press needs a key in value, such as Enter or Control+A.");
           /** @type {import("./snapshot.js").Control | undefined} */
           let ctl;
-          if (input["ref"]) { const b = await bind(tabId, String(input["ref"])); if (!b.control) return miss(b.why); ctl = b.control; await focusControl(tabId, ctl); } else ctl = (await look(tabId)).controls.find((c) => c.focused);
+          if (input["ref"]) {
+            const b = await bind(tabId, String(input["ref"]));
+            if (!b.control) return miss(b.why);
+            ctl = b.control;
+            await focusControl(tabId, ctl);
+          } else ctl = (await look(tabId)).controls.find((c) => c.focused);
           note(`pressed ${key}`);
           return pressKey(call, tabId, key, ctl);
         }
         if (action === "scroll") {
           let idx = null;
-          if (input["ref"]) { const b = await bind(tabId, String(input["ref"])); if (!b.control) return miss(b.why); idx = b.control.idx; }
+          if (input["ref"]) {
+            const b = await bind(tabId, String(input["ref"]));
+            if (!b.control) return miss(b.why);
+            idx = b.control.idx;
+          }
           const r = await evalPage(tabId, scrollTo, idx, String(input["value"] ?? "down"));
           note(`scrolled ${input["value"] ?? "down"}`);
           if (!r) return { ok: false, why: "That control is gone." };
@@ -371,21 +561,30 @@ export function createTools(kit) {
         }
         if (!input["ref"]) fail("bad_input", `${action} needs a ref from chrome_snapshot.`);
         const ref = String(input["ref"]);
-        if (action === "focus") { const b = await bind(tabId, ref); if (!b.control) return miss(b.why); await focusControl(tabId, b.control); note(`focused ${label(b.control)}`); return { ok: true }; }
+        if (action === "focus") {
+          const b = await bind(tabId, ref);
+          if (!b.control) return miss(b.why);
+          await focusControl(tabId, b.control);
+          note(`focused ${label(b.control)}`);
+          return { ok: true };
+        }
         if (action === "select") {
           const b = await bind(tabId, ref);
           if (!b.control) return miss(b.why);
           await focusControl(tabId, b.control);
           const r = await evalPage(tabId, selectOption, b.control.idx, String(input["value"] ?? ""));
           note(`selected ${JSON.stringify(input["value"] ?? "")}`);
-          return r && r.ok ? { ok: true, why: `selected ${JSON.stringify(r.label)}` } : { ok: false, why: String(r?.why ?? "could not select") };
+          return r && r.ok
+            ? { ok: true, why: `selected ${JSON.stringify(r.label)}` }
+            : { ok: false, why: String(r?.why ?? "could not select") };
         }
         const b = await bind(tabId, ref);
         if (!b.control) return miss(b.why);
         note(`${action} ${label(b.control)}`);
         const sel = b.sel;
         if (action === "hover") return pressControl(call, tabId, sel, { verb: "hover" });
-        if (action === "check" || action === "uncheck") return pressControl(call, tabId, sel, { verb: "click", wantChecked: action === "check" });
+        if (action === "check" || action === "uncheck")
+          return pressControl(call, tabId, sel, { verb: "click", wantChecked: action === "check" });
         return pressControl(call, tabId, sel, { verb: "click", double: action === "double_click" });
       });
     },
@@ -399,15 +598,29 @@ export function createTools(kit) {
           note(`click ${label(b.control)}`);
           return pressControl(call, tabId, b.sel, { verb: "click", button });
         }
-        if (typeof input["x"] !== "number" || typeof input["y"] !== "number") fail("bad_input", "Give a ref, or both x and y.");
+        if (typeof input["x"] !== "number" || typeof input["y"] !== "number")
+          fail("bad_input", "Give a ref, or both x and y.");
         const x = Math.round(input["x"]);
         const y = Math.round(input["y"]);
         // A click by coordinates is classified by what is under the point.
         const under = await evalPage(tabId, pointInfo, x, y);
         if (under && under.actionable) {
-          const v = consequence.of({ name: under.name, nameless: under.nameless, role: under.role, submit: under.submit, href: under.href });
+          const v = consequence.of({
+            name: under.name,
+            nameless: under.nameless,
+            role: under.role,
+            submit: under.submit,
+            href: under.href,
+          });
           if (v.consequential) {
-            const heldId = sessions.hold(call, tabId, { kind: v.kind, why: v.why, summary: `${v.kind}: click at ${x},${y} on ${bareUrl((await ext.tabs.get(tabId)).url ?? "")}`, card: await cardOf(tabId, null), selector: null, action: { type: "click", button, double: false } });
+            const heldId = sessions.hold(call, tabId, {
+              kind: v.kind,
+              why: v.why,
+              summary: `${v.kind}: click at ${x},${y} on ${bareUrl((await ext.tabs.get(tabId)).url ?? "")}`,
+              card: await cardOf(tabId, null),
+              selector: null,
+              action: { type: "click", button, double: false },
+            });
             return { ok: false, heldId, why: `${v.why}. It is held until the person approves it.` };
           }
         }
@@ -430,7 +643,11 @@ export function createTools(kit) {
         if (!r.ok || input["submit"] !== true) return { ok: r.ok, ...(r.why ? { why: r.why } : {}) };
         const ctl = (await look(tabId)).controls.find((c) => c.focused);
         const sent = await pressKey(call, tabId, "Enter", ctl);
-        return { ok: true, ...(sent.heldId ? { heldId: sent.heldId, why: sent.why } : {}), ...(sent.snapshot ? { snapshot: sent.snapshot } : {}) };
+        return {
+          ok: true,
+          ...(sent.heldId ? { heldId: sent.heldId, why: sent.why } : {}),
+          ...(sent.snapshot ? { snapshot: sent.snapshot } : {}),
+        };
       });
     },
 
@@ -440,9 +657,13 @@ export function createTools(kit) {
       return drive(call, input, async (tabId) => {
         let filled = 0;
         for (const f of fields) {
-          if (!f || typeof f.ref !== "string" || typeof f.value !== "string") fail("bad_input", "Each field is { ref, value } with both as text.");
+          if (!f || typeof f.ref !== "string" || typeof f.value !== "string")
+            fail("bad_input", "Each field is { ref, value } with both as text.");
           const r = await writeText(call, tabId, f.ref, f.value, true);
-          if (!r.ok) { note(`filled ${filled} of ${fields.length}`); return { ok: false, filled, why: r.why }; }
+          if (!r.ok) {
+            note(`filled ${filled} of ${fields.length}`);
+            return { ok: false, filled, why: r.why };
+          }
           filled++;
         }
         note(`filled ${filled} fields`);
@@ -458,7 +679,12 @@ export function createTools(kit) {
       let tabId;
       const current = input["newTab"] === true ? null : sessions.currentTab(call.agent.id);
       if (current !== null) {
-        try { const t = await ext.tabs.get(current); tabId = drivable(t.url) ? current : await newTab(call, url, false); } catch { tabId = await newTab(call, url, false); }
+        try {
+          const t = await ext.tabs.get(current);
+          tabId = drivable(t.url) ? current : await newTab(call, url, false);
+        } catch {
+          tabId = await newTab(call, url, false);
+        }
       } else if (input["newTab"] !== true && kit.mode() === "computer") {
         const [t] = await ext.tabs.query({ active: true, currentWindow: true });
         tabId = t && t.id !== undefined && drivable(t.url) ? t.id : await newTab(call, url, false);
@@ -466,11 +692,19 @@ export function createTools(kit) {
         sessions.setCurrent(call.agent.id, tabId);
       } else tabId = await newTab(call, url, false);
       await sessions.begin(call, tabId);
-      try { await cdp.attach(tabId); } catch (e) { await sessions.release(tabId, "denied"); throw e; }
+      try {
+        await cdp.attach(tabId);
+      } catch (e) {
+        await sessions.release(tabId, "denied");
+        throw e;
+      }
       try {
         const loaded = cdp.waitFor(tabId, (m) => m === "Page.loadEventFired", 20_000);
         const nav = await cdp.send(tabId, "Page.navigate", { url });
-        if (nav && nav.errorText) { note(`could not open ${bareUrl(url)}`); fail("error", `The page did not open: ${String(nav.errorText).slice(0, 80)}`); }
+        if (nav && nav.errorText) {
+          note(`could not open ${bareUrl(url)}`);
+          fail("error", `The page did not open: ${String(nav.errorText).slice(0, 80)}`);
+        }
         if (!(await loaded)) fail("timeout");
         const tab = await ext.tabs.get(tabId);
         // A redirect or a script may have taken the tab somewhere inside: check where it landed, and leave it on a blank page.
@@ -481,7 +715,9 @@ export function createTools(kit) {
         }
         note(bareUrl(url));
         return { tabId: String(tabId), url: maskUrl(String(tab.url ?? url)), title: String(tab.title ?? "") };
-      } finally { sessions.touch(tabId); }
+      } finally {
+        sessions.touch(tabId);
+      }
     },
 
     async chrome_tabs(call, input, note) {
@@ -491,19 +727,35 @@ export function createTools(kit) {
       const row = async (id) => {
         try {
           const t = await ext.tabs.get(id);
-          return { tabId: String(id), url: maskUrl(String(t.url ?? "")), title: String(t.title ?? ""), active: sessions.currentTab(agentId) === id };
-        } catch { await sessions.tabGone(id); return null; }
+          return {
+            tabId: String(id),
+            url: maskUrl(String(t.url ?? "")),
+            title: String(t.title ?? ""),
+            active: sessions.currentTab(agentId) === id,
+          };
+        } catch {
+          await sessions.tabGone(id);
+          return null;
+        }
       };
       if (action === "list") {
         const rows = [];
-        for (const id of sessions.ownedTabs(agentId)) { const r = await row(id); if (r) rows.push(r); }
+        for (const id of sessions.ownedTabs(agentId)) {
+          const r = await row(id);
+          if (r) rows.push(r);
+        }
         note(`${rows.length} tabs`);
         return { tabs: rows };
       }
       if (action === "find") {
         // The person's own open tabs for a site, in every window: web pages only, never a private window. The agent works in one with `use`; nothing is taken until then.
         const want = String(input["site"] ?? "").trim();
-        const host = want.toLowerCase().replace(/^[a-z]+:\/\//, "").split(/[/?#]/)[0].replace(/:\d+$/, "").replace(/^www\./, "");
+        const host = want
+          .toLowerCase()
+          .replace(/^[a-z]+:\/\//, "")
+          .split(/[/?#]/)[0]
+          .replace(/:\d+$/, "")
+          .replace(/^www\./, "");
         if (!host) fail("bad_input", "Name the site to find a tab for.");
         const all = await ext.tabs.query({});
         const rows = [];
@@ -511,23 +763,44 @@ export function createTools(kit) {
         for (const t of all) {
           if (t.id === undefined || t.incognito || !drivable(t.url) || t.url === "about:blank") continue;
           let h = "";
-          try { h = new URL(String(t.url)).hostname.toLowerCase().replace(/^www\./, ""); } catch { continue; }
+          try {
+            h = new URL(String(t.url)).hostname.toLowerCase().replace(/^www\./, "");
+          } catch {
+            continue;
+          }
           if (!hostUnder(h, host)) continue;
           ids.push(t.id);
-          rows.push({ tabId: String(t.id), url: maskUrl(String(t.url)), title: String(t.title ?? ""), active: Boolean(t.active) });
+          rows.push({
+            tabId: String(t.id),
+            url: maskUrl(String(t.url)),
+            title: String(t.title ?? ""),
+            active: Boolean(t.active),
+          });
           if (rows.length >= 10) break;
         }
         sessions.offer(agentId, ids);
-        note(rows.length === 0 ? `no open tab for ${host}` : `${rows.length} open ${rows.length === 1 ? "tab" : "tabs"} for ${host}`);
+        note(
+          rows.length === 0
+            ? `no open tab for ${host}`
+            : `${rows.length} open ${rows.length === 1 ? "tab" : "tabs"} for ${host}`,
+        );
         return { tabs: rows };
       }
       if (action === "new") {
         const url = input["url"] ? String(input["url"]) : "about:blank";
         const id = await newTab(call, url, false);
-        if (url !== "about:blank") { await sessions.begin(call, id); await cdp.attach(id); await cdp.send(id, "Page.navigate", { url }); sessions.touch(id); }
+        if (url !== "about:blank") {
+          await sessions.begin(call, id);
+          await cdp.attach(id);
+          await cdp.send(id, "Page.navigate", { url });
+          sessions.touch(id);
+        }
         note(`opened a tab`);
         const rows = [];
-        for (const t of sessions.ownedTabs(agentId)) { const r = await row(t); if (r) rows.push(r); }
+        for (const t of sessions.ownedTabs(agentId)) {
+          const r = await row(t);
+          if (r) rows.push(r);
+        }
         return { tabs: rows };
       }
       const id = input["tabId"] !== undefined ? Number(input["tabId"]) : sessions.currentTab(agentId);
@@ -542,7 +815,11 @@ export function createTools(kit) {
         if (theirs) {
           sessions.borrow(agentId, tid);
           await sessions.group(call.agent, tid);
-          try { if (typeof ext.tabs.update === "function") await ext.tabs.update(tid, { active: true }); } catch { /* the tab is gone: the next call says so */ }
+          try {
+            if (typeof ext.tabs.update === "function") await ext.tabs.update(tid, { active: true });
+          } catch {
+            /* the tab is gone: the next call says so */
+          }
         }
         note(`using tab ${id}`);
       } else {
@@ -554,7 +831,10 @@ export function createTools(kit) {
         note(`closed tab ${id}`);
       }
       const rows = [];
-      for (const t of sessions.ownedTabs(agentId)) { const r = await row(t); if (r) rows.push(r); }
+      for (const t of sessions.ownedTabs(agentId)) {
+        const r = await row(t);
+        if (r) rows.push(r);
+      }
       return { tabs: rows };
     },
 
@@ -569,13 +849,23 @@ export function createTools(kit) {
           note(`waited ${ms} ms`);
           return { ok: true, waitedMs: ms };
         }
-        if ((until === "text" || until === "selector") && !input["value"]) fail("bad_input", `wait for ${until} needs a value.`);
+        if ((until === "text" || until === "selector") && !input["value"])
+          fail("bad_input", `wait for ${until} needs a value.`);
         let quietSince = now();
         for (;;) {
           let done = false;
-          if (until === "network_idle") { if (traffic.inflight(tabId) > 0) quietSince = now(); done = now() - quietSince >= 500; } else done = Boolean(await evalPage(tabId, probe, until, String(input["value"] ?? "")));
-          if (done) { note(`${until} reached`); return { ok: true, waitedMs: now() - t0 }; }
-          if (now() - t0 >= timeout) { note(`${until} not reached`); return { ok: false, waitedMs: now() - t0 }; }
+          if (until === "network_idle") {
+            if (traffic.inflight(tabId) > 0) quietSince = now();
+            done = now() - quietSince >= 500;
+          } else done = Boolean(await evalPage(tabId, probe, until, String(input["value"] ?? "")));
+          if (done) {
+            note(`${until} reached`);
+            return { ok: true, waitedMs: now() - t0 };
+          }
+          if (now() - t0 >= timeout) {
+            note(`${until} not reached`);
+            return { ok: false, waitedMs: now() - t0 };
+          }
           await sleep(100);
         }
       });
@@ -615,21 +905,35 @@ export function createTools(kit) {
           const shot = await cdp.send(tabId, "Page.captureScreenshot", params);
           note(`captured ${width}x${height}`);
           return { image: String(shot.data), mime: "image/png", width, height };
-        } finally { await evalPage(tabId, blurSecrets, false).catch(() => null); }
+        } finally {
+          await evalPage(tabId, blurSecrets, false).catch(() => null);
+        }
       });
     },
 
     async chrome_eval(call, input, note) {
       return drive(call, input, async (tabId) => {
-        const r = await cdp.send(tabId, "Runtime.evaluate", { expression: String(input["expression"]), returnByValue: true, awaitPromise: true, userGesture: false });
+        const r = await cdp.send(tabId, "Runtime.evaluate", {
+          expression: String(input["expression"]),
+          returnByValue: true,
+          awaitPromise: true,
+          userGesture: false,
+        });
         if (r.exceptionDetails) {
           note("the expression threw");
-          fail("page_error", scrub(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text ?? "the expression threw"));
+          fail(
+            "page_error",
+            scrub(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text ?? "the expression threw"),
+          );
         }
         const value = r.result ? r.result.value : undefined;
         const json = value === undefined ? "null" : JSON.stringify(value);
         let parsed;
-        try { parsed = JSON.parse(await scrubbed(tabId, json)); } catch { parsed = null; }
+        try {
+          parsed = JSON.parse(await scrubbed(tabId, json));
+        } catch {
+          parsed = null;
+        }
         note("evaluated an expression");
         return { result: maskJson(parsed) };
       });
@@ -638,7 +942,9 @@ export function createTools(kit) {
     async chrome_console(call, input, note) {
       return drive(call, input, async (tabId) => {
         const lines = traffic.console(tabId, input["level"], input["limit"]);
-        const clean = lines.length ? (await scrubbed(tabId, lines.map((l) => l.text).join("\u0000"))).split("\u0000") : [];
+        const clean = lines.length
+          ? (await scrubbed(tabId, lines.map((l) => l.text).join("\u0000"))).split("\u0000")
+          : [];
         const messages = lines.map((l, i) => ({ level: l.level, text: clean[i] ?? "", at: l.at }));
         note(`${messages.length} messages`);
         return { messages };
@@ -652,12 +958,21 @@ export function createTools(kit) {
         const requests = [];
         for (const r of list) {
           const row = /** @type {Record<string, any>} */ (traffic.present(r));
-          if (input["bodies"] === true && r.finished && !r.failed && bodies < 10 && /^(XHR|Fetch|Document)$/.test(r.type)) {
+          if (
+            input["bodies"] === true &&
+            r.finished &&
+            !r.failed &&
+            bodies < 10 &&
+            /^(XHR|Fetch|Document)$/.test(r.type)
+          ) {
             bodies++;
             try {
               const got = await cdp.send(tabId, "Network.getResponseBody", { requestId: r.id });
-              if (got && !got.base64Encoded) row["body"] = await scrubbed(tabId, maskBody(String(got.body ?? ""), r.mime ?? ""));
-            } catch { /* the body is gone or was never kept */ }
+              if (got && !got.base64Encoded)
+                row["body"] = await scrubbed(tabId, maskBody(String(got.body ?? ""), r.mime ?? ""));
+            } catch {
+              /* the body is gone or was never kept */
+            }
           }
           const sent = traffic.sentBody(r);
           if (input["bodies"] === true && sent !== undefined) row["requestBody"] = await scrubbed(tabId, sent);
@@ -675,7 +990,15 @@ export function createTools(kit) {
         const el = await evalPage(tabId, describeElement, b.control.idx);
         if (!el) return fail("no_element");
         note(`inspected ${label(b.control)}`);
-        return { element: { ...el, name: b.control.name ?? "", role: b.control.role, enabled: b.control.enabled, ...(b.control.secret ? { secret: true } : {}) } };
+        return {
+          element: {
+            ...el,
+            name: b.control.name ?? "",
+            role: b.control.role,
+            enabled: b.control.enabled,
+            ...(b.control.secret ? { secret: true } : {}),
+          },
+        };
       });
     },
 
@@ -688,7 +1011,12 @@ export function createTools(kit) {
 
     async chrome_status(call) {
       const p = sessions.pausedFor(call.agent.id);
-      return { connected: kit.connected(call), paused: Boolean(p), held: sessions.heldIds(call.agent.id), ...(p ? { pausedBy: p.by } : {}) };
+      return {
+        connected: kit.connected(call),
+        paused: Boolean(p),
+        held: sessions.heldIds(call.agent.id),
+        ...(p ? { pausedBy: p.by } : {}),
+      };
     },
 
     async chrome_stop(call, input, note) {
@@ -711,7 +1039,8 @@ export function createTools(kit) {
         const e = input["edits"];
         if (e && typeof e === "object") {
           const clean = /** @type {Record<string, string>} */ ({});
-          for (const k of ["to", "subject", "message"]) if (typeof /** @type {any} */ (e)[k] === "string") clean[k] = /** @type {any} */ (e)[k].slice(0, 5000);
+          for (const k of ["to", "subject", "message"])
+            if (typeof (/** @type {any} */ (e)[k]) === "string") clean[k] = /** @type {any} */ (e)[k].slice(0, 5000);
           if (Object.keys(clean).length) await evalPage(tabId, applyFacts, clean);
         }
         if (h.action.type === "click") {
@@ -719,7 +1048,12 @@ export function createTools(kit) {
             // A click by coordinates was held without a control to re-bind: it cannot be replayed safely.
             return { sent: false, why: "A click by coordinates cannot be replayed. Click the control by ref." };
           }
-          const r = await pressControl(call, tabId, h.selector, { verb: "click", button: h.action.button, double: h.action.double, mode: "approved" });
+          const r = await pressControl(call, tabId, h.selector, {
+            verb: "click",
+            button: h.action.button,
+            double: h.action.double,
+            mode: "approved",
+          });
           return { sent: Boolean(r.pressed), ...(r.why ? { why: r.why } : {}) };
         }
         /** @type {import("./snapshot.js").Control | undefined} */
@@ -743,9 +1077,20 @@ export function createTools(kit) {
       const results = [];
       for (const s of steps) {
         const tool = s && typeof s.tool === "string" ? s.tool : "";
-        if (!BATCHABLE.has(tool)) { results.push({ tool, ok: false, result: { error: errorOf(new AgentFailure("not_in_batch", "")) } }); break; }
-        const args = { ...(input["tabId"] !== undefined && tool !== "chrome_status" && tool !== "chrome_plan" ? { tabId: input["tabId"] } : {}), ...(s.args && typeof s.args === "object" ? s.args : {}) };
-        if (tool === "chrome_api" && String(args["method"] ?? "GET") !== "GET") { results.push({ tool, ok: false, result: { error: errorOf(new AgentFailure("not_in_batch", "")) } }); break; }
+        if (!BATCHABLE.has(tool)) {
+          results.push({ tool, ok: false, result: { error: errorOf(new AgentFailure("not_in_batch", "")) } });
+          break;
+        }
+        const args = {
+          ...(input["tabId"] !== undefined && tool !== "chrome_status" && tool !== "chrome_plan"
+            ? { tabId: input["tabId"] }
+            : {}),
+          ...(s.args && typeof s.args === "object" ? s.args : {}),
+        };
+        if (tool === "chrome_api" && String(args["method"] ?? "GET") !== "GET") {
+          results.push({ tool, ok: false, result: { error: errorOf(new AgentFailure("not_in_batch", "")) } });
+          break;
+        }
         try {
           const out = await run({ ...call, tool, input: args }, true);
           const ok = !(out && out.ok === false);
@@ -761,7 +1106,12 @@ export function createTools(kit) {
     },
 
     async chrome_plan(call, input, note) {
-      const steps = Array.isArray(input["steps"]) ? input["steps"].filter((/** @type {unknown} */ s) => typeof s === "string").slice(0, 20).map(scrub) : [];
+      const steps = Array.isArray(input["steps"])
+        ? input["steps"]
+            .filter((/** @type {unknown} */ s) => typeof s === "string")
+            .slice(0, 20)
+            .map(scrub)
+        : [];
       kit.emit({ event: "plan", agent: call.agent.id, goal: scrub(input["goal"]), steps });
       await sessions.setGoal(call.agent, scrub(input["goal"]), steps);
       note(scrub(input["goal"]));
@@ -772,7 +1122,11 @@ export function createTools(kit) {
       return drive(call, input, async (tabId) => {
         const tab = await ext.tabs.get(tabId);
         let target;
-        try { target = new URL(String(input["url"]), String(tab.url)); } catch { return fail("bad_input", "That is not an address."); }
+        try {
+          target = new URL(String(input["url"]), String(tab.url));
+        } catch {
+          return fail("bad_input", "That is not an address.");
+        }
         if (!/^https?:$/.test(target.protocol)) fail("bad_input", "chrome_api takes http(s) addresses.");
         if (target.origin !== new URL(String(tab.url)).origin) fail("cross_origin");
         const method = String(input["method"]);
@@ -786,14 +1140,35 @@ export function createTools(kit) {
         let body = null;
         if (method !== "GET" && input["body"] !== undefined && input["body"] !== null) {
           if (typeof input["body"] === "string") body = input["body"];
-          else { body = JSON.stringify(input["body"]); if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type")) headers["content-type"] = "application/json"; }
+          else {
+            body = JSON.stringify(input["body"]);
+            if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type"))
+              headers["content-type"] = "application/json";
+          }
         }
-        const res = await evalPage(tabId, pageRequest, { method, url: target.toString(), headers, body, max: MAX_BODY });
+        const res = await evalPage(tabId, pageRequest, {
+          method,
+          url: target.toString(),
+          headers,
+          body,
+          max: MAX_BODY,
+        });
         note(`${method} ${bareUrl(target.toString())} -> ${res?.status ?? 0}`);
         if (!res || typeof res !== "object") fail("error", "The page did not answer.");
         let out;
-        if (/json/i.test(res.mime)) { try { out = maskJson(JSON.parse(await scrubbed(tabId, String(res.body)))); } catch { out = maskBody(await scrubbed(tabId, String(res.body)), res.mime, MAX_BODY); } } else out = maskBody(await scrubbed(tabId, String(res.body)), res.mime, MAX_BODY);
-        return { status: Number(res.status), headers: maskHeaders(res.headers), body: out, ...(res.truncated ? { truncated: true } : {}) };
+        if (/json/i.test(res.mime)) {
+          try {
+            out = maskJson(JSON.parse(await scrubbed(tabId, String(res.body))));
+          } catch {
+            out = maskBody(await scrubbed(tabId, String(res.body)), res.mime, MAX_BODY);
+          }
+        } else out = maskBody(await scrubbed(tabId, String(res.body)), res.mime, MAX_BODY);
+        return {
+          status: Number(res.status),
+          headers: maskHeaders(res.headers),
+          body: out,
+          ...(res.truncated ? { truncated: true } : {}),
+        };
       });
     },
 
@@ -821,9 +1196,15 @@ export function createTools(kit) {
       let tabId = input["tabId"] !== undefined ? Number(input["tabId"]) : sessions.currentTab(call.agent.id);
       let host = "";
       try {
-        if (tabId === null && kit.mode() === "computer") { const [t] = await ext.tabs.query({ active: true, currentWindow: true }); tabId = t && t.id !== undefined ? t.id : null; }
-        if (tabId !== null && Number.isInteger(tabId)) host = new URL(String((await ext.tabs.get(tabId)).url ?? "")).hostname;
-      } catch { host = ""; }
+        if (tabId === null && kit.mode() === "computer") {
+          const [t] = await ext.tabs.query({ active: true, currentWindow: true });
+          tabId = t && t.id !== undefined ? t.id : null;
+        }
+        if (tabId !== null && Number.isInteger(tabId))
+          host = new URL(String((await ext.tabs.get(tabId)).url ?? "")).hostname;
+      } catch {
+        host = "";
+      }
       if (host && (await kit.rights.of(call, host)) === "read") fail("read_only", `(${host})`);
     }
     const impl = table[call.tool];
@@ -831,11 +1212,21 @@ export function createTools(kit) {
     let summary = "";
     let ok = true;
     try {
-      const out = await impl({ ...call, input }, input, (s) => { summary = scrub(s); });
+      const out = await impl({ ...call, input }, input, (s) => {
+        summary = scrub(s);
+      });
       if (!nested && kit.mode() === "personal" && !QUIET.has(call.tool)) void frame(call);
       if (out && out.ok !== false && acts(call.tool, input) && !out?.heldId) {
         const p = sessions.advance(call.agent.id);
-        if (p) kit.emit({ event: "plan", agent: call.agent.id, name: call.agent.name, goal: scrub(sessions.goalOf(call.agent.id)), steps: p.steps, done: p.done });
+        if (p)
+          kit.emit({
+            event: "plan",
+            agent: call.agent.id,
+            name: call.agent.name,
+            goal: scrub(sessions.goalOf(call.agent.id)),
+            steps: p.steps,
+            done: p.done,
+          });
       }
       ok = !(out && out.ok === false);
       return out;
@@ -844,7 +1235,8 @@ export function createTools(kit) {
       summary = summary || scrub(errorOf(e).message);
       throw e;
     } finally {
-      if (call.tool !== "chrome_status") kit.emit({ event: "acted", agent: call.agent.id, tool: call.tool, ok, summary });
+      if (call.tool !== "chrome_status")
+        kit.emit({ event: "acted", agent: call.agent.id, tool: call.tool, ok, summary });
     }
   }
 
@@ -862,12 +1254,35 @@ export function createTools(kit) {
       const v = m.cssVisualViewport ?? m.visualViewport ?? { clientWidth: 1280, clientHeight: 800 };
       await evalPage(tabId, blurSecrets, true);
       try {
-        const shot = await cdp.send(tabId, "Page.captureScreenshot", { format: "jpeg", quality: 45, clip: { x: 0, y: 0, width: Math.max(1, Math.round(v.clientWidth)), height: Math.max(1, Math.round(v.clientHeight)), scale: 0.4 } });
-        if (shot && typeof shot.data === "string") kit.emit({ event: "frame", agent: call.agent.id, name: call.agent.name, space: call.space, tab: tabId, site: new URL(url).hostname.replace(/^www\./, ""), url: maskUrl(url), thumb: `data:image/jpeg;base64,${shot.data}` });
-      } finally { await evalPage(tabId, blurSecrets, false); }
-    } catch { /* a closed tab or a restricted page: no picture this time */ }
+        const shot = await cdp.send(tabId, "Page.captureScreenshot", {
+          format: "jpeg",
+          quality: 45,
+          clip: {
+            x: 0,
+            y: 0,
+            width: Math.max(1, Math.round(v.clientWidth)),
+            height: Math.max(1, Math.round(v.clientHeight)),
+            scale: 0.4,
+          },
+        });
+        if (shot && typeof shot.data === "string")
+          kit.emit({
+            event: "frame",
+            agent: call.agent.id,
+            name: call.agent.name,
+            space: call.space,
+            tab: tabId,
+            site: new URL(url).hostname.replace(/^www\./, ""),
+            url: maskUrl(url),
+            thumb: `data:image/jpeg;base64,${shot.data}`,
+          });
+      } finally {
+        await evalPage(tabId, blurSecrets, false);
+      }
+    } catch {
+      /* a closed tab or a restricted page: no picture this time */
+    }
   }
 
   return { run, tools: Object.keys(table), look, tabFor };
 }
-

@@ -34,23 +34,83 @@ export function OAuthCallback({ call, search, scrub, go, back: backTo, home = "h
     started.current = attempt;
     let alive = true;
     setOutcome(null);
-    void completeCallback(call, params.current!, home).then((o) => { if (alive) setOutcome(o); });
-    return () => { alive = false; };
+    void completeCallback(call, params.current!, home).then((o) => {
+      if (alive) setOutcome(o);
+    });
+    return () => {
+      alive = false;
+    };
   }, [attempt, call, scrub]);
   const target = backTo ?? { path: BACK_TO_CONNECTIONS, label: "Back to Connections" };
-  const back = <Pressable accessibilityRole="button" onPress={() => go(target.path)} testID="oauth-back" style={styles.back}><Text style={styles.backText}>{target.label}</Text></Pressable>;
+  const back = (
+    <Pressable accessibilityRole="button" onPress={() => go(target.path)} testID="oauth-back" style={styles.back}>
+      <Text style={styles.backText}>{target.label}</Text>
+    </Pressable>
+  );
   let body: ReactElement;
-  if (call === null) body = <States kind="error" message="Sign in to this Space first" cause="This page finishes a connection as the person who started it, and nobody is signed in here." next="Sign in, open Connections and connect the account again. The link you came from cannot be reused." />;
+  if (call === null)
+    body = (
+      <States
+        kind="error"
+        message="Sign in to this Space first"
+        cause="This page finishes a connection as the person who started it, and nobody is signed in here."
+        next="Sign in, open Connections and connect the account again. The link you came from cannot be reused."
+      />
+    );
   else if (outcome === null) body = <States kind="empty" title="Finishing the connection…" icon="search" />;
-  else if (outcome.kind === "connected") body = <States kind="empty" title="Account connected" icon="done" action={{ label: backTo ? "Open Vyre" : "Open Connections", onPress: () => go(target.path) }} />;
-  else if (outcome.kind === "declined") body = <States kind="error" message="The connection was declined" cause="You did not allow access, so nothing was connected." next="Open Connections and connect the account again if you want to." />;
-  else body = <States kind="error" message={outcome.message} cause={outcome.cause} next={outcome.next} retryable={outcome.retryable} onRetry={() => setAttempt((n) => n + 1)} {...(outcome.code ? { code: outcome.code } : {})} {...(outcome.traceId ? { traceId: outcome.traceId } : {})} />;
-  return <View style={styles.page} testID="oauth-callback"><View style={styles.head}><Text style={styles.title}>Connecting an account</Text>{outcome?.kind === "connected" ? null : back}</View><View style={styles.body}>{body}</View></View>;
+  else if (outcome.kind === "connected")
+    body = (
+      <States
+        kind="empty"
+        title="Account connected"
+        icon="done"
+        action={{ label: backTo ? "Open Vyre" : "Open Connections", onPress: () => go(target.path) }}
+      />
+    );
+  else if (outcome.kind === "declined")
+    body = (
+      <States
+        kind="error"
+        message="The connection was declined"
+        cause="You did not allow access, so nothing was connected."
+        next="Open Connections and connect the account again if you want to."
+      />
+    );
+  else
+    body = (
+      <States
+        kind="error"
+        message={outcome.message}
+        cause={outcome.cause}
+        next={outcome.next}
+        retryable={outcome.retryable}
+        onRetry={() => setAttempt((n) => n + 1)}
+        {...(outcome.code ? { code: outcome.code } : {})}
+        {...(outcome.traceId ? { traceId: outcome.traceId } : {})}
+      />
+    );
+  return (
+    <View style={styles.page} testID="oauth-callback">
+      <View style={styles.head}>
+        <Text style={styles.title}>Connecting an account</Text>
+        {outcome?.kind === "connected" ? null : back}
+      </View>
+      <View style={styles.body}>{body}</View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
   page: { flex: 1, minHeight: 480, backgroundColor: "var(--win)" as string },
-  head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  head: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   title: { color: "var(--ink)" as string, fontSize: 15, fontWeight: "600" },
   back: { height: 30, paddingHorizontal: 12, borderRadius: 8, justifyContent: "center" },
   backText: { color: "var(--ink-2)" as string, fontSize: 13, fontWeight: "500" },

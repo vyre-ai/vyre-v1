@@ -19,11 +19,18 @@ export interface OpenDbOptions {
 }
 
 /** `file` as a SQLite URI that opens it immutable. */
-const immutableUri = (file: string): URL => { const u = pathToFileURL(file); u.searchParams.set("immutable", "1"); return u; };
+const immutableUri = (file: string): URL => {
+  const u = pathToFileURL(file);
+  u.searchParams.set("immutable", "1");
+  return u;
+};
 
 export function openDb(file: string, o: OpenDbOptions = {}): HostDb {
-  const db = o.immutable ? new DatabaseSync(immutableUri(file), { readOnly: true }) : new DatabaseSync(file, o.readOnly ? { readOnly: true } : {});
-  if (!o.readOnly && !o.immutable) db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000;");
+  const db = o.immutable
+    ? new DatabaseSync(immutableUri(file), { readOnly: true })
+    : new DatabaseSync(file, o.readOnly ? { readOnly: true } : {});
+  if (!o.readOnly && !o.immutable)
+    db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000;");
   else db.exec("PRAGMA busy_timeout = 2000;");
   let depth = 0;
   // Prepared statements, kept by their SQL text (most of the host's and the modules' statements repeat on every call: preparing one was about a tenth of a write). Bounded: the oldest is
@@ -32,7 +39,11 @@ export function openDb(file: string, o: OpenDbOptions = {}): HostDb {
   const kept = new Map<string, StatementSync>();
   const prepared = (sql: string): StatementSync => {
     let st = kept.get(sql);
-    if (st) { kept.delete(sql); kept.set(sql, st); return st; }
+    if (st) {
+      kept.delete(sql);
+      kept.set(sql, st);
+      return st;
+    }
     st = db.prepare(sql);
     kept.set(sql, st);
     if (kept.size > STATEMENT_CACHE) kept.delete(kept.keys().next().value!);
@@ -41,16 +52,32 @@ export function openDb(file: string, o: OpenDbOptions = {}): HostDb {
   const handle: HostDb = {
     all: (sql, ...args) => prepared(sql).all(...(args as never[])) as unknown[],
     run: (sql, ...args) => ({ changes: Number(prepared(sql).run(...(args as never[])).changes) }),
-    exec: (sql) => { db.exec(sql); },
+    exec: (sql) => {
+      db.exec(sql);
+    },
     tx<T>(fn: () => T): T {
       if (depth > 0) return fn();
       db.exec("BEGIN IMMEDIATE");
       depth++;
-      try { const r = fn(); db.exec("COMMIT"); return r; }
-      catch (e) { try { db.exec("ROLLBACK"); } catch { /* already rolled back */ } throw e; }
-      finally { depth--; }
+      try {
+        const r = fn();
+        db.exec("COMMIT");
+        return r;
+      } catch (e) {
+        try {
+          db.exec("ROLLBACK");
+        } catch {
+          /* already rolled back */
+        }
+        throw e;
+      } finally {
+        depth--;
+      }
     },
-    close: () => { kept.clear(); db.close(); },
+    close: () => {
+      kept.clear();
+      db.close();
+    },
   };
   CACHES.set(handle, kept);
   return handle;
@@ -69,6 +96,9 @@ export function readLogMeta(file: string, key: string): string | null {
     db = openDb(file, { readOnly: true });
     const r = db.all("SELECT value FROM log_meta WHERE key = ?", key)[0] as { value?: unknown } | undefined;
     return typeof r?.value === "string" ? r.value : null;
-  } catch { return null; }
-  finally { db?.close(); }
+  } catch {
+    return null;
+  } finally {
+    db?.close();
+  }
 }

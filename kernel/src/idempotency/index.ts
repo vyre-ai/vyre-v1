@@ -20,9 +20,17 @@ export function createIdempotency(backend: IdemBackend) {
   const inflight = new Map<string, { hash: string; p: Promise<unknown> }>();
   return Object.freeze({
     /** `keep`: what of the result is stored for a repeat (default all of it); the first caller still gets the whole result. */
-    async once<T>(principal: string, cap: string, key: string | undefined | null, input: unknown, run: () => Promise<T>, keep?: (result: T) => unknown): Promise<T> {
+    async once<T>(
+      principal: string,
+      cap: string,
+      key: string | undefined | null,
+      input: unknown,
+      run: () => Promise<T>,
+      keep?: (result: T) => unknown,
+    ): Promise<T> {
       if (key === undefined || key === null) return run();
-      if (typeof key !== "string" || !key || key.length > 200) throw new LogError("bad_key", "an idempotency key is a short text");
+      if (typeof key !== "string" || !key || key.length > 200)
+        throw new LogError("bad_key", "an idempotency key is a short text");
       const k = `${principal}|${cap}|${key}`;
       const hash = sha256Hex(canonical(input ?? null));
       const running = inflight.get(k);
@@ -42,11 +50,22 @@ export function createIdempotency(backend: IdemBackend) {
         return result;
       })();
       inflight.set(k, { hash, p });
-      try { return await p; } finally { inflight.delete(k); }
+      try {
+        return await p;
+      } finally {
+        inflight.delete(k);
+      }
     },
-    async settle(principal: string, cap: string, key: string | undefined | null, input: unknown, result: unknown): Promise<void> {
+    async settle(
+      principal: string,
+      cap: string,
+      key: string | undefined | null,
+      input: unknown,
+      result: unknown,
+    ): Promise<void> {
       if (!backend.settle || key === undefined || key === null) return;
-      if (typeof key !== "string" || !key || key.length > 200) throw new LogError("bad_key", "an idempotency key is a short text");
+      if (typeof key !== "string" || !key || key.length > 200)
+        throw new LogError("bad_key", "an idempotency key is a short text");
       const k = `${principal}|${cap}|${key}`;
       const hash = sha256Hex(canonical(input ?? null));
       await backend.settle(k, principal, cap, { hash, result: result === undefined ? null : result });

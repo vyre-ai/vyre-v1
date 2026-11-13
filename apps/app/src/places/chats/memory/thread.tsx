@@ -9,11 +9,32 @@ import type { ChatMemoryData } from "./data.tsx";
 import { messageOf, subjectIndex } from "./model.ts";
 import type { LearnedRow, LessonInfo, SubjectIndex, SubjectPage } from "./model.ts";
 
-interface LearnedItemOut { fact: { factId: string; text: string; sourceRef: string; sourceLink?: string; sourceKind: string; learnedAt: number; subject?: { title: string; pageId: string }; lesson?: LessonInfo; layer?: LearnedRow["layer"] }; at: number }
-interface LearnedOut { items: LearnedItemOut[] }
-interface PagesOut { pages: SubjectPage[] }
+interface LearnedItemOut {
+  fact: {
+    factId: string;
+    text: string;
+    sourceRef: string;
+    sourceLink?: string;
+    sourceKind: string;
+    learnedAt: number;
+    subject?: { title: string; pageId: string };
+    lesson?: LessonInfo;
+    layer?: LearnedRow["layer"];
+  };
+  at: number;
+}
+interface LearnedOut {
+  items: LearnedItemOut[];
+}
+interface PagesOut {
+  pages: SubjectPage[];
+}
 
-export interface Flash { id: number; text: string; undo?: () => void | Promise<unknown> }
+export interface Flash {
+  id: number;
+  text: string;
+  undo?: () => void | Promise<unknown>;
+}
 
 export interface ThreadMemory {
   memory: ChatMemoryData;
@@ -37,12 +58,34 @@ export function useThreadMemory(): ThreadMemory | null {
 
 export const FLASH_MS = 8000;
 
-export function ChatMemoryProvider({ memory, threadId, children }: { memory: ChatMemoryData | undefined; threadId: string; children: ReactNode }): ReactElement {
+export function ChatMemoryProvider({
+  memory,
+  threadId,
+  children,
+}: {
+  memory: ChatMemoryData | undefined;
+  threadId: string;
+  children: ReactNode;
+}): ReactElement {
   if (!memory) return <>{children}</>;
-  return <ChatMemoryContext value={memory}><WithMemory memory={memory} threadId={threadId}>{children}</WithMemory></ChatMemoryContext>;
+  return (
+    <ChatMemoryContext value={memory}>
+      <WithMemory memory={memory} threadId={threadId}>
+        {children}
+      </WithMemory>
+    </ChatMemoryContext>
+  );
 }
 
-function WithMemory({ memory, threadId, children }: { memory: ChatMemoryData; threadId: string; children: ReactNode }): ReactElement {
+function WithMemory({
+  memory,
+  threadId,
+  children,
+}: {
+  memory: ChatMemoryData;
+  threadId: string;
+  children: ReactNode;
+}): ReactElement {
   const learnedQ = useRead<LearnedOut>(memory.store, "memory.learned", { threadId, limit: 200 });
   const pagesQ = useRead<PagesOut>(memory.store, "memory.page.list", {});
   const seen = useRef(memory.store.kept<LearnedRow>(`learned:${threadId}`));
@@ -55,7 +98,15 @@ function WithMemory({ memory, threadId, children }: { memory: ChatMemoryData; th
     if (learnedQ.status === "ready") {
       for (const it of learnedQ.data.items) {
         if (it.fact.sourceKind !== "chat") continue;
-        out.set(it.fact.factId, { factId: it.fact.factId, text: it.fact.text, sourceRef: messageOf(it.fact), at: it.at, ...(it.fact.lesson ? { lesson: it.fact.lesson } : {}), ...(it.fact.layer ? { layer: it.fact.layer } : {}), ...(it.fact.subject ? { subjectTitle: it.fact.subject.title, pageId: it.fact.subject.pageId } : {}) });
+        out.set(it.fact.factId, {
+          factId: it.fact.factId,
+          text: it.fact.text,
+          sourceRef: messageOf(it.fact),
+          at: it.at,
+          ...(it.fact.lesson ? { lesson: it.fact.lesson } : {}),
+          ...(it.fact.layer ? { layer: it.fact.layer } : {}),
+          ...(it.fact.subject ? { subjectTitle: it.fact.subject.title, pageId: it.fact.subject.pageId } : {}),
+        });
       }
     }
     return out;
@@ -71,13 +122,30 @@ function WithMemory({ memory, threadId, children }: { memory: ChatMemoryData; th
     return () => clearTimeout(t);
   }, [flash]);
 
-  const value = useMemo<ThreadMemory>(() => ({
-    memory, threadId, index, pages,
-    learnedFrom: (messageId) => [...seen.current.values()].filter((r) => r.sourceRef === messageId).sort((a, b) => a.at - b.at).map((r) => ({ ...r, current: current.has(r.factId) })),
-    currentFrom: (messageId) => [...current.values()].filter((r) => r.sourceRef === messageId),
-    supersede: (oldId, next) => { seen.current.delete(oldId); seen.current.set(next.factId, next); tick((n) => n + 1); },
-    flash: (text, undo) => { counter.current += 1; setFlash({ id: counter.current, text, ...(undo ? { undo } : {}) }); },
-  }), [memory, threadId, index, pages, current]);
+  const value = useMemo<ThreadMemory>(
+    () => ({
+      memory,
+      threadId,
+      index,
+      pages,
+      learnedFrom: (messageId) =>
+        [...seen.current.values()]
+          .filter((r) => r.sourceRef === messageId)
+          .sort((a, b) => a.at - b.at)
+          .map((r) => ({ ...r, current: current.has(r.factId) })),
+      currentFrom: (messageId) => [...current.values()].filter((r) => r.sourceRef === messageId),
+      supersede: (oldId, next) => {
+        seen.current.delete(oldId);
+        seen.current.set(next.factId, next);
+        tick((n) => n + 1);
+      },
+      flash: (text, undo) => {
+        counter.current += 1;
+        setFlash({ id: counter.current, text, ...(undo ? { undo } : {}) });
+      },
+    }),
+    [memory, threadId, index, pages, current],
+  );
 
   const dismiss = useCallback(() => setFlash(null), []);
   return (
@@ -94,17 +162,48 @@ export function FlashLine({ flash, onClose }: { flash: Flash; onClose: () => voi
     <View testID="memory-flash" accessibilityRole="alert" accessibilityLiveRegion="polite" style={st.flash}>
       <Text style={st.text}>{flash.text}</Text>
       {flash.undo ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Undo" testID="memory-flash-undo" onPress={() => { const u = flash.undo; onClose(); void u?.(); }} style={st.btn}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Undo"
+          testID="memory-flash-undo"
+          onPress={() => {
+            const u = flash.undo;
+            onClose();
+            void u?.();
+          }}
+          style={st.btn}
+        >
           <Text style={st.undo}>Undo</Text>
         </Pressable>
       ) : null}
-      <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" testID="memory-flash-close" onPress={onClose} style={st.btn}><Text style={st.close}>Dismiss</Text></Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Dismiss"
+        testID="memory-flash-close"
+        onPress={onClose}
+        style={st.btn}
+      >
+        <Text style={st.close}>Dismiss</Text>
+      </Pressable>
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  flash: { position: "absolute", left: 16, bottom: 120, maxWidth: 460, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" as string },
+  flash: {
+    position: "absolute",
+    left: 16,
+    bottom: 120,
+    maxWidth: 460,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "var(--raised)" as string,
+    boxShadow: "var(--sh-pop)" as string,
+  },
   text: { flexShrink: 1, fontSize: 12.5, color: "var(--ink)" as string },
   btn: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
   undo: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },

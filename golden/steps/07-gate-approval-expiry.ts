@@ -10,7 +10,8 @@ const FAKE_CLI = fileURLToPath(new URL("../../host/tests/fixtures/fake-cli-drive
 const KEY = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
 
 export default async function steps(): Promise<Observed[]> {
-  if (process.env["VYRE_HEAVY_DOCKER"] !== "1") throw new Error("flow 7 needs the sandbox: run it with VYRE_HEAVY_DOCKER=1 (the l2-heavy job)");
+  if (process.env["VYRE_HEAVY_DOCKER"] !== "1")
+    throw new Error("flow 7 needs the sandbox: run it with VYRE_HEAVY_DOCKER=1 (the l2-heavy job)");
   const { events, trail } = await runAgentGate(LIVE_FOR_GATE_REPLY, {
     vault: { secret: async () => KEY, signRs256: async () => "" },
     engineCli: { command: { claude: [process.execPath, FAKE_CLI, "claude"] }, programRead: [path.dirname(FAKE_CLI)] },

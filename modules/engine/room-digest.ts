@@ -18,20 +18,39 @@ const CHEAP = /haiku|mini|flash|lite|nano|small|instant|spark/i;
 const ready = new WeakSet<object>();
 function ensure(db: Db): void {
   if (ready.has(db as object)) return;
-  db.run("CREATE TABLE IF NOT EXISTS engine_room_digest (thread_id TEXT NOT NULL, agent_id TEXT NOT NULL, text TEXT NOT NULL, up_to_seq INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (thread_id, agent_id))");
+  db.run(
+    "CREATE TABLE IF NOT EXISTS engine_room_digest (thread_id TEXT NOT NULL, agent_id TEXT NOT NULL, text TEXT NOT NULL, up_to_seq INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (thread_id, agent_id))",
+  );
   ready.add(db as object);
 }
 
-export interface Digest { text: string; upToSeq: number; updatedAt: number }
+export interface Digest {
+  text: string;
+  upToSeq: number;
+  updatedAt: number;
+}
 
 export function getDigest(db: Db, threadId: string, agentId: string): Digest | undefined {
   ensure(db);
-  const r = db.all("SELECT text, up_to_seq, updated_at FROM engine_room_digest WHERE thread_id = ? AND agent_id = ?", threadId, agentId)[0] as Obj | undefined;
-  return r ? { text: String(r["text"]), upToSeq: Number(r["up_to_seq"]), updatedAt: Number(r["updated_at"]) } : undefined;
+  const r = db.all(
+    "SELECT text, up_to_seq, updated_at FROM engine_room_digest WHERE thread_id = ? AND agent_id = ?",
+    threadId,
+    agentId,
+  )[0] as Obj | undefined;
+  return r
+    ? { text: String(r["text"]), upToSeq: Number(r["up_to_seq"]), updatedAt: Number(r["updated_at"]) }
+    : undefined;
 }
 function saveDigest(db: Db, threadId: string, agentId: string, text: string, upToSeq: number, now: number): void {
   ensure(db);
-  db.run("INSERT INTO engine_room_digest (thread_id, agent_id, text, up_to_seq, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (thread_id, agent_id) DO UPDATE SET text = excluded.text, up_to_seq = excluded.up_to_seq, updated_at = excluded.updated_at", threadId, agentId, text, upToSeq, now);
+  db.run(
+    "INSERT INTO engine_room_digest (thread_id, agent_id, text, up_to_seq, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (thread_id, agent_id) DO UPDATE SET text = excluded.text, up_to_seq = excluded.up_to_seq, updated_at = excluded.updated_at",
+    threadId,
+    agentId,
+    text,
+    upToSeq,
+    now,
+  );
 }
 
 /** Whether a batch is due: enough new messages, or some new ones and a quiet room. */
@@ -56,46 +75,98 @@ export function limitAllows(usage: Obj | undefined): boolean {
   return true;
 }
 
-const SYSTEM = "You keep a short digest of a group conversation for an assistant that may be asked to join it. Write plain prose or short bullets: who is in it, what was decided, what is open and who owns it, and names, dates and numbers that matter. Keep what was in the previous digest that still matters. No preamble.";
+const SYSTEM =
+  "You keep a short digest of a group conversation for an assistant that may be asked to join it. Write plain prose or short bullets: who is in it, what was decided, what is open and who owns it, and names, dates and numbers that matter. Keep what was in the previous digest that still matters. No preamble.";
 
 export interface DigestDeps {
-  db: Db; call: Call; now: () => number; log?: (msg: string, attrs?: Record<string, unknown>) => void;
+  db: Db;
+  call: Call;
+  now: () => number;
+  log?: (msg: string, attrs?: Record<string, unknown>) => void;
   /** One request and one answer on an account, as the person it is for (the engine's one-shot; engine.complete is refused at depth 0, which is where this background batch calls from). */
-  complete(i: { asker: string; accountRef: string; model?: string; system: string; prompt: string }): Promise<{ text: string }>;
+  complete(i: {
+    asker: string;
+    accountRef: string;
+    model?: string;
+    system: string;
+    prompt: string;
+  }): Promise<{ text: string }>;
 }
 const running = new Set<string>();
 
 /**
  * Start a batch if one is due; never waits and never throws, so reading a room never holds a turn. `messages` are the visible ones, oldest first (past sharedAt).
  */
-export function maybeRefreshDigest(d: DigestDeps, o: { threadId: string; agentId: string; asker: string; messages: ReadonlyArray<{ threadSeq: number; createdAt: number; kind: string; body: string; author: { id: string } }>; nameOf(id: string): string }): boolean {
+export function maybeRefreshDigest(
+  d: DigestDeps,
+  o: {
+    threadId: string;
+    agentId: string;
+    asker: string;
+    messages: ReadonlyArray<{
+      threadSeq: number;
+      createdAt: number;
+      kind: string;
+      body: string;
+      author: { id: string };
+    }>;
+    nameOf(id: string): string;
+  },
+): boolean {
   const key = `${o.threadId}|${o.agentId}`;
   if (running.has(key)) return false;
   const have = getDigest(d.db, o.threadId, o.agentId);
-  const fresh = o.messages.filter((m) => (m.kind === "text" || m.kind === "agent") && m.body.trim() !== "" && m.threadSeq > (have?.upToSeq ?? 0));
+  const fresh = o.messages.filter(
+    (m) => (m.kind === "text" || m.kind === "agent") && m.body.trim() !== "" && m.threadSeq > (have?.upToSeq ?? 0),
+  );
   if (!digestDue({ newCount: fresh.length, lastMessageAt: o.messages.at(-1)?.createdAt, now: d.now() })) return false;
   running.add(key);
   void (async () => {
     try {
-      const resolved = (await d.call("engine.account.resolve", { threadId: o.threadId, agentId: o.agentId }, o.asker)) as { accountRef?: string | null; allowed?: boolean; model?: string } | null;
+      const resolved = (await d.call(
+        "engine.account.resolve",
+        { threadId: o.threadId, agentId: o.agentId },
+        o.asker,
+      )) as { accountRef?: string | null; allowed?: boolean; model?: string } | null;
       if (!resolved?.allowed || !resolved.accountRef) return;
-      const usage = (await d.call("engine.usage.get", { threadId: o.threadId, agentId: o.agentId, accountRef: resolved.accountRef }, o.asker).catch(() => undefined)) as Obj | undefined;
+      const usage = (await d
+        .call(
+          "engine.usage.get",
+          { threadId: o.threadId, agentId: o.agentId, accountRef: resolved.accountRef },
+          o.asker,
+        )
+        .catch(() => undefined)) as Obj | undefined;
       if (!limitAllows(usage)) return;
-      const listed = (await d.call("engine.models.list", { accountRef: resolved.accountRef, probe: false }, o.asker)) as { models?: Array<{ model: string; allowed: boolean }> };
+      const listed = (await d.call(
+        "engine.models.list",
+        { accountRef: resolved.accountRef, probe: false },
+        o.asker,
+      )) as { models?: Array<{ model: string; allowed: boolean }> };
       // the cheapest the account lists, else the model this chat's turns run on (a key whose list was never read yet still has one): never none
       const model = cheapestModel(listed.models ?? []) ?? resolved.model;
       let source = fresh.map((m) => `${o.nameOf(m.author.id)}: ${m.body.replace(/\s+/g, " ").trim()}`).join("\n");
       if (source.length > SOURCE_CHARS) source = source.slice(source.length - SOURCE_CHARS);
       const prompt = `${have ? `Previous digest:\n${have.text}\n\n` : ""}New messages:\n${source}\n\nWrite the updated digest.`;
-      const out = await d.complete({ asker: o.asker, accountRef: resolved.accountRef, ...(model ? { model } : {}), system: SYSTEM, prompt });
-      const text = String(out.text ?? "").trim().slice(0, DIGEST_CHARS);
+      const out = await d.complete({
+        asker: o.asker,
+        accountRef: resolved.accountRef,
+        ...(model ? { model } : {}),
+        system: SYSTEM,
+        prompt,
+      });
+      const text = String(out.text ?? "")
+        .trim()
+        .slice(0, DIGEST_CHARS);
       if (text !== "") {
         saveDigest(d.db, o.threadId, o.agentId, text, fresh.at(-1)!.threadSeq, d.now());
         // the same batch lets memory note what the room said (memory.capture is idempotent per sentence, skips quiet lines and what came before the chat was shared); a Space without it just goes on
         await d.call("memory.capture", { threadId: o.threadId, reason: "idle" }, o.asker).catch(() => undefined);
       }
     } catch (e) {
-      d.log?.("room digest skipped", { threadId: o.threadId, why: e instanceof Error ? e.message.slice(0, 120) : "unknown" });
+      d.log?.("room digest skipped", {
+        threadId: o.threadId,
+        why: e instanceof Error ? e.message.slice(0, 120) : "unknown",
+      });
     } finally {
       running.delete(key);
     }

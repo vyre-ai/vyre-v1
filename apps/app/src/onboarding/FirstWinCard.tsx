@@ -7,17 +7,54 @@ import { Row } from "../../../../ui/src/Row/index.tsx";
 import type { CapCall } from "../shell/session/caps.ts";
 import { CARD } from "./card-style.ts";
 
-export interface Starter { id: string; title: string; line: string; prompt: string }
+export interface Starter {
+  id: string;
+  title: string;
+  line: string;
+  prompt: string;
+}
 
 /** The routines on offer; each is one AI step started by hand, so it can run the moment it is made. */
 export const STARTERS: readonly Starter[] = [
-  { id: "morning", title: "Morning summary", line: "The day's meetings and what is due", prompt: "Four lines. The day's meetings, then what is due, then what is waiting on me." },
-  { id: "inbox", title: "Inbox triage", line: "What needs a reply today", prompt: "Look at my unread mail. List the five that need a reply today, with one line on each." },
-  { id: "week", title: "Week ahead", line: "A plan for the next seven days", prompt: "Look at my calendar and tasks for the next seven days. Give me a short plan, busiest day first." },
-  { id: "recap", title: "End of day recap", line: "What got done and what carries over", prompt: "Write a short recap of today: what got done, what moves to tomorrow, and anything I should not forget." },
+  {
+    id: "morning",
+    title: "Morning summary",
+    line: "The day's meetings and what is due",
+    prompt: "Four lines. The day's meetings, then what is due, then what is waiting on me.",
+  },
+  {
+    id: "inbox",
+    title: "Inbox triage",
+    line: "What needs a reply today",
+    prompt: "Look at my unread mail. List the five that need a reply today, with one line on each.",
+  },
+  {
+    id: "week",
+    title: "Week ahead",
+    line: "A plan for the next seven days",
+    prompt: "Look at my calendar and tasks for the next seven days. Give me a short plan, busiest day first.",
+  },
+  {
+    id: "recap",
+    title: "End of day recap",
+    line: "What got done and what carries over",
+    prompt: "Write a short recap of today: what got done, what moves to tomorrow, and anything I should not forget.",
+  },
 ];
 
-export function FirstWinCard({ call, hasAi, gate, onConnectAi, starters = STARTERS }: { call: CapCall; hasAi: boolean; gate?(save: (() => Promise<boolean>) | null): void; onConnectAi?(): void; starters?: readonly Starter[] }): ReactElement {
+export function FirstWinCard({
+  call,
+  hasAi,
+  gate,
+  onConnectAi,
+  starters = STARTERS,
+}: {
+  call: CapCall;
+  hasAi: boolean;
+  gate?(save: (() => Promise<boolean>) | null): void;
+  onConnectAi?(): void;
+  starters?: readonly Starter[];
+}): ReactElement {
   const [pick, setPick] = useState<string | null>(null);
   const [error, setError] = useState("");
   const made = useRef<string | null>(null);
@@ -28,8 +65,13 @@ export function FirstWinCard({ call, hasAi, gate, onConnectAi, starters = STARTE
     try {
       if (made.current === null || !made.current.startsWith(`${st.id}:`)) {
         const out = (await call("automations.create", {
-          name: st.title, idempotencyKey: `first-win:${st.id}`,
-          definition: { triggers: [{ key: "manual" }], nodes: [{ id: "step", key: "ai", title: st.title, input: { prompt: st.prompt } }], start: ["step"] },
+          name: st.title,
+          idempotencyKey: `first-win:${st.id}`,
+          definition: {
+            triggers: [{ key: "manual" }],
+            nodes: [{ id: "step", key: "ai", title: st.title, input: { prompt: st.prompt } }],
+            start: ["step"],
+          },
         })) as { automation: { id: string } };
         made.current = `${st.id}:${out.automation.id}`;
       }
@@ -37,7 +79,10 @@ export function FirstWinCard({ call, hasAi, gate, onConnectAi, starters = STARTE
       await call("automations.set_enabled", { automationId: id, enabled: true });
       await call("automations.run", { automationId: id, payload: {} });
       return true;
-    } catch (e) { setError(e instanceof Error && e.message ? e.message : "The routine did not start. Try again."); return false; }
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : "The routine did not start. Try again.");
+      return false;
+    }
   };
   useEffect(() => {
     if (!gate) return undefined;
@@ -48,16 +93,31 @@ export function FirstWinCard({ call, hasAi, gate, onConnectAi, starters = STARTE
     return (
       <View testID="first-win-needs-ai" style={s.col}>
         <Text style={s.line}>A routine needs an AI account to run.</Text>
-        {onConnectAi ? <Pressable testID="first-win-connect" accessibilityRole="button" onPress={onConnectAi} style={s.primary}><Text style={s.primaryText}>Connect your AI</Text></Pressable> : null}
+        {onConnectAi ? (
+          <Pressable testID="first-win-connect" accessibilityRole="button" onPress={onConnectAi} style={s.primary}>
+            <Text style={s.primaryText}>Connect your AI</Text>
+          </Pressable>
+        ) : null}
       </View>
     );
   }
   return (
     <View testID="first-win-card" style={s.col}>
       {starters.map((st) => (
-        <Row key={st.id} id={`starter-${st.id}`} title={st.title} note={st.line} selected={pick === st.id} onPress={() => setPick(st.id)} />
+        <Row
+          key={st.id}
+          id={`starter-${st.id}`}
+          title={st.title}
+          note={st.line}
+          selected={pick === st.id}
+          onPress={() => setPick(st.id)}
+        />
       ))}
-      {error ? <Text accessibilityRole="alert" testID="first-win-error" style={s.err}>{error}</Text> : null}
+      {error ? (
+        <Text accessibilityRole="alert" testID="first-win-error" style={s.err}>
+          {error}
+        </Text>
+      ) : null}
     </View>
   );
 }

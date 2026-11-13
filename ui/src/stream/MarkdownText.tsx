@@ -24,5 +24,13 @@ export function MarkdownText({ text, onLink, renderLink, renderCode, renderText 
     md.finish();
     return md.view().blocks;
   }, [text]);
-  return <MarkdownBlocks blocks={blocks} {...(onLink ? { onLink } : {})} {...(renderLink ? { renderLink } : {})} {...(renderCode ? { renderCode } : {})} {...(renderText ? { renderText } : {})} />;
+  return (
+    <MarkdownBlocks
+      blocks={blocks}
+      {...(onLink ? { onLink } : {})}
+      {...(renderLink ? { renderLink } : {})}
+      {...(renderCode ? { renderCode } : {})}
+      {...(renderText ? { renderText } : {})}
+    />
+  );
 }

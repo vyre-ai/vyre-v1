@@ -10,8 +10,19 @@ const base = { agentId: "agt_intake" };
 
 test("the lookup is fast on a big memory", async () => {
   const h = harness();
-  for (let i = 0; i < 1500; i++) seedFact(h, { id: `fct_big${i}`, layer: "agent", agentId: "agt_intake", text: `Account ${i} is owned by region ${i % 40} and renews in month ${i % 12}` });
-  seedFact(h, { id: "fct_target", layer: "agent", agentId: "agt_intake", text: "Quasar contract renews in November under Fiona" });
+  for (let i = 0; i < 1500; i++)
+    seedFact(h, {
+      id: `fct_big${i}`,
+      layer: "agent",
+      agentId: "agt_intake",
+      text: `Account ${i} is owned by region ${i % 40} and renews in month ${i % 12}`,
+    });
+  seedFact(h, {
+    id: "fct_target",
+    layer: "agent",
+    agentId: "agt_intake",
+    text: "Quasar contract renews in November under Fiona",
+  });
   const times: number[] = [];
   for (let i = 0; i < 9; i++) {
     const t0 = performance.now();

@@ -2,47 +2,77 @@
 // (the read is refused) hides the name it carries. Pure: which read to make and how to word the answer; the host makes the call.
 import type { LinkCardData } from "./model.ts";
 
-export interface CardState { text: string; tone: "live" | "ok" | "warn" | "bad" | "quiet"; /** worth reading again soon */ live: boolean }
+export interface CardState {
+  text: string;
+  tone: "live" | "ok" | "warn" | "bad" | "quiet";
+  /** worth reading again soon */ live: boolean;
+}
 
 /** The read that says what the target is and whether the reader may see it, or null when a card has nothing to read (a fact, a card with no target). */
 export function probeOf(d: LinkCardData): { cap: string; input: Record<string, unknown> } | null {
   const t = d.target;
   if (!t) return null;
   switch (t.type) {
-    case "task": return { cap: "tasks.get", input: { taskId: t.id } };
-    case "run": return { cap: "runs.get", input: { runId: t.id } };
-    case "record": return d.via ? { cap: "records.get", input: { type: d.via, recordId: t.id } } : null;
-    case "file": return { cap: "files.get", input: { fileId: t.id } };
-    case "thread": return { cap: "threads.get", input: { threadId: t.id } };
-    case "computer": return { cap: "computers.get", input: { computerId: t.id } };
-    case "automation": return { cap: "automations.get", input: { automationId: t.id } };
-    default: return null;
+    case "task":
+      return { cap: "tasks.get", input: { taskId: t.id } };
+    case "run":
+      return { cap: "runs.get", input: { runId: t.id } };
+    case "record":
+      return d.via ? { cap: "records.get", input: { type: d.via, recordId: t.id } } : null;
+    case "file":
+      return { cap: "files.get", input: { fileId: t.id } };
+    case "thread":
+      return { cap: "threads.get", input: { threadId: t.id } };
+    case "computer":
+      return { cap: "computers.get", input: { computerId: t.id } };
+    case "automation":
+      return { cap: "automations.get", input: { automationId: t.id } };
+    default:
+      return null;
   }
 }
 
 const RUN: Record<string, CardState> = {
-  queued: { text: "Running", tone: "live", live: true }, running: { text: "Running", tone: "live", live: true }, waiting: { text: "Waiting on you", tone: "warn", live: true },
-  succeeded: { text: "Done", tone: "ok", live: false }, failed: { text: "Failed", tone: "bad", live: false }, cancelled: { text: "Stopped", tone: "quiet", live: false },
+  queued: { text: "Running", tone: "live", live: true },
+  running: { text: "Running", tone: "live", live: true },
+  waiting: { text: "Waiting on you", tone: "warn", live: true },
+  succeeded: { text: "Done", tone: "ok", live: false },
+  failed: { text: "Failed", tone: "bad", live: false },
+  cancelled: { text: "Stopped", tone: "quiet", live: false },
 };
 const TASK: Record<string, CardState> = {
-  backlog: { text: "To do", tone: "quiet", live: true }, todo: { text: "To do", tone: "quiet", live: true }, doing: { text: "Working", tone: "live", live: true },
-  in_review: { text: "In review", tone: "live", live: true }, awaiting_approval: { text: "Waiting on you", tone: "warn", live: true }, blocked: { text: "Blocked", tone: "warn", live: true },
-  done: { text: "Done", tone: "ok", live: false }, canceled: { text: "Stopped", tone: "quiet", live: false },
+  backlog: { text: "To do", tone: "quiet", live: true },
+  todo: { text: "To do", tone: "quiet", live: true },
+  doing: { text: "Working", tone: "live", live: true },
+  in_review: { text: "In review", tone: "live", live: true },
+  awaiting_approval: { text: "Waiting on you", tone: "warn", live: true },
+  blocked: { text: "Blocked", tone: "warn", live: true },
+  done: { text: "Done", tone: "ok", live: false },
+  canceled: { text: "Stopped", tone: "quiet", live: false },
 };
 
 const FLOW: Record<string, CardState> = {
-  draft: { text: "Draft", tone: "quiet", live: true }, on: { text: "On", tone: "ok", live: false }, off: { text: "Off", tone: "quiet", live: false }, paused: { text: "Paused", tone: "warn", live: false },
+  draft: { text: "Draft", tone: "quiet", live: true },
+  on: { text: "On", tone: "ok", live: false },
+  off: { text: "Off", tone: "quiet", live: false },
+  paused: { text: "Paused", tone: "warn", live: false },
 };
 
 /** A card's button whose work the thing itself shows as done: Turn on, once the Flow is on, wherever it was turned on. */
-export const doneByState = (d: LinkCardData, state: CardState | null): readonly string[] => (d.target?.type === "automation" && state?.text === "On" ? ["on"] : []);
+export const doneByState = (d: LinkCardData, state: CardState | null): readonly string[] =>
+  d.target?.type === "automation" && state?.text === "On" ? ["on"] : [];
 
 /** The held call a work card names, when it is one: a held call has one card, the approval card, so the app draws that in its place. */
 /** An email an agent drafted: the card is the held email card, with Edit, Send and Don't send. */
-export const draftOf = (d: LinkCardData): string | null => (d.icon === "draft" && d.target?.type === "draft" ? d.target.id : null);
+export const draftOf = (d: LinkCardData): string | null =>
+  d.icon === "draft" && d.target?.type === "draft" ? d.target.id : null;
 /** An email draft kept at Gmail or Outlook: the card carries its words and the calls its buttons make. */
-export const providerDraftOf = (d: LinkCardData): boolean => d.icon === "draft" && d.target?.type === "provider_draft" && (d.actions ?? []).some((a) => a.key === "send" && a.cap !== undefined);
-export const heldTaskOf = (d: LinkCardData): string | null => (d.icon === "approval" && d.target?.type === "task" ? d.target.id : null);
+export const providerDraftOf = (d: LinkCardData): boolean =>
+  d.icon === "draft" &&
+  d.target?.type === "provider_draft" &&
+  (d.actions ?? []).some((a) => a.key === "send" && a.cap !== undefined);
+export const heldTaskOf = (d: LinkCardData): string | null =>
+  d.icon === "approval" && d.target?.type === "task" ? d.target.id : null;
 
 /** The state a read answers with, or null when the thing has none to show (a file, a record). */
 export function stateOf(d: LinkCardData, answer: unknown): CardState | null {
@@ -50,7 +80,8 @@ export function stateOf(d: LinkCardData, answer: unknown): CardState | null {
   const type = d.target?.type;
   if (type === "run") return RUN[String(a["run"]?.["status"])] ?? null;
   if (type === "task") return TASK[String(a["task"]?.["state"])] ?? null;
-  if (type === "computer") return a["computer"]?.["state"] === "running" ? { text: "On", tone: "live", live: true } : null;
+  if (type === "computer")
+    return a["computer"]?.["state"] === "running" ? { text: "On", tone: "live", live: true } : null;
   if (type === "automation") return FLOW[String(a["automation"]?.["status"])] ?? null;
   return null;
 }
@@ -60,6 +91,23 @@ export const HIDDEN_TITLE = "Not shared with you";
 
 /** What stands in for the name of a thing the reader cannot open: what kind of thing it is and that it is theirs to ask for, never its name or anything about it. */
 export function hiddenTitle(type: string | undefined): string {
-  const kind = ({ task: "task", file: "file", folder: "folder", record: "record", thread: "chat", chat: "chat", channel: "channel", run: "run", project: "project", automation: "automation", computer: "computer", agent: "agent", goal: "goal", note: "note" } as Record<string, string>)[type ?? ""];
+  const kind = (
+    {
+      task: "task",
+      file: "file",
+      folder: "folder",
+      record: "record",
+      thread: "chat",
+      chat: "chat",
+      channel: "channel",
+      run: "run",
+      project: "project",
+      automation: "automation",
+      computer: "computer",
+      agent: "agent",
+      goal: "goal",
+      note: "note",
+    } as Record<string, string>
+  )[type ?? ""];
   return kind ? `A ${kind} you don't have access to` : HIDDEN_TITLE;
 }

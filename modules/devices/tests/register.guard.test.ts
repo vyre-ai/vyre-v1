@@ -9,7 +9,11 @@ const count = (h: ReturnType<typeof harness>, table: string): number => h.raw.ro
 
 test("a member, an admin and an agent cannot register a device or get a session for anyone", async () => {
   const h = harness();
-  for (const ctx of [h.as("usr_maya"), h.as("usr_admin", { admin: true }), { ...h.as("usr_maya"), principal: { kind: "agent" as const, id: "agt_helper" } }]) {
+  for (const ctx of [
+    h.as("usr_maya"),
+    h.as("usr_admin", { admin: true }),
+    { ...h.as("usr_maya"), principal: { kind: "agent" as const, id: "agt_helper" } },
+  ]) {
     await assert.rejects(handlers["devices.register"](ctx, input), (e) => codeOf(e) === "permission.no_grant");
   }
   assert.equal(count(h, "devices_device"), 0, "no device row");
@@ -23,7 +27,10 @@ test("another service, including the sync service and a service named like the h
   const lookalike = { ...h.host(), principal: { kind: "service" as const, id: "svc_host2" } };
   await assert.rejects(handlers["devices.register"](lookalike, input), (e) => codeOf(e) === "permission.no_grant");
   const personNamedHost = { ...h.host(), principal: { kind: "person" as const, id: "svc_host" } };
-  await assert.rejects(handlers["devices.register"](personNamedHost, input), (e) => codeOf(e) === "permission.no_grant");
+  await assert.rejects(
+    handlers["devices.register"](personNamedHost, input),
+    (e) => codeOf(e) === "permission.no_grant",
+  );
   assert.equal(count(h, "devices_device"), 0);
 });
 

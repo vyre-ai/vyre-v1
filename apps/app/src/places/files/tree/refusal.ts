@@ -10,5 +10,7 @@ export function refusalText(e: unknown, what: string): string {
 
 /** Run a call whose answer the screen does not wait for; if it is refused, say so. */
 export function tellIfRefused(call: Promise<unknown>, what: string): void {
-  Promise.resolve(call).catch((e: unknown) => { notices.pass(refusalText(e, what)); });
+  Promise.resolve(call).catch((e: unknown) => {
+    notices.pass(refusalText(e, what));
+  });
 }

@@ -9,7 +9,11 @@ import { RULES, evaluate } from "./rules.ts";
 import type { Scenario, Step, Tools, World } from "./rules.ts";
 
 const read = (rel: string): string => readFileSync(new URL(`../../../${rel}`, import.meta.url), "utf8");
-const evalSet = JSON.parse(read("agent/skills/working-in-vyre/eval.json")) as { version: number; world: World; scenarios: Scenario[] };
+const evalSet = JSON.parse(read("agent/skills/working-in-vyre/eval.json")) as {
+  version: number;
+  world: World;
+  scenarios: Scenario[];
+};
 const SKILL = read("agent/skills/working-in-vyre/SKILL.md");
 const registry = JSON.parse(read("generated/registry.json")) as { $defs: Record<string, JsonSchema> };
 const gen = loadGenerated();
@@ -58,7 +62,9 @@ test("memory searched before asking: no scenario asks the person before a search
   for (const s of evalSet.scenarios) {
     const ask = s.trace.findIndex((t) => "call" in t && t.call === "ask_question");
     if (ask < 0) continue;
-    const search = s.trace.findIndex((t) => "call" in t && ["memory_search", "facts_as_of", "transcript_search"].includes(t.call));
+    const search = s.trace.findIndex(
+      (t) => "call" in t && ["memory_search", "facts_as_of", "transcript_search"].includes(t.call),
+    );
     assert.ok(search >= 0 && search < ask, `${s.id}: search at ${search}, ask at ${ask}`);
   }
 });
@@ -68,36 +74,222 @@ test("memory searched before asking: no scenario asks the person before a search
 type Mutation = [id: string, rule: string, mutate: (s: Scenario) => void];
 const calls = (s: Scenario) => s.trace.filter((t): t is Extract<Step, { call: string }> => "call" in t);
 const mutations: Mutation[] = [
-  ["secret-terminal-env", "secret_never_printed", (s) => { s.trace.push({ say: "The key is zq7-fake-secret-0042-value." }); }],
-  ["secret-terminal-env", "secret_never_printed", (s) => { s.trace.push({ say: `Encoded: ${Buffer.from("zq7-fake-secret-0042-value").toString("base64")}` }); }],
-  ["secret-terminal-env", "secret_never_printed", (s) => { calls(s)[1]!.input = { command: "echo zq7-fake-secret-0042-value", idempotencyKey: "idem_x" }; }],
-  ["secret-terminal-env", "handle_from_vault_use", (s) => { s.trace.splice(0, 1); }],
-  ["secret-missing-key", "request_when_missing", (s) => { s.trace.splice(1, 1); }],
-  ["secret-pasted-in-chat", "secret_field_for_paste", (s) => { s.trace.splice(0, 1); }],
-  ["memory-save-own-layer", "own_layer", (s) => { (calls(s)[0]!.input as { layer?: string }).layer = "space"; }],
-  ["memory-save-own-layer", "own_layer", (s) => { delete (calls(s)[0]!.input as { sourceRef?: string }).sourceRef; }],
-  ["memory-propose-promotion", "promotion_with_fact", (s) => { (calls(s)[2]!.input as { factId: string }).factId = "fct_invented"; }],
-  ["memory-before-asking", "cites_sources", (s) => { s.trace[s.trace.length - 1] = { say: "Maya prefers calls after 3pm." }; }],
-  ["search-then-ask", "memory_before_ask", (s) => { const [search, ask] = [s.trace[0]!, s.trace[1]!]; s.trace[0] = ask; s.trace[1] = search; }],
-  ["memory-before-asking", "memory_before_ask", (s) => { s.trace.unshift({ say: "When would Maya like to be called?" }); }],
-  ["structured-question", "structured_question", (s) => { s.trace.splice(1, 1); }],
-  ["structured-question", "structured_question", (s) => { (calls(s)[1]!.input as { options: unknown[] }).options = [{ key: "a", label: "A" }]; }],
-  ["refuse-cross-space", "no_cross_space", (s) => { s.trace.unshift({ call: "records_query", input: { type: "contact" } }); }],
-  ["refuse-cross-space", "no_cross_space", (s) => { s.trace[0] = { say: "Done, I copied the list from spc_northwind." }; }],
-  ["plan-mode-plan", "plan_mode", (s) => { s.trace.unshift({ call: "terminal_run", input: { command: "mv a b", idempotencyKey: "idem_x" } }); }],
-  ["plan-mode-plan", "plan_mode", (s) => { s.trace.splice(1, 1); }],
-  ["open-tab", "open_tab_honest", (s) => { s.trace.splice(0, 1); }],
-  ["held-outward-act", "held_means_wait", (s) => { s.trace.splice(1, 0, structuredClone(s.trace[0]!)); }],
-  ["held-outward-act", "held_means_wait", (s) => { s.trace[1] = { say: "Sent. The email is on its way." }; }],
-  ["error-report", "error_report", (s) => { s.trace[1] = { say: "I could not add Sam. Try again later." }; }],
-  ["wait-for-event", "wait_for_used", (s) => { s.trace.splice(0, 1); }],
-  ["wait-for-event", "wait_for_used", (s) => { s.trace.splice(1, 0, { call: "tool_search", input: { query: "deploy" } }); }],
-  ["secret-browser-fill", "tools_available", (s) => { s.trace.splice(0, 1); }],
-  ["memory-save-own-layer", "tools_available", (s) => { delete (calls(s)[0]!.input as { sourceKind?: string }).sourceKind; }],
-  ["memory-save-own-layer", "tools_available", (s) => { calls(s)[0]!.call = "memory_save_fact"; }],
-  ["command-on-this-computer", "runs_commands_here", (s) => { s.trace = [{ say: "I have no Vyre computer, so I can run commands in the local working folder here, but I can't run them on a Vyre computer." }]; }],
-  ["command-on-this-computer", "runs_commands_here", (s) => { s.trace.push({ say: "I do not have a computer of my own, so I cannot run that." }); }],
-  ["command-on-this-computer", "runs_commands_here", (s) => { (calls(s)[0]!.input as { host?: string }).host = "agent_computer"; }],
+  [
+    "secret-terminal-env",
+    "secret_never_printed",
+    (s) => {
+      s.trace.push({ say: "The key is zq7-fake-secret-0042-value." });
+    },
+  ],
+  [
+    "secret-terminal-env",
+    "secret_never_printed",
+    (s) => {
+      s.trace.push({ say: `Encoded: ${Buffer.from("zq7-fake-secret-0042-value").toString("base64")}` });
+    },
+  ],
+  [
+    "secret-terminal-env",
+    "secret_never_printed",
+    (s) => {
+      calls(s)[1]!.input = { command: "echo zq7-fake-secret-0042-value", idempotencyKey: "idem_x" };
+    },
+  ],
+  [
+    "secret-terminal-env",
+    "handle_from_vault_use",
+    (s) => {
+      s.trace.splice(0, 1);
+    },
+  ],
+  [
+    "secret-missing-key",
+    "request_when_missing",
+    (s) => {
+      s.trace.splice(1, 1);
+    },
+  ],
+  [
+    "secret-pasted-in-chat",
+    "secret_field_for_paste",
+    (s) => {
+      s.trace.splice(0, 1);
+    },
+  ],
+  [
+    "memory-save-own-layer",
+    "own_layer",
+    (s) => {
+      (calls(s)[0]!.input as { layer?: string }).layer = "space";
+    },
+  ],
+  [
+    "memory-save-own-layer",
+    "own_layer",
+    (s) => {
+      delete (calls(s)[0]!.input as { sourceRef?: string }).sourceRef;
+    },
+  ],
+  [
+    "memory-propose-promotion",
+    "promotion_with_fact",
+    (s) => {
+      (calls(s)[2]!.input as { factId: string }).factId = "fct_invented";
+    },
+  ],
+  [
+    "memory-before-asking",
+    "cites_sources",
+    (s) => {
+      s.trace[s.trace.length - 1] = { say: "Maya prefers calls after 3pm." };
+    },
+  ],
+  [
+    "search-then-ask",
+    "memory_before_ask",
+    (s) => {
+      const [search, ask] = [s.trace[0]!, s.trace[1]!];
+      s.trace[0] = ask;
+      s.trace[1] = search;
+    },
+  ],
+  [
+    "memory-before-asking",
+    "memory_before_ask",
+    (s) => {
+      s.trace.unshift({ say: "When would Maya like to be called?" });
+    },
+  ],
+  [
+    "structured-question",
+    "structured_question",
+    (s) => {
+      s.trace.splice(1, 1);
+    },
+  ],
+  [
+    "structured-question",
+    "structured_question",
+    (s) => {
+      (calls(s)[1]!.input as { options: unknown[] }).options = [{ key: "a", label: "A" }];
+    },
+  ],
+  [
+    "refuse-cross-space",
+    "no_cross_space",
+    (s) => {
+      s.trace.unshift({ call: "records_query", input: { type: "contact" } });
+    },
+  ],
+  [
+    "refuse-cross-space",
+    "no_cross_space",
+    (s) => {
+      s.trace[0] = { say: "Done, I copied the list from spc_northwind." };
+    },
+  ],
+  [
+    "plan-mode-plan",
+    "plan_mode",
+    (s) => {
+      s.trace.unshift({ call: "terminal_run", input: { command: "mv a b", idempotencyKey: "idem_x" } });
+    },
+  ],
+  [
+    "plan-mode-plan",
+    "plan_mode",
+    (s) => {
+      s.trace.splice(1, 1);
+    },
+  ],
+  [
+    "open-tab",
+    "open_tab_honest",
+    (s) => {
+      s.trace.splice(0, 1);
+    },
+  ],
+  [
+    "held-outward-act",
+    "held_means_wait",
+    (s) => {
+      s.trace.splice(1, 0, structuredClone(s.trace[0]!));
+    },
+  ],
+  [
+    "held-outward-act",
+    "held_means_wait",
+    (s) => {
+      s.trace[1] = { say: "Sent. The email is on its way." };
+    },
+  ],
+  [
+    "error-report",
+    "error_report",
+    (s) => {
+      s.trace[1] = { say: "I could not add Sam. Try again later." };
+    },
+  ],
+  [
+    "wait-for-event",
+    "wait_for_used",
+    (s) => {
+      s.trace.splice(0, 1);
+    },
+  ],
+  [
+    "wait-for-event",
+    "wait_for_used",
+    (s) => {
+      s.trace.splice(1, 0, { call: "tool_search", input: { query: "deploy" } });
+    },
+  ],
+  [
+    "secret-browser-fill",
+    "tools_available",
+    (s) => {
+      s.trace.splice(0, 1);
+    },
+  ],
+  [
+    "memory-save-own-layer",
+    "tools_available",
+    (s) => {
+      delete (calls(s)[0]!.input as { sourceKind?: string }).sourceKind;
+    },
+  ],
+  [
+    "memory-save-own-layer",
+    "tools_available",
+    (s) => {
+      calls(s)[0]!.call = "memory_save_fact";
+    },
+  ],
+  [
+    "command-on-this-computer",
+    "runs_commands_here",
+    (s) => {
+      s.trace = [
+        {
+          say: "I have no Vyre computer, so I can run commands in the local working folder here, but I can't run them on a Vyre computer.",
+        },
+      ];
+    },
+  ],
+  [
+    "command-on-this-computer",
+    "runs_commands_here",
+    (s) => {
+      s.trace.push({ say: "I do not have a computer of my own, so I cannot run that." });
+    },
+  ],
+  [
+    "command-on-this-computer",
+    "runs_commands_here",
+    (s) => {
+      (calls(s)[0]!.input as { host?: string }).host = "agent_computer";
+    },
+  ],
 ];
 
 for (const [id, rule, mutate] of mutations) {
@@ -122,11 +314,28 @@ test("the skill is a system skill of about eighty lines with the front matter a 
 
 test("the skill teaches each thing the spec lists", () => {
   const must: Array<[RegExp, string]> = [
-    [/memory_propose/, "save facts to the asker's layer"], [/asker's own layer/, "the asker's layer"], [/memory_promote/, "propose promotions"],
-    [/Cite your sources/i, "cite sources"], [/Search before you ask/i, "search memory before asking"], [/memory_search/, "memory_search"], [/facts_as_of/, "facts_as_of"], [/transcript_search/, "transcript_search"],
-    [/vault_use/, "secrets by name"], [/Never print, store, summarise, encode or send a secret value/, "never print"], [/vault_request/, "request a missing key"],
-    [/Never copy data from one Space into another/, "never copy across Spaces"], [/Prefer a capability to reading the screen/, "capabilities over screen scraping"],
-    [/open_tab/, "tabs only through open_tab"], [/run commands on the computer this chat runs on with `terminal_run`/, "commands on the computer the chat runs on"], [/Do not say you have no computer/, "no 'I have no computer'"], [/Your own shell works in your work folder/, "the engine's own shell"], [/ask_question/, "structured questions"], [/plan_propose/, "plan mode"], [/Gate/, "the Gate"], [/held/, "held"], [/trace id/, "error shape and trace id"],
+    [/memory_propose/, "save facts to the asker's layer"],
+    [/asker's own layer/, "the asker's layer"],
+    [/memory_promote/, "propose promotions"],
+    [/Cite your sources/i, "cite sources"],
+    [/Search before you ask/i, "search memory before asking"],
+    [/memory_search/, "memory_search"],
+    [/facts_as_of/, "facts_as_of"],
+    [/transcript_search/, "transcript_search"],
+    [/vault_use/, "secrets by name"],
+    [/Never print, store, summarise, encode or send a secret value/, "never print"],
+    [/vault_request/, "request a missing key"],
+    [/Never copy data from one Space into another/, "never copy across Spaces"],
+    [/Prefer a capability to reading the screen/, "capabilities over screen scraping"],
+    [/open_tab/, "tabs only through open_tab"],
+    [/run commands on the computer this chat runs on with `terminal_run`/, "commands on the computer the chat runs on"],
+    [/Do not say you have no computer/, "no 'I have no computer'"],
+    [/Your own shell works in your work folder/, "the engine's own shell"],
+    [/ask_question/, "structured questions"],
+    [/plan_propose/, "plan mode"],
+    [/Gate/, "the Gate"],
+    [/held/, "held"],
+    [/trace id/, "error shape and trace id"],
   ];
   for (const [re, what] of must) assert.match(SKILL, re, what);
 });
@@ -134,15 +343,31 @@ test("the skill teaches each thing the spec lists", () => {
 test("every tool the skill names exists, and every tool the scenarios use is named in the skill", () => {
   const words = new Set([...SKILL.matchAll(/`([a-z][a-z0-9_]*)`/g)].map((m) => m[1]!));
   const notTools = new Set(["held", "single", "multi", "free", "mermaid", "chart"]);
-  for (const w of words) if (!notTools.has(w)) assert.ok(gen.catalog.byName(w), `${w} is in the skill but is not a tool`);
+  for (const w of words)
+    if (!notTools.has(w)) assert.ok(gen.catalog.byName(w), `${w} is in the skill but is not a tool`);
   const used = new Set(evalSet.scenarios.flatMap((s) => calls(s).map((c) => c.call)));
   const background = new Set(["mail_send", "records_update", "records_query"]);
-  for (const u of used) if (!background.has(u)) assert.ok(words.has(u), `${u} is used by a scenario and not named in the skill`);
+  for (const u of used)
+    if (!background.has(u)) assert.ok(words.has(u), `${u} is used by a scenario and not named in the skill`);
 });
 
 test("every tool the skill leans on is where the skill puts it: the listed set, or found with tool_search", () => {
-  for (const name of ["memory_search", "facts_as_of", "memory_propose", "vault_use", "vault_request", "ask_question", "plan_propose", "open_tab", "tool_search", "wait_for", "handoff", "terminal_run"]) {
+  for (const name of [
+    "memory_search",
+    "facts_as_of",
+    "memory_propose",
+    "vault_use",
+    "vault_request",
+    "ask_question",
+    "plan_propose",
+    "open_tab",
+    "tool_search",
+    "wait_for",
+    "handoff",
+    "terminal_run",
+  ]) {
     assert.ok(gen.defaults.has(name), `${name} should be in the default listed set`);
   }
-  for (const name of ["memory_promote", "transcript_search", "chrome_fill"]) assert.equal(gen.defaults.has(name), false, `${name} is found with tool_search`);
+  for (const name of ["memory_promote", "transcript_search", "chrome_fill"])
+    assert.equal(gen.defaults.has(name), false, `${name} is found with tool_search`);
 });

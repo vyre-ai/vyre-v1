@@ -4,24 +4,89 @@
 // DECISION: the Overview's recent decisions and linked records come from modules this one does not call yet; both lists are empty until those modules offer a read, never made up.
 // DECISION: a read-only link is a token the host serves at /share/project/<token>; it lives in projects_share until it expires or is revoked.
 import {
-  LEVEL_OF, addFiled, addLink, addPin, allProjects, allows, buildStages, call, clean, codeOf, dropMember, dropPin, emitP, ensure, isMember, keyed, kindOfPrincipal, linksOf, loadTasks,
-  archivedIds, clearArchived, setArchived, me, membersOf, memberOf, newId, page, pinsOf, planTask, plansOf, projectBy, projectByChannel, projectRow, raise, readRecord, remember, replaceStages, saveMember, savePlan, saveProject, saveUpdate,
-  isSpaceAdmin, stagesOf, tolerant, updateOf, visible, writeRecord, draftOf, saveDraft, attachesOf, templateBy,
+  LEVEL_OF,
+  addFiled,
+  addLink,
+  addPin,
+  allProjects,
+  allows,
+  buildStages,
+  call,
+  clean,
+  codeOf,
+  dropMember,
+  dropPin,
+  emitP,
+  ensure,
+  isMember,
+  keyed,
+  kindOfPrincipal,
+  linksOf,
+  loadTasks,
+  archivedIds,
+  clearArchived,
+  setArchived,
+  me,
+  membersOf,
+  memberOf,
+  newId,
+  page,
+  pinsOf,
+  planTask,
+  plansOf,
+  projectBy,
+  projectByChannel,
+  projectRow,
+  raise,
+  readRecord,
+  remember,
+  replaceStages,
+  saveMember,
+  savePlan,
+  saveProject,
+  saveUpdate,
+  isSpaceAdmin,
+  stagesOf,
+  tolerant,
+  updateOf,
+  visible,
+  writeRecord,
+  draftOf,
+  saveDraft,
+  attachesOf,
+  templateBy,
 } from "../projections.ts";
 import { isHostService } from "../../../lib/trust.ts";
 import { oneAtATime as queued } from "../../../lib/one-at-a-time.ts";
 import { seedTemplates, startPage } from "./overview.ts";
 import type { In, Member, Project, ProjectsCtx, Role, Source, TaskView } from "../projections.ts";
 
-export interface Made { projectId: string; recordId: string; channelId: string; folderId: string }
-interface FolderOut { folderId: string; parentId?: string; name: string; path?: string }
+export interface Made {
+  projectId: string;
+  recordId: string;
+  channelId: string;
+  folderId: string;
+}
+interface FolderOut {
+  folderId: string;
+  parentId?: string;
+  name: string;
+  path?: string;
+}
 
-const subjectOf = (m: Pick<Member, "kind" | "principal">): { kind: string; id: string } => ({ kind: m.kind, id: m.principal });
+const subjectOf = (m: Pick<Member, "kind" | "principal">): { kind: string; id: string } => ({
+  kind: m.kind,
+  id: m.principal,
+});
 const sourceTag = (projectId: string): string => `project:${projectId}`;
 
 /** The resources a project role is granted on: the project, its folder and its channel. */
 function resourcesOf(p: Project): Array<{ type: string; id: string }> {
-  return [{ type: "project", id: p.projectId }, ...(p.folderId ? [{ type: "folder", id: p.folderId }] : []), ...(p.channelId ? [{ type: "channel", id: p.channelId }] : [])];
+  return [
+    { type: "project", id: p.projectId },
+    ...(p.folderId ? [{ type: "folder", id: p.folderId }] : []),
+    ...(p.channelId ? [{ type: "channel", id: p.channelId }] : []),
+  ];
 }
 
 /**
@@ -36,7 +101,17 @@ export async function grantOnProject(ctx: ProjectsCtx, projectId: string): Promi
     const matrix = await tolerant<{ kind?: string }>(ctx, "spaces.matrix", {}, {});
     for (const m of membersOf(ctx.db, projectId)) {
       if (matrix.kind === "personal" && m.principal === me(ctx)) continue;
-      await call(ctx, "access.share", { resource: { type: "project", id: projectId }, subject: subjectOf(m), level: LEVEL_OF[m.role], source: sourceTag(projectId) }, { idempotencyKey: `prj-share:${projectId}:${m.principal}:${m.role}:project:${globalThis.crypto.randomUUID()}` });
+      await call(
+        ctx,
+        "access.share",
+        {
+          resource: { type: "project", id: projectId },
+          subject: subjectOf(m),
+          level: LEVEL_OF[m.role],
+          source: sourceTag(projectId),
+        },
+        { idempotencyKey: `prj-share:${projectId}:${m.principal}:${m.role}:project:${globalThis.crypto.randomUUID()}` },
+      );
     }
   });
 }
@@ -48,12 +123,20 @@ export async function grantOnProject(ctx: ProjectsCtx, projectId: string): Promi
  * another entry of the same project (the calls it makes go to other modules), so it cannot wait on itself.
  */
 export function oneAtATime<T>(ctx: Pick<ProjectsCtx, "space">, projectId: string, work: () => Promise<T>): Promise<T> {
-  return queued(`project:${ctx.space}:${projectId}`, work, { onLimit: (key, ms) => (ctx as Partial<ProjectsCtx>).log?.warn("projects: a role change took too long; the next one runs", { key, limitMs: ms }) });
+  return queued(`project:${ctx.space}:${projectId}`, work, {
+    onLimit: (key, ms) =>
+      (ctx as Partial<ProjectsCtx>).log?.warn("projects: a role change took too long; the next one runs", {
+        key,
+        limitMs: ms,
+      }),
+  });
 }
 
 /** Tasks for counts; a project still opens when Tasks does not answer. */
 async function tasksOrNone(ctx: ProjectsCtx, p: Project): Promise<TaskView[]> {
-  try { return await loadTasks(ctx, p); } catch (e) {
+  try {
+    return await loadTasks(ctx, p);
+  } catch (e) {
     ctx.log.warn("projects: tasks did not answer", { project: p.projectId, error: codeOf(e) });
     return [];
   }
@@ -62,10 +145,24 @@ async function tasksOrNone(ctx: ProjectsCtx, p: Project): Promise<TaskView[]> {
 // ---- people ----
 
 /** Give a principal a role: the previous grants of that source go, the new ones are written on the project, its folder and its channel. */
-export function applyRole(ctx: ProjectsCtx, p: Project, principal: string, role: Role, announce = true, deferProject = false): Promise<{ member: Member; previous?: Role }> {
+export function applyRole(
+  ctx: ProjectsCtx,
+  p: Project,
+  principal: string,
+  role: Role,
+  announce = true,
+  deferProject = false,
+): Promise<{ member: Member; previous?: Role }> {
   return oneAtATime(ctx, p.projectId, () => applyRoleNow(ctx, p, principal, role, announce, deferProject));
 }
-async function applyRoleNow(ctx: ProjectsCtx, p: Project, principal: string, role: Role, announce: boolean, deferProject: boolean): Promise<{ member: Member; previous?: Role }> {
+async function applyRoleNow(
+  ctx: ProjectsCtx,
+  p: Project,
+  principal: string,
+  role: Role,
+  announce: boolean,
+  deferProject: boolean,
+): Promise<{ member: Member; previous?: Role }> {
   const kind = kindOfPrincipal(principal);
   if (!kind) raise(ctx, "validation.bad_input", "A person, an agent or a group holds a project role.", { principal });
   const before = memberOf(ctx.db, p.projectId, principal);
@@ -75,13 +172,20 @@ async function applyRoleNow(ctx: ProjectsCtx, p: Project, principal: string, rol
   for (const r of ownPersonal ? [] : resourcesOf(p)) {
     // a project that is being made is not a resource yet: it becomes one when this call commits, so the grants on it follow (grantOnProject)
     if (deferProject && r.type === "project") continue;
-    if (before) await call(ctx, "access.unshare", { resource: r, subject: subjectOf(member), source: sourceTag(p.projectId) });
+    if (before)
+      await call(ctx, "access.unshare", { resource: r, subject: subjectOf(member), source: sourceTag(p.projectId) });
     await shareRole(ctx, p, r, member, role);
   }
   // the project's channel is invite-only: a grant lets a person read it, but they are only IN it (and the Chat tab opens it, channels.get answers) once they are added
   // into the project's own channel: a refusal is said, never swallowed (a member or teammate silently missing from the channel). Only a channel that is gone is let pass
-  if (kind === "person" && p.channelId && !ownPersonal) await intoChannel(ctx, "channels.members.add", { channelId: p.channelId, personIds: [principal] });
-  if (kind === "agent" && p.channelId) await intoChannel(ctx, "channels.agents.add", { channelId: p.channelId, agentId: principal, mode: role === "lead" ? "lead" : "listen" });
+  if (kind === "person" && p.channelId && !ownPersonal)
+    await intoChannel(ctx, "channels.members.add", { channelId: p.channelId, personIds: [principal] });
+  if (kind === "agent" && p.channelId)
+    await intoChannel(ctx, "channels.agents.add", {
+      channelId: p.channelId,
+      agentId: principal,
+      mode: role === "lead" ? "lead" : "listen",
+    });
   saveMember(ctx.db, p.projectId, member);
   if (role === "lead") await writeRecord(ctx, p, { lead: principal });
   // projects.create and projects.from_channel declare project.created, not project.member_set: the first people on a project are part of its creation
@@ -93,20 +197,38 @@ async function applyRoleNow(ctx: ProjectsCtx, p: Project, principal: string, rol
  * One role grant. A person's own assistant holds at most Edit on what it makes, so it cannot hand out Manage, but the person who made the project already owns its folder and its channel and
  * holds Manage through that. A grant the owner does not need is skipped for the owner, never an error: making a project is all or nothing, and the maker is not the one to be refused.
  */
-async function shareRole(ctx: ProjectsCtx, p: Project, r: { type: string; id: string }, member: Member, role: Role): Promise<void> {
+async function shareRole(
+  ctx: ProjectsCtx,
+  p: Project,
+  r: { type: string; id: string },
+  member: Member,
+  role: Role,
+): Promise<void> {
   try {
-    await call(ctx, "access.share", { resource: r, subject: subjectOf(member), level: LEVEL_OF[role], source: sourceTag(p.projectId) }, { idempotencyKey: `prj-share:${p.projectId}:${member.principal}:${role}:${r.type}:${globalThis.crypto.randomUUID()}` });
+    await call(
+      ctx,
+      "access.share",
+      { resource: r, subject: subjectOf(member), level: LEVEL_OF[role], source: sourceTag(p.projectId) },
+      {
+        idempotencyKey: `prj-share:${p.projectId}:${member.principal}:${role}:${r.type}:${globalThis.crypto.randomUUID()}`,
+      },
+    );
   } catch (e) {
     const code = codeOf(e);
     if (code !== "permission.not_contained" && code !== "permission.no_grant") throw e;
-    if (member.kind === "person" && await ownsResource(ctx, r, member.principal)) return;
+    if (member.kind === "person" && (await ownsResource(ctx, r, member.principal))) return;
     throw e;
   }
 }
 
 /** Does this person own the resource (and so hold Manage on it whatever is granted)? */
 async function ownsResource(ctx: ProjectsCtx, r: { type: string; id: string }, person: string): Promise<boolean> {
-  const got = await tolerant<{ shares?: Array<{ through?: string; grant?: { subject?: { id?: string } } }> }>(ctx, "access.shares_of", { resource: r }, {});
+  const got = await tolerant<{ shares?: Array<{ through?: string; grant?: { subject?: { id?: string } } }> }>(
+    ctx,
+    "access.shares_of",
+    { resource: r },
+    {},
+  );
   return (got.shares ?? []).some((s) => s.through === "owner" && s.grant?.subject?.id === person);
 }
 
@@ -124,8 +246,16 @@ export async function membersList(ctx: ProjectsCtx, input: In): Promise<unknown>
 function manageToChangeRoles(ctx: ProjectsCtx, projectId: string): Project {
   const known = isSpaceAdmin(ctx) ? projectBy(ctx.db, projectId) : undefined;
   if (known) return known;
-  try { return visible(ctx, projectId, "manage"); } catch (e) {
-    if (codeOf(e) === "permission.no_grant") raise(ctx, "permission.no_grant", "You need to manage this project to change roles. Ask its Lead or the Space owner.", { reason: "needs_level", level: "manage" });
+  try {
+    return visible(ctx, projectId, "manage");
+  } catch (e) {
+    if (codeOf(e) === "permission.no_grant")
+      raise(
+        ctx,
+        "permission.no_grant",
+        "You need to manage this project to change roles. Ask its Lead or the Space owner.",
+        { reason: "needs_level", level: "manage" },
+      );
     throw e;
   }
 }
@@ -146,15 +276,24 @@ export function removeMember(ctx: ProjectsCtx, p: Project, m: Member): Promise<v
   return oneAtATime(ctx, p.projectId, () => removeMemberNow(ctx, p, m));
 }
 async function removeMemberNow(ctx: ProjectsCtx, p: Project, asked: Member): Promise<void> {
-  const m = memberOf(ctx.db, p.projectId, asked.principal) ?? asked;   // the role as it stands now, in the queue (a change may have run while this waited)
-  for (const r of resourcesOf(p)) await call(ctx, "access.unshare", { resource: r, subject: subjectOf(m), source: sourceTag(p.projectId) });
+  const m = memberOf(ctx.db, p.projectId, asked.principal) ?? asked; // the role as it stands now, in the queue (a change may have run while this waited)
+  for (const r of resourcesOf(p))
+    await call(ctx, "access.unshare", { resource: r, subject: subjectOf(m), source: sourceTag(p.projectId) });
   // out of the project's channel too, and plainly: a refusal fails the remove (the role stays, so a retry finishes it), never "removed" while they are still in. A channel that is gone is no refusal.
   // The daemon runs these two as the host for projects.members.remove and the teammates calls, on this project's own channel only (host/src/daemon/daemon.ts), whoever the caller is.
-  if (m.kind === "person" && p.channelId) await outOfChannel(ctx, "channels.members.remove", { channelId: p.channelId, personId: m.principal });
-  if (m.kind === "agent" && p.channelId) await outOfChannel(ctx, "channels.agents.remove", { channelId: p.channelId, agentId: m.principal });
+  if (m.kind === "person" && p.channelId)
+    await outOfChannel(ctx, "channels.members.remove", { channelId: p.channelId, personId: m.principal });
+  if (m.kind === "agent" && p.channelId)
+    await outOfChannel(ctx, "channels.agents.remove", { channelId: p.channelId, agentId: m.principal });
   dropMember(ctx.db, p.projectId, m.principal);
   // an agent's workspace stops mounting the project before this answers (12 Nov: in force when the call returns); a terminal that does not answer never fails the removal, its consumer finishes the job
-  if (m.kind === "agent") await tolerant(ctx, "host.hook.call.terminal.workspace_revoke", { input: { agentId: m.principal, projectId: p.projectId } }, null);
+  if (m.kind === "agent")
+    await tolerant(
+      ctx,
+      "host.hook.call.terminal.workspace_revoke",
+      { input: { agentId: m.principal, projectId: p.projectId } },
+      null,
+    );
   if (m.role === "lead") {
     const fields = await readRecord(ctx, p);
     if (fields["lead"] === m.principal) await writeRecord(ctx, p, { lead: null });
@@ -166,17 +305,32 @@ async function removeMemberNow(ctx: ProjectsCtx, p: Project, asked: Member): Pro
  * Out of the project's own channel. A not-found is believed only when the channel itself reads as gone: an invite-only channel also answers not_found to someone outside it, so the channel is read
  * again (in the daemon this read, like the removal, runs as the host on the project's own channel, host/src/daemon/daemon.ts CHANNEL_FOLLOWS) and a channel that is still there fails the remove.
  */
-async function outOfChannel(ctx: ProjectsCtx, cap: string, input: Record<string, unknown> & { channelId: string }): Promise<void> {
-  try { await call(ctx, cap, input); } catch (e) {
+async function outOfChannel(
+  ctx: ProjectsCtx,
+  cap: string,
+  input: Record<string, unknown> & { channelId: string },
+): Promise<void> {
+  try {
+    await call(ctx, cap, input);
+  } catch (e) {
     if (codeOf(e) !== "validation.not_found") throw e;
     let gone = false;
-    try { await call(ctx, "channels.get", { channelId: input.channelId }); } catch (g) { gone = codeOf(g) === "validation.not_found"; }
+    try {
+      await call(ctx, "channels.get", { channelId: input.channelId });
+    } catch (g) {
+      gone = codeOf(g) === "validation.not_found";
+    }
     if (!gone) throw e;
   }
 }
 
 /** Take this principal off the project if they are on it, reading the row in the project's queue: a role still waiting there (behind the consumer) lands first, and this remove then takes it. */
-export function removeIfMember(ctx: ProjectsCtx, p: Project, principal: string, only?: (m: Member) => boolean): Promise<boolean> {
+export function removeIfMember(
+  ctx: ProjectsCtx,
+  p: Project,
+  principal: string,
+  only?: (m: Member) => boolean,
+): Promise<boolean> {
   return oneAtATime(ctx, p.projectId, async () => {
     const m = memberOf(ctx.db, p.projectId, principal);
     if (!m || (only && !only(m))) return false;
@@ -196,17 +350,27 @@ export async function membersRemove(ctx: ProjectsCtx, input: In): Promise<unknow
 async function requireProjectType(ctx: ProjectsCtx, type: string): Promise<void> {
   try {
     const r = await call<{ type?: { template?: string } }>(ctx, "schema.types.get", { type });
-    if (r.type?.template !== "project") raise(ctx, "validation.bad_input", `${type} is not a project type. Journeys and the Projects type are.`, { type });
+    if (r.type?.template !== "project")
+      raise(ctx, "validation.bad_input", `${type} is not a project type. Journeys and the Projects type are.`, {
+        type,
+      });
   } catch (e) {
-    if (codeOf(e) === "validation.not_found") raise(ctx, "validation.bad_input", `There is no record type called ${type}.`, { type });
+    if (codeOf(e) === "validation.not_found")
+      raise(ctx, "validation.bad_input", `There is no record type called ${type}.`, { type });
     throw e;
   }
 }
 
 /** The Projects folder of the Space (the root key `projects` of the Files tree). */
 export async function projectsRoot(ctx: ProjectsCtx): Promise<string> {
-  const found = await call<{ folders?: FolderOut[] }>(ctx, "files.folder.search", { q: "Projects", scope: "folders", limit: 20 });
-  const root = (found.folders ?? []).find((f) => f.name === "Projects" && f.parentId === undefined) ?? (found.folders ?? []).find((f) => f.path === "Projects");
+  const found = await call<{ folders?: FolderOut[] }>(ctx, "files.folder.search", {
+    q: "Projects",
+    scope: "folders",
+    limit: 20,
+  });
+  const root =
+    (found.folders ?? []).find((f) => f.name === "Projects" && f.parentId === undefined) ??
+    (found.folders ?? []).find((f) => f.path === "Projects");
   if (!root) raise(ctx, "internal.unexpected", "The Projects folder is missing from this Space.");
   return root.folderId;
 }
@@ -218,25 +382,45 @@ export async function projectsRoot(ctx: ProjectsCtx): Promise<string> {
  */
 async function vetStarters(ctx: ProjectsCtx, members: ReadonlyMap<string, Role>): Promise<void> {
   for (const [id, role] of members) {
-    if (!Object.hasOwn(LEVEL_OF, role)) raise(ctx, "validation.bad_input", "That is not a project role.", { principal: id, role });
+    if (!Object.hasOwn(LEVEL_OF, role))
+      raise(ctx, "validation.bad_input", "That is not a project role.", { principal: id, role });
     const kind = kindOfPrincipal(id)!;
     try {
       if (kind === "group") await call(ctx, "access.groups.get", { groupId: id });
       else {
-        const got = await call<{ principal?: { status?: string } }>(ctx, "access.principals.get", { principal: { kind, id } });
-        if (got.principal?.status === "removed") raise(ctx, "validation.precondition_failed", "That person was removed.", { principal: id });
+        const got = await call<{ principal?: { status?: string } }>(ctx, "access.principals.get", {
+          principal: { kind, id },
+        });
+        if (got.principal?.status === "removed")
+          raise(ctx, "validation.precondition_failed", "That person was removed.", { principal: id });
       }
     } catch (e) {
       const code = codeOf(e);
-      if (code === "validation.not_found" || code === "validation.bad_input" || code === "validation.precondition_failed") raise(ctx, "validation.bad_input", `${id} is not in this Space, so it cannot hold a project role.`, { principal: id });
+      if (
+        code === "validation.not_found" ||
+        code === "validation.bad_input" ||
+        code === "validation.precondition_failed"
+      )
+        raise(ctx, "validation.bad_input", `${id} is not in this Space, so it cannot hold a project role.`, {
+          principal: id,
+        });
       throw e;
     }
   }
 }
 
 export interface Plan {
-  type: string; title: string; summary?: string | undefined; goal?: string | undefined; lead?: string | undefined; start?: number | undefined; due?: number | undefined;
-  stages: Array<{ key: string; title: string }>; members: Array<{ principal: string; role: Role }>; source: Source; key: string;
+  type: string;
+  title: string;
+  summary?: string | undefined;
+  goal?: string | undefined;
+  lead?: string | undefined;
+  start?: number | undefined;
+  due?: number | undefined;
+  stages: Array<{ key: string; title: string }>;
+  members: Array<{ principal: string; role: Role }>;
+  source: Source;
+  key: string;
   /** From a channel: the channel that already exists and its folder, if it has one. */
   channel?: { channelId: string; threadId?: string | undefined; folderId?: string | undefined } | undefined;
   /** Adopting a record that exists (adoptRecord): its id, and the folder it already has if any. No new record is made. */
@@ -253,15 +437,32 @@ export async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
   for (const m of o.members) if (!members.has(m.principal) || m.role === "lead") members.set(m.principal, m.role);
   // whoever makes the project stays on it, even when someone else leads
   if (maker.startsWith("usr_") && !members.has(maker)) members.set(maker, "member");
-  for (const id of members.keys()) if (!kindOfPrincipal(id)) raise(ctx, "validation.bad_input", "A person, an agent or a group holds a project role.", { principal: id });
+  for (const id of members.keys())
+    if (!kindOfPrincipal(id))
+      raise(ctx, "validation.bad_input", "A person, an agent or a group holds a project role.", { principal: id });
 
   await vetStarters(ctx, members);
 
   let recordId = o.existing?.recordId;
   if (!recordId) {
-    const rec = await call<{ record?: { id?: string } }>(ctx, "records.create", {
-      type: o.type, fields: clean({ title: o.title, summary: o.summary, status: "planning", lead, start: o.start, due: o.due, goal: o.goal, stages: o.stages.map((s) => s.key) }),
-    }, { idempotencyKey: `prj-rec:${o.key}` });
+    const rec = await call<{ record?: { id?: string } }>(
+      ctx,
+      "records.create",
+      {
+        type: o.type,
+        fields: clean({
+          title: o.title,
+          summary: o.summary,
+          status: "planning",
+          lead,
+          start: o.start,
+          due: o.due,
+          goal: o.goal,
+          stages: o.stages.map((s) => s.key),
+        }),
+      },
+      { idempotencyKey: `prj-rec:${o.key}` },
+    );
     recordId = rec.record?.id;
   }
   if (!recordId) raise(ctx, "internal.unexpected", "The project record was not created.");
@@ -270,11 +471,25 @@ export async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
   if (!folderId) {
     const root = await projectsRoot(ctx);
     try {
-      folderId = (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId: root, name: o.title, idempotencyKey: `prj-folder:${o.key}` }, { idempotencyKey: `prj-folder:${o.key}` })).folder.folderId;
+      folderId = (
+        await call<{ folder: FolderOut }>(
+          ctx,
+          "files.folder.create",
+          { parentId: root, name: o.title, idempotencyKey: `prj-folder:${o.key}` },
+          { idempotencyKey: `prj-folder:${o.key}` },
+        )
+      ).folder.folderId;
     } catch (e) {
       if (codeOf(e) !== "validation.duplicate") throw e;
       // two projects may share a name; the folder takes the end of the record id to stay apart
-      folderId = (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId: root, name: `${o.title} ${recordId.slice(-4)}`, idempotencyKey: `prj-folder2:${o.key}` }, { idempotencyKey: `prj-folder2:${o.key}` })).folder.folderId;
+      folderId = (
+        await call<{ folder: FolderOut }>(
+          ctx,
+          "files.folder.create",
+          { parentId: root, name: `${o.title} ${recordId.slice(-4)}`, idempotencyKey: `prj-folder2:${o.key}` },
+          { idempotencyKey: `prj-folder2:${o.key}` },
+        )
+      ).folder.folderId;
     }
   }
   let channelId = o.channel?.channelId;
@@ -286,20 +501,44 @@ export async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
       const mine = await tolerant<{ agentId?: string }>(ctx, "agents.assistant_of", { personId: maker }, {});
       if (mine.agentId) ids.push(mine.agentId);
     }
-    const ch = await call<{ channel?: { channelId?: string; mainThreadId?: string } }>(ctx, "channels.create", {
-      name: o.title, visibility: "invite", recordId, folderId, memberIds: ids.filter((i) => i.startsWith("usr_")), agentIds: ids.filter((i) => i.startsWith("agt_")),
-      // the first agent leads, so a plain message in the project's chat is answered (a channel's listeners wait to be named)
-      ...(ids.some((i) => i.startsWith("agt_")) ? { leadAgentId: ids.find((i) => i.startsWith("agt_")) } : {}),
-    }, { idempotencyKey: `prj-channel:${o.key}` });
+    const ch = await call<{ channel?: { channelId?: string; mainThreadId?: string } }>(
+      ctx,
+      "channels.create",
+      {
+        name: o.title,
+        visibility: "invite",
+        recordId,
+        folderId,
+        memberIds: ids.filter((i) => i.startsWith("usr_")),
+        agentIds: ids.filter((i) => i.startsWith("agt_")),
+        // the first agent leads, so a plain message in the project's chat is answered (a channel's listeners wait to be named)
+        ...(ids.some((i) => i.startsWith("agt_")) ? { leadAgentId: ids.find((i) => i.startsWith("agt_")) } : {}),
+      },
+      { idempotencyKey: `prj-channel:${o.key}` },
+    );
     channelId = ch.channel?.channelId;
     threadId = ch.channel?.mainThreadId;
     if (!channelId) raise(ctx, "internal.unexpected", "The project channel was not created.");
   }
 
-  const p: Project = { projectId, recordId, type: o.type, channelId, folderId, threadId, source: o.source, createdBy: maker, createdAt: now };
+  const p: Project = {
+    projectId,
+    recordId,
+    type: o.type,
+    channelId,
+    folderId,
+    threadId,
+    source: o.source,
+    createdBy: maker,
+    createdAt: now,
+  };
   saveProject(ctx.db, p);
   try {
-    replaceStages(ctx.db, projectId, o.stages.map((s, order) => ({ key: s.key, title: s.title, order })));
+    replaceStages(
+      ctx.db,
+      projectId,
+      o.stages.map((s, order) => ({ key: s.key, title: s.title, order })),
+    );
     await writeRecord(ctx, p, { channel: channelId, folder: folderId });
     // the project's folder follows its record: a project record set apart takes its files with it (the roles on the folder still add their people)
     await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: folderId }, follows: recordId }, {});
@@ -307,16 +546,28 @@ export async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
     for (const [principal, role] of members) await applyRole(ctx, p, principal, role, false, true);
   } catch (e) {
     // all or nothing: a project that failed half way must not be listed, found or counted. What this call made in other modules goes to Trash where it can; the project's own rows go.
-    for (const t of ["projects_member", "projects_stage", "projects_project"]) { try { ctx.db.run(`DELETE FROM ${t} WHERE projectId = ?`, projectId); } catch { /* the rows are gone or were never made */ } }
+    for (const t of ["projects_member", "projects_stage", "projects_project"]) {
+      try {
+        ctx.db.run(`DELETE FROM ${t} WHERE projectId = ?`, projectId);
+      } catch {
+        /* the rows are gone or were never made */
+      }
+    }
     // (an agent deleting a record is held at the Gate for a person; a half-made project is not worth a card, so only a person's own call tidies the record)
-    if (!o.existing && ctx.principal.kind === "person") await tolerant(ctx, "records.delete", { type: o.type, recordId }, {});
+    if (!o.existing && ctx.principal.kind === "person")
+      await tolerant(ctx, "records.delete", { type: o.type, recordId }, {});
     throw e;
   }
   return { projectId, recordId, channelId, folderId };
 }
 
 /** Copy the stages and the open tasks of a template project into a new one; dates keep their distance from the template's start. */
-async function copyTemplate(ctx: ProjectsCtx, templateId: string, made: Made, start: number | undefined): Promise<void> {
+async function copyTemplate(
+  ctx: ProjectsCtx,
+  templateId: string,
+  made: Made,
+  start: number | undefined,
+): Promise<void> {
   const from = projectBy(ctx.db, templateId);
   if (!from) return;
   const fields = await readRecord(ctx, from);
@@ -327,17 +578,32 @@ async function copyTemplate(ctx: ProjectsCtx, templateId: string, made: Made, st
   for (const t of await loadTasks(ctx, from)) {
     if (t.state === "canceled") continue;
     const plan = plans.get(t.taskId);
-    const out = await call<{ task?: { id?: string } }>(ctx, "tasks.create", clean({
-      title: t.title, assigned: t.assigned ? { kind: t.assigned.startsWith("agt_") ? "agent" : "person", id: t.assigned } : { kind: "person", id: me(ctx) },
-      recordId: made.recordId, due: t.due === undefined ? undefined : t.due + shift,
-    }), { idempotencyKey: `prj-tpl:${made.projectId}:${t.taskId}` });
+    const out = await call<{ task?: { id?: string } }>(
+      ctx,
+      "tasks.create",
+      clean({
+        title: t.title,
+        assigned: t.assigned
+          ? { kind: t.assigned.startsWith("agt_") ? "agent" : "person", id: t.assigned }
+          : { kind: "person", id: me(ctx) },
+        recordId: made.recordId,
+        due: t.due === undefined ? undefined : t.due + shift,
+      }),
+      { idempotencyKey: `prj-tpl:${made.projectId}:${t.taskId}` },
+    );
     const id = out.task?.id;
     if (!id) continue;
     ids.set(t.taskId, id);
-    if (plan) savePlan(ctx.db, made.projectId, id, { stage: plan.stage ?? null, start: plan.start === undefined ? null : plan.start + shift, ord: plan.ord ?? null });
+    if (plan)
+      savePlan(ctx.db, made.projectId, id, {
+        stage: plan.stage ?? null,
+        start: plan.start === undefined ? null : plan.start + shift,
+        ord: plan.ord ?? null,
+      });
   }
   for (const l of linksOf(ctx.db, from.projectId)) {
-    const a = ids.get(l.from), b = ids.get(l.to);
+    const a = ids.get(l.from),
+      b = ids.get(l.to);
     if (a && b) {
       await call(ctx, "tasks.dependencies.add", { taskId: b, dependsOnId: a });
       addLink(ctx.db, made.projectId, { from: a, to: b });
@@ -351,17 +617,35 @@ export async function create(ctx: ProjectsCtx, input: In): Promise<unknown> {
   if (again) return again;
   const title = typeof input.title === "string" ? input.title.trim() : "";
   if (!title) raise(ctx, "validation.bad_input", "A project needs a name.");
-  if (input.start !== undefined && input.due !== undefined && input.start > input.due) raise(ctx, "validation.bad_input", "A project cannot start after it is due.");
+  if (input.start !== undefined && input.due !== undefined && input.start > input.due)
+    raise(ctx, "validation.bad_input", "A project cannot start after it is due.");
   await requireProjectType(ctx, input.type);
   const pageTemplate = typeof input.overviewTemplate === "string" ? input.overviewTemplate : undefined;
-  if (pageTemplate !== undefined) { seedTemplates(ctx); if (!templateBy(ctx.db, pageTemplate)) raise(ctx, "validation.bad_input", `There is no page template called ${pageTemplate}.`, { overviewTemplate: pageTemplate }); }
+  if (pageTemplate !== undefined) {
+    seedTemplates(ctx);
+    if (!templateBy(ctx.db, pageTemplate))
+      raise(ctx, "validation.bad_input", `There is no page template called ${pageTemplate}.`, {
+        overviewTemplate: pageTemplate,
+      });
+  }
   const template = typeof input.template === "string" ? input.template : undefined;
   const from = template?.startsWith("prj_") ? projectBy(ctx.db, template) : undefined;
-  if (template !== undefined && !from) raise(ctx, "validation.bad_input", `There is no project template called ${template}.`, { template });
-  const stages = input.stages !== undefined ? buildStages(ctx, input.stages) : from ? stagesOf(ctx.db, from.projectId) : [];
+  if (template !== undefined && !from)
+    raise(ctx, "validation.bad_input", `There is no project template called ${template}.`, { template });
+  const stages =
+    input.stages !== undefined ? buildStages(ctx, input.stages) : from ? stagesOf(ctx.db, from.projectId) : [];
   const made = await makeProject(ctx, {
-    type: input.type, title, summary: input.summary, goal: input.goal, lead: input.lead, start: input.start, due: input.due, stages: stages.map((s) => ({ key: s.key, title: s.title })),
-    members: (input.members ?? []) as Array<{ principal: string; role: Role }>, source: from ? "template" : "new", key: String(input.idempotencyKey),
+    type: input.type,
+    title,
+    summary: input.summary,
+    goal: input.goal,
+    lead: input.lead,
+    start: input.start,
+    due: input.due,
+    stages: stages.map((s) => ({ key: s.key, title: s.title })),
+    members: (input.members ?? []) as Array<{ principal: string; role: Role }>,
+    source: from ? "template" : "new",
+    key: String(input.idempotencyKey),
   });
   if (from) await copyTemplate(ctx, from.projectId, made, input.start);
   // the project starts on the page template: its blocks, made now, authored by whoever made the project
@@ -375,15 +659,29 @@ export async function fromChannel(ctx: ProjectsCtx, input: In): Promise<unknown>
   const again = keyed<Made>(ctx.db, input.idempotencyKey, "projects.from_channel");
   if (again) return again;
   const have = projectByChannel(ctx.db, input.channelId);
-  if (have) return { projectId: have.projectId, recordId: have.recordId, channelId: input.channelId, folderId: have.folderId ?? "" };
-  const got = await call<{ channel?: { channelId?: string; mainThreadId?: string; name?: string; folderId?: string; recordId?: string } }>(ctx, "channels.get", { channelId: input.channelId });
+  if (have)
+    return {
+      projectId: have.projectId,
+      recordId: have.recordId,
+      channelId: input.channelId,
+      folderId: have.folderId ?? "",
+    };
+  const got = await call<{
+    channel?: { channelId?: string; mainThreadId?: string; name?: string; folderId?: string; recordId?: string };
+  }>(ctx, "channels.get", { channelId: input.channelId });
   const ch = got.channel;
   if (!ch) raise(ctx, "validation.not_found", "That channel does not exist.");
-  if (ch.recordId) raise(ctx, "validation.bad_input", "That channel already belongs to a record.", { reason: "channel_has_record" });
+  if (ch.recordId)
+    raise(ctx, "validation.bad_input", "That channel already belongs to a record.", { reason: "channel_has_record" });
   const type = input.type ?? "project";
   await requireProjectType(ctx, type);
   const made = await makeProject(ctx, {
-    type, title: (input.title ?? ch.name ?? "Project").trim() || "Project", stages: [], members: [], source: "channel", key: String(input.idempotencyKey),
+    type,
+    title: (input.title ?? ch.name ?? "Project").trim() || "Project",
+    stages: [],
+    members: [],
+    source: "channel",
+    key: String(input.idempotencyKey),
     channel: { channelId: input.channelId, threadId: ch.mainThreadId, folderId: ch.folderId },
   });
   remember(ctx.db, input.idempotencyKey, "projects.from_channel", made);
@@ -406,13 +704,16 @@ export async function list(ctx: ProjectsCtx, input: In): Promise<unknown> {
   // an archived project leaves the lists (it stays readable by its id); `archived: true` lists those instead
   const gone = archivedIds(ctx.db);
   // a project is listed only when projects.get would open it: the same test, so an id that list gives always resolves (a member row without the grant behind it is not a project the caller can see)
-  const rows = allProjects(ctx.db).filter((p) =>
-    (input.type === undefined || p.type === input.type)
-    && allows(ctx, "view", p.projectId)
-    && (input.archived === true ? gone.has(p.projectId) : !gone.has(p.projectId))
-    && (mine ? isMember(ctx.db, p.projectId, who) || p.createdBy === who : true));
+  const rows = allProjects(ctx.db).filter(
+    (p) =>
+      (input.type === undefined || p.type === input.type) &&
+      allows(ctx, "view", p.projectId) &&
+      (input.archived === true ? gone.has(p.projectId) : !gone.has(p.projectId)) &&
+      (mine ? isMember(ctx.db, p.projectId, who) || p.createdBy === who : true),
+  );
   // a status lives on the record, so a status filter reads the records first; without one only the page is read
-  const out = async (ps: Project[]) => Promise.all(ps.map(async (p) => projectRow(ctx, p, await readRecord(ctx, p), await tasksOrNone(ctx, p))));
+  const out = async (ps: Project[]) =>
+    Promise.all(ps.map(async (p) => projectRow(ctx, p, await readRecord(ctx, p), await tasksOrNone(ctx, p))));
   if (input.status !== undefined) {
     const all = (await out(rows)).filter((r) => r.status === input.status);
     const pg = page(all, input.cursor, input.limit);
@@ -427,12 +728,19 @@ export async function rolesOf(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   const who = me(ctx);
   const person = input.personId;
-  if (typeof person !== "string" || !person.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.");
-  const shown = allProjects(ctx.db).filter((p) => memberOf(ctx.db, p.projectId, person) !== undefined && (isMember(ctx.db, p.projectId, who) || p.createdBy === who || allows(ctx, "view", p.projectId)));
-  const roles = await Promise.all(shown.map(async (p) => {
-    const row = projectRow(ctx, p, await readRecord(ctx, p), []);
-    return { projectId: p.projectId, title: row.title, role: memberOf(ctx.db, p.projectId, person)!.role };
-  }));
+  if (typeof person !== "string" || !person.startsWith("usr_"))
+    raise(ctx, "validation.bad_input", "That is not a person.");
+  const shown = allProjects(ctx.db).filter(
+    (p) =>
+      memberOf(ctx.db, p.projectId, person) !== undefined &&
+      (isMember(ctx.db, p.projectId, who) || p.createdBy === who || allows(ctx, "view", p.projectId)),
+  );
+  const roles = await Promise.all(
+    shown.map(async (p) => {
+      const row = projectRow(ctx, p, await readRecord(ctx, p), []);
+      return { projectId: p.projectId, title: row.title, role: memberOf(ctx.db, p.projectId, person)!.role };
+    }),
+  );
   return { roles };
 }
 
@@ -447,41 +755,99 @@ export async function overview(ctx: ProjectsCtx, input: In): Promise<unknown> {
   const dueAt = (t: { due?: number | undefined }): number => t.due ?? Number.MAX_SAFE_INTEGER;
   const stillOpen = new Set(open.map((t) => t.taskId));
   const waitsOn = new Map(tasks.map((t) => [t.taskId, t.dependsOn] as const));
-  const milestones = open.filter((t) => t.milestone && dueAt(t) >= now).sort((a, b) => dueAt(a) - dueAt(b)).slice(0, 3);
+  const milestones = open
+    .filter((t) => t.milestone && dueAt(t) >= now)
+    .sort((a, b) => dueAt(a) - dueAt(b))
+    .slice(0, 3);
   const late = open.filter((t) => t.due !== undefined && t.due < now).sort((a, b) => dueAt(a) - dueAt(b));
-  const waiting = open.filter((t) => t.ring !== undefined || (waitsOn.get(t.taskId) ?? []).some((d) => stillOpen.has(d)));
+  const waiting = open.filter(
+    (t) => t.ring !== undefined || (waitsOn.get(t.taskId) ?? []).some((d) => stillOpen.has(d)),
+  );
   const u = updateOf(ctx.db, p.projectId);
-  const threads: { threads?: Array<{ threadId: string; title?: string; createdAt?: number }> } = p.threadId ? await tolerant<{ threads?: Array<{ threadId: string; title?: string; createdAt?: number }> }>(ctx, "threads.list", { parentThreadId: p.threadId, limit: 5 }, {}) : {};
+  const threads: { threads?: Array<{ threadId: string; title?: string; createdAt?: number }> } = p.threadId
+    ? await tolerant<{ threads?: Array<{ threadId: string; title?: string; createdAt?: number }> }>(
+        ctx,
+        "threads.list",
+        { parentThreadId: p.threadId, limit: 5 },
+        {},
+      )
+    : {};
   return clean({
-    project: projectRow(ctx, p, fields, tasks), goal: typeof fields["goal"] === "string" && fields["goal"] ? fields["goal"] : undefined,
+    project: projectRow(ctx, p, fields, tasks),
+    goal: typeof fields["goal"] === "string" && fields["goal"] ? fields["goal"] : undefined,
     statusUpdate: u ? { text: u.text, at: u.at, by: u.by, drafted: u.drafted } : undefined,
-    milestones, late, waiting, decisions: [], people: membersOf(ctx.db, p.projectId), linked: await linkedRecords(ctx, p.projectId), pinnedFiles: pinsOf(ctx.db, p.projectId),
+    milestones,
+    late,
+    waiting,
+    decisions: [],
+    people: membersOf(ctx.db, p.projectId),
+    linked: await linkedRecords(ctx, p.projectId),
+    pinnedFiles: pinsOf(ctx.db, p.projectId),
     updateDraft: ((d) => (d ? { text: d.text, at: d.at, by: d.by } : undefined))(draftOf(ctx.db, p.projectId)),
-    recentThreads: (threads.threads ?? []).map((t) => ({ threadId: t.threadId, title: t.title ?? "", at: t.createdAt ?? 0 })),
+    recentThreads: (threads.threads ?? []).map((t) => ({
+      threadId: t.threadId,
+      title: t.title ?? "",
+      at: t.createdAt ?? 0,
+    })),
   });
 }
 
 /** The records linked to the project, as the Overview lists them: the type, the id and a title read from the record. */
-async function linkedRecords(ctx: ProjectsCtx, projectId: string): Promise<Array<{ type: string; recordId: string; title: string }>> {
+async function linkedRecords(
+  ctx: ProjectsCtx,
+  projectId: string,
+): Promise<Array<{ type: string; recordId: string; title: string }>> {
   const out: Array<{ type: string; recordId: string; title: string }> = [];
   for (const a of attachesOf(ctx.db, projectId, "record").slice(0, 20)) {
-    const [type, recordId] = a.ref.includes("/") ? [a.ref.slice(0, a.ref.indexOf("/")), a.ref.slice(a.ref.indexOf("/") + 1)] : ["", a.ref];
-    const got = await tolerant<{ record?: { id: string; type: string; fields: Record<string, unknown> } }>(ctx, "records.get", { ...(type ? { type } : {}), recordId }, {});
+    const [type, recordId] = a.ref.includes("/")
+      ? [a.ref.slice(0, a.ref.indexOf("/")), a.ref.slice(a.ref.indexOf("/") + 1)]
+      : ["", a.ref];
+    const got = await tolerant<{ record?: { id: string; type: string; fields: Record<string, unknown> } }>(
+      ctx,
+      "records.get",
+      { ...(type ? { type } : {}), recordId },
+      {},
+    );
     if (!got.record) continue;
     const f = got.record.fields;
-    out.push({ type: got.record.type, recordId: got.record.id, title: String(f["title"] ?? f["name"] ?? got.record.id) });
+    out.push({
+      type: got.record.type,
+      recordId: got.record.id,
+      title: String(f["title"] ?? f["name"] ?? got.record.id),
+    });
   }
   return out;
 }
 
 export async function templatesList(ctx: ProjectsCtx, _input: In): Promise<unknown> {
   type FieldDef = { key?: string; options?: { stages?: Array<{ key?: string }> } };
-  const described = await tolerant<{ types?: Array<{ key: string; title: string; template?: string; fields?: FieldDef[] }> }>(ctx, "schema.describe", {}, {});
-  const builtin = (described.types ?? []).filter((t) => t.template === "project").map((t) => ({
-    key: t.key, title: t.title, type: t.key, stages: ((t.fields ?? []).find((f) => f.key === "status")?.options?.stages ?? []).map((s) => String(s.key ?? "")).filter((k) => k !== ""), source: "builtin" as const,
+  const described = await tolerant<{
+    types?: Array<{ key: string; title: string; template?: string; fields?: FieldDef[] }>;
+  }>(ctx, "schema.describe", {}, {});
+  const builtin = (described.types ?? [])
+    .filter((t) => t.template === "project")
+    .map((t) => ({
+      key: t.key,
+      title: t.title,
+      type: t.key,
+      stages: ((t.fields ?? []).find((f) => f.key === "status")?.options?.stages ?? [])
+        .map((s) => String(s.key ?? ""))
+        .filter((k) => k !== ""),
+      source: "builtin" as const,
+    }));
+  const starters = await tolerant<{ starters?: Array<{ templateId: string; title: string }> }>(
+    ctx,
+    "templates.project_starters",
+    { kind: "project" },
+    {},
+  );
+  const kit = (starters.starters ?? []).map((s) => ({
+    key: s.templateId,
+    title: s.title,
+    type: "project",
+    stages: [] as string[],
+    source: "kit" as const,
   }));
-  const starters = await tolerant<{ starters?: Array<{ templateId: string; title: string }> }>(ctx, "templates.project_starters", { kind: "project" }, {});
-  const kit = (starters.starters ?? []).map((s) => ({ key: s.templateId, title: s.title, type: "project", stages: [] as string[], source: "kit" as const }));
   return { templates: [...builtin, ...kit] };
 }
 
@@ -501,8 +867,18 @@ export async function postUpdate(ctx: ProjectsCtx, input: In): Promise<unknown> 
   await writeRecord(ctx, p, clean({ status_update: text, status_update_at: at, status: input.status }));
   if (p.threadId) {
     // the update goes into the channel as the person who posted it, never as an agent speaking for them
-    try { await call(ctx, "chat.post", { threadId: p.threadId, body: text }, { idempotencyKey: `prj-update:${p.projectId}:${at}:${text.length}` }); } catch (e) {
-      ctx.log.warn("projects: the update was kept but not posted to the channel", { project: p.projectId, error: codeOf(e) });
+    try {
+      await call(
+        ctx,
+        "chat.post",
+        { threadId: p.threadId, body: text },
+        { idempotencyKey: `prj-update:${p.projectId}:${at}:${text.length}` },
+      );
+    } catch (e) {
+      ctx.log.warn("projects: the update was kept but not posted to the channel", {
+        project: p.projectId,
+        error: codeOf(e),
+      });
     }
   }
   emitP(ctx, "project.update_posted", p.projectId, { by: me(ctx), drafted });
@@ -551,7 +927,8 @@ export async function fileChat(ctx: ProjectsCtx, input: In): Promise<unknown> {
   await call(ctx, "threads.get", { threadId: input.threadId });
   // the chat stays private; it gets the project's folder, and with it the project's memory and files
   if (p.folderId) await call(ctx, "threads.set_folder", { threadId: input.threadId, folderId: p.folderId });
-  if (addFiled(ctx.db, p.projectId, input.threadId, ctx.now())) emitP(ctx, "project.chat_filed", p.projectId, { threadId: input.threadId });
+  if (addFiled(ctx.db, p.projectId, input.threadId, ctx.now()))
+    emitP(ctx, "project.chat_filed", p.projectId, { threadId: input.threadId });
   return { ok: true };
 }
 
@@ -559,19 +936,36 @@ const DAY = 86_400_000;
 const SHARE_DAYS = 30;
 const SHARE_PREFIX = "/share/project/";
 /** 144 random bits as hex: a link is its own key, so it cannot be guessed. */
-const shareToken = (): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(18)), (b) => b.toString(16).padStart(2, "0")).join("");
+const shareToken = (): string =>
+  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(18)), (b) => b.toString(16).padStart(2, "0")).join("");
 
 export async function shareOut(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   const p = visible(ctx, input.projectId, "manage");
   // links to people outside the Space are off for a type until its Share sheet turns them on
-  const outside = (await call<{ outside?: boolean }>(ctx, "access.shares_of", { resource: { type: "record_type", id: p.type } }).catch(() => null));
-  if (outside?.outside !== true) raise(ctx, "validation.precondition_failed", "Links outside the Space are off for this type. Turn them on in its Share sheet.");
-  if (input.expiresAt !== undefined && input.expiresInDays !== undefined) raise(ctx, "validation.bad_input", "Say when the link expires once: a time or a number of days.");
-  if (input.expiresAt !== undefined && input.expiresAt <= ctx.now()) raise(ctx, "validation.bad_input", "The link must expire in the future.");
-  const expiresAt: number = input.expiresAt ?? ctx.now() + (input.expiresInDays ?? SHARE_DAYS) * DAY;   // every link expires: a forgotten one stops working by itself
+  const outside = await call<{ outside?: boolean }>(ctx, "access.shares_of", {
+    resource: { type: "record_type", id: p.type },
+  }).catch(() => null);
+  if (outside?.outside !== true)
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      "Links outside the Space are off for this type. Turn them on in its Share sheet.",
+    );
+  if (input.expiresAt !== undefined && input.expiresInDays !== undefined)
+    raise(ctx, "validation.bad_input", "Say when the link expires once: a time or a number of days.");
+  if (input.expiresAt !== undefined && input.expiresAt <= ctx.now())
+    raise(ctx, "validation.bad_input", "The link must expire in the future.");
+  const expiresAt: number = input.expiresAt ?? ctx.now() + (input.expiresInDays ?? SHARE_DAYS) * DAY; // every link expires: a forgotten one stops working by itself
   const token = shareToken();
-  ctx.db.run("INSERT INTO projects_share (token, projectId, expiresAt, createdBy, createdAt) VALUES (?, ?, ?, ?, ?)", token, p.projectId, expiresAt, me(ctx), ctx.now());
+  ctx.db.run(
+    "INSERT INTO projects_share (token, projectId, expiresAt, createdBy, createdAt) VALUES (?, ?, ?, ?, ?)",
+    token,
+    p.projectId,
+    expiresAt,
+    me(ctx),
+    ctx.now(),
+  );
   emitP(ctx, "project.shared_out", p.projectId, { expiresAt });
   return { url: `${SHARE_PREFIX}${token}`, expiresAt };
 }
@@ -581,7 +975,8 @@ export async function unshareOut(ctx: ProjectsCtx, input: In): Promise<unknown> 
   ensure(ctx.db);
   const p = visible(ctx, input.projectId, "manage");
   const url = String(input.url);
-  if (!url.startsWith(SHARE_PREFIX) || url.length === SHARE_PREFIX.length) raise(ctx, "validation.bad_input", "That is not a project link.");
+  if (!url.startsWith(SHARE_PREFIX) || url.length === SHARE_PREFIX.length)
+    raise(ctx, "validation.bad_input", "That is not a project link.");
   const token = url.slice(SHARE_PREFIX.length);
   const have = ctx.db.all("SELECT token FROM projects_share WHERE token = ? AND projectId = ?", token, p.projectId);
   if (have.length === 0) return { revoked: false };
@@ -596,21 +991,35 @@ export async function unshareOut(ctx: ProjectsCtx, input: In): Promise<unknown> 
  */
 export async function sharedView(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
-  if (!isHostService(ctx.principal)) raise(ctx, "permission.role_lacks_permission", "Only the server serves a shared link.", { reason: "system_only" });
+  if (!isHostService(ctx.principal))
+    raise(ctx, "permission.role_lacks_permission", "Only the server serves a shared link.", { reason: "system_only" });
   const token = String(input.token);
-  const row = ctx.db.all("SELECT projectId, expiresAt FROM projects_share WHERE token = ?", token)[0] as { projectId?: string; expiresAt?: number | null } | undefined;
+  const row = ctx.db.all("SELECT projectId, expiresAt FROM projects_share WHERE token = ?", token)[0] as
+    | { projectId?: string; expiresAt?: number | null }
+    | undefined;
   const p = row?.projectId ? projectBy(ctx.db, row.projectId) : undefined;
-  if (!row || !p || (typeof row.expiresAt === "number" && row.expiresAt <= ctx.now())) raise(ctx, "validation.not_found", "That link does not work.");
+  if (!row || !p || (typeof row.expiresAt === "number" && row.expiresAt <= ctx.now()))
+    raise(ctx, "validation.not_found", "That link does not work.");
   const [fields, tasks] = await Promise.all([readRecord(ctx, p), tasksOrNone(ctx, p)]);
   const plans = plansOf(ctx.db, p.projectId);
   const now = ctx.now();
-  const next = tasks.map((t) => planTask(t, plans.get(t.taskId)))
-    .filter((t) => t.milestone && t.status !== "done" && t.status !== "canceled" && (t.due ?? Number.MAX_SAFE_INTEGER) >= now)
-    .sort((a, b) => (a.due ?? Number.MAX_SAFE_INTEGER) - (b.due ?? Number.MAX_SAFE_INTEGER)).slice(0, 3);
+  const next = tasks
+    .map((t) => planTask(t, plans.get(t.taskId)))
+    .filter(
+      (t) => t.milestone && t.status !== "done" && t.status !== "canceled" && (t.due ?? Number.MAX_SAFE_INTEGER) >= now,
+    )
+    .sort((a, b) => (a.due ?? Number.MAX_SAFE_INTEGER) - (b.due ?? Number.MAX_SAFE_INTEGER))
+    .slice(0, 3);
   const u = updateOf(ctx.db, p.projectId);
-  const title = typeof fields["title"] === "string" && fields["title"] ? fields["title"] : typeof fields["name"] === "string" ? fields["name"] : "Project";
+  const title =
+    typeof fields["title"] === "string" && fields["title"]
+      ? fields["title"]
+      : typeof fields["name"] === "string"
+        ? fields["name"]
+        : "Project";
   return clean({
-    title, status: typeof fields["status"] === "string" ? fields["status"] : "active",
+    title,
+    status: typeof fields["status"] === "string" ? fields["status"] : "active",
     goal: typeof fields["goal"] === "string" && fields["goal"] ? fields["goal"] : undefined,
     statusUpdate: u ? { text: u.text, at: u.at } : undefined,
     milestones: next.map((t) => clean({ title: t.title, due: t.due, status: t.status })),
@@ -621,11 +1030,19 @@ export async function sharedView(ctx: ProjectsCtx, input: In): Promise<unknown> 
 /** A call that puts someone in the project's own channel: a refusal is thrown, so the role change does not report success with the person or agent missing from the channel; a channel that is gone is let pass. */
 async function intoChannel(ctx: ProjectsCtx, cap: string, input: Record<string, unknown>): Promise<void> {
   if (!ctx.call) return;
-  try { await ctx.call(cap, input); } catch (e) {
-    if (codeOf(e) === "validation.not_found") { ctx.log.warn("projects: the project's channel is gone", { cap }); return; }
+  try {
+    await ctx.call(cap, input);
+  } catch (e) {
+    if (codeOf(e) === "validation.not_found") {
+      ctx.log.warn("projects: the project's channel is gone", { cap });
+      return;
+    }
     // an archived channel takes no one in until it is brought back (the project's roles still change; the project's channel is the one place they do not reach)
     const x = e as { error?: { details?: { reason?: string } }; details?: { reason?: string } };
-    if ((x?.error?.details?.reason ?? x?.details?.reason) === "archived") { ctx.log.warn("projects: the project's channel is archived", { cap }); return; }
+    if ((x?.error?.details?.reason ?? x?.details?.reason) === "archived") {
+      ctx.log.warn("projects: the project's channel is archived", { cap });
+      return;
+    }
     throw e;
   }
 }

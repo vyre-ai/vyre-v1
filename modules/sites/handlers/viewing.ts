@@ -20,9 +20,14 @@ export function noteViewing(person: string, thread: string, now: number): void {
 export function isViewing(person: string, thread: string, now: number): boolean {
   const until = seen.get(keyOf(person, thread));
   if (until === undefined) return false;
-  if (until <= now) { seen.delete(keyOf(person, thread)); return false; }
+  if (until <= now) {
+    seen.delete(keyOf(person, thread));
+    return false;
+  }
   return true;
 }
 
 /** Tests only: forget everything. */
-export function forgetViewing(): void { seen.clear(); }
+export function forgetViewing(): void {
+  seen.clear();
+}

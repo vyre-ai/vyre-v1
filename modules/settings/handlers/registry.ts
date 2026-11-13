@@ -1,6 +1,27 @@
 // Settings capabilities (spec 3.9, ARCH 7.9): the registry rows of every module's SettingDef, read for the person asking; changes that save as they are made and hand back the previous
 // value so Undo is one more call; the Space-wide rows and the owner floor; Cmd-F; Copy from another Space; and the Kit choice. A value no schema accepts is refused with a sentence.
-import { COPY_KEY, DEFAULT_KIT, PAGES, byOf, comparable, defOf, defs, drop, effective, floorOf, meetsFloor, me, meRead, pageOf, put, raise, refusal, rowOut, search, stored } from "../projections.ts";
+import {
+  COPY_KEY,
+  DEFAULT_KIT,
+  PAGES,
+  byOf,
+  comparable,
+  defOf,
+  defs,
+  drop,
+  effective,
+  floorOf,
+  meetsFloor,
+  me,
+  meRead,
+  pageOf,
+  put,
+  raise,
+  refusal,
+  rowOut,
+  search,
+  stored,
+} from "../projections.ts";
 import type { CopyField, SettingsCtx } from "../projections.ts";
 import { clearStale } from "./contact.ts";
 import { isHostService } from "../../../lib/trust.ts";
@@ -9,7 +30,10 @@ import { isHostService } from "../../../lib/trust.ts";
 
 export async function pages(_ctx: SettingsCtx, _input: Record<string, never>) {
   const counts = new Map<string, number>();
-  for (const d of defs) { const p = pageOf(d); if (p) counts.set(p, (counts.get(p) ?? 0) + 1); }
+  for (const d of defs) {
+    const p = pageOf(d);
+    if (p) counts.set(p, (counts.get(p) ?? 0) + 1);
+  }
   return { pages: PAGES.map((p) => ({ key: p.key, title: p.title, group: p.group, rows: counts.get(p.key) ?? 0 })) };
 }
 
@@ -57,17 +81,37 @@ function check(ctx: SettingsCtx, key: string, value: unknown): void {
   const why = refusal(d, value);
   if (why) raise(ctx, "validation.bad_input", why);
   const floor = d.floorable === true ? floorOf(ctx, key) : undefined;
-  if (floor !== undefined && !meetsFloor(key, value, floor)) raise(ctx, "validation.field_locked", `${d.title}: your Space does not allow anything less strict than ${JSON.stringify(floor)}.`);
+  if (floor !== undefined && !meetsFloor(key, value, floor))
+    raise(
+      ctx,
+      "validation.field_locked",
+      `${d.title}: your Space does not allow anything less strict than ${JSON.stringify(floor)}.`,
+    );
 }
 
-function changed(ctx: SettingsCtx, key: string, scope: "space" | "person", person: string, before: unknown, after: unknown): void {
-  ctx.emit("settings.changed", key, { key, scope, ...(scope === "person" ? { person } : {}), before, after, by: byOf(ctx) });
+function changed(
+  ctx: SettingsCtx,
+  key: string,
+  scope: "space" | "person",
+  person: string,
+  before: unknown,
+  after: unknown,
+): void {
+  ctx.emit("settings.changed", key, {
+    key,
+    scope,
+    ...(scope === "person" ? { person } : {}),
+    before,
+    after,
+    by: byOf(ctx),
+  });
 }
 
 export async function set(ctx: SettingsCtx, input: { key: string; value: unknown }) {
   const person = me(ctx);
   const d = defOf(ctx, input.key);
-  if (d.scope !== "person") raise(ctx, "validation.bad_input", `${d.title} is a Space setting; an admin changes it for the whole Space.`);
+  if (d.scope !== "person")
+    raise(ctx, "validation.bad_input", `${d.title} is a Space setting; an admin changes it for the whole Space.`);
   check(ctx, input.key, input.value);
   const before = effective(ctx, d, person).value;
   put(ctx, input.key, "person", person, input.value);
@@ -79,7 +123,8 @@ export async function set(ctx: SettingsCtx, input: { key: string; value: unknown
 export async function reset(ctx: SettingsCtx, input: { key: string }) {
   const person = me(ctx);
   const d = defOf(ctx, input.key);
-  if (d.scope !== "person") raise(ctx, "validation.bad_input", `${d.title} is a Space setting; an admin changes it for the whole Space.`);
+  if (d.scope !== "person")
+    raise(ctx, "validation.bad_input", `${d.title} is a Space setting; an admin changes it for the whole Space.`);
   const before = effective(ctx, d, person).value;
   drop(ctx, input.key, "person", person);
   const after = effective(ctx, d, person).value;
@@ -96,7 +141,12 @@ export async function setSpace(ctx: SettingsCtx, input: { key: string; value: un
   const why = refusal(d, input.value);
   if (why) raise(ctx, "validation.bad_input", why);
   const floor = d.floorable === true ? floorOf(ctx, input.key) : undefined;
-  if (floor !== undefined && !meetsFloor(input.key, input.value, floor)) raise(ctx, "validation.field_locked", `${d.title}: the owner floor does not allow anything less strict than ${JSON.stringify(floor)}.`);
+  if (floor !== undefined && !meetsFloor(input.key, input.value, floor))
+    raise(
+      ctx,
+      "validation.field_locked",
+      `${d.title}: the owner floor does not allow anything less strict than ${JSON.stringify(floor)}.`,
+    );
   const before = stored(ctx, input.key, "space", "")?.value ?? d.default;
   put(ctx, input.key, "space", "", input.value);
   changed(ctx, input.key, "space", person, before, input.value);
@@ -115,10 +165,17 @@ export async function resetSpace(ctx: SettingsCtx, input: { key: string }) {
 export async function floorSet(ctx: SettingsCtx, input: { key: string; floor: unknown }) {
   const person = me(ctx);
   const d = defOf(ctx, input.key);
-  if (d.floorable !== true || !comparable(input.key)) raise(ctx, "validation.bad_input", `${d.title} cannot have a floor.`);
+  if (d.floorable !== true || !comparable(input.key))
+    raise(ctx, "validation.bad_input", `${d.title} cannot have a floor.`);
   const why = refusal(d, input.floor);
   if (why) raise(ctx, "validation.bad_input", why);
-  ctx.db.run(`INSERT OR REPLACE INTO settings_floor (setting, floor, changed_by, updated_at) VALUES (?, ?, ?, ?)`, input.key, JSON.stringify(input.floor), byOf(ctx), ctx.now());
+  ctx.db.run(
+    `INSERT OR REPLACE INTO settings_floor (setting, floor, changed_by, updated_at) VALUES (?, ?, ?, ?)`,
+    input.key,
+    JSON.stringify(input.floor),
+    byOf(ctx),
+    ctx.now(),
+  );
   ctx.emit("settings.floor_changed", input.key, { key: input.key, by: byOf(ctx) });
   return { row: rowOut(ctx, d, person) };
 }
@@ -126,7 +183,8 @@ export async function floorSet(ctx: SettingsCtx, input: { key: string; floor: un
 // ---- Copy from another Space
 
 const COPY_FIELDS = Object.keys(COPY_KEY) as CopyField[];
-const present = (v: unknown): boolean => v !== null && v !== undefined && v !== "" && !(typeof v === "object" && Object.keys(v as object).length === 0);
+const present = (v: unknown): boolean =>
+  v !== null && v !== undefined && v !== "" && !(typeof v === "object" && Object.keys(v as object).length === 0);
 
 /** This Space's side of Copy from another Space: the profile values of mine that may be carried over. Title is never among them. */
 export async function copySource(ctx: SettingsCtx, _input: Record<string, never>) {
@@ -139,7 +197,11 @@ export async function copySource(ctx: SettingsCtx, _input: Record<string, never>
   if (present(val("timezone"))) out["timezone"] = val("timezone");
   if (present(val("hours"))) out["hours"] = val("hours");
   const contact = val("contact") as { email?: string; phone?: string } | undefined;
-  if (contact && (contact.email || contact.phone)) out["contact"] = { ...(contact.email ? { email: contact.email } : {}), ...(contact.phone ? { phone: contact.phone } : {}) };
+  if (contact && (contact.email || contact.phone))
+    out["contact"] = {
+      ...(contact.email ? { email: contact.email } : {}),
+      ...(contact.phone ? { phone: contact.phone } : {}),
+    };
   return out;
 }
 
@@ -149,7 +211,8 @@ export async function copySource(ctx: SettingsCtx, _input: Record<string, never>
  */
 export async function publicOf(ctx: SettingsCtx, input: { personId: string }) {
   spaceReader(ctx);
-  if (typeof input.personId !== "string" || !input.personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.");
+  if (typeof input.personId !== "string" || !input.personId.startsWith("usr_"))
+    raise(ctx, "validation.bad_input", "That is not a person.");
   const out: { timezone?: string; hours?: unknown; pronouns?: string; title?: string; phone?: string } = {};
   const zone = stored(ctx, "profile.timezone", "person", input.personId)?.value;
   if (typeof zone === "string" && zone.trim() !== "") out.timezone = zone.trim();
@@ -206,7 +269,8 @@ export async function kitSetMine(ctx: SettingsCtx, input: { kitId: string | null
   const why = refusal(d, input.kitId);
   if (why) raise(ctx, "validation.bad_input", why);
   const before = (stored(ctx, "kit.person_choice", "person", person)?.value ?? null) as string | null;
-  if (input.kitId === null) drop(ctx, "kit.person_choice", "person", person); else put(ctx, "kit.person_choice", "person", person, input.kitId);
+  if (input.kitId === null) drop(ctx, "kit.person_choice", "person", person);
+  else put(ctx, "kit.person_choice", "person", person, input.kitId);
   if (before !== input.kitId) changed(ctx, "kit.person_choice", "person", person, before, input.kitId);
   return kitOut(ctx, person);
 }

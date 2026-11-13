@@ -13,19 +13,31 @@ import { makeProject, projectsRoot } from "./project.ts";
 import type { Role } from "../projections.ts";
 import type { Made } from "./project.ts";
 
-interface FolderOut { folderId: string; name: string }
-export interface HookEvent { name: string; payload: Record<string, unknown>; actor?: string }
+interface FolderOut {
+  folderId: string;
+  name: string;
+}
+export interface HookEvent {
+  name: string;
+  payload: Record<string, unknown>;
+  actor?: string;
+}
 
 const MAX_CLASH = 200;
 const LEVELS = ["view", "use", "edit", "manage"] as const;
 const rank = (l: unknown): number => LEVELS.indexOf(l as (typeof LEVELS)[number]);
 const fstr = (v: unknown): string | undefined => (typeof v === "string" && v.trim().length > 0 ? v.trim() : undefined);
-const obj = (v: unknown): Record<string, unknown> => (v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {});
+const obj = (v: unknown): Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 const sourceTag = (recordId: string): string => `projfolder:${recordId}`;
 
 /** A folder name from a project title: no slashes or control characters, never empty. */
 export function folderNameOf(title: unknown): string {
-  const n = (fstr(title) ?? "Untitled project").replace(/[\\/]/g, "-").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, 240);
+  const n = (fstr(title) ?? "Untitled project")
+    .replace(/[\\/]/g, "-")
+    .replace(/[\u0000-\u001f]/g, " ")
+    .trim()
+    .slice(0, 240);
   return n === "." || n === ".." || n === "" ? "Untitled project" : n;
 }
 const titleOf = (fields: Record<string, unknown>): string => folderNameOf(fields["title"] ?? fields["name"]);
@@ -36,16 +48,34 @@ async function isProjectType(ctx: ProjectsCtx, type: unknown): Promise<boolean> 
   try {
     const r = await call<{ type?: { template?: string } }>(ctx, "schema.types.get", { type });
     return r.type?.template === "project";
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
-async function recordFields(ctx: ProjectsCtx, type: string, recordId: string): Promise<Record<string, unknown> | undefined> {
-  try { return (await call<{ record?: { fields?: Record<string, unknown> } }>(ctx, "records.get", { type, recordId })).record?.fields ?? {}; }
-  catch (e) { if (codeOf(e) === "validation.not_found") return undefined; throw e; }
+async function recordFields(
+  ctx: ProjectsCtx,
+  type: string,
+  recordId: string,
+): Promise<Record<string, unknown> | undefined> {
+  try {
+    return (
+      (await call<{ record?: { fields?: Record<string, unknown> } }>(ctx, "records.get", { type, recordId })).record
+        ?.fields ?? {}
+    );
+  } catch (e) {
+    if (codeOf(e) === "validation.not_found") return undefined;
+    throw e;
+  }
 }
 
 /** Make Projects/<name> for a record whose folder field is empty and write its id into the field. A record that already has a folder is left alone. Returns the folder id, or undefined when none was made. */
-export async function ensureFolder(ctx: ProjectsCtx, type: string, recordId: string, by?: string): Promise<string | undefined> {
+export async function ensureFolder(
+  ctx: ProjectsCtx,
+  type: string,
+  recordId: string,
+  by?: string,
+): Promise<string | undefined> {
   const fields = await recordFields(ctx, type, recordId);
   if (!fields) return undefined;
   if (fstr(fields["folder"])) return undefined;
@@ -56,8 +86,17 @@ export async function ensureFolder(ctx: ProjectsCtx, type: string, recordId: str
     const name = n === 1 ? base : `${base} ${n}`;
     const key = `prj-recfolder:${recordId}:${n}`;
     try {
-      folderId = (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId: root, name, idempotencyKey: key }, { idempotencyKey: key })).folder.folderId;
-    } catch (e) { if (codeOf(e) !== "validation.duplicate") throw e; }
+      folderId = (
+        await call<{ folder: FolderOut }>(
+          ctx,
+          "files.folder.create",
+          { parentId: root, name, idempotencyKey: key },
+          { idempotencyKey: key },
+        )
+      ).folder.folderId;
+    } catch (e) {
+      if (codeOf(e) !== "validation.duplicate") throw e;
+    }
   }
   if (!folderId) throw new Error("No free folder name for this project.");
   await call(ctx, "records.update", { type, recordId, patch: { folder: folderId } });
@@ -80,22 +119,41 @@ export async function adoptRecord(ctx: ProjectsCtx, type: string, recordId: stri
   const folderId = fstr(fields["folder"]);
   const lead = fstr(fields["lead"]);
   const roles = new Map<string, Role>();
-  const shares = await tolerant<{ shares?: Array<{ grant?: { subject?: { kind?: string; id?: string }; level?: string } }> }>(ctx, "access.shares_of", { resource: { type: "record", id: recordId } }, {});
+  const shares = await tolerant<{
+    shares?: Array<{ grant?: { subject?: { kind?: string; id?: string }; level?: string } }>;
+  }>(ctx, "access.shares_of", { resource: { type: "record", id: recordId } }, {});
   for (const s of shares.shares ?? []) {
     const sub = s.grant?.subject;
     if (!sub?.id || (sub.kind !== "person" && sub.kind !== "agent" && sub.kind !== "group")) continue;
     const role: Role = rank(s.grant?.level) >= rank("edit") ? "member" : "guest";
     if (roles.get(sub.id) !== "member") roles.set(sub.id, role);
   }
-  const members: Array<{ principal: string; role: Role }> = [...roles].filter(([id]) => id !== lead).map(([principal, role]) => ({ principal, role }));
+  const members: Array<{ principal: string; role: Role }> = [...roles]
+    .filter(([id]) => id !== lead)
+    .map(([principal, role]) => ({ principal, role }));
   const made = await makeProject(ctx, {
-    type, title: titleOf(fields), stages: [], members, source: "new", key: `adopt:${recordId}`,
+    type,
+    title: titleOf(fields),
+    stages: [],
+    members,
+    source: "new",
+    key: `adopt:${recordId}`,
     ...(lead && lead.startsWith("usr_") ? { lead } : {}),
     existing: { recordId, ...(folderId ? { folderId } : {}) },
   });
   if (folderId) {
-    await tolerant(ctx, "access.unshare", { resource: { type: "folder", id: folderId }, source: sourceTag(recordId) }, {});
-    await tolerant(ctx, "access.unshare", { resource: { type: "folder", id: folderId }, source: `projfolder-maker:${recordId}` }, {});
+    await tolerant(
+      ctx,
+      "access.unshare",
+      { resource: { type: "folder", id: folderId }, source: sourceTag(recordId) },
+      {},
+    );
+    await tolerant(
+      ctx,
+      "access.unshare",
+      { resource: { type: "folder", id: folderId }, source: `projfolder-maker:${recordId}` },
+      {},
+    );
   }
   return made;
 }
@@ -106,28 +164,49 @@ export async function followName(ctx: ProjectsCtx, type: string, recordId: strin
   const folderId = fstr(fields?.["folder"]);
   if (!fields || !folderId) return;
   let cur: string;
-  try { cur = (await call<{ folder: FolderOut }>(ctx, "files.folder.get", { folderId })).folder.name; }
-  catch (e) { if (codeOf(e) === "validation.not_found") return; throw e; }
+  try {
+    cur = (await call<{ folder: FolderOut }>(ctx, "files.folder.get", { folderId })).folder.name;
+  } catch (e) {
+    if (codeOf(e) === "validation.not_found") return;
+    throw e;
+  }
   const base = titleOf(fields);
   for (let n = 1; n <= MAX_CLASH; n++) {
     const name = n === 1 ? base : `${base} ${n}`;
     if (name === cur) return;
-    try { await call(ctx, "files.folder.rename", { folderId, name }); return; }
-    catch (e) { if (codeOf(e) !== "validation.duplicate") throw e; }
+    try {
+      await call(ctx, "files.folder.rename", { folderId, name });
+      return;
+    } catch (e) {
+      if (codeOf(e) !== "validation.duplicate") throw e;
+    }
   }
 }
 
 /** Trash or restore the folder with its record. A folder that is gone, or a call the Gate holds for approval, is not an error here: the record is already in the state the person chose. */
-async function moveWithRecord(ctx: ProjectsCtx, cap: "files.folder.delete" | "files.folder.restore", folderId: string): Promise<void> {
-  try { await call(ctx, cap, { folderId }); } catch (e) {
+async function moveWithRecord(
+  ctx: ProjectsCtx,
+  cap: "files.folder.delete" | "files.folder.restore",
+  folderId: string,
+): Promise<void> {
+  try {
+    await call(ctx, cap, { folderId });
+  } catch (e) {
     const code = codeOf(e);
-    if (code === "validation.not_found" || code === "permission.on_hold" || code === "validation.precondition_failed") { ctx.log.warn("projects: a project folder was not moved with its record", { cap, folderId, code }); return; }
+    if (code === "validation.not_found" || code === "permission.on_hold" || code === "validation.precondition_failed") {
+      ctx.log.warn("projects: a project folder was not moved with its record", { cap, folderId, code });
+      return;
+    }
     throw e;
   }
 }
 
 /** Who should hold the folder, from the record's shares as they are now, and the lead at Manage. */
-async function wantedOn(ctx: ProjectsCtx, recordId: string, fields: Record<string, unknown>): Promise<Map<string, { subject: { kind: string; id: string }; level: string }>> {
+async function wantedOn(
+  ctx: ProjectsCtx,
+  recordId: string,
+  fields: Record<string, unknown>,
+): Promise<Map<string, { subject: { kind: string; id: string }; level: string }>> {
   const want = new Map<string, { subject: { kind: string; id: string }; level: string }>();
   const add = (subject: { kind: string; id: string }, level: string): void => {
     if (subject.kind === "link") return;
@@ -135,10 +214,13 @@ async function wantedOn(ctx: ProjectsCtx, recordId: string, fields: Record<strin
     const have = want.get(k);
     if (!have || rank(level) > rank(have.level)) want.set(k, { subject, level });
   };
-  const shares = await tolerant<{ shares?: Array<{ grant?: { subject?: { kind?: string; id?: string }; level?: string }; through?: string }> }>(ctx, "access.shares_of", { resource: { type: "record", id: recordId } }, {});
+  const shares = await tolerant<{
+    shares?: Array<{ grant?: { subject?: { kind?: string; id?: string }; level?: string }; through?: string }>;
+  }>(ctx, "access.shares_of", { resource: { type: "record", id: recordId } }, {});
   for (const s of shares.shares ?? []) {
     const g = s.grant;
-    if (g?.subject?.kind && g.subject.id && rank(g.level) >= 0) add({ kind: g.subject.kind, id: g.subject.id }, String(g.level));
+    if (g?.subject?.kind && g.subject.id && rank(g.level) >= 0)
+      add({ kind: g.subject.kind, id: g.subject.id }, String(g.level));
   }
   const lead = fstr(fields["lead"]);
   if (lead && lead.startsWith("usr_")) add({ kind: "person", id: lead }, "manage");
@@ -150,16 +232,28 @@ async function wantedOn(ctx: ProjectsCtx, recordId: string, fields: Record<strin
  * the copy away in its own call) could be written back by a write planned from the older read. So once the writes are done it reads the shares again and takes away every copy the record no
  * longer gives, or lowers it. A revoke that lands before the second read is seen by it; one that lands after finds the copy there and removes it itself. Either way no copy outlives its share.
  */
-export async function syncAccess(ctx: ProjectsCtx, type: string, recordId: string, folderId: string, by?: string, known?: Record<string, unknown>): Promise<void> {
+export async function syncAccess(
+  ctx: ProjectsCtx,
+  type: string,
+  recordId: string,
+  folderId: string,
+  by?: string,
+  known?: Record<string, unknown>,
+): Promise<void> {
   ensure(ctx.db);
   if (projectByRecord(ctx.db, recordId)) return;
   const matrix = await tolerant<{ kind?: string }>(ctx, "spaces.matrix", {}, {});
   if (matrix.kind === "personal") return;
-  const fields = known ?? await recordFields(ctx, type, recordId) ?? {};
+  const fields = known ?? (await recordFields(ctx, type, recordId)) ?? {};
   const want = await wantedOn(ctx, recordId, fields);
   const source = sourceTag(recordId);
   const resource = { type: "folder", id: folderId };
-  const mine = await tolerant<{ grants?: Array<{ id: string; subject: { kind: string; id: string }; level: string }> }>(ctx, "access.grants.list", { resource, source }, {});
+  const mine = await tolerant<{ grants?: Array<{ id: string; subject: { kind: string; id: string }; level: string }> }>(
+    ctx,
+    "access.grants.list",
+    { resource, source },
+    {},
+  );
   const kept = new Set<string>();
   for (const g of mine.grants ?? []) {
     const k = `${g.subject.kind}:${g.subject.id}`;
@@ -168,20 +262,40 @@ export async function syncAccess(ctx: ProjectsCtx, type: string, recordId: strin
   }
   // the maker keeps Manage for as long as the folder lives: a later sweep does not know who made the record, so this grant has a source the sweep never replaces
   if (by && by.startsWith("usr_") && !want.has(`person:${by}`)) {
-    await call(ctx, "access.share", { resource, subject: { kind: "person", id: by }, level: "manage", source: `projfolder-maker:${recordId}` }, { idempotencyKey: `prj-recfolder-maker:${recordId}:${by}:${globalThis.crypto.randomUUID()}` });
+    await call(
+      ctx,
+      "access.share",
+      { resource, subject: { kind: "person", id: by }, level: "manage", source: `projfolder-maker:${recordId}` },
+      { idempotencyKey: `prj-recfolder-maker:${recordId}:${by}:${globalThis.crypto.randomUUID()}` },
+    );
   }
   for (const [k, w] of want) {
     if (kept.has(k)) continue;
-    await call(ctx, "access.share", { resource, subject: w.subject, level: w.level, source }, { idempotencyKey: `prj-recfolder-share:${recordId}:${k}:${w.level}:${globalThis.crypto.randomUUID()}` });
+    await call(
+      ctx,
+      "access.share",
+      { resource, subject: w.subject, level: w.level, source },
+      { idempotencyKey: `prj-recfolder-share:${recordId}:${k}:${w.level}:${globalThis.crypto.randomUUID()}` },
+    );
   }
   // read again: what was taken off the record while the writes above ran does not stay on the folder
   const now = await wantedOn(ctx, recordId, fields);
-  const after = await tolerant<{ grants?: Array<{ id: string; subject: { kind: string; id: string }; level: string }> }>(ctx, "access.grants.list", { resource, source }, {});
+  const after = await tolerant<{
+    grants?: Array<{ id: string; subject: { kind: string; id: string }; level: string }>;
+  }>(ctx, "access.grants.list", { resource, source }, {});
   for (const g of after.grants ?? []) {
     const w = now.get(`${g.subject.kind}:${g.subject.id}`);
     if (w && rank(g.level) <= rank(w.level)) continue;
     await call(ctx, "access.unshare", { grantId: g.id });
-    if (w) await call(ctx, "access.share", { resource, subject: w.subject, level: w.level, source }, { idempotencyKey: `prj-recfolder-share:${recordId}:${g.subject.kind}:${g.subject.id}:${w.level}:${globalThis.crypto.randomUUID()}` });
+    if (w)
+      await call(
+        ctx,
+        "access.share",
+        { resource, subject: w.subject, level: w.level, source },
+        {
+          idempotencyKey: `prj-recfolder-share:${recordId}:${g.subject.kind}:${g.subject.id}:${w.level}:${globalThis.crypto.randomUUID()}`,
+        },
+      );
   }
 }
 
@@ -195,9 +309,17 @@ export async function followRecords(ctx: ProjectsCtx): Promise<void> {
   ensure(ctx.db);
   ctx.db.run(RECORD_FILES_TABLE);
   const pairs: Array<{ folder: string; record: string }> = [];
-  for (const r of ctx.db.all("SELECT record_id, folder_id FROM projects_record_files") as Array<{ record_id: string; folder_id: string }>) pairs.push({ folder: r.folder_id, record: r.record_id });
-  for (const r of ctx.db.all(`SELECT "recordId", "folderId" FROM projects_project WHERE "folderId" IS NOT NULL`) as Array<{ recordId: string; folderId: string }>) pairs.push({ folder: r.folderId, record: r.recordId });
-  for (const x of pairs) await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: x.folder }, follows: x.record }, {});
+  for (const r of ctx.db.all("SELECT record_id, folder_id FROM projects_record_files") as Array<{
+    record_id: string;
+    folder_id: string;
+  }>)
+    pairs.push({ folder: r.folder_id, record: r.record_id });
+  for (const r of ctx.db.all(
+    `SELECT "recordId", "folderId" FROM projects_project WHERE "folderId" IS NOT NULL`,
+  ) as Array<{ recordId: string; folderId: string }>)
+    pairs.push({ folder: r.folderId, record: r.recordId });
+  for (const x of pairs)
+    await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: x.folder }, follows: x.record }, {});
   FOLLOWED.add(ctx.db);
 }
 
@@ -217,39 +339,61 @@ export function fileIdsOf(v: unknown): string[] {
 export async function fileFieldUploads(ctx: ProjectsCtx, event: HookEvent): Promise<void> {
   if (event.name !== "record.created" && event.name !== "record.updated") return;
   const p = event.payload;
-  const type = p["type"], recordId = p["recordId"];
+  const type = p["type"],
+    recordId = p["recordId"];
   if (typeof type !== "string" || typeof recordId !== "string") return;
   const changed = obj(p["fields"]);
   const keys = Object.keys(changed);
   if (keys.length === 0) return;
   let def: { fields?: Array<{ key: string; type?: string; kind?: string }> } | undefined;
-  try { def = (await call<{ type?: typeof def }>(ctx, "schema.types.get", { type })).type; } catch { return; }
-  const fileKeys = new Set((def?.fields ?? []).filter((f) => (f.type ?? f.kind) === "files" || (f.type ?? f.kind) === "file").map((f) => f.key));
+  try {
+    def = (await call<{ type?: typeof def }>(ctx, "schema.types.get", { type })).type;
+  } catch {
+    return;
+  }
+  const fileKeys = new Set(
+    (def?.fields ?? [])
+      .filter((f) => (f.type ?? f.kind) === "files" || (f.type ?? f.kind) === "file")
+      .map((f) => f.key),
+  );
   const ids = new Set<string>();
   for (const k of keys) if (fileKeys.has(k)) for (const id of fileIdsOf(changed[k])) ids.add(id);
   for (const fileId of ids) {
-    try { await fileIntoRecord(ctx, { type, recordId, fileId }, event.actor); }
-    catch (e) { ctx.log.warn("projects: a file on a record was not filed in its folder", { recordId, fileId, error: codeOf(e) }); }
+    try {
+      await fileIntoRecord(ctx, { type, recordId, fileId }, event.actor);
+    } catch (e) {
+      ctx.log.warn("projects: a file on a record was not filed in its folder", { recordId, fileId, error: codeOf(e) });
+    }
   }
 }
 
 export async function onRecordEvent(ctx: ProjectsCtx, event: HookEvent): Promise<void> {
   const p = event.payload;
-  const type = p["type"], recordId = p["recordId"];
+  const type = p["type"],
+    recordId = p["recordId"];
   if (typeof type !== "string" || typeof recordId !== "string") return;
   await fileFieldUploads(ctx, event);
   if (!(await isProjectType(ctx, type))) return;
   switch (event.name) {
-    case "record.created": await ensureFolder(ctx, type, recordId, event.actor); return;
-    case "record.updated": await followName(ctx, type, recordId); return;
-    case "record.deleted": { const f = fstr(obj(p["prev"])["folder"]); if (f) await moveWithRecord(ctx, "files.folder.delete", f); return; }
+    case "record.created":
+      await ensureFolder(ctx, type, recordId, event.actor);
+      return;
+    case "record.updated":
+      await followName(ctx, type, recordId);
+      return;
+    case "record.deleted": {
+      const f = fstr(obj(p["prev"])["folder"]);
+      if (f) await moveWithRecord(ctx, "files.folder.delete", f);
+      return;
+    }
     case "record.restored": {
       const fields = await recordFields(ctx, type, recordId);
       const f = fstr(fields?.["folder"]);
       if (f) await moveWithRecord(ctx, "files.folder.restore", f);
       return;
     }
-    default: return;
+    default:
+      return;
   }
 }
 
@@ -258,23 +402,35 @@ export async function onRecordEvent(ctx: ProjectsCtx, event: HookEvent): Promise
  */
 export async function backfill(ctx: ProjectsCtx): Promise<number> {
   await followRecords(ctx);
-  const described = await tolerant<{ types?: Array<{ name?: string; key?: string; template?: string }> }>(ctx, "schema.describe", {}, {});
+  const described = await tolerant<{ types?: Array<{ name?: string; key?: string; template?: string }> }>(
+    ctx,
+    "schema.describe",
+    {},
+    {},
+  );
   let made = 0;
   for (const t of described.types ?? []) {
     const type = t.name ?? t.key;
     if (t.template !== "project" || !type) continue;
     let cursor: string | undefined;
     do {
-      const page = await call<{ rows?: Array<{ id: string; fields?: Record<string, unknown>; data?: Record<string, unknown> }>; next?: string }>(ctx, "records.query", { type, limit: 200, ...(cursor ? { cursor } : {}) });
+      const page = await call<{
+        rows?: Array<{ id: string; fields?: Record<string, unknown>; data?: Record<string, unknown> }>;
+        next?: string;
+      }>(ctx, "records.query", { type, limit: 200, ...(cursor ? { cursor } : {}) });
       for (const row of page.rows ?? []) {
         const fields = row.fields ?? row.data ?? {};
         const had = fstr(fields["folder"]);
         try {
-          if (await adoptRecord(ctx, type, row.id) && !had) made++;
+          if ((await adoptRecord(ctx, type, row.id)) && !had) made++;
         } catch (e) {
           // the record could not become a project (a person on it is gone, say): it still gets its folder, and the next sweep tries again
           ctx.log.warn("projects: a project record was not adopted", { recordId: row.id, error: codeOf(e) });
-          try { if (await ensureFolder(ctx, type, row.id)) made++; } catch (e2) { ctx.log.warn("projects: a project folder was not made", { recordId: row.id, error: codeOf(e2) }); }
+          try {
+            if (await ensureFolder(ctx, type, row.id)) made++;
+          } catch (e2) {
+            ctx.log.warn("projects: a project folder was not made", { recordId: row.id, error: codeOf(e2) });
+          }
         }
       }
       cursor = page.next;
@@ -289,7 +445,8 @@ export async function backfill(ctx: ProjectsCtx): Promise<number> {
 // the record's own grants mirrored onto it (syncAccess), so whoever may see the record sees its files. One resolver for every path that puts a file on a record.
 const RECORD_FILES = "Record files";
 const TAIL = 8;
-const RECORD_FILES_TABLE = "CREATE TABLE IF NOT EXISTS projects_record_files (record_id TEXT PRIMARY KEY, folder_id TEXT NOT NULL)";
+const RECORD_FILES_TABLE =
+  "CREATE TABLE IF NOT EXISTS projects_record_files (record_id TEXT PRIMARY KEY, folder_id TEXT NOT NULL)";
 
 /** The type a record id belongs to, when the caller (an e-sign envelope, an upload) only has the id: the first type that has it. */
 async function typeOfRecord(ctx: ProjectsCtx, recordId: string): Promise<string | undefined> {
@@ -298,25 +455,58 @@ async function typeOfRecord(ctx: ProjectsCtx, recordId: string): Promise<string 
   return undefined;
 }
 
-export async function recordFilesFolder(ctx: ProjectsCtx, given: { type?: string; recordId: string; create?: boolean }, by?: string): Promise<{ folderId: string | null }> {
+export async function recordFilesFolder(
+  ctx: ProjectsCtx,
+  given: { type?: string; recordId: string; create?: boolean },
+  by?: string,
+): Promise<{ folderId: string | null }> {
   ensure(ctx.db);
-  const type = given.type ?? await typeOfRecord(ctx, given.recordId);
-  const input = { type: type ?? "", recordId: given.recordId, ...(given.create !== undefined ? { create: given.create } : {}) };
+  const type = given.type ?? (await typeOfRecord(ctx, given.recordId));
+  const input = {
+    type: type ?? "",
+    recordId: given.recordId,
+    ...(given.create !== undefined ? { create: given.create } : {}),
+  };
   const fields = input.type === "" ? undefined : await recordFields(ctx, input.type, input.recordId);
-  if (!fields) { const e = new Error("no such record") as Error & { code: string }; e.code = "validation.not_found"; throw e; }
+  if (!fields) {
+    const e = new Error("no such record") as Error & { code: string };
+    e.code = "validation.not_found";
+    throw e;
+  }
   const own = fstr(fields["folder"]);
   if (own) return { folderId: own };
   ctx.db.run(RECORD_FILES_TABLE);
-  const kept = ctx.db.all("SELECT folder_id FROM projects_record_files WHERE record_id = ?", input.recordId)[0] as { folder_id?: string } | undefined;
+  const kept = ctx.db.all("SELECT folder_id FROM projects_record_files WHERE record_id = ?", input.recordId)[0] as
+    | { folder_id?: string }
+    | undefined;
   if (kept?.folder_id) return { folderId: kept.folder_id };
   if (input.create === false) return { folderId: null };
   const root = await projectsRoot(ctx);
-  const found = await call<{ folders?: Array<{ folderId: string; name: string; parentId?: string }> }>(ctx, "files.folder.search", { q: RECORD_FILES, scope: "folders", limit: 20 });
-  const home = (found.folders ?? []).find((f) => f.name === RECORD_FILES && f.parentId === root)?.folderId
-    ?? (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId: root, name: RECORD_FILES, idempotencyKey: `record-files-home:${root}` }, { idempotencyKey: `record-files-home:${root}` })).folder.folderId;
+  const found = await call<{ folders?: Array<{ folderId: string; name: string; parentId?: string }> }>(
+    ctx,
+    "files.folder.search",
+    { q: RECORD_FILES, scope: "folders", limit: 20 },
+  );
+  const home =
+    (found.folders ?? []).find((f) => f.name === RECORD_FILES && f.parentId === root)?.folderId ??
+    (
+      await call<{ folder: FolderOut }>(
+        ctx,
+        "files.folder.create",
+        { parentId: root, name: RECORD_FILES, idempotencyKey: `record-files-home:${root}` },
+        { idempotencyKey: `record-files-home:${root}` },
+      )
+    ).folder.folderId;
   const name = `${titleOf(fields)} · ${input.recordId.slice(-TAIL)}`;
   const key = `record-files:${input.recordId}`;
-  const made = (await call<{ folder: FolderOut }>(ctx, "files.folder.create", { parentId: home, name, idempotencyKey: key }, { idempotencyKey: key })).folder.folderId;
+  const made = (
+    await call<{ folder: FolderOut }>(
+      ctx,
+      "files.folder.create",
+      { parentId: home, name, idempotencyKey: key },
+      { idempotencyKey: key },
+    )
+  ).folder.folderId;
   ctx.db.run("INSERT OR REPLACE INTO projects_record_files (record_id, folder_id) VALUES (?, ?)", input.recordId, made);
   // the folder follows the record's access, so a deal set apart takes its files with it
   await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: made }, follows: input.recordId }, {});
@@ -325,8 +515,16 @@ export async function recordFilesFolder(ctx: ProjectsCtx, given: { type?: string
 }
 
 /** Put a file that already exists into the record's folder (a move, never a copy), unless it is there already. Returns the folder's id. */
-export async function fileIntoRecord(ctx: ProjectsCtx, input: { type?: string; recordId: string; fileId: string }, by?: string): Promise<string> {
-  const { folderId } = await recordFilesFolder(ctx, { ...(input.type ? { type: input.type } : {}), recordId: input.recordId }, by);
+export async function fileIntoRecord(
+  ctx: ProjectsCtx,
+  input: { type?: string; recordId: string; fileId: string },
+  by?: string,
+): Promise<string> {
+  const { folderId } = await recordFilesFolder(
+    ctx,
+    { ...(input.type ? { type: input.type } : {}), recordId: input.recordId },
+    by,
+  );
   const got = await call<{ file?: { folderId?: string } }>(ctx, "files.get", { fileId: input.fileId });
   if (got.file?.folderId !== folderId) await call(ctx, "files.move", { fileId: input.fileId, toFolderId: folderId });
   return folderId!;

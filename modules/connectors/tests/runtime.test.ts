@@ -7,7 +7,16 @@ import { readFileSync } from "node:fs";
 import { ACME } from "../fixtures/acme.ts";
 import { NOW, kit } from "../fixtures/kit.ts";
 import type { Kit } from "../fixtures/kit.ts";
-import { checkEgress, domainAllowed, fillString, fillValue, pointerGet, scrubber, secretsIn, takeToken } from "../projections.ts";
+import {
+  checkEgress,
+  domainAllowed,
+  fillString,
+  fillValue,
+  pointerGet,
+  scrubber,
+  secretsIn,
+  takeToken,
+} from "../projections.ts";
 import type { ConnectorDef } from "../projections.ts";
 import { handlers as loaderHandlers } from "../impl.ts";
 import { executeAction } from "../handlers/runtime.ts";
@@ -22,15 +31,31 @@ const HOOK = "whsec_HOOKVALUE9";
 async function withAcme(extra: Partial<ConnectorDef> = {}): Promise<{ k: Kit; id: string }> {
   const k = kit();
   k.install({ ...ACME, ...extra });
-  const made = await k.hs["connections.create"](k.ctx, { connector: "acme", title: "Acme", ownerKind: "space", secrets: { Acme_Key: "#AcmeKey", Acme_Hook: "#AcmeHook" } });
+  const made = await k.hs["connections.create"](k.ctx, {
+    connector: "acme",
+    title: "Acme",
+    ownerKind: "space",
+    secrets: { Acme_Key: "#AcmeKey", Acme_Hook: "#AcmeHook" },
+  });
   return { k, id: made.connection.connectionId };
 }
 const run = (k: Kit, id: string, action: string, input: unknown = {}, dryRun?: boolean) =>
-  k.hs["connectors.run"](k.ctx, { key: "acme", action, connectionId: id, input, ...(dryRun !== undefined ? { dryRun } : {}) });
+  k.hs["connectors.run"](k.ctx, {
+    key: "acme",
+    action,
+    connectionId: id,
+    input,
+    ...(dryRun !== undefined ? { dryRun } : {}),
+  });
 
 test("every capability of the connectors manifest (framework, connections, synced types, sync engine) has a handler", () => {
-  const raw = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as { capabilities: { name: string; module: string }[] };
-  const names = raw.capabilities.filter((c) => c.module === "connectors").map((c) => c.name).sort();
+  const raw = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as {
+    capabilities: { name: string; module: string }[];
+  };
+  const names = raw.capabilities
+    .filter((c) => c.module === "connectors")
+    .map((c) => c.name)
+    .sort();
   assert.equal(names.length, 62);
   assert.deepEqual(Object.keys(loaderHandlers).sort(), names);
   assert.deepEqual(Object.keys(kit().hs).sort(), names);
@@ -58,17 +83,28 @@ test("egress: https to a declared domain, nothing else", () => {
 });
 
 test("templates, pointers and scrubbing", () => {
-  const scope = { input: { id: "a b/c", n: 3, deep: { x: true } }, secret: { K: "kkkk-1234" }, connection: { id: "con_1" } };
+  const scope = {
+    input: { id: "a b/c", n: 3, deep: { x: true } },
+    secret: { K: "kkkk-1234" },
+    connection: { id: "con_1" },
+  };
   assert.equal(fillString("https://h/{input.id}/{connection.id}", scope, true), "https://h/a%20b%2Fc/con_1");
   assert.equal(fillString("Bearer {secret.K}", scope), "Bearer kkkk-1234");
   assert.throws(() => fillString("{input.missing}", scope), /input\.missing has no value/);
-  assert.deepEqual(fillValue({ a: "{input.n}", b: "n={input.n}", c: ["{input.deep.x}"] }, scope), { a: 3, b: "n=3", c: [true] });
+  assert.deepEqual(fillValue({ a: "{input.n}", b: "n={input.n}", c: ["{input.deep.x}"] }, scope), {
+    a: 3,
+    b: "n=3",
+    c: [true],
+  });
   assert.deepEqual([...secretsIn({ h: "{secret.A}", b: ["x {secret.B}"] })].sort(), ["A", "B"]);
   assert.equal(pointerGet({ a: [{ b: 1 }] }, "/a/0/b"), 1);
   assert.equal(pointerGet({ a: 1 }, "/zzz"), undefined);
   const s = scrubber(["secretvalue", "abc"]);
   assert.equal(s.text("x secretvalue y abc"), "x *** y abc", "values under 4 characters are not scrubbed");
-  assert.deepEqual(s.value({ a: ["secretvalue"], b: { c: "no secretvalue here" } }), { a: ["***"], b: { c: "no *** here" } });
+  assert.deepEqual(s.value({ a: ["secretvalue"], b: { c: "no secretvalue here" } }), {
+    a: ["***"],
+    b: { c: "no *** here" },
+  });
   assert.equal(takeToken("k1", { rps: 1, burst: 1 }, 0), true);
   assert.equal(takeToken("k1", { rps: 1, burst: 1 }, 100), false);
   assert.equal(takeToken("k1", { rps: 1, burst: 1 }, 1200), true);
@@ -97,32 +133,57 @@ test("run: the request is built from the template, the secret travels in the hea
 
   const conn = (await k.hs["connections.get"](k.ctx, { connectionId: id })).connection;
   assert.equal(conn.lastSyncAt, NOW, "a live call stamps the connection");
-  const log = k.tx.all<{ action: string; method: string; host: string; path: string; status: number; actor: string }>("SELECT action, method, host, path, status, actor FROM cn_log ORDER BY id");
+  const log = k.tx.all<{ action: string; method: string; host: string; path: string; status: number; actor: string }>(
+    "SELECT action, method, host, path, status, actor FROM cn_log ORDER BY id",
+  );
   assert.deepEqual(log, [
-    { action: "get_contact", method: "GET", host: "api.acme.test", path: "/v1/contacts/c%201", status: 200, actor: "usr_dana" },
-    { action: "add_note", method: "POST", host: "api.acme.test", path: "/v1/contacts/c1/notes", status: 201, actor: "usr_dana" },
+    {
+      action: "get_contact",
+      method: "GET",
+      host: "api.acme.test",
+      path: "/v1/contacts/c%201",
+      status: 200,
+      actor: "usr_dana",
+    },
+    {
+      action: "add_note",
+      method: "POST",
+      host: "api.acme.test",
+      path: "/v1/contacts/c1/notes",
+      status: 201,
+      actor: "usr_dana",
+    },
   ]);
 });
 
 test("egress: a call outside the declared domains never leaves", async () => {
-  const evil: ConnectorDef = { ...ACME, actions: [
-    ...ACME.actions,
-    { name: "elsewhere", url: "https://evil.example.com/steal" },
-    { name: "plain", url: "http://api.acme.test/v1/ping" },
-    { name: "suffix", url: "https://api.acme.test.evil.com/v1" },
-    { name: "hosted", url: "https://{input.sub}.cdn.acme.test/f" },
-    { name: "injected", url: "https://{input.host}/f" },
-    { name: "redirect_param", url: "https://api.acme.test/v1/go", query: { to: "https://evil.example.com" } },
-  ] };
+  const evil: ConnectorDef = {
+    ...ACME,
+    actions: [
+      ...ACME.actions,
+      { name: "elsewhere", url: "https://evil.example.com/steal" },
+      { name: "plain", url: "http://api.acme.test/v1/ping" },
+      { name: "suffix", url: "https://api.acme.test.evil.com/v1" },
+      { name: "hosted", url: "https://{input.sub}.cdn.acme.test/f" },
+      { name: "injected", url: "https://{input.host}/f" },
+      { name: "redirect_param", url: "https://api.acme.test/v1/go", query: { to: "https://evil.example.com" } },
+    ],
+  };
   const { k, id } = await withAcme({ actions: evil.actions });
   for (const a of ["elsewhere", "plain", "suffix"]) {
     await assert.rejects(run(k, id, a), code("permission.no_grant"), a);
   }
   await assert.rejects(run(k, id, "injected", { host: "evil.example.com" }), code("permission.no_grant"));
-  await assert.rejects(run(k, id, "injected", { host: "evil.com#" }), (e: unknown) => ["permission.no_grant", "validation.bad_input"].includes((e as { error: { code: string } }).error.code));
-  await assert.rejects(run(k, id, "hosted", { sub: "a.evil.com/x" }), (e: unknown) => ["permission.no_grant", "validation.bad_input"].includes((e as { error: { code: string } }).error.code));
+  await assert.rejects(run(k, id, "injected", { host: "evil.com#" }), (e: unknown) =>
+    ["permission.no_grant", "validation.bad_input"].includes((e as { error: { code: string } }).error.code),
+  );
+  await assert.rejects(run(k, id, "hosted", { sub: "a.evil.com/x" }), (e: unknown) =>
+    ["permission.no_grant", "validation.bad_input"].includes((e as { error: { code: string } }).error.code),
+  );
   assert.equal(k.sent.length, 0, "nothing was sent");
-  await assert.rejects(run(k, id, "elsewhere"), (e: unknown) => /evil\.example\.com is not one of this connector's domains/.test((e as Error).message));
+  await assert.rejects(run(k, id, "elsewhere"), (e: unknown) =>
+    /evil\.example\.com is not one of this connector's domains/.test((e as Error).message),
+  );
   // a declared domain may take an input subdomain; a query value that is an address is just a value
   assert.equal((await run(k, id, "hosted", { sub: "files" })).dryRun, false);
   assert.equal(k.sent[0]!.url, "https://files.cdn.acme.test/f");
@@ -148,9 +209,15 @@ test("secrets are read by name at call time and never written anywhere", async (
   assert.match(JSON.stringify(dry), /\*\*\*/);
 
   const everywhere = JSON.stringify({
-    err: [bad, net], dry, out,
-    log: k.tx.all("SELECT * FROM cn_log"), conns: k.tx.all("SELECT * FROM cn_connections"), defs: k.tx.all("SELECT * FROM cn_connectors"),
-    events: k.events, logs: k.logs, calls: k.calls,
+    err: [bad, net],
+    dry,
+    out,
+    log: k.tx.all("SELECT * FROM cn_log"),
+    conns: k.tx.all("SELECT * FROM cn_connections"),
+    defs: k.tx.all("SELECT * FROM cn_connectors"),
+    events: k.events,
+    logs: k.logs,
+    calls: k.calls,
   });
   assert.equal(everywhere.includes(SECRET), false, "the key is nowhere");
   assert.equal(everywhere.includes(HOOK), false, "nor the signing secret");
@@ -163,14 +230,22 @@ test("secrets: a missing item, an empty item and an undeclared secret are refuse
   delete k.vault["#AcmeKey"];
   await assert.rejects(run(k, id, "ping"), code("validation.precondition_failed"));
   k.vault["#AcmeKey"] = SECRET;
-  k.tx.run("UPDATE cn_connections SET secrets = ? WHERE connection_id = ?", JSON.stringify({ Acme_Key: "#AcmeKey" }), id);
-  await assert.rejects(run(k, id, "add_note", { id: "1", text: "t", pinned: true }), (e: unknown) => /no Vault item for Acme_Hook/.test((e as Error).message));
+  k.tx.run(
+    "UPDATE cn_connections SET secrets = ? WHERE connection_id = ?",
+    JSON.stringify({ Acme_Key: "#AcmeKey" }),
+    id,
+  );
+  await assert.rejects(run(k, id, "add_note", { id: "1", text: "t", pinned: true }), (e: unknown) =>
+    /no Vault item for Acme_Hook/.test((e as Error).message),
+  );
   const bad = { ...ACME, actions: [{ name: "x", url: "https://api.acme.test/x", headers: { A: "{secret.Nope}" } }] };
   k.install(bad);
   await assert.rejects(run(k, id, "x"), code("validation.bad_input"));
   const inUrl = { ...ACME, actions: [{ name: "x", url: "https://api.acme.test/x/{secret.Acme_Key}" }] };
   k.install(inUrl);
-  await assert.rejects(run(k, id, "x"), (e: unknown) => /secret cannot be part of the address/.test((e as Error).message));
+  await assert.rejects(run(k, id, "x"), (e: unknown) =>
+    /secret cannot be part of the address/.test((e as Error).message),
+  );
   assert.equal(k.sent.length, 0);
 });
 
@@ -209,16 +284,50 @@ test("a connection that is paused, pending, someone else's or the wrong connecto
 
   const mine = await k.hs["connections.create"](k.ctx, { connector: "acme", title: "Pending one", ownerKind: "space" });
   assert.equal(mine.connection.state, "pending");
-  await assert.rejects(run(k, mine.connection.connectionId, "ping"), (e: unknown) => /still pending/.test((e as Error).message));
+  await assert.rejects(run(k, mine.connection.connectionId, "ping"), (e: unknown) =>
+    /still pending/.test((e as Error).message),
+  );
 
   k.install({ ...ACME, key: "other", scope: "person", title: "Other" });
-  const person = await k.hs["connections.create"](k.mk("usr_bo"), { connector: "other", title: "Bo's", ownerKind: "person", secrets: { Acme_Key: "#AcmeKey", Acme_Hook: "#AcmeHook" } });
-  await assert.rejects(k.hs["connectors.run"](k.ctx, { key: "other", action: "ping", connectionId: person.connection.connectionId, input: {} }), code("validation.not_found"), "dana cannot even see it");
+  const person = await k.hs["connections.create"](k.mk("usr_bo"), {
+    connector: "other",
+    title: "Bo's",
+    ownerKind: "person",
+    secrets: { Acme_Key: "#AcmeKey", Acme_Hook: "#AcmeHook" },
+  });
+  await assert.rejects(
+    k.hs["connectors.run"](k.ctx, {
+      key: "other",
+      action: "ping",
+      connectionId: person.connection.connectionId,
+      input: {},
+    }),
+    code("validation.not_found"),
+    "dana cannot even see it",
+  );
   const row = k.tx.get<never>("SELECT * FROM cn_connections WHERE connection_id = ?", person.connection.connectionId)!;
-  await assert.rejects(executeAction(k.deps, k.ctx, { ...ACME, key: "other" }, "ping", { connection: row }), code("permission.no_grant"));
-  await assert.rejects(k.hs["connectors.run"](k.ctx, { key: "other", action: "ping", connectionId: "con_nope", input: {} }), code("validation.not_found"));
-  await assert.rejects(k.hs["connectors.run"](k.ctx, { key: "other", action: "ping", connectionId: id, input: {} }), code("validation.bad_input"), "the connection belongs to acme");
-  await assert.rejects(k.hs["connectors.run"](k.ctx, { key: "acme", action: "nope", connectionId: mine.connection.connectionId, input: {} }), code("validation.bad_input"));
+  await assert.rejects(
+    executeAction(k.deps, k.ctx, { ...ACME, key: "other" }, "ping", { connection: row }),
+    code("permission.no_grant"),
+  );
+  await assert.rejects(
+    k.hs["connectors.run"](k.ctx, { key: "other", action: "ping", connectionId: "con_nope", input: {} }),
+    code("validation.not_found"),
+  );
+  await assert.rejects(
+    k.hs["connectors.run"](k.ctx, { key: "other", action: "ping", connectionId: id, input: {} }),
+    code("validation.bad_input"),
+    "the connection belongs to acme",
+  );
+  await assert.rejects(
+    k.hs["connectors.run"](k.ctx, {
+      key: "acme",
+      action: "nope",
+      connectionId: mine.connection.connectionId,
+      input: {},
+    }),
+    code("validation.bad_input"),
+  );
   assert.equal(k.sent.length, 1, "only the one good call went out");
 });
 
@@ -236,29 +345,48 @@ test("dry run builds the request and sends nothing; actions another module provi
   const { k, id } = await withAcme({ actions: [...ACME.actions, { name: "provided_elsewhere" }] });
   const d = await run(k, id, "add_note", { id: "c9", text: "later", pinned: false }, true);
   assert.equal(d.dryRun, true);
-  assert.deepEqual(d.output, { request: { method: "POST", url: "https://api.acme.test/v1/contacts/c9/notes", headers: { "X-Api-Key": "***", "X-Hook": "***", "Content-Type": "application/json" }, body: { text: "later", pinned: false } } });
+  assert.deepEqual(d.output, {
+    request: {
+      method: "POST",
+      url: "https://api.acme.test/v1/contacts/c9/notes",
+      headers: { "X-Api-Key": "***", "X-Hook": "***", "Content-Type": "application/json" },
+      body: { text: "later", pinned: false },
+    },
+  });
   assert.equal(k.sent.length, 0);
   assert.equal(k.tx.all("SELECT * FROM cn_log").length, 0, "nothing was called, nothing is logged");
   assert.equal((await k.hs["connections.get"](k.ctx, { connectionId: id })).connection.lastSyncAt, undefined);
   await assert.rejects(run(k, id, "provided_elsewhere"), code("validation.unsupported"));
-  await assert.rejects(run(k, id, "get_contact", {}), code("validation.bad_input"), "a template with no value for a placeholder");
+  await assert.rejects(
+    run(k, id, "get_contact", {}),
+    code("validation.bad_input"),
+    "a template with no value for a placeholder",
+  );
 });
 
 test("list and get: built-in connectors come from the generator's registry", async () => {
   const k = kit();
-  const reg = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as { connectors: { key: string; title: string; domains: string[]; actions: string[]; sources?: { key: string }[] }[] };
+  const reg = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as {
+    connectors: { key: string; title: string; domains: string[]; actions: string[]; sources?: { key: string }[] }[];
+  };
   const all = await k.hs["connectors.list"](k.ctx, {});
   assert.equal(all.total, reg.connectors.length);
   assert.deepEqual(all.connectors.map((c) => c.key).sort(), reg.connectors.map((c) => c.key).sort());
   const stripe = (await k.hs["connectors.get"](k.ctx, { key: "stripe" })).connector;
   const want = reg.connectors.find((c) => c.key === "stripe")!;
-  assert.deepEqual([stripe.title, stripe.builtin, stripe.state, stripe.domains, stripe.actions, stripe.sources], [want.title, true, "live", want.domains, want.actions, (want.sources ?? []).map((s) => s.key)]);
+  assert.deepEqual(
+    [stripe.title, stripe.builtin, stripe.state, stripe.domains, stripe.actions, stripe.sources],
+    [want.title, true, "live", want.domains, want.actions, (want.sources ?? []).map((s) => s.key)],
+  );
   const page = await k.hs["connectors.list"](k.ctx, { limit: 5 });
   assert.equal(page.connectors.length, 5);
   assert.equal(page.next, "5");
   assert.equal((await k.hs["connectors.list"](k.ctx, { state: "draft" })).total, 0);
   await assert.rejects(k.hs["connectors.get"](k.ctx, { key: "nope" }), code("validation.not_found"));
-  await assert.rejects(k.hs["connectors.run"](k.ctx, { key: "stripe", action: "x", connectionId: "con_x", input: {} }), code("validation.not_found"));
+  await assert.rejects(
+    k.hs["connectors.run"](k.ctx, { key: "stripe", action: "x", connectionId: "con_x", input: {} }),
+    code("validation.not_found"),
+  );
   await assert.rejects(k.hs["connectors.remove"](k.ctx, { key: "stripe" }), code("validation.precondition_failed"));
   await assert.rejects(k.hs["connectors.publish"](k.ctx, { key: "stripe" }), code("validation.precondition_failed"));
 });
@@ -266,23 +394,58 @@ test("list and get: built-in connectors come from the generator's registry", asy
 test("the framework: init, build, test, diff, publish, versions, rollback, export, remove", async () => {
   const k = kit();
   const hs = k.hs;
-  await assert.rejects(hs["connectors.init"](k.ctx, { key: "Bad Key", title: "x", mode: "api" }), code("validation.bad_input"));
-  await assert.rejects(hs["connectors.init"](k.ctx, { key: "acme", title: "x", mode: "nope" as never }), code("validation.bad_input"));
-  await assert.rejects(hs["connectors.init"](k.ctx, { key: "stripe", title: "x", mode: "api" }), code("validation.duplicate"));
-  const init = await hs["connectors.init"](k.ctx, { key: "acme", title: "Acme CRM", mode: "api", docsUrl: "https://docs.acme.test" });
+  await assert.rejects(
+    hs["connectors.init"](k.ctx, { key: "Bad Key", title: "x", mode: "api" }),
+    code("validation.bad_input"),
+  );
+  await assert.rejects(
+    hs["connectors.init"](k.ctx, { key: "acme", title: "x", mode: "nope" as never }),
+    code("validation.bad_input"),
+  );
+  await assert.rejects(
+    hs["connectors.init"](k.ctx, { key: "stripe", title: "x", mode: "api" }),
+    code("validation.duplicate"),
+  );
+  const init = await hs["connectors.init"](k.ctx, {
+    key: "acme",
+    title: "Acme CRM",
+    mode: "api",
+    docsUrl: "https://docs.acme.test",
+  });
   assert.match(init.folderId, /^fld_/);
   assert.deepEqual(k.events2("connector.created"), [{ key: "acme" }]);
-  assert.deepEqual(k.folders[0]!.files.map((f) => f.path), ["connector.toml", "README.md"]);
+  assert.deepEqual(
+    k.folders[0]!.files.map((f) => f.path),
+    ["connector.toml", "README.md"],
+  );
   const draftConnector = (await hs["connectors.get"](k.ctx, { key: "acme" })).connector;
   assert.deepEqual([draftConnector.state, draftConnector.version], ["draft", "0.0.0"]);
-  await assert.rejects(hs["connectors.run"](k.ctx, { key: "acme", action: "ping", connectionId: "con_x", input: {} }), code("validation.precondition_failed"));
-  await assert.rejects(hs["connections.create"](k.ctx, { connector: "acme", title: "t", ownerKind: "space" }), code("validation.precondition_failed"));
+  await assert.rejects(
+    hs["connectors.run"](k.ctx, { key: "acme", action: "ping", connectionId: "con_x", input: {} }),
+    code("validation.precondition_failed"),
+  );
+  await assert.rejects(
+    hs["connections.create"](k.ctx, { connector: "acme", title: "t", ownerKind: "space" }),
+    code("validation.precondition_failed"),
+  );
 
   // build: a Run starts and a draft exists
-  const built = await hs["connectors.build"](k.ctx, { key: "acme", docsUrl: "https://docs.acme.test", notes: "read-only first" });
+  const built = await hs["connectors.build"](k.ctx, {
+    key: "acme",
+    docsUrl: "https://docs.acme.test",
+    notes: "read-only first",
+  });
   assert.equal(built.runId, "run_abc123");
   assert.match(built.draftId, /^cdr_[a-z0-9]+$/);
-  assert.deepEqual(k.calls.at(-1), { cap: "runs.start", input: { kind: "connector_build", owner: "usr_dana", idempotencyKey: `connector_build:acme:${built.draftId}`, name: "Build the Acme CRM connector" } });
+  assert.deepEqual(k.calls.at(-1), {
+    cap: "runs.start",
+    input: {
+      kind: "connector_build",
+      owner: "usr_dana",
+      idempotencyKey: `connector_build:acme:${built.draftId}`,
+      name: "Build the Acme CRM connector",
+    },
+  });
   assert.deepEqual(k.events2("connector.built"), [{ key: "acme", draftId: built.draftId }]);
 
   // the draft follows the folder
@@ -297,7 +460,18 @@ test("the framework: init, build, test, diff, publish, versions, rollback, expor
   assert.equal(firstDiff.breaking, false, "nothing live to break");
 
   // a failing test blocks the publish and keeps the last good version
-  const broken: ConnectorDef = { ...draft, tests: [...draft.tests!, { name: "wrong expectation", action: "ping", responses: [{ url: "https://api.acme.test/v1/ping", body: { ok: true } }], expect: { output: false } }] };
+  const broken: ConnectorDef = {
+    ...draft,
+    tests: [
+      ...draft.tests!,
+      {
+        name: "wrong expectation",
+        action: "ping",
+        responses: [{ url: "https://api.acme.test/v1/ping", body: { ok: true } }],
+        expect: { output: false },
+      },
+    ],
+  };
   k.deps.loadFolderDef = async () => broken;
   const refused = await hs["connectors.publish"](k.ctx, { key: "acme" });
   assert.equal(refused.published, false);
@@ -311,17 +485,34 @@ test("the framework: init, build, test, diff, publish, versions, rollback, expor
   assert.deepEqual([pub.published, pub.version, pub.result.failed], [true, "1.0.0", 0]);
   assert.deepEqual(k.events2("connector.published"), [{ key: "acme", version: "1.0.0", tests: 8 }]);
   const live = (await hs["connectors.get"](k.ctx, { key: "acme" })).connector;
-  assert.deepEqual([live.state, live.version, live.actions], ["live", "1.0.0", ["ping", "get_contact", "add_note", "raw"]]);
-  assert.equal(k.tx.all("SELECT * FROM cn_drafts WHERE key = 'acme'").length, 1, "the published draft is gone; the one build made is still there");
+  assert.deepEqual(
+    [live.state, live.version, live.actions],
+    ["live", "1.0.0", ["ping", "get_contact", "add_note", "raw"]],
+  );
+  assert.equal(
+    k.tx.all("SELECT * FROM cn_drafts WHERE key = 'acme'").length,
+    1,
+    "the published draft is gone; the one build made is still there",
+  );
 
   // a second version: non-breaking is a patch, breaking is a major
-  const more: ConnectorDef = { ...draft, actions: [...draft.actions, { name: "list_contacts", url: "https://api.acme.test/v1/contacts", output: "/data" }] };
+  const more: ConnectorDef = {
+    ...draft,
+    actions: [...draft.actions, { name: "list_contacts", url: "https://api.acme.test/v1/contacts", output: "/data" }],
+  };
   k.deps.loadFolderDef = async () => more;
   const d2 = await hs["connectors.diff"](k.ctx, { key: "acme" });
   assert.equal(d2.breaking, false);
-  assert.deepEqual(d2.files.map((f) => f.path), ["actions/list_contacts.json"]);
+  assert.deepEqual(
+    d2.files.map((f) => f.path),
+    ["actions/list_contacts.json"],
+  );
   assert.equal((await hs["connectors.publish"](k.ctx, { key: "acme" })).version, "1.0.1");
-  const fewer: ConnectorDef = { ...more, actions: more.actions.filter((a) => a.name !== "raw"), tests: more.tests!.filter((t) => t.action !== "raw") };
+  const fewer: ConnectorDef = {
+    ...more,
+    actions: more.actions.filter((a) => a.name !== "raw"),
+    tests: more.tests!.filter((t) => t.action !== "raw"),
+  };
   k.deps.loadFolderDef = async () => fewer;
   await hs["connectors.build"](k.ctx, { key: "acme" });
   const d3 = await hs["connectors.diff"](k.ctx, { key: "acme" });
@@ -346,13 +537,26 @@ test("versions, rollback, export and remove", async () => {
   assert.equal(major.version, "2.0.0", "removing a domain and an action is breaking");
 
   const versions = (await hs["connectors.versions"](k.ctx, { key: "acme" })).versions;
-  assert.deepEqual(versions.map((v) => [v.version, v.note, v.by, v.tests]), [["2.0.0", "three", "usr_dana", 4], ["1.0.1", "two", "usr_dana", 4], ["1.0.0", "one", "usr_dana", 4]]);
+  assert.deepEqual(
+    versions.map((v) => [v.version, v.note, v.by, v.tests]),
+    [
+      ["2.0.0", "three", "usr_dana", 4],
+      ["1.0.1", "two", "usr_dana", 4],
+      ["1.0.0", "one", "usr_dana", 4],
+    ],
+  );
   assert.equal((await hs["connectors.get"](k.ctx, { key: "acme" })).connector.actions.includes("extra"), false);
   assert.deepEqual(await hs["connectors.rollback"](k.ctx, { key: "acme", version: "1.0.1" }), { ok: true });
   const back = (await hs["connectors.get"](k.ctx, { key: "acme" })).connector;
-  assert.deepEqual([back.version, back.actions.includes("extra"), back.domains], ["1.0.1", true, ["api.acme.test", "*.cdn.acme.test"]]);
+  assert.deepEqual(
+    [back.version, back.actions.includes("extra"), back.domains],
+    ["1.0.1", true, ["api.acme.test", "*.cdn.acme.test"]],
+  );
   assert.deepEqual(k.events2("connector.rolled_back"), [{ key: "acme", version: "1.0.1" }]);
-  await assert.rejects(hs["connectors.rollback"](k.ctx, { key: "acme", version: "9.9.9" }), code("validation.not_found"));
+  await assert.rejects(
+    hs["connectors.rollback"](k.ctx, { key: "acme", version: "9.9.9" }),
+    code("validation.not_found"),
+  );
 
   const folder = await hs["connectors.export"](k.ctx, { key: "acme" });
   assert.match(folder.folderId, /^fld_/);
@@ -361,13 +565,23 @@ test("versions, rollback, export and remove", async () => {
   assert.ok(exported.files.some((f) => f.path === "tests/ping answers ok.json"));
   assert.doesNotMatch(JSON.stringify(exported.files), /sk_live|whsec_/);
 
-  const conn = await hs["connections.create"](k.ctx, { connector: "acme", title: "Acme", ownerKind: "space", secrets: { Acme_Key: "#AcmeKey" } });
+  const conn = await hs["connections.create"](k.ctx, {
+    connector: "acme",
+    title: "Acme",
+    ownerKind: "space",
+    secrets: { Acme_Key: "#AcmeKey" },
+  });
   k.bound["acme"] = ["contact"];
-  await assert.rejects(hs["connectors.remove"](k.ctx, { key: "acme" }), (e: unknown) => /contact still sync through acme/.test((e as Error).message));
+  await assert.rejects(hs["connectors.remove"](k.ctx, { key: "acme" }), (e: unknown) =>
+    /contact still sync through acme/.test((e as Error).message),
+  );
   k.bound["acme"] = [];
   k.events.length = 0;
   assert.deepEqual(await hs["connectors.remove"](k.ctx, { key: "acme" }), { removed: true });
-  assert.deepEqual(k.events.map((e) => e.name), ["connection.deleted", "connector.removed"]);
+  assert.deepEqual(
+    k.events.map((e) => e.name),
+    ["connection.deleted", "connector.removed"],
+  );
   assert.deepEqual(k.events[0]!.payload, { connectionId: conn.connection.connectionId, connector: "acme" });
   await assert.rejects(hs["connectors.get"](k.ctx, { key: "acme" }), code("validation.not_found"));
   assert.equal(k.tx.all("SELECT * FROM cn_connections").length, 0);
@@ -382,55 +596,136 @@ test("versions, rollback, export and remove", async () => {
 test("health: all good, some failing, all failing", async () => {
   const { k, id } = await withAcme();
   assert.deepEqual(await k.hs["connectors.health"](k.ctx, {}), { state: "healthy", failing: [] });
-  const second = await k.hs["connections.create"](k.ctx, { connector: "acme", title: "Acme two", ownerKind: "space", secrets: { Acme_Key: "#AcmeKey", Acme_Hook: "#AcmeHook" } });
+  const second = await k.hs["connections.create"](k.ctx, {
+    connector: "acme",
+    title: "Acme two",
+    ownerKind: "space",
+    secrets: { Acme_Key: "#AcmeKey", Acme_Hook: "#AcmeHook" },
+  });
   k.tx.run("UPDATE cn_connections SET state = 'failing' WHERE connection_id = ?", id);
   const some = await k.hs["connectors.health"](k.ctx, {});
   assert.deepEqual([some.state, some.failing], ["degraded", [id]]);
   assert.match(some.detail!, /1 of 2 connections needs attention: Acme/);
-  k.tx.run("UPDATE cn_connections SET state = 'needs_reconnect' WHERE connection_id = ?", second.connection.connectionId);
+  k.tx.run(
+    "UPDATE cn_connections SET state = 'needs_reconnect' WHERE connection_id = ?",
+    second.connection.connectionId,
+  );
   assert.equal((await k.hs["connectors.health"](k.ctx, {})).state, "down");
   k.tx.run("UPDATE cn_connections SET state = 'paused'");
   assert.equal((await k.hs["connectors.health"](k.ctx, {})).state, "healthy", "a paused connection is not a problem");
 });
 
-
-test('init refuses absent or denied Files output before connector or draft persistence',async()=>{
- const k=kit();k.deps.writeSource=undefined as never;
- await assert.rejects(k.hs['connectors.init'](k.ctx,{key:'no_files',title:'No Files',mode:'webhook_only'}),code('internal.unavailable'));
- assert.equal(k.tx.all('SELECT * FROM cn_connectors WHERE key = ?','no_files').length,0);assert.equal(k.tx.all('SELECT * FROM cn_drafts WHERE key = ?','no_files').length,0);
- k.deps.writeSource=async(_key,_files,register)=>{register('fld_half');throw new Error('fixture files denied');};await assert.rejects(k.hs['connectors.init'](k.ctx,{key:'denied_files',title:'Denied Files',mode:'webhook_only'}),/fixture files denied/);assert.equal(k.tx.all('SELECT * FROM cn_source_folders WHERE key = ?','denied_files').length,0,'a failed init leaves no mapping');assert.equal(k.tx.all('SELECT * FROM cn_connectors WHERE key = ?','denied_files').length,0);assert.equal(k.tx.all('SELECT * FROM cn_drafts WHERE key = ?','denied_files').length,0);
+test("init refuses absent or denied Files output before connector or draft persistence", async () => {
+  const k = kit();
+  k.deps.writeSource = undefined as never;
+  await assert.rejects(
+    k.hs["connectors.init"](k.ctx, { key: "no_files", title: "No Files", mode: "webhook_only" }),
+    code("internal.unavailable"),
+  );
+  assert.equal(k.tx.all("SELECT * FROM cn_connectors WHERE key = ?", "no_files").length, 0);
+  assert.equal(k.tx.all("SELECT * FROM cn_drafts WHERE key = ?", "no_files").length, 0);
+  k.deps.writeSource = async (_key, _files, register) => {
+    register("fld_half");
+    throw new Error("fixture files denied");
+  };
+  await assert.rejects(
+    k.hs["connectors.init"](k.ctx, { key: "denied_files", title: "Denied Files", mode: "webhook_only" }),
+    /fixture files denied/,
+  );
+  assert.equal(
+    k.tx.all("SELECT * FROM cn_source_folders WHERE key = ?", "denied_files").length,
+    0,
+    "a failed init leaves no mapping",
+  );
+  assert.equal(k.tx.all("SELECT * FROM cn_connectors WHERE key = ?", "denied_files").length, 0);
+  assert.equal(k.tx.all("SELECT * FROM cn_drafts WHERE key = ?", "denied_files").length, 0);
 });
 
-
-test('a Vault secret template cannot be placed in a query string',async()=>{
- const {k,id}=await withAcme({actions:[{name:'query_key',url:'https://api.acme.test/query',query:{key:'{secret.Acme_Key}'}}]});await assert.rejects(k.hs['connectors.run'](k.ctx,{key:'acme',action:'query_key',connectionId:id,input:{}}),code('validation.bad_input'));assert.equal(k.sent.length,0);
+test("a Vault secret template cannot be placed in a query string", async () => {
+  const { k, id } = await withAcme({
+    actions: [{ name: "query_key", url: "https://api.acme.test/query", query: { key: "{secret.Acme_Key}" } }],
+  });
+  await assert.rejects(
+    k.hs["connectors.run"](k.ctx, { key: "acme", action: "query_key", connectionId: id, input: {} }),
+    code("validation.bad_input"),
+  );
+  assert.equal(k.sent.length, 0);
 });
 
 test("source mapping: init maps the key to its canonical folder before any file, export never replaces it, a legacy connector gets one only on an explicit Build", async () => {
   const k = kit();
   const made = await k.hs["connectors.init"](k.ctx, { key: "mapped", title: "Mapped", mode: "webhook_only" });
-  const row = k.tx.all("SELECT key, folder_id FROM cn_source_folders WHERE key = ?", "mapped") as { key: string; folder_id: string }[];
-  assert.deepEqual(row.map((r) => r.folder_id), [made.folderId], "the mapping is the folder init returned");
+  const row = k.tx.all("SELECT key, folder_id FROM cn_source_folders WHERE key = ?", "mapped") as {
+    key: string;
+    folder_id: string;
+  }[];
+  assert.deepEqual(
+    row.map((r) => r.folder_id),
+    [made.folderId],
+    "the mapping is the folder init returned",
+  );
   assert.equal((await k.hs["connectors.get"](k.ctx, { key: "mapped" })).connector.sourceFolderId, made.folderId);
   const exported = await k.hs["connectors.export"](k.ctx, { key: "mapped" });
   assert.notEqual(exported.folderId, made.folderId);
-  assert.equal((await k.hs["connectors.get"](k.ctx, { key: "mapped" })).connector.sourceFolderId, made.folderId, "an export never replaces the mapping");
+  assert.equal(
+    (await k.hs["connectors.get"](k.ctx, { key: "mapped" })).connector.sourceFolderId,
+    made.folderId,
+    "an export never replaces the mapping",
+  );
   // a connector from before sources were canonical: no mapping until an explicit Build, and a private export is never moved or searched for
   const now = 1;
-  k.tx.run("INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES ('legacy', 'Legacy', 'webhook_only', 'space', 0, '1.0.0', 'live', ?, ?, ?)", JSON.stringify({ key: "legacy", title: "Legacy", mode: "webhook_only", scope: "space", version: "1.0.0", auth: { type: "none" }, domains: [], secrets: [], actions: [] }), now, now);
+  k.tx.run(
+    "INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES ('legacy', 'Legacy', 'webhook_only', 'space', 0, '1.0.0', 'live', ?, ?, ?)",
+    JSON.stringify({
+      key: "legacy",
+      title: "Legacy",
+      mode: "webhook_only",
+      scope: "space",
+      version: "1.0.0",
+      auth: { type: "none" },
+      domains: [],
+      secrets: [],
+      actions: [],
+    }),
+    now,
+    now,
+  );
   assert.equal((await k.hs["connectors.get"](k.ctx, { key: "legacy" })).connector.sourceFolderId, undefined);
   await k.hs["connectors.export"](k.ctx, { key: "legacy" });
-  assert.equal(k.tx.all("SELECT * FROM cn_source_folders WHERE key = ?", "legacy").length, 0, "export alone makes no source");
+  assert.equal(
+    k.tx.all("SELECT * FROM cn_source_folders WHERE key = ?", "legacy").length,
+    0,
+    "export alone makes no source",
+  );
   await k.hs["connectors.build"](k.ctx, { key: "legacy" });
-  assert.equal(k.tx.all("SELECT * FROM cn_source_folders WHERE key = ?", "legacy").length, 1, "an explicit Build creates the source");
+  assert.equal(
+    k.tx.all("SELECT * FROM cn_source_folders WHERE key = ?", "legacy").length,
+    1,
+    "an explicit Build creates the source",
+  );
   await k.hs["connectors.remove"](k.ctx, { key: "mapped" });
-  assert.equal(k.tx.all("SELECT * FROM cn_source_folders WHERE key = ?", "mapped").length, 0, "removing the connector ends its claim on the folder");
+  assert.equal(
+    k.tx.all("SELECT * FROM cn_source_folders WHERE key = ?", "mapped").length,
+    0,
+    "removing the connector ends its claim on the folder",
+  );
 });
 
 test("publish from a mapped source rechecks after the tests: a source or an authority that changed in between publishes nothing and keeps the last good version", async () => {
   const k = kit();
   await k.hs["connectors.init"](k.ctx, { key: "raced", title: "Raced", mode: "webhook_only" });
-  const def = (title: string) => ({ key: "raced", title, mode: "webhook_only" as const, scope: "space" as const, version: "0.0.0", auth: { type: "none" as const }, domains: [], secrets: [], actions: [], tests: [] });
+  const def = (title: string) => ({
+    key: "raced",
+    title,
+    mode: "webhook_only" as const,
+    scope: "space" as const,
+    version: "0.0.0",
+    auth: { type: "none" as const },
+    domains: [],
+    secrets: [],
+    actions: [],
+    tests: [],
+  });
   let current = def("First");
   k.deps.loadFolderDef = async () => current;
   assert.equal((await k.hs["connectors.publish"](k.ctx, { key: "raced" })).published, true);
@@ -439,23 +734,48 @@ test("publish from a mapped source rechecks after the tests: a source or an auth
   let loads = 0;
   k.deps.loadFolderDef = async () => (++loads === 1 ? def("Second") : def("Changed under the test"));
   await assert.rejects(k.hs["connectors.publish"](k.ctx, { key: "raced" }), /changed while it was being tested/);
-  assert.equal((await k.hs["connectors.get"](k.ctx, { key: "raced" })).connector.title, "First", "the last good version stays live");
+  assert.equal(
+    (await k.hs["connectors.get"](k.ctx, { key: "raced" })).connector.title,
+    "First",
+    "the last good version stays live",
+  );
   // the caller lost edit access while the tests ran
   k.deps.loadFolderDef = async () => def("Third");
-  k.deps.assertCanPublish = async () => { throw Object.assign(new Error("access changed"), { error: { code: "permission.no_grant" } }); };
+  k.deps.assertCanPublish = async () => {
+    throw Object.assign(new Error("access changed"), { error: { code: "permission.no_grant" } });
+  };
   await assert.rejects(k.hs["connectors.publish"](k.ctx, { key: "raced" }), /access changed/);
   assert.equal((await k.hs["connectors.get"](k.ctx, { key: "raced" })).connector.title, "First");
-  assert.equal(k.tx.all("SELECT * FROM cn_versions WHERE key = 'raced'").length, 1, "only the first publish made a version");
+  assert.equal(
+    k.tx.all("SELECT * FROM cn_versions WHERE key = 'raced'").length,
+    1,
+    "only the first publish made a version",
+  );
 });
 
 test("a mapped connector is tested and published straight from its source: no Build is needed for the next version", async () => {
   const k = kit();
   await k.hs["connectors.init"](k.ctx, { key: "direct", title: "Direct", mode: "webhook_only" });
-  const def = (title: string) => ({ key: "direct", title, mode: "webhook_only" as const, scope: "space" as const, version: "0.0.0", auth: { type: "none" as const }, domains: [], secrets: [], actions: [], tests: [] });
+  const def = (title: string) => ({
+    key: "direct",
+    title,
+    mode: "webhook_only" as const,
+    scope: "space" as const,
+    version: "0.0.0",
+    auth: { type: "none" as const },
+    domains: [],
+    secrets: [],
+    actions: [],
+    tests: [],
+  });
   k.deps.loadFolderDef = async () => def("V1");
   assert.equal((await k.hs["connectors.publish"](k.ctx, { key: "direct" })).version, "1.0.0");
   k.deps.loadFolderDef = async () => def("V2");
-  assert.equal((await k.hs["connectors.test"](k.ctx, { key: "direct" })).result.failed, 0, "the live connector is tested from its source");
+  assert.equal(
+    (await k.hs["connectors.test"](k.ctx, { key: "direct" })).result.failed,
+    0,
+    "the live connector is tested from its source",
+  );
   assert.equal((await k.hs["connectors.publish"](k.ctx, { key: "direct" })).version, "1.0.1");
   assert.equal((await k.hs["connectors.get"](k.ctx, { key: "direct" })).connector.title, "V2");
 });
@@ -467,22 +787,52 @@ test("an agent's connector: init with source false, define it in one call, publi
   const made = await k.hs["connectors.init"](k.ctx, { key: "fathom", title: "Fathom", mode: "api", source: false });
   assert.equal(made.folderId, undefined, "no Files folder");
   const defined = await k.hs["connectors.define"](k.ctx, {
-    key: "fathom", domains: ["api.fathom.ai"], auth: { type: "bearer", secret: "Fathom_Key" }, secrets: [{ name: "Fathom_Key", description: "Fathom API key" }],
-    actions: [{ name: "list_meetings", url: "https://api.fathom.ai/external/v1/meetings" }, { name: "create_webhook", method: "POST", url: "https://api.fathom.ai/external/v1/webhooks", write: true }],
+    key: "fathom",
+    domains: ["api.fathom.ai"],
+    auth: { type: "bearer", secret: "Fathom_Key" },
+    secrets: [{ name: "Fathom_Key", description: "Fathom API key" }],
+    actions: [
+      { name: "list_meetings", url: "https://api.fathom.ai/external/v1/meetings" },
+      { name: "create_webhook", method: "POST", url: "https://api.fathom.ai/external/v1/webhooks", write: true },
+    ],
   });
   assert.deepEqual(defined.actions, ["list_meetings", "create_webhook"]);
   const published = await k.hs["connectors.publish"](k.ctx, { key: "fathom" });
   assert.equal(published.published, true);
   const got = (await k.hs["connectors.get"](k.ctx, { key: "fathom" })).connector;
-  assert.deepEqual([got.state, got.domains, got.actions], ["live", ["api.fathom.ai"], ["list_meetings", "create_webhook"]]);
+  assert.deepEqual(
+    [got.state, got.domains, got.actions],
+    ["live", ["api.fathom.ai"], ["list_meetings", "create_webhook"]],
+  );
 });
 
 test("define refuses a write that is not marked, a host outside domains, and a connector that has a Files source", async () => {
   const k = kit();
   await k.hs["connectors.init"](k.ctx, { key: "acmeagent", title: "Acme", mode: "api", source: false });
-  const base = { key: "acmeagent", domains: ["api.acme.example"], auth: { type: "bearer" as const, secret: "Acme_Key" }, secrets: [{ name: "Acme_Key", description: "k" }] };
-  await assert.rejects(k.hs["connectors.define"](k.ctx, { ...base, actions: [{ name: "x", method: "PUT", url: "https://api.acme.example/x", write: false }] } as never), (e: unknown) => /mark it write/.test(JSON.stringify(e)));
-  await assert.rejects(k.hs["connectors.define"](k.ctx, { ...base, actions: [{ name: "x", url: "https://evil.example/x" }] }), (e: unknown) => /not in domains/.test(JSON.stringify(e)));
+  const base = {
+    key: "acmeagent",
+    domains: ["api.acme.example"],
+    auth: { type: "bearer" as const, secret: "Acme_Key" },
+    secrets: [{ name: "Acme_Key", description: "k" }],
+  };
+  await assert.rejects(
+    k.hs["connectors.define"](k.ctx, {
+      ...base,
+      actions: [{ name: "x", method: "PUT", url: "https://api.acme.example/x", write: false }],
+    } as never),
+    (e: unknown) => /mark it write/.test(JSON.stringify(e)),
+  );
+  await assert.rejects(
+    k.hs["connectors.define"](k.ctx, { ...base, actions: [{ name: "x", url: "https://evil.example/x" }] }),
+    (e: unknown) => /not in domains/.test(JSON.stringify(e)),
+  );
   await k.hs["connectors.init"](k.ctx, { key: "withsrc", title: "WithSrc", mode: "api" });
-  await assert.rejects(k.hs["connectors.define"](k.ctx, { ...base, key: "withsrc", actions: [{ name: "x", url: "https://api.acme.example/x" }] }), (e: unknown) => /Files folder/.test(JSON.stringify(e)));
+  await assert.rejects(
+    k.hs["connectors.define"](k.ctx, {
+      ...base,
+      key: "withsrc",
+      actions: [{ name: "x", url: "https://api.acme.example/x" }],
+    }),
+    (e: unknown) => /Files folder/.test(JSON.stringify(e)),
+  );
 });

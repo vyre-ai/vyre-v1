@@ -44,14 +44,33 @@ const isStr = (v: unknown): v is string => typeof v === "string" && v !== "";
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
 
 function partsAt(at: number, tz: string): { y: number; m: number; d: number; h: number; min: number; s: number } {
-  const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+  const f = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
   const p: Record<string, number> = {};
   for (const x of f.formatToParts(new Date(at))) if (x.type !== "literal") p[x.type] = Number(x.value);
   return { y: p["year"]!, m: p["month"]!, d: p["day"]!, h: p["hour"]! % 24, min: p["minute"]!, s: p["second"]! };
 }
-const validZone = (tz: string): string => { try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return tz; } catch { return "UTC"; } };
+const validZone = (tz: string): string => {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return tz;
+  } catch {
+    return "UTC";
+  }
+};
 /** How far the zone is ahead of UTC at this moment, in ms. */
-const offsetAt = (at: number, tz: string): number => { const p = partsAt(at, tz); return Date.UTC(p.y, p.m - 1, p.d, p.h, p.min, p.s) - (at - (at % 1000)); };
+const offsetAt = (at: number, tz: string): number => {
+  const p = partsAt(at, tz);
+  return Date.UTC(p.y, p.m - 1, p.d, p.h, p.min, p.s) - (at - (at % 1000));
+};
 
 /** The person's calendar day ("2026-11-03") at `at`, and when it ends (their next local midnight). */
 export function localDay(at: number, tz: string): { day: string; resetsAt: number } {
@@ -66,35 +85,72 @@ export async function timezoneOf(ctx: Pick<MemCtx, "call">): Promise<string> {
   return setting(ctx, "profile.timezone", "UTC", isStr);
 }
 
-export interface Caps { passes: number; tokens: number }
+export interface Caps {
+  passes: number;
+  tokens: number;
+}
 export async function capsOf(ctx: Pick<MemCtx, "call">): Promise<Caps> {
   const passes = await setting(ctx, "memory.learn_daily_passes", LEARN_PASSES_DEFAULT, isCount);
   const tokens = await setting(ctx, "memory.learn_daily_tokens", LEARN_TOKENS_DEFAULT, isCount);
   return { passes: Math.floor(passes), tokens: Math.floor(tokens) };
 }
 
-export interface DayUse { passes: number; tokensIn: number; tokensOut: number; reserved: number; rulePasses: number }
+export interface DayUse {
+  passes: number;
+  tokensIn: number;
+  tokensOut: number;
+  reserved: number;
+  rulePasses: number;
+}
 export function usageOf(ctx: Pick<MemCtx, "db">, person: string, day: string): DayUse {
   learnTables(ctx.db);
-  const r = rowsOf(ctx.db, "SELECT passes, tokens_in, tokens_out, reserved, rule_passes FROM memory_learn_usage WHERE person = ? AND day = ?", person, day)[0];
-  return { passes: num(r?.["passes"]), tokensIn: num(r?.["tokens_in"]), tokensOut: num(r?.["tokens_out"]), reserved: num(r?.["reserved"]), rulePasses: num(r?.["rule_passes"]) };
+  const r = rowsOf(
+    ctx.db,
+    "SELECT passes, tokens_in, tokens_out, reserved, rule_passes FROM memory_learn_usage WHERE person = ? AND day = ?",
+    person,
+    day,
+  )[0];
+  return {
+    passes: num(r?.["passes"]),
+    tokensIn: num(r?.["tokens_in"]),
+    tokensOut: num(r?.["tokens_out"]),
+    reserved: num(r?.["reserved"]),
+    rulePasses: num(r?.["rule_passes"]),
+  };
 }
 
 // ---- reservation: one synchronous step, so two turns that end together cannot both take the last of the day
 
-export interface Account { overhead: number | null; biggest: number; strikes: number; pausedUntil: number; model: string | null; modelAt: number }
+export interface Account {
+  overhead: number | null;
+  biggest: number;
+  strikes: number;
+  pausedUntil: number;
+  model: string | null;
+  modelAt: number;
+}
 export function accountOf(ctx: Pick<MemCtx, "db">, ref: string): Account {
   learnTables(ctx.db);
   const r = rowsOf(ctx.db, "SELECT * FROM memory_learn_accounts WHERE account_ref = ?", ref)[0];
   return {
-    overhead: r?.["overhead"] === null || r?.["overhead"] === undefined ? null : num(r["overhead"]), biggest: num(r?.["biggest"]), strikes: num(r?.["strikes"]), pausedUntil: num(r?.["paused_until"]),
-    model: r?.["model"] ? str(r["model"]) : null, modelAt: num(r?.["model_at"]),
+    overhead: r?.["overhead"] === null || r?.["overhead"] === undefined ? null : num(r["overhead"]),
+    biggest: num(r?.["biggest"]),
+    strikes: num(r?.["strikes"]),
+    pausedUntil: num(r?.["paused_until"]),
+    model: r?.["model"] ? str(r["model"]) : null,
+    modelAt: num(r?.["model_at"]),
   };
 }
 const putAccount = (ctx: Pick<MemCtx, "db">, ref: string, a: Account): void => {
   ctx.db.run(
     "INSERT INTO memory_learn_accounts (account_ref, overhead, biggest, strikes, paused_until, model, model_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(account_ref) DO UPDATE SET overhead = excluded.overhead, biggest = excluded.biggest, strikes = excluded.strikes, paused_until = excluded.paused_until, model = excluded.model, model_at = excluded.model_at",
-    ref, a.overhead, a.biggest, a.strikes, a.pausedUntil, a.model, a.modelAt,
+    ref,
+    a.overhead,
+    a.biggest,
+    a.strikes,
+    a.pausedUntil,
+    a.model,
+    a.modelAt,
   );
 };
 
@@ -108,26 +164,58 @@ export function reservationFor(ctx: Pick<MemCtx, "db">, ref: string, driver: str
 
 export type Refusal = "passes" | "tokens";
 /** Take one pass and `tokens` of the day for the person, or say which limit stops it. */
-export function reserve(ctx: Pick<MemCtx, "db">, person: string, day: string, caps: Caps, tokens: number): Refusal | null {
+export function reserve(
+  ctx: Pick<MemCtx, "db">,
+  person: string,
+  day: string,
+  caps: Caps,
+  tokens: number,
+): Refusal | null {
   const u = usageOf(ctx, person, day);
   if (u.passes >= caps.passes) return "passes";
   if (u.tokensIn + u.reserved + tokens > caps.tokens) return "tokens";
   ctx.db.run(
     "INSERT INTO memory_learn_usage (person, day, passes, reserved) VALUES (?, ?, 1, ?) ON CONFLICT(person, day) DO UPDATE SET passes = passes + 1, reserved = reserved + excluded.reserved",
-    person, day, tokens,
+    person,
+    day,
+    tokens,
   );
   return null;
 }
 
 /** The pass ran: its real tokens replace what was set aside. A pass that never reached the model (a limit, a fault) gives its pass and tokens back. */
-export function settle(ctx: Pick<MemCtx, "db">, person: string, day: string, reserved: number, used: { tokensIn: number; tokensOut: number } | null): void {
-  if (used) ctx.db.run("UPDATE memory_learn_usage SET reserved = MAX(0, reserved - ?), tokens_in = tokens_in + ?, tokens_out = tokens_out + ? WHERE person = ? AND day = ?", reserved, used.tokensIn, used.tokensOut, person, day);
-  else ctx.db.run("UPDATE memory_learn_usage SET reserved = MAX(0, reserved - ?), passes = MAX(0, passes - 1) WHERE person = ? AND day = ?", reserved, person, day);
+export function settle(
+  ctx: Pick<MemCtx, "db">,
+  person: string,
+  day: string,
+  reserved: number,
+  used: { tokensIn: number; tokensOut: number } | null,
+): void {
+  if (used)
+    ctx.db.run(
+      "UPDATE memory_learn_usage SET reserved = MAX(0, reserved - ?), tokens_in = tokens_in + ?, tokens_out = tokens_out + ? WHERE person = ? AND day = ?",
+      reserved,
+      used.tokensIn,
+      used.tokensOut,
+      person,
+      day,
+    );
+  else
+    ctx.db.run(
+      "UPDATE memory_learn_usage SET reserved = MAX(0, reserved - ?), passes = MAX(0, passes - 1) WHERE person = ? AND day = ?",
+      reserved,
+      person,
+      day,
+    );
 }
 
 export function countRulePass(ctx: Pick<MemCtx, "db">, person: string, day: string): void {
   learnTables(ctx.db);
-  ctx.db.run("INSERT INTO memory_learn_usage (person, day, rule_passes) VALUES (?, ?, 1) ON CONFLICT(person, day) DO UPDATE SET rule_passes = rule_passes + 1", person, day);
+  ctx.db.run(
+    "INSERT INTO memory_learn_usage (person, day, rule_passes) VALUES (?, ?, 1) ON CONFLICT(person, day) DO UPDATE SET rule_passes = rule_passes + 1",
+    person,
+    day,
+  );
 }
 
 // ---- what the account taught us, and its pause
@@ -136,7 +224,13 @@ export function countRulePass(ctx: Pick<MemCtx, "db">, person: string, day: stri
 export function accountServed(ctx: Pick<MemCtx, "db">, ref: string, chars: number, tokensIn: number): void {
   const a = accountOf(ctx, ref);
   const seen = Math.max(0, tokensIn - Math.ceil(chars / 3.5));
-  putAccount(ctx, ref, { ...a, overhead: a.overhead === null ? seen : Math.round((a.overhead + seen) / 2), biggest: Math.max(a.biggest, tokensIn), strikes: 0, pausedUntil: 0 });
+  putAccount(ctx, ref, {
+    ...a,
+    overhead: a.overhead === null ? seen : Math.round((a.overhead + seen) / 2),
+    biggest: Math.max(a.biggest, tokensIn),
+    strikes: 0,
+    pausedUntil: 0,
+  });
 }
 
 /** A provider said slow down (a rate or usage limit): pause learning on that account, one minute doubling to six hours. Anything else pauses it briefly and forgets its model. */
@@ -155,10 +249,13 @@ export function rememberModel(ctx: Pick<MemCtx, "db">, ref: string, model: strin
   putAccount(ctx, ref, { ...accountOf(ctx, ref), model, modelAt: now });
 }
 
-const LIMIT_WORDS = /rate.?limit|\b429\b|too many requests|usage.?limit|quota|overloaded|capacity|resource.?exhausted|limit (?:reached|exceeded)|out of (?:credits|usage)|insufficient.?(?:credit|balance)/i;
+const LIMIT_WORDS =
+  /rate.?limit|\b429\b|too many requests|usage.?limit|quota|overloaded|capacity|resource.?exhausted|limit (?:reached|exceeded)|out of (?:credits|usage)|insufficient.?(?:credit|balance)/i;
 /** A provider's rate-limit or usage-limit error, by its code or words. */
 export function isLimitError(e: unknown): boolean {
-  const code = (e as { code?: unknown; error?: { code?: unknown } } | null)?.code ?? (e as { error?: { code?: unknown } } | null)?.error?.code;
+  const code =
+    (e as { code?: unknown; error?: { code?: unknown } } | null)?.code ??
+    (e as { error?: { code?: unknown } } | null)?.error?.code;
   const msg = e instanceof Error ? e.message : (e as { error?: { message?: unknown } } | null)?.error?.message;
   return [code, msg].some((x) => typeof x === "string" && LIMIT_WORDS.test(x));
 }
@@ -167,11 +264,22 @@ export function isLimitError(e: unknown): boolean {
 
 export function cursorOf(ctx: Pick<MemCtx, "db">, threadId: string, person: string): number {
   learnTables(ctx.db);
-  const r = rowsOf(ctx.db, "SELECT seq FROM memory_learn_cursor WHERE thread_id = ? AND person = ?", threadId, person)[0];
+  const r = rowsOf(
+    ctx.db,
+    "SELECT seq FROM memory_learn_cursor WHERE thread_id = ? AND person = ?",
+    threadId,
+    person,
+  )[0];
   return r ? num(r["seq"]) : -1;
 }
 export function moveCursor(ctx: Pick<MemCtx, "db" | "now">, threadId: string, person: string, seq: number): void {
-  ctx.db.run("INSERT INTO memory_learn_cursor (thread_id, person, seq, at) VALUES (?, ?, ?, ?) ON CONFLICT(thread_id, person) DO UPDATE SET seq = MAX(seq, excluded.seq), at = excluded.at", threadId, person, seq, ctx.now());
+  ctx.db.run(
+    "INSERT INTO memory_learn_cursor (thread_id, person, seq, at) VALUES (?, ?, ?, ?) ON CONFLICT(thread_id, person) DO UPDATE SET seq = MAX(seq, excluded.seq), at = excluded.at",
+    threadId,
+    person,
+    seq,
+    ctx.now(),
+  );
 }
 
 // ---- "Don't remember this chat"

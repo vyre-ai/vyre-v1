@@ -9,7 +9,8 @@ import { createSampleDeps } from "../../../apps/app/src/shell/report/sample.ts";
 export const title = "Report a problem";
 
 export default function Mount(): ReactNode {
-  const state = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("state") ?? "";
+  const state =
+    new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("state") ?? "";
   const ctl = useMemo(() => {
     const run = createSampleDeps({ online: state !== "offline" });
     const c = new ReportController(run.deps);

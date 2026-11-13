@@ -26,7 +26,10 @@ export function createPhonePort(link: PhoneLink): PhonePort {
       const box = link.current();
       if (!box) return { status: "none" };
       const r = await box.host.release();
-      if ((r.status === "released" || r.status === "none") && !link.configured) { box.stop(); link.dropped(); }
+      if ((r.status === "released" || r.status === "none") && !link.configured) {
+        box.stop();
+        link.dropped();
+      }
       return { status: r.status };
     },
   };

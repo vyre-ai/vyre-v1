@@ -26,13 +26,24 @@ export interface ItemListProps {
   sections?: boolean;
 }
 
-export function ItemList({ items, selectedId, providerOf, healthIds, clock, onSelect, onOpen, onMenu, sections = false }: ItemListProps): ReactElement {
+export function ItemList({
+  items,
+  selectedId,
+  providerOf,
+  healthIds,
+  clock,
+  onSelect,
+  onOpen,
+  onMenu,
+  sections = false,
+}: ItemListProps): ReactElement {
   const last = useRef<{ id: string; at: number } | null>(null);
   const press = (id: string): void => {
     const now = Date.now();
     const again = last.current && last.current.id === id && now - last.current.at < DOUBLE_MS;
     last.current = { id, at: now };
-    if (again) onOpen(id); else onSelect(id);
+    if (again) onOpen(id);
+    else onSelect(id);
   };
   const line = (item: Item): ReactElement => {
     const provider = providerOf.get(item.id);
@@ -44,8 +55,17 @@ export function ItemList({ items, selectedId, providerOf, healthIds, clock, onSe
           title={item.name}
           note={secondLine(item, provider)}
           selected={item.id === selectedId}
-          leading={<View style={s.logo}><LogoTile name={item.name} size={30} /></View>}
-          trailing={<View style={s.trail}>{look ? <View style={s.dot} testID={`look-${item.id}`} accessibilityLabel="Worth a look" /> : null}<Text style={s.used}>{usedLabel(item.lastUsedAt, clock)}</Text></View>}
+          leading={
+            <View style={s.logo}>
+              <LogoTile name={item.name} size={30} />
+            </View>
+          }
+          trailing={
+            <View style={s.trail}>
+              {look ? <View style={s.dot} testID={`look-${item.id}`} accessibilityLabel="Worth a look" /> : null}
+              <Text style={s.used}>{usedLabel(item.lastUsedAt, clock)}</Text>
+            </View>
+          }
           onPress={() => press(item.id)}
         />
       </View>
@@ -78,7 +98,14 @@ export function ItemList({ items, selectedId, providerOf, healthIds, clock, onSe
 const s = StyleSheet.create({
   list: { flex: 1, paddingHorizontal: 8 },
   rowWrap: { width: "100%" },
-  head: { height: LIST_ROW_HEIGHT, flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 8, paddingBottom: 6 },
+  head: {
+    height: LIST_ROW_HEIGHT,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+    paddingHorizontal: 8,
+    paddingBottom: 6,
+  },
   headText: { fontSize: 12, fontWeight: "600", letterSpacing: 0.4, color: "var(--ink-3)" as string },
   headCount: { fontSize: 12, color: "var(--ink-3)" as string },
   logo: { marginRight: 10 },

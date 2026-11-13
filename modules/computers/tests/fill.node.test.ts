@@ -12,19 +12,41 @@ const rig = () => {
   const looked: string[] = [];
   const uses: FillUse[] = [];
   const found: FillLookup = { kind: "value", itemId: "vit_1", value: "s3cret-value" };
-  const service = createFillService({ source: { lookup: async (h) => { looked.push(h); return found; } }, log: (u) => { uses.push(u); }, now: () => 1 });
+  const service = createFillService({
+    source: {
+      lookup: async (h) => {
+        looked.push(h);
+        return found;
+      },
+    },
+    log: (u) => {
+      uses.push(u);
+    },
+    now: () => 1,
+  });
   return { service, looked, uses };
 };
-const ask = (token: string, secure: boolean | undefined, computerId = "cmt_1") => ({ authorization: `Bearer ${token}`, body: { handle: "Mail", field: "password", computerId }, ...(secure === undefined ? {} : { secure }) });
+const ask = (token: string, secure: boolean | undefined, computerId = "cmt_1") => ({
+  authorization: `Bearer ${token}`,
+  body: { handle: "Mail", field: "password", computerId },
+  ...(secure === undefined ? {} : { secure }),
+});
 
 test("a computer on a server gets its secret only over a private link; a plain link is refused before the Vault is read, and logged as refused", async () => {
   const { service, looked, uses } = rig();
   const g = await service.issue({ computerId: "cmt_1", agentId: "agt_1", asker: "usr_dana", nodeId: "srv_home" });
   const plain = await service.serve(ask(g.fillToken, false));
   assert.deepEqual([plain.status, plain.body], [403, { code: "insecure_link" }]);
-  assert.equal((await service.serve(ask(g.fillToken, undefined))).status, 403, "a request that cannot say its link is private is treated as not");
+  assert.equal(
+    (await service.serve(ask(g.fillToken, undefined))).status,
+    403,
+    "a request that cannot say its link is private is treated as not",
+  );
   assert.deepEqual(looked, [], "nothing was read from the Vault");
-  assert.deepEqual(uses.map((u) => u.outcome), ["refused", "refused"]);
+  assert.deepEqual(
+    uses.map((u) => u.outcome),
+    ["refused", "refused"],
+  );
   assert.ok(!JSON.stringify(uses).includes("s3cret"), "the log never holds the value");
   const ok = await service.serve(ask(g.fillToken, true));
   assert.deepEqual([ok.status, ok.body], [200, { value: "s3cret-value", itemId: "vit_1" }]);
@@ -40,17 +62,40 @@ test("a computer on the Space's own machine is not held to the link rule", async
 test("a call on a computer on a server gets a Vault channel for its person only when the server's link is private", async () => {
   const { leaseFill } = await import("../handlers/tools/common.ts");
   for (const secure of [true, false]) {
-    const p = harness({ respond: { "agents.get": (b) => ({ agent: { agentId: b["agentId"], folderId: "fld_intake", ownerId: "usr_dana" } }) } });
+    const p = harness({
+      respond: {
+        "agents.get": (b) => ({ agent: { agentId: b["agentId"], folderId: "fld_intake", ownerId: "usr_dana" } }),
+      },
+    });
     const h = asPerson(p, { kind: "agent", id: INTAKE }, { actingFor: "usr_dana" });
     const issued: Array<{ nodeId?: string; asker: string }> = [];
-    bindFill({ issue: async (x) => { issued.push(x); return { fillToken: "t".repeat(48), revoke() {} }; }, url: () => "http://host.docker.internal:8420/computers/fill", nodeSecure: () => secure });
+    bindFill({
+      issue: async (x) => {
+        issued.push(x);
+        return { fillToken: "t".repeat(48), revoke() {} };
+      },
+      url: () => "http://host.docker.internal:8420/computers/fill",
+      nodeSecure: () => secure,
+    });
     bindRemote(() => h.fake.host as never);
-    const made = await (await import("../handlers/lifecycle.ts")).provision(p.ctx, { agentId: INTAKE, idempotencyKey: `k-${secure}` });
-    h.ctx.db.run("UPDATE computers_computers SET node_id = ? WHERE computer_id = ?", "srv_home", made.computer.computerId);
+    const made = await (
+      await import("../handlers/lifecycle.ts")
+    ).provision(p.ctx, { agentId: INTAKE, idempotencyKey: `k-${secure}` });
+    h.ctx.db.run(
+      "UPDATE computers_computers SET node_id = ? WHERE computer_id = ?",
+      "srv_home",
+      made.computer.computerId,
+    );
     const row = computerBy(h.ctx.db, made.computer.computerId)!;
     const lease = await leaseFill(h.ctx, row, h.fake.host as never).catch(() => null);
     lease?.done();
-    assert.deepEqual(issued.map((x) => [x.nodeId, x.asker]), secure ? [["srv_home", "usr_dana"]] : [], secure ? "a private link gets a channel, marked as a server's, for the person whose call it is" : "a plain link gets none");
+    assert.deepEqual(
+      issued.map((x) => [x.nodeId, x.asker]),
+      secure ? [["srv_home", "usr_dana"]] : [],
+      secure
+        ? "a private link gets a channel, marked as a server's, for the person whose call it is"
+        : "a plain link gets none",
+    );
     bindFill(null);
     bindRemote(null);
   }
@@ -58,15 +103,37 @@ test("a call on a computer on a server gets a Vault channel for its person only 
 
 test("on a computer that joined the Space the same person's next call reuses the channel within a short time (one node job, not one per call); another person's call ends it at once", async () => {
   const { leaseFill, setFillLinger } = await import("../handlers/tools/common.ts");
-  const p = harness({ respond: { "agents.get": (b) => ({ agent: { agentId: b["agentId"], folderId: "fld_intake", ownerId: "usr_dana" } }) } });
+  const p = harness({
+    respond: {
+      "agents.get": (b) => ({ agent: { agentId: b["agentId"], folderId: "fld_intake", ownerId: "usr_dana" } }),
+    },
+  });
   const issued: string[] = [];
   let revoked = 0;
-  bindFill({ issue: async (x) => { issued.push(x.asker); return { fillToken: "t".repeat(48), revoke() { revoked++; } }; }, url: () => "http://host.docker.internal:8420/computers/fill", nodeSecure: () => true });
+  bindFill({
+    issue: async (x) => {
+      issued.push(x.asker);
+      return {
+        fillToken: "t".repeat(48),
+        revoke() {
+          revoked++;
+        },
+      };
+    },
+    url: () => "http://host.docker.internal:8420/computers/fill",
+    nodeSecure: () => true,
+  });
   bindRemote(() => p.fake.host as never);
   setFillLinger(5_000);
   try {
-    const made = await (await import("../handlers/lifecycle.ts")).provision(p.ctx, { agentId: INTAKE, idempotencyKey: "k-linger" });
-    p.ctx.db.run("UPDATE computers_computers SET node_id = ? WHERE computer_id = ?", "srv_home", made.computer.computerId);
+    const made = await (
+      await import("../handlers/lifecycle.ts")
+    ).provision(p.ctx, { agentId: INTAKE, idempotencyKey: "k-linger" });
+    p.ctx.db.run(
+      "UPDATE computers_computers SET node_id = ? WHERE computer_id = ?",
+      "srv_home",
+      made.computer.computerId,
+    );
     const row = computerBy(p.ctx.db, made.computer.computerId)!;
     const dana = asPerson(p, { kind: "agent", id: INTAKE }, { actingFor: "usr_dana" });
     const omar = asPerson(p, { kind: "agent", id: INTAKE }, { actingFor: "usr_omar" });
@@ -77,24 +144,57 @@ test("on a computer that joined the Space the same person's next call reuses the
     (await leaseFill(omar.ctx, row, p.fake.host as never))!.done();
     assert.deepEqual(issued, ["usr_dana", "usr_omar"]);
     assert.equal(revoked, 1, "the first person's lingering channel ended when the second person came");
-  } finally { setFillLinger(null); bindFill(null); bindRemote(null); }
+  } finally {
+    setFillLinger(null);
+    bindFill(null);
+    bindRemote(null);
+  }
 });
 
 test("on a joined server nothing fills between calls: the channel is paused (401) during the linger, and the same person's next call resumes it with no new configure", async () => {
   const { leaseFill, setFillLinger } = await import("../handlers/tools/common.ts");
-  const p = harness({ respond: { "agents.get": (b) => ({ agent: { agentId: b["agentId"], folderId: "fld_intake", ownerId: "usr_dana" } }) } });
-  const svc = createFillService({ source: { lookup: async () => ({ kind: "value", itemId: "vit_x", value: "sk-test-VALUE-0123456789abcdef" } satisfies FillLookup) }, log: () => undefined });
+  const p = harness({
+    respond: {
+      "agents.get": (b) => ({ agent: { agentId: b["agentId"], folderId: "fld_intake", ownerId: "usr_dana" } }),
+    },
+  });
+  const svc = createFillService({
+    source: {
+      lookup: async () =>
+        ({ kind: "value", itemId: "vit_x", value: "sk-test-VALUE-0123456789abcdef" }) satisfies FillLookup,
+    },
+    log: () => undefined,
+  });
   const grants: Array<{ fillToken: string }> = [];
-  bindFill({ issue: async (x) => { const g = await svc.issue(x as never); grants.push(g); return g; }, url: () => "http://host.docker.internal:8420/computers/fill", nodeSecure: () => true });
+  bindFill({
+    issue: async (x) => {
+      const g = await svc.issue(x as never);
+      grants.push(g);
+      return g;
+    },
+    url: () => "http://host.docker.internal:8420/computers/fill",
+    nodeSecure: () => true,
+  });
   bindRemote(() => p.fake.host as never);
   setFillLinger(5_000);
   try {
-    const made = await (await import("../handlers/lifecycle.ts")).provision(p.ctx, { agentId: INTAKE, idempotencyKey: "k-pause" });
-    p.ctx.db.run("UPDATE computers_computers SET node_id = ? WHERE computer_id = ?", "srv_home", made.computer.computerId);
+    const made = await (
+      await import("../handlers/lifecycle.ts")
+    ).provision(p.ctx, { agentId: INTAKE, idempotencyKey: "k-pause" });
+    p.ctx.db.run(
+      "UPDATE computers_computers SET node_id = ? WHERE computer_id = ?",
+      "srv_home",
+      made.computer.computerId,
+    );
     const id = made.computer.computerId;
     const row = computerBy(p.ctx.db, id)!;
     const dana = asPerson(p, { kind: "agent", id: INTAKE }, { actingFor: "usr_dana" });
-    const askAs = (token: string) => svc.serve({ authorization: `Bearer ${token}`, body: { handle: "Stripe", field: "api_key", computerId: id }, secure: true });
+    const askAs = (token: string) =>
+      svc.serve({
+        authorization: `Bearer ${token}`,
+        body: { handle: "Stripe", field: "api_key", computerId: id },
+        secure: true,
+      });
     const l1 = (await leaseFill(dana.ctx, row, p.fake.host as never))!;
     const token = String((p.fake.named("configure")[0]!.args as { fillToken?: string }).fillToken);
     assert.equal((await askAs(token)).status, 200, "while a call runs the page can fill");
@@ -104,5 +204,9 @@ test("on a joined server nothing fills between calls: the channel is paused (401
     assert.equal(p.fake.named("configure").length, 1, "the next call made no new node job");
     assert.equal((await askAs(token)).status, 200, "the same person's next call resumes it");
     l2.done();
-  } finally { setFillLinger(null); bindFill(null); bindRemote(null); }
+  } finally {
+    setFillLinger(null);
+    bindFill(null);
+    bindRemote(null);
+  }
 });

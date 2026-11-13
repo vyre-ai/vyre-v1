@@ -9,55 +9,111 @@ import { ChatRightPane } from "./ChatRightPane.tsx";
 import { RightPaneDataProvider } from "./data.tsx";
 import type { ChatRightPaneData } from "./data.tsx";
 import { BrowserCard, TerminalCard, WorkSections, usesWorkModel } from "./WorkSections.tsx";
-import { olderDesktopMenu, olderDesktopNote, attachedNote, browserAction, browserWords, orderSessions, ownerLabel, sessionsLine, sharedWait, terminalAction, workspaceWords } from "./work-model.ts";
+import {
+  olderDesktopMenu,
+  olderDesktopNote,
+  attachedNote,
+  browserAction,
+  browserWords,
+  orderSessions,
+  ownerLabel,
+  sessionsLine,
+  sharedWait,
+  terminalAction,
+  workspaceWords,
+} from "./work-model.ts";
 import type { BrowserData, BrowserView, WorkspaceData, WorkspaceView } from "./work-model.ts";
 import { createSample } from "./sample.ts";
 import type { PaneDeps } from "./actions.ts";
 
 const ALL = { start: 0, end: 500 };
-const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&gt;", ">").replaceAll("&amp;", "&");
+const clean = (s: string): string =>
+  s
+    .replaceAll("<!-- -->", "")
+    .replaceAll("&#x27;", "'")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
 const LINE = "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.";
 
 const ws = (over: Partial<WorkspaceView> = {}): WorkspaceView => ({
-  state: "running", host: "the Space server", canAttach: true,
-  sessions: [{ name: "main", windows: 2, attached: 0 }, { name: "build", windows: 1, attached: 1 }], projects: ["Client portal launch"], ...over,
+  state: "running",
+  host: "the Space server",
+  canAttach: true,
+  sessions: [
+    { name: "main", windows: 2, attached: 0 },
+    { name: "build", windows: 1, attached: 1 },
+  ],
+  projects: ["Client portal launch"],
+  ...over,
 });
 const br = (over: Partial<BrowserView> = {}): BrowserView => ({
-  state: "open", host: "the Space server", tabs: 3, caption: "Reading the intake form", canTakeOver: true,
-  sites: [{ site: "app.example.com", signedInAs: "intake@example.com", since: Date.UTC(2026, 9, 28) }], ...over,
+  state: "open",
+  host: "the Space server",
+  tabs: 3,
+  caption: "Reading the intake form",
+  canTakeOver: true,
+  sites: [{ site: "app.example.com", signedInAs: "intake@example.com", since: Date.UTC(2026, 9, 28) }],
+  ...over,
 });
 
 test("the Terminal words: running, asleep, starting, waiting for room (the plain line) and the reason when it failed", () => {
   assert.deepEqual(workspaceWords(ws()), { chip: "Running", tone: "ok" });
-  assert.deepEqual(workspaceWords(ws({ sessions: [] })), { chip: "Running", tone: "ok", note: "No session open yet. A command starts one." });
+  assert.deepEqual(workspaceWords(ws({ sessions: [] })), {
+    chip: "Running",
+    tone: "ok",
+    note: "No session open yet. A command starts one.",
+  });
   assert.equal(workspaceWords(ws({ state: "asleep" })).note, "Wakes in about a second on the next command.");
   assert.equal(workspaceWords(ws({ state: "starting" })).chip, "Starting");
-  assert.deepEqual(workspaceWords(ws({ state: "waiting", line: LINE })), { chip: "Waiting for room", tone: "warn", note: LINE });
+  assert.deepEqual(workspaceWords(ws({ state: "waiting", line: LINE })), {
+    chip: "Waiting for room",
+    tone: "warn",
+    note: LINE,
+  });
   // when the host sends none: the plain line, saying only what is true for a workspace (12 Nov, audit item 9: a compute server cannot take it)
-  assert.equal(workspaceWords(ws({ state: "waiting" })).note, "Waiting for room on the Space server. The workspace starts by itself when there is room.", "plain words when the host sends none");
-  assert.deepEqual(workspaceWords(ws({ state: "error", line: "The image is missing." })), { chip: "Needs attention", tone: "bad", note: "The image is missing." });
+  assert.equal(
+    workspaceWords(ws({ state: "waiting" })).note,
+    "Waiting for room on the Space server. The workspace starts by itself when there is room.",
+    "plain words when the host sends none",
+  );
+  assert.deepEqual(workspaceWords(ws({ state: "error", line: "The image is missing." })), {
+    chip: "Needs attention",
+    tone: "bad",
+    note: "The image is missing.",
+  });
 });
 
 test("Attach is offered to a person who may, while the workspace can be used; never while it waits or failed", () => {
   assert.equal(terminalAction(ws()), "attach");
   assert.equal(terminalAction(ws({ state: "asleep" })), "attach", "attaching wakes it");
-  for (const state of ["starting", "waiting", "error"] as const) assert.equal(terminalAction(ws({ state })), null, state);
+  for (const state of ["starting", "waiting", "error"] as const)
+    assert.equal(terminalAction(ws({ state })), null, state);
   assert.equal(terminalAction(ws({ canAttach: false })), null);
 });
 
 test("the Browser words and its one action: Take over for a permitted person, Give back for the one at the controls, nothing for anyone else", () => {
   assert.deepEqual(browserWords(br()), { chip: "Open · 3 tabs", tone: "ok", note: "Reading the intake form" });
   assert.equal(browserWords(br({ tabs: 1, caption: undefined as never })).chip, "Open · 1 tab");
-  assert.deepEqual(browserWords(br({ state: "closed" })), { chip: "Closed", tone: "quiet", note: "Opens when it browses." });
+  assert.deepEqual(browserWords(br({ state: "closed" })), {
+    chip: "Closed",
+    tone: "quiet",
+    note: "Opens when it browses.",
+  });
   assert.equal(browserWords(br({ state: "waiting" })).note, LINE);
   assert.equal(browserWords(br({ state: "takeover", mine: true })).chip, "You're in control");
   assert.equal(browserWords(br({ state: "takeover", takenBy: "Maya" })).chip, "Maya is in control");
   assert.equal(browserAction(br()), "take");
   assert.equal(browserAction(br({ state: "closed" })), "take", "taking over opens it");
   assert.equal(browserAction(br({ state: "takeover", mine: true })), "give");
-  assert.equal(browserAction(br({ state: "takeover", takenBy: "Maya", canTakeOver: false })), null, "someone else has it");
+  assert.equal(
+    browserAction(br({ state: "takeover", takenBy: "Maya", canTakeOver: false })),
+    null,
+    "someone else has it",
+  );
   assert.equal(browserAction(br({ canTakeOver: false })), null);
-  for (const state of ["starting", "waiting", "error"] as const) assert.equal(browserAction(br({ state })), null, state);
+  for (const state of ["starting", "waiting", "error"] as const)
+    assert.equal(browserAction(br({ state })), null, state);
 });
 
 test("small words: sessions and what is attached", () => {
@@ -68,9 +124,13 @@ test("small words: sessions and what is attached", () => {
 });
 
 test("the Terminal card says where it runs and who may attach, and shows the waiting line in place of Attach", () => {
-  const card = (v: WorkspaceView): string => clean(renderToStaticMarkup(<TerminalCard view={v} name="Dex" onAttach={() => undefined} />));
+  const card = (v: WorkspaceView): string =>
+    clean(renderToStaticMarkup(<TerminalCard view={v} name="Dex" onAttach={() => undefined} />));
   const run = card(ws());
-  assert.ok(run.includes('data-testid="terminal-attach"') && run.includes("Dex's shell, git and the usual tools · on the Space server"));
+  assert.ok(
+    run.includes('data-testid="terminal-attach"') &&
+      run.includes("Dex's shell, git and the usual tools · on the Space server"),
+  );
   const wait = card(ws({ state: "waiting", line: LINE }));
   assert.ok(!wait.includes('data-testid="terminal-attach"') && wait.includes(LINE));
   const no = card(ws({ canAttach: false, cannotAttach: "Only Maya can attach to her Assistant's terminal." }));
@@ -79,35 +139,107 @@ test("the Terminal card says where it runs and who may attach, and shows the wai
 });
 
 test("the Browser card: a person who may take over sees the frame, one who may not sees the state and why, and a takeover by me offers Give back", () => {
-  const card = (v: BrowserView, live?: JSX.Element): string => clean(renderToStaticMarkup(<BrowserCard view={v} name="Dex" live={live} onTake={() => undefined} onGive={() => undefined} onOpen={() => undefined} />));
+  const card = (v: BrowserView, live?: JSX.Element): string =>
+    clean(
+      renderToStaticMarkup(
+        <BrowserCard
+          view={v}
+          name="Dex"
+          live={live}
+          onTake={() => undefined}
+          onGive={() => undefined}
+          onOpen={() => undefined}
+        />,
+      ),
+    );
   const open = card(br());
-  assert.ok(open.includes('data-testid="browser-frame"') && open.includes('data-testid="browser-take"') && open.includes("Reading the intake form") && open.includes("Your Chrome is not touched."));
+  assert.ok(
+    open.includes('data-testid="browser-frame"') &&
+      open.includes('data-testid="browser-take"') &&
+      open.includes("Reading the intake form") &&
+      open.includes("Your Chrome is not touched."),
+  );
   const closed = card(br({ state: "closed" }));
   assert.ok(closed.includes('data-testid="browser-open"'), "a closed browser can be opened from its picture");
   const nope = card(br({ canTakeOver: false, cannotTakeOver: "A team agent's browser is for owners and admins." }));
-  assert.ok(!nope.includes('data-testid="browser-frame"') && !nope.includes('data-testid="browser-take"') && nope.includes("owners and admins"));
+  assert.ok(
+    !nope.includes('data-testid="browser-frame"') &&
+      !nope.includes('data-testid="browser-take"') &&
+      nope.includes("owners and admins"),
+  );
   const mine = card(br({ state: "takeover", mine: true }));
-  assert.ok(mine.includes('data-testid="browser-give"') && mine.includes("You're in control") && !mine.includes('data-testid="browser-take"'));
+  assert.ok(
+    mine.includes('data-testid="browser-give"') &&
+      mine.includes("You're in control") &&
+      !mine.includes('data-testid="browser-take"'),
+  );
   const live = card(br(), <span data-testid="the-real-view" />);
-  assert.ok(live.includes('data-testid="browser-live"') && live.includes("the-real-view") && !live.includes('data-testid="browser-frame"'), "the Space browser's own view replaces the picture");
+  assert.ok(
+    live.includes('data-testid="browser-live"') &&
+      live.includes("the-real-view") &&
+      !live.includes('data-testid="browser-frame"'),
+    "the Space browser's own view replaces the picture",
+  );
   const wait = card(br({ state: "waiting", line: LINE }));
   assert.ok(wait.includes(LINE) && !wait.includes('data-testid="browser-take"'));
 });
 
 function stub(w: WorkspaceView | null, b: BrowserView | null) {
   const log: string[] = [];
-  const workspace: WorkspaceData | undefined = w ? { watch: (_a, on) => { on(w); return () => undefined; }, wake: async () => { log.push("ws.wake"); }, attach: async (a) => { log.push(`ws.attach ${a}`); } } : undefined;
-  const browser: BrowserData | undefined = b ? {
-    watch: (_a, on) => { on(b); return () => undefined; }, open: async (a) => { log.push(`br.open ${a}`); }, takeOver: async (a) => { log.push(`br.take ${a}`); }, giveBack: async (a) => { log.push(`br.give ${a}`); },
-    signOut: async (a, s) => { log.push(`br.signout ${a} ${s}`); },
-  } : undefined;
+  const workspace: WorkspaceData | undefined = w
+    ? {
+        watch: (_a, on) => {
+          on(w);
+          return () => undefined;
+        },
+        wake: async () => {
+          log.push("ws.wake");
+        },
+        attach: async (a) => {
+          log.push(`ws.attach ${a}`);
+        },
+      }
+    : undefined;
+  const browser: BrowserData | undefined = b
+    ? {
+        watch: (_a, on) => {
+          on(b);
+          return () => undefined;
+        },
+        open: async (a) => {
+          log.push(`br.open ${a}`);
+        },
+        takeOver: async (a) => {
+          log.push(`br.take ${a}`);
+        },
+        giveBack: async (a) => {
+          log.push(`br.give ${a}`);
+        },
+        signOut: async (a, s) => {
+          log.push(`br.signout ${a} ${s}`);
+        },
+      }
+    : undefined;
   return { log, workspace, browser };
 }
 function paneOver(s: ReturnType<typeof createSample>, over: Partial<ChatRightPaneData>, d: PaneDeps): JSX.Element {
-  const data: ChatRightPaneData = { ...s.data, agent: { agentId: s.data.agent.agentId, name: s.data.agent.name }, ...over };
-  return <RightPaneDataProvider value={data}><WorkSections deps={d} window={ALL} /></RightPaneDataProvider>;
+  const data: ChatRightPaneData = {
+    ...s.data,
+    agent: { agentId: s.data.agent.agentId, name: s.data.agent.name },
+    ...over,
+  };
+  return (
+    <RightPaneDataProvider value={data}>
+      <WorkSections deps={d} window={ALL} />
+    </RightPaneDataProvider>
+  );
 }
-const depsOf = (notes: string[]): PaneDeps => ({ call: async () => ({}), note: (t) => { notes.push(t); } });
+const depsOf = (notes: string[]): PaneDeps => ({
+  call: async () => ({}),
+  note: (t) => {
+    notes.push(t);
+  },
+});
 
 test("mounted: Terminal then Browser, the agent has no computer and nothing asks to set one up", async () => {
   const off = installDom();
@@ -117,9 +249,17 @@ test("mounted: Terminal then Browser, the agent has no computer and nothing asks
     const root = await mount(createRoot, paneOver(s, { workspace: k.workspace, browser: k.browser }, depsOf([])));
     const t = textOf(root);
     assert.ok(t.indexOf("Terminal") >= 0 && t.indexOf("Terminal") < t.indexOf("Browser"), "Terminal first");
-    assert.ok(t.includes("2 sessions") && t.includes("main") && t.includes("build") && t.includes("Client portal launch") && t.includes("app.example.com"));
+    assert.ok(
+      t.includes("2 sessions") &&
+        t.includes("main") &&
+        t.includes("build") &&
+        t.includes("Client portal launch") &&
+        t.includes("app.example.com"),
+    );
     assert.ok(!/Give .* its own computer|Set up its computer/.test(t), "no setup step");
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("mounted: an agent that still has an older desktop gets one row that opens it; an agent without one gets none, and neither is offered a new one", async () => {
@@ -127,16 +267,41 @@ test("mounted: an agent that still has an older desktop gets one row that opens 
   try {
     const s = createSample();
     const k = stub(ws(), br());
-    const withOld = paneOver(s, { workspace: k.workspace, browser: k.browser, agent: { agentId: s.data.agent.agentId, name: s.data.agent.name, computerId: "cmp_old" } }, depsOf([]));
+    const withOld = paneOver(
+      s,
+      {
+        workspace: k.workspace,
+        browser: k.browser,
+        agent: { agentId: s.data.agent.agentId, name: s.data.agent.name, computerId: "cmp_old" },
+      },
+      depsOf([]),
+    );
     const root = await mount(createRoot, withOld);
     const t = textOf(root);
     assert.ok(t.includes("Older desktop") && t.includes("Open its desktop"), "the older desktop has its row");
     assert.ok(t.indexOf("Browser") < t.indexOf("Older desktop"), "after the terminal and the browser");
     await press(find(root, "row-older-desktop"));
-    assert.deepEqual(s.opened.slice(-1), ["computer:cmp_old"], "it opens the desktop's own view: live view, wake, take over");
-    const none = await mount(createRoot, paneOver(s, { workspace: k.workspace, browser: k.browser, agent: { agentId: s.data.agent.agentId, name: s.data.agent.name } }, depsOf([])));
+    assert.deepEqual(
+      s.opened.slice(-1),
+      ["computer:cmp_old"],
+      "it opens the desktop's own view: live view, wake, take over",
+    );
+    const none = await mount(
+      createRoot,
+      paneOver(
+        s,
+        {
+          workspace: k.workspace,
+          browser: k.browser,
+          agent: { agentId: s.data.agent.agentId, name: s.data.agent.name },
+        },
+        depsOf([]),
+      ),
+    );
     assert.ok(!textOf(none).includes("Older desktop") && !/Give .* a computer|Set up its computer/.test(textOf(none)));
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("mounted: Attach attaches this agent's terminal, Take over takes its browser, Give back gives it back, Sign out signs out of the site", async () => {
@@ -153,7 +318,9 @@ test("mounted: Attach attaches this agent's terminal, Take over takes its browse
     const root2 = await mount(createRoot, paneOver(s, { workspace: m.workspace, browser: m.browser }, depsOf([])));
     await press(find(root2, "browser-give"));
     assert.deepEqual(m.log, [`br.give ${agentId}`]);
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("mounted: a refused Attach says why in one line and the button comes back", async () => {
@@ -161,7 +328,9 @@ test("mounted: a refused Attach says why in one line and the button comes back",
   try {
     const s = createSample();
     const k = stub(ws(), br());
-    k.workspace!.attach = async () => { throw new Error("The workspace is waiting for room."); };
+    k.workspace!.attach = async () => {
+      throw new Error("The workspace is waiting for room.");
+    };
     const notes: string[] = [];
     const root = await mount(createRoot, paneOver(s, { workspace: k.workspace, browser: k.browser }, depsOf(notes)));
     await press(find(root, "terminal-attach"));
@@ -169,7 +338,9 @@ test("mounted: a refused Attach says why in one line and the button comes back",
     assert.equal(notes.length, 1);
     assert.match(notes[0]!, /waiting for room/i);
     assert.ok(find(root, "terminal-attach"), "Attach is back");
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("mounted: a half that is not bound says so in one line, and the other half still works", async () => {
@@ -183,7 +354,9 @@ test("mounted: a half that is not bound says so in one line, and the other half 
     const j = stub(null, br());
     const root2 = await mount(createRoot, paneOver(s, { browser: j.browser }, depsOf([])));
     assert.match(textOf(find(root2, "terminal-none")), /terminal is not available on this server yet/);
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("a waiting workspace and browser for the same reason say the line once, at the top", async () => {
@@ -192,13 +365,18 @@ test("a waiting workspace and browser for the same reason say the line once, at 
     const s = createSample();
     const k = stub(ws({ state: "waiting", line: LINE }), br({ state: "waiting", line: LINE }));
     const root = await mount(createRoot, paneOver(s, { workspace: k.workspace, browser: k.browser }, depsOf([])));
-    assert.match(textOf(find(root, "work-wait")), /Waiting for room on the Space server\. Add a compute server in Console > Computers to run more\./);
+    assert.match(
+      textOf(find(root, "work-wait")),
+      /Waiting for room on the Space server\. Add a compute server in Console > Computers to run more\./,
+    );
     assert.equal(textOf(root).split("Add a compute server").length - 1, 1, "once");
     assert.equal(find(root, "terminal-note"), null);
     assert.equal(find(root, "browser-note"), null);
     assert.equal(find(root, "terminal-attach"), null);
     assert.equal(find(root, "browser-take"), null);
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("when only one waits, or for another reason, each keeps its own line", async () => {
@@ -209,11 +387,19 @@ test("when only one waits, or for another reason, each keeps its own line", asyn
     const r1 = await mount(createRoot, paneOver(s, { workspace: one.workspace, browser: one.browser }, depsOf([])));
     assert.equal(find(r1, "work-wait"), null);
     assert.match(textOf(find(r1, "terminal-note")), /Waiting for room/);
-    const two = stub(ws({ state: "waiting", line: LINE }), br({ state: "waiting", line: "Waiting for room on Maya's Mac. Add a compute server in Console > Computers to run more." }));
+    const two = stub(
+      ws({ state: "waiting", line: LINE }),
+      br({
+        state: "waiting",
+        line: "Waiting for room on Maya's Mac. Add a compute server in Console > Computers to run more.",
+      }),
+    );
     const r2 = await mount(createRoot, paneOver(s, { workspace: two.workspace, browser: two.browser }, depsOf([])));
     assert.equal(find(r2, "work-wait"), null);
     assert.match(textOf(find(r2, "browser-note")), /Maya's Mac/);
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("sessions say who owns them, and the agent's own come first", async () => {
@@ -222,10 +408,16 @@ test("sessions say who owns them, and the agent's own come first", async () => {
   assert.equal(ownerLabel({ kind: "helper", name: "Tess" }, "Dex"), "helper: Tess");
   assert.equal(ownerLabel({ kind: "person", name: "Maya" }, "Dex"), "Maya");
   const list = [
-    { name: "p", owner: { kind: "person" as const, name: "Maya" }, windows: 1, attached: 1 }, { name: "h", owner: { kind: "helper" as const, name: "Tess" }, windows: 1, attached: 0 },
-    { name: "a2", owner: { kind: "agent" as const }, windows: 1, attached: 0 }, { name: "a1", windows: 1, attached: 0 },
+    { name: "p", owner: { kind: "person" as const, name: "Maya" }, windows: 1, attached: 1 },
+    { name: "h", owner: { kind: "helper" as const, name: "Tess" }, windows: 1, attached: 0 },
+    { name: "a2", owner: { kind: "agent" as const }, windows: 1, attached: 0 },
+    { name: "a1", windows: 1, attached: 0 },
   ];
-  assert.deepEqual(orderSessions(list).map((x) => x.name), ["a2", "a1", "h", "p"], "agent, then helpers, then people, each in its order");
+  assert.deepEqual(
+    orderSessions(list).map((x) => x.name),
+    ["a2", "a1", "h", "p"],
+    "agent, then helpers, then people, each in its order",
+  );
   assert.equal(attachedNote(list[1]!, "Dex"), "helper: Tess · 1 window");
   assert.equal(attachedNote(list[0]!, "Dex"), "Maya · 1 window · 1 attached");
   assert.equal(sharedWait({ state: "waiting" }, { state: "waiting" }), LINE);
@@ -236,9 +428,17 @@ test("sessions say who owns them, and the agent's own come first", async () => {
     const k = stub(ws({ sessions: list }), null);
     const root = await mount(createRoot, paneOver(s, { workspace: k.workspace }, depsOf([])));
     const t = textOf(root);
-    assert.ok(t.indexOf("helper: Tess") > 0 && t.indexOf("helper: Tess") < t.indexOf("Maya · 1 window"), "helpers before people");
-    assert.ok(t.indexOf(s.data.agent.name + " · 1 window") >= 0 && t.indexOf(s.data.agent.name + " · 1 window") < t.indexOf("helper: Tess"));
-  } finally { off(); }
+    assert.ok(
+      t.indexOf("helper: Tess") > 0 && t.indexOf("helper: Tess") < t.indexOf("Maya · 1 window"),
+      "helpers before people",
+    );
+    assert.ok(
+      t.indexOf(s.data.agent.name + " · 1 window") >= 0 &&
+        t.indexOf(s.data.agent.name + " · 1 window") < t.indexOf("helper: Tess"),
+    );
+  } finally {
+    off();
+  }
 });
 
 test("the pane: with the work model bound the Computer tab is there for an agent with no computer, and the old single-computer tab is what a pane with neither draws", () => {
@@ -246,10 +446,28 @@ test("the pane: with the work model bound the Computer tab is there for an agent
   assert.equal(usesWorkModel({}), false);
   assert.equal(usesWorkModel({ workspace: stub(ws(), null).workspace }), true);
   const bare = { ...s.data, agent: { agentId: s.data.agent.agentId, name: s.data.agent.name } };
-  const without = clean(renderToStaticMarkup(<ChatRightPane data={bare} open onToggle={() => undefined} tab="computer" window={ALL} paneWidth={640} />));
-  assert.ok(!without.includes(">Computer<") && !without.includes('data-testid="pane-body-computer"'), "no computer and nothing bound: no Computer tab, as before");
+  const without = clean(
+    renderToStaticMarkup(
+      <ChatRightPane data={bare} open onToggle={() => undefined} tab="computer" window={ALL} paneWidth={640} />,
+    ),
+  );
+  assert.ok(
+    !without.includes(">Computer<") && !without.includes('data-testid="pane-body-computer"'),
+    "no computer and nothing bound: no Computer tab, as before",
+  );
   const k = stub(ws(), br());
-  const withWork = clean(renderToStaticMarkup(<ChatRightPane data={{ ...bare, workspace: k.workspace, browser: k.browser }} open onToggle={() => undefined} tab="computer" window={ALL} paneWidth={640} />));
+  const withWork = clean(
+    renderToStaticMarkup(
+      <ChatRightPane
+        data={{ ...bare, workspace: k.workspace, browser: k.browser }}
+        open
+        onToggle={() => undefined}
+        tab="computer"
+        window={ALL}
+        paneWidth={640}
+      />,
+    ),
+  );
   assert.ok(withWork.includes(">Computer<") && withWork.includes('data-testid="pane-body-computer"'));
   assert.ok(!withWork.includes('data-testid="computer-none"'), "no Give-it-a-computer step");
 });
@@ -258,15 +476,29 @@ test("mounted: a person who may not attach or take over does not see what is ope
   const off = installDom();
   try {
     const s = createSample();
-    const k = stub(ws({ canAttach: false, cannotAttach: "A team agent's terminal is for owners and admins." }), br({ canTakeOver: false, cannotTakeOver: "A team agent's browser is for owners and admins." }));
+    const k = stub(
+      ws({ canAttach: false, cannotAttach: "A team agent's terminal is for owners and admins." }),
+      br({ canTakeOver: false, cannotTakeOver: "A team agent's browser is for owners and admins." }),
+    );
     const root = await mount(createRoot, paneOver(s, { workspace: k.workspace, browser: k.browser }, depsOf([])));
     const t = textOf(root);
-    assert.ok(!t.includes("dev server") && !t.includes("build") && !t.includes("app.example.com") && !t.includes("Signed in on its browser") && !t.includes("sessions"));
-    assert.ok(t.includes("owners and admins") && t.includes("Running") && t.includes("Client portal launch"), "the states and the reasons stay");
+    assert.ok(
+      !t.includes("dev server") &&
+        !t.includes("build") &&
+        !t.includes("app.example.com") &&
+        !t.includes("Signed in on its browser") &&
+        !t.includes("sessions"),
+    );
+    assert.ok(
+      t.includes("owners and admins") && t.includes("Running") && t.includes("Client portal launch"),
+      "the states and the reasons stay",
+    );
     assert.equal(find(root, "terminal-attach"), null);
     assert.equal(find(root, "browser-take"), null);
     assert.equal(find(root, "browser-frame"), null);
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("an agent that still has a legacy desktop computer keeps the single-computer tab until the browser half is bound", () => {
@@ -276,8 +508,22 @@ test("an agent that still has a legacy desktop computer keeps the single-compute
   assert.equal(usesWorkModel({ workspace: w, browser: b, agent: { computerId: "cmt_1" } }), true);
   assert.equal(usesWorkModel({ workspace: w, agent: {} }), true);
   const s = createSample();
-  const legacy = clean(renderToStaticMarkup(<ChatRightPane data={{ ...s.data, workspace: w }} open onToggle={() => undefined} tab="computer" window={ALL} paneWidth={640} />));
-  assert.ok(!legacy.includes('data-testid="terminal-card"') && legacy.includes('data-testid="pane-body-computer"'), "the sample agent has a computer: today's tab");
+  const legacy = clean(
+    renderToStaticMarkup(
+      <ChatRightPane
+        data={{ ...s.data, workspace: w }}
+        open
+        onToggle={() => undefined}
+        tab="computer"
+        window={ALL}
+        paneWidth={640}
+      />,
+    ),
+  );
+  assert.ok(
+    !legacy.includes('data-testid="terminal-card"') && legacy.includes('data-testid="pane-body-computer"'),
+    "the sample agent has a computer: today's tab",
+  );
 });
 
 test("mounted: the Browser section lists what the agent did in its browser, step by step, with the caption as it comes; a step shows its picture where the live view is (f-wire, 12 Nov)", async () => {
@@ -287,8 +533,23 @@ test("mounted: the Browser section lists what the agent did in its browser, step
     const k = stub(ws(), br());
     const asked: Array<[string, unknown]> = [];
     const steps = [
-      { stepId: "stp_b2", idx: 2, at: 2_000, caption: "Opened the bank login · No picture: a Vault value is on this page", tool: "chrome_open", by: "agent" },
-      { stepId: "stp_b1", idx: 1, at: 1_000, caption: "Opened the pricing page", tool: "chrome_open", by: "agent", frameFileId: "fil_pricing" },
+      {
+        stepId: "stp_b2",
+        idx: 2,
+        at: 2_000,
+        caption: "Opened the bank login · No picture: a Vault value is on this page",
+        tool: "chrome_open",
+        by: "agent",
+      },
+      {
+        stepId: "stp_b1",
+        idx: 1,
+        at: 1_000,
+        caption: "Opened the pricing page",
+        tool: "chrome_open",
+        by: "agent",
+        frameFileId: "fil_pricing",
+      },
     ];
     const call = async (cap: string, input: unknown): Promise<unknown> => {
       asked.push([cap, input]);
@@ -297,41 +558,91 @@ test("mounted: the Browser section lists what the agent did in its browser, step
       return {};
     };
     const root = await mount(createRoot, paneOver(s, { workspace: k.workspace, browser: k.browser, call }, depsOf([])));
-    await flush(); await flush();
-    assert.ok(asked.some(([c, i]) => c === "computers.browser.timeline" && (i as { agentId?: string }).agentId === s.data.agent.agentId), "the agent's own browser timeline is read");
+    await flush();
+    await flush();
+    assert.ok(
+      asked.some(
+        ([c, i]) => c === "computers.browser.timeline" && (i as { agentId?: string }).agentId === s.data.agent.agentId,
+      ),
+      "the agent's own browser timeline is read",
+    );
     const t = textOf(root);
     assert.ok(t.includes("2 steps"));
-    assert.ok(t.includes("Browser · ") && !t.includes("Chrome · ") && !t.includes("chrome_open"), "a step in the agent's Space browser reads Browser (review, 12 Nov), never the tool's own name");
+    assert.ok(
+      t.includes("Browser · ") && !t.includes("Chrome · ") && !t.includes("chrome_open"),
+      "a step in the agent's Space browser reads Browser (review, 12 Nov), never the tool's own name",
+    );
     assert.ok(!/· now\b/.test(t), "one wording for a recent step");
-    assert.ok(t.indexOf("Opened the pricing page") < t.indexOf("Opened the bank login · No picture: a Vault value is on this page"), "oldest first, the caption as it came");
+    assert.ok(
+      t.indexOf("Opened the pricing page") <
+        t.indexOf("Opened the bank login · No picture: a Vault value is on this page"),
+      "oldest first, the caption as it came",
+    );
     await press(find(root, "row-step-stp_b1"));
-    await flush(); await flush();
-    assert.ok(asked.some(([c, i]) => c === "files.read" && (i as { fileId?: string }).fileId === "fil_pricing"), "the step's picture is read from Files");
+    await flush();
+    await flush();
+    assert.ok(
+      asked.some(([c, i]) => c === "files.read" && (i as { fileId?: string }).fileId === "fil_pricing"),
+      "the step's picture is read from Files",
+    );
     assert.ok(find(root, "browser-step-picture"), "and shown where the live view is");
-  } finally { off(); }
+  } finally {
+    off();
+  }
 });
 
 test("the older desktop's row says what will happen, what happened or why, in plain words, and never an internal mark", () => {
   const day = (): string => "12 Nov";
   assert.match(olderDesktopNote(undefined, day), /move to this agent's browser when the desktop is asleep/);
-  assert.equal(olderDesktopNote({ state: "done", at: 1 }, day), "Its sign-ins moved to this agent's browser on 12 Nov. The old desktop is kept until you remove it.");
-  assert.match(olderDesktopNote({ state: "partial", at: 1, error: "Dex already uses its browser on the Space, so the sign-ins were not copied." }, day), /not copied\. The old desktop is kept/);
-  assert.equal(olderDesktopNote({ state: "failed", at: 1, error: "Moving its sign-ins was interrupted. It will be tried again." }, day), "Moving its sign-ins was interrupted. It will be tried again.");
-  assert.match(olderDesktopNote({ state: "failed", at: 1, error: "The workspace is not ready." }, day), /did not work yet: The workspace is not ready\. It will be tried again\.$/);
+  assert.equal(
+    olderDesktopNote({ state: "done", at: 1 }, day),
+    "Its sign-ins moved to this agent's browser on 12 Nov. The old desktop is kept until you remove it.",
+  );
+  assert.match(
+    olderDesktopNote(
+      { state: "partial", at: 1, error: "Dex already uses its browser on the Space, so the sign-ins were not copied." },
+      day,
+    ),
+    /not copied\. The old desktop is kept/,
+  );
+  assert.equal(
+    olderDesktopNote(
+      { state: "failed", at: 1, error: "Moving its sign-ins was interrupted. It will be tried again." },
+      day,
+    ),
+    "Moving its sign-ins was interrupted. It will be tried again.",
+  );
+  assert.match(
+    olderDesktopNote({ state: "failed", at: 1, error: "The workspace is not ready." }, day),
+    /did not work yet: The workspace is not ready\. It will be tried again\.$/,
+  );
 });
 
 test("the older desktop's Remove entry: an owner or admin gets it and it opens the Console at that computer; a member gets none; where the pane cannot open the Console it is absent", async () => {
   const { allows, GATE } = await import("../../../shell/providers/runtime.tsx");
   const team = (perms: string[]) => ({ permissions: new Set(perms), space: { kind: "team" } });
   const opened: string[] = [];
-  const open = (): void => { opened.push("cmp_old"); };
-  for (const [who, perms] of [["owner", ["access.manage", "chats.private"]], ["admin", ["access.manage"]]] as const) {
+  const open = (): void => {
+    opened.push("cmp_old");
+  };
+  for (const [who, perms] of [
+    ["owner", ["access.manage", "chats.private"]],
+    ["admin", ["access.manage"]],
+  ] as const) {
     const menu = olderDesktopMenu({ canRemove: allows(team([...perms]), GATE.provisionComputer), open });
-    assert.deepEqual(menu.map((m) => m.label), ["Remove in Console > Computers"], who);
+    assert.deepEqual(
+      menu.map((m) => m.label),
+      ["Remove in Console > Computers"],
+      who,
+    );
     menu[0]!.onSelect();
   }
   assert.deepEqual(opened, ["cmp_old", "cmp_old"], "it opens the Console at that computer");
-  assert.deepEqual(olderDesktopMenu({ canRemove: allows(team(["chats.private"]), GATE.provisionComputer), open }), [], "a member is shown nothing to press");
+  assert.deepEqual(
+    olderDesktopMenu({ canRemove: allows(team(["chats.private"]), GATE.provisionComputer), open }),
+    [],
+    "a member is shown nothing to press",
+  );
   assert.deepEqual(olderDesktopMenu({ canRemove: true, open: undefined }), [], "no way to open the Console, no entry");
 });
 

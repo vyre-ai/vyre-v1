@@ -1,5 +1,13 @@
 // Fake Twilio account behind api.twilio.com (ARCH 8 table, 10.1). Health is GET /Accounts/{sid}.
-import { handledFetch, hostIs, recordingFetch, type FetchLike, type Handler, type ReplayTape, type SeenCall } from "./replay.ts";
+import {
+  handledFetch,
+  hostIs,
+  recordingFetch,
+  type FetchLike,
+  type Handler,
+  type ReplayTape,
+  type SeenCall,
+} from "./replay.ts";
 
 export const TWILIO_ACCOUNT_SID = "ACaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
@@ -29,7 +37,8 @@ export function fakeTwilio(opts: { tape?: ReplayTape; fetch?: FetchLike } = {}):
     },
     {
       method: "POST",
-      match: (u) => hostIs(u, "twilio.com") && u.pathname === `/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
+      match: (u) =>
+        hostIs(u, "twilio.com") && u.pathname === `/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`,
       run: (_u, init) => {
         n += 1;
         const fields = fieldsOf(init.body);

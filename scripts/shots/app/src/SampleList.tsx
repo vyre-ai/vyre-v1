@@ -2,7 +2,11 @@
 // (CSS variables on web). Not a product screen; real screens replace it behind their frozen props.
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-export interface SampleRow { id: string; title: string; note: string }
+export interface SampleRow {
+  id: string;
+  title: string;
+  note: string;
+}
 
 export const SAMPLE_ROWS: readonly SampleRow[] = [
   { id: "r1", title: "Weekly sync", note: "Northwind - 3 people" },
@@ -10,12 +14,23 @@ export const SAMPLE_ROWS: readonly SampleRow[] = [
   { id: "r3", title: "Inbox review", note: "12 unread" },
 ];
 
-export function SampleList({ selected = "r2", rows = SAMPLE_ROWS }: { selected?: string; rows?: readonly SampleRow[] }) {
+export function SampleList({
+  selected = "r2",
+  rows = SAMPLE_ROWS,
+}: {
+  selected?: string;
+  rows?: readonly SampleRow[];
+}) {
   return (
     <View style={styles.page} accessibilityLabel="sample list">
       <Text style={styles.heading}>Sample</Text>
       {rows.map((r) => (
-        <Pressable key={r.id} accessibilityRole="button" style={[styles.row, r.id === selected && styles.selected]} testID={r.id === selected ? `row-${r.id}-selected` : `row-${r.id}`}>
+        <Pressable
+          key={r.id}
+          accessibilityRole="button"
+          style={[styles.row, r.id === selected && styles.selected]}
+          testID={r.id === selected ? `row-${r.id}-selected` : `row-${r.id}`}
+        >
           <Text style={styles.title}>{r.title}</Text>
           <Text style={styles.note}>{r.note}</Text>
         </Pressable>

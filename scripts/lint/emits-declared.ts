@@ -21,29 +21,52 @@ export function stripComments(source: string): string {
     const c = source[i]!;
     if (quote) {
       out += c;
-      if (c === "\\") { out += source[i + 1] ?? ""; i++; }
-      else if (c === quote) quote = "";
+      if (c === "\\") {
+        out += source[i + 1] ?? "";
+        i++;
+      } else if (c === quote) quote = "";
       continue;
     }
-    if (c === "/" && source[i + 1] === "/") { while (i < source.length && source[i] !== "\n") { out += " "; i++; } if (i < source.length) out += "\n"; continue; }
+    if (c === "/" && source[i + 1] === "/") {
+      while (i < source.length && source[i] !== "\n") {
+        out += " ";
+        i++;
+      }
+      if (i < source.length) out += "\n";
+      continue;
+    }
     if (c === "/" && source[i + 1] === "*") {
       const end = source.indexOf("*/", i + 2);
       const stop = end < 0 ? source.length : end + 2;
       for (; i < stop; i++) out += source[i] === "\n" ? "\n" : " ";
-      i--; continue;
+      i--;
+      continue;
     }
     if (c === "/" && regexAllowed(out)) {
       // a regex literal: blank its body (an apostrophe in /[a-z']+/g is not a string), keep the slashes and the flags
-      let k = i + 1; let inClass = false; let ok = false;
+      let k = i + 1;
+      let inClass = false;
+      let ok = false;
       for (; k < source.length && source[k] !== "\n"; k++) {
         const d = source[k]!;
-        if (d === "\\") { k++; continue; }
-        if (d === "[") inClass = true; else if (d === "]") inClass = false;
-        else if (d === "/" && !inClass) { ok = true; break; }
+        if (d === "\\") {
+          k++;
+          continue;
+        }
+        if (d === "[") inClass = true;
+        else if (d === "]") inClass = false;
+        else if (d === "/" && !inClass) {
+          ok = true;
+          break;
+        }
       }
-      if (ok) { out += "/" + " ".repeat(k - i - 1) + "/"; i = k; continue; }
+      if (ok) {
+        out += "/" + " ".repeat(k - i - 1) + "/";
+        i = k;
+        continue;
+      }
     }
-    if (c === "'" || c === "\"" || c === "`") quote = c;
+    if (c === "'" || c === '"' || c === "`") quote = c;
     out += c;
   }
   return out;
@@ -71,9 +94,22 @@ const lineOf = (source: string, index: number): number => source.slice(0, index)
 function bodyOpen(source: string, from: number): number {
   let i = from;
   const limit = Math.min(source.length, from + 600);
-  while (i < limit && source[i] !== "(" && source[i] !== "{" && source[i] !== "=" && source[i] !== ";" && source[i] !== ",") i++;
-  if (source[i] === "(") { i = matchDelim(source, i, "(", ")"); }
-  else if (source[i] === "=" && source[i + 1] !== ">") { i++; while (i < limit && /\s/.test(source[i]!)) i++; if (source[i] === "(") i = matchDelim(source, i, "(", ")"); }
+  while (
+    i < limit &&
+    source[i] !== "(" &&
+    source[i] !== "{" &&
+    source[i] !== "=" &&
+    source[i] !== ";" &&
+    source[i] !== ","
+  )
+    i++;
+  if (source[i] === "(") {
+    i = matchDelim(source, i, "(", ")");
+  } else if (source[i] === "=" && source[i + 1] !== ">") {
+    i++;
+    while (i < limit && /\s/.test(source[i]!)) i++;
+    if (source[i] === "(") i = matchDelim(source, i, "(", ")");
+  }
   for (; i < limit; i++) {
     const c = source[i];
     if (c === ";" || c === ",") return -1;
@@ -81,7 +117,7 @@ function bodyOpen(source: string, from: number): number {
       let k = i - 1;
       while (k >= from && /\s/.test(source[k]!)) k--;
       const prev = source[k] ?? "";
-      if (prev === ":" || prev === "<" || prev === "|" || prev === "&" || prev === ",") continue;   // an object type in a return annotation
+      if (prev === ":" || prev === "<" || prev === "|" || prev === "&" || prev === ",") continue; // an object type in a return annotation
       return i;
     }
   }
@@ -109,12 +145,31 @@ function functionIn(file: string, source: string, id: string): Fn | null {
 }
 
 const EMIT = /\b(?:ctx\.)?emit\(\s*(["'`])([\w.-]+)\1/g;
-const SKIP = new Set(["if", "for", "while", "switch", "catch", "return", "function", "emit", "await", "async", "require", "import"]);
+const SKIP = new Set([
+  "if",
+  "for",
+  "while",
+  "switch",
+  "catch",
+  "return",
+  "function",
+  "emit",
+  "await",
+  "async",
+  "require",
+  "import",
+]);
 
 /** Literal event names emitted in `fn` and in the functions it calls (three levels), with where each is emitted. */
-function emitsOf(fn: Fn, resolve: Resolver, depth = 3, seen = new Set<string>()): { event: string; file: string; line: number }[] {
+function emitsOf(
+  fn: Fn,
+  resolve: Resolver,
+  depth = 3,
+  seen = new Set<string>(),
+): { event: string; file: string; line: number }[] {
   const out: { event: string; file: string; line: number }[] = [];
-  for (const m of fn.text.matchAll(EMIT)) out.push({ event: m[2]!, file: fn.file, line: lineOf(fn.source, fn.start + m.index!) });
+  for (const m of fn.text.matchAll(EMIT))
+    out.push({ event: m[2]!, file: fn.file, line: lineOf(fn.source, fn.start + m.index!) });
   if (depth === 0) return out;
   for (const call of fn.text.matchAll(/(?<![\w$.])([A-Za-z_$][\w$]*)\s*\(/g)) {
     const id = call[1]!;
@@ -126,9 +181,15 @@ function emitsOf(fn: Fn, resolve: Resolver, depth = 3, seen = new Set<string>())
   return out;
 }
 
-export let HANDLERS_READ = 0;   // handlers whose body was found, printed so a lint that reads nothing cannot pass silently
+export let HANDLERS_READ = 0; // handlers whose body was found, printed so a lint that reads nothing cannot pass silently
 
-export function checkEmitsDeclared(file: string, rawSource: string, caps: ReadonlyMap<string, Cap>, moduleId: string, resolve?: Resolver): EmitFinding[] {
+export function checkEmitsDeclared(
+  file: string,
+  rawSource: string,
+  caps: ReadonlyMap<string, Cap>,
+  moduleId: string,
+  resolve?: Resolver,
+): EmitFinding[] {
   const source = stripComments(rawSource);
   const res: Resolver = resolve ?? ((id, f) => (f === file ? functionIn(file, source, id) : null));
   const out: EmitFinding[] = [];
@@ -140,7 +201,10 @@ export function checkEmitsDeclared(file: string, rawSource: string, caps: Readon
     let body: Fn | null = null;
     const ident = /^([A-Za-z_$][\w$]*)\s*[,}]/.exec(rest);
     if (ident) body = res(ident[1]!, file);
-    else if (/^(?:async\b|\(|function\b|[A-Za-z_$][\w$]*\s*=>)/.test(rest)) { const b = inlineBody(source, valueAt); body = b ? { file, source, text: b.text, start: b.start } : null; }
+    else if (/^(?:async\b|\(|function\b|[A-Za-z_$][\w$]*\s*=>)/.test(rest)) {
+      const b = inlineBody(source, valueAt);
+      body = b ? { file, source, text: b.text, start: b.start } : null;
+    }
     if (!body) continue;
     HANDLERS_READ++;
     const declared = new Set(cap.emits ?? []);
@@ -148,7 +212,13 @@ export function checkEmitsDeclared(file: string, rawSource: string, caps: Readon
     for (const e of emitsOf(body, res)) {
       if (declared.has(e.event) || seen.has(e.event)) continue;
       seen.add(e.event);
-      out.push({ cap: cap.name, event: e.event, file: e.file, line: e.line, message: `${cap.name} emits "${e.event}" but its manifest declares ${declared.size ? `only: ${[...declared].join(", ")}` : "no events"}` });
+      out.push({
+        cap: cap.name,
+        event: e.event,
+        file: e.file,
+        line: e.line,
+        message: `${cap.name} emits "${e.event}" but its manifest declares ${declared.size ? `only: ${[...declared].join(", ")}` : "no events"}`,
+      });
     }
   }
   return out;
@@ -161,9 +231,13 @@ function directRun(): boolean {
 
 if (directRun()) {
   const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-  const reg = JSON.parse(fs.readFileSync(path.join(repo, "generated/registry.json"), "utf8")) as { capabilities: Cap[] };
+  const reg = JSON.parse(fs.readFileSync(path.join(repo, "generated/registry.json"), "utf8")) as {
+    capabilities: Cap[];
+  };
   const caps = new Map(reg.capabilities.map((c) => [c.name, c]));
-  const files = spawnSync("git", ["ls-files", "modules"], { cwd: repo, encoding: "utf8" }).stdout.split("\n").filter((f) => /^modules\/[^/]+\/.*\.ts$/.test(f) && !/\.test\.ts$|\/tests\/|\/fixtures\//.test(f));
+  const files = spawnSync("git", ["ls-files", "modules"], { cwd: repo, encoding: "utf8" })
+    .stdout.split("\n")
+    .filter((f) => /^modules\/[^/]+\/.*\.ts$/.test(f) && !/\.test\.ts$|\/tests\/|\/fixtures\//.test(f));
   const sources = new Map(files.map((f) => [f, stripComments(fs.readFileSync(path.join(repo, f), "utf8"))]));
   // A name resolves to a function in the same file, or in the file it is imported from (relative imports only): no module-wide guessing, so two unrelated functions called `list` are never confused.
   const importsOf = new Map<string, Map<string, { file: string; name: string }>>();
@@ -171,12 +245,17 @@ if (directRun()) {
     const hit = importsOf.get(from);
     if (hit) return hit;
     const out = new Map<string, { file: string; name: string }>();
-    for (const m of (sources.get(from) ?? "").matchAll(/import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*["'](\.[^"']+)["']/g)) {
+    for (const m of (sources.get(from) ?? "").matchAll(
+      /import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*["'](\.[^"']+)["']/g,
+    )) {
       const target = path.posix.normalize(path.posix.join(path.posix.dirname(from), m[2]!));
       const file = [target, `${target}.ts`, `${target}/index.ts`].find((c) => sources.has(c));
       if (!file) continue;
       for (const part of m[1]!.split(",")) {
-        const [orig, local] = part.trim().replace(/^type\s+/, "").split(/\s+as\s+/);
+        const [orig, local] = part
+          .trim()
+          .replace(/^type\s+/, "")
+          .split(/\s+as\s+/);
         if (orig) out.set((local ?? orig).trim(), { file, name: orig.trim() });
       }
     }
@@ -193,10 +272,14 @@ if (directRun()) {
   for (const f of files) all.push(...checkEmitsDeclared(f, sources.get(f)!, caps, f.split("/")[1]!, resolve));
   // emits-known.json: "<capability> <event>" keys with the reason a finding is over-attributed from a shared helper (the handler never reaches that emit). A listed pair is not reported.
   const knownPath = path.join(repo, "scripts/lint/emits-known.json");
-  const known = fs.existsSync(knownPath) ? (JSON.parse(fs.readFileSync(knownPath, "utf8")) as Record<string, string>) : {};
+  const known = fs.existsSync(knownPath)
+    ? (JSON.parse(fs.readFileSync(knownPath, "utf8")) as Record<string, string>)
+    : {};
   for (let i = all.length - 1; i >= 0; i--) if (`${all[i]!.cap} ${all[i]!.event}` in known) all.splice(i, 1);
   for (const h of all) console.log(`emits-declared ${h.file}:${h.line}: ${h.message}`);
   const enforce = process.argv.includes("--enforce");
-  console.log(`emits-declared: ${all.length} undeclared emit(s) in ${HANDLERS_READ} handlers read of ${caps.size} capabilities${enforce ? "" : " (report mode, exit 0)"}`);
+  console.log(
+    `emits-declared: ${all.length} undeclared emit(s) in ${HANDLERS_READ} handlers read of ${caps.size} capabilities${enforce ? "" : " (report mode, exit 0)"}`,
+  );
   if (enforce && all.length) process.exit(1);
 }

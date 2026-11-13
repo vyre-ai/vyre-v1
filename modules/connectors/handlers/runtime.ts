@@ -10,66 +10,164 @@ import { buildDef, generateMain } from "./source.ts";
 import { shapeCreated, shapeList, ShapeError } from "./shape.ts";
 import { unflatten } from "../syncspec.ts";
 import { oauthOf, refreshSlot } from "./oauth.ts";
-import { ensureTables, mintShort, nowOf, pointerGet, refuse, scrubber, secretsIn, seedBuiltins, takeToken, checkEgress, fillString, fillValue, clone, PAGE } from "../projections.ts";
-import type { ActionDef, ConnectionDb, ConnectorDef, ConnectorState, ConnectorsCtx, ConnectorsDeps, Mode, Scope, TestCase } from "../projections.ts";
+import {
+  ensureTables,
+  mintShort,
+  nowOf,
+  pointerGet,
+  refuse,
+  scrubber,
+  secretsIn,
+  seedBuiltins,
+  takeToken,
+  checkEgress,
+  fillString,
+  fillValue,
+  clone,
+  PAGE,
+} from "../projections.ts";
+import type {
+  ActionDef,
+  ConnectionDb,
+  ConnectorDef,
+  ConnectorState,
+  ConnectorsCtx,
+  ConnectorsDeps,
+  Mode,
+  Scope,
+  TestCase,
+} from "../projections.ts";
 
 export interface ConnectorRow {
-  key: string; title: string; mode: Mode; scope: Scope; builtin: boolean; version: string; state: ConnectorState; domains: string[]; secrets: { name: string; description: string }[];
-  connections: number; syncedTypes: string[]; actions: string[]; sources: string[];
+  key: string;
+  title: string;
+  mode: Mode;
+  scope: Scope;
+  builtin: boolean;
+  version: string;
+  state: ConnectorState;
+  domains: string[];
+  secrets: { name: string; description: string }[];
+  connections: number;
+  syncedTypes: string[];
+  actions: string[];
+  sources: string[];
   /** The canonical editable source folder in Shared knowledge, when this connector has one. */
   sourceFolderId?: string;
   objects?: Record<string, ObjectActions>;
 }
-export interface TestResult { passed: number; failed: number; cases: { name: string; ok: boolean; message?: string }[] }
+export interface TestResult {
+  passed: number;
+  failed: number;
+  cases: { name: string; ok: boolean; message?: string }[];
+}
 
 /** What an agent or a person says a connector is, in one call: the hosts it may reach, how it signs in, and its actions. The same rules as a source folder apply (buildDef). */
 export interface DefineInput {
-  key: string; title?: string; domains: string[];
+  key: string;
+  title?: string;
+  domains: string[];
   auth: { type: "none" | "api_key" | "bearer"; secret?: string; header?: string; prefix?: string };
   secrets?: { name: string; description: string }[];
-  actions: { name: string; method?: string; url: string; headers?: Record<string, string>; query?: Record<string, string>; output?: string; write?: boolean }[];
+  actions: {
+    name: string;
+    method?: string;
+    url: string;
+    headers?: Record<string, string>;
+    query?: Record<string, string>;
+    output?: string;
+    write?: boolean;
+  }[];
 }
 
 export interface RuntimeHandlers {
-  "connectors.list"(ctx: ConnectorsCtx, input: { state?: ConnectorState; cursor?: string; limit?: number }): Promise<{ connectors: ConnectorRow[]; next?: string; total?: number }>;
+  "connectors.list"(
+    ctx: ConnectorsCtx,
+    input: { state?: ConnectorState; cursor?: string; limit?: number },
+  ): Promise<{ connectors: ConnectorRow[]; next?: string; total?: number }>;
   "connectors.get"(ctx: ConnectorsCtx, input: { key: string }): Promise<{ connector: ConnectorRow }>;
-  "connectors.init"(ctx: ConnectorsCtx, input: { key: string; title: string; mode: Mode; docsUrl?: string; source?: boolean }): Promise<{ key: string; folderId?: string }>;
-  "connectors.define"(ctx: ConnectorsCtx, input: DefineInput): Promise<{ key: string; draftId: string; actions: string[]; domains: string[] }>;
-  "connectors.build"(ctx: ConnectorsCtx, input: { key: string; docsUrl?: string; notes?: string }): Promise<{ runId: string; draftId: string }>;
+  "connectors.init"(
+    ctx: ConnectorsCtx,
+    input: { key: string; title: string; mode: Mode; docsUrl?: string; source?: boolean },
+  ): Promise<{ key: string; folderId?: string }>;
+  "connectors.define"(
+    ctx: ConnectorsCtx,
+    input: DefineInput,
+  ): Promise<{ key: string; draftId: string; actions: string[]; domains: string[] }>;
+  "connectors.build"(
+    ctx: ConnectorsCtx,
+    input: { key: string; docsUrl?: string; notes?: string },
+  ): Promise<{ runId: string; draftId: string }>;
   "connectors.test"(ctx: ConnectorsCtx, input: { key: string; draftId?: string }): Promise<{ result: TestResult }>;
-  "connectors.read"(ctx: ConnectorsCtx, input: { key: string; action: string; connectionId: string; input: unknown }): Promise<{ output: unknown }>;
-  "connectors.run"(ctx: ConnectorsCtx, input: { key: string; action: string; connectionId: string; input: unknown; dryRun?: boolean }): Promise<{ output: unknown; dryRun: boolean }>;
-  "connectors.diff"(ctx: ConnectorsCtx, input: { key: string; draftId?: string }): Promise<{ files: { path: string; added: number; removed: number }[]; breaking: boolean }>;
-  "connectors.publish"(ctx: ConnectorsCtx, input: { key: string; draftId?: string; note?: string }): Promise<{ published: boolean; version?: string; result: TestResult }>;
-  "connectors.versions"(ctx: ConnectorsCtx, input: { key: string }): Promise<{ versions: { version: string; at: number; by: string; note?: string; tests: number }[] }>;
+  "connectors.read"(
+    ctx: ConnectorsCtx,
+    input: { key: string; action: string; connectionId: string; input: unknown },
+  ): Promise<{ output: unknown }>;
+  "connectors.run"(
+    ctx: ConnectorsCtx,
+    input: { key: string; action: string; connectionId: string; input: unknown; dryRun?: boolean },
+  ): Promise<{ output: unknown; dryRun: boolean }>;
+  "connectors.diff"(
+    ctx: ConnectorsCtx,
+    input: { key: string; draftId?: string },
+  ): Promise<{ files: { path: string; added: number; removed: number }[]; breaking: boolean }>;
+  "connectors.publish"(
+    ctx: ConnectorsCtx,
+    input: { key: string; draftId?: string; note?: string },
+  ): Promise<{ published: boolean; version?: string; result: TestResult }>;
+  "connectors.versions"(
+    ctx: ConnectorsCtx,
+    input: { key: string },
+  ): Promise<{ versions: { version: string; at: number; by: string; note?: string; tests: number }[] }>;
   "connectors.rollback"(ctx: ConnectorsCtx, input: { key: string; version: string }): Promise<{ ok: boolean }>;
   "connectors.export"(ctx: ConnectorsCtx, input: { key: string }): Promise<{ folderId: string }>;
   "connectors.remove"(ctx: ConnectorsCtx, input: { key: string }): Promise<{ removed: boolean }>;
-  "connectors.health"(ctx: ConnectorsCtx, input: Record<string, never>): Promise<{ state: "healthy" | "degraded" | "down"; detail?: string; latencyMs?: number; failing: string[] }>;
+  "connectors.health"(
+    ctx: ConnectorsCtx,
+    input: Record<string, never>,
+  ): Promise<{ state: "healthy" | "degraded" | "down"; detail?: string; latencyMs?: number; failing: string[] }>;
 }
 
 type Http = ConnectorsCtx["http"];
 export interface ExecOpts {
-  connection?: ConnectionDb; input?: unknown; dryRun?: boolean;
+  connection?: ConnectionDb;
+  input?: unknown;
+  dryRun?: boolean;
   /** Secret values by declared name (the harness and tests); otherwise they are resolved from the connection. */
   secrets?: Record<string, string>;
-  http?: Http; persist?: boolean; actor?: string;
+  http?: Http;
+  persist?: boolean;
+  actor?: string;
   /** Set on the one retry after a refresh, so a token the app still rejects ends in a reconnect instead of a loop. */
   refreshed?: boolean;
 }
-export interface ExecResult { output: unknown; dryRun: boolean; status?: number; ms?: number }
+export interface ExecResult {
+  output: unknown;
+  dryRun: boolean;
+  status?: number;
+  ms?: number;
+}
 
 const KEY = /^[a-z][a-z0-9_-]{0,40}$/;
 const MODES: readonly Mode[] = ["api", "mcp", "dwd", "oauth_app", "webhook_only"];
-const connectionSecrets = (c: ConnectionDb | undefined): Record<string, string> => (c ? (JSON.parse(c.secrets) as Record<string, string>) : {});
+const connectionSecrets = (c: ConnectionDb | undefined): Record<string, string> =>
+  c ? (JSON.parse(c.secrets) as Record<string, string>) : {};
 
 async function markReconnect(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: ConnectionDb): Promise<void> {
-  const cur = deps.tx.get<{ state: string }>("SELECT state FROM cn_connections WHERE connection_id = ?", c.connection_id);
+  const cur = deps.tx.get<{ state: string }>(
+    "SELECT state FROM cn_connections WHERE connection_id = ?",
+    c.connection_id,
+  );
   if (!cur || cur.state === "needs_reconnect") return;
   deps.tx.run("UPDATE cn_connections SET state = 'needs_reconnect' WHERE connection_id = ?", c.connection_id);
   await needsYouTask(deps, ctx, c);
   // the call that rejected the sign-in throws right after this (connectors.run, sync_types.discover), which drops what it buffered; the state change above is already written, so the event is too
-  ctx.emit("connection.needs_reconnect", `connection/${c.connection_id}`, { connectionId: c.connection_id, connector: c.connector }, { afterFailure: true });
+  ctx.emit(
+    "connection.needs_reconnect",
+    `connection/${c.connection_id}`,
+    { connectionId: c.connection_id, connector: c.connector },
+    { afterFailure: true },
+  );
 }
 
 /**
@@ -77,63 +175,123 @@ async function markReconnect(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: Connec
  * It closes by itself when a probe of the connection answers well again (clearReconnectTask). Nothing is lost meanwhile: the outbox keeps every edit and syncing resumes.
  */
 async function needsYouTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: ConnectionDb): Promise<void> {
-  const by = deps.tx.get<{ applied_by: string | null }>("SELECT applied_by FROM cn_sync_specs WHERE connection_id = ?", c.connection_id)?.applied_by;
+  const by = deps.tx.get<{ applied_by: string | null }>(
+    "SELECT applied_by FROM cn_sync_specs WHERE connection_id = ?",
+    c.connection_id,
+  )?.applied_by;
   const who = c.owner_kind === "person" ? c.owner_id : by && by !== "system" ? by : undefined;
-  const title = deps.tx.get<{ title: string }>("SELECT title FROM cn_connectors WHERE key = ?", c.connector)?.title ?? c.title;
+  const title =
+    deps.tx.get<{ title: string }>("SELECT title FROM cn_connectors WHERE key = ?", c.connector)?.title ?? c.title;
   if (!who) return;
   try {
     const made = (await ctx.call("tasks.create", {
-      kind: "unblock", title: `Your ${title} key stopped working`, summary: `${title} refused the key, so nothing syncs from it. Replace the key in the Vault; syncing resumes by itself and nothing was lost.`,
-      why: "The app refused the key or sign-in.", assigned: { kind: "person", id: who }, source: { kind: "manual", id: c.connection_id },
+      kind: "unblock",
+      title: `Your ${title} key stopped working`,
+      summary: `${title} refused the key, so nothing syncs from it. Replace the key in the Vault; syncing resumes by itself and nothing was lost.`,
+      why: "The app refused the key or sign-in.",
+      assigned: { kind: "person", id: who },
+      source: { kind: "manual", id: c.connection_id },
       blocks: [{ type: "connection_fix", v: 1, data: { connectionId: c.connection_id, title } }],
       // no bare resolve: the task closes when the connection works again (Reconnect, or a replaced key and Check again), never by pressing Done
-      actions: [{ key: "cannot", label: "Dismiss", note: "optional" }], idempotencyKey: `needs_reconnect:${c.connection_id}:${nowOf(deps)}`,
+      actions: [{ key: "cannot", label: "Dismiss", note: "optional" }],
+      idempotencyKey: `needs_reconnect:${c.connection_id}:${nowOf(deps)}`,
     })) as { task?: { id?: string } } | undefined;
     const taskId = made?.task?.id;
-    if (taskId) deps.tx.run("INSERT OR REPLACE INTO cn_reconnect_tasks (connection_id, task_id) VALUES (?, ?)", c.connection_id, taskId);
-  } catch { /* the connection state and the event already say it; a task that could not be made is not worth failing the call over */ }
+    if (taskId)
+      deps.tx.run(
+        "INSERT OR REPLACE INTO cn_reconnect_tasks (connection_id, task_id) VALUES (?, ?)",
+        c.connection_id,
+        taskId,
+      );
+  } catch {
+    /* the connection state and the event already say it; a task that could not be made is not worth failing the call over */
+  }
 }
 
 /** The key works again: the Home item closes. */
-export async function clearReconnectTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, connectionId: string): Promise<void> {
-  const row = deps.tx.get<{ task_id: string }>("SELECT task_id FROM cn_reconnect_tasks WHERE connection_id = ?", connectionId);
+export async function clearReconnectTask(
+  deps: ConnectorsDeps,
+  ctx: ConnectorsCtx,
+  connectionId: string,
+): Promise<void> {
+  const row = deps.tx.get<{ task_id: string }>(
+    "SELECT task_id FROM cn_reconnect_tasks WHERE connection_id = ?",
+    connectionId,
+  );
   if (!row) return;
   deps.tx.run("DELETE FROM cn_reconnect_tasks WHERE connection_id = ?", connectionId);
-  try { await ctx.call("tasks.transition", { taskId: row.task_id, to: "done", idempotencyKey: `needs_reconnect_done:${row.task_id}` }); } catch { /* already closed */ }
+  try {
+    await ctx.call("tasks.transition", {
+      taskId: row.task_id,
+      to: "done",
+      idempotencyKey: `needs_reconnect_done:${row.task_id}`,
+    });
+  } catch {
+    /* already closed */
+  }
 }
 
 /** Run one action of a connector. Throws the catalogue error for anything that goes wrong; the message and details never hold a secret. */
-export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, def: ConnectorDef, actionName: string, o: ExecOpts = {}): Promise<ExecResult> {
+export async function executeAction(
+  deps: ConnectorsDeps,
+  ctx: ConnectorsCtx,
+  def: ConnectorDef,
+  actionName: string,
+  o: ExecOpts = {},
+): Promise<ExecResult> {
   ensureTables(deps.tx);
   const action = def.actions.find((a) => a.name === actionName);
   if (!action) refuse(ctx, "validation.bad_input", `${def.key} has no action ${actionName}.`);
   const a = action!;
-  if (!a.url) refuse(ctx, "validation.unsupported", `${def.key}.${actionName} is not run by the connector runtime: its module provides it.`);
+  if (!a.url)
+    refuse(
+      ctx,
+      "validation.unsupported",
+      `${def.key}.${actionName} is not run by the connector runtime: its module provides it.`,
+    );
   const conn = o.connection;
   const persist = o.persist !== false;
   const actor = o.actor ?? ctx.actor ?? "system";
   if (conn) {
-    if (conn.connector !== def.key) refuse(ctx, "validation.bad_input", "That connection belongs to another connector.");
-    if (conn.state === "paused") refuse(ctx, "validation.precondition_failed", `The connection is paused${conn.paused_by ? ` by ${conn.paused_by}` : ""}: resume it first.`);
-    if (conn.state === "pending") refuse(ctx, "validation.precondition_failed", "The connection is still pending: finish connecting it first.");
-    if (conn.state === "needs_reconnect") refuse(ctx, "provider.auth_failed", "The app rejected the sign-in: reconnect the connection.");
-    if (conn.owner_kind === "person" && conn.owner_id !== actor) refuse(ctx, "permission.no_grant", "This connection belongs to someone else.");
+    if (conn.connector !== def.key)
+      refuse(ctx, "validation.bad_input", "That connection belongs to another connector.");
+    if (conn.state === "paused")
+      refuse(
+        ctx,
+        "validation.precondition_failed",
+        `The connection is paused${conn.paused_by ? ` by ${conn.paused_by}` : ""}: resume it first.`,
+      );
+    if (conn.state === "pending")
+      refuse(ctx, "validation.precondition_failed", "The connection is still pending: finish connecting it first.");
+    if (conn.state === "needs_reconnect")
+      refuse(ctx, "provider.auth_failed", "The app rejected the sign-in: reconnect the connection.");
+    if (conn.owner_kind === "person" && conn.owner_id !== actor)
+      refuse(ctx, "permission.no_grant", "This connection belongs to someone else.");
   }
-  if (secretsIn(a.url).size || secretsIn(a.query).size) refuse(ctx, "validation.bad_input", "A secret cannot be part of the address.");
+  if (secretsIn(a.url).size || secretsIn(a.query).size)
+    refuse(ctx, "validation.bad_input", "A secret cannot be part of the address.");
   // an access token that ends within a minute is refreshed before the call that would use it (calls for one connection share one refresh)
-  if (conn && def.auth.type === "oauth2" && o.persist !== false && oauthOf(deps).dueSoon(conn, def)) await oauthOf(deps).refresh(ctx, def, conn);
+  if (conn && def.auth.type === "oauth2" && o.persist !== false && oauthOf(deps).dueSoon(conn, def))
+    await oauthOf(deps).refresh(ctx, def, conn);
 
   // secrets, by name, at call time
   const needed = new Set<string>([...secretsIn(a.headers), ...secretsIn(a.body)]);
   if (def.auth.type !== "none" && def.auth.secret) needed.add(def.auth.secret);
   const values: Record<string, string> = {};
   for (const name of needed) {
-    if (!def.secrets.some((s) => s.name === name)) refuse(ctx, "validation.bad_input", `${def.key}.${actionName} reads ${name}, which the connector does not declare.`);
+    if (!def.secrets.some((s) => s.name === name))
+      refuse(
+        ctx,
+        "validation.bad_input",
+        `${def.key}.${actionName} reads ${name}, which the connector does not declare.`,
+      );
     let v = o.secrets?.[name];
     if (v === undefined && conn) {
       const handle = connectionSecrets(conn)[name];
       if (!handle) refuse(ctx, "validation.precondition_failed", `The connection has no Vault item for ${name}.`);
-      v = deps.resolveSecret ? await deps.resolveSecret(handle!, {connector:def.key,connectionId:conn.connection_id,slot:name}) : undefined;
+      v = deps.resolveSecret
+        ? await deps.resolveSecret(handle!, { connector: def.key, connectionId: conn.connection_id, slot: name })
+        : undefined;
       if (v === undefined) refuse(ctx, "validation.precondition_failed", `The Vault item for ${name} has no value.`);
     }
     if (v === undefined) refuse(ctx, "validation.precondition_failed", `No value for ${name}.`);
@@ -144,19 +302,39 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
   if (conn && deps.resolveSecret) {
     for (const [name, handle] of Object.entries(connectionSecrets(conn))) {
       if (name in values) continue;
-      try { const v = await deps.resolveSecret(handle, {connector:def.key,connectionId:conn.connection_id,slot:name}); if (v) everySecret.push(v); } catch { /* an unreadable item has nothing to scrub */ }
+      try {
+        const v = await deps.resolveSecret(handle, {
+          connector: def.key,
+          connectionId: conn.connection_id,
+          slot: name,
+        });
+        if (v) everySecret.push(v);
+      } catch {
+        /* an unreadable item has nothing to scrub */
+      }
     }
   }
   const scrub = scrubber(everySecret);
 
   // the request
   let input: unknown = o.input ?? {};
-  if (a.shape?.unflatten && typeof input === "object" && input !== null && typeof (input as Record<string, unknown>)["properties"] === "object") {
-    input = { ...(input as Record<string, unknown>), properties: unflatten((input as { properties: Record<string, unknown> }).properties) };
+  if (
+    a.shape?.unflatten &&
+    typeof input === "object" &&
+    input !== null &&
+    typeof (input as Record<string, unknown>)["properties"] === "object"
+  ) {
+    input = {
+      ...(input as Record<string, unknown>),
+      properties: unflatten((input as { properties: Record<string, unknown> }).properties),
+    };
   }
   const scope = { input, secret: values, connection: { id: conn?.connection_id ?? "con_test" } };
   // the next page of a list: a link is the whole address (still checked against the domains below), any other cursor is one query parameter
-  const after = a.shape?.cursor && typeof (input as Record<string, unknown>)["after"] === "string" ? String((input as Record<string, unknown>)["after"]) : undefined;
+  const after =
+    a.shape?.cursor && typeof (input as Record<string, unknown>)["after"] === "string"
+      ? String((input as Record<string, unknown>)["after"])
+      : undefined;
   const linked = a.shape?.cursor?.kind === "link" && after !== undefined;
   let method: string;
   let url: URL;
@@ -171,42 +349,90 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
     const since = (input as Record<string, unknown>)["since"];
     if (!linked && a.shape?.since && typeof since === "number" && Number.isFinite(since)) {
       const f = a.shape.since.format;
-      u.searchParams.set(a.shape.since.param, f === "epoch_ms" ? String(Math.floor(since)) : f === "epoch_s" ? String(Math.floor(since / 1000)) : new Date(since).toISOString());
+      u.searchParams.set(
+        a.shape.since.param,
+        f === "epoch_ms"
+          ? String(Math.floor(since))
+          : f === "epoch_s"
+            ? String(Math.floor(since / 1000))
+            : new Date(since).toISOString(),
+      );
     }
     const egress = checkEgress(u.toString(), def.domains);
-    if (!egress.ok) refuse(ctx, "permission.no_grant", `Egress refused: ${egress.reason}.`, { connector: def.key, action: actionName });
+    if (!egress.ok)
+      refuse(ctx, "permission.no_grant", `Egress refused: ${egress.reason}.`, {
+        connector: def.key,
+        action: actionName,
+      });
     url = (egress as { ok: true; url: URL }).url;
     headers = {};
-    if (def.auth.type === "api_key" && def.auth.secret) headers[def.auth.header ?? "Authorization"] = `${def.auth.prefix ?? ""}${values[def.auth.secret]}`;
-    else if ((def.auth.type === "bearer" || def.auth.type === "oauth2") && def.auth.secret) headers["Authorization"] = `Bearer ${values[def.auth.secret]}`;
+    if (def.auth.type === "api_key" && def.auth.secret)
+      headers[def.auth.header ?? "Authorization"] = `${def.auth.prefix ?? ""}${values[def.auth.secret]}`;
+    else if ((def.auth.type === "bearer" || def.auth.type === "oauth2") && def.auth.secret)
+      headers["Authorization"] = `Bearer ${values[def.auth.secret]}`;
     for (const [k, v] of Object.entries(a.headers ?? {})) headers[k] = fillString(v, scope);
     if (a.body !== undefined && method !== "GET") {
       body = JSON.stringify(fillValue(a.body, scope));
-      if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type")) headers["Content-Type"] = "application/json";
+      if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type"))
+        headers["Content-Type"] = "application/json";
     }
   } catch (e) {
     if ((e as { error?: unknown }).error) throw e;
-    return refuse(ctx, "validation.bad_input", scrub.text(`The request for ${actionName} could not be built: ${e instanceof Error ? e.message : String(e)}.`));
+    return refuse(
+      ctx,
+      "validation.bad_input",
+      scrub.text(`The request for ${actionName} could not be built: ${e instanceof Error ? e.message : String(e)}.`),
+    );
   }
 
-  if (o.dryRun) return { output: { request: scrub.value({ method, url: url.toString(), headers, ...(body !== undefined ? { body: JSON.parse(body) as unknown } : {}) }) }, dryRun: true };
+  if (o.dryRun)
+    return {
+      output: {
+        request: scrub.value({
+          method,
+          url: url.toString(),
+          headers,
+          ...(body !== undefined ? { body: JSON.parse(body) as unknown } : {}),
+        }),
+      },
+      dryRun: true,
+    };
 
-  if (conn && !takeToken(conn.connection_id, def.rate, nowOf(deps))) refuse(ctx, "rate_limit.exceeded", `The connection is at its rate limit (${def.rate!.rps} per second).`);
+  if (conn && !takeToken(conn.connection_id, def.rate, nowOf(deps)))
+    refuse(ctx, "rate_limit.exceeded", `The connection is at its rate limit (${def.rate!.rps} per second).`);
   const http = o.http ?? ctx.http;
   const started = nowOf(deps);
   const logRow = (status: number | null, error: string | null): void => {
     if (!persist) return;
-    deps.tx.run("INSERT INTO cn_log (at, connection_id, connector, action, method, host, path, status, ms, error, actor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      started, conn?.connection_id ?? null, def.key, actionName, method, url.hostname, url.pathname, status, nowOf(deps) - started, error === null ? null : scrub.text(error).slice(0, 300), actor);
+    deps.tx.run(
+      "INSERT INTO cn_log (at, connection_id, connector, action, method, host, path, status, ms, error, actor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      started,
+      conn?.connection_id ?? null,
+      def.key,
+      actionName,
+      method,
+      url.hostname,
+      url.pathname,
+      status,
+      nowOf(deps) - started,
+      error === null ? null : scrub.text(error).slice(0, 300),
+      actor,
+    );
   };
   let res: { status: number; text(): Promise<string>; link?: string };
   try {
     res = await http(url.toString(), { method, headers, ...(body !== undefined ? { body } : {}) });
   } catch (e) {
-    const changed=(e as {error?:{code?:string}})?.error?.code;
+    const changed = (e as { error?: { code?: string } })?.error?.code;
     // the host's own line (a key that may not go to this host, Vault access that changed) is what the person reads
-    if(changed==='permission.no_grant')return refuse(ctx,'permission.no_grant',(e as {error?:{message?:string}})?.error?.message||'Access changed before this connector request.');
-    if(changed==='validation.precondition_failed')return refuse(ctx,'validation.precondition_failed','The connection changed before this request. Try again.');
+    if (changed === "permission.no_grant")
+      return refuse(
+        ctx,
+        "permission.no_grant",
+        (e as { error?: { message?: string } })?.error?.message || "Access changed before this connector request.",
+      );
+    if (changed === "validation.precondition_failed")
+      return refuse(ctx, "validation.precondition_failed", "The connection changed before this request. Try again.");
     const msg = scrub.text(e instanceof Error ? e.message : String(e));
     logRow(null, msg);
     return refuse(ctx, "provider.network", `The app could not be reached: ${msg}`);
@@ -216,21 +442,49 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
   if (res.status === 401 || res.status === 403) {
     logRow(res.status, "rejected the sign-in");
     // an OAuth token the app rejects is refreshed once and the call repeated; only a refresh that fails (or a repeat that is rejected again) asks the person to reconnect
-    if (conn && persist && !o.refreshed && def.auth.type === "oauth2" && refreshSlot(def) && await oauthOf(deps).refresh(ctx, def, conn)) return executeAction(deps, ctx, def, actionName, { ...o, refreshed: true });
+    if (
+      conn &&
+      persist &&
+      !o.refreshed &&
+      def.auth.type === "oauth2" &&
+      refreshSlot(def) &&
+      (await oauthOf(deps).refresh(ctx, def, conn))
+    )
+      return executeAction(deps, ctx, def, actionName, { ...o, refreshed: true });
     if (conn && persist) await markReconnect(deps, ctx, conn);
     return refuse(ctx, "provider.auth_failed", "The app rejected the key or sign-in.", { status: res.status });
   }
-  if (res.status === 429) { logRow(res.status, "rate limited"); return refuse(ctx, "provider.rate_limited", "The app is rate limiting this connection.", { status: res.status }); }
-  if (res.status >= 500) { logRow(res.status, "server error"); return refuse(ctx, "provider.unavailable", `The app answered ${res.status}.`, { status: res.status }); }
+  if (res.status === 429) {
+    logRow(res.status, "rate limited");
+    return refuse(ctx, "provider.rate_limited", "The app is rate limiting this connection.", { status: res.status });
+  }
+  if (res.status >= 500) {
+    logRow(res.status, "server error");
+    return refuse(ctx, "provider.unavailable", `The app answered ${res.status}.`, { status: res.status });
+  }
   if (res.status >= 400) {
     logRow(res.status, "refused the request");
-    return refuse(ctx, "provider.bad_response", `The app refused the request (${res.status}).`, { status: res.status, body: scrub.text(text).slice(0, 200) });
+    return refuse(ctx, "provider.bad_response", `The app refused the request (${res.status}).`, {
+      status: res.status,
+      body: scrub.text(text).slice(0, 200),
+    });
   }
   let parsed: unknown = text;
-  try { parsed = text === "" ? null : (JSON.parse(text) as unknown); } catch { /* the output is the text */ }
+  try {
+    parsed = text === "" ? null : (JSON.parse(text) as unknown);
+  } catch {
+    /* the output is the text */
+  }
   let output: unknown;
   try {
-    output = a.shape?.items !== undefined ? shapeList(parsed, res.link, a.shape, after) : a.shape?.idAt !== undefined ? (shapeCreated(parsed, a.shape) ?? parsed) : a.output !== undefined ? (pointerGet(parsed, a.output) ?? null) : parsed;
+    output =
+      a.shape?.items !== undefined
+        ? shapeList(parsed, res.link, a.shape, after)
+        : a.shape?.idAt !== undefined
+          ? (shapeCreated(parsed, a.shape) ?? parsed)
+          : a.output !== undefined
+            ? (pointerGet(parsed, a.output) ?? null)
+            : parsed;
   } catch (e) {
     if (!(e instanceof ShapeError)) throw e;
     logRow(res.status, e.message);
@@ -246,7 +500,9 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
 /** Static checks and recorded-response cases of a definition. Nothing is sent anywhere. */
 export async function runCases(deps: ConnectorsDeps, ctx: ConnectorsCtx, def: ConnectorDef): Promise<TestResult> {
   const cases: TestResult["cases"] = [];
-  const add = (name: string, ok: boolean, message?: string): void => { cases.push({ name, ok, ...(ok || !message ? {} : { message }) }); };
+  const add = (name: string, ok: boolean, message?: string): void => {
+    cases.push({ name, ok, ...(ok || !message ? {} : { message }) });
+  };
 
   // static
   const declared = new Set(def.secrets.map((s) => s.name));
@@ -263,37 +519,82 @@ export async function runCases(deps: ConnectorsDeps, ctx: ConnectorsCtx, def: Co
   }
   add("egress: every action stays inside the declared domains", bad.length === 0, bad.join("; "));
   const undeclared = [...used].filter((n) => !declared.has(n));
-  add("secrets: every secret an action reads is declared", undeclared.length === 0, `undeclared: ${undeclared.join(", ")}`);
-  add("health: the health action exists", def.health === undefined || def.actions.some((a) => a.name === def.health), `no action ${def.health}`);
+  add(
+    "secrets: every secret an action reads is declared",
+    undeclared.length === 0,
+    `undeclared: ${undeclared.join(", ")}`,
+  );
+  add(
+    "health: the health action exists",
+    def.health === undefined || def.actions.some((a) => a.name === def.health),
+    `no action ${def.health}`,
+  );
   if (def.auth.type === "oauth2") {
-    const eg = [def.auth.authUrl, def.auth.tokenUrl].map((u) => (u ? checkEgress(u, def.domains) : { ok: false as const, reason: "missing" }));
-    add("auth: sign-in and token addresses are declared domains", eg.every((e) => e.ok), eg.filter((e) => !e.ok).map((e) => (e as { reason: string }).reason).join("; "));
+    const eg = [def.auth.authUrl, def.auth.tokenUrl].map((u) =>
+      u ? checkEgress(u, def.domains) : { ok: false as const, reason: "missing" },
+    );
+    add(
+      "auth: sign-in and token addresses are declared domains",
+      eg.every((e) => e.ok),
+      eg
+        .filter((e) => !e.ok)
+        .map((e) => (e as { reason: string }).reason)
+        .join("; "),
+    );
   }
 
   // recorded responses
   const synthetic = Object.fromEntries(def.secrets.map((s) => [s.name, `test-secret-${s.name}-0000`]));
   for (const t of def.tests ?? []) {
     let requests = 0;
-    const fill = (v: unknown): unknown => fillValue(v, { input: t.input ?? {}, secret: synthetic, connection: { id: "con_test" } });
+    const fill = (v: unknown): unknown =>
+      fillValue(v, { input: t.input ?? {}, secret: synthetic, connection: { id: "con_test" } });
     const http: Http = async (url, init) => {
       requests++;
       const method = (init?.method ?? "GET").toUpperCase();
       const bare = url.split("?")[0]!;
-      const hit = t.responses.find((r) => (r.method ?? "GET").toUpperCase() === method && (r.url === url || r.url === bare));
+      const hit = t.responses.find(
+        (r) => (r.method ?? "GET").toUpperCase() === method && (r.url === url || r.url === bare),
+      );
       if (!hit) throw new Error(`no recorded response for ${method} ${bare}`);
-      const text = hit.body === undefined ? "" : typeof hit.body === "string" ? (fill(hit.body) as string) : JSON.stringify(fill(hit.body));
+      const text =
+        hit.body === undefined
+          ? ""
+          : typeof hit.body === "string"
+            ? (fill(hit.body) as string)
+            : JSON.stringify(fill(hit.body));
       return { status: hit.status ?? 200, text: async () => text, ...(hit.link ? { link: hit.link } : {}) };
     };
     try {
-      const out = await executeAction(deps, ctx, def, t.action, { input: t.input ?? {}, secrets: synthetic, http, persist: false, actor: "harness" });
-      if (t.expect?.error) { add(t.name, false, `expected the error ${t.expect.error}, got an output`); continue; }
-      if (t.expect?.output !== undefined && canonical(out.output) !== canonical(t.expect.output)) { add(t.name, false, `output differs: got ${JSON.stringify(out.output).slice(0, 200)}`); continue; }
-      if (t.expect?.requests !== undefined && requests !== t.expect.requests) { add(t.name, false, `expected ${t.expect.requests} requests, made ${requests}`); continue; }
+      const out = await executeAction(deps, ctx, def, t.action, {
+        input: t.input ?? {},
+        secrets: synthetic,
+        http,
+        persist: false,
+        actor: "harness",
+      });
+      if (t.expect?.error) {
+        add(t.name, false, `expected the error ${t.expect.error}, got an output`);
+        continue;
+      }
+      if (t.expect?.output !== undefined && canonical(out.output) !== canonical(t.expect.output)) {
+        add(t.name, false, `output differs: got ${JSON.stringify(out.output).slice(0, 200)}`);
+        continue;
+      }
+      if (t.expect?.requests !== undefined && requests !== t.expect.requests) {
+        add(t.name, false, `expected ${t.expect.requests} requests, made ${requests}`);
+        continue;
+      }
       add(t.name, true);
     } catch (e) {
       const code = (e as { error?: { code?: string; message?: string } }).error?.code;
       if (t.expect?.error && code === t.expect.error) add(t.name, true);
-      else add(t.name, false, `${code ?? "error"}: ${(e as { error?: { message?: string } }).error?.message ?? (e instanceof Error ? e.message : String(e))}`);
+      else
+        add(
+          t.name,
+          false,
+          `${code ?? "error"}: ${(e as { error?: { message?: string } }).error?.message ?? (e instanceof Error ? e.message : String(e))}`,
+        );
     }
   }
   const failed = cases.filter((c) => !c.ok).length;
@@ -309,7 +610,11 @@ function lineDiff(a: unknown, b: unknown): { added: number; removed: number } {
   const count = new Map<string, number>();
   for (const l of x) count.set(l, (count.get(l) ?? 0) + 1);
   let added = 0;
-  for (const l of y) { const n = count.get(l) ?? 0; if (n > 0) count.set(l, n - 1); else added++; }
+  for (const l of y) {
+    const n = count.get(l) ?? 0;
+    if (n > 0) count.set(l, n - 1);
+    else added++;
+  }
   let removed = 0;
   for (const n of count.values()) removed += n;
   return { added, removed };
@@ -326,7 +631,10 @@ function splitFiles(d: ConnectorDef | undefined): Map<string, unknown> {
   return out;
 }
 
-export function diffDefs(live: ConnectorDef | undefined, draft: ConnectorDef): { files: { path: string; added: number; removed: number }[]; breaking: boolean } {
+export function diffDefs(
+  live: ConnectorDef | undefined,
+  draft: ConnectorDef,
+): { files: { path: string; added: number; removed: number }[]; breaking: boolean } {
   const a = splitFiles(live);
   const b = splitFiles(draft);
   const files: { path: string; added: number; removed: number }[] = [];
@@ -335,7 +643,11 @@ export function diffDefs(live: ConnectorDef | undefined, draft: ConnectorDef): {
     const y = b.get(path);
     if (x !== undefined && y !== undefined && canonical(x) === canonical(y)) continue;
     const d = lineDiff(x ?? null, y ?? null);
-    files.push({ path, added: x === undefined ? lines(y).length : d.added, removed: y === undefined ? lines(x).length : d.removed });
+    files.push({
+      path,
+      added: x === undefined ? lines(y).length : d.added,
+      removed: y === undefined ? lines(x).length : d.removed,
+    });
   }
   let breaking = false;
   if (live) {
@@ -344,7 +656,8 @@ export function diffDefs(live: ConnectorDef | undefined, draft: ConnectorDef): {
       if (!next || (act.method ?? "GET") !== (next.method ?? "GET") || act.url !== next.url) breaking = true;
     }
     if (live.secrets.some((s) => !draft.secrets.some((n) => n.name === s.name))) breaking = true;
-    if (canonical(live.auth) !== canonical(draft.auth) || live.mode !== draft.mode || live.scope !== draft.scope) breaking = true;
+    if (canonical(live.auth) !== canonical(draft.auth) || live.mode !== draft.mode || live.scope !== draft.scope)
+      breaking = true;
     if (live.domains.some((dom) => !draft.domains.includes(dom))) breaking = true;
   }
   return { files, breaking };
@@ -358,51 +671,124 @@ const bump = (v: string, breaking: boolean): string => {
 
 // ---- handlers ----
 
-interface ConnectorDb { key: string; title: string; mode: Mode; scope: Scope; builtin: number; version: string; state: ConnectorState; def: string; created_at: number; updated_at: number }
-interface DraftDb { draft_id: string; key: string; def: string; note: string | null; created_by: string | null; created_at: number; updated_at: number }
+interface ConnectorDb {
+  key: string;
+  title: string;
+  mode: Mode;
+  scope: Scope;
+  builtin: number;
+  version: string;
+  state: ConnectorState;
+  def: string;
+  created_at: number;
+  updated_at: number;
+}
+interface DraftDb {
+  draft_id: string;
+  key: string;
+  def: string;
+  note: string | null;
+  created_by: string | null;
+  created_at: number;
+  updated_at: number;
+}
 
 export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
   const { tx } = deps;
-  const ready = (): void => { ensureTables(tx); seedBuiltins(deps); };
+  const ready = (): void => {
+    ensureTables(tx);
+    seedBuiltins(deps);
+  };
   const need = (ctx: ConnectorsCtx, key: string): ConnectorDb => {
     ready();
-    return tx.get<ConnectorDb>("SELECT * FROM cn_connectors WHERE key = ?", key) ?? refuse(ctx, "validation.not_found", `There is no connector ${key}.`);
+    return (
+      tx.get<ConnectorDb>("SELECT * FROM cn_connectors WHERE key = ?", key) ??
+      refuse(ctx, "validation.not_found", `There is no connector ${key}.`)
+    );
   };
   const rowOf = (r: ConnectorDb): ConnectorRow => {
     const def = JSON.parse(r.def) as ConnectorDef;
     return {
-      key: r.key, title: r.title, mode: r.mode, scope: r.scope, builtin: r.builtin === 1, version: r.version, state: r.state, domains: def.domains, secrets: def.secrets,
+      key: r.key,
+      title: r.title,
+      mode: r.mode,
+      scope: r.scope,
+      builtin: r.builtin === 1,
+      version: r.version,
+      state: r.state,
+      domains: def.domains,
+      secrets: def.secrets,
       connections: tx.get<{ n: number }>("SELECT count(*) AS n FROM cn_connections WHERE connector = ?", r.key)?.n ?? 0,
-      syncedTypes: def.syncedTypes ?? [], actions: def.actions.map((a) => a.name), sources: def.sources ?? [],
+      syncedTypes: def.syncedTypes ?? [],
+      actions: def.actions.map((a) => a.name),
+      sources: def.sources ?? [],
       ...(sourceOf(r.key) ? { sourceFolderId: sourceOf(r.key)! } : {}),
       ...(objectsOf(def) ? { objects: objectsOf(def)! } : {}),
     };
   };
-  const sourceOf = (key: string): string | undefined => tx.get<{ folder_id: string }>("SELECT folder_id FROM cn_source_folders WHERE key = ?", key)?.folder_id;
-  const draftOf = async (ctx: ConnectorsCtx, key: string, draftId?: string): Promise<{ row: DraftDb; def: ConnectorDef }> => {
-    let row = draftId !== undefined
-      ? tx.get<DraftDb>("SELECT * FROM cn_drafts WHERE draft_id = ? AND key = ?", draftId, key)
-      : tx.get<DraftDb>("SELECT * FROM cn_drafts WHERE key = ? ORDER BY created_at DESC, rowid DESC LIMIT 1", key);
+  const sourceOf = (key: string): string | undefined =>
+    tx.get<{ folder_id: string }>("SELECT folder_id FROM cn_source_folders WHERE key = ?", key)?.folder_id;
+  const draftOf = async (
+    ctx: ConnectorsCtx,
+    key: string,
+    draftId?: string,
+  ): Promise<{ row: DraftDb; def: ConnectorDef }> => {
+    let row =
+      draftId !== undefined
+        ? tx.get<DraftDb>("SELECT * FROM cn_drafts WHERE draft_id = ? AND key = ?", draftId, key)
+        : tx.get<DraftDb>("SELECT * FROM cn_drafts WHERE key = ? ORDER BY created_at DESC, rowid DESC LIMIT 1", key);
     // A connector with an editable source never needs a Build just to be tested or published again: its draft is whatever the source says now.
     if (!row && draftId === undefined && sourceOf(key) && deps.loadFolderDef) {
-      const at = nowOf(deps), id = mintShort("cdr", at), live = tx.get<{ def: string }>("SELECT def FROM cn_connectors WHERE key = ?", key);
-      tx.run("INSERT INTO cn_drafts (draft_id, key, def, note, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", id, key, live?.def ?? "{}", null, ctx.actor ?? null, at, at);
+      const at = nowOf(deps),
+        id = mintShort("cdr", at),
+        live = tx.get<{ def: string }>("SELECT def FROM cn_connectors WHERE key = ?", key);
+      tx.run(
+        "INSERT INTO cn_drafts (draft_id, key, def, note, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        id,
+        key,
+        live?.def ?? "{}",
+        null,
+        ctx.actor ?? null,
+        at,
+        at,
+      );
       row = tx.get<DraftDb>("SELECT * FROM cn_drafts WHERE draft_id = ?", id);
     }
-    if (!row) return refuse(ctx, "validation.not_found", draftId ? `There is no draft ${draftId} of ${key}.` : `${key} has no draft: build one first.`);
+    if (!row)
+      return refuse(
+        ctx,
+        "validation.not_found",
+        draftId ? `There is no draft ${draftId} of ${key}.` : `${key} has no draft: build one first.`,
+      );
     let def = JSON.parse(row.def) as ConnectorDef;
     const fromFolder = deps.loadFolderDef ? await deps.loadFolderDef(key) : undefined;
     if (fromFolder) {
       def = { ...fromFolder, key };
-      tx.run("UPDATE cn_drafts SET def = ?, updated_at = ? WHERE draft_id = ?", JSON.stringify(def), nowOf(deps), row.draft_id);
+      tx.run(
+        "UPDATE cn_drafts SET def = ?, updated_at = ? WHERE draft_id = ?",
+        JSON.stringify(def),
+        nowOf(deps),
+        row.draft_id,
+      );
     }
     return { row, def };
   };
   /** Create the canonical source and register its mapping before the first file is written; a failure leaves no mapping behind. */
   const writeSource = async (ctx: ConnectorsCtx, key: string, def: ConnectorDef): Promise<string> => {
     try {
-      return await deps.writeSource!(key, folderFiles(def), (folderId) => { tx.run("INSERT INTO cn_source_folders (key, folder_id, created_by, created_at) VALUES (?, ?, ?, ?)", key, folderId, ctx.actor ?? "system", nowOf(deps)); });
-    } catch (e) { tx.run("DELETE FROM cn_source_folders WHERE key = ?", key); throw e; }
+      return await deps.writeSource!(key, folderFiles(def), (folderId) => {
+        tx.run(
+          "INSERT INTO cn_source_folders (key, folder_id, created_by, created_at) VALUES (?, ?, ?, ?)",
+          key,
+          folderId,
+          ctx.actor ?? "system",
+          nowOf(deps),
+        );
+      });
+    } catch (e) {
+      tx.run("DELETE FROM cn_source_folders WHERE key = ?", key);
+      throw e;
+    }
   };
   const folderFiles = (def: ConnectorDef): { path: string; content: string }[] => {
     const { actions, tests } = def;
@@ -410,67 +796,171 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       { path: "connector.toml", content: generateMain(def) },
       ...actions.map((a) => ({ path: `actions/${a.name}.json`, content: JSON.stringify(a, null, 2) })),
       ...(tests ?? []).map((t) => ({ path: `tests/${t.name}.json`, content: JSON.stringify(t, null, 2) })),
-      { path: "README.md", content: `# ${def.title}\n\nConnector ${def.key} (${def.mode}). Domains: ${def.domains.join(", ") || "none yet"}.\n` },
+      {
+        path: "README.md",
+        content: `# ${def.title}\n\nConnector ${def.key} (${def.mode}). Domains: ${def.domains.join(", ") || "none yet"}.\n`,
+      },
     ];
   };
 
   return {
     "connectors.list": async (_ctx, input) => {
       ready();
-      const rows = tx.all<ConnectorDb>(`SELECT * FROM cn_connectors ${input.state !== undefined ? "WHERE state = ?" : ""} ORDER BY builtin DESC, key`, ...(input.state !== undefined ? [input.state] : [])).map(rowOf);
+      const rows = tx
+        .all<ConnectorDb>(
+          `SELECT * FROM cn_connectors ${input.state !== undefined ? "WHERE state = ?" : ""} ORDER BY builtin DESC, key`,
+          ...(input.state !== undefined ? [input.state] : []),
+        )
+        .map(rowOf);
       const { start, limit } = PAGE(input);
-      return { connectors: rows.slice(start, start + limit), ...(start + limit < rows.length ? { next: String(start + limit) } : {}), total: rows.length };
+      return {
+        connectors: rows.slice(start, start + limit),
+        ...(start + limit < rows.length ? { next: String(start + limit) } : {}),
+        total: rows.length,
+      };
     },
 
     "connectors.get": async (ctx, input) => ({ connector: rowOf(need(ctx, input.key)) }),
 
     "connectors.init": async (ctx, input) => {
       ready();
-      if (!KEY.test(input.key)) refuse(ctx, "validation.bad_input", `${input.key} is not a connector key: lowercase letters, digits, dashes and underscores.`);
-      if (!MODES.includes(input.mode)) refuse(ctx, "validation.bad_input", `${String(input.mode)} is not a connector mode.`);
+      if (!KEY.test(input.key))
+        refuse(
+          ctx,
+          "validation.bad_input",
+          `${input.key} is not a connector key: lowercase letters, digits, dashes and underscores.`,
+        );
+      if (!MODES.includes(input.mode))
+        refuse(ctx, "validation.bad_input", `${String(input.mode)} is not a connector mode.`);
       if (!input.title.trim()) refuse(ctx, "validation.bad_input", "A connector needs a title.");
-      if (tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = ?", input.key)) refuse(ctx, "validation.duplicate", `There is already a connector ${input.key}.`);
+      if (tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = ?", input.key))
+        refuse(ctx, "validation.duplicate", `There is already a connector ${input.key}.`);
       const now = nowOf(deps);
       const def: ConnectorDef = {
-        key: input.key, title: input.title, mode: input.mode, scope: input.mode === "webhook_only" || input.mode === "api" ? "space" : "person", version: "0.0.0",
-        auth: { type: input.mode === "webhook_only" ? "none" : "api_key", ...(input.mode === "webhook_only" ? {} : { secret: `${input.title.replace(/[^A-Za-z0-9]+/g, "_")}_Key` }) },
-        domains: [], secrets: input.mode === "webhook_only" ? [] : [{ name: `${input.title.replace(/[^A-Za-z0-9]+/g, "_")}_Key`, description: `API key for ${input.title}` }], actions: [], tests: [],
+        key: input.key,
+        title: input.title,
+        mode: input.mode,
+        scope: input.mode === "webhook_only" || input.mode === "api" ? "space" : "person",
+        version: "0.0.0",
+        auth: {
+          type: input.mode === "webhook_only" ? "none" : "api_key",
+          ...(input.mode === "webhook_only" ? {} : { secret: `${input.title.replace(/[^A-Za-z0-9]+/g, "_")}_Key` }),
+        },
+        domains: [],
+        secrets:
+          input.mode === "webhook_only"
+            ? []
+            : [
+                {
+                  name: `${input.title.replace(/[^A-Za-z0-9]+/g, "_")}_Key`,
+                  description: `API key for ${input.title}`,
+                },
+              ],
+        actions: [],
+        tests: [],
       };
       // source: false keeps the draft in the module (an agent defines it with connectors.define); the default writes the editable folder in Files
       const withSource = input.source !== false;
-      if (withSource && !deps.writeSource) refuse(ctx, "internal.unavailable", "Files is not available to write the connector source.");
+      if (withSource && !deps.writeSource)
+        refuse(ctx, "internal.unavailable", "Files is not available to write the connector source.");
       const folderId = withSource ? await writeSource(ctx, input.key, def) : undefined;
-      tx.run("INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, 0, '0.0.0', 'draft', ?, ?, ?)", input.key, input.title, def.mode, def.scope, JSON.stringify(def), now, now);
+      tx.run(
+        "INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, 0, '0.0.0', 'draft', ?, ?, ?)",
+        input.key,
+        input.title,
+        def.mode,
+        def.scope,
+        JSON.stringify(def),
+        now,
+        now,
+      );
       const draftId = mintShort("cdr", now);
-      tx.run("INSERT INTO cn_drafts (draft_id, key, def, note, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", draftId, input.key, JSON.stringify(def), input.docsUrl ?? null, ctx.actor ?? null, now, now);
+      tx.run(
+        "INSERT INTO cn_drafts (draft_id, key, def, note, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        draftId,
+        input.key,
+        JSON.stringify(def),
+        input.docsUrl ?? null,
+        ctx.actor ?? null,
+        now,
+        now,
+      );
       ctx.emit("connector.created", `connector/${input.key}`, { key: input.key });
       return { key: input.key, ...(folderId !== undefined ? { folderId } : {}) };
     },
 
     "connectors.define": async (ctx, input) => {
       const c = need(ctx, input.key);
-      if (c.builtin === 1) refuse(ctx, "validation.precondition_failed", `${c.key} is built in: it changes with a release.`);
-      if (sourceOf(c.key)) refuse(ctx, "validation.precondition_failed", `${c.key} is edited in its Files folder. Change the files there.`);
+      if (c.builtin === 1)
+        refuse(ctx, "validation.precondition_failed", `${c.key} is built in: it changes with a release.`);
+      if (sourceOf(c.key))
+        refuse(
+          ctx,
+          "validation.precondition_failed",
+          `${c.key} is edited in its Files folder. Change the files there.`,
+        );
       const live = JSON.parse(c.def) as ConnectorDef;
       const slot = input.auth.secret ?? input.secrets?.[0]?.name;
-      const secrets = input.auth.type === "none" ? [] : (input.secrets && input.secrets.length > 0 ? input.secrets : [{ name: slot ?? "Key", description: `API key for ${input.title ?? live.title}` }]);
+      const secrets =
+        input.auth.type === "none"
+          ? []
+          : input.secrets && input.secrets.length > 0
+            ? input.secrets
+            : [{ name: slot ?? "Key", description: `API key for ${input.title ?? live.title}` }];
       const main: Record<string, unknown> = {
-        title: input.title ?? live.title, mode: live.mode, scope: live.scope, domains: input.domains,
-        auth: { type: input.auth.type, ...(input.auth.type === "none" ? {} : { secret: input.auth.secret ?? secrets[0]!.name }), ...(input.auth.header ? { header: input.auth.header } : {}), ...(input.auth.prefix !== undefined ? { prefix: input.auth.prefix } : {}) },
+        title: input.title ?? live.title,
+        mode: live.mode,
+        scope: live.scope,
+        domains: input.domains,
+        auth: {
+          type: input.auth.type,
+          ...(input.auth.type === "none" ? {} : { secret: input.auth.secret ?? secrets[0]!.name }),
+          ...(input.auth.header ? { header: input.auth.header } : {}),
+          ...(input.auth.prefix !== undefined ? { prefix: input.auth.prefix } : {}),
+        },
         secrets,
       };
-      const docs = input.actions.map((a) => ({ path: `actions/${a.name}.json`, doc: { ...a, method: (a.method ?? "GET").toUpperCase(), ...(a.write === undefined && (a.method ?? "GET").toUpperCase() !== "GET" ? { write: true } : {}) } }));
+      const docs = input.actions.map((a) => ({
+        path: `actions/${a.name}.json`,
+        doc: {
+          ...a,
+          method: (a.method ?? "GET").toUpperCase(),
+          ...(a.write === undefined && (a.method ?? "GET").toUpperCase() !== "GET" ? { write: true } : {}),
+        },
+      }));
       const def = buildDef(ctx, c.key, main, docs, []);
       // an action that is not a GET changes something in the app; it must say so, so a dry run never sends it and the Gate holds it
-      for (const a of def.actions) if ((a.method ?? "GET") !== "GET" && a.write !== true) refuse(ctx, "validation.bad_input", `${a.name} is a ${a.method}: mark it write.`);
-      for (const a of def.actions) if (a.url && !checkEgress(a.url, def.domains).ok) refuse(ctx, "validation.bad_input", `${a.name} reaches a host that is not in domains.`);
+      for (const a of def.actions)
+        if ((a.method ?? "GET") !== "GET" && a.write !== true)
+          refuse(ctx, "validation.bad_input", `${a.name} is a ${a.method}: mark it write.`);
+      for (const a of def.actions)
+        if (a.url && !checkEgress(a.url, def.domains).ok)
+          refuse(ctx, "validation.bad_input", `${a.name} reaches a host that is not in domains.`);
       const now = nowOf(deps);
-      let row = tx.get<DraftDb>("SELECT * FROM cn_drafts WHERE key = ? ORDER BY created_at DESC, rowid DESC LIMIT 1", c.key);
+      let row = tx.get<DraftDb>(
+        "SELECT * FROM cn_drafts WHERE key = ? ORDER BY created_at DESC, rowid DESC LIMIT 1",
+        c.key,
+      );
       if (!row) {
         const id = mintShort("cdr", now);
-        tx.run("INSERT INTO cn_drafts (draft_id, key, def, note, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", id, c.key, JSON.stringify(def), null, ctx.actor ?? null, now, now);
+        tx.run(
+          "INSERT INTO cn_drafts (draft_id, key, def, note, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          id,
+          c.key,
+          JSON.stringify(def),
+          null,
+          ctx.actor ?? null,
+          now,
+          now,
+        );
         row = tx.get<DraftDb>("SELECT * FROM cn_drafts WHERE draft_id = ?", id)!;
-      } else tx.run("UPDATE cn_drafts SET def = ?, updated_at = ? WHERE draft_id = ?", JSON.stringify(def), now, row.draft_id);
+      } else
+        tx.run(
+          "UPDATE cn_drafts SET def = ?, updated_at = ? WHERE draft_id = ?",
+          JSON.stringify(def),
+          now,
+          row.draft_id,
+        );
       ctx.emit("connector.built", `connector/${c.key}`, { key: c.key, draftId: row.draft_id });
       return { key: c.key, draftId: row.draft_id, actions: def.actions.map((a) => a.name), domains: def.domains };
     },
@@ -482,15 +972,32 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       const base = (await draftOf(ctx, c.key).catch(() => undefined))?.def ?? (JSON.parse(c.def) as ConnectorDef);
       // A connector made before sources were canonical has no mapped folder. An explicit Build writes one from its stored definition; a private export is never searched for or moved.
       if (!c.builtin && !sourceOf(c.key) && deps.writeSource) await writeSource(ctx, c.key, base);
-      tx.run("INSERT INTO cn_drafts (draft_id, key, def, note, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", draftId, c.key, JSON.stringify(base), [input.docsUrl, input.notes].filter(Boolean).join("\n") || null, ctx.actor ?? null, now, now);
-      const started = (await ctx.call("runs.start", { kind: "connector_build", owner: ctx.actor ?? "system", idempotencyKey: `connector_build:${c.key}:${draftId}`, name: `Build the ${c.title} connector` })) as { runId: string };
+      tx.run(
+        "INSERT INTO cn_drafts (draft_id, key, def, note, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        draftId,
+        c.key,
+        JSON.stringify(base),
+        [input.docsUrl, input.notes].filter(Boolean).join("\n") || null,
+        ctx.actor ?? null,
+        now,
+        now,
+      );
+      const started = (await ctx.call("runs.start", {
+        kind: "connector_build",
+        owner: ctx.actor ?? "system",
+        idempotencyKey: `connector_build:${c.key}:${draftId}`,
+        name: `Build the ${c.title} connector`,
+      })) as { runId: string };
       ctx.emit("connector.built", `connector/${c.key}`, { key: c.key, draftId });
       return { runId: started.runId, draftId };
     },
 
     "connectors.test": async (ctx, input) => {
       const c = need(ctx, input.key);
-      const useDraft = input.draftId !== undefined || sourceOf(c.key) !== undefined || (c.state === "draft" && tx.get("SELECT 1 AS x FROM cn_drafts WHERE key = ?", c.key) !== undefined);
+      const useDraft =
+        input.draftId !== undefined ||
+        sourceOf(c.key) !== undefined ||
+        (c.state === "draft" && tx.get("SELECT 1 AS x FROM cn_drafts WHERE key = ?", c.key) !== undefined);
       const def = useDraft ? (await draftOf(ctx, c.key, input.draftId)).def : (JSON.parse(c.def) as ConnectorDef);
       return { result: await runCases(deps, ctx, def) };
     },
@@ -500,9 +1007,17 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       const def = JSON.parse(c.def) as ConnectorDef;
       const action = def.actions.find((a) => a.name === input.action);
       if (!action) return refuse(ctx, "validation.bad_input", `${c.key} has no action ${input.action}.`);
-      if (action.write === true || (action.method ?? "GET") !== "GET") return refuse(ctx, "validation.bad_input", `${input.action} writes to the app: it goes through connectors.run.`);
-      const conn = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", input.connectionId) ?? refuse(ctx, "validation.not_found", "There is no such connection.");
-      if (conn.owner_kind === "person" && conn.owner_id !== (ctx.actor ?? "system")) refuse(ctx, "validation.not_found", "There is no such connection.");
+      if (action.write === true || (action.method ?? "GET") !== "GET")
+        return refuse(
+          ctx,
+          "validation.bad_input",
+          `${input.action} writes to the app: it goes through connectors.run.`,
+        );
+      const conn =
+        tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", input.connectionId) ??
+        refuse(ctx, "validation.not_found", "There is no such connection.");
+      if (conn.owner_kind === "person" && conn.owner_id !== (ctx.actor ?? "system"))
+        refuse(ctx, "validation.not_found", "There is no such connection.");
       const out = await executeAction(deps, ctx, def, input.action, { connection: conn, input: input.input });
       tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", nowOf(deps), conn.connection_id);
       return { output: out.output };
@@ -510,23 +1025,44 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
 
     "connectors.run": async (ctx, input) => {
       const c = need(ctx, input.key);
-      if (c.state === "draft") refuse(ctx, "validation.precondition_failed", `${c.key} is a draft: publish it before running it against the app.`);
-      const conn = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", input.connectionId) ?? refuse(ctx, "validation.not_found", "There is no such connection.");
-      if (conn.owner_kind === "person" && conn.owner_id !== (ctx.actor ?? "system")) refuse(ctx, "validation.not_found", "There is no such connection.");
-      const out = await executeAction(deps, ctx, JSON.parse(c.def) as ConnectorDef, input.action, { connection: conn, input: input.input, dryRun: input.dryRun === true });
-      if (!out.dryRun) tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", nowOf(deps), conn.connection_id);
+      if (c.state === "draft")
+        refuse(
+          ctx,
+          "validation.precondition_failed",
+          `${c.key} is a draft: publish it before running it against the app.`,
+        );
+      const conn =
+        tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", input.connectionId) ??
+        refuse(ctx, "validation.not_found", "There is no such connection.");
+      if (conn.owner_kind === "person" && conn.owner_id !== (ctx.actor ?? "system"))
+        refuse(ctx, "validation.not_found", "There is no such connection.");
+      const out = await executeAction(deps, ctx, JSON.parse(c.def) as ConnectorDef, input.action, {
+        connection: conn,
+        input: input.input,
+        dryRun: input.dryRun === true,
+      });
+      if (!out.dryRun)
+        tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", nowOf(deps), conn.connection_id);
       return { output: out.output, dryRun: out.dryRun };
     },
 
     "connectors.diff": async (ctx, input) => {
       const c = need(ctx, input.key);
       const { def } = await draftOf(ctx, c.key, input.draftId);
-      return diffDefs(c.state === "draft" && c.version === "0.0.0" ? undefined : (JSON.parse(c.def) as ConnectorDef), def);
+      return diffDefs(
+        c.state === "draft" && c.version === "0.0.0" ? undefined : (JSON.parse(c.def) as ConnectorDef),
+        def,
+      );
     },
 
     "connectors.publish": async (ctx, input) => {
       const c = need(ctx, input.key);
-      if (c.builtin === 1) refuse(ctx, "validation.precondition_failed", `${c.key} is built in: it changes with a release, not a publish.`);
+      if (c.builtin === 1)
+        refuse(
+          ctx,
+          "validation.precondition_failed",
+          `${c.key} is built in: it changes with a release, not a publish.`,
+        );
       const { row, def } = await draftOf(ctx, c.key, input.draftId);
       const result = await runCases(deps, ctx, def);
       if (result.failed === 0 && sourceOf(c.key)) {
@@ -534,7 +1070,12 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         // if either changed the last good version stays live.
         await deps.assertCanPublish?.(c.key);
         const again = deps.loadFolderDef ? await deps.loadFolderDef(c.key) : undefined;
-        if (again && canonical({ ...again, key: c.key }) !== canonical({ ...def, key: c.key })) refuse(ctx, "validation.precondition_failed", "The source changed while it was being tested. Nothing was published; test it again.");
+        if (again && canonical({ ...again, key: c.key }) !== canonical({ ...def, key: c.key }))
+          refuse(
+            ctx,
+            "validation.precondition_failed",
+            "The source changed while it was being tested. Nothing was published; test it again.",
+          );
       }
       if (result.failed > 0) {
         ctx.emit("connector.publish_failed", `connector/${c.key}`, { key: c.key, failed: result.failed });
@@ -544,8 +1085,26 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       const version = bump(c.version, live ? diffDefs(live, def).breaking : false);
       const now = nowOf(deps);
       const next: ConnectorDef = { ...clone(def), key: c.key, version };
-      tx.run("INSERT INTO cn_versions (key, version, def, at, by, note, tests) VALUES (?, ?, ?, ?, ?, ?, ?)", c.key, version, JSON.stringify(next), now, ctx.actor ?? "system", input.note ?? null, result.passed);
-      tx.run("UPDATE cn_connectors SET title = ?, mode = ?, scope = ?, version = ?, state = 'live', def = ?, updated_at = ? WHERE key = ?", next.title, next.mode, next.scope, version, JSON.stringify(next), now, c.key);
+      tx.run(
+        "INSERT INTO cn_versions (key, version, def, at, by, note, tests) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        c.key,
+        version,
+        JSON.stringify(next),
+        now,
+        ctx.actor ?? "system",
+        input.note ?? null,
+        result.passed,
+      );
+      tx.run(
+        "UPDATE cn_connectors SET title = ?, mode = ?, scope = ?, version = ?, state = 'live', def = ?, updated_at = ? WHERE key = ?",
+        next.title,
+        next.mode,
+        next.scope,
+        version,
+        JSON.stringify(next),
+        now,
+        c.key,
+      );
       tx.run("DELETE FROM cn_drafts WHERE draft_id = ?", row.draft_id);
       ctx.emit("connector.published", `connector/${c.key}`, { key: c.key, version, tests: result.passed });
       return { published: true, version, result };
@@ -553,22 +1112,48 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
 
     "connectors.versions": async (ctx, input) => {
       need(ctx, input.key);
-      const rows = tx.all<{ version: string; at: number; by: string; note: string | null; tests: number }>("SELECT version, at, by, note, tests FROM cn_versions WHERE key = ? ORDER BY at DESC, rowid DESC", input.key);
-      return { versions: rows.map((r) => ({ version: r.version, at: r.at, by: r.by, ...(r.note !== null ? { note: r.note } : {}), tests: r.tests })) };
+      const rows = tx.all<{ version: string; at: number; by: string; note: string | null; tests: number }>(
+        "SELECT version, at, by, note, tests FROM cn_versions WHERE key = ? ORDER BY at DESC, rowid DESC",
+        input.key,
+      );
+      return {
+        versions: rows.map((r) => ({
+          version: r.version,
+          at: r.at,
+          by: r.by,
+          ...(r.note !== null ? { note: r.note } : {}),
+          tests: r.tests,
+        })),
+      };
     },
 
     "connectors.rollback": async (ctx, input) => {
       const c = need(ctx, input.key);
-      const v = tx.get<{ def: string }>("SELECT def FROM cn_versions WHERE key = ? AND version = ?", input.key, input.version) ?? refuse(ctx, "validation.not_found", `${c.key} has no version ${input.version}.`);
+      const v =
+        tx.get<{ def: string }>(
+          "SELECT def FROM cn_versions WHERE key = ? AND version = ?",
+          input.key,
+          input.version,
+        ) ?? refuse(ctx, "validation.not_found", `${c.key} has no version ${input.version}.`);
       const def = JSON.parse(v.def) as ConnectorDef;
-      tx.run("UPDATE cn_connectors SET title = ?, mode = ?, scope = ?, version = ?, state = 'live', def = ?, updated_at = ? WHERE key = ?", def.title, def.mode, def.scope, input.version, v.def, nowOf(deps), c.key);
+      tx.run(
+        "UPDATE cn_connectors SET title = ?, mode = ?, scope = ?, version = ?, state = 'live', def = ?, updated_at = ? WHERE key = ?",
+        def.title,
+        def.mode,
+        def.scope,
+        input.version,
+        v.def,
+        nowOf(deps),
+        c.key,
+      );
       ctx.emit("connector.rolled_back", `connector/${c.key}`, { key: c.key, version: input.version });
       return { ok: true };
     },
 
     "connectors.export": async (ctx, input) => {
       const c = need(ctx, input.key);
-      if (!deps.writeFolder) refuse(ctx, "internal.unavailable", "Files is not available to write the connector folder.");
+      if (!deps.writeFolder)
+        refuse(ctx, "internal.unavailable", "Files is not available to write the connector folder.");
       return { folderId: await deps.writeFolder!(c.key, folderFiles(JSON.parse(c.def) as ConnectorDef)) };
     },
 
@@ -576,17 +1161,36 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       const c = need(ctx, input.key);
       if (c.builtin === 1) refuse(ctx, "validation.precondition_failed", `${c.key} is built in and cannot be removed.`);
       const bound = deps.boundSyncedTypes ? await deps.boundSyncedTypes(c.key) : [];
-      if (bound.length) refuse(ctx, "validation.precondition_failed", `${bound.join(", ")} still sync through ${c.key}: detach them first.`, { syncedTypes: bound });
-      for (const conn of tx.all<{ connection_id: string }>("SELECT connection_id FROM cn_connections WHERE connector = ?", c.key)) {
-        await oauthOf(deps).revoke(ctx, JSON.parse(c.def) as ConnectorDef, tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", conn.connection_id)!);
-        tx.run("DELETE FROM cn_oauth_flow WHERE state IN (SELECT state FROM cn_oauth WHERE connection_id = ?)", conn.connection_id);
+      if (bound.length)
+        refuse(
+          ctx,
+          "validation.precondition_failed",
+          `${bound.join(", ")} still sync through ${c.key}: detach them first.`,
+          { syncedTypes: bound },
+        );
+      for (const conn of tx.all<{ connection_id: string }>(
+        "SELECT connection_id FROM cn_connections WHERE connector = ?",
+        c.key,
+      )) {
+        await oauthOf(deps).revoke(
+          ctx,
+          JSON.parse(c.def) as ConnectorDef,
+          tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", conn.connection_id)!,
+        );
+        tx.run(
+          "DELETE FROM cn_oauth_flow WHERE state IN (SELECT state FROM cn_oauth WHERE connection_id = ?)",
+          conn.connection_id,
+        );
         tx.run("DELETE FROM cn_oauth WHERE connection_id = ?", conn.connection_id);
         tx.run("DELETE FROM cn_connections WHERE connection_id = ?", conn.connection_id);
-        ctx.emit("connection.deleted", `connection/${conn.connection_id}`, { connectionId: conn.connection_id, connector: c.key });
+        ctx.emit("connection.deleted", `connection/${conn.connection_id}`, {
+          connectionId: conn.connection_id,
+          connector: c.key,
+        });
       }
       tx.run("DELETE FROM cn_drafts WHERE key = ?", c.key);
       tx.run("DELETE FROM cn_versions WHERE key = ?", c.key);
-      tx.run("DELETE FROM cn_source_folders WHERE key = ?", c.key);   // the folder stays in Files as an ordinary folder; only the connector's claim on it ends
+      tx.run("DELETE FROM cn_source_folders WHERE key = ?", c.key); // the folder stays in Files as an ordinary folder; only the connector's claim on it ends
       tx.run("DELETE FROM cn_connectors WHERE key = ?", c.key);
       ctx.emit("connector.removed", `connector/${c.key}`, { key: c.key });
       return { removed: true };
@@ -594,7 +1198,9 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
 
     "connectors.health": async () => {
       ready();
-      const rows = tx.all<{ connection_id: string; state: string; title: string }>("SELECT connection_id, state, title FROM cn_connections WHERE state != 'paused'");
+      const rows = tx.all<{ connection_id: string; state: string; title: string }>(
+        "SELECT connection_id, state, title FROM cn_connections WHERE state != 'paused'",
+      );
       const bad = rows.filter((r) => r.state === "failing" || r.state === "needs_reconnect");
       if (!bad.length) return { state: "healthy" as const, failing: [] };
       const down = bad.length === rows.length;

@@ -61,7 +61,9 @@ function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
     const at = { i: 0 };
     const pred = compile(sel[2], args, at);
     if (at.i !== args.length) throw new Error(`unused sql values: ${text}`);
-    return bag(name).filter(pred).map((row) => ({ ...row }));
+    return bag(name)
+      .filter(pred)
+      .map((row) => ({ ...row }));
   };
   const run = (sql: string, ...args: unknown[]): { changes: number } => {
     const text = sql.replace(/\s+/g, " ").trim();
@@ -71,10 +73,12 @@ function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
       const name = insert[1];
       const colSql = insert[2];
       const valSql = insert[3];
-      if (name === undefined || colSql === undefined || valSql === undefined) throw new Error(`unsupported sql: ${text}`);
+      if (name === undefined || colSql === undefined || valSql === undefined)
+        throw new Error(`unsupported sql: ${text}`);
       const cols = colSql.split(",").map((col) => col.trim());
       const marks = valSql.split(",").map((mark) => mark.trim());
-      if (marks.some((mark) => mark !== "?") || marks.length !== cols.length) throw new Error(`unsupported sql: ${text}`);
+      if (marks.some((mark) => mark !== "?") || marks.length !== cols.length)
+        throw new Error(`unsupported sql: ${text}`);
       const row: Row = {};
       for (const col of cols) row[col] = take(args, at);
       if (at.i !== args.length) throw new Error(`unused sql values: ${text}`);
@@ -86,7 +90,8 @@ function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
       const name = update[1];
       const setSql = update[2];
       const where = update[3];
-      if (name === undefined || setSql === undefined || where === undefined) throw new Error(`unsupported sql: ${text}`);
+      if (name === undefined || setSql === undefined || where === undefined)
+        throw new Error(`unsupported sql: ${text}`);
       const assigns: { col: string; val: unknown }[] = [];
       for (const part of setSql.split(", ")) {
         const m = /^(\w+) = \?$/.exec(part);
@@ -131,7 +136,8 @@ function spaceSeal(key: Uint8Array): Ctx["seal"] {
       const parsed: unknown = JSON.parse(sealed.bytes);
       if (parsed === null || typeof parsed !== "object") throw new Error("bad box");
       const box = parsed as { ct?: unknown; tag?: unknown; aad?: unknown };
-      if (typeof box.ct !== "string" || typeof box.tag !== "string" || typeof box.aad !== "string") throw new Error("bad box");
+      if (typeof box.ct !== "string" || typeof box.tag !== "string" || typeof box.aad !== "string")
+        throw new Error("bad box");
       return aesUnwrap(key, { iv: sealed.nonce, ct: box.ct, tag: box.tag }, box.aad);
     },
   };
@@ -201,7 +207,6 @@ function idOf(v: string | undefined, label: string): string {
   return v;
 }
 
-
 const b64 = (bytes: Uint8Array): string => Buffer.from(bytes).toString("base64");
 const utf8 = (s: string): Uint8Array => new TextEncoder().encode(s);
 
@@ -209,14 +214,60 @@ const utf8 = (s: string): Uint8Array => new TextEncoder().encode(s);
 function zipOf(name: string, content: string): Uint8Array {
   const n = utf8(name);
   const data = utf8(content);
-  const le = (v: number, len: number): number[] => Array.from({ length: len }, (_, i) => Math.floor(v / 2 ** (8 * i)) & 0xff);
-  const local = [...le(0x04034b50, 4), ...le(20, 2), ...le(0, 2), ...le(0, 2), ...le(0, 2), ...le(0, 2), ...le(0, 4), ...le(data.length, 4), ...le(data.length, 4), ...le(n.length, 2), ...le(0, 2), ...n, ...data];
-  const central = [...le(0x02014b50, 4), ...le(20, 2), ...le(20, 2), ...le(0, 2), ...le(0, 2), ...le(0, 2), ...le(0, 2), ...le(0, 4), ...le(data.length, 4), ...le(data.length, 4), ...le(n.length, 2), ...le(0, 2), ...le(0, 2), ...le(0, 2), ...le(0, 2), ...le(0, 4), ...le(0, 4), ...n];
-  const end = [...le(0x06054b50, 4), ...le(0, 2), ...le(0, 2), ...le(1, 2), ...le(1, 2), ...le(central.length, 4), ...le(local.length, 4), ...le(0, 2)];
+  const le = (v: number, len: number): number[] =>
+    Array.from({ length: len }, (_, i) => Math.floor(v / 2 ** (8 * i)) & 0xff);
+  const local = [
+    ...le(0x04034b50, 4),
+    ...le(20, 2),
+    ...le(0, 2),
+    ...le(0, 2),
+    ...le(0, 2),
+    ...le(0, 2),
+    ...le(0, 4),
+    ...le(data.length, 4),
+    ...le(data.length, 4),
+    ...le(n.length, 2),
+    ...le(0, 2),
+    ...n,
+    ...data,
+  ];
+  const central = [
+    ...le(0x02014b50, 4),
+    ...le(20, 2),
+    ...le(20, 2),
+    ...le(0, 2),
+    ...le(0, 2),
+    ...le(0, 2),
+    ...le(0, 2),
+    ...le(0, 4),
+    ...le(data.length, 4),
+    ...le(data.length, 4),
+    ...le(n.length, 2),
+    ...le(0, 2),
+    ...le(0, 2),
+    ...le(0, 2),
+    ...le(0, 2),
+    ...le(0, 4),
+    ...le(0, 4),
+    ...n,
+  ];
+  const end = [
+    ...le(0x06054b50, 4),
+    ...le(0, 2),
+    ...le(0, 2),
+    ...le(1, 2),
+    ...le(1, 2),
+    ...le(central.length, 4),
+    ...le(local.length, 4),
+    ...le(0, 2),
+  ];
   return Uint8Array.from([...local, ...central, ...end]);
 }
 const docx = (paragraphs: string[]): Uint8Array =>
-  zipOf("word/document.xml", `<w:document><w:body>${paragraphs.map((p) => `<w:p><w:r><w:t>${p}</w:t></w:r></w:p>`).join("")}</w:body></w:document>`);
+  zipOf(
+    "word/document.xml",
+    `<w:document><w:body>${paragraphs.map((p) => `<w:p><w:r><w:t>${p}</w:t></w:r></w:p>`).join("")}</w:body></w:document>`,
+  );
 
 async function setup(): Promise<{ ctx: Ctx; events: { name: string; payload: unknown }[]; folderId: string }> {
   const { ctx, events } = open();
@@ -227,7 +278,11 @@ async function setup(): Promise<{ ctx: Ctx; events: { name: string; payload: unk
 
 test("text diff: default compares the current version with the one before, with counts and context hunks", async () => {
   const { ctx, folderId } = await setup();
-  const made = await handlers["files.create"](ctx, { folderId, name: "notes.txt", content: { text: "a\nb\nc\nd\ne\nf\ng\nh\ni\nj" } });
+  const made = await handlers["files.create"](ctx, {
+    folderId,
+    name: "notes.txt",
+    content: { text: "a\nb\nc\nd\ne\nf\ng\nh\ni\nj" },
+  });
   const fileId = made.file.fileId;
   await handlers["files.write"](ctx, { fileId, content: { text: "a\nb\nC\nd\ne\nf\ng\nh\ni\nj\nk" }, baseVersion: 1 });
   const d = await handlers["files.diff"](ctx, { fileId });
@@ -238,33 +293,60 @@ test("text diff: default compares the current version with the one before, with 
   assert.equal(d.hunks.length, 2);
   const first = d.hunks[0]!;
   assert.equal(first.hunkId, "h1");
-  assert.deepEqual(first.lines.filter((l) => l.op !== "ctx").map((l) => `${l.op}:${l.text}`), ["del:c", "add:C"]);
+  assert.deepEqual(
+    first.lines.filter((l) => l.op !== "ctx").map((l) => `${l.op}:${l.text}`),
+    ["del:c", "add:C"],
+  );
   assert.equal(first.oldStart, 1);
   assert.equal(first.oldLines, 6);
   assert.equal(first.newLines, 6);
   const last = d.hunks[1]!;
-  assert.deepEqual(last.lines.filter((l) => l.op === "add").map((l) => l.text), ["k"]);
-  assert.ok(first.lines.every((l) => l.marks === undefined), "unified mode carries no word marks");
+  assert.deepEqual(
+    last.lines.filter((l) => l.op === "add").map((l) => l.text),
+    ["k"],
+  );
+  assert.ok(
+    first.lines.every((l) => l.marks === undefined),
+    "unified mode carries no word marks",
+  );
 });
 
 test("word mode marks the changed words on both sides of a changed line", async () => {
   const { ctx, folderId } = await setup();
-  const made = await handlers["files.create"](ctx, { folderId, name: "w.txt", content: { text: "the quick brown fox" } });
+  const made = await handlers["files.create"](ctx, {
+    folderId,
+    name: "w.txt",
+    content: { text: "the quick brown fox" },
+  });
   const fileId = made.file.fileId;
   await handlers["files.write"](ctx, { fileId, content: { text: "the slow brown cat" }, baseVersion: 1 });
   const d = await handlers["files.diff"](ctx, { fileId, mode: "words" });
   const lines = d.hunks[0]!.lines;
   const del = lines.find((l) => l.op === "del")!;
   const add = lines.find((l) => l.op === "add")!;
-  assert.deepEqual(del.marks, [{ from: 4, to: 9 }, { from: 16, to: 19 }]);
-  assert.deepEqual(add.marks, [{ from: 4, to: 8 }, { from: 15, to: 18 }]);
+  assert.deepEqual(del.marks, [
+    { from: 4, to: 9 },
+    { from: 16, to: 19 },
+  ]);
+  assert.deepEqual(add.marks, [
+    { from: 4, to: 8 },
+    { from: 15, to: 18 },
+  ]);
 });
 
 test("markdown defaults to a paragraph diff; unified is still available", async () => {
   const { ctx, folderId } = await setup();
-  const made = await handlers["files.create"](ctx, { folderId, name: "doc.md", content: { text: "# T\n\nOne para.\n\nTwo para." } });
+  const made = await handlers["files.create"](ctx, {
+    folderId,
+    name: "doc.md",
+    content: { text: "# T\n\nOne para.\n\nTwo para." },
+  });
   const fileId = made.file.fileId;
-  await handlers["files.write"](ctx, { fileId, content: { text: "# T\n\nOne para changed.\n\nTwo para." }, baseVersion: 1 });
+  await handlers["files.write"](ctx, {
+    fileId,
+    content: { text: "# T\n\nOne para changed.\n\nTwo para." },
+    baseVersion: 1,
+  });
   const p = await handlers["files.diff"](ctx, { fileId });
   assert.equal(p.kind, "paragraph");
   assert.equal(p.added, 1);
@@ -276,16 +358,37 @@ test("markdown defaults to a paragraph diff; unified is still available", async 
 
 test("docx diff reads paragraphs from the document part; a Google-native export snapshot diffs the same way", async () => {
   const { ctx, folderId } = await setup();
-  const made = await handlers["files.create"](ctx, { folderId, name: "letter.docx", content: { base64: b64(docx(["Dear Ana", "Body one", "Regards"])) } });
+  const made = await handlers["files.create"](ctx, {
+    folderId,
+    name: "letter.docx",
+    content: { base64: b64(docx(["Dear Ana", "Body one", "Regards"])) },
+  });
   const fileId = made.file.fileId;
-  await handlers["files.write"](ctx, { fileId, content: { base64: b64(docx(["Dear Ana", "Body two", "Regards"])) }, baseVersion: 1 });
+  await handlers["files.write"](ctx, {
+    fileId,
+    content: { base64: b64(docx(["Dear Ana", "Body two", "Regards"])) },
+    baseVersion: 1,
+  });
   const d = await handlers["files.diff"](ctx, { fileId });
   assert.equal(d.kind, "paragraph");
   assert.deepEqual([d.added, d.removed], [1, 1]);
-  assert.deepEqual(d.hunks[0]!.lines.filter((l) => l.op !== "ctx").map((l) => `${l.op}:${l.text}`), ["del:Body one", "add:Body two"]);
+  assert.deepEqual(
+    d.hunks[0]!.lines.filter((l) => l.op !== "ctx").map((l) => `${l.op}:${l.text}`),
+    ["del:Body one", "add:Body two"],
+  );
 
-  const snap = await handlers["files.create"](ctx, { folderId, name: "Brief", kind: "google_native", content: { base64: b64(docx(["Intro", "Plan A"])) }, mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
-  await handlers["files.write"](ctx, { fileId: snap.file.fileId, content: { base64: b64(docx(["Intro", "Plan B"])) }, baseVersion: 1 });
+  const snap = await handlers["files.create"](ctx, {
+    folderId,
+    name: "Brief",
+    kind: "google_native",
+    content: { base64: b64(docx(["Intro", "Plan A"])) },
+    mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
+  await handlers["files.write"](ctx, {
+    fileId: snap.file.fileId,
+    content: { base64: b64(docx(["Intro", "Plan B"])) },
+    baseVersion: 1,
+  });
   const s = await handlers["files.diff"](ctx, { fileId: snap.file.fileId });
   assert.equal(s.kind, "paragraph");
   assert.deepEqual([s.added, s.removed], [1, 1]);
@@ -293,16 +396,32 @@ test("docx diff reads paragraphs from the document part; a Google-native export 
 
 test("images return both blob ids for the slider; other binaries report identical or not", async () => {
   const { ctx, folderId } = await setup();
-  const img = await handlers["files.create"](ctx, { folderId, name: "p.png", content: { base64: b64(Uint8Array.from([1, 2, 3])) } });
-  await handlers["files.write"](ctx, { fileId: img.file.fileId, content: { base64: b64(Uint8Array.from([1, 2, 4])) }, baseVersion: 1 });
+  const img = await handlers["files.create"](ctx, {
+    folderId,
+    name: "p.png",
+    content: { base64: b64(Uint8Array.from([1, 2, 3])) },
+  });
+  await handlers["files.write"](ctx, {
+    fileId: img.file.fileId,
+    content: { base64: b64(Uint8Array.from([1, 2, 4])) },
+    baseVersion: 1,
+  });
   const i = await handlers["files.diff"](ctx, { fileId: img.file.fileId });
   assert.equal(i.kind, "image");
   assert.equal(i.identical, false);
   assert.ok(i.images?.left && i.images.right && i.images.left !== i.images.right);
   assert.equal(i.hunks.length, 0);
 
-  const pdf = await handlers["files.create"](ctx, { folderId, name: "a.pdf", content: { base64: b64(Uint8Array.from([9, 9, 9])) } });
-  await handlers["files.write"](ctx, { fileId: pdf.file.fileId, content: { base64: b64(Uint8Array.from([9, 9, 9])) }, baseVersion: 1 });
+  const pdf = await handlers["files.create"](ctx, {
+    folderId,
+    name: "a.pdf",
+    content: { base64: b64(Uint8Array.from([9, 9, 9])) },
+  });
+  await handlers["files.write"](ctx, {
+    fileId: pdf.file.fileId,
+    content: { base64: b64(Uint8Array.from([9, 9, 9])) },
+    baseVersion: 1,
+  });
   const same = await handlers["files.diff"](ctx, { fileId: pdf.file.fileId });
   assert.equal(same.kind, "binary");
   assert.equal(same.identical, true);
@@ -333,10 +452,18 @@ test("explicit from and to, restore adds an identical version, a version of anot
 
 test("binary conflict: the newest save is current and the other stays as a labelled version", async () => {
   const { ctx, events, folderId } = await setup();
-  const made = await handlers["files.create"](ctx, { folderId, name: "scan.pdf", content: { base64: b64(Uint8Array.from([1])) } });
+  const made = await handlers["files.create"](ctx, {
+    folderId,
+    name: "scan.pdf",
+    content: { base64: b64(Uint8Array.from([1])) },
+  });
   const fileId = made.file.fileId;
   await handlers["files.write"](ctx, { fileId, content: { base64: b64(Uint8Array.from([2])) }, baseVersion: 1 });
-  const saved = await handlers["files.write"](ctx, { fileId, content: { base64: b64(Uint8Array.from([3])) }, baseVersion: 1 });
+  const saved = await handlers["files.write"](ctx, {
+    fileId,
+    content: { base64: b64(Uint8Array.from([3])) },
+    baseVersion: 1,
+  });
   assert.equal(saved.file.version, 3);
   const current = await handlers["files.read"](ctx, { fileId });
   assert.equal(current.base64, b64(Uint8Array.from([3])));
@@ -363,9 +490,18 @@ test("text and Google-native writes keep the version_conflict refusal", async ()
   const { ctx, events, folderId } = await setup();
   const t = await handlers["files.create"](ctx, { folderId, name: "t.txt", content: { text: "a" } });
   await handlers["files.write"](ctx, { fileId: t.file.fileId, content: { text: "b" }, baseVersion: 1 });
-  await expectCode("validation.version_conflict", () => handlers["files.write"](ctx, { fileId: t.file.fileId, content: { text: "c" }, baseVersion: 1 }));
-  const g = await handlers["files.create"](ctx, { folderId, name: "G", kind: "google_native", content: { text: "snap" } });
+  await expectCode("validation.version_conflict", () =>
+    handlers["files.write"](ctx, { fileId: t.file.fileId, content: { text: "c" }, baseVersion: 1 }),
+  );
+  const g = await handlers["files.create"](ctx, {
+    folderId,
+    name: "G",
+    kind: "google_native",
+    content: { text: "snap" },
+  });
   await handlers["files.write"](ctx, { fileId: g.file.fileId, content: { text: "snap2" }, baseVersion: 1 });
-  await expectCode("validation.version_conflict", () => handlers["files.write"](ctx, { fileId: g.file.fileId, content: { text: "snap3" }, baseVersion: 1 }));
+  await expectCode("validation.version_conflict", () =>
+    handlers["files.write"](ctx, { fileId: g.file.fileId, content: { text: "snap3" }, baseVersion: 1 }),
+  );
   assert.equal(events.filter((e) => e.name === "file.conflict_kept").length, 0);
 });

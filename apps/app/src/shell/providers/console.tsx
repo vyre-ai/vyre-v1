@@ -1,7 +1,7 @@
 import { Pressable, Text, View } from "react-native";
-import { Network } from '../../console/pages/InfrastructureNetwork.tsx';
-import { Speed, Usage } from '../../console/pages/InfrastructureMetrics.tsx';
-import {Updates,SpaceProfile} from '../../console/pages/InfrastructureSettings.tsx';
+import { Network } from "../../console/pages/InfrastructureNetwork.tsx";
+import { Speed, Usage } from "../../console/pages/InfrastructureMetrics.tsx";
+import { Updates, SpaceProfile } from "../../console/pages/InfrastructureSettings.tsx";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { States } from "../../../../../ui/src/States/index.tsx";
@@ -98,32 +98,57 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "support") return <Support />;
   if (id === "backups") return <Backups />;
   if (id === "sessions") return <Devices />;
-  if (id === "people") return <People {...(args.personId?{initialPersonId:args.personId}:{})} />;
-  if (id === "policies") return <Policies {...(args.policyId?{initialId:args.policyId}:{})} />;
-  if (id === "reviews") return <Reviews {...(args.reviewId?{initialId:args.reviewId}:{})} />;
+  if (id === "people") return <People {...(args.personId ? { initialPersonId: args.personId } : {})} />;
+  if (id === "policies") return <Policies {...(args.policyId ? { initialId: args.policyId } : {})} />;
+  if (id === "reviews") return <Reviews {...(args.reviewId ? { initialId: args.reviewId } : {})} />;
   if (id === "permissions") return <Permissions />;
   if (id === "roles") return <Roles {...(args.roleId ? { initialId: args.roleId } : {})} />;
   if (id === "groups") return <Groups {...(args.groupId ? { initialId: args.groupId } : {})} />;
-  if (id === "grants") return <Grants {...(args.resourceType && args.resourceId ? { initialResource: { type: args.resourceType, id: args.resourceId } } : {})} />;
+  if (id === "grants")
+    return (
+      <Grants
+        {...(args.resourceType && args.resourceId
+          ? { initialResource: { type: args.resourceType, id: args.resourceId } }
+          : {})}
+      />
+    );
   if (id === "checker") return <Checker />;
-  if (id === "agents") return <AgentsRegister key={args.agentId??"agents-list"} {...(args.agentId?{initialAgentId:args.agentId}:{})} />;
-  if (id === "actors") return <OutsideActors key={args.actorId??"actors-list"} {...(args.actorId?{initialActorId:args.actorId}:{})} />;
-  if (id === "machines") return <MachinesPage key={args["machineId"] ?? "machines-list"} {...(args["machineId"] ? { initialId: args["machineId"] } : {})} />;
+  if (id === "agents")
+    return (
+      <AgentsRegister key={args.agentId ?? "agents-list"} {...(args.agentId ? { initialAgentId: args.agentId } : {})} />
+    );
+  if (id === "actors")
+    return (
+      <OutsideActors key={args.actorId ?? "actors-list"} {...(args.actorId ? { initialActorId: args.actorId } : {})} />
+    );
+  if (id === "machines")
+    return (
+      <MachinesPage
+        key={args["machineId"] ?? "machines-list"}
+        {...(args["machineId"] ? { initialId: args["machineId"] } : {})}
+      />
+    );
   if (id === "template") return <AgentTemplate />;
   if (id === "skills") return <SkillsPage />;
   if (id === "hooks") return <HooksPage />;
   if (id === "plugins") return <PluginsPage />;
   if (id === "schema") return <SchemaPage />;
   if (id === "labels") return <LabelsPage />;
-  if (id === "domains") return <DomainsPage {...(args["domainId"]?{initialId:args["domainId"]}:{})} {...(args["create"]==="true"?{initialCreate:true}:{})} />;
-  if (id === "numbers") return <NumbersPage {...(args["numberId"]?{initialId:args["numberId"]}:{})} />;
-  if (id === "inboxes") return <InboxesPage {...(args["mailboxId"]?{initialId:args["mailboxId"]}:{})} />;
+  if (id === "domains")
+    return (
+      <DomainsPage
+        {...(args["domainId"] ? { initialId: args["domainId"] } : {})}
+        {...(args["create"] === "true" ? { initialCreate: true } : {})}
+      />
+    );
+  if (id === "numbers") return <NumbersPage {...(args["numberId"] ? { initialId: args["numberId"] } : {})} />;
+  if (id === "inboxes") return <InboxesPage {...(args["mailboxId"] ? { initialId: args["mailboxId"] } : {})} />;
   if (id === "texting") return <TextingPage />;
   if (id === "company") return <ConnectCompanyPage />;
   if (id === "google") return <GoogleWorkspacePage />;
   if (id === "microsoft") return <Microsoft365Page />;
-  if (id === "webhooks") return <WebhooksPage {...(args["webhookId"]?{initialId:args["webhookId"]}:{})} />;
-  if (id === "keys") return <ApiKeysPage {...(args.sessionId?{initialSessionId:args.sessionId}:{})} />;
+  if (id === "webhooks") return <WebhooksPage {...(args["webhookId"] ? { initialId: args["webhookId"] } : {})} />;
+  if (id === "keys") return <ApiKeysPage {...(args.sessionId ? { initialSessionId: args.sessionId } : {})} />;
   return <States kind="error" message={`${pageById(id)?.title ?? id} is not implemented in this candidate yet.`} />;
 }
 export function aiDataPageFor(id: string): ReactElement | null {
@@ -142,21 +167,50 @@ export function aiDataPageFor(id: string): ReactElement | null {
   return null;
 }
 /** What every Console page reads, for the person and the pages they may open. */
-function consoleData(rt: ShellRuntime, allowed: ReadonlySet<string>, openPage: ConsoleData["nav"]["openPage"]): ConsoleData {
+function consoleData(
+  rt: ShellRuntime,
+  allowed: ReadonlySet<string>,
+  openPage: ConsoleData["nav"]["openPage"],
+): ConsoleData {
   return {
-    screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.createRecordsPreview?{createRecordsPreview:rt.createRecordsPreview}:{}), me: { id: rt.me.id, name: rt.me.name, role: "" }, space: { id: rt.space.id, name: rt.space.name, address: "" },
-    can: (permission) => permission === "console.access" || PAGES.some((page) => page.needs === permission && allowed.has(page.screen)), allowedScreens: allowed,
-    name: nameLookup(rt), agentName: (id: string) => { const q = rt.principals.getSnapshot(); const p = q.status === "ready" ? q.data.find((x) => x.id === id) : undefined; return p ? p.agentName ?? p.name : undefined; }, clock: rt.clock,
+    screens: rt.screens,
+    call: rt.call,
+    connection: rt.connection,
+    ...(rt.createRecordsPreview ? { createRecordsPreview: rt.createRecordsPreview } : {}),
+    me: { id: rt.me.id, name: rt.me.name, role: "" },
+    space: { id: rt.space.id, name: rt.space.name, address: "" },
+    can: (permission) =>
+      permission === "console.access" || PAGES.some((page) => page.needs === permission && allowed.has(page.screen)),
+    allowedScreens: allowed,
+    name: nameLookup(rt),
+    agentName: (id: string) => {
+      const q = rt.principals.getSnapshot();
+      const p = q.status === "ready" ? q.data.find((x) => x.id === id) : undefined;
+      return p ? (p.agentName ?? p.name) : undefined;
+    },
+    clock: rt.clock,
     nav: { openApp: (target) => rt.open(target ?? { screen: "chats.conversation" }), openPage },
   };
 }
 
-const DEFAULTS: Readonly<Record<string, SpacePage | "memory" | "memlearn">> = { memlearn: "memlearn", "def-access": "people", "def-agents": "agents", "def-memory": "memory", "def-data": "data", "def-apps": "apps", "def-advanced": "advanced" };
+const DEFAULTS: Readonly<Record<string, SpacePage | "memory" | "memlearn">> = {
+  memlearn: "memlearn",
+  "def-access": "people",
+  "def-agents": "agents",
+  "def-memory": "memory",
+  "def-data": "data",
+  "def-apps": "apps",
+  "def-advanced": "advanced",
+};
 
 /** Space defaults are drawn by the rows Settings shows in a Personal Space, so one row has one home in each kind of Space. */
 function spaceDefaults(rt: ShellRuntime, id: string, flush = false): ReactElement | null {
   const page = DEFAULTS[id];
-  return page ? <SettingsDataProvider value={settingsData(rt)}><SpaceDefaults page={page} flush={flush} /></SettingsDataProvider> : null;
+  return page ? (
+    <SettingsDataProvider value={settingsData(rt)}>
+      <SpaceDefaults page={page} flush={flush} />
+    </SettingsDataProvider>
+  ) : null;
 }
 
 export default function ConsolePlace(): ReactElement {
@@ -171,38 +225,154 @@ export default function ConsolePlace(): ReactElement {
   useEffect(() => {
     if (!rt || rt.space.kind === "personal") return;
     let live = true;
-    void rt.call("console.nav", {}).then((out) => { if (live) { setAllowed(consolePagesFromNav(out as Parameters<typeof consolePagesFromNav>[0])); setFailed(false); setRefused(false); } }, (e: unknown) => { if (live) { setAllowed(null); setRefused(String((e as { code?: unknown } | null)?.code ?? "").startsWith("permission.")); setFailed(true); } });
-    return () => { live = false; };
+    void rt.call("console.nav", {}).then(
+      (out) => {
+        if (live) {
+          setAllowed(consolePagesFromNav(out as Parameters<typeof consolePagesFromNav>[0]));
+          setFailed(false);
+          setRefused(false);
+        }
+      },
+      (e: unknown) => {
+        if (live) {
+          setAllowed(null);
+          setRefused(String((e as { code?: unknown } | null)?.code ?? "").startsWith("permission."));
+          setFailed(true);
+        }
+      },
+    );
+    return () => {
+      live = false;
+    };
   }, [rt, attempt, target.screen]);
   const theme = useMemo(() => {
     const doc = (globalThis as { document?: Document }).document;
     if (!rt || !doc) return null;
     const root = doc.documentElement;
     let storage: Storage | null = null;
-    try { storage = globalThis.localStorage ?? null; } catch { /* blocked storage keeps the theme in this window */ }
-    return createThemeController({ personId: rt.me.id, spaceId: rt.space.id, spaceSkin: { [rt.space.id]: root.getAttribute("data-skin") ?? "system" }, prefersDark: globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false, storage, root: { setAttribute: (key, value) => root.setAttribute(key, value), setProperty: (key, value) => root.style.setProperty(key, value), removeProperty: (key) => root.style.removeProperty(key) } });
+    try {
+      storage = globalThis.localStorage ?? null;
+    } catch {
+      /* blocked storage keeps the theme in this window */
+    }
+    return createThemeController({
+      personId: rt.me.id,
+      spaceId: rt.space.id,
+      spaceSkin: { [rt.space.id]: root.getAttribute("data-skin") ?? "system" },
+      prefersDark: globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false,
+      storage,
+      root: {
+        setAttribute: (key, value) => root.setAttribute(key, value),
+        setProperty: (key, value) => root.style.setProperty(key, value),
+        removeProperty: (key) => root.style.removeProperty(key),
+      },
+    });
   }, [rt]);
-  const data = useMemo<ConsoleData | null>(() => rt && allowed ? consoleData(rt, allowed, (id, args) => { const page = pageById(id); if (page) rt.open({ screen: page.screen, args: { ...args, page: id } }); }) : null, [rt, allowed]);
+  const data = useMemo<ConsoleData | null>(
+    () =>
+      rt && allowed
+        ? consoleData(rt, allowed, (id, args) => {
+            const page = pageById(id);
+            if (page) rt.open({ screen: page.screen, args: { ...args, page: id } });
+          })
+        : null,
+    [rt, allowed],
+  );
   // no door leads here from a Personal Space and the shell sends a stale address Home; if this page is ever shown it follows the theme and has a way back
-  if (rt?.space.kind === "personal") return <OutsideShell rt={rt ?? null} testID="console-needs-team"><States kind="empty" title="Needs a Team Space" icon="search" /></OutsideShell>;
-  if (failed && refused) return <OutsideShell rt={rt ?? null} testID="console-refused"><States kind="empty" title="Console is for admins and owners" icon="search" /></OutsideShell>;
-  if (failed) return <OutsideShell rt={rt ?? null}><States kind="error" message="Couldn’t open the Console" cause="You may not have console access, or the server is unavailable." retryable onRetry={() => setAttempt((n) => n + 1)} /></OutsideShell>;
-  if (!rt || !data) return <OutsideShell rt={rt ?? null}><States kind="empty" title="Opening the Console…" icon="search" /></OutsideShell>;
+  if (rt?.space.kind === "personal")
+    return (
+      <OutsideShell rt={rt ?? null} testID="console-needs-team">
+        <States kind="empty" title="Needs a Team Space" icon="search" />
+      </OutsideShell>
+    );
+  if (failed && refused)
+    return (
+      <OutsideShell rt={rt ?? null} testID="console-refused">
+        <States kind="empty" title="Console is for admins and owners" icon="search" />
+      </OutsideShell>
+    );
+  if (failed)
+    return (
+      <OutsideShell rt={rt ?? null}>
+        <States
+          kind="error"
+          message="Couldn’t open the Console"
+          cause="You may not have console access, or the server is unavailable."
+          retryable
+          onRetry={() => setAttempt((n) => n + 1)}
+        />
+      </OutsideShell>
+    );
+  if (!rt || !data)
+    return (
+      <OutsideShell rt={rt ?? null}>
+        <States kind="empty" title="Opening the Console…" icon="search" />
+      </OutsideShell>
+    );
   // console.page opens any page by name, machines~<id> with a machine selected; any other screen opens the page that draws it
   const routed = target.screen === "console.page" ? parseConsolePage(target.args.page) : null;
-  const requestedPage = routed ? (pageById(routed.page) ? routed.page : null) : target.args.page && pageById(target.args.page)?.screen === target.screen ? target.args.page : null;
+  const requestedPage = routed
+    ? pageById(routed.page)
+      ? routed.page
+      : null
+    : target.args.page && pageById(target.args.page)?.screen === target.screen
+      ? target.args.page
+      : null;
   const page = requestedPage ?? PAGES.find((entry) => entry.screen === target.screen)?.id ?? "overview";
   const pageArgs = { ...target.args, ...(routed?.args ?? {}) };
-  return <ConsoleDataProvider value={data}><ConsoleShell initialPage={page} embedded={!alone} {...(onConsoleHost() ? { noApp: true } : {})} skin={skin} onSkin={(id) => { theme?.setSkin(id); setSkin(id); }} assistant={<Assistant rt={rt} page={target.screen ?? "console.overview"} />} renderPage={(id, state) => spaceDefaults(rt, id, state['extra'] === true) ?? consolePageFor(id, pageArgs)} /></ConsoleDataProvider>;
+  return (
+    <ConsoleDataProvider value={data}>
+      <ConsoleShell
+        initialPage={page}
+        embedded={!alone}
+        {...(onConsoleHost() ? { noApp: true } : {})}
+        skin={skin}
+        onSkin={(id) => {
+          theme?.setSkin(id);
+          setSkin(id);
+        }}
+        assistant={<Assistant rt={rt} page={target.screen ?? "console.overview"} />}
+        renderPage={(id, state) => spaceDefaults(rt, id, state["extra"] === true) ?? consolePageFor(id, pageArgs)}
+      />
+    </ConsoleDataProvider>
+  );
 }
 
 /** The states of the Console that are not the Console itself keep the theme and a way back to the app. */
-function OutsideShell({ rt, testID, children }: { rt: ShellRuntime | null; testID?: string; children: ReactElement }): ReactElement {
+function OutsideShell({
+  rt,
+  testID,
+  children,
+}: {
+  rt: ShellRuntime | null;
+  testID?: string;
+  children: ReactElement;
+}): ReactElement {
   return (
-    <View {...(testID ? { testID } : {})} style={{ flex: 1, backgroundColor: "var(--win)" as string, alignItems: "center", justifyContent: "center", gap: 12 }}>
+    <View
+      {...(testID ? { testID } : {})}
+      style={{
+        flex: 1,
+        backgroundColor: "var(--win)" as string,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 12,
+      }}
+    >
       {children}
       {rt && !onConsoleHost() ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Back to Vyre" testID="console-back-home" onPress={() => rt.open({ screen: "home.today-starred-ask" })} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: "var(--raised)" as string }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back to Vyre"
+          testID="console-back-home"
+          onPress={() => rt.open({ screen: "home.today-starred-ask" })}
+          style={{
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            borderRadius: 8,
+            backgroundColor: "var(--raised)" as string,
+          }}
+        >
           <Text style={{ color: "var(--ink)" as string, fontSize: 13 }}>Back to Vyre</Text>
         </Pressable>
       ) : null}

@@ -5,20 +5,87 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import {
-  AgentFileEditor, AgentFilePage, SuggestionCard, ChangesetDiff, ChangesetHeader, CommitDiff, FileDiff, GateRow, GitRow, HistoryPanel, LintBar, ReviewDataProvider, TomlForm,
-  approveBlocked, approveChangeset, approveInput, blockedReason, branchChoices, changedLine, commitFiles, diffFileOf, discardChangeset, draftDiff, errorWords, gateWords, hunkOf, historyVersions, initRepo, lineHunks,
-  lintItems, needsGate, nameVersion, parseToml, pushBranch, rawFromForm, requestChanges, requestLabel, hunksFrom, basePreviewUrl, readTexts, stamp, wholeDocument, paragraphsOfText, applySuggestion, choiceOf, choiceRaw, humanKey, suggestionHunks, acceptSuggestion, dismissSuggestion, restoreVersion, reviewExternally, saveFile, saveBlocked, setTomlValue, switchBranch, tomlGroups, tomlKind,
+  AgentFileEditor,
+  AgentFilePage,
+  SuggestionCard,
+  ChangesetDiff,
+  ChangesetHeader,
+  CommitDiff,
+  FileDiff,
+  GateRow,
+  GitRow,
+  HistoryPanel,
+  LintBar,
+  ReviewDataProvider,
+  TomlForm,
+  approveBlocked,
+  approveChangeset,
+  approveInput,
+  blockedReason,
+  branchChoices,
+  changedLine,
+  commitFiles,
+  diffFileOf,
+  discardChangeset,
+  draftDiff,
+  errorWords,
+  gateWords,
+  hunkOf,
+  historyVersions,
+  initRepo,
+  lineHunks,
+  lintItems,
+  needsGate,
+  nameVersion,
+  parseToml,
+  pushBranch,
+  rawFromForm,
+  requestChanges,
+  requestLabel,
+  hunksFrom,
+  basePreviewUrl,
+  readTexts,
+  stamp,
+  wholeDocument,
+  paragraphsOfText,
+  applySuggestion,
+  choiceOf,
+  choiceRaw,
+  humanKey,
+  suggestionHunks,
+  acceptSuggestion,
+  dismissSuggestion,
+  restoreVersion,
+  reviewExternally,
+  saveFile,
+  saveBlocked,
+  setTomlValue,
+  switchBranch,
+  tomlGroups,
+  tomlKind,
 } from "../src/places/files/review/index.ts";
 import { lineRange } from "../src/places/files/review/index.ts";
 import { inlineMarks, proseRows } from "../../../ui/src/DiffTab/index.tsx";
 import { reviewData, attemptKey } from "../src/shell/providers/files-review.ts";
 import { extOf } from "../src/places/files/review/index.ts";
 import { AGENT_MD, AGENT_TOML, AGENT_TOML_INTAKE, createSampleReview } from "../src/places/files/review/sample.ts";
-import { FORM_GROUPS, addTomlKey, fieldText, isNumberText, listItems, listRaw, rawFor, tablesNamed, tomlTables, writeField } from "../src/places/files/review/index.ts";
+import {
+  FORM_GROUPS,
+  addTomlKey,
+  fieldText,
+  isNumberText,
+  listItems,
+  listRaw,
+  rawFor,
+  tablesNamed,
+  tomlTables,
+  writeField,
+} from "../src/places/files/review/index.ts";
 import type { SampleOptions, SampleReview } from "../src/places/files/review/sample.ts";
 import { screensById } from "../../../generated/screens.ts";
 
-const html = (s: SampleReview, el: ReactElement): string => renderToStaticMarkup(<ReviewDataProvider value={s.data}>{el}</ReviewDataProvider>).replaceAll("<!-- -->", "");
+const html = (s: SampleReview, el: ReactElement): string =>
+  renderToStaticMarkup(<ReviewDataProvider value={s.data}>{el}</ReviewDataProvider>).replaceAll("<!-- -->", "");
 const has = (s: string, needle: string): boolean => s.includes(needle);
 const text = (s: string): string => s.replace(/<[^>]+>/g, "");
 /** The opening tag of the element with this test id. */
@@ -28,23 +95,40 @@ const tag = (s: string, id: string): string => {
   return m[0];
 };
 const sample = (o: SampleOptions = {}): SampleReview => createSampleReview(o);
-const header = (s: SampleReview, panel?: "request" | "discard"): string => html(s, <ChangesetHeader changesetId={s.changesetId} {...(panel ? { panel } : {})} />);
-const lastCall = (s: SampleReview): { cap: string; input: Record<string, unknown> } => s.calls[s.calls.length - 1] as { cap: string; input: Record<string, unknown> };
+const header = (s: SampleReview, panel?: "request" | "discard"): string =>
+  html(s, <ChangesetHeader changesetId={s.changesetId} {...(panel ? { panel } : {})} />);
+const lastCall = (s: SampleReview): { cap: string; input: Record<string, unknown> } =>
+  s.calls[s.calls.length - 1] as { cap: string; input: Record<string, unknown> };
 
 test("screen: the header reads Docs changed 3 files, Review, with the totals and the three actions", () => {
   const s = sample();
   const out = header(s);
   assert.ok(has(text(out), "Docs changed 3 files"), "who and how many");
   assert.ok(has(out, "Review"), "the Review word after the dot");
-  assert.ok(has(out, 'data-testid="changeset-totals"') && has(text(out), "3 files") && has(text(out), "+6") && has(text(out), "−4"), "the totals");
-  assert.ok(has(tag(out, "changeset-layout-unified"), 'aria-checked="true"') && has(tag(out, "changeset-layout-split"), 'aria-checked="false"'), "Unified and Split sit in the page header, Unified first");
-  for (const label of ["Discard", "Request changes", "Approve and commit", "More"]) assert.ok(has(out, `aria-label="${label}"`), label);
+  assert.ok(
+    has(out, 'data-testid="changeset-totals"') &&
+      has(text(out), "3 files") &&
+      has(text(out), "+6") &&
+      has(text(out), "−4"),
+    "the totals",
+  );
+  assert.ok(
+    has(tag(out, "changeset-layout-unified"), 'aria-checked="true"') &&
+      has(tag(out, "changeset-layout-split"), 'aria-checked="false"'),
+    "Unified and Split sit in the page header, Unified first",
+  );
+  for (const label of ["Discard", "Request changes", "Approve and commit", "More"])
+    assert.ok(has(out, `aria-label="${label}"`), label);
   assert.ok(has(text(out), "Based on version 2 of each file"), "the base version line");
   assert.ok(has(text(out), "Projects/Rivera matter"), "where the changes are");
   assert.ok(!has(out, 'data-testid="changeset-commit"'), "a plain folder has no commit message or push");
   assert.ok(!has(out, 'data-testid="gate-row"'), "no gate without a protected branch");
   assert.ok(!has(tag(out, "changeset-approve"), 'aria-disabled="true"'), "approve is on");
-  assert.equal(header(sample(), "request").includes('data-testid="changeset-request-panel"'), true, "the note panel can open at start");
+  assert.equal(
+    header(sample(), "request").includes('data-testid="changeset-request-panel"'),
+    true,
+    "the note panel can open at start",
+  );
 });
 
 test("screen: the header is the shared look: the avatar of the agent, a header role, and a group named for the screen reader", () => {
@@ -57,24 +141,51 @@ test("screen: a git folder shows the commit message box and Push; approve and co
   const s = sample({ repo: true });
   const out = header(s);
   assert.ok(has(out, 'data-testid="changeset-commit"') && has(out, 'aria-label="Commit message"'));
-  assert.ok(has(tag(out, "changeset-push"), 'aria-checked="true"') && has(tag(out, "changeset-push"), 'role="switch"'), "push is on when there is a remote");
+  assert.ok(
+    has(tag(out, "changeset-push"), 'aria-checked="true"') && has(tag(out, "changeset-push"), 'role="switch"'),
+    "push is on when there is a remote",
+  );
   assert.ok(!has(out, 'data-testid="gate-row"'), "docs-update is not protected");
-  const r = await approveChangeset(s.data.call, { changesetId: s.changesetId, message: "  Raise the retainer  ", push: true, key: "k1" });
+  const r = await approveChangeset(s.data.call, {
+    changesetId: s.changesetId,
+    message: "  Raise the retainer  ",
+    push: true,
+    key: "k1",
+  });
   assert.ok(r.ok);
   const c = lastCall(s);
   assert.equal(c.cap, "changesets.approve");
-  assert.deepEqual(c.input, { changesetId: "cs_rivera", message: "Raise the retainer", push: true, idempotencyKey: "k1" });
+  assert.deepEqual(c.input, {
+    changesetId: "cs_rivera",
+    message: "Raise the retainer",
+    push: true,
+    idempotencyKey: "k1",
+  });
   assert.equal(s.changeset().state, "approved");
   const after = header(s);
   assert.ok(has(text(after), "Committed. These changes are in the folder now."), "the header says so");
   assert.ok(!has(after, 'aria-label="Approve and commit"'), "a settled changeset has no approve");
-  const again = await approveChangeset(s.data.call, { changesetId: s.changesetId, message: "", push: false, key: "k2" });
+  const again = await approveChangeset(s.data.call, {
+    changesetId: s.changesetId,
+    message: "",
+    push: false,
+    key: "k2",
+  });
   assert.ok(!again.ok && has(again.error, "approve"), "approving twice is refused in words");
 });
 
 test("approve input: the message is left out when empty, push is always said, the key rides along", () => {
-  assert.deepEqual(approveInput({ changesetId: "c", message: "  ", push: false, key: "k" }), { changesetId: "c", push: false, idempotencyKey: "k" });
-  assert.deepEqual(approveInput({ changesetId: "c", message: "Fix", push: true, key: "k" }), { changesetId: "c", message: "Fix", push: true, idempotencyKey: "k" });
+  assert.deepEqual(approveInput({ changesetId: "c", message: "  ", push: false, key: "k" }), {
+    changesetId: "c",
+    push: false,
+    idempotencyKey: "k",
+  });
+  assert.deepEqual(approveInput({ changesetId: "c", message: "Fix", push: true, key: "k" }), {
+    changesetId: "c",
+    message: "Fix",
+    push: true,
+    idempotencyKey: "k",
+  });
   const screen = screensById.get("files.changeset-header");
   assert.ok(screen, "the screen is in the registry");
   assert.equal(screen.actions["approve"]?.cap, "changesets.approve");
@@ -87,7 +198,10 @@ test("a protected branch shows the GateRow and blocks approve until the Gate say
   assert.ok(has(out, 'data-testid="gate-row"') && has(out, 'data-testid="row-gate"'), "the gate is a ui/Row line");
   assert.ok(has(text(out), "Push to main waits for approval in Needs you"));
   assert.ok(has(tag(out, "changeset-approve"), 'aria-disabled="true"'), "approve is off while the gate waits");
-  assert.ok(has(out, 'data-testid="gate-approve"') && has(out, 'data-testid="gate-cancel"'), "Approve and Cancel on the gate");
+  assert.ok(
+    has(out, 'data-testid="gate-approve"') && has(out, 'data-testid="gate-cancel"'),
+    "Approve and Cancel on the gate",
+  );
   const waiting = { branch: "main", state: "waiting" as const };
   assert.equal(approveBlocked(waiting), true);
   assert.equal(approveBlocked({ ...waiting, state: "cancelled" }), true);
@@ -105,29 +219,61 @@ test("a protected branch shows the GateRow and blocks approve until the Gate say
 
 test("GateRow: waiting offers Approve and Cancel, cleared shows a check and no buttons, cancelled can ask again", () => {
   const s = sample();
-  const wait = html(s, <GateRow gate={{ branch: "main", state: "waiting" }} onApprove={() => undefined} onCancel={() => undefined} />);
-  assert.ok(has(wait, 'role="status"') && has(wait, 'data-testid="row-gate-trailing"') && has(wait, 'data-testid="row-gate-leading"'));
-  const done = html(s, <GateRow gate={{ branch: "main", state: "cleared" }} onApprove={() => undefined} onCancel={() => undefined} />);
+  const wait = html(
+    s,
+    <GateRow gate={{ branch: "main", state: "waiting" }} onApprove={() => undefined} onCancel={() => undefined} />,
+  );
+  assert.ok(
+    has(wait, 'role="status"') &&
+      has(wait, 'data-testid="row-gate-trailing"') &&
+      has(wait, 'data-testid="row-gate-leading"'),
+  );
+  const done = html(
+    s,
+    <GateRow gate={{ branch: "main", state: "cleared" }} onApprove={() => undefined} onCancel={() => undefined} />,
+  );
   assert.ok(!has(done, 'data-testid="gate-approve"') && has(text(done), "Push to main is approved"));
-  const off = html(s, <GateRow gate={{ branch: "main", state: "cancelled" }} onApprove={() => undefined} onCancel={() => undefined} onAsk={() => undefined} />);
+  const off = html(
+    s,
+    <GateRow
+      gate={{ branch: "main", state: "cancelled" }}
+      onApprove={() => undefined}
+      onCancel={() => undefined}
+      onAsk={() => undefined}
+    />,
+  );
   assert.ok(has(off, 'data-testid="gate-ask"') && !has(off, 'data-testid="gate-approve"'));
 });
 
 test("request changes sends the note; discard asks first and then discards", async () => {
   const s = sample();
   const req = header(s, "request");
-  assert.ok(has(req, 'aria-label="Note to the agent"') && has(req, 'data-testid="changeset-request-go"') && has(req, 'data-testid="changeset-request-cancel"'));
+  assert.ok(
+    has(req, 'aria-label="Note to the agent"') &&
+      has(req, 'data-testid="changeset-request-go"') &&
+      has(req, 'data-testid="changeset-request-cancel"'),
+  );
   const r = await requestChanges(s.data.call, s.changesetId, "  Put the fee in a table.  ");
   assert.ok(r.ok && r.value.sent === 2);
-  assert.deepEqual(lastCall(s), { cap: "changesets.request_changes", input: { changesetId: "cs_rivera", note: "Put the fee in a table." } });
+  assert.deepEqual(lastCall(s), {
+    cap: "changesets.request_changes",
+    input: { changesetId: "cs_rivera", note: "Put the fee in a table." },
+  });
   assert.equal(s.changeset().state, "changes_requested");
   assert.ok(has(text(header(s)), "Sent back. The agent is working on your notes."));
-  assert.ok(has(header(s), 'aria-label="Approve and commit"'), "a sent back changeset can still be approved when it comes back");
+  assert.ok(
+    has(header(s), 'aria-label="Approve and commit"'),
+    "a sent back changeset can still be approved when it comes back",
+  );
 
   const t = sample();
   const dis = header(t, "discard");
   assert.ok(has(dis, 'role="alertdialog"') && has(text(dis), "Discard these changes?"), "the confirm line");
-  assert.equal(screensById.get("files.changeset-header")?.actions["discard"]?.confirm, "Discard these changes?", "the words are the screen's own");
+  assert.equal(
+    screensById.get("files.changeset-header")?.actions["discard"]?.confirm,
+    "Discard these changes?",
+    "the words are the screen's own",
+  );
   assert.ok(has(dis, 'data-testid="changeset-discard-go"') && has(dis, 'data-testid="changeset-discard-cancel"'));
   assert.equal(t.calls.length, 0, "showing the confirm calls nothing");
   const d = await discardChangeset(t.data.call, t.changesetId);
@@ -143,7 +289,10 @@ test("review externally asks another agent and says who; a failed press comes ba
   const s = sample();
   const r = await reviewExternally(s.data.call, s.changesetId, "agt_research");
   assert.ok(r.ok);
-  assert.deepEqual(lastCall(s), { cap: "changesets.review_externally", input: { changesetId: "cs_rivera", actorId: "agt_research" } });
+  assert.deepEqual(lastCall(s), {
+    cap: "changesets.review_externally",
+    input: { changesetId: "cs_rivera", actorId: "agt_research" },
+  });
   s.failNext("changesets.discard", "validation.conflict");
   const bad = await discardChangeset(s.data.call, s.changesetId);
   assert.ok(!bad.ok);
@@ -154,7 +303,13 @@ test("review externally asks another agent and says who; a failed press comes ba
 
 test("a changeset with conflicts comes back as the file to open, not as an approval", async () => {
   const s = sample();
-  const bad = await approveChangeset((cap, input) => (cap === "changesets.approve" ? Promise.resolve({ approved: false, versionIds: [], conflicts: ["consult-prep.md"] }) : s.data.call(cap, input)), { changesetId: "cs_rivera", message: "", push: false, key: "k" });
+  const bad = await approveChangeset(
+    (cap, input) =>
+      cap === "changesets.approve"
+        ? Promise.resolve({ approved: false, versionIds: [], conflicts: ["consult-prep.md"] })
+        : s.data.call(cap, input),
+    { changesetId: "cs_rivera", message: "", push: false, key: "k" },
+  );
   assert.ok(!bad.ok && has(bad.error, "1 file changed since") && has(bad.error, "consult-prep.md"));
 });
 
@@ -168,7 +323,10 @@ test("Harbor Studio: Proofer changed 2 files, in the same header", () => {
 test("git row: the branch with its state, Pull, Push and Sync, a branch menu; not a repository offers to start one", async () => {
   const s = sample({ repo: true });
   const out = html(s, <GitRow folderId={s.folderId} />);
-  assert.ok(has(out, 'data-testid="git-row"') && has(out, 'data-testid="row-git"') && has(text(out), "docs-update"), "the branch on one Row line");
+  assert.ok(
+    has(out, 'data-testid="git-row"') && has(out, 'data-testid="row-git"') && has(text(out), "docs-update"),
+    "the branch on one Row line",
+  );
   for (const label of ["Pull", "Push", "Sync", "Switch branch"]) assert.ok(has(out, `aria-label="${label}"`), label);
   assert.ok(has(text(out), "No changes"));
   assert.ok(has(tag(out, "git-branches"), 'aria-haspopup="menu"'), "the branch control opens a menu");
@@ -181,37 +339,83 @@ test("git row: the branch with its state, Pull, Push and Sync, a branch menu; no
   const q = sample({ repo: true });
   const b = await switchBranch(q.data.call, q.folderId, "main");
   assert.ok(b.ok);
-  assert.deepEqual(lastCall(q), { cap: "git.branch", input: { folderId: "fld_rivera", action: "switch", name: "main" } });
-  assert.ok(has(text(html(q, <GitRow folderId={q.folderId} />)), "Protected"), "after the switch the row reads the new branch");
+  assert.deepEqual(lastCall(q), {
+    cap: "git.branch",
+    input: { folderId: "fld_rivera", action: "switch", name: "main" },
+  });
+  assert.ok(
+    has(text(html(q, <GitRow folderId={q.folderId} />)), "Protected"),
+    "after the switch the row reads the new branch",
+  );
   assert.ok((await pushBranch(q.data.call, q.folderId, "k9", "main")).ok);
   assert.deepEqual(lastCall(q).input, { folderId: "fld_rivera", branch: "main", idempotencyKey: "k9" });
 });
 
 test("branch choices: local branches first, the current one marked, protected ones named", () => {
-  const out = branchChoices({ current: "docs-update", branches: [{ name: "origin/x", remote: true, sha: "1", protected: false }, { name: "main", remote: false, sha: "2", protected: true }, { name: "docs-update", remote: false, sha: "3", protected: false }] });
-  assert.deepEqual(out.map((b) => [b.name, b.current, b.protected]), [["main", false, true], ["docs-update", true, false], ["origin/x", false, false]]);
+  const out = branchChoices({
+    current: "docs-update",
+    branches: [
+      { name: "origin/x", remote: true, sha: "1", protected: false },
+      { name: "main", remote: false, sha: "2", protected: true },
+      { name: "docs-update", remote: false, sha: "3", protected: false },
+    ],
+  });
+  assert.deepEqual(
+    out.map((b) => [b.name, b.current, b.protected]),
+    [
+      ["main", false, true],
+      ["docs-update", true, false],
+      ["origin/x", false, false],
+    ],
+  );
 });
 
 test("history: the shared tab lists versions newest first with who and why; restore adds a version; naming sticks", async () => {
   const s = sample();
   const out = html(s, <HistoryPanel fileId={s.fileIds.agent} />);
   assert.ok(has(out, 'data-testid="history-tab"') && has(out, 'data-testid="history-panel"'));
-  const at = (t: string): number => { const i = text(out).indexOf(t); assert.ok(i >= 0, t); return i; };
-  assert.ok(at("Allow texts in the daytime") < at("Before the Lab") && at("Before the Lab") < at("First draft"), "newest first, the named version shows its name");
+  const at = (t: string): number => {
+    const i = text(out).indexOf(t);
+    assert.ok(i >= 0, t);
+    return i;
+  };
+  assert.ok(
+    at("Allow texts in the daytime") < at("Before the Lab") && at("Before the Lab") < at("First draft"),
+    "newest first, the named version shows its name",
+  );
   assert.ok(has(text(out), "Irfad Imtiaz") && has(text(out), "Maya Chen"), "who");
   assert.ok(has(out, 'data-testid="history-name-open"') && has(out, 'data-testid="history-restore"'));
-  const versions = historyVersions([{ versionId: "a", n: 1, by: "usr_maya", at: 0, reason: "r" }, { versionId: "b", n: 2, by: "usr_irfad", at: 1, name: "Named" }], s.data.nameOf);
-  assert.deepEqual(versions.map((v) => [v.id, v.why, v.undoable]), [["a", "r", false], ["b", "Named", true]]);
+  const versions = historyVersions(
+    [
+      { versionId: "a", n: 1, by: "usr_maya", at: 0, reason: "r" },
+      { versionId: "b", n: 2, by: "usr_irfad", at: 1, name: "Named" },
+    ],
+    s.data.nameOf,
+  );
+  assert.deepEqual(
+    versions.map((v) => [v.id, v.why, v.undoable]),
+    [
+      ["a", "r", false],
+      ["b", "Named", true],
+    ],
+  );
   const r = await restoreVersion(s.data.call, s.fileIds.agent, "ver_a2");
   assert.ok(r.ok);
-  assert.deepEqual(lastCall(s), { cap: "files.restore_version", input: { fileId: "file_agent_md", versionId: "ver_a2" } });
+  assert.deepEqual(lastCall(s), {
+    cap: "files.restore_version",
+    input: { fileId: "file_agent_md", versionId: "ver_a2" },
+  });
   assert.equal(s.version(s.fileIds.agent), 5, "restoring adds a version, it never rewrites history");
   assert.ok(has(text(html(s, <HistoryPanel fileId={s.fileIds.agent} />)), "Restored version 2"));
   const n = await nameVersion(s.data.call, s.fileIds.agent, "ver_a1", "  Day one  ");
   assert.ok(n.ok);
   assert.deepEqual(lastCall(s).input, { fileId: "file_agent_md", versionId: "ver_a1", name: "Day one" });
   assert.ok(has(text(html(s, <HistoryPanel fileId={s.fileIds.agent} />)), "Day one"));
-  assert.equal(screensById.get("files.history")?.actions["restore"]?.confirm, "Restore this version?", "the screen asks first; the tab does");
+  assert.equal(
+    screensById.get("files.history")?.actions["restore"]?.confirm,
+    "Restore this version?",
+    "the screen asks first; the tab does",
+  );
   const bad = sample();
   bad.failNext("files.restore_version", "auth.forbidden");
   const denied = await restoreVersion(bad.data.call, bad.fileIds.agent, "ver_a2");
@@ -221,44 +425,122 @@ test("history: the shared tab lists versions newest first with who and why; rest
 test("diff tabs: a changeset's files with their changes and the comment; a version compare; a commit", () => {
   const s = sample();
   const out = html(s, <ChangesetDiff changesetId={s.changesetId} path="consult-prep.md" />);
-  assert.ok(has(out, 'data-testid="changeset-diff"') && has(out, 'data-testid="diff-files"'), "the shared tab with its file list");
-  for (const p of ["rivera-engagement-letter.docx", "consult-prep.md", "id-scan.png"]) assert.ok(has(out, `data-testid="row-diff-file-${p}"`), `a line for ${p}`);
-  assert.ok(has(tag(out, "row-diff-file-consult-prep.md"), "var(--sel)") && !has(tag(out, "row-diff-file-id-scan.png"), "var(--sel)"), "one file is open, its line carries the quiet selection");
-  assert.ok(has(text(out), "+2 \u22121") && has(text(out), "+4 \u22123") && has(text(out), "image"), "each line says its counts, a picture says image");
-  assert.ok(has(out, 'data-testid="diff-paragraphs"'), "a markdown note reads as prose with word marks, not code lines");
-  assert.ok(!has(out, 'data-testid="diff-layout-unified"') && !has(out, 'data-testid="diff-wordmarks"'), "the tab has no toolbar of its own, no Word marks button");
-  assert.ok(has(out, 'data-testid="diff-file-header"') && has(text(out), "consult-prep.md") && has(out, 'data-testid="diff-file-toggle"'), "the open file has its header row");
-  assert.ok(has(out, 'data-testid="diff-file-note"') && has(text(out), "v2 \u2192 v3"), "the header says the versions it spans");
-  assert.ok(has(out, 'data-testid="diff-note-reply-cmt_1"') && has(text(out), "Reply"), "the comment thread has its Reply link");
+  assert.ok(
+    has(out, 'data-testid="changeset-diff"') && has(out, 'data-testid="diff-files"'),
+    "the shared tab with its file list",
+  );
+  for (const p of ["rivera-engagement-letter.docx", "consult-prep.md", "id-scan.png"])
+    assert.ok(has(out, `data-testid="row-diff-file-${p}"`), `a line for ${p}`);
+  assert.ok(
+    has(tag(out, "row-diff-file-consult-prep.md"), "var(--sel)") &&
+      !has(tag(out, "row-diff-file-id-scan.png"), "var(--sel)"),
+    "one file is open, its line carries the quiet selection",
+  );
+  assert.ok(
+    has(text(out), "+2 \u22121") && has(text(out), "+4 \u22123") && has(text(out), "image"),
+    "each line says its counts, a picture says image",
+  );
+  assert.ok(
+    has(out, 'data-testid="diff-paragraphs"'),
+    "a markdown note reads as prose with word marks, not code lines",
+  );
+  assert.ok(
+    !has(out, 'data-testid="diff-layout-unified"') && !has(out, 'data-testid="diff-wordmarks"'),
+    "the tab has no toolbar of its own, no Word marks button",
+  );
+  assert.ok(
+    has(out, 'data-testid="diff-file-header"') &&
+      has(text(out), "consult-prep.md") &&
+      has(out, 'data-testid="diff-file-toggle"'),
+    "the open file has its header row",
+  );
+  assert.ok(
+    has(out, 'data-testid="diff-file-note"') && has(text(out), "v2 \u2192 v3"),
+    "the header says the versions it spans",
+  );
+  assert.ok(
+    has(out, 'data-testid="diff-note-reply-cmt_1"') && has(text(out), "Reply"),
+    "the comment thread has its Reply link",
+  );
   assert.ok(has(text(out), "Ask for a photo ID before the consult."), "an added line");
-  assert.ok(has(text(out), "Please put this above the intake form line.") && has(text(out), "Maya Chen"), "the comment sits on its change");
+  assert.ok(
+    has(text(out), "Please put this above the intake form line.") && has(text(out), "Maya Chen"),
+    "the comment sits on its change",
+  );
   assert.ok(!has(text(out), "Docs changed 3 files"), "no duplicate of the header inside the diff");
   const pic = html(s, <ChangesetDiff changesetId={s.changesetId} path="id-scan.png" />);
   assert.ok(has(pic, 'data-testid="diff-image"'), "a picture opens as before and after");
   const letter = html(s, <ChangesetDiff changesetId={s.changesetId} />);
   assert.ok(has(letter, 'data-testid="diff-para-changed"'), "a small edit is one paragraph, struck and filled inline");
-  assert.ok(has(letter, 'data-testid="diff-para-removed"') && has(letter, 'data-testid="diff-para-added"'), "a paragraph that was mostly rewritten is a red line and a green line");
-  for (const w of ["Dear Ms. Rivera,", "Thank you for choosing Northwind", "Communication. We reply", "Please sign below"]) assert.ok(has(text(letter), w), `the whole letter reads through: ${w}`);
-  assert.ok(has(letter, 'data-testid="diff-para-context-before"') && has(letter, 'data-testid="diff-para-context-after"'), "unchanged text in full around the changes");
+  assert.ok(
+    has(letter, 'data-testid="diff-para-removed"') && has(letter, 'data-testid="diff-para-added"'),
+    "a paragraph that was mostly rewritten is a red line and a green line",
+  );
+  for (const w of [
+    "Dear Ms. Rivera,",
+    "Thank you for choosing Northwind",
+    "Communication. We reply",
+    "Please sign below",
+  ])
+    assert.ok(has(text(letter), w), `the whole letter reads through: ${w}`);
+  assert.ok(
+    has(letter, 'data-testid="diff-para-context-before"') && has(letter, 'data-testid="diff-para-context-after"'),
+    "unchanged text in full around the changes",
+  );
   assert.ok(!has(text(letter), "Line 6") && !has(letter, 'data-testid="diff-comment-h_date"'), "no hunk boxes");
   assert.ok(has(text(letter), "Maya Chen") && has(text(letter), "Today 9:30 am"), "the thread says who and when");
-  assert.ok(has(letter, 'data-testid="diff-note-cmt_0"') && has(letter, 'data-testid="diff-note-reply-cmt_0"') && has(text(letter), "Can we keep the courtesy line"), "the thread sits in the letter with its Reply link");
+  assert.ok(
+    has(letter, 'data-testid="diff-note-cmt_0"') &&
+      has(letter, 'data-testid="diff-note-reply-cmt_0"') &&
+      has(text(letter), "Can we keep the courtesy line"),
+    "the thread sits in the letter with its Reply link",
+  );
   assert.ok(has(letter, 'data-testid="diff-file-replies"'), "the header counts the replies");
   const one = html(s, <FileDiff fileId={s.fileIds.agent} name="AGENT.md" />);
-  assert.ok(has(one, 'data-testid="file-diff"') && has(text(one), "- Promise an outcome."), "a version compare is bare: the changed line in the page");
+  assert.ok(
+    has(one, 'data-testid="file-diff"') && has(text(one), "- Promise an outcome."),
+    "a version compare is bare: the changed line in the page",
+  );
   assert.ok(!has(one, 'data-testid="diff-revert-'), "no per-change buttons in a version compare");
   const commit = html(s, <CommitDiff folderId={s.folderId} sha="d4a91c7" />);
   assert.ok(has(commit, 'data-testid="commit-diff"') && has(text(commit), "Raise the retainer to $2,400"));
   const same = sample();
-  assert.ok(has(html(same, <FileDiff fileId={same.fileIds.toml} name="agent.toml" from="ver_t2" to="ver_t2" />), "These two versions are the same."));
+  assert.ok(
+    has(
+      html(same, <FileDiff fileId={same.fileIds.toml} name="agent.toml" from="ver_t2" to="ver_t2" />),
+      "These two versions are the same.",
+    ),
+  );
 });
 
 test("diff model: hunks keep their context, an image rides in one hunk, a commit's hunks go to its first file", () => {
-  const h = hunkOf({ hunkId: "h", oldStart: 3, oldLines: 3, newStart: 3, newLines: 4, lines: [{ op: "ctx", text: "a" }, { op: "del", text: "b" }, { op: "add", text: "c" }, { op: "add", text: "d" }, { op: "ctx", text: "e" }] });
+  const h = hunkOf({
+    hunkId: "h",
+    oldStart: 3,
+    oldLines: 3,
+    newStart: 3,
+    newLines: 4,
+    lines: [
+      { op: "ctx", text: "a" },
+      { op: "del", text: "b" },
+      { op: "add", text: "c" },
+      { op: "add", text: "d" },
+      { op: "ctx", text: "e" },
+    ],
+  });
   assert.deepEqual(h, { id: "h", context: "Line 3", removed: "b", added: "c\nd", before: "a", after: "e" });
-  const img = diffFileOf("x.png", { kind: "image", added: 0, removed: 0, hunks: [], images: { left: "L", right: "R" } });
+  const img = diffFileOf("x.png", {
+    kind: "image",
+    added: 0,
+    removed: 0,
+    hunks: [],
+    images: { left: "L", right: "R" },
+  });
   assert.equal(img.body, "image");
-  assert.deepEqual(img.hunks.map((x) => [x.removed, x.added]), [["L", "R"]]);
+  assert.deepEqual(
+    img.hunks.map((x) => [x.removed, x.added]),
+    [["L", "R"]],
+  );
   assert.equal(diffFileOf("a.bin", { kind: "binary", added: 0, removed: 0, hunks: [] }).body, "text");
   const s = sample();
   const show = s.replica.run("git.show", { folderId: "f", sha: "abc" });
@@ -271,55 +553,162 @@ test("diff model: hunks keep their context, an image rides in one hunk, a commit
 test("lint bar: lines against the limit, Inherits VYRE.md, overrides, secrets; each is a button with a dot", () => {
   const s = sample();
   const out = html(s, <LintBar fileId={s.fileIds.agent} name="AGENT.md" text={AGENT_MD} onJump={() => undefined} />);
-  assert.ok(has(out, 'data-testid="lint-bar"') && has(out, 'aria-label="Checks for AGENT.md"') && has(out, 'role="status"'));
+  assert.ok(
+    has(out, 'data-testid="lint-bar"') && has(out, 'aria-label="Checks for AGENT.md"') && has(out, 'role="status"'),
+  );
   const lines = AGENT_MD.split("\n").length - 1;
   assert.ok(has(text(out), `${lines} / 150 lines`), "lines against the limit");
-  for (const t of ["Inherits VYRE.md", "1 override", "Nothing repeated from agent.toml", "No secrets"]) assert.ok(has(text(out), t), t);
+  for (const t of ["Inherits VYRE.md", "1 override", "Nothing repeated from agent.toml", "No secrets"])
+    assert.ok(has(text(out), t), t);
   for (const k of ["len", "inherits", "overrides", "secrets"]) assert.ok(has(out, `data-testid="lint-${k}"`), k);
   assert.ok(!has(out, 'data-testid="lint-view"'), "the Text and Form switch is for agent.toml only");
-  const long = html(s, <LintBar fileId={s.fileIds.agent} name="AGENT.md" text={`${AGENT_MD}${"more\n".repeat(160)}`} onJump={() => undefined} />);
+  const long = html(
+    s,
+    <LintBar
+      fileId={s.fileIds.agent}
+      name="AGENT.md"
+      text={`${AGENT_MD}${"more\n".repeat(160)}`}
+      onJump={() => undefined}
+    />,
+  );
   assert.ok(has(text(long), "/ 150 lines"));
-  const bad = html(s, <LintBar fileId={s.fileIds.agent} name="AGENT.md" text={`${AGENT_MD}key = sk-abcdefghijkl\n`} onJump={() => undefined} />);
+  const bad = html(
+    s,
+    <LintBar
+      fileId={s.fileIds.agent}
+      name="AGENT.md"
+      text={`${AGENT_MD}key = sk-abcdefghijkl\n`}
+      onJump={() => undefined}
+    />,
+  );
   assert.ok(has(text(bad), "1 possible secret"));
 });
 
 test("lint bar on agent.toml: schema, the Text and Form switch with a real checked state", () => {
   const s = sample();
-  const form = html(s, <LintBar fileId={s.fileIds.toml} name="agent.toml" text={AGENT_TOML} view="form" onView={() => undefined} onJump={() => undefined} />);
+  const form = html(
+    s,
+    <LintBar
+      fileId={s.fileIds.toml}
+      name="agent.toml"
+      text={AGENT_TOML}
+      view="form"
+      onView={() => undefined}
+      onJump={() => undefined}
+    />,
+  );
   assert.ok(has(text(form), "Schema valid") && has(form, 'data-testid="lint-schema"'));
-  assert.ok(has(form, 'role="radiogroup"') && has(tag(form, "lint-view-form"), 'aria-checked="true"') && has(tag(form, "lint-view-text"), 'aria-checked="false"'));
-  const broken = html(s, <LintBar fileId={s.fileIds.toml} name="agent.toml" text={AGENT_TOML.replace("temperature = 0.2", "temperature = hot")} view="text" onView={() => undefined} onJump={() => undefined} />);
+  assert.ok(
+    has(form, 'role="radiogroup"') &&
+      has(tag(form, "lint-view-form"), 'aria-checked="true"') &&
+      has(tag(form, "lint-view-text"), 'aria-checked="false"'),
+  );
+  const broken = html(
+    s,
+    <LintBar
+      fileId={s.fileIds.toml}
+      name="agent.toml"
+      text={AGENT_TOML.replace("temperature = 0.2", "temperature = hot")}
+      view="text"
+      onView={() => undefined}
+      onJump={() => undefined}
+    />,
+  );
   assert.ok(has(text(broken), "1 schema error"));
 });
 
 test("lint items: severity, the lines a press jumps to, and what blocks a save", () => {
-  const ok = lintItems({ file: "agent_md", lines: 40, state: "ok", inherits: true, overrides: [], secrets: [], problems: [] });
-  assert.deepEqual(ok.map((i) => [i.k, i.sev]), [["len", "ok"], ["inherits", "ok"], ["overrides", "ok"], ["dups", "ok"], ["secrets", "ok"]]);
-  const noisy = lintItems({ file: "agent_md", lines: 210, state: "red", overrides: [{ line: 4, text: "Override: a" }, { line: 9, text: "Override: b" }], secrets: [{ line: 12, kind: "API key" }], problems: [{ severity: "warn", line: 2, rule: "r", message: "m" }] });
+  const ok = lintItems({
+    file: "agent_md",
+    lines: 40,
+    state: "ok",
+    inherits: true,
+    overrides: [],
+    secrets: [],
+    problems: [],
+  });
+  assert.deepEqual(
+    ok.map((i) => [i.k, i.sev]),
+    [
+      ["len", "ok"],
+      ["inherits", "ok"],
+      ["overrides", "ok"],
+      ["dups", "ok"],
+      ["secrets", "ok"],
+    ],
+  );
+  const noisy = lintItems({
+    file: "agent_md",
+    lines: 210,
+    state: "red",
+    overrides: [
+      { line: 4, text: "Override: a" },
+      { line: 9, text: "Override: b" },
+    ],
+    secrets: [{ line: 12, kind: "API key" }],
+    problems: [{ severity: "warn", line: 2, rule: "r", message: "m" }],
+  });
   const by = Object.fromEntries(noisy.map((i) => [i.k, i]));
   assert.equal(by["len"]?.sev, "err");
   assert.equal(by["inherits"]?.sev, "warn", "no Inherits VYRE.md line");
   assert.equal(by["overrides"]?.sev, "info");
-  assert.deepEqual(by["overrides"]?.list.map((p) => p.line), [4, 9], "several lines open a menu");
+  assert.deepEqual(
+    by["overrides"]?.list.map((p) => p.line),
+    [4, 9],
+    "several lines open a menu",
+  );
   assert.equal(by["secrets"]?.line, 12, "one place jumps to it");
   assert.equal(by["problems"]?.label, "1 problem");
-  assert.equal(saveBlocked({ file: "agent_md", lines: 1, state: "red", overrides: [], secrets: [], problems: [] }), true);
-  assert.equal(saveBlocked({ file: "agent_md", lines: 1, state: "amber", overrides: [], secrets: [], problems: [] }), false);
+  assert.equal(
+    saveBlocked({ file: "agent_md", lines: 1, state: "red", overrides: [], secrets: [], problems: [] }),
+    true,
+  );
+  assert.equal(
+    saveBlocked({ file: "agent_md", lines: 1, state: "amber", overrides: [], secrets: [], problems: [] }),
+    false,
+  );
   assert.equal(saveBlocked(undefined), false);
   assert.deepEqual(lineRange("ab\ncde\nf", 2), { start: 3, end: 6 });
 });
 
 test("agent.toml reader: sections, keys, multi-line lists, and an edit rewrites only its own line", () => {
   const entries = parseToml(AGENT_TOML);
-  assert.deepEqual(entries.map((e) => `${e.section}.${e.key}`), ["model.primary", "model.fallback", "model.temperature", "limits.max_steps", "limits.daily_budget", "limits.ask_before_send", "handoff.to"]);
-  assert.deepEqual(tomlGroups(entries).map((g) => [g.section, g.entries.length]), [["model", 3], ["limits", 3], ["handoff", 1]]);
+  assert.deepEqual(
+    entries.map((e) => `${e.section}.${e.key}`),
+    [
+      "model.primary",
+      "model.fallback",
+      "model.temperature",
+      "limits.max_steps",
+      "limits.daily_budget",
+      "limits.ask_before_send",
+      "handoff.to",
+    ],
+  );
+  assert.deepEqual(
+    tomlGroups(entries).map((g) => [g.section, g.entries.length]),
+    [
+      ["model", 3],
+      ["limits", 3],
+      ["handoff", 1],
+    ],
+  );
   const multi = parseToml('[a]\nlist = [\n  "x",\n  "y",\n]\nafter = 1\n');
-  assert.deepEqual(multi.map((e) => [e.key, e.line, e.end]), [["list", 2, 5], ["after", 6, 6]]);
+  assert.deepEqual(
+    multi.map((e) => [e.key, e.line, e.end]),
+    [
+      ["list", 2, 5],
+      ["after", 6, 6],
+    ],
+  );
   const limit = entries.find((e) => e.key === "daily_budget");
   assert.ok(limit);
   const next = setTomlValue(AGENT_TOML, limit, "20");
   assert.equal(next.split("\n").length, AGENT_TOML.split("\n").length);
-  assert.deepEqual(next.split("\n").filter((l, i) => l !== AGENT_TOML.split("\n")[i]), ["daily_budget = 20"]);
+  assert.deepEqual(
+    next.split("\n").filter((l, i) => l !== AGENT_TOML.split("\n")[i]),
+    ["daily_budget = 20"],
+  );
   assert.equal(tomlKind('"x"'), "string");
   assert.equal(tomlKind("true"), "bool");
   assert.equal(tomlKind("0.2"), "number");
@@ -331,8 +720,16 @@ test("agent.toml reader: sections, keys, multi-line lists, and an edit rewrites 
 test("Form view: the keys of each table as Row lines, a switch for true and false, a text box for the rest", () => {
   const s = sample();
   const out = html(s, <TomlForm text={AGENT_TOML} onChange={() => undefined} />);
-  assert.ok(has(out, 'data-testid="toml-form"') && has(text(out), "Model") && has(text(out), "Limits") && has(text(out), "Handoff"));
-  assert.ok(has(out, 'data-testid="row-toml:4"') && has(tag(out, "toml-select:4"), 'aria-haspopup="menu"'), "primary is a dropdown");
+  assert.ok(
+    has(out, 'data-testid="toml-form"') &&
+      has(text(out), "Model") &&
+      has(text(out), "Limits") &&
+      has(text(out), "Handoff"),
+  );
+  assert.ok(
+    has(out, 'data-testid="row-toml:4"') && has(tag(out, "toml-select:4"), 'aria-haspopup="menu"'),
+    "primary is a dropdown",
+  );
   assert.ok(has(text(out), "Claude Sonnet 5.5") && has(text(out), "Claude Haiku 4.5"), "model ids read as names");
   assert.ok(has(out, 'data-testid="toml-field:6"'), "a number stays a text box");
   assert.ok(has(text(out), "Daily budget") && has(text(out), "Ask before send"), "keys read as words");
@@ -359,41 +756,92 @@ test("diff before save: the draft against the saved text, as hunks with two line
 test("editor: Save is off with nothing changed, shows the lint bar and the file, and saves with the version it started from", async () => {
   const s = sample();
   const out = html(s, <AgentFileEditor fileId={s.fileIds.agent} name="AGENT.md" saved={AGENT_MD} version={4} />);
-  assert.ok(has(out, 'data-testid="agent-file-editor"') && has(out, 'data-testid="lint-bar"') && has(out, 'aria-label="Text of AGENT.md"'));
-  assert.ok(!has(out, 'data-testid="agent-file-save"') && !has(text(out), "Review and save"), "no save button: a pause after typing saves a new version");
+  assert.ok(
+    has(out, 'data-testid="agent-file-editor"') &&
+      has(out, 'data-testid="lint-bar"') &&
+      has(out, 'aria-label="Text of AGENT.md"'),
+  );
+  assert.ok(
+    !has(out, 'data-testid="agent-file-save"') && !has(text(out), "Review and save"),
+    "no save button: a pause after typing saves a new version",
+  );
   assert.ok(has(tag(out, "agent-file-status"), "") && has(text(out), "v4"), "the quiet status line says the version");
-  assert.ok(has(out, 'data-testid="agent-file-text"') && has(out, 'data-testid="markdown-editor-host"'), "a .md is edited in the shared Markdown editor");
+  assert.ok(
+    has(out, 'data-testid="agent-file-text"') && has(out, 'data-testid="markdown-editor-host"'),
+    "a .md is edited in the shared Markdown editor",
+  );
   const toml = html(s, <AgentFileEditor fileId={s.fileIds.toml} name="agent.toml" saved={AGENT_TOML} version={2} />);
   assert.ok(has(toml, 'data-testid="lint-view"'), "agent.toml has the Form switch");
   const edited = AGENT_MD.replace("No exclamation marks.", "No exclamation marks. Keep replies short.");
-  const r = await saveFile(s.data.call, { fileId: s.fileIds.agent, text: edited, baseVersion: 4, reason: " Shorter ", acceptWarnings: false });
+  const r = await saveFile(s.data.call, {
+    fileId: s.fileIds.agent,
+    text: edited,
+    baseVersion: 4,
+    reason: " Shorter ",
+    acceptWarnings: false,
+  });
   assert.ok(r.ok && r.value.n === 5);
   assert.deepEqual(lastCall(s).input, { fileId: "file_agent_md", text: edited, baseVersion: 4, reason: "Shorter" });
   assert.equal(s.text(s.fileIds.agent), edited);
-  const stale = await saveFile(s.data.call, { fileId: s.fileIds.agent, text: edited + "x", baseVersion: 4, reason: "", acceptWarnings: false });
-  assert.ok(!stale.ok && has(stale.error, "Someone changed this first"), "a save over a newer version is refused, not lost");
+  const stale = await saveFile(s.data.call, {
+    fileId: s.fileIds.agent,
+    text: edited + "x",
+    baseVersion: 4,
+    reason: "",
+    acceptWarnings: false,
+  });
+  assert.ok(
+    !stale.ok && has(stale.error, "Someone changed this first"),
+    "a save over a newer version is refused, not lost",
+  );
   assert.equal(s.version(s.fileIds.agent), 5);
 });
 
 test("a red check blocks the save, an amber one saves only with the warnings accepted", async () => {
   const s = sample();
-  const red = await saveFile(s.data.call, { fileId: s.fileIds.agent, text: `${AGENT_MD}\nkey = sk-abcdefghijkl\n`, baseVersion: 4, reason: "", acceptWarnings: true });
+  const red = await saveFile(s.data.call, {
+    fileId: s.fileIds.agent,
+    text: `${AGENT_MD}\nkey = sk-abcdefghijkl\n`,
+    baseVersion: 4,
+    reason: "",
+    acceptWarnings: true,
+  });
   assert.ok(!red.ok, "a secret in the file is refused");
   assert.equal(s.version(s.fileIds.agent), 4);
   const long = `${AGENT_MD}${"- another rule\n".repeat(140)}`;
-  const amber = await saveFile(s.data.call, { fileId: s.fileIds.agent, text: long, baseVersion: 4, reason: "", acceptWarnings: false });
+  const amber = await saveFile(s.data.call, {
+    fileId: s.fileIds.agent,
+    text: long,
+    baseVersion: 4,
+    reason: "",
+    acceptWarnings: false,
+  });
   assert.ok(!amber.ok, "over the limit asks for acceptance");
-  const accepted = await saveFile(s.data.call, { fileId: s.fileIds.agent, text: long, baseVersion: 4, reason: "", acceptWarnings: true });
+  const accepted = await saveFile(s.data.call, {
+    fileId: s.fileIds.agent,
+    text: long,
+    baseVersion: 4,
+    reason: "",
+    acceptWarnings: true,
+  });
   assert.ok(accepted.ok && accepted.value.lint.state === "amber");
   assert.deepEqual(lastCall(s).input, { fileId: "file_agent_md", text: long, baseVersion: 4, acceptWarnings: true });
   const t = sample({ secret: true });
-  const red2 = html(t, <AgentFileEditor fileId={t.fileIds.toml} name="agent.toml" saved={t.text(t.fileIds.toml)} version={2} />);
+  const red2 = html(
+    t,
+    <AgentFileEditor fileId={t.fileIds.toml} name="agent.toml" saved={t.text(t.fileIds.toml)} version={2} />,
+  );
   assert.ok(has(text(red2), "1 possible secret"), "the saved file already holds a secret and the bar says so");
 });
 
 test("every screen the surfaces implement is in the registry with the capabilities they call", () => {
   const want: Record<string, string[]> = {
-    "files.changeset-header": ["changesets.approve", "changesets.request_changes", "changesets.discard", "changesets.review_externally"],
+    "files.changeset-header": [
+      "changesets.approve",
+      "changesets.request_changes",
+      "changesets.discard",
+      "changesets.review_externally",
+    ],
     "files.git-row": ["git.commit", "git.branch", "git.pull", "git.push", "git.sync", "git.init"],
     "files.history": ["files.restore_version", "files.name_version"],
     "files.lint-bar": ["files.save"],
@@ -409,17 +857,57 @@ test("every screen the surfaces implement is in the registry with the capabiliti
 
 test("agent file page: header with where it lives and who saved it, View and Edit, the shared Ask, the chips, the suggestion card, the rendered body", () => {
   const s = sample();
-  const out = html(s, <AgentFilePage fileId={s.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} />);
-  assert.ok(has(text(out), "AGENT.md") && has(text(out), "Agents/Intake") && has(text(out), "Irfad Imtiaz") && has(text(out), "Oct 24"), "name, path, author, date");
-  assert.ok(has(tag(out, "agent-file-mode-view"), 'aria-checked="true"') && has(tag(out, "agent-file-mode-edit"), 'aria-checked="false"'), "opens on View");
+  const out = html(
+    s,
+    <AgentFilePage
+      fileId={s.fileIds.agent}
+      name="AGENT.md"
+      path="Agents/Intake"
+      agentId="agt_intake"
+      saved={AGENT_MD}
+      version={4}
+    />,
+  );
+  assert.ok(
+    has(text(out), "AGENT.md") &&
+      has(text(out), "Agents/Intake") &&
+      has(text(out), "Irfad Imtiaz") &&
+      has(text(out), "Oct 24"),
+    "name, path, author, date",
+  );
+  assert.ok(
+    has(tag(out, "agent-file-mode-view"), 'aria-checked="true"') &&
+      has(tag(out, "agent-file-mode-edit"), 'aria-checked="false"'),
+    "opens on View",
+  );
   // the rarely used buttons live in the "..." menu (find, details, history), not in the header
   for (const id of ["agent-file-ask", "agent-file-more"]) assert.ok(has(out, `data-testid="${id}"`), id);
-  for (const id of ["agent-file-find", "agent-file-info", "agent-file-history"]) assert.ok(!has(out, `data-testid="${id}"`), `${id} is folded into the menu`);
+  for (const id of ["agent-file-find", "agent-file-info", "agent-file-history"])
+    assert.ok(!has(out, `data-testid="${id}"`), `${id} is folded into the menu`);
   assert.ok(has(text(out), "Nothing repeated from agent.toml") && has(text(out), "No secrets"), "the chips");
-  assert.ok(has(out, 'data-testid="suggestion-card"') && has(text(out), "Intake suggests 2 changes to AGENT.md"), "the suggestion");
+  assert.ok(
+    has(out, 'data-testid="suggestion-card"') && has(text(out), "Intake suggests 2 changes to AGENT.md"),
+    "the suggestion",
+  );
   assert.ok(has(out, 'data-testid="suggestion-dismiss"') && has(text(out), "Apply to AGENT.md"));
-  assert.ok(has(out, 'data-testid="agent-file-view"') && has(text(out), "Books consults") && !has(out, 'aria-label="Text of AGENT.md"'), "View is the rendered note");
-  const edit = html(s, <AgentFilePage fileId={s.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} edit />);
+  assert.ok(
+    has(out, 'data-testid="agent-file-view"') &&
+      has(text(out), "Books consults") &&
+      !has(out, 'aria-label="Text of AGENT.md"'),
+    "View is the rendered note",
+  );
+  const edit = html(
+    s,
+    <AgentFilePage
+      fileId={s.fileIds.agent}
+      name="AGENT.md"
+      path="Agents/Intake"
+      agentId="agt_intake"
+      saved={AGENT_MD}
+      version={4}
+      edit
+    />,
+  );
   assert.ok(has(edit, 'aria-label="Text of AGENT.md"'), "Edit is the text box");
 });
 
@@ -434,7 +922,11 @@ test("suggestions: the diff reads as hunks; Apply and Dismiss call the agent sug
   assert.ok(r.ok);
   assert.deepEqual(lastCall(s), { cap: "agents.suggestion.accept", input: { suggestionId: "sug_1" } });
   assert.equal(s.suggestionState(), "accepted");
-  assert.equal(html(s, <SuggestionCard agentId="agt_intake" file="AGENT.md" />), "", "an applied suggestion leaves the card");
+  assert.equal(
+    html(s, <SuggestionCard agentId="agt_intake" file="AGENT.md" />),
+    "",
+    "an applied suggestion leaves the card",
+  );
   const t = sample();
   assert.ok((await dismissSuggestion(t.data.call, "sug_1")).ok);
   assert.equal(t.suggestionState(), "dismissed");
@@ -446,25 +938,74 @@ test("apply: the suggestion's diff goes into the text, so the editor shows the n
   const next = applySuggestion(AGENT_MD, diff);
   assert.ok(has(next, "- No exclamation marks. Keep replies under five lines."), "the changed line");
   assert.ok(!has(next, "\n- No exclamation marks.\n"), "the old line is gone");
-  assert.ok(has(next, "- Promise an outcome.\n- Quote a fee before the consult."), "an added line lands after its context");
+  assert.ok(
+    has(next, "- Promise an outcome.\n- Quote a fee before the consult."),
+    "an added line lands after its context",
+  );
   assert.equal(next.split("\n").length, AGENT_MD.split("\n").length + 1);
-  assert.equal(applySuggestion("nothing alike\n", diff), "nothing alike\n", "a hunk that no longer matches is left out");
+  assert.equal(
+    applySuggestion("nothing alike\n", diff),
+    "nothing alike\n",
+    "a hunk that no longer matches is left out",
+  );
   const r = await acceptSuggestion(s.data.call, "sug_1");
   assert.ok(r.ok);
   assert.equal(s.version(s.fileIds.agent), 5, "the kernel adds a version");
   assert.equal(s.text(s.fileIds.agent), next, "and the file holds what the editor shows");
-  const page = html(s, <AgentFilePage fileId={s.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} edit />);
+  const page = html(
+    s,
+    <AgentFilePage
+      fileId={s.fileIds.agent}
+      name="AGENT.md"
+      path="Agents/Intake"
+      agentId="agt_intake"
+      saved={AGENT_MD}
+      version={4}
+      edit
+    />,
+  );
   assert.ok(has(text(page), "v5"), "the page reads the new version");
 });
 
 test("agent file page: v5 check, History in the shared side pane with the version banner, find and info", () => {
   const s = sample();
-  const closed = html(s, <AgentFilePage fileId={s.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} />);
+  const closed = html(
+    s,
+    <AgentFilePage
+      fileId={s.fileIds.agent}
+      name="AGENT.md"
+      path="Agents/Intake"
+      agentId="agt_intake"
+      saved={AGENT_MD}
+      version={4}
+    />,
+  );
   assert.ok(has(closed, 'data-testid="agent-file-version"') && has(text(closed), "v4"), "the version check");
   assert.ok(!has(closed, 'data-testid="side-pane"'), "History is closed until asked");
-  const open = html(s, <AgentFilePage fileId={s.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} startHistory startViewing="ver_a3" />);
-  assert.ok(has(open, 'data-testid="side-pane"') && has(open, 'data-testid="history-tab"'), "the shared side pane holds the history tab");
-  assert.ok(has(open, 'data-testid="version-banner"') && has(open, 'data-testid="version-restore"') && has(open, 'data-testid="version-back"') && has(open, 'data-testid="version-changes"'), "the banner over the page");
+  const open = html(
+    s,
+    <AgentFilePage
+      fileId={s.fileIds.agent}
+      name="AGENT.md"
+      path="Agents/Intake"
+      agentId="agt_intake"
+      saved={AGENT_MD}
+      version={4}
+      startHistory
+      startViewing="ver_a3"
+    />,
+  );
+  assert.ok(
+    has(open, 'data-testid="side-pane"') && has(open, 'data-testid="history-tab"'),
+    "the shared side pane holds the history tab",
+  );
+  assert.ok(
+    has(open, 'data-testid="version-banner"') &&
+      has(open, 'data-testid="version-restore"') &&
+      has(open, 'data-testid="version-back"') &&
+      has(open, 'data-testid="version-changes"'),
+    "the banner over the page",
+  );
   assert.ok(has(text(open), "Viewing v3"), "which version");
   assert.ok(has(open, 'data-testid="file-diff"'), "showing what changed since");
   assert.ok(!has(open, 'data-testid="agent-file-editor"'), "the editor steps aside while an old version shows");
@@ -474,7 +1015,15 @@ test("lint chips: each carries its dot, in the color of its severity", () => {
   const s = sample();
   const out = html(s, <LintBar fileId={s.fileIds.agent} name="AGENT.md" text={AGENT_MD} onJump={() => undefined} />);
   assert.ok(/data-testid="lint-len"[\s\S]*?var\(--ok\)/.test(out), "a green dot on a passing chip");
-  const bad = html(s, <LintBar fileId={s.fileIds.agent} name="AGENT.md" text={`${AGENT_MD}key = sk-abcdefghijkl\n`} onJump={() => undefined} />);
+  const bad = html(
+    s,
+    <LintBar
+      fileId={s.fileIds.agent}
+      name="AGENT.md"
+      text={`${AGENT_MD}key = sk-abcdefghijkl\n`}
+      onJump={() => undefined}
+    />,
+  );
   assert.ok(/data-testid="lint-secrets"[\s\S]*?var\(--danger\)/.test(bad), "a red dot on a secret");
 });
 
@@ -490,7 +1039,17 @@ test("agent.toml picks: a model or an effort is a choice from a list, a list key
 
 test("agent file header: the file-type tile and the more menu; the suggestion card is light with the agent's face and its footer", () => {
   const s = sample();
-  const out = html(s, <AgentFilePage fileId={s.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} />);
+  const out = html(
+    s,
+    <AgentFilePage
+      fileId={s.fileIds.agent}
+      name="AGENT.md"
+      path="Agents/Intake"
+      agentId="agt_intake"
+      saved={AGENT_MD}
+      version={4}
+    />,
+  );
   assert.ok(has(out, 'data-testid="agent-file-tile"') && has(text(out), "MD"), "the file-type tile");
   assert.ok(has(tag(out, "agent-file-more"), 'aria-haspopup="menu"'), "the ... menu");
   assert.equal(extOf("agent.toml"), "TOML");
@@ -501,8 +1060,23 @@ test("agent file header: the file-type tile and the more menu; the suggestion ca
 
 test("phone: History opens under the page, not over it", () => {
   const s = sample();
-  const out = html(s, <AgentFilePage fileId={s.fileIds.agent} name="AGENT.md" path="Agents/Intake" agentId="agt_intake" saved={AGENT_MD} version={4} density="compact" startHistory />);
-  assert.ok(has(out, 'data-testid="agent-file-history-pane"') && has(out, 'data-testid="history-tab"'), "the history sits in its own section");
+  const out = html(
+    s,
+    <AgentFilePage
+      fileId={s.fileIds.agent}
+      name="AGENT.md"
+      path="Agents/Intake"
+      agentId="agt_intake"
+      saved={AGENT_MD}
+      version={4}
+      density="compact"
+      startHistory
+    />,
+  );
+  assert.ok(
+    has(out, 'data-testid="agent-file-history-pane"') && has(out, 'data-testid="history-tab"'),
+    "the history sits in its own section",
+  );
   assert.ok(!has(out, 'data-testid="side-pane"'), "no side pane that would cover the page");
   assert.ok(has(out, 'data-testid="agent-file-history-hide"'));
 });
@@ -513,35 +1087,108 @@ test("the shell's review provider: every attempt gets its own idempotency key", 
 });
 
 test("a small edit is one paragraph with its words marked inline; a rewrite is a red line and a green line", () => {
-  const small = inlineMarks("We attend the hearing set for November 18.", "We attend the hearing on November 18 at 9:30 am.");
+  const small = inlineMarks(
+    "We attend the hearing set for November 18.",
+    "We attend the hearing on November 18 at 9:30 am.",
+  );
   assert.ok(small, "few words differ");
-    const struck = small.filter((s) => s.kind === "del").map((s) => s.text).join("|");
-  const filled = small.filter((s) => s.kind === "add").map((s) => s.text).join("|");
-  assert.ok(has(struck, "set") && has(struck, "for") && !has(struck, "hearing"), "the removed words are struck, the shared ones are not");
+  const struck = small
+    .filter((s) => s.kind === "del")
+    .map((s) => s.text)
+    .join("|");
+  const filled = small
+    .filter((s) => s.kind === "add")
+    .map((s) => s.text)
+    .join("|");
+  assert.ok(
+    has(struck, "set") && has(struck, "for") && !has(struck, "hearing"),
+    "the removed words are struck, the shared ones are not",
+  );
   assert.ok(has(filled, "on") && has(filled, "9:30 am") && !has(filled, "hearing"), "the new words are filled");
-  assert.ok(small.some((s) => s.kind === "same" && has(s.text, "hearing")), "the unchanged words stay as they were");
-  assert.equal(inlineMarks("Fees. We will bill for our time as we go.", "Our consult fee is waived because you came by referral."), null, "most words differ");
-  const rows = proseRows({ id: "h", context: "", removed: "A b c d e.\n\nOld one entirely different words here.", added: "A b c x e.\n\nNothing alike at all now.\n\nA brand new paragraph." }, true);
-  assert.deepEqual(rows.map((r) => r.kind), ["changed", "removed", "added", "added"]);
+  assert.ok(
+    small.some((s) => s.kind === "same" && has(s.text, "hearing")),
+    "the unchanged words stay as they were",
+  );
+  assert.equal(
+    inlineMarks("Fees. We will bill for our time as we go.", "Our consult fee is waived because you came by referral."),
+    null,
+    "most words differ",
+  );
+  const rows = proseRows(
+    {
+      id: "h",
+      context: "",
+      removed: "A b c d e.\n\nOld one entirely different words here.",
+      added: "A b c x e.\n\nNothing alike at all now.\n\nA brand new paragraph.",
+    },
+    true,
+  );
+  assert.deepEqual(
+    rows.map((r) => r.kind),
+    ["changed", "removed", "added", "added"],
+  );
 });
 
 test("real data: the handler's paragraph diff (one paragraph per line, three of context) becomes prose, not one joined block", () => {
   // the shape modules/files answers in paragraph mode: every line is a paragraph, no blank lines between them, marks on a changed pair
-  const out = { kind: "paragraph" as const, added: 1, removed: 1, identical: false, hunks: [{ hunkId: "h1", oldStart: 2, oldLines: 4, newStart: 2, newLines: 4, lines: [
-    { op: "ctx" as const, text: "Dear Ms. Rivera," }, { op: "ctx" as const, text: "Thank you for choosing Northwind." },
-    { op: "del" as const, text: "We attend the hearing set for November 18.", marks: [{ from: 22, to: 29 }] }, { op: "add" as const, text: "We attend the hearing on November 18 at 9:30 am.", marks: [{ from: 22, to: 24 }] },
-    { op: "ctx" as const, text: "Please sign below." },
-  ] }] };
+  const out = {
+    kind: "paragraph" as const,
+    added: 1,
+    removed: 1,
+    identical: false,
+    hunks: [
+      {
+        hunkId: "h1",
+        oldStart: 2,
+        oldLines: 4,
+        newStart: 2,
+        newLines: 4,
+        lines: [
+          { op: "ctx" as const, text: "Dear Ms. Rivera," },
+          { op: "ctx" as const, text: "Thank you for choosing Northwind." },
+          { op: "del" as const, text: "We attend the hearing set for November 18.", marks: [{ from: 22, to: 29 }] },
+          {
+            op: "add" as const,
+            text: "We attend the hearing on November 18 at 9:30 am.",
+            marks: [{ from: 22, to: 24 }],
+          },
+          { op: "ctx" as const, text: "Please sign below." },
+        ],
+      },
+    ],
+  };
   const file = diffFileOf("letter.docx", out);
   assert.equal(file.body, "paragraph");
-  assert.equal(file.hunks[0]?.before, "Dear Ms. Rivera,\n\nThank you for choosing Northwind.", "paragraphs are separated, so the tab draws three paragraphs");
+  assert.equal(
+    file.hunks[0]?.before,
+    "Dear Ms. Rivera,\n\nThank you for choosing Northwind.",
+    "paragraphs are separated, so the tab draws three paragraphs",
+  );
   assert.equal(file.hunks[0]?.after, "Please sign below.");
-  assert.equal(proseRows(file.hunks[0] as never, true).map((r) => r.kind).join(), "changed");
+  assert.equal(
+    proseRows(file.hunks[0] as never, true)
+      .map((r) => r.kind)
+      .join(),
+    "changed",
+  );
 });
 
 test("whole document: the unchanged paragraphs around and between the changes come in full", async () => {
-  const a = ["Engagement letter", "Dear Ms. Rivera,", "Scope. Hearing set for November 18.", "Communication. We reply in a day.", "Please sign below."];
-  const b = ["Engagement letter", "Dear Ms. Rivera,", "Scope. Hearing on November 18 at 9:30 am.", "Communication. We reply in a day.", "Fee schedule. $320 per hour.", "Please sign below."];
+  const a = [
+    "Engagement letter",
+    "Dear Ms. Rivera,",
+    "Scope. Hearing set for November 18.",
+    "Communication. We reply in a day.",
+    "Please sign below.",
+  ];
+  const b = [
+    "Engagement letter",
+    "Dear Ms. Rivera,",
+    "Scope. Hearing on November 18 at 9:30 am.",
+    "Communication. We reply in a day.",
+    "Fee schedule. $320 per hour.",
+    "Please sign below.",
+  ];
   const hunks = wholeDocument(a, b);
   assert.equal(hunks.length, 2);
   assert.equal(hunks[0]?.before, "Engagement letter\n\nDear Ms. Rivera,");
@@ -553,9 +1200,19 @@ test("whole document: the unchanged paragraphs around and between the changes co
   assert.deepEqual(paragraphsOfText("One.\r\n\r\n\r\nTwo.\n\n"), ["One.", "Two."]);
   const s = sample();
   const t = await readTexts(s.data.call, s.fileIds.agent, "ver_a3", "ver_a4");
-  assert.ok(t && has(t.to, "Promise an outcome.") && !has(t.from, "Promise an outcome."), "both versions are read through files.read");
-  assert.deepEqual(s.calls.map((c) => c.cap), ["files.read", "files.read"]);
-  assert.equal(await readTexts(s.data.call, s.fileIds.agent, "ver_nope", "ver_a4"), null, "a version that cannot be read leaves the capability's own diff");
+  assert.ok(
+    t && has(t.to, "Promise an outcome.") && !has(t.from, "Promise an outcome."),
+    "both versions are read through files.read",
+  );
+  assert.deepEqual(
+    s.calls.map((c) => c.cap),
+    ["files.read", "files.read"],
+  );
+  assert.equal(
+    await readTexts(s.data.call, s.fileIds.agent, "ver_nope", "ver_a4"),
+    null,
+    "a version that cannot be read leaves the capability's own diff",
+  );
 });
 
 test("comment times: today reads as a clock time, another day as a date", () => {
@@ -570,8 +1227,16 @@ test("the shell's review provider: live reads through the runtime, writes throug
   const opened: unknown[] = [];
   const asked: { cap: string; input: unknown }[] = [];
   const rt = {
-    screens: { capQuery: (cap: string, input: unknown) => ({ subscribe: () => () => undefined, getSnapshot: () => ({ status: "ready", data: { cap, input } }) }) },
-    call: async (cap: string, input: unknown) => { asked.push({ cap, input }); return { ok: true }; },
+    screens: {
+      capQuery: (cap: string, input: unknown) => ({
+        subscribe: () => () => undefined,
+        getSnapshot: () => ({ status: "ready", data: { cap, input } }),
+      }),
+    },
+    call: async (cap: string, input: unknown) => {
+      asked.push({ cap, input });
+      return { ok: true };
+    },
     clock: () => ({ now: 5, offsetMin: 0 }),
     open: (t: unknown) => void opened.push(t),
     me: { id: "usr_me", name: "Me" },
@@ -588,21 +1253,44 @@ test("the shell's review provider: live reads through the runtime, writes throug
   d.nav.openCommit("fld", "abc");
   d.nav.openHistory?.("f");
   assert.deepEqual(opened, [
-    { screen: "files.diff", args: { changesetId: "cs_1" } }, { screen: "files.diff", args: { fileId: "f", from: "v1", to: "v2" } },
-    { screen: "files.commit-diff", args: { folder: "fld", sha: "abc" } }, { screen: "files.history", args: { fileId: "f" } },
+    { screen: "files.diff", args: { changesetId: "cs_1" } },
+    { screen: "files.diff", args: { fileId: "f", from: "v1", to: "v2" } },
+    { screen: "files.commit-diff", args: { folder: "fld", sha: "abc" } },
+    { screen: "files.history", args: { fileId: "f" } },
   ]);
 });
 
 test("a handler hunk that holds two changes becomes two hunks, and no unchanged paragraph is drawn twice", () => {
-  const raw = { hunkId: "h1", oldStart: 1, oldLines: 8, newStart: 1, newLines: 8, lines: [
-    { op: "ctx" as const, text: "a" }, { op: "del" as const, text: "b" }, { op: "add" as const, text: "B" },
-    { op: "ctx" as const, text: "c" }, { op: "ctx" as const, text: "d" },
-    { op: "del" as const, text: "e" }, { op: "add" as const, text: "E" }, { op: "add" as const, text: "E2" },
-    { op: "ctx" as const, text: "f" },
-  ] };
+  const raw = {
+    hunkId: "h1",
+    oldStart: 1,
+    oldLines: 8,
+    newStart: 1,
+    newLines: 8,
+    lines: [
+      { op: "ctx" as const, text: "a" },
+      { op: "del" as const, text: "b" },
+      { op: "add" as const, text: "B" },
+      { op: "ctx" as const, text: "c" },
+      { op: "ctx" as const, text: "d" },
+      { op: "del" as const, text: "e" },
+      { op: "add" as const, text: "E" },
+      { op: "add" as const, text: "E2" },
+      { op: "ctx" as const, text: "f" },
+    ],
+  };
   const hunks = hunksFrom(raw, "\n\n");
-  assert.deepEqual(hunks.map((h) => h.id), ["h1", "h1.2"]);
-  assert.deepEqual(hunks.map((h) => [h.before, h.removed, h.added, h.after]), [["a", "b", "B", undefined], ["c\n\nd", "e", "E\n\nE2", "f"]]);
+  assert.deepEqual(
+    hunks.map((h) => h.id),
+    ["h1", "h1.2"],
+  );
+  assert.deepEqual(
+    hunks.map((h) => [h.before, h.removed, h.added, h.after]),
+    [
+      ["a", "b", "B", undefined],
+      ["c\n\nd", "e", "E\n\nE2", "f"],
+    ],
+  );
   const everything = hunks.flatMap((h) => [h.before, h.removed, h.added, h.after]).join(" ");
   assert.equal(everything.split("c").length - 1, 1, "an unchanged paragraph between two changes is in one place");
 });
@@ -611,21 +1299,46 @@ test("a picture's before is the file's preview at the version the changeset star
   const asked: { cap: string; input: unknown }[] = [];
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     asked.push({ cap, input });
-    if (cap === "files.versions") return { versions: [{ versionId: "ver_2", n: 2, by: "usr_a", at: 1 }, { versionId: "ver_1", n: 1, by: "usr_a", at: 0 }] };
+    if (cap === "files.versions")
+      return {
+        versions: [
+          { versionId: "ver_2", n: 2, by: "usr_a", at: 1 },
+          { versionId: "ver_1", n: 1, by: "usr_a", at: 0 },
+        ],
+      };
     return { previewUrl: "https://files.example/p/ver_1.png" };
   };
   assert.equal(await basePreviewUrl(call, "fil_1", 1), "https://files.example/p/ver_1.png");
-  assert.deepEqual(asked.map((a) => a.cap), ["files.versions", "files.viewer_data"]);
+  assert.deepEqual(
+    asked.map((a) => a.cap),
+    ["files.versions", "files.viewer_data"],
+  );
   assert.deepEqual(asked[1]?.input, { fileId: "fil_1", versionId: "ver_1" });
   assert.equal(await basePreviewUrl(call, "fil_1", 9), null, "a version that is gone has no picture");
-  assert.equal(await basePreviewUrl(async () => { throw new Error("no"); }, "fil_1", 1), null);
+  assert.equal(
+    await basePreviewUrl(
+      async () => {
+        throw new Error("no");
+      },
+      "fil_1",
+      1,
+    ),
+    null,
+  );
 });
 
 test("changesets.get names the file of each staged change, so the review can read its versions and pictures", () => {
   const s = sample();
   const got = s.replica.run("changesets.get", { changesetId: s.changesetId });
   assert.ok(got);
-  assert.deepEqual(got.data.files.map((f) => [f.path, f.fileId]), [["rivera-engagement-letter.docx", "fil_letter"], ["consult-prep.md", "fil_prep"], ["id-scan.png", undefined]]);
+  assert.deepEqual(
+    got.data.files.map((f) => [f.path, f.fileId]),
+    [
+      ["rivera-engagement-letter.docx", "fil_letter"],
+      ["consult-prep.md", "fil_prep"],
+      ["id-scan.png", undefined],
+    ],
+  );
 });
 
 /* ---------- P-L9e_28: agent.toml as the prototype's Form view ---------- */
@@ -641,13 +1354,67 @@ test("agent.toml form: the groups in the prototype's order, a Row per key, Ident
   const s = intake();
   const out = html(s, <TomlForm text={AGENT_TOML_INTAKE} onChange={() => undefined} />);
   const groups = [...out.matchAll(/data-testid="toml-group:([a-z_.]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(groups, ["identity", "model", "runs_on", "tools", "permissions", "approvals.rule", "vault", "limits", "memory", "computer", "routines", "watchers", "handoff", "logging", "context"], "the form's groups, then a table it has no group for");
+  assert.deepEqual(
+    groups,
+    [
+      "identity",
+      "model",
+      "runs_on",
+      "tools",
+      "permissions",
+      "approvals.rule",
+      "vault",
+      "limits",
+      "memory",
+      "computer",
+      "routines",
+      "watchers",
+      "handoff",
+      "logging",
+      "context",
+    ],
+    "the form's groups, then a table it has no group for",
+  );
   assert.deepEqual(groups.slice(0, 3), ["identity", "model", "runs_on"]);
-  for (const w of ["Identity", "ID", "Name", "Handle", "Description", "Owner", "Status", "Model", "Primary", "Fallback", "Effort", "Max output tokens", "Whose AI account", "Mode", "Scheduled runs pay as", "Limits", "Handoff"]) assert.ok(has(text(out), w), w);
-  for (const line of [4, 5, 6, 7, 8, 9]) assert.ok(has(out, `data-testid="row-toml:${line}"`), `identity line ${line} is a ui/Row`);
-  assert.ok(has(out, 'aria-label="Owner: Lena Ortiz"') && has(tag(out, "toml-select:8"), 'aria-haspopup="menu"'), "the owner is a pick that shows the person");
-  for (const label of ["Status: Active", "Primary: Claude Sonnet 5.5", "Fallback: Claude Haiku 4.5", "Effort: Balanced", "Mode: Whoever asks", "Scheduled runs pay as: The owner"]) assert.ok(has(out, `aria-label="${label}"`), label);
-  assert.ok(has(out, 'data-testid="toml-field:15"') && has(tag(out, "toml-field:15"), 'value="3000"'), "max output tokens is a number box");
+  for (const w of [
+    "Identity",
+    "ID",
+    "Name",
+    "Handle",
+    "Description",
+    "Owner",
+    "Status",
+    "Model",
+    "Primary",
+    "Fallback",
+    "Effort",
+    "Max output tokens",
+    "Whose AI account",
+    "Mode",
+    "Scheduled runs pay as",
+    "Limits",
+    "Handoff",
+  ])
+    assert.ok(has(text(out), w), w);
+  for (const line of [4, 5, 6, 7, 8, 9])
+    assert.ok(has(out, `data-testid="row-toml:${line}"`), `identity line ${line} is a ui/Row`);
+  assert.ok(
+    has(out, 'aria-label="Owner: Lena Ortiz"') && has(tag(out, "toml-select:8"), 'aria-haspopup="menu"'),
+    "the owner is a pick that shows the person",
+  );
+  for (const label of [
+    "Status: Active",
+    "Primary: Claude Sonnet 5.5",
+    "Fallback: Claude Haiku 4.5",
+    "Effort: Balanced",
+    "Mode: Whoever asks",
+    "Scheduled runs pay as: The owner",
+  ])
+    assert.ok(has(out, `aria-label="${label}"`), label);
+  assert.ok(
+    has(out, 'data-testid="toml-field:15"') && has(tag(out, "toml-field:15"), 'value="3000"'),
+    "max output tokens is a number box",
+  );
   assert.ok(!has(text(out), "schema"), "the schema line above the first table is not a field");
 });
 
@@ -657,7 +1424,10 @@ test("agent.toml form: a key the file does not have reads Not set, a table of th
   assert.ok(has(text(out), "Identity") && has(text(out), "Whose AI account"), "the three always-shown groups");
   assert.ok(has(out, 'aria-label="Owner: Not set"'), "no owner yet");
   assert.ok(has(out, 'placeholder="Not set"'), "a text key that is missing reads Not set");
-  assert.ok(!has(out, 'data-testid="toml-group:tools"') && !has(out, 'data-testid="toml-group:routines"'), "no tools or routines table, no group");
+  assert.ok(
+    !has(out, 'data-testid="toml-group:tools"') && !has(out, 'data-testid="toml-group:routines"'),
+    "no tools or routines table, no group",
+  );
 });
 
 test("agent.toml form writes: a pick rewrites its own line, a missing key joins its table, a missing table is added at the end", () => {
@@ -666,12 +1436,20 @@ test("agent.toml form writes: a pick rewrites its own line, a missing key joins 
   const effort = model.entries.find((e) => e.key === "effort");
   assert.ok(effort);
   const next = writeField(AGENT_TOML_INTAKE, fieldOf("model", "effort"), effort, model, "model", '"high"');
-  assert.deepEqual(next.split("\n").filter((l, i) => l !== AGENT_TOML_INTAKE.split("\n")[i]), ['effort = "high"'], "only the one line changes");
+  assert.deepEqual(
+    next.split("\n").filter((l, i) => l !== AGENT_TOML_INTAKE.split("\n")[i]),
+    ['effort = "high"'],
+    "only the one line changes",
+  );
   const without = AGENT_TOML_INTAKE.replace("max_output_tokens = 3000\n", "");
   const m2 = tablesNamed(tomlTables(without), "model")[0];
   const added = writeField(without, fieldOf("model", "max_output_tokens"), undefined, m2, "model", "4000");
   const lines = added.split("\n");
-  assert.equal(lines[lines.indexOf('effort    = "medium"') + 1], "max_output_tokens = 4000", "under the last key of its table");
+  assert.equal(
+    lines[lines.indexOf('effort    = "medium"') + 1],
+    "max_output_tokens = 4000",
+    "under the last key of its table",
+  );
   assert.equal(lines.length, without.split("\n").length + 1);
   const bare = writeField(AGENT_TOML, fieldOf("identity", "name"), undefined, undefined, "identity", '"Intake"');
   assert.ok(bare.endsWith('\n[identity]\nname = "Intake"\n'), "a new table at the end");
@@ -681,22 +1459,44 @@ test("agent.toml form writes: a pick rewrites its own line, a missing key joins 
   assert.equal(listRaw(["a", "b"]), '["a", "b"]');
   assert.equal(rawFor(fieldOf("identity", "name"), 'say "hi"'), '"say \\"hi\\""');
   assert.equal(rawFor(fieldOf("model", "max_output_tokens"), " 500 "), "500");
-  assert.equal(fieldText(fieldOf("tools", "allow"), tablesNamed(tomlTables(AGENT_TOML_INTAKE), "tools")[0]?.entries[0]), "calendar.read, calendar.book, crm.read, crm.write, email.draft, knowledge.read, files.workspace");
-  assert.ok(isNumberText("3000") && isNumberText("1.00") && !isNumberText("3k") && !isNumberText(""), "a number box holds back what is not a number");
+  assert.equal(
+    fieldText(fieldOf("tools", "allow"), tablesNamed(tomlTables(AGENT_TOML_INTAKE), "tools")[0]?.entries[0]),
+    "calendar.read, calendar.book, crm.read, crm.write, email.draft, knowledge.read, files.workspace",
+  );
+  assert.ok(
+    isNumberText("3000") && isNumberText("1.00") && !isNumberText("3k") && !isNumberText(""),
+    "a number box holds back what is not a number",
+  );
 });
 
 test("agent.toml tables: a repeated [[table]] is one table per block, each with its own keys", () => {
   const tables = tomlTables(AGENT_TOML_INTAKE);
   const rules = tablesNamed(tables, "approvals.rule");
-  assert.deepEqual(rules.map((t) => t.entries.map((e) => e.key)), [["action", "require"], ["action", "require", "approver", "timeout_hours", "on_timeout"], ["action", "require", "reviewer"]]);
+  assert.deepEqual(
+    rules.map((t) => t.entries.map((e) => e.key)),
+    [
+      ["action", "require"],
+      ["action", "require", "approver", "timeout_hours", "on_timeout"],
+      ["action", "require", "reviewer"],
+    ],
+  );
   const out = html(intake(), <TomlForm text={AGENT_TOML_INTAKE} onChange={() => undefined} />);
-  assert.ok(has(text(out), "Approval 1") && has(text(out), "Approval 2") && has(text(out), "Approval 3"), "each block is numbered");
-  assert.ok(has(out, 'value="morning-sweep"') && has(out, 'value="contact-form"'), "a routine and a watcher read by their id");
+  assert.ok(
+    has(text(out), "Approval 1") && has(text(out), "Approval 2") && has(text(out), "Approval 3"),
+    "each block is numbered",
+  );
+  assert.ok(
+    has(out, 'value="morning-sweep"') && has(out, 'value="contact-form"'),
+    "a routine and a watcher read by their id",
+  );
 });
 
 test("agent.toml form: the lint's problems show under their key; read only shows the values and the owner note", () => {
   const s = intake();
-  const issues = [{ line: 12, severity: "error" as const, message: "Model name is not known." }, { severity: "warn" as const, message: "No line, so nothing shows" }];
+  const issues = [
+    { line: 12, severity: "error" as const, message: "Model name is not known." },
+    { severity: "warn" as const, message: "No line, so nothing shows" },
+  ];
   const out = html(s, <TomlForm text={AGENT_TOML_INTAKE} onChange={() => undefined} issues={issues} />);
   assert.ok(has(text(out), "Model name is not known.") && !has(text(out), "No line, so nothing shows"));
   const ro = html(s, <TomlForm text={AGENT_TOML_INTAKE} onChange={() => undefined} readOnly />);
@@ -706,8 +1506,24 @@ test("agent.toml form: the lint's problems show under their key; read only shows
 
 test("lint chips over agent.toml: Schema valid, Routine prompts exist, Handoff names exist, Nothing repeated in AGENT.md, No secrets, each with a green dot, then the Text and Form switch", () => {
   const s = intake();
-  const out = html(s, <LintBar fileId={s.fileIds.toml} name="agent.toml" text={AGENT_TOML_INTAKE} view="form" onView={() => undefined} onJump={() => undefined} />);
-  const want = [["schema", "Schema valid"], ["routines", "Routine prompts exist (2 of 2)"], ["handoff", "Handoff names exist"], ["dups", "Nothing repeated in AGENT.md"], ["secrets", "No secrets"]] as const;
+  const out = html(
+    s,
+    <LintBar
+      fileId={s.fileIds.toml}
+      name="agent.toml"
+      text={AGENT_TOML_INTAKE}
+      view="form"
+      onView={() => undefined}
+      onJump={() => undefined}
+    />,
+  );
+  const want = [
+    ["schema", "Schema valid"],
+    ["routines", "Routine prompts exist (2 of 2)"],
+    ["handoff", "Handoff names exist"],
+    ["dups", "Nothing repeated in AGENT.md"],
+    ["secrets", "No secrets"],
+  ] as const;
   const starts = want.map(([k]) => out.indexOf(`data-testid="lint-${k}"`));
   want.forEach(([k, words], n) => {
     const i = starts[n] ?? -1;
@@ -718,25 +1534,52 @@ test("lint chips over agent.toml: Schema valid, Routine prompts exist, Handoff n
   });
   assert.ok(!has(text(out), "lines"), "agent.toml has no line limit chip");
   assert.ok(has(tag(out, "lint-view-form"), 'aria-checked="true"'));
-  const none = lintItems({ file: "agent_toml", lines: 3, state: "ok", overrides: [], secrets: [], problems: [] }, "[model]\nprimary = \"x\"\n");
+  const none = lintItems(
+    { file: "agent_toml", lines: 3, state: "ok", overrides: [], secrets: [], problems: [] },
+    '[model]\nprimary = "x"\n',
+  );
   assert.equal(none.find((i) => i.k === "routines")?.label, "No routines");
 });
 
 test("lint items for agent.toml sort the problems: a missing prompt file, an unknown handoff name, a repeat, a secret, the rest is the schema", () => {
-  const text2 = "[[routines]]\nid = \"a\"\nprompt_file = \"x.md\"\n[[watchers]]\nid = \"w\"\n[handoff]\ncan_message = [\"nobody\"]\n";
-  const items = lintItems({
-    file: "agent_toml", lines: 7, state: "red", overrides: [], secrets: [{ line: 3, kind: "API key" }],
-    problems: [
-      { severity: "error", line: 3, rule: "routine.prompt_missing", message: "Routine 1: there is no file x.md next to agent.toml." },
-      { severity: "warn", line: 7, rule: "handoff.unknown", message: "Handoff to nobody: there is no agent with that name in this Space." },
-      { severity: "warn", rule: "dups", line: 2, message: "Model name is also in AGENT.md." },
-      { severity: "error", line: 1, rule: "toml.type", message: "name must be text." },
-    ],
-  }, text2);
+  const text2 =
+    '[[routines]]\nid = "a"\nprompt_file = "x.md"\n[[watchers]]\nid = "w"\n[handoff]\ncan_message = ["nobody"]\n';
+  const items = lintItems(
+    {
+      file: "agent_toml",
+      lines: 7,
+      state: "red",
+      overrides: [],
+      secrets: [{ line: 3, kind: "API key" }],
+      problems: [
+        {
+          severity: "error",
+          line: 3,
+          rule: "routine.prompt_missing",
+          message: "Routine 1: there is no file x.md next to agent.toml.",
+        },
+        {
+          severity: "warn",
+          line: 7,
+          rule: "handoff.unknown",
+          message: "Handoff to nobody: there is no agent with that name in this Space.",
+        },
+        { severity: "warn", rule: "dups", line: 2, message: "Model name is also in AGENT.md." },
+        { severity: "error", line: 1, rule: "toml.type", message: "name must be text." },
+      ],
+    },
+    text2,
+  );
   const by = Object.fromEntries(items.map((i) => [i.k, i]));
-  assert.deepEqual(items.map((i) => i.k), ["schema", "routines", "handoff", "dups", "secrets"]);
+  assert.deepEqual(
+    items.map((i) => i.k),
+    ["schema", "routines", "handoff", "dups", "secrets"],
+  );
   assert.deepEqual([by["schema"]?.label, by["schema"]?.sev], ["1 schema error", "err"]);
-  assert.deepEqual([by["routines"]?.label, by["routines"]?.sev, by["routines"]?.line], ["1 routine prompt missing", "err", 3]);
+  assert.deepEqual(
+    [by["routines"]?.label, by["routines"]?.sev, by["routines"]?.line],
+    ["1 routine prompt missing", "err", 3],
+  );
   assert.deepEqual([by["handoff"]?.label, by["handoff"]?.sev, by["handoff"]?.line], ["1 unknown name", "warn", 7]);
   assert.deepEqual([by["dups"]?.label, by["dups"]?.sev], ["1 also in AGENT.md", "warn"]);
   assert.deepEqual([by["secrets"]?.label, by["secrets"]?.sev, by["secrets"]?.line], ["1 possible secret", "err", 3]);
@@ -744,27 +1587,81 @@ test("lint items for agent.toml sort the problems: a missing prompt file, an unk
 
 test("agent.toml page: the file header with the TOML tile, where it lives, who and when, the version check, find, info, history, Ask and ..., no View and Edit, the chips, the form", () => {
   const s = intake();
-  const out = html(s, <AgentFilePage fileId={s.fileIds.toml} name="agent.toml" path="Agents / Intake" agentId="agt_intake" saved={AGENT_TOML_INTAKE} version={3} start={{ view: "form" }} />);
+  const out = html(
+    s,
+    <AgentFilePage
+      fileId={s.fileIds.toml}
+      name="agent.toml"
+      path="Agents / Intake"
+      agentId="agt_intake"
+      saved={AGENT_TOML_INTAKE}
+      version={3}
+      start={{ view: "form" }}
+    />,
+  );
   const tile = out.indexOf('data-testid="agent-file-tile"');
   assert.ok(tile >= 0 && has(text(out.slice(tile, tile + 400)), "TOML"), "the TOML tile");
-  assert.ok(has(text(out), "agent.toml") && has(text(out), "Agents / Intake") && has(text(out), "Lena Ortiz") && has(text(out), "Oct 20"), "name, path, owner, date");
+  assert.ok(
+    has(text(out), "agent.toml") &&
+      has(text(out), "Agents / Intake") &&
+      has(text(out), "Lena Ortiz") &&
+      has(text(out), "Oct 20"),
+    "name, path, owner, date",
+  );
   assert.ok(has(tag(out, "agent-file-version"), 'aria-label="Version 3"') && has(text(out), "v3"), "the version check");
   for (const id of ["agent-file-ask", "agent-file-more"]) assert.ok(has(out, `data-testid="${id}"`), id);
-  for (const id of ["agent-file-find", "agent-file-info", "agent-file-history"]) assert.ok(!has(out, `data-testid="${id}"`), `${id} is folded into the menu`);
+  for (const id of ["agent-file-find", "agent-file-info", "agent-file-history"])
+    assert.ok(!has(out, `data-testid="${id}"`), `${id} is folded into the menu`);
   assert.ok(!has(out, 'data-testid="agent-file-mode"'), "agent.toml has the Text and Form switch, not View and Edit");
-  assert.ok(has(out, 'data-testid="lint-bar"') && has(out, 'data-testid="toml-form"') && has(text(out), "Whose AI account"), "chips, then the form");
+  assert.ok(
+    has(out, 'data-testid="lint-bar"') && has(out, 'data-testid="toml-form"') && has(text(out), "Whose AI account"),
+    "chips, then the form",
+  );
   assert.ok(!has(out, 'data-testid="agent-file-save"'), "no save button");
-  const edited = html(s, <AgentFilePage fileId={s.fileIds.toml} name="agent.toml" path="Agents / Intake" agentId="agt_intake" saved={AGENT_TOML_INTAKE} version={3} start={{ view: "form", draft: AGENT_TOML_INTAKE.replace("3000", "4000"), review: true }} />);
-  assert.ok(!has(edited, 'data-testid="agent-file-save"') && !has(text(edited), "Review and save"), "an edit brings no save bar: it is saved after a pause");
-  assert.ok(!has(edited, 'data-testid="agent-file-diff"'), "the diff is not drawn under the form: it goes to the History pane");
+  const edited = html(
+    s,
+    <AgentFilePage
+      fileId={s.fileIds.toml}
+      name="agent.toml"
+      path="Agents / Intake"
+      agentId="agt_intake"
+      saved={AGENT_TOML_INTAKE}
+      version={3}
+      start={{ view: "form", draft: AGENT_TOML_INTAKE.replace("3000", "4000"), review: true }}
+    />,
+  );
+  assert.ok(
+    !has(edited, 'data-testid="agent-file-save"') && !has(text(edited), "Review and save"),
+    "an edit brings no save bar: it is saved after a pause",
+  );
+  assert.ok(
+    !has(edited, 'data-testid="agent-file-diff"'),
+    "the diff is not drawn under the form: it goes to the History pane",
+  );
 });
 
 test("the diff before a save: under the file by itself, in the page's pane when the page gives one", () => {
   const s = intake();
   const start = { view: "form" as const, draft: AGENT_TOML_INTAKE.replace("3000", "4000"), review: true };
-  const alone = html(s, <AgentFileEditor fileId={s.fileIds.toml} name="agent.toml" saved={AGENT_TOML_INTAKE} version={3} start={start} />);
-  assert.ok(has(alone, 'data-testid="agent-file-diff"') && has(alone, 'aria-label="Why this change"'), "an editor with no pane keeps its diff under the file");
-  const given = html(s, <AgentFileEditor fileId={s.fileIds.toml} name="agent.toml" saved={AGENT_TOML_INTAKE} version={3} start={start} onReviewPane={() => undefined} />);
+  const alone = html(
+    s,
+    <AgentFileEditor fileId={s.fileIds.toml} name="agent.toml" saved={AGENT_TOML_INTAKE} version={3} start={start} />,
+  );
+  assert.ok(
+    has(alone, 'data-testid="agent-file-diff"') && has(alone, 'aria-label="Why this change"'),
+    "an editor with no pane keeps its diff under the file",
+  );
+  const given = html(
+    s,
+    <AgentFileEditor
+      fileId={s.fileIds.toml}
+      name="agent.toml"
+      saved={AGENT_TOML_INTAKE}
+      version={3}
+      start={start}
+      onReviewPane={() => undefined}
+    />,
+  );
   assert.ok(!has(given, 'data-testid="agent-file-diff"'), "with a pane to put it in, nothing is drawn under the form");
   assert.ok(has(given, 'data-testid="toml-form"'), "the form stays");
 });

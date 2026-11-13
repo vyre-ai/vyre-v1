@@ -22,7 +22,14 @@ export interface PasteSlot {
 
 export type AskTurn =
   | { kind: "use"; app: string; account: AccountOption; stepKey: string | null; action: string | null; say: string }
-  | { kind: "choose"; app: string; accounts: AccountOption[]; stepKey: string | null; action: string | null; say: string }
+  | {
+      kind: "choose";
+      app: string;
+      accounts: AccountOption[];
+      stepKey: string | null;
+      action: string | null;
+      say: string;
+    }
   | { kind: "sign_in"; app: string; service: string; stepKey: string | null; say: string }
   | { kind: "paste"; app: string; slots: PasteSlot[]; stepKey: string | null; action: string | null; say: string }
   | { kind: "need_doc"; app: string; say: string };
@@ -34,7 +41,35 @@ export interface AskLine {
 
 const UNUSABLE = new Set(["paused", "pending", "needs_reconnect"]);
 const OAUTH = new Set(["google", "ms", "github", "mail"]);
-const SKIP = new Set(["want", "this", "that", "with", "from", "when", "then", "step", "automation", "please", "make", "into", "your", "have", "does", "done", "what", "need", "document", "openapi", "already", "paste", "connection", "vault", "catalog", "address", "website"]);
+const SKIP = new Set([
+  "want",
+  "this",
+  "that",
+  "with",
+  "from",
+  "when",
+  "then",
+  "step",
+  "automation",
+  "please",
+  "make",
+  "into",
+  "your",
+  "have",
+  "does",
+  "done",
+  "what",
+  "need",
+  "document",
+  "openapi",
+  "already",
+  "paste",
+  "connection",
+  "vault",
+  "catalog",
+  "address",
+  "website",
+]);
 const LOOSE = new Set([...SKIP, "list", "send", "read", "create", "message", "messages", "email", "customer"]);
 
 const APP_WORDS: readonly { app: string; words: readonly string[] }[] = [
@@ -57,7 +92,10 @@ const SECRET_HINT = "Paste this into Vault. Ask Vyre does not see the value.";
 const PLAIN_HINT = "Paste this value. It is not a secret.";
 
 function wordsOf(text: string): string[] {
-  return text.toLowerCase().split(/[^a-z0-9]+/).filter((word) => word.length >= 3);
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length >= 3);
 }
 
 export function namedApp(text: string, accounts: readonly AccountOption[]): string {
@@ -152,11 +190,25 @@ export function planAsk(input: {
   }
   if (usable.length === 1) {
     const account = usable[0]!;
-    return { kind: "use", app, account, stepKey, action, say: `Vault already has ${account.title}. It can go on ${where}.` };
+    return {
+      kind: "use",
+      app,
+      account,
+      stepKey,
+      action,
+      say: `Vault already has ${account.title}. It can go on ${where}.`,
+    };
   }
   if (usable.length > 1) {
     const titles = usable.map((account) => account.title).join(", ");
-    return { kind: "choose", app, accounts: usable, stepKey, action, say: `Vault has ${titles}. Pick one for ${where}.` };
+    return {
+      kind: "choose",
+      app,
+      accounts: usable,
+      stepKey,
+      action,
+      say: `Vault has ${titles}. Pick one for ${where}.`,
+    };
   }
   if (input.fields && input.fields.length > 0) {
     const slots = slotsFrom(input.fields);
@@ -172,10 +224,20 @@ export function planAsk(input: {
   }
   if (OAUTH.has(app)) {
     const service = app === "ms" ? "microsoft" : app;
-    return { kind: "sign_in", app, service, stepKey, say: `${service} has no connection in Vault yet. Sign in on the connection screen. Ask Vyre does not take the password here.` };
+    return {
+      kind: "sign_in",
+      app,
+      service,
+      stepKey,
+      say: `${service} has no connection in Vault yet. Sign in on the connection screen. Ask Vyre does not take the password here.`,
+    };
   }
   const named = app || "That app";
-  return { kind: "need_doc", app, say: `${named} is not in the catalog. Paste the OpenAPI document you already have. A web address is not opened.` };
+  return {
+    kind: "need_doc",
+    app,
+    say: `${named} is not in the catalog. Paste the OpenAPI document you already have. A web address is not opened.`,
+  };
 }
 
 /** A line safe to keep on the tab and to hand to the Chats tab. Secret shapes are removed. */
@@ -201,7 +263,17 @@ export function vaultPutInput(spec: {
   app: string;
   slots: readonly PasteSlot[];
   values: Readonly<Record<string, string>>;
-}): { put: { folderId: string; name: string; kind: "api_key"; fields: { key: string; value: string; secret: boolean }[] }; name: string } | { error: string } {
+}):
+  | {
+      put: {
+        folderId: string;
+        name: string;
+        kind: "api_key";
+        fields: { key: string; value: string; secret: boolean }[];
+      };
+      name: string;
+    }
+  | { error: string } {
   const fields: { key: string; value: string; secret: boolean }[] = [];
   for (const slot of spec.slots) {
     const value = spec.values[slot.key] ?? "";
@@ -215,7 +287,12 @@ export function vaultPutInput(spec: {
 }
 
 /** Handles only. The pasted values are already on the Vault item. */
-export function connectionCreateInput(spec: { app: string; handle: string; slots: readonly PasteSlot[] }): { connector: string; title: string; ownerKind: "person"; secrets: Record<string, string> } {
+export function connectionCreateInput(spec: { app: string; handle: string; slots: readonly PasteSlot[] }): {
+  connector: string;
+  title: string;
+  ownerKind: "person";
+  secrets: Record<string, string>;
+} {
   const secrets: Record<string, string> = {};
   for (const slot of spec.slots) if (slot.secret) secrets[slot.key] = spec.handle;
   if (Object.keys(secrets).length === 0) secrets.credential = spec.handle;
@@ -268,8 +345,8 @@ export function accountFromCreate(out: unknown, app: string): AccountOption | nu
 
 /** Names from a draft_connector result. Values, examples, and request bodies are not copied. */
 export function setupShape(out: unknown): { fields: { name: string; secret: boolean }[]; actions: string[] } {
-  const rec = out && typeof out === "object" ? out as Record<string, unknown> : {};
-  const setup = rec.setup && typeof rec.setup === "object" ? rec.setup as { fields?: unknown } : {};
+  const rec = out && typeof out === "object" ? (out as Record<string, unknown>) : {};
+  const setup = rec.setup && typeof rec.setup === "object" ? (rec.setup as { fields?: unknown }) : {};
   const fields: { name: string; secret: boolean }[] = [];
   if (Array.isArray(setup.fields)) {
     for (const field of setup.fields) {
@@ -295,20 +372,27 @@ function asInput(input: unknown): Record<string, unknown> {
 }
 
 /** Write the account onto a matching step, or add the catalog step and write it there. */
-export function linkAccount(def: Definition, spec: {
-  account: AccountOption;
-  stepKey: string | null;
-  nodeId?: string | null;
-  action?: string | null;
-}): { def: Definition; nodeId: string } | { error: string } {
+export function linkAccount(
+  def: Definition,
+  spec: {
+    account: AccountOption;
+    stepKey: string | null;
+    nodeId?: string | null;
+    action?: string | null;
+  },
+): { def: Definition; nodeId: string } | { error: string } {
   const field: AccountField = spec.account.app === "mail" ? "mailboxId" : "connectionId";
   const selected = spec.nodeId ? def.nodes.find((node) => node.id === spec.nodeId) : undefined;
-  const fits = selected !== undefined && (stepMatches(selected.key, spec.account.app) || selected.key === spec.stepKey || selected.key === "connector_request");
+  const fits =
+    selected !== undefined &&
+    (stepMatches(selected.key, spec.account.app) ||
+      selected.key === spec.stepKey ||
+      selected.key === "connector_request");
   let next = def;
   let nodeId = "";
   if (fits && selected) nodeId = selected.id;
   else if (spec.stepKey) {
-    const after = selected ? selected.id : (def.nodes.length > 0 ? def.nodes[def.nodes.length - 1]!.id : null);
+    const after = selected ? selected.id : def.nodes.length > 0 ? def.nodes[def.nodes.length - 1]!.id : null;
     const added = addAfter(next, after, spec.stepKey);
     next = added.def;
     nodeId = added.id;

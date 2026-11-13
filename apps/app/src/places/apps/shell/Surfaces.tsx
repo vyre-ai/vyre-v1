@@ -16,8 +16,11 @@ export function AppsSurface({ route }: { route: Exclude<AppsRoute, { kind: "list
   if (route.group === "sites") return route.kind === "detail" ? <SiteDetail id={route.id} back={back} /> : <View />;
   const target = { group: route.group, ...(route.kind === "detail" ? { id: route.id } : { create: true }) };
   switch (route.group) {
-    case "forms": return <FormEditor route={target} back={back} />;
-    case "templates": return <TemplateEditor route={target} back={back} />;
-    case "domains": return <DomainEditor route={target} back={back} />;
+    case "forms":
+      return <FormEditor route={target} back={back} />;
+    case "templates":
+      return <TemplateEditor route={target} back={back} />;
+    case "domains":
+      return <DomainEditor route={target} back={back} />;
   }
 }

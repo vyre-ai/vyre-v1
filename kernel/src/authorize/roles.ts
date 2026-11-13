@@ -9,7 +9,10 @@
 import type { RoleId } from "../grants/roles.ts";
 
 /** The part of a catalogue row the roles read (PermissionDef in packages/contracts). */
-export interface CataloguePerm { key: string; defaults: Readonly<Partial<Record<string, boolean>>> }
+export interface CataloguePerm {
+  key: string;
+  defaults: Readonly<Partial<Record<string, boolean>>>;
+}
 
 /** Permission keys only an owner holds: moving the Space to another person. */
 export const OWNERSHIP_PERM = /(^|\.)(transfer_ownership|ownership)(\.|$)/;
@@ -30,7 +33,10 @@ export function catalogueRolePerms(catalogue: readonly CataloguePerm[]): Record<
 }
 
 /** A role's full permission list: what the kernel already gave it plus what the catalogue gives it. */
-export function withCatalogue(base: Readonly<Record<RoleId, readonly string[]>>, catalogue: readonly CataloguePerm[]): Record<RoleId, string[]> {
+export function withCatalogue(
+  base: Readonly<Record<RoleId, readonly string[]>>,
+  catalogue: readonly CataloguePerm[],
+): Record<RoleId, string[]> {
   const cat = catalogueRolePerms(catalogue);
   const out = {} as Record<RoleId, string[]>;
   for (const id of Object.keys(base) as RoleId[]) out[id] = sorted([...base[id], ...cat[id]]);

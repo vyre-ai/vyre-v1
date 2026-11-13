@@ -21,8 +21,20 @@ test("the conflicts.route consumer reads conflict.opened and routes the parked c
   assert.deepEqual(c.on, ["conflict.opened"]);
   const h = harness();
   seedRecord(h, "rec_acme", { note: "Call Bea" });
-  const id = openConflict(h.ctx, collision({ field: "note", ours: "Call Bea", theirs: "Call Bea tomorrow", opId: "op_wire" }));
-  recordHistory(h.ctx, { entity: "client_plan", id: "rec_acme", field: "note", value: "older", hlc: "000000000001-0001-dev1", actor: "usr_bea", seq: 1, reason: "lww_loser" });
+  const id = openConflict(
+    h.ctx,
+    collision({ field: "note", ours: "Call Bea", theirs: "Call Bea tomorrow", opId: "op_wire" }),
+  );
+  recordHistory(h.ctx, {
+    entity: "client_plan",
+    id: "rec_acme",
+    field: "note",
+    value: "older",
+    hlc: "000000000001-0001-dev1",
+    actor: "usr_bea",
+    seq: 1,
+    reason: "lww_loser",
+  });
   const ev = { payload: { conflictId: id } } as unknown as HookEvent;
   const out = (await c.run(h.ctx as unknown as Ctx, ev)) as { route: string };
   assert.equal(out.route, "assistant");

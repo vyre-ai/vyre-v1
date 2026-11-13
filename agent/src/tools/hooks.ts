@@ -13,4 +13,6 @@ export interface HooksPort {
 
 /** The port the host binds once (the engine runtime does), read by the MCP endpoint of CLI sessions, which is built apart from the engine. Unbound: no hook says anything. */
 export const hooksHolder: { port: HooksPort | null } = { port: null };
-export const bindHooksPort = (p: HooksPort | null): void => { hooksHolder.port = p; };
+export const bindHooksPort = (p: HooksPort | null): void => {
+  hooksHolder.port = p;
+};

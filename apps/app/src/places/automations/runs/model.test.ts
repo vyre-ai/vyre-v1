@@ -23,7 +23,14 @@ test("step ids resolve to the step's title, then to what the step does, never th
 });
 
 test("the run's step rows carry those names", () => {
-  const rows = stepRows({ startedAt: 0 }, [st("step_1", "succeeded"), st("n_7f3a", "failed"), st("step_3", "running")], stepNamer(nodes));
-  assert.deepEqual(rows.map((r) => (r as { text: string }).text), ["Email the client", "Wait 2 days failed", "Send an email, running"]);
+  const rows = stepRows(
+    { startedAt: 0 },
+    [st("step_1", "succeeded"), st("n_7f3a", "failed"), st("step_3", "running")],
+    stepNamer(nodes),
+  );
+  assert.deepEqual(
+    rows.map((r) => (r as { text: string }).text),
+    ["Email the client", "Wait 2 days failed", "Send an email, running"],
+  );
   for (const r of rows) assert.doesNotMatch((r as { text: string }).text, /step_|n_7f3a/);
 });

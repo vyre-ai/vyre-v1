@@ -2,11 +2,26 @@
 // "proposed" is accepted at once. Nothing is sent to a model; it works with or without an AI account.
 import type { CapCall } from "../shell/session/caps.ts";
 
-export interface Question { key: "work" | "tools" | "style"; ask: string; hint: string; fact(answer: string): string }
+export interface Question {
+  key: "work" | "tools" | "style";
+  ask: string;
+  hint: string;
+  fact(answer: string): string;
+}
 export const QUESTIONS: readonly Question[] = [
   { key: "work", ask: "What do you do?", hint: "Your role, in a few words", fact: (a) => `Works as: ${a}` },
-  { key: "tools", ask: "Which tools do you use every day?", hint: "Apps, services, the places your work lives", fact: (a) => `Uses every day: ${a}` },
-  { key: "style", ask: "How should I talk to you?", hint: "Short or detailed, formal or relaxed", fact: (a) => `Prefers answers that are: ${a}` },
+  {
+    key: "tools",
+    ask: "Which tools do you use every day?",
+    hint: "Apps, services, the places your work lives",
+    fact: (a) => `Uses every day: ${a}`,
+  },
+  {
+    key: "style",
+    ask: "How should I talk to you?",
+    hint: "Short or detailed, formal or relaxed",
+    fact: (a) => `Prefers answers that are: ${a}`,
+  },
 ];
 
 export const cleanAnswer = (raw: string): string => raw.replace(/\s+/g, " ").trim().slice(0, 400);
@@ -14,35 +29,64 @@ export const cleanAnswer = (raw: string): string => raw.replace(/\s+/g, " ").tri
 type Fact = { factId: string; status: "proposed" | "current" | "closed" | "removed" };
 
 /** Saves every non-empty answer; answers left blank are skipped. Resolves with how many facts were saved. */
-export async function saveInterview(call: CapCall, answers: Partial<Record<Question["key"], string>>, runId: string): Promise<number> {
+export async function saveInterview(
+  call: CapCall,
+  answers: Partial<Record<Question["key"], string>>,
+  runId: string,
+): Promise<number> {
   let saved = 0;
   for (const q of QUESTIONS) {
     const text = cleanAnswer(answers[q.key] ?? "");
     if (text === "") continue;
-    const out = await call("memory.propose_fact", { layer: "person", text: q.fact(text), sourceKind: "manual", sourceRef: "onboarding", kind: "preference", idempotencyKey: `${runId}:${q.key}` }) as { fact: Fact };
+    const out = (await call("memory.propose_fact", {
+      layer: "person",
+      text: q.fact(text),
+      sourceKind: "manual",
+      sourceRef: "onboarding",
+      kind: "preference",
+      idempotencyKey: `${runId}:${q.key}`,
+    })) as { fact: Fact };
     if (out.fact.status === "proposed") await call("memory.fact.accept", { factId: out.fact.factId });
     saved++;
   }
   return saved;
 }
 
-export interface SavedAnswer { factId: string; text: string }
+export interface SavedAnswer {
+  factId: string;
+  text: string;
+}
 export type SavedAnswers = Partial<Record<Question["key"], SavedAnswer>>;
 
 /** Saves answers the first time and, when the step is reopened, corrects only what changed (memory.fact.correct on the fact already made), so editing never leaves the old words beside the new. */
-export async function saveInterviewEdit(call: CapCall, answers: Partial<Record<Question["key"], string>>, runId: string, saved: SavedAnswers = {}): Promise<{ count: number; saved: SavedAnswers }> {
+export async function saveInterviewEdit(
+  call: CapCall,
+  answers: Partial<Record<Question["key"], string>>,
+  runId: string,
+  saved: SavedAnswers = {},
+): Promise<{ count: number; saved: SavedAnswers }> {
   const next: SavedAnswers = { ...saved };
   let count = 0;
   for (const q of QUESTIONS) {
     const text = cleanAnswer(answers[q.key] ?? "");
     if (text === "") continue;
     const before = saved[q.key];
-    if (before && before.text === text) { count++; continue; }
+    if (before && before.text === text) {
+      count++;
+      continue;
+    }
     if (before) {
       await call("memory.fact.correct", { factId: before.factId, text: q.fact(text) });
       next[q.key] = { factId: before.factId, text };
     } else {
-      const out = await call("memory.propose_fact", { layer: "person", text: q.fact(text), sourceKind: "manual", sourceRef: "onboarding", kind: "preference", idempotencyKey: `${runId}:${q.key}` }) as { fact: { factId: string; status: string } };
+      const out = (await call("memory.propose_fact", {
+        layer: "person",
+        text: q.fact(text),
+        sourceKind: "manual",
+        sourceRef: "onboarding",
+        kind: "preference",
+        idempotencyKey: `${runId}:${q.key}`,
+      })) as { fact: { factId: string; status: string } };
       if (out.fact.status === "proposed") await call("memory.fact.accept", { factId: out.fact.factId });
       next[q.key] = { factId: out.fact.factId, text };
     }

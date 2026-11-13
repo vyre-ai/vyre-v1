@@ -12,14 +12,29 @@ import type { ViewRow } from "../sidebar/model.ts";
 import { Glyph, HeadButton, anchorOf, pointOf, typeIcon } from "../sidebar/parts.tsx";
 import { useRecordsState } from "../sidebar/state.tsx";
 import { useRecordAccess } from "../sharing/useRecordAccess.ts";
-import { chosen, clearClauses, countSpec, isEdited, optionValue, optionsOf, setSort, sortable, toSaved, toggleHidden, toggleOption } from "../table/model.ts";
+import {
+  chosen,
+  clearClauses,
+  countSpec,
+  isEdited,
+  optionValue,
+  optionsOf,
+  setSort,
+  sortable,
+  toSaved,
+  toggleHidden,
+  toggleOption,
+} from "../table/model.ts";
 import { each, filterable, toggleable } from "./model.ts";
 import type { FieldDef, TableViewState, TypeDef } from "./model.ts";
 import type { JourneyBinding } from "../journey/model.ts";
 import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 
 /** One kind of view in the switch: the packet's own kinds, or one a later part supplies. */
-export interface KindDef { kind: string; label: string }
+export interface KindDef {
+  kind: string;
+  label: string;
+}
 
 /** Everything a view is given: the type, its saved views, which is applied, the view it starts from, and the kind switch. */
 export interface ViewCtx {
@@ -54,12 +69,26 @@ export function useViewState(ctx: ViewCtx): ViewState {
   const [finding, setFinding] = useState(ctx.base.find !== "");
   const edited = isEdited(v, ctx.base);
   return {
-    v, setV, edited, finding, setFinding,
+    v,
+    setV,
+    edited,
+    finding,
+    setFinding,
     set: (next) => setV(next),
     reset: () => setV(ctx.base),
     save: (extra = {}) => {
       const payload = toSaved(v);
-      void data.call("views.save", { type: ctx.type, ...(ctx.saved ? { viewId: ctx.saved.viewId } : {}), kind: ctx.kind, title: ctx.saved?.title ?? `${ctx.def.plural} ${ctx.kinds.find((k) => k.kind === ctx.kind)?.label.toLowerCase() ?? ctx.kind}`, ...payload, config: { ...payload.config, ...extra }, idempotencyKey: `view-${ctx.type}-${Date.now()}` });
+      void data.call("views.save", {
+        type: ctx.type,
+        ...(ctx.saved ? { viewId: ctx.saved.viewId } : {}),
+        kind: ctx.kind,
+        title:
+          ctx.saved?.title ??
+          `${ctx.def.plural} ${ctx.kinds.find((k) => k.kind === ctx.kind)?.label.toLowerCase() ?? ctx.kind}`,
+        ...payload,
+        config: { ...payload.config, ...extra },
+        idempotencyKey: `view-${ctx.type}-${Date.now()}`,
+      });
     },
     newRecord: (fields = {}) => newRecord(data, ctx.type, fields),
   };
@@ -67,12 +96,17 @@ export function useViewState(ctx: ViewCtx): ViewState {
 
 /** Creates a record (with the fields it starts with) and opens it. */
 export function newRecord(data: RecordsData, type: string, fields: Record<string, unknown>): void {
-  const make = (with_: Record<string, unknown>): Promise<unknown> => data.call("records.create", { type, fields: with_, idempotencyKey: `new-${type}-${Date.now()}` });
-  const open = (out: unknown): void => { const id = (out as { record?: { id?: string } } | undefined)?.record?.id; if (id) data.nav.openRecord(id); };
+  const make = (with_: Record<string, unknown>): Promise<unknown> =>
+    data.call("records.create", { type, fields: with_, idempotencyKey: `new-${type}-${Date.now()}` });
+  const open = (out: unknown): void => {
+    const id = (out as { record?: { id?: string } } | undefined)?.record?.id;
+    if (id) data.nav.openRecord(id);
+  };
   // a type that needs its name to exist (Contacts) starts as "New contact", the name the table's New row uses, so New on a phone is never a dead button
   void make(fields).then(open, (e: unknown) => {
     const field = /^(\w+) is required$/.exec(String((e as { message?: unknown } | null)?.message ?? ""))?.[1];
-    if (field && fields[field] === undefined) void make({ ...fields, [field]: `New ${type.replace(/_/g, " ")}` }).then(open, () => undefined);
+    if (field && fields[field] === undefined)
+      void make({ ...fields, [field]: `New ${type.replace(/_/g, " ")}` }).then(open, () => undefined);
   });
 }
 
@@ -91,7 +125,13 @@ export interface HeadProps {
 
 /** The menu of the kind switch: every kind, a checkmark on the open one. */
 export function kindEntries(ctx: ViewCtx): MenuEntry[] {
-  return [{ head: "View as" }, ...each(ctx.kinds, (k): MenuEntry => ({ label: k.label, checked: ctx.kind === k.kind, onSelect: () => ctx.onKind(k.kind) }))];
+  return [
+    { head: "View as" },
+    ...each(
+      ctx.kinds,
+      (k): MenuEntry => ({ label: k.label, checked: ctx.kind === k.kind, onSelect: () => ctx.onKind(k.kind) }),
+    ),
+  ];
 }
 
 /** The switch between the kinds of view, a quiet button with a menu under it (anchored to the button). The table's header has the same one, passed in through its headerExtra. */
@@ -101,8 +141,14 @@ export function KindSwitch({ ctx }: { ctx: ViewCtx }): ReactElement {
   return (
     <>
       <Pressable
-        accessibilityRole="button" accessibilityLabel={`View as, ${label}`} testID="records-kind"
-        onPress={(e) => { const p = anchorOf(e); menu.show(kindEntries(ctx), p.x, p.y, "other"); }} style={({ hovered }: { hovered?: boolean }) => [s.kind, hovered === true && s.pickOver]}
+        accessibilityRole="button"
+        accessibilityLabel={`View as, ${label}`}
+        testID="records-kind"
+        onPress={(e) => {
+          const p = anchorOf(e);
+          menu.show(kindEntries(ctx), p.x, p.y, "other");
+        }}
+        style={({ hovered }: { hovered?: boolean }) => [s.kind, hovered === true && s.pickOver]}
       >
         <Text style={s.kindText}>{label}</Text>
         <Glyph name="chevd" size={9} />
@@ -124,17 +170,36 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
   // sharing: a Team Space only; Share for those who may share, Export for those who may export (a viewer sees neither)
   const access = useRecordAccess(ctx.type);
   const [exported, setExported] = useState<"busy" | "done" | "failed" | null>(null);
-  const exportAll = (): void => { setExported("busy"); data.call("records.export", { type: ctx.type, format: "csv" }).then(() => setExported("done"), () => setExported("failed")); };
+  const exportAll = (): void => {
+    setExported("busy");
+    data.call("records.export", { type: ctx.type, format: "csv" }).then(
+      () => setExported("done"),
+      () => setExported("failed"),
+    );
+  };
   const canShare = access.on && (access.can.manage || access.can.share);
   const canExport = access.on && access.can.export;
   const shareEntries = (): MenuEntry[] => [
-    ...(canShare ? [{ label: "Share", onSelect: () => data.share?.open({ type: "record_type", id: ctx.type, name: def.plural }) } as MenuEntry] : []),
+    ...(canShare
+      ? [
+          {
+            label: "Share",
+            onSelect: () => data.share?.open({ type: "record_type", id: ctx.type, name: def.plural }),
+          } as MenuEntry,
+        ]
+      : []),
     ...(canExport ? [{ label: "Export as CSV", onSelect: exportAll } as MenuEntry] : []),
   ];
   const { v, set } = st;
 
   const countOf = (field: FieldDef, key: string): number | null => {
-    const probe: TableViewState = { ...v, clauses: [...v.clauses.filter((c) => c.field !== field.key), { field: field.key, op: "eq", value: optionValue(field, key) }] };
+    const probe: TableViewState = {
+      ...v,
+      clauses: [
+        ...v.clauses.filter((c) => c.field !== field.key),
+        { field: field.key, op: "eq", value: optionValue(field, key) },
+      ],
+    };
     const snap = data.live("records.counts", countSpec(ctx.type, probe, def.titleField)).getSnapshot();
     return snap.status === "ready" ? snap.data.count : null;
   };
@@ -145,37 +210,82 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
       out.push({ head: f.title });
       for (const o of optionsOf(f)) {
         const n = countOf(f, o.key);
-        out.push({ label: n === null ? o.title : `${o.title} (${n})`, checked: chosen(v, f.key).includes(optionValue(f, o.key)), onSelect: () => set(toggleOption(v, f.key, optionValue(f, o.key))) });
+        out.push({
+          label: n === null ? o.title : `${o.title} (${n})`,
+          checked: chosen(v, f.key).includes(optionValue(f, o.key)),
+          onSelect: () => set(toggleOption(v, f.key, optionValue(f, o.key))),
+        });
       }
     }
     if (out.length === 0) out.push({ head: "Nothing to filter by yet" });
-    if (v.clauses.length > 0) out.push({ separator: true }, { label: "Clear filters", onSelect: () => set(clearClauses(v)) });
+    if (v.clauses.length > 0)
+      out.push({ separator: true }, { label: "Clear filters", onSelect: () => set(clearClauses(v)) });
     return out;
   };
   const sortEntries = (): MenuEntry[] => {
     const cur = v.sort[0];
     return [
       { head: "Sort by" },
-      ...each(def.fields.filter(sortable), (f): MenuEntry => ({ label: f.title, checked: cur?.field === f.key, onSelect: () => set(setSort(v, f.key, cur?.field === f.key && cur.dir === "asc" ? "desc" : "asc")) })),
+      ...each(
+        def.fields.filter(sortable),
+        (f): MenuEntry => ({
+          label: f.title,
+          checked: cur?.field === f.key,
+          onSelect: () => set(setSort(v, f.key, cur?.field === f.key && cur.dir === "asc" ? "desc" : "asc")),
+        }),
+      ),
       { separator: true },
-      { label: "Ascending", checked: cur?.dir === "asc", onSelect: () => { if (cur) set(setSort(v, cur.field, "asc")); } },
-      { label: "Descending", checked: cur?.dir === "desc", onSelect: () => { if (cur) set(setSort(v, cur.field, "desc")); } },
+      {
+        label: "Ascending",
+        checked: cur?.dir === "asc",
+        onSelect: () => {
+          if (cur) set(setSort(v, cur.field, "asc"));
+        },
+      },
+      {
+        label: "Descending",
+        checked: cur?.dir === "desc",
+        onSelect: () => {
+          if (cur) set(setSort(v, cur.field, "desc"));
+        },
+      },
       { separator: true },
       { label: "Clear sort", onSelect: () => set({ ...v, sort: [] }) },
     ];
   };
   const fieldEntries = (): MenuEntry[] => [
     { head: "Fields on each card" },
-    ...each(toggleable(def).filter((f) => f.key !== lanes?.field?.key), (f): MenuEntry => ({ label: f.title, checked: !v.hidden.includes(f.key), onSelect: () => set(toggleHidden(v, f.key)) })),
+    ...each(
+      toggleable(def).filter((f) => f.key !== lanes?.field?.key),
+      (f): MenuEntry => ({
+        label: f.title,
+        checked: !v.hidden.includes(f.key),
+        onSelect: () => set(toggleHidden(v, f.key)),
+      }),
+    ),
   ];
   const laneEntries = (): MenuEntry[] => [
     { head: "Lanes from" },
-    ...each(lanes?.choices ?? [], (f): MenuEntry => ({ label: f.title, checked: lanes?.field?.key === f.key, onSelect: () => lanes?.pick(f.key) })),
+    ...each(
+      lanes?.choices ?? [],
+      (f): MenuEntry => ({ label: f.title, checked: lanes?.field?.key === f.key, onSelect: () => lanes?.pick(f.key) }),
+    ),
   ];
   const viewEntries = (): MenuEntry[] => [
     { head: "Saved views" },
-    { label: `All ${def.plural.toLowerCase()}`, checked: state.viewId === null, onSelect: () => dispatch({ type: "view", viewId: null }) },
-    ...each(ctx.views, (sv): MenuEntry => ({ label: sv.title, checked: state.viewId === sv.viewId, onSelect: () => dispatch({ type: "view", viewId: sv.viewId }) })),
+    {
+      label: `All ${def.plural.toLowerCase()}`,
+      checked: state.viewId === null,
+      onSelect: () => dispatch({ type: "view", viewId: null }),
+    },
+    ...each(
+      ctx.views,
+      (sv): MenuEntry => ({
+        label: sv.title,
+        checked: state.viewId === sv.viewId,
+        onSelect: () => dispatch({ type: "view", viewId: sv.viewId }),
+      }),
+    ),
   ];
 
   const sortKey = v.sort[0];
@@ -185,71 +295,226 @@ export function ViewHead({ ctx, st, lanes, sort = false, fields = true, extra }:
       <View style={s.crumb}>
         {slim ? null : <Glyph name={typeIcon(def.icon)} size={18} color="var(--ink-2)" />}
         {slim && typeList.status === "ready" ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={`${def.plural}, change record type`} testID="records-type-pick" onPress={(e) => { const p = pointOf(e); menu.show(typeMenuEntries(typeList.data.types, ctx.type, (key) => dispatch({ type: "open", key })), p.x, p.y, "other"); }} style={s.typePick}>
-            <Text accessibilityRole="header" aria-level={1} style={s.h1} numberOfLines={1}>{def.plural}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${def.plural}, change record type`}
+            testID="records-type-pick"
+            onPress={(e) => {
+              const p = pointOf(e);
+              menu.show(
+                typeMenuEntries(typeList.data.types, ctx.type, (key) => dispatch({ type: "open", key })),
+                p.x,
+                p.y,
+                "other",
+              );
+            }}
+            style={s.typePick}
+          >
+            <Text accessibilityRole="header" aria-level={1} style={s.h1} numberOfLines={1}>
+              {def.plural}
+            </Text>
             <Glyph name="chevd" size={10} />
           </Pressable>
-        ) : <Text accessibilityRole="header" aria-level={1} style={s.h1} numberOfLines={1}>{def.plural}</Text>}
+        ) : (
+          <Text accessibilityRole="header" aria-level={1} style={s.h1} numberOfLines={1}>
+            {def.plural}
+          </Text>
+        )}
         {slim ? null : <Text style={s.slash}>/</Text>}
-        <Pressable accessibilityRole="button" accessibilityLabel="Saved views" testID="records-views" onPress={(e) => { const p = pointOf(e); menu.show(viewEntries(), p.x, p.y, "other"); }}
-          style={({ hovered }: { hovered?: boolean }) => [s.pick, hovered === true && s.pickOver]}>
-          <Text style={s.pickText} numberOfLines={1}>{ctx.saved ? ctx.saved.title : `All ${def.plural.toLowerCase()}`}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Saved views"
+          testID="records-views"
+          onPress={(e) => {
+            const p = pointOf(e);
+            menu.show(viewEntries(), p.x, p.y, "other");
+          }}
+          style={({ hovered }: { hovered?: boolean }) => [s.pick, hovered === true && s.pickOver]}
+        >
+          <Text style={s.pickText} numberOfLines={1}>
+            {ctx.saved ? ctx.saved.title : `All ${def.plural.toLowerCase()}`}
+          </Text>
           {st.edited ? <Text style={s.dirty}>{"·"}</Text> : null}
           <Glyph name="chevd" size={9} />
         </Pressable>
         {st.edited ? (
           <View style={s.modline} testID="records-edited">
             <Text style={s.modText}>Edited</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Save view" testID="records-save" onPress={() => st.save(laneField ? { lane: laneField.key } : {})}><Text style={s.modLink}>Save</Text></Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Reset view" testID="records-reset" onPress={st.reset}><Text style={s.modLink}>Reset</Text></Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Save view"
+              testID="records-save"
+              onPress={() => st.save(laneField ? { lane: laneField.key } : {})}
+            >
+              <Text style={s.modLink}>Save</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Reset view"
+              testID="records-reset"
+              onPress={st.reset}
+            >
+              <Text style={s.modLink}>Reset</Text>
+            </Pressable>
           </View>
         ) : null}
       </View>
       <View style={s.grow} />
       {st.finding ? (
         <TextInput
-          value={v.find} onChangeText={(t) => set({ ...v, find: t })} placeholder={`Find in ${def.plural.toLowerCase()}`} placeholderTextColor="var(--ink-3)" accessibilityLabel="Find" testID="records-find"
-          autoFocus onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") { set({ ...v, find: "" }); st.setFinding(false); } }} style={s.find}
+          value={v.find}
+          onChangeText={(t) => set({ ...v, find: t })}
+          placeholder={`Find in ${def.plural.toLowerCase()}`}
+          placeholderTextColor="var(--ink-3)"
+          accessibilityLabel="Find"
+          testID="records-find"
+          autoFocus
+          onKeyPress={(e) => {
+            if (e.nativeEvent.key === "Escape") {
+              set({ ...v, find: "" });
+              st.setFinding(false);
+            }
+          }}
+          style={s.find}
         />
-      ) : <HeadButton icon="find" label="Find" bare testID="records-find-btn" onPress={() => st.setFinding(true)} />}
+      ) : (
+        <HeadButton icon="find" label="Find" bare testID="records-find-btn" onPress={() => st.setFinding(true)} />
+      )}
       {slim ? (
         // the phone keeps Find, New and one "..." menu holding the filter, sort, lanes and fields choices
-        <HeadButton icon="more" label="More options" bare testID="records-more" onPress={(x, y) => menu.show([
-          ...(shareEntries().length ? [...shareEntries(), { separator: true } as MenuEntry] : []),
-          ...filterEntries(), { separator: true },
-          ...(sort ? [...sortEntries(), { separator: true } as MenuEntry] : []),
-          ...(lanes ? [...laneEntries(), { separator: true } as MenuEntry] : []),
-          ...(fields ? fieldEntries() : []),
-        ], x, y)} />
+        <HeadButton
+          icon="more"
+          label="More options"
+          bare
+          testID="records-more"
+          onPress={(x, y) =>
+            menu.show(
+              [
+                ...(shareEntries().length ? [...shareEntries(), { separator: true } as MenuEntry] : []),
+                ...filterEntries(),
+                { separator: true },
+                ...(sort ? [...sortEntries(), { separator: true } as MenuEntry] : []),
+                ...(lanes ? [...laneEntries(), { separator: true } as MenuEntry] : []),
+                ...(fields ? fieldEntries() : []),
+              ],
+              x,
+              y,
+            )
+          }
+        />
       ) : (
         <>
-      <HeadButton icon="filter" label="Filter" detail={v.clauses.length ? String(v.clauses.length) : undefined} on={v.clauses.length > 0} bare={slim} testID="records-filter" onPress={(x, y) => menu.show(filterEntries(), x, y, "other")} />
-      {sort ? <HeadButton icon="sort" label="Sort" detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined} on={sortKey !== undefined} bare={slim} testID="records-sort" onPress={(x, y) => menu.show(sortEntries(), x, y, "other")} /> : null}
-      {lanes ? <HeadButton icon="group" label="Lanes" detail={laneField?.title} bare={slim} testID="records-lanes" onPress={(x, y) => menu.show(laneEntries(), x, y, "other")} /> : null}
-      {fields ? <HeadButton icon="eye" label="Fields" detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined} bare={slim} testID="records-fields" onPress={(x, y) => menu.show(fieldEntries(), x, y, "other")} /> : null}
+          <HeadButton
+            icon="filter"
+            label="Filter"
+            detail={v.clauses.length ? String(v.clauses.length) : undefined}
+            on={v.clauses.length > 0}
+            bare={slim}
+            testID="records-filter"
+            onPress={(x, y) => menu.show(filterEntries(), x, y, "other")}
+          />
+          {sort ? (
+            <HeadButton
+              icon="sort"
+              label="Sort"
+              detail={sortKey ? def.fields.find((f) => f.key === sortKey.field)?.title : undefined}
+              on={sortKey !== undefined}
+              bare={slim}
+              testID="records-sort"
+              onPress={(x, y) => menu.show(sortEntries(), x, y, "other")}
+            />
+          ) : null}
+          {lanes ? (
+            <HeadButton
+              icon="group"
+              label="Lanes"
+              detail={laneField?.title}
+              bare={slim}
+              testID="records-lanes"
+              onPress={(x, y) => menu.show(laneEntries(), x, y, "other")}
+            />
+          ) : null}
+          {fields ? (
+            <HeadButton
+              icon="eye"
+              label="Fields"
+              detail={v.hidden.length ? `${v.hidden.length} hidden` : undefined}
+              bare={slim}
+              testID="records-fields"
+              onPress={(x, y) => menu.show(fieldEntries(), x, y, "other")}
+            />
+          ) : null}
         </>
       )}
-      {slim ? null : <>
-        {canShare ? <HeadButton icon="share" label="Share" testID="records-share-btn" onPress={() => data.share?.open({ type: "record_type", id: ctx.type, name: def.plural })} /> : null}
-        {canExport ? <HeadButton icon="download" label="Export" testID="records-export-btn" onPress={exportAll} /> : null}
-      </>}
-      {exported === null ? null : <Text style={s.offline} accessibilityRole="alert" testID="records-export-note">{exported === "busy" ? "Exporting" : exported === "done" ? "Exported to Files" : "Export failed"}</Text>}
+      {slim ? null : (
+        <>
+          {canShare ? (
+            <HeadButton
+              icon="share"
+              label="Share"
+              testID="records-share-btn"
+              onPress={() => data.share?.open({ type: "record_type", id: ctx.type, name: def.plural })}
+            />
+          ) : null}
+          {canExport ? (
+            <HeadButton icon="download" label="Export" testID="records-export-btn" onPress={exportAll} />
+          ) : null}
+        </>
+      )}
+      {exported === null ? null : (
+        <Text style={s.offline} accessibilityRole="alert" testID="records-export-note">
+          {exported === "busy" ? "Exporting" : exported === "done" ? "Exported to Files" : "Export failed"}
+        </Text>
+      )}
       {extra}
       {slim ? null : <KindSwitch ctx={ctx} />}
-      {ctx.journey ? null : <HeadButton icon="plus" label="New" bare={slim} testID="records-new" onPress={() => st.newRecord()} />}
-      {online ? null : <Text style={s.offline} accessibilityRole="alert" testID="records-offline">Offline</Text>}
+      {ctx.journey ? null : (
+        <HeadButton icon="plus" label="New" bare={slim} testID="records-new" onPress={() => st.newRecord()} />
+      )}
+      {online ? null : (
+        <Text style={s.offline} accessibilityRole="alert" testID="records-offline">
+          Offline
+        </Text>
+      )}
       {menu.element}
     </View>
   );
 }
 
 export const s = StyleSheet.create({
-  head: { height: 48, flexDirection: "row", alignItems: "center", gap: 2, paddingLeft: 18, paddingRight: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, zIndex: 10 },
+  head: {
+    height: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingLeft: 18,
+    paddingRight: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+    zIndex: 10,
+  },
   crumb: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0, flexShrink: 1, overflow: "hidden" },
   typePick: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1, minWidth: 0 },
-  h1: { margin: 0, flexShrink: 1, minWidth: 0, fontSize: 14, fontWeight: "600", letterSpacing: -0.07, color: "var(--ink)" as string },
+  h1: {
+    margin: 0,
+    flexShrink: 1,
+    minWidth: 0,
+    fontSize: 14,
+    fontWeight: "600",
+    letterSpacing: -0.07,
+    color: "var(--ink)" as string,
+  },
   slash: { fontSize: 14, color: "var(--ink-4)" as string },
-  pick: { height: 26, flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 7, borderRadius: 6 },
+  pick: {
+    height: 26,
+    flexShrink: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 7,
+    borderRadius: 6,
+  },
   pickOver: { backgroundColor: "var(--hover)" as string },
   pickText: { flexShrink: 1, fontSize: 13, color: "var(--ink-2)" as string },
   dirty: { fontSize: 16, lineHeight: 16, color: "var(--accent)" as string },
@@ -257,7 +522,17 @@ export const s = StyleSheet.create({
   modText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   modLink: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   grow: { flex: 1 },
-  find: { width: 190, height: 26, paddingHorizontal: 9, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string, fontSize: 13, color: "var(--ink)" as string },
+  find: {
+    width: 190,
+    height: 26,
+    paddingHorizontal: 9,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: "var(--field-line)",
+    backgroundColor: "var(--field)" as string,
+    fontSize: 13,
+    color: "var(--ink)" as string,
+  },
   kind: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 7 },
   kindText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
   offline: { fontSize: 12.5, color: "var(--ink-3)" as string, marginLeft: 8 },

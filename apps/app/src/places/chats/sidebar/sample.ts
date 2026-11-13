@@ -26,7 +26,20 @@ const DAY = 86_400_000;
 /** You, in every sample Space. */
 export const ME = "usr_irfad";
 
-export interface SampleThread { /** unread replies, from threads I follow, under this chat */ repliesUnread?: number; threadId: string; title: string; agents: string[]; unread: number; working: boolean; starred: boolean; lastAt: number; preview?: string; /** in my Archived section */ archived?: boolean; /** deleted, waiting for Undo */ deleted?: boolean; /** left */ left?: boolean }
+export interface SampleThread {
+  /** unread replies, from threads I follow, under this chat */ repliesUnread?: number;
+  threadId: string;
+  title: string;
+  agents: string[];
+  unread: number;
+  working: boolean;
+  starred: boolean;
+  lastAt: number;
+  preview?: string;
+  /** in my Archived section */ archived?: boolean;
+  /** deleted, waiting for Undo */ deleted?: boolean;
+  /** left */ left?: boolean;
+}
 export interface SampleSpace {
   id: "northwind" | "harbor" | "personal";
   name: string;
@@ -34,7 +47,15 @@ export interface SampleSpace {
   otherNeedsYou: boolean;
   agents: { agentId: string; name: string; starred: boolean; working?: boolean }[];
   threads: SampleThread[];
-  channels: { channelId: string; name: string; unread: number; visibility: "public" | "invite"; project?: boolean; /** false: a public channel you have not joined (it is for Browse, not the list) */ joined?: boolean; topic?: string }[];
+  channels: {
+    channelId: string;
+    name: string;
+    unread: number;
+    visibility: "public" | "invite";
+    project?: boolean;
+    /** false: a public channel you have not joined (it is for Browse, not the list) */ joined?: boolean;
+    topic?: string;
+  }[];
   /** The people a channel can add (access.principals.list) and the projects it can link (projects.list). */
   people?: { id: string; name: string; title?: string }[];
   projects?: { recordId: string; title: string }[];
@@ -51,16 +72,35 @@ export const FOLLOWED_PROJECTS: ReadonlySet<string> = new Set(["ch_pruitt"]);
 function channelsOf(all: readonly FixtureChannel[], followed: ReadonlySet<string>): SampleSpace["channels"] {
   return all
     .filter((c) => c.project !== true || followed.has(c.id))
-    .map((c) => ({ channelId: c.id.replace(/^ch_/, ""), name: c.name, unread: c.mentions ?? (c.unread === true ? 1 : 0), visibility: c.private === true ? ("invite" as const) : ("public" as const), ...(c.project === true ? { project: true } : {}) }));
+    .map((c) => ({
+      channelId: c.id.replace(/^ch_/, ""),
+      name: c.name,
+      unread: c.mentions ?? (c.unread === true ? 1 : 0),
+      visibility: c.private === true ? ("invite" as const) : ("public" as const),
+      ...(c.project === true ? { project: true } : {}),
+    }));
 }
 
-const t = (threadId: string, title: string, agents: string[], lastAt: number, o: Partial<SampleThread> = {}): SampleThread =>
-  ({ threadId, title, agents, unread: 0, working: false, starred: false, lastAt, ...o });
+const t = (
+  threadId: string,
+  title: string,
+  agents: string[],
+  lastAt: number,
+  o: Partial<SampleThread> = {},
+): SampleThread => ({ threadId, title, agents, unread: 0, working: false, starred: false, lastAt, ...o });
 
 export const northwind: SampleSpace = {
-  id: "northwind", name: "Northwind", assistant: { agentId: "agt_assistant", name: "Assistant" }, otherNeedsYou: true,
+  id: "northwind",
+  name: "Northwind",
+  assistant: { agentId: "agt_assistant", name: "Assistant" },
+  otherNeedsYou: true,
   // the faces are the pinned agents in the order the seed lists them (the assistant is the Vyre mark beside New chat, not a face)
-  agents: fixtureFor("northwind").agents.map((a) => ({ agentId: a.id, name: a.name, starred: a.pinned, ...(a.id === "agt_intake" ? { working: true } : {}) })),
+  agents: fixtureFor("northwind").agents.map((a) => ({
+    agentId: a.id,
+    name: a.name,
+    starred: a.pinned,
+    ...(a.id === "agt_intake" ? { working: true } : {}),
+  })),
   threads: [
     t("c1", "Rivera intake", ["agt_intake"], at(10, 24, 9, 31), { working: true }),
     t("c3", "October invoices", ["agt_billing"], at(10, 24, 9, 12), { unread: 2 }),
@@ -84,10 +124,16 @@ export const northwind: SampleSpace = {
   ],
   needsTotal: 7,
   people: [
-    { id: "usr_maya", name: "Maya Chen", title: "Partner" }, { id: "usr_omar", name: "Omar Haddad", title: "Paralegal" }, { id: "usr_priya", name: "Priya Nair", title: "Office manager" },
-    { id: "usr_lena", name: "Lena Brandt" }, { id: "usr_tom", name: "Tom Okafor" },
+    { id: "usr_maya", name: "Maya Chen", title: "Partner" },
+    { id: "usr_omar", name: "Omar Haddad", title: "Paralegal" },
+    { id: "usr_priya", name: "Priya Nair", title: "Office manager" },
+    { id: "usr_lena", name: "Lena Brandt" },
+    { id: "usr_tom", name: "Tom Okafor" },
   ],
-  projects: [{ recordId: "rec_rivera", title: "Rivera matter" }, { recordId: "rec_atp", title: "ATP Q4 review" }],
+  projects: [
+    { recordId: "rec_rivera", title: "Rivera matter" },
+    { recordId: "rec_atp", title: "ATP Q4 review" },
+  ],
 };
 
 /** A prototype clock string: "8:41" is today at 08:41, "Yesterday" yesterday midday, a weekday name the Monday before. */
@@ -102,30 +148,65 @@ function harborSpace(): SampleSpace {
   const f = fixtureFor("harbor");
   const agentId = (id: string): boolean => id.startsWith("agt_");
   return {
-    id: "harbor", name: f.space.name, assistant: { agentId: "agt_assistant", name: "Assistant" }, otherNeedsYou: false,
+    id: "harbor",
+    name: f.space.name,
+    assistant: { agentId: "agt_assistant", name: "Assistant" },
+    otherNeedsYou: false,
     agents: f.agents.map((a) => ({ agentId: a.id, name: a.name, starred: a.pinned })),
-    threads: f.chats.map((c) => t(c.id, c.title, agentId(c.with) ? [c.with] : [], stampOf(c.at), { ...(c.unread === true ? { unread: 1 } : {}), ...(c.starred === true ? { starred: true } : {}) })),
+    threads: f.chats.map((c) =>
+      t(c.id, c.title, agentId(c.with) ? [c.with] : [], stampOf(c.at), {
+        ...(c.unread === true ? { unread: 1 } : {}),
+        ...(c.starred === true ? { starred: true } : {}),
+      }),
+    ),
     channels: channelsOf(f.channels, FOLLOWED_PROJECTS),
-    needs: f.needs.map((n) => ({ taskId: `tsk_${n.id}`, title: n.title, kind: n.kind === "Approve" ? ("approve" as const) : n.kind === "Review" ? ("review" as const) : ("unblock" as const), by: n.agent })),
+    needs: f.needs.map((n) => ({
+      taskId: `tsk_${n.id}`,
+      title: n.title,
+      kind:
+        n.kind === "Approve" ? ("approve" as const) : n.kind === "Review" ? ("review" as const) : ("unblock" as const),
+      by: n.agent,
+    })),
     needsTotal: f.needs.length,
   };
 }
 export const harbor: SampleSpace = harborSpace();
 
 export const personal: SampleSpace = {
-  id: "personal", name: "Personal", assistant: { agentId: "agt_assistant", name: "Assistant" }, otherNeedsYou: false,
+  id: "personal",
+  name: "Personal",
+  assistant: { agentId: "agt_assistant", name: "Assistant" },
+  otherNeedsYou: false,
   agents: [{ agentId: "agt_assistant", name: "Assistant", starred: true }],
   threads: [
     t("m1", "Plan the week", ["agt_assistant"], at(10, 24, 8, 5)),
     t("m2", "Flights to Kuala Lumpur", ["agt_assistant"], at(10, 23, 18, 40), { starred: true }),
     t("m3", "Tax papers checklist", ["agt_assistant"], at(10, 20, 9, 0)),
   ],
-  channels: [], needs: [], needsTotal: 0,
+  channels: [],
+  needs: [],
+  needsTotal: 0,
 };
 
 const agentRow = (a: SampleSpace["agents"][number], i: number): Row => ({
-  id: a.agentId, agentId: a.agentId, name: a.name, face: a.name[0]!, role: "", status: a.working ? "working" : "awake", ownerId: "usr_irfad", folderId: `fld_${a.agentId}`,
-  accountPolicy: "asker", toolsAllowed: [], toolsDenied: [], vaultKeys: [], limits: {}, captureMode: "propose", hasComputer: false, templateVersion: 1, createdAt: at(10, 1, 9) + i, starred: a.starred,
+  id: a.agentId,
+  agentId: a.agentId,
+  name: a.name,
+  face: a.name[0]!,
+  role: "",
+  status: a.working ? "working" : "awake",
+  ownerId: "usr_irfad",
+  folderId: `fld_${a.agentId}`,
+  accountPolicy: "asker",
+  toolsAllowed: [],
+  toolsDenied: [],
+  vaultKeys: [],
+  limits: {},
+  captureMode: "propose",
+  hasComputer: false,
+  templateVersion: 1,
+  createdAt: at(10, 1, 9) + i,
+  starred: a.starred,
 });
 
 export interface SampleSidebar {
@@ -147,9 +228,25 @@ export interface SampleSidebar {
 }
 
 /** An imported coding session as sessions.list answers it (the sample's own copy, so rename, archive and delete change it). */
-export interface SampleImported { conversationId: string; provider: "claude_code" | "codex"; title: string; startedAt: number; importedAt: number; continuedThreadId?: string; archived?: boolean }
+export interface SampleImported {
+  conversationId: string;
+  provider: "claude_code" | "codex";
+  title: string;
+  startedAt: number;
+  importedAt: number;
+  continuedThreadId?: string;
+  archived?: boolean;
+}
 
-export function createSampleSidebar(space: SampleSpace = northwind, o: { online?: boolean; startDelayMs?: number; imported?: readonly SampleImported[]; /** goals the person has, as goals.list answers them */ goals?: readonly Record<string, unknown>[] } = {}): SampleSidebar {
+export function createSampleSidebar(
+  space: SampleSpace = northwind,
+  o: {
+    online?: boolean;
+    startDelayMs?: number;
+    imported?: readonly SampleImported[];
+    /** goals the person has, as goals.list answers them */ goals?: readonly Record<string, unknown>[];
+  } = {},
+): SampleSidebar {
   const starredProjects = new Set<string>();
   const replica = createFakeReplica(space.id);
   const calls: { cap: string; input: unknown }[] = [];
@@ -161,7 +258,9 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     for (const e of errs) rejected.push(`${cap}: ${e}`);
     return errs.length === 0;
   };
-  const refuse = (cap: string, input: unknown): void => { if (!accepts(cap, input)) throw new Error(`${cap}: bad_input`); };
+  const refuse = (cap: string, input: unknown): void => {
+    if (!accepts(cap, input)) throw new Error(`${cap}: bad_input`);
+  };
   const menus: SampleSidebar["menus"] = { mutes: new Set(), computers: new Map() };
   const failing = new Set<string>();
   const listeners = new Set<() => void>();
@@ -169,13 +268,32 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
   let startDelayMs = o.startDelayMs ?? 40;
 
   replica.put("agents", space.agents.map(agentRow));
-  replica.put("threads", space.threads.map((x) => ({ id: x.threadId, ...x })));
-  replica.put("channels", space.channels.map((c) => ({ id: c.channelId, ...c })));
-  replica.put("needs", space.needs.map((n) => ({ id: n.taskId, ...n })));
+  replica.put(
+    "threads",
+    space.threads.map((x) => ({ id: x.threadId, ...x })),
+  );
+  replica.put(
+    "channels",
+    space.channels.map((c) => ({ id: c.channelId, ...c })),
+  );
+  replica.put(
+    "needs",
+    space.needs.map((n) => ({ id: n.taskId, ...n })),
+  );
 
   const threads = (): SampleThread[] => replica.rows("threads") as unknown as SampleThread[];
   const dayOf = (ts: number): number => Math.floor(ts / DAY);
-  const item = (x: SampleThread): RecentItem => ({ threadId: x.threadId, kind: "chat", title: x.title, agents: x.agents, unread: x.unread, working: x.working, starred: x.starred, lastAt: x.lastAt, ...(x.repliesUnread ? { repliesUnread: x.repliesUnread } : {}) });
+  const item = (x: SampleThread): RecentItem => ({
+    threadId: x.threadId,
+    kind: "chat",
+    title: x.title,
+    agents: x.agents,
+    unread: x.unread,
+    working: x.working,
+    starred: x.starred,
+    lastAt: x.lastAt,
+    ...(x.repliesUnread ? { repliesUnread: x.repliesUnread } : {}),
+  });
 
   replica.resolve("chat.recent", (_t, input) => {
     refuse("chat.recent", input);
@@ -186,17 +304,42 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     for (const x of all) {
       if (x.deleted || x.left) continue;
       const d = today - dayOf(x.lastAt);
-      (x.archived ? out.archived : x.starred ? out.starred : d <= 0 ? out.today : d === 1 ? out.yesterday : out.earlier).push(item(x));
+      (x.archived
+        ? out.archived
+        : x.starred
+          ? out.starred
+          : d <= 0
+            ? out.today
+            : d === 1
+              ? out.yesterday
+              : out.earlier
+      ).push(item(x));
     }
-    out.nextUnread = all.filter((x) => x.unread > 0 && !x.archived && !x.deleted && !x.left).sort((a, b) => a.lastAt - b.lastAt)[0]?.threadId ?? null;
+    out.nextUnread =
+      all.filter((x) => x.unread > 0 && !x.archived && !x.deleted && !x.left).sort((a, b) => a.lastAt - b.lastAt)[0]
+        ?.threadId ?? null;
     return out;
   });
-  replica.resolve("channels.list", (_t, input) => { refuse("channels.list", input); return {
-    channels: (replica.rows("channels") as unknown as SampleSpace["channels"]).map((c): Channel => ({
-      channelId: c.channelId, mainThreadId: `th_${c.channelId}`, name: c.name, visibility: c.visibility, archived: false, members: c.joined === false ? [] : [{ kind: "person", id: ME }], agents: [], unread: c.unread, createdAt: at(10, 1, 9),
-      ...(c.topic ? { topic: c.topic } : {}), ...(c.project ? { recordId: `rec_${c.channelId}` } : {}),
-    })),
-  }; });
+  replica.resolve("channels.list", (_t, input) => {
+    refuse("channels.list", input);
+    return {
+      channels: (replica.rows("channels") as unknown as SampleSpace["channels"]).map(
+        (c): Channel => ({
+          channelId: c.channelId,
+          mainThreadId: `th_${c.channelId}`,
+          name: c.name,
+          visibility: c.visibility,
+          archived: false,
+          members: c.joined === false ? [] : [{ kind: "person", id: ME }],
+          agents: [],
+          unread: c.unread,
+          createdAt: at(10, 1, 9),
+          ...(c.topic ? { topic: c.topic } : {}),
+          ...(c.project ? { recordId: `rec_${c.channelId}` } : {}),
+        }),
+      ),
+    };
+  });
   replica.resolve("agents.list", (_t, input) => {
     refuse("agents.list", input);
     const all = replica.rows("agents") as unknown as (Agent & { starred: boolean })[];
@@ -205,30 +348,61 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
   replica.resolve("tasks.needs_you", (_t, input) => {
     refuse("tasks.needs_you", input);
     const rows = replica.rows("needs") as unknown as SampleSpace["needs"];
-    const items = rows.map((n): NeedsItem => ({
-      reason: "ready", yourTurn: true,
-      task: {
-        id: n.taskId, kind: n.kind, title: n.title, state: "todo", blocked: n.kind === "unblock", blocks: [], assigned: { kind: "person", id: "usr_irfad" }, fileIds: [], dependsOn: [], followers: [], workingNotes: {},
-        reviewLoops: 0, createdBy: n.by, createdAt: at(10, 24, 8), updatedAt: at(10, 24, 9),
-        actions: n.kind === "approve" ? [{ key: "approve", label: "Allow" }] : n.kind === "review" ? [{ key: "review", label: "Looks good" }] : [],
-      } as NeedsItem["task"],
-    }));
-    return { items: items.slice(0, input.limit ?? 50), total: Math.max(space.needsTotal, items.length) } as CapMap["tasks.needs_you"]["out"];
+    const items = rows.map(
+      (n): NeedsItem => ({
+        reason: "ready",
+        yourTurn: true,
+        task: {
+          id: n.taskId,
+          kind: n.kind,
+          title: n.title,
+          state: "todo",
+          blocked: n.kind === "unblock",
+          blocks: [],
+          assigned: { kind: "person", id: "usr_irfad" },
+          fileIds: [],
+          dependsOn: [],
+          followers: [],
+          workingNotes: {},
+          reviewLoops: 0,
+          createdBy: n.by,
+          createdAt: at(10, 24, 8),
+          updatedAt: at(10, 24, 9),
+          actions:
+            n.kind === "approve"
+              ? [{ key: "approve", label: "Allow" }]
+              : n.kind === "review"
+                ? [{ key: "review", label: "Looks good" }]
+                : [],
+        } as NeedsItem["task"],
+      }),
+    );
+    return {
+      items: items.slice(0, input.limit ?? 50),
+      total: Math.max(space.needsTotal, items.length),
+    } as CapMap["tasks.needs_you"]["out"];
   });
   // the Tasks badge: every task whose next move is the person's, each once
   replica.resolve("tasks.count_needs_you", (_t, input) => {
     refuse("tasks.count_needs_you", input);
-    return { count: Math.max(space.needsTotal, (replica.rows("needs") as unknown[]).length) } as CapMap["tasks.count_needs_you"]["out"];
+    return {
+      count: Math.max(space.needsTotal, (replica.rows("needs") as unknown[]).length),
+    } as CapMap["tasks.count_needs_you"]["out"];
   });
 
   // the imported sessions: listed, renamed, archived and deleted here, every input checked against the contract
   let imported: SampleImported[] = (o.imported ?? []).map((x) => ({ ...x }));
   const session = (id: string): SampleImported => {
     const x = imported.find((r) => r.conversationId === id);
-    if (!x) throw Object.assign(new Error("That imported conversation does not exist."), { code: "validation.not_found" });
+    if (!x)
+      throw Object.assign(new Error("That imported conversation does not exist."), { code: "validation.not_found" });
     return x;
   };
-  const archiveRow = (x: SampleImported) => ({ ...x, sourceKey: `${x.provider}:sample`, sourceSessionId: x.conversationId });
+  const archiveRow = (x: SampleImported) => ({
+    ...x,
+    sourceKey: `${x.provider}:sample`,
+    sourceSessionId: x.conversationId,
+  });
 
   const patch = (id: string, p: Partial<SampleThread>): void => {
     const cur = threads().find((x) => x.threadId === id);
@@ -238,87 +412,260 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     "chat.start": async (i: { agentIds: string[]; idempotencyKey: string }) => {
       await new Promise((r) => setTimeout(r, startDelayMs));
       const id = `th_${i.idempotencyKey}`;
-      if (!threads().some((x) => x.threadId === id)) replica.put("threads", [{ id, ...t(id, "New chat", i.agentIds, SAMPLE_NOW) }]);
+      if (!threads().some((x) => x.threadId === id))
+        replica.put("threads", [{ id, ...t(id, "New chat", i.agentIds, SAMPLE_NOW) }]);
       return { thread: { threadId: id, kind: "chat", title: "New chat", listed: true, planMode: false } };
     },
     "stars.toggle": (i: { resource: { type: string; id: string }; on: boolean }) => {
-      if (i.resource.type === "project") { if (i.on) starredProjects.add(i.resource.id); else starredProjects.delete(i.resource.id); }
+      if (i.resource.type === "project") {
+        if (i.on) starredProjects.add(i.resource.id);
+        else starredProjects.delete(i.resource.id);
+      }
       if (i.resource.type === "thread") patch(i.resource.id, { starred: i.on });
-      if (i.resource.type === "agent") { const a = replica.rows("agents").find((r) => r.id === i.resource.id); if (a) replica.put("agents", [{ ...a, starred: i.on }]); }
+      if (i.resource.type === "agent") {
+        const a = replica.rows("agents").find((r) => r.id === i.resource.id);
+        if (a) replica.put("agents", [{ ...a, starred: i.on }]);
+      }
       return { starred: i.on, following: false };
     },
     "threads.mark_read": (i: { threadId: string; unread?: boolean }) => {
       // Mark as Unread makes the newest message new again: one unread
       const n = i.unread === true ? 1 : 0;
       patch(i.threadId, { unread: n });
-      const ch = (replica.rows("channels") as unknown as SampleSpace["channels"]).find((c) => `th_${c.channelId}` === i.threadId);
+      const ch = (replica.rows("channels") as unknown as SampleSpace["channels"]).find(
+        (c) => `th_${c.channelId}` === i.threadId,
+      );
       if (ch) replica.put("channels", [{ id: ch.channelId, ...ch, unread: n }]);
       return { unread: n };
     },
     // my list only: archive and unarchive mark the chat for me, delete hides it until Undo (restore), leave takes me out of a chat with people
-    "threads.archive": (i: { threadId: string }) => { patch(i.threadId, { archived: true }); return { archived: true }; },
-    "threads.unarchive": (i: { threadId: string }) => { patch(i.threadId, { archived: false }); return { archived: false }; },
-    "threads.delete": (i: { threadId: string }) => { patch(i.threadId, { deleted: true }); return { deleted: true }; },
-    "threads.restore": (i: { threadId: string }) => { patch(i.threadId, { deleted: false }); return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
-    "threads.leave": (i: { threadId: string }) => { patch(i.threadId, { left: true }); return { ok: true }; },
-    "notifications.mute.list": () => ({ mutes: [...menus.mutes].map((k) => { const [kind, ...id] = k.split(":"); return { target: { kind, id: id.join(":") }, until: 0 }; }) }),
-    "notifications.mute.set": (i: { target: { kind: string; id: string } }) => { refuse("notifications.mute.set", i); menus.mutes.add(`${i.target.kind}:${i.target.id}`); return { until: 0 }; },
-    "notifications.mute.clear": (i: { target: { kind: string; id: string } }) => { refuse("notifications.mute.clear", i); menus.mutes.delete(`${i.target.kind}:${i.target.id}`); return { cleared: true }; },
+    "threads.archive": (i: { threadId: string }) => {
+      patch(i.threadId, { archived: true });
+      return { archived: true };
+    },
+    "threads.unarchive": (i: { threadId: string }) => {
+      patch(i.threadId, { archived: false });
+      return { archived: false };
+    },
+    "threads.delete": (i: { threadId: string }) => {
+      patch(i.threadId, { deleted: true });
+      return { deleted: true };
+    },
+    "threads.restore": (i: { threadId: string }) => {
+      patch(i.threadId, { deleted: false });
+      return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } };
+    },
+    "threads.leave": (i: { threadId: string }) => {
+      patch(i.threadId, { left: true });
+      return { ok: true };
+    },
+    "notifications.mute.list": () => ({
+      mutes: [...menus.mutes].map((k) => {
+        const [kind, ...id] = k.split(":");
+        return { target: { kind, id: id.join(":") }, until: 0 };
+      }),
+    }),
+    "notifications.mute.set": (i: { target: { kind: string; id: string } }) => {
+      refuse("notifications.mute.set", i);
+      menus.mutes.add(`${i.target.kind}:${i.target.id}`);
+      return { until: 0 };
+    },
+    "notifications.mute.clear": (i: { target: { kind: string; id: string } }) => {
+      refuse("notifications.mute.clear", i);
+      menus.mutes.delete(`${i.target.kind}:${i.target.id}`);
+      return { cleared: true };
+    },
     // every star the person holds, as the server lists them: projects, agents and chats
-    "stars.list": () => ({ stars: [
-      ...[...starredProjects].map((id) => ({ resource: { type: "project", id } })),
-      ...(replica.rows("agents") as unknown as { id: string; starred?: boolean }[]).filter((a) => a.starred === true).map((a) => ({ resource: { type: "agent", id: a.id } })),
-      ...threads().filter((x) => x.starred).map((x) => ({ resource: { type: "thread", id: x.threadId } })),
-    ] }),
-    "threads.poke": (i: { threadId: string; agentId: string }) => { refuse("threads.poke", i); return { poked: true }; },
-    "threads.move": (i: { threadId: string; projectId: string }) => { return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
+    "stars.list": () => ({
+      stars: [
+        ...[...starredProjects].map((id) => ({ resource: { type: "project", id } })),
+        ...(replica.rows("agents") as unknown as { id: string; starred?: boolean }[])
+          .filter((a) => a.starred === true)
+          .map((a) => ({ resource: { type: "agent", id: a.id } })),
+        ...threads()
+          .filter((x) => x.starred)
+          .map((x) => ({ resource: { type: "thread", id: x.threadId } })),
+      ],
+    }),
+    "threads.poke": (i: { threadId: string; agentId: string }) => {
+      refuse("threads.poke", i);
+      return { poked: true };
+    },
+    "threads.move": (i: { threadId: string; projectId: string }) => {
+      return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } };
+    },
     "goals.list": (i: { scope?: string }) => ({ goals: i.scope === "mine" ? [...(o.goals ?? [])] : [] }),
     "goals.pause": () => ({}),
-    "threads.add_agent": (i: { threadId: string; agentId: string }) => { return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
-    "threads.members.add": (i: { threadId: string; personId: string }) => { return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
+    "threads.add_agent": (i: { threadId: string; agentId: string }) => {
+      return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } };
+    },
+    "threads.members.add": (i: { threadId: string; personId: string }) => {
+      return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } };
+    },
     "access.shares_of": () => ({ shares: [], agentsCanCall: true }),
     "access.groups.list": () => ({ groups: [] }),
     "access.roles.list": () => ({ roles: [] }),
-    "computers.list": () => ({ computers: [...menus.computers].map(([agentId, c]) => ({ computerId: c.computerId, agentId, state: c.state, tabs: 0, tabLimit: 5, host: "server", recording: false })) }),
-    "computers.wake": (i: { computerId: string }) => { for (const c of menus.computers.values()) if (c.computerId === i.computerId) c.state = "working"; return { computer: {} }; },
-    "computers.sleep": (i: { computerId: string }) => { for (const c of menus.computers.values()) if (c.computerId === i.computerId) c.state = "asleep"; return { computer: {} }; },
-    "computers.provision": (i: { agentId: string }) => { menus.computers.set(i.agentId, { computerId: `cmp_${i.agentId}`, state: "asleep" }); return { computer: {} }; },
-    "agents.pause": (i: { agentId: string }) => { refuse("agents.pause", i); return { agent: { agentId: i.agentId, status: "paused" } }; },
-    "agents.resume": (i: { agentId: string }) => { refuse("agents.resume", i); return { agent: { agentId: i.agentId, status: "awake" } }; },
-    "agents.delete": (i: { agentId: string }) => { refuse("agents.delete", i); replica.remove("agents", [i.agentId]); return { deleted: true }; },
-    "threads.update": (i: { threadId: string; title: string }) => { patch(i.threadId, { title: i.title }); return { thread: { threadId: i.threadId, title: i.title, kind: "chat", listed: true, planMode: false } }; },
-    "channels.leave": (i: { channelId: string }) => { const c = (replica.rows("channels") as unknown as SampleSpace["channels"]).find((x) => x.channelId === i.channelId); if (c) replica.put("channels", [{ id: c.channelId, ...c, joined: false }]); return { left: true }; },
-    "channels.archive": (i: { channelId: string }) => { replica.remove("channels", [i.channelId]); return { channel: {} }; },
-    "tasks.act": (i: { taskId: string }) => { replica.remove("needs", [i.taskId]); return { task: {} }; },
-    "sessions.list": (i: unknown) => { refuse("sessions.list", i); return { sessions: imported.map(archiveRow) }; },
-    "sessions.rename": (i: { conversationId: string; title: string }) => { refuse("sessions.rename", i); const x = session(i.conversationId); x.title = i.title; return { session: archiveRow(x) }; },
-    "sessions.archive": (i: { conversationId: string; unarchive?: boolean }) => { refuse("sessions.archive", i); const x = session(i.conversationId); if (i.unarchive === true) delete x.archived; else x.archived = true; return { archived: i.unarchive !== true }; },
-    "sessions.delete": (i: { conversationId: string }) => { refuse("sessions.delete", i); session(i.conversationId); imported = imported.filter((r) => r.conversationId !== i.conversationId); return { deleted: true }; },
-    "access.principals.list": () => ({
-      principals: (space.people ?? []).map((p) => ({ id: p.id, kind: "person", name: p.name, status: "active", roles: [], groups: [], createdAt: at(10, 1, 9), ...(p.title ? { title: p.title } : {}) })),
+    "computers.list": () => ({
+      computers: [...menus.computers].map(([agentId, c]) => ({
+        computerId: c.computerId,
+        agentId,
+        state: c.state,
+        tabs: 0,
+        tabLimit: 5,
+        host: "server",
+        recording: false,
+      })),
     }),
-    "projects.list": () => ({ projects: (space.projects ?? []).map((p) => ({ projectId: `prj_${p.recordId}`, recordId: p.recordId, type: "matter", title: p.title, status: "active", ...(p.recordId === "rec_atp" ? { health: "risk" } : p.recordId === "rec_rivera" ? { health: "on" } : {}) })) }),
+    "computers.wake": (i: { computerId: string }) => {
+      for (const c of menus.computers.values()) if (c.computerId === i.computerId) c.state = "working";
+      return { computer: {} };
+    },
+    "computers.sleep": (i: { computerId: string }) => {
+      for (const c of menus.computers.values()) if (c.computerId === i.computerId) c.state = "asleep";
+      return { computer: {} };
+    },
+    "computers.provision": (i: { agentId: string }) => {
+      menus.computers.set(i.agentId, { computerId: `cmp_${i.agentId}`, state: "asleep" });
+      return { computer: {} };
+    },
+    "agents.pause": (i: { agentId: string }) => {
+      refuse("agents.pause", i);
+      return { agent: { agentId: i.agentId, status: "paused" } };
+    },
+    "agents.resume": (i: { agentId: string }) => {
+      refuse("agents.resume", i);
+      return { agent: { agentId: i.agentId, status: "awake" } };
+    },
+    "agents.delete": (i: { agentId: string }) => {
+      refuse("agents.delete", i);
+      replica.remove("agents", [i.agentId]);
+      return { deleted: true };
+    },
+    "threads.update": (i: { threadId: string; title: string }) => {
+      patch(i.threadId, { title: i.title });
+      return { thread: { threadId: i.threadId, title: i.title, kind: "chat", listed: true, planMode: false } };
+    },
+    "channels.leave": (i: { channelId: string }) => {
+      const c = (replica.rows("channels") as unknown as SampleSpace["channels"]).find(
+        (x) => x.channelId === i.channelId,
+      );
+      if (c) replica.put("channels", [{ id: c.channelId, ...c, joined: false }]);
+      return { left: true };
+    },
+    "channels.archive": (i: { channelId: string }) => {
+      replica.remove("channels", [i.channelId]);
+      return { channel: {} };
+    },
+    "tasks.act": (i: { taskId: string }) => {
+      replica.remove("needs", [i.taskId]);
+      return { task: {} };
+    },
+    "sessions.list": (i: unknown) => {
+      refuse("sessions.list", i);
+      return { sessions: imported.map(archiveRow) };
+    },
+    "sessions.rename": (i: { conversationId: string; title: string }) => {
+      refuse("sessions.rename", i);
+      const x = session(i.conversationId);
+      x.title = i.title;
+      return { session: archiveRow(x) };
+    },
+    "sessions.archive": (i: { conversationId: string; unarchive?: boolean }) => {
+      refuse("sessions.archive", i);
+      const x = session(i.conversationId);
+      if (i.unarchive === true) delete x.archived;
+      else x.archived = true;
+      return { archived: i.unarchive !== true };
+    },
+    "sessions.delete": (i: { conversationId: string }) => {
+      refuse("sessions.delete", i);
+      session(i.conversationId);
+      imported = imported.filter((r) => r.conversationId !== i.conversationId);
+      return { deleted: true };
+    },
+    "access.principals.list": () => ({
+      principals: (space.people ?? []).map((p) => ({
+        id: p.id,
+        kind: "person",
+        name: p.name,
+        status: "active",
+        roles: [],
+        groups: [],
+        createdAt: at(10, 1, 9),
+        ...(p.title ? { title: p.title } : {}),
+      })),
+    }),
+    "projects.list": () => ({
+      projects: (space.projects ?? []).map((p) => ({
+        projectId: `prj_${p.recordId}`,
+        recordId: p.recordId,
+        type: "matter",
+        title: p.title,
+        status: "active",
+        ...(p.recordId === "rec_atp" ? { health: "risk" } : p.recordId === "rec_rivera" ? { health: "on" } : {}),
+      })),
+    }),
     "channels.create": (i: { name: string; visibility: "public" | "invite"; topic?: string; recordId?: string }) => {
       const rows = replica.rows("channels") as unknown as SampleSpace["channels"];
-      if (rows.some((c) => c.name === i.name)) throw Object.assign(new Error("A channel with that name already exists."), { code: "validation.bad_input" });
+      if (rows.some((c) => c.name === i.name))
+        throw Object.assign(new Error("A channel with that name already exists."), { code: "validation.bad_input" });
       const channelId = `new_${i.name}`;
-      replica.put("channels", [{ id: channelId, channelId, name: i.name, unread: 0, visibility: i.visibility, ...(i.topic ? { topic: i.topic } : {}), ...(i.recordId ? { project: true } : {}) }]);
-      return { channel: { channelId, mainThreadId: `th_${channelId}`, name: i.name, visibility: i.visibility, archived: false, members: [], agents: [], unread: 0, createdAt: SAMPLE_NOW } };
+      replica.put("channels", [
+        {
+          id: channelId,
+          channelId,
+          name: i.name,
+          unread: 0,
+          visibility: i.visibility,
+          ...(i.topic ? { topic: i.topic } : {}),
+          ...(i.recordId ? { project: true } : {}),
+        },
+      ]);
+      return {
+        channel: {
+          channelId,
+          mainThreadId: `th_${channelId}`,
+          name: i.name,
+          visibility: i.visibility,
+          archived: false,
+          members: [],
+          agents: [],
+          unread: 0,
+          createdAt: SAMPLE_NOW,
+        },
+      };
     },
     "channels.join": (i: { channelId: string }) => {
-      const c = (replica.rows("channels") as unknown as SampleSpace["channels"]).find((x) => x.channelId === i.channelId);
+      const c = (replica.rows("channels") as unknown as SampleSpace["channels"]).find(
+        (x) => x.channelId === i.channelId,
+      );
       if (c) replica.put("channels", [{ id: c.channelId, ...c, joined: true }]);
       return { channel: {} };
     },
   };
 
   const nav: ChatsNav = {
-    openChat: (id) => void opened.push(`chat:${id}`), openAgentChat: (id) => void opened.push(`agent:${id}`), openChannel: (id) => void opened.push(`channel:${id}`),
-    openNeedsYou: (id) => void opened.push(id ? `needs:${id}` : "needs"), openAllAgents: () => void opened.push("all-agents"), openSearch: () => void opened.push("search"),
-    openSpaceSwitcher: () => void opened.push("spaces"), openNewChannel: () => void opened.push("new-channel"),
-    openAgent: (id, section) => void opened.push(section ? `profile:${id}:${section}` : `profile:${id}`), openChatTab: (id) => void opened.push(`tab:${id}`), openGoal: (id) => void opened.push(`goal:${id}`), openProject: (id) => void opened.push(`project:${id}`), openNewProject: () => void opened.push("new-project"),
+    openChat: (id) => void opened.push(`chat:${id}`),
+    openAgentChat: (id) => void opened.push(`agent:${id}`),
+    openChannel: (id) => void opened.push(`channel:${id}`),
+    openNeedsYou: (id) => void opened.push(id ? `needs:${id}` : "needs"),
+    openAllAgents: () => void opened.push("all-agents"),
+    openSearch: () => void opened.push("search"),
+    openSpaceSwitcher: () => void opened.push("spaces"),
+    openNewChannel: () => void opened.push("new-channel"),
+    openAgent: (id, section) => void opened.push(section ? `profile:${id}:${section}` : `profile:${id}`),
+    openChatTab: (id) => void opened.push(`tab:${id}`),
+    openGoal: (id) => void opened.push(`goal:${id}`),
+    openProject: (id) => void opened.push(`project:${id}`),
+    openNewProject: () => void opened.push("new-project"),
   };
-  const connection: Connection = { get: () => (online ? "online" : "offline"), subscribe: (l) => { listeners.add(l); return () => void listeners.delete(l); } };
+  const connection: Connection = {
+    get: () => (online ? "online" : "offline"),
+    subscribe: (l) => {
+      listeners.add(l);
+      return () => void listeners.delete(l);
+    },
+  };
 
   const data: ChatsSidebarData = {
     screens: createScreenHooks(replica, screensById),
@@ -330,15 +677,35 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
       return w(input);
     },
     connection,
-    space: { name: space.name, otherNeedsYou: space.otherNeedsYou, ...(space.id === "personal" || (o.imported?.length ?? 0) > 0 ? { personal: true } : {}), assistant: space.assistant },
-    nav, me: { id: ME },
+    space: {
+      name: space.name,
+      otherNeedsYou: space.otherNeedsYou,
+      ...(space.id === "personal" || (o.imported?.length ?? 0) > 0 ? { personal: true } : {}),
+      assistant: space.assistant,
+    },
+    nav,
+    me: { id: ME },
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
   };
   return {
-    data, replica, calls, opened, rejected, menus,
-    setOnline(v) { online = v; for (const l of [...listeners]) l(); },
-    failNext(cap) { failing.add(cap); },
-    get startDelayMs() { return startDelayMs; },
-    set startDelayMs(v: number) { startDelayMs = v; },
+    data,
+    replica,
+    calls,
+    opened,
+    rejected,
+    menus,
+    setOnline(v) {
+      online = v;
+      for (const l of [...listeners]) l();
+    },
+    failNext(cap) {
+      failing.add(cap);
+    },
+    get startDelayMs() {
+      return startDelayMs;
+    },
+    set startDelayMs(v: number) {
+      startDelayMs = v;
+    },
   };
 }

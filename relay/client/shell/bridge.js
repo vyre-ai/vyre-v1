@@ -3,26 +3,61 @@
 // relay channel (a relay/client Connection), and the box's answer comes back as an ordinary Response. The relay never sees a path or a byte of it.
 
 /** Request headers that belong to the phone's own hop, not the box's. */
-const DROP = new Set(["host", "connection", "content-length", "accept-encoding", "transfer-encoding", "keep-alive", "upgrade", "te"]);
+const DROP = new Set([
+  "host",
+  "connection",
+  "content-length",
+  "accept-encoding",
+  "transfer-encoding",
+  "keep-alive",
+  "upgrade",
+  "te",
+]);
 /** Response headers a Response built in a service worker may not carry, or that describe a hop that no longer exists. */
-const DROP_BACK = new Set(["connection", "content-length", "content-encoding", "transfer-encoding", "keep-alive", "set-cookie", "set-cookie2"]);
+const DROP_BACK = new Set([
+  "connection",
+  "content-length",
+  "content-encoding",
+  "transfer-encoding",
+  "keep-alive",
+  "set-cookie",
+  "set-cookie2",
+]);
 
 /** @param {string} s */
-const esc = s => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] || c);
-const STYLE = "html{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;background:Canvas;color:CanvasText}main{max-width:26rem;padding:2rem 1.25rem;text-align:center}h1{font-size:1.25rem;margin:0 0 .5rem}p{margin:.25rem 0;opacity:.75}";
+const esc = (s) =>
+  s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] || c);
+const STYLE =
+  "html{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;background:Canvas;color:CanvasText}main{max-width:26rem;padding:2rem 1.25rem;text-align:center}h1{font-size:1.25rem;margin:0 0 .5rem}p{margin:.25rem 0;opacity:.75}";
 
 /** @param {string} title @param {string} line @param {number} status */
 function page(title, line, status) {
-  return new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="20"><title>${esc(title)}</title><style>${STYLE}</style><body><main><h1>${esc(title)}</h1><p>${esc(line)}</p></main></body></html>`,
-    { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "retry-after": "20" } });
+  return new Response(
+    `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="20"><title>${esc(title)}</title><style>${STYLE}</style><body><main><h1>${esc(title)}</h1><p>${esc(line)}</p></main></body></html>`,
+    {
+      status,
+      headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "retry-after": "20" },
+    },
+  );
 }
 
 /** The page for a box that does not answer. @param {string} label */
-export const asleepPage = label => page(`${label} is asleep`, "Wake the computer and this page opens by itself.", 503);
+export const asleepPage = (label) =>
+  page(`${label} is asleep`, "Wake the computer and this page opens by itself.", 503);
 /** The page for an invite link the box no longer answers: used, revoked or expired. @param {string} label */
-export const inviteGonePage = label => page("This invite has ended", `It was used, taken back or it expired. Ask the person who invited you to ${label} for a new link.`, 410);
+export const inviteGonePage = (label) =>
+  page(
+    "This invite has ended",
+    `It was used, taken back or it expired. Ask the person who invited you to ${label} for a new link.`,
+    410,
+  );
 /** The page for a phone the box no longer lists. @param {string} label */
-export const removedPage = label => page("This phone was removed", `${label} no longer lists this phone. Open the link from Phone access on the computer again.`, 403);
+export const removedPage = (label) =>
+  page(
+    "This phone was removed",
+    `${label} no longer lists this phone. Open the link from Phone access on the computer again.`,
+    403,
+  );
 
 /**
  * The request as the box's router takes it.
@@ -33,7 +68,9 @@ export async function toBoxRequest(request) {
   const url = new URL(request.url);
   /** @type {Record<string, string>} */
   const headers = {};
-  request.headers.forEach((v, k) => { if (!DROP.has(k.toLowerCase())) headers[k.toLowerCase()] = v; });
+  request.headers.forEach((v, k) => {
+    if (!DROP.has(k.toLowerCase())) headers[k.toLowerCase()] = v;
+  });
   const method = request.method.toUpperCase();
   const body = method === "GET" || method === "HEAD" ? null : new Uint8Array(await request.arrayBuffer());
   return { path: `${url.pathname}${url.search}`, init: { method, headers, body } };
@@ -62,7 +99,14 @@ export async function withShim(res) {
  */
 export function toResponse(res) {
   const headers = new Headers();
-  for (const [k, v] of res.headers) if (!DROP_BACK.has(k.toLowerCase())) { try { headers.set(k, v); } catch { /* a header the runtime refuses */ } }
+  for (const [k, v] of res.headers)
+    if (!DROP_BACK.has(k.toLowerCase())) {
+      try {
+        headers.set(k, v);
+      } catch {
+        /* a header the runtime refuses */
+      }
+    }
   const status = res.status;
   if (status === 204 || status === 205 || status === 304) return new Response(null, { status, headers });
   const it = res.body[Symbol.asyncIterator]();
@@ -70,10 +114,19 @@ export function toResponse(res) {
     async pull(controller) {
       try {
         const n = await it.next();
-        if (n.done) controller.close(); else controller.enqueue(n.value);
-      } catch (e) { controller.error(e); }
+        if (n.done) controller.close();
+        else controller.enqueue(n.value);
+      } catch (e) {
+        controller.error(e);
+      }
     },
-    async cancel() { try { await it.return?.(); } catch { /* already gone */ } },
+    async cancel() {
+      try {
+        await it.return?.();
+      } catch {
+        /* already gone */
+      }
+    },
   });
   return new Response(stream, { status, headers });
 }
@@ -103,16 +156,31 @@ export function createBridge(o) {
         const out = toResponse(res);
         return navigation ? await withShim(out) : out;
       } catch (e) {
-        if (box.state === "relay_removed" || /device removed/.test(String(/** @type {Error} */ (e).message))) return removedPage(o.label());
+        if (box.state === "relay_removed" || /device removed/.test(String(/** @type {Error} */ (e).message)))
+          return removedPage(o.label());
         if (request.signal?.aborted) return new Response(null, { status: 499 });
         // the relay reached the box and the box closed the hello: under an invite's key that is an invite that is no longer open
-        if (o.invite?.() && box.state !== "open" && /box closed the connection|refused/.test(String(box.lastError?.message ?? ""))) {
-          return navigation ? inviteGonePage(o.label()) : new Response(JSON.stringify({ error: "This invite has ended" }), { status: 410, headers: { "content-type": "application/json" } });
+        if (
+          o.invite?.() &&
+          box.state !== "open" &&
+          /box closed the connection|refused/.test(String(box.lastError?.message ?? ""))
+        ) {
+          return navigation
+            ? inviteGonePage(o.label())
+            : new Response(JSON.stringify({ error: "This invite has ended" }), {
+                status: 410,
+                headers: { "content-type": "application/json" },
+              });
         }
         // the computer this phone was talking to went to sleep: another computer of the same Space may be awake (lane l-multidevice), so the worker asks the gateway again
         const other = o.asleep ? await o.asleep(request, navigation).catch(() => null) : null;
         if (other) return other;
-        return navigation ? asleepPage(o.label()) : new Response(JSON.stringify({ error: `${o.label()} is asleep` }), { status: 503, headers: { "content-type": "application/json", "retry-after": "20" } });
+        return navigation
+          ? asleepPage(o.label())
+          : new Response(JSON.stringify({ error: `${o.label()} is asleep` }), {
+              status: 503,
+              headers: { "content-type": "application/json", "retry-after": "20" },
+            });
       } finally {
         clearTimeout(timer);
         request.signal?.removeEventListener?.("abort", onAbort);

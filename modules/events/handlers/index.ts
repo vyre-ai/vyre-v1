@@ -1,7 +1,21 @@
 // Capability handlers for events (16): the event log reads and replay entry, and outgoing webhooks. One file holds them all: webhooks.ts.
 import {
-  eventsGet, eventsList, eventsReplay, eventsSince, eventsTypes, webhooksCreate, webhooksDelete, webhooksDeliveries, webhooksGet, webhooksHealth, webhooksList,
-  webhooksReplayDelivery, webhooksRotateSecret, webhooksSendDelivery, webhooksTest, webhooksUpdate,
+  eventsGet,
+  eventsList,
+  eventsReplay,
+  eventsSince,
+  eventsTypes,
+  webhooksCreate,
+  webhooksDelete,
+  webhooksDeliveries,
+  webhooksGet,
+  webhooksHealth,
+  webhooksList,
+  webhooksReplayDelivery,
+  webhooksRotateSecret,
+  webhooksSendDelivery,
+  webhooksTest,
+  webhooksUpdate,
 } from "./webhooks.ts";
 
 export type { EventsCtx } from "../projections.ts";

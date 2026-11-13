@@ -12,11 +12,20 @@ import { exportLines, failWith, queryLogs, spansOf, traceView } from "./search.t
 import type { LogFilter, Page } from "./search.ts";
 
 /** The part of the host Ctx these handlers use. The full Ctx satisfies it. */
-export type LogCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "device" | "run" | "now" | "db" | "emit"> & { exports?: { logs(rows: readonly AdminLogEntry[]): Promise<string> } };
+export type LogCtx = Pick<
+  Ctx,
+  "space" | "principal" | "actingFor" | "trace" | "device" | "run" | "now" | "db" | "emit"
+> & { exports?: { logs(rows: readonly AdminLogEntry[]): Promise<string> } };
 
 type FilterIn = LogFilter;
 type PageIn = Page;
-interface UploadEntry { at: number; traceId?: string; level: LevelName; msg: string; attrs?: Record<string, unknown> }
+interface UploadEntry {
+  at: number;
+  traceId?: string;
+  level: LevelName;
+  msg: string;
+  attrs?: Record<string, unknown>;
+}
 
 /** Rows an export holds at most. */
 export const EXPORT_MAX = 10_000;
@@ -66,7 +75,11 @@ export async function tail(ctx: LogCtx, input: FilterIn) {
   const streamId = mint("stm");
   ctx.db.run(
     "INSERT INTO logs_stream (id, space, filter, principal, at) VALUES (?, ?, ?, ?, ?)",
-    streamId, ctx.space, JSON.stringify(filterOf(input)), ctx.principal.id, ctx.now(),
+    streamId,
+    ctx.space,
+    JSON.stringify(filterOf(input)),
+    ctx.principal.id,
+    ctx.now(),
   );
   return { streamId };
 }
@@ -84,23 +97,40 @@ export async function spans(ctx: LogCtx, input: { traceId?: string; name?: strin
 
 export async function exportLogs(ctx: LogCtx, input: FilterIn) {
   const lines = exportLines(ctx.db, ctx.space, filterOf(input), EXPORT_MAX);
-  if(!ctx.exports)return failWith(ctx.trace.traceId,'internal.unavailable','Private export storage is unavailable.');
-  const fileId = await ctx.exports.logs(lines.map((line)=>JSON.parse(line) as AdminLogEntry));
+  if (!ctx.exports)
+    return failWith(ctx.trace.traceId, "internal.unavailable", "Private export storage is unavailable.");
+  const fileId = await ctx.exports.logs(lines.map((line) => JSON.parse(line) as AdminLogEntry));
   ctx.db.run(
     "INSERT INTO logs_export (id, space, principal, at, row_count, lines) VALUES (?, ?, ?, ?, ?, ?)",
-    fileId, ctx.space, ctx.principal.id, ctx.now(), lines.length, lines.join("\n"),
+    fileId,
+    ctx.space,
+    ctx.principal.id,
+    ctx.now(),
+    lines.length,
+    lines.join("\n"),
   );
   return { fileId };
 }
 
 export async function clientUpload(ctx: LogCtx, input: { device: string; entries: UploadEntry[]; samples?: Sample[] }) {
   const settings = readSettings(ctx.db, ctx.space);
-  const writer = new LogWriter({ db: ctx.db, space: ctx.space, now: () => ctx.now(), batchMs: 1, minLevel: settings.level });
+  const writer = new LogWriter({
+    db: ctx.db,
+    space: ctx.space,
+    now: () => ctx.now(),
+    batchMs: 1,
+    minLevel: settings.level,
+  });
   let accepted = 0;
   const entries = input.entries.slice(0, MAX_UPLOAD);
   for (const e of entries) {
     const line: Record<string, unknown> = {
-      at: e.at, level: e.level, msg: e.msg, device: input.device, place: "client", actor: ctx.principal.id,
+      at: e.at,
+      level: e.level,
+      msg: e.msg,
+      device: input.device,
+      place: "client",
+      actor: ctx.principal.id,
     };
     if (ctx.actingFor) line["onBehalf"] = ctx.actingFor;
     if (e.traceId) line["traceId"] = e.traceId;
@@ -118,7 +148,11 @@ export async function clientUpload(ctx: LogCtx, input: { device: string; entries
   return input.samples !== undefined ? { accepted, sampled } : { accepted };
 }
 
-interface Step { name: string; ok: boolean; detail?: string }
+interface Step {
+  name: string;
+  ok: boolean;
+  detail?: string;
+}
 
 function count(ctx: LogCtx, sql: string, ...args: unknown[]): number {
   const r = obj(ctx.db.all(sql, ...args)[0]);
@@ -138,8 +172,18 @@ export async function replayStart(ctx: LogCtx, input: { atSeq: number; runId?: s
   let state: "done" | "failed" = "done";
   if (input.runId || input.conflictId) {
     const rows = input.runId
-      ? ctx.db.all("SELECT cap, result, attrs FROM logs_row WHERE space = ? AND run_id = ? AND cap IS NOT NULL ORDER BY id LIMIT ?", ctx.space, input.runId, REPLAY_ROWS)
-      : ctx.db.all("SELECT cap, result, attrs FROM logs_row WHERE space = ? AND entity_id = ? AND cap IS NOT NULL ORDER BY id LIMIT ?", ctx.space, input.conflictId, REPLAY_ROWS);
+      ? ctx.db.all(
+          "SELECT cap, result, attrs FROM logs_row WHERE space = ? AND run_id = ? AND cap IS NOT NULL ORDER BY id LIMIT ?",
+          ctx.space,
+          input.runId,
+          REPLAY_ROWS,
+        )
+      : ctx.db.all(
+          "SELECT cap, result, attrs FROM logs_row WHERE space = ? AND entity_id = ? AND cap IS NOT NULL ORDER BY id LIMIT ?",
+          ctx.space,
+          input.conflictId,
+          REPLAY_ROWS,
+        );
     steps.push({ name: "seal", ok: true, detail: "sealed and Restricted values replaced" });
     if (rows.length === 0) {
       state = "failed";
@@ -151,18 +195,34 @@ export async function replayStart(ctx: LogCtx, input: { atSeq: number; runId?: s
       if (!r || !cap) continue;
       let outward = false;
       if (typeof r["attrs"] === "string") {
-        try { outward = obj(JSON.parse(r["attrs"]))?.["outward"] === true; } catch { outward = false; }
+        try {
+          outward = obj(JSON.parse(r["attrs"]))?.["outward"] === true;
+        } catch {
+          outward = false;
+        }
       }
       const result = typeof r["result"] === "string" ? r["result"] : "ok";
       if (outward) recorded += 1;
-      steps.push({ name: cap, ok: result === "ok", detail: outward ? "recorded, not sent" : result === "ok" ? "replayed" : `original result ${result}` });
+      steps.push({
+        name: cap,
+        ok: result === "ok",
+        detail: outward ? "recorded, not sent" : result === "ok" ? "replayed" : `original result ${result}`,
+      });
     }
   } else {
     steps.push({ name: "seal", ok: true, detail: "sealed and Restricted values replaced" });
   }
   ctx.db.run(
     "INSERT INTO logs_replay (id, space, at_seq, run_id, conflict_id, state, recorded_outward, steps, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    replayId, ctx.space, input.atSeq, input.runId ?? null, input.conflictId ?? null, state, recorded, JSON.stringify(steps), ctx.now(),
+    replayId,
+    ctx.space,
+    input.atSeq,
+    input.runId ?? null,
+    input.conflictId ?? null,
+    state,
+    recorded,
+    JSON.stringify(steps),
+    ctx.now(),
   );
   const started: { replayId: string; atSeq: number; runId?: string } = { replayId, atSeq: input.atSeq };
   if (input.runId) started.runId = input.runId;
@@ -172,13 +232,27 @@ export async function replayStart(ctx: LogCtx, input: { atSeq: number; runId?: s
 }
 
 export async function replayGet(ctx: LogCtx, input: { replayId: string }) {
-  const row = obj(ctx.db.all("SELECT state, recorded_outward, steps FROM logs_replay WHERE id = ? AND space = ?", input.replayId, ctx.space)[0]);
-  if (!row) return failWith(ctx.trace.traceId, "validation.not_found", "That replay does not exist.", { replayId: input.replayId });
+  const row = obj(
+    ctx.db.all(
+      "SELECT state, recorded_outward, steps FROM logs_replay WHERE id = ? AND space = ?",
+      input.replayId,
+      ctx.space,
+    )[0],
+  );
+  if (!row)
+    return failWith(ctx.trace.traceId, "validation.not_found", "That replay does not exist.", {
+      replayId: input.replayId,
+    });
   let steps: Step[] = [];
   try {
     const parsed = JSON.parse(String(row["steps"])) as unknown;
-    if (Array.isArray(parsed)) steps = parsed.filter((s): s is Step => !!obj(s) && typeof (s as Step).name === "string" && typeof (s as Step).ok === "boolean");
-  } catch { steps = []; }
+    if (Array.isArray(parsed))
+      steps = parsed.filter(
+        (s): s is Step => !!obj(s) && typeof (s as Step).name === "string" && typeof (s as Step).ok === "boolean",
+      );
+  } catch {
+    steps = [];
+  }
   const raw = row["state"];
   const state: "running" | "done" | "failed" = raw === "running" || raw === "failed" ? raw : "done";
   const recordedOutward = typeof row["recorded_outward"] === "number" ? row["recorded_outward"] : 0;
@@ -190,7 +264,10 @@ export async function settingsGet(ctx: LogCtx, _input: Record<string, unknown>) 
 }
 
 /** Change levels and retention. Shorter windows apply at once: the retention pass runs right after the write. */
-export async function settingsSet(ctx: LogCtx, input: { level?: LevelName; fullDays?: number; aggregateDays?: number }) {
+export async function settingsSet(
+  ctx: LogCtx,
+  input: { level?: LevelName; fullDays?: number; aggregateDays?: number },
+) {
   const cur = readSettings(ctx.db, ctx.space);
   const next: Settings = {
     level: input.level ?? cur.level,
@@ -198,10 +275,14 @@ export async function settingsSet(ctx: LogCtx, input: { level?: LevelName; fullD
     aggregateDays: input.aggregateDays !== undefined ? Math.trunc(input.aggregateDays) : cur.aggregateDays,
   };
   if (next.fullDays < 1 || next.aggregateDays < 1) {
-    return failWith(ctx.trace.traceId, "validation.bad_input", "Retention windows are at least one day.", { field: next.fullDays < 1 ? "fullDays" : "aggregateDays" });
+    return failWith(ctx.trace.traceId, "validation.bad_input", "Retention windows are at least one day.", {
+      field: next.fullDays < 1 ? "fullDays" : "aggregateDays",
+    });
   }
   if (next.aggregateDays < next.fullDays) {
-    return failWith(ctx.trace.traceId, "validation.bad_input", "Summaries are kept at least as long as full logs.", { field: "aggregateDays" });
+    return failWith(ctx.trace.traceId, "validation.bad_input", "Summaries are kept at least as long as full logs.", {
+      field: "aggregateDays",
+    });
   }
   writeSettings(ctx.db, ctx.space, next);
   runRetention(ctx.db, ctx.space, ctx.now());

@@ -47,8 +47,14 @@ test("https public host with lookup 1.2.3.4 returns the text", async () => {
 test("http://example.com refused", async () => {
   let used = false;
   const out = await fetchPublicDocument("http://example.com", {
-    lookup: async () => { used = true; return ["1.2.3.4"]; },
-    fetch: (async () => { used = true; return new Response("no"); }) as typeof fetch,
+    lookup: async () => {
+      used = true;
+      return ["1.2.3.4"];
+    },
+    fetch: (async () => {
+      used = true;
+      return new Response("no");
+    }) as typeof fetch,
   });
   assertRefused(out, /https/);
   assert.equal(used, false);
@@ -57,8 +63,14 @@ test("http://example.com refused", async () => {
 test("https://127.0.0.1/ refused", async () => {
   let used = false;
   const out = await fetchPublicDocument("https://127.0.0.1/", {
-    lookup: async () => { used = true; return ["1.2.3.4"]; },
-    fetch: (async () => { used = true; return new Response("no"); }) as typeof fetch,
+    lookup: async () => {
+      used = true;
+      return ["1.2.3.4"];
+    },
+    fetch: (async () => {
+      used = true;
+      return new Response("no");
+    }) as typeof fetch,
   });
   assertRefused(out, /public/);
   assert.equal(used, false);
@@ -66,12 +78,18 @@ test("https://127.0.0.1/ refused", async () => {
 });
 
 test("https://10.1.2.3/ refused", async () => {
-  const out = await fetchPublicDocument("https://10.1.2.3/", { lookup: publicLookup(), fetch: (async () => new Response("no")) as typeof fetch });
+  const out = await fetchPublicDocument("https://10.1.2.3/", {
+    lookup: publicLookup(),
+    fetch: (async () => new Response("no")) as typeof fetch,
+  });
   assertRefused(out, /public/);
 });
 
 test("https://169.254.169.254/ refused", async () => {
-  const out = await fetchPublicDocument("https://169.254.169.254/", { lookup: publicLookup(), fetch: (async () => new Response("no")) as typeof fetch });
+  const out = await fetchPublicDocument("https://169.254.169.254/", {
+    lookup: publicLookup(),
+    fetch: (async () => new Response("no")) as typeof fetch,
+  });
   assertRefused(out, /public/);
 });
 
@@ -82,7 +100,10 @@ test("hostname whose lookup returns 127.0.0.1 refused", async () => {
       assert.equal(host, "evil.example");
       return ["127.0.0.1"];
     },
-    fetch: (async () => { fetched = true; return new Response("no"); }) as typeof fetch,
+    fetch: (async () => {
+      fetched = true;
+      return new Response("no");
+    }) as typeof fetch,
   });
   assertRefused(out, /public/);
   assert.equal(fetched, false);
@@ -113,10 +134,16 @@ test("body over the cap refused", async () => {
   const declared = {
     status: 200,
     url: "",
-    headers: { get: (name: string) => name.toLowerCase() === "content-length" ? String(CAP + 1) : null },
+    headers: { get: (name: string) => (name.toLowerCase() === "content-length" ? String(CAP + 1) : null) },
     body: null,
-    text: async () => { read = true; return "x"; },
-    arrayBuffer: async () => { read = true; return new ArrayBuffer(1); },
+    text: async () => {
+      read = true;
+      return "x";
+    },
+    arrayBuffer: async () => {
+      read = true;
+      return new ArrayBuffer(1);
+    },
   } as unknown as Response;
   const overDeclared = await fetchPublicDocument("https://example.com/big", {
     lookup: publicLookup(),
@@ -127,7 +154,8 @@ test("body over the cap refused", async () => {
 
   const overBody = await fetchPublicDocument("https://example.com/big", {
     lookup: publicLookup(),
-    fetch: (async () => new Response("x".repeat(CAP + 1), { status: 200, headers: { "content-length": "10" } })) as typeof fetch,
+    fetch: (async () =>
+      new Response("x".repeat(CAP + 1), { status: 200, headers: { "content-length": "10" } })) as typeof fetch,
   });
   assertRefused(overBody, /too large/);
 
@@ -200,8 +228,14 @@ test("other blocked literals and names are refused before fetch", async () => {
   for (const raw of blocked) {
     let used = false;
     const out = await fetchPublicDocument(raw, {
-      lookup: async () => { used = true; return ["1.2.3.4"]; },
-      fetch: (async () => { used = true; return new Response("no"); }) as typeof fetch,
+      lookup: async () => {
+        used = true;
+        return ["1.2.3.4"];
+      },
+      fetch: (async () => {
+        used = true;
+        return new Response("no");
+      }) as typeof fetch,
     });
     assert.equal(out.ok, false, raw);
     assert.equal(used, false, raw);
@@ -212,14 +246,20 @@ test("a public address literal is fetched without lookup", async () => {
   const seen: string[] = [];
   let looked = false;
   const out = await fetchPublicDocument("https://1.2.3.4/guide.txt", {
-    lookup: async () => { looked = true; return ["127.0.0.1"]; },
+    lookup: async () => {
+      looked = true;
+      return ["127.0.0.1"];
+    },
     fetch: recording(seen, "literal"),
   });
   assert.deepEqual(out, { ok: true, text: "literal", finalUrl: "https://1.2.3.4/guide.txt" });
   assert.equal(looked, false);
   assert.deepEqual(seen, ["https://1.2.3.4/guide.txt"]);
   const v6 = await fetchPublicDocument("https://[2606:4700:4700::1111]/a", {
-    lookup: async () => { looked = true; return ["127.0.0.1"]; },
+    lookup: async () => {
+      looked = true;
+      return ["127.0.0.1"];
+    },
     fetch: (async () => new Response("v6", { status: 200 })) as typeof fetch,
   });
   assert.equal(v6.ok, true);
@@ -229,7 +269,9 @@ test("a public address literal is fetched without lookup", async () => {
 
 test("lookup failure, an empty answer, and any blocked address are refused", async () => {
   const thrown = await fetchPublicDocument("https://example.com/a", {
-    lookup: async () => { throw new Error("secret-resolver-failure"); },
+    lookup: async () => {
+      throw new Error("secret-resolver-failure");
+    },
     fetch: (async () => new Response("no")) as typeof fetch,
   });
   assertRefused(thrown, /resolve/);
@@ -244,12 +286,31 @@ test("lookup failure, an empty answer, and any blocked address are refused", asy
   let fetched = false;
   const mixed = await fetchPublicDocument("https://example.com/a", {
     lookup: async () => ["1.2.3.4", "10.0.0.1"],
-    fetch: (async () => { fetched = true; return new Response("no"); }) as typeof fetch,
+    fetch: (async () => {
+      fetched = true;
+      return new Response("no");
+    }) as typeof fetch,
   });
   assertRefused(mixed, /public/);
   assert.equal(fetched, false);
 
-  for (const address of ["::1", "0:0:0:0:0:0:0:1", "fc00::1", "fe80::1", "::ffff:127.0.0.1", "10.9.8.7", "169.254.1.1", "192.168.0.2", "100.64.1.1", "198.18.0.9", "192.0.0.1", "224.1.1.1", "::", "64:ff9b:1::5", "::ffff:100.100.0.1"]) {
+  for (const address of [
+    "::1",
+    "0:0:0:0:0:0:0:1",
+    "fc00::1",
+    "fe80::1",
+    "::ffff:127.0.0.1",
+    "10.9.8.7",
+    "169.254.1.1",
+    "192.168.0.2",
+    "100.64.1.1",
+    "198.18.0.9",
+    "192.0.0.1",
+    "224.1.1.1",
+    "::",
+    "64:ff9b:1::5",
+    "::ffff:100.100.0.1",
+  ]) {
     const out = await fetchPublicDocument("https://example.com/a", {
       lookup: async () => [address],
       fetch: (async () => new Response("no")) as typeof fetch,
@@ -269,7 +330,8 @@ test("a public redirect is followed and checked again", async () => {
     fetch: (async (url: unknown, init?: RequestInit) => {
       assert.equal(init?.redirect, "manual");
       seen.push(String(url));
-      if (String(url) === "https://docs.example/start") return new Response("", { status: 302, headers: { location: "https://cdn.example/file.txt" } });
+      if (String(url) === "https://docs.example/start")
+        return new Response("", { status: 302, headers: { location: "https://cdn.example/file.txt" } });
       return new Response("final text", { status: 200 });
     }) as typeof fetch,
   });
@@ -290,7 +352,13 @@ test("a redirect with no Location is refused", async () => {
 });
 
 test("three public redirects are followed and a fourth is refused", async () => {
-  const chain = ["https://a.example/", "https://b.example/", "https://c.example/", "https://d.example/", "https://e.example/"];
+  const chain = [
+    "https://a.example/",
+    "https://b.example/",
+    "https://c.example/",
+    "https://d.example/",
+    "https://e.example/",
+  ];
   const follow = async (stops: number) => {
     const seen: string[] = [];
     const out = await fetchPublicDocument(chain[0]!, {
@@ -299,7 +367,8 @@ test("three public redirects are followed and a fourth is refused", async () => 
         const target = String(url);
         seen.push(target);
         const index = chain.indexOf(target);
-        if (index >= 0 && index < stops) return new Response("", { status: 302, headers: { location: chain[index + 1]! } });
+        if (index >= 0 && index < stops)
+          return new Response("", { status: 302, headers: { location: chain[index + 1]! } });
         return new Response("done", { status: 200 });
       }) as typeof fetch,
     });
@@ -329,7 +398,10 @@ test("connect receives the vetted lookup addresses and fetch is not called", asy
       assert.equal(host, "api.example");
       return ["1.1.1.1"];
     },
-    fetch: (async () => { fetched = true; return new Response("no"); }) as typeof fetch,
+    fetch: (async () => {
+      fetched = true;
+      return new Response("no");
+    }) as typeof fetch,
     connect: async (req) => {
       calls.push({ href: req.url.href, addresses: req.addresses, signal: req.signal });
       return new Response("pinned body", { status: 200 });
@@ -348,8 +420,14 @@ test("connect is not called when lookup returns 127.0.0.1", async () => {
   let fetched = false;
   const out = await fetchPublicDocument("https://api.example/doc", {
     lookup: async () => ["127.0.0.1"],
-    fetch: (async () => { fetched = true; return new Response("no"); }) as typeof fetch,
-    connect: async () => { connected = true; return new Response("no"); },
+    fetch: (async () => {
+      fetched = true;
+      return new Response("no");
+    }) as typeof fetch,
+    connect: async () => {
+      connected = true;
+      return new Response("no");
+    },
   });
   assert.equal(connected, false);
   assert.equal(fetched, false);
@@ -367,7 +445,10 @@ test("a redirect to a private host calls connect only for the first hop", async 
       looked.push(host);
       return host === "evil.example" ? ["10.1.2.3"] : ["1.1.1.1"];
     },
-    fetch: (async () => { fetched = true; return new Response("no"); }) as typeof fetch,
+    fetch: (async () => {
+      fetched = true;
+      return new Response("no");
+    }) as typeof fetch,
     connect: async (req) => {
       hops.push(req.url.href);
       assert.deepEqual(req.addresses, ["1.1.1.1"]);
@@ -387,8 +468,14 @@ test("an https IP URL passes that address to connect", async () => {
   let looked = false;
   const addresses: readonly string[][] = [];
   const out = await fetchPublicDocument("https://1.1.1.1/doc", {
-    lookup: async () => { looked = true; return ["127.0.0.1"]; },
-    fetch: (async () => { fetched = true; return new Response("no"); }) as typeof fetch,
+    lookup: async () => {
+      looked = true;
+      return ["127.0.0.1"];
+    },
+    fetch: (async () => {
+      fetched = true;
+      return new Response("no");
+    }) as typeof fetch,
     connect: async (req) => {
       addresses.push([...req.addresses]);
       assert.equal(req.url.href, "https://1.1.1.1/doc");
@@ -403,10 +490,21 @@ test("an https IP URL passes that address to connect", async () => {
 });
 
 test("the edges of the shared and reserved ranges stay open to public neighbours", async () => {
-  for (const raw of ["https://100.63.255.255/", "https://100.128.0.1/", "https://198.17.0.1/", "https://198.20.0.1/", "https://192.0.1.1/", "https://223.255.255.255/", "https://[2606:4700:4700::1111]/"]) {
+  for (const raw of [
+    "https://100.63.255.255/",
+    "https://100.128.0.1/",
+    "https://198.17.0.1/",
+    "https://198.20.0.1/",
+    "https://192.0.1.1/",
+    "https://223.255.255.255/",
+    "https://[2606:4700:4700::1111]/",
+  ]) {
     let used = false;
     const out = await fetchPublicDocument(raw, {
-      lookup: async () => { used = true; return ["127.0.0.1"]; },
+      lookup: async () => {
+        used = true;
+        return ["127.0.0.1"];
+      },
       fetch: (async () => new Response("ok")) as typeof fetch,
     });
     assert.equal(used, false, raw);

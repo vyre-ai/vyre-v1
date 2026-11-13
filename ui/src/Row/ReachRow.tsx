@@ -8,10 +8,20 @@ import { useLinkPolicy } from "../reach/index.tsx";
 import { Row } from "./index.tsx";
 import type { RowProps } from "./props.ts";
 
-export function ReachRow({ subject, onPress, ...rest }: RowProps & { subject?: LinkSubject | undefined }): ReactElement {
+export function ReachRow({
+  subject,
+  onPress,
+  ...rest
+}: RowProps & { subject?: LinkSubject | undefined }): ReactElement {
   const link = useLinkState(subject);
   const policy = useLinkPolicy();
   if (link.state === "plain") return createElement(Row, { ...rest, inert: true });
-  if (link.state === "peek" && subject !== undefined) return createElement(Row, { ...rest, locked: true, ...(link.hint ? { hint: link.hint } : {}), onPress: () => policy?.peek(subject) });
+  if (link.state === "peek" && subject !== undefined)
+    return createElement(Row, {
+      ...rest,
+      locked: true,
+      ...(link.hint ? { hint: link.hint } : {}),
+      onPress: () => policy?.peek(subject),
+    });
   return createElement(Row, { ...rest, ...(onPress ? { onPress } : {}) });
 }

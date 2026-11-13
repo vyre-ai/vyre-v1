@@ -2,7 +2,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { NEEDS_TEAM_SPACE_ACTION, NEEDS_TEAM_SPACE_LABEL, NeedsTeamSpace, frozenNeedsTeamSpaceProps, needsTeamSentence } from "./index.tsx";
+import {
+  NEEDS_TEAM_SPACE_ACTION,
+  NEEDS_TEAM_SPACE_LABEL,
+  NeedsTeamSpace,
+  frozenNeedsTeamSpaceProps,
+  needsTeamSentence,
+} from "./index.tsx";
 
 test("the sentence and the action never vary", () => {
   assert.equal(NEEDS_TEAM_SPACE_LABEL, "Needs a Team Space");

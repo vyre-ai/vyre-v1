@@ -34,7 +34,8 @@ export function prefsOf(fields: Record<string, unknown>): Prefs {
   if (source) out.source = source;
   // pref_at is a datetime field, so the record holds ISO text; a number is an older row
   if (typeof fields.pref_at === "number") out.at = fields.pref_at;
-  else if (typeof fields.pref_at === "string" && Number.isFinite(Date.parse(fields.pref_at))) out.at = Date.parse(fields.pref_at);
+  else if (typeof fields.pref_at === "string" && Number.isFinite(Date.parse(fields.pref_at)))
+    out.at = Date.parse(fields.pref_at);
   return out;
 }
 
@@ -47,27 +48,55 @@ export async function preferencesGet(ctx: ContactsCtx, input: { contactId: strin
   return prefsOf((await contactOf(ctx, input.contactId)).fields);
 }
 
-const sameSet = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && [...a].sort().join() === [...b].sort().join();
+const sameSet = (a: readonly string[], b: readonly string[]): boolean =>
+  a.length === b.length && [...a].sort().join() === [...b].sort().join();
 
 export async function preferencesSet(
   ctx: ContactsCtx,
-  input: { contactId: string; emailConsent?: Consent; smsConsent?: Consent; doNotContact?: boolean; optedOut?: Channel[]; source?: string },
+  input: {
+    contactId: string;
+    emailConsent?: Consent;
+    smsConsent?: Consent;
+    doNotContact?: boolean;
+    optedOut?: Channel[];
+    source?: string;
+  },
 ): Promise<Prefs> {
   ensure(ctx);
-  if (input.emailConsent !== undefined && !CONSENT.includes(input.emailConsent)) bad(ctx, "Email consent must be granted, denied or unknown.");
-  if (input.smsConsent !== undefined && !CONSENT.includes(input.smsConsent)) bad(ctx, "SMS consent must be granted, denied or unknown.");
-  if (input.doNotContact !== undefined && typeof input.doNotContact !== "boolean") bad(ctx, "Do-not-contact must be true or false.");
-  if (input.optedOut !== undefined && (!Array.isArray(input.optedOut) || input.optedOut.some((c) => !CHANNELS.includes(c)))) bad(ctx, "Opt-outs are email, sms or call.");
-  if (input.source !== undefined && (typeof input.source !== "string" || input.source.length > 200)) bad(ctx, "Source must be text up to 200 characters.");
+  if (input.emailConsent !== undefined && !CONSENT.includes(input.emailConsent))
+    bad(ctx, "Email consent must be granted, denied or unknown.");
+  if (input.smsConsent !== undefined && !CONSENT.includes(input.smsConsent))
+    bad(ctx, "SMS consent must be granted, denied or unknown.");
+  if (input.doNotContact !== undefined && typeof input.doNotContact !== "boolean")
+    bad(ctx, "Do-not-contact must be true or false.");
+  if (
+    input.optedOut !== undefined &&
+    (!Array.isArray(input.optedOut) || input.optedOut.some((c) => !CHANNELS.includes(c)))
+  )
+    bad(ctx, "Opt-outs are email, sms or call.");
+  if (input.source !== undefined && (typeof input.source !== "string" || input.source.length > 200))
+    bad(ctx, "Source must be text up to 200 characters.");
   const rec = await contactOf(ctx, input.contactId);
   const before = prefsOf(rec.fields);
 
   const patch: Record<string, unknown> = {};
   const changed: string[] = [];
-  if (input.emailConsent !== undefined && input.emailConsent !== before.emailConsent) { patch.pref_email_consent = input.emailConsent; changed.push("emailConsent"); }
-  if (input.smsConsent !== undefined && input.smsConsent !== before.smsConsent) { patch.pref_sms_consent = input.smsConsent; changed.push("smsConsent"); }
-  if (input.doNotContact !== undefined && input.doNotContact !== before.doNotContact) { patch.pref_do_not_contact = input.doNotContact; changed.push("doNotContact"); }
-  if (input.optedOut !== undefined && !sameSet(input.optedOut, before.optedOut)) { patch.pref_opt_outs = [...new Set(input.optedOut)]; changed.push("optedOut"); }
+  if (input.emailConsent !== undefined && input.emailConsent !== before.emailConsent) {
+    patch.pref_email_consent = input.emailConsent;
+    changed.push("emailConsent");
+  }
+  if (input.smsConsent !== undefined && input.smsConsent !== before.smsConsent) {
+    patch.pref_sms_consent = input.smsConsent;
+    changed.push("smsConsent");
+  }
+  if (input.doNotContact !== undefined && input.doNotContact !== before.doNotContact) {
+    patch.pref_do_not_contact = input.doNotContact;
+    changed.push("doNotContact");
+  }
+  if (input.optedOut !== undefined && !sameSet(input.optedOut, before.optedOut)) {
+    patch.pref_opt_outs = [...new Set(input.optedOut)];
+    changed.push("optedOut");
+  }
   if (changed.length === 0) return before;
 
   const source = input.source ?? "manual";
@@ -86,7 +115,8 @@ const SEVERITY: Record<Badge, number> = { good: 0, risky: 1, bounced: 2, complai
 const badgeOf = (v: unknown): Badge => (v === "risky" || v === "bounced" || v === "complained" ? v : "good");
 
 export async function deliverability(
-  ctx: ContactsCtx, input: { contactId: string },
+  ctx: ContactsCtx,
+  input: { contactId: string },
 ): Promise<{ state: Badge; lastEventAt?: number; reasons: string[] }> {
   ensure(ctx);
   const rec = await contactOf(ctx, input.contactId);
@@ -96,11 +126,28 @@ export async function deliverability(
   const emails = new Set<string>();
   const own = normalize("email", text(rec.fields.email));
   if (own) emails.add(own);
-  for (const a of rowsOf(ctx.db.all(`SELECT * FROM contacts_link_address WHERE "contactId" = ? AND kind = ? AND deleted_at IS NULL`, rec.id, "email"))) emails.add(str(a, "normalized"));
+  for (const a of rowsOf(
+    ctx.db.all(
+      `SELECT * FROM contacts_link_address WHERE "contactId" = ? AND kind = ? AND deleted_at IS NULL`,
+      rec.id,
+      "email",
+    ),
+  ))
+    emails.add(str(a, "normalized"));
   const seen = new Set<string>();
   const rows = [
-    ...rowsOf(ctx.db.all(`SELECT * FROM contacts_link_suppression WHERE "contactId" = ? AND deleted_at IS NULL`, rec.id)),
-    ...[...emails].flatMap((e) => rowsOf(ctx.db.all(`SELECT * FROM contacts_link_suppression WHERE channel = ? AND address = ? AND deleted_at IS NULL`, "email", e))),
+    ...rowsOf(
+      ctx.db.all(`SELECT * FROM contacts_link_suppression WHERE "contactId" = ? AND deleted_at IS NULL`, rec.id),
+    ),
+    ...[...emails].flatMap((e) =>
+      rowsOf(
+        ctx.db.all(
+          `SELECT * FROM contacts_link_suppression WHERE channel = ? AND address = ? AND deleted_at IS NULL`,
+          "email",
+          e,
+        ),
+      ),
+    ),
   ];
   for (const r of rows) {
     if (seen.has(str(r, "id"))) continue;
@@ -121,7 +168,8 @@ export async function deliverability(
 // ---- contacts.route_owner (spec 2.18: unowned replies go to the shared inbox)
 
 export async function routeOwner(
-  ctx: ContactsCtx, input: { contactId?: string; mailboxId?: string },
+  ctx: ContactsCtx,
+  input: { contactId?: string; mailboxId?: string },
 ): Promise<{ ownerId?: string; via: "owner" | "shared_inbox"; mailboxId?: string }> {
   if (input.contactId !== undefined && !isId("rec", input.contactId)) bad(ctx, "Contact id is not valid.");
   if (input.mailboxId !== undefined && !isId("mbx", input.mailboxId)) bad(ctx, "Mailbox id is not valid.");

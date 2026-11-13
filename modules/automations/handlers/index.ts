@@ -1,7 +1,34 @@
 // One handler per automations capability. Definitions, versions, Groups, alerts, followers, webhook and Promote live in defs.ts; Runs and triggers in triggers.ts. An OpenAPI draft lives in draft-connector.ts.
 import {
-  alertsGet, alertsSet, create, followersAdd, followersRemove, get, groupsCreate, groupsDelete, groupsList, groupsRename, list, makePersonalCopy, move, previewPromote, promote, remove,
-  restoreVersion, senders, setEnabled, setOwner, stepsList, triggersList, undelete, update, validate, versions, webhookGet, webhookRotate, runsAsGet,
+  alertsGet,
+  alertsSet,
+  create,
+  followersAdd,
+  followersRemove,
+  get,
+  groupsCreate,
+  groupsDelete,
+  groupsList,
+  groupsRename,
+  list,
+  makePersonalCopy,
+  move,
+  previewPromote,
+  promote,
+  remove,
+  restoreVersion,
+  senders,
+  setEnabled,
+  setOwner,
+  stepsList,
+  triggersList,
+  undelete,
+  update,
+  validate,
+  versions,
+  webhookGet,
+  webhookRotate,
+  runsAsGet,
 } from "./defs.ts";
 import { accountPicks } from "./accounts.ts";
 import { draftConnector } from "./draft-connector.ts";
@@ -18,14 +45,22 @@ import type { LevelDb } from "../connector-level.ts";
 import type { AutoCtx } from "../projections.ts";
 
 /** Which connector actions were tried against the real app: the picker marks the ones that were not. */
-const connectorLevels = (ctx: AutoCtx): { levels: { actionKey: string; level: "draft" | "tested" }[] } => ({ levels: allLevels(ctx.db as LevelDb) });
+const connectorLevels = (ctx: AutoCtx): { levels: { actionKey: string; level: "draft" | "tested" }[] } => ({
+  levels: allLevels(ctx.db as LevelDb),
+});
 import { connectorShares, shareConnector } from "./connector-share.ts";
 import { tryConnectorRead } from "./try-read.ts";
 import { migrateRuns, migrationPreview } from "./migrate.ts";
 import { exportPackage, importPackage, packagesList } from "./packages.ts";
 import { analytics, dependencies, templatesList, templatesUse } from "./studio.ts";
 import { scheduleChoose } from "./schedule.ts";
-import { check as watchCheck, list as watchesList, remove as watchRemove, report as watchReport, save as watchSave } from "./watches.ts";
+import {
+  check as watchCheck,
+  list as watchesList,
+  remove as watchRemove,
+  report as watchReport,
+  save as watchSave,
+} from "./watches.ts";
 import { fire, replay, retry, run, stop, test } from "./triggers.ts";
 
 export const handlers = {

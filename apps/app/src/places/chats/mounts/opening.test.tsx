@@ -6,7 +6,10 @@ import { openingTitle } from "./data.ts";
 
 test("Add to Automations and Build a connector openings have their titles; other messages have none", () => {
   assert.equal(openingTitle(connectorOpening({ name: "Resend", handle: "#Resend" })), "Add Resend to Automations");
-  assert.equal(openingTitle(connectorOpening({ name: "Northwind Lawmatics key", handle: "#Nw_Law" })), "Add Northwind Lawmatics to Automations");
+  assert.equal(
+    openingTitle(connectorOpening({ name: "Northwind Lawmatics key", handle: "#Nw_Law" })),
+    "Add Northwind Lawmatics to Automations",
+  );
   assert.equal(openingTitle(BUILD_CONNECTOR_OPENING), "Build a connector");
   assert.equal(openingTitle("Hello there"), undefined);
 });
@@ -14,8 +17,19 @@ test("Add to Automations and Build a connector openings have their titles; other
 test("the Records sync openings have titles that CRM_CHAT recognises, so the crm-sync-builder skill loads", async () => {
   const { BRING_IN_OPENING, editMappingOpening, syncOpening } = await import("../../records/sync/opening.ts");
   const { CRM_CHAT, CONNECTOR_CHAT } = await import("../../../../../../lib/connector-chat.ts");
-  const titles = [openingTitle(syncOpening({ name: "HubSpot", handle: "#H" })), openingTitle(BRING_IN_OPENING), openingTitle(editMappingOpening({ app: "Ledger", type: "person" }))];
-  assert.deepEqual(titles, ["Sync HubSpot to Records", "Bring my CRM into Records", "Change how Ledger syncs to Records"]);
-  for (const t of titles) { assert.equal(CRM_CHAT.test(t!), true, t); assert.equal(CONNECTOR_CHAT.test(t!), false, t); }
+  const titles = [
+    openingTitle(syncOpening({ name: "HubSpot", handle: "#H" })),
+    openingTitle(BRING_IN_OPENING),
+    openingTitle(editMappingOpening({ app: "Ledger", type: "person" })),
+  ];
+  assert.deepEqual(titles, [
+    "Sync HubSpot to Records",
+    "Bring my CRM into Records",
+    "Change how Ledger syncs to Records",
+  ]);
+  for (const t of titles) {
+    assert.equal(CRM_CHAT.test(t!), true, t);
+    assert.equal(CONNECTOR_CHAT.test(t!), false, t);
+  }
   assert.equal(CRM_CHAT.test("Add HubSpot to Automations"), false);
 });

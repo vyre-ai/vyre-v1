@@ -15,8 +15,20 @@ export const NO_ACCESS = "I can't see anything about that you can read.";
 const SOURCES = 8;
 const PER_SOURCE = 1400;
 
-interface AccountRow { ref: string; driver: string; kind: string; title: string; name?: string; mine: boolean; status: string; spaceKey?: boolean }
-export interface AskSource extends Hit { n: number; where: string }
+interface AccountRow {
+  ref: string;
+  driver: string;
+  kind: string;
+  title: string;
+  name?: string;
+  mine: boolean;
+  status: string;
+  spaceKey?: boolean;
+}
+export interface AskSource extends Hit {
+  n: number;
+  where: string;
+}
 export interface AskOut {
   answer?: string;
   /** "answered", "no_access" (nothing the asker may read), "no_account" (sources found, no AI account to answer on) or "failed" (the model request did not complete). */
@@ -27,7 +39,15 @@ export interface AskOut {
   account?: { title: string; mine: boolean };
 }
 
-const WHERE: Readonly<Partial<Record<Kind, string>>> = { chat: "Chat", channel: "Channel", inbox: "Inbox", record: "Record", file: "File", task: "Task", note: "Note" };
+const WHERE: Readonly<Partial<Record<Kind, string>>> = {
+  chat: "Chat",
+  channel: "Channel",
+  inbox: "Inbox",
+  record: "Record",
+  file: "File",
+  task: "Task",
+  note: "Note",
+};
 
 const SYSTEM = [
   "You answer one question for a person from the numbered sources below, which are what they are allowed to read in their Space.",
@@ -72,10 +92,57 @@ export function citations(text: string, count: number): { text: string; cited: n
     if (!cited.includes(n)) cited.push(n);
     return `[${n}]`;
   });
-  return { text: out.replace(/\s+([.,;:])/g, "$1").replace(/[ \t]{2,}/g, " ").trim(), cited };
+  return {
+    text: out
+      .replace(/\s+([.,;:])/g, "$1")
+      .replace(/[ \t]{2,}/g, " ")
+      .trim(),
+    cited,
+  };
 }
 
-const STOP = new Set(["what", "who", "whom", "when", "where", "why", "how", "which", "did", "does", "do", "is", "are", "was", "were", "can", "could", "should", "has", "have", "had", "any", "say", "said", "about", "the", "a", "an", "of", "to", "for", "on", "in", "me", "my", "i", "we", "and", "with", "tell"]);
+const STOP = new Set([
+  "what",
+  "who",
+  "whom",
+  "when",
+  "where",
+  "why",
+  "how",
+  "which",
+  "did",
+  "does",
+  "do",
+  "is",
+  "are",
+  "was",
+  "were",
+  "can",
+  "could",
+  "should",
+  "has",
+  "have",
+  "had",
+  "any",
+  "say",
+  "said",
+  "about",
+  "the",
+  "a",
+  "an",
+  "of",
+  "to",
+  "for",
+  "on",
+  "in",
+  "me",
+  "my",
+  "i",
+  "we",
+  "and",
+  "with",
+  "tell",
+]);
 
 /** The words of a question that say what it is about: "what did Elena say about the lease" searches Elena and lease. All of it when nothing is left. */
 export function keywords(q: string): string {
@@ -87,22 +154,34 @@ export function keywords(q: string): string {
 export async function ask(ctx: SearchCtx, input: { q: string }): Promise<AskOut> {
   ensure(ctx.db);
   const q = input.q.trim();
-  const found = q ? (await query(asAgent(ctx), { q: keywords(q), types: ASK_KINDS, mode: "hybrid", limit: SOURCES })).hits.filter((h) => ASK_KINDS.includes(h.kind)).slice(0, SOURCES) : [];
+  const found = q
+    ? (await query(asAgent(ctx), { q: keywords(q), types: ASK_KINDS, mode: "hybrid", limit: SOURCES })).hits
+        .filter((h) => ASK_KINDS.includes(h.kind))
+        .slice(0, SOURCES)
+    : [];
   if (found.length === 0) return { state: "no_access", answer: NO_ACCESS, sources: [], cited: [] };
   const sources: AskSource[] = found.map((h, i) => ({ ...h, n: i + 1, where: WHERE[h.kind] ?? "Item" }));
-  const list = (await ctx.call("engine.accounts.list", {}).catch(() => ({ accounts: [] }))) as { accounts: AccountRow[] };
+  const list = (await ctx.call("engine.accounts.list", {}).catch(() => ({ accounts: [] }))) as {
+    accounts: AccountRow[];
+  };
   const account = pickAccount(list.accounts ?? []);
   if (!account) return { state: "no_account", sources, cited: [] };
   const prompt = `Question: ${q}\n\nSources:\n${sources.map((s) => `[${s.n}] ${s.where}: ${s.title}${s.path ? ` (${s.path})` : ""}\n${textOf(ctx, s)}`).join("\n\n")}`;
   const who = { title: account.name ?? account.title, mine: account.mine };
   let text: string;
   try {
-    text = ((await ctx.call("engine.complete", { accountRef: account.ref, system: SYSTEM, prompt })) as { text: string }).text;
+    text = (
+      (await ctx.call("engine.complete", { accountRef: account.ref, system: SYSTEM, prompt })) as { text: string }
+    ).text;
   } catch (e) {
-    ctx.log.warn("ask the space: the model request failed", { asker: askerOf(ctx), reason: e instanceof Error ? e.name : "error" });
+    ctx.log.warn("ask the space: the model request failed", {
+      asker: askerOf(ctx),
+      reason: e instanceof Error ? e.name : "error",
+    });
     return { state: "failed", sources, cited: [], account: who };
   }
   const got = citations(text, sources.length);
-  if (got.text === "" || got.text.startsWith(NO_ACCESS)) return { state: "no_access", answer: NO_ACCESS, sources: [], cited: [], account: who };
+  if (got.text === "" || got.text.startsWith(NO_ACCESS))
+    return { state: "no_access", answer: NO_ACCESS, sources: [], cited: [], account: who };
   return { state: "answered", answer: got.text, sources, cited: got.cited, account: who };
 }

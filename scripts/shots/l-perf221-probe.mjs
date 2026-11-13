@@ -12,7 +12,14 @@ for (const tz of [0, 300, -480]) {
   await page.goto(routeUrl(real.origin, `/m/CALWEEK_01?view=week&tzoff=${tz}`, "paper"), { waitUntil: "load" });
   await page.waitForSelector("[data-testid='cal-allday']", { timeout: 8000 }).catch(() => {});
   await page.waitForTimeout(1000);
-  const out = await page.evaluate(() => [...document.querySelectorAll("[data-testid^='allday:']")].map((n) => { const r = n.getBoundingClientRect(); return `${n.textContent} x=${Math.round(r.left)}-${Math.round(r.right)}`; }));
+  const out = await page.evaluate(() =>
+    [...document.querySelectorAll("[data-testid^='allday:']")].map((n) => {
+      const r = n.getBoundingClientRect();
+      return `${n.textContent} x=${Math.round(r.left)}-${Math.round(r.right)}`;
+    }),
+  );
   console.log(tz, JSON.stringify(out));
 }
-await browser.close(); real.close(); process.exit(0);
+await browser.close();
+real.close();
+process.exit(0);

@@ -15,14 +15,24 @@ function seedRecord(w: World, fields: Record<string, unknown> = { email: "dana@x
   w.addRecord({ id: RECORD, type: "contact", fields });
 }
 
-async function makeLink(w: World, f: OpenForm, o: { singleUse?: boolean; expiresInHours?: number; recordId?: string } = {}): Promise<{ url: string; token: string; expiresAt?: number }> {
-  const out = await run<{ url: string; expiresAt?: number }>(w.ctx, "forms.link_create", { formId: f.formId, recordId: o.recordId ?? RECORD, singleUse: o.singleUse ?? true, ...(o.expiresInHours ? { expiresInHours: o.expiresInHours } : {}) });
+async function makeLink(
+  w: World,
+  f: OpenForm,
+  o: { singleUse?: boolean; expiresInHours?: number; recordId?: string } = {},
+): Promise<{ url: string; token: string; expiresAt?: number }> {
+  const out = await run<{ url: string; expiresAt?: number }>(w.ctx, "forms.link_create", {
+    formId: f.formId,
+    recordId: o.recordId ?? RECORD,
+    singleUse: o.singleUse ?? true,
+    ...(o.expiresInHours ? { expiresInHours: o.expiresInHours } : {}),
+  });
   const token = new URL(out.url).searchParams.get("t");
   assert.ok(token);
   return { ...out, token };
 }
 
-const send = (f: OpenForm, input: Record<string, unknown>) => run<{ recordId: string }>(f.public, "forms.submit", { slug: f.slug, ...input });
+const send = (f: OpenForm, input: Record<string, unknown>) =>
+  run<{ recordId: string }>(f.public, "forms.submit", { slug: f.slug, ...input });
 
 test("link_create asks only for the fields the record is missing and puts no email in the URL", async () => {
   const w = harness();
@@ -56,16 +66,30 @@ test("default lifetimes: three days single-use, a week for a signed link; custom
   const f = await openForm(w);
   assert.equal((await makeLink(w, f, { singleUse: false })).expiresAt, NOW + 7 * 24 * HOUR);
   assert.equal((await makeLink(w, f, { expiresInHours: 2 })).expiresAt, NOW + 2 * HOUR);
-  assert.equal(await code(run(w.ctx, "forms.link_create", { formId: f.formId, recordId: RECORD, singleUse: true, expiresInHours: 0 })), "validation.bad_input");
-  assert.equal(await code(run(w.ctx, "forms.link_create", { formId: f.formId, recordId: RECORD })), "validation.bad_input");
+  assert.equal(
+    await code(
+      run(w.ctx, "forms.link_create", { formId: f.formId, recordId: RECORD, singleUse: true, expiresInHours: 0 }),
+    ),
+    "validation.bad_input",
+  );
+  assert.equal(
+    await code(run(w.ctx, "forms.link_create", { formId: f.formId, recordId: RECORD })),
+    "validation.bad_input",
+  );
 });
 
 test("a record with nothing missing gets no link; an unknown record is not found", async () => {
   const w = harness();
   seedRecord(w, { email: "d@x.example", name: "Dana", phone: "555" });
   const f = await openForm(w);
-  assert.equal(await code(run(w.ctx, "forms.link_create", { formId: f.formId, recordId: RECORD, singleUse: true })), "validation.precondition_failed");
-  assert.equal(await code(run(w.ctx, "forms.link_create", { formId: f.formId, recordId: "rec_nope", singleUse: true })), "validation.not_found");
+  assert.equal(
+    await code(run(w.ctx, "forms.link_create", { formId: f.formId, recordId: RECORD, singleUse: true })),
+    "validation.precondition_failed",
+  );
+  assert.equal(
+    await code(run(w.ctx, "forms.link_create", { formId: f.formId, recordId: "rec_nope", singleUse: true })),
+    "validation.not_found",
+  );
   assert.equal(w.db.rows("forms_link").length, 0);
 });
 
@@ -74,12 +98,21 @@ test("a single-use link writes to its own record, asks only the missing fields, 
   seedRecord(w);
   const f = await openForm(w);
   const link = await makeLink(w, f);
-  assert.equal(await code(send(f, { token: link.token, answers: { email: "other@x.example" } })), "validation.bad_input");
+  assert.equal(
+    await code(send(f, { token: link.token, answers: { email: "other@x.example" } })),
+    "validation.bad_input",
+  );
   const out = await send(f, { token: link.token, answers: { name: "Dana", phone: "555" } });
   assert.equal(out.recordId, RECORD);
   assert.deepEqual(w.records.get(RECORD)?.fields, { email: "dana@x.example", name: "Dana", phone: "555" });
-  assert.equal(w.calls.some((c) => c.cap === "records.create"), false);
-  assert.equal(w.calls.some((c) => c.cap === "records.query"), false);
+  assert.equal(
+    w.calls.some((c) => c.cap === "records.create"),
+    false,
+  );
+  assert.equal(
+    w.calls.some((c) => c.cap === "records.query"),
+    false,
+  );
   assert.equal((w.events.find((e) => e.name === "form.submitted")?.payload as { matched: boolean }).matched, true);
   assert.equal(await code(send(f, { token: link.token, answers: { name: "Again" } })), "auth.invalid_code");
   assert.equal(w.records.get(RECORD)?.fields.name, "Dana");
@@ -111,7 +144,10 @@ test("two submits on one single-use link at once: exactly one wins", async () =>
   seedRecord(w);
   const f = await openForm(w);
   const link = await makeLink(w, f);
-  const results = await Promise.allSettled([send(f, { token: link.token, answers: { name: "A" } }), send(f, { token: link.token, answers: { name: "B" } })]);
+  const results = await Promise.allSettled([
+    send(f, { token: link.token, answers: { name: "A" } }),
+    send(f, { token: link.token, answers: { name: "B" } }),
+  ]);
   assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
   const lost = results.find((r) => r.status === "rejected");
   assert.equal((lost as PromiseRejectedResult).reason.error.code, "auth.invalid_code");
@@ -142,8 +178,12 @@ test("expired, revoked, tampered, truncated and foreign tokens are all the same 
   const expiring = await makeLink(w, f, { expiresInHours: 1 });
   const revoked = await makeLink(w, f);
   const good = await makeLink(w, f);
-  assert.deepEqual(await run(w.ctx, "forms.link_revoke", { formId: f.formId, token: revoked.token }), { revoked: true });
-  assert.deepEqual(await run(w.ctx, "forms.link_revoke", { formId: f.formId, token: revoked.token }), { revoked: true });
+  assert.deepEqual(await run(w.ctx, "forms.link_revoke", { formId: f.formId, token: revoked.token }), {
+    revoked: true,
+  });
+  assert.deepEqual(await run(w.ctx, "forms.link_revoke", { formId: f.formId, token: revoked.token }), {
+    revoked: true,
+  });
   assert.equal(await bad(revoked.token), "auth.invalid_code");
 
   const flipped = good.token.slice(0, -1) + (good.token.endsWith("A") ? "B" : "A");
@@ -175,8 +215,14 @@ test("revoking a link that does not belong to the form is not found", async () =
   const f = await openForm(w);
   const other = await openForm(w, { name: "Other" });
   const link = await makeLink(w, f);
-  assert.equal(await code(run(w.ctx, "forms.link_revoke", { formId: other.formId, token: link.token })), "validation.not_found");
-  assert.equal(await code(run(w.ctx, "forms.link_revoke", { formId: f.formId, token: "lnk_unknown.abc" })), "validation.not_found");
+  assert.equal(
+    await code(run(w.ctx, "forms.link_revoke", { formId: other.formId, token: link.token })),
+    "validation.not_found",
+  );
+  assert.equal(
+    await code(run(w.ctx, "forms.link_revoke", { formId: f.formId, token: "lnk_unknown.abc" })),
+    "validation.not_found",
+  );
 });
 
 test("a closed form refuses its links", async () => {
@@ -195,15 +241,26 @@ test("partial answers wait on the link and never reach the record until submit",
   seedRecord(w);
   const f = await openForm(w);
   const link = await makeLink(w, f);
-  const saved = await run<{ saved: boolean; expiresAt?: number }>(f.public, "forms.save_partial", { slug: f.slug, token: link.token, answers: { name: "Da" }, step: 1 });
+  const saved = await run<{ saved: boolean; expiresAt?: number }>(f.public, "forms.save_partial", {
+    slug: f.slug,
+    token: link.token,
+    answers: { name: "Da" },
+    step: 1,
+  });
   assert.deepEqual(saved, { saved: true, expiresAt: NOW + 72 * HOUR });
   assert.deepEqual(w.records.get(RECORD)?.fields, { email: "dana@x.example" });
-  assert.equal(w.calls.some((c) => c.cap === "records.update"), false);
+  assert.equal(
+    w.calls.some((c) => c.cap === "records.update"),
+    false,
+  );
   w.advance(HOUR);
   const view = await linkView(f.public, f.slug, link.token);
   assert.equal(view.recordId, RECORD);
   assert.equal(view.singleUse, true);
-  assert.deepEqual(view.fields.map((x) => x.field), ["name", "phone"]);
+  assert.deepEqual(
+    view.fields.map((x) => x.field),
+    ["name", "phone"],
+  );
   assert.deepEqual(view.partial, { answers: { name: "Da" }, step: 1, expiresAt: NOW + 72 * HOUR });
   await send(f, { token: link.token, answers: { name: "Dana", phone: "555" } });
   assert.equal(w.db.rows("forms_link")[0]?.partial, null);
@@ -226,8 +283,12 @@ test("save_partial refuses bad tokens, questions off the link, big payloads and 
   seedRecord(w);
   const f = await openForm(w);
   const link = await makeLink(w, f);
-  const save = (input: Record<string, unknown>) => run(f.public, "forms.save_partial", { slug: f.slug, token: link.token, ...input });
-  assert.equal(await code(run(f.public, "forms.save_partial", { slug: f.slug, token: "lnk_x.y", answers: {} })), "auth.invalid_code");
+  const save = (input: Record<string, unknown>) =>
+    run(f.public, "forms.save_partial", { slug: f.slug, token: link.token, ...input });
+  assert.equal(
+    await code(run(f.public, "forms.save_partial", { slug: f.slug, token: "lnk_x.y", answers: {} })),
+    "auth.invalid_code",
+  );
   assert.equal(await code(save({ answers: { email: "other@x.example" } })), "validation.bad_input");
   assert.equal(await code(save({ answers: "x" })), "validation.bad_input");
   assert.equal(await code(save({ answers: { name: "x".repeat(70_000) } })), "validation.too_large");
@@ -244,12 +305,23 @@ test("a revoked link drops its saved answers and refuses more", async () => {
   await run(f.public, "forms.save_partial", { slug: f.slug, token: link.token, answers: { name: "Da" } });
   await run(w.ctx, "forms.link_revoke", { formId: f.formId, token: link.token });
   assert.equal(w.db.rows("forms_link")[0]?.partial, null);
-  assert.equal(await code(run(f.public, "forms.save_partial", { slug: f.slug, token: link.token, answers: { name: "x" } })), "auth.invalid_code");
+  assert.equal(
+    await code(run(f.public, "forms.save_partial", { slug: f.slug, token: link.token, answers: { name: "x" } })),
+    "auth.invalid_code",
+  );
 });
 
 test("a booking page has no record links", async () => {
   const w = harness();
   seedRecord(w);
-  const made = await run<{ form: { formId: string } }>(w.ctx, "bookings.page_create", { name: "Call", hostIds: ["usr_host1"], lengthMinutes: 30, recordType: "contact" });
-  assert.equal(await code(run(w.ctx, "forms.link_create", { formId: made.form.formId, recordId: RECORD, singleUse: true })), "validation.precondition_failed");
+  const made = await run<{ form: { formId: string } }>(w.ctx, "bookings.page_create", {
+    name: "Call",
+    hostIds: ["usr_host1"],
+    lengthMinutes: 30,
+    recordType: "contact",
+  });
+  assert.equal(
+    await code(run(w.ctx, "forms.link_create", { formId: made.form.formId, recordId: RECORD, singleUse: true })),
+    "validation.precondition_failed",
+  );
 });

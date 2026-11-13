@@ -3,5 +3,9 @@
 import type { NodeRelay } from "./node-turns.ts";
 
 let bound: NodeRelay | null = null;
-export function bindRelay(r: NodeRelay | null): void { bound = r; }
-export function relayOf(): NodeRelay | null { return bound; }
+export function bindRelay(r: NodeRelay | null): void {
+  bound = r;
+}
+export function relayOf(): NodeRelay | null {
+  return bound;
+}

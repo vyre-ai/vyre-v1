@@ -6,15 +6,38 @@
 // JavaScript fallback is not carried over, so there is one implementation to review. No imports but node:crypto, no dependency.
 import crypto from "node:crypto";
 
-export interface StretchParams { memoryKiB: number; passes: number; lanes?: number; tagLength?: number }
-
-export const STRETCH: Readonly<Required<StretchParams>> = Object.freeze({ memoryKiB: 19456, passes: 2, lanes: 1, tagLength: 32 });
-export const STRETCH_SALT = "vyre-recovery-code-v1";
-
-export function argon2id(secret: Uint8Array | string, salt: Uint8Array | string = STRETCH_SALT, params: StretchParams = STRETCH): Buffer {
-  const P = { lanes: 1, tagLength: 32, ...params };
-  if (P.lanes !== 1) throw new Error("one lane only");
-  if (typeof crypto.argon2Sync !== "function") throw new Error("this Node has no Argon2id; Vyre needs Node 24.7 or later");
-  return Buffer.from(crypto.argon2Sync("argon2id", { message: Buffer.from(secret), nonce: Buffer.from(salt), parallelism: 1, tagLength: P.tagLength, memory: P.memoryKiB, passes: P.passes }));
+export interface StretchParams {
+  memoryKiB: number;
+  passes: number;
+  lanes?: number;
+  tagLength?: number;
 }
 
+export const STRETCH: Readonly<Required<StretchParams>> = Object.freeze({
+  memoryKiB: 19456,
+  passes: 2,
+  lanes: 1,
+  tagLength: 32,
+});
+export const STRETCH_SALT = "vyre-recovery-code-v1";
+
+export function argon2id(
+  secret: Uint8Array | string,
+  salt: Uint8Array | string = STRETCH_SALT,
+  params: StretchParams = STRETCH,
+): Buffer {
+  const P = { lanes: 1, tagLength: 32, ...params };
+  if (P.lanes !== 1) throw new Error("one lane only");
+  if (typeof crypto.argon2Sync !== "function")
+    throw new Error("this Node has no Argon2id; Vyre needs Node 24.7 or later");
+  return Buffer.from(
+    crypto.argon2Sync("argon2id", {
+      message: Buffer.from(secret),
+      nonce: Buffer.from(salt),
+      parallelism: 1,
+      tagLength: P.tagLength,
+      memory: P.memoryKiB,
+      passes: P.passes,
+    }),
+  );
+}

@@ -17,7 +17,15 @@ test("a send on a computer without the lease parks the Run; the holder resumes i
   let holder = false;
   const exec: Executor = async (s, c) => {
     if (s.id !== "send") return { output: { ran: s.id } };
-    if (!holder) throw Object.assign(new Error("Waiting for the computer that runs scheduled work."), { error: { code: "internal.unavailable", message: "Waiting for the computer that runs scheduled work.", retryable: true, details: { reason: "not_scheduling_computer" } } });
+    if (!holder)
+      throw Object.assign(new Error("Waiting for the computer that runs scheduled work."), {
+        error: {
+          code: "internal.unavailable",
+          message: "Waiting for the computer that runs scheduled work.",
+          retryable: true,
+          details: { reason: "not_scheduling_computer" },
+        },
+      });
     sent.push(c.key);
     return { output: { sent: true } };
   };
@@ -32,5 +40,11 @@ test("a send on a computer without the lease parks the Run; the holder resumes i
   holder = true;
   assert.deepEqual(await h.engineRun(engine, (ctx) => drive(ctx, id, plan, exec)), { status: "succeeded" });
   assert.equal(sent.length, 1, "sent once");
-  assert.deepEqual(allSteps(h.db, id).map((s) => `${s.step}:${s.state}`).filter((x) => x.startsWith("send")).pop(), "send:succeeded");
+  assert.deepEqual(
+    allSteps(h.db, id)
+      .map((s) => `${s.step}:${s.state}`)
+      .filter((x) => x.startsWith("send"))
+      .pop(),
+    "send:succeeded",
+  );
 });

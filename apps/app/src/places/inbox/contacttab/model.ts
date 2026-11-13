@@ -37,7 +37,12 @@ export interface EmailRef {
   status?: "queued" | "sent" | "delivered" | "bounced" | "complained";
   messageId?: string;
 }
-export interface SmsRef { body?: string; via?: string; status?: string; /** The other side's number. */ address?: string }
+export interface SmsRef {
+  body?: string;
+  via?: string;
+  status?: string;
+  /** The other side's number. */ address?: string;
+}
 export interface CallRef {
   state?: "completed" | "missed" | "voicemail" | "failed" | "busy";
   durationSec?: number;
@@ -53,42 +58,78 @@ export interface CallRef {
   meetingTitle?: string;
 }
 
-const rec = (v: unknown): Record<string, unknown> => (v !== null && typeof v === "object" ? (v as Record<string, unknown>) : {});
+const rec = (v: unknown): Record<string, unknown> =>
+  v !== null && typeof v === "object" ? (v as Record<string, unknown>) : {};
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 
 export function emailRef(i: ThreadItem): EmailRef {
   const r = rec(i.ref);
   const out: EmailRef = {};
-  const subject = str(r["subject"]) ?? i.title, body = str(r["body"]) ?? i.preview;
+  const subject = str(r["subject"]) ?? i.title,
+    body = str(r["body"]) ?? i.preview;
   if (subject !== undefined) out.subject = subject;
   if (body !== undefined) out.body = body;
-  for (const k of ["quoted", "from", "via", "agent", "messageId"] as const) { const v = str(r[k]); if (v !== undefined) out[k] = v; }
+  for (const k of ["quoted", "from", "via", "agent", "messageId"] as const) {
+    const v = str(r[k]);
+    if (v !== undefined) out[k] = v;
+  }
   const st = str(r["status"]);
-  if (st === "queued" || st === "sent" || st === "delivered" || st === "bounced" || st === "complained") out.status = st;
-  if (Array.isArray(r["attachments"])) out.attachments = (r["attachments"] as unknown[]).map(rec).map((a) => ({ name: str(a["name"]) ?? "File", ...(str(a["size"]) ? { size: str(a["size"]) as string } : {}) }));
-  if (Array.isArray(r["chips"])) out.chips = (r["chips"] as unknown[]).map(rec).map((c) => ({ title: str(c["title"]) ?? "Record", ...(str(c["recordId"]) ? { recordId: str(c["recordId"]) as string } : {}) }));
+  if (st === "queued" || st === "sent" || st === "delivered" || st === "bounced" || st === "complained")
+    out.status = st;
+  if (Array.isArray(r["attachments"]))
+    out.attachments = (r["attachments"] as unknown[])
+      .map(rec)
+      .map((a) => ({ name: str(a["name"]) ?? "File", ...(str(a["size"]) ? { size: str(a["size"]) as string } : {}) }));
+  if (Array.isArray(r["chips"]))
+    out.chips = (r["chips"] as unknown[]).map(rec).map((c) => ({
+      title: str(c["title"]) ?? "Record",
+      ...(str(c["recordId"]) ? { recordId: str(c["recordId"]) as string } : {}),
+    }));
   return out;
 }
 
 /** The header's company and record chip: the server marks one record_chip item `header` (its title is the chip, `company` the line beside the name). It is not a line in the feed. */
-export interface HeaderChip { title: string; recordId?: string; company?: string }
+export interface HeaderChip {
+  title: string;
+  recordId?: string;
+  company?: string;
+}
 export function headerRef(i: ThreadItem): HeaderChip | null {
   if (i.kind !== "record_chip") return null;
   const r = rec(i.ref);
   if (r["header"] !== true) return null;
-  return { title: i.title ?? "Record", ...(i.recordId ? { recordId: i.recordId } : {}), ...(str(r["company"]) ? { company: str(r["company"]) as string } : {}) };
+  return {
+    title: i.title ?? "Record",
+    ...(i.recordId ? { recordId: i.recordId } : {}),
+    ...(str(r["company"]) ? { company: str(r["company"]) as string } : {}),
+  };
 }
 /** The To chips: the contact's own address shows as their name, other addresses as they are. */
-export function namedTo(to: readonly string[], address: string, name: string | null): (string | { email: string; name: string })[] {
+export function namedTo(
+  to: readonly string[],
+  address: string,
+  name: string | null,
+): (string | { email: string; name: string })[] {
   const out: (string | { email: string; name: string })[] = [];
   for (const a of to) out.push(name !== null && a === address ? { email: a, name } : a);
   return out;
 }
-export const headerOf = (items: readonly ThreadItem[]): HeaderChip | null => { for (const i of items) { const h = headerRef(i); if (h) return h; } return null; };
+export const headerOf = (items: readonly ThreadItem[]): HeaderChip | null => {
+  for (const i of items) {
+    const h = headerRef(i);
+    if (h) return h;
+  }
+  return null;
+};
 
 export function smsRef(i: ThreadItem): SmsRef {
   const r = rec(i.ref);
-  return { body: str(r["body"]) ?? i.preview ?? "", ...(str(r["via"]) ? { via: str(r["via"]) as string } : {}), ...(str(r["status"]) ? { status: str(r["status"]) as string } : {}), ...(str(r["address"]) ? { address: str(r["address"]) as string } : {}) };
+  return {
+    body: str(r["body"]) ?? i.preview ?? "",
+    ...(str(r["via"]) ? { via: str(r["via"]) as string } : {}),
+    ...(str(r["status"]) ? { status: str(r["status"]) as string } : {}),
+    ...(str(r["address"]) ? { address: str(r["address"]) as string } : {}),
+  };
 }
 
 export function callRef(i: ThreadItem): CallRef {
@@ -99,9 +140,15 @@ export function callRef(i: ThreadItem): CallRef {
   if (typeof r["durationSec"] === "number") out.durationSec = r["durationSec"];
   const summary = str(r["summary"]) ?? i.preview;
   if (summary) out.summary = summary;
-  for (const k of ["via", "recordingUrl", "notes", "meetingTitle", "address"] as const) { const v = str(r[k]); if (v !== undefined) out[k] = v; }
+  for (const k of ["via", "recordingUrl", "notes", "meetingTitle", "address"] as const) {
+    const v = str(r[k]);
+    if (v !== undefined) out[k] = v;
+  }
   if (r["recording"] === true || out.recordingUrl !== undefined) out.recording = true;
-  if (Array.isArray(r["transcript"])) out.transcript = (r["transcript"] as unknown[]).map(rec).map((l) => ({ who: str(l["who"]) ?? "", text: str(l["text"]) ?? "" }));
+  if (Array.isArray(r["transcript"]))
+    out.transcript = (r["transcript"] as unknown[])
+      .map(rec)
+      .map((l) => ({ who: str(l["who"]) ?? "", text: str(l["text"]) ?? "" }));
   return out;
 }
 
@@ -117,7 +164,14 @@ export type FeedEntry =
   | { kind: "day"; key: string; label: string }
   | { kind: "email"; key: string; item: ThreadItem; ref: EmailRef }
   | { kind: "thread"; key: string; thread: MailThread; at: number }
-  | { kind: "texts"; key: string; direction: "in" | "out"; via: string; items: { id: string; at: number; body: string }[]; at: number }
+  | {
+      kind: "texts";
+      key: string;
+      direction: "in" | "out";
+      via: string;
+      items: { id: string; at: number; body: string }[];
+      at: number;
+    }
   | { kind: "call"; key: string; item: ThreadItem; ref: CallRef; meeting: boolean }
   | { kind: "chip"; key: string; item: ThreadItem }
   | { kind: "note"; key: string; item: ThreadItem };
@@ -140,7 +194,8 @@ export function dayLabel(at: number, now: number, offsetMin: number): string {
 /** The clock time of an item: 10:15 AM. */
 export function clockTime(at: number, offsetMin: number): string {
   const d = new Date(at + offsetMin * 60_000);
-  const h = d.getUTCHours(), m = d.getUTCMinutes();
+  const h = d.getUTCHours(),
+    m = d.getUTCMinutes();
   return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 }
 
@@ -148,34 +203,81 @@ export function clockTime(at: number, offsetMin: number): string {
  * The feed. With the contact's threads (inbox.threads) every email thread is one card, placed at its last activity, and the emails it holds are not drawn again on their own;
  * texts, calls and meetings stay where they happened. Without them (an older server, or no mail yet) each email is drawn on its own as before.
  */
-export function buildFeed(items: readonly ThreadItem[], now: number, offsetMin: number, threads: readonly MailThread[] = []): FeedEntry[] {
+export function buildFeed(
+  items: readonly ThreadItem[],
+  now: number,
+  offsetMin: number,
+  threads: readonly MailThread[] = [],
+): FeedEntry[] {
   const inThread = new Set<string>();
   const threadIds = new Set<string>();
-  for (const t of threads) { threadIds.add(t.threadId); for (const m of t.messages) inThread.add(m.message.id); }
-  const kept = items.filter((i) => !(i.kind === "email" && (inThread.has(i.id) || threadIds.has(str(rec(i.ref)["threadId"]) ?? ""))));
+  for (const t of threads) {
+    threadIds.add(t.threadId);
+    for (const m of t.messages) inThread.add(m.message.id);
+  }
+  const kept = items.filter(
+    (i) => !(i.kind === "email" && (inThread.has(i.id) || threadIds.has(str(rec(i.ref)["threadId"]) ?? ""))),
+  );
   type Step = { at: number; id: string; item?: ThreadItem; thread?: MailThread };
-  const steps: Step[] = [...kept.map((i) => ({ at: i.at, id: i.id, item: i })), ...threads.map((t) => ({ at: t.lastAt, id: `thread:${t.threadId}`, thread: t }))]
-    .sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
+  const steps: Step[] = [
+    ...kept.map((i) => ({ at: i.at, id: i.id, item: i })),
+    ...threads.map((t) => ({ at: t.lastAt, id: `thread:${t.threadId}`, thread: t })),
+  ].sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
   const out: FeedEntry[] = [];
   let day = "";
   let open: Extract<FeedEntry, { kind: "texts" }> | null = null;
   for (const st of steps) {
     if (st.item && headerRef(st.item)) continue;
     const label = dayLabel(st.at, now, offsetMin);
-    if (label !== day) { out.push({ kind: "day", key: `day:${dayOf(st.at, offsetMin)}`, label }); day = label; open = null; }
-    if (st.thread) { open = null; out.push({ kind: "thread", key: st.id, thread: st.thread, at: st.at }); continue; }
+    if (label !== day) {
+      out.push({ kind: "day", key: `day:${dayOf(st.at, offsetMin)}`, label });
+      day = label;
+      open = null;
+    }
+    if (st.thread) {
+      open = null;
+      out.push({ kind: "thread", key: st.id, thread: st.thread, at: st.at });
+      continue;
+    }
     const i = st.item as ThreadItem;
     switch (i.kind) {
-      case "email": open = null; out.push({ kind: "email", key: i.id, item: i, ref: emailRef(i) }); break;
+      case "email":
+        open = null;
+        out.push({ kind: "email", key: i.id, item: i, ref: emailRef(i) });
+        break;
       case "sms": {
-        const r = smsRef(i), dir = i.direction ?? "in", via = r.via ?? "";
-        if (open && open.direction === dir && open.via === via && i.at - open.at <= GROUP_MS) { open.items.push({ id: i.id, at: i.at, body: r.body ?? "" }); open.at = i.at; }
-        else { open = { kind: "texts", key: i.id, direction: dir, via, items: [{ id: i.id, at: i.at, body: r.body ?? "" }], at: i.at }; out.push(open); }
+        const r = smsRef(i),
+          dir = i.direction ?? "in",
+          via = r.via ?? "";
+        if (open && open.direction === dir && open.via === via && i.at - open.at <= GROUP_MS) {
+          open.items.push({ id: i.id, at: i.at, body: r.body ?? "" });
+          open.at = i.at;
+        } else {
+          open = {
+            kind: "texts",
+            key: i.id,
+            direction: dir,
+            via,
+            items: [{ id: i.id, at: i.at, body: r.body ?? "" }],
+            at: i.at,
+          };
+          out.push(open);
+        }
         break;
       }
-      case "call": case "meeting": open = null; out.push({ kind: "call", key: i.id, item: i, ref: callRef(i), meeting: i.kind === "meeting" }); break;
-      case "record_chip": open = null; out.push({ kind: "chip", key: i.id, item: i }); break;
-      case "note": open = null; out.push({ kind: "note", key: i.id, item: i }); break;
+      case "call":
+      case "meeting":
+        open = null;
+        out.push({ kind: "call", key: i.id, item: i, ref: callRef(i), meeting: i.kind === "meeting" });
+        break;
+      case "record_chip":
+        open = null;
+        out.push({ kind: "chip", key: i.id, item: i });
+        break;
+      case "note":
+        open = null;
+        out.push({ kind: "note", key: i.id, item: i });
+        break;
     }
   }
   return out;
@@ -186,10 +288,14 @@ export function buildFeed(items: readonly ThreadItem[], now: number, offsetMin: 
 /** The role line of a thread card, when it matters (owner, 3 Nov). */
 export function roleLine(role: MailThread["role"]): string {
   switch (role) {
-    case "started": return "You started this";
-    case "added_later": return "You were added later";
-    case "cc": return "Cc";
-    default: return "";
+    case "started":
+      return "You started this";
+    case "added_later":
+      return "You were added later";
+    case "cc":
+      return "Cc";
+    default:
+      return "";
   }
 }
 
@@ -230,8 +336,10 @@ export function senderName(m: ThreadMsg, mine: ReadonlySet<string>): string {
 
 /** "to you, cc Maya": the recipients in a few words, first names and you. */
 export function recipientLine(m: ThreadMsg, mine: ReadonlySet<string>): string {
-  const short = (p: { address: string; name?: string }): string => (isMine(p.address, mine) ? "you" : firstName(partyName(p)));
-  const list = (ps: readonly { address: string; name?: string }[]): string => (ps.length <= 2 ? ps.map(short).join(" and ") : `${ps.slice(0, 2).map(short).join(", ")} and ${ps.length - 2} more`);
+  const short = (p: { address: string; name?: string }): string =>
+    isMine(p.address, mine) ? "you" : firstName(partyName(p));
+  const list = (ps: readonly { address: string; name?: string }[]): string =>
+    ps.length <= 2 ? ps.map(short).join(" and ") : `${ps.slice(0, 2).map(short).join(", ")} and ${ps.length - 2} more`;
   return [m.to.length ? `to ${list(m.to)}` : "", m.cc.length ? `cc ${list(m.cc)}` : ""].filter(Boolean).join(", ");
 }
 
@@ -249,18 +357,27 @@ export function whenLabel(at: number, now: number, offsetMin: number): string {
   if (age <= 0) return clockTime(at, offsetMin);
   if (age === 1) return `Yesterday ${clockTime(at, offsetMin)}`;
   const d = new Date(at + offsetMin * 60_000);
-  return age < 7 ? `${WEEK[d.getUTCDay()] ?? ""} ${clockTime(at, offsetMin)}` : `${d.getUTCDate()} ${MONTH[d.getUTCMonth()] ?? ""}`;
+  return age < 7
+    ? `${WEEK[d.getUTCDay()] ?? ""} ${clockTime(at, offsetMin)}`
+    : `${d.getUTCDate()} ${MONTH[d.getUTCMonth()] ?? ""}`;
 }
 
 /** Which threads open by default: any with something new, and the newest. A person's own toggle wins. */
 /** How long the thread a link asked for stays marked. */
 export const MARK_MS = 2200;
 /** The thread a link asked for, when this conversation holds it; otherwise nothing, and the conversation opens as it always does. */
-export const askedThread = (asked: string | undefined, all: readonly MailThread[]): string | undefined => (asked !== undefined && all.some((t) => t.threadId === asked) ? asked : undefined);
+export const askedThread = (asked: string | undefined, all: readonly MailThread[]): string | undefined =>
+  asked !== undefined && all.some((t) => t.threadId === asked) ? asked : undefined;
 /** Which thread the feed scrolls to: the asked one when there is one, else the first with something new. */
-export const landsOn = (asked: string | undefined, threadId: string, firstFresh: boolean): boolean => (asked !== undefined ? asked === threadId : firstFresh);
+export const landsOn = (asked: string | undefined, threadId: string, firstFresh: boolean): boolean =>
+  asked !== undefined ? asked === threadId : firstFresh;
 
-export function threadOpen(t: MailThread, all: readonly MailThread[], fresh: ReadonlySet<string>, toggled: Readonly<Record<string, boolean>>): boolean {
+export function threadOpen(
+  t: MailThread,
+  all: readonly MailThread[],
+  fresh: ReadonlySet<string>,
+  toggled: Readonly<Record<string, boolean>>,
+): boolean {
   const own = toggled[t.threadId];
   if (own !== undefined) return own;
   const newest = [...all].sort((a, b) => b.lastAt - a.lastAt)[0];
@@ -268,7 +385,12 @@ export function threadOpen(t: MailThread, all: readonly MailThread[], fresh: Rea
 }
 
 /** Inside an open thread the newest message and every new one are in full; older ones are one line. */
-export function messageOpen(t: MailThread, m: ThreadMsg, fresh: ReadonlySet<string>, toggled: Readonly<Record<string, boolean>>): boolean {
+export function messageOpen(
+  t: MailThread,
+  m: ThreadMsg,
+  fresh: ReadonlySet<string>,
+  toggled: Readonly<Record<string, boolean>>,
+): boolean {
   const own = toggled[m.id];
   if (own !== undefined) return own;
   return t.messages[t.messages.length - 1]?.message.id === m.id || fresh.has(m.id);
@@ -277,24 +399,37 @@ export function messageOpen(t: MailThread, m: ThreadMsg, fresh: ReadonlySet<stri
 /** The message a reply from this mailbox answers: the newest one the mailbox holds. None when the mailbox holds none of the thread (the reply then goes as a new email with the thread's subject). */
 export function replyMessage(t: MailThread, mailboxId: string | null): ThreadMsg | undefined {
   if (!mailboxId) return undefined;
-  return [...t.messages].reverse().map((x) => x.message).find((m) => m.mailboxIds.includes(mailboxId) || m.mailboxId === mailboxId);
+  return [...t.messages]
+    .reverse()
+    .map((x) => x.message)
+    .find((m) => m.mailboxIds.includes(mailboxId) || m.mailboxId === mailboxId);
 }
 
 /** The mailbox a reply in this thread goes out from by default: the newest message's mailbox that can send. */
 export function threadMailbox(t: MailThread, can: readonly string[]): string | null {
-  for (const x of [...t.messages].reverse()) for (const id of [x.message.mailboxId, ...x.message.mailboxIds]) if (can.includes(id)) return id;
+  for (const x of [...t.messages].reverse())
+    for (const id of [x.message.mailboxId, ...x.message.mailboxIds]) if (can.includes(id)) return id;
   return null;
 }
 
 /** Reply or Reply all in a thread: who it goes to, keeping Cc on Reply all, never you. */
-export function replyTarget(t: MailThread, mode: "one" | "all", mine: ReadonlySet<string>): { to: string[]; cc: string[]; subject: string } {
-  const last = [...t.messages].reverse().map((x) => x.message).find((m) => !isMine(m.from.address, mine)) ?? t.messages[t.messages.length - 1]?.message;
+export function replyTarget(
+  t: MailThread,
+  mode: "one" | "all",
+  mine: ReadonlySet<string>,
+): { to: string[]; cc: string[]; subject: string } {
+  const last =
+    [...t.messages]
+      .reverse()
+      .map((x) => x.message)
+      .find((m) => !isMine(m.from.address, mine)) ?? t.messages[t.messages.length - 1]?.message;
   const subject = replySubject(t.subject);
   if (!last) return { to: [], cc: [], subject };
   const fromMe = isMine(last.from.address, mine);
   const not = (a: string): boolean => !isMine(a, mine);
   const uniq = (xs: string[]): string[] => [...new Map(xs.map((x) => [lower(x), x])).values()];
-  if (mode === "one") return { to: fromMe ? last.to.slice(0, 1).map((p) => p.address) : [last.from.address], cc: [], subject };
+  if (mode === "one")
+    return { to: fromMe ? last.to.slice(0, 1).map((p) => p.address) : [last.from.address], cc: [], subject };
   const to = uniq([...(fromMe ? [] : [last.from.address]), ...last.to.map((p) => p.address)].filter(not));
   const cc = uniq(last.cc.map((p) => p.address).filter(not)).filter((a) => !to.some((x) => lower(x) === lower(a)));
   return { to, cc, subject };
@@ -309,19 +444,38 @@ export function callLabel(ref: CallRef, direction: "in" | "out" | undefined, mee
   return direction === "out" ? "Outgoing call" : "Incoming call";
 }
 
-export const isMissed = (ref: CallRef): boolean => ref.state === "missed" || ref.state === "failed" || ref.state === "busy";
+export const isMissed = (ref: CallRef): boolean =>
+  ref.state === "missed" || ref.state === "failed" || ref.state === "busy";
 
 // ---------------------------------------------------------------- the send options
 
-export interface InboxChoice { id: string; kind: "mailbox" | "number"; address: string; label: string; isDefault: boolean;
+export interface InboxChoice {
+  id: string;
+  kind: "mailbox" | "number";
+  address: string;
+  label: string;
+  isDefault: boolean;
   /** Set when the choice came from comms.senders.list: sends name it, with the same id as the mailbox or number. */
-  senderId?: string }
+  senderId?: string;
+}
 
 /** The inboxes a message of this channel can go out from. `label` is the name the sidebar shows (a mailbox title, a number). */
-export function choicesFor(chan: Chan, options: SendOptions | null, titles: ReadonlyMap<string, string>): InboxChoice[] {
+export function choicesFor(
+  chan: Chan,
+  options: SendOptions | null,
+  titles: ReadonlyMap<string, string>,
+): InboxChoice[] {
   if (!options) return [];
   const kind = chan === "email" ? "mailbox" : "number";
-  return options.inboxes.filter((x) => x.kind === kind && x.canSend).map((x) => ({ id: x.id, kind: x.kind, address: x.address, label: titles.get(x.id) ?? x.address, isDefault: x.isDefault }));
+  return options.inboxes
+    .filter((x) => x.kind === kind && x.canSend)
+    .map((x) => ({
+      id: x.id,
+      kind: x.kind,
+      address: x.address,
+      label: titles.get(x.id) ?? x.address,
+      isDefault: x.isDefault,
+    }));
 }
 
 /** Replies go out from the inbox the thread came in on; otherwise the default; otherwise the first. */
@@ -380,16 +534,42 @@ export function textTarget(conv: Conversation, items: readonly ThreadItem[]): st
   return null;
 }
 
-export function initialDraft(conv: Conversation, chan: Chan, items: readonly ThreadItem[], threads: readonly MailThread[] = [], mine: ReadonlySet<string> = new Set()): ComposerDraft {
+export function initialDraft(
+  conv: Conversation,
+  chan: Chan,
+  items: readonly ThreadItem[],
+  threads: readonly MailThread[] = [],
+  mine: ReadonlySet<string> = new Set(),
+): ComposerDraft {
   // with threads, the composer replies in the newest one, to everyone on it
   const newest = [...threads].sort((a, b) => b.lastAt - a.lastAt)[0];
   if (newest) {
     const t = replyTarget(newest, "all", mine);
-    return { chan, from: { email: null, sms: null }, to: t.to, cc: t.cc, bcc: [], subject: t.subject, text: "", draftId: null, th: newest.threadId, mode: "all" };
+    return {
+      chan,
+      from: { email: null, sms: null },
+      to: t.to,
+      cc: t.cc,
+      bcc: [],
+      subject: t.subject,
+      text: "",
+      draftId: null,
+      th: newest.threadId,
+      mode: "all",
+    };
   }
   const to = emailTarget(conv, items);
   const lastMail = [...items].filter((i) => i.kind === "email").sort((a, b) => b.at - a.at)[0];
-  return { chan, from: { email: null, sms: null }, to: to ? [to] : [], cc: [], bcc: [], subject: replySubject(lastMail ? emailRef(lastMail).subject : undefined), text: "", draftId: null };
+  return {
+    chan,
+    from: { email: null, sms: null },
+    to: to ? [to] : [],
+    cc: [],
+    bcc: [],
+    subject: replySubject(lastMail ? emailRef(lastMail).subject : undefined),
+    text: "",
+    draftId: null,
+  };
 }
 
 export function replySubject(last: string | undefined): string {
@@ -404,7 +584,12 @@ export function canSend(d: ComposerDraft, inbox: InboxChoice | null, online: boo
 }
 
 /** Why Send is off, in a few words, for the tooltip. */
-export function sendBlocker(d: ComposerDraft, inbox: InboxChoice | null, online: boolean, textTo: string | null): string {
+export function sendBlocker(
+  d: ComposerDraft,
+  inbox: InboxChoice | null,
+  online: boolean,
+  textTo: string | null,
+): string {
   if (!online) return "You are offline";
   if (!inbox) return d.chan === "email" ? "No mailbox can send" : "No number can send";
   if (d.chan === "email" && d.to.length === 0) return "Add a recipient";
@@ -415,11 +600,19 @@ export function sendBlocker(d: ComposerDraft, inbox: InboxChoice | null, online:
 }
 
 export function party(address: string, conv: Conversation): Party {
-  return address.toLowerCase() === conv.address.toLowerCase() ? { address, name: conv.displayName, ...(conv.contactId ? { contactId: conv.contactId } : {}) } : { address };
+  return address.toLowerCase() === conv.address.toLowerCase()
+    ? { address, name: conv.displayName, ...(conv.contactId ? { contactId: conv.contactId } : {}) }
+    : { address };
 }
 
 /** The mail.send input for the draft. The idempotency key makes a retry the same send. */
-export function mailInput(d: ComposerDraft, inbox: InboxChoice, conv: Conversation, key: string, replyTo?: string): CapMap["mail.send"]["in"] {
+export function mailInput(
+  d: ComposerDraft,
+  inbox: InboxChoice,
+  conv: Conversation,
+  key: string,
+  replyTo?: string,
+): CapMap["mail.send"]["in"] {
   return {
     mailboxId: inbox.id,
     ...(inbox.senderId ? { senderId: inbox.senderId } : {}),
@@ -436,8 +629,22 @@ export function mailInput(d: ComposerDraft, inbox: InboxChoice, conv: Conversati
   };
 }
 
-export function smsInput(d: ComposerDraft, inbox: InboxChoice, conv: Conversation, to: string, key: string): CapMap["telephony.send_sms"]["in"] {
-  return { numberId: inbox.id, ...(inbox.senderId ? { senderId: inbox.senderId } : {}), to, body: d.text, ...(d.fileIds && d.fileIds.length > 0 ? { mediaFileIds: [...d.fileIds] } : {}), ...(conv.contactId ? { contactId: conv.contactId } : {}), idempotencyKey: key };
+export function smsInput(
+  d: ComposerDraft,
+  inbox: InboxChoice,
+  conv: Conversation,
+  to: string,
+  key: string,
+): CapMap["telephony.send_sms"]["in"] {
+  return {
+    numberId: inbox.id,
+    ...(inbox.senderId ? { senderId: inbox.senderId } : {}),
+    to,
+    body: d.text,
+    ...(d.fileIds && d.fileIds.length > 0 ? { mediaFileIds: [...d.fileIds] } : {}),
+    ...(conv.contactId ? { contactId: conv.contactId } : {}),
+    idempotencyKey: key,
+  };
 }
 
 /** The id of the newest inbound email, which a reply answers. */
@@ -470,14 +677,36 @@ export interface DraftCard {
 }
 
 /** An agent's draft for this contact, as the card shows it. A draft with no agent name is the person's own saved draft and is not a card. */
-export function draftCards(drafts: readonly DraftRow[], titles: ReadonlyMap<string, string>, agentNames: ReadonlyMap<string, string>, addresses: ReadonlyMap<string, string> = new Map()): DraftCard[] {
+export function draftCards(
+  drafts: readonly DraftRow[],
+  titles: ReadonlyMap<string, string>,
+  agentNames: ReadonlyMap<string, string>,
+  addresses: ReadonlyMap<string, string> = new Map(),
+): DraftCard[] {
   const out: DraftCard[] = [];
   for (const d of drafts) {
     if (d.status !== "draft" || !d.draftedByAgent) continue;
     // a draft addressed to a phone number (no @) is a text: it has no subject and sends from a number
     const text = d.to.length > 0 && d.to.every((t) => !t.address.includes("@"));
     out.push({
-      id: d.id, agent: agentNames.get(d.draftedByAgent) ?? "An agent", agentId: d.draftedByAgent, toParties: d.to.map((p) => ({ address: p.address, ...(p.name ? { name: p.name } : {}) })), ccParties: (d.cc ?? []).map((p) => ({ address: p.address, ...(p.name ? { name: p.name } : {}) })), channel: text ? "sms" : "email", subject: text ? "" : d.subject, body: d.snippet, via: titles.get(d.mailboxId) ?? d.mailboxId, mailboxId: d.mailboxId, from: addresses.get(d.mailboxId) ?? titles.get(d.mailboxId) ?? (/^\+?[\d\s()-]{7,}$/.test(d.mailboxId) ? d.mailboxId : ""), updatedAt: d.sentAt, ...(d.earlier ? { earlier: d.earlier } : {}), ...(d.contactId ? { contactId: d.contactId } : {}), to: d.to.map((t) => t.address),
+      id: d.id,
+      agent: agentNames.get(d.draftedByAgent) ?? "An agent",
+      agentId: d.draftedByAgent,
+      toParties: d.to.map((p) => ({ address: p.address, ...(p.name ? { name: p.name } : {}) })),
+      ccParties: (d.cc ?? []).map((p) => ({ address: p.address, ...(p.name ? { name: p.name } : {}) })),
+      channel: text ? "sms" : "email",
+      subject: text ? "" : d.subject,
+      body: d.snippet,
+      via: titles.get(d.mailboxId) ?? d.mailboxId,
+      mailboxId: d.mailboxId,
+      from:
+        addresses.get(d.mailboxId) ??
+        titles.get(d.mailboxId) ??
+        (/^\+?[\d\s()-]{7,}$/.test(d.mailboxId) ? d.mailboxId : ""),
+      updatedAt: d.sentAt,
+      ...(d.earlier ? { earlier: d.earlier } : {}),
+      ...(d.contactId ? { contactId: d.contactId } : {}),
+      to: d.to.map((t) => t.address),
     });
   }
   return out;
@@ -491,10 +720,14 @@ export function sendsLine(from: string): string {
 /** After Send on a draft the capability may answer `held`: the send waits for approval in Needs you. */
 export function sentNote(status: CapMap["mail.send"]["out"]["status"], via: string): string {
   switch (status) {
-    case "held": return "Waiting for approval in Needs you";
-    case "suppressed": return "Not sent: this address is on the suppression list";
-    case "queued": return `Sending from ${via}`;
-    case "sent": return `Sent from ${via}`;
+    case "held":
+      return "Waiting for approval in Needs you";
+    case "suppressed":
+      return "Not sent: this address is on the suppression list";
+    case "queued":
+      return `Sending from ${via}`;
+    case "sent":
+      return `Sent from ${via}`;
   }
 }
 
@@ -507,7 +740,10 @@ export function deliveryNote(status: EmailRef["status"]): string {
 
 // ---------------------------------------------------------------- templates and snippets
 
-export interface Canned { name: string; body: string }
+export interface Canned {
+  name: string;
+  body: string;
+}
 // What the person saved comes from the Space: templates are email designs (email_builder.list) and snippets are composer snippets (email_builder.snippets.list), read by contacttab/actions.ts.
 
 export const firstName = (name: string): string => name.trim().split(/\s+/)[0] ?? name;
@@ -518,6 +754,9 @@ export function fill(body: string, conv: Conversation): string {
 }
 
 /** The / menu of the composer: the person's snippets. Templates are chosen from the Templates button, where each is an email design that can also be edited in the email builder. */
-export function cannedLists(_conv: Conversation, snippets: readonly Canned[] = []): { templates: { t: string; body: string; kind: string }[]; snippets: { t: string; body: string; kind: string }[] } {
+export function cannedLists(
+  _conv: Conversation,
+  snippets: readonly Canned[] = [],
+): { templates: { t: string; body: string; kind: string }[]; snippets: { t: string; body: string; kind: string }[] } {
   return { templates: [], snippets: snippets.map((t) => ({ t: t.name, body: t.body, kind: "Snippet" })) };
 }

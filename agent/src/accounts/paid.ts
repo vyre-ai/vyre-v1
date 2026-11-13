@@ -2,13 +2,23 @@
 // The stored reason code (ResolvedAccount.reason and via) is unchanged; only these words are.
 import type { AccountKind, Via } from "./types.ts";
 
-export interface PaidBy { name?: string; via?: Via | "own" | "other"; kind: AccountKind; shared?: boolean; spaceKey?: boolean; fellBack?: boolean; cappedFrom?: string; agentName?: string }
+export interface PaidBy {
+  name?: string;
+  via?: Via | "own" | "other";
+  kind: AccountKind;
+  shared?: boolean;
+  spaceKey?: boolean;
+  fellBack?: boolean;
+  cappedFrom?: string;
+  agentName?: string;
+}
 
 /** Whose account it is, in a few words. */
 export function ownerWords(a: PaidBy): string {
   if (a.cappedFrom) return `Backup after ${a.cappedFrom} hit its cap`;
   if (a.via === "chat_key") return `${a.agentName ? `${a.agentName}'s` : "The agent's"} own account`;
-  if (a.shared === true || a.spaceKey === true || a.via === "space") return a.via === "backup" ? "Space backup account" : "Space account";
+  if (a.shared === true || a.spaceKey === true || a.via === "space")
+    return a.via === "backup" ? "Space backup account" : "Space account";
   if (a.via === "backup") return "your backup account";
   return a.kind === "subscription" ? "your sign-in" : "your key";
 }

@@ -16,7 +16,12 @@ const PREVIEW_LIMIT = 50;
 
 export type MissedPolicy = "skip" | "run_once" | "backfill_each_tick";
 export type OverlapPolicy = "queue" | "skip_while_active" | "bounded_concurrency";
-export type ScheduleChoiceKey = "run_first_n" | "run_latest_n" | "skip_backlog_and_resume" | "change_limits" | "keep_paused";
+export type ScheduleChoiceKey =
+  | "run_first_n"
+  | "run_latest_n"
+  | "skip_backlog_and_resume"
+  | "change_limits"
+  | "keep_paused";
 
 export interface ScheduleChoiceDef {
   key: ScheduleChoiceKey;
@@ -128,7 +133,13 @@ export interface SchedulePlan {
   summary: string;
 }
 
-export type SchedulePlanResult = { ok: true; plan: SchedulePlan } | { ok: false; error: "bad_cron" | "bad_timezone" | "bad_bounds" | "missing_guardrails" | "bad_policy"; message: string };
+export type SchedulePlanResult =
+  | { ok: true; plan: SchedulePlan }
+  | {
+      ok: false;
+      error: "bad_cron" | "bad_timezone" | "bad_bounds" | "missing_guardrails" | "bad_policy";
+      message: string;
+    };
 
 export interface PlanContext {
   now: number;
@@ -168,8 +179,16 @@ function fail(error: Exclude<SchedulePlanResult, { ok: true }>["error"]): Schedu
   return { ok: false, error, message: message(error) };
 }
 
-export function clampBackfill(spec: Pick<AutomationSchedule, "lookbackMs" | "cap" | "spacingMs" | "overlap" | "concurrency">): { ok: true; guards: Guardrails } | { ok: false; error: "missing_guardrails" } {
-  if (spec.lookbackMs === undefined || spec.cap === undefined || spec.spacingMs === undefined || spec.overlap === undefined) return { ok: false, error: "missing_guardrails" };
+export function clampBackfill(
+  spec: Pick<AutomationSchedule, "lookbackMs" | "cap" | "spacingMs" | "overlap" | "concurrency">,
+): { ok: true; guards: Guardrails } | { ok: false; error: "missing_guardrails" } {
+  if (
+    spec.lookbackMs === undefined ||
+    spec.cap === undefined ||
+    spec.spacingMs === undefined ||
+    spec.overlap === undefined
+  )
+    return { ok: false, error: "missing_guardrails" };
   if (!Number.isFinite(spec.lookbackMs) || spec.lookbackMs <= 0) return { ok: false, error: "missing_guardrails" };
   if (!Number.isInteger(spec.cap) || spec.cap < 1) return { ok: false, error: "missing_guardrails" };
   if (!Number.isFinite(spec.spacingMs) || spec.spacingMs < 0) return { ok: false, error: "missing_guardrails" };
@@ -177,10 +196,20 @@ export function clampBackfill(spec: Pick<AutomationSchedule, "lookbackMs" | "cap
   const cap = Math.min(spec.cap, MAX_BACKFILL_CAP);
   let concurrency = 1;
   if (spec.overlap === "bounded_concurrency") {
-    if (spec.concurrency === undefined || !Number.isInteger(spec.concurrency) || spec.concurrency < 1) return { ok: false, error: "missing_guardrails" };
+    if (spec.concurrency === undefined || !Number.isInteger(spec.concurrency) || spec.concurrency < 1)
+      return { ok: false, error: "missing_guardrails" };
     concurrency = Math.min(spec.concurrency, cap);
   }
-  return { ok: true, guards: { lookbackMs: Math.min(spec.lookbackMs, MAX_LOOKBACK_MS), cap, spacingMs: spec.spacingMs, overlap: spec.overlap, concurrency } };
+  return {
+    ok: true,
+    guards: {
+      lookbackMs: Math.min(spec.lookbackMs, MAX_LOOKBACK_MS),
+      cap,
+      spacingMs: spec.spacingMs,
+      overlap: spec.overlap,
+      concurrency,
+    },
+  };
 }
 
 function clockOk(hour: number, minute: number): boolean {
@@ -197,19 +226,23 @@ function dayField(days: number[]): string | undefined {
 /** Compile a friendly preset to the cron that is stored. */
 export function compilePreset(preset: FriendlyPreset): { ok: true; cron: string } | { ok: false; error: string } {
   if (preset.kind === "every_minutes") {
-    if (!Number.isInteger(preset.n) || preset.n < 1 || preset.n > 59) return { ok: false, error: "Minutes must be from 1 to 59." };
+    if (!Number.isInteger(preset.n) || preset.n < 1 || preset.n > 59)
+      return { ok: false, error: "Minutes must be from 1 to 59." };
     return { ok: true, cron: preset.n === 1 ? "* * * * *" : `*/${preset.n} * * * *` };
   }
   if (preset.kind === "every_hours") {
-    if (!Number.isInteger(preset.n) || preset.n < 1 || preset.n > 23) return { ok: false, error: "Hours must be from 1 to 23." };
+    if (!Number.isInteger(preset.n) || preset.n < 1 || preset.n > 23)
+      return { ok: false, error: "Hours must be from 1 to 23." };
     return { ok: true, cron: preset.n === 1 ? "0 * * * *" : `0 */${preset.n} * * *` };
   }
-  if (!clockOk(preset.hour, preset.minute)) return { ok: false, error: "Use an hour from 0 to 23 and a minute from 0 to 59." };
+  if (!clockOk(preset.hour, preset.minute))
+    return { ok: false, error: "Use an hour from 0 to 23 and a minute from 0 to 59." };
   const hm = `${preset.minute} ${preset.hour}`;
   if (preset.kind === "daily") return { ok: true, cron: `${hm} * * *` };
   if (preset.kind === "weekdays") return { ok: true, cron: `${hm} * * 1-5` };
   if (preset.kind === "weekly") {
-    if (!Number.isInteger(preset.weekday) || preset.weekday < 0 || preset.weekday > 6) return { ok: false, error: "Weekday must be 0 (Sunday) through 6 (Saturday)." };
+    if (!Number.isInteger(preset.weekday) || preset.weekday < 0 || preset.weekday > 6)
+      return { ok: false, error: "Weekday must be 0 (Sunday) through 6 (Saturday)." };
     return { ok: true, cron: `${hm} * * ${preset.weekday}` };
   }
   if (preset.kind === "selected_days") {
@@ -217,7 +250,8 @@ export function compilePreset(preset: FriendlyPreset): { ok: true; cron: string 
     if (!field) return { ok: false, error: "Pick at least one weekday, 0 (Sunday) through 6 (Saturday)." };
     return { ok: true, cron: `${hm} * * ${field}` };
   }
-  if (!Number.isInteger(preset.day) || preset.day < 1 || preset.day > 31) return { ok: false, error: "The day of the month must be from 1 to 31." };
+  if (!Number.isInteger(preset.day) || preset.day < 1 || preset.day > 31)
+    return { ok: false, error: "The day of the month must be from 1 to 31." };
   return { ok: true, cron: `${hm} ${preset.day} * *` };
 }
 
@@ -237,21 +271,31 @@ export interface CanonicalInput {
 }
 
 /** Preset or advanced cron, stored as the same cron plus time zone plus missed policy. A preset wins when both are sent. */
-export function canonicalSchedule(input: CanonicalInput): { ok: true; schedule: AutomationSchedule; summary: string } | { ok: false; error: string } {
+export function canonicalSchedule(
+  input: CanonicalInput,
+): { ok: true; schedule: AutomationSchedule; summary: string } | { ok: false; error: string } {
   if (!input.automationId) return { ok: false, error: "An automation id is required." };
   if (!validTimeZone(input.timezone)) return { ok: false, error: "That time zone is not valid." };
-  if (input.missed !== "skip" && input.missed !== "run_once" && input.missed !== "backfill_each_tick") return { ok: false, error: "The missed policy must be skip, run once, or backfill each tick." };
-  if (input.startAt !== undefined && input.endAt !== undefined && input.endAt < input.startAt) return { ok: false, error: "The schedule end is before its start." };
+  if (input.missed !== "skip" && input.missed !== "run_once" && input.missed !== "backfill_each_tick")
+    return { ok: false, error: "The missed policy must be skip, run once, or backfill each tick." };
+  if (input.startAt !== undefined && input.endAt !== undefined && input.endAt < input.startAt)
+    return { ok: false, error: "The schedule end is before its start." };
   let cron = input.cron?.trim() ?? "";
   if (input.preset) {
     const compiled = compilePreset(input.preset);
     if (!compiled.ok) return compiled;
     cron = compiled.cron;
   }
-  if (!cron || !parseCron(cron)) return { ok: false, error: "That cron is not valid. Use five fields: minute hour day month weekday." };
+  if (!cron || !parseCron(cron))
+    return { ok: false, error: "That cron is not valid. Use five fields: minute hour day month weekday." };
   const summary = summarizeCron(cron);
   if (!summary) return { ok: false, error: "That cron is not valid. Use five fields: minute hour day month weekday." };
-  const schedule: AutomationSchedule = { automationId: input.automationId, cron, timezone: input.timezone, missed: input.missed };
+  const schedule: AutomationSchedule = {
+    automationId: input.automationId,
+    cron,
+    timezone: input.timezone,
+    missed: input.missed,
+  };
   if (input.startAt !== undefined) schedule.startAt = input.startAt;
   if (input.endAt !== undefined) schedule.endAt = input.endAt;
   if (input.lookbackMs !== undefined) schedule.lookbackMs = input.lookbackMs;
@@ -279,7 +323,14 @@ function previewOf(times: readonly number[]): number[] {
 }
 
 /** The unblock request and the collapsed notifications. Does not create anything. */
-export function buildNeedsYouRequest(input: { automationId: string; backlogCount: number; preview: readonly number[]; cap: number; ownerId: string; sharedRecipientIds?: readonly string[] }): NeedsYouRequest {
+export function buildNeedsYouRequest(input: {
+  automationId: string;
+  backlogCount: number;
+  preview: readonly number[];
+  cap: number;
+  ownerId: string;
+  sharedRecipientIds?: readonly string[];
+}): NeedsYouRequest {
   const dedupKey = scheduleRequestKey(input.automationId);
   const shared = uniq(input.sharedRecipientIds ?? []).filter((id) => id !== input.ownerId);
   const recipients = uniq([input.ownerId, ...shared]);
@@ -303,11 +354,20 @@ export function buildNeedsYouRequest(input: { automationId: string; backlogCount
       assigned: { kind: "person", id: input.ownerId },
       source: { kind: "manual", id: dedupKey },
       idempotencyKey: dedupKey,
-      blocks: [{
-        type: "checklist",
-        v: 1,
-        data: { handler: SCHEDULE_CHOICE_HANDLER, dedupKey, automationId: input.automationId, backlogCount: input.backlogCount, preview, choices: [...SCHEDULE_CHOICES] },
-      }],
+      blocks: [
+        {
+          type: "checklist",
+          v: 1,
+          data: {
+            handler: SCHEDULE_CHOICE_HANDLER,
+            dedupKey,
+            automationId: input.automationId,
+            backlogCount: input.backlogCount,
+            preview,
+            choices: [...SCHEDULE_CHOICES],
+          },
+        },
+      ],
     },
     followers: shared,
     notifications: recipients.map((to) => ({
@@ -321,9 +381,19 @@ export function buildNeedsYouRequest(input: { automationId: string; backlogCount
   };
 }
 
-interface Collected { times: number[]; truncated: boolean }
+interface Collected {
+  times: number[];
+  truncated: boolean;
+}
 
-function collect(spec: CronSpec, tz: string, after: number, until: number, startAt: number | undefined, limit: number): Collected {
+function collect(
+  spec: CronSpec,
+  tz: string,
+  after: number,
+  until: number,
+  startAt: number | undefined,
+  limit: number,
+): Collected {
   const times: number[] = [];
   let at = after;
   if (startAt !== undefined && startAt - 1 > at) at = startAt - 1;
@@ -339,13 +409,30 @@ function collect(spec: CronSpec, tz: string, after: number, until: number, start
 }
 
 function upcomingOf(schedule: AutomationSchedule, now: number): { upcoming: number[]; nextAt?: number } {
-  const found = nextOccurrences(schedule.cron, schedule.timezone, now, 5, { startAt: schedule.startAt, endAt: schedule.endAt });
+  const found = nextOccurrences(schedule.cron, schedule.timezone, now, 5, {
+    startAt: schedule.startAt,
+    endAt: schedule.endAt,
+  });
   if ("error" in found) return { upcoming: [] };
   const first = found.times[0];
   return first === undefined ? { upcoming: found.times } : { upcoming: found.times, nextAt: first };
 }
 
-function basePlan(schedule: AutomationSchedule, summary: string, cursor: number, now: number, extra: { ticks: TickPlan[]; backlog: number[]; paused: boolean; pausedReason?: string; deduped: boolean; skippedTickIds: string[]; request?: NeedsYouRequest }): SchedulePlan {
+function basePlan(
+  schedule: AutomationSchedule,
+  summary: string,
+  cursor: number,
+  now: number,
+  extra: {
+    ticks: TickPlan[];
+    backlog: number[];
+    paused: boolean;
+    pausedReason?: string;
+    deduped: boolean;
+    skippedTickIds: string[];
+    request?: NeedsYouRequest;
+  },
+): SchedulePlan {
   const up = upcomingOf(schedule, now);
   const plan: SchedulePlan = {
     ticks: extra.ticks,
@@ -368,7 +455,8 @@ function basePlan(schedule: AutomationSchedule, summary: string, cursor: number,
 function startBudget(guards: Guardrails, ctx: PlanContext): number {
   const active = ctx.activeRunCount ?? 0;
   if (guards.overlap === "skip_while_active" && active > 0) return 0;
-  const spacingOk = guards.spacingMs <= 0 || ctx.lastStartedAt === undefined || ctx.now - ctx.lastStartedAt >= guards.spacingMs;
+  const spacingOk =
+    guards.spacingMs <= 0 || ctx.lastStartedAt === undefined || ctx.now - ctx.lastStartedAt >= guards.spacingMs;
   if (!spacingOk) return 0;
   let room = Number.POSITIVE_INFINITY;
   if (guards.overlap === "bounded_concurrency") {
@@ -380,12 +468,14 @@ function startBudget(guards: Guardrails, ctx: PlanContext): number {
 
 /** Decide which ticks would start. Does not start runs and does not write a task. */
 export function planSchedule(schedule: AutomationSchedule, ctx: PlanContext): SchedulePlanResult {
-  if (schedule.startAt !== undefined && schedule.endAt !== undefined && schedule.endAt < schedule.startAt) return fail("bad_bounds");
+  if (schedule.startAt !== undefined && schedule.endAt !== undefined && schedule.endAt < schedule.startAt)
+    return fail("bad_bounds");
   if (!validTimeZone(schedule.timezone)) return fail("bad_timezone");
   const spec = parseCron(schedule.cron);
   if (!spec) return fail("bad_cron");
   const summary = summarizeCron(schedule.cron) ?? schedule.cron;
-  if (schedule.missed !== "skip" && schedule.missed !== "run_once" && schedule.missed !== "backfill_each_tick") return fail("bad_policy");
+  if (schedule.missed !== "skip" && schedule.missed !== "run_once" && schedule.missed !== "backfill_each_tick")
+    return fail("bad_policy");
   const started = ctx.startedTickIds ?? new Set<string>();
   const open = ctx.openRequestKeys ?? new Set<string>();
   const key = scheduleRequestKey(schedule.automationId);
@@ -407,14 +497,16 @@ export function planSchedule(schedule: AutomationSchedule, ctx: PlanContext): Sc
   if (schedule.missed === "backfill_each_tick" && guards) {
     const over = raw.truncated || unstarted.length > guards.cap;
     if (over) {
-      const built = deduped ? undefined : buildNeedsYouRequest({
-        automationId: schedule.automationId,
-        backlogCount: unstarted.length,
-        preview: unstarted,
-        cap: guards.cap,
-        ownerId: ctx.ownerId,
-        ...(ctx.sharedRecipientIds === undefined ? {} : { sharedRecipientIds: ctx.sharedRecipientIds }),
-      });
+      const built = deduped
+        ? undefined
+        : buildNeedsYouRequest({
+            automationId: schedule.automationId,
+            backlogCount: unstarted.length,
+            preview: unstarted,
+            cap: guards.cap,
+            ownerId: ctx.ownerId,
+            ...(ctx.sharedRecipientIds === undefined ? {} : { sharedRecipientIds: ctx.sharedRecipientIds }),
+          });
       return {
         ok: true,
         plan: basePlan(schedule, summary, ctx.cursor, ctx.now, {
@@ -431,23 +523,65 @@ export function planSchedule(schedule: AutomationSchedule, ctx: PlanContext): Sc
   }
 
   if (ctx.paused) {
-    return { ok: true, plan: basePlan(schedule, summary, ctx.cursor, ctx.now, { ticks: [], backlog: unstarted, paused: true, deduped, skippedTickIds: [] }) };
+    return {
+      ok: true,
+      plan: basePlan(schedule, summary, ctx.cursor, ctx.now, {
+        ticks: [],
+        backlog: unstarted,
+        paused: true,
+        deduped,
+        skippedTickIds: [],
+      }),
+    };
   }
 
   if (schedule.missed === "skip" || schedule.missed === "run_once") {
     if (unstarted.length === 0 && eligible.length === 0) {
-      return { ok: true, plan: basePlan(schedule, summary, ctx.cursor, ctx.now, { ticks: [], backlog: [], paused: false, deduped: false, skippedTickIds: [] }) };
+      return {
+        ok: true,
+        plan: basePlan(schedule, summary, ctx.cursor, ctx.now, {
+          ticks: [],
+          backlog: [],
+          paused: false,
+          deduped: false,
+          skippedTickIds: [],
+        }),
+      };
     }
     const latest = eligible[eligible.length - 1];
     if (latest === undefined) {
-      return { ok: true, plan: basePlan(schedule, summary, ctx.cursor, ctx.now, { ticks: [], backlog: [], paused: false, deduped: false, skippedTickIds: [] }) };
+      return {
+        ok: true,
+        plan: basePlan(schedule, summary, ctx.cursor, ctx.now, {
+          ticks: [],
+          backlog: [],
+          paused: false,
+          deduped: false,
+          skippedTickIds: [],
+        }),
+      };
     }
     const onTime = ctx.now - latest <= (ctx.onTimeMs ?? DEFAULT_ON_TIME_MS);
     const latestId = tickId(schedule.automationId, latest);
     const startLatest = schedule.missed === "run_once" || onTime;
-    const ticks: TickPlan[] = startLatest && !started.has(latestId) ? [{ automationId: schedule.automationId, tickId: latestId, fireAt: latest }] : [];
-    const skipped = eligible.filter((t) => t !== latest || !startLatest).map((t) => tickId(schedule.automationId, t)).filter((id) => !started.has(id) && !ticks.some((tick) => tick.tickId === id));
-    return { ok: true, plan: basePlan(schedule, summary, latest, ctx.now, { ticks, backlog: unstarted, paused: false, deduped: false, skippedTickIds: skipped }) };
+    const ticks: TickPlan[] =
+      startLatest && !started.has(latestId)
+        ? [{ automationId: schedule.automationId, tickId: latestId, fireAt: latest }]
+        : [];
+    const skipped = eligible
+      .filter((t) => t !== latest || !startLatest)
+      .map((t) => tickId(schedule.automationId, t))
+      .filter((id) => !started.has(id) && !ticks.some((tick) => tick.tickId === id));
+    return {
+      ok: true,
+      plan: basePlan(schedule, summary, latest, ctx.now, {
+        ticks,
+        backlog: unstarted,
+        paused: false,
+        deduped: false,
+        skippedTickIds: skipped,
+      }),
+    };
   }
 
   if (!guards) return fail("missing_guardrails");
@@ -472,7 +606,16 @@ export function planSchedule(schedule: AutomationSchedule, ctx: PlanContext): Sc
     budget -= 1;
     cursor = ts;
   }
-  return { ok: true, plan: basePlan(schedule, summary, cursor, ctx.now, { ticks, backlog: unstarted, paused: false, deduped: false, skippedTickIds: skipped }) };
+  return {
+    ok: true,
+    plan: basePlan(schedule, summary, cursor, ctx.now, {
+      ticks,
+      backlog: unstarted,
+      paused: false,
+      deduped: false,
+      skippedTickIds: skipped,
+    }),
+  };
 }
 
 export interface ChoiceLimits {
@@ -483,17 +626,19 @@ export interface ChoiceLimits {
   concurrency?: number;
 }
 
-export type ChoiceResult = {
-  ok: true;
-  paused: boolean;
-  pausedReason?: string;
-  clearRequest: boolean;
-  ticks: TickPlan[];
-  /** Set when the watermark should move. Absent means leave it. */
-  cursor?: number;
-  spec: AutomationSchedule;
-  skippedTickIds: string[];
-} | { ok: false; error: string };
+export type ChoiceResult =
+  | {
+      ok: true;
+      paused: boolean;
+      pausedReason?: string;
+      clearRequest: boolean;
+      ticks: TickPlan[];
+      /** Set when the watermark should move. Absent means leave it. */
+      cursor?: number;
+      spec: AutomationSchedule;
+      skippedTickIds: string[];
+    }
+  | { ok: false; error: string };
 
 function takeN(backlog: readonly number[], n: number, which: "first" | "latest"): number[] {
   const count = Math.min(n, backlog.length);
@@ -530,25 +675,56 @@ export function applyScheduleChoice(
     next.spacingMs = clamped.guards.spacingMs;
     next.overlap = clamped.guards.overlap;
     if (next.overlap === "bounded_concurrency") next.concurrency = clamped.guards.concurrency;
-    return { ok: true, paused: true, pausedReason: "backfill_over_cap", clearRequest: false, ticks: [], spec: next, skippedTickIds: [] };
+    return {
+      ok: true,
+      paused: true,
+      pausedReason: "backfill_over_cap",
+      clearRequest: false,
+      ticks: [],
+      spec: next,
+      skippedTickIds: [],
+    };
   }
   if (choice === "keep_paused") {
-    return { ok: true, paused: true, pausedReason: "kept_paused", clearRequest: true, ticks: [], spec, skippedTickIds: [] };
+    return {
+      ok: true,
+      paused: true,
+      pausedReason: "kept_paused",
+      clearRequest: true,
+      ticks: [],
+      spec,
+      skippedTickIds: [],
+    };
   }
   const cap = Math.min(spec.cap ?? MAX_BACKFILL_CAP, MAX_BACKFILL_CAP);
   if (choice === "skip_backlog_and_resume") {
     return finishChoice(spec, fresh, [], opts.cursor);
   }
-  if (choice !== "run_first_n" && choice !== "run_latest_n") return { ok: false, error: "That is not a schedule recovery choice." };
+  if (choice !== "run_first_n" && choice !== "run_latest_n")
+    return { ok: false, error: "That is not a schedule recovery choice." };
   const asked = opts.n ?? cap;
   if (!Number.isInteger(asked) || asked < 1) return { ok: false, error: "N must be a positive whole number." };
   const n = Math.min(asked, cap, fresh.length);
   const selected = new Set(takeN(fresh, n, choice === "run_first_n" ? "first" : "latest"));
-  const ticks = [...selected].sort((a, b) => a - b).map((fireAt) => ({ automationId: spec.automationId, tickId: tickId(spec.automationId, fireAt), fireAt }));
-  return finishChoice(spec, fresh.filter((t) => !selected.has(t)), ticks, opts.cursor, fresh[fresh.length - 1]);
+  const ticks = [...selected]
+    .sort((a, b) => a - b)
+    .map((fireAt) => ({ automationId: spec.automationId, tickId: tickId(spec.automationId, fireAt), fireAt }));
+  return finishChoice(
+    spec,
+    fresh.filter((t) => !selected.has(t)),
+    ticks,
+    opts.cursor,
+    fresh[fresh.length - 1],
+  );
 }
 
-function finishChoice(spec: AutomationSchedule, skipped: readonly number[], ticks: TickPlan[], cursor: number, end?: number): ChoiceResult {
+function finishChoice(
+  spec: AutomationSchedule,
+  skipped: readonly number[],
+  ticks: TickPlan[],
+  cursor: number,
+  end?: number,
+): ChoiceResult {
   const skippedTickIds = skipped.map((t) => tickId(spec.automationId, t));
   const moved = end === undefined ? skipped[skipped.length - 1] : end;
   const done = { ok: true as const, paused: false, clearRequest: true, ticks, spec, skippedTickIds };

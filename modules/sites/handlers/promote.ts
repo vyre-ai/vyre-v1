@@ -10,7 +10,24 @@ import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { touchActivity } from "../projections.ts";
 import type { DeployEnv, SiteDrivers, SiteState } from "./deploy.ts";
-import { defaultBranchOf, fail, flag, hexOf, isNull, many, mustSite, nid, num, one, optStr, rec, reqStr, siteDrivers, str, NETWORK } from "./deploy.ts";
+import {
+  defaultBranchOf,
+  fail,
+  flag,
+  hexOf,
+  isNull,
+  many,
+  mustSite,
+  nid,
+  num,
+  one,
+  optStr,
+  rec,
+  reqStr,
+  siteDrivers,
+  str,
+  NETWORK,
+} from "./deploy.ts";
 import { routeProductionDomains } from "./domains.ts";
 
 type Row = Record<string, unknown>;
@@ -111,13 +128,21 @@ function saveRoute(ctx: Ctx, host: string, siteId: string, deploymentId: string)
   ctx.db.run("DELETE FROM sites_route WHERE host = ?", host);
   ctx.db.run(
     "INSERT INTO sites_route (host, site_id, deployment_id, env, auth_handle, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-    host, siteId, deploymentId, "production", null, ctx.now(),
+    host,
+    siteId,
+    deploymentId,
+    "production",
+    null,
+    ctx.now(),
   );
 }
 
 /** `owner/name` from an https, ssh or git@ address of a GitHub repo; null for anything else. */
 export function githubRepo(repoUrl: string): string | null {
-  const m = /^(?:https:\/\/(?:[^@/]+@)?github\.com\/|ssh:\/\/git@github\.com\/|git@github\.com:)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(repoUrl.trim());
+  const m =
+    /^(?:https:\/\/(?:[^@/]+@)?github\.com\/|ssh:\/\/git@github\.com\/|git@github\.com:)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(
+      repoUrl.trim(),
+    );
   return m && m[1] && m[2] ? `${m[1]}/${m[2]}` : null;
 }
 
@@ -137,14 +162,38 @@ async function mergePullRequest(ctx: Ctx, site: Row, dep: Row): Promise<{ number
   const number = num(dep.pr_number);
   const pr = (await ctx.call("github.pull_request.get", { repo, number })) as { pullRequest?: { state?: string } };
   if (pr.pullRequest?.state === "merged") return { number, sha: null };
-  if (pr.pullRequest?.state === "closed") fail(ctx, "validation.precondition_failed", "The pull request was closed without merging. Rebuild the preview from a branch that is open.", { number });
+  if (pr.pullRequest?.state === "closed")
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "The pull request was closed without merging. Rebuild the preview from a branch that is open.",
+      { number },
+    );
   const checks = (await ctx.call("github.pull_request.checks", { repo, number })) as { state?: string };
-  if (checks.state === "failing") fail(ctx, "validation.precondition_failed", "A check is failing on the pull request. Fix it before promoting.", { number });
-  if (checks.state === "pending") fail(ctx, "validation.precondition_failed", "Checks are still running on the pull request. Promote when they finish.", { number });
+  if (checks.state === "failing")
+    fail(ctx, "validation.precondition_failed", "A check is failing on the pull request. Fix it before promoting.", {
+      number,
+    });
+  if (checks.state === "pending")
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "Checks are still running on the pull request. Promote when they finish.",
+      { number },
+    );
   const settings = parseSettings(site.settings);
-  const method = typeof settings.mergeMethod === "string" && MERGE_METHODS.includes(settings.mergeMethod) ? settings.mergeMethod : "squash";
-  const merged = (await ctx.call("github.pull_request.merge", { idempotencyKey: `sites.promote:${repo}#${number}:merge`, repo, number, method })) as { merged?: boolean; sha?: string };
-  if (merged.merged !== true) fail(ctx, "validation.precondition_failed", "The pull request could not be merged.", { number });
+  const method =
+    typeof settings.mergeMethod === "string" && MERGE_METHODS.includes(settings.mergeMethod)
+      ? settings.mergeMethod
+      : "squash";
+  const merged = (await ctx.call("github.pull_request.merge", {
+    idempotencyKey: `sites.promote:${repo}#${number}:merge`,
+    repo,
+    number,
+    method,
+  })) as { merged?: boolean; sha?: string };
+  if (merged.merged !== true)
+    fail(ctx, "validation.precondition_failed", "The pull request could not be merged.", { number });
   return { number, sha: typeof merged.sha === "string" ? merged.sha : null };
 }
 
@@ -162,7 +211,16 @@ function parseSettings(text: unknown): Record<string, unknown> {
  * Start the container of a build and route the production host and every custom domain to it. The caller stops the old container afterwards.
  * `apply` writes the new rows once the container runs (before the router is told, so the domains pick the right upstream); `undo` puts the old rows back if routing fails.
  */
-async function serve(ctx: Ctx, d: SiteDrivers, site: Row, old: Row | undefined, image: string, rowId: string, apply: (c: { containerId: string; upstream: string }) => void, undo: () => void): Promise<{ containerId: string; upstream: string; host: string }> {
+async function serve(
+  ctx: Ctx,
+  d: SiteDrivers,
+  site: Row,
+  old: Row | undefined,
+  image: string,
+  rowId: string,
+  apply: (c: { containerId: string; upstream: string }) => void,
+  undo: () => void,
+): Promise<{ containerId: string; upstream: string; host: string }> {
   const siteId = str(site.id);
   const refs = await fillEnv(ctx, siteId, rowId);
   const host = productionHost(siteId, d.spaceDomain);
@@ -170,8 +228,14 @@ async function serve(ctx: Ctx, d: SiteDrivers, site: Row, old: Row | undefined, 
   let upstream = "";
   try {
     const started = await d.runtime.start({
-      siteId, deploymentId: rowId, env: "production", image, network: NETWORK, name: `site-${hexOf(siteId)}-${hexOf(rowId).slice(0, 12)}`,
-      envRefs: refs, servicePrincipal: str(site.service_principal),
+      siteId,
+      deploymentId: rowId,
+      env: "production",
+      image,
+      network: NETWORK,
+      name: `site-${hexOf(siteId)}-${hexOf(rowId).slice(0, 12)}`,
+      envRefs: refs,
+      servicePrincipal: str(site.service_principal),
     });
     containerId = started.containerId;
     upstream = started.upstream;
@@ -207,16 +271,25 @@ async function sitesPromote(ctx: Ctx, input: unknown): Promise<{ deployment: Dep
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
   const siteId = str(site.id);
   const source = mustDeployment(ctx, siteId, reqStr(ctx, o, "deploymentId"));
-  if (source.env === "production") fail(ctx, "validation.precondition_failed", "That build is already on production. Use Roll back to change what production runs.");
-  if (!isNull(source.removed_at) && !flag(source.merge_pending)) fail(ctx, "validation.precondition_failed", "That preview was removed. Rebuild it first.");
-  if (source.state === "queued" || source.state === "building") fail(ctx, "validation.precondition_failed", "The build is still running. Promote when it finishes.");
-  if (source.state === "failed" || isNull(source.image) || str(source.image) === "") fail(ctx, "validation.precondition_failed", "That deployment has no good build to promote.");
+  if (source.env === "production")
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "That build is already on production. Use Roll back to change what production runs.",
+    );
+  if (!isNull(source.removed_at) && !flag(source.merge_pending))
+    fail(ctx, "validation.precondition_failed", "That preview was removed. Rebuild it first.");
+  if (source.state === "queued" || source.state === "building")
+    fail(ctx, "validation.precondition_failed", "The build is still running. Promote when it finishes.");
+  if (source.state === "failed" || isNull(source.image) || str(source.image) === "")
+    fail(ctx, "validation.precondition_failed", "That deployment has no good build to promote.");
 
   const d = siteDrivers(ctx);
   const old = currentProduction(ctx, siteId);
   if (old) {
     const promo = one(ctx, "SELECT * FROM sites_promotion WHERE production_id = ?", old.id);
-    if (promo && promo.source_id === source.id) fail(ctx, "validation.precondition_failed", "That build is already on production.");
+    if (promo && promo.source_id === source.id)
+      fail(ctx, "validation.precondition_failed", "That build is already on production.");
   }
 
   const merged = await mergePullRequest(ctx, site, source);
@@ -226,17 +299,55 @@ async function sitesPromote(ctx: Ctx, input: unknown): Promise<{ deployment: Dep
   const host = productionHost(siteId, d.spaceDomain);
   const oldContainer = old && !isNull(old.container_id) ? str(old.container_id) : "";
   const oldSnapshot: Row | undefined = old ? { ...old } : undefined;
-  await serve(ctx, d, site, oldSnapshot, str(source.image), prodId,
+  await serve(
+    ctx,
+    d,
+    site,
+    oldSnapshot,
+    str(source.image),
+    prodId,
     (c) => {
-      if (old) ctx.db.run("UPDATE sites_deployment SET state = ?, url = ?, container_id = ?, upstream = ?, updated_at = ? WHERE id = ?", "stopped", null, null, null, now, old.id);
+      if (old)
+        ctx.db.run(
+          "UPDATE sites_deployment SET state = ?, url = ?, container_id = ?, upstream = ?, updated_at = ? WHERE id = ?",
+          "stopped",
+          null,
+          null,
+          null,
+          now,
+          old.id,
+        );
       ctx.db.run(
         "INSERT INTO sites_deployment (id, site_id, env, state, url, branch, commit_sha, image, container_id, host, upstream, pr_number, log, created_by, at, updated_at, removed_at, merge_pending) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        prodId, siteId, "production", "ready", `https://${host}`, isNull(source.branch) ? defaultBranchOf(site) : str(source.branch), isNull(source.commit_sha) ? null : str(source.commit_sha),
-        str(source.image), c.containerId, host, c.upstream, isNull(source.pr_number) ? null : num(source.pr_number), "[]", ctx.principal.id, now, now, null, 0,
+        prodId,
+        siteId,
+        "production",
+        "ready",
+        `https://${host}`,
+        isNull(source.branch) ? defaultBranchOf(site) : str(source.branch),
+        isNull(source.commit_sha) ? null : str(source.commit_sha),
+        str(source.image),
+        c.containerId,
+        host,
+        c.upstream,
+        isNull(source.pr_number) ? null : num(source.pr_number),
+        "[]",
+        ctx.principal.id,
+        now,
+        now,
+        null,
+        0,
       );
       ctx.db.run(
         "INSERT INTO sites_promotion (production_id, site_id, source_id, pr_number, merge_sha, promoted_by, at, rolled_back_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        prodId, siteId, str(source.id), merged ? merged.number : null, merged ? merged.sha : null, ctx.principal.id, now, null,
+        prodId,
+        siteId,
+        str(source.id),
+        merged ? merged.number : null,
+        merged ? merged.sha : null,
+        ctx.principal.id,
+        now,
+        null,
       );
     },
     () => {
@@ -245,7 +356,12 @@ async function sitesPromote(ctx: Ctx, input: unknown): Promise<{ deployment: Dep
       if (oldSnapshot) {
         ctx.db.run(
           "UPDATE sites_deployment SET state = ?, url = ?, container_id = ?, upstream = ?, updated_at = ? WHERE id = ?",
-          oldSnapshot.state ?? "ready", oldSnapshot.url ?? null, oldSnapshot.container_id ?? null, oldSnapshot.upstream ?? null, num(oldSnapshot.updated_at), oldSnapshot.id,
+          oldSnapshot.state ?? "ready",
+          oldSnapshot.url ?? null,
+          oldSnapshot.container_id ?? null,
+          oldSnapshot.upstream ?? null,
+          num(oldSnapshot.updated_at),
+          oldSnapshot.id,
         );
       }
     },
@@ -265,20 +381,37 @@ async function sitesRollback(ctx: Ctx, input: unknown): Promise<{ deployment: De
   const siteId = str(site.id);
   const wanted = optStr(ctx, o, "toDeploymentId");
   const current = currentProduction(ctx, siteId);
-  const history = many(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ?", siteId, "production")
-    .filter((r) => !isNull(r.image) && str(r.image) !== "" && r.state !== "failed");
+  const history = many(
+    ctx,
+    "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ?",
+    siteId,
+    "production",
+  ).filter((r) => !isNull(r.image) && str(r.image) !== "" && r.state !== "failed");
   if (history.length === 0) fail(ctx, "validation.precondition_failed", "Nothing has been promoted to production yet.");
 
   let target: Row | undefined;
   if (wanted !== undefined) {
     target = mustDeployment(ctx, siteId, wanted);
-    if (target.env !== "production") fail(ctx, "validation.precondition_failed", "Roll back to an earlier production build, not to staging. Promote a staging build instead.");
-    if (isNull(target.image) || str(target.image) === "" || target.state === "failed") fail(ctx, "validation.precondition_failed", "That deployment has no good build to restore.");
-    if (current && current.id === target.id) fail(ctx, "validation.precondition_failed", "That build is already on production.");
+    if (target.env !== "production")
+      fail(
+        ctx,
+        "validation.precondition_failed",
+        "Roll back to an earlier production build, not to staging. Promote a staging build instead.",
+      );
+    if (isNull(target.image) || str(target.image) === "" || target.state === "failed")
+      fail(ctx, "validation.precondition_failed", "That deployment has no good build to restore.");
+    if (current && current.id === target.id)
+      fail(ctx, "validation.precondition_failed", "That build is already on production.");
   } else {
-    const rolledBack = new Set(many(ctx, "SELECT * FROM sites_promotion WHERE site_id = ?", siteId).filter((p) => !isNull(p.rolled_back_at)).map((p) => str(p.production_id)));
+    const rolledBack = new Set(
+      many(ctx, "SELECT * FROM sites_promotion WHERE site_id = ?", siteId)
+        .filter((p) => !isNull(p.rolled_back_at))
+        .map((p) => str(p.production_id)),
+    );
     const candidates = history.filter((r) => (!current || r.id !== current.id) && !rolledBack.has(str(r.id)));
-    for (const r of candidates) if (!target || num(r.at) > num(target.at) || (num(r.at) === num(target.at) && str(r.id) > str(target.id))) target = r;
+    for (const r of candidates)
+      if (!target || num(r.at) > num(target.at) || (num(r.at) === num(target.at) && str(r.id) > str(target.id)))
+        target = r;
     if (!target) fail(ctx, "validation.precondition_failed", "There is no earlier build to go back to.");
   }
 
@@ -290,12 +423,34 @@ async function sitesRollback(ctx: Ctx, input: unknown): Promise<{ deployment: De
   const currentBefore: Row | undefined = current ? { ...current } : undefined;
   const oldContainer = current && !isNull(current.container_id) ? str(current.container_id) : "";
   // the restored build gets a new container; its row keeps its id so Promote history stays true
-  await serve(ctx, d, site, currentBefore, str(target.image), targetId,
+  await serve(
+    ctx,
+    d,
+    site,
+    currentBefore,
+    str(target.image),
+    targetId,
     (c) => {
-      if (current) ctx.db.run("UPDATE sites_deployment SET state = ?, url = ?, container_id = ?, upstream = ?, updated_at = ? WHERE id = ?", "stopped", null, null, null, now, current.id);
+      if (current)
+        ctx.db.run(
+          "UPDATE sites_deployment SET state = ?, url = ?, container_id = ?, upstream = ?, updated_at = ? WHERE id = ?",
+          "stopped",
+          null,
+          null,
+          null,
+          now,
+          current.id,
+        );
       ctx.db.run(
         "UPDATE sites_deployment SET state = ?, url = ?, container_id = ?, host = ?, upstream = ?, at = ?, updated_at = ? WHERE id = ?",
-        "ready", `https://${host}`, c.containerId, host, c.upstream, now, now, targetId,
+        "ready",
+        `https://${host}`,
+        c.containerId,
+        host,
+        c.upstream,
+        now,
+        now,
+        targetId,
       );
       if (current) ctx.db.run("UPDATE sites_promotion SET rolled_back_at = ? WHERE production_id = ?", now, current.id);
       ctx.db.run("UPDATE sites_promotion SET rolled_back_at = ? WHERE production_id = ?", null, targetId);
@@ -303,12 +458,24 @@ async function sitesRollback(ctx: Ctx, input: unknown): Promise<{ deployment: De
     () => {
       ctx.db.run(
         "UPDATE sites_deployment SET state = ?, url = ?, container_id = ?, host = ?, upstream = ?, at = ?, updated_at = ? WHERE id = ?",
-        targetBefore.state ?? "stopped", targetBefore.url ?? null, targetBefore.container_id ?? null, targetBefore.host ?? null, targetBefore.upstream ?? null, num(targetBefore.at), num(targetBefore.updated_at), targetId,
+        targetBefore.state ?? "stopped",
+        targetBefore.url ?? null,
+        targetBefore.container_id ?? null,
+        targetBefore.host ?? null,
+        targetBefore.upstream ?? null,
+        num(targetBefore.at),
+        num(targetBefore.updated_at),
+        targetId,
       );
       if (currentBefore) {
         ctx.db.run(
           "UPDATE sites_deployment SET state = ?, url = ?, container_id = ?, upstream = ?, updated_at = ? WHERE id = ?",
-          currentBefore.state ?? "ready", currentBefore.url ?? null, currentBefore.container_id ?? null, currentBefore.upstream ?? null, num(currentBefore.updated_at), currentBefore.id,
+          currentBefore.state ?? "ready",
+          currentBefore.url ?? null,
+          currentBefore.container_id ?? null,
+          currentBefore.upstream ?? null,
+          num(currentBefore.updated_at),
+          currentBefore.id,
         );
         ctx.db.run("UPDATE sites_promotion SET rolled_back_at = ? WHERE production_id = ?", null, currentBefore.id);
       }

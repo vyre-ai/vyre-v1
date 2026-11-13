@@ -4,7 +4,10 @@
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 
-export interface Dropped { type: "file" | "folder"; id: string }
+export interface Dropped {
+  type: "file" | "folder";
+  id: string;
+}
 
 /** The things a Files drag carries, or none when the text is not a Files drag. */
 export function droppedOf(text: string): Dropped[] {
@@ -16,23 +19,39 @@ export function droppedOf(text: string): Dropped[] {
   return out;
 }
 
-export interface Shared { grants: string[]; names: string[]; agents: string[] }
+export interface Shared {
+  grants: string[];
+  names: string[];
+  agents: string[];
+}
 
 const nameOfThing = async (data: Pick<ConversationData, "call">, d: Dropped): Promise<string> => {
   try {
     return d.type === "file"
       ? ((await data.call("files.get", { fileId: d.id })) as CapMap["files.get"]["out"]).file.name
       : ((await data.call("files.folder.get", { folderId: d.id })) as CapMap["files.folder.get"]["out"]).folder.name;
-  } catch { return d.type === "file" ? "a file" : "a folder"; }
+  } catch {
+    return d.type === "file" ? "a file" : "a folder";
+  }
 };
 
 /** Share each dropped thing with each agent of the chat. Resolves with the grants made (for Undo) and the names for the line. A share that is refused throws, so the person is told and nothing is half said. */
-export async function shareWithAgents(data: Pick<ConversationData, "call">, items: readonly Dropped[], agents: readonly { id: string; name: string }[], key: string): Promise<Shared> {
+export async function shareWithAgents(
+  data: Pick<ConversationData, "call">,
+  items: readonly Dropped[],
+  agents: readonly { id: string; name: string }[],
+  key: string,
+): Promise<Shared> {
   const names = await Promise.all(items.map((d) => nameOfThing(data, d)));
   const grants: string[] = [];
   for (const it of items) {
     for (const a of agents) {
-      const out = (await data.call("access.share", { resource: { type: it.type, id: it.id }, subject: { kind: "agent", id: a.id }, level: "view", idempotencyKey: `drop-share:${key}:${it.id}:${a.id}` })) as CapMap["access.share"]["out"];
+      const out = (await data.call("access.share", {
+        resource: { type: it.type, id: it.id },
+        subject: { kind: "agent", id: a.id },
+        level: "view",
+        idempotencyKey: `drop-share:${key}:${it.id}:${a.id}`,
+      })) as CapMap["access.share"]["out"];
       grants.push(out.grant.id);
     }
   }
@@ -44,7 +63,8 @@ export async function undoShare(data: Pick<ConversationData, "call">, grants: re
   for (const grantId of grants) await data.call("access.unshare", { grantId });
 }
 
-const list = (xs: readonly string[]): string => (xs.length <= 2 ? xs.join(" and ") : `${xs[0]}, ${xs[1]} and ${xs.length - 2} more`);
+const list = (xs: readonly string[]): string =>
+  xs.length <= 2 ? xs.join(" and ") : `${xs[0]}, ${xs[1]} and ${xs.length - 2} more`;
 
 /** "Shared Q4 pricing.docx with Intake. It can read it." */
 export function sharedLine(s: Pick<Shared, "names" | "agents">): string {

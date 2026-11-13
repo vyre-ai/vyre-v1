@@ -11,9 +11,23 @@ import { loadWhatsNew, localStore } from "./store.ts";
 export function WhatsNewSheet({ notes, onClose }: { notes: WhatsNew; onClose(): void }): ReactElement {
   // a few plain lines of copy, not rows: nothing on them is pressed or picked
   const lines: ReactElement[] = [];
-  notes.lines.forEach((line, i) => lines.push(<View key={i} style={s.row}><View style={s.spark} /><Text style={s.line}>{line}</Text></View>));
+  notes.lines.forEach((line, i) =>
+    lines.push(
+      <View key={i} style={s.row}>
+        <View style={s.spark} />
+        <Text style={s.line}>{line}</Text>
+      </View>,
+    ),
+  );
   return (
-    <Dialog title="What's new in Vyre" testID="whats-new" titleTestID="whats-new-title" width={420} onClose={onClose} actions={[{ label: "Continue", primary: true, onPress: onClose, testID: "whats-new-continue" }]}>
+    <Dialog
+      title="What's new in Vyre"
+      testID="whats-new"
+      titleTestID="whats-new-title"
+      width={420}
+      onClose={onClose}
+      actions={[{ label: "Continue", primary: true, onPress: onClose, testID: "whats-new-continue" }]}
+    >
       <Text testID="whats-new-version" style={s.version}>{`Version ${notes.version}`}</Text>
       <View testID="whats-new-lines" style={s.lines}>
         {lines}
@@ -23,17 +37,32 @@ export function WhatsNewSheet({ notes, onClose }: { notes: WhatsNew; onClose(): 
 }
 
 /** Shows the sheet on the first open after an update, once. Draws nothing otherwise. */
-export function WhatsNewOnce(props: { store?: Store | null; load?: () => Promise<WhatsNew | null> }): ReactElement | null {
+export function WhatsNewOnce(props: {
+  store?: Store | null;
+  load?: () => Promise<WhatsNew | null>;
+}): ReactElement | null {
   const [store] = useState(() => (props.store === undefined ? localStore() : props.store));
   const [load] = useState(() => props.load ?? loadWhatsNew);
   const [show, setShow] = useState<WhatsNew | null>(null);
   useEffect(() => {
     let on = true;
-    void load().then((n) => { if (on) setShow(whatsNewToShow(store, n)); });
-    return () => { on = false; };
+    void load().then((n) => {
+      if (on) setShow(whatsNewToShow(store, n));
+    });
+    return () => {
+      on = false;
+    };
   }, [store, load]);
   if (!show) return null;
-  return <WhatsNewSheet notes={show} onClose={() => { markSeen(store, show.version); setShow(null); }} />;
+  return (
+    <WhatsNewSheet
+      notes={show}
+      onClose={() => {
+        markSeen(store, show.version);
+        setShow(null);
+      }}
+    />
+  );
 }
 
 const s = StyleSheet.create({

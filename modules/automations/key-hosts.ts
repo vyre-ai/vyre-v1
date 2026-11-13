@@ -7,7 +7,11 @@ export interface KeyHostDb {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };
 }
-export interface KeyHost { host: string; by: string; at: number }
+export interface KeyHost {
+  host: string;
+  by: string;
+  at: number;
+}
 
 /** One spelling of a host as a person approves it (lib/key-target.ts): a DNS name or an IP literal. Null otherwise. */
 export function normalHost(raw: string): string | null {
@@ -24,8 +28,15 @@ export const MANAGED = "";
 
 export function keyHostsOf(db: KeyHostDb, itemId: string): KeyHost[] {
   try {
-    return (db.all(`SELECT host, by, at FROM automations_key_hosts WHERE item_id = ? AND host != '' ORDER BY at ASC, host ASC`, itemId) as { host: string; by: string; at: number }[]).map((r) => ({ host: r.host, by: r.by, at: r.at }));
-  } catch { return []; }
+    return (
+      db.all(
+        `SELECT host, by, at FROM automations_key_hosts WHERE item_id = ? AND host != '' ORDER BY at ASC, host ASC`,
+        itemId,
+      ) as { host: string; by: string; at: number }[]
+    ).map((r) => ({ host: r.host, by: r.by, at: r.at }));
+  } catch {
+    return [];
+  }
 }
 
 /** Approved for this item: listed exactly. A listed host does not cover other hosts; the item's own address covers its subdomains (the Vault's matcher decides that, not this table). */
@@ -35,11 +46,29 @@ export function keyHostApproved(db: KeyHostDb, itemId: string, host: string): bo
 }
 
 export function allowKeyHost(db: KeyHostDb, itemId: string, host: string, by: string, now: number): void {
-  db.run(`INSERT OR IGNORE INTO automations_key_hosts (item_id, host, by, at) VALUES (?, ?, ?, ?)`, itemId, host, by, now);
-  db.run(`INSERT OR IGNORE INTO automations_key_hosts (item_id, host, by, at) VALUES (?, ?, ?, ?)`, itemId, MANAGED, by, now);
+  db.run(
+    `INSERT OR IGNORE INTO automations_key_hosts (item_id, host, by, at) VALUES (?, ?, ?, ?)`,
+    itemId,
+    host,
+    by,
+    now,
+  );
+  db.run(
+    `INSERT OR IGNORE INTO automations_key_hosts (item_id, host, by, at) VALUES (?, ?, ?, ?)`,
+    itemId,
+    MANAGED,
+    by,
+    now,
+  );
 }
 
 export function removeKeyHost(db: KeyHostDb, itemId: string, host: string, by = "", now = 0): boolean {
-  db.run(`INSERT OR IGNORE INTO automations_key_hosts (item_id, host, by, at) VALUES (?, ?, ?, ?)`, itemId, MANAGED, by, now);
+  db.run(
+    `INSERT OR IGNORE INTO automations_key_hosts (item_id, host, by, at) VALUES (?, ?, ?, ?)`,
+    itemId,
+    MANAGED,
+    by,
+    now,
+  );
   return db.run(`DELETE FROM automations_key_hosts WHERE item_id = ? AND host = ?`, itemId, host).changes > 0;
 }

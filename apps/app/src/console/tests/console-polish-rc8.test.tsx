@@ -20,48 +20,106 @@ import { hasTip, openSheet } from "./sheet-helper.tsx";
 const noop = (): void => undefined;
 const draw = (el: React.ReactElement, rows: Record<string, unknown> = {}): string => {
   const sample = createSampleConsole().data;
-  const data: ConsoleData = { ...sample, screens: { ...sample.screens, capQuery: (cap: string) => { const v = { status: "ready", data: rows[cap] }; return { subscribe: () => () => undefined, getSnapshot: () => v }; } } as never };
+  const data: ConsoleData = {
+    ...sample,
+    screens: {
+      ...sample.screens,
+      capQuery: (cap: string) => {
+        const v = { status: "ready", data: rows[cap] };
+        return { subscribe: () => () => undefined, getSnapshot: () => v };
+      },
+    } as never,
+  };
   return renderToStaticMarkup(<ConsoleDataProvider value={data}>{el}</ConsoleDataProvider>).replaceAll("<!-- -->", "");
 };
 
 test("Empty draws an icon tile and a line, and an action only when it is given one", () => {
   const plain = renderToStaticMarkup(<Empty testID="e">No people yet</Empty>);
   assert.ok(plain.includes("No people yet") && plain.includes("<svg") && !plain.includes('data-testid="e-action"'));
-  const withAction = renderToStaticMarkup(<Empty testID="e" icon="search" action={{ label: "Clear search", onPress: noop }}>Nothing matches</Empty>);
+  const withAction = renderToStaticMarkup(
+    <Empty testID="e" icon="search" action={{ label: "Clear search", onPress: noop }}>
+      Nothing matches
+    </Empty>,
+  );
   assert.ok(withAction.includes("Clear search") && withAction.includes('data-testid="e-action"'));
 });
 
 test("an object list with no rows is the designed empty state; a search with no match says Nothing matches", () => {
-  const empty = renderToStaticMarkup(<ObjectList rows={[]} selectedId={null} onOpen={noop} empty="No sending domains yet" />);
+  const empty = renderToStaticMarkup(
+    <ObjectList rows={[]} selectedId={null} onOpen={noop} empty="No sending domains yet" />,
+  );
   assert.ok(empty.includes("No sending domains yet") && empty.includes("<svg"));
   const row = { id: "r1", title: "Reviewers", actions: [] };
-  const search = renderToStaticMarkup(<ObjectList rows={[row]} selectedId={null} onOpen={noop} search={{ value: "zzz", onSearch: noop }} empty="No groups yet" />);
+  const search = renderToStaticMarkup(
+    <ObjectList
+      rows={[row]}
+      selectedId={null}
+      onOpen={noop}
+      search={{ value: "zzz", onSearch: noop }}
+      empty="No groups yet"
+    />,
+  );
   assert.ok(search.includes("Nothing matches") && !search.includes("No groups yet"));
 });
 
 test("Lead gives a Row's leading slot its gap", () => {
-  const out = renderToStaticMarkup(<Lead><span>icon</span></Lead>);
+  const out = renderToStaticMarkup(
+    <Lead>
+      <span>icon</span>
+    </Lead>,
+  );
   assert.match(out, /r-marginRight-/, "a right margin is set");
 });
 
 test("Invite people is a button that opens a sheet, and the disabled Create says why as its tooltip", async () => {
-  const rows = { "access.principals.list": { principals: [] }, "access.roles.list": { roles: [] }, "access.groups.list": { groups: [] } };
+  const rows = {
+    "access.principals.list": { principals: [] },
+    "access.roles.list": { roles: [] },
+    "access.groups.list": { groups: [] },
+  };
   const out = await openSheet(createRoot, <People />, rows, "console-invite-open");
   assert.ok(!out.before.includes("Create invite"), "no form on the page");
-  assert.ok(out.text.includes("Create invite") && hasTip(out.root, "Pick a role first"), "the tooltip names what is missing");
+  assert.ok(
+    out.text.includes("Create invite") && hasTip(out.root, "Pick a role first"),
+    "the tooltip names what is missing",
+  );
   assert.ok(!out.text.includes("Pick a role first"), "and no sentence sits on the page");
 });
 
 test("Agents: New agent opens a sheet with a model picker, and rows carry a face and a status dot", async () => {
-  const agents = { agents: [{ agentId: "agt_intake", name: "Intake", status: "active", role: "Books consults", hasComputer: true, ownerId: "usr_irfad", folderId: "fld_a" }] };
-  const rows = { "agents.list": agents, "engine.models.list": { models: [{ provider: "anthropic", model: "claude-opus-5-5", title: "Opus 5.5", driver: "claude_code", allowed: true }] } };
+  const agents = {
+    agents: [
+      {
+        agentId: "agt_intake",
+        name: "Intake",
+        status: "active",
+        role: "Books consults",
+        hasComputer: true,
+        ownerId: "usr_irfad",
+        folderId: "fld_a",
+      },
+    ],
+  };
+  const rows = {
+    "agents.list": agents,
+    "engine.models.list": {
+      models: [
+        { provider: "anthropic", model: "claude-opus-5-5", title: "Opus 5.5", driver: "claude_code", allowed: true },
+      ],
+    },
+  };
   const out = await openSheet(createRoot, <AgentsRegister />, rows, "agent-new");
   assert.ok(!out.before.includes("Role line"), "the create form is not open on the page");
-  assert.ok(out.text.includes("New agent") && out.text.includes("Role line") && hasTip(out.root, "Name the agent first"));
+  assert.ok(
+    out.text.includes("New agent") && out.text.includes("Role line") && hasTip(out.root, "Name the agent first"),
+  );
   assert.ok(out.find("status-active"), "status is a dot with a word");
   assert.ok(out.text.includes("Active") && !out.text.includes("active ·"), "capitalised, not in the note");
   assert.ok(out.find("row-object-row-agt_intake-leading"), "the row has a leading face");
-  assert.ok(out.text.includes("Model") && out.text.includes("Default"), "Model is a picker that starts on Default, not a text field");
+  assert.ok(
+    out.text.includes("Model") && out.text.includes("Default"),
+    "Model is a picker that starts on Default, not a text field",
+  );
 });
 
 test("every Console place has its own icon, and every icon is drawn", () => {
@@ -73,13 +131,25 @@ test("every Console place has its own icon, and every icon is drawn", () => {
 
 test("on a phone the page title is the way to another page, and the Space name is not cut to a letter", () => {
   const sample = createSampleConsole().data;
-  const shell = (width: number): string => renderToStaticMarkup(<ConsoleDataProvider value={sample}><ConsoleShell width={width} /></ConsoleDataProvider>).replaceAll("<!-- -->", "");
+  const shell = (width: number): string =>
+    renderToStaticMarkup(
+      <ConsoleDataProvider value={sample}>
+        <ConsoleShell width={width} />
+      </ConsoleDataProvider>,
+    ).replaceAll("<!-- -->", "");
   const phone = shell(390);
-  assert.ok(phone.includes('data-testid="console-pages"') && phone.includes("Go to another page"), "the title opens the page list");
+  assert.ok(
+    phone.includes('data-testid="console-pages"') && phone.includes("Go to another page"),
+    "the title opens the page list",
+  );
   assert.ok(!phone.includes('data-testid="console-nav"'), "no side navigation on a phone");
   assert.ok(!phone.includes(">Console<"), "the Console label gives its room to the Space name");
   const desk = shell(1280);
-  assert.ok(desk.includes('data-testid="console-nav"') && !desk.includes('data-testid="console-pages"') && desk.includes(">Console<"));
+  assert.ok(
+    desk.includes('data-testid="console-nav"') &&
+      !desk.includes('data-testid="console-pages"') &&
+      desk.includes(">Console<"),
+  );
 });
 
 test("Stepper nudges a whole number and keeps it inside its bounds", async () => {
@@ -89,31 +159,89 @@ test("Stepper nudges a whole number and keeps it inside its bounds", async () =>
   const restore = dom.installDom();
   try {
     let value = 8;
-    const root = await dom.mount(createRoot, <ConsoleDataProvider value={createSampleConsole().data}><Stepper label="Tab limit" help="How many tabs" value={value} onChange={(n) => { value = n; }} max={9} /></ConsoleDataProvider>);
+    const root = await dom.mount(
+      createRoot,
+      <ConsoleDataProvider value={createSampleConsole().data}>
+        <Stepper
+          label="Tab limit"
+          help="How many tabs"
+          value={value}
+          onChange={(n) => {
+            value = n;
+          }}
+          max={9}
+        />
+      </ConsoleDataProvider>,
+    );
     await dom.press(dom.find(root, "step-up"));
     assert.equal(value, 9);
     assert.ok(hasTip(root, "How many tabs"), "the tooltip explains it");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("Agent computers lists the old desktops and offers no way to make a new one; a row you tap (pickRow) still picks, ignores a tap when disabled, and shows its check", async () => {
   const rows = {
     "computers.list": { computers: [] },
-    "agents.list": { agents: [{ agentId: "agt_docs", name: "Docs", status: "active", hasComputer: false, ownerId: "usr_irfad", folderId: "f" }, { agentId: "agt_intake", name: "Intake", status: "active", hasComputer: true, ownerId: "usr_irfad", folderId: "f" }] },
+    "agents.list": {
+      agents: [
+        {
+          agentId: "agt_docs",
+          name: "Docs",
+          status: "active",
+          hasComputer: false,
+          ownerId: "usr_irfad",
+          folderId: "f",
+        },
+        {
+          agentId: "agt_intake",
+          name: "Intake",
+          status: "active",
+          hasComputer: true,
+          ownerId: "usr_irfad",
+          folderId: "f",
+        },
+      ],
+    },
     "computers.health": { state: "healthy", runtime: "docker", awake: 0, asleep: 0 },
   };
   const { AgentComputers } = await import("../pages/Agents.tsx");
   const page = draw(<AgentComputers />, rows);
-  assert.ok(page.includes("console-agent-computers") && page.includes("No agent computers."), "the page is there and says it is empty");
-  assert.ok(!page.includes("computer-new") && !page.includes("Provision computer") && !page.includes("provision-agent-"), "nothing offers to make a computer");
+  assert.ok(
+    page.includes("console-agent-computers") && page.includes("No agent computers."),
+    "the page is there and says it is empty",
+  );
+  assert.ok(
+    !page.includes("computer-new") && !page.includes("Provision computer") && !page.includes("provision-agent-"),
+    "nothing offers to make a computer",
+  );
   const { pickRow } = await import("../pages/shared.tsx");
   let tapped = 0;
-  const props = pickRow({ id: "r", title: "Docs", picked: false, onPress: () => { tapped++; } });
+  const props = pickRow({
+    id: "r",
+    title: "Docs",
+    picked: false,
+    onPress: () => {
+      tapped++;
+    },
+  });
   props.onPress();
   assert.equal(tapped, 1, "a tap picks");
-  pickRow({ id: "r", title: "Docs", picked: false, disabled: true, onPress: () => { tapped++; } }).onPress();
+  pickRow({
+    id: "r",
+    title: "Docs",
+    picked: false,
+    disabled: true,
+    onPress: () => {
+      tapped++;
+    },
+  }).onPress();
   assert.equal(tapped, 1, "a disabled row ignores the tap");
-  assert.ok(pickRow({ id: "r", title: "Docs", picked: true, onPress: () => undefined }).trailing, "a picked row shows its check");
+  assert.ok(
+    pickRow({ id: "r", title: "Docs", picked: true, onPress: () => undefined }).trailing,
+    "a picked row shows its check",
+  );
   assert.equal(pickRow({ id: "r", title: "Docs", picked: false, onPress: () => undefined }).trailing, null);
 });
 
@@ -121,8 +249,18 @@ test("an old desktop's row says in one plain line how its move ended", async () 
   const { movedLine } = await import("../pages/Agents.tsx");
   const at = Date.UTC(2026, 10, 12, 12);
   assert.equal(movedLine(undefined), "");
-  assert.match(movedLine({ state: "done", at }), /^Moved to a workspace and the Space browser on 12 Nov\. Remove this desktop when you no longer need it$/);
+  assert.match(
+    movedLine({ state: "done", at }),
+    /^Moved to a workspace and the Space browser on 12 Nov\. Remove this desktop when you no longer need it$/,
+  );
   assert.match(movedLine({ state: "partial", at }), /agent signs in again once/);
-  assert.match(movedLine({ state: "failed", at, error: "The workspace is not ready." }), /did not work: The workspace is not ready$/);
-  assert.equal(movedLine({ state: "failed", at, error: "Moving its sign-ins was interrupted. It will be tried again." }), "Moving its sign-ins was interrupted. It will be tried again", "an interrupted import is said plainly, never as its internal mark");
+  assert.match(
+    movedLine({ state: "failed", at, error: "The workspace is not ready." }),
+    /did not work: The workspace is not ready$/,
+  );
+  assert.equal(
+    movedLine({ state: "failed", at, error: "Moving its sign-ins was interrupted. It will be tried again." }),
+    "Moving its sign-ins was interrupted. It will be tried again",
+    "an interrupted import is said plainly, never as its internal mark",
+  );
 });

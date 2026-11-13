@@ -4,27 +4,81 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { GUARDED_CALL, GUARDED_CALL_PERMISSION, HOST_ONLY_CALL, MODULE_PATH_CALL, createHookRunner } from "../src/daemon/consumers.ts";
+import {
+  GUARDED_CALL,
+  GUARDED_CALL_PERMISSION,
+  HOST_ONLY_CALL,
+  MODULE_PATH_CALL,
+  createHookRunner,
+} from "../src/daemon/consumers.ts";
 import type { ModuleHooks } from "../src/daemon/consumers.ts";
 import type { CtxSeed, Invoke } from "../src/invoke.ts";
 
 const TRACE = "0123456789abcdef0123456789abcdef";
 const touched: string[] = [];
-const hooks: ModuleHooks[] = [{
-  module: "files", consumers: [], periodic: [], calls: [
-    { name: "files.owned_by", module: "files", run: () => { touched.push("owned_by"); return { files: { count: 0, sample: [], ids: [] } }; } },
-    { name: "files.reassign_owned", module: "files", run: () => { touched.push("reassign_owned"); return 3; } },
-    { name: "chat.attention", module: "files", run: () => { touched.push("attention"); return 4; } },
-  ],
-}, {
-  module: "vault", consumers: [], periodic: [], calls: [
-    { name: "vault.signin_refreshed", module: "vault", run: () => { touched.push("signin_refreshed"); return { saved: false, reason: "gone" }; } },
-  ],
-}, {
-  module: "terminal", consumers: [], periodic: [], calls: [
-    { name: "terminal.workspace_revoke", module: "terminal", run: () => { touched.push("workspace_revoke"); return { done: true }; } },
-  ],
-}];
+const hooks: ModuleHooks[] = [
+  {
+    module: "files",
+    consumers: [],
+    periodic: [],
+    calls: [
+      {
+        name: "files.owned_by",
+        module: "files",
+        run: () => {
+          touched.push("owned_by");
+          return { files: { count: 0, sample: [], ids: [] } };
+        },
+      },
+      {
+        name: "files.reassign_owned",
+        module: "files",
+        run: () => {
+          touched.push("reassign_owned");
+          return 3;
+        },
+      },
+      {
+        name: "chat.attention",
+        module: "files",
+        run: () => {
+          touched.push("attention");
+          return 4;
+        },
+      },
+    ],
+  },
+  {
+    module: "vault",
+    consumers: [],
+    periodic: [],
+    calls: [
+      {
+        name: "vault.signin_refreshed",
+        module: "vault",
+        run: () => {
+          touched.push("signin_refreshed");
+          return { saved: false, reason: "gone" };
+        },
+      },
+    ],
+  },
+  {
+    module: "terminal",
+    consumers: [],
+    periodic: [],
+    calls: [
+      {
+        name: "terminal.workspace_revoke",
+        module: "terminal",
+        run: () => {
+          touched.push("workspace_revoke");
+          return { done: true };
+        },
+      },
+    ],
+  },
+];
 
 function rig() {
   touched.length = 0;
@@ -32,12 +86,25 @@ function rig() {
   // a pipeline that runs the runner's handler with a ctx built from the seed, the way the real one does
   const invoke: Invoke = (async (cap: string, input: unknown, seed: CtxSeed) => {
     const h = holder.runner!.handlers[cap]!;
-    const ctx = { origin: seed.origin ?? "user", depth: seed.depth ?? 0, trace: { traceId: TRACE }, principal: seed.principal, ...(seed.callerCap !== undefined ? { callerCap: seed.callerCap } : {}) };
+    const ctx = {
+      origin: seed.origin ?? "user",
+      depth: seed.depth ?? 0,
+      trace: { traceId: TRACE },
+      principal: seed.principal,
+      ...(seed.callerCap !== undefined ? { callerCap: seed.callerCap } : {}),
+    };
     return { status: "ok", output: await h(ctx as never, input as never), traceId: TRACE };
   }) as unknown as Invoke;
   holder.runner = createHookRunner({
-    space: "spc_t", now: () => 1, db: { all: () => [], run: () => ({ changes: 0 }) }, log: { read: async () => [], currentHead: async () => ({ seq: 0 }) },
-    hooks, invoke, emitsOf: () => [], capOf: () => undefined, warn: () => undefined,
+    space: "spc_t",
+    now: () => 1,
+    db: { all: () => [], run: () => ({ changes: 0 }) },
+    log: { read: async () => [], currentHead: async () => ({ seq: 0 }) },
+    hooks,
+    invoke,
+    emitsOf: () => [],
+    capOf: () => undefined,
+    warn: () => undefined,
   } as never);
   return { runner: holder.runner, invoke };
 }
@@ -45,7 +112,8 @@ const code = (e: unknown): string | undefined => (e as { error?: { code?: string
 
 test("the capability behind each guarded call needs members.remove; an unguarded host call needs nothing", () => {
   const { runner } = rig();
-  const perm = (n: string): string | null | undefined => runner.caps.find((c) => c.name === `host.hook.call.${n}`)?.permission;
+  const perm = (n: string): string | null | undefined =>
+    runner.caps.find((c) => c.name === `host.hook.call.${n}`)?.permission;
   assert.equal(GUARDED_CALL_PERMISSION, "members.remove");
   assert.equal(perm("files.owned_by"), "members.remove");
   assert.equal(perm("files.reassign_owned"), "members.remove");
@@ -67,27 +135,68 @@ test("the host's own hook call, as the admin, runs them; another module's ctx.ca
     ["an MCP call", { origin: "mcp", depth: 0 }],
     ["an agent's call", { origin: "agent", depth: 0 }],
   ] as const) {
-    await assert.rejects(invoke(cap as never, { input: { person: "usr_pat", kind: "files", action: "reassign", to: "usr_admin" } }, { space: "spc_t", principal: admin, ...seed } as CtxSeed), (e) => code(e) === "permission.no_grant", why);
-    await assert.rejects(invoke("host.hook.call.files.owned_by" as never, { input: { person: "usr_pat" } }, { space: "spc_t", principal: admin, ...seed } as CtxSeed), (e) => code(e) === "permission.no_grant", `${why} (owned_by)`);
+    await assert.rejects(
+      invoke(cap as never, { input: { person: "usr_pat", kind: "files", action: "reassign", to: "usr_admin" } }, {
+        space: "spc_t",
+        principal: admin,
+        ...seed,
+      } as CtxSeed),
+      (e) => code(e) === "permission.no_grant",
+      why,
+    );
+    await assert.rejects(
+      invoke("host.hook.call.files.owned_by" as never, { input: { person: "usr_pat" } }, {
+        space: "spc_t",
+        principal: admin,
+        ...seed,
+      } as CtxSeed),
+      (e) => code(e) === "permission.no_grant",
+      `${why} (owned_by)`,
+    );
   }
   assert.deepEqual(touched, [], "none of them ran");
-  assert.equal(await runner.call("chat.attention", {}, { principal: admin }), 4, "an unguarded host call keeps working");
+  assert.equal(
+    await runner.call("chat.attention", {}, { principal: admin }),
+    4,
+    "an unguarded host call keeps working",
+  );
 });
 
 test("no registry route or tool names a host call: nothing reaches them through the gateway or MCP", () => {
-  const reg = JSON.parse(readFileSync(new URL("../../generated/registry.json", import.meta.url), "utf8")) as { capabilities: Array<{ name: string }>; routes?: Array<{ cap: string }> };
-  assert.equal(reg.capabilities.some((c) => c.name.startsWith("host.hook.")), false);
-  assert.equal((reg.routes ?? []).some((r) => r.cap.startsWith("host.hook.")), false);
-  assert.equal(GUARDED_CALL.test("chat.owned_by") && GUARDED_CALL.test("mail.reassign_owned") && !GUARDED_CALL.test("tasks.attention"), true);
+  const reg = JSON.parse(readFileSync(new URL("../../generated/registry.json", import.meta.url), "utf8")) as {
+    capabilities: Array<{ name: string }>;
+    routes?: Array<{ cap: string }>;
+  };
+  assert.equal(
+    reg.capabilities.some((c) => c.name.startsWith("host.hook.")),
+    false,
+  );
+  assert.equal(
+    (reg.routes ?? []).some((r) => r.cap.startsWith("host.hook.")),
+    false,
+  );
+  assert.equal(
+    GUARDED_CALL.test("chat.owned_by") &&
+      GUARDED_CALL.test("mail.reassign_owned") &&
+      !GUARDED_CALL.test("tasks.attention"),
+    true,
+  );
 });
 
 test("the save of a refreshed CLI sign-in is the host's own call: run as the host it runs; as a person, an agent, a nested call, the gateway or MCP it is refused", async () => {
   const { runner, invoke } = rig();
   assert.equal(HOST_ONLY_CALL.test("vault.signin_refreshed") && !HOST_ONLY_CALL.test("vault.owned_by"), true);
-  assert.deepEqual(await runner.call("vault.signin_refreshed", { ticket: "t", itemId: "vit_1", asker: "usr_pat" }), { saved: false, reason: "gone" });
+  assert.deepEqual(await runner.call("vault.signin_refreshed", { ticket: "t", itemId: "vit_1", asker: "usr_pat" }), {
+    saved: false,
+    reason: "gone",
+  });
   assert.deepEqual(touched, ["signin_refreshed"]);
   touched.length = 0;
-  await assert.rejects(runner.call("vault.signin_refreshed", {}, { principal: { kind: "person", id: "usr_admin" } }), (e) => code(e) === "permission.no_grant", "a person through the host's own call");
+  await assert.rejects(
+    runner.call("vault.signin_refreshed", {}, { principal: { kind: "person", id: "usr_admin" } }),
+    (e) => code(e) === "permission.no_grant",
+    "a person through the host's own call",
+  );
   const cap = "host.hook.call.vault.signin_refreshed";
   const host = { kind: "service" as const, id: "svc_host" };
   for (const [why, seed] of [
@@ -97,7 +206,11 @@ test("the save of a refreshed CLI sign-in is the host's own call: run as the hos
     ["a gateway call as the host's id", { principal: host, origin: "user", depth: 0 }],
     ["a person under the hook origin", { principal: { kind: "person", id: "usr_pat" }, origin: "hook", depth: 0 }],
   ] as const) {
-    await assert.rejects(invoke(cap as never, { input: {} }, { space: "spc_t", ...seed } as unknown as CtxSeed), (e) => code(e) === "permission.no_grant", why);
+    await assert.rejects(
+      invoke(cap as never, { input: {} }, { space: "spc_t", ...seed } as unknown as CtxSeed),
+      (e) => code(e) === "permission.no_grant",
+      why,
+    );
   }
   assert.deepEqual(touched, [], "none of them ran");
 });
@@ -110,7 +223,13 @@ test("cutting an agent's workspace from a project (terminal.workspace_revoke) ru
   assert.ok(MODULE_PATH_CALL["terminal.workspace_revoke"]);
   for (const from of ["projects.members.remove", "projects.teammates.remove"]) {
     touched.length = 0;
-    const r = await invoke(cap as never, input, { space: "spc_t", principal: admin, origin: "user", depth: 1, callerCap: from } as CtxSeed);
+    const r = await invoke(cap as never, input, {
+      space: "spc_t",
+      principal: admin,
+      origin: "user",
+      depth: 1,
+      callerCap: from,
+    } as CtxSeed);
     assert.deepEqual([(r as { output?: unknown }).output, touched], [{ done: true }, ["workspace_revoke"]], from);
   }
   touched.length = 0;
@@ -122,7 +241,11 @@ test("cutting an agent's workspace from a project (terminal.workspace_revoke) ru
     ["a gateway call", { origin: "user", depth: 0, callerCap: "projects.members.remove" }],
     ["an MCP call", { origin: "mcp", depth: 0 }],
   ] as const) {
-    await assert.rejects(invoke(cap as never, input, { space: "spc_t", principal: admin, ...seed } as unknown as CtxSeed), (e) => code(e) === "permission.no_grant", why);
+    await assert.rejects(
+      invoke(cap as never, input, { space: "spc_t", principal: admin, ...seed } as unknown as CtxSeed),
+      (e) => code(e) === "permission.no_grant",
+      why,
+    );
   }
   assert.deepEqual(touched, [], "none of them ran");
 });

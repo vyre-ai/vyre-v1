@@ -23,8 +23,14 @@ test("a guest invite goes through threads.invite_guest with the chosen level", a
     await press(find(root, "as-add"));
     await flush();
     const call = s.calls.find((c) => c.cap === "threads.invite_guest");
-    assert.deepEqual({ ...(call?.input as object), idempotencyKey: "k" }, { threadId: "c1", email: "dana@fox-legal.com", level: "reply", idempotencyKey: "k" });
-    assert.ok(s.toasts.some((t) => /dana@fox-legal\.com was added/.test(t)), s.toasts.join("|"));
+    assert.deepEqual(
+      { ...(call?.input as object), idempotencyKey: "k" },
+      { threadId: "c1", email: "dana@fox-legal.com", level: "reply", idempotencyKey: "k" },
+    );
+    assert.ok(
+      s.toasts.some((t) => /dana@fox-legal\.com was added/.test(t)),
+      s.toasts.join("|"),
+    );
   });
 });
 
@@ -49,7 +55,10 @@ test("a chat-owned agent is made through threads.agent.create and shows in the c
     assert.ok(!s.calls.some((c) => c.cap === "agents.create"), "it never reaches the Agents page");
     await press(find(root, "participants-button"));
     await flush();
-    assert.ok(testIds(root).some((i) => /^people-row-agt_new/.test(i)), "it shows with the chat, in the people popover");
+    assert.ok(
+      testIds(root).some((i) => /^people-row-agt_new/.test(i)),
+      "it shows with the chat, in the people popover",
+    );
     assert.ok(s.toasts.includes("Checker was added"));
   });
 });
@@ -63,8 +72,14 @@ test("an outside agent goes through threads.outside_agent.add, and its x on Here
     await press(find(root, "people-footer"));
     await flush();
     await pickAndAdd(root, ["outside:out_cc"]);
-    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.outside_agent.add").map((c) => c.input), [{ threadId: "c1", agentId: "out_cc", mode: "listen" }]);
-    assert.ok(!s.calls.some((c) => c.cap === "threads.add_agent" && (c.input as { agentId: string }).agentId === "out_cc"), "never as a plain agent");
+    assert.deepEqual(
+      s.calls.filter((c) => c.cap === "threads.outside_agent.add").map((c) => c.input),
+      [{ threadId: "c1", agentId: "out_cc", mode: "listen" }],
+    );
+    assert.ok(
+      !s.calls.some((c) => c.cap === "threads.add_agent" && (c.input as { agentId: string }).agentId === "out_cc"),
+      "never as a plain agent",
+    );
     // open again: it is Here now, and can be taken out
     await press(find(root, "participants-button"));
     await flush();
@@ -72,7 +87,10 @@ test("an outside agent goes through threads.outside_agent.add, and its x on Here
     await flush();
     await press(find(root, "as-here-remove-out_cc"));
     await flush();
-    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.outside_agent.remove").map((c) => c.input), [{ threadId: "c1", agentId: "out_cc" }]);
+    assert.deepEqual(
+      s.calls.filter((c) => c.cap === "threads.outside_agent.remove").map((c) => c.input),
+      [{ threadId: "c1", agentId: "out_cc" }],
+    );
     assert.equal(find(root, "as-here-remove-out_cc"), null, "gone from Here now");
     assert.ok(s.toasts.includes("Claude Code was removed"));
   });
@@ -92,10 +110,22 @@ test("an agent picked with Only listens is added, then set quiet; a person is ad
     await press(find(root, "as-row-person:usr_maya"));
     await press(find(root, "as-add"));
     await flush();
-    const caps = s.calls.map((c) => c.cap).filter((c) => /^threads\.(members\.add|add_agent|agent_settings\.set)$/.test(c));
-    assert.deepEqual(caps, ["threads.add_agent", "threads.agent_settings.set", "threads.members.add"], "in the order picked; settings follow their agent");
-    assert.equal((s.calls.find((c) => c.cap === "threads.agent_settings.set")?.input as { mode: string }).mode, "quiet");
-    assert.ok(s.toasts.includes("Maya Chen and Research were added") || s.toasts.includes("Research and Maya Chen were added"), s.toasts.join("|"));
+    const caps = s.calls
+      .map((c) => c.cap)
+      .filter((c) => /^threads\.(members\.add|add_agent|agent_settings\.set)$/.test(c));
+    assert.deepEqual(
+      caps,
+      ["threads.add_agent", "threads.agent_settings.set", "threads.members.add"],
+      "in the order picked; settings follow their agent",
+    );
+    assert.equal(
+      (s.calls.find((c) => c.cap === "threads.agent_settings.set")?.input as { mode: string }).mode,
+      "quiet",
+    );
+    assert.ok(
+      s.toasts.includes("Maya Chen and Research were added") || s.toasts.includes("Research and Maya Chen were added"),
+      s.toasts.join("|"),
+    );
   });
 });
 
@@ -111,7 +141,10 @@ test("a person who can only view cannot give Member: the option is not offered a
     assert.match(textOf(find(root, "as-pick-person:usr_maya")), /Can view/);
     assert.match(textOf(find(root, "as-line-limited")), /You can view here/);
     await press(find(root, "as-role-person:usr_maya"));
-    assert.ok(find(root, "menu-item-Member") === null && find(root, "menu-item-Member (you do not have this)") === null, "a level above your own is hidden, not greyed");
+    assert.ok(
+      find(root, "menu-item-Member") === null && find(root, "menu-item-Member (you do not have this)") === null,
+      "a level above your own is hidden, not greyed",
+    );
   });
 });
 
@@ -128,7 +161,11 @@ test("Include earlier messages shows for a chat and is off by default; on, the p
     assert.match(textOf(find(root, "as-line-std")), /from now on/);
     await press(find(root, "as-add"));
     await flush();
-    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").map((c) => c.input), [{ threadId: "c1", personId: "usr_maya" }], "off by default: no flag");
+    assert.deepEqual(
+      s.calls.filter((c) => c.cap === "threads.members.add").map((c) => c.input),
+      [{ threadId: "c1", personId: "usr_maya" }],
+      "off by default: no flag",
+    );
     await press(find(root, "participants-button"));
     await flush();
     await press(find(root, "people-footer"));
@@ -138,7 +175,11 @@ test("Include earlier messages shows for a chat and is off by default; on, the p
     assert.match(textOf(find(root, "as-line-std")), /They'll see the whole chat/);
     await press(find(root, "as-add"));
     await flush();
-    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").at(-1)?.input, { threadId: "c1", personId: "usr_omar", fromStart: true });
+    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").at(-1)?.input, {
+      threadId: "c1",
+      personId: "usr_omar",
+      fromStart: true,
+    });
     const ch = createSample("channel");
     const room = await mount(createRoot, <Conversation data={ch.data} />);
     await press(find(room, "participants-button"));
@@ -149,8 +190,6 @@ test("Include earlier messages shows for a chat and is off by default; on, the p
     assert.equal(find(room, "as-earlier"), null, "a channel's people read everything it holds");
   });
 });
-
-
 
 /** The line under the sheet when Maya is picked, for a chat with the given real scope. */
 async function footerFor(scope: "both" | "folder" | "none"): Promise<string> {
@@ -170,7 +209,10 @@ async function footerFor(scope: "both" | "folder" | "none"): Promise<string> {
 
 test("the footer names the chat's real files folder and records, never the chat's own name: a chat with its own folder and records", async () => {
   const line = await footerFor("both");
-  assert.equal(line, "They'll see this chat's messages from now on, its files folder Client intake uploads, and records in Elena Rivera.");
+  assert.equal(
+    line,
+    "They'll see this chat's messages from now on, its files folder Client intake uploads, and records in Elena Rivera.",
+  );
   assert.ok(!/files folder Rivera intake|records in Rivera intake/.test(line), "the chat's name is not the folder's");
 });
 
@@ -179,5 +221,8 @@ test("the footer for a plain group chat with no folder and no records says nothi
 });
 
 test("the footer for a chat with a folder but no records names the folder and leaves records out", async () => {
-  assert.equal(await footerFor("folder"), "They'll see this chat's messages from now on, and its files folder Client intake uploads.");
+  assert.equal(
+    await footerFor("folder"),
+    "They'll see this chat's messages from now on, and its files folder Client intake uploads.",
+  );
 });

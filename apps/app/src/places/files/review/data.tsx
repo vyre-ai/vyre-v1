@@ -6,9 +6,17 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 
 /** The capabilities the review surfaces read live (the queries of screens files.changeset-header, files.diff, files.commit-diff, files.git-row, files.history and files.lint-bar). */
 export type ReviewCap =
-  | "changesets.get" | "changesets.diff" | "changesets.comments.list"
-  | "git.status" | "git.list_branches" | "git.log" | "git.show"
-  | "files.versions" | "files.diff" | "files.lint" | "agents.suggestions.list";
+  | "changesets.get"
+  | "changesets.diff"
+  | "changesets.comments.list"
+  | "git.status"
+  | "git.list_branches"
+  | "git.log"
+  | "git.show"
+  | "files.versions"
+  | "files.diff"
+  | "files.lint"
+  | "agents.suggestions.list";
 
 /** Where a click goes. The shell decides how a diff tab or a conflict opens. */
 export interface ReviewNav {
@@ -53,7 +61,10 @@ export interface ReviewData {
 const Ctx = createContext<ReviewData | null>(null);
 
 export type ReviewLayout = "unified" | "split";
-const LayoutCtx = createContext<{ layout: ReviewLayout; set(l: ReviewLayout): void }>({ layout: "unified", set: () => undefined });
+const LayoutCtx = createContext<{ layout: ReviewLayout; set(l: ReviewLayout): void }>({
+  layout: "unified",
+  set: () => undefined,
+});
 
 /** The layout of the open diff (Unified or Split): the page header's switch writes it, the diff reads it. One per provider, so the header and the diff agree wherever the shell puts them. */
 export function useReviewLayout(): [ReviewLayout, (l: ReviewLayout) => void] {
@@ -64,7 +75,11 @@ export function useReviewLayout(): [ReviewLayout, (l: ReviewLayout) => void] {
 export function ReviewDataProvider({ value, children }: { value: ReviewData; children: ReactNode }): ReactElement {
   const [layout, set] = useState<ReviewLayout>("unified");
   const lv = useMemo(() => ({ layout, set }), [layout]);
-  return <Ctx.Provider value={value}><LayoutCtx.Provider value={lv}>{children}</LayoutCtx.Provider></Ctx.Provider>;
+  return (
+    <Ctx.Provider value={value}>
+      <LayoutCtx.Provider value={lv}>{children}</LayoutCtx.Provider>
+    </Ctx.Provider>
+  );
 }
 
 export function useReviewData(): ReviewData {
@@ -77,30 +92,58 @@ const LOADING: QueryState<never> = { status: "loading" };
 const NEVER: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => LOADING };
 
 /** A live capability query. The input is compared by value; `enabled` false keeps it loading and asks nothing. */
-export function useCap<C extends ReviewCap>(cap: C, input: CapMap[C]["in"], enabled = true): QueryState<CapMap[C]["out"]> {
+export function useCap<C extends ReviewCap>(
+  cap: C,
+  input: CapMap[C]["in"],
+  enabled = true,
+): QueryState<CapMap[C]["out"]> {
   const { live } = useReviewData();
   const key = JSON.stringify(input);
-  const q = useMemo(() => (enabled ? live(cap, JSON.parse(key) as CapMap[C]["in"]) : (NEVER as LiveQuery<CapMap[C]["out"]>)), [live, cap, key, enabled]);
+  const q = useMemo(
+    () => (enabled ? live(cap, JSON.parse(key) as CapMap[C]["in"]) : (NEVER as LiveQuery<CapMap[C]["out"]>)),
+    [live, cap, key, enabled],
+  );
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 
-export interface Many<T> { ready: boolean; items: readonly (T | undefined)[] }
+export interface Many<T> {
+  ready: boolean;
+  items: readonly (T | undefined)[];
+}
 
 /** The same capability for several inputs at once (one diff per file of a changeset). Ready when every one has answered. */
 export function useCapMany<C extends ReviewCap>(cap: C, inputs: readonly CapMap[C]["in"][]): Many<CapMap[C]["out"]> {
   const { live } = useReviewData();
   const key = JSON.stringify(inputs);
   const queries = useMemo(() => (JSON.parse(key) as CapMap[C]["in"][]).map((i) => live(cap, i)), [live, cap, key]);
-  const last = useRef<{ queries: unknown; snaps: readonly QueryState<CapMap[C]["out"]>[]; value: Many<CapMap[C]["out"]> } | null>(null);
-  const subscribe = useCallback((l: () => void) => {
-    const offs = queries.map((q) => q.subscribe(l));
-    return () => { for (const off of offs) off(); };
-  }, [queries]);
+  const last = useRef<{
+    queries: unknown;
+    snaps: readonly QueryState<CapMap[C]["out"]>[];
+    value: Many<CapMap[C]["out"]>;
+  } | null>(null);
+  const subscribe = useCallback(
+    (l: () => void) => {
+      const offs = queries.map((q) => q.subscribe(l));
+      return () => {
+        for (const off of offs) off();
+      };
+    },
+    [queries],
+  );
   const snapshot = useCallback((): Many<CapMap[C]["out"]> => {
     const snaps = queries.map((q) => q.getSnapshot());
     const prev = last.current;
-    if (prev && prev.queries === queries && prev.snaps.length === snaps.length && snaps.every((s, i) => s === prev.snaps[i])) return prev.value;
-    const value: Many<CapMap[C]["out"]> = { ready: snaps.every((s) => s.status === "ready"), items: snaps.map((s) => (s.status === "ready" ? s.data : undefined)) };
+    if (
+      prev &&
+      prev.queries === queries &&
+      prev.snaps.length === snaps.length &&
+      snaps.every((s, i) => s === prev.snaps[i])
+    )
+      return prev.value;
+    const value: Many<CapMap[C]["out"]> = {
+      ready: snaps.every((s) => s.status === "ready"),
+      items: snaps.map((s) => (s.status === "ready" ? s.data : undefined)),
+    };
     last.current = { queries, snaps, value };
     return value;
   }, [queries]);

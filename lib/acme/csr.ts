@@ -24,9 +24,9 @@ function tlv(tag, body) {
 
 const seq = (...parts) => tlv(0x30, Buffer.concat(parts));
 const set = (...parts) => tlv(0x31, Buffer.concat(parts));
-const utf8 = s => tlv(0x0c, Buffer.from(s, "utf8"));
-const octets = b => tlv(0x04, b);
-const bits = b => tlv(0x03, Buffer.concat([Buffer.from([0]), b])); // no unused bits
+const utf8 = (s) => tlv(0x0c, Buffer.from(s, "utf8"));
+const octets = (b) => tlv(0x04, b);
+const bits = (b) => tlv(0x03, Buffer.concat([Buffer.from([0]), b])); // no unused bits
 const int0 = () => tlv(0x02, Buffer.from([0]));
 
 /** An OBJECT IDENTIFIER from dotted form. */
@@ -57,13 +57,14 @@ const OID = {
  */
 export function csr(names, key) {
   if (!Array.isArray(names) || names.length === 0) throw new Error("csr needs at least one name");
-  for (const n of names) if (typeof n !== "string" || !/^[A-Za-z0-9*_.-]+$/.test(n)) throw new Error(`"${n}" is not a DNS name`);
+  for (const n of names)
+    if (typeof n !== "string" || !/^[A-Za-z0-9*_.-]+$/.test(n)) throw new Error(`"${n}" is not a DNS name`);
   if (key.asymmetricKeyType !== "ec") throw new Error("csr needs an EC key");
   // A CN longer than 64 characters is not allowed by X.520; leave the subject empty then and
   // rely on the SAN, as ACME servers expect.
   const subject = names[0].length <= 64 ? seq(set(seq(oid(OID.commonName), utf8(names[0])))) : seq();
   const spki = crypto.createPublicKey(key).export({ type: "spki", format: "der" });
-  const san = seq(...names.map(n => tlv(0x82, Buffer.from(n, "ascii")))); // [2] dNSName
+  const san = seq(...names.map((n) => tlv(0x82, Buffer.from(n, "ascii")))); // [2] dNSName
   const extensions = seq(seq(oid(OID.subjectAltName), octets(san)));
   const attributes = tlv(0xa0, seq(oid(OID.extensionRequest), set(extensions))); // [0] IMPLICIT SET OF
   const info = seq(int0(), subject, spki, attributes);

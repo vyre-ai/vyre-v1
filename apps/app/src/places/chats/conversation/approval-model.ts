@@ -6,9 +6,19 @@ import { WANTS, capPhrase, verbPhrase, wantsFromInput } from "../../../../../../
 export { verbPhrase };
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
-const text = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
+const text = (v: unknown): string =>
+  typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "";
 
-export interface Held { /** the held message in a person's words, when the Gate wrote it (lib/outward.ts) */ outward?: Outward; holdId?: string; cap: string; act: string; input: Obj; /** An outside agent asked the person (docs/ask-the-person.md): what happens, in the capability's own words. */ what?: string; /** a plain yes or no from an agent of a teammate (lane l-agentdm): nothing runs as the reader */ plain?: true; detail?: string }
+export interface Held {
+  /** the held message in a person's words, when the Gate wrote it (lib/outward.ts) */ outward?: Outward;
+  holdId?: string;
+  cap: string;
+  act: string;
+  input: Obj;
+  /** An outside agent asked the person (docs/ask-the-person.md): what happens, in the capability's own words. */ what?: string;
+  /** a plain yes or no from an agent of a teammate (lane l-agentdm): nothing runs as the reader */ plain?: true;
+  detail?: string;
+}
 
 /** The capability and input a hold's task carries in its first block, or an empty hold when it carries none. */
 export function heldOf(blocks: readonly { type: string; data: unknown }[]): Held {
@@ -16,11 +26,20 @@ export function heldOf(blocks: readonly { type: string; data: unknown }[]): Held
   const what = text(obj(d["ask"])["what"]);
   // an agent asking a teammate in their direct chat to approve something (lane l-agentdm): a plain yes or no, nothing runs as them
   const ow = obj(d["outward"]);
-  return { cap: text(d["cap"]), act: text(d["act"]), input: obj(d["input"]), ...(Object.keys(ow).length > 0 && Array.isArray(ow["to"]) ? { outward: ow as unknown as Outward } : {}), ...(text(d["holdId"]) ? { holdId: text(d["holdId"]) } : {}), ...(what ? { what } : {}), ...(d["plain"] === true ? { plain: true, detail: text(d["text"]) } : {}) };
+  return {
+    cap: text(d["cap"]),
+    act: text(d["act"]),
+    input: obj(d["input"]),
+    ...(Object.keys(ow).length > 0 && Array.isArray(ow["to"]) ? { outward: ow as unknown as Outward } : {}),
+    ...(text(d["holdId"]) ? { holdId: text(d["holdId"]) } : {}),
+    ...(what ? { what } : {}),
+    ...(d["plain"] === true ? { plain: true, detail: text(d["text"]) } : {}),
+  };
 }
 
 /** The lines of a plain ask: its detail, when it has one. */
-export const plainRows = (h: Held): Array<{ label: string; text: string }> => (h.detail ? [{ label: "Detail", text: h.detail }] : []);
+export const plainRows = (h: Held): Array<{ label: string; text: string }> =>
+  h.detail ? [{ label: "Detail", text: h.detail }] : [];
 
 /** The first line of an ask: who asks and what happens, in the capability's own words. */
 export function askLine(agent: string, what: string): string {
@@ -30,8 +49,13 @@ export function askLine(agent: string, what: string): string {
 /** The lines of an ask: that it runs as you, once, then every input exactly as the card in Needs you shows it (secrets are handles by then). */
 export function askRows(blocks: readonly { type: string; data: unknown }[]): Array<{ label: string; text: string }> {
   const table = obj(blocks.find((b) => b.type === "table")?.data);
-  const inputs = Array.isArray(table["rows"]) ? (table["rows"] as unknown[]).map((r) => (Array.isArray(r) ? r.map(text) : [])).filter((r) => r.length >= 2) : [];
-  return [{ label: "Runs as", text: "You, once, exactly as shown" }, ...inputs.map((r) => ({ label: label(r[0]!), text: r[1]! }))];
+  const inputs = Array.isArray(table["rows"])
+    ? (table["rows"] as unknown[]).map((r) => (Array.isArray(r) ? r.map(text) : [])).filter((r) => r.length >= 2)
+    : [];
+  return [
+    { label: "Runs as", text: "You, once, exactly as shown" },
+    ...inputs.map((r) => ({ label: label(r[0]!), text: r[1]! })),
+  ];
 }
 
 /** The phrase after "<Agent> wants to": a known step reads in plain words, any other is its name spelled out. */
@@ -41,7 +65,10 @@ export function wantsPhrase(cap: string, subject?: string, input?: Obj): string 
   // "Send this to Rubab?": the teammate's name, read when the card opens (lane l-agentdm)
   if (cap === "chat.message_person" && subject) return `send this to ${subject}`;
   // an install from a link: the held act carries the plan's card, so the card names what is being installed
-  if (cap === "install.apply" && input) { const c = obj(input["card"]); if (text(c["name"])) return `install ${text(c["name"])}`; }
+  if (cap === "install.apply" && input) {
+    const c = obj(input["card"]);
+    if (text(c["name"])) return `install ${text(c["name"])}`;
+  }
   const base = wantsFromInput(cap, input) ?? WANTS[cap] ?? (cap === "" ? "do a step" : capPhrase(cap));
   const fileStep = cap.startsWith("files.") && cap !== "files.folder.create";
   return subject && (fileStep || cap === "records.update" || cap === "records.delete") ? `${base} ${subject}` : base;
@@ -58,14 +85,22 @@ function outsideTool(input: Obj): { phrase: string; hub?: string; fields: Obj } 
   if (!tool) return null;
   const hub = hubById(text(input["server"]));
   const words = verbPhrase((hub ? tool.replace(/^[A-Za-z0-9]+[_-]/, "") : tool).replace(/[_-]+/g, " "));
-  return { phrase: hub ? `${words} in ${appName(hub.appOf(tool))}` : words, ...(hub ? { hub: hub.name } : {}), fields: obj(input["input"]) };
+  return {
+    phrase: hub ? `${words} in ${appName(hub.appOf(tool))}` : words,
+    ...(hub ? { hub: hub.name } : {}),
+    fields: obj(input["input"]),
+  };
 }
 
 const SKIP = new Set(["idempotencyKey", "reason", "baseVersion", "as"]);
 const cut = (s: string, n: number): string => (s.length <= n ? s : `${s.slice(0, n - 1).trimEnd()}…`);
 const label = (k: string): string => {
   if (k === "url") return "Link";
-  const w = k.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").trim().toLowerCase();
+  const w = k
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .trim()
+    .toLowerCase();
   return w.charAt(0).toUpperCase() + w.slice(1);
 };
 
@@ -80,18 +115,35 @@ export function excerptLines(input: Obj, max = 5, cap?: string): Array<{ label: 
   const out: Array<{ label: string; text: string }> = [];
   const content = obj(input["content"]);
   const body = text(content["text"]);
-  if (body) out.push({ label: "New text", text: cut(body.split("\n").filter((l) => l.trim() !== "").slice(0, 4).join("\n"), 320) });
+  if (body)
+    out.push({
+      label: "New text",
+      text: cut(
+        body
+          .split("\n")
+          .filter((l) => l.trim() !== "")
+          .slice(0, 4)
+          .join("\n"),
+        320,
+      ),
+    });
   for (const [k, v] of Object.entries(input)) {
     if (out.length >= max) break;
     if (SKIP.has(k) || k === "content" || /Id$/.test(k) || k === "id") continue;
-    if (cap === "chat.message_person" && k === "to") continue;   // the headline names the teammate; their id is no line to read
+    if (cap === "chat.message_person" && k === "to") continue; // the headline names the teammate; their id is no line to read
     const t = Array.isArray(v) ? v.map(text).filter(Boolean).join(", ") : text(v);
     if (t) out.push({ label: label(k), text: cut(t, k === "body" || k === "text" ? 320 : 120) });
   }
   return out;
 }
 
-const KIND: Record<string, string> = { skill: "a skill", plugin: "a plugin", mcp_local: "a local MCP server", mcp_remote: "a remote MCP server", site: "a site" };
+const KIND: Record<string, string> = {
+  skill: "a skill",
+  plugin: "a plugin",
+  mcp_local: "a local MCP server",
+  mcp_remote: "a remote MCP server",
+  site: "a site",
+};
 const FOR: Record<string, string> = { me: "Just you", agent: "This agent", space: "Everyone in the Space" };
 /** The held install, from the card the plan put in the act: what it is, what it does, what it needs, the exact commit and who gets it. */
 function installLines(input: Obj): Array<{ label: string; text: string }> {
@@ -123,22 +175,36 @@ export function sentLine(outcome: "allowed" | "denied", subject?: string, inChat
 export const denyNote = (reason: string): string => (reason.trim() === "" ? "Not allowed." : reason.trim());
 
 /** The outcome of a task that has already ended, read from its state. */
-export const outcomeOf = (state: string): "allowed" | "denied" | null => (state === "done" ? "allowed" : state === "canceled" || state === "doing" ? "denied" : null);   // a held call sent back rests in doing
+export const outcomeOf = (state: string): "allowed" | "denied" | null =>
+  state === "done" ? "allowed" : state === "canceled" || state === "doing" ? "denied" : null; // a held call sent back rests in doing
 
-export interface DiffLine { kind: "add" | "del"; text: string }
+export interface DiffLine {
+  kind: "add" | "del";
+  text: string;
+}
 
 /** A compact diff of an edit: the lines taken out and the lines put in, in order, with the unchanged lines left out. At most `max` lines show; `more` counts the rest. Long files are compared on their first 400 lines. */
 export function diffLines(before: string, after: string, max = 8): { lines: DiffLine[]; more: number } {
   const a = before.split("\n").slice(0, 400);
   const b = after.split("\n").slice(0, 400);
   const lcs: number[][] = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
-  for (let i = a.length - 1; i >= 0; i--) for (let j = b.length - 1; j >= 0; j--) lcs[i]![j] = a[i] === b[j] ? lcs[i + 1]![j + 1]! + 1 : Math.max(lcs[i + 1]![j]!, lcs[i]![j + 1]!);
+  for (let i = a.length - 1; i >= 0; i--)
+    for (let j = b.length - 1; j >= 0; j--)
+      lcs[i]![j] = a[i] === b[j] ? lcs[i + 1]![j + 1]! + 1 : Math.max(lcs[i + 1]![j]!, lcs[i]![j + 1]!);
   const out: DiffLine[] = [];
-  let i = 0; let j = 0;
+  let i = 0;
+  let j = 0;
   while (i < a.length || j < b.length) {
-    if (i < a.length && j < b.length && a[i] === b[j]) { i++; j++; }
-    else if (i < a.length && (j === b.length || lcs[i + 1]![j]! >= lcs[i]![j + 1]!)) { if (a[i]!.trim() !== "") out.push({ kind: "del", text: a[i]! }); i++; }
-    else { if (b[j]!.trim() !== "") out.push({ kind: "add", text: b[j]! }); j++; }
+    if (i < a.length && j < b.length && a[i] === b[j]) {
+      i++;
+      j++;
+    } else if (i < a.length && (j === b.length || lcs[i + 1]![j]! >= lcs[i]![j + 1]!)) {
+      if (a[i]!.trim() !== "") out.push({ kind: "del", text: a[i]! });
+      i++;
+    } else {
+      if (b[j]!.trim() !== "") out.push({ kind: "add", text: b[j]! });
+      j++;
+    }
   }
   return { lines: out.slice(0, max), more: Math.max(0, out.length - max) };
 }

@@ -12,7 +12,11 @@ import { buildOpener } from "../session.ts";
 import type { SandboxPlan } from "../sandbox.ts";
 
 const data = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-engine-sbx-")));
-const bw: SandboxPlan = { sandbox: { kind: "bwrap", wallDir: "/tmp/vyre-net-unit", node: "/usr/bin/node" }, dataDir: data, egressHosts: ["api.anthropic.com"] };
+const bw: SandboxPlan = {
+  sandbox: { kind: "bwrap", wallDir: "/tmp/vyre-net-unit", node: "/usr/bin/node" },
+  dataDir: data,
+  egressHosts: ["api.anthropic.com"],
+};
 const env = { CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-key", VYRE_MCP_TOKEN: "mcp-token" };
 
 test("a person's thread gets its own folder under the Space data directory; ids cannot climb out", () => {
@@ -35,7 +39,10 @@ test("bwrap: the work folder is the first rw mount and the directory it starts i
   const binds = argv.flatMap((x, i) => (x === "--bind" ? [argv[i + 1]] : []));
   assert.equal(binds[0], cwd, "bwrap does --chdir to the first mount");
   assert.equal(argv[argv.indexOf("--chdir") + 1], cwd);
-  const setenv = (k: string): string | undefined => { const i = argv.findIndex((x, j) => x === "--setenv" && argv[j + 1] === k); return i < 0 ? undefined : argv[i + 2]; };
+  const setenv = (k: string): string | undefined => {
+    const i = argv.findIndex((x, j) => x === "--setenv" && argv[j + 1] === k);
+    return i < 0 ? undefined : argv[i + 2];
+  };
   assert.equal(setenv("CLAUDE_CODE_OAUTH_TOKEN"), "sk-ant-key");
   assert.equal(setenv("VYRE_MCP_TOKEN"), "mcp-token");
   assert.ok(argv.includes("--clearenv"));
@@ -52,7 +59,10 @@ test("seatbelt: the command is sandbox-exec behind env(1), with the proxy variab
   const at = argv.indexOf("/usr/bin/sandbox-exec");
   assert.ok(at > 0);
   assert.ok(argv[at + 2]!.includes(cwd), "the profile names the work folder");
-  assert.ok(argv[at + 2]!.includes('(allow file-read* (literal "/"))'), "node reads the root directory itself; without this it aborts on start");
+  assert.ok(
+    argv[at + 2]!.includes('(allow file-read* (literal "/"))'),
+    "node reads the root directory itself; without this it aborts on start",
+  );
   // the CLI's own state is in the person's scratch folder, never the real home
   const scratch = path.join(data, "scratch", "usr_dana");
   assert.ok(argv.includes(`HOME=${path.join(scratch, "home")}`));
@@ -64,14 +74,24 @@ test("seatbelt: the command is sandbox-exec behind env(1), with the proxy variab
 
 test("a host placement fails closed with sandbox.unavailable, and so does a missing work folder or a folder that is not a person's thread", () => {
   const cwd = workFolder(data, "usr_dana", "thr_1");
-  for (const kind of ["docker", "server"] as const) assert.throws(() => sandboxWrap({ ...bw, sandbox: { kind } })(["claude"], { env, cwd }), (e: Error & { code?: string }) => e.code === "sandbox.unavailable");
+  for (const kind of ["docker", "server"] as const)
+    assert.throws(
+      () => sandboxWrap({ ...bw, sandbox: { kind } })(["claude"], { env, cwd }),
+      (e: Error & { code?: string }) => e.code === "sandbox.unavailable",
+    );
   assert.throws(() => sandboxWrap(bw)(["claude"], { env }), /needs a work folder/);
   assert.throws(() => sandboxWrap(bw)(["claude"], { env, cwd: os.homedir() }), /not one of the Space's/);
-  assert.throws(() => sandboxWrap(bw)(["claude"], { env, cwd: path.join(data, "work", "usr_dana") }), /not one of the Space's/);
+  assert.throws(
+    () => sandboxWrap(bw)(["claude"], { env, cwd: path.join(data, "work", "usr_dana") }),
+    /not one of the Space's/,
+  );
 });
 
 test("with no sandbox plan a CLI engine never starts: the launcher refuses", async () => {
-  const opener = buildOpener({ session: { source: {} as never, reportMiss: () => undefined, mcp: {} as never }, call: async () => ({}) });
+  const opener = buildOpener({
+    session: { source: {} as never, reportMiss: () => undefined, mcp: {} as never },
+    call: async () => ({}),
+  });
   assert.ok(opener);
   // The refusal is on the launcher the opener was built with; the opener reaches it only for a CLI driver, so the check here is that building without a plan did not fall back to a local launcher.
   const src = fs.readFileSync(new URL("../session.ts", import.meta.url), "utf8");
@@ -83,7 +103,10 @@ test("the default sandbox: Linux without bwrap and an unknown platform say so an
   const { defaultSandbox } = await import("../sandbox-default.ts");
   const noBwrap = await defaultSandbox({ dataDir: data, platform: "linux", bwrapPaths: ["/nonexistent/bwrap"] });
   assert.equal(noBwrap.plan.sandbox.kind, "server");
-  assert.throws(() => sandboxWrap(noBwrap.plan)(["claude"], { env, cwd: workFolder(data, "usr_dana", "thr_1") }), (e: Error & { code?: string }) => e.code === "sandbox.unavailable");
+  assert.throws(
+    () => sandboxWrap(noBwrap.plan)(["claude"], { env, cwd: workFolder(data, "usr_dana", "thr_1") }),
+    (e: Error & { code?: string }) => e.code === "sandbox.unavailable",
+  );
   const win = await defaultSandbox({ dataDir: data, platform: "win32" });
   assert.equal(win.plan.sandbox.kind, "server");
   assert.match((win.plan.sandbox as { reason?: string }).reason ?? "", /Windows/);
@@ -91,7 +114,11 @@ test("the default sandbox: Linux without bwrap and an unknown platform say so an
   assert.match((bsd.plan.sandbox as { reason?: string }).reason ?? "", /freebsd/);
   const { cliSandboxGap } = await import("../sandbox-default.ts");
   assert.equal(cliSandboxGap({ platform: "darwin" }), null);
-  assert.equal(cliSandboxGap({ platform: "win32" }), (win.plan.sandbox as { reason?: string }).reason, "one reason, wherever it is shown");
+  assert.equal(
+    cliSandboxGap({ platform: "win32" }),
+    (win.plan.sandbox as { reason?: string }).reason,
+    "one reason, wherever it is shown",
+  );
   await noBwrap.close();
   await win.close();
   await bsd.close();
@@ -99,36 +126,82 @@ test("the default sandbox: Linux without bwrap and an unknown platform say so an
 
 test("PATH for a CLI engine: an app from the Finder gets the folders a shell would add, only the ones that exist, and other platforms keep their PATH", () => {
   const home = "/Users/dana";
-  const there = new Set(["/Users/dana/.local/bin", "/opt/homebrew/bin", "/Users/dana/.nvm/versions/node", "/Users/dana/.nvm/versions/node/v22.1.0/bin", "/Users/dana/.nvm/versions/node/v24.15.0/bin"]);
+  const there = new Set([
+    "/Users/dana/.local/bin",
+    "/opt/homebrew/bin",
+    "/Users/dana/.nvm/versions/node",
+    "/Users/dana/.nvm/versions/node/v22.1.0/bin",
+    "/Users/dana/.nvm/versions/node/v24.15.0/bin",
+  ]);
   const exists = (p: string): boolean => there.has(p);
   const list = (): string[] => ["v22.1.0", "v24.15.0", "default"];
   const got = enginePath({ PATH: "/usr/bin:/bin" }, home, "darwin", exists, list).split(":");
-  assert.deepEqual(got, ["/usr/bin", "/bin", "/Users/dana/.local/bin", "/opt/homebrew/bin", "/Users/dana/.nvm/versions/node/v24.15.0/bin", "/Users/dana/.nvm/versions/node/v22.1.0/bin"]);
-  assert.equal(enginePath({ PATH: "/usr/bin:/opt/homebrew/bin" }, home, "darwin", exists, list).split(":").filter((p) => p === "/opt/homebrew/bin").length, 1, "no duplicates");
+  assert.deepEqual(got, [
+    "/usr/bin",
+    "/bin",
+    "/Users/dana/.local/bin",
+    "/opt/homebrew/bin",
+    "/Users/dana/.nvm/versions/node/v24.15.0/bin",
+    "/Users/dana/.nvm/versions/node/v22.1.0/bin",
+  ]);
+  assert.equal(
+    enginePath({ PATH: "/usr/bin:/opt/homebrew/bin" }, home, "darwin", exists, list)
+      .split(":")
+      .filter((p) => p === "/opt/homebrew/bin").length,
+    1,
+    "no duplicates",
+  );
   assert.equal(enginePath({ PATH: "/usr/bin:/bin" }, home, "linux", exists, list), "/usr/bin:/bin");
 });
 
 test("PATH for a CLI engine: the CLIs inside the ChatGPT and Claude apps are never used; Vyre's own pinned copies come after a person's own installs", () => {
   const home = "/Users/dana";
   const cc = "/Users/dana/Library/Application Support/Claude/claude-code";
-  const there = new Set(["/Users/dana/.local/bin", "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin", cc, `${cc}/2.1.10/a2/claude.app/Contents/MacOS`, "/vyre/engines/codex/0.166.0"]);
-  const list = (p: string): string[] => p === cc ? ["2.1.10"] : p === `${cc}/2.1.10` ? ["a2"] : [];
-  const got = enginePath({ PATH: "/usr/bin:/bin" }, home, "darwin", (p) => there.has(p), list, ["/vyre/engines/codex/0.166.0"]).split(":");
+  const there = new Set([
+    "/Users/dana/.local/bin",
+    "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin",
+    cc,
+    `${cc}/2.1.10/a2/claude.app/Contents/MacOS`,
+    "/vyre/engines/codex/0.166.0",
+  ]);
+  const list = (p: string): string[] => (p === cc ? ["2.1.10"] : p === `${cc}/2.1.10` ? ["a2"] : []);
+  const got = enginePath({ PATH: "/usr/bin:/bin" }, home, "darwin", (p) => there.has(p), list, [
+    "/vyre/engines/codex/0.166.0",
+  ]).split(":");
   assert.deepEqual(got, ["/usr/bin", "/bin", "/Users/dana/.local/bin", "/vyre/engines/codex/0.166.0"]);
   const app = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex";
-  assert.equal(findProgram("codex", { platform: "darwin", env: { PATH: "/usr/bin:/bin", HOME: home }, exists: (p) => p === app || there.has(p) }), null, "the ChatGPT app's codex is not a codex Vyre runs");
+  assert.equal(
+    findProgram("codex", {
+      platform: "darwin",
+      env: { PATH: "/usr/bin:/bin", HOME: home },
+      exists: (p) => p === app || there.has(p),
+    }),
+    null,
+    "the ChatGPT app's codex is not a codex Vyre runs",
+  );
 });
 
 test("CLI install roots: the folder of the link and the prefix above it, never the home, a parent of it, or the folders of a person's sign-ins and history", () => {
   const home = "/Users/dana";
   const files = new Map([
-    ["/Users/dana/.nvm/versions/node/v24.15.0/bin/claude", "/Users/dana/.nvm/versions/node/v24.15.0/lib/node_modules/@anthropic-ai/claude-code/cli.js"],
+    [
+      "/Users/dana/.nvm/versions/node/v24.15.0/bin/claude",
+      "/Users/dana/.nvm/versions/node/v24.15.0/lib/node_modules/@anthropic-ai/claude-code/cli.js",
+    ],
     ["/Users/dana/.claude/local/claude", "/Users/dana/.claude/local/node_modules/.bin/claude"],
     ["/opt/homebrew/bin/codex", "/opt/homebrew/Cellar/codex/1.0/bin/codex"],
     ["/Users/dana/bin/grok", "/Users/dana/bin/grok"],
   ]);
-  const roots = cliInstallRoots({ PATH: [...files.keys()].map((f) => path.dirname(f)).join(":") }, home, (p) => files.has(p), (p) => files.get(p) ?? p);
-  assert.ok(roots.includes("/Users/dana/.nvm/versions/node/v24.15.0"), "the nvm prefix holds the CLI, its node_modules and its node");
+  const roots = cliInstallRoots(
+    { PATH: [...files.keys()].map((f) => path.dirname(f)).join(":") },
+    home,
+    (p) => files.has(p),
+    (p) => files.get(p) ?? p,
+  );
+  assert.ok(
+    roots.includes("/Users/dana/.nvm/versions/node/v24.15.0"),
+    "the nvm prefix holds the CLI, its node_modules and its node",
+  );
   assert.ok(roots.includes("/Users/dana/.claude/local"), "Claude Code's own installer folder");
   assert.ok(!roots.includes("/Users/dana/.claude"), "the folder of her history and sign-in is not opened");
   assert.ok(!roots.includes("/Users/dana") && !roots.includes("/Users") && !roots.includes("/"));
@@ -139,11 +212,15 @@ test("CLI install roots: the folder of the link and the prefix above it, never t
 test("bwrap with sign-in files: the scratch folder's home is bound as the sandbox's home instead of an empty one, and without the option the home stays empty", () => {
   const cwd = workFolder(data, "usr_dana", "thr_home");
   const withHome = sandboxWrap(bw, { homeFromScratch: true })(["codex", "exec"], { env, cwd });
-  const pairs = (argv: string[], flag: string): string[][] => argv.flatMap((x, i) => (x === flag ? [[argv[i + 1] as string, argv[i + 2] as string]] : []));
+  const pairs = (argv: string[], flag: string): string[][] =>
+    argv.flatMap((x, i) => (x === flag ? [[argv[i + 1] as string, argv[i + 2] as string]] : []));
   const bound = pairs(withHome, "--bind").find((p) => p[1] === "/home/agent");
   assert.ok(bound, "a bind onto the sandbox home");
   assert.equal(path.basename(bound[0] as string), "home");
-  assert.ok((bound[0] as string).startsWith(path.join(data, "scratch")), "the bound folder is inside the person's scratch folder");
+  assert.ok(
+    (bound[0] as string).startsWith(path.join(data, "scratch")),
+    "the bound folder is inside the person's scratch folder",
+  );
   assert.ok(!pairs(withHome, "--tmpfs").some((p) => p[0] === "/home/agent"), "no empty home on top of it");
   const plain = sandboxWrap(bw)(["codex", "exec"], { env, cwd });
   assert.ok(plain.some((x, i) => x === "--tmpfs" && plain[i + 1] === "/home/agent"));
@@ -151,16 +228,46 @@ test("bwrap with sign-in files: the scratch folder's home is bound as the sandbo
 });
 
 test("Apple's git under Seatbelt needs the developer folders open for reading: the one xcode-select names, and the fixed ones that exist", () => {
-  const there = new Set(["/Library/Developer/CommandLineTools", "/Applications/Xcode.app/Contents", "/Library/Preferences/com.apple.dt.Xcode.plist", "/Applications/Xcode_26.6.app/Contents"]);
-  assert.deepEqual(appleDeveloperRoots((p) => there.has(p), null), ["/Library/Developer/CommandLineTools", "/Applications/Xcode.app/Contents", "/Library/Preferences/com.apple.dt.Xcode.plist"]);
-  assert.deepEqual(appleDeveloperRoots((p) => there.has(p), "/Applications/Xcode_26.6.app/Contents/Developer"), ["/Applications/Xcode_26.6.app/Contents", "/Library/Developer/CommandLineTools", "/Applications/Xcode.app/Contents", "/Library/Preferences/com.apple.dt.Xcode.plist"], "a hosted runner's Xcode is named by version");
-  assert.deepEqual(appleDeveloperRoots(() => false, "/x/Contents/Developer"), []);
-  assert.deepEqual(appleDeveloperRoots((p) => p === "/Library/Developer/CommandLineTools", "/Library/Developer/CommandLineTools"), ["/Library/Developer/CommandLineTools"]);
+  const there = new Set([
+    "/Library/Developer/CommandLineTools",
+    "/Applications/Xcode.app/Contents",
+    "/Library/Preferences/com.apple.dt.Xcode.plist",
+    "/Applications/Xcode_26.6.app/Contents",
+  ]);
+  assert.deepEqual(
+    appleDeveloperRoots((p) => there.has(p), null),
+    [
+      "/Library/Developer/CommandLineTools",
+      "/Applications/Xcode.app/Contents",
+      "/Library/Preferences/com.apple.dt.Xcode.plist",
+    ],
+  );
+  assert.deepEqual(
+    appleDeveloperRoots((p) => there.has(p), "/Applications/Xcode_26.6.app/Contents/Developer"),
+    [
+      "/Applications/Xcode_26.6.app/Contents",
+      "/Library/Developer/CommandLineTools",
+      "/Applications/Xcode.app/Contents",
+      "/Library/Preferences/com.apple.dt.Xcode.plist",
+    ],
+    "a hosted runner's Xcode is named by version",
+  );
+  assert.deepEqual(
+    appleDeveloperRoots(() => false, "/x/Contents/Developer"),
+    [],
+  );
+  assert.deepEqual(
+    appleDeveloperRoots((p) => p === "/Library/Developer/CommandLineTools", "/Library/Developer/CommandLineTools"),
+    ["/Library/Developer/CommandLineTools"],
+  );
 });
 
 test("two CLI agents working for one person in one chat get a folder each: neither reads the other's memory guide; the chat's shared folder is common to both", async () => {
   const { prepareWorkFolder } = await import("../session.ts");
-  const maps: Record<string, string> = { agt_a: "A: the Rivera file is closed", agt_b: "B: the Patel lease renews in May" };
+  const maps: Record<string, string> = {
+    agt_a: "A: the Rivera file is closed",
+    agt_b: "B: the Patel lease renews in May",
+  };
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     const agentId = (input as { agentId?: string }).agentId ?? "";
     if (cap === "agents.get") return { agent: { name: agentId === "agt_a" ? "Ada" : "Bo" } };
@@ -174,14 +281,27 @@ test("two CLI agents working for one person in one chat get a folder each: neith
   const b = workFolder(data, "usr_dana", "thr_two", "agt_b");
   assert.notEqual(a, b, "each agent has its own folder");
   assert.match(fs.readFileSync(path.join(a, "CLAUDE.md"), "utf8"), /Rivera/);
-  assert.doesNotMatch(fs.readFileSync(path.join(a, "CLAUDE.md"), "utf8"), /Patel/, "the agent that opened second did not overwrite the first one's guide");
+  assert.doesNotMatch(
+    fs.readFileSync(path.join(a, "CLAUDE.md"), "utf8"),
+    /Patel/,
+    "the agent that opened second did not overwrite the first one's guide",
+  );
   assert.match(fs.readFileSync(path.join(b, "AGENTS.md"), "utf8"), /Patel/);
   // the sandbox of one mounts its own folder and the chat's shared folder, never the other agent's
   const argv = sandboxWrap(bw)(["claude", "-p"], { env, cwd: a });
   const binds = argv.flatMap((x, i) => (x === "--bind" ? [argv[i + 1]] : []));
   assert.equal(binds[0], a, "its own folder is where it starts");
-  assert.ok(binds.includes(path.join(data, "work", "usr_dana", "thr_two", "shared")), "the chat's shared folder is mounted too");
-  assert.ok(!binds.some((x) => x === b || x === path.join(data, "work", "usr_dana", "thr_two")), "neither the other agent's folder nor the chat folder above both");
+  assert.ok(
+    binds.includes(path.join(data, "work", "usr_dana", "thr_two", "shared")),
+    "the chat's shared folder is mounted too",
+  );
+  assert.ok(
+    !binds.some((x) => x === b || x === path.join(data, "work", "usr_dana", "thr_two")),
+    "neither the other agent's folder nor the chat folder above both",
+  );
   // an agent's folder cannot be named "shared", and an agent cannot start in the shared folder
-  assert.throws(() => sandboxWrap(bw)(["claude"], { env, cwd: path.join(data, "work", "usr_dana", "thr_two", "shared") }), /not one of the Space's/);
+  assert.throws(
+    () => sandboxWrap(bw)(["claude"], { env, cwd: path.join(data, "work", "usr_dana", "thr_two", "shared") }),
+    /not one of the Space's/,
+  );
 });

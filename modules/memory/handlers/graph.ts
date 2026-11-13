@@ -12,19 +12,49 @@ import type { Layer, MemCtx, Row } from "../projections.ts";
 type NodeKind = "note" | "person" | "client" | "project" | "site" | "decision" | "record" | "chat" | "agent" | "topic";
 
 interface GNode {
-  nodeId: string; kind: NodeKind; title: string; layer: Layer | null; agentId: string | null; projectId: string | null; resType: string; resId: string; link: string | null; createdAt: number;
+  nodeId: string;
+  kind: NodeKind;
+  title: string;
+  layer: Layer | null;
+  agentId: string | null;
+  projectId: string | null;
+  resType: string;
+  resId: string;
+  link: string | null;
+  createdAt: number;
 }
-interface GEdge { from: string; to: string; kind: "link" | "relation" | "came_from" | "mention"; label?: string; evidence?: string; at?: number; message?: string; source?: { title: string; link?: string; kind: string } }
+interface GEdge {
+  from: string;
+  to: string;
+  kind: "link" | "relation" | "came_from" | "mention";
+  label?: string;
+  evidence?: string;
+  at?: number;
+  message?: string;
+  source?: { title: string; link?: string; kind: string };
+}
 
 const KIND_OF_TYPE: Readonly<Record<string, NodeKind>> = {
-  person: "person", contact: "person", client: "client", company: "client", account: "client", project: "project", site: "site", decision: "decision",
+  person: "person",
+  contact: "person",
+  client: "client",
+  company: "client",
+  account: "client",
+  project: "project",
+  site: "site",
+  decision: "decision",
 };
 
 // ---- index_graph
 
 export async function indexGraph(ctx: MemCtx, input: { entity: string; id: string; seq: number }) {
   ensure(ctx.db);
-  const seen = rowsOf(ctx.db, "SELECT seq FROM memory_graph_seen WHERE entity = ? AND ref = ?", input.entity, input.id)[0];
+  const seen = rowsOf(
+    ctx.db,
+    "SELECT seq FROM memory_graph_seen WHERE entity = ? AND ref = ?",
+    input.entity,
+    input.id,
+  )[0];
   if (seen && num(seen["seq"]) >= input.seq) return { nodes: 0, edges: 0 };
   const [base, sub] = input.entity.split(":");
   let out: { nodes: number; edges: number };
@@ -34,7 +64,12 @@ export async function indexGraph(ctx: MemCtx, input: { entity: string; id: strin
     out = await indexRecord(ctx, sub, input.id);
   } else if (base === "chat" || base === "thread") out = await indexChat(ctx, input.id);
   else raise(ctx, "validation.bad_input", "Memory indexes files, records and chats.", { entity: input.entity });
-  ctx.db.run("INSERT OR REPLACE INTO memory_graph_seen (entity, ref, seq) VALUES (?, ?, ?)", input.entity, input.id, input.seq);
+  ctx.db.run(
+    "INSERT OR REPLACE INTO memory_graph_seen (entity, ref, seq) VALUES (?, ?, ?)",
+    input.entity,
+    input.id,
+    input.seq,
+  );
   return out;
 }
 
@@ -48,14 +83,30 @@ function removeNode(ctx: MemCtx, nodeId: string): void {
 function putNode(ctx: MemCtx, n: GNode): void {
   ctx.db.run(
     "INSERT INTO memory_graph_nodes (node_id, kind, title, layer, agent_id, project_id, res_type, res_id, link, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
-    "ON CONFLICT (node_id) DO UPDATE SET kind = excluded.kind, title = excluded.title, layer = excluded.layer, agent_id = excluded.agent_id, project_id = excluded.project_id, res_type = excluded.res_type, res_id = excluded.res_id, link = excluded.link, updated_at = excluded.updated_at",
-    n.nodeId, n.kind, n.title, n.layer, n.agentId, n.projectId, n.resType, n.resId, n.link, n.createdAt, ctx.now(),
+      "ON CONFLICT (node_id) DO UPDATE SET kind = excluded.kind, title = excluded.title, layer = excluded.layer, agent_id = excluded.agent_id, project_id = excluded.project_id, res_type = excluded.res_type, res_id = excluded.res_id, link = excluded.link, updated_at = excluded.updated_at",
+    n.nodeId,
+    n.kind,
+    n.title,
+    n.layer,
+    n.agentId,
+    n.projectId,
+    n.resType,
+    n.resId,
+    n.link,
+    n.createdAt,
+    ctx.now(),
   );
 }
 
 const noteIdOf = (fileId: string): string => `not_${fileId.replace(/^[a-z]+_/, "").replace(/[^a-z0-9]/g, "") || "x"}`;
 
-interface Where { layer: Layer; area: string; agentName: string | null; projectName: string | null; personFolder: string | null }
+interface Where {
+  layer: Layer;
+  area: string;
+  agentName: string | null;
+  projectName: string | null;
+  personFolder: string | null;
+}
 
 /** Which memory layer a file sits in, from its path. Null when the file is not memory. */
 export function classify(path: string): Where | null {
@@ -66,7 +117,14 @@ export function classify(path: string): Where | null {
   m = /^Projects\/([^/]+)\/memory(?:\/(notes|proposed|recipes|journal))?(?:\/|$)/.exec(p);
   if (m) return { layer: "project", area: area(m[2]), agentName: null, projectName: m[1] ?? null, personFolder: null };
   m = /^People\/([^/]+)\/memory\/([^/]+)(?:\/(notes|proposed|recipes|journal))?(?:\/|$)/.exec(p);
-  if (m) return { layer: "person", area: area(m[3]), agentName: m[2] ?? null, projectName: null, personFolder: m[1] ?? null };
+  if (m)
+    return {
+      layer: "person",
+      area: area(m[3]),
+      agentName: m[2] ?? null,
+      projectName: null,
+      personFolder: m[1] ?? null,
+    };
   m = /^(?:Knowledge\/)?Memory(?:\/(notes|proposed|recipes|journal))?(?:\/|$)/.exec(p);
   if (m) return { layer: "space", area: area(m[1]), agentName: null, projectName: null, personFolder: null };
   return null;
@@ -81,7 +139,9 @@ async function idByName(ctx: MemCtx, kind: "agent" | "project", name: string): P
     }
     const out = (await ctx.call("projects.list", {})) as { projects: Array<{ projectId: string; title: string }> };
     return out.projects.find((p) => p.title.toLowerCase() === want)?.projectId ?? null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 async function indexFile(ctx: MemCtx, fileId: string): Promise<{ nodes: number; edges: number }> {
@@ -91,51 +151,120 @@ async function indexFile(ctx: MemCtx, fileId: string): Promise<{ nodes: number; 
     ctx.db.run("DELETE FROM memory_notes WHERE file_id = ?", fileId);
     return { nodes: 0, edges: 0 };
   };
-  let file: { fileId: string; folderId: string; name: string; ownerId: string; createdAt: number; updatedAt: number; deletedAt?: number; kind: string };
+  let file: {
+    fileId: string;
+    folderId: string;
+    name: string;
+    ownerId: string;
+    createdAt: number;
+    updatedAt: number;
+    deletedAt?: number;
+    kind: string;
+  };
   let folderPath: string;
   try {
     file = ((await ctx.call("files.get", { fileId })) as { file: typeof file }).file;
     if (file.deletedAt !== undefined) return gone();
-    folderPath = ((await ctx.call("files.folder.get", { folderId: file.folderId })) as { folder: { path: string } }).folder.path;
-  } catch { return gone(); }
+    folderPath = ((await ctx.call("files.folder.get", { folderId: file.folderId })) as { folder: { path: string } })
+      .folder.path;
+  } catch {
+    return gone();
+  }
   const where = classify(`${folderPath}/${file.name}`);
-  if (!where || (file.kind !== "markdown" && file.kind !== "text" && !/\.(md|markdown|txt)$/i.test(file.name))) return gone();
+  if (!where || (file.kind !== "markdown" && file.kind !== "text" && !/\.(md|markdown|txt)$/i.test(file.name)))
+    return gone();
 
   let md = "";
   // what an agent may read of the note (Redaction for AI): [REDACTED] where a part is hidden, nothing while it waits for review or is Not available
-  try { md = str(((await ctx.call("files.agent_view", { fileId })) as { text?: string | null }).text); } catch { md = ""; }
+  try {
+    md = str(((await ctx.call("files.agent_view", { fileId })) as { text?: string | null }).text);
+  } catch {
+    md = "";
+  }
   const fm = frontmatter(md);
-  const title = fm.data["title"] ?? headings(fm.body).find((h) => h.level === 1)?.text ?? file.name.replace(/\.[a-z0-9]+$/i, "");
+  const title =
+    fm.data["title"] ?? headings(fm.body).find((h) => h.level === 1)?.text ?? file.name.replace(/\.[a-z0-9]+$/i, "");
   const agentId = where.agentName ? await idByName(ctx, "agent", where.agentName) : null;
   const projectId = where.projectName ? await idByName(ctx, "project", where.projectName) : null;
-  const owner = where.layer === "person" ? file.ownerId : where.layer === "agent" ? agentId ?? where.agentName ?? "" : where.layer === "project" ? projectId ?? where.projectName ?? "" : ctx.space;
+  const owner =
+    where.layer === "person"
+      ? file.ownerId
+      : where.layer === "agent"
+        ? (agentId ?? where.agentName ?? "")
+        : where.layer === "project"
+          ? (projectId ?? where.projectName ?? "")
+          : ctx.space;
   const noteId = noteIdOf(fileId);
   const personal = where.layer === "person";
   ctx.db.run(
     "INSERT INTO memory_notes (note_id, file_id, path, title, sealed_title, layer, owner_ref, agent_id, project_id, area, body, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
-    "ON CONFLICT (note_id) DO UPDATE SET path = excluded.path, title = excluded.title, sealed_title = excluded.sealed_title, layer = excluded.layer, owner_ref = excluded.owner_ref, agent_id = excluded.agent_id, project_id = excluded.project_id, area = excluded.area, body = excluded.body, updated_at = excluded.updated_at",
-    noteId, fileId, `${folderPath}/${file.name}`, personal ? "" : title, personal ? sealText(ctx, owner, title) : null, where.layer, owner, agentId, projectId, where.area, personal ? "" : fm.body, file.updatedAt,
+      "ON CONFLICT (note_id) DO UPDATE SET path = excluded.path, title = excluded.title, sealed_title = excluded.sealed_title, layer = excluded.layer, owner_ref = excluded.owner_ref, agent_id = excluded.agent_id, project_id = excluded.project_id, area = excluded.area, body = excluded.body, updated_at = excluded.updated_at",
+    noteId,
+    fileId,
+    `${folderPath}/${file.name}`,
+    personal ? "" : title,
+    personal ? sealText(ctx, owner, title) : null,
+    where.layer,
+    owner,
+    agentId,
+    projectId,
+    where.area,
+    personal ? "" : fm.body,
+    file.updatedAt,
   );
   // A personal layer is never in the graph; if the file was a node before it moved here, it goes.
   if (personal) {
     removeNode(ctx, nodeId);
     return { nodes: 0, edges: 0 };
   }
-  putNode(ctx, { nodeId, kind: "note", title, layer: where.layer, agentId, projectId, resType: "file", resId: fileId, link: `/files/${fileId}`, createdAt: file.createdAt });
+  putNode(ctx, {
+    nodeId,
+    kind: "note",
+    title,
+    layer: where.layer,
+    agentId,
+    projectId,
+    resType: "file",
+    resId: fileId,
+    link: `/files/${fileId}`,
+    createdAt: file.createdAt,
+  });
   ctx.db.run("DELETE FROM memory_graph_edges WHERE from_id = ? AND kind = 'link'", nodeId);
   ctx.db.run("DELETE FROM memory_graph_links WHERE from_id = ?", nodeId);
   let edges = 0;
   for (const target of new Set(mdLinks(fm.body).wiki)) {
-    const hit = rowsOf(ctx.db, "SELECT node_id FROM memory_graph_nodes WHERE kind = 'note' AND LOWER(title) = ? AND node_id != ?", target.toLowerCase(), nodeId)[0];
+    const hit = rowsOf(
+      ctx.db,
+      "SELECT node_id FROM memory_graph_nodes WHERE kind = 'note' AND LOWER(title) = ? AND node_id != ?",
+      target.toLowerCase(),
+      nodeId,
+    )[0];
     if (hit) {
-      ctx.db.run("INSERT OR IGNORE INTO memory_graph_edges (from_id, to_id, kind) VALUES (?, ?, 'link')", nodeId, str(hit["node_id"]));
+      ctx.db.run(
+        "INSERT OR IGNORE INTO memory_graph_edges (from_id, to_id, kind) VALUES (?, ?, 'link')",
+        nodeId,
+        str(hit["node_id"]),
+      );
       edges++;
-    } else ctx.db.run("INSERT OR IGNORE INTO memory_graph_links (from_id, target) VALUES (?, ?)", nodeId, target.toLowerCase());
+    } else
+      ctx.db.run(
+        "INSERT OR IGNORE INTO memory_graph_links (from_id, target) VALUES (?, ?)",
+        nodeId,
+        target.toLowerCase(),
+      );
   }
   // Notes that linked to this title before it existed.
   for (const r of rowsOf(ctx.db, "SELECT from_id FROM memory_graph_links WHERE target = ?", title.toLowerCase())) {
-    ctx.db.run("INSERT OR IGNORE INTO memory_graph_edges (from_id, to_id, kind) VALUES (?, ?, 'link')", str(r["from_id"]), nodeId);
-    ctx.db.run("DELETE FROM memory_graph_links WHERE from_id = ? AND target = ?", str(r["from_id"]), title.toLowerCase());
+    ctx.db.run(
+      "INSERT OR IGNORE INTO memory_graph_edges (from_id, to_id, kind) VALUES (?, ?, 'link')",
+      str(r["from_id"]),
+      nodeId,
+    );
+    ctx.db.run(
+      "DELETE FROM memory_graph_links WHERE from_id = ? AND target = ?",
+      str(r["from_id"]),
+      title.toLowerCase(),
+    );
     edges++;
   }
   return { nodes: 1, edges };
@@ -153,18 +282,34 @@ async function indexRecord(ctx: MemCtx, type: string, id: string): Promise<{ nod
     return { nodes: 0, edges: 0 };
   }
   const f = rec.fields;
-  const named = ["name", "title", "full_name", "subject"].map((k) => f[k]).find((v) => typeof v === "string" && v.trim() !== "");
+  const named = ["name", "title", "full_name", "subject"]
+    .map((k) => f[k])
+    .find((v) => typeof v === "string" && v.trim() !== "");
   putNode(ctx, {
-    nodeId, kind: KIND_OF_TYPE[type] ?? "record", title: typeof named === "string" ? named : id, layer: null, agentId: null, projectId: null, resType: "record", resId: id, link: `/records/${id}`, createdAt: rec.createdAt,
+    nodeId,
+    kind: KIND_OF_TYPE[type] ?? "record",
+    title: typeof named === "string" ? named : id,
+    layer: null,
+    agentId: null,
+    projectId: null,
+    resType: "record",
+    resId: id,
+    link: `/records/${id}`,
+    createdAt: rec.createdAt,
   });
   ctx.db.run("DELETE FROM memory_graph_edges WHERE from_id = ? AND kind = 'relation'", nodeId);
   let edges = 0;
   const written: Array<{ target: string; quote: string; at: number }> = [];
   for (const v of Object.values(f)) {
     for (const x of Array.isArray(v) ? v : [v]) {
-      if (typeof x === "string" && x.includes("[[")) for (const l of parseLinks(x)) written.push({ target: l.target, quote: l.evidence, at: rec.createdAt });
+      if (typeof x === "string" && x.includes("[["))
+        for (const l of parseLinks(x)) written.push({ target: l.target, quote: l.evidence, at: rec.createdAt });
       if (typeof x === "string" && /^rec_[a-z0-9]+$/.test(x) && x !== id) {
-        ctx.db.run("INSERT OR IGNORE INTO memory_graph_edges (from_id, to_id, kind) VALUES (?, ?, 'relation')", nodeId, `record:${x}`);
+        ctx.db.run(
+          "INSERT OR IGNORE INTO memory_graph_edges (from_id, to_id, kind) VALUES (?, ?, 'relation')",
+          nodeId,
+          `record:${x}`,
+        );
         edges++;
       }
     }
@@ -176,19 +321,48 @@ async function indexRecord(ctx: MemCtx, type: string, id: string): Promise<{ nod
 async function indexChat(ctx: MemCtx, threadId: string): Promise<{ nodes: number; edges: number }> {
   const nodeId = `chat:${threadId}`;
   try {
-    const t = ((await ctx.call("threads.get", { threadId })) as { thread: { title?: string; createdAt: number; kind?: string } }).thread;
-    putNode(ctx, { nodeId, kind: "chat", title: t.title ?? "Chat", layer: null, agentId: null, projectId: null, resType: "thread", resId: threadId, link: `/chats/${threadId}`, createdAt: t.createdAt });
+    const t = (
+      (await ctx.call("threads.get", { threadId })) as { thread: { title?: string; createdAt: number; kind?: string } }
+    ).thread;
+    putNode(ctx, {
+      nodeId,
+      kind: "chat",
+      title: t.title ?? "Chat",
+      layer: null,
+      agentId: null,
+      projectId: null,
+      resType: "thread",
+      resId: threadId,
+      link: `/chats/${threadId}`,
+      createdAt: t.createdAt,
+    });
     // [[links]] written in the chat make it a backlink of the page they name. A body that is still sealed cannot be read and is skipped.
     let edges = 0;
     try {
-      const page = (await ctx.call("chat.messages.list", { threadId, limit: 200 })) as { messages: Array<{ body?: string; enc?: unknown; createdAt?: number; at?: number }> };
+      const page = (await ctx.call("chat.messages.list", { threadId, limit: 200 })) as {
+        messages: Array<{ body?: string; enc?: unknown; createdAt?: number; at?: number }>;
+      };
       const found: Array<{ target: string; quote: string; at: number; message?: string }> = [];
-      for (const m of page.messages as Array<{ messageId?: string; body?: string; enc?: unknown; createdAt?: number; at?: number }>) {
+      for (const m of page.messages as Array<{
+        messageId?: string;
+        body?: string;
+        enc?: unknown;
+        createdAt?: number;
+        at?: number;
+      }>) {
         if (typeof m.body !== "string" || (m.enc && /^enc2\.\d+\./.test(m.body))) continue;
-        for (const l of parseLinks(m.body)) found.push({ target: l.target, quote: l.evidence, at: m.createdAt ?? m.at ?? ctx.now(), ...(m.messageId ? { message: m.messageId } : {}) });
+        for (const l of parseLinks(m.body))
+          found.push({
+            target: l.target,
+            quote: l.evidence,
+            at: m.createdAt ?? m.at ?? ctx.now(),
+            ...(m.messageId ? { message: m.messageId } : {}),
+          });
       }
       edges = replaceMentions(ctx, t.kind === "run" ? "run" : "chat", threadId, "thread", threadId, found);
-    } catch { /* no messages to read: the node stays */ }
+    } catch {
+      /* no messages to read: the node stays */
+    }
     return { nodes: 1, edges };
   } catch {
     removeNode(ctx, nodeId);
@@ -200,19 +374,37 @@ async function indexChat(ctx: MemCtx, threadId: string): Promise<{ nodes: number
 /** The page a [[link]] names: a page in a shared layer by title (a personal page is never linked to from a chat or record), or the pending key until it exists. */
 function pageKeyFor(ctx: MemCtx, target: string): string {
   const key = subjectKey(target);
-  const hit = rowsOf(ctx.db, "SELECT page_id FROM memory_pages WHERE subject = ? AND layer != 'person' AND trashed_at IS NULL ORDER BY CASE layer WHEN 'space' THEN 0 WHEN 'project' THEN 1 ELSE 2 END, created_at LIMIT 1", key)[0];
+  const hit = rowsOf(
+    ctx.db,
+    "SELECT page_id FROM memory_pages WHERE subject = ? AND layer != 'person' AND trashed_at IS NULL ORDER BY CASE layer WHEN 'space' THEN 0 WHEN 'project' THEN 1 ELSE 2 END, created_at LIMIT 1",
+    key,
+  )[0];
   return hit ? str(hit["page_id"]) : `~${key}`;
 }
 
 /** Make the mentions of one source (a chat, a run, a record) match what it holds now. */
-function replaceMentions(ctx: MemCtx, kind: "chat" | "run" | "record", ref: string, resType: string, resId: string, found: Array<{ target: string; quote: string; at: number; message?: string }>): number {
+function replaceMentions(
+  ctx: MemCtx,
+  kind: "chat" | "run" | "record",
+  ref: string,
+  resType: string,
+  resId: string,
+  found: Array<{ target: string; quote: string; at: number; message?: string }>,
+): number {
   ctx.db.run("DELETE FROM memory_mentions WHERE source_kind = ? AND source_ref = ?", kind, ref);
   let n = 0;
   for (const f of found) {
     const page = pageKeyFor(ctx, f.target);
     ctx.db.run(
       "INSERT OR IGNORE INTO memory_mentions (page_id, source_kind, source_ref, message_id, res_type, res_id, quote, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      page, kind, ref, f.message ?? null, resType, resId, f.quote.length > 240 ? `${f.quote.slice(0, 237)}...` : f.quote, f.at,
+      page,
+      kind,
+      ref,
+      f.message ?? null,
+      resType,
+      resId,
+      f.quote.length > 240 ? `${f.quote.slice(0, 237)}...` : f.quote,
+      f.at,
     );
     n++;
   }
@@ -222,15 +414,33 @@ function replaceMentions(ctx: MemCtx, kind: "chat" | "run" | "record", ref: stri
 // ---- build the graph
 
 interface Built {
-  nodes: Array<{ nodeId: string; kind: NodeKind; title: string; pageId?: string; layer?: Layer; cluster?: string; x: number; y: number; link?: string }>;
+  nodes: Array<{
+    nodeId: string;
+    kind: NodeKind;
+    title: string;
+    pageId?: string;
+    layer?: Layer;
+    cluster?: string;
+    x: number;
+    y: number;
+    link?: string;
+  }>;
   edges: GEdge[];
   clusters: Array<{ name: string; hub: string; size: number }>;
 }
 
 function nodeOf(r: Row): GNode {
   return {
-    nodeId: str(r["node_id"]), kind: str(r["kind"]) as NodeKind, title: str(r["title"]), layer: (orNull(r["layer"]) as Layer | null), agentId: orNull(r["agent_id"]), projectId: orNull(r["project_id"]),
-    resType: str(r["res_type"]), resId: str(r["res_id"]), link: orNull(r["link"]), createdAt: num(r["created_at"]),
+    nodeId: str(r["node_id"]),
+    kind: str(r["kind"]) as NodeKind,
+    title: str(r["title"]),
+    layer: orNull(r["layer"]) as Layer | null,
+    agentId: orNull(r["agent_id"]),
+    projectId: orNull(r["project_id"]),
+    resType: str(r["res_type"]),
+    resId: str(r["res_id"]),
+    link: orNull(r["link"]),
+    createdAt: num(r["created_at"]),
   };
 }
 
@@ -257,7 +467,14 @@ function layout(groups: GNode[][], hubs: string[]): Map<string, { x: number; y: 
 }
 
 interface BuildOpts {
-  scope: "agent" | "space"; agentId?: string | undefined; asOf?: number | undefined; kinds?: string[] | undefined; layers?: Layer[] | undefined; focus?: string | undefined; hops?: number | undefined; forViewer: boolean;
+  scope: "agent" | "space";
+  agentId?: string | undefined;
+  asOf?: number | undefined;
+  kinds?: string[] | undefined;
+  layers?: Layer[] | undefined;
+  focus?: string | undefined;
+  hops?: number | undefined;
+  forViewer: boolean;
 }
 
 /**
@@ -267,21 +484,54 @@ interface BuildOpts {
 function pageLinkEdges(ctx: MemCtx, asOf: number | undefined): GEdge[] {
   const out: GEdge[] = [];
   if (asOf === undefined) {
-    for (const r of rowsOf(ctx.db, "SELECT l.from_page, l.to_page, l.label, l.evidence, l.at FROM memory_page_links l JOIN memory_pages a ON a.page_id = l.from_page JOIN memory_pages b ON b.page_id = l.to_page WHERE a.layer != 'person' AND b.layer != 'person' AND a.trashed_at IS NULL AND b.trashed_at IS NULL")) {
-      out.push({ from: `page:${str(r["from_page"])}`, to: `page:${str(r["to_page"])}`, kind: "link", ...(str(r["label"]) ? { label: str(r["label"]) } : {}), ...(str(r["evidence"]) ? { evidence: str(r["evidence"]) } : {}), at: num(r["at"]) });
+    for (const r of rowsOf(
+      ctx.db,
+      "SELECT l.from_page, l.to_page, l.label, l.evidence, l.at FROM memory_page_links l JOIN memory_pages a ON a.page_id = l.from_page JOIN memory_pages b ON b.page_id = l.to_page WHERE a.layer != 'person' AND b.layer != 'person' AND a.trashed_at IS NULL AND b.trashed_at IS NULL",
+    )) {
+      out.push({
+        from: `page:${str(r["from_page"])}`,
+        to: `page:${str(r["to_page"])}`,
+        kind: "link",
+        ...(str(r["label"]) ? { label: str(r["label"]) } : {}),
+        ...(str(r["evidence"]) ? { evidence: str(r["evidence"]) } : {}),
+        at: num(r["at"]),
+      });
     }
     return out;
   }
-  const pages = rowsOf(ctx.db, "SELECT page_id, subject, layer, owner_ref FROM memory_pages WHERE layer != 'person' AND created_at <= ?", asOf);
+  const pages = rowsOf(
+    ctx.db,
+    "SELECT page_id, subject, layer, owner_ref FROM memory_pages WHERE layer != 'person' AND created_at <= ?",
+    asOf,
+  );
   const bySubject = new Map<string, Row[]>();
   for (const p of pages) bySubject.set(str(p["subject"]), [...(bySubject.get(str(p["subject"])) ?? []), p]);
   for (const p of pages) {
-    const v = rowsOf(ctx.db, "SELECT notes, at FROM memory_page_versions WHERE page_id = ? AND at <= ? ORDER BY version DESC LIMIT 1", str(p["page_id"]), asOf)[0];
+    const v = rowsOf(
+      ctx.db,
+      "SELECT notes, at FROM memory_page_versions WHERE page_id = ? AND at <= ? ORDER BY version DESC LIMIT 1",
+      str(p["page_id"]),
+      asOf,
+    )[0];
     if (!v) continue;
     for (const l of parseLinks(str(v["notes"]))) {
       const cands = bySubject.get(subjectKey(l.target)) ?? [];
-      const dest = cands.find((c) => str(c["layer"]) === str(p["layer"]) && str(c["owner_ref"]) === str(p["owner_ref"]) && str(c["page_id"]) !== str(p["page_id"])) ?? cands.find((c) => str(c["page_id"]) !== str(p["page_id"]));
-      if (dest) out.push({ from: `page:${str(p["page_id"])}`, to: `page:${str(dest["page_id"])}`, kind: "link", ...(l.label ? { label: l.label } : {}), evidence: l.evidence, at: num(v["at"]) });
+      const dest =
+        cands.find(
+          (c) =>
+            str(c["layer"]) === str(p["layer"]) &&
+            str(c["owner_ref"]) === str(p["owner_ref"]) &&
+            str(c["page_id"]) !== str(p["page_id"]),
+        ) ?? cands.find((c) => str(c["page_id"]) !== str(p["page_id"]));
+      if (dest)
+        out.push({
+          from: `page:${str(p["page_id"])}`,
+          to: `page:${str(dest["page_id"])}`,
+          kind: "link",
+          ...(l.label ? { label: l.label } : {}),
+          evidence: l.evidence,
+          at: num(v["at"]),
+        });
     }
   }
   return out;
@@ -290,9 +540,20 @@ function pageLinkEdges(ctx: MemCtx, asOf: number | undefined): GEdge[] {
 /** Places that name a page in a [[link]]: chats, runs and records point at it. */
 function mentionEdges(ctx: MemCtx, asOf: number | undefined): GEdge[] {
   const out: GEdge[] = [];
-  for (const r of rowsOf(ctx.db, `SELECT page_id, source_kind, source_ref, message_id, quote, at FROM memory_mentions WHERE page_id NOT LIKE '~%'${asOf !== undefined ? " AND at <= ?" : ""}`, ...(asOf !== undefined ? [asOf] : []))) {
+  for (const r of rowsOf(
+    ctx.db,
+    `SELECT page_id, source_kind, source_ref, message_id, quote, at FROM memory_mentions WHERE page_id NOT LIKE '~%'${asOf !== undefined ? " AND at <= ?" : ""}`,
+    ...(asOf !== undefined ? [asOf] : []),
+  )) {
     const kind = str(r["source_kind"]);
-    out.push({ from: `${kind === "run" ? "chat" : kind}:${str(r["source_ref"])}`, to: `page:${str(r["page_id"])}`, kind: "mention", ...(str(r["quote"]) ? { evidence: str(r["quote"]) } : {}), at: num(r["at"]), ...(r["message_id"] ? { message: str(r["message_id"]) } : {}) });
+    out.push({
+      from: `${kind === "run" ? "chat" : kind}:${str(r["source_ref"])}`,
+      to: `page:${str(r["page_id"])}`,
+      kind: "mention",
+      ...(str(r["quote"]) ? { evidence: str(r["quote"]) } : {}),
+      at: num(r["at"]),
+      ...(r["message_id"] ? { message: str(r["message_id"]) } : {}),
+    });
   }
   return out;
 }
@@ -301,7 +562,11 @@ async function build(ctx: MemCtx, o: BuildOpts): Promise<Built> {
   const access = makeAccess(ctx);
   const all = rowsOf(ctx.db, "SELECT * FROM memory_graph_nodes WHERE layer IS NULL OR layer != 'person'").map(nodeOf);
   const byId = new Map(all.map((n) => [n.nodeId, n] as const));
-  const stored = rowsOf(ctx.db, "SELECT from_id, to_id, kind FROM memory_graph_edges").map((r) => ({ from: str(r["from_id"]), to: str(r["to_id"]), kind: str(r["kind"]) as GEdge["kind"] }));
+  const stored = rowsOf(ctx.db, "SELECT from_id, to_id, kind FROM memory_graph_edges").map((r) => ({
+    from: str(r["from_id"]),
+    to: str(r["to_id"]),
+    kind: str(r["kind"]) as GEdge["kind"],
+  }));
   const written: GEdge[] = [...pageLinkEdges(ctx, o.asOf), ...mentionEdges(ctx, o.asOf)];
 
   // "Came from": a note that holds a fact which came from a chat or a record.
@@ -311,14 +576,27 @@ async function build(ctx: MemCtx, o: BuildOpts): Promise<Built> {
     "SELECT f.source_kind AS source_kind, f.source_ref AS source_ref, n.file_id AS file_id FROM memory_facts f JOIN memory_notes n ON n.note_id = f.note_id WHERE f.note_id IS NOT NULL AND f.status = 'current' AND f.enc = 0",
   )) {
     const k = str(r["source_kind"]);
-    const target = k === "record" ? `record:${str(r["source_ref"])}` : k === "chat" || k === "channel" ? `chat:${str(r["source_ref"])}` : null;
+    const target =
+      k === "record"
+        ? `record:${str(r["source_ref"])}`
+        : k === "chat" || k === "channel"
+          ? `chat:${str(r["source_ref"])}`
+          : null;
     if (target) came.push({ from: `note:${str(r["file_id"])}`, to: target, kind: "came_from" });
   }
 
   let seed = all;
   if (o.scope === "agent") {
     if (!o.agentId) raise(ctx, "validation.bad_input", "Name the agent whose graph this is.");
-    const keep = new Set(all.filter((n) => (n.kind === "note" || n.resType === "memory_page") && (n.layer === "space" || n.layer === "project" || (n.layer === "agent" && n.agentId === o.agentId))).map((n) => n.nodeId));
+    const keep = new Set(
+      all
+        .filter(
+          (n) =>
+            (n.kind === "note" || n.resType === "memory_page") &&
+            (n.layer === "space" || n.layer === "project" || (n.layer === "agent" && n.agentId === o.agentId)),
+        )
+        .map((n) => n.nodeId),
+    );
     const near = new Set(keep);
     for (const e of [...stored, ...came, ...written]) {
       if (keep.has(e.from) && byId.has(e.to)) near.add(e.to);
@@ -339,9 +617,16 @@ async function build(ctx: MemCtx, o: BuildOpts): Promise<Built> {
       let ok = memo.get(key);
       if (ok === undefined) {
         // a page is shown by the access on the place it lives in (Space, project or agent); anything else by the reader's access to the thing itself
-        ok = n.resType === "memory_page" && n.layer
-          ? await access.can(n.layer, n.layer === "agent" ? n.agentId ?? "" : n.layer === "project" ? n.projectId ?? "" : ctx.space, n.agentId, n.projectId, "view")
-          : ctx.authorize({ perm: null, level: "view" }, { type: n.resType, id: n.resId }).effect === "allow";
+        ok =
+          n.resType === "memory_page" && n.layer
+            ? await access.can(
+                n.layer,
+                n.layer === "agent" ? (n.agentId ?? "") : n.layer === "project" ? (n.projectId ?? "") : ctx.space,
+                n.agentId,
+                n.projectId,
+                "view",
+              )
+            : ctx.authorize({ perm: null, level: "view" }, { type: n.resType, id: n.resId }).effect === "allow";
         memo.set(key, ok);
       }
       if (!ok) continue;
@@ -360,10 +645,23 @@ async function build(ctx: MemCtx, o: BuildOpts): Promise<Built> {
     const src = byId.get(e.from);
     if (src && (e.kind === "link" || e.kind === "mention")) {
       const thread = src.nodeId.startsWith("chat:") ? src.nodeId.slice(5) : null;
-      edges.push({ ...e, source: { title: src.title, kind: src.kind === "chat" ? "chat" : src.nodeId.startsWith("page:") ? "page" : src.kind, ...(thread ? { link: `vyre://thread/${thread}${e.message ? `?m=${e.message}` : ""}` } : src.link ? { link: src.link } : {}) } });
+      edges.push({
+        ...e,
+        source: {
+          title: src.title,
+          kind: src.kind === "chat" ? "chat" : src.nodeId.startsWith("page:") ? "page" : src.kind,
+          ...(thread
+            ? { link: `vyre://thread/${thread}${e.message ? `?m=${e.message}` : ""}` }
+            : src.link
+              ? { link: src.link }
+              : {}),
+        },
+      });
     } else edges.push(e);
   }
-  edges.sort((a, b) => (a.from + a.to + a.kind + (a.label ?? "")).localeCompare(b.from + b.to + b.kind + (b.label ?? "")));
+  edges.sort((a, b) =>
+    (a.from + a.to + a.kind + (a.label ?? "")).localeCompare(b.from + b.to + b.kind + (b.label ?? "")),
+  );
 
   // A local graph: the subject and the nodes within `hops` links of it (two by default), whatever the direction of the link.
   if (o.focus !== undefined) {
@@ -374,8 +672,14 @@ async function build(ctx: MemCtx, o: BuildOpts): Promise<Built> {
       for (let h = 0; h < Math.max(1, Math.min(6, o.hops ?? 2)); h++) {
         const next: string[] = [];
         for (const e of edges) {
-          if (frontier.includes(e.from) && !near.has(e.to)) { near.add(e.to); next.push(e.to); }
-          if (frontier.includes(e.to) && !near.has(e.from)) { near.add(e.from); next.push(e.from); }
+          if (frontier.includes(e.from) && !near.has(e.to)) {
+            near.add(e.to);
+            next.push(e.to);
+          }
+          if (frontier.includes(e.to) && !near.has(e.from)) {
+            near.add(e.from);
+            next.push(e.from);
+          }
         }
         frontier = next;
       }
@@ -390,29 +694,64 @@ async function build(ctx: MemCtx, o: BuildOpts): Promise<Built> {
   const find = (x: string): string => {
     let r = x;
     while (parent.get(r) !== r) r = parent.get(r)!;
-    for (let c = x; parent.get(c) !== r;) { const nx = parent.get(c)!; parent.set(c, r); c = nx; }
+    for (let c = x; parent.get(c) !== r; ) {
+      const nx = parent.get(c)!;
+      parent.set(c, r);
+      c = nx;
+    }
     return r;
   };
   for (const e of edges) parent.set(find(e.from), find(e.to));
   const degree = new Map<string, number>();
-  for (const e of edges) { degree.set(e.from, (degree.get(e.from) ?? 0) + 1); degree.set(e.to, (degree.get(e.to) ?? 0) + 1); }
+  for (const e of edges) {
+    degree.set(e.from, (degree.get(e.from) ?? 0) + 1);
+    degree.set(e.to, (degree.get(e.to) ?? 0) + 1);
+  }
   const groups = new Map<string, GNode[]>();
-  for (const n of visible) { const r = find(n.nodeId); groups.set(r, [...(groups.get(r) ?? []), n]); }
-  const multi = [...groups.values()].filter((g) => g.length >= 2).map((g) => g.sort((a, b) => a.nodeId.localeCompare(b.nodeId)));
-  const hubOf = (g: GNode[]): GNode => [...g].sort((a, b) => (degree.get(b.nodeId) ?? 0) - (degree.get(a.nodeId) ?? 0) || a.title.localeCompare(b.title) || a.nodeId.localeCompare(b.nodeId))[0]!;
+  for (const n of visible) {
+    const r = find(n.nodeId);
+    groups.set(r, [...(groups.get(r) ?? []), n]);
+  }
+  const multi = [...groups.values()]
+    .filter((g) => g.length >= 2)
+    .map((g) => g.sort((a, b) => a.nodeId.localeCompare(b.nodeId)));
+  const hubOf = (g: GNode[]): GNode =>
+    [...g].sort(
+      (a, b) =>
+        (degree.get(b.nodeId) ?? 0) - (degree.get(a.nodeId) ?? 0) ||
+        a.title.localeCompare(b.title) ||
+        a.nodeId.localeCompare(b.nodeId),
+    )[0]!;
   multi.sort((a, b) => b.length - a.length || hubOf(a).title.localeCompare(hubOf(b).title));
-  const single = visible.filter((n) => (groups.get(find(n.nodeId))?.length ?? 0) < 2).sort((a, b) => a.nodeId.localeCompare(b.nodeId));
+  const single = visible
+    .filter((n) => (groups.get(find(n.nodeId))?.length ?? 0) < 2)
+    .sort((a, b) => a.nodeId.localeCompare(b.nodeId));
   const hubs = multi.map((g) => hubOf(g).nodeId);
   const clusterOf = new Map<string, string>();
-  for (const g of multi) { const name = hubOf(g).title; for (const n of g) clusterOf.set(n.nodeId, name); }
+  for (const g of multi) {
+    const name = hubOf(g).title;
+    for (const n of g) clusterOf.set(n.nodeId, name);
+  }
   const pos = layout([...multi, single], [...hubs, ""]);
 
   return {
-    nodes: [...visible].sort((a, b) => a.nodeId.localeCompare(b.nodeId)).map((n) => {
-      const p = pos.get(n.nodeId) ?? { x: 0, y: 0 };
-      const cluster = clusterOf.get(n.nodeId);
-      return { nodeId: n.nodeId, kind: n.kind, title: n.title, ...(n.nodeId.startsWith("page:") ? { pageId: n.nodeId.slice(5) } : {}), ...(n.layer ? { layer: n.layer } : {}), ...(cluster ? { cluster } : {}), x: p.x, y: p.y, ...(n.link ? { link: n.link } : {}) };
-    }),
+    nodes: [...visible]
+      .sort((a, b) => a.nodeId.localeCompare(b.nodeId))
+      .map((n) => {
+        const p = pos.get(n.nodeId) ?? { x: 0, y: 0 };
+        const cluster = clusterOf.get(n.nodeId);
+        return {
+          nodeId: n.nodeId,
+          kind: n.kind,
+          title: n.title,
+          ...(n.nodeId.startsWith("page:") ? { pageId: n.nodeId.slice(5) } : {}),
+          ...(n.layer ? { layer: n.layer } : {}),
+          ...(cluster ? { cluster } : {}),
+          x: p.x,
+          y: p.y,
+          ...(n.link ? { link: n.link } : {}),
+        };
+      }),
     edges: edges.map(({ message: _m, ...e }) => e),
     clusters: multi.map((g) => ({ name: hubOf(g).title, hub: hubOf(g).nodeId, size: g.length })),
   };
@@ -422,19 +761,51 @@ const scopeKey = (scope: string, agentId: string | undefined): string => `${scop
 
 function savedPositions(ctx: MemCtx, key: string): Map<string, { x: number; y: number }> {
   const out = new Map<string, { x: number; y: number }>();
-  for (const r of rowsOf(ctx.db, "SELECT node_id, x, y FROM memory_layouts WHERE scope_key = ? AND person = ?", key, actorOf(ctx))) out.set(str(r["node_id"]), { x: num(r["x"]), y: num(r["y"]) });
+  for (const r of rowsOf(
+    ctx.db,
+    "SELECT node_id, x, y FROM memory_layouts WHERE scope_key = ? AND person = ?",
+    key,
+    actorOf(ctx),
+  ))
+    out.set(str(r["node_id"]), { x: num(r["x"]), y: num(r["y"]) });
   return out;
 }
 
 function withSaved(ctx: MemCtx, g: Built, key: string): Built {
   const saved = savedPositions(ctx, key);
   if (saved.size === 0) return g;
-  return { ...g, nodes: g.nodes.map((n) => { const p = saved.get(n.nodeId); return p ? { ...n, x: p.x, y: p.y } : n; }) };
+  return {
+    ...g,
+    nodes: g.nodes.map((n) => {
+      const p = saved.get(n.nodeId);
+      return p ? { ...n, x: p.x, y: p.y } : n;
+    }),
+  };
 }
 
-export async function graph(ctx: MemCtx, input: { scope: "agent" | "space"; agentId?: string; asOf?: number; kinds?: string[]; layers?: Layer[]; focus?: string; hops?: number }) {
+export async function graph(
+  ctx: MemCtx,
+  input: {
+    scope: "agent" | "space";
+    agentId?: string;
+    asOf?: number;
+    kinds?: string[];
+    layers?: Layer[];
+    focus?: string;
+    hops?: number;
+  },
+) {
   ensure(ctx.db);
-  const g = await build(ctx, { scope: input.scope, agentId: input.agentId, asOf: input.asOf, kinds: input.kinds, layers: input.layers, focus: input.focus, hops: input.hops, forViewer: true });
+  const g = await build(ctx, {
+    scope: input.scope,
+    agentId: input.agentId,
+    asOf: input.asOf,
+    kinds: input.kinds,
+    layers: input.layers,
+    focus: input.focus,
+    hops: input.hops,
+    forViewer: true,
+  });
   return withSaved(ctx, g, scopeKey(input.scope, input.agentId));
 }
 
@@ -446,20 +817,57 @@ export async function graphEverything(ctx: MemCtx, input: { asOf?: number }) {
   return build(ctx, { scope: "space", asOf: input.asOf, forViewer: false });
 }
 
-export async function graphExport(ctx: MemCtx, input: { scope: "agent" | "space"; agentId?: string; asOf?: number; kinds?: string[]; layers?: Layer[]; focus?: string; hops?: number }) {
+export async function graphExport(
+  ctx: MemCtx,
+  input: {
+    scope: "agent" | "space";
+    agentId?: string;
+    asOf?: number;
+    kinds?: string[];
+    layers?: Layer[];
+    focus?: string;
+    hops?: number;
+  },
+) {
   ensure(ctx.db);
-  const g = withSaved(ctx, await build(ctx, { scope: input.scope, agentId: input.agentId, asOf: input.asOf, kinds: input.kinds, layers: input.layers, focus: input.focus, hops: input.hops, forViewer: true }), scopeKey(input.scope, input.agentId));
+  const g = withSaved(
+    ctx,
+    await build(ctx, {
+      scope: input.scope,
+      agentId: input.agentId,
+      asOf: input.asOf,
+      kinds: input.kinds,
+      layers: input.layers,
+      focus: input.focus,
+      hops: input.hops,
+      forViewer: true,
+    }),
+    scopeKey(input.scope, input.agentId),
+  );
   let folderId: string | undefined;
   if (input.scope === "agent" && input.agentId) {
-    folderId = str(((await ctx.call("agents.get", { agentId: input.agentId })) as { agent?: { folderId?: string } }).agent?.folderId) || undefined;
+    folderId =
+      str(
+        ((await ctx.call("agents.get", { agentId: input.agentId })) as { agent?: { folderId?: string } }).agent
+          ?.folderId,
+      ) || undefined;
   } else {
-    const roots = ((await ctx.call("files.tree", {})) as { roots: Array<{ key: string; kind: string; folderId?: string }> }).roots;
-    folderId = (roots.find((r) => r.key === "space" && r.folderId) ?? roots.find((r) => r.kind === "folder" && r.folderId))?.folderId;
+    const roots = (
+      (await ctx.call("files.tree", {})) as { roots: Array<{ key: string; kind: string; folderId?: string }> }
+    ).roots;
+    folderId = (
+      roots.find((r) => r.key === "space" && r.folderId) ?? roots.find((r) => r.kind === "folder" && r.folderId)
+    )?.folderId;
   }
   if (!folderId) raise(ctx, "validation.bad_input", "There is no folder to write the export into.");
   const day = new Date(ctx.now()).toISOString().slice(0, 10);
   const made = (await ctx.call("files.create", {
-    folderId, name: `memory-graph-${input.scope}-${day}.json`, kind: "text", mime: "application/json", content: { text: JSON.stringify(g) }, idempotencyKey: `memgraph:${mintId("x", ctx.now())}`,
+    folderId,
+    name: `memory-graph-${input.scope}-${day}.json`,
+    kind: "text",
+    mime: "application/json",
+    content: { text: JSON.stringify(g) },
+    idempotencyKey: `memgraph:${mintId("x", ctx.now())}`,
   })) as { file: { fileId: string } };
   return { fileId: made.file.fileId };
 }
@@ -471,13 +879,26 @@ export async function layoutGet(ctx: MemCtx, input: { scope: "agent" | "space"; 
   return { positions };
 }
 
-export async function layoutSave(ctx: MemCtx, input: { scope: "agent" | "space"; agentId?: string; positions: Record<string, { x: number; y: number }> }) {
+export async function layoutSave(
+  ctx: MemCtx,
+  input: { scope: "agent" | "space"; agentId?: string; positions: Record<string, { x: number; y: number }> },
+) {
   ensure(ctx.db);
   const key = scopeKey(input.scope, input.agentId);
   const me = actorOf(ctx);
   const entries = Object.entries(input.positions);
-  for (const [, p] of entries) if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) raise(ctx, "validation.bad_input", "A position needs two numbers.");
+  for (const [, p] of entries)
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y))
+      raise(ctx, "validation.bad_input", "A position needs two numbers.");
   ctx.db.run("DELETE FROM memory_layouts WHERE scope_key = ? AND person = ?", key, me);
-  for (const [nodeId, p] of entries) ctx.db.run("INSERT INTO memory_layouts (scope_key, person, node_id, x, y) VALUES (?, ?, ?, ?, ?)", key, me, nodeId, p.x, p.y);
+  for (const [nodeId, p] of entries)
+    ctx.db.run(
+      "INSERT INTO memory_layouts (scope_key, person, node_id, x, y) VALUES (?, ?, ?, ?, ?)",
+      key,
+      me,
+      nodeId,
+      p.x,
+      p.y,
+    );
   return { ok: true };
 }

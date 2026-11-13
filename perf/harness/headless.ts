@@ -63,11 +63,15 @@ export class HeadlessClient {
     this.db = opts?.db ?? new DatabaseSync(":memory:");
     this.db.exec(SCHEMA);
     this.db.prepare("INSERT INTO connection (id, device_id) VALUES (1, ?)").run(this.deviceId);
-    this.insertSpan = this.db.prepare("INSERT INTO spans (id, name, budget_id, trace_id, parent_id, start_ms, end_ms) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    this.insertSpan = this.db.prepare(
+      "INSERT INTO spans (id, name, budget_id, trace_id, parent_id, start_ms, end_ms) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    );
     this.insertScreen = this.db.prepare("INSERT INTO screens (screen_id) VALUES (?)");
     this.countConn = this.db.prepare("SELECT COUNT(*) AS n FROM connection");
     this.countScreens = this.db.prepare("SELECT COUNT(*) AS n FROM screens");
-    this.readSpans = this.db.prepare("SELECT id, name, budget_id, trace_id, parent_id, start_ms, end_ms FROM spans ORDER BY start_ms, id");
+    this.readSpans = this.db.prepare(
+      "SELECT id, name, budget_id, trace_id, parent_id, start_ms, end_ms FROM spans ORDER BY start_ms, id",
+    );
   }
 
   /** Server gauge ws.connections for this device. The table rejects a second row. */
@@ -89,7 +93,8 @@ export class HeadlessClient {
 
   /** Records a span and advances the fake clock by durMs. */
   mark(input: Mark): Span {
-    if (!Number.isFinite(input.durMs) || input.durMs < 0) throw new RangeError("span duration must be a finite number >= 0");
+    if (!Number.isFinite(input.durMs) || input.durMs < 0)
+      throw new RangeError("span duration must be a finite number >= 0");
     const startMs = this.clock.now();
     const endMs = this.clock.advance(input.durMs);
     const id = `sp_${this.seq}`;

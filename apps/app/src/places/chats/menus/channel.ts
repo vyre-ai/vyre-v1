@@ -2,7 +2,14 @@
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { KEY, item, sep, starItem, tidy } from "./shared.ts";
 
-export interface ChannelFacts { name: string; unread: boolean; starred: boolean; muted: boolean; /** You are in it. */ member: boolean; /** An admin of it. */ admin: boolean }
+export interface ChannelFacts {
+  name: string;
+  unread: boolean;
+  starred: boolean;
+  muted: boolean;
+  /** You are in it. */ member: boolean;
+  /** An admin of it. */ admin: boolean;
+}
 export interface ChannelDo {
   open(): void;
   markRead(): void;
@@ -20,7 +27,9 @@ export function channelMenu(f: ChannelFacts, d: ChannelDo): MenuEntry[] {
   return tidy([
     item("Open", d.open, { hint: KEY.enter }),
     sep,
-    f.unread ? item("Mark as Read", d.markRead, { hint: KEY.unread }) : item("Mark as Unread", d.markUnread, { hint: KEY.unread }),
+    f.unread
+      ? item("Mark as Read", d.markRead, { hint: KEY.unread })
+      : item("Mark as Unread", d.markUnread, { hint: KEY.unread }),
     starItem(f.starred, d.star),
     f.muted ? item("Unmute", () => d.mute(false)) : item("Mute", () => d.mute(true)),
     d.notifications ? item("Notifications\u2026", d.notifications) : null,

@@ -6,7 +6,16 @@ import type { CapCall } from "../shell/session/caps.ts";
 import { failureOf } from "./logic.ts";
 import type { ClaimFailure } from "./logic.ts";
 
-export interface ClaimInput { token: string; /** The Space id from the claim link (#s=); the first Space key is sealed for it and the same id is sent. */ spaceId: string; name: string; username: string; password: string; recoveryCode: string; deviceName: string; deviceClass?:"web"|"desktop" }
+export interface ClaimInput {
+  token: string;
+  /** The Space id from the claim link (#s=); the first Space key is sealed for it and the same id is sent. */ spaceId: string;
+  name: string;
+  username: string;
+  password: string;
+  recoveryCode: string;
+  deviceName: string;
+  deviceClass?: "web" | "desktop";
+}
 
 export interface ClaimDeps {
   /** An anonymous capability caller on the Space's address. */
@@ -17,7 +26,10 @@ export interface ClaimDeps {
   wipe(b: Uint8Array): void;
 }
 
-export interface Claimed { token: string; personId: string | null }
+export interface Claimed {
+  token: string;
+  personId: string | null;
+}
 
 export class ClaimError extends Error {
   readonly failure: ClaimFailure;
@@ -36,11 +48,26 @@ export async function claimOwner(deps: ClaimDeps, i: ClaimInput): Promise<Claime
   // identity.claim_owner wants the wrapped halves only, plus the Space key sealed to the owner's public key (spaceKeys, made by makeBundle for this spaceId).
   const spaceKeys = made.spaceKeys ?? [];
   // A carried account that never kept a recovery code has no recovery wrap, and none is invented here.
-  const keys = { personKeyByPassword: made.personKeyByPassword, ...(made.personKeyByRecovery ? { personKeyByRecovery: made.personKeyByRecovery } : {}), publicKey: made.publicKey, privateKeyWrapped: made.privateKeyWrapped, spaceKeys };
+  const keys = {
+    personKeyByPassword: made.personKeyByPassword,
+    ...(made.personKeyByRecovery ? { personKeyByRecovery: made.personKeyByRecovery } : {}),
+    publicKey: made.publicKey,
+    privateKeyWrapped: made.privateKeyWrapped,
+    spaceKeys,
+  };
   try {
     let out: ClaimOut;
     try {
-      out = (await deps.call("identity.claim_owner", { code: i.token, spaceId: i.spaceId, displayName: i.name.trim(), username: i.username, password: i.password, deviceName: i.deviceName, deviceClass: i.deviceClass ?? "web", keys })) as ClaimOut;
+      out = (await deps.call("identity.claim_owner", {
+        code: i.token,
+        spaceId: i.spaceId,
+        displayName: i.name.trim(),
+        username: i.username,
+        password: i.password,
+        deviceName: i.deviceName,
+        deviceClass: i.deviceClass ?? "web",
+        keys,
+      })) as ClaimOut;
     } catch (e) {
       if (e instanceof CapError) throw new ClaimError(failureOf(e.code, false), e.message);
       throw new ClaimError("unreachable", "The Space did not answer.");

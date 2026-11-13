@@ -24,171 +24,339 @@ const P1 = `prjheal${Math.random().toString(36).slice(2, 8)}`;
 const P2 = `prjheal${Math.random().toString(36).slice(2, 8)}`;
 const NAME = workspaceName(AGENT);
 
-const h = handlers as unknown as Record<string, (ctx: TermCtx, input: any) => Promise<any> | any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+const h = handlers as unknown as Record<string, (ctx: TermCtx, input: any) => Promise<any> | any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 let keys = 0;
 const idem = (): string => `idem_heal_live_${++keys}`;
 
 function docker(args: string[], timeoutMs: number): Promise<{ code: number; out: string }> {
   return new Promise((resolve) => {
-    execFile("docker", args, { cwd: CODE_ROOT, timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 }, (err, stdout, stderr) => {
-      resolve({ code: err ? ((err as unknown as { code?: number }).code as number | undefined) ?? 1 : 0, out: `${stdout}\n${stderr}` });
-    });
+    execFile(
+      "docker",
+      args,
+      { cwd: CODE_ROOT, timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 },
+      (err, stdout, stderr) => {
+        resolve({
+          code: err ? (((err as unknown as { code?: number }).code as number | undefined) ?? 1) : 0,
+          out: `${stdout}\n${stderr}`,
+        });
+      },
+    );
   });
 }
-const containerId = async (): Promise<string> => (await docker(["inspect", "-f", "{{.Id}}", NAME], 30_000)).out.trim().split("\n")[0] ?? "";
-const running = async (): Promise<boolean> => (await docker(["inspect", "-f", "{{.State.Running}}", NAME], 30_000)).out.trim().split("\n")[0] === "true";
+const containerId = async (): Promise<string> =>
+  (await docker(["inspect", "-f", "{{.Id}}", NAME], 30_000)).out.trim().split("\n")[0] ?? "";
+const running = async (): Promise<boolean> =>
+  (await docker(["inspect", "-f", "{{.State.Running}}", NAME], 30_000)).out.trim().split("\n")[0] === "true";
 const settle = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-test("real Docker: a restart while asleep heals, the sweep sees scripts and background jobs, a project change waits for the command, two turns take turns", { skip, timeout: 900_000 }, async (t) => {
-  if (PRESET === undefined) {
-    const built = await docker(["build", "-t", IMAGE, "images/agent-workspace"], 800_000);
-    assert.equal(built.code, 0, built.out.slice(-600));
-  }
-  let projects = [P1];
-  const clock = { skew: 0 };
-  const now = (): number => Date.now() + clock.skew;
-  const managers: WorkspaceManager[] = [];
-  // a Space of its own: its sweeps never touch another daemon's workspaces on this shared engine, nor theirs these
-  const OWNER = `spc_heal${Math.random().toString(36).slice(2, 8)}`;
-  const make = (): WorkspaceManager => { const m = buildWorkspaceManager({ http: unixSocketHttp(), image: IMAGE, idleMs: 600_000, projectsOf: () => projects, now, owner: OWNER }); managers.push(m); return m; };
-  const hostOver = (m: WorkspaceManager) => createLocalHost({ exec: async () => ({ code: 127, stdout: "", stderr: "" }), shell: async () => ({ exitCode: 1 }), home: "/tmp", runsHere: () => false }, m);
-  t.after(async () => {
-    for (const m of managers) m.close();
-    await docker(["rm", "-f", NAME], 60_000);
-    await docker(["volume", "rm", "-f", `${NAME}-home`, `${NAME}-files`, `vyre-wsproj-${P1}`, `vyre-wsproj-${P2}`], 60_000);
-    if (PRESET === undefined) await docker(["rmi", "-f", IMAGE], 60_000);
-  });
+test(
+  "real Docker: a restart while asleep heals, the sweep sees scripts and background jobs, a project change waits for the command, two turns take turns",
+  { skip, timeout: 900_000 },
+  async (t) => {
+    if (PRESET === undefined) {
+      const built = await docker(["build", "-t", IMAGE, "images/agent-workspace"], 800_000);
+      assert.equal(built.code, 0, built.out.slice(-600));
+    }
+    let projects = [P1];
+    const clock = { skew: 0 };
+    const now = (): number => Date.now() + clock.skew;
+    const managers: WorkspaceManager[] = [];
+    // a Space of its own: its sweeps never touch another daemon's workspaces on this shared engine, nor theirs these
+    const OWNER = `spc_heal${Math.random().toString(36).slice(2, 8)}`;
+    const make = (): WorkspaceManager => {
+      const m = buildWorkspaceManager({
+        http: unixSocketHttp(),
+        image: IMAGE,
+        idleMs: 600_000,
+        projectsOf: () => projects,
+        now,
+        owner: OWNER,
+      });
+      managers.push(m);
+      return m;
+    };
+    const hostOver = (m: WorkspaceManager) =>
+      createLocalHost(
+        {
+          exec: async () => ({ code: 127, stdout: "", stderr: "" }),
+          shell: async () => ({ exitCode: 1 }),
+          home: "/tmp",
+          runsHere: () => false,
+        },
+        m,
+      );
+    t.after(async () => {
+      for (const m of managers) m.close();
+      await docker(["rm", "-f", NAME], 60_000);
+      await docker(
+        ["volume", "rm", "-f", `${NAME}-home`, `${NAME}-files`, `vyre-wsproj-${P1}`, `vyre-wsproj-${P2}`],
+        60_000,
+      );
+      if (PRESET === undefined) await docker(["rmi", "-f", IMAGE], 60_000);
+    });
 
-  reset();
-  bindTeam(() => true);
-  bindWorkspaces(true);
-  bindPlace(async () => ({ team: true, agentComputer: false, runsOn: "space" }));
-  const hn = harness();
-  const dana: TermCtx = { ...hn.as({ kind: "person", id: "usr_dana" }), call: (async (cap: string) => (cap === "agents.get" ? { agent: { agentId: AGENT, ownerId: "usr_dana", kind: "assistant" } } : undefined)) as never };
-  const agent: TermCtx = { ...hn.as({ kind: "agent", id: AGENT }, "usr_dana", "run_1"), thread: "thr_1" };
+    reset();
+    bindTeam(() => true);
+    bindWorkspaces(true);
+    bindPlace(async () => ({ team: true, agentComputer: false, runsOn: "space" }));
+    const hn = harness();
+    const dana: TermCtx = {
+      ...hn.as({ kind: "person", id: "usr_dana" }),
+      call: (async (cap: string) =>
+        cap === "agents.get"
+          ? { agent: { agentId: AGENT, ownerId: "usr_dana", kind: "assistant" } }
+          : undefined) as never,
+    };
+    const agent: TermCtx = { ...hn.as({ kind: "agent", id: AGENT }, "usr_dana", "run_1"), thread: "thr_1" };
 
-  // ---- 1: a restart while the workspace sleeps
-  let m = make();
-  bindHost(hostOver(m));
-  const first = await h["terminal.run"]!(agent, { command: "echo one", idempotencyKey: idem() });
-  assert.deepEqual([first.exitCode, first.output], [0, "one"]);
-  assert.equal(await m.sleep(AGENT), true);
-  m.close();
-  m = make();
-  bindHost(hostOver(m));
-  const healed = await h["terminal.run"]!(agent, { command: "echo two", idempotencyKey: idem() });
-  assert.deepEqual([healed.terminalId, healed.exitCode, healed.output], [first.terminalId, 0, "two"], "the same tab, woken, after the restart");
-  assert.equal(await running(), true);
+    // ---- 1: a restart while the workspace sleeps
+    let m = make();
+    bindHost(hostOver(m));
+    const first = await h["terminal.run"]!(agent, { command: "echo one", idempotencyKey: idem() });
+    assert.deepEqual([first.exitCode, first.output], [0, "one"]);
+    assert.equal(await m.sleep(AGENT), true);
+    m.close();
+    m = make();
+    bindHost(hostOver(m));
+    const healed = await h["terminal.run"]!(agent, { command: "echo two", idempotencyKey: idem() });
+    assert.deepEqual(
+      [healed.terminalId, healed.exitCode, healed.output],
+      [first.terminalId, 0, "two"],
+      "the same tab, woken, after the restart",
+    );
+    assert.equal(await running(), true);
 
-  // ---- 6: the sweep and real work. A person types `sh -c '...'` in the attached tab: the pane's command reads as sh, a shell.
-  await h["terminal.input"]!(dana, { terminalId: first.terminalId, data: "sh -c 'sleep 120; true'\r" });
-  await settle(800);
-  clock.skew += 700_000;
-  assert.deepEqual(await m.sweep(), [], "sh -c is running: the workspace stays up");
-  assert.equal(await running(), true);
-  await h["terminal.interrupt"]!(dana, { terminalId: first.terminalId });
-  await settle(500);
-  // a job left in the background by the agent's own command
-  const bg = await h["terminal.run"]!(agent, { command: "sleep 120 >/dev/null 2>&1 &", idempotencyKey: idem() });
-  assert.equal(bg.exitCode, 0);
-  clock.skew += 700_000;
-  assert.deepEqual(await m.sweep(), [], "a job in the background is running: the workspace stays up");
-  assert.equal(await running(), true);
-  const killed = await h["terminal.run"]!(agent, { command: "kill %1; wait 2>/dev/null; true", idempotencyKey: idem() });
-  assert.equal(killed.exitCode, 0);
-  await settle(300);
-  clock.skew += 700_000;
-  assert.deepEqual(await m.sweep(), [AGENT], "nothing runs any more: it sleeps");
-  assert.equal(await running(), false);
+    // ---- 6: the sweep and real work. A person types `sh -c '...'` in the attached tab: the pane's command reads as sh, a shell.
+    await h["terminal.input"]!(dana, { terminalId: first.terminalId, data: "sh -c 'sleep 120; true'\r" });
+    await settle(800);
+    clock.skew += 700_000;
+    assert.deepEqual(await m.sweep(), [], "sh -c is running: the workspace stays up");
+    assert.equal(await running(), true);
+    await h["terminal.interrupt"]!(dana, { terminalId: first.terminalId });
+    await settle(500);
+    // a job left in the background by the agent's own command
+    const bg = await h["terminal.run"]!(agent, { command: "sleep 120 >/dev/null 2>&1 &", idempotencyKey: idem() });
+    assert.equal(bg.exitCode, 0);
+    clock.skew += 700_000;
+    assert.deepEqual(await m.sweep(), [], "a job in the background is running: the workspace stays up");
+    assert.equal(await running(), true);
+    const killed = await h["terminal.run"]!(agent, {
+      command: "kill %1; wait 2>/dev/null; true",
+      idempotencyKey: idem(),
+    });
+    assert.equal(killed.exitCode, 0);
+    await settle(300);
+    clock.skew += 700_000;
+    assert.deepEqual(await m.sweep(), [AGENT], "nothing runs any more: it sleeps");
+    assert.equal(await running(), false);
 
-  // ---- 7: a project change in the middle of a command
-  const awake = await h["terminal.run"]!(agent, { command: "echo awake", idempotencyKey: idem() });
-  assert.equal(awake.exitCode, 0);
-  const id0 = await containerId();
-  const build = h["terminal.run"]!(agent, { command: "sleep 4; echo built", timeoutSec: 60, idempotencyKey: idem() });
-  await settle(1200);
-  projects = [P1, P2];
-  const built = await build;
-  assert.deepEqual([built.exitCode, built.output], [0, "built"], "the command ran to its end");
-  assert.equal(await containerId(), id0, "the container was not made again while the command ran");
-  const after = await h["terminal.run"]!(agent, { command: "ls ~/projects", idempotencyKey: idem() });
-  assert.equal(after.exitCode, 0);
-  assert.deepEqual(after.output.split(/\s+/).sort(), [P1, P2].sort(), "the next command sees the new project folder");
-  assert.notEqual(await containerId(), id0, "made again once quiet, with the new mount");
+    // ---- 7: a project change in the middle of a command
+    const awake = await h["terminal.run"]!(agent, { command: "echo awake", idempotencyKey: idem() });
+    assert.equal(awake.exitCode, 0);
+    const id0 = await containerId();
+    const build = h["terminal.run"]!(agent, { command: "sleep 4; echo built", timeoutSec: 60, idempotencyKey: idem() });
+    await settle(1200);
+    projects = [P1, P2];
+    const built = await build;
+    assert.deepEqual([built.exitCode, built.output], [0, "built"], "the command ran to its end");
+    assert.equal(await containerId(), id0, "the container was not made again while the command ran");
+    const after = await h["terminal.run"]!(agent, { command: "ls ~/projects", idempotencyKey: idem() });
+    assert.equal(after.exitCode, 0);
+    assert.deepEqual(after.output.split(/\s+/).sort(), [P1, P2].sort(), "the next command sees the new project folder");
+    assert.notEqual(await containerId(), id0, "made again once quiet, with the new mount");
 
-  // ---- review 1: taken off a project while a job in the background writes into it: when revoke returns, the folder is gone and nothing more lands in the project's volume
-  const writer = await h["terminal.run"]!(agent, { command: `(while :; do date +%s%N >> ~/projects/${P2}/beat; sleep 0.2; done) >/dev/null 2>&1 & sleep 999999 >/dev/null 2>&1 &`, idempotencyKey: idem() });
-  assert.equal(writer.exitCode, 0);
-  const beats = async (): Promise<number> => Number((await docker(["run", "--rm", "-v", `vyre-wsproj-${P2}:/v:ro`, "--entrypoint", "sh", IMAGE, "-c", "wc -l < /v/beat 2>/dev/null || echo 0"], 60_000)).out.trim().split("\n")[0]);
-  await settle(1000);
-  assert.ok((await beats()) > 0, "the job writes into the project");
-  projects = [P1];
-  const r0 = Date.now();
-  await m.revoke(AGENT);
-  const rebuildMs = Date.now() - r0;
-  const b0 = await beats();
-  await settle(1500);
-  assert.equal(await beats(), b0, "nothing more lands in the project once revoke returns");
-  const look = await h["terminal.run"]!(agent, { command: `ls -A ~/projects/${P2} 2>&1 | head -3; touch ~/projects/${P2}/x 2>/dev/null && echo WROTE || echo REFUSED`, idempotencyKey: idem() });
-  assert.match(look.output, /REFUSED/, `the agent cannot write there: ${look.output}`);
-  assert.doesNotMatch(look.output, /beat/, "nor read the project's files");
-  t.diagnostic(`revoke with a job running: workspace made again in ${rebuildMs} ms`);
-  assert.ok(rebuildMs < 5000, `a rebuild takes about a second, not ten (${rebuildMs} ms)`);
-  projects = [P1, P2];
+    // ---- review 1: taken off a project while a job in the background writes into it: when revoke returns, the folder is gone and nothing more lands in the project's volume
+    const writer = await h["terminal.run"]!(agent, {
+      command: `(while :; do date +%s%N >> ~/projects/${P2}/beat; sleep 0.2; done) >/dev/null 2>&1 & sleep 999999 >/dev/null 2>&1 &`,
+      idempotencyKey: idem(),
+    });
+    assert.equal(writer.exitCode, 0);
+    const beats = async (): Promise<number> =>
+      Number(
+        (
+          await docker(
+            [
+              "run",
+              "--rm",
+              "-v",
+              `vyre-wsproj-${P2}:/v:ro`,
+              "--entrypoint",
+              "sh",
+              IMAGE,
+              "-c",
+              "wc -l < /v/beat 2>/dev/null || echo 0",
+            ],
+            60_000,
+          )
+        ).out
+          .trim()
+          .split("\n")[0],
+      );
+    await settle(1000);
+    assert.ok((await beats()) > 0, "the job writes into the project");
+    projects = [P1];
+    const r0 = Date.now();
+    await m.revoke(AGENT);
+    const rebuildMs = Date.now() - r0;
+    const b0 = await beats();
+    await settle(1500);
+    assert.equal(await beats(), b0, "nothing more lands in the project once revoke returns");
+    const look = await h["terminal.run"]!(agent, {
+      command: `ls -A ~/projects/${P2} 2>&1 | head -3; touch ~/projects/${P2}/x 2>/dev/null && echo WROTE || echo REFUSED`,
+      idempotencyKey: idem(),
+    });
+    assert.match(look.output, /REFUSED/, `the agent cannot write there: ${look.output}`);
+    assert.doesNotMatch(look.output, /beat/, "nor read the project's files");
+    t.diagnostic(`revoke with a job running: workspace made again in ${rebuildMs} ms`);
+    assert.ok(rebuildMs < 5000, `a rebuild takes about a second, not ten (${rebuildMs} ms)`);
+    projects = [P1, P2];
 
-  // ---- 5: two turns of the same agent at once, in its one tab
-  const other: TermCtx = { ...agent, thread: "thr_2" };
-  const [a, b] = await Promise.all([
-    h["terminal.run"]!(agent, { command: "sleep 2; echo from-a", idempotencyKey: idem() }),
-    h["terminal.run"]!(other, { command: "echo from-b", idempotencyKey: idem() }),
-  ]);
-  assert.equal(a.terminalId, b.terminalId, "one tab");
-  assert.deepEqual([a.exitCode, a.output, b.exitCode, b.output], [0, "from-a", 0, "from-b"], "each got its own output, nothing typed into the other");
+    // ---- 5: two turns of the same agent at once, in its one tab
+    const other: TermCtx = { ...agent, thread: "thr_2" };
+    const [a, b] = await Promise.all([
+      h["terminal.run"]!(agent, { command: "sleep 2; echo from-a", idempotencyKey: idem() }),
+      h["terminal.run"]!(other, { command: "echo from-b", idempotencyKey: idem() }),
+    ]);
+    assert.equal(a.terminalId, b.terminalId, "one tab");
+    assert.deepEqual(
+      [a.exitCode, a.output, b.exitCode, b.output],
+      [0, "from-a", 0, "from-b"],
+      "each got its own output, nothing typed into the other",
+    );
 
-  // ---- 11: the shared network keeps workspaces apart; each still reaches out (a listener on this host stands for the outside: a test never reaches a real outside service)
-  const B = `agtheal${Math.random().toString(36).slice(2, 8)}`;
-  // the project volumes go last, once no workspace mounts them (the first cleanup ran while this one still did)
-  t.after(async () => { await docker(["rm", "-f", workspaceName(B), NAME], 60_000); await docker(["volume", "rm", "-f", `${workspaceName(B)}-home`, `${workspaceName(B)}-files`, `vyre-wsproj-${P1}`, `vyre-wsproj-${P2}`], 60_000); });
-  assert.equal((await m.exec(B, ["sh", "-c", "nohup python3 -m http.server 8099 --bind 0.0.0.0 >/dev/null 2>&1 &"])).code, 0);
-  const ipOf = async (name: string): Promise<string> => (await docker(["inspect", "-f", "{{(index .NetworkSettings.Networks \"vyre-workspaces\").IPAddress}}", name], 30_000)).out.trim().split("\n")[0] ?? "";
-  const ipB = await ipOf(workspaceName(B));
-  assert.match(ipB, /^\d+\.\d+\.\d+\.\d+$/, "B is on the shared network");
-  assert.equal((await docker(["network", "inspect", "-f", "{{index .Options \"com.docker.network.bridge.enable_icc\"}}", "vyre-workspaces"], 30_000)).out.trim().split("\n")[0], "false");
-  // B answers itself, so the server is up
-  const self = await waitForOk(async () => (await m.exec(B, ["sh", "-c", "curl -s -o /dev/null -w '%{http_code}' -m 3 http://127.0.0.1:8099/"])).stdout.trim() === "200");
-  assert.ok(self, "B's server answers inside B");
-  const cross = await m.exec(AGENT, ["sh", "-c", `curl -s -o /dev/null -m 4 http://${ipB}:8099/; echo $?`]);
-  assert.notEqual(cross.stdout.trim(), "0", `workspace A cannot reach the port B listens on (curl exit ${cross.stdout.trim()})`);
-  const http = await import("node:http");
-  const srv = http.createServer((_q, res) => { res.end("outside-ok"); });
-  await new Promise<void>((r) => srv.listen(0, "0.0.0.0", () => r()));
-  t.after(() => { srv.close(); });
-  const port = (srv.address() as { port: number }).port;
-  const gw = (await docker(["network", "inspect", "-f", "{{(index .IPAM.Config 0).Gateway}}", "vyre-workspaces"], 30_000)).out.trim().split("\n")[0] ?? "";
-  for (const who of [AGENT, B]) {
-    const out = await m.exec(who, ["sh", "-c", `curl -s -m 5 http://${gw}:${port}/`]);
-    assert.equal(out.stdout.trim(), "outside-ok", `${who === AGENT ? "A" : "B"} reaches out of the network`);
-  }
+    // ---- 11: the shared network keeps workspaces apart; each still reaches out (a listener on this host stands for the outside: a test never reaches a real outside service)
+    const B = `agtheal${Math.random().toString(36).slice(2, 8)}`;
+    // the project volumes go last, once no workspace mounts them (the first cleanup ran while this one still did)
+    t.after(async () => {
+      await docker(["rm", "-f", workspaceName(B), NAME], 60_000);
+      await docker(
+        [
+          "volume",
+          "rm",
+          "-f",
+          `${workspaceName(B)}-home`,
+          `${workspaceName(B)}-files`,
+          `vyre-wsproj-${P1}`,
+          `vyre-wsproj-${P2}`,
+        ],
+        60_000,
+      );
+    });
+    assert.equal(
+      (await m.exec(B, ["sh", "-c", "nohup python3 -m http.server 8099 --bind 0.0.0.0 >/dev/null 2>&1 &"])).code,
+      0,
+    );
+    const ipOf = async (name: string): Promise<string> =>
+      (
+        await docker(
+          ["inspect", "-f", '{{(index .NetworkSettings.Networks "vyre-workspaces").IPAddress}}', name],
+          30_000,
+        )
+      ).out
+        .trim()
+        .split("\n")[0] ?? "";
+    const ipB = await ipOf(workspaceName(B));
+    assert.match(ipB, /^\d+\.\d+\.\d+\.\d+$/, "B is on the shared network");
+    assert.equal(
+      (
+        await docker(
+          ["network", "inspect", "-f", '{{index .Options "com.docker.network.bridge.enable_icc"}}', "vyre-workspaces"],
+          30_000,
+        )
+      ).out
+        .trim()
+        .split("\n")[0],
+      "false",
+    );
+    // B answers itself, so the server is up
+    const self = await waitForOk(
+      async () =>
+        (
+          await m.exec(B, ["sh", "-c", "curl -s -o /dev/null -w '%{http_code}' -m 3 http://127.0.0.1:8099/"])
+        ).stdout.trim() === "200",
+    );
+    assert.ok(self, "B's server answers inside B");
+    const cross = await m.exec(AGENT, ["sh", "-c", `curl -s -o /dev/null -m 4 http://${ipB}:8099/; echo $?`]);
+    assert.notEqual(
+      cross.stdout.trim(),
+      "0",
+      `workspace A cannot reach the port B listens on (curl exit ${cross.stdout.trim()})`,
+    );
+    const http = await import("node:http");
+    const srv = http.createServer((_q, res) => {
+      res.end("outside-ok");
+    });
+    await new Promise<void>((r) => srv.listen(0, "0.0.0.0", () => r()));
+    t.after(() => {
+      srv.close();
+    });
+    const port = (srv.address() as { port: number }).port;
+    const gw =
+      (await docker(["network", "inspect", "-f", "{{(index .IPAM.Config 0).Gateway}}", "vyre-workspaces"], 30_000)).out
+        .trim()
+        .split("\n")[0] ?? "";
+    for (const who of [AGENT, B]) {
+      const out = await m.exec(who, ["sh", "-c", `curl -s -m 5 http://${gw}:${port}/`]);
+      assert.equal(out.stdout.trim(), "outside-ok", `${who === AGENT ? "A" : "B"} reaches out of the network`);
+    }
 
-  // ---- lead, 12 Nov: the daemon's guard knows the workspaces' network. A stand-in daemon on every address applies the guard's rule (lane f-sbrowser, host/src/routes/site-host.ts agentCaller: a caller
-  // from a registered agent network is an agent's container) with the terminal module's registry (agentSubnets). From the workspace, every address of the host answers it as an agent's, so the daemon
-  // keeps its routes; the workspace still reaches out (the listener above stands for the internet: a test never reaches a real outside service).
-  const subnets = m.subnets();
-  assert.ok(subnets.length >= 1, `the workspaces' network is registered: ${JSON.stringify(subnets)}`);
-  const inSubnets = (ip: string): boolean => subnets.some((c) => { const [b, bits] = c.split("/"); const k = Number(bits); const n = (x: string): number => x.split(".").reduce((a, v) => ((a << 8) | Number(v)) >>> 0, 0); const mask = k === 0 ? 0 : (0xffffffff << (32 - k)) >>> 0; return (n(ip.replace(/^::ffff:/, "")) & mask) === (n(b!) & mask); });
-  const guard = http.createServer((req, res) => { res.end(inSubnets(req.socket.remoteAddress ?? "") ? "refused" : "open"); });
-  await new Promise<void>((r) => guard.listen(0, "0.0.0.0", () => r()));
-  t.after(() => { guard.close(); });
-  const gport = (guard.address() as { port: number }).port;
-  const os = await import("node:os");
-  const hosts = [...new Set([gw, ...Object.values(os.networkInterfaces()).flat().filter((a): a is import("node:os").NetworkInterfaceInfo => !!a && a.family === "IPv4" && !a.internal).map((a) => a.address)])];
-  const seen: Record<string, string> = {};
-  for (const host of hosts) seen[host] = (await m.exec(AGENT, ["sh", "-c", `curl -s -m 5 http://${host}:${gport}/v1/capabilities/files.list || echo unreachable`])).stdout.trim();
-  assert.deepEqual(seen, Object.fromEntries(hosts.map((h0) => [h0, "refused"])), `the daemon's guard refuses the workspace on every address of the host (${hosts.join(", ")})`);
-  assert.equal((await m.exec(AGENT, ["sh", "-c", `curl -s -m 5 http://${gw}:${port}/`])).stdout.trim(), "outside-ok", "and it still reaches out");
-});
+    // ---- lead, 12 Nov: the daemon's guard knows the workspaces' network. A stand-in daemon on every address applies the guard's rule (lane f-sbrowser, host/src/routes/site-host.ts agentCaller: a caller
+    // from a registered agent network is an agent's container) with the terminal module's registry (agentSubnets). From the workspace, every address of the host answers it as an agent's, so the daemon
+    // keeps its routes; the workspace still reaches out (the listener above stands for the internet: a test never reaches a real outside service).
+    const subnets = m.subnets();
+    assert.ok(subnets.length >= 1, `the workspaces' network is registered: ${JSON.stringify(subnets)}`);
+    const inSubnets = (ip: string): boolean =>
+      subnets.some((c) => {
+        const [b, bits] = c.split("/");
+        const k = Number(bits);
+        const n = (x: string): number => x.split(".").reduce((a, v) => ((a << 8) | Number(v)) >>> 0, 0);
+        const mask = k === 0 ? 0 : (0xffffffff << (32 - k)) >>> 0;
+        return (n(ip.replace(/^::ffff:/, "")) & mask) === (n(b!) & mask);
+      });
+    const guard = http.createServer((req, res) => {
+      res.end(inSubnets(req.socket.remoteAddress ?? "") ? "refused" : "open");
+    });
+    await new Promise<void>((r) => guard.listen(0, "0.0.0.0", () => r()));
+    t.after(() => {
+      guard.close();
+    });
+    const gport = (guard.address() as { port: number }).port;
+    const os = await import("node:os");
+    const hosts = [
+      ...new Set([
+        gw,
+        ...Object.values(os.networkInterfaces())
+          .flat()
+          .filter((a): a is import("node:os").NetworkInterfaceInfo => !!a && a.family === "IPv4" && !a.internal)
+          .map((a) => a.address),
+      ]),
+    ];
+    const seen: Record<string, string> = {};
+    for (const host of hosts)
+      seen[host] = (
+        await m.exec(AGENT, [
+          "sh",
+          "-c",
+          `curl -s -m 5 http://${host}:${gport}/v1/capabilities/files.list || echo unreachable`,
+        ])
+      ).stdout.trim();
+    assert.deepEqual(
+      seen,
+      Object.fromEntries(hosts.map((h0) => [h0, "refused"])),
+      `the daemon's guard refuses the workspace on every address of the host (${hosts.join(", ")})`,
+    );
+    assert.equal(
+      (await m.exec(AGENT, ["sh", "-c", `curl -s -m 5 http://${gw}:${port}/`])).stdout.trim(),
+      "outside-ok",
+      "and it still reaches out",
+    );
+  },
+);
 
 async function waitForOk(f: () => Promise<boolean>): Promise<boolean> {
-  for (let i = 0; i < 40; i++) { if (await f()) return true; await new Promise((r) => setTimeout(r, 250)); }
+  for (let i = 0; i < 40; i++) {
+    if (await f()) return true;
+    await new Promise((r) => setTimeout(r, 250));
+  }
   return false;
 }

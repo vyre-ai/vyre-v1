@@ -25,7 +25,10 @@ test("no source outside ui/src/Avatar imports DiceBear or draws an avatar of its
       const rel = path.relative(root, file);
       if (rel.startsWith(path.join("ui", "src", "Avatar") + path.sep)) continue;
       const text = fs.readFileSync(file, "utf8");
-      if (/@dicebear\/|api\.dicebear\.com|createAvatar\(|boring-?avatars|ui-avatars\.com|gravatar\.com\/avatar/.test(text)) offenders.push(rel);
+      if (
+        /@dicebear\/|api\.dicebear\.com|createAvatar\(|boring-?avatars|ui-avatars\.com|gravatar\.com\/avatar/.test(text)
+      )
+        offenders.push(rel);
     }
   }
   assert.deepEqual(offenders, [], "faces are drawn by ui/Avatar only");

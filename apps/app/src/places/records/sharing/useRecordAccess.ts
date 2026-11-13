@@ -24,18 +24,39 @@ export function useRecordAccess(type: string): RecordAccess {
   const data = useOptionalRecordsData();
   const on = data?.share !== undefined;
   // a Personal Space never asks: there is nobody to share with
-  const q = useMemo(() => (data && on ? data.live("access.record_marks", { type }) : NEVER) as LiveQuery<MarksOut>, [data, on, type]);
+  const q = useMemo(
+    () => (data && on ? data.live("access.record_marks", { type }) : NEVER) as LiveQuery<MarksOut>,
+    [data, on, type],
+  );
   const state = useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
   const out = state.status === "ready" ? state.data : null;
-  return useMemo(() => (!on ? OFF : { on, can: out?.can ?? NO_RIGHTS, marks: marksOf(out), hasShared: hasShared(out), sharedIds: sharedWithMe(out) }), [on, out]);
+  return useMemo(
+    () =>
+      !on
+        ? OFF
+        : {
+            on,
+            can: out?.can ?? NO_RIGHTS,
+            marks: marksOf(out),
+            hasShared: hasShared(out),
+            sharedIds: sharedWithMe(out),
+          },
+    [on, out],
+  );
 }
 
 /** The viewer's rights on one record, for the Share button on its page. Read live; a Personal Space never asks. */
 export function useRecordRights(recordId: string): { on: boolean; can: Rights } {
   const data = useOptionalRecordsData();
   const on = data?.share !== undefined;
-  const q = useMemo(() => (data && on ? data.live("access.shares_of", { resource: { type: "record", id: recordId } }) : NEVER) as LiveQuery<SharesOut>, [data, on, recordId]);
+  const q = useMemo(
+    () =>
+      (data && on
+        ? data.live("access.shares_of", { resource: { type: "record", id: recordId } })
+        : NEVER) as LiveQuery<SharesOut>,
+    [data, on, recordId],
+  );
   const state = useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
-  const can = state.status === "ready" ? state.data.can ?? NO_RIGHTS : NO_RIGHTS;
+  const can = state.status === "ready" ? (state.data.can ?? NO_RIGHTS) : NO_RIGHTS;
   return useMemo(() => ({ on, can }), [on, can]);
 }

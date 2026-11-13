@@ -3,13 +3,40 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  configure, get, giveBack, health, hosts, list, provision, remove, sessionSignOut, sessionsList, sleep, sleepIdle, takeOver, wake,
+  configure,
+  get,
+  giveBack,
+  health,
+  hosts,
+  list,
+  provision,
+  remove,
+  sessionSignOut,
+  sessionsList,
+  sleep,
+  sleepIdle,
+  takeOver,
+  wake,
 } from "../handlers/lifecycle.ts";
 import { bindHost, redeemTicket } from "../projections.ts";
-import { assertEventsConform, asPerson, codeOf, contractErrors, DANA, harness, INTAKE, MIN, NOW, OMAR } from "../fixtures/harness.ts";
+import {
+  assertEventsConform,
+  asPerson,
+  codeOf,
+  contractErrors,
+  DANA,
+  harness,
+  INTAKE,
+  MIN,
+  NOW,
+  OMAR,
+} from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
-const SITES = [{ site: "app.example.com", signedInAs: "intake@example.com", since: NOW - 86_400_000, lastSeen: NOW - 3600_000 }, { site: "mail.example.com", since: NOW - 5 * 86_400_000, lastSeen: NOW - 7200_000 }];
+const SITES = [
+  { site: "app.example.com", signedInAs: "intake@example.com", since: NOW - 86_400_000, lastSeen: NOW - 3600_000 },
+  { site: "mail.example.com", since: NOW - 5 * 86_400_000, lastSeen: NOW - 7200_000 },
+];
 
 async function made(h: Harness, agent = INTAKE): Promise<string> {
   const out = await provision(h.ctx, { agentId: agent, idempotencyKey: `k-${agent}` });
@@ -26,25 +53,51 @@ test("provision gives an agent a sealed container that starts asleep, and says s
   assert.equal(out.computer.recording, false);
   assert.equal(out.computer.diskBytes, 1024);
   assert.deepEqual(contractErrors("computers.provision", "out", out), []);
-  assert.deepEqual(h.fake.named("create")[0]?.args, { computerId: out.computer.computerId, agentId: INTAKE, tabLimit: 8, idleSleepMinutes: 10 });
+  assert.deepEqual(h.fake.named("create")[0]?.args, {
+    computerId: out.computer.computerId,
+    agentId: INTAKE,
+    tabLimit: 8,
+    idleSleepMinutes: 10,
+  });
   assert.equal(h.rows("SELECT idle_sleep_minutes FROM computers_computers")[0]?.["idle_sleep_minutes"], 10);
-  assert.deepEqual(h.named("computer.provisioned").map((e) => e.payload), [{ computerId: out.computer.computerId, agentId: INTAKE }]);
+  assert.deepEqual(
+    h.named("computer.provisioned").map((e) => e.payload),
+    [{ computerId: out.computer.computerId, agentId: INTAKE }],
+  );
   assert.deepEqual(assertEventsConform(h), []);
 });
 
 test("provision refuses a second computer, a missing agent, a Personal Space and a host that fails, and leaves nothing behind", async () => {
   const h = harness();
   await made(h);
-  await assert.rejects(() => provision(h.ctx, { agentId: INTAKE, idempotencyKey: "k2" }), (e) => codeOf(e) === "validation.duplicate");
-  const missing = harness({ respond: { "agents.get": () => { throw new Error("no such agent"); } } });
-  await assert.rejects(() => provision(missing.ctx, { agentId: "agt_none", idempotencyKey: "k" }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(
+    () => provision(h.ctx, { agentId: INTAKE, idempotencyKey: "k2" }),
+    (e) => codeOf(e) === "validation.duplicate",
+  );
+  const missing = harness({
+    respond: {
+      "agents.get": () => {
+        throw new Error("no such agent");
+      },
+    },
+  });
+  await assert.rejects(
+    () => provision(missing.ctx, { agentId: "agt_none", idempotencyKey: "k" }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
   const broken = harness({ fakeOptions: { failing: new Set(["create"]) } });
-  await assert.rejects(() => provision(broken.ctx, { agentId: INTAKE, idempotencyKey: "k" }), (e) => codeOf(e) === "provider.unavailable");
+  await assert.rejects(
+    () => provision(broken.ctx, { agentId: INTAKE, idempotencyKey: "k" }),
+    (e) => codeOf(e) === "provider.unavailable",
+  );
   assert.equal(broken.rows("SELECT computer_id FROM computers_computers").length, 0);
   assert.equal(broken.named("computer.provisioned").length, 0);
   const none = harness();
   bindHost(null);
-  await assert.rejects(() => provision(none.ctx, { agentId: INTAKE, idempotencyKey: "k" }), (e) => codeOf(e) === "provider.unavailable");
+  await assert.rejects(
+    () => provision(none.ctx, { agentId: INTAKE, idempotencyKey: "k" }),
+    (e) => codeOf(e) === "provider.unavailable",
+  );
 });
 
 test("wake starts a sleeping computer, passes through Waking, and is a no-op on an awake one", async () => {
@@ -52,23 +105,35 @@ test("wake starts a sleeping computer, passes through Waking, and is a no-op on 
   const id = await made(h);
   let seen = "";
   const startOnHost = h.fake.host.start.bind(h.fake.host);
-  h.fake.host.start = async (a) => { seen = String(h.rows("SELECT state FROM computers_computers")[0]?.["state"]); return startOnHost(a); };
+  h.fake.host.start = async (a) => {
+    seen = String(h.rows("SELECT state FROM computers_computers")[0]?.["state"]);
+    return startOnHost(a);
+  };
   const out = await wake(h.ctx, { computerId: id });
   assert.equal(seen, "waking");
   assert.equal(out.computer.state, "working");
   assert.equal(out.computer.tabs, 1);
   assert.deepEqual(contractErrors("computers.wake", "out", out), []);
-  assert.deepEqual(h.named("computer.started").map((e) => e.payload), [{ computerId: id, agentId: INTAKE, by: DANA }]);
+  assert.deepEqual(
+    h.named("computer.started").map((e) => e.payload),
+    [{ computerId: id, agentId: INTAKE, by: DANA }],
+  );
   await wake(h.ctx, { computerId: id });
   assert.equal(h.named("computer.started").length, 1);
   assert.equal(h.fake.named("start").length, 1);
-  await assert.rejects(() => wake(h.ctx, { computerId: "cmt_none" }), (e) => codeOf(e) === "validation.not_found");
+  await assert.rejects(
+    () => wake(h.ctx, { computerId: "cmt_none" }),
+    (e) => codeOf(e) === "validation.not_found",
+  );
 });
 
 test("a computer that fails to start shows an error, and the next wake tries again", async () => {
   const h = harness({ fakeOptions: { failing: new Set(["start"]) } });
   const id = await made(h);
-  await assert.rejects(() => wake(h.ctx, { computerId: id }), (e) => codeOf(e) === "internal.unexpected");
+  await assert.rejects(
+    () => wake(h.ctx, { computerId: id }),
+    (e) => codeOf(e) === "internal.unexpected",
+  );
   const row = h.rows("SELECT state, error FROM computers_computers")[0]!;
   assert.equal(row["state"], "error");
   assert.ok(String(row["error"]).length > 0);
@@ -82,7 +147,10 @@ test("sleep puts an idle computer to sleep, keeps its signed-in sessions, and is
   const id = await made(h);
   await wake(h.ctx, { computerId: id });
   h.fake.setBusy(id, true, "Filling the intake form");
-  await assert.rejects(() => sleep(h.ctx, { computerId: id }), (e) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(
+    () => sleep(h.ctx, { computerId: id }),
+    (e) => codeOf(e) === "validation.precondition_failed",
+  );
   assert.equal((await get(h.ctx, { computerId: id })).computer.caption, "Filling the intake form");
   h.fake.setBusy(id, false);
   const out = await sleep(h.ctx, { computerId: id });
@@ -90,13 +158,19 @@ test("sleep puts an idle computer to sleep, keeps its signed-in sessions, and is
   assert.equal(out.computer.tabs, 0);
   assert.equal(out.computer.caption, undefined);
   assert.deepEqual(contractErrors("computers.sleep", "out", out), []);
-  assert.deepEqual(h.named("computer.slept").map((e) => e.payload), [{ computerId: id, agentId: INTAKE, reason: "requested" }]);
+  assert.deepEqual(
+    h.named("computer.slept").map((e) => e.payload),
+    [{ computerId: id, agentId: INTAKE, reason: "requested" }],
+  );
   assert.equal(h.rows("SELECT site FROM computers_sessions").length, 2);
   assert.equal((await sleep(h.ctx, { computerId: id })).computer.state, "asleep");
   assert.equal(h.named("computer.slept").length, 1);
   // a person at the controls
   await takeOver(h.ctx, { computerId: id });
-  await assert.rejects(() => sleep(h.ctx, { computerId: id }), (e) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(
+    () => sleep(h.ctx, { computerId: id }),
+    (e) => codeOf(e) === "validation.precondition_failed",
+  );
   assert.deepEqual(assertEventsConform(h), []);
 });
 
@@ -105,7 +179,10 @@ test("a host that cannot stop the computer leaves an error, not a computer that 
   const id = await made(h);
   await wake(h.ctx, { computerId: id });
   h.fake.failing.add("stop");
-  await assert.rejects(() => sleep(h.ctx, { computerId: id }), (e) => codeOf(e) === "internal.unexpected");
+  await assert.rejects(
+    () => sleep(h.ctx, { computerId: id }),
+    (e) => codeOf(e) === "internal.unexpected",
+  );
   assert.equal(h.rows("SELECT state FROM computers_computers")[0]?.["state"], "error");
 });
 
@@ -126,9 +203,20 @@ test("the idle job sleeps what has been quiet for its idle time and nothing else
   // `fresh` did something a minute ago
   h.db.run("UPDATE computers_computers SET last_active_at = ? WHERE computer_id = ?", h.clock.t - MIN, fresh);
   assert.equal(await sleepIdle(h.ctx), 1);
-  const state = Object.fromEntries(h.rows("SELECT agent_id, state FROM computers_computers").map((r) => [r["agent_id"], r["state"]]));
-  assert.deepEqual(state, { agt_quiet: "asleep", agt_busy: "working", agt_fresh: "working", agt_held: "takeover", agt_dead: "error" });
-  assert.deepEqual(h.named("computer.slept").map((e) => e.payload["reason"]), ["idle"]);
+  const state = Object.fromEntries(
+    h.rows("SELECT agent_id, state FROM computers_computers").map((r) => [r["agent_id"], r["state"]]),
+  );
+  assert.deepEqual(state, {
+    agt_quiet: "asleep",
+    agt_busy: "working",
+    agt_fresh: "working",
+    agt_held: "takeover",
+    agt_dead: "error",
+  });
+  assert.deepEqual(
+    h.named("computer.slept").map((e) => e.payload["reason"]),
+    ["idle"],
+  );
   // the busy one counts as active now, so it is not slept ten minutes after it started but ten minutes after it stopped
   h.fake.setBusy(busy, false);
   h.advance(5 * MIN);
@@ -145,11 +233,18 @@ test("take over wakes a sleeping computer, hands the controls to one person, and
   assert.deepEqual(contractErrors("computers.take_over", "out", out), []);
   assert.deepEqual(h.fake.named("takeover")[0]?.args, { computerId: id, personId: DANA });
   assert.deepEqual(h.named("computer.started").length, 1);
-  assert.deepEqual(h.named("computer.takeover").map((e) => e.payload), [{ computerId: id, agentId: INTAKE, personId: DANA }]);
+  assert.deepEqual(
+    h.named("computer.takeover").map((e) => e.payload),
+    [{ computerId: id, agentId: INTAKE, personId: DANA }],
+  );
   const steps = h.rows("SELECT idx, by_who, caption, tool FROM computers_timeline");
   assert.deepEqual(steps, [{ idx: 0, by_who: "person", caption: "You took over", tool: "take_over" }]);
   // the ticket opens one connection
-  assert.deepEqual(await redeemTicket(h.db, out.ticket, h.clock.t), { kind: "takeover", computerId: id, personId: DANA });
+  assert.deepEqual(await redeemTicket(h.db, out.ticket, h.clock.t), {
+    kind: "takeover",
+    computerId: id,
+    personId: DANA,
+  });
   assert.equal(await redeemTicket(h.db, out.ticket, h.clock.t), null);
   assert.deepEqual(assertEventsConform(h), []);
 });
@@ -167,16 +262,28 @@ test("one person at a time: another is told who has it, the same person gets a f
   const id = await made(h);
   const first = await takeOver(h.ctx, { computerId: id });
   const omar = asPerson(h, { kind: "person", id: OMAR });
-  await assert.rejects(() => takeOver(omar.ctx, { computerId: id }), (e) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(
+    () => takeOver(omar.ctx, { computerId: id }),
+    (e) => codeOf(e) === "validation.precondition_failed",
+  );
   const again = await takeOver(h.ctx, { computerId: id });
   assert.notEqual(again.ticket, first.ticket);
   assert.equal(h.named("computer.takeover").length, 1);
   assert.equal(h.fake.named("takeover").length, 1);
   const agent = asPerson(h, { kind: "agent", id: INTAKE });
   const other = await made(h, "agt_other");
-  await assert.rejects(() => takeOver(agent.ctx, { computerId: other }), (e) => codeOf(e) === "permission.no_grant");
+  await assert.rejects(
+    () => takeOver(agent.ctx, { computerId: other }),
+    (e) => codeOf(e) === "permission.no_grant",
+  );
   // an agent acting for a person is that person
-  const acting = harness({ raw: h.raw, clock: h.clock, fake: h.fake, principal: { kind: "agent", id: INTAKE }, actingFor: OMAR });
+  const acting = harness({
+    raw: h.raw,
+    clock: h.clock,
+    fake: h.fake,
+    principal: { kind: "agent", id: INTAKE },
+    actingFor: OMAR,
+  });
   assert.equal((await takeOver(acting.ctx, { computerId: other })).computer.takeoverBy, OMAR);
 });
 
@@ -186,12 +293,18 @@ test("give back returns the controls to the agent, names the length of the step,
   await takeOver(h.ctx, { computerId: id });
   h.advance(4 * MIN);
   const omar = asPerson(h, { kind: "person", id: OMAR }, { manager: false });
-  await assert.rejects(() => giveBack(omar.ctx, { computerId: id }), (e) => codeOf(e) === "permission.no_grant");
+  await assert.rejects(
+    () => giveBack(omar.ctx, { computerId: id }),
+    (e) => codeOf(e) === "permission.no_grant",
+  );
   const out = await giveBack(h.ctx, { computerId: id });
   assert.equal(out.computer.state, "working");
   assert.equal(out.computer.takeoverBy, undefined);
   assert.deepEqual(contractErrors("computers.give_back", "out", out), []);
-  assert.deepEqual(h.named("computer.given_back").map((e) => e.payload), [{ computerId: id, agentId: INTAKE, personId: DANA }]);
+  assert.deepEqual(
+    h.named("computer.given_back").map((e) => e.payload),
+    [{ computerId: id, agentId: INTAKE, personId: DANA }],
+  );
   assert.equal(h.rows("SELECT caption FROM computers_timeline")[0]?.["caption"], "You took over for 4 minutes");
   assert.equal(h.fake.named("giveBack").length, 1);
   await giveBack(h.ctx, { computerId: id });
@@ -209,12 +322,18 @@ test("configure changes the tab limit and the idle sleep, and tells a running co
   const out = await configure(h.ctx, { computerId: id, tabLimit: 12, idleSleepMinutes: 30 });
   assert.equal(out.computer.tabLimit, 12);
   assert.equal(h.rows("SELECT idle_sleep_minutes FROM computers_computers")[0]?.["idle_sleep_minutes"], 30);
-  assert.deepEqual(h.named("computer.configured")[0]?.payload, { computerId: id, fields: ["tabLimit", "idleSleepMinutes"] });
+  assert.deepEqual(h.named("computer.configured")[0]?.payload, {
+    computerId: id,
+    fields: ["tabLimit", "idleSleepMinutes"],
+  });
   assert.equal(h.fake.named("configure").length, 0, "asleep: nothing to tell");
   await wake(h.ctx, { computerId: id });
   await configure(h.ctx, { computerId: id, tabLimit: 3 });
   assert.deepEqual(h.fake.named("configure")[0]?.args, { computerId: id, tabLimit: 3 });
-  await assert.rejects(() => configure(h.ctx, { computerId: id }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(
+    () => configure(h.ctx, { computerId: id }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
   assert.deepEqual(contractErrors("computers.configure", "out", out), []);
   assert.deepEqual(assertEventsConform(h), []);
 });
@@ -223,14 +342,24 @@ test("remove takes the container, its profile disk and its rows, but not while a
   const h = harness();
   const id = await made(h);
   await takeOver(h.ctx, { computerId: id });
-  await assert.rejects(() => remove(h.ctx, { computerId: id }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(
+    () => remove(h.ctx, { computerId: id }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
   await giveBack(h.ctx, { computerId: id });
   assert.deepEqual(await remove(h.ctx, { computerId: id }), { removed: true });
   assert.deepEqual(h.fake.removed, [id]);
   assert.equal(h.fake.named("stop")[0] && (h.fake.named("stop")[0]!.args as { reason: string }).reason, "remove");
-  for (const t of ["computers_computers", "computers_timeline", "computers_tickets", "computers_sessions"]) assert.equal(h.rows(`SELECT 1 FROM ${t}`).length, 0, t);
-  assert.deepEqual(h.named("computer.removed").map((e) => e.payload), [{ computerId: id, agentId: INTAKE }]);
-  await assert.rejects(() => remove(h.ctx, { computerId: id }), (e) => codeOf(e) === "validation.not_found");
+  for (const t of ["computers_computers", "computers_timeline", "computers_tickets", "computers_sessions"])
+    assert.equal(h.rows(`SELECT 1 FROM ${t}`).length, 0, t);
+  assert.deepEqual(
+    h.named("computer.removed").map((e) => e.payload),
+    [{ computerId: id, agentId: INTAKE }],
+  );
+  await assert.rejects(
+    () => remove(h.ctx, { computerId: id }),
+    (e) => codeOf(e) === "validation.not_found",
+  );
 });
 
 test("get shows what the running computer reports, and a computer that died is an error, not Working", async () => {
@@ -257,8 +386,14 @@ test("list filters by state and pages", async () => {
   assert.equal(all.total, 3);
   assert.ok(all.next);
   assert.equal((await list(h.ctx, { limit: 2, cursor: all.next as string })).computers.length, 1);
-  assert.deepEqual((await list(h.ctx, { state: ["working"] })).computers.map((c) => c.agentId), ["agt_b"]);
-  assert.deepEqual((await list(h.ctx, { state: ["asleep", "error"] })).computers.map((c) => c.agentId), ["agt_a", "agt_c"]);
+  assert.deepEqual(
+    (await list(h.ctx, { state: ["working"] })).computers.map((c) => c.agentId),
+    ["agt_b"],
+  );
+  assert.deepEqual(
+    (await list(h.ctx, { state: ["asleep", "error"] })).computers.map((c) => c.agentId),
+    ["agt_a", "agt_c"],
+  );
   assert.deepEqual(contractErrors("computers.list", "out", all), []);
 });
 
@@ -290,10 +425,17 @@ test("health says Down without a host, Healthy with one, Degraded when a compute
 test("sessions: listed from the running computer, from the last list while it sleeps, and signed out by waking it", async () => {
   const h = harness({ fakeOptions: { sessions: SITES } });
   const id = await made(h);
-  assert.deepEqual((await sessionsList(h.ctx, { computerId: id })).sessions, [], "never started: nothing signed in that we know of");
+  assert.deepEqual(
+    (await sessionsList(h.ctx, { computerId: id })).sessions,
+    [],
+    "never started: nothing signed in that we know of",
+  );
   await wake(h.ctx, { computerId: id });
   const awake = await sessionsList(h.ctx, { computerId: id });
-  assert.deepEqual(awake.sessions.map((s) => s.site), ["app.example.com", "mail.example.com"]);
+  assert.deepEqual(
+    awake.sessions.map((s) => s.site),
+    ["app.example.com", "mail.example.com"],
+  );
   assert.equal(awake.sessions[0]?.signedInAs, "intake@example.com");
   assert.equal(awake.sessions[1]?.signedInAs, undefined);
   assert.deepEqual(contractErrors("computers.sessions.list", "out", awake), []);
@@ -303,11 +445,21 @@ test("sessions: listed from the running computer, from the last list while it sl
   const out = await sessionSignOut(h.ctx, { computerId: id, site: "app.example.com" });
   assert.deepEqual(out, { ok: true });
   assert.equal(h.rows("SELECT state FROM computers_computers")[0]?.["state"], "working");
-  assert.deepEqual((await sessionsList(h.ctx, { computerId: id })).sessions.map((s) => s.site), ["mail.example.com"]);
-  assert.deepEqual(h.named("computer.session_signed_out")[0]?.payload, { computerId: id, site: "app.example.com", by: DANA });
+  assert.deepEqual(
+    (await sessionsList(h.ctx, { computerId: id })).sessions.map((s) => s.site),
+    ["mail.example.com"],
+  );
+  assert.deepEqual(h.named("computer.session_signed_out")[0]?.payload, {
+    computerId: id,
+    site: "app.example.com",
+    by: DANA,
+  });
   assert.deepEqual(await sessionSignOut(h.ctx, { computerId: id, site: "elsewhere.example.com" }), { ok: false });
   assert.equal(h.named("computer.session_signed_out").length, 1);
-  await assert.rejects(() => sessionSignOut(h.ctx, { computerId: id, site: " " }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(
+    () => sessionSignOut(h.ctx, { computerId: id, site: " " }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
   assert.deepEqual(assertEventsConform(h), []);
 });
 
@@ -315,40 +467,86 @@ test("a Personal Space runs agent computers on a capable host: this computer wit
   const h = harness({ personalSpace: true, respond: { "spaces.matrix": () => ({ kind: "personal" }) } });
   const made = await provision(h.ctx, { agentId: INTAKE, idempotencyKey: "k" });
   assert.equal(made.computer.state, "asleep", "a Personal Space provisions like a team one");
-  assert.deepEqual((await list(h.ctx, {})).computers.map((c) => c.agentId), [INTAKE]);
+  assert.deepEqual(
+    (await list(h.ctx, {})).computers.map((c) => c.agentId),
+    [INTAKE],
+  );
   assert.equal((await health(h.ctx, {})).runtime, "ready");
-  assert.deepEqual(await hosts(h.ctx, {}), { available: true, hosts: [{ hostId: "this", kind: "this", name: "This computer", online: true, canRun: true, runs: 1 }] });
+  assert.deepEqual(await hosts(h.ctx, {}), {
+    available: true,
+    hosts: [{ hostId: "this", kind: "this", name: "This computer", online: true, canRun: true, runs: 1 }],
+  });
   const bare = harness({ personalSpace: true, respond: { "spaces.matrix": () => ({ kind: "personal" }) } });
   bindHost(null);
-  assert.deepEqual(await hosts(bare.ctx, {}), { available: false, hosts: [{ hostId: "this", kind: "this", name: "This computer", online: true, canRun: false, runs: 0, reason: "Agent computers are not set up on this computer. Install Docker, or add a server that has it." }] });
-  await assert.rejects(() => provision(bare.ctx, { agentId: INTAKE, idempotencyKey: "k" }), (e) => codeOf(e) === "provider.unavailable");
+  assert.deepEqual(await hosts(bare.ctx, {}), {
+    available: false,
+    hosts: [
+      {
+        hostId: "this",
+        kind: "this",
+        name: "This computer",
+        online: true,
+        canRun: false,
+        runs: 0,
+        reason: "Agent computers are not set up on this computer. Install Docker, or add a server that has it.",
+      },
+    ],
+  });
+  await assert.rejects(
+    () => provision(bare.ctx, { agentId: INTAKE, idempotencyKey: "k" }),
+    (e) => codeOf(e) === "provider.unavailable",
+  );
   assert.deepEqual((await list(bare.ctx, {})).computers, []);
-  await assert.rejects(() => wake(bare.ctx, { computerId: "cmt_x" }), (e) => codeOf(e) === "validation.not_found");
+  await assert.rejects(
+    () => wake(bare.ctx, { computerId: "cmt_x" }),
+    (e) => codeOf(e) === "validation.not_found",
+  );
 });
 
 test("servers you added are hosts once approved: offline or without Docker they are listed but cannot run one; the Space server is the Space in a Team Space", async () => {
   const h = harness({
     personalSpace: true,
-    respond: { "spaces.matrix": () => ({ kind: "personal" }), "network.my_computers": () => ({ computers: [
-      { serverId: "srv_home", name: "home-box", state: "healthy", enrollment: "approved", facts: { docker: true } },
-      { serverId: "srv_off", name: "old-mac", state: "down", enrollment: "approved", facts: { docker: true } },
-      { serverId: "srv_nodocker", name: "pi", state: "healthy", enrollment: "approved", facts: { docker: false } },
-      { serverId: "srv_wait", name: "new", state: "down", enrollment: "pending", facts: { docker: true } },
-    ] }) },
+    respond: {
+      "spaces.matrix": () => ({ kind: "personal" }),
+      "network.my_computers": () => ({
+        computers: [
+          { serverId: "srv_home", name: "home-box", state: "healthy", enrollment: "approved", facts: { docker: true } },
+          { serverId: "srv_off", name: "old-mac", state: "down", enrollment: "approved", facts: { docker: true } },
+          { serverId: "srv_nodocker", name: "pi", state: "healthy", enrollment: "approved", facts: { docker: false } },
+          { serverId: "srv_wait", name: "new", state: "down", enrollment: "pending", facts: { docker: true } },
+        ],
+      }),
+    },
   });
   bindHost(null);
   const out = await hosts(h.ctx, {});
   assert.equal(out.available, true, "one server can run them");
-  assert.deepEqual(out.hosts.map((x) => [x.hostId, x.canRun, x.reason ?? null]), [["this", false, "Agent computers are not set up on this computer. Install Docker, or add a server that has it."], ["srv_home", true, null], ["srv_off", false, "old-mac is offline. Start it and let it reconnect."], ["srv_nodocker", false, "pi has no Docker. Install and start Docker on it."]], "a waiting server is not a host yet");
+  assert.deepEqual(
+    out.hosts.map((x) => [x.hostId, x.canRun, x.reason ?? null]),
+    [
+      ["this", false, "Agent computers are not set up on this computer. Install Docker, or add a server that has it."],
+      ["srv_home", true, null],
+      ["srv_off", false, "old-mac is offline. Start it and let it reconnect."],
+      ["srv_nodocker", false, "pi has no Docker. Install and start Docker on it."],
+    ],
+    "a waiting server is not a host yet",
+  );
   const team = harness({ respond: { "spaces.matrix": () => ({ kind: "team" }) } });
-  assert.deepEqual((await hosts(team.ctx, {})).hosts.map((x) => [x.hostId, x.kind, x.name]), [["space", "space", "The Space"]]);
+  assert.deepEqual(
+    (await hosts(team.ctx, {})).hosts.map((x) => [x.hostId, x.kind, x.name]),
+    [["space", "space", "The Space"]],
+  );
 });
 
 test("a host that cannot run containers says why, in words, before anything is made: provision refuses with the host's own reason and leaves no row; hosts() carries the same reason", async () => {
   const h = harness({ respond: { "spaces.matrix": () => ({ kind: "team" }) } });
-  const why = "This server's container runner is not running, so agent computers cannot start. Start it: docker compose up -d sites-runner.";
+  const why =
+    "This server's container runner is not running, so agent computers cannot start. Start it: docker compose up -d sites-runner.";
   bindHost({ ...h.fake.host, health: async () => ({ ok: false, detail: why }) } as never);
-  await assert.rejects(() => provision(h.ctx, { agentId: INTAKE, idempotencyKey: "k" }), (e) => codeOf(e) === "provider.unavailable" && JSON.stringify(e).includes("compose up -d sites-runner"));
+  await assert.rejects(
+    () => provision(h.ctx, { agentId: INTAKE, idempotencyKey: "k" }),
+    (e) => codeOf(e) === "provider.unavailable" && JSON.stringify(e).includes("compose up -d sites-runner"),
+  );
   assert.deepEqual((await list(h.ctx, {})).computers, [], "no row is left behind");
   const out = await hosts(h.ctx, {});
   assert.deepEqual([out.available, out.hosts[0]!.reason], [false, why]);

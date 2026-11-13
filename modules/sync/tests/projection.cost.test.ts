@@ -16,9 +16,25 @@ const N = 400;
 async function perCreate(extra: InlineProjection[]): Promise<{ ms: number; rows: number }> {
   const o = openRecordStore({ path: ":memory:", space: "sp_bench", extra });
   await o.store.define({ add_types: [CONTACT_TYPE] });
-  for (let i = 0; i < 50; i++) await o.store.create("contact", mintRecordId(), { name: `warm ${i}`, email: "w@example.com", phone: "+1", region: "eu", stage: "lead", owner: "usr_a" });
+  for (let i = 0; i < 50; i++)
+    await o.store.create("contact", mintRecordId(), {
+      name: `warm ${i}`,
+      email: "w@example.com",
+      phone: "+1",
+      region: "eu",
+      stage: "lead",
+      owner: "usr_a",
+    });
   const t0 = performance.now();
-  for (let i = 0; i < N; i++) await o.store.create("contact", mintRecordId(), { name: `N ${i}`, email: "n@example.com", phone: "+1", region: "eu", stage: "lead", owner: "usr_a" });
+  for (let i = 0; i < N; i++)
+    await o.store.create("contact", mintRecordId(), {
+      name: `N ${i}`,
+      email: "n@example.com",
+      phone: "+1",
+      region: "eu",
+      stage: "lead",
+      owner: "usr_a",
+    });
   const ms = (performance.now() - t0) / N;
   const rows = extra.length ? (o.host.tx.get<{ n: number }>("SELECT count(*) AS n FROM sync_rows")?.n ?? 0) : 0;
   o.host.close();
@@ -30,6 +46,8 @@ test("the sync.changes projection's cost per records.create is measured and prin
   const without = await perCreate([]);
   const withProjection = await perCreate([syncChanges((entity) => catalog.get(entity).ownerField)]);
   const added = withProjection.ms - without.ms;
-  console.log(`METRIC ${JSON.stringify({ name: "sync_projection_cost", without_ms: Number(without.ms.toFixed(3)), with_ms: Number(withProjection.ms.toFixed(3)), added_ms: Number(added.toFixed(3)), creates: N })}`);
+  console.log(
+    `METRIC ${JSON.stringify({ name: "sync_projection_cost", without_ms: Number(without.ms.toFixed(3)), with_ms: Number(withProjection.ms.toFixed(3)), added_ms: Number(added.toFixed(3)), creates: N })}`,
+  );
   assert.equal(withProjection.rows, N + 50, "one sync row per created record");
 });

@@ -8,8 +8,21 @@ export type JourneyRow = CapMap["journeys.list"]["out"]["journeys"][number];
 
 export type SectionKey = "needs" | "personal" | "shared" | "space" | "running";
 
-export interface GroupBlock { id: string; name: string; rows: AutoRow[]; failed: number; /** the Group holds no Automation anywhere, so Space shows it ready to fill */ empty: boolean }
-export interface Section { key: SectionKey; title: string; count: number; /** Automations not in a group, listed directly */ loose: AutoRow[]; groups: GroupBlock[]; canAdd: boolean }
+export interface GroupBlock {
+  id: string;
+  name: string;
+  rows: AutoRow[];
+  failed: number;
+  /** the Group holds no Automation anywhere, so Space shows it ready to fill */ empty: boolean;
+}
+export interface Section {
+  key: SectionKey;
+  title: string;
+  count: number;
+  /** Automations not in a group, listed directly */ loose: AutoRow[];
+  groups: GroupBlock[];
+  canAdd: boolean;
+}
 
 /** Why an Automation is in Needs you: it is paused (a key or connection is missing, an approval waits) or its last run failed. */
 export function needsYou(a: AutoRow): boolean {
@@ -23,7 +36,8 @@ export function noteOf(a: AutoRow, reasons: Readonly<Record<string, string>> = {
   const r = reasons[a.id];
   if (r) return r;
   if (a.status === "paused") return "Paused";
-  if (a.failedRuns > 0) return `${a.kind === "personal" ? "Personal, " : ""}${a.failedRuns} run${a.failedRuns === 1 ? "" : "s"} failed`;
+  if (a.failedRuns > 0)
+    return `${a.kind === "personal" ? "Personal, " : ""}${a.failedRuns} run${a.failedRuns === 1 ? "" : "s"} failed`;
   if (a.status === "off" || a.status === "draft") return a.status === "draft" ? "Draft" : "Off";
   return a.triggers.length > 0 ? a.triggers[0]! : "";
 }
@@ -34,19 +48,36 @@ export function matches(a: AutoRow, q: string): boolean {
 }
 
 /** Sections in the order the sidebar shows them. `shared` rows are the ones other people own that were shared with this person; the caller says which. */
-export function sectionsOf(autos: readonly AutoRow[], groups: readonly GroupRow[], opts: { me: string; q?: string; shared?: ReadonlySet<string>; reasons?: Readonly<Record<string, string>>; canSpace?: boolean }): Section[] {
+export function sectionsOf(
+  autos: readonly AutoRow[],
+  groups: readonly GroupRow[],
+  opts: {
+    me: string;
+    q?: string;
+    shared?: ReadonlySet<string>;
+    reasons?: Readonly<Record<string, string>>;
+    canSpace?: boolean;
+  },
+): Section[] {
   const q = opts.q ?? "";
   const rows = autos.filter((a) => matches(a, q));
   const sharedIds = opts.shared ?? new Set<string>();
   const byGroup = (list: AutoRow[], showEmpty = false): { loose: AutoRow[]; groups: GroupBlock[] } => {
     const loose: AutoRow[] = [];
     const blocks = new Map<string, GroupBlock>();
-    for (const g of [...groups].sort((x, y) => x.order - y.order)) blocks.set(g.id, { id: g.id, name: g.name, rows: [], failed: 0, empty: g.count === 0 });
+    for (const g of [...groups].sort((x, y) => x.order - y.order))
+      blocks.set(g.id, { id: g.id, name: g.name, rows: [], failed: 0, empty: g.count === 0 });
     for (const a of list) {
       const b = a.groupId ? blocks.get(a.groupId) : undefined;
-      if (b) { b.rows.push(a); b.failed += a.failedRuns; } else loose.push(a);
+      if (b) {
+        b.rows.push(a);
+        b.failed += a.failedRuns;
+      } else loose.push(a);
     }
-    return { loose, groups: [...blocks.values()].filter((b) => b.rows.length > 0 || (showEmpty && b.empty && q === "")) };
+    return {
+      loose,
+      groups: [...blocks.values()].filter((b) => b.rows.length > 0 || (showEmpty && b.empty && q === "")),
+    };
   };
   const needs = rows.filter(needsYou);
   const personal = rows.filter((a) => a.kind === "personal" && a.ownerId === opts.me);
@@ -54,19 +85,28 @@ export function sectionsOf(autos: readonly AutoRow[], groups: readonly GroupRow[
   const space = rows.filter((a) => a.kind === "space" && !sharedIds.has(a.id));
   const running = rows.filter(isRunning);
   const out: Section[] = [];
-  if (needs.length > 0) out.push({ key: "needs", title: "Needs you", count: needs.length, loose: needs, groups: [], canAdd: false });
+  if (needs.length > 0)
+    out.push({ key: "needs", title: "Needs you", count: needs.length, loose: needs, groups: [], canAdd: false });
   const p = byGroup(personal);
   out.push({ key: "personal", title: "Personal", count: personal.length, ...p, canAdd: true });
-  if (shared.length > 0 || q === "") { const sg = byGroup(shared); out.push({ key: "shared", title: "Shared with me", count: shared.length, ...sg, canAdd: false }); }
+  if (shared.length > 0 || q === "") {
+    const sg = byGroup(shared);
+    out.push({ key: "shared", title: "Shared with me", count: shared.length, ...sg, canAdd: false });
+  }
   const sp = byGroup(space, true);
   // only someone who holds automations.space adds to the Space (l-perms): a member's + made a draft and then was refused the promote
   out.push({ key: "space", title: "Space", count: space.length, ...sp, canAdd: opts.canSpace !== false });
-  if (running.length > 0) out.push({ key: "running", title: "Running", count: running.length, loose: running, groups: [], canAdd: false });
+  if (running.length > 0)
+    out.push({ key: "running", title: "Running", count: running.length, loose: running, groups: [], canAdd: false });
   return out;
 }
 
 /** Row ids in the order they are on screen, for the arrow keys. Collapsed groups hide their rows. */
-export function visibleOrder(sections: readonly Section[], open: ReadonlySet<string>, collapsed: ReadonlySet<SectionKey>): string[] {
+export function visibleOrder(
+  sections: readonly Section[],
+  open: ReadonlySet<string>,
+  collapsed: ReadonlySet<SectionKey>,
+): string[] {
   const out: string[] = [];
   for (const s of sections) {
     if (collapsed.has(s.key)) continue;

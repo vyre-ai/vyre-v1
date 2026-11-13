@@ -6,7 +6,12 @@ import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { FilesList } from "../../../apps/app/src/places/files/list/index.ts";
 import { createSampleFiles, harbor, northwind } from "../../../apps/app/src/places/files/list/sample.ts";
-import { FilesDataProvider, FilesStateProvider, FilesTree, useFilesState } from "../../../apps/app/src/places/files/tree/index.ts";
+import {
+  FilesDataProvider,
+  FilesStateProvider,
+  FilesTree,
+  useFilesState,
+} from "../../../apps/app/src/places/files/tree/index.ts";
 import type { FilesState, SortKey, Where } from "../../../apps/app/src/places/files/tree/index.ts";
 
 export const title = "Files";
@@ -23,7 +28,8 @@ function whereOf(v: string | null): Where {
 function Go({ where }: { where: string | null }): ReactNode {
   const { dispatch } = useFilesState();
   useEffect(() => {
-    if (where === "recent" || where === "shared" || where === "trash" || where === "knowledge") dispatch({ type: "go", where: { kind: where } });
+    if (where === "recent" || where === "shared" || where === "trash" || where === "knowledge")
+      dispatch({ type: "go", where: { kind: where } });
   }, [where, dispatch]);
   return null;
 }
@@ -34,11 +40,18 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
   const sample = useMemo(() => createSampleFiles(space, { bulk }), [space, bulk]);
   const initial = useMemo<Partial<FilesState>>(() => {
     const sort = SORTS.find((x) => x === q.get("sort"));
-    const where: Where = space === harbor && !q.get("where") ? { kind: "folder", id: "fld_h_clients" } : whereOf(q.get("where"));
+    const where: Where =
+      space === harbor && !q.get("where") ? { kind: "folder", id: "fld_h_clients" } : whereOf(q.get("where"));
     const first = q.get("quicklook") === "1" ? "file:fil_deck" : null;
     return {
-      where, ...(sort ? { sort, dir: sort === "updated" ? "desc" as const : "asc" as const } : {}),
-      ...(q.get("select") === "1" ? { selection: ["file:fil_deck", "file:fil_logo"], anchor: "file:fil_deck" } : first ? { selection: [first], anchor: first } : {}), quickLook: first,
+      where,
+      ...(sort ? { sort, dir: sort === "updated" ? ("desc" as const) : ("asc" as const) } : {}),
+      ...(q.get("select") === "1"
+        ? { selection: ["file:fil_deck", "file:fil_logo"], anchor: "file:fil_deck" }
+        : first
+          ? { selection: [first], anchor: first }
+          : {}),
+      quickLook: first,
     };
   }, [q, space]);
   const width = useWindowDimensions().width;
@@ -54,7 +67,11 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
       <FilesStateProvider initial={initial}>
         <Go where={q.get("go")} />
         <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-          {phone ? null : <View style={{ width: 240 }}><FilesTree /></View>}
+          {phone ? null : (
+            <View style={{ width: 240 }}>
+              <FilesTree />
+            </View>
+          )}
           <FilesList />
         </View>
       </FilesStateProvider>
@@ -65,6 +82,8 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
 // The page reads its query after it is live (rule 25): read while rendering, the static export's pre-rendered page was swapped for the real one after hydrate, and that swap was the layout shift.
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
-  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  useEffect(() => {
+    setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""));
+  }, []);
   return q ? <Page q={q} /> : null;
 }

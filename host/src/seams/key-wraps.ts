@@ -29,45 +29,95 @@ export interface KeyWraps {
   enforce(): number;
 }
 
-export function createKeyWraps(w: { db: () => Db | null; space: () => string; secret: () => Uint8Array; enabled: () => boolean }): KeyWraps {
+export function createKeyWraps(w: {
+  db: () => Db | null;
+  space: () => string;
+  secret: () => Uint8Array;
+  enabled: () => boolean;
+}): KeyWraps {
   // no Space database (a device daemon): nothing is kept and nothing opens
   const none: Db = { run: () => undefined, all: () => [] };
-  const o = { ...w, get db(): Db { return w.db() ?? none; } };
+  const o = {
+    ...w,
+    get db(): Db {
+      return w.db() ?? none;
+    },
+  };
   let ready = false;
   const table = (): void => {
     if (ready || w.db() === null) return;
-    o.db.run("CREATE TABLE IF NOT EXISTS host_person_wrap (person_id TEXT PRIMARY KEY, box TEXT NOT NULL, made_at INTEGER NOT NULL)");
+    o.db.run(
+      "CREATE TABLE IF NOT EXISTS host_person_wrap (person_id TEXT PRIMARY KEY, box TEXT NOT NULL, made_at INTEGER NOT NULL)",
+    );
     o.db.run("CREATE TABLE IF NOT EXISTS host_person_wrap_off (person_id TEXT PRIMARY KEY, at INTEGER NOT NULL)");
     ready = true;
   };
   const aad = (personId: string): string => `vyre.person-wrap.v1:${o.space()}:${personId}`;
-  const dropAll = (): number => { table(); const n = (o.db.all("SELECT count(*) AS n FROM host_person_wrap") as Array<{ n: number }>)[0]?.n ?? 0; o.db.run("DELETE FROM host_person_wrap"); return n; };
-  const forgotten = (personId: string): boolean => { table(); return o.db.all("SELECT 1 AS x FROM host_person_wrap_off WHERE person_id = ?", personId).length > 0; };
+  const dropAll = (): number => {
+    table();
+    const n = (o.db.all("SELECT count(*) AS n FROM host_person_wrap") as Array<{ n: number }>)[0]?.n ?? 0;
+    o.db.run("DELETE FROM host_person_wrap");
+    return n;
+  };
+  const forgotten = (personId: string): boolean => {
+    table();
+    return o.db.all("SELECT 1 AS x FROM host_person_wrap_off WHERE person_id = ?", personId).length > 0;
+  };
   return {
     make(personId, key) {
       if (key.length !== 32 || w.db() === null || !o.enabled() || forgotten(personId)) return false;
       const box = aesWrap(o.secret(), key, aad(personId));
-      o.db.run("INSERT INTO host_person_wrap (person_id, box, made_at) VALUES (?, ?, ?) ON CONFLICT(person_id) DO UPDATE SET box = excluded.box, made_at = excluded.made_at", personId, JSON.stringify(box), Date.now());
+      o.db.run(
+        "INSERT INTO host_person_wrap (person_id, box, made_at) VALUES (?, ?, ?) ON CONFLICT(person_id) DO UPDATE SET box = excluded.box, made_at = excluded.made_at",
+        personId,
+        JSON.stringify(box),
+        Date.now(),
+      );
       return true;
     },
     open(personId) {
       table();
-      if (!o.enabled()) { dropAll(); return null; }
-      const row = (o.db.all("SELECT box FROM host_person_wrap WHERE person_id = ?", personId) as Array<{ box: string }>)[0];
+      if (!o.enabled()) {
+        dropAll();
+        return null;
+      }
+      const row = (
+        o.db.all("SELECT box FROM host_person_wrap WHERE person_id = ?", personId) as Array<{ box: string }>
+      )[0];
       if (!row) return null;
       try {
         const key = aesUnwrap(o.secret(), JSON.parse(row.box) as Box, aad(personId));
-        if (key.length !== 32) { key.fill(0); return null; }
+        if (key.length !== 32) {
+          key.fill(0);
+          return null;
+        }
         const out = Uint8Array.from(key);
         key.fill(0);
         return out;
-      } catch { return null; }   // a wrap that does not open (another server's secret, a changed Space) is no wrap
+      } catch {
+        return null;
+      } // a wrap that does not open (another server's secret, a changed Space) is no wrap
     },
-    has(personId) { table(); return o.enabled() && o.db.all("SELECT 1 AS x FROM host_person_wrap WHERE person_id = ?", personId).length > 0; },
-    drop(personId) { table(); o.db.run("DELETE FROM host_person_wrap WHERE person_id = ?", personId); },
-    forget(personId) { table(); o.db.run("DELETE FROM host_person_wrap WHERE person_id = ?", personId); o.db.run("INSERT OR REPLACE INTO host_person_wrap_off (person_id, at) VALUES (?, ?)", personId, Date.now()); },
-    remember(personId) { table(); o.db.run("DELETE FROM host_person_wrap_off WHERE person_id = ?", personId); },
+    has(personId) {
+      table();
+      return o.enabled() && o.db.all("SELECT 1 AS x FROM host_person_wrap WHERE person_id = ?", personId).length > 0;
+    },
+    drop(personId) {
+      table();
+      o.db.run("DELETE FROM host_person_wrap WHERE person_id = ?", personId);
+    },
+    forget(personId) {
+      table();
+      o.db.run("DELETE FROM host_person_wrap WHERE person_id = ?", personId);
+      o.db.run("INSERT OR REPLACE INTO host_person_wrap_off (person_id, at) VALUES (?, ?)", personId, Date.now());
+    },
+    remember(personId) {
+      table();
+      o.db.run("DELETE FROM host_person_wrap_off WHERE person_id = ?", personId);
+    },
     forgotten,
-    enforce() { return o.enabled() ? 0 : dropAll(); },
+    enforce() {
+      return o.enabled() ? 0 : dropAll();
+    },
   };
 }

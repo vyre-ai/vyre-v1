@@ -9,12 +9,19 @@ export type Call = (cap: string, input: unknown) => Promise<unknown>;
 /** The Shared folder the card files Space keys in when the Space has none yet. */
 export const HUB_KEY_FOLDER = "Connections";
 
-const key = (): string => (globalThis.crypto?.randomUUID?.() ?? `k-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
+const key = (): string =>
+  globalThis.crypto?.randomUUID?.() ?? `k-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
 /** Puts the hub's key in the Space's "Connections" folder, shared with everyone (lib/space-folder.ts), and answers the handle the connection keeps. The value never comes back. */
 export async function fileHubKey(call: Call, hubName: string, value: string): Promise<string> {
   const folderId = await ensureSpaceFolder(call, { name: HUB_KEY_FOLDER, idem: key() });
   const itemName = `${hubName}_key`;
-  await call("vault.item.put", { folderId, name: itemName, kind: "api_key", fields: [{ key: "api_key", value, secret: true }], idempotencyKey: key() });
+  await call("vault.item.put", {
+    folderId,
+    name: itemName,
+    kind: "api_key",
+    fields: [{ key: "api_key", value, secret: true }],
+    idempotencyKey: key(),
+  });
   return `#${itemName}.api_key`;
 }

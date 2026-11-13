@@ -6,10 +6,24 @@ import type { ShellRuntime } from "./runtime.tsx";
 
 export const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
 
-export interface PickedImage { name: string; mime: string; size: number; base64: string }
+export interface PickedImage {
+  name: string;
+  mime: string;
+  size: number;
+  base64: string;
+}
 export type PickImage = () => Promise<PickedImage | null>;
 
-type Doc = { createElement(tag: "input"): { type: string; accept: string; onchange: (() => void) | null; oncancel: (() => void) | null; files?: ArrayLike<{ name: string; type: string; size: number; arrayBuffer(): Promise<ArrayBuffer> }>; click(): void } };
+type Doc = {
+  createElement(tag: "input"): {
+    type: string;
+    accept: string;
+    onchange: (() => void) | null;
+    oncancel: (() => void) | null;
+    files?: ArrayLike<{ name: string; type: string; size: number; arrayBuffer(): Promise<ArrayBuffer> }>;
+    click(): void;
+  };
+};
 
 /** The page's file chooser for one image; null when it is cancelled or the page has none. */
 export const pickImageFromPage: PickImage = () => {
@@ -22,29 +36,51 @@ export const pickImageFromPage: PickImage = () => {
     input.oncancel = () => resolve(null);
     input.onchange = () => {
       const f = input.files?.[0];
-      if (!f) { resolve(null); return; }
-      void f.arrayBuffer().then((buf) => {
-        let bin = "";
-        const bytes = new Uint8Array(buf);
-        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-        resolve({ name: f.name, mime: f.type || "image/png", size: f.size, base64: btoa(bin) });
-      }, () => resolve(null));
+      if (!f) {
+        resolve(null);
+        return;
+      }
+      void f.arrayBuffer().then(
+        (buf) => {
+          let bin = "";
+          const bytes = new Uint8Array(buf);
+          for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+          resolve({ name: f.name, mime: f.type || "image/png", size: f.size, base64: btoa(bin) });
+        },
+        () => resolve(null),
+      );
     };
     // WKWebView (the desktop app on a Mac) only opens a file chooser for an input that is in the page: attach it, hidden, for the click, and take it out when it answers.
     const body = (doc as unknown as { body?: { appendChild(n: unknown): void; removeChild(n: unknown): void } }).body;
     const el = input as unknown as { style?: { display: string } };
     if (el.style) el.style.display = "none";
     body?.appendChild(input);
-    const done = (): void => { try { body?.removeChild(input); } catch { /* already gone */ } };
-    const prevChange = input.onchange, prevCancel = input.oncancel;
-    input.onchange = () => { done(); prevChange?.(); };
-    input.oncancel = () => { done(); prevCancel?.(); };
+    const done = (): void => {
+      try {
+        body?.removeChild(input);
+      } catch {
+        /* already gone */
+      }
+    };
+    const prevChange = input.onchange,
+      prevCancel = input.oncancel;
+    input.onchange = () => {
+      done();
+      prevChange?.();
+    };
+    input.oncancel = () => {
+      done();
+      prevCancel?.();
+    };
     input.click();
   });
 };
 
 /** The id of the file the chosen image was saved as, or null when nothing was chosen. Throws a sentence the page can show when the image is too big or there is no personal folder to keep it in. */
-export async function chooseProfilePhoto(rt: Pick<ShellRuntime, "call">, pick: PickImage = pickImageFromPage): Promise<string | null> {
+export async function chooseProfilePhoto(
+  rt: Pick<ShellRuntime, "call">,
+  pick: PickImage = pickImageFromPage,
+): Promise<string | null> {
   const img = await pick();
   if (!img) return null;
   if (img.size > PHOTO_MAX_BYTES) throw new Error("Choose a photo under 2 MB.");
@@ -52,6 +88,12 @@ export async function chooseProfilePhoto(rt: Pick<ShellRuntime, "call">, pick: P
   const tree = (await rt.call("files.tree", {})) as { roots: Array<{ key: string; folderId?: string }> };
   const homeId = tree.roots.find((r) => r.key === "personal")?.folderId;
   if (!homeId) throw new Error("There is no personal folder to keep the photo in.");
-  const made = (await rt.call("files.create", { folderId: homeId, name: img.name, mime: img.mime, content: { base64: img.base64 }, idempotencyKey: attemptKey() })) as { file: { fileId: string } };
+  const made = (await rt.call("files.create", {
+    folderId: homeId,
+    name: img.name,
+    mime: img.mime,
+    content: { base64: img.base64 },
+    idempotencyKey: attemptKey(),
+  })) as { file: { fileId: string } };
   return made.file.fileId;
 }

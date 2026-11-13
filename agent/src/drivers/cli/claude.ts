@@ -22,26 +22,54 @@ import type { Effort } from "../../turn-engine/types.ts";
 import type { CliAdapter, CliDecoder, CliEvent, CommandOptions, NativePlugins } from "./types.ts";
 import { TOKEN_ENV } from "./types.ts";
 
-interface Tally { input: number; output: number }
+interface Tally {
+  input: number;
+  output: number;
+}
 
 /** A count the engine put in its usage, or nothing when it left the field out: "not reported" stays apart from 0. */
-const given = (u: Json | null, key: string): number | undefined => (u && typeof u[key] === "number" && Number.isFinite(u[key]) ? (u[key] as number) : undefined);
+const given = (u: Json | null, key: string): number | undefined =>
+  u && typeof u[key] === "number" && Number.isFinite(u[key]) ? (u[key] as number) : undefined;
 
 function tallyOf(u: Json | null): Tally {
   if (!u) return { input: 0, output: 0 };
-  return { input: num(u["input_tokens"]) + num(u["cache_read_input_tokens"]) + num(u["cache_creation_input_tokens"]), output: num(u["output_tokens"]) };
+  return {
+    input: num(u["input_tokens"]) + num(u["cache_read_input_tokens"]) + num(u["cache_creation_input_tokens"]),
+    output: num(u["output_tokens"]),
+  };
 }
 
 /** The MCP server block the CLI is started with. The token is the environment variable's, expanded by the CLI: the command line holds only its name. */
-export function mcpConfigJson(url: string, stdio?: { command: string; args: readonly string[] }, plugins?: NativePlugins): string {
-  const extra = Object.fromEntries(Object.entries(plugins?.mcpServers ?? {}).map(([name, m]) => [`plugin_${name}`, { type: "stdio", command: m.command, args: [...m.args], env: { ...m.env } }]));
+export function mcpConfigJson(
+  url: string,
+  stdio?: { command: string; args: readonly string[] },
+  plugins?: NativePlugins,
+): string {
+  const extra = Object.fromEntries(
+    Object.entries(plugins?.mcpServers ?? {}).map(([name, m]) => [
+      `plugin_${name}`,
+      { type: "stdio", command: m.command, args: [...m.args], env: { ...m.env } },
+    ]),
+  );
   const cfg = JSON.parse(base(url, stdio)) as { mcpServers: Record<string, unknown> };
   return JSON.stringify({ mcpServers: { ...cfg.mcpServers, ...extra } });
 }
 function base(url: string, stdio?: { command: string; args: readonly string[] }): string {
   // Through a sandbox's socket the CLI starts the shim as a stdio server; the token reaches it by name from the environment, as with the URL form.
-  if (stdio) return JSON.stringify({ mcpServers: { vyre: { type: "stdio", command: stdio.command, args: [...stdio.args], env: { [TOKEN_ENV]: "${" + TOKEN_ENV + "}" } } } });
-  return JSON.stringify({ mcpServers: { vyre: { type: "http", url, headers: { Authorization: "Bearer ${" + TOKEN_ENV + "}" } } } });
+  if (stdio)
+    return JSON.stringify({
+      mcpServers: {
+        vyre: {
+          type: "stdio",
+          command: stdio.command,
+          args: [...stdio.args],
+          env: { [TOKEN_ENV]: "${" + TOKEN_ENV + "}" },
+        },
+      },
+    });
+  return JSON.stringify({
+    mcpServers: { vyre: { type: "http", url, headers: { Authorization: "Bearer ${" + TOKEN_ENV + "}" } } },
+  });
 }
 
 /**
@@ -59,7 +87,14 @@ export function limitsOf(info: Json | null): CliEvent[] {
   else if (str(info["status"]) === "rejected") pct = 100;
   if (pct === null) return [];
   const at = info["resetsAt"];
-  return [{ type: "limits", window, pct: Math.min(100, Math.round(pct * 10) / 10), ...(typeof at === "number" && Number.isFinite(at) && at > 0 ? { resetsAt: Math.round(at * 1000) } : {}) }];
+  return [
+    {
+      type: "limits",
+      window,
+      pct: Math.min(100, Math.round(pct * 10) / 10),
+      ...(typeof at === "number" && Number.isFinite(at) && at > 0 ? { resetsAt: Math.round(at * 1000) } : {}),
+    },
+  ];
 }
 
 export function createClaudeDecoder(): CliDecoder {
@@ -73,7 +108,9 @@ export function createClaudeDecoder(): CliDecoder {
   let model = "";
   /** What the latest request of the turn sent (fresh and cached): the size of the context as the model last saw it. The result line's totals add every request of the turn together. */
   let lastContext = 0;
-  const sawModel = (m: string): void => { if (m !== "" && !m.startsWith("<")) model = m; };
+  const sawModel = (m: string): void => {
+    if (m !== "" && !m.startsWith("<")) model = m;
+  };
   /** The session id, once per change: the init line and the result line both carry it. */
   const session = (id: string): CliEvent[] => (id !== "" && id !== sid ? ((sid = id), [{ type: "session", id }]) : []);
 
@@ -96,8 +133,15 @@ export function createClaudeDecoder(): CliDecoder {
         const d = obj(ev["delta"]);
         if (!d) return [];
         const t = str(d["type"]);
-        if (t === "text_delta" && str(d["text"]) !== "") { streamed.add(current); sawText = true; return [{ type: "text", text: str(d["text"]) }]; }
-        if (t === "thinking_delta" && str(d["thinking"]) !== "") { streamed.add(current); return [{ type: "thinking", text: str(d["thinking"]) }]; }
+        if (t === "text_delta" && str(d["text"]) !== "") {
+          streamed.add(current);
+          sawText = true;
+          return [{ type: "text", text: str(d["text"]) }];
+        }
+        if (t === "thinking_delta" && str(d["thinking"]) !== "") {
+          streamed.add(current);
+          return [{ type: "thinking", text: str(d["thinking"]) }];
+        }
         return [];
       }
       default:
@@ -118,10 +162,16 @@ export function createClaudeDecoder(): CliDecoder {
       const b = obj(raw);
       if (!b) continue;
       const t = str(b["type"]);
-      if (t === "text" && str(b["text"]) !== "" && !streamed.has(id)) { sawText = true; out.push({ type: "text", text: str(b["text"]) }); }
-      else if (t === "thinking" && str(b["thinking"]) !== "" && !streamed.has(id)) out.push({ type: "thinking", text: str(b["thinking"]) });
+      if (t === "text" && str(b["text"]) !== "" && !streamed.has(id)) {
+        sawText = true;
+        out.push({ type: "text", text: str(b["text"]) });
+      } else if (t === "thinking" && str(b["thinking"]) !== "" && !streamed.has(id))
+        out.push({ type: "thinking", text: str(b["thinking"]) });
       else if (t === "tool_use" && str(b["id"]) !== "") {
-        if (!called.has(str(b["id"]))) { called.add(str(b["id"])); out.push({ type: "tool", phase: "call", id: str(b["id"]), name: str(b["name"]) }); }
+        if (!called.has(str(b["id"]))) {
+          called.add(str(b["id"]));
+          out.push({ type: "tool", phase: "call", id: str(b["id"]), name: str(b["name"]) });
+        }
         // the whole message carries the call's input (the streamed start does not): what it touches, in safe words only
         const detail = toolDetail(str(b["name"]), b["input"]);
         if (detail !== "") out.push({ type: "tool", phase: "input", id: str(b["id"]), detail });
@@ -132,7 +182,13 @@ export function createClaudeDecoder(): CliDecoder {
 
   /** A tool result's test-run summary lines (a string, or a list of text parts). */
   function tail(content: unknown): string {
-    return testLines(typeof content === "string" ? content : arr(content).map((p) => str(obj(p)?.["text"])).join("\n"));
+    return testLines(
+      typeof content === "string"
+        ? content
+        : arr(content)
+            .map((p) => str(obj(p)?.["text"]))
+            .join("\n"),
+    );
   }
 
   function onUser(j: Json): CliEvent[] {
@@ -142,7 +198,14 @@ export function createClaudeDecoder(): CliDecoder {
     if (j["isReplay"] === true) out.push({ type: "read" });
     for (const raw of arr(m?.["content"])) {
       const b = obj(raw);
-      if (b && str(b["type"]) === "tool_result" && str(b["tool_use_id"]) !== "") out.push({ type: "tool", phase: "result", id: str(b["tool_use_id"]), ok: b["is_error"] !== true, ...(tail(b["content"]) !== "" ? { output: tail(b["content"]) } : {}) });
+      if (b && str(b["type"]) === "tool_result" && str(b["tool_use_id"]) !== "")
+        out.push({
+          type: "tool",
+          phase: "result",
+          id: str(b["tool_use_id"]),
+          ok: b["is_error"] !== true,
+          ...(tail(b["content"]) !== "" ? { output: tail(b["content"]) } : {}),
+        });
     }
     return out;
   }
@@ -155,26 +218,58 @@ export function createClaudeDecoder(): CliDecoder {
     if (!failed && !sawText && text !== "") out.push({ type: "text", text });
     const u = obj(j["usage"]);
     let total = tallyOf(u);
-    if (!u) { total = { input: 0, output: 0 }; for (const t of perMessage.values()) { total.input += t.input; total.output += t.output; } }
+    if (!u) {
+      total = { input: 0, output: 0 };
+      for (const t of perMessage.values()) {
+        total.input += t.input;
+        total.output += t.output;
+      }
+    }
     // the result line's own split and the dollar figure Claude Code priced the turn at (for a sign-in it is what the API would have charged, which the turn record does not bill)
-    const cacheRead = given(u, "cache_read_input_tokens"), cacheWrite = given(u, "cache_creation_input_tokens"), costUsd = given(j, "total_cost_usd");
+    const cacheRead = given(u, "cache_read_input_tokens"),
+      cacheWrite = given(u, "cache_creation_input_tokens"),
+      costUsd = given(j, "total_cost_usd");
     // the result line names every model the turn used; a turn that used one is that model
     const used = Object.keys(obj(j["modelUsage"]) ?? {}).filter((k) => !k.startsWith("<"));
     if (used.length === 1) model = used[0]!;
     // the window Claude Code itself holds for that model (modelUsage.<model>.contextWindow): the figure the meter and compaction size against
     const usage1 = used.length === 1 ? obj(obj(j["modelUsage"])?.[used[0]!]) : null;
-    const window = usage1 && typeof usage1["contextWindow"] === "number" && usage1["contextWindow"] > 0 ? usage1["contextWindow"] : undefined;
+    const window =
+      usage1 && typeof usage1["contextWindow"] === "number" && usage1["contextWindow"] > 0
+        ? usage1["contextWindow"]
+        : undefined;
     if (total.input > 0 || total.output > 0) {
       out.push({
-        type: "usage", inputTokens: total.input, outputTokens: total.output, ...(model !== "" ? { model } : {}), ...(lastContext > 0 ? { contextTokens: lastContext } : {}), ...(window !== undefined ? { contextWindow: window } : {}),
-        ...(cacheRead !== undefined ? { cacheReadTokens: cacheRead } : {}), ...(cacheWrite !== undefined ? { cacheWriteTokens: cacheWrite } : {}), ...(costUsd !== undefined ? { costUsd } : {}),
+        type: "usage",
+        inputTokens: total.input,
+        outputTokens: total.output,
+        ...(model !== "" ? { model } : {}),
+        ...(lastContext > 0 ? { contextTokens: lastContext } : {}),
+        ...(window !== undefined ? { contextWindow: window } : {}),
+        ...(cacheRead !== undefined ? { cacheReadTokens: cacheRead } : {}),
+        ...(cacheWrite !== undefined ? { cacheWriteTokens: cacheWrite } : {}),
+        ...(costUsd !== undefined ? { costUsd } : {}),
       });
     }
-    streamed.clear(); called.clear(); perMessage.clear(); current = ""; sawText = false; lastContext = 0;
-    if (!failed) { out.push({ type: "end" }); return out; }
+    streamed.clear();
+    called.clear();
+    perMessage.clear();
+    current = "";
+    sawText = false;
+    lastContext = 0;
+    if (!failed) {
+      out.push({ type: "end" });
+      return out;
+    }
     const subtype = str(j["subtype"]);
     const code = subtype === "error_max_turns" ? "engine.step_limit" : undefined;
-    out.push({ type: "end", error: { ...(code ? { code } : {}), message: text !== "" ? text : subtype !== "" ? subtype : "the engine reported an error" } });
+    out.push({
+      type: "end",
+      error: {
+        ...(code ? { code } : {}),
+        message: text !== "" ? text : subtype !== "" ? subtype : "the engine reported an error",
+      },
+    });
     return out;
   }
 
@@ -187,7 +282,8 @@ export function createClaudeDecoder(): CliDecoder {
           // the engine compacted its context (asked with /compact, or by itself near the window's end): how many tokens it held before, and after when it says
           if (str(j["subtype"]) === "compact_boundary") {
             const m = obj(j["compact_metadata"]);
-            const pre = num(m?.["pre_tokens"]), post = num(m?.["post_tokens"]);
+            const pre = num(m?.["pre_tokens"]),
+              post = num(m?.["post_tokens"]);
             return [{ type: "compacted", ...(pre > 0 ? { before: pre } : {}), ...(post > 0 ? { after: post } : {}) }];
           }
           if (str(j["subtype"]) !== "init") return [];
@@ -198,16 +294,25 @@ export function createClaudeDecoder(): CliDecoder {
             if (!s || str(s["name"]) !== "vyre") continue;
             const status = str(s["status"]);
             if (status === "connected") out.push({ type: "mcp", status: "ok" });
-            else if (status === "failed" || status === "needs-auth" || status === "disabled") out.push({ type: "mcp", status: "failed", detail: status });
+            else if (status === "failed" || status === "needs-auth" || status === "disabled")
+              out.push({ type: "mcp", status: "failed", detail: status });
           }
           return out;
         }
-        case "stream_event": { const ev = obj(j["event"]); return ev ? onStream(ev) : []; }
-        case "assistant": return onAssistant(j);
-        case "user": return onUser(j);
-        case "result": return onResult(j);
-        case "rate_limit_event": return limitsOf(obj(j["rate_limit_info"]));
-        default: return [];
+        case "stream_event": {
+          const ev = obj(j["event"]);
+          return ev ? onStream(ev) : [];
+        }
+        case "assistant":
+          return onAssistant(j);
+        case "user":
+          return onUser(j);
+        case "result":
+          return onResult(j);
+        case "rate_limit_event":
+          return limitsOf(obj(j["rate_limit_info"]));
+        default:
+          return [];
       }
     },
     finish: () => [],
@@ -243,10 +348,27 @@ export const claudeEffort = (e: Effort | null | undefined): string | null => (e 
  */
 export function claudeLean(o: Pick<CommandOptions, "model" | "system">): string[] {
   return [
-    "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--replay-user-messages",
-    "--strict-mcp-config", "--tools", "", "--setting-sources", "", "--disable-slash-commands", "--no-session-persistence", "--permission-mode", "default",
+    "claude",
+    "-p",
+    "--input-format",
+    "stream-json",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--include-partial-messages",
+    "--replay-user-messages",
+    "--strict-mcp-config",
+    "--tools",
+    "",
+    "--setting-sources",
+    "",
+    "--disable-slash-commands",
+    "--no-session-persistence",
+    "--permission-mode",
+    "default",
     ...(o.model !== null ? ["--model", o.model] : []),
-    "--system-prompt", o.system ?? "",
+    "--system-prompt",
+    o.system ?? "",
   ];
 }
 
@@ -266,16 +388,34 @@ export const claudeCode: CliAdapter = {
     // WebSearch runs on the vendor's side. WebFetch goes out through the sandbox's wall, which applies the Space's internet setting (owner ruling 3 Nov: anything public by default); under
     // "Only the AI providers" the wall refuses the page and the tool says so.
     // Skill opens one of the skills Vyre wrote into the work folder (.claude/skills) or a plugin brought: it only reads instructions, so every mode allows it; what the skill then does goes through the other tools
-    const allowed = tools ? ["mcp__vyre__*", "WebSearch", "WebFetch", ...Object.keys(o.plugins?.mcpServers ?? {}).map((n) => `mcp__plugin_${n}__*`), ...(o.workFolder !== null ? [...folderTools, "Skill"] : [])] : [];
+    const allowed = tools
+      ? [
+          "mcp__vyre__*",
+          "WebSearch",
+          "WebFetch",
+          ...Object.keys(o.plugins?.mcpServers ?? {}).map((n) => `mcp__plugin_${n}__*`),
+          ...(o.workFolder !== null ? [...folderTools, "Skill"] : []),
+        ]
+      : [];
     const effort = claudeEffort(o.effort);
     return [
-      "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--replay-user-messages",
-      ...(tools ? ["--mcp-config", mcpConfigJson(o.mcpUrl, o.mcpStdio, o.plugins)] : []), "--strict-mcp-config",
+      "claude",
+      "-p",
+      "--input-format",
+      "stream-json",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--include-partial-messages",
+      "--replay-user-messages",
+      ...(tools ? ["--mcp-config", mcpConfigJson(o.mcpUrl, o.mcpStdio, o.plugins)] : []),
+      "--strict-mcp-config",
       // the hooks layer reaches the CLI's own built-in tools and subagents (hooks-config.ts)
       ...(tools && o.mcpStdio ? ["--settings", claudeSettings(o.mcpStdio)] : []),
       // installed plugins load natively: their commands, skills and agents come from the plugin folder in the work folder
       ...(tools ? (o.plugins?.dirs ?? []).flatMap((d) => ["--plugin-dir", d]) : []),
-      "--permission-mode", claudePermission(o),
+      "--permission-mode",
+      claudePermission(o),
       ...(allowed.length > 0 ? ["--allowedTools", ...allowed] : []),
       // A chat on the person's computer runs Vyre's tools only: the CLI's own tools are switched off unless a work folder was granted. A session with noTools has neither.
       ...(tools && o.workFolder !== null ? ["--add-dir", o.workFolder] : ["--tools", ""]),
@@ -285,8 +425,12 @@ export const claudeCode: CliAdapter = {
       ...(o.system !== null && o.system !== "" ? ["--append-system-prompt", o.system] : []),
     ];
   },
-  encode: (prompt) => JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text: prompt }] } }) + "\n",
+  encode: (prompt) =>
+    JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text: prompt }] } }) + "\n",
   // a slash command is one line: what to keep is folded onto it
-  compactCommand: (keep) => { const k = keep.replace(/\s+/g, " ").trim(); return k === "" ? "/compact" : `/compact ${k}`; },
+  compactCommand: (keep) => {
+    const k = keep.replace(/\s+/g, " ").trim();
+    return k === "" ? "/compact" : `/compact ${k}`;
+  },
   decoder: createClaudeDecoder,
 };

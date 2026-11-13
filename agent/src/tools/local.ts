@@ -10,9 +10,13 @@ export function effectiveMode(person: SecurityMode, floor: SecurityMode): Securi
   return STRICT[person] <= STRICT[floor] ? person : floor;
 }
 
-export interface ModePair { person: SecurityMode; floor: SecurityMode }
+export interface ModePair {
+  person: SecurityMode;
+  floor: SecurityMode;
+}
 const MODES: readonly string[] = ["ask", "allow", "auto"];
-const asMode = (v: unknown): SecurityMode | undefined => (typeof v === "string" && MODES.includes(v) ? (v as SecurityMode) : undefined);
+const asMode = (v: unknown): SecurityMode | undefined =>
+  typeof v === "string" && MODES.includes(v) ? (v as SecurityMode) : undefined;
 /** A mode setting is { base, spaces: { <space>: mode } } (or a bare mode, as a floor may be). The person's mode here is this Space's entry, else the base; no floor means anyone may pick Auto; nothing readable means Ask. */
 export function modePair(row: { value?: unknown; floor?: unknown } | undefined, space: string): ModePair {
   if (!row) return { person: "ask", floor: "ask" };
@@ -21,12 +25,15 @@ export function modePair(row: { value?: unknown; floor?: unknown } | undefined, 
     const o = (v !== null && typeof v === "object" ? v : {}) as { base?: unknown; spaces?: Record<string, unknown> };
     return asMode(o.spaces?.[space]) ?? asMode(o.base);
   };
-  return { person: pick(row.value) ?? "ask", floor: row.floor === undefined ? "auto" : pick(row.floor) ?? "ask" };
+  return { person: pick(row.value) ?? "ask", floor: row.floor === undefined ? "auto" : (pick(row.floor) ?? "ask") };
 }
 
 /** The mode a local tool runs at in this chat: the chat's dial when there is one, held to the owner's floor. A setting that could not be read keeps its floor of Ask. */
 export function dialFor(chat: "ask" | "auto" | "plan" | undefined, pair: ModePair | undefined): ModePair {
-  return { person: chat === "auto" ? "auto" : chat === undefined ? pair?.person ?? "ask" : "ask", floor: pair?.floor ?? "ask" };
+  return {
+    person: chat === "auto" ? "auto" : chat === undefined ? (pair?.person ?? "ask") : "ask",
+    floor: pair?.floor ?? "ask",
+  };
 }
 
 export interface LocalFacts {
@@ -42,10 +49,17 @@ export interface LocalFacts {
 
 export type LocalDecision = { action: "run" | "prompt"; reason: string } | { action: "refuse"; reason: string };
 
-export function decideLocal(t: ToolDef, mode: SecurityMode, floor: SecurityMode, facts: LocalFacts = {}): LocalDecision {
-  if (t.local === "none") return { action: "run", reason: "not a local tool: the capability pipeline and the Gate decide" };
+export function decideLocal(
+  t: ToolDef,
+  mode: SecurityMode,
+  floor: SecurityMode,
+  facts: LocalFacts = {},
+): LocalDecision {
+  if (t.local === "none")
+    return { action: "run", reason: "not a local tool: the capability pipeline and the Gate decide" };
   if (facts.outsideLockedFolder === true) return { action: "refuse", reason: "outside the work folder" };
-  if (facts.deletesOutsideWork === true || facts.movesMoney === true || facts.floorMarked === true) return { action: "prompt", reason: "always asks" };
+  if (facts.deletesOutsideWork === true || facts.movesMoney === true || facts.floorMarked === true)
+    return { action: "prompt", reason: "always asks" };
   const m = effectiveMode(mode, floor);
   return m === "ask" ? { action: "prompt", reason: "ask mode" } : { action: "run", reason: `${m} mode` };
 }

@@ -19,13 +19,36 @@ export default function Mount(): ReactNode {
   const phone = width < 640;
   const id = space.id === "harbor" ? "aut_h1" : "aut_lead";
   const sidebar = (
-    <AutomationsSidebar selectedId={id} initialTab={view === "journeys" ? "journeys" : "automations"} shared={sample.shared} reasons={space.reasons} initialOpen={space.id === "harbor" ? ["space:agr_studio"] : []} />
+    <AutomationsSidebar
+      selectedId={id}
+      initialTab={view === "journeys" ? "journeys" : "automations"}
+      shared={sample.shared}
+      reasons={space.reasons}
+      initialOpen={space.id === "harbor" ? ["space:agr_studio"] : []}
+    />
   );
-  const canvas = <AutomationCanvas automationId={id} initialSelected={space.id === "harbor" ? null : "mobile"} initialPanel={view === "panel"} />;
+  const canvas = (
+    <AutomationCanvas
+      automationId={id}
+      initialSelected={space.id === "harbor" ? null : "mobile"}
+      initialPanel={view === "panel"}
+    />
+  );
   return (
     <AutomationsDataProvider value={sample.data}>
       <View style={{ height, flexDirection: "row", backgroundColor: "var(--win)" as string }}>
-        {phone ? (view === "list" || view === "journeys" ? <View style={{ flex: 1 }}>{sidebar}</View> : canvas) : (<>{sidebar}{canvas}</>)}
+        {phone ? (
+          view === "list" || view === "journeys" ? (
+            <View style={{ flex: 1 }}>{sidebar}</View>
+          ) : (
+            canvas
+          )
+        ) : (
+          <>
+            {sidebar}
+            {canvas}
+          </>
+        )}
       </View>
     </AutomationsDataProvider>
   );

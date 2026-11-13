@@ -18,7 +18,11 @@ export function createRules({ bridge, store, now = Date.now }) {
     if (cache && now() - cache.at < FRESH_MS) return cache.rules;
     try {
       const out = await bridge.invoke("vault.site_rules.list", {});
-      const rules = (Array.isArray(out && out.sites) ? out.sites : []).map((/** @type {any} */ s) => ({ host: String(s.host), neverFill: Boolean(s.neverFill), neverSave: Boolean(s.neverSave) }));
+      const rules = (Array.isArray(out && out.sites) ? out.sites : []).map((/** @type {any} */ s) => ({
+        host: String(s.host),
+        neverFill: Boolean(s.neverFill),
+        neverSave: Boolean(s.neverSave),
+      }));
       cache = { at: now(), rules };
       await store.set({ siteRules: rules });
       return rules;
@@ -32,18 +36,26 @@ export function createRules({ bridge, store, now = Date.now }) {
   return {
     list,
     /** @param {string} host */
-    async forHost(host) { return ruleFor(host, await list()); },
+    async forHost(host) {
+      return ruleFor(host, await list());
+    },
     /**
      * Set one site's rule; keeps the other flag as it was. @param {string} host @param {{ neverFill?: boolean, neverSave?: boolean }} change
      */
     async set(host, change) {
       const before = ruleFor(host, await list());
       const exact = before && before.host === host ? before : null;
-      const next = { host, neverFill: change.neverFill ?? exact?.neverFill ?? false, neverSave: change.neverSave ?? exact?.neverSave ?? false };
+      const next = {
+        host,
+        neverFill: change.neverFill ?? exact?.neverFill ?? false,
+        neverSave: change.neverSave ?? exact?.neverSave ?? false,
+      };
       await bridge.invoke("vault.site_rules.set", next);
       cache = null;
       return next;
     },
-    forget() { cache = null; },
+    forget() {
+      cache = null;
+    },
   };
 }

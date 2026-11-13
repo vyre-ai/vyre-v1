@@ -80,14 +80,36 @@ esac
 `;
 
 const host = createDockerComputerHost({
-  api, http, image: DEFAULT_IMAGE, cmd: ["sleep", "infinity"], prefix: PREFIX, ctl: CTL, filesRoot: () => filesRoot, startTimeoutMs: 40_000, user: { uid: 10001, gid: 10001 },
+  api,
+  http,
+  image: DEFAULT_IMAGE,
+  cmd: ["sleep", "infinity"],
+  prefix: PREFIX,
+  ctl: CTL,
+  filesRoot: () => filesRoot,
+  startTimeoutMs: 40_000,
+  user: { uid: 10001, gid: 10001 },
 });
 
 const nameOf = (computerId: string): string => `${PREFIX}${computerId.replace(/^cmt_/, "")}`;
-const run = (name: string, cmd: string[]): Promise<{ exitCode: number | null; stdout: string; stderr: string }> => api.exec(name, { cmd, env: [] });
+const run = (name: string, cmd: string[]): Promise<{ exitCode: number | null; stdout: string; stderr: string }> =>
+  api.exec(name, { cmd, env: [] });
 
 async function installCtl(name: string): Promise<void> {
-  await api.putArchive(name, FILES_GUEST, tarFiles([{ path: ".agentd-ctl", data: new TextEncoder().encode(CTL_SCRIPT), mode: 0o755, uid: 10001, gid: 10001, mtime: Math.floor(Date.now() / 1000) }]));
+  await api.putArchive(
+    name,
+    FILES_GUEST,
+    tarFiles([
+      {
+        path: ".agentd-ctl",
+        data: new TextEncoder().encode(CTL_SCRIPT),
+        mode: 0o755,
+        uid: 10001,
+        gid: 10001,
+        mtime: Math.floor(Date.now() / 1000),
+      },
+    ]),
+  );
 }
 
 /** Wake a computer whose container does not have its control program yet: the program is put in as soon as the container runs. */
@@ -109,91 +131,154 @@ before(async () => {
 after(async () => {
   bindHost(null);
   if (!ON) return;
-  const list = await http({ method: "GET", path: "/containers/json", query: { all: "true", filters: JSON.stringify({ name: [PREFIX] }) } });
+  const list = await http({
+    method: "GET",
+    path: "/containers/json",
+    query: { all: "true", filters: JSON.stringify({ name: [PREFIX] }) },
+  });
   const containers = JSON.parse(new TextDecoder().decode(list.body)) as Array<{ Id: string }>;
   // Files the container made belong to its user; remove them from inside before the container goes.
-  for (const c of containers) await api.exec(c.Id, { cmd: ["sh", "-c", `rm -rf ${FILES_GUEST}/work ${FILES_GUEST}/big ${FILES_GUEST}/.agentd-ctl`], env: [] }).catch(() => undefined);
+  for (const c of containers)
+    await api
+      .exec(c.Id, {
+        cmd: ["sh", "-c", `rm -rf ${FILES_GUEST}/work ${FILES_GUEST}/big ${FILES_GUEST}/.agentd-ctl`],
+        env: [],
+      })
+      .catch(() => undefined);
   for (const c of containers) await api.containerRemove(c.Id);
   const vols = await http({ method: "GET", path: "/volumes", query: { filters: JSON.stringify({ name: [PREFIX] }) } });
-  for (const v of (JSON.parse(new TextDecoder().decode(vols.body)) as { Volumes?: Array<{ Name: string }> }).Volumes ?? []) await http({ method: "DELETE", path: `/volumes/${v.Name}`, query: { force: "true" } });
-  try { fs.rmSync(filesRoot, { recursive: true, force: true }); } catch { /* a leftover temp folder is not a failure */ }
+  for (const v of (JSON.parse(new TextDecoder().decode(vols.body)) as { Volumes?: Array<{ Name: string }> }).Volumes ??
+    [])
+    await http({ method: "DELETE", path: `/volumes/${v.Name}`, query: { force: "true" } });
+  try {
+    fs.rmSync(filesRoot, { recursive: true, force: true });
+  } catch {
+    /* a leftover temp folder is not a failure */
+  }
 });
 
 const code = (e: unknown): string => (e as { error?: { code?: string } } | null)?.error?.code ?? "";
 
-test("@heavy computers tools: Chrome, Screen and Files tools on a real Docker host", { skip, timeout: 420_000 }, async () => {
-  const h = harness();
-  bindHost(host);
-  const made = await provision(h.ctx, { agentId: INTAKE, idempotencyKey: "heavy-tools" });
-  const id = made.computer.computerId;
-  const name = nameOf(id);
-  await wakeWithCtl(h, id);
+test(
+  "@heavy computers tools: Chrome, Screen and Files tools on a real Docker host",
+  { skip, timeout: 420_000 },
+  async () => {
+    const h = harness();
+    bindHost(host);
+    const made = await provision(h.ctx, { agentId: INTAKE, idempotencyKey: "heavy-tools" });
+    const id = made.computer.computerId;
+    const name = nameOf(id);
+    await wakeWithCtl(h, id);
 
-  // an answer comes from the container, as the capability's output
-  const state = await tool["computers.chrome.state"]!(h.ctx, { computerId: id });
-  assert.deepEqual(state, { url: "https://example.com/", title: "Example", loading: false });
+    // an answer comes from the container, as the capability's output
+    const state = await tool["computers.chrome.state"]!(h.ctx, { computerId: id });
+    assert.deepEqual(state, { url: "https://example.com/", title: "Example", loading: false });
 
-  // the JSON of a call survives exec as one argument: quotes, an ampersand, unicode
-  const odd = "https://example.com/a?b=it's&c=é&d=日本";
-  const opened = await tool["computers.chrome.open"]!(h.ctx, { computerId: id, url: odd });
-  assert.equal(opened.url, odd);
-  const arrived = JSON.parse((await run(name, ["cat", `${STATE}/last-chrome_open`])).stdout) as { tool: string; args: { url: string }; timeoutMs: number };
-  assert.equal(arrived.tool, "chrome_open");
-  assert.equal(arrived.args.url, odd, "the address reached agentd byte for byte");
-  assert.equal(arrived.timeoutMs, 60_000);
+    // the JSON of a call survives exec as one argument: quotes, an ampersand, unicode
+    const odd = "https://example.com/a?b=it's&c=é&d=日本";
+    const opened = await tool["computers.chrome.open"]!(h.ctx, { computerId: id, url: odd });
+    assert.equal(opened.url, odd);
+    const arrived = JSON.parse((await run(name, ["cat", `${STATE}/last-chrome_open`])).stdout) as {
+      tool: string;
+      args: { url: string };
+      timeoutMs: number;
+    };
+    assert.equal(arrived.tool, "chrome_open");
+    assert.equal(arrived.args.url, odd, "the address reached agentd byte for byte");
+    assert.equal(arrived.timeoutMs, 60_000);
 
-  // a screen key reaches agentd with its arguments, and its step is on the timeline
-  assert.deepEqual(await tool["computers.screen.key"]!(h.ctx, { computerId: id, combo: "ctrl+l" }), { ok: true });
-  assert.deepEqual(JSON.parse((await run(name, ["cat", `${STATE}/last-screen_key`])).stdout).args, { combo: "ctrl+l" });
-  assert.deepEqual(h.rows("SELECT caption FROM computers_timeline ORDER BY idx").map((r) => r["caption"]), ["Opened example.com/a", "Pressed ctrl+l"]);
+    // a screen key reaches agentd with its arguments, and its step is on the timeline
+    assert.deepEqual(await tool["computers.screen.key"]!(h.ctx, { computerId: id, combo: "ctrl+l" }), { ok: true });
+    assert.deepEqual(JSON.parse((await run(name, ["cat", `${STATE}/last-screen_key`])).stdout).args, {
+      combo: "ctrl+l",
+    });
+    assert.deepEqual(
+      h.rows("SELECT caption FROM computers_timeline ORDER BY idx").map((r) => r["caption"]),
+      ["Opened example.com/a", "Pressed ctrl+l"],
+    );
 
-  // the picture goes to the agent's folder
-  const shot = await tool["computers.chrome.screenshot"]!(h.ctx, { computerId: id });
-  assert.deepEqual(shot, { fileId: "fil_shot1", width: 800, height: 600 });
-  assert.equal((h.calls("files.create")[0]?.input["content"] as { base64: string }).base64, "iVBORw0KGgo=");
+    // the picture goes to the agent's folder
+    const shot = await tool["computers.chrome.screenshot"]!(h.ctx, { computerId: id });
+    assert.deepEqual(shot, { fileId: "fil_shot1", width: 800, height: 600 });
+    assert.equal((h.calls("files.create")[0]?.input["content"] as { base64: string }).base64, "iVBORw0KGgo=");
 
-  // a refusal on stderr with a non-zero exit comes back with its code and the words
-  await assert.rejects(() => tool["computers.chrome.click"]!(h.ctx, { computerId: id, ref: "e1" }), (e: any) => {
-    assert.equal(code(e), "provider.unavailable");
-    assert.match(e.error.message, /Esc/);
-    return true;
-  });
+    // a refusal on stderr with a non-zero exit comes back with its code and the words
+    await assert.rejects(
+      () => tool["computers.chrome.click"]!(h.ctx, { computerId: id, ref: "e1" }),
+      (e: any) => {
+        assert.equal(code(e), "provider.unavailable");
+        assert.match(e.error.message, /Esc/);
+        return true;
+      },
+    );
 
-  // Files tools do real work in the folder the host binds
-  await tool["computers.files.write"]!(h.ctx, { computerId: id, path: "work/notes.md", content: "hello from the computer" });
-  assert.equal(fs.readFileSync(path.join(filesRoot, "work/notes.md"), "utf8"), "hello from the computer", "the file is in the agent's folder on the host");
-  assert.deepEqual(await tool["computers.files.read"]!(h.ctx, { computerId: id, path: "work/notes.md" }), { content: "hello from the computer", encoding: "utf8", truncated: false });
-  assert.deepEqual((await tool["computers.files.list"]!(h.ctx, { computerId: id, path: "work" })).entries, [{ name: "notes.md", kind: "file" }]);
-  await tool["computers.files.move"]!(h.ctx, { computerId: id, from: "work/notes.md", to: "work/old/notes.md" });
-  assert.equal(fs.existsSync(path.join(filesRoot, "work/old/notes.md")), true);
-  assert.equal(fs.existsSync(path.join(filesRoot, "work/notes.md")), false);
-  await assert.rejects(() => tool["computers.files.read"]!(h.ctx, { computerId: id, path: "work/notes.md" }), (e) => code(e) === "validation.not_found");
-  await tool["computers.files.delete"]!(h.ctx, { computerId: id, path: "work/old/notes.md" });
-  assert.equal(fs.existsSync(path.join(filesRoot, "work/old/notes.md")), false);
+    // Files tools do real work in the folder the host binds
+    await tool["computers.files.write"]!(h.ctx, {
+      computerId: id,
+      path: "work/notes.md",
+      content: "hello from the computer",
+    });
+    assert.equal(
+      fs.readFileSync(path.join(filesRoot, "work/notes.md"), "utf8"),
+      "hello from the computer",
+      "the file is in the agent's folder on the host",
+    );
+    assert.deepEqual(await tool["computers.files.read"]!(h.ctx, { computerId: id, path: "work/notes.md" }), {
+      content: "hello from the computer",
+      encoding: "utf8",
+      truncated: false,
+    });
+    assert.deepEqual((await tool["computers.files.list"]!(h.ctx, { computerId: id, path: "work" })).entries, [
+      { name: "notes.md", kind: "file" },
+    ]);
+    await tool["computers.files.move"]!(h.ctx, { computerId: id, from: "work/notes.md", to: "work/old/notes.md" });
+    assert.equal(fs.existsSync(path.join(filesRoot, "work/old/notes.md")), true);
+    assert.equal(fs.existsSync(path.join(filesRoot, "work/notes.md")), false);
+    await assert.rejects(
+      () => tool["computers.files.read"]!(h.ctx, { computerId: id, path: "work/notes.md" }),
+      (e) => code(e) === "validation.not_found",
+    );
+    await tool["computers.files.delete"]!(h.ctx, { computerId: id, path: "work/old/notes.md" });
+    assert.equal(fs.existsSync(path.join(filesRoot, "work/old/notes.md")), false);
 
-  // the largest call the host sends travels as one argument
-  const big = "x".repeat(85_000);
-  await tool["computers.files.write"]!(h.ctx, { computerId: id, path: "big/file.txt", content: big });
-  assert.equal(fs.statSync(path.join(filesRoot, "big/file.txt")).size, 85_000);
+    // the largest call the host sends travels as one argument
+    const big = "x".repeat(85_000);
+    await tool["computers.files.write"]!(h.ctx, { computerId: id, path: "big/file.txt", content: big });
+    assert.equal(fs.statSync(path.join(filesRoot, "big/file.txt")).size, 85_000);
 
-  // a path that leaves the folder never reaches the container
-  const seen = (await run(name, ["ls", STATE])).stdout;
-  await assert.rejects(() => tool["computers.files.read"]!(h.ctx, { computerId: id, path: "../../etc/passwd" }), (e) => code(e) === "validation.bad_input");
-  assert.equal((await run(name, ["ls", STATE])).stdout, seen);
+    // a path that leaves the folder never reaches the container
+    const seen = (await run(name, ["ls", STATE])).stdout;
+    await assert.rejects(
+      () => tool["computers.files.read"]!(h.ctx, { computerId: id, path: "../../etc/passwd" }),
+      (e) => code(e) === "validation.bad_input",
+    );
+    assert.equal((await run(name, ["ls", STATE])).stdout, seen);
 
-  // tools in parallel on one computer
-  const parallel = await Promise.all([1, 2, 3, 4, 5].map((n) => tool["computers.chrome.eval"]!(h.ctx, { computerId: id, expression: `n${n}` })));
-  assert.deepEqual(parallel.map((p) => p.result), ["n1", "n2", "n3", "n4", "n5"]);
+    // tools in parallel on one computer
+    const parallel = await Promise.all(
+      [1, 2, 3, 4, 5].map((n) => tool["computers.chrome.eval"]!(h.ctx, { computerId: id, expression: `n${n}` })),
+    );
+    assert.deepEqual(
+      parallel.map((p) => p.result),
+      ["n1", "n2", "n3", "n4", "n5"],
+    );
 
-  // a call that outlives its time is a timeout, whatever the container is doing
-  const t0 = Date.now();
-  await assert.rejects(() => tool["computers.chrome.wait"]!(h.ctx, { computerId: id, until: "time", value: "50", timeoutMs: 100 }), (e) => code(e) === "timeout.deadline");
-  assert.ok(Date.now() - t0 < 25_000, `the timeout came after the margin (${Date.now() - t0} ms), not after the 30 s the container slept`);
+    // a call that outlives its time is a timeout, whatever the container is doing
+    const t0 = Date.now();
+    await assert.rejects(
+      () => tool["computers.chrome.wait"]!(h.ctx, { computerId: id, until: "time", value: "50", timeoutMs: 100 }),
+      (e) => code(e) === "timeout.deadline",
+    );
+    assert.ok(
+      Date.now() - t0 < 25_000,
+      `the timeout came after the margin (${Date.now() - t0} ms), not after the 30 s the container slept`,
+    );
 
-  // asleep: the container stops; the next tool wakes it, and the same answer comes back
-  await sleep(h.ctx, { computerId: id });
-  assert.equal(await api.containerRunning(name), false);
-  assert.equal((await tool["computers.chrome.state"]!(h.ctx, { computerId: id })).title, "Example");
-  assert.equal(await api.containerRunning(name), true, "the tool woke the computer");
-  assert.equal(h.rows("SELECT state FROM computers_computers")[0]?.["state"], "working");
-});
+    // asleep: the container stops; the next tool wakes it, and the same answer comes back
+    await sleep(h.ctx, { computerId: id });
+    assert.equal(await api.containerRunning(name), false);
+    assert.equal((await tool["computers.chrome.state"]!(h.ctx, { computerId: id })).title, "Example");
+    assert.equal(await api.containerRunning(name), true, "the tool woke the computer");
+    assert.equal(h.rows("SELECT state FROM computers_computers")[0]?.["state"], "working");
+  },
+);

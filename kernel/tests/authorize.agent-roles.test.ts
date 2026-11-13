@@ -15,7 +15,8 @@ function world(): AccessSnapshot {
   s.putRole({ id: "rol_member", clearance: 1, perms: ["records.read"], name: "Member" });
   s.putPrincipal({ id: "usr_boss", kind: "person", status: "active", name: "Boss" });
   s.putPrincipal({ id: "usr_peer", kind: "person", status: "active", name: "Peer" });
-  for (const a of ["agt_owner_grp", "agt_nested_admin", "agt_direct_admin"]) s.putPrincipal({ id: a, kind: "agent", owner: "usr_boss", status: "active", name: a });
+  for (const a of ["agt_owner_grp", "agt_nested_admin", "agt_direct_admin"])
+    s.putPrincipal({ id: a, kind: "agent", owner: "usr_boss", status: "active", name: a });
   s.putResource({ id: "root", type: "folder", parent_id: null, label: 0, owner_id: null, holds: 0 });
   // a group holding Owner; a group nested inside a group holding Admin
   s.addPrincipalRole({ holder: "grp_owners", role: "rol_owner" });
@@ -27,13 +28,26 @@ function world(): AccessSnapshot {
   s.addPrincipalRole({ holder: "agt_direct_admin", role: "rol_admin" });
   s.addPrincipalRole({ holder: "usr_boss", role: "rol_owner" });
   for (const subject_id of ["agt_owner_grp", "agt_nested_admin", "agt_direct_admin", "usr_peer", "usr_boss"]) {
-    s.putGrant({ id: `g_${subject_id}`, subject_kind: "actor", subject_id, resource_type: "folder", resource_id: "root", level: "manage" });
+    s.putGrant({
+      id: `g_${subject_id}`,
+      subject_kind: "actor",
+      subject_id,
+      resource_type: "folder",
+      resource_id: "root",
+      level: "manage",
+    });
   }
   return s;
 }
 
 const manage = (s: AccessSnapshot, principal: string, actingFor?: string) =>
-  authorize(s, { principal, ...(actingFor ? { actingFor } : {}), action: { perm: "access.manage", level: "manage" }, resource: { type: "folder", id: "root" }, now: NOW });
+  authorize(s, {
+    principal,
+    ...(actingFor ? { actingFor } : {}),
+    action: { perm: "access.manage", level: "manage" },
+    resource: { type: "folder", id: "root" },
+    now: NOW,
+  });
 
 test("one source of role ids covers the plain names and the module ids", () => {
   for (const id of ["owner", "admin", "rol_owner", "rol_admin"]) assert.ok(ELEVATED_ROLES.has(id), id);
@@ -66,7 +80,7 @@ test("Owner is never inherited by a person, while a human Admin group remains va
   const s = world();
   assert.ok(!s.info("usr_peer")!.perms.has("access.manage"));
   assert.equal(manage(s, "usr_peer").effect, "deny");
-  s.addMember({group:"grp_admins",member:"usr_peer"});
+  s.addMember({ group: "grp_admins", member: "usr_peer" });
   assert.ok(s.info("usr_peer")!.perms.has("access.manage"));
-  assert.equal(manage(s,"usr_peer").effect,"allow");
+  assert.equal(manage(s, "usr_peer").effect, "allow");
 });

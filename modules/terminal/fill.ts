@@ -6,8 +6,15 @@
 // shell reads a spot (inside $(( )), (( )), $[ ], ${ } or a case ... esac) a handle there is refused with a line that says how to write it, so a value can never end up unquoted (review 12 Nov, 10).
 
 /** One spot in the line where a handle stands, and the variable that carries its value. */
-export interface HandleRef { at: number; length: number; name: string }
-export interface Spot { at: number; length: number }
+export interface HandleRef {
+  at: number;
+  length: number;
+  name: string;
+}
+export interface Spot {
+  at: number;
+  length: number;
+}
 
 /** How the shell reads a spot: unquoted, in double, single or ANSI quotes, in a here-document body (quoted or not), in a comment, or in a place this reader cannot be sure of. */
 export type Mode = "none" | "dq" | "sq" | "ansi" | "here" | "qhere" | "comment" | "unsure";
@@ -15,14 +22,18 @@ export type Mode = "none" | "dq" | "sq" | "ansi" | "here" | "qhere" | "comment" 
 export class QuotedHereDoc extends Error {
   readonly handle: string;
   constructor(handle: string) {
-    super(`${handle} is inside a here-document whose end word is quoted, where the shell expands nothing. Use an unquoted end word, or pass it with env.`);
+    super(
+      `${handle} is inside a here-document whose end word is quoted, where the shell expands nothing. Use an unquoted end word, or pass it with env.`,
+    );
     this.handle = handle;
   }
 }
 export class UnsurePlace extends Error {
   readonly handle: string;
   constructor(handle: string) {
-    super(`${handle} stands where Vyre cannot tell how the shell will read it (inside $(( )), (( )), \${ } or a case). Pass it with env instead, for example env {"PW": "${handle}"}, and write "$PW" in the command.`);
+    super(
+      `${handle} stands where Vyre cannot tell how the shell will read it (inside $(( )), (( )), \${ } or a case). Pass it with env instead, for example env {"PW": "${handle}"}, and write "$PW" in the command.`,
+    );
     this.handle = handle;
   }
 }
@@ -49,12 +60,28 @@ function walk(command: string, spots: readonly Spot[], decide: (s: Spot, mode: M
 
   /** Copy from i to `end` as it is, telling `decide` that every spot in it is in `mode` (its answer is not used: nothing in such a region is replaced). */
   const copyRegion = (end: number, mode: Mode): void => {
-    while (i < end) { const s = byAt.get(i); if (s) { decide(s, mode); out += command.slice(i, i + s.length); i += s.length; continue; } out += command[i]; i++; }
+    while (i < end) {
+      const s = byAt.get(i);
+      if (s) {
+        decide(s, mode);
+        out += command.slice(i, i + s.length);
+        i += s.length;
+        continue;
+      }
+      out += command[i];
+      i++;
+    }
   };
   /** Where a region of nested pairs ends (`open` and `close` counted from a depth of `depth`), or the end of the command. */
   const closeOf = (from: number, open: string, close: string, depth: number): number => {
     let d = depth;
-    for (let j = from; j < command.length; j++) { if (command[j] === open) d++; else if (command[j] === close) { d--; if (d === 0) return j + 1; } }
+    for (let j = from; j < command.length; j++) {
+      if (command[j] === open) d++;
+      else if (command[j] === close) {
+        d--;
+        if (d === 0) return j + 1;
+      }
+    }
     return command.length;
   };
   /** A spot at i: replaced when `decide` says so. */
@@ -63,22 +90,39 @@ function walk(command: string, spots: readonly Spot[], decide: (s: Spot, mode: M
     if (!s) return false;
     const put = decide(s, mode);
     if (put === null) return false;
-    out += put; i += s.length;
+    out += put;
+    i += s.length;
     return true;
   };
 
   const hereWord = (from: number): { here: Here; end: number } => {
     let j = from;
     let tabs = false;
-    if (command[j] === "-") { tabs = true; j++; }
+    if (command[j] === "-") {
+      tabs = true;
+      j++;
+    }
     while (command[j] === " " || command[j] === "\t") j++;
     let word = "";
     let quoted = false;
     while (j < command.length && !/[\s;|&<>()]/.test(command[j] as string)) {
       const c = command[j] as string;
-      if (c === "'" || c === '"') { quoted = true; const close = command.indexOf(c, j + 1); const stop = close < 0 ? command.length : close; word += command.slice(j + 1, stop); j = stop + 1; continue; }
-      if (c === "\\") { quoted = true; word += command[j + 1] ?? ""; j += 2; continue; }
-      word += c; j++;
+      if (c === "'" || c === '"') {
+        quoted = true;
+        const close = command.indexOf(c, j + 1);
+        const stop = close < 0 ? command.length : close;
+        word += command.slice(j + 1, stop);
+        j = stop + 1;
+        continue;
+      }
+      if (c === "\\") {
+        quoted = true;
+        word += command[j + 1] ?? "";
+        j += 2;
+        continue;
+      }
+      word += c;
+      j++;
     }
     return { here: { word, quoted, tabs }, end: j };
   };
@@ -91,9 +135,24 @@ function walk(command: string, spots: readonly Spot[], decide: (s: Spot, mode: M
         const nl = command.indexOf("\n", i);
         const lineEnd = nl < 0 ? command.length : nl;
         const line = command.slice(i, lineEnd);
-        if ((h.tabs ? line.replace(/^\t+/, "") : line) === h.word) { out += line; i = lineEnd; if (nl >= 0) { out += "\n"; i++; } break; }
-        while (i < lineEnd) { if (at(h.quoted ? "qhere" : "here")) continue; out += command[i]; i++; }
-        if (nl >= 0) { out += "\n"; i++; }
+        if ((h.tabs ? line.replace(/^\t+/, "") : line) === h.word) {
+          out += line;
+          i = lineEnd;
+          if (nl >= 0) {
+            out += "\n";
+            i++;
+          }
+          break;
+        }
+        while (i < lineEnd) {
+          if (at(h.quoted ? "qhere" : "here")) continue;
+          out += command[i];
+          i++;
+        }
+        if (nl >= 0) {
+          out += "\n";
+          i++;
+        }
       }
     }
   };
@@ -101,9 +160,18 @@ function walk(command: string, spots: readonly Spot[], decide: (s: Spot, mode: M
   /** A construct this reader does not follow inside: $(( )), $[ ], ${ }. Returns true when one starts at i (and was copied whole). */
   const unsure = (): boolean => {
     const c = command[i];
-    if (c === "$" && command[i + 1] === "(" && command[i + 2] === "(") { copyRegion(closeOf(i + 1, "(", ")", 0), "unsure"); return true; }
-    if (c === "$" && command[i + 1] === "[") { copyRegion(closeOf(i + 1, "[", "]", 0), "unsure"); return true; }
-    if (c === "$" && command[i + 1] === "{") { copyRegion(closeOf(i + 1, "{", "}", 0), "unsure"); return true; }
+    if (c === "$" && command[i + 1] === "(" && command[i + 2] === "(") {
+      copyRegion(closeOf(i + 1, "(", ")", 0), "unsure");
+      return true;
+    }
+    if (c === "$" && command[i + 1] === "[") {
+      copyRegion(closeOf(i + 1, "[", "]", 0), "unsure");
+      return true;
+    }
+    if (c === "$" && command[i + 1] === "{") {
+      copyRegion(closeOf(i + 1, "{", "}", 0), "unsure");
+      return true;
+    }
     return false;
   };
 
@@ -113,63 +181,159 @@ function walk(command: string, spots: readonly Spot[], decide: (s: Spot, mode: M
     if (c === "\\" && q !== "sq" && byAt.has(i + 1)) {
       const s = byAt.get(i + 1) as Spot;
       const put = decide(s, q === "ansi" ? "ansi" : q === "dq" ? "dq" : "none");
-      if (put !== null) { out += put; i += 1 + s.length; continue; }
-      out += command.slice(i, i + 2); i += 2; continue;
+      if (put !== null) {
+        out += put;
+        i += 1 + s.length;
+        continue;
+      }
+      out += command.slice(i, i + 2);
+      i += 2;
+      continue;
     }
-    if (q === "sq") { if (at("sq")) continue; out += c; i++; if (c === "'") q = "none"; continue; }
+    if (q === "sq") {
+      if (at("sq")) continue;
+      out += c;
+      i++;
+      if (c === "'") q = "none";
+      continue;
+    }
     if (q === "ansi") {
       if (at("ansi")) continue;
-      if (c === "\\") { out += command.slice(i, i + 2); i += 2; continue; }
-      out += c; i++; if (c === "'") q = "none"; continue;
+      if (c === "\\") {
+        out += command.slice(i, i + 2);
+        i += 2;
+        continue;
+      }
+      out += c;
+      i++;
+      if (c === "'") q = "none";
+      continue;
     }
     if (q === "dq") {
       if (at("dq")) continue;
-      if (c === "\\") { out += command.slice(i, i + 2); i += 2; continue; }
-      if (c === '"') { out += c; i++; q = "none"; continue; }
+      if (c === "\\") {
+        out += command.slice(i, i + 2);
+        i += 2;
+        continue;
+      }
+      if (c === '"') {
+        out += c;
+        i++;
+        q = "none";
+        continue;
+      }
       if (unsure()) continue;
-      if (c === "$" && command[i + 1] === "(") { out += "$("; i += 2; stack.push({ kind: "sub", parens: 0, outer: "dq" }); q = "none"; continue; }
-      if (c === "`") { out += c; i++; stack.push({ kind: "tick", parens: 0, outer: "dq" }); q = "none"; continue; }
-      out += c; i++; continue;
+      if (c === "$" && command[i + 1] === "(") {
+        out += "$(";
+        i += 2;
+        stack.push({ kind: "sub", parens: 0, outer: "dq" });
+        q = "none";
+        continue;
+      }
+      if (c === "`") {
+        out += c;
+        i++;
+        stack.push({ kind: "tick", parens: 0, outer: "dq" });
+        q = "none";
+        continue;
+      }
+      out += c;
+      i++;
+      continue;
     }
     // unquoted
     if (at("none")) continue;
-    if (c === "\\") { out += command.slice(i, i + 2); i += 2; continue; }
+    if (c === "\\") {
+      out += command.slice(i, i + 2);
+      i += 2;
+      continue;
+    }
     // a comment, to the end of its line: nothing in it is a handle
-    if (c === "#" && wordStart(i)) { const nl = command.indexOf("\n", i); copyRegion(nl < 0 ? command.length : nl, "comment"); continue; }
-    if (c === "'") { out += c; i++; q = "sq"; continue; }
-    if (c === "$" && command[i + 1] === "'") { out += "$'"; i += 2; q = "ansi"; continue; }
-    if (c === '"') { out += c; i++; q = "dq"; continue; }
+    if (c === "#" && wordStart(i)) {
+      const nl = command.indexOf("\n", i);
+      copyRegion(nl < 0 ? command.length : nl, "comment");
+      continue;
+    }
+    if (c === "'") {
+      out += c;
+      i++;
+      q = "sq";
+      continue;
+    }
+    if (c === "$" && command[i + 1] === "'") {
+      out += "$'";
+      i += 2;
+      q = "ansi";
+      continue;
+    }
+    if (c === '"') {
+      out += c;
+      i++;
+      q = "dq";
+      continue;
+    }
     if (unsure()) continue;
     // (( arithmetic )) at the start of a word, and a case ... esac (its patterns end in a bare ")"): not followed inside
-    if (c === "(" && command[i + 1] === "(" && wordStart(i)) { copyRegion(closeOf(i, "(", ")", 0), "unsure"); continue; }
+    if (c === "(" && command[i + 1] === "(" && wordStart(i)) {
+      copyRegion(closeOf(i, "(", ")", 0), "unsure");
+      continue;
+    }
     if (wordStart(i) && /^case(?=[\s;]|$)/.test(command.slice(i, i + 5))) {
       const m = /(^|[\s;&|()])esac(?=[\s;&|()]|$)/.exec(command.slice(i + 4));
       copyRegion(m ? i + 4 + m.index + m[0].length : command.length, "unsure");
       continue;
     }
-    if (c === "$" && command[i + 1] === "(") { out += "$("; i += 2; stack.push({ kind: "sub", parens: 0, outer: "none" }); continue; }
-    if (c === "`") {
-      out += c; i++;
-      if (top().kind === "tick") q = (stack.pop() as Frame).outer; else stack.push({ kind: "tick", parens: 0, outer: "none" });
+    if (c === "$" && command[i + 1] === "(") {
+      out += "$(";
+      i += 2;
+      stack.push({ kind: "sub", parens: 0, outer: "none" });
       continue;
     }
-    if (c === "(") { top().parens++; out += c; i++; continue; }
+    if (c === "`") {
+      out += c;
+      i++;
+      if (top().kind === "tick") q = (stack.pop() as Frame).outer;
+      else stack.push({ kind: "tick", parens: 0, outer: "none" });
+      continue;
+    }
+    if (c === "(") {
+      top().parens++;
+      out += c;
+      i++;
+      continue;
+    }
     if (c === ")") {
       const f = top();
       if (f.parens > 0) f.parens--;
-      else if (f.kind === "sub" && stack.length > 1) { stack.pop(); q = f.outer; }
-      out += c; i++; continue;
+      else if (f.kind === "sub" && stack.length > 1) {
+        stack.pop();
+        q = f.outer;
+      }
+      out += c;
+      i++;
+      continue;
     }
     // a here-string (<<<) is a plain word; a here-document (<< or <<-) has a body on the lines that follow
-    if (c === "<" && command[i + 1] === "<" && command[i + 2] === "<") { out += "<<<"; i += 3; continue; }
+    if (c === "<" && command[i + 1] === "<" && command[i + 2] === "<") {
+      out += "<<<";
+      i += 3;
+      continue;
+    }
     if (c === "<" && command[i + 1] === "<") {
       const { here, end } = hereWord(i + 2);
-      out += command.slice(i, end); i = end;
+      out += command.slice(i, end);
+      i = end;
       if (here.word !== "") pending.push(here);
       continue;
     }
-    if (c === "\n") { out += c; i++; bodies(); continue; }
-    out += c; i++;
+    if (c === "\n") {
+      out += c;
+      i++;
+      bodies();
+      continue;
+    }
+    out += c;
+    i++;
   }
   return out;
 }
@@ -178,9 +342,16 @@ function walk(command: string, spots: readonly Spot[], decide: (s: Spot, mode: M
  * How the shell reads each spot. `isHandle(at)`: whether the spot is a Vault handle (true) or text the Vault does not know (false): text at the start of a word is a comment for the shell, and then so
  * is the rest of its line. A spot not yet asked about counts as a handle; asking in order, from the first spot not in a comment, and reading again after each answer, gives every spot its true place.
  */
-export function classify(command: string, spots: readonly Spot[], isHandle: (at: number) => boolean): Map<number, Mode> {
+export function classify(
+  command: string,
+  spots: readonly Spot[],
+  isHandle: (at: number) => boolean,
+): Map<number, Mode> {
   const modes = new Map<number, Mode>();
-  walk(command, spots, (s, mode) => { modes.set(s.at, mode); return isHandle(s.at) && mode !== "comment" ? command.slice(s.at, s.at + s.length) : null; });
+  walk(command, spots, (s, mode) => {
+    modes.set(s.at, mode);
+    return isHandle(s.at) && mode !== "comment" ? command.slice(s.at, s.at + s.length) : null;
+  });
   return modes;
 }
 
@@ -204,6 +375,7 @@ export function referHandles(command: string, refs: readonly HandleRef[]): strin
     return mode === "none" ? `"${v}"` : mode === "dq" || mode === "here" ? v : mode === "sq" ? `'"${v}"'` : `'"${v}"$'`;
   });
   // every handle must have become a reference: one left as written would be handed to the shell as its value
-  if (taken !== refs.length) throw new Error("A Vault handle in that command could not be placed safely. Pass it with env instead.");
+  if (taken !== refs.length)
+    throw new Error("A Vault handle in that command could not be placed safely. Pass it with env instead.");
   return out;
 }

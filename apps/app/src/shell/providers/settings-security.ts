@@ -5,22 +5,52 @@ import type { SettingsData } from "../../places/settings/data.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
 type Call = ShellRuntime["call"];
-const hostOf = (origin: string): string => { try { return new URL(origin).host; } catch { return origin; } };
-const day = (t: number): string => new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+const hostOf = (origin: string): string => {
+  try {
+    return new URL(origin).host;
+  } catch {
+    return origin;
+  }
+};
+const day = (t: number): string =>
+  new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
-export async function loadSecurity(call: Call, space: { id: string; kind: string }, _now: number = Date.now()): Promise<NonNullable<SettingsData["security"]>> {
-  const [mine, options, devices] = await Promise.all([call("identity.security.get", {}), call("identity.sign_in_options", {}), call("devices.mine", {})]) as [
-    { passwordChangedAt: number; github?: string; totp: boolean; passkeys: string[]; carried?: Array<{ origin: string; at: number }> },
+export async function loadSecurity(
+  call: Call,
+  space: { id: string; kind: string },
+  _now: number = Date.now(),
+): Promise<NonNullable<SettingsData["security"]>> {
+  const [mine, options, devices] = (await Promise.all([
+    call("identity.security.get", {}),
+    call("identity.sign_in_options", {}),
+    call("devices.mine", {}),
+  ])) as [
+    {
+      passwordChangedAt: number;
+      github?: string;
+      totp: boolean;
+      passkeys: string[];
+      carried?: Array<{ origin: string; at: number }>;
+    },
     { secondFactorRequired: boolean; sso: Array<{ title: string }> },
     { devices: unknown[] },
   ];
   return {
-    account: { passwordChanged: day(mine.passwordChangedAt), github: mine.github ?? null, ...(mine.carried?.length ? { carried: mine.carried.map((c) => ({ host: hostOf(c.origin), day: day(c.at) })) } : {}) },
+    account: {
+      passwordChanged: day(mine.passwordChangedAt),
+      github: mine.github ?? null,
+      ...(mine.carried?.length
+        ? { carried: mine.carried.map((c) => ({ host: hostOf(c.origin), day: day(c.at) })) }
+        : {}),
+    },
     spaces: {
       [space.id]: {
-        totp: mine.totp, passkeys: mine.passkeys,
-        floor: options.secondFactorRequired ? "Required" : "Not required", floorBy: "your Space's admins",
-        sso: options.sso[0]?.title ?? "", devices: devices.devices.length,
+        totp: mine.totp,
+        passkeys: mine.passkeys,
+        floor: options.secondFactorRequired ? "Required" : "Not required",
+        floorBy: "your Space's admins",
+        sso: options.sso[0]?.title ?? "",
+        devices: devices.devices.length,
       },
     },
   };

@@ -8,14 +8,23 @@ import { ReviewDataProvider, SuggestionCard } from "../src/places/files/review/i
 import { applySuggestionStrict, diffLines, diffNote, draftDiff, lineHunks } from "../src/places/files/review/model.ts";
 import { AGENT_MD, createSampleReview } from "../src/places/files/review/sample.ts";
 
-const lines = (n: number, f: (i: number) => string = (i) => `line ${i}`): string => Array.from({ length: n }, (_, i) => f(i + 1)).join("\n") + "\n";
-const html = (el: ReactElement, s = createSampleReview({})): string => renderToStaticMarkup(<ReviewDataProvider value={s.data}>{el}</ReviewDataProvider>).replaceAll("<!-- -->", "").replaceAll("&#x27;", "'");
+const lines = (n: number, f: (i: number) => string = (i) => `line ${i}`): string =>
+  Array.from({ length: n }, (_, i) => f(i + 1)).join("\n") + "\n";
+const html = (el: ReactElement, s = createSampleReview({})): string =>
+  renderToStaticMarkup(<ReviewDataProvider value={s.data}>{el}</ReviewDataProvider>)
+    .replaceAll("<!-- -->", "")
+    .replaceAll("&#x27;", "'");
 
 /** What the ops say the two texts are: the old lines are the ctx and del ops, the new lines the ctx and add ops. */
-const sides = (ops: ReturnType<typeof diffLines>): { a: string[]; b: string[] } => ({ a: ops.filter((o) => o.op !== "add").map((o) => o.text), b: ops.filter((o) => o.op !== "del").map((o) => o.text) });
+const sides = (ops: ReturnType<typeof diffLines>): { a: string[]; b: string[] } => ({
+  a: ops.filter((o) => o.op !== "add").map((o) => o.text),
+  b: ops.filter((o) => o.op !== "del").map((o) => o.text),
+});
 const lcs = (a: string[], b: string[]): number => {
   const t = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
-  for (let i = a.length - 1; i >= 0; i--) for (let j = b.length - 1; j >= 0; j--) t[i]![j] = a[i] === b[j] ? t[i + 1]![j + 1]! + 1 : Math.max(t[i + 1]![j]!, t[i]![j + 1]!);
+  for (let i = a.length - 1; i >= 0; i--)
+    for (let j = b.length - 1; j >= 0; j--)
+      t[i]![j] = a[i] === b[j] ? t[i + 1]![j + 1]! + 1 : Math.max(t[i + 1]![j]!, t[i]![j + 1]!);
   return t[0]![0]!;
 };
 
@@ -38,7 +47,10 @@ test("a one-word edit shows exactly that line, as it was and as it is, and no ot
 
 test("the ops always rebuild both texts exactly, and are as short as the best edit script (checked against a table search on random texts)", () => {
   let seed = 7;
-  const rnd = (n: number): number => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+  const rnd = (n: number): number => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed % n;
+  };
   for (let round = 0; round < 300; round++) {
     const a = Array.from({ length: rnd(14) }, () => String(rnd(5)));
     const b = Array.from({ length: rnd(14) }, () => String(rnd(5)));
@@ -64,7 +76,10 @@ test("reordered lines: moving one line is one removed and one added, not a rewri
 
 test("a long file with a few edits shows those edits and nothing else, quickly", () => {
   const a = lines(20000);
-  const b = a.replace("line 100\n", "line 100 changed\n").replace("line 10000\n", "").replace("line 19999\n", "line 19999\nan added line\n");
+  const b = a
+    .replace("line 100\n", "line 100 changed\n")
+    .replace("line 10000\n", "")
+    .replace("line 19999\n", "line 19999\nan added line\n");
   const t = Date.now();
   const d = draftDiff("long.md", a, b);
   assert.ok(Date.now() - t < 3000, "a 20,000 line file is quick");
@@ -111,8 +126,18 @@ test("the suggestion card's diff is the diff of its stored before and after; a s
   const before = AGENT_MD;
   const after = before.replace("- No exclamation marks.", "- No exclamation marks.\n- Keep replies under five lines.");
   // how an agent stores its proposal: a unified diff against the file as it was
-  assert.equal(applySuggestionStrict(before, "@@ -1 +1 @@\n nothing that is in the file\n-gone\n+x"), null, "a diff that is not about this text does not apply");
-  const stored = ["@@ -9,3 +9,4 @@", " - Warm and brief. Two sentences, then a question.", " - No exclamation marks.", "+- Keep replies under five lines.", " - Say what happens next, always."].join("\n");
+  assert.equal(
+    applySuggestionStrict(before, "@@ -1 +1 @@\n nothing that is in the file\n-gone\n+x"),
+    null,
+    "a diff that is not about this text does not apply",
+  );
+  const stored = [
+    "@@ -9,3 +9,4 @@",
+    " - Warm and brief. Two sentences, then a question.",
+    " - No exclamation marks.",
+    "+- Keep replies under five lines.",
+    " - Say what happens next, always.",
+  ].join("\n");
   const applied = applySuggestionStrict(before, stored);
   assert.equal(applied, after, "the stored proposal makes exactly this text");
   const fromCard = draftDiff("AGENT.md", before, applied!);
@@ -125,9 +150,15 @@ test("the suggestion card's diff is the diff of its stored before and after; a s
 test("the card draws the diff of the file's text against the suggestion's result, and says when it no longer fits", () => {
   const s = createSampleReview({});
   const fits = html(<SuggestionCard agentId="agt_intake" file="AGENT.md" text={AGENT_MD} />, s);
-  assert.ok(fits.includes('data-testid="suggestion-card"') && fits.includes('data-testid="suggestion-diff"'), "the diff is drawn");
+  assert.ok(
+    fits.includes('data-testid="suggestion-card"') && fits.includes('data-testid="suggestion-diff"'),
+    "the diff is drawn",
+  );
   assert.ok(!fits.includes('data-testid="suggestion-stale"'));
-  const stale = html(<SuggestionCard agentId="agt_intake" file="AGENT.md" text={"# A different file\n\nNothing alike.\n"} />, s);
+  const stale = html(
+    <SuggestionCard agentId="agt_intake" file="AGENT.md" text={"# A different file\n\nNothing alike.\n"} />,
+    s,
+  );
   assert.ok(stale.includes('data-testid="suggestion-stale"'), "it says it no longer fits");
   assert.ok(!stale.includes('data-testid="suggestion-diff"'), "and draws no diff it cannot stand behind");
   const apply = /<[^>]*data-testid="suggestion-apply"[^>]*>/.exec(stale)?.[0] ?? "";

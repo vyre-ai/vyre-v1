@@ -23,7 +23,8 @@ export function aiHomeOf(address: string, ownComputer: boolean): AiHome {
 /** A key that is not open, where it can be unlocked from this screen. */
 export const LOCKED_LINE = "Your Mine Vault is locked on this device. Unlock it, then try again.";
 /** A key that is not open on a Space that runs elsewhere: signing in to it opens it. */
-export const SIGN_IN_AGAIN_LINE = "Your Mine items open while you are signed in to Vyre on this device. Sign in again here, then try again.";
+export const SIGN_IN_AGAIN_LINE =
+  "Your Mine items open while you are signed in to Vyre on this device. Sign in again here, then try again.";
 /** auth.unauthenticated that is not about the Vault: the session itself ended. */
 export const SIGNED_OUT_LINE = "You were signed out. Sign in again, then try again.";
 
@@ -39,7 +40,13 @@ const messageOf = (e: unknown): string => {
 /** The Space refused because the person's own key is not open where it asked: by its reason (vault_locked), or in the words older daemons and the connectors module use. */
 export function isOwnKeyRefusal(e: unknown): boolean {
   // the reason when the error carries it; else the Vault's words, old ("vault key is locked") and new (modules/vault MINE_CLOSED: "Your Mine items open while you are signed in")
-  return codeOf(e) === "auth.unauthenticated" && (isVaultLockedError(e) || /vault (key )?is locked|sign-ins are locked|Vault key is not on this server|Mine items open while you are signed in/i.test(messageOf(e)));
+  return (
+    codeOf(e) === "auth.unauthenticated" &&
+    (isVaultLockedError(e) ||
+      /vault (key )?is locked|sign-ins are locked|Vault key is not on this server|Mine items open while you are signed in/i.test(
+        messageOf(e),
+      ))
+  );
 }
 
 /**
@@ -54,9 +61,20 @@ export function ownAiRefusal(e: unknown, home: AiHome): string | null {
 
 // ---- the Space AI key, as every "Connect your AI" place shows it
 
-export interface SpaceKeyState { set: boolean; name?: string; state?: "ok" | "failing"; mayManage?: boolean; models?: readonly string[] }
+export interface SpaceKeyState {
+  set: boolean;
+  name?: string;
+  state?: "ok" | "failing";
+  mayManage?: boolean;
+  models?: readonly string[];
+}
 /** Whether the Space covers the person, and who to ask when it does not. Never a dead end: there is always something to do next. */
-export interface SpaceAiWords { covered: boolean; title: string; line: string; /** "glm-5.3, kimi-k3 and 5 more" when the key covers the person and lists models; "" otherwise */ models: string }
+export interface SpaceAiWords {
+  covered: boolean;
+  title: string;
+  line: string;
+  /** "glm-5.3, kimi-k3 and 5 more" when the key covers the person and lists models; "" otherwise */ models: string;
+}
 
 /** "glm-5.3, kimi-k3 and 5 more" */
 export function modelsShort(models: readonly string[] = [], shown = 3): string {
@@ -68,15 +86,48 @@ export function modelsShort(models: readonly string[] = [], shown = 3): string {
 export function spaceAiWords(key: SpaceKeyState | null | "error", admin: string | null): SpaceAiWords {
   const ask = admin ? `Ask ${admin}` : "Ask the Space owner or an admin";
   if (key === null) return { covered: false, title: "Checking this Space's AI key", line: "", models: "" };
-  if (key === "error") return { covered: false, title: "Could not check this Space's AI key", line: `${ask} whether this Space has one, or connect your own account.`, models: "" };
+  if (key === "error")
+    return {
+      covered: false,
+      title: "Could not check this Space's AI key",
+      line: `${ask} whether this Space has one, or connect your own account.`,
+      models: "",
+    };
   const named = key.name ? `This Space's AI key (${key.name})` : "This Space's AI key";
   // covered for the models the key serves, and only those: a key without Claude models does not cover a Claude pick
   const serves = (key.models ?? []).length > 0;
-  const lacks = ["claude", "gpt", "gemini"].filter((m) => serves && !(key.models ?? []).some((x) => x.toLowerCase().startsWith(m))).map((m) => (m === "claude" ? "Claude" : m === "gpt" ? "GPT" : "Gemini"));
-  if (key.set && key.state !== "failing") return { covered: true, title: "You're covered", line: `${named} works for you${serves ? " for the models below" : ""}.${lacks.length > 0 ? ` It has no ${lacks.join(", ")} models: connect your own sign-in to use those.` : ""}`, models: modelsShort(key.models) };
-  if (key.set) return { covered: false, title: `${named} stopped working`, line: key.mayManage ? "Check it in Console, under AI." : `${ask} to check it in Console, or connect your own account.`, models: "" };
-  if (key.mayManage) return { covered: false, title: "This Space has no AI key yet", line: "Add one in Console, under AI, and it covers everyone here.", models: "" };
-  return { covered: false, title: "This Space has no AI key yet", line: `${ask} to add one in Console, or connect your own account.`, models: "" };
+  const lacks = ["claude", "gpt", "gemini"]
+    .filter((m) => serves && !(key.models ?? []).some((x) => x.toLowerCase().startsWith(m)))
+    .map((m) => (m === "claude" ? "Claude" : m === "gpt" ? "GPT" : "Gemini"));
+  if (key.set && key.state !== "failing")
+    return {
+      covered: true,
+      title: "You're covered",
+      line: `${named} works for you${serves ? " for the models below" : ""}.${lacks.length > 0 ? ` It has no ${lacks.join(", ")} models: connect your own sign-in to use those.` : ""}`,
+      models: modelsShort(key.models),
+    };
+  if (key.set)
+    return {
+      covered: false,
+      title: `${named} stopped working`,
+      line: key.mayManage
+        ? "Check it in Console, under AI."
+        : `${ask} to check it in Console, or connect your own account.`,
+      models: "",
+    };
+  if (key.mayManage)
+    return {
+      covered: false,
+      title: "This Space has no AI key yet",
+      line: "Add one in Console, under AI, and it covers everyone here.",
+      models: "",
+    };
+  return {
+    covered: false,
+    title: "This Space has no AI key yet",
+    line: `${ask} to add one in Console, or connect your own account.`,
+    models: "",
+  };
 }
 
 // ---- reading it
@@ -84,10 +135,13 @@ export function spaceAiWords(key: SpaceKeyState | null | "error", admin: string 
 type Call = (cap: string, input?: unknown) => Promise<unknown>;
 type PrincipalRow = { id: string; kind: string; name: string; status: string; roles: readonly string[] };
 
-const holds = (p: PrincipalRow, role: string): boolean => p.roles.some((r) => r.toLowerCase().replace(/^rol_/, "") === role);
+const holds = (p: PrincipalRow, role: string): boolean =>
+  p.roles.some((r) => r.toLowerCase().replace(/^rol_/, "") === role);
 /** Someone who can add a Space AI key, named with their role: "Irfad Imtiaz (owner)", else an admin. Never the person asking. */
 export function adminOf(principals: readonly PrincipalRow[], me?: string): string | null {
-  const people = principals.filter((p) => p.kind === "person" && p.status === "active" && p.id !== me && p.name.trim() !== "");
+  const people = principals.filter(
+    (p) => p.kind === "person" && p.status === "active" && p.id !== me && p.name.trim() !== "",
+  );
   const owner = people.find((p) => holds(p, "owner"));
   if (owner) return `${owner.name.trim()} (owner)`;
   const admin = people.find((p) => holds(p, "admin"));
@@ -95,10 +149,19 @@ export function adminOf(principals: readonly PrincipalRow[], me?: string): strin
 }
 
 /** The Space AI key's status and who can add one. The key read is required; the people read is a nicety, so a refusal there falls back to `fallbackAdmin`. */
-export async function readSpaceAi(call: Call, o: { me?: string; fallbackAdmin?: string | null } = {}): Promise<{ key: SpaceKeyState | "error"; admin: string | null }> {
+export async function readSpaceAi(
+  call: Call,
+  o: { me?: string; fallbackAdmin?: string | null } = {},
+): Promise<{ key: SpaceKeyState | "error"; admin: string | null }> {
   const [key, people] = await Promise.all([
-    call("providers.space_key.get", {}).then((k) => k as SpaceKeyState, () => "error" as const),
-    call("access.principals.list", { kind: "person", status: "active" }).then((x) => (x as { principals?: PrincipalRow[] }).principals ?? [], () => [] as PrincipalRow[]),
+    call("providers.space_key.get", {}).then(
+      (k) => k as SpaceKeyState,
+      () => "error" as const,
+    ),
+    call("access.principals.list", { kind: "person", status: "active" }).then(
+      (x) => (x as { principals?: PrincipalRow[] }).principals ?? [],
+      () => [] as PrincipalRow[],
+    ),
   ]);
   return { key, admin: adminOf(people, o.me) ?? o.fallbackAdmin ?? null };
 }

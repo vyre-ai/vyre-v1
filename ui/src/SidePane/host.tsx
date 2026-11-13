@@ -38,7 +38,12 @@ export const SHEET_RADIUS = RADIUS;
 export interface ShellLayoutApi {
   layout: Layout;
   /** A panel is open. The newest pane wins (one side pane at a time); closing it brings the one before it back. Returns the release. */
-  register(kind: "sidebar" | "pane", id: string, close?: () => void, meta?: { def: number; min: number; max: number }): () => void;
+  register(
+    kind: "sidebar" | "pane",
+    id: string,
+    close?: () => void,
+    meta?: { def: number; min: number; max: number },
+  ): () => void;
   /** The pane that owns the right side now. */
   activePane: string | null;
   /** Saved width for a panel key in the current band. */
@@ -60,7 +65,14 @@ export function intoSheet(target: unknown, node: ReactNode): ReactNode {
 }
 
 /** The shape of a sheet, the clipping box inside the column that holds the resize edge. */
-export const SHEET: ViewStyle = { flex: 1, minHeight: 0, minWidth: 0, borderRadius: SHEET_RADIUS, overflow: "hidden", backgroundColor: "var(--side)" as string };
+export const SHEET: ViewStyle = {
+  flex: 1,
+  minHeight: 0,
+  minWidth: 0,
+  borderRadius: SHEET_RADIUS,
+  overflow: "hidden",
+  backgroundColor: "var(--side)" as string,
+};
 
 /** The right rail floats as a card while the window is narrow. */
 export function useRailOverlay(): boolean {
@@ -71,8 +83,23 @@ export function useRailOverlay(): boolean {
 }
 
 /** A panel in an overlay mode: over main, from the right, inside the one gutter; the scrim under it is the shell's. */
-export const RAIL_OVERLAY: ViewStyle = { position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 41, marginLeft: 0, ...(Platform.OS === "web" ? ({ boxShadow: "var(--sh-pop)", borderRadius: SHEET_RADIUS } as ViewStyle) : {}) };
-export const SIDEBAR_OVERLAY: ViewStyle = { position: "absolute", top: 0, left: 0, bottom: 0, zIndex: 40, ...(Platform.OS === "web" ? ({ boxShadow: "var(--sh-pop)", borderRadius: SHEET_RADIUS } as ViewStyle) : {}) };
+export const RAIL_OVERLAY: ViewStyle = {
+  position: "absolute",
+  top: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 41,
+  marginLeft: 0,
+  ...(Platform.OS === "web" ? ({ boxShadow: "var(--sh-pop)", borderRadius: SHEET_RADIUS } as ViewStyle) : {}),
+};
+export const SIDEBAR_OVERLAY: ViewStyle = {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  bottom: 0,
+  zIndex: 40,
+  ...(Platform.OS === "web" ? ({ boxShadow: "var(--sh-pop)", borderRadius: SHEET_RADIUS } as ViewStyle) : {}),
+};
 
 /**
  * Where the browser has corner-shape, sheets and the smaller shapes are true squircles. Marked with data-sq on the element, so one rule covers every place: a browser without it keeps the plain radius.
@@ -96,7 +123,13 @@ export function sq(shape: "sheet" | "card" | "row" | "track" | "tile" | "face"):
  * A panel tells the shell it is open. Returns false while another pane owns the right side (one side pane at a time) or before the shell has seen this one, so the caller draws nothing then.
  * Outside the shell, or for a panel that is not managed, it is always true.
  */
-export function usePanelPresence(kind: "sidebar" | "pane", id: string, open: boolean, close?: () => void, meta?: { def: number; min: number; max: number }): boolean {
+export function usePanelPresence(
+  kind: "sidebar" | "pane",
+  id: string,
+  open: boolean,
+  close?: () => void,
+  meta?: { def: number; min: number; max: number },
+): boolean {
   const shell = useShellLayout();
   const closeRef = useRef(close);
   closeRef.current = close;
@@ -104,7 +137,7 @@ export function usePanelPresence(kind: "sidebar" | "pane", id: string, open: boo
   useEffect(() => {
     if (register === undefined || !open) return undefined;
     return register(kind, id, () => closeRef.current?.(), meta);
-  }, [register, kind, id, open, meta?.def, meta?.min, meta?.max]);   // eslint-disable-line react-hooks/exhaustive-deps -- meta is three numbers, listed one by one
+  }, [register, kind, id, open, meta?.def, meta?.min, meta?.max]); // eslint-disable-line react-hooks/exhaustive-deps -- meta is three numbers, listed one by one
   if (shell === null || !open) return true;
   if (kind === "sidebar") return true;
   return shell.activePane === id;

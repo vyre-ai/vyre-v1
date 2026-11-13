@@ -7,12 +7,36 @@
 // Inbound: the route Mailgun is given forwards to /hooks/mail/mailgun and also stores the message. The forward says who and which Message-Id; the body and
 // attachments are read from the stored copy, found through the stored event of that Message-Id.
 import { HostError, fail } from "../../../host/src/routes/errors.ts";
-import { API, api, bad, ensure, first, list, needHost, obj, parse, parseAddress, raw, refusal, regionOf, strOrUndef, text } from "../projections.ts";
+import {
+  API,
+  api,
+  bad,
+  ensure,
+  first,
+  list,
+  needHost,
+  obj,
+  parse,
+  parseAddress,
+  raw,
+  refusal,
+  regionOf,
+  strOrUndef,
+  text,
+} from "../projections.ts";
 import type { Json, MailgunCtx, Region } from "../projections.ts";
 
 type Dns = "pass" | "fail" | "pending";
 type EventType = "accepted" | "delivered" | "failed" | "opened" | "clicked" | "complained" | "unsubscribed";
-const EVENT_TYPES: readonly EventType[] = ["accepted", "delivered", "failed", "opened", "clicked", "complained", "unsubscribed"];
+const EVENT_TYPES: readonly EventType[] = [
+  "accepted",
+  "delivered",
+  "failed",
+  "opened",
+  "clicked",
+  "complained",
+  "unsubscribed",
+];
 
 export interface DomainRow {
   name: string;
@@ -66,7 +90,11 @@ export interface SendIn {
   idempotencyKey: string;
 }
 
-const cleanName = (name: string): string => name.replace(/[\r\n"<>]/g, " ").replace(/\s+/g, " ").trim();
+const cleanName = (name: string): string =>
+  name
+    .replace(/[\r\n"<>]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 /** A header name Mailgun can pass on: letters, digits and dashes. */
 const cleanHeader = (name: string): string => name.replace(/[^A-Za-z0-9-]/g, "-");
 const MAX_TAGS = 3;
@@ -75,7 +103,10 @@ export async function sendEmail(ctx: MailgunCtx, input: SendIn): Promise<{ provi
   const domain = domainName(ctx, input.domain);
   if (!input.text && !input.html) bad(ctx, "An email needs a text or an html body.");
   const name = input.fromName ? cleanName(input.fromName) : "";
-  const fields: [string, string][] = [["from", name ? `${name} <${input.from}>` : input.from], ["subject", input.subject]];
+  const fields: [string, string][] = [
+    ["from", name ? `${name} <${input.from}>` : input.from],
+    ["subject", input.subject],
+  ];
   for (const a of input.to) fields.push(["to", a]);
   for (const a of input.cc ?? []) fields.push(["cc", a]);
   for (const a of input.bcc ?? []) fields.push(["bcc", a]);
@@ -106,13 +137,18 @@ export async function sendEmail(ctx: MailgunCtx, input: SendIn): Promise<{ provi
 // ---- mailgun.events.list
 
 export async function eventsList(
-  ctx: MailgunCtx, input: { domain: string; providerId?: string; event?: EventType; since?: number; pageToken?: string },
-): Promise<{ events: { eventId: string; event: EventType; providerId?: string; address?: string; at: number }[]; nextPageToken?: string }> {
+  ctx: MailgunCtx,
+  input: { domain: string; providerId?: string; event?: EventType; since?: number; pageToken?: string },
+): Promise<{
+  events: { eventId: string; event: EventType; providerId?: string; address?: string; at: number }[];
+  nextPageToken?: string;
+}> {
   const domain = domainName(ctx, input.domain);
   let a: Awaited<ReturnType<typeof raw>>;
   if (input.pageToken) {
     // a page token is the path Mailgun gave for the next page; it must stay inside this domain's events
-    if (!input.pageToken.startsWith(`/v3/${pathPart(domain)}/events/`)) bad(ctx, "That page token is not from this domain's events.");
+    if (!input.pageToken.startsWith(`/v3/${pathPart(domain)}/events/`))
+      bad(ctx, "That page token is not from this domain's events.");
     a = await raw(ctx, { path: input.pageToken });
   } else {
     const query: Record<string, string> = { limit: "100", ascending: "yes" };
@@ -127,7 +163,11 @@ export async function eventsList(
     const item = obj(entry);
     const event = text(item.event) as EventType;
     if (!EVENT_TYPES.includes(event) || !strOrUndef(item.id)) continue;
-    const row: { eventId: string; event: EventType; providerId?: string; address?: string; at: number } = { eventId: text(item.id), event, at: Math.round(Number(item.timestamp) * 1000) || 0 };
+    const row: { eventId: string; event: EventType; providerId?: string; address?: string; at: number } = {
+      eventId: text(item.id),
+      event,
+      at: Math.round(Number(item.timestamp) * 1000) || 0,
+    };
     const mid = strOrUndef(obj(obj(item.message).headers)["message-id"]);
     if (mid) row.providerId = bareId(mid);
     const to = strOrUndef(item.recipient);
@@ -140,7 +180,9 @@ export async function eventsList(
     try {
       const u = new URL(next);
       out.nextPageToken = u.pathname + u.search;
-    } catch { /* a page address that is not one ends the list */ }
+    } catch {
+      /* a page address that is not one ends the list */
+    }
   }
   return out;
 }
@@ -164,7 +206,13 @@ export function dnsRecords(j: Json, domain: string): DnsRecord[] {
     const type = text(r.record_type).toUpperCase() === "CNAME" ? "CNAME" : "TXT";
     const name = text(r.name);
     const value = text(r.value);
-    const purpose: DnsRecord["purpose"] = name.includes("_domainkey") ? "dkim" : /^v=spf1/i.test(value) ? "spf" : name.startsWith("_dmarc") ? "dmarc" : "verify";
+    const purpose: DnsRecord["purpose"] = name.includes("_domainkey")
+      ? "dkim"
+      : /^v=spf1/i.test(value)
+        ? "spf"
+        : name.startsWith("_dmarc")
+          ? "dmarc"
+          : "verify";
     out.push({ purpose, type, name, value, state: stateOf(r.valid) });
   }
   for (const entry of list(j.receiving_dns_records)) {
@@ -179,8 +227,12 @@ export function domainRow(info: Json, records: DnsRecord[], region: Region): Dom
   const state = domainState(info.state);
   const overall: Dns = state === "active" ? "pass" : "pending";
   return {
-    name: text(info.name), state, spf: records.length ? groupState(records, "spf") : overall, dkim: records.length ? groupState(records, "dkim") : overall,
-    dmarc: groupState(records, "dmarc"), region,
+    name: text(info.name),
+    state,
+    spf: records.length ? groupState(records, "spf") : overall,
+    dkim: records.length ? groupState(records, "dkim") : overall,
+    dmarc: groupState(records, "dmarc"),
+    region,
   };
 }
 
@@ -196,12 +248,18 @@ export async function domainsList(ctx: MailgunCtx): Promise<{ domains: DomainRow
   return { domains: list(j.items).map((d) => domainRow(obj(d), [], region)) };
 }
 
-export async function domainsGet(ctx: MailgunCtx, input: { name: string }): Promise<{ domain: DomainRow; records: DnsRecord[] }> {
+export async function domainsGet(
+  ctx: MailgunCtx,
+  input: { name: string },
+): Promise<{ domain: DomainRow; records: DnsRecord[] }> {
   const region = await regionOf(ctx);
   return withRecords(await api(ctx, { path: `/v4/domains/${pathPart(domainName(ctx, input.name))}`, region }), region);
 }
 
-export async function domainsCreate(ctx: MailgunCtx, input: { name: string; region?: Region }): Promise<{ domain: DomainRow; records: DnsRecord[] }> {
+export async function domainsCreate(
+  ctx: MailgunCtx,
+  input: { name: string; region?: Region },
+): Promise<{ domain: DomainRow; records: DnsRecord[] }> {
   const name = domainName(ctx, input.name);
   if (input.region !== undefined && input.region !== "us" && input.region !== "eu") bad(ctx, "Region is us or eu.");
   const region = input.region ?? (await regionOf(ctx));
@@ -210,12 +268,20 @@ export async function domainsCreate(ctx: MailgunCtx, input: { name: string; regi
 
 export async function domainsVerify(ctx: MailgunCtx, input: { name: string }): Promise<{ domain: DomainRow }> {
   const region = await regionOf(ctx);
-  const j = await api(ctx, { method: "PUT", path: `/v4/domains/${pathPart(domainName(ctx, input.name))}/verify`, region });
+  const j = await api(ctx, {
+    method: "PUT",
+    path: `/v4/domains/${pathPart(domainName(ctx, input.name))}/verify`,
+    region,
+  });
   return { domain: withRecords(j, region).domain };
 }
 
 export async function domainsDelete(ctx: MailgunCtx, input: { name: string }): Promise<{ deleted: boolean }> {
-  await api(ctx, { method: "DELETE", path: `/v3/domains/${pathPart(domainName(ctx, input.name))}`, region: await regionOf(ctx) });
+  await api(ctx, {
+    method: "DELETE",
+    path: `/v3/domains/${pathPart(domainName(ctx, input.name))}`,
+    region: await regionOf(ctx),
+  });
   return { deleted: true };
 }
 
@@ -227,7 +293,12 @@ function routeRow(j: Json): RouteRow {
     const m = /^\s*forward\(\s*"([^"]+)"\s*\)\s*$/.exec(text(action));
     if (m?.[1]) forwardTo.push(m[1]);
   }
-  const row: RouteRow = { routeId: text(j.id), expression: text(j.expression), forwardTo, priority: Number.isInteger(j.priority) ? (j.priority as number) : 0 };
+  const row: RouteRow = {
+    routeId: text(j.id),
+    expression: text(j.expression),
+    forwardTo,
+    priority: Number.isInteger(j.priority) ? (j.priority as number) : 0,
+  };
   const description = strOrUndef(j.description);
   if (description) row.description = description;
   return row;
@@ -246,14 +317,24 @@ export async function routesList(ctx: MailgunCtx): Promise<{ routes: RouteRow[] 
   return { routes };
 }
 
-export async function routesCreate(ctx: MailgunCtx, input: { expression: string; priority?: number; description?: string }): Promise<{ route: RouteRow }> {
-  if (typeof input.expression !== "string" || input.expression.trim() === "" || input.expression.length > 1000) bad(ctx, "The route expression must be 1 to 1000 characters.");
-  if (input.priority !== undefined && (!Number.isSafeInteger(input.priority) || input.priority < 0)) bad(ctx, "Priority is a whole number, 0 or more.");
-  if (input.description !== undefined && (typeof input.description !== "string" || input.description.length > 200)) bad(ctx, "Description must be text up to 200 characters.");
+export async function routesCreate(
+  ctx: MailgunCtx,
+  input: { expression: string; priority?: number; description?: string },
+): Promise<{ route: RouteRow }> {
+  if (typeof input.expression !== "string" || input.expression.trim() === "" || input.expression.length > 1000)
+    bad(ctx, "The route expression must be 1 to 1000 characters.");
+  if (input.priority !== undefined && (!Number.isSafeInteger(input.priority) || input.priority < 0))
+    bad(ctx, "Priority is a whole number, 0 or more.");
+  if (input.description !== undefined && (typeof input.description !== "string" || input.description.length > 200))
+    bad(ctx, "Description must be text up to 200 characters.");
   const base = (await needHost(ctx).publicUrl(ctx)).replace(/\/+$/, "");
   const forward = `${base}/hooks/mail/mailgun`;
   const form: [string, string][] = [
-    ["priority", String(input.priority ?? 0)], ["expression", input.expression.trim()], ["action", `forward("${forward}")`], ["action", "store()"], ["action", "stop()"],
+    ["priority", String(input.priority ?? 0)],
+    ["expression", input.expression.trim()],
+    ["action", `forward("${forward}")`],
+    ["action", "store()"],
+    ["action", "stop()"],
   ];
   if (input.description) form.push(["description", input.description]);
   const j = await api(ctx, { method: "POST", path: "/v3/routes", form, region: await regionOf(ctx) });
@@ -261,33 +342,52 @@ export async function routesCreate(ctx: MailgunCtx, input: { expression: string;
 }
 
 export async function routesDelete(ctx: MailgunCtx, input: { routeId: string }): Promise<{ deleted: boolean }> {
-  if (typeof input.routeId !== "string" || !/^[A-Za-z0-9]{1,64}$/.test(input.routeId)) bad(ctx, "Route id is not valid.");
+  if (typeof input.routeId !== "string" || !/^[A-Za-z0-9]{1,64}$/.test(input.routeId))
+    bad(ctx, "Route id is not valid.");
   await api(ctx, { method: "DELETE", path: `/v3/routes/${pathPart(input.routeId)}`, region: await regionOf(ctx) });
   return { deleted: true };
 }
 
 // ---- mailgun.health
 
-export async function health(ctx: MailgunCtx, input: { domain?: string }): Promise<{ state: "healthy" | "degraded" | "down"; detail?: string; latencyMs?: number }> {
+export async function health(
+  ctx: MailgunCtx,
+  input: { domain?: string },
+): Promise<{ state: "healthy" | "degraded" | "down"; detail?: string; latencyMs?: number }> {
   const t0 = ctx.now();
   try {
     const name = input.domain === undefined ? undefined : domainName(ctx, input.domain);
-    const a = await raw(ctx, name ? { path: `/v4/domains/${pathPart(name)}` } : { path: "/v4/domains", query: { limit: "1" } });
+    const a = await raw(
+      ctx,
+      name ? { path: `/v4/domains/${pathPart(name)}` } : { path: "/v4/domains", query: { limit: "1" } },
+    );
     const latencyMs = Math.max(0, ctx.now() - t0);
-    if (a.status === 401 || a.status === 403) return { state: "down", detail: "Mailgun did not accept the API key. Check Mailgun_Key in the Vault and the region." };
+    if (a.status === 401 || a.status === 403)
+      return {
+        state: "down",
+        detail: "Mailgun did not accept the API key. Check Mailgun_Key in the Vault and the region.",
+      };
     if (a.status === 404) return { state: "down", detail: "Mailgun has no such domain." };
     if (a.status === 429) return { state: "degraded", detail: "Mailgun is asking us to slow down.", latencyMs };
     if (a.status >= 300) return { state: "degraded", detail: "Mailgun is not answering well right now.", latencyMs };
     if (name) {
       const state = domainState(obj(a.json.domain).state);
       if (state === "disabled") return { state: "down", detail: "This domain is disabled at Mailgun.", latencyMs };
-      if (state === "unverified") return { state: "degraded", detail: "This domain is not verified yet. Publish the DNS records in Console, Comms.", latencyMs };
+      if (state === "unverified")
+        return {
+          state: "degraded",
+          detail: "This domain is not verified yet. Publish the DNS records in Console, Comms.",
+          latencyMs,
+        };
     }
     return { state: "healthy", latencyMs };
   } catch (e) {
-    if (e instanceof HostError && e.error.code === "internal.unavailable") return { state: "healthy", detail: "Mailgun is not set up yet." };
-    if (e instanceof HostError && e.error.code === "provider.auth_failed") return { state: "healthy", detail: "Mailgun has no API key yet. Add Mailgun_Key to the Vault." };
-    if (e instanceof HostError && e.error.code === "provider.network") return { state: "down", detail: "Mailgun could not be reached." };
+    if (e instanceof HostError && e.error.code === "internal.unavailable")
+      return { state: "healthy", detail: "Mailgun is not set up yet." };
+    if (e instanceof HostError && e.error.code === "provider.auth_failed")
+      return { state: "healthy", detail: "Mailgun has no API key yet. Add Mailgun_Key to the Vault." };
+    if (e instanceof HostError && e.error.code === "provider.network")
+      return { state: "down", detail: "Mailgun could not be reached." };
     throw e;
   }
 }
@@ -313,7 +413,12 @@ export function parseWebhook(body: unknown, now: number): WebhookIn | null {
   const providerId = bareId(text(obj(obj(data.message).headers)["message-id"]));
   if (!EVENT_TYPES.includes(event) || !eventId || !providerId) return null;
   const ts = Number(data.timestamp);
-  const out: WebhookIn = { eventId, event, providerId, at: Number.isFinite(ts) && ts > 0 ? Math.round(ts * 1000) : now };
+  const out: WebhookIn = {
+    eventId,
+    event,
+    providerId,
+    at: Number.isFinite(ts) && ts > 0 ? Math.round(ts * 1000) : now,
+  };
   const to = strOrUndef(data.recipient);
   if (to) out.address = to.toLowerCase();
   if (data.severity === "permanent" || data.severity === "temporary") out.severity = data.severity;
@@ -328,11 +433,18 @@ export function parseWebhook(body: unknown, now: number): WebhookIn | null {
 export async function receiveWebhook(ctx: MailgunCtx, input: WebhookIn): Promise<{ accepted: boolean }> {
   ensure(ctx);
   if (!input.eventId || !input.providerId) bad(ctx, "An event needs its id and the message id.");
-  if (first(ctx.db.all(`SELECT "eventId" FROM mailgun_event_log WHERE "eventId" = ?`, input.eventId))) return { accepted: true };   // sent twice: applied once
+  if (first(ctx.db.all(`SELECT "eventId" FROM mailgun_event_log WHERE "eventId" = ?`, input.eventId)))
+    return { accepted: true }; // sent twice: applied once
   let applied: string | null = null;
   if (input.event === "unsubscribed") {
     if (input.address) {
-      await ctx.call("contacts.apply_optout", { channel: "email", address: input.address, keyword: "unsubscribe", source: "email_unsubscribe", at: input.at });
+      await ctx.call("contacts.apply_optout", {
+        channel: "email",
+        address: input.address,
+        keyword: "unsubscribe",
+        source: "email_unsubscribe",
+        at: input.at,
+      });
       applied = "optout";
     }
   } else {
@@ -342,8 +454,19 @@ export async function receiveWebhook(ctx: MailgunCtx, input: WebhookIn): Promise
       applied = String(update.status);
     }
   }
-  ctx.db.run(`INSERT OR IGNORE INTO mailgun_event_log ("eventId", "providerId", event, "appliedAs", "at") VALUES (?, ?, ?, ?, ?)`, input.eventId, input.providerId, input.event, applied, ctx.now());
-  ctx.emit("mailgun.event_received", `entity/${input.eventId}`, { eventId: input.eventId, event: input.event, providerId: input.providerId });
+  ctx.db.run(
+    `INSERT OR IGNORE INTO mailgun_event_log ("eventId", "providerId", event, "appliedAs", "at") VALUES (?, ?, ?, ?, ?)`,
+    input.eventId,
+    input.providerId,
+    input.event,
+    applied,
+    ctx.now(),
+  );
+  ctx.emit("mailgun.event_received", `entity/${input.eventId}`, {
+    eventId: input.eventId,
+    event: input.event,
+    providerId: input.providerId,
+  });
   return { accepted: true };
 }
 
@@ -367,7 +490,9 @@ function statusOf(e: WebhookIn): Json | null {
 // ---- inbound mail (/hooks/mail/mailgun)
 
 /** The fields of a verified inbound route post to the input of mailgun.receive_inbound. Null when the post names no message or recipient. */
-export function parseInbound(fields: Record<string, unknown>): { messageId: string; recipient: string; sender: string } | null {
+export function parseInbound(
+  fields: Record<string, unknown>,
+): { messageId: string; recipient: string; sender: string } | null {
   const pick = (...names: string[]): string => names.map((n) => text(fields[n])).find(Boolean) ?? "";
   const messageId = bareId(pick("Message-Id", "message-id", "Message-ID"));
   const recipient = parseAddress(pick("recipient")).address;
@@ -375,23 +500,36 @@ export function parseInbound(fields: Record<string, unknown>): { messageId: stri
   return messageId && recipient ? { messageId, recipient, sender } : null;
 }
 
-const splitAddresses = (v: string): string[] => v.split(/,(?![^<]*>)/).map((s) => s.trim()).filter(Boolean);
+const splitAddresses = (v: string): string[] =>
+  v
+    .split(/,(?![^<]*>)/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 
 export async function receiveInbound(
-  ctx: MailgunCtx, input: { messageId: string; recipient: string; sender: string },
+  ctx: MailgunCtx,
+  input: { messageId: string; recipient: string; sender: string },
 ): Promise<{ accepted: boolean; mailMessageId?: string }> {
   ensure(ctx);
   const messageId = bareId(typeof input.messageId === "string" ? input.messageId : "");
   const recipient = parseAddress(typeof input.recipient === "string" ? input.recipient : "").address;
-  if (!messageId || !/^[^\s@]+@[^\s@]+$/.test(recipient)) bad(ctx, "An inbound email needs its Message-Id and the address it came in on.");
+  if (!messageId || !/^[^\s@]+@[^\s@]+$/.test(recipient))
+    bad(ctx, "An inbound email needs its Message-Id and the address it came in on.");
   const seen = first(ctx.db.all(`SELECT "mailMessageId" FROM mailgun_inbound_log WHERE "messageId" = ?`, messageId));
-  if (seen) return typeof seen.mailMessageId === "string" ? { accepted: true, mailMessageId: seen.mailMessageId } : { accepted: true };
+  if (seen)
+    return typeof seen.mailMessageId === "string"
+      ? { accepted: true, mailMessageId: seen.mailMessageId }
+      : { accepted: true };
 
   const domain = domainName(ctx, recipient.split("@")[1]);
-  const stored = await api(ctx, { path: `/v3/${pathPart(domain)}/events`, query: { event: "stored", "message-id": messageId, limit: "1" } });
+  const stored = await api(ctx, {
+    path: `/v3/${pathPart(domain)}/events`,
+    query: { event: "stored", "message-id": messageId, limit: "1" },
+  });
   const item = obj(list(stored.items)[0]);
   const key = strOrUndef(obj(item.storage).key);
-  if (!key) throw fail("validation.not_found", ctx.trace.traceId, { message: "Mailgun has not stored that message yet." });   // the webhook is retried
+  if (!key)
+    throw fail("validation.not_found", ctx.trace.traceId, { message: "Mailgun has not stored that message yet." }); // the webhook is retried
   const m = await api(ctx, { path: `/v3/domains/${pathPart(domain)}/messages/${pathPart(key)}` });
 
   const host = needHost(ctx);
@@ -399,20 +537,32 @@ export async function receiveInbound(
   for (const entry of list(m.attachments)) {
     const a = obj(entry);
     const url = strOrUndef(a.url);
-    if (!url) continue;   // an attachment Mailgun will not hand over is left out, not guessed
+    if (!url) continue; // an attachment Mailgun will not hand over is left out, not guessed
     const mime = text(a["content-type"]) || "application/octet-stream";
     const blob = await host.download(ctx, { url, mime, auth: true });
-    attachments.push({ name: text(a.name) || "attachment", mime: blob.mime || mime, size: blob.size, blobId: blob.blobId });
+    attachments.push({
+      name: text(a.name) || "attachment",
+      mime: blob.mime || mime,
+      size: blob.size,
+      blobId: blob.blobId,
+    });
   }
   const headers: Record<string, string> = {};
   for (const pair of list(m["message-headers"])) {
     const [k, v] = list(pair);
-    if (typeof k === "string" && typeof v === "string") headers[k.toLowerCase()] = headers[k.toLowerCase()] ? `${headers[k.toLowerCase()]}, ${v}` : v;
+    if (typeof k === "string" && typeof v === "string")
+      headers[k.toLowerCase()] = headers[k.toLowerCase()] ? `${headers[k.toLowerCase()]}, ${v}` : v;
   }
   const ts = Number(item.timestamp);
   const ingest: Json = {
-    source: "mailgun", providerId: messageId, rfcMessageId: `<${messageId}>`, direction: "in", envelopeTo: recipient,
-    from: parseAddress(text(m.From) || input.sender || ""), to: splitAddresses(text(m.To) || recipient).map(parseAddress), subject: text(m.Subject),
+    source: "mailgun",
+    providerId: messageId,
+    rfcMessageId: `<${messageId}>`,
+    direction: "in",
+    envelopeTo: recipient,
+    from: parseAddress(text(m.From) || input.sender || ""),
+    to: splitAddresses(text(m.To) || recipient).map(parseAddress),
+    subject: text(m.Subject),
     receivedAt: Number.isFinite(ts) && ts > 0 ? Math.round(ts * 1000) : ctx.now(),
   };
   const plain = strOrUndef(m["body-plain"]);
@@ -423,7 +573,13 @@ export async function receiveInbound(
   if (Object.keys(headers).length) ingest.headers = headers;
   const landed = obj(await ctx.call("mail.ingest", ingest));
   const mailMessageId = strOrUndef(landed.messageId);
-  ctx.db.run(`INSERT OR IGNORE INTO mailgun_inbound_log ("messageId", "mailMessageId", recipient, "at") VALUES (?, ?, ?, ?)`, messageId, mailMessageId ?? null, recipient, ctx.now());
+  ctx.db.run(
+    `INSERT OR IGNORE INTO mailgun_inbound_log ("messageId", "mailMessageId", recipient, "at") VALUES (?, ?, ?, ?)`,
+    messageId,
+    mailMessageId ?? null,
+    recipient,
+    ctx.now(),
+  );
   ctx.emit("mailgun.inbound_received", `entity/${messageId}`, { messageId, recipient });
   return mailMessageId ? { accepted: true, mailMessageId } : { accepted: true };
 }

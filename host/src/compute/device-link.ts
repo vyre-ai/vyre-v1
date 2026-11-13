@@ -41,14 +41,20 @@ export interface DeviceLinkDeps {
   /** Pause between dials after a drop. Default 2 s. */
   retryMs?: number;
   /** The person's own Chrome on this computer, for the Space's agents working for them: answers the Space's questions (chrome.available, chrome.call, chrome.drop, chrome.takeover, chrome.watch) and reports what the extension does. */
-  chrome?: { answer(kind: string, input: unknown): Promise<unknown>; onEvent(f: (e: Record<string, unknown>) => void): () => void };
+  chrome?: {
+    answer(kind: string, input: unknown): Promise<unknown>;
+    onEvent(f: (e: Record<string, unknown>) => void): () => void;
+  };
   /** Where the person's own engine homes are looked for (tests). Default: this computer's home and environment. */
   homes?: OwnHomes;
 }
 
 /** What ownSignin reads of this computer. */
 export interface OwnHomes {
-  home: string; env: Readonly<Record<string, string | undefined>>; platform: NodeJS.Platform; exists(p: string): boolean;
+  home: string;
+  env: Readonly<Record<string, string | undefined>>;
+  platform: NodeJS.Platform;
+  exists(p: string): boolean;
   /** The clock (tests). Default Date.now. */
   now?: () => number;
   /** The Mac login Keychain, read and written by this daemon (outside any sandbox). Absent: none (Linux, Windows, a test). */
@@ -59,10 +65,24 @@ export interface OwnHomes {
 export const CLAUDE_KEYCHAIN = "Claude Code-credentials";
 
 /** When a Claude Code sign-in's access token runs out (epoch ms), or undefined when it does not say. */
-const claudeExpiry = (text: string | null): number | undefined => { try { const t = (JSON.parse(text ?? "") as { claudeAiOauth?: { expiresAt?: unknown } }).claudeAiOauth?.expiresAt; return typeof t === "number" ? t : undefined; } catch { return undefined; } };
+const claudeExpiry = (text: string | null): number | undefined => {
+  try {
+    const t = (JSON.parse(text ?? "") as { claudeAiOauth?: { expiresAt?: unknown } }).claudeAiOauth?.expiresAt;
+    return typeof t === "number" ? t : undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 /** The access token in a Claude Code credentials file, or "" (to tell a refresh from the file as written). */
-const claudeToken = (text: string | null): string => { try { const t = (JSON.parse(text ?? "") as { claudeAiOauth?: { accessToken?: unknown } }).claudeAiOauth?.accessToken; return typeof t === "string" ? t : ""; } catch { return ""; } };
+const claudeToken = (text: string | null): string => {
+  try {
+    const t = (JSON.parse(text ?? "") as { claudeAiOauth?: { accessToken?: unknown } }).claudeAiOauth?.accessToken;
+    return typeof t === "string" ? t : "";
+  } catch {
+    return "";
+  }
+};
 
 /**
  * Claude Code on a Mac keeps its sign-in in the Keychain, which an engine inside Seatbelt does not read reliably. So the daemon reads the entry once per process (outside the sandbox), writes it as
@@ -73,7 +93,14 @@ const claudeToken = (text: string | null): string => { try { const t = (JSON.par
  * the file and says "Not logged in", while it does take the token from that variable. A token that has run out is not handed over at all: the turn takes the Space's fill of the person's account,
  * and the person's own Claude Code refreshes the Keychain entry the next time they use it.
  */
-export function macClaude(env: Readonly<Record<string, string>>, h: OwnHomes, dataDir: string, person: string, proc: string, watchMs = 2_000): { env: Record<string, string>; after(): void } | null {
+export function macClaude(
+  env: Readonly<Record<string, string>>,
+  h: OwnHomes,
+  dataDir: string,
+  person: string,
+  proc: string,
+  watchMs = 2_000,
+): { env: Record<string, string>; after(): void } | null {
   if (h.platform !== "darwin" || !h.keychain) return null;
   const text = h.keychain.read(CLAUDE_KEYCHAIN);
   if (!text || claudeToken(text) === "") return null;
@@ -84,15 +111,27 @@ export function macClaude(env: Readonly<Record<string, string>>, h: OwnHomes, da
   const file = path.join(dir, ".credentials.json");
   fs.writeFileSync(file, text, { mode: 0o600 });
   const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(env)) if (k !== "CLAUDE_CODE_OAUTH_TOKEN" && k !== "ANTHROPIC_API_KEY") out[k] = v;
+  for (const [k, v] of Object.entries(env))
+    if (k !== "CLAUDE_CODE_OAUTH_TOKEN" && k !== "ANTHROPIC_API_KEY") out[k] = v;
   out["CLAUDE_CONFIG_DIR"] = dir;
   out["CLAUDE_CODE_OAUTH_TOKEN"] = claudeToken(text);
   let last = claudeToken(text);
   const writeBack = (): void => {
     let now: string | null = null;
-    try { now = fs.readFileSync(file, "utf8"); } catch { now = null; }
+    try {
+      now = fs.readFileSync(file, "utf8");
+    } catch {
+      now = null;
+    }
     const t = claudeToken(now);
-    if (now !== null && t !== "" && t !== last) { try { h.keychain!.write(CLAUDE_KEYCHAIN, now); last = t; } catch { /* the next check tries again */ } }
+    if (now !== null && t !== "" && t !== last) {
+      try {
+        h.keychain!.write(CLAUDE_KEYCHAIN, now);
+        last = t;
+      } catch {
+        /* the next check tries again */
+      }
+    }
   };
   const watch = setInterval(writeBack, watchMs);
   watch.unref?.();
@@ -104,19 +143,32 @@ export function macClaude(env: Readonly<Record<string, string>>, h: OwnHomes, da
       done = true;
       clearInterval(watch);
       writeBack();
-      try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* the scratch folder is the person's own */ }
+      try {
+        fs.rmSync(dir, { recursive: true, force: true });
+      } catch {
+        /* the scratch folder is the person's own */
+      }
     },
   };
 }
-const safePart = (id: string): string => { const v = id.replace(/[^a-zA-Z0-9_-]/g, "_"); return v === "" || v === "." || v === ".." ? "node" : v; };
+const safePart = (id: string): string => {
+  const v = id.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return v === "" || v === "." || v === ".." ? "node" : v;
+};
 
 /** The environment variable a spawn carries what the engine may touch in (sandbox/src/engine-access.ts ACCESS_ENV). */
 const ACCESS_ENV = "VYRE_ENGINE_ACCESS";
 /** What each CLI keeps its sign-in in, and the variables the Space's fill puts an account in. */
 /** The path rules of the computer the homes are on (a test names another platform than the one it runs on). */
-const pathOf = (h: { platform: NodeJS.Platform }): typeof path.posix => (h.platform === "win32" ? path.win32 : path.posix);
+const pathOf = (h: { platform: NodeJS.Platform }): typeof path.posix =>
+  h.platform === "win32" ? path.win32 : path.posix;
 
-const ENGINE_HOMES: Readonly<Record<string, { dirEnv: string; dir(h: OwnHomes): string; signedIn(dir: string, h: OwnHomes): boolean; keys: readonly string[] }>> = {
+const ENGINE_HOMES: Readonly<
+  Record<
+    string,
+    { dirEnv: string; dir(h: OwnHomes): string; signedIn(dir: string, h: OwnHomes): boolean; keys: readonly string[] }
+  >
+> = {
   claude: {
     dirEnv: "CLAUDE_CONFIG_DIR",
     dir: (h) => h.env["CLAUDE_CONFIG_DIR"] ?? pathOf(h).join(h.home, ".claude"),
@@ -136,7 +188,11 @@ const ENGINE_HOMES: Readonly<Record<string, { dirEnv: string; dir(h: OwnHomes): 
  * The engine's environment on the person's own computer: when they are signed in to this CLI here, it runs with their own engine home (CLAUDE_CONFIG_DIR, CODEX_HOME), which its sandbox may
  * read and write (added to the turn's folders), and without the account the Space filled in. Otherwise the environment is as the Space sent it.
  */
-export function ownSignin(argv: readonly string[], env: Readonly<Record<string, string>>, h: OwnHomes): Record<string, string> {
+export function ownSignin(
+  argv: readonly string[],
+  env: Readonly<Record<string, string>>,
+  h: OwnHomes,
+): Record<string, string> {
   const e = ENGINE_HOMES[path.basename(argv[0] ?? "")];
   if (!e) return { ...env };
   const dir = e.dir(h);
@@ -145,29 +201,64 @@ export function ownSignin(argv: readonly string[], env: Readonly<Record<string, 
   for (const [k, v] of Object.entries(env)) if (!e.keys.includes(k)) out[k] = v;
   out[e.dirEnv] = dir;
   try {
-    const asked = (env[ACCESS_ENV] ? JSON.parse(env[ACCESS_ENV]) : { where: "own", folders: [] }) as { where?: string; folders?: string[] };
-    out[ACCESS_ENV] = JSON.stringify({ ...asked, where: "own", folders: [...new Set([...(asked.folders ?? []), dir])] });
-  } catch { /* a list Vyre did not write is left for the sandbox to refuse */ }
+    const asked = (env[ACCESS_ENV] ? JSON.parse(env[ACCESS_ENV]) : { where: "own", folders: [] }) as {
+      where?: string;
+      folders?: string[];
+    };
+    out[ACCESS_ENV] = JSON.stringify({
+      ...asked,
+      where: "own",
+      folders: [...new Set([...(asked.folders ?? []), dir])],
+    });
+  } catch {
+    /* a list Vyre did not write is left for the sandbox to refuse */
+  }
   return out;
 }
 
 /** How the Keychain is reached: one program run, its arguments, and what it is given on stdin. */
 export type RunSecurity = (args: readonly string[], input?: string) => string;
-const runSecurity: RunSecurity = (args, input) => execFileSync("/usr/bin/security", [...args], { encoding: "utf8", timeout: 10_000, ...(input !== undefined ? { input } : {}), stdio: [input !== undefined ? "pipe" : "ignore", "pipe", "ignore"] });
+const runSecurity: RunSecurity = (args, input) =>
+  execFileSync("/usr/bin/security", [...args], {
+    encoding: "utf8",
+    timeout: 10_000,
+    ...(input !== undefined ? { input } : {}),
+    stdio: [input !== undefined ? "pipe" : "ignore", "pipe", "ignore"],
+  });
 
 /**
  * The Mac login Keychain. The write goes through `security -i`, with the command (and the token, as hex) on its stdin: nothing of the sign-in is ever in a process's arguments, where another
  * program could read it.
  */
-export function macKeychain(run: RunSecurity = runSecurity, user: string = os.userInfo().username): NonNullable<OwnHomes["keychain"]> {
+export function macKeychain(
+  run: RunSecurity = runSecurity,
+  user: string = os.userInfo().username,
+): NonNullable<OwnHomes["keychain"]> {
   const quote = (v: string): string => `"${v.replace(/[\\"]/g, (c) => `\\${c}`)}"`;
   return {
-    read(service) { try { return run(["find-generic-password", "-s", service, "-w"]).trim() || null; } catch { return null; } },
+    read(service) {
+      try {
+        return run(["find-generic-password", "-s", service, "-w"]).trim() || null;
+      } catch {
+        return null;
+      }
+    },
     // -U updates the entry Claude Code made, for this login user, as Claude Code itself names it; -X takes the secret as hex, so no quoting can break the line
-    write(service, text) { run(["-i"], `add-generic-password -U -s ${quote(service)} -a ${quote(user)} -X ${Buffer.from(text, "utf8").toString("hex")}\n`); },
+    write(service, text) {
+      run(
+        ["-i"],
+        `add-generic-password -U -s ${quote(service)} -a ${quote(user)} -X ${Buffer.from(text, "utf8").toString("hex")}\n`,
+      );
+    },
   };
 }
-const thisComputer = (): OwnHomes => ({ home: os.homedir(), env: process.env, platform: process.platform, exists: (p) => fs.existsSync(p), ...(process.platform === "darwin" ? { keychain: macKeychain() } : {}) });
+const thisComputer = (): OwnHomes => ({
+  home: os.homedir(),
+  env: process.env,
+  platform: process.platform,
+  exists: (p) => fs.existsSync(p),
+  ...(process.platform === "darwin" ? { keychain: macKeychain() } : {}),
+});
 
 /** Hold the link until stopped, dialling again after a drop. */
 export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
@@ -179,9 +270,19 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
     async spawn(spec: Parameters<typeof d.launcher.spawn>[0]) {
       const env = ownSignin(spec.argv, spec.env, homes);
       // Claude Code on a Mac with no sign-in file: the Keychain's, handed over as a file in a private folder, and a refresh written back when the engine ends
-      const mac = path.basename(spec.argv[0] ?? "") === "claude" && env["CLAUDE_CONFIG_DIR"] === undefined && person ? macClaude(env, homes, d.dataDir, person, path.basename(spec.cwd ?? "") || "turn") : null;
-      const proc = await d.launcher.spawn({ ...spec, env: mac ? mac.env : env }).catch((e: unknown) => { mac?.after(); throw e; });
-      if (mac) void proc.exited.then(() => mac.after(), () => mac.after());
+      const mac =
+        path.basename(spec.argv[0] ?? "") === "claude" && env["CLAUDE_CONFIG_DIR"] === undefined && person
+          ? macClaude(env, homes, d.dataDir, person, path.basename(spec.cwd ?? "") || "turn")
+          : null;
+      const proc = await d.launcher.spawn({ ...spec, env: mac ? mac.env : env }).catch((e: unknown) => {
+        mac?.after();
+        throw e;
+      });
+      if (mac)
+        void proc.exited.then(
+          () => mac.after(),
+          () => mac.after(),
+        );
       return proc;
     },
     // the engine module's folder layout passes through: on Windows its sandbox accepts only its own short hashed folders
@@ -191,7 +292,10 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
   const base = d.retryMs ?? 2_000;
   let wait = base;
   // stopped: every engine this link started has exited and its folder is removed before the link says so (the daemon's stop waits for it)
-  const stopped = async (): Promise<"stopped"> => { await engines.stopAll(); return "stopped"; };
+  const stopped = async (): Promise<"stopped"> => {
+    await engines.stopAll();
+    return "stopped";
+  };
   for (;;) {
     if (d.signal.aborted) return stopped();
     const ended = await once();
@@ -208,7 +312,13 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
       let unsub: (() => void) | undefined;
       let rp: ReturnType<typeof setInterval> | undefined;
       const up = d.socket(url, { authorization: `Bearer ${d.token}` });
-      const say = (m: Record<string, unknown>): void => { try { up.send(JSON.stringify(m)); } catch { /* the socket is going away */ } };
+      const say = (m: Record<string, unknown>): void => {
+        try {
+          up.send(JSON.stringify(m));
+        } catch {
+          /* the socket is going away */
+        }
+      };
       const end = (): void => {
         // the Space ends every process of a dropped link; this side stops them too, so nothing runs on with nobody to read it
         engines.killAll();
@@ -224,34 +334,80 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
       up.onOpen(() => {
         opened = true;
         say({ t: "hello", engines: [...d.engines], name: d.name });
-        hb = setInterval(() => say({ t: "hb" }), 15_000); hb.unref?.();
+        hb = setInterval(() => say({ t: "hb" }), 15_000);
+        hb.unref?.();
         unsub = d.chrome?.onEvent((event) => say({ t: "chrome_event", event }));
         if (d.report) {
-          const send = (): void => { try { say({ t: "report", report: d.report!({ turns: engines.running() }) }); } catch { /* a report that cannot be made is skipped; the next is in 30 s */ } };
+          const send = (): void => {
+            try {
+              say({ t: "report", report: d.report!({ turns: engines.running() }) });
+            } catch {
+              /* a report that cannot be made is skipped; the next is in 30 s */
+            }
+          };
           send();
-          rp = setInterval(send, d.reportMs ?? 30_000); rp.unref?.();
+          rp = setInterval(send, d.reportMs ?? 30_000);
+          rp.unref?.();
         }
       });
       up.onClose(end);
       up.onMessage((data) => {
         if (typeof data !== "string") return;
         let m: Record<string, unknown>;
-        try { m = JSON.parse(data) as Record<string, unknown>; } catch { return; }
-        if (m["t"] === "ask" && m["kind"] === "fix" && d.fix) {
-          const id = String(m["id"]), x = (m["input"] ?? {}) as { fix?: unknown; service?: unknown };
-          d.fix(String(x.fix), typeof x.service === "string" ? x.service : undefined).then((result) => say({ t: "ask_res", id, ok: true, result }), (e: unknown) => say({ t: "ask_res", id, ok: false, reason: e instanceof Error ? e.message : "It could not do that." }));
+        try {
+          m = JSON.parse(data) as Record<string, unknown>;
+        } catch {
           return;
         }
-        if (m["t"] === "ping") { say({ t: "pong", at: m["at"] }); return; }
-        if (m["t"] === "ready") { person = typeof m["person"] === "string" ? m["person"] : null; if (person) d.log(`Linked to ${server} for ${person}.`); return; }
+        if (m["t"] === "ask" && m["kind"] === "fix" && d.fix) {
+          const id = String(m["id"]),
+            x = (m["input"] ?? {}) as { fix?: unknown; service?: unknown };
+          d.fix(String(x.fix), typeof x.service === "string" ? x.service : undefined).then(
+            (result) => say({ t: "ask_res", id, ok: true, result }),
+            (e: unknown) =>
+              say({ t: "ask_res", id, ok: false, reason: e instanceof Error ? e.message : "It could not do that." }),
+          );
+          return;
+        }
+        if (m["t"] === "ping") {
+          say({ t: "pong", at: m["at"] });
+          return;
+        }
+        if (m["t"] === "ready") {
+          person = typeof m["person"] === "string" ? m["person"] : null;
+          if (person) d.log(`Linked to ${server} for ${person}.`);
+          return;
+        }
         if (typeof m["t"] === "string" && m["t"].startsWith("cli_")) engines.frame(m, say);
         // the Space asks about this computer's Chrome for an agent working for this person: only the Chrome questions
-        if (m["t"] === "ask" && typeof m["id"] === "string" && typeof m["kind"] === "string" && m["kind"].startsWith("chrome.") && d.chrome) {
+        if (
+          m["t"] === "ask" &&
+          typeof m["id"] === "string" &&
+          typeof m["kind"] === "string" &&
+          m["kind"].startsWith("chrome.") &&
+          d.chrome
+        ) {
           const id = m["id"];
           // this computer answers only for the person it is linked as, whatever the Space says
-          const asked = (m["input"] && typeof m["input"] === "object" ? (m["input"] as { person?: unknown }).person : undefined);
-          if (person === null || (asked !== undefined && asked !== person)) { say({ t: "ask_res", id, ok: false, reason: "This computer's Chrome is for its own person only." }); return; }
-          void d.chrome.answer(m["kind"], m["input"]).then((result) => say({ t: "ask_res", id, ok: true, result }), (e: unknown) => say({ t: "ask_res", id, ok: false, reason: e instanceof Error ? e.message : "Chrome did not answer.", ...(e && typeof e === "object" && typeof (e as { code?: unknown }).code === "string" ? { code: (e as { code: string }).code.slice(0, 60) } : {}) }));
+          const asked =
+            m["input"] && typeof m["input"] === "object" ? (m["input"] as { person?: unknown }).person : undefined;
+          if (person === null || (asked !== undefined && asked !== person)) {
+            say({ t: "ask_res", id, ok: false, reason: "This computer's Chrome is for its own person only." });
+            return;
+          }
+          void d.chrome.answer(m["kind"], m["input"]).then(
+            (result) => say({ t: "ask_res", id, ok: true, result }),
+            (e: unknown) =>
+              say({
+                t: "ask_res",
+                id,
+                ok: false,
+                reason: e instanceof Error ? e.message : "Chrome did not answer.",
+                ...(e && typeof e === "object" && typeof (e as { code?: unknown }).code === "string"
+                  ? { code: (e as { code: string }).code.slice(0, 60) }
+                  : {}),
+              }),
+          );
           return;
         }
         // views, ports and machine questions are a server's; a person's computer answers none of them

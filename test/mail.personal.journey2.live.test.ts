@@ -10,7 +10,10 @@ import { OUT, guidedSetup, signInThroughSheet } from "./support/mail-journey.ts"
 
 test("journey 2, Team: the admin sets the app once, two members connect their own Gmail, neither sees the other's mail, an agent cannot read the other's mailbox", async (t) => {
   const env = await browserOrSkip();
-  if (typeof env === "string") { t.skip(env); return; }
+  if (typeof env === "string") {
+    t.skip(env);
+    return;
+  }
   const s = await bootScreens({ kind: "team", engineOpenSession: standIn }, env);
   const dir = `${OUT}/2-team`;
   try {
@@ -26,14 +29,20 @@ test("journey 2, Team: the admin sets the app once, two members connect their ow
     const bo = await w.join("bo");
     const anaSeat = await seat(s, ana, "Member");
     const boSeat = await seat(s, bo, "Member");
-    for (const [seatOf, email, step] of [[anaSeat, "ana@gmail.test", "ana"], [boSeat, "bo@gmail.test", "bo"]] as const) {
+    for (const [seatOf, email, step] of [
+      [anaSeat, "ana@gmail.test", "ana"],
+      [boSeat, "bo@gmail.test", "bo"],
+    ] as const) {
       await open(seatOf, s, "/mail");
       await seatOf.page.getByTestId("connect-gmail").click();
       await signInThroughSheet(seatOf, email, dir, step);
     }
     // a member's own mailbox is private: its mail (each row says the subject) is in the mailbox under Mine in their Inbox, not in the shared list
-    for (const [seatOf, text] of [[anaSeat, "Ana's contract"], [boSeat, "Bo's invoice"]] as const) {
-      await seatOf.page.locator("[data-testid^=\"row-nav:inbox:\"]").first().click();
+    for (const [seatOf, text] of [
+      [anaSeat, "Ana's contract"],
+      [boSeat, "Bo's invoice"],
+    ] as const) {
+      await seatOf.page.locator('[data-testid^="row-nav:inbox:"]').first().click();
       await seatOf.page.getByText(text).first().waitFor({ timeout: 30_000 });
     }
     await shoot(anaSeat.page, dir, "ana-inbox");
@@ -42,8 +51,16 @@ test("journey 2, Team: the admin sets the app once, two members connect their ow
     assert.equal(await boSeat.page.getByText("Ana's contract").count(), 0, "Bo does not see Ana's mail");
     await open(admin, s, "/mail");
     await admin.page.waitForTimeout(1500);
-    assert.equal(await admin.page.locator("[data-testid^=\"row-nav:inbox:\"]").count(), 0, "the admin's rail lists no member's mailbox");
-    assert.equal(await admin.page.getByText("Ana's contract").count() + await admin.page.getByText("Bo's invoice").count(), 0, "the admin sees neither");
+    assert.equal(
+      await admin.page.locator('[data-testid^="row-nav:inbox:"]').count(),
+      0,
+      "the admin's rail lists no member's mailbox",
+    );
+    assert.equal(
+      (await admin.page.getByText("Ana's contract").count()) + (await admin.page.getByText("Bo's invoice").count()),
+      0,
+      "the admin sees neither",
+    );
     await shoot(admin.page, dir, "admin-inbox");
 
     // an assistant acts with the access of whoever asked
@@ -51,16 +68,27 @@ test("journey 2, Team: the admin sets the app once, two members connect their ow
     const boBox = ((await bo.ok("mail.mailbox.list", { scope: "all" })).mailboxes as { id: string }[])[0]!;
     const list = (mailboxId: string) => `TOOL mail_message_list ${JSON.stringify({ mailboxId })}`;
     const anaHelper = await makeAgent(ana, "Ana helper", account, w.owner);
-    assert.ok((await ask(w, ana, anaHelper, list(anaBox.id))).includes("Ana's contract"), "Ana's assistant reads Ana's mailbox");
+    assert.ok(
+      (await ask(w, ana, anaHelper, list(anaBox.id))).includes("Ana's contract"),
+      "Ana's assistant reads Ana's mailbox",
+    );
     assert.ok(!(await ask(w, ana, anaHelper, list(boBox.id))).includes("Bo's invoice"), "and not Bo's");
     const adminHelper = await makeAgent(w.owner, "Olivia helper", account);
-    assert.ok(!(await ask(w, w.owner, adminHelper, list(anaBox.id))).includes("Ana's contract"), "the admin's assistant reads no member's mailbox");
+    assert.ok(
+      !(await ask(w, w.owner, adminHelper, list(anaBox.id))).includes("Ana's contract"),
+      "the admin's assistant reads no member's mailbox",
+    );
     await open(admin, s, "/chat");
     await shoot(admin.page, dir, "admin-chat");
-    await phonePass(anaSeat, s, dir, [{ name: "ana-inbox", route: "/mail" }, { name: "ana-home", route: "/home", tab: "You" }]);
+    await phonePass(anaSeat, s, dir, [
+      { name: "ana-inbox", route: "/mail" },
+      { name: "ana-home", route: "/home", tab: "You" },
+    ]);
     assert.deepEqual([...anaSeat.errors, ...boSeat.errors, ...admin.errors], [], "no page errors");
   } catch (e) {
     await s.debug(dir);
     throw e;
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });

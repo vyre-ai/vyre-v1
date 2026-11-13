@@ -4,7 +4,12 @@ import type { ReactElement } from "react";
 import { Platform } from "react-native";
 
 export const ICON = {
-  branch: ["M6 3.8a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z", "M6 12.2a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z", "M13 5.8a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z", "M4.5 5.3v5.4M11.5 7.3c0 2.2-2.4 2.6-7 3.6"],
+  branch: [
+    "M6 3.8a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z",
+    "M6 12.2a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z",
+    "M13 5.8a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z",
+    "M4.5 5.3v5.4M11.5 7.3c0 2.2-2.4 2.6-7 3.6",
+  ],
   shield: ["M8 2l5 1.8v3.6c0 3-2 5.3-5 6.6-3-1.3-5-3.6-5-6.6V3.8z"],
   check: ["M3 8.5l3 3 7-7"],
   chevd: ["M3.5 6l4.5 4.5L12.5 6"],
@@ -24,13 +29,36 @@ export const ICON = {
 export type IconName = keyof typeof ICON;
 
 /** One stroke icon. Web only (an SVG); other platforms draw nothing until their own icon set lands. */
-export function Glyph({ name, size = 14, color = "var(--ink-3)", width = 1.4 }: { name: IconName; size?: number; color?: string; width?: number }): ReactElement | null {
+export function Glyph({
+  name,
+  size = 14,
+  color = "var(--ink-3)",
+  width = 1.4,
+}: {
+  name: IconName;
+  size?: number;
+  color?: string;
+  width?: number;
+}): ReactElement | null {
   if (Platform.OS !== "web") return null;
   const paths: ReactElement[] = [];
   for (const d of ICON[name]) paths.push(createElement("path", { key: d, d, fill: "none" }));
   return createElement(
     "svg",
-    { viewBox: "0 0 16 16", width: size, height: size, "aria-hidden": true, style: { display: "block", flex: "none", stroke: color, strokeWidth: width, strokeLinecap: "round", strokeLinejoin: "round" } },
+    {
+      viewBox: "0 0 16 16",
+      width: size,
+      height: size,
+      "aria-hidden": true,
+      style: {
+        display: "block",
+        flex: "none",
+        stroke: color,
+        strokeWidth: width,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+      },
+    },
     ...paths,
   );
 }

@@ -13,7 +13,12 @@ export type Policy = "lww" | "assistant" | "append" | "text-crdt";
 export const POLICIES: readonly Policy[] = Object.freeze(["lww", "assistant", "append", "text-crdt"] as const);
 
 /** One field as the server holds it: value, the hlc and actor that wrote it, and the seq of the event. */
-export interface FieldState { v: unknown; hlc: string; actor: string; seq: number }
+export interface FieldState {
+  v: unknown;
+  hlc: string;
+  actor: string;
+  seq: number;
+}
 
 export interface FieldInput {
   field: string;
@@ -30,7 +35,12 @@ export interface FieldInput {
 }
 
 export type FieldDecision =
-  | { field: string; action: "apply"; why: "fresh" | "base_match" | "own_previous" | "lww_win" | "append"; displaced?: FieldState }
+  | {
+      field: string;
+      action: "apply";
+      why: "fresh" | "base_match" | "own_previous" | "lww_win" | "append";
+      displaced?: FieldState;
+    }
   | { field: string; action: "lose"; why: "lww_loser"; winner: FieldState }
   | { field: string; action: "conflict"; ours: FieldState; theirs: unknown; base: number }
   | { field: string; action: "refuse"; why: "text_crdt" };

@@ -33,7 +33,21 @@ export function browserState(row: { running?: boolean; busy?: boolean; takeoverB
  * One card for both places an agent works: its computer (`computerId`, a `screenshot` block) and its profile in the Space browser (`agentId`, a `browser_screenshot` block, f-wire 12 Nov). The state
  * is read from computers.get or computers.browser.profiles, the live view is the computer's screen or the browser's, and the picture once it is over is the block's own frame in Files.
  */
-export function LiveCard({ computerId, agentId, fileId, caption, id, cfg }: { computerId?: string | undefined; agentId?: string | undefined; fileId: string; caption: string; id: string; cfg: LiveCardConfig }): ReactElement {
+export function LiveCard({
+  computerId,
+  agentId,
+  fileId,
+  caption,
+  id,
+  cfg,
+}: {
+  computerId?: string | undefined;
+  agentId?: string | undefined;
+  fileId: string;
+  caption: string;
+  id: string;
+  cfg: LiveCardConfig;
+}): ReactElement {
   const [state, setState] = useState<string | null>(null);
   const [still, setStill] = useState<string | null>(null);
   // the config is rebuilt with the page; the card reads it as it is and looks again only for another computer
@@ -44,16 +58,39 @@ export function LiveCard({ computerId, agentId, fileId, caption, id, cfg }: { co
     let timer: ReturnType<typeof setTimeout> | undefined;
     const look = (): void => {
       const read = computerId
-        ? now.current.call("computers.get", { computerId }).then((r) => (r as { computer?: { state?: string } }).computer?.state ?? "asleep")
-        : now.current.call("computers.browser.profiles", {}).then((r) => browserState(((r as { profiles?: Array<{ agentId: string; running?: boolean; busy?: boolean; takeoverBy?: string }> }).profiles ?? []).find((x) => x.agentId === agentId)));
-      void read.then((s) => {
-        if (!live) return;
-        setState(s);
-        if (LIVE.has(s)) { timer = setTimeout(look, POLL_MS); (timer as unknown as { unref?: () => void }).unref?.(); }
-      }, () => { if (live) setState("asleep"); });
+        ? now.current
+            .call("computers.get", { computerId })
+            .then((r) => (r as { computer?: { state?: string } }).computer?.state ?? "asleep")
+        : now.current.call("computers.browser.profiles", {}).then((r) =>
+            browserState(
+              (
+                (
+                  r as {
+                    profiles?: Array<{ agentId: string; running?: boolean; busy?: boolean; takeoverBy?: string }>;
+                  }
+                ).profiles ?? []
+              ).find((x) => x.agentId === agentId),
+            ),
+          );
+      void read.then(
+        (s) => {
+          if (!live) return;
+          setState(s);
+          if (LIVE.has(s)) {
+            timer = setTimeout(look, POLL_MS);
+            (timer as unknown as { unref?: () => void }).unref?.();
+          }
+        },
+        () => {
+          if (live) setState("asleep");
+        },
+      );
     };
     look();
-    return () => { live = false; if (timer) clearTimeout(timer); };
+    return () => {
+      live = false;
+      if (timer) clearTimeout(timer);
+    };
   }, [computerId, agentId]);
   // "Live" only while the computer or browser is really being driven; before the first read and after the work it is not (review, 12 Nov)
   const driven = state !== null && LIVE.has(state);
@@ -62,38 +99,81 @@ export function LiveCard({ computerId, agentId, fileId, caption, id, cfg }: { co
   useEffect(() => {
     if (!frozen || still !== null) return;
     let live = true;
-    void now.current.call("files.read", { fileId, as: "base64" }).then((r) => {
-      const b = (r as { base64?: string; truncated?: boolean }).base64;
-      if (!live) return;
-      if (typeof b === "string" && b !== "") setStill(`data:image/png;base64,${b}`);
-      else setMissing(true);
-    }, () => { if (live) setMissing(true); });
-    return () => { live = false; };
+    void now.current.call("files.read", { fileId, as: "base64" }).then(
+      (r) => {
+        const b = (r as { base64?: string; truncated?: boolean }).base64;
+        if (!live) return;
+        if (typeof b === "string" && b !== "") setStill(`data:image/png;base64,${b}`);
+        else setMissing(true);
+      },
+      () => {
+        if (live) setMissing(true);
+      },
+    );
+    return () => {
+      live = false;
+    };
   }, [frozen, still, fileId]);
   const open = (): void => cfg.openComputer(agentId ?? cfg.agentId);
   const where = placeWord(null, computerId ? "computer" : "browser");
   // never an empty dark box: until a frame is there the card shows the page and a quiet line; a picture that could not be had says so
-  const waiting = <Waiting id={id} page={caption} line={frozen && missing ? "No picture of this step could be taken." : "Opening…"} />;
+  const waiting = (
+    <Waiting id={id} page={caption} line={frozen && missing ? "No picture of this step could be taken." : "Opening…"} />
+  );
   return (
     <Card kind="progress" size="compact" flush testID={`live-card-${id}`} label={`${where}: ${caption}`}>
       {driven && !computerId && agentId ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Open the browser" testID={`live-card-screen-${id}`} onPress={open} style={s.screen}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open the browser"
+          testID={`live-card-screen-${id}`}
+          onPress={open}
+          style={s.screen}
+        >
           {waiting}
-          <View style={s.fill}><BrowserLive agentId={agentId} control={false} call={cfg.call} spaceUrl={cfg.spaceUrl} testID={`live-card-stream-${id}`} /></View>
+          <View style={s.fill}>
+            <BrowserLive
+              agentId={agentId}
+              control={false}
+              call={cfg.call}
+              spaceUrl={cfg.spaceUrl}
+              testID={`live-card-stream-${id}`}
+            />
+          </View>
         </Pressable>
       ) : driven && computerId ? (
-        <LiveScreen computerId={computerId} state={state} call={cfg.call} spaceUrl={cfg.spaceUrl} now={cfg.now} control={false} onIdlePress={open} testID={`live-card-screen-${id}`} streamTestID={`live-card-stream-${id}`} label="Open the computer" style={s.screen}>
+        <LiveScreen
+          computerId={computerId}
+          state={state}
+          call={cfg.call}
+          spaceUrl={cfg.spaceUrl}
+          now={cfg.now}
+          control={false}
+          onIdlePress={open}
+          testID={`live-card-screen-${id}`}
+          streamTestID={`live-card-stream-${id}`}
+          label="Open the computer"
+          style={s.screen}
+        >
           {waiting}
         </LiveScreen>
       ) : (
-        <Pressable accessibilityRole="button" accessibilityLabel="Open the computer" testID={`live-card-still-${id}`} onPress={open} style={s.screen}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open the computer"
+          testID={`live-card-still-${id}`}
+          onPress={open}
+          style={s.screen}
+        >
           {still ? <Image source={{ uri: still }} resizeMode="contain" style={s.fill} /> : waiting}
         </Pressable>
       )}
       <View style={s.foot}>
         <View testID={`live-card-dot-${id}`} style={[s.dot, driven && s.dotLive]} />
         <Text numberOfLines={1} style={s.caption}>{`${where} · ${caption}`}</Text>
-        <Text testID={`live-card-when-${id}`} style={s.when}>{driven ? "Live" : frozen ? "Done" : ""}</Text>
+        <Text testID={`live-card-when-${id}`} style={s.when}>
+          {driven ? "Live" : frozen ? "Done" : ""}
+        </Text>
       </View>
     </Card>
   );
@@ -103,8 +183,12 @@ export function LiveCard({ computerId, agentId, fileId, caption, id, cfg }: { co
 function Waiting({ id, page, line }: { id: string; page: string; line: string }): ReactElement {
   return (
     <View testID={`live-card-waiting-${id}`} style={s.waiting}>
-      <Text numberOfLines={1} style={s.page}>{page}</Text>
-      <Text testID={`live-card-waiting-line-${id}`} style={s.line}>{line}</Text>
+      <Text numberOfLines={1} style={s.page}>
+        {page}
+      </Text>
+      <Text testID={`live-card-waiting-line-${id}`} style={s.line}>
+        {line}
+      </Text>
     </View>
   );
 }

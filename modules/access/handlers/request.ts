@@ -20,8 +20,21 @@ const LEVELS: readonly Level[] = ["view", "use", "edit", "manage"];
 const RANK: Record<string, number> = { view: 1, use: 2, edit: 3, manage: 4 };
 
 export interface RequestRow {
-  id: string; requester: string; resource_type: string; resource_id: string; level: Level; note: string | null; state: "waiting" | "granted" | "declined"; idem_key: string;
-  approvers_json: string; task_ids_json: string; at: number; decided_by: string | null; decided_at: number | null; decision_note: string | null; grant_id: string | null;
+  id: string;
+  requester: string;
+  resource_type: string;
+  resource_id: string;
+  level: Level;
+  note: string | null;
+  state: "waiting" | "granted" | "declined";
+  idem_key: string;
+  approvers_json: string;
+  task_ids_json: string;
+  at: number;
+  decided_by: string | null;
+  decided_at: number | null;
+  decision_note: string | null;
+  grant_id: string | null;
 }
 
 /** The person a call is for: the signed-in person, or the person an agent acts for. */
@@ -31,25 +44,45 @@ export function personOf(ctx: AskCtx): string {
   return raise(ctx.trace.traceId, "permission.no_grant", "Only a person can ask for access.");
 }
 
-const asRow = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+const asRow = (v: unknown): Record<string, unknown> | null =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 const strOf = (v: unknown): string | undefined => (typeof v === "string" && v.length > 0 ? v : undefined);
 
 export function requestOut(r: RequestRow) {
   const tasks = JSON.parse(r.task_ids_json) as string[];
   return {
-    id: r.id, requester: r.requester, resource: { type: r.resource_type, id: r.resource_id }, level: r.level, ...(r.note ? { note: r.note } : {}),
-    state: r.state, taskId: tasks[0] ?? "", at: r.at,
+    id: r.id,
+    requester: r.requester,
+    resource: { type: r.resource_type, id: r.resource_id },
+    level: r.level,
+    ...(r.note ? { note: r.note } : {}),
+    state: r.state,
+    taskId: tasks[0] ?? "",
+    at: r.at,
   };
 }
 
-export const requestById = (ctx: AccessCtx, id: string): RequestRow | undefined => ctx.db.all(`SELECT * FROM access_requests WHERE id = ?`, id)[0] as RequestRow | undefined;
+export const requestById = (ctx: AccessCtx, id: string): RequestRow | undefined =>
+  ctx.db.all(`SELECT * FROM access_requests WHERE id = ?`, id)[0] as RequestRow | undefined;
 
-function allows(ctx: AccessCtx, store: AccessStore, principal: string, perm: string | null, level: Level, resource: ResourceRef): boolean {
-  return authorize(store.snapshot(), { principal, action: { perm, level }, resource, now: ctx.now() }).effect === "allow";
+function allows(
+  ctx: AccessCtx,
+  store: AccessStore,
+  principal: string,
+  perm: string | null,
+  level: Level,
+  resource: ResourceRef,
+): boolean {
+  return (
+    authorize(store.snapshot(), { principal, action: { perm, level }, resource, now: ctx.now() }).effect === "allow"
+  );
 }
 
 function activePeople(store: AccessStore): string[] {
-  return [...store.principals.values()].filter((p) => p.kind === "person" && p.status === "active").map((p) => p.id).sort();
+  return [...store.principals.values()]
+    .filter((p) => p.kind === "person" && p.status === "active")
+    .map((p) => p.id)
+    .sort();
 }
 
 /** The admins: people whose roles carry access.manage. They decide requests for the Space, and stand in when a resource has no Manage holder. A role carries the permission for the whole Space, so the roles decide this, not a grant on one resource. */
@@ -61,7 +94,8 @@ export function adminsOf(_ctx: AccessCtx, store: AccessStore): string[] {
 /** Who may decide a request for this resource: its Manage holders, or the admins for the Space and when nobody holds Manage. The requester never decides their own. */
 export function approversFor(ctx: AccessCtx, store: AccessStore, resource: ResourceRef, requester: string): string[] {
   const people = activePeople(store).filter((id) => id !== requester);
-  const holders = resource.type === "space" ? [] : people.filter((id) => allows(ctx, store, id, null, "manage", resource));
+  const holders =
+    resource.type === "space" ? [] : people.filter((id) => allows(ctx, store, id, null, "manage", resource));
   if (holders.length > 0) return holders;
   return adminsOf(ctx, store).filter((id) => id !== requester);
 }
@@ -78,55 +112,113 @@ const asks = new Map<string, number[]>();
 function countAsk(ctx: AskCtx, requester: string): void {
   const now = ctx.now();
   const recent = (asks.get(requester) ?? []).filter((t) => now - t < ASK_WINDOW_MS);
-  if (recent.length >= ASK_LIMIT) raise(ctx.trace.traceId, "rate_limit.exceeded", "You have asked for access many times in the last hour. Try again later.");
+  if (recent.length >= ASK_LIMIT)
+    raise(
+      ctx.trace.traceId,
+      "rate_limit.exceeded",
+      "You have asked for access many times in the last hour. Try again later.",
+    );
   recent.push(now);
   asks.set(requester, recent);
 }
 /** Test hook: forget every requester's count. */
 export const resetAskLimit = (): void => asks.clear();
 
-const exists = (store: AccessStore, r: ResourceRef): boolean => r.type === "space" || store.resources.get(r.id)?.type === r.type;
+const exists = (store: AccessStore, r: ResourceRef): boolean =>
+  r.type === "space" || store.resources.get(r.id)?.type === r.type;
 
-export async function requestCreate(ctx: AskCtx, input: { resource: ResourceRef; level: Level; note?: string; idempotencyKey: string }) {
+export async function requestCreate(
+  ctx: AskCtx,
+  input: { resource: ResourceRef; level: Level; note?: string; idempotencyKey: string },
+) {
   const store = storeOf(ctx);
   // an agent asks for itself when its person already has that level: the person who decides shares the thing with the agent, one press. An agent never asks for more than its person has; then the ask is the person's, as before
   const asker = personOf(ctx);
-  const requester = ctx.principal.kind === "agent" && exists(store, input.resource) && allows(ctx, store, asker, null, input.level, input.resource) ? ctx.principal.id : asker;
-  if (!LEVELS.includes(input.level)) raise(ctx.trace.traceId, "validation.bad_input", "level is view, use, edit or manage");
+  const requester =
+    ctx.principal.kind === "agent" &&
+    exists(store, input.resource) &&
+    allows(ctx, store, asker, null, input.level, input.resource)
+      ? ctx.principal.id
+      : asker;
+  if (!LEVELS.includes(input.level))
+    raise(ctx.trace.traceId, "validation.bad_input", "level is view, use, edit or manage");
   const roles = store.rolesOf(requester);
-  if (roles.length > 0 && roles.every((r) => r === "rol_guest")) raise(ctx.trace.traceId, "permission.guest_cannot_request", "Guests work inside the access they were given and cannot ask for more.");
+  if (roles.length > 0 && roles.every((r) => r === "rol_guest"))
+    raise(
+      ctx.trace.traceId,
+      "permission.guest_cannot_request",
+      "Guests work inside the access they were given and cannot ask for more.",
+    );
 
-  const mine = (ctx.db.all(`SELECT * FROM access_requests WHERE requester = ?`, requester) as RequestRow[]);
+  const mine = ctx.db.all(`SELECT * FROM access_requests WHERE requester = ?`, requester) as RequestRow[];
   const again = mine.find((r) => r.idem_key === input.idempotencyKey);
   if (again) return { request: requestOut(again) };
   countAsk(ctx, requester);
   if (!exists(store, input.resource)) {
     // Same answer as a real ask: an accepted, waiting request with a card id. Nothing is stored, no card is made, no event is emitted.
-    return { request: { id: nid("arq"), requester, resource: { type: input.resource.type, id: input.resource.id }, level: input.level, ...(input.note ? { note: input.note } : {}), state: "waiting" as const, taskId: nid("tsk"), at: ctx.now() } };
+    return {
+      request: {
+        id: nid("arq"),
+        requester,
+        resource: { type: input.resource.type, id: input.resource.id },
+        level: input.level,
+        ...(input.note ? { note: input.note } : {}),
+        state: "waiting" as const,
+        taskId: nid("tsk"),
+        at: ctx.now(),
+      },
+    };
   }
-  if (mine.some((r) => r.state === "waiting" && r.resource_type === input.resource.type && r.resource_id === input.resource.id)) {
-    raise(ctx.trace.traceId, "validation.duplicate", "You already asked for access to this. The people who can decide have it.");
+  if (
+    mine.some(
+      (r) => r.state === "waiting" && r.resource_type === input.resource.type && r.resource_id === input.resource.id,
+    )
+  ) {
+    raise(
+      ctx.trace.traceId,
+      "validation.duplicate",
+      "You already asked for access to this. The people who can decide have it.",
+    );
   }
 
   const approvers = approversFor(ctx, store, input.resource, requester);
-  if (approvers.length === 0) raise(ctx.trace.traceId, "validation.precondition_failed", "Nobody can decide this request.");
+  if (approvers.length === 0)
+    raise(ctx.trace.traceId, "validation.precondition_failed", "Nobody can decide this request.");
   const id = nid("arq");
   const requesterName = store.principals.get(requester)?.name ?? requester;
   const resourceTitle = titleOf(store, input.resource);
   const block = {
-    type: "access_request", v: 1,
-    data: { requestId: id, requester, resource: { type: input.resource.type, id: input.resource.id }, resourceTitle, level: input.level, ...(input.note ? { note: input.note } : {}), state: "waiting", ...(ctx.thread ? { threadId: ctx.thread } : {}), ...(ctx.thread && ctx.principal.kind === "agent" ? { agentId: ctx.principal.id } : {}) },
+    type: "access_request",
+    v: 1,
+    data: {
+      requestId: id,
+      requester,
+      resource: { type: input.resource.type, id: input.resource.id },
+      resourceTitle,
+      level: input.level,
+      ...(input.note ? { note: input.note } : {}),
+      state: "waiting",
+      ...(ctx.thread ? { threadId: ctx.thread } : {}),
+      ...(ctx.thread && ctx.principal.kind === "agent" ? { agentId: ctx.principal.id } : {}),
+    },
   };
   const taskIds: string[] = [];
   for (const approver of approvers) {
-    const made = asRow(await ctx.call("tasks.create", {
-      kind: "unblock", title: `${requesterName} asks for ${input.level} access to ${resourceTitle}`, ...(input.note ? { summary: input.note } : {}),
-      why: "Someone is waiting on access only you can give.", assigned: { kind: "person", id: approver }, source: { kind: "manual", id },
-      // the actions an unblock task offers (modules/tasks/handlers/state.ts) are resolved and cannot; the card closes through access.requests.approve or decline, which transition it
-      blocks: [block],
-      // no bare resolve: approving grants, through access.requests.approve
-      actions: [{ key: "cannot", label: "Deny", note: "optional" }], idempotencyKey: `${id}:${approver}`,
-    }));
+    const made = asRow(
+      await ctx.call("tasks.create", {
+        kind: "unblock",
+        title: `${requesterName} asks for ${input.level} access to ${resourceTitle}`,
+        ...(input.note ? { summary: input.note } : {}),
+        why: "Someone is waiting on access only you can give.",
+        assigned: { kind: "person", id: approver },
+        source: { kind: "manual", id },
+        // the actions an unblock task offers (modules/tasks/handlers/state.ts) are resolved and cannot; the card closes through access.requests.approve or decline, which transition it
+        blocks: [block],
+        // no bare resolve: approving grants, through access.requests.approve
+        actions: [{ key: "cannot", label: "Deny", note: "optional" }],
+        idempotencyKey: `${id}:${approver}`,
+      }),
+    );
     const taskId = strOf(asRow(made?.["task"])?.["id"]);
     if (!taskId) raise(ctx.trace.traceId, "internal.unexpected", "The task for the request was not created.");
     taskIds.push(taskId);
@@ -134,19 +226,44 @@ export async function requestCreate(ctx: AskCtx, input: { resource: ResourceRef;
   const at = ctx.now();
   ctx.db.run(
     `INSERT INTO access_requests (id, requester, resource_type, resource_id, level, note, state, idem_key, approvers_json, task_ids_json, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, requester, input.resource.type, input.resource.id, input.level, input.note ?? null, "waiting", input.idempotencyKey, JSON.stringify(approvers), JSON.stringify(taskIds), at,
+    id,
+    requester,
+    input.resource.type,
+    input.resource.id,
+    input.level,
+    input.note ?? null,
+    "waiting",
+    input.idempotencyKey,
+    JSON.stringify(approvers),
+    JSON.stringify(taskIds),
+    at,
   );
   const row = requestById(ctx, id)!;
-  ctx.emit("access.requested", id, { requestId: id, resource: { type: input.resource.type, id: input.resource.id }, level: input.level, requester, taskId: taskIds[0]! });
+  ctx.emit("access.requested", id, {
+    requestId: id,
+    resource: { type: input.resource.type, id: input.resource.id },
+    level: input.level,
+    requester,
+    taskId: taskIds[0]!,
+  });
   // asked in a chat: the ask lands there as a card the deciders can answer in place (Needs you keeps its row)
   if (ctx.thread) {
-    try { await ctx.call("chat.post", { threadId: ctx.thread, body: "", blocks: [block], idempotencyKey: `${id}:card` }); }
-    catch (e) { ctx.log.warn("access request: the chat card was not posted", { requestId: id, error: e instanceof Error ? e.message : String(e) }); }
+    try {
+      await ctx.call("chat.post", { threadId: ctx.thread, body: "", blocks: [block], idempotencyKey: `${id}:card` });
+    } catch (e) {
+      ctx.log.warn("access request: the chat card was not posted", {
+        requestId: id,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
   return { request: requestOut(row) };
 }
 
-export async function requestsList(ctx: AskCtx, input: { mine?: boolean; state?: "waiting" | "granted" | "declined"; cursor?: string; limit?: number }) {
+export async function requestsList(
+  ctx: AskCtx,
+  input: { mine?: boolean; state?: "waiting" | "granted" | "declined"; cursor?: string; limit?: number },
+) {
   const me = personOf(ctx);
   const all = (ctx.db.all(`SELECT * FROM access_requests`) as RequestRow[])
     .filter((r) => (input.mine ? r.requester === me : (JSON.parse(r.approvers_json) as string[]).includes(me)))
@@ -162,7 +279,11 @@ function decidable(ctx: AskCtx, requestId: string): { row: RequestRow; me: strin
   const me = personOf(ctx);
   const row = requestById(ctx, requestId);
   const store = storeOf(ctx);
-  const may = row && ((JSON.parse(row.approvers_json) as string[]).includes(me) || (row.requester !== me && approversFor(ctx, store, { type: row.resource_type, id: row.resource_id }, row.requester).includes(me)));
+  const may =
+    row &&
+    ((JSON.parse(row.approvers_json) as string[]).includes(me) ||
+      (row.requester !== me &&
+        approversFor(ctx, store, { type: row.resource_type, id: row.resource_id }, row.requester).includes(me)));
   if (!row || !may) return raise(ctx.trace.traceId, "validation.not_found", "No such request.");
   if (row.state !== "waiting") return raise(ctx.trace.traceId, "validation.precondition_failed", "Already decided.");
   return { row, me };
@@ -174,9 +295,12 @@ async function chatOf(ctx: AskCtx, row: RequestRow): Promise<{ threadId?: string
     try {
       const t = asRow(asRow(await ctx.call("tasks.get", { taskId }))?.["task"]);
       const d = asRow(asRow(Array.isArray(t?.["blocks"]) ? (t!["blocks"] as unknown[])[0] : undefined)?.["data"]);
-      const threadId = strOf(d?.["threadId"]), agentId = strOf(d?.["agentId"]);
+      const threadId = strOf(d?.["threadId"]),
+        agentId = strOf(d?.["agentId"]);
       return { ...(threadId ? { threadId } : {}), ...(agentId ? { agentId } : {}) };
-    } catch { /* another approver's card: the next one is the caller's */ }
+    } catch {
+      /* another approver's card: the next one is the caller's */
+    }
   }
   return {};
 }
@@ -187,7 +311,11 @@ async function closeCards(ctx: AskCtx, row: RequestRow, to: "done" | "canceled",
     try {
       await ctx.call("tasks.transition", { taskId, to, note });
     } catch (e) {
-      ctx.log.warn("access request card did not close", { requestId: row.id, taskId, error: e instanceof Error ? e.message : String(e) });
+      ctx.log.warn("access request card did not close", {
+        requestId: row.id,
+        taskId,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 }
@@ -199,27 +327,77 @@ export async function requestsApprove(ctx: AskCtx, input: { requestId: string; l
   if (!LEVELS.includes(level)) raise(ctx.trace.traceId, "validation.bad_input", "level is view, use, edit or manage");
   const resource = { type: row.resource_type, id: row.resource_id };
   // a delegated grant stays inside the approver's own: a Manage holder may give any level, an admin deciding for the Space gives what the request asked
-  const ownLevel = resource.type === "space" || allows(ctx, store, me, null, "manage", resource) ? 4 : LEVELS.reduce((best, l) => (allows(ctx, store, me, null, l, resource) ? Math.max(best, RANK[l]!) : best), 0);
-  if (RANK[level]! > ownLevel) raise(ctx.trace.traceId, "permission.not_contained", "You cannot give more access than you hold yourself.");
+  const ownLevel =
+    resource.type === "space" || allows(ctx, store, me, null, "manage", resource)
+      ? 4
+      : LEVELS.reduce((best, l) => (allows(ctx, store, me, null, l, resource) ? Math.max(best, RANK[l]!) : best), 0);
+  if (RANK[level]! > ownLevel)
+    raise(ctx.trace.traceId, "permission.not_contained", "You cannot give more access than you hold yourself.");
 
   const grant: GrantRec = {
-    id: nid("gnt"), subject: { kind: row.requester.startsWith("agt_") ? "agent" : "person", id: row.requester }, resource, level, conditions: {}, by: me, source: `request:${row.id}`, createdAt: ctx.now(),
+    id: nid("gnt"),
+    subject: { kind: row.requester.startsWith("agt_") ? "agent" : "person", id: row.requester },
+    resource,
+    level,
+    conditions: {},
+    by: me,
+    source: `request:${row.id}`,
+    createdAt: ctx.now(),
   };
   store.grants.set(grant.id, grant);
   store.bump();
-  ctx.emit("grant.created", grant.id, { grantId: grant.id, subject: grant.subject, resource, level, source: grant.source });
+  ctx.emit("grant.created", grant.id, {
+    grantId: grant.id,
+    subject: grant.subject,
+    resource,
+    level,
+    source: grant.source,
+  });
   ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "assignment", by: me });
-  try { store.persist(ctx.db); } catch (e) { store.grants.delete(grant.id); store.bump(); throw e; }
-  ctx.db.run(`UPDATE access_requests SET state = ?, decided_by = ?, decided_at = ?, grant_id = ? WHERE id = ?`, "granted", me, ctx.now(), grant.id, row.id);
-  ctx.emit("access.granted", row.id, { requestId: row.id, resource, level, requester: row.requester, grantId: grant.id, ...(await chatOf(ctx, row)) });
+  try {
+    store.persist(ctx.db);
+  } catch (e) {
+    store.grants.delete(grant.id);
+    store.bump();
+    throw e;
+  }
+  ctx.db.run(
+    `UPDATE access_requests SET state = ?, decided_by = ?, decided_at = ?, grant_id = ? WHERE id = ?`,
+    "granted",
+    me,
+    ctx.now(),
+    grant.id,
+    row.id,
+  );
+  ctx.emit("access.granted", row.id, {
+    requestId: row.id,
+    resource,
+    level,
+    requester: row.requester,
+    grantId: grant.id,
+    ...(await chatOf(ctx, row)),
+  });
   await closeCards(ctx, row, "done", "Approved");
   return { grant: grantView(grant) };
 }
 
 export async function requestsDecline(ctx: AskCtx, input: { requestId: string; note?: string }) {
   const { row, me } = decidable(ctx, input.requestId);
-  ctx.db.run(`UPDATE access_requests SET state = ?, decided_by = ?, decided_at = ?, decision_note = ? WHERE id = ?`, "declined", me, ctx.now(), input.note ?? null, row.id);
-  ctx.emit("access.declined", row.id, { requestId: row.id, resource: { type: row.resource_type, id: row.resource_id }, requester: row.requester, ...(input.note ? { note: input.note } : {}), ...(await chatOf(ctx, row)) });
+  ctx.db.run(
+    `UPDATE access_requests SET state = ?, decided_by = ?, decided_at = ?, decision_note = ? WHERE id = ?`,
+    "declined",
+    me,
+    ctx.now(),
+    input.note ?? null,
+    row.id,
+  );
+  ctx.emit("access.declined", row.id, {
+    requestId: row.id,
+    resource: { type: row.resource_type, id: row.resource_id },
+    requester: row.requester,
+    ...(input.note ? { note: input.note } : {}),
+    ...(await chatOf(ctx, row)),
+  });
   await closeCards(ctx, row, "canceled", input.note ? `Declined: ${input.note}` : "Declined");
   return { ok: true };
 }

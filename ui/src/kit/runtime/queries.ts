@@ -49,7 +49,9 @@ function liveParts(def: KitScreenDef, env: KitEnv, state: Record<string, unknown
       }
       continue;
     }
-    let snap: QuerySnapshot = env.read ? { status: "loading" } : { status: "error", error: "no server reads on this host" };
+    let snap: QuerySnapshot = env.read
+      ? { status: "loading" }
+      : { status: "error", error: "no server reads on this host" };
     let started = false;
     const listeners = new Set<() => void>();
     parts[name] = {
@@ -59,11 +61,19 @@ function liveParts(def: KitScreenDef, env: KitEnv, state: Record<string, unknown
           started = true;
           const input = resolveInputMap(q.input, { queries: {}, state });
           env.read(q.cap, input).then(
-            (data) => { snap = { status: "ready", data }; listeners.forEach((f) => f()); },
-            (e: unknown) => { snap = { status: "error", error: message(e) }; listeners.forEach((f) => f()); },
+            (data) => {
+              snap = { status: "ready", data };
+              listeners.forEach((f) => f());
+            },
+            (e: unknown) => {
+              snap = { status: "error", error: message(e) };
+              listeners.forEach((f) => f());
+            },
           );
         }
-        return () => { listeners.delete(l); };
+        return () => {
+          listeners.delete(l);
+        };
       },
       snapshot: () => snap,
     };
@@ -90,7 +100,10 @@ export function createQuerySet(def: KitScreenDef, env: KitEnv, state: Record<str
         next[n] = primed && sameSnapshot(last[n]!, s) ? last[n]! : s;
         if (next[n] !== last[n]) changed = true;
       }
-      if (changed) { last = next; primed = true; }
+      if (changed) {
+        last = next;
+        primed = true;
+      }
       return last;
     },
   };

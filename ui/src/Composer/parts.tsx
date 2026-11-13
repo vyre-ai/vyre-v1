@@ -23,22 +23,26 @@ export function ensureComposerCss(): void {
   if (cssDone || !web) return;
   const d = (globalThis as { document?: Parameters<typeof injectCss>[0] }).document;
   if (!d || !d.head) return;
-  injectCss(d, "vyre-ui-composer", [
-    "@keyframes vyre-cmp-sweep{0%{background-position:-40% 0}100%{background-position:140% 0}}",
-    "@keyframes vyre-cmp-in{from{opacity:0;transform:translateY(6px) scale(.985)}to{opacity:1;transform:none}}",
-    "[data-cmp-light]{background:linear-gradient(90deg,transparent,var(--accent),transparent);background-size:40% 100%;background-repeat:no-repeat;animation:vyre-cmp-sweep 1.4s ease-in-out infinite}",
-    "[data-cmp-pop]{animation:vyre-cmp-in .14s ease-out}",
-    "[data-cmp-card] [data-cmp-rm]{opacity:0;transition:opacity .12s}",
-    "[data-cmp-card]:hover [data-cmp-rm]{opacity:1}",
-    "@media (hover:none){[data-cmp-card] [data-cmp-rm]{opacity:1}}",
-    "[data-cmp-field] textarea::placeholder{color:var(--ink-4)}",
-    // the token wash behind the field lays its text out exactly as the field does: one font, one spacing, one wrap, and no scrollbar narrowing the field's lines
-    "[data-cmp-field] textarea,[data-cmp-ghost]{font-family:inherit;font-weight:400;font-style:normal;letter-spacing:normal;word-spacing:normal;font-kerning:auto;font-variant-ligatures:normal;text-rendering:auto;tab-size:8;white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;text-indent:0}",
-    "[data-cmp-field] textarea{scrollbar-width:none}",
-    "[data-cmp-field] textarea::-webkit-scrollbar{display:none}",
-    "[data-cmp-focus]{border-color:color-mix(in srgb,var(--accent) 45%,var(--line-2)) !important}",
-    "[data-cmp-low]{background-color:color-mix(in srgb,var(--warn) 14%,transparent)}",
-  ].join("\n"));
+  injectCss(
+    d,
+    "vyre-ui-composer",
+    [
+      "@keyframes vyre-cmp-sweep{0%{background-position:-40% 0}100%{background-position:140% 0}}",
+      "@keyframes vyre-cmp-in{from{opacity:0;transform:translateY(6px) scale(.985)}to{opacity:1;transform:none}}",
+      "[data-cmp-light]{background:linear-gradient(90deg,transparent,var(--accent),transparent);background-size:40% 100%;background-repeat:no-repeat;animation:vyre-cmp-sweep 1.4s ease-in-out infinite}",
+      "[data-cmp-pop]{animation:vyre-cmp-in .14s ease-out}",
+      "[data-cmp-card] [data-cmp-rm]{opacity:0;transition:opacity .12s}",
+      "[data-cmp-card]:hover [data-cmp-rm]{opacity:1}",
+      "@media (hover:none){[data-cmp-card] [data-cmp-rm]{opacity:1}}",
+      "[data-cmp-field] textarea::placeholder{color:var(--ink-4)}",
+      // the token wash behind the field lays its text out exactly as the field does: one font, one spacing, one wrap, and no scrollbar narrowing the field's lines
+      "[data-cmp-field] textarea,[data-cmp-ghost]{font-family:inherit;font-weight:400;font-style:normal;letter-spacing:normal;word-spacing:normal;font-kerning:auto;font-variant-ligatures:normal;text-rendering:auto;tab-size:8;white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;text-indent:0}",
+      "[data-cmp-field] textarea{scrollbar-width:none}",
+      "[data-cmp-field] textarea::-webkit-scrollbar{display:none}",
+      "[data-cmp-focus]{border-color:color-mix(in srgb,var(--accent) 45%,var(--line-2)) !important}",
+      "[data-cmp-low]{background-color:color-mix(in srgb,var(--warn) 14%,transparent)}",
+    ].join("\n"),
+  );
   cssDone = true;
 }
 
@@ -51,26 +55,53 @@ export function useDismiss(open: boolean, close: () => void, inside: () => reado
   cb.current = { close, inside };
   useEffect(() => {
     if (!open || !web) return undefined;
-    const doc = (globalThis as { document?: { addEventListener?: (t: string, f: (e: never) => void, c?: boolean) => void; removeEventListener?: (t: string, f: (e: never) => void, c?: boolean) => void } }).document;
+    const doc = (
+      globalThis as {
+        document?: {
+          addEventListener?: (t: string, f: (e: never) => void, c?: boolean) => void;
+          removeEventListener?: (t: string, f: (e: never) => void, c?: boolean) => void;
+        };
+      }
+    ).document;
     if (!doc?.addEventListener) return undefined;
     const down = (e: { target?: unknown }): void => {
       for (const n of cb.current.inside()) if (n?.contains?.(e.target)) return;
       cb.current.close();
     };
     doc.addEventListener("mousedown", down as never, true);
-    return () => { doc.removeEventListener?.("mousedown", down as never, true); };
+    return () => {
+      doc.removeEventListener?.("mousedown", down as never, true);
+    };
   }, [open]);
-  useEscapeLayer(open, () => cb.current.close(), { respectHandled: true });   // one Escape closes the top layer only
+  useEscapeLayer(open, () => cb.current.close(), { respectHandled: true }); // one Escape closes the top layer only
 }
 
 /* ---------- brand marks ---------- */
 
 const PROVIDER_BRAND: Record<string, string> = {
-  anthropic: "claude", claude: "claude", claude_code: "claude", "claude-code": "claude",
-  openai: "openai", codex: "openai", chatgpt: "openai",
-  grok: "grok", xai: "grok",
-  google: "googlegemini", gemini: "googlegemini", openrouter: "openrouter", local: "localmodel", opencode_go: "opencode", opencode: "opencode",
-  gmail: "gmail", google_mail: "gmail", outlook: "microsoft", microsoft: "microsoft", office365: "microsoft", mailgun: "mailgun", resend: "resend", twilio: "twilio",
+  anthropic: "claude",
+  claude: "claude",
+  claude_code: "claude",
+  "claude-code": "claude",
+  openai: "openai",
+  codex: "openai",
+  chatgpt: "openai",
+  grok: "grok",
+  xai: "grok",
+  google: "googlegemini",
+  gemini: "googlegemini",
+  openrouter: "openrouter",
+  local: "localmodel",
+  opencode_go: "opencode",
+  opencode: "opencode",
+  gmail: "gmail",
+  google_mail: "gmail",
+  outlook: "microsoft",
+  microsoft: "microsoft",
+  office365: "microsoft",
+  mailgun: "mailgun",
+  resend: "resend",
+  twilio: "twilio",
 };
 
 /** The brand key for a provider, driver or mail service id, or null for one without a mark. */
@@ -81,23 +112,51 @@ export function brandOf(provider: string | undefined): string | null {
 }
 
 /** A provider's mark alone (no tile), in its own colour; nothing for one without a mark. */
-export function BrandMark({ provider, size = 13 }: { provider: string | undefined; size?: number }): ReactElement | null {
+export function BrandMark({
+  provider,
+  size = 13,
+}: {
+  provider: string | undefined;
+  size?: number;
+}): ReactElement | null {
   const key = brandOf(provider);
   const mark = key ? BRANDS[key] : undefined;
   if (!key || !mark || !web) return null;
   return createElement("svg", {
-    viewBox: "0 0 24 24", width: size, height: size, "aria-hidden": true, fill: "currentColor", "data-brand": key,
+    viewBox: "0 0 24 24",
+    width: size,
+    height: size,
+    "aria-hidden": true,
+    fill: "currentColor",
+    "data-brand": key,
     style: { color: mark.c ?? "var(--ink)", display: "block", flex: "none" },
     dangerouslySetInnerHTML: { __html: mark.svg ?? `<path d="${mark.p ?? ""}"/>` },
   });
 }
 
 /** A sender's or account's logo on a small tile: the brand mark, or the first letter of the service on a quiet tile. */
-export function LogoTile({ provider, name, size = 22 }: { provider: string | undefined; name: string; size?: number }): ReactElement {
+export function LogoTile({
+  provider,
+  name,
+  size = 22,
+}: {
+  provider: string | undefined;
+  name: string;
+  size?: number;
+}): ReactElement {
   const key = brandOf(provider);
   return (
-    <View style={[s.tile, { width: size, height: size, borderRadius: Math.round(size * 0.3) }]} testID={`logo-${key ?? "letter"}`}>
-      {key ? <BrandMark provider={provider} size={Math.round(size * 0.62)} /> : <Text style={[s.tileLetter, { fontSize: Math.round(size * 0.48) }]}>{(name.trim()[0] ?? "?").toUpperCase()}</Text>}
+    <View
+      style={[s.tile, { width: size, height: size, borderRadius: Math.round(size * 0.3) }]}
+      testID={`logo-${key ?? "letter"}`}
+    >
+      {key ? (
+        <BrandMark provider={provider} size={Math.round(size * 0.62)} />
+      ) : (
+        <Text style={[s.tileLetter, { fontSize: Math.round(size * 0.48) }]}>
+          {(name.trim()[0] ?? "?").toUpperCase()}
+        </Text>
+      )}
     </View>
   );
 }
@@ -105,23 +164,60 @@ export function LogoTile({ provider, name, size = 22 }: { provider: string | und
 /* ---------- effort bars, ring, light ---------- */
 
 /** Rising bars, one per level the provider offers. */
-export function EffortBars({ effort, levels = 4, testID }: { effort: Effort | undefined; levels?: number; testID?: string }): ReactElement {
+export function EffortBars({
+  effort,
+  levels = 4,
+  testID,
+}: {
+  effort: Effort | undefined;
+  levels?: number;
+  testID?: string;
+}): ReactElement {
   const lit = Math.min(levels, effortBars(effort));
   const bars: ReactElement[] = [];
-  for (let i = 0; i < levels; i++) bars.push(<View key={i} style={[s.bar, { height: 5 + i * 2 }, i < lit && s.barOn]} />);
-  return <View style={s.bars} testID={testID} accessibilityLabel={`Effort ${lit} of ${levels}`}>{bars}</View>;
+  for (let i = 0; i < levels; i++)
+    bars.push(<View key={i} style={[s.bar, { height: 5 + i * 2 }, i < lit && s.barOn]} />);
+  return (
+    <View style={s.bars} testID={testID} accessibilityLabel={`Effort ${lit} of ${levels}`}>
+      {bars}
+    </View>
+  );
 }
 
 /** The context ring: how full the model's context is. Drawn only past half (the caller decides). */
 export function ContextRing({ pct, warn, size = 22 }: { pct: number; warn: boolean; size?: number }): ReactElement {
   const label = `Context ${Math.round(pct * 100)}% full`;
-  if (!web) return <Text accessibilityLabel={label} style={[s.ringText, warn && s.ringWarn]}>{`${Math.round(pct * 100)}%`}</Text>;
-  const r = 8, c = 2 * Math.PI * r;
+  if (!web)
+    return (
+      <Text accessibilityLabel={label} style={[s.ringText, warn && s.ringWarn]}>{`${Math.round(pct * 100)}%`}</Text>
+    );
+  const r = 8,
+    c = 2 * Math.PI * r;
   return (
-    <View testID="composer-ring" accessibilityLabel={label} {...webOnly({ title: label })} style={{ width: size, height: size }}>
-      {createElement("svg", { viewBox: "0 0 22 22", width: size, height: size, "aria-hidden": true },
+    <View
+      testID="composer-ring"
+      accessibilityLabel={label}
+      {...webOnly({ title: label })}
+      style={{ width: size, height: size }}
+    >
+      {createElement(
+        "svg",
+        { viewBox: "0 0 22 22", width: size, height: size, "aria-hidden": true },
         createElement("circle", { cx: 11, cy: 11, r, fill: "none", stroke: "var(--line-2)", strokeWidth: 2.5 }),
-        createElement("circle", { cx: 11, cy: 11, r, fill: "none", stroke: warn ? "var(--warn)" : "var(--accent)", strokeWidth: 2.5, strokeDasharray: c, strokeDashoffset: c * (1 - pct), transform: "rotate(-90 11 11)", strokeLinecap: "round", "data-warn": warn ? "1" : "0" }))}
+        createElement("circle", {
+          cx: 11,
+          cy: 11,
+          r,
+          fill: "none",
+          stroke: warn ? "var(--warn)" : "var(--accent)",
+          strokeWidth: 2.5,
+          strokeDasharray: c,
+          strokeDashoffset: c * (1 - pct),
+          transform: "rotate(-90 11 11)",
+          strokeLinecap: "round",
+          "data-warn": warn ? "1" : "0",
+        }),
+      )}
     </View>
   );
 }
@@ -129,7 +225,14 @@ export function ContextRing({ pct, warn, size = 22 }: { pct: number; warn: boole
 /** A thin light that runs along the top edge while an agent works. */
 export function WorkingLight(): ReactElement {
   ensureComposerCss();
-  return <View testID="composer-working-light" pointerEvents="none" style={[s.light, !web && s.lightNative]} {...webOnly({ dataSet: { cmpLight: "1" } })} />;
+  return (
+    <View
+      testID="composer-working-light"
+      pointerEvents="none"
+      style={[s.light, !web && s.lightNative]}
+      {...webOnly({ dataSet: { cmpLight: "1" } })}
+    />
+  );
 }
 
 /* ---------- popovers ---------- */
@@ -137,7 +240,21 @@ export function WorkingLight(): ReactElement {
 const POP_SHADOW = { boxShadow: "var(--sh-pop)" } as unknown as ViewStyle;
 
 /** The frame every composer popover sits in: raised, rounded, a soft long shadow, arriving with a short rise. */
-export function Pop({ children, style, testID, label, onKeyDown, nodeRef }: { children: ReactNode; style?: ViewStyle | ViewStyle[]; testID: string; label: string; onKeyDown?: (e: { key: string; preventDefault(): void; stopPropagation?(): void }) => void; nodeRef?: (n: unknown) => void }): ReactElement {
+export function Pop({
+  children,
+  style,
+  testID,
+  label,
+  onKeyDown,
+  nodeRef,
+}: {
+  children: ReactNode;
+  style?: ViewStyle | ViewStyle[];
+  testID: string;
+  label: string;
+  onKeyDown?: (e: { key: string; preventDefault(): void; stopPropagation?(): void }) => void;
+  nodeRef?: (n: unknown) => void;
+}): ReactElement {
   ensureComposerCss();
   return (
     <View
@@ -145,7 +262,15 @@ export function Pop({ children, style, testID, label, onKeyDown, nodeRef }: { ch
       accessibilityLabel={label}
       style={[s.pop, POP_SHADOW, style]}
       {...(nodeRef ? { ref: nodeRef as never } : {})}
-      {...webOnly({ dataSet: { cmpPop: "1" }, role: "dialog", tabIndex: -1, ...(onKeyDown ? { onKeyDown } : {}), onMouseDown: (e: { target?: { tagName?: string }; preventDefault(): void }) => { if (e.target?.tagName !== "INPUT" && e.target?.tagName !== "TEXTAREA") e.preventDefault(); } })}
+      {...webOnly({
+        dataSet: { cmpPop: "1" },
+        role: "dialog",
+        tabIndex: -1,
+        ...(onKeyDown ? { onKeyDown } : {}),
+        onMouseDown: (e: { target?: { tagName?: string }; preventDefault(): void }) => {
+          if (e.target?.tagName !== "INPUT" && e.target?.tagName !== "TEXTAREA") e.preventDefault();
+        },
+      })}
     >
       {children}
     </View>
@@ -153,7 +278,11 @@ export function Pop({ children, style, testID, label, onKeyDown, nodeRef }: { ch
 }
 
 export function GroupHead({ label }: { label: string }): ReactElement {
-  return <Text style={s.grp} accessibilityRole="header">{label}</Text>;
+  return (
+    <Text style={s.grp} accessibilityRole="header">
+      {label}
+    </Text>
+  );
 }
 
 /** A small square tile with a line icon, for menu rows (Upload files, a command, a record). */
@@ -162,7 +291,16 @@ export function IconTile({ icon, tint, size = 26 }: { icon: string; tint?: strin
   const bg = tint && /^#[0-9a-f]{6}$/i.test(tint) ? `${tint}24` : "var(--sunk)";
   return (
     <View style={[s.iconTile, { width: size, height: size, backgroundColor: bg as string }]}>
-      {web ? createElement("span", { style: { display: "inline-flex", color: tint ?? "var(--ink-2)" }, dangerouslySetInnerHTML: { __html: icon.replace("<svg", `<svg width="${Math.round(size * 0.58)}" height="${Math.round(size * 0.58)}"`) } }) : <Text style={s.tileLetter}>{"•"}</Text>}
+      {web ? (
+        createElement("span", {
+          style: { display: "inline-flex", color: tint ?? "var(--ink-2)" },
+          dangerouslySetInnerHTML: {
+            __html: icon.replace("<svg", `<svg width="${Math.round(size * 0.58)}" height="${Math.round(size * 0.58)}"`),
+          },
+        })
+      ) : (
+        <Text style={s.tileLetter}>{"•"}</Text>
+      )}
     </View>
   );
 }
@@ -174,10 +312,13 @@ export function Kbd({ k }: { k: string }): ReactElement {
 
 /* ---------- line icons (24 grid, stroke) ---------- */
 
-const svg = (d: string): string => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const svg = (d: string): string =>
+  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 export const I = {
   plus: svg('<path d="M12 5v14M5 12h14"/>'),
-  tune: svg('<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.200"/><circle cx="9" cy="17" r="2.200"/>'),
+  tune: svg(
+    '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.200"/><circle cx="9" cy="17" r="2.200"/>',
+  ),
   mic: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.500 11.500a6.500 6.500 0 0 0 13 0M12 18v3"/>'),
   up: svg('<path d="M12 19V5M6 11l6-6 6 6"/>'),
   file: svg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>'),
@@ -187,7 +328,9 @@ export const I = {
   bolt: svg('<path d="M13 3 4 14h7l-1 7 9-11h-7z"/>'),
   project: svg('<path d="M4 6h16M4 12h10M4 18h7"/>'),
   channel: svg('<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>'),
-  people: svg('<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0M16 5a3 3 0 0 1 0 6M18 20a5 5 0 0 0-2.4-4.3"/>'),
+  people: svg(
+    '<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0M16 5a3 3 0 0 1 0 6M18 20a5 5 0 0 0-2.4-4.3"/>',
+  ),
   at: svg('<circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/>'),
   hash: svg('<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>'),
   slash: svg('<path d="m15 4-6 16"/>'),
@@ -203,10 +346,19 @@ export const I = {
   mail: svg('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>'),
   text: svg('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>'),
 };
-export const STOP = '<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/></svg>';
+export const STOP =
+  '<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/></svg>';
 
 const s = StyleSheet.create({
-  tile: { alignItems: "center", justifyContent: "center", backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden", flexShrink: 0 },
+  tile: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--raised)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    overflow: "hidden",
+    flexShrink: 0,
+  },
   tileLetter: { color: "var(--ink-2)" as string, fontWeight: "700" },
   bars: { flexDirection: "row", gap: 1.5, height: 11, alignItems: "flex-end" },
   bar: { width: 2.5, borderRadius: 1, backgroundColor: "var(--line-2)" as string },
@@ -215,8 +367,24 @@ const s = StyleSheet.create({
   ringWarn: { color: "var(--warn)" as string },
   light: { position: "absolute", left: 18, right: 18, top: -1, height: 2, borderRadius: 2, zIndex: 2 },
   lightNative: { backgroundColor: "var(--accent)" as string, opacity: 0.6 },
-  pop: { position: "absolute", zIndex: 60, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string, borderRadius: RADIUS },
-  grp: { fontSize: 11, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase", color: "var(--ink-4)" as string, paddingTop: 10, paddingBottom: 4, paddingHorizontal: 10 },
+  pop: {
+    position: "absolute",
+    zIndex: 60,
+    backgroundColor: "var(--raised)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+    borderRadius: RADIUS,
+  },
+  grp: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: "var(--ink-4)" as string,
+    paddingTop: 10,
+    paddingBottom: 4,
+    paddingHorizontal: 10,
+  },
   iconTile: { borderRadius: RADIUS, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   kbd: { fontSize: 11, color: "var(--ink-4)" as string, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" },
 });

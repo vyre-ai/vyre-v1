@@ -5,7 +5,10 @@ import { fail } from "../routes/errors.ts";
 
 export function hostOnly(ctx: { origin: string; depth: number; trace: { traceId: string } }, cap: string): void {
   if (ctx.origin === "hook" && ctx.depth === 0) return;
-  throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only the server records a provider's webhook, after it has checked the signature.", details: { cap } });
+  throw fail("permission.no_grant", ctx.trace.traceId, {
+    message: "Only the server records a provider's webhook, after it has checked the signature.",
+    details: { cap },
+  });
 }
 
 /** Origins that run a capability for the server itself: the webhook route (after its check) and a queued call the module scheduled. */
@@ -15,8 +18,14 @@ const SERVER_ORIGINS = new Set(["hook", "schedule"]);
  * A capability that records an event a provider sent (a Gmail push, a Graph notice), reached by the webhook route, by the module's own queued poll, or by another module's
  * ctx.call (mail's manual sync). Never by a person, an agent or an API key calling it directly, and never by a call another module only forwarded for someone (ctx.forwarded): nothing the provider did would back what they claim.
  */
-export function internalOnly(ctx: { origin: string; depth: number; forwarded?: boolean | undefined; trace: { traceId: string } }, cap: string): void {
+export function internalOnly(
+  ctx: { origin: string; depth: number; forwarded?: boolean | undefined; trace: { traceId: string } },
+  cap: string,
+): void {
   // a call another module only forwarded for someone (a schedule a member stored, a template's step) is that member's own call, whatever its depth or origin
   if (ctx.forwarded !== true && (ctx.depth >= 1 || SERVER_ORIGINS.has(ctx.origin))) return;
-  throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only the server records a provider's notice.", details: { cap } });
+  throw fail("permission.no_grant", ctx.trace.traceId, {
+    message: "Only the server records a provider's notice.",
+    details: { cap },
+  });
 }

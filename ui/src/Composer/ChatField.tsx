@@ -7,7 +7,15 @@ import { chatDoc, chatText, offsetToPos, pasteNodes, posToOffset, sameDoc } from
 import type { Transaction } from "@tiptap/pm/state";
 import type { ChatNode, ChatRange } from "./chatdoc.ts";
 
-export interface ChatKey { key: string; shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean; isComposing?: boolean; preventDefault?: () => void }
+export interface ChatKey {
+  key: string;
+  shiftKey?: boolean;
+  metaKey?: boolean;
+  ctrlKey?: boolean;
+  altKey?: boolean;
+  isComposing?: boolean;
+  preventDefault?: () => void;
+}
 
 export interface ChatFieldProps {
   value: string;
@@ -35,20 +43,36 @@ export interface ChatFieldProps {
 }
 
 /** The empty field's words and its accessible name, set on the editable; called whenever the composer's placeholder or label changes (owner walk, 12 Nov: a finished chat still said "Steer Assistant…"). */
-export function syncFieldWords(dom: { getAttribute(k: string): string | null; setAttribute(k: string, v: string): void }, placeholder: string, label: string): void {
+export function syncFieldWords(
+  dom: { getAttribute(k: string): string | null; setAttribute(k: string, v: string): void },
+  placeholder: string,
+  label: string,
+): void {
   if (dom.getAttribute("data-placeholder") !== placeholder) dom.setAttribute("data-placeholder", placeholder);
   if (dom.getAttribute("aria-label") !== label) dom.setAttribute("aria-label", label);
 }
 
 /** Keeps a made editor's empty words in step with the composer's placeholder and label (the editor itself is made once). */
-export function useFieldWords(ed: { current: { view: { dom: unknown } } | null }, placeholder: string, label: string): void {
-  useEffect(() => { const e = ed.current; if (e) syncFieldWords(e.view.dom as Parameters<typeof syncFieldWords>[0], placeholder, label); }, [ed, placeholder, label]);
+export function useFieldWords(
+  ed: { current: { view: { dom: unknown } } | null },
+  placeholder: string,
+  label: string,
+): void {
+  useEffect(() => {
+    const e = ed.current;
+    if (e) syncFieldWords(e.view.dom as Parameters<typeof syncFieldWords>[0], placeholder, label);
+  }, [ed, placeholder, label]);
 }
 
 /** True where a real browser DOM is there to mount the editor on; a test renderer or a server render is not. */
 export function canMountChatField(): boolean {
-  const d = (globalThis as { document?: { createElement?: (t: string) => { classList?: { add?: unknown } } } }).document;
-  try { return typeof d?.createElement === "function" && typeof d.createElement("div")?.classList?.add === "function"; } catch { return false; }
+  const d = (globalThis as { document?: { createElement?: (t: string) => { classList?: { add?: unknown } } } })
+    .document;
+  try {
+    return typeof d?.createElement === "function" && typeof d.createElement("div")?.classList?.add === "function";
+  } catch {
+    return false;
+  }
 }
 
 const CSS = [
@@ -60,7 +84,14 @@ const CSS = [
 let cssDone = false;
 function ensureCss(): void {
   if (cssDone) return;
-  const d = (globalThis as { document?: { head?: { appendChild(n: unknown): void }; createElement(t: string): { id: string; textContent: string } } }).document;
+  const d = (
+    globalThis as {
+      document?: {
+        head?: { appendChild(n: unknown): void };
+        createElement(t: string): { id: string; textContent: string };
+      };
+    }
+  ).document;
   if (!d?.head) return;
   const el = d.createElement("style");
   el.id = "vyre-ui-chat";
@@ -69,12 +100,27 @@ function ensureCss(): void {
   cssDone = true;
 }
 
-interface PMLike { toJSON(): ChatNode; textBetween(a: number, b: number): string; content: { size: number } }
+interface PMLike {
+  toJSON(): ChatNode;
+  textBetween(a: number, b: number): string;
+  content: { size: number };
+}
 interface EditorLike {
   getJSON(): ChatNode;
-  commands: { setContent(c: unknown, emit?: boolean): boolean; setTextSelection(p: number): boolean; focus(p?: unknown): boolean; insertContent(c: unknown): boolean; setHardBreak(): boolean };
+  commands: {
+    setContent(c: unknown, emit?: boolean): boolean;
+    setTextSelection(p: number): boolean;
+    focus(p?: unknown): boolean;
+    insertContent(c: unknown): boolean;
+    setHardBreak(): boolean;
+  };
   state: { doc: PMLike; selection: { from: number; to: number } };
-  view: { composing: boolean; dom: { setAttribute(k: string, v: string): void }; state: never; dispatch(tr: Transaction): void };
+  view: {
+    composing: boolean;
+    dom: { setAttribute(k: string, v: string): void };
+    state: never;
+    dispatch(tr: Transaction): void;
+  };
   destroy(): void;
 }
 
@@ -93,30 +139,70 @@ export function ChatField(p: ChatFieldProps): ReactElement {
     let gone = false;
     let made: EditorLike | null = null;
     let stop = (): void => undefined;
-    if (host.current === null || (host.current as { nodeType?: number }).nodeType !== 1) { cb.current.onFail(); return undefined; }
+    if (host.current === null || (host.current as { nodeType?: number }).nodeType !== 1) {
+      cb.current.onFail();
+      return undefined;
+    }
     void (async () => {
       const core = await import("@tiptap/core");
       const node = await import("./chatnode.ts");
       live.current = node;
       const { chatExtensions } = node;
       if (gone || host.current === null || (host.current as { nodeType?: number }).nodeType !== 1) return;
-      const at = (): number => { const e = ed.current; return e ? posToOffset(e.state.doc.toJSON(), e.state.selection.from) : 0; };
+      const at = (): number => {
+        const e = ed.current;
+        return e ? posToOffset(e.state.doc.toJSON(), e.state.selection.from) : 0;
+      };
       const e = new core.Editor({
         element: host.current as never,
         extensions: chatExtensions(),
         content: chatDoc(cb.current.value, cb.current.ranges) as never,
         editorProps: {
-          attributes: { class: "vyre-chat", role: "textbox", "aria-multiline": "true", "aria-label": cb.current.label, "data-placeholder": cb.current.placeholder, "data-testid": cb.current.testID, spellcheck: "true", style: `max-height:${cb.current.maxHeight}px` },
+          attributes: {
+            class: "vyre-chat",
+            role: "textbox",
+            "aria-multiline": "true",
+            "aria-label": cb.current.label,
+            "data-placeholder": cb.current.placeholder,
+            "data-testid": cb.current.testID,
+            spellcheck: "true",
+            style: `max-height:${cb.current.maxHeight}px`,
+          },
           handleKeyDown: (_v: unknown, event: unknown) => {
-            const k = event as { key: string; shiftKey: boolean; metaKey: boolean; ctrlKey: boolean; altKey: boolean; isComposing: boolean; defaultPrevented: boolean; preventDefault(): void };
+            const k = event as {
+              key: string;
+              shiftKey: boolean;
+              metaKey: boolean;
+              ctrlKey: boolean;
+              altKey: boolean;
+              isComposing: boolean;
+              defaultPrevented: boolean;
+              preventDefault(): void;
+            };
             if (k.isComposing) return false;
-            cb.current.onKeyPress({ nativeEvent: { key: k.key, shiftKey: k.shiftKey, metaKey: k.metaKey, ctrlKey: k.ctrlKey, altKey: k.altKey, isComposing: false, preventDefault: () => k.preventDefault() }, preventDefault: () => k.preventDefault() });
+            cb.current.onKeyPress({
+              nativeEvent: {
+                key: k.key,
+                shiftKey: k.shiftKey,
+                metaKey: k.metaKey,
+                ctrlKey: k.ctrlKey,
+                altKey: k.altKey,
+                isComposing: false,
+                preventDefault: () => k.preventDefault(),
+              },
+              preventDefault: () => k.preventDefault(),
+            });
             if (k.defaultPrevented) return true;
-            if (k.key === "Enter") { ed.current?.commands.setHardBreak(); k.preventDefault(); return true; }
+            if (k.key === "Enter") {
+              ed.current?.commands.setHardBreak();
+              k.preventDefault();
+              return true;
+            }
             return false;
           },
           handlePaste: (_v: unknown, event: unknown) => {
-            const text = (event as { clipboardData?: { getData(t: string): string } }).clipboardData?.getData("text/plain") ?? "";
+            const text =
+              (event as { clipboardData?: { getData(t: string): string } }).clipboardData?.getData("text/plain") ?? "";
             if (text === "" || !ed.current) return false;
             ed.current.commands.insertContent(pasteNodes(text));
             return true;
@@ -141,16 +227,30 @@ export function ChatField(p: ChatFieldProps): ReactElement {
       ed.current = e;
       made = e;
       e.view.dom.setAttribute("data-empty", cb.current.value === "" ? "true" : "false");
-      const RO = (globalThis as { ResizeObserver?: new (f: () => void) => { observe(n: unknown): void; disconnect(): void } }).ResizeObserver;
+      const RO = (
+        globalThis as { ResizeObserver?: new (f: () => void) => { observe(n: unknown): void; disconnect(): void } }
+      ).ResizeObserver;
       if (RO !== undefined) {
         const dom = e.view.dom as unknown as { offsetHeight: number };
         const watch = new RO(() => cb.current.onHeight?.(dom.offsetHeight));
         watch.observe(e.view.dom);
         stop = () => watch.disconnect();
       }
-      cb.current.controlRef({ focus: () => { e.commands.focus(); } });
-    })().catch(() => { if (!gone) cb.current.onFail(); });
-    return () => { gone = true; stop(); cb.current.controlRef(null); made?.destroy(); ed.current = null; };
+      cb.current.controlRef({
+        focus: () => {
+          e.commands.focus();
+        },
+      });
+    })().catch(() => {
+      if (!gone) cb.current.onFail();
+    });
+    return () => {
+      gone = true;
+      stop();
+      cb.current.controlRef(null);
+      made?.destroy();
+      ed.current = null;
+    };
   }, []);
 
   // the words in the empty field follow the chat ("Steer Dex…" while it works, "Message Dex…" once it is done): the editor is made once, so its placeholder and name are kept up to date here
@@ -179,7 +279,10 @@ export function ChatField(p: ChatFieldProps): ReactElement {
   useEffect(() => {
     const e = ed.current;
     if (!e || !live.current) return;
-    if (p.talking === true && talkFrom.current === null) { talkFrom.current = e.state.doc.toJSON(); return; }
+    if (p.talking === true && talkFrom.current === null) {
+      talkFrom.current = e.state.doc.toJSON();
+      return;
+    }
     if (p.talking !== true && talkFrom.current !== null) {
       const before = talkFrom.current;
       talkFrom.current = null;
@@ -190,5 +293,11 @@ export function ChatField(p: ChatFieldProps): ReactElement {
     }
   }, [p.talking]);
 
-  return createElement("div", { ref: (el: unknown) => { host.current = el; }, "data-testid": `${p.testID}-host`, style: { fontSize: p.fontSize, lineHeight: `${p.lineHeight}px`, maxHeight: p.maxHeight, width: "100%" } });
+  return createElement("div", {
+    ref: (el: unknown) => {
+      host.current = el;
+    },
+    "data-testid": `${p.testID}-host`,
+    style: { fontSize: p.fontSize, lineHeight: `${p.lineHeight}px`, maxHeight: p.maxHeight, width: "100%" },
+  });
 }

@@ -15,7 +15,13 @@ import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 import { ChromeToolError } from "../src/bridge/chrome.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 
 function seededDir(): string {
   const core = bootCore();
@@ -31,7 +37,9 @@ async function boot(): Promise<Daemon> {
   return startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "chrome-bridge", free: 80e9,
+      os: "linux",
+      hostname: "chrome-bridge",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -44,14 +52,23 @@ async function boot(): Promise<Daemon> {
 }
 
 const rpc = (d: Daemon, body: unknown, token: string | null = d.token): Promise<Response> =>
-  fetch(`${d.url}/chrome-bridge/v1/rpc`, { method: "POST", headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
+  fetch(`${d.url}/chrome-bridge/v1/rpc`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(body),
+  });
 
 /** Open the events stream and collect its lines until `n` have arrived. */
-function events(d: Daemon, token: string): { lines: unknown[]; status: Promise<number>; until(n: number): Promise<void>; close(): void } {
+function events(
+  d: Daemon,
+  token: string,
+): { lines: unknown[]; status: Promise<number>; until(n: number): Promise<void>; close(): void } {
   const lines: unknown[] = [];
   let req!: http.ClientRequest;
   let resolveStatus!: (n: number) => void;
-  const status = new Promise<number>((r) => { resolveStatus = r; });
+  const status = new Promise<number>((r) => {
+    resolveStatus = r;
+  });
   let wake: (() => void) | null = null;
   req = http.get(`${d.url}/chrome-bridge/v1/events`, { headers: { authorization: `Bearer ${token}` } }, (res) => {
     resolveStatus(res.statusCode ?? 0);
@@ -60,15 +77,26 @@ function events(d: Daemon, token: string): { lines: unknown[]; status: Promise<n
     res.on("data", (c: string) => {
       buf += c;
       let at: number;
-      while ((at = buf.indexOf("\n")) >= 0) { const l = buf.slice(0, at).trim(); buf = buf.slice(at + 1); if (l) lines.push(JSON.parse(l)); }
+      while ((at = buf.indexOf("\n")) >= 0) {
+        const l = buf.slice(0, at).trim();
+        buf = buf.slice(at + 1);
+        if (l) lines.push(JSON.parse(l));
+      }
       wake?.();
     });
     res.on("error", () => {});
   });
   req.on("error", () => {});
   return {
-    lines, status,
-    until: async (n) => { for (let i = 0; i < 300 && lines.length < n; i++) await new Promise<void>((r) => { wake = r; setTimeout(r, 20); }); },
+    lines,
+    status,
+    until: async (n) => {
+      for (let i = 0; i < 300 && lines.length < n; i++)
+        await new Promise<void>((r) => {
+          wake = r;
+          setTimeout(r, 20);
+        });
+    },
     close: () => req.destroy(),
   };
 }
@@ -78,32 +106,80 @@ test("chrome bridge: a booted daemon answers /chrome-bridge/v1/rpc and /events, 
   try {
     assert.ok(d.chromeBridge, "the daemon has a Chrome bridge");
     assert.equal((await fetch(`${d.url}/healthz`)).status, 200, "the daemon's own routes still answer");
-    assert.equal((await fetch(`${d.url}/v1/nope/nothing`, { method: "POST", headers: { authorization: `Bearer ${d.token}` }, body: "{}" })).status, 404, "and the gateway still owns every other path");
+    assert.equal(
+      (
+        await fetch(`${d.url}/v1/nope/nothing`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${d.token}` },
+          body: "{}",
+        })
+      ).status,
+      404,
+      "and the gateway still owns every other path",
+    );
 
     assert.equal((await rpc(d, { id: "r0", type: "bridge", op: "hello", input: {} }, null)).status, 401, "no token");
-    assert.equal((await rpc(d, { id: "r0", type: "bridge", op: "hello", input: {} }, "wrong")).status, 401, "a wrong token");
+    assert.equal(
+      (await rpc(d, { id: "r0", type: "bridge", op: "hello", input: {} }, "wrong")).status,
+      401,
+      "a wrong token",
+    );
     const sameLength = d.token.slice(0, -1) + (d.token.endsWith("a") ? "b" : "a");
     assert.equal(sameLength.length, d.token.length);
-    assert.equal((await rpc(d, { id: "r0", type: "bridge", op: "hello", input: {} }, sameLength)).status, 401, "a wrong token of the same length");
-    assert.equal((await fetch(`${d.url}/chrome-bridge/v1/events`)).status, 401, "the events stream needs the token too");
+    assert.equal(
+      (await rpc(d, { id: "r0", type: "bridge", op: "hello", input: {} }, sameLength)).status,
+      401,
+      "a wrong token of the same length",
+    );
+    assert.equal(
+      (await fetch(`${d.url}/chrome-bridge/v1/events`)).status,
+      401,
+      "the events stream needs the token too",
+    );
 
-    const ok = await rpc(d, { id: "r1", type: "bridge", op: "agent.event", input: { event: "driving", agent: "agt_scout", tabId: "t1" } });
+    const ok = await rpc(d, {
+      id: "r1",
+      type: "bridge",
+      op: "agent.event",
+      input: { event: "driving", agent: "agt_scout", tabId: "t1" },
+    });
     assert.equal(ok.status, 200);
     assert.deepEqual(await ok.json(), { id: "r1", ok: true, output: {} });
     // Vyre for Chrome's calls run as the person signed in on this computer (lib/chrome-app.ts). Nobody has handed a session over here, so hello lists no Space and every call is refused;
     // nothing falls back to the owner or to the admin token. The person's own sessions are in chrome-bridge.person.live.test.ts.
     const hello = await (await rpc(d, { id: "r2", type: "bridge", op: "hello", input: {} })).json();
-    assert.deepEqual(hello.output, { version: "1", appVersion: "1.2.3", spaces: [], active: null, locked: false, signedIn: false });
-    for (const [i, body] of [{ type: "bridge", op: "agents.list", input: {} }, { type: "invoke", capability: "vault.site_rules.list", input: {} }, { type: "bridge", op: "chat.ask", input: { text: "hi", agentId: "agt_scout" } }].entries()) {
+    assert.deepEqual(hello.output, {
+      version: "1",
+      appVersion: "1.2.3",
+      spaces: [],
+      active: null,
+      locked: false,
+      signedIn: false,
+    });
+    for (const [i, body] of [
+      { type: "bridge", op: "agents.list", input: {} },
+      { type: "invoke", capability: "vault.site_rules.list", input: {} },
+      { type: "bridge", op: "chat.ask", input: { text: "hi", agentId: "agt_scout" } },
+    ].entries()) {
       const r = await (await rpc(d, { id: `s${i}`, ...body })).json();
-      assert.deepEqual(r.error, { code: "signed_out", message: "Sign in to Vyre on this computer." }, JSON.stringify(body));
+      assert.deepEqual(
+        r.error,
+        { code: "signed_out", message: "Sign in to Vyre on this computer." },
+        JSON.stringify(body),
+      );
     }
     const off = await (await rpc(d, { id: "r5", type: "invoke", capability: "records.delete", input: {} })).json();
     assert.equal(off.error.code, "not_allowed");
     assert.equal((await rpc(d, "nonsense")).status, 200);
-    const bad = await fetch(`${d.url}/chrome-bridge/v1/rpc`, { method: "POST", headers: { authorization: `Bearer ${d.token}` }, body: "{not json" });
+    const bad = await fetch(`${d.url}/chrome-bridge/v1/rpc`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${d.token}` },
+      body: "{not json",
+    });
     assert.equal(bad.status, 400);
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("chrome bridge: an agent tool call reaches a connected extension on the events stream and its result, or its failure with the extension's code, comes back through rpc", async () => {
@@ -115,21 +191,43 @@ test("chrome bridge: an agent tool call reaches a connected extension on the eve
     await stream.until(1);
     assert.deepEqual(stream.lines[0], { type: "agent.optin", spaces: ["spc_core"], mode: "computer" });
 
-    const call = d.chromeBridge.callTool({ tool: "chrome_status", agent: { id: "agt_scout", name: "Scout" }, space: "spc_core" });
+    const call = d.chromeBridge.callTool({
+      tool: "chrome_status",
+      agent: { id: "agt_scout", name: "Scout" },
+      space: "spc_core",
+    });
     await stream.until(2);
     const cmd = stream.lines[1] as { type: string; id: string; tool: string; agent: { id: string }; space: string };
     assert.equal(cmd.type, "agent.call");
     assert.equal(cmd.tool, "chrome_status");
     assert.deepEqual([cmd.agent.id, cmd.space], ["agt_scout", "spc_core"]);
-    const back = await rpc(d, { id: "r3", type: "bridge", op: "agent.result", input: { callId: cmd.id, ok: true, output: { tabs: 1 } } });
+    const back = await rpc(d, {
+      id: "r3",
+      type: "bridge",
+      op: "agent.result",
+      input: { callId: cmd.id, ok: true, output: { tabs: 1 } },
+    });
     assert.equal(back.status, 200);
     assert.deepEqual(await call, { tabs: 1 });
 
-    const second = d.chromeBridge.callTool({ tool: "chrome_act", agent: { id: "agt_scout", name: "Scout" }, space: "spc_core" });
+    const second = d.chromeBridge.callTool({
+      tool: "chrome_act",
+      agent: { id: "agt_scout", name: "Scout" },
+      space: "spc_core",
+    });
     await stream.until(3);
     // the rejection is awaited from the moment the call is made, so it never settles unobserved
     const refused = assert.rejects(second, (e: unknown) => e instanceof ChromeToolError && e.code === "paused");
-    await rpc(d, { id: "r5", type: "bridge", op: "agent.result", input: { callId: (stream.lines[2] as { id: string }).id, ok: false, error: { code: "paused", message: "The person stopped the agent." } } });
+    await rpc(d, {
+      id: "r5",
+      type: "bridge",
+      op: "agent.result",
+      input: {
+        callId: (stream.lines[2] as { id: string }).id,
+        ok: false,
+        error: { code: "paused", message: "The person stopped the agent." },
+      },
+    });
     await refused;
   } finally {
     stream.close();

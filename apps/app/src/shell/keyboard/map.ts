@@ -51,7 +51,10 @@ export function formatCombo(combo: string, platform: Platform): string {
     const mods = parts.filter((p) => p === "Alt" || p === "Shift" || p === "Cmd");
     const rest = parts.filter((p) => !mods.includes(p));
     const order = ["Alt", "Shift", "Cmd"];
-    return [...order.filter((m) => mods.includes(m)).map((m) => GLYPH[m]), ...rest.map((r) => GLYPH[r] ?? r.toUpperCase())].join("");
+    return [
+      ...order.filter((m) => mods.includes(m)).map((m) => GLYPH[m]),
+      ...rest.map((r) => GLYPH[r] ?? r.toUpperCase()),
+    ].join("");
   }
   const map = (p: string): string => (p === "Cmd" ? "Ctrl" : p);
   return parts.map((p) => (p === "Down" ? "Down" : map(p).length === 1 ? p.toUpperCase() : map(p))).join("+");
@@ -64,7 +67,8 @@ export function matchShortcut(e: KeyLike, platform: Platform, ctx: { inTerminal?
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (e.altKey === true && !mod && !e.shiftKey && key === "ArrowDown") return { id: "unread.next" };
   if (!mod || other) return null;
-  const shift = e.shiftKey === true, alt = e.altKey === true;
+  const shift = e.shiftKey === true,
+    alt = e.altKey === true;
   if (alt) return null;
   const digit = /^Digit([1-9])$/.exec(e.code ?? "")?.[1] ?? (/^[1-9]$/.test(key) ? key : null);
   if (digit !== null) {
@@ -85,7 +89,9 @@ export function matchShortcut(e: KeyLike, platform: Platform, ctx: { inTerminal?
 }
 
 /** The map as rows for Settings > Keyboard. */
-export function keyboardRows(platform: Platform): { id: string; title: string; keys: string; scope: Shortcut["scope"] }[] {
+export function keyboardRows(
+  platform: Platform,
+): { id: string; title: string; keys: string; scope: Shortcut["scope"] }[] {
   return KEYBOARD_MAP.map((s) => {
     const keys = s.digits ? `${formatCombo(s.combo, platform)}…${s.digits[1]}` : formatCombo(s.combo, platform);
     return { id: s.id, title: s.title, keys, scope: s.scope };

@@ -54,7 +54,15 @@ import {
   topMatch,
   unshareInput,
 } from "./model.ts";
-import type { AccessDirectory, AccessEntry, AccessPick, AddTarget, ShareItemType, ShareLevel, ShareRow } from "./props.ts";
+import type {
+  AccessDirectory,
+  AccessEntry,
+  AccessPick,
+  AddTarget,
+  ShareItemType,
+  ShareLevel,
+  ShareRow,
+} from "./props.ts";
 import { DEFAULT_AGENT_SETTINGS } from "./props.ts";
 
 const person = (id: string, name: string): AccessEntry => ({ id, name, kind: "person", sub: "Space member" });
@@ -69,7 +77,12 @@ const dir: AccessDirectory = {
   groups: [{ id: "fin", name: "Finance", kind: "group", sub: "Group" }],
   space: { id: "space", name: "Anyone in the Space", kind: "space", subject: { kind: "group", id: "space" } },
 };
-const target: AddTarget = { kind: "chat", name: "Upload contract", filesFolder: "Portal uploads", recordsFolder: "Clients" };
+const target: AddTarget = {
+  kind: "chat",
+  name: "Upload contract",
+  filesFolder: "Portal uploads",
+  recordsFolder: "Clients",
+};
 const addCtx = { mode: "add" as const };
 const none = new Set<string>();
 
@@ -83,7 +96,10 @@ test("each item type offers its own levels with its own words", () => {
   assert.deepEqual(names("artifact"), ["Can view", "Can edit", "Can manage"]);
   assert.deepEqual(names("project"), ["Can view", "Can edit", "Can manage"]);
   assert.deepEqual(names("rtype"), ["Can view records", "Can edit records", "Can manage the type"]);
-  assert.deepEqual(levelDefs("vault", ["use", "view", "manage"]).map((l) => l.label), ["Can use without seeing", "Can see", "Can manage"]);
+  assert.deepEqual(
+    levelDefs("vault", ["use", "view", "manage"]).map((l) => l.label),
+    ["Can use without seeing", "Can see", "Can manage"],
+  );
   assert.deepEqual(names("agent"), ["Can use", "Can edit", "Can manage"], "Can chat with is merged into Can use");
   assert.equal(levelName("vault", "edit"), "Can edit", "an old Edit grant still reads");
   assert.equal(levelName("vault", "use"), "Can use without seeing");
@@ -91,8 +107,14 @@ test("each item type offers its own levels with its own words", () => {
 });
 
 test("the host can narrow a type's levels, and one level always remains", () => {
-  assert.deepEqual(levelDefs("note", ["view", "edit"]).map((l) => l.id), ["view", "edit"]);
-  assert.deepEqual(levelDefs("note", ["use"]).map((l) => l.id), ["view"]);
+  assert.deepEqual(
+    levelDefs("note", ["view", "edit"]).map((l) => l.id),
+    ["view", "edit"],
+  );
+  assert.deepEqual(
+    levelDefs("note", ["use"]).map((l) => l.id),
+    ["view"],
+  );
 });
 
 test("what they get, for every item type and level", () => {
@@ -107,7 +129,11 @@ test("what they get, for every item type and level", () => {
   assert.equal(shareVerb("vault", "view", n), "view “Q4”");
   assert.equal(shareVerb("vault", "edit", n), "view and edit “Q4”");
   assert.equal(shareVerb("agent", "use", "Ember"), "use Ember in their chats, tasks and automations");
-  assert.equal(shareVerb("agent", "view", "Ember"), shareVerb("agent", "use", "Ember"), "an old chat grant reads as use");
+  assert.equal(
+    shareVerb("agent", "view", "Ember"),
+    shareVerb("agent", "use", "Ember"),
+    "an old chat grant reads as use",
+  );
   assert.equal(shareVerb("agent", "edit", "Ember"), "change Ember's instructions, context and tools");
   assert.equal(shareVerb("agent", "manage", "Ember"), "share, move and delete Ember");
 });
@@ -121,43 +147,106 @@ test("the tail of each item type", () => {
   assert.match(ITEM_DEFS.vault.tail, /never shown or sent in chat/);
 });
 
-const sara = (role: string, kind: AccessPick["kind"] = "person", name = "Sara Malik"): AccessPick => ({ key: `${kind}:${name}`, kind, id: name, name, role });
+const sara = (role: string, kind: AccessPick["kind"] = "person", name = "Sara Malik"): AccessPick => ({
+  key: `${kind}:${name}`,
+  kind,
+  id: name,
+  name,
+  role,
+});
 
 test("share lines group people by level, then guests, outside agents, the Space and the tail", () => {
   const lines = shareLines({
-    type: "file", name: "Q4 invoices", ownerName: "Irfad",
-    picks: [sara("view"), sara("edit", "person", "Omar Reyes"), sara("view", "person", "Kai Lund"), { ...sara("view", "guest", "joe@weinbergerlaw.com"), email: "joe@weinbergerlaw.com" }, sara("", "outside", "Claude Code"), sara("view", "space", "Anyone in the Space")],
+    type: "file",
+    name: "Q4 invoices",
+    ownerName: "Irfad",
+    picks: [
+      sara("view"),
+      sara("edit", "person", "Omar Reyes"),
+      sara("view", "person", "Kai Lund"),
+      { ...sara("view", "guest", "joe@weinbergerlaw.com"), email: "joe@weinbergerlaw.com" },
+      sara("", "outside", "Claude Code"),
+      sara("view", "space", "Anyone in the Space"),
+    ],
   });
   const text = lines.map((l) => l.text);
   assert.ok(text.includes("Sara Malik and Kai Lund can view “Q4 invoices”."));
   assert.ok(text.includes("Omar Reyes can view and edit “Q4 invoices”."));
   assert.ok(text.includes("joe@weinbergerlaw.com sees only this folder, never what is around it."));
-  assert.ok(text.some((x) => x.startsWith("Claude Code reaches it through MCP tools scoped to exactly this folder, never wider. It shows as Irfad (Agent), is audited, and removing it ends access at once.")));
+  assert.ok(
+    text.some((x) =>
+      x.startsWith(
+        "Claude Code reaches it through MCP tools scoped to exactly this folder, never wider. It shows as Irfad (Agent), is audited, and removing it ends access at once.",
+      ),
+    ),
+  );
   assert.ok(text.includes("Anyone in the Space can view “Q4 invoices”."));
   assert.ok(text.includes("Anyone in the Space can find it from search."));
   assert.equal(text[text.length - 1], "Everything inside comes with it, including new files.");
 });
 
 test("a Vault pick that can only use it says so, and the value stays out of chat", () => {
-  const lines = shareLines({ type: "vault", name: "GHL API key", ownerName: "Irfad", picks: [sara("use", "person", "Dana Fox")] }).map((l) => l.text);
+  const lines = shareLines({
+    type: "vault",
+    name: "GHL API key",
+    ownerName: "Irfad",
+    picks: [sara("use", "person", "Dana Fox")],
+  }).map((l) => l.text);
   assert.equal(lines[0], "Dana Fox can use “GHL API key” in actions without seeing its value.");
   assert.match(lines[lines.length - 1] ?? "", /The value is never shown or sent in chat/);
 });
 
 test("a Vault item given to an agent says that everyone who can ask the agent can use it through the agent", () => {
-  const one = shareLines({ type: "vault", name: "GHL API key", ownerName: "Irfad", picks: [sara("use", "agent", "Scout")] }).map((l) => l.text);
+  const one = shareLines({
+    type: "vault",
+    name: "GHL API key",
+    ownerName: "Irfad",
+    picks: [sara("use", "agent", "Scout")],
+  }).map((l) => l.text);
   assert.ok(one.includes("Everyone who can ask Scout can use it through Scout."), JSON.stringify(one));
-  const two = shareLines({ type: "vault", name: "GHL API key", ownerName: "Irfad", picks: [sara("use", "agent", "Scout"), sara("use", "agent", "Dex")] }).map((l) => l.text);
+  const two = shareLines({
+    type: "vault",
+    name: "GHL API key",
+    ownerName: "Irfad",
+    picks: [sara("use", "agent", "Scout"), sara("use", "agent", "Dex")],
+  }).map((l) => l.text);
   assert.ok(two.includes("Everyone who can ask Scout and Dex can use it through them."), JSON.stringify(two));
-  assert.equal(shareLines({ type: "vault", name: "GHL API key", ownerName: "Irfad", picks: [sara("use", "person", "Dana Fox")] }).some((l) => l.id === "vault-agents"), false, "no agent, no line");
-  assert.equal(shareLines({ type: "file", name: "Q4", ownerName: "Irfad", picks: [sara("view", "agent", "Scout")] }).some((l) => l.id === "vault-agents"), false, "only for the Vault");
+  assert.equal(
+    shareLines({
+      type: "vault",
+      name: "GHL API key",
+      ownerName: "Irfad",
+      picks: [sara("use", "person", "Dana Fox")],
+    }).some((l) => l.id === "vault-agents"),
+    false,
+    "no agent, no line",
+  );
+  assert.equal(
+    shareLines({ type: "file", name: "Q4", ownerName: "Irfad", picks: [sara("view", "agent", "Scout")] }).some(
+      (l) => l.id === "vault-agents",
+    ),
+    false,
+    "only for the Vault",
+  );
 });
 
 test("sharing an agent: the pays-with-their-own-account note, named and never guessed, and no legend with nobody picked", () => {
-  const picked = shareLines({ type: "agent", name: "Ember", ownerName: "Irfad", picks: [sara("use", "person", "Omar Reyes")] }).map((l) => l.text);
+  const picked = shareLines({
+    type: "agent",
+    name: "Ember",
+    ownerName: "Irfad",
+    picks: [sara("use", "person", "Omar Reyes")],
+  }).map((l) => l.text);
   assert.equal(picked[0], "Omar Reyes can use Ember in Omar Reyes's chats, tasks and automations.");
-  assert.ok(picked.includes("Omar Reyes pays with Omar Reyes's own AI account, and Ember only sees what Omar Reyes can see."));
-  const two = shareLines({ type: "agent", name: "Ember", ownerName: "Irfad", picks: [sara("use", "person", "Omar"), sara("use", "person", "Sara")] }).map((l) => l.text);
+  assert.ok(
+    picked.includes("Omar Reyes pays with Omar Reyes's own AI account, and Ember only sees what Omar Reyes can see."),
+  );
+  const two = shareLines({
+    type: "agent",
+    name: "Ember",
+    ownerName: "Irfad",
+    picks: [sara("use", "person", "Omar"), sara("use", "person", "Sara")],
+  }).map((l) => l.text);
   assert.equal(two[0], "Omar and Sara can use Ember in their chats, tasks and automations.");
   assert.ok(!two.join(" ").match(/\b(he|she|him|her|his)\b/i), "pronouns are never guessed");
   const idle = shareLines({ type: "agent", name: "Ember", ownerName: "Irfad", picks: [] });
@@ -166,7 +255,13 @@ test("sharing an agent: the pays-with-their-own-account note, named and never gu
 });
 
 test("a limited giver is told they can give only what they have", () => {
-  const lines = shareLines({ type: "note", name: "Plan", ownerName: "Irfad", picks: [sara("view")], limited: true }).map((l) => l.text);
+  const lines = shareLines({
+    type: "note",
+    name: "Plan",
+    ownerName: "Irfad",
+    picks: [sara("view")],
+    limited: true,
+  }).map((l) => l.text);
   assert.match(lines[lines.length - 1] ?? "", /You can give only what you have yourself\.$/);
 });
 
@@ -177,7 +272,14 @@ test("levels above the giver's are not offered at all", () => {
   assert.equal(canGiveLevel("note", "edit", giving), true);
   assert.equal(canGiveLevel("note", "manage", giving), false);
   const opts = roleOptions("person", { mode: "share", itemType: "note", giving });
-  assert.deepEqual(opts.map((o) => [o.id, o.locked]), [["view", false], ["edit", false]], "Can manage is hidden, not greyed");
+  assert.deepEqual(
+    opts.map((o) => [o.id, o.locked]),
+    [
+      ["view", false],
+      ["edit", false],
+    ],
+    "Can manage is hidden, not greyed",
+  );
   assert.equal(roleLabel(opts[0]!), "Can view");
 });
 
@@ -194,30 +296,65 @@ test("add mode: a viewer adds viewers only; a member can add members", () => {
   assert.equal(isViewOnly({}), false);
   assert.equal(isViewOnly({ canGive: (l) => l === "view" }), true);
   const limited = roleOptions("person", { ...addCtx, giving: { maxLevel: "view" } });
-  assert.deepEqual(limited.map((o) => [o.label, o.locked]), [["Can view", false]], "Member is not offered to a viewer");
+  assert.deepEqual(
+    limited.map((o) => [o.label, o.locked]),
+    [["Can view", false]],
+    "Member is not offered to a viewer",
+  );
   assert.equal(defaultRole("person", { ...addCtx, giving: { maxLevel: "view" } }), "view");
   assert.equal(defaultRole("person", addCtx), "member");
-  assert.match(VIEW_ONLY_NOTE, /^You can view here, so you can add people as viewers only\. A person can give only what they have\.$/);
+  assert.match(
+    VIEW_ONLY_NOTE,
+    /^You can view here, so you can add people as viewers only\. A person can give only what they have\.$/,
+  );
 });
 
 test("role lists: people Member or Can view, guests Can view or Can reply, agents none (they use the popover)", () => {
-  assert.deepEqual(roleOptions("person", addCtx).map((o) => o.label), ["Member", "Can view"]);
-  assert.deepEqual(roleOptions("guest", addCtx).map((o) => o.label), ["Can view", "Can reply"]);
+  assert.deepEqual(
+    roleOptions("person", addCtx).map((o) => o.label),
+    ["Member", "Can view"],
+  );
+  assert.deepEqual(
+    roleOptions("guest", addCtx).map((o) => o.label),
+    ["Can view", "Can reply"],
+  );
   assert.deepEqual(roleOptions("agent", addCtx), []);
   assert.deepEqual(roleOptions("outside", addCtx), []);
-  assert.deepEqual(roleOptions("guest", { mode: "share", itemType: "agent" }).map((o) => o.label), ["Can use"], "a guest gets the first level only");
+  assert.deepEqual(
+    roleOptions("guest", { mode: "share", itemType: "agent" }).map((o) => o.label),
+    ["Can use"],
+    "a guest gets the first level only",
+  );
   assert.equal(defaultRole("guest", addCtx), "gview");
   assert.equal(defaultRole("person", { mode: "share", itemType: "vault" }), "use");
   assert.equal(defaultRole("person", { mode: "share", itemType: "agent" }), "use");
-  assert.equal(defaultRole("person", { mode: "share", itemType: "agent", general: "use" }), "edit", "a new person starts one level above the general one");
-  assert.equal(defaultRole("person", { mode: "share", itemType: "agent", general: null }), "use", "with Only people added, Can use");
-  assert.equal(defaultRole("person", { mode: "share", itemType: "agent", general: "use", giving: { maxLevel: "use" } }), "use", "nothing above is on offer: the default stays");
+  assert.equal(
+    defaultRole("person", { mode: "share", itemType: "agent", general: "use" }),
+    "edit",
+    "a new person starts one level above the general one",
+  );
+  assert.equal(
+    defaultRole("person", { mode: "share", itemType: "agent", general: null }),
+    "use",
+    "with Only people added, Can use",
+  );
+  assert.equal(
+    defaultRole("person", { mode: "share", itemType: "agent", general: "use", giving: { maxLevel: "use" } }),
+    "use",
+    "nothing above is on offer: the default stays",
+  );
 });
 
 /* ---------- buttons ---------- */
 
 test("the main button names who is added", () => {
-  const p = (name: string, kind: AccessPick["kind"] = "person"): AccessPick => ({ key: name, kind, id: name, name, role: "member" });
+  const p = (name: string, kind: AccessPick["kind"] = "person"): AccessPick => ({
+    key: name,
+    kind,
+    id: name,
+    name,
+    role: "member",
+  });
   assert.equal(actionLabel("add", [], false), "Add");
   assert.equal(actionLabel("add", [p("Sara Malik")], false), "Add Sara");
   assert.equal(actionLabel("add", [p("Sara Malik"), p("Docs", "agent")], false), "Add Sara and Docs");
@@ -242,20 +379,56 @@ test("a phone is under 640 px", () => {
 
 test("add lines: messages from now on or the start, files folder, records", () => {
   const picks = [sara("member")];
-  assert.equal(addLines({ target, picks, earlier: false, ownerName: "Irfad" })[0]?.text, "They'll see this chat's messages from now on, its files folder Portal uploads, and records in Clients.");
-  assert.equal(addLines({ target, picks, earlier: true, ownerName: "Irfad" })[0]?.text, "They'll see the whole chat, its files folder Portal uploads, and records in Clients.");
+  assert.equal(
+    addLines({ target, picks, earlier: false, ownerName: "Irfad" })[0]?.text,
+    "They'll see this chat's messages from now on, its files folder Portal uploads, and records in Clients.",
+  );
+  assert.equal(
+    addLines({ target, picks, earlier: true, ownerName: "Irfad" })[0]?.text,
+    "They'll see the whole chat, its files folder Portal uploads, and records in Clients.",
+  );
   assert.deepEqual(addLines({ target, picks: [], earlier: false, ownerName: "Irfad" }), []);
 });
 
 test("add lines: guests, outside agents and chat-owned agents", () => {
   const guest: AccessPick = { ...sara("gview", "guest", "dana@fox-legal.com"), email: "dana@fox-legal.com" };
-  const texts = addLines({ target, picks: [guest, sara("", "outside", "Claude Code"), pickFromNew(1, { name: "Checker", brief: "", model: "Sonnet 5.5" })], earlier: false, ownerName: "Irfad" }).map((l) => l.text);
-  assert.ok(texts.includes("dana@fox-legal.com sees only what this chat allows: messages from now on, no files folder, no records."));
-  assert.ok(texts.includes("Claude Code reads and posts in this chat and reads its folder and the records folder, through MCP tools scoped to exactly these, never wider. It shows as Irfad (Agent), is audited, and removing it ends access at once."));
+  const texts = addLines({
+    target,
+    picks: [
+      guest,
+      sara("", "outside", "Claude Code"),
+      pickFromNew(1, { name: "Checker", brief: "", model: "Sonnet 5.5" }),
+    ],
+    earlier: false,
+    ownerName: "Irfad",
+  }).map((l) => l.text);
+  assert.ok(
+    texts.includes(
+      "dana@fox-legal.com sees only what this chat allows: messages from now on, no files folder, no records.",
+    ),
+  );
+  assert.ok(
+    texts.includes(
+      "Claude Code reads and posts in this chat and reads its folder and the records folder, through MCP tools scoped to exactly these, never wider. It shows as Irfad (Agent), is audited, and removing it ends access at once.",
+    ),
+  );
   assert.ok(texts.includes("Checker belongs to the chat and is removed with it."));
-  const proj = addLines({ target: { ...target, kind: "project", name: "Lab 8" }, picks: [sara("", "outside", "Codex")], earlier: false, ownerName: "Irfad" }).map((l) => l.text);
-  assert.ok(proj.some((x) => x.startsWith("Codex reads and posts in this project and reads the project's context and folders, through MCP tools")));
-  const lim = addLines({ target, picks: [sara("view")], earlier: false, ownerName: "I", limited: true }).map((l) => l.text);
+  const proj = addLines({
+    target: { ...target, kind: "project", name: "Lab 8" },
+    picks: [sara("", "outside", "Codex")],
+    earlier: false,
+    ownerName: "Irfad",
+  }).map((l) => l.text);
+  assert.ok(
+    proj.some((x) =>
+      x.startsWith(
+        "Codex reads and posts in this project and reads the project's context and folders, through MCP tools",
+      ),
+    ),
+  );
+  const lim = addLines({ target, picks: [sara("view")], earlier: false, ownerName: "I", limited: true }).map(
+    (l) => l.text,
+  );
   assert.equal(lim[lim.length - 1], VIEW_ONLY_NOTE);
 });
 
@@ -272,10 +445,22 @@ test("the earlier switch shows when a person, not only a guest or an agent, is p
 
 test("with nothing typed: suggested first, then the rest without repeats; the Assistant is named Assistant", () => {
   const s = sections({ directory: dir, query: "", mode: "add", taken: none });
-  assert.deepEqual(s.suggested.map((e) => e.name), ["Sara Malik", "Assistant"]);
-  assert.deepEqual(s.people.map((e) => e.name), ["Omar Reyes"]);
-  assert.deepEqual(s.agents.map((e) => e.name), ["Docs", "Mira"]);
-  assert.deepEqual(s.outside.map((e) => e.name), ["Claude Code"]);
+  assert.deepEqual(
+    s.suggested.map((e) => e.name),
+    ["Sara Malik", "Assistant"],
+  );
+  assert.deepEqual(
+    s.people.map((e) => e.name),
+    ["Omar Reyes"],
+  );
+  assert.deepEqual(
+    s.agents.map((e) => e.name),
+    ["Docs", "Mira"],
+  );
+  assert.deepEqual(
+    s.outside.map((e) => e.name),
+    ["Claude Code"],
+  );
   assert.equal(s.invite, null);
   assert.equal(s.space, null, "the Space row is for sharing");
   assert.deepEqual(s.groups, []);
@@ -284,9 +469,18 @@ test("with nothing typed: suggested first, then the rest without repeats; the As
 test("typing narrows the lists; people already in or picked are left out", () => {
   const s = sections({ directory: dir, query: "o", mode: "add", taken: new Set(["person:omar"]) });
   assert.deepEqual(s.suggested, []);
-  assert.deepEqual(s.people.map((e) => e.name), []);
-  assert.deepEqual(s.agents.map((e) => e.name), ["Docs"]);
-  assert.deepEqual(s.outside.map((e) => e.name), ["Claude Code"]);
+  assert.deepEqual(
+    s.people.map((e) => e.name),
+    [],
+  );
+  assert.deepEqual(
+    s.agents.map((e) => e.name),
+    ["Docs"],
+  );
+  assert.deepEqual(
+    s.outside.map((e) => e.name),
+    ["Claude Code"],
+  );
   assert.equal(noMatch(sections({ directory: dir, query: "zzz", mode: "add", taken: none }), "zzz"), true);
   assert.equal(noMatch(s, "o"), false);
 });
@@ -297,14 +491,26 @@ test("an address offers an invite, and Enter picks it before any row", () => {
   assert.deepEqual(topMatch(s), { invite: "joe@weinbergerlaw.com" });
   assert.equal(isEmail("not an email"), false);
   assert.equal(isEmail(" a@b.co "), true);
-  const gone = sections({ directory: dir, query: "joe@weinbergerlaw.com", mode: "add", taken: new Set(["guest:joe@weinbergerlaw.com"]) });
+  const gone = sections({
+    directory: dir,
+    query: "joe@weinbergerlaw.com",
+    mode: "add",
+    taken: new Set(["guest:joe@weinbergerlaw.com"]),
+  });
   assert.equal(gone.invite, null);
   assert.equal(noMatch(gone, "joe@weinbergerlaw.com"), true);
 });
 
 test("Enter takes the top match: the first suggestion, else the first person, group, agent, outside agent", () => {
-  assert.equal((topMatch(sections({ directory: dir, query: "", mode: "add", taken: none })) as { entry: AccessEntry }).entry.name, "Sara Malik");
-  assert.equal((topMatch(sections({ directory: dir, query: "mi", mode: "add", taken: none })) as { entry: AccessEntry }).entry.name, "Mira");
+  assert.equal(
+    (topMatch(sections({ directory: dir, query: "", mode: "add", taken: none })) as { entry: AccessEntry }).entry.name,
+    "Sara Malik",
+  );
+  assert.equal(
+    (topMatch(sections({ directory: dir, query: "mi", mode: "add", taken: none })) as { entry: AccessEntry }).entry
+      .name,
+    "Mira",
+  );
   assert.equal(topMatch(sections({ directory: dir, query: "zzz", mode: "add", taken: none })), null);
 });
 
@@ -313,10 +519,23 @@ test("share mode: one short Suggested list of five at most; typing finds the Spa
   assert.equal(s.space, null, "General access at the top is the Space; it is not offered twice");
   assert.ok(s.suggested.length > 0 && s.suggested.length <= 5);
   assert.deepEqual([s.people, s.groups, s.agents], [[], [], []], "one list, not four");
-  const many = { ...dir, people: Array.from({ length: 9 }, (_, n) => ({ id: `usr_${n}`, name: `Person ${n}`, kind: "person" as const })) };
-  assert.equal(sections({ directory: many, query: "", mode: "share", itemType: "note", taken: none }).suggested.length, 5, "capped at five");
-  assert.equal(sections({ directory: dir, query: "space", mode: "share", itemType: "note", taken: none }).space?.name, "Anyone in the Space");
-  assert.deepEqual(sections({ directory: dir, query: "fin", mode: "share", itemType: "note", taken: none }).groups.map((e) => e.name), ["Finance"]);
+  const many = {
+    ...dir,
+    people: Array.from({ length: 9 }, (_, n) => ({ id: `usr_${n}`, name: `Person ${n}`, kind: "person" as const })),
+  };
+  assert.equal(
+    sections({ directory: many, query: "", mode: "share", itemType: "note", taken: none }).suggested.length,
+    5,
+    "capped at five",
+  );
+  assert.equal(
+    sections({ directory: dir, query: "space", mode: "share", itemType: "note", taken: none }).space?.name,
+    "Anyone in the Space",
+  );
+  assert.deepEqual(
+    sections({ directory: dir, query: "fin", mode: "share", itemType: "note", taken: none }).groups.map((e) => e.name),
+    ["Finance"],
+  );
   assert.ok(sections({ directory: dir, query: "mi", mode: "share", itemType: "note", taken: none }).agents.length > 0);
   const a = sections({ directory: dir, query: "", mode: "share", itemType: "agent", taken: none });
   assert.deepEqual(a.agents, []);
@@ -325,7 +544,10 @@ test("share mode: one short Suggested list of five at most; typing finds the Spa
 });
 
 test("rows that already hold access are taken, including the Space row", () => {
-  const taken = takenFromRows(dir, [{ subjectKind: "person", subjectId: "omar" }, { subjectKind: "group", subjectId: "space" }]);
+  const taken = takenFromRows(dir, [
+    { subjectKind: "person", subjectId: "omar" },
+    { subjectKind: "group", subjectId: "space" },
+  ]);
   assert.ok(taken.has("person:omar"));
   assert.ok(taken.has("space:space"));
   assert.ok(!taken.has("person:sara"));
@@ -346,7 +568,10 @@ test("picks start with the right role and settings", () => {
   assert.equal(g.email, "Dana@Fox-Legal.com");
   assert.equal(g.role, "gview");
   const n = pickFromNew(2, { name: " Checker ", brief: "Checks every upload against the spec", model: "Sonnet 5.5" });
-  assert.deepEqual([n.key, n.name, n.brief, n.sub], ["new:2", "Checker", "Checks every upload against the spec", "New · Sonnet 5.5"]);
+  assert.deepEqual(
+    [n.key, n.name, n.brief, n.sub],
+    ["new:2", "Checker", "Checks every upload against the spec", "New · Sonnet 5.5"],
+  );
   const sp = pickFromEntry(dir.space!, { mode: "share", itemType: "note" });
   assert.deepEqual(subjectOfPick(sp), { kind: "group", id: "space" });
   assert.deepEqual(subjectOfPick({ kind: "outside", id: "out_cc" }), { kind: "agent", id: "out_cc" });
@@ -359,8 +584,20 @@ test("the three Hows map to the modes the contract has", () => {
   assert.equal(modeOf("tag"), "listen");
   assert.equal(modeOf("listen"), "quiet");
   assert.equal(settingsSummary(DEFAULT_AGENT_SETTINGS), "Answers when mentioned · Any time · Short replies");
-  assert.equal(settingsSummary({ ...DEFAULT_AGENT_SETTINGS, how: "lead", when: "topics", topics: "invoices, billing", style: "full" }), "Answers everything · Only on invoices, billing · Full detail");
-  assert.equal(settingsSummary({ ...DEFAULT_AGENT_SETTINGS, how: "listen", when: "hours", hoursFrom: "08:00", hoursTo: "18:00" }), "Only listens · 08:00 to 18:00 · Short replies");
+  assert.equal(
+    settingsSummary({
+      ...DEFAULT_AGENT_SETTINGS,
+      how: "lead",
+      when: "topics",
+      topics: "invoices, billing",
+      style: "full",
+    }),
+    "Answers everything · Only on invoices, billing · Full detail",
+  );
+  assert.equal(
+    settingsSummary({ ...DEFAULT_AGENT_SETTINGS, how: "listen", when: "hours", hoursFrom: "08:00", hoursTo: "18:00" }),
+    "Only listens · 08:00 to 18:00 · Short replies",
+  );
   assert.equal(pokeNote("Docs"), "Poke asks Docs to read the chat now and reply. It only sees what you can see.");
 });
 
@@ -370,53 +607,172 @@ test("threads.add_agent: lead or listen", () => {
   const lead = addAgentInput("thr_1", "agt_docs", "lead") satisfies CapMap["threads.add_agent"]["in"];
   assert.deepEqual(lead, { threadId: "thr_1", agentId: "agt_docs", mode: "lead" });
   assert.equal(addAgentInput("thr_1", "agt_docs").mode, "listen");
-  assert.equal(addAgentInput("thr_1", "agt_docs", "listen").mode, "listen", "Listening is added as listen, then set quiet");
+  assert.equal(
+    addAgentInput("thr_1", "agt_docs", "listen").mode,
+    "listen",
+    "Listening is added as listen, then set quiet",
+  );
 });
 
 test("threads.agent.create: name, brief, model, mode and the key", () => {
-  const full = agentCreateInput("thr_1", { name: " Checker ", brief: " Checks uploads ", model: "Sonnet 5.5", how: "listen" }, "k1") satisfies CapMap["threads.agent.create"]["in"];
-  assert.deepEqual(full, { threadId: "thr_1", name: "Checker", brief: "Checks uploads", model: "Sonnet 5.5", mode: "quiet", idempotencyKey: "k1" });
-  assert.deepEqual(agentCreateInput("thr_1", { name: "Checker", brief: "  " }, "k2"), { threadId: "thr_1", name: "Checker", idempotencyKey: "k2" });
+  const full = agentCreateInput(
+    "thr_1",
+    { name: " Checker ", brief: " Checks uploads ", model: "Sonnet 5.5", how: "listen" },
+    "k1",
+  ) satisfies CapMap["threads.agent.create"]["in"];
+  assert.deepEqual(full, {
+    threadId: "thr_1",
+    name: "Checker",
+    brief: "Checks uploads",
+    model: "Sonnet 5.5",
+    mode: "quiet",
+    idempotencyKey: "k1",
+  });
+  assert.deepEqual(agentCreateInput("thr_1", { name: "Checker", brief: "  " }, "k2"), {
+    threadId: "thr_1",
+    name: "Checker",
+    idempotencyKey: "k2",
+  });
 });
 
 test("threads.agent_settings.set: Answers everything is lead, when it is mentioned is listen, Only listens is quiet", () => {
-  const s = agentSettingsInput("thr_1", "agt_docs", { how: "tag", when: "topics", topics: " invoices, billing ", style: "short" }) satisfies CapMap["threads.agent_settings.set"]["in"];
-  assert.deepEqual(s, { threadId: "thr_1", agentId: "agt_docs", mode: "listen", when: "topics", topics: "invoices, billing", hoursFrom: null, hoursTo: null, style: "short" });
-  assert.deepEqual(agentSettingsInput("t", "a", { how: "lead", when: "hours", hoursFrom: "08:00", hoursTo: "18:00" }), { threadId: "t", agentId: "a", mode: "lead", when: "hours", topics: null, hoursFrom: "08:00", hoursTo: "18:00" });
+  const s = agentSettingsInput("thr_1", "agt_docs", {
+    how: "tag",
+    when: "topics",
+    topics: " invoices, billing ",
+    style: "short",
+  }) satisfies CapMap["threads.agent_settings.set"]["in"];
+  assert.deepEqual(s, {
+    threadId: "thr_1",
+    agentId: "agt_docs",
+    mode: "listen",
+    when: "topics",
+    topics: "invoices, billing",
+    hoursFrom: null,
+    hoursTo: null,
+    style: "short",
+  });
+  assert.deepEqual(agentSettingsInput("t", "a", { how: "lead", when: "hours", hoursFrom: "08:00", hoursTo: "18:00" }), {
+    threadId: "t",
+    agentId: "a",
+    mode: "lead",
+    when: "hours",
+    topics: null,
+    hoursFrom: "08:00",
+    hoursTo: "18:00",
+  });
   assert.deepEqual(agentSettingsInput("t", "a", { how: "listen" }), { threadId: "t", agentId: "a", mode: "quiet" });
-  assert.deepEqual(agentSettingsInput("t", "a", { when: "always" }), { threadId: "t", agentId: "a", when: "always", topics: null, hoursFrom: null, hoursTo: null });
+  assert.deepEqual(agentSettingsInput("t", "a", { when: "always" }), {
+    threadId: "t",
+    agentId: "a",
+    when: "always",
+    topics: null,
+    hoursFrom: null,
+    hoursTo: null,
+  });
   assert.equal(agentSettingsInput("t", "a", DEFAULT_AGENT_SETTINGS).mode, "listen");
 });
 
 test("threads.poke and the outside agent calls", () => {
-  assert.deepEqual(pokeInput("thr_1", "agt_docs") satisfies CapMap["threads.poke"]["in"], { threadId: "thr_1", agentId: "agt_docs" });
-  assert.deepEqual(pokeInput("thr_1", "agt_docs", " check the totals "), { threadId: "thr_1", agentId: "agt_docs", note: "check the totals" });
-  assert.deepEqual(outsideAgentAddInput("thr_1", "out_cc") satisfies CapMap["threads.outside_agent.add"]["in"], { threadId: "thr_1", agentId: "out_cc" });
-  assert.deepEqual(outsideAgentAddInput("thr_1", "out_cc", "listen"), { threadId: "thr_1", agentId: "out_cc", mode: "quiet" });
-  assert.deepEqual(outsideAgentRemoveInput("thr_1", "out_cc") satisfies CapMap["threads.outside_agent.remove"]["in"], { threadId: "thr_1", agentId: "out_cc" });
+  assert.deepEqual(pokeInput("thr_1", "agt_docs") satisfies CapMap["threads.poke"]["in"], {
+    threadId: "thr_1",
+    agentId: "agt_docs",
+  });
+  assert.deepEqual(pokeInput("thr_1", "agt_docs", " check the totals "), {
+    threadId: "thr_1",
+    agentId: "agt_docs",
+    note: "check the totals",
+  });
+  assert.deepEqual(outsideAgentAddInput("thr_1", "out_cc") satisfies CapMap["threads.outside_agent.add"]["in"], {
+    threadId: "thr_1",
+    agentId: "out_cc",
+  });
+  assert.deepEqual(outsideAgentAddInput("thr_1", "out_cc", "listen"), {
+    threadId: "thr_1",
+    agentId: "out_cc",
+    mode: "quiet",
+  });
+  assert.deepEqual(outsideAgentRemoveInput("thr_1", "out_cc") satisfies CapMap["threads.outside_agent.remove"]["in"], {
+    threadId: "thr_1",
+    agentId: "out_cc",
+  });
 });
 
 test("threads.invite_guest, threads.members.add, channels.members.add, projects.members.set", () => {
-  assert.deepEqual(inviteGuestInput("thr_1", " dana@fox-legal.com ", "gview", "k") satisfies CapMap["threads.invite_guest"]["in"], { threadId: "thr_1", email: "dana@fox-legal.com", level: "view", idempotencyKey: "k" });
+  assert.deepEqual(
+    inviteGuestInput("thr_1", " dana@fox-legal.com ", "gview", "k") satisfies CapMap["threads.invite_guest"]["in"],
+    { threadId: "thr_1", email: "dana@fox-legal.com", level: "view", idempotencyKey: "k" },
+  );
   assert.equal(inviteGuestInput("thr_1", "a@b.co", "greply", "k").level, "reply");
-  assert.deepEqual(threadMemberInput("thr_1", "usr_sara") satisfies CapMap["threads.members.add"]["in"], { threadId: "thr_1", personId: "usr_sara" });
-  assert.deepEqual(channelMembersInput("ch_1", ["usr_sara", "usr_omar"]) satisfies CapMap["channels.members.add"]["in"], { channelId: "ch_1", personIds: ["usr_sara", "usr_omar"], level: "use" });
+  assert.deepEqual(threadMemberInput("thr_1", "usr_sara") satisfies CapMap["threads.members.add"]["in"], {
+    threadId: "thr_1",
+    personId: "usr_sara",
+  });
+  assert.deepEqual(
+    channelMembersInput("ch_1", ["usr_sara", "usr_omar"]) satisfies CapMap["channels.members.add"]["in"],
+    { channelId: "ch_1", personIds: ["usr_sara", "usr_omar"], level: "use" },
+  );
   assert.equal(channelMembersInput("ch_1", ["u"], "view").level, "view");
-  assert.deepEqual(projectMemberInput("prj_1", "usr_sara", "member", "k") satisfies CapMap["projects.members.set"]["in"], { projectId: "prj_1", principal: "usr_sara", role: "member", idempotencyKey: "k" });
+  assert.deepEqual(
+    projectMemberInput("prj_1", "usr_sara", "member", "k") satisfies CapMap["projects.members.set"]["in"],
+    { projectId: "prj_1", principal: "usr_sara", role: "member", idempotencyKey: "k" },
+  );
   assert.equal(projectMemberInput("prj_1", "usr_sara", "view", "k").role, "guest");
 });
 
 test("a chat's picks become calls in order, with settings after any agent that answers differently", () => {
-  const docs: AccessPick = { ...pickFromEntry(agent("agt_docs", "Docs"), addCtx), settings: { ...DEFAULT_AGENT_SETTINGS, how: "lead", style: "full" } };
+  const docs: AccessPick = {
+    ...pickFromEntry(agent("agt_docs", "Docs"), addCtx),
+    settings: { ...DEFAULT_AGENT_SETTINGS, how: "lead", style: "full" },
+  };
   const plan = addCalls(
     { kind: "chat", threadId: "thr_1" },
-    [pickFromEntry(person("usr_sara", "Sara Malik"), addCtx), docs, pickFromEntry(outside, addCtx), pickFromNew(1, { name: "Checker", brief: "Checks", model: "Sonnet 5.5" }), { ...pickFromEmail("dana@fox-legal.com", addCtx), role: "greply" }],
+    [
+      pickFromEntry(person("usr_sara", "Sara Malik"), addCtx),
+      docs,
+      pickFromEntry(outside, addCtx),
+      pickFromNew(1, { name: "Checker", brief: "Checks", model: "Sonnet 5.5" }),
+      { ...pickFromEmail("dana@fox-legal.com", addCtx), role: "greply" },
+    ],
     (p) => `key-${p.key}`,
   );
-  assert.deepEqual(plan.calls.map((c) => c.cap), ["threads.members.add", "threads.add_agent", "threads.agent_settings.set", "threads.outside_agent.add", "threads.agent.create", "threads.invite_guest"]);
-  assert.deepEqual(plan.calls[1], { cap: "threads.add_agent", input: { threadId: "thr_1", agentId: "agt_docs", mode: "lead" } });
-  assert.deepEqual(plan.calls[2], { cap: "threads.agent_settings.set", input: { threadId: "thr_1", agentId: "agt_docs", mode: "lead", when: "always", topics: null, hoursFrom: null, hoursTo: null, style: "full" } });
-  assert.deepEqual(plan.calls[5], { cap: "threads.invite_guest", input: { threadId: "thr_1", email: "dana@fox-legal.com", level: "reply", idempotencyKey: "key-guest:dana@fox-legal.com" } });
+  assert.deepEqual(
+    plan.calls.map((c) => c.cap),
+    [
+      "threads.members.add",
+      "threads.add_agent",
+      "threads.agent_settings.set",
+      "threads.outside_agent.add",
+      "threads.agent.create",
+      "threads.invite_guest",
+    ],
+  );
+  assert.deepEqual(plan.calls[1], {
+    cap: "threads.add_agent",
+    input: { threadId: "thr_1", agentId: "agt_docs", mode: "lead" },
+  });
+  assert.deepEqual(plan.calls[2], {
+    cap: "threads.agent_settings.set",
+    input: {
+      threadId: "thr_1",
+      agentId: "agt_docs",
+      mode: "lead",
+      when: "always",
+      topics: null,
+      hoursFrom: null,
+      hoursTo: null,
+      style: "full",
+    },
+  });
+  assert.deepEqual(plan.calls[5], {
+    cap: "threads.invite_guest",
+    input: {
+      threadId: "thr_1",
+      email: "dana@fox-legal.com",
+      level: "reply",
+      idempotencyKey: "key-guest:dana@fox-legal.com",
+    },
+  });
   assert.deepEqual(plan.unsupported, []);
 });
 
@@ -424,16 +780,38 @@ test("a channel's people join the channel in one call per role; its agents act o
   const sara2 = pickFromEntry(person("usr_sara", "Sara Malik"), addCtx);
   const omar = { ...pickFromEntry(person("usr_omar", "Omar Reyes"), addCtx), role: "view" };
   const kai = pickFromEntry(person("usr_kai", "Kai Lund"), addCtx);
-  const plan = addCalls({ kind: "channel", channelId: "ch_1", mainThreadId: "thr_main" }, [sara2, omar, kai, pickFromEntry(agent("agt_docs", "Docs"), addCtx)], (p) => p.key);
-  assert.deepEqual(plan.calls.map((c) => c.cap), ["channels.members.add", "channels.members.add", "threads.add_agent"]);
+  const plan = addCalls(
+    { kind: "channel", channelId: "ch_1", mainThreadId: "thr_main" },
+    [sara2, omar, kai, pickFromEntry(agent("agt_docs", "Docs"), addCtx)],
+    (p) => p.key,
+  );
+  assert.deepEqual(
+    plan.calls.map((c) => c.cap),
+    ["channels.members.add", "channels.members.add", "threads.add_agent"],
+  );
   assert.deepEqual((plan.calls[0] as { input: { personIds: string[] } }).input.personIds, ["usr_sara", "usr_kai"]);
   assert.deepEqual((plan.calls[2] as { input: { threadId: string } }).input.threadId, "thr_main");
 });
 
 test("a project's people and agents are members; what needs a chat is handed back", () => {
-  const plan = addCalls({ kind: "project", projectId: "prj_1" }, [pickFromEntry(person("usr_sara", "Sara"), addCtx), pickFromEntry(agent("agt_docs", "Docs"), addCtx), pickFromEntry(outside, addCtx), pickFromEmail("a@b.co", addCtx)], (p) => `k-${p.key}`);
-  assert.deepEqual(plan.calls.map((c) => c.cap), ["projects.members.set", "projects.members.set"]);
-  assert.deepEqual(plan.unsupported.map((p) => p.kind), ["outside", "guest"]);
+  const plan = addCalls(
+    { kind: "project", projectId: "prj_1" },
+    [
+      pickFromEntry(person("usr_sara", "Sara"), addCtx),
+      pickFromEntry(agent("agt_docs", "Docs"), addCtx),
+      pickFromEntry(outside, addCtx),
+      pickFromEmail("a@b.co", addCtx),
+    ],
+    (p) => `k-${p.key}`,
+  );
+  assert.deepEqual(
+    plan.calls.map((c) => c.cap),
+    ["projects.members.set", "projects.members.set"],
+  );
+  assert.deepEqual(
+    plan.unsupported.map((p) => p.kind),
+    ["outside", "guest"],
+  );
 });
 
 /* ---------- capability inputs: share mode ---------- */
@@ -442,9 +820,24 @@ test("sharing keeps the access.share and access.unshare names and inputs", () =>
   assert.equal(SHARE_CAPABILITY, "access.share");
   assert.equal(UNSHARE_CAPABILITY, "access.unshare");
   const res = { resourceType: "folder" as const, resourceId: "fld_clients" };
-  assert.deepEqual(shareInput(res, { kind: "person", id: "prs_omar" }, "edit", "k1") satisfies CapMap["access.share"]["in"], { resource: { type: "folder", id: "fld_clients" }, subject: { kind: "person", id: "prs_omar" }, level: "edit", idempotencyKey: "k1" });
-  assert.equal(shareInput(res, { kind: "person", id: "prs_omar" }, "edit").idempotencyKey, undefined, "no key unless the host gives one");
-  assert.deepEqual(unshareInput(res, { kind: "person", id: "prs_omar" }) satisfies CapMap["access.unshare"]["in"], { resource: { type: "folder", id: "fld_clients" }, subject: { kind: "person", id: "prs_omar" } });
+  assert.deepEqual(
+    shareInput(res, { kind: "person", id: "prs_omar" }, "edit", "k1") satisfies CapMap["access.share"]["in"],
+    {
+      resource: { type: "folder", id: "fld_clients" },
+      subject: { kind: "person", id: "prs_omar" },
+      level: "edit",
+      idempotencyKey: "k1",
+    },
+  );
+  assert.equal(
+    shareInput(res, { kind: "person", id: "prs_omar" }, "edit").idempotencyKey,
+    undefined,
+    "no key unless the host gives one",
+  );
+  assert.deepEqual(unshareInput(res, { kind: "person", id: "prs_omar" }) satisfies CapMap["access.unshare"]["in"], {
+    resource: { type: "folder", id: "fld_clients" },
+    subject: { kind: "person", id: "prs_omar" },
+  });
   assert.equal(effectiveLevel("link", "manage"), "view");
   assert.equal(effectiveLevel("person", "manage"), "manage");
   assert.deepEqual(shareInput(res, { kind: "link", id: LINK_SUBJECT_ID }, "edit").level, "view");
@@ -452,7 +845,14 @@ test("sharing keeps the access.share and access.unshare names and inputs", () =>
 
 test("share picks become access.share inputs; guests are invited, not granted", () => {
   const res = { resourceType: "agent" as const, resourceId: "agt_ember" };
-  const picks = [{ ...pickFromEntry(person("usr_omar", "Omar Reyes"), { mode: "share" as const, itemType: "agent" as const }), role: "use" }, { ...pickFromEntry(dir.space!, { mode: "share", itemType: "agent" }), role: "view" }, pickFromEmail("joe@x.co", { mode: "share", itemType: "agent" })];
+  const picks = [
+    {
+      ...pickFromEntry(person("usr_omar", "Omar Reyes"), { mode: "share" as const, itemType: "agent" as const }),
+      role: "use",
+    },
+    { ...pickFromEntry(dir.space!, { mode: "share", itemType: "agent" }), role: "view" },
+    pickFromEmail("joe@x.co", { mode: "share", itemType: "agent" }),
+  ];
   assert.deepEqual(shareCalls(res, picks), [
     { resource: { type: "agent", id: "agt_ember" }, subject: { kind: "person", id: "usr_omar" }, level: "use" },
     { resource: { type: "agent", id: "agt_ember" }, subject: { kind: "group", id: "space" }, level: "view" },
@@ -460,26 +860,59 @@ test("share picks become access.share inputs; guests are invited, not granted", 
 });
 
 test("rows ported from the old sheet: raise never lower, link is view only, only direct rows are removable, order by access", () => {
-  const row = (over: Partial<ShareRow> & Pick<ShareRow, "name">): ShareRow => ({ subjectKind: "person", subjectId: `prs_${over.name.toLowerCase()}`, level: "view", via: "grant", fromFolderId: null, ...over });
+  const row = (over: Partial<ShareRow> & Pick<ShareRow, "name">): ShareRow => ({
+    subjectKind: "person",
+    subjectId: `prs_${over.name.toLowerCase()}`,
+    level: "view",
+    via: "grant",
+    fromFolderId: null,
+    ...over,
+  });
   assert.deepEqual(levelsFor(row({ name: "Maya", via: "folder", level: "edit" }), "note"), ["edit", "manage"]);
   assert.deepEqual(levelsFor(row({ name: "Maya" }), "note"), ["view", "edit", "manage"]);
   assert.deepEqual(levelsFor(row({ name: "Maya" }), "agent"), ["use", "edit", "manage"]);
   assert.deepEqual(levelsFor(row({ name: "Maya" }), "note", ["view", "edit"]), ["view", "edit"]);
   assert.deepEqual(levelsFor(row({ name: "Public", subjectKind: "link" }), "note"), ["view"]);
-  assert.deepEqual(levelsFor(row({ name: "Maya", via: "grant", level: "view" }), "vault"), ["use", "view", "edit", "manage"]);
-  assert.deepEqual(levelsFor(row({ name: "Maya", via: "folder", level: "view" }), "vault"), ["view", "edit", "manage"], "a Vault row from a folder cannot drop to use");
+  assert.deepEqual(levelsFor(row({ name: "Maya", via: "grant", level: "view" }), "vault"), [
+    "use",
+    "view",
+    "edit",
+    "manage",
+  ]);
+  assert.deepEqual(
+    levelsFor(row({ name: "Maya", via: "folder", level: "view" }), "vault"),
+    ["view", "edit", "manage"],
+    "a Vault row from a folder cannot drop to use",
+  );
   assert.equal(removable({ via: "grant" }), true);
   assert.equal(removable({ via: "folder" }), false);
   assert.equal(removable({ via: "owner" }), false);
-  const r = sheetRows([row({ name: "Zed" }), row({ name: "Amy", level: "manage" }), row({ name: "Kai", via: "folder", fromFolderId: "f" }), row({ name: "Public", subjectKind: "link", subjectId: "public" })]);
-  assert.deepEqual(r.direct.map((x) => x.name), ["Amy", "Zed"]);
-  assert.deepEqual(r.inherited.map((x) => x.name), ["Kai"]);
+  const r = sheetRows([
+    row({ name: "Zed" }),
+    row({ name: "Amy", level: "manage" }),
+    row({ name: "Kai", via: "folder", fromFolderId: "f" }),
+    row({ name: "Public", subjectKind: "link", subjectId: "public" }),
+  ]);
+  assert.deepEqual(
+    r.direct.map((x) => x.name),
+    ["Amy", "Zed"],
+  );
+  assert.deepEqual(
+    r.inherited.map((x) => x.name),
+    ["Kai"],
+  );
   assert.equal(r.link?.name, "Public");
 });
 
 test("the Assistant notice is the two plain sentences", () => {
-  assert.equal(ASSISTANT_NOTICE[0], "Your Assistant can't be shared. It holds your sign-ins, your memory and what you ask it, and only you see those.");
-  assert.equal(ASSISTANT_NOTICE[1], "To give others an agent like it, make a new agent for the Space and share that one.");
+  assert.equal(
+    ASSISTANT_NOTICE[0],
+    "Your Assistant can't be shared. It holds your sign-ins, your memory and what you ask it, and only you see those.",
+  );
+  assert.equal(
+    ASSISTANT_NOTICE[1],
+    "To give others an agent like it, make a new agent for the Space and share that one.",
+  );
 });
 
 test("no string shown to people holds an em dash or a section sign", async () => {
@@ -496,41 +929,78 @@ test("no string shown to people holds an em dash or a section sign", async () =>
 import { accessCount, accessSubtitle, accessView, generalSub, levelHint, redundantVia, rowSub } from "./model.ts";
 import type { ShareRow as Row } from "./props.ts";
 
-const r = (o: Partial<Row> & Pick<Row, "subjectKind" | "subjectId">): Row => ({ name: o.subjectId, level: "view", via: "grant", fromFolderId: null, ...o });
+const r = (o: Partial<Row> & Pick<Row, "subjectKind" | "subjectId">): Row => ({
+  name: o.subjectId,
+  level: "view",
+  via: "grant",
+  fromFolderId: null,
+  ...o,
+});
 const base = { itemType: "agent" as const, resourceId: "agt_dex", ownerId: "usr_me", ownerName: "Irfad" };
 
 test("accessView: an item never lists itself", () => {
-  const v = accessView({ ...base, shares: [r({ subjectKind: "agent", subjectId: "agt_dex", level: "edit", via: "space" })] });
+  const v = accessView({
+    ...base,
+    shares: [r({ subjectKind: "agent", subjectId: "agt_dex", level: "edit", via: "space" })],
+  });
   assert.deepEqual(v.agents.specific, []);
   assert.equal(v.agents.on, false);
   assert.equal(v.count, 1);
 });
 
 test("accessView: a person is one row at their highest level; the owner is only the Owner row", () => {
-  const v = accessView({ ...base, shares: [
-    r({ subjectKind: "person", subjectId: "usr_me", level: "manage", via: "folder" }),
-    r({ subjectKind: "person", subjectId: "usr_omar", level: "view", via: "grant" }),
-    r({ subjectKind: "person", subjectId: "usr_omar", level: "edit", via: "folder" }),
-    r({ subjectKind: "person", subjectId: "usr_kai", level: "edit", via: "grant" }),
-    r({ subjectKind: "person", subjectId: "usr_kai", level: "edit", via: "folder" }),
-  ] });
-  assert.deepEqual(v.people.map((p) => [p.subjectId, p.level, p.via]), [["usr_kai", "edit", "grant"], ["usr_omar", "edit", "folder"]]);
-  assert.equal(v.people.some((p) => p.subjectId === "usr_me"), false);
+  const v = accessView({
+    ...base,
+    shares: [
+      r({ subjectKind: "person", subjectId: "usr_me", level: "manage", via: "folder" }),
+      r({ subjectKind: "person", subjectId: "usr_omar", level: "view", via: "grant" }),
+      r({ subjectKind: "person", subjectId: "usr_omar", level: "edit", via: "folder" }),
+      r({ subjectKind: "person", subjectId: "usr_kai", level: "edit", via: "grant" }),
+      r({ subjectKind: "person", subjectId: "usr_kai", level: "edit", via: "folder" }),
+    ],
+  });
+  assert.deepEqual(
+    v.people.map((p) => [p.subjectId, p.level, p.via]),
+    [
+      ["usr_kai", "edit", "grant"],
+      ["usr_omar", "edit", "folder"],
+    ],
+  );
+  assert.equal(
+    v.people.some((p) => p.subjectId === "usr_me"),
+    false,
+  );
 });
 
 test("accessView: a private agent is never listed by name, a Space agent folds into one line, one added on purpose shows", () => {
-  const v = accessView({ ...base, shares: [
-    r({ subjectKind: "agent", subjectId: "agt_aliza", name: "Aliza Rizvi (Agent)", level: "edit", via: "space", privateAgent: true }),
-    r({ subjectKind: "agent", subjectId: "agt_docs", name: "Docs", level: "edit", via: "space" }),
-    r({ subjectKind: "agent", subjectId: "agt_scout", name: "Scout", level: "use", via: "grant" }),
-  ] });
-  assert.deepEqual(v.agents.specific.map((a) => a.name), ["Scout"]);
+  const v = accessView({
+    ...base,
+    shares: [
+      r({
+        subjectKind: "agent",
+        subjectId: "agt_aliza",
+        name: "Aliza Rizvi (Agent)",
+        level: "edit",
+        via: "space",
+        privateAgent: true,
+      }),
+      r({ subjectKind: "agent", subjectId: "agt_docs", name: "Docs", level: "edit", via: "space" }),
+      r({ subjectKind: "agent", subjectId: "agt_scout", name: "Scout", level: "use", via: "grant" }),
+    ],
+  });
+  assert.deepEqual(
+    v.agents.specific.map((a) => a.name),
+    ["Scout"],
+  );
   assert.equal(v.agents.on, true);
   assert.equal(JSON.stringify(v).includes("Aliza"), false);
 });
 
 test("accessView: Everyone is general access, not a person row, and its level is read from the grant", () => {
-  const v = accessView({ ...base, shares: [r({ subjectKind: "group", subjectId: "grp_everyone", level: "use", via: "space" })] });
+  const v = accessView({
+    ...base,
+    shares: [r({ subjectKind: "group", subjectId: "grp_everyone", level: "use", via: "space" })],
+  });
   assert.equal(v.general.level, "use");
   assert.deepEqual(v.people, []);
   assert.equal(accessView({ ...base, shares: [] }).general.level, null);
@@ -539,11 +1009,17 @@ test("accessView: Everyone is general access, not a person row, and its level is
 test("accessView: the folder words stay true, and Nobody else yet is only for a truly empty list", () => {
   const inherited = [r({ subjectKind: "person", subjectId: "usr_omar", level: "edit", via: "folder" })];
   assert.equal(accessView({ ...base, shares: inherited }).inheritedFrom, "From the Space");
-  assert.equal(accessView({ ...base, folderName: "Clients", shares: inherited }).inheritedFrom, "From the folder Clients");
+  assert.equal(
+    accessView({ ...base, folderName: "Clients", shares: inherited }).inheritedFrom,
+    "From the folder Clients",
+  );
   assert.equal(rowSub({ subjectKind: "person", via: "folder" }), "From the Space");
   assert.equal(accessView({ ...base, shares: inherited }).empty, false);
   assert.equal(accessView({ ...base, shares: [] }).empty, true);
-  assert.equal(accessView({ ...base, shares: [r({ subjectKind: "group", subjectId: "grp_everyone", via: "space" })] }).empty, false);
+  assert.equal(
+    accessView({ ...base, shares: [r({ subjectKind: "group", subjectId: "grp_everyone", via: "space" })] }).empty,
+    false,
+  );
 });
 
 test("accessView: the count behind the sheet is the same deduped list", () => {
@@ -560,10 +1036,24 @@ test("accessView: the count behind the sheet is the same deduped list", () => {
 });
 
 test("levelHint: every level each item type offers has a one line description", () => {
-  for (const type of ["note", "file", "record", "rtype", "artifact", "project", "vault", "agent", "automation"] as const) {
-    for (const l of levelDefs(type)) assert.ok(levelHint(type, l.id).length > 0 && !/\n/.test(levelHint(type, l.id)), `${type} ${l.id}`);
+  for (const type of [
+    "note",
+    "file",
+    "record",
+    "rtype",
+    "artifact",
+    "project",
+    "vault",
+    "agent",
+    "automation",
+  ] as const) {
+    for (const l of levelDefs(type))
+      assert.ok(levelHint(type, l.id).length > 0 && !/\n/.test(levelHint(type, l.id)), `${type} ${l.id}`);
   }
-  assert.equal(levelHint("agent", "use"), "Chat with it and put it to work in their own chats, tasks, automations and crews, on their own AI account.");
+  assert.equal(
+    levelHint("agent", "use"),
+    "Chat with it and put it to work in their own chats, tasks, automations and crews, on their own AI account.",
+  );
   assert.equal(levelHint("agent", "edit"), "Change its instructions, context and tools.");
   assert.equal(levelHint("agent", "manage"), "Share it, move it and delete it.");
 });
@@ -579,33 +1069,79 @@ test("general access and redundancy words", () => {
 });
 
 test("an automation offers View, Edit and Manage", () => {
-  assert.deepEqual(levelDefs("automation").map((l) => l.label), ["Can view", "Can edit", "Can manage"]);
+  assert.deepEqual(
+    levelDefs("automation").map((l) => l.label),
+    ["Can view", "Can edit", "Can manage"],
+  );
   assert.equal(accessSubtitle("automation", 3), "Automation · 3 with access");
 });
 
 test("addCalls sends fromStart only when Include earlier messages is on", () => {
   const person = { key: "person:usr_sara", kind: "person", id: "usr_sara", name: "Sara", role: "member" } as never;
   const off = addCalls({ kind: "chat", threadId: "thr_1" }, [person], () => "k");
-  assert.deepEqual(off.calls.map((c) => c.input), [{ threadId: "thr_1", personId: "usr_sara" }]);
+  assert.deepEqual(
+    off.calls.map((c) => c.input),
+    [{ threadId: "thr_1", personId: "usr_sara" }],
+  );
   const on = addCalls({ kind: "chat", threadId: "thr_1" }, [person], () => "k", { earlier: true });
-  assert.deepEqual(on.calls.map((c) => c.input), [{ threadId: "thr_1", personId: "usr_sara", fromStart: true }]);
+  assert.deepEqual(
+    on.calls.map((c) => c.input),
+    [{ threadId: "thr_1", personId: "usr_sara", fromStart: true }],
+  );
 });
 
 test("the what-they-get line names a folder and records only when the target has them", () => {
   const picks = [sara("member")];
   const bare = { kind: "chat" as const, name: "Upload contract" };
-  assert.equal(addLines({ target: bare, picks, earlier: false, ownerName: "Irfad" })[0]?.text, "They'll see this chat's messages from now on.");
-  assert.equal(addLines({ target: { ...bare, filesFolder: "Portal uploads" }, picks, earlier: false, ownerName: "Irfad" })[0]?.text, "They'll see this chat's messages from now on, and its files folder Portal uploads.");
-  assert.equal(addLines({ target: { ...bare, recordsFolder: "Clients" }, picks, earlier: true, ownerName: "Irfad" })[0]?.text, "They'll see the whole chat, and records in Clients.");
-  assert.equal(addLines({ target: { ...bare, filesFolder: "Portal uploads", recordsFolder: "Clients" }, picks, earlier: true, ownerName: "Irfad" })[0]?.text, "They'll see the whole chat, its files folder Portal uploads, and records in Clients.");
+  assert.equal(
+    addLines({ target: bare, picks, earlier: false, ownerName: "Irfad" })[0]?.text,
+    "They'll see this chat's messages from now on.",
+  );
+  assert.equal(
+    addLines({ target: { ...bare, filesFolder: "Portal uploads" }, picks, earlier: false, ownerName: "Irfad" })[0]
+      ?.text,
+    "They'll see this chat's messages from now on, and its files folder Portal uploads.",
+  );
+  assert.equal(
+    addLines({ target: { ...bare, recordsFolder: "Clients" }, picks, earlier: true, ownerName: "Irfad" })[0]?.text,
+    "They'll see the whole chat, and records in Clients.",
+  );
+  assert.equal(
+    addLines({
+      target: { ...bare, filesFolder: "Portal uploads", recordsFolder: "Clients" },
+      picks,
+      earlier: true,
+      ownerName: "Irfad",
+    })[0]?.text,
+    "They'll see the whole chat, its files folder Portal uploads, and records in Clients.",
+  );
 });
 
 test("a project chat reads: the project's files, and its N linked records, with the real count", () => {
   const picks = [sara("member")];
-  const t = (linkedRecords: number, hasFiles = true) => ({ kind: "project" as const, name: "Busy project", project: { name: "Busy project", hasFiles, linkedRecords } });
-  assert.equal(addLines({ target: t(3), picks, earlier: false, ownerName: "Irfad" })[0]?.text, "They'll see this chat's messages from now on, Busy project's files, and its 3 linked records.");
-  assert.equal(addLines({ target: t(1), picks, earlier: false, ownerName: "Irfad" })[0]?.text, "They'll see this chat's messages from now on, Busy project's files, and its 1 linked record.");
-  assert.equal(addLines({ target: t(0), picks, earlier: false, ownerName: "Irfad" })[0]?.text, "They'll see this chat's messages from now on, and Busy project's files.");
-  assert.equal(addLines({ target: t(2), picks, earlier: true, ownerName: "Irfad" })[0]?.text, "They'll see the whole chat, Busy project's files, and its 2 linked records.");
-  assert.equal(addLines({ target: t(0, false), picks, earlier: false, ownerName: "Irfad" })[0]?.text, "They'll see this chat's messages from now on.");
+  const t = (linkedRecords: number, hasFiles = true) => ({
+    kind: "project" as const,
+    name: "Busy project",
+    project: { name: "Busy project", hasFiles, linkedRecords },
+  });
+  assert.equal(
+    addLines({ target: t(3), picks, earlier: false, ownerName: "Irfad" })[0]?.text,
+    "They'll see this chat's messages from now on, Busy project's files, and its 3 linked records.",
+  );
+  assert.equal(
+    addLines({ target: t(1), picks, earlier: false, ownerName: "Irfad" })[0]?.text,
+    "They'll see this chat's messages from now on, Busy project's files, and its 1 linked record.",
+  );
+  assert.equal(
+    addLines({ target: t(0), picks, earlier: false, ownerName: "Irfad" })[0]?.text,
+    "They'll see this chat's messages from now on, and Busy project's files.",
+  );
+  assert.equal(
+    addLines({ target: t(2), picks, earlier: true, ownerName: "Irfad" })[0]?.text,
+    "They'll see the whole chat, Busy project's files, and its 2 linked records.",
+  );
+  assert.equal(
+    addLines({ target: t(0, false), picks, earlier: false, ownerName: "Irfad" })[0]?.text,
+    "They'll see this chat's messages from now on.",
+  );
 });

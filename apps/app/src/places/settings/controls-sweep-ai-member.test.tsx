@@ -3,4 +3,6 @@ import test from "node:test";
 import { createRoot } from "test-renderer";
 import { sweep } from "./controls-sweep.support.tsx";
 
-test("ai as member: every control can be pressed", async () => { await sweep(createRoot, "ai", "member"); });
+test("ai as member: every control can be pressed", async () => {
+  await sweep(createRoot, "ai", "member");
+});

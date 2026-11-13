@@ -31,14 +31,30 @@ export interface BuildPlan {
 
 export class BuildPlanError extends Error {}
 
-export const BUILDERS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "images", "site-builders");
+export const BUILDERS_DIR = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  "images",
+  "site-builders",
+);
 export const DEFAULT_PORT = 3000;
 export const BUILD_TIMEOUT_MS = 10 * 60 * 1000;
 export const CACHE_REPO = "vyre-site-cache";
 export const IMAGE_REPO = "vyre-site";
 const LOG_KEEP = 200;
 const SOURCE_TIMEOUT_MS = 2 * 60 * 1000;
-const LOCK_CANDIDATES = ["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "npm-shrinkwrap.json", "requirements.txt", "poetry.lock", "uv.lock", "pyproject.toml"];
+const LOCK_CANDIDATES = [
+  "package-lock.json",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "npm-shrinkwrap.json",
+  "requirements.txt",
+  "poetry.lock",
+  "uv.lock",
+  "pyproject.toml",
+];
 const STATIC_DIRS = [".", "public", "dist", "build", "_site"];
 const IGNORED = [".git", "node_modules", ".env", ".env.*", ".DS_Store"];
 
@@ -68,20 +84,38 @@ export function processExec(): Exec {
         resolve({ code: 127, stdout: "", stderr: "no command" });
         return;
       }
-      const child = spawn(cmd, rest, { cwd: opts.cwd, env: { ...process.env, ...(opts.env ?? {}) }, stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn(cmd, rest, {
+        cwd: opts.cwd,
+        env: { ...process.env, ...(opts.env ?? {}) },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
       let stdout = "";
       let stderr = "";
       let timedOut = false;
-      const timer = opts.timeoutMs === undefined ? null : setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, opts.timeoutMs);
-      child.stdout.on("data", (d: Buffer) => { stdout += d.toString("utf8"); });
-      child.stderr.on("data", (d: Buffer) => { stderr += d.toString("utf8"); });
+      const timer =
+        opts.timeoutMs === undefined
+          ? null
+          : setTimeout(() => {
+              timedOut = true;
+              child.kill("SIGKILL");
+            }, opts.timeoutMs);
+      child.stdout.on("data", (d: Buffer) => {
+        stdout += d.toString("utf8");
+      });
+      child.stderr.on("data", (d: Buffer) => {
+        stderr += d.toString("utf8");
+      });
       child.on("error", (e) => {
         if (timer) clearTimeout(timer);
         resolve({ code: 127, stdout, stderr: stderr + e.message });
       });
       child.on("close", (code) => {
         if (timer) clearTimeout(timer);
-        resolve({ code: timedOut ? 124 : (code ?? 1), stdout, stderr: timedOut ? `${stderr}\ntimed out after ${opts.timeoutMs} ms` : stderr });
+        resolve({
+          code: timedOut ? 124 : (code ?? 1),
+          stdout,
+          stderr: timedOut ? `${stderr}\ntimed out after ${opts.timeoutMs} ms` : stderr,
+        });
       });
     });
 }
@@ -106,9 +140,17 @@ async function lockHash(dir: string, extra: string[]): Promise<{ hash: string; f
   for (const f of files) parts.push(enc.encode(`${f}\0`), enc.encode(readText(dir, f) ?? ""), enc.encode("\0"));
   const all = new Uint8Array(parts.reduce((n, a) => n + a.length, 0));
   let at = 0;
-  for (const a of parts) { all.set(a, at); at += a.length; }
+  for (const a of parts) {
+    all.set(a, at);
+    at += a.length;
+  }
   const digest = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", all));
-  return { hash: Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16), files };
+  return {
+    hash: Array.from(digest, (b) => b.toString(16).padStart(2, "0"))
+      .join("")
+      .slice(0, 16),
+    files,
+  };
 }
 
 /** The `web:` line of a Procfile, if there is one. */
@@ -169,7 +211,14 @@ function template(name: string): string {
 export async function detectPlan(dir: string): Promise<BuildPlan> {
   if (exists(dir, "Dockerfile")) {
     const { hash, files } = await lockHash(dir, ["Dockerfile"]);
-    return { kind: "dockerfile", dockerfile: path.join(dir, "Dockerfile"), args: {}, lockHash: hash, lockFiles: files, note: "Detected Dockerfile: building the repo's own Dockerfile." };
+    return {
+      kind: "dockerfile",
+      dockerfile: path.join(dir, "Dockerfile"),
+      args: {},
+      lockHash: hash,
+      lockFiles: files,
+      note: "Detected Dockerfile: building the repo's own Dockerfile.",
+    };
   }
   const procfile = procfileWeb(dir);
   if (exists(dir, "package.json")) {
@@ -183,17 +232,25 @@ export async function detectPlan(dir: string): Promise<BuildPlan> {
     if (!hasStart && procfile === null && main === null && hasBuild) {
       const out = staticOutput(pkg);
       return {
-        kind: "static-build", dockerfile: template("Dockerfile.static-build"), lockHash: hash, lockFiles: files,
+        kind: "static-build",
+        dockerfile: template("Dockerfile.static-build"),
+        lockHash: hash,
+        lockFiles: files,
         args: { INSTALL_CMD: install, BUILD_CMD: "npm run build", STATIC_DIR: out },
         note: `Detected static site with a build step: npm run build, serving ${out}/.`,
       };
     }
     if (!hasStart && procfile === null && main === null) {
-      throw new BuildPlanError("package.json has no start script, no main file and no build script. Add a start script (for example \"start\": \"node server.js\") or a Procfile with a web line.");
+      throw new BuildPlanError(
+        'package.json has no start script, no main file and no build script. Add a start script (for example "start": "node server.js") or a Procfile with a web line.',
+      );
     }
     const start = procfile ?? (hasStart ? "npm start" : `node ${main}`);
     return {
-      kind: "node", dockerfile: template("Dockerfile.node"), lockHash: hash, lockFiles: files,
+      kind: "node",
+      dockerfile: template("Dockerfile.node"),
+      lockHash: hash,
+      lockFiles: files,
       args: { INSTALL_CMD: install, BUILD_CMD: hasBuild ? "npm run build" : "", START_CMD: start },
       note: `Detected node: ${install}${hasBuild ? ", npm run build" : ""}, start with ${start}.`,
     };
@@ -201,13 +258,24 @@ export async function detectPlan(dir: string): Promise<BuildPlan> {
   if (exists(dir, "requirements.txt") || exists(dir, "pyproject.toml")) {
     const fromRequirements = exists(dir, "requirements.txt");
     const entry = ["app.py", "main.py", "server.py"].find((f) => exists(dir, f));
-    const start = procfile ?? (exists(dir, "manage.py") ? "python manage.py runserver 0.0.0.0:$PORT" : entry !== undefined ? `python ${entry}` : null);
+    const start =
+      procfile ??
+      (exists(dir, "manage.py")
+        ? "python manage.py runserver 0.0.0.0:$PORT"
+        : entry !== undefined
+          ? `python ${entry}`
+          : null);
     if (start === null) {
-      throw new BuildPlanError("No way to start this Python project. Add app.py or main.py, or a Procfile with a web line.");
+      throw new BuildPlanError(
+        "No way to start this Python project. Add app.py or main.py, or a Procfile with a web line.",
+      );
     }
     const { hash, files } = await lockHash(dir, []);
     return {
-      kind: "python", dockerfile: template("Dockerfile.python"), lockHash: hash, lockFiles: files,
+      kind: "python",
+      dockerfile: template("Dockerfile.python"),
+      lockHash: hash,
+      lockFiles: files,
       args: fromRequirements
         ? { INSTALL_CMD: "pip install --no-cache-dir -r requirements.txt", BUILD_CMD: "", START_CMD: start }
         : { INSTALL_CMD: "true", BUILD_CMD: "pip install --no-cache-dir .", START_CMD: start },
@@ -217,9 +285,18 @@ export async function detectPlan(dir: string): Promise<BuildPlan> {
   const root = staticRoot(dir);
   if (root !== null) {
     const { hash, files } = await lockHash(dir, []);
-    return { kind: "static", dockerfile: template("Dockerfile.static"), lockHash: hash, lockFiles: files, args: { STATIC_DIR: root }, note: `Detected static files in ${root === "." ? "the repo root" : `${root}/`}.` };
+    return {
+      kind: "static",
+      dockerfile: template("Dockerfile.static"),
+      lockHash: hash,
+      lockFiles: files,
+      args: { STATIC_DIR: root },
+      note: `Detected static files in ${root === "." ? "the repo root" : `${root}/`}.`,
+    };
   }
-  throw new BuildPlanError("Could not tell how to build this repo. Add a Dockerfile, a package.json with a start script, requirements.txt, or an index.html.");
+  throw new BuildPlanError(
+    "Could not tell how to build this repo. Add a Dockerfile, a package.json with a start script, requirements.txt, or an index.html.",
+  );
 }
 
 /** .dockerignore: keeps .git, node_modules and env files out of the image whatever the repo says. */
@@ -243,8 +320,10 @@ export function safeName(part: string, what: string): string {
   return s;
 }
 
-export const imageName = (siteId: string, deploymentId: string): string => `${IMAGE_REPO}/${safeName(siteId, "site id")}:${safeName(deploymentId, "deployment id")}`;
-export const cacheName = (siteId: string, hash: string): string => `${CACHE_REPO}/${safeName(siteId, "site id")}:${safeName(hash, "cache key")}`;
+export const imageName = (siteId: string, deploymentId: string): string =>
+  `${IMAGE_REPO}/${safeName(siteId, "site id")}:${safeName(deploymentId, "deployment id")}`;
+export const cacheName = (siteId: string, hash: string): string =>
+  `${CACHE_REPO}/${safeName(siteId, "site id")}:${safeName(hash, "cache key")}`;
 
 // ---- source -------------------------------------------------------------------------------------------------
 
@@ -274,14 +353,21 @@ function repoUrlOk(url: string): boolean {
 export function gitSource(exec: Exec, root: string = os.tmpdir()): FetchSource {
   return async (req) => {
     if (req.repoUrl === null) throw new BuildPlanError("This site has no repository to build. Connect a repo first.");
-    if (!repoUrlOk(req.repoUrl)) throw new BuildPlanError("The repository address must start with https:// or ssh://, or look like git@host:owner/repo.");
-    if (req.branch.startsWith("-") || /[\s\0]/.test(req.branch)) throw new BuildPlanError("That branch name is not allowed.");
+    if (!repoUrlOk(req.repoUrl))
+      throw new BuildPlanError(
+        "The repository address must start with https:// or ssh://, or look like git@host:owner/repo.",
+      );
+    if (req.branch.startsWith("-") || /[\s\0]/.test(req.branch))
+      throw new BuildPlanError("That branch name is not allowed.");
     const dir = fs.mkdtempSync(path.join(root, "vyre-site-src-"));
     const cleanup = () => fs.rmSync(dir, { recursive: true, force: true });
     const pr = pullRequestOf(req.branch);
     const run = async (argv: string[]): Promise<void> => {
       const r = await exec(argv, { cwd: dir, timeoutMs: SOURCE_TIMEOUT_MS });
-      if (r.code !== 0) throw new BuildPlanError(`git failed: ${(r.stderr || r.stdout).trim().split("\n").slice(-3).join(" ")}`.slice(0, 400));
+      if (r.code !== 0)
+        throw new BuildPlanError(
+          `git failed: ${(r.stderr || r.stdout).trim().split("\n").slice(-3).join(" ")}`.slice(0, 400),
+        );
     };
     try {
       if (pr === undefined) {
@@ -353,11 +439,16 @@ export function exposedPort(json: string): number {
     let map: object = v;
     if ("ports" in v || "label" in v) {
       const label = (v as { label?: unknown }).label;
-      if (typeof label === "string" && /^\d{1,5}$/.test(label) && Number(label) >= 1 && Number(label) <= 65535) return Number(label);
+      if (typeof label === "string" && /^\d{1,5}$/.test(label) && Number(label) >= 1 && Number(label) <= 65535)
+        return Number(label);
       const ports = (v as { ports?: unknown }).ports;
       map = typeof ports === "object" && ports !== null ? ports : {};
     }
-    const found = Object.keys(map).map((k) => k.match(/^(\d+)\/tcp$/)).filter((m): m is RegExpMatchArray => m !== null).map((m) => Number(m[1])).sort((a, b) => a - b);
+    const found = Object.keys(map)
+      .map((k) => k.match(/^(\d+)\/tcp$/))
+      .filter((m): m is RegExpMatchArray => m !== null)
+      .map((m) => Number(m[1]))
+      .sort((a, b) => a - b);
     return found[0] ?? DEFAULT_PORT;
   } catch {
     return DEFAULT_PORT;
@@ -373,9 +464,12 @@ export function dockerRuntime(o: DockerRuntimeOptions): SiteRuntime {
   async function ensureNetwork(name: string): Promise<void> {
     const have = await exec(["docker", "network", "inspect", name], { timeoutMs: 15_000 });
     if (have.code === 0) return;
-    const made = await exec(["docker", "network", "create", "--driver", "bridge", "--label", "vyre.sites=1", name], { timeoutMs: 30_000 });
+    const made = await exec(["docker", "network", "create", "--driver", "bridge", "--label", "vyre.sites=1", name], {
+      timeoutMs: 30_000,
+    });
     // a second caller can win the race to create it
-    if (made.code !== 0 && !/already exists/i.test(made.stderr)) throw new Error(`Could not create the ${name} network: ${made.stderr.trim().slice(0, 200)}`);
+    if (made.code !== 0 && !/already exists/i.test(made.stderr))
+      throw new Error(`Could not create the ${name} network: ${made.stderr.trim().slice(0, 200)}`);
   }
 
   async function pruneCache(siteId: string, keep: string): Promise<void> {
@@ -398,10 +492,22 @@ export function dockerRuntime(o: DockerRuntimeOptions): SiteRuntime {
       ensureDockerignore(source.dir);
       const cache = cacheName(req.siteId, plan.lockHash);
       const argv = [
-        "docker", "build", "--file", plan.dockerfile, "--tag", image,
-        "--label", `vyre.site=${req.siteId}`, "--label", `vyre.deployment=${req.deploymentId}`,
-        "--build-arg", "BUILDKIT_INLINE_CACHE=1", "--build-arg", `LOCK_HASH=${plan.lockHash}`,
-        "--cache-from", cache,
+        "docker",
+        "build",
+        "--file",
+        plan.dockerfile,
+        "--tag",
+        image,
+        "--label",
+        `vyre.site=${req.siteId}`,
+        "--label",
+        `vyre.deployment=${req.deploymentId}`,
+        "--build-arg",
+        "BUILDKIT_INLINE_CACHE=1",
+        "--build-arg",
+        `LOCK_HASH=${plan.lockHash}`,
+        "--cache-from",
+        cache,
       ];
       for (const [k, v] of Object.entries(plan.args)) argv.push("--build-arg", `${k}=${v}`);
       let declared: number | null = null;
@@ -413,7 +519,10 @@ export function dockerRuntime(o: DockerRuntimeOptions): SiteRuntime {
       if (declared !== null) argv.push("--label", `vyre.port=${declared}`);
       argv.push(source.dir);
       let built = await exec(argv, { timeoutMs: BUILD_TIMEOUT_MS });
-      if (built.code !== 0 && /failed to restore cached image|failed to create cache image/i.test(`${built.stdout}\n${built.stderr}`)) {
+      if (
+        built.code !== 0 &&
+        /failed to restore cached image|failed to create cache image/i.test(`${built.stdout}\n${built.stderr}`)
+      ) {
         // The classic builder (no buildx on the host) can fail to restore its --cache-from image. The local layer cache still applies, so build again without it.
         log.push("The classic Docker builder could not restore the cache image; building again without --cache-from.");
         const at = argv.indexOf("--cache-from");
@@ -422,7 +531,11 @@ export function dockerRuntime(o: DockerRuntimeOptions): SiteRuntime {
       }
       log.push(...lines(built.stdout), ...lines(built.stderr));
       if (built.code !== 0) {
-        log.push(built.code === 124 ? "The build ran out of time (10 minutes)." : "The build failed. The last lines above say why.");
+        log.push(
+          built.code === 124
+            ? "The build ran out of time (10 minutes)."
+            : "The build failed. The last lines above say why.",
+        );
         return { ok: false, log: tail(log) };
       }
       await exec(["docker", "tag", image, cache], { timeoutMs: 15_000 });
@@ -445,15 +558,52 @@ export function dockerRuntime(o: DockerRuntimeOptions): SiteRuntime {
     const image = req.image;
     if (image.startsWith("-")) throw new Error("Unsafe image name.");
     await ensureNetwork(network);
-    const inspected = await exec(["docker", "image", "inspect", "--format", `{"ports":{{json .Config.ExposedPorts}},"label":{{json (index .Config.Labels "vyre.port")}}}`, image], { timeoutMs: 15_000 });
+    const inspected = await exec(
+      [
+        "docker",
+        "image",
+        "inspect",
+        "--format",
+        `{"ports":{{json .Config.ExposedPorts}},"label":{{json (index .Config.Labels "vyre.port")}}}`,
+        image,
+      ],
+      { timeoutMs: 15_000 },
+    );
     if (inspected.code !== 0) throw new Error(`The image ${image} is not on this server. Build the site again.`);
     const port = exposedPort(inspected.stdout.trim());
     const childEnv: Record<string, string> = {};
     const argv = [
-      "docker", "run", "--detach", "--name", name, "--network", network, "--restart", "unless-stopped",
-      "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE", "--security-opt", "no-new-privileges", "--memory", memory, "--pids-limit", String(pids),
-      "--label", `vyre.site=${req.siteId}`, "--label", `vyre.deployment=${req.deploymentId}`, "--label", `vyre.env=${req.env}`,
-      "--env", `PORT=${port}`, "--env", `VYRE_SITE_ID=${req.siteId}`, "--env", `VYRE_SERVICE_PRINCIPAL=${req.servicePrincipal}`,
+      "docker",
+      "run",
+      "--detach",
+      "--name",
+      name,
+      "--network",
+      network,
+      "--restart",
+      "unless-stopped",
+      "--cap-drop",
+      "ALL",
+      "--cap-add",
+      "NET_BIND_SERVICE",
+      "--security-opt",
+      "no-new-privileges",
+      "--memory",
+      memory,
+      "--pids-limit",
+      String(pids),
+      "--label",
+      `vyre.site=${req.siteId}`,
+      "--label",
+      `vyre.deployment=${req.deploymentId}`,
+      "--label",
+      `vyre.env=${req.env}`,
+      "--env",
+      `PORT=${port}`,
+      "--env",
+      `VYRE_SITE_ID=${req.siteId}`,
+      "--env",
+      `VYRE_SERVICE_PRINCIPAL=${req.servicePrincipal}`,
     ];
     for (const e of req.envRefs) {
       if (!envName(e.name)) throw new Error(`"${e.name}" is not a valid environment variable name.`);
@@ -464,7 +614,10 @@ export function dockerRuntime(o: DockerRuntimeOptions): SiteRuntime {
     // the name may be left over from a failed earlier start
     await exec(["docker", "rm", "--force", name], { timeoutMs: 30_000 });
     const ran = await exec(argv, { env: childEnv, timeoutMs: 60_000 });
-    if (ran.code !== 0) throw new Error(`The container did not start: ${ran.stderr.trim().split("\n").slice(-2).join(" ").slice(0, 300)}`);
+    if (ran.code !== 0)
+      throw new Error(
+        `The container did not start: ${ran.stderr.trim().split("\n").slice(-2).join(" ").slice(0, 300)}`,
+      );
     const containerId = ran.stdout.trim().split("\n").pop()?.trim() ?? "";
     if (!/^[0-9a-f]{12,64}$/.test(containerId)) throw new Error("Docker did not return a container id.");
     return { containerId, upstream: `${name}:${port}` };
@@ -473,7 +626,8 @@ export function dockerRuntime(o: DockerRuntimeOptions): SiteRuntime {
   async function stop(containerId: string): Promise<void> {
     if (!/^[0-9a-f]{12,64}$/.test(containerId)) return;
     const r = await exec(["docker", "rm", "--force", containerId], { timeoutMs: 30_000 });
-    if (r.code !== 0 && !/no such container/i.test(r.stderr)) throw new Error(`Could not stop the container: ${r.stderr.trim().slice(0, 200)}`);
+    if (r.code !== 0 && !/no such container/i.test(r.stderr))
+      throw new Error(`Could not stop the container: ${r.stderr.trim().slice(0, 200)}`);
   }
 
   async function logs(containerId: string, count: number): Promise<string[]> {

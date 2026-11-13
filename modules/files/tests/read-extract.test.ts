@@ -8,9 +8,10 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { handlers } from "../impl.ts";
 import { open } from "../fixtures/lists-world.ts";
 
-type Obj = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
-type H = (ctx: Ctx, input: unknown) => Promise<any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
-const call = (ctx: Ctx, cap: string, input: unknown = {}) => (handlers as unknown as Record<string, H>)[cap]!(ctx, input);
+type Obj = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+type H = (ctx: Ctx, input: unknown) => Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+const call = (ctx: Ctx, cap: string, input: unknown = {}) =>
+  (handlers as unknown as Record<string, H>)[cap]!(ctx, input);
 
 function world(extra: (cap: string, input: Obj) => unknown) {
   let ctx!: Ctx;
@@ -30,7 +31,15 @@ function world(extra: (cap: string, input: Obj) => unknown) {
 async function make(ctx: Ctx, name: string, mime: string | undefined, text: string): Promise<string> {
   const root = (await call(ctx, "files.tree")).roots.find((r: Obj) => r.key === "personal").folderId;
   // an Office file has no text mime: what a mount or an upload leaves is octet-stream
-  return (await call(ctx, "files.create", { folderId: root, name, mime: mime ?? "application/octet-stream", content: { text }, idempotencyKey: `k-${name}` })).file.fileId;
+  return (
+    await call(ctx, "files.create", {
+      folderId: root,
+      name,
+      mime: mime ?? "application/octet-stream",
+      content: { text },
+      idempotencyKey: `k-${name}`,
+    })
+  ).file.fileId;
 }
 
 const BODY = "Engagement letter\nDear Client,\nTotal due: 2026-10-31";
@@ -42,7 +51,14 @@ test("as text, a Word, Excel, PowerPoint or PDF file comes back as its extracted
     asked.push(input);
     return { text: BODY, pages: 1, truncated: false, source: "office" };
   });
-  for (const [name, mime] of [["letter.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"], ["Budget.xlsx", undefined], ["deck.PPTX", "application/octet-stream"], ["scan.pdf", "application/pdf"], ["notes.odt", undefined], ["old.doc", "application/msword"]] as const) {
+  for (const [name, mime] of [
+    ["letter.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+    ["Budget.xlsx", undefined],
+    ["deck.PPTX", "application/octet-stream"],
+    ["scan.pdf", "application/pdf"],
+    ["notes.odt", undefined],
+    ["old.doc", "application/msword"],
+  ] as const) {
     const id = await make(ctx, name, mime, "PK-not-really-text");
     const r = await call(ctx, "files.read", { fileId: id, as: "text" });
     assert.equal(r.text, BODY, name);
@@ -52,7 +68,9 @@ test("as text, a Word, Excel, PowerPoint or PDF file comes back as its extracted
 });
 
 test("offset and length cut the extracted text by characters, and the answer says it was cut; the previews' own truncation is passed on", async () => {
-  const { ctx } = world((cap) => (cap === "previews.text" ? { text: BODY, pages: 1, truncated: false, source: "office" } : undefined));
+  const { ctx } = world((cap) =>
+    cap === "previews.text" ? { text: BODY, pages: 1, truncated: false, source: "office" } : undefined,
+  );
   const id = await make(ctx, "letter.docx", undefined, "x");
   const part = await call(ctx, "files.read", { fileId: id, as: "text", offset: 18, length: 12 });
   assert.deepEqual([part.text, part.truncated], ["Dear Client,", true]);
@@ -66,7 +84,9 @@ test("offset and length cut the extracted text by characters, and the answer say
 });
 
 test("a version can be named; the default and base64 reads of the same file are unchanged, and a text file never asks the previews", async () => {
-  const w = world((cap) => (cap === "previews.text" ? { text: "extracted", truncated: false, source: "office" } : undefined));
+  const w = world((cap) =>
+    cap === "previews.text" ? { text: "extracted", truncated: false, source: "office" } : undefined,
+  );
   const id = await make(w.ctx, "letter.docx", undefined, "PK");
   const file = (await call(w.ctx, "files.get", { fileId: id })).file;
   const v1 = file.version;
@@ -83,9 +103,16 @@ test("a version can be named; the default and base64 reads of the same file are 
 
 test("when the text cannot be taken out, the read says so and does not hand back the bytes", async () => {
   for (const code of ["provider.unavailable", "validation.unsupported", "internal.unexpected"]) {
-    const { ctx } = world((cap) => { if (cap === "previews.text") throw new VyreErr({ code: code as never, message: "no", retryable: false, traceId: "0".repeat(32), next: [] }); return undefined; });
+    const { ctx } = world((cap) => {
+      if (cap === "previews.text")
+        throw new VyreErr({ code: code as never, message: "no", retryable: false, traceId: "0".repeat(32), next: [] });
+      return undefined;
+    });
     const id = await make(ctx, "letter.docx", undefined, "PK-binary");
-    try { await call(ctx, "files.read", { fileId: id, as: "text" }); assert.fail("expected a refusal"); } catch (e) {
+    try {
+      await call(ctx, "files.read", { fileId: id, as: "text" });
+      assert.fail("expected a refusal");
+    } catch (e) {
       assert.ok(e instanceof VyreErr);
       assert.equal(e.error.code, "validation.unsupported", code);
       assert.ok(!JSON.stringify(e.error).includes("PK-binary"));
@@ -101,9 +128,19 @@ test("a file of a live mount is an empty placeholder: reading it opens it first,
     if (cap === "mounts.open") {
       opened += 1;
       // the mount fetches the provider's copy: a new version with the bytes
-      return call(ctxRef, "files.write", { fileId: input["fileId"], content: { text: "PK-fetched" }, reason: "Fetched from the provider", idempotencyKey: "fetch-1" }).then(() => ({ mounted: true, fetched: true }));
+      return call(ctxRef, "files.write", {
+        fileId: input["fileId"],
+        content: { text: "PK-fetched" },
+        reason: "Fetched from the provider",
+        idempotencyKey: "fetch-1",
+      }).then(() => ({ mounted: true, fetched: true }));
     }
-    if (cap === "previews.text") return call(ctxRef, "files.read", { fileId: input["fileId"], as: "base64" }).then((r: Obj) => ({ text: `text of ${Buffer.from(r.base64, "base64").toString()}`, truncated: false, source: "office" }));
+    if (cap === "previews.text")
+      return call(ctxRef, "files.read", { fileId: input["fileId"], as: "base64" }).then((r: Obj) => ({
+        text: `text of ${Buffer.from(r.base64, "base64").toString()}`,
+        truncated: false,
+        source: "office",
+      }));
     return undefined;
   });
   ctxRef = w.ctx;
@@ -120,7 +157,17 @@ test("a file of a live mount is an empty placeholder: reading it opens it first,
   const lone = world(() => undefined);
   const none = await make(lone.ctx, "empty.txt", "text/plain", "");
   assert.equal((await call(lone.ctx, "files.read", { fileId: none, as: "text" })).text, "");
-  const down = world((cap) => { if (cap === "mounts.open") throw new VyreErr({ code: "provider.unavailable" as never, message: "down", retryable: true, traceId: "0".repeat(32), next: [] }); return undefined; });
+  const down = world((cap) => {
+    if (cap === "mounts.open")
+      throw new VyreErr({
+        code: "provider.unavailable" as never,
+        message: "down",
+        retryable: true,
+        traceId: "0".repeat(32),
+        next: [],
+      });
+    return undefined;
+  });
   const stuck = await make(down.ctx, "stuck.md", "text/markdown", "");
   assert.equal((await call(down.ctx, "files.read", { fileId: stuck, as: "text" })).text, "");
 });

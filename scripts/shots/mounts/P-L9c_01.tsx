@@ -6,7 +6,11 @@ import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { ContactList } from "../../../apps/app/src/places/inbox/contactlist/index.ts";
 import { createSampleInbox, harbor, northwind } from "../../../apps/app/src/places/inbox/contactlist/sample.ts";
-import { InboxDataProvider, InboxSidebar, InboxStateProvider } from "../../../apps/app/src/places/inbox/sidebar/index.ts";
+import {
+  InboxDataProvider,
+  InboxSidebar,
+  InboxStateProvider,
+} from "../../../apps/app/src/places/inbox/sidebar/index.ts";
 import type { Channel, InboxState, Scope, View as ViewKind } from "../../../apps/app/src/places/inbox/sidebar/index.ts";
 
 export const title = "Inbox";
@@ -22,13 +26,18 @@ function scopeOf(v: string | null): Scope {
 }
 
 export default function Mount(): ReactNode {
-  const q = useMemo(() => new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""), []);
+  const q = useMemo(
+    () => new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? ""),
+    [],
+  );
   const bulk = Math.min(20000, Number(q.get("rows") ?? 0) || 0);
   const space = q.get("space") === "harbor" ? harbor : northwind;
   const sample = useMemo(() => createSampleInbox(space, { bulk }), [space, bulk]);
   const initial = useMemo<Partial<InboxState>>(() => {
     const view = VIEWS.find((x) => x === q.get("view"));
-    const channels = (q.get("channels") ?? "").split(",").filter((c): c is Channel => (CHANNELS as readonly string[]).includes(c));
+    const channels = (q.get("channels") ?? "")
+      .split(",")
+      .filter((c): c is Channel => (CHANNELS as readonly string[]).includes(c));
     return { ...(view ? { view } : {}), scope: scopeOf(q.get("scope")), channels, needsMatch: q.get("needs") === "1" };
   }, [q]);
   const width = useWindowDimensions().width;
@@ -44,7 +53,11 @@ export default function Mount(): ReactNode {
     <InboxDataProvider value={sample.data}>
       <InboxStateProvider initial={initial}>
         <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-          {phone ? null : <View style={{ width: 240 }}><InboxSidebar /></View>}
+          {phone ? null : (
+            <View style={{ width: 240 }}>
+              <InboxSidebar />
+            </View>
+          )}
           <ContactList />
         </View>
       </InboxStateProvider>

@@ -21,46 +21,100 @@ const TRACE = "0123456789abcdef0123456789abcdef";
 const ENT = "note_board";
 const GRANT = "gr_bo_record";
 
-interface World { s: SyncHandle; access: AccessSnapshot; admin: PurgeHandlers; grant(): void; revoke(): void }
+interface World {
+  s: SyncHandle;
+  access: AccessSnapshot;
+  admin: PurgeHandlers;
+  grant(): void;
+  revoke(): void;
+}
 function world(): World {
   const access = buildAccess({ boFilter: null, boHidden: [] });
   const s = openSync({ access: () => access, clock: () => NOW });
   const admin = createPurgeHandlers(purgeDepsOf(s, { purge: () => 0 }));
   return {
-    s, access, admin,
+    s,
+    access,
+    admin,
     revoke: () => access.revokeGrant(GRANT),
-    grant: () => access.putGrant({ id: GRANT, subject_kind: "actor", subject_id: BO, resource_type: "record", resource_id: null, level: "view", conditions: { hiddenFields: [] } }),
+    grant: () =>
+      access.putGrant({
+        id: GRANT,
+        subject_kind: "actor",
+        subject_id: BO,
+        resource_type: "record",
+        resource_id: null,
+        level: "view",
+        conditions: { hiddenFields: [] },
+      }),
   };
 }
 const adminCtx = { trace: { traceId: TRACE }, principal: ADA };
 const reindex = (w: World) => w.admin["sync.acl.reindex"](adminCtx, { resourceType: "record", resourceId: "*" });
 
 function upsert(w: World, id: string, fields: Record<string, unknown>): number {
-  return w.s.host.append({ type: "sync.row", sv: 1, trace_id: TRACE, actor: ADA, vis: "space", payload: { entity: ENT, id, op: "upsert", fields, at: NOW } }).seq;
+  return w.s.host.append({
+    type: "sync.row",
+    sv: 1,
+    trace_id: TRACE,
+    actor: ADA,
+    vis: "space",
+    payload: { entity: ENT, id, op: "upsert", fields, at: NOW },
+  }).seq;
 }
 function patch(w: World, id: string, fields: Record<string, unknown>, label?: number): number {
-  return w.s.host.append({ type: "sync.row", sv: 1, trace_id: TRACE, actor: ADA, vis: "space", ...(label !== undefined ? { label } : {}), payload: { entity: ENT, id, op: "patch", fields, at: NOW } }).seq;
+  return w.s.host.append({
+    type: "sync.row",
+    sv: 1,
+    trace_id: TRACE,
+    actor: ADA,
+    vis: "space",
+    ...(label !== undefined ? { label } : {}),
+    payload: { entity: ENT, id, op: "patch", fields, at: NOW },
+  }).seq;
 }
 function remove(w: World, id: string): number {
-  return w.s.host.append({ type: "sync.row", sv: 1, trace_id: TRACE, actor: ADA, vis: "space", payload: { entity: ENT, id, op: "delete", fields: {}, at: NOW } }).seq;
+  return w.s.host.append({
+    type: "sync.row",
+    sv: 1,
+    trace_id: TRACE,
+    actor: ADA,
+    vis: "space",
+    payload: { entity: ENT, id, op: "delete", fields: {}, at: NOW },
+  }).seq;
 }
 
 // ---- devices ----
 
-interface Dev { person: string; device: string; driver: SqlDriver; store: ReplicaStore; cursor: number; epoch: number }
+interface Dev {
+  person: string;
+  device: string;
+  driver: SqlDriver;
+  store: ReplicaStore;
+  cursor: number;
+  epoch: number;
+}
 function device(person: string, name: string): Dev {
   const driver = createNodeDriver();
   const store = openReplica({ driver, deviceClass: "desktop", registryHash: "h1", personId: person });
   return { person, device: name, driver, store, cursor: 0, epoch: 0 };
 }
-const ctx = (d: Dev): PullCtx => ({ trace: { traceId: TRACE }, principal: d.person, deviceId: d.device, deviceClass: "desktop" });
+const ctx = (d: Dev): PullCtx => ({
+  trace: { traceId: TRACE },
+  principal: d.person,
+  deviceId: d.device,
+  deviceClass: "desktop",
+});
 
 function newest(fields: Record<string, { hlc: string }>): string {
   let best: Hlc | null = null;
   let text = "";
   for (const f of Object.values(fields)) {
     const h = parseHlc(f.hlc);
-    if (h && (best === null || compareHlc(h, best) > 0)) { best = h; text = f.hlc; }
+    if (h && (best === null || compareHlc(h, best) > 0)) {
+      best = h;
+      text = f.hlc;
+    }
   }
   return text;
 }
@@ -72,7 +126,15 @@ function values(fields: Record<string, { v: unknown }>): Record<string, SqlValue
 
 function apply(d: Dev, c: Change): void {
   if (c.op === "delete") return; // taken away with the hides (pullHides)
-  const r = d.store.write({ entity: c.entity, id: c.id, fields: values(c.fields), hlc: newest(c.fields), actor: ADA, origin: "mirror", seq: c.seq });
+  const r = d.store.write({
+    entity: c.entity,
+    id: c.id,
+    fields: values(c.fields),
+    hlc: newest(c.fields),
+    actor: ADA,
+    origin: "mirror",
+    seq: c.seq,
+  });
   assert.ok(r.applied || r.reason === "older", `${c.op} ${c.id}: ${r.reason}`);
 }
 
@@ -99,9 +161,21 @@ async function fresh(w: World, person: string): Promise<Dev> {
   for (const p of begin.plan) {
     let after: string | undefined;
     for (let i = 0; i < 50; i++) {
-      const page = await w.s.handlers["sync.snapshot.page"](ctx(d), { entity: p.entity, ...(after !== undefined ? { after } : {}), asOf: begin.asOfSeq });
+      const page = await w.s.handlers["sync.snapshot.page"](ctx(d), {
+        entity: p.entity,
+        ...(after !== undefined ? { after } : {}),
+        asOf: begin.asOfSeq,
+      });
       for (const row of page.rows) {
-        const r = d.store.write({ entity: p.entity, id: row.id, fields: values(row.fields), hlc: newest(row.fields), actor: ADA, origin: "mirror", seq: row.seq });
+        const r = d.store.write({
+          entity: p.entity,
+          id: row.id,
+          fields: values(row.fields),
+          hlc: newest(row.fields),
+          actor: ADA,
+          origin: "mirror",
+          seq: row.seq,
+        });
         assert.ok(r.applied, `snapshot ${row.id}: ${r.reason}`);
       }
       if (page.done || page.last === undefined) break;
@@ -111,7 +185,11 @@ async function fresh(w: World, person: string): Promise<Dev> {
   return d;
 }
 
-interface Dump { rows: SqlRow[]; fts: SqlRow[]; docs: string[] }
+interface Dump {
+  rows: SqlRow[];
+  fts: SqlRow[];
+  docs: string[];
+}
 function dump(d: Dev): Dump {
   const all = (sql: string): SqlRow[] => d.driver.prepare(sql).all([]);
   return {
@@ -124,7 +202,8 @@ function dump(d: Dev): Dump {
 /** The mandatory check: row tables and FTS identical to a fresh filtered snapshot, and no saved document of a row the person cannot see. */
 async function converged(w: World, d: Dev, label: string): Promise<void> {
   const want = await fresh(w, d.person);
-  const have = dump(d), ref = dump(want);
+  const have = dump(d),
+    ref = dump(want);
   assert.deepEqual(have.rows, ref.rows, `${label}: rows`);
   assert.deepEqual(have.fts, ref.fts, `${label}: fts rows`);
   const visible = new Set(ref.rows.map((r) => String(r["id"])));
@@ -132,12 +211,15 @@ async function converged(w: World, d: Dev, label: string): Promise<void> {
     const owner = [...visible].find((id) => doc === docPrefix(ENT, id) || doc.startsWith(`${docPrefix(ENT, id)}:`));
     assert.ok(owner, `${label}: document ${doc} belongs to a row the person can no longer see`);
   }
-  for (const r of have.rows) assert.notEqual(d.store.read(ENT, String(r["id"])), null, `${label}: the read path agrees with the table`);
+  for (const r of have.rows)
+    assert.notEqual(d.store.read(ENT, String(r["id"])), null, `${label}: the read path agrees with the table`);
   await want.store.close();
 }
 
 function saveDocs(d: Dev, ids: readonly string[]): void {
-  const put = d.driver.prepare("INSERT INTO doc_local (doc, state, sv, dirty) VALUES (?, ?, ?, ?) ON CONFLICT(doc) DO NOTHING");
+  const put = d.driver.prepare(
+    "INSERT INTO doc_local (doc, state, sv, dirty) VALUES (?, ?, ?, ?) ON CONFLICT(doc) DO NOTHING",
+  );
   for (const id of ids) {
     put.run([docPrefix(ENT, id), new Uint8Array([1, 2]), new Uint8Array([3]), 0]);
     put.run([`${docPrefix(ENT, id)}:body`, new Uint8Array([4, 5]), new Uint8Array([6]), 1]);
@@ -148,7 +230,12 @@ const ids = (d: Dev): string[] => dump(d).rows.map((r) => String(r["id"]));
 
 test("label change, revoke and re-grant: the replica equals a fresh filtered snapshot after each, FTS rows and saved documents included", async () => {
   const w = world();
-  for (const [id, title] of [["n1", "Alpha plan"], ["n2", "Beta plan"], ["n3", "Gamma plan"]] as const) upsert(w, id, { title, body: `${title} body` });
+  for (const [id, title] of [
+    ["n1", "Alpha plan"],
+    ["n2", "Beta plan"],
+    ["n3", "Gamma plan"],
+  ] as const)
+    upsert(w, id, { title, body: `${title} body` });
   const bo = device(BO, "bo1");
   await pullAll(w, bo);
   assert.deepEqual(ids(bo), ["n1", "n2", "n3"]);
@@ -159,11 +246,18 @@ test("label change, revoke and re-grant: the replica equals a fresh filtered sna
   // A label change above bo's clearance hides the row without a grant change.
   patch(w, "n2", { title: "Beta plan" }, 2);
   const hidden = await pullAll(w, bo);
-  assert.deepEqual(hidden.map((h) => h.id), ["n2"]);
+  assert.deepEqual(
+    hidden.map((h) => h.id),
+    ["n2"],
+  );
   assert.deepEqual(ids(bo), ["n1", "n3"]);
   assert.equal(bo.store.read(ENT, "n2"), null);
   assert.equal(bo.store.readFts(ENT, "n2"), null, "its search entry is gone");
-  assert.deepEqual(dump(bo).docs.filter((d) => d.startsWith(docPrefix(ENT, "n2"))), [], "its saved documents are gone");
+  assert.deepEqual(
+    dump(bo).docs.filter((d) => d.startsWith(docPrefix(ENT, "n2"))),
+    [],
+    "its saved documents are gone",
+  );
   await converged(w, bo, "after a label raise");
 
   // The label comes back down: the row returns whole.
@@ -195,7 +289,8 @@ test("a device that was offline through the revoke gets the same hides when it r
   const w = world();
   upsert(w, "n1", { title: "One", body: "a" });
   upsert(w, "n2", { title: "Two", body: "b" });
-  const live = device(BO, "bo_live"), away = device(BO, "bo_away");
+  const live = device(BO, "bo_live"),
+    away = device(BO, "bo_away");
   await pullAll(w, live);
   await pullAll(w, away);
   saveDocs(away, ["n1", "n2"]);
@@ -226,7 +321,19 @@ test("a deleted row leaves the replica with its search entry and documents, and 
   assert.equal(bo.store.readFts(ENT, "n2"), null);
   const rep = await applyHides(bo.store, [{ entity: ENT, id: "never", seq: 99_999 }], { driver: bo.driver });
   assert.deepEqual({ dropped: rep.dropped, recorded: rep.recorded }, { dropped: 0, recorded: 1 });
-  assert.equal(bo.store.write({ entity: ENT, id: "never", fields: { title: "late" }, hlc: "000000000001-0000-srv", actor: ADA, origin: "mirror", seq: 5 }).reason, "hidden", "an older change for a hidden row is refused");
+  assert.equal(
+    bo.store.write({
+      entity: ENT,
+      id: "never",
+      fields: { title: "late" },
+      hlc: "000000000001-0000-srv",
+      actor: ADA,
+      origin: "mirror",
+      seq: 5,
+    }).reason,
+    "hidden",
+    "an older change for a hidden row is refused",
+  );
   await converged(w, bo, "after a delete");
   await bo.store.close();
 });
@@ -235,22 +342,39 @@ test("a deleted row leaves the replica with its search entry and documents, and 
 test("property: a seeded walk of 80 changes leaves both replicas equal to a fresh filtered snapshot whenever they sync", async () => {
   const w = world();
   let seed = 0x2545f491;
-  const rnd = (n: number): number => { seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; return (seed >>> 8) % n; };
+  const rnd = (n: number): number => {
+    seed = (Math.imul(seed, 1103515245) + 12345) >>> 0;
+    return (seed >>> 8) % n;
+  };
   const alive: string[] = [];
-  let next = 1, granted = true, version = 0;
-  const add = (): void => { const id = `n${next++}`; alive.push(id); upsert(w, id, { title: `Note ${id} ${rnd(1000)}`, body: `text ${rnd(1000)}` }); };
+  let next = 1,
+    granted = true,
+    version = 0;
+  const add = (): void => {
+    const id = `n${next++}`;
+    alive.push(id);
+    upsert(w, id, { title: `Note ${id} ${rnd(1000)}`, body: `text ${rnd(1000)}` });
+  };
   for (let i = 0; i < 4; i++) add();
-  const fast = device(BO, "bo_fast"), slow = device(BO, "bo_slow");
+  const fast = device(BO, "bo_fast"),
+    slow = device(BO, "bo_slow");
   for (let step = 1; step <= 80; step++) {
     const pick = (): string => alive[rnd(alive.length)] ?? "n1";
     const op = rnd(8);
     if (op <= 1 && alive.length > 0) patch(w, pick(), { title: `Edit ${++version}` });
     else if (op === 2) add();
-    else if (op === 3 && alive.length > 2) { const id = pick(); alive.splice(alive.indexOf(id), 1); remove(w, id); }
-    else if (op === 4 && alive.length > 0) patch(w, pick(), { body: `raised ${++version}` }, 2);
+    else if (op === 3 && alive.length > 2) {
+      const id = pick();
+      alive.splice(alive.indexOf(id), 1);
+      remove(w, id);
+    } else if (op === 4 && alive.length > 0) patch(w, pick(), { body: `raised ${++version}` }, 2);
     else if (op === 5 && alive.length > 0) patch(w, pick(), { body: `lowered ${++version}` }, 0);
-    else if (op === 6) { if (granted) w.revoke(); else w.grant(); granted = !granted; await reindex(w); }
-    else add();
+    else if (op === 6) {
+      if (granted) w.revoke();
+      else w.grant();
+      granted = !granted;
+      await reindex(w);
+    } else add();
     await pullAll(w, fast);
     if (step % 5 === 0) await pullAll(w, slow);
     if (step % 4 === 0) saveDocs(fast, ids(fast));

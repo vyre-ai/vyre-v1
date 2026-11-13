@@ -24,7 +24,11 @@ const LOADING = { status: "loading" } as const;
 const quiet = { query: () => ({ subscribe: () => () => undefined, getSnapshot: () => LOADING }) };
 
 /** A runtime whose chat capabilities answer an Ask, and which records every place it is asked to open. */
-function runtime(extra: (cap: string, input: Record<string, unknown>) => unknown = (cap) => { throw new Error(`${cap} is not part of this test`); }): { rt: ShellRuntime; opened: string[]; calls: { cap: string; input: Record<string, unknown> }[] } {
+function runtime(
+  extra: (cap: string, input: Record<string, unknown>) => unknown = (cap) => {
+    throw new Error(`${cap} is not part of this test`);
+  },
+): { rt: ShellRuntime; opened: string[]; calls: { cap: string; input: Record<string, unknown> }[] } {
   const opened: string[] = [];
   const calls: { cap: string; input: Record<string, unknown> }[] = [];
   let n = 0;
@@ -37,7 +41,13 @@ function runtime(extra: (cap: string, input: Record<string, unknown>) => unknown
       if (cap === "chat.asks_of") return { threads: [], total: 0 };
       if (cap === "chat.start") return { thread: { threadId: `thr_${++n}` } };
       if (cap === "chat.open_as_chat") return { thread: { threadId: input["threadId"] } };
-      if (cap === "agents.list") return { agents: [{ agentId: "agt_assistant", name: "Assistant", kind: "assistant", ownerId: "usr_irfad" }, { agentId: "agt_billing", name: "Billing", kind: "agent" }] };
+      if (cap === "agents.list")
+        return {
+          agents: [
+            { agentId: "agt_assistant", name: "Assistant", kind: "assistant", ownerId: "usr_irfad" },
+            { agentId: "agt_billing", name: "Billing", kind: "agent" },
+          ],
+        };
       return extra(cap, input);
     },
   });
@@ -51,24 +61,50 @@ let mounts = 0;
 /** A place with a door: it counts its mounts, so opening the pane beside it is seen not to remount it. */
 function Place({ rt, thing }: { rt: ShellRuntime; thing: { kind: string; id: string; title: string } }): ReactElement {
   const once = useRef(false);
-  useEffect(() => { if (!once.current) { once.current = true; mounts++; } }, []);
-  return <View testID="the-place"><Pressable testID="door" onPress={() => openAsk(rt, "assistant", thing)}><Text>Ask</Text></Pressable></View>;
+  useEffect(() => {
+    if (!once.current) {
+      once.current = true;
+      mounts++;
+    }
+  }, []);
+  return (
+    <View testID="the-place">
+      <Pressable testID="door" onPress={() => openAsk(rt, "assistant", thing)}>
+        <Text>Ask</Text>
+      </Pressable>
+    </View>
+  );
 }
 
-const host = (rt: ShellRuntime, place: string, body: ReactElement): ReactElement => <ShellRuntimeProvider value={rt}><AskPaneHost place={place} rt={rt}>{body}</AskPaneHost></ShellRuntimeProvider>;
-const settle = async (): Promise<void> => { for (let i = 0; i < 6; i++) await flush(); };
+const host = (rt: ShellRuntime, place: string, body: ReactElement): ReactElement => (
+  <ShellRuntimeProvider value={rt}>
+    <AskPaneHost place={place} rt={rt}>
+      {body}
+    </AskPaneHost>
+  </ShellRuntimeProvider>
+);
+const settle = async (): Promise<void> => {
+  for (let i = 0; i < 6; i++) await flush();
+};
 
 /** Mounted roots are unmounted before the DOM stubs go, so nothing they started keeps the test process alive. */
 const roots: { unmount(): void }[] = [];
 async function mount(make: typeof createRoot, el: ReactElement): Promise<Node> {
   const r = make();
   roots.push(r);
-  await act(async () => { r.render(el); });
+  await act(async () => {
+    r.render(el);
+  });
   await flush();
   return r.container as unknown as Node;
 }
 async function unmountAll(): Promise<void> {
-  while (roots.length > 0) { const r = roots.pop()!; await act(async () => { r.unmount(); }); }
+  while (roots.length > 0) {
+    const r = roots.pop()!;
+    await act(async () => {
+      r.unmount();
+    });
+  }
 }
 
 test("the pane's width is remembered per place", async () => {
@@ -93,7 +129,10 @@ test("the pane's width is remembered per place", async () => {
     openAskPane({ thing: null }, "records");
     await settle();
     assert.equal(edge().props["aria-valuenow"], 404, "opened again at the width the person left");
-  } finally { await unmountAll(); restore(); }
+  } finally {
+    await unmountAll();
+    restore();
+  }
 });
 
 test("a record page's Ask opens the pane beside the record, about it, and the page stays", async () => {
@@ -104,7 +143,16 @@ test("a record page's Ask opens the pane beside the record, about it, and the pa
     const page = createSamplePage();
     setScreenContext(screenFromHash("records", "subject=record:cl_0"));
     const data = { ...page.data, nav: { ...page.data.nav, ask: askAboutRecord } };
-    const root = await mount(createRoot, host(rt, "records", <RecordPageDataProvider value={data}><RecordPage type="clients" recordId="cl_0" start={{ all: true, pane: false }} /></RecordPageDataProvider>));
+    const root = await mount(
+      createRoot,
+      host(
+        rt,
+        "records",
+        <RecordPageDataProvider value={data}>
+          <RecordPage type="clients" recordId="cl_0" start={{ all: true, pane: false }} />
+        </RecordPageDataProvider>,
+      ),
+    );
     await settle();
     await press(find(root, "record-ask"));
     await settle();
@@ -116,6 +164,8 @@ test("a record page's Ask opens the pane beside the record, about it, and the pa
     assert.equal(textOf(find(root, "ask-pane-chip")).trim(), s.thing?.title);
     assert.deepEqual(opened, []);
     assert.deepEqual(page.opened, []);
-  } finally { await unmountAll(); restore(); }
+  } finally {
+    await unmountAll();
+    restore();
+  }
 });
-

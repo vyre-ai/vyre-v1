@@ -1,5 +1,16 @@
 // Capability handlers for audit (10). One file holds them all: log.ts.
-import { append, archive, archivesList, chainHealth, checkpoint, checkpointsList, exportCsv, get, list, verify } from "./log.ts";
+import {
+  append,
+  archive,
+  archivesList,
+  chainHealth,
+  checkpoint,
+  checkpointsList,
+  exportCsv,
+  get,
+  list,
+  verify,
+} from "./log.ts";
 
 export type { AuditCtx } from "../projections.ts";
 

@@ -7,7 +7,24 @@ import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
 import type { IconName } from "./icons.tsx";
 import { Face } from "../sidebar/parts.tsx";
-import { callLabel, clockTime, deliveryNote, duration, firstName, sendsLine, isMine, isMissed, msgPreview, partyName, recipientLine, roleLine, senderName, sizeLabel, whenLabel, withLine } from "./model.ts";
+import {
+  callLabel,
+  clockTime,
+  deliveryNote,
+  duration,
+  firstName,
+  sendsLine,
+  isMine,
+  isMissed,
+  msgPreview,
+  partyName,
+  recipientLine,
+  roleLine,
+  senderName,
+  sizeLabel,
+  whenLabel,
+  withLine,
+} from "./model.ts";
 import type { DraftCard, FeedEntry, ThreadMsg } from "./model.ts";
 import { HeldCard } from "../../chats/conversation/held-card.tsx";
 import type { HeldEditor } from "../../chats/conversation/held-card.tsx";
@@ -21,18 +38,38 @@ const hover = ({ hovered }: { hovered?: boolean }): boolean => hovered === true;
 export function DaySep({ label }: { label: string }): ReactElement {
   return (
     <View style={s.daysep} testID={`day:${label}`}>
-      <View style={s.rule} /><Text style={s.dayText}>{label}</Text><View style={s.rule} />
+      <View style={s.rule} />
+      <Text style={s.dayText}>{label}</Text>
+      <View style={s.rule} />
     </View>
   );
 }
 
 function Via({ name }: { name?: string | undefined }): ReactElement | null {
-  return name ? <Text style={s.via} numberOfLines={1}>{name}</Text> : null;
+  return name ? (
+    <Text style={s.via} numberOfLines={1}>
+      {name}
+    </Text>
+  ) : null;
 }
 
 /** One email. `quoteOpen` is controlled by the feed, so the folded quote is one click and one piece of state. */
-export function EmailItem({ e, who, offsetMin, quoteOpen, onQuote, onAttachment, onChip }: {
-  e: EmailEntry; who: string; offsetMin: number; quoteOpen: boolean; onQuote(): void; onAttachment?(name: string): void; onChip?(title: string, recordId?: string): void;
+export function EmailItem({
+  e,
+  who,
+  offsetMin,
+  quoteOpen,
+  onQuote,
+  onAttachment,
+  onChip,
+}: {
+  e: EmailEntry;
+  who: string;
+  offsetMin: number;
+  quoteOpen: boolean;
+  onQuote(): void;
+  onAttachment?(name: string): void;
+  onChip?(title: string, recordId?: string): void;
 }): ReactElement {
   const r = e.ref;
   const out = e.item.direction === "out";
@@ -47,25 +84,54 @@ export function EmailItem({ e, who, offsetMin, quoteOpen, onQuote, onAttachment,
         <Via name={r.via} />
         <Text style={s.time}>{clockTime(e.item.at, offsetMin)}</Text>
       </View>
-      {r.subject ? <Text style={s.sj} accessibilityRole="header" aria-level={3}>{r.subject}</Text> : null}
-      {r.body ? <Text style={s.bd} selectable>{r.body}</Text> : null}
-      {bad ? <Text style={s.bad} testID={`delivery:${e.item.id}`}>{bad}</Text> : null}
+      {r.subject ? (
+        <Text style={s.sj} accessibilityRole="header" aria-level={3}>
+          {r.subject}
+        </Text>
+      ) : null}
+      {r.body ? (
+        <Text style={s.bd} selectable>
+          {r.body}
+        </Text>
+      ) : null}
+      {bad ? (
+        <Text style={s.bad} testID={`delivery:${e.item.id}`}>
+          {bad}
+        </Text>
+      ) : null}
       {r.quoted ? (
         <View style={s.qt}>
           <Pressable
-            accessibilityRole="button" accessibilityLabel={quoteOpen ? "Hide quoted text" : "Show quoted text"} accessibilityState={{ expanded: quoteOpen }} testID={`quote-toggle:${e.item.id}`}
-            onPress={onQuote} style={(st: { hovered?: boolean }) => [s.qtb, hover(st) && s.qtbOver]}
+            accessibilityRole="button"
+            accessibilityLabel={quoteOpen ? "Hide quoted text" : "Show quoted text"}
+            accessibilityState={{ expanded: quoteOpen }}
+            testID={`quote-toggle:${e.item.id}`}
+            onPress={onQuote}
+            style={(st: { hovered?: boolean }) => [s.qtb, hover(st) && s.qtbOver]}
           >
             <Icon name="more" size={12} />
           </Pressable>
-          {quoteOpen ? <Text style={s.qx} testID={`quote:${e.item.id}`}>{r.quoted}</Text> : null}
+          {quoteOpen ? (
+            <Text style={s.qx} testID={`quote:${e.item.id}`}>
+              {r.quoted}
+            </Text>
+          ) : null}
         </View>
       ) : null}
       {r.attachments && r.attachments.length > 0 ? (
         <View style={s.atts}>
           {each(r.attachments, (a) => (
-            <Pressable key={a.name} accessibilityRole="button" accessibilityLabel={`Open ${a.name}`} testID={`attachment:${a.name}`} onPress={() => onAttachment?.(a.name)} style={(st: { hovered?: boolean }) => [s.att, hover(st) && s.attOver]}>
-              <Icon name="file" size={14} /><Text style={s.attText}>{a.name}</Text>{a.size ? <Text style={s.attSize}>{a.size}</Text> : null}
+            <Pressable
+              key={a.name}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${a.name}`}
+              testID={`attachment:${a.name}`}
+              onPress={() => onAttachment?.(a.name)}
+              style={(st: { hovered?: boolean }) => [s.att, hover(st) && s.attOver]}
+            >
+              <Icon name="file" size={14} />
+              <Text style={s.attText}>{a.name}</Text>
+              {a.size ? <Text style={s.attSize}>{a.size}</Text> : null}
             </Pressable>
           ))}
         </View>
@@ -73,8 +139,16 @@ export function EmailItem({ e, who, offsetMin, quoteOpen, onQuote, onAttachment,
       {r.chips && r.chips.length > 0 ? (
         <View style={s.chips}>
           {each(r.chips, (c) => (
-            <Pressable key={c.title} accessibilityRole="link" accessibilityLabel={`Open record ${c.title}`} testID={`chip:${c.title}`} onPress={() => onChip?.(c.title, c.recordId)} style={(st: { hovered?: boolean }) => [s.rc, hover(st) && s.rcOver]}>
-              <Icon name="link" size={12} /><Text style={s.rcText}>{c.title}</Text>
+            <Pressable
+              key={c.title}
+              accessibilityRole="link"
+              accessibilityLabel={`Open record ${c.title}`}
+              testID={`chip:${c.title}`}
+              onPress={() => onChip?.(c.title, c.recordId)}
+              style={(st: { hovered?: boolean }) => [s.rc, hover(st) && s.rcOver]}
+            >
+              <Icon name="link" size={12} />
+              <Text style={s.rcText}>{c.title}</Text>
             </Pressable>
           ))}
         </View>
@@ -89,37 +163,75 @@ export function Bubbles({ t, offsetMin }: { t: TextsEntry; offsetMin: number }):
   return (
     <View style={[s.sg, out && s.sgOut]} testID={`texts:${t.key}`}>
       {each(t.items, (b, i) => (
-        <View key={b.id} testID={`bubble:${b.id}`} style={[s.bub, out ? s.bubOut : s.bubIn, i === 0 && (out ? s.bubFirstOut : s.bubFirstIn)]}>
-          <Text style={[s.bubText, out && s.bubTextOut]} selectable>{b.body}</Text>
+        <View
+          key={b.id}
+          testID={`bubble:${b.id}`}
+          style={[s.bub, out ? s.bubOut : s.bubIn, i === 0 && (out ? s.bubFirstOut : s.bubFirstIn)]}
+        >
+          <Text style={[s.bubText, out && s.bubTextOut]} selectable>
+            {b.body}
+          </Text>
         </View>
       ))}
       <View style={s.smeta}>
         <Icon name="sms" size={12} />
-        <Text style={s.metaText}>{t.via ? `${t.via} · ` : ""}{clockTime(t.at, offsetMin)}</Text>
+        <Text style={s.metaText}>
+          {t.via ? `${t.via} · ` : ""}
+          {clockTime(t.at, offsetMin)}
+        </Text>
       </View>
     </View>
   );
 }
 
 /** The recording of a call or voicemail. A web build plays the file; where there is no audio the bar still moves for the length of the call. */
-export function Player({ id, url, durationSec }: { id: string; url?: string | undefined; durationSec?: number | undefined }): ReactElement {
+export function Player({
+  id,
+  url,
+  durationSec,
+}: {
+  id: string;
+  url?: string | undefined;
+  durationSec?: number | undefined;
+}): ReactElement {
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState(0);
-  const audio = useRef<{ play(): Promise<void> | void; pause(): void; currentTime: number; duration: number } | null>(null);
+  const audio = useRef<{ play(): Promise<void> | void; pause(): void; currentTime: number; duration: number } | null>(
+    null,
+  );
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const width = useRef(0);
   const total = durationSec ?? 0;
-  useEffect(() => () => { if (timer.current !== null) clearInterval(timer.current); audio.current?.pause(); }, []);
+  useEffect(
+    () => () => {
+      if (timer.current !== null) clearInterval(timer.current);
+      audio.current?.pause();
+    },
+    [],
+  );
 
-  const stopTimer = (): void => { if (timer.current !== null) { clearInterval(timer.current); timer.current = null; } };
+  const stopTimer = (): void => {
+    if (timer.current !== null) {
+      clearInterval(timer.current);
+      timer.current = null;
+    }
+  };
   const toggle = (): void => {
-    if (playing) { audio.current?.pause(); stopTimer(); setPlaying(false); return; }
+    if (playing) {
+      audio.current?.pause();
+      stopTimer();
+      setPlaying(false);
+      return;
+    }
     const Ctor = (globalThis as { Audio?: new (src: string) => EventTarget & NonNullable<typeof audio.current> }).Audio;
     if (Platform.OS === "web" && url && Ctor) {
       if (!audio.current) {
         const a = new Ctor(url);
         a.addEventListener("timeupdate", () => setPos(a.duration > 0 ? a.currentTime / a.duration : 0));
-        a.addEventListener("ended", () => { setPlaying(false); setPos(0); });
+        a.addEventListener("ended", () => {
+          setPlaying(false);
+          setPos(0);
+        });
         audio.current = a;
       }
       void audio.current.play();
@@ -127,11 +239,19 @@ export function Player({ id, url, durationSec }: { id: string; url?: string | un
       return;
     }
     setPlaying(true);
-    timer.current = setInterval(() => setPos((p) => {
-      const next = p + 0.25 / Math.max(1, total);
-      if (next >= 1) { stopTimer(); setPlaying(false); return 0; }
-      return next;
-    }), 250);
+    timer.current = setInterval(
+      () =>
+        setPos((p) => {
+          const next = p + 0.25 / Math.max(1, total);
+          if (next >= 1) {
+            stopTimer();
+            setPlaying(false);
+            return 0;
+          }
+          return next;
+        }),
+      250,
+    );
   };
   const seek = (ratio: number): void => {
     const r = Math.max(0, Math.min(1, ratio));
@@ -140,13 +260,27 @@ export function Player({ id, url, durationSec }: { id: string; url?: string | un
   };
   return (
     <View style={s.player} testID={`player:${id}`}>
-      <Pressable accessibilityRole="button" accessibilityLabel={playing ? "Pause" : "Play"} testID={`play:${id}`} onPress={toggle} style={(st: { hovered?: boolean }) => [s.pb, hover(st) && s.pbOver]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={playing ? "Pause" : "Play"}
+        testID={`play:${id}`}
+        onPress={toggle}
+        style={(st: { hovered?: boolean }) => [s.pb, hover(st) && s.pbOver]}
+      >
         <Icon name={playing ? "stop" : "play"} size={11} color="var(--accent-ink)" />
       </Pressable>
       <Pressable
-        accessibilityRole="adjustable" accessibilityLabel="Seek" testID={`seek:${id}`} style={s.bar}
-        onLayout={(e: { nativeEvent: { layout: { width: number } } }) => { width.current = e.nativeEvent.layout.width; }}
-        onPress={(e: { nativeEvent: { locationX?: number } }) => { if (width.current > 0 && typeof e.nativeEvent.locationX === "number") seek(e.nativeEvent.locationX / width.current); }}
+        accessibilityRole="adjustable"
+        accessibilityLabel="Seek"
+        testID={`seek:${id}`}
+        style={s.bar}
+        onLayout={(e: { nativeEvent: { layout: { width: number } } }) => {
+          width.current = e.nativeEvent.layout.width;
+        }}
+        onPress={(e: { nativeEvent: { locationX?: number } }) => {
+          if (width.current > 0 && typeof e.nativeEvent.locationX === "number")
+            seek(e.nativeEvent.locationX / width.current);
+        }}
       >
         <View style={[s.barFill, { width: `${Math.round(pos * 100)}%` as unknown as number }]} />
       </Pressable>
@@ -155,7 +289,17 @@ export function Player({ id, url, durationSec }: { id: string; url?: string | un
   );
 }
 
-export function CallLine({ c, offsetMin, open, onTranscript }: { c: CallEntry; offsetMin: number; open: boolean; onTranscript(): void }): ReactElement {
+export function CallLine({
+  c,
+  offsetMin,
+  open,
+  onTranscript,
+}: {
+  c: CallEntry;
+  offsetMin: number;
+  open: boolean;
+  onTranscript(): void;
+}): ReactElement {
   const missed = isMissed(c.ref);
   const icon: IconName = c.meeting ? "cal" : c.ref.state === "voicemail" ? "vm" : "call";
   const label = callLabel(c.ref, c.item.direction, c.meeting);
@@ -174,13 +318,28 @@ export function CallLine({ c, offsetMin, open, onTranscript }: { c: CallEntry; o
       {hasPlayer ? <Player id={c.item.id} url={c.ref.recordingUrl} durationSec={c.ref.durationSec} /> : null}
       {c.ref.summary ? <Text style={s.sm}>{c.ref.summary}</Text> : null}
       {lines.length > 0 ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Transcript" accessibilityState={{ expanded: open }} testID={`transcript-toggle:${c.item.id}`} onPress={onTranscript} style={(st: { hovered?: boolean }) => [s.tlink, hover(st) && s.tlinkOver]}>
-          <View style={open ? s.chevOpen : undefined}><Icon name="chevr" size={10} color="var(--accent)" /></View><Text style={s.tlinkText}>Transcript</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Transcript"
+          accessibilityState={{ expanded: open }}
+          testID={`transcript-toggle:${c.item.id}`}
+          onPress={onTranscript}
+          style={(st: { hovered?: boolean }) => [s.tlink, hover(st) && s.tlinkOver]}
+        >
+          <View style={open ? s.chevOpen : undefined}>
+            <Icon name="chevr" size={10} color="var(--accent)" />
+          </View>
+          <Text style={s.tlinkText}>Transcript</Text>
         </Pressable>
       ) : null}
       {open ? (
         <View style={s.tx} testID={`transcript:${c.item.id}`}>
-          {each(lines, (l, i) => <Text key={i} style={s.txLine}><Text style={s.txWho}>{l.who}</Text>{` ${l.text}`}</Text>)}
+          {each(lines, (l, i) => (
+            <Text key={i} style={s.txLine}>
+              <Text style={s.txWho}>{l.who}</Text>
+              {` ${l.text}`}
+            </Text>
+          ))}
         </View>
       ) : null}
       {c.ref.notes ? <Text style={s.notes}>Notes: {c.ref.notes}</Text> : null}
@@ -191,7 +350,10 @@ export function CallLine({ c, offsetMin, open, onTranscript }: { c: CallEntry; o
 /** A record link or a note: one quiet centred line. */
 export function QuietLine({ text, testID }: { text: string; testID: string }): ReactElement {
   return (
-    <View style={s.ev} testID={testID}><View style={s.evdot} /><Text style={s.evText}>{text}</Text></View>
+    <View style={s.ev} testID={testID}>
+      <View style={s.evdot} />
+      <Text style={s.evText}>{text}</Text>
+    </View>
   );
 }
 
@@ -199,8 +361,18 @@ export function QuietLine({ text, testID }: { text: string; testID: string }): R
  * An agent's draft: the one held card (chats/conversation/held-card.tsx), with the words it had: who drafted it, "Updated 5:45 AM" and the earlier draft one click away, the Gate line, and Send, Edit and
  * Don't send. Edit is in the card, on the draft's own full stored text and for this draft only, never in the thread's composer, so what is sent is what the card shows. Send goes with the edited words.
  */
-export function DraftBlock({ d, offsetMin = 0, nameOf, onSend, onDrop, loadText, onSave, editor }: {
-  d: DraftCard; offsetMin?: number;
+export function DraftBlock({
+  d,
+  offsetMin = 0,
+  nameOf,
+  onSend,
+  onDrop,
+  loadText,
+  onSave,
+  editor,
+}: {
+  d: DraftCard;
+  offsetMin?: number;
   /** The name the threads give an address, so To reads as a person and not an address. */
   nameOf?(address: string): string | undefined;
   /** Send, with the words the card holds: answers the line the card ends on ("Sent from ...", "Waits for approval"); a refusal is the card's own error. */
@@ -217,17 +389,65 @@ export function DraftBlock({ d, offsetMin = 0, nameOf, onSend, onDrop, loadText,
   const [subject, setSubject] = useState(d.subject);
   const [edited, setEdited] = useState(false);
   const [done, setDone] = useState<string | undefined>(undefined);
-  useEffect(() => { let live = true; void loadText().then((t) => { if (live && t) setText((cur) => (cur === d.body ? t : cur)); }, () => undefined); return () => { live = false; }; }, [d.id]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    let live = true;
+    void loadText().then(
+      (t) => {
+        if (live && t) setText((cur) => (cur === d.body ? t : cur));
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [d.id]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <View testID={`draft:${d.id}`} style={s.drWrap}>
       <HeldCard
-        testID={`draft:${d.id}`} agent={d.agent} title={`${d.agent} drafted a ${d.channel === "sms" ? "text" : "reply"}`} to={[]} verb="" headFace={{ name: d.agent, seed: d.agentId ?? d.agent, kind: "agent" }}
-        peopleRows={[{ label: "To", people: d.toParties.map((p) => { const name = p.name || nameOf?.(p.address) || p.address; return { name, seed: p.address, ...(name !== p.address ? { sub: p.address } : {}) }; }) }, { label: "Cc", people: d.ccParties.map((p) => { const name = p.name || nameOf?.(p.address) || p.address; return { name, seed: p.address, ...(name !== p.address ? { sub: p.address } : {}) }; }) }]}
-        schedule={d.earlier ? `Updated ${clockTime(d.updatedAt, offsetMin)}` : null} subject={d.channel === "sms" ? undefined : subject} body={text} edited={edited}
-        fields={d.via ? [["From", d.via]] : []} state="waiting" doneLine={done ?? "Sent"} editable editSubject={d.channel !== "sms"}
-        {...(d.earlier ? { earlier: { text: d.earlier.text } } : {})} {...(editor ? { editor } : {})} stoppedNote={sendsLine(d.from)}
-        onSave={async ({ body, subject: sj }) => { const nextSubject = sj ?? subject; await onSave(body, nextSubject); setText(body); setSubject(nextSubject); setEdited(true); }}
-        onSend={async () => { setDone(await onSend(text, subject)); }}
+        testID={`draft:${d.id}`}
+        agent={d.agent}
+        title={`${d.agent} drafted a ${d.channel === "sms" ? "text" : "reply"}`}
+        to={[]}
+        verb=""
+        headFace={{ name: d.agent, seed: d.agentId ?? d.agent, kind: "agent" }}
+        peopleRows={[
+          {
+            label: "To",
+            people: d.toParties.map((p) => {
+              const name = p.name || nameOf?.(p.address) || p.address;
+              return { name, seed: p.address, ...(name !== p.address ? { sub: p.address } : {}) };
+            }),
+          },
+          {
+            label: "Cc",
+            people: d.ccParties.map((p) => {
+              const name = p.name || nameOf?.(p.address) || p.address;
+              return { name, seed: p.address, ...(name !== p.address ? { sub: p.address } : {}) };
+            }),
+          },
+        ]}
+        schedule={d.earlier ? `Updated ${clockTime(d.updatedAt, offsetMin)}` : null}
+        subject={d.channel === "sms" ? undefined : subject}
+        body={text}
+        edited={edited}
+        fields={d.via ? [["From", d.via]] : []}
+        state="waiting"
+        doneLine={done ?? "Sent"}
+        editable
+        editSubject={d.channel !== "sms"}
+        {...(d.earlier ? { earlier: { text: d.earlier.text } } : {})}
+        {...(editor ? { editor } : {})}
+        stoppedNote={sendsLine(d.from)}
+        onSave={async ({ body, subject: sj }) => {
+          const nextSubject = sj ?? subject;
+          await onSave(body, nextSubject);
+          setText(body);
+          setSubject(nextSubject);
+          setEdited(true);
+        }}
+        onSend={async () => {
+          setDone(await onSend(text, subject));
+        }}
         onDrop={onDrop}
       />
     </View>
@@ -248,20 +468,62 @@ const s = StyleSheet.create({
   eh: { flexDirection: "row", alignItems: "center", gap: 9 },
   ehName: { fontSize: 13, fontWeight: "600", color: ink("--ink") },
   ehOut: { color: ink("--accent") },
-  sj: { marginTop: 6, marginBottom: 4, marginLeft: 23, fontSize: 14.5, fontWeight: "600", letterSpacing: -0.07, color: ink("--ink") },
+  sj: {
+    marginTop: 6,
+    marginBottom: 4,
+    marginLeft: 23,
+    fontSize: 14.5,
+    fontWeight: "600",
+    letterSpacing: -0.07,
+    color: ink("--ink"),
+  },
   bd: { marginLeft: 23, fontSize: 14, lineHeight: 22, color: ink("--ink") },
   bad: { marginTop: 4, marginLeft: 23, fontSize: 12, fontWeight: "500", color: ink("--danger") },
   qt: { marginTop: 6, marginLeft: 23 },
-  qtb: { alignSelf: "flex-start", width: 26, height: 16, borderRadius: 5, alignItems: "center", justifyContent: "center", backgroundColor: ink("--hover") },
+  qtb: {
+    alignSelf: "flex-start",
+    width: 26,
+    height: 16,
+    borderRadius: 5,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: ink("--hover"),
+  },
   qtbOver: { backgroundColor: ink("--press") },
-  qx: { marginTop: 6, paddingLeft: 12, borderLeftWidth: 2, borderLeftColor: ink("--line-2"), fontSize: 13, lineHeight: 20, color: ink("--ink-3") },
+  qx: {
+    marginTop: 6,
+    paddingLeft: 12,
+    borderLeftWidth: 2,
+    borderLeftColor: ink("--line-2"),
+    fontSize: 13,
+    lineHeight: 20,
+    color: ink("--ink-3"),
+  },
   atts: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8, marginLeft: 23 },
-  att: { flexDirection: "row", alignItems: "center", gap: 7, height: 28, paddingLeft: 8, paddingRight: 10, borderRadius: 7, backgroundColor: ink("--hover") },
+  att: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    height: 28,
+    paddingLeft: 8,
+    paddingRight: 10,
+    borderRadius: 7,
+    backgroundColor: ink("--hover"),
+  },
   attOver: { backgroundColor: ink("--press") },
   attText: { fontSize: 12.5, color: ink("--ink-2") },
   attSize: { fontSize: 11.5, color: ink("--ink-3") },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8, marginLeft: 23 },
-  rc: { flexDirection: "row", alignItems: "center", gap: 6, height: 24, paddingHorizontal: 8, borderRadius: 6, borderWidth: 1, borderColor: ink("--line-2") },
+  rc: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    height: 24,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: ink("--line-2"),
+  },
   rcOver: { backgroundColor: ink("--hover") },
   rcText: { fontSize: 12, color: ink("--ink-2") },
   sg: { alignItems: "flex-start", gap: 3, marginVertical: 6 },
@@ -274,20 +536,56 @@ const s = StyleSheet.create({
   bubText: { fontSize: 14, lineHeight: 20, color: ink("--ink") },
   bubTextOut: { color: ink("--accent-ink") },
   smeta: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4 },
-  cl: { marginVertical: 8, paddingVertical: 10, borderTopWidth: 1, borderBottomWidth: 1, borderTopColor: ink("--line"), borderBottomColor: ink("--line") },
+  cl: {
+    marginVertical: 8,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderTopColor: ink("--line"),
+    borderBottomColor: ink("--line"),
+  },
   clMissed: {},
   ch: { flexDirection: "row", alignItems: "center", gap: 9 },
   chLabel: { fontSize: 13, fontWeight: "600", color: ink("--ink") },
   chMissed: { color: ink("--danger") },
   chDur: { fontSize: 13, color: ink("--ink-3") },
-  player: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8, marginLeft: 24, height: 34, maxWidth: 420, paddingLeft: 4, paddingRight: 12, borderRadius: 99, backgroundColor: ink("--hover") },
-  pb: { width: 26, height: 26, borderRadius: 26, alignItems: "center", justifyContent: "center", backgroundColor: ink("--accent") },
+  player: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 8,
+    marginLeft: 24,
+    height: 34,
+    maxWidth: 420,
+    paddingLeft: 4,
+    paddingRight: 12,
+    borderRadius: 99,
+    backgroundColor: ink("--hover"),
+  },
+  pb: {
+    width: 26,
+    height: 26,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: ink("--accent"),
+  },
   pbOver: { opacity: 0.9 },
   bar: { flex: 1, height: 4, borderRadius: 4, overflow: "hidden", backgroundColor: ink("--line-2") },
   barFill: { height: "100%", backgroundColor: ink("--accent") },
   dur: { fontSize: 12, color: ink("--ink-3"), fontVariant: ["tabular-nums"] },
   sm: { marginTop: 6, marginLeft: 24, fontSize: 13.5, lineHeight: 20, color: ink("--ink-2") },
-  tlink: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, marginTop: 6, marginLeft: 24, height: 22, paddingHorizontal: 5, borderRadius: 5 },
+  tlink: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 6,
+    marginLeft: 24,
+    height: 22,
+    paddingHorizontal: 5,
+    borderRadius: 5,
+  },
   tlinkOver: { backgroundColor: ink("--accent-wash") },
   tlinkText: { fontSize: 12.5, fontWeight: "500", color: ink("--accent") },
   chevOpen: { transform: [{ rotate: "90deg" }] },
@@ -298,7 +596,15 @@ const s = StyleSheet.create({
   ev: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginVertical: 10 },
   evdot: { width: 5, height: 5, borderRadius: 5, backgroundColor: ink("--accent"), opacity: 0.7 },
   evText: { fontSize: 12.5, color: ink("--ink-3") },
-  btn: { height: 30, paddingHorizontal: 12, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: ink("--hover") },
+  btn: {
+    height: 30,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: ink("--hover"),
+  },
   btnOver: { backgroundColor: ink("--press") },
   btnText: { fontSize: 12.5, fontWeight: "600", color: ink("--ink") },
   dim: { opacity: 0.5 },
@@ -310,11 +616,16 @@ type ThreadEntry = Extract<FeedEntry, { kind: "thread" }>;
 
 /** The sanitised HTML of a message (the server removed scripts, styles and handlers, held remote images and named each link's host). Web draws it; elsewhere the text body stands. */
 function MailHtml({ html, id }: { html: string; id: string }): ReactElement {
-  return createElement("div", { className: "vy-mailhtml", "data-testid": `html:${id}`, dangerouslySetInnerHTML: { __html: html } });
+  return createElement("div", {
+    className: "vy-mailhtml",
+    "data-testid": `html:${id}`,
+    dangerouslySetInnerHTML: { __html: html },
+  });
 }
-const MAIL_HTML_CSS = ".vy-mailhtml{font-size:14px;line-height:22px;color:var(--ink);overflow-wrap:break-word}.vy-mailhtml p{margin:0 0 10px}.vy-mailhtml p:last-child{margin-bottom:0}"
-  + ".vy-mailhtml a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}.vy-mailhtml .vy-link-host{color:var(--ink-3);font-size:12px}.vy-mailhtml img{max-width:100%;height:auto;border-radius:6px}"
-  + ".vy-mailhtml table{border-collapse:collapse;max-width:100%}.vy-mailhtml td{padding:2px 0;vertical-align:top}.vy-mailhtml blockquote{margin:6px 0;padding-left:12px;border-left:2px solid var(--line-2);color:var(--ink-3)}";
+const MAIL_HTML_CSS =
+  ".vy-mailhtml{font-size:14px;line-height:22px;color:var(--ink);overflow-wrap:break-word}.vy-mailhtml p{margin:0 0 10px}.vy-mailhtml p:last-child{margin-bottom:0}" +
+  ".vy-mailhtml a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}.vy-mailhtml .vy-link-host{color:var(--ink-3);font-size:12px}.vy-mailhtml img{max-width:100%;height:auto;border-radius:6px}" +
+  ".vy-mailhtml table{border-collapse:collapse;max-width:100%}.vy-mailhtml td{padding:2px 0;vertical-align:top}.vy-mailhtml blockquote{margin:6px 0;padding-left:12px;border-left:2px solid var(--line-2);color:var(--ink-3)}";
 
 export interface ThreadView {
   mine: ReadonlySet<string>;
@@ -356,49 +667,114 @@ export function ThreadCard({ e, v }: { e: ThreadEntry; v: ThreadView }): ReactEl
   let divided = false;
   const body: ReactElement[] = [];
   if (v.open && t.role === "added_later" && msgs[0]) {
-    body.push(<Text key="note" style={th.thNote} testID={`thread-added:${t.threadId}`}>{`You were added on ${whenLabel(msgs[0].at, v.now, v.offsetMin)}. What came before is in the quoted text of ${firstName(senderName(msgs[0], v.mine))}'s message.`}</Text>);
+    body.push(
+      <Text
+        key="note"
+        style={th.thNote}
+        testID={`thread-added:${t.threadId}`}
+      >{`You were added on ${whenLabel(msgs[0].at, v.now, v.offsetMin)}. What came before is in the quoted text of ${firstName(senderName(msgs[0], v.mine))}'s message.`}</Text>,
+    );
   }
   if (v.open) {
     for (const m of msgs) {
       if (!divided && v.fresh.has(m.id) && fresh < msgs.length) {
         divided = true;
-        body.push(<View key="new" style={th.thDiv} testID={`thread-new:${t.threadId}`}><Text style={th.thDivText}>New since you last looked</Text><View style={th.thDivRule} /></View>);
+        body.push(
+          <View key="new" style={th.thDiv} testID={`thread-new:${t.threadId}`}>
+            <Text style={th.thDivText}>New since you last looked</Text>
+            <View style={th.thDivRule} />
+          </View>,
+        );
       }
       body.push(v.msgOpen(m.id) ? <ThreadMessage key={m.id} m={m} v={v} /> : <MessageLine key={m.id} m={m} v={v} />);
     }
   }
   const many = last ? last.to.length + last.cc.length > 1 : false;
   return (
-    <View style={[th.th, fresh > 0 && th.thNew, v.marked === true && th.thMark]} testID={`thread:${t.threadId}`} {...(v.marked === true ? ({ dataSet: { marked: "1" } } as object) : {})} onLayout={v.onLayoutY ? (ev) => v.onLayoutY?.(ev.nativeEvent.layout.y) : undefined}>
+    <View
+      style={[th.th, fresh > 0 && th.thNew, v.marked === true && th.thMark]}
+      testID={`thread:${t.threadId}`}
+      {...(v.marked === true ? ({ dataSet: { marked: "1" } } as object) : {})}
+      onLayout={v.onLayoutY ? (ev) => v.onLayoutY?.(ev.nativeEvent.layout.y) : undefined}
+    >
       <Pressable
-        accessibilityRole="button" accessibilityLabel={`${t.subject}, ${t.messageCount} messages${fresh ? `, ${fresh} new` : ""}`} accessibilityState={{ expanded: v.open }} testID={`thread-toggle:${t.threadId}`}
-        onPress={v.onToggle} style={(st: { hovered?: boolean }) => [th.thh, v.open && th.thhOpen, hover(st) && th.thhOver]}
+        accessibilityRole="button"
+        accessibilityLabel={`${t.subject}, ${t.messageCount} messages${fresh ? `, ${fresh} new` : ""}`}
+        accessibilityState={{ expanded: v.open }}
+        testID={`thread-toggle:${t.threadId}`}
+        onPress={v.onToggle}
+        style={(st: { hovered?: boolean }) => [th.thh, v.open && th.thhOpen, hover(st) && th.thhOver]}
       >
         <View style={th.thl1}>
-          <Text style={th.thSj} numberOfLines={1} accessibilityRole="header" aria-level={3}>{t.subject}</Text>
+          <Text style={th.thSj} numberOfLines={1} accessibilityRole="header" aria-level={3}>
+            {t.subject}
+          </Text>
           <View style={s.grow} />
-          {fresh > 0 ? <><View style={th.udot} /><Text style={th.thNewText} numberOfLines={1} testID={`thread-fresh:${t.threadId}`}>{`${fresh} new`}</Text></> : null}
-          <Text style={[s.time, th.keep]} numberOfLines={1}>{whenLabel(t.lastAt, v.now, v.offsetMin)}</Text>
+          {fresh > 0 ? (
+            <>
+              <View style={th.udot} />
+              <Text style={th.thNewText} numberOfLines={1} testID={`thread-fresh:${t.threadId}`}>{`${fresh} new`}</Text>
+            </>
+          ) : null}
+          <Text style={[s.time, th.keep]} numberOfLines={1}>
+            {whenLabel(t.lastAt, v.now, v.offsetMin)}
+          </Text>
         </View>
         <View style={th.thl2}>
-          <View style={th.faces}>{each(people.slice(0, 3), (p, i) => <View key={p.address} style={[th.faceRing, i > 0 && th.faceOverlap]}><Face name={partyName(p)} size={18} /></View>)}</View>
-          <Text style={th.thWho} numberOfLines={1}>{withLine(t, v.mine)}</Text>
+          <View style={th.faces}>
+            {each(people.slice(0, 3), (p, i) => (
+              <View key={p.address} style={[th.faceRing, i > 0 && th.faceOverlap]}>
+                <Face name={partyName(p)} size={18} />
+              </View>
+            ))}
+          </View>
+          <Text style={th.thWho} numberOfLines={1}>
+            {withLine(t, v.mine)}
+          </Text>
           <Text style={th.thSep}>·</Text>
-          <Text style={th.thMeta} numberOfLines={1}>{t.messageCount === 1 ? "1 message" : `${t.messageCount} messages`}</Text>
-          {role ? <><Text style={th.thSep}>·</Text><Text style={th.thRole} numberOfLines={1} testID={`thread-role:${t.threadId}`}>{role}</Text></> : null}
+          <Text style={th.thMeta} numberOfLines={1}>
+            {t.messageCount === 1 ? "1 message" : `${t.messageCount} messages`}
+          </Text>
+          {role ? (
+            <>
+              <Text style={th.thSep}>·</Text>
+              <Text style={th.thRole} numberOfLines={1} testID={`thread-role:${t.threadId}`}>
+                {role}
+              </Text>
+            </>
+          ) : null}
         </View>
-        {!v.open && last ? <Text style={th.thPv} numberOfLines={1}><Text style={th.thPvWho}>{`${firstName(senderName(last, v.mine))} `}</Text>{msgPreview(last, 160)}</Text> : null}
+        {!v.open && last ? (
+          <Text style={th.thPv} numberOfLines={1}>
+            <Text style={th.thPvWho}>{`${firstName(senderName(last, v.mine))} `}</Text>
+            {msgPreview(last, 160)}
+          </Text>
+        ) : null}
       </Pressable>
       {v.open ? (
         <View style={th.thb}>
           {body}
           <View style={th.thf}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Reply" testID={`thread-reply:${t.threadId}`} onPress={() => v.onReply("one")} style={(st: { hovered?: boolean }) => [s.btn, th.thBtn, hover(st) && s.btnOver]}>
-              <Icon name="reply" size={13} color="var(--ink-2)" /><Text style={s.btnText}>Reply</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Reply"
+              testID={`thread-reply:${t.threadId}`}
+              onPress={() => v.onReply("one")}
+              style={(st: { hovered?: boolean }) => [s.btn, th.thBtn, hover(st) && s.btnOver]}
+            >
+              <Icon name="reply" size={13} color="var(--ink-2)" />
+              <Text style={s.btnText}>Reply</Text>
             </Pressable>
             {many ? (
-              <Pressable accessibilityRole="button" accessibilityLabel="Reply all" testID={`thread-replyall:${t.threadId}`} onPress={() => v.onReply("all")} style={(st: { hovered?: boolean }) => [s.btn, th.thBtn, hover(st) && s.btnOver]}>
-                <Icon name="reply" size={13} color="var(--ink-2)" /><Text style={s.btnText}>Reply all</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Reply all"
+                testID={`thread-replyall:${t.threadId}`}
+                onPress={() => v.onReply("all")}
+                style={(st: { hovered?: boolean }) => [s.btn, th.thBtn, hover(st) && s.btnOver]}
+              >
+                <Icon name="reply" size={13} color="var(--ink-2)" />
+                <Text style={s.btnText}>Reply all</Text>
               </Pressable>
             ) : null}
           </View>
@@ -412,12 +788,22 @@ export function ThreadCard({ e, v }: { e: ThreadEntry; v: ThreadView }): ReactEl
 function MessageLine({ m, v }: { m: ThreadMsg; v: ThreadView }): ReactElement {
   const who = senderName(m, v.mine);
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${who}: ${msgPreview(m, 80)}. Show the whole message`} testID={`email:${m.id}`} onPress={() => v.onMessage(m.id, true)} style={(st: { hovered?: boolean }) => [th.mrow, hover(st) && th.mrowOver]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${who}: ${msgPreview(m, 80)}. Show the whole message`}
+      testID={`email:${m.id}`}
+      onPress={() => v.onMessage(m.id, true)}
+      style={(st: { hovered?: boolean }) => [th.mrow, hover(st) && th.mrowOver]}
+    >
       <Face name={who === "You" ? "You" : partyName(m.from)} size={18} />
       <Text style={th.mrowWho}>{firstName(who)}</Text>
-      <Text style={th.mrowPv} numberOfLines={1}>{msgPreview(m, 140)}</Text>
+      <Text style={th.mrowPv} numberOfLines={1}>
+        {msgPreview(m, 140)}
+      </Text>
       {m.reactions.length ? <Text style={th.mrowRx}>{m.reactions.map((r) => r.emoji).join("")}</Text> : null}
-      <Text style={[s.time, th.keep]} numberOfLines={1}>{whenLabel(m.at, v.now, v.offsetMin)}</Text>
+      <Text style={[s.time, th.keep]} numberOfLines={1}>
+        {whenLabel(m.at, v.now, v.offsetMin)}
+      </Text>
     </Pressable>
   );
 }
@@ -426,58 +812,131 @@ function MessageLine({ m, v }: { m: ThreadMsg; v: ThreadView }): ReactElement {
 function ThreadMessage({ m, v }: { m: ThreadMsg; v: ThreadView }): ReactElement {
   const who = senderName(m, v.mine);
   const out = who === "You";
-  const quote = v.quoteOpen(m.id), sig = v.sigOpen(m.id);
+  const quote = v.quoteOpen(m.id),
+    sig = v.sigOpen(m.id);
   const web = Platform.OS === "web" && m.html !== undefined;
   const chips = v.chipsOf?.(m.id) ?? [];
   return (
     <View style={th.tmsg} testID={`email:${m.id}`}>
       <View style={th.tmh}>
         <Face name={out ? "You" : partyName(m.from)} size={24} />
-        <Text style={[s.ehName, out && s.ehOut, th.keep]} numberOfLines={1}>{who}</Text>
-        {v.narrow ? null : <Text style={th.tmRcp} numberOfLines={1}>{recipientLine(m, v.mine)}</Text>}
+        <Text style={[s.ehName, out && s.ehOut, th.keep]} numberOfLines={1}>
+          {who}
+        </Text>
+        {v.narrow ? null : (
+          <Text style={th.tmRcp} numberOfLines={1}>
+            {recipientLine(m, v.mine)}
+          </Text>
+        )}
         <View style={s.grow} />
-        {v.viaOf && !v.narrow ? <Text style={s.via} numberOfLines={1}>{v.viaOf(m.mailboxId)}</Text> : null}
-        <Text style={[s.time, th.keep]} numberOfLines={1}>{whenLabel(m.at, v.now, v.offsetMin)}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Collapse" testID={`collapse:${m.id}`} onPress={() => v.onMessage(m.id, false)} style={(st: { hovered?: boolean }) => [th.mcol, hover(st) && s.btnOver]}>
+        {v.viaOf && !v.narrow ? (
+          <Text style={s.via} numberOfLines={1}>
+            {v.viaOf(m.mailboxId)}
+          </Text>
+        ) : null}
+        <Text style={[s.time, th.keep]} numberOfLines={1}>
+          {whenLabel(m.at, v.now, v.offsetMin)}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Collapse"
+          testID={`collapse:${m.id}`}
+          onPress={() => v.onMessage(m.id, false)}
+          style={(st: { hovered?: boolean }) => [th.mcol, hover(st) && s.btnOver]}
+        >
           <Icon name="chevd" size={12} />
         </Pressable>
       </View>
       <View style={th.tmBody}>
-        {web ? <MailHtml html={m.html as string} id={m.id} /> : <Text style={th.tmText} selectable testID={`body:${m.id}`}>{m.body}</Text>}
+        {web ? (
+          <MailHtml html={m.html as string} id={m.id} />
+        ) : (
+          <Text style={th.tmText} selectable testID={`body:${m.id}`}>
+            {m.body}
+          </Text>
+        )}
       </View>
       {m.imagesHeld ? (
         <View style={th.imgoff} testID={`images-held:${m.id}`}>
           <Icon name="file" size={13} />
-          <Text style={th.imgoffText}>{m.imagesHeld === 1 ? "1 image not loaded" : `${m.imagesHeld} images not loaded`}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Show images" testID={`images-show:${m.id}`} onPress={v.onImages}><Text style={th.imgoffBtn}>Show images</Text></Pressable>
+          <Text style={th.imgoffText}>
+            {m.imagesHeld === 1 ? "1 image not loaded" : `${m.imagesHeld} images not loaded`}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Show images"
+            testID={`images-show:${m.id}`}
+            onPress={v.onImages}
+          >
+            <Text style={th.imgoffBtn}>Show images</Text>
+          </Pressable>
         </View>
       ) : null}
       {m.signature || m.quoted ? (
         <View style={th.tools}>
           {m.signature ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={sig ? "Hide signature" : "Show signature"} accessibilityState={{ expanded: sig }} testID={`sig-toggle:${m.id}`} onPress={() => v.onSig(m.id)} style={(st: { hovered?: boolean }) => [s.qtb, hover(st) && s.qtbOver]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={sig ? "Hide signature" : "Show signature"}
+              accessibilityState={{ expanded: sig }}
+              testID={`sig-toggle:${m.id}`}
+              onPress={() => v.onSig(m.id)}
+              style={(st: { hovered?: boolean }) => [s.qtb, hover(st) && s.qtbOver]}
+            >
               <Icon name="more" size={12} />
             </Pressable>
           ) : null}
           {m.quoted ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={quote ? "Hide quoted text" : "Show quoted text"} accessibilityState={{ expanded: quote }} testID={`quote-toggle:${m.id}`} onPress={() => v.onQuote(m.id)}>
-              {(st: { hovered?: boolean }) => <Text style={[th.qLink, hover(st) && th.qLinkOver]}>{quote ? "Hide quoted text" : "Show quoted text"}</Text>}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={quote ? "Hide quoted text" : "Show quoted text"}
+              accessibilityState={{ expanded: quote }}
+              testID={`quote-toggle:${m.id}`}
+              onPress={() => v.onQuote(m.id)}
+            >
+              {(st: { hovered?: boolean }) => (
+                <Text style={[th.qLink, hover(st) && th.qLinkOver]}>
+                  {quote ? "Hide quoted text" : "Show quoted text"}
+                </Text>
+              )}
             </Pressable>
           ) : null}
         </View>
       ) : null}
-      {sig && m.signature ? <Text style={th.sigx} testID={`sig:${m.id}`} selectable>{m.signature}</Text> : null}
-      {quote && m.quoted ? <Text style={[s.qx, th.tmIndent]} testID={`quote:${m.id}`} selectable>{m.quoted}</Text> : null}
+      {sig && m.signature ? (
+        <Text style={th.sigx} testID={`sig:${m.id}`} selectable>
+          {m.signature}
+        </Text>
+      ) : null}
+      {quote && m.quoted ? (
+        <Text style={[s.qx, th.tmIndent]} testID={`quote:${m.id}`} selectable>
+          {m.quoted}
+        </Text>
+      ) : null}
       {m.reactions.length ? (
         <View style={th.rxs} testID={`reactions:${m.id}`}>
-          {each(m.reactions, (r) => <Text key={`${r.from.address}:${r.at}`} style={th.rx}>{`${r.emoji} ${isMine(r.from.address, v.mine) ? "You" : firstName(partyName(r.from))}`}</Text>)}
+          {each(m.reactions, (r) => (
+            <Text
+              key={`${r.from.address}:${r.at}`}
+              style={th.rx}
+            >{`${r.emoji} ${isMine(r.from.address, v.mine) ? "You" : firstName(partyName(r.from))}`}</Text>
+          ))}
         </View>
       ) : null}
       {m.attachments.length ? (
         <View style={[s.atts, th.tmIndent]}>
           {each(m.attachments, (a) => (
-            <Pressable key={a.attachmentId} accessibilityRole="button" accessibilityLabel={`Open ${a.name}`} testID={`attachment:${a.name}`} onPress={() => v.onAttachment?.(a.name)} style={(st: { hovered?: boolean }) => [s.att, hover(st) && s.attOver]}>
-              <Icon name="file" size={14} /><Text style={s.attText}>{a.name}</Text>{sizeLabel(a.size) ? <Text style={s.attSize}>{sizeLabel(a.size)}</Text> : null}
+            <Pressable
+              key={a.attachmentId}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${a.name}`}
+              testID={`attachment:${a.name}`}
+              onPress={() => v.onAttachment?.(a.name)}
+              style={(st: { hovered?: boolean }) => [s.att, hover(st) && s.attOver]}
+            >
+              <Icon name="file" size={14} />
+              <Text style={s.attText}>{a.name}</Text>
+              {sizeLabel(a.size) ? <Text style={s.attSize}>{sizeLabel(a.size)}</Text> : null}
             </Pressable>
           ))}
         </View>
@@ -485,8 +944,16 @@ function ThreadMessage({ m, v }: { m: ThreadMsg; v: ThreadView }): ReactElement 
       {chips.length ? (
         <View style={[s.chips, th.tmIndent]}>
           {each(chips, (c) => (
-            <Pressable key={c.title} accessibilityRole="link" accessibilityLabel={`Open record ${c.title}`} testID={`chip:${c.title}`} onPress={() => v.onChip?.(c.title, c.recordId)} style={(st: { hovered?: boolean }) => [s.rc, hover(st) && s.rcOver]}>
-              <Icon name="link" size={12} /><Text style={s.rcText}>{c.title}</Text>
+            <Pressable
+              key={c.title}
+              accessibilityRole="link"
+              accessibilityLabel={`Open record ${c.title}`}
+              testID={`chip:${c.title}`}
+              onPress={() => v.onChip?.(c.title, c.recordId)}
+              style={(st: { hovered?: boolean }) => [s.rc, hover(st) && s.rcOver]}
+            >
+              <Icon name="link" size={12} />
+              <Text style={s.rcText}>{c.title}</Text>
             </Pressable>
           ))}
         </View>
@@ -502,7 +969,13 @@ export function MailHtmlStyle(): ReactElement | null {
 }
 
 const th = StyleSheet.create({
-  th: { marginVertical: 8, borderRadius: 12, backgroundColor: "var(--raised)", borderWidth: 1, borderColor: "var(--line)" },
+  th: {
+    marginVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "var(--raised)",
+    borderWidth: 1,
+    borderColor: "var(--line)",
+  },
   thNew: { borderColor: "var(--line-2)" },
   thMark: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string },
   thh: { paddingTop: 11, paddingBottom: 10, paddingHorizontal: 14, borderRadius: 11 },
@@ -528,7 +1001,15 @@ const th = StyleSheet.create({
   thDiv: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 10, marginBottom: 2 },
   thDivText: { fontSize: 11.5, fontWeight: "600", color: "var(--accent)" },
   thDivRule: { flex: 1, height: 1, backgroundColor: "var(--accent-line)" },
-  mrow: { flexDirection: "row", alignItems: "center", gap: 8, height: 34, paddingHorizontal: 6, marginHorizontal: -6, borderRadius: 7 },
+  mrow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 34,
+    paddingHorizontal: 6,
+    marginHorizontal: -6,
+    borderRadius: 7,
+  },
   mrowOver: { backgroundColor: "var(--hover)" },
   mrowWho: { fontSize: 13, fontWeight: "600", color: "var(--ink)" },
   mrowPv: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink-3)" },

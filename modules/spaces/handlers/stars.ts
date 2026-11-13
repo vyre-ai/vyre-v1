@@ -13,7 +13,8 @@ function addFollow(ctx: SpacesCtx, person: string, r: ResourceRef): void {
 export async function starsToggle(ctx: SpacesCtx, input: { resource: ResourceRef; on: boolean; alsoFollow?: boolean }) {
   const person = me(ctx);
   const r = { type: input.resource.type, id: input.resource.id };
-  if (setMark(ctx, "spaces_star", person, r, input.on)) ctx.emit(input.on ? "star.added" : "star.removed", r.id, { person, resource: r });
+  if (setMark(ctx, "spaces_star", person, r, input.on))
+    ctx.emit(input.on ? "star.added" : "star.removed", r.id, { person, resource: r });
   if (input.on) {
     const kind = ctx.resources?.describe(r)?.kind;
     const offers = kind !== undefined && PERSON_KINDS.has(kind);
@@ -29,7 +30,8 @@ export async function starsList(ctx: SpacesCtx, input: { type?: string }) {
 export async function followsToggle(ctx: SpacesCtx, input: { resource: ResourceRef; on: boolean }) {
   const person = me(ctx);
   const r = { type: input.resource.type, id: input.resource.id };
-  if (setMark(ctx, "spaces_follow", person, r, input.on)) ctx.emit(input.on ? "follow.added" : "follow.removed", r.id, { person, resource: r });
+  if (setMark(ctx, "spaces_follow", person, r, input.on))
+    ctx.emit(input.on ? "follow.added" : "follow.removed", r.id, { person, resource: r });
   return { following: live(ctx, "spaces_follow", person, r) };
 }
 

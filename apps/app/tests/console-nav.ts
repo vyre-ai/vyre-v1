@@ -6,7 +6,10 @@ import { resolve, sectionOf, tabOf } from "../src/console/shell/sections.ts";
 
 /** The part of a Playwright page this helper uses; the walks pass their `Page`. */
 interface NavPage {
-  getByTestId(id: string): { click(o?: { timeout?: number }): Promise<void>; waitFor(o?: { timeout?: number }): Promise<void> };
+  getByTestId(id: string): {
+    click(o?: { timeout?: number }): Promise<void>;
+    waitFor(o?: { timeout?: number }): Promise<void>;
+  };
   goto(url: string, o?: { waitUntil?: "load" }): Promise<unknown>;
 }
 
@@ -21,7 +24,9 @@ export const consolePageId = (pageId: string): string => resolve(pageId);
 
 /** Click through the real navigation to a page: place row, tab, view, then wait for the page. Returns the resolved page id. */
 export async function openConsolePage(page: NavPage, pageId: string, timeout = 30_000): Promise<string> {
-  const id = resolve(pageId), section = sectionOf(id), tab = tabOf(id);
+  const id = resolve(pageId),
+    section = sectionOf(id),
+    tab = tabOf(id);
   assert.ok(section && tab, `${pageId} has a place in the Console`);
   await page.getByTestId(`row-nav-${section.id}`).click({ timeout: 60_000 });
   if (section.tabs.length > 1) await page.getByTestId(`tab-${tab.views[0]!.page}`).click({ timeout });

@@ -7,11 +7,14 @@ import { onGoalEvent } from "../handlers/goal-wake.ts";
 import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
 import type { DriverEvent } from "../../../agent/src/turn-engine/types.ts";
 
-const LEAD = "agt_lead", OWNER = "usr_owner";
+const LEAD = "agt_lead",
+  OWNER = "usr_owner";
 const said: DriverEvent[] = [{ type: "text", text: "Checked in." }, { type: "done" }];
 
 function scene(usable: boolean | null) {
-  const h = harness({ threads: [{ threadId: "thr_goal", kind: "thread", starter: OWNER, agents: [{ agentId: LEAD, mode: "listen" }] }] });
+  const h = harness({
+    threads: [{ threadId: "thr_goal", kind: "thread", starter: OWNER, agents: [{ agentId: LEAD, mode: "listen" }] }],
+  });
   const provider = scriptedProvider({ script: said });
   const engine = h.runtime({ openSession: provider.openSession });
   const asked: Array<{ cap: string; as?: string }> = [];
@@ -20,14 +23,21 @@ function scene(usable: boolean | null) {
     call: async (cap: string, input: unknown, as?: string) => {
       asked.push({ cap, ...(as ? { as } : {}) });
       // what the real wakeClaim answers: the stored owner and lead, claimed once per attempt
-      if (cap === "goals.wake_claim") return ++attempt === 1 ? { claimed: true, threadId: "thr_goal", leadAgentId: LEAD, owner: OWNER } : { claimed: false };
-      if (cap === "agents.outside.usable") { if (usable === null) throw new Error("agents is down"); return { usable }; }
+      if (cap === "goals.wake_claim")
+        return ++attempt === 1
+          ? { claimed: true, threadId: "thr_goal", leadAgentId: LEAD, owner: OWNER }
+          : { claimed: false };
+      if (cap === "agents.outside.usable") {
+        if (usable === null) throw new Error("agents is down");
+        return { usable };
+      }
       return h.ctx.call(cap, input);
     },
     now: () => h.clock.t,
     log: () => undefined,
   };
-  const wake = () => onGoalEvent(h.ctx, host, engine, { name: "goal.woken", payload: { goalId: "gol_1", wakeId: "gwk_1", attempt: 1 } });
+  const wake = () =>
+    onGoalEvent(h.ctx, host, engine, { name: "goal.woken", payload: { goalId: "gol_1", wakeId: "gwk_1", attempt: 1 } });
   return { h, provider, engine, asked, wake };
 }
 
@@ -36,7 +46,11 @@ test("a goal's owner who can no longer give its lead agent work does not start i
   assert.deepEqual(await no.wake(), [], "the owner lost Can use on the lead: the wake starts no turn");
   await no.engine.idle("thr_goal").catch(() => undefined);
   assert.equal(no.provider.specs.length, 0);
-  assert.deepEqual(no.asked.find((c) => c.cap === "agents.outside.usable"), { cap: "agents.outside.usable", as: OWNER }, "asked as the owner");
+  assert.deepEqual(
+    no.asked.find((c) => c.cap === "agents.outside.usable"),
+    { cap: "agents.outside.usable", as: OWNER },
+    "asked as the owner",
+  );
 
   const yes = scene(true);
   assert.deepEqual(await yes.wake(), [LEAD], "the owner may: the lead starts");

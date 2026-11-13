@@ -13,7 +13,11 @@ export const TRACE = "0123456789abcdef0123456789abcdef";
 export const SITE = "sit_aaaa1111";
 export const OTHER_SITE = "sit_bbbb2222";
 
-export interface Emitted { name: string; subject: string; payload: unknown }
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: unknown;
+}
 
 export class FakeMailer implements PortalMailer {
   sent: LinkMessage[] = [];
@@ -31,10 +35,20 @@ export class FakeMailer implements PortalMailer {
   }
 }
 
-export interface WorldRecord { id: string; type: string; fields: Record<string, unknown> }
+export interface WorldRecord {
+  id: string;
+  type: string;
+  fields: Record<string, unknown>;
+}
 
 function notFound(): VyreErr {
-  return new VyreErr({ code: "validation.not_found", message: "The thing does not exist.", retryable: false, traceId: TRACE, next: [{ kind: "edit_input", label: "Fix the input" }] });
+  return new VyreErr({
+    code: "validation.not_found",
+    message: "The thing does not exist.",
+    retryable: false,
+    traceId: TRACE,
+    next: [{ kind: "edit_input", label: "Fix the input" }],
+  });
 }
 
 export function harness(o: { principal?: string; now?: number; configure?: boolean } = {}) {
@@ -73,23 +87,44 @@ export function harness(o: { principal?: string; now?: number; configure?: boole
         const { type, recordId } = input as { type: string; recordId: string };
         const r = records.get(recordId);
         if (!r || r.type !== type) throw notFound();
-        return { record: { id: r.id, type: r.type, version: 1, label: 0, fields: r.fields, createdAt: NOW, updatedAt: NOW, holds: 0 } };
+        return {
+          record: {
+            id: r.id,
+            type: r.type,
+            version: 1,
+            label: 0,
+            fields: r.fields,
+            createdAt: NOW,
+            updatedAt: NOW,
+            holds: 0,
+          },
+        };
       }
       throw new Error(`unscripted call ${cap}`);
     },
     authorize(action: { perm: string | null; level: Level }, resource: ResourceRef): Decision {
       const ok = order.indexOf(action.level) <= order.indexOf("manage");
-      return { effect: ok ? "allow" : "deny", reason: ok ? "granted" : "denied", decisionId: `dec_${resource.type}/${resource.id ?? ""}` };
+      return {
+        effect: ok ? "allow" : "deny",
+        reason: ok ? "granted" : "denied",
+        decisionId: `dec_${resource.type}/${resource.id ?? ""}`,
+      };
     },
     vault: {
       async fill() {},
-      use(handle) { return { handle }; },
+      use(handle) {
+        return { handle };
+      },
     },
-    http: async () => { throw new Error("no network in portal tests"); },
+    http: async () => {
+      throw new Error("no network in portal tests");
+    },
     log: {
       debug() {},
       info() {},
-      warn(msg: string) { warnings.push(msg); },
+      warn(msg: string) {
+        warnings.push(msg);
+      },
       error() {},
     },
     schedule: async () => "sch_1",
@@ -97,10 +132,23 @@ export function harness(o: { principal?: string; now?: number; configure?: boole
   };
 
   return {
-    ctx, db, mailer, events, calls, warnings, sites, records,
-    advance(ms: number) { clock += ms; },
-    names(): string[] { return events.map((e) => e.name); },
-    addRecord(r: WorldRecord): void { records.set(r.id, r); },
+    ctx,
+    db,
+    mailer,
+    events,
+    calls,
+    warnings,
+    sites,
+    records,
+    advance(ms: number) {
+      clock += ms;
+    },
+    names(): string[] {
+      return events.map((e) => e.name);
+    },
+    addRecord(r: WorldRecord): void {
+      records.set(r.id, r);
+    },
   };
 }
 

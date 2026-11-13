@@ -5,7 +5,14 @@ import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { ScrollView, View } from "react-native";
 import {
-  AgentFilePage, ChangesetDiff, ChangesetHeader, CommitDiff, FileDiff, GitRow, HistoryPanel, useCap,
+  AgentFilePage,
+  ChangesetDiff,
+  ChangesetHeader,
+  CommitDiff,
+  FileDiff,
+  GitRow,
+  HistoryPanel,
+  useCap,
 } from "../../places/files/review/index.ts";
 import { Skeleton } from "../../places/files/review/parts.tsx";
 import type { HashTarget } from "../hash/hash.ts";
@@ -40,13 +47,32 @@ function useFileName(rt: ShellRuntime, fileId: string): string | null {
   const [name, setName] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
-    void rt.call("files.get", { fileId }).then((out) => { if (live) setName((out as { file: { name: string } }).file.name); }, () => { if (live) setName(fileId); });
-    return () => { live = false; };
+    void rt.call("files.get", { fileId }).then(
+      (out) => {
+        if (live) setName((out as { file: { name: string } }).file.name);
+      },
+      () => {
+        if (live) setName(fileId);
+      },
+    );
+    return () => {
+      live = false;
+    };
   }, [rt, fileId]);
   return name;
 }
 
-function ComparePage({ rt, fileId, from, to }: { rt: ShellRuntime; fileId: string; from?: string; to?: string }): ReactElement {
+function ComparePage({
+  rt,
+  fileId,
+  from,
+  to,
+}: {
+  rt: ShellRuntime;
+  fileId: string;
+  from?: string;
+  to?: string;
+}): ReactElement {
   const name = useFileName(rt, fileId);
   if (name === null) return <Skeleton height={240} testID="files-review-loading" />;
   return <FileDiff fileId={fileId} name={name} bare={false} {...(from ? { from } : {})} {...(to ? { to } : {})} />;
@@ -57,48 +83,99 @@ export function ReviewScreen({ rt, target }: { rt: ShellRuntime; target: HashTar
   const a = target.args;
   let body: ReactElement | null = null;
   if (kind === "changeset") body = <ChangesetPage changesetId={a["changesetId"]!} />;
-  else if (kind === "compare") body = <ComparePage rt={rt} fileId={a["fileId"]!} {...(a["from"] ? { from: a["from"] } : {})} {...(a["to"] ? { to: a["to"] } : {})} />;
+  else if (kind === "compare")
+    body = (
+      <ComparePage
+        rt={rt}
+        fileId={a["fileId"]!}
+        {...(a["from"] ? { from: a["from"] } : {})}
+        {...(a["to"] ? { to: a["to"] } : {})}
+      />
+    );
   else if (kind === "commit") body = <CommitDiff folderId={a["folder"]!} sha={a["sha"]!} />;
   else if (kind === "history") body = <HistoryPanel fileId={a["fileId"]!} />;
   if (!body) return null;
   return (
     <View testID={`files-review-${kind}`} style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>{body}</ScrollView>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
+        {body}
+      </ScrollView>
     </View>
   );
 }
 
-export interface AgentFile { name: string; version: number; text: string; agentId: string; agentName: string }
+export interface AgentFile {
+  name: string;
+  version: number;
+  text: string;
+  agentId: string;
+  agentName: string;
+}
 
 /** The agent file behind a file id: AGENT.md or agent.toml in an agent's own folder, read as text. Null for any other file or one that cannot be read as text. */
 export async function loadAgentFile(call: ShellRuntime["call"], fileId: string): Promise<AgentFile | null> {
-  const { file } = (await call("files.get", { fileId })) as { file: { name: string; folderId: string; version: number } };
+  const { file } = (await call("files.get", { fileId })) as {
+    file: { name: string; folderId: string; version: number };
+  };
   if (file.name !== "agent.toml" && file.name !== "AGENT.md") return null;
-  const { agents } = (await call("agents.list", {})) as { agents: Array<{ agentId: string; name: string; folderId: string }> };
+  const { agents } = (await call("agents.list", {})) as {
+    agents: Array<{ agentId: string; name: string; folderId: string }>;
+  };
   const agent = agents.find((x) => x.folderId === file.folderId);
   if (!agent) return null;
   const read = (await call("files.read", { fileId, as: "text" })) as { text?: string; version?: number };
   if (typeof read.text !== "string") return null;
-  return { name: file.name, version: read.version ?? file.version, text: read.text, agentId: agent.agentId, agentName: agent.name };
+  return {
+    name: file.name,
+    version: read.version ?? file.version,
+    text: read.text,
+    agentId: agent.agentId,
+    agentName: agent.name,
+  };
 }
 
 /**
  * An agent's instruction file (AGENT.md or agent.toml in the agent's own folder) opens as the agent file page: the lint bar, the text and, for agent.toml, the Form. Any other file, and a file that
  * cannot be read as text, stays in the viewer (children).
  */
-export function AgentFileGate({ rt, fileId, children }: { rt: ShellRuntime; fileId: string; children: ReactElement }): ReactElement {
+export function AgentFileGate({
+  rt,
+  fileId,
+  children,
+}: {
+  rt: ShellRuntime;
+  fileId: string;
+  children: ReactElement;
+}): ReactElement {
   const [found, setFound] = useState<AgentFile | null | "pending">("pending");
   useEffect(() => {
     let live = true;
     setFound("pending");
-    void loadAgentFile(rt.call, fileId).then((f) => { if (live) setFound(f); }, () => { if (live) setFound(null); });
-    return () => { live = false; };
+    void loadAgentFile(rt.call, fileId).then(
+      (f) => {
+        if (live) setFound(f);
+      },
+      () => {
+        if (live) setFound(null);
+      },
+    );
+    return () => {
+      live = false;
+    };
   }, [rt, fileId]);
   // the viewer draws at once; an agent's instruction file swaps to the agent file page when it is known to be one
   if (found === "pending" || found === null) return children;
   return (
     <ScrollView style={{ flex: 1 }} testID="agent-file-page-mount">
-      <AgentFilePage key={`${fileId}:${found.version}`} fileId={fileId} name={found.name} path={`Agents/${found.agentName}`} agentId={found.agentId} saved={found.text} version={found.version} />
+      <AgentFilePage
+        key={`${fileId}:${found.version}`}
+        fileId={fileId}
+        name={found.name}
+        path={`Agents/${found.agentName}`}
+        agentId={found.agentId}
+        saved={found.text}
+        version={found.version}
+      />
     </ScrollView>
   );
 }

@@ -31,12 +31,24 @@ test("vyred boots on the seeded Space from modules.json, answers example.echo wi
     // /healthz is public and carries no secret
     const hz = await fetch(`${d.url}/healthz`);
     assert.equal(hz.status, 200);
-    const h = (await hz.json()) as { ok: boolean; version: string; roles: string[]; space: string; head: number; services: { name: string; state: string }[]; probes: Record<string, string> };
+    const h = (await hz.json()) as {
+      ok: boolean;
+      version: string;
+      roles: string[];
+      space: string;
+      head: number;
+      services: { name: string; state: string }[];
+      probes: Record<string, string>;
+    };
     assert.equal(h.ok, true);
     assert.equal(h.version, "1.2.3");
     assert.equal(h.space, CORE_SPACE);
     assert.ok(h.head > 10, "the seed's events are in the log");
-    assert.deepEqual(h.services.map((s) => [s.name, s.state]).sort(), [["gateway", "healthy"], ["scheduler", "healthy"], ["sidecar", "healthy"]]);
+    assert.deepEqual(h.services.map((s) => [s.name, s.state]).sort(), [
+      ["gateway", "healthy"],
+      ["scheduler", "healthy"],
+      ["sidecar", "healthy"],
+    ]);
     assert.ok(!JSON.stringify(h).includes(d.token), "no token in healthz");
     const seedHead = h.head;
 
@@ -50,9 +62,19 @@ test("vyred boots on the seeded Space from modules.json, answers example.echo wi
     assert.equal(ev.length, 1);
     assert.equal(ev[0]?.trace_id, traceId, "the event carries the call's trace id");
     assert.equal(ev[0]?.actor, "usr_olivia", "acting as the Space owner");
-    assert.equal(ev[0]?.seq, seedHead + 1, `events after the head /healthz reported: ${(await d.log!.read({})).filter((e) => e.seq > seedHead).map((e) => `${e.seq} ${e.type}`).join(", ")}`);
+    assert.equal(
+      ev[0]?.seq,
+      seedHead + 1,
+      `events after the head /healthz reported: ${(await d.log!.read({}))
+        .filter((e) => e.seq > seedHead)
+        .map((e) => `${e.seq} ${e.type}`)
+        .join(", ")}`,
+    );
     const t = d.sink.trace(traceId);
-    assert.ok(t.spans.some((s) => s.name === "invoke"), "and so does its span in logs.db");
+    assert.ok(
+      t.spans.some((s) => s.name === "invoke"),
+      "and so does its span in logs.db",
+    );
 
     // refused without the token, and for a wrong token; unknown paths are 404s with an error body
     assert.equal((await post(d, "/v1/example/echo", { n: 1 }, null)).status, 401);
@@ -60,20 +82,51 @@ test("vyred boots on the seeded Space from modules.json, answers example.echo wi
     const nope = await post(d, "/v1/nope/nothing", {});
     assert.equal(nope.status, 404);
     assert.equal(((await nope.json()) as { error: { code: string } }).error.code, "validation.unknown_capability");
-    const bad = await fetch(`${d.url}/v1/example/echo`, { method: "POST", headers: { authorization: `Bearer ${d.token}`, "content-type": "application/json" }, body: "{not json" });
+    const bad = await fetch(`${d.url}/v1/example/echo`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${d.token}`, "content-type": "application/json" },
+      body: "{not json",
+    });
     assert.equal(bad.status, 400);
 
     // probes: the eight host probes and the machine reading, healthy against the recorded machine
-    const probeRows = d.db!.all("SELECT name, state FROM health_probe ORDER BY name") as { name: string; state: string }[];
-    assert.ok(probeRows.some((p) => p.name === "machine"), "the machine reading is written at start (its state follows the real computer, so only its presence is pinned here; machine.probe.test.ts pins the numbers)");
+    const probeRows = d.db!.all("SELECT name, state FROM health_probe ORDER BY name") as {
+      name: string;
+      state: string;
+    }[];
+    assert.ok(
+      probeRows.some((p) => p.name === "machine"),
+      "the machine reading is written at start (its state follows the real computer, so only its presence is pinned here; machine.probe.test.ts pins the numbers)",
+    );
     const probes = Object.fromEntries(probeRows.filter((p) => p.name !== "machine").map((p) => [p.name, p.state]));
-    assert.deepEqual(probes, { caddy: "healthy", disk_encrypted: "healthy", disk_space: "healthy", docker: "healthy", events_db: "healthy", index_db: "healthy", scheduler: "healthy", time_skew: "healthy" });
-    assert.equal(JSON.parse(String(one(d, "SELECT values_json FROM health_probe WHERE name = 'disk_space'")["values_json"])).freeBytes, 80e9);
+    assert.deepEqual(probes, {
+      caddy: "healthy",
+      disk_encrypted: "healthy",
+      disk_space: "healthy",
+      docker: "healthy",
+      events_db: "healthy",
+      index_db: "healthy",
+      scheduler: "healthy",
+      time_skew: "healthy",
+    });
+    assert.equal(
+      JSON.parse(String(one(d, "SELECT values_json FROM health_probe WHERE name = 'disk_space'")["values_json"]))
+        .freeBytes,
+      80e9,
+    );
     const again = await d.runProbes(["events_db"]);
     assert.equal(again.events_db?.values?.["seq"], seedHead + 1, "the incremental verify walked the new event");
 
     // services: the supervisor's view is the health_service table
-    const svc = Object.fromEntries((d.db!.all("SELECT name, state, restarts FROM health_service ORDER BY name") as { name: string; state: string; restarts: number }[]).map((s) => [s.name, [s.state, s.restarts]]));
+    const svc = Object.fromEntries(
+      (
+        d.db!.all("SELECT name, state, restarts FROM health_service ORDER BY name") as {
+          name: string;
+          state: string;
+          restarts: number;
+        }[]
+      ).map((s) => [s.name, [s.state, s.restarts]]),
+    );
     assert.deepEqual(svc, { gateway: ["healthy", 0], scheduler: ["healthy", 0], sidecar: ["healthy", 0] });
 
     // network rows: the address, this server and the direct endpoint
@@ -84,8 +137,12 @@ test("vyred boots on the seeded Space from modules.json, answers example.echo wi
 
     // health_restart: restart the sidecar (a real child process) and the gateway (the server we are talking to)
     const oldPid = d.supervisor.status("sidecar")[0]!.startedAt;
-    d.db!.run("INSERT INTO health_restart (id, service, by_principal, on_behalf, at, done_at) VALUES ('rst_t1', 'sidecar', 'usr_olivia', NULL, 1, NULL)");
-    d.db!.run("INSERT INTO health_restart (id, service, by_principal, on_behalf, at, done_at) VALUES ('rst_t2', 'gateway', 'usr_olivia', NULL, 2, NULL)");
+    d.db!.run(
+      "INSERT INTO health_restart (id, service, by_principal, on_behalf, at, done_at) VALUES ('rst_t1', 'sidecar', 'usr_olivia', NULL, 1, NULL)",
+    );
+    d.db!.run(
+      "INSERT INTO health_restart (id, service, by_principal, on_behalf, at, done_at) VALUES ('rst_t2', 'gateway', 'usr_olivia', NULL, 2, NULL)",
+    );
     assert.equal(await d.pollCommands(), 2);
     assert.ok(d.supervisor.status("sidecar")[0]!.startedAt >= oldPid);
     assert.equal(d.supervisor.status("sidecar")[0]?.restarts, 1);
@@ -97,15 +154,37 @@ test("vyred boots on the seeded Space from modules.json, answers example.echo wi
     assert.equal((await twice(() => post(d, "/v1/example/echo", { n: 2 }))).status, 200);
 
     // network_command: every kind goes through the port and lands in the state tables
-    for (const [kind, target] of [["set_domain", "space.example.com"], ["renew", "space.example.com"], ["reconnect", "srv_office"], ["remove", "srv_old"]] as const) {
-      d.db!.run("INSERT INTO network_command (kind, target, by_principal, at, done_at) VALUES (?, ?, 'usr_olivia', 1, NULL)", kind, target);
+    for (const [kind, target] of [
+      ["set_domain", "space.example.com"],
+      ["renew", "space.example.com"],
+      ["reconnect", "srv_office"],
+      ["remove", "srv_old"],
+    ] as const) {
+      d.db!.run(
+        "INSERT INTO network_command (kind, target, by_principal, at, done_at) VALUES (?, ?, 'usr_olivia', 1, NULL)",
+        kind,
+        target,
+      );
     }
-    d.db!.run("INSERT INTO network_server (server_id, name, role, state, heartbeat_at) VALUES ('srv_office', 'Office Mac', 'compute', 'down', 1)");
-    d.db!.run("INSERT INTO network_server (server_id, name, role, state, heartbeat_at) VALUES ('srv_old', 'Old box', 'compute', 'down', 1)");
+    d.db!.run(
+      "INSERT INTO network_server (server_id, name, role, state, heartbeat_at) VALUES ('srv_office', 'Office Mac', 'compute', 'down', 1)",
+    );
+    d.db!.run(
+      "INSERT INTO network_server (server_id, name, role, state, heartbeat_at) VALUES ('srv_old', 'Old box', 'compute', 'down', 1)",
+    );
     assert.equal(await d.pollCommands(), 4);
-    assert.deepEqual(net.calls, ["dns space.example.com", "apply own_domain space.example.com", "renew space.example.com", "reconnect srv_office", "disconnect srv_old"]);
+    assert.deepEqual(net.calls, [
+      "dns space.example.com",
+      "apply own_domain space.example.com",
+      "renew space.example.com",
+      "reconnect srv_office",
+      "disconnect srv_old",
+    ]);
     assert.equal(one(d, "SELECT ok FROM network_dns WHERE domain = 'space.example.com'")["ok"], 1);
-    assert.equal(one(d, "SELECT expires_at FROM network_cert WHERE host = 'space.example.com'")["expires_at"], 1_900_000_000_000);
+    assert.equal(
+      one(d, "SELECT expires_at FROM network_cert WHERE host = 'space.example.com'")["expires_at"],
+      1_900_000_000_000,
+    );
     assert.equal(one(d, "SELECT state FROM network_server WHERE server_id = 'srv_office'")["state"], "healthy");
     assert.equal(d.db!.all("SELECT 1 FROM network_server WHERE server_id = 'srv_old'").length, 0);
     assert.equal(d.db!.all("SELECT 1 FROM network_command WHERE done_at IS NULL").length, 0);
@@ -119,17 +198,44 @@ test("vyred boots on the seeded Space from modules.json, answers example.echo wi
 
 test("boot repairs an imported agent birth without access events and makes the agent authorizable", async () => {
   const agent = "agt_import1";
-  const dir = seededDir([{ id: "evt_import_agent", type: "agent.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "agent", entity_id: agent, payload: { agentId: agent, name: "Imported", ownerId: "usr_mia", folderId: "fld_root" } }]);
+  const dir = seededDir([
+    {
+      id: "evt_import_agent",
+      type: "agent.created",
+      sv: 1,
+      trace_id: "c0".repeat(16),
+      actor: "svc_import",
+      vis: "space",
+      entity: "agent",
+      entity_id: agent,
+      payload: { agentId: agent, name: "Imported", ownerId: "usr_mia", folderId: "fld_root" },
+    },
+  ]);
   const d = await boot(dir);
   try {
     const events = await d.log!.read({ limit: 5000 });
-    assert.deepEqual(events.filter((e) => e.entity_id === agent).map((e) => e.type), ["agent.created", "resource.created", "principal.created", "principal.role_set"]);
+    assert.deepEqual(
+      events.filter((e) => e.entity_id === agent).map((e) => e.type),
+      ["agent.created", "resource.created", "principal.created", "principal.role_set"],
+    );
     const syncedPrincipal = one(d, "SELECT kind, owner FROM access_principals WHERE id = ?", agent);
     assert.equal(syncedPrincipal["kind"], "agent", "access.sync receives the repaired principal");
     assert.equal(syncedPrincipal["owner"], "usr_mia");
-    assert.equal(one(d, "SELECT level FROM access_grants WHERE id = ?", `gnt_${agent.slice(4)}space`)["level"], "edit", "access.sync receives the owner-capped Space grant");
+    assert.equal(
+      one(d, "SELECT level FROM access_grants WHERE id = ?", `gnt_${agent.slice(4)}space`)["level"],
+      "edit",
+      "access.sync receives the owner-capped Space grant",
+    );
     const access = buildAccess(events);
-    assert.equal(authorize(access, { principal: agent, actingFor: "usr_mia", action: { perm: null, level: "view" }, resource: { type: "agent", id: agent } }).effect, "allow");
+    assert.equal(
+      authorize(access, {
+        principal: agent,
+        actingFor: "usr_mia",
+        action: { perm: null, level: "view" },
+        resource: { type: "agent", id: agent },
+      }).effect,
+      "allow",
+    );
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });
@@ -139,8 +245,28 @@ test("boot repairs an imported agent birth without access events and makes the a
 test("boot fails closed when a reconciliation event id belongs to different data", async () => {
   const agent = "agt_import2";
   const dir = seededDir([
-    { id: "evt_import_agent_2", type: "agent.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "agent", entity_id: agent, payload: { agentId: agent, name: "Imported", ownerId: "usr_mia" } },
-    { id: `evt_agent_access_principal_created_${agent}`, type: "example.said", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "example", entity_id: "collision", payload: { wrong: true } },
+    {
+      id: "evt_import_agent_2",
+      type: "agent.created",
+      sv: 1,
+      trace_id: "c0".repeat(16),
+      actor: "svc_import",
+      vis: "space",
+      entity: "agent",
+      entity_id: agent,
+      payload: { agentId: agent, name: "Imported", ownerId: "usr_mia" },
+    },
+    {
+      id: `evt_agent_access_principal_created_${agent}`,
+      type: "example.said",
+      sv: 1,
+      trace_id: "c0".repeat(16),
+      actor: "svc_import",
+      vis: "space",
+      entity: "example",
+      entity_id: "collision",
+      payload: { wrong: true },
+    },
   ]);
   try {
     await assert.rejects(() => boot(dir), /reconciliation event ID collision/);
@@ -150,17 +276,62 @@ test("boot fails closed when a reconciliation event id belongs to different data
 });
 
 test("boot collection sees grant.revoked and does not recreate an imported agent grant", async () => {
-  const agent = "agt_import4", grant = "gr_import4";
+  const agent = "agt_import4",
+    grant = "gr_import4";
   const dir = seededDir([
-    { id: "evt_import_agent_4", type: "agent.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "agent", entity_id: agent, payload: { agentId: agent, name: "Imported", ownerId: "usr_mia" } },
-    { id: "evt_import_grant_4", type: "grant.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "grant", entity_id: grant, payload: { id: grant, subject_kind: "actor", subject_id: agent, resource_type: "space", resource_id: CORE_SPACE, level: "edit" } },
-    { id: "evt_import_revoke_4", type: "grant.revoked", sv: 1, trace_id: "c0".repeat(16), actor: "svc_import", vis: "space", entity: "grant", entity_id: grant, payload: { grantId: grant, subject: { kind: "agent", id: agent }, resource: { type: "space", id: CORE_SPACE } } },
+    {
+      id: "evt_import_agent_4",
+      type: "agent.created",
+      sv: 1,
+      trace_id: "c0".repeat(16),
+      actor: "svc_import",
+      vis: "space",
+      entity: "agent",
+      entity_id: agent,
+      payload: { agentId: agent, name: "Imported", ownerId: "usr_mia" },
+    },
+    {
+      id: "evt_import_grant_4",
+      type: "grant.created",
+      sv: 1,
+      trace_id: "c0".repeat(16),
+      actor: "svc_import",
+      vis: "space",
+      entity: "grant",
+      entity_id: grant,
+      payload: {
+        id: grant,
+        subject_kind: "actor",
+        subject_id: agent,
+        resource_type: "space",
+        resource_id: CORE_SPACE,
+        level: "edit",
+      },
+    },
+    {
+      id: "evt_import_revoke_4",
+      type: "grant.revoked",
+      sv: 1,
+      trace_id: "c0".repeat(16),
+      actor: "svc_import",
+      vis: "space",
+      entity: "grant",
+      entity_id: grant,
+      payload: { grantId: grant, subject: { kind: "agent", id: agent }, resource: { type: "space", id: CORE_SPACE } },
+    },
   ]);
   const d = await boot(dir);
   try {
     const events = await d.log!.read({ limit: 5000 });
-    assert.equal(events.some((event) => event.type === "grant.created" && event.entity_id === `gnt_${agent.slice(4)}space`), false);
-    assert.equal(d.db!.all("SELECT 1 FROM access_grants WHERE id IN (?, ?)", grant, `gnt_${agent.slice(4)}space`).length, 0, "access.sync preserves the revocation");
+    assert.equal(
+      events.some((event) => event.type === "grant.created" && event.entity_id === `gnt_${agent.slice(4)}space`),
+      false,
+    );
+    assert.equal(
+      d.db!.all("SELECT 1 FROM access_grants WHERE id IN (?, ?)", grant, `gnt_${agent.slice(4)}space`).length,
+      0,
+      "access.sync preserves the revocation",
+    );
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });
@@ -171,22 +342,57 @@ test("the live socket answers example.echo on the same server with the same trac
   const dir = seededDir();
   const d = await boot(dir);
   try {
-    const head = (await (await fetch(`${d.url}/healthz`)).json() as { head: number }).head;
-    const ws = new WebSocket(`ws://127.0.0.1:${d.port}/sync/v1/ws?device=dev1`, { headers: { authorization: `Bearer ${d.token}` } } as never);
+    const head = ((await (await fetch(`${d.url}/healthz`)).json()) as { head: number }).head;
+    const ws = new WebSocket(`ws://127.0.0.1:${d.port}/sync/v1/ws?device=dev1`, {
+      headers: { authorization: `Bearer ${d.token}` },
+    } as never);
     const frames: Record<string, unknown>[] = [];
     const waiting: ((f: Record<string, unknown>) => void)[] = [];
-    ws.addEventListener("message", (m) => { const f = JSON.parse(String(m.data)) as Record<string, unknown>; const w = waiting.shift(); if (w) w(f); else frames.push(f); });
-    await new Promise<void>((resolve, reject) => { ws.addEventListener("open", () => resolve()); ws.addEventListener("error", () => reject(new Error("socket did not open"))); });
-    const next = (): Promise<Record<string, unknown>> => new Promise((resolve, reject) => {
-      const q = frames.shift();
-      if (q) { resolve(q); return; }
-      const timer = setTimeout(() => reject(new Error("no frame")), 3000);
-      waiting.push((f) => { clearTimeout(timer); resolve(f); });
+    ws.addEventListener("message", (m) => {
+      const f = JSON.parse(String(m.data)) as Record<string, unknown>;
+      const w = waiting.shift();
+      if (w) w(f);
+      else frames.push(f);
     });
-    const ofType = async (type: string): Promise<Record<string, unknown>> => { for (;;) { const f = await next(); if (f["t"] === type) return f; } };
+    await new Promise<void>((resolve, reject) => {
+      ws.addEventListener("open", () => resolve());
+      ws.addEventListener("error", () => reject(new Error("socket did not open")));
+    });
+    const next = (): Promise<Record<string, unknown>> =>
+      new Promise((resolve, reject) => {
+        const q = frames.shift();
+        if (q) {
+          resolve(q);
+          return;
+        }
+        const timer = setTimeout(() => reject(new Error("no frame")), 3000);
+        waiting.push((f) => {
+          clearTimeout(timer);
+          resolve(f);
+        });
+      });
+    const ofType = async (type: string): Promise<Record<string, unknown>> => {
+      for (;;) {
+        const f = await next();
+        if (f["t"] === type) return f;
+      }
+    };
 
     // the Space's sync module serves the socket: hello is the modern { hello } frame and the answer the modern { ok } envelope
-    ws.send(JSON.stringify({ t: "hello", hello: { deviceId: "dev1", deviceClass: "desktop", appVersion: "1.2.3", registryHash: "unknown", cursor: head, epoch: 0, replica: { entities: {} } } }));
+    ws.send(
+      JSON.stringify({
+        t: "hello",
+        hello: {
+          deviceId: "dev1",
+          deviceClass: "desktop",
+          appVersion: "1.2.3",
+          registryHash: "unknown",
+          cursor: head,
+          epoch: 0,
+          replica: { entities: {} },
+        },
+      }),
+    );
     const hello = (await ofType("hello_ok"))["ok"] as { head: number; mode: string };
     assert.equal(typeof hello.head, "number", "the head is the sync feed's own (rows only), not the event log's");
     assert.equal(hello.mode, "resync", "a build hash the server does not know must resync");
@@ -196,13 +402,23 @@ test("the live socket answers example.echo on the same server with the same trac
     assert.equal(res["ok"], true);
     assert.deepEqual((res["data"] as { output: unknown }).output, { n: 9 });
     assert.equal(String(res["tr"]).slice(0, 32), "a1".repeat(16), "the response is in the caller's trace");
-    assert.ok(!frames.some((f) => f["t"] === "ev"), "the raw example.said event is not a row, so a sync session is sent no ev frame for it");
-    assert.equal(d.sink.trace("a1".repeat(16)).logs.some((l) => l.msg === "ws.call"), true, "and the log has the call");
+    assert.ok(
+      !frames.some((f) => f["t"] === "ev"),
+      "the raw example.said event is not a row, so a sync session is sent no ev frame for it",
+    );
+    assert.equal(
+      d.sink.trace("a1".repeat(16)).logs.some((l) => l.msg === "ws.call"),
+      true,
+      "and the log has the call",
+    );
     ws.close();
 
     // a socket without a token or a ticket is refused
     const closed = new WebSocket(`ws://127.0.0.1:${d.port}/sync/v1/ws?ticket=nope&device=dev2`);
-    await new Promise<void>((resolve) => { closed.addEventListener("error", () => resolve()); closed.addEventListener("close", () => resolve()); });
+    await new Promise<void>((resolve) => {
+      closed.addEventListener("error", () => resolve());
+      closed.addEventListener("close", () => resolve());
+    });
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });

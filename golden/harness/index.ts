@@ -6,7 +6,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export type TracePolicy = "single" | "multiple";
-export type Flow = { n: number; name: string; title: string; needs: string[]; events: string[]; tracePolicy?: TracePolicy };
+export type Flow = {
+  n: number;
+  name: string;
+  title: string;
+  needs: string[];
+  events: string[];
+  tracePolicy?: TracePolicy;
+};
 export type Observed = { type: string; traceId: string };
 export type ModuleStatus = { id: string; status: "stub" | "live" };
 export type Status = "pass" | "fail" | "pending";
@@ -21,7 +28,9 @@ export const flowId = (f: Flow): string => `${String(f.n).padStart(2, "0")}-${f.
 /** Module ids from generated/registry.json, statuses from host/modules.json (ruling 25: stub or live is runtime state, not contract). */
 export function loadRegistryModules(root = ROOT): ModuleStatus[] {
   const reg = JSON.parse(fs.readFileSync(path.join(root, "generated/registry.json"), "utf8"));
-  const listed = JSON.parse(fs.readFileSync(path.join(root, "host/modules.json"), "utf8")) as { modules: { id: string; status: string }[] };
+  const listed = JSON.parse(fs.readFileSync(path.join(root, "host/modules.json"), "utf8")) as {
+    modules: { id: string; status: string }[];
+  };
   const live = new Set(listed.modules.filter((m) => m.status === "live").map((m) => m.id));
   return reg.modules.map((m: { id: string }) => ({ id: m.id, status: live.has(m.id) ? "live" : "stub" }));
 }
@@ -49,7 +58,10 @@ export function checkSequence(expected: string[], observed: Observed[], tracePol
   let at = 0;
   for (const name of expected) {
     const i = observed.findIndex((o, k) => k >= at && o.type === name);
-    if (i < 0) { problems.push(`missing event ${name} after position ${at}`); break; }
+    if (i < 0) {
+      problems.push(`missing event ${name} after position ${at}`);
+      break;
+    }
     at = i + 1;
   }
   const ids = new Set(observed.map((o) => o.traceId));
@@ -62,7 +74,10 @@ export function checkSequence(expected: string[], observed: Observed[], tracePol
 export const STEPS_CAP_MS = Number(process.env["GOLDEN_FLOW_CAP_MS"] ?? 60_000);
 export function withinCap<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const cap = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`${what} did not finish within ${Math.round(ms / 1000)} s`)), ms); timer.unref?.(); });
+  const cap = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} did not finish within ${Math.round(ms / 1000)} s`)), ms);
+    timer.unref?.();
+  });
   return Promise.race([p, cap]).finally(() => clearTimeout(timer));
 }
 
@@ -70,19 +85,49 @@ export function withinCap<T>(p: Promise<T>, ms: number, what: string): Promise<T
 export async function evaluate(flow: Flow, modules: ModuleStatus[], loadSteps: LoadSteps): Promise<Result> {
   const base = { n: flow.n, name: flow.name };
   const b = blockers(flow, modules);
-  if (b.length) return { ...base, status: "pending", blockers: b, reasons: [], line: `PENDING (${b.length} module${b.length === 1 ? "" : "s"}) ${flowId(flow)}: ${b.join(", ")}` };
+  if (b.length)
+    return {
+      ...base,
+      status: "pending",
+      blockers: b,
+      reasons: [],
+      line: `PENDING (${b.length} module${b.length === 1 ? "" : "s"}) ${flowId(flow)}: ${b.join(", ")}`,
+    };
   const run = await loadSteps(flow);
-  if (!run) return { ...base, status: "fail", blockers: [], reasons: ["no steps file in golden/steps"], line: `FAIL ${flowId(flow)}: no steps file in golden/steps` };
+  if (!run)
+    return {
+      ...base,
+      status: "fail",
+      blockers: [],
+      reasons: ["no steps file in golden/steps"],
+      line: `FAIL ${flowId(flow)}: no steps file in golden/steps`,
+    };
   let reasons: string[];
-  try { reasons = checkSequence(flow.events, await withinCap(run(), STEPS_CAP_MS, `${flowId(flow)} steps`), flow.tracePolicy); } catch (e) { reasons = [`steps threw: ${(e as Error).message}`]; }
-  return { ...base, status: reasons.length ? "fail" : "pass", blockers: [], reasons, line: reasons.length ? `FAIL ${flowId(flow)}: ${reasons.join("; ")}` : `ok   ${flowId(flow)}` };
+  try {
+    reasons = checkSequence(
+      flow.events,
+      await withinCap(run(), STEPS_CAP_MS, `${flowId(flow)} steps`),
+      flow.tracePolicy,
+    );
+  } catch (e) {
+    reasons = [`steps threw: ${(e as Error).message}`];
+  }
+  return {
+    ...base,
+    status: reasons.length ? "fail" : "pass",
+    blockers: [],
+    reasons,
+    line: reasons.length ? `FAIL ${flowId(flow)}: ${reasons.join("; ")}` : `ok   ${flowId(flow)}`,
+  };
 }
 
 /** Loads golden/steps/<id>.ts when it exists. */
-export const fileSteps = (root = ROOT): LoadSteps => async (flow) => {
-  const f = path.join(root, "golden/steps", `${flowId(flow)}.ts`);
-  return fs.existsSync(f) ? ((await import(f)).default as () => Promise<Observed[]>) : null;
-};
+export const fileSteps =
+  (root = ROOT): LoadSteps =>
+  async (flow) => {
+    const f = path.join(root, "golden/steps", `${flowId(flow)}.ts`);
+    return fs.existsSync(f) ? ((await import(f)).default as () => Promise<Observed[]>) : null;
+  };
 
 /** Pending is not red: only failures make the run fail. */
 export const exitCode = (rs: Result[]): number => (rs.some((r) => r.status === "fail") ? 1 : 0);

@@ -26,7 +26,9 @@ export interface Embedder {
 
 const seams: { local: Embedder | null; key: Embedder | null } = { local: null, key: null };
 /** Bind the local model (the host) or the memory key's provider (key resolution). null unbinds. */
-export function setEmbedder(kind: "local" | "key", e: Embedder | null): void { seams[kind] = e; }
+export function setEmbedder(kind: "local" | "key", e: Embedder | null): void {
+  seams[kind] = e;
+}
 
 export interface MeaningHost {
   /** A ready-made embedder (tests, or a host that runs its own). */
@@ -38,11 +40,24 @@ export interface MeaningHost {
 }
 /** The host's single call: it hands over the model files (or an embedder of its own). null unbinds. */
 export function configureMeaning(host: MeaningHost | null): void {
-  seams.local = host?.local ?? (host?.files ? createLocalEmbedder({ files: host.files, ...(host.now ? { now: host.now } : {}), ...(host.log ? { log: host.log } : {}) }) : null);
+  seams.local =
+    host?.local ??
+    (host?.files
+      ? createLocalEmbedder({
+          files: host.files,
+          ...(host.now ? { now: host.now } : {}),
+          ...(host.log ? { log: host.log } : {}),
+        })
+      : null);
 }
 
 export type MeaningState = "on" | "loading" | "not_set_up" | "degraded" | "off";
-export interface MeaningStatus { mode: "local" | "key" | "off"; state: MeaningState; model?: string; hint?: string }
+export interface MeaningStatus {
+  mode: "local" | "key" | "off";
+  state: MeaningState;
+  model?: string;
+  hint?: string;
+}
 
 /** Cosine similarity of two unit vectors. */
 export function cosine(a: Float32Array, b: Float32Array): number {
@@ -56,36 +71,74 @@ export function cosine(a: Float32Array, b: Float32Array): number {
 export const MEANING_MIN = 0.3;
 
 /** A model's cosine as a score where 0.5 means "related" for that model: 0 below its own threshold, then 0.5 to 1 up to a cosine of 1. Models differ in how high unrelated texts score, so callers compare this, not the cosine. */
-export const calibrated = (cos: number, min: number): number => (cos < min ? 0 : 0.5 + (0.5 * (cos - min)) / Math.max(1e-6, 1 - min));
+export const calibrated = (cos: number, min: number): number =>
+  cos < min ? 0 : 0.5 + (0.5 * (cos - min)) / Math.max(1e-6, 1 - min);
 const NEW_SHARED_PER_CALL = 256;
 const PERSONAL_PER_CALL = 128;
 
 function hashOf(s: string): string {
   let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
   return `${h.toString(16)}:${s.length}`;
 }
 
 export async function meaningStatus(ctx: Pick<MemCtx, "call">): Promise<MeaningStatus & { embedder: Embedder | null }> {
   const mode = await meaningMode(ctx);
-  if (mode === "off") return { mode, state: "off", hint: "Meaning search is turned off. Keyword search is in use.", embedder: null };
+  if (mode === "off")
+    return { mode, state: "off", hint: "Meaning search is turned off. Keyword search is in use.", embedder: null };
   const e = mode === "key" ? seams.key : seams.local;
   if (!e) {
     return {
-      mode, state: "not_set_up", embedder: null,
-      hint: mode === "key" ? "Meaning search uses the memory key, and no memory key is chosen. Keyword search is in use." : "Meaning search is not set up on this server. Keyword search is in use.",
+      mode,
+      state: "not_set_up",
+      embedder: null,
+      hint:
+        mode === "key"
+          ? "Meaning search uses the memory key, and no memory key is chosen. Keyword search is in use."
+          : "Meaning search is not set up on this server. Keyword search is in use.",
     };
   }
   const s = e.status();
   if (s.state === "ready") return { mode, state: "on", model: e.name, embedder: e };
-  if (s.state === "loading") return { mode, state: "loading", model: e.name, hint: s.detail ?? "Meaning search is getting ready. Keyword search is in use until it is.", embedder: null };
-  if (s.state === "not_set_up") return { mode, state: "not_set_up", model: e.name, hint: s.detail ?? "Meaning search is not set up on this server. Keyword search is in use.", embedder: null };
-  return { mode, state: "degraded", model: e.name, hint: s.detail ?? "Meaning search could not start. Keyword search is in use.", embedder: null };
+  if (s.state === "loading")
+    return {
+      mode,
+      state: "loading",
+      model: e.name,
+      hint: s.detail ?? "Meaning search is getting ready. Keyword search is in use until it is.",
+      embedder: null,
+    };
+  if (s.state === "not_set_up")
+    return {
+      mode,
+      state: "not_set_up",
+      model: e.name,
+      hint: s.detail ?? "Meaning search is not set up on this server. Keyword search is in use.",
+      embedder: null,
+    };
+  return {
+    mode,
+    state: "degraded",
+    model: e.name,
+    hint: s.detail ?? "Meaning search could not start. Keyword search is in use.",
+    embedder: null,
+  };
 }
 
-export interface MeaningDoc { kind: "fact" | "note" | "page"; id: string; text: string; shared: boolean }
+export interface MeaningDoc {
+  kind: "fact" | "note" | "page";
+  id: string;
+  text: string;
+  shared: boolean;
+}
 /** `scores` are calibrated (0 unrelated, 0.5 and up related, see `calibrated`). */
-export interface MeaningResult { scores: Map<string, number> | null; status: MeaningStatus }
+export interface MeaningResult {
+  scores: Map<string, number> | null;
+  status: MeaningStatus;
+}
 
 const keyOf = (d: Pick<MeaningDoc, "kind" | "id">): string => `${d.kind}:${d.id}`;
 
@@ -96,7 +149,11 @@ export async function meaningScores(ctx: MemCtx, docs: MeaningDoc[], query: stri
   if (!embedder) return { scores: null, status };
   try {
     const [q] = await embedder.embed([query]);
-    if (!q) return { scores: null, status: { ...status, state: "degraded", hint: "Meaning search returned nothing. Keyword search is in use." } };
+    if (!q)
+      return {
+        scores: null,
+        status: { ...status, state: "degraded", hint: "Meaning search returned nothing. Keyword search is in use." },
+      };
     const scores = new Map<string, number>();
     const vecs = new Map<string, Float32Array>();
     const shared = docs.filter((d) => d.shared && d.text.trim() !== "");
@@ -105,11 +162,21 @@ export async function meaningScores(ctx: MemCtx, docs: MeaningDoc[], query: stri
       const mine = shared.filter((d) => d.kind === kind);
       if (mine.length === 0) continue;
       const have = new Map<string, { hash: string; vec: Uint8Array }>();
-      for (const r of rowsOf(ctx.db, "SELECT doc_id, text_hash, vec FROM memory_vectors WHERE doc_kind = ? AND model = ?", kind, embedder.name)) have.set(str(r["doc_id"]), { hash: str(r["text_hash"]), vec: r["vec"] as Uint8Array });
+      for (const r of rowsOf(
+        ctx.db,
+        "SELECT doc_id, text_hash, vec FROM memory_vectors WHERE doc_kind = ? AND model = ?",
+        kind,
+        embedder.name,
+      ))
+        have.set(str(r["doc_id"]), { hash: str(r["text_hash"]), vec: r["vec"] as Uint8Array });
       const missing: MeaningDoc[] = [];
       for (const d of mine) {
         const h = have.get(d.id);
-        if (h && h.hash === hashOf(d.text)) vecs.set(keyOf(d), new Float32Array(h.vec.buffer.slice(h.vec.byteOffset, h.vec.byteOffset + h.vec.byteLength)));
+        if (h && h.hash === hashOf(d.text))
+          vecs.set(
+            keyOf(d),
+            new Float32Array(h.vec.buffer.slice(h.vec.byteOffset, h.vec.byteOffset + h.vec.byteLength)),
+          );
         else missing.push(d);
       }
       const batch = missing.slice(0, NEW_SHARED_PER_CALL);
@@ -121,7 +188,13 @@ export async function meaningScores(ctx: MemCtx, docs: MeaningDoc[], query: stri
           vecs.set(keyOf(d), v);
           ctx.db.run(
             "INSERT OR REPLACE INTO memory_vectors (doc_kind, doc_id, model, text_hash, dim, vec, at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            d.kind, d.id, embedder.name, hashOf(d.text), v.length, new Uint8Array(v.buffer, v.byteOffset, v.byteLength), ctx.now(),
+            d.kind,
+            d.id,
+            embedder.name,
+            hashOf(d.text),
+            v.length,
+            new Uint8Array(v.buffer, v.byteOffset, v.byteLength),
+            ctx.now(),
           );
         });
       }
@@ -131,17 +204,37 @@ export async function meaningScores(ctx: MemCtx, docs: MeaningDoc[], query: stri
     const vkey = (d: MeaningDoc): string => `${embedder.name}|${keyOf(d)}|${hashOf(d.text)}`;
     const own = docs.filter((d) => !d.shared && d.text.trim() !== "");
     const fresh: MeaningDoc[] = [];
-    for (const d of own) { const v = ix?.vecs.get(vkey(d)); if (v) vecs.set(keyOf(d), v); else fresh.push(d); }
+    for (const d of own) {
+      const v = ix?.vecs.get(vkey(d));
+      if (v) vecs.set(keyOf(d), v);
+      else fresh.push(d);
+    }
     const personal = fresh.slice(0, PERSONAL_PER_CALL);
     if (personal.length > 0) {
       const out = await embedder.embed(personal.map((d) => d.text));
-      personal.forEach((d, i) => { const v = out[i]; if (v) { vecs.set(keyOf(d), v); ix?.vecs.set(vkey(d), v); } });
+      personal.forEach((d, i) => {
+        const v = out[i];
+        if (v) {
+          vecs.set(keyOf(d), v);
+          ix?.vecs.set(vkey(d), v);
+        }
+      });
     }
     const min = embedder.minScore ?? MEANING_MIN;
-    for (const d of docs) { const v = vecs.get(keyOf(d)); if (v) scores.set(keyOf(d), calibrated(cosine(q, v), min)); }
+    for (const d of docs) {
+      const v = vecs.get(keyOf(d));
+      if (v) scores.set(keyOf(d), calibrated(cosine(q, v), min));
+    }
     return { scores, status };
   } catch {
-    return { scores: null, status: { ...status, state: "degraded", hint: "Meaning search could not run just now. Keyword search is in use." } };
+    return {
+      scores: null,
+      status: {
+        ...status,
+        state: "degraded",
+        hint: "Meaning search could not run just now. Keyword search is in use.",
+      },
+    };
   }
 }
 

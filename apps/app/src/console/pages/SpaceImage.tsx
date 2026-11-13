@@ -10,20 +10,42 @@ import type { DroppedFile } from "../../../../../ui/src/FileDrop/index.tsx";
 import { Line } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Actions, Button, Note, attempt, useRead } from "./shared.tsx";
-import { FULL, IMAGE_MAX_BYTES, IMAGE_SIDE, MAX_ZOOM, base64Bytes, cropSquare, dragged, isPicture, notPictureLine, saveSpaceImage, splitDataUrl } from "./space-image.ts";
+import {
+  FULL,
+  IMAGE_MAX_BYTES,
+  IMAGE_SIDE,
+  MAX_ZOOM,
+  base64Bytes,
+  cropSquare,
+  dragged,
+  isPicture,
+  notPictureLine,
+  saveSpaceImage,
+  splitDataUrl,
+} from "./space-image.ts";
 import type { Crop } from "./space-image.ts";
 
 const web = Platform.OS === "web";
 const VIEW = 220;
 
-interface Source { url: string; name: string }
-interface Loaded { img: HTMLImageElement; w: number; h: number }
+interface Source {
+  url: string;
+  name: string;
+}
+interface Loaded {
+  img: HTMLImageElement;
+  w: number;
+  h: number;
+}
 
 /** A browser file as a data: address. */
 function readFile(f: DroppedFile): Promise<string> {
   return new Promise((resolve, reject) => {
     const Reader = (globalThis as { FileReader?: typeof FileReader }).FileReader;
-    if (!Reader) { reject(new Error("This window cannot read files.")); return; }
+    if (!Reader) {
+      reject(new Error("This window cannot read files."));
+      return;
+    }
     const r = new Reader();
     r.onload = () => resolve(String(r.result));
     r.onerror = () => reject(new Error("That picture could not be read."));
@@ -36,7 +58,8 @@ function squareOf(loaded: Loaded, crop: Crop): { mime: string; base64: string; u
   const doc = (globalThis as { document?: Document }).document;
   if (!doc) return null;
   const canvas = doc.createElement("canvas");
-  canvas.width = IMAGE_SIDE; canvas.height = IMAGE_SIDE;
+  canvas.width = IMAGE_SIDE;
+  canvas.height = IMAGE_SIDE;
   const g = canvas.getContext("2d");
   if (!g) return null;
   const { sx, sy, side } = cropSquare({ w: loaded.w, h: loaded.h }, crop);
@@ -44,7 +67,10 @@ function squareOf(loaded: Loaded, crop: Crop): { mime: string; base64: string; u
   g.drawImage(loaded.img, sx, sy, side, side, 0, 0, IMAGE_SIDE, IMAGE_SIDE);
   let url = canvas.toDataURL("image/png");
   let parts = splitDataUrl(url);
-  if (parts && base64Bytes(parts.base64) > IMAGE_MAX_BYTES * 0.95) { url = canvas.toDataURL("image/jpeg", 0.88); parts = splitDataUrl(url); }
+  if (parts && base64Bytes(parts.base64) > IMAGE_MAX_BYTES * 0.95) {
+    url = canvas.toDataURL("image/jpeg", 0.88);
+    parts = splitDataUrl(url);
+  }
   return parts ? { ...parts, url } : null;
 }
 
@@ -54,37 +80,123 @@ function Cropper({ loaded, crop, onCrop }: { loaded: Loaded; crop: Crop; onCrop(
   const { sx, sy, side } = cropSquare({ w: loaded.w, h: loaded.h }, crop);
   const scale = VIEW / side;
   const img = createElement("img", {
-    src: loaded.img.src, alt: "", draggable: false, "data-testid": "space-image-crop-picture",
-    style: { position: "absolute", left: -sx * scale, top: -sy * scale, width: loaded.w * scale, height: loaded.h * scale, maxWidth: "none", userSelect: "none", pointerEvents: "none" },
+    src: loaded.img.src,
+    alt: "",
+    draggable: false,
+    "data-testid": "space-image-crop-picture",
+    style: {
+      position: "absolute",
+      left: -sx * scale,
+      top: -sy * scale,
+      width: loaded.w * scale,
+      height: loaded.h * scale,
+      maxWidth: "none",
+      userSelect: "none",
+      pointerEvents: "none",
+    },
   });
-  const box = createElement("div", {
-    "data-testid": "space-image-crop", role: "img", "aria-label": "Crop: drag to move the picture",
-    style: { position: "relative", width: VIEW, height: VIEW, overflow: "hidden", borderRadius: 16, cursor: "grab", touchAction: "none", background: "var(--hover)", boxShadow: "inset 0 0 0 1px var(--line)" },
-    onPointerDown: (e: { clientX: number; clientY: number; currentTarget: { setPointerCapture?(id: number): void }; pointerId: number }) => { drag.current = { x: e.clientX, y: e.clientY, from: crop }; e.currentTarget.setPointerCapture?.(e.pointerId); },
-    onPointerMove: (e: { clientX: number; clientY: number }) => { const d = drag.current; if (d) onCrop(dragged({ w: loaded.w, h: loaded.h }, d.from, e.clientX - d.x, e.clientY - d.y, VIEW)); },
-    onPointerUp: () => { drag.current = null; },
-    onPointerCancel: () => { drag.current = null; },
-  }, img);
+  const box = createElement(
+    "div",
+    {
+      "data-testid": "space-image-crop",
+      role: "img",
+      "aria-label": "Crop: drag to move the picture",
+      style: {
+        position: "relative",
+        width: VIEW,
+        height: VIEW,
+        overflow: "hidden",
+        borderRadius: 16,
+        cursor: "grab",
+        touchAction: "none",
+        background: "var(--hover)",
+        boxShadow: "inset 0 0 0 1px var(--line)",
+      },
+      onPointerDown: (e: {
+        clientX: number;
+        clientY: number;
+        currentTarget: { setPointerCapture?(id: number): void };
+        pointerId: number;
+      }) => {
+        drag.current = { x: e.clientX, y: e.clientY, from: crop };
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+      },
+      onPointerMove: (e: { clientX: number; clientY: number }) => {
+        const d = drag.current;
+        if (d) onCrop(dragged({ w: loaded.w, h: loaded.h }, d.from, e.clientX - d.x, e.clientY - d.y, VIEW));
+      },
+      onPointerUp: () => {
+        drag.current = null;
+      },
+      onPointerCancel: () => {
+        drag.current = null;
+      },
+    },
+    img,
+  );
   const zoom = createElement("input", {
-    type: "range", min: 1, max: MAX_ZOOM, step: 0.01, value: crop.zoom, "aria-label": "Zoom", "data-testid": "space-image-zoom",
+    type: "range",
+    min: 1,
+    max: MAX_ZOOM,
+    step: 0.01,
+    value: crop.zoom,
+    "aria-label": "Zoom",
+    "data-testid": "space-image-zoom",
     onChange: (e: { target: { value: string } }) => onCrop({ ...crop, zoom: Number(e.target.value) }),
     style: { width: VIEW, accentColor: "var(--accent)" },
   });
-  return <View style={s.cropCol}>{box}<View style={s.zoomRow}><Text style={s.small}>Zoom</Text>{zoom}</View></View>;
+  return (
+    <View style={s.cropCol}>
+      {box}
+      <View style={s.zoomRow}>
+        <Text style={s.small}>Zoom</Text>
+        {zoom}
+      </View>
+    </View>
+  );
 }
 
 /** How the square will look where the Space shows its face. */
 function Faces({ url, name }: { url: string; name: string }): ReactElement {
   return (
     <View style={s.faces} testID="space-image-preview">
-      <View style={s.face}><Image source={{ uri: url }} style={[s.faceImg, { width: 36, height: 36, borderRadius: 13 }]} accessibilityLabel={`${name} on the rail`} /><Text style={s.small}>Rail</Text></View>
-      <View style={s.face}><Image source={{ uri: url }} style={[s.faceImg, { width: 40, height: 40, borderRadius: 12 }]} accessibilityLabel={`${name} on the sign-in page`} /><Text style={s.small}>Sign-in</Text></View>
-      <View style={s.face}><Image source={{ uri: url }} style={[s.faceImg, { width: 18, height: 18, borderRadius: 5 }]} accessibilityLabel={`${name} in the switcher`} /><Text style={s.small}>Switcher</Text></View>
+      <View style={s.face}>
+        <Image
+          source={{ uri: url }}
+          style={[s.faceImg, { width: 36, height: 36, borderRadius: 13 }]}
+          accessibilityLabel={`${name} on the rail`}
+        />
+        <Text style={s.small}>Rail</Text>
+      </View>
+      <View style={s.face}>
+        <Image
+          source={{ uri: url }}
+          style={[s.faceImg, { width: 40, height: 40, borderRadius: 12 }]}
+          accessibilityLabel={`${name} on the sign-in page`}
+        />
+        <Text style={s.small}>Sign-in</Text>
+      </View>
+      <View style={s.face}>
+        <Image
+          source={{ uri: url }}
+          style={[s.faceImg, { width: 18, height: 18, borderRadius: 5 }]}
+          accessibilityLabel={`${name} in the switcher`}
+        />
+        <Text style={s.small}>Switcher</Text>
+      </View>
     </View>
   );
 }
 
-export function SpaceLogoRow({ spaceName, logoFileId, onSaved }: { spaceName: string; logoFileId: string | null; onSaved(): void }): ReactElement {
+export function SpaceLogoRow({
+  spaceName,
+  logoFileId,
+  onSaved,
+}: {
+  spaceName: string;
+  logoFileId: string | null;
+  onSaved(): void;
+}): ReactElement {
   const { call } = useConsoleData();
   const current = useRead<CapMap["spaces.image"]["out"]>("spaces.image", {}, { direct: true });
   const [source, setSource] = useState<Source | null>(null);
@@ -95,12 +207,22 @@ export function SpaceLogoRow({ spaceName, logoFileId, onSaved }: { spaceName: st
   const input = useRef<HTMLInputElement | null>(null);
   const key = useRef(attempt());
 
-  useEffect(() => { current.refresh(); }, [logoFileId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    current.refresh();
+  }, [logoFileId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const open = useCallback(async (files: readonly DroppedFile[]): Promise<void> => {
     const f = files.find(isPicture);
-    if (!f) { setNote(files[0] ? notPictureLine(files[0]) : ""); return; }
-    try { setNote(""); setSource({ url: await readFile(f), name: f.name }); } catch (e) { setNote(e instanceof Error ? e.message : "That picture could not be read."); }
+    if (!f) {
+      setNote(files[0] ? notPictureLine(files[0]) : "");
+      return;
+    }
+    try {
+      setNote("");
+      setSource({ url: await readFile(f), name: f.name });
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "That picture could not be read.");
+    }
   }, []);
 
   // a pasted picture opens wherever the focus is on this page, as in any app
@@ -119,57 +241,132 @@ export function SpaceLogoRow({ spaceName, logoFileId, onSaved }: { spaceName: st
 
   // the picture, once the browser has it: its size sets up the crop
   useEffect(() => {
-    if (!source || !web) { setLoaded(null); return undefined; }
+    if (!source || !web) {
+      setLoaded(null);
+      return undefined;
+    }
     let alive = true;
     const Img = (globalThis as { Image?: new () => HTMLImageElement }).Image;
     if (!Img) return undefined;
     const img = new Img();
-    img.onload = () => { if (alive) { setLoaded({ img, w: img.naturalWidth, h: img.naturalHeight }); setCrop(FULL); } };
-    img.onerror = () => { if (alive) { setNote("That picture could not be opened."); setSource(null); } };
+    img.onload = () => {
+      if (alive) {
+        setLoaded({ img, w: img.naturalWidth, h: img.naturalHeight });
+        setCrop(FULL);
+      }
+    };
+    img.onerror = () => {
+      if (alive) {
+        setNote("That picture could not be opened.");
+        setSource(null);
+      }
+    };
     img.src = source.url;
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [source]);
 
   const square = useMemo(() => (loaded ? squareOf(loaded, crop) : null), [loaded, crop]);
 
   const save = async (): Promise<void> => {
     if (!square || busy) return;
-    setBusy(true); setNote("");
+    setBusy(true);
+    setNote("");
     try {
       await saveSpaceImage(call, square, new Date(), key.current);
       key.current = attempt();
-      setSource(null); setLoaded(null);
-      setNote("Space image saved. It shows on the rail, in the switcher, on the sign-in and join pages and in invites.");
-      current.refresh(); onSaved();
+      setSource(null);
+      setLoaded(null);
+      setNote(
+        "Space image saved. It shows on the rail, in the switcher, on the sign-in and join pages and in invites.",
+      );
+      current.refresh();
+      onSaved();
     } catch (e) {
       const err = e as { message?: string };
       setNote(err.message ?? "The Space image was not saved. Try again.");
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
 
   const remove = async (): Promise<void> => {
-    setBusy(true); setNote("");
-    try { await call("spaces.update", { logoFileId: null }); setNote("Space image removed. The Space shows its letter."); current.refresh(); onSaved(); }
-    catch (e) { setNote((e as { message?: string }).message ?? "The Space image was not removed. Try again."); }
-    finally { setBusy(false); }
+    setBusy(true);
+    setNote("");
+    try {
+      await call("spaces.update", { logoFileId: null });
+      setNote("Space image removed. The Space shows its letter.");
+      current.refresh();
+      onSaved();
+    } catch (e) {
+      setNote((e as { message?: string }).message ?? "The Space image was not removed. Try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const shown = current.data?.image;
-  const picker = web ? createElement("input", {
-    ref: input, type: "file", accept: "image/png,image/jpeg,image/webp,image/gif", "data-testid": "space-image-input", style: { display: "none" },
-    onChange: (e: { target: { files?: FileList | null; value: string } }) => { const list = e.target.files ? Array.from(e.target.files) as unknown as DroppedFile[] : []; e.target.value = ""; void open(list); },
-  }) : null;
-  const leading = <View style={s.lead}>{shown
-    ? <Image testID="space-image-current" source={{ uri: shown }} accessibilityLabel={spaceName} style={{ width: 36, height: 36, borderRadius: 13 }} />
-    : <View testID="space-image-letter" style={s.letter}><Text style={s.letterText}>{(spaceName.trim()[0] ?? "?").toUpperCase()}</Text></View>}</View>;
+  const picker = web
+    ? createElement("input", {
+        ref: input,
+        type: "file",
+        accept: "image/png,image/jpeg,image/webp,image/gif",
+        "data-testid": "space-image-input",
+        style: { display: "none" },
+        onChange: (e: { target: { files?: FileList | null; value: string } }) => {
+          const list = e.target.files ? (Array.from(e.target.files) as unknown as DroppedFile[]) : [];
+          e.target.value = "";
+          void open(list);
+        },
+      })
+    : null;
+  const leading = (
+    <View style={s.lead}>
+      {shown ? (
+        <Image
+          testID="space-image-current"
+          source={{ uri: shown }}
+          accessibilityLabel={spaceName}
+          style={{ width: 36, height: 36, borderRadius: 13 }}
+        />
+      ) : (
+        <View testID="space-image-letter" style={s.letter}>
+          <Text style={s.letterText}>{(spaceName.trim()[0] ?? "?").toUpperCase()}</Text>
+        </View>
+      )}
+    </View>
+  );
 
   return (
-    <DropZone onFiles={(files) => void open(files)} paste={false} label="Drop a picture to use it as the Space logo" testID="space-image-drop" radius={12}>
+    <DropZone
+      onFiles={(files) => void open(files)}
+      paste={false}
+      label="Drop a picture to use it as the Space logo"
+      testID="space-image-drop"
+      radius={12}
+    >
       <View testID="space-image">
-        <Line index={0}><Row id="space-logo" title="Logo" leading={leading} trailing={<Actions>
-          <Button label="Upload" testID="space-image-choose" disabled={busy} onPress={() => input.current?.click()} />
-          {logoFileId ? <Button label="Remove" testID="space-image-remove" disabled={busy} onPress={() => void remove()} /> : null}
-        </Actions>} /></Line>
+        <Line index={0}>
+          <Row
+            id="space-logo"
+            title="Logo"
+            leading={leading}
+            trailing={
+              <Actions>
+                <Button
+                  label="Upload"
+                  testID="space-image-choose"
+                  disabled={busy}
+                  onPress={() => input.current?.click()}
+                />
+                {logoFileId ? (
+                  <Button label="Remove" testID="space-image-remove" disabled={busy} onPress={() => void remove()} />
+                ) : null}
+              </Actions>
+            }
+          />
+        </Line>
         {picker}
         {source && loaded && square ? (
           <View style={s.editor} testID="space-image-editor">
@@ -177,10 +374,25 @@ export function SpaceLogoRow({ spaceName, logoFileId, onSaved }: { spaceName: st
             <View style={s.side}>
               <Text style={s.label}>Preview</Text>
               <Faces url={square.url} name={spaceName} />
-              <Text style={s.small}>{source.name} · saved as a {IMAGE_SIDE} × {IMAGE_SIDE} square in Shared knowledge/Branding</Text>
+              <Text style={s.small}>
+                {source.name} · saved as a {IMAGE_SIDE} × {IMAGE_SIDE} square in Shared knowledge/Branding
+              </Text>
               <Actions>
-                <Button label={busy ? "Saving…" : "Save image"} testID="space-image-save" disabled={busy} onPress={() => void save()} />
-                <Button label="Cancel" testID="space-image-cancel" disabled={busy} onPress={() => { setSource(null); setLoaded(null); }} />
+                <Button
+                  label={busy ? "Saving…" : "Save image"}
+                  testID="space-image-save"
+                  disabled={busy}
+                  onPress={() => void save()}
+                />
+                <Button
+                  label="Cancel"
+                  testID="space-image-cancel"
+                  disabled={busy}
+                  onPress={() => {
+                    setSource(null);
+                    setLoaded(null);
+                  }}
+                />
               </Actions>
             </View>
           </View>
@@ -192,7 +404,14 @@ export function SpaceLogoRow({ spaceName, logoFileId, onSaved }: { spaceName: st
 }
 
 const s = StyleSheet.create({
-  editor: { flexDirection: "row", flexWrap: "wrap", gap: 24, paddingVertical: 12, paddingHorizontal: 4, alignItems: "flex-start" },
+  editor: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    alignItems: "flex-start",
+  },
   cropCol: { gap: 10 },
   zoomRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   side: { gap: 10, minWidth: 220, flexShrink: 1 },
@@ -202,6 +421,13 @@ const s = StyleSheet.create({
   label: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   small: { fontSize: 12, color: "var(--ink-3)" as string },
   lead: { marginRight: 12 },
-  letter: { width: 36, height: 36, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string },
+  letter: {
+    width: 36,
+    height: 36,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--accent)" as string,
+  },
   letterText: { color: "var(--accent-ink)" as string, fontSize: 14, fontWeight: "600" },
 });

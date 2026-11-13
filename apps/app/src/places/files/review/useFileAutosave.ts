@@ -61,7 +61,13 @@ export function useFileAutosave(o: FileAutosaveOptions): FileAutosave {
         const cur = latest.current;
         const why = cur.blocked?.() ?? null;
         if (why !== null) return { ok: false, error: why };
-        const r = await saveFile(cur.call, { fileId: cur.fileId, text, baseVersion: ref.current?.state.version ?? cur.version, reason: cur.reason ?? "", acceptWarnings: cur.acceptWarnings?.() === true });
+        const r = await saveFile(cur.call, {
+          fileId: cur.fileId,
+          text,
+          baseVersion: ref.current?.state.version ?? cur.version,
+          reason: cur.reason ?? "",
+          acceptWarnings: cur.acceptWarnings?.() === true,
+        });
         if (!r.ok) return { ok: false, error: r.error };
         setBase({ text, version: r.value.n });
         cur.onSaved?.(r.value.versionId, r.value.n);
@@ -71,52 +77,93 @@ export function useFileAutosave(o: FileAutosaveOptions): FileAutosave {
   }
   const saver = ref.current;
   useEffect(() => saver.subscribe(setAuto), [saver]);
-  useEffect(() => () => { void saver.flush(); saver.destroy(); }, [saver]);
+  useEffect(
+    () => () => {
+      void saver.flush();
+      saver.destroy();
+    },
+    [saver],
+  );
   useEffect(() => {
     if (o.saved === base.text && o.version === base.version) return;
     setBase({ text: o.saved, version: o.version });
     setDraft(o.saved);
     saver.reset({ text: o.saved, version: o.version });
   }, [o.saved, o.version]);
-  useEffect(() => { if (o.startDraft !== undefined && o.startDraft !== o.saved && o.manual !== true) saver.edit(o.startDraft); }, []);
+  useEffect(() => {
+    if (o.startDraft !== undefined && o.startDraft !== o.saved && o.manual !== true) saver.edit(o.startDraft);
+  }, []);
 
-  const edit = useCallback((t: string): void => { setDraft(t); setLine(null); if (latest.current.manual !== true) saver.edit(t); }, [saver]);
-  const flush = useCallback((): void => { void saver.flush(); }, [saver]);
+  const edit = useCallback(
+    (t: string): void => {
+      setDraft(t);
+      setLine(null);
+      if (latest.current.manual !== true) saver.edit(t);
+    },
+    [saver],
+  );
+  const flush = useCallback((): void => {
+    void saver.flush();
+  }, [saver]);
   const undo = useCallback((): void => {
     const to = saver.state.undoTo;
     if (to === null) return;
     const cur = latest.current;
     void (async () => {
       try {
-        const list = (await cur.call("files.versions", { fileId: cur.fileId })) as { versions: { n: number; versionId: string }[] };
+        const list = (await cur.call("files.versions", { fileId: cur.fileId })) as {
+          versions: { n: number; versionId: string }[];
+        };
         const v = list.versions.find((x) => x.n === to);
-        if (!v) { setLine({ kind: "error", text: "That version is not there to go back to." }); return; }
+        if (!v) {
+          setLine({ kind: "error", text: "That version is not there to go back to." });
+          return;
+        }
         const r = await restoreVersion(cur.call, cur.fileId, v.versionId);
-        if (!r.ok) { setLine({ kind: "error", text: r.error }); return; }
+        if (!r.ok) {
+          setLine({ kind: "error", text: r.error });
+          return;
+        }
         const restored = r.value.file.version;
-        const read = (await cur.call("files.read", { fileId: cur.fileId, versionId: v.versionId, as: "text" })) as { text?: string };
+        const read = (await cur.call("files.read", { fileId: cur.fileId, versionId: v.versionId, as: "text" })) as {
+          text?: string;
+        };
         const text = read.text ?? "";
         setDraft(text);
         setBase({ text, version: restored });
         saver.undone(text, restored);
         setLine({ kind: "ok", text: `Went back to version ${to}, saved as version ${restored}.` });
         cur.onSaved?.(r.value.versionId, restored);
-      } catch { setLine({ kind: "error", text: "Could not go back. Try again." }); }
+      } catch {
+        setLine({ kind: "error", text: "Could not go back. Try again." });
+      }
     })();
   }, [saver]);
-  const saveReviewed = useCallback(async (reason: string) => {
-    const cur = latest.current;
-    const r = await saveFile(cur.call, { fileId: cur.fileId, text: draftRef.current, baseVersion: baseRef.current.version, reason, acceptWarnings: cur.acceptWarnings?.() === true });
-    if (!r.ok) return { ok: false as const, error: r.error };
-    setBase({ text: draftRef.current, version: r.value.n });
-    saver.reset({ text: draftRef.current, version: r.value.n });
-    cur.onSaved?.(r.value.versionId, r.value.n);
-    return { ok: true as const, n: r.value.n };
-  }, [saver]);
+  const saveReviewed = useCallback(
+    async (reason: string) => {
+      const cur = latest.current;
+      const r = await saveFile(cur.call, {
+        fileId: cur.fileId,
+        text: draftRef.current,
+        baseVersion: baseRef.current.version,
+        reason,
+        acceptWarnings: cur.acceptWarnings?.() === true,
+      });
+      if (!r.ok) return { ok: false as const, error: r.error };
+      setBase({ text: draftRef.current, version: r.value.n });
+      saver.reset({ text: draftRef.current, version: r.value.n });
+      cur.onSaved?.(r.value.versionId, r.value.n);
+      return { ok: true as const, n: r.value.n };
+    },
+    [saver],
+  );
   const draftRef = useRef(draft);
   draftRef.current = draft;
   const baseRef = useRef(base);
   baseRef.current = base;
-  const discard = useCallback((): void => { setDraft(baseRef.current.text); setLine(null); }, []);
+  const discard = useCallback((): void => {
+    setDraft(baseRef.current.text);
+    setLine(null);
+  }, []);
   return { draft, setDraft, base, auto, edit, flush, undo, saveReviewed, discard, line, setLine };
 }

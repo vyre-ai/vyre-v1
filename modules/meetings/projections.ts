@@ -22,11 +22,22 @@ export interface MeetCtx {
   /** the person an agent or the host acts for, when it does */
   actingFor?: string;
   /** may the caller do this to that resource (the host Ctx has it; a hand-built test ctx may not) */
-  authorize?(action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): { effect: "allow" | "deny" | "hold" };
-  emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
+  authorize?(
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
+    resource: { type: string; id: string | null },
+  ): { effect: "allow" | "deny" | "hold" };
+  emit(
+    name: string,
+    subject: string,
+    payload: unknown,
+    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+  ): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
   schedule?(at: number, cap: string, input: unknown): Promise<string>;
-  log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
+  log: {
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 export type Val = string | number | null;
@@ -40,7 +51,10 @@ export const isoOf = (ms: number): string => new Date(ms).toISOString();
 /** Milliseconds from a datetime field: an ISO string, or a number from a row written before this rule; undefined when it is neither. */
 export function msOf(v: unknown): number | undefined {
   if (typeof v === "number" && Number.isFinite(v)) return v;
-  if (typeof v === "string") { const t = Date.parse(v); return Number.isFinite(t) ? t : undefined; }
+  if (typeof v === "string") {
+    const t = Date.parse(v);
+    return Number.isFinite(t) ? t : undefined;
+  }
   return undefined;
 }
 
@@ -54,11 +68,13 @@ export const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 export const text = (v: unknown): string => (typeof v === "string" ? v : "");
 export const strOrUndef = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
 export const str = (r: Row | null, k: string): string => (r && typeof r[k] === "string" ? (r[k] as string) : "");
-export const strOrNull = (r: Row | null, k: string): string | null => (r && typeof r[k] === "string" && r[k] !== "" ? (r[k] as string) : null);
+export const strOrNull = (r: Row | null, k: string): string | null =>
+  r && typeof r[k] === "string" && r[k] !== "" ? (r[k] as string) : null;
 export const num = (r: Row | null, k: string): number => (r && typeof r[k] === "number" ? (r[k] as number) : 0);
-export const numOrNull = (r: Row | null, k: string): number | null => (r && typeof r[k] === "number" ? (r[k] as number) : null);
+export const numOrNull = (r: Row | null, k: string): number | null =>
+  r && typeof r[k] === "number" ? (r[k] as number) : null;
 export const isInt = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v);
-export const codeOf = (err: unknown): string => ((err as { error?: { code?: string } } | null)?.error?.code ?? "");
+export const codeOf = (err: unknown): string => (err as { error?: { code?: string } } | null)?.error?.code ?? "";
 
 export function parseJson<T>(v: Val | undefined, fallback: T): T {
   if (typeof v !== "string" || v === "") return fallback;
@@ -90,18 +106,31 @@ export function keyOf(ctx: Pick<MeetCtx, "trace">, input: unknown): string {
 // ---- ids and shapes
 
 export const newId = (prefix: string, now: number): string => `${prefix}_${mintUuid(now).replaceAll("-", "")}`;
-export const isId = (prefix: string, v: unknown): v is string => typeof v === "string" && new RegExp(`^${prefix}_[a-z0-9]+$`).test(v);
-export function pageOf<T>(items: readonly T[], cursor: string | undefined, limit: number | undefined): { page: T[]; next?: string; total: number } {
+export const isId = (prefix: string, v: unknown): v is string =>
+  typeof v === "string" && new RegExp(`^${prefix}_[a-z0-9]+$`).test(v);
+export function pageOf<T>(
+  items: readonly T[],
+  cursor: string | undefined,
+  limit: number | undefined,
+): { page: T[]; next?: string; total: number } {
   const start = cursor && /^\d+$/.test(cursor) ? Number(cursor) : 0;
   const size = limit ?? 100;
-  return { page: items.slice(start, start + size), ...(start + size < items.length ? { next: String(start + size) } : {}), total: items.length };
+  return {
+    page: items.slice(start, start + size),
+    ...(start + size < items.length ? { next: String(start + size) } : {}),
+    total: items.length,
+  };
 }
 
 /** page arguments, validated: a bad cursor or limit is a bad input, not a crash */
-export function paging(ctx: Pick<MeetCtx, "trace">, o: Json): { cursor: string | undefined; limit: number | undefined } {
+export function paging(
+  ctx: Pick<MeetCtx, "trace">,
+  o: Json,
+): { cursor: string | undefined; limit: number | undefined } {
   const cursor = o["cursor"];
   const limit = o["limit"];
-  if (cursor !== undefined && (typeof cursor !== "string" || !/^\d+$/.test(cursor))) bad(ctx, "The cursor is not valid.");
+  if (cursor !== undefined && (typeof cursor !== "string" || !/^\d+$/.test(cursor)))
+    bad(ctx, "The cursor is not valid.");
   if (limit !== undefined && (!isInt(limit) || limit < 1 || limit > 500)) bad(ctx, "The limit is 1 to 500.");
   return { cursor: cursor as string | undefined, limit: limit as number | undefined };
 }
@@ -109,7 +138,9 @@ export function paging(ctx: Pick<MeetCtx, "trace">, o: Json): { cursor: string |
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_meetings.sql", "0002_meetings_watchers.sql", "0003_meetings_closeout.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = ["0001_meetings.sql", "0002_meetings_watchers.sql", "0003_meetings_closeout.sql"]
+  .map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8"))
+  .join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -135,7 +166,7 @@ export function statements(sql: string): string[] {
 export function ensure(ctx: Pick<MeetCtx, "db">): void {
   if (ready.has(ctx.db)) return;
   try {
-    ctx.db.all(`SELECT "recordId" FROM meetings_share WHERE "recordId" = ?`, "probe");   // the newest table: a store from before it gets the rest (every statement is IF NOT EXISTS)
+    ctx.db.all(`SELECT "recordId" FROM meetings_share WHERE "recordId" = ?`, "probe"); // the newest table: a store from before it gets the rest (every statement is IF NOT EXISTS)
   } catch {
     for (const statement of statements(migrationSql)) ctx.db.run(statement);
   }
@@ -147,7 +178,8 @@ export function getState(ctx: Pick<MeetCtx, "db">, key: string): string | null {
   return row && typeof row.value === "string" ? row.value : null;
 }
 export function setState(ctx: Pick<MeetCtx, "db">, key: string, value: string): void {
-  if (getState(ctx, key) === null) ctx.db.run(`INSERT OR IGNORE INTO meetings_state ("key", "value") VALUES (?, ?)`, key, value);
+  if (getState(ctx, key) === null)
+    ctx.db.run(`INSERT OR IGNORE INTO meetings_state ("key", "value") VALUES (?, ?)`, key, value);
   else ctx.db.run(`UPDATE meetings_state SET "value" = ? WHERE "key" = ?`, value, key);
 }
 
@@ -160,7 +192,11 @@ export type SourceKind = "zoom" | "meet" | "teams" | "upload";
 export function providerOfUrl(url: string | undefined): Provider {
   if (!url) return "none";
   let host = "";
-  try { host = new URL(url).host.toLowerCase(); } catch { return "none"; }
+  try {
+    host = new URL(url).host.toLowerCase();
+  } catch {
+    return "none";
+  }
   if (host.endsWith("zoom.us") || host.endsWith("zoom.com")) return "zoom";
   if (host === "meet.google.com") return "meet";
   if (host.endsWith("teams.microsoft.com") || host.endsWith("teams.live.com")) return "teams";
@@ -179,15 +215,36 @@ export function linkKey(url: string | null | undefined): string | null {
 }
 
 export interface Link {
-  recordId: string; providerRef: string | null; joinUrl: string | null; startsAt: number; endsAt: number | null; emails: string[]; eventIds: string[]; provider: Provider;
-  recordingFileId: string | null; recordingDurationSec: number | null; folderId: string | null; mergedBy: string | null; createdAt: number;
+  recordId: string;
+  providerRef: string | null;
+  joinUrl: string | null;
+  startsAt: number;
+  endsAt: number | null;
+  emails: string[];
+  eventIds: string[];
+  provider: Provider;
+  recordingFileId: string | null;
+  recordingDurationSec: number | null;
+  folderId: string | null;
+  mergedBy: string | null;
+  createdAt: number;
 }
 
 export function linkOf(r: Row): Link {
   return {
-    recordId: str(r, "recordId"), providerRef: strOrNull(r, "providerRef"), joinUrl: strOrNull(r, "joinUrl"), startsAt: num(r, "startsAt"), endsAt: numOrNull(r, "endsAt"),
-    emails: parseJson<string[]>(r["emails"], []), eventIds: parseJson<string[]>(r["eventIds"], []), provider: (str(r, "provider") || "none") as Provider,
-    recordingFileId: strOrNull(r, "recordingFileId"), recordingDurationSec: numOrNull(r, "recordingDurationSec"), folderId: strOrNull(r, "folderId"), mergedBy: strOrNull(r, "mergedBy"), createdAt: num(r, "createdAt"),
+    recordId: str(r, "recordId"),
+    providerRef: strOrNull(r, "providerRef"),
+    joinUrl: strOrNull(r, "joinUrl"),
+    startsAt: num(r, "startsAt"),
+    endsAt: numOrNull(r, "endsAt"),
+    emails: parseJson<string[]>(r["emails"], []),
+    eventIds: parseJson<string[]>(r["eventIds"], []),
+    provider: (str(r, "provider") || "none") as Provider,
+    recordingFileId: strOrNull(r, "recordingFileId"),
+    recordingDurationSec: numOrNull(r, "recordingDurationSec"),
+    folderId: strOrNull(r, "folderId"),
+    mergedBy: strOrNull(r, "mergedBy"),
+    createdAt: num(r, "createdAt"),
   };
 }
 
@@ -199,21 +256,39 @@ export const linkFor = (ctx: MeetCtx, recordId: string): Link | null => {
 
 export function saveLink(ctx: MeetCtx, l: Link): void {
   const have = first(ctx.db.all(`SELECT * FROM meetings_link WHERE "recordId" = ?`, l.recordId));
-  const vals = [l.providerRef, l.joinUrl, l.startsAt, l.endsAt, JSON.stringify(l.emails), JSON.stringify(l.eventIds), l.provider, l.recordingFileId, l.recordingDurationSec, l.folderId, l.mergedBy];
+  const vals = [
+    l.providerRef,
+    l.joinUrl,
+    l.startsAt,
+    l.endsAt,
+    JSON.stringify(l.emails),
+    JSON.stringify(l.eventIds),
+    l.provider,
+    l.recordingFileId,
+    l.recordingDurationSec,
+    l.folderId,
+    l.mergedBy,
+  ];
   if (have) {
     ctx.db.run(
       `UPDATE meetings_link SET "providerRef" = ?, "joinUrl" = ?, "startsAt" = ?, "endsAt" = ?, "emails" = ?, "eventIds" = ?, "provider" = ?, "recordingFileId" = ?, "recordingDurationSec" = ?, "folderId" = ?, "mergedBy" = ? WHERE "recordId" = ?`,
-      ...vals, l.recordId,
+      ...vals,
+      l.recordId,
     );
   } else {
     ctx.db.run(
       `INSERT INTO meetings_link ("recordId", "providerRef", "joinUrl", "startsAt", "endsAt", "emails", "eventIds", "provider", "recordingFileId", "recordingDurationSec", "folderId", "mergedBy", "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      l.recordId, ...vals, l.createdAt,
+      l.recordId,
+      ...vals,
+      l.createdAt,
     );
   }
 }
 
-export interface MeetingRecord { id: string; fields: Json }
+export interface MeetingRecord {
+  id: string;
+  fields: Json;
+}
 
 /** The person a call is made for, when it is one. */
 export const personOf = (ctx: MeetCtx): string | null => {
@@ -224,7 +299,11 @@ export const personOf = (ctx: MeetCtx): string | null => {
 /** The meeting belongs to the person making this call (and to anyone who joined it before). */
 export function addWatcher(ctx: MeetCtx, recordId: string): void {
   const me = personOf(ctx);
-  if (!me || first(ctx.db.all(`SELECT "personId" FROM meetings_watcher WHERE "recordId" = ? AND "personId" = ?`, recordId, me))) return;
+  if (
+    !me ||
+    first(ctx.db.all(`SELECT "personId" FROM meetings_watcher WHERE "recordId" = ? AND "personId" = ?`, recordId, me))
+  )
+    return;
   ctx.db.run(`INSERT INTO meetings_watcher ("recordId", "personId") VALUES (?, ?)`, recordId, me);
 }
 
@@ -234,7 +313,7 @@ export function addWatcher(ctx: MeetCtx, recordId: string): void {
  */
 export function canSeeMeeting(ctx: MeetCtx, recordId: string): boolean {
   const me = personOf(ctx);
-  if (me === null) return true;   // the server, or an agent or automation not acting for a person: what it may do is decided by its own access
+  if (me === null) return true; // the server, or an agent or automation not acting for a person: what it may do is decided by its own access
   const rows = ctx.db.all(`SELECT "personId" FROM meetings_watcher WHERE "recordId" = ?`, recordId);
   return rows.length === 0 || rows.some((r) => (r as { personId?: unknown }).personId === me);
 }
@@ -256,7 +335,8 @@ export async function fetchMeeting(ctx: MeetCtx, recordId: string): Promise<Meet
     if (codeOf(e) === "validation.not_found") return missing(ctx, "That meeting is not in this Space.");
     throw e;
   }
-  if (rec["deletedAt"] !== undefined && rec["deletedAt"] !== null) return missing(ctx, "That meeting is not in this Space.");
+  if (rec["deletedAt"] !== undefined && rec["deletedAt"] !== null)
+    return missing(ctx, "That meeting is not in this Space.");
   return { id: recordId, fields: obj(rec["fields"]) };
 }
 
@@ -268,9 +348,15 @@ export async function patchMeeting(ctx: MeetCtx, recordId: string, patch: Json):
 export function meetingRow(ctx: Pick<MeetCtx, "trace">, id: string, f: Json, l: Link | null): Json {
   void ctx;
   const out: Json = {
-    id, title: text(f["title"]), startsAt: msOf(f["starts_at"]) ?? (l?.startsAt ?? 0), provider: text(f["provider"]) || l?.provider || "none",
-    status: text(f["status"]) || "scheduled", attendeeIds: list(f["attendees"]).filter((x): x is string => typeof x === "string"),
-    recordingState: text(f["recording_state"]) || "none", hasTranscript: text(f["transcript"]) !== "", hasSummary: text(f["summary"]) !== "",
+    id,
+    title: text(f["title"]),
+    startsAt: msOf(f["starts_at"]) ?? l?.startsAt ?? 0,
+    provider: text(f["provider"]) || l?.provider || "none",
+    status: text(f["status"]) || "scheduled",
+    attendeeIds: list(f["attendees"]).filter((x): x is string => typeof x === "string"),
+    recordingState: text(f["recording_state"]) || "none",
+    hasTranscript: text(f["transcript"]) !== "",
+    hasSummary: text(f["summary"]) !== "",
   };
   const endsAt = msOf(f["ends_at"]);
   if (endsAt !== undefined) out["endsAt"] = endsAt;

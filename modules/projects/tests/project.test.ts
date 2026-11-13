@@ -6,18 +6,37 @@ import { key, mkProject, run } from "../fixtures/seed.ts";
 import { grantOnProject } from "../impl.ts";
 
 async function refused(p: Promise<unknown>, code: string, reason?: string): Promise<void> {
-  await assert.rejects(p, (e) => { assert.equal(codeOf(e), code); if (reason) assert.equal(reasonOf(e), reason); return true; });
+  await assert.rejects(p, (e) => {
+    assert.equal(codeOf(e), code);
+    if (reason) assert.equal(reasonOf(e), reason);
+    return true;
+  });
 }
 
 // ---- create ----
 
 test("create makes the record, exactly one channel and one folder under Projects, and an empty plan", async () => {
   const h = harness();
-  const out = await run(h, "projects.create", { type: "project", title: "Probate GTM", summary: "Go to market", goal: "30 firms by June", due: NOW + 30 * DAY });
+  const out = await run(h, "projects.create", {
+    type: "project",
+    title: "Probate GTM",
+    summary: "Go to market",
+    goal: "30 firms by June",
+    due: NOW + 30 * DAY,
+  });
   assert.match(out.projectId, /^prj_[a-z0-9]+$/);
   const rec = h.world.records.get(out.recordId)!;
   assert.equal(rec.type, "project");
-  assert.deepEqual({ title: rec.fields["title"], summary: rec.fields["summary"], status: rec.fields["status"], lead: rec.fields["lead"], goal: rec.fields["goal"] }, { title: "Probate GTM", summary: "Go to market", status: "planning", lead: DANA, goal: "30 firms by June" });
+  assert.deepEqual(
+    {
+      title: rec.fields["title"],
+      summary: rec.fields["summary"],
+      status: rec.fields["status"],
+      lead: rec.fields["lead"],
+      goal: rec.fields["goal"],
+    },
+    { title: "Probate GTM", summary: "Go to market", status: "planning", lead: DANA, goal: "30 firms by June" },
+  );
   assert.equal(rec.fields["channel"], out.channelId);
   assert.equal(rec.fields["folder"], out.folderId);
   assert.equal(h.world.channels.size, 1);
@@ -29,7 +48,14 @@ test("create makes the record, exactly one channel and one folder under Projects
   const plan = await run(h, "projects.plan", { projectId: out.projectId });
   assert.deepEqual({ stages: plan.stages, tasks: plan.tasks, links: plan.links }, { stages: [], tasks: [], links: [] });
   assert.deepEqual(h.names(), ["project.created"]);
-  assert.deepEqual(h.named("project.created")[0]?.payload, { projectId: out.projectId, recordId: out.recordId, type: "project", channelId: out.channelId, folderId: out.folderId, source: "new" });
+  assert.deepEqual(h.named("project.created")[0]?.payload, {
+    projectId: out.projectId,
+    recordId: out.recordId,
+    type: "project",
+    channelId: out.channelId,
+    folderId: out.folderId,
+    source: "new",
+  });
 });
 
 test("the maker leads and holds Manage on the project, its folder and its channel, written with the project as source", async () => {
@@ -37,19 +63,42 @@ test("the maker leads and holds Manage on the project, its folder and its channe
   const out = await mkProject(h);
   const mine = h.world.grants.filter((g) => g.subject.id === DANA);
   assert.deepEqual(mine.map((g) => [g.resource.type, g.resource.id, g.level, g.source]).sort(), [
-    ["channel", out.channelId, "manage", `project:${out.projectId}`], ["folder", out.folderId, "manage", `project:${out.projectId}`], ["project", out.projectId, "manage", `project:${out.projectId}`],
+    ["channel", out.channelId, "manage", `project:${out.projectId}`],
+    ["folder", out.folderId, "manage", `project:${out.projectId}`],
+    ["project", out.projectId, "manage", `project:${out.projectId}`],
   ]);
 });
 
 test("members given at the start get their roles as grants, and the channel starts with them", async () => {
   const h = harness();
-  const out = await mkProject(h, { lead: MAYA, members: [{ principal: LEO, role: "reviewer" }, { principal: BOT, role: "member" }, { principal: "grp_sales", role: "guest" }] });
+  const out = await mkProject(h, {
+    lead: MAYA,
+    members: [
+      { principal: LEO, role: "reviewer" },
+      { principal: BOT, role: "member" },
+      { principal: "grp_sales", role: "guest" },
+    ],
+  });
   const rec = h.world.records.get(out.recordId)!;
   assert.equal(rec.fields["lead"], MAYA);
-  const roles = Object.fromEntries((await run(h, "projects.members.list", { projectId: out.projectId })).members.map((m: { principal: string; role: string; kind: string }) => [m.principal, [m.role, m.kind]]));
-  assert.deepEqual(roles, { [MAYA]: ["lead", "person"], [DANA]: ["member", "person"], [LEO]: ["reviewer", "person"], [BOT]: ["member", "agent"], grp_sales: ["guest", "group"] });
-  const level = (who: string): string | undefined => h.world.grants.find((g) => g.subject.id === who && g.resource.type === "project")?.level;
-  assert.deepEqual([level(MAYA), level(DANA), level(LEO), level(BOT), level("grp_sales")], ["manage", "edit", "view", "edit", "view"]);
+  const roles = Object.fromEntries(
+    (await run(h, "projects.members.list", { projectId: out.projectId })).members.map(
+      (m: { principal: string; role: string; kind: string }) => [m.principal, [m.role, m.kind]],
+    ),
+  );
+  assert.deepEqual(roles, {
+    [MAYA]: ["lead", "person"],
+    [DANA]: ["member", "person"],
+    [LEO]: ["reviewer", "person"],
+    [BOT]: ["member", "agent"],
+    grp_sales: ["guest", "group"],
+  });
+  const level = (who: string): string | undefined =>
+    h.world.grants.find((g) => g.subject.id === who && g.resource.type === "project")?.level;
+  assert.deepEqual(
+    [level(MAYA), level(DANA), level(LEO), level(BOT), level("grp_sales")],
+    ["manage", "edit", "view", "edit", "view"],
+  );
   assert.equal(h.world.grants.find((g) => g.subject.id === "grp_sales")?.subject.kind, "group");
   const made = h.only("channels.create")[0]!.input;
   assert.deepEqual([...made.memberIds].sort(), [DANA, LEO, MAYA]);
@@ -73,11 +122,24 @@ test("every neighbour call create makes passes the frozen contract, with a key d
 test("create grants on the folder and channel while it runs, and never on the project itself: that is not a resource until the call commits", async () => {
   const h = harness();
   const made = await run(h, "projects.create", { type: "project", title: "Order", idempotencyKey: key() });
-  const shares = h.only("access.share").map((c) => c.input.resource.type).sort();
+  const shares = h
+    .only("access.share")
+    .map((c) => c.input.resource.type)
+    .sort();
   assert.deepEqual(shares, ["channel", "folder"], "no access.share names the project before its commit");
-  assert.equal(h.rows("SELECT * FROM projects_member WHERE projectId = ?", made.projectId).length, 1, "the maker is a member at once");
+  assert.equal(
+    h.rows("SELECT * FROM projects_member WHERE projectId = ?", made.projectId).length,
+    1,
+    "the maker is a member at once",
+  );
   await grantOnProject(h.ctx, made.projectId);
-  assert.deepEqual(h.only("access.share").map((c) => c.input.resource.type).sort(), ["channel", "folder", "project"]);
+  assert.deepEqual(
+    h
+      .only("access.share")
+      .map((c) => c.input.resource.type)
+      .sort(),
+    ["channel", "folder", "project"],
+  );
   const again = h.world.grants.length;
   await grantOnProject(h.ctx, made.projectId);
   assert.equal(h.world.grants.length, again, "running the consumer again writes nothing twice");
@@ -87,11 +149,27 @@ test("a create that names someone the Space does not know is refused before anyt
   const h = harness();
   h.world.unknown.add("usr_ghost");
   h.world.unknown.add("grp_nobody");
-  for (const bad of [{ lead: "usr_ghost" }, { members: [{ principal: "usr_ghost", role: "member" }] }, { members: [{ principal: "grp_nobody", role: "guest" }] }]) {
-    await refused(run(h, "projects.create", { type: "project", title: "Nope", idempotencyKey: key(), ...bad }), "validation.bad_input");
+  for (const bad of [
+    { lead: "usr_ghost" },
+    { members: [{ principal: "usr_ghost", role: "member" }] },
+    { members: [{ principal: "grp_nobody", role: "guest" }] },
+  ]) {
+    await refused(
+      run(h, "projects.create", { type: "project", title: "Nope", idempotencyKey: key(), ...bad }),
+      "validation.bad_input",
+    );
   }
-  await refused(run(h, "projects.create", { type: "project", title: "Nope", idempotencyKey: key(), members: [{ principal: LEO, role: "owner" }] }), "validation.bad_input");
-  for (const cap of ["records.create", "channels.create", "files.folder.create", "access.share"]) assert.equal(h.only(cap).length, 0, `${cap} was not called`);
+  await refused(
+    run(h, "projects.create", {
+      type: "project",
+      title: "Nope",
+      idempotencyKey: key(),
+      members: [{ principal: LEO, role: "owner" }],
+    }),
+    "validation.bad_input",
+  );
+  for (const cap of ["records.create", "channels.create", "files.folder.create", "access.share"])
+    assert.equal(h.only(cap).length, 0, `${cap} was not called`);
   assert.equal(h.rows("SELECT * FROM projects_project").length, 0);
   assert.equal(h.rows("SELECT * FROM projects_member").length, 0);
   assert.deepEqual(h.names(), []);
@@ -99,13 +177,40 @@ test("a create that names someone the Space does not know is refused before anyt
 
 test("a second starting member holds the project grant at their role's level once the consumer has run, and not before", async () => {
   const h = harness();
-  const out = await run(h, "projects.create", { type: "project", title: "Two people", idempotencyKey: key(), members: [{ principal: LEO, role: "member" }] });
-  const onProject = (who: string) => h.world.grants.filter((g) => g.subject.id === who && g.resource.type === "project" && g.resource.id === out.projectId);
-  assert.deepEqual(onProject(LEO), [], "the project is not a resource until the create commits, so nothing is granted on it yet");
-  assert.deepEqual(h.world.grants.filter((g) => g.subject.id === LEO).map((g) => g.resource.type).sort(), ["channel", "folder"], "the folder and channel are granted while it is made");
+  const out = await run(h, "projects.create", {
+    type: "project",
+    title: "Two people",
+    idempotencyKey: key(),
+    members: [{ principal: LEO, role: "member" }],
+  });
+  const onProject = (who: string) =>
+    h.world.grants.filter(
+      (g) => g.subject.id === who && g.resource.type === "project" && g.resource.id === out.projectId,
+    );
+  assert.deepEqual(
+    onProject(LEO),
+    [],
+    "the project is not a resource until the create commits, so nothing is granted on it yet",
+  );
+  assert.deepEqual(
+    h.world.grants
+      .filter((g) => g.subject.id === LEO)
+      .map((g) => g.resource.type)
+      .sort(),
+    ["channel", "folder"],
+    "the folder and channel are granted while it is made",
+  );
   await grantOnProject(h.ctx, out.projectId);
-  assert.deepEqual(onProject(LEO).map((g) => [g.level, g.source]), [["edit", `project:${out.projectId}`]], "a Member holds Edit on the project");
-  assert.deepEqual(onProject(DANA).map((g) => g.level), ["manage"], "the maker leads with Manage");
+  assert.deepEqual(
+    onProject(LEO).map((g) => [g.level, g.source]),
+    [["edit", `project:${out.projectId}`]],
+    "a Member holds Edit on the project",
+  );
+  assert.deepEqual(
+    onProject(DANA).map((g) => g.level),
+    ["manage"],
+    "the maker leads with Manage",
+  );
 });
 
 test("the consumer grants only the members the create stored: a forged or repeated project.created adds nobody", async () => {
@@ -114,7 +219,11 @@ test("the consumer grants only the members the create stored: a forged or repeat
   const before = h.world.grants.map((g) => `${g.subject.id}:${g.resource.type}:${g.level}`).sort();
   await grantOnProject(h.ctx, out.projectId);
   await grantOnProject(h.ctx, out.projectId);
-  assert.deepEqual(h.world.grants.map((g) => `${g.subject.id}:${g.resource.type}:${g.level}`).sort(), before, "a repeat writes nothing");
+  assert.deepEqual(
+    h.world.grants.map((g) => `${g.subject.id}:${g.resource.type}:${g.level}`).sort(),
+    before,
+    "a repeat writes nothing",
+  );
   const callsBefore = h.only("access.share").length;
   await grantOnProject(h.ctx, "prj_forged0000000000000000000000000");
   assert.equal(h.only("access.share").length, callsBefore, "a project that does not exist grants nobody");
@@ -146,8 +255,18 @@ test("create refuses what is not a project: no name, a type that is not a projec
   await refused(run(h, "projects.create", { type: "project", title: "  " }), "validation.bad_input");
   await refused(run(h, "projects.create", { type: "contact", title: "A contact" }), "validation.bad_input");
   await refused(run(h, "projects.create", { type: "nothing", title: "No such type" }), "validation.bad_input");
-  await refused(run(h, "projects.create", { type: "project", title: "Backwards", start: NOW + DAY, due: NOW }), "validation.bad_input");
-  await refused(run(h, "projects.create", { type: "project", title: "Roles", members: [{ principal: "rol_admin", role: "member" }] }), "validation.bad_input");
+  await refused(
+    run(h, "projects.create", { type: "project", title: "Backwards", start: NOW + DAY, due: NOW }),
+    "validation.bad_input",
+  );
+  await refused(
+    run(h, "projects.create", {
+      type: "project",
+      title: "Roles",
+      members: [{ principal: "rol_admin", role: "member" }],
+    }),
+    "validation.bad_input",
+  );
   assert.equal(h.world.records.size, 0, "nothing was made");
   assert.equal(h.world.channels.size, 0);
 });
@@ -162,21 +281,41 @@ test("a template project hands over its stages and open tasks, with dates keepin
   await run(h, "projects.link_tasks", { projectId: tpl.projectId, fromTaskId: a, toTaskId: b });
   const copy = await mkProject(h, { title: "Smith matter", template: tpl.projectId, start: NOW + 10 * DAY });
   const plan = await run(h, "projects.plan", { projectId: copy.projectId });
-  assert.deepEqual(plan.stages.map((s: { key: string }) => s.key), ["draft", "review"]);
-  assert.deepEqual(plan.tasks.map((t: { title: string; stage: string; start: number; due: number }) => [t.title, t.stage, t.start, t.due]), [
-    ["Write brief", "draft", NOW + 10 * DAY, NOW + 12 * DAY], ["Client review", "review", NOW + 12 * DAY, NOW + 14 * DAY],
-  ]);
+  assert.deepEqual(
+    plan.stages.map((s: { key: string }) => s.key),
+    ["draft", "review"],
+  );
+  assert.deepEqual(
+    plan.tasks.map((t: { title: string; stage: string; start: number; due: number }) => [
+      t.title,
+      t.stage,
+      t.start,
+      t.due,
+    ]),
+    [
+      ["Write brief", "draft", NOW + 10 * DAY, NOW + 12 * DAY],
+      ["Client review", "review", NOW + 12 * DAY, NOW + 14 * DAY],
+    ],
+  );
   assert.equal(plan.links.length, 1);
   assert.equal(h.named("project.created").pop()?.payload["source"], "template");
-  await refused(run(h, "projects.create", { type: "project", title: "Bad template", template: "prj_nothing" }), "validation.bad_input");
-  await refused(run(h, "projects.create", { type: "project", title: "Bad template", template: "weekly" }), "validation.bad_input");
+  await refused(
+    run(h, "projects.create", { type: "project", title: "Bad template", template: "prj_nothing" }),
+    "validation.bad_input",
+  );
+  await refused(
+    run(h, "projects.create", { type: "project", title: "Bad template", template: "weekly" }),
+    "validation.bad_input",
+  );
 });
 
 // ---- from a channel ----
 
 test("make this a project attaches the channel it was asked on, makes the record, the folder and an empty plan", async () => {
   const h = harness();
-  const ch = (h.world.handlers["channels.create"]!({ name: "Intake", visibility: "invite" }) as { channel: { channelId: string } }).channel;
+  const ch = (
+    h.world.handlers["channels.create"]!({ name: "Intake", visibility: "invite" }) as { channel: { channelId: string } }
+  ).channel;
   h.clear();
   const out = await run(h, "projects.from_channel", { channelId: ch.channelId });
   assert.equal(out.channelId, ch.channelId);
@@ -191,13 +330,29 @@ test("make this a project attaches the channel it was asked on, makes the record
 
 test("a channel that has a folder keeps it, a title can be given, and a channel of a record is refused", async () => {
   const h = harness();
-  const folder = (h.world.handlers["files.folder.create"]!({ parentId: h.world.root.folderId, name: "Channel files" }) as { folder: { folderId: string } }).folder;
-  const ch = (h.world.handlers["channels.create"]!({ name: "client-x", visibility: "invite", folderId: folder.folderId }) as { channel: { channelId: string } }).channel;
+  const folder = (
+    h.world.handlers["files.folder.create"]!({ parentId: h.world.root.folderId, name: "Channel files" }) as {
+      folder: { folderId: string };
+    }
+  ).folder;
+  const ch = (
+    h.world.handlers["channels.create"]!({ name: "client-x", visibility: "invite", folderId: folder.folderId }) as {
+      channel: { channelId: string };
+    }
+  ).channel;
   const out = await run(h, "projects.from_channel", { channelId: ch.channelId, title: "Client X" });
   assert.equal(out.folderId, folder.folderId);
   assert.equal(h.world.records.get(out.recordId)?.fields["title"], "Client X");
-  const owned = (h.world.handlers["channels.create"]!({ name: "record-channel", visibility: "invite", recordId: "rec_other" }) as { channel: { channelId: string } }).channel;
-  await refused(run(h, "projects.from_channel", { channelId: owned.channelId }), "validation.bad_input", "channel_has_record");
+  const owned = (
+    h.world.handlers["channels.create"]!({ name: "record-channel", visibility: "invite", recordId: "rec_other" }) as {
+      channel: { channelId: string };
+    }
+  ).channel;
+  await refused(
+    run(h, "projects.from_channel", { channelId: owned.channelId }),
+    "validation.bad_input",
+    "channel_has_record",
+  );
   await refused(run(h, "projects.from_channel", { channelId: "chn_nope" }), "validation.not_found");
 });
 
@@ -210,10 +365,24 @@ test("get reads the record and counts the tasks, the late ones and the people", 
   h.task(p, { title: "Fine", due: NOW + DAY });
   h.task(p, { title: "Done", due: NOW - 2 * DAY, state: "done" });
   const out = (await run(h, "projects.get", { projectId: p.projectId })).project;
-  assert.deepEqual({ ...out }, {
-    projectId: p.projectId, recordId: p.recordId, type: "project", title: "Probate GTM", summary: "S", status: "planning", lead: DANA, due: NOW + 9 * DAY,
-    channelId: p.channelId, folderId: p.folderId, memberCount: 1, openTasks: 2, lateTasks: 1,
-  });
+  assert.deepEqual(
+    { ...out },
+    {
+      projectId: p.projectId,
+      recordId: p.recordId,
+      type: "project",
+      title: "Probate GTM",
+      summary: "S",
+      status: "planning",
+      lead: DANA,
+      due: NOW + 9 * DAY,
+      channelId: p.channelId,
+      folderId: p.folderId,
+      memberCount: 1,
+      openTasks: 2,
+      lateTasks: 1,
+    },
+  );
   await refused(run(h, "projects.get", { projectId: "prj_nope" }), "validation.not_found");
 });
 
@@ -236,13 +405,25 @@ test("list shows the projects you are in, filters by type, status and mine, and 
   h.world.records.get(b.recordId)!.fields["status"] = "active";
   const all = await run(h, "projects.list", {});
   assert.equal(all.total, 3);
-  assert.deepEqual(all.projects.map((p: { title: string }) => p.title), ["Three", "Two", "One"], "newest first");
-  assert.deepEqual((await run(h, "projects.list", { status: "active" })).projects.map((p: { title: string }) => p.title), ["Two"]);
+  assert.deepEqual(
+    all.projects.map((p: { title: string }) => p.title),
+    ["Three", "Two", "One"],
+    "newest first",
+  );
+  assert.deepEqual(
+    (await run(h, "projects.list", { status: "active" })).projects.map((p: { title: string }) => p.title),
+    ["Two"],
+  );
   assert.deepEqual((await run(h, "projects.list", { type: "contact" })).projects, []);
   const first = await run(h, "projects.list", { limit: 2 });
   assert.equal(first.projects.length, 2);
   assert.equal(first.next, "2");
-  assert.deepEqual((await run(h, "projects.list", { limit: 2, cursor: first.next })).projects.map((p: { projectId: string }) => p.projectId), [a.projectId]);
+  assert.deepEqual(
+    (await run(h, "projects.list", { limit: 2, cursor: first.next })).projects.map(
+      (p: { projectId: string }) => p.projectId,
+    ),
+    [a.projectId],
+  );
   assert.equal((await run(h, "projects.list", { mine: true }, h.person(LEO))).total, 0);
 });
 
@@ -255,11 +436,22 @@ test("a person sees only the projects they are in, or may open", async () => {
   await run(h, "projects.members.set", { projectId: p.projectId, principal: LEO, role: "guest" });
   // listed only when get would open it: a role row without the grant behind it is not shown, and the id that list gives always resolves
   h.allowOnly(() => false);
-  assert.equal((await run(h, "projects.list", {}, h.person(LEO))).total, 0, "no grant, so get would refuse it and list does not show it");
+  assert.equal(
+    (await run(h, "projects.list", {}, h.person(LEO))).total,
+    0,
+    "no grant, so get would refuse it and list does not show it",
+  );
   h.allowOnly(() => true);
   const seen = (await run(h, "projects.list", {}, h.person(LEO))).projects as Array<{ projectId: string }>;
-  assert.deepEqual(seen.map((x) => x.projectId), [p.projectId], "Leo is in it");
-  assert.equal((await run(h, "projects.get", { projectId: seen[0]!.projectId }, h.person(LEO))).project.projectId, p.projectId);
+  assert.deepEqual(
+    seen.map((x) => x.projectId),
+    [p.projectId],
+    "Leo is in it",
+  );
+  assert.equal(
+    (await run(h, "projects.get", { projectId: seen[0]!.projectId }, h.person(LEO))).project.projectId,
+    p.projectId,
+  );
 });
 
 // ---- Overview ----
@@ -280,13 +472,24 @@ test("the Overview gathers the brief, the next milestones, what is late or waiti
   await run(h, "projects.post_update", { projectId: p.projectId, text: "On track." });
   const o = await run(h, "projects.overview", { projectId: p.projectId });
   assert.equal(o.goal, "Win the launch");
-  assert.deepEqual(o.milestones.map((t: { title: string }) => t.title), ["Kickoff", "Sign-off", "Launch"], "the next three, soonest first");
+  assert.deepEqual(
+    o.milestones.map((t: { title: string }) => t.title),
+    ["Kickoff", "Sign-off", "Launch"],
+    "the next three, soonest first",
+  );
   assert.equal(o.late[0].taskId, late, "the most overdue first");
   assert.ok(o.late.some((t: { title: string }) => t.title === "Past milestone"));
-  assert.deepEqual(o.waiting.map((t: { taskId: string }) => t.taskId).sort(), [gate, blocked].sort(), "a task at approval, and one that waits on an open task");
+  assert.deepEqual(
+    o.waiting.map((t: { taskId: string }) => t.taskId).sort(),
+    [gate, blocked].sort(),
+    "a task at approval, and one that waits on an open task",
+  );
   assert.equal(o.statusUpdate.text, "On track.");
   assert.equal(o.statusUpdate.drafted, false);
-  assert.deepEqual(o.people.map((m: { principal: string }) => m.principal), [DANA]);
+  assert.deepEqual(
+    o.people.map((m: { principal: string }) => m.principal),
+    [DANA],
+  );
   assert.deepEqual(o.pinnedFiles, ["fil_brief"]);
   assert.deepEqual(o.recentThreads, [{ threadId: "thr_recent", title: "Kickoff", at: NOW }]);
   assert.deepEqual([o.decisions, o.linked], [[], []]);
@@ -295,7 +498,9 @@ test("the Overview gathers the brief, the next milestones, what is late or waiti
 test("the templates list names the project types and says where their stages come from", async () => {
   const h = harness();
   const out = await run(h, "projects.templates.list", {});
-  assert.deepEqual(out.templates, [{ key: "project", title: "Project", type: "project", stages: ["planning", "active", "done"], source: "builtin" }]);
+  assert.deepEqual(out.templates, [
+    { key: "project", title: "Project", type: "project", stages: ["planning", "active", "done"], source: "builtin" },
+  ]);
 });
 
 // ---- people ----
@@ -307,11 +512,33 @@ test("members.set gives a role as grants on the project, folder and channel; cha
   const set = await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" });
   assert.equal(set.member.role, "member");
   assert.equal(set.member.kind, "person");
-  const ofMaya = (): string[] => h.world.grants.filter((g) => g.subject.id === MAYA).map((g) => `${g.resource.type}:${g.level}:${g.source}`).sort();
-  assert.deepEqual(ofMaya(), [`channel:edit:project:${p.projectId}`, `folder:edit:project:${p.projectId}`, `project:edit:project:${p.projectId}`]);
+  const ofMaya = (): string[] =>
+    h.world.grants
+      .filter((g) => g.subject.id === MAYA)
+      .map((g) => `${g.resource.type}:${g.level}:${g.source}`)
+      .sort();
+  assert.deepEqual(ofMaya(), [
+    `channel:edit:project:${p.projectId}`,
+    `folder:edit:project:${p.projectId}`,
+    `project:edit:project:${p.projectId}`,
+  ]);
   await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "reviewer" });
-  assert.deepEqual(ofMaya(), [`channel:view:project:${p.projectId}`, `folder:view:project:${p.projectId}`, `project:view:project:${p.projectId}`], "one grant per place, at the new level");
-  assert.deepEqual(h.named("project.member_set").map((e) => [e.payload["role"], e.payload["previous"]]), [["member", undefined], ["reviewer", "member"]]);
+  assert.deepEqual(
+    ofMaya(),
+    [
+      `channel:view:project:${p.projectId}`,
+      `folder:view:project:${p.projectId}`,
+      `project:view:project:${p.projectId}`,
+    ],
+    "one grant per place, at the new level",
+  );
+  assert.deepEqual(
+    h.named("project.member_set").map((e) => [e.payload["role"], e.payload["previous"]]),
+    [
+      ["member", undefined],
+      ["reviewer", "member"],
+    ],
+  );
 });
 
 test("a lead is written to the record, and removing the lead clears it; removing revokes by source", async () => {
@@ -320,12 +547,22 @@ test("a lead is written to the record, and removing the lead clears it; removing
   await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "lead" });
   assert.equal(h.world.records.get(p.recordId)?.fields["lead"], MAYA);
   h.clear();
-  assert.deepEqual(await run(h, "projects.members.remove", { projectId: p.projectId, principal: MAYA }), { removed: true });
-  assert.deepEqual(h.world.grants.filter((g) => g.subject.id === MAYA), []);
+  assert.deepEqual(await run(h, "projects.members.remove", { projectId: p.projectId, principal: MAYA }), {
+    removed: true,
+  });
+  assert.deepEqual(
+    h.world.grants.filter((g) => g.subject.id === MAYA),
+    [],
+  );
   assert.equal(h.world.records.get(p.recordId)?.fields["lead"], undefined);
-  assert.deepEqual(h.named("project.member_removed").map((e) => e.payload), [{ projectId: p.projectId, principal: MAYA }]);
+  assert.deepEqual(
+    h.named("project.member_removed").map((e) => e.payload),
+    [{ projectId: p.projectId, principal: MAYA }],
+  );
   h.clear();
-  assert.deepEqual(await run(h, "projects.members.remove", { projectId: p.projectId, principal: MAYA }), { removed: false });
+  assert.deepEqual(await run(h, "projects.members.remove", { projectId: p.projectId, principal: MAYA }), {
+    removed: false,
+  });
   assert.equal(h.emitted.length, 0);
   assert.equal(h.world.grants.filter((g) => g.subject.id === DANA).length, 3, "the others keep theirs");
 });
@@ -336,20 +573,39 @@ test("an agent with a project role is a teammate there; a role or an automation 
   const set = await run(h, "projects.members.set", { projectId: p.projectId, principal: BOT, role: "member" });
   assert.equal(set.member.kind, "agent");
   assert.equal(h.world.grants.find((g) => g.subject.id === BOT)?.subject.kind, "agent");
-  await refused(run(h, "projects.members.set", { projectId: p.projectId, principal: "rol_admin", role: "member" }), "validation.bad_input");
-  await refused(run(h, "projects.members.set", { projectId: p.projectId, principal: "aut_nightly", role: "member" }), "validation.bad_input");
+  await refused(
+    run(h, "projects.members.set", { projectId: p.projectId, principal: "rol_admin", role: "member" }),
+    "validation.bad_input",
+  );
+  await refused(
+    run(h, "projects.members.set", { projectId: p.projectId, principal: "aut_nightly", role: "member" }),
+    "validation.bad_input",
+  );
 });
 
 test("only someone who manages the project can change who is on it, and the same key answers the same", async () => {
   const h = harness();
   const p = await mkProject(h);
-  h.allowOnly((a) => a.perm !== "console.access" && (a.level === "view" || a.level === "edit"));   // no Manage, and not a Space admin
-  await refused(run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" }), "permission.no_grant");
+  h.allowOnly((a) => a.perm !== "console.access" && (a.level === "view" || a.level === "edit")); // no Manage, and not a Space admin
+  await refused(
+    run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" }),
+    "permission.no_grant",
+  );
   await refused(run(h, "projects.members.remove", { projectId: p.projectId, principal: DANA }), "permission.no_grant");
   h.allowOnly(() => true);
   const k = key();
-  const one = await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member", idempotencyKey: k });
-  const two = await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member", idempotencyKey: k });
+  const one = await run(h, "projects.members.set", {
+    projectId: p.projectId,
+    principal: MAYA,
+    role: "member",
+    idempotencyKey: k,
+  });
+  const two = await run(h, "projects.members.set", {
+    projectId: p.projectId,
+    principal: MAYA,
+    role: "member",
+    idempotencyKey: k,
+  });
   assert.deepEqual(two, one);
   assert.equal(h.named("project.member_set").filter((e) => e.payload["principal"] === MAYA).length, 1);
 });
@@ -360,12 +616,24 @@ test("the status update is kept, written to the record, posted to the channel an
   const h = harness();
   const p = await mkProject(h);
   h.clear();
-  const out = await run(h, "projects.post_update", { projectId: p.projectId, text: "  Two weeks in.  ", status: "active" });
+  const out = await run(h, "projects.post_update", {
+    projectId: p.projectId,
+    text: "  Two weeks in.  ",
+    status: "active",
+  });
   assert.equal(out.postedAt, NOW);
   const fields = h.world.records.get(p.recordId)!.fields;
-  assert.deepEqual([fields["status_update"], fields["status_update_at"], fields["status"]], ["Two weeks in.", NOW, "active"]);
-  assert.deepEqual(h.world.posts, [{ threadId: h.world.channels.get(p.channelId)!.mainThreadId, body: "Two weeks in." }]);
-  assert.deepEqual(h.named("project.update_posted").map((e) => e.payload), [{ projectId: p.projectId, by: DANA, drafted: false }]);
+  assert.deepEqual(
+    [fields["status_update"], fields["status_update_at"], fields["status"]],
+    ["Two weeks in.", NOW, "active"],
+  );
+  assert.deepEqual(h.world.posts, [
+    { threadId: h.world.channels.get(p.channelId)!.mainThreadId, body: "Two weeks in." },
+  ]);
+  assert.deepEqual(
+    h.named("project.update_posted").map((e) => e.payload),
+    [{ projectId: p.projectId, by: DANA, drafted: false }],
+  );
   await run(h, "projects.post_update", { projectId: p.projectId, text: "Weekly digest." }, h.agent(BOT, DANA));
   assert.equal(h.named("project.update_posted").pop()?.payload["drafted"], true);
   await refused(run(h, "projects.post_update", { projectId: p.projectId, text: "   " }), "validation.bad_input");
@@ -406,7 +674,10 @@ test("a private chat filed under the project stays private and gets the project'
   await run(h, "projects.file_chat", { projectId: p.projectId, threadId: "thr_mine" });
   assert.equal(h.named("project.chat_filed").length, 1, "filed once");
   assert.equal(h.only("chat.post").length, 0, "nothing is posted into the project channel");
-  await refused(run(h, "projects.file_chat", { projectId: p.projectId, threadId: "thr_missing" }), "validation.not_found");
+  await refused(
+    run(h, "projects.file_chat", { projectId: p.projectId, threadId: "thr_missing" }),
+    "validation.not_found",
+  );
 });
 
 test("share_out makes a read-only link that can expire, for someone who manages the project", async () => {
@@ -417,7 +688,10 @@ test("share_out makes a read-only link that can expire, for someone who manages 
   assert.match(out.url, /^\/share\/project\/[a-z0-9]+$/);
   assert.equal(out.expiresAt, NOW + 7 * DAY);
   assert.equal(h.rows("SELECT projectId FROM projects_share")[0]?.["projectId"], p.projectId);
-  assert.deepEqual(h.named("project.shared_out").map((e) => e.payload), [{ projectId: p.projectId, expiresAt: NOW + 7 * DAY }]);
+  assert.deepEqual(
+    h.named("project.shared_out").map((e) => e.payload),
+    [{ projectId: p.projectId, expiresAt: NOW + 7 * DAY }],
+  );
   await refused(run(h, "projects.share_out", { projectId: p.projectId, expiresAt: NOW - DAY }), "validation.bad_input");
   h.allowOnly((a) => a.level !== "manage");
   await refused(run(h, "projects.share_out", { projectId: p.projectId }), "permission.no_grant");
@@ -429,10 +703,24 @@ const tokenOf = (url: string): string => url.slice("/share/project/".length);
 test("share_out expires in 30 days by default, in the days asked, and never says both a time and days", async () => {
   const h = harness();
   const p = await mkProject(h);
-  assert.equal((await run(h, "projects.share_out", { projectId: p.projectId })).expiresAt, NOW + 30 * DAY, "a link nobody revokes still stops working");
-  assert.equal((await run(h, "projects.share_out", { projectId: p.projectId, expiresInDays: 2 })).expiresAt, NOW + 2 * DAY);
-  await refused(run(h, "projects.share_out", { projectId: p.projectId, expiresAt: NOW + DAY, expiresInDays: 2 }), "validation.bad_input");
-  assert.equal(h.rows("SELECT token FROM projects_share WHERE expiresAt IS NULL").length, 0, "every link has an expiry");
+  assert.equal(
+    (await run(h, "projects.share_out", { projectId: p.projectId })).expiresAt,
+    NOW + 30 * DAY,
+    "a link nobody revokes still stops working",
+  );
+  assert.equal(
+    (await run(h, "projects.share_out", { projectId: p.projectId, expiresInDays: 2 })).expiresAt,
+    NOW + 2 * DAY,
+  );
+  await refused(
+    run(h, "projects.share_out", { projectId: p.projectId, expiresAt: NOW + DAY, expiresInDays: 2 }),
+    "validation.bad_input",
+  );
+  assert.equal(
+    h.rows("SELECT token FROM projects_share WHERE expiresAt IS NULL").length,
+    0,
+    "every link has an expiry",
+  );
   assert.match(h.rows("SELECT token FROM projects_share")[0]!["token"] as string, /^[a-f0-9]{36}$/, "144 random bits");
 });
 
@@ -443,11 +731,21 @@ test("unshare_out revokes one link at once and the others stay", async () => {
   const b = await run(h, "projects.share_out", { projectId: p.projectId });
   h.clear();
   assert.deepEqual(await run(h, "projects.unshare_out", { projectId: p.projectId, url: a.url }), { revoked: true });
-  assert.deepEqual(h.named("project.unshared_out").map((e) => e.payload), [{ projectId: p.projectId }]);
+  assert.deepEqual(
+    h.named("project.unshared_out").map((e) => e.payload),
+    [{ projectId: p.projectId }],
+  );
   await refused(run(h, "projects.shared_view", { token: tokenOf(a.url) }, h.as(HOST)), "validation.not_found");
   assert.equal((await run(h, "projects.shared_view", { token: tokenOf(b.url) }, h.as(HOST))).title, "Probate GTM");
-  assert.deepEqual(await run(h, "projects.unshare_out", { projectId: p.projectId, url: a.url }), { revoked: false }, "twice is not an error");
-  await refused(run(h, "projects.unshare_out", { projectId: p.projectId, url: "/elsewhere/x" }), "validation.bad_input");
+  assert.deepEqual(
+    await run(h, "projects.unshare_out", { projectId: p.projectId, url: a.url }),
+    { revoked: false },
+    "twice is not an error",
+  );
+  await refused(
+    run(h, "projects.unshare_out", { projectId: p.projectId, url: "/elsewhere/x" }),
+    "validation.bad_input",
+  );
   h.allowOnly((x) => x.level !== "manage");
   await refused(run(h, "projects.unshare_out", { projectId: p.projectId, url: b.url }), "permission.no_grant");
 });
@@ -466,8 +764,15 @@ test("shared_view shows the client the title, status, goal, update and next mile
   assert.equal(view.expiresAt, NOW + 3 * DAY);
   assert.deepEqual(Object.keys(view).sort(), ["expiresAt", "goal", "milestones", "status", "statusUpdate", "title"]);
   for (const person of [DANA, LEO, MAYA]) assert.ok(!JSON.stringify(view).includes(person), "no member id");
-  await refused(run(h, "projects.shared_view", { token: tokenOf(link.url) }, h.person(DANA)), "permission.role_lacks_permission", "system_only");
-  await refused(run(h, "projects.shared_view", { token: tokenOf(link.url) }, h.agent(BOT, DANA)), "permission.role_lacks_permission");
+  await refused(
+    run(h, "projects.shared_view", { token: tokenOf(link.url) }, h.person(DANA)),
+    "permission.role_lacks_permission",
+    "system_only",
+  );
+  await refused(
+    run(h, "projects.shared_view", { token: tokenOf(link.url) }, h.agent(BOT, DANA)),
+    "permission.role_lacks_permission",
+  );
   await refused(run(h, "projects.shared_view", { token: "0".repeat(36) }, h.as(HOST)), "validation.not_found");
   h.advance(3 * DAY);
   await refused(run(h, "projects.shared_view", { token: tokenOf(link.url) }, h.as(HOST)), "validation.not_found");
@@ -485,26 +790,83 @@ test("without an authorizer nothing is allowed: the project stays closed", async
 test("teammates: one yes makes an agent for the project with a role, the lead comes first and is the default participant, and removing one made for this project trashes it", async () => {
   const h = harness();
   const p = await mkProject(h);
-  const rev = (await run(h, "projects.teammates.create", { projectId: p.projectId, name: "Security reviewer", role: "reviewer", brief: "Checks drafts for safety.", idempotencyKey: key() })).teammate;
-  const lead = (await run(h, "projects.teammates.create", { projectId: p.projectId, name: "Coordinator", role: "lead", idempotencyKey: key() })).teammate;
+  const rev = (
+    await run(h, "projects.teammates.create", {
+      projectId: p.projectId,
+      name: "Security reviewer",
+      role: "reviewer",
+      brief: "Checks drafts for safety.",
+      idempotencyKey: key(),
+    })
+  ).teammate;
+  const lead = (
+    await run(h, "projects.teammates.create", {
+      projectId: p.projectId,
+      name: "Coordinator",
+      role: "lead",
+      idempotencyKey: key(),
+    })
+  ).teammate;
   assert.deepEqual([rev.role, rev.madeForProject, rev.roleLine], ["reviewer", true, "Checks drafts for safety."]);
-  assert.deepEqual([...h.world.agents.values()].map((a) => [a["name"], a["teammateOf"]]), [["Security reviewer", p.projectId], ["Coordinator", p.projectId]], "made for the project, not for the Space");
+  assert.deepEqual(
+    [...h.world.agents.values()].map((a) => [a["name"], a["teammateOf"]]),
+    [
+      ["Security reviewer", p.projectId],
+      ["Coordinator", p.projectId],
+    ],
+    "made for the project, not for the Space",
+  );
   const list = await run(h, "projects.teammates.list", { projectId: p.projectId });
-  assert.deepEqual(list.teammates.map((t: { name: string; role: string }) => [t.name, t.role]), [["Coordinator", "lead"], ["Security reviewer", "reviewer"]], "the lead comes first");
+  assert.deepEqual(
+    list.teammates.map((t: { name: string; role: string }) => [t.name, t.role]),
+    [
+      ["Coordinator", "lead"],
+      ["Security reviewer", "reviewer"],
+    ],
+    "the lead comes first",
+  );
   assert.equal(list.leadAgentId, lead.agentId);
   assert.equal(h.world.records.get(p.recordId)?.fields["lead"], lead.agentId);
-  assert.ok(h.world.grants.some((g) => g.subject.id === rev.agentId && g.level === "view"), "a reviewer can read the project");
+  assert.ok(
+    h.world.grants.some((g) => g.subject.id === rev.agentId && g.level === "view"),
+    "a reviewer can read the project",
+  );
   // an agent that was only given a role (not made for the project) is listed but is not trashed with the role
   await run(h, "projects.members.set", { projectId: p.projectId, principal: BOT, role: "member" });
-  assert.equal((await run(h, "projects.teammates.list", { projectId: p.projectId })).teammates.find((t: { agentId: string }) => t.agentId === BOT).madeForProject, false);
-  assert.deepEqual(await run(h, "projects.teammates.remove", { projectId: p.projectId, agentId: BOT, idempotencyKey: key() }), { removed: true });
+  assert.equal(
+    (await run(h, "projects.teammates.list", { projectId: p.projectId })).teammates.find(
+      (t: { agentId: string }) => t.agentId === BOT,
+    ).madeForProject,
+    false,
+  );
+  assert.deepEqual(
+    await run(h, "projects.teammates.remove", { projectId: p.projectId, agentId: BOT, idempotencyKey: key() }),
+    { removed: true },
+  );
   assert.deepEqual(h.world.trashed, []);
-  assert.deepEqual(await run(h, "projects.teammates.remove", { projectId: p.projectId, agentId: rev.agentId, idempotencyKey: key() }), { removed: true });
+  assert.deepEqual(
+    await run(h, "projects.teammates.remove", { projectId: p.projectId, agentId: rev.agentId, idempotencyKey: key() }),
+    { removed: true },
+  );
   assert.deepEqual(h.world.trashed, [rev.agentId]);
-  assert.deepEqual(await run(h, "projects.teammates.remove", { projectId: p.projectId, agentId: rev.agentId, idempotencyKey: key() }), { removed: false });
-  await refused(run(h, "projects.teammates.create", { projectId: p.projectId, name: " ", role: "member", idempotencyKey: key() }), "validation.bad_input");
+  assert.deepEqual(
+    await run(h, "projects.teammates.remove", { projectId: p.projectId, agentId: rev.agentId, idempotencyKey: key() }),
+    { removed: false },
+  );
+  await refused(
+    run(h, "projects.teammates.create", { projectId: p.projectId, name: " ", role: "member", idempotencyKey: key() }),
+    "validation.bad_input",
+  );
   h.allowOnly((a) => a.level === "view" || a.level === "edit");
-  await refused(run(h, "projects.teammates.create", { projectId: p.projectId, name: "No rights", role: "member", idempotencyKey: key() }), "permission.no_grant");
+  await refused(
+    run(h, "projects.teammates.create", {
+      projectId: p.projectId,
+      name: "No rights",
+      role: "member",
+      idempotencyKey: key(),
+    }),
+    "permission.no_grant",
+  );
 });
 
 test("share_out fails closed: a link outside the Space is made only when the type positively says outside is on", async () => {
@@ -525,10 +887,22 @@ test("roles_of says which role a person holds on which projects, and only the pr
   const h = harness();
   const p = await mkProject(h, { title: "Client portal launch" });
   await run(h, "projects.members.set", { projectId: p.projectId, principal: LEO, role: "reviewer" });
-  assert.deepEqual((await run(h, "projects.roles_of", { personId: LEO })).roles, [{ projectId: p.projectId, title: "Client portal launch", role: "reviewer" }], "the maker sees Leo's role");
+  assert.deepEqual(
+    (await run(h, "projects.roles_of", { personId: LEO })).roles,
+    [{ projectId: p.projectId, title: "Client portal launch", role: "reviewer" }],
+    "the maker sees Leo's role",
+  );
   h.allowOnly(() => false);
-  assert.deepEqual((await run(h, "projects.roles_of", { personId: LEO }, h.person(MAYA))).roles, [], "Maya is not in it and cannot view it: it is not named to her");
-  assert.equal((await run(h, "projects.roles_of", { personId: LEO }, h.person(LEO))).roles.length, 1, "Leo sees his own");
+  assert.deepEqual(
+    (await run(h, "projects.roles_of", { personId: LEO }, h.person(MAYA))).roles,
+    [],
+    "Maya is not in it and cannot view it: it is not named to her",
+  );
+  assert.equal(
+    (await run(h, "projects.roles_of", { personId: LEO }, h.person(LEO))).roles.length,
+    1,
+    "Leo sees his own",
+  );
   await refused(run(h, "projects.roles_of", { personId: "agt_helper" }), "validation.bad_input");
 });
 
@@ -538,7 +912,8 @@ test("archive takes a project out of the lists and leaves it readable; unarchive
   const h = harness();
   const a = await mkProject(h, { title: "Probate GTM" });
   const b = await mkProject(h, { title: "Lease renewals" });
-  const ids = async (input: Record<string, unknown> = {}): Promise<string[]> => (await run(h, "projects.list", input)).projects.map((p: { projectId: string }) => p.projectId).sort();
+  const ids = async (input: Record<string, unknown> = {}): Promise<string[]> =>
+    (await run(h, "projects.list", input)).projects.map((p: { projectId: string }) => p.projectId).sort();
   assert.deepEqual(await ids(), [a.projectId, b.projectId].sort());
   const r = await run(h, "projects.archive", { projectId: a.projectId });
   assert.deepEqual(r, { archived: true, changed: true });
@@ -547,8 +922,15 @@ test("archive takes a project out of the lists and leaves it readable; unarchive
   const got = await run(h, "projects.get", { projectId: a.projectId });
   assert.equal(got.project.projectId, a.projectId, "it still opens");
   assert.ok(typeof got.project.archivedAt === "number", "and says when it was archived");
-  assert.equal((await run(h, "projects.overview", { projectId: a.projectId })).project.archivedAt, got.project.archivedAt);
-  assert.deepEqual(await run(h, "projects.archive", { projectId: a.projectId }), { archived: true, changed: false }, "once more changes nothing");
+  assert.equal(
+    (await run(h, "projects.overview", { projectId: a.projectId })).project.archivedAt,
+    got.project.archivedAt,
+  );
+  assert.deepEqual(
+    await run(h, "projects.archive", { projectId: a.projectId }),
+    { archived: true, changed: false },
+    "once more changes nothing",
+  );
   assert.equal(h.named("project.archived").length, 1);
   assert.deepEqual(h.named("project.archived")[0]?.payload, { projectId: a.projectId, by: DANA });
   assert.deepEqual(await run(h, "projects.unarchive", { projectId: a.projectId }), { archived: false, changed: true });
@@ -560,7 +942,7 @@ test("archive takes a project out of the lists and leaves it readable; unarchive
 test("archive and unarchive need Manage: a person with no grant on the project is refused as for a project that is not there", async () => {
   const h = harness();
   const p = await mkProject(h);
-  h.allowOnly((action) => action.level === "view");   // they may read it, not manage it
+  h.allowOnly((action) => action.level === "view"); // they may read it, not manage it
   await refused(run(h, "projects.archive", { projectId: p.projectId }, h.person(LEO)), "permission.no_grant");
   await refused(run(h, "projects.unarchive", { projectId: p.projectId }, h.person(LEO)), "permission.no_grant");
   h.allowOnly(() => false);
@@ -582,20 +964,39 @@ test("a Space owner or admin with no Manage on the project sets and removes role
   const h = harness();
   const p = await mkProject(h);
   await run(h, "projects.members.set", { projectId: p.projectId, principal: BOT, role: "lead" });
-  h.allowOnly((a) => a.perm === "console.access" || a.level === "view" || a.level === "edit");   // a Space admin: the Console right, no Manage on this project
+  h.allowOnly((a) => a.perm === "console.access" || a.level === "view" || a.level === "edit"); // a Space admin: the Console right, no Manage on this project
   const set = await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" });
   assert.equal(set.member.role, "member", "the admin names a member though an agent leads");
   const mine = h.world.grants.filter((g) => g.subject.id === MAYA);
-  assert.deepEqual(mine.map((g) => [g.resource.type, g.level, g.source]).sort(), [["channel", "edit", `project:${p.projectId}`], ["folder", "edit", `project:${p.projectId}`], ["project", "edit", `project:${p.projectId}`]], "the grants landed on the project, its folder and its channel");
+  assert.deepEqual(
+    mine.map((g) => [g.resource.type, g.level, g.source]).sort(),
+    [
+      ["channel", "edit", `project:${p.projectId}`],
+      ["folder", "edit", `project:${p.projectId}`],
+      ["project", "edit", `project:${p.projectId}`],
+    ],
+    "the grants landed on the project, its folder and its channel",
+  );
   await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "reviewer" });
-  assert.ok(h.world.grants.filter((g) => g.subject.id === MAYA).every((g) => g.level === "view"), "a role change replaces the grants");
-  assert.deepEqual(await run(h, "projects.members.remove", { projectId: p.projectId, principal: MAYA }), { removed: true });
+  assert.ok(
+    h.world.grants.filter((g) => g.subject.id === MAYA).every((g) => g.level === "view"),
+    "a role change replaces the grants",
+  );
+  assert.deepEqual(await run(h, "projects.members.remove", { projectId: p.projectId, principal: MAYA }), {
+    removed: true,
+  });
   assert.equal(h.world.grants.filter((g) => g.subject.id === MAYA).length, 0, "and removing takes them all back");
-  h.allowOnly((a) => a.perm === null && (a.level === "view" || a.level === "edit"));   // can open and edit, no Manage, no Console right
+  h.allowOnly((a) => a.perm === null && (a.level === "view" || a.level === "edit")); // can open and edit, no Manage, no Console right
   const before = h.world.grants.length;
-  const err = await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" }).then(() => null, (e: unknown) => e);
+  const err = await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" }).then(
+    () => null,
+    (e: unknown) => e,
+  );
   assert.equal(codeOf(err), "permission.no_grant");
-  assert.match(String((err as Error).message), /You need to manage this project to change roles\. Ask its Lead or the Space owner\./);
+  assert.match(
+    String((err as Error).message),
+    /You need to manage this project to change roles\. Ask its Lead or the Space owner\./,
+  );
   assert.equal(h.world.grants.length, before, "no grant was written");
   assert.ok(!h.world.channelPeople.get(p.channelId)?.has(MAYA), "Maya is not in the channel");
   const list = await run(h, "projects.members.list", { projectId: p.projectId });

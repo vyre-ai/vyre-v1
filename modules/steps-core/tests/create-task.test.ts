@@ -11,7 +11,13 @@ function tasks(h: ReturnType<typeof harness>) {
   h.callee("tasks.get", () => ({ task: { ...task, workingNotes: { ...task.workingNotes } } }));
   return task;
 }
-const step = (extra: Record<string, unknown> = {}) => node("mk", "create_task", { title: "Draft the letter for {{ trigger.name }}", assigned: { kind: "agent", id: "agt_doer" }, reviewer: { kind: "person", id: "usr_maya" }, ...extra });
+const step = (extra: Record<string, unknown> = {}) =>
+  node("mk", "create_task", {
+    title: "Draft the letter for {{ trigger.name }}",
+    assigned: { kind: "agent", id: "agt_doer" },
+    reviewer: { kind: "person", id: "usr_maya" },
+    ...extra,
+  });
 
 test("without wait the step returns the task id and the Run goes on", async () => {
   const h = harness();
@@ -40,7 +46,12 @@ test("with wait the Run parks on the task, and goes on with the outputs the doer
   t.state = "done";
   t.workingNotes = { outputs: JSON.stringify({ letter: "Dear Ms Rivera" }), summary: "Drafted and checked" };
   await run.resume();
-  assert.deepEqual(run.outputs.mk, { taskId: "tsk_w1", state: "done", outputs: { letter: "Dear Ms Rivera" }, summary: "Drafted and checked" });
+  assert.deepEqual(run.outputs.mk, {
+    taskId: "tsk_w1",
+    state: "done",
+    outputs: { letter: "Dear Ms Rivera" },
+    summary: "Drafted and checked",
+  });
   assert.equal(run.state, "succeeded");
   assert.equal(h.only("tasks.create")[1]!.input.idempotencyKey, "run_t1:mk:1", "the resumed step finds the same task");
 });

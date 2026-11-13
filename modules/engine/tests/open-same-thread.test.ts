@@ -8,17 +8,42 @@ import { open } from "../handlers/control.ts";
 import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
 
 test("control.open builds the thread the bridge would: model from the agent, name, settings, outside, task lead, personal", async () => {
-  const h = harness({ threads: [{ threadId: "thr_task", kind: "thread", starter: "usr_dana", agents: [
-    { agentId: "agt_doer", mode: "listen", name: "Doer", quiet: true, when: "topics", topics: ["leases"] } as never,
-    { agentId: "agt_out", mode: "listen", name: "Outside helper" } as never,
-    { agentId: "agt_pin", mode: "listen", name: "Pinned", model: "glm-5" } as never,
-    { agentId: "agt_empty", mode: "listen", name: "Empty", model: "" } as never,
-  ] }] });
+  const h = harness({
+    threads: [
+      {
+        threadId: "thr_task",
+        kind: "thread",
+        starter: "usr_dana",
+        agents: [
+          {
+            agentId: "agt_doer",
+            mode: "listen",
+            name: "Doer",
+            quiet: true,
+            when: "topics",
+            topics: ["leases"],
+          } as never,
+          { agentId: "agt_out", mode: "listen", name: "Outside helper" } as never,
+          { agentId: "agt_pin", mode: "listen", name: "Pinned", model: "glm-5" } as never,
+          { agentId: "agt_empty", mode: "listen", name: "Empty", model: "" } as never,
+        ],
+      },
+    ],
+  });
   const base = h.ctx.call;
   h.ctx.call = async (cap, input) => {
     const i = input as Record<string, unknown>;
-    if (cap === "threads.get") { const r = (await base(cap, input)) as { thread: Record<string, unknown> }; return { thread: { ...r.thread, scopeType: "task", scopeId: "tsk_1" } }; }
-    if (cap === "agents.get") return { agent: i["agentId"] === "agt_out" ? { runtime: "outside" } : { model: i["agentId"] === "agt_doer" ? "deepseek-v4.1-flash" : "kimi-k2" } };
+    if (cap === "threads.get") {
+      const r = (await base(cap, input)) as { thread: Record<string, unknown> };
+      return { thread: { ...r.thread, scopeType: "task", scopeId: "tsk_1" } };
+    }
+    if (cap === "agents.get")
+      return {
+        agent:
+          i["agentId"] === "agt_out"
+            ? { runtime: "outside" }
+            : { model: i["agentId"] === "agt_doer" ? "deepseek-v4.1-flash" : "kimi-k2" },
+      };
     if (cap === "tasks.get") return { task: { assigned: { kind: "agent", id: "agt_doer" }, createdBy: "usr_dana" } };
     return base(cap, input);
   };

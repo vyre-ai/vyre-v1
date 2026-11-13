@@ -15,17 +15,36 @@ test("the owner connects a built-in connector, a member without connectors.manag
     const keys: string[] = list.connectors.map((c: { key: string }) => c.key);
     assert.ok(["google", "microsoft", "hubspot", "stripe"].every((k) => keys.includes(k)));
     for (const connector of ["google", "microsoft", "hubspot"]) {
-      const r = await w.call(OWNER, "connections.create", { connector, title: `${connector} account`, ownerKind: "space", idempotencyKey: w.idem() });
+      const r = await w.call(OWNER, "connections.create", {
+        connector,
+        title: `${connector} account`,
+        ownerKind: "space",
+        idempotencyKey: w.idem(),
+      });
       assert.equal(r.status, 200, `${connector}: ${r.text}`);
       assert.equal(r.data.connection.connector, connector);
     }
-    const refused = await w.call(MEMBER, "connections.create", { connector: "google", title: "mine", ownerKind: "space", idempotencyKey: w.idem() });
+    const refused = await w.call(MEMBER, "connections.create", {
+      connector: "google",
+      title: "mine",
+      ownerKind: "space",
+      idempotencyKey: w.idem(),
+    });
     assert.equal(refused.status, 403, refused.text);
     dir = w.dir;
-  } finally { await w.stop(true); }
+  } finally {
+    await w.stop(true);
+  }
   const again = await bootWorld({ prefix: "builtin-again", ...none, dir });
   try {
-    const r = await again.call(OWNER, "connections.create", { connector: "stripe", title: "after a restart", ownerKind: "space", idempotencyKey: again.idem() });
+    const r = await again.call(OWNER, "connections.create", {
+      connector: "stripe",
+      title: "after a restart",
+      ownerKind: "space",
+      idempotencyKey: again.idem(),
+    });
     assert.equal(r.status, 200, r.text);
-  } finally { await again.stop(); }
+  } finally {
+    await again.stop();
+  }
 });

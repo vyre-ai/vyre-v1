@@ -14,13 +14,25 @@ function rig() {
     validateInput: () => [],
     authorize: () => ({ effect: "allow", reason: "test", decisionId: "dec_t", steps: [] }),
     handler: () => async () => ({}),
-    commit: async (b: { events: unknown[]; audit?: { resource: unknown; cap: string } | null }) => { if (b.audit) audits.push(b.audit); return b.events.map((e, i) => ({ ...(e as object), seq: i + 1 })); },
-    audit: async (r: { resource: unknown; cap: string }) => { audits.push(r); },
+    commit: async (b: { events: unknown[]; audit?: { resource: unknown; cap: string } | null }) => {
+      if (b.audit) audits.push(b.audit);
+      return b.events.map((e, i) => ({ ...(e as object), seq: i + 1 }));
+    },
+    audit: async (r: { resource: unknown; cap: string }) => {
+      audits.push(r);
+    },
     now: () => 1_000,
   } as unknown as InvokeDeps;
   return { invoke: createInvoke(deps), audits };
 }
-const inChat = (thread: string): CtxSeed => ({ space: "spc_1", principal: { kind: "agent", id: "agt_scout" }, actingFor: "usr_maya", thread, origin: "engine" } as CtxSeed);
+const inChat = (thread: string): CtxSeed =>
+  ({
+    space: "spc_1",
+    principal: { kind: "agent", id: "agt_scout" },
+    actingFor: "usr_maya",
+    thread,
+    origin: "engine",
+  }) as CtxSeed;
 
 test("A1: an admin's audit export keeps every self-bound act on the Space the kernel knows, and names whose browser, Chrome or computer it was", async () => {
   const { invoke, audits } = rig();
@@ -34,11 +46,29 @@ test("A1: an admin's audit export keeps every self-bound act on the Space the ke
   const { createAuditRecorder } = await import("../host/src/seams/audit.ts");
   const h = harness();
   const admin = h.as("usr_admin");
-  const record = createAuditRecorder({ space: "spc_1", db: admin.db as never, module: audit as unknown as Record<string, unknown>, principal: (id) => ({ kind: id.startsWith("agt_") ? "agent" : "person" }) });
+  const record = createAuditRecorder({
+    space: "spc_1",
+    db: admin.db as never,
+    module: audit as unknown as Record<string, unknown>,
+    principal: (id) => ({ kind: id.startsWith("agt_") ? "agent" : "person" }),
+  });
   for (const a of audits) record(a as never);
   // the kernel's answer for an admin: the Space is theirs to see; anything it does not know is not found (as for browser_profile or agent_computer, which are no resources)
   const saved: string[] = [];
-  const ctx = { ...admin, exports: { async save(_n: string, csv: string) { saved.push(csv); return "fil_x"; } }, authorize: (_a: unknown, r: { type: string }) => ({ effect: r.type === "space" ? "allow" : "deny", reason: "t", decisionId: "d" }) };
+  const ctx = {
+    ...admin,
+    exports: {
+      async save(_n: string, csv: string) {
+        saved.push(csv);
+        return "fil_x";
+      },
+    },
+    authorize: (_a: unknown, r: { type: string }) => ({
+      effect: r.type === "space" ? "allow" : "deny",
+      reason: "t",
+      decisionId: "d",
+    }),
+  };
   await (audit.handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)["audit.export"]!(ctx, {});
   const lines = saved[0]!.trimEnd().split("\n");
   const row = (cap: string): string => lines.find((l) => l.includes(`,${cap},`)) ?? "";

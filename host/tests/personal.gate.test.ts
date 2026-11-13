@@ -10,13 +10,30 @@ import type { CtxSeed, InvokeDeps } from "../src/invoke.ts";
 import { HostError } from "../src/routes/errors.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 
-const cap = (name: string): CapabilityDef => ({
-  v: 1, name, summary: "s", input: { type: "object" }, output: { type: "object" }, errors: [], resource: { type: "record", id: "/id" }, permission: "records.edit", level: "edit",
-  risk: "low", effects: "write", emits: [], idempotency: "natural", surfaces: {}, examples: [],
-} as unknown as CapabilityDef);
+const cap = (name: string): CapabilityDef =>
+  ({
+    v: 1,
+    name,
+    summary: "s",
+    input: { type: "object" },
+    output: { type: "object" },
+    errors: [],
+    resource: { type: "record", id: "/id" },
+    permission: "records.edit",
+    level: "edit",
+    risk: "low",
+    effects: "write",
+    emits: [],
+    idempotency: "natural",
+    surfaces: {},
+    examples: [],
+  }) as unknown as CapabilityDef;
 
 let kind: "personal" | "team" = "personal";
-const gate = personalMatrix({ kind: () => kind, caps: [{ name: "terminal.open", teamOnly: true }, { name: "records.update" }] }).gate;
+const gate = personalMatrix({
+  kind: () => kind,
+  caps: [{ name: "terminal.open", teamOnly: true }, { name: "records.update" }],
+}).gate;
 
 function world() {
   const s = new AccessSnapshot();
@@ -25,13 +42,27 @@ function world() {
   s.addPrincipalRole({ holder: "usr_dana", role: "member" });
   s.putResource({ id: "root", type: "folder", parent_id: null, label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "rec_1", type: "record", parent_id: "root", label: 0, owner_id: null, holds: 0 });
-  s.putGrant({ id: "g1", subject_kind: "actor", subject_id: "usr_dana", resource_type: "folder", resource_id: "root", level: "edit" });
-  const ran: string[] = [], checked: string[] = [];
+  s.putGrant({
+    id: "g1",
+    subject_kind: "actor",
+    subject_id: "usr_dana",
+    resource_type: "folder",
+    resource_id: "root",
+    level: "edit",
+  });
+  const ran: string[] = [],
+    checked: string[] = [];
   const deps: InvokeDeps = {
     caps: indexCapabilities([cap("terminal.open"), cap("records.update")]),
-    validateInput: (c) => { checked.push(c); return []; },
+    validateInput: (c) => {
+      checked.push(c);
+      return [];
+    },
     authorize: (req) => authorize(s, req),
-    handler: (c) => async () => { ran.push(c); return { ok: true }; },
+    handler: (c) => async () => {
+      ran.push(c);
+      return { ok: true };
+    },
     commit: async (b) => b.events.map((e, i) => ({ ...e, seq: i + 1 })),
     personal: { gate },
     now: () => 1_000,
@@ -43,7 +74,15 @@ const seed: CtxSeed = { space: "spc_1", principal: { kind: "person", id: "usr_da
 test("a Personal Space refuses a team-only capability before validation and before any handler work", async () => {
   kind = "personal";
   const w = world();
-  await assert.rejects(w.invoke("terminal.open", { id: "rec_1" }, seed), (e: unknown) => e instanceof HostError && e.error.code === "permission.needs_team" && e.http === 403 && e.error.traceId.length === 32 && e.error.next.length > 0);
+  await assert.rejects(
+    w.invoke("terminal.open", { id: "rec_1" }, seed),
+    (e: unknown) =>
+      e instanceof HostError &&
+      e.error.code === "permission.needs_team" &&
+      e.http === 403 &&
+      e.error.traceId.length === 32 &&
+      e.error.next.length > 0,
+  );
   assert.deepEqual(w.checked, [], "refused before validation");
   assert.deepEqual(w.ran, [], "no handler ran");
 });
@@ -87,19 +126,43 @@ const rows = {
 function shareWorld(spaceKind: "personal" | "team") {
   const s = new AccessSnapshot();
   s.putRole({ id: "member", clearance: 2, perms: ["records.edit"], name: "Member" });
-  for (const id of ["usr_dana", "agt_mine"]) { s.putPrincipal({ id, kind: id.startsWith("agt_") ? "agent" : "person", status: "active", name: id }); s.addPrincipalRole({ holder: id, role: "member" }); }
+  for (const id of ["usr_dana", "agt_mine"]) {
+    s.putPrincipal({ id, kind: id.startsWith("agt_") ? "agent" : "person", status: "active", name: id });
+    s.addPrincipalRole({ holder: id, role: "member" });
+  }
   s.putResource({ id: "root", type: "folder", parent_id: null, label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "rec_1", type: "record", parent_id: "root", label: 0, owner_id: null, holds: 0 });
-  s.putGrant({ id: "g1", subject_kind: "actor", subject_id: "usr_dana", resource_type: "folder", resource_id: "root", level: "edit" });
-  s.putGrant({ id: "g2", subject_kind: "actor", subject_id: "agt_mine", resource_type: "folder", resource_id: "root", level: "edit" });
+  s.putGrant({
+    id: "g1",
+    subject_kind: "actor",
+    subject_id: "usr_dana",
+    resource_type: "folder",
+    resource_id: "root",
+    level: "edit",
+  });
+  s.putGrant({
+    id: "g2",
+    subject_kind: "actor",
+    subject_id: "agt_mine",
+    resource_type: "folder",
+    resource_id: "root",
+    level: "edit",
+  });
   const names = ["vault.share", "vault.unshare", "access.share", "access.unshare", "terminal.open"];
-  const matrix = personalMatrix({ kind: () => spaceKind, caps: names.map((name) => ({ name, teamOnly: true })), owns: (subject, person) => ownsSubject(rows, subject, person) });
+  const matrix = personalMatrix({
+    kind: () => spaceKind,
+    caps: names.map((name) => ({ name, teamOnly: true })),
+    owns: (subject, person) => ownsSubject(rows, subject, person),
+  });
   const ran: string[] = [];
   const invoke = createInvoke({
     caps: indexCapabilities(names.map(cap)),
     validateInput: () => [],
     authorize: (req) => authorize(s, req),
-    handler: (c) => async () => { ran.push(c); return { ok: true }; },
+    handler: (c) => async () => {
+      ran.push(c);
+      return { ok: true };
+    },
     commit: async (b) => b.events.map((e, i) => ({ ...e, seq: i + 1 })),
     personal: matrix,
     now: () => 1_000,
@@ -107,21 +170,43 @@ function shareWorld(spaceKind: "personal" | "team") {
   return { invoke, ran };
 }
 const refusal = async (p: Promise<unknown>): Promise<{ code: string; message: string }> => {
-  try { await p; } catch (e) { if (e instanceof HostError) return { code: e.error.code, message: e.error.message ?? "" }; throw e; }
+  try {
+    await p;
+  } catch (e) {
+    if (e instanceof HostError) return { code: e.error.code, message: e.error.message ?? "" };
+    throw e;
+  }
   throw new Error("it was not refused");
 };
-const share = (subject: { kind: string; id: string }) => ({ id: "rec_1", resource: { type: "vault_item", id: "vit_1" }, subject, level: "use" });
+const share = (subject: { kind: string; id: string }) => ({
+  id: "rec_1",
+  resource: { type: "vault_item", id: "vit_1" },
+  subject,
+  level: "use",
+});
 
 test("Personal: a person gives their own agent or automation Use on their item (vault.share, vault.unshare and the access.share under them)", async () => {
   const w = shareWorld("personal");
-  for (const c of ["vault.share", "access.share", "vault.unshare", "access.unshare"]) assert.equal((await w.invoke(c, share({ kind: "agent", id: "agt_mine" }), seed)).status, "ok", c);
-  assert.equal((await w.invoke("vault.share", share({ kind: "service", id: "svc_daily" }), seed)).status, "ok", "their own automation");
+  for (const c of ["vault.share", "access.share", "vault.unshare", "access.unshare"])
+    assert.equal((await w.invoke(c, share({ kind: "agent", id: "agt_mine" }), seed)).status, "ok", c);
+  assert.equal(
+    (await w.invoke("vault.share", share({ kind: "service", id: "svc_daily" }), seed)).status,
+    "ok",
+    "their own automation",
+  );
   assert.deepEqual(w.ran, ["vault.share", "access.share", "vault.unshare", "access.unshare", "vault.share"]);
 });
 
 test("Personal: sharing with another person, someone else's agent or an unknown one is still refused, in plain words", async () => {
   const w = shareWorld("personal");
-  for (const subject of [{ kind: "person", id: "usr_zed" }, { kind: "group", id: "grp_all" }, { kind: "agent", id: "agt_theirs" }, { kind: "agent", id: "agt_gone" }, { kind: "service", id: "svc_other" }, { kind: "actor", id: "usr_dana" }]) {
+  for (const subject of [
+    { kind: "person", id: "usr_zed" },
+    { kind: "group", id: "grp_all" },
+    { kind: "agent", id: "agt_theirs" },
+    { kind: "agent", id: "agt_gone" },
+    { kind: "service", id: "svc_other" },
+    { kind: "actor", id: "usr_dana" },
+  ]) {
     const r = await refusal(w.invoke("vault.share", share(subject), seed));
     assert.equal(r.code, "permission.needs_team", JSON.stringify(subject));
     assert.equal(r.message, "Sharing with other people needs a Team Space. Create or join one to share this.");
@@ -130,20 +215,37 @@ test("Personal: sharing with another person, someone else's agent or an unknown 
   const bare = await refusal(w.invoke("vault.share", { id: "rec_1" }, seed));
   assert.equal(bare.code, "permission.needs_team", "no subject, no exception");
   const other = await refusal(w.invoke("terminal.open", share({ kind: "agent", id: "agt_mine" }), seed));
-  assert.equal(other.message, "Needs a Team Space. Create or join one to use this.", "the exception is for the share capabilities only");
+  assert.equal(
+    other.message,
+    "Needs a Team Space. Create or join one to use this.",
+    "the exception is for the share capabilities only",
+  );
   assert.deepEqual(w.ran, []);
 });
 
 test("Personal: only the person makes the grant; their agent cannot give itself Use", async () => {
   const w = shareWorld("personal");
-  const r = await refusal(w.invoke("vault.share", share({ kind: "agent", id: "agt_mine" }), { space: "spc_1", principal: { kind: "agent", id: "agt_mine" }, actingFor: "usr_dana" }));
+  const r = await refusal(
+    w.invoke("vault.share", share({ kind: "agent", id: "agt_mine" }), {
+      space: "spc_1",
+      principal: { kind: "agent", id: "agt_mine" },
+      actingFor: "usr_dana",
+    }),
+  );
   assert.equal(r.code, "permission.needs_team");
   assert.deepEqual(w.ran, []);
 });
 
 test("Personal: without an owner lookup there is no exception", async () => {
   const gateOnly = personalMatrix({ kind: () => "personal", caps: [{ name: "vault.share", teamOnly: true }] }).gate;
-  assert.throws(() => gateOnly("vault.share", "0".repeat(32), { input: share({ kind: "agent", id: "agt_mine" }), principal: { kind: "person", id: "usr_dana" } }), (e: unknown) => e instanceof HostError && e.error.code === "permission.needs_team");
+  assert.throws(
+    () =>
+      gateOnly("vault.share", "0".repeat(32), {
+        input: share({ kind: "agent", id: "agt_mine" }),
+        principal: { kind: "person", id: "usr_dana" },
+      }),
+    (e: unknown) => e instanceof HostError && e.error.code === "permission.needs_team",
+  );
 });
 
 test("Team: sharing with a person or an agent goes on as before", async () => {
@@ -160,5 +262,16 @@ test("ownsSubject reads the modules' own rows: an agent by agents_agent.ownerId,
   assert.equal(ownsSubject(rows, { kind: "service", id: "svc_daily" }, "usr_dana"), true);
   assert.equal(ownsSubject(rows, { kind: "service", id: "svc_" }, "usr_dana"), false);
   assert.equal(ownsSubject(rows, { kind: "person", id: "usr_dana" }, "usr_dana"), false);
-  assert.equal(ownsSubject({ all: () => { throw new Error("no such table"); } }, { kind: "agent", id: "agt_mine" }, "usr_dana"), false);
+  assert.equal(
+    ownsSubject(
+      {
+        all: () => {
+          throw new Error("no such table");
+        },
+      },
+      { kind: "agent", id: "agt_mine" },
+      "usr_dana",
+    ),
+    false,
+  );
 });

@@ -40,21 +40,44 @@ export interface RecordsVault {
 }
 let vault: RecordsVault | null = null;
 /** The host hands the Vault (a seam like the others). */
-export function setRecordsVault(v: RecordsVault | null): void { vault = v; }
+export function setRecordsVault(v: RecordsVault | null): void {
+  vault = v;
+}
 
 /**
  * The sealed path: the one way a plaintext reaches a sealed field is `{ sealed: true, value: "text" }`. The text goes to the Vault and the row keeps the reference only, so no row, event,
  * history entry or log line ever holds it. A reference passes as it is (a record read and written back), and null clears the field.
  */
-async function sealIn(def: TypeDef, recordId: string, data: Record<string, unknown>, current?: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function sealIn(
+  def: TypeDef,
+  recordId: string,
+  data: Record<string, unknown>,
+  current?: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
   const out: Record<string, unknown> = { ...data };
   for (const f of def.fields) {
     if (f.kind !== "sealed" || !Object.prototype.hasOwnProperty.call(out, f.name)) continue;
     const v = out[f.name];
-    if (!v || typeof v !== "object" || (v as { sealed?: unknown }).sealed !== true || typeof (v as { value?: unknown }).value !== "string") continue;
-    if (!vault) throw new StoreError("unavailable", `${f.name} is sealed and the Vault is not available on this server, so the value was not saved.`);
+    if (
+      !v ||
+      typeof v !== "object" ||
+      (v as { sealed?: unknown }).sealed !== true ||
+      typeof (v as { value?: unknown }).value !== "string"
+    )
+      continue;
+    if (!vault)
+      throw new StoreError(
+        "unavailable",
+        `${f.name} is sealed and the Vault is not available on this server, so the value was not saved.`,
+      );
     const have = current?.[f.name];
-    const ref = await vault.put({ type: def.name, recordId, field: f.name, value: (v as { value: string }).value, ...(isSealedRef(have) ? { ref: (have as { ref: string }).ref } : {}) });
+    const ref = await vault.put({
+      type: def.name,
+      recordId,
+      field: f.name,
+      value: (v as { value: string }).value,
+      ...(isSealedRef(have) ? { ref: (have as { ref: string }).ref } : {}),
+    });
     out[f.name] = { sealed: f.name, ref, present: true, set_at: Date.now() };
   }
   return out;
@@ -111,8 +134,14 @@ export interface MergeLoss {
 
 /** records.get and records.history, over the store and the field-history table this file owns. */
 export interface ReadHandlers {
-  "records.get"(ctx: Pick<WriteCtx, "trace">, input: { type: string; recordId: string }): Promise<{ record: RecordRow }>;
-  "records.history"(ctx: Pick<WriteCtx, "trace">, input: { type: string; recordId: string; field?: string }): Promise<{ entries: { field: string; value: unknown; hlc: string; actor: string; reason?: string }[] }>;
+  "records.get"(
+    ctx: Pick<WriteCtx, "trace">,
+    input: { type: string; recordId: string },
+  ): Promise<{ record: RecordRow }>;
+  "records.history"(
+    ctx: Pick<WriteCtx, "trace">,
+    input: { type: string; recordId: string; field?: string },
+  ): Promise<{ entries: { field: string; value: unknown; hlc: string; actor: string; reason?: string }[] }>;
 }
 
 export type RecordsHandlers = WriteHandlers & QueryHandlers & ReadHandlers;
@@ -123,7 +152,12 @@ export interface RecordsHandle {
   handlers: RecordsHandlers;
   clocks(type: string, id: string): FieldClock[];
   history(type: string, id: string): HistoryRow[];
-  mergeFields(type: string, id: string, fields: Record<string, FieldWrite>, actor: string): Promise<{ record: StoredRecord; applied: string[]; lost: MergeLoss[] }>;
+  mergeFields(
+    type: string,
+    id: string,
+    fields: Record<string, FieldWrite>,
+    actor: string,
+  ): Promise<{ record: StoredRecord; applied: string[]; lost: MergeLoss[] }>;
 }
 
 const REF_TOKEN = /^[A-Za-z0-9_]{1,80}$/;
@@ -132,7 +166,11 @@ function same(a: unknown, b: unknown): boolean {
   const x = a === undefined ? null : a;
   const y = b === undefined ? null : b;
   if (x === y) return true;
-  try { return canonical(x) === canonical(y); } catch { return false; }
+  try {
+    return canonical(x) === canonical(y);
+  } catch {
+    return false;
+  }
 }
 
 function sealRef(v: Record<string, unknown>): Record<string, unknown> {
@@ -170,12 +208,14 @@ function assertWriteOnce(def: TypeDef, current: Record<string, unknown>, patch: 
   for (const [key, value] of Object.entries(patch)) {
     const f = def.fields.find((x) => x.name === key);
     if (f?.["write_once"] !== true) continue;
-    const had = Object.prototype.hasOwnProperty.call(current, key) && current[key] !== undefined && current[key] !== null;
+    const had =
+      Object.prototype.hasOwnProperty.call(current, key) && current[key] !== undefined && current[key] !== null;
     if (had && !same(current[key], value)) throw new RecordsError("write_once", `${key} is write-once`);
   }
 }
 
-const blank = (v: unknown): boolean => v === undefined || v === null || (typeof v === "string" && v.trim() === "") || (Array.isArray(v) && v.length === 0);
+const blank = (v: unknown): boolean =>
+  v === undefined || v === null || (typeof v === "string" && v.trim() === "") || (Array.isArray(v) && v.length === 0);
 
 /**
  * A status field whose stages list fields to fill (`stageGates`, kept by the schema module) refuses a stage change while they are empty. The values counted are the record's own with this patch
@@ -185,35 +225,58 @@ function assertStageGates(def: TypeDef, current: Record<string, unknown>, patch:
   for (const f of def.fields) {
     const gates = f["stageGates"] as Record<string, { enter?: string[]; leave?: string[] }> | undefined;
     if (!gates || !Object.prototype.hasOwnProperty.call(patch, f.name)) continue;
-    const from = current[f.name], to = patch[f.name];
+    const from = current[f.name],
+      to = patch[f.name];
     if (typeof to !== "string" || same(from, to)) continue;
     const merged = { ...current, ...patch };
     const wants: { key: string; stage: string; when: "enter" | "leave" }[] = [
-      ...((typeof from === "string" ? gates[from]?.leave : undefined) ?? []).map((key) => ({ key, stage: from as string, when: "leave" as const })),
+      ...((typeof from === "string" ? gates[from]?.leave : undefined) ?? []).map((key) => ({
+        key,
+        stage: from as string,
+        when: "leave" as const,
+      })),
       ...(gates[to]?.enter ?? []).map((key) => ({ key, stage: to, when: "enter" as const })),
     ];
-    const open = wants.filter((w, i) => blank(merged[w.key]) && wants.findIndex((x) => x.key === w.key) === i)
+    const open = wants
+      .filter((w, i) => blank(merged[w.key]) && wants.findIndex((x) => x.key === w.key) === i)
       .map((w) => ({ ...w, title: String(def.fields.find((x) => x.name === w.key)?.label ?? w.key) }));
-    if (open.length) throw new RecordsError("stage_gate", `Fill these first: ${open.map((m) => m.title).join(", ")}.`, { reason: "fields_required", fields: open, toStage: to });
+    if (open.length)
+      throw new RecordsError("stage_gate", `Fill these first: ${open.map((m) => m.title).join(", ")}.`, {
+        reason: "fields_required",
+        fields: open,
+        toStage: to,
+      });
   }
 }
 
-export function openRecords(o: { path?: string; space?: string; actor?: string; clock?: () => number; opened?: { host: ProjectionHost; store: Store } } = {}): RecordsHandle {
+export function openRecords(
+  o: {
+    path?: string;
+    space?: string;
+    actor?: string;
+    clock?: () => number;
+    opened?: { host: ProjectionHost; store: Store };
+  } = {},
+): RecordsHandle {
   // `opened` is the Space store the host hands over (P-H_08); without it (tests) the module opens a private one
-  const opened = o.opened ?? openRecordStore({
-    path: o.path ?? ":memory:",
-    space: o.space ?? "sp_records",
-    extra: [recordsFieldMeta],
-    ...(o.actor !== undefined ? { actor: o.actor } : {}),
-    ...(o.clock !== undefined ? { clock: o.clock } : {}),
-  });
+  const opened =
+    o.opened ??
+    openRecordStore({
+      path: o.path ?? ":memory:",
+      space: o.space ?? "sp_records",
+      extra: [recordsFieldMeta],
+      ...(o.actor !== undefined ? { actor: o.actor } : {}),
+      ...(o.clock !== undefined ? { clock: o.clock } : {}),
+    });
   const inner = opened.store;
   const host = opened.host;
   // Types are read from the store every time, never kept: schema.apply (and sync, and replay) define types through the Space store without passing this wrapper,
   // so a copy kept here went stale and a type made after the first record write answered "no type" (rc.7 owner bug). One indexed read of one row is cheap.
   const allTypes = async (): Promise<readonly TypeDef[]> => inner.types();
   const needType = async (type: string): Promise<TypeDef> => {
-    const row = /^[a-z][a-z0-9_]{0,62}$/.test(type) ? host.tx.get<{ def: string }>("SELECT def FROM rs_types WHERE name = ?", type) : undefined;
+    const row = /^[a-z][a-z0-9_]{0,62}$/.test(type)
+      ? host.tx.get<{ def: string }>("SELECT def FROM rs_types WHERE name = ?", type)
+      : undefined;
     const def = row ? (JSON.parse(row.def) as TypeDef) : typeNamed(await allTypes(), type);
     if (!def) throw new StoreError("unknown_type", `no type ${type}`);
     return def;
@@ -225,7 +288,8 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
       const have = await allTypes();
       for (const name of diff.remove_types ?? []) {
         const t = have.find((x) => x.name === name);
-        if (t?.["protected"] === true) throw new RecordsError("protected", `type ${name} is protected and cannot be dropped`);
+        if (t?.["protected"] === true)
+          throw new RecordsError("protected", `type ${name} is protected and cannot be dropped`);
       }
       return inner.define(diff);
     },
@@ -243,36 +307,67 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
     },
     async remove(type, id, base) {
       const def = (await allTypes()).find((t) => t.name === type);
-      if (def?.["protected"] === true) throw new RecordsError("protected", `type ${type} is protected: its records cannot be deleted`);
-      const meta = host.tx.get<{ holds: number }>("SELECT holds FROM records_row_meta WHERE type = ? AND id = ?", type, id);
+      if (def?.["protected"] === true)
+        throw new RecordsError("protected", `type ${type} is protected: its records cannot be deleted`);
+      const meta = host.tx.get<{ holds: number }>(
+        "SELECT holds FROM records_row_meta WHERE type = ? AND id = ?",
+        type,
+        id,
+      );
       if ((meta?.holds ?? 0) > 0) throw new RecordsError("on_hold", `record ${id} is on hold`);
       return inner.remove(type, id, base);
     },
   };
 
   const metaOf = (type: string, id: string): { label: number; holds: number } => {
-    const row = host.tx.get<{ label: number; holds: number }>("SELECT label, holds FROM records_row_meta WHERE type = ? AND id = ?", type, id);
+    const row = host.tx.get<{ label: number; holds: number }>(
+      "SELECT label, holds FROM records_row_meta WHERE type = ? AND id = ?",
+      type,
+      id,
+    );
     return { label: row?.label ?? 0, holds: row?.holds ?? 0 };
   };
 
   const clocks = (type: string, id: string): FieldClock[] => {
     if (!/^[a-z][a-z0-9_]{0,62}$/.test(type)) return [];
-    return host.tx.all<FieldClock>(`SELECT field, hlc, actor, seq FROM "${fieldMetaTable(type)}" WHERE id = ? ORDER BY field`, id);
+    return host.tx.all<FieldClock>(
+      `SELECT field, hlc, actor, seq FROM "${fieldMetaTable(type)}" WHERE id = ? ORDER BY field`,
+      id,
+    );
   };
 
   const history = (type: string, id: string): HistoryRow[] => {
-    const rows = host.tx.all<{ field: string; value: string | null; hlc: string; actor: string; seq: number; reason: string }>(
+    const rows = host.tx.all<{
+      field: string;
+      value: string | null;
+      hlc: string;
+      actor: string;
+      seq: number;
+      reason: string;
+    }>(
       "SELECT field, value, hlc, actor, seq, reason FROM records_field_history WHERE type = ? AND id = ? ORDER BY rowid",
-      type, id,
+      type,
+      id,
     );
     return rows.map((r) => {
       let value: unknown = null;
-      if (r.value !== null) { try { value = JSON.parse(r.value); } catch { value = r.value; } }
+      if (r.value !== null) {
+        try {
+          value = JSON.parse(r.value);
+        } catch {
+          value = r.value;
+        }
+      }
       return { field: r.field, value, hlc: r.hlc, actor: r.actor, seq: r.seq, reason: r.reason };
     });
   };
 
-  async function mergeFields(type: string, id: string, fields: Record<string, FieldWrite>, actor: string): Promise<{ record: StoredRecord; applied: string[]; lost: MergeLoss[] }> {
+  async function mergeFields(
+    type: string,
+    id: string,
+    fields: Record<string, FieldWrite>,
+    actor: string,
+  ): Promise<{ record: StoredRecord; applied: string[]; lost: MergeLoss[] }> {
     const def = await needType(type);
     const row = await store.get(type, id);
     if (!row) throw new StoreError("not_found", `no ${type} ${id}`);
@@ -303,16 +398,20 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
       if (!matchesBase) {
         const how = policy(f);
         if (how === "append") take = true;
-        else if (how === "assistant") { take = false; reason = "conflict"; }
-        else {
+        else if (how === "assistant") {
+          take = false;
+          reason = "conflict";
+        } else {
           const incoming = parseHlc(inc.hlc)!;
           const stored = current ? parseHlc(current.hlc) : null;
           take = !stored || compareHlc(incoming, stored) > 0;
           reason = "lww_loser";
         }
       }
-      if (take) { patch[name] = inc.value; applied.push(name); }
-      else lost.push({ field: name, reason });
+      if (take) {
+        patch[name] = inc.value;
+        applied.push(name);
+      } else lost.push({ field: name, reason });
     }
     const next = applied.length ? await store.update(type, id, patch, row.version) : row;
     const table = fieldMetaTable(type);
@@ -326,10 +425,17 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
       const kind = known.get(loss.field)?.kind;
       host.tx.run(
         "INSERT INTO records_field_history (type, id, field, value, hlc, actor, seq, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        type, id, loss.field, historyText(kind, loss.field, inc.value), inc.hlc, actor, seq, loss.reason,
+        type,
+        id,
+        loss.field,
+        historyText(kind, loss.field, inc.value),
+        inc.hlc,
+        actor,
+        seq,
+        loss.reason,
       );
     }
-    const record = applied.length ? (await store.get(type, id)) ?? next : next;
+    const record = applied.length ? ((await store.get(type, id)) ?? next) : next;
     return { record, applied, lost };
   }
 
@@ -341,7 +447,9 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
         const rec = await store.get(input.type, input.recordId);
         if (!rec) throw new StoreError("not_found", `no ${input.type} ${input.recordId}`);
         return { record: toRow(rec, metaOf(rec.type, rec.id)) };
-      } catch (e) { return mapError(ctx as WriteCtx, e); }
+      } catch (e) {
+        return mapError(ctx as WriteCtx, e);
+      }
     },
     async "records.history"(ctx, input) {
       try {
@@ -349,7 +457,9 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
           .filter((r) => input.field === undefined || r.field === input.field)
           .map((r) => ({ field: r.field, value: r.value, hlc: r.hlc, actor: r.actor, reason: r.reason }));
         return { entries };
-      } catch (e) { return mapError(ctx as WriteCtx, e); }
+      } catch (e) {
+        return mapError(ctx as WriteCtx, e);
+      }
     },
   };
   const handlers: RecordsHandlers = { ...writes, ...queries, ...reads };
@@ -357,17 +467,32 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
 }
 
 // One handle per Space store: two daemons in one process each have their own, and a call is served from the one its ctx.db belongs to (perSpaceStore).
-const stores = perSpaceStore<RecordsHandle>((seam) => openRecords(seam ? { opened: seam.open() } : {}), (seam) => seam.declare([recordsFieldMeta]));
+const stores = perSpaceStore<RecordsHandle>(
+  (seam) => openRecords(seam ? { opened: seam.open() } : {}),
+  (seam) => seam.declare([recordsFieldMeta]),
+);
 /** The host hands the Space store (P-H_08, ruling 31). The per-field clocks projection must be on that store before it opens, so it is declared as the store arrives. */
-export function setRecordsSpaceStore(seam: SpaceStoreSeam | null): void { stores.set(seam); }
+export function setRecordsSpaceStore(seam: SpaceStoreSeam | null): void {
+  stores.set(seam);
+}
 export const hostSeams: SeamSetters = { setRecordsSpaceStore, setRecordsVault };
-function live(ctx?: { db?: unknown }): RecordsHandle { return stores.get(ctx); }
+function live(ctx?: { db?: unknown }): RecordsHandle {
+  return stores.get(ctx);
+}
 
 // The rest of the live map (P-L3_LIVE): history, versions and holds (handlers/history.ts), merge, bulk upsert and export (handlers/merge.ts), both built once over the live handle.
 // DECISION: reveal opens a sealed reference through the Vault seam (setRecordsVault); export has no `putFile` until the host hands this module the Files port; until then it refuses, it does not guess.
 type LiveHistory = Omit<HistoryHandlers, "records.history">;
 const extras = new WeakMap<RecordsHandle, Extra>();
-type Extra = { comments: CommentsHandlers; history: LiveHistory; merge: MergeHandlers; sites: SiteTableHandlers; review: ReviewHandlers; views: ViewHandlers; purge: PurgeHandlers };
+type Extra = {
+  comments: CommentsHandlers;
+  history: LiveHistory;
+  merge: MergeHandlers;
+  sites: SiteTableHandlers;
+  review: ReviewHandlers;
+  views: ViewHandlers;
+  purge: PurgeHandlers;
+};
 function more(c?: { db?: unknown }): Extra {
   const h = live(c);
   let extra: Extra | undefined = extras.get(h);
@@ -375,9 +500,15 @@ function more(c?: { db?: unknown }): Extra {
     extra = {
       comments: createCommentsHandlers({ tx: h.host.tx }),
       history: createHistoryHandlers({
-        tx: h.host.tx, store: h.store, writes: h.handlers, readLog: (q) => h.host.store.read(q),
+        tx: h.host.tx,
+        store: h.store,
+        writes: h.handlers,
+        readLog: (q) => h.host.store.read(q),
         // a reveal is the Vault's: it checks the person's access to the item and logs the reveal
-        unseal: (sealed, ctx) => (vault && ctx.principal ? vault.reveal(sealed.ref, ctx.principal.id) : Promise.reject(new Error("the vault is not available"))),
+        unseal: (sealed, ctx) =>
+          vault && ctx.principal
+            ? vault.reveal(sealed.ref, ctx.principal.id)
+            : Promise.reject(new Error("the vault is not available")),
       }),
       merge: createMergeHandlers({ store: h.store, tx: h.host.tx }),
       sites: createSiteTableHandlers({ store: h.store }),
@@ -390,7 +521,13 @@ function more(c?: { db?: unknown }): Extra {
   return extra;
 }
 
-export type LiveRecordsHandlers = RecordsHandlers & LiveHistory & CommentsHandlers & MergeHandlers & ReviewHandlers & ViewHandlers & PurgeHandlers;
+export type LiveRecordsHandlers = RecordsHandlers &
+  LiveHistory &
+  CommentsHandlers &
+  MergeHandlers &
+  ReviewHandlers &
+  ViewHandlers &
+  PurgeHandlers;
 
 /** Loader entry. The module stays stub until its manifest flips to live, which is when the host reads this. */
 const table: LiveRecordsHandlers = {
@@ -433,14 +570,36 @@ const table: LiveRecordsHandlers = {
   "records.purge_trashed": (ctx, input) => more(ctx).purge["records.purge_trashed"](ctx, input),
 };
 
-type AnyCtx = { principal?: { id: string }; actingFor?: string | undefined; trace?: { traceId?: string }; run?: string | undefined };
+type AnyCtx = {
+  principal?: { id: string };
+  actingFor?: string | undefined;
+  trace?: { traceId?: string };
+  run?: string | undefined;
+};
 /** Every write a call makes names who made it, as every other module's events do: the person or agent, the person an agent acts for, the trace and the run (never svc_records). */
 export const writerOf = (ctx: AnyCtx): RecordWriter | null =>
-  ctx.principal?.id ? { actor: ctx.principal.id, ...(ctx.actingFor !== undefined ? { onBehalf: ctx.actingFor } : {}), ...(ctx.trace?.traceId !== undefined ? { traceId: ctx.trace.traceId } : {}), ...(ctx.run !== undefined ? { runId: ctx.run } : {}) } : null;
-export const handlers: LiveRecordsHandlers = withReversals(Object.fromEntries(Object.entries(table).map(([name, f]) => [name, (ctx: AnyCtx, input: unknown) => {
-  const w = writerOf(ctx);
-  return w ? recordWriter.run(w, () => (f as (c: unknown, i: unknown) => unknown)(ctx, input)) : (f as (c: unknown, i: unknown) => unknown)(ctx, input);
-}])) as unknown as LiveRecordsHandlers, REVERSALS);
+  ctx.principal?.id
+    ? {
+        actor: ctx.principal.id,
+        ...(ctx.actingFor !== undefined ? { onBehalf: ctx.actingFor } : {}),
+        ...(ctx.trace?.traceId !== undefined ? { traceId: ctx.trace.traceId } : {}),
+        ...(ctx.run !== undefined ? { runId: ctx.run } : {}),
+      }
+    : null;
+export const handlers: LiveRecordsHandlers = withReversals(
+  Object.fromEntries(
+    Object.entries(table).map(([name, f]) => [
+      name,
+      (ctx: AnyCtx, input: unknown) => {
+        const w = writerOf(ctx);
+        return w
+          ? recordWriter.run(w, () => (f as (c: unknown, i: unknown) => unknown)(ctx, input))
+          : (f as (c: unknown, i: unknown) => unknown)(ctx, input);
+      },
+    ]),
+  ) as unknown as LiveRecordsHandlers,
+  REVERSALS,
+);
 
 /** The site tables (P-L3_ST): the sites module announces a table, this module makes the record type. The host runs it once per event after commit (ruling 32). */
 export const consumers = {
@@ -458,7 +617,12 @@ export const consumers = {
     async run(ctx: unknown, event: { name: string; payload: Record<string, unknown> }): Promise<void> {
       const { threadId, agentId } = event.payload as { threadId?: string; agentId?: string };
       if (typeof threadId !== "string" || typeof agentId !== "string") return;
-      settleTurn(live(ctx as { db?: unknown }).host.tx, threadId, agentId, event.name === "turn.completed" ? "done" : "failed");
+      settleTurn(
+        live(ctx as { db?: unknown }).host.tx,
+        threadId,
+        agentId,
+        event.name === "turn.completed" ? "done" : "failed",
+      );
     },
   },
   /** An agent or automation proposed a value: it waits for review or counts straight away (per field), and the source is kept for the popover. */
@@ -477,12 +641,19 @@ export { RecordsError } from "./handlers/index.ts";
  * as the person doing the removal, so record permissions, labels and holds apply as they do for anyone.
  */
 type OwnerCtx = { call(cap: string, input: unknown): Promise<unknown> };
-async function ownedRecords(person: string, ctx?: { db?: unknown }): Promise<{ type: string; id: string; title: string }[]> {
+async function ownedRecords(
+  person: string,
+  ctx?: { db?: unknown },
+): Promise<{ type: string; id: string; title: string }[]> {
   const out: { type: string; id: string; title: string }[] = [];
   for (const t of await live(ctx).store.types()) {
     if (!t.fields.some((f) => f.name === "owner")) continue;
-    const page = await live(ctx).store.query(t.name, { filter: { field: "owner", op: "eq", value: person }, page: { limit: 500 } });
-    for (const r of page.rows) out.push({ type: t.name, id: r.id, title: String((r.data as Record<string, unknown>)["name"] ?? r.id) });
+    const page = await live(ctx).store.query(t.name, {
+      filter: { field: "owner", op: "eq", value: person },
+      page: { limit: 500 },
+    });
+    for (const r of page.rows)
+      out.push({ type: t.name, id: r.id, title: String((r.data as Record<string, unknown>)["name"] ?? r.id) });
   }
   return out;
 }
@@ -491,10 +662,16 @@ export const hostCalls = {
     const all = await ownedRecords(i.person, ctx as { db?: unknown });
     return { records: { count: all.length, sample: all.slice(0, 5), ids: all.slice(0, 500).map((r) => r.id) } };
   },
-  "records.reassign_owned": async (ctx: OwnerCtx, i: { person: string; kind: string; action: string; to?: string }): Promise<number> => {
+  "records.reassign_owned": async (
+    ctx: OwnerCtx,
+    i: { person: string; kind: string; action: string; to?: string },
+  ): Promise<number> => {
     if (i.kind !== "records" || i.action !== "reassign" || !i.to) return 0;
     let n = 0;
-    for (const r of await ownedRecords(i.person, ctx as { db?: unknown })) { await ctx.call("records.update", { type: r.type, recordId: r.id, patch: { owner: i.to } }); n++; }
+    for (const r of await ownedRecords(i.person, ctx as { db?: unknown })) {
+      await ctx.call("records.update", { type: r.type, recordId: r.id, patch: { owner: i.to } });
+      n++;
+    }
     return n;
   },
 };

@@ -11,16 +11,32 @@ type SetIn = CapMap["threads.set_agent_replies"]["in"];
  * Whether agents reply in threads in this chat, and a way to change it. `row` is what the chat's own row says (threads.get, live): the page follows it. `null` when the row is not known yet or the chat has no
  * such choice. A press shows the new state at once and goes back if the write fails.
  */
-export function useReplySwitch(data: Pick<ConversationData, "call" | "toast">, threadId: string, row: boolean | undefined): { on: boolean | null; set(on: boolean): void } {
+export function useReplySwitch(
+  data: Pick<ConversationData, "call" | "toast">,
+  threadId: string,
+  row: boolean | undefined,
+): { on: boolean | null; set(on: boolean): void } {
   const [mine, setMine] = useState<boolean | null>(null);
-  useEffect(() => { setMine(null); }, [row, threadId]);
+  useEffect(() => {
+    setMine(null);
+  }, [row, threadId]);
   const on = mine ?? row ?? null;
-  const set = useCallback((next: boolean): void => {
-    setMine(next);
-    const failed = (): void => { setMine(null); data.toast("Could not change that."); };
-    try {
-      void Promise.resolve(data.call("threads.set_agent_replies", { threadId, inThreads: next } satisfies SetIn)).then(() => data.toast(switchToast(next)), failed);
-    } catch { failed(); }
-  }, [data, threadId]);
+  const set = useCallback(
+    (next: boolean): void => {
+      setMine(next);
+      const failed = (): void => {
+        setMine(null);
+        data.toast("Could not change that.");
+      };
+      try {
+        void Promise.resolve(
+          data.call("threads.set_agent_replies", { threadId, inThreads: next } satisfies SetIn),
+        ).then(() => data.toast(switchToast(next)), failed);
+      } catch {
+        failed();
+      }
+    },
+    [data, threadId],
+  );
   return { on, set };
 }

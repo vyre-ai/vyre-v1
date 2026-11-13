@@ -9,7 +9,16 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { CHAT, useRunsData, useScreenQuery, useThread } from "./data.tsx";
 import { decideTask, isActive, postToRun, pressPoint, previewUndo, undoRun, useRunActions } from "./actions.tsx";
 import { Glyph } from "./glyphs.tsx";
-import { STATUS_WORD, buildLines, stepNamer, durationSeconds, failedStep, runTitle, stamp, waitWords } from "./model.ts";
+import {
+  STATUS_WORD,
+  buildLines,
+  stepNamer,
+  durationSeconds,
+  failedStep,
+  runTitle,
+  stamp,
+  waitWords,
+} from "./model.ts";
 import type { StepNode } from "../../../../../../lib/words/steps.ts";
 import type { Run, RunLine, RunStep, ThreadMessage, UndoPreview } from "./model.ts";
 import { MainHead, QuietButton, Tile, pointer, statusColor, statusGlyph, webOnly } from "./parts.tsx";
@@ -44,7 +53,14 @@ type UndoState = { phase: "loading" } | { phase: "ready"; preview: UndoPreview }
 const EMPTY: readonly string[] = [];
 const NONE: ReadonlySet<string> = new Set();
 
-export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts = EMPTY, initialUndo = false, childLinks = [] }: RunChatProps): ReactElement {
+export function RunChat({
+  runId,
+  wide = false,
+  retriedIds = NONE,
+  openThoughts = EMPTY,
+  initialUndo = false,
+  childLinks = [],
+}: RunChatProps): ReactElement {
   const data = useRunsData();
   const actions = useRunActions();
   const { element, show } = useMenu();
@@ -57,14 +73,16 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
   const [draft, setDraft] = useState("");
   const [retried, setRetried] = useState(false);
   const sent = useRef(0);
-  const winNarrow = belowPhone(useWindowDimensions().width);   // a phone has no room for the title beside a button
+  const winNarrow = belowPhone(useWindowDimensions().width); // a phone has no room for the title beside a button
   const [boxW, setBoxW] = useState(0);
-  const narrow = winNarrow || (boxW > 0 && boxW < 560);   // so does the side pane: the title wraps to two lines instead of truncating
+  const narrow = winNarrow || (boxW > 0 && boxW < 560); // so does the side pane: the title wraps to two lines instead of truncating
   const now = data.clock().now;
   useEffect(() => {
     if (!initialUndo) return;
     setUndo({ phase: "loading" });
-    void previewUndo(data, runId).then((p) => setUndo({ phase: "ready", preview: p })).catch(() => setUndo(null));
+    void previewUndo(data, runId)
+      .then((p) => setUndo({ phase: "ready", preview: p }))
+      .catch(() => setUndo(null));
   }, [initialUndo, runId, data]);
 
   // the steps' own titles, read from the automation at view time, so a stored step id never reaches the screen
@@ -72,13 +90,33 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
   const [nodes, setNodes] = useState<readonly StepNode[] | undefined>(undefined);
   useEffect(() => {
     if (subjectId === null) return;
-    void Promise.resolve(data.call("automations.get", { automationId: subjectId })).then((o) => setNodes((o as { automation?: { definition?: { nodes?: StepNode[] } } } | null)?.automation?.definition?.nodes)).catch(() => setNodes(undefined));
+    void Promise.resolve(data.call("automations.get", { automationId: subjectId }))
+      .then((o) =>
+        setNodes((o as { automation?: { definition?: { nodes?: StepNode[] } } } | null)?.automation?.definition?.nodes),
+      )
+      .catch(() => setNodes(undefined));
   }, [subjectId, data]);
 
   if (q.status === "loading") {
-    return <View testID="run-chat-loading" style={s.frame}><View style={s.skHead} /><View style={s.skBody}>{each([0, 1, 2, 3], (i) => <View key={i} style={s.skLine} />)}</View></View>;
+    return (
+      <View testID="run-chat-loading" style={s.frame}>
+        <View style={s.skHead} />
+        <View style={s.skBody}>
+          {each([0, 1, 2, 3], (i) => (
+            <View key={i} style={s.skLine} />
+          ))}
+        </View>
+      </View>
+    );
   }
-  if (!run) return <View testID="run-chat-gone" style={s.frame}><View style={s.gone}><Text style={s.goneText}>That run is gone.</Text></View></View>;
+  if (!run)
+    return (
+      <View testID="run-chat-gone" style={s.frame}>
+        <View style={s.gone}>
+          <Text style={s.goneText}>That run is gone.</Text>
+        </View>
+      </View>
+    );
 
   const steps: readonly RunStep[] = stepsQ.status === "ready" ? stepsQ.data.steps : [];
   const messages = threadQ.status === "ready" ? threadQ.data.messages : [];
@@ -86,56 +124,127 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
   const automation = run.subject?.type === "automation" ? run.subject.id : null;
   const known = automation ? data.name(automation) : "";
   // data.name knows people and agents and gives an automation's id back as it is; then the run's own name (a test run carries its automation's name) is the better title
-  const automationName = known !== "" && known !== automation ? known : run.name ?? "Run";
+  const automationName = known !== "" && known !== automation ? known : (run.name ?? "Run");
   const canRetry = !retried && !retriedIds.has(run.id);
   const duration = durationSeconds(run);
 
   const failStep = failedStep(lines, steps);
   const openUndo = async (): Promise<void> => {
     setUndo({ phase: "loading" });
-    try { setUndo({ phase: "ready", preview: await previewUndo(data, run.id) }); } catch (e) { setUndo(null); actions.say(e instanceof Error ? e.message : "That did not work."); }
+    try {
+      setUndo({ phase: "ready", preview: await previewUndo(data, run.id) });
+    } catch (e) {
+      setUndo(null);
+      actions.say(e instanceof Error ? e.message : "That did not work.");
+    }
   };
   const doUndo = async (): Promise<void> => {
     try {
       const done = await undoRun(data, run.id);
       setResults((cur) => [...cur, { kind: "stat", id: `undo-${cur.length}`, text: done.text }]);
       setUndo(null);
-    } catch (e) { setUndo(null); actions.say(e instanceof Error ? e.message : "That did not work."); }
+    } catch (e) {
+      setUndo(null);
+      actions.say(e instanceof Error ? e.message : "That did not work.");
+    }
   };
-  const replayMenu = (x: number, y: number): void => show([
-    { head: "Replay in the sandbox" },
-    { label: run.definitionVersion ? `Replay on the same version (v${run.definitionVersion})` : "Replay on the same version", onSelect: () => void actions.replay(run, "same") },
-    { label: "Replay on the current version", onSelect: () => void actions.replay(run, "current") },
-  ], x, y, "other");
+  const replayMenu = (x: number, y: number): void =>
+    show(
+      [
+        { head: "Replay in the sandbox" },
+        {
+          label: run.definitionVersion
+            ? `Replay on the same version (v${run.definitionVersion})`
+            : "Replay on the same version",
+          onSelect: () => void actions.replay(run, "same"),
+        },
+        { label: "Replay on the current version", onSelect: () => void actions.replay(run, "current") },
+      ],
+      x,
+      y,
+      "other",
+    );
   const decide = (taskId: string, action: "approve" | "reject"): void => {
-    void decideTask(data, taskId, action).then(actions.say).catch((e: unknown) => actions.say(e instanceof Error ? e.message : "That did not work."));
+    void decideTask(data, taskId, action)
+      .then(actions.say)
+      .catch((e: unknown) => actions.say(e instanceof Error ? e.message : "That did not work."));
   };
   const send = (): void => {
     const body = draft.trim();
     if (!body || !run.threadId) return;
     sent.current += 1;
     setDraft("");
-    void postToRun(data, run, body, `${sent.current}-${now}`).catch((e: unknown) => { setDraft(body); actions.say(e instanceof Error ? e.message : "That did not work."); });
+    void postToRun(data, run, body, `${sent.current}-${now}`).catch((e: unknown) => {
+      setDraft(body);
+      actions.say(e instanceof Error ? e.message : "That did not work.");
+    });
   };
 
   const stateBar = (
     <View style={s.rhead} testID="run-state">
       <View style={s.state}>
         <Glyph name={statusGlyph(run.status)} size={13} color={statusColor(run.status)} />
-        <Text style={s.stateText}>{run.status === "waiting" ? waitWords(run.waitReason) : STATUS_WORD[run.status]}</Text>
+        <Text style={s.stateText}>
+          {run.status === "waiting" ? waitWords(run.waitReason) : STATUS_WORD[run.status]}
+        </Text>
       </View>
-      {run.kind === "automation_test" ? <View style={s.chip}><Glyph name="flask" size={12} color="var(--ink-2)" /><Text style={s.chipText}>Test, nothing sent</Text></View> : null}
-      <Text style={s.when}>{`${stamp(run.startedAt, now)}${duration !== null && run.status !== "running" ? `, ${duration} s` : ""}`}</Text>
+      {run.kind === "automation_test" ? (
+        <View style={s.chip}>
+          <Glyph name="flask" size={12} color="var(--ink-2)" />
+          <Text style={s.chipText}>Test, nothing sent</Text>
+        </View>
+      ) : null}
+      <Text
+        style={s.when}
+      >{`${stamp(run.startedAt, now)}${duration !== null && run.status !== "running" ? `, ${duration} s` : ""}`}</Text>
       {run.definitionVersion !== undefined ? <Text style={s.ver}>{`v${run.definitionVersion}`}</Text> : null}
       <View style={{ flex: 1 }} />
-      {isActive(run) ? <QuietButton label="Stop" icon="stop" tone="danger" testID="stop-run" onPress={(e) => { const p = pressPoint(e); show([{ head: "Stop this run?" }, { label: "Stop", danger: true, onSelect: () => void actions.stop(run) }, { label: "Cancel" }], p.x, p.y, "other"); }} /> : null}
-      {!isActive(run) ? <QuietButton label={SANDBOX_REPLAY_LABEL} icon="retry" testID="replay-run" onPress={(e) => { const p = pressPoint(e); replayMenu(p.x, p.y); }} /> : null}
+      {isActive(run) ? (
+        <QuietButton
+          label="Stop"
+          icon="stop"
+          tone="danger"
+          testID="stop-run"
+          onPress={(e) => {
+            const p = pressPoint(e);
+            show(
+              [
+                { head: "Stop this run?" },
+                { label: "Stop", danger: true, onSelect: () => void actions.stop(run) },
+                { label: "Cancel" },
+              ],
+              p.x,
+              p.y,
+              "other",
+            );
+          }}
+        />
+      ) : null}
+      {!isActive(run) ? (
+        <QuietButton
+          label={SANDBOX_REPLAY_LABEL}
+          icon="retry"
+          testID="replay-run"
+          onPress={(e) => {
+            const p = pressPoint(e);
+            replayMenu(p.x, p.y);
+          }}
+        />
+      ) : null}
       {!isActive(run) ? <LiveRerun run={run} stepKeys={steps.map((step) => step.step)} /> : null}
-      {!isActive(run) ? <QuietButton label="Undo this run" icon="undo" testID="undo-run" onPress={() => void openUndo()} /> : null}
+      {!isActive(run) ? (
+        <QuietButton label="Undo this run" icon="undo" testID="undo-run" onPress={() => void openUndo()} />
+      ) : null}
     </View>
   );
 
-  const undoPanel = undo ? <UndoPanel state={undo.phase === "loading" ? { phase: "loading" } : { phase: "ready", preview: undo.preview }} onConfirm={() => void doUndo()} onCancel={() => setUndo(null)} /> : null;
+  const undoPanel = undo ? (
+    <UndoPanel
+      state={undo.phase === "loading" ? { phase: "loading" } : { phase: "ready", preview: undo.preview }}
+      onConfirm={() => void doUndo()}
+      onCancel={() => setUndo(null)}
+    />
+  ) : null;
 
   const body = (
     <>
@@ -144,22 +253,59 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
       <RunWork runId={run.id} status={run.status} />
       <ScrollView style={s.scroll} contentContainerStyle={[s.scrollIn, wide && s.scrollWide]}>
         <RunLines
-          run={run} lines={lines} me={data.me.id} name={(w) => data.name(w.id)} canRetry={canRetry} openThoughts={openThoughts}
+          run={run}
+          lines={lines}
+          me={data.me.id}
+          name={(w) => data.name(w.id)}
+          canRetry={canRetry}
+          openThoughts={openThoughts}
           actions={{
-            retryStep: () => void actions.retry(run, failStep).then((id) => id && setRetried(true)), skipStep: () => void actions.skipStep(run).then((id) => id && setRetried(true)), editStep: (step) => { if (automation) data.nav.openAutomation(automation, step); }, stopRun: () => void actions.stop(run),
-            copyTrace: () => actions.copy(run.traceId, "the trace id"), replayMenu, decide,
+            retryStep: () => void actions.retry(run, failStep).then((id) => id && setRetried(true)),
+            skipStep: () => void actions.skipStep(run).then((id) => id && setRetried(true)),
+            editStep: (step) => {
+              if (automation) data.nav.openAutomation(automation, step);
+            },
+            stopRun: () => void actions.stop(run),
+            copyTrace: () => actions.copy(run.traceId, "the trace id"),
+            replayMenu,
+            decide,
           }}
         />
       </ScrollView>
       {undoPanel}
-      {actions.note ? <Text style={s.note} accessibilityLiveRegion="polite" testID="run-note">{actions.note}</Text> : null}
+      {actions.note ? (
+        <Text style={s.note} accessibilityLiveRegion="polite" testID="run-note">
+          {actions.note}
+        </Text>
+      ) : null}
       <View style={[s.rin, wide && s.rinWide]}>
         <TextInput
-          accessibilityLabel="Message in this run" testID="run-input" value={draft} onChangeText={setDraft} multiline
-          placeholder="Ask about this run, or tell an agent what to do" placeholderTextColor="var(--ink-4)" style={s.input}
-          onKeyPress={((e: KeyEventLike) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault?.(); send(); } }) as never}
+          accessibilityLabel="Message in this run"
+          testID="run-input"
+          value={draft}
+          onChangeText={setDraft}
+          multiline
+          placeholder="Ask about this run, or tell an agent what to do"
+          placeholderTextColor="var(--ink-4)"
+          style={s.input}
+          onKeyPress={
+            ((e: KeyEventLike) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault?.();
+                send();
+              }
+            }) as never
+          }
         />
-        <Pressable accessibilityRole="button" accessibilityLabel="Send" accessibilityState={{ disabled: !draft.trim() }} testID="run-send" onPress={send} {...webOnly({ title: "Send" })} style={[s.send, !draft.trim() && { opacity: 0.35 }, pointer]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Send"
+          accessibilityState={{ disabled: !draft.trim() }}
+          testID="run-send"
+          onPress={send}
+          {...webOnly({ title: "Send" })}
+          style={[s.send, !draft.trim() && { opacity: 0.35 }, pointer]}
+        >
           <Glyph name="up" size={15} color="var(--accent-ink)" />
         </Pressable>
       </View>
@@ -168,26 +314,57 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
   );
 
   return (
-    <View testID="run-chat" accessibilityLabel={`Run chat, ${runTitle(run)}`} style={s.frame} onLayout={(e) => setBoxW(e.nativeEvent.layout.width)}>
+    <View
+      testID="run-chat"
+      accessibilityLabel={`Run chat, ${runTitle(run)}`}
+      style={s.frame}
+      onLayout={(e) => setBoxW(e.nativeEvent.layout.width)}
+    >
       {wide && narrow ? (
         <View style={s.ph}>
           <Tile size={30} />
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text accessibilityRole="header" numberOfLines={2} style={s.phName}>{automationName}</Text>
-            {runTitle(run) !== automationName ? <Text numberOfLines={1} style={s.phSub}>{runTitle(run)}</Text> : null}
-            {automation ? <View style={s.phOpen}><QuietButton label="Open the automation" icon="open" testID="open-automation" onPress={() => data.nav.openAutomation(automation)} /></View> : null}
+            <Text accessibilityRole="header" numberOfLines={2} style={s.phName}>
+              {automationName}
+            </Text>
+            {runTitle(run) !== automationName ? (
+              <Text numberOfLines={1} style={s.phSub}>
+                {runTitle(run)}
+              </Text>
+            ) : null}
+            {automation ? (
+              <View style={s.phOpen}>
+                <QuietButton
+                  label="Open the automation"
+                  icon="open"
+                  testID="open-automation"
+                  onPress={() => data.nav.openAutomation(automation)}
+                />
+              </View>
+            ) : null}
           </View>
         </View>
       ) : wide ? (
         <MainHead tile={<Tile size={28} />} title={automationName} meta={runTitle(run)}>
-          {automation ? <QuietButton label="Open the automation" icon="open" testID="open-automation" onPress={() => data.nav.openAutomation(automation)} /> : null}
+          {automation ? (
+            <QuietButton
+              label="Open the automation"
+              icon="open"
+              testID="open-automation"
+              onPress={() => data.nav.openAutomation(automation)}
+            />
+          ) : null}
         </MainHead>
       ) : (
         <View style={s.ph}>
           <Tile size={30} />
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text numberOfLines={2} style={s.phName}>{automationName}</Text>
-            <Text numberOfLines={1} style={s.phSub}>{runTitle(run)}</Text>
+            <Text numberOfLines={2} style={s.phName}>
+              {automationName}
+            </Text>
+            <Text numberOfLines={1} style={s.phSub}>
+              {runTitle(run)}
+            </Text>
           </View>
           <QuietButton label="Open in Main" icon="open" testID="open-main" onPress={() => data.nav.openRun(run.id)} />
         </View>
@@ -200,11 +377,27 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 const s = StyleSheet.create({
   frame: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
-  ph: { flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 14, paddingBottom: 12, paddingLeft: 16, paddingRight: 14 },
+  ph: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingTop: 14,
+    paddingBottom: 12,
+    paddingLeft: 16,
+    paddingRight: 14,
+  },
   phName: { fontSize: 14, lineHeight: 18, fontWeight: "600", color: "var(--ink)" as string },
   phOpen: { flexDirection: "row", marginTop: 6 },
   phSub: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
-  rhead: { flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 6, paddingBottom: 10, paddingHorizontal: 16, flexWrap: "wrap" },
+  rhead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingTop: 6,
+    paddingBottom: 10,
+    paddingHorizontal: 16,
+    flexWrap: "wrap",
+  },
   state: { flexDirection: "row", alignItems: "center", gap: 6 },
   stateText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
   chip: { flexDirection: "row", alignItems: "center", gap: 5 },
@@ -217,8 +410,33 @@ const s = StyleSheet.create({
   note: { fontSize: 12, color: "var(--ink-2)" as string, paddingVertical: 8, paddingHorizontal: 16 },
   rin: { marginHorizontal: 14, marginBottom: 14, position: "relative" },
   rinWide: { width: "100%", maxWidth: 820, alignSelf: "center", marginHorizontal: 0, paddingHorizontal: 16 },
-  input: { minHeight: 40, maxHeight: 120, borderRadius: 20, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string, color: "var(--ink)" as string, fontSize: 13, lineHeight: 18, paddingTop: 10, paddingBottom: 10, paddingLeft: 16, paddingRight: 46, ...({ outlineStyle: "none", outlineWidth: 0 } as object) },
-  send: { position: "absolute", right: 5, top: 5, width: 30, height: 30, borderRadius: 15, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
+  input: {
+    minHeight: 40,
+    maxHeight: 120,
+    borderRadius: 20,
+    backgroundColor: "var(--raised)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+    color: "var(--ink)" as string,
+    fontSize: 13,
+    lineHeight: 18,
+    paddingTop: 10,
+    paddingBottom: 10,
+    paddingLeft: 16,
+    paddingRight: 46,
+    ...({ outlineStyle: "none", outlineWidth: 0 } as object),
+  },
+  send: {
+    position: "absolute",
+    right: 5,
+    top: 5,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "var(--accent)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   skHead: { height: 60, margin: 14, borderRadius: 9, backgroundColor: "var(--sunk)" as string },
   skBody: { paddingHorizontal: 16, gap: 12 },
   skLine: { height: 26, borderRadius: 7, backgroundColor: "var(--sunk)" as string },

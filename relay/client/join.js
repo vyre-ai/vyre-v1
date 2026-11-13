@@ -13,17 +13,23 @@ import { pairTicket } from "./client.js";
  * @returns {Promise<{ ok: true, paired: any } | { ok: false, reason: "offline" | "refused" | "expired" | "gone" }>}
  */
 export async function finishJoin(o) {
-  const sleep = o.sleep || (ms => new Promise(r => setTimeout(r, ms)));
+  const sleep = o.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
   const until = Date.now() + (o.waitMs ?? 5 * 60_000);
   // The right ack makes the ticket appear at the relay; a closed code never does. Poll the lookup until it resolves or the code's life ends.
   for (;;) {
     try {
-      const paired = await pairTicket(o.seed, { relay: o.relay, name: o.name, fetch: o.fetch, ...(o.pairOptions || {}) });
+      const paired = await pairTicket(o.seed, {
+        relay: o.relay,
+        name: o.name,
+        fetch: o.fetch,
+        ...(o.pairOptions || {}),
+      });
       return { ok: true, paired };
     } catch (e) {
       const code = /** @type {any} */ (e).code;
       if (o.once && code === "ticket_gone") return { ok: false, reason: "gone" };
-      if (code !== "ticket_gone" && code !== "rate_limited") return { ok: false, reason: code === "bad_record" || code === "contested" ? "refused" : "offline" };
+      if (code !== "ticket_gone" && code !== "rate_limited")
+        return { ok: false, reason: code === "bad_record" || code === "contested" ? "refused" : "offline" };
     }
     if (Date.now() >= until) return { ok: false, reason: "expired" };
     await sleep(o.pollMs ?? 3000);

@@ -30,11 +30,25 @@ const GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 export function encodeFrame(opcode: number, payload: Uint8Array): Buffer {
   const n = payload.length;
-  const head = n < 126 ? Buffer.from([0x80 | opcode, n]) : n < 65536 ? Buffer.from([0x80 | opcode, 126, n >> 8, n & 255]) : (() => { const b = Buffer.alloc(10); b[0] = 0x80 | opcode; b[1] = 127; b.writeBigUInt64BE(BigInt(n), 2); return b; })();
+  const head =
+    n < 126
+      ? Buffer.from([0x80 | opcode, n])
+      : n < 65536
+        ? Buffer.from([0x80 | opcode, 126, n >> 8, n & 255])
+        : (() => {
+            const b = Buffer.alloc(10);
+            b[0] = 0x80 | opcode;
+            b[1] = 127;
+            b.writeBigUInt64BE(BigInt(n), 2);
+            return b;
+          })();
   return Buffer.concat([head, payload]);
 }
 
-export interface WsMessage { opcode: number; data: Buffer }
+export interface WsMessage {
+  opcode: number;
+  data: Buffer;
+}
 /** Incremental frame reader: feed bytes, get whole messages (fragments joined). `error` is set when the peer broke the rules or sent too much. */
 export class FrameReader {
   private buf: Buffer = Buffer.alloc(0);
@@ -42,7 +56,9 @@ export class FrameReader {
   private firstOpcode = 0;
   error: { code: number; why: string } | null = null;
   private max: number;
-  constructor(max: number = MAX_FRAME_BYTES) { this.max = max; }
+  constructor(max: number = MAX_FRAME_BYTES) {
+    this.max = max;
+  }
 
   push(chunk: Buffer): WsMessage[] {
     this.buf = this.buf.length ? Buffer.concat([this.buf, chunk]) : chunk;
@@ -50,24 +66,65 @@ export class FrameReader {
     while (!this.error) {
       const b = this.buf;
       if (b.length < 2) break;
-      const b0 = b[0]!, b1 = b[1]!;
-      const fin = (b0 & 0x80) !== 0, opcode = b0 & 0x0f, masked = (b1 & 0x80) !== 0;
-      let len = b1 & 0x7f, off = 2;
-      if (len === 126) { if (b.length < 4) break; len = b.readUInt16BE(2); off = 4; }
-      else if (len === 127) { if (b.length < 10) break; const big = b.readBigUInt64BE(2); if (big > BigInt(this.max)) { this.error = { code: 1009, why: "frame too big" }; break; } len = Number(big); off = 10; }
-      if (len > this.max) { this.error = { code: 1009, why: "frame too big" }; break; }
-      if (!masked) { this.error = { code: 1002, why: "client frames are masked" }; break; }
+      const b0 = b[0]!,
+        b1 = b[1]!;
+      const fin = (b0 & 0x80) !== 0,
+        opcode = b0 & 0x0f,
+        masked = (b1 & 0x80) !== 0;
+      let len = b1 & 0x7f,
+        off = 2;
+      if (len === 126) {
+        if (b.length < 4) break;
+        len = b.readUInt16BE(2);
+        off = 4;
+      } else if (len === 127) {
+        if (b.length < 10) break;
+        const big = b.readBigUInt64BE(2);
+        if (big > BigInt(this.max)) {
+          this.error = { code: 1009, why: "frame too big" };
+          break;
+        }
+        len = Number(big);
+        off = 10;
+      }
+      if (len > this.max) {
+        this.error = { code: 1009, why: "frame too big" };
+        break;
+      }
+      if (!masked) {
+        this.error = { code: 1002, why: "client frames are masked" };
+        break;
+      }
       if (b.length < off + 4 + len) break;
       const mask = b.subarray(off, off + 4);
       const data = Buffer.from(b.subarray(off + 4, off + 4 + len));
       for (let i = 0; i < data.length; i++) data[i] = data[i]! ^ mask[i & 3]!;
       this.buf = b.subarray(off + 4 + len);
-      if (opcode >= 0x8) { if (!fin || len > 125) { this.error = { code: 1002, why: "bad control frame" }; break; } out.push({ opcode, data }); continue; }
-      if (opcode !== 0) { this.firstOpcode = opcode; this.parts = []; }
-      else if (!this.parts.length && !this.firstOpcode) { this.error = { code: 1002, why: "stray continuation" }; break; }
+      if (opcode >= 0x8) {
+        if (!fin || len > 125) {
+          this.error = { code: 1002, why: "bad control frame" };
+          break;
+        }
+        out.push({ opcode, data });
+        continue;
+      }
+      if (opcode !== 0) {
+        this.firstOpcode = opcode;
+        this.parts = [];
+      } else if (!this.parts.length && !this.firstOpcode) {
+        this.error = { code: 1002, why: "stray continuation" };
+        break;
+      }
       this.parts.push(data);
-      if (this.parts.reduce((n, p) => n + p.length, 0) > this.max) { this.error = { code: 1009, why: "message too big" }; break; }
-      if (fin) { out.push({ opcode: this.firstOpcode, data: Buffer.concat(this.parts) }); this.parts = []; this.firstOpcode = 0; }
+      if (this.parts.reduce((n, p) => n + p.length, 0) > this.max) {
+        this.error = { code: 1009, why: "message too big" };
+        break;
+      }
+      if (fin) {
+        out.push({ opcode: this.firstOpcode, data: Buffer.concat(this.parts) });
+        this.parts = [];
+        this.firstOpcode = 0;
+      }
     }
     return out;
   }
@@ -92,12 +149,21 @@ export interface Peer {
 /** The server half of RFC 6455 on a socket node:http has already handed over: masked frames in (fragments joined), unmasked out, ping answered. */
 export function acceptPeer(req: http.IncomingMessage, socket: Duplex, head: Buffer, max: number): Peer | null {
   const key = req.headers["sec-websocket-key"];
-  if (String(req.headers["upgrade"]).toLowerCase() !== "websocket" || typeof key !== "string" || req.headers["sec-websocket-version"] !== "13") {
+  if (
+    String(req.headers["upgrade"]).toLowerCase() !== "websocket" ||
+    typeof key !== "string" ||
+    req.headers["sec-websocket-version"] !== "13"
+  ) {
     socket.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\n\r\n");
     return null;
   }
   (socket as unknown as { setNoDelay?: (b: boolean) => void }).setNoDelay?.(true);
-  socket.write(`HTTP/1.1 101 Switching Protocols\r\nupgrade: websocket\r\nconnection: Upgrade\r\nsec-websocket-accept: ${crypto.createHash("sha1").update(key + GUID).digest("base64")}\r\n\r\n`);
+  socket.write(
+    `HTTP/1.1 101 Switching Protocols\r\nupgrade: websocket\r\nconnection: Upgrade\r\nsec-websocket-accept: ${crypto
+      .createHash("sha1")
+      .update(key + GUID)
+      .digest("base64")}\r\n\r\n`,
+  );
   const reader = new FrameReader(max);
   let message: (data: Buffer, binary: boolean) => void = () => undefined;
   let gone: () => void = () => undefined;
@@ -106,34 +172,78 @@ export function acceptPeer(req: http.IncomingMessage, socket: Duplex, head: Buff
   const shut = (code: number): void => {
     if (!open) return;
     open = false;
-    const body = Buffer.alloc(2); body.writeUInt16BE(code, 0);
-    try { socket.end(encodeFrame(0x8, body)); } catch { /* already gone */ }
+    const body = Buffer.alloc(2);
+    body.writeUInt16BE(code, 0);
+    try {
+      socket.end(encodeFrame(0x8, body));
+    } catch {
+      /* already gone */
+    }
     gone();
   };
   const feed = (chunk: Buffer): void => {
     heard = Date.now();
     for (const m of reader.push(chunk)) {
       if (m.opcode === 0x1 || m.opcode === 0x2) message(m.data, m.opcode === 0x2);
-      else if (m.opcode === 0x9) { try { socket.write(encodeFrame(0xa, m.data)); } catch { /* closing */ } }
-      else if (m.opcode === 0x8) { shut(1000); return; }
+      else if (m.opcode === 0x9) {
+        try {
+          socket.write(encodeFrame(0xa, m.data));
+        } catch {
+          /* closing */
+        }
+      } else if (m.opcode === 0x8) {
+        shut(1000);
+        return;
+      }
     }
     if (reader.error) shut(reader.error.code);
   };
   socket.on("data", feed);
-  socket.on("close", () => { if (open) { open = false; gone(); } });
-  socket.on("error", () => { if (open) { open = false; gone(); } });
+  socket.on("close", () => {
+    if (open) {
+      open = false;
+      gone();
+    }
+  });
+  socket.on("error", () => {
+    if (open) {
+      open = false;
+      gone();
+    }
+  });
   if (head.length > 0) feed(head);
   return {
-    get open() { return open; },
+    get open() {
+      return open;
+    },
     send(data) {
       if (!open) return false;
-      if ((socket as unknown as { writableLength?: number }).writableLength! > PEER_BACKLOG) return false;   // a viewer that is behind sees fewer frames, never old ones
-      try { socket.write(encodeFrame(typeof data === "string" ? 0x1 : 0x2, typeof data === "string" ? Buffer.from(data) : data)); return true; } catch { return false; }
+      if ((socket as unknown as { writableLength?: number }).writableLength! > PEER_BACKLOG) return false; // a viewer that is behind sees fewer frames, never old ones
+      try {
+        socket.write(
+          encodeFrame(typeof data === "string" ? 0x1 : 0x2, typeof data === "string" ? Buffer.from(data) : data),
+        );
+        return true;
+      } catch {
+        return false;
+      }
     },
     close: shut,
-    onMessage(f) { message = f; },
-    onClose(f) { gone = f; },
-    ping() { if (open) { try { socket.write(encodeFrame(0x9, Buffer.alloc(0))); } catch { /* closing */ } } },
+    onMessage(f) {
+      message = f;
+    },
+    onClose(f) {
+      gone = f;
+    },
+    ping() {
+      if (open) {
+        try {
+          socket.write(encodeFrame(0x9, Buffer.alloc(0)));
+        } catch {
+          /* closing */
+        }
+      }
+    },
     heardAt: () => heard,
   };
 }
@@ -148,15 +258,30 @@ export interface SyncTransport {
   onClose(cb: (reason: string) => void): void;
 }
 export interface SyncHubPort {
-  accept(t: SyncTransport, who: { person: string; device: string; deviceClass: "desktop" | "phone" | "web" }): { close(reason?: string): void };
+  accept(
+    t: SyncTransport,
+    who: { person: string; device: string; deviceClass: "desktop" | "phone" | "web" },
+  ): { close(reason?: string): void };
   /** The log committed: sessions flush what they owe. */
   commit(): void;
   /** The host is stopping: stop the hub's heartbeats and close its sessions. */
   close?(): void;
 }
 
-export interface LiveSession { space: string; principal: CtxSeed["principal"]; device: string; actingFor?: string | undefined; /** the device session behind the socket, when it has one (the local admin token has none) */ sessionId?: string | undefined }
-export interface HelloFrame { t: "hello"; cursor?: number; epoch?: number }
+export interface LiveSession {
+  space: string;
+  principal: CtxSeed["principal"];
+  device: string;
+  actingFor?: string | undefined;
+  /** the device session behind the socket, when it has one (the local admin token has none) */ sessionId?:
+    | string
+    | undefined;
+}
+export interface HelloFrame {
+  t: "hello";
+  cursor?: number;
+  epoch?: number;
+}
 export interface LiveOptions {
   /** An upgrade another route on this server owns (the node's computer stream): the hub leaves it alone, neither answering nor closing it. */
   claims?(req: http.IncomingMessage): boolean;
@@ -190,9 +315,17 @@ export interface LiveOptions {
 }
 
 interface Conn {
-  id: string; session: LiveSession; socket: Duplex; reader: FrameReader; lastSeen: number; acked: number; pending: EventEnvelope[]; closed: boolean;
+  id: string;
+  session: LiveSession;
+  socket: Duplex;
+  reader: FrameReader;
+  lastSeen: number;
+  acked: number;
+  pending: EventEnvelope[];
+  closed: boolean;
   /** calls on this socket still being answered, and whether its session ended meanwhile (it closes once those answers are out, and nothing else is sent to it) */
-  inflight: number; ending: boolean;
+  inflight: number;
+  ending: boolean;
   /** set when the socket speaks through sync's hub */
   link?: { frame(f: unknown): void; gone(reason: string): void; session: { close(reason?: string): void } };
 }
@@ -203,7 +336,10 @@ export interface LiveHub {
   /** Number the events, send them to every connected device of the Space and keep them until acked. */
   publish(space: string, events: EventEnvelope[]): void;
   /** A live turn frame (text as it is written) to the sockets whose person `allow` accepts, in the order given. Never replayed, never held for an ack: a device that missed it reads the finished message. */
-  publishTurn(frame: { t: "turn"; turn: string; delta: Record<string, unknown> }, allow: (personId: string) => boolean | Promise<boolean>): void;
+  publishTurn(
+    frame: { t: "turn"; turn: string; delta: Record<string, unknown> },
+    allow: (personId: string) => boolean | Promise<boolean>,
+  ): void;
   /** Rows changed with no event of this computer's own (another computer of a Personal Space synced them, host/src/peers): every app on the Space gets the bare `changed` tick and re-reads. */
   poke?(space: string): void;
   connections(space?: string): { device: string; acked: number; pending: number }[];
@@ -217,25 +353,45 @@ export interface LiveHub {
 }
 
 export function createLiveHub(o: LiveOptions): LiveHub {
-  const hbMs = o.hbMs ?? HEARTBEAT_MS, deadMs = o.deadMs ?? HEARTBEAT_DEAD_MS, now = o.now ?? Date.now;
-  const conns = new Map<string, Conn>();   // key: space + device
+  const hbMs = o.hbMs ?? HEARTBEAT_MS,
+    deadMs = o.deadMs ?? HEARTBEAT_DEAD_MS,
+    now = o.now ?? Date.now;
+  const conns = new Map<string, Conn>(); // key: space + device
   const spans: SpanSink = o.spans ?? o.sink ?? { span: () => {} };
   const key = (s: LiveSession): string => `${s.space}\u0000${s.device}`;
-  const connKey = (c: Conn): string => key(c.session);   // one live socket per device, whichever protocol it speaks
+  const connKey = (c: Conn): string => key(c.session); // one live socket per device, whichever protocol it speaks
 
-  const server = http.createServer((_req, res) => { res.writeHead(426, { "content-type": "text/plain" }).end("upgrade required"); });
+  const server = http.createServer((_req, res) => {
+    res.writeHead(426, { "content-type": "text/plain" }).end("upgrade required");
+  });
 
   let turnChain: Promise<void> = Promise.resolve();
-  const send = (c: Conn, frame: Record<string, unknown>): void => { if (!c.closed) c.socket.write(encodeFrame(0x1, Buffer.from(JSON.stringify(frame)))); };
+  const send = (c: Conn, frame: Record<string, unknown>): void => {
+    if (!c.closed) c.socket.write(encodeFrame(0x1, Buffer.from(JSON.stringify(frame))));
+  };
   const close = (c: Conn, code: number, why: string): void => {
     if (c.closed) return;
     c.closed = true;
     const reason = Buffer.from(why).subarray(0, 100);
-    const body = Buffer.alloc(2 + reason.length); body.writeUInt16BE(code, 0); reason.copy(body, 2);
-    try { c.socket.write(encodeFrame(0x8, body)); c.socket.end(); } catch { /* already gone */ }
+    const body = Buffer.alloc(2 + reason.length);
+    body.writeUInt16BE(code, 0);
+    reason.copy(body, 2);
+    try {
+      c.socket.write(encodeFrame(0x8, body));
+      c.socket.end();
+    } catch {
+      /* already gone */
+    }
     if (conns.get(connKey(c)) === c) conns.delete(connKey(c));
     c.link?.gone(why);
-    o.sink?.log({ space: c.session.space, level: 20, msg: "live.closed", device: c.session.device, actor: c.session.principal.id, result: String(code) });
+    o.sink?.log({
+      space: c.session.space,
+      level: 20,
+      msg: "live.closed",
+      device: c.session.device,
+      actor: c.session.principal.id,
+      result: String(code),
+    });
   };
   const purgeWhere = (match: (c: Conn) => boolean, epoch: number, code: number, why: string): number => {
     let n = 0;
@@ -254,39 +410,78 @@ export function createLiveHub(o: LiveOptions): LiveHub {
   const stillLiveFast = (c: Conn): boolean => (o.liveFast ? o.liveFast(c.session) : stillLive(c));
   const ended = (c: Conn): void => {
     if (c.closed) return;
-    if (c.inflight > 0) { c.ending = true; return; }
+    if (c.inflight > 0) {
+      c.ending = true;
+      return;
+    }
     close(c, 1008, "auth.session_ended");
   };
   /** A frame the Space sends on its own (events, ticks, sync batches, turn text): only to a socket whose session is still live. */
   const sendLive = (c: Conn, frame: Record<string, unknown>): void => {
     if (c.closed || c.ending) return;
-    if (!stillLiveFast(c)) { ended(c); return; }
+    if (!stillLiveFast(c)) {
+      ended(c);
+      return;
+    }
     send(c, frame);
   };
 
-  async function onCall(c: Conn, f: { id?: unknown; cap?: unknown; input?: unknown; tr?: unknown; v?: unknown }): Promise<void> {
+  async function onCall(
+    c: Conn,
+    f: { id?: unknown; cap?: unknown; input?: unknown; tr?: unknown; v?: unknown },
+  ): Promise<void> {
     const id = typeof f.id === "string" || typeof f.id === "number" ? f.id : null;
-    if (!o.invoke || typeof f.cap !== "string") { send(c, { t: "res", id, ok: false, error: { code: "validation.bad_input", message: "a call names a capability" } }); return; }
+    if (!o.invoke || typeof f.cap !== "string") {
+      send(c, {
+        t: "res",
+        id,
+        ok: false,
+        error: { code: "validation.bad_input", message: "a call names a capability" },
+      });
+      return;
+    }
     if (c.ending || !stillLive(c)) {
-      send(c, { t: "res", id, ok: false, error: { code: "auth.unauthenticated", message: "This session has ended. Sign in again." } });
+      send(c, {
+        t: "res",
+        id,
+        ok: false,
+        error: { code: "auth.unauthenticated", message: "This session has ended. Sign in again." },
+      });
       ended(c);
       return;
     }
     c.inflight++;
     const from = parseTr(f.tr);
     const tracer = createTracer(spans, { ...(from ? { from } : {}), now });
-    const log = o.sink?.logger({ space: c.session.space, trace_id: tracer.traceId, actor: c.session.principal.id, device: c.session.device, cap: f.cap });
+    const log = o.sink?.logger({
+      space: c.session.space,
+      trace_id: tracer.traceId,
+      actor: c.session.principal.id,
+      device: c.session.device,
+      cap: f.cap,
+    });
     let rootSpan = "";
     try {
       const r = await tracer.span("ws.call", async (s) => {
         rootSpan = s.spanId;
         log?.info("ws.call", { cap: f.cap });
-        const seed: CtxSeed = { space: c.session.space, principal: c.session.principal, trace: { traceId: tracer.traceId, spanId: s.spanId }, device: c.session.device, origin: "user", ...(c.session.actingFor ? { actingFor: c.session.actingFor } : {}), ...(typeof f.v === "number" ? { v: f.v } : {}) };
+        const seed: CtxSeed = {
+          space: c.session.space,
+          principal: c.session.principal,
+          trace: { traceId: tracer.traceId, spanId: s.spanId },
+          device: c.session.device,
+          origin: "user",
+          ...(c.session.actingFor ? { actingFor: c.session.actingFor } : {}),
+          ...(typeof f.v === "number" ? { v: f.v } : {}),
+        };
         return o.invoke!(f.cap as string, f.input, seed);
       });
       send(c, { t: "res", id, ok: true, data: r, tr: formatTr({ traceId: tracer.traceId, spanId: rootSpan }) });
     } catch (e) {
-      const err = e instanceof HostError ? e.error : { code: "internal.unexpected", message: "the call failed", traceId: tracer.traceId };
+      const err =
+        e instanceof HostError
+          ? e.error
+          : { code: "internal.unexpected", message: "the call failed", traceId: tracer.traceId };
       log?.warn("ws.call.failed", { code: err.code });
       send(c, { t: "res", id, ok: false, error: err, tr: tracer.traceId });
     } finally {
@@ -298,10 +493,23 @@ export function createLiveHub(o: LiveOptions): LiveHub {
   function onFrame(c: Conn, text: string): void {
     c.lastSeen = now();
     let f: Record<string, unknown>;
-    try { const j: unknown = JSON.parse(text); if (!j || typeof j !== "object" || Array.isArray(j)) throw new Error("not an object"); f = j as Record<string, unknown>; } catch { close(c, 1003, "frames are JSON objects"); return; }
+    try {
+      const j: unknown = JSON.parse(text);
+      if (!j || typeof j !== "object" || Array.isArray(j)) throw new Error("not an object");
+      f = j as Record<string, unknown>;
+    } catch {
+      close(c, 1003, "frames are JSON objects");
+      return;
+    }
     // a frame from a session that ended goes nowhere: not to sync's session (a push, a pull) and not to the legacy envelope; a call answers that it ended
-    if (f["t"] !== "call" && !stillLive(c)) { ended(c); return; }
-    if (c.link && f["t"] !== "call") { c.link.frame(f); return; }
+    if (f["t"] !== "call" && !stillLive(c)) {
+      ended(c);
+      return;
+    }
+    if (c.link && f["t"] !== "call") {
+      c.link.frame(f);
+      return;
+    }
     switch (f["t"]) {
       case "hello": {
         const cursor = typeof f["cursor"] === "number" && f["cursor"] >= 0 ? f["cursor"] : 0;
@@ -312,14 +520,21 @@ export function createLiveHub(o: LiveOptions): LiveHub {
         for (const e of missed) send(c, eventFrame(e));
         return;
       }
-      case "hb": return;   // lastSeen is the point
+      case "hb":
+        return; // lastSeen is the point
       case "ack": {
         const seq = typeof f["seq"] === "number" ? f["seq"] : -1;
-        if (seq > c.acked) { c.acked = seq; c.pending = c.pending.filter((e) => e.seq > seq); }
+        if (seq > c.acked) {
+          c.acked = seq;
+          c.pending = c.pending.filter((e) => e.seq > seq);
+        }
         return;
       }
-      case "call": void onCall(c, f); return;
-      default: send(c, { t: "error", code: "validation.bad_input", message: "unknown frame" });
+      case "call":
+        void onCall(c, f);
+        return;
+      default:
+        send(c, { t: "error", code: "validation.bad_input", message: "unknown frame" });
     }
   }
 
@@ -327,46 +542,108 @@ export function createLiveHub(o: LiveOptions): LiveHub {
     if (o.claims?.(req)) return;
     void (async () => {
       const wsKey = req.headers["sec-websocket-key"];
-      if (String(req.headers["upgrade"]).toLowerCase() !== "websocket" || typeof wsKey !== "string") { socket.end("HTTP/1.1 400 Bad Request\r\n\r\n"); return; }
+      if (String(req.headers["upgrade"]).toLowerCase() !== "websocket" || typeof wsKey !== "string") {
+        socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
+        return;
+      }
       let session: LiveSession | null = null;
-      try { session = await o.session(req.headers, new URL(req.url ?? "/", "http://live")); } catch { session = null; }
-      if (!session) { socket.end("HTTP/1.1 401 Unauthorized\r\n\r\n"); return; }
-      const accept = crypto.createHash("sha1").update(wsKey + GUID).digest("base64");
-      socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
-      const c: Conn = { id: crypto.randomUUID(), session, socket, reader: new FrameReader(), lastSeen: now(), acked: 0, pending: [], closed: false, inflight: 0, ending: false };
+      try {
+        session = await o.session(req.headers, new URL(req.url ?? "/", "http://live"));
+      } catch {
+        session = null;
+      }
+      if (!session) {
+        socket.end("HTTP/1.1 401 Unauthorized\r\n\r\n");
+        return;
+      }
+      const accept = crypto
+        .createHash("sha1")
+        .update(wsKey + GUID)
+        .digest("base64");
+      socket.write(
+        `HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`,
+      );
+      const c: Conn = {
+        id: crypto.randomUUID(),
+        session,
+        socket,
+        reader: new FrameReader(),
+        lastSeen: now(),
+        acked: 0,
+        pending: [],
+        closed: false,
+        inflight: 0,
+        ending: false,
+      };
       // a device holds one live socket: a newer connection replaces the older (the perf budget connection_count), before the hub is told about the new one
       const old = conns.get(key(session));
       if (old) close(old, 4000, "replaced by a newer connection from this device");
       if (o.sync) {
-        const frameCbs: Array<(f: unknown) => void> = [], closeCbs: Array<(r: string) => void> = [];
-        const sess = o.sync.accept({
-          send: (frame) => sendLive(c, frame as Record<string, unknown>),
-          close: (reason) => close(c, reason === "purged" || reason === "auth.device_revoked" ? 4003 : 1000, reason ?? "closed"),
-          onFrame: (cb) => { frameCbs.push(cb); },
-          onClose: (cb) => { closeCbs.push(cb); },
-        }, { person: session.principal.id, device: session.device, deviceClass: deviceClassOf(req.url) });
-        c.link = { frame: (f) => { for (const cb of frameCbs) cb(f); }, gone: (r) => { for (const cb of closeCbs) cb(r); }, session: sess };
+        const frameCbs: Array<(f: unknown) => void> = [],
+          closeCbs: Array<(r: string) => void> = [];
+        const sess = o.sync.accept(
+          {
+            send: (frame) => sendLive(c, frame as Record<string, unknown>),
+            close: (reason) =>
+              close(c, reason === "purged" || reason === "auth.device_revoked" ? 4003 : 1000, reason ?? "closed"),
+            onFrame: (cb) => {
+              frameCbs.push(cb);
+            },
+            onClose: (cb) => {
+              closeCbs.push(cb);
+            },
+          },
+          { person: session.principal.id, device: session.device, deviceClass: deviceClassOf(req.url) },
+        );
+        c.link = {
+          frame: (f) => {
+            for (const cb of frameCbs) cb(f);
+          },
+          gone: (r) => {
+            for (const cb of closeCbs) cb(r);
+          },
+          session: sess,
+        };
       }
-      if (!c.closed) conns.set(connKey(c), c);   // a revoked device was already told and closed inside accept
-      o.sink?.log({ space: session.space, level: 20, msg: "live.opened", device: session.device, actor: session.principal.id });
+      if (!c.closed) conns.set(connKey(c), c); // a revoked device was already told and closed inside accept
+      o.sink?.log({
+        space: session.space,
+        level: 20,
+        msg: "live.opened",
+        device: session.device,
+        actor: session.principal.id,
+      });
       socket.on("data", (chunk: Buffer) => {
         for (const m of c.reader.push(chunk)) {
           if (m.opcode === 0x1) onFrame(c, m.data.toString("utf8"));
           else if (m.opcode === 0x9) socket.write(encodeFrame(0xa, m.data));
-          else if (m.opcode === 0x8) { close(c, 1000, "bye"); return; }
+          else if (m.opcode === 0x8) {
+            close(c, 1000, "bye");
+            return;
+          }
         }
         if (c.reader.error) close(c, c.reader.error.code, c.reader.error.why);
       });
-      socket.on("close", () => { const was = c.closed; c.closed = true; if (conns.get(connKey(c)) === c) conns.delete(connKey(c)); if (!was) c.link?.gone("peer closed"); });
-      socket.on("error", () => { c.closed = true; });
+      socket.on("close", () => {
+        const was = c.closed;
+        c.closed = true;
+        if (conns.get(connKey(c)) === c) conns.delete(connKey(c));
+        if (!was) c.link?.gone("peer closed");
+      });
+      socket.on("error", () => {
+        c.closed = true;
+      });
     })();
   });
 
   // heartbeat and dead-peer detection
   const timer = setInterval(() => {
     for (const c of [...conns.values()]) {
-      if (c.link) continue;   // sync's hub keeps its own heartbeat and dead-peer rule
-      if (now() - c.lastSeen > deadMs) { close(c, 4001, "heartbeat missed"); continue; }
+      if (c.link) continue; // sync's hub keeps its own heartbeat and dead-peer rule
+      if (now() - c.lastSeen > deadMs) {
+        close(c, 4001, "heartbeat missed");
+        continue;
+      }
       send(c, { t: "hb", seq: o.head?.(c.session.space) ?? 0 });
     }
   }, hbMs);
@@ -374,7 +651,10 @@ export function createLiveHub(o: LiveOptions): LiveHub {
 
   return {
     server,
-    listen: (port = 0) => new Promise((resolve) => server.listen(port, "127.0.0.1", () => resolve((server.address() as { port: number }).port))),
+    listen: (port = 0) =>
+      new Promise((resolve) =>
+        server.listen(port, "127.0.0.1", () => resolve((server.address() as { port: number }).port)),
+      ),
     publish(space, events) {
       o.sync?.commit();
       // A sync session is sent filtered row batches by its hub, never raw events. Rows are not everything a screen shows (chat messages, notifications, tasks and counts live in module tables), so the
@@ -382,42 +662,74 @@ export function createLiveHub(o: LiveOptions): LiveHub {
       const last = events[events.length - 1];
       for (const c of conns.values()) {
         if (c.session.space !== space) continue;
-        if (c.link) { if (last) sendLive(c, { t: "changed", seq: last.seq }); continue; }
-        if (c.closed || c.ending || !stillLiveFast(c)) { ended(c); continue; }
-        for (const e of events) { c.pending.push(e); send(c, eventFrame(e)); }
+        if (c.link) {
+          if (last) sendLive(c, { t: "changed", seq: last.seq });
+          continue;
+        }
+        if (c.closed || c.ending || !stillLiveFast(c)) {
+          ended(c);
+          continue;
+        }
+        for (const e of events) {
+          c.pending.push(e);
+          send(c, eventFrame(e));
+        }
       }
     },
     poke(space) {
-      for (const c of [...conns.values()]) if (c.session.space === space && c.link) sendLive(c, { t: "changed", seq: o.head?.(space) ?? 0 });
+      for (const c of [...conns.values()])
+        if (c.session.space === space && c.link) sendLive(c, { t: "changed", seq: o.head?.(space) ?? 0 });
     },
     publishTurn(frame, allow) {
-      turnChain = turnChain.then(async () => {
-        const targets = [...conns.values()].filter((c) => !c.closed);
-        const verdict = new Map<string, boolean>();
-        for (const c of targets) {
-          const who = c.session.principal.id;
-          if (!verdict.has(who)) verdict.set(who, await Promise.resolve(allow(who)).catch(() => false));
-        }
-        for (const c of targets) if (verdict.get(c.session.principal.id)) sendLive(c, frame);
-      }).catch(() => undefined);
+      turnChain = turnChain
+        .then(async () => {
+          const targets = [...conns.values()].filter((c) => !c.closed);
+          const verdict = new Map<string, boolean>();
+          for (const c of targets) {
+            const who = c.session.principal.id;
+            if (!verdict.has(who)) verdict.set(who, await Promise.resolve(allow(who)).catch(() => false));
+          }
+          for (const c of targets) if (verdict.get(c.session.principal.id)) sendLive(c, frame);
+        })
+        .catch(() => undefined);
     },
-    connections: (space) => [...conns.values()].filter((c) => !space || c.session.space === space).map((c) => ({ device: c.session.device, acked: c.acked, pending: c.pending.length })),
+    connections: (space) =>
+      [...conns.values()]
+        .filter((c) => !space || c.session.space === space)
+        .map((c) => ({ device: c.session.device, acked: c.acked, pending: c.pending.length })),
     purge: (person, epoch) => purgeWhere((c) => c.session.principal.id === person, epoch, 4004, "purged"),
-    purgeDevice: (person, device, epoch) => purgeWhere((c) => c.session.principal.id === person && c.session.device === device, epoch, 4003, "auth.device_revoked"),
+    purgeDevice: (person, device, epoch) =>
+      purgeWhere(
+        (c) => c.session.principal.id === person && c.session.device === device,
+        epoch,
+        4003,
+        "auth.device_revoked",
+      ),
     endSessions: (m) => {
       let n = 0;
       for (const c of [...conns.values()]) {
         if (c.closed) continue;
-        if ((m.sessionId !== undefined && c.session.sessionId === m.sessionId) || (m.person !== undefined && c.session.principal.id === m.person)) { ended(c); n++; }
+        if (
+          (m.sessionId !== undefined && c.session.sessionId === m.sessionId) ||
+          (m.person !== undefined && c.session.principal.id === m.person)
+        ) {
+          ended(c);
+          n++;
+        }
       }
       return n;
     },
-    close: () => new Promise((resolve) => {
-      clearInterval(timer);
-      for (const c of [...conns.values()]) close(c, 1001, "server stopping");
-      try { o.sync?.close?.(); } catch { /* the sockets are already closed */ }
-      server.close(() => resolve());
-      server.closeAllConnections();
-    }),
+    close: () =>
+      new Promise((resolve) => {
+        clearInterval(timer);
+        for (const c of [...conns.values()]) close(c, 1001, "server stopping");
+        try {
+          o.sync?.close?.();
+        } catch {
+          /* the sockets are already closed */
+        }
+        server.close(() => resolve());
+        server.closeAllConnections();
+      }),
   };
 }

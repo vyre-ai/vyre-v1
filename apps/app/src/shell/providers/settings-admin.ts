@@ -8,7 +8,10 @@ export function adminPages(out: { groups: Array<{ pages: Array<{ key: string }> 
 }
 
 /** The address of a Console screen. */
-export function adminTarget(screen: string, args: Record<string, string> = {}): { screen: string; args: Record<string, string> } {
+export function adminTarget(
+  screen: string,
+  args: Record<string, string> = {},
+): { screen: string; args: Record<string, string> } {
   const id = CONSOLE_PAGES.find((page) => page.screen === screen)?.id;
   return { screen, args: id ? { page: id, ...args } : args };
 }

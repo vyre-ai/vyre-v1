@@ -10,39 +10,87 @@
 import type { EngineAgent, OpenThread, ThreadKind } from "../../agent/src/turn-engine/types.ts";
 
 export type RosterAgent = {
-  agentId: string; name?: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown; quiet?: boolean; when?: "always" | "topics" | "hours"; topics?: string;
-  hoursFrom?: string; hoursTo?: string; style?: "short" | "full";
+  agentId: string;
+  name?: string;
+  mode: "lead" | "listen";
+  model?: string;
+  accountRef?: string;
+  watches?: unknown;
+  quiet?: boolean;
+  when?: "always" | "topics" | "hours";
+  topics?: string;
+  hoursFrom?: string;
+  hoursTo?: string;
+  style?: "short" | "full";
 };
-export type ThreadGet = { thread: { kind?: string; scopeType?: string; scopeId?: string; starter?: string; members?: Array<{ kind?: string; id: string }>; agents: RosterAgent[] } };
+export type ThreadGet = {
+  thread: {
+    kind?: string;
+    scopeType?: string;
+    scopeId?: string;
+    starter?: string;
+    members?: Array<{ kind?: string; id: string }>;
+    agents: RosterAgent[];
+  };
+};
 export type Saved = { mode: string | null; model: string | null; accountRef: string | null } | null;
 type Read = (cap: string, input: unknown) => Promise<unknown>;
 
-export const peopleOf = (g: ThreadGet): string[] | undefined => (g.thread.members ? g.thread.members.filter((x) => (x.kind ?? "person") === "person").map((x) => x.id) : undefined);
+export const peopleOf = (g: ThreadGet): string[] | undefined =>
+  g.thread.members ? g.thread.members.filter((x) => (x.kind ?? "person") === "person").map((x) => x.id) : undefined;
 /** How and when an agent answers in this chat, as the chat holds it, for the engine's routing and for the turn. */
-export const settingsOf = (a: RosterAgent): Pick<EngineAgent, "quiet" | "when" | "topics" | "hoursFrom" | "hoursTo" | "style"> => ({
-  ...(a.quiet === true ? { quiet: true as const } : {}), ...(a.when && a.when !== "always" ? { when: a.when } : {}), ...(a.topics ? { topics: a.topics } : {}),
-  ...(a.hoursFrom ? { hoursFrom: a.hoursFrom } : {}), ...(a.hoursTo ? { hoursTo: a.hoursTo } : {}), ...(a.style ? { style: a.style } : {}),
-} as Pick<EngineAgent, "quiet" | "when" | "topics" | "hoursFrom" | "hoursTo" | "style">);
+export const settingsOf = (
+  a: RosterAgent,
+): Pick<EngineAgent, "quiet" | "when" | "topics" | "hoursFrom" | "hoursTo" | "style"> =>
+  ({
+    ...(a.quiet === true ? { quiet: true as const } : {}),
+    ...(a.when && a.when !== "always" ? { when: a.when } : {}),
+    ...(a.topics ? { topics: a.topics } : {}),
+    ...(a.hoursFrom ? { hoursFrom: a.hoursFrom } : {}),
+    ...(a.hoursTo ? { hoursTo: a.hoursTo } : {}),
+    ...(a.style ? { style: a.style } : {}),
+  }) as Pick<EngineAgent, "quiet" | "when" | "topics" | "hoursFrom" | "hoursTo" | "style">;
 
 /** The engine thread for a chat record. `read` reads as whoever may (the bridge: the message's person; recovery: the person whose work is queued); `agentInfo` reads agents.get. */
 export async function engineThreadOf(o: {
-  threadId: string; got: ThreadGet; read: Read; agentInfo: (agentId: string) => Promise<{ model?: string; runtime?: string } | null>; saved?: (agentId: string) => Saved; starter?: string; kind?: ThreadKind;
+  threadId: string;
+  got: ThreadGet;
+  read: Read;
+  agentInfo: (agentId: string) => Promise<{ model?: string; runtime?: string } | null>;
+  saved?: (agentId: string) => Saved;
+  starter?: string;
+  kind?: ThreadKind;
 }): Promise<OpenThread> {
   const { got } = o;
   const own = new Map<string, string>();
   const outside = new Set<string>();
   for (const a of got.thread.agents) {
     const info = await o.agentInfo(a.agentId).catch(() => null);
-    if (info?.runtime === "outside") { outside.add(a.agentId); continue; }
+    if (info?.runtime === "outside") {
+      outside.add(a.agentId);
+      continue;
+    }
     if (info?.model) own.set(a.agentId, info.model);
   }
   let taskLead: string | undefined;
-  if (got.thread.scopeType === "task" && !got.thread.agents.some((a) => a.mode === "lead") && got.thread.agents.length > 1) {
+  if (
+    got.thread.scopeType === "task" &&
+    !got.thread.agents.some((a) => a.mode === "lead") &&
+    got.thread.agents.length > 1
+  ) {
     try {
-      const t = ((await o.read("tasks.get", { taskId: got.thread.scopeId })) as { task?: { assigned?: { kind?: string; id?: string }; createdBy?: string } } | null)?.task;
+      const t = (
+        (await o.read("tasks.get", { taskId: got.thread.scopeId })) as {
+          task?: { assigned?: { kind?: string; id?: string }; createdBy?: string };
+        } | null
+      )?.task;
       const ids = new Set(got.thread.agents.map((a) => a.agentId));
-      taskLead = [t?.assigned?.kind === "agent" ? t.assigned.id : undefined, t?.createdBy].find((x): x is string => typeof x === "string" && ids.has(x));
-    } catch { /* no task to read: the agents listen as before */ }
+      taskLead = [t?.assigned?.kind === "agent" ? t.assigned.id : undefined, t?.createdBy].find(
+        (x): x is string => typeof x === "string" && ids.has(x),
+      );
+    } catch {
+      /* no task to read: the agents listen as before */
+    }
   }
   const agents: EngineAgent[] = got.thread.agents.map((a) => {
     const s = o.saved?.(a.agentId) ?? null;
@@ -50,16 +98,32 @@ export async function engineThreadOf(o: {
     const model = s?.model || a.model || own.get(a.agentId) || undefined;
     const accountRef = s?.accountRef || a.accountRef || undefined;
     return {
-      id: a.agentId, ...(a.name ? { name: a.name } : {}), mode, ...(taskLead === a.agentId ? { taskLead: true as const } : {}), ...(model ? { model } : {}), ...(accountRef ? { accountRef } : {}),
-      ...(a.watches !== undefined && a.watches !== false ? { watching: true } : {}), ...(outside.has(a.agentId) ? { outside: true } : {}), ...settingsOf(a),
+      id: a.agentId,
+      ...(a.name ? { name: a.name } : {}),
+      mode,
+      ...(taskLead === a.agentId ? { taskLead: true as const } : {}),
+      ...(model ? { model } : {}),
+      ...(accountRef ? { accountRef } : {}),
+      ...(a.watches !== undefined && a.watches !== false ? { watching: true } : {}),
+      ...(outside.has(a.agentId) ? { outside: true } : {}),
+      ...settingsOf(a),
     } as EngineAgent;
   });
   // Two leads in one thread would break the unique lead rule; the saved mode wins for the agent that was set last, so demote extras.
   let leadSeen = false;
-  for (const a of agents) { if (a.mode === "lead") { if (leadSeen) a.mode = "listen"; leadSeen = true; } }
+  for (const a of agents) {
+    if (a.mode === "lead") {
+      if (leadSeen) a.mode = "listen";
+      leadSeen = true;
+    }
+  }
   const people = peopleOf(got);
   return {
-    id: o.threadId, kind: o.kind ?? ((got.thread.kind ?? "chat") as ThreadKind), starter: got.thread.starter ?? o.starter ?? "", agents,
-    ...(["task", "note", "goal"].includes(got.thread.scopeType ?? "") ? { personal: true } : {}), ...(people ? { people } : {}),
+    id: o.threadId,
+    kind: o.kind ?? ((got.thread.kind ?? "chat") as ThreadKind),
+    starter: got.thread.starter ?? o.starter ?? "",
+    agents,
+    ...(["task", "note", "goal"].includes(got.thread.scopeType ?? "") ? { personal: true } : {}),
+    ...(people ? { people } : {}),
   };
 }

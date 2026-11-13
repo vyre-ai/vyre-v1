@@ -13,7 +13,7 @@ export function faceKey(seed: string, kind: string, size: number, skin: string):
 
 /** The skin the document wears now ("" when unknown). */
 export function currentSkin(): string {
-  return typeof document === "undefined" ? "" : document.documentElement.getAttribute("data-skin") ?? "";
+  return typeof document === "undefined" ? "" : (document.documentElement.getAttribute("data-skin") ?? "");
 }
 
 export function cachedFace(key: string): string | undefined {
@@ -33,13 +33,22 @@ export function clearFaceCache(): void {
 /** Draws `svg` (a complete svg string) at size x devicePixelRatio, stores the bitmap under `key` and calls `done`. Many rows asking for one key share one draw. */
 export function requestFace(key: string, svg: string, size: number, done: () => void): void {
   if (typeof document === "undefined" || typeof Image === "undefined") return;
-  if (bitmaps.has(key)) { done(); return; }
+  if (bitmaps.has(key)) {
+    done();
+    return;
+  }
   const open = waiting.get(key);
-  if (open !== undefined) { open.add(done); return; }
+  if (open !== undefined) {
+    open.add(done);
+    return;
+  }
   waiting.set(key, new Set([done]));
   const img = new Image();
   img.onload = () => {
-    const ratio = Math.min(3, Math.max(1, Math.ceil((globalThis as { devicePixelRatio?: number }).devicePixelRatio ?? 1)));
+    const ratio = Math.min(
+      3,
+      Math.max(1, Math.ceil((globalThis as { devicePixelRatio?: number }).devicePixelRatio ?? 1)),
+    );
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(size * ratio);
     canvas.height = Math.round(size * ratio);
@@ -48,14 +57,21 @@ export function requestFace(key: string, svg: string, size: number, done: () => 
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       try {
         bitmaps.set(key, canvas.toDataURL("image/png"));
-        if (bitmaps.size > MAX_BITMAPS) { const first = bitmaps.keys().next(); if (first.done !== true) bitmaps.delete(first.value); }
-      } catch { /* a tainted canvas keeps the inline face */ }
+        if (bitmaps.size > MAX_BITMAPS) {
+          const first = bitmaps.keys().next();
+          if (first.done !== true) bitmaps.delete(first.value);
+        }
+      } catch {
+        /* a tainted canvas keeps the inline face */
+      }
     }
     const who = waiting.get(key);
     waiting.delete(key);
     who?.forEach((cb) => cb());
   };
-  img.onerror = () => { waiting.delete(key); };
+  img.onerror = () => {
+    waiting.delete(key);
+  };
   img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
@@ -63,4 +79,3 @@ export function requestFace(key: string, svg: string, size: number, done: () => 
 export function wrapSvg(inner: string, viewBox: string, size: number): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${size}" height="${size}">${inner}</svg>`;
 }
-

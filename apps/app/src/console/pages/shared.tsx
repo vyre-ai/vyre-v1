@@ -1,4 +1,13 @@
-import { createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  createElement,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { choiceRows, useLiveRows, useMenu } from "../../../../../ui/src/Menu/index.tsx";
@@ -14,29 +23,71 @@ import { detailsOf, detailsText, errorSentence } from "../../errors/details.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Glyph } from "../shell/glyphs.tsx";
 
-export function useRead<T>(cap: string, input: Record<string, unknown> = {}, options: { direct?: boolean; enabled?: boolean; keepPrevious?: boolean } = {}) {
+export function useRead<T>(
+  cap: string,
+  input: Record<string, unknown> = {},
+  options: { direct?: boolean; enabled?: boolean; keepPrevious?: boolean } = {},
+) {
   const { call, screens } = useConsoleData();
   const last = useRef<T | undefined>(undefined);
   const key = JSON.stringify(input);
   const enabled = options.enabled !== false;
-  const query = useMemo(() => !enabled || options.direct ? undefined : (screens as { capQuery?: (cap: string, input: Record<string, unknown>) => LiveQuery<T> }).capQuery?.(cap, JSON.parse(key)), [screens, cap, key, options.direct, enabled]);
-  const never = useMemo<LiveQuery<T>>(() => { const loading: QueryState<T> = { status: "loading" }; return { subscribe: () => () => undefined, getSnapshot: () => loading }; }, []);
-  const snapshot = useSyncExternalStore((query ?? never).subscribe, (query ?? never).getSnapshot, (query ?? never).getSnapshot);
+  const query = useMemo(
+    () =>
+      !enabled || options.direct
+        ? undefined
+        : (screens as { capQuery?: (cap: string, input: Record<string, unknown>) => LiveQuery<T> }).capQuery?.(
+            cap,
+            JSON.parse(key),
+          ),
+    [screens, cap, key, options.direct, enabled],
+  );
+  const never = useMemo<LiveQuery<T>>(() => {
+    const loading: QueryState<T> = { status: "loading" };
+    return { subscribe: () => () => undefined, getSnapshot: () => loading };
+  }, []);
+  const snapshot = useSyncExternalStore(
+    (query ?? never).subscribe,
+    (query ?? never).getSnapshot,
+    (query ?? never).getSnapshot,
+  );
   const [revision, setRevision] = useState(0);
-  const stateKey=cap+key;
-  const [state, setState] = useState<{ key?:string; data?: T; error?: string }>({});
-  const refresh = useCallback(() => { (screens as { invalidate?: () => void }).invalidate?.(); setRevision((n) => n + 1); }, [screens]);
+  const stateKey = cap + key;
+  const [state, setState] = useState<{ key?: string; data?: T; error?: string }>({});
+  const refresh = useCallback(() => {
+    (screens as { invalidate?: () => void }).invalidate?.();
+    setRevision((n) => n + 1);
+  }, [screens]);
   useEffect(() => {
     if (query || !enabled) return;
     let alive = true;
-    void call(cap, JSON.parse(key)).then((data) => { if (alive) setState({key:stateKey, data: data as T }); }, () => { if (alive) setState({key:stateKey, error: "Couldn’t load this page. Check access and try again." }); });
-    return () => { alive = false; };
+    void call(cap, JSON.parse(key)).then(
+      (data) => {
+        if (alive) setState({ key: stateKey, data: data as T });
+      },
+      () => {
+        if (alive) setState({ key: stateKey, error: "Couldn’t load this page. Check access and try again." });
+      },
+    );
+    return () => {
+      alive = false;
+    };
   }, [call, cap, key, revision, query, stateKey, enabled]);
-  if (!enabled) return {data: undefined, error: undefined, refresh};
-  const out: { data?: T | undefined; error?: string | undefined; refresh: () => void } = query ? { data: snapshot.status === "ready" ? snapshot.data : undefined, error: snapshot.status === "loading" && snapshot.error ? "Couldn’t load this page. Check access and try again." : undefined, refresh } : { ...(state.key===stateKey?state:{}), refresh };
+  if (!enabled) return { data: undefined, error: undefined, refresh };
+  const out: { data?: T | undefined; error?: string | undefined; refresh: () => void } = query
+    ? {
+        data: snapshot.status === "ready" ? snapshot.data : undefined,
+        error:
+          snapshot.status === "loading" && snapshot.error
+            ? "Couldn’t load this page. Check access and try again."
+            : undefined,
+        refresh,
+      }
+    : { ...(state.key === stateKey ? state : {}), refresh };
   // `keepPrevious`: while the next answer for the same call is on its way (the next search of a list), the last one stays, so the search box and the rows do not vanish with each keystroke
   if (out.data !== undefined) last.current = out.data;
-  else if (options.keepPrevious === true && out.error === undefined && last.current !== undefined) return { ...out, data: last.current };
+  else if (options.keepPrevious === true && out.error === undefined && last.current !== undefined)
+    return { ...out, data: last.current };
   return out;
 }
 /** Failures of changes whose page was closed before they finished: the next page that makes changes says so, since the one they were made on cannot. */
@@ -55,58 +106,222 @@ export function useAction(refresh: () => void) {
   const join = (text: string): string => (carry.current ? `${carry.current} ${text}` : text);
   useEffect(() => {
     mounted.current = true;
-    if (ORPHANED.length > 0) setNote(`A change you made before leaving the last page did not go through: ${ORPHANED.splice(0).join(" ")}`);
-    return () => { mounted.current = false; };
+    if (ORPHANED.length > 0)
+      setNote(`A change you made before leaving the last page did not go through: ${ORPHANED.splice(0).join(" ")}`);
+    return () => {
+      mounted.current = false;
+    };
   }, []);
   // What is running now and what waits behind it, by call. A press while another call runs used to be dropped without a word: pick two people one after the other and the second was lost.
   // A different call now waits its turn; the same call again (a double press) is the one already on its way, so it is ignored.
   const running = useRef("");
   const waiting = useRef(new Set<string>());
   const tail = useRef<Promise<unknown>>(Promise.resolve());
-  const run = <T,>(cap: string, input: unknown, success: string | ((out: T) => string | Promise<string>)): Promise<T | undefined> => {
+  const run = <T,>(
+    cap: string,
+    input: unknown,
+    success: string | ((out: T) => string | Promise<string>),
+  ): Promise<T | undefined> => {
     const digest = cap + JSON.stringify(input);
-    if ((inflight.current && running.current === digest) || waiting.current.has(digest)) return Promise.resolve(undefined);
-    if (waiting.current.size >= MAX_WAITING_CHANGES) { fail("Too many changes are waiting. Let the earlier ones finish, then try again."); return Promise.resolve(undefined); }
+    if ((inflight.current && running.current === digest) || waiting.current.has(digest))
+      return Promise.resolve(undefined);
+    if (waiting.current.size >= MAX_WAITING_CHANGES) {
+      fail("Too many changes are waiting. Let the earlier ones finish, then try again.");
+      return Promise.resolve(undefined);
+    }
     if (!inflight.current && waiting.current.size === 0) carry.current = "";
     waiting.current.add(digest);
-    const mine = tail.current.then(() => { waiting.current.delete(digest); running.current = digest; return exec<T>(cap, input, success); });
+    const mine = tail.current.then(() => {
+      waiting.current.delete(digest);
+      running.current = digest;
+      return exec<T>(cap, input, success);
+    });
     tail.current = mine.catch(() => undefined);
     return mine;
   };
   /** A change that did not go through: said in the note, kept while later calls run, and handed to the next page if this one is already gone. */
-  const fail = (sentence: string): void => { carry.current = join(sentence); if (mounted.current) setNote(carry.current); else ORPHANED.push(sentence); };
-  const exec = async <T,>(cap: string, input: unknown, success: string | ((out: T) => string | Promise<string>)): Promise<T | undefined> => {
-    if(connection?.get()==='offline'){fail('Reconnect to this Space before changing it.');return undefined;}
-    let payload=input;
-    const value=input&&typeof input==='object'&&!Array.isArray(input)?input as Record<string,unknown>:null;
-    if(value&&('idempotencyKey' in value||['health.support_bundle','backup.run','backup.export_start','spaces.export'].includes(cap))){
-      const {idempotencyKey:_key,...rest}=value;const digest=cap+JSON.stringify(rest);
-      if(retryKey.current?.digest!==digest)retryKey.current={digest,key:attempt()};
-      payload={...rest,idempotencyKey:retryKey.current.key};
+  const fail = (sentence: string): void => {
+    carry.current = join(sentence);
+    if (mounted.current) setNote(carry.current);
+    else ORPHANED.push(sentence);
+  };
+  const exec = async <T,>(
+    cap: string,
+    input: unknown,
+    success: string | ((out: T) => string | Promise<string>),
+  ): Promise<T | undefined> => {
+    if (connection?.get() === "offline") {
+      fail("Reconnect to this Space before changing it.");
+      return undefined;
     }
-    inflight.current = true; setBusy(true); setNote(carry.current);
-    try { const out = await call(cap, payload);const pending=pendingAction(out);if(pending){setNote(join(pending));return undefined;}const status=out as {status?:string;message?:string};if(status?.status==='failed'||status?.status==='error')throw new Error(status.message??'This action failed.'); setNote(join(typeof success === "function" ? await success(out as T) : success)); retryKey.current=null;refresh(); return out as T; }
-    catch (e) { fail(errorSentence(e)); return undefined; }
-    finally { inflight.current = false; setBusy(false); }
+    let payload = input;
+    const value =
+      input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : null;
+    if (
+      value &&
+      ("idempotencyKey" in value ||
+        ["health.support_bundle", "backup.run", "backup.export_start", "spaces.export"].includes(cap))
+    ) {
+      const { idempotencyKey: _key, ...rest } = value;
+      const digest = cap + JSON.stringify(rest);
+      if (retryKey.current?.digest !== digest) retryKey.current = { digest, key: attempt() };
+      payload = { ...rest, idempotencyKey: retryKey.current.key };
+    }
+    inflight.current = true;
+    setBusy(true);
+    setNote(carry.current);
+    try {
+      const out = await call(cap, payload);
+      const pending = pendingAction(out);
+      if (pending) {
+        setNote(join(pending));
+        return undefined;
+      }
+      const status = out as { status?: string; message?: string };
+      if (status?.status === "failed" || status?.status === "error")
+        throw new Error(status.message ?? "This action failed.");
+      setNote(join(typeof success === "function" ? await success(out as T) : success));
+      retryKey.current = null;
+      refresh();
+      return out as T;
+    } catch (e) {
+      fail(errorSentence(e));
+      return undefined;
+    } finally {
+      inflight.current = false;
+      setBusy(false);
+    }
   };
   return { note, busy, run };
 }
 /** The focus ring of a Console input: a 1px accent border and a 3px accent wash, in place of the browser's black or white outline. */
-export const FOCUS_RING = { outlineStyle: "none", borderColor: "var(--accent)", boxShadow: "0 0 0 3px var(--accent-wash)" } as const;
-export function Field({ label, value, onChange, testID, secure = false, multiline = false, hint }: { label: string; value: string; onChange: (value: string) => void; testID?: string; secure?: boolean; multiline?: boolean; hint?: string }): ReactElement {
+export const FOCUS_RING = {
+  outlineStyle: "none",
+  borderColor: "var(--accent)",
+  boxShadow: "0 0 0 3px var(--accent-wash)",
+} as const;
+export function Field({
+  label,
+  value,
+  onChange,
+  testID,
+  secure = false,
+  multiline = false,
+  hint,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  testID?: string;
+  secure?: boolean;
+  multiline?: boolean;
+  hint?: string;
+}): ReactElement {
   const [focused, setFocused] = useState(false);
-  return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput multiline={multiline} value={value} onChangeText={onChange} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} accessibilityLabel={label} testID={testID} secureTextEntry={secure} autoCapitalize="none" autoCorrect={false} style={[s.input, { outlineStyle: "none" } as never, focused && (FOCUS_RING as never)]} />{hint ? <Text style={{ fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string, marginTop: 4 }}>{hint}</Text> : null}</View>;
+  return (
+    <View style={s.field}>
+      <Text style={s.label}>{label}</Text>
+      <TextInput
+        multiline={multiline}
+        value={value}
+        onChangeText={onChange}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        accessibilityLabel={label}
+        testID={testID}
+        secureTextEntry={secure}
+        autoCapitalize="none"
+        autoCorrect={false}
+        style={[s.input, { outlineStyle: "none" } as never, focused && (FOCUS_RING as never)]}
+      />
+      {hint ? (
+        <Text style={{ fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string, marginTop: 4 }}>{hint}</Text>
+      ) : null}
+    </View>
+  );
 }
 /** `why`: a disabled button says why as its tooltip, so nobody meets a dead button without a reason and no sentence sits beside it. */
-export function Button({ label, onPress, disabled = false, testID, danger = false, why, small = false, primary = false }: { label: string; onPress: () => void; disabled?: boolean; testID?: string; danger?: boolean; why?: string; small?: boolean; /** the one action the card is for: filled with the accent */ primary?: boolean }): ReactElement {
-  const button = <Pressable accessibilityRole="button" accessibilityState={{ disabled }} {...(disabled && why ? { accessibilityHint: why } : {})} onPress={onPress} disabled={disabled} testID={testID} style={[s.button, { alignSelf: "flex-start" }, small && { height: 28 }, primary && { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string }, disabled && { opacity: 0.5 }]}><Text style={[s.buttonText, danger && { color: "var(--danger)" as string }, primary && { color: "#fff" }]}>{label}</Text></Pressable>;
+export function Button({
+  label,
+  onPress,
+  disabled = false,
+  testID,
+  danger = false,
+  why,
+  small = false,
+  primary = false,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  testID?: string;
+  danger?: boolean;
+  why?: string;
+  small?: boolean;
+  /** the one action the card is for: filled with the accent */ primary?: boolean;
+}): ReactElement {
+  const button = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      {...(disabled && why ? { accessibilityHint: why } : {})}
+      onPress={onPress}
+      disabled={disabled}
+      testID={testID}
+      style={[
+        s.button,
+        { alignSelf: "flex-start" },
+        small && { height: 28 },
+        primary && { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
+        disabled && { opacity: 0.5 },
+      ]}
+    >
+      <Text style={[s.buttonText, danger && { color: "var(--danger)" as string }, primary && { color: "#fff" }]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
   return disabled && why ? <Tip help={why}>{button}</Tip> : button;
 }
 /** A quiet text action: no border, a hover wash, small. Danger is red text. Used where the prototype shows plain actions (Hooks rows, Voice). */
-export function QuietButton({ label, onPress, testID, disabled = false, why, danger = false }: { label: string; onPress: () => void; testID: string; disabled?: boolean; why?: string; danger?: boolean }): ReactElement {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} {...(disabled && why ? { accessibilityHint: why } : {})} testID={testID} disabled={disabled} onPress={onPress}
-    style={({ hovered }: { hovered?: boolean }) => ({ height: 28, paddingHorizontal: 10, borderRadius: 7, justifyContent: "center", backgroundColor: hovered ? "var(--hover)" : "transparent", opacity: disabled ? 0.45 : 1 }) as never}>
-    <Text style={{ fontSize: 12.5, color: (danger ? "var(--danger)" : "var(--ink-2)") as string }}>{label}</Text></Pressable>;
+export function QuietButton({
+  label,
+  onPress,
+  testID,
+  disabled = false,
+  why,
+  danger = false,
+}: {
+  label: string;
+  onPress: () => void;
+  testID: string;
+  disabled?: boolean;
+  why?: string;
+  danger?: boolean;
+}): ReactElement {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      {...(disabled && why ? { accessibilityHint: why } : {})}
+      testID={testID}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ hovered }: { hovered?: boolean }) =>
+        ({
+          height: 28,
+          paddingHorizontal: 10,
+          borderRadius: 7,
+          justifyContent: "center",
+          backgroundColor: hovered ? "var(--hover)" : "transparent",
+          opacity: disabled ? 0.45 : 1,
+        }) as never
+      }
+    >
+      <Text style={{ fontSize: 12.5, color: (danger ? "var(--danger)" : "var(--ink-2)") as string }}>{label}</Text>
+    </Pressable>
+  );
 }
 /** A help sentence as a quiet info mark with the sentence in its tooltip. */
 export function Help({ children }: { children: string }): ReactElement | null {
@@ -117,92 +332,418 @@ export function Help({ children }: { children: string }): ReactElement | null {
     if (!register || inGroup) return undefined;
     setMoved(true);
     const off = register(children);
-    return () => { off(); setMoved(false); };
+    return () => {
+      off();
+      setMoved(false);
+    };
   }, [register, inGroup, children]);
-  if (inGroup) return <View style={{ position: "absolute", top: 6, right: 8, zIndex: 1 }}><Info help={children} /></View>;
+  if (inGroup)
+    return (
+      <View style={{ position: "absolute", top: 6, right: 8, zIndex: 1 }}>
+        <Info help={children} />
+      </View>
+    );
   return moved ? null : <Info help={children} />;
 }
-export function Actions({ children }: { children: ReactNode }): ReactElement { return <View style={s.actions}>{children}</View>; }
+export function Actions({ children }: { children: ReactNode }): ReactElement {
+  return <View style={s.actions}>{children}</View>;
+}
 /** A note under a form or list. When it is a failure sentence (errorSentence), a quiet Details shows its code and trace id with Copy; they are never part of the sentence. */
 export function Note({ children, testID }: { children: ReactNode; testID?: string }): ReactElement {
   const [open, setOpen] = useState(false);
   const d = detailsOf(children);
-  return <View><Text accessibilityRole="status" {...(testID ? { testID } : {})} style={s.note}>{children}</Text>
-    {d ? <View testID="note-details" style={{ marginTop: 2 }}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Details" accessibilityState={{ expanded: open }} testID="note-details-toggle" onPress={() => setOpen(!open)} style={{ alignSelf: "flex-start", paddingVertical: 2 }}><Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{open ? "Hide details" : "Details"}</Text></Pressable>
-      {open ? <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}><Text testID="note-details-text" selectable style={{ fontSize: 11.5, color: "var(--ink-3)" as string, fontFamily: "var(--mono, monospace)" as string }}>{detailsText(d)}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Copy details" testID="note-details-copy" onPress={() => { void (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard?.writeText(detailsText(d)); }}><Text style={{ fontSize: 12, color: "var(--ink-2)" as string }}>Copy</Text></Pressable></View> : null}
-    </View> : null}</View>;
+  return (
+    <View>
+      <Text accessibilityRole="status" {...(testID ? { testID } : {})} style={s.note}>
+        {children}
+      </Text>
+      {d ? (
+        <View testID="note-details" style={{ marginTop: 2 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Details"
+            accessibilityState={{ expanded: open }}
+            testID="note-details-toggle"
+            onPress={() => setOpen(!open)}
+            style={{ alignSelf: "flex-start", paddingVertical: 2 }}
+          >
+            <Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{open ? "Hide details" : "Details"}</Text>
+          </Pressable>
+          {open ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <Text
+                testID="note-details-text"
+                selectable
+                style={{
+                  fontSize: 11.5,
+                  color: "var(--ink-3)" as string,
+                  fontFamily: "var(--mono, monospace)" as string,
+                }}
+              >
+                {detailsText(d)}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Copy details"
+                testID="note-details-copy"
+                onPress={() => {
+                  void (
+                    globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }
+                  ).navigator?.clipboard?.writeText(detailsText(d));
+                }}
+              >
+                <Text style={{ fontSize: 12, color: "var(--ink-2)" as string }}>Copy</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
 }
-export function ReadState({ error, retry }: { error?: string | undefined; retry: () => void }): ReactElement { return error ? <States kind="error" message={error} retryable onRetry={retry} /> : <Text accessibilityRole="progressbar">Loading…</Text>; }
+export function ReadState({ error, retry }: { error?: string | undefined; retry: () => void }): ReactElement {
+  return error ? (
+    <States kind="error" message={error} retryable onRetry={retry} />
+  ) : (
+    <Text accessibilityRole="progressbar">Loading…</Text>
+  );
+}
 /** `loading`: the options come from a read that has not arrived; the open list says Loading and fills in place when they do, and never reads as empty. */
-export function Select({label,value,options,onChange,disabled=false,hint,testID,loading=false}:{loading?:boolean;testID?:string;label:string;value:string;options:readonly {key:string;title:string}[];onChange(value:string):void;disabled?:boolean;hint?:string}):ReactElement{
- const menu=useMenu();const rows=choiceRows(options.map((item)=>({label:item.title,checked:item.key===value,onSelect:()=>onChange(item.key)})),loading);useLiveRows(menu.update,rows);return <View style={s.field}><Text style={s.label}>{label}</Text><Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} disabled={disabled} style={s.button} onPress={(event)=>{const rect=(event.currentTarget as unknown as {getBoundingClientRect?():{left:number;bottom:number}})?.getBoundingClientRect?.();menu.show(rows,rect?.left??20,rect?.bottom??100,'other');}}><View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:8}}><Text style={[s.buttonText,{flexShrink:1}]} numberOfLines={1}>{options.find((item)=>item.key===value)?.title??(value||'Choose…')}</Text><Glyph name="chevD" size={11} color="var(--ink-3)"/></View></Pressable>{hint ? <Text style={{ fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string }}>{hint}</Text> : null}{menu.element}</View>;
+export function Select({
+  label,
+  value,
+  options,
+  onChange,
+  disabled = false,
+  hint,
+  testID,
+  loading = false,
+}: {
+  loading?: boolean;
+  testID?: string;
+  label: string;
+  value: string;
+  options: readonly { key: string; title: string }[];
+  onChange(value: string): void;
+  disabled?: boolean;
+  hint?: string;
+}): ReactElement {
+  const menu = useMenu();
+  const rows = choiceRows(
+    options.map((item) => ({ label: item.title, checked: item.key === value, onSelect: () => onChange(item.key) })),
+    loading,
+  );
+  useLiveRows(menu.update, rows);
+  return (
+    <View style={s.field}>
+      <Text style={s.label}>{label}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        testID={testID}
+        disabled={disabled}
+        style={s.button}
+        onPress={(event) => {
+          const rect = (
+            event.currentTarget as unknown as { getBoundingClientRect?(): { left: number; bottom: number } }
+          )?.getBoundingClientRect?.();
+          menu.show(rows, rect?.left ?? 20, rect?.bottom ?? 100, "other");
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <Text style={[s.buttonText, { flexShrink: 1 }]} numberOfLines={1}>
+            {options.find((item) => item.key === value)?.title ?? (value || "Choose…")}
+          </Text>
+          <Glyph name="chevD" size={11} color="var(--ink-3)" />
+        </View>
+      </Pressable>
+      {hint ? <Text style={{ fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string }}>{hint}</Text> : null}
+      {menu.element}
+    </View>
+  );
 }
 /** A whole number you nudge with - and +, with its explanation as a tooltip. */
-export function Stepper({ label, value, onChange, min = 1, max = 999, help }: { label: string; value: number; onChange: (value: number) => void; min?: number; max?: number; help?: string }): ReactElement {
+export function Stepper({
+  label,
+  value,
+  onChange,
+  min = 1,
+  max = 999,
+  help,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  min?: number;
+  max?: number;
+  help?: string;
+}): ReactElement {
   const step = (by: number): void => onChange(Math.min(max, Math.max(min, value + by)));
   const btn = (text: string, by: number, off: boolean) => (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${by < 0 ? "Fewer" : "More"} ${label}`} disabled={off} onPress={() => step(by)} testID={`step-${by < 0 ? "down" : "up"}`} style={[s.button, { width: 32, alignItems: "center", opacity: off ? 0.4 : 1 }]}><Text style={s.buttonText}>{text}</Text></Pressable>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${by < 0 ? "Fewer" : "More"} ${label}`}
+      disabled={off}
+      onPress={() => step(by)}
+      testID={`step-${by < 0 ? "down" : "up"}`}
+      style={[s.button, { width: 32, alignItems: "center", opacity: off ? 0.4 : 1 }]}
+    >
+      <Text style={s.buttonText}>{text}</Text>
+    </Pressable>
   );
   return (
     <Tip help={help}>
       <View style={[s.field, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
         <Text style={s.label}>{label}</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>{btn("-", -1, value <= min)}<Text testID="step-value" style={{ minWidth: 28, textAlign: "center", fontSize: 14, color: "var(--ink)" as string }}>{value}</Text>{btn("+", 1, value >= max)}</View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {btn("-", -1, value <= min)}
+          <Text
+            testID="step-value"
+            style={{ minWidth: 28, textAlign: "center", fontSize: 14, color: "var(--ink)" as string }}
+          >
+            {value}
+          </Text>
+          {btn("+", 1, value >= max)}
+        </View>
       </View>
     </Tip>
   );
 }
 /** The props of a pick list row you tap: a face, a name, a check when chosen. Spread into a Row; never a Select button per row. */
-export function pickRow({ id, title, note, face, picked, disabled = false, onPress }: { id: string; title: string; note?: string | undefined; face?: ReactNode; picked: boolean; disabled?: boolean; onPress: () => void }) {
-  return { id, title, ...(note ? { note } : {}), ...(face ? { leading: <Lead>{face}</Lead> } : {}), selected: picked, onPress: () => { if (!disabled) onPress(); }, trailing: picked ? <Glyph name="check" size={14} color="var(--accent)" /> : null };
+export function pickRow({
+  id,
+  title,
+  note,
+  face,
+  picked,
+  disabled = false,
+  onPress,
+}: {
+  id: string;
+  title: string;
+  note?: string | undefined;
+  face?: ReactNode;
+  picked: boolean;
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  return {
+    id,
+    title,
+    ...(note ? { note } : {}),
+    ...(face ? { leading: <Lead>{face}</Lead> } : {}),
+    selected: picked,
+    onPress: () => {
+      if (!disabled) onPress();
+    },
+    trailing: picked ? <Glyph name="check" size={14} color="var(--accent)" /> : null,
+  };
 }
 /** A row of views on one page ("Server logs", "Services", "Storage"): the open one is filled, the others are quiet. */
-export function Segmented({ options, value, onChange }: { options: readonly { key: string; title: string }[]; value: string; onChange: (key: string) => void }): ReactElement {
+export function Segmented({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly { key: string; title: string }[];
+  value: string;
+  onChange: (key: string) => void;
+}): ReactElement {
   return (
     <View accessibilityRole="tablist" style={{ flexDirection: "row", gap: 4, marginBottom: 12 }}>
       {/* ui-rows-lint: not a list (the views of one page, drawn as tabs) */}
       {options.map((o) => (
-        <Pressable key={o.key} accessibilityRole="tab" accessibilityState={{ selected: o.key === value }} testID={`seg-${o.key}`} onPress={() => onChange(o.key)} style={{ height: 30, paddingHorizontal: 12, borderRadius: 7, justifyContent: "center", backgroundColor: (o.key === value ? "var(--sel)" : "transparent") as string }}>
-          <Text style={{ fontSize: 13, fontWeight: o.key === value ? "600" : "400", color: (o.key === value ? "var(--ink)" : "var(--ink-3)") as string }}>{o.title}</Text>
+        <Pressable
+          key={o.key}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: o.key === value }}
+          testID={`seg-${o.key}`}
+          onPress={() => onChange(o.key)}
+          style={{
+            height: 30,
+            paddingHorizontal: 12,
+            borderRadius: 7,
+            justifyContent: "center",
+            backgroundColor: (o.key === value ? "var(--sel)" : "transparent") as string,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 13,
+              fontWeight: o.key === value ? "600" : "400",
+              color: (o.key === value ? "var(--ink)" : "var(--ink-3)") as string,
+            }}
+          >
+            {o.title}
+          </Text>
         </Pressable>
       ))}
     </View>
   );
 }
 /** The button in a section header that opens a create sheet ("New agent"). Create forms are never open on the page. */
-export function NewButton({ label, onPress, testID }: { label: string; onPress: () => void; testID?: string }): ReactElement {
+export function NewButton({
+  label,
+  onPress,
+  testID,
+}: {
+  label: string;
+  onPress: () => void;
+  testID?: string;
+}): ReactElement {
   return <Button label={label} onPress={onPress} {...(testID ? { testID } : {})} />;
 }
 /** A create sheet on the shared Dialog: the fields, one quiet line saying what is missing, Cancel and the one primary action. */
-export function FormSheet({ title, onClose, onSubmit, submit = "Create", disabled = false, why, note, children, testID }: { title: string; onClose: () => void; onSubmit: () => void; submit?: string; disabled?: boolean; why?: string | undefined; note?: string; children: ReactNode; testID?: string }): ReactElement {
+export function FormSheet({
+  title,
+  onClose,
+  onSubmit,
+  submit = "Create",
+  disabled = false,
+  why,
+  note,
+  children,
+  testID,
+}: {
+  title: string;
+  onClose: () => void;
+  onSubmit: () => void;
+  submit?: string;
+  disabled?: boolean;
+  why?: string | undefined;
+  note?: string;
+  children: ReactNode;
+  testID?: string;
+}): ReactElement {
   return (
-    <Dialog title={title} onClose={onClose} width={480} {...(testID ? { testID } : {})} actions={[{ label: "Cancel", onPress: onClose, testID: "sheet-cancel" }, { label: submit, primary: true, disabled, ...(why ? { why } : {}), onPress: onSubmit, testID: "sheet-submit" }]}>
+    <Dialog
+      title={title}
+      onClose={onClose}
+      width={480}
+      {...(testID ? { testID } : {})}
+      actions={[
+        { label: "Cancel", onPress: onClose, testID: "sheet-cancel" },
+        { label: submit, primary: true, disabled, ...(why ? { why } : {}), onPress: onSubmit, testID: "sheet-submit" },
+      ]}
+    >
       {children}
       {note ? <Info help={note} testID="sheet-help" /> : null}
     </Dialog>
   );
 }
 /** The model list as a picker: every model the Space can run, by its title, and Default when none is chosen. A model that is set but no longer listed still shows. */
-export function ModelSelect({ label, value, onChange, none = "Default" }: { label: string; value: string; onChange: (value: string) => void; none?: string }): ReactElement {
+export function ModelSelect({
+  label,
+  value,
+  onChange,
+  none = "Default",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  none?: string;
+}): ReactElement {
   const list = useRead<CapMap["engine.models.list"]["out"]>("engine.models.list");
   const models = list.data?.models ?? [];
-  const options = [{ key: "", title: none }, ...models.filter((m) => m.allowed || m.model === value).map((m) => ({ key: m.model, title: `${m.title} · ${m.provider}` }))];
+  const options = [
+    { key: "", title: none },
+    ...models
+      .filter((m) => m.allowed || m.model === value)
+      .map((m) => ({ key: m.model, title: `${m.title} · ${m.provider}` })),
+  ];
   if (value && !options.some((o) => o.key === value)) options.push({ key: value, title: value });
   return <Select label={label} value={value} options={options} onChange={onChange} />;
 }
-export function useFileDownload(){
- const {call}=useConsoleData();const urls=useRef<string[]>([]);const [url,setUrl]=useState(''),[name,setName]=useState('');
- useEffect(()=>()=>{for(const item of urls.current)URL.revokeObjectURL(item);},[]);
- const read=async(fileId:string):Promise<void>=>{
-  const metadata=await call('files.get',{fileId}) as {file:{name:string;size:number}};if(metadata.file.size>256*1024*1024)throw new Error('This download exceeds the browser limit.');setName(metadata.file.name);
-  const chunks:Uint8Array<ArrayBuffer>[]=[];let offset=0,mime='application/octet-stream';
-  for(;;){const file=await call('files.read',{fileId,as:'base64',offset,length:1024*1024}) as {base64?:string;mime:string;size:number;truncated:boolean};if(file.size!==metadata.file.size||file.base64===undefined)throw new Error('The export changed or is unavailable. Request it again.');mime=file.mime;const binary=globalThis.atob(file.base64),bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));chunks.push(bytes);offset+=bytes.length;if(!file.truncated)break;if(!bytes.length||offset>=metadata.file.size)throw new Error('The server returned an incomplete export.');}
-  if(offset!==metadata.file.size)throw new Error('The export did not finish downloading.');const next=URL.createObjectURL(new Blob(chunks,{type:mime}));urls.current.push(next);setUrl(next);
- };
- return {url,name,read};
+export function useFileDownload() {
+  const { call } = useConsoleData();
+  const urls = useRef<string[]>([]);
+  const [url, setUrl] = useState(""),
+    [name, setName] = useState("");
+  useEffect(
+    () => () => {
+      for (const item of urls.current) URL.revokeObjectURL(item);
+    },
+    [],
+  );
+  const read = async (fileId: string): Promise<void> => {
+    const metadata = (await call("files.get", { fileId })) as { file: { name: string; size: number } };
+    if (metadata.file.size > 256 * 1024 * 1024) throw new Error("This download exceeds the browser limit.");
+    setName(metadata.file.name);
+    const chunks: Uint8Array<ArrayBuffer>[] = [];
+    let offset = 0,
+      mime = "application/octet-stream";
+    for (;;) {
+      const file = (await call("files.read", { fileId, as: "base64", offset, length: 1024 * 1024 })) as {
+        base64?: string;
+        mime: string;
+        size: number;
+        truncated: boolean;
+      };
+      if (file.size !== metadata.file.size || file.base64 === undefined)
+        throw new Error("The export changed or is unavailable. Request it again.");
+      mime = file.mime;
+      const binary = globalThis.atob(file.base64),
+        bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+      chunks.push(bytes);
+      offset += bytes.length;
+      if (!file.truncated) break;
+      if (!bytes.length || offset >= metadata.file.size) throw new Error("The server returned an incomplete export.");
+    }
+    if (offset !== metadata.file.size) throw new Error("The export did not finish downloading.");
+    const next = URL.createObjectURL(new Blob(chunks, { type: mime }));
+    urls.current.push(next);
+    setUrl(next);
+  };
+  return { url, name, read };
 }
-export function Download({url,label='Download file',name}:{url:string;label?:string;name?:string}):ReactElement{return safeDownload(url)?createElement('a',{href:url,download:name??true,target:'_blank',rel:'noopener noreferrer',style:{color:'var(--accent)',fontSize:13}},label):<Note>The server did not provide a valid download address.</Note>;}
+export function Download({
+  url,
+  label = "Download file",
+  name,
+}: {
+  url: string;
+  label?: string;
+  name?: string;
+}): ReactElement {
+  return safeDownload(url) ? (
+    createElement(
+      "a",
+      {
+        href: url,
+        download: name ?? true,
+        target: "_blank",
+        rel: "noopener noreferrer",
+        style: { color: "var(--accent)", fontSize: 13 },
+      },
+      label,
+    )
+  ) : (
+    <Note>The server did not provide a valid download address.</Note>
+  );
+}
 export const attempt = (): string => globalThis.crypto.randomUUID();
-const s = StyleSheet.create({ field: { gap: 6, marginVertical: 2, maxWidth: 520 }, label: { fontSize: 12, color: "var(--ink-3)" as string }, input: { height: 34, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 6, paddingHorizontal: 10, color: "var(--ink)" as string, backgroundColor: "var(--win)" as string }, actions: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginVertical: 10 }, button: { paddingHorizontal: 12, height: 32, justifyContent: "center", borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 6, backgroundColor: "var(--raised)" as string }, buttonText: { color: "var(--ink)" as string, fontSize: 13 }, note: { fontSize: 13, color: "var(--ink-2)" as string, marginVertical: 8 } });
+const s = StyleSheet.create({
+  field: { gap: 6, marginVertical: 2, maxWidth: 520 },
+  label: { fontSize: 12, color: "var(--ink-3)" as string },
+  input: {
+    height: 34,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    color: "var(--ink)" as string,
+    backgroundColor: "var(--win)" as string,
+  },
+  actions: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginVertical: 10 },
+  button: {
+    paddingHorizontal: 12,
+    height: 32,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    borderRadius: 6,
+    backgroundColor: "var(--raised)" as string,
+  },
+  buttonText: { color: "var(--ink)" as string, fontSize: 13 },
+  note: { fontSize: 13, color: "var(--ink-2)" as string, marginVertical: 8 },
+});

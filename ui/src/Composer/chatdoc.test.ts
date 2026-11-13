@@ -15,7 +15,9 @@ const DRAFT = [
   "I will draft the cover note tonight.",
   "@Sol keep an eye on the filing portal over the weekend.",
   "Thanks all.",
-  "", "One more line after a gap.", "The end.",
+  "",
+  "One more line after a gap.",
+  "The end.",
 ].join("\n");
 const NAMES = ["Aliza", "Rubab", "Sol"];
 
@@ -23,7 +25,10 @@ test("a draft with 3 mentions over 10 lines becomes one paragraph with three chi
   const ranges = tokenRanges(DRAFT, [], NAMES);
   const d = chatDoc(DRAFT, ranges);
   schema.nodeFromJSON(d).check();
-  assert.deepEqual((d.content![0]!.content ?? []).filter((n) => n.type === "chip").map((n) => n.attrs!["label"]), ["@Aliza", "@Rubab", "@Sol"]);
+  assert.deepEqual(
+    (d.content![0]!.content ?? []).filter((n) => n.type === "chip").map((n) => n.attrs!["label"]),
+    ["@Aliza", "@Rubab", "@Sol"],
+  );
   assert.equal(chatText(d), DRAFT);
   assert.equal(chatText(chatDoc("", [])), "");
   assert.equal(chatText(chatDoc("a\n\nb", [])), "a\n\nb", "empty lines stay");
@@ -48,13 +53,21 @@ test("the field leaves a document alone when it already holds the same words and
   const text = "hi @Aliza";
   const ranges = tokenRanges(text, [], NAMES);
   assert.ok(sameDoc(chatDoc(text, ranges), chatDoc(text, ranges)));
-  assert.ok(!sameDoc(chatDoc(text, ranges), chatDoc(text, [])), "a mention that is a chip and one that is plain text differ");
+  assert.ok(
+    !sameDoc(chatDoc(text, ranges), chatDoc(text, [])),
+    "a mention that is a chip and one that is plain text differ",
+  );
   assert.ok(!sameDoc(chatDoc("a", []), chatDoc("b", [])));
 });
 
 test("a paste is plain text: lines become hard breaks, no marks", () => {
   assert.deepEqual(pasteNodes("one\r\ntwo\n\nthree"), [
-    { type: "text", text: "one" }, { type: "hardBreak" }, { type: "text", text: "two" }, { type: "hardBreak" }, { type: "hardBreak" }, { type: "text", text: "three" },
+    { type: "text", text: "one" },
+    { type: "hardBreak" },
+    { type: "text", text: "two" },
+    { type: "hardBreak" },
+    { type: "hardBreak" },
+    { type: "text", text: "three" },
   ]);
   assert.deepEqual(pasteNodes(""), []);
 });
@@ -64,5 +77,8 @@ test("a mention that stops being one (a letter typed after it) is plain text aga
   const now = tokenRanges("@Alizan", [], NAMES);
   assert.equal(was.length, 1);
   assert.equal(now.length, 0);
-  assert.deepEqual((chatDoc("@Alizan", now).content![0]!.content ?? []).map((n) => n.type), ["text"]);
+  assert.deepEqual(
+    (chatDoc("@Alizan", now).content![0]!.content ?? []).map((n) => n.type),
+    ["text"],
+  );
 });

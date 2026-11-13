@@ -13,13 +13,28 @@ import { configureSpaceAdmin, extraHandlers } from "../handlers/extra/index.ts";
 import type { ExtraCtx } from "../handlers/extra/index.ts";
 
 interface RegCap {
-  name: string; module: string; v: number; input: JsonSchema; output: JsonSchema; emits: string[];
+  name: string;
+  module: string;
+  v: number;
+  input: JsonSchema;
+  output: JsonSchema;
+  emits: string[];
   examples: { name: string; input: unknown; output: unknown }[];
 }
-interface RegEvent { name: string; module: string; payload: JsonSchema }
-interface Registry { $defs: Record<string, JsonSchema>; capabilities: RegCap[]; events: RegEvent[] }
+interface RegEvent {
+  name: string;
+  module: string;
+  payload: JsonSchema;
+}
+interface Registry {
+  $defs: Record<string, JsonSchema>;
+  capabilities: RegCap[];
+  events: RegEvent[];
+}
 
-const registry = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as Registry;
+const registry = JSON.parse(
+  readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8"),
+) as Registry;
 const defs = registry.$defs;
 const mine = Object.keys(extraHandlers);
 const caps = registry.capabilities.filter((c) => c.module === "spaces" && mine.includes(c.name));
@@ -41,7 +56,10 @@ async function populated(cap: string): Promise<World> {
   if (cap === "spaces.delete_cancel" || cap === "spaces.delete_due") {
     await run("spaces.delete", w.ctx, { confirmName: "example", withoutExport: true });
     w.events.length = 0;
-    if (cap === "spaces.delete_due") { w.setNow(NOW + 15 * 86_400_000); w.asService(); }
+    if (cap === "spaces.delete_due") {
+      w.setNow(NOW + 15 * 86_400_000);
+      w.asService();
+    }
   }
   return w;
 }
@@ -83,7 +101,8 @@ for (const cap of caps) {
   test(`${name}: every declared event is emitted by the handler that declares it`, async () => {
     const w = await populated(cap.name);
     // the example asks for the relay the Space already uses, which changes nothing and so announces nothing; the event needs a real move
-    const input = cap.name === "spaces.switch_address" ? { mode: "own_domain", host: "team.example.com" } : cap.examples[0]!.input;
+    const input =
+      cap.name === "spaces.switch_address" ? { mode: "own_domain", host: "team.example.com" } : cap.examples[0]!.input;
     await run(cap.name, w.ctx, input);
     assert.deepEqual([...new Set(w.events.map((e) => e.name))].sort(), [...cap.emits].sort());
   });

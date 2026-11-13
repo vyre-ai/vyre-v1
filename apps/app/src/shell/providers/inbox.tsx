@@ -38,8 +38,20 @@ import type { ShellRuntime } from "./runtime.tsx";
 export { inboxData } from "./inbox-data.ts";
 
 /** The optional global phone shares Inbox's already-lazy production chunk. */
-export function InboxPhoneShell({ device, data, children }: { device: PhoneDeviceLike; data: InboxData; children: ReactNode }): ReactElement {
-  return <InboxDataProvider value={data}><InboxPhoneDock device={device}>{children}</InboxPhoneDock></InboxDataProvider>;
+export function InboxPhoneShell({
+  device,
+  data,
+  children,
+}: {
+  device: PhoneDeviceLike;
+  data: InboxData;
+  children: ReactNode;
+}): ReactElement {
+  return (
+    <InboxDataProvider value={data}>
+      <InboxPhoneDock device={device}>{children}</InboxPhoneDock>
+    </InboxDataProvider>
+  );
 }
 
 export { CallTitlePill as InboxCallTitlePill };
@@ -49,29 +61,62 @@ export const SIDEBAR_W = 264;
 export function InboxLoading(): ReactElement {
   return (
     <View testID="inbox-place-loading" accessibilityLabel="Loading" style={st.row}>
-      <View style={st.side}><SidebarLoading /></View>
-      <View style={st.main}><ListLoading /></View>
+      <View style={st.side}>
+        <SidebarLoading />
+      </View>
+      <View style={st.main}>
+        <ListLoading />
+      </View>
     </View>
   );
 }
 
 /** The people the Calendar can shade as busy and add to an event: the Space's people. calendar.availability takes a member id where it takes an address, so the id is what the menu keys on. */
-export function calendarTeam(people: readonly { id: string; name: string; kind: string }[]): { email: string; name: string }[] {
+export function calendarTeam(
+  people: readonly { id: string; name: string; kind: string }[],
+): { email: string; name: string }[] {
   return people.filter((p) => p.kind === "person").map((p) => ({ email: p.id, name: p.name }));
 }
 
 /** The person's open tasks for the Call tab ("Open tasks"). */
 function useOpenTasks(rt: ShellRuntime): readonly OpenTask[] {
-  const q = useMemo(() => capLive<{ tasks: Array<{ title: string; due?: number }> }>(rt, "tasks.list", { scope: "mine", states: ["todo", "doing"], limit: 5 }), [rt]);
+  const q = useMemo(
+    () =>
+      capLive<{ tasks: Array<{ title: string; due?: number }> }>(rt, "tasks.list", {
+        scope: "mine",
+        states: ["todo", "doing"],
+        limit: 5,
+      }),
+    [rt],
+  );
   const s = useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
-  return useMemo(() => (s.status === "ready" ? s.data.tasks.map((t) => ({ title: t.title, ...(t.due ? { due: new Date(t.due).toLocaleDateString(undefined, { weekday: "short" }) } : {}) })) : []), [s]);
+  return useMemo(
+    () =>
+      s.status === "ready"
+        ? s.data.tasks.map((t) => ({
+            title: t.title,
+            ...(t.due ? { due: new Date(t.due).toLocaleDateString(undefined, { weekday: "short" }) } : {}),
+          }))
+        : [],
+    [s],
+  );
 }
 
 function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; close: () => void }): ReactElement {
   // Ask in a conversation opens the Ask pane beside it, about the contact (one Ask per contact, the same one Records continues) or, before it is matched, the conversation
   const askInbox = (contactId?: string, about?: { conversationId: string; title: string }): void => {
-    const thing = contactId ? { kind: "record", id: contactId, ...(about?.title ? { title: about.title } : {}) } : about && about.conversationId !== "" ? { kind: "conversation", id: about.conversationId, ...(about.title ? { title: about.title } : {}) } : null;
-    openAskPane({ thing, context: { actions: ["summarise the conversation", "draft a reply for the person to send", "find the record"] } }, "inbox");
+    const thing = contactId
+      ? { kind: "record", id: contactId, ...(about?.title ? { title: about.title } : {}) }
+      : about && about.conversationId !== ""
+        ? { kind: "conversation", id: about.conversationId, ...(about.title ? { title: about.title } : {}) }
+        : null;
+    openAskPane(
+      {
+        thing,
+        context: { actions: ["summarise the conversation", "draft a reply for the person to send", "find the record"] },
+      },
+      "inbox",
+    );
   };
   const missing = useMissing(rt.screens, "inbox.contact-tab", "thread", openId ? { conversationId: openId } : null);
   const { state, dispatch } = useInboxState();
@@ -80,54 +125,128 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
   const team = useMemo(() => calendarTeam(people.status === "ready" ? people.data : []), [people]);
   const tasks = useOpenTasks(rt);
   // a link to a meeting (subject meeting, or the Meetings screen) opens the Meetings tab, with that meeting's close-out when it names one
-  const meetingHash = target.subject?.type === "meeting" ? target.subject.id : target.screen === "meetings.closeout" ? (target.args["meetingId"] ?? "") : null;
-  useEffect(() => { if (meetingHash !== null && state.main !== "meetings") dispatch({ type: "meetings" }); }, [meetingHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the tab
+  const meetingHash =
+    target.subject?.type === "meeting"
+      ? target.subject.id
+      : target.screen === "meetings.closeout"
+        ? (target.args["meetingId"] ?? "")
+        : null;
+  useEffect(() => {
+    if (meetingHash !== null && state.main !== "meetings") dispatch({ type: "meetings" });
+  }, [meetingHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the tab
   // a link to the Replies list (the old Threads page redirects here) opens it
   const repliesHash = target.screen === "inbox.replies";
-  useEffect(() => { if (repliesHash && state.main !== "replies") dispatch({ type: "replies" }); }, [repliesHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
+  useEffect(() => {
+    if (repliesHash && state.main !== "replies") dispatch({ type: "replies" });
+  }, [repliesHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
   // a link to an event (vyre://event/<id>, Copy Link in the event pane) opens the Calendar with that event in its pane
   const eventHash = target.subject?.type === "event" ? target.subject.id : null;
-  useEffect(() => { if (eventHash !== null && state.main !== "calendar") dispatch({ type: "calendar" }); }, [eventHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
+  useEffect(() => {
+    if (eventHash !== null && state.main !== "calendar") dispatch({ type: "calendar" });
+  }, [eventHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
   // Choosing another inbox, view, filter or the Calendar in the sidebar leaves the open conversation and shows the list again.
   const first = useRef(true);
   useEffect(() => {
-    if (first.current) { first.current = false; return; }
+    if (first.current) {
+      first.current = false;
+      return;
+    }
     close();
-    if (target.screen === "inbox.unmatched" || (state.main !== "meetings" && meetingHash !== null) || (state.main !== "calendar" && eventHash !== null)) opened({});
+    if (
+      target.screen === "inbox.unmatched" ||
+      (state.main !== "meetings" && meetingHash !== null) ||
+      (state.main !== "calendar" && eventHash !== null)
+    )
+      opened({});
   }, [state.scope, state.view, state.main, state.channels, state.inboxes, state.needsMatch]); // eslint-disable-line react-hooks/exhaustive-deps -- close and the hash are read when the sidebar changes, not the other way round
   // the connect choice is for an Inbox with nothing connected: once a channel can send (the person came back from the connect flow) the list takes over
   const canSend = useCanSend();
-  useEffect(() => { if (state.main === "connect" && canSend === true) dispatch({ type: "scope", scope: { kind: "all" } }); }, [state.main, canSend]); // eslint-disable-line react-hooks/exhaustive-deps -- dispatch is stable
+  useEffect(() => {
+    if (state.main === "connect" && canSend === true) dispatch({ type: "scope", scope: { kind: "all" } });
+  }, [state.main, canSend]); // eslint-disable-line react-hooks/exhaustive-deps -- dispatch is stable
   if (state.main === "connect") return <ConnectChannel />;
   if (state.main === "calendar") {
     return (
       <Calendar
-        me={rt.me.id} team={team} {...(eventHash ? { initial: { openId: eventHash } } : {})}
-        onOpenEvent={(id) => { if (id !== eventHash) opened({ subject: { type: "event", id } }); }} onCloseEvent={() => { if (eventHash) opened({}); }}
-        onOpenRecord={(id) => rt.open({ subject: { type: "record", id } })} onOpenFile={(id) => rt.open({ subject: { type: "file", id } })}
-        onOpenConversation={(contactId) => { dispatch({ type: "scope", scope: { kind: "all" } }); opened({ args: { contactId } }); }}
-        onJoin={(url) => rt.openUrl(url)} onOpenUrl={(url) => rt.openUrl(url)}
-        onOpenMeeting={(id) => { dispatch({ type: "meetings" }); opened({ subject: { type: "meeting", id } }); }}
-        onAsk={(e) => { openAskPane({ thing: { kind: "event", id: e.id, title: e.title }, context: { actions: ["who is coming and what they want", "what was agreed last time", "draft an agenda", "move or reschedule it"] } }, "inbox"); }}
+        me={rt.me.id}
+        team={team}
+        {...(eventHash ? { initial: { openId: eventHash } } : {})}
+        onOpenEvent={(id) => {
+          if (id !== eventHash) opened({ subject: { type: "event", id } });
+        }}
+        onCloseEvent={() => {
+          if (eventHash) opened({});
+        }}
+        onOpenRecord={(id) => rt.open({ subject: { type: "record", id } })}
+        onOpenFile={(id) => rt.open({ subject: { type: "file", id } })}
+        onOpenConversation={(contactId) => {
+          dispatch({ type: "scope", scope: { kind: "all" } });
+          opened({ args: { contactId } });
+        }}
+        onJoin={(url) => rt.openUrl(url)}
+        onOpenUrl={(url) => rt.openUrl(url)}
+        onOpenMeeting={(id) => {
+          dispatch({ type: "meetings" });
+          opened({ subject: { type: "meeting", id } });
+        }}
+        onAsk={(e) => {
+          openAskPane(
+            {
+              thing: { kind: "event", id: e.id, title: e.title },
+              context: {
+                actions: [
+                  "who is coming and what they want",
+                  "what was agreed last time",
+                  "draft an agenda",
+                  "move or reschedule it",
+                ],
+              },
+            },
+            "inbox",
+          );
+        }}
       />
     );
   }
   if (state.main === "replies") {
-    return <RepliesPage rt={rt} nameOf={(id) => (id === rt.me.id ? rt.me.name : (people.status === "ready" ? people.data.find((p) => p.id === id)?.name : undefined) ?? "Someone")} openChat={(t, how) => {
-      const chat = t.parentThreadId ?? t.threadId;
-      if (how === "chat") rt.open({ screen: "chats.conversation", args: { threadId: chat } });
-      else rt.open({ screen: "chats.conversation", args: { threadId: chat, side: t.threadId, ...(t.parentMessageId ? { m: t.parentMessageId } : {}) } });
-    }} />;
+    return (
+      <RepliesPage
+        rt={rt}
+        nameOf={(id) =>
+          id === rt.me.id
+            ? rt.me.name
+            : ((people.status === "ready" ? people.data.find((p) => p.id === id)?.name : undefined) ?? "Someone")
+        }
+        openChat={(t, how) => {
+          const chat = t.parentThreadId ?? t.threadId;
+          if (how === "chat") rt.open({ screen: "chats.conversation", args: { threadId: chat } });
+          else
+            rt.open({
+              screen: "chats.conversation",
+              args: { threadId: chat, side: t.threadId, ...(t.parentMessageId ? { m: t.parentMessageId } : {}) },
+            });
+        }}
+      />
+    );
   }
   if (state.main === "meetings") {
-    const persons = people.status === "ready" ? people.data.filter((p) => p.kind === "person").map((p) => ({ id: p.id, name: p.name })) : [];
+    const persons =
+      people.status === "ready"
+        ? people.data.filter((p) => p.kind === "person").map((p) => ({ id: p.id, name: p.name }))
+        : [];
     return (
       <MeetingsTab
-        openId={meetingHash || null} team={persons} nameOf={(id) => (id === rt.me.id ? rt.me.name : persons.find((p) => p.id === id)?.name ?? "Someone")}
-        onOpen={(id) => opened({ subject: { type: "meeting", id } })} onBack={() => opened({})}
+        openId={meetingHash || null}
+        team={persons}
+        nameOf={(id) => (id === rt.me.id ? rt.me.name : (persons.find((p) => p.id === id)?.name ?? "Someone"))}
+        onOpen={(id) => opened({ subject: { type: "meeting", id } })}
+        onBack={() => opened({})}
         nav={{
           openSubject: (sub) => rt.open({ subject: sub }),
-          openContact: (contactId) => { dispatch({ type: "scope", scope: { kind: "all" } }); opened({ args: { contactId } }); },
+          openContact: (contactId) => {
+            dispatch({ type: "scope", scope: { kind: "all" } });
+            opened({ args: { contactId } });
+          },
           openCalendar: () => dispatch({ type: "calendar" }),
         }}
       />
@@ -137,34 +256,85 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
   if (target.screen === "inbox.unmatched" && !openId) {
     return (
       <InboxUnmatched
-        onShowAll={() => { dispatch({ type: "showAll" }); opened({}); }}
+        onShowAll={() => {
+          dispatch({ type: "showAll" });
+          opened({});
+        }}
         onSearchRecords={(who) => rt.open({ screen: "shell.cmdk", args: { q: who.displayName || who.address } })}
       />
     );
   }
   // "Ask for these" from a record: the person's conversation opens by contact (it may not exist yet) with the message drafted
   const askContact = !openId ? target.args["contactId"] : undefined;
-  if (askContact) return <CallConversation key={`ask:${target.args["ask"] ?? askContact}`} conversationId="" contactId={askContact} {...(getAsk(target.args["ask"]) ? { ask: getAsk(target.args["ask"])! } : {})} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={askInbox} />;
+  if (askContact)
+    return (
+      <CallConversation
+        key={`ask:${target.args["ask"] ?? askContact}`}
+        conversationId=""
+        contactId={askContact}
+        {...(getAsk(target.args["ask"]) ? { ask: getAsk(target.args["ask"])! } : {})}
+        tasks={tasks}
+        onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })}
+        onAsk={askInbox}
+      />
+    );
   if (openId && missing) return <NotFound what="conversation" />;
   // the conversation with the call bar and, after a call, the ended strip when the phone is on this contact
-  if (openId) return <CallConversation key={openId} conversationId={openId} {...(target.args["threadId"] ? { threadId: target.args["threadId"] } : {})} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={askInbox} />;
+  if (openId)
+    return (
+      <CallConversation
+        key={openId}
+        conversationId={openId}
+        {...(target.args["threadId"] ? { threadId: target.args["threadId"] } : {})}
+        tasks={tasks}
+        onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })}
+        onAsk={askInbox}
+      />
+    );
   return <ContactList />;
 }
 
 /** The sidebar and the middle side by side; on a phone one at a time: the list of inboxes first, then what a row opened, with a way back. */
-function InboxFrame({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; close: () => void }): ReactElement {
+function InboxFrame({
+  rt,
+  openId,
+  close,
+}: {
+  rt: ShellRuntime;
+  openId: string | null;
+  close: () => void;
+}): ReactElement {
   const winW = useWindowDimensions().width;
   const phone = isPhoneWidth(winW);
   const { state } = useInboxState();
   const { target } = usePlaceHash();
   const [entered, setEntered] = useState(false);
   const first = useRef(true);
-  useEffect(() => { if (first.current) { first.current = false; return; } setEntered(true); }, [state.scope, state.view, state.main]);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    setEntered(true);
+  }, [state.scope, state.view, state.main]);
   if (!phone) {
     return (
       <View testID="inbox-place" style={st.row}>
-        <ResizableColumn paneKey="place-sidebar" defaultWidth={SIDEBAR_DEFAULT} grow="right" min={200} maxFraction={0.5} maxWidth={380} style={st.sideCol} testID="inbox-sidebar-col"><InboxSidebar /></ResizableColumn>
-        <View style={st.main}><Main rt={rt} openId={openId} close={close} /></View>
+        <ResizableColumn
+          paneKey="place-sidebar"
+          defaultWidth={SIDEBAR_DEFAULT}
+          grow="right"
+          min={200}
+          maxFraction={0.5}
+          maxWidth={380}
+          style={st.sideCol}
+          testID="inbox-sidebar-col"
+        >
+          <InboxSidebar />
+        </ResizableColumn>
+        <View style={st.main}>
+          <Main rt={rt} openId={openId} close={close} />
+        </View>
       </View>
     );
   }
@@ -174,10 +344,37 @@ function InboxFrame({ rt, openId, close }: { rt: ShellRuntime; openId: string | 
       {inMain ? (
         <View style={st.main}>
           {/* an open conversation carries the Back in its own contact header (one header); the list behind a view keeps the chip */}
-          {openId ? null : <Pressable accessibilityRole="button" testID="phone-back-to-inboxes" onPress={() => { setEntered(false); close(); }} style={st.backChip}><Text style={st.backText}>{"\u2039 Inbox"}</Text></Pressable>}
-          <MobileBackContext.Provider value={openId ? () => { setEntered(false); close(); } : null}><Main rt={rt} openId={openId} close={close} /></MobileBackContext.Provider>
+          {openId ? null : (
+            <Pressable
+              accessibilityRole="button"
+              testID="phone-back-to-inboxes"
+              onPress={() => {
+                setEntered(false);
+                close();
+              }}
+              style={st.backChip}
+            >
+              <Text style={st.backText}>{"\u2039 Inbox"}</Text>
+            </Pressable>
+          )}
+          <MobileBackContext.Provider
+            value={
+              openId
+                ? () => {
+                    setEntered(false);
+                    close();
+                  }
+                : null
+            }
+          >
+            <Main rt={rt} openId={openId} close={close} />
+          </MobileBackContext.Provider>
         </View>
-      ) : <View style={st.main}><InboxSidebar /></View>}
+      ) : (
+        <View style={st.main}>
+          <InboxSidebar />
+        </View>
+      )}
     </View>
   );
 }
@@ -187,12 +384,25 @@ function InboxView({ rt }: { rt: ShellRuntime }): ReactElement {
   const hashed = useOpenedId(["conversation", "call"], ["conversationId"]);
   const [picked, setOpenId] = useState<string | null>(null);
   const openId = picked ?? hashed;
-  const data = useMemo(() => inboxData(rt, (id) => { setOpenId(id); opened({ subject: { type: "conversation", id } }); }), [rt, opened]);
+  const data = useMemo(
+    () =>
+      inboxData(rt, (id) => {
+        setOpenId(id);
+        opened({ subject: { type: "conversation", id } });
+      }),
+    [rt, opened],
+  );
   const has = useInboxSources(rt.screens, rt.me.id);
   const { target } = usePlaceHash();
   // nothing flows in and no item was asked for: the connect screen, not an empty Inbox (an item from a link or an agent still opens)
   if (has === false && !openId && !target.args["contactId"] && target.screen !== "inbox.unmatched") {
-    return <InboxDataProvider value={data}><View testID="inbox-place" style={st.row}><ConnectChannel /></View></InboxDataProvider>;
+    return (
+      <InboxDataProvider value={data}>
+        <View testID="inbox-place" style={st.row}>
+          <ConnectChannel />
+        </View>
+      </InboxDataProvider>
+    );
   }
   return (
     <InboxDataProvider value={data}>

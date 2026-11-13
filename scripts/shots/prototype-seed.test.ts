@@ -7,7 +7,10 @@ import fs from "node:fs";
 import { OUT, runSeed } from "./gen-prototype-seed.mjs";
 
 const committed = (): ReturnType<typeof runSeed> => {
-  assert.ok(fs.existsSync(OUT), `run node scripts/shots/gen-prototype-seed.mjs --write (the CI regen job does) to write ${OUT}`);
+  assert.ok(
+    fs.existsSync(OUT),
+    `run node scripts/shots/gen-prototype-seed.mjs --write (the CI regen job does) to write ${OUT}`,
+  );
   return JSON.parse(fs.readFileSync(OUT, "utf8"));
 };
 
@@ -34,7 +37,8 @@ test("the Files tree of each Space has its home folder and its sidebar roots, an
 
 test("the Records tables include the synced and site tables the sidebar shows", () => {
   const ty = committed()["nw"]!.records.TY;
-  for (const id of ["clients", "projects", "invoices", "meetings", "tasks", "hscontacts", "hsdeals"]) assert.ok(ty[id], id);
+  for (const id of ["clients", "projects", "invoices", "meetings", "tasks", "hscontacts", "hsdeals"])
+    assert.ok(ty[id], id);
   assert.equal(ty["clients"]!.rows?.length, 1240);
   assert.equal(ty["hscontacts"]!.n, "HubSpot Contacts");
 });

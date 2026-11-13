@@ -63,7 +63,12 @@ export function triggersFrom(out: unknown): TriggerOffer[] {
 }
 
 /** Each kept action is a new connector_request. An existing node is never rewritten. */
-export function placeSteps(def: Definition, items: readonly { action: string }[], account: AccountOption, startId: string | null): { def: Definition; nodeIds: string[] } | { error: string } {
+export function placeSteps(
+  def: Definition,
+  items: readonly { action: string }[],
+  account: AccountOption,
+  startId: string | null,
+): { def: Definition; nodeIds: string[] } | { error: string } {
   if (items.length === 0) return { error: NO_STEP };
   if (account.id.length === 0) return { error: NEED_CONNECTION };
   const actions = items.map((item) => item.action).filter(keptAction);

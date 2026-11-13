@@ -5,7 +5,15 @@ import { useCallback, useEffect, useState } from "react";
 import { Text, View, useWindowDimensions } from "react-native";
 import { BlockViewB, redactSecretInput } from "../../../ui/src/blocks/impl-b/index.tsx";
 import type { BlockHostB } from "../../../ui/src/blocks/impl-b/index.tsx";
-import { SAMPLE_ACCESS_REQUEST, SAMPLE_DIFF_CARD, SAMPLE_HELPER, SAMPLE_MEMORY, SAMPLE_MODEL_SWITCH, SAMPLE_SECRET_INPUT, SAMPLE_VAULT_USED } from "../../../ui/src/blocks/impl-b/sample.ts";
+import {
+  SAMPLE_ACCESS_REQUEST,
+  SAMPLE_DIFF_CARD,
+  SAMPLE_HELPER,
+  SAMPLE_MEMORY,
+  SAMPLE_MODEL_SWITCH,
+  SAMPLE_SECRET_INPUT,
+  SAMPLE_VAULT_USED,
+} from "../../../ui/src/blocks/impl-b/sample.ts";
 import type { Block } from "../../../ui/src/kit/types.ts";
 
 export const title = "Chat blocks, part 2";
@@ -19,12 +27,32 @@ interface Turn {
 
 const PARTS: Record<string, Turn[]> = {
   a: [
-    { who: "Intake", at: "9:42", text: "Plan approved. I checked the form fields first, and I will remember the slot she prefers.", blocks: [SAMPLE_MODEL_SWITCH, SAMPLE_VAULT_USED, SAMPLE_MEMORY] },
-    { who: "Intake", at: "9:44", text: "A helper is checking the bounce list while I draft the letter.", blocks: [SAMPLE_HELPER] },
+    {
+      who: "Intake",
+      at: "9:42",
+      text: "Plan approved. I checked the form fields first, and I will remember the slot she prefers.",
+      blocks: [SAMPLE_MODEL_SWITCH, SAMPLE_VAULT_USED, SAMPLE_MEMORY],
+    },
+    {
+      who: "Intake",
+      at: "9:44",
+      text: "A helper is checking the bounce list while I draft the letter.",
+      blocks: [SAMPLE_HELPER],
+    },
   ],
   b: [
-    { who: "Intake", at: "9:48", text: "I need the Lawmatics key to book the consult. Paste it here; it goes to the Vault and not into this chat.", blocks: [SAMPLE_SECRET_INPUT] },
-    { who: "Intake", at: "9:50", text: "Maya asked for access to Clients, and I have a role change ready for the Paralegals.", blocks: [SAMPLE_ACCESS_REQUEST, SAMPLE_DIFF_CARD] },
+    {
+      who: "Intake",
+      at: "9:48",
+      text: "I need the Lawmatics key to book the consult. Paste it here; it goes to the Vault and not into this chat.",
+      blocks: [SAMPLE_SECRET_INPUT],
+    },
+    {
+      who: "Intake",
+      at: "9:50",
+      text: "Maya asked for access to Clients, and I have a role change ready for the Paralegals.",
+      blocks: [SAMPLE_ACCESS_REQUEST, SAMPLE_DIFF_CARD],
+    },
   ],
 };
 
@@ -42,7 +70,8 @@ export default function Mount() {
   const host: BlockHostB = {
     viewerId: "usr_z9y8x7",
     nameOf: (id) => (id === "usr_a1b2c3" ? "Maya" : id === "agt_a1b2c3" ? "Intake" : undefined),
-    invoke: (cap, input) => note(`${cap} ${JSON.stringify(cap === "vault.item.put" ? redactSecretInput(input) : input)}`),
+    invoke: (cap, input) =>
+      note(`${cap} ${JSON.stringify(cap === "vault.item.put" ? redactSecretInput(input) : input)}`),
     open: (tab, input) => note(`open ${tab} ${JSON.stringify(input)}`),
   };
   // The query is read after mount (rule 25), so the first paint matches on server and client.
@@ -67,7 +96,9 @@ export default function Mount() {
         {log.length > 0 ? (
           <View testID="host-log" style={{ marginTop: 8 }}>
             {log.map((l, i) => (
-              <Text key={i} numberOfLines={1} style={{ color: "var(--ink-3)", fontSize: 11.5 }}>{l}</Text>
+              <Text key={i} numberOfLines={1} style={{ color: "var(--ink-3)", fontSize: 11.5 }}>
+                {l}
+              </Text>
             ))}
           </View>
         ) : null}

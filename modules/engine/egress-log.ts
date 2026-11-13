@@ -6,7 +6,8 @@ import type { Db } from "./projections.ts";
 
 export const EGRESS_SETTING = "engine.egress";
 
-const TABLE = "CREATE TABLE IF NOT EXISTS engine_egress (thread_id TEXT NOT NULL, person TEXT NOT NULL, host TEXT NOT NULL, port INTEGER NOT NULL, verdict TEXT NOT NULL, reason TEXT NOT NULL, at INTEGER NOT NULL)";
+const TABLE =
+  "CREATE TABLE IF NOT EXISTS engine_egress (thread_id TEXT NOT NULL, person TEXT NOT NULL, host TEXT NOT NULL, port INTEGER NOT NULL, verdict TEXT NOT NULL, reason TEXT NOT NULL, at INTEGER NOT NULL)";
 const INDEX = "CREATE INDEX IF NOT EXISTS engine_egress_thread ON engine_egress (thread_id, person, at)";
 const ready = new WeakSet<object>();
 function ensure(db: Db): void {
@@ -32,27 +33,66 @@ export const REFUSAL_WORDS: Readonly<Record<EgressEvent["reason"], string>> = {
 type Call = (cap: string, input: unknown, as?: string) => Promise<unknown>;
 
 /** Keep one sampled report, and write a refusal to the audit log for the person the engine acted for. An audit failure is logged by the caller's sink and never stops the engine. */
-export function recordEgress(db: Db, call: Call, where: { person: string; threadId: string }, e: EgressEvent, now: () => number = Date.now, log?: (msg: string, attrs?: Record<string, unknown>) => void): void {
+export function recordEgress(
+  db: Db,
+  call: Call,
+  where: { person: string; threadId: string },
+  e: EgressEvent,
+  now: () => number = Date.now,
+  log?: (msg: string, attrs?: Record<string, unknown>) => void,
+): void {
   ensure(db);
-  db.run("INSERT INTO engine_egress (thread_id, person, host, port, verdict, reason, at) VALUES (?, ?, ?, ?, ?, ?, ?)", where.threadId, where.person, e.host.slice(0, 253), e.port, e.verdict, e.reason, now());
+  db.run(
+    "INSERT INTO engine_egress (thread_id, person, host, port, verdict, reason, at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    where.threadId,
+    where.person,
+    e.host.slice(0, 253),
+    e.port,
+    e.verdict,
+    e.reason,
+    now(),
+  );
   // a host that did not answer was allowed by the policy: only a refusal by the policy (or the address checks) is a denial
   if (e.verdict !== "deny" || e.reason === "unreachable" || e.reason === "busy") return;
   void call("audit.append", {
-    action: "engine.egress_denied", class: "deny", resource: { type: "thread", id: where.threadId }, onBehalfOf: { kind: "person", id: where.person },
+    action: "engine.egress_denied",
+    class: "deny",
+    resource: { type: "thread", id: where.threadId },
+    onBehalfOf: { kind: "person", id: where.person },
     detail: { host: e.host.slice(0, 253), port: e.port, reason: e.reason, why: REFUSAL_WORDS[e.reason] },
-  }).catch((err: unknown) => log?.("engine egress audit failed", { code: String((err as { code?: unknown } | null)?.code ?? "") }));
+  }).catch((err: unknown) =>
+    log?.("engine egress audit failed", { code: String((err as { code?: unknown } | null)?.code ?? "") }),
+  );
 }
 
 /** What a turn reached and what it was refused: the sampled reports of its person and thread while it ran. Hosts reached are distinct and in the order first seen, at most 20. */
-export function egressOfTurn(db: Db, t: { threadId: string; person: string; from: number; to: number }): { reached: string[]; refused: Array<{ host: string; port: number; reason: EgressEvent["reason"] }> } {
+export function egressOfTurn(
+  db: Db,
+  t: { threadId: string; person: string; from: number; to: number },
+): { reached: string[]; refused: Array<{ host: string; port: number; reason: EgressEvent["reason"] }> } {
   ensure(db);
-  const rows = db.all("SELECT host, port, verdict, reason FROM engine_egress WHERE thread_id = ? AND person = ? AND at >= ? AND at <= ? ORDER BY at ASC LIMIT 400", t.threadId, t.person, t.from, t.to) as Array<{ host: string; port: number; verdict: string; reason: string }>;
+  const rows = db.all(
+    "SELECT host, port, verdict, reason FROM engine_egress WHERE thread_id = ? AND person = ? AND at >= ? AND at <= ? ORDER BY at ASC LIMIT 400",
+    t.threadId,
+    t.person,
+    t.from,
+    t.to,
+  ) as Array<{ host: string; port: number; verdict: string; reason: string }>;
   const reached: string[] = [];
   const refused: Array<{ host: string; port: number; reason: EgressEvent["reason"] }> = [];
   const denied = new Set<string>();
   for (const r of rows) {
-    if (r.verdict === "allow") { if (!reached.includes(r.host) && reached.length < 20) reached.push(r.host); }
-    else if (r.reason !== "unreachable" && r.reason !== "busy" && !denied.has(`${r.host}:${r.port}`) && refused.length < 20) { denied.add(`${r.host}:${r.port}`); refused.push({ host: r.host, port: r.port, reason: r.reason as EgressEvent["reason"] }); }
+    if (r.verdict === "allow") {
+      if (!reached.includes(r.host) && reached.length < 20) reached.push(r.host);
+    } else if (
+      r.reason !== "unreachable" &&
+      r.reason !== "busy" &&
+      !denied.has(`${r.host}:${r.port}`) &&
+      refused.length < 20
+    ) {
+      denied.add(`${r.host}:${r.port}`);
+      refused.push({ host: r.host, port: r.port, reason: r.reason as EgressEvent["reason"] });
+    }
   }
   return { reached, refused };
 }

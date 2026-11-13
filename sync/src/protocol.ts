@@ -22,7 +22,11 @@ export const DEVICE_CLASSES: readonly DeviceClass[] = Object.freeze(["desktop", 
 export type CapName = string;
 
 /** The error a rejected op carries (the full VyreError lives in contracts; sync needs only these). */
-export interface SyncError { code: string; message: string; details?: unknown }
+export interface SyncError {
+  code: string;
+  message: string;
+  details?: unknown;
+}
 
 // ---- handshake (5.2) ----
 
@@ -39,19 +43,58 @@ export interface Hello {
 /** `update_required` makes the client read-only; `resync` drops the replica and takes a snapshot; `purge` is revocation (5.7). */
 export type Mode = "live" | "update_required" | "resync" | "purge";
 export const MODES: readonly Mode[] = Object.freeze(["live", "update_required", "resync", "purge"] as const);
-export interface HelloOk { serverVersion: string; epoch: number; serverHlc: string; mode: Mode; head: number; entityVersions: Record<string, number> }
+export interface HelloOk {
+  serverVersion: string;
+  epoch: number;
+  serverHlc: string;
+  mode: Mode;
+  head: number;
+  entityVersions: Record<string, number>;
+}
 
 // ---- pull (5.3) ----
 
-export interface PullReq { cursor: number; epoch: number; limit?: number; entities?: string[] }
+export interface PullReq {
+  cursor: number;
+  epoch: number;
+  limit?: number;
+  entities?: string[];
+}
 /** `v` is ciphertext when `enc` is set. */
-export interface FieldVal { v: unknown; hlc: string; actor: string; enc?: { key: string; nonce: string } }
+export interface FieldVal {
+  v: unknown;
+  hlc: string;
+  actor: string;
+  enc?: { key: string; nonce: string };
+}
 export type ChangeOp = "upsert" | "patch" | "delete";
-export interface Change { seq: number; entity: string; id: string; op: ChangeOp; fields: Record<string, FieldVal>; trace?: string }
+export interface Change {
+  seq: number;
+  entity: string;
+  id: string;
+  op: ChangeOp;
+  fields: Record<string, FieldVal>;
+  trace?: string;
+}
 /** A row left the person's view: delete locally, FTS and docs included. */
-export interface Hide { entity: string; id: string; seq: number }
-export interface ConflictNotice { id: string; entity: string; rowId: string; field: string; state: "open" | "resolved"; opId?: string }
-export interface RejectedOp { opId: string; error: SyncError; /** the values, so the person can copy them out */ copyOut: unknown }
+export interface Hide {
+  entity: string;
+  id: string;
+  seq: number;
+}
+export interface ConflictNotice {
+  id: string;
+  entity: string;
+  rowId: string;
+  field: string;
+  state: "open" | "resolved";
+  opId?: string;
+}
+export interface RejectedOp {
+  opId: string;
+  error: SyncError;
+  /** the values, so the person can copy them out */ copyOut: unknown;
+}
 export interface PullRes {
   epoch: number;
   changes: Change[];
@@ -86,7 +129,11 @@ export interface Op {
   after?: Record<string, string>;
   enc?: { key: string; nonce: string };
 }
-export interface PushReq { deviceId: string; epoch: number; ops: Op[] }
+export interface PushReq {
+  deviceId: string;
+  epoch: number;
+  ops: Op[];
+}
 export interface PushRes {
   applied: { opId: string; seq: number }[];
   rejected: RejectedOp[];
@@ -97,8 +144,14 @@ export interface PushRes {
 
 // ---- snapshots (5.8) ----
 
-export interface SnapshotBeginReq { entities: string[]; deviceClass: DeviceClass }
-export interface SnapshotBeginRes { asOfSeq: number; plan: { entity: string; estimatedRows: number }[] }
+export interface SnapshotBeginReq {
+  entities: string[];
+  deviceClass: DeviceClass;
+}
+export interface SnapshotBeginRes {
+  asOfSeq: number;
+  plan: { entity: string; estimatedRows: number }[];
+}
 
 // ---- live frames (5.9) ----
 
@@ -117,7 +170,22 @@ export type Frame =
   | { t: "op"; op: Op };
 export type FrameType = Frame["t"];
 export const FRAME_TYPES: readonly FrameType[] = Object.freeze([
-  "hello", "hello_ok", "hb", "ev", "ack", "pull_hint", "turn", "presence", "typing", "computer.frame", "ydoc.sync1", "ydoc.sync2", "ydoc.update", "ydoc.awareness", "purge", "op",
+  "hello",
+  "hello_ok",
+  "hb",
+  "ev",
+  "ack",
+  "pull_hint",
+  "turn",
+  "presence",
+  "typing",
+  "computer.frame",
+  "ydoc.sync1",
+  "ydoc.sync2",
+  "ydoc.update",
+  "ydoc.awareness",
+  "purge",
+  "op",
 ] as const);
 
 // ---- validation ----
@@ -129,7 +197,8 @@ const isStr = (v: unknown): v is string => typeof v === "string" && v.length > 0
 const isInt = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
 const isHlc = (v: unknown): v is string => typeof v === "string" && parseHlc(v) !== null;
 const isEnc = (v: unknown): v is { key: string; nonce: string } => isObj(v) && isStr(v["key"]) && isStr(v["nonce"]);
-const strList = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string" && x.length > 0);
+const strList = (v: unknown): v is string[] =>
+  Array.isArray(v) && v.every((x) => typeof x === "string" && x.length > 0);
 const intMap = (v: unknown): v is Record<string, number> => isObj(v) && Object.values(v).every(isInt);
 
 export function parseHello(x: unknown): Parsed<Hello> {
@@ -141,8 +210,20 @@ export function parseHello(x: unknown): Parsed<Hello> {
   if (!isInt(x["cursor"])) return fail("cursor is a whole number");
   if (!isInt(x["epoch"])) return fail("epoch is a whole number");
   const replica = x["replica"];
-  if (!isObj(replica) || !intMap(replica["entities"])) return fail("replica.entities maps entity names to schema versions");
-  return { ok: true, value: { deviceId: x["deviceId"], deviceClass: x["deviceClass"] as DeviceClass, appVersion: x["appVersion"], registryHash: x["registryHash"], cursor: x["cursor"], epoch: x["epoch"], replica: { entities: replica["entities"] } } };
+  if (!isObj(replica) || !intMap(replica["entities"]))
+    return fail("replica.entities maps entity names to schema versions");
+  return {
+    ok: true,
+    value: {
+      deviceId: x["deviceId"],
+      deviceClass: x["deviceClass"] as DeviceClass,
+      appVersion: x["appVersion"],
+      registryHash: x["registryHash"],
+      cursor: x["cursor"],
+      epoch: x["epoch"],
+      replica: { entities: replica["entities"] },
+    },
+  };
 }
 
 export function parseHelloOk(x: unknown): Parsed<HelloOk> {
@@ -153,7 +234,17 @@ export function parseHelloOk(x: unknown): Parsed<HelloOk> {
   if (!MODES.includes(x["mode"] as Mode)) return fail("mode is live, update_required, resync or purge");
   if (!isInt(x["head"])) return fail("head is a whole number");
   if (!intMap(x["entityVersions"])) return fail("entityVersions maps entity names to schema versions");
-  return { ok: true, value: { serverVersion: x["serverVersion"], epoch: x["epoch"], serverHlc: x["serverHlc"], mode: x["mode"] as Mode, head: x["head"], entityVersions: x["entityVersions"] } };
+  return {
+    ok: true,
+    value: {
+      serverVersion: x["serverVersion"],
+      epoch: x["epoch"],
+      serverHlc: x["serverHlc"],
+      mode: x["mode"] as Mode,
+      head: x["head"],
+      entityVersions: x["entityVersions"],
+    },
+  };
 }
 
 /** A pull request with its defaults applied: `limit` is DEFAULT_PULL_LIMIT when absent and may not exceed MAX_PULL_LIMIT. */
@@ -163,11 +254,20 @@ export function parsePullReq(x: unknown): Parsed<PullReq & { limit: number }> {
   if (!isInt(x["epoch"])) return fail("epoch is a whole number");
   let limit = DEFAULT_PULL_LIMIT;
   if (x["limit"] !== undefined) {
-    if (!isInt(x["limit"]) || x["limit"] < 1 || x["limit"] > MAX_PULL_LIMIT) return fail(`limit is 1 to ${MAX_PULL_LIMIT}`);
+    if (!isInt(x["limit"]) || x["limit"] < 1 || x["limit"] > MAX_PULL_LIMIT)
+      return fail(`limit is 1 to ${MAX_PULL_LIMIT}`);
     limit = x["limit"];
   }
   if (x["entities"] !== undefined && !strList(x["entities"])) return fail("entities is a list of entity names");
-  return { ok: true, value: { cursor: x["cursor"], epoch: x["epoch"], limit, ...(x["entities"] !== undefined ? { entities: x["entities"] as string[] } : {}) } };
+  return {
+    ok: true,
+    value: {
+      cursor: x["cursor"],
+      epoch: x["epoch"],
+      limit,
+      ...(x["entities"] !== undefined ? { entities: x["entities"] as string[] } : {}),
+    },
+  };
 }
 
 function parseFieldVal(x: unknown, where: string): string | null {
@@ -185,15 +285,35 @@ export function parseChange(x: unknown): Parsed<Change> {
   if (!isStr(x["entity"]) || !isStr(x["id"])) return fail("a change names its entity and id");
   if (x["op"] !== "upsert" && x["op"] !== "patch" && x["op"] !== "delete") return fail("op is upsert, patch or delete");
   if (!isObj(x["fields"])) return fail("fields is an object");
-  for (const [k, v] of Object.entries(x["fields"])) { const e = parseFieldVal(v, `fields.${k}`); if (e) return fail(e); }
+  for (const [k, v] of Object.entries(x["fields"])) {
+    const e = parseFieldVal(v, `fields.${k}`);
+    if (e) return fail(e);
+  }
   if (x["op"] === "delete" && Object.keys(x["fields"]).length) return fail("a delete carries no fields");
   if (x["trace"] !== undefined && !isStr(x["trace"])) return fail("trace is text");
   return { ok: true, value: x as unknown as Change };
 }
 
-const parseHide = (x: unknown): string | null => (isObj(x) && isStr(x["entity"]) && isStr(x["id"]) && isInt(x["seq"]) ? null : "a hide names entity, id and seq");
-const parseRejected = (x: unknown): string | null => (isObj(x) && isStr(x["opId"]) && isObj(x["error"]) && isStr(x["error"]["code"]) && typeof x["error"]["message"] === "string" && "copyOut" in x ? null : "a rejected op has opId, error and copyOut");
-const parseConflict = (x: unknown): string | null => (isObj(x) && isStr(x["id"]) && isStr(x["entity"]) && isStr(x["rowId"]) && isStr(x["field"]) && (x["state"] === "open" || x["state"] === "resolved") ? null : "a conflict notice has id, entity, rowId, field and state");
+const parseHide = (x: unknown): string | null =>
+  isObj(x) && isStr(x["entity"]) && isStr(x["id"]) && isInt(x["seq"]) ? null : "a hide names entity, id and seq";
+const parseRejected = (x: unknown): string | null =>
+  isObj(x) &&
+  isStr(x["opId"]) &&
+  isObj(x["error"]) &&
+  isStr(x["error"]["code"]) &&
+  typeof x["error"]["message"] === "string" &&
+  "copyOut" in x
+    ? null
+    : "a rejected op has opId, error and copyOut";
+const parseConflict = (x: unknown): string | null =>
+  isObj(x) &&
+  isStr(x["id"]) &&
+  isStr(x["entity"]) &&
+  isStr(x["rowId"]) &&
+  isStr(x["field"]) &&
+  (x["state"] === "open" || x["state"] === "resolved")
+    ? null
+    : "a conflict notice has id, entity, rowId, field and state";
 
 export function parsePullRes(x: unknown): Parsed<PullRes> {
   if (!isObj(x)) return fail("pull result is an object");
@@ -207,13 +327,28 @@ export function parsePullRes(x: unknown): Parsed<PullRes> {
     last = p.value.seq;
   }
   if (!Array.isArray(x["hide"])) return fail("hide is a list");
-  for (const h of x["hide"]) { const e = parseHide(h); if (e) return fail(e); }
+  for (const h of x["hide"]) {
+    const e = parseHide(h);
+    if (e) return fail(e);
+  }
   if (!isInt(x["next"])) return fail("next is a whole number");
   if (last > x["next"]) return fail("next is at least the seq of the last change returned");
   if (typeof x["more"] !== "boolean") return fail("more is true or false");
   if (!isHlc(x["serverHlc"])) return fail("serverHlc is an hlc");
-  if (x["conflicts"] !== undefined) { if (!Array.isArray(x["conflicts"])) return fail("conflicts is a list"); for (const c of x["conflicts"]) { const e = parseConflict(c); if (e) return fail(e); } }
-  if (x["rejected"] !== undefined) { if (!Array.isArray(x["rejected"])) return fail("rejected is a list"); for (const r of x["rejected"]) { const e = parseRejected(r); if (e) return fail(e); } }
+  if (x["conflicts"] !== undefined) {
+    if (!Array.isArray(x["conflicts"])) return fail("conflicts is a list");
+    for (const c of x["conflicts"]) {
+      const e = parseConflict(c);
+      if (e) return fail(e);
+    }
+  }
+  if (x["rejected"] !== undefined) {
+    if (!Array.isArray(x["rejected"])) return fail("rejected is a list");
+    for (const r of x["rejected"]) {
+      const e = parseRejected(r);
+      if (e) return fail(e);
+    }
+  }
   if (x["reset"] !== undefined && x["reset"] !== "purge") return fail("reset is purge");
   return { ok: true, value: x as unknown as PullRes };
 }
@@ -229,7 +364,8 @@ export function parseOp(x: unknown): Parsed<Op> {
   if (x["id"] !== undefined && !isStr(x["id"])) return fail("id is text");
   if (!("input" in x)) return fail("an op has an input");
   if (!intMap(x["baseSeq"])) return fail("baseSeq maps fields to seqs");
-  if (x["after"] !== undefined && !(isObj(x["after"]) && Object.values(x["after"]).every(isStr))) return fail("after maps fields to opIds");
+  if (x["after"] !== undefined && !(isObj(x["after"]) && Object.values(x["after"]).every(isStr)))
+    return fail("after maps fields to opIds");
   if (x["enc"] !== undefined && !isEnc(x["enc"])) return fail("enc is { key, nonce }");
   return { ok: true, value: x as unknown as Op };
 }
@@ -252,12 +388,20 @@ export function parsePushReq(x: unknown): Parsed<PushReq> {
 
 export function parsePushRes(x: unknown): Parsed<PushRes> {
   if (!isObj(x)) return fail("push result is an object");
-  if (!Array.isArray(x["applied"]) || !x["applied"].every((a) => isObj(a) && isStr(a["opId"]) && isInt(a["seq"]))) return fail("applied is a list of { opId, seq }");
+  if (!Array.isArray(x["applied"]) || !x["applied"].every((a) => isObj(a) && isStr(a["opId"]) && isInt(a["seq"])))
+    return fail("applied is a list of { opId, seq }");
   if (!Array.isArray(x["rejected"])) return fail("rejected is a list");
-  for (const r of x["rejected"]) { const e = parseRejected(r); if (e) return fail(e); }
+  for (const r of x["rejected"]) {
+    const e = parseRejected(r);
+    if (e) return fail(e);
+  }
   if (!Array.isArray(x["conflicts"])) return fail("conflicts is a list");
-  for (const c of x["conflicts"]) { const e = parseConflict(c); if (e) return fail(e); }
-  if (!Array.isArray(x["held"]) || !x["held"].every((h) => isObj(h) && isStr(h["opId"]) && isStr(h["taskId"]))) return fail("held is a list of { opId, taskId }");
+  for (const c of x["conflicts"]) {
+    const e = parseConflict(c);
+    if (e) return fail(e);
+  }
+  if (!Array.isArray(x["held"]) || !x["held"].every((h) => isObj(h) && isStr(h["opId"]) && isStr(h["taskId"])))
+    return fail("held is a list of { opId, taskId }");
   if (!isHlc(x["serverHlc"])) return fail("serverHlc is an hlc");
   return { ok: true, value: x as unknown as PushRes };
 }
@@ -268,20 +412,50 @@ export function parseFrame(x: unknown): Parsed<Frame> {
   const t = x["t"] as FrameType;
   if (!FRAME_TYPES.includes(t)) return fail(`unknown frame ${String(x["t"])}`);
   switch (t) {
-    case "hello": { const p = parseHello(x["hello"]); return p.ok ? { ok: true, value: { t, hello: p.value } } : p; }
-    case "hello_ok": { const p = parseHelloOk(x["ok"]); return p.ok ? { ok: true, value: { t, ok: p.value } } : p; }
-    case "hb": case "ack": case "pull_hint": return isInt(x["seq"]) ? { ok: true, value: { t, seq: x["seq"] } } : fail(`${t} carries seq`);
+    case "hello": {
+      const p = parseHello(x["hello"]);
+      return p.ok ? { ok: true, value: { t, hello: p.value } } : p;
+    }
+    case "hello_ok": {
+      const p = parseHelloOk(x["ok"]);
+      return p.ok ? { ok: true, value: { t, ok: p.value } } : p;
+    }
+    case "hb":
+    case "ack":
+    case "pull_hint":
+      return isInt(x["seq"]) ? { ok: true, value: { t, seq: x["seq"] } } : fail(`${t} carries seq`);
     case "ev": {
       if (!isInt(x["seq"]) || !Array.isArray(x["items"])) return fail("ev carries seq and items");
-      for (const c of x["items"]) { const p = parseChange(c); if (!p.ok) return fail(`ev items: ${p.error}`); }
-      if (x["hide"] !== undefined) { if (!Array.isArray(x["hide"])) return fail("hide is a list"); for (const h of x["hide"]) { const e = parseHide(h); if (e) return fail(e); } }
+      for (const c of x["items"]) {
+        const p = parseChange(c);
+        if (!p.ok) return fail(`ev items: ${p.error}`);
+      }
+      if (x["hide"] !== undefined) {
+        if (!Array.isArray(x["hide"])) return fail("hide is a list");
+        for (const h of x["hide"]) {
+          const e = parseHide(h);
+          if (e) return fail(e);
+        }
+      }
       return { ok: true, value: x as unknown as Frame };
     }
-    case "turn": return isStr(x["turn"]) ? { ok: true, value: x as unknown as Frame } : fail("turn names the turn");
-    case "presence": case "typing": case "computer.frame": return { ok: true, value: x as unknown as Frame };
-    case "ydoc.sync1": case "ydoc.sync2": case "ydoc.update": case "ydoc.awareness": return isStr(x["doc"]) ? { ok: true, value: x as unknown as Frame } : fail("ydoc frames name the doc");
-    case "purge": return isInt(x["epoch"]) ? { ok: true, value: { t, epoch: x["epoch"] } } : fail("purge carries the epoch");
-    case "op": { const p = parseOp(x["op"]); return p.ok ? { ok: true, value: { t, op: p.value } } : p; }
+    case "turn":
+      return isStr(x["turn"]) ? { ok: true, value: x as unknown as Frame } : fail("turn names the turn");
+    case "presence":
+    case "typing":
+    case "computer.frame":
+      return { ok: true, value: x as unknown as Frame };
+    case "ydoc.sync1":
+    case "ydoc.sync2":
+    case "ydoc.update":
+    case "ydoc.awareness":
+      return isStr(x["doc"]) ? { ok: true, value: x as unknown as Frame } : fail("ydoc frames name the doc");
+    case "purge":
+      return isInt(x["epoch"]) ? { ok: true, value: { t, epoch: x["epoch"] } } : fail("purge carries the epoch");
+    case "op": {
+      const p = parseOp(x["op"]);
+      return p.ok ? { ok: true, value: { t, op: p.value } } : p;
+    }
   }
 }
 
@@ -317,8 +491,18 @@ export function decideMode(hello: Hello, s: ServerState): HelloOk {
     const broken = new Set(s.breakingEntities ?? []);
     for (const [entity, v] of Object.entries(hello.replica.entities)) {
       const now = s.entityVersions[entity];
-      if (now === undefined || v > now || (v < now && broken.has(entity))) { mode = "resync"; break; }
+      if (now === undefined || v > now || (v < now && broken.has(entity))) {
+        mode = "resync";
+        break;
+      }
     }
   }
-  return { serverVersion: s.serverVersion, epoch: s.epoch, serverHlc: s.serverHlc, mode, head: s.head, entityVersions: s.entityVersions };
+  return {
+    serverVersion: s.serverVersion,
+    epoch: s.epoch,
+    serverHlc: s.serverHlc,
+    mode,
+    head: s.head,
+    entityVersions: s.entityVersions,
+  };
 }

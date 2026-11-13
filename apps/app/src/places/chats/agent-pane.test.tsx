@@ -15,11 +15,27 @@ import { TAB_EXTRA } from "./rightpane/model.ts";
 const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&amp;", "&");
 const pane = (o: { asleep?: boolean; width: number; tab?: "computer"; legacy?: boolean }): string => {
   const s = createMountSample(o.asleep ? { asleep: true } : {});
-  const go = createGo(s.rt, () => undefined, (id) => PEOPLE.find((p) => p.id === id)?.name ?? id, () => undefined);
+  const go = createGo(
+    s.rt,
+    () => undefined,
+    (id) => PEOPLE.find((p) => p.id === id)?.name ?? id,
+    () => undefined,
+  );
   const wired = wirePane(s.rt, go, "c1", { agentId: "agt_intake", name: "Intake", computerId: "cmp_intake" });
   // the single-computer tab is what a host without the workspace and Space browser draws: unbind both to see it
   const data = o.legacy ? { ...wired, workspace: undefined, browser: undefined } : wired;
-  return clean(renderToStaticMarkup(<AgentPane data={data} open onToggle={() => undefined} paneWidth={o.width} {...(o.tab ? { tab: o.tab } : {})} window={{ start: 0, end: 500 }} />));
+  return clean(
+    renderToStaticMarkup(
+      <AgentPane
+        data={data}
+        open
+        onToggle={() => undefined}
+        paneWidth={o.width}
+        {...(o.tab ? { tab: o.tab } : {})}
+        window={{ start: 0, end: 500 }}
+      />,
+    ),
+  );
 };
 
 test("the pane is the prototype's 340 px, its tabs are pinned (no close slot) and take less room than a main tab", () => {
@@ -53,10 +69,19 @@ test("a sleeping computer shows its dimmed frame (pressing it wakes it) and one 
 
 test("the pane's top row is the open item as a tab: the agent's face and name with a close x, above the agent's header and the tabs", () => {
   const out = pane({ width: AGENT_PANE_W });
-  assert.ok(out.includes('data-testid="tab-open-selected"') && out.includes('aria-label="Intake"'), "the open item as a tab");
+  assert.ok(
+    out.includes('data-testid="tab-open-selected"') && out.includes('aria-label="Intake"'),
+    "the open item as a tab",
+  );
   assert.ok(out.includes('data-testid="tab-close-open"'), "with its close x");
-  assert.ok(out.indexOf('data-testid="tab-open-selected"') < out.indexOf('data-testid="pane-agent"'), "above the agent's header");
-  assert.ok(out.indexOf('data-testid="pane-agent"') < out.indexOf('data-testid="tab-about-selected"'), "the tabs sit under the header");
+  assert.ok(
+    out.indexOf('data-testid="tab-open-selected"') < out.indexOf('data-testid="pane-agent"'),
+    "above the agent's header",
+  );
+  assert.ok(
+    out.indexOf('data-testid="pane-agent"') < out.indexOf('data-testid="tab-about-selected"'),
+    "the tabs sit under the header",
+  );
 });
 
 test("the folded tabs are a down chevron named More tabs, with no word beside it", () => {

@@ -9,7 +9,12 @@ import type { Screen } from "./x11.ts";
 
 const ID = /^rcd_[a-z0-9]+$/;
 
-export interface RecordResult { events: string; har: string; durationMs: number; bytes: number }
+export interface RecordResult {
+  events: string;
+  har: string;
+  durationMs: number;
+  bytes: number;
+}
 
 export interface Recorder {
   start(recordingId: string): void;
@@ -29,11 +34,41 @@ export function createRecorder(screen: Screen, filesRoot: string, fps: number): 
       const dir = join(filesRoot, "work", "recordings", id);
       mkdirSync(dir, { recursive: true });
       const file = join(dir, "video.mp4");
-      const proc = spawn("ffmpeg", [
-        "-loglevel", "error", "-y", "-f", "x11grab", "-framerate", String(fps), "-video_size", screen.size, "-draw_mouse", "1", "-i", screen.display,
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "30", "-pix_fmt", "yuv420p", "-g", String(fps * 2), "-movflags", "+frag_keyframe+empty_moov+default_base_moof", file,
-      ], { stdio: ["pipe", "ignore", "pipe"] });
-      proc.on("error", () => { if (cur?.proc === proc) cur = null; });
+      const proc = spawn(
+        "ffmpeg",
+        [
+          "-loglevel",
+          "error",
+          "-y",
+          "-f",
+          "x11grab",
+          "-framerate",
+          String(fps),
+          "-video_size",
+          screen.size,
+          "-draw_mouse",
+          "1",
+          "-i",
+          screen.display,
+          "-c:v",
+          "libx264",
+          "-preset",
+          "ultrafast",
+          "-crf",
+          "30",
+          "-pix_fmt",
+          "yuv420p",
+          "-g",
+          String(fps * 2),
+          "-movflags",
+          "+frag_keyframe+empty_moov+default_base_moof",
+          file,
+        ],
+        { stdio: ["pipe", "ignore", "pipe"] },
+      );
+      proc.on("error", () => {
+        if (cur?.proc === proc) cur = null;
+      });
       cur = { id, proc, startedAt: Date.now(), file, events: [] };
     },
     note(event) {
@@ -45,17 +80,41 @@ export function createRecorder(screen: Screen, filesRoot: string, fps: number): 
       const r = cur;
       cur = null;
       await new Promise<void>((resolve, reject) => {
-        const t = setTimeout(() => { r.proc.kill("SIGKILL"); resolve(); }, 10_000);
-        const nudge = setTimeout(() => r.proc.kill("SIGINT"), 4_000);   // ffmpeg finishes the file on SIGINT when "q" was not read
-        r.proc.once("exit", () => { clearTimeout(t); clearTimeout(nudge); resolve(); });
-        r.proc.once("error", (e) => { clearTimeout(t); reject(unavailable(`the recorder failed: ${e.message}`)); });
+        const t = setTimeout(() => {
+          r.proc.kill("SIGKILL");
+          resolve();
+        }, 10_000);
+        const nudge = setTimeout(() => r.proc.kill("SIGINT"), 4_000); // ffmpeg finishes the file on SIGINT when "q" was not read
+        r.proc.once("exit", () => {
+          clearTimeout(t);
+          clearTimeout(nudge);
+          resolve();
+        });
+        r.proc.once("error", (e) => {
+          clearTimeout(t);
+          reject(unavailable(`the recorder failed: ${e.message}`));
+        });
         // "q" is how ffmpeg is asked to finish a file cleanly.
-        try { r.proc.stdin!.write("q"); r.proc.stdin!.end(); } catch { r.proc.kill("SIGINT"); }
+        try {
+          r.proc.stdin!.write("q");
+          r.proc.stdin!.end();
+        } catch {
+          r.proc.kill("SIGINT");
+        }
       });
       let bytes = 0;
-      try { bytes = statSync(r.file).size; } catch { /* nothing was written */ }
+      try {
+        bytes = statSync(r.file).size;
+      } catch {
+        /* nothing was written */
+      }
       const har = { log: { version: "1.2", creator: { name: "agentd", version: "1.0" }, entries: [] as unknown[] } };
-      return { events: r.events.length > 0 ? r.events.join("\n") + "\n" : "", har: JSON.stringify(har), durationMs: Date.now() - r.startedAt, bytes };
+      return {
+        events: r.events.length > 0 ? r.events.join("\n") + "\n" : "",
+        har: JSON.stringify(har),
+        durationMs: Date.now() - r.startedAt,
+        bytes,
+      };
     },
   };
 }

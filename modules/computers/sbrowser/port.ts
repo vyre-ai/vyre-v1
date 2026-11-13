@@ -28,7 +28,11 @@ export interface ProfileRow {
 }
 
 /** A finished download in a profile's folder inside the browser service, not yet in the agent's Files. */
-export interface DownloadRow { name: string; size: number; at: number }
+export interface DownloadRow {
+  name: string;
+  size: number;
+  at: number;
+}
 
 export interface BrowserToolCall {
   profileId: string;
@@ -73,7 +77,10 @@ export interface SpaceBrowser {
   giveBack(profileId: string, o?: { before?: number }): Promise<void>;
   screenshot(profileId: string): Promise<{ bytes: Uint8Array; width: number; height: number }>;
   /** Where the live view of a profile is served from, for a ticket the viewer presents. `ws` is browserd's own WebSocket address on the machine that runs it, for the host's relay, never for a viewer. */
-  stream(a: { profileId: string; personId?: string }): Promise<{ transport: "mjpeg"; url: string; ws?: string; width?: number; height?: number }>;
+  stream(a: {
+    profileId: string;
+    personId?: string;
+  }): Promise<{ transport: "mjpeg"; url: string; ws?: string; width?: number; height?: number }>;
   /** Replace the profile's Chrome data with a tar whose root entry is the folder `chrome` (the old computer's Chrome user-data). The profile's browser is stopped first. */
   importChrome(profileId: string, tar: Uint8Array): Promise<{ bytes: number }>;
   /** The sites the profile holds cookies for (starts its browser when it is asleep). */
@@ -101,5 +108,7 @@ export interface SpaceBrowser {
 
 let bound: SpaceBrowser | null = null;
 /** The host binds the Space browser here; unbound, the chrome_* tools keep using the agent's own computer (or the person's Chrome). */
-export function bindSpaceBrowser(b: SpaceBrowser | null): void { bound = b; }
+export function bindSpaceBrowser(b: SpaceBrowser | null): void {
+  bound = b;
+}
 export const spaceBrowser = (): SpaceBrowser | null => bound;

@@ -53,13 +53,19 @@ function bannerFor(mode: DeviceMode, appVersion: string, serverVersion: string |
     const behind = serverVersion ? minorsBehind(appVersion, serverVersion) : 0;
     return {
       title: "Update required",
-      body: behind > 0 && Number.isFinite(behind)
-        ? "This app is several versions behind your Space. You can read everything. Update to make changes."
-        : "This app is too old for your Space. You can read everything. Update to make changes.",
+      body:
+        behind > 0 && Number.isFinite(behind)
+          ? "This app is several versions behind your Space. You can read everything. Update to make changes."
+          : "This app is too old for your Space. You can read everything. Update to make changes.",
       action: "Update",
     };
   }
-  if (mode === "resync_failed") return { title: "Could not refresh", body: "Your Space data could not be refreshed. Your changes are safe on this device.", action: "Try again" };
+  if (mode === "resync_failed")
+    return {
+      title: "Could not refresh",
+      body: "Your Space data could not be refreshed. Your changes are safe on this device.",
+      action: "Try again",
+    };
   return null;
 }
 
@@ -68,7 +74,12 @@ export function createModeMachine(o: ModeMachineOpts): ModeMachine {
   let running: Promise<ModeState> | null = null;
 
   const set = (mode: DeviceMode, serverVersion: string | null): ModeState => {
-    cur = { mode, readOnly: mode === "update_required", serverVersion, banner: bannerFor(mode, o.appVersion, serverVersion) };
+    cur = {
+      mode,
+      readOnly: mode === "update_required",
+      serverVersion,
+      banner: bannerFor(mode, o.appVersion, serverVersion),
+    };
     o.onChange?.(cur);
     return cur;
   };
@@ -110,4 +121,3 @@ export function createModeMachine(o: ModeMachineOpts): ModeMachine {
     },
   };
 }
-

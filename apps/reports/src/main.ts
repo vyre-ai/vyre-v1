@@ -18,29 +18,45 @@ async function signingKey(dataDir: string): Promise<SigningKey> {
   try {
     const j = JSON.parse(await readFile(path, "utf8")) as { pkcs8?: unknown };
     if (typeof j.pkcs8 === "string") return await loadSigningKey(fromBase64url(j.pkcs8));
-  } catch { /* none yet */ }
+  } catch {
+    /* none yet */
+  }
   const key = await generateSigningKey();
   await mkdir(dataDir, { recursive: true });
   await writeFile(path, JSON.stringify({ pkcs8: base64url(key.pkcs8) }), { mode: 0o600 });
   return key;
 }
 
-export interface Running { port: number; close(): Promise<void>; retry(): Promise<number> }
+export interface Running {
+  port: number;
+  close(): Promise<void>;
+  retry(): Promise<number>;
+}
 
-export async function start(env: Record<string, string | undefined>, o: { outbound?: HttpLike; retryMs?: number } = {}): Promise<Running> {
+export async function start(
+  env: Record<string, string | undefined>,
+  o: { outbound?: HttpLike; retryMs?: number } = {},
+): Promise<Running> {
   const s = loadConfig(env);
   const outbound: HttpLike = o.outbound ?? (globalThis.fetch.bind(globalThis) as unknown as HttpLike);
   const service = createService(s.config, {
     db: await FileDb.open(join(s.dataDir, "reports.json")),
     objects: new DirObjectStore(join(s.dataDir, "objects")),
-    outbound, now: Date.now, random: (n) => globalThis.crypto.getRandomValues(new Uint8Array(n)), key: await signingKey(s.dataDir),
+    outbound,
+    now: Date.now,
+    random: (n) => globalThis.crypto.getRandomValues(new Uint8Array(n)),
+    key: await signingKey(s.dataDir),
   });
   const server = createServer((req, res) => {
     const chunks: Uint8Array[] = [];
-    let size = 0, tooBig = false;
+    let size = 0,
+      tooBig = false;
     req.on("data", (c: Uint8Array) => {
       size += c.length;
-      if (size > MAX_BODY) { tooBig = true; return; }
+      if (size > MAX_BODY) {
+        tooBig = true;
+        return;
+      }
       chunks.push(c);
     });
     req.on("end", () => {
@@ -50,25 +66,54 @@ export async function start(env: Record<string, string | undefined>, o: { outbou
       const forwarded = s.trustProxy ? (headers["x-forwarded-for"] ?? "").split(",")[0]?.trim() : "";
       const body = new Uint8Array(size > MAX_BODY ? 0 : size);
       let at = 0;
-      for (const c of tooBig ? [] : chunks) { body.set(c, at); at += c.length; }
-      const r: Req = { method: req.method ?? "GET", path: url.pathname, query: Object.fromEntries(url.searchParams), headers, body: tooBig ? new Uint8Array(MAX_BODY + 1) : body, ip: forwarded || req.socket.remoteAddress || "unknown" };
-      service.handle(r).then((out) => {
-        res.writeHead(out.status, out.headers);
-        res.end(typeof out.body === "string" ? out.body : out.body);
-      }, () => { res.writeHead(500); res.end(); });
+      for (const c of tooBig ? [] : chunks) {
+        body.set(c, at);
+        at += c.length;
+      }
+      const r: Req = {
+        method: req.method ?? "GET",
+        path: url.pathname,
+        query: Object.fromEntries(url.searchParams),
+        headers,
+        body: tooBig ? new Uint8Array(MAX_BODY + 1) : body,
+        ip: forwarded || req.socket.remoteAddress || "unknown",
+      };
+      service.handle(r).then(
+        (out) => {
+          res.writeHead(out.status, out.headers);
+          res.end(typeof out.body === "string" ? out.body : out.body);
+        },
+        () => {
+          res.writeHead(500);
+          res.end();
+        },
+      );
     });
   });
   await new Promise<void>((resolve) => server.listen(s.port, resolve));
-  const timer = setInterval(() => { service.retryPending().catch(() => {}); }, o.retryMs ?? 60_000);
+  const timer = setInterval(() => {
+    service.retryPending().catch(() => {});
+  }, o.retryMs ?? 60_000);
   timer.unref();
   const addr = server.address();
   return {
     port: typeof addr === "object" && addr ? addr.port : s.port,
     retry: () => service.retryPending(),
-    close: () => new Promise<void>((resolve) => { clearInterval(timer); server.close(() => resolve()); server.closeAllConnections(); }),
+    close: () =>
+      new Promise<void>((resolve) => {
+        clearInterval(timer);
+        server.close(() => resolve());
+        server.closeAllConnections();
+      }),
   };
 }
 
 if (import.meta.main) {
-  start(process.env).then((r) => console.log(`reports listening on ${r.port}`), (e: Error) => { console.error(`reports: ${e.message}`); process.exit(1); });
+  start(process.env).then(
+    (r) => console.log(`reports listening on ${r.port}`),
+    (e: Error) => {
+      console.error(`reports: ${e.message}`);
+      process.exit(1);
+    },
+  );
 }

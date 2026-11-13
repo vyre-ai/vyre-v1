@@ -15,12 +15,22 @@ import { loadConfig } from "../../../host/src/daemon/config.ts";
 import { startDaemon } from "../../../host/src/daemon/daemon.ts";
 import { fromB64, toB64 } from "../docs/b64.ts";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 
 const LAPTOP = "tok-laptop";
 const PHONE = "tok-phone";
 const TESS = "tok-usr_tess";
-const WHO: Record<string, { id: string; device: string }> = { [LAPTOP]: { id: "usr_olivia", device: "dev_laptop" }, [PHONE]: { id: "usr_olivia", device: "dev_phone" }, [TESS]: { id: "usr_tess", device: "dev_tess" } };
+const WHO: Record<string, { id: string; device: string }> = {
+  [LAPTOP]: { id: "usr_olivia", device: "dev_laptop" },
+  [PHONE]: { id: "usr_olivia", device: "dev_phone" },
+  [TESS]: { id: "usr_tess", device: "dev_tess" },
+};
 
 test("a note created on the host is opened on the phone, which sees the update and sends its own edit back", async () => {
   const core = bootCore();
@@ -31,7 +41,9 @@ test("a note created on the host is opened on the phone, which sees the update a
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "doc-live", free: 80e9,
+      os: "linux",
+      hostname: "doc-live",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -46,10 +58,19 @@ test("a note created on the host is opened on the phone, which sees the update a
     },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
-  const post = async (token: string, p: string, body: unknown): Promise<{ status: number; data: Record<string, unknown>; text: string }> => {
-    const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
+  const post = async (
+    token: string,
+    p: string,
+    body: unknown,
+  ): Promise<{ status: number; data: Record<string, unknown>; text: string }> => {
+    const r = await fetch(`${d.url}${p}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(8_000),
+    });
     const text = await r.text();
-    return { status: r.status, data: ((JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {}), text };
+    return { status: r.status, data: (JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {}, text };
   };
   const ok = async (token: string, p: string, body: unknown): Promise<Record<string, unknown>> => {
     const r = await post(token, p, body);
@@ -66,7 +87,11 @@ test("a note created on the host is opened on the phone, which sees the update a
   };
   try {
     // the laptop makes the note: a record of the seeded Note type, so its row reaches the sync feed
-    const made = await ok(LAPTOP, "/v1/records/create", { idempotencyKey: "doc-live-note", type: "note_board", fields: { title: "Plan" } });
+    const made = await ok(LAPTOP, "/v1/records/create", {
+      idempotencyKey: "doc-live-note",
+      type: "note_board",
+      fields: { title: "Plan" },
+    });
     const doc = (made["record"] as { id: string }).id;
     assert.match(doc, /^rec_/, "records.create made the note");
 
@@ -87,8 +112,13 @@ test("a note created on the host is opened on the phone, which sees the update a
 
     // a person with no access to the note cannot open or write it
     const denied = await post(TESS, "/v1/sync/doc/open", { doc });
-    assert.ok(denied.status === 403 || denied.status === 404, `a temp person is refused, got ${denied.status} ${denied.text}`);
+    assert.ok(
+      denied.status === 403 || denied.status === 404,
+      `a temp person is refused, got ${denied.status} ${denied.text}`,
+    );
     const nobody = await post(LAPTOP, "/v1/sync/doc/open", { doc: "rec_00000000000000000000000000000000" });
     assert.equal(nobody.status, 404, "a document that does not exist is not there");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });

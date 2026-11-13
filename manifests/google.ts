@@ -8,306 +8,1135 @@
 // DECISION: DWD admin actions are in the `engineer` toolset (Console assistant), provider reads are deferred tools.
 // DECISION: the Space policy `google.auto_connect` (default on) and `microsoft.auto_connect` are two rows of one policy;
 // the effective value is the row for the provider being set up.
-import { conn, defineManifest, ev, health, outward, read, screen, setting, step, t, write } from '../packages/contracts/src/index.ts';
-import type { CapOpts, Props } from '../packages/contracts/src/index.ts';
-import { email, id, pageIn, pageOut } from './_common.ts';
+import {
+  conn,
+  defineManifest,
+  ev,
+  health,
+  outward,
+  read,
+  screen,
+  setting,
+  step,
+  t,
+  write,
+} from "../packages/contracts/src/index.ts";
+import type { CapOpts, Props } from "../packages/contracts/src/index.ts";
+import { email, id, pageIn, pageOut } from "./_common.ts";
 
 const act: Props = { connectionId: id.connection, as: t.opt(email) };
-const onConn = { on: ['connection', '/connectionId'] } as const;
-const quiet = (what: string) => ({ act: 'none', reason: what });
+const onConn = { on: ["connection", "/connectionId"] } as const;
+const quiet = (what: string) => ({ act: "none", reason: what });
 const SCOPES = [
-  'https://www.googleapis.com/auth/gmail.modify',
-  'https://www.googleapis.com/auth/calendar',
-  'https://www.googleapis.com/auth/drive',
-  'https://www.googleapis.com/auth/spreadsheets',
-  'https://www.googleapis.com/auth/documents',
-  'https://www.googleapis.com/auth/meetings.space.readonly',
-  'https://www.googleapis.com/auth/admin.directory.user.readonly',
+  "https://www.googleapis.com/auth/gmail.modify",
+  "https://www.googleapis.com/auth/calendar",
+  "https://www.googleapis.com/auth/drive",
+  "https://www.googleapis.com/auth/spreadsheets",
+  "https://www.googleapis.com/auth/documents",
+  "https://www.googleapis.com/auth/meetings.space.readonly",
+  "https://www.googleapis.com/auth/admin.directory.user.readonly",
 ];
 const dataChoice = t.obj({ mail: t.bool(), calendar: t.bool(), files: t.bool() });
-const healthOut = { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) };
-const gmailMessage = t.obj({ id: t.str(), threadId: t.str(), labelIds: t.arr(t.str()), snippet: t.opt(t.str()), historyId: t.opt(t.str()), internalDate: t.opt(t.ts()), payload: t.opt(t.rec()) });
-const driveFile = t.obj({ id: t.str(), name: t.str(), mimeType: t.str(), parents: t.opt(t.arr(t.str())), modifiedTime: t.opt(t.str()), size: t.opt(t.int()), webViewLink: t.opt(t.str()), driveId: t.opt(t.str()), headRevisionId: t.opt(t.str()), lastModifyingUser: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })) });
+const healthOut = { state: t.enm("healthy", "degraded", "down"), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) };
+const gmailMessage = t.obj({
+  id: t.str(),
+  threadId: t.str(),
+  labelIds: t.arr(t.str()),
+  snippet: t.opt(t.str()),
+  historyId: t.opt(t.str()),
+  internalDate: t.opt(t.ts()),
+  payload: t.opt(t.rec()),
+});
+const driveFile = t.obj({
+  id: t.str(),
+  name: t.str(),
+  mimeType: t.str(),
+  parents: t.opt(t.arr(t.str())),
+  modifiedTime: t.opt(t.str()),
+  size: t.opt(t.int()),
+  webViewLink: t.opt(t.str()),
+  driveId: t.opt(t.str()),
+  headRevisionId: t.opt(t.str()),
+  lastModifyingUser: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })),
+});
 const gcalEvent = t.obj({
-  id: t.str(), status: t.opt(t.str()), summary: t.opt(t.str()), start: t.rec(), end: t.rec(), location: t.opt(t.str()), hangoutLink: t.opt(t.str()),
-  attendees: t.opt(t.arr(t.obj({ email, responseStatus: t.opt(t.str()), optional: t.opt(t.bool()) }))), organizer: t.opt(t.rec()), updated: t.opt(t.str()),
-  description: t.opt(t.str()), recurringEventId: t.opt(t.str({ description: 'The series an instance of a repeating event belongs to' })),
+  id: t.str(),
+  status: t.opt(t.str()),
+  summary: t.opt(t.str()),
+  start: t.rec(),
+  end: t.rec(),
+  location: t.opt(t.str()),
+  hangoutLink: t.opt(t.str()),
+  attendees: t.opt(t.arr(t.obj({ email, responseStatus: t.opt(t.str()), optional: t.opt(t.bool()) }))),
+  organizer: t.opt(t.rec()),
+  updated: t.opt(t.str()),
+  description: t.opt(t.str()),
+  recurringEventId: t.opt(t.str({ description: "The series an instance of a repeating event belongs to" })),
   conferenceData: t.opt(t.rec()),
 });
 const eventWrite = {
-  calendarId: t.str({ examples: ['primary'] }), summary: t.opt(t.str()), description: t.opt(t.str()), location: t.opt(t.str()), start: t.opt(t.rec()), end: t.opt(t.rec()),
-  attendees: t.opt(t.arr(t.obj({ email, optional: t.opt(t.bool()) }))), conference: t.opt(t.bool()), sendUpdates: t.opt(t.enm('all', 'externalOnly', 'none')),
+  calendarId: t.str({ examples: ["primary"] }),
+  summary: t.opt(t.str()),
+  description: t.opt(t.str()),
+  location: t.opt(t.str()),
+  start: t.opt(t.rec()),
+  end: t.opt(t.rec()),
+  attendees: t.opt(t.arr(t.obj({ email, optional: t.opt(t.bool()) }))),
+  conference: t.opt(t.bool()),
+  sendUpdates: t.opt(t.enm("all", "externalOnly", "none")),
 };
 
 type Gen = (name: string, summary: string, inn: Props, out: Props, o?: CapOpts) => ReturnType<typeof read>;
-const gr: Gen = (name, summary, inn, out, o = {}) => read(name, summary, { in: { ...act, ...inn }, out, ...onConn, ...o });
-const gw: Gen = (name, summary, inn, out, o = {}) => outward(name, summary, { in: { ...act, ...inn }, out, ...onConn, ...o });
+const gr: Gen = (name, summary, inn, out, o = {}) =>
+  read(name, summary, { in: { ...act, ...inn }, out, ...onConn, ...o });
+const gw: Gen = (name, summary, inn, out, o = {}) =>
+  outward(name, summary, { in: { ...act, ...inn }, out, ...onConn, ...o });
 
 const capabilities = [
   // ---- delegation setup (Console > Integrations)
-  read('google.dwd.status', 'State of domain-wide delegation: key stored, scopes, last probe, mapped members', {
-    in: {}, out: {
-      configured: t.bool(), adminEmail: t.opt(email), domain: t.opt(t.str()), lastProbeAt: t.opt(t.ts()), lastProbeOk: t.opt(t.bool()), autoConnect: t.bool(), mappedMembers: t.int(), excluded: t.arr(email), pushToken: t.opt(t.str()), data: dataChoice, keyStored: t.bool(), clientId: t.opt(t.str()),
+  read("google.dwd.status", "State of domain-wide delegation: key stored, scopes, last probe, mapped members", {
+    in: {},
+    out: {
+      configured: t.bool(),
+      adminEmail: t.opt(email),
+      domain: t.opt(t.str()),
+      lastProbeAt: t.opt(t.ts()),
+      lastProbeOk: t.opt(t.bool()),
+      autoConnect: t.bool(),
+      mappedMembers: t.int(),
+      excluded: t.arr(email),
+      pushToken: t.opt(t.str()),
+      data: dataChoice,
+      keyStored: t.bool(),
+      clientId: t.opt(t.str()),
     },
-    perm: 'connectors.manage', tool: 'engineer',
+    perm: "connectors.manage",
+    tool: "engineer",
   }),
-  read('google.dwd.scopes', 'The scope list and client id to paste into the Google Admin console', {
-    in: {}, out: { scopes: t.arr(t.str()), clientId: t.opt(t.str()), adminConsoleUrl: t.str() }, perm: 'connectors.manage', tool: 'engineer',
+  read("google.dwd.scopes", "The scope list and client id to paste into the Google Admin console", {
+    in: {},
+    out: { scopes: t.arr(t.str()), clientId: t.opt(t.str()), adminConsoleUrl: t.str() },
+    perm: "connectors.manage",
+    tool: "engineer",
   }),
-  write('google.dwd.setup', 'Store the service account JSON (Vault item Google_DWD), map members by email and, with auto-connect on, create their Pending mail and calendar connections', {
-    in: { vaultItem: id.handle, adminEmail: email, domain: t.opt(t.str()), data: t.opt(dataChoice), hold: t.opt(t.bool()) }, out: { configured: t.bool(), scopes: t.arr(t.str()), mappedMembers: t.int(), connected: t.int() },
-    perm: 'connectors.manage', risk: 'high', emits: ['google.dwd_configured'], idem: 'key', audit: 'always', tool: 'engineer', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['provider.auth_failed', 'validation.precondition_failed', 'permission.on_hold'],
+  write(
+    "google.dwd.setup",
+    "Store the service account JSON (Vault item Google_DWD), map members by email and, with auto-connect on, create their Pending mail and calendar connections",
+    {
+      in: {
+        vaultItem: id.handle,
+        adminEmail: email,
+        domain: t.opt(t.str()),
+        data: t.opt(dataChoice),
+        hold: t.opt(t.bool()),
+      },
+      out: { configured: t.bool(), scopes: t.arr(t.str()), mappedMembers: t.int(), connected: t.int() },
+      perm: "connectors.manage",
+      risk: "high",
+      emits: ["google.dwd_configured"],
+      idem: "key",
+      audit: "always",
+      tool: "engineer",
+      gate: { act: "connection_change", when: "actor.kind != 'person'" },
+      errors: ["provider.auth_failed", "validation.precondition_failed", "permission.on_hold"],
+    },
+  ),
+  read(
+    "google.dwd.check_key",
+    "Prove the service-account key in the Vault works, with no person involved: its shape, its signature, and that Google still knows it. Answers what is wrong in plain words; never the key",
+    {
+      in: { vaultItem: id.handle },
+      out: {
+        ok: t.bool(),
+        clientId: t.opt(t.str()),
+        clientEmail: t.opt(t.str()),
+        projectId: t.opt(t.str()),
+        problem: t.opt(t.str()),
+      },
+      perm: "connectors.manage",
+      tool: "engineer",
+    },
+  ),
+  write(
+    "google.dwd.connect_all",
+    "Everyone included comes in: mail, calendar and the first pull, for what the company chose. Repeating it adds nobody twice",
+    {
+      in: {},
+      out: { connected: t.int(), included: t.int() },
+      perm: "connectors.manage",
+      risk: "high",
+      audit: "always",
+      tool: "engineer",
+      idem: "key",
+      gate: { act: "connection_change", when: "actor.kind != 'person'" },
+      errors: ["validation.precondition_failed", "permission.on_hold"],
+    },
+  ),
+  write(
+    "google.dwd.set_data",
+    "Choose Mail, Calendar and Files separately after setup. What is turned off stops for everyone; what is turned on comes in for everyone included",
+    {
+      in: { data: dataChoice },
+      out: { data: dataChoice, scopes: t.arr(t.str()) },
+      perm: "connectors.manage",
+      risk: "high",
+      audit: "always",
+      tool: "engineer",
+      idem: "key",
+      gate: { act: "connection_change", when: "actor.kind != 'person'" },
+      errors: ["validation.precondition_failed", "permission.on_hold"],
+    },
+  ),
+  read(
+    "google.access_log",
+    "Who reached whose Google data: who made the call, the person an agent worked for, which mailbox, which capability, when",
+    {
+      in: { ...pageIn, mailbox: t.opt(email) },
+      out: {
+        entries: t.arr(t.obj({ who: t.str(), onBehalf: t.opt(t.str()), mailbox: email, cap: t.str(), at: t.ts() })),
+        next: t.opt(t.str()),
+      },
+      perm: "connectors.manage",
+      tool: "engineer",
+    },
+  ),
+  write(
+    "google.directory.reconcile",
+    "Compare the directory with who is matched: a person gone or suspended stops, and the Space suspends them. Every page must read, and a large change waits for a person",
+    {
+      in: { confirmed: t.opt(t.bool()) },
+      out: { checked: t.int(), gone: t.arr(email), held: t.opt(t.str()) },
+      perm: "connectors.manage",
+      audit: "always",
+      tool: "engineer",
+      errors: ["provider.auth_failed", "validation.precondition_failed"],
+    },
+  ),
+  write(
+    "google.dwd.probe",
+    "Mint a token for a probe user and call users.getProfile to prove the delegation and scopes",
+    {
+      in: { as: t.opt(email) },
+      out: { ok: t.bool(), email: t.opt(email), scopesMissing: t.arr(t.str()), detail: t.opt(t.str()) },
+      perm: "connectors.manage",
+      emits: ["google.dwd_probed"],
+      audit: "always",
+      tool: "engineer",
+      errors: ["provider.auth_failed"],
+    },
+  ),
+  read(
+    "google.dwd.my_account",
+    "The Workspace address the caller is matched to, if any (a Drive mount names it so it syncs as the person, not as an admin)",
+    {
+      in: {},
+      out: { email: t.opt(email), connectionId: t.opt(id.connection), files: t.opt(t.bool()) },
+    },
+  ),
+  read("google.dwd.members", "Workspace users mapped to Space members by email, with exclusion and mailbox state", {
+    in: { ...pageIn },
+    out: {
+      members: t.arr(
+        t.obj({ email, userId: t.opt(id.user), mapped: t.bool(), excluded: t.bool(), mailboxState: t.opt(t.str()) }),
+      ),
+      ...pageOut,
+    },
+    perm: "connectors.manage",
+    tool: "engineer",
   }),
-  read('google.dwd.check_key', 'Prove the service-account key in the Vault works, with no person involved: its shape, its signature, and that Google still knows it. Answers what is wrong in plain words; never the key', {
-    in: { vaultItem: id.handle }, out: { ok: t.bool(), clientId: t.opt(t.str()), clientEmail: t.opt(t.str()), projectId: t.opt(t.str()), problem: t.opt(t.str()) }, perm: 'connectors.manage', tool: 'engineer',
+  write(
+    "google.dwd.set_excluded",
+    "Exclude a member from delegation, or include them again (excluded members never get a connection)",
+    {
+      in: { email, excluded: t.bool() },
+      out: { excluded: t.arr(email) },
+      perm: "connectors.manage",
+      audit: "always",
+      tool: "engineer",
+      gate: { act: "connection_change", when: "actor.kind != 'person'" },
+      errors: ["permission.on_hold"],
+    },
+  ),
+  read(
+    "google.directory.list",
+    "The people in the Google Workspace directory (admin only), with the Space member each is matched to, for choosing who to bring in",
+    {
+      in: { pageToken: t.opt(t.str()), query: t.opt(t.str()) },
+      out: {
+        people: t.arr(t.obj({ email, name: t.opt(t.str()), suspended: t.bool(), userId: t.opt(id.user) })),
+        nextPageToken: t.opt(t.str()),
+      },
+      perm: "connectors.manage",
+      tool: "engineer",
+      errors: ["provider.auth_failed", "validation.precondition_failed"],
+    },
+  ),
+  write(
+    "google.directory.import",
+    "Invite chosen people from the directory: one invitation each with their work address and role, returned as links to send once a person approves",
+    {
+      in: { people: t.arr(t.obj({ email, role: id.role }), { minItems: 1, maxItems: 100 }) },
+      out: {
+        invited: t.arr(t.obj({ email, inviteId: id.invite, link: t.str() })),
+        skipped: t.arr(t.obj({ email, reason: t.str() })),
+      },
+      perm: "connectors.manage",
+      audit: "always",
+      tool: "engineer",
+      idem: "key",
+      errors: ["validation.precondition_failed"],
+    },
+  ),
+  write(
+    "google.dwd.sync_members",
+    "Match the people who have joined since setup (by the email their invitation went to) and connect their mail and calendar",
+    {
+      in: {},
+      out: { matched: t.int(), connected: t.int() },
+      perm: "connectors.manage",
+      audit: "always",
+      tool: "engineer",
+      idem: "key",
+      gate: { act: "connection_change", when: "actor.kind != 'person'" },
+      errors: ["validation.precondition_failed", "permission.on_hold"],
+    },
+  ),
+  write(
+    "google.dwd.map_member",
+    "Match a Google address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Meet come in",
+    {
+      in: { email, userId: t.opt(id.user) },
+      out: { email, userId: t.opt(id.user), mapped: t.bool(), connected: t.bool() },
+      perm: "connectors.manage",
+      audit: "always",
+      tool: "engineer",
+      idem: "key",
+      gate: { act: "connection_change", when: "actor.kind != 'person'" },
+      errors: ["validation.precondition_failed", "permission.on_hold"],
+    },
+  ),
+  write("google.dwd.disable", "Turn delegation off and stop every member sync", {
+    in: {},
+    out: { disabled: t.bool() },
+    perm: "connectors.manage",
+    risk: "high",
+    emits: ["google.dwd_revoked"],
+    audit: "always",
+    tool: "engineer",
+    gate: { act: "connection_change", when: "actor.kind != 'person'" },
   }),
-  write('google.dwd.connect_all', 'Everyone included comes in: mail, calendar and the first pull, for what the company chose. Repeating it adds nobody twice', {
-    in: {}, out: { connected: t.int(), included: t.int() }, perm: 'connectors.manage', risk: 'high', audit: 'always', tool: 'engineer', idem: 'key', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['validation.precondition_failed', 'permission.on_hold'],
+  read("google.health", "Health probe: mint a token for the probe user and call users.getProfile", {
+    in: { as: t.opt(email) },
+    out: healthOut,
   }),
-  write('google.dwd.set_data', 'Choose Mail, Calendar and Files separately after setup. What is turned off stops for everyone; what is turned on comes in for everyone included', {
-    in: { data: dataChoice }, out: { data: dataChoice, scopes: t.arr(t.str()) }, perm: 'connectors.manage', risk: 'high', audit: 'always', tool: 'engineer', idem: 'key', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['validation.precondition_failed', 'permission.on_hold'],
-  }),
-  read('google.access_log', 'Who reached whose Google data: who made the call, the person an agent worked for, which mailbox, which capability, when', {
-    in: { ...pageIn, mailbox: t.opt(email) }, out: { entries: t.arr(t.obj({ who: t.str(), onBehalf: t.opt(t.str()), mailbox: email, cap: t.str(), at: t.ts() })), next: t.opt(t.str()) }, perm: 'connectors.manage', tool: 'engineer',
-  }),
-  write('google.directory.reconcile', 'Compare the directory with who is matched: a person gone or suspended stops, and the Space suspends them. Every page must read, and a large change waits for a person', {
-    in: { confirmed: t.opt(t.bool()) }, out: { checked: t.int(), gone: t.arr(email), held: t.opt(t.str()) }, perm: 'connectors.manage', audit: 'always', tool: 'engineer', errors: ['provider.auth_failed', 'validation.precondition_failed'],
-  }),
-  write('google.dwd.probe', 'Mint a token for a probe user and call users.getProfile to prove the delegation and scopes', {
-    in: { as: t.opt(email) }, out: { ok: t.bool(), email: t.opt(email), scopesMissing: t.arr(t.str()), detail: t.opt(t.str()) },
-    perm: 'connectors.manage', emits: ['google.dwd_probed'], audit: 'always', tool: 'engineer', errors: ['provider.auth_failed'],
-  }),
-  read('google.dwd.my_account', 'The Workspace address the caller is matched to, if any (a Drive mount names it so it syncs as the person, not as an admin)', {
-in: {}, out: { email: t.opt(email), connectionId: t.opt(id.connection), files: t.opt(t.bool()) },
-  }),
-  read('google.dwd.members', 'Workspace users mapped to Space members by email, with exclusion and mailbox state', {
-    in: { ...pageIn }, out: { members: t.arr(t.obj({ email, userId: t.opt(id.user), mapped: t.bool(), excluded: t.bool(), mailboxState: t.opt(t.str()) })), ...pageOut }, perm: 'connectors.manage', tool: 'engineer',
-  }),
-  write('google.dwd.set_excluded', 'Exclude a member from delegation, or include them again (excluded members never get a connection)', {
-    in: { email, excluded: t.bool() }, out: { excluded: t.arr(email) }, perm: 'connectors.manage', audit: 'always', tool: 'engineer', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['permission.on_hold'],
-  }),
-  read('google.directory.list', 'The people in the Google Workspace directory (admin only), with the Space member each is matched to, for choosing who to bring in', {
-    in: { pageToken: t.opt(t.str()), query: t.opt(t.str()) }, out: { people: t.arr(t.obj({ email, name: t.opt(t.str()), suspended: t.bool(), userId: t.opt(id.user) })), nextPageToken: t.opt(t.str()) },
-    perm: 'connectors.manage', tool: 'engineer', errors: ['provider.auth_failed', 'validation.precondition_failed'],
-  }),
-  write('google.directory.import', 'Invite chosen people from the directory: one invitation each with their work address and role, returned as links to send once a person approves', {
-    in: { people: t.arr(t.obj({ email, role: id.role }), { minItems: 1, maxItems: 100 }) },
-    out: { invited: t.arr(t.obj({ email, inviteId: id.invite, link: t.str() })), skipped: t.arr(t.obj({ email, reason: t.str() })) },
-    perm: 'connectors.manage', audit: 'always', tool: 'engineer', idem: 'key', errors: ['validation.precondition_failed'],
-  }),
-  write('google.dwd.sync_members', 'Match the people who have joined since setup (by the email their invitation went to) and connect their mail and calendar', {
-    in: {}, out: { matched: t.int(), connected: t.int() }, perm: 'connectors.manage', audit: 'always', tool: 'engineer', idem: 'key', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['validation.precondition_failed', 'permission.on_hold'],
-  }),
-  write('google.dwd.map_member', 'Match a Google address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Meet come in', {
-    in: { email, userId: t.opt(id.user) }, out: { email, userId: t.opt(id.user), mapped: t.bool(), connected: t.bool() },
-    perm: 'connectors.manage', audit: 'always', tool: 'engineer', idem: 'key', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['validation.precondition_failed', 'permission.on_hold'],
-  }),
-  write('google.dwd.disable', 'Turn delegation off and stop every member sync', {
-    in: {}, out: { disabled: t.bool() }, perm: 'connectors.manage', risk: 'high', emits: ['google.dwd_revoked'], audit: 'always', tool: 'engineer',
-    gate: { act: 'connection_change', when: "actor.kind != 'person'" },
-  }),
-  read('google.health', 'Health probe: mint a token for the probe user and call users.getProfile', { in: { as: t.opt(email) }, out: healthOut }),
   // ---- a person's own Google sign-in for mail (no Workspace delegation needed): the OAuth client lives in a Vault item, the person's refresh token is sealed in the module
-  read('google.user.app_status', 'Whether a Google OAuth client is set up for signing in to your own Gmail, and the redirect address to give Google for it', {
-    in: {}, out: { configured: t.bool(), clientId: t.opt(t.str()), vaultItem: t.opt(t.str()), redirectUri: t.opt(t.str()) },
-  }),
-  write('google.user.app_set', 'Name the Vault item that holds the Google OAuth client (client_id, and client_secret for a web client)', {
-    in: { vaultItem: id.handle }, out: { configured: t.bool(), clientId: t.str() }, perm: 'connectors.manage', audit: 'always', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['provider.auth_failed', 'permission.on_hold'],
-  }),
-  write('google.user.start', 'Start signing in to your own Gmail: the address to approve at', {
-    in: { loginHint: t.opt(email) }, out: { authUrl: t.str(), state: t.str() }, idem: 'none', errors: ['validation.precondition_failed'],
-  }),
-  write('google.user.complete', 'Finish signing in from the callback: the state and the code, or the error Google sent when the person declined. Only who started it can finish it. Makes the mailbox and starts its first sync', {
-    in: { state: t.str(), code: t.opt(t.str()), error: t.opt(t.str()) }, out: { accountId: t.str(), email, mailboxId: t.opt(id.mailbox) },
-    emits: ['google.user_connected'], audit: 'always', idem: 'none', offline: 'online',
-    errors: ['auth.invalid_code', 'provider.auth_failed', 'provider.network', 'provider.bad_response', 'validation.precondition_failed', 'validation.duplicate'],
-  }),
-  read('google.user.list', 'Your own signed-in Google accounts', { in: {}, out: { accounts: t.arr(t.obj({ accountId: t.str(), email })) } }),
-  write('google.user.remove', 'Sign out of your own Google account: revoke it at Google and remove its token', { in: { accountId: t.str() }, out: { removed: t.bool() }, audit: 'always' }),
-  outward('google.user.send_message', "Send a message from your own signed-in Gmail (mail.send_as uses it for a mailbox made by google.user.complete)", {
-    in: { accountId: t.str(), to: t.arr(email), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), threadId: t.opt(t.str()), inReplyTo: t.opt(t.str({ description: 'The Message-ID this answers, so the reply threads for everyone on it', examples: ['<c3@example.com>'] })), references: t.opt(t.str({ description: 'The thread\'s Message-IDs, oldest first, space separated' })), attachments: t.opt(t.arr(id.file)) },
-    out: { id: t.str(), threadId: t.str() }, gate: 'send', errors: ['provider.rate_limited', 'provider.auth_failed', 'validation.not_found'],
-  }),
-  write('google.receive_push', 'Record a verified Google push (Gmail Pub/Sub, Calendar channel, Drive changes, Meet events) after dedupe', {
-    in: {
-      kind: t.enm('gmail', 'calendar', 'drive', 'meet'), messageId: t.str(), mailbox: t.opt(email), historyId: t.opt(t.str()), channelId: t.opt(t.str()),
-      resourceState: t.opt(t.str()), resourceId: t.opt(t.str()),
+  read(
+    "google.user.app_status",
+    "Whether a Google OAuth client is set up for signing in to your own Gmail, and the redirect address to give Google for it",
+    {
+      in: {},
+      out: { configured: t.bool(), clientId: t.opt(t.str()), vaultItem: t.opt(t.str()), redirectUri: t.opt(t.str()) },
     },
-    out: { accepted: t.bool() }, emits: ['google.push_received'], idem: 'natural', offline: 'online',
+  ),
+  write(
+    "google.user.app_set",
+    "Name the Vault item that holds the Google OAuth client (client_id, and client_secret for a web client)",
+    {
+      in: { vaultItem: id.handle },
+      out: { configured: t.bool(), clientId: t.str() },
+      perm: "connectors.manage",
+      audit: "always",
+      gate: { act: "connection_change", when: "actor.kind != 'person'" },
+      errors: ["provider.auth_failed", "permission.on_hold"],
+    },
+  ),
+  write("google.user.start", "Start signing in to your own Gmail: the address to approve at", {
+    in: { loginHint: t.opt(email) },
+    out: { authUrl: t.str(), state: t.str() },
+    idem: "none",
+    errors: ["validation.precondition_failed"],
   }),
+  write(
+    "google.user.complete",
+    "Finish signing in from the callback: the state and the code, or the error Google sent when the person declined. Only who started it can finish it. Makes the mailbox and starts its first sync",
+    {
+      in: { state: t.str(), code: t.opt(t.str()), error: t.opt(t.str()) },
+      out: { accountId: t.str(), email, mailboxId: t.opt(id.mailbox) },
+      emits: ["google.user_connected"],
+      audit: "always",
+      idem: "none",
+      offline: "online",
+      errors: [
+        "auth.invalid_code",
+        "provider.auth_failed",
+        "provider.network",
+        "provider.bad_response",
+        "validation.precondition_failed",
+        "validation.duplicate",
+      ],
+    },
+  ),
+  read("google.user.list", "Your own signed-in Google accounts", {
+    in: {},
+    out: { accounts: t.arr(t.obj({ accountId: t.str(), email })) },
+  }),
+  write("google.user.remove", "Sign out of your own Google account: revoke it at Google and remove its token", {
+    in: { accountId: t.str() },
+    out: { removed: t.bool() },
+    audit: "always",
+  }),
+  outward(
+    "google.user.send_message",
+    "Send a message from your own signed-in Gmail (mail.send_as uses it for a mailbox made by google.user.complete)",
+    {
+      in: {
+        accountId: t.str(),
+        to: t.arr(email),
+        cc: t.opt(t.arr(email)),
+        bcc: t.opt(t.arr(email)),
+        subject: t.str(),
+        text: t.opt(t.str()),
+        html: t.opt(t.str()),
+        threadId: t.opt(t.str()),
+        inReplyTo: t.opt(
+          t.str({
+            description: "The Message-ID this answers, so the reply threads for everyone on it",
+            examples: ["<c3@example.com>"],
+          }),
+        ),
+        references: t.opt(t.str({ description: "The thread's Message-IDs, oldest first, space separated" })),
+        attachments: t.opt(t.arr(id.file)),
+      },
+      out: { id: t.str(), threadId: t.str() },
+      gate: "send",
+      errors: ["provider.rate_limited", "provider.auth_failed", "validation.not_found"],
+    },
+  ),
+  write(
+    "google.receive_push",
+    "Record a verified Google push (Gmail Pub/Sub, Calendar channel, Drive changes, Meet events) after dedupe",
+    {
+      in: {
+        kind: t.enm("gmail", "calendar", "drive", "meet"),
+        messageId: t.str(),
+        mailbox: t.opt(email),
+        historyId: t.opt(t.str()),
+        channelId: t.opt(t.str()),
+        resourceState: t.opt(t.str()),
+        resourceId: t.opt(t.str()),
+      },
+      out: { accepted: t.bool() },
+      emits: ["google.push_received"],
+      idem: "natural",
+      offline: "online",
+    },
+  ),
   // ---- Gmail
-  gr('google.gmail.get_profile', 'Gmail profile of the member (address, history id)', {}, { emailAddress: email, historyId: t.str(), messagesTotal: t.opt(t.int()) }),
-  gr('google.gmail.list_labels', 'List Gmail labels', {}, { labels: t.arr(t.obj({ id: t.str(), name: t.str(), type: t.opt(t.str()) })) }, { tool: 'inbox', deferred: true }),
-  gr('google.gmail.list_messages', 'Search or list Gmail messages', { q: t.opt(t.str()), labelIds: t.opt(t.arr(t.str())), maxResults: t.opt(t.int({ minimum: 1, maximum: 500 })), pageToken: t.opt(t.str()) },
-    { messages: t.arr(t.obj({ id: t.str(), threadId: t.str() })), nextPageToken: t.opt(t.str()), resultSizeEstimate: t.opt(t.int()) }, { tool: 'inbox', deferred: true }),
-  gr('google.gmail.get_message', 'Read one Gmail message', { messageId: t.str(), format: t.opt(t.enm('metadata', 'full', 'raw')) }, { message: gmailMessage }, { tool: 'inbox', deferred: true }),
-  gr('google.gmail.get_thread', 'Read a Gmail thread', { threadId: t.str() }, { threadId: t.str(), messages: t.arr(gmailMessage) }, { tool: 'inbox', deferred: true }),
-  gr('google.gmail.list_history', 'Changes since a history id (cursor polling: 2 min active, 15 idle, 1 h dormant)', { startHistoryId: t.str(), pageToken: t.opt(t.str()) },
-    { history: t.arr(t.obj({ id: t.str(), added: t.arr(t.str()), deleted: t.arr(t.str()), labelsChanged: t.arr(t.str()) })), historyId: t.str(), nextPageToken: t.opt(t.str()), expired: t.bool() }),
-  gr('google.gmail.get_attachment', 'Download an attachment into a blob', { messageId: t.str(), attachmentId: t.str() }, { blobId: id.blob, size: t.int() }),
-  gw('google.gmail.modify_labels', 'Add or remove labels on a message in the member mailbox', { messageId: t.str(), add: t.opt(t.arr(t.str())), remove: t.opt(t.arr(t.str())) }, { message: gmailMessage },
-    { gate: quiet("Changes labels in the member's own Gmail; nothing is sent to anyone"), tool: 'inbox', deferred: true }),
-  gw('google.gmail.create_draft', 'Create a draft in the member mailbox', { to: t.arr(email), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), threadId: t.opt(t.str()) }, { draftId: t.str() },
-    { gate: quiet('The draft stays in the member Gmail; nothing is sent'), tool: 'inbox', deferred: true }),
-  gw('google.gmail.delete_draft', 'Delete a draft from the member mailbox (the draft an agent made and its person decided not to send)', { draftId: t.str() }, { deleted: t.bool() },
-    { gate: quiet('Removes a draft from the member Gmail; nothing is sent'), tool: 'inbox', deferred: true }),
-  gw('google.gmail.send_message', 'Send a message from the member mailbox', { to: t.arr(email), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), threadId: t.opt(t.str()), inReplyTo: t.opt(t.str({ description: 'The Message-ID this answers, so the reply threads for everyone on it', examples: ['<c3@example.com>'] })), references: t.opt(t.str({ description: 'The thread\'s Message-IDs, oldest first, space separated' })), attachments: t.opt(t.arr(id.file)) },
-    { id: t.str(), threadId: t.str() }, { gate: 'send', errors: ['provider.rate_limited', 'provider.auth_failed'] }),
-  gw('google.gmail.trash_message', 'Move a Gmail message to Trash', { messageId: t.str() }, { trashed: t.bool() }, { gate: 'delete', tool: 'inbox', deferred: true }),
-  gw('google.gmail.watch', 'Start Gmail push notices through Pub/Sub for the member mailbox', { topicName: t.str(), labelIds: t.opt(t.arr(t.str())) }, { historyId: t.str(), expiration: t.ts() },
-    { gate: quiet('Registers a push channel for the Space; nothing is sent to anyone') }),
-  gw('google.gmail.stop_watch', 'Stop Gmail push notices for the member mailbox', {}, { stopped: t.bool() }, { gate: quiet('Removes a push channel; nothing is sent to anyone') }),
+  gr(
+    "google.gmail.get_profile",
+    "Gmail profile of the member (address, history id)",
+    {},
+    { emailAddress: email, historyId: t.str(), messagesTotal: t.opt(t.int()) },
+  ),
+  gr(
+    "google.gmail.list_labels",
+    "List Gmail labels",
+    {},
+    { labels: t.arr(t.obj({ id: t.str(), name: t.str(), type: t.opt(t.str()) })) },
+    { tool: "inbox", deferred: true },
+  ),
+  gr(
+    "google.gmail.list_messages",
+    "Search or list Gmail messages",
+    {
+      q: t.opt(t.str()),
+      labelIds: t.opt(t.arr(t.str())),
+      maxResults: t.opt(t.int({ minimum: 1, maximum: 500 })),
+      pageToken: t.opt(t.str()),
+    },
+    {
+      messages: t.arr(t.obj({ id: t.str(), threadId: t.str() })),
+      nextPageToken: t.opt(t.str()),
+      resultSizeEstimate: t.opt(t.int()),
+    },
+    { tool: "inbox", deferred: true },
+  ),
+  gr(
+    "google.gmail.get_message",
+    "Read one Gmail message",
+    { messageId: t.str(), format: t.opt(t.enm("metadata", "full", "raw")) },
+    { message: gmailMessage },
+    { tool: "inbox", deferred: true },
+  ),
+  gr(
+    "google.gmail.get_thread",
+    "Read a Gmail thread",
+    { threadId: t.str() },
+    { threadId: t.str(), messages: t.arr(gmailMessage) },
+    { tool: "inbox", deferred: true },
+  ),
+  gr(
+    "google.gmail.list_history",
+    "Changes since a history id (cursor polling: 2 min active, 15 idle, 1 h dormant)",
+    { startHistoryId: t.str(), pageToken: t.opt(t.str()) },
+    {
+      history: t.arr(
+        t.obj({ id: t.str(), added: t.arr(t.str()), deleted: t.arr(t.str()), labelsChanged: t.arr(t.str()) }),
+      ),
+      historyId: t.str(),
+      nextPageToken: t.opt(t.str()),
+      expired: t.bool(),
+    },
+  ),
+  gr(
+    "google.gmail.get_attachment",
+    "Download an attachment into a blob",
+    { messageId: t.str(), attachmentId: t.str() },
+    { blobId: id.blob, size: t.int() },
+  ),
+  gw(
+    "google.gmail.modify_labels",
+    "Add or remove labels on a message in the member mailbox",
+    { messageId: t.str(), add: t.opt(t.arr(t.str())), remove: t.opt(t.arr(t.str())) },
+    { message: gmailMessage },
+    {
+      gate: quiet("Changes labels in the member's own Gmail; nothing is sent to anyone"),
+      tool: "inbox",
+      deferred: true,
+    },
+  ),
+  gw(
+    "google.gmail.create_draft",
+    "Create a draft in the member mailbox",
+    { to: t.arr(email), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), threadId: t.opt(t.str()) },
+    { draftId: t.str() },
+    { gate: quiet("The draft stays in the member Gmail; nothing is sent"), tool: "inbox", deferred: true },
+  ),
+  gw(
+    "google.gmail.delete_draft",
+    "Delete a draft from the member mailbox (the draft an agent made and its person decided not to send)",
+    { draftId: t.str() },
+    { deleted: t.bool() },
+    { gate: quiet("Removes a draft from the member Gmail; nothing is sent"), tool: "inbox", deferred: true },
+  ),
+  gw(
+    "google.gmail.send_message",
+    "Send a message from the member mailbox",
+    {
+      to: t.arr(email),
+      cc: t.opt(t.arr(email)),
+      bcc: t.opt(t.arr(email)),
+      subject: t.str(),
+      text: t.opt(t.str()),
+      html: t.opt(t.str()),
+      threadId: t.opt(t.str()),
+      inReplyTo: t.opt(
+        t.str({
+          description: "The Message-ID this answers, so the reply threads for everyone on it",
+          examples: ["<c3@example.com>"],
+        }),
+      ),
+      references: t.opt(t.str({ description: "The thread's Message-IDs, oldest first, space separated" })),
+      attachments: t.opt(t.arr(id.file)),
+    },
+    { id: t.str(), threadId: t.str() },
+    { gate: "send", errors: ["provider.rate_limited", "provider.auth_failed"] },
+  ),
+  gw(
+    "google.gmail.trash_message",
+    "Move a Gmail message to Trash",
+    { messageId: t.str() },
+    { trashed: t.bool() },
+    { gate: "delete", tool: "inbox", deferred: true },
+  ),
+  gw(
+    "google.gmail.watch",
+    "Start Gmail push notices through Pub/Sub for the member mailbox",
+    { topicName: t.str(), labelIds: t.opt(t.arr(t.str())) },
+    { historyId: t.str(), expiration: t.ts() },
+    { gate: quiet("Registers a push channel for the Space; nothing is sent to anyone") },
+  ),
+  gw(
+    "google.gmail.stop_watch",
+    "Stop Gmail push notices for the member mailbox",
+    {},
+    { stopped: t.bool() },
+    { gate: quiet("Removes a push channel; nothing is sent to anyone") },
+  ),
   // ---- Calendar
-  gr('google.calendar.list_calendars', 'List the calendars of the member', {}, { calendars: t.arr(t.obj({ id: t.str(), summary: t.str(), primary: t.opt(t.bool()), backgroundColor: t.opt(t.str()), accessRole: t.opt(t.str()) })) }, { tool: 'inbox', deferred: true }),
-  gr('google.calendar.list_events', 'List events (incremental with a sync token)', { calendarId: t.str({ examples: ['primary'] }), timeMin: t.opt(t.str()), timeMax: t.opt(t.str()), q: t.opt(t.str()), syncToken: t.opt(t.str()), updatedMin: t.opt(t.str()), pageToken: t.opt(t.str()) },
-    { events: t.arr(gcalEvent), nextPageToken: t.opt(t.str()), nextSyncToken: t.opt(t.str()) }, { tool: 'inbox', deferred: true }),
-  gr('google.calendar.get_event', 'Read one event', { calendarId: t.str(), eventId: t.str() }, { event: gcalEvent }, { tool: 'inbox', deferred: true }),
-  gw('google.calendar.create_event', 'Create an event; Google invites the attendees', eventWrite, { event: gcalEvent }, { gate: 'send', tool: 'inbox', deferred: true }),
-  gw('google.calendar.update_event', 'Change an event; Google updates the attendees', { ...eventWrite, eventId: t.str() }, { event: gcalEvent }, { gate: 'send', tool: 'inbox', deferred: true }),
-  gw('google.calendar.delete_event', 'Delete an event; Google tells the attendees', { calendarId: t.str(), eventId: t.str(), sendUpdates: t.opt(t.enm('all', 'externalOnly', 'none')) }, { deleted: t.bool() }, { gate: 'send', tool: 'inbox', deferred: true }),
-  gw('google.calendar.respond', 'Accept, decline or answer maybe to an invitation', { calendarId: t.str(), eventId: t.str(), response: t.enm('accepted', 'declined', 'tentative') }, { event: gcalEvent }, { gate: 'send', tool: 'inbox', deferred: true }),
-  gr('google.calendar.free_busy', 'Busy blocks for people over a range', { emails: t.arr(email, { minItems: 1 }), timeMin: t.str(), timeMax: t.str() },
-    { busy: t.arr(t.obj({ email, start: t.str(), end: t.str() })) }, { tool: 'inbox', deferred: true }),
-  gw('google.calendar.watch', 'Open an events.watch channel for a calendar', { calendarId: t.str(), channelId: t.str(), address: t.str() }, { resourceId: t.str(), expiration: t.ts() }, { gate: quiet('Registers a push channel for the Space; nothing is sent to anyone') }),
-  gw('google.calendar.stop_watch', 'Close an events.watch channel', { channelId: t.str(), resourceId: t.str() }, { stopped: t.bool() }, { gate: quiet('Removes a push channel; nothing is sent to anyone') }),
+  gr(
+    "google.calendar.list_calendars",
+    "List the calendars of the member",
+    {},
+    {
+      calendars: t.arr(
+        t.obj({
+          id: t.str(),
+          summary: t.str(),
+          primary: t.opt(t.bool()),
+          backgroundColor: t.opt(t.str()),
+          accessRole: t.opt(t.str()),
+        }),
+      ),
+    },
+    { tool: "inbox", deferred: true },
+  ),
+  gr(
+    "google.calendar.list_events",
+    "List events (incremental with a sync token)",
+    {
+      calendarId: t.str({ examples: ["primary"] }),
+      timeMin: t.opt(t.str()),
+      timeMax: t.opt(t.str()),
+      q: t.opt(t.str()),
+      syncToken: t.opt(t.str()),
+      updatedMin: t.opt(t.str()),
+      pageToken: t.opt(t.str()),
+    },
+    { events: t.arr(gcalEvent), nextPageToken: t.opt(t.str()), nextSyncToken: t.opt(t.str()) },
+    { tool: "inbox", deferred: true },
+  ),
+  gr(
+    "google.calendar.get_event",
+    "Read one event",
+    { calendarId: t.str(), eventId: t.str() },
+    { event: gcalEvent },
+    { tool: "inbox", deferred: true },
+  ),
+  gw(
+    "google.calendar.create_event",
+    "Create an event; Google invites the attendees",
+    eventWrite,
+    { event: gcalEvent },
+    { gate: "send", tool: "inbox", deferred: true },
+  ),
+  gw(
+    "google.calendar.update_event",
+    "Change an event; Google updates the attendees",
+    { ...eventWrite, eventId: t.str() },
+    { event: gcalEvent },
+    { gate: "send", tool: "inbox", deferred: true },
+  ),
+  gw(
+    "google.calendar.delete_event",
+    "Delete an event; Google tells the attendees",
+    { calendarId: t.str(), eventId: t.str(), sendUpdates: t.opt(t.enm("all", "externalOnly", "none")) },
+    { deleted: t.bool() },
+    { gate: "send", tool: "inbox", deferred: true },
+  ),
+  gw(
+    "google.calendar.respond",
+    "Accept, decline or answer maybe to an invitation",
+    { calendarId: t.str(), eventId: t.str(), response: t.enm("accepted", "declined", "tentative") },
+    { event: gcalEvent },
+    { gate: "send", tool: "inbox", deferred: true },
+  ),
+  gr(
+    "google.calendar.free_busy",
+    "Busy blocks for people over a range",
+    { emails: t.arr(email, { minItems: 1 }), timeMin: t.str(), timeMax: t.str() },
+    { busy: t.arr(t.obj({ email, start: t.str(), end: t.str() })) },
+    { tool: "inbox", deferred: true },
+  ),
+  gw(
+    "google.calendar.watch",
+    "Open an events.watch channel for a calendar",
+    { calendarId: t.str(), channelId: t.str(), address: t.str() },
+    { resourceId: t.str(), expiration: t.ts() },
+    { gate: quiet("Registers a push channel for the Space; nothing is sent to anyone") },
+  ),
+  gw(
+    "google.calendar.stop_watch",
+    "Close an events.watch channel",
+    { channelId: t.str(), resourceId: t.str() },
+    { stopped: t.bool() },
+    { gate: quiet("Removes a push channel; nothing is sent to anyone") },
+  ),
   // ---- Drive
-  gr('google.drive.list_files', 'List or search Drive files and folders (My Drive and Shared Drives)', { q: t.opt(t.str()), driveId: t.opt(t.str()), parentId: t.opt(t.str()), pageToken: t.opt(t.str()), pageSize: t.opt(t.int({ minimum: 1, maximum: 1000 })) },
-    { files: t.arr(driveFile), nextPageToken: t.opt(t.str()) }, { tool: 'files', deferred: true }),
-  gr('google.drive.get_file', 'Read Drive file metadata', { fileId: t.str() }, { file: driveFile }, { tool: 'files', deferred: true }),
-  gr('google.drive.download_file', 'Download a Drive file into a blob', { fileId: t.str() }, { blobId: id.blob, size: t.int(), mimeType: t.str() }, { tool: 'files', deferred: true }),
-  gr('google.drive.export_file', 'Export a Google document, sheet or slide as PDF, DOCX, XLSX or text', { fileId: t.str(), mimeType: t.str({ examples: ['application/pdf'] }) }, { blobId: id.blob, size: t.int() }, { tool: 'files', deferred: true }),
-  gr('google.drive.get_permissions', 'Who a Drive file is shared with', { fileId: t.str() }, { permissions: t.arr(t.obj({ id: t.str(), role: t.str(), type: t.str(), emailAddress: t.opt(email) })) }, { tool: 'files', deferred: true }),
-  gw('google.drive.upload_file', 'Upload a Space file into Drive; with remoteId it replaces that file, and with ifRevision only if Drive still holds that revision', { name: t.str(), parentId: t.opt(t.str()), fileId: id.file, remoteId: t.opt(t.str()), ifRevision: t.opt(t.str()) }, { file: driveFile, stale: t.opt(t.bool()) }, { gate: 'post', tool: 'files', deferred: true }),
-  gr('google.drive.list_revisions', 'The revisions Drive keeps of a file, with who saved each', { fileId: t.str() }, { revisions: t.arr(t.obj({ id: t.str(), modifiedTime: t.str(), size: t.opt(t.int()), lastModifyingUser: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })) })) }, { tool: 'files', deferred: true }),
-  gr('google.drive.download_revision', 'Download one revision of a Drive file into a blob', { fileId: t.str(), revisionId: t.str() }, { blobId: id.blob, size: t.int(), mimeType: t.str() }, { tool: 'files', deferred: true }),
-  gw('google.drive.create_folder', 'Create a Drive folder', { name: t.str(), parentId: t.opt(t.str()) }, { file: driveFile }, { gate: 'post', tool: 'files', deferred: true }),
-  gw('google.drive.copy_file', 'Copy a Drive file', { fileId: t.str(), name: t.opt(t.str()), parentId: t.opt(t.str()) }, { file: driveFile }, { gate: 'post', tool: 'files', deferred: true }),
-  gw('google.drive.share_file', 'Share a Drive file with people; Google emails them', { fileId: t.str(), emails: t.arr(email, { minItems: 1 }), role: t.enm('reader', 'commenter', 'writer'), notify: t.opt(t.bool()) }, { shared: t.bool() }, { gate: 'send', tool: 'files', deferred: true }),
-  gw('google.drive.trash_file', 'Move a Drive file to Trash', { fileId: t.str() }, { trashed: t.bool() }, { gate: 'delete', tool: 'files', deferred: true }),
-  gr('google.drive.changes_start_token', 'The Drive changes start page token, so a mount syncs incrementally from now instead of rescanning', { driveId: t.opt(t.str()) }, { startPageToken: t.str() }),
-  gr('google.drive.list_changes', 'Drive changes since a page token (mount sync and mount lag)', { pageToken: t.str(), driveId: t.opt(t.str()) }, { changes: t.arr(t.obj({ fileId: t.str(), removed: t.bool(), file: t.opt(driveFile) })), newStartPageToken: t.opt(t.str()), nextPageToken: t.opt(t.str()) }),
-  gw('google.drive.watch_changes', 'Open a Drive changes.watch channel', { pageToken: t.str(), channelId: t.str(), address: t.str(), driveId: t.opt(t.str()) }, { resourceId: t.str(), expiration: t.ts() }, { gate: quiet('Registers a push channel for the Space; nothing is sent to anyone') }),
-  gw('google.drive.stop_watch', 'Close a Drive watch channel', { channelId: t.str(), resourceId: t.str() }, { stopped: t.bool() }, { gate: quiet('Removes a push channel; nothing is sent to anyone') }),
+  gr(
+    "google.drive.list_files",
+    "List or search Drive files and folders (My Drive and Shared Drives)",
+    {
+      q: t.opt(t.str()),
+      driveId: t.opt(t.str()),
+      parentId: t.opt(t.str()),
+      pageToken: t.opt(t.str()),
+      pageSize: t.opt(t.int({ minimum: 1, maximum: 1000 })),
+    },
+    { files: t.arr(driveFile), nextPageToken: t.opt(t.str()) },
+    { tool: "files", deferred: true },
+  ),
+  gr(
+    "google.drive.get_file",
+    "Read Drive file metadata",
+    { fileId: t.str() },
+    { file: driveFile },
+    { tool: "files", deferred: true },
+  ),
+  gr(
+    "google.drive.download_file",
+    "Download a Drive file into a blob",
+    { fileId: t.str() },
+    { blobId: id.blob, size: t.int(), mimeType: t.str() },
+    { tool: "files", deferred: true },
+  ),
+  gr(
+    "google.drive.export_file",
+    "Export a Google document, sheet or slide as PDF, DOCX, XLSX or text",
+    { fileId: t.str(), mimeType: t.str({ examples: ["application/pdf"] }) },
+    { blobId: id.blob, size: t.int() },
+    { tool: "files", deferred: true },
+  ),
+  gr(
+    "google.drive.get_permissions",
+    "Who a Drive file is shared with",
+    { fileId: t.str() },
+    { permissions: t.arr(t.obj({ id: t.str(), role: t.str(), type: t.str(), emailAddress: t.opt(email) })) },
+    { tool: "files", deferred: true },
+  ),
+  gw(
+    "google.drive.upload_file",
+    "Upload a Space file into Drive; with remoteId it replaces that file, and with ifRevision only if Drive still holds that revision",
+    { name: t.str(), parentId: t.opt(t.str()), fileId: id.file, remoteId: t.opt(t.str()), ifRevision: t.opt(t.str()) },
+    { file: driveFile, stale: t.opt(t.bool()) },
+    { gate: "post", tool: "files", deferred: true },
+  ),
+  gr(
+    "google.drive.list_revisions",
+    "The revisions Drive keeps of a file, with who saved each",
+    { fileId: t.str() },
+    {
+      revisions: t.arr(
+        t.obj({
+          id: t.str(),
+          modifiedTime: t.str(),
+          size: t.opt(t.int()),
+          lastModifyingUser: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })),
+        }),
+      ),
+    },
+    { tool: "files", deferred: true },
+  ),
+  gr(
+    "google.drive.download_revision",
+    "Download one revision of a Drive file into a blob",
+    { fileId: t.str(), revisionId: t.str() },
+    { blobId: id.blob, size: t.int(), mimeType: t.str() },
+    { tool: "files", deferred: true },
+  ),
+  gw(
+    "google.drive.create_folder",
+    "Create a Drive folder",
+    { name: t.str(), parentId: t.opt(t.str()) },
+    { file: driveFile },
+    { gate: "post", tool: "files", deferred: true },
+  ),
+  gw(
+    "google.drive.copy_file",
+    "Copy a Drive file",
+    { fileId: t.str(), name: t.opt(t.str()), parentId: t.opt(t.str()) },
+    { file: driveFile },
+    { gate: "post", tool: "files", deferred: true },
+  ),
+  gw(
+    "google.drive.share_file",
+    "Share a Drive file with people; Google emails them",
+    {
+      fileId: t.str(),
+      emails: t.arr(email, { minItems: 1 }),
+      role: t.enm("reader", "commenter", "writer"),
+      notify: t.opt(t.bool()),
+    },
+    { shared: t.bool() },
+    { gate: "send", tool: "files", deferred: true },
+  ),
+  gw(
+    "google.drive.trash_file",
+    "Move a Drive file to Trash",
+    { fileId: t.str() },
+    { trashed: t.bool() },
+    { gate: "delete", tool: "files", deferred: true },
+  ),
+  gr(
+    "google.drive.changes_start_token",
+    "The Drive changes start page token, so a mount syncs incrementally from now instead of rescanning",
+    { driveId: t.opt(t.str()) },
+    { startPageToken: t.str() },
+  ),
+  gr(
+    "google.drive.list_changes",
+    "Drive changes since a page token (mount sync and mount lag)",
+    { pageToken: t.str(), driveId: t.opt(t.str()) },
+    {
+      changes: t.arr(t.obj({ fileId: t.str(), removed: t.bool(), file: t.opt(driveFile) })),
+      newStartPageToken: t.opt(t.str()),
+      nextPageToken: t.opt(t.str()),
+    },
+  ),
+  gw(
+    "google.drive.watch_changes",
+    "Open a Drive changes.watch channel",
+    { pageToken: t.str(), channelId: t.str(), address: t.str(), driveId: t.opt(t.str()) },
+    { resourceId: t.str(), expiration: t.ts() },
+    { gate: quiet("Registers a push channel for the Space; nothing is sent to anyone") },
+  ),
+  gw(
+    "google.drive.stop_watch",
+    "Close a Drive watch channel",
+    { channelId: t.str(), resourceId: t.str() },
+    { stopped: t.bool() },
+    { gate: quiet("Removes a push channel; nothing is sent to anyone") },
+  ),
   // ---- Sheets
-  gr('google.sheets.get_spreadsheet', 'Spreadsheet metadata: sheets and ranges', { spreadsheetId: t.str() }, { title: t.str(), sheets: t.arr(t.obj({ sheetId: t.int(), title: t.str(), rows: t.opt(t.int()), columns: t.opt(t.int()) })) }, { tool: 'records', deferred: true }),
-  gr('google.sheets.get_values', 'Read a range of cells', { spreadsheetId: t.str(), range: t.str({ examples: ['Sheet1!A1:D50'] }) }, { values: t.arr(t.arr(t.str())) }, { tool: 'records', deferred: true }),
-  gw('google.sheets.update_values', 'Write a range of cells', { spreadsheetId: t.str(), range: t.str(), values: t.arr(t.arr(t.str())), valueInputOption: t.opt(t.enm('RAW', 'USER_ENTERED')) }, { updatedCells: t.int() }, { gate: 'post', tool: 'records', deferred: true }),
-  gw('google.sheets.append_values', 'Append rows to a sheet', { spreadsheetId: t.str(), range: t.str(), values: t.arr(t.arr(t.str())) }, { updatedRows: t.int() }, { gate: 'post', tool: 'records', deferred: true }),
-  gw('google.sheets.create_spreadsheet', 'Create a spreadsheet', { title: t.str(), parentId: t.opt(t.str()) }, { spreadsheetId: t.str(), url: t.str() }, { gate: 'post', tool: 'records', deferred: true }),
-  gw('google.sheets.batch_update', 'Apply structural changes to a spreadsheet (add sheet, format, resize)', { spreadsheetId: t.str(), requests: t.arr(t.rec()) }, { applied: t.int() }, { gate: 'post', tool: 'records', deferred: true }),
+  gr(
+    "google.sheets.get_spreadsheet",
+    "Spreadsheet metadata: sheets and ranges",
+    { spreadsheetId: t.str() },
+    {
+      title: t.str(),
+      sheets: t.arr(t.obj({ sheetId: t.int(), title: t.str(), rows: t.opt(t.int()), columns: t.opt(t.int()) })),
+    },
+    { tool: "records", deferred: true },
+  ),
+  gr(
+    "google.sheets.get_values",
+    "Read a range of cells",
+    { spreadsheetId: t.str(), range: t.str({ examples: ["Sheet1!A1:D50"] }) },
+    { values: t.arr(t.arr(t.str())) },
+    { tool: "records", deferred: true },
+  ),
+  gw(
+    "google.sheets.update_values",
+    "Write a range of cells",
+    {
+      spreadsheetId: t.str(),
+      range: t.str(),
+      values: t.arr(t.arr(t.str())),
+      valueInputOption: t.opt(t.enm("RAW", "USER_ENTERED")),
+    },
+    { updatedCells: t.int() },
+    { gate: "post", tool: "records", deferred: true },
+  ),
+  gw(
+    "google.sheets.append_values",
+    "Append rows to a sheet",
+    { spreadsheetId: t.str(), range: t.str(), values: t.arr(t.arr(t.str())) },
+    { updatedRows: t.int() },
+    { gate: "post", tool: "records", deferred: true },
+  ),
+  gw(
+    "google.sheets.create_spreadsheet",
+    "Create a spreadsheet",
+    { title: t.str(), parentId: t.opt(t.str()) },
+    { spreadsheetId: t.str(), url: t.str() },
+    { gate: "post", tool: "records", deferred: true },
+  ),
+  gw(
+    "google.sheets.batch_update",
+    "Apply structural changes to a spreadsheet (add sheet, format, resize)",
+    { spreadsheetId: t.str(), requests: t.arr(t.rec()) },
+    { applied: t.int() },
+    { gate: "post", tool: "records", deferred: true },
+  ),
   // ---- Docs
-  gr('google.docs.get_document', 'Read a Google Doc as structured content', { documentId: t.str() }, { title: t.str(), body: t.rec() }, { tool: 'files', deferred: true }),
-  gw('google.docs.create_document', 'Create a Google Doc', { title: t.str(), parentId: t.opt(t.str()) }, { documentId: t.str(), url: t.str() }, { gate: 'post', tool: 'files', deferred: true }),
-  gw('google.docs.batch_update', 'Edit a Google Doc with a list of requests', { documentId: t.str(), requests: t.arr(t.rec()) }, { applied: t.int() }, { gate: 'post', tool: 'files', deferred: true }),
-  gw('google.docs.replace_text', 'Replace every occurrence of some text in a Google Doc', { documentId: t.str(), find: t.str({ minLength: 1 }), replace: t.str(), matchCase: t.opt(t.bool()) }, { replaced: t.int({ minimum: 0 }) },
-    { gate: 'post', tool: 'files', deferred: true }),
-  gw('google.docs.insert_text', 'Insert text into a Google Doc after or before some existing text, or at its start or end; refuses if the document changed meanwhile', {
-    documentId: t.str(), text: t.str({ minLength: 1 }), where: t.opt(t.enm('after', 'before', 'start', 'end')), anchor: t.opt(t.str({ minLength: 1, description: 'The text to put it after or before' })), matchCase: t.opt(t.bool()),
-  }, { inserted: t.bool(), index: t.int({ minimum: 1 }) }, { gate: 'post', tool: 'files', deferred: true, errors: ['validation.not_found', 'validation.version_conflict'] }),
+  gr(
+    "google.docs.get_document",
+    "Read a Google Doc as structured content",
+    { documentId: t.str() },
+    { title: t.str(), body: t.rec() },
+    { tool: "files", deferred: true },
+  ),
+  gw(
+    "google.docs.create_document",
+    "Create a Google Doc",
+    { title: t.str(), parentId: t.opt(t.str()) },
+    { documentId: t.str(), url: t.str() },
+    { gate: "post", tool: "files", deferred: true },
+  ),
+  gw(
+    "google.docs.batch_update",
+    "Edit a Google Doc with a list of requests",
+    { documentId: t.str(), requests: t.arr(t.rec()) },
+    { applied: t.int() },
+    { gate: "post", tool: "files", deferred: true },
+  ),
+  gw(
+    "google.docs.replace_text",
+    "Replace every occurrence of some text in a Google Doc",
+    { documentId: t.str(), find: t.str({ minLength: 1 }), replace: t.str(), matchCase: t.opt(t.bool()) },
+    { replaced: t.int({ minimum: 0 }) },
+    { gate: "post", tool: "files", deferred: true },
+  ),
+  gw(
+    "google.docs.insert_text",
+    "Insert text into a Google Doc after or before some existing text, or at its start or end; refuses if the document changed meanwhile",
+    {
+      documentId: t.str(),
+      text: t.str({ minLength: 1 }),
+      where: t.opt(t.enm("after", "before", "start", "end")),
+      anchor: t.opt(t.str({ minLength: 1, description: "The text to put it after or before" })),
+      matchCase: t.opt(t.bool()),
+    },
+    { inserted: t.bool(), index: t.int({ minimum: 1 }) },
+    { gate: "post", tool: "files", deferred: true, errors: ["validation.not_found", "validation.version_conflict"] },
+  ),
   // ---- Meet (conferenceRecords through the Google connector)
-  gr('google.meet.list_conference_records', 'List Meet conference records in a time range', { from: t.opt(t.str()), to: t.opt(t.str()), pageToken: t.opt(t.str()) },
-    { records: t.arr(t.obj({ name: t.str(), startTime: t.str(), endTime: t.opt(t.str()), space: t.opt(t.str()) })), nextPageToken: t.opt(t.str()) }, { tool: 'inbox', deferred: true }),
-  gr('google.meet.list_recordings', 'Recordings of a conference record (they also land in the organizer Drive)', { conferenceRecord: t.str() },
-    { recordings: t.arr(t.obj({ name: t.str(), state: t.str(), driveFileId: t.opt(t.str()) })) }, { tool: 'inbox', deferred: true }),
-  gr('google.meet.list_transcripts', 'Transcripts of a conference record', { conferenceRecord: t.str() },
-    { transcripts: t.arr(t.obj({ name: t.str(), state: t.str(), docsDocumentId: t.opt(t.str()) })) }, { tool: 'inbox', deferred: true }),
-  gr('google.meet.get_transcript_entries', 'Transcript entries (speaker, text, time)', { transcript: t.str(), pageToken: t.opt(t.str()) },
-    { entries: t.arr(t.obj({ participant: t.opt(t.str()), text: t.str(), startTime: t.opt(t.str()) })), nextPageToken: t.opt(t.str()) }, { tool: 'inbox', deferred: true }),
-  gw('google.meet.subscribe', 'Subscribe to Workspace Events for recording and transcript ready notices', { target: t.str(), eventTypes: t.arr(t.str()) }, { subscription: t.str(), expiration: t.opt(t.ts()) },
-    { gate: quiet('Registers an events subscription for the Space; nothing is sent to anyone') }),
+  gr(
+    "google.meet.list_conference_records",
+    "List Meet conference records in a time range",
+    { from: t.opt(t.str()), to: t.opt(t.str()), pageToken: t.opt(t.str()) },
+    {
+      records: t.arr(t.obj({ name: t.str(), startTime: t.str(), endTime: t.opt(t.str()), space: t.opt(t.str()) })),
+      nextPageToken: t.opt(t.str()),
+    },
+    { tool: "inbox", deferred: true },
+  ),
+  gr(
+    "google.meet.list_recordings",
+    "Recordings of a conference record (they also land in the organizer Drive)",
+    { conferenceRecord: t.str() },
+    { recordings: t.arr(t.obj({ name: t.str(), state: t.str(), driveFileId: t.opt(t.str()) })) },
+    { tool: "inbox", deferred: true },
+  ),
+  gr(
+    "google.meet.list_transcripts",
+    "Transcripts of a conference record",
+    { conferenceRecord: t.str() },
+    { transcripts: t.arr(t.obj({ name: t.str(), state: t.str(), docsDocumentId: t.opt(t.str()) })) },
+    { tool: "inbox", deferred: true },
+  ),
+  gr(
+    "google.meet.get_transcript_entries",
+    "Transcript entries (speaker, text, time)",
+    { transcript: t.str(), pageToken: t.opt(t.str()) },
+    {
+      entries: t.arr(t.obj({ participant: t.opt(t.str()), text: t.str(), startTime: t.opt(t.str()) })),
+      nextPageToken: t.opt(t.str()),
+    },
+    { tool: "inbox", deferred: true },
+  ),
+  gw(
+    "google.meet.subscribe",
+    "Subscribe to Workspace Events for recording and transcript ready notices",
+    { target: t.str(), eventTypes: t.arr(t.str()) },
+    { subscription: t.str(), expiration: t.opt(t.ts()) },
+    { gate: quiet("Registers an events subscription for the Space; nothing is sent to anyone") },
+  ),
 ];
 
 // Common operations whose handlers already exist. Word-style editing, admin setup, and watch channels stay off the catalogue.
-const accountErrors = ['validation.bad_input', 'internal.unexpected', 'provider.auth_failed', 'provider.unavailable', 'permission.needs_approval'] as ('validation.bad_input' | 'internal.unexpected' | 'provider.auth_failed' | 'provider.unavailable' | 'permission.needs_approval')[];
+const accountErrors = [
+  "validation.bad_input",
+  "internal.unexpected",
+  "provider.auth_failed",
+  "provider.unavailable",
+  "permission.needs_approval",
+] as (
+  | "validation.bad_input"
+  | "internal.unexpected"
+  | "provider.auth_failed"
+  | "provider.unavailable"
+  | "permission.needs_approval"
+)[];
 const steps = [
-  step('google.gmail.list_messages', 'Google · List Gmail messages', 'data', 'capability', {
-    cap: 'google.gmail.list_messages', effects: 'read', errors: accountErrors,
-    in: { ...act, q: t.opt(t.str()), labelIds: t.opt(t.arr(t.str())), maxResults: t.opt(t.int({ minimum: 1, maximum: 500 })), pageToken: t.opt(t.str()) },
+  step("google.gmail.list_messages", "Google · List Gmail messages", "data", "capability", {
+    cap: "google.gmail.list_messages",
+    effects: "read",
+    errors: accountErrors,
+    in: {
+      ...act,
+      q: t.opt(t.str()),
+      labelIds: t.opt(t.arr(t.str())),
+      maxResults: t.opt(t.int({ minimum: 1, maximum: 500 })),
+      pageToken: t.opt(t.str()),
+    },
     out: { messages: t.arr(t.obj({ id: t.str(), threadId: t.str() })), resultSizeEstimate: t.opt(t.int()) },
   }),
-  step('google.gmail.send_message', 'Google · Send a Gmail message', 'send', 'capability', {
-    cap: 'google.gmail.send_message', effects: 'outward', gateAct: 'send', idempotency: 'key', errors: accountErrors,
-    in: { ...act, to: t.arr(email), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), threadId: t.opt(t.str()) },
+  step("google.gmail.send_message", "Google · Send a Gmail message", "send", "capability", {
+    cap: "google.gmail.send_message",
+    effects: "outward",
+    gateAct: "send",
+    idempotency: "key",
+    errors: accountErrors,
+    in: {
+      ...act,
+      to: t.arr(email),
+      subject: t.str(),
+      text: t.opt(t.str()),
+      html: t.opt(t.str()),
+      threadId: t.opt(t.str()),
+    },
     out: { id: t.str(), threadId: t.str() },
   }),
-  step('google.calendar.list_events', 'Google · List calendar events', 'data', 'capability', {
-    cap: 'google.calendar.list_events', effects: 'read', errors: accountErrors,
-    in: { ...act, calendarId: t.str({ examples: ['primary'] }), timeMin: t.opt(t.str()), timeMax: t.opt(t.str()), q: t.opt(t.str()) },
+  step("google.calendar.list_events", "Google · List calendar events", "data", "capability", {
+    cap: "google.calendar.list_events",
+    effects: "read",
+    errors: accountErrors,
+    in: {
+      ...act,
+      calendarId: t.str({ examples: ["primary"] }),
+      timeMin: t.opt(t.str()),
+      timeMax: t.opt(t.str()),
+      q: t.opt(t.str()),
+    },
     out: { events: t.arr(gcalEvent) },
   }),
-  step('google.calendar.create_event', 'Google · Create a calendar event', 'send', 'capability', {
-    cap: 'google.calendar.create_event', effects: 'outward', gateAct: 'send', idempotency: 'key', errors: accountErrors,
+  step("google.calendar.create_event", "Google · Create a calendar event", "send", "capability", {
+    cap: "google.calendar.create_event",
+    effects: "outward",
+    gateAct: "send",
+    idempotency: "key",
+    errors: accountErrors,
     in: { ...act, ...eventWrite },
     out: { event: gcalEvent },
   }),
-  step('google.drive.list_files', 'Google · List Drive files', 'data', 'capability', {
-    cap: 'google.drive.list_files', effects: 'read', errors: accountErrors,
+  step("google.drive.list_files", "Google · List Drive files", "data", "capability", {
+    cap: "google.drive.list_files",
+    effects: "read",
+    errors: accountErrors,
     in: { ...act, q: t.opt(t.str()), parentId: t.opt(t.str()), pageSize: t.opt(t.int({ minimum: 1, maximum: 1000 })) },
     out: { files: t.arr(driveFile) },
   }),
-  step('google.drive.create_folder', 'Google · Create a Drive folder', 'data', 'capability', {
-    cap: 'google.drive.create_folder', effects: 'outward', gateAct: 'post', idempotency: 'key', errors: accountErrors,
+  step("google.drive.create_folder", "Google · Create a Drive folder", "data", "capability", {
+    cap: "google.drive.create_folder",
+    effects: "outward",
+    gateAct: "post",
+    idempotency: "key",
+    errors: accountErrors,
     in: { ...act, name: t.str(), parentId: t.opt(t.str()) },
     out: { file: driveFile },
   }),
-  step('google.sheets.get_values', 'Google · Read sheet cells', 'data', 'capability', {
-    cap: 'google.sheets.get_values', effects: 'read', errors: accountErrors,
-    in: { ...act, spreadsheetId: t.str(), range: t.str({ examples: ['Sheet1!A1:D50'] }) },
+  step("google.sheets.get_values", "Google · Read sheet cells", "data", "capability", {
+    cap: "google.sheets.get_values",
+    effects: "read",
+    errors: accountErrors,
+    in: { ...act, spreadsheetId: t.str(), range: t.str({ examples: ["Sheet1!A1:D50"] }) },
     out: { values: t.arr(t.arr(t.str())) },
   }),
-  step('google.sheets.append_values', 'Google · Append sheet rows', 'data', 'capability', {
-    cap: 'google.sheets.append_values', effects: 'outward', gateAct: 'post', idempotency: 'key', errors: accountErrors,
+  step("google.sheets.append_values", "Google · Append sheet rows", "data", "capability", {
+    cap: "google.sheets.append_values",
+    effects: "outward",
+    gateAct: "post",
+    idempotency: "key",
+    errors: accountErrors,
     in: { ...act, spreadsheetId: t.str(), range: t.str(), values: t.arr(t.arr(t.str())) },
     out: { updatedRows: t.int() },
   }),
-  step('google.docs.create_document', 'Google · Create a document', 'data', 'capability', {
-    cap: 'google.docs.create_document', effects: 'outward', gateAct: 'post', idempotency: 'key', errors: accountErrors,
+  step("google.docs.create_document", "Google · Create a document", "data", "capability", {
+    cap: "google.docs.create_document",
+    effects: "outward",
+    gateAct: "post",
+    idempotency: "key",
+    errors: accountErrors,
     in: { ...act, title: t.str(), parentId: t.opt(t.str()) },
     out: { documentId: t.str(), url: t.str() },
   }),
 ];
 
 export default defineManifest({
-  id: 'google',
-  title: 'Google Workspace',
-  kind: 'connector',
-  owner: 'L5',
+  id: "google",
+  title: "Google Workspace",
+  kind: "connector",
+  owner: "L5",
   events: [
-    ev('google.dwd_configured', 'Domain-wide delegation was set up', { p: { connector: t.lit('google'), adminEmail: email, mappedMembers: t.int(), autoConnect: t.bool() }, subject: ['connector', '/connector'], vis: 'space' }),
-    ev('google.dwd_probed', 'A delegation probe ran', { p: { connector: t.lit('google'), ok: t.bool(), email: t.opt(email), scopesMissing: t.arr(t.str()) }, subject: ['connector', '/connector'] }),
-    ev('google.user_connected', 'A person signed in to their own Google account', { p: { accountId: t.str(), email }, subject: ['entity', '/accountId'] }),
-    ev('google.dwd_revoked', 'Delegation was turned off', { p: { connector: t.lit('google'), by: t.str() }, subject: ['connector', '/connector'] }),
-    ev('google.push_received', 'A verified Google push notice arrived (Gmail, Calendar, Drive or Meet)', {
-      p: { connector: t.lit('google'), kind: t.enm('gmail', 'calendar', 'drive', 'meet'), messageId: t.str(), mailbox: t.opt(email), historyId: t.opt(t.str()), channelId: t.opt(t.str()), resourceState: t.opt(t.str()), resourceId: t.opt(t.str()) },
-      subject: ['connector', '/connector'], vis: 'space',
+    ev("google.dwd_configured", "Domain-wide delegation was set up", {
+      p: { connector: t.lit("google"), adminEmail: email, mappedMembers: t.int(), autoConnect: t.bool() },
+      subject: ["connector", "/connector"],
+      vis: "space",
+    }),
+    ev("google.dwd_probed", "A delegation probe ran", {
+      p: { connector: t.lit("google"), ok: t.bool(), email: t.opt(email), scopesMissing: t.arr(t.str()) },
+      subject: ["connector", "/connector"],
+    }),
+    ev("google.user_connected", "A person signed in to their own Google account", {
+      p: { accountId: t.str(), email },
+      subject: ["entity", "/accountId"],
+    }),
+    ev("google.dwd_revoked", "Delegation was turned off", {
+      p: { connector: t.lit("google"), by: t.str() },
+      subject: ["connector", "/connector"],
+    }),
+    ev("google.push_received", "A verified Google push notice arrived (Gmail, Calendar, Drive or Meet)", {
+      p: {
+        connector: t.lit("google"),
+        kind: t.enm("gmail", "calendar", "drive", "meet"),
+        messageId: t.str(),
+        mailbox: t.opt(email),
+        historyId: t.opt(t.str()),
+        channelId: t.opt(t.str()),
+        resourceState: t.opt(t.str()),
+        resourceId: t.opt(t.str()),
+      },
+      subject: ["connector", "/connector"],
+      vis: "space",
     }),
   ],
   capabilities,
   steps,
   connectors: [
-    conn('google', 'Google Workspace', {
-      mode: 'dwd', scope: 'space', auth: { type: 'service_account_dwd', scopes: SCOPES },
-      domains: ['*.googleapis.com', 'oauth2.googleapis.com', 'meet.googleapis.com'],
-      secrets: [{ name: 'Google_DWD', description: 'Service account JSON key used for domain-wide delegation' }],
-      sources: [{ key: 'google', path: '/hooks/google', verify: 'signature', event: 'google.push_received', dedupe: '/messageId' }],
-      actions: [...capabilities.map((c) => c.name).filter((n) => n.startsWith('google.')), 'mail.connect', 'mail.sync_now', 'mail.send_as'],
-      rate: { rps: 10, burst: 20 }, health: 'google.dwd',
+    conn("google", "Google Workspace", {
+      mode: "dwd",
+      scope: "space",
+      auth: { type: "service_account_dwd", scopes: SCOPES },
+      domains: ["*.googleapis.com", "oauth2.googleapis.com", "meet.googleapis.com"],
+      secrets: [{ name: "Google_DWD", description: "Service account JSON key used for domain-wide delegation" }],
+      sources: [
+        {
+          key: "google",
+          path: "/hooks/google",
+          verify: "signature",
+          event: "google.push_received",
+          dedupe: "/messageId",
+        },
+      ],
+      actions: [
+        ...capabilities.map((c) => c.name).filter((n) => n.startsWith("google.")),
+        "mail.connect",
+        "mail.sync_now",
+        "mail.send_as",
+      ],
+      rate: { rps: 10, burst: 20 },
+      health: "google.dwd",
     }),
   ],
   health: [
-    health('google.dwd', 'Google Workspace delegation', 'google.health', 'Check the Google_DWD key in the Vault and the scopes in the Google Admin console, then press Probe.', { pauses: ['sync'] }),
+    health(
+      "google.dwd",
+      "Google Workspace delegation",
+      "google.health",
+      "Check the Google_DWD key in the Vault and the scopes in the Google Admin console, then press Probe.",
+      { pauses: ["sync"] },
+    ),
   ],
   screens: [
-    screen('google.setup', 'console', 'ui:GoogleDwdWizard', {
-      q: { status: ['google.dwd.status', {}, true], scopes: ['google.dwd.scopes', {}, false], members: ['google.dwd.members', {}, true] },
-      a: {
-        setup: ['google.dwd.setup', { vaultItem: '/state/vaultItem', adminEmail: '/state/adminEmail', domain: '/state/domain' }], probe: ['google.dwd.probe', { as: '/state/as' }],
-        exclude: ['google.dwd.set_excluded', { email: '/state/email', excluded: '/state/excluded' }], disable: ['google.dwd.disable', {}, 'Turn off Google delegation and stop every member sync?'],
+    screen("google.setup", "console", "ui:GoogleDwdWizard", {
+      q: {
+        status: ["google.dwd.status", {}, true],
+        scopes: ["google.dwd.scopes", {}, false],
+        members: ["google.dwd.members", {}, true],
       },
-      empty: 'Google Workspace is not connected', primary: 'Set up delegation', needs: ['connectors.manage'],
+      a: {
+        setup: [
+          "google.dwd.setup",
+          { vaultItem: "/state/vaultItem", adminEmail: "/state/adminEmail", domain: "/state/domain" },
+        ],
+        probe: ["google.dwd.probe", { as: "/state/as" }],
+        exclude: ["google.dwd.set_excluded", { email: "/state/email", excluded: "/state/excluded" }],
+        disable: ["google.dwd.disable", {}, "Turn off Google delegation and stop every member sync?"],
+      },
+      empty: "Google Workspace is not connected",
+      primary: "Set up delegation",
+      needs: ["connectors.manage"],
     }),
   ],
   settings: [
-    setting('google.auto_connect', 'space', 'integrations', 'Connect members mail and calendar when delegation is set', t.bool(), true),
+    setting(
+      "google.auto_connect",
+      "space",
+      "integrations",
+      "Connect members mail and calendar when delegation is set",
+      t.bool(),
+      true,
+    ),
   ],
 });

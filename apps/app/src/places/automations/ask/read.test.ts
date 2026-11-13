@@ -6,7 +6,11 @@ import { publicResult, readOffer } from "./read.ts";
 const secret = "sk-live-do-not-keep";
 
 test("a catalog read uses steps.test and drops a pasted key", () => {
-  const offer = readOffer({ stepKey: "google.gmail.list_messages", connectionId: "con_g", input: { q: "newer", apiKey: secret } });
+  const offer = readOffer({
+    stepKey: "google.gmail.list_messages",
+    connectionId: "con_g",
+    input: { q: "newer", apiKey: secret },
+  });
   assert.equal(offer.kind, "catalog");
   if (offer.kind !== "catalog") return;
   assert.equal(offer.cap, "steps.test");
@@ -43,13 +47,24 @@ test("a connector read is a dry-run preview", () => {
 });
 
 test("a connector write is held", () => {
-  const offer = readOffer({ stepKey: "connector_request", effect: "outward", connectionId: "con_s", connector: "stripe", action: "createNote" });
+  const offer = readOffer({
+    stepKey: "connector_request",
+    effect: "outward",
+    connectionId: "con_s",
+    connector: "stripe",
+    action: "createNote",
+  });
   assert.equal(offer.kind, "hold");
   assert.match(offer.say, /waits until you run it/);
 });
 
 test("a connector request with no effect is held", () => {
-  const offer = readOffer({ stepKey: "connector_request", connectionId: "con_s", connector: "stripe", action: "listNotes" });
+  const offer = readOffer({
+    stepKey: "connector_request",
+    connectionId: "con_s",
+    connector: "stripe",
+    action: "listNotes",
+  });
   assert.equal(offer.kind, "hold");
   assert.match(offer.say, /waits until you run it/);
 });

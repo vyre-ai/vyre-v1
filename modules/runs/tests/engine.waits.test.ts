@@ -8,16 +8,28 @@ import { sweepWaits, wake } from "../handlers/engine.ts";
 import { readWait, saveWait } from "../projections.ts";
 
 const names = (h: Harness): string[] => h.allEvents.map((e) => e.name);
-const get = async (h: Harness, id: string): Promise<any> => (await h.call("runs.get", { runId: id }, engine)).run;   // eslint-disable-line @typescript-eslint/no-explicit-any
-const tasks = (h: Harness): any[] => {   // eslint-disable-line @typescript-eslint/no-explicit-any
-  const made: any[] = [];   // eslint-disable-line @typescript-eslint/no-explicit-any
-  h.callee("tasks.create", (input) => { made.push(input); return { task: { id: `tsk_n${made.length}` } }; });
+const get = async (h: Harness, id: string): Promise<any> => (await h.call("runs.get", { runId: id }, engine)).run; // eslint-disable-line @typescript-eslint/no-explicit-any
+const tasks = (h: Harness): any[] => {
+  // eslint-disable-line @typescript-eslint/no-explicit-any
+  const made: any[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  h.callee("tasks.create", (input) => {
+    made.push(input);
+    return { task: { id: `tsk_n${made.length}` } };
+  });
   return made;
 };
 
 test("wait_for an event: a Run of kind wait is created waiting; an event that does not match leaves it, one that does ends it", async () => {
   const h = harness();
-  const r = await h.call("runs.wait_for", { on: { event: "record.updated", filter: { recordId: "rec_1" } }, label: "Client reply", subject: { type: "record", id: "rec_1" } }, alice);
+  const r = await h.call(
+    "runs.wait_for",
+    {
+      on: { event: "record.updated", filter: { recordId: "rec_1" } },
+      label: "Client reply",
+      subject: { type: "record", id: "rec_1" },
+    },
+    alice,
+  );
   assert.deepEqual(names(h), ["run.started", "run.waiting"]);
   const run = await get(h, r.runId);
   assert.equal(run.kind, "wait");
@@ -27,10 +39,21 @@ test("wait_for an event: a Run of kind wait is created waiting; an event that do
   assert.equal(run.name, "Client reply");
   assert.deepEqual(h.allEvents[1]!.payload, { runId: r.runId, reason: "background", on: "event record.updated" });
 
-  assert.deepEqual(await h.engineRun(engine, (ctx) => wake(ctx, { type: "record.updated", payload: { recordId: "rec_other" } })), []);
-  assert.deepEqual(await h.engineRun(engine, (ctx) => wake(ctx, { type: "record.created", payload: { recordId: "rec_1" } })), []);
+  assert.deepEqual(
+    await h.engineRun(engine, (ctx) => wake(ctx, { type: "record.updated", payload: { recordId: "rec_other" } })),
+    [],
+  );
+  assert.deepEqual(
+    await h.engineRun(engine, (ctx) => wake(ctx, { type: "record.created", payload: { recordId: "rec_1" } })),
+    [],
+  );
   assert.equal((await get(h, r.runId)).status, "waiting");
-  assert.deepEqual(await h.engineRun(engine, (ctx) => wake(ctx, { type: "record.updated", payload: { recordId: "rec_1", fields: {} } })), [r.runId]);
+  assert.deepEqual(
+    await h.engineRun(engine, (ctx) =>
+      wake(ctx, { type: "record.updated", payload: { recordId: "rec_1", fields: {} } }),
+    ),
+    [r.runId],
+  );
   const done = await get(h, r.runId);
   assert.equal(done.status, "succeeded");
   assert.equal(done.summary, "Matched record.updated.");
@@ -73,7 +96,11 @@ test("a custom timeout is read as seconds, minutes, hours, days or weeks; anythi
   assert.equal(readWait(h.db, r.runId)?.untilAt, t0 + 6 * HOUR);
   const w = await h.call("runs.wait_for", { on: { event: "x.y" }, timeout: "2w" }, alice);
   assert.equal(readWait(h.db, w.runId)?.untilAt, t0 + 14 * DAY);
-  await assert.rejects(h.call("runs.wait_for", { on: { event: "x.y" }, timeout: "soon" }, alice), (e) => { assert.equal(codeOf(e), "validation.precondition_failed"); assert.equal(reasonOf(e), "bad_duration"); return true; });
+  await assert.rejects(h.call("runs.wait_for", { on: { event: "x.y" }, timeout: "soon" }, alice), (e) => {
+    assert.equal(codeOf(e), "validation.precondition_failed");
+    assert.equal(reasonOf(e), "bad_duration");
+    return true;
+  });
 });
 
 test("wait for a time: the wait ends when the time comes", async () => {
@@ -92,9 +119,15 @@ test("wait for another Run: the Run's end event wakes the wait; a Run that alrea
   const target = (await h.call("runs.start", newRun(), engine)).runId as string;
   const w = await h.call("runs.wait_for", { on: { run: target } }, alice);
   assert.equal((await get(h, w.runId)).status, "waiting");
-  assert.deepEqual(await h.engineRun(engine, (ctx) => wake(ctx, { type: "run.succeeded", payload: { runId: "run_other" } })), []);
+  assert.deepEqual(
+    await h.engineRun(engine, (ctx) => wake(ctx, { type: "run.succeeded", payload: { runId: "run_other" } })),
+    [],
+  );
   await h.call("runs.finish", { runId: target, status: "succeeded" }, engine);
-  assert.deepEqual(await h.engineRun(engine, (ctx) => wake(ctx, { type: "run.succeeded", payload: { runId: target } })), [w.runId]);
+  assert.deepEqual(
+    await h.engineRun(engine, (ctx) => wake(ctx, { type: "run.succeeded", payload: { runId: target } })),
+    [w.runId],
+  );
   const done = await get(h, w.runId);
   assert.equal(done.status, "succeeded");
   assert.equal(done.summary, `Run ${target} succeeded.`);
@@ -102,7 +135,10 @@ test("wait for another Run: the Run's end event wakes the wait; a Run that alrea
   assert.equal((await get(h, late.runId)).status, "waiting");
   assert.deepEqual(await h.engineRun(engine, (ctx) => sweepWaits(ctx)), [late.runId]);
   assert.equal((await get(h, late.runId)).status, "succeeded");
-  await assert.rejects(h.call("runs.wait_for", { on: { run: "run_nothere" } }, alice), (e) => codeOf(e) === "validation.not_found");
+  await assert.rejects(
+    h.call("runs.wait_for", { on: { run: "run_nothere" } }, alice),
+    (e) => codeOf(e) === "validation.not_found",
+  );
 });
 
 test("an engine Run waiting in the background wakes into Running; its timeout fails it into Needs you", async () => {
@@ -110,7 +146,13 @@ test("an engine Run waiting in the background wakes into Running; its timeout fa
   const made = tasks(h);
   const id = (await h.call("runs.start", newRun({ name: "Intake" }), engine)).runId as string;
   await h.call("runs.mark_waiting", { runId: id, reason: "background" }, engine);
-  saveWait(h.db, { runId: id, reason: "background", on: { event: "email.received" }, untilAt: h.now() + HOUR, createdAt: h.now() });
+  saveWait(h.db, {
+    runId: id,
+    reason: "background",
+    on: { event: "email.received" },
+    untilAt: h.now() + HOUR,
+    createdAt: h.now(),
+  });
   assert.deepEqual(await h.engineRun(engine, (ctx) => wake(ctx, { type: "email.received", payload: {} })), [id]);
   assert.equal((await get(h, id)).status, "running");
   assert.ok(names(h).includes("run.resumed"));
@@ -132,7 +174,14 @@ test("a cancel-on event stops the waiting Run instead of waking it", async () =>
   const h = harness();
   const id = (await h.call("runs.start", newRun(), engine)).runId as string;
   await h.call("runs.mark_waiting", { runId: id, reason: "approval", taskId: "tsk_a1" }, engine);
-  saveWait(h.db, { runId: id, reason: "approval", on: { event: "task.completed" }, cancelOn: ["automation.disabled"], taskId: "tsk_a1", createdAt: h.now() });
+  saveWait(h.db, {
+    runId: id,
+    reason: "approval",
+    on: { event: "task.completed" },
+    cancelOn: ["automation.disabled"],
+    taskId: "tsk_a1",
+    createdAt: h.now(),
+  });
   assert.deepEqual(await h.engineRun(engine, (ctx) => wake(ctx, { type: "automation.disabled", payload: {} })), []);
   const run = await get(h, id);
   assert.equal(run.status, "stopped");

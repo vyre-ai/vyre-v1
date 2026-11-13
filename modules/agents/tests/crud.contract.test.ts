@@ -22,7 +22,14 @@ const withPlugin = async (hn: Harness) => {
   setPluginsHost(createPluginsHost());
   stubSkills(hn);
   const m = (await h["plugins.marketplace.add"]!(hn.ctx, { source: MARKET, idempotencyKey: k() })).marketplace;
-  const p = (await h["plugins.install"]!(hn.ctx, { marketplaceId: m.marketplaceId, plugin: "greeter", scope: "space", idempotencyKey: k() })).plugin;
+  const p = (
+    await h["plugins.install"]!(hn.ctx, {
+      marketplaceId: m.marketplaceId,
+      plugin: "greeter",
+      scope: "space",
+      idempotencyKey: k(),
+    })
+  ).plugin;
   hn.clear();
   return { m, p };
 };
@@ -37,270 +44,1118 @@ const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
 test("the handler table covers exactly the 108 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 109);   // 105 with the nine of install-from-link and agent skills (wip/l-install); agents.people_summary and agents.pause_person (l-consolidate), then 68, agents.config.may_save (l-agenttoml), the eight Connections of l-connections, agents.assistant_of (l-meetings) and the fifteen skill scopes of l-skills2, agents.instruction.append (lessons), agents.share_class (the Space browser)
+  assert.equal(mine.length, 109); // 105 with the nine of install-from-link and agent skills (wip/l-install); agents.people_summary and agents.pause_person (l-consolidate), then 68, agents.config.may_save (l-agenttoml), the eight Connections of l-connections, agents.assistant_of (l-meetings) and the fifteen skill scopes of l-skills2, agents.instruction.append (lessons), agents.share_class (the Space browser)
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
 
 test("each example input is a valid input", () => {
-  for (const c of mine) for (const ex of c.examples) assert.deepEqual(contractErrors(c.name, "in", ex.input), [], `${c.name}: example ${ex.name}`);
+  for (const c of mine)
+    for (const ex of c.examples)
+      assert.deepEqual(contractErrors(c.name, "in", ex.input), [], `${c.name}: example ${ex.name}`);
 });
 
-interface Scenario { cap: string; setup?: (hn: Harness) => Promise<any> | any; run: (hn: Harness, s: any) => Promise<unknown> | unknown; expect?: string; hn?: () => Harness }
+interface Scenario {
+  cap: string;
+  setup?: (hn: Harness) => Promise<any> | any;
+  run: (hn: Harness, s: any) => Promise<unknown> | unknown;
+  expect?: string;
+  hn?: () => Harness;
+}
 
 let n = 0;
 const k = (): string => `k${++n}`;
-const mkRaw = (hn: Harness, over: Record<string, unknown> = {}) => h["agents.create"]!(hn.ctx, { name: "Intake", role: "Use me when a form arrives.", idempotencyKey: k(), ...over });
+const mkRaw = (hn: Harness, over: Record<string, unknown> = {}) =>
+  h["agents.create"]!(hn.ctx, { name: "Intake", role: "Use me when a form arrives.", idempotencyKey: k(), ...over });
 const mk = async (hn: Harness, over: Record<string, unknown> = {}) => (await mkRaw(hn, over)).agent;
-const withAgent = async (hn: Harness) => { const a = await mk(hn); return { id: a.agentId as string, a }; };
+const withAgent = async (hn: Harness) => {
+  const a = await mk(hn);
+  return { id: a.agentId as string, a };
+};
 const withFiles = async (hn: Harness) => {
   const { id } = await withAgent(hn);
   const home = hn.world.folderNamed("Intake", hn.world.root)!;
   return { id, toml: hn.world.fileIn(home.folderId, "agent.toml")!, md: hn.world.fileIn(home.folderId, "AGENT.md")! };
 };
-const DIFF = "@@ -7,1 +7,2 @@\n - Work that fits that job is yours: take it from start to finish.\n+- Check the name first.\n";
+const DIFF =
+  "@@ -7,1 +7,2 @@\n - Work that fits that job is yours: take it from start to finish.\n+- Check the name first.\n";
 
 const nested = (hn: Harness): Harness["ctx"] => ({ ...hn.ctx, depth: 1 });
-const withOutside = async (hn: Harness): Promise<{ id: string }> => ({ id: (await h["agents.outside.connect"]!(nested(hn), { clientName: "Claude Code" })).agentId });
+const withOutside = async (hn: Harness): Promise<{ id: string }> => ({
+  id: (await h["agents.outside.connect"]!(nested(hn), { clientName: "Claude Code" })).agentId,
+});
 
 // Skills for a person and the skills they share (l-skills2): one happy path each here; the flows are in skill-scopes.test.ts
 const SK = (name: string, desc: string): string => `---\nname: ${name}\ndescription: ${desc}\n---\n\nDo the thing.\n`;
 const SK_TREE: Record<string, string> = { "skills/pdf/SKILL.md": SK("pdf", "Fill and read PDFs.") };
 const fetching = async <T>(f: () => Promise<T>): Promise<T> => {
-  setPluginsHost({ async fetchTree() { return { files: SK_TREE, revision: "abc", skipped: [] }; } });
-  try { return await f(); } finally { setPluginsHost(null); }
+  setPluginsHost({
+    async fetchTree() {
+      return { files: SK_TREE, revision: "abc", skipped: [] };
+    },
+  });
+  try {
+    return await f();
+  } finally {
+    setPluginsHost(null);
+  }
 };
-const withMine = async (hn: Harness) => ({ s: (await h["skills.mine.add"]!(hn.ctx, { text: SK("deploy-checks", "Run the checks before a deploy."), idempotencyKey: k() })).skill });
-const withSharedTo = async (hn: Harness, to: { to?: string[]; space?: boolean }) => { const { s } = await withMine(hn); await h["skills.share"]!(hn.ctx, { skillId: s.skillId, ...to, idempotencyKey: k() }); return { s }; };
-const withSaved = async (hn: Harness) => ({ s: (await h["skills.save"]!(hn.ctx, { text: SK("triage", "Sort new requests.") })).skill });
+const withMine = async (hn: Harness) => ({
+  s: (
+    await h["skills.mine.add"]!(hn.ctx, {
+      text: SK("deploy-checks", "Run the checks before a deploy."),
+      idempotencyKey: k(),
+    })
+  ).skill,
+});
+const withSharedTo = async (hn: Harness, to: { to?: string[]; space?: boolean }) => {
+  const { s } = await withMine(hn);
+  await h["skills.share"]!(hn.ctx, { skillId: s.skillId, ...to, idempotencyKey: k() });
+  return { s };
+};
+const withSaved = async (hn: Harness) => ({
+  s: (await h["skills.save"]!(hn.ctx, { text: SK("triage", "Sort new requests.") })).skill,
+});
 const withRepo = async (hn: Harness): Promise<void> => {
   void hn;
-  setPluginsHost({ async fetchTree() { return { files: { "SKILL.md": SK("pdf-forms", "Fill PDF forms from a record.") }, revision: "a".repeat(40), skipped: [] }; } });
+  setPluginsHost({
+    async fetchTree() {
+      return {
+        files: { "SKILL.md": SK("pdf-forms", "Fill PDF forms from a record.") },
+        revision: "a".repeat(40),
+        skipped: [],
+      };
+    },
+  });
 };
-const withLinked = (hn: Harness) => fetching(async () => ({ s: (await h["skills.mine.add"]!(hn.ctx, { text: SK("pdf", "Fill and read PDFs."), source: "github:acme/skills@main/skills/pdf", idempotencyKey: k() })).skill }));
-const withSpaceSkill = async (hn: Harness) => ({ s: (await h["skills.space.install"]!(hn.ctx, { text: SK("pdf", "Fill and read PDFs."), source: "github:acme/skills@main/skills/pdf", idempotencyKey: k() })).skill });
+const withLinked = (hn: Harness) =>
+  fetching(async () => ({
+    s: (
+      await h["skills.mine.add"]!(hn.ctx, {
+        text: SK("pdf", "Fill and read PDFs."),
+        source: "github:acme/skills@main/skills/pdf",
+        idempotencyKey: k(),
+      })
+    ).skill,
+  }));
+const withSpaceSkill = async (hn: Harness) => ({
+  s: (
+    await h["skills.space.install"]!(hn.ctx, {
+      text: SK("pdf", "Fill and read PDFs."),
+      source: "github:acme/skills@main/skills/pdf",
+      idempotencyKey: k(),
+    })
+  ).skill,
+});
 
 const scenarios: Scenario[] = [
-  { cap: "agents.outside.connect", run: (hn) => h["agents.outside.connect"]!(nested(hn), { clientName: "Claude Code" }) },
-  { cap: "agents.outside.enqueue", setup: withOutside, run: (hn, s) => h["agents.outside.enqueue"]!(nested(hn), { agentId: s.id, kind: "mention", threadId: "thr_a", messageId: "msg_a", asker: DANA, title: "A message", text: "Hello" }) },
-  { cap: "agents.outside.seen", setup: withOutside, run: (hn, s) => h["agents.outside.seen"]!(nested(hn), { agentId: s.id }) },
-  { cap: "agents.outside.usable", setup: withOutside, run: (hn, s) => h["agents.outside.usable"]!(hn.ctx, { agentId: s.id }) },
-  { cap: "agents.next", setup: withOutside, run: (hn, s) => h["agents.next"]!(hn.as({ kind: "agent", id: s.id }, DANA), {}) },
-  { cap: "agents.create", run: (hn) => mkRaw(hn, { model: "claude-sonnet-5-5", computer: true, limits: { dayCostMicros: 1_000_000 }, tools: { allowed: ["files"], denied: [] } }) },
+  {
+    cap: "agents.outside.connect",
+    run: (hn) => h["agents.outside.connect"]!(nested(hn), { clientName: "Claude Code" }),
+  },
+  {
+    cap: "agents.outside.enqueue",
+    setup: withOutside,
+    run: (hn, s) =>
+      h["agents.outside.enqueue"]!(nested(hn), {
+        agentId: s.id,
+        kind: "mention",
+        threadId: "thr_a",
+        messageId: "msg_a",
+        asker: DANA,
+        title: "A message",
+        text: "Hello",
+      }),
+  },
+  {
+    cap: "agents.outside.seen",
+    setup: withOutside,
+    run: (hn, s) => h["agents.outside.seen"]!(nested(hn), { agentId: s.id }),
+  },
+  {
+    cap: "agents.outside.usable",
+    setup: withOutside,
+    run: (hn, s) => h["agents.outside.usable"]!(hn.ctx, { agentId: s.id }),
+  },
+  {
+    cap: "agents.next",
+    setup: withOutside,
+    run: (hn, s) => h["agents.next"]!(hn.as({ kind: "agent", id: s.id }, DANA), {}),
+  },
+  {
+    cap: "agents.create",
+    run: (hn) =>
+      mkRaw(hn, {
+        model: "claude-sonnet-5-5",
+        computer: true,
+        limits: { dayCostMicros: 1_000_000 },
+        tools: { allowed: ["files"], denied: [] },
+      }),
+  },
   { cap: "agents.create", setup: withAgent, run: (hn) => mkRaw(hn), expect: "validation.duplicate" },
   { cap: "agents.create", run: (hn) => mkRaw(hn, { name: "a/b" }), expect: "validation.bad_input" },
-  { cap: "agents.list", setup: withAgent, run: (hn) => h["agents.list"]!(hn.ctx, { section: "personal", status: ["awake"], limit: 10 }) },
+  {
+    cap: "agents.list",
+    setup: withAgent,
+    run: (hn) => h["agents.list"]!(hn.ctx, { section: "personal", status: ["awake"], limit: 10 }),
+  },
   { cap: "agents.get", setup: withAgent, run: (hn, s) => h["agents.get"]!(hn.ctx, { agentId: s.id }) },
   { cap: "agents.get", run: (hn) => h["agents.get"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
   { cap: "agents.share_class", setup: withAgent, run: (hn, s) => h["agents.share_class"]!(hn.ctx, { agentId: s.id }) },
-  { cap: "agents.share_class", run: (hn) => h["agents.share_class"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
-  { cap: "agents.assistant_of", run: (hn) => h["agents.assistant_of"]!(hn.as({ kind: "service", id: "svc_host" }), { personId: DANA }) },
+  {
+    cap: "agents.share_class",
+    run: (hn) => h["agents.share_class"]!(hn.ctx, { agentId: "agt_none" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.assistant_of",
+    run: (hn) => h["agents.assistant_of"]!(hn.as({ kind: "service", id: "svc_host" }), { personId: DANA }),
+  },
   { cap: "agents.assistant_of", run: (hn) => h["agents.assistant_of"]!(hn.ctx, { personId: "usr_someone1" }) },
-  { cap: "agents.memory_key.get", setup: withAgent, run: (hn, s) => h["agents.memory_key.get"]!(hn.ctx, { agentId: s.id }) },
-  { cap: "agents.memory_key.get", run: (hn) => h["agents.memory_key.get"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
+  {
+    cap: "agents.memory_key.get",
+    setup: withAgent,
+    run: (hn, s) => h["agents.memory_key.get"]!(hn.ctx, { agentId: s.id }),
+  },
+  {
+    cap: "agents.memory_key.get",
+    run: (hn) => h["agents.memory_key.get"]!(hn.ctx, { agentId: "agt_none" }),
+    expect: "validation.not_found",
+  },
   { cap: "agents.status", setup: withAgent, run: (hn, s) => h["agents.status"]!(hn.ctx, { agentId: s.id }) },
-  { cap: "agents.status", run: (hn) => h["agents.status"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
+  {
+    cap: "agents.status",
+    run: (hn) => h["agents.status"]!(hn.ctx, { agentId: "agt_none" }),
+    expect: "validation.not_found",
+  },
   { cap: "agents.summary", setup: withAgent, run: (hn, s) => h["agents.summary"]!(hn.ctx, { agentId: s.id }) },
-  { cap: "agents.summary", run: (hn) => h["agents.summary"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
-  { cap: "agents.update", setup: withAgent, run: (hn, s) => h["agents.update"]!(hn.ctx, { agentId: s.id, patch: { model: "claude-opus-4-5", toolsAllowed: ["files"], limits: { turnsPerDay: 10 }, face: "x" } }) },
-  { cap: "agents.update", setup: withAgent, run: (hn, s) => h["agents.update"]!(hn.ctx, { agentId: s.id, patch: { ownerId: MAYA } }), expect: "validation.field_locked" },
-  { cap: "agents.update", setup: withAgent, run: (hn, s) => h["agents.update"]!(hn.ctx, { agentId: s.id, patch: { colour: "red" } }), expect: "validation.bad_input" },
-  { cap: "agents.update", run: (hn) => h["agents.update"]!(hn.ctx, { agentId: "agt_none", patch: {} }), expect: "validation.not_found" },
-  { cap: "agents.role_line.set", setup: withAgent, run: (hn, s) => h["agents.role_line.set"]!(hn.ctx, { agentId: s.id, description: "Use me for new matters." }) },
-  { cap: "agents.role_line.set", setup: withAgent, run: (hn, s) => h["agents.role_line.set"]!(hn.ctx, { agentId: s.id, description: "two\nlines" }), expect: "validation.bad_input" },
-  { cap: "agents.instruction.append", setup: withAgent, run: (hn, s) => h["agents.instruction.append"]!(hn.ctx, { agentId: s.id, line: "Notes to Sara: three lines, the number first." }) },
-  { cap: "agents.instruction.append", setup: withAgent, run: (hn, s) => h["agents.instruction.append"]!(hn.ctx, { agentId: s.id, line: "" }), expect: "validation.bad_input" },
-  { cap: "agents.instruction.append", run: (hn) => h["agents.instruction.append"]!(hn.ctx, { agentId: "agt_none", line: "x" }), expect: "validation.not_found" },
-  { cap: "agents.role_line.set", run: (hn) => h["agents.role_line.set"]!(hn.ctx, { agentId: "agt_none", description: "x" }), expect: "validation.not_found" },
-  { cap: "agents.pause", setup: withAgent, run: (hn, s) => h["agents.pause"]!(hn.ctx, { agentId: s.id, reason: "Cost review" }) },
-  { cap: "agents.pause", run: (hn) => h["agents.pause"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
-  { cap: "agents.resume", setup: async (hn) => { const s = await withAgent(hn); await h["agents.pause"]!(hn.ctx, { agentId: s.id }); return s; }, run: (hn, s) => h["agents.resume"]!(hn.ctx, { agentId: s.id }) },
-  { cap: "agents.resume", run: (hn) => h["agents.resume"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
+  {
+    cap: "agents.summary",
+    run: (hn) => h["agents.summary"]!(hn.ctx, { agentId: "agt_none" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.update",
+    setup: withAgent,
+    run: (hn, s) =>
+      h["agents.update"]!(hn.ctx, {
+        agentId: s.id,
+        patch: { model: "claude-opus-4-5", toolsAllowed: ["files"], limits: { turnsPerDay: 10 }, face: "x" },
+      }),
+  },
+  {
+    cap: "agents.update",
+    setup: withAgent,
+    run: (hn, s) => h["agents.update"]!(hn.ctx, { agentId: s.id, patch: { ownerId: MAYA } }),
+    expect: "validation.field_locked",
+  },
+  {
+    cap: "agents.update",
+    setup: withAgent,
+    run: (hn, s) => h["agents.update"]!(hn.ctx, { agentId: s.id, patch: { colour: "red" } }),
+    expect: "validation.bad_input",
+  },
+  {
+    cap: "agents.update",
+    run: (hn) => h["agents.update"]!(hn.ctx, { agentId: "agt_none", patch: {} }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.role_line.set",
+    setup: withAgent,
+    run: (hn, s) => h["agents.role_line.set"]!(hn.ctx, { agentId: s.id, description: "Use me for new matters." }),
+  },
+  {
+    cap: "agents.role_line.set",
+    setup: withAgent,
+    run: (hn, s) => h["agents.role_line.set"]!(hn.ctx, { agentId: s.id, description: "two\nlines" }),
+    expect: "validation.bad_input",
+  },
+  {
+    cap: "agents.instruction.append",
+    setup: withAgent,
+    run: (hn, s) =>
+      h["agents.instruction.append"]!(hn.ctx, { agentId: s.id, line: "Notes to Sara: three lines, the number first." }),
+  },
+  {
+    cap: "agents.instruction.append",
+    setup: withAgent,
+    run: (hn, s) => h["agents.instruction.append"]!(hn.ctx, { agentId: s.id, line: "" }),
+    expect: "validation.bad_input",
+  },
+  {
+    cap: "agents.instruction.append",
+    run: (hn) => h["agents.instruction.append"]!(hn.ctx, { agentId: "agt_none", line: "x" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.role_line.set",
+    run: (hn) => h["agents.role_line.set"]!(hn.ctx, { agentId: "agt_none", description: "x" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.pause",
+    setup: withAgent,
+    run: (hn, s) => h["agents.pause"]!(hn.ctx, { agentId: s.id, reason: "Cost review" }),
+  },
+  {
+    cap: "agents.pause",
+    run: (hn) => h["agents.pause"]!(hn.ctx, { agentId: "agt_none" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.resume",
+    setup: async (hn) => {
+      const s = await withAgent(hn);
+      await h["agents.pause"]!(hn.ctx, { agentId: s.id });
+      return s;
+    },
+    run: (hn, s) => h["agents.resume"]!(hn.ctx, { agentId: s.id }),
+  },
+  {
+    cap: "agents.resume",
+    run: (hn) => h["agents.resume"]!(hn.ctx, { agentId: "agt_none" }),
+    expect: "validation.not_found",
+  },
   { cap: "agents.delete", setup: withAgent, run: (hn, s) => h["agents.delete"]!(hn.ctx, { agentId: s.id }) },
-  { cap: "agents.delete", run: (hn) => h["agents.delete"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
-  { cap: "agents.set_owner", setup: withAgent, run: (hn, s) => h["agents.set_owner"]!(hn.ctx, { agentId: s.id, ownerId: "usr_leo" }) },
-  { cap: "agents.set_owner", run: (hn) => h["agents.set_owner"]!(hn.ctx, { agentId: "agt_none", ownerId: "usr_leo" }), expect: "validation.not_found" },
-  { cap: "agents.restore", setup: async (hn) => { const s = await withAgent(hn); await h["agents.delete"]!(hn.ctx, { agentId: s.id }); return s; }, run: (hn, s) => h["agents.restore"]!(hn.ctx, { agentId: s.id }) },
-  { cap: "agents.restore", run: (hn) => h["agents.restore"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
+  {
+    cap: "agents.delete",
+    run: (hn) => h["agents.delete"]!(hn.ctx, { agentId: "agt_none" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.set_owner",
+    setup: withAgent,
+    run: (hn, s) => h["agents.set_owner"]!(hn.ctx, { agentId: s.id, ownerId: "usr_leo" }),
+  },
+  {
+    cap: "agents.set_owner",
+    run: (hn) => h["agents.set_owner"]!(hn.ctx, { agentId: "agt_none", ownerId: "usr_leo" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.restore",
+    setup: async (hn) => {
+      const s = await withAgent(hn);
+      await h["agents.delete"]!(hn.ctx, { agentId: s.id });
+      return s;
+    },
+    run: (hn, s) => h["agents.restore"]!(hn.ctx, { agentId: s.id }),
+  },
+  {
+    cap: "agents.restore",
+    run: (hn) => h["agents.restore"]!(hn.ctx, { agentId: "agt_none" }),
+    expect: "validation.not_found",
+  },
   { cap: "agents.visibility.set", run: (hn) => h["agents.visibility.set"]!(hn.ctx, { all: true }) },
   { cap: "agents.people_summary", run: (hn) => h["agents.people_summary"]!(hn.ctx, {}) },
-  { cap: "agents.pause_person", run: (hn) => h["agents.pause_person"]!(hn.ctx, { personId: "usr_dana", paused: true }) },
-  { cap: "agents.config.get", setup: withAgent, run: (hn, s) => h["agents.config.get"]!(hn.ctx, { agentId: s.id }) },
-  { cap: "agents.config.get", run: (hn) => h["agents.config.get"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
-  { cap: "agents.config.validate", setup: withAgent, run: (hn, s) => h["agents.config.validate"]!(hn.ctx, { agentId: s.id, toml: 'name = "Intake"\n' }) },
-  { cap: "agents.config.validate", run: (hn) => h["agents.config.validate"]!(hn.ctx, { agentId: "agt_none", toml: "" }), expect: "validation.not_found" },
-  { cap: "agents.config.may_save", setup: withAgent, run: (hn) => h["agents.config.may_save"]!(hn.ctx, { fileId: "fil_notanagentfile" }) },
-  { cap: "agents.limits.get", setup: withAgent, run: (hn, s) => h["agents.limits.get"]!(hn.ctx, { agentId: s.id }) },
-  { cap: "agents.limits.get", run: (hn) => h["agents.limits.get"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
-  { cap: "agents.snapshot.take", setup: withAgent, run: (hn, s) => h["agents.snapshot.take"]!(hn.ctx, { agentId: s.id, runId: "run_a1" }) },
-  { cap: "agents.snapshot.take", run: (hn) => h["agents.snapshot.take"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
-  { cap: "agents.versions", setup: withAgent, run: (hn, s) => h["agents.versions"]!(hn.ctx, { agentId: s.id, file: "agent.toml" }) },
-  { cap: "agents.versions", run: (hn) => h["agents.versions"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
   {
-    cap: "agents.restore_version", setup: async (hn) => { const s = await withFiles(hn); await h["agents.update"]!(hn.ctx, { agentId: s.id, patch: { model: "m1" } }); hn.clear(); return s; },
-    run: (hn, s) => h["agents.restore_version"]!(hn.ctx, { agentId: s.id, versionId: hn.world.files.get(s.toml.fileId)!.versions[0]!.versionId }),
+    cap: "agents.pause_person",
+    run: (hn) => h["agents.pause_person"]!(hn.ctx, { personId: "usr_dana", paused: true }),
   },
-  { cap: "agents.restore_version", setup: withAgent, run: (hn, s) => h["agents.restore_version"]!(hn.ctx, { agentId: s.id, versionId: "ver_zzzzzz" }), expect: "validation.not_found" },
-  { cap: "agents.routines.list", setup: withAgent, run: (hn, s) => h["agents.routines.list"]!(hn.ctx, { agentId: s.id }) },
-  { cap: "agents.routines.list", run: (hn) => h["agents.routines.list"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
-  { cap: "agents.routine.save", setup: withAgent, run: (hn, s) => h["agents.routine.save"]!(hn.ctx, { agentId: s.id, title: "Digest", cron: "0 9 * * 1-5", prompt: "Summarise", channelId: "chn_a1", idempotencyKey: k() }) },
-  { cap: "agents.routine.save", setup: withAgent, run: (hn, s) => h["agents.routine.save"]!(hn.ctx, { agentId: s.id, title: "Digest", cron: "nope", prompt: "Summarise", idempotencyKey: k() }), expect: "validation.bad_input" },
+  { cap: "agents.config.get", setup: withAgent, run: (hn, s) => h["agents.config.get"]!(hn.ctx, { agentId: s.id }) },
   {
-    cap: "agents.routine.delete", setup: async (hn) => { const s = await withAgent(hn); const r = (await h["agents.routine.save"]!(hn.ctx, { agentId: s.id, title: "D", cron: "0 9 * * *", prompt: "p", idempotencyKey: k() })).routine; hn.clear(); return { ...s, r }; },
+    cap: "agents.config.get",
+    run: (hn) => h["agents.config.get"]!(hn.ctx, { agentId: "agt_none" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.config.validate",
+    setup: withAgent,
+    run: (hn, s) => h["agents.config.validate"]!(hn.ctx, { agentId: s.id, toml: 'name = "Intake"\n' }),
+  },
+  {
+    cap: "agents.config.validate",
+    run: (hn) => h["agents.config.validate"]!(hn.ctx, { agentId: "agt_none", toml: "" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.config.may_save",
+    setup: withAgent,
+    run: (hn) => h["agents.config.may_save"]!(hn.ctx, { fileId: "fil_notanagentfile" }),
+  },
+  { cap: "agents.limits.get", setup: withAgent, run: (hn, s) => h["agents.limits.get"]!(hn.ctx, { agentId: s.id }) },
+  {
+    cap: "agents.limits.get",
+    run: (hn) => h["agents.limits.get"]!(hn.ctx, { agentId: "agt_none" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.snapshot.take",
+    setup: withAgent,
+    run: (hn, s) => h["agents.snapshot.take"]!(hn.ctx, { agentId: s.id, runId: "run_a1" }),
+  },
+  {
+    cap: "agents.snapshot.take",
+    run: (hn) => h["agents.snapshot.take"]!(hn.ctx, { agentId: "agt_none" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.versions",
+    setup: withAgent,
+    run: (hn, s) => h["agents.versions"]!(hn.ctx, { agentId: s.id, file: "agent.toml" }),
+  },
+  {
+    cap: "agents.versions",
+    run: (hn) => h["agents.versions"]!(hn.ctx, { agentId: "agt_none" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.restore_version",
+    setup: async (hn) => {
+      const s = await withFiles(hn);
+      await h["agents.update"]!(hn.ctx, { agentId: s.id, patch: { model: "m1" } });
+      hn.clear();
+      return s;
+    },
+    run: (hn, s) =>
+      h["agents.restore_version"]!(hn.ctx, {
+        agentId: s.id,
+        versionId: hn.world.files.get(s.toml.fileId)!.versions[0]!.versionId,
+      }),
+  },
+  {
+    cap: "agents.restore_version",
+    setup: withAgent,
+    run: (hn, s) => h["agents.restore_version"]!(hn.ctx, { agentId: s.id, versionId: "ver_zzzzzz" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.routines.list",
+    setup: withAgent,
+    run: (hn, s) => h["agents.routines.list"]!(hn.ctx, { agentId: s.id }),
+  },
+  {
+    cap: "agents.routines.list",
+    run: (hn) => h["agents.routines.list"]!(hn.ctx, { agentId: "agt_none" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.routine.save",
+    setup: withAgent,
+    run: (hn, s) =>
+      h["agents.routine.save"]!(hn.ctx, {
+        agentId: s.id,
+        title: "Digest",
+        cron: "0 9 * * 1-5",
+        prompt: "Summarise",
+        channelId: "chn_a1",
+        idempotencyKey: k(),
+      }),
+  },
+  {
+    cap: "agents.routine.save",
+    setup: withAgent,
+    run: (hn, s) =>
+      h["agents.routine.save"]!(hn.ctx, {
+        agentId: s.id,
+        title: "Digest",
+        cron: "nope",
+        prompt: "Summarise",
+        idempotencyKey: k(),
+      }),
+    expect: "validation.bad_input",
+  },
+  {
+    cap: "agents.routine.delete",
+    setup: async (hn) => {
+      const s = await withAgent(hn);
+      const r = (
+        await h["agents.routine.save"]!(hn.ctx, {
+          agentId: s.id,
+          title: "D",
+          cron: "0 9 * * *",
+          prompt: "p",
+          idempotencyKey: k(),
+        })
+      ).routine;
+      hn.clear();
+      return { ...s, r };
+    },
     run: (hn, s) => h["agents.routine.delete"]!(hn.ctx, { agentId: s.id, routineId: s.r.routineId }),
   },
   {
-    cap: "agents.routine.run_now", setup: async (hn) => { const s = await withAgent(hn); const r = (await h["agents.routine.save"]!(hn.ctx, { agentId: s.id, title: "D", cron: "0 9 * * *", prompt: "p", idempotencyKey: k() })).routine; hn.world.answer("runs.start", () => ({ runId: "run_a1b2c3" })); hn.clear(); return { ...s, r }; },
-    run: (hn, s) => h["agents.routine.run_now"]!(hn.ctx, { agentId: s.id, routineId: s.r.routineId, idempotencyKey: k() }),
+    cap: "agents.routine.run_now",
+    setup: async (hn) => {
+      const s = await withAgent(hn);
+      const r = (
+        await h["agents.routine.save"]!(hn.ctx, {
+          agentId: s.id,
+          title: "D",
+          cron: "0 9 * * *",
+          prompt: "p",
+          idempotencyKey: k(),
+        })
+      ).routine;
+      hn.world.answer("runs.start", () => ({ runId: "run_a1b2c3" }));
+      hn.clear();
+      return { ...s, r };
+    },
+    run: (hn, s) =>
+      h["agents.routine.run_now"]!(hn.ctx, { agentId: s.id, routineId: s.r.routineId, idempotencyKey: k() }),
   },
-  { cap: "agents.routine.run_now", setup: withAgent, run: (hn, s) => h["agents.routine.run_now"]!(hn.ctx, { agentId: s.id, routineId: "rtn_none", idempotencyKey: k() }), expect: "validation.not_found" },
   {
-    cap: "agents.routine.delegate", setup: async (hn) => { const s = await withAgent(hn); const r = (await h["agents.routine.save"]!(hn.ctx, { agentId: s.id, title: "D", cron: "0 9 * * *", prompt: "p", idempotencyKey: k() })).routine; hn.clear(); return { ...s, r }; },
-    run: (hn, s) => h["agents.routine.delegate"]!(hn.ctx, { agentId: s.id, routineId: s.r.routineId, to: { kind: "person", id: "usr_maya" } }),
+    cap: "agents.routine.run_now",
+    setup: withAgent,
+    run: (hn, s) => h["agents.routine.run_now"]!(hn.ctx, { agentId: s.id, routineId: "rtn_none", idempotencyKey: k() }),
+    expect: "validation.not_found",
   },
-  { cap: "agents.routine.delegate", setup: withAgent, run: (hn, s) => h["agents.routine.delegate"]!(hn.ctx, { agentId: s.id, routineId: "rtn_none", to: { kind: "person", id: "usr_maya" } }), expect: "validation.not_found" },
   {
-    cap: "agents.routine.delegate", setup: async (hn) => { const s = await withAgent(hn); const r = (await h["agents.routine.save"]!(hn.ctx, { agentId: s.id, title: "D", cron: "0 9 * * *", prompt: "p", idempotencyKey: k() })).routine; hn.clear(); return { ...s, r }; },
-    run: (hn, s) => h["agents.routine.delegate"]!(hn.ctx, { agentId: s.id, routineId: s.r.routineId, undo: true }), expect: "validation.precondition_failed",
+    cap: "agents.routine.delegate",
+    setup: async (hn) => {
+      const s = await withAgent(hn);
+      const r = (
+        await h["agents.routine.save"]!(hn.ctx, {
+          agentId: s.id,
+          title: "D",
+          cron: "0 9 * * *",
+          prompt: "p",
+          idempotencyKey: k(),
+        })
+      ).routine;
+      hn.clear();
+      return { ...s, r };
+    },
+    run: (hn, s) =>
+      h["agents.routine.delegate"]!(hn.ctx, {
+        agentId: s.id,
+        routineId: s.r.routineId,
+        to: { kind: "person", id: "usr_maya" },
+      }),
   },
-  { cap: "agents.routine.delete", setup: withAgent, run: (hn, s) => h["agents.routine.delete"]!(hn.ctx, { agentId: s.id, routineId: "rtn_none" }), expect: "validation.not_found" },
-  { cap: "agents.suggestions.list", setup: withAgent, run: (hn, s) => h["agents.suggestions.list"]!(hn.ctx, { agentId: s.id, kind: "agent_md", state: ["open"], limit: 5 }) },
-  { cap: "agents.suggestion.propose", setup: withAgent, run: (hn, s) => h["agents.suggestion.propose"]!(hn.ctx, { agentId: s.id, diff: DIFF, reason: "Names", idempotencyKey: k() }) },
-  { cap: "agents.suggestion.propose", setup: withAgent, run: (hn, s) => h["agents.suggestion.propose"]!(hn.ctx, { agentId: s.id, diff: "", idempotencyKey: k() }), expect: "validation.bad_input" },
   {
-    cap: "agents.suggestion.accept", setup: async (hn) => { const s = await withAgent(hn); const g = (await h["agents.suggestion.propose"]!(hn.ctx, { agentId: s.id, diff: DIFF, idempotencyKey: k() })).suggestion; hn.clear(); return { ...s, g }; },
+    cap: "agents.routine.delegate",
+    setup: withAgent,
+    run: (hn, s) =>
+      h["agents.routine.delegate"]!(hn.ctx, {
+        agentId: s.id,
+        routineId: "rtn_none",
+        to: { kind: "person", id: "usr_maya" },
+      }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.routine.delegate",
+    setup: async (hn) => {
+      const s = await withAgent(hn);
+      const r = (
+        await h["agents.routine.save"]!(hn.ctx, {
+          agentId: s.id,
+          title: "D",
+          cron: "0 9 * * *",
+          prompt: "p",
+          idempotencyKey: k(),
+        })
+      ).routine;
+      hn.clear();
+      return { ...s, r };
+    },
+    run: (hn, s) => h["agents.routine.delegate"]!(hn.ctx, { agentId: s.id, routineId: s.r.routineId, undo: true }),
+    expect: "validation.precondition_failed",
+  },
+  {
+    cap: "agents.routine.delete",
+    setup: withAgent,
+    run: (hn, s) => h["agents.routine.delete"]!(hn.ctx, { agentId: s.id, routineId: "rtn_none" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.suggestions.list",
+    setup: withAgent,
+    run: (hn, s) =>
+      h["agents.suggestions.list"]!(hn.ctx, { agentId: s.id, kind: "agent_md", state: ["open"], limit: 5 }),
+  },
+  {
+    cap: "agents.suggestion.propose",
+    setup: withAgent,
+    run: (hn, s) =>
+      h["agents.suggestion.propose"]!(hn.ctx, { agentId: s.id, diff: DIFF, reason: "Names", idempotencyKey: k() }),
+  },
+  {
+    cap: "agents.suggestion.propose",
+    setup: withAgent,
+    run: (hn, s) => h["agents.suggestion.propose"]!(hn.ctx, { agentId: s.id, diff: "", idempotencyKey: k() }),
+    expect: "validation.bad_input",
+  },
+  {
+    cap: "agents.suggestion.accept",
+    setup: async (hn) => {
+      const s = await withAgent(hn);
+      const g = (await h["agents.suggestion.propose"]!(hn.ctx, { agentId: s.id, diff: DIFF, idempotencyKey: k() }))
+        .suggestion;
+      hn.clear();
+      return { ...s, g };
+    },
     run: (hn, s) => h["agents.suggestion.accept"]!(hn.ctx, { suggestionId: s.g.suggestionId }),
   },
-  { cap: "agents.suggestion.accept", run: (hn) => h["agents.suggestion.accept"]!(hn.ctx, { suggestionId: "sug_none" }), expect: "validation.bad_input" },
   {
-    cap: "agents.suggestion.accept", setup: async (hn) => { const s = await withAgent(hn); const g = (await h["agents.suggestion.propose"]!(hn.ctx, { agentId: s.id, diff: DIFF, idempotencyKey: k() })).suggestion; await h["agents.suggestion.dismiss"]!(hn.ctx, { suggestionId: g.suggestionId }); hn.clear(); return { ...s, g }; },
-    run: (hn, s) => h["agents.suggestion.accept"]!(hn.ctx, { suggestionId: s.g.suggestionId }), expect: "validation.precondition_failed",
+    cap: "agents.suggestion.accept",
+    run: (hn) => h["agents.suggestion.accept"]!(hn.ctx, { suggestionId: "sug_none" }),
+    expect: "validation.bad_input",
   },
   {
-    cap: "agents.suggestion.dismiss", setup: async (hn) => { const s = await withAgent(hn); const g = (await h["agents.suggestion.propose"]!(hn.ctx, { agentId: s.id, diff: DIFF, idempotencyKey: k() })).suggestion; hn.clear(); return { ...s, g }; },
+    cap: "agents.suggestion.accept",
+    setup: async (hn) => {
+      const s = await withAgent(hn);
+      const g = (await h["agents.suggestion.propose"]!(hn.ctx, { agentId: s.id, diff: DIFF, idempotencyKey: k() }))
+        .suggestion;
+      await h["agents.suggestion.dismiss"]!(hn.ctx, { suggestionId: g.suggestionId });
+      hn.clear();
+      return { ...s, g };
+    },
+    run: (hn, s) => h["agents.suggestion.accept"]!(hn.ctx, { suggestionId: s.g.suggestionId }),
+    expect: "validation.precondition_failed",
+  },
+  {
+    cap: "agents.suggestion.dismiss",
+    setup: async (hn) => {
+      const s = await withAgent(hn);
+      const g = (await h["agents.suggestion.propose"]!(hn.ctx, { agentId: s.id, diff: DIFF, idempotencyKey: k() }))
+        .suggestion;
+      hn.clear();
+      return { ...s, g };
+    },
     run: (hn, s) => h["agents.suggestion.dismiss"]!(hn.ctx, { suggestionId: s.g.suggestionId }),
   },
-  { cap: "agents.suggestion.dismiss", run: (hn) => h["agents.suggestion.dismiss"]!(hn.ctx, { suggestionId: "sug_none" }), expect: "validation.bad_input" },
+  {
+    cap: "agents.suggestion.dismiss",
+    run: (hn) => h["agents.suggestion.dismiss"]!(hn.ctx, { suggestionId: "sug_none" }),
+    expect: "validation.bad_input",
+  },
   { cap: "agents.template.get", run: (hn) => h["agents.template.get"]!(hn.ctx, {}) },
-  { cap: "agents.template.preview", setup: withAgent, run: (hn, s) => h["agents.template.preview"]!(hn.ctx, { scope: "one", agentId: s.id }) },
-  { cap: "agents.template.preview", run: (hn) => h["agents.template.preview"]!(hn.ctx, { scope: "one" }), expect: "validation.bad_input" },
-  { cap: "agents.template.apply", setup: async (hn) => { const s = await withAgent(hn); hn.world.templateFile("skills/a.md", "A\n"); hn.clear(); return s; }, run: (hn) => h["agents.template.apply"]!(hn.ctx, { scope: "all" }) },
-  { cap: "agents.template.apply", setup: withAgent, hn: () => { const x = harness(); x.world.setting("agents.template_mode", "off"); return x; }, run: (hn) => h["agents.template.apply"]!(hn.ctx, { scope: "all" }), expect: "validation.bad_input" },
+  {
+    cap: "agents.template.preview",
+    setup: withAgent,
+    run: (hn, s) => h["agents.template.preview"]!(hn.ctx, { scope: "one", agentId: s.id }),
+  },
+  {
+    cap: "agents.template.preview",
+    run: (hn) => h["agents.template.preview"]!(hn.ctx, { scope: "one" }),
+    expect: "validation.bad_input",
+  },
+  {
+    cap: "agents.template.apply",
+    setup: async (hn) => {
+      const s = await withAgent(hn);
+      hn.world.templateFile("skills/a.md", "A\n");
+      hn.clear();
+      return s;
+    },
+    run: (hn) => h["agents.template.apply"]!(hn.ctx, { scope: "all" }),
+  },
+  {
+    cap: "agents.template.apply",
+    setup: withAgent,
+    hn: () => {
+      const x = harness();
+      x.world.setting("agents.template_mode", "off");
+      return x;
+    },
+    run: (hn) => h["agents.template.apply"]!(hn.ctx, { scope: "all" }),
+    expect: "validation.bad_input",
+  },
   { cap: "agents.guide.get", run: (hn) => h["agents.guide.get"]!(hn.ctx, {}) },
   { cap: "agents.builtin_skills.list", run: (hn) => h["agents.builtin_skills.list"]!(hn.ctx, {}) },
   { cap: "agents.builtin_skill.get", run: (hn) => h["agents.builtin_skill.get"]!(hn.ctx, { name: "focus-records" }) },
-  { cap: "agents.builtin_skill.get", run: (hn) => h["agents.builtin_skill.get"]!(hn.ctx, { name: "no-such-skill" }), expect: "validation.not_found" },
-  { cap: "agents.builtin_skill.get", run: (hn) => h["agents.builtin_skill.get"]!(hn.ctx, { name: "../../etc/passwd" }), expect: "validation.not_found" },
+  {
+    cap: "agents.builtin_skill.get",
+    run: (hn) => h["agents.builtin_skill.get"]!(hn.ctx, { name: "no-such-skill" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "agents.builtin_skill.get",
+    run: (hn) => h["agents.builtin_skill.get"]!(hn.ctx, { name: "../../etc/passwd" }),
+    expect: "validation.not_found",
+  },
   { cap: "plugins.marketplaces.list", setup: withMarket, run: (hn) => h["plugins.marketplaces.list"]!(hn.ctx, {}) },
   { cap: "plugins.browse", setup: withMarket, run: (hn) => h["plugins.browse"]!(hn.ctx, {}) },
   { cap: "plugins.list", setup: withPlugin, run: (hn) => h["plugins.list"]!(hn.ctx, {}) },
   { cap: "plugins.get", setup: withPlugin, run: (hn, s) => h["plugins.get"]!(hn.ctx, { pluginId: s.p.pluginId }) },
-  { cap: "plugins.get", run: (hn) => h["plugins.get"]!(hn.ctx, { pluginId: "plg_none" }), expect: "validation.not_found" },
+  {
+    cap: "plugins.get",
+    run: (hn) => h["plugins.get"]!(hn.ctx, { pluginId: "plg_none" }),
+    expect: "validation.not_found",
+  },
   { cap: "plugins.commands.list", setup: withPlugin, run: (hn) => h["plugins.commands.list"]!(hn.ctx, {}) },
-  { cap: "plugins.command.render", setup: withPlugin, run: (hn) => h["plugins.command.render"]!(hn.ctx, { name: "greeter:hello", args: "Dana" }) },
-  { cap: "plugins.command.render", run: (hn) => h["plugins.command.render"]!(hn.ctx, { name: "x:y" }), expect: "validation.not_found" },
-  { cap: "plugins.agent_templates.list", setup: withPlugin, run: (hn) => h["plugins.agent_templates.list"]!(hn.ctx, {}) },
+  {
+    cap: "plugins.command.render",
+    setup: withPlugin,
+    run: (hn) => h["plugins.command.render"]!(hn.ctx, { name: "greeter:hello", args: "Dana" }),
+  },
+  {
+    cap: "plugins.command.render",
+    run: (hn) => h["plugins.command.render"]!(hn.ctx, { name: "x:y" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "plugins.agent_templates.list",
+    setup: withPlugin,
+    run: (hn) => h["plugins.agent_templates.list"]!(hn.ctx, {}),
+  },
   { cap: "plugins.allow.list", setup: withMarket, run: (hn) => h["plugins.allow.list"]!(hn.ctx, {}) },
   { cap: "plugins.mcp.servers", setup: withPlugin, run: (hn) => h["plugins.mcp.servers"]!(hn.ctx, {}) },
   { cap: "plugins.files", setup: withPlugin, run: (hn, s) => h["plugins.files"]!(hn.ctx, { pluginId: s.p.pluginId }) },
-  { cap: "plugins.files", run: (hn) => h["plugins.files"]!(hn.ctx, { pluginId: "plg_none" }), expect: "validation.not_found" },
+  {
+    cap: "plugins.files",
+    run: (hn) => h["plugins.files"]!(hn.ctx, { pluginId: "plg_none" }),
+    expect: "validation.not_found",
+  },
   { cap: "plugins.hooks.list", setup: withPlugin, run: (hn) => h["plugins.hooks.list"]!(hn.ctx, {}) },
   { cap: "plugins.connections.list", run: (hn) => h["plugins.connections.list"]!(hn.ctx, {}) },
-  { cap: "plugins.marketplace.add", run: (hn) => { setPluginsHost(createPluginsHost()); return h["plugins.marketplace.add"]!(hn.ctx, { source: MARKET, idempotencyKey: k() }); } },
-  { cap: "plugins.marketplace.add", run: (hn) => h["plugins.marketplace.add"]!(hn.ctx, { source: "nothing", idempotencyKey: k() }), expect: "validation.bad_input" },
-  { cap: "plugins.marketplace.refresh", setup: withMarket, run: (hn, s) => h["plugins.marketplace.refresh"]!(hn.ctx, { marketplaceId: s.m.marketplaceId, idempotencyKey: k() }) },
-  { cap: "plugins.marketplace.refresh", run: (hn) => h["plugins.marketplace.refresh"]!(hn.ctx, { marketplaceId: "mkt_none", idempotencyKey: k() }), expect: "validation.not_found" },
-  { cap: "plugins.marketplace.remove", setup: withMarket, run: (hn, s) => h["plugins.marketplace.remove"]!(hn.ctx, { marketplaceId: s.m.marketplaceId, idempotencyKey: k() }) },
-  { cap: "plugins.allow.set", setup: withMarket, run: (hn) => h["plugins.allow.set"]!(hn.ctx, { kind: "marketplace", marketplace: "vyre-test-market", allowed: false, idempotencyKey: k() }) },
-  { cap: "plugins.install", setup: withMarket, run: (hn, s) => { stubSkills(hn); return h["plugins.install"]!(hn.ctx, { marketplaceId: s.m.marketplaceId, plugin: "notes", scope: "space", idempotencyKey: k() }); } },
-  { cap: "plugins.install", setup: withMarket, run: (hn, s) => h["plugins.install"]!(hn.ctx, { marketplaceId: s.m.marketplaceId, plugin: "nope", scope: "space", idempotencyKey: k() }), expect: "validation.not_found" },
-  { cap: "plugins.uninstall", setup: withPlugin, run: (hn, s) => h["plugins.uninstall"]!(hn.ctx, { pluginId: s.p.pluginId, idempotencyKey: k() }) },
-  { cap: "plugins.set_enabled", setup: withPlugin, run: (hn, s) => h["plugins.set_enabled"]!(hn.ctx, { pluginId: s.p.pluginId, enabled: false, idempotencyKey: k() }) },
-  { cap: "plugins.set_enabled", run: (hn) => h["plugins.set_enabled"]!(hn.ctx, { pluginId: "plg_none", enabled: false, idempotencyKey: k() }), expect: "validation.not_found" },
-  { cap: "plugins.config.set", setup: withPlugin, run: (hn, s) => h["plugins.config.set"]!(hn.ctx, { pluginId: s.p.pluginId, config: { echo_token: "#Dana_Echo.token" }, idempotencyKey: k() }) },
-  { cap: "plugins.config.set", setup: withPlugin, run: (hn, s) => h["plugins.config.set"]!(hn.ctx, { pluginId: s.p.pluginId, config: { echo_token: "plain" }, idempotencyKey: k() }), expect: "validation.bad_input" },
-  { cap: "plugins.agent_template.use", setup: withPlugin, run: (hn, s) => h["plugins.agent_template.use"]!(hn.ctx, { pluginId: s.p.pluginId, name: "helper", idempotencyKey: k() }) },
-  { cap: "plugins.agent_template.use", setup: withPlugin, run: (hn, s) => h["plugins.agent_template.use"]!(hn.ctx, { pluginId: s.p.pluginId, name: "ghost", idempotencyKey: k() }), expect: "validation.not_found" },
-  { cap: "plugins.connection.add", run: (hn) => h["plugins.connection.add"]!(hn.ctx, { name: "crm", scope: "space", url: "https://crm.example.com/mcp", idempotencyKey: k() }) },
-  { cap: "plugins.connection.add", run: (hn) => h["plugins.connection.add"]!(hn.ctx, { name: "crm", scope: "space", idempotencyKey: k() }), expect: "validation.bad_input" },
-  { cap: "plugins.connection.remove", setup: async (hn) => (await h["plugins.connection.add"]!(hn.ctx, { name: "crm", scope: "space", url: "https://crm.example.com/mcp", idempotencyKey: k() })).connection, run: (hn, s) => h["plugins.connection.remove"]!(hn.ctx, { connectionId: s.connectionId, idempotencyKey: k() }) },
+  {
+    cap: "plugins.marketplace.add",
+    run: (hn) => {
+      setPluginsHost(createPluginsHost());
+      return h["plugins.marketplace.add"]!(hn.ctx, { source: MARKET, idempotencyKey: k() });
+    },
+  },
+  {
+    cap: "plugins.marketplace.add",
+    run: (hn) => h["plugins.marketplace.add"]!(hn.ctx, { source: "nothing", idempotencyKey: k() }),
+    expect: "validation.bad_input",
+  },
+  {
+    cap: "plugins.marketplace.refresh",
+    setup: withMarket,
+    run: (hn, s) =>
+      h["plugins.marketplace.refresh"]!(hn.ctx, { marketplaceId: s.m.marketplaceId, idempotencyKey: k() }),
+  },
+  {
+    cap: "plugins.marketplace.refresh",
+    run: (hn) => h["plugins.marketplace.refresh"]!(hn.ctx, { marketplaceId: "mkt_none", idempotencyKey: k() }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "plugins.marketplace.remove",
+    setup: withMarket,
+    run: (hn, s) => h["plugins.marketplace.remove"]!(hn.ctx, { marketplaceId: s.m.marketplaceId, idempotencyKey: k() }),
+  },
+  {
+    cap: "plugins.allow.set",
+    setup: withMarket,
+    run: (hn) =>
+      h["plugins.allow.set"]!(hn.ctx, {
+        kind: "marketplace",
+        marketplace: "vyre-test-market",
+        allowed: false,
+        idempotencyKey: k(),
+      }),
+  },
+  {
+    cap: "plugins.install",
+    setup: withMarket,
+    run: (hn, s) => {
+      stubSkills(hn);
+      return h["plugins.install"]!(hn.ctx, {
+        marketplaceId: s.m.marketplaceId,
+        plugin: "notes",
+        scope: "space",
+        idempotencyKey: k(),
+      });
+    },
+  },
+  {
+    cap: "plugins.install",
+    setup: withMarket,
+    run: (hn, s) =>
+      h["plugins.install"]!(hn.ctx, {
+        marketplaceId: s.m.marketplaceId,
+        plugin: "nope",
+        scope: "space",
+        idempotencyKey: k(),
+      }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "plugins.uninstall",
+    setup: withPlugin,
+    run: (hn, s) => h["plugins.uninstall"]!(hn.ctx, { pluginId: s.p.pluginId, idempotencyKey: k() }),
+  },
+  {
+    cap: "plugins.set_enabled",
+    setup: withPlugin,
+    run: (hn, s) => h["plugins.set_enabled"]!(hn.ctx, { pluginId: s.p.pluginId, enabled: false, idempotencyKey: k() }),
+  },
+  {
+    cap: "plugins.set_enabled",
+    run: (hn) => h["plugins.set_enabled"]!(hn.ctx, { pluginId: "plg_none", enabled: false, idempotencyKey: k() }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "plugins.config.set",
+    setup: withPlugin,
+    run: (hn, s) =>
+      h["plugins.config.set"]!(hn.ctx, {
+        pluginId: s.p.pluginId,
+        config: { echo_token: "#Dana_Echo.token" },
+        idempotencyKey: k(),
+      }),
+  },
+  {
+    cap: "plugins.config.set",
+    setup: withPlugin,
+    run: (hn, s) =>
+      h["plugins.config.set"]!(hn.ctx, {
+        pluginId: s.p.pluginId,
+        config: { echo_token: "plain" },
+        idempotencyKey: k(),
+      }),
+    expect: "validation.bad_input",
+  },
+  {
+    cap: "plugins.agent_template.use",
+    setup: withPlugin,
+    run: (hn, s) =>
+      h["plugins.agent_template.use"]!(hn.ctx, { pluginId: s.p.pluginId, name: "helper", idempotencyKey: k() }),
+  },
+  {
+    cap: "plugins.agent_template.use",
+    setup: withPlugin,
+    run: (hn, s) =>
+      h["plugins.agent_template.use"]!(hn.ctx, { pluginId: s.p.pluginId, name: "ghost", idempotencyKey: k() }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "plugins.connection.add",
+    run: (hn) =>
+      h["plugins.connection.add"]!(hn.ctx, {
+        name: "crm",
+        scope: "space",
+        url: "https://crm.example.com/mcp",
+        idempotencyKey: k(),
+      }),
+  },
+  {
+    cap: "plugins.connection.add",
+    run: (hn) => h["plugins.connection.add"]!(hn.ctx, { name: "crm", scope: "space", idempotencyKey: k() }),
+    expect: "validation.bad_input",
+  },
+  {
+    cap: "plugins.connection.remove",
+    setup: async (hn) =>
+      (
+        await h["plugins.connection.add"]!(hn.ctx, {
+          name: "crm",
+          scope: "space",
+          url: "https://crm.example.com/mcp",
+          idempotencyKey: k(),
+        })
+      ).connection,
+    run: (hn, s) => h["plugins.connection.remove"]!(hn.ctx, { connectionId: s.connectionId, idempotencyKey: k() }),
+  },
   // Vault > Connections (handlers/connections.ts)
   { cap: "plugins.connections.home", run: (hn) => h["plugins.connections.home"]!(hn.ctx, {}) },
   { cap: "plugins.registry.search", run: (hn) => h["plugins.registry.search"]!(hn.ctx, { q: "notion" }) },
-  { cap: "plugins.connection.add_mine", run: (hn) => h["plugins.connection.add_mine"]!(hn.ctx, { name: "notion", url: "https://mcp.notion.com/mcp", auth: "oauth", idempotencyKey: k() }) },
-  { cap: "plugins.connection.add_mine", run: (hn) => h["plugins.connection.add_mine"]!(hn.ctx, { name: "leaky", command: "npx", args: ["--token", "#Key.value"], idempotencyKey: k() }), expect: "validation.bad_input" },
   {
-    cap: "plugins.connection.update", setup: async (hn) => (await h["plugins.connection.add"]!(hn.ctx, { name: "crm", scope: "space", url: "https://crm.example.com/mcp", idempotencyKey: k() })).connection,
-    run: (hn, s) => h["plugins.connection.update"]!(hn.ctx, { connectionId: s.connectionId, title: "CRM", share: ["everyone"], idempotencyKey: k() }),
+    cap: "plugins.connection.add_mine",
+    run: (hn) =>
+      h["plugins.connection.add_mine"]!(hn.ctx, {
+        name: "notion",
+        url: "https://mcp.notion.com/mcp",
+        auth: "oauth",
+        idempotencyKey: k(),
+      }),
   },
-  { cap: "plugins.connection.update", run: (hn) => h["plugins.connection.update"]!(hn.ctx, { connectionId: "mcs_none", title: "x", idempotencyKey: k() }), expect: "validation.not_found" },
   {
-    cap: "plugins.connection.forget", setup: async (hn) => (await h["plugins.connection.add_mine"]!(hn.ctx, { name: "mine", url: "https://m.example.com/mcp", idempotencyKey: k() })).connection,
+    cap: "plugins.connection.add_mine",
+    run: (hn) =>
+      h["plugins.connection.add_mine"]!(hn.ctx, {
+        name: "leaky",
+        command: "npx",
+        args: ["--token", "#Key.value"],
+        idempotencyKey: k(),
+      }),
+    expect: "validation.bad_input",
+  },
+  {
+    cap: "plugins.connection.update",
+    setup: async (hn) =>
+      (
+        await h["plugins.connection.add"]!(hn.ctx, {
+          name: "crm",
+          scope: "space",
+          url: "https://crm.example.com/mcp",
+          idempotencyKey: k(),
+        })
+      ).connection,
+    run: (hn, s) =>
+      h["plugins.connection.update"]!(hn.ctx, {
+        connectionId: s.connectionId,
+        title: "CRM",
+        share: ["everyone"],
+        idempotencyKey: k(),
+      }),
+  },
+  {
+    cap: "plugins.connection.update",
+    run: (hn) => h["plugins.connection.update"]!(hn.ctx, { connectionId: "mcs_none", title: "x", idempotencyKey: k() }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "plugins.connection.forget",
+    setup: async (hn) =>
+      (
+        await h["plugins.connection.add_mine"]!(hn.ctx, {
+          name: "mine",
+          url: "https://m.example.com/mcp",
+          idempotencyKey: k(),
+        })
+      ).connection,
     run: (hn, s) => h["plugins.connection.forget"]!(hn.ctx, { connectionId: s.connectionId, idempotencyKey: k() }),
   },
   {
-    cap: "plugins.connection.checked", setup: async (hn) => (await h["plugins.connection.add_mine"]!(hn.ctx, { name: "mine", url: "https://m.example.com/mcp", idempotencyKey: k() })).connection,
-    run: (hn, s) => h["plugins.connection.checked"]!(hn.as({ kind: "service", id: "svc_host" }), { connectionId: s.connectionId, health: "ok", tools: 3 }),
+    cap: "plugins.connection.checked",
+    setup: async (hn) =>
+      (
+        await h["plugins.connection.add_mine"]!(hn.ctx, {
+          name: "mine",
+          url: "https://m.example.com/mcp",
+          idempotencyKey: k(),
+        })
+      ).connection,
+    run: (hn, s) =>
+      h["plugins.connection.checked"]!(hn.as({ kind: "service", id: "svc_host" }), {
+        connectionId: s.connectionId,
+        health: "ok",
+        tools: 3,
+      }),
   },
-  { cap: "plugins.connection.checked", run: (hn) => h["plugins.connection.checked"]!(hn.ctx, { connectionId: "mcs_none", health: "ok" }), expect: "permission.no_grant" },
+  {
+    cap: "plugins.connection.checked",
+    run: (hn) => h["plugins.connection.checked"]!(hn.ctx, { connectionId: "mcs_none", health: "ok" }),
+    expect: "permission.no_grant",
+  },
   { cap: "plugins.connections.policy", run: (hn) => h["plugins.connections.policy"]!(hn.ctx, {}) },
-  { cap: "plugins.connections.policy_set", run: (hn) => h["plugins.connections.policy_set"]!(hn.ctx, { spaceAdders: "admins", allowListOn: false, idempotencyKey: k() }) },
+  {
+    cap: "plugins.connections.policy_set",
+    run: (hn) =>
+      h["plugins.connections.policy_set"]!(hn.ctx, { spaceAdders: "admins", allowListOn: false, idempotencyKey: k() }),
+  },
   { cap: "skills.list", run: (hn) => h["skills.list"]!(hn.ctx, {}) },
   { cap: "skills.load", run: (hn) => h["skills.load"]!(hn.ctx, { name: "working-in-vyre" }) },
-  { cap: "skills.load", run: (hn) => h["skills.load"]!(hn.ctx, { name: "no-such-skill" }), expect: "validation.not_found" },
-  { cap: "skills.add", run: (hn) => h["skills.add"]!(hn.ctx, { text: "---\nname: one\ndescription: One.\n---\nBody.\n", idempotencyKey: k() }) },
-  { cap: "skills.add", run: (hn) => h["skills.add"]!(hn.ctx, { text: "no front matter and no name", idempotencyKey: k() }), expect: "validation.bad_input" },
   {
-    cap: "skills.set_enabled", setup: (hn) => h["skills.add"]!(hn.ctx, { text: "---\nname: one\ndescription: One.\n---\nBody.\n", idempotencyKey: k() }).then(() => hn.clear()),
+    cap: "skills.load",
+    run: (hn) => h["skills.load"]!(hn.ctx, { name: "no-such-skill" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "skills.add",
+    run: (hn) =>
+      h["skills.add"]!(hn.ctx, { text: "---\nname: one\ndescription: One.\n---\nBody.\n", idempotencyKey: k() }),
+  },
+  {
+    cap: "skills.add",
+    run: (hn) => h["skills.add"]!(hn.ctx, { text: "no front matter and no name", idempotencyKey: k() }),
+    expect: "validation.bad_input",
+  },
+  {
+    cap: "skills.set_enabled",
+    setup: (hn) =>
+      h["skills.add"]!(hn.ctx, { text: "---\nname: one\ndescription: One.\n---\nBody.\n", idempotencyKey: k() }).then(
+        () => hn.clear(),
+      ),
     run: (hn) => h["skills.set_enabled"]!(hn.ctx, { name: "one", enabled: false, idempotencyKey: k() }),
   },
-  { cap: "skills.set_enabled", run: (hn) => h["skills.set_enabled"]!(hn.ctx, { name: "none", enabled: false, idempotencyKey: k() }), expect: "validation.not_found" },
   {
-    cap: "skills.remove", setup: (hn) => h["skills.add"]!(hn.ctx, { text: "---\nname: one\ndescription: One.\n---\nBody.\n", idempotencyKey: k() }).then(() => hn.clear()),
+    cap: "skills.set_enabled",
+    run: (hn) => h["skills.set_enabled"]!(hn.ctx, { name: "none", enabled: false, idempotencyKey: k() }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "skills.remove",
+    setup: (hn) =>
+      h["skills.add"]!(hn.ctx, { text: "---\nname: one\ndescription: One.\n---\nBody.\n", idempotencyKey: k() }).then(
+        () => hn.clear(),
+      ),
     run: (hn) => h["skills.remove"]!(hn.ctx, { name: "one", idempotencyKey: k() }),
   },
   { cap: "skills.page", run: (hn) => h["skills.page"]!(hn.ctx, {}) },
   { cap: "skills.view", setup: withMine, run: (hn, st) => h["skills.view"]!(hn.ctx, { skillId: st.s.skillId }) },
-  { cap: "skills.preview", run: (hn) => h["skills.preview"]!(hn.ctx, { files: { "handover/SKILL.md": SK("handover", "Hand a matter over.") }, hint: "handover" }) },
+  {
+    cap: "skills.preview",
+    run: (hn) =>
+      h["skills.preview"]!(hn.ctx, {
+        files: { "handover/SKILL.md": SK("handover", "Hand a matter over.") },
+        hint: "handover",
+      }),
+  },
   { cap: "skills.members", run: (hn) => h["skills.members"]!(hn.ctx, {}) },
-  { cap: "skills.mine.add", run: (hn) => h["skills.mine.add"]!(hn.ctx, { text: SK("deploy-checks", "Run the checks before a deploy."), idempotencyKey: k() }) },
-  { cap: "skills.mine.set", setup: withMine, run: (hn, st) => h["skills.mine.set"]!(hn.ctx, { skillId: st.s.skillId, enabled: false, idempotencyKey: k() }) },
-  { cap: "skills.mine.remove", setup: withMine, run: (hn, st) => h["skills.mine.remove"]!(hn.ctx, { skillId: st.s.skillId, idempotencyKey: k() }) },
-  { cap: "skills.mine.update", setup: withLinked, run: (hn, st) => fetching(() => h["skills.mine.update"]!(hn.ctx, { skillId: st.s.skillId, idempotencyKey: k() })) },
-  { cap: "skills.share", setup: withMine, run: (hn, st) => h["skills.share"]!(hn.ctx, { skillId: st.s.skillId, to: [MAYA], idempotencyKey: k() }) },
-  { cap: "skills.shared.decide", setup: (hn) => withSharedTo(hn, { to: [MAYA] }), run: (hn, st) => h["skills.shared.decide"]!(hn.person(MAYA), { skillId: st.s.skillId, decision: "add", idempotencyKey: k() }) },
+  {
+    cap: "skills.mine.add",
+    run: (hn) =>
+      h["skills.mine.add"]!(hn.ctx, {
+        text: SK("deploy-checks", "Run the checks before a deploy."),
+        idempotencyKey: k(),
+      }),
+  },
+  {
+    cap: "skills.mine.set",
+    setup: withMine,
+    run: (hn, st) => h["skills.mine.set"]!(hn.ctx, { skillId: st.s.skillId, enabled: false, idempotencyKey: k() }),
+  },
+  {
+    cap: "skills.mine.remove",
+    setup: withMine,
+    run: (hn, st) => h["skills.mine.remove"]!(hn.ctx, { skillId: st.s.skillId, idempotencyKey: k() }),
+  },
+  {
+    cap: "skills.mine.update",
+    setup: withLinked,
+    run: (hn, st) => fetching(() => h["skills.mine.update"]!(hn.ctx, { skillId: st.s.skillId, idempotencyKey: k() })),
+  },
+  {
+    cap: "skills.share",
+    setup: withMine,
+    run: (hn, st) => h["skills.share"]!(hn.ctx, { skillId: st.s.skillId, to: [MAYA], idempotencyKey: k() }),
+  },
+  {
+    cap: "skills.shared.decide",
+    setup: (hn) => withSharedTo(hn, { to: [MAYA] }),
+    run: (hn, st) =>
+      h["skills.shared.decide"]!(hn.person(MAYA), { skillId: st.s.skillId, decision: "add", idempotencyKey: k() }),
+  },
   // install from a link and agent-owned skills (wip/l-install): one path each here; the flows are in install.test.ts
-  { cap: "install.from_link", setup: (hn) => withRepo(hn), run: (hn) => h["install.from_link"]!(hn.ctx, { url: "https://github.com/acme/pdf-skill" }) },
-  { cap: "install.from_link", run: (hn) => h["install.from_link"]!(hn.ctx, { url: "not a link" }), expect: "validation.bad_input" },
-  { cap: "install.apply", setup: async (hn) => { await withRepo(hn); return (await h["install.from_link"]!(hn.ctx, { url: "https://github.com/acme/pdf-skill" })).plan; }, run: (hn, p) => h["install.apply"]!(hn.ctx, { planId: p.planId, for: "me", idempotencyKey: k() }) },
-  { cap: "install.apply", run: (hn) => h["install.apply"]!(hn.ctx, { planId: "ins_none", for: "me", idempotencyKey: k() }), expect: "validation.not_found" },
-  { cap: "install.check_update", setup: async (hn) => { await withRepo(hn); const p = (await h["install.from_link"]!(hn.ctx, { url: "https://github.com/acme/pdf-skill" })).plan; await h["install.apply"]!(hn.ctx, { planId: p.planId, for: "me", idempotencyKey: k() }); return (await h["install.list"]!(hn.ctx, {})).installs[0]; }, run: (hn, i) => h["install.check_update"]!(hn.ctx, { installId: i.installId }) },
-  { cap: "install.check_update", run: (hn) => h["install.check_update"]!(hn.ctx, { installId: "ins_none" }), expect: "validation.not_found" },
-  { cap: "install.get", setup: async (hn) => { await withRepo(hn); return (await h["install.from_link"]!(hn.ctx, { url: "https://github.com/acme/pdf-skill" })).plan; }, run: (hn, p) => h["install.get"]!(hn.ctx, { planId: p.planId }) },
-  { cap: "install.get", run: (hn) => h["install.get"]!(hn.ctx, { planId: "ins_none" }), expect: "validation.not_found" },
-  { cap: "install.remove", setup: async (hn) => { await withRepo(hn); const p = (await h["install.from_link"]!(hn.ctx, { url: "https://github.com/acme/pdf-skill" })).plan; await h["install.apply"]!(hn.ctx, { planId: p.planId, for: "me", idempotencyKey: k() }); return (await h["install.list"]!(hn.ctx, {})).installs[0]; }, run: (hn, i) => h["install.remove"]!(hn.ctx, { installId: i.installId }) },
-  { cap: "install.remove", run: (hn) => h["install.remove"]!(hn.ctx, { installId: "ins_none" }), expect: "validation.not_found" },
+  {
+    cap: "install.from_link",
+    setup: (hn) => withRepo(hn),
+    run: (hn) => h["install.from_link"]!(hn.ctx, { url: "https://github.com/acme/pdf-skill" }),
+  },
+  {
+    cap: "install.from_link",
+    run: (hn) => h["install.from_link"]!(hn.ctx, { url: "not a link" }),
+    expect: "validation.bad_input",
+  },
+  {
+    cap: "install.apply",
+    setup: async (hn) => {
+      await withRepo(hn);
+      return (await h["install.from_link"]!(hn.ctx, { url: "https://github.com/acme/pdf-skill" })).plan;
+    },
+    run: (hn, p) => h["install.apply"]!(hn.ctx, { planId: p.planId, for: "me", idempotencyKey: k() }),
+  },
+  {
+    cap: "install.apply",
+    run: (hn) => h["install.apply"]!(hn.ctx, { planId: "ins_none", for: "me", idempotencyKey: k() }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "install.check_update",
+    setup: async (hn) => {
+      await withRepo(hn);
+      const p = (await h["install.from_link"]!(hn.ctx, { url: "https://github.com/acme/pdf-skill" })).plan;
+      await h["install.apply"]!(hn.ctx, { planId: p.planId, for: "me", idempotencyKey: k() });
+      return (await h["install.list"]!(hn.ctx, {})).installs[0];
+    },
+    run: (hn, i) => h["install.check_update"]!(hn.ctx, { installId: i.installId }),
+  },
+  {
+    cap: "install.check_update",
+    run: (hn) => h["install.check_update"]!(hn.ctx, { installId: "ins_none" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "install.get",
+    setup: async (hn) => {
+      await withRepo(hn);
+      return (await h["install.from_link"]!(hn.ctx, { url: "https://github.com/acme/pdf-skill" })).plan;
+    },
+    run: (hn, p) => h["install.get"]!(hn.ctx, { planId: p.planId }),
+  },
+  {
+    cap: "install.get",
+    run: (hn) => h["install.get"]!(hn.ctx, { planId: "ins_none" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "install.remove",
+    setup: async (hn) => {
+      await withRepo(hn);
+      const p = (await h["install.from_link"]!(hn.ctx, { url: "https://github.com/acme/pdf-skill" })).plan;
+      await h["install.apply"]!(hn.ctx, { planId: p.planId, for: "me", idempotencyKey: k() });
+      return (await h["install.list"]!(hn.ctx, {})).installs[0];
+    },
+    run: (hn, i) => h["install.remove"]!(hn.ctx, { installId: i.installId }),
+  },
+  {
+    cap: "install.remove",
+    run: (hn) => h["install.remove"]!(hn.ctx, { installId: "ins_none" }),
+    expect: "validation.not_found",
+  },
   { cap: "skills.of_agents", run: (hn) => h["skills.of_agents"]!(hn.ctx, {}) },
   { cap: "install.list", run: (hn) => h["install.list"]!(hn.ctx, {}) },
   { cap: "skills.save", run: (hn) => h["skills.save"]!(hn.ctx, { text: SK("triage", "Sort new requests.") }) },
-  { cap: "skills.save", run: (hn) => h["skills.save"]!(hn.ctx, { text: "no front matter" }), expect: "validation.bad_input" },
+  {
+    cap: "skills.save",
+    run: (hn) => h["skills.save"]!(hn.ctx, { text: "no front matter" }),
+    expect: "validation.bad_input",
+  },
   { cap: "skills.history", setup: withSaved, run: (hn, st) => h["skills.history"]!(hn.ctx, { skillId: st.s.skillId }) },
-  { cap: "skills.history", run: (hn) => h["skills.history"]!(hn.ctx, { skillId: "sko_none" }), expect: "validation.not_found" },
-  { cap: "skills.undo", setup: async (hn) => { const st = await withSaved(hn); await h["skills.save"]!(hn.ctx, { skillId: st.s.skillId, text: SK("triage", "Sort new requests.", "again") }); return st; }, run: (hn, st) => h["skills.undo"]!(hn.ctx, { skillId: st.s.skillId }) },
-  { cap: "skills.undo", setup: withSaved, run: (hn, st) => h["skills.undo"]!(hn.ctx, { skillId: st.s.skillId }), expect: "validation.precondition_failed" },
-  { cap: "skills.grant", setup: async (hn) => ({ ...(await withSaved(hn)), a: await mk(hn) }), run: (hn, st) => h["skills.grant"]!(hn.ctx, { skillId: st.s.skillId, agentId: st.a.agentId, level: "use" }) },
-  { cap: "skills.grant", setup: withSaved, run: (hn, st) => h["skills.grant"]!(hn.ctx, { skillId: st.s.skillId, agentId: "agt_none", level: "use" }), expect: "validation.not_found" },
+  {
+    cap: "skills.history",
+    run: (hn) => h["skills.history"]!(hn.ctx, { skillId: "sko_none" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "skills.undo",
+    setup: async (hn) => {
+      const st = await withSaved(hn);
+      await h["skills.save"]!(hn.ctx, { skillId: st.s.skillId, text: SK("triage", "Sort new requests.", "again") });
+      return st;
+    },
+    run: (hn, st) => h["skills.undo"]!(hn.ctx, { skillId: st.s.skillId }),
+  },
+  {
+    cap: "skills.undo",
+    setup: withSaved,
+    run: (hn, st) => h["skills.undo"]!(hn.ctx, { skillId: st.s.skillId }),
+    expect: "validation.precondition_failed",
+  },
+  {
+    cap: "skills.grant",
+    setup: async (hn) => ({ ...(await withSaved(hn)), a: await mk(hn) }),
+    run: (hn, st) => h["skills.grant"]!(hn.ctx, { skillId: st.s.skillId, agentId: st.a.agentId, level: "use" }),
+  },
+  {
+    cap: "skills.grant",
+    setup: withSaved,
+    run: (hn, st) => h["skills.grant"]!(hn.ctx, { skillId: st.s.skillId, agentId: "agt_none", level: "use" }),
+    expect: "validation.not_found",
+  },
   { cap: "skills.grants", setup: withSaved, run: (hn, st) => h["skills.grants"]!(hn.ctx, { skillId: st.s.skillId }) },
-  { cap: "skills.grants", run: (hn) => h["skills.grants"]!(hn.ctx, { skillId: "sko_none" }), expect: "validation.not_found" },
-  { cap: "skills.space.install", run: (hn) => h["skills.space.install"]!(hn.ctx, { text: SK("house-style", "Write in the house style."), idempotencyKey: k() }) },
-  { cap: "skills.space.update", setup: withSpaceSkill, run: (hn) => fetching(() => h["skills.space.update"]!(hn.ctx, { name: "pdf", idempotencyKey: k() })) },
-  { cap: "skills.space.adopt", setup: (hn) => withSharedTo(hn, { space: true }), run: (hn, st) => h["skills.space.adopt"]!(hn.ctx, { skillId: st.s.skillId, idempotencyKey: k() }) },
-  { cap: "skills.space.setup", setup: withSpaceSkill, run: (hn) => h["skills.space.setup"]!(hn.ctx, { name: "pdf", setup: {}, idempotencyKey: k() }) },
-  { cap: "skills.policy.set", run: (hn) => h["skills.policy.set"]!(hn.ctx, { scriptsAdminOnly: true, idempotencyKey: k() }) },
+  {
+    cap: "skills.grants",
+    run: (hn) => h["skills.grants"]!(hn.ctx, { skillId: "sko_none" }),
+    expect: "validation.not_found",
+  },
+  {
+    cap: "skills.space.install",
+    run: (hn) =>
+      h["skills.space.install"]!(hn.ctx, { text: SK("house-style", "Write in the house style."), idempotencyKey: k() }),
+  },
+  {
+    cap: "skills.space.update",
+    setup: withSpaceSkill,
+    run: (hn) => fetching(() => h["skills.space.update"]!(hn.ctx, { name: "pdf", idempotencyKey: k() })),
+  },
+  {
+    cap: "skills.space.adopt",
+    setup: (hn) => withSharedTo(hn, { space: true }),
+    run: (hn, st) => h["skills.space.adopt"]!(hn.ctx, { skillId: st.s.skillId, idempotencyKey: k() }),
+  },
+  {
+    cap: "skills.space.setup",
+    setup: withSpaceSkill,
+    run: (hn) => h["skills.space.setup"]!(hn.ctx, { name: "pdf", setup: {}, idempotencyKey: k() }),
+  },
+  {
+    cap: "skills.policy.set",
+    run: (hn) => h["skills.policy.set"]!(hn.ctx, { scriptsAdminOnly: true, idempotencyKey: k() }),
+  },
 ];
 
 test("every path through every capability: answers match the schema, errors are declared, events are declared and match their schemas", async () => {
-  let happy = 0, unhappy = 0;
+  let happy = 0,
+    unhappy = 0;
   const covered = new Set<string>();
   for (const s of scenarios) {
     const cap = mine.find((c) => c.name === s.cap)!;
@@ -310,7 +1165,11 @@ test("every path through every capability: answers match the schema, errors are 
     else hn.emitted.length = 0;
     let out: unknown;
     let code: string | null = null;
-    try { out = await s.run(hn, state); } catch (e) { code = codeOf(e); }
+    try {
+      out = await s.run(hn, state);
+    } catch (e) {
+      code = codeOf(e);
+    }
     if (s.expect !== undefined) {
       unhappy++;
       assert.equal(code, s.expect, `${s.cap}: expected ${s.expect}`);
@@ -321,7 +1180,8 @@ test("every path through every capability: answers match the schema, errors are 
       assert.equal(code, null, `${s.cap} raised ${String(code)}`);
       assert.deepEqual(contractErrors(s.cap, "out", out), [], `${s.cap}: answer`);
     }
-    for (const e of hn.emitted) assert.ok((cap.emits as readonly string[]).includes(e.name), `${s.cap} emitted undeclared ${e.name}`);
+    for (const e of hn.emitted)
+      assert.ok((cap.emits as readonly string[]).includes(e.name), `${s.cap} emitted undeclared ${e.name}`);
     assert.deepEqual(assertEventsConform(hn), [], s.cap);
   }
   assert.deepEqual([...covered].sort(), mine.map((c) => c.name).sort(), "every capability has a happy path");
@@ -335,21 +1195,54 @@ test("the capabilities that change something raise their declared events and the
   await h["agents.role_line.set"]!(hn.ctx, { agentId: a.agentId, description: "New role." });
   await h["agents.pause"]!(hn.ctx, { agentId: a.agentId });
   await h["agents.resume"]!(hn.ctx, { agentId: a.agentId });
-  const r = (await h["agents.routine.save"]!(hn.ctx, { agentId: a.agentId, title: "T", cron: "0 9 * * *", prompt: "P", idempotencyKey: k() })).routine;
+  const r = (
+    await h["agents.routine.save"]!(hn.ctx, {
+      agentId: a.agentId,
+      title: "T",
+      cron: "0 9 * * *",
+      prompt: "P",
+      idempotencyKey: k(),
+    })
+  ).routine;
   await h["agents.routine.delete"]!(hn.ctx, { agentId: a.agentId, routineId: r.routineId });
-  const s = (await h["agents.suggestion.propose"]!(hn.ctx, { agentId: a.agentId, diff: DIFF, idempotencyKey: k() })).suggestion;
+  const s = (await h["agents.suggestion.propose"]!(hn.ctx, { agentId: a.agentId, diff: DIFF, idempotencyKey: k() }))
+    .suggestion;
   await h["agents.suggestion.dismiss"]!(hn.ctx, { suggestionId: s.suggestionId });
   await h["agents.delete"]!(hn.ctx, { agentId: a.agentId });
   await h["agents.restore"]!(hn.ctx, { agentId: a.agentId });
   assert.deepEqual(hn.names(), [
-    "agent.created", "agent.config_changed", "agent.config_changed", "agent.paused", "agent.resumed", "agent.routine_changed", "agent.routine_changed", "agent.suggestion_proposed",
-    "agent.suggestion_resolved", "agent.deleted", "agent.restored",
+    "agent.created",
+    "agent.config_changed",
+    "agent.config_changed",
+    "agent.paused",
+    "agent.resumed",
+    "agent.routine_changed",
+    "agent.routine_changed",
+    "agent.suggestion_proposed",
+    "agent.suggestion_resolved",
+    "agent.deleted",
+    "agent.restored",
   ]);
   assert.deepEqual(assertEventsConform(hn), []);
   const before = hn.emitted.length;
-  for (const [cap, input] of [["agents.list", {}], ["agents.get", { agentId: a.agentId }], ["agents.status", { agentId: a.agentId }], ["agents.summary", { agentId: a.agentId }], ["agents.config.get", { agentId: a.agentId }],
-    ["agents.config.validate", { agentId: a.agentId, toml: 'name = "x"\n' }], ["agents.limits.get", { agentId: a.agentId }], ["agents.versions", { agentId: a.agentId }], ["agents.routines.list", { agentId: a.agentId }],
-    ["agents.suggestions.list", {}], ["agents.template.get", {}], ["agents.template.preview", { scope: "all" }], ["agents.guide.get", {}], ["agents.builtin_skills.list", {}], ["agents.builtin_skill.get", { name: "focus-files" }]] as const) await h[cap]!(hn.ctx, input);
+  for (const [cap, input] of [
+    ["agents.list", {}],
+    ["agents.get", { agentId: a.agentId }],
+    ["agents.status", { agentId: a.agentId }],
+    ["agents.summary", { agentId: a.agentId }],
+    ["agents.config.get", { agentId: a.agentId }],
+    ["agents.config.validate", { agentId: a.agentId, toml: 'name = "x"\n' }],
+    ["agents.limits.get", { agentId: a.agentId }],
+    ["agents.versions", { agentId: a.agentId }],
+    ["agents.routines.list", { agentId: a.agentId }],
+    ["agents.suggestions.list", {}],
+    ["agents.template.get", {}],
+    ["agents.template.preview", { scope: "all" }],
+    ["agents.guide.get", {}],
+    ["agents.builtin_skills.list", {}],
+    ["agents.builtin_skill.get", { name: "focus-files" }],
+  ] as const)
+    await h[cap]!(hn.ctx, input);
   assert.equal(hn.emitted.length, before, "reads emit nothing");
 });
 // P-CC_20: run now and delegate are covered here; touched so the check selects this file.

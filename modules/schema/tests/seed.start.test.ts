@@ -10,7 +10,8 @@ import { loadRegistry, openSchema } from "../impl.ts";
 
 const NOW = 1_800_000_000_000;
 const ctx = { trace: { traceId: "0123456789abcdef0123456789abcdef" }, emit: () => undefined, actor: "usr_owner" };
-const rows = (s: ReturnType<typeof openSchema>): number => (s.tx.get<{ n: number }>("SELECT COUNT(*) AS n FROM sc_types")?.n ?? 0);
+const rows = (s: ReturnType<typeof openSchema>): number =>
+  s.tx.get<{ n: number }>("SELECT COUNT(*) AS n FROM sc_types")?.n ?? 0;
 
 test("start seeds every declared type once; a read after it finds them and writes nothing", async () => {
   const reg = loadRegistry();
@@ -31,7 +32,7 @@ test("start seeds every declared type once; a read after it finds them and write
 
 test("after start a read does not seed: a handle whose start has not run answers from what is persisted", async () => {
   const s = openSchema({ now: () => NOW });
-  s.deps.started = Promise.resolve();   // as if start had run and found nothing to add
+  s.deps.started = Promise.resolve(); // as if start had run and found nothing to add
   await s.handlers["schema.types.list"](ctx, {});
   assert.equal(rows(s), 0, "a read after start never writes");
 });

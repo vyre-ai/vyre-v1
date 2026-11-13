@@ -23,13 +23,27 @@ export const HOST_KERNEL = spawnSync("uname", ["-r"], { encoding: "utf8" }).stdo
 // One fixed boot id stands for "this computer's kernel" on both sides: the host's (VYRE_TEST_BOOT_ID_FILE, which world() passes) and the engine's (the fake docker's FAKE_BOOT
 // for SAME). No test reads /proc, so these run the same on a macOS runner, which has none.
 export const HOST_BOOT = "5a5e5a5e-0000-4000-8000-this-kernel-test";
-export const BOOT_FILE = ((): string => { const f = path.join(os.tmpdir(), `vyre-r8-boot-id-${process.pid}`); fs.writeFileSync(f, `${HOST_BOOT}\n`); return f; })();
+export const BOOT_FILE = ((): string => {
+  const f = path.join(os.tmpdir(), `vyre-r8-boot-id-${process.pid}`);
+  fs.writeFileSync(f, `${HOST_BOOT}\n`);
+  return f;
+})();
 /** An engine on this computer's own kernel, as docker answers for it: the same kernel version and the same boot id. */
 export const SAME = { kernel: `${HOST_KERNEL}|Ubuntu 24.04.5 LTS`, boot: HOST_BOOT };
 
 export type Out = { status: number | null; stdout: string; stderr: string };
 export function sh(script: string, body: string, env: Record<string, string> = {}): Out {
-  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", HOME: os.tmpdir(), VYRE_SOURCE_ONLY: "1", VYRE_TEST_MODE: "1", VYRE_TEST_OS: "Linux", ...env } });
+  const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], {
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH ?? "",
+      HOME: os.tmpdir(),
+      VYRE_SOURCE_ONLY: "1",
+      VYRE_TEST_MODE: "1",
+      VYRE_TEST_OS: "Linux",
+      ...env,
+    },
+  });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
@@ -84,42 +98,91 @@ export const FAKE_SQLITE_JS = `const {DatabaseSync}=require("node:sqlite");const
 const [file,sql]=rest;try{const d=new DatabaseSync(file,ro?{readOnly:true}:{});d.exec("PRAGMA busy_timeout=3000");const st=d.prepare(sql);const rows=/^\\s*(select|pragma)/i.test(sql)?st.all():(st.run(),[]);for(const r of rows)console.log(Object.values(r).join("|"));d.close()}catch(e){console.error("Error: "+e.message);process.exit(1)}`;
 
 /** Host tools that record every call and then do the real work: sqlite3 (emulated with node), node, and a chown that fails as it does for a person who is not root. */
-export function world(dir: string, o: { kernel?: string; boot?: string; running?: boolean; image?: boolean } = {}): Record<string, string> {
+export function world(
+  dir: string,
+  o: { kernel?: string; boot?: string; running?: boolean; image?: boolean } = {},
+): Record<string, string> {
   const bin = path.join(dir, "fakebin");
   fs.mkdirSync(bin, { recursive: true });
   fs.writeFileSync(path.join(bin, "docker"), FAKE_DOCKER, { mode: 0o755 });
   fs.writeFileSync(path.join(dir, "fake-sqlite3.js"), FAKE_SQLITE_JS);
-  fs.writeFileSync(path.join(bin, "sqlite3"), `#!/bin/sh\nprintf '%s\\n' "sqlite3 $*" >>"${dir}/host.log"\nexec "${NODE}" --no-warnings "${dir}/fake-sqlite3.js" "$@"\n`, { mode: 0o755 });
-  fs.writeFileSync(path.join(bin, "node"), `#!/bin/sh\nprintf '%s\\n' "node $*" >>"${dir}/host.log"\nexec "${NODE}" "$@"\n`, { mode: 0o755 });
-  fs.writeFileSync(path.join(bin, "chown"), `#!/bin/sh\necho "chown $*" >>"${dir}/host.log"\nexit 1\n`, { mode: 0o755 });
-  if (o.running) fs.writeFileSync(path.join(dir, "running"), ""); else fs.rmSync(path.join(dir, "running"), { force: true });
+  fs.writeFileSync(
+    path.join(bin, "sqlite3"),
+    `#!/bin/sh\nprintf '%s\\n' "sqlite3 $*" >>"${dir}/host.log"\nexec "${NODE}" --no-warnings "${dir}/fake-sqlite3.js" "$@"\n`,
+    { mode: 0o755 },
+  );
+  fs.writeFileSync(
+    path.join(bin, "node"),
+    `#!/bin/sh\nprintf '%s\\n' "node $*" >>"${dir}/host.log"\nexec "${NODE}" "$@"\n`,
+    { mode: 0o755 },
+  );
+  fs.writeFileSync(path.join(bin, "chown"), `#!/bin/sh\necho "chown $*" >>"${dir}/host.log"\nexit 1\n`, {
+    mode: 0o755,
+  });
+  if (o.running) fs.writeFileSync(path.join(dir, "running"), "");
+  else fs.rmSync(path.join(dir, "running"), { force: true });
   const img = o.image === false ? "" : `VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:${"b".repeat(64)}\n`;
-  if (!fs.existsSync(path.join(dir, "compose.env")) || o.image === false) fs.writeFileSync(path.join(dir, "compose.env"), img);
-  return { PATH: `${bin}:${process.env.PATH ?? ""}`, FAKE_DIR: dir, FAKE_SPACE: path.join(dir, "data", "space"), FAKE_KERNEL: o.kernel ?? "6.8.0-colima|Ubuntu 24.04 (Colima's VM)", FAKE_BOOT: o.boot ?? "", REAL_NODE: NODE, VYRE_DIR: dir, VYRE_TEST_BOOT_ID_FILE: BOOT_FILE };
+  if (!fs.existsSync(path.join(dir, "compose.env")) || o.image === false)
+    fs.writeFileSync(path.join(dir, "compose.env"), img);
+  return {
+    PATH: `${bin}:${process.env.PATH ?? ""}`,
+    FAKE_DIR: dir,
+    FAKE_SPACE: path.join(dir, "data", "space"),
+    FAKE_KERNEL: o.kernel ?? "6.8.0-colima|Ubuntu 24.04 (Colima's VM)",
+    FAKE_BOOT: o.boot ?? "",
+    REAL_NODE: NODE,
+    VYRE_DIR: dir,
+    VYRE_TEST_BOOT_ID_FILE: BOOT_FILE,
+  };
 }
 export const MAC_ENV = { VYRE_TEST_OS: "Darwin" };
 
 export function db(file: string, sql: string): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const r = spawnSync(NODE, ["--no-warnings", "-e", `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1]);d.exec(process.argv[2]);d.close()`, file, sql], { encoding: "utf8" });
+  const r = spawnSync(
+    NODE,
+    [
+      "--no-warnings",
+      "-e",
+      `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1]);d.exec(process.argv[2]);d.close()`,
+      file,
+      sql,
+    ],
+    { encoding: "utf8" },
+  );
   assert.equal(r.status, 0, r.stderr);
 }
 export function mkSpace(dir: string, marker: string): void {
   const space = path.join(dir, "data", "space");
   fs.mkdirSync(path.join(dir, "data", "caddy"), { recursive: true });
   fs.writeFileSync(path.join(dir, "data", "caddy", "cert.pem"), marker);
-  for (const n of ["events.db", "modules.db", "space.db"]) db(path.join(space, n), `PRAGMA journal_mode=WAL;CREATE TABLE t(v TEXT);INSERT INTO t VALUES('${marker}')`);
-  db(path.join(space, "modules.db"), "CREATE TABLE network_config (id INTEGER PRIMARY KEY, mode TEXT NOT NULL); INSERT INTO network_config VALUES (1, 'relay');");
+  for (const n of ["events.db", "modules.db", "space.db"])
+    db(path.join(space, n), `PRAGMA journal_mode=WAL;CREATE TABLE t(v TEXT);INSERT INTO t VALUES('${marker}')`);
+  db(
+    path.join(space, "modules.db"),
+    "CREATE TABLE network_config (id INTEGER PRIMARY KEY, mode TEXT NOT NULL); INSERT INTO network_config VALUES (1, 'relay');",
+  );
 }
-export const valueIn = (file: string): string => spawnSync(NODE, ["--no-warnings", "-e", `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});console.log(d.prepare("SELECT v FROM t").get().v)`, file], { encoding: "utf8" }).stdout.trim();
+export const valueIn = (file: string): string =>
+  spawnSync(
+    NODE,
+    [
+      "--no-warnings",
+      "-e",
+      `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});console.log(d.prepare("SELECT v FROM t").get().v)`,
+      file,
+    ],
+    { encoding: "utf8" },
+  ).stdout.trim();
 /** Lines of host.log where a host sqlite3 or node was given a file under the live Space folder. */
-export const hostTouches = (dir: string): string[] => read(path.join(dir, "host.log")).split("\n").filter((l) => /^(sqlite3|node) /.test(l) && new RegExp(`${esc(path.join(dir, "data", "space"))}(/|\\s|$)`).test(l));
+export const hostTouches = (dir: string): string[] =>
+  read(path.join(dir, "host.log"))
+    .split("\n")
+    .filter(
+      (l) => /^(sqlite3|node) /.test(l) && new RegExp(`${esc(path.join(dir, "data", "space"))}(/|\\s|$)`).test(l),
+    );
 
 // ---- item 1: one rule for every reader of a live database
-
-
-
-
 
 /** A release layout the updater can switch between. */
 export function releases(dir: string, script?: { old: string; new: string }): void {
@@ -129,16 +192,18 @@ export function releases(dir: string, script?: { old: string; new: string }): vo
     fs.writeFileSync(path.join(rel, "VERSION"), v);
     fs.writeFileSync(path.join(rel, ".complete"), "");
     fs.writeFileSync(path.join(rel, "compose.server.yml"), "services: {}\n");
-    fs.writeFileSync(path.join(rel, "images.lock"), `VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:${(v === "1.0.0" ? "1" : "2").repeat(64)}\nVYRE_AGENT_IMAGE=ghcr.io/vyre-ai/agent-computer@sha256:${"9".repeat(64)}\n`);
-    if (script) fs.writeFileSync(path.join(rel, "bin", "vyre-server"), v === "1.0.0" ? script.old : script.new, { mode: 0o755 });
+    fs.writeFileSync(
+      path.join(rel, "images.lock"),
+      `VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:${(v === "1.0.0" ? "1" : "2").repeat(64)}\nVYRE_AGENT_IMAGE=ghcr.io/vyre-ai/agent-computer@sha256:${"9".repeat(64)}\n`,
+    );
+    if (script)
+      fs.writeFileSync(path.join(rel, "bin", "vyre-server"), v === "1.0.0" ? script.old : script.new, { mode: 0o755 });
   }
   fs.rmSync(path.join(dir, "current"), { force: true });
   fs.symlinkSync("releases/1.0.0", path.join(dir, "current"));
   fs.writeFileSync(path.join(dir, "vyre.env"), "");
   fs.writeFileSync(path.join(dir, "compose.override.yml"), "");
 }
-
-
 
 // ---- item 2: the new release carries out its own update
 
@@ -155,24 +220,40 @@ export function updateWorld(dir: string, env: Record<string, string>): Record<st
   fs.writeFileSync(path.join(dir, "lsblk"), "#!/bin/sh\nprintf 'crypt\\ndisk\\n'\n", { mode: 0o755 });
   fs.writeFileSync(path.join(dir, "healthy"), "ok");
   fs.writeFileSync(path.join(dir, "data-dir"), path.join(dir, "data"));
-  return { ...env, VYRE_TEST_PROC_MOUNTS: mounts, VYRE_TEST_LSBLK: path.join(dir, "lsblk"), VYRE_TEST_HEALTH_URL: `file://${dir}/healthy`, VYRE_TEST_DOCKER_ROOT: "", VYRE_UP_WAIT: "3", VYRE_BIN_DIR: path.join(dir, "nobin"), VYRE_TEST_USERNS_PROC: path.join(dir, "no-userns"), TMPDIR: dir, FAKE_PULL_FAIL: "agent-computer" };
+  return {
+    ...env,
+    VYRE_TEST_PROC_MOUNTS: mounts,
+    VYRE_TEST_LSBLK: path.join(dir, "lsblk"),
+    VYRE_TEST_HEALTH_URL: `file://${dir}/healthy`,
+    VYRE_TEST_DOCKER_ROOT: "",
+    VYRE_UP_WAIT: "3",
+    VYRE_BIN_DIR: path.join(dir, "nobin"),
+    VYRE_TEST_USERNS_PROC: path.join(dir, "no-userns"),
+    TMPDIR: dir,
+    FAKE_PULL_FAIL: "agent-computer",
+  };
 }
 export const runUpdate = (dir: string, env: Record<string, string>): Out => {
-  const r = spawnSync("sh", [path.join(dir, "releases/1.0.0/bin/vyre-server"), "update", "--yes", "--version", "1.1.0"], { encoding: "utf8", env: { PATH: env.PATH!, HOME: os.tmpdir(), VYRE_TEST_MODE: "1", VYRE_TEST_OS: "Linux", ...env } });
+  const r = spawnSync(
+    "sh",
+    [path.join(dir, "releases/1.0.0/bin/vyre-server"), "update", "--yes", "--version", "1.1.0"],
+    {
+      encoding: "utf8",
+      env: { PATH: env.PATH!, HOME: os.tmpdir(), VYRE_TEST_MODE: "1", VYRE_TEST_OS: "Linux", ...env },
+    },
+  );
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 };
 /** The first half needs a signed release: here fetch_release is replaced in the old script's text by one that reports the unpacked 1.1.0 (the signature code itself has its own tests). */
-export const withFetchStub = (text: string): string => text.replace(/^fetch_release\(\) \{\n/m, () => "fetch_release() {\n  REL_VERSION=1.1.0; REL_TARBALL=/nonexistent; return 0\n");
-
-
+export const withFetchStub = (text: string): string =>
+  text.replace(
+    /^fetch_release\(\) \{\n/m,
+    () => "fetch_release() {\n  REL_VERSION=1.1.0; REL_TARBALL=/nonexistent; return 0\n",
+  );
 
 // ---- real Docker: the read through the running server's own container, while it writes
 
-
-
 // ---- item 3: a failed update never leaves a mystery
-
-
 
 // ---- item 5: doctor on a Mac speaks Mac
 
@@ -180,34 +261,42 @@ export function macDoctor(dir: string, o: { filevault: "Yes" | "No"; state?: str
   const du = path.join(dir, "diskutil");
   fs.writeFileSync(du, `#!/bin/sh\nprintf '   FileVault:                 ${o.filevault}\\n'\n`, { mode: 0o755 });
   fs.mkdirSync(path.join(dir, "state"), { recursive: true });
-  if (o.state !== undefined) fs.writeFileSync(path.join(dir, "state/encryption"), o.state); else fs.rmSync(path.join(dir, "state/encryption"), { force: true });
-  fs.writeFileSync(path.join(dir, "compose.env"), `VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:${"b".repeat(64)}\n${o.compose ?? ""}`);
+  if (o.state !== undefined) fs.writeFileSync(path.join(dir, "state/encryption"), o.state);
+  else fs.rmSync(path.join(dir, "state/encryption"), { force: true });
+  fs.writeFileSync(
+    path.join(dir, "compose.env"),
+    `VYRE_IMAGE=ghcr.io/vyre-ai/vyred@sha256:${"b".repeat(64)}\n${o.compose ?? ""}`,
+  );
   fs.writeFileSync(path.join(dir, "healthy"), "ok");
-  return sh(SERVER, `DATA_DIR="${dir}/data"; cmd_doctor`, { ...world(dir, { running: true, kernel: "6.8.0-50-generic|Ubuntu 24.04 (colima)" }), ...MAC_ENV, VYRE_TEST_DISKUTIL: du, VYRE_TEST_HEALTH_URL: `file://${dir}/healthy`, VYRE_TEST_DOCKER_ROOT: "", VYRE_TEST_USERNS_PROC: path.join(dir, "no-userns") });
+  return sh(SERVER, `DATA_DIR="${dir}/data"; cmd_doctor`, {
+    ...world(dir, { running: true, kernel: "6.8.0-50-generic|Ubuntu 24.04 (colima)" }),
+    ...MAC_ENV,
+    VYRE_TEST_DISKUTIL: du,
+    VYRE_TEST_HEALTH_URL: `file://${dir}/healthy`,
+    VYRE_TEST_DOCKER_ROOT: "",
+    VYRE_TEST_USERNS_PROC: path.join(dir, "no-userns"),
+  });
 }
-
 
 // ---- item 6: macOS tools
 
-
-
 // ---- from the real-Mac run (lead, 12 Nov) and the review
 
-
-
-
 // ---- bringing an old Mac forward safely
-
-
-
-
 
 // ---- review follow-ups (12 Nov, after eaf9db420)
 
 /** A stand-in for vyred holding on a damaged database: every request 503 with the damaged line. */
 export async function holdingServer(): Promise<{ url: string; stop: () => void }> {
   const port = 30000 + (process.pid % 20000);
-  const child = spawn(NODE, ["-e", `require("node:http").createServer((q,s)=>{s.writeHead(503,{"content-type":"application/json"});s.end(JSON.stringify({ok:false,status:"damaged",error:{code:"space.damaged",message:"modules.db is damaged (database disk image is malformed), so the Space cannot start. It is not repaired here. Put back the last good backup on the server: vyre-server restore <backup file> --yes"}}))}).listen(${port},"127.0.0.1",()=>console.log("up"))`], { stdio: ["ignore", "pipe", "inherit"] });
+  const child = spawn(
+    NODE,
+    [
+      "-e",
+      `require("node:http").createServer((q,s)=>{s.writeHead(503,{"content-type":"application/json"});s.end(JSON.stringify({ok:false,status:"damaged",error:{code:"space.damaged",message:"modules.db is damaged (database disk image is malformed), so the Space cannot start. It is not repaired here. Put back the last good backup on the server: vyre-server restore <backup file> --yes"}}))}).listen(${port},"127.0.0.1",()=>console.log("up"))`,
+    ],
+    { stdio: ["ignore", "pipe", "inherit"] },
+  );
   await new Promise<void>((r) => child.stdout.once("data", () => r()));
   return { url: `http://127.0.0.1:${port}/healthz`, stop: () => child.kill() };
 }

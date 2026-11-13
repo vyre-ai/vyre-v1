@@ -5,7 +5,7 @@ import type { ProjectTabProps } from "../tabs.ts";
 import { OverviewPage } from "./OverviewPage.tsx";
 
 export function ProjectOverview({ projectId, canEdit }: ProjectTabProps): ReactElement {
-  return <OverviewPage projectId={projectId} canEdit={canEdit} />;   // the page does not need the Space id
+  return <OverviewPage projectId={projectId} canEdit={canEdit} />; // the page does not need the Space id
 }
 export { OverviewPage } from "./OverviewPage.tsx";
 export type { OverviewPageProps } from "./OverviewPage.tsx";

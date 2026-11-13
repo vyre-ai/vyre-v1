@@ -12,11 +12,23 @@ const tools = [
 ];
 const text = (html: string): string => html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
 const view = (connections: { connectionId: string; name: string; hub: string }[], servers = {}) =>
-  text(renderToStaticMarkup(<AppHubsView connections={connections} servers={servers} onConnect={async () => undefined} onDisconnect={() => undefined} />));
+  text(
+    renderToStaticMarkup(
+      <AppHubsView
+        connections={connections}
+        servers={servers}
+        onConnect={async () => undefined}
+        onDisconnect={() => undefined}
+      />,
+    ),
+  );
 
 test("tools group by app with the app's own name", () => {
   const g = groupByApp(composio, tools);
-  assert.deepEqual(g.map((x) => x.label), ["HubSpot", "Slack"]);
+  assert.deepEqual(
+    g.map((x) => x.label),
+    ["HubSpot", "Slack"],
+  );
   assert.equal(g[1]!.tools.length, 2);
   assert.equal(appName("googlecalendar"), "Google Calendar");
   assert.equal(appName("unknownapp"), "Unknownapp");

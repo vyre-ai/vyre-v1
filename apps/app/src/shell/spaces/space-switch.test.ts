@@ -19,21 +19,34 @@ import { SAMPLE_ROWS, createSampleShell, samplePlace } from "./sample.tsx";
 function rig(openId = "nw", extra: Partial<Omit<HubOptions, "spaces">> = {}) {
   const attrs: Record<string, string> = {};
   const root: ThemeRoot = {
-    setAttribute: (n, v) => { attrs[n] = v; },
+    setAttribute: (n, v) => {
+      attrs[n] = v;
+    },
     setProperty: () => undefined,
     removeProperty: () => undefined,
   };
-  const theme = createThemeController({ personId: "irfad", spaceId: openId, spaceSkin: seedSpaceSkin(), prefersDark: false, root, storage: null });
+  const theme = createThemeController({
+    personId: "irfad",
+    spaceId: openId,
+    spaceSkin: seedSpaceSkin(),
+    prefersDark: false,
+    root,
+    storage: null,
+  });
   const hub = createSampleShell({ openId, theme, skeletonMs: 0, ...extra });
   return { hub, theme, attrs };
 }
 
-const html = (hub: ShellHub): string => renderToStaticMarkup(createElement(Shell, { hub, renderPlace: samplePlace })).replaceAll("<!-- -->", "");
+const html = (hub: ShellHub): string =>
+  renderToStaticMarkup(createElement(Shell, { hub, renderPlace: samplePlace })).replaceAll("<!-- -->", "");
 const text = (markup: string): string => markup.replace(/<[^>]*>/g, "");
 
 test("the three seeds mount and every place opens in each Space with only that Space's rows", async () => {
   const { hub } = rig();
-  assert.deepEqual(hub.spaces().map((s) => s.name), ["Northwind", "Harbor Studio", "Personal"]);
+  assert.deepEqual(
+    hub.spaces().map((s) => s.name),
+    ["Northwind", "Harbor Studio", "Personal"],
+  );
   const prefix: Record<string, string> = { nw: "nw-", hb: "hb-", me: "me-" };
   for (const id of ["nw", "hb", "me"]) {
     if (id !== "nw") {
@@ -53,7 +66,8 @@ test("the three seeds mount and every place opens in each Space with only that S
       }
       assert.ok(out.includes(`data-testid="sample-${p}"`), `${id} ${p} draws`);
       for (const r of rows) assert.ok(out.includes(`data-testid="${r.id}"`), `${r.id} shows in ${id} ${p}`);
-      for (const other of Object.keys(prefix).filter((k) => k !== id)) assert.ok(!out.includes(`data-testid="${prefix[other]}`), `no ${other} row in ${id} ${p}`);
+      for (const other of Object.keys(prefix).filter((k) => k !== id))
+        assert.ok(!out.includes(`data-testid="${prefix[other]}`), `no ${other} row in ${id} ${p}`);
     }
   }
 });
@@ -73,7 +87,11 @@ test("a switch shows the skeleton first and no id of the old Space appears at an
   const next = html(hub);
   assert.ok(next.includes('data-testid="hb-chat-1"'), "Harbor Studio rows after the skeleton");
   assert.ok(!next.includes('data-testid="nw-') && !next.includes("Northwind"), "still nothing from Northwind");
-  assert.equal(text(renderToStaticMarkup(createElement(SpaceSkeleton))), "", "the skeleton carries no text and no data");
+  assert.equal(
+    text(renderToStaticMarkup(createElement(SpaceSkeleton))),
+    "",
+    "the skeleton carries no text and no data",
+  );
 });
 
 test("every query key and subscription carries the new spaceId; a straggler from the old Space is refused", async () => {
@@ -107,7 +125,11 @@ test("the Kit, skin, rail, title and notification set change with the Space", as
   assert.notDeepEqual(railPlaces(hub.rail()), nwRail, "Harbor Studio's Kit draws a different rail");
   assert.ok(!railPlaces(hub.rail()).includes("console") && !railPlaces(hub.rail()).includes("records"));
   assert.equal(hub.session().kit.id, "studio");
-  assert.notEqual(JSON.stringify(hub.session().def.counts) + JSON.stringify(hub.session().def.dots), nwNotes, "notification counts are the Space's own");
+  assert.notEqual(
+    JSON.stringify(hub.session().def.counts) + JSON.stringify(hub.session().def.dots),
+    nwNotes,
+    "notification counts are the Space's own",
+  );
   assert.equal(titleText(hub.session().def.name, hub.state().place, false), "Vyre · Harbor Studio · Chats");
   assert.ok(html(hub).includes("Vyre · Harbor Studio · Chats"));
   hub.switchTo("me");
@@ -121,11 +143,21 @@ test("tabs restore when you switch back to a Space", async () => {
   hub.go("files");
   hub.go("records", "pruitt");
   const before = hub.session().tabs.state();
-  assert.deepEqual(before.tabs.map((t) => t.key), ["chats", "files", "records:pruitt"]);
+  assert.deepEqual(
+    before.tabs.map((t) => t.key),
+    ["chats", "files", "records:pruitt"],
+  );
   hub.switchTo("hb");
   await hub.whenReady();
   hub.go("inbox");
-  assert.deepEqual(hub.session().tabs.state().tabs.map((t) => t.key), ["chats", "inbox"], "Harbor Studio has its own tabs");
+  assert.deepEqual(
+    hub
+      .session()
+      .tabs.state()
+      .tabs.map((t) => t.key),
+    ["chats", "inbox"],
+    "Harbor Studio has its own tabs",
+  );
   hub.switchTo("nw");
   await hub.whenReady();
   assert.deepEqual(hub.session().tabs.state(), before, "Northwind's tabs are as you left them");
@@ -136,7 +168,11 @@ test("tabs restore when you switch back to a Space", async () => {
 
 test("starred Spaces are pre-opened, the previous replica stays open read-only, and a Space opens once", async () => {
   const opened: string[] = [];
-  const { hub } = rig("nw", { openReplica: (id) => { opened.push(id); } });
+  const { hub } = rig("nw", {
+    openReplica: (id) => {
+      opened.push(id);
+    },
+  });
   assert.equal(hub.session("nw").replica.opens, 1);
   assert.equal(hub.session("hb").replica.opens, 1, "Harbor Studio is starred: already open");
   assert.equal(hub.session("me").replica.opens, 0, "Personal is not starred");
@@ -156,7 +192,9 @@ test("starred Spaces are pre-opened, the previous replica stays open read-only, 
 
 test("a Space that fails to open says so and Try again opens it", async () => {
   let fail = true;
-  const { hub } = rig("nw", { openReplica: () => (fail ? Promise.reject(new Error("The local store did not unlock")) : Promise.resolve()) });
+  const { hub } = rig("nw", {
+    openReplica: () => (fail ? Promise.reject(new Error("The local store did not unlock")) : Promise.resolve()),
+  });
   hub.switchTo("me");
   await hub.whenReady();
   assert.equal(hub.state().error, "The local store did not unlock");

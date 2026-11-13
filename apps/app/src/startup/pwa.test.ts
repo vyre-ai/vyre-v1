@@ -28,7 +28,10 @@ test("PWA manifest declares an installable standalone Vyre app", () => {
     assert.match(icon?.src ?? "", /^\/icons\//);
     assert.ok(fs.existsSync(path.join(PUBLIC, (icon?.src ?? "").replace(/^\//, ""))), `${size} icon file exists`);
   }
-  assert.ok(icons.some((entry) => entry.purpose === "maskable"), "Android masking has its own icon (install.test.ts checks the sizes)");
+  assert.ok(
+    icons.some((entry) => entry.purpose === "maskable"),
+    "Android masking has its own icon (install.test.ts checks the sizes)",
+  );
 });
 
 test("web document advertises the install surface and iPhone safe-area contract", () => {
@@ -62,12 +65,18 @@ test("production export keeps the install contract in the files a browser receiv
   }
   const root = path.resolve(dist);
   const read = (name: string): string => fs.readFileSync(path.join(root, name), "utf8");
-  const manifest = JSON.parse(read("manifest.json")) as { display?: string; start_url?: string; scope?: string; icons?: { src: string }[] };
+  const manifest = JSON.parse(read("manifest.json")) as {
+    display?: string;
+    start_url?: string;
+    scope?: string;
+    icons?: { src: string }[];
+  };
   assert.equal(manifest.display, "standalone");
   assert.equal(manifest.start_url, "/chat");
   assert.equal(manifest.scope, "/");
   assert.ok(manifest.icons?.length);
-  for (const icon of manifest.icons ?? []) assert.ok(fs.statSync(path.join(root, icon.src.replace(/^\//, ""))).size > 0, icon.src);
+  for (const icon of manifest.icons ?? [])
+    assert.ok(fs.statSync(path.join(root, icon.src.replace(/^\//, ""))).size > 0, icon.src);
   const html = read("index.html");
   assert.match(html, /rel="manifest"[^>]+href="\/manifest\.json"/);
   assert.match(html, /apple-mobile-web-app-capable/);
@@ -92,9 +101,18 @@ test("the service worker registers once the app is usable after load, not at loa
     const timers: { at: number; fn: () => void }[] = [];
     let now = 0;
     const win = {
-      performance: { mark() {}, now: () => 0 }, location: { search: "" }, URLSearchParams,
+      performance: { mark() {}, now: () => 0 },
+      location: { search: "" },
+      URLSearchParams,
       document: { documentElement: { style: { setProperty() {} }, setAttribute() {} } },
-      navigator: { serviceWorker: { register: () => { registered++; return { catch() {} }; } } },
+      navigator: {
+        serviceWorker: {
+          register: () => {
+            registered++;
+            return { catch() {} };
+          },
+        },
+      },
       addEventListener: (type: string, fn: () => void) => on.set(type, fn),
       setTimeout: (fn: () => void, ms: number) => timers.push({ at: now + ms, fn }),
     };
@@ -118,22 +136,36 @@ test("the desktop app never registers the service worker: the window has the she
     let registered = 0;
     const timers: Array<() => void> = [];
     const win: Record<string, unknown> = {
-      performance: { mark() {}, now: () => 0 }, location: { search: "", ...loc }, URLSearchParams,
+      performance: { mark() {}, now: () => 0 },
+      location: { search: "", ...loc },
+      URLSearchParams,
       document: { documentElement: { style: { setProperty() {} }, setAttribute() {} } },
-      navigator: { serviceWorker: { register: () => { registered++; return { catch() {} }; } } },
+      navigator: {
+        serviceWorker: {
+          register: () => {
+            registered++;
+            return { catch() {} };
+          },
+        },
+      },
       addEventListener: (type: string, fn: () => void) => on.set(type, fn),
       setTimeout: (fn: () => void) => timers.push(fn),
     };
     const window = { ...win, ...extra };
     new Function(...Object.keys(win), "window", bootScript())(...Object.values(win), window);
-    on.get("load")?.(); on.get("vyre:usable")?.();
+    on.get("load")?.();
+    on.get("vyre:usable")?.();
     for (const t of timers.splice(0)) t();
     return registered;
   };
   assert.equal(run({}, { protocol: "https:", hostname: "team.example.com" }), 1, "a browser registers it");
   assert.equal(run({ __TAURI__: {} }, { protocol: "http:", hostname: "tauri.localhost" }), 0, "Windows app");
   assert.equal(run({ __TAURI_INTERNALS__: {} }, { protocol: "tauri:", hostname: "localhost" }), 0, "Mac app");
-  assert.equal(run({}, { protocol: "http:", hostname: "tauri.localhost" }), 0, "the app's own origin even before the shell's globals");
+  assert.equal(
+    run({}, { protocol: "http:", hostname: "tauri.localhost" }),
+    0,
+    "the app's own origin even before the shell's globals",
+  );
 });
 
 test("on a phone address the relay shell's worker carries the page, and the app does not register its own over it", async () => {
@@ -142,14 +174,26 @@ test("on a phone address the relay shell's worker carries the page, and the app 
     const on = new Map<string, () => void>();
     let registered = 0;
     const win = {
-      performance: { mark() {}, now: () => 0 }, location: { search: "" }, URLSearchParams, URL,
+      performance: { mark() {}, now: () => 0 },
+      location: { search: "" },
+      URLSearchParams,
+      URL,
       document: { documentElement: { style: { setProperty() {} }, setAttribute() {} } },
-      navigator: { serviceWorker: { controller, register: () => { registered++; return { catch() {} }; } } },
+      navigator: {
+        serviceWorker: {
+          controller,
+          register: () => {
+            registered++;
+            return { catch() {} };
+          },
+        },
+      },
       addEventListener: (type: string, fn: () => void) => on.set(type, fn),
       setTimeout: (fn: () => void) => fn(),
     };
     new Function(...Object.keys(win), "window", bootScript())(...Object.values(win), win);
-    on.get("load")?.(); on.get("vyre:usable")?.();
+    on.get("load")?.();
+    on.get("vyre:usable")?.();
     return registered;
   };
   assert.equal(run({ scriptURL: "https://acme.vyre.run/__vyre/sw.js" }), 0, "the phone shell's worker stays in charge");

@@ -7,13 +7,59 @@
 // DECISION: the Run thread (kind `run`) is minted here as thread_id; the chat module renders it from the Run and its step log.
 // DECISION: step cap lives in the engine (opts.maxSteps, default 500); runs.record_step has no cap field and only refuses a runaway log (HARD_STEP_ROWS).
 import {
-  DEFAULT_WAIT_MS, HARD_STEP_ROWS, allSteps, allWaits, clean, clearWait, countRuns, countStepRows, emitRun, engineHealth, foldedCounts, findRun, findStep, idemKeyFor, isActive,
-  isTerminalStep, keyedRunIds, latestSteps, listRuns, manageRun, mayManage, newRunId, newSpanId, newThreadId, page, patchExtra, raise, readExtra, readTrigger, readWait, runOut, saveRun, saveStep, saveWait, seeRun, stepOut, touch,
+  DEFAULT_WAIT_MS,
+  HARD_STEP_ROWS,
+  allSteps,
+  allWaits,
+  clean,
+  clearWait,
+  countRuns,
+  countStepRows,
+  emitRun,
+  engineHealth,
+  foldedCounts,
+  findRun,
+  findStep,
+  idemKeyFor,
+  isActive,
+  isTerminalStep,
+  keyedRunIds,
+  latestSteps,
+  listRuns,
+  manageRun,
+  mayManage,
+  newRunId,
+  newSpanId,
+  newThreadId,
+  page,
+  patchExtra,
+  raise,
+  readExtra,
+  readTrigger,
+  readWait,
+  runOut,
+  saveRun,
+  saveStep,
+  saveWait,
+  seeRun,
+  stepOut,
+  touch,
 } from "../projections.ts";
 import { isSystemCall, isTrustedService } from "../../../lib/trust.ts";
-import type { Db, ResourceRef, Run, RunKind, RunStatus, RunsCtx, StepRow, StepState, WaitReason, WaitRow } from "../projections.ts";
+import type {
+  Db,
+  ResourceRef,
+  Run,
+  RunKind,
+  RunStatus,
+  RunsCtx,
+  StepRow,
+  StepState,
+  WaitReason,
+  WaitRow,
+} from "../projections.ts";
 
-type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 // ---- helpers ----
 
@@ -22,7 +68,11 @@ const UNIT: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 86_4
 export function parseDuration(ctx: RunsCtx, s: string | undefined): number {
   if (s === undefined) return DEFAULT_WAIT_MS;
   const m = DURATION.exec(s.trim().toLowerCase());
-  if (!m) raise(ctx, "validation.precondition_failed", "Use a duration such as 30d, 6h or 15m.", { reason: "bad_duration", given: s });
+  if (!m)
+    raise(ctx, "validation.precondition_failed", "Use a duration such as 30d, 6h or 15m.", {
+      reason: "bad_duration",
+      given: s,
+    });
   return Number(m[1]) * UNIT[m[2]!]!;
 }
 
@@ -40,11 +90,34 @@ function describeOn(on: unknown): string | undefined {
 
 // ---- start, wait, resume, finish ----
 
-function newRun(ctx: RunsCtx, i: { kind: RunKind; name?: string | undefined; owner: string; subject?: ResourceRef | undefined; definitionVersion?: number | undefined; parentRun?: string | undefined; threadId?: string | undefined; keyUsed?: string | undefined; modelUsed?: string | undefined }, ids?: { id: string; threadId: string }): Run {
+function newRun(
+  ctx: RunsCtx,
+  i: {
+    kind: RunKind;
+    name?: string | undefined;
+    owner: string;
+    subject?: ResourceRef | undefined;
+    definitionVersion?: number | undefined;
+    parentRun?: string | undefined;
+    threadId?: string | undefined;
+    keyUsed?: string | undefined;
+    modelUsed?: string | undefined;
+  },
+  ids?: { id: string; threadId: string },
+): Run {
   const now = ctx.now();
   const run: Run = {
-    id: ids?.id ?? newRunId(), kind: i.kind, owner: i.owner, startedBy: ctx.principal.id, status: "queued", costMicros: 0, startedAt: now, traceId: ctx.trace.traceId,
-    threadId: i.threadId ?? ids?.threadId ?? newThreadId(), version: 0, updatedAt: now,
+    id: ids?.id ?? newRunId(),
+    kind: i.kind,
+    owner: i.owner,
+    startedBy: ctx.principal.id,
+    status: "queued",
+    costMicros: 0,
+    startedAt: now,
+    traceId: ctx.trace.traceId,
+    threadId: i.threadId ?? ids?.threadId ?? newThreadId(),
+    version: 0,
+    updatedAt: now,
   };
   if (i.name !== undefined) run.name = i.name;
   if (i.subject !== undefined) run.subject = i.subject;
@@ -53,39 +126,76 @@ function newRun(ctx: RunsCtx, i: { kind: RunKind; name?: string | undefined; own
   if (i.keyUsed !== undefined) run.keyUsed = i.keyUsed;
   if (i.modelUsed !== undefined) run.modelUsed = i.modelUsed;
   saveRun(ctx.db, run);
-  emitRun(ctx, "run.started", run.id, { kind: run.kind, name: run.name, owner: run.owner, subject: run.subject, definitionVersion: run.definitionVersion, parentRun: run.parentRun });
+  emitRun(ctx, "run.started", run.id, {
+    kind: run.kind,
+    name: run.name,
+    owner: run.owner,
+    subject: run.subject,
+    definitionVersion: run.definitionVersion,
+    parentRun: run.parentRun,
+  });
   return run;
 }
 
 export async function start(ctx: RunsCtx, input: In): Promise<unknown> {
   // A person (or an agent) who starts a Run directly starts it for themselves or for the person they act for; the Run's owner decides who may see and manage it. Routines, connectors, journeys and the other modules
   // that start Runs for someone else call from inside the host, which is a system call (P-SEC_10).
-  if (!isSystemCall(ctx) && !isTrustedService(ctx.principal) && input.owner !== ctx.principal.id && input.owner !== ctx.actingFor) {
-    raise(ctx, "permission.role_lacks_permission", "A Run is started for yourself or for the person you act for.", { reason: "owner_not_caller" });
+  if (
+    !isSystemCall(ctx) &&
+    !isTrustedService(ctx.principal) &&
+    input.owner !== ctx.principal.id &&
+    input.owner !== ctx.actingFor
+  ) {
+    raise(ctx, "permission.role_lacks_permission", "A Run is started for yourself or for the person you act for.", {
+      reason: "owner_not_caller",
+    });
   }
   const key = input.idempotencyKey as string | undefined;
   if (key) {
     const have = (ctx.db.all("SELECT run_id FROM runs_idem WHERE idem_key = ?", key) as { run_id: string }[])[0];
     if (have && findRun(ctx.db, have.run_id)) return { runId: have.run_id };
   }
-  if (input.parentRun && !findRun(ctx.db, input.parentRun)) raise(ctx, "validation.not_found", "The parent run does not exist.", { reason: "no_parent" });
+  if (input.parentRun && !findRun(ctx.db, input.parentRun))
+    raise(ctx, "validation.not_found", "The parent run does not exist.", { reason: "no_parent" });
   const run = newRun(ctx, input as Parameters<typeof newRun>[1], key ? await keyedRunIds(key) : undefined);
   const trig = input.trigger as { messageId: string; threadId: string; channelId?: string } | undefined;
-  if (trig) ctx.db.run("INSERT OR REPLACE INTO runs_trigger (run_id, message_id, thread_id, channel_id) VALUES (?, ?, ?, ?)", run.id, trig.messageId, trig.threadId, trig.channelId ?? null);
+  if (trig)
+    ctx.db.run(
+      "INSERT OR REPLACE INTO runs_trigger (run_id, message_id, thread_id, channel_id) VALUES (?, ?, ?, ?)",
+      run.id,
+      trig.messageId,
+      trig.threadId,
+      trig.channelId ?? null,
+    );
   if (key) ctx.db.run("INSERT OR REPLACE INTO runs_idem (idem_key, run_id) VALUES (?, ?)", key, run.id);
   return { runId: run.id };
 }
 
 /** Record a wait on the Run and move it to waiting. Idempotent for the same reason. */
-export async function markWaiting(ctx: RunsCtx, run: Run, w: { reason: WaitReason; taskId?: string | undefined; on?: string | undefined; wait?: Partial<WaitRow> }): Promise<Run> {
-  if (!isActive(run.status)) raise(ctx, "validation.precondition_failed", "That run has finished.", { reason: "run_finished", status: run.status });
+export async function markWaiting(
+  ctx: RunsCtx,
+  run: Run,
+  w: { reason: WaitReason; taskId?: string | undefined; on?: string | undefined; wait?: Partial<WaitRow> },
+): Promise<Run> {
+  if (!isActive(run.status))
+    raise(ctx, "validation.precondition_failed", "That run has finished.", {
+      reason: "run_finished",
+      status: run.status,
+    });
   if (run.status === "waiting" && run.waitReason === w.reason) return run;
   let taskId = w.taskId;
   if (!taskId && w.reason === "key" && !isSandbox(run.kind)) taskId = await unblockStarter(ctx, run, w.reason);
   run.status = "waiting";
   run.waitReason = w.reason;
   touch(ctx, run);
-  saveWait(ctx.db, { runId: run.id, reason: w.reason, createdAt: ctx.now(), ...(taskId ? { taskId } : {}), ...(w.on ? { label: w.on } : {}), ...(w.wait ?? {}) });
+  saveWait(ctx.db, {
+    runId: run.id,
+    reason: w.reason,
+    createdAt: ctx.now(),
+    ...(taskId ? { taskId } : {}),
+    ...(w.on ? { label: w.on } : {}),
+    ...(w.wait ?? {}),
+  });
   emitRun(ctx, "run.waiting", run.id, { reason: w.reason, taskId, on: w.on });
   return run;
 }
@@ -97,14 +207,28 @@ const starterOf = (run: Run): string => (run.startedBy.startsWith("usr_") ? run.
 async function unblockStarter(ctx: RunsCtx, run: Run, reason: WaitReason): Promise<string | undefined> {
   if (!ctx.call) return undefined;
   try {
-    const r = (await ctx.call("tasks.create", clean({
-      kind: "unblock", title: reason === "key" ? `A key is missing for ${run.name ?? "a run"}` : `${run.name ?? "A run"} needs you to sign in again`,
-      summary: reason === "key" ? "The key was lost and no backup key is set. The run continues when you add one." : "The background sign-in expired. The run continues when you renew it.",
-      assigned: { kind: "person", id: starterOf(run) }, source: { kind: "run", id: run.id }, idempotencyKey: `run-wait:${run.id}:${reason}`,
-    }))) as { task?: { id?: unknown } } | null;
+    const r = (await ctx.call(
+      "tasks.create",
+      clean({
+        kind: "unblock",
+        title:
+          reason === "key"
+            ? `A key is missing for ${run.name ?? "a run"}`
+            : `${run.name ?? "A run"} needs you to sign in again`,
+        summary:
+          reason === "key"
+            ? "The key was lost and no backup key is set. The run continues when you add one."
+            : "The background sign-in expired. The run continues when you renew it.",
+        assigned: { kind: "person", id: starterOf(run) },
+        source: { kind: "run", id: run.id },
+        idempotencyKey: `run-wait:${run.id}:${reason}`,
+      }),
+    )) as { task?: { id?: unknown } } | null;
     const id = r?.task?.id;
     return typeof id === "string" ? id : undefined;
-  } catch { return undefined; }
+  } catch {
+    return undefined;
+  }
 }
 
 export async function markWaitingCap(ctx: RunsCtx, input: In): Promise<unknown> {
@@ -114,8 +238,18 @@ export async function markWaitingCap(ctx: RunsCtx, input: In): Promise<unknown> 
 }
 
 export function resumeRun(ctx: RunsCtx, run: Run, reason?: WaitReason): Run {
-  if (run.status !== "waiting") raise(ctx, "validation.precondition_failed", "That run is not waiting.", { reason: "not_waiting", status: run.status });
-  if (reason !== undefined && run.waitReason !== reason) raise(ctx, "validation.precondition_failed", `The run waits for ${run.waitReason ?? "something else"}, not ${reason}.`, { reason: "wrong_wait", waiting: run.waitReason });
+  if (run.status !== "waiting")
+    raise(ctx, "validation.precondition_failed", "That run is not waiting.", {
+      reason: "not_waiting",
+      status: run.status,
+    });
+  if (reason !== undefined && run.waitReason !== reason)
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      `The run waits for ${run.waitReason ?? "something else"}, not ${reason}.`,
+      { reason: "wrong_wait", waiting: run.waitReason },
+    );
   const was = run.waitReason ?? reason ?? "background";
   run.status = "running";
   delete run.waitReason;
@@ -131,10 +265,18 @@ export async function resume(ctx: RunsCtx, input: In): Promise<unknown> {
 /** Move an active Run onto a definition version. Finished steps stay in the log. This does not resume, retry, or start the Run. */
 export async function pinVersion(ctx: RunsCtx, input: In): Promise<unknown> {
   const run = seeRun(ctx, input.runId);
-  if (!mayManage(ctx, run)) raise(ctx, "permission.role_lacks_permission", "Only the owner or someone who manages runs can do that.", { reason: "manage_required" });
+  if (!mayManage(ctx, run))
+    raise(ctx, "permission.role_lacks_permission", "Only the owner or someone who manages runs can do that.", {
+      reason: "manage_required",
+    });
   const version = input.definitionVersion;
-  if (typeof version !== "number" || !Number.isInteger(version) || version < 1) raise(ctx, "validation.bad_input", "A definition version is a whole number.");
-  if (!isActive(run.status)) raise(ctx, "validation.precondition_failed", "That run has already finished.", { reason: "run_finished", status: run.status });
+  if (typeof version !== "number" || !Number.isInteger(version) || version < 1)
+    raise(ctx, "validation.bad_input", "A definition version is a whole number.");
+  if (!isActive(run.status))
+    raise(ctx, "validation.precondition_failed", "That run has already finished.", {
+      reason: "run_finished",
+      status: run.status,
+    });
   if (run.definitionVersion === version) return { run: runOut(run, readTrigger(ctx.db, run.id)) };
   run.definitionVersion = version;
   touch(ctx, run);
@@ -145,20 +287,41 @@ export async function pinVersion(ctx: RunsCtx, input: In): Promise<unknown> {
 function consecutiveFailures(db: Db, run: Run): number {
   const rows = db.all(
     "SELECT status FROM runs_items WHERE kind = ? AND owner = ? AND COALESCE(name, '') = ? AND status IN ('succeeded', 'failed') AND deleted_at IS NULL ORDER BY ended_at DESC, id DESC LIMIT 50",
-    run.kind, run.owner, run.name ?? "",
+    run.kind,
+    run.owner,
+    run.name ?? "",
   ) as { status: string }[];
-  let n = 0;   // the Run itself is the newest row, already written as failed
-  for (const r of rows) { if (r.status !== "failed") break; n += 1; }
+  let n = 0; // the Run itself is the newest row, already written as failed
+  for (const r of rows) {
+    if (r.status !== "failed") break;
+    n += 1;
+  }
   return Math.max(1, n);
 }
 
-export interface FinishOpts { summary?: string | undefined; costMicros?: number | undefined; error?: { code: string; message: string; step?: string | undefined } | undefined; by?: string | undefined; reason?: string | undefined }
+export interface FinishOpts {
+  summary?: string | undefined;
+  costMicros?: number | undefined;
+  error?: { code: string; message: string; step?: string | undefined } | undefined;
+  by?: string | undefined;
+  reason?: string | undefined;
+}
 
 /** Close a Run. Idempotent for the same status; a different status on a finished Run is refused. */
-export async function finishRun(ctx: RunsCtx, run: Run, status: "succeeded" | "failed" | "stopped", o: FinishOpts = {}): Promise<Run> {
+export async function finishRun(
+  ctx: RunsCtx,
+  run: Run,
+  status: "succeeded" | "failed" | "stopped",
+  o: FinishOpts = {},
+): Promise<Run> {
   if (!isActive(run.status)) {
     if (run.status === status) return run;
-    raise(ctx, "validation.precondition_failed", `That run already ${run.status === "succeeded" ? "succeeded" : run.status}.`, { reason: "run_finished", status: run.status });
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      `That run already ${run.status === "succeeded" ? "succeeded" : run.status}.`,
+      { reason: "run_finished", status: run.status },
+    );
   }
   run.status = status;
   delete run.waitReason;
@@ -169,7 +332,8 @@ export async function finishRun(ctx: RunsCtx, run: Run, status: "succeeded" | "f
   clearWait(ctx.db, run.id);
   if (status === "stopped") {
     // the steps that never finished stop with the Run
-    for (const s of latestSteps(ctx.db, run.id)) if (!isTerminalStep(s.state)) saveStep(ctx.db, { ...s, state: "stopped", endedAt: ctx.now() });
+    for (const s of latestSteps(ctx.db, run.id))
+      if (!isTerminalStep(s.state)) saveStep(ctx.db, { ...s, state: "stopped", endedAt: ctx.now() });
     patchExtra(ctx.db, run.id, clean({ stopReason: o.reason, stoppedBy: o.by ?? ctx.principal.id }));
     emitRun(ctx, "run.stopped", run.id, { by: o.by ?? ctx.principal.id, reason: o.reason });
   } else if (status === "succeeded") {
@@ -177,8 +341,19 @@ export async function finishRun(ctx: RunsCtx, run: Run, status: "succeeded" | "f
   } else {
     const err = o.error ?? { code: "run.failed", message: o.summary ?? "The run failed." };
     const consecutive = consecutiveFailures(ctx.db, run);
-    patchExtra(ctx.db, run.id, clean({ errorCode: err.code, errorMessage: err.message, errorStep: err.step, consecutive }));
-    emitRun(ctx, "run.failed", run.id, { kind: run.kind, step: err.step, code: err.code, message: err.message, owner: run.owner, consecutive });
+    patchExtra(
+      ctx.db,
+      run.id,
+      clean({ errorCode: err.code, errorMessage: err.message, errorStep: err.step, consecutive }),
+    );
+    emitRun(ctx, "run.failed", run.id, {
+      kind: run.kind,
+      step: err.step,
+      code: err.code,
+      message: err.message,
+      owner: run.owner,
+      consecutive,
+    });
     await needsYou(ctx, run, err.message);
   }
   noteParent(ctx, run);
@@ -196,7 +371,11 @@ function noteParent(ctx: RunsCtx, run: Run): void {
   if (parent.status === "waiting") {
     const on = readWait(ctx.db, parent.id)?.on as { event?: string } | undefined;
     if (on?.event === "run.child_terminal") {
-      try { resumeRun(ctx, parent, parent.waitReason); } catch { /* already resumed */ }
+      try {
+        resumeRun(ctx, parent, parent.waitReason);
+      } catch {
+        /* already resumed */
+      }
     }
     return;
   }
@@ -207,27 +386,43 @@ function noteParent(ctx: RunsCtx, run: Run): void {
 async function needsYou(ctx: RunsCtx, run: Run, message: string): Promise<void> {
   if (!ctx.call || isSandbox(run.kind)) return;
   try {
-    await ctx.call("tasks.create", clean({
-      kind: "unblock", title: `${run.name ?? "A run"} failed`, summary: message, why: "A run you own stopped with an error. Retry it or undo what it changed.",
-      assigned: { kind: "person", id: run.owner }, source: { kind: "run", id: run.id }, recordId: run.subject?.type === "record" ? run.subject.id : undefined,
-      idempotencyKey: `run-failed:${run.id}`,
-    }));
-  } catch { /* the failure is already on the Run and in run.failed; Needs you catches up through the notification */ }
+    await ctx.call(
+      "tasks.create",
+      clean({
+        kind: "unblock",
+        title: `${run.name ?? "A run"} failed`,
+        summary: message,
+        why: "A run you own stopped with an error. Retry it or undo what it changed.",
+        assigned: { kind: "person", id: run.owner },
+        source: { kind: "run", id: run.id },
+        recordId: run.subject?.type === "record" ? run.subject.id : undefined,
+        idempotencyKey: `run-failed:${run.id}`,
+      }),
+    );
+  } catch {
+    /* the failure is already on the Run and in run.failed; Needs you catches up through the notification */
+  }
 }
 
 export async function finish(ctx: RunsCtx, input: In): Promise<unknown> {
   const run = seeRun(ctx, input.runId);
-  const r = await finishRun(ctx, run, input.status, { summary: input.summary, costMicros: input.costMicros, error: input.error });
+  const r = await finishRun(ctx, run, input.status, {
+    summary: input.summary,
+    costMicros: input.costMicros,
+    error: input.error,
+  });
   return { run: runOut(r, readTrigger(ctx.db, r.id)) };
 }
 
 // ---- stop, retry, replay ----
 
 function childIds(db: Db, parentId: string): string[] {
-  return (db.all(
-    "SELECT id FROM runs_items WHERE parent_run = ? AND deleted_at IS NULL ORDER BY started_at ASC, id ASC",
-    parentId,
-  ) as { id: string }[]).map((r) => r.id);
+  return (
+    db.all(
+      "SELECT id FROM runs_items WHERE parent_run = ? AND deleted_at IS NULL ORDER BY started_at ASC, id ASC",
+      parentId,
+    ) as { id: string }[]
+  ).map((r) => r.id);
 }
 
 /** Stop this run, then every unfinished descendant. A run that already finished stays as it is. The parent is stopped first so a child cannot wake it. */
@@ -245,7 +440,11 @@ async function halt(ctx: RunsCtx, run: Run, reason: string | undefined, seen: Se
 
 export async function stop(ctx: RunsCtx, input: In): Promise<unknown> {
   const run = manageRun(ctx, input.runId);
-  if (run.status !== "stopped" && !isActive(run.status)) raise(ctx, "validation.precondition_failed", "That run has already finished.", { reason: "run_finished", status: run.status });
+  if (run.status !== "stopped" && !isActive(run.status))
+    raise(ctx, "validation.precondition_failed", "That run has already finished.", {
+      reason: "run_finished",
+      status: run.status,
+    });
   await halt(ctx, run, input.reason, new Set());
   const done = findRun(ctx.db, run.id) ?? run;
   return { run: runOut(done, readTrigger(ctx.db, done.id)) };
@@ -253,16 +452,32 @@ export async function stop(ctx: RunsCtx, input: In): Promise<unknown> {
 
 export async function retry(ctx: RunsCtx, input: In): Promise<unknown> {
   const old = manageRun(ctx, input.runId);
-  if (old.status !== "failed" && old.status !== "stopped") raise(ctx, "validation.precondition_failed", "Only a failed or stopped run can be retried.", { reason: "not_retryable", status: old.status });
+  if (old.status !== "failed" && old.status !== "stopped")
+    raise(ctx, "validation.precondition_failed", "Only a failed or stopped run can be retried.", {
+      reason: "not_retryable",
+      status: old.status,
+    });
   const steps = latestSteps(ctx.db, old.id);
   // A retry goes on from the step that did not finish: what already ran has already happened, and running a send again is a separate, confirmed act (automations.replay).
-  const from = (input.fromStep as string | undefined) ?? steps.find((s) => s.state !== "succeeded" && s.state !== "skipped")?.step;
+  const from =
+    (input.fromStep as string | undefined) ?? steps.find((s) => s.state !== "succeeded" && s.state !== "skipped")?.step;
   const at = from === undefined ? undefined : steps.find((s) => s.step === from);
-  if (from !== undefined && !at) raise(ctx, "validation.precondition_failed", "That run has no such step.", { reason: "unknown_step", step: from });
-  const run = newRun(ctx, { kind: old.kind, name: old.name, owner: old.owner, subject: old.subject, definitionVersion: old.definitionVersion, parentRun: old.id });
+  if (from !== undefined && !at)
+    raise(ctx, "validation.precondition_failed", "That run has no such step.", { reason: "unknown_step", step: from });
+  const run = newRun(ctx, {
+    kind: old.kind,
+    name: old.name,
+    owner: old.owner,
+    subject: old.subject,
+    definitionVersion: old.definitionVersion,
+    parentRun: old.id,
+  });
   patchExtra(ctx.db, run.id, clean({ retryOf: old.id, fromStep: from }));
   // the steps before it keep their results, so the engine resumes at that step
-  if (at) for (const s of steps) if (s.ord < at.ord && (s.state === "succeeded" || s.state === "skipped")) saveStep(ctx.db, { ...s, runId: run.id, attempt: 1, idemKey: idemKeyFor(run.id, s.step, 1) });
+  if (at)
+    for (const s of steps)
+      if (s.ord < at.ord && (s.state === "succeeded" || s.state === "skipped"))
+        saveStep(ctx.db, { ...s, runId: run.id, attempt: 1, idemKey: idemKeyFor(run.id, s.step, 1) });
   // the new run's start event came first; the retry link follows it, and whoever owns the plan picks it up from there (automations.run_retried)
   emitRun(ctx, "run.retried", old.id, { newRunId: run.id, fromStep: from });
   return { runId: run.id };
@@ -272,8 +487,12 @@ export async function replay(ctx: RunsCtx, input: In): Promise<unknown> {
   const src = seeRun(ctx, input.runId);
   const version = (input.version as "same" | "current" | undefined) ?? "same";
   const run = newRun(ctx, {
-    kind: "replay", name: src.name ? `Replay of ${src.name}` : undefined, owner: ctx.actingFor ?? ctx.principal.id, subject: src.subject,
-    definitionVersion: version === "same" ? src.definitionVersion : undefined, parentRun: src.id,
+    kind: "replay",
+    name: src.name ? `Replay of ${src.name}` : undefined,
+    owner: ctx.actingFor ?? ctx.principal.id,
+    subject: src.subject,
+    definitionVersion: version === "same" ? src.definitionVersion : undefined,
+    parentRun: src.id,
   });
   patchExtra(ctx.db, run.id, clean({ replayOf: src.id, replayVersion: version }));
   return { runId: run.id };
@@ -282,10 +501,22 @@ export async function replay(ctx: RunsCtx, input: In): Promise<unknown> {
 // ---- reads ----
 
 export async function get(ctx: RunsCtx, input: In): Promise<unknown> {
-  return { run: (() => { const x = seeRun(ctx, input.runId); return runOut(x, readTrigger(ctx.db, x.id)); })() };
+  return {
+    run: (() => {
+      const x = seeRun(ctx, input.runId);
+      return runOut(x, readTrigger(ctx.db, x.id));
+    })(),
+  };
 }
 export async function list(ctx: RunsCtx, input: In): Promise<unknown> {
-  const rows = listRuns(ctx, { scope: input.scope, ownerId: input.ownerId, subject: input.subject, kinds: input.kinds, statuses: input.statuses, since: input.since });
+  const rows = listRuns(ctx, {
+    scope: input.scope,
+    ownerId: input.ownerId,
+    subject: input.subject,
+    kinds: input.kinds,
+    statuses: input.statuses,
+    since: input.since,
+  });
   const p = page(rows, input.cursor, input.limit);
   return clean({ runs: p.rows.map((x) => runOut(x, readTrigger(ctx.db, x.id))), next: p.next, total: p.total });
 }
@@ -303,7 +534,13 @@ export async function count(ctx: RunsCtx, input: In): Promise<unknown> {
 export async function status(ctx: RunsCtx): Promise<unknown> {
   const t0 = performance.now();
   const h = engineHealth(ctx.db, ctx.now());
-  return clean({ state: h.state, detail: h.detail, latencyMs: Math.max(0, Math.round(performance.now() - t0)), queued: h.queued, stuck: h.stuck });
+  return clean({
+    state: h.state,
+    detail: h.detail,
+    latencyMs: Math.max(0, Math.round(performance.now() - t0)),
+    queued: h.queued,
+    stuck: h.stuck,
+  });
 }
 
 // ---- keys and the step log ----
@@ -312,40 +549,92 @@ export async function recordKey(ctx: RunsCtx, input: In): Promise<unknown> {
   const run = seeRun(ctx, input.runId);
   return { run: ((x) => runOut(x, readTrigger(ctx.db, x.id)))(applyKey(ctx, run, input)) };
 }
-function applyKey(ctx: RunsCtx, run: Run, k: { step?: string; keyUsed: string; modelUsed?: string; fellBackFrom?: string; reason?: string }): Run {
+function applyKey(
+  ctx: RunsCtx,
+  run: Run,
+  k: { step?: string; keyUsed: string; modelUsed?: string; fellBackFrom?: string; reason?: string },
+): Run {
   run.keyUsed = k.keyUsed;
   if (k.modelUsed !== undefined) run.modelUsed = k.modelUsed;
   touch(ctx, run);
-  if (k.fellBackFrom !== undefined) emitRun(ctx, "run.key_fallback", run.id, clean({ step: k.step, fromKey: k.fellBackFrom, toKey: k.keyUsed, reason: k.reason ?? "The key was lost; the backup key took over." }));
+  if (k.fellBackFrom !== undefined)
+    emitRun(
+      ctx,
+      "run.key_fallback",
+      run.id,
+      clean({
+        step: k.step,
+        fromKey: k.fellBackFrom,
+        toKey: k.keyUsed,
+        reason: k.reason ?? "The key was lost; the backup key took over.",
+      }),
+    );
   return run;
 }
 
 const sameRow = (a: StepRow, b: Omit<StepRow, "ord">): boolean =>
-  a.state === b.state && a.branch === b.branch && a.inputRef === b.inputRef && a.outputRef === b.outputRef && a.error?.code === b.error?.code && a.error?.message === b.error?.message;
+  a.state === b.state &&
+  a.branch === b.branch &&
+  a.inputRef === b.inputRef &&
+  a.outputRef === b.outputRef &&
+  a.error?.code === b.error?.code &&
+  a.error?.message === b.error?.message;
 
 /** One row of the durable step log. Idempotent by (run, step, attempt): the same row twice is a no-op, a terminal row never goes back. */
 export async function recordStep(ctx: RunsCtx, input: In): Promise<unknown> {
   const run = seeRun(ctx, input.runId);
   const next: Omit<StepRow, "ord"> = clean({
-    runId: run.id, step: input.step, attempt: input.attempt, state: input.state as StepState, branch: input.branch, inputRef: input.inputRef, outputRef: input.outputRef,
-    error: input.error, traceSpan: input.traceSpan, idemKey: idemKeyFor(run.id, input.step, input.attempt),
+    runId: run.id,
+    step: input.step,
+    attempt: input.attempt,
+    state: input.state as StepState,
+    branch: input.branch,
+    inputRef: input.inputRef,
+    outputRef: input.outputRef,
+    error: input.error,
+    traceSpan: input.traceSpan,
+    idemKey: idemKeyFor(run.id, input.step, input.attempt),
   });
   const have = findStep(ctx.db, run.id, input.step, input.attempt);
   if (have) {
     if (sameRow(have, next)) return { ok: true };
     // a step the Run's stop marked stopped may still report how it ended; every other finished step is final
-    if (isTerminalStep(have.state) && have.state !== "stopped") raise(ctx, "validation.precondition_failed", "That step already finished; a retry is a new attempt.", { reason: "step_terminal", step: input.step, attempt: input.attempt, state: have.state });
+    if (isTerminalStep(have.state) && have.state !== "stopped")
+      raise(ctx, "validation.precondition_failed", "That step already finished; a retry is a new attempt.", {
+        reason: "step_terminal",
+        step: input.step,
+        attempt: input.attempt,
+        state: have.state,
+      });
   }
   if (!isActive(run.status) && !(run.status === "stopped" && isTerminalStep(next.state))) {
-    raise(ctx, "validation.precondition_failed", "That run has finished.", { reason: "run_finished", status: run.status });
+    raise(ctx, "validation.precondition_failed", "That run has finished.", {
+      reason: "run_finished",
+      status: run.status,
+    });
   }
-  if (!have && countStepRows(ctx.db, run.id) >= HARD_STEP_ROWS) raise(ctx, "validation.too_large", "This run has more steps than a run may log.", { reason: "step_log_full", limit: HARD_STEP_ROWS });
+  if (!have && countStepRows(ctx.db, run.id) >= HARD_STEP_ROWS)
+    raise(ctx, "validation.too_large", "This run has more steps than a run may log.", {
+      reason: "step_log_full",
+      limit: HARD_STEP_ROWS,
+    });
   const now = ctx.now();
   saveStep(ctx.db, {
-    ...next, ...(have ? { ord: have.ord } : {}), ...(have?.startedAt !== undefined ? { startedAt: have.startedAt } : next.state === "pending" ? {} : { startedAt: now }),
-    ...(isTerminalStep(next.state) ? { endedAt: now } : {}), ...(have?.inputJson ? { inputJson: have.inputJson } : {}), ...(have?.outputJson ? { outputJson: have.outputJson } : {}),
+    ...next,
+    ...(have ? { ord: have.ord } : {}),
+    ...(have?.startedAt !== undefined
+      ? { startedAt: have.startedAt }
+      : next.state === "pending"
+        ? {}
+        : { startedAt: now }),
+    ...(isTerminalStep(next.state) ? { endedAt: now } : {}),
+    ...(have?.inputJson ? { inputJson: have.inputJson } : {}),
+    ...(have?.outputJson ? { outputJson: have.outputJson } : {}),
   });
-  if (run.status === "queued" && next.state === "running") { run.status = "running"; touch(ctx, run); } else if (isActive(run.status)) touch(ctx, run);
+  if (run.status === "queued" && next.state === "running") {
+    run.status = "running";
+    touch(ctx, run);
+  } else if (isActive(run.status)) touch(ctx, run);
   return { ok: true };
 }
 
@@ -354,13 +643,27 @@ export async function recordStep(ctx: RunsCtx, input: In): Promise<unknown> {
 export async function waitFor(ctx: RunsCtx, input: In): Promise<unknown> {
   const on = input.on as { event?: string; filter?: unknown; run?: string; at?: number };
   const timeout = parseDuration(ctx, input.timeout);
-  if (on.run && !findRun(ctx.db, on.run)) raise(ctx, "validation.not_found", "The run to wait for does not exist.", { reason: "no_such_run" });
+  if (on.run && !findRun(ctx.db, on.run))
+    raise(ctx, "validation.not_found", "The run to wait for does not exist.", { reason: "no_such_run" });
   const now = ctx.now();
-  const run = newRun(ctx, { kind: "wait", name: input.label ?? describeOn(on), owner: ctx.actingFor ?? ctx.principal.id, subject: input.subject, threadId: input.threadId });
+  const run = newRun(ctx, {
+    kind: "wait",
+    name: input.label ?? describeOn(on),
+    owner: ctx.actingFor ?? ctx.principal.id,
+    subject: input.subject,
+    threadId: input.threadId,
+  });
   run.status = "waiting";
   run.waitReason = "background";
   touch(ctx, run);
-  saveWait(ctx.db, { runId: run.id, reason: "background", on, untilAt: now + timeout, createdAt: now, ...(input.label ? { label: input.label } : {}) });
+  saveWait(ctx.db, {
+    runId: run.id,
+    reason: "background",
+    on,
+    untilAt: now + timeout,
+    createdAt: now,
+    ...(input.label ? { label: input.label } : {}),
+  });
   emitRun(ctx, "run.waiting", run.id, { reason: "background", on: describeOn(on) });
   // waiting for a Run that already ended is a match: the next sweep ends the wait (a capability may only emit the events it declares)
   return { runId: run.id };
@@ -370,7 +673,8 @@ const RUN_ENDED = new Set(["run.succeeded", "run.failed", "run.stopped"]);
 
 function matches(w: WaitRow, ev: { type: string; payload: unknown }): boolean {
   const on = w.on as { event?: string; filter?: Record<string, unknown>; run?: string } | undefined;
-  if (on && typeof on.run === "string") return RUN_ENDED.has(ev.type) && (ev.payload as { runId?: unknown } | null)?.runId === on.run;
+  if (on && typeof on.run === "string")
+    return RUN_ENDED.has(ev.type) && (ev.payload as { runId?: unknown } | null)?.runId === on.run;
   if (!on || typeof on.event !== "string") return false;
   if (on.event !== ev.type && !(on.event.endsWith(".*") && ev.type.startsWith(on.event.slice(0, -1)))) return false;
   if (on.filter && typeof on.filter === "object") {
@@ -387,9 +691,15 @@ function inStepWait(ctx: RunsCtx, run: Run): boolean {
 }
 
 async function endWait(ctx: RunsCtx, run: Run, summary: string, timedOut: boolean): Promise<void> {
-  if (run.kind === "wait") { await finishRun(ctx, run, "succeeded", { summary }); return; }
+  if (run.kind === "wait") {
+    await finishRun(ctx, run, "succeeded", { summary });
+    return;
+  }
   // a Wait step that times out is resumed; the step reads the clock and ends with resumedBy timeout, so the Run goes on
-  if (timedOut && !inStepWait(ctx, run)) { await finishRun(ctx, run, "failed", { summary, error: { code: "run.wait_timeout", message: summary } }); return; }
+  if (timedOut && !inStepWait(ctx, run)) {
+    await finishRun(ctx, run, "failed", { summary, error: { code: "run.wait_timeout", message: summary } });
+    return;
+  }
   resumeRun(ctx, run);
 }
 
@@ -410,10 +720,18 @@ export async function wake(ctx: RunsCtx, ev: { type: string; payload?: unknown }
     if (!run || run.status !== "waiting") continue;
     const cancel = w.cancelOn as { events?: string[] } | string[] | undefined;
     const cancelEvents = Array.isArray(cancel) ? cancel : cancel?.events;
-    if (cancelEvents?.includes(ev.type) || anchorDeleted(w, ev)) { await finishRun(ctx, run, "stopped", { by: "system", reason: `Canceled by ${ev.type}.` }); continue; }
+    if (cancelEvents?.includes(ev.type) || anchorDeleted(w, ev)) {
+      await finishRun(ctx, run, "stopped", { by: "system", reason: `Canceled by ${ev.type}.` });
+      continue;
+    }
     if (matches(w, { type: ev.type, payload: ev.payload })) {
       const on = w.on as { run?: string } | undefined;
-      await endWait(ctx, run, on?.run ? `Run ${on.run} ${ev.type.slice("run.".length)}.` : `Matched ${ev.type}.`, false);
+      await endWait(
+        ctx,
+        run,
+        on?.run ? `Run ${on.run} ${ev.type.slice("run.".length)}.` : `Matched ${ev.type}.`,
+        false,
+      );
       woken.push(run.id);
     }
   }
@@ -428,9 +746,20 @@ export async function sweepWaits(ctx: RunsCtx): Promise<string[]> {
     if (!run || run.status !== "waiting") continue;
     const on = w.on as { at?: number; run?: string } | undefined;
     const target = on?.run ? findRun(ctx.db, on.run) : undefined;
-    if (target && !isActive(target.status)) { await endWait(ctx, run, `Run ${target.id} ${target.status}.`, false); done.push(run.id); continue; }
-    if (on?.at !== undefined && on.at <= now) { await endWait(ctx, run, "The time came.", false); done.push(run.id); continue; }
-    if (w.untilAt !== undefined && w.untilAt <= now) { await endWait(ctx, run, `Timed out waiting${w.label ? ` for ${w.label}` : ""}.`, true); done.push(run.id); }
+    if (target && !isActive(target.status)) {
+      await endWait(ctx, run, `Run ${target.id} ${target.status}.`, false);
+      done.push(run.id);
+      continue;
+    }
+    if (on?.at !== undefined && on.at <= now) {
+      await endWait(ctx, run, "The time came.", false);
+      done.push(run.id);
+      continue;
+    }
+    if (w.untilAt !== undefined && w.untilAt <= now) {
+      await endWait(ctx, run, `Timed out waiting${w.label ? ` for ${w.label}` : ""}.`, true);
+      done.push(run.id);
+    }
   }
   return done;
 }
@@ -439,9 +768,14 @@ export async function sweepWaits(ctx: RunsCtx): Promise<string[]> {
 
 /** An outward step the server stopped under. The Run fails into Needs you, and retrying it is the person's call. */
 export const LOST_STEP = "run.lost_step";
-export const LOST_STEP_WORDS = "The server stopped while this step was running, so it may or may not have gone out. Check, then retry the run from this step.";
+export const LOST_STEP_WORDS =
+  "The server stopped while this step was running, so it may or may not have gone out. Check, then retry the run from this step.";
 
-export interface RetryPolicy { max: number; backoff: "none" | "linear" | "exp"; baseMs: number }
+export interface RetryPolicy {
+  max: number;
+  backoff: "none" | "linear" | "exp";
+  baseMs: number;
+}
 export const NO_RETRY: RetryPolicy = { max: 0, backoff: "none", baseMs: 0 };
 const BACKOFF_CAP_MS = 3_600_000;
 /** Delay before attempt+1 after attempt failed: none 0, linear base*attempt, exp base*2^(attempt-1), capped at an hour. */
@@ -514,7 +848,11 @@ export interface DriveOptions {
   backupKey?: string;
   summary?: (steps: number) => string;
 }
-export interface DriveResult { status: RunStatus; retryAt?: number; failedStep?: string }
+export interface DriveResult {
+  status: RunStatus;
+  retryAt?: number;
+  failedStep?: string;
+}
 
 /** An AI model key can fall over to a backup key. A revoked Google or Microsoft connection is a failed step, so the same connection can be reconnected and retried. */
 function waitsForWorkingKey(step: PlanStep, code: string): boolean {
@@ -524,14 +862,34 @@ function waitsForWorkingKey(step: PlanStep, code: string): boolean {
 }
 /** How long a step that met "not the scheduling computer" waits before the lease holder tries it. */
 export const SCHEDULER_WAIT_MS = 10_000;
-interface Caught { code: string; message: string; retryable: boolean; reason?: string }
+interface Caught {
+  code: string;
+  message: string;
+  retryable: boolean;
+  reason?: string;
+}
 function caught(e: unknown): Caught {
-  const he = (e as { error?: { code?: unknown; message?: unknown; retryable?: unknown; details?: { reason?: unknown } } } | null)?.error;
-  if (he && typeof he.code === "string") return { code: he.code, message: typeof he.message === "string" ? he.message : he.code, retryable: he.retryable !== false, ...(typeof he.details?.reason === "string" ? { reason: he.details.reason } : {}) };
+  const he = (
+    e as { error?: { code?: unknown; message?: unknown; retryable?: unknown; details?: { reason?: unknown } } } | null
+  )?.error;
+  if (he && typeof he.code === "string")
+    return {
+      code: he.code,
+      message: typeof he.message === "string" ? he.message : he.code,
+      retryable: he.retryable !== false,
+      ...(typeof he.details?.reason === "string" ? { reason: he.details.reason } : {}),
+    };
   const m = (e as { message?: unknown } | null)?.message;
   return { code: "step.failed", message: typeof m === "string" && m ? m : "The step failed.", retryable: true };
 }
-const parseJson = (s: string | undefined): unknown => { if (s === undefined) return undefined; try { return JSON.parse(s); } catch { return undefined; } };
+const parseJson = (s: string | undefined): unknown => {
+  if (s === undefined) return undefined;
+  try {
+    return JSON.parse(s);
+  } catch {
+    return undefined;
+  }
+};
 
 // Same shapes containsSecret flags. A page token is a cursor, not a secret, even though the name contains "token".
 const SECRET_KEY = /(secret|password|authorization|cookie|token|api[-_]?key|credential)/i;
@@ -581,14 +939,23 @@ function recordedOutputs(db: Db, runId: string): Record<string, unknown> {
  * - Sandboxes (test mode, replay) record write and outward steps from the recorded or sample output instead of running them. Reads still run.
  * - Stop is read before every step: a stopped Run does not start another.
  */
-export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep[], exec: Executor, opts: DriveOptions = {}): Promise<DriveResult> {
+export async function drive(
+  ctx: RunsCtx,
+  runId: string,
+  plan: readonly PlanStep[],
+  exec: Executor,
+  opts: DriveOptions = {},
+): Promise<DriveResult> {
   const maxSteps = opts.maxSteps ?? 500;
   const byId = new Map(plan.map((p) => [p.id, p] as const));
   let run = findRun(ctx.db, runId);
   if (!run) raise(ctx, "permission.not_found", "That run is not available.");
   if (!isActive(run.status)) return { status: run.status };
   if (run.status === "waiting") return { status: "waiting" };
-  if (run.status === "queued") { run.status = "running"; touch(ctx, run); }
+  if (run.status === "queued") {
+    run.status = "running";
+    touch(ctx, run);
+  }
   const sandbox = isSandbox(run.kind);
   const replaying = run.kind === "replay";
   const recorded = replaying ? recordedOutputs(ctx.db, runId) : {};
@@ -607,9 +974,15 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
     // a loop enters a step again as `id#2`, `id#3`: its own rows, the definition of `id`
     const base = cur.replace(/#\d+$/, "");
     const step = byId.get(cur) ?? byId.get(base);
-    if (!step) return failRun(ctx, run, { code: "run.unknown_step", message: `The plan has no step ${cur}.`, step: cur });
+    if (!step)
+      return failRun(ctx, run, { code: "run.unknown_step", message: `The plan has no step ${cur}.`, step: cur });
     const idx = plan.findIndex((p) => p.id === step.id);
-    if (cur !== lastCur && visited.has(cur)) return failRun(ctx, run, { code: "run.cycle", message: `The run came back to ${cur}; a loop must enter a step as ${base}#2.`, step: cur });
+    if (cur !== lastCur && visited.has(cur))
+      return failRun(ctx, run, {
+        code: "run.cycle",
+        message: `The run came back to ${cur}; a loop must enter a step as ${base}#2.`,
+        step: cur,
+      });
     visited.add(cur);
     lastCur = cur;
     const rows = allSteps(ctx.db, runId).filter((s) => s.step === cur);
@@ -617,7 +990,7 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
 
     if (last && (last.state === "succeeded" || last.state === "skipped")) {
       outputs[cur] = parseJson(last.outputJson);
-      cur = last.nextStep === undefined ? plan[idx + 1]?.id : last.nextStep ?? undefined;
+      cur = last.nextStep === undefined ? plan[idx + 1]?.id : (last.nextStep ?? undefined);
       continue;
     }
     // Skip before any running row, so a crash cannot send an outward step the milestone already passed.
@@ -625,21 +998,41 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
       const key = idemKeyFor(runId, cur, 1);
       const output = { skipped: true, reason: "milestone_passed" };
       saveStep(ctx.db, {
-        runId, step: cur, attempt: 1, state: "skipped", inputRef: `in:${key}`, inputJson: logJson(step.input),
-        outputRef: `out:${key}`, outputJson: logJson(output), idemKey: key, startedAt: ctx.now(), endedAt: ctx.now(), traceSpan: newSpanId(),
+        runId,
+        step: cur,
+        attempt: 1,
+        state: "skipped",
+        inputRef: `in:${key}`,
+        inputJson: logJson(step.input),
+        outputRef: `out:${key}`,
+        outputJson: logJson(output),
+        idemKey: key,
+        startedAt: ctx.now(),
+        endedAt: ctx.now(),
+        traceSpan: newSpanId(),
         ...(step.next !== undefined ? { nextStep: step.next } : {}),
       });
       outputs[cur] = output;
-      cur = step.next !== undefined ? step.next ?? undefined : plan[idx + 1]?.id;
+      cur = step.next !== undefined ? (step.next ?? undefined) : plan[idx + 1]?.id;
       continue;
     }
-    if (executed >= maxSteps) return failRun(ctx, run, { code: "run.step_cap", message: `The run went past ${maxSteps} steps and was stopped.`, step: cur });
+    if (executed >= maxSteps)
+      return failRun(ctx, run, {
+        code: "run.step_cap",
+        message: `The run went past ${maxSteps} steps and was stopped.`,
+        step: cur,
+      });
 
     let attempt = 1;
     let resumed = false;
     if (last) {
       if (last.state === "failed") {
-        if (last.retryAt === undefined) return failRun(ctx, run, { code: last.error?.code ?? "step.failed", message: last.error?.message ?? "The step failed.", step: cur });
+        if (last.retryAt === undefined)
+          return failRun(ctx, run, {
+            code: last.error?.code ?? "step.failed",
+            message: last.error?.message ?? "The step failed.",
+            step: cur,
+          });
         attempt = last.attempt + 1;
         const wait = last.retryAt - ctx.now();
         if (wait > 0) {
@@ -650,21 +1043,35 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
         // A step found running was running when the server stopped. An outward act may or may not have left: its key is written after it answers, so running it again could send it twice, and only a
         // person can check (hole 12). Everything else runs again as the same attempt with the same key.
         if (last.state === "running" && step.effects === "outward" && !sandbox) {
-          saveStep(ctx.db, { ...last, state: "failed", error: { code: LOST_STEP, message: LOST_STEP_WORDS }, endedAt: ctx.now() });
+          saveStep(ctx.db, {
+            ...last,
+            state: "failed",
+            error: { code: LOST_STEP, message: LOST_STEP_WORDS },
+            endedAt: ctx.now(),
+          });
           return failRun(ctx, run, { code: LOST_STEP, message: LOST_STEP_WORDS, step: cur });
         }
-        attempt = last.attempt; resumed = true;
+        attempt = last.attempt;
+        resumed = true;
       }
     }
     const key = idemKeyFor(runId, cur, attempt);
     const startedAt = last?.startedAt !== undefined && resumed ? last.startedAt : ctx.now();
-    const priorSnap = resumed ? parseJson(last?.outputJson) as { at?: unknown } | undefined : undefined;
+    const priorSnap = resumed ? (parseJson(last?.outputJson) as { at?: unknown } | undefined) : undefined;
     const priorAt = typeof priorSnap?.at === "number" ? priorSnap.at : undefined;
     const inputJson = logJson(step.input);
     saveStep(ctx.db, {
-      runId, step: cur, attempt, state: "running", inputRef: `in:${key}`, inputJson, idemKey: key, startedAt,
+      runId,
+      step: cur,
+      attempt,
+      state: "running",
+      inputRef: `in:${key}`,
+      inputJson,
+      idemKey: key,
+      startedAt,
       traceSpan: resumed && last?.traceSpan ? last.traceSpan : newSpanId(),
-      ...(step.branch !== undefined ? { branch: step.branch } : {}), ...(last ? { ord: last.ord } : {}),
+      ...(step.branch !== undefined ? { branch: step.branch } : {}),
+      ...(last ? { ord: last.ord } : {}),
     });
     touch(ctx, run);
     executed += 1;
@@ -673,7 +1080,17 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
     try {
       const stubbed = sandbox && (step.effects === "write" || step.effects === "outward");
       if (stubbed) result = { output: step.id in recorded ? recorded[step.id] : step.sample };
-      else result = await exec(step, { attempt, key, input: step.input, outputs: { ...outputs }, sandbox, resumed, startedAt, ...(priorAt !== undefined ? { priorAt } : {}) });
+      else
+        result = await exec(step, {
+          attempt,
+          key,
+          input: step.input,
+          outputs: { ...outputs },
+          sandbox,
+          resumed,
+          startedAt,
+          ...(priorAt !== undefined ? { priorAt } : {}),
+        });
     } catch (e) {
       const c = caught(e);
       const policy = step.retry ?? NO_RETRY;
@@ -682,8 +1099,19 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
         // a lost AI key falls to the backup key once, then the Run waits in Needs you; it never fails silently
         if (opts.backupKey && !fellBack && run.keyUsed !== opts.backupKey) {
           fellBack = true;
-          applyKey(ctx, run, { step: cur, keyUsed: opts.backupKey, fellBackFrom: run.keyUsed ?? "unknown", reason: c.message });
-          saveStep(ctx.db, { ...rowOf(ctx.db, runId, cur, attempt), state: "failed", error: { code: c.code, message: c.message }, retryAt: ctx.now(), endedAt: ctx.now() });
+          applyKey(ctx, run, {
+            step: cur,
+            keyUsed: opts.backupKey,
+            fellBackFrom: run.keyUsed ?? "unknown",
+            reason: c.message,
+          });
+          saveStep(ctx.db, {
+            ...rowOf(ctx.db, runId, cur, attempt),
+            state: "failed",
+            error: { code: c.code, message: c.message },
+            retryAt: ctx.now(),
+            endedAt: ctx.now(),
+          });
           continue;
         }
         saveStep(ctx.db, { ...rowOf(ctx.db, runId, cur, attempt), state: "waiting" });
@@ -694,23 +1122,48 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
         // a Personal Space on several computers: this computer no longer holds the schedule lease, so the send waits; the computer that does resumes the Run when the wait's time comes
         // (runs.sweep_waits runs only there) and the step runs again with the same key
         saveStep(ctx.db, { ...rowOf(ctx.db, runId, cur, attempt), state: "waiting" });
-        await markWaiting(ctx, run, { reason: "background", on: "the computer that runs scheduled work", wait: { on: { at: ctx.now() + SCHEDULER_WAIT_MS } } });
+        await markWaiting(ctx, run, {
+          reason: "background",
+          on: "the computer that runs scheduled work",
+          wait: { on: { at: ctx.now() + SCHEDULER_WAIT_MS } },
+        });
         return { status: "waiting" };
       }
       if (c.retryable && attempt <= policy.max) {
         const retryAt = ctx.now() + backoffMs(policy, attempt);
-        saveStep(ctx.db, { ...rowOf(ctx.db, runId, cur, attempt), state: "failed", error: { code: c.code, message: c.message }, retryAt, endedAt: ctx.now() });
+        saveStep(ctx.db, {
+          ...rowOf(ctx.db, runId, cur, attempt),
+          state: "failed",
+          error: { code: c.code, message: c.message },
+          retryAt,
+          endedAt: ctx.now(),
+        });
         continue;
       }
-      saveStep(ctx.db, { ...rowOf(ctx.db, runId, cur, attempt), state: "failed", error: { code: c.code, message: c.message }, endedAt: ctx.now() });
+      saveStep(ctx.db, {
+        ...rowOf(ctx.db, runId, cur, attempt),
+        state: "failed",
+        error: { code: c.code, message: c.message },
+        endedAt: ctx.now(),
+      });
       return failRun(ctx, run, { code: c.code, message: c.message, step: cur });
     }
 
     run = findRun(ctx.db, runId)!;
     if (result.wait) {
       const snap = result.wait.at !== undefined ? JSON.stringify({ at: result.wait.at }) : undefined;
-      saveStep(ctx.db, { ...rowOf(ctx.db, runId, cur, attempt), state: "waiting", ...(snap ? { outputJson: snap } : {}) });
-      if (isActive(run.status) && run.status !== "waiting") await markWaiting(ctx, run, { reason: result.wait.reason, taskId: result.wait.taskId, on: result.wait.on, wait: waitExtras(result.wait) });
+      saveStep(ctx.db, {
+        ...rowOf(ctx.db, runId, cur, attempt),
+        state: "waiting",
+        ...(snap ? { outputJson: snap } : {}),
+      });
+      if (isActive(run.status) && run.status !== "waiting")
+        await markWaiting(ctx, run, {
+          reason: result.wait.reason,
+          taskId: result.wait.taskId,
+          on: result.wait.on,
+          wait: waitExtras(result.wait),
+        });
       if (result.wait.event?.event === "run.child_terminal" && childSettled.delete(runId)) {
         const fresh = findRun(ctx.db, runId);
         if (fresh?.status === "waiting") resumeRun(ctx, fresh, result.wait.reason);
@@ -720,17 +1173,23 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
     }
     const outputJson = result.output === undefined ? undefined : logJson(result.output);
     saveStep(ctx.db, {
-      ...rowOf(ctx.db, runId, cur, attempt), state: "succeeded", outputRef: `out:${key}`, ...(outputJson !== undefined ? { outputJson } : {}),
-      ...(result.next !== undefined ? { nextStep: result.next } : {}), endedAt: ctx.now(),
+      ...rowOf(ctx.db, runId, cur, attempt),
+      state: "succeeded",
+      outputRef: `out:${key}`,
+      ...(outputJson !== undefined ? { outputJson } : {}),
+      ...(result.next !== undefined ? { nextStep: result.next } : {}),
+      endedAt: ctx.now(),
     });
     outputs[cur] = result.output;
-    cur = result.next === undefined ? plan[idx + 1]?.id : result.next ?? undefined;
+    cur = result.next === undefined ? plan[idx + 1]?.id : (result.next ?? undefined);
   }
 
   run = findRun(ctx.db, runId)!;
   if (run.status === "stopped") return { status: "stopped" };
   const n = latestSteps(ctx.db, runId).filter((s) => s.state === "succeeded").length;
-  await finishRun(ctx, run, "succeeded", { summary: opts.summary ? opts.summary(n) : `${n} step${n === 1 ? "" : "s"} done` });
+  await finishRun(ctx, run, "succeeded", {
+    summary: opts.summary ? opts.summary(n) : `${n} step${n === 1 ? "" : "s"} done`,
+  });
   return { status: "succeeded" };
 }
 
@@ -750,7 +1209,9 @@ function milestoneSkip(outputs: Record<string, unknown>): boolean {
 function waitExtras(w: StepWait): Partial<WaitRow> {
   const on = clean({ event: w.event?.event, filter: w.event?.filter, at: w.at, anchorId: w.anchorId, run: w.runId });
   return clean({
-    ...(Object.keys(on).length ? { on } : {}), untilAt: w.timeoutAt, cancelOn: w.cancelOn && w.cancelOn.length ? w.cancelOn : undefined,
+    ...(Object.keys(on).length ? { on } : {}),
+    untilAt: w.timeoutAt,
+    cancelOn: w.cancelOn && w.cancelOn.length ? w.cancelOn : undefined,
   }) as Partial<WaitRow>;
 }
 function rowOf(db: Db, runId: string, step: string, attempt: number): StepRow {
@@ -758,14 +1219,22 @@ function rowOf(db: Db, runId: string, step: string, attempt: number): StepRow {
   if (!r) throw new Error(`step row ${runId}:${step}:${attempt} is missing`);
   return r;
 }
-async function failRun(ctx: RunsCtx, run: Run, e: { code: string; message: string; step: string }): Promise<DriveResult> {
+async function failRun(
+  ctx: RunsCtx,
+  run: Run,
+  e: { code: string; message: string; step: string },
+): Promise<DriveResult> {
   await finishRun(ctx, run, "failed", { summary: e.message, error: e });
   return { status: "failed", failedStep: e.step };
 }
 
 /** Runs that were queued or running when the host stopped. The host scheduler calls `recoverRuns` at start; each is driven again from its step log. */
 export function interrupted(db: Db): string[] {
-  return (db.all("SELECT id FROM runs_items WHERE status IN ('queued', 'running') AND deleted_at IS NULL ORDER BY started_at ASC, id ASC") as { id: string }[]).map((r) => r.id);
+  return (
+    db.all(
+      "SELECT id FROM runs_items WHERE status IN ('queued', 'running') AND deleted_at IS NULL ORDER BY started_at ASC, id ASC",
+    ) as { id: string }[]
+  ).map((r) => r.id);
 }
 export type Resolved = { plan: readonly PlanStep[]; exec: Executor; opts?: DriveOptions } | undefined;
 export type Resolver = (run: Run) => Resolved | Promise<Resolved>;
@@ -778,4 +1247,3 @@ export async function recoverRuns(ctx: RunsCtx, resolve: Resolver): Promise<Reco
   }
   return out;
 }
-

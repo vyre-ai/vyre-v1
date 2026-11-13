@@ -17,7 +17,10 @@ export interface NeedsNav {
   openSignIn(): void;
 }
 
-export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
+export interface Connection {
+  get(): "online" | "offline";
+  subscribe(l: () => void): () => void;
+}
 
 export interface NeedsYouData {
   screens: ScreenHooks;
@@ -55,7 +58,10 @@ export function useNeedsData(): NeedsYouData {
 export function useScreenQuery<T>(screenId: string, name: string, state: Record<string, unknown> = {}): QueryState<T> {
   const { screens } = useNeedsData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>, [screens, screenId, name, key]);
+  const q = useMemo(
+    () => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>,
+    [screens, screenId, name, key],
+  );
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 

@@ -13,14 +13,20 @@ const DEFAULT_LIMIT = 500;
 
 /** A statement on a table a later packet adds (the private chat audit): a missing table is not an error. */
 function ifTable<T>(run: () => T, otherwise: T): T {
-  try { return run(); } catch (e) { if (!/no such table/i.test(e instanceof Error ? e.message : String(e))) throw e; return otherwise; }
+  try {
+    return run();
+  } catch (e) {
+    if (!/no such table/i.test(e instanceof Error ? e.message : String(e))) throw e;
+    return otherwise;
+  }
 }
 
 /** The thread, and the inline threads under it, deepest first. */
 function family(ctx: ChatCtx, root: string): string[] {
   const out: string[] = [];
   const walk = (id: string): void => {
-    for (const c of ctx.db.all(`SELECT id FROM chat_thread WHERE "parentThreadId" = ?`, id) as Row[]) walk(String(c["id"]));
+    for (const c of ctx.db.all(`SELECT id FROM chat_thread WHERE "parentThreadId" = ?`, id) as Row[])
+      walk(String(c["id"]));
     out.push(id);
   };
   walk(root);
@@ -29,22 +35,32 @@ function family(ctx: ChatCtx, root: string): string[] {
 
 function dropThread(ctx: ChatCtx, id: string): void {
   forgetMentions(ctx, { thread: id });
-  for (const m of ctx.db.all(`SELECT id FROM chat_message WHERE thread = ?`, id) as Row[]) ctx.db.run(`DELETE FROM chat_message__fm WHERE id = ?`, String(m["id"]));
+  for (const m of ctx.db.all(`SELECT id FROM chat_message WHERE thread = ?`, id) as Row[])
+    ctx.db.run(`DELETE FROM chat_message__fm WHERE id = ?`, String(m["id"]));
   ctx.db.run(`DELETE FROM chat_message WHERE thread = ?`, id);
   ctx.db.run(`DELETE FROM chat_block WHERE thread = ?`, id);
   ctx.db.run(`DELETE FROM chat_plan WHERE thread = ?`, id);
   for (const t of ["chat_thread_agent", "chat_thread_member"] as const) {
-    for (const r of ctx.db.all(`SELECT id FROM ${t} WHERE thread = ?`, id) as Row[]) ctx.db.run(`DELETE FROM ${t}__fm WHERE id = ?`, String(r["id"]));
+    for (const r of ctx.db.all(`SELECT id FROM ${t} WHERE thread = ?`, id) as Row[])
+      ctx.db.run(`DELETE FROM ${t}__fm WHERE id = ?`, String(r["id"]));
     ctx.db.run(`DELETE FROM ${t} WHERE thread = ?`, id);
   }
   ctx.db.run(`DELETE FROM chat_thread_seq WHERE thread = ?`, id);
   // tables other packets create when first used: the canonical transcript and its summary (the words of the turns), read markers, and the private chat key record and its per-turn audit rows
-  for (const t of ["chat_transcript_row", "chat_transcript_summary", "chat_thread_read", "chat_private_turn", "chat_private", "chat_screen"]) ifTable(() => ctx.db.run(`DELETE FROM ${t} WHERE thread = ?`, id), { changes: 0 });
+  for (const t of [
+    "chat_transcript_row",
+    "chat_transcript_summary",
+    "chat_thread_read",
+    "chat_private_turn",
+    "chat_private",
+    "chat_screen",
+  ])
+    ifTable(() => ctx.db.run(`DELETE FROM ${t} WHERE thread = ?`, id), { changes: 0 });
   ctx.db.run(`DELETE FROM chat_thread__fm WHERE id = ?`, id);
   ctx.db.run(`DELETE FROM chat_thread WHERE id = ?`, id);
 }
 
-const codeOf = (e: unknown): string => ((e as { error?: { code?: string } } | null)?.error?.code ?? "");
+const codeOf = (e: unknown): string => (e as { error?: { code?: string } } | null)?.error?.code ?? "";
 /** Nothing left to remove: not found, or the pipeline hiding a resource that does not exist. */
 const goneCode = (e: unknown): boolean => codeOf(e) === "validation.not_found" || codeOf(e) === "permission.not_found";
 
@@ -55,19 +71,33 @@ const goneCode = (e: unknown): boolean => codeOf(e) === "validation.not_found" |
 async function dropTranscriptFile(ctx: ChatCtx, threadId: string): Promise<void> {
   let fileId: string | undefined;
   try {
-    const r = (await ctx.call("files.resolve", { path: `chats/${threadId}/transcript.md` })) as { kind?: string; fileId?: string };
+    const r = (await ctx.call("files.resolve", { path: `chats/${threadId}/transcript.md` })) as {
+      kind?: string;
+      fileId?: string;
+    };
     if (r.kind === "file" && r.fileId) fileId = r.fileId;
-  } catch (e) { if (!goneCode(e)) throw e; }
+  } catch (e) {
+    if (!goneCode(e)) throw e;
+  }
   if (!fileId) return;
-  try { await ctx.call("files.delete", { fileId }); } catch (e) { if (!goneCode(e)) throw e; }
-  try { await ctx.call("files.purge", { fileId }); } catch (e) { if (!goneCode(e)) throw e; }
+  try {
+    await ctx.call("files.delete", { fileId });
+  } catch (e) {
+    if (!goneCode(e)) throw e;
+  }
+  try {
+    await ctx.call("files.purge", { fileId });
+  } catch (e) {
+    if (!goneCode(e)) throw e;
+  }
 }
 
 export async function threadErase(ctx: ChatCtx, input: { threadId: string; idempotencyKey: string }) {
   ensure(ctx.db);
-  if ((ctx.db.all(`SELECT id FROM chat_thread WHERE id = ?`, input.threadId) as Row[]).length === 0) return { erased: false };
+  if ((ctx.db.all(`SELECT id FROM chat_thread WHERE id = ?`, input.threadId) as Row[]).length === 0)
+    return { erased: false };
   const ids = family(ctx, input.threadId);
-  const made = ownedIn(ctx, ids);   // agents the chat made for itself: gone with it
+  const made = ownedIn(ctx, ids); // agents the chat made for itself: gone with it
   for (const id of ids) await dropTranscriptFile(ctx, id);
   for (const id of ids) dropThread(ctx, id);
   await trashOwned(ctx, made);
@@ -81,10 +111,11 @@ export async function channelErase(ctx: ChatCtx, input: { channelId: string; ide
   if (!ch) return { erased: false };
   const roots = new Set<string>();
   if (ch["mainThread"]) roots.add(String(ch["mainThread"]));
-  for (const t of ctx.db.all(`SELECT id FROM chat_thread WHERE "channelId" = ?`, input.channelId) as Row[]) roots.add(String(t["id"]));
+  for (const t of ctx.db.all(`SELECT id FROM chat_thread WHERE "channelId" = ?`, input.channelId) as Row[])
+    roots.add(String(t["id"]));
   const seen = new Set<string>();
   for (const r of roots) for (const id of family(ctx, r)) seen.add(id);
-  const made = ownedIn(ctx, [...seen]);   // agents the channel made for itself: gone with it
+  const made = ownedIn(ctx, [...seen]); // agents the channel made for itself: gone with it
   for (const id of seen) await dropTranscriptFile(ctx, id);
   for (const id of seen) dropThread(ctx, id);
   await trashOwned(ctx, made);
@@ -93,7 +124,10 @@ export async function channelErase(ctx: ChatCtx, input: { channelId: string; ide
   return { erased: true };
 }
 
-export async function transcriptPurge(ctx: ChatCtx, input: { before: number; limit?: number; skipThreadIds?: string[]; idempotencyKey: string }) {
+export async function transcriptPurge(
+  ctx: ChatCtx,
+  input: { before: number; limit?: number; skipThreadIds?: string[]; idempotencyKey: string },
+) {
   ensure(ctx.db);
   const limit = input.limit ?? DEFAULT_LIMIT;
   const skip = new Set(input.skipThreadIds ?? []);
@@ -110,9 +144,15 @@ export async function transcriptPurge(ctx: ChatCtx, input: { before: number; lim
   // the canonical transcript rows first (they hold the turns' words, oldest first), then the messages; both count against the one batch limit
   const turns = ifTable(() => ctx.db.all(`SELECT thread, idx, at FROM chat_transcript_row`) as Row[], [])
     .filter((r) => Number(r["at"]) < input.before && !skip.has(String(r["thread"])))
-    .sort((a, b) => Number(a["at"]) - Number(b["at"]) || String(a["thread"]).localeCompare(String(b["thread"])) || Number(a["idx"]) - Number(b["idx"]));
+    .sort(
+      (a, b) =>
+        Number(a["at"]) - Number(b["at"]) ||
+        String(a["thread"]).localeCompare(String(b["thread"])) ||
+        Number(a["idx"]) - Number(b["idx"]),
+    );
   const turnBatch = turns.slice(0, limit);
-  for (const r of turnBatch) ctx.db.run(`DELETE FROM chat_transcript_row WHERE thread = ? AND idx = ?`, String(r["thread"]), Number(r["idx"]));
+  for (const r of turnBatch)
+    ctx.db.run(`DELETE FROM chat_transcript_row WHERE thread = ? AND idx = ?`, String(r["thread"]), Number(r["idx"]));
   const room = Math.max(0, limit - turnBatch.length - erasedChats);
   const due = (ctx.db.all(`SELECT id, thread, "createdAt" FROM chat_message`) as Row[])
     .filter((m) => Number(m["createdAt"]) < input.before && !skip.has(String(m["thread"])))

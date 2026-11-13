@@ -22,11 +22,17 @@ export function withinBudget(summary, ceiling = SCROLL_P95_MS) {
  * generation landed inside the measured scroll as 25 to 50 ms pauses. Wait for idle (or 2 s), collect where the browser allows it (--js-flags=--expose-gc), then measure the scroll only.
  */
 export async function settle(page) {
-  await page.evaluate(() => new Promise((resolve) => {
-    const done = () => setTimeout(resolve, 300);
-    if (typeof requestIdleCallback === "function") requestIdleCallback(done, { timeout: 2000 }); else setTimeout(done, 2000);
-  }));
-  await page.evaluate(() => { if (typeof globalThis.gc === "function") globalThis.gc(); });
+  await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const done = () => setTimeout(resolve, 300);
+        if (typeof requestIdleCallback === "function") requestIdleCallback(done, { timeout: 2000 });
+        else setTimeout(done, 2000);
+      }),
+  );
+  await page.evaluate(() => {
+    if (typeof globalThis.gc === "function") globalThis.gc();
+  });
   await page.waitForTimeout(500);
 }
 
@@ -34,30 +40,48 @@ export async function settle(page) {
 export async function measureScroll(page, { selector, frames = 600, pxPerFrame = 120 }) {
   await page.waitForSelector(selector, { timeout: 30000 });
   await settle(page);
-  const out = await page.evaluate(async ({ selector, frames, pxPerFrame }) => {
-    const el = document.querySelector(selector);
-    const max = el.scrollHeight - el.clientHeight;
-    const step = pxPerFrame;
-    let n = 0;
-    let shift = 0;
-    const po = typeof PerformanceObserver === "function" ? new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) shift += e.value; }) : null;
-    try { po?.observe({ type: "layout-shift", buffered: true }); } catch { /* unsupported */ }
-    const heightBefore = el.scrollHeight;
-    const intervals = [];
-    let last = performance.now();
-    await new Promise((resolve) => {
-      const tick = (now) => {
-        intervals.push(now - last); last = now;
-        el.scrollTop = Math.min(max, el.scrollTop + step);
-        if (++n >= frames || el.scrollTop >= max - 1) resolve(); else requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    });
-    // Then jump to the very end: the last rows must render and the reserved height must not change.
-    el.scrollTop = max;
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    po?.disconnect();
-    return { intervals: intervals.slice(1), layoutShift: shift, heightBefore, heightAfter: el.scrollHeight };
-  }, { selector, frames, pxPerFrame });
-  return { ...summarize(out.intervals), layoutShift: out.layoutShift, heightStable: out.heightBefore === out.heightAfter };
+  const out = await page.evaluate(
+    async ({ selector, frames, pxPerFrame }) => {
+      const el = document.querySelector(selector);
+      const max = el.scrollHeight - el.clientHeight;
+      const step = pxPerFrame;
+      let n = 0;
+      let shift = 0;
+      const po =
+        typeof PerformanceObserver === "function"
+          ? new PerformanceObserver((l) => {
+              for (const e of l.getEntries()) if (!e.hadRecentInput) shift += e.value;
+            })
+          : null;
+      try {
+        po?.observe({ type: "layout-shift", buffered: true });
+      } catch {
+        /* unsupported */
+      }
+      const heightBefore = el.scrollHeight;
+      const intervals = [];
+      let last = performance.now();
+      await new Promise((resolve) => {
+        const tick = (now) => {
+          intervals.push(now - last);
+          last = now;
+          el.scrollTop = Math.min(max, el.scrollTop + step);
+          if (++n >= frames || el.scrollTop >= max - 1) resolve();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+      // Then jump to the very end: the last rows must render and the reserved height must not change.
+      el.scrollTop = max;
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      po?.disconnect();
+      return { intervals: intervals.slice(1), layoutShift: shift, heightBefore, heightAfter: el.scrollHeight };
+    },
+    { selector, frames, pxPerFrame },
+  );
+  return {
+    ...summarize(out.intervals),
+    layoutShift: out.layoutShift,
+    heightStable: out.heightBefore === out.heightAfter,
+  };
 }

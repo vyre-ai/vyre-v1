@@ -2,27 +2,100 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  CHROME, IMAGES, SHARED, agentWords, askWords, dueChoices, editedWords, fillFromNote, filterLabel, labelCounts, matchesQuery, noteName, openable, patchNote, recordFields, shareWords,
-  splitPinned, toggle, upsert, visibleNotes, whenWords,
+  CHROME,
+  IMAGES,
+  SHARED,
+  agentWords,
+  askWords,
+  dueChoices,
+  editedWords,
+  fillFromNote,
+  filterLabel,
+  labelCounts,
+  matchesQuery,
+  noteName,
+  openable,
+  patchNote,
+  recordFields,
+  shareWords,
+  splitPinned,
+  toggle,
+  upsert,
+  visibleNotes,
+  whenWords,
 } from "./model.ts";
 import type { Note, RecordType, Who } from "./model.ts";
 
 const T0 = Date.UTC(2026, 10, 3, 4, 0);
 const note = (id: string, o: Partial<Note> = {}): Note => ({
-  noteId: id, owner: "usr_me", title: "", body: "", color: "", pinned: false, labels: [], hasImage: false, linked: [], share: { people: [], space: "off" },
-  mine: true, canEdit: true, createdAt: T0, updatedAt: T0, ...o,
+  noteId: id,
+  owner: "usr_me",
+  title: "",
+  body: "",
+  color: "",
+  pinned: false,
+  labels: [],
+  hasImage: false,
+  linked: [],
+  share: { people: [], space: "off" },
+  mine: true,
+  canEdit: true,
+  createdAt: T0,
+  updatedAt: T0,
+  ...o,
 });
 const NOTES: Note[] = [
-  note("n1", { title: "Lab 8 run of show", body: "6:00 doors open", labels: ["Lab 8"], pinned: true, color: "lilac", share: { people: [{ personId: "usr_aliza", role: "edit" }], space: "off" } }),
-  note("n2", { title: "Weinberger intake call", body: "Joe wants PI leads routed by county", labels: ["Clients"], pinned: true }),
+  note("n1", {
+    title: "Lab 8 run of show",
+    body: "6:00 doors open",
+    labels: ["Lab 8"],
+    pinned: true,
+    color: "lilac",
+    share: { people: [{ personId: "usr_aliza", role: "edit" }], space: "off" },
+  }),
+  note("n2", {
+    title: "Weinberger intake call",
+    body: "Joe wants PI leads routed by county",
+    labels: ["Clients"],
+    pinned: true,
+  }),
   note("n3", { title: "Lab 8 registrations", body: "212 on Luma", labels: ["Lab 8"], hasImage: true }),
-  note("n5", { title: "Bailey & Galyen consult page", labels: ["Clients", "Reading"], hasImage: true, clip: { url: "https://baileyandgalyen.com/free-consultation", selection: "Se habla espanol.", hasShot: true, at: T0 } }),
-  note("n6", { title: "Reel ideas", labels: ["Lab 8"], owner: "usr_aliza", mine: false, share: { people: [{ personId: "usr_me", role: "edit" }], space: "off" } }),
-  note("n4", { link: { url: "https://docs.lawmatics.com/custom-fields", title: "Custom fields: create, map to forms", siteName: "Lawmatics Help Center" }, body: "For the Weinberger field list", labels: ["Clients"] }),
+  note("n5", {
+    title: "Bailey & Galyen consult page",
+    labels: ["Clients", "Reading"],
+    hasImage: true,
+    clip: {
+      url: "https://baileyandgalyen.com/free-consultation",
+      selection: "Se habla espanol.",
+      hasShot: true,
+      at: T0,
+    },
+  }),
+  note("n6", {
+    title: "Reel ideas",
+    labels: ["Lab 8"],
+    owner: "usr_aliza",
+    mine: false,
+    share: { people: [{ personId: "usr_me", role: "edit" }], space: "off" },
+  }),
+  note("n4", {
+    link: {
+      url: "https://docs.lawmatics.com/custom-fields",
+      title: "Custom fields: create, map to forms",
+      siteName: "Lawmatics Help Center",
+    },
+    body: "For the Weinberger field list",
+    labels: ["Clients"],
+  }),
   note("n7", { title: "GT+ pricing", labels: ["Sales"], share: { people: [], space: "view" } }),
 ];
 const ids = (ns: readonly Note[]): string[] => ns.map((n) => n.noteId);
-const who: Who = { meId: "usr_me", nameOf: (id) => ({ usr_me: "Irfad Imtiaz", usr_aliza: "Aliza", usr_andrey: "Andrey" } as Record<string, string>)[id] ?? id, spaceName: "My Legal Academy" };
+const who: Who = {
+  meId: "usr_me",
+  nameOf: (id) =>
+    (({ usr_me: "Irfad Imtiaz", usr_aliza: "Aliza", usr_andrey: "Andrey" }) as Record<string, string>)[id] ?? id,
+  spaceName: "My Legal Academy",
+};
 
 test("pinned notes sit above the rest, each group in the order it came", () => {
   const { pinned, others } = splitPinned(NOTES);
@@ -51,8 +124,17 @@ test("the search reads title, text, labels, a link's title, site and address, an
 });
 
 test("label counts follow the server's order, then labels only local notes have", () => {
-  assert.deepEqual(labelCounts(NOTES, ["Lab 8", "Clients"]), [{ name: "Lab 8", count: 3 }, { name: "Clients", count: 3 }, { name: "Reading", count: 1 }, { name: "Sales", count: 1 }]);
-  assert.deepEqual(labelCounts([], ["Partners"]), [{ name: "Partners", count: 0 }], "a label with no notes still lists");
+  assert.deepEqual(labelCounts(NOTES, ["Lab 8", "Clients"]), [
+    { name: "Lab 8", count: 3 },
+    { name: "Clients", count: 3 },
+    { name: "Reading", count: 1 },
+    { name: "Sales", count: 1 },
+  ]);
+  assert.deepEqual(
+    labelCounts([], ["Partners"]),
+    [{ name: "Partners", count: 0 }],
+    "a label with no notes still lists",
+  );
 });
 
 test("the filter button says Labels, the one row, or the first and how many more", () => {
@@ -87,7 +169,13 @@ test("a note's name falls back to its link or clip title; times read as the pers
   assert.equal(whenWords(Date.UTC(2026, 9, 28, 12), now), "Wed", "within the week, the day");
   assert.equal(whenWords(Date.UTC(2026, 9, 25, 12), now), "25 Oct");
   assert.equal(editedWords({ createdAt: now - 10_000, updatedAt: now - 10_000 }, now), "Edited just now");
-  assert.equal(editedWords({ createdAt: now - 3_600_000, updatedAt: now - 3_600_000, clip: { url: "u", hasShot: false, at: now } }, now), "Clipped 8:14");
+  assert.equal(
+    editedWords(
+      { createdAt: now - 3_600_000, updatedAt: now - 3_600_000, clip: { url: "u", hasShot: false, at: now } },
+      now,
+    ),
+    "Clipped 8:14",
+  );
 });
 
 test("a change laid over a note, a note put back in its place, and which addresses the page opens", () => {
@@ -104,17 +192,37 @@ test("a change laid over a note, a note put back in its place, and which address
 test("due days run from today to six days on, end of day in the person's zone, then no date", () => {
   const now = Date.UTC(2026, 10, 3, 4, 0);
   const d = dueChoices(now, 300);
-  assert.deepEqual(d.map((x) => x.label), ["Today", "Tomorrow", "Thu 5 Nov", "Fri 6 Nov", "Sat 7 Nov", "Sun 8 Nov", "Mon 9 Nov", "No date"]);
+  assert.deepEqual(
+    d.map((x) => x.label),
+    ["Today", "Tomorrow", "Thu 5 Nov", "Fri 6 Nov", "Sat 7 Nov", "Sun 8 Nov", "Mon 9 Nov", "No date"],
+  );
   assert.equal(d[0]!.at, Date.UTC(2026, 10, 3, 23, 59, 59, 999) - 300 * 60_000);
   assert.equal(d[7]!.at, null);
 });
 
 test("a record type's fields: its title field, its summary, then text fields, four at most, filled from the note", () => {
   const client: RecordType = {
-    key: "client", title: "Client", plural: "Clients", titleField: "name", summaryField: "notes",
-    fields: [{ key: "stage", type: "choice", title: "Stage" }, { key: "name", type: "text", title: "Name" }, { key: "notes", type: "longtext", title: "Notes" }, { key: "email", type: "email", title: "Email" }, { key: "phone", type: "phone", title: "Phone" }, { key: "site", type: "url", title: "Site" }],
+    key: "client",
+    title: "Client",
+    plural: "Clients",
+    titleField: "name",
+    summaryField: "notes",
+    fields: [
+      { key: "stage", type: "choice", title: "Stage" },
+      { key: "name", type: "text", title: "Name" },
+      { key: "notes", type: "longtext", title: "Notes" },
+      { key: "email", type: "email", title: "Email" },
+      { key: "phone", type: "phone", title: "Phone" },
+      { key: "site", type: "url", title: "Site" },
+    ],
   };
-  assert.deepEqual(recordFields(client).map((f) => f.key), ["name", "notes", "email", "phone"]);
-  assert.deepEqual(fillFromNote(client, NOTES[1]!), { name: "Weinberger intake call", notes: "Joe wants PI leads routed by county" });
+  assert.deepEqual(
+    recordFields(client).map((f) => f.key),
+    ["name", "notes", "email", "phone"],
+  );
+  assert.deepEqual(fillFromNote(client, NOTES[1]!), {
+    name: "Weinberger intake call",
+    notes: "Joe wants PI leads routed by county",
+  });
   assert.deepEqual(fillFromNote(client, note("x")), { name: "" });
 });

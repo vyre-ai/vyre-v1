@@ -12,7 +12,9 @@ import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 
 /** The part of the host Ctx the health handlers use. The full Ctx satisfies it. */
-export type HealthCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "call"> & { exports?: { support(body: SupportExportContent): Promise<string> } };
+export type HealthCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "call"> & {
+  exports?: { support(body: SupportExportContent): Promise<string> };
+};
 
 export type State = "healthy" | "degraded" | "down";
 export type Area = "automations" | "sync" | "sends";
@@ -43,14 +45,29 @@ export interface HealthDef {
   next: string;
 }
 
-export interface CheckRow { key: string; title: string; state: State; detail?: string; checkedAt: number; module: string; next: string }
+export interface CheckRow {
+  key: string;
+  title: string;
+  state: State;
+  detail?: string;
+  checkedAt: number;
+  module: string;
+  next: string;
+}
 
 // ---- errors
 
 const NEXT_LABEL: Record<NextStep["kind"], string> = {
-  retry: "Try again", switch_model: "Use another model", use_backup_key: "Use the backup key", ask_access: "Ask for access",
-  open_settings: "Open settings", reconnect: "Reconnect", edit_input: "Change what you sent", wait: "Wait a moment",
-  contact_admin: "Contact an admin", report: "Report a problem",
+  retry: "Try again",
+  switch_model: "Use another model",
+  use_backup_key: "Use the backup key",
+  ask_access: "Ask for access",
+  open_settings: "Open settings",
+  reconnect: "Reconnect",
+  edit_input: "Change what you sent",
+  wait: "Wait a moment",
+  contact_admin: "Contact an admin",
+  report: "Report a problem",
 };
 
 /** Throw a typed error from the global catalogue with the trace id and the catalogue's next steps. */
@@ -58,7 +75,10 @@ export function failWith(traceId: string, code: ErrorCode, message?: string, det
   const def = ERROR_CODES.find((e) => e.code === code) ?? ERROR_CODES.find((e) => e.code === "internal.unexpected");
   if (!def) throw new Error("error catalogue is empty");
   const error: VyreError = {
-    code: def.code, message: message ?? def.what, retryable: def.retryable, traceId,
+    code: def.code,
+    message: message ?? def.what,
+    retryable: def.retryable,
+    traceId,
     next: def.next.map((kind) => ({ kind, label: NEXT_LABEL[kind] })),
   };
   if (details) error.details = details;
@@ -97,14 +117,24 @@ export function parseDefs(raw: unknown): HealthDef[] {
   for (const item of raw) {
     const r = asRow(item);
     if (!r) continue;
-    const key = str(r["key"]), title = str(r["title"]), cap = str(r["cap"]), next = str(r["next"]);
+    const key = str(r["key"]),
+      title = str(r["title"]),
+      cap = str(r["cap"]),
+      next = str(r["next"]);
     if (!key || !title || !cap || !next) continue;
     const states = asRow(r["states"]) ?? {};
     const def: HealthDef = {
-      key, title, cap, next, module: str(r["module"]) ?? key.split(".")[0] ?? key,
-      intervalSec: num(r["intervalSec"]) ?? 60, timeoutMs: num(r["timeoutMs"]) ?? 5_000, states: {},
+      key,
+      title,
+      cap,
+      next,
+      module: str(r["module"]) ?? key.split(".")[0] ?? key,
+      intervalSec: num(r["intervalSec"]) ?? 60,
+      timeoutMs: num(r["timeoutMs"]) ?? 5_000,
+      states: {},
     };
-    const degradedWhen = str(states["degradedWhen"]), downWhen = str(states["downWhen"]);
+    const degradedWhen = str(states["degradedWhen"]),
+      downWhen = str(states["downWhen"]);
     if (degradedWhen) def.states.degradedWhen = degradedWhen;
     if (downWhen) def.states.downWhen = downWhen;
     if (Array.isArray(r["dependsOn"])) def.dependsOn = r["dependsOn"].filter((d): d is string => typeof d === "string");
@@ -118,7 +148,9 @@ export function parseDefs(raw: unknown): HealthDef[] {
 export function loadDefs(): readonly HealthDef[] {
   if (provider) return provider();
   if (!cached) {
-    const reg = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as { health?: unknown };
+    const reg = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as {
+      health?: unknown;
+    };
     cached = parseDefs(reg.health);
   }
   return cached;
@@ -133,7 +165,10 @@ export function orderDefs(defs: readonly HealthDef[]): HealthDef[] {
   const visit = (d: HealthDef): void => {
     if (done.has(d.key) || visiting.has(d.key)) return;
     visiting.add(d.key);
-    for (const dep of d.dependsOn ?? []) { const x = byKey.get(dep); if (x) visit(x); }
+    for (const dep of d.dependsOn ?? []) {
+      const x = byKey.get(dep);
+      if (x) visit(x);
+    }
     visiting.delete(d.key);
     done.add(d.key);
     out.push(d);
@@ -146,8 +181,14 @@ export function orderDefs(defs: readonly HealthDef[]): HealthDef[] {
 
 /** Probe capability to the name the host reports it under. */
 export const PROBES: Readonly<Record<string, string>> = Object.freeze({
-  "health.disk_encrypted": "disk_encrypted", "health.events_db": "events_db", "health.index_db": "index_db", "health.scheduler": "scheduler",
-  "health.docker": "docker", "health.caddy": "caddy", "health.disk_space": "disk_space", "health.time_skew": "time_skew",
+  "health.disk_encrypted": "disk_encrypted",
+  "health.events_db": "events_db",
+  "health.index_db": "index_db",
+  "health.scheduler": "scheduler",
+  "health.docker": "docker",
+  "health.caddy": "caddy",
+  "health.disk_space": "disk_space",
+  "health.time_skew": "time_skew",
 });
 /** A report older than this is stale. The scheduler ticks every few seconds, so its window is short. */
 export const PROBE_MAX_AGE_MS: Readonly<Record<string, number>> = Object.freeze({ scheduler: 90_000 });
@@ -155,17 +196,28 @@ export const PROBE_DEFAULT_AGE_MS = 300_000;
 /** The extra number a probe answers besides its state. */
 const PROBE_EXTRA: Readonly<Record<string, string>> = Object.freeze({ disk_space: "freeBytes", time_skew: "skewMs" });
 
-export interface ProbeOut { state: State; detail?: string; latencyMs?: number; freeBytes?: number; skewMs?: number }
+export interface ProbeOut {
+  state: State;
+  detail?: string;
+  latencyMs?: number;
+  freeBytes?: number;
+  skewMs?: number;
+}
 
 export function readProbe(ctx: HealthCtx, name: string): ProbeOut {
-  const r = asRow(ctx.db.all("SELECT state, detail, latency_ms, values_json, at FROM health_probe WHERE name = ?", name)[0]);
+  const r = asRow(
+    ctx.db.all("SELECT state, detail, latency_ms, values_json, at FROM health_probe WHERE name = ?", name)[0],
+  );
   if (!r) return { state: "degraded", detail: "The host has not reported this yet." };
   const at = num(r["at"]) ?? 0;
   const age = ctx.now() - at;
   const limit = PROBE_MAX_AGE_MS[name] ?? PROBE_DEFAULT_AGE_MS;
   if (age > limit) {
     const minutes = Math.max(1, Math.round(age / 60_000));
-    return { state: name === "scheduler" ? "down" : "degraded", detail: `The host has not reported for ${minutes} minutes.` };
+    return {
+      state: name === "scheduler" ? "down" : "degraded",
+      detail: `The host has not reported for ${minutes} minutes.`,
+    };
   }
   const out: ProbeOut = { state: isState(r["state"]) ? r["state"] : "down" };
   const detail = str(r["detail"]);
@@ -178,20 +230,39 @@ export function readProbe(ctx: HealthCtx, name: string): ProbeOut {
       const v = asRow(JSON.parse(r["values_json"]));
       const n = v ? num(v[extra]) : undefined;
       if (n !== undefined && (extra === "freeBytes" || extra === "skewMs")) out[extra] = Math.trunc(n);
-    } catch { /* a malformed report carries no number */ }
+    } catch {
+      /* a malformed report carries no number */
+    }
   }
   return out;
 }
 
-export interface MachineOut { state: State; detail?: string; latencyMs?: number; machine?: Record<string, number> }
-const MACHINE_FIELDS = ["cpuPercent", "memoryUsedBytes", "memoryTotalBytes", "diskFreeBytes", "diskTotalBytes"] as const;
+export interface MachineOut {
+  state: State;
+  detail?: string;
+  latencyMs?: number;
+  machine?: Record<string, number>;
+}
+const MACHINE_FIELDS = [
+  "cpuPercent",
+  "memoryUsedBytes",
+  "memoryTotalBytes",
+  "diskFreeBytes",
+  "diskTotalBytes",
+] as const;
 
 /** The server's CPU, memory and disk as the host last reported them (probe name machine). A report that is missing or stale carries no numbers. */
 export function readMachine(ctx: HealthCtx): MachineOut {
-  const r = asRow(ctx.db.all("SELECT state, detail, latency_ms, values_json, at FROM health_probe WHERE name = 'machine'")[0]);
+  const r = asRow(
+    ctx.db.all("SELECT state, detail, latency_ms, values_json, at FROM health_probe WHERE name = 'machine'")[0],
+  );
   if (!r) return { state: "degraded", detail: "The host has not reported this yet." };
   const age = ctx.now() - (num(r["at"]) ?? 0);
-  if (age > PROBE_DEFAULT_AGE_MS) return { state: "degraded", detail: `The host has not reported for ${Math.max(1, Math.round(age / 60_000))} minutes.` };
+  if (age > PROBE_DEFAULT_AGE_MS)
+    return {
+      state: "degraded",
+      detail: `The host has not reported for ${Math.max(1, Math.round(age / 60_000))} minutes.`,
+    };
   const out: MachineOut = { state: isState(r["state"]) ? r["state"] : "down" };
   const detail = str(r["detail"]);
   if (detail) out.detail = detail;
@@ -207,16 +278,27 @@ export function readMachine(ctx: HealthCtx): MachineOut {
         machine[k] = k === "cpuPercent" ? Math.min(100, n) : Math.trunc(n);
       }
       if (Object.keys(machine).length) out.machine = machine;
-    } catch { /* a malformed report carries no numbers */ }
+    } catch {
+      /* a malformed report carries no numbers */
+    }
   }
   return out;
 }
 
 /** Called by the host daemon's jobs (or a test) to publish a probe. */
-export function reportProbe(ctx: Pick<HealthCtx, "db" | "now">, name: string, p: { state: State; detail?: string; latencyMs?: number; values?: Record<string, number> }): void {
+export function reportProbe(
+  ctx: Pick<HealthCtx, "db" | "now">,
+  name: string,
+  p: { state: State; detail?: string; latencyMs?: number; values?: Record<string, number> },
+): void {
   ctx.db.run(
     "INSERT OR REPLACE INTO health_probe (name, state, detail, latency_ms, values_json, at) VALUES (?, ?, ?, ?, ?, ?)",
-    name, p.state, p.detail ?? null, p.latencyMs ?? null, p.values ? JSON.stringify(p.values) : null, ctx.now(),
+    name,
+    p.state,
+    p.detail ?? null,
+    p.latencyMs ?? null,
+    p.values ? JSON.stringify(p.values) : null,
+    ctx.now(),
   );
 }
 
@@ -227,7 +309,16 @@ class TimeoutError extends Error {}
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new TimeoutError("timeout")), ms);
-    p.then((v) => { clearTimeout(timer); resolve(v); }, (e: unknown) => { clearTimeout(timer); reject(e); });
+    p.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e: unknown) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
   });
 }
 
@@ -241,10 +332,18 @@ function codeOf(e: unknown): string {
 /** Does the rule hold over these values? A rule that does not parse or evaluate holds nothing. */
 export function ruleHolds(src: string | undefined, values: Record<string, unknown>): boolean {
   if (!src) return false;
-  try { return evalExpr(parseExpr(src), { values }) === true; } catch { return false; }
+  try {
+    return evalExpr(parseExpr(src), { values }) === true;
+  } catch {
+    return false;
+  }
 }
 
-export interface Outcome { state: State; detail?: string; latencyMs?: number }
+export interface Outcome {
+  state: State;
+  detail?: string;
+  latencyMs?: number;
+}
 
 /** Call the check's capability and turn its answer into a state. A failed or slow call is Down with the reason. */
 export async function evaluate(ctx: HealthCtx, def: HealthDef): Promise<Outcome> {
@@ -253,15 +352,21 @@ export async function evaluate(ctx: HealthCtx, def: HealthDef): Promise<Outcome>
   try {
     answer = await withTimeout(Promise.resolve(ctx.call(def.cap as CapName, {})), def.timeoutMs);
   } catch (e) {
-    return { state: "down", detail: `The check could not run (${codeOf(e)}).`, latencyMs: Math.round(performance.now() - t0) };
+    return {
+      state: "down",
+      detail: `The check could not run (${codeOf(e)}).`,
+      latencyMs: Math.round(performance.now() - t0),
+    };
   }
   const latency = Math.round(performance.now() - t0);
   const a = asRow(answer);
-  if (!a || !isState(a["state"])) return { state: "down", detail: "The check gave an answer that is not a health state.", latencyMs: latency };
+  if (!a || !isState(a["state"]))
+    return { state: "down", detail: "The check gave an answer that is not a health state.", latencyMs: latency };
   const reported = num(a["latencyMs"]);
   const latencyMs = reported !== undefined ? Math.trunc(reported) : latency;
   const values: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(a)) if (typeof v === "number" || typeof v === "string" || typeof v === "boolean") values[k] = v;
+  for (const [k, v] of Object.entries(a))
+    if (typeof v === "number" || typeof v === "string" || typeof v === "boolean") values[k] = v;
   values["latencyMs"] = latencyMs;
   let state: State = a["state"];
   if (ruleHolds(def.states.downWhen, values)) state = worst(state, "down");
@@ -272,15 +377,26 @@ export async function evaluate(ctx: HealthCtx, def: HealthDef): Promise<Outcome>
   return out;
 }
 
-export interface Transition { key: string; from: State | null; to: State; detail?: string; paused: Area[]; resumed: boolean }
-export interface RunResult { rows: CheckRow[]; transitions: Transition[] }
+export interface Transition {
+  key: string;
+  from: State | null;
+  to: State;
+  detail?: string;
+  paused: Area[];
+  resumed: boolean;
+}
+export interface RunResult {
+  rows: CheckRow[];
+  transitions: Transition[];
+}
 
 function stored(ctx: HealthCtx): Map<string, { state: State; since: number; title: string }> {
   const out = new Map<string, { state: State; since: number; title: string }>();
   for (const raw of ctx.db.all("SELECT check_key, title, state, since FROM health_state")) {
     const r = asRow(raw);
     const key = r ? str(r["check_key"]) : undefined;
-    if (r && key && isState(r["state"])) out.set(key, { state: r["state"], since: num(r["since"]) ?? 0, title: str(r["title"]) ?? key });
+    if (r && key && isState(r["state"]))
+      out.set(key, { state: r["state"], since: num(r["since"]) ?? 0, title: str(r["title"]) ?? key });
   }
   return out;
 }
@@ -306,26 +422,62 @@ export async function runChecks(ctx: HealthCtx, defs: readonly HealthDef[], only
     const since = prev && prev.state === out.state ? prev.since : now;
     ctx.db.run(
       "INSERT OR REPLACE INTO health_state (check_key, module, title, state, detail, latency_ms, checked_at, since, next) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      def.key, def.module, def.title, out.state, out.detail ?? null, out.latencyMs ?? null, now, since, def.next,
+      def.key,
+      def.module,
+      def.title,
+      out.state,
+      out.detail ?? null,
+      out.latencyMs ?? null,
+      now,
+      since,
+      def.next,
     );
-    ctx.db.run("INSERT INTO health_sample (check_key, at, state, latency_ms, detail) VALUES (?, ?, ?, ?, ?)", def.key, now, out.state, out.latencyMs ?? null, out.detail ?? null);
+    ctx.db.run(
+      "INSERT INTO health_sample (check_key, at, state, latency_ms, detail) VALUES (?, ?, ?, ?, ?)",
+      def.key,
+      now,
+      out.state,
+      out.latencyMs ?? null,
+      out.detail ?? null,
+    );
     const areas = def.pauses ?? [];
     if (areas.length > 0) {
       if (out.state === "healthy") ctx.db.run("DELETE FROM health_pause WHERE check_key = ?", def.key);
       else {
         for (const area of areas) {
-          const had = asRow(ctx.db.all("SELECT since FROM health_pause WHERE area = ? AND check_key = ?", area, def.key)[0]);
-          ctx.db.run("INSERT OR REPLACE INTO health_pause (area, check_key, reason, since) VALUES (?, ?, ?, ?)", area, def.key, reasonFor(def, out), num(had?.["since"]) ?? now);
+          const had = asRow(
+            ctx.db.all("SELECT since FROM health_pause WHERE area = ? AND check_key = ?", area, def.key)[0],
+          );
+          ctx.db.run(
+            "INSERT OR REPLACE INTO health_pause (area, check_key, reason, since) VALUES (?, ?, ?, ?)",
+            area,
+            def.key,
+            reasonFor(def, out),
+            num(had?.["since"]) ?? now,
+          );
         }
       }
     }
     known.set(def.key, { state: out.state, since, title: def.title });
     if (!prev || prev.state !== out.state) {
-      const t: Transition = { key: def.key, from: prev?.state ?? null, to: out.state, paused: out.state === "healthy" ? [] : [...areas], resumed: out.state === "healthy" && prev !== undefined && areas.length > 0 };
+      const t: Transition = {
+        key: def.key,
+        from: prev?.state ?? null,
+        to: out.state,
+        paused: out.state === "healthy" ? [] : [...areas],
+        resumed: out.state === "healthy" && prev !== undefined && areas.length > 0,
+      };
       if (out.detail) t.detail = out.detail;
       transitions.push(t);
     }
-    const row: CheckRow = { key: def.key, title: def.title, state: out.state, checkedAt: now, module: def.module, next: def.next };
+    const row: CheckRow = {
+      key: def.key,
+      title: def.title,
+      state: out.state,
+      checkedAt: now,
+      module: def.module,
+      next: def.next,
+    };
     if (out.detail) row.detail = out.detail;
     rows.push(row);
   }
@@ -336,7 +488,11 @@ export async function runChecks(ctx: HealthCtx, defs: readonly HealthDef[], only
 // ---- reading what was recorded
 
 function toRow(r: Row): CheckRow | null {
-  const key = str(r["check_key"]), title = str(r["title"]), module = str(r["module"]), next = str(r["next"]), at = num(r["checked_at"]);
+  const key = str(r["check_key"]),
+    title = str(r["title"]),
+    module = str(r["module"]),
+    next = str(r["next"]),
+    at = num(r["checked_at"]);
   if (!key || !title || !module || !next || at === undefined || !isState(r["state"])) return null;
   const row: CheckRow = { key, title, state: r["state"], checkedAt: at, module, next };
   const detail = str(r["detail"]);
@@ -347,7 +503,9 @@ function toRow(r: Row): CheckRow | null {
 /** Latest state of every check, grouped by module, and the worst of them. */
 export function statusOf(ctx: HealthCtx): { overall: State; checks: CheckRow[] } {
   const checks: CheckRow[] = [];
-  for (const raw of ctx.db.all("SELECT check_key, module, title, state, detail, checked_at, next FROM health_state ORDER BY module, check_key")) {
+  for (const raw of ctx.db.all(
+    "SELECT check_key, module, title, state, detail, checked_at, next FROM health_state ORDER BY module, check_key",
+  )) {
     const r = asRow(raw);
     const row = r ? toRow(r) : null;
     if (row) checks.push(row);
@@ -357,10 +515,19 @@ export function statusOf(ctx: HealthCtx): { overall: State; checks: CheckRow[] }
   return { overall, checks };
 }
 
-export function historyOf(ctx: HealthCtx, key: string, sinceMs?: number): { at: number; state: State; latencyMs?: number; detail?: string }[] {
+export function historyOf(
+  ctx: HealthCtx,
+  key: string,
+  sinceMs?: number,
+): { at: number; state: State; latencyMs?: number; detail?: string }[] {
   const since = sinceMs ?? ctx.now() - HISTORY_DEFAULT_DAYS * DAY_MS;
   const out: { at: number; state: State; latencyMs?: number; detail?: string }[] = [];
-  for (const raw of ctx.db.all("SELECT at, state, latency_ms, detail FROM health_sample WHERE check_key = ? AND at >= ? ORDER BY at, id LIMIT ?", key, since, HISTORY_MAX)) {
+  for (const raw of ctx.db.all(
+    "SELECT at, state, latency_ms, detail FROM health_sample WHERE check_key = ? AND at >= ? ORDER BY at, id LIMIT ?",
+    key,
+    since,
+    HISTORY_MAX,
+  )) {
     const r = asRow(raw);
     const at = r ? num(r["at"]) : undefined;
     if (!r || at === undefined || !isState(r["state"])) continue;
@@ -378,14 +545,18 @@ export function pausedOf(ctx: HealthCtx): { area: Area; key: string; reason: str
   const out: { area: Area; key: string; reason: string }[] = [];
   for (const raw of ctx.db.all("SELECT area, check_key, reason FROM health_pause ORDER BY area, check_key")) {
     const r = asRow(raw);
-    const key = r ? str(r["check_key"]) : undefined, reason = r ? str(r["reason"]) : undefined;
+    const key = r ? str(r["check_key"]) : undefined,
+      reason = r ? str(r["reason"]) : undefined;
     if (r && key && reason && AREAS.includes(r["area"] as Area)) out.push({ area: r["area"] as Area, key, reason });
   }
   return out;
 }
 
 /** Run every check now and list the ones that are not healthy, each with its next step: the output of `vyre-server doctor`. */
-export async function doctor(ctx: HealthCtx, defs: readonly HealthDef[]): Promise<{ ok: boolean; findings: { key: string; state: State; next: string }[] }> {
+export async function doctor(
+  ctx: HealthCtx,
+  defs: readonly HealthDef[],
+): Promise<{ ok: boolean; findings: { key: string; state: State; next: string }[] }> {
   const { rows } = await runChecks(ctx, defs);
   const findings = rows.filter((r) => r.state !== "healthy").map((r) => ({ key: r.key, state: r.state, next: r.next }));
   return { ok: findings.length === 0, findings };

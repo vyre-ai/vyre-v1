@@ -21,7 +21,10 @@ export interface PurgeAcker {
 
 const defaultBackoff = (tries: number): number => Math.min(30_000, 500 * 2 ** Math.max(0, tries - 1));
 
-export function createPurgeAcker(call: (cap: string, input: unknown) => Promise<unknown>, o: PurgeAckOpts = {}): PurgeAcker {
+export function createPurgeAcker(
+  call: (cap: string, input: unknown) => Promise<unknown>,
+  o: PurgeAckOpts = {},
+): PurgeAcker {
   const backoff = o.backoffMs ?? defaultBackoff;
   const max = o.maxTries ?? 8;
   const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
@@ -45,8 +48,16 @@ export function createPurgeAcker(call: (cap: string, input: unknown) => Promise<
       const result = await wipe();
       const k = keyOf(deviceId, epoch);
       let st = seen.get(k);
-      if (!st) { st = { tries: 0, acked: false, running: null }; seen.set(k, st); }
-      if (!st.running && !st.acked) { const s = st; s.running = ack(deviceId, s).finally(() => { s.running = null; }); }
+      if (!st) {
+        st = { tries: 0, acked: false, running: null };
+        seen.set(k, st);
+      }
+      if (!st.running && !st.acked) {
+        const s = st;
+        s.running = ack(deviceId, s).finally(() => {
+          s.running = null;
+        });
+      }
       // the wipe's caller does not wait for the server: the ack carries on in the background
       return result;
     },

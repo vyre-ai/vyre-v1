@@ -72,7 +72,10 @@ export interface SpaceTest {
   kind: "space";
   /** calls made after the Kit is applied to the fixture Space and before the checks */
   seed?: KitStep[];
-  expect: { events?: { name: string; payload?: Record<string, unknown> }[]; views?: { cap: string; input?: Record<string, unknown>; rows?: number; contains?: Record<string, unknown> }[] };
+  expect: {
+    events?: { name: string; payload?: Record<string, unknown> }[];
+    views?: { cap: string; input?: Record<string, unknown>; rows?: number; contains?: Record<string, unknown> }[];
+  };
 }
 
 export type KitTest = ScriptTest | SpaceTest;
@@ -140,7 +143,8 @@ export function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Reco
 export const str = (v: unknown): string => (typeof v === "string" ? v : "");
 export const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 export const isNull = (v: unknown): boolean => v === null || v === undefined;
-export const one = (ctx: Ctx, sql: string, ...args: unknown[]): Row | undefined => (ctx.db.all(sql, ...args) as Row[])[0];
+export const one = (ctx: Ctx, sql: string, ...args: unknown[]): Row | undefined =>
+  (ctx.db.all(sql, ...args) as Row[])[0];
 export const many = (ctx: Ctx, sql: string, ...args: unknown[]): Row[] => ctx.db.all(sql, ...args) as Row[];
 export const nid = (ctx: Ctx, prefix: string): string => `${prefix}_${mintUuid(ctx.now()).replaceAll("-", "")}`;
 
@@ -152,7 +156,8 @@ export function rec(ctx: Ctx, input: unknown): Record<string, unknown> {
 
 export function reqStr(ctx: Ctx, o: Record<string, unknown>, key: string): string {
   const v = o[key];
-  if (typeof v !== "string" || v.length === 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
+  if (typeof v !== "string" || v.length === 0)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
   return v;
 }
 
@@ -171,9 +176,11 @@ export async function sha256hex(text: string): Promise<string> {
 export function pageOf(ctx: Ctx, o: Record<string, unknown>): { offset: number; limit: number } {
   const cursor = optStr(ctx, o, "cursor");
   const offset = cursor === undefined ? 0 : Number(cursor);
-  if (!Number.isInteger(offset) || offset < 0) fail(ctx, "validation.bad_input", "That page cursor is not valid.", { field: "cursor" });
+  if (!Number.isInteger(offset) || offset < 0)
+    fail(ctx, "validation.bad_input", "That page cursor is not valid.", { field: "cursor" });
   const lim = o.limit;
-  if (lim !== undefined && lim !== null && (typeof lim !== "number" || !Number.isInteger(lim) || lim < 1 || lim > 500)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "limit" });
+  if (lim !== undefined && lim !== null && (typeof lim !== "number" || !Number.isInteger(lim) || lim < 1 || lim > 500))
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "limit" });
   return { offset, limit: typeof lim === "number" ? lim : 100 };
 }
 
@@ -187,24 +194,31 @@ export function isSemver(v: string): boolean {
 
 /** Negative when a is older than b. A prerelease is older than its release; prerelease parts compare as numbers when both are numbers. */
 export function compareSemver(a: string, b: string): number {
-  const x = SEMVER.exec(a), y = SEMVER.exec(b);
+  const x = SEMVER.exec(a),
+    y = SEMVER.exec(b);
   if (!x || !y) throw new TypeError("not a semver version");
   for (let i = 1; i <= 3; i++) {
     const d = Number(x[i]) - Number(y[i]);
     if (d !== 0) return d < 0 ? -1 : 1;
   }
-  const pa = x[4], pb = y[4];
+  const pa = x[4],
+    pb = y[4];
   if (pa === undefined && pb === undefined) return 0;
   if (pa === undefined) return 1;
   if (pb === undefined) return -1;
-  const as = pa.split("."), bs = pb.split(".");
+  const as = pa.split("."),
+    bs = pb.split(".");
   for (let i = 0; i < Math.max(as.length, bs.length); i++) {
-    const l = as[i], r = bs[i];
+    const l = as[i],
+      r = bs[i];
     if (l === undefined) return -1;
     if (r === undefined) return 1;
-    const ln = /^\d+$/.test(l), rn = /^\d+$/.test(r);
-    if (ln && rn) { const d = Number(l) - Number(r); if (d !== 0) return d < 0 ? -1 : 1; }
-    else if (ln !== rn) return ln ? -1 : 1;
+    const ln = /^\d+$/.test(l),
+      rn = /^\d+$/.test(r);
+    if (ln && rn) {
+      const d = Number(l) - Number(r);
+      if (d !== 0) return d < 0 ? -1 : 1;
+    } else if (ln !== rn) return ln ? -1 : 1;
     else if (l !== r) return l < r ? -1 : 1;
   }
   return 0;
@@ -225,50 +239,142 @@ export const MAX_ITEMS = 500;
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 const txt = (v: unknown): v is string => typeof v === "string" && v.trim() !== "";
-const strMap = (v: unknown): v is Record<string, string> => isObj(v) && Object.values(v).every((x) => typeof x === "string");
+const strMap = (v: unknown): v is Record<string, string> =>
+  isObj(v) && Object.values(v).every((x) => typeof x === "string");
 
 /** The apply and undo steps one shorthand stands for. Idempotency keys come from the Kit and the item, so installing twice or rolling back and installing again is the same call. */
-function shorthand(kind: (typeof SHORTHANDS)[number], v: unknown, kit: string, item: string, at: string, bad: (path: string, message: string) => void): { apply: KitStep; undo?: KitStep } | null {
+function shorthand(
+  kind: (typeof SHORTHANDS)[number],
+  v: unknown,
+  kit: string,
+  item: string,
+  at: string,
+  bad: (path: string, message: string) => void,
+): { apply: KitStep; undo?: KitStep } | null {
   const key = `kit.${kit}.${item}`;
-  if (!isObj(v)) { bad(at, `${kind} is an object`); return null; }
+  if (!isObj(v)) {
+    bad(at, `${kind} is an object`);
+    return null;
+  }
   if (kind === "skill") {
-    if (!txt(v.text)) { bad(`${at}.text`, "the SKILL.md text"); return null; }
+    if (!txt(v.text)) {
+      bad(`${at}.text`, "the SKILL.md text");
+      return null;
+    }
     const parsed = parseSkill(v.text);
-    if (!parsed.ok) { bad(`${at}.text`, parsed.problem); return null; }
-    if (v.files !== undefined && !strMap(v.files)) { bad(`${at}.files`, "a map of path to text"); return null; }
+    if (!parsed.ok) {
+      bad(`${at}.text`, parsed.problem);
+      return null;
+    }
+    if (v.files !== undefined && !strMap(v.files)) {
+      bad(`${at}.files`, "a map of path to text");
+      return null;
+    }
     return {
-      apply: { cap: "skills.add", input: { text: v.text, ...(v.files ? { files: v.files } : {}), source: `kit:${kit}`, idempotencyKey: key } },
+      apply: {
+        cap: "skills.add",
+        input: { text: v.text, ...(v.files ? { files: v.files } : {}), source: `kit:${kit}`, idempotencyKey: key },
+      },
       // the undo names the Kit as the source: a skill of the same name someone else added (which the Kit kept, never replaced) is not removed with it
-      undo: { cap: "skills.remove", input: { name: parsed.skill.name, source: `kit:${kit}`, idempotencyKey: `${key}.undo` } },
+      undo: {
+        cap: "skills.remove",
+        input: { name: parsed.skill.name, source: `kit:${kit}`, idempotencyKey: `${key}.undo` },
+      },
     };
   }
   if (kind === "marketplace") {
-    if (!txt(v.name) || !txt(v.source)) { bad(at, "a marketplace has a name and a source (an https git address or a folder on the server)"); return null; }
+    if (!txt(v.name) || !txt(v.source)) {
+      bad(at, "a marketplace has a name and a source (an https git address or a folder on the server)");
+      return null;
+    }
     return {
-      apply: { cap: "plugins.marketplace.add", input: { source: v.source, ...(txt(v.ref) ? { ref: v.ref } : {}), idempotencyKey: key } },
+      apply: {
+        cap: "plugins.marketplace.add",
+        input: { source: v.source, ...(txt(v.ref) ? { ref: v.ref } : {}), idempotencyKey: key },
+      },
       undo: { cap: "plugins.marketplace.remove", input: { name: v.name, idempotencyKey: `${key}.undo` } },
     };
   }
   if (kind === "plugin") {
     const scope = v.scope === undefined ? "space" : v.scope;
-    if (!txt(v.marketplace) || !txt(v.name) || (scope !== "space" && scope !== "agent")) { bad(at, "a plugin has a marketplace, a name and a scope of space or agent"); return null; }
-    if (v.config !== undefined && !strMap(v.config)) { bad(`${at}.config`, "a map of option to value, where a secret is a Vault handle"); return null; }
-    if (scope === "agent" && !txt(v.agentId)) { bad(`${at}.agentId`, "the agent the plugin goes in"); return null; }
+    if (!txt(v.marketplace) || !txt(v.name) || (scope !== "space" && scope !== "agent")) {
+      bad(at, "a plugin has a marketplace, a name and a scope of space or agent");
+      return null;
+    }
+    if (v.config !== undefined && !strMap(v.config)) {
+      bad(`${at}.config`, "a map of option to value, where a secret is a Vault handle");
+      return null;
+    }
+    if (scope === "agent" && !txt(v.agentId)) {
+      bad(`${at}.agentId`, "the agent the plugin goes in");
+      return null;
+    }
     return {
-      apply: { cap: "plugins.install", input: { marketplace: v.marketplace, plugin: v.name, scope, ...(scope === "agent" ? { agentId: v.agentId } : {}), ...(v.config ? { config: v.config } : {}), idempotencyKey: key } },
-      undo: { cap: "plugins.uninstall", input: { name: v.name, scope, ...(scope === "agent" ? { agentId: v.agentId } : {}), idempotencyKey: `${key}.undo` } },
+      apply: {
+        cap: "plugins.install",
+        input: {
+          marketplace: v.marketplace,
+          plugin: v.name,
+          scope,
+          ...(scope === "agent" ? { agentId: v.agentId } : {}),
+          ...(v.config ? { config: v.config } : {}),
+          idempotencyKey: key,
+        },
+      },
+      undo: {
+        cap: "plugins.uninstall",
+        input: {
+          name: v.name,
+          scope,
+          ...(scope === "agent" ? { agentId: v.agentId } : {}),
+          idempotencyKey: `${key}.undo`,
+        },
+      },
     };
   }
   if (kind === "connection") {
-    if (!txt(v.name) || (txt(v.url) ? 1 : 0) + (txt(v.command) ? 1 : 0) !== 1) { bad(at, "a connection has a name and either a url or a command"); return null; }
-    if ((v.args !== undefined && !(Array.isArray(v.args) && v.args.every((a) => typeof a === "string"))) || (v.headers !== undefined && !strMap(v.headers)) || (v.env !== undefined && !strMap(v.env))) { bad(at, "args are a list of text, headers and env maps of text"); return null; }
+    if (!txt(v.name) || (txt(v.url) ? 1 : 0) + (txt(v.command) ? 1 : 0) !== 1) {
+      bad(at, "a connection has a name and either a url or a command");
+      return null;
+    }
+    if (
+      (v.args !== undefined && !(Array.isArray(v.args) && v.args.every((a) => typeof a === "string"))) ||
+      (v.headers !== undefined && !strMap(v.headers)) ||
+      (v.env !== undefined && !strMap(v.env))
+    ) {
+      bad(at, "args are a list of text, headers and env maps of text");
+      return null;
+    }
     return {
-      apply: { cap: "plugins.connection.add", input: { name: v.name, scope: "space", ...(txt(v.url) ? { url: v.url } : {}), ...(txt(v.command) ? { command: v.command } : {}), ...(v.args ? { args: v.args } : {}), ...(v.headers ? { headers: v.headers } : {}), ...(v.env ? { env: v.env } : {}), idempotencyKey: key } },
-      undo: { cap: "plugins.connection.remove", input: { name: v.name, scope: "space", idempotencyKey: `${key}.undo` } },
+      apply: {
+        cap: "plugins.connection.add",
+        input: {
+          name: v.name,
+          scope: "space",
+          ...(txt(v.url) ? { url: v.url } : {}),
+          ...(txt(v.command) ? { command: v.command } : {}),
+          ...(v.args ? { args: v.args } : {}),
+          ...(v.headers ? { headers: v.headers } : {}),
+          ...(v.env ? { env: v.env } : {}),
+          idempotencyKey: key,
+        },
+      },
+      undo: {
+        cap: "plugins.connection.remove",
+        input: { name: v.name, scope: "space", idempotencyKey: `${key}.undo` },
+      },
     };
   }
-  if (!txt(v.name)) { bad(at, "an agent has a name"); return null; }
-  return { apply: { cap: "agents.create", input: { name: v.name, ...(txt(v.role) ? { role: v.role } : {}), idempotencyKey: key } } };
+  if (!txt(v.name)) {
+    bad(at, "an agent has a name");
+    return null;
+  }
+  return {
+    apply: {
+      cap: "agents.create",
+      input: { name: v.name, ...(txt(v.role) ? { role: v.role } : {}), idempotencyKey: key },
+    },
+  };
 }
 
 export function forbiddenCap(cap: string): boolean {
@@ -278,55 +384,107 @@ export function forbiddenCap(cap: string): boolean {
 /** Checks a manifest read from a Kit folder. Returns the Kit or every problem, each a sentence naming the path. */
 export function checkKit(raw: unknown): { kit: KitManifest; problems: [] } | { kit: null; problems: string[] } {
   const problems: string[] = [];
-  const bad = (path: string, message: string): void => { problems.push(`${path}: ${message}`); };
+  const bad = (path: string, message: string): void => {
+    problems.push(`${path}: ${message}`);
+  };
   if (!isObj(raw)) return { kit: null, problems: ["a Kit is an object"] };
-  if (typeof raw.key !== "string" || !KEY.test(raw.key)) bad("key", "lowercase letters, digits and dashes, 2 to 41 characters");
-  if (typeof raw.title !== "string" || raw.title.trim() === "" || raw.title.length > 80) bad("title", "a name of 1 to 80 characters");
+  if (typeof raw.key !== "string" || !KEY.test(raw.key))
+    bad("key", "lowercase letters, digits and dashes, 2 to 41 characters");
+  if (typeof raw.title !== "string" || raw.title.trim() === "" || raw.title.length > 80)
+    bad("title", "a name of 1 to 80 characters");
   if (typeof raw.version !== "string" || !isSemver(raw.version)) bad("version", "a semver version such as 1.2.0");
   if (raw.channel !== undefined && raw.channel !== "stable" && raw.channel !== "beta") bad("channel", "stable or beta");
-  if (raw.description !== undefined && (typeof raw.description !== "string" || raw.description.length > 300)) bad("description", "a sentence of at most 300 characters");
+  if (raw.description !== undefined && (typeof raw.description !== "string" || raw.description.length > 300))
+    bad("description", "a sentence of at most 300 characters");
 
   const stepOf = (v: unknown, path: string): KitStep | undefined => {
     if (v === undefined) return undefined;
-    if (!isObj(v) || typeof v.cap !== "string" || !CAP.test(v.cap) || (v.input !== undefined && !isObj(v.input))) { bad(path, "a step is { cap, input } with a capability name"); return undefined; }
-    if (forbiddenCap(v.cap)) { bad(path, `${v.cap} cannot be used by a Kit`); return undefined; }
+    if (!isObj(v) || typeof v.cap !== "string" || !CAP.test(v.cap) || (v.input !== undefined && !isObj(v.input))) {
+      bad(path, "a step is { cap, input } with a capability name");
+      return undefined;
+    }
+    if (forbiddenCap(v.cap)) {
+      bad(path, `${v.cap} cannot be used by a Kit`);
+      return undefined;
+    }
     return { cap: v.cap, input: (v.input ?? {}) as Record<string, unknown> };
   };
   const strings = (v: unknown, path: string, ok: (s: string) => boolean, what: string): string[] | undefined => {
     if (v === undefined) return undefined;
-    if (!Array.isArray(v) || v.length > 100 || !v.every((s) => typeof s === "string" && ok(s))) { bad(path, `a list of ${what}`); return undefined; }
+    if (!Array.isArray(v) || v.length > 100 || !v.every((s) => typeof s === "string" && ok(s))) {
+      bad(path, `a list of ${what}`);
+      return undefined;
+    }
     return [...new Set(v as string[])];
   };
 
   const items: KitItem[] = [];
-  if (!Array.isArray(raw.items) || raw.items.length === 0 || raw.items.length > MAX_ITEMS) bad("items", `1 to ${MAX_ITEMS} items`);
+  if (!Array.isArray(raw.items) || raw.items.length === 0 || raw.items.length > MAX_ITEMS)
+    bad("items", `1 to ${MAX_ITEMS} items`);
   else {
     const seen = new Set<string>();
     raw.items.forEach((it: unknown, i: number) => {
       const at = `items[${i}]`;
-      if (!isObj(it)) { bad(at, "an item is an object"); return; }
+      if (!isObj(it)) {
+        bad(at, "an item is an object");
+        return;
+      }
       const key = it.key;
-      if (typeof key !== "string" || !ITEM_KEY.test(key)) { bad(`${at}.key`, "lowercase letters, digits, dots, dashes and underscores"); return; }
-      if (seen.has(key)) { bad(`${at}.key`, `${key} is used twice`); return; }
+      if (typeof key !== "string" || !ITEM_KEY.test(key)) {
+        bad(`${at}.key`, "lowercase letters, digits, dots, dashes and underscores");
+        return;
+      }
+      if (seen.has(key)) {
+        bad(`${at}.key`, `${key} is used twice`);
+        return;
+      }
       seen.add(key);
       if (!CONTENT.includes(it.content as ContentType)) bad(`${at}.content`, "ui, structure, steps or tools");
-      if (typeof it.type !== "string" || !/^[a-z][a-z0-9_]{0,39}$/.test(it.type)) bad(`${at}.type`, "a type such as record_type or automation");
-      if (typeof it.title !== "string" || it.title.trim() === "" || it.title.length > 120) bad(`${at}.title`, "a title of 1 to 120 characters");
-      let apply = stepOf(it.apply, `${at}.apply`), undo = stepOf(it.undo, `${at}.undo`);
+      if (typeof it.type !== "string" || !/^[a-z][a-z0-9_]{0,39}$/.test(it.type))
+        bad(`${at}.type`, "a type such as record_type or automation");
+      if (typeof it.title !== "string" || it.title.trim() === "" || it.title.length > 120)
+        bad(`${at}.title`, "a title of 1 to 120 characters");
+      let apply = stepOf(it.apply, `${at}.apply`),
+        undo = stepOf(it.undo, `${at}.undo`);
       const used = SHORTHANDS.filter((k) => it[k] !== undefined);
-      if (used.length > 1 || (used.length === 1 && it.apply !== undefined)) bad(at, `carries ${used.join(" and ")}${it.apply !== undefined ? " and an apply step" : ""}; use one`);
+      if (used.length > 1 || (used.length === 1 && it.apply !== undefined))
+        bad(at, `carries ${used.join(" and ")}${it.apply !== undefined ? " and an apply step" : ""}; use one`);
       else if (used.length === 1) {
         const made = shorthand(used[0]!, it[used[0]!], String(raw.key), key, `${at}.${used[0]}`, bad);
-        if (made) { apply = made.apply; if (made.undo) undo = made.undo; }
+        if (made) {
+          apply = made.apply;
+          if (made.undo) undo = made.undo;
+        }
       }
-      if (it.recordType !== undefined && (typeof it.recordType !== "string" || !/^[a-z][a-z0-9_]*$/.test(it.recordType))) bad(`${at}.recordType`, "a record type name such as contact");
-      const tools = strings(it.tools, `${at}.tools`, (s) => CAP.test(s) && !forbiddenCap(s), "capability names a Kit may use");
+      if (
+        it.recordType !== undefined &&
+        (typeof it.recordType !== "string" || !/^[a-z][a-z0-9_]*$/.test(it.recordType))
+      )
+        bad(`${at}.recordType`, "a record type name such as contact");
+      const tools = strings(
+        it.tools,
+        `${at}.tools`,
+        (s) => CAP.test(s) && !forbiddenCap(s),
+        "capability names a Kit may use",
+      );
       const networkDomains = strings(it.networkDomains, `${at}.networkDomains`, (s) => HOST.test(s), "host names");
-      const vaultNames = strings(it.vaultNames, `${at}.vaultNames`, (s) => HANDLE.test(s), "Vault handles such as #Stripe_Key");
+      const vaultNames = strings(
+        it.vaultNames,
+        `${at}.vaultNames`,
+        (s) => HANDLE.test(s),
+        "Vault handles such as #Stripe_Key",
+      );
       items.push({
-        key, content: it.content as ContentType, type: String(it.type), title: String(it.title),
-        ...(apply ? { apply } : {}), ...(undo ? { undo } : {}), ...(typeof it.recordType === "string" ? { recordType: it.recordType } : {}),
-        ...(tools ? { tools } : {}), ...(networkDomains ? { networkDomains } : {}), ...(vaultNames ? { vaultNames } : {}),
+        key,
+        content: it.content as ContentType,
+        type: String(it.type),
+        title: String(it.title),
+        ...(apply ? { apply } : {}),
+        ...(undo ? { undo } : {}),
+        ...(typeof it.recordType === "string" ? { recordType: it.recordType } : {}),
+        ...(tools ? { tools } : {}),
+        ...(networkDomains ? { networkDomains } : {}),
+        ...(vaultNames ? { vaultNames } : {}),
       });
     });
   }
@@ -338,10 +496,29 @@ export function checkKit(raw: unknown): { kit: KitManifest; problems: [] } | { k
       const seen = new Set<string>();
       raw.scripts.forEach((sc: unknown, i: number) => {
         const at = `scripts[${i}]`;
-        if (!isObj(sc) || typeof sc.name !== "string" || !ITEM_KEY.test(sc.name) || typeof sc.source !== "string" || sc.source.trim() === "" || sc.source.length > 20_000) { bad(at, "a script has a name and source of at most 20000 characters"); return; }
-        if (seen.has(sc.name)) { bad(at, `${sc.name} is used twice`); return; }
+        if (
+          !isObj(sc) ||
+          typeof sc.name !== "string" ||
+          !ITEM_KEY.test(sc.name) ||
+          typeof sc.source !== "string" ||
+          sc.source.trim() === "" ||
+          sc.source.length > 20_000
+        ) {
+          bad(at, "a script has a name and source of at most 20000 characters");
+          return;
+        }
+        if (seen.has(sc.name)) {
+          bad(at, `${sc.name} is used twice`);
+          return;
+        }
         seen.add(sc.name);
-        const caps = strings(sc.caps ?? [], `${at}.caps`, (s) => CAP.test(s) && !forbiddenCap(s), "capability names a script may call") ?? [];
+        const caps =
+          strings(
+            sc.caps ?? [],
+            `${at}.caps`,
+            (s) => CAP.test(s) && !forbiddenCap(s),
+            "capability names a script may call",
+          ) ?? [];
         scripts.push({ name: sc.name, source: sc.source, caps });
       });
     }
@@ -354,13 +531,35 @@ export function checkKit(raw: unknown): { kit: KitManifest; problems: [] } | { k
       const names = new Set(scripts.map((s) => s.name));
       raw.tests.forEach((tt: unknown, i: number) => {
         const at = `tests[${i}]`;
-        if (!isObj(tt) || typeof tt.name !== "string" || tt.name === "" || !isObj(tt.expect)) { bad(at, "a test has a name and an expect object"); return; }
+        if (!isObj(tt) || typeof tt.name !== "string" || tt.name === "" || !isObj(tt.expect)) {
+          bad(at, "a test has a name and an expect object");
+          return;
+        }
         if (tt.kind === "script") {
-          if (typeof tt.script !== "string" || !names.has(tt.script)) { bad(`${at}.script`, "names a script of this Kit"); return; }
-          tests.push({ name: tt.name, kind: "script", script: tt.script, ...(tt.input !== undefined ? { input: tt.input } : {}), expect: tt.expect as ScriptTest["expect"] });
+          if (typeof tt.script !== "string" || !names.has(tt.script)) {
+            bad(`${at}.script`, "names a script of this Kit");
+            return;
+          }
+          tests.push({
+            name: tt.name,
+            kind: "script",
+            script: tt.script,
+            ...(tt.input !== undefined ? { input: tt.input } : {}),
+            expect: tt.expect as ScriptTest["expect"],
+          });
         } else if (tt.kind === "space") {
-          const seed = tt.seed === undefined ? [] : Array.isArray(tt.seed) ? tt.seed.map((s, j) => stepOf(s, `${at}.seed[${j}]`)).filter((s): s is KitStep => s !== undefined) : (bad(`${at}.seed`, "a list of steps"), []);
-          tests.push({ name: tt.name, kind: "space", ...(seed.length ? { seed } : {}), expect: tt.expect as SpaceTest["expect"] });
+          const seed =
+            tt.seed === undefined
+              ? []
+              : Array.isArray(tt.seed)
+                ? tt.seed.map((s, j) => stepOf(s, `${at}.seed[${j}]`)).filter((s): s is KitStep => s !== undefined)
+                : (bad(`${at}.seed`, "a list of steps"), []);
+          tests.push({
+            name: tt.name,
+            kind: "space",
+            ...(seed.length ? { seed } : {}),
+            expect: tt.expect as SpaceTest["expect"],
+          });
         } else bad(`${at}.kind`, "script or space");
       });
     }
@@ -368,8 +567,14 @@ export function checkKit(raw: unknown): { kit: KitManifest; problems: [] } | { k
 
   if (problems.length > 0) return { kit: null, problems };
   const kit: KitManifest = {
-    key: raw.key as string, title: raw.title as string, version: raw.version as string, channel: (raw.channel as KitChannel | undefined) ?? "stable",
-    ...(typeof raw.description === "string" ? { description: raw.description } : {}), items, ...(scripts.length ? { scripts } : {}), ...(tests.length ? { tests } : {}),
+    key: raw.key as string,
+    title: raw.title as string,
+    version: raw.version as string,
+    channel: (raw.channel as KitChannel | undefined) ?? "stable",
+    ...(typeof raw.description === "string" ? { description: raw.description } : {}),
+    items,
+    ...(scripts.length ? { scripts } : {}),
+    ...(tests.length ? { tests } : {}),
   };
   return { kit, problems: [] };
 }
@@ -389,20 +594,39 @@ export interface InstallSheet {
   problems: SheetProblem[];
 }
 
-export interface SheetProblem { item: string; step: "apply" | "undo"; cap: string; input: Record<string, unknown>; message: string }
+export interface SheetProblem {
+  item: string;
+  step: "apply" | "undo";
+  cap: string;
+  input: Record<string, unknown>;
+  message: string;
+}
 
 /** Everything the Kit will touch, from its own manifest. Sorted, so the sheet is the same every time. */
 export function sheetOf(kit: KitManifest): InstallSheet {
-  const tools = new Set<string>(), types = new Set<string>(), domains = new Set<string>(), vault = new Set<string>();
-  const skills = new Set<string>(), marketplaces = new Set<string>(), plugins = new Set<string>(), connections = new Set<string>(), agents = new Set<string>();
+  const tools = new Set<string>(),
+    types = new Set<string>(),
+    domains = new Set<string>(),
+    vault = new Set<string>();
+  const skills = new Set<string>(),
+    marketplaces = new Set<string>(),
+    plugins = new Set<string>(),
+    connections = new Set<string>(),
+    agents = new Set<string>();
   for (const it of kit.items) {
-    const a = it.apply, i = a?.input ?? {};
-    if (a?.cap === "skills.add" && typeof i["text"] === "string") { const p = parseSkill(i["text"]); if (p.ok) skills.add(p.skill.name); }
+    const a = it.apply,
+      i = a?.input ?? {};
+    if (a?.cap === "skills.add" && typeof i["text"] === "string") {
+      const p = parseSkill(i["text"]);
+      if (p.ok) skills.add(p.skill.name);
+    }
     if (a?.cap === "plugins.marketplace.add") marketplaces.add(String(i["source"]));
-    if (a?.cap === "plugins.install") plugins.add(`${String(i["plugin"])} from ${String(i["marketplace"] ?? i["marketplaceId"])}`);
+    if (a?.cap === "plugins.install")
+      plugins.add(`${String(i["plugin"])} from ${String(i["marketplace"] ?? i["marketplaceId"])}`);
     if (a?.cap === "plugins.connection.add") connections.add(String(i["name"]));
     if (a?.cap === "agents.create") agents.add(String(i["name"]));
-    for (const c of Object.values((i["config"] as Record<string, string> | undefined) ?? {})) if (/^#[A-Za-z0-9_]+/.test(c)) vault.add(c.split(".")[0]!);
+    for (const c of Object.values((i["config"] as Record<string, string> | undefined) ?? {}))
+      if (/^#[A-Za-z0-9_]+/.test(c)) vault.add(c.split(".")[0]!);
     for (const t of it.tools ?? []) tools.add(t);
     if (it.apply) tools.add(it.apply.cap);
     if (it.undo) tools.add(it.undo.cap);
@@ -412,8 +636,19 @@ export function sheetOf(kit: KitManifest): InstallSheet {
   }
   for (const s of kit.scripts ?? []) for (const c of s.caps) tools.add(c);
   const sort = (s: Set<string>): string[] => [...s].sort();
-  return { tools: sort(tools), recordTypes: sort(types), networkDomains: sort(domains), vaultNames: sort(vault), scripts: (kit.scripts ?? []).length,
-    skills: sort(skills), marketplaces: sort(marketplaces), plugins: sort(plugins), connections: sort(connections), agents: sort(agents), problems: [] };
+  return {
+    tools: sort(tools),
+    recordTypes: sort(types),
+    networkDomains: sort(domains),
+    vaultNames: sort(vault),
+    scripts: (kit.scripts ?? []).length,
+    skills: sort(skills),
+    marketplaces: sort(marketplaces),
+    plugins: sort(plugins),
+    connections: sort(connections),
+    agents: sort(agents),
+    problems: [],
+  };
 }
 
 export function contentsOf(kit: KitManifest): ContentType[] {
@@ -434,8 +669,13 @@ export interface KitRow {
 
 export function kitOf(r: Row): KitRow {
   return {
-    id: str(r.id), key: str(r.key), title: str(r.title), channel: str(r.channel) as KitChannel, builtin: num(r.builtin) === 1,
-    installedVersion: isNull(r.installed_version) ? null : str(r.installed_version), previousVersion: isNull(r.previous_version) ? null : str(r.previous_version),
+    id: str(r.id),
+    key: str(r.key),
+    title: str(r.title),
+    channel: str(r.channel) as KitChannel,
+    builtin: num(r.builtin) === 1,
+    installedVersion: isNull(r.installed_version) ? null : str(r.installed_version),
+    previousVersion: isNull(r.previous_version) ? null : str(r.previous_version),
   };
 }
 
@@ -460,7 +700,8 @@ export function headOf(ctx: Ctx, kitId: string, channel: KitChannel): Row | unde
 }
 
 export function setHead(ctx: Ctx, kitId: string, channel: KitChannel, versionId: string): void {
-  if (one(ctx, "SELECT * FROM kits_head WHERE kit_id = ? AND channel = ?", kitId, channel)) ctx.db.run("UPDATE kits_head SET version_id = ? WHERE kit_id = ? AND channel = ?", versionId, kitId, channel);
+  if (one(ctx, "SELECT * FROM kits_head WHERE kit_id = ? AND channel = ?", kitId, channel))
+    ctx.db.run("UPDATE kits_head SET version_id = ? WHERE kit_id = ? AND channel = ?", versionId, kitId, channel);
   else ctx.db.run("INSERT INTO kits_head (kit_id, channel, version_id) VALUES (?, ?, ?)", kitId, channel, versionId);
 }
 
@@ -469,7 +710,15 @@ export async function storeVersion(ctx: Ctx, kitId: string, kit: KitManifest, by
   const id = nid(ctx, "ver");
   ctx.db.run(
     "INSERT INTO kits_version (id, kit_id, version, channel, content, hash, published_by, at, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    id, kitId, kit.version, kit.channel, content, await sha256hex(canonical(kit)), by, ctx.now(), "live",
+    id,
+    kitId,
+    kit.version,
+    kit.channel,
+    content,
+    await sha256hex(canonical(kit)),
+    by,
+    ctx.now(),
+    "live",
   );
   return one(ctx, "SELECT * FROM kits_version WHERE id = ?", id) as Row;
 }
@@ -496,8 +745,22 @@ export async function ensureCatalog(ctx: Ctx): Promise<void> {
     const kit = checked.kit;
     let row = one(ctx, "SELECT * FROM kits_kit WHERE key = ?", kit.key);
     if (!row) {
-      const id = nid(ctx, "kit"), now = ctx.now();
-      ctx.db.run("INSERT INTO kits_kit (id, key, title, channel, builtin, installed_version, previous_version, installed_by, installed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", id, kit.key, kit.title, kit.channel, 1, null, null, null, null, now, now);
+      const id = nid(ctx, "kit"),
+        now = ctx.now();
+      ctx.db.run(
+        "INSERT INTO kits_kit (id, key, title, channel, builtin, installed_version, previous_version, installed_by, installed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        id,
+        kit.key,
+        kit.title,
+        kit.channel,
+        1,
+        null,
+        null,
+        null,
+        null,
+        now,
+        now,
+      );
       row = one(ctx, "SELECT * FROM kits_kit WHERE id = ?", id) as Row;
     }
     const kitId = str(row.id);
@@ -507,7 +770,8 @@ export async function ensureCatalog(ctx: Ctx): Promise<void> {
     if (!v) v = await storeVersion(ctx, kitId, kit, "builtin");
     // only a version the server has not seen before can take the head, so a restore_version is not undone by the next list
     const head = headOf(ctx, kitId, kit.channel);
-    if (!head || (isNew && compareSemver(kit.version, str(head.version)) > 0)) setHead(ctx, kitId, kit.channel, str(v.id));
+    if (!head || (isNew && compareSemver(kit.version, str(head.version)) > 0))
+      setHead(ctx, kitId, kit.channel, str(v.id));
   }
 }
 
@@ -525,7 +789,15 @@ export function kitOut(ctx: Ctx, k: KitRow): KitOut {
   const head = headOf(ctx, k.id, k.channel);
   const version = k.installedVersion ?? (head ? str(head.version) : "");
   const vr = version ? versionRow(ctx, k.id, version) : undefined;
-  return { kitId: k.id, key: k.key, title: k.title, version, channel: k.channel, installed: k.installedVersion !== null, contents: vr ? contentsOf(parseManifest(vr)) : [] };
+  return {
+    kitId: k.id,
+    key: k.key,
+    title: k.title,
+    version,
+    channel: k.channel,
+    installed: k.installedVersion !== null,
+    contents: vr ? contentsOf(parseManifest(vr)) : [],
+  };
 }
 
 /** The manifest the sheet and preview describe: what is installed, else the head of the Kit's channel. */
@@ -541,8 +813,13 @@ async function list(ctx: Ctx, input: unknown): Promise<{ kits: KitOut[]; next?: 
   const o = rec(ctx, input);
   const { offset, limit } = pageOf(ctx, o);
   await ensureCatalog(ctx);
-  const rows = many(ctx, "SELECT * FROM kits_kit").map(kitOf).sort((a, b) => a.title.localeCompare(b.title) || a.key.localeCompare(b.key));
-  const out: { kits: KitOut[]; next?: string; total: number } = { kits: rows.slice(offset, offset + limit).map((k) => kitOut(ctx, k)), total: rows.length };
+  const rows = many(ctx, "SELECT * FROM kits_kit")
+    .map(kitOf)
+    .sort((a, b) => a.title.localeCompare(b.title) || a.key.localeCompare(b.key));
+  const out: { kits: KitOut[]; next?: string; total: number } = {
+    kits: rows.slice(offset, offset + limit).map((k) => kitOut(ctx, k)),
+    total: rows.length,
+  };
   if (offset + limit < rows.length) out.next = String(offset + limit);
   return out;
 }
@@ -559,21 +836,26 @@ async function existingType(ctx: Ctx, type: string): Promise<Record<string, unkn
   try {
     const got = (await ctx.call("schema.types.get" as never, { type } as never)) as { type?: unknown };
     return isObj(got?.type) ? got.type : {};
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 /** What differs between the type a Kit declares and the one the Space has, or null when the Space's type already carries everything the Kit declares (a seeded or earlier-installed copy). Extra fields the Space added are fine. */
 function typeDiffers(def: Record<string, unknown>, have: Record<string, unknown>): string | null {
   for (const [k, v] of Object.entries(def)) {
     if (k === "fields") continue;
-    if (!sameJson(v, have[k])) return `${k} is ${JSON.stringify(have[k]) ?? "unset"}, the Kit wants ${JSON.stringify(v)}`;
+    if (!sameJson(v, have[k]))
+      return `${k} is ${JSON.stringify(have[k]) ?? "unset"}, the Kit wants ${JSON.stringify(v)}`;
   }
   const haveFields = Array.isArray(have["fields"]) ? (have["fields"] as unknown[]).filter(isObj) : [];
   for (const f of Array.isArray(def["fields"]) ? def["fields"] : []) {
     if (!isObj(f)) continue;
     const h = haveFields.find((x) => x["key"] === f["key"]);
     if (!h) return `field ${String(f["key"])} is missing`;
-    for (const [k, v] of Object.entries(f)) if (!sameJson(v, h[k])) return `field ${String(f["key"])} ${k} is ${JSON.stringify(h[k]) ?? "unset"}, the Kit wants ${JSON.stringify(v)}`;
+    for (const [k, v] of Object.entries(f))
+      if (!sameJson(v, h[k]))
+        return `field ${String(f["key"])} ${k} is ${JSON.stringify(h[k]) ?? "unset"}, the Kit wants ${JSON.stringify(v)}`;
   }
   return null;
 }
@@ -584,7 +866,10 @@ function typeDiffers(def: Record<string, unknown>, have: Record<string, unknown>
  */
 async function sheetProblems(ctx: Ctx, kit: KitManifest): Promise<SheetProblem[]> {
   const caps = new Map<string, (typeof registry.capabilities)[number]>();
-  for (const c of registry.capabilities) { const old = caps.get(c.name); if (!old || c.v > old.v) caps.set(c.name, c); }
+  for (const c of registry.capabilities) {
+    const old = caps.get(c.name);
+    if (!old || c.v > old.v) caps.set(c.name, c);
+  }
   const out: SheetProblem[] = [];
   const seenTypes = new Set<string>();
   for (const it of kit.items) {
@@ -592,15 +877,26 @@ async function sheetProblems(ctx: Ctx, kit: KitManifest): Promise<SheetProblem[]
       const step = it[which];
       if (!step) continue;
       const def = caps.get(step.cap);
-      const add = (message: string): void => { out.push({ item: it.key, step: which, cap: step.cap, input: step.input, message }); };
-      if (!def) { add(`${step.cap} is not a capability on this server.`); continue; }
+      const add = (message: string): void => {
+        out.push({ item: it.key, step: which, cap: step.cap, input: step.input, message });
+      };
+      if (!def) {
+        add(`${step.cap} is not a capability on this server.`);
+        continue;
+      }
       const bad = validate(def.input, step.input, "", registry.$defs);
-      if (bad.length) { add(`The input does not fit ${step.cap}: ${bad.slice(0, 3).join("; ")}`); continue; }
+      if (bad.length) {
+        add(`The input does not fit ${step.cap}: ${bad.slice(0, 3).join("; ")}`);
+        continue;
+      }
       if (which !== "apply" || step.cap !== "schema.apply") continue;
       for (const op of Array.isArray(step.input["ops"]) ? (step.input["ops"] as Record<string, unknown>[]) : []) {
         if (op["op"] !== "type.create" || typeof op["type"] !== "string") continue;
         const type = op["type"];
-        if (seenTypes.has(type)) { add(`Record type ${type} is created twice in this Kit.`); continue; }
+        if (seenTypes.has(type)) {
+          add(`Record type ${type} is created twice in this Kit.`);
+          continue;
+        }
         seenTypes.add(type);
         const have = await existingType(ctx, type);
         const why = have === null ? null : typeDiffers(isObj(op["def"]) ? op["def"] : {}, have);
@@ -618,11 +914,24 @@ async function installSheet(ctx: Ctx, input: unknown): Promise<{ sheet: InstallS
   return { sheet: { ...sheetOf(manifest), problems: await sheetProblems(ctx, manifest) } };
 }
 
-async function versions(ctx: Ctx, input: unknown): Promise<{ versions: { versionId: string; version: string; at: number; by: string; channel: KitChannel }[] }> {
+async function versions(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ versions: { versionId: string; version: string; at: number; by: string; channel: KitChannel }[] }> {
   await ensureCatalog(ctx);
   const k = mustKit(ctx, reqStr(ctx, rec(ctx, input), "kitId"));
-  const rows = many(ctx, "SELECT * FROM kits_version WHERE kit_id = ?", k.id).sort((a, b) => num(b.at) - num(a.at) || compareSemver(str(b.version), str(a.version)));
-  return { versions: rows.map((r) => ({ versionId: str(r.id), version: str(r.version), at: num(r.at), by: str(r.published_by), channel: str(r.channel) as KitChannel })) };
+  const rows = many(ctx, "SELECT * FROM kits_version WHERE kit_id = ?", k.id).sort(
+    (a, b) => num(b.at) - num(a.at) || compareSemver(str(b.version), str(a.version)),
+  );
+  return {
+    versions: rows.map((r) => ({
+      versionId: str(r.id),
+      version: str(r.version),
+      at: num(r.at),
+      by: str(r.published_by),
+      channel: str(r.channel) as KitChannel,
+    })),
+  };
 }
 
 async function restoreVersion(ctx: Ctx, input: unknown): Promise<{ kit: KitOut }> {
@@ -638,7 +947,8 @@ async function choose(ctx: Ctx, input: unknown): Promise<{ ok: true }> {
   const o = rec(ctx, input);
   const k = mustKit(ctx, reqStr(ctx, o, "kitId"));
   const scope = reqStr(ctx, o, "scope");
-  if (scope !== "space" && scope !== "person") fail(ctx, "validation.bad_input", "Choose space or person.", { field: "scope" });
+  if (scope !== "space" && scope !== "person")
+    fail(ctx, "validation.bad_input", "Choose space or person.", { field: "scope" });
   if (k.installedVersion === null) fail(ctx, "validation.precondition_failed", "Install this Kit before choosing it.");
   await ctx.call(scope === "space" ? "settings.kit.set_space" : "settings.kit.set_mine", { kitId: k.id });
   return { ok: true };
@@ -652,7 +962,11 @@ async function builderOpen(ctx: Ctx, input: unknown): Promise<{ threadId: string
   const brief = optStr(ctx, o, "brief");
   const k = kitId ? mustKit(ctx, kitId) : null;
   const made = (await ctx.call("chat.start", {
-    kind: "chat", agentIds: [agent], title: k ? `Kit builder: ${k.title}` : "Kit builder", ...(k ? { scopeType: "kit", scopeId: k.id } : {}), ...(brief ? { first: brief } : {}),
+    kind: "chat",
+    agentIds: [agent],
+    title: k ? `Kit builder: ${k.title}` : "Kit builder",
+    ...(k ? { scopeType: "kit", scopeId: k.id } : {}),
+    ...(brief ? { first: brief } : {}),
   })) as { thread?: { threadId?: string } };
   const threadId = made.thread?.threadId;
   if (typeof threadId !== "string") fail(ctx, "internal.unexpected", "The builder chat was not created.");
@@ -666,12 +980,20 @@ export interface Change {
   item: KitItem;
 }
 
-interface Applied { key: string; hash: string; undo: KitStep | null }
+interface Applied {
+  key: string;
+  hash: string;
+  undo: KitStep | null;
+}
 
 function appliedOf(ctx: Ctx, kitId: string): Applied[] {
   return many(ctx, "SELECT * FROM kits_applied WHERE kit_id = ?", kitId)
     .sort((a, b) => num(a.at) - num(b.at) || str(a.item_key).localeCompare(str(b.item_key)))
-    .map((r) => ({ key: str(r.item_key), hash: str(r.item_hash), undo: isNull(r.undo) ? null : (JSON.parse(str(r.undo)) as KitStep) }));
+    .map((r) => ({
+      key: str(r.item_key),
+      hash: str(r.item_hash),
+      undo: isNull(r.undo) ? null : (JSON.parse(str(r.undo)) as KitStep),
+    }));
 }
 
 async function itemHash(it: KitItem): Promise<string> {
@@ -679,7 +1001,11 @@ async function itemHash(it: KitItem): Promise<string> {
 }
 
 /** What moving to `target` changes, from what is applied now (nothing applied means everything is an add). Removed items carry their stored undo. */
-export async function diffTo(ctx: Ctx, kitId: string, target: KitManifest): Promise<{ changes: Change[]; hashes: Map<string, string> }> {
+export async function diffTo(
+  ctx: Ctx,
+  kitId: string,
+  target: KitManifest,
+): Promise<{ changes: Change[]; hashes: Map<string, string> }> {
   const applied = appliedOf(ctx, kitId);
   const byKey = new Map(applied.map((a) => [a.key, a]));
   const changes: Change[] = [];
@@ -693,7 +1019,11 @@ export async function diffTo(ctx: Ctx, kitId: string, target: KitManifest): Prom
   }
   const wanted = new Set(target.items.map((i) => i.key));
   for (const a of [...applied].reverse()) {
-    if (!wanted.has(a.key)) changes.push({ op: "remove", item: { key: a.key, content: "structure", type: "item", title: a.key, ...(a.undo ? { undo: a.undo } : {}) } });
+    if (!wanted.has(a.key))
+      changes.push({
+        op: "remove",
+        item: { key: a.key, content: "structure", type: "item", title: a.key, ...(a.undo ? { undo: a.undo } : {}) },
+      });
   }
   return { changes, hashes };
 }
@@ -710,7 +1040,12 @@ async function preview(ctx: Ctx, input: unknown): Promise<{ changes: { kind: str
   // a removed item is named by its title in the installed version when that is still stored
   const installed = k.installedVersion !== null ? versionRow(ctx, k.id, k.installedVersion) : undefined;
   const titles = new Map((installed ? parseManifest(installed).items : []).map((i) => [i.key, i] as const));
-  return { changes: changes.map((c) => { const full = c.op === "remove" ? titles.get(c.item.key) ?? c.item : c.item; return { kind: full.type, title: `${VERB[c.op]} ${full.title}` }; }) };
+  return {
+    changes: changes.map((c) => {
+      const full = c.op === "remove" ? (titles.get(c.item.key) ?? c.item) : c.item;
+      return { kind: full.type, title: `${VERB[c.op]} ${full.title}` };
+    }),
+  };
 }
 
 /**
@@ -723,14 +1058,34 @@ async function ensureTypes(ctx: Ctx, step: KitStep): Promise<{ step: KitStep | n
   const keep: unknown[] = [];
   const reused: string[] = [];
   for (const op of ops) {
-    if (!isObj(op) || op["op"] !== "type.create" || typeof op["type"] !== "string") { keep.push(op); continue; }
+    if (!isObj(op) || op["op"] !== "type.create" || typeof op["type"] !== "string") {
+      keep.push(op);
+      continue;
+    }
     const have = await existingType(ctx, op["type"]);
-    if (have === null) { keep.push(op); continue; }
+    if (have === null) {
+      keep.push(op);
+      continue;
+    }
     const why = typeDiffers(isObj(op["def"]) ? op["def"] : {}, have);
-    if (why !== null) fail(ctx, "validation.precondition_failed", `Record type ${op["type"]} already exists in this Space and differs from the Kit's: ${why}`, { type: op["type"] });
+    if (why !== null)
+      fail(
+        ctx,
+        "validation.precondition_failed",
+        `Record type ${op["type"]} already exists in this Space and differs from the Kit's: ${why}`,
+        { type: op["type"] },
+      );
     reused.push(op["type"]);
   }
-  return { step: keep.length === 0 ? null : keep.length === ops.length ? step : { cap: step.cap, input: { ...step.input, ops: keep } }, reused };
+  return {
+    step:
+      keep.length === 0
+        ? null
+        : keep.length === ops.length
+          ? step
+          : { cap: step.cap, input: { ...step.input, ops: keep } },
+    reused,
+  };
 }
 
 /** The record types an apply step found already there (the manifest seeds the Default Kit's note_board). */
@@ -745,9 +1100,13 @@ async function runStep(ctx: Ctx, step: KitStep): Promise<string[]> {
 function undoWithout(undo: KitStep | undefined, reused: string[]): KitStep | null {
   if (!undo) return null;
   if (reused.length === 0 || undo.cap !== "schema.apply" || !Array.isArray(undo.input["ops"])) return undo;
-  const ops = (undo.input["ops"] as unknown[]).filter((o) => !(isObj(o) && o["op"] === "type.drop" && typeof o["type"] === "string" && reused.includes(o["type"])));
+  const ops = (undo.input["ops"] as unknown[]).filter(
+    (o) => !(isObj(o) && o["op"] === "type.drop" && typeof o["type"] === "string" && reused.includes(o["type"])),
+  );
   if (ops.length === 0) return null;
-  const confirm = Array.isArray(undo.input["confirm"]) ? (undo.input["confirm"] as unknown[]).filter((t) => typeof t !== "string" || !reused.includes(t)) : undefined;
+  const confirm = Array.isArray(undo.input["confirm"])
+    ? (undo.input["confirm"] as unknown[]).filter((t) => typeof t !== "string" || !reused.includes(t))
+    : undefined;
   return { cap: undo.cap, input: { ...undo.input, ops, ...(confirm !== undefined ? { confirm } : {}) } };
 }
 
@@ -756,7 +1115,7 @@ async function applyChanges(ctx: Ctx, kitId: string, target: KitManifest, verb: 
   const { changes, hashes } = await diffTo(ctx, kitId, target);
   const appliedBefore = new Map(appliedOf(ctx, kitId).map((a) => [a.key, a.undo] as const));
   const done: Change[] = [];
-  const undoOf = new Map<string, KitStep | null>();   // the undo each added item stores: it never drops a record type this run did not create
+  const undoOf = new Map<string, KitStep | null>(); // the undo each added item stores: it never drops a record type this run did not create
   for (const c of changes) {
     try {
       if (c.op === "remove") {
@@ -770,30 +1129,71 @@ async function applyChanges(ctx: Ctx, kitId: string, target: KitManifest, verb: 
       for (const d of [...done].reverse()) {
         const u = undoOf.get(d.item.key) ?? d.item.undo;
         if (d.op !== "add" || !u) continue;
-        try { await runStep(ctx, u); } catch (u) { ctx.log.warn("kits: undo after a failed install failed", { item: d.item.key, error: u instanceof Error ? u.message : String(u) }); }
+        try {
+          await runStep(ctx, u);
+        } catch (u) {
+          ctx.log.warn("kits: undo after a failed install failed", {
+            item: d.item.key,
+            error: u instanceof Error ? u.message : String(u),
+          });
+        }
       }
       // the ledger is written only after every step worked, so a failed run leaves it as it was: a retry re-applies what this run already did
-      const msg = (e as { error?: { message?: unknown } } | null)?.error?.message ?? (e instanceof Error ? e.message : "The step failed.");
+      const msg =
+        (e as { error?: { message?: unknown } } | null)?.error?.message ??
+        (e instanceof Error ? e.message : "The step failed.");
       const code = (e as { error?: { code?: unknown } } | null)?.error?.code;
       const why = (e as { error?: { details?: unknown } } | null)?.error?.details;
       ctx.log.warn(`kits: ${verb} failed`, { kitId, item: c.item.key, code: typeof code === "string" ? code : "" });
-      fail(ctx, "validation.precondition_failed", `Could not ${verb} "${c.item.title}": ${String(msg).slice(0, 200)} Nothing was left half installed.`, { item: c.item.key, ...(why !== undefined ? { step: why } : {}) });
+      fail(
+        ctx,
+        "validation.precondition_failed",
+        `Could not ${verb} "${c.item.title}": ${String(msg).slice(0, 200)} Nothing was left half installed.`,
+        { item: c.item.key, ...(why !== undefined ? { step: why } : {}) },
+      );
     }
   }
   const now = ctx.now();
   for (const c of changes) {
-    if (c.op === "remove") { ctx.db.run("DELETE FROM kits_applied WHERE kit_id = ? AND item_key = ?", kitId, c.item.key); continue; }
+    if (c.op === "remove") {
+      ctx.db.run("DELETE FROM kits_applied WHERE kit_id = ? AND item_key = ?", kitId, c.item.key);
+      continue;
+    }
     let stored = undoOf.has(c.item.key) ? undoOf.get(c.item.key) : c.item.undo;
     if (c.op === "change") {
       // a changed item keeps not owning the types its first install did not create: drops the stored undo never had stay out of the new one
-      const dropped = (u: KitStep | null | undefined): string[] => (u && Array.isArray(u.input["ops"]) ? (u.input["ops"] as unknown[]).flatMap((o) => (isObj(o) && o["op"] === "type.drop" && typeof o["type"] === "string" ? [o["type"]] : [])) : []);
+      const dropped = (u: KitStep | null | undefined): string[] =>
+        u && Array.isArray(u.input["ops"])
+          ? (u.input["ops"] as unknown[]).flatMap((o) =>
+              isObj(o) && o["op"] === "type.drop" && typeof o["type"] === "string" ? [o["type"]] : [],
+            )
+          : [];
       const before = dropped(appliedBefore.get(c.item.key));
-      stored = undoWithout(c.item.undo, dropped(c.item.undo).filter((t) => !before.includes(t)));
+      stored = undoWithout(
+        c.item.undo,
+        dropped(c.item.undo).filter((t) => !before.includes(t)),
+      );
     }
     const undo = stored ? JSON.stringify(stored) : null;
     const hash = hashes.get(c.item.key) ?? "";
-    if (c.op === "add") ctx.db.run("INSERT INTO kits_applied (kit_id, item_key, item_hash, undo, at) VALUES (?, ?, ?, ?, ?)", kitId, c.item.key, hash, undo, now);
-    else ctx.db.run("UPDATE kits_applied SET item_hash = ?, undo = ?, at = ? WHERE kit_id = ? AND item_key = ?", hash, undo, now, kitId, c.item.key);
+    if (c.op === "add")
+      ctx.db.run(
+        "INSERT INTO kits_applied (kit_id, item_key, item_hash, undo, at) VALUES (?, ?, ?, ?, ?)",
+        kitId,
+        c.item.key,
+        hash,
+        undo,
+        now,
+      );
+    else
+      ctx.db.run(
+        "UPDATE kits_applied SET item_hash = ?, undo = ?, at = ? WHERE kit_id = ? AND item_key = ?",
+        hash,
+        undo,
+        now,
+        kitId,
+        c.item.key,
+      );
   }
 }
 
@@ -802,13 +1202,22 @@ async function install(ctx: Ctx, input: unknown): Promise<{ kit: KitOut }> {
   if (o.accepted !== true) fail(ctx, "validation.bad_input", "Confirm the install sheet first.", { field: "accepted" });
   await ensureCatalog(ctx);
   const k = mustKit(ctx, reqStr(ctx, o, "kitId"));
-  if (k.installedVersion !== null) fail(ctx, "validation.precondition_failed", `${k.title} is already installed (${k.installedVersion}). Use update.`);
+  if (k.installedVersion !== null)
+    fail(ctx, "validation.precondition_failed", `${k.title} is already installed (${k.installedVersion}). Use update.`);
   const head = headOf(ctx, k.id, k.channel);
   if (!head) fail(ctx, "validation.precondition_failed", "This Kit has no published version yet.");
   const target = parseManifest(head);
   await applyChanges(ctx, k.id, target, "install");
   const now = ctx.now();
-  ctx.db.run("UPDATE kits_kit SET installed_version = ?, previous_version = ?, installed_by = ?, installed_at = ?, updated_at = ? WHERE id = ?", target.version, null, ctx.principal.id, now, now, k.id);
+  ctx.db.run(
+    "UPDATE kits_kit SET installed_version = ?, previous_version = ?, installed_by = ?, installed_at = ?, updated_at = ? WHERE id = ?",
+    target.version,
+    null,
+    ctx.principal.id,
+    now,
+    now,
+    k.id,
+  );
   ctx.emit("kit.installed", `kit/${k.id}`, { kitId: k.id, version: target.version });
   return { kit: kitOut(ctx, mustKit(ctx, k.id)) };
 }
@@ -817,15 +1226,34 @@ async function update(ctx: Ctx, input: unknown): Promise<{ kit: KitOut }> {
   const o = rec(ctx, input);
   await ensureCatalog(ctx);
   const k = mustKit(ctx, reqStr(ctx, o, "kitId"));
-  if (k.installedVersion === null) fail(ctx, "validation.precondition_failed", `${k.title} is not installed. Install it first.`);
+  if (k.installedVersion === null)
+    fail(ctx, "validation.precondition_failed", `${k.title} is not installed. Install it first.`);
   const wanted = optStr(ctx, o, "version");
   const row = wanted !== undefined ? versionRow(ctx, k.id, wanted) : headOf(ctx, k.id, k.channel);
-  if (!row) fail(ctx, "validation.not_found", wanted !== undefined ? `Version ${wanted} of ${k.title} does not exist.` : "This Kit has no published version yet.");
+  if (!row)
+    fail(
+      ctx,
+      "validation.not_found",
+      wanted !== undefined
+        ? `Version ${wanted} of ${k.title} does not exist.`
+        : "This Kit has no published version yet.",
+    );
   const target = parseManifest(row);
-  if (compareSemver(target.version, k.installedVersion) <= 0) fail(ctx, "validation.precondition_failed", `${k.title} ${k.installedVersion} is already at or past ${target.version}. Use rollback to go back.`);
+  if (compareSemver(target.version, k.installedVersion) <= 0)
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      `${k.title} ${k.installedVersion} is already at or past ${target.version}. Use rollback to go back.`,
+    );
   const from = k.installedVersion;
   await applyChanges(ctx, k.id, target, "update");
-  ctx.db.run("UPDATE kits_kit SET installed_version = ?, previous_version = ?, updated_at = ? WHERE id = ?", target.version, from, ctx.now(), k.id);
+  ctx.db.run(
+    "UPDATE kits_kit SET installed_version = ?, previous_version = ?, updated_at = ? WHERE id = ?",
+    target.version,
+    from,
+    ctx.now(),
+    k.id,
+  );
   ctx.emit("kit.updated", `kit/${k.id}`, { kitId: k.id, from, to: target.version });
   return { kit: kitOut(ctx, mustKit(ctx, k.id)) };
 }
@@ -835,13 +1263,21 @@ async function rollback(ctx: Ctx, input: unknown): Promise<{ kit: KitOut }> {
   const k = mustKit(ctx, reqStr(ctx, o, "kitId"));
   if (k.installedVersion === null) fail(ctx, "validation.precondition_failed", `${k.title} is not installed.`);
   const toVersion = optStr(ctx, o, "toVersion") ?? k.previousVersion;
-  if (toVersion === null || toVersion === undefined) fail(ctx, "validation.precondition_failed", `${k.title} has no earlier version to go back to.`);
-  if (toVersion === k.installedVersion) fail(ctx, "validation.precondition_failed", `${k.title} is already at ${toVersion}.`);
+  if (toVersion === null || toVersion === undefined)
+    fail(ctx, "validation.precondition_failed", `${k.title} has no earlier version to go back to.`);
+  if (toVersion === k.installedVersion)
+    fail(ctx, "validation.precondition_failed", `${k.title} is already at ${toVersion}.`);
   const row = versionRow(ctx, k.id, toVersion);
   if (!row) fail(ctx, "validation.not_found", `Version ${toVersion} of ${k.title} is not stored.`);
   const from = k.installedVersion;
   await applyChanges(ctx, k.id, parseManifest(row), "roll back");
-  ctx.db.run("UPDATE kits_kit SET installed_version = ?, previous_version = ?, updated_at = ? WHERE id = ?", toVersion, from, ctx.now(), k.id);
+  ctx.db.run(
+    "UPDATE kits_kit SET installed_version = ?, previous_version = ?, updated_at = ? WHERE id = ?",
+    toVersion,
+    from,
+    ctx.now(),
+    k.id,
+  );
   ctx.emit("kit.rolled_back", `kit/${k.id}`, { kitId: k.id, to: toVersion });
   return { kit: kitOut(ctx, mustKit(ctx, k.id)) };
 }

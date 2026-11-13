@@ -7,16 +7,37 @@ import type { EngineSession } from "../src/turn-engine/index.ts";
 
 function driver(id: string, kind: "api" | "cli"): PoolDriver & { closed: number } {
   const d = {
-    id, kind, closed: 0,
+    id,
+    kind,
+    closed: 0,
     async open(): Promise<EngineSession> {
-      return { warm: true, async *send() { yield { type: "done" as const }; }, sendToolResult() {}, inject() {}, async cancel() {}, async close() { d.closed++; } };
+      return {
+        warm: true,
+        async *send() {
+          yield { type: "done" as const };
+        },
+        sendToolResult() {},
+        inject() {},
+        async cancel() {},
+        async close() {
+          d.closed++;
+        },
+      };
     },
   };
   return d;
 }
 const spec = (driverId: string, thread: string): PoolSpec => ({
-  key: { driver: driverId, accountRef: "#acct", model: "m", sandboxId: null, mcpProfile: "agt_intake|usr_dana" }, threadId: thread, person: "usr_dana",
-  session: { threadId: thread, agent: { id: "agt_intake", mode: "lead" }, asker: "usr_dana", turnId: "trn_1", traceId: "a".repeat(32) },
+  key: { driver: driverId, accountRef: "#acct", model: "m", sandboxId: null, mcpProfile: "agt_intake|usr_dana" },
+  threadId: thread,
+  person: "usr_dana",
+  session: {
+    threadId: thread,
+    agent: { id: "agt_intake", mode: "lead" },
+    asker: "usr_dana",
+    turnId: "trn_1",
+    traceId: "a".repeat(32),
+  },
 });
 
 test("drop closes the idle CLI sessions of that thread only, and the thread's next acquire opens a new one", async () => {
@@ -27,7 +48,7 @@ test("drop closes the idle CLI sessions of that thread only, and the thread's ne
   await pool.release(a);
   const b = await pool.acquire(spec("claude_code", "thr_b"));
   await pool.release(b);
-  const busy = await pool.acquire(spec("claude_code", "thr_a"));   // the warm one, now busy
+  const busy = await pool.acquire(spec("claude_code", "thr_a")); // the warm one, now busy
   const second = await pool.acquire(spec("claude_code", "thr_a")); // a second one for the same thread, opened and released idle
   await pool.release(second);
   const x = await pool.acquire(spec("anthropic", "thr_a"));

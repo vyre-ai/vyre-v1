@@ -19,14 +19,17 @@ export function letterOf(name) {
  */
 export function viewOf(state) {
   const active = (state.spaces || []).find((/** @type {any} */ s) => s.id === state.active);
-  const spaceName = active ? active.name : (state.spaces && state.spaces[0] ? state.spaces[0].name : "Vyre");
+  const spaceName = active ? active.name : state.spaces && state.spaces[0] ? state.spaces[0].name : "Vyre";
   const site = state.page ? state.page.host : "";
   /** @type {Note | null} */
   let note = null;
   let canFill = false;
   if (state.status === "no_host" || state.status === "offline") {
     const web = (state.spaces || []).some((/** @type {any} */ s) => s.webUrl);
-    note = { kind: "warn", text: state.error && state.error.message ? state.error.message : "The Vyre app is not running." };
+    note = {
+      kind: "warn",
+      text: state.error && state.error.message ? state.error.message : "The Vyre app is not running.",
+    };
     // The way forward sits in the note itself; a second link in the footer would say the same thing twice.
     if (web) note.action = { id: "openWeb", label: "Open the web app" };
   } else if (state.error && state.error.code === "locked") {
@@ -43,7 +46,15 @@ export function viewOf(state) {
     canFill = true;
   }
   const all = [...(state.rows || []), ...(state.cards || [])];
-  const rows = canFill ? all.map((/** @type {LoginRow} */ r) => ({ id: r.id, name: r.name, letter: letterOf(r.name), trail: r.kind === "totp" ? "Code" : r.kind === "card" ? "Card" : "", kind: r.kind })) : [];
+  const rows = canFill
+    ? all.map((/** @type {LoginRow} */ r) => ({
+        id: r.id,
+        name: r.name,
+        letter: letterOf(r.name),
+        trail: r.kind === "totp" ? "Code" : r.kind === "card" ? "Card" : "",
+        kind: r.kind,
+      }))
+    : [];
   return { spaceName, site, rows, note, canAsk: state.status === "online" && Boolean(state.page), canFill };
 }
 
@@ -54,12 +65,22 @@ export function viewOf(state) {
  */
 export function rowMenu(row, login) {
   /** @type {({ id: string, label: string } | { sep: true })[]} */
-  const items = row.kind === "totp"
-    ? [{ id: "fillCode", label: "Fill Code" }]
-    : row.kind === "card" ? [{ id: "fill", label: "Fill Card" }]
-    : [{ id: "fill", label: "Fill" }, { id: "fillSignIn", label: "Fill and Sign In" }];
-  if (row.kind !== "totp" && login && login.fieldKeys && login.fieldKeys.includes("totp")) items.push({ id: "fillCode", label: "Fill Code" });
-  items.push({ id: "openVault", label: "Open in Vault" }, { sep: true }, { id: "neverFill", label: "Never Fill on This Site" });
+  const items =
+    row.kind === "totp"
+      ? [{ id: "fillCode", label: "Fill Code" }]
+      : row.kind === "card"
+        ? [{ id: "fill", label: "Fill Card" }]
+        : [
+            { id: "fill", label: "Fill" },
+            { id: "fillSignIn", label: "Fill and Sign In" },
+          ];
+  if (row.kind !== "totp" && login && login.fieldKeys && login.fieldKeys.includes("totp"))
+    items.push({ id: "fillCode", label: "Fill Code" });
+  items.push(
+    { id: "openVault", label: "Open in Vault" },
+    { sep: true },
+    { id: "neverFill", label: "Never Fill on This Site" },
+  );
   return items;
 }
 

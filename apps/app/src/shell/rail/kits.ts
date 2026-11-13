@@ -97,9 +97,17 @@ export interface RailInput {
 export function railFor(input: RailInput): RailGroups {
   const entry = (place: PlaceId): RailEntry => {
     const count = input.counts[place] ?? 0;
-    return { place, title: PLACE_TITLE[place], count, dot: count === 0 && input.dots[place] === true && input.active !== place };
+    return {
+      place,
+      title: PLACE_TITLE[place],
+      count,
+      dot: count === 0 && input.dots[place] === true && input.active !== place,
+    };
   };
-  const keep = (place: PlaceId): boolean => (place !== "console" || input.console) && (place !== "inbox" || input.inbox !== false) && !(input.hidden ?? []).includes(place);
+  const keep = (place: PlaceId): boolean =>
+    (place !== "console" || input.console) &&
+    (place !== "inbox" || input.inbox !== false) &&
+    !(input.hidden ?? []).includes(place);
   return { top: input.kit.top.filter(keep).map(entry), bottom: input.kit.bottom.filter(keep).map(entry) };
 }
 
@@ -110,7 +118,9 @@ export const NOT_ON_PHONE_PLACES: readonly PlaceId[] = ["automations", "console"
 
 /** What the phone-width rail's More menu lists: every place off the bar, less the ones the phone does not have. */
 export function phoneMore(groups: RailGroups): RailEntry[] {
-  return [...groups.top.filter((e) => !PHONE_BAR.includes(e.place)), ...groups.bottom].filter((e) => !NOT_ON_PHONE_PLACES.includes(e.place));
+  return [...groups.top.filter((e) => !PHONE_BAR.includes(e.place)), ...groups.bottom].filter(
+    (e) => !NOT_ON_PHONE_PLACES.includes(e.place),
+  );
 }
 
 /** The rail is the places you can reach; a place outside the Kit (opened from a link) still opens, it just has no rail button. */

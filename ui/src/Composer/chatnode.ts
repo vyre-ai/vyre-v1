@@ -16,10 +16,22 @@ export const Chip = Node.create({
   inline: true,
   atom: true,
   selectable: true,
-  addAttributes() { return { label: { default: "" }, kind: { default: "mention" } }; },
-  parseHTML() { return [{ tag: "span.vyre-chip" }]; },
-  renderHTML({ node }) { return ["span", { class: "vyre-chip", "data-kind": String(node.attrs["kind"] ?? "mention") }, String(node.attrs["label"] ?? "")]; },
-  renderText({ node }) { return String(node.attrs["label"] ?? ""); },
+  addAttributes() {
+    return { label: { default: "" }, kind: { default: "mention" } };
+  },
+  parseHTML() {
+    return [{ tag: "span.vyre-chip" }];
+  },
+  renderHTML({ node }) {
+    return [
+      "span",
+      { class: "vyre-chip", "data-kind": String(node.attrs["kind"] ?? "mention") },
+      String(node.attrs["label"] ?? ""),
+    ];
+  },
+  renderText({ node }) {
+    return String(node.attrs["label"] ?? "");
+  },
 });
 
 /**
@@ -28,13 +40,19 @@ export const Chip = Node.create({
  * that is one step, and Undo takes all the spoken words back at once. Chips are in the document as nodes, so they come through as they were.
  */
 export function replaceDoc(state: EditorState, doc: ChatNode, history: boolean, caretPos?: number): Transaction {
-  const tr = state.tr.replaceWith(0, state.doc.content.size, state.schema.nodeFromJSON(doc).content).setMeta("addToHistory", history);
-  if (caretPos !== undefined) tr.setSelection(TextSelection.create(tr.doc, Math.max(1, Math.min(caretPos, tr.doc.content.size - 1))));
+  const tr = state.tr
+    .replaceWith(0, state.doc.content.size, state.schema.nodeFromJSON(doc).content)
+    .setMeta("addToHistory", history);
+  if (caretPos !== undefined)
+    tr.setSelection(TextSelection.create(tr.doc, Math.max(1, Math.min(caretPos, tr.doc.content.size - 1))));
   return tr;
 }
 
 /** Talk stopped: two transactions that leave one undo step from `before` to the document as it is now. Null when nothing changed. */
-export function endTalk(state: EditorState, before: ChatNode): { back: Transaction; forward: (s: EditorState) => Transaction } | null {
+export function endTalk(
+  state: EditorState,
+  before: ChatNode,
+): { back: Transaction; forward: (s: EditorState) => Transaction } | null {
   const now = state.doc.toJSON() as ChatNode;
   if (JSON.stringify(now) === JSON.stringify(before)) return null;
   const caret = state.selection.from;

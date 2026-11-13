@@ -7,7 +7,15 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { ChatsMounted } from "../../../apps/app/src/places/chats/mounts/ChatsMounted.tsx";
-import { CHANNEL, COMPUTER, HELPER, RECORDING, SERVER_TERMINAL, TERMINAL, createMountSample } from "../../../apps/app/src/places/chats/mounts/sample.ts";
+import {
+  CHANNEL,
+  COMPUTER,
+  HELPER,
+  RECORDING,
+  SERVER_TERMINAL,
+  TERMINAL,
+  createMountSample,
+} from "../../../apps/app/src/places/chats/mounts/sample.ts";
 import { isTabKey } from "../../../apps/app/src/places/chats/agentpage/model.ts";
 import { START, step } from "../../../apps/app/src/places/chats/mounts/route.ts";
 import type { Layer, Shown } from "../../../apps/app/src/places/chats/mounts/route.ts";
@@ -31,20 +39,36 @@ export default function Mount(): ReactNode {
     const chat = step(START, { t: "chat", threadId: "c1" });
     const over = (layer: Layer): Shown => step(chat, { t: "layer", layer });
     switch (screen) {
-      case "helper": return step(START, { t: "helper", threadId: HELPER });
-      case "needs": return step(START, { t: "needs", taskId: "n1" });
-      case "popup": return over({ kind: "computer", computerId: COMPUTER, chat: false });
-      case "sheet": return over({ kind: "recording", recordingId: RECORDING });
-      case "connect": return over({ kind: "connect", channelId: CHANNEL });
-      case "agents": return over({ kind: "all-agents", x: 12, y: 160 });
-      case "terminal": return step(chat, { t: "terminal", terminalId: params.get("host") === "server" ? SERVER_TERMINAL : TERMINAL });
-      case "terminals": return over({ kind: "terminals", x: 300, y: 48 });
-      case "rules": return over({ kind: "rules" });
-      case "waiting": return chat;
-      case "pane": return step(chat, { t: "pane" });
-      default: return step(START, { t: "agent", agentId: "agt_intake", tab: isTabKey(tab) ? tab : "chats" });
+      case "helper":
+        return step(START, { t: "helper", threadId: HELPER });
+      case "needs":
+        return step(START, { t: "needs", taskId: "n1" });
+      case "popup":
+        return over({ kind: "computer", computerId: COMPUTER, chat: false });
+      case "sheet":
+        return over({ kind: "recording", recordingId: RECORDING });
+      case "connect":
+        return over({ kind: "connect", channelId: CHANNEL });
+      case "agents":
+        return over({ kind: "all-agents", x: 12, y: 160 });
+      case "terminal":
+        return step(chat, { t: "terminal", terminalId: params.get("host") === "server" ? SERVER_TERMINAL : TERMINAL });
+      case "terminals":
+        return over({ kind: "terminals", x: 300, y: 48 });
+      case "rules":
+        return over({ kind: "rules" });
+      case "waiting":
+        return chat;
+      case "pane":
+        return step(chat, { t: "pane" });
+      default:
+        return step(START, { t: "agent", agentId: "agt_intake", tab: isTabKey(tab) ? tab : "chats" });
     }
   }, [screen, params]);
   if (search === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }}><ChatsMounted key={`${screen}:${search}`} rt={sample.rt} initial={shown} window={{ start: 0, end: 500 }} /></View>;
+  return (
+    <View style={{ flex: 1, backgroundColor: "var(--win)" as string }}>
+      <ChatsMounted key={`${screen}:${search}`} rt={sample.rt} initial={shown} window={{ start: 0, end: 500 }} />
+    </View>
+  );
 }

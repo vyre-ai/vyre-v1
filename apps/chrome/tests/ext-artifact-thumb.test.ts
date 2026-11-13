@@ -15,13 +15,41 @@ function world(o: { active?: boolean; sizes?: number[]; opResult?: unknown; tabU
       create: async () => ({ id: 7 }),
       get: async () => ({ id: 7, active: o.active ?? true, windowId: 1, incognito: false, url: o.tabUrl }),
       captureVisibleTab: async () => "data:image/png;base64,AAAA",
-      onUpdated: { addListener: (f: any) => listeners.push(f), removeListener: (f: any) => { const i = listeners.indexOf(f); if (i >= 0) listeners.splice(i, 1); } },
+      onUpdated: {
+        addListener: (f: any) => listeners.push(f),
+        removeListener: (f: any) => {
+          const i = listeners.indexOf(f);
+          if (i >= 0) listeners.splice(i, 1);
+        },
+      },
     },
     scripting: { executeScript: async () => [{ result: { rects: [], vw: 1000, vh: 700, dpr: 1 } }] },
   };
-  const bridge = { op: async (op: string, input: any) => { ops.push({ op, input }); if (op === "artifact.open") return { url: "https://a.vyre.run/x/" + "a".repeat(48) }; return o.opResult ?? { set: true }; } };
-  const paint = async (_raw: string, _where: any, opts: any) => { paints.push(opts); return { dataUrl: "data:image/webp;base64," + "A".repeat(sizes.shift() ?? 100), width: 480, height: 320, masked: 0 }; };
-  const art = createArtifacts({ ext: ext as any, bridge, store: { get: async () => ({ spaces: [{ webUrl: "https://harbor.vyre.run" }] }) }, wait: async (ms: number) => { waits.push(ms); }, paint });
+  const bridge = {
+    op: async (op: string, input: any) => {
+      ops.push({ op, input });
+      if (op === "artifact.open") return { url: "https://a.vyre.run/x/" + "a".repeat(48) };
+      return o.opResult ?? { set: true };
+    },
+  };
+  const paint = async (_raw: string, _where: any, opts: any) => {
+    paints.push(opts);
+    return {
+      dataUrl: "data:image/webp;base64," + "A".repeat(sizes.shift() ?? 100),
+      width: 480,
+      height: 320,
+      masked: 0,
+    };
+  };
+  const art = createArtifacts({
+    ext: ext as any,
+    bridge,
+    store: { get: async () => ({ spaces: [{ webUrl: "https://harbor.vyre.run" }] }) },
+    wait: async (ms: number) => {
+      waits.push(ms);
+    },
+    paint,
+  });
   return { art, listeners, ops, waits, paints };
 }
 
@@ -49,8 +77,14 @@ test("a picture over 60 KB is taken again smaller, and one that stays too big is
   const w = world({ sizes: [THUMB_MAX + 5, THUMB_MAX + 5, THUMB_MAX + 5] });
   assert.deepEqual(await w.art.thumb(7, "sit_abc"), { set: false, why: "too_large" });
   assert.equal(w.paints.length, 3);
-  assert.deepEqual(w.paints.map((p) => p.quality), [0.7, 0.5, 0.35]);
-  assert.equal(w.ops.some((o) => o.op === "artifact.thumb"), false);
+  assert.deepEqual(
+    w.paints.map((p) => p.quality),
+    [0.7, 0.5, 0.35],
+  );
+  assert.equal(
+    w.ops.some((o) => o.op === "artifact.thumb"),
+    false,
+  );
   const w2 = world({ sizes: [THUMB_MAX + 5, 500] });
   assert.deepEqual(await w2.art.thumb(7, "sit_abc"), { set: true });
   assert.equal(w2.paints.length, 2);
@@ -82,8 +116,16 @@ test("a tab on the signed-in Space's artifact host is an artifact; other hosts, 
   const spaces = ["https://harbor.vyre.run"];
   assert.equal(artifactOfTab("https://harbor-a.vyre.run/sit_abc123/", spaces), "sit_abc123");
   assert.equal(artifactOfTab("https://harbor-a.vyre.run/sit_abc123/page.html", spaces), "sit_abc123");
-  assert.equal(artifactOfTab("https://harbor.vyre.run/sit_abc123/", spaces), null, "the app's origin never serves an artifact");
-  assert.equal(artifactOfTab("https://evil-a.vyre.run/sit_abc123/", spaces), null, "a Space the person is not signed in to");
+  assert.equal(
+    artifactOfTab("https://harbor.vyre.run/sit_abc123/", spaces),
+    null,
+    "the app's origin never serves an artifact",
+  );
+  assert.equal(
+    artifactOfTab("https://evil-a.vyre.run/sit_abc123/", spaces),
+    null,
+    "a Space the person is not signed in to",
+  );
   assert.equal(artifactOfTab("https://harbor-a.vyre.run/x/" + "a".repeat(48), spaces), null);
 });
 
@@ -97,7 +139,10 @@ test("a person who opens the plain link themselves gets the picture taken too, o
   const sent = w.ops.filter((o) => o.op === "artifact.thumb");
   assert.equal(sent.length, 1);
   assert.equal(sent[0]!.input.artifactId, "sit_xyz");
-  assert.equal(w.ops.some((o) => o.op === "artifact.open"), false);
+  assert.equal(
+    w.ops.some((o) => o.op === "artifact.open"),
+    false,
+  );
   // loading it again soon after does not ask again
   w.listeners[0]!(7, { status: "complete" });
   for (let i = 0; i < 8; i++) await new Promise((r) => setImmediate(r));

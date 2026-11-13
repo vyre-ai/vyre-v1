@@ -61,6 +61,8 @@ export const replayFactory: ImapSessionFactory = (cfg: ImapConfig): ImapSession 
 };
 
 function refused(message: string): ImapSession {
-  const down = async (): Promise<never> => { throw new Error(message); };
+  const down = async (): Promise<never> => {
+    throw new Error(message);
+  };
   return { connect: down, noop: down, fetchAfter: down, idle: down, logout: async () => {} };
 }

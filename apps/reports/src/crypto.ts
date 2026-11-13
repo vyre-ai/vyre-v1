@@ -24,7 +24,11 @@ export async function sha256hex(bytes: Uint8Array): Promise<string> {
   return Array.from(d, (x) => x.toString(16).padStart(2, "0")).join("");
 }
 
-export interface SigningKey { key: CryptoKey; publicKey: Uint8Array; pkcs8: Uint8Array }
+export interface SigningKey {
+  key: CryptoKey;
+  publicKey: Uint8Array;
+  pkcs8: Uint8Array;
+}
 
 /** A new Ed25519 key for the service; the private half is exported once so the service can keep it across restarts. */
 export async function generateSigningKey(): Promise<SigningKey> {
@@ -64,7 +68,9 @@ export async function verify(publicKey: Uint8Array, message: string, sig: string
 
 /** HMAC-SHA256 as lowercase hex, for GitHub's `x-hub-signature-256`. */
 export async function hmacHex(secret: string, body: Uint8Array): Promise<string> {
-  const key = await subtle().importKey("raw", utf8(secret) as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const key = await subtle().importKey("raw", utf8(secret) as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+  ]);
   const mac = new Uint8Array(await subtle().sign("HMAC", key, body as BufferSource));
   return Array.from(mac, (x) => x.toString(16).padStart(2, "0")).join("");
 }
@@ -78,6 +84,7 @@ export function safeEqual(a: string, b: string): boolean {
 }
 
 // What each party signs. A line per part, a version tag first, so a signature for one purpose is never valid for another.
-export const reportMessage = (ts: string, bodyHash: string): string => `vyre-report-v1\nPOST\n/v1/reports\n${ts}\n${bodyHash}`;
+export const reportMessage = (ts: string, bodyHash: string): string =>
+  `vyre-report-v1\nPOST\n/v1/reports\n${ts}\n${bodyHash}`;
 export const registerMessage = (ts: string, bodyHash: string): string => `vyre-space-register-v1\n${ts}\n${bodyHash}`;
 export const resolvedMessage = (ts: string, bodyHash: string): string => `vyre-report-resolved-v1\n${ts}\n${bodyHash}`;

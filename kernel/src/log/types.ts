@@ -84,4 +84,6 @@ export interface ReadQuery {
 
 export type VerifyResult = { ok: true; head: string; seq: number } | { ok: false; at: number; why: string };
 
-export type AppendResult = { ok: true; event: StoredEvent; duplicate: boolean } | { ok: false; code: string; message: string };
+export type AppendResult =
+  | { ok: true; event: StoredEvent; duplicate: boolean }
+  | { ok: false; code: string; message: string };
