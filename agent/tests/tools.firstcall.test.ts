@@ -23,7 +23,8 @@ function session() {
 const c = (over: Partial<ToolCtx> = {}): ToolCtx =>
   ctx({ thread: { threadId: "thr_1", kind: "chat", planMode: false }, turnId: "trn_1", ...over });
 const PAGE = "<!doctype html><html><head><title>Q3 plan</title></head><body><h1>Plan</h1></body></html>";
-const keyOf = (x: { input: unknown } | undefined): string | undefined => (x?.input as { idempotencyKey?: string } | undefined)?.idempotencyKey;
+const keyOf = (x: { input: unknown } | undefined): string | undefined =>
+  (x?.input as { idempotencyKey?: string } | undefined)?.idempotencyKey;
 
 test("artifact_publish: title and html alone is accepted, with no key from the model", async () => {
   const { s, sent } = session();
@@ -41,7 +42,10 @@ test("a 300 KB page is accepted", async () => {
 
 test("the model is shown no idempotencyKey: not in the inputs and not required", () => {
   const { loaded } = session();
-  const schema = loaded.catalog.byName("artifact_publish")!.inputSchema as { properties: Record<string, unknown>; required?: string[] };
+  const schema = loaded.catalog.byName("artifact_publish")!.inputSchema as {
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
   assert.equal("idempotencyKey" in schema.properties, false);
   assert.deepEqual(schema.required, ["title"]);
   for (const t of loaded.catalog.all) assert.ok(!JSON.stringify(t.inputSchema).includes('"idempotencyKey"'), t.name);

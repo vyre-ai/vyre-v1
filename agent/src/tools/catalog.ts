@@ -16,7 +16,10 @@ export function modelSchema(schema: unknown): { schema: unknown; keyed: boolean 
   const keyed = "idempotencyKey" in s.properties && (s.required ?? []).includes("idempotencyKey");
   if (!keyed) return { schema, keyed: false };
   const { idempotencyKey: _k, ...props } = s.properties;
-  return { schema: { ...s, properties: props, required: (s.required ?? []).filter((r) => r !== "idempotencyKey") }, keyed: true };
+  return {
+    schema: { ...s, properties: props, required: (s.required ?? []).filter((r) => r !== "idempotencyKey") },
+    keyed: true,
+  };
 }
 
 export function buildCatalog(
