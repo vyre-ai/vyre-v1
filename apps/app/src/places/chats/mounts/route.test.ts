@@ -195,13 +195,29 @@ test("a link to a terminal opens it beside the page that is open: the chat stays
   const agent = step(START, { t: "agent", agentId: "agt_1", tab: "computer" });
   const onAgent = linkedTo(agent, "screen=chats.terminal-tab&terminalId=ter_2");
   assert.deepEqual([onAgent.route, onAgent.terminalId], [agent.route, "ter_2"], "an agent's page keeps its page too");
-  assert.equal(linkedTo(START, "screen=chats.terminal-tab&terminalId=ter_3").terminalId, "ter_3", "on the landing it just shows");
-  assert.equal(linkedTo({ ...chat, terminalId: "ter_old" }, "screen=chats.terminal-tab&terminalId=ter_4").terminalId, "ter_4", "another terminal replaces the one that was open");
+  assert.equal(
+    linkedTo(START, "screen=chats.terminal-tab&terminalId=ter_3").terminalId,
+    "ter_3",
+    "on the landing it just shows",
+  );
+  assert.equal(
+    linkedTo({ ...chat, terminalId: "ter_old" }, "screen=chats.terminal-tab&terminalId=ter_4").terminalId,
+    "ter_4",
+    "another terminal replaces the one that was open",
+  );
 });
 
 test("every layer link opens over the page that is open, and none of them drops it", () => {
   const chat = step(START, { t: "chat", threadId: "c1", pane: true });
-  for (const hash of ["screen=chats.terminal-list&at=1", "screen=chats.terminal-rules", "screen=chats.all-agents", "screen=chats.computer-popup&computerId=cmp_1", "screen=chats.agent-computer&computerId=cmp_1", "screen=chats.recording-sheet&recordingId=rec_1", "screen=chats.connect-outside-agent&channelId=chn_1"]) {
+  for (const hash of [
+    "screen=chats.terminal-list&at=1",
+    "screen=chats.terminal-rules",
+    "screen=chats.all-agents",
+    "screen=chats.computer-popup&computerId=cmp_1",
+    "screen=chats.agent-computer&computerId=cmp_1",
+    "screen=chats.recording-sheet&recordingId=rec_1",
+    "screen=chats.connect-outside-agent&channelId=chn_1",
+  ]) {
     const next = linkedTo(chat, hash);
     assert.notEqual(next.layer, null, `${hash} puts its layer up`);
     assert.deepEqual(next.route, chat.route, `${hash} keeps the chat`);
@@ -213,16 +229,36 @@ test("every layer link opens over the page that is open, and none of them drops 
 // layer added to SCREEN later cannot bring back the loss (Attach sent the chat to the landing page, 13 Nov 2026).
 test("every screen in the route table is classified, and an overlay keeps the page that is open", () => {
   // the screens that are pages of their own (they replace what is open); every other screen of SCREEN must be an overlay (a layer or a terminal), and a new screen is neither until it is listed here
-  const PAGES = new Set(["chats.agent-page", "chats.helper-chat", "tasks.needs-you", "tasks.my-work", "tasks.page", "goals.page", "chats.artifacts", "chats.notes", "chats.agent-form", "chats.conversation", "chats.ask"]);
+  const PAGES = new Set([
+    "chats.agent-page",
+    "chats.helper-chat",
+    "tasks.needs-you",
+    "tasks.my-work",
+    "tasks.page",
+    "goals.page",
+    "chats.artifacts",
+    "chats.notes",
+    "chats.agent-form",
+    "chats.conversation",
+    "chats.ask",
+  ]);
   const chat = step(START, { t: "chat", threadId: "c1", pane: true });
-  const ids = "&computerId=cmp_1&terminalId=ter_1&recordingId=rec_1&channelId=chn_1&agentId=agt_1&threadId=c9&taskId=tsk_1&goalId=gol_1&noteId=not_1";
+  const ids =
+    "&computerId=cmp_1&terminalId=ter_1&recordingId=rec_1&channelId=chn_1&agentId=agt_1&threadId=c9&taskId=tsk_1&goalId=gol_1&noteId=not_1";
   let overlays = 0;
   for (const screen of Object.values(SCREEN)) {
     const hash = `screen=${screen}${ids}`;
     const named = fromHash(hash);
     const overlay = named.layer !== null || named.terminalId !== null;
-    if (PAGES.has(screen)) { assert.ok(!overlay, `${screen} is a page, not an overlay`); assert.ok(JSON.stringify(named.route) !== JSON.stringify(START.route), `${screen} opens its page`); continue; }
-    assert.ok(overlay, `${screen} is not in PAGES and fromHash does not give a layer or a terminal for it: classify it (a screen that falls to the landing page loses the link)`);
+    if (PAGES.has(screen)) {
+      assert.ok(!overlay, `${screen} is a page, not an overlay`);
+      assert.ok(JSON.stringify(named.route) !== JSON.stringify(START.route), `${screen} opens its page`);
+      continue;
+    }
+    assert.ok(
+      overlay,
+      `${screen} is not in PAGES and fromHash does not give a layer or a terminal for it: classify it (a screen that falls to the landing page loses the link)`,
+    );
     overlays++;
     const next = linkedTo(chat, hash);
     assert.deepEqual(next.route, chat.route, `${screen} keeps the chat`);
@@ -237,7 +273,11 @@ test("closing a terminal gives the right column back to the agent's pane when it
   assert.deepEqual([withTerminal.pane, withTerminal.terminalId], [false, "ter_1"]);
   const another = linkedTo(withTerminal, "screen=chats.terminal-tab&terminalId=ter_2");
   const closed = step(another, { t: "terminal-close" });
-  assert.deepEqual([closed.pane, closed.terminalId], [true, null], "back to the pane he had open, also after a second terminal replaced the first");
+  assert.deepEqual(
+    [closed.pane, closed.terminalId],
+    [true, null],
+    "back to the pane he had open, also after a second terminal replaced the first",
+  );
   const noPane = step(step(START, { t: "chat", threadId: "c1" }), { t: "terminal", terminalId: "ter_1" });
   assert.equal(step(noPane, { t: "terminal-close" }).pane, false, "no pane before, none after");
 });

@@ -82,7 +82,14 @@ export function bwrapWallCommand(
   const a: string[] = ["--die-with-parent", "--new-session", "--unshare-all", "--cap-drop", "ALL"];
   const prefix = nodePrefix(node);
   for (const p of [...SYSTEM_RO, ...(prefix ? [prefix] : []), ...(o.programRead ?? [])]) a.push("--ro-bind-try", p, p);
-  a.push(...identityBinds(o.identity, [...checked.mounts.filter((m) => m.mode === "rw").map((m) => m.host), ...(checked.scratch !== undefined ? [checked.scratch] : []), ...(o.home !== undefined ? [o.home] : []), ...(o.access?.rw ?? [])]));
+  a.push(
+    ...identityBinds(o.identity, [
+      ...checked.mounts.filter((m) => m.mode === "rw").map((m) => m.host),
+      ...(checked.scratch !== undefined ? [checked.scratch] : []),
+      ...(o.home !== undefined ? [o.home] : []),
+      ...(o.access?.rw ?? []),
+    ]),
+  );
   if (o.splitUsr === true) for (const p of ["/bin", "/sbin", "/lib", "/lib64"]) a.push("--ro-bind-try", p, p);
   else
     a.push(

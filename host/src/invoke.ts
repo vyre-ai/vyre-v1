@@ -7,7 +7,7 @@ import { PERSON_LACKS_ROLE_LINE, roleLine } from "../../lib/vault-lines.ts";
 import { formatHlc, tickHlc } from "../../lib/hlc.ts";
 import type { Hlc } from "../../lib/hlc.ts";
 import { mintId } from "../../lib/ids.ts";
-import {isHostService} from "../../lib/trust.ts";
+import { isHostService } from "../../lib/trust.ts";
 import { mintEventId } from "./ids.ts";
 import { noteRead, takeFallback } from "./seams/answer-reads.ts";
 import type { Decision as KernelDecision, Req as AuthReq, ResourceRef } from "../../kernel/src/authorize/index.ts";
@@ -15,7 +15,15 @@ import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
 import type { CallOpts, Ctx, Decision, EmitOpts, Logger, StepRef } from "../../packages/contracts/src/ctx.ts";
 import type { CapabilityDef, CapName, ErrorCode, EventName, TraceContext } from "../../packages/contracts/src/types.ts";
 import type { AgentGate } from "./seams/agent-read.ts";
-import { BindingError, OUTSIDE_AGENT_LINE, SELF_BINDING_LINE, isSelfBound, resolveResource, selfAuditNote, selfTarget } from "./routes/resource.ts";
+import {
+  BindingError,
+  OUTSIDE_AGENT_LINE,
+  SELF_BINDING_LINE,
+  isSelfBound,
+  resolveResource,
+  selfAuditNote,
+  selfTarget,
+} from "./routes/resource.ts";
 import { auditTargets } from "./routes/audit-targets.ts";
 import type { AuditTarget } from "./routes/audit-targets.ts";
 import { redact } from "../../lib/hooks.ts";
@@ -31,13 +39,16 @@ export const MAX_DEPTH = 8;
 
 export type Handler = (ctx: Ctx, input: any) => Promise<unknown> | unknown;
 
-export interface CapIndex { get(name: string, v?: number): CapabilityDef | undefined }
+export interface CapIndex {
+  get(name: string, v?: number): CapabilityDef | undefined;
+}
 /** What a Vault name or handle that names nothing the caller may use answers, hidden or missing alike. */
 export const NO_SUCH_ITEM = "There is no Vault item by that name that you can use. Check the name, or ask for the key.";
 
 /** Latest version when `v` is omitted. */
 export function indexCapabilities(caps: readonly CapabilityDef[]): CapIndex {
-  const m = new Map<string, CapabilityDef>(), latest = new Map<string, CapabilityDef>();
+  const m = new Map<string, CapabilityDef>(),
+    latest = new Map<string, CapabilityDef>();
   for (const c of caps) {
     m.set(`${c.name}@${c.v}`, c);
     const l = latest.get(c.name);
@@ -46,7 +57,10 @@ export function indexCapabilities(caps: readonly CapabilityDef[]): CapIndex {
   return { get: (name, v) => (v === undefined ? latest.get(name) : m.get(`${name}@${v}`)) };
 }
 
-export interface PrincipalSeed { kind: Ctx["principal"]["kind"]; id: string }
+export interface PrincipalSeed {
+  kind: Ctx["principal"]["kind"];
+  id: string;
+}
 /** What the caller knows before the pipeline starts: who, for whom, where from. */
 export interface CtxSeed {
   /** made through CallOpts.asCaller: the capability sees ctx.forwarded (only that one call; its own nested calls are ordinary) */
@@ -109,19 +123,42 @@ export interface CtxSeed {
 }
 
 export interface AuditRow {
-  class: "allow" | "deny" | "hold"; cap: string; v: number; principal: string; actingFor?: string | undefined; decisionId: string; reason: string;
-  resource: ResourceRef | null; traceId: string; spanId: string; at: number; risk: CapabilityDef["risk"];
+  class: "allow" | "deny" | "hold";
+  cap: string;
+  v: number;
+  principal: string;
+  actingFor?: string | undefined;
+  decisionId: string;
+  reason: string;
+  resource: ResourceRef | null;
+  traceId: string;
+  spanId: string;
+  at: number;
+  risk: CapabilityDef["risk"];
   /** Whitelisted object identifiers for Activity views; never request/response bodies. */
   targets?: AuditTarget[];
   /** A self-bound call: the place it really reached (routes/resource.ts selfAuditNote), kept beside the bound resource. */
   where?: string;
 }
 /** One atomic commit: the events a handler emitted plus its audit row (ARCH 4.4 step 7). Returns the events as stored (seq set). */
-export interface CommitBatch { cap: string; v: number; principal: string; events: EventEnvelope[]; audit: AuditRow | null }
+export interface CommitBatch {
+  cap: string;
+  v: number;
+  principal: string;
+  events: EventEnvelope[];
+  audit: AuditRow | null;
+}
 
 export interface SpanRecord {
-  traceId: string; spanId: string; parent?: string | undefined; name: string; cap: string; startedAt: number; ms: number;
-  status: "ok" | "held" | "denied" | "error"; code?: string | undefined;
+  traceId: string;
+  spanId: string;
+  parent?: string | undefined;
+  name: string;
+  cap: string;
+  startedAt: number;
+  ms: number;
+  status: "ok" | "held" | "denied" | "error";
+  code?: string | undefined;
   /** who called, so a log can tell one person's repeated reads from another's */
   principal?: string | undefined;
 }
@@ -134,12 +171,30 @@ export interface GateHook {
   /** A call the Gate let through on a person's yes failed before it went out: the yes goes back for a corrected retry. */
   giveBack?(input: unknown): Promise<void>;
   /** Park the call as an approval task (4.6) and return its ids. `runAs: "person"`: an agent asked the person it acts for (CtxSeed.askPerson); the hold runs as that person, and only they approve it. */
-  park(a: { cap: CapabilityDef; input: unknown; seed: CtxSeed; act: string; decisionId: string; traceId: string; runAs?: "person" | undefined }): Promise<{ taskId: string; runId?: string }>;
+  park(a: {
+    cap: CapabilityDef;
+    input: unknown;
+    seed: CtxSeed;
+    act: string;
+    decisionId: string;
+    traceId: string;
+    runAs?: "person" | undefined;
+  }): Promise<{ taskId: string; runId?: string }>;
   /**
    * Who a resumed call runs as: exactly the ask-time caller, whom it acted for, and its run and thread, read from the held row the token names. Never the approver's. Null refuses the resume.
    * Without this method a call carrying onBehalfOf is refused.
    */
-  resume?(a: { token: string; onBehalfOf: string; cap: CapabilityDef; input: unknown }): Promise<{ principal: PrincipalSeed; actingFor?: string | undefined; run?: string | undefined; thread?: string | undefined } | null>;
+  resume?(a: {
+    token: string;
+    onBehalfOf: string;
+    cap: CapabilityDef;
+    input: unknown;
+  }): Promise<{
+    principal: PrincipalSeed;
+    actingFor?: string | undefined;
+    run?: string | undefined;
+    thread?: string | undefined;
+  } | null>;
   /** Is the approval token valid for exactly this call? */
   verify(token: string, a: { cap: CapabilityDef; input: unknown; seed: CtxSeed }): boolean;
   /** The chat's mode right now: the strictest of the thread and the threads above it, read at act time. Undefined when there is no such chat. */
@@ -162,13 +217,21 @@ export interface InvokeDeps {
   /** A Personal Space on several computers: does this computer hold the scheduled-work lease now. Absent: always. */
   scheduledHere?(): boolean;
   /** The Files mutation guard for connector sources (host/src/daemon/connector-source-guard.ts): an extra check on top of normal Files authorization. */
-  sourceGuard?: { check(a: { cap: string; input: unknown; seed: CtxSeed; now: number }): { key: string; reason: string } | null };
+  sourceGuard?: {
+    check(a: { cap: string; input: unknown; seed: CtxSeed; now: number }): { key: string; reason: string } | null;
+  };
   /** The read gate (Redaction for AI): what a call an agent is behind may hand back (seams/agent-read.ts). Absent in a hand-built pipeline, as before. */
   agentGate?: AgentGate;
   recordAccess?: {
-    facts(cap:string,input:unknown,req:AuthReq,trace:string):Promise<AuthReq>;
-    project(cap:string,input:unknown,seed:CtxSeed,output:unknown,trace:string):Promise<()=>unknown>;
-    collection?(cap:string,input:unknown,seed:CtxSeed,req:AuthReq,trace:string):Promise<{finish():unknown}|null>;
+    facts(cap: string, input: unknown, req: AuthReq, trace: string): Promise<AuthReq>;
+    project(cap: string, input: unknown, seed: CtxSeed, output: unknown, trace: string): Promise<() => unknown>;
+    collection?(
+      cap: string,
+      input: unknown,
+      seed: CtxSeed,
+      req: AuthReq,
+      trace: string,
+    ): Promise<{ finish(): unknown } | null>;
   };
   preview?: { read(token: string, cap: string, input: unknown, trace: string): Promise<{ finish(): unknown }> };
   caps: CapIndex;
@@ -187,7 +250,14 @@ export interface InvokeDeps {
   publish?(events: EventEnvelope[]): void;
   idem?: {
     /** `keep`: what of the result is stored for a repeat; omitted, all of it. */
-    once<T>(principal: string, cap: string, key: string | undefined | null, input: unknown, run: () => Promise<T>, keep?: (result: T) => unknown): Promise<T>;
+    once<T>(
+      principal: string,
+      cap: string,
+      key: string | undefined | null,
+      input: unknown,
+      run: () => Promise<T>,
+      keep?: (result: T) => unknown,
+    ): Promise<T>;
     /** Write the approved result over the hold stored for the same key, so the Run's next call of that key gets what was released. */
     settle?(principal: string, cap: string, key: string, input: unknown, result: unknown): Promise<void> | void;
   };
@@ -213,7 +283,10 @@ export interface InvokeDeps {
   /** spend so far per meter, for the spend policies */
   spend?(principal: string): Record<string, number> | undefined;
   /** module services for the handler context: db, vault, http, schedule, seal */
-  services?(seed: CtxSeed, cap: CapabilityDef): Partial<Pick<Ctx, "db" | "vault" | "http" | "schedule" | "seal" | "blobs">>;
+  services?(
+    seed: CtxSeed,
+    cap: CapabilityDef,
+  ): Partial<Pick<Ctx, "db" | "vault" | "http" | "schedule" | "seal" | "blobs">>;
   /** P-H_16: registers the objects a call brought into being as resources, in the same commit (host/src/gateway/resources.ts) */
   resources?: ResourceRegistrar;
   /** an agent made by a call becomes an access principal in the same commit (host/src/gateway/principals.ts) */
@@ -228,11 +301,24 @@ export type InvokeResult =
   | { status: "ok"; output: unknown; traceId: string }
   | { status: "held"; taskId: string; runId?: string | undefined; traceId: string };
 
-const defaultHex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
+const defaultHex = (n: number): string =>
+  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 const DESTRUCTIVE = /(^|[._])(delete|remove|purge|erase|destroy)([._]|$)/;
 /** Reasons that stop an ask: the asking agent itself is not live here, or a policy on the caller refuses it. */
-const ASK_STOPS: ReadonlySet<string> = new Set(["not_a_member", "suspended", "agent_needs_actor", "provider_label", "limit"]);
-const SCOPED_RECORD_READS=new Set(["records.get","records.query","records.search","records.history","records.activity"]);
+const ASK_STOPS: ReadonlySet<string> = new Set([
+  "not_a_member",
+  "suspended",
+  "agent_needs_actor",
+  "provider_label",
+  "limit",
+]);
+const SCOPED_RECORD_READS = new Set([
+  "records.get",
+  "records.query",
+  "records.search",
+  "records.history",
+  "records.activity",
+]);
 const noop = (): void => {};
 const nullLogger: Logger = { debug: noop, info: noop, warn: noop, error: noop };
 
@@ -241,29 +327,46 @@ export function createRateLimiter(): NonNullable<InvokeDeps["rate"]> {
   const b = new Map<string, { tokens: number; at: number }>();
   return {
     take(key, spec, now) {
-      const cap = spec.n, perMs = spec.perSeconds * 1000;
+      const cap = spec.n,
+        perMs = spec.perSeconds * 1000;
       const cur = b.get(key) ?? { tokens: cap, at: now };
-      cur.tokens = Math.min(cap, cur.tokens + ((now - cur.at) / perMs) * cap); cur.at = now;
-      if (cur.tokens < 1) { b.set(key, cur); return false; }
-      cur.tokens -= 1; b.set(key, cur);
+      cur.tokens = Math.min(cap, cur.tokens + ((now - cur.at) / perMs) * cap);
+      cur.at = now;
+      if (cur.tokens < 1) {
+        b.set(key, cur);
+        return false;
+      }
+      cur.tokens -= 1;
+      b.set(key, cur);
       return true;
     },
   };
 }
 
 /** What the Personal gate may read of a call: its raw input (before validation) and who makes it. */
-export interface PersonalCall { input: unknown; principal: PrincipalSeed; actingFor?: string | undefined }
+export interface PersonalCall {
+  input: unknown;
+  principal: PrincipalSeed;
+  actingFor?: string | undefined;
+}
 
 /**
  * The share capabilities a Personal Space still serves for the person's own agents and automations. In a Personal Space everything belongs to the one person, and their agents and automations
  * act for them, so giving one of them Use on their own item is not sharing with anyone else. A person, group, role, link or outside actor still needs a Team Space.
  */
-export const OWN_SHARE_CAPS: ReadonlySet<string> = new Set(["vault.share", "vault.unshare", "access.share", "access.unshare"]);
+export const OWN_SHARE_CAPS: ReadonlySet<string> = new Set([
+  "vault.share",
+  "vault.unshare",
+  "access.share",
+  "access.unshare",
+]);
 const OWN_SUBJECT_KINDS: ReadonlySet<string> = new Set(["agent", "service"]);
 
 /** The plain line a person sees for a refused team-only call: never the capability's name. */
 export function needsTeamLine(cap: string): string {
-  return OWN_SHARE_CAPS.has(cap) ? "Sharing with other people needs a Team Space. Create or join one to share this." : "Needs a Team Space. Create or join one to use this.";
+  return OWN_SHARE_CAPS.has(cap)
+    ? "Sharing with other people needs a Team Space. Create or join one to share this."
+    : "Needs a Team Space. Create or join one to use this.";
 }
 
 /** The subject of a share call, read defensively (the gate runs before validation). */
@@ -295,13 +398,21 @@ export function personalMatrix(o: {
   return {
     gate(cap, traceId, call) {
       if (o.kind() !== "personal" || !teamOnly.has(cap) || own(cap, call)) return;
-      throw fail("permission.needs_team", traceId, { message: needsTeamLine(cap), details: { capability: cap }, next: [{ kind: "open_settings", label: "Create or join a Team Space" }] });
+      throw fail("permission.needs_team", traceId, {
+        message: needsTeamLine(cap),
+        details: { capability: cap },
+        next: [{ kind: "open_settings", label: "Create or join a Team Space" }],
+      });
     },
   };
 }
 
 /** What an unexpected error says, with every known secret and every key-shaped value (lib/hooks.ts redact) taken out. It never throws: a value that cannot be read says so. */
-export function unexpectedWords(e: unknown, secrets: readonly string[], o: { withhold?: boolean } = {}): { message: string; stack: string; head: string } {
+export function unexpectedWords(
+  e: unknown,
+  secrets: readonly string[],
+  o: { withhold?: boolean } = {},
+): { message: string; stack: string; head: string } {
   try {
     const clean = (t: string): string => {
       let out = t;
@@ -314,30 +425,54 @@ export function unexpectedWords(e: unknown, secrets: readonly string[], o: { wit
     // a call that used a Vault value: what the error says may quote it, so only its class and the frames (file and line) are kept
     if (o.withhold) {
       const said = `${e instanceof Error ? e.name : "Error"}: (message withheld: this call used a Vault value)`;
-      return { message: said, stack: clean(frames.slice(0, 8).join("\n")), head: [said, ...frames.slice(0, 4)].map(clean).join("\n") };
+      return {
+        message: said,
+        stack: clean(frames.slice(0, 8).join("\n")),
+        head: [said, ...frames.slice(0, 4)].map(clean).join("\n"),
+      };
     }
     // `stack`: the frames (eight); `head`: what the logs.db row keeps, the same scrubbed text cut to five lines
-    return { message: clean(message).slice(0, 1000), stack: clean(frames.slice(0, 8).join("\n")), head: clean(lines.slice(0, 5).join("\n")) };
-  } catch { return { message: "an error that could not be read", stack: "", head: "" }; }
+    return {
+      message: clean(message).slice(0, 1000),
+      stack: clean(frames.slice(0, 8).join("\n")),
+      head: clean(lines.slice(0, 5).join("\n")),
+    };
+  } catch {
+    return { message: "an error that could not be read", stack: "", head: "" };
+  }
 }
 
 // at most one full line a minute for the same capability and message, then one line with the count: a poll or a retry loop into a broken capability cannot fill the log
 const written = new Map<string, { at: number; hidden: number }>();
 const REPEAT_MS = 60_000;
-function writeUnexpected(a: { cap: string; traceId: string; message: string; stack: string }, at: number = Date.now()): void {
+function writeUnexpected(
+  a: { cap: string; traceId: string; message: string; stack: string },
+  at: number = Date.now(),
+): void {
   try {
     const key = `${a.cap}|${a.message.split("\n")[0]}`;
     const was = written.get(key);
-    if (was && at - was.at < REPEAT_MS) { was.hidden++; return; }
+    if (was && at - was.at < REPEAT_MS) {
+      was.hidden++;
+      return;
+    }
     if (written.size > 500) written.clear();
     written.set(key, { at, hidden: 0 });
-    process.stderr.write(`vyred: handler threw ${JSON.stringify({ ...a, ...(was && was.hidden > 0 ? { repeated: was.hidden } : {}) })}\n`);
-  } catch { /* logging never throws into a call */ }
+    process.stderr.write(
+      `vyred: handler threw ${JSON.stringify({ ...a, ...(was && was.hidden > 0 ? { repeated: was.hidden } : {}) })}\n`,
+    );
+  } catch {
+    /* logging never throws into a call */
+  }
 }
 /** Does this call name a Vault value (a #Handle.field reference) or belong to the Vault: its errors are logged without their words. */
 export const usesVault = (cap: string, input: unknown): boolean => {
   if (cap.startsWith("vault.")) return true;
-  try { return /#[A-Za-z0-9_]+\.[A-Za-z0-9_]+/.test(JSON.stringify(input) ?? ""); } catch { return false; }
+  try {
+    return /#[A-Za-z0-9_]+\.[A-Za-z0-9_]+/.test(JSON.stringify(input) ?? "");
+  } catch {
+    return false;
+  }
 };
 /** Tests: forget what was written. */
 export const resetUnexpectedLog = (): void => written.clear();
@@ -345,7 +480,14 @@ export const resetUnexpectedLog = (): void => written.clear();
 export type Invoke = (cap: string, input: unknown, seed: CtxSeed) => Promise<InvokeResult>;
 
 /** The decision for a capability that needs membership only: allowed, with no scope (the handler narrows). */
-const memberAllow = (decisionId: string): KernelDecision => ({ effect: "allow", reason: "ok", steps: [], scope: undefined, obligations: [], decisionId });
+const memberAllow = (decisionId: string): KernelDecision => ({
+  effect: "allow",
+  reason: "ok",
+  steps: [],
+  scope: undefined,
+  obligations: [],
+  decisionId,
+});
 
 export function createInvoke(deps: InvokeDeps): Invoke {
   const now = deps.now ?? Date.now;
@@ -354,54 +496,141 @@ export function createInvoke(deps: InvokeDeps): Invoke {
   /** events a handler marked afterFailure (EmitOpts): written even when the call is refused */
   const survivors = new WeakSet<EventEnvelope>();
   let lastHlc: Hlc | null = null;
-  const nextHlc = (): string => { lastHlc = tickHlc("server", now(), lastHlc); return formatHlc(lastHlc); };
+  const nextHlc = (): string => {
+    lastHlc = tickHlc("server", now(), lastHlc);
+    return formatHlc(lastHlc);
+  };
 
   const invoke: Invoke = async (capName, input, seed) => {
     const t0 = now();
     const parent = seed.trace;
-    const trace: TraceContext = { traceId: parent?.traceId ?? hex(16), spanId: hex(8), ...(parent ? { parent: parent.spanId } : {}) };
+    const trace: TraceContext = {
+      traceId: parent?.traceId ?? hex(16),
+      spanId: hex(8),
+      ...(parent ? { parent: parent.spanId } : {}),
+    };
     const traceId = trace.traceId;
     let cap: CapabilityDef | undefined;
     const span = (status: SpanRecord["status"], code?: string): void => {
-      deps.onSpan?.({ traceId, spanId: trace.spanId, parent: trace.parent, name: "invoke", cap: capName, startedAt: t0, ms: now() - t0, status, code, principal: seed.principal.id });
+      deps.onSpan?.({
+        traceId,
+        spanId: trace.spanId,
+        parent: trace.parent,
+        name: "invoke",
+        cap: capName,
+        startedAt: t0,
+        ms: now() - t0,
+        status,
+        code,
+        principal: seed.principal.id,
+      });
     };
     try {
       // 1 resolve
       cap = deps.caps.get(capName, seed.v);
-      if (!cap) throw fail("validation.unknown_capability", traceId, { message: "There is no such capability.", details: { cap: capName, v: seed.v ?? null } });
+      if (!cap)
+        throw fail("validation.unknown_capability", traceId, {
+          message: "There is no such capability.",
+          details: { cap: capName, v: seed.v ?? null },
+        });
       const c = cap;
       deps.personal?.gate(c.name, traceId, { input, principal: seed.principal, actingFor: seed.actingFor });
       // A Personal Space on several computers: a send, post or payment inside a scheduled step happens only on the computer that holds the schedule lease at that moment (host/src/peers/runner.ts).
       // Anywhere else the step parks and the holder carries it on after the next sync, so two computers that both thought they held the lease cannot both send.
       if (seed.step && c.effects === "outward" && deps.scheduledHere && !deps.scheduledHere()) {
-        throw fail("internal.unavailable", traceId, { message: "Waiting for the computer that runs scheduled work.", details: { cap: c.name, reason: NOT_SCHEDULING_COMPUTER } });
+        throw fail("internal.unavailable", traceId, {
+          message: "Waiting for the computer that runs scheduled work.",
+          details: { cap: c.name, reason: NOT_SCHEDULING_COMPUTER },
+        });
       }
       const depth = seed.depth ?? 0;
-      if (depth >= MAX_DEPTH) throw fail("validation.precondition_failed", traceId, { message: "Calls nest too deeply.", details: { depth, limit: MAX_DEPTH } });
+      if (depth >= MAX_DEPTH)
+        throw fail("validation.precondition_failed", traceId, {
+          message: "Calls nest too deeply.",
+          details: { depth, limit: MAX_DEPTH },
+        });
 
       // 2 validate
       const problems = deps.validateInput(c.name, c.v, input);
-      if (problems.length) throw fail("validation.bad_input", traceId, { details: { errors: problems.slice(0, 20), cap: c.name } });
+      if (problems.length)
+        throw fail("validation.bad_input", traceId, { details: { errors: problems.slice(0, 20), cap: c.name } });
 
       // A preview never enters idempotency, Gate, module handlers or ctx.call.
       // The closed read facade returns a final synchronous authority/redaction
       // check, run after the awaited audit commit and immediately before release.
       if (seed.previewToken) {
-        if (!deps.preview || seed.preAuth || depth !== 0 || c.effects !== "read") throw fail("permission.no_grant", traceId);
+        if (!deps.preview || seed.preAuth || depth !== 0 || c.effects !== "read")
+          throw fail("permission.no_grant", traceId);
         const result = await deps.preview.read(seed.previewToken, c.name, input, traceId);
-        await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events: [], audit: { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: `dec_${hex(16)}`, reason: "ok", resource: null, traceId, spanId: trace.spanId, at: now(), risk: c.risk } });
+        await deps.commit({
+          cap: c.name,
+          v: c.v,
+          principal: seed.principal.id,
+          events: [],
+          audit: {
+            class: "allow",
+            cap: c.name,
+            v: c.v,
+            principal: seed.principal.id,
+            actingFor: seed.actingFor,
+            decisionId: `dec_${hex(16)}`,
+            reason: "ok",
+            resource: null,
+            traceId,
+            spanId: trace.spanId,
+            at: now(),
+            risk: c.risk,
+          },
+        });
         return { status: "ok", output: await result.finish(), traceId };
       }
 
-      let collectionRateChecked=false;
-      if(!(seed.preAuth&&isHostService(seed.principal))&&deps.recordAccess?.collection&&["records.query","records.search","records.counts"].includes(c.name)){
-        const resource=resolveResource(c,input,seed.space,deps.resolveItem,seed.principal);
-        const req:AuthReq={principal:seed.principal.id,actingFor:seed.actingFor,provider:seed.provider,action:{perm:c.permission,level:"view"},resource,now:now(),cap:c.name,input};
-        if(c.rate&&deps.rate){const key=c.rate.scope==="space"?`space:${seed.space}:${c.name}`:`${seed.principal.id}:${c.name}`;if(!deps.rate.take(key,c.rate,now()))throw fail("rate_limit.exceeded",traceId,{details:{cap:c.name,perSeconds:c.rate.perSeconds}});collectionRateChecked=true;}
-        const scoped=await deps.recordAccess.collection(c.name,input,seed,req,traceId);
-        if(scoped){
-          await deps.commit({cap:c.name,v:c.v,principal:seed.principal.id,events:[],audit:{class:"allow",cap:c.name,v:c.v,principal:seed.principal.id,actingFor:seed.actingFor,decisionId:`dec_${hex(16)}`,reason:"ok",resource,traceId,spanId:trace.spanId,at:now(),risk:c.risk}});
-          return{status:"ok",output:await scoped.finish(),traceId};
+      let collectionRateChecked = false;
+      if (
+        !(seed.preAuth && isHostService(seed.principal)) &&
+        deps.recordAccess?.collection &&
+        ["records.query", "records.search", "records.counts"].includes(c.name)
+      ) {
+        const resource = resolveResource(c, input, seed.space, deps.resolveItem, seed.principal);
+        const req: AuthReq = {
+          principal: seed.principal.id,
+          actingFor: seed.actingFor,
+          provider: seed.provider,
+          action: { perm: c.permission, level: "view" },
+          resource,
+          now: now(),
+          cap: c.name,
+          input,
+        };
+        if (c.rate && deps.rate) {
+          const key = c.rate.scope === "space" ? `space:${seed.space}:${c.name}` : `${seed.principal.id}:${c.name}`;
+          if (!deps.rate.take(key, c.rate, now()))
+            throw fail("rate_limit.exceeded", traceId, { details: { cap: c.name, perSeconds: c.rate.perSeconds } });
+          collectionRateChecked = true;
+        }
+        const scoped = await deps.recordAccess.collection(c.name, input, seed, req, traceId);
+        if (scoped) {
+          await deps.commit({
+            cap: c.name,
+            v: c.v,
+            principal: seed.principal.id,
+            events: [],
+            audit: {
+              class: "allow",
+              cap: c.name,
+              v: c.v,
+              principal: seed.principal.id,
+              actingFor: seed.actingFor,
+              decisionId: `dec_${hex(16)}`,
+              reason: "ok",
+              resource,
+              traceId,
+              spanId: trace.spanId,
+              at: now(),
+              risk: c.risk,
+            },
+          });
+          return { status: "ok", output: await scoped.finish(), traceId };
         }
       }
 
@@ -411,119 +640,238 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       let rawKey: string | undefined;
       if (c.idempotency === "key") {
         const k = (input as { idempotencyKey?: unknown } | null)?.idempotencyKey;
-        if (typeof k !== "string" || k.length === 0) throw fail("validation.bad_input", traceId, { details: { errors: ["/idempotencyKey: required"], cap: c.name } });
+        if (typeof k !== "string" || k.length === 0)
+          throw fail("validation.bad_input", traceId, {
+            details: { errors: ["/idempotencyKey: required"], cap: c.name },
+          });
         rawKey = k;
         key = seed.approval ? `${k}:approved` : k;
       }
       const run = (): Promise<InvokeResult> => stepsFour(c, input, seed, trace, depth, collectionRateChecked);
       // the answer kept for a repeat never holds a person's own memory in words (owner ruling 3 Nov 2026: it is sealed under their key, and events.db is not)
-      const result = key !== undefined && deps.idem ? await deps.idem.once(seed.principal.id, c.name, key, input, run, c.name.startsWith("memory.") ? withoutPersonalWords : undefined) : await run();
-      if (seed.approval && rawKey && result.status === "ok") await deps.idem?.settle?.(seed.principal.id, c.name, rawKey, input, result);
+      const result =
+        key !== undefined && deps.idem
+          ? await deps.idem.once(
+              seed.principal.id,
+              c.name,
+              key,
+              input,
+              run,
+              c.name.startsWith("memory.") ? withoutPersonalWords : undefined,
+            )
+          : await run();
+      if (seed.approval && rawKey && result.status === "ok")
+        await deps.idem?.settle?.(seed.principal.id, c.name, rawKey, input, result);
       span(result.status === "held" ? "held" : "ok");
       if (depth === 0) forgetCallSecrets(traceId);
       return { ...result, traceId };
     } catch (e) {
-      if ((e as { code?: unknown } | null)?.code === "idem_conflict") e = fail("validation.precondition_failed", traceId, { message: "That key was already used with different input.", details: { reason: "idempotency_conflict", cap: capName } });
+      if ((e as { code?: unknown } | null)?.code === "idem_conflict")
+        e = fail("validation.precondition_failed", traceId, {
+          message: "That key was already used with different input.",
+          details: { reason: "idempotency_conflict", cap: capName },
+        });
       const { error, unexpected } = toVyreError(e, traceId);
       // the span first: the log can then tell a repeat of the same failure, which it counts, from a new one
       span(error.code.startsWith("permission.") ? "denied" : "error", error.code);
       if (unexpected) {
         // the caller only ever sees "Something went wrong on our side"; the server keeps what really happened, always (the logs.db row can be counted away as a repeat or trimmed, so it is also written to the server's own output)
-        const said = unexpectedWords(e, [...(deps.secrets?.() ?? []), ...callSecretsOf(traceId)], { withhold: usesVault(capName, input) });
+        const said = unexpectedWords(e, [...(deps.secrets?.() ?? []), ...callSecretsOf(traceId)], {
+          withhold: usesVault(capName, input),
+        });
         // the row keeps the scrubbed head of the stack (five lines): the sink drops a message key as content, and the stack text is scrubbed the same way as the line
         log.error("handler threw", { cap: capName, traceId, stack: said.head });
-        try { (deps.onUnexpected ?? writeUnexpected)({ cap: capName, traceId, message: said.message, stack: said.stack }); } catch { /* never throws into the call */ }
+        try {
+          (deps.onUnexpected ?? writeUnexpected)({ cap: capName, traceId, message: said.message, stack: said.stack });
+        } catch {
+          /* never throws into the call */
+        }
       }
       // who was refused: without the caller and the person it acted for, a refusal in the log cannot be traced to a session
-      log.info("invoke", { cap: capName, traceId, status: error.code, actor: seed.principal.id, ...(seed.actingFor ? { onBehalf: seed.actingFor } : {}) });
+      log.info("invoke", {
+        cap: capName,
+        traceId,
+        status: error.code,
+        actor: seed.principal.id,
+        ...(seed.actingFor ? { onBehalf: seed.actingFor } : {}),
+      });
       if ((seed.depth ?? 0) === 0) forgetCallSecrets(traceId);
       throw new HostError(error);
     }
   };
 
   // 4 rate limit, 5 authorize and Gate, 6 handler, 7 commit, 8 publish
-  async function stepsFour(c: CapabilityDef, input: unknown, asked: CtxSeed, trace: TraceContext, depth: number, rateChecked=false): Promise<InvokeResult> {
-    const traceId = trace.traceId, t = now();
+  async function stepsFour(
+    c: CapabilityDef,
+    input: unknown,
+    asked: CtxSeed,
+    trace: TraceContext,
+    depth: number,
+    rateChecked = false,
+  ): Promise<InvokeResult> {
+    const traceId = trace.traceId,
+      t = now();
     // the turn read the chat's mode when it started; the Gate goes by the mode now
-    const liveMode = asked.chatMode !== undefined && asked.thread !== undefined ? deps.gate?.mode?.(asked.thread) ?? asked.chatMode : asked.chatMode;
+    const liveMode =
+      asked.chatMode !== undefined && asked.thread !== undefined
+        ? (deps.gate?.mode?.(asked.thread) ?? asked.chatMode)
+        : asked.chatMode;
     const seed: CtxSeed = liveMode === asked.chatMode ? asked : { ...asked, chatMode: liveMode };
     if (c.rate && deps.rate && !rateChecked) {
       const k = c.rate.scope === "space" ? `space:${seed.space}:${c.name}` : `${seed.principal.id}:${c.name}`;
-      if (!deps.rate.take(k, c.rate, t)) throw fail("rate_limit.exceeded", traceId, { details: { cap: c.name, perSeconds: c.rate.perSeconds } });
+      if (!deps.rate.take(k, c.rate, t))
+        throw fail("rate_limit.exceeded", traceId, { details: { cap: c.name, perSeconds: c.rate.perSeconds } });
     }
 
     let resource: ResourceRef | null = null;
     let kd: KernelDecision | null = null;
     let fallbackId: string | null = null;
-    const did = (): string => (kd ? kd.decisionId : (fallbackId ??= mintId("dec", t)));   // minted only when an audit row or a parked task needs it
+    const did = (): string => (kd ? kd.decisionId : (fallbackId ??= mintId("dec", t))); // minted only when an audit row or a parked task needs it
     let approved = false;
     let approvedGates: readonly { act: string; approver: string }[] = [];
     if (!seed.preAuth) {
       // whose Vault the name is looked up in: the person, or the person an agent acts for
       const vaultPerson = seed.actingFor ?? (seed.principal.kind === "person" ? seed.principal.id : undefined);
-      const resolveFor = deps.resolveItem ? (type: string, kind: "name" | "handle", value: string): string | null => deps.resolveItem!(type, kind, value, vaultPerson) : undefined;
-      try { resource = resolveResource(c, input, seed.space, resolveFor, seed.principal); }
-      catch (e) {
+      const resolveFor = deps.resolveItem
+        ? (type: string, kind: "name" | "handle", value: string): string | null =>
+            deps.resolveItem!(type, kind, value, vaultPerson)
+        : undefined;
+      try {
+        resource = resolveResource(c, input, seed.space, resolveFor, seed.principal);
+      } catch (e) {
         // a Vault name or handle that names nothing the caller may use reads the same as one that does not exist, in words a person or an agent can act on
         // the line names the handle the caller wrote (their own input, never a value), so a failed Run says which key to bring back
         // a Vault item that names nothing: not found (404), the same answer as one the caller cannot see (below), so nobody can tell the two apart and a refusal reads as a refusal
         if (e instanceof BindingError && e.message === "no such item" && c.resource?.type === "vault_item") {
-          throw fail("permission.not_found", traceId, { message: missingItemLine(input, e.pointer), details: { reason: "no_such_item", errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
+          throw fail("permission.not_found", traceId, {
+            message: missingItemLine(input, e.pointer),
+            details: { reason: "no_such_item", errors: [`${e.pointer}: ${e.message}`], cap: c.name },
+          });
         }
-        if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { ...((c.resource as { self?: string }).self === "agent" && e.message === "the id is missing" ? { message: seed.forAgent !== undefined ? OUTSIDE_AGENT_LINE : SELF_BINDING_LINE } : {}), ...(e.message === "no such item" ? { message: missingItemLine(input, e.pointer) } : {}), details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
+        if (e instanceof BindingError)
+          throw fail("validation.bad_input", traceId, {
+            ...((c.resource as { self?: string }).self === "agent" && e.message === "the id is missing"
+              ? { message: seed.forAgent !== undefined ? OUTSIDE_AGENT_LINE : SELF_BINDING_LINE }
+              : {}),
+            ...(e.message === "no such item" ? { message: missingItemLine(input, e.pointer) } : {}),
+            details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name },
+          });
         throw e;
       }
       if (resource && deps.ensureResource) await deps.ensureResource(resource);
-      approved = seed.approval !== undefined && deps.gate !== undefined && deps.gate.verify(seed.approval, { cap: c, input, seed });
+      approved =
+        seed.approval !== undefined &&
+        deps.gate !== undefined &&
+        deps.gate.verify(seed.approval, { cap: c, input, seed });
       const memberOnly = c.level === "member";
       let req: AuthReq = {
-        principal: seed.principal.id, actingFor: seed.actingFor,
-        action: { perm: c.permission, level: c.level === "member" ? "view" : c.level, destructive: DESTRUCTIVE.test(c.name) },
-        resource, provider: seed.provider, cap: c.name, input, spendMicros: deps.spend?.(seed.principal.id), approved, now: t,
+        principal: seed.principal.id,
+        actingFor: seed.actingFor,
+        action: {
+          perm: c.permission,
+          level: c.level === "member" ? "view" : c.level,
+          destructive: DESTRUCTIVE.test(c.name),
+        },
+        resource,
+        provider: seed.provider,
+        cap: c.name,
+        input,
+        spendMicros: deps.spend?.(seed.principal.id),
+        approved,
+        now: t,
       };
-      if(deps.recordAccess&&SCOPED_RECORD_READS.has(c.name))req=await deps.recordAccess.facts(c.name,input,req,traceId);
+      if (deps.recordAccess && SCOPED_RECORD_READS.has(c.name))
+        req = await deps.recordAccess.facts(c.name, input, req, traceId);
       // level 'member' (ruling 69): any role or grant in the Space is enough, so a person whose only grant is one folder can sync that folder; the handler filters rows per resource. A stranger is refused as before.
-      const d = memberOnly && deps.membership ? (deps.membership(seed.principal.id, seed.actingFor) ? memberAllow(mintId("dec", t)) : deps.authorize(req)) : deps.authorize(req);
+      const d =
+        memberOnly && deps.membership
+          ? deps.membership(seed.principal.id, seed.actingFor)
+            ? memberAllow(mintId("dec", t))
+            : deps.authorize(req)
+          : deps.authorize(req);
       kd = d;
       // an approval covers the Gate rules this call itself met (the same act asked of the same approver), not every Gate rule of every check made inside it
-      if (approved) approvedGates = deps.authorize({ ...req, approved: false }).obligations.flatMap((o) => (o.type === "gate" ? [{ act: o.act, approver: o.approver }] : []));
+      if (approved)
+        approvedGates = deps
+          .authorize({ ...req, approved: false })
+          .obligations.flatMap((o) => (o.type === "gate" ? [{ act: o.act, approver: o.approver }] : []));
       // a self-bound call (an agent left the id out) is authorized on the Space, but the audit row and the chat answer check name what it really reaches (review S1, S4)
       const self = resource !== null && isSelfBound(c, input, seed.principal);
       const target = self ? selfTarget(c, input, seed.principal.id) : resource;
       // the audit names whose computer or browser it was even when the gateway cannot tell the computer's id yet: the agent's own
       const note = selfAuditNote(c, input, seed.principal, seed.actingFor);
       const audit = (cls: AuditRow["class"], reason: string): AuditRow => ({
-        class: cls, cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: d.decisionId, reason,
-        resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...(note ? { where: note.where, targets: note.targets } : {}),
+        class: cls,
+        cap: c.name,
+        v: c.v,
+        principal: seed.principal.id,
+        actingFor: seed.actingFor,
+        decisionId: d.decisionId,
+        reason,
+        resource,
+        traceId,
+        spanId: trace.spanId,
+        at: t,
+        risk: c.risk,
+        ...(note ? { where: note.where, targets: note.targets } : {}),
       });
       // first, before any ask-the-person step, so no path answers a hidden item differently from a missing one (pass 2): a Vault item named by name or handle that the person cannot see answers exactly as a name that names nothing, whatever authorize said (an admin's yes on another person's Mine item
       // included: the Vault hides those too), so nobody can probe which items exist. The refusal is in the audit, for admins; nothing more comes back.
-      const named = c.resource !== undefined && "resolve" in c.resource && Boolean((c.resource as { resolve?: unknown }).resolve) && resource !== null && resource.type === "vault_item" && resource.id !== null;
+      const named =
+        c.resource !== undefined &&
+        "resolve" in c.resource &&
+        Boolean((c.resource as { resolve?: unknown }).resolve) &&
+        resource !== null &&
+        resource.type === "vault_item" &&
+        resource.id !== null;
       // another person's Mine item is hidden always; any other item only when the real decision (the agent and whom it acts for) is no, since a key approved for an agent through a key
       // request needs no access of the person's own (kernel throughAgent; review 12 Nov, 1)
-      const hidden = named && vaultPerson !== undefined ? deps.vaultHidden?.(resource!.id as string, vaultPerson) : undefined;
+      const hidden =
+        named && vaultPerson !== undefined ? deps.vaultHidden?.(resource!.id as string, vaultPerson) : undefined;
       if (hidden === "mine" || (hidden === "other" && d.effect === "deny")) {
         await deps.audit?.(audit("deny", "vault_item_hidden"));
         const pointer = (c.resource as { id: string }).id;
-        throw fail("permission.not_found", traceId, { message: missingItemLine(input, pointer), details: { reason: "no_such_item", errors: [`${pointer}: no such item`], cap: c.name } });
+        throw fail("permission.not_found", traceId, {
+          message: missingItemLine(input, pointer),
+          details: { reason: "no_such_item", errors: [`${pointer}: no such item`], cap: c.name },
+        });
       }
       // Ask the person: an outside agent stopped at what only a person does, or at a role its person holds, asks that person instead of hitting a wall. The person's own access decides, alone,
       // as it will again when the call runs on their yes; nothing here lets the agent itself past anything.
       const mustAsk = seed.askPerson === "always" && depth === 0 && seed.approval === undefined;
       // the agent itself must still be a live member that may act for this person: a suspended or removed agent, or a policy on the caller (provider label, spend), stops here as before
       const agentLive = !(d.effect === "deny" && ASK_STOPS.has(d.reason));
-      const asks = seed.askPerson !== undefined && seed.principal.kind === "agent" && seed.actingFor !== undefined && seed.actingFor.startsWith("usr_") && depth === 0 && !approved && seed.approval === undefined && agentLive
-        && (seed.askPerson === "always" || (d.effect === "deny" && d.reason === "role_lacks_permission"));
+      const asks =
+        seed.askPerson !== undefined &&
+        seed.principal.kind === "agent" &&
+        seed.actingFor !== undefined &&
+        seed.actingFor.startsWith("usr_") &&
+        depth === 0 &&
+        !approved &&
+        seed.approval === undefined &&
+        agentLive &&
+        (seed.askPerson === "always" || (d.effect === "deny" && d.reason === "role_lacks_permission"));
       // fail closed: what the door says only a person does never runs as the agent, whatever authorize said
       if (mustAsk && !asks) {
         await deps.audit?.(audit("deny", d.effect === "deny" ? d.reason : "person_only"));
-        throw fail(d.effect === "deny" ? codeForReason(d.reason) : "permission.role_lacks_permission", traceId, { message: "Only a person can do that here.", details: { cap: c.name, reason: "person_only" } });
+        throw fail(d.effect === "deny" ? codeForReason(d.reason) : "permission.role_lacks_permission", traceId, {
+          message: "Only a person can do that here.",
+          details: { cap: c.name, reason: "person_only" },
+        });
       }
       if (asks) {
         const pd = deps.authorize({ ...req, principal: seed.actingFor!, actingFor: undefined, approved: false });
         if (pd.effect === "deny") {
           await deps.audit?.(audit("deny", `asks_person:${pd.reason}`));
-          throw fail(codeForReason(pd.reason), traceId, { message: PERSON_LACKS_ROLE_LINE, details: { cap: c.name, reason: "person_lacks_role", personReason: pd.reason, steps: pd.steps.map((x) => x.text) } });
+          throw fail(codeForReason(pd.reason), traceId, {
+            message: PERSON_LACKS_ROLE_LINE,
+            details: {
+              cap: c.name,
+              reason: "person_lacks_role",
+              personReason: pd.reason,
+              steps: pd.steps.map((x) => x.text),
+            },
+          });
         }
         // the setup grant: the person said yes ahead of time for this kind of call, so it runs as them now. Sends, posts and payments are never in it: they keep the Gate and the chat's rules.
         if (seed.setupGrant === true && c.effects !== "outward") {
@@ -531,45 +879,132 @@ export function createInvoke(deps: InvokeDeps): Invoke {
           // Setting the Space AI key puts the value the agent itself sent into a Restricted folder and answers nothing secret: the provider label (which keeps Restricted data from reaching a provider)
           // has nothing to keep from it there, so the call runs as the person alone. Every other call keeps the label.
           const keyIn = c.name === "providers.space_key.set" ? { provider: undefined } : {};
-          const asPerson: CtxSeed = { ...seed, principal: { kind: "person", id: seed.actingFor! }, actingFor: undefined, askPerson: undefined, setupGrant: undefined, askFirst: undefined, askable: undefined, chatMode: undefined, auditAll: true, forAgent: seed.principal.id, ...keyIn };
+          const asPerson: CtxSeed = {
+            ...seed,
+            principal: { kind: "person", id: seed.actingFor! },
+            actingFor: undefined,
+            askPerson: undefined,
+            setupGrant: undefined,
+            askFirst: undefined,
+            askable: undefined,
+            chatMode: undefined,
+            auditAll: true,
+            forAgent: seed.principal.id,
+            ...keyIn,
+          };
           return stepsFour(c, input, asPerson, trace, depth, true);
         }
-        return park(c, input, seed, traceId, pd.decisionId, c.gate?.act && c.gate.act !== "none" ? c.gate.act : "approve", audit("hold", "asks_person"), "person");
+        return park(
+          c,
+          input,
+          seed,
+          traceId,
+          pd.decisionId,
+          c.gate?.act && c.gate.act !== "none" ? c.gate.act : "approve",
+          audit("hold", "asks_person"),
+          "person",
+        );
       }
       if (d.effect === "deny") {
         await deps.audit?.(audit("deny", d.reason));
         // an agent a private chat made reads, to anyone who may not view it, exactly like an agent that does not exist (owner decision, 12 Nov 2026): the agents module's own answer for an agent
         // that is gone, "That agent does not exist.", which chat.start, a mention and a task assignee already refuse on
-        if (resource !== null && resource.type === "agent" && deps.hidden?.(resource, seed.principal.id, seed.actingFor)) throw fail("validation.not_found", traceId, { message: "That agent does not exist." });
+        if (
+          resource !== null &&
+          resource.type === "agent" &&
+          deps.hidden?.(resource, seed.principal.id, seed.actingFor)
+        )
+          throw fail("validation.not_found", traceId, { message: "That agent does not exist." });
         const code = codeForReason(d.reason);
         // an agent stopped at a folder or a file its person may be able to share: the refusal names the press, so the person gets it in Needs you
-        const askShare = d.reason === "no_grant" && seed.principal.kind === "agent" && seed.actingFor !== undefined && resource !== null && (resource.type === "folder" || resource.type === "file");
+        const askShare =
+          d.reason === "no_grant" &&
+          seed.principal.kind === "agent" &&
+          seed.actingFor !== undefined &&
+          resource !== null &&
+          (resource.type === "folder" || resource.type === "file");
         // a role that does not reach a Vault, AI key or connection call: plain words with what to do instead (lib/vault-lines.ts)
         // (a person whose access to the Space itself is too low for the call is the same thing said another way)
         // (so is a guest making their own connection: they hold no grant on the app's connector, which hangs off the Space)
-        const plain = seed.principal.kind === "person" && (d.reason === "role_lacks_permission" || (d.reason === "no_grant" && (resource?.type === "space" || (resource?.type === "connection" && resource.id === null)))) ? roleLine(c.name) : null;
-        throw fail(code, traceId, { details: { cap: c.name, reason: d.reason, steps: d.steps.map((s) => s.text) }, ...(plain ? { message: plain } : {}), ...(askShare ? { message: "You have not been given this. Call access_request now with the resource and level in next, without asking first: it only asks, and a person shares it with you with one press.", next: [{ kind: "ask_access", label: "Ask to share this", action: { cap: "access.request", input: { resource: { type: resource.type, id: resource.id }, level: c.effects === "read" ? "view" : "edit" } } }] } : {}) });
+        const plain =
+          seed.principal.kind === "person" &&
+          (d.reason === "role_lacks_permission" ||
+            (d.reason === "no_grant" &&
+              (resource?.type === "space" || (resource?.type === "connection" && resource.id === null))))
+            ? roleLine(c.name)
+            : null;
+        throw fail(code, traceId, {
+          details: { cap: c.name, reason: d.reason, steps: d.steps.map((s) => s.text) },
+          ...(plain ? { message: plain } : {}),
+          ...(askShare
+            ? {
+                message:
+                  "You have not been given this. Call access_request now with the resource and level in next, without asking first: it only asks, and a person shares it with you with one press.",
+                next: [
+                  {
+                    kind: "ask_access",
+                    label: "Ask to share this",
+                    action: {
+                      cap: "access.request",
+                      input: {
+                        resource: { type: resource.type, id: resource.id },
+                        level: c.effects === "read" ? "view" : "edit",
+                      },
+                    },
+                  },
+                ],
+              }
+            : {}),
+        });
       }
       if (d.effect === "hold") {
         const g = d.obligations.find((o) => o.type === "gate");
-        return park(c, input, seed, traceId, d.decisionId, g && g.type === "gate" ? g.act : (c.gate?.act ?? "approve"), audit("hold", d.reason));
+        return park(
+          c,
+          input,
+          seed,
+          traceId,
+          d.decisionId,
+          g && g.type === "gate" ? g.act : (c.gate?.act ?? "approve"),
+          audit("hold", d.reason),
+        );
       }
       // Files and connector authorization are separate questions: a call that reaches a connector's source folder must pass the connector's own check as well
       const guarded = deps.sourceGuard?.check({ cap: c.name, input, seed, now: t });
       if (guarded) {
         await deps.audit?.(audit("deny", guarded.reason));
-        throw fail("permission.no_grant", traceId, { message: "This folder is the source of a connector. Changing it takes edit access to that connector as well.", details: { cap: c.name, reason: guarded.reason, connector: guarded.key } });
+        throw fail("permission.no_grant", traceId, {
+          message: "This folder is the source of a connector. Changing it takes edit access to that connector as well.",
+          details: { cap: c.name, reason: guarded.reason, connector: guarded.key },
+        });
       }
       // what an agent reads for a person inside a chat is noted, so its answer is checked against everyone who reads that chat before it is posted there (seams/answer-reads.ts, gap 6)
-      if (c.effects === "read" && depth === 0 && resource !== null && seed.principal.kind === "agent" && seed.actingFor?.startsWith("usr_") && seed.thread !== undefined) {
-        noteRead({ thread: seed.thread, agent: seed.principal.id, asker: seed.actingFor, resource: { type: target!.type, id: target!.id } });
+      if (
+        c.effects === "read" &&
+        depth === 0 &&
+        resource !== null &&
+        seed.principal.kind === "agent" &&
+        seed.actingFor?.startsWith("usr_") &&
+        seed.thread !== undefined
+      ) {
+        noteRead({
+          thread: seed.thread,
+          agent: seed.principal.id,
+          asker: seed.actingFor,
+          resource: { type: target!.type, id: target!.id },
+        });
       }
     }
     // a stranger's words, carried in by an Automation's outside-started Run, never give anyone access or become a standing Automation, agent, Routine, hook or skill without a yes (lead 12 Nov)
-    if (!approved && depth === 0 && (await deps.gate?.fromAutomationContent?.(c, seed).catch(() => true)) === true) return park(c, input, seed, traceId, did(), "approve", null);
+    if (!approved && depth === 0 && (await deps.gate?.fromAutomationContent?.(c, seed).catch(() => true)) === true)
+      return park(c, input, seed, traceId, did(), "approve", null);
     // the capability's own Gate (spec 2.14): fail closed when a Gate is declared and nothing can park the call
     if (c.gate && c.gate.act !== "none" && !approved) {
-      if (!deps.gate) throw fail("internal.unavailable", traceId, { message: "Approvals are not available right now.", details: { cap: c.name, act: c.gate.act } });
+      if (!deps.gate)
+        throw fail("internal.unavailable", traceId, {
+          message: "Approvals are not available right now.",
+          details: { cap: c.name, act: c.gate.act },
+        });
       const g = await deps.gate.applies(c, input, seed);
       if (g) {
         return park(c, input, seed, traceId, did(), g.act, null);
@@ -577,16 +1012,28 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     }
 
     // Ask first (chat mode): the Gate parks any call that is not read-only, once, at the top of the call. The approval token of the resume path skips it, as it skips the capability's own Gate.
-    if (seed.chatMode === "plan" && seed.askable === true && !approved && depth === 0) throw fail("permission.plan_mode", traceId, { details: { cap: c.name } });
-    if ((seed.askFirst === true || (seed.askable === true && seed.chatMode === "ask")) && !approved && depth === 0 && c.effects !== "read") {
-      const ownReport = seed.mustAsk !== true && (await deps.ownTaskReport?.(c, input, seed).catch(() => false)) === true;
-      if (!ownReport && (seed.mustAsk === true || !(await deps.gate?.allowed?.(c, input, seed)))) return park(c, input, seed, traceId, did(), c.gate?.act ?? "approve", null);
+    if (seed.chatMode === "plan" && seed.askable === true && !approved && depth === 0)
+      throw fail("permission.plan_mode", traceId, { details: { cap: c.name } });
+    if (
+      (seed.askFirst === true || (seed.askable === true && seed.chatMode === "ask")) &&
+      !approved &&
+      depth === 0 &&
+      c.effects !== "read"
+    ) {
+      const ownReport =
+        seed.mustAsk !== true && (await deps.ownTaskReport?.(c, input, seed).catch(() => false)) === true;
+      if (!ownReport && (seed.mustAsk === true || !(await deps.gate?.allowed?.(c, input, seed))))
+        return park(c, input, seed, traceId, did(), c.gate?.act ?? "approve", null);
     }
 
     // the read gate, before: an agent may not copy, move or send a file out of its Redacted or Not available folder (Redaction for AI)
     if (deps.agentGate && (depth === 0 || approved)) {
       const refused = await deps.agentGate.before(c.name, input, seed);
-      if (refused) throw fail(refused.code as ErrorCode, traceId, { message: refused.message, details: { cap: c.name, ...refused.details } });
+      if (refused)
+        throw fail(refused.code as ErrorCode, traceId, {
+          message: refused.message,
+          details: { cap: c.name, ...refused.details },
+        });
     }
     // 6 handler, with a ctx whose emit buffers events for the one commit
     const h = deps.handler(c.name, c.v);
@@ -595,93 +1042,239 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     const ctx = makeCtx(c, seed, trace, depth, events, approved ? approvedGates : undefined);
     let output: unknown;
     try {
-      output = await h(ctx, input);   // a throw here is mapped by the outer catch: VyreErr and HostError keep their code, anything else is internal.unexpected
+      output = await h(ctx, input); // a throw here is mapped by the outer catch: VyreErr and HostError keep their code, anything else is internal.unexpected
     } catch (e) {
       // refused before it went out: a person's yes this call spent is handed back, so the corrected retry is still asked for (one successful send per yes)
       await deps.gate?.giveBack?.(input).catch(() => undefined);
       // events the handler marked afterFailure (a refused sign-in's signin.failed) are written on their own, then the error goes on; nothing else the call buffered is
       const keep = events.filter((ev) => survivors.has(ev));
       if (keep.length) {
-        try { deps.publish?.(await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events: keep, audit: null })); }
-        catch (ce) { log.warn("after-failure events were not written", { cap: c.name, traceId, error: ce instanceof Error ? ce.message : String(ce) }); }
+        try {
+          deps.publish?.(
+            await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events: keep, audit: null }),
+          );
+        } catch (ce) {
+          log.warn("after-failure events were not written", {
+            cap: c.name,
+            traceId,
+            error: ce instanceof Error ? ce.message : String(ce),
+          });
+        }
       }
       throw e;
     }
     // P-H_16: every object this call created becomes a resource in the same commit, so it is authorizable at once (one place for every module)
     if (deps.resources && events.length) {
-      for (const row of deps.resources.register({ cap: c, input, space: seed.space, owner: seed.actingFor ?? seed.principal.id, principal: seed.principal, events })) {
-        events.push(envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth) as EventEnvelope);
+      for (const row of deps.resources.register({
+        cap: c,
+        input,
+        space: seed.space,
+        owner: seed.actingFor ?? seed.principal.id,
+        principal: seed.principal,
+        events,
+      })) {
+        events.push(
+          envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth) as EventEnvelope,
+        );
         // An agent that makes a record type for the person it acts for holds Manage on it (the person owns it): it needs to set who the type is open to as part of the same work. Only a record type, only
         // an agent acting for a person. This adds no power beyond the person: every call the agent makes still takes the lower of its grants and its asker's access.
-        if (row.type === "record_type" && seed.principal.kind === "agent" && seed.actingFor !== undefined && seed.actingFor.startsWith("usr_")) {
+        if (
+          row.type === "record_type" &&
+          seed.principal.kind === "agent" &&
+          seed.actingFor !== undefined &&
+          seed.actingFor.startsWith("usr_")
+        ) {
           const id = `gnt_${hex(16)}`;
-          events.push(envelope("grant.created" as EventName, `grant/${id}`, { id, subject_kind: "actor", subject_id: seed.principal.id, resource_type: "record_type", resource_id: row.id, level: "manage", by: seed.actingFor }, seed, trace, depth) as EventEnvelope);
+          events.push(
+            envelope(
+              "grant.created" as EventName,
+              `grant/${id}`,
+              {
+                id,
+                subject_kind: "actor",
+                subject_id: seed.principal.id,
+                resource_type: "record_type",
+                resource_id: row.id,
+                level: "manage",
+                by: seed.actingFor,
+              },
+              seed,
+              trace,
+              depth,
+            ) as EventEnvelope,
+          );
         }
       }
     }
     if (deps.principals && events.length) {
-      for (const r of deps.principals.register({ space: seed.space, maker: seed.actingFor ?? seed.principal.id, events })) events.push(envelope(r.type as EventName, `${r.entity}/${r.id}`, r.payload, seed, trace, depth) as EventEnvelope);
+      for (const r of deps.principals.register({
+        space: seed.space,
+        maker: seed.actingFor ?? seed.principal.id,
+        events,
+      }))
+        events.push(
+          envelope(r.type as EventName, `${r.entity}/${r.id}`, r.payload, seed, trace, depth) as EventEnvelope,
+        );
     }
 
     // 7 commit: events, inline projections and the audit row land together
-    const finishOutput=SCOPED_RECORD_READS.has(c.name)&&!(seed.preAuth&&isHostService(seed.principal))?await deps.recordAccess?.project(c.name,input,seed,output,traceId):undefined;
+    const finishOutput =
+      SCOPED_RECORD_READS.has(c.name) && !(seed.preAuth && isHostService(seed.principal))
+        ? await deps.recordAccess?.project(c.name, input, seed, output, traceId)
+        : undefined;
     // an agent's change is audited like any sensitive act, so the log always says which agent did what for whom (a person's own file write is not)
-    const audited = shouldAudit(c) || seed.auditAll === true || (seed.principal.kind === "agent" && c.effects !== "read");
+    const audited =
+      shouldAudit(c) || seed.auditAll === true || (seed.principal.kind === "agent" && c.effects !== "read");
     const targets = audited ? auditTargets(c.name, input, output) : undefined;
     const auditRow: AuditRow | null = audited
-      ? { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: did(), reason: "ok", resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...withNote(targets, fellBackNote(selfAuditNote(c, input, seed.principal, seed.actingFor), takeFallback(traceId))) }
+      ? {
+          class: "allow",
+          cap: c.name,
+          v: c.v,
+          principal: seed.principal.id,
+          actingFor: seed.actingFor,
+          decisionId: did(),
+          reason: "ok",
+          resource,
+          traceId,
+          spanId: trace.spanId,
+          at: t,
+          risk: c.risk,
+          ...withNote(
+            targets,
+            fellBackNote(selfAuditNote(c, input, seed.principal, seed.actingFor), takeFallback(traceId)),
+          ),
+        }
       : null;
     let stored = events;
-    if (events.length || auditRow) stored = await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events, audit: auditRow });
+    if (events.length || auditRow)
+      stored = await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events, audit: auditRow });
     // 8 publish after commit
     if (stored.length) deps.publish?.(stored);
     // Before the answer reaches the model: a failure to mark costs the next outward act nothing it should have, so it is logged and the answer still goes. The grant check reads the mark.
-    if (deps.gate?.seen && (depth === 0 || approved)) await deps.gate.seen(c, input, output, seed, t).catch((e: unknown) => log.warn("the Gate did not hear what a call brought in", { cap: c.name, traceId, error: e instanceof Error ? e.message : String(e) }));
+    if (deps.gate?.seen && (depth === 0 || approved))
+      await deps.gate
+        .seen(c, input, output, seed, t)
+        .catch((e: unknown) =>
+          log.warn("the Gate did not hear what a call brought in", {
+            cap: c.name,
+            traceId,
+            error: e instanceof Error ? e.message : String(e),
+          }),
+        );
     let answer = finishOutput ? await finishOutput() : output;
     // the read gate, after: what a call an agent is behind hands back is the redacted rendition, or a refusal (Redaction for AI, seams/agent-read.ts)
     if (deps.agentGate && (depth === 0 || approved)) {
       const g = await deps.agentGate.after(c.name, c.effects, input, answer, seed);
-      if ("refuse" in g) throw fail(g.refuse.code as ErrorCode, traceId, { message: g.refuse.message, details: { cap: c.name, ...g.refuse.details } });
+      if ("refuse" in g)
+        throw fail(g.refuse.code as ErrorCode, traceId, {
+          message: g.refuse.message,
+          details: { cap: c.name, ...g.refuse.details },
+        });
       answer = g.output;
     }
     return { status: "ok", output: answer, traceId };
   }
 
-  async function park(c: CapabilityDef, input: unknown, seed: CtxSeed, traceId: string, decisionId: string, act: string, row: AuditRow | null, runAs?: "person"): Promise<InvokeResult> {
-    if (!deps.gate) throw fail("internal.unavailable", traceId, { message: "Approvals are not available right now.", details: { cap: c.name } });
+  async function park(
+    c: CapabilityDef,
+    input: unknown,
+    seed: CtxSeed,
+    traceId: string,
+    decisionId: string,
+    act: string,
+    row: AuditRow | null,
+    runAs?: "person",
+  ): Promise<InvokeResult> {
+    if (!deps.gate)
+      throw fail("internal.unavailable", traceId, {
+        message: "Approvals are not available right now.",
+        details: { cap: c.name },
+      });
     if (row) await deps.audit?.(row);
     const p = await deps.gate.park({ cap: c, input, seed, act, decisionId, traceId, ...(runAs ? { runAs } : {}) });
     return { status: "held", taskId: p.taskId, runId: p.runId, traceId };
   }
 
-  const shouldAudit = (c: CapabilityDef): boolean => c.audit === "always" || (c.audit === "sensitive" && c.risk !== "low");
+  const shouldAudit = (c: CapabilityDef): boolean =>
+    c.audit === "always" || (c.audit === "sensitive" && c.risk !== "low");
 
   /** One event envelope, stamped with the call's trace, actor and clock. `subject` is `<entity>/<id>`. */
-  function envelope<T>(name: EventName, subject: string, payload: T, seed: CtxSeed, trace: TraceContext, depth: number, opts?: EmitOpts): EventEnvelope<T> {
+  function envelope<T>(
+    name: EventName,
+    subject: string,
+    payload: T,
+    seed: CtxSeed,
+    trace: TraceContext,
+    depth: number,
+    opts?: EmitOpts,
+  ): EventEnvelope<T> {
     const parts = subject.split("/").filter(Boolean);
     return {
-      seq: 0, id: mintEventId(now()), type: name, sv: 1, hlc: nextHlc(), at: now(), traceId: trace.traceId, spanId: trace.spanId,
-      actor: seed.principal.id, ...(seed.actingFor ? { onBehalf: seed.actingFor } : {}), ...(seed.device ? { device: seed.device } : {}),
-      ...(seed.run ? { runId: seed.run } : {}), ...(opts?.cause ? { cause: opts.cause } : {}), origin: seed.origin ?? "user", depth,
-      entity: parts.length > 1 ? parts[parts.length - 2]! : subject, ...(parts.length > 1 ? { entityId: parts[parts.length - 1]! } : {}),
-      label: 0, vis: opts?.vis ?? "space", enc: 0, payload,
+      seq: 0,
+      id: mintEventId(now()),
+      type: name,
+      sv: 1,
+      hlc: nextHlc(),
+      at: now(),
+      traceId: trace.traceId,
+      spanId: trace.spanId,
+      actor: seed.principal.id,
+      ...(seed.actingFor ? { onBehalf: seed.actingFor } : {}),
+      ...(seed.device ? { device: seed.device } : {}),
+      ...(seed.run ? { runId: seed.run } : {}),
+      ...(opts?.cause ? { cause: opts.cause } : {}),
+      origin: seed.origin ?? "user",
+      depth,
+      entity: parts.length > 1 ? parts[parts.length - 2]! : subject,
+      ...(parts.length > 1 ? { entityId: parts[parts.length - 1]! } : {}),
+      label: 0,
+      vis: opts?.vis ?? "space",
+      enc: 0,
+      payload,
     };
   }
 
-  function makeCtx(c: CapabilityDef, seed: CtxSeed, trace: TraceContext, depth: number, buf: EventEnvelope[], approvedGates?: readonly { act: string; approver: string }[]): Ctx {
+  function makeCtx(
+    c: CapabilityDef,
+    seed: CtxSeed,
+    trace: TraceContext,
+    depth: number,
+    buf: EventEnvelope[],
+    approvedGates?: readonly { act: string; approver: string }[],
+  ): Ctx {
     const svc = deps.services?.(seed, c) ?? {};
-    const unavailable = (what: string) => (): never => { throw fail("internal.not_implemented", trace.traceId, { details: { service: what, cap: c.name } }); };
+    const unavailable = (what: string) => (): never => {
+      throw fail("internal.not_implemented", trace.traceId, { details: { service: what, cap: c.name } });
+    };
     const ctx: Ctx = {
-      space: seed.space, principal: seed.principal, ...(seed.actingFor ? { actingFor: seed.actingFor } : {}), trace,
-      ...(seed.run ? { run: seed.run } : {}), ...(seed.thread ? { thread: seed.thread } : {}), origin: seed.origin ?? "user", depth, ...(seed.forwarded ? { forwarded: true } : {}), ...(seed.callerCap !== undefined && depth > 0 ? { callerCap: seed.callerCap } : {}),
-      ...(seed.device ? { device: seed.device } : {}), now,
+      space: seed.space,
+      principal: seed.principal,
+      ...(seed.actingFor ? { actingFor: seed.actingFor } : {}),
+      trace,
+      ...(seed.run ? { run: seed.run } : {}),
+      ...(seed.thread ? { thread: seed.thread } : {}),
+      origin: seed.origin ?? "user",
+      depth,
+      ...(seed.forwarded ? { forwarded: true } : {}),
+      ...(seed.callerCap !== undefined && depth > 0 ? { callerCap: seed.callerCap } : {}),
+      ...(seed.device ? { device: seed.device } : {}),
+      now,
       ...(seed.sharedKey ? { sharedKey: true } : {}),
       ...(seed.sessionId ? { sessionId: seed.sessionId } : {}),
       db: svc.db ?? { all: unavailable("db"), run: unavailable("db") },
       emit<T>(name: EventName, subject: string, payload: T, opts?: EmitOpts): EventEnvelope<T> {
-        if (!c.emits.includes(name)) throw fail("internal.unexpected", trace.traceId, { message: "Something went wrong on our side.", details: { cap: c.name, event: name, why: "event not declared in emits" } });
+        if (!c.emits.includes(name))
+          throw fail("internal.unexpected", trace.traceId, {
+            message: "Something went wrong on our side.",
+            details: { cap: c.name, event: name, why: "event not declared in emits" },
+          });
         const bad = deps.validateEvent?.(name, payload);
-        if (bad?.length) throw fail("internal.unexpected", trace.traceId, { message: "Something went wrong on our side.", details: { cap: c.name, event: name, errors: bad.slice(0, 5) } });
+        if (bad?.length)
+          throw fail("internal.unexpected", trace.traceId, {
+            message: "Something went wrong on our side.",
+            details: { cap: c.name, event: name, errors: bad.slice(0, 5) },
+          });
         const ev = envelope(name, subject, payload, seed, trace, depth, opts);
         buf.push(ev as EventEnvelope);
         if (opts?.afterFailure) survivors.add(ev as EventEnvelope);
@@ -693,29 +1286,86 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         const resume = c.name === "gate.release" && opts?.approvalToken !== undefined ? opts : undefined;
         let base: CtxSeed = seed;
         if (resume) {
-          const original = resume.onBehalfOf && deps.gate?.resume ? await deps.gate.resume({ token: resume.approvalToken!, onBehalfOf: resume.onBehalfOf, cap: deps.caps.get(name)!, input: callInput }) : null;
-          if (!original) throw fail("permission.no_grant", trace.traceId, { message: "That approval cannot resume this call.", details: { cap: name } });
-          base = { ...seed, principal: original.principal, actingFor: original.actingFor, run: original.run, thread: original.thread };
+          const original =
+            resume.onBehalfOf && deps.gate?.resume
+              ? await deps.gate.resume({
+                  token: resume.approvalToken!,
+                  onBehalfOf: resume.onBehalfOf,
+                  cap: deps.caps.get(name)!,
+                  input: callInput,
+                })
+              : null;
+          if (!original)
+            throw fail("permission.no_grant", trace.traceId, {
+              message: "That approval cannot resume this call.",
+              details: { cap: name },
+            });
+          base = {
+            ...seed,
+            principal: original.principal,
+            actingFor: original.actingFor,
+            run: original.run,
+            thread: original.thread,
+          };
         }
         // CallOpts.traceId: a call that continues earlier work (a provider's callback about a call a person placed) runs on that work's trace
-        const nested: TraceContext = opts?.traceId !== undefined && /^[0-9a-f]{32}$/.test(opts.traceId) && !/^0+$/.test(opts.traceId) ? { ...trace, traceId: opts.traceId } : trace;
-        const r = await invoke(name, callInput, { ...base, depth: depth + 1, callerCap: c.name, forwarded: opts?.asCaller === true ? true : undefined, trace: nested, approval: resume?.approvalToken, v: undefined, clearedActs: resume ? undefined : cleared, gateMode: opts?.gate ?? seed.gateMode, step: opts?.step ?? base.step });
-        if (r.status === "held") throw fail("permission.needs_approval", trace.traceId, { details: { taskId: r.taskId, cap: name } });
+        const nested: TraceContext =
+          opts?.traceId !== undefined && /^[0-9a-f]{32}$/.test(opts.traceId) && !/^0+$/.test(opts.traceId)
+            ? { ...trace, traceId: opts.traceId }
+            : trace;
+        const r = await invoke(name, callInput, {
+          ...base,
+          depth: depth + 1,
+          callerCap: c.name,
+          forwarded: opts?.asCaller === true ? true : undefined,
+          trace: nested,
+          approval: resume?.approvalToken,
+          v: undefined,
+          clearedActs: resume ? undefined : cleared,
+          gateMode: opts?.gate ?? seed.gateMode,
+          step: opts?.step ?? base.step,
+        });
+        if (r.status === "held")
+          throw fail("permission.needs_approval", trace.traceId, { details: { taskId: r.taskId, cap: name } });
         return r.output;
       },
       authorize(action, resource): Decision {
-        const d = deps.authorize({ principal: seed.principal.id, actingFor: seed.actingFor, action, resource, provider: seed.provider, now: now(), ...(action.cap !== undefined ? { cap: action.cap } : {}), ...(action.fields !== undefined ? { fields: action.fields } : {}) });
+        const d = deps.authorize({
+          principal: seed.principal.id,
+          actingFor: seed.actingFor,
+          action,
+          resource,
+          provider: seed.provider,
+          now: now(),
+          ...(action.cap !== undefined ? { cap: action.cap } : {}),
+          ...(action.fields !== undefined ? { fields: action.fields } : {}),
+        });
         if (d.effect === "hold") {
           const gates = d.obligations.flatMap((o) => (o.type === "gate" ? [o] : []));
           // the call was approved: a check inside it that meets only Gate rules that approval covered (same act, same approver) is cleared; any other Gate rule still holds, naming who decides
-          if (approvedGates && gates.length > 0 && gates.every((g) => approvedGates.some((a) => a.act === g.act && a.approver === g.approver))) return { effect: "allow", reason: "ok", decisionId: d.decisionId };
-          return { effect: "hold", reason: `needs_approval: ${[...new Set(gates.map((g) => g.approver))].join(", ")}`, decisionId: d.decisionId };
+          if (
+            approvedGates &&
+            gates.length > 0 &&
+            gates.every((g) => approvedGates.some((a) => a.act === g.act && a.approver === g.approver))
+          )
+            return { effect: "allow", reason: "ok", decisionId: d.decisionId };
+          return {
+            effect: "hold",
+            reason: `needs_approval: ${[...new Set(gates.map((g) => g.approver))].join(", ")}`,
+            decisionId: d.decisionId,
+          };
         }
         return { effect: d.effect, reason: d.reason, decisionId: d.decisionId };
       },
       // each person on their own grants, as no one's agent: what a chat's audience may open (lib/audience.ts). A check that cannot run says no.
       mayAll(people, action, resource): boolean {
-        return people.every((p) => { try { return deps.authorize({ principal: p, action, resource, now: now() }).effect === "allow"; } catch { return false; } });
+        return people.every((p) => {
+          try {
+            return deps.authorize({ principal: p, action, resource, now: now() }).effect === "allow";
+          } catch {
+            return false;
+          }
+        });
       },
       vault: svc.vault ?? { fill: unavailable("vault"), use: unavailable("vault") },
       http: svc.http ?? unavailable("http"),
@@ -740,21 +1390,33 @@ export function withoutPersonalWords(v: unknown): unknown {
   const o = v as Record<string, unknown>;
   const out: Record<string, unknown> = {};
   for (const [k, x] of Object.entries(o)) out[k] = withoutPersonalWords(x);
-  if (o["layer"] === "person") for (const k of ["text", "title", "subtitle", "blurb", "notes", "snippet"]) if (typeof out[k] === "string") out[k] = "";
+  if (o["layer"] === "person")
+    for (const k of ["text", "title", "subtitle", "blurb", "notes", "snippet"])
+      if (typeof out[k] === "string") out[k] = "";
   // a page answer carries its notes next to the page
   if (isPersonPage(o["page"]) && typeof out["notes"] === "string") out["notes"] = "";
   return out;
 }
-const isPersonPage = (p: unknown): boolean => p !== null && typeof p === "object" && (p as { layer?: unknown }).layer === "person";
+const isPersonPage = (p: unknown): boolean =>
+  p !== null && typeof p === "object" && (p as { layer?: unknown }).layer === "person";
 
 /** An audit row's targets and, for a self-bound call, where it went (the note's targets join the call's own). */
-function withNote(targets: AuditTarget[] | undefined, note: { where: string; targets: AuditTarget[] } | undefined): { targets?: AuditTarget[]; where?: string } {
-  const all = [...(targets ?? []), ...(note?.targets ?? []).filter((n) => !(targets ?? []).some((x) => x.kind === n.kind && x.id === n.id))];
+function withNote(
+  targets: AuditTarget[] | undefined,
+  note: { where: string; targets: AuditTarget[] } | undefined,
+): { targets?: AuditTarget[]; where?: string } {
+  const all = [
+    ...(targets ?? []),
+    ...(note?.targets ?? []).filter((n) => !(targets ?? []).some((x) => x.kind === n.kind && x.id === n.id)),
+  ];
   return { ...(all.length ? { targets: all } : {}), ...(note ? { where: note.where } : {}) };
 }
 
 /** A self-bound chrome call its handler sent to the agent's computer (the Space browser was not usable) is audited as that computer. */
-function fellBackNote(note: { where: string; targets: AuditTarget[] } | undefined, computerId: string | undefined): { where: string; targets: AuditTarget[] } | undefined {
+function fellBackNote(
+  note: { where: string; targets: AuditTarget[] } | undefined,
+  computerId: string | undefined,
+): { where: string; targets: AuditTarget[] } | undefined {
   return note && computerId && note.where.startsWith("browser:") ? { ...note, where: `computer:${computerId}` } : note;
 }
 /** The person's line for a Vault name that names nothing they may use. The name is read back from the input at the pointer the binder gave, only when it is shaped like a handle. */
@@ -764,9 +1426,8 @@ export function missingItemLine(input: unknown, pointer: string): string {
     const k = part.replace(/~1/g, "/").replace(/~0/g, "~");
     at = at !== null && typeof at === "object" ? (at as Record<string, unknown>)[k] : undefined;
   }
-  const name = typeof at === "string" ? at.trim().split(".")[0] ?? "" : "";
+  const name = typeof at === "string" ? (at.trim().split(".")[0] ?? "") : "";
   return /^#[A-Za-z0-9_]{1,80}$/.test(name)
     ? `There is no Vault item ${name} that you can use. Check it is still in the Vault, or ask for the key.`
     : "There is no Vault item by that name that you can use. Check the name, or ask for the key.";
 }
-

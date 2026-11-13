@@ -4,7 +4,13 @@
 import { BROWSER_CONTAINER } from "./names.ts";
 
 /** The Space's own names: its browser container (and a test's), its compose services (images/vyred/compose.server.yml) and the name the Vault channel is reached by from inside the browser's network. */
-const OWN_NAMES: ReadonlySet<string> = new Set([BROWSER_CONTAINER, "vyre-space-browser", "host.docker.internal", "vyred", "sites-runner"]);
+const OWN_NAMES: ReadonlySet<string> = new Set([
+  BROWSER_CONTAINER,
+  "vyre-space-browser",
+  "host.docker.internal",
+  "vyred",
+  "sites-runner",
+]);
 const OWN_PATTERN = /^vyre-sbrowser-test-[a-z0-9-]{1,40}$/;
 
 /** The host as written, lower case, without a leading or trailing dot, brackets or a `:port`. */
@@ -18,13 +24,15 @@ export function hostOf(site: string): string {
 
 /** Loopback or unspecified: 127.0.0.0/8, 0.0.0.0, ::1, ::, ::ffff:127.x, localhost and *.localhost. */
 export function isLoopback(host: string): boolean {
-  if (host === "localhost" || host.endsWith(".localhost") || host === "0.0.0.0" || host === "::" || host === "::1") return true;
+  if (host === "localhost" || host.endsWith(".localhost") || host === "0.0.0.0" || host === "::" || host === "::1")
+    return true;
   const m = /^(?:::ffff:)?(\d{1,3})\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.exec(host);
   return m !== null && Number(m[1]) === 127;
 }
 
 /** A host name or address as a cookie domain writes it (letters, digits, dots, dashes, underscores, colons of an IPv6 literal); about:blank, a scheme or a space is not one. */
-const isHostLike = (h: string): boolean => h !== "" && /^[a-z0-9._:-]+$/.test(h) && !/^[a-z][a-z0-9+.-]*:(?!:)/.test(h.replace(/^[0-9a-f:]+$/, "0"));
+const isHostLike = (h: string): boolean =>
+  h !== "" && /^[a-z0-9._:-]+$/.test(h) && !/^[a-z][a-z0-9+.-]*:(?!:)/.test(h.replace(/^[0-9a-f:]+$/, "0"));
 
 /** Is this entry a site a person could have signed in to. */
 export function isSignInSite(site: string): boolean {

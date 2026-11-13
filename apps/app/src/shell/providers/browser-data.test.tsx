@@ -3,7 +3,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { browserData, browserView } from "./browser-data.tsx";
 import type { BrowserRowLike } from "./browser-data.tsx";
-import { BROWSER_VIEW, LEFT_BUTTON, keyMessages, pointOf, pressPoint, socketUrl, viewUrl } from "../../places/chats/rightpane/BrowserLive.tsx";
+import {
+  BROWSER_VIEW,
+  LEFT_BUTTON,
+  keyMessages,
+  pointOf,
+  pressPoint,
+  socketUrl,
+  viewUrl,
+} from "../../places/chats/rightpane/BrowserLive.tsx";
 
 const row = (o: Partial<BrowserRowLike> = {}): BrowserRowLike => ({
   agentId: "agt_dex",
@@ -231,8 +239,21 @@ test("a Space that cannot run a browser shows one plain line with nothing to pre
 
 test("a press on the web is the browser's click: its place comes from clientX and clientY less the pressed box, and React Native's own locationX wins when there is one", () => {
   assert.deepEqual(pressPoint({ nativeEvent: { locationX: 12, locationY: 34 } }), { x: 12, y: 34 });
-  assert.deepEqual(pressPoint({ nativeEvent: { clientX: 500, clientY: 300 }, currentTarget: { getBoundingClientRect: () => ({ left: 400, top: 250 }) } }), { x: 100, y: 50 });
-  assert.equal(pressPoint({ nativeEvent: { clientX: 0, clientY: 0, detail: 0 }, currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 0 }) } }), null, "the click a browser makes for Space on a focused view has detail 0");
+  assert.deepEqual(
+    pressPoint({
+      nativeEvent: { clientX: 500, clientY: 300 },
+      currentTarget: { getBoundingClientRect: () => ({ left: 400, top: 250 }) },
+    }),
+    { x: 100, y: 50 },
+  );
+  assert.equal(
+    pressPoint({
+      nativeEvent: { clientX: 0, clientY: 0, detail: 0 },
+      currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 0 }) },
+    }),
+    null,
+    "the click a browser makes for Space on a focused view has detail 0",
+  );
   assert.deepEqual(pressPoint({}), { x: 0, y: 0 }, "an event with nothing to go on (a test double) keeps the corner");
 });
 

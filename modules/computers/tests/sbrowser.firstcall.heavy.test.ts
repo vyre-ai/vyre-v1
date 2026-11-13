@@ -23,7 +23,9 @@ import { DANA, harness } from "../fixtures/harness.ts";
 import { tool as cap } from "./tools.fixture.ts";
 
 const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
-const skip: string | false = ON ? false : "needs VYRE_HEAVY_DOCKER=1 (the 20 s shard never builds or starts the Space browser)";
+const skip: string | false = ON
+  ? false
+  : "needs VYRE_HEAVY_DOCKER=1 (the 20 s shard never builds or starts the Space browser)";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const PREBUILT = process.env["VYRE_SPACE_BROWSER_IMAGE"];
@@ -48,7 +50,13 @@ function noisePng(seed: number): Buffer {
   const [w, h] = [600, 400];
   const data = new Uint8Array(w * h * 4);
   let a = seed;
-  for (let i = 0; i < data.length; i += 4) { a = (Math.imul(a, 1664525) + 1013904223) >>> 0; data[i] = (a >>> 24) & 255; data[i + 1] = (a >>> 16) & 255; data[i + 2] = (a >>> 8) & 255; data[i + 3] = 255; }
+  for (let i = 0; i < data.length; i += 4) {
+    a = (Math.imul(a, 1664525) + 1013904223) >>> 0;
+    data[i] = (a >>> 24) & 255;
+    data[i + 1] = (a >>> 16) & 255;
+    data[i + 2] = (a >>> 8) & 255;
+    data[i + 3] = 255;
+  }
   return Buffer.from(encodePng({ width: w, height: h, data }));
 }
 let site: Server;
@@ -56,22 +64,34 @@ let sitePort = 0;
 let GATEWAY = "172.17.0.1";
 function serve(req: IncomingMessage, res: ServerResponse): void {
   const url = new URL(req.url ?? "/", "http://x");
-  if (url.pathname === "/noise.png") { res.writeHead(200, { "content-type": "image/png" }); res.end(noisePng(Number(url.searchParams.get("i") ?? 1) * 7919)); return; }
+  if (url.pathname === "/noise.png") {
+    res.writeHead(200, { "content-type": "image/png" });
+    res.end(noisePng(Number(url.searchParams.get("i") ?? 1) * 7919));
+    return;
+  }
   if (url.pathname === "/heavy") {
-    const imgs = Array.from({ length: 6 }, (_, i) => `<img src="/noise.png?i=${i + 1}" width=600 height=400 style="display:block;float:left">`).join("");
+    const imgs = Array.from(
+      { length: 6 },
+      (_, i) => `<img src="/noise.png?i=${i + 1}" width=600 height=400 style="display:block;float:left">`,
+    ).join("");
     res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     res.end(`<!doctype html><meta charset=utf-8><title>Heavy</title><body style="margin:0">${imgs}</body>`);
     return;
   }
   res.writeHead(404).end("no");
 }
-const listen = (s: Server): Promise<number> => new Promise((resolve) => s.listen(0, "0.0.0.0", () => resolve((s.address() as { port: number }).port)));
+const listen = (s: Server): Promise<number> =>
+  new Promise((resolve) => s.listen(0, "0.0.0.0", () => resolve((s.address() as { port: number }).port)));
 const siteUrl = (p: string): string => `http://${GATEWAY}:${sitePort}${p}`;
 
 before(async () => {
   if (!ON) return;
   assert.equal(await api.ping(), true, "the Docker daemon answers");
-  const gw = await host("docker", ["network", "inspect", "bridge", "--format", "{{(index .IPAM.Config 0).Gateway}}"], 20_000);
+  const gw = await host(
+    "docker",
+    ["network", "inspect", "bridge", "--format", "{{(index .IPAM.Config 0).Gateway}}"],
+    20_000,
+  );
   if (gw.code === 0 && /^\d+\.\d+\.\d+\.\d+/.test(gw.out.trim())) GATEWAY = gw.out.trim().split("\n")[0]!;
   if (!PREBUILT) {
     // The runners have no buildx: Vyre for Chrome goes into a copy of the build context, which is images/ (the two folders side by side), with the bridge module as a real file.
@@ -82,8 +102,15 @@ before(async () => {
     const vendor = path.join(ctxDir, "space-browser/browserd/vendor/chrome-bridge.ts");
     fs.rmSync(vendor, { force: true });
     fs.copyFileSync(path.join(ROOT, "lib/chrome-bridge.ts"), vendor);
-    fs.cpSync(ext, path.join(ctxDir, "agent-computer/vyre-chrome"), { recursive: true, filter: (s) => !/\/(tests|node_modules)(\/|$)/.test(s) });
-    const built = await host("docker", ["build", "-f", path.join(ctxDir, "space-browser/Dockerfile"), "-t", IMAGE, ctxDir], 1_200_000);
+    fs.cpSync(ext, path.join(ctxDir, "agent-computer/vyre-chrome"), {
+      recursive: true,
+      filter: (s) => !/\/(tests|node_modules)(\/|$)/.test(s),
+    });
+    const built = await host(
+      "docker",
+      ["build", "-f", path.join(ctxDir, "space-browser/Dockerfile"), "-t", IMAGE, ctxDir],
+      1_200_000,
+    );
     fs.rmSync(ctxDir, { recursive: true, force: true });
     assert.equal(built.code, 0, `building ${IMAGE} failed: ${built.out.slice(-1500)}`);
   }
@@ -104,73 +131,149 @@ after(async () => {
 
 const stored: number[] = [];
 /** The agent's tool context: Files refuses a direct write over its limit, as the real one does. */
-const agent = () => harness({
-  principal: { kind: "agent", id: "agt_dex" }, actingFor: DANA,
-  respond: { "files.create": (i: Record<string, unknown>) => {
-    const bytes = Buffer.from(String((i["content"] as { base64: string }).base64), "base64").length;
-    if (bytes > SHOT_LIMIT_BYTES) throw Object.assign(new Error("This file is over the size limit for a direct write."), { code: "validation.too_large" });
-    stored.push(bytes);
-    return { file: { fileId: `fil_shot${stored.length}` } };
-  } },
-}).ctx;
-
+const agent = () =>
+  harness({
+    principal: { kind: "agent", id: "agt_dex" },
+    actingFor: DANA,
+    respond: {
+      "files.create": (i: Record<string, unknown>) => {
+        const bytes = Buffer.from(String((i["content"] as { base64: string }).base64), "base64").length;
+        if (bytes > SHOT_LIMIT_BYTES)
+          throw Object.assign(new Error("This file is over the size limit for a direct write."), {
+            code: "validation.too_large",
+          });
+        stored.push(bytes);
+        return { file: { fileId: `fil_shot${stored.length}` } };
+      },
+    },
+  }).ctx;
 
 // The owner's server (13 Nov, 04:55): the person's pane started the browser container, and about ten seconds later the agent's first open failed with internal.unexpected after 1.1 s, right after the room
 // check. So the agent's call arrives while the container exists and Chrome is still coming up for the first time. Here a person's door (sessions, as the pane's poll calls it) starts it, and the agent's
 // open follows after a pause of 0, 2 and 6 seconds, each on a fresh container.
-for (const [pause, upgrade] of [[0, false], [2_000, false], [6_000, false], [0, true], [3_000, true]] as const) {
-  test(`@heavy space browser: the agent's first open ${pause / 1000} s after a person's pane started the browser container ${upgrade ? "(replacing the container of an earlier release) " : ""}succeeds`, { skip, timeout: 300_000 }, async () => {
-    const name = `${NAME}p${pause / 1000}${upgrade ? "u" : ""}`;
-    const sb = createDockerSpaceBrowser({ api, http, name, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000 });
-    bindSpaceBrowser(sb);
-    try {
-      // a server that has just been updated: a container made before this daemon started is of an earlier release, and the first call that finds it replaces it
-      if (upgrade) await createDockerSpaceBrowser({ api, name, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000 }).sessions("agt_dex");
-      const pane = sb.sessions("agt_dex").catch((e: unknown) => e);
-      if (!upgrade) for (let i = 0; i < 200 && !(await api.containerRunning(name)); i++) await new Promise((r) => setTimeout(r, 50));
-      assert.equal(await api.containerRunning(name), true, "the container runs");
-      await new Promise((r) => setTimeout(r, pause));
-      const out = await cap["computers.chrome.open"]!(agent(), { url: siteUrl("/heavy") }).then((o) => ({ ok: true as const, title: o.title }), (e: unknown) => ({ ok: false as const, code: (e as { code?: string }).code, message: (e as Error).message, stack: (e as Error).stack }));
-      await pane;
-      assert.deepEqual(out, { ok: true, title: "Heavy" }, JSON.stringify(out));
-    } finally {
-      await api.containerStop(name, 5).catch(() => undefined);
-      await api.containerRemove(name).catch(() => undefined);
-      await http({ method: "DELETE", path: `/volumes/${name}-data`, query: { force: "true" } }).catch(() => undefined);
-      await http({ method: "DELETE", path: `/networks/${name}net` }).catch(() => undefined);
-    }
-  });
+for (const [pause, upgrade] of [
+  [0, false],
+  [2_000, false],
+  [6_000, false],
+  [0, true],
+  [3_000, true],
+] as const) {
+  test(
+    `@heavy space browser: the agent's first open ${pause / 1000} s after a person's pane started the browser container ${upgrade ? "(replacing the container of an earlier release) " : ""}succeeds`,
+    { skip, timeout: 300_000 },
+    async () => {
+      const name = `${NAME}p${pause / 1000}${upgrade ? "u" : ""}`;
+      const sb = createDockerSpaceBrowser({
+        api,
+        http,
+        name,
+        image: IMAGE,
+        user: { uid: 10001, gid: 10001 },
+        startTimeoutMs: 90_000,
+      });
+      bindSpaceBrowser(sb);
+      try {
+        // a server that has just been updated: a container made before this daemon started is of an earlier release, and the first call that finds it replaces it
+        if (upgrade)
+          await createDockerSpaceBrowser({
+            api,
+            name,
+            image: IMAGE,
+            user: { uid: 10001, gid: 10001 },
+            startTimeoutMs: 90_000,
+          }).sessions("agt_dex");
+        const pane = sb.sessions("agt_dex").catch((e: unknown) => e);
+        if (!upgrade)
+          for (let i = 0; i < 200 && !(await api.containerRunning(name)); i++)
+            await new Promise((r) => setTimeout(r, 50));
+        assert.equal(await api.containerRunning(name), true, "the container runs");
+        await new Promise((r) => setTimeout(r, pause));
+        const out = await cap["computers.chrome.open"]!(agent(), { url: siteUrl("/heavy") }).then(
+          (o) => ({ ok: true as const, title: o.title }),
+          (e: unknown) => ({
+            ok: false as const,
+            code: (e as { code?: string }).code,
+            message: (e as Error).message,
+            stack: (e as Error).stack,
+          }),
+        );
+        await pane;
+        assert.deepEqual(out, { ok: true, title: "Heavy" }, JSON.stringify(out));
+      } finally {
+        await api.containerStop(name, 5).catch(() => undefined);
+        await api.containerRemove(name).catch(() => undefined);
+        await http({ method: "DELETE", path: `/volumes/${name}-data`, query: { force: "true" } }).catch(
+          () => undefined,
+        );
+        await http({ method: "DELETE", path: `/networks/${name}net` }).catch(() => undefined);
+      }
+    },
+  );
 }
 
-test("@heavy space browser: the agent's very first calls, together, on a browser that has never started, wait for it and succeed", { skip, timeout: 300_000 }, async () => {
-  const sb = createDockerSpaceBrowser({ api, http, name: NAME, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000 });
-  bindSpaceBrowser(sb);
-  assert.equal(await api.containerRunning(NAME), false, "no container yet: this is a cold browser");
-  const t0 = Date.now();
-  // a model asks for several things at once: all of them reach a browser that is still starting
-  const calls = await Promise.allSettled([
-    cap["computers.chrome.open"]!(agent(), { url: siteUrl("/heavy") }),
-    cap["computers.chrome.tabs"]!(agent(), { action: "list" }),
-    cap["computers.chrome.state"]!(agent(), {}),
-  ]);
-  const said = calls.map((c) => (c.status === "fulfilled" ? "ok" : `${(c.reason as { code?: string }).code ?? "?"}: ${(c.reason as Error).message}`));
-  assert.deepEqual(said, ["ok", "ok", "ok"], `every first call succeeded (${Date.now() - t0} ms)`);
-  assert.equal((calls[0] as PromiseFulfilledResult<{ title: string }>).value.title, "Heavy");
-});
+test(
+  "@heavy space browser: the agent's very first calls, together, on a browser that has never started, wait for it and succeed",
+  { skip, timeout: 300_000 },
+  async () => {
+    const sb = createDockerSpaceBrowser({
+      api,
+      http,
+      name: NAME,
+      image: IMAGE,
+      user: { uid: 10001, gid: 10001 },
+      startTimeoutMs: 90_000,
+    });
+    bindSpaceBrowser(sb);
+    assert.equal(await api.containerRunning(NAME), false, "no container yet: this is a cold browser");
+    const t0 = Date.now();
+    // a model asks for several things at once: all of them reach a browser that is still starting
+    const calls = await Promise.allSettled([
+      cap["computers.chrome.open"]!(agent(), { url: siteUrl("/heavy") }),
+      cap["computers.chrome.tabs"]!(agent(), { action: "list" }),
+      cap["computers.chrome.state"]!(agent(), {}),
+    ]);
+    const said = calls.map((c) =>
+      c.status === "fulfilled"
+        ? "ok"
+        : `${(c.reason as { code?: string }).code ?? "?"}: ${(c.reason as Error).message}`,
+    );
+    assert.deepEqual(said, ["ok", "ok", "ok"], `every first call succeeded (${Date.now() - t0} ms)`);
+    assert.equal((calls[0] as PromiseFulfilledResult<{ title: string }>).value.title, "Heavy");
+  },
+);
 
-test("@heavy space browser: the agent's screenshot of a heavy page is stored under the limit and says the size it got", { skip, timeout: 300_000 }, async () => {
-  const raw = await bindSpaceBrowserOf().tool({ profileId: "agt_dex", tool: "chrome_screenshot", args: {}, timeoutMs: 60_000 });
-  const rawBytes = Buffer.from(String((raw as { png: string }).png), "base64").length;
-  assert.ok(rawBytes > SHOT_LIMIT_BYTES, `the page is heavy: Chrome's picture is ${rawBytes} bytes, over the ${SHOT_LIMIT_BYTES} limit`);
-  const shot = await cap["computers.chrome.screenshot"]!(agent(), {});
-  assert.ok(shot.fileId, "a file came back");
-  assert.ok(stored[stored.length - 1]! <= SHOT_LIMIT_BYTES, `stored ${stored[stored.length - 1]} bytes`);
-  assert.match(shot.note ?? "", /page is 1280 x 800.*page pixels/, shot.note);
-  assert.deepEqual([shot.pageWidth, shot.pageHeight], [1280, 800]);
-  assert.ok(shot.width > 100 && shot.width < 1280, `the size it got: ${shot.width} x ${shot.height}`);
-});
+test(
+  "@heavy space browser: the agent's screenshot of a heavy page is stored under the limit and says the size it got",
+  { skip, timeout: 300_000 },
+  async () => {
+    const raw = await bindSpaceBrowserOf().tool({
+      profileId: "agt_dex",
+      tool: "chrome_screenshot",
+      args: {},
+      timeoutMs: 60_000,
+    });
+    const rawBytes = Buffer.from(String((raw as { png: string }).png), "base64").length;
+    assert.ok(
+      rawBytes > SHOT_LIMIT_BYTES,
+      `the page is heavy: Chrome's picture is ${rawBytes} bytes, over the ${SHOT_LIMIT_BYTES} limit`,
+    );
+    const shot = await cap["computers.chrome.screenshot"]!(agent(), {});
+    assert.ok(shot.fileId, "a file came back");
+    assert.ok(stored[stored.length - 1]! <= SHOT_LIMIT_BYTES, `stored ${stored[stored.length - 1]} bytes`);
+    assert.match(shot.note ?? "", /page is 1280 x 800.*page pixels/, shot.note);
+    assert.deepEqual([shot.pageWidth, shot.pageHeight], [1280, 800]);
+    assert.ok(shot.width > 100 && shot.width < 1280, `the size it got: ${shot.width} x ${shot.height}`);
+  },
+);
 
 /** The bound Space browser (the first test made it). */
 function bindSpaceBrowserOf() {
-  return createDockerSpaceBrowser({ api, http, name: NAME, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000 });
+  return createDockerSpaceBrowser({
+    api,
+    http,
+    name: NAME,
+    image: IMAGE,
+    user: { uid: 10001, gid: 10001 },
+    startTimeoutMs: 90_000,
+  });
 }

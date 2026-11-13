@@ -9,4 +9,6 @@ export function noteCallSecret(traceId: string, value: string): void {
 }
 export const callSecretsOf = (traceId: string): readonly string[] => [...(bySecrets.get(traceId) ?? [])];
 /** The call is over: its values are forgotten. */
-export const forgetCallSecrets = (traceId: string): void => { bySecrets.delete(traceId); };
+export const forgetCallSecrets = (traceId: string): void => {
+  bySecrets.delete(traceId);
+};

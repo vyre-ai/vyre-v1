@@ -7,20 +7,39 @@ import { MORE_KEY } from "./model.ts";
 import { notePress, useFittedTabs } from "./fit.tsx";
 import type { FitMenu } from "./fit.tsx";
 
-const TABS = ["About", "Computer", "Chats", "Files", "Terminal", "Knows", "Routines"].map((t) => ({ key: t.toLowerCase(), title: t }));
+const TABS = ["About", "Computer", "Chats", "Files", "Terminal", "Knows", "Routines"].map((t) => ({
+  key: t.toLowerCase(),
+  title: t,
+}));
 
-type Doc = { body: object; activeElement: { getBoundingClientRect(): { left: number; bottom: number; width: number; height: number } } | object };
+type Doc = {
+  body: object;
+  activeElement: { getBoundingClientRect(): { left: number; bottom: number; width: number; height: number } } | object;
+};
 function withDocument<T>(doc: Doc | undefined, f: () => T): T {
   const g = globalThis as { document?: unknown };
   const was = g.document;
-  if (doc) g.document = doc; else delete g.document;
-  try { return f(); } finally { if (was === undefined) delete g.document; else g.document = was; }
+  if (doc) g.document = doc;
+  else delete g.document;
+  try {
+    return f();
+  } finally {
+    if (was === undefined) delete g.document;
+    else g.document = was;
+  }
 }
 
 /** What the strip does when More is pressed at this pane width: where it asks the menu to open. */
-function pressMore(doc: Doc | undefined, o: { left: number; top: number }): { x: number; y: number; labels: string[] } | null {
+function pressMore(
+  doc: Doc | undefined,
+  o: { left: number; top: number },
+): { x: number; y: number; labels: string[] } | null {
   let shown: { x: number; y: number; labels: string[] } | null = null;
-  const menu: FitMenu = { show: (entries, x, y) => { shown = { x, y, labels: entries.map((e) => ("label" in e ? e.label : "")) }; } };
+  const menu: FitMenu = {
+    show: (entries, x, y) => {
+      shown = { x, y, labels: entries.map((e) => ("label" in e ? e.label : "")) };
+    },
+  };
   function Probe(): null {
     const { select } = useFittedTabs(TABS, "about", 340, { menu, left: o.left, top: o.top, pick: () => undefined });
     withDocument(doc, () => select(MORE_KEY));
@@ -34,10 +53,17 @@ test("More opens just under the control that was pressed, wherever the strip is 
   const control = { getBoundingClientRect: () => ({ left: 301, bottom: 258, width: 28, height: 30 }) };
   const at = pressMore({ body: {}, activeElement: control }, { left: 40, top: 118 });
   assert.ok(at, "the menu was opened");
-  assert.deepEqual([at.x, at.y], [301, 262], "left edge of the control, a few pixels under it, not the strip's fixed row");
+  assert.deepEqual(
+    [at.x, at.y],
+    [301, 262],
+    "left edge of the control, a few pixels under it, not the strip's fixed row",
+  );
   assert.ok(at.labels.includes("Routines"), "it lists the folded tabs");
   // the same strip somewhere else (the agent page puts it at 330 px): the menu follows the control, not the number
-  const again = pressMore({ body: {}, activeElement: { getBoundingClientRect: () => ({ left: 640, bottom: 410, width: 28, height: 30 }) } }, { left: 16, top: 330 });
+  const again = pressMore(
+    { body: {}, activeElement: { getBoundingClientRect: () => ({ left: 640, bottom: 410, width: 28, height: 30 }) } },
+    { left: 16, top: 330 },
+  );
   assert.deepEqual([again?.x, again?.y], [640, 414]);
 });
 
@@ -50,7 +76,10 @@ test("with nothing focused (the page body is the active element) the menu falls 
 });
 
 test("the menu opens at the control that was pressed even when focus stayed elsewhere (a browser that does not focus a button on a click)", () => {
-  const dots = { getBoundingClientRect: () => ({ left: 301, bottom: 258, width: 28, height: 30 }), closest: () => null };
+  const dots = {
+    getBoundingClientRect: () => ({ left: 301, bottom: 258, width: 28, height: 30 }),
+    closest: () => null,
+  };
   const label = { closest: () => dots, getBoundingClientRect: () => ({ left: 305, bottom: 250, width: 4, height: 4 }) };
   const composer = { getBoundingClientRect: () => ({ left: 400, bottom: 760, width: 400, height: 40 }) };
   notePress(label);

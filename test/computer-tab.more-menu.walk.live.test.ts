@@ -20,7 +20,15 @@ test("B4 the tab strip's More menu opens under the More control, inside the pane
     const box = (await menu.boundingBox())!;
     await shoot(k.me.page, `${DIR}/b4`, "more-menu");
     // under the control, within a few pixels sideways, and not above it
-    assert.ok(box.y >= at.y + at.height - 2 && box.y <= at.y + at.height + 24, `menu top ${Math.round(box.y)} is not just under the control (${Math.round(at.y)}..${Math.round(at.y + at.height)})`);
-    assert.ok(box.x + box.width >= at.x - 4 && box.x <= at.x + at.width + 4, `menu x ${Math.round(box.x)}..${Math.round(box.x + box.width)} is not at the control ${Math.round(at.x)}..${Math.round(at.x + at.width)}`);
-  } finally { await k.close(); }
+    assert.ok(
+      box.y >= at.y + at.height - 2 && box.y <= at.y + at.height + 24,
+      `menu top ${Math.round(box.y)} is not just under the control (${Math.round(at.y)}..${Math.round(at.y + at.height)})`,
+    );
+    assert.ok(
+      box.x + box.width >= at.x - 4 && box.x <= at.x + at.width + 4,
+      `menu x ${Math.round(box.x)}..${Math.round(box.x + box.width)} is not at the control ${Math.round(at.x)}..${Math.round(at.x + at.width)}`,
+    );
+  } finally {
+    await k.close();
+  }
 });

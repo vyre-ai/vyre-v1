@@ -9,9 +9,13 @@ import os from "node:os";
 import path from "node:path";
 import { SandboxError } from "./types.ts";
 
-export interface Who { uid: number; gid: number }
+export interface Who {
+  uid: number;
+  gid: number;
+}
 
-export const passwdOf = (w: Who): string => `agent:x:${w.uid}:${w.gid}:agent:/home/agent:/bin/sh\nnobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin\n`;
+export const passwdOf = (w: Who): string =>
+  `agent:x:${w.uid}:${w.gid}:agent:/home/agent:/bin/sh\nnobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin\n`;
 export const groupOf = (w: Who): string => `agent:x:${w.gid}:\nnogroup:x:65534:\n`;
 
 let privateDir: string | null = null;
@@ -21,11 +25,18 @@ function dirOf(): string {
   const made = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-identity-"));
   fs.chmodSync(made, 0o711);
   privateDir = made;
-  process.once("exit", () => { try { fs.rmSync(made, { recursive: true, force: true }); } catch { /* gone */ } });
+  process.once("exit", () => {
+    try {
+      fs.rmSync(made, { recursive: true, force: true });
+    } catch {
+      /* gone */
+    }
+  });
   return made;
 }
 
-const within = (p: string, parent: string): boolean => p === parent || p.startsWith(parent.endsWith("/") ? parent : `${parent}/`);
+const within = (p: string, parent: string): boolean =>
+  p === parent || p.startsWith(parent.endsWith("/") ? parent : `${parent}/`);
 const overlaps = (a: string, b: string): boolean => within(a, b) || within(b, a);
 
 /**
@@ -33,21 +44,41 @@ const overlaps = (a: string, b: string): boolean => within(a, b) || within(b, a)
  * sandbox binds read-write: if the folder for these files lies inside or contains one (a profile that makes the system temp folder, or a parent of it, writable), code in the sandbox could plant a
  * link there, so that sandbox is refused with a plain error instead.
  */
-export function identityBinds(who: Who = { uid: process.getuid?.() ?? 1000, gid: process.getgid?.() ?? 1000 }, writable: readonly string[] = []): string[] {
+export function identityBinds(
+  who: Who = { uid: process.getuid?.() ?? 1000, gid: process.getgid?.() ?? 1000 },
+  writable: readonly string[] = [],
+): string[] {
   let dir: string;
-  try { dir = dirOf(); } catch { return []; }
-  const hit = writable.find((w) => overlaps(dir, path.resolve(w)));
-  if (hit !== undefined) throw new SandboxError("sandbox.policy", `The sandbox may write to ${hit}, which holds the server's own files for the user's name. Give it a folder of its own to write to instead.`);
   try {
-    const files: Array<[string, string, string]> = [["passwd", passwdOf(who), "/etc/passwd"], ["group", groupOf(who), "/etc/group"]];
+    dir = dirOf();
+  } catch {
+    return [];
+  }
+  const hit = writable.find((w) => overlaps(dir, path.resolve(w)));
+  if (hit !== undefined)
+    throw new SandboxError(
+      "sandbox.policy",
+      `The sandbox may write to ${hit}, which holds the server's own files for the user's name. Give it a folder of its own to write to instead.`,
+    );
+  try {
+    const files: Array<[string, string, string]> = [
+      ["passwd", passwdOf(who), "/etc/passwd"],
+      ["group", groupOf(who), "/etc/group"],
+    ];
     const out: string[] = [];
     for (const [name, text, dest] of files) {
       const file = path.join(dir, `${name}-${who.uid}-${who.gid}`);
       let have = "";
-      try { have = fs.readFileSync(file, "utf8"); } catch { /* not there yet */ }
+      try {
+        have = fs.readFileSync(file, "utf8");
+      } catch {
+        /* not there yet */
+      }
       if (have !== text) fs.writeFileSync(file, text, { mode: 0o644 });
       out.push("--ro-bind-try", file, dest);
     }
     return out;
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }

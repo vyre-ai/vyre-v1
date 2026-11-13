@@ -43,16 +43,30 @@ const kb = (n: number): string => `${Math.round(n / 1024)} KB`;
  */
 export function fitPng(base64: string, size: { width: number; height: number }, limit: number = SHOT_LIMIT_BYTES): Fit {
   const bytes = Buffer.from(base64, "base64");
-  const asIs: Fitted = { base64, width: size.width, height: size.height, pageWidth: size.width, pageHeight: size.height, scale: 1 };
+  const asIs: Fitted = {
+    base64,
+    width: size.width,
+    height: size.height,
+    pageWidth: size.width,
+    pageHeight: size.height,
+    scale: 1,
+  };
   if (bytes.length <= limit) return { ok: true, shot: asIs };
   const limitWords = `the ${kb(limit)} limit for a picture kept in Files`;
   const decoded = decodePng(new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.length));
-  if (!decoded) return { ok: false, why: `The picture is ${kb(bytes.length)}, over ${limitWords}, and it is not one that can be made smaller here. Ask for a smaller part of the page (a ref), or without fullPage.` };
+  if (!decoded)
+    return {
+      ok: false,
+      why: `The picture is ${kb(bytes.length)}, over ${limitWords}, and it is not one that can be made smaller here. Ask for a smaller part of the page (a ref), or without fullPage.`,
+    };
   const pageWidth = size.width > 0 ? size.width : decoded.width;
   const pageHeight = size.height > 0 ? size.height : decoded.height;
   // a very tall page: its top part, cut from the rows (the picture is the page at its own scale, so a row of it is a row of the page)
   const shownRows = Math.min(decoded.height, TALL_PX);
-  const first: Raster = shownRows < decoded.height ? { width: decoded.width, height: shownRows, data: decoded.data.subarray(0, decoded.width * shownRows * 4) } : decoded;
+  const first: Raster =
+    shownRows < decoded.height
+      ? { width: decoded.width, height: shownRows, data: decoded.data.subarray(0, decoded.width * shownRows * 4) }
+      : decoded;
   // size follows the pixels: aim a little under the limit from the share of the bytes the shown rows hold, once
   const share = bytes.length * (first.height / decoded.height);
   let width = Math.min(first.width, Math.max(MIN_WIDTH, Math.floor(first.width * Math.sqrt((limit * 0.7) / share))));
@@ -61,28 +75,62 @@ export function fitPng(base64: string, size: { width: number; height: number }, 
     const out = encodePng(r);
     if (out.length <= limit) {
       const scale = r.width / pageWidth;
-      return { ok: true, shot: { base64: Buffer.from(out).toString("base64"), width: r.width, height: r.height, pageWidth, pageHeight, scale: Math.round(scale * 1000) / 1000, ...(shownRows < decoded.height ? { topPx: Math.round(shownRows / (decoded.height / pageHeight)) } : {}) } };
+      return {
+        ok: true,
+        shot: {
+          base64: Buffer.from(out).toString("base64"),
+          width: r.width,
+          height: r.height,
+          pageWidth,
+          pageHeight,
+          scale: Math.round(scale * 1000) / 1000,
+          ...(shownRows < decoded.height ? { topPx: Math.round(shownRows / (decoded.height / pageHeight)) } : {}),
+        },
+      };
     }
     if (width <= MIN_WIDTH) break;
     // a poor guess: the next size follows how far over this one was
     width = Math.max(MIN_WIDTH, Math.floor(width * Math.sqrt((limit * 0.7) / out.length)));
   }
-  return { ok: false, why: `The picture (${pageWidth} x ${pageHeight}) stays over ${limitWords} even when scaled very small. Ask for a smaller part of the page (a ref).` };
+  return {
+    ok: false,
+    why: `The picture (${pageWidth} x ${pageHeight}) stays over ${limitWords} even when scaled very small. Ask for a smaller part of the page (a ref).`,
+  };
 }
 
 /** fitPng in a worker thread: the picture is decoded, scaled and encoded off the server's event loop. A picture already within the limit never starts one. */
-export function fitPngOffLoop(base64: string, size: { width: number; height: number }, limit: number = SHOT_LIMIT_BYTES): Promise<Fit> {
+export function fitPngOffLoop(
+  base64: string,
+  size: { width: number; height: number },
+  limit: number = SHOT_LIMIT_BYTES,
+): Promise<Fit> {
   if (Buffer.byteLength(base64, "base64") <= limit) return Promise.resolve(fitPng(base64, size, limit));
   return new Promise<Fit>((resolve) => {
     let done = false;
-    const finish = (f: Fit): void => { if (!done) { done = true; clearTimeout(timer); void worker?.terminate(); resolve(f); } };
+    const finish = (f: Fit): void => {
+      if (!done) {
+        done = true;
+        clearTimeout(timer);
+        void worker?.terminate();
+        resolve(f);
+      }
+    };
     let worker: Worker | null = null;
-    const timer = setTimeout(() => finish({ ok: false, why: "The picture took too long to make smaller. Ask for a smaller part of the page (a ref)." }), WORKER_MS);
+    const timer = setTimeout(
+      () =>
+        finish({
+          ok: false,
+          why: "The picture took too long to make smaller. Ask for a smaller part of the page (a ref).",
+        }),
+      WORKER_MS,
+    );
     try {
       worker = new Worker(new URL("./png-fit-worker.ts", import.meta.url), { workerData: { base64, size, limit } });
       worker.once("message", (f: Fit) => finish(f));
       worker.once("error", () => finish(fitPng(base64, size, limit)));
-    } catch { finish(fitPng(base64, size, limit)); }
+    } catch {
+      finish(fitPng(base64, size, limit));
+    }
   });
 }
 
@@ -91,7 +139,10 @@ export function scaledNote(s: Fitted): string {
   if (s.scale === 1 && s.topPx === undefined) return "";
   const parts: string[] = [];
   parts.push(`The picture is ${s.width} x ${s.height} and the page is ${s.pageWidth} x ${s.pageHeight}.`);
-  if (s.topPx !== undefined) parts.push(`It shows only the top ${s.topPx} px of the page; use a ref or scroll for the rest.`);
-  parts.push(`Click coordinates are in page pixels: a point on this picture is multiplied by ${Math.round((1 / s.scale) * 1000) / 1000} (1 / scale ${s.scale}).`);
+  if (s.topPx !== undefined)
+    parts.push(`It shows only the top ${s.topPx} px of the page; use a ref or scroll for the rest.`);
+  parts.push(
+    `Click coordinates are in page pixels: a point on this picture is multiplied by ${Math.round((1 / s.scale) * 1000) / 1000} (1 / scale ${s.scale}).`,
+  );
   return parts.join(" ");
 }

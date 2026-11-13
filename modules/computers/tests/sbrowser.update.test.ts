@@ -13,14 +13,65 @@ test("two first opens on an rc.25 database with stale claims both answer", async
   const first = harness({ raw });
   for (const t of ["computers_browser_hold", "computers_browser_gone"]) raw.run(`DROP TABLE IF EXISTS ${t}`);
   // what an rc.25 server left: a running browser claim and a running workspace claim, for a container that is gone
-  raw.run("INSERT INTO computers_claim (claim_key, kind, host, state, since, note) VALUES (?, ?, ?, ?, ?, NULL)", "agt_dex", "browser", "space", "running", 1);
-  raw.run("INSERT INTO computers_claim (claim_key, kind, host, state, since, note) VALUES (?, ?, ?, ?, ?, NULL)", "agt_other", "workspace", "space", "running", 1);
-  const sb = { async available() { return true; }, async profiles() { return { profiles: [], maxRunning: 6 }; }, async health() { return { ok: true }; }, async sessions() { return []; },
-    async tool() { return { url: "https://www.harborquotes.com/", title: "H", tree: "", truncated: false, ok: true, tabId: "t1", loading: false }; }, async screenshot() { return { bytes: new Uint8Array(), width: 1, height: 1 }; } } as unknown as SpaceBrowser;
+  raw.run(
+    "INSERT INTO computers_claim (claim_key, kind, host, state, since, note) VALUES (?, ?, ?, ?, ?, NULL)",
+    "agt_dex",
+    "browser",
+    "space",
+    "running",
+    1,
+  );
+  raw.run(
+    "INSERT INTO computers_claim (claim_key, kind, host, state, since, note) VALUES (?, ?, ?, ?, ?, NULL)",
+    "agt_other",
+    "workspace",
+    "space",
+    "running",
+    1,
+  );
+  const sb = {
+    async available() {
+      return true;
+    },
+    async profiles() {
+      return { profiles: [], maxRunning: 6 };
+    },
+    async health() {
+      return { ok: true };
+    },
+    async sessions() {
+      return [];
+    },
+    async tool() {
+      return {
+        url: "https://www.harborquotes.com/",
+        title: "H",
+        tree: "",
+        truncated: false,
+        ok: true,
+        tabId: "t1",
+        loading: false,
+      };
+    },
+    async screenshot() {
+      return { bytes: new Uint8Array(), width: 1, height: 1 };
+    },
+  } as unknown as SpaceBrowser;
   bindSpaceBrowser(sb);
-  const agent = { ...first.ctx, principal: { kind: "agent" as const, id: "agt_dex" }, actingFor: DANA, db: scopedDb("computers", raw, first.ctx.trace.traceId) };
+  const agent = {
+    ...first.ctx,
+    principal: { kind: "agent" as const, id: "agt_dex" },
+    actingFor: DANA,
+    db: scopedDb("computers", raw, first.ctx.trace.traceId),
+  };
   const person = { ...first.ctx, db: scopedDb("computers", raw, first.ctx.trace.traceId) };
-  const r = await Promise.allSettled([tool["computers.chrome.open"]!(agent as never, { url: "https://www.harborquotes.com/" }), tool["computers.chrome.open"]!(agent as never, { url: "https://www.harborquotes.com/x" })]);
-  assert.deepEqual(r.map((x) => (x.status === "fulfilled" ? "ok" : String((x.reason as Error).stack).slice(0, 400))), ["ok", "ok"]);
+  const r = await Promise.allSettled([
+    tool["computers.chrome.open"]!(agent as never, { url: "https://www.harborquotes.com/" }),
+    tool["computers.chrome.open"]!(agent as never, { url: "https://www.harborquotes.com/x" }),
+  ]);
+  assert.deepEqual(
+    r.map((x) => (x.status === "fulfilled" ? "ok" : String((x.reason as Error).stack).slice(0, 400))),
+    ["ok", "ok"],
+  );
   bindSpaceBrowser(null);
 });
