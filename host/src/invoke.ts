@@ -152,6 +152,10 @@ export interface GateHook {
 export const NOT_SCHEDULING_COMPUTER = "not_scheduling_computer";
 
 export interface InvokeDeps {
+  /** Strings that must not reach a log line (the process's current secrets); an unexpected error's message and stack are scrubbed of them. */
+  secrets?(): readonly string[];
+  /** An unexpected error (a handler threw something that is not a shaped error): its message and stack, scrubbed, with the trace id. Absent: written to the server's own output. */
+  onUnexpected?(a: { cap: string; traceId: string; message: string; stack: string }): void;
   /** A Personal Space on several computers: does this computer hold the scheduled-work lease now. Absent: always. */
   scheduledHere?(): boolean;
   /** The Files mutation guard for connector sources (host/src/daemon/connector-source-guard.ts): an extra check on top of normal Files authorization. */
@@ -293,6 +297,18 @@ export function personalMatrix(o: {
   };
 }
 
+/** What an unexpected error says, with every known secret and every key-shaped token taken out. */
+export function unexpectedWords(e: unknown, secrets: readonly string[]): { message: string; stack: string } {
+  const clean = (t: string): string => {
+    let out = t;
+    for (const x of secrets) if (x.length >= 6) out = out.split(x).join("[REDACTED]");
+    return out.replace(/\b(?:sk|pk|rk|ghp|gho|xox[abp])[-_][A-Za-z0-9_-]{16,}/g, "[REDACTED]").replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{12,}/g, "$1 [REDACTED]");
+  };
+  const message = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+  return { message: clean(message).slice(0, 1000), stack: clean(e instanceof Error && e.stack ? e.stack : message).slice(0, 4000) };
+}
+const writeUnexpected = (a: { cap: string; traceId: string; message: string; stack: string }): void => { process.stderr.write(`vyred: handler threw ${JSON.stringify(a)}\n`); };
+
 export type Invoke = (cap: string, input: unknown, seed: CtxSeed) => Promise<InvokeResult>;
 
 /** The decision for a capability that needs membership only: allowed, with no scope (the handler narrows). */
@@ -377,7 +393,12 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       const { error, unexpected } = toVyreError(e, traceId);
       // the span first: the log can then tell a repeat of the same failure, which it counts, from a new one
       span(error.code.startsWith("permission.") ? "denied" : "error", error.code);
-      if (unexpected) log.error("handler threw", { cap: capName, traceId, stack: e instanceof Error ? e.stack : String(e) });
+      if (unexpected) {
+        // the caller only ever sees "Something went wrong on our side"; the server keeps what really happened, always (the logs.db row can be counted away as a repeat or trimmed, so it is also written to the server's own output)
+        const said = unexpectedWords(e, deps.secrets?.() ?? []);
+        log.error("handler threw", { cap: capName, traceId, message: said.message, stack: said.stack });
+        (deps.onUnexpected ?? writeUnexpected)({ cap: capName, traceId, ...said });
+      }
       // who was refused: without the caller and the person it acted for, a refusal in the log cannot be traced to a session
       log.info("invoke", { cap: capName, traceId, status: error.code, actor: seed.principal.id, ...(seed.actingFor ? { onBehalf: seed.actingFor } : {}) });
       throw new HostError(error);

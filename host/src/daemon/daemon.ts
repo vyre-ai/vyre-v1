@@ -1407,6 +1407,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // the Personal Space gate (P-H_19): a test or boot may pass one; otherwise the matrix over the registry's teamOnly rows, which refuses while cfg.spaceKind is "personal"
       const personal = o.personal ?? personalMatrix({ kind: () => cfg.spaceKind ?? "team", caps: registryCaps as unknown as Array<{ name: string; teamOnly?: boolean }>, owns: (subject, person) => (db ? ownsSubject(db, subject, person) : false) });
       const invoke = createInvoke({
+        secrets: () => [token],
         scheduledHere: () => scheduledHere(),
         caps: indexCapabilities(caps),
         validateInput: (cap, v, input) => (extraCaps.has(cap) ? [] : validateInput(cap, v, input)),
