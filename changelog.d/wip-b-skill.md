@@ -1,0 +1,1 @@
+- Automations: a sentence such as "when a form is submitted, send me a Slack message and add the lead in HubSpot" is split into its trigger and each action in the order said, with every app named in full beside what you wrote, before the Assistant builds anything.
