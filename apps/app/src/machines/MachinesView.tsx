@@ -358,7 +358,7 @@ export function MachineList({
           icon="data"
           label="Room left"
           big={String(st.room)}
-          sub={`Average across ${plural(st.takingWork, "computer")} that take work`}
+          sub={`Average across ${st.takingWork} ${st.takingWork === 1 ? "computer that takes" : "computers that take"} work`}
         />
       </View>
       {data.waiting.length > 0 ? (

@@ -2,7 +2,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Row, RowWrapContext, ROW_HEIGHT, ROW_HEIGHT_WITH_NOTE, ROW_HEIGHT_TALL, rowHeight } from "./index.tsx";
+import { Row, RowWrapContext, ROW_HEIGHT, ROW_HEIGHT_WITH_NOTE, ROW_HEIGHT_TALL, rowHeight, isCut } from "./index.tsx";
+import { act } from "react";
+import { createRoot } from "test-renderer";
+import { find, installDom, mount } from "../testing/dom.ts";
 
 test("a selected row paints the selection token on the row itself, full width", () => {
   const html = renderToStaticMarkup(<Row id="a" title="Weekly sync" selected />);
@@ -199,4 +202,49 @@ test("a title with a help mark wraps to two lines on a phone instead of clipping
   const off = renderToStaticMarkup(<Row id="w" title="Public address for file changes" titleMarks={mark} />);
   assert.match(on, /-webkit-line-clamp:2/);
   assert.doesNotMatch(off, /-webkit-line-clamp:2/);
+});
+
+// K7 guard (13 Nov 2026): a row that cuts text with dots gives the full text in the app's one tooltip (a native title: it shows on hover, not on keyboard focus); a row whose text fits gets none.
+const fakeRow = (cut: boolean) => ({
+  querySelectorAll: () => [{ scrollWidth: cut ? 300 : 100, clientWidth: 100, scrollHeight: 18, clientHeight: 18 }],
+});
+
+test("isCut sees text wider or taller than its box, and a row that fits is not cut", () => {
+  assert.equal(isCut(fakeRow(true)), true);
+  assert.equal(isCut(fakeRow(false)), false);
+  assert.equal(isCut(null), false);
+  assert.equal(
+    isCut({ querySelectorAll: () => [{ scrollWidth: 50, clientWidth: 50, scrollHeight: 40, clientHeight: 18 }] }),
+    true,
+    "a line clamp that hides a second line is cut too",
+  );
+});
+
+test("a row gets its tooltip text on hover (and into its title on focus, for a screen reader), loses it when the text fits, and keeps a hint it was given", async () => {
+  const restore = installDom();
+  try {
+    const root = await mount(
+      createRoot,
+      <Row id="cut" title="Needs you" note="The lead agent did not check in after two tries and the work stopped" />,
+    );
+    for (const ev of ["onMouseEnter", "onFocus"]) {
+      await act(async () => {
+        (find(root, "row-cut")!.props[ev] as (e: unknown) => void)({ currentTarget: fakeRow(true) });
+      });
+      assert.match(
+        String(find(root, "row-cut")!.props["title"]),
+        /Needs you\nThe lead agent did not check in/,
+        `${ev} fills the tooltip`,
+      );
+      await act(async () => {
+        (find(root, "row-cut")!.props[ev] as (e: unknown) => void)({ currentTarget: fakeRow(false) });
+      });
+      assert.equal(find(root, "row-cut")!.props["title"], undefined, `${ev} on a row that fits takes it away`);
+    }
+    const hinted = await mount(createRoot, <Row id="own" title="Needs you" hint="My own words" />);
+    assert.equal(find(hinted, "row-own")!.props["title"], "My own words");
+    assert.equal(find(hinted, "row-own")!.props["onMouseEnter"], undefined, "a row with its own hint is left alone");
+  } finally {
+    restore();
+  }
 });

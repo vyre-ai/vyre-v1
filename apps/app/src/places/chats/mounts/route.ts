@@ -70,6 +70,8 @@ export interface Shown {
   /** The terminal drawn beside the chat, as a side tab. */
   terminalId: string | null;
   layer: Layer | null;
+  /** Whether the agent's pane was open when the terminal took its column: closing the terminal gives the column back to it. */
+  paneBefore?: boolean;
   /** An inline thread open beside its message (the chat stays put): on a computer in the right column, on a phone as a sheet over the chat. */
   side?: string | null;
 }
@@ -233,9 +235,18 @@ export function step(s: Shown, a: Act): Shown {
     case "pane-open":
       return { ...s, terminalId: null, pane: true };
     case "terminal":
-      return { ...s, terminalId: a.terminalId, pane: false, layer: null };
-    case "terminal-close":
-      return { ...s, terminalId: null };
+      return {
+        ...s,
+        terminalId: a.terminalId,
+        pane: false,
+        paneBefore: s.terminalId === null ? s.pane : s.paneBefore === true,
+        layer: null,
+      };
+    // the column goes back to the agent's pane when it was open before the terminal took it
+    case "terminal-close": {
+      const { paneBefore, ...rest } = s;
+      return { ...rest, terminalId: null, pane: paneBefore === true };
+    }
     case "layer":
       return { ...s, layer: a.layer };
     case "layer-close":
@@ -434,8 +445,18 @@ export function personOfHash(hash: string): string | null {
 /** A link or tab switch arrives while the place is mounted: the same page keeps its pane and place, a different page replaces them. A layer the link names (Open Terminal on the landing, All agents) goes up over the page that is already there. */
 export function linkedTo(s: Shown, hash: string): Shown {
   const next = hash === "" ? START : fromHash(hash);
-  if (JSON.stringify(next.route) === JSON.stringify(s.route))
-    return next.layer !== null ? { ...s, layer: next.layer } : s;
+  // a terminal and a layer are shown over the page that is open, not instead of it: fromHash gives them on the landing page, which must not replace the page the person is on (Attach on the
+  // Computer tab sent the chat to the landing page, 13 Nov)
+  if (next.terminalId !== null)
+    return {
+      ...s,
+      terminalId: next.terminalId,
+      pane: false,
+      paneBefore: s.terminalId === null ? s.pane : s.paneBefore === true,
+      layer: null,
+    };
+  if (next.layer !== null) return { ...s, layer: next.layer };
+  if (JSON.stringify(next.route) === JSON.stringify(s.route)) return s;
   return { ...next, pane: s.pane, terminalId: s.terminalId };
 }
 
@@ -444,13 +465,15 @@ export function anchorOfFocus(fallback: { x: number; y: number } = { x: 8, y: 48
   const doc = (
     globalThis as {
       document?: {
+        body?: unknown;
         activeElement?: {
           getBoundingClientRect?: () => { left: number; bottom: number; width: number; height: number };
         } | null;
       };
     }
   ).document;
-  const box = doc?.activeElement?.getBoundingClientRect?.();
+  // nothing focused leaves the page's body as the active element: its box is the whole page, not a control
+  const box = doc?.activeElement === doc?.body ? undefined : doc?.activeElement?.getBoundingClientRect?.();
   if (!box || (box.width === 0 && box.height === 0)) return fallback;
   return { x: box.left, y: box.bottom + 4 };
 }

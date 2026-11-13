@@ -2906,6 +2906,7 @@ export function stubs(ctx: CallCtx) {
         remove: call("threads.members.remove"),
       },
       move: call("threads.move"),
+      open_state: call("threads.open_state"),
       outside_agent: {
         add: call("threads.outside_agent.add"),
         remove: call("threads.outside_agent.remove"),
