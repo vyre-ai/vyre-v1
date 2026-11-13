@@ -1,9 +1,11 @@
 - Project Overview, People and agents, names each member instead of showing ids, and a record with no title reads Untitled.
 - The command bar lists each task, project and channel once, and a record's line under its name never shows its raw fields or ids.
 - Console Home collapses a run of the same act by the same person: "Dex posted 4 chats" instead of four rows.
-- A Space on this computer reads "This computer" in Settings and Console instead of a 127.0.0.1 address, and the Space ID in Console has a Copy button instead of showing the id.
+- A Space on this computer reads "This computer" in Settings and Console instead of a 127.0.0.1 address, and the Space ID in Console shows in full with a Copy button that says Copied only once it worked.
 - Pinned agents on a computer's page, an automation's assignee and an agent's home folder show names and words, not ids.
 - An automation's step cards show a data reference in words ("Trigger · Record id") instead of template code like {{ trigger.recordId }}.
 - Settings, Profile no longer shows "Saved  Undo" when you open it with nothing changed.
 - Esc puts away the new-folder name box beside Shared in Vault.
 - An automation step that uses an AI account that was removed says "A removed AI account" instead of showing its id.
+- Search: a record's fields that hold other things' ids (a lead, a folder) no longer match on those ids, and records edited before this update keep their old id text in search until each is next changed or search is rebuilt.
+- A name the directory has not loaded yet shows as an ellipsis instead of "Someone"; a computer's own loopback address in a server's Console reads "This server" from another computer.
