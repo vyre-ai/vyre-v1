@@ -145,10 +145,13 @@ test("goals live (CLI engine over MCP): a typed ask in another chat moves the de
   } finally { await d.stop(); }
 });
 
-// The owner's own agent leads the goal and the owner talks to it in the goal's chat: one CLI engine process, one MCP session (the token is minted once for this chat and agent), several turns. Every call is
-// judged by the turn running when it arrives, not by the first one: two typed asks in a row both go through, and the goal's start wake-up over the same still-open session is refused.
-// (The goal is a draft while the owner talks, so no wake-up has run in this chat yet; pressing Start sends the wake.)
-test("goals live (CLI engine over MCP): one MCP session across turns: two typed asks in a row are both granted, then a goal wake over the same session is refused", { skip, timeout: 300_000 }, async () => {
+// The owner's real case: his agent leads a goal and he talks to it in the goal's chat on ONE warm CLI session (one engine process, one MCP session minted once for this chat and agent) across several
+// turns. Every call is judged by the turn running when it arrives, not by anything the session remembers. The fake CLI says which process and session served each turn, and the test asserts it was one.
+//   two typed asks in a row: both granted, each logged with its own asking message;
+//   Start: the goal's own start wake-up arrives on that same session and its attempt on the owner's controls is refused;
+//   a typed ask that rewrites the finish line while the number has moved: granted, and it makes the goal wake its lead again (source changed), on the same session: refused;
+//   a poke on the same session: refused.
+test("goals live (CLI engine over MCP): one warm session across turns: typed asks are granted, the goal's own wake-ups and a poke on that same session are refused", { skip, timeout: 400_000 }, async () => {
   const dir = seededDir();
   const d = await boot(dir);
   try {
@@ -163,31 +166,61 @@ test("goals live (CLI engine over MCP): one MCP session across turns: two typed 
     const dex = (await ok("agents.create", { name: "Dex", role: "You lead goals.", idempotencyKey: "s-dex" })).agent.agentId as string;
     await ok("engine.pool.status", {});
     const first = Date.now() + 4 * DAY;
-    const made = await ok("goals.create", {
-      idempotencyKey: "s-goal", start: false, title: "3 registrations for Lab 8", finish: { kind: "number", line: "Lab 8 registrations reach 3", target: 3, unit: "registrations", source: { kind: "records", type: "contact", label: "Lab 8 registrations" } },
-      deadline: first, leadAgentId: dex, rhythm: { every: "hours", hours: 6 }, quiet: null, zone: "UTC", budget: { turns: 60 },
-    });
+    const finish = { kind: "number", line: "Lab 8 registrations reach 3", target: 3, unit: "registrations", source: { kind: "records", type: "contact", label: "Lab 8 registrations" } };
+    const made = await ok("goals.create", { idempotencyKey: "s-goal", start: false, title: "3 registrations for Lab 8", finish, deadline: first, leadAgentId: dex, rhythm: { every: "hours", hours: 6 }, quiet: null, zone: "UTC", budget: { turns: 60 } });
     const goalId = made.goal.id as string, chat = made.goal.threadId as string;
     assert.equal(made.goal.status, "draft");
     const goalNow = async (): Promise<any> => (await ok("goals.get", { goalId })).goal;   // eslint-disable-line @typescript-eslint/no-explicit-any
-    const wakeLines = (): string[] => { const found: string[] = []; const walk = (p: string): void => { let es: fs.Dirent[] = []; try { es = fs.readdirSync(p, { withFileTypes: true }); } catch { return; } for (const e of es) { const q = path.join(p, e.name); if (e.isDirectory()) walk(q); else if (e.name === "fake-wake-result.txt") found.push(...fs.readFileSync(q, "utf8").split("\n").filter(Boolean)); } }; walk(dir); return found; };
-    const ask = async (title: string, key: string): Promise<void> => {
-      await ok("chat.post", { threadId: chat, body: `toolfind goals_update ${JSON.stringify({ goalId, title })}`, mentions: [{ kind: "agent", id: dex }], idempotencyKey: key });
-      await waitFor(async () => { await d.hooks?.pump?.(); return (await goalNow()).title === title ? true : null; }, 120_000, () => `the ask "${title}" did not go through`);
-    };
-    // two typed asks in a row, on the same engine process and the same MCP session
-    await ask("First new title", "s-ask-1");
-    await ask("Second new title", "s-ask-2");
+    const walkFor = (name: string, each: (text: string) => void): void => { const walk = (p: string): void => { let es: fs.Dirent[] = []; try { es = fs.readdirSync(p, { withFileTypes: true }); } catch { return; } for (const e of es) { const q = path.join(p, e.name); if (e.isDirectory()) walk(q); else if (e.name === name) each(fs.readFileSync(q, "utf8")); } }; walk(dir); };
+    const wakeLines = (): string[] => { const found: string[] = []; walkFor("fake-wake-result.txt", (t) => found.push(...t.split("\n").filter(Boolean))); return found; };
+    const servedBy = (text: string): string => { const m = /\[pid=(\d+) session=([^\]]+)\]/.exec(text); assert.ok(m, `no process tag in: ${text.slice(-160)}`); return `${m[1]}/${m[2]}`; };
+    /** The lead's answers in the goal chat to what the owner typed (its wake-up replies are posted there too, so a typed ask is told apart by the tool it names). */
+    const answersOf = async (tool: string): Promise<string[]> => { await d.hooks?.pump?.(); return ((await ok("chat.messages.list", { threadId: chat })).messages as Array<{ author?: { kind?: string }; body?: string }>).filter((m) => m.author?.kind === "agent").map((m) => m.body ?? "").filter((b) => new RegExp(`${tool} (refused|answered)`).test(b) && /\[pid=/.test(b)); };
+    const askedRows = async (): Promise<Array<{ kind: string; ref?: string; by?: string; tpl?: string }>> => (await ok("goals.activity", { goalId, limit: 100 })).activity;
+    const servers: string[] = [];
+
+    // two typed asks in a row (the title), each its own message: both granted, each logged with its own message
+    const posted: string[] = [];
+    for (const [n, title] of [[1, "First new title"], [2, "Second new title"]] as const) {
+      const m = await ok("chat.post", { threadId: chat, body: `toolfind goals_update ${JSON.stringify({ goalId, title })}`, mentions: [{ kind: "agent", id: dex }], idempotencyKey: `s-ask-${n}` });
+      posted.push(m.message.messageId as string);
+      await waitFor(async () => { await d.hooks?.pump?.(); return (await goalNow()).title === title ? true : null; }, 120_000, () => `ask ${n} did not go through`);
+      await waitFor(async () => (((await answersOf("goals_update")).filter((x) => /answered/.test(x))).length >= n ? true : null), 60_000);
+    }
+    servers.push(...(await answersOf("goals_update")).map(servedBy));
+    // (a turn nobody typed for, such as the one the draft's card starts, may replay the chat's last ask: the fake CLI does that, and it is refused. Only the typed asks are answered.)
+    assert.equal((await answersOf("goals_update")).filter((x) => /goals_update answered/.test(x)).length, 2);
+    const logged = (await askedRows()).filter((r) => r.kind === "edit" && r.ref !== undefined);
+    assert.ok(posted.every((id) => logged.some((r) => r.ref === id && /asked by/.test(r.tpl ?? ""))), `each ask is logged with its own message: ${JSON.stringify(logged)}`);
     assert.equal(wakeLines().length, 0, "no wake-up has run yet");
-    // the owner presses Start: the start wake-up goes to the same lead, in the same chat, over the same still-open session, and nobody asked
+
+    // Start: the start wake-up goes to the same lead, in the same chat, on the same warm session; nobody asked
     await ok("goals.confirm", { goalId });
     await waitFor(async () => { await d.hooks?.pump?.(); return wakeLines().length >= 1 ? true : null; }, 120_000, () => hostLog(d));
     assert.match(wakeLines()[0]!, /goals_extend refused/, String(wakeLines()[0]));
+    servers.push(servedBy(wakeLines()[0]!));
+
+    // the number moves, then the owner types an ask that rewrites the finish line: granted; it reads the number again, finds it moved and wakes the lead, on the same session: refused
+    await ok("records.create", { type: "contact", fields: { name: "Lab 8 guest" }, idempotencyKey: "s-contact" });
+    const wakesBefore = wakeLines().length;
+    const m3 = await ok("chat.post", { threadId: chat, body: `toolfind goals_update ${JSON.stringify({ goalId, finish: { ...finish, line: "Lab 8 registrations reach 3 by the 23rd" } })}`, mentions: [{ kind: "agent", id: dex }], idempotencyKey: "s-ask-3" });
+    await waitFor(async () => { await d.hooks?.pump?.(); return (await goalNow()).finish.line === "Lab 8 registrations reach 3 by the 23rd" ? true : null; }, 120_000, () => "the finish-line ask did not go through");
+    assert.ok((await askedRows()).some((r) => r.ref === m3.message.messageId), "the third ask is logged with its message");
+    await waitFor(async () => { await d.hooks?.pump?.(); return wakeLines().length > wakesBefore ? true : null; }, 120_000, () => `the goal did not wake its lead again; ${hostLog(d)}`);
+    const later = wakeLines().slice(wakesBefore);
+    assert.ok(later.every((l) => /goals_extend refused/.test(l)), JSON.stringify(later));
+    servers.push(...later.map(servedBy));
+    servers.push(...(await answersOf("goals_update")).slice(2).map(servedBy));
+
+    // a poke on the same warm session: refused
+    await ok("threads.poke", { threadId: chat, agentId: dex, note: `toolfind goals_extend ${JSON.stringify({ goalId, deadline: first + 9 * DAY })}` });
+    await waitFor(async () => ((await answersOf("goals_extend")).some((a) => /goals_extend refused/.test(a)) ? true : null), 120_000, () => hostLog(d));
+    servers.push(...(await answersOf("goals_extend")).map(servedBy));
+    assert.equal((await goalNow()).deadline, first, "no wake-up and no poke changed the deadline");
     assert.ok(wakeLines().every((l) => !/goals_extend answered/.test(l)), "no wake-up ever got through");
-    assert.equal((await goalNow()).deadline, first, "the wake changed nothing");
-    assert.equal((await goalNow()).title, "Second new title");
-    // one session served all of it: the engine kept one process for this chat and agent
-    const sessions = fs.readdirSync(path.join(dir, "scratch")).flatMap((p) => { try { return fs.readdirSync(path.join(dir, "scratch", p, "home", ".fake-claude", "sessions")); } catch { return []; } });
-    assert.equal(sessions.length, 1, `one CLI session for the chat: ${JSON.stringify(sessions)}`);
+
+    // one warm session served every turn above
+    assert.ok(servers.length >= 6, `turns seen: ${JSON.stringify(servers)}`);
+    assert.equal(new Set(servers).size, 1, `one process and one session served all of it: ${JSON.stringify([...new Set(servers)])}`);
   } finally { await d.stop(); }
 });

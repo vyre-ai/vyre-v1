@@ -53,6 +53,8 @@ async function sha12(text) {
   return Buffer.from(d).toString("hex").slice(0, 12);
 }
 
+/** Which process and session served a turn, for a test that proves one warm session served several (added to the "toolfind" and goal wake-up answers only). */
+const servedBy = () => ` [pid=${process.pid} session=${session}]`;
 let lastReply = "";
 function reply(parts) {
   lastReply = parts.join("");
@@ -153,7 +155,7 @@ async function callTool(prompt, search = false) {
     const r = await mcp.call(m[1], args);
     if (r?.error) { reply([`mcp error: ${r.error.message ?? "the call failed"}`]); return; }
     const text = (r?.result?.content ?? []).map((c) => c.text ?? "").join("\n");
-    reply([`${m[1]} ${r?.result?.isError ? "refused" : "answered"}: ${text}`]);
+    reply([`${m[1]} ${r?.result?.isError ? "refused" : "answered"}: ${text}${search ? servedBy() : ""}`]);
   } catch (e) {
     reply([`mcp error: ${e instanceof Error ? e.message : "the call failed"}`]);
   } finally { mcp?.close(); }
@@ -354,6 +356,7 @@ async function run(raw) {
       await mcp.call("tool_search", { query: "goals_extend" });
       const r = await mcp.call("goals_extend", { goalId: woken[1], deadline: Date.now() + 30 * 86_400_000 });
       said = r?.error ? `mcp error: ${r.error.message ?? "the call failed"}` : `goals_extend ${r?.result?.isError ? "refused" : "answered"}: ${(r?.result?.content ?? []).map((c) => c.text ?? "").join("\n")}`;
+      said = `${said}${servedBy()}`;
       const wakeId = /wakeId (\S+)\. End this turn/.exec(raw)?.[1];
       await mcp.call("tool_search", { query: "goals_checkin_post" });
       await mcp.call("goals_checkin_post", { goalId: woken[1], ...(wakeId ? { wakeId } : {}), summary: "Checked in." });
