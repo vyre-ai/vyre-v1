@@ -42,7 +42,19 @@ export interface CmdKData {
   continueInChat?(chat: { question: string; answer: string }): void;
   /** Copy the answer's text. */
   copyText?(text: string): void;
+  /** A new idempotency key for a chat started from here (made at the key press, so a Retry sends the same one). */
+  newKey?(): string;
+  /**
+   * Start a chat with these words as its first message, from the new tab. The name for the tab comes back at once (the tab is named in the same frame); `sent` settles when the chat exists and the tab has opened on it,
+   * and rejects if it could not be made.
+   */
+  startChat?(chat: { key: string; text: string; title?: string }): { title: string; sent: Promise<void> };
+  /** Called when the page opens: whatever a chat started from here needs ready (the model last picked), so the key press waits for nothing. */
+  warm?(): void;
 }
+
+/** A chat being started from the new tab: his words are on screen while the chat is made behind them. */
+export interface ChatStart { key: string; text: string; title: string; /** when the key was pressed (ms): the reply is found by who asked and when */ since: number; phase: "sending" | "failed"; note?: string }
 
 export type ServerStatus = "idle" | "loading" | "done" | "offline" | "error";
 
@@ -78,6 +90,8 @@ export interface CmdKState {
   open: boolean;
   /** Set while the answer view is showing; null in the ordinary results. */
   ask: AskState | null;
+  /** Set from the key press that starts a chat in the new tab until the tab has opened on it. */
+  chat: ChatStart | null;
 }
 
 export interface CmdKOptions {
@@ -89,6 +103,8 @@ export interface CmdKOptions {
   onTiming?: (name: "local" | "merged", ms: number) => void;
   /** Milliseconds between steps of the answer being written onto the page; 0 shows it whole at once. */
   revealMs?: number;
+  /** The new tab: Enter on typed words and no selection starts a chat with them (the selection moves with the arrows or the pointer). The sheet leaves this off. */
+  enterStartsChat?: boolean;
 }
 
 const defaultNow = (): number => (typeof performance !== "undefined" ? performance.now() : Date.now());
@@ -111,13 +127,15 @@ export class CmdKController {
   private readonly pause: number;
   private reveal: ReturnType<typeof setInterval> | null = null;
   private askSeq = 0;
+  /** The selection was moved by the arrows or the pointer since the last keystroke. */
+  private moved = false;
 
   constructor(private readonly data: CmdKData, private readonly opts: CmdKOptions = {}) {
     this.now = opts.now ?? defaultNow;
     this.pause = opts.pauseMs ?? SERVER_PAUSE_MS;
     this.s = {
       raw: "", parsed: parseQuery(""), filter: [], rows: [], active: -1, counts: {}, serverStatus: "idle",
-      scope: data.scope(), timings: { localMs: null, mergedMs: null }, open: true, ask: null,
+      scope: data.scope(), timings: { localMs: null, mergedMs: null }, open: true, ask: null, chat: null,
     };
     this.rebuild(true);
   }
@@ -165,17 +183,24 @@ export class CmdKController {
       // Ask the Space sits with the hits: first, and the highlighted row, for a question; last for a plain phrase. Never with a type filter or without a Space to ask.
       if (this.data.ask && filter.length === 0 && askable(parsed) && this.data.scope() === "space" && this.data.online()) {
         const ask: RowModel[] = [{ type: "head", key: "h-ask", title: "Ask" }, { type: "ask", key: "ask", question: parsed.text.trim() }];
-        rows = isQuestion(parsed.text) || rows.length === 0 ? [...ask, ...rows] : [...rows, ...ask];
+        rows = this.opts.enterStartsChat || isQuestion(parsed.text) || rows.length === 0 ? [...ask, ...rows] : [...rows, ...ask];
       }
     }
     // Nothing typed and nothing recent is not a search with no results: the field stands alone until there is something to say.
     const asked = parsed.prefix !== null || parsed.text !== "" || filter.length > 0;
-    if (!rows.length && asked) rows = [{ type: "empty", key: "empty", title: "No results" }];
+    if (!rows.length && asked) rows = [{ type: "empty", key: "empty", title: this.chatDefault() ? "No results. Enter starts a chat." : "No results" }];
     // the Ask row is not a place to stay: the highlight starts again at the top, where Ask is for a question and the best hit is not
     const keep = prevKey && prevKey !== "ask" ? rows.findIndex((r) => r.key === prevKey) : -1;
-    const active = keep >= 0 ? keep : stepActive(rows, -1, "first");
+    // in the new tab nothing is selected until the arrows or the pointer move the selection: Enter is the chat until then
+    const active = this.chatDefault() ? -1 : keep >= 0 ? keep : stepActive(rows, -1, "first");
     this.set({ rows, active, counts });
     if (!first) this.syncPreview();
+  }
+
+  /** In the new tab, typed plain words with the selection not moved: what Enter would do is start a chat. */
+  private chatDefault(): boolean {
+    const p = this.s.parsed;
+    return this.opts.enterStartsChat === true && this.data.startChat !== undefined && this.s.ask === null && p.prefix === null && p.text !== "" && !this.moved;
   }
 
   private syncPreview(): void {
@@ -191,6 +216,7 @@ export class CmdKController {
 
   setRaw(raw: string): void {
     if (this.s.ask) this.endAsk();
+    this.moved = false;
     const t0 = this.now();
     this.started = t0;
     this.seq += 1;
@@ -255,6 +281,7 @@ export class CmdKController {
   }
 
   move(dir: 1 | -1 | "first" | "last"): void {
+    this.moved = true;
     this.set({ active: stepActive(this.s.rows, this.s.active, dir) });
     this.syncPreview();
     this.emit();
@@ -263,8 +290,67 @@ export class CmdKController {
   hover(index: number): void {
     const r = this.s.rows[index];
     if (!r || !isSelectable(r) || index === this.s.active) return;
+    this.moved = true;
     this.set({ active: index });
     this.syncPreview();
+    this.emit();
+  }
+
+  /**
+   * The Enter key. In the new tab: an empty box does nothing; typed words with no selection start a chat; a selection moved by the arrows or the pointer opens that result (Cmd-Enter in a new tab);
+   * a prefixed search (@ # / >) and an answer on screen keep what Enter did before. Elsewhere (the sheet) it is `choose`.
+   */
+  enter(newTab = false): void {
+    if (this.s.chat) return;
+    const p = this.s.parsed;
+    if (this.opts.enterStartsChat === true && this.data.startChat !== undefined && this.s.ask === null && p.prefix === null && !this.moved) {
+      if (p.text !== "" && !newTab) this.startChat();
+      return;
+    }
+    this.choose(this.s.active, newTab);
+  }
+
+  /** The Ask chord (Alt+Enter): the Ask the Space row, from the field, whatever is selected. Nothing when the words are not worth asking. */
+  askChord(): void {
+    if (this.s.chat || this.s.ask) return;
+    const row = this.s.rows.find((r) => r.type === "ask");
+    if (row?.type === "ask") void this.startAsk(row.question);
+  }
+
+  /** The key press that starts a chat: his words and the tab's name are on screen at once, the key is made now, and the chat is made behind them. */
+  startChat(): void {
+    const start = this.data.startChat;
+    const text = this.s.parsed.text.trim();
+    if (!start || text === "" || this.s.chat) return;
+    const key = this.data.newKey?.() ?? `k_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    this.launch(start, key, text);
+  }
+
+  private launch(start: NonNullable<CmdKData["startChat"]>, key: string, text: string, title?: string): void {
+    const started = start({ key, text, ...(title ? { title } : {}) });
+    const { sent } = started;
+    title = started.title;
+    this.set({ chat: { key, text, title, since: this.s.chat?.key === key ? this.s.chat.since : Date.now(), phase: "sending" } });
+    this.emit();
+    sent.then(() => undefined, (e: unknown) => {
+      const c = this.s.chat;
+      if (!c || c.key !== key) return;
+      this.set({ chat: { ...c, phase: "failed", note: e instanceof Error && e.message === "no assistant yet" ? "Your Assistant is not ready yet. Try again in a moment." : "Could not start the chat." } });
+      this.emit();
+    });
+  }
+
+  /** Retry after a failed start: the same words under the same key, so a lost answer never makes a second chat. */
+  retryChat(): void {
+    const c = this.s.chat, start = this.data.startChat;
+    if (!c || !start || c.phase !== "failed") return;
+    this.launch(start, c.key, c.text, c.title);
+  }
+
+  /** Discard after a failed start: back to the search with his words still in the field. */
+  discardChat(): void {
+    if (!this.s.chat) return;
+    this.set({ chat: null });
     this.emit();
   }
 
@@ -364,6 +450,14 @@ export class CmdKController {
     const a = this.s.ask;
     if (!a || a.phase !== "answered" || !this.data.continueInChat) return;
     const chat = { question: a.question, answer: answerText({ answer: a.text, sources: [...a.sources], cited: [...a.cited] }) };
+    // in the new tab the chat starts the way Enter starts one: his words (the question and the answer) are on screen from the press, in this same tab, and the chat is made behind them
+    if (this.opts.enterStartsChat === true && this.data.startChat) {
+      const text = `${chat.question}\n\nWhat the Space says:\n${chat.answer}`;
+      const title = chat.question.length > 80 ? `${chat.question.slice(0, 77)}...` : chat.question;
+      this.endAsk();
+      this.launch(this.data.startChat, this.data.newKey?.() ?? `k_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`, text, title);
+      return;
+    }
     this.close();
     this.data.continueInChat(chat);
   }

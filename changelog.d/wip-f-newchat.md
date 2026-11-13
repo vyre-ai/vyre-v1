@@ -8,3 +8,7 @@
 - The Chat button on an agent's page opens a new chat with that agent already picked and ready to type. The chat is made when you send, so closing it leaves no empty chat behind.
 - "Reply in Thread" opens the replies beside the chat after one request, not two.
 - A chat that is slow to open no longer holds back the rest of the app: the other screens wait for it for a fraction of a second at most, and a quick chat holds nothing back.
+- Typing in a new tab and pressing Enter starts a chat with your words as the first message, in that same tab. A one-word message such as "Heyy" starts a chat too; before, it showed "No results" and Enter did nothing.
+- In a new tab nothing is selected until you press an arrow key or move the pointer onto a result. Then Enter opens that result, as before. Cmd+Enter (Ctrl+Enter elsewhere) still opens it in a new tab.
+- "Ask the Space" is now a row at the top of a new tab's results with its own shortcut, shown on the row: Option+Enter on a Mac, Alt+Enter elsewhere. "Continue in a chat" after an Ask also opens the chat in the same tab instead of leaving a "New tab" behind.
+- A new chat's tab keeps the name of your first words from the first moment. It no longer flashes "New chat" while the chat is being made, and a chat that cannot be read for a moment is no longer taken for a blank chat that "+" jumps to.

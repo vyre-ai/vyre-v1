@@ -10,7 +10,7 @@ import { Menu, MenuIcon, menuTrigger } from "../../../../../ui/src/Menu/index.ts
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { CmdKController } from "./controller.ts";
-import type { AskState, CmdKData, CmdKOptions, CmdKState } from "./controller.ts";
+import type { AskState, ChatStart, CmdKData, CmdKOptions, CmdKState } from "./controller.ts";
 import { filterEntries, filterLabels } from "./view.ts";
 import { answerParts, revealed, sameText } from "./model.ts";
 import type { CmdAction, Hit, RowModel } from "./model.ts";
@@ -82,7 +82,12 @@ export interface CmdKBodyProps {
   /** A visible Close button at the end of the search row (the sheet; not the inline new-tab page). */
   onClose?: () => void;
   autoFocus?: boolean;
+  /** The new tab: Enter on typed words starts a chat, and the Ask row carries its own chord (Alt+Enter). */
+  chatMode?: boolean;
 }
+
+/** The Ask row's chord, as it is shown on the row. */
+const askChord = (platform: KeyPlatform): string => (platform === "mac" ? "⌥⏎" : "Alt+Enter");
 
 function scopeLine(state: CmdKState): string | null {
   const bits: string[] = [];
@@ -100,7 +105,7 @@ function scopeLine(state: CmdKState): string | null {
   return lead ?? (note ? note.charAt(0).toUpperCase() + note.slice(1) : null);
 }
 
-export function CmdKBody({ controller, placeholder = "Search agents, chats, people, records, files, actions…", platform = "mac", inline = false, autoFocus = true, onClose }: CmdKBodyProps): ReactElement {
+export function CmdKBody({ controller, placeholder = "Search agents, chats, people, records, files, actions…", platform = "mac", inline = false, autoFocus = true, onClose, chatMode = false }: CmdKBodyProps): ReactElement {
   const state = useCmdKState(controller);
   const [menu, setMenu] = useState<{ items: MenuEntry[]; x: number; y: number } | null>(null);
   const input = useRef<unknown>(null);
@@ -117,12 +122,13 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
     doc?.querySelector(`[data-testid="row-${activeKey}"]`)?.scrollIntoView?.({ block: "nearest" });
   }, [activeKey]);
 
-  const onKey = (e: { key: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; preventDefault?: () => void }): void => {
+  const onKey = (e: { key: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean; preventDefault?: () => void }): void => {
     const stop = (): void => e.preventDefault?.();
     if (e.key === "ArrowDown") { stop(); controller.move(1); }
     else if (e.key === "ArrowUp") { stop(); controller.move(-1); }
     else if (e.key === "Tab") { stop(); controller.move(e.shiftKey === true ? -1 : 1); }
-    else if (e.key === "Enter") { stop(); controller.choose(state.active, e.metaKey === true || e.ctrlKey === true); }
+    else if (e.key === "Enter" && chatMode && e.altKey === true) { stop(); controller.askChord(); }
+    else if (e.key === "Enter") { stop(); controller.enter(e.metaKey === true || e.ctrlKey === true); }
     else if (e.key === "Escape") { stop(); controller.escape(); }
   };
 
@@ -149,7 +155,7 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
   };
 
   const rowNodes: ReactNode[] = [];
-  for (let i = 0; i < state.rows.length; i++) rowNodes.push(renderRow(state.rows[i] as RowModel, i, state, controller, platform, openRowMenu));
+  for (let i = 0; i < state.rows.length; i++) rowNodes.push(renderRow(state.rows[i] as RowModel, i, state, controller, platform, openRowMenu, chatMode));
   const line = scopeLine(state);
   // Sized by CSS on the web so it follows the window with no measuring; a fixed cap on native.
   const listMax = inline ? undefined : ((Platform.OS === "web" ? "min(380px, calc(100vh - 220px))" : 380) as unknown as number);
@@ -168,7 +174,7 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
           autoCorrect={false}
           spellCheck={false}
           returnKeyType="go"
-          onSubmitEditing={() => { if (Platform.OS !== "web") controller.choose(state.active, false); }}
+          onSubmitEditing={() => { if (Platform.OS !== "web") controller.enter(false); }}
           style={[styles.input, webOnly({ outlineStyle: "none", outlineWidth: 0 }) as object]}
           onKeyPress={onKey as never} {...webOnly({ role: "combobox", "aria-expanded": true, "aria-controls": "cmdk-list" })}
         />
@@ -190,6 +196,7 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
           </Pressable>
         ) : null}
       </View>
+      {chatMode && !state.ask && state.active < 0 && state.parsed.prefix === null && state.parsed.text !== "" ? <View testID="newtab-hint" style={styles.scopes}><Text style={styles.scopesText}>{"Press Enter to start a chat with this. Use the arrow keys to pick a result instead."}</Text></View> : null}
       {state.ask ? <AnswerView ask={state.ask} controller={controller} /> : null}
       {line && !state.ask ? <View testID="cmdk-scope" style={styles.scopes}><Text style={styles.scopesText} numberOfLines={2}>{line}</Text></View> : null}
       {rowNodes.length === 0 ? null : (
@@ -221,13 +228,14 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
 function renderRow(
   r: RowModel, i: number, state: CmdKState, ctl: CmdKController, platform: KeyPlatform,
   rowMenu: (index: number, x: number, y: number) => void,
+  chatMode = false,
 ): ReactNode {
   if (r.type === "head") return <Text key={r.key} style={styles.gh} role="heading" aria-level={3}>{r.title}</Text>;
   if (r.type === "empty") return <Text key={r.key} testID="cmdk-empty" style={styles.none}>{r.title}</Text>;
   const on = i === state.active;
   let row: ReactElement;
   if (r.type === "ask") {
-    row = <Row id={r.key} title="Ask the Space" titleSuffix={r.question} leading={<View style={styles.tile}><MenuIcon icon={SPARK} color={on ? "#FFFFFF" : "var(--accent)"} size={16} /></View>} trailing={<Text style={styles.kind}>Answer</Text>} onPress={() => ctl.choose(i, false)} />;
+    row = <Row id={r.key} title="Ask the Space" titleSuffix={r.question} leading={<View style={styles.tile}><MenuIcon icon={SPARK} color={on ? "#FFFFFF" : "var(--accent)"} size={16} /></View>} trailing={<Text style={styles.kind}>{chatMode ? askChord(platform) : "Answer"}</Text>} onPress={() => ctl.choose(i, false)} />;
   } else if (r.type === "source") {
     const meta = r.source.path ?? r.source.snippet;
     row = <Row id={r.key} title={r.source.title} {...(meta ? { titleSuffix: meta } : {})} leading={<View style={styles.tile}><View style={[styles.num, on ? { backgroundColor: "rgba(255,255,255,0.22)" } : null]}><Text style={[styles.numText, on ? { color: "#FFFFFF" } : null]}>{r.source.n}</Text></View></View>} trailing={<Text style={styles.kind}>{r.source.where}</Text>} onPress={() => ctl.choose(i, false)} />;
@@ -328,12 +336,22 @@ export function CmdK({ data, initialQuery = "", platform = "mac", onClose, onTim
   );
 }
 
-/** Screen shell.new-tab: the same search, inline in a new tab. Enter fills the tab (open), Cmd-Enter opens a new tab. */
-export function NewTabSearch({ data, platform = "mac" }: { data: CmdKData; platform?: KeyPlatform }): ReactElement {
-  const ctl = useCmdK(data);
+/** What the new tab draws while a chat is being started from it: his words, the tab's name and the working mark, with Retry and Discard if it could not be made. */
+export type NewTabChatView = (chat: ChatStart, actions: { retry: () => void; discard: () => void }) => ReactElement;
+
+/**
+ * Screen shell.new-tab: the same search, inline in a new tab. Enter on typed words starts a chat with them in this tab (nothing selected until the arrows or the pointer move it; then Enter opens that result, Cmd-Enter in a new tab).
+ * The Ask the Space row is first in the results, reached by the arrows or by Alt+Enter.
+ */
+export function NewTabSearch({ data, platform = "mac", chatView }: { data: CmdKData; platform?: KeyPlatform; chatView?: NewTabChatView }): ReactElement {
+  const opts = useMemo<CmdKOptions>(() => ({ enterStartsChat: data.startChat !== undefined }), [data]);
+  const ctl = useCmdK(data, opts);
+  const state = useCmdKState(ctl);
+  useEffect(() => { data.warm?.(); }, [data]);
+  if (state.chat && chatView) return chatView(state.chat, { retry: () => ctl.retryChat(), discard: () => ctl.discardChat() });
   return (
     <View testID="newtab-page" style={styles.newtab}>
-      <CmdKBody controller={ctl} platform={platform} inline placeholder={"Open anything, or start something…"} />
+      <CmdKBody controller={ctl} platform={platform} inline chatMode={opts.enterStartsChat === true} placeholder={"Open anything, or start something…"} />
     </View>
   );
 }

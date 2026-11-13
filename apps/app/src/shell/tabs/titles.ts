@@ -106,22 +106,35 @@ export interface TitleSession {
  * Names a tab for its item: its one name (a chat: lib/chat-name.ts), else its own name, else the next read, else the ask's own empty name ("New chat"). A chat is read again whenever it changes, so the tab follows
  * its renames. Returns the stop.
  */
-export function followTitle(session: TitleSession, ask: Ask, retitle: (title: string, empty?: boolean) => void): () => void {
+export function followTitle(session: TitleSession, ask: Ask, retitle: (title: string, empty?: boolean) => void, o: { retryMs?: number } = {}): () => void {
   let off = false;
-  const read = (a: Ask): Promise<string | null> => session.call(a.cap, a.input).then(async (out) => {
+  // a read that failed is not an item with no name: it is "unknown yet" (undefined). A chat just made may not be readable for a moment; naming its tab "New chat" and marking it blank then made "+" select it instead of opening a new tab.
+  const read = (a: Ask): Promise<string | null | undefined> => session.call(a.cap, a.input).then(async (out) => {
     // the item's one name first when it needs more reads (a chat: who is in it); then its own name; then the next read
     const full = a.resolve ? await a.resolve(out, session.call, session.me?.id ?? "").catch(() => null) : null;
     return full ?? a.name(out) ?? (a.next ? read(a.next) : null);
-  }, () => null);
+  }, () => undefined);
   let latest = 0;
+  let tries = 0;
+  let timer: ReturnType<typeof setTimeout> | null = null;
   const run = (): void => {
     const mine = ++latest;
-    void read(ask).then((name) => { const t = name ?? ask.empty; if (!off && mine === latest && t) retitle(t, name === null); });
+    void read(ask).then((name) => {
+      if (off || mine !== latest) return;
+      if (name === undefined) {
+        // keep the name the tab has and ask again in a moment (a few times; the live subscription asks too when the item changes)
+        if (tries++ < 8) timer = setTimeout(run, o.retryMs ?? 1500);
+        return;
+      }
+      tries = 0;
+      const t = name ?? ask.empty;
+      if (t) retitle(t, name === null);
+    });
   };
   run();
   const live = ask.live ? session.hooks.capQuery(ask.live.cap, ask.live.input) : null;
   const stop = live ? live.subscribe(run) : undefined;
-  return () => { off = true; stop?.(); };
+  return () => { off = true; if (timer) clearTimeout(timer); stop?.(); };
 }
 
 /** The ask that names the tab showing `hash` in `place`, or null for a place's own tab and anything with no name to read. */

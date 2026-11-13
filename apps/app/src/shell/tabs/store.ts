@@ -113,6 +113,8 @@ export function moveTab(state: TabsState, place: PlaceId, hash: string | undefin
   if (cur === undefined || cur.isNew === true || cur.place !== place) return openTab(state, tab);
   const other = holding(state, tab.key, cur);
   if (other !== undefined) return openTab(state, { ...tab, key: other.key });
+  // the tab already shows this item (the page reporting the address it was just opened on): its name stands, it does not start again from the place's name
+  if (cur.key === tab.key) return hash === undefined || hash === "" || hash === cur.hash ? state : { tabs: state.tabs.map((t) => (t === cur ? { ...cur, hash } : t)), active: cur.key };
   const own = cur.key === place;
   const next: TabEntry = {
     key: own ? cur.key : tab.key,
@@ -124,6 +126,19 @@ export function moveTab(state: TabsState, place: PlaceId, hash: string | undefin
   };
   if (next.key === cur.key && next.hash === cur.hash && next.title === cur.title) return state;
   return { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: next.key };
+}
+
+/**
+ * The "+" tab on screen becomes what was opened from it (a chat started from its search): the same tab, no second one beside it, none left called "New tab". A chat already open in another tab is selected
+ * and the "+" tab goes. When the selected tab is not a "+" tab this is an ordinary open.
+ */
+export function fillTab(state: TabsState, place: PlaceId, hash: string | undefined, title?: string): TabsState {
+  const cur = activeEntry(state);
+  const tab = placeTab(place, hash, title);
+  if (cur === undefined || cur.isNew !== true) return openTab(state, tab);
+  const other = holding(state, tab.key, cur);
+  if (other !== undefined) return { tabs: state.tabs.filter((t) => t !== cur), active: other.key };
+  return { tabs: state.tabs.map((t) => (t === cur ? { ...tab, ...(cur.pinned === true ? { pinned: true } : {}) } : t)), active: tab.key };
 }
 
 /**
@@ -336,6 +351,8 @@ export interface TabsController {
   land(place: PlaceId): void;
   /** The person went somewhere inside the selected tab's place: the tab follows (moveTab). */
   move(place: PlaceId, hash?: string, title?: string): void;
+  /** The "+" tab on screen becomes what was opened from it (fillTab). */
+  fill(place: PlaceId, hash?: string, title?: string): void;
   newTab(from: PlaceId): TabEntry;
   select(key: string): void;
   close(key: string): void;
@@ -415,6 +432,10 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
     move(place, hash, title) {
       if (hidden.includes(place)) return;
       set(moveTab(state, place, hash, title));
+    },
+    fill(place, hash, title) {
+      if (hidden.includes(place)) return;
+      set(fillTab(state, place, hash, title));
     },
     land(place) {
       if (hidden.includes(place)) return;

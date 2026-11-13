@@ -16,6 +16,7 @@ import { States } from "../../../../../ui/src/States/index.tsx";
 import { forgetKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { dropKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { CmdK, NewTabSearch } from "../cmdk/CmdK.tsx";
+import { PendingChat } from "../../places/chats/landing/PendingChat.tsx";
 import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
 import type { Hit } from "../cmdk/model.ts";
 import { formatHash } from "../hash/hash.ts";
@@ -170,7 +171,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   }, [team]);
   const setAway = useCallback((on: boolean): void => { flags.current.away = on; void team?.away(on); }, [team]);
   const teamProp = useMemo(() => (team ? { invite: () => { void team.invite(); }, away: setAway } : undefined), [team, setAway]);
-  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current, viewer: () => ({ id: session.runtime.me.id, spaceId: session.def.spaceId, places: new Set(railPlaces(hub.rail())) }), console: () => session.def.console === true, ...(team ? { away: setAway } : {}), signOut: () => signOutRef.current() })) : null), [session, hub, team, setAway]);
+  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current, viewer: () => ({ id: session.runtime.me.id, spaceId: session.def.spaceId, places: new Set(railPlaces(hub.rail())) }), console: () => session.def.console === true, ...(team ? { away: setAway } : {}), retitle: (title) => hub.retitle(hub.session().tabs.state().active, title), fill: (place, hash, title) => hub.fill(place, hash, title), signOut: () => signOutRef.current() })) : null), [session, hub, team, setAway]);
 
   useEffect(() => {
     if (!session || stored.def.kind !== "team") return undefined;
@@ -308,7 +309,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   };
   signOutRef.current = signOut;
   const selectSpace=(id:string):void=>{if(id===stored.def.spaceId)return;const target=catalogue.find(item=>item.def.spaceId===id);if(!target||!onSwitchSpace)return;sessionTheme(target,false);onSwitchSpace(id);};
-  const renderNewTab = (): ReactElement => (search ? <NewTabSearch data={search} /> : <States kind="empty" title="Open anything, or start something" icon="search" />);
+  const renderNewTab = (): ReactElement => (search ? <NewTabSearch data={search} {...(session ? { chatView: (c, a) => <PendingChat title={c.title} text={c.text} files={[]} lead={session.runtime.assistant.name} phase={c.phase} {...(session.runtime.turns ? { live: { turns: session.runtime.turns, asker: session.runtime.me.id, since: c.since } } : {})} {...(c.note ? { note: c.note } : {})} onRetry={a.retry} onDiscard={a.discard} /> } : {})} /> : <States kind="empty" title="Open anything, or start something" icon="search" />);
   // the onboarding screen opens over whatever the shell shows, the first time a person enters a Space and when asked
   // the Personal Space on this computer, so a Team Space can offer "use the same AI account" (never copied without a yes)
   const personalCall = useMemo(() => { const p = catalogue.find((item) => item.def.kind === "personal" && item.def.spaceId !== stored.def.spaceId && isLoopbackUrl(item.baseUrl)); return p ? createCapCaller({ baseUrl: p.baseUrl, token: () => p.token }) : null; }, [catalogueKey, stored.def.spaceId]);

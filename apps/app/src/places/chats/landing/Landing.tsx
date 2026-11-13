@@ -27,7 +27,7 @@ import { postWithFiles, uploadDeps } from "../conversation/actions.ts";
 import { each } from "../../../shell/sidebar/model.ts";
 import { Glyph } from "../sidebar/parts.tsx";
 import { useLive } from "../mounts/live.ts";
-import { LANDING_NEEDS, moreLine, realAssistant, startFailure, startInput, workingChats, workingLine } from "./model.ts";
+import { LANDING_NEEDS, chatStartInput, lastPick, moreLine, realAssistant, startFailure, workingChats, workingLine } from "./model.ts";
 import { PendingChat } from "./PendingChat.tsx";
 import { firstWords, holdPending } from "./pending.ts";
 import type { NeedItem, NeedsOut, RecentOut, WithEntry } from "./model.ts";
@@ -68,11 +68,10 @@ export function Landing(p: LandingProps): ReactElement {
   // the model, provider and effort this person picked last, anywhere, are what a new chat shows and starts on (owner, 6 Nov): nothing to pick again. A pick made here first is never replaced.
   useEffect(() => {
     let live = true;
-    void Promise.resolve((rt.call as (cap: string, input: unknown) => Promise<unknown>)("engine.last_pick.get", {})).then((out) => {
-      const last = out as { model?: string; provider?: string; effort?: string } | null | undefined;
-      if (!live || !last?.model) return;
-      setChoice((c) => (c.model || c.provider || c.accountRef ? c : { ...c, model: last.model!, modelTitle: prettyModel(last.model), ...(last.provider ? { provider: last.provider } : {}), ...(last.effort ? { effort: last.effort as NonNullable<NewChoice["effort"]> } : {}) }));
-    }, () => undefined);
+    void lastPick(rt.call as (cap: string, input: unknown) => Promise<unknown>).then((last) => {
+      if (!live || last === null) return;
+      setChoice((c) => (c.model || c.provider || c.accountRef ? c : { ...c, model: last.model, modelTitle: prettyModel(last.model), ...(last.provider ? { provider: last.provider } : {}), ...(last.effort ? { effort: last.effort as NonNullable<NewChoice["effort"]> } : {}) }));
+    });
     return () => { live = false; };
   }, [rt]);
   const needs = useLive<NeedsOut>(rt.screens, "tasks.my-work", "needs", { limit: LANDING_NEEDS });
@@ -100,9 +99,7 @@ export function Landing(p: LandingProps): ReactElement {
       const assistantId = await realAssistant(rt.assistant.id, (cap, input) => rt.call(cap as never, input as never));
       if (assistantId === null) throw new Error("no assistant yet");
       const c = s.choice;
-      const out = await rt.call("chat.start", {
-        kind: "chat", ...startInput(s.picked, assistantId), ...(slash || s.title === "" ? {} : s.files.length > 0 ? { title: s.title } : { first: s.text, title: s.title }), ...(c.model ? { model: c.model } : {}), ...(c.provider ? { provider: c.provider } : {}), ...(c.effort ? { effort: c.effort } : {}), idempotencyKey: s.key,
-      });
+      const out = await rt.call("chat.start", chatStartInput({ picked: s.picked, choice: c, text: s.text, title: s.title, hasFiles: s.files.length > 0, slash, key: s.key }, assistantId) as never);
       const id = (out as CapMap["chat.start"]["out"]).thread.threadId;
       // what goes in after the chat exists: the mode, files, the people picked that chat.start cannot take. A slash command waits for all of it (its words wait in the chat's composer); a message opens first.
       const after = async (): Promise<void> => {

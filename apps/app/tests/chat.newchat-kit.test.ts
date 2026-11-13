@@ -189,9 +189,24 @@ export async function walk(label: string, latency: number, startDelay: number, b
 }
 
 /** Opens the first screen of Chats, types `text` and presses Enter. Returns the page's own record of what appeared when. */
-export async function sendNew(page: any, v: Awaited<ReturnType<typeof vendor>>, text: string, reply: string, o: { shot?: string; settle?: boolean } = {}): Promise<RunOut> { // eslint-disable-line @typescript-eslint/no-explicit-any
-  const field = page.getByTestId("composer-field").first();
-  await field.waitFor({ timeout: 30_000 });
+export async function sendNew(page: any, v: Awaited<ReturnType<typeof vendor>>, text: string, reply: string, o: { shot?: string; settle?: boolean; plus?: boolean } = {}): Promise<RunOut> { // eslint-disable-line @typescript-eslint/no-explicit-any
+  // plus: the owner's own way, "+" in the tab strip and the new tab's search field (Enter there starts the chat)
+  if (o.plus) {
+    // the page has finished starting (its first reads are in, as for a person who has the window open): on the slow link a "+" pressed while the address is still being applied lands on the tab the address then selects
+    await page.waitForFunction(() => (window as any).__nc.pending === 0, undefined, { timeout: 60_000 }); // eslint-disable-line @typescript-eslint/no-explicit-any
+    await page.waitForTimeout(700);
+    // the strip has settled: a restored chat tab takes its name a moment after the page loads and the "+" moves right with it; a press that lands as it moves hits the tab instead
+    for (let still = 0, last = ""; still < 4;) { const now = await page.getByTestId("tab-strip").innerText(); still = now === last ? still + 1 : 0; last = now; await page.waitForTimeout(250); }
+    await page.evaluate(`(() => { const w = window; w.__tabsLog = []; var snap = function () { var ids = Array.prototype.map.call(document.querySelectorAll('[data-testid^="tab-"]'), function (x) { return x.getAttribute("data-testid") || ""; }).filter(function (x) { return !/^tab-(strip|close)/.test(x); }).join(","); var l = w.__tabsLog; if (l.length === 0 || l[l.length - 1].ids !== ids) l.push({ at: Math.round(performance.now()), ids: ids }); }; snap(); new MutationObserver(snap).observe(document.documentElement, { subtree: true, childList: true, attributes: true }); })()`);
+    await page.getByTestId("tab-strip-plus").click();
+  }
+  const field = o.plus ? page.getByTestId("cmdk-input") : page.getByTestId("composer-field").first();
+  await field.waitFor({ timeout: 30_000 }).catch(async (e: unknown) => { // a page that never shows the field is a finding: say what it shows, with a picture
+    const dir = process.env["VYRE_NEWCHAT_OUT"] ?? "/tmp/vyre-newchat"; fs.mkdirSync(dir, { recursive: true });
+    await page.screenshot({ path: path.join(dir, `nofield-${Date.now()}.png`) });
+    console.log("no search field; the page says: " + (await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ").slice(0, 300) + " | tabs: " + JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('[data-testid^="tab-"]')].map((x) => x.getAttribute("data-testid")))) + " | tab log: " + JSON.stringify(await page.evaluate(() => (window as any).__tabsLog).catch(() => null)) + " | stored tabs: " + (await page.evaluate(() => Object.keys(localStorage).filter((k) => /tab/i.test(k)).map((k) => k + "=" + localStorage.getItem(k)).join(" ; ")).catch(() => "")).slice(0, 900));
+    throw e;
+  });
   // the page finishes its first reads (the Assistant, the last model pick, the lists under the composer) before the key press, as a person's does: this is a short settle, not a wait for a result
   await page.waitForTimeout(1000);
   v.script.push({ text: reply });
@@ -210,19 +225,33 @@ export async function sendNew(page: any, v: Awaited<ReturnType<typeof vendor>>, 
   return { marks: out.marks, reqs: out.reqs, tabs: out.tabs, ...(vendorAt > 0 ? { vendorMs: vendorAt - out.wall0 } : {}), ...(out.wsAt !== undefined ? { wsAt: out.wsAt } : {}) };
 }
 
-export async function runCase(label: string, latency: number, startDelay: number): Promise<{ a: number[]; aPaint: number[]; b: number[]; c: number[]; d: number[]; vendor: number[]; tokenLag: number[]; missing: string[] }> {
+export async function runCase(label: string, latency: number, startDelay: number, o: { plus?: boolean; text?: (i: number) => string; runs?: number } = {}): Promise<{ a: number[]; aPaint: number[]; b: number[]; c: number[]; d: number[]; vendor: number[]; tokenLag: number[]; missing: string[] }> {
   const got = { a: [] as number[], aPaint: [] as number[], b: [] as number[], c: [] as number[], d: [] as number[], vendor: [] as number[], tokenLag: [] as number[], missing: [] as string[] };
   const out = process.env["VYRE_NEWCHAT_OUT"] ?? "/tmp/vyre-newchat";
-  await walk(label, latency, startDelay, async ({ page, web, v, guard }) => {
-    for (let i = 1; i <= RUNS; i++) {
+  await walk(label, latency, startDelay, async ({ page, web, v, guard, relay }) => {
+    for (let i = 1; i <= (o.runs ?? RUNS); i++) {
       await page.goto(`${web.origin}/chat`, { waitUntil: "load" });
-      const text = `Plan the quarterly review number ${i} for the Lisbon team ${Math.random().toString(36).slice(2, 8)}`;
+      const text = o.text ? o.text(i) : `Plan the quarterly review number ${i} for the Lisbon team ${Math.random().toString(36).slice(2, 8)}`;
       const reply = `w${Math.random().toString(36).slice(2, 8)} is the plan ${i}`;
-      const r = await sendNew(page, v, text, reply, i === 1 ? { shot: path.join(out, `${label}-200ms.png`) } : {});
+      const tabCount = (): Promise<string[]> => page.evaluate(() => [...document.querySelectorAll('[data-testid^="tab-"]')].map((e) => `${e.getAttribute("data-testid")}|${(e.textContent || "").trim()}`).filter((x) => !/^tab-(strip|close)/.test(x)));
+      if (o.plus) await page.getByTestId("tab-strip").waitFor({ timeout: 30_000 });
+      const tabsBefore = o.plus ? await tabCount() : [];
+      const r = await sendNew(page, v, text, reply, { ...(i === 1 ? { shot: path.join(out, `${label}-200ms.png`) } : {}), ...(o.plus ? { plus: true } : {}) });
+      if (o.plus) {
+        // no flash: the tab carries his words from the key press on and is never called New chat afterwards
+        const words = text.split(/\s+/).slice(0, 6).join(" ");
+        assert.ok(r.tabs.length > 0 && r.tabs.every((x) => x.text.includes(words)), `${label} run ${i}: the tab never changed name (${JSON.stringify(r.tabs)})`);
+        // the new tab became the chat: one more tab than before, none still called "New tab", no second tab for the same chat
+        await page.waitForTimeout(1500);
+        const after = await tabCount();
+        assert.equal(after.length, tabsBefore.length + 1, `${label} run ${i}: the new tab is the chat, not a second tab (before ${JSON.stringify(tabsBefore)}, after ${JSON.stringify(after)})`);
+        assert.ok(!after.some((x) => /\|New tab$/.test(x)), `${label} run ${i}: no tab is still called New tab`);
+      }
       await guard.check(`${label} run ${i}`);
       for (const k of ["a", "aPaint", "b", "c", "d"] as const) { const x = r.marks[k]; if (x === undefined) got.missing.push(`run ${i}: ${k}`); else got[k].push(x); }
       if (r.vendorMs !== undefined) got.vendor.push(r.vendorMs);
       if (r.wsAt !== undefined && r.marks.d !== undefined) got.tokenLag.push(r.marks.d - r.wsAt);
+      if (o.plus) assert.equal(relay.starts, i, `${label} run ${i}: the chat was made once (chat.start went out ${relay.starts} times)`);
       if (i === 1) fs.writeFileSync(path.join(out, `${label}-tab-names.json`), JSON.stringify(r.tabs, null, 1));
       if (i === 1) fs.writeFileSync(path.join(out, `${label}-requests.json`), JSON.stringify(r.reqs.map((q) => ({ cap: q.cap, startMs: Math.round(q.s), headersMs: q.h === null ? null : Math.round(q.h) })), null, 1));
     }
@@ -312,8 +341,8 @@ export async function cannedAsk(page: any, modelMs: number): Promise<void> { // 
 
 export interface PathRow { path: string; step: string; first_acknowledged_ms: number | null; transitions: { t: number; s: string }[] }
 
-/** The three ways the owner can start a chat: "+" in the tab strip (a new tab), "+ New chat" in the Chats sidebar, and the first screen's composer. Each: what the page shows, in order, from Enter on, and a picture at 0.2 s, 1 s, 3 s and when it settles. */
-export async function runPathProbe(label: string, latency: number, startDelay: number, path: "tabplus" | "sidebar" | "first"): Promise<PathRow[]> {
+/** The ways the owner can start a chat: "+" in the tab strip (a new tab: Enter starts the chat; tabplus-ask is the Ask by its chord, then "Continue in a chat"), "+ New chat" in the Chats sidebar, and the first screen's composer. Each: what the page shows, in order, from Enter on, and a picture at 0.2 s, 1 s, 3 s and when it settles. */
+export async function runPathProbe(label: string, latency: number, startDelay: number, path: StartPath): Promise<PathRow[]> {
   const out = process.env["VYRE_NEWCHAT_OUT"] ?? "/tmp/vyre-newchat";
   const rows: PathRow[] = [];
   await walk(label, latency, startDelay, async ({ page, web, api, v }) => {
@@ -329,16 +358,17 @@ export async function runPathProbe(label: string, latency: number, startDelay: n
     await page.getByTestId("composer-field").first().waitFor({ timeout: 30_000 });
     await page.waitForFunction(() => (window as any).__nc.pending === 0, undefined, { timeout: 60_000 }); // eslint-disable-line @typescript-eslint/no-explicit-any
     await page.waitForTimeout(700);
-    if (path === "tabplus") await cannedAsk(page, latency > 0 ? 2000 : 800);
+    const plus = path === "tabplus" || path === "tabplus-ask";
+    if (path === "tabplus-ask") await cannedAsk(page, latency > 0 ? 2000 : 800);
     let field;
-    if (path === "tabplus") { await page.getByTestId("tab-strip-plus").click(); field = page.getByTestId("cmdk-input"); }
+    if (plus) { await page.getByTestId("tab-strip-plus").click(); field = page.getByTestId("cmdk-input"); }
     else if (path === "sidebar") { await page.getByTestId("new-menu").click(); await page.getByText("New chat", { exact: true }).first().click(); field = page.getByTestId("composer-field").first(); }
     else field = page.getByTestId("composer-field").first();
     await field.waitFor({ timeout: 20_000 });
     await page.waitForTimeout(500);
     await page.evaluate(() => { const S = (window as any).__nc; S.marker = "Heyy"; S.words = "Heyy"; S.reply = "Heyy! The"; S.armed = true; }); // eslint-disable-line @typescript-eslint/no-explicit-any
     await field.fill("Heyy Lisbon team review Thursday?");
-    await field.press("Enter");
+    await field.press(path === "tabplus-ask" ? "Alt+Enter" : "Enter");
     const shot = (n: string) => page.screenshot({ path: path_(out, `${label}-${path}-${n}.png`) });
     await page.waitForTimeout(200); await shot("0.2s");
     await page.waitForTimeout(800); await shot("1s");
@@ -348,7 +378,7 @@ export async function runPathProbe(label: string, latency: number, startDelay: n
     const first = await page.evaluate(() => { const S = (window as any).__nc; return { sigs: S.sigs as { t: number; s: string }[] }; }); // eslint-disable-line @typescript-eslint/no-explicit-any
     rows.push({ path, step: "Enter", first_acknowledged_ms: first.sigs.length > 1 ? first.sigs[1]!.t : null, transitions: first.sigs });
     // a new tab's Ask ends in "Continue in a chat": press it and watch the tab move onto the real chat
-    if (path === "tabplus" && await page.getByTestId("cmdk-continue").isVisible().catch(() => false)) {
+    if (path === "tabplus-ask" && await page.getByTestId("cmdk-continue").isVisible().catch(() => false)) {
       await page.evaluate(() => { const S = (window as any).__nc; S.sigs = []; S.t0 = performance.now(); }); // eslint-disable-line @typescript-eslint/no-explicit-any
       await page.getByTestId("cmdk-continue").click();
       await page.waitForTimeout(200); await shot("continue-0.2s");
@@ -376,7 +406,7 @@ test("new chat kit: the percentile of ten runs is the slowest run (nearest rank)
   assert.equal(pct([], 0.5), null);
 });
 
-export type StartPath = "tabplus" | "sidebar" | "first";
+export type StartPath = "tabplus" | "tabplus-ask" | "sidebar" | "first";
 /** One start path on one link, recorded with pictures. One case per file: each takes 40 to 60 s and a file's watchdog is 120 s, so the six cases cannot share a file. */
 export function definePathProbe(startPath: StartPath, label: "probe-loopback" | "probe-relay"): void {
   const [latency, delay] = label === "probe-loopback" ? [0, 0] : [150, 1500];
@@ -409,7 +439,7 @@ export function defineLoop(label: "loopback" | "relay"): void {
         // a page that never shows the search box is a crash or a hang: say which, with a picture, before anything else
         await box.waitFor({ timeout: 20_000 }).catch(async (e: unknown) => { await page.screenshot({ path: `${shots}/loop-${label}-nobox-${i}.png` }); await guard.check(`round ${i}, after "+"`); throw e; });
         await box.fill("Lisbon team review Thursday?");
-        await box.press("Enter");
+        await box.press("Alt+Enter"); // Enter starts a chat in a new tab (13 Nov); the Ask is the chord
         await page.getByTestId("cmdk-continue").waitFor({ timeout: 40_000 }).catch(async (e: unknown) => { await page.screenshot({ path: `${shots}/loop-${label}-noanswer-${i}.png` }); throw e; });
         await page.getByTestId("cmdk-continue").click(); continued += 1;
         await page.getByTestId("composer-field").first().waitFor({ timeout: 30_000 }).catch(async (e: unknown) => { await page.screenshot({ path: `${shots}/loop-${label}-nochat-${i}.png` }); await guard.check(`round ${i}, after Continue in a chat`); console.log(`round ${i}: no chat composer; the page says: ${(await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ").slice(0, 300)}`); throw e; });
@@ -417,6 +447,43 @@ export function defineLoop(label: "loopback" | "relay"): void {
       }
       assert.equal(continued, ROUNDS, "every round was answered and continued in a chat");
       console.log(`${label}: ${ROUNDS} rounds, Continue in a chat pressed ${continued} times`);
+    });
+  });
+}
+
+/**
+ * The owner's own way: "+" in the tab strip, type, Enter. The new tab becomes the chat in the same tab: his words, the tab's name and the working mark within the budget, the chat made once, the agent answers.
+ * "heyy" is a one-word message (it used to be a dead end), "long" a sentence (it used to run an Ask). One link per file.
+ */
+export function definePlus(kind: "heyy" | "long", label: "loopback" | "relay"): void {
+  const [latency, delay] = label === "loopback" ? [0, 0] : [150, 1500];
+  test(`new tab, ${kind === "heyy" ? "a one-word message" : "a long message"}, Enter (${label}): his words, the tab's name and the working mark are on screen within ${BUDGET_MS} ms, one chat, the agent answers`, async (t) => {
+    if (!process.env["VYRE_APP_DIST"]) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
+    const got = await runCase(`plus-${kind}-${label}`, latency, delay, { plus: true, ...(kind === "heyy" ? { runs: 3, text: (i: number) => `Heyy${i}` } : {}) });
+    within(`plus-${kind}-${label}`, got);
+    assert.equal(got.d.length, kind === "heyy" ? 3 : RUNS, "the agent answered every message");
+  });
+}
+
+/** The Ask is still there as its own choice: Alt+Enter in the new tab runs the Ask (a canned answer), starts no chat, and "Continue in a chat" is offered as before. */
+export function definePlusAsk(): void {
+  test("new tab, a question, Alt+Enter: the Ask runs, no chat is made, Continue in a chat is offered", async (t) => {
+    if (!process.env["VYRE_APP_DIST"]) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
+    await walk("plus-ask", 0, 0, async ({ page, web, relay, guard, shots }) => {
+      await cannedAsk(page, 300);
+      await page.goto(`${web.origin}/chat`, { waitUntil: "load" });
+      await page.getByTestId("shell").waitFor({ timeout: 30_000 });
+      await page.getByTestId("tab-strip-plus").click();
+      const box = page.getByTestId("cmdk-input");
+      await box.waitFor({ timeout: 20_000 });
+      await box.fill("Lisbon team review Thursday?");
+      await page.getByTestId("row-ask").waitFor({ timeout: 10_000 });
+      assert.match(await page.getByTestId("row-ask").innerText(), /Alt\+Enter|⌥⏎/, "the Ask row shows its chord");
+      await page.screenshot({ path: `${shots}/plus-ask-row.png` });
+      await box.press("Alt+Enter");
+      await page.getByTestId("cmdk-continue").waitFor({ timeout: 20_000 });
+      assert.equal(relay.starts, 0, "no chat was made");
+      await guard.check("plus ask");
     });
   });
 }

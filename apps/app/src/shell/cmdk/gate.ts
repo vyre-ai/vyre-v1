@@ -10,6 +10,9 @@ import { livePlace } from "../rail/kits.ts";
 import type { CmdKData } from "./controller.ts";
 import type { AskAnswer, CmdAction, Hit, HitKind } from "./model.ts";
 import { requestChannelSheet } from "../../places/chats/channels/request.ts";
+import { chatStartInput, lastPick, realAssistant, startFailure } from "../../places/chats/landing/model.ts";
+import type { StartChoice } from "../../places/chats/landing/model.ts";
+import { firstWords, holdPending } from "../../places/chats/landing/pending.ts";
 import { offered } from "../session/private-agents.ts";
 import { activePlace, openAskPane, placeTitle, thingOfScreen } from "../ask/pane.ts";
 import { currentScreen } from "../ask/screen.ts";
@@ -41,6 +44,10 @@ export interface GateSearchDeps {
   away?: (on: boolean) => void;
   /** Whether this person may open the Console (the Space card's console flag, the same one the Settings row Console follows). Left out: the Console is judged by the viewer's Console pages. */
   console?: () => boolean;
+  /** Names the tab this search is in (the new tab becomes the chat). Left out: the tab keeps its name. */
+  retitle?: (title: string) => void;
+  /** The new tab becomes this place and item, named: the same tab, no second one (hub.fill). Left out: it opens as an ordinary tab. */
+  fill?: (place: PlaceId, hash: string, title: string) => void;
   /** Sign out of this Space on this device. Left out: no Sign out action is offered. The Space menu keeps its own Sign Out (the prototype's place); this is the same act found by typing. */
   signOut?: () => void;
 }
@@ -176,8 +183,30 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     if (own) nav.go(own.place, own.hash === "" ? undefined : own.hash);
     else nav.go(placeOfHit(hit), hashOfHit(hit));
   };
+  // the model this person picked last is read when the new tab opens, so the key press that starts a chat waits for nothing (the first screen reads it when it mounts, the same way)
+  let pick: StartChoice | null = null;
+  const callOf = rt.call as (cap: string, input: unknown) => Promise<unknown>;
   return {
     spaceName: () => rt.space.name,
+    warm: () => { void lastPick(callOf).then((p) => { if (p !== null) pick = p; }); },
+    // Enter on typed words in the new tab: a chat with those words, started as the first screen's composer starts one (the same input, the Assistant, the model last picked), in this tab. His words and the tab's name are on screen
+    // from the key press (the page draws them; the tab is named here), and the tab opens on the chat when it exists.
+    startChat: ({ key, text, title: given }) => {
+      const title = given ?? firstWords(text);
+      d.retitle?.(title);
+      const sent = (async (): Promise<void> => {
+        const assistantId = await realAssistant(rt.assistant.id, (cap, input) => callOf(cap, input));
+        if (assistantId === null) throw new Error("no assistant yet");
+        const out = await callOf("chat.start", chatStartInput({ picked: [{ id: rt.assistant.id, name: rt.assistant.name, kind: "assistant" }], choice: pick ?? {}, text, title, hasFiles: false, slash: false, key }, assistantId)) as { thread?: { threadId?: string } } | null;
+        const id = out?.thread?.threadId;
+        if (!id) throw new Error(startFailure(null));
+        holdPending(id, { title, text, files: [], lead: rt.assistant.name });
+        // the new tab itself becomes the chat, the way a result opened from this page fills the tab (rt.open would open the thread in a tab of its own, beside this one)
+        const hash = `subject=thread:${id}`;
+        if (d.fill) d.fill("chats", hash, title); else nav.go("chats", hash);
+      })();
+      return { title, sent };
+    },
     scope: () => (online() ? "space" : "device"),
     online,
     // Inbox and Connect email answer a typed word only; the replica's people and chats stay the whole of an empty search
