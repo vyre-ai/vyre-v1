@@ -204,8 +204,9 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, onTab,
 }
 
 
+type PaneTabLike = { key: string; title: string; lead?: ReactNode };
 /** The pane's own tab, and what was opened beside it; the one named `first` leads, so a one-to-one chat reads Person, Agent and a channel reads Details, Agent. */
-export function orderedTabs<T extends { key: string }>(open: T, extra: { first?: string; tabs: readonly T[] } | undefined): T[] {
+export function orderedTabs(open: PaneTabLike, extra: { first?: string; tabs: readonly PaneTabLike[] } | undefined): PaneTabLike[] {
   const rest = extra?.tabs ?? [];
   const lead = extra?.first === undefined ? undefined : rest.find((t) => t.key === extra.first);
   return lead === undefined ? [open, ...rest] : [lead, open, ...rest.filter((t) => t !== lead)];
