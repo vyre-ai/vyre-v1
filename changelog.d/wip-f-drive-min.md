@@ -1,0 +1,2 @@
+- Editing a Google Drive file in Vyre never deletes the original in Drive. Before, a file whose name Vyre shows differently from Drive (the second of two files with one name, a file beside a Google Doc of the same name, a name with a space at an end) was replaced by a new file and the original was moved to Drive's Trash. Now the same Drive file is updated in place.
+- If Vyre ever cannot tell an edit from a rename, it sends nothing to Drive, flags the file and says so, instead of replacing the original.
