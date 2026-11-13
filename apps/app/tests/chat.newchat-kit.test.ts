@@ -1063,3 +1063,63 @@ export function definePlusAsk() {
     },
   ] as const;
 }
+
+/** A link to a chat of this Space pasted into a new tab and Enter: the chat opens IN that tab (one more tab than before, none called New tab), and no second chat is made. */
+export function definePlusLink() {
+  return [
+    "new tab, a pasted link to a chat of this Space, Enter: it opens that chat in the same tab and starts no chat",
+    async (t: { skip(m?: string): void }) => {
+      if (!process.env["VYRE_APP_DIST"]) {
+        if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
+        t.skip("VYRE_APP_DIST required for production browser evidence");
+        return;
+      }
+      await walk("plus-link", 0, 0, async ({ page, web, relay, api, v, guard }) => {
+        const assistant = (await api("agents.list", {})).agents[0] as { agentId: string };
+        v.script.push({ text: "Linked chat reply." });
+        const made = await api("chat.start", {
+          kind: "chat",
+          agentIds: [assistant.agentId],
+          first: "The linked chat",
+          title: "The linked chat",
+          idempotencyKey: "plus-link-1",
+        });
+        const id = made.thread.threadId as string;
+        const starts = relay.starts;
+        await page.goto(`${web.origin}/chat`, { waitUntil: "load" });
+        await page.getByTestId("tab-strip").waitFor({ timeout: 30_000 });
+        await page.waitForFunction(() => (window as any).__nc.pending === 0, undefined, { timeout: 60_000 }); // eslint-disable-line @typescript-eslint/no-explicit-any
+        await page.waitForTimeout(700);
+        for (let still = 0, last = ""; still < 4; ) {
+          const now = await page.getByTestId("tab-strip").innerText();
+          still = now === last ? still + 1 : 0;
+          last = now;
+          await page.waitForTimeout(250);
+        }
+        const tabs = (): Promise<string[]> =>
+          page.evaluate(() =>
+            [...document.querySelectorAll('[data-testid^="tab-"]')]
+              .map((e) => `${e.getAttribute("data-testid")}|${(e.textContent || "").trim()}`)
+              .filter((x) => !/^tab-(strip|close)/.test(x)),
+          ); // eslint-disable-line
+        const before = await tabs();
+        await page.getByTestId("tab-strip-plus").click();
+        const box = page.getByTestId("cmdk-input");
+        await box.waitFor({ timeout: 20_000 });
+        await box.fill(`${web.origin}/open/thread/${id}`);
+        await box.press("Enter");
+        await page.getByText("The linked chat").first().waitFor({ timeout: 20_000 });
+        await page.waitForTimeout(1000);
+        const after = await tabs();
+        assert.equal(
+          after.length,
+          before.length + 1,
+          `the link filled the new tab (before ${JSON.stringify(before)}, after ${JSON.stringify(after)})`,
+        );
+        assert.ok(!after.some((x) => /\|New tab$/.test(x)), "no tab is left called New tab");
+        assert.equal(relay.starts, starts, "no chat was started");
+        await guard.check("plus link");
+      });
+    },
+  ] as const;
+}

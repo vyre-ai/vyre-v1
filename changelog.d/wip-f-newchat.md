@@ -16,3 +16,4 @@
 - In a new tab, pressing Enter to confirm a word in an input method (Japanese, Chinese, Korean, Urdu and others) no longer starts a chat.
 - If you press Enter in a new tab and switch to another tab while the chat is being made, the chat appears in the tab you pressed Enter in, and you stay where you went.
 - Retry after a failed start in a new tab sends exactly the same message and settings as the first try.
+- A link pasted into a new tab also works in the forms the app itself copies: a chat or file address, an artifact address, a "#subject=..." address, and the old desktop addresses that began with tauri://localhost. It opens in that same tab.

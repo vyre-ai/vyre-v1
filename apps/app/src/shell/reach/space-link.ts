@@ -22,10 +22,17 @@ export function resolveSpaceLink(text: string, origins: readonly string[]): Open
   } catch {
     return null;
   }
-  if (url.protocol === "http:" || url.protocol === "https:") {
-    if (!sameOrigin(url.origin, origins)) return null;
-    // an artifact's own address: <origin>/a/sit_<id>
-    const art = /^\/a\/(sit_[A-Za-z0-9_.-]{1,128})\/?$/.exec(url.pathname);
+  // a dead address an older desktop build copied (tauri://localhost/..., https://tauri.localhost/...) is this Space's own thing: the address was the app's, not a website
+  const dead = url.protocol === "tauri:" || url.hostname === "tauri.localhost";
+  if (url.protocol === "http:" || url.protocol === "https:" || url.protocol === "tauri:") {
+    if (!dead && !sameOrigin(url.origin, origins)) return null;
+    // the app's own address form: #subject=<type>:<id> (what the server redirects an artifact address to, and what a record's Copy link makes)
+    const sub = /^([a-z_]{2,24}):([A-Za-z0-9_.-]{1,128})$/.exec(
+      new URLSearchParams(url.hash.replace(/^#/, "")).get("subject") ?? "",
+    );
+    if (sub) return { subject: { type: sub[1]!, id: sub[2]! } };
+    // an artifact's own address: <origin>/a/<id>
+    const art = /^\/a\/([A-Za-z0-9_.-]{1,128})\/?$/.exec(url.pathname);
     if (art) return { subject: { type: "artifact", id: art[1]! } };
     const item = parseOpenPath(url.pathname);
     return item === null ? null : targetOfOpen(item);

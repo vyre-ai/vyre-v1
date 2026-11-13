@@ -22,7 +22,9 @@ test("this Space's own /open links open the thing they name: a chat, a file, a r
 });
 
 test("an artifact's own address opens the artifact", () => {
-  assert.deepEqual(resolveSpaceLink("https://space.example.test/a/sit_abc123", ORIGINS), { subject: { type: "artifact", id: "sit_abc123" } });
+  assert.deepEqual(resolveSpaceLink("https://space.example.test/a/sit_abc123", ORIGINS), {
+    subject: { type: "artifact", id: "sit_abc123" },
+  });
   assert.equal(resolveSpaceLink("https://other.example.test/a/sit_abc123", ORIGINS), null);
 });
 
@@ -45,4 +47,48 @@ test("anything else is not a link to a thing: another Space, another site, a kin
   assert.equal(resolveSpaceLink("/open/thread/thr_1", ORIGINS), null);
   assert.equal(resolveSpaceLink("Heyy", ORIGINS), null);
   assert.equal(resolveSpaceLink("vyre://open?address=https%3A%2F%2Fother.example.test&kind=file&id=f", ORIGINS), null);
+});
+
+test("the product's own link forms open the thing: <origin>/a/<id>, <origin>/#subject=<type>:<id>, and a dead tauri address an older desktop build copied", () => {
+  assert.deepEqual(resolveSpaceLink("https://space.example.test/a/art_77", ORIGINS), {
+    subject: { type: "artifact", id: "art_77" },
+  });
+  assert.deepEqual(resolveSpaceLink("https://space.example.test/#subject=record:rec_5", ORIGINS), {
+    subject: { type: "record", id: "rec_5" },
+  });
+  assert.deepEqual(resolveSpaceLink("https://space.example.test/chat#subject=thread:thr_3", ORIGINS), {
+    subject: { type: "thread", id: "thr_3" },
+  });
+  assert.deepEqual(resolveSpaceLink("tauri://localhost/a/sit_abc", ORIGINS), {
+    subject: { type: "artifact", id: "sit_abc" },
+  });
+  assert.deepEqual(resolveSpaceLink("tauri://localhost/open/file/fil_9", ORIGINS), {
+    subject: { type: "file", id: "fil_9" },
+  });
+  assert.deepEqual(resolveSpaceLink("https://tauri.localhost/open/thread/thr_1", ORIGINS), {
+    subject: { type: "thread", id: "thr_1" },
+  });
+  assert.equal(resolveSpaceLink("https://other.example.test/#subject=record:rec_5", ORIGINS), null);
+});
+
+test("round trip: a link built for every kind the resolver knows opens the same thing", () => {
+  for (const kind of [
+    "file",
+    "folder",
+    "task",
+    "project",
+    "agent",
+    "automation",
+    "run",
+    "goal",
+    "channel",
+    "thread",
+    "chat",
+    "record",
+  ]) {
+    const id = `${kind}_1`;
+    const got = resolveSpaceLink(`https://space.example.test/open/${kind}/${id}`, ORIGINS);
+    assert.ok(got?.subject, kind);
+    assert.equal(got.subject.id, id, kind);
+  }
 });

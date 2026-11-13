@@ -147,3 +147,25 @@ test("the chat fills the tab the press came from (its key at the press), not the
   assert.deepEqual(filled, [{ place: "chats", hash: "subject=thread:thr_t", title: "Heyy", tab: "new:1" }]);
   releasePending("thr_t");
 });
+
+test("a pasted link opened from a new tab fills that tab (the door gets the tab the press came from), it does not open a second one", () => {
+  const opened: Record<string, unknown>[] = [];
+  const rt = {
+    space: { name: "N", kind: "team" },
+    connection: { get: () => "online" },
+    assistant: { id: "agt_a", name: "Assistant" },
+    open: (t: Record<string, unknown>) => void opened.push(t),
+    call: async () => ({}),
+  };
+  const data = createGateSearch({
+    runtime: rt as never,
+    nav: { go: () => undefined, newTab: () => undefined, flash: () => undefined } as never,
+    state: { away: false, offline: false },
+    recent: () => [],
+    activeTab: () => "new:3",
+    origins: () => ["https://space.example.test"],
+  });
+  assert.equal(data.openLink!("https://space.example.test/open/file/fil_9"), true);
+  assert.deepEqual(opened, [{ subject: { type: "file", id: "fil_9" }, into: "new:3" }]);
+  assert.equal(data.openLink!("Heyy"), false);
+});

@@ -296,7 +296,9 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     openLink: (text) => {
       const target = resolveSpaceLink(text, d.origins?.() ?? []);
       if (target === null) return false;
-      rt.open(target as never);
+      // the new tab this was pasted into becomes the thing (the door gets the tab's key); no second tab, no "New tab" left behind
+      const into = d.activeTab?.();
+      rt.open({ ...target, ...(into === undefined ? {} : { into }) } as never);
       return true;
     },
     warm: () => {

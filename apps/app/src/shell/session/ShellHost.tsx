@@ -202,8 +202,9 @@ export function ShellHost({
       notice: (text) => {
         navRef.current?.flash(text);
       },
-      navigate: (p, hash, background) => {
-        navRef.current?.go(p, hash, background);
+      navigate: (p, hash, background, into) => {
+        if (into !== undefined) navRef.current?.fill(p, hash, undefined, into);
+        else navRef.current?.go(p, hash, background);
         if (phoneGo.current && background !== true) phoneGo.current(p, hash);
       },
       shell: (screen, args) => {

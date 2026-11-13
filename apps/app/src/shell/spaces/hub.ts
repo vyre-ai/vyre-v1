@@ -109,7 +109,7 @@ export interface ShellHub {
   /** The person went somewhere inside the place on screen: the selected tab follows, no tab opens (tabs/store.ts moveTab). */
   move(place: PlaceId, hash?: string): void;
   /** The "+" tab on screen becomes this place and item (a chat started from its search): the same tab, named, no second tab (tabs/store.ts fillTab). */
-  fill(place: PlaceId, hash: string, title: string, from?: string): void;
+  fill(place: PlaceId, hash: string, title?: string, from?: string): void;
   /** The view is about to change: whoever draws the frame keeps a still copy until the next one is ready. */
   hold(): void;
   setHolder(fn: (() => void) | null): void;
