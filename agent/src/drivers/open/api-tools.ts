@@ -71,6 +71,16 @@ const view = (t: ToolDef): ApiTool => ({
 export function createApiTools(d: ApiToolsDeps): ApiTools {
   /** The engine's provider per thread, recorded when the turn's context is built, so the label-vs-provider rule sees it when the tool runs. */
   const providerOf = new Map<string, string>();
+  /** How many tool calls each turn has made so far in this process. A provider's call id is not unique inside a turn (Google numbers its calls from 0 at every step; OpenAI falls back to the call's index), so the key
+   * of a call is its position in the turn and the provider's id together. A turn that is run again after a restart counts from 0 again: its calls are new calls, as they were when a model made up its own key. */
+  const calledIn = new Map<string, number>();
+  const nextCallId = (turnId: string | undefined, id: string): string | undefined => {
+    if (!turnId || !id) return undefined;
+    const n = calledIn.get(turnId) ?? 0;
+    calledIn.set(turnId, n + 1);
+    if (calledIn.size > 500) calledIn.delete(calledIn.keys().next().value as string);
+    return `${n}:${id}`;
+  };
   const ctxFor = (threadId: string, agentId: string, asker: string, turnId?: string, callId?: string): ToolCtx => {
     const rules = d.rules?.(agentId);
     const provider = providerOf.get(threadId);
@@ -161,7 +171,7 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
       if (call.name === "tool_batch" && d.isRead) return runBatch(call.input, ctx);
       const out = await d.session.call(
         {
-          ...ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId, call.id),
+          ...ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId, nextCallId(ctx.turnId, call.id)),
           ...(ctx.said !== undefined ? { said: ctx.said } : {}),
         },
         call.name,
