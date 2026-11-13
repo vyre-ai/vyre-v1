@@ -3,7 +3,7 @@
 // step over the last, never clearing it, skipping ahead when frames come faster than they decode.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { framePainter } from "./BrowserLive.tsx";
+import { FAILED_FRAMES, framePainter } from "./BrowserLive.tsx";
 import type { PaintTarget } from "./BrowserLive.tsx";
 
 const frame = (n: number): ArrayBuffer => new Uint8Array([n]).buffer;
@@ -20,12 +20,15 @@ function rig(opts: { fail?: (n: number) => boolean } = {}) {
     getContext: () => ({ drawImage: (src: unknown) => { drawn.push((src as { n: number }).n); } }),
   };
   const waits = new Map<number, () => void>();
-  const paint = framePainter({
+  let failedCalls = 0;
+  const painter = framePainter({
     target: () => canvas,
+    failed: () => { failedCalls++; },
     decode: (jpeg) => { const n = new Uint8Array(jpeg)[0]!; return new Promise((resolve, reject) => { waits.set(n, () => (opts.fail?.(n) ? reject(new Error("bad jpeg")) : resolve({ n, width: 1280, height: 800 } as never))); }); },
     drawn: (s) => sizes.push([s.width, s.height]),
   });
-  return { paint, drawn, sizes, waits, target: () => canvas, clears: () => clears };
+  const paint = painter.push;
+  return { paint, painter, failedCalls: () => failedCalls, drawn, sizes, waits, target: () => canvas, clears: () => clears };
 }
 
 test("frames are drawn in order, each over the last, and the canvas is sized once for the page", async () => {
@@ -70,7 +73,47 @@ test("a reconnect (a new painter on the same canvas) keeps the last picture and 
   const before = r.clears();
   // the socket closed and opened again: a new painter, frames start from the same page size
   const again = framePainter({ target: r.target, decode: (j) => new Promise((res) => { const n = new Uint8Array(j)[0]!; r.waits.set(n + 100, () => res({ n: n + 100, width: 1280, height: 800 } as never)); }), drawn: () => undefined });
-  again(frame(2)); r.waits.get(102)!(); await flush();
+  again.push(frame(2)); r.waits.get(102)!(); await flush();
   assert.deepEqual(r.drawn, [1, 102]);
   assert.equal(r.clears(), before, "same page size: nothing cleared between the old connection and the new");
+});
+
+test("disposing a painter (a reconnect, an unmount) stops its waiting frame and draws nothing late", async () => {
+  const r = rig();
+  r.paint(frame(1)); r.paint(frame(2));
+  r.painter.dispose();
+  r.waits.get(1)!(); await flush();
+  assert.deepEqual(r.drawn, [], "the in-flight frame was closed unseen and the waiting one dropped");
+  r.paint(frame(3));
+  assert.equal(r.waits.has(3), false, "nothing is decoded after dispose");
+});
+
+test("a run of frames that cannot be read is reported once, and a good frame starts the count again", async () => {
+  const r = rig({ fail: (n) => n < 100 });
+  for (let n = 1; n <= FAILED_FRAMES + 5; n++) { r.paint(frame(n)); r.waits.get(n)!(); await flush(); }
+  assert.equal(r.failedCalls(), 1, "told once after the run");
+  r.paint(frame(100)); r.waits.get(100)!(); await flush();
+  assert.deepEqual(r.drawn, [100]);
+});
+
+test("a frame closes its bitmap even when drawing it throws", async () => {
+  let closed = 0;
+  const painter = framePainter({
+    target: () => ({ width: 1, height: 1, getContext: () => ({ drawImage: () => { throw new Error("draw failed"); } }) }),
+    decode: async () => ({ width: 1, height: 1, close: () => { closed++; } }),
+    drawn: () => undefined,
+  });
+  painter.push(frame(1)); await flush(); await flush();
+  assert.equal(closed, 1);
+});
+
+test("20,000 frames faster than they decode: only the first and the newest are ever decoded, and the painter finishes with nothing waiting", async () => {
+  const r = rig();
+  r.paint(frame(1));
+  for (let n = 2; n < 20_000; n++) r.paint(new Uint8Array([n % 90 + 2]).buffer);
+  r.paint(frame(200));
+  r.waits.get(1)!(); await flush();
+  assert.equal(r.waits.size, 2, "one decode for the first frame, one for the newest: the 19,998 between were dropped, not queued");
+  r.waits.get(200)!(); await flush();
+  assert.equal(r.drawn.length, 2, "both drew, and the loop ended (no chain of calls left waiting)");
 });

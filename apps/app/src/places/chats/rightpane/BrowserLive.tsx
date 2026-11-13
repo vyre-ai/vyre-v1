@@ -42,34 +42,49 @@ export interface PaintDeps {
   decode(jpeg: ArrayBuffer): Promise<{ width: number; height: number; close?(): void }>;
   /** A frame was drawn at this size. */
   drawn(size: FrameSize): void;
+  /** This many frames in a row could not be read: the view is showing a stale picture. Called once per run of failures. */
+  failed?(): void;
 }
+/** After this many frames in a row that cannot be read the person is told. */
+export const FAILED_FRAMES = 20;
 
 /**
  * Draws the frames of a live view on one canvas. A frame is decoded off to the side and drawn in one step over the last one, so the picture is never blank between two frames and the canvas keeps its
  * size (setting a canvas's size clears it, so it is set only when the page's own size changes). A frame that arrives while another is being decoded waits, and a newer one replaces it: the view skips
- * ahead instead of falling behind. A frame that cannot be read is skipped and the last good one stays. (13 Nov 2026: the preview flickered because each frame was a new picture address.)
+ * ahead instead of falling behind (one loop, no chain of promises). A frame that cannot be read is skipped and the last good one stays; a run of FAILED_FRAMES is reported. `dispose` ends it: nothing
+ * waiting is drawn and an in-flight frame is closed unseen. (13 Nov 2026: the preview flickered because each frame was a new picture address.)
  */
-export function framePainter(d: PaintDeps): (jpeg: ArrayBuffer) => void {
-  let busy = false;
+export function framePainter(d: PaintDeps): { push(jpeg: ArrayBuffer): void; dispose(): void } {
+  let running = false;
   let waiting: ArrayBuffer | null = null;
-  const draw = async (jpeg: ArrayBuffer): Promise<void> => {
-    busy = true;
+  let gone = false;
+  let bad = 0;
+  const run = async (): Promise<void> => {
+    running = true;
     try {
-      const bmp = await d.decode(jpeg);
-      const c = d.target();
-      if (c) {
-        if (c.width !== bmp.width || c.height !== bmp.height) { c.width = bmp.width; c.height = bmp.height; }
-        c.getContext("2d")?.drawImage(bmp, 0, 0);
-        d.drawn({ width: bmp.width, height: bmp.height });
+      while (waiting && !gone) {
+        const jpeg = waiting;
+        waiting = null;
+        let bmp: { width: number; height: number; close?(): void } | null = null;
+        try {
+          bmp = await d.decode(jpeg);
+          const c = gone ? null : d.target();
+          if (c) {
+            if (c.width !== bmp.width || c.height !== bmp.height) { c.width = bmp.width; c.height = bmp.height; }
+            c.getContext("2d")?.drawImage(bmp, 0, 0);
+            d.drawn({ width: bmp.width, height: bmp.height });
+          }
+          bad = 0;
+        } catch {
+          if (++bad === FAILED_FRAMES) d.failed?.();
+        } finally { try { bmp?.close?.(); } catch { /* already closed */ } }
       }
-      bmp.close?.();
-    } catch { /* a frame that cannot be read is skipped */ }
-    busy = false;
-    const next = waiting;
-    waiting = null;
-    if (next) await draw(next);
+    } finally { running = false; }
   };
-  return (jpeg) => { if (busy) waiting = jpeg; else void draw(jpeg); };
+  return {
+    push(jpeg) { if (gone) return; waiting = jpeg; if (!running) void run(); },
+    dispose() { gone = true; waiting = null; },
+  };
 }
 
 interface Opened { url: string; ws?: string; width?: number; height?: number }
@@ -107,17 +122,18 @@ export function BrowserLive({ agentId, control, call, spaceUrl, testID = "browse
       target: () => canvas.current,
       decode: (jpeg) => (globalThis as unknown as { createImageBitmap(b: unknown): Promise<{ width: number; height: number }> }).createImageBitmap(new Blob_([jpeg], { type: "image/jpeg" })),
       drawn: (size) => { natural.current = size; },
+      failed: () => note("The live view lost its picture. Give the browser back and take over again."),
     }) : null;
     ws.onmessage = (e) => {
       if (typeof e.data === "string") { try { const m = JSON.parse(e.data) as { t?: string; reason?: string }; if (m.t === "refused" && m.reason) note(m.reason); } catch { /* not for us */ } return; }
-      if (paint) { paint(e.data as ArrayBuffer); return; }
+      if (paint) { paint.push(e.data as ArrayBuffer); return; }
       const next = Url.createObjectURL(new Blob_([e.data], { type: "image/jpeg" }));
       setFrame(next);
       if (last) Url.revokeObjectURL(last);
       last = next;
     };
     socket.current = ws;
-    return () => { socket.current = null; ws.onmessage = null; ws.close(); if (last) Url.revokeObjectURL(last); setFrame(null); };
+    return () => { socket.current = null; ws.onmessage = null; paint?.dispose(); ws.close(); if (last) Url.revokeObjectURL(last); setFrame(null); };
   }, [control, opened, spaceUrl, note, canvasOk]);
 
   const send = (m: Record<string, unknown>): void => { socket.current?.send(JSON.stringify({ ...m, seq: ++seq.current })); };
