@@ -8,7 +8,7 @@ import { Avatar } from "../../../../../../../ui/src/Avatar/index.tsx";
 import { ChipText, Choice, Field, Group, Hint, More, Rows, Segmented } from "../fields.tsx";
 import { useOpenConnect } from "../../../../shell/connect/context.ts";
 import { connectEntries } from "../../../../shell/connect/model.ts";
-import { updateStep } from "../model.ts";
+import { cardTitle, updateStep } from "../model.ts";
 import type { DefNode, Definition, KeyChoice } from "../model.ts";
 import {
   AUTH_LABEL, CODE_STARTER, HTTP_METHODS, answerKindOf, authOf, bodyKindOf, headerProblem, hostsOf, joinHandle, pairsOf, readsOnly, recordOf, setAnswerKind, setAuth, setBodyKind, setHosts, setJsonBody, setMethod,
@@ -212,7 +212,7 @@ export function AiForm({ def, node, onChange, openMenu, kind, keys, agents, who,
   const seatLine = (a: Assignee | undefined, fallback: string): string => (a ? seatName(a) : fallback);
   const assigned: Assignee | undefined = ai.assigned ?? (ai.agentId ? { kind: "agent", id: ai.agentId } : undefined);
   // data the goal can bring in: what started the run, and each other step's output
-  const stepTitle = (id: string): string => { const n = def.nodes.find((x) => x.id === id); return (n as { title?: string } | undefined)?.title ?? id; };
+  const stepTitle = (id: string): string => { const n = def.nodes.find((x) => x.id === id); return n ? cardTitle(n) : "an earlier step"; };
   const insertData = (x: number, y: number): void => {
     const add = (ref: string): void => writeInput(withField(input, "prompt", addChip(String(input["prompt"] ?? ""), ref)));
     openMenu([

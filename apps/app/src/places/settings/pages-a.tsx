@@ -55,7 +55,8 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
     if (!zone || zone === tz.value) return;
     const flag = `vyre.tz.seeded:${data.me.id}`;
     try { if (globalThis.localStorage?.getItem(flag) === "1") return; globalThis.localStorage?.setItem(flag, "1"); } catch { return; }
-    void change(tz, zone);
+    // quietly: nobody changed anything, so no "Saved  Undo" line (owner, 13 Nov 2026); a failed write is tried again the next time the page opens
+    void Promise.resolve(data.call("settings.set", { key: tz.key, value: zone })).catch(() => { try { globalThis.localStorage?.removeItem(flag); } catch { /* nothing to undo */ } });
   }, [tz?.value]); // eslint-disable-line react-hooks/exhaustive-deps
   const c = (contact?.value ?? {}) as { email?: string; phone?: string };
   const here = data.spaces.find((sp) => sp.current);

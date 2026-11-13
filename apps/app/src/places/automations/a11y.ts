@@ -17,7 +17,7 @@ export function installFocusRing(): void {
 }
 
 export function cardLabel(input: { title: string; sub: string; issues: number; chip?: string | null; state?: string | null }): string {
-  let label = `${input.title}. ${input.sub}`;
+  let label = `${input.title}. ${input.sub.replace(/[\u2039\u203a]/g, "")}`;
   if (input.chip) label += `. ${input.chip}`;
   const run = runStateText(input.chip, input.state);
   if (run) label += `. ${run}`;

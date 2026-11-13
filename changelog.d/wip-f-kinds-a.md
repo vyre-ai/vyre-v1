@@ -3,3 +3,6 @@
 - Console Home collapses a run of the same act by the same person: "Dex posted 4 chats" instead of four rows.
 - A Space on this computer reads "This computer" in Settings and Console instead of a 127.0.0.1 address, and the Space ID in Console has a Copy button instead of showing the id.
 - Pinned agents on a computer's page, an automation's assignee and an agent's home folder show names and words, not ids.
+- An automation's step cards show a data reference in words ("Trigger · Record id") instead of template code like {{ trigger.recordId }}.
+- Settings, Profile no longer shows "Saved  Undo" when you open it with nothing changed.
+- Esc puts away the new-folder name box beside Shared in Vault.

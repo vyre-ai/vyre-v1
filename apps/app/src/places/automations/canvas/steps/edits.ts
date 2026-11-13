@@ -275,13 +275,41 @@ export const joinTemplate = (segs: readonly Seg[]): string => segs.map((s) => (s
 
 /** What a chip says: where the data comes from, a dot, and which part of it (Trigger, Trigger · Name, Find rows · Count). */
 export function chipLabel(ref: string, titleOf: (stepId: string) => string): string {
-  const cap = (w: string): string => w.replace(/[_-]+/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+  const cap = (w: string): string => w.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
   if (ref === "trigger" || ref === "input") return "Trigger";
   const t = /^(?:trigger|input)\.(.+)$/.exec(ref);
   if (t) return `Trigger \u00b7 ${cap(t[1]!)}`;
   const st = /^steps\.([^.\[]+)\.out(?:\.(.+))?$/.exec(ref);
   if (st) return `${titleOf(st[1]!)}${st[2] ? ` \u00b7 ${cap(st[2])}` : ""}`;
   return ref;
+}
+
+/** The marks round a data chip inside a line of plain text (a card's second line): the line carries the chip's words, the card draws them as a chip. */
+export const CHIP_OPEN = "\u2039";
+export const CHIP_CLOSE = "\u203a";
+
+/**
+ * A line with its `{{ }}` references in words, each one marked as a chip: "A new {{ trigger.type }} came in" reads "A new ‹Trigger · Type› came in". The words are the editor's own chip words (chipLabel),
+ * so a card, the Insert data picker and the chip in the field all say the same thing; the template string is never shown as text. A merge token `{{first_name|there}}` is its field's words.
+ */
+export function chipWords(text: string, titleOf: (stepId: string) => string): string {
+  return text.replace(/\{\{\s*([^{}|]*?)\s*(?:\|[^{}]*)?\}\}/g, (_m, ref: string) => {
+    const words = /^(?:trigger|input|steps)(?:\.|$)/.test(ref) ? chipLabel(ref, titleOf) : ref.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_.-]+/g, " ").toLowerCase();
+    return `${CHIP_OPEN}${words}${CHIP_CLOSE}`;
+  });
+}
+
+/** A line split into its plain runs and its chips, for drawing. */
+export function chipParts(text: string): { text: string; chip: boolean }[] {
+  const out: { text: string; chip: boolean }[] = [];
+  let at = 0;
+  for (const m of text.matchAll(new RegExp(`${CHIP_OPEN}([^${CHIP_CLOSE}]*)${CHIP_CLOSE}`, "g"))) {
+    if ((m.index ?? 0) > at) out.push({ text: text.slice(at, m.index), chip: false });
+    out.push({ text: m[1] ?? "", chip: true });
+    at = (m.index ?? 0) + m[0].length;
+  }
+  if (at < text.length) out.push({ text: text.slice(at), chip: false });
+  return out;
 }
 
 /** Take one chip out, closing the gap; a chip is the only thing between two pieces of text, so they join. */

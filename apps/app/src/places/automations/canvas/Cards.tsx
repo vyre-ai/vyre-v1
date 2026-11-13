@@ -8,6 +8,7 @@ import { Glyph } from "./icons.tsx";
 import { StepLogo } from "./StepLogo.tsx";
 import { cardLabel, moreLabel, runStateText, triggerLabel } from "../a11y.ts";
 import { NOT_SET_UP } from "./form-model.ts";
+import { chipParts } from "./steps/edits.ts";
 import { CARD_H, CARD_W, TRIG_HEAD, TRIG_ROW, messages, triggerMeta } from "./model.ts";
 import type { CardNode, DefTrigger, IconKey, Issue, RunState } from "./model.ts";
 import { Face, IconButton, pointer, shadow, webOnly } from "./parts.tsx";
@@ -75,7 +76,7 @@ export function StepCard({ card, selected, hovered, focused = false, handlers, a
       <StepLogo stepKey={card.node?.key ?? ""} {...(card.node ? { input: card.node.input } : {})} icon={card.icon ?? "record"} name={card.title} />
       <View style={c.text}>
         <Text numberOfLines={1} style={c.title}>{card.title}</Text>
-        <Text numberOfLines={1} testID={`card-sub-${card.id}`} style={[c.sub, card.sub === NOT_SET_UP && c.subWarn]}>{card.sub}</Text>
+        <Text numberOfLines={1} testID={`card-sub-${card.id}`} style={[c.sub, card.sub === NOT_SET_UP && c.subWarn]}>{chipParts(card.sub).map((part, k) => (part.chip ? <Text key={k} testID={`card-chip-${card.id}-${k}`} style={c.subChip}>{part.text}</Text> : part.text))}</Text>
       </View>
       {card.issues.length > 0 ? (
         <View testID={`issue-${card.id}`} accessibilityLabel={problem} {...webOnly({ title: problem })}>
@@ -206,6 +207,8 @@ export const c = StyleSheet.create({
   title: { fontSize: 13, lineHeight: 17, color: "var(--ink)" as string },
   sub: { fontSize: 11.5, lineHeight: 15, color: "var(--ink-3)" as string },
   subWarn: { color: "var(--warn)" as string },
+  // a data reference in a card's second line, drawn as the chip the editor draws
+  subChip: { backgroundColor: "var(--accent-wash)" as string, color: "var(--accent)" as string, borderRadius: 4, paddingHorizontal: 4 },
   status: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--hover)" as string },
   statusOk: { borderColor: "var(--ok)" as string },
   statusWait: { borderColor: "var(--warn)" as string },

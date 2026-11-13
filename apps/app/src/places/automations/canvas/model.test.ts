@@ -332,3 +332,33 @@ test("a web request trigger on a Personal Automation offers Move to Space only i
   assert.equal(offersMoveToSpace("personal", def, first, { canSpace: false }), false, "never a door the person cannot use");
   assert.equal(offersMoveToSpace("space", def, first, {}), false);
 });
+
+test("no card's second line is template code: a {{ }} reference reads as the chip it is in the editor (owner, 13 Nov 2026)", () => {
+  const name = (id: string): string => (id === "find" ? "Find the lead" : id);
+  // the Weekly digest he opened: a step whose inputs are plain fields, and one whose text brings in the trigger
+  assert.equal(
+    subtitleOf({ id: "s1", key: "set_fields", input: { type: "{{ trigger.type }}", recordId: "{{ trigger.recordId }}" }, next: [] }, { step: name }),
+    "type ‹Trigger · Type› · recordId ‹Trigger · Record id›",
+  );
+  assert.equal(
+    subtitleOf({ id: "s2", key: "post_message", input: { text: "A new {{ trigger.type }} came in from a form. Open record {{ trigger.recordId }} to follow up." }, next: [] }, { step: name }),
+    "text A new ‹Trigger · Type› came in from a form. Open record ‹Trigger · Record id› to follow up.",
+  );
+  assert.equal(subtitleOf({ id: "s3", key: "post_message", input: { text: "Found {{ steps.find.out.count }} and {{ steps.gone.out }}" }, next: [] }, { step: name }), "text Found ‹Find the lead · Count› and ‹gone›");
+  // every kind of step that summarises its inputs, each with a template in every field it reads: none shows braces
+  const tpl = "{{ trigger.recordId }}";
+  const nodes: Definition["nodes"] = [
+    { id: "a", key: "ai", input: { prompt: `Reply about ${tpl}` }, next: [] }, { id: "b", key: "http_request", input: { method: "POST", url: `https://x.example/${tpl}` }, next: [] },
+    { id: "c", key: "loop", input: { items: tpl, maxIterations: 5 }, next: [] }, { id: "d", key: "stop", input: { message: `Done with ${tpl}` }, next: [] },
+    { id: "e", key: "approval", input: { summary: `Send ${tpl}?`, timeout: "1 day" }, next: [] }, { id: "f", key: "wait", input: { note: `Waits for ${tpl}` }, next: [] },
+    { id: "g", key: "send_email", input: { to: tpl, subject: `Hello {{first_name|there}}`, mailboxId: "mbx_main" }, next: [] }, { id: "h", key: "create_task", input: { title: tpl, notes: tpl }, next: [] },
+    { id: "i", key: "code", input: { source: `// ${tpl}\nreturn 1` }, next: [] }, { id: "j", key: "connector_request", input: { connector: "crm", action: tpl }, next: [] },
+  ];
+  for (const n of nodes) {
+    const sub = subtitleOf(n, { step: name });
+    assert.ok(!sub.includes("{{") && !sub.includes("}}"), `${n.key}: "${sub}" shows template code`);
+  }
+  // the whole layout: every card of a definition built from those steps
+  const def: Definition = { triggers: [{ key: "record_change" }], start: ["a"], nodes: nodes.map((n, i) => ({ ...n, next: i + 1 < nodes.length ? [nodes[i + 1]!.id] : [] })) };
+  for (const c of layout(def).cards) assert.ok(!c.sub.includes("{{"), `card ${c.id}: "${c.sub}"`);
+});

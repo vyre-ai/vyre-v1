@@ -7,6 +7,7 @@ import { LOOP_CHILD, PARALLEL_JOIN, parallelLaneMark } from "../chrome.ts";
 import { NOT_SET_UP, missingFor, triggerMissing, triggerSummary } from "./form-model.ts";
 import type { RefNames } from "./form-model.ts";
 import { deviceTimeZone } from "./schedule.ts";
+import { chipWords } from "./steps/edits.ts";
 
 export type Automation = CapMap["automations.get"]["out"]["automation"];
 export type Definition = Automation["definition"];
@@ -234,7 +235,12 @@ export function triggerCardHeight(count: number): number {
 }
 
 /** The second line of a card: what the step does, from its inputs, in words. */
-export function subtitleOf(n: DefNode, names: { key?: (id: string) => string } = {}): string {
+export function subtitleOf(n: DefNode, names: { key?: (id: string) => string; step?: (id: string) => string } = {}): string {
+  // a `{{ }}` reference is never the text of a card: it reads as the chip it is in the editor (owner, 13 Nov 2026)
+  return chipWords(subtitleRaw(n, names), names.step ?? (() => "an earlier step"));
+}
+
+function subtitleRaw(n: DefNode, names: { key?: (id: string) => string }): string {
   const k = kindOfKey(n.key);
   const inp = n.input ?? {};
   const composed = messageSummary(n.key, inp);
@@ -344,7 +350,7 @@ export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?:
 
   const put = (n: DefNode, cx: number, y: number): CardNode => {
     const k = kindOfKey(n.key);
-    const names = opts.keyName ? { key: opts.keyName } : {};
+    const names = { ...(opts.keyName ? { key: opts.keyName } : {}), step: (id: string): string => { const x = by.get(id); return x ? cardTitle(x) : "an earlier step"; } };
     const card: CardNode = {
       id: n.id, type: "step", x: cx - CARD_W / 2, y, w: CARD_W, h: CARD_H, node: n, kind: k, icon: iconOfKey(n.key),
       title: cardTitle(n), sub: subtitleOf(n, names), issues: issuesFor(n.id),
