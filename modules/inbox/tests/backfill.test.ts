@@ -4,7 +4,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { rawDbOf } from "../../../host/src/ctx/db.ts";
+import { stateSeamOf } from "../../../host/src/seams/state.ts";
 import { backfill, finished } from "../backfill.ts";
+import { periodic } from "../impl.ts";
 import { linkMessage } from "../handlers/index.ts";
 import { harness, LEE, link } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -122,4 +124,59 @@ test("a Space with nothing in its Inbox finishes at once, so a later run never s
   const r = await backfill(h.ctx, { dryRun: false });
   assert.equal(r.conversations, 0);
   assert.equal(finished(h.ctx), true);
+});
+
+// ---- the window between the upgrade and the backfill, and a list of people that cannot be read
+
+test("a mail filed after the upgrade and before the backfill is numbered after the old ones and counted once, by the backfill", async () => {
+  const { h } = world();
+  const a = await legacy(h, "pat@acme.test", [0, 0, 1]);
+  asLegacy(h);
+  // the server is up, the backfill has not run: a new mail arrives
+  await linkMessage(h.ctx, link({ address: "pat@acme.test", mailboxId: SHARED }));
+  const numbers = h.rows(`SELECT arrival FROM inbox_item ORDER BY at, id`).map((r) => r.arrival);
+  assert.deepEqual(numbers, [1, 2, 3, 4], "the old items were numbered first, the new one is after them");
+  assert.equal(
+    rawDbOf(h.ctx.db)!.all(`SELECT 1 FROM state_person`).length,
+    0,
+    "nothing is counted yet: the backfill reads the conversation as it is, the new mail included",
+  );
+  await backfill(h.ctx, { dryRun: false });
+  assert.equal(unread(h, MAYA, a), 2, "the old unread one and the new one: not 1");
+  assert.equal(unread(h, JONAS, a), 2);
+  assert.deepEqual(readSeam(h.ctx).verify({ deep: true }).problems, [], "and the verify agrees");
+  // from here on a mail is counted when it arrives
+  await linkMessage(h.ctx, link({ address: "pat@acme.test", mailboxId: SHARED }));
+  assert.equal(unread(h, MAYA, a), 3);
+});
+
+test("a backfill that cannot read the list of people has not run: no flag, a plain line in the log, and the next run does it", async () => {
+  const { h } = world();
+  const a = await legacy(h, "pat@acme.test", [0, 1]);
+  asLegacy(h);
+  const lines: string[] = [];
+  h.ctx.log = { info() {}, warn: (m) => void lines.push(m) };
+  h.failPeople(true);
+  await periodic["inbox.state_backfill"].run(h.ctx);
+  assert.equal(finished(h.ctx), false, "not marked done");
+  assert.equal(rawDbOf(h.ctx.db)!.all(`SELECT 1 FROM state_person`).length, 0, "nothing written: no silent zero");
+  assert.equal(h.rows(`SELECT 1 FROM inbox_item WHERE arrival IS NOT NULL`).length, 0, "not even the numbering");
+  assert.match(lines.join("\n"), /per-person state has not started: the list of people could not be read/);
+  assert.equal(periodic["inbox.state_backfill"].everyMs <= 10 * 60_000, true, "and it tries again within minutes, not a day");
+  h.failPeople(false);
+  await periodic["inbox.state_backfill"].run(h.ctx);
+  assert.equal(finished(h.ctx), true);
+  for (const who of [MAYA, JONAS]) assert.equal(unread(h, who, a), 1, `${who} has what they had`);
+});
+
+test("a mail filed while the list of people cannot be read is counted later by verify, for everyone", async () => {
+  const { h } = world();
+  h.failPeople(true);
+  const c = (await linkMessage(h.ctx, link({ address: "pat@acme.test", mailboxId: SHARED }))).conversationId;
+  assert.equal(rawDbOf(h.ctx.db)!.all(`SELECT 1 FROM state_person`).length, 0, "no half-counted arrival for the owner alone");
+  h.failPeople(false);
+  const env = { people: [MAYA, JONAS], mayView: () => true };
+  stateSeamOf(h.ctx.db, () => 0, env).verify({ repair: true });
+  assert.equal(unread(h, MAYA, c), 1);
+  assert.equal(unread(h, JONAS, c), 1);
 });

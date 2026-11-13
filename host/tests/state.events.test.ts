@@ -36,6 +36,8 @@ function snapshot(): AccessSnapshot {
   }
   s.putPrincipal({ id: "agt_helper", kind: "agent", owner: "usr_maya", status: "active" });
   s.putPrincipal({ id: "agt_sams", kind: "agent", owner: "usr_sam", status: "active" });
+  s.putPrincipal({ id: "agt_shared", kind: "agent", owner: "usr_owner", status: "active" });
+  s.addPrincipalRole({ holder: "agt_shared", role: "member" });
   s.addPrincipalRole({ holder: "agt_helper", role: "member" });
   s.addPrincipalRole({ holder: "agt_sams", role: "member" });
   return s;
@@ -60,6 +62,8 @@ async function world() {
     ev({ type: "state.changed", actor: "svc_host", on_behalf: "usr_maya" }),
     ev({ type: "state.scope_read", actor: "usr_maya" }),
     ev({ type: "state.layout_changed", actor: "usr_maya" }),
+    // one agent serves several people: what it made for Maya
+    ev({ type: "state.changed", actor: "agt_shared", on_behalf: "usr_maya" }),
   ]);
   const snap = snapshot();
   const port = createEventLogPort({
@@ -81,6 +85,7 @@ test("only Maya reads Maya's state events: not the owner, an admin, another memb
     "svc_host:state.changed",
     "usr_maya:state.scope_read",
     "usr_maya:state.layout_changed",
+    "agt_shared:state.changed",
   ];
   assert.deepEqual(await read("usr_maya"), all, "Maya, on one device");
   assert.deepEqual(await read("usr_maya"), all, "and on another: the same person, the same events");
@@ -89,4 +94,11 @@ test("only Maya reads Maya's state events: not the owner, an admin, another memb
   assert.deepEqual(await read("usr_sam"), [], "another member reads none");
   assert.deepEqual(await read("usr_guest"), [], "a guest reads none");
   assert.deepEqual(await read("agt_sams", "usr_sam"), [], "an agent acting for someone else reads none");
+  assert.deepEqual(
+    await read("agt_shared", "usr_sam"),
+    [],
+    "the agent that made one for Maya reads none while it acts for Sam",
+  );
+  assert.deepEqual(await read("agt_shared", "usr_owner"), [], "nor while it acts for the Space owner");
+  assert.deepEqual(await read("agt_shared", "usr_maya"), all, "it reads them while it acts for Maya");
 });

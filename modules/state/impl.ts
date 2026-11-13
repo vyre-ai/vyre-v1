@@ -2,6 +2,7 @@
 // A module with things that carry state exports `stateKinds` (see host/src/seams/state.ts): the host registers them at boot, before the first `verify`.
 import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
+import { peopleOf } from "../../host/src/seams/state-env.ts";
 import { storeOf, storeWithPeople } from "./projections.ts";
 import type { StateCtx } from "./projections.ts";
 
@@ -62,8 +63,15 @@ export const periodic = {
       const store = await storeWithPeople(ctx);
       const first = !checked.has(ctx.db);
       checked.add(ctx.db);
-      const r = store.verify({ repair: true, deep: true, ...(first ? {} : { since: ctx.now() - 7 * 86_400_000 }) });
-      const access = store.reconcile();
+      // a Space whose list of people cannot be read is not an empty Space: repairing now would count an arrival for the owner and no one else, for good. Report, and repair at the next run.
+      const known = (await peopleOf(ctx)).length > 0;
+      const r = store.verify({
+        repair: known,
+        deep: true,
+        ...(first ? {} : { since: ctx.now() - 7 * 86_400_000 }),
+      });
+      if (!known) ctx.log.warn("state.verify could not read the list of people, so it repaired nothing this time");
+      const access = known ? store.reconcile() : { left: 0, entered: 0 };
       if (r.problems.length > 0 || access.left > 0 || access.entered > 0)
         ctx.log.warn("state.verify repaired what a crash or a bug left", {
           problems: r.problems.length,

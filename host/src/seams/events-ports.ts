@@ -211,6 +211,9 @@ function visible(
   now: number,
 ): boolean {
   if (e.label > r.clearance) return false;
+  // a private event made for a person (by an agent acting for them, or by the host on their behalf) is read by that person and by the person who made it; an agent that made it reads it only while it acts for
+  // that same person, never while it serves someone else (one Space agent serves many people: `actor === c.principal` is not enough here)
+  if (e.vis === "private" && e.on_behalf) return e.on_behalf === r.person || e.actor === r.person;
   const mine = e.actor === r.person || e.actor === c.principal || e.on_behalf === r.person;
   switch (e.vis) {
     case "space":

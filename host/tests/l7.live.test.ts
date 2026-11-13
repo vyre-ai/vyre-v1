@@ -22,6 +22,7 @@ const LIVE = [
   "members",
   "settings",
   "spaces",
+  "state",
   "talk",
   "vault",
   "vault-requests",
@@ -134,6 +135,13 @@ const CASES: {
     read: ["/v1/spaces/get", {}],
     write: ["/v1/stars/toggle", { resource: { type: "space", id: "spc_core" }, on: true }],
     refused: ["/v1/spaces/update", { logoFileId: null }],
+  },
+  // per-person state: a person's badges, and one value of how they arranged a screen; the host's own calls refuse a member
+  {
+    module: "state",
+    read: ["/v1/state/counts", {}],
+    write: ["/v1/state/layout/set", { key: "chats.notes_tab", value: "mine" }],
+    refused: ["/v1/state/verify", {}],
   },
 ];
 

@@ -12,7 +12,7 @@ import { registerStateKind } from "../../../host/src/seams/state.ts";
 import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 import type { InboxCtx } from "../projections.ts";
 import { ensure } from "../projections.ts";
-import { conversationKind } from "../state.ts";
+import { conversationKind, markFinished } from "../state.ts";
 
 /** The `state` module's tables, made the way the host makes them: by that module's own migration. */
 const STATE_MIGRATIONS = fileURLToPath(new URL("../../state/migrations/", import.meta.url));
@@ -105,6 +105,7 @@ export function harness(opts: HarnessOptions = {}) {
   let clock = NOW;
   let serial = 0;
   let taskFails = false;
+  let peopleFails = false;
   let mailGetFails = false;
   let meetingsFail = false;
 
@@ -341,6 +342,7 @@ export function harness(opts: HarnessOptions = {}) {
           return { meetings };
         }
         case "access.principals.list":
+          if (peopleFails) throw fail("permission.no_grant", trace);
           return {
             principals: people.map((id) => ({
               id,
@@ -369,6 +371,8 @@ export function harness(opts: HarnessOptions = {}) {
     },
   };
   ensure(ctx);
+  // a Space that is new has nothing to start from: per-person state is on from its first item (a test of the upgrade removes this row)
+  markFinished(ctx);
 
   return {
     ctx,
@@ -389,6 +393,10 @@ export function harness(opts: HarnessOptions = {}) {
     },
     setNumbers(n: NonNullable<HarnessOptions["numbers"]>) {
       numbers = n;
+    },
+    /** the Space's list of people cannot be read (the nested call is refused) */
+    failPeople(on: boolean) {
+      peopleFails = on;
     },
     failTasks(on: boolean) {
       taskFails = on;

@@ -103,36 +103,9 @@ export const stateKinds: StateKind[] = [conversationKind];
 /** Whose state a call is about: the person an agent acts for, else the caller. */
 export const subjectOf = (ctx: Pick<InboxCtx, "principal" | "actingFor">): string => ctx.actingFor ?? ctx.principal.id;
 
-/** People the Inbox knows from its own rows, for when the Space's list cannot be read: owners and followers of conversations. */
-function knownPeople(db: RawDb): string[] {
-  return [
-    ...new Set(
-      [
-        ...rowsOf(
-          db.all(
-            `SELECT DISTINCT "ownerId" AS p FROM inbox_conversation WHERE "ownerId" IS NOT NULL AND deleted_at IS NULL`,
-          ),
-        ),
-        ...rowsOf(db.all(`SELECT DISTINCT "principalId" AS p FROM inbox_follow WHERE deleted_at IS NULL`)),
-      ].map((r) => str(r, "p")),
-    ),
-  ];
-}
-
-/** What the seam's kind needs for this call. `people` is read only for a call that decides who an entry reaches: the Space's list, else the people the Inbox knows from its own rows. */
-export async function envOf(ctx: InboxCtx, o: { people?: boolean } = {}): Promise<StateEnv> {
-  const env = await stateEnvOf(ctx);
-  let people: readonly string[] = [];
-  if (o.people) {
-    people = await peopleOf(ctx);
-    if (people.length === 0) people = knownPeople(rawOf(ctx));
-  }
-  return { ...env, people };
-}
-
-/** The seam for a handler. */
-export async function seamFor(ctx: InboxCtx, o: { people?: boolean } = {}): Promise<StateStore> {
-  return stateSeamOf(ctx.db, ctx.now, await envOf(ctx, o));
+/** The seam for a handler that needs access (who can open what) but not the list of people. */
+export async function seamFor(ctx: InboxCtx): Promise<StateStore> {
+  return stateSeamOf(ctx.db, ctx.now, await stateEnvOf(ctx));
 }
 
 export function rawOf(ctx: Pick<InboxCtx, "db">): RawDb {
@@ -156,8 +129,18 @@ export async function noteItem(
   a: { conversationId: string; direction: "in" | "out"; arrival: number; at: number },
 ): Promise<void> {
   if (a.direction !== "in") return;
+  // Until the backfill has run the item is not counted here: the backfill reads every conversation as it is then, this item (filed unread) included, and sets each person's place once. Counting it now would
+  // make a row that the backfill then leaves alone.
+  if (!finished(ctx)) return;
   try {
-    (await seamFor(ctx, { people: true })).arrive(thingOf(a.conversationId), { pos: a.arrival, by: null, at: a.at });
+    const people = await peopleOf(ctx);
+    // a list of people that cannot be read is not an empty Space: the item is committed and `state.verify` counts it once the list can be read (a head that lags is what it looks for)
+    if (people.length === 0) throw new StateRefusal("bad_input", "the list of people could not be read");
+    stateSeamOf(ctx.db, ctx.now, { ...(await stateEnvOf(ctx)), people }).arrive(thingOf(a.conversationId), {
+      pos: a.arrival,
+      by: null,
+      at: a.at,
+    });
   } catch (e) {
     ctx.log.warn("inbox: per-person state was not updated for an item", { code: codeOf(e) || (e as Error).message });
   }
@@ -170,8 +153,36 @@ export async function stateOfMany(ctx: InboxCtx, ids: readonly string[]): Promis
   return new Map(states.map((s) => [s.thing.id, s]));
 }
 
-/** The next arrival number: one more than the newest item the Inbox has filed. */
+const BACKFILL_KEY = "state_backfill";
+
+/** Has the Inbox started per-person state on this Space (backfill.ts)? */
+export const finished = (ctx: Pick<InboxCtx, "db">): boolean =>
+  first(ctx.db.all(`SELECT "key" FROM inbox_flag WHERE "key" = ?`, BACKFILL_KEY)) !== null;
+export const markFinished = (ctx: Pick<InboxCtx, "db" | "now">): void => {
+  ctx.db.run(`INSERT OR IGNORE INTO inbox_flag ("key", "at") VALUES (?, ?)`, BACKFILL_KEY, ctx.now());
+};
+
+/** Give every item without an arrival number one, in the order it was filed (time, then id), after the highest number there is. Returns what it gave, by id; with `write` false nothing is written. */
+export function numberLegacy(ctx: Pick<InboxCtx, "db">, write: boolean): Map<string, number> {
+  const base = num(first(ctx.db.all(`SELECT COALESCE(MAX(arrival), 0) AS n FROM inbox_item`)), "n");
+  const missing = rowsOf(ctx.db.all(`SELECT id FROM inbox_item WHERE arrival IS NULL ORDER BY at, id`)).map((r) =>
+    str(r, "id"),
+  );
+  const given = new Map(missing.map((id, i) => [id, base + i + 1]));
+  if (write && missing.length > 0)
+    ctx.db.run(
+      `UPDATE inbox_item SET arrival = r.rn + ? FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY at, id) AS rn FROM inbox_item WHERE arrival IS NULL) AS r WHERE r.id = inbox_item.id`,
+      base,
+    );
+  return given;
+}
+
+/**
+ * The next arrival number: one more than the newest item the Inbox has filed. Until the backfill has run, the items rc.26 left (no number) are numbered first, in the order they were filed, so a new item
+ * is always newer than them and a number is never handed out twice.
+ */
 export function nextArrival(ctx: Pick<InboxCtx, "db">): number {
+  if (!finished(ctx)) numberLegacy(ctx, true);
   const row = first(ctx.db.all(`SELECT COALESCE(MAX(arrival), 0) AS n FROM inbox_item`));
   return num(row, "n") + 1;
 }

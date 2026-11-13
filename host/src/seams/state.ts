@@ -213,7 +213,7 @@ export interface StateStore {
   /** access to one thing came back: the row returns with its flags and nothing unread */
   enter(person: string, thing: Thing): boolean;
   /** ask the kind, for every row of its things, whether the person can still see it, and leave or enter to match. Never removes a row on a partial answer: only `visible` saying no does. */
-  reconcile(type?: string): { left: number; entered: number };
+  reconcile(type?: string, only?: { person?: string; things?: readonly string[] }): { left: number; entered: number };
   /** clear mutes whose time has passed (at most `limit` per call, the oldest first), so those things count in a badge again; answers who and what */
   sweep(limit?: number): { person: string; thing: Thing; result: ChangeResult }[];
   /** a person's layout values (all, or the named keys) */
@@ -226,7 +226,11 @@ export interface StateStore {
   canSee(person: string, thing: Thing): boolean;
   /** `trusted`: the caller has already decided the person may open the thing (the module's own guard ran), so the kind is not asked again */
   read(person: string, thing: Thing, req: ReadRequestIn, o?: { trusted?: boolean }): ChangeResult;
-  readScope(person: string, scope: string, before?: number): { marked: number; things: Thing[]; count: { things: number; entries: number } };
+  readScope(
+    person: string,
+    scope: string,
+    before?: number,
+  ): { marked: number; things: Thing[]; count: { things: number; entries: number } };
   set(person: string, thing: Thing, change: SetIn, o?: { trusted?: boolean }): ChangeResult;
   list(person: string, q: ListQuery): { rows: ListRow[]; next?: string };
   counts(person: string, scopes?: readonly string[]): { scope: string; things: number; entries: number }[];
@@ -556,19 +560,34 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
 
   /** the badge a person's row of a thing counts in, as the row itself says */
   const scopeOf = (person: string, t: Thing): [string, string] => {
-    const r = db.all("SELECT scope_type, scope_id FROM state_person WHERE person = ? AND type = ? AND id = ?", person, t.type, t.id)[0] as
-      | Row
-      | undefined;
+    const r = db.all(
+      "SELECT scope_type, scope_id FROM state_person WHERE person = ? AND type = ? AND id = ?",
+      person,
+      t.type,
+      t.id,
+    )[0] as Row | undefined;
     return [String(r?.["scope_type"] ?? ""), String(r?.["scope_id"] ?? "")];
   };
 
-  const reconcile: StateStore["reconcile"] = (only) => {
+  const reconcile: StateStore["reconcile"] = (kind, only = {}) => {
     let left = 0,
       entered = 0;
-    for (const type of only ? [only] : [...(KINDS.get(db) ?? kinds).keys()]) {
+    for (const type of kind ? [kind] : [...(KINDS.get(db) ?? kinds).keys()]) {
       if (!(KINDS.get(db) ?? kinds).has(type)) continue;
       // each person's row is asked of the kind on its own, in slices, so a long list never holds the connection
-      const rows = db.all("SELECT person, id, hidden FROM state_person WHERE type = ?", type) as Row[];
+      // a change that names a person or the things it touches asks only about those rows: the cost follows what changed, not the size of the table
+      const where = ["type = ?"];
+      const args: unknown[] = [type];
+      if (only.person) {
+        where.push("person = ?");
+        args.push(only.person);
+      }
+      if (only.things) {
+        if (only.things.length === 0) continue;
+        where.push(`id IN (${only.things.map(() => "?").join(", ")})`);
+        args.push(...only.things);
+      }
+      const rows = db.all(`SELECT person, id, hidden FROM state_person WHERE ${where.join(" AND ")}`, ...args) as Row[];
       for (let i = 0; i < rows.length; i += SLICE) {
         tx(() => {
           for (const r of rows.slice(i, i + SLICE)) {
@@ -882,6 +901,7 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
       return cleared;
     });
 
+  const TOMBSTONE = "null";
   const layoutRow = (r: Row): LayoutValue => ({
     key: String(r["key"]),
     value: JSON.parse(String(r["value"])) as unknown,
@@ -889,28 +909,44 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
     at: num(r["updated_at"]),
   });
   const layoutGet: StateStore["layoutGet"] = (person, keys) => {
-    const rows = db.all("SELECT key, value, version, updated_at FROM state_layout WHERE person = ? ORDER BY key", person) as Row[];
+    const rows = db.all(
+      "SELECT key, value, version, updated_at FROM state_layout WHERE person = ? AND value <> ? ORDER BY key",
+      person,
+      TOMBSTONE,
+    ) as Row[];
     return rows.map(layoutRow).filter((v) => !keys || keys.includes(v.key));
   };
+  /** A value clears with null and keeps its row as a tombstone: the version only ever rises (a device that orders by it never drops the next value). */
   const layoutSet: StateStore["layoutSet"] = (person, key, value) =>
     tx(() => {
-      const have = db.all("SELECT version FROM state_layout WHERE person = ? AND key = ?", person, key)[0] as Row | undefined;
+      const have = db.all("SELECT version, value FROM state_layout WHERE person = ? AND key = ?", person, key)[0] as
+        | Row
+        | undefined;
       if (value === null) {
         if (!(key in LAYOUT_KEYS)) throw new StateRefusal("bad_input", `${key} is not a layout key.`);
-        db.run("DELETE FROM state_layout WHERE person = ? AND key = ?", person, key);
-        return { key, value: null, version: num(have?.["version"]) + 1, at: now() };
+      } else {
+        const why = layoutRefusal(key, value);
+        if (why) throw new StateRefusal("bad_input", why);
+        const live = !have || String(have["value"]) === TOMBSTONE ? 0 : 1;
+        const kept = num(
+          (
+            db.all(
+              "SELECT COUNT(*) AS n FROM state_layout WHERE person = ? AND value <> ?",
+              person,
+              TOMBSTONE,
+            )[0] as Row
+          )["n"],
+        );
+        if (live === 0 && kept >= LAYOUT_MAX_KEYS)
+          throw new StateRefusal("bad_input", "That is more layout settings than one person can keep.");
       }
-      const why = layoutRefusal(key, value);
-      if (why) throw new StateRefusal("bad_input", why);
-      if (!have && num((db.all("SELECT COUNT(*) AS n FROM state_layout WHERE person = ?", person)[0] as Row)["n"]) >= LAYOUT_MAX_KEYS)
-        throw new StateRefusal("bad_input", "That is more layout settings than one person can keep.");
       const version = num(have?.["version"]) + 1;
       db.run(
         `INSERT INTO state_layout (person, key, value, version, updated_at) VALUES (?, ?, ?, ?, ?)
          ON CONFLICT (person, key) DO UPDATE SET value = excluded.value, version = excluded.version, updated_at = excluded.updated_at`,
         person,
         key,
-        JSON.stringify(value),
+        value === null ? TOMBSTONE : JSON.stringify(value),
         version,
         now(),
       );

@@ -135,3 +135,51 @@ test("after the upgrade the first reads are each person's own", async () => {
   assert.equal(state.stateOf(MAYA, [thingOf(pat)])[0]!.unread, 0);
   assert.equal(state.stateOf(JONAS, [thingOf(pat)])[0]!.unread, 2, "Jonas still has his two");
 });
+
+test("the server is killed halfway through the backfill: the next start finishes it, to the same result as one clean run", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "rc26-kill-"));
+  try {
+    const file = join(dir, "modules.db");
+    // a data folder made by the rc.26 build, carried forward by the host's migrations, on disk
+    const first = rc26();
+    first.exec(`VACUUM INTO '${file}'`);
+    first.close();
+    let db = openDb(file);
+    migrate(db, REPO, () => NOW);
+    const start = (conn: HostDb) => {
+      const h = harness({ contacts: [{ ...LEE }, { ...DANA, owner: JONAS }], people: [MAYA, JONAS] });
+      h.ctx.db = scopedDb("inbox", conn, TRACE);
+      registerStateKind(conn, conversationKind);
+      return h;
+    };
+    // the process dies while the third conversation is being written
+    const ids = (db.all(`SELECT id FROM inbox_conversation ORDER BY id`) as { id: string }[]).map((r) => r.id);
+    db.exec(`CREATE TRIGGER killed BEFORE INSERT ON state_person WHEN NEW.id = '${ids[2]}' BEGIN SELECT RAISE(ABORT, 'killed'); END`);
+    await assert.rejects(() => periodic["inbox.state_backfill"].run(start(db).ctx), /killed/);
+    assert.equal(db.all(`SELECT 1 FROM inbox_flag`).length, 0, "not marked done");
+    assert.ok((db.all(`SELECT 1 FROM state_person`) as unknown[]).length > 0, "and part of it was written");
+    db.close();
+    // the next start
+    db = openDb(file);
+    db.exec(`DROP TRIGGER killed`);
+    await periodic["inbox.state_backfill"].run(start(db).ctx);
+    const after = stateDump(db);
+    // one clean run on the same data
+    const clean = rc26();
+    migrate(clean, REPO, () => NOW);
+    await periodic["inbox.state_backfill"].run(start(clean).ctx);
+    const byAddress = (conn: HostDb) =>
+      JSON.stringify(
+        conn.all(
+          `SELECT p.person AS person, c.address AS address, p.read_upto AS read_upto, p.unread AS unread FROM state_person p JOIN inbox_conversation c ON c.id = p.id ORDER BY 1, 2`,
+        ),
+      );
+    assert.equal(byAddress(db), byAddress(clean), "the same places for everyone");
+    assert.deepEqual(stateSeamOf(scopedDb("inbox", db, TRACE), () => NOW).verify({ deep: true }).problems, []);
+    await periodic["inbox.state_backfill"].run(start(db).ctx);
+    assert.equal(stateDump(db), after, "and a third start changes nothing");
+    db.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

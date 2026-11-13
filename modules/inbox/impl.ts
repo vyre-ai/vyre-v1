@@ -2,9 +2,9 @@
 // (ruling 25) once P-CI_02 has landed. The module keeps conversations, follows and an index of the messages, texts and calls each holds; the messages stay in mail,
 // telephony and meetings. mail.ingest, telephony and meetings call inbox.link_message for every stored item.
 import type { Handler } from "../../host/src/invoke.ts";
-import { backfill, finished } from "./backfill.ts";
+import { backfill } from "./backfill.ts";
 import * as h from "./handlers/index.ts";
-import { seamFor, stateKinds } from "./state.ts";
+import { finished, seamFor, stateKinds } from "./state.ts";
 import type { InboxCtx } from "./projections.ts";
 import { matchClosingTask, matchNewClosingTask, recipientsSearchWithMembers } from "./handlers/recipients-members.ts";
 
@@ -46,19 +46,27 @@ export const projections = { inline: {}, consumers: {} };
 export { stateKinds };
 
 /**
- * When the server starts: give every item an arrival number and every person who can see a conversation their own place in it, from what the shared read flag said (backfill.ts). It reads and logs
- * what it is about to do first, writes once, and does nothing on a Space it has already finished; a restart changes nothing.
+ * When the server starts, and every five minutes until it has worked: give every item an arrival number and every person who can see a conversation their own place in it, from what the shared read
+ * flag said (backfill.ts). It reads and logs what it is about to do first, writes once, and does nothing on a Space it has already finished. If the Space's list of people cannot be read, it has NOT run:
+ * nothing is written, nothing is marked done, a plain line is logged, and the next run tries again (a zero for everyone is never the answer).
  */
 export const periodic = {
   "inbox.state_backfill": {
-    everyMs: 24 * 60 * 60_000,
+    everyMs: 5 * 60_000,
     immediate: true,
     run: async (ctx: InboxCtx): Promise<void> => {
       if (finished(ctx)) return;
       const plan = await backfill(ctx, { dryRun: true });
-      // a Space with nothing in its Inbox finishes at once: everything filed from now on is filed with per-person state, and a later run must never start from the old shared flag
+      if (plan.deferred !== undefined) {
+        ctx.log.warn(`inbox: per-person state has not started: ${plan.deferred}. It will try again in a few minutes.`);
+        return;
+      }
       if (plan.conversations > 0) ctx.log.info("inbox: per-person state, the plan", { ...plan });
       const done = await backfill(ctx, { dryRun: false });
+      if (done.deferred !== undefined) {
+        ctx.log.warn(`inbox: per-person state has not started: ${done.deferred}. It will try again in a few minutes.`);
+        return;
+      }
       if (!done.alreadyDone)
         ctx.log.info("inbox: per-person state, done", { rowsMade: done.rowsMade, numbered: done.numbered });
     },
@@ -87,8 +95,21 @@ export const consumers = {
       "conversation.matched",
       "conversation.unmatched",
     ],
-    run: async (ctx: InboxCtx): Promise<void> => {
-      (await seamFor(ctx)).reconcile("conversation");
+    run: async (ctx: InboxCtx, event?: { name?: string; payload?: Record<string, unknown> }): Promise<void> => {
+      const store = await seamFor(ctx);
+      const p = event?.payload ?? {};
+      const subject = p["subject"] as { kind?: string; id?: string } | undefined;
+      // what the event names decides how much is asked: one person's grant, one person's follow, one conversation; anything wider (a role, a group, a mailbox's privacy) asks about every row
+      if ((event?.name ?? "").startsWith("grant.") && subject?.kind === "person" && typeof subject.id === "string")
+        store.reconcile("conversation", { person: subject.id });
+      else if (event?.name === "conversation.follow_changed" && typeof p["principalId"] === "string")
+        store.reconcile("conversation", { person: p["principalId"] });
+      else if (
+        (event?.name === "conversation.matched" || event?.name === "conversation.unmatched") &&
+        typeof p["conversationId"] === "string"
+      )
+        store.reconcile("conversation", { things: [p["conversationId"]] });
+      else store.reconcile("conversation");
     },
   },
 };

@@ -8,9 +8,11 @@ import { stateSeamOf } from "../../host/src/seams/state.ts";
 import type { Thing } from "../../host/src/seams/state.ts";
 import { first, itemsOf, num, rowsOf, str } from "./projections.ts";
 import type { InboxCtx, Row } from "./projections.ts";
-import { conversationKind, envOf, rawOf, thingOf } from "./state.ts";
+import { peopleOf, stateEnvOf } from "../../host/src/seams/state-env.ts";
+import { conversationKind, finished, markFinished, numberLegacy, rawOf, thingOf } from "./state.ts";
 
-const KEY = "state_backfill";
+export { finished };
+
 const SAMPLE = 5;
 const ANOMALY_LIST = 20;
 
@@ -18,6 +20,8 @@ export interface BackfillReport {
   dryRun: boolean;
   /** the run had already finished on this Space and did nothing (a dry run reads the data again whatever the flag says) */
   alreadyDone: boolean;
+  /** why the run did not start: the Space's list of people could not be read, so who can see what is not known. Nothing was written and nothing is marked done; the next run tries again. */
+  deferred?: string;
   conversations: number;
   /** items that had no arrival number and now have one (or would) */
   numbered: number;
@@ -26,25 +30,6 @@ export interface BackfillReport {
   /** conversations whose unread items are not the newest ones; they become "unread from the oldest" */
   anomalies: string[];
   sample: { conversation: string; scope: string; head: number; readUpto: number; people: number }[];
-}
-
-/** Has the backfill finished on this Space? */
-export const finished = (ctx: InboxCtx): boolean =>
-  first(ctx.db.all(`SELECT "key" FROM inbox_flag WHERE "key" = ?`, KEY)) !== null;
-
-/** Give every item without an arrival number one, in the order it was filed (time, then id), after the highest number there is. Returns what it gave, by id; with `write` false nothing is written. */
-function numberItems(ctx: InboxCtx, write: boolean): Map<string, number> {
-  const base = num(first(ctx.db.all(`SELECT COALESCE(MAX(arrival), 0) AS n FROM inbox_item`)), "n");
-  const missing = rowsOf(ctx.db.all(`SELECT id FROM inbox_item WHERE arrival IS NULL ORDER BY at, id`)).map((r) =>
-    str(r, "id"),
-  );
-  const given = new Map(missing.map((id, i) => [id, base + i + 1]));
-  if (write && missing.length > 0)
-    ctx.db.run(
-      `UPDATE inbox_item SET arrival = r.rn + ? FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY at, id) AS rn FROM inbox_item WHERE arrival IS NULL) AS r WHERE r.id = inbox_item.id`,
-      base,
-    );
-  return given;
 }
 
 export async function backfill(ctx: InboxCtx, o: { dryRun: boolean }): Promise<BackfillReport> {
@@ -59,9 +44,13 @@ export async function backfill(ctx: InboxCtx, o: { dryRun: boolean }): Promise<B
     sample: [],
   };
   if (!o.dryRun && finished(ctx)) return { ...report, alreadyDone: true };
-  const virtual = numberItems(ctx, !o.dryRun);
+  // Everything that waits comes first. After the people are known the run reads, numbers and writes without giving up the thread, so an item filed while it runs cannot slip between its steps (an item
+  // filed before it, while the list was being read, is read like the rest, and its arrival is made later by `verify` if it was not counted).
+  const people = await peopleOf(ctx);
+  if (people.length === 0) return { ...report, deferred: "the list of people could not be read" };
+  const env = { ...(await stateEnvOf(ctx)), people };
+  const virtual = numberLegacy(ctx, !o.dryRun);
   report.numbered = virtual.size;
-  const env = await envOf(ctx, { people: true });
   const raw = rawOf(ctx);
   const store = stateSeamOf(ctx.db, ctx.now, env);
   const conversations = rowsOf(ctx.db.all(`SELECT * FROM inbox_conversation WHERE deleted_at IS NULL ORDER BY id`));
@@ -85,23 +74,23 @@ export async function backfill(ctx: InboxCtx, o: { dryRun: boolean }): Promise<B
       report.anomalies.length < ANOMALY_LIST
     )
       report.anomalies.push(id);
-    const people = conversationKind.audience(raw, id, env);
+    const reach = conversationKind.audience(raw, id, env);
     const scope = conversationKind.scope(raw, id);
     const slot = (report.perScope[scope] ??= { conversations: 0, people: 0, unreadRows: 0 });
     slot.conversations += 1;
-    slot.people += people.length;
-    if (oldestUnread !== null) slot.unreadRows += people.length;
+    slot.people += reach.length;
+    if (oldestUnread !== null) slot.unreadRows += reach.length;
     if (report.sample.length < SAMPLE)
-      report.sample.push({ conversation: id, scope, head, readUpto, people: people.length });
+      report.sample.push({ conversation: id, scope, head, readUpto, people: reach.length });
     if (!o.dryRun) {
       const thing: Thing = thingOf(id);
       report.rowsMade += store.seed(
         thing,
         Math.max(...items.map((i) => i.at)),
-        new Map(people.map((p) => [p, readUpto])),
+        new Map(reach.map((p) => [p, readUpto])),
       );
     }
   }
-  if (!o.dryRun) ctx.db.run(`INSERT OR IGNORE INTO inbox_flag ("key", "at") VALUES (?, ?)`, KEY, ctx.now());
+  if (!o.dryRun) markFinished(ctx);
   return report;
 }

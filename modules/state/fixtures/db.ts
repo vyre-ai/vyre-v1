@@ -131,7 +131,10 @@ export interface Harness {
   emitOpts: Record<string, unknown>[];
   calls: { cap: string; input: unknown }[];
   /** a ctx for a caller; `settings` answers `settings.get` for the agent switch */
-  as(principal: StateCtx["principal"], opts?: { actingFor?: string; origin?: string; triage?: boolean | "unreadable" }): StateCtx;
+  as(
+    principal: StateCtx["principal"],
+    opts?: { actingFor?: string; origin?: string; triage?: boolean | "unreadable" },
+  ): StateCtx;
   person(id: string): StateCtx;
 }
 
@@ -160,6 +163,13 @@ export function harness(fx: Fx = openFx()): Harness {
         },
         async call(cap, input) {
           calls.push({ cap, input });
+          if (cap === "access.principals.list") {
+            // the Space's people: everyone who is a member of anything here
+            const ids = (
+              fx.db.all("SELECT DISTINCT person FROM fx_member ORDER BY person") as { person: string }[]
+            ).map((r) => r.person);
+            return { principals: ids.map((id) => ({ id, kind: "person", status: "active" })) };
+          }
           if (cap !== "settings.get") throw new Error(`${cap} is not available`);
           if (opts.triage === "unreadable") throw new Error("settings are not available");
           return { row: { value: opts.triage === true } };
