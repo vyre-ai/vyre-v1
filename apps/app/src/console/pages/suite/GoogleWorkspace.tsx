@@ -7,7 +7,7 @@ import { View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { Section } from "../../shell/ui.tsx";
 import { useConsoleData } from "../../shell/data.tsx";
-import { Actions, Button, Field, Note, ReadState, useAction, useRead } from "../shared.tsx";
+import { Actions, Button, TextBox, Note, ReadState, useAction, useRead } from "../shared.tsx";
 import {
   Banner,
   Directory,
@@ -269,7 +269,7 @@ export function GoogleWorkspacePage(): ReactElement {
           Type the email address of a Workspace admin. Vyre uses it for checks and matches your members by email on that
           address's domain.
         </Para>
-        <Field label="Admin email" value={adminEmail} onChange={setAdmin} testID="google-admin-email" />
+        <TextBox label="Admin email" value={adminEmail} onChange={setAdmin} testID="google-admin-email" />
         {adminEmail && looksLikeEmail(adminEmail) ? (
           <Para>Members with an address @{domainOf(adminEmail)} are matched.</Para>
         ) : null}
