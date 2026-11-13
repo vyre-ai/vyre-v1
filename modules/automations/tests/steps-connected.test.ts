@@ -3,6 +3,7 @@
 // nobody else's. The Assistant reads the same list (automations_steps_list), so it proposes only what is listed.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { registry } from "../../../generated/registry.ts";
 import { harness } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { admin, alice } from "../fixtures/seed.ts";
@@ -100,4 +101,36 @@ test("the editor asks for every step (all): an Automation's Microsoft step keeps
     assert.ok(send, "the full catalogue holds the step");
     assert.deepEqual([...(send!.input?.required ?? [])].sort(), ["connectionId", "subject", "to"]);
   }
+});
+
+test("an existing Automation keeps every step whoever opens it: validation and saving read the full catalogue, never the filtered list, so a step for an app nobody connected here is accepted and kept", async () => {
+  const h = world({ connections: {}, failing: true });
+  const appSteps = registry.steps.filter((s) => /^(google\.|ms\.|github\.)/.test(s.key));
+  assert.ok(appSteps.length >= 20, `${appSteps.length} app steps`);
+  for (const s of appSteps) {
+    const def = { triggers: [{ key: "manual" }], nodes: [{ id: "n1", key: s.key, input: {} }], start: ["n1"] };
+    const out = await h.call("automations.validate", { definition: def }, alice);
+    assert.equal(
+      out.issues.some((i: { message: string }) => /There is no step called/.test(i.message)),
+      false,
+      `${s.key} is unknown to validation`,
+    );
+    const made = await h.call(
+      "automations.create",
+      { name: `Keeps ${s.key}`, definition: def, idempotencyKey: `keep-${s.key}` },
+      alice,
+    );
+    assert.equal(made.automation.definition.nodes[0].key, s.key);
+  }
+});
+
+test("the list says when the connected apps could not be read (checked false), and says nothing when they could", async () => {
+  const bad = await world({ connections: {}, failing: true }).call("automations.steps.list", {}, alice);
+  assert.equal(bad.checked, false);
+  const good = await world({ connections: { usr_alice: [{ connector: "google", state: "active" }] } }).call(
+    "automations.steps.list",
+    {},
+    alice,
+  );
+  assert.equal(good.checked, undefined);
 });

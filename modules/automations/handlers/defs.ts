@@ -368,13 +368,17 @@ const APP_STEPS = [
  * list of connections is the product's own access check (a person sees the Space's connections and their own, nobody else's), and a connection still waiting to be finished is not connected. GitHub is
  * the caller's own GitHub, or the Space's app when the caller may read it. A check that cannot be made counts as not connected: nothing is listed that could not be used.
  */
-async function connectedApps(ctx: AutoCtx): Promise<Set<string>> {
+async function connectedApps(ctx: AutoCtx): Promise<{ apps: Set<string>; checked: boolean }> {
   const out = new Set<string>();
-  if (!ctx.call) return out;
+  if (!ctx.call) return { apps: out, checked: false };
   const call = ctx.call;
+  let checked = true;
   const rows = await call("connections.list", { whose: "all", limit: 500 }).then(
     (r) => (r as { connections?: { connector?: unknown; state?: unknown }[] } | null)?.connections ?? [],
-    () => [],
+    () => {
+      checked = false;
+      return [];
+    },
   );
   for (const c of rows) if (typeof c.connector === "string" && c.state !== "pending") out.add(c.connector);
   const mine = await call("github.me.status", {}).then(
@@ -388,18 +392,24 @@ async function connectedApps(ctx: AutoCtx): Promise<Set<string>> {
         () => false,
       );
   if (space) out.add("github");
-  return out;
+  return { apps: out, checked };
 }
 
 /** The steps this server cannot run, or whose app is not connected for the caller, hidden from the catalogue. A step that is here but not yet usable is not hidden: its problem shows when it is turned on. */
-async function hiddenSteps(ctx: AutoCtx, everyApp = false): Promise<Set<string>> {
+async function hiddenSteps(ctx: AutoCtx, everyApp = false): Promise<{ hidden: Set<string>; checked: boolean }> {
   const s = await supportOf(ctx);
   // the editor of an existing Automation asks for every step (`all`): its steps keep their forms whoever opens it; only the picker is filtered
-  const apps = everyApp ? new Set(APP_STEPS.map((a) => a.connector)) : await connectedApps(ctx);
+  const seen = everyApp
+    ? { apps: new Set<string>(APP_STEPS.map((a) => a.connector)), checked: true }
+    : await connectedApps(ctx);
+  const apps = seen.apps;
   const unconnected = registry.steps
     .filter((st) => APP_STEPS.some((a) => st.key.startsWith(a.start) && !apps.has(a.connector)))
     .map((st) => st.key);
-  return new Set([...(s.code.available ? [] : ["code"]), ...(s.ai.available ? [] : ["ai"]), ...unconnected]);
+  return {
+    hidden: new Set([...(s.code.available ? [] : ["code"]), ...(s.ai.available ? [] : ["ai"]), ...unconnected]),
+    checked: seen.checked,
+  };
 }
 
 async function providersOf(ctx: AutoCtx, kind: Automation["kind"], explicit = false): Promise<AccountLite[] | null> {
@@ -867,7 +877,7 @@ export function inlineRefs(schema: unknown, depth = 0): unknown {
 }
 
 export async function stepsList(ctx: AutoCtx, input: In): Promise<unknown> {
-  const hidden = await hiddenSteps(ctx, input.all === true);
+  const { hidden, checked } = await hiddenSteps(ctx, input.all === true);
   const steps = registry.steps.filter((s) => !hidden.has(s.key) && (!input.category || s.category === input.category));
   return {
     steps: steps.map((s) =>
@@ -882,6 +892,7 @@ export async function stepsList(ctx: AutoCtx, input: In): Promise<unknown> {
         gateAct: s.gateAct,
       }),
     ),
+    ...(checked ? {} : { checked: false }),
   };
 }
 

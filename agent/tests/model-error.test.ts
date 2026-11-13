@@ -68,7 +68,10 @@ test("what the agent is told when its own clearance is short names the agent, no
   );
   assert.match(e.say, /do not ask for access for me/, "never suggests a request that cannot work");
   const r = modelError({ code: "permission.role_lacks_permission", message: "", traceId: "t" } as never);
-  assert.match(r.say, /Neither I nor the person I work for/);
+  assert.match(r.say, /not allowed for me here, or for the person I work for/);
+  assert.doesNotMatch(r.say, /Neither/, "true when only the agent lacks it");
+  assert.match(r.say, /allow it for me when only I am short of it/);
+  assert.match(r.say, /ask an admin by name/);
 });
 
 test("a plain message the server wrote for this very failure leads, and the table's next step follows it", () => {

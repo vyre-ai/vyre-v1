@@ -190,7 +190,7 @@ const PICKER = { search: "Search steps", width: 320 } as const;
 
 type CatalogPhase =
   | { phase: "loading" }
-  | { phase: "ready"; steps: CatalogStep[]; all: CatalogStep[]; triggers: CatalogTrigger[] }
+  | { phase: "ready"; steps: CatalogStep[]; all: CatalogStep[]; checked: boolean; triggers: CatalogTrigger[] }
   | { phase: "unavailable"; message: string };
 
 function CanvasBody({
@@ -265,6 +265,7 @@ function CanvasBody({
   const [promoteOpen, setPromoteOpen] = useState(initialPromote);
   // a web request trigger on a Personal Automation in a Team Space: the way forward is the move, right on the banner (the mover must be able to use every key its steps use)
   const [catalog, setCatalog] = useState<CatalogPhase>({ phase: "loading" });
+  const [catalogTick, setCatalogTick] = useState(0);
   const [samples, setSamples] = useState<Record<string, unknown>>({});
   const [openKeys, setOpenKeys] = useState<string[]>(
     initialPanel && initialSelected ? [normalKey(initialSelected)] : [],
@@ -325,14 +326,20 @@ function CanvasBody({
       if (!live) return;
       setCatalog(
         res.ok
-          ? { phase: "ready", steps: res.catalog.steps, all: res.catalog.all, triggers: res.catalog.triggers }
+          ? {
+              phase: "ready",
+              steps: res.catalog.steps,
+              all: res.catalog.all,
+              checked: res.catalog.checked,
+              triggers: res.catalog.triggers,
+            }
           : { phase: "unavailable", message: res.message },
       );
     });
     return () => {
       live = false;
     };
-  }, [data]);
+  }, [data, catalogTick]);
   useEffect(() => {
     installFocusRing();
   }, []);
@@ -355,10 +362,10 @@ function CanvasBody({
       listedKeys === null
         ? []
         : def.nodes.flatMap((n) => {
-            const line = unlistedAppLine(n.key, listedKeys);
+            const line = unlistedAppLine(n.key, listedKeys, catalog.phase === "ready" ? catalog.checked : true);
             return line === null ? [] : [{ nodeId: n.id, severity: "warning" as const, message: line }];
           }),
-    [def, listedKeys],
+    [def, listedKeys, catalog],
   );
   const issues = useMemo(
     () => sortedIssues([...check(def, a.kind, { automatic }), ...serverIssues, ...unlisted]),
@@ -1227,6 +1234,16 @@ function CanvasBody({
               style={{ fontSize: 12, color: "var(--ink-3)" as string, paddingHorizontal: 16, paddingVertical: 6 }}
             >
               {[...new Set(unlisted.map((u) => u.message))].join(" ")}
+              {catalog.phase === "ready" && !catalog.checked ? (
+                <Text
+                  testID="unlisted-retry"
+                  accessibilityRole="button"
+                  onPress={() => setCatalogTick((n) => n + 1)}
+                  style={{ color: "var(--accent)" as string }}
+                >
+                  {" Retry"}
+                </Text>
+              ) : null}
             </Text>
           ) : null}
           {errors.length > 0 ? (

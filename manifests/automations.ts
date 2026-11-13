@@ -846,6 +846,12 @@ export default defineManifest({
               gateAct: t.opt(t.str()),
             }),
           ),
+          checked: t.opt(
+            t.bool({
+              description:
+                "False when the Space's connected apps could not be read, so an app missing from the list is unknown, not unconnected.",
+            }),
+          ),
         },
         tool: "automations",
       },

@@ -135,6 +135,12 @@ test("an existing step whose app is not listed keeps its form (all) and gets one
     const keys = new Set(res.catalog.steps.map((s) => s.key));
     assert.equal(unlistedAppLine("ms.mail.send_message", keys), "Uses Microsoft 365, which you have not been given.");
     assert.equal(unlistedAppLine("http_request", keys), null);
+    assert.equal(
+      unlistedAppLine("ms.mail.send_message", keys, false),
+      "Could not check your apps. Try again.",
+      "a failed read blames nothing on the person",
+    );
+    assert.equal(res.catalog.checked, true);
   }
   const failed = await loadProductCatalog(async (cap, input) => {
     if (cap === "automations.steps.list" && (input as { all?: boolean }).all) throw new Error("no");
@@ -145,4 +151,16 @@ test("an existing step whose app is not listed keeps its form (all) and gets one
         : { connectors: [], connections: [] };
   });
   assert.ok(failed.ok && failed.catalog.all.length === 1);
+});
+
+test("the catalogue knows when the connected apps could not be read (checked false), and says so instead of blaming the person", async () => {
+  const triggers = { triggers: [{ key: "manual", title: "Manual" }] };
+  const out = await loadProductCatalog(async (cap) =>
+    cap === "automations.steps.list"
+      ? { steps: [{ key: "http_request", title: "HTTP request", category: "data" }], checked: false }
+      : cap === "automations.triggers.list"
+        ? triggers
+        : { connectors: [], connections: [] },
+  );
+  assert.ok(out.ok && out.catalog.checked === false);
 });

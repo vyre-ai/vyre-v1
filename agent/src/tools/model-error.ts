@@ -23,9 +23,10 @@ export const REPLY_RULE =
 
 /** Words for the codes where the agent itself, not the person, is the one refused: "you" in the person's table would read as the person's own role. */
 const AGENT_WORDS: Readonly<Record<string, { what: string; next: string }>> = {
+  // raised when the agent alone lacks the permission (it holds only a Member's: the rc.26 dead end), when the person alone does, or both: one sentence true in each case, with the one thing that can be done
   "permission.role_lacks_permission": {
-    what: "Neither I nor the person I work for has the permission for that.",
-    next: "An admin decides who may do it. Say so and stop; do not look for another way.",
+    what: "That is not allowed for me here, or for the person I work for.",
+    next: "An admin decides who may do it, and can allow it for me when only I am short of it. Tell the person what is missing and to ask an admin by name, then stop; do not look for another way.",
   },
   // raised by the access check when the label is above the clearance of the agent, of the person it acts for, or of both (clearance is per subject): one sentence true in each case
   "permission.above_clearance": {

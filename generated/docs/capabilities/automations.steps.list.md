@@ -44,6 +44,7 @@ type Out = {
       effects: "read" | "write" | "outward";
       gateAct?: string;
     }>;
+  checked?: boolean;
 };
 ```
 
@@ -64,6 +65,7 @@ type Out = {
     "category": "data"
   },
   "output": {
+    "checked": true,
     "steps": [
       {
         "category": "example",

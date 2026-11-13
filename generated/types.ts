@@ -4286,6 +4286,7 @@ export type AutomationsStepsListOut = {
       effects: "read" | "write" | "outward";
       gateAct?: string;
     }>;
+  checked?: boolean;
 };
 export type AutomationsStopIn = {
   automationId: string;

@@ -257,6 +257,8 @@ export interface ProductCatalog {
   steps: CatalogStep[];
   /** Every step the server can run, whether or not its app is connected for this person: an existing Automation's steps keep their forms from here. The menu uses `steps`. */
   all: CatalogStep[];
+  /** False when the Space's connected apps could not be read: an app missing from `steps` is then unknown, not unconnected. */
+  checked: boolean;
   triggers: CatalogTrigger[];
 }
 
@@ -283,6 +285,7 @@ export async function loadProductCatalog(
       catalog: {
         steps: [...steps, ...(built ? connectorSteps(built[0], built[1], built[2]) : [])],
         all: stepsFromRuntime(allOut) ?? steps,
+        checked: (stepsOut as { checked?: unknown } | null)?.checked !== false,
         triggers,
       },
     };
@@ -362,8 +365,10 @@ const APP_OF_KEY: readonly (readonly [string, string])[] = [
 ];
 
 /** The one plain line for a step whose app this person has not been given: nothing for a step the menu lists. */
-export function unlistedAppLine(stepKey: string, listed: ReadonlySet<string>): string | null {
+export function unlistedAppLine(stepKey: string, listed: ReadonlySet<string>, checked = true): string | null {
   if (listed.has(stepKey)) return null;
   const app = APP_OF_KEY.find(([start]) => stepKey.startsWith(start))?.[1];
-  return app === undefined ? null : `Uses ${app}, which you have not been given.`;
+  if (app === undefined) return null;
+  // a failed read of the connected apps blames nothing on the person: it says it could not check
+  return checked ? `Uses ${app}, which you have not been given.` : "Could not check your apps. Try again.";
 }
