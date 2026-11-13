@@ -24,6 +24,9 @@ export function resolveSpaceLink(text: string, origins: readonly string[]): Open
   }
   if (url.protocol === "http:" || url.protocol === "https:") {
     if (!sameOrigin(url.origin, origins)) return null;
+    // an artifact's own address: <origin>/a/sit_<id>
+    const art = /^\/a\/(sit_[A-Za-z0-9_.-]{1,128})\/?$/.exec(url.pathname);
+    if (art) return { subject: { type: "artifact", id: art[1]! } };
     const item = parseOpenPath(url.pathname);
     return item === null ? null : targetOfOpen(item);
   }

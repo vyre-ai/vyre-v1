@@ -21,6 +21,11 @@ test("this Space's own /open links open the thing they name: a chat, a file, a r
   });
 });
 
+test("an artifact's own address opens the artifact", () => {
+  assert.deepEqual(resolveSpaceLink("https://space.example.test/a/sit_abc123", ORIGINS), { subject: { type: "artifact", id: "sit_abc123" } });
+  assert.equal(resolveSpaceLink("https://other.example.test/a/sit_abc123", ORIGINS), null);
+});
+
 test("the desktop link form of this Space opens too", () => {
   assert.deepEqual(
     resolveSpaceLink("vyre://open?address=https%3A%2F%2Fspace.example.test&kind=file&id=fil_9", ORIGINS),

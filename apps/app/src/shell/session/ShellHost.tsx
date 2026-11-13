@@ -355,12 +355,7 @@ export function ShellHost({
             retitle: (title) => hub.retitle(hub.session().tabs.state().active, title),
             fill: (place, hash, title, from) => hub.fill(place, hash, title, from),
             activeTab: () => hub.session().tabs.state().active,
-            origins: () => [
-              stored.baseUrl,
-              ...((globalThis as { location?: { origin?: string } }).location?.origin
-                ? [(globalThis as { location: { origin: string } }).location.origin]
-                : []),
-            ],
+            origins: () => [stored.baseUrl],
             signOut: () => signOutRef.current(),
           }))
         : null,
