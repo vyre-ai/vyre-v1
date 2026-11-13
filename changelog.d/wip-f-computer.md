@@ -8,3 +8,4 @@
 - When something fails on the server in a way it did not expect, the server now keeps what really happened (the error's message and stack, with the trace id and secrets taken out) in its own output, so a "Something went wrong on our side" can be traced.
 
 - An agent's first browser call right after a server update no longer fails with "Something went wrong on our side" when the browser's old container is being replaced at the same moment: each Docker step of starting the browser either finds its work already done or answers with a plain, retryable line, and callers wait on the one replace.
+- Clicks you make on an agent's browser while you are in control now land where you clicked; on the web they all went to the page's top left corner.

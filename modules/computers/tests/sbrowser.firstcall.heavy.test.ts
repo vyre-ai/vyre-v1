@@ -165,7 +165,8 @@ test("@heavy space browser: the agent's screenshot of a heavy page is stored und
   const shot = await cap["computers.chrome.screenshot"]!(agent(), {});
   assert.ok(shot.fileId, "a file came back");
   assert.ok(stored[stored.length - 1]! <= SHOT_LIMIT_BYTES, `stored ${stored[stored.length - 1]} bytes`);
-  assert.match(shot.note ?? "", /scaled to \d+ x \d+/, shot.note);
+  assert.match(shot.note ?? "", /page is 1280 x 800.*page pixels/, shot.note);
+  assert.deepEqual([shot.pageWidth, shot.pageHeight], [1280, 800]);
   assert.ok(shot.width > 100 && shot.width < 1280, `the size it got: ${shot.width} x ${shot.height}`);
 });
 

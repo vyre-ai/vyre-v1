@@ -6,6 +6,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Image, Platform, Pressable, StyleSheet } from "react-native";
 import type { StyleProp, ViewStyle } from "react-native";
 import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
+import { pressPoint } from "../rightpane/BrowserLive.tsx";
 import { createForwarder, openStream } from "./actions.ts";
 import type { PopupDeps } from "./actions.ts";
 import type { Display } from "./model.ts";
@@ -73,9 +74,9 @@ export function LiveScreen({ computerId, state, call, note, spaceUrl, display, n
     return () => doc.removeEventListener("keydown", onKey);
   }, [keys, control, forwarder]);
 
-  const press = (e: { nativeEvent?: { locationX?: number; locationY?: number } }): void => {
+  const press = (e: Parameters<typeof pressPoint>[0]): void => {
     if (!control) { onIdlePress?.(); return; }
-    void forwarder.press(e.nativeEvent?.locationX ?? 0, e.nativeEvent?.locationY ?? 0, box.current, now());
+    { const at = pressPoint(e); void forwarder.press(at.x, at.y, box.current, now()); }
   };
   const domPoint = (e: DomEvent): { x: number; y: number } => {
     const r = e.currentTarget?.getBoundingClientRect?.();

@@ -25,6 +25,18 @@ export function pointOf(x: number, y: number, box: { width: number; height: numb
   return { x: Math.min(frame.width - 1, Math.max(0, px)), y: Math.min(frame.height - 1, Math.max(0, py)) };
 }
 
+/**
+ * Where a press was, inside the view, in CSS pixels. React Native's own `locationX` and `locationY` when the event has them; on the web a press event is the browser's click, which has only the window's
+ * `clientX` and `clientY`, taken from the box of the element that was pressed. (Without this every click in control mode went to the page's top left corner: `?? 0`.)
+ */
+export function pressPoint(e: { nativeEvent?: { locationX?: number; locationY?: number; clientX?: number; clientY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; top: number } } }): { x: number; y: number } {
+  const n = e.nativeEvent ?? {};
+  if (typeof n.locationX === "number" && typeof n.locationY === "number") return { x: n.locationX, y: n.locationY };
+  const box = e.currentTarget?.getBoundingClientRect?.();
+  if (box && typeof n.clientX === "number" && typeof n.clientY === "number") return { x: n.clientX - box.left, y: n.clientY - box.top };
+  return { x: 0, y: 0 };
+}
+
 /** What a key sends: a letter or digit typed alone is text; a named key (Enter, Tab, arrows) or one with Ctrl, Alt or Meta goes as a key press and release. */
 export function keyMessages(e: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean }): Array<Record<string, unknown>> {
   if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) return [{ t: "type", text: e.key }];
@@ -154,9 +166,10 @@ export function BrowserLive({ agentId, control, call, spaceUrl, testID = "browse
     return () => doc.removeEventListener("keydown", onKey);
   }, [control]);
 
-  const onPress = (e: { nativeEvent?: { locationX?: number; locationY?: number } }): void => {
+  const onPress = (e: Parameters<typeof pressPoint>[0]): void => {
     if (!control) return;
-    const p = pointOf(e.nativeEvent?.locationX ?? 0, e.nativeEvent?.locationY ?? 0, box.current, sized(opened?.width, opened?.height) ?? natural.current ?? BROWSER_VIEW);
+    const at = pressPoint(e);
+    const p = pointOf(at.x, at.y, box.current, sized(opened?.width, opened?.height) ?? natural.current ?? BROWSER_VIEW);
     send({ t: "move", x: p.x, y: p.y });
     send({ t: "down", n: 0 });
     send({ t: "up", n: 0 });

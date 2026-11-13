@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { browserData, browserView } from "./browser-data.tsx";
 import type { BrowserRowLike } from "./browser-data.tsx";
-import { BROWSER_VIEW, keyMessages, pointOf, socketUrl, viewUrl } from "../../places/chats/rightpane/BrowserLive.tsx";
+import { BROWSER_VIEW, keyMessages, pointOf, pressPoint, socketUrl, viewUrl } from "../../places/chats/rightpane/BrowserLive.tsx";
 
 const row = (o: Partial<BrowserRowLike> = {}): BrowserRowLike => ({ agentId: "agt_dex", running: true, tabs: 3, busy: false, viewers: 0, paired: true, access: "admin", ...o });
 const d = { me: "usr_me", nameOf: (id: string) => ({ usr_maya: "Maya" } as Record<string, string>)[id] ?? id };
@@ -125,4 +125,10 @@ test("a Space that cannot run a browser shows one plain line with nothing to pre
   ticks[0]!();
   await flush();
   assert.equal(seen[seen.length - 1]!.state, "open", "a host that appears later is picked up");
+});
+
+test("a press on the web is the browser's click: its place comes from clientX and clientY less the pressed box, and React Native's own locationX wins when there is one", () => {
+  assert.deepEqual(pressPoint({ nativeEvent: { locationX: 12, locationY: 34 } }), { x: 12, y: 34 });
+  assert.deepEqual(pressPoint({ nativeEvent: { clientX: 500, clientY: 300 }, currentTarget: { getBoundingClientRect: () => ({ left: 400, top: 250 }) } }), { x: 100, y: 50 });
+  assert.deepEqual(pressPoint({}), { x: 0, y: 0 }, "nothing to go on");
 });
