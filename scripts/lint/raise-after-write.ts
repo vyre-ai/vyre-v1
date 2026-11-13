@@ -145,6 +145,8 @@ function opensBlock(line: string): boolean {
   const before = line.slice(0, -1).trimEnd();
   if (before === "" || /^(?:case\b|default\b)/.test(line)) return true;
   if (/^(?:export\s+)?(?:default\s+)?(?:abstract\s+)?(?:class|interface|enum|namespace)\b/.test(line)) return true;
+  // a function header with a return type: `function f(): string {`, `get x(): number {`
+  if (/\)\s*:\s*[\w$.<>\[\]|&\s,]+$/.test(before)) return true;
   return /(?:[)>]|\belse|\btry|\bfinally|\bdo|=>)$/.test(before);
 }
 
@@ -172,8 +174,11 @@ export function checkRaiseAfterWrite(file: string, rawSource: string): RawFindin
   };
   const isWrite = (l: number): boolean =>
     WRITE.test(codeLines[l]!) && !/CREATE\s|PRAGMA/i.test(rawLines.slice(l, l + 3).join(" "));
-  // A write in the condition of an `if` and the refusal that `if` guards are one statement (`if (db.run("UPDATE ... WHERE status = 'open'").changes !== 1) raise(...)`): the update changed
-  // no row when it refuses, so nothing is left behind. A formatter lays that statement over several lines; the last line of the guarded statement is where the cover ends.
+  // The one statement that is not a write left behind: `if (db.run("UPDATE ... WHERE status = 'open'").changes !== 1) raise(...)`. The update changed no row when it refuses, so nothing stays.
+  // It is exempt on one line (as it always was) and, when a formatter wraps it, to the end of the guarded statement, but only when (1) the condition tests that nothing changed
+  // (`.changes !== 1`, `=== 0`, `< 1`, `!x.changes`) and (2) the guarded statement is the refusal alone: a lone raise, refuse or fail, with no write in it and nothing after it in a block.
+  const NOTHING_CHANGED = /\.changes\s*(?:!==?\s*1\b|===?\s*0\b|<\s*1\b)|!\s*[\w$.]*(?:\([^)]*\))?\.changes\b/;
+  const LONE_REFUSAL = /^(?:(?:raise|refuse|fail)\(|throw\s+(?:fail\(|new\s))/;
   const coverOf = (l: number): number => {
     const w = WRITE.exec(codeLines[l]!);
     if (!w) return l;
@@ -185,17 +190,27 @@ export function checkRaiseAfterWrite(file: string, rawSource: string): RawFindin
       else if (ch === "(") {
         if (depth > 0) depth--;
         else if (/\bif\s*$/.test(code.slice(Math.max(0, i - 13), i - 1))) {
-          let k = matchDelim(code, i - 1, "(", ")");
+          const condEnd = matchDelim(code, i - 1, "(", ")");
+          if (!NOTHING_CHANGED.test(code.slice(i, condEnd))) return l;
+          let k = condEnd;
           while (k < code.length && /\s/.test(code[k]!)) k++;
-          if (code[k] === "{") return lineOf(matchDelim(code, k, "{", "}") - 1);
+          const braced = code[k] === "{";
+          const bodyStart = braced ? k + 1 : k;
           let nest = 0;
-          for (; k < code.length; k++) {
-            const c = code[k]!;
+          let end = bodyStart;
+          for (; end < code.length; end++) {
+            const c = code[end]!;
             if (c === "(" || c === "{" || c === "[") nest++;
-            else if (c === ")" || c === "}" || c === "]") nest--;
-            else if (c === ";" && nest <= 0) break;
+            else if (c === ")" || c === "}" || c === "]") {
+              if (nest === 0) break;
+              nest--;
+            } else if (c === ";" && nest === 0) break;
           }
-          return lineOf(Math.min(k, code.length - 1));
+          const body = code.slice(bodyStart, end).trim();
+          if (!LONE_REFUSAL.test(body) || WRITE.test(` ${body}`)) return l;
+          // a braced body holds the refusal and nothing else
+          if (braced && code.slice(end + 1, matchDelim(code, k, "{", "}") - 1).trim() !== "") return l;
+          return lineOf(Math.min(braced ? matchDelim(code, k, "{", "}") - 1 : end, code.length - 1));
         }
       } else if ((ch === ";" || ch === "{" || ch === "}") && depth === 0) return l;
     }

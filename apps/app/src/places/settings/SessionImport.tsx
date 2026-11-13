@@ -132,6 +132,7 @@ export function SessionImport(): ReactElement | null {
             <View key={i}>
               <Text>{m.role}</Text>
               {m.text ? <Text selectable>{m.text}</Text> : null}
+              {/* ui-rows-lint: not a list (the tool lines of one transcript message) */}
               {(m.tools ?? []).map((t, j) => (
                 <Text key={j} selectable>{`Tool: ${toolLine(t)}`}</Text>
               ))}

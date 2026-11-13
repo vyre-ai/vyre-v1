@@ -219,3 +219,20 @@ test("ui-rows lint: a `not a list` comment above an element covers a .map inside
   assert.equal(t.length, 1);
   assert.equal(t[0]!.line, 12);
 });
+
+test("ui-rows lint: a `not a list` comment covers one list, so a real list added in the same element is still flagged", () => {
+  const view = (extra: string) =>
+    `export const view = (\n  <Box>\n    {/* ui-rows-lint: not a list (tiles) */}\n    <View>\n      {tiles.map((t) => (\n        <Tile key={t.id}>\n          ${extra}\n        </Tile>\n      ))}\n      {people.map((p) => (\n        <Text key={p.id}>{p.name}</Text>\n      ))}\n    </View>\n  </Box>\n);`;
+  // the tiles are exempt; the people are a real list in the same element and are flagged, on their own line
+  const hits = hitsOf(view("{t.label}"));
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0]!.line, 11);
+  // a list inside the exempt list's own callback needs its own comment, as it always did
+  const nested = hitsOf(view("{t.parts.map((x) => (<Text key={x}>{x}</Text>))}"));
+  assert.equal(nested.length, 2);
+  // a renderItem that is not the first list is not covered either
+  const render = `export const view = (\n  <Box>\n    {/* ui-rows-lint: not a list (tiles) */}\n    <View>\n      {tiles.map((t) => (\n        <Tile key={t.id} />\n      ))}\n      <VirtualList\n        renderItem={(r) => (\n          <Text>{r.name}</Text>\n        )}\n      />\n    </View>\n  </Box>\n);`;
+  const r = hitsOf(render);
+  assert.equal(r.length, 1);
+  assert.equal(r[0]!.line, 10);
+});

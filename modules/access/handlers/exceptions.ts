@@ -6,7 +6,7 @@
 // lapses on its own (the periodic job below) with an audited row; agents follow the person they act for, because authorize checks the agent and that person both.
 import type { AccessCtx } from "../projections.ts";
 import type { GrantRec } from "../projections.ts";
-import { catalogueRows, catalogueSource, nid, raise, storeOf } from "../projections.ts";
+import { catalogue, nid, raise, storeOf } from "../projections.ts";
 import { isOwnerRole } from "../../../kernel/src/authorize/snapshot.ts";
 import { ownOnly, pairsFor } from "../../../lib/own-pairs.ts";
 
@@ -38,9 +38,9 @@ const titleOfKey = new Map<string, string>();
 export function catalogueAreas(): Map<string, string> {
   if (areaOfKey) return areaOfKey;
   const m = new Map<string, string>();
-  for (const row of catalogueRows(catalogueSource())) {
-    m.set(row.key, row.area);
-    titleOfKey.set(row.key, row.title);
+  for (const def of catalogue()) {
+    m.set(def.key, def.area);
+    titleOfKey.set(def.key, def.title);
   }
   areaOfKey = m;
   return m;

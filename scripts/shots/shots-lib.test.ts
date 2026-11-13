@@ -5,7 +5,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-// @ts-expect-error plain .mjs helper without types
 import {
   parseArgs,
   protoHash,
@@ -21,6 +20,7 @@ import {
   waitForOf,
   waitIsHard,
   runTestIdSteps,
+  // @ts-expect-error plain .mjs helper without types: the error is reported on the module specifier below
 } from "./lib.mjs";
 
 test("parseArgs reads values and flags", () => {

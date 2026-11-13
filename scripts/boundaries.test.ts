@@ -281,3 +281,15 @@ test("tests are exempt from B2, B3 and B4; named files, dynamicOk and ignoreImpo
     "ui/src/a.ts",
   ]);
 });
+
+test("parseImports reads minified imports with no space before the braces, in both quote styles", () => {
+  const src = `import{a}from'./a.ts';import{b}from"./b.ts";import type{C}from"./c.ts";export{d}from'./d.ts';export*from"./e.ts";import*as f from'./f.ts';import g from"./g.ts";`;
+  assert.deepEqual(
+    parseImports(src)
+      .map((i) => i.spec)
+      .sort(),
+    ["./a.ts", "./b.ts", "./c.ts", "./d.ts", "./e.ts", "./f.ts", "./g.ts"],
+  );
+  // a word that only looks like one is still not an import
+  assert.deepEqual(parseImports(`const s = "import{a}from'./x.ts'"; const importer = 1;`), []);
+});

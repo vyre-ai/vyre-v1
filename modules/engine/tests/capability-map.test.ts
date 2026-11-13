@@ -53,7 +53,25 @@ test("every area an agent works in has tools named, and each line names the tool
 
 test("it is in the stable rules section of a turn's context", async () => {
   const src = readFileSync(new URL("../context.ts", import.meta.url), "utf8");
-  assert.match(src, /add\(\s*"rules",\s*true,[\s\S]{0,12000}?CAPABILITY_MAP,?\s*\)/);
+  // the text of the add("rules", true, ...) call itself, to its own closing parenthesis, so CAPABILITY_MAP in a later section does not count
+  const open = src.search(/add\(\s*"rules",\s*true,/);
+  assert.ok(open >= 0, 'an add("rules", true, ...) call');
+  const start = src.indexOf("(", open);
+  let depth = 0;
+  let end = -1;
+  let quote = "";
+  for (let i = start; i < src.length && end < 0; i++) {
+    const c = src[i]!;
+    if (quote) {
+      if (c === "\\") i++;
+      else if (c === quote) quote = "";
+    } else if (c === '"' || c === "'" || c === "`") quote = c;
+    else if (c === "(") depth++;
+    else if (c === ")" && --depth === 0) end = i;
+  }
+  assert.ok(end > start, "the rules call closes");
+  const call = src.slice(start + 1, end).trimEnd().replace(/,$/, "");
+  assert.match(call, /(?:^|[\s+])CAPABILITY_MAP$/, "CAPABILITY_MAP is the last part of the rules text");
 });
 
 test("the stable rules ask for independent tool calls to be made together", () => {

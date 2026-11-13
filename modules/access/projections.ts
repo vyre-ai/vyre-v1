@@ -1,8 +1,9 @@
 // Access projections (ARCH 4.5). Roles, groups, grants, resources, policies and the authorize snapshot.
 // Built-in role columns come from the permission catalogue. The snapshot is the hot path; access.changed drops it.
 // Durable tables: migrations/0001_access_core.sql. Authorize never reads a module table except through this snapshot.
-import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
+import { registry } from "../../generated/registry.ts";
+import type { PermissionDef } from "../../packages/contracts/src/index.ts";
 import { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import { THROUGH_AGENT } from "../../lib/through-agent.ts";
 import { agentOfName } from "../../lib/words/agent-name.ts";
@@ -223,45 +224,22 @@ export function labelOf(n: number): Label {
   return LABEL_OF[Math.max(0, Math.min(3, n))] ?? "public";
 }
 
-// One `perm(key, area, title, risk, [roles], ...)` call of manifests/permissions.ts, in either quote style and over as many lines as the formatter wrote it. The groups are the key, area,
-// title and risk (each a double-quoted or a single-quoted string) and the text inside the roles array.
-const QUOTED = String.raw`(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')`;
-const PERM_CALL = new RegExp(
-  String.raw`\bperm\(\s*${QUOTED}\s*,\s*${QUOTED}\s*,\s*${QUOTED}\s*,\s*${QUOTED}\s*,\s*\[([^\]]*)\]`,
-  "g",
-);
+/**
+ * The permission catalogue is registry.permissions, the typed list tools/gen writes into generated/registry.json from manifests/permissions.ts. It used to be read from that source
+ * file as text and parsed with a regex, which broke on layout (and would have seeded a commented-out perm( call). A module may not import manifests/ (boundaries: outside the
+ * layer packages) but does import generated/registry.ts, which every daemon already loads, so nothing extra has to ship with it.
+ */
+export const catalogue = (): readonly PermissionDef[] => registry.permissions as readonly PermissionDef[];
 
-/** The permission rows of the catalogue source: key, area, title and the built-in roles that hold it. A `perm(` call that does not parse is an error, not a row left out. */
-export function catalogueRows(src: string): { key: string; area: string; title: string; roles: string[] }[] {
-  const rows = [...src.matchAll(PERM_CALL)].map((m) => ({
-    key: m[1] ?? m[2] ?? "",
-    area: m[3] ?? m[4] ?? "",
-    title: m[5] ?? m[6] ?? "",
-    roles: [...(m[9] ?? "").matchAll(/["']([^"']+)["']/g)].map((r) => r[1]!),
-  }));
-  const calls = [...src.matchAll(/\bperm\(\s*["']/g)].length;
-  if (rows.length !== calls) throw new Error(`catalogue has ${calls} perm( calls and ${rows.length} of them parsed`);
-  return rows;
-}
-
-/** Permission keys per built-in role, from manifests/permissions.ts (the catalogue the generator seeds). */
-export function parseCatalogue(src: string): Map<string, string[]> {
+/** Permission keys per built-in role: the owner holds every key, a guest none, and each other role the keys whose defaults name it. */
+export function parseCatalogue(defs: readonly PermissionDef[] = catalogue()): Map<string, string[]> {
   const sets = new Map<string, Set<string>>(ROLE_NAMES.map((r) => [r, new Set()]));
-  const rows = catalogueRows(src);
-  if (rows.length < 50) throw new Error(`catalogue parsed ${rows.length} permissions`);
-  for (const { key, roles } of rows) {
-    for (const role of ROLE_NAMES) if (role !== "guest" && roles.includes(role)) sets.get(role)!.add(key);
-    sets.get("owner")!.add(key);
+  if (defs.length < 50) throw new Error(`catalogue has ${defs.length} permissions`);
+  for (const def of defs) {
+    for (const role of ROLE_NAMES) if (role !== "guest" && def.defaults[role] === true) sets.get(role)!.add(def.key);
+    sets.get("owner")!.add(def.key);
   }
   return new Map([...sets].map(([k, v]) => [k, [...v].sort()]));
-}
-
-let catalogueText: string | null = null;
-export function catalogueSource(): string {
-  if (catalogueText === null) {
-    catalogueText = readFileSync(new URL("../../manifests/permissions.ts", import.meta.url), "utf8");
-  }
-  return catalogueText;
 }
 
 export function nid(prefix: string): string {
@@ -387,7 +365,7 @@ export class AccessStore {
   }
 
   seed(): void {
-    const parsed = parseCatalogue(catalogueSource());
+    const parsed = parseCatalogue();
     for (const name of ROLE_NAMES) {
       const id = `rol_${name}`;
       const permissions = parsed.get(name) ?? [];

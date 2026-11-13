@@ -374,35 +374,35 @@
       "rule": "forbidden",
       "file": "apps/app/tests/auth.entry.live.test.ts",
       "spec": "../../../modules/identity/projections.ts",
-      "reason": "test-only: the live sign-in test computes the one-time code the server expects with the server's own totpAt This edge was hidden from the scanner by minified import lines until the 13 Nov format.",
+      "reason": "test-only: the live sign-in test computes the one-time code the server expects with the server's own totpAt. This edge was hidden from the scanner by minified import lines until the 13 Nov format.",
       "until": "2027-01-31"
     },
     {
       "rule": "forbidden",
       "file": "apps/app/tests/comms-owned-fixture.ts",
       "spec": "../../../kernel/src/log/store.ts",
-      "reason": "test-only fixture: it appends owned resource births to a stopped test daemon's log, which only the kernel's LogStore writes This edge was hidden from the scanner by minified import lines until the 13 Nov format.",
+      "reason": "test-only fixture: it appends owned resource births to a stopped test daemon's log, which only the kernel's LogStore writes. This edge was hidden from the scanner by minified import lines until the 13 Nov format.",
       "until": "2027-01-31"
     },
     {
       "rule": "B2",
       "file": "apps/app/tests/comms-owned-fixture.ts",
       "spec": "node:sqlite",
-      "reason": "test-only fixture: it opens the stopped test daemon's events.db to append owned resource births This edge was hidden from the scanner by minified import lines until the 13 Nov format.",
+      "reason": "test-only fixture: it opens the stopped test daemon's events.db to append owned resource births. This edge was hidden from the scanner by minified import lines until the 13 Nov format.",
       "until": "2027-01-31"
     },
     {
       "rule": "layer",
       "file": "apps/desktop/tests/personal.cors.test.ts",
       "spec": "../../app/tests/real-app-harness.test.ts",
-      "reason": "test-only: it boots the same real Space the app's live tests boot, through the one shared harness This edge was hidden from the scanner by minified import lines until the 13 Nov format.",
+      "reason": "test-only: it boots the same real Space the app's live tests boot, through the one shared harness. This edge was hidden from the scanner by minified import lines until the 13 Nov format.",
       "until": "2027-01-31"
     },
     {
       "rule": "forbidden",
       "file": "apps/desktop/tests/personal.cors.test.ts",
       "spec": "../../../host/src/daemon/desktop-cors.ts",
-      "reason": "test-only: it checks the daemon's real CORS rule against the packaged app's origin This edge was hidden from the scanner by minified import lines until the 13 Nov format.",
+      "reason": "test-only: it checks the daemon's real CORS rule against the packaged app's origin. This edge was hidden from the scanner by minified import lines until the 13 Nov format.",
       "until": "2027-01-31"
     }
   ]

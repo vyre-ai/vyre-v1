@@ -28,16 +28,21 @@ function exemptionAbove(source: string, index: number): { reason: string; at: nu
 }
 
 /**
- * The same comment when the formatter put lines between it and the `.map(`: the comment is on the line just above an element or statement, and the `.map(` sits inside that element
- * or statement. The element runs from the line below the comment over every line indented deeper than it, and over the closing lines (`)`, `}`, `</Tag>`, `/>`) at its own indent;
- * the next line at its indent or less ends it. So the comment still covers one element and nothing after it.
+ * The same comment when the formatter put lines between it and the `.map(`: the comment is on the line just above an element or statement, and the list sits inside that element or
+ * statement. The element runs from the line below the comment over every line indented deeper than it, and over the closing lines (`)`, `}`, `</Tag>`, `/>`) at its own indent;
+ * the next line at its indent or less ends it. The comment covers ONE list: the first `.map(` or `renderItem` in that element. A second list, or a list inside the first one's
+ * callback, is not covered; it needs its comment (the old rule covered the one line under the comment and nothing else, and so does this).
  */
-function exemptionAround(source: string, index: number): { reason: string; at: number } | null {
+function exemptionAround(
+  source: string,
+  index: number,
+  listStarts: readonly number[],
+): { reason: string; at: number } | null {
   const lines = source.split("\n");
   const lineOf = source.slice(0, index).split("\n").length - 1;
   const indentOf = (l: string): number => l.length - l.trimStart().length;
-  const starts: number[] = [];
-  for (let at = 0, k = 0; k < lines.length; at += lines[k]!.length + 1, k++) starts.push(at);
+  const lineStarts: number[] = [];
+  for (let at = 0, k = 0; k < lines.length; at += lines[k]!.length + 1, k++) lineStarts.push(at);
   for (let c = lineOf - 1; c >= 0 && lineOf - c <= 80; c--) {
     const m = EXEMPT.exec(lines[c]!);
     if (!m) continue;
@@ -52,7 +57,13 @@ function exemptionAround(source: string, index: number): { reason: string; at: n
       if (indent > base || (indent === base && /^(?:[)\]}]|<\/|\/>)/.test(text))) last = k;
       else break;
     }
-    if (lineOf <= last) return { reason: (m[1] ?? "").trim(), at: starts[c]! + m.index };
+    if (lineOf > last) continue;
+    const from = lineStarts[first]!;
+    const to = lineStarts[last]! + lines[last]!.length;
+    const covered = listStarts.find((x) => x >= from && x <= to);
+    if (covered === undefined) continue;
+    if (index !== covered) continue;
+    return { reason: (m[1] ?? "").trim(), at: lineStarts[c]! + m.index };
   }
   return null;
 }
@@ -66,7 +77,7 @@ export function checkUiRows(file: string, source: string): Finding[] {
   starts.sort((a, b) => a - b);
   for (const start of starts) {
     // an author's "not a list" note, with a reason, says this .map builds tiles or cards, not list rows
-    const ex = exemptionAbove(source, start) ?? exemptionAround(source, start);
+    const ex = exemptionAbove(source, start) ?? exemptionAround(source, start, starts);
     if (ex) {
       if (ex.reason) continue;
       out.push(finding(RULE, file, source, ex.at, "ui-rows-lint: not a list needs a reason in parentheses"));

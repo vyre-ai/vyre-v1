@@ -796,6 +796,7 @@ export function ChartBlock({
             {/* ui-rows-lint: not a list (a table's rows and their cells: a grid of values, nothing to hover or pick) */}
             {t.rows.map((r, ri) => (
               <View key={ri} style={[st.tr, ri % 2 === 1 && st.trAlt]}>
+                {/* ui-rows-lint: not a list (the cells of one table row) */}
                 {r.map((c, ci) => (
                   <Text key={ci} style={st.td}>
                     {c}

@@ -225,7 +225,7 @@ export function parseImports(src: string): ImportRef[] {
     out.push({ spec, dynamic, literal });
   };
   // A static import or re-export starts a statement (line start, or after ; { }); the word inside a string or a name such as "records.import" is not one.
-  for (const m of text.matchAll(/(?:^|[;{}])\s*(?:import|export)\s+(?:type\s+)?[^'"`;]*?\bfrom\s*['"]([^'"]+)['"]/gm))
+  for (const m of text.matchAll(/(?:^|[;{}])\s*(?:import|export)(?:\s+|(?=[{*]))(?:type(?:\s+|(?=[{*])))?[^'"`;]*?\bfrom\s*['"]([^'"]+)['"]/gm))
     add(m[1] ?? "", false, true);
   for (const m of text.matchAll(/(?:^|[;{}])\s*import\s*['"]([^'"]+)['"]/gm)) add(m[1] ?? "", false, true);
   for (const m of text.matchAll(/\brequire\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) add(m[1] ?? "", false, true);

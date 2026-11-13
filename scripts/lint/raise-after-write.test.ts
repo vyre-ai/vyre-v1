@@ -123,6 +123,27 @@ test("raise-after-write: a write in an if condition and the refusal that if guar
   assert.equal(run(after).length, 1);
 });
 
+test("raise-after-write: only the nothing-changed idiom with a lone refusal is exempt; a write that stuck and then refuses is a finding", () => {
+  const fn = (cond: string, body: string) =>
+    `async function f(ctx, input) {\n  if (\n    ${cond}\n  ) ${body}\n  return {};\n}`;
+  const upd = `ctx.db.run("UPDATE t SET s = 'taken' WHERE id = ?", input.id)`;
+  const raise = `raise(ctx, "auth.expired", "no");`;
+  // the idiom, wrapped: clean (a lone refusal, braced or not)
+  assert.deepEqual(run(fn(`${upd}.changes !== 1`, raise)), []);
+  assert.deepEqual(run(fn(`${upd}.changes === 0`, `{\n    ${raise}\n  }`)), []);
+  assert.deepEqual(run(fn(`!${upd}.changes`, raise)), []);
+  // wrong polarity: the write stuck and then it refuses
+  assert.equal(run(fn(`${upd}.changes === 1`, raise)).length, 1, "=== 1");
+  assert.equal(run(fn(`${upd}.changes > 0`, raise)).length, 1, "> 0");
+  assert.equal(run(fn(`${upd}.changes`, raise)).length, 1, "truthy");
+  assert.equal(run(fn(`ctx.db.run("INSERT INTO t VALUES (1)")`, `{\n    cleanup();\n    ${raise}\n  }`)).length, 1, "insert, other work, raise");
+  // a second write in the guarded block, then the refusal
+  const second = fn(`${upd}.changes !== 1`, `{\n    ctx.db.run("DELETE FROM t");\n    ${raise}\n  }`);
+  assert.equal(run(second).length, 1, "second write then raise");
+  const secondOne = fn(`${upd}.changes !== 1`, `{\n    note(1);\n    ${raise}\n  }`);
+  assert.equal(run(secondOne).length, 1, "other work before the raise");
+});
+
 test("raise-after-write: a write in a branch that ends in a return over several lines does not count for what follows", () => {
   const src = `async function f(ctx, input) {\n  if (input.undo) {\n    ctx.db.run("DELETE FROM t");\n    return {\n      ok: true,\n      n: 1,\n    };\n  }\n  if (!input.to) raise(ctx, "validation.bad_input", "no");\n  return {};\n}`;
   assert.deepEqual(run(src), []);
