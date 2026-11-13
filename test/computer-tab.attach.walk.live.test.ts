@@ -48,7 +48,9 @@ test("B1 Attach shows the terminal in the chat's tab, never the new tab page", {
     await k.me.page.getByTestId("chats-terminal").waitFor({ state: "detached", timeout: 10_000 });
     // closing the terminal gives the column back to the agent's pane, as it was before Attach
     await k.me.page.getByTestId("pane-agent").waitFor({ timeout: 10_000 });
-    await k.me.page.getByTestId("tab-computer").click();
+    // the pane opens on the tab it had (Computer) since the chat pane keeps its tab; if it opened on another tab, press Computer
+    if ((await k.me.page.getByTestId("tab-computer-selected").count()) === 0)
+      await k.me.page.getByTestId("tab-computer").click();
     await k.me.page.getByTestId("terminal-attach").waitFor({ timeout: 20_000 });
     await k.me.page.getByTestId("terminal-attach").click();
     const again = await k.me.page
