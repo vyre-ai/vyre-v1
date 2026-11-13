@@ -16,6 +16,7 @@ import {
 import { rawDbOf } from "../../../host/src/ctx/db.ts";
 import { harness, LEE, link } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
+import { StateRefusal, stateSeamOf } from "../../../host/src/seams/state.ts";
 import { readSeam, thingOf } from "../state.ts";
 
 const MAYA = "usr_maya01";
@@ -172,4 +173,27 @@ test("Unmatched and Needs a match hide what the person marked done, for that per
   readSeam(h.ctx).set(MAYA, thingOf(a.conversationId), { done: true }, { trusted: true });
   assert.equal((await unmatched(h.as(person(MAYA)), {})).rows.length, 0);
   assert.equal((await unmatched(h.as(person(JONAS)), {})).rows.length, 1);
+});
+
+test("Jonas cannot learn that Maya's private conversation exists by pinning, muting, reading or asking for state on its id", async () => {
+  const h = setup();
+  const priv = await linkMessage(h.ctx, {
+    ...link({ address: "private@nowhere.test", mailboxId: "mbx_maya_own" }),
+    private: true,
+    ownerId: MAYA,
+  });
+  const thing = thingOf(priv.conversationId);
+  const env = { people: [], mayView: () => true }; // even a mailbox everyone can open does not open a private conversation
+  const store = stateSeamOf(h.ctx.db, () => 0, env);
+  const refused = (e: unknown) => e instanceof StateRefusal && e.code === "not_found";
+  assert.throws(() => store.set(JONAS, thing, { star: true }), refused);
+  assert.throws(() => store.set(JONAS, thing, { mute: { until: 1 } }), refused);
+  assert.throws(() => store.read(JONAS, thing, { upto: 1 }), refused);
+  assert.equal(store.canSee(JONAS, thing), false);
+  assert.equal(store.canSee(MAYA, thing), true);
+  assert.equal(
+    rawDbOf(h.ctx.db)!.all(`SELECT 1 FROM state_person WHERE person = '${JONAS}'`).length,
+    0,
+    "nothing was stored for him",
+  );
 });
