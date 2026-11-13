@@ -34,6 +34,7 @@ const PIECES: ReadonlyArray<{ names: readonly string[]; home: string; use: strin
     home: "ui/src/Field/",
     use: "ui/Field and its controls (TextBox, Select, NumberBox)",
   },
+  { names: ["AppLogo"], home: "ui/src/AppLogo/", use: "ui/AppLogo (one mark for an app everywhere)" },
   { names: ["Segmented"], home: "ui/src/Segmented/", use: "ui/Segmented" },
   { names: ["Sheet", "FormSheet"], home: "ui/src/Dialog/", use: "ui/Dialog (the one Sheet frame)" },
 ];

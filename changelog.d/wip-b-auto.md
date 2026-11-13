@@ -2,3 +2,4 @@
 - Adding a step now opens a picker that lists only the apps you have connected and may use, one row per app with its actions beside the list, searchable and fully usable from the keyboard, with a "Connect an app" row that opens one sheet to set up an app from your Vault, ask an admin for one your Space has, or add another, without leaving the page.
 - Ask Vyre now shows what the Assistant understood from your sentence, the forms it found on your site, one card to paste an app key (saved straight to your Vault, never into the chat), the field mapping, the wait for the first real submission, and a test-lead approval.
 - A step in an Automation someone else built that uses an app you may not use now shows whole, with one plain line saying so, instead of being dropped.
+- The new first page and builder page are drawn from their tested models: Needs you cards with their fix, one suggestion, a Today line, and numbered sentences with data chips and one orange line per step.
