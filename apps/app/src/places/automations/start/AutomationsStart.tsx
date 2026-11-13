@@ -135,11 +135,11 @@ export function AutomationsStartView({
         </View>
         {offers.length > 0 && onSetUp ? (
           <View style={s.offers} testID="automations-start-offers">
-            {/* ui-rows-lint: not a list (at most a few one-line offers under the start choices) */}
+            {/* ui-rows-lint: not a list (at most a few offers of one or two lines under the start choices) */}
             {offers.slice(0, 3).map((o) => (
               <View key={o.itemId} style={s.offer} testID={`offer-${o.itemId}`}>
                 <Glyph name="key" size={15} color="var(--accent)" />
-                <Text numberOfLines={1} style={s.offerText}>
+                <Text numberOfLines={2} style={s.offerText}>
                   {o.text}
                 </Text>
                 <Pressable
