@@ -140,7 +140,7 @@ test("goals live (CLI engine over MCP): a typed ask in another chat moves the de
     await ok("threads.poke", { threadId: chat, agentId: dex, note: `toolfind goals_extend ${JSON.stringify({ goalId, deadline: later + DAY })}` });
     try { await waitFor(async () => ((await messagesOf(chat)).filter((b) => /goals_extend (refused|answered)/.test(b)).length >= 2 ? true : null), 90_000); } catch { throw new Error(`the poke: ${await dump(chat)}`); }
     const replies = (await messagesOf(chat)).filter((b) => /goals_extend (refused|answered)/.test(b));
-    assert.match(replies[1]!, /goals_extend refused/, replies[1]);
+    assert.match(replies[1]!, /goals_extend refused/, String(replies[1]));
     assert.equal(await deadlineNow(), later, "the poke changed nothing");
   } finally { await d.stop(); }
 });
