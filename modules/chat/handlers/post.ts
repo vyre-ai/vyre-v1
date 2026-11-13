@@ -88,6 +88,18 @@ export function seesSpace(ctx: ChatCtx): boolean {
     host.authorize({ perm: null, level: "view" }, { type: "space", id: ctx.space }).effect === "allow"
   );
 }
+/** May the caller see this thread or channel through a grant (a guest's access is exactly such a grant)? No authorize (module tests): yes. */
+export function mayView(ctx: ChatCtx, type: "thread" | "channel", id: string): boolean {
+  const host = ctx as ChatCtx & {
+    authorize?: (
+      action: { perm: string | null; level: string },
+      resource: { type: string; id: string | null },
+    ) => { effect?: string };
+  };
+  return typeof host.authorize !== "function" || host.authorize({ perm: null, level: "view" }, { type, id }).effect === "allow";
+}
+export const mayViewChannel = (ctx: ChatCtx, channelId: string): boolean => mayView(ctx, "channel", channelId);
+
 export function mayGovernChannel(ctx: ChatCtx, channelId: string): boolean {
   const host = ctx as ChatCtx & {
     authorize?: (
@@ -371,6 +383,10 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   const body = input.body;
   const blocks = cleanBlocks(ctx, input.blocks);
   const attachments = [...new Set(input.attachments ?? [])];
+  // someone with no standing in the Space (a guest) sends plain words: no cards (a forged system card would read as the server's own) and no files they have no way to name
+  const outsider = author.kind === "person" && !seesSpace(ctx);
+  if (outsider && (blocks.length > 0 || attachments.length > 0))
+    raise(ctx, "validation.bad_input", "Guests send plain text in a channel.");
   if (body.trim() === "" && blocks.length === 0 && attachments.length === 0)
     raise(ctx, "validation.bad_input", "Write something, or attach a file.");
   if (body.length > MAX_BODY) raise(ctx, "validation.bad_input", `A message can hold at most ${MAX_BODY} characters.`);
@@ -422,9 +438,11 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   // "@Billing, sum this up" in a chat of their own: a person who @mentions an agent that is not in the chat brings it in as a listener (it answers when mentioned, and the person who mentioned it pays for
   // the turn it causes). Only for a person's own chat and only for an agent they may see (refused above); a channel's agents are its managers' to add. A thread hangs off a message or a task, and anyone in it,
   // person or agent, may bring an agent into that one thread, wherever the thread hangs.
+  // A guest changes nobody's roster: a mention of an agent that is not here stays a plain mention for them.
   if (
-    (author.kind === "person" && thread.kind === "chat" && thread.channelId === undefined) ||
-    ((author.kind === "person" || author.kind === "agent") && thread.kind === "thread")
+    !outsider &&
+    ((author.kind === "person" && thread.kind === "chat" && thread.channelId === undefined) ||
+      ((author.kind === "person" || author.kind === "agent") && thread.kind === "thread"))
   ) {
     const here = new Set(agentsOf(ctx.db, thread.id).map((a) => a.agentId));
     for (const mention of mentions) {

@@ -19,6 +19,16 @@
   "search.status": 200,
   "search.finds": true
  },
+ "owner / lab": {
+  "read.get": 200,
+  "read.messages": 200,
+  "post": 200,
+  "reply.open": 200,
+  "reply.get": 200,
+  "reply.post": 200,
+  "search.status": 200,
+  "search.finds": true
+ },
  "maya(in pub) / pub": {
   "read.get": 200,
   "read.messages": 200,
@@ -38,6 +48,16 @@
   "reply.post": 404,
   "search.status": 200,
   "search.finds": false
+ },
+ "maya(in pub) / lab": {
+  "read.get": 200,
+  "read.messages": 200,
+  "post": 200,
+  "reply.open": 200,
+  "reply.get": 200,
+  "reply.post": 200,
+  "search.status": 200,
+  "search.finds": true
  },
  "noah(in priv) / pub": {
   "read.get": 200,
@@ -59,6 +79,16 @@
   "search.status": 200,
   "search.finds": true
  },
+ "noah(in priv) / lab": {
+  "read.get": 200,
+  "read.messages": 200,
+  "post": 200,
+  "reply.open": 200,
+  "reply.get": 200,
+  "reply.post": 200,
+  "search.status": 200,
+  "search.finds": false
+ },
  "ana(in neither) / pub": {
   "read.get": 200,
   "read.messages": 200,
@@ -79,6 +109,16 @@
   "search.status": 200,
   "search.finds": false
  },
+ "ana(in neither) / lab": {
+  "read.get": 200,
+  "read.messages": 200,
+  "post": 200,
+  "reply.open": 200,
+  "reply.get": 200,
+  "reply.post": 200,
+  "search.status": 200,
+  "search.finds": false
+ },
  "admin(in neither) / pub": {
   "read.get": 200,
   "read.messages": 200,
@@ -96,6 +136,46 @@
   "reply.open": 404,
   "reply.get": 404,
   "reply.post": 404,
+  "search.status": 200,
+  "search.finds": false
+ },
+ "admin(in neither) / lab": {
+  "read.get": 200,
+  "read.messages": 200,
+  "post": 200,
+  "reply.open": 200,
+  "reply.get": 200,
+  "reply.post": 200,
+  "search.status": 200,
+  "search.finds": false
+ },
+ "intern(custom role, lowest clearance) / pub": {
+  "read.get": 200,
+  "read.messages": 200,
+  "post": 200,
+  "reply.open": 200,
+  "reply.get": 200,
+  "reply.post": 200,
+  "search.status": 200,
+  "search.finds": false
+ },
+ "intern(custom role, lowest clearance) / priv": {
+  "read.get": 404,
+  "read.messages": 404,
+  "post": 404,
+  "reply.open": 404,
+  "reply.get": 404,
+  "reply.post": 404,
+  "search.status": 200,
+  "search.finds": false
+ },
+ "intern(custom role, lowest clearance) / lab": {
+  "read.get": 200,
+  "read.messages": 200,
+  "post": 200,
+  "reply.open": 200,
+  "reply.get": 200,
+  "reply.post": 200,
   "search.status": 200,
   "search.finds": false
  }

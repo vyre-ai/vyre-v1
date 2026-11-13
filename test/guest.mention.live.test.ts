@@ -88,3 +88,85 @@ test("a guest's mention starts no turn and says so once; a member's mention in t
     await w.stop();
   }
 });
+
+test("a guest changes nobody's roster and starts no turn by any door: an agent outside the channel in a reply thread, a reply, a reaction, a slash command, a quote, a card", async () => {
+  const w = await world();
+  try {
+    await connect(w.d);
+    const g = await w.invite(w.pub, "reply", "doors@example.com", "doorsguest");
+    const thread = w.pub.mainThreadId;
+    const reply = (await g.call("chat.thread", { threadId: thread, messageId: w.first.pub })).data.thread
+      .threadId as string;
+    const agentsOf = async (id: string): Promise<string[]> =>
+      ((await w.o("threads.get", { threadId: id })).thread.agents as Array<{ agentId: string }>)
+        .map((a) => a.agentId)
+        .sort();
+    const before = { reply: await agentsOf(reply), main: await agentsOf(thread) };
+    // the agent that is not in the channel, named in the reply thread
+    const out = await g.call("chat.post", {
+      threadId: reply,
+      body: "@Ledger please look",
+      mentions: [{ kind: "agent", id: w.otherAgent }],
+    });
+    assert.equal(out.status, 200, "it is delivered as a plain mention");
+    // an agent of the channel answered by reply-to, a reaction, a slash command, text that looks like a mention, a quote
+    const mine = (out.data.messageId ?? out.data.message?.messageId ?? out.data.message?.id) as string;
+    assert.equal(
+      (await g.call("chat.post", { threadId: thread, body: "replying to it", replyTo: mine })).status === 403,
+      false,
+    );
+    assert.equal((await g.call("chat.react", { threadId: reply, messageId: mine, emoji: "+1" })).status, 200);
+    assert.equal(
+      (await g.call("chat.post", { threadId: thread, body: "/model opus @Dex" })).status,
+      200,
+      "a slash command is plain text",
+    );
+    assert.equal((await g.call("chat.post", { threadId: thread, body: "@Dex no chip, just text" })).status, 200);
+    assert.equal(
+      (
+        await g.call("chat.post", {
+          threadId: thread,
+          body: "> @Dex quoted\nand my words",
+          mentions: [{ kind: "agent", id: w.agent }],
+        })
+      ).status,
+      200,
+    );
+    // a card, or a file, is not for a guest to send
+    for (const extra of [
+      {
+        blocks: [
+          {
+            type: "from_thread",
+            v: 1,
+            id: "blk_x",
+            data: { threadId: w.other.mainThreadId, messageId: "msg_x" },
+            state: "done",
+          },
+        ],
+      },
+      { attachments: ["fil_x"] },
+    ]) {
+      const r = await g.call("chat.post", { threadId: thread, body: "card?", ...extra });
+      assert.equal(r.status, 422, `a guest sends plain text: ${JSON.stringify(Object.keys(extra))} -> ${r.status}`);
+    }
+    for (let i = 0; i < 14; i++) {
+      await w.d.hooks?.pump?.();
+      await new Promise((x) => setTimeout(x, 400));
+    }
+    assert.deepEqual(
+      await agentsOf(reply),
+      before.reply,
+      "the reply thread's agents are unchanged: the guest brought nobody in",
+    );
+    assert.deepEqual(await agentsOf(thread), before.main, "and the channel's too");
+    const all = [
+      ...((await w.o("chat.messages.list", { threadId: thread })).messages as Msg[]),
+      ...((await w.o("chat.messages.list", { threadId: reply })).messages as Msg[]),
+    ];
+    const marks = all.filter((m) => m.author?.kind === "agent" && !m.blocks?.some((b) => b.data?.text === LINE));
+    assert.deepEqual(marks, [], "no agent turn, run or status anywhere: the only agent line is the quiet note");
+  } finally {
+    await w.stop();
+  }
+});

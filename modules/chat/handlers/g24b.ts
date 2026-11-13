@@ -29,7 +29,7 @@ import {
 } from "../projections.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChannelRec, ChatCtx, Db, Mode } from "../projections.ts";
-import { mayGovernChannel, rootOf, seesSpace } from "./post.ts";
+import { mayGovernChannel, mayViewChannel, rootOf, seesSpace } from "./post.ts";
 import { mentions } from "./pace.ts";
 import { convergeHome, grantsOf, joinThreads, leaveThreads, revokeGrants } from "./owned.ts";
 
@@ -166,6 +166,8 @@ export async function channelsList(
     const mine = isMember(ctx.db, ch.mainThread, asker);
     // a guest (no View on the Space) lists only the channels they were added to
     if (!mine && !whole) continue;
+    // and only while that access lasts: a guest whose access was removed is still a member row of the chat, and sees the channel no more
+    if (!whole && !mayViewChannel(ctx, ch.id)) continue;
     // Console asks with `governance`: an admin sees that an invite-only channel exists (name, members, archived), marked restricted, and still cannot open it
     if (ch.visibility === "invite" && !mine) {
       if (input.governance !== true || !mayGovernChannel(ctx, ch.id)) continue;

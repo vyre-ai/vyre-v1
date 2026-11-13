@@ -18,6 +18,10 @@ test("members, admins and the owner see the same table of reads, posts, reply th
       noah = await join(d, "noah", "noah@example.com"),
       ana = await join(d, "ana", "ana@example.com");
     const adm = await join(d, "adam", "adam@example.com", "Admin");
+    // a custom role cloned from Member with the lowest clearance: it must read a labelled channel as little as it did before
+    const member = ((await o("access.roles.list")).roles as Array<{ id: string; name: string }>).find((r) => r.name === "Member")!;
+    await o("access.roles.create", { name: "Intern", cloneFrom: member.id, clearance: "public", idempotencyKey: "mx-intern" });
+    const intern = await join(d, "ivy", "ivy@example.com", "Intern");
     const pub = (
       await o("channels.create", {
         name: "partners",
@@ -34,10 +38,16 @@ test("members, admins and the owner see the same table of reads, posts, reply th
         agentIds: [agent],
       })
     ).channel as { mainThreadId: string };
+    // a public channel marked confidential: the thread now inherits that label through its channel
+    const lab = (
+      await o("channels.create", { name: "labelled", visibility: "public", memberIds: [maya.personId], agentIds: [agent] })
+    ).channel as { mainThreadId: string; channelId: string };
+    await o("access.labels.set", { resource: { type: "channel", id: lab.channelId }, label: "confidential" });
     const first: Record<string, string> = {};
     for (const [k, c] of [
       ["pub", pub],
       ["priv", priv],
+      ["lab", lab],
     ] as const) {
       const out = await o("chat.post", { threadId: c.mainThreadId, body: `zebramark ${k}` });
       first[k] = (out.messageId ?? out.message?.messageId ?? out.message?.id) as string;
@@ -47,6 +57,7 @@ test("members, admins and the owner see the same table of reads, posts, reply th
     for (const [k, c] of [
       ["pub", pub],
       ["priv", priv],
+      ["lab", lab],
     ] as const)
       reply[k] = (await o("chat.thread", { threadId: c.mainThreadId, messageId: first[k]! })).thread.threadId as string;
 
@@ -56,12 +67,13 @@ test("members, admins and the owner see the same table of reads, posts, reply th
       ["noah(in priv)", noah.token],
       ["ana(in neither)", ana.token],
       ["admin(in neither)", adm.token],
+      ["intern(custom role, lowest clearance)", intern.token],
     ];
     const table: Record<string, Cell> = {};
     let n = 0;
     for (const [who, token] of actors)
-      for (const k of ["pub", "priv"] as const) {
-        const c = k === "pub" ? pub : priv;
+      for (const k of ["pub", "priv", "lab"] as const) {
+        const c = k === "pub" ? pub : k === "priv" ? priv : lab;
         const call = (cap: string, input: Record<string, unknown>) =>
           api(d, token, cap, { idempotencyKey: `m-${who}-${k}-${n++}`, ...input });
         const cell: Cell = {};

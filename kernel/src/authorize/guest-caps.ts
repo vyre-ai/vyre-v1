@@ -1,7 +1,7 @@
-// What a guest may do with a thread or a channel, in ONE table (lane f-guest, 13 Nov 2026). A guest is a person whose only role is Guest. However they came to hold a grant on a thread or a channel (the invite to a
+// What a guest may do with a thread or a channel, in ONE table (lane f-guest, 13 Nov 2026). A guest is a person with no standing in the Space (no View on it). However they came to hold a grant on a thread or a channel (the invite to a
 // channel, a thread shared with them, an agent's chat), the grant reaches only what this table lets that level do: "view" is allowed for a view or a reply guest, "reply" only for a guest whose grant reaches Use, and
 // "never" (and any capability not listed, which fails closed) is refused whatever the grant says. The table is checked at authorize time, so changing it changes every guest grant already stored.
-// test/guest.caps.ratchet.test.ts fails when a capability on a thread or a channel is not classified here. Handlers keep their own checks (edit and delete only the guest's own messages).
+// kernel/tests/authorize.guest-caps.test.ts fails when a capability on a thread or a channel is not classified here. Handlers keep their own checks (edit and delete only the guest's own messages).
 export type GuestWhat = "view" | "reply" | "never";
 
 export const GUEST_CAPS: Readonly<Record<string, GuestWhat>> = Object.freeze({

@@ -183,18 +183,105 @@ test("a check that names no capability (a list, a sync filter, a handler's own c
   );
 });
 
-test("a guest who owns a reply thread they opened is held to the table too, with or without the grant that let them in", () => {
+const why = (s: AccessSnapshot, who: string, c: Cap, on: { type: string; id: string }): string => {
+  const d = authorize(s, {
+    principal: who,
+    action: { perm: c.permission, level: c.level },
+    resource: on,
+    cap: c.name,
+    now: NOW,
+  });
+  return d.effect === "allow" ? "allow" : d.reason;
+};
+
+test("a guest who owns a reply thread they opened is held to the table while the grant lives, and reaches nothing there when it is gone", () => {
   const s = world();
   s.putResource({ id: "thr_mine", type: "thread", parent_id: "thr_main", label: 0, owner_id: "usr_reply", holds: 0 });
-  const stop = caps.find((c) => c.name === "engine.stop_all")!, post = caps.find((c) => c.name === "chat.post")!;
-  assert.equal(can(s, "usr_reply", stop, { type: "thread", id: "thr_mine" }), false, "owning it does not give stop");
-  assert.equal(can(s, "usr_reply", post, { type: "thread", id: "thr_mine" }), true, "and they still post in it");
-  // the channel grant is taken away: they keep reading and nothing more
-  const gone = world();
-  gone.putResource({ id: "thr_mine", type: "thread", parent_id: "thr_main", label: 0, owner_id: "usr_reply", holds: 0 });
-  gone.revokeGrant?.("g2");
-  const read = caps.find((c) => c.name === "chat.messages.list")!;
-  assert.equal(can(gone, "usr_reply", stop, { type: "thread", id: "thr_mine" }), false);
-  assert.equal(can(gone, "usr_reply", post, { type: "thread", id: "thr_mine" }), false, "without the grant, owning the thread gives no posting");
-  assert.equal(can(gone, "usr_reply", read, { type: "thread", id: "thr_mine" }), true, "only reading");
+  const on = { type: "thread", id: "thr_mine" };
+  const by = (n: string): Cap => caps.find((c) => c.name === n)!;
+  assert.equal(can(s, "usr_reply", by("engine.stop_all"), on), false, "owning it does not give stop");
+  assert.equal(can(s, "usr_reply", by("chat.post"), on), true, "and they still post in it");
+  // the channel grant is taken away: owning the thread gives nothing, not even reading, whatever the capability
+  s.revokeGrant("g2");
+  for (const c of caps.filter((x) => x.resource!.type === "thread"))
+    assert.equal(can(s, "usr_reply", c, on), false, `no grant left: ${c.name}`);
+  assert.equal(why(s, "usr_reply", by("chat.messages.list"), on), "no_grant");
+  assert.equal(why(s, "usr_reply", by("threads.get"), { type: "thread", id: "thr_main" }), "no_grant");
+  // the same when the grant has run out
+  const lapsed = world();
+  lapsed.putResource({
+    id: "thr_mine",
+    type: "thread",
+    parent_id: "thr_main",
+    label: 0,
+    owner_id: "usr_reply",
+    holds: 0,
+  });
+  lapsed.revokeGrant("g2");
+  lapsed.putGrant({
+    id: "g2b",
+    subject_kind: "actor",
+    subject_id: "usr_reply",
+    resource_type: "channel",
+    resource_id: "chn_a",
+    level: "use",
+    expires_at: 500,
+  });
+  assert.equal(why(lapsed, "usr_reply", by("chat.messages.list"), on), "expired");
+  assert.equal(why(lapsed, "usr_reply", by("chat.post"), on), "expired");
+});
+
+test("the ceiling keys on what the person lacks, not on a role's name: a role cloned from Guest, a harmless custom role beside Guest, and a custom role that carries permissions", () => {
+  const s = world();
+  s.putRole({ id: "rol_client", clearance: 0, perms: [], name: "Client" }); // cloned from Guest by an admin: no permissions
+  s.putRole({ id: "rol_tag", clearance: 0, perms: [], name: "Tagged" }); // a harmless custom role
+  s.putRole({ id: "rol_staff", clearance: 1, perms: ["records.read"], name: "Staff" }); // carries permissions: its Space grant is what makes a member
+  for (const id of ["usr_clone", "usr_both", "usr_staff"])
+    s.putPrincipal({ id, kind: "person", status: "active", name: id });
+  s.addPrincipalRole({ holder: "usr_clone", role: "rol_client" });
+  s.addPrincipalRole({ holder: "usr_both", role: "rol_guest" });
+  s.addPrincipalRole({ holder: "usr_both", role: "rol_tag" });
+  s.addPrincipalRole({ holder: "usr_staff", role: "rol_staff" });
+  s.putGrant({
+    id: "gr_staff",
+    subject_kind: "role",
+    subject_id: "rol_staff",
+    resource_type: "space",
+    resource_id: "spc_x",
+    level: "edit",
+  });
+  for (const id of ["usr_clone", "usr_both", "usr_staff"])
+    s.putGrant({
+      id: `gc_${id}`,
+      subject_kind: "actor",
+      subject_id: id,
+      resource_type: "channel",
+      resource_id: "chn_a",
+      level: "use",
+    });
+  const stop = caps.find((c) => c.name === "engine.stop_all")!,
+    post = caps.find((c) => c.name === "chat.post")!;
+  const on = { type: "thread", id: "thr_main" };
+  for (const who of ["usr_clone", "usr_both"]) {
+    assert.equal(can(s, who, stop, on), false, `${who} is capped`);
+    assert.equal(can(s, who, post, on), true, `${who} still replies`);
+  }
+  assert.equal(
+    can(s, "usr_staff", stop, on),
+    true,
+    "a person whose custom role carries permissions has standing and is not capped",
+  );
+  // standing comes and goes with the role's Space grant: take it away and the same person is capped at once
+  s.revokeGrant("gr_staff");
+  assert.equal(can(s, "usr_staff", stop, on), false);
+});
+
+test("a channel's own label does not cover its chat: members of a labelled channel read it as they did when the chat lived under the Space", () => {
+  const s = world();
+  s.putResource({ id: "chn_a", type: "channel", parent_id: "spc_x", label: 2, owner_id: null, holds: 0 });
+  assert.equal(s.effectiveLabel("chn_a"), 2, "the channel carries its label");
+  assert.equal(s.effectiveLabel("thr_main"), 0, "its chat does not");
+  assert.equal(s.effectiveLabel("thr_reply"), 0, "nor a reply thread");
+  s.putResource({ id: "thr_own", type: "thread", parent_id: "thr_main", label: 1, owner_id: null, holds: 0 });
+  assert.equal(s.effectiveLabel("thr_own"), 1, "a label on the thread itself still counts");
 });

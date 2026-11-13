@@ -26,7 +26,7 @@ import {
 } from "../projections.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
 import { archivedIds } from "./archive-state.ts";
-import { canSpeak, deliver } from "./post.ts";
+import { canSpeak, deliver, mayView, seesSpace } from "./post.ts";
 
 type Row = Record<string, unknown>;
 const MAX_BODY = 100_000;
@@ -269,9 +269,12 @@ export async function recent(ctx: ChatCtx, input: { filter?: "all" | "unread" | 
   ) as Row[];
   const rows: Array<{ lastAt: number; row: Record<string, unknown>; archived: boolean }> = [];
   const mine = archivedIds(ctx, asker);
+  const whole = seesSpace(ctx);
   for (const r of threads) {
     const t = threadBy(ctx.db, String(r["id"]));
     if (!t) continue;
+    // someone with no standing in the Space (a guest) lists a chat only while the access that let them in lasts
+    if (!whole && !mayView(ctx, "thread", t.id)) continue;
     const agents = agentsOf(ctx.db, t.id).map((a) => a.agentId);
     const people = membersOf(ctx.db, t.id).filter((p) => !p.startsWith("agt_"));
     if (filter === "unread") continue;

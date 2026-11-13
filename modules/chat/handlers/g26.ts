@@ -11,7 +11,7 @@ import { composerSuggest, openTab, recent } from "./g24c.ts";
 import { unreadOf } from "./g24a.ts";
 import { mutedOf } from "./follow.ts";
 import { handoff, helperStart, planPropose, questionAsk } from "./g24d.ts";
-import { isDirect, rootOf } from "./post.ts";
+import { isDirect, mayView, rootOf, seesSpace } from "./post.ts";
 import { ensurePrivate, sealedBy } from "./private.ts";
 
 type Row = Record<string, unknown>;
@@ -41,8 +41,10 @@ export async function recentWithUnread(ctx: ChatCtx, input: { filter?: "all" | "
     THREADS_MAX,
   ) as Row[];
   const repliesIn = new Map<string, number>();
+  const whole = seesSpace(ctx);
   for (const r of mine) {
     if (muted.has(String(r["id"]))) continue;
+    if (!whole && !mayView(ctx, "thread", String(r["id"]))) continue;
     const n = unreadOf(ctx, String(r["id"]), asker);
     threadsUnread += n;
     if (n > 0 && r["parentThreadId"])

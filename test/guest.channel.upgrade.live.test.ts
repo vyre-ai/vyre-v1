@@ -1,13 +1,39 @@
 // A guest invited to a channel that was made BEFORE a channel's chat lived in its channel (lane f-guest, 13 Nov 2026): the first call that names an old thread moves it into its home, once, from the chat's own rows and never
 // from the caller; two calls at once are fine; a guest of channel A who names a thread of channel B is still refused; and a restart changes nothing.
-// By default the test makes the Space and uses it in the same tree. To prove the real upgrade, run `phase make` on rc.26 (VYRE_UPGRADE_PHASE=make VYRE_UPGRADE_DIR=<dir>) and `use` on this tree on that same directory.
+// By default the test makes the Space in this tree, then AGES it to what rc.26 left: every thread registered under the Space (the access tables and the log both say so), and uses it: so the move runs on every run. To prove the real upgrade, run `phase make` on rc.26 (VYRE_UPGRADE_PHASE=make VYRE_UPGRADE_DIR=<dir>) and `use` on this tree on that same directory.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { boot, seededDir, waitFor } from "./memory-live-kit.ts";
 import { api, ok, standIn } from "./member-key-kit.ts";
 import { joinGuest } from "./guest-channel-kit.ts";
+
+/** What rc.26 left on disk: the access resources of every thread under the Space, in the tables and in the log's resource.created events. Nothing else is touched. */
+function ageToRc26(dir: string): number {
+  const mod = new DatabaseSync(path.join(dir, "modules.db"));
+  const space = (
+    mod.prepare("SELECT id FROM access_resources WHERE type = 'space' AND parent_id IS NULL").get() as { id: string }
+  ).id;
+  const moved = mod
+    .prepare("UPDATE access_resources SET parent_id = ? WHERE type = 'thread' AND parent_id <> ?")
+    .run(space, space).changes;
+  mod.close();
+  const log = new DatabaseSync(path.join(dir, "events.db"));
+  const rows = log.prepare("SELECT seq, payload FROM events WHERE type = 'resource.created'").all() as Array<{
+    seq: number;
+    payload: Uint8Array;
+  }>;
+  for (const r of rows) {
+    const p = JSON.parse(Buffer.from(r.payload).toString("utf8")) as { type?: string; parent_id?: string | null };
+    if (p.type !== "thread" || p.parent_id === space || p.parent_id === null) continue;
+    p.parent_id = space;
+    log.prepare("UPDATE events SET payload = ? WHERE seq = ?").run(Buffer.from(JSON.stringify(p)), r.seq);
+  }
+  log.close();
+  return Number(moved);
+}
 
 type Ids = {
   old: { token: string; personId: string };
@@ -158,7 +184,12 @@ test("a guest of a channel made before the move opens its chat and reply threads
   }
   const dir = seededDir();
   try {
-    await use(dir, await make(dir));
+    const ids = await make(dir);
+    assert.ok(
+      ageToRc26(dir) >= 4,
+      "the aged Space holds the threads of two channels and their reply threads under the Space",
+    );
+    await use(dir, ids);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

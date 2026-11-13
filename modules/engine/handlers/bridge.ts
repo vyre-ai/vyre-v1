@@ -16,6 +16,7 @@ import { sessionWorkKey, workBlocks } from "../../../agent/src/tools/work-cards.
 import { ALL_AGENTS, route as routeOf } from "../../../lib/route.ts";
 import { localClock, readPublicTime } from "../../../lib/presence.ts";
 import { hasReads } from "../../../host/src/seams/answer-reads.ts";
+import { isOutsider } from "../standing.ts";
 import { findProgram } from "../cli-programs.ts";
 import { engineIfBound, sqlMessages, withMessageId, mintId } from "../projections.ts";
 import { setUsing } from "../node-turns.ts";
@@ -308,26 +309,8 @@ export function createBridge(o: BridgeOptions): Bridge {
   const helperOf = new Map<string, string>(); // a helper's own thread id -> the chat that started it, where the person is (gate blocker, 12 Nov)
   const pokedBy = new Map<string, string>(); // `${thread}:${agent}` -> the person who poked it: the reply says so
 
-  // A guest's words are for the people of the channel: no agent turn starts for a guest in v1 (a guest has no AI account in the Space, and must not spend a member's or steer an agent). Who is a guest is read from
-  // their roles (only Guest), kept a minute so a busy channel does not ask for every message.
-  const guestSeen = new Map<string, { guest: boolean; at: number }>();
-  const isGuest = async (ctx: EngineCtx, personId: string): Promise<boolean> => {
-    const t = (o.now ?? Date.now)();
-    const hit = guestSeen.get(personId);
-    if (hit && t - hit.at < 60_000) return hit.guest;
-    let guest = false;
-    try {
-      const got = (await ctx.call("access.principals.get", { principal: { kind: "person", id: personId } })) as {
-        principal?: { roles?: string[] };
-      };
-      const roles = got.principal?.roles ?? [];
-      guest = roles.length > 0 && roles.every((r) => r === "rol_guest");
-    } catch {
-      /* unreadable: read as a member, as before */
-    }
-    guestSeen.set(personId, { guest, at: t });
-    return guest;
-  };
+  // A guest's words are for the people of the channel: no agent turn starts for someone with no standing in the Space (modules/engine/standing.ts), whatever their role is called.
+  const isGuest = (ctx: EngineCtx, personId: string): Promise<boolean> => isOutsider(reader(ctx, personId));
   const GUEST_LINE = "Agents answer members of this Space";
   /** The one quiet line under a guest's first mention of an agent in a chat: the same id for the same guest in the same chat, so a replay or a second mention says it once. */
   const sayGuestLine = async (threadId: string, agentId: string, guestId: string): Promise<void> => {
