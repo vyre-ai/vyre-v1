@@ -25,6 +25,8 @@ export interface RemoteHooksOptions {
 export interface RemoteHooks extends ScreenHooks {
   /** A live query of one capability, for the shell's own lists (people, agents). */
   capQuery<T>(cap: string, input?: Record<string, unknown>): LiveQuery<T>;
+  /** Show a changed answer for a watched read at once (an optimistic change). Answers how to undo it; the next real answer replaces the patch either way. A read nobody has answered is left alone. */
+  patch(cap: string, input: Record<string, unknown>, apply: (data: unknown) => unknown): () => void;
   /** Re-read every query that is being watched. */
   invalidate(): void;
   /** Hear each invalidate: what a card that reads by capability follows, on the same tick as the queries. */
@@ -168,6 +170,22 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
     },
     capQuery<T>(cap: string, input: Record<string, unknown> = {}): LiveQuery<T> {
       return entryFor(cap, input).live as LiveQuery<T>;
+    },
+    patch(cap, input, apply) {
+      const e = entries.get(`${cap}\u0000${stableJson(input)}`);
+      if (!e || e.snap.status !== "ready") return () => undefined;
+      const was = { snap: e.snap, json: e.json };
+      const patched: QueryState<unknown> = { status: "ready", data: apply(e.snap.data) };
+      e.snap = patched;
+      // never equal to a real answer, so the next one always replaces the patch
+      e.json = "\u0000patched";
+      notify(e);
+      return () => {
+        if (e.snap !== patched) return;
+        e.snap = was.snap;
+        e.json = was.json;
+        notify(e);
+      };
     },
     invalidate() {
       for (const e of entries.values()) {

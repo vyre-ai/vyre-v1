@@ -1,3 +1,4 @@
 - Nothing a person sees changes: a new check stops new one-off copies of shared pieces (switches, buttons, section headings, empty states, data reads) from being added.
 - Settings now says "Couldn't load settings" with a Retry button when its read fails, instead of showing "Loading" for ever.
 - The Inbox list now says "Couldn't load the Inbox" with a Retry button when its read fails, instead of showing the grey loading rows for ever.
+- Nothing a person sees changes: lists that load page by page, and changes that show at once and undo themselves if they fail, now have one shared way to do it.
