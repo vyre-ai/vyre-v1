@@ -89,6 +89,8 @@ export async function boot(dir: string, openSession: OpenSession = standIn, http
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
     vault: { secret: async () => KEY, signRs256: async () => "" },
     engineOpenSession: openSession,
+    // providers.add asks the provider whether it accepts a key before saving it (161cebfa0); a stand-in answers, so no test reaches an outside service
+    providerFetch: (async () => new Response(JSON.stringify({ data: [{ id: "claude-sonnet-5-5" }] }), { status: 200, headers: { "content-type": "application/json" } })) as unknown as typeof fetch,
     ...extra,
   });
 }
