@@ -435,7 +435,15 @@ export function createToolSession(deps: CallDeps): ToolSession {
         const list = Array.isArray(problems) ? problems.filter((p): p is string => typeof p === "string") : [];
         markRejected(ctx, t.name, true);
         if (list.length > 0) {
-          const error = { ...e.error, message: rejectWords(t, list, EXAMPLES[t.cap]) };
+          const error = {
+            ...e.error,
+            message: rejectWords(
+              t,
+              list,
+              EXAMPLES[t.cap],
+              input !== null && typeof input === "object" && !Array.isArray(input) ? Object.keys(input) : [],
+            ),
+          };
           return { kind: "error", error, result: { ok: false, content: { error: modelError(error) } } };
         }
       }

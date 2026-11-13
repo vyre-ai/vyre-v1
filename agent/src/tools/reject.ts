@@ -75,6 +75,7 @@ export function rejectWords(
   t: Pick<ToolDef, "name" | "inputSchema">,
   problems: readonly string[],
   example?: string,
+  given: readonly string[] = [],
 ): string {
   const s = (t.inputSchema ?? {}) as Schema;
   const said = new Set<string>();
@@ -82,10 +83,24 @@ export function rejectWords(
     const { path, rule } = parseProblem(raw);
     const first = path.split("/").filter((x) => x !== "")[0] ?? "";
     // a key the tool layer owns is never the model's to fix
-    if (first === "idempotencyKey" || (first === "threadId" && rule === "required")) continue;
+    if (
+      first === "idempotencyKey" ||
+      (first === "threadId" && rule === "required" && !(s.required ?? []).includes("threadId"))
+    )
+      continue;
     said.add(ruleWords(leaf(path), rule, s.properties?.[first]));
     if (said.size === 4) break;
   }
   if (said.size === 0) return "This call was not accepted. Check it against the tool's description and try once more.";
-  return `${t.name} was not run: ${[...said].join("; ")}. A minimal call: ${minimalCall(t, example)}`;
+  // a name the tool does not have, where an input it needs is missing: say the exact names it takes (a model that wrote `file` or `fileID` for `fileId` is told which)
+  const names = Object.keys(s.properties ?? {});
+  const unknown = given.filter((k) => k !== "idempotencyKey" && !names.includes(k)).slice(0, 4);
+  const hint =
+    unknown.length > 0 && problems.some((p) => p.endsWith(": required"))
+      ? ` This tool has no input named ${unknown.join(" or ")}. Its inputs are ${names
+          .filter((n) => n !== "idempotencyKey")
+          .slice(0, 12)
+          .join(", ")}.`
+      : "";
+  return `${t.name} was not run: ${[...said].join("; ")}.${hint} A minimal call: ${minimalCall(t, example)}`;
 }

@@ -84,3 +84,51 @@ test("no tool shows an example that the placeholder guard refuses: a model copie
     [],
   );
 });
+
+function toolNeeding(name: string, only: string[]): string {
+  const { loaded } = session();
+  const t = loaded.catalog.all.find((x) => {
+    const r = ((x.inputSchema as { required?: string[] }).required ?? []).slice().sort();
+    return r.length === only.length && r.every((k, i) => k === only.slice().sort()[i]) && x.name.startsWith(name);
+  });
+  assert.ok(t, `a tool starting ${name} that needs only ${only.join(", ")}`);
+  return t.name;
+}
+
+test("natural second spellings of an input are read as the tool's own: file_id and id for fileId, chatId for threadId", async () => {
+  const { s, sent } = session();
+  const tool = toolNeeding("files_", ["fileId"]);
+  s.preload("thr_1", [tool]);
+  const a = await s.call(c(), tool, { file_id: "fil_a1b2c3" });
+  assert.equal(a.kind, "result", JSON.stringify(a.kind === "error" ? a.result.content : ""));
+  assert.equal((sent.at(-1)?.input as { fileId?: string }).fileId, "fil_a1b2c3");
+  const b = await s.call(c(), tool, { id: "fil_a1b2c3" });
+  assert.equal(b.kind, "result");
+  assert.equal((sent.at(-1)?.input as { fileId?: string }).fileId, "fil_a1b2c3");
+  s.preload("thr_1", ["chat_messages_list"]);
+  const d = await s.call(c(), "chat_messages_list", { chatId: "thr_other1" });
+  assert.equal(d.kind, "result", JSON.stringify(d.kind === "error" ? d.result.content : ""));
+  assert.equal((sent.at(-1)?.input as { threadId?: string }).threadId, "thr_other1");
+});
+
+test("a name the tool does not have, where an input is missing, is refused with the exact names the tool takes", async () => {
+  const { s } = session();
+  const tool = toolNeeding("files_", ["fileId"]);
+  s.preload("thr_1", [tool]);
+  const out = await s.call(c(), tool, { document: "fil_a1b2c3" });
+  assert.equal(out.kind, "error");
+  const words = JSON.stringify(out.kind === "error" ? out.result.content : "");
+  assert.match(words, /fileId is missing/);
+  assert.match(words, /no input named document/);
+  assert.match(words, /Its inputs are/);
+});
+
+test("a chat tool called with no chat is for this chat; a tool that ends a chat is not", async () => {
+  const { s, sent } = session();
+  s.preload("thr_1", ["chat_messages_list", "threads_archive"]);
+  await s.call(c(), "chat_messages_list", {});
+  assert.equal((sent.at(-1)?.input as { threadId?: string }).threadId, "thr_1");
+  const arch = await s.call(c(), "threads_archive", {});
+  assert.equal(arch.kind, "error", "the chat is not archived on a missing input");
+  assert.match(JSON.stringify(arch.kind === "error" ? arch.result.content : ""), /threadId is missing/);
+});
