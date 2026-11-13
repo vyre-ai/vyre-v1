@@ -263,6 +263,7 @@ export type Entry =
       key: string;
       type: "row";
       title: string;
+      /** quiet words after the title on the same line ("You") */ suffix?: string;
       note?: string;
       leading?: ReactNode;
       trailing?: ReactNode | ((over: boolean) => ReactNode);
@@ -317,6 +318,7 @@ export function PaneList({
           <Row
             id={e.testID ?? e.key}
             title={e.title}
+            {...(e.suffix ? { titleSuffix: e.suffix } : {})}
             {...(e.note ? { note: e.note } : {})}
             selected={e.selected === true}
             {...(e.onPress ? { onPress: e.onPress } : {})}

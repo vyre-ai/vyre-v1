@@ -6,7 +6,10 @@ import type { Changes } from "../conversation/use-follow.ts";
 import type { GoalLine, GoalPageData } from "./model.ts";
 
 export type Call = (cap: string, input: unknown) => Promise<unknown>;
-export type Load<T> = { status: "loading" } | { status: "ready"; data: T } | { status: "error"; message: string };
+export type Load<T> =
+  | { status: "loading" }
+  | { status: "ready"; data: T }
+  | { status: "error"; message: string; code?: string };
 
 function useRead<T>(
   read: (() => Promise<T>) | null,
@@ -27,7 +30,12 @@ function useRead<T>(
       },
       (e: unknown) => {
         if (had.current) return;
-        setState({ status: "error", message: e instanceof Error && e.message ? e.message : "Couldn't load this" });
+        const code = (e as { code?: unknown } | null)?.code;
+        setState({
+          status: "error",
+          message: e instanceof Error && e.message ? e.message : "Couldn't load this",
+          ...(typeof code === "string" ? { code } : {}),
+        });
       },
     );
   }, []);

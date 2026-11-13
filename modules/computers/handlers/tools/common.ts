@@ -9,6 +9,7 @@
 // Errors are only ones the capabilities declare: a person at the controls, a held item and a bad argument are validation.bad_input; Esc, a computer still starting and a silent agentd are provider.unavailable.
 // Handles are never resolved here: "agent computer logins stay on that computer" (ARCH 6.11), agentd substitutes them at the last moment and scrubs its own output. This module scrubs again.
 import { retargetRead } from "../../../../host/src/seams/answer-reads.ts";
+import { noteCallSecret } from "../../../../host/src/call-secrets.ts";
 import {
   actorOf,
   addStep,
@@ -74,6 +75,7 @@ import { agentInfo } from "../../sbrowser/agentinfo.ts";
 import { faceSvg } from "../../sbrowser/face.ts";
 import { waitingNote } from "../../capacity.ts";
 import { moveOf, settleMove } from "../../migrate.ts";
+import { fitPngOffLoop, scaledNote } from "../../png-fit.ts";
 
 export type ToolArgs = Record<string, unknown>;
 export type ToolAnswer = Record<string, unknown>;
@@ -310,6 +312,10 @@ async function keepFrame(
     // the pictures of a person's browsing of a shared agent go to that person's own Files, not the agent's folder everyone who uses the agent can open (owner, 13 Nov, P7 section 10 item 6)
     const folderId = asker === undefined ? await agentFolder(ctx, c.agentId) : await askerFolder(ctx);
     if (!folderId) return undefined;
+    // a heavy page's picture is over the size limit for a direct write to Files: it is kept scaled down, not lost
+    const fit = await fitPngOffLoop(frame, { width: 0, height: 0 });
+    if (!fit.ok) return undefined;
+    frame = fit.shot.base64;
     const made = (await ctx.call("files.create", {
       folderId,
       name: `step-${new Date(at).toISOString().replace(/[:.]/g, "-")}.png`,
@@ -745,6 +751,7 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
   if (!isRecord(raw)) raise(ctx, "provider.unavailable", "The computer answered with something that is not an object.");
   const { used, frame, caption, ...rest } = raw;
   rememberSecrets(c.computerId, secretsOf(used), { handedOut: false });
+  for (const x of secretsOf(used)) noteCallSecret(ctx.trace.traceId, x.value); // an error later in this call is logged without them
   if (spec.name.startsWith("chrome_"))
     await markAfter(
       c.computerId,
@@ -955,6 +962,7 @@ async function browserStep(
   reopened = answerFrom(profileId, start);
   if (spec.name === "chrome_snapshot") snapshotFrom(profileId, start);
   rememberSecrets(profileId, secretsOf(used), { handedOut: false });
+  for (const x of secretsOf(used)) noteCallSecret(ctx.trace.traceId, x.value); // an error later in this call is logged without them
   // the tab a value went into, by a tool or by Vyre for Chrome while this call ran, is never pictured while it is open
   await markAfter(
     profileId,
@@ -1202,19 +1210,44 @@ export async function keepShot(
   c: ComputerRow,
   tool: string,
   out: ToolAnswer,
-): Promise<{ fileId: string; width: number; height: number }> {
+  o: { fit?: boolean } = {},
+): Promise<{
+  fileId: string;
+  width: number;
+  height: number;
+  pageWidth?: number;
+  pageHeight?: number;
+  scale?: number;
+  note?: string;
+}> {
   const got = shape(ctx, tool, out, { png: "s", width: "n", height: "n" });
   const folderId = await agentFolder(ctx, c.agentId);
   if (!folderId) raise(ctx, "validation.bad_input", "The agent has no folder to keep the picture in.");
+  // A picture over the size limit for a direct write to Files is scaled down to fit and the agent is told the size it got (13 Nov: a heavy page's screenshot failed with validation.too_large). The desktop's
+  // own screenshot is not scaled: its clicks are in the desktop's pixels.
+  let png = String(got["png"]);
+  let [width, height] = [Number(got["width"]), Number(got["height"])];
+  let note: string | undefined;
+  let page: { pageWidth: number; pageHeight: number; scale: number } | undefined;
+  if (o.fit !== false) {
+    const fit = await fitPngOffLoop(png, { width, height });
+    if (!fit.ok) raise(ctx, "validation.bad_input", fit.why);
+    ({ base64: png, width, height } = fit.shot);
+    // only a picture that is not the page as it is carries the page's size and the scale
+    if (fit.shot.scale !== 1 || fit.shot.topPx !== undefined) {
+      page = { pageWidth: fit.shot.pageWidth, pageHeight: fit.shot.pageHeight, scale: fit.shot.scale };
+      note = scaledNote(fit.shot);
+    }
+  }
   const at = ctx.now();
   const made = (await ctx.call("files.create", {
     folderId,
     name: `screenshot-${new Date(at).toISOString().replace(/[:.]/g, "-")}.png`,
     kind: "image",
     mime: "image/png",
-    content: { base64: got["png"] },
+    content: { base64: png },
     idempotencyKey: `cmpshot:${c.computerId}:${mintId("shot", at)}`,
   })) as { file: { fileId: string } };
   setComputer(ctx.db, c.computerId, { last_frame_at: at, last_frame_file: made.file.fileId });
-  return { fileId: made.file.fileId, width: Number(got["width"]), height: Number(got["height"]) };
+  return { fileId: made.file.fileId, width, height, ...(page ?? {}), ...(note ? { note } : {}) };
 }
