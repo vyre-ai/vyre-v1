@@ -475,18 +475,82 @@ test("the agent that drafted a goal may add to its plan before Start; another ag
   await assert.rejects(w.call("goals.plan", { goalId: goal.id, children: [step("y", "Another")] }, { id: "agt_other", kind: "agent", actingFor: OWNER }), /lead agent or the owner/);
 });
 
-test("an agent starts a draft only when the owner just asked in their own message; otherwise the draft stays and the card waits", async () => {
+const asking = (person: string, messageId = "msg_ask"): Record<string, unknown> => ({ kind: "message", routine: false, askedBy: { person, messageIds: [messageId], at: T0 } });
+
+test("an agent starts a draft only in a turn the owner began with their own message, in any chat; otherwise the draft stays and the card waits", async () => {
   const w = world({ count: 10 });
   const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
   const { goal } = await w.call("goals.create", labGoal({ sourceThreadId: "thr_chat" }), agent);
   assert.equal(goal.status, "draft");
   assert.ok(w.state.posts.some((p) => p.threadId === "thr_chat" && p.blocks?.[0]?.data.kind === "draft"), "the card with Start is in the chat");
-  for (const messageId of [undefined, "msg_other", "msg_owner_old"]) {
-    await assert.rejects(w.call("goals.confirm", { goalId: goal.id, ...(messageId ? { messageId } : {}) }, agent), /Only the owner starts a goal/);
+  for (const turn of [{ kind: "none", routine: false }, { kind: "wake", routine: false }, { kind: "message", routine: true }, asking(ALIZA)]) {
+    w.state.turn = turn;
+    await assert.rejects(w.call("goals.confirm", { goalId: goal.id }, agent), /Only the owner starts a goal/);
   }
-  const started = (await w.call("goals.confirm", { goalId: goal.id, messageId: "msg_owner_start" }, agent)).goal;
+  w.state.turn = asking(OWNER);
+  const started = (await w.call("goals.confirm", { goalId: goal.id }, agent)).goal;
   assert.equal(started.status, "planning");
   assert.ok(started.permissions.every((p: { granted: boolean }) => p.granted === false), "an agent's start grants no permission");
+});
+
+test("the owner asks an agent in another chat to change the deadline: it does, and the activity names the agent, the owner and the message", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal());
+  const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
+  w.state.turn = asking(OWNER, "msg_ask_thu");
+  const due = T0 + 9 * DAY;
+  const out = await w.call("goals.update", { goalId: goal.id, deadline: due }, agent);
+  assert.equal(out.goal.deadline, due);
+  const edit = (await w.call("goals.activity", { goalId: goal.id }, owner)).activity.find((a: { kind: string }) => a.kind === "edit");
+  assert.equal(edit.by, `${LEAD}>${OWNER}`);
+  assert.equal(edit.ref, "msg_ask_thu");
+  assert.match(edit.tpl, new RegExp(`asked by \\{who:${OWNER}\\}`));
+  const ext = await w.call("goals.extend", { goalId: goal.id, deadline: due + DAY }, agent);
+  assert.equal(ext.goal.deadline, due + DAY);
+  const moved = (await w.call("goals.activity", { goalId: goal.id }, owner)).activity.find((a: { kind: string }) => a.kind === "extended");
+  assert.equal(moved.ref, "msg_ask_thu");
+  assert.match(moved.tpl, /Deadline moved to .*, asked by \{who:usr_owner\}\./);
+});
+
+test("an asked agent may pause, resume and stop the owner's goal; done stays the owner's press", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal());
+  const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
+  w.state.turn = asking(OWNER);
+  assert.equal((await w.call("goals.pause", { goalId: goal.id }, agent)).goal.status, "paused");
+  assert.equal((await w.call("goals.resume", { goalId: goal.id }, agent)).goal.status, "planning", "no tasks yet, so it plans");
+  await assert.rejects(w.call("goals.finish", { goalId: goal.id }, agent), /Only the owner says a goal is done/);
+  assert.equal((await w.call("goals.stop", { goalId: goal.id }, agent)).goal.status, "stopped");
+});
+
+test("an agent changes the owner's goal in no turn nobody asked for: a routine, a goal wake, a watcher, a hand-off and an agent's message are all refused", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal());
+  const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
+  const before = getGoal(w.db, goal.id)!.deadline;
+  for (const turn of [{ kind: "none", routine: false }, { kind: "wake", routine: false }, { kind: "message", routine: true }, { kind: "handoff", routine: false }, { kind: "message", routine: false }]) {
+    w.state.turn = turn;
+    for (const [cap, input] of [["goals.update", { title: "Nope" }], ["goals.extend", { deadline: before + DAY }], ["goals.pause", {}], ["goals.stop", {}]] as const) {
+      await assert.rejects(w.call(cap, { goalId: goal.id, ...input }, agent), (e: { error?: { details?: { reason?: string } } }) => e.error?.details?.reason === "owner_only", `${cap} in ${JSON.stringify(turn)}`);
+    }
+  }
+  assert.equal(getGoal(w.db, goal.id)!.deadline, before);
+});
+
+test("an agent acting for someone who is not the owner is refused, even when that person asked it", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal());
+  w.state.turn = asking(ALIZA);
+  await assert.rejects(w.call("goals.extend", { goalId: goal.id, deadline: T0 + 9 * DAY }, { id: LEAD, kind: "agent", actingFor: ALIZA }), /Only the owner/);
+  w.state.turn = asking(OWNER);
+  await assert.rejects(w.call("goals.extend", { goalId: goal.id, deadline: T0 + 9 * DAY }, { id: LEAD, kind: "agent", actingFor: ALIZA }), /Only the owner/);
+});
+
+test("an agent that cannot see the goal is told there is no such goal, asked or not", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal());
+  w.state.turn = asking(OWNER);
+  await assert.rejects(w.call("goals.pause", { goalId: goal.id }, { id: "agt_stranger", kind: "agent", actingFor: STRANGER }), /does not exist/);
 });
 
 test("goals.count says how many goals a project has and nothing else; only the system may ask when the caller manages nothing", async () => {

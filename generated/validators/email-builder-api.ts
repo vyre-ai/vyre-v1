@@ -697,14 +697,14 @@ if ("by" in o2688) lf(o2688["by"], p + "/versions" + '/' + i2687 + "/by", e, L1)
 
 function e184_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6901 = v;
-const g6901 = typeOf(x6901);
-const b6901: string[] = []; lf(x6901, p, b6901, L0); if (b6901.length) e.push(...b6901);
-if (g6901 === "object") {
-if (g6901 === 'object') { const o6901 = x6901 as Record<string, unknown>;
-if (!("emailId" in o6901)) e.push(p + "/emailId" + ': required');
-if ("emailId" in o6901) lf(o6901["emailId"], p + "/emailId", e, L24);
-if ("folderId" in o6901) lf(o6901["folderId"], p + "/folderId", e, L47);
+const x6905 = v;
+const g6905 = typeOf(x6905);
+const b6905: string[] = []; lf(x6905, p, b6905, L0); if (b6905.length) e.push(...b6905);
+if (g6905 === "object") {
+if (g6905 === 'object') { const o6905 = x6905 as Record<string, unknown>;
+if (!("emailId" in o6905)) e.push(p + "/emailId" + ': required');
+if ("emailId" in o6905) lf(o6905["emailId"], p + "/emailId", e, L24);
+if ("folderId" in o6905) lf(o6905["folderId"], p + "/folderId", e, L47);
 }
 }
 }
@@ -712,15 +712,15 @@ if ("folderId" in o6901) lf(o6901["folderId"], p + "/folderId", e, L47);
 
 function e185_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6902 = v;
-const g6902 = typeOf(x6902);
-const b6902: string[] = []; lf(x6902, p, b6902, L0); if (b6902.length) e.push(...b6902);
-if (g6902 === "object") {
-if (g6902 === 'object') { const o6902 = x6902 as Record<string, unknown>;
-if (!("blockId" in o6902)) e.push(p + "/blockId" + ': required');
-if (!("shared" in o6902)) e.push(p + "/shared" + ': required');
-if ("blockId" in o6902) lf(o6902["blockId"], p + "/blockId", e, L127);
-if ("shared" in o6902) lf(o6902["shared"], p + "/shared", e, L3);
+const x6906 = v;
+const g6906 = typeOf(x6906);
+const b6906: string[] = []; lf(x6906, p, b6906, L0); if (b6906.length) e.push(...b6906);
+if (g6906 === "object") {
+if (g6906 === 'object') { const o6906 = x6906 as Record<string, unknown>;
+if (!("blockId" in o6906)) e.push(p + "/blockId" + ': required');
+if (!("shared" in o6906)) e.push(p + "/shared" + ': required');
+if ("blockId" in o6906) lf(o6906["blockId"], p + "/blockId", e, L127);
+if ("shared" in o6906) lf(o6906["shared"], p + "/shared", e, L3);
 }
 }
 }
@@ -728,13 +728,13 @@ if ("shared" in o6902) lf(o6902["shared"], p + "/shared", e, L3);
 
 function e187_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6903 = v;
-const g6903 = typeOf(x6903);
-const b6903: string[] = []; lf(x6903, p, b6903, L0); if (b6903.length) e.push(...b6903);
-if (g6903 === "object") {
-if (g6903 === 'object') { const o6903 = x6903 as Record<string, unknown>;
-if (!("emailId" in o6903)) e.push(p + "/emailId" + ': required');
-if ("emailId" in o6903) lf(o6903["emailId"], p + "/emailId", e, L24);
+const x6907 = v;
+const g6907 = typeOf(x6907);
+const b6907: string[] = []; lf(x6907, p, b6907, L0); if (b6907.length) e.push(...b6907);
+if (g6907 === "object") {
+if (g6907 === 'object') { const o6907 = x6907 as Record<string, unknown>;
+if (!("emailId" in o6907)) e.push(p + "/emailId" + ': required');
+if ("emailId" in o6907) lf(o6907["emailId"], p + "/emailId", e, L24);
 }
 }
 }

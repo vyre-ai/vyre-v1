@@ -31,6 +31,10 @@ export interface EngineCtx {
   space: string;
   principal: { kind: "person" | "agent" | "actor" | "service"; id: string };
   actingFor?: string | undefined;
+  /** The chat the caller works in, set by the server for an agent's tool call (never by the agent). */
+  thread?: string | undefined;
+  depth?: number | undefined;
+  forwarded?: boolean | undefined;
   trace: { traceId: string };
   now(): number;
   db: Db;

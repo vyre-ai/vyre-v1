@@ -5,6 +5,7 @@ import { fail } from "../../host/src/routes/errors.ts";
 import { makeId } from "../../packages/contracts/src/ids.ts";
 import { isHostService, isPersonPress, isTrustedService } from "../../lib/trust.ts";
 import { whoToken } from "../../lib/words/time.ts";
+import { ownerAsked, type AskedBy } from "../../lib/owner-asked.ts";
 
 export type Status = "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
 export type Ended = "done" | "missed" | "stopped";
@@ -160,10 +161,18 @@ export function visible(ctx: GoalsCtx, id: string): Goal {
   if (!g || !canSee(ctx, g)) raise(ctx, "validation.not_found", "That goal does not exist.", { goalId: id });
   return g;
 }
-/** The owner's controls: Pause, Stop, Edit, Extend. The owner, a Space admin, or the server. */
-export function mustControl(ctx: GoalsCtx, g: Goal): void {
-  if (isOwner(ctx, g) || isSystem(ctx) || isAdmin(ctx)) return;
-  raise(ctx, "validation.precondition_failed", "Only the owner of this goal can do that.", { reason: "owner_only" });
+/** The turns an agent made a change in for its owner because the owner asked: the activity line says so (note) and links the asking message. */
+const askedIn = new WeakMap<object, AskedBy>();
+/**
+ * The owner's controls: Pause, Resume, Stop, Edit, Extend. The owner, a Space admin, the server, or an agent acting for the owner in a turn the owner started with their own message
+ * (lib/owner-asked.ts, read by the server). Answers the asking message when that is why it was allowed, so the change can be logged with it. Saying a goal is done stays the owner's press.
+ */
+export async function mustControl(ctx: GoalsCtx, g: Goal): Promise<AskedBy | undefined> {
+  askedIn.delete(ctx);
+  if (isOwner(ctx, g) || isSystem(ctx) || isAdmin(ctx)) return undefined;
+  const asked = await ownerAsked(ctx, g.owner);
+  if (asked) { askedIn.set(ctx, asked); return asked; }
+  raise(ctx, "validation.precondition_failed", "Only the owner of this goal can do that. An agent can do it only in a turn the owner started with their own message.", { reason: "owner_only" });
 }
 
 // ---- time in the owner's zone ----
@@ -233,6 +242,8 @@ export const money = (micros: number): string => `$${(micros / 1_000_000).toFixe
 
 export function note(ctx: Pick<GoalsCtx, "db" | "now" | "principal" | "actingFor">, goalId: string, kind: string, text: string, ref?: string): void {
   ensure(ctx.db);
+  const asked = askedIn.get(ctx);
+  if (asked) { text = `${text.replace(/\.$/, "")}, asked by ${whoToken(asked.person)}.`; ref ??= asked.messageIds[0]; }
   const last = (ctx.db.all("SELECT MAX(seq) AS s FROM goals_activity WHERE goal_id = ?", goalId)[0] as { s: number | null } | undefined)?.s ?? 0;
   ctx.db.run("INSERT INTO goals_activity (goal_id, seq, at, kind, text, by, ref) VALUES (?, ?, ?, ?, ?, ?, ?)", goalId, last + 1, ctx.now(), kind, text.slice(0, 600), ctx.actingFor && ctx.principal.kind === "agent" ? `${ctx.principal.id}>${ctx.actingFor}` : ctx.principal.id, ref ?? null);
 }

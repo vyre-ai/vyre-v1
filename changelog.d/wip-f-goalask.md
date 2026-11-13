@@ -1,0 +1,3 @@
+- When you ask an agent in any chat to change your goal (its deadline, title, brief or check-in rhythm), extend it, pause it, resume it or stop it, it now does it instead of saying only you can. The goal's activity reads "asked by" you and links your message. Saying a goal is done stays your own press, and an agent still cannot change a goal in a turn you did not start (a routine, a goal wake-up, a watcher or a hand-off from another agent).
+- An agent can start a drafted goal in the same way: when you asked in your own message, in any chat, not only the goal's own chat.
+- Goal deadlines and check-in times now reach the agent in your time zone as well as the raw number, so it stops reading them out in UTC.

@@ -175,7 +175,7 @@ export function convert(o: { when: string; from?: string | undefined; to?: reado
 export const nowLine = (at: number, zone: string): string => describe(at, valid(zone) ? zone : "UTC");
 
 const ISO_AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/;
-const TIME_KEY = /(?:At|Time|Start|End|Due|Date|Until|From|To|Seen|Sent|Received)$|^(?:start|end|due|date|time|when)$/;
+const TIME_KEY = /(?:At|Time|Start|End|Due|Date|Until|From|To|Seen|Sent|Received)$|^(?:start|end|due|date|time|when|deadline)$/;
 const SANE_MS = (n: number): boolean => Number.isFinite(n) && n >= 946_684_800_000 && n < 4_102_444_800_000;
 
 /**

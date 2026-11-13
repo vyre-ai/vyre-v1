@@ -3,6 +3,7 @@ import {
   ENDED, LIVE, activity, addTask, allGoals, clean, dispatch, emit, ensure, getGoal, goalOfTask, goalOut, isAdmin, isHelper, isLead, isOwner, isOwnerPress, isSystem, lineOut, note,
   money, mustControl, newGoalId, nextCheckin, openWake, progressOf, offsetAt, queueWake, raise, reached, readings, reasonWords, saveGoal, setStatus, visible, wakeById, when,
 } from "../projections.ts";
+import { ownerAsked } from "../../../lib/owner-asked.ts";
 import type { Finish, Goal, GoalsCtx, Permission, Retro, Who } from "../projections.ts";
 import {
   addPlan, addWait, budgetLine, endGoal, ensureFolder, ensureThread, numberLine, planTasks, post, readNow, seat, shareFolder, startGoal, stuck, syncGrants, taskCounts, tryCall, waits,
@@ -123,21 +124,9 @@ export async function create(ctx: GoalsCtx, input: In) {
   return { ...out(ctx, g), overlaps: found, seated, plan: { drafted: !LIVE.has(g.status) ? plan.length : 0, attached: LIVE.has(g.status) ? plan.length : 0 } };
 }
 
-/** An agent acting for the owner may start a draft when the owner just asked for it in their own words: their message, in this goal's chat, a few minutes old. */
-async function ownerAsked(ctx: GoalsCtx, g: Goal, messageId: unknown): Promise<boolean> {
-  if (ctx.principal.kind !== "agent" || ctx.actingFor !== g.owner || typeof messageId !== "string") return false;
-  for (const threadId of [g.sourceThreadId, g.threadId]) {
-    if (!threadId) continue;
-    const r = await tryCall<{ message?: { author?: { kind?: string; id?: string }; createdAt?: number } }>(ctx, "chat.message.get", { threadId, messageId });
-    const m = r?.message;
-    if (m?.author?.kind === "person" && m.author.id === g.owner && typeof m.createdAt === "number" && ctx.now() - m.createdAt <= 15 * 60_000) return true;
-  }
-  return false;
-}
-
 export async function confirm(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
-  if (!isOwner(ctx, g) && !(await ownerAsked(ctx, g, input.messageId))) raise(ctx, "validation.precondition_failed", "Only the owner starts a goal. If the owner just asked you to start it, pass the id of their message; otherwise leave the Start button on the goal card for them.", { reason: "owner_only" });
+  if (!isOwner(ctx, g) && !(await ownerAsked(ctx, g.owner))) raise(ctx, "validation.precondition_failed", "Only the owner starts a goal. An agent may start it only in a turn the owner began with their own message; otherwise leave the Start button on the goal card for them.", { reason: "owner_only" });
   if (g.status !== "draft") raise(ctx, "validation.precondition_failed", `This goal is ${g.status} already.`, { reason: "not_draft" });
   const press = isOwnerPress(ctx, g);
   const pick = input.permissions as string[] | undefined;
@@ -196,7 +185,7 @@ export async function activityList(ctx: GoalsCtx, input: In) {
 
 export async function update(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
-  mustControl(ctx, g);
+  await mustControl(ctx, g);
   const fields: string[] = [];
   const set = <K extends keyof Goal>(k: K, v: Goal[K] | undefined, name = String(k)): void => { if (v !== undefined) { g[k] = v; fields.push(name); } };
   if (input.finish) { checkFinish(ctx, input.finish as Finish); if (input.finish.kind === "checklist") input.finish.items = input.finish.items.map((i: { id: string; done?: boolean }) => ({ ...i, done: (g.finish.items ?? []).find((o) => o.id === i.id)?.done ?? false })); }
@@ -261,7 +250,7 @@ const overBudget = (g: Goal): boolean => (g.budget.spendMicros !== undefined && 
 
 export async function pause(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
-  mustControl(ctx, g);
+  await mustControl(ctx, g);
   if (!LIVE.has(g.status)) raise(ctx, "validation.precondition_failed", `A ${g.status} goal cannot be paused.`, { reason: "not_live" });
   setStatus(ctx, g, "paused", input.reason ?? "Paused by the owner.");
   await syncGrants(ctx, g);
@@ -280,7 +269,7 @@ async function resumeGoal(ctx: GoalsCtx, g: Goal, reason: string): Promise<void>
 }
 export async function resume(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
-  mustControl(ctx, g);
+  await mustControl(ctx, g);
   if (g.status !== "paused") raise(ctx, "validation.precondition_failed", "Only a paused goal resumes.", { reason: "not_paused" });
   if (overBudget(g)) raise(ctx, "validation.precondition_failed", `The budget is used (${budgetLine(g)}). Raise it first.`, { reason: "over_budget" });
   await resumeGoal(ctx, g, "resumed");
@@ -289,7 +278,7 @@ export async function resume(ctx: GoalsCtx, input: In) {
 }
 export async function stop(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
-  mustControl(ctx, g);
+  await mustControl(ctx, g);
   if (ENDED.has(g.status)) raise(ctx, "validation.precondition_failed", `This goal is ${g.status} already.`, { reason: "ended" });
   await endGoal(ctx, g, "stopped", input.reason ? `Stopped: ${input.reason}` : undefined);
   dispatch(ctx, g);
@@ -307,7 +296,7 @@ export async function finish(ctx: GoalsCtx, input: In) {
 }
 export async function extend(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
-  mustControl(ctx, g);
+  await mustControl(ctx, g);
   if (input.deadline <= ctx.now()) raise(ctx, "validation.precondition_failed", "Pick a time that has not passed.", { reason: "deadline_past" });
   if (g.status === "done" || g.status === "stopped" || g.status === "draft") raise(ctx, "validation.precondition_failed", `A ${g.status} goal cannot be extended.`, { reason: "not_extendable" });
   g.deadline = input.deadline;
