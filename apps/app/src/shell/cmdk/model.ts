@@ -93,7 +93,7 @@ export function mergeHits(local: readonly Hit[], server: readonly Hit[]): Hit[] 
     const at = seen.get(k);
     if (at !== undefined) {
       const mine = out[at];
-      if (mine && mine.snippet === undefined && h.snippet !== undefined) out[at] = { ...mine, snippet: h.snippet };
+      if (mine && ((mine.snippet === undefined && h.snippet !== undefined) || ((mine as LinkedHit).of === undefined && (h as LinkedHit).of !== undefined))) out[at] = { ...mine, ...(mine.snippet === undefined && h.snippet !== undefined ? { snippet: h.snippet } : {}), ...((mine as LinkedHit).of === undefined && (h as LinkedHit).of !== undefined ? { of: (h as LinkedHit).of } : {}) } as Hit;
       continue;
     }
     seen.set(k, -1);
