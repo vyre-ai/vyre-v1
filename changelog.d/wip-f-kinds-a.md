@@ -9,3 +9,4 @@
 - An automation step that uses an AI account that was removed says "A removed AI account" instead of showing its id.
 - Search: a record's fields that hold other things' ids (a lead, a folder) no longer match on those ids, and records edited before this update keep their old id text in search until each is next changed or search is rebuilt.
 - A name the directory has not loaded yet shows as an ellipsis instead of "Someone"; a computer's own loopback address in a server's Console reads "This server" from another computer.
+- An automation step card names each field the way the editor does ("Record Id"), not by its raw key ("recordId").

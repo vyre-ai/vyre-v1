@@ -4,7 +4,7 @@
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { messageSummary } from "../builder/compose.ts";
 import { LOOP_CHILD, PARALLEL_JOIN, parallelLaneMark } from "../chrome.ts";
-import { NOT_SET_UP, missingFor, triggerMissing, triggerSummary } from "./form-model.ts";
+import { NOT_SET_UP, humanize, missingFor, triggerMissing, triggerSummary } from "./form-model.ts";
 import type { RefNames } from "./form-model.ts";
 import { deviceTimeZone } from "./schedule.ts";
 import { chipWords } from "./steps/edits.ts";
@@ -293,7 +293,7 @@ function subtitleRaw(n: DefNode, names: { key?: (id: string) => string }): strin
   for (const [name, v] of Object.entries(inp)) {
     const s = str(v);
     if (!s) continue;
-    bits.push(`${name} ${s}`);
+    bits.push(`${humanize(name)} ${s}`);
     if (bits.length === 2) break;
   }
   return bits.join(" · ") || titleOfKey(n.key);
