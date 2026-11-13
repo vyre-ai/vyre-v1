@@ -22,13 +22,13 @@ const asBrowser =
 const relayEdge: Answer = asBrowser(RELAY_EDGE);
 
 const READY = { status: "ready", data: [] }; // one snapshot object for good
-function runtime(url: string): ShellRuntime {
+function runtime(url: string, checked = true): ShellRuntime {
   return {
     me: { id: "usr_me", name: "Me" },
     baseUrl: "https://mla.vyre.run",
     clock: () => ({ now: Date.UTC(2026, 10, 13, 12, 0), offsetMin: 0 }),
     call: (cap: string) => {
-      if (cap === "sites.artifact_open") return Promise.resolve({ path: `/x/${CODE}`, url, expiresAt: 1 });
+      if (cap === "sites.artifact_open") return Promise.resolve({ path: `/x/${CODE}`, url, expiresAt: 1, ...(checked ? { checked: true } : {}) });
       if (cap === "sites.get")
         return Promise.resolve({
           site: {
@@ -61,8 +61,8 @@ const withFetch = async (answer: Answer, run: () => Promise<void>): Promise<void
   }
 };
 const text = (t: string): { text(): Promise<string> } => ({ text: () => Promise.resolve(t) });
-const view = (url: string) => (
-  <ArtifactView rt={runtime(url)} artifactId="sit_1" share={false} back={() => undefined} gone={() => undefined} />
+const view = (url: string, checked = true) => (
+  <ArtifactView rt={runtime(url, checked)} artifactId="sit_1" share={false} back={() => undefined} gone={() => undefined} />
 );
 
 test("the host check: the marked page is the host; a relay's 404, silence and a name that does not exist are not; a refused read falls back to asking without reading", async () => {
@@ -229,6 +229,45 @@ test("desktop app: Share steps the native page aside and it comes back as it was
   } finally {
     el.ResizeObserver = hadRO;
     delete g.__TAURI__;
+    restore();
+  }
+});
+
+test("an older server (its answer has no `checked`) is framed as before, with no probe: its host pages carry no mark, and asking would fail a page that opens today", async () => {
+  const restore = installDom();
+  try {
+    let asked = 0;
+    await withFetch(
+      async (u, i) => {
+        asked++;
+        return relayEdge(u, i); // what an rc.26 host looks like to a probe: nothing readable
+      },
+      async () => {
+        const root = await mount(createRoot, view(`https://a.mla.vyre.run/x/${CODE}`, false));
+        await flush();
+        assert.equal(find(root, "artifact-error"), null, "no failed state");
+        const frame = find(root, "artifact-frame");
+        assert.ok(frame, "the page is framed as before");
+        assert.match(String(frame.props["src"]), /^https:\/\/a\.mla\.vyre\.run\/x\/a{48}\?embed=1$/);
+        assert.equal(asked, 0, "the host was not probed");
+      },
+    );
+  } finally {
+    restore();
+  }
+});
+
+test("a current server (`checked: true`) whose artifact host stopped answering fails into the plain error with Retry", async () => {
+  const restore = installDom();
+  try {
+    await withFetch(relayEdge, async () => {
+      const root = await mount(createRoot, view(`https://a.mla.vyre.run/x/${CODE}`, true));
+      await flush();
+      assert.ok(find(root, "artifact-error"));
+      assert.equal(find(root, "artifact-frame"), null);
+      assert.ok(find(root, "state-retry"));
+    });
+  } finally {
     restore();
   }
 });

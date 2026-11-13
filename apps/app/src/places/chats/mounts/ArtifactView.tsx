@@ -90,10 +90,14 @@ export function ArtifactView({
   const nameOf = useMemo(() => nameLookup(rt), [rt]);
   const desktop = available();
   const open = useCallback(
-    (embed: boolean, native = false): Promise<string> =>
+    (embed: boolean, native = false): Promise<{ url: string; checked: boolean }> =>
       Promise.resolve(
         rt.call("sites.artifact_open", { artifactId, idempotencyKey: `open-${artifactId}-${rt.clock().now}-${++seq}` }),
-      ).then((o) => artifactAddress(o as { path: string; url?: string }, rt.baseUrl, embed, native)),
+      ).then((o) => ({
+        url: artifactAddress(o as { path: string; url?: string }, rt.baseUrl, embed, native),
+        // only a server that checked its own artifact host says so; an older one does not, and its address is framed as before (no probe the server could not have prepared for)
+        checked: (o as { checked?: boolean }).checked === true,
+      })),
     [rt, artifactId],
   );
   /** The artifact's row (its name and the line under it): read again whenever something about it may have changed (a share). */
@@ -116,10 +120,11 @@ export function ArtifactView({
     setDenied(false);
     loadSite(() => live);
     void open(!desktop, desktop)
-      .then(async (u) => {
-        // a frame says nothing across origins, so the app asks the artifact host itself before it frames anything: a host that does not answer is an error here, never a white rectangle
-        if (!(await artifactHostAnswers(u))) throw new HostSilent(u);
-        return u;
+      .then(async (o) => {
+        // a frame says nothing across origins, so the app asks the artifact host itself before it frames anything: a host that does not answer is an error here, never a white rectangle.
+        // Only for a server that says it checked its host (checked: true); an older server's host pages carry no mark, so asking would fail a page that opens today
+        if (o.checked && !(await artifactHostAnswers(o.url))) throw new HostSilent(o.url);
+        return o.url;
       })
       .then(
         (u) => {
@@ -154,7 +159,7 @@ export function ArtifactView({
   const line = site ? subline(infoOf(site, nameOf), rt.me.id, rt.clock().now, nameOf) : "";
   const browser = (): void => {
     void open(false).then(
-      (u) => rt.openUrl(u),
+      (o) => rt.openUrl(o.url),
       (e: unknown) => setFailed(msg(e)),
     );
   };

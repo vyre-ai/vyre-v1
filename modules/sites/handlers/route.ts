@@ -854,7 +854,10 @@ async function artifactThumbSet(ctx: Ctx, input: unknown): Promise<{ set: boolea
   return { set: true };
 }
 
-async function artifactOpen(ctx: Ctx, input: unknown): Promise<{ path: string; url?: string; expiresAt: number }> {
+async function artifactOpen(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ path: string; url?: string; expiresAt: number; checked?: boolean }> {
   const id = reqStr(ctx, rec(ctx, input), "artifactId");
   const site = mustSite(ctx, id);
   if (!flag(site.live)) fail(ctx, "validation.precondition_failed", "It is stopped. Publish it again to open it.");
@@ -886,6 +889,8 @@ async function artifactOpen(ctx: Ctx, input: unknown): Promise<{ path: string; u
     path: `/x/${token}`,
     url: `${/^a\.localhost(:\d+)?$/.test(ah as string) ? "http" : "https"}://${ah}/x/${token}`,
     expiresAt,
+    // this server checked its own artifact host before giving the address (an older server says nothing here): the app then checks the address answers for it too, and only then
+    checked: true,
   };
 }
 

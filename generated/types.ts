@@ -34641,6 +34641,7 @@ export type SitesArtifactOpenOut = {
   path: string;
   url?: string;
   expiresAt: number;
+  checked?: boolean;
 };
 export type SitesArtifactPublishIn = {
   title: string;
