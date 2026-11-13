@@ -18,3 +18,13 @@ test("seen from another computer, a loopback address is the server's own: This s
   assert.equal(addressWords("127.0.0.1:41471", { viewer: "northwind.vyre.run" }), "This server");
   assert.equal(addressWords("localhost", { viewer: "192.168.1.20:8080" }), "This server");
 });
+
+test("the packaged app's own hosts are this computer: tauri.localhost (Windows), any *.localhost, and an empty host (a file or custom-scheme window)", () => {
+  assert.equal(isLoopbackAddress("tauri.localhost"), true);
+  assert.equal(isLoopbackAddress("http://tauri.localhost"), true);
+  assert.equal(isLoopbackAddress("app.tauri.localhost:8080"), true);
+  assert.equal(isLoopbackAddress("notlocalhost.example"), false);
+  assert.equal(addressWords("127.0.0.1:41471", { viewer: "tauri.localhost" }), "This computer");
+  assert.equal(addressWords("127.0.0.1:41471", { viewer: "" }), "This computer");
+  assert.equal(addressWords("127.0.0.1:41471", { viewer: "northwind.vyre.run" }), "This server");
+});

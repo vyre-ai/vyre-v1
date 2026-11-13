@@ -1,6 +1,6 @@
 // A Space's address as a person reads it (owner, 13 Nov 2026: a loopback address is never shown as content). An address only this computer can reach is "This computer"; any other is shown as it is.
 
-/** True when the address names this computer only (localhost, 127.x, ::1, 0.0.0.0). Takes a host, a host:port or a full URL. */
+/** True when the address names this computer only (localhost and any *.localhost, 127.x, ::1, 0.0.0.0). Takes a host, a host:port or a full URL. */
 export function isLoopbackAddress(address: string | null | undefined): boolean {
   if (!address) return false;
   let host = "";
@@ -9,7 +9,15 @@ export function isLoopbackAddress(address: string | null | undefined): boolean {
   } catch {
     return false;
   }
-  return host === "localhost" || host === "[::1]" || host === "::1" || /^127\./.test(host) || host === "0.0.0.0";
+  // RFC 6761: every name under .localhost is this computer (the packaged Windows app runs at http://tauri.localhost)
+  return (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host === "[::1]" ||
+    host === "::1" ||
+    /^127\./.test(host) ||
+    host === "0.0.0.0"
+  );
 }
 
 /**
@@ -23,7 +31,6 @@ export function addressWords(
   const fallback = opts.fallback ?? "This computer";
   if (!address) return fallback;
   if (!isLoopbackAddress(address)) return address;
-  return opts.viewer === undefined || opts.viewer === null || isLoopbackAddress(opts.viewer)
-    ? "This computer"
-    : "This server";
+  // no host to compare with (an empty host, as a file or custom-scheme window has) is this computer, not another one
+  return !opts.viewer || isLoopbackAddress(opts.viewer) ? "This computer" : "This server";
 }
