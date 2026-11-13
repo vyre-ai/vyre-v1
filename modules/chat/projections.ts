@@ -676,8 +676,20 @@ export interface NewMessage {
   attachments?: string[];
 }
 /** Insert one message with the next sequence number. Validate everything before this call: it must not fail half way. */
+const lastReady = new WeakSet<object>();
+/** The time of each chat's newest message, kept apart so the sidebar orders thousands of chats without reading a message for each (the newest of a thread was one index seek per thread). Made once per database handle and filled from the messages that exist. */
+export function ensureLast(db: Db): void {
+  if (lastReady.has(db)) return;
+  db.run('CREATE TABLE IF NOT EXISTS "chat_thread_last" ("thread" TEXT PRIMARY KEY, "at" INTEGER NOT NULL)');
+  db.run(
+    'INSERT OR IGNORE INTO chat_thread_last (thread, at) SELECT thread, MAX(createdAt) FROM chat_message WHERE deleted_at IS NULL GROUP BY thread',
+  );
+  lastReady.add(db);
+}
+
 export function insertMessage(ctx: Pick<ChatCtx, "db" | "now">, thread: string, m: NewMessage): MessageRec {
   const now = ctx.now();
+  ensureLast(ctx.db);
   const id = m.id ?? mintId("msg", now);
   const seq = nextSeq(ctx.db, thread);
   ctx.db.run(
@@ -695,6 +707,11 @@ export function insertMessage(ctx: Pick<ChatCtx, "db" | "now">, thread: string, 
     m.depth ?? 0,
     JSON.stringify(m.attachments ?? []),
     now,
+    now,
+  );
+  ctx.db.run(
+    'INSERT INTO chat_thread_last (thread, at) VALUES (?, ?) ON CONFLICT(thread) DO UPDATE SET at = MAX(at, excluded.at)',
+    thread,
     now,
   );
   return messageBy(ctx.db, id)!;

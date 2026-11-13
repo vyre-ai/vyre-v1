@@ -75,17 +75,21 @@ test("only the latest turn counts: a failure that was retried and finished is do
   assert.equal(H["engine.thread_states"](h.ctx, { threadIds: ["thr_a"] }).states[0]!.state, "done");
 });
 
-test("a chat the asker may not open is absent, the same answer as a chat with no turn: two askers, two answers", () => {
+test("only chats whose latest turn the caller asked have a state: another person, and a chat the kernel would not let them view, get the same answer as a chat with no turn", () => {
   const h = harness();
   turn(h, "thr_open", { state: "failed", error: { message: "bad" } });
   turn(h, "thr_secret", { state: "failed", error: { message: "private words" } });
-  const member = H["engine.thread_states"](h.ctx, { threadIds: ["thr_open", "thr_secret"] });
-  assert.deepEqual(member.states.map((s) => s.threadId).sort(), ["thr_open", "thr_secret"]);
-  const guest = {
+  const own = H["engine.thread_states"](h.ctx, { threadIds: ["thr_open", "thr_secret"] });
+  assert.deepEqual(own.states.map((s) => s.threadId).sort(), ["thr_open", "thr_secret"]);
+  // the same chats asked by someone else: they asked no turn there
+  const other = { ...h.ctx, principal: { kind: "person", id: "usr_maya" } } as unknown as EngineCtx;
+  assert.deepEqual(H["engine.thread_states"](other, { threadIds: ["thr_open", "thr_secret"] }).states, []);
+  // and a chat the kernel denies the asker even where the asker asked
+  const denied = {
     ...h.ctx,
     authorize: (_a: unknown, r: { id: string | null }) => ({ effect: r.id === "thr_secret" ? "deny" : "allow" }),
   } as unknown as EngineCtx;
-  const seen = H["engine.thread_states"](guest, { threadIds: ["thr_open", "thr_secret"] });
+  const seen = H["engine.thread_states"](denied, { threadIds: ["thr_open", "thr_secret"] });
   assert.deepEqual(
     seen.states.map((s) => s.threadId),
     ["thr_open"],

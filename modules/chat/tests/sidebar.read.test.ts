@@ -196,10 +196,9 @@ test("the neighbours are asked once each, however many rows there are (none per 
   assert.ok(new Set(fewCalls).size === fewCalls.length, "each neighbour once");
 });
 
-test("proof: 2,000 chats paged to the end cost at most ceil(2000 / page) reads of the sidebar, and each read asks every neighbour once: nothing per row", async () => {
+test("proof: 5,000 chats paged to the end cost at most ceil(5000 / page) reads of the sidebar, and each read asks every neighbour once: nothing per row", async () => {
   const hn = harness({ calls: world({ principals: [] }) });
-  // 2,000, not 5,000: every read still walks the caller's threads in this module (an indexed listing would fix that), and 50 such reads of 5,000 do not fit the file's time limit
-  const N = 2000;
+  const N = 5000;
   for (let i = 0; i < N; i++) {
     const r = await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: `big${i}` });
     await h["chat.post"]!(hn.ctx, { threadId: r.thread.threadId, body: `m${i}`, idempotencyKey: `bigp${i}` });

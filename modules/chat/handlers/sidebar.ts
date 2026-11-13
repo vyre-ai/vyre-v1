@@ -2,11 +2,11 @@
 // answers nothing for (a guest has no team). A read that is not there, or fails, leaves that half empty: presence is a quiet dot, never a reason for the sidebar to fail.
 import { FILTER_CHOICES, railCount, sectionsOf } from "../../../lib/sidebar.ts";
 import type { FilterId, Item, SectionId } from "../../../lib/sidebar.ts";
-import { askerOf, raise } from "../projections.ts";
+import { askerOf, ensureLast, raise } from "../projections.ts";
 import type { ChatCtx } from "../projections.ts";
-import { channelsList } from "./g24b.ts";
 import { mutedOf } from "./follow.ts";
-import { recentWithUnread } from "./g26.ts";
+import { ensureReadTable } from "./g24a.ts";
+import { archivedIds } from "./archive-state.ts";
 
 type PresenceOut = { people?: { personId: string; state: string }[] };
 type NowOut = { working?: { agentId: string; since: number; threadId?: string }[] };
@@ -48,7 +48,8 @@ export interface SideSources {
   /** Item key to its place in the caller's pin order, 0 first. */
   pins(): Promise<Map<string, number>>;
   /** Thread ids the caller muted. */
-  mutedThreads(): Set<string>;
+  /** What the caller muted, by id of any kind (a chat's thread id, a channel, an agent, a person): the ids carry their kind in their prefix. */
+  mutedThreads(): Set<string> | Promise<Set<string>>;
 }
 
 const PIN_KEY: Record<string, (id: string) => string> = {
@@ -71,7 +72,12 @@ function todaysSources(ctx: ChatCtx, safe: Safe): SideSources {
       }
       return out;
     },
-    mutedThreads: () => mutedOf(ctx, askerOf(ctx)),
+    async mutedThreads() {
+      const out = mutedOf(ctx, askerOf(ctx));
+      const r = await safe<{ mutes?: { target: { id: string } }[] }>("notifications.mute.list", {});
+      for (const m of r?.mutes ?? []) out.add(m.target.id);
+      return out;
+    },
   };
 }
 
@@ -102,7 +108,12 @@ export function stateSources(
         if (!k.startsWith("c:") && !k.startsWith("ch:") && !out.has(k)) out.set(k, n + i);
       return out;
     },
-    mutedThreads: () => mutedOf(ctx, askerOf(ctx)),
+    async mutedThreads() {
+      const out = mutedOf(ctx, askerOf(ctx));
+      const r = await safe<{ mutes?: { target: { id: string } }[] }>("notifications.mute.list", {});
+      for (const m of r?.mutes ?? []) out.add(m.target.id);
+      return out;
+    },
   };
 }
 
@@ -158,7 +169,12 @@ interface RowOut {
   private?: boolean;
   withPeople?: boolean;
 }
-type SideItem = Item & { out: RowOut };
+type Extra = Omit<
+  RowOut,
+  "key" | "title" | "unread" | "mentions" | "working" | "muted" | "pinned" | "lastAt" | "failed" | "faceIds"
+>;
+/** The output row is built only for the rows a page carries (a person with 5,000 chats does not pay for 5,000 objects). */
+type SideItem = Item & { extra: Extra; made?: RowOut };
 
 const base = (): Omit<Item, "key" | "kind" | "shape" | "title"> => ({
   faces: [],
@@ -183,6 +199,266 @@ const defaultSources = (ctx: ChatCtx, safe: Safe): SideSources =>
       })
     : todaysSources(ctx, safe);
 
+interface ChatListRow {
+  threadId: string;
+  title: string;
+  agents: string[];
+  people: string[];
+  unread: number;
+  lastAt: number;
+  archived: boolean;
+  goalId?: string;
+}
+
+/**
+ * The caller's chats for the sidebar, with SET-BASED reads: a handful of queries for the whole list, however many chats there are, never a few per chat. Newest first by the last message; what chat.recent leaves out stays out (an
+ * agent chat nobody has written in is not a chat yet). It reads the same tables as chat.recent and the unread counters; the unread count is one grouped read of the messages after each read cursor.
+ */
+export function chatList(ctx: ChatCtx, asker: string): ChatListRow[] {
+  ensureReadTable(ctx);
+  ensureLast(ctx.db);
+  const mine = `JOIN chat_thread_member me ON me.thread = t.id AND me.principal = ? AND me.deleted_at IS NULL`;
+  const threads = ctx.db.all(
+    `SELECT t.id AS id, t.title AS title, t.scopeType AS scopeType, t.scopeId AS scopeId, t.createdAt AS createdAt,
+        COALESCE(l.at, (SELECT m.createdAt FROM chat_message m WHERE m.thread = t.id AND m.deleted_at IS NULL ORDER BY m.threadSeq DESC LIMIT 1)) AS lastAt
+       FROM chat_thread t ${mine} LEFT JOIN chat_thread_last l ON l.thread = t.id
+      WHERE t.deleted_at IS NULL AND t.listed = 1 AND t.closedAt IS NULL AND t.kind = 'chat'`,
+    asker,
+  ) as Record<string, unknown>[];
+  const agents = new Map<string, string[]>();
+  for (const r of ctx.db.all(
+    `SELECT a.thread AS thread, a.agentId AS agentId FROM chat_thread_agent a
+       JOIN chat_thread_member me ON me.thread = a.thread AND me.principal = ? AND me.deleted_at IS NULL WHERE a.deleted_at IS NULL ORDER BY a.rowid`,
+    asker,
+  ) as Record<string, unknown>[]) {
+    const k = String(r["thread"]);
+    (agents.get(k) ?? agents.set(k, []).get(k)!).push(String(r["agentId"]));
+  }
+  const people = new Map<string, string[]>();
+  for (const r of ctx.db.all(
+    `SELECT m.thread AS thread, m.principal AS principal FROM chat_thread_member m
+       JOIN chat_thread t ON t.id = m.thread ${mine} WHERE m.deleted_at IS NULL AND t.kind = 'chat' AND m.principal <> ? AND m.principal NOT LIKE 'agt\\_%' ESCAPE '\\' ORDER BY m.rowid`,
+    asker,
+    asker,
+  ) as Record<string, unknown>[]) {
+    const k = String(r["thread"]);
+    (people.get(k) ?? people.set(k, []).get(k)!).push(String(r["principal"]));
+  }
+  const unread = new Map<string, number>();
+  for (const r of ctx.db.all(
+    `SELECT m.thread AS thread, COUNT(*) AS n FROM chat_message m
+       JOIN chat_thread t ON t.id = m.thread ${mine}
+       LEFT JOIN chat_thread_read rd ON rd.thread = m.thread AND rd.principal = ?
+      WHERE t.kind = 'chat' AND m.deleted_at IS NULL AND m.author <> ? AND m.threadSeq > COALESCE(rd.seq, 0) GROUP BY m.thread`,
+    asker,
+    asker,
+    asker,
+  ) as Record<string, unknown>[])
+    unread.set(String(r["thread"]), Number(r["n"]));
+  const archived = archivedIds(ctx, asker);
+  const out: ChatListRow[] = [];
+  for (const t of threads) {
+    const id = String(t["id"]);
+    const a = agents.get(id) ?? [];
+    const p = people.get(id) ?? [];
+    const last = t["lastAt"] === null || t["lastAt"] === undefined ? null : Number(t["lastAt"]);
+    const title = t["title"] === null || t["title"] === undefined ? undefined : String(t["title"]);
+    // a chat nobody has written in is not a chat yet: opening an agent makes the thread, and it should not pile up as "New chat" rows
+    if (title === undefined && last === null && a.length > 0 && p.length < 1) continue;
+    out.push({
+      threadId: id,
+      title: title ?? "New chat",
+      agents: a,
+      people: p,
+      unread: unread.get(id) ?? 0,
+      lastAt: last ?? Number(t["createdAt"] ?? 0),
+      archived: archived.has(id),
+      ...(t["scopeType"] === "goal" && t["scopeId"] ? { goalId: String(t["scopeId"]) } : {}),
+    });
+  }
+  return out;
+}
+
+/**
+ * The Everything view's chats WITHOUT reading every chat: SQLite does the sorting and counting and hands back only what the page carries. The sidebar shows the newest first and a person with thousands of chats opens one page, so
+ * the cost follows the page, not the number of chats. It returns the newest `want` chats (not pinned, not muted, not a one-to-one, not a goal's), the muted ones once the list reaches its end, every one-to-one (they are the team's rows),
+ * and the chats the person pinned; `total` is every chat of the Chats block. Other filters read the whole list (chatList): a filter looks at every row.
+ */
+export function chatListFast(
+  ctx: ChatCtx,
+  asker: string,
+  o: { pinned: readonly string[]; muted: ReadonlySet<string>; want: number },
+): { rows: ChatListRow[]; total: number } {
+  ensureReadTable(ctx);
+  ensureLast(ctx.db);
+  archivedIds(ctx, asker); // makes the archive tables
+  const a: unknown[] = [];
+  const ask = (): string => (a.push(asker), "?");
+  const agentsHere = `EXISTS (SELECT 1 FROM chat_thread_agent g WHERE g.thread = t.id AND g.deleted_at IS NULL)`;
+  const humans = () =>
+    `(SELECT COUNT(*) FROM chat_thread_member x WHERE x.thread = t.id AND x.deleted_at IS NULL AND x.principal <> ${ask()} AND x.principal NOT LIKE 'agt\\_%' ESCAPE '\\')`;
+  const base = () =>
+    `FROM chat_thread t JOIN chat_thread_member me ON me.thread = t.id AND me.principal = ${ask()} AND me.deleted_at IS NULL
+       LEFT JOIN chat_thread_last l ON l.thread = t.id
+      WHERE t.deleted_at IS NULL AND t.listed = 1 AND t.closedAt IS NULL AND t.kind = 'chat'
+        AND NOT (t.scopeType = 'goal' AND t.scopeId IS NOT NULL)
+        AND NOT EXISTS (SELECT 1 FROM chat_thread_archive ar WHERE ar.thread = t.id AND ar.principal = ${ask()})`;
+  const notDm = () => `AND NOT (NOT ${agentsHere} AND ${humans()} = 1)`;
+  const notEmpty = () => `AND NOT (t.title IS NULL AND l.at IS NULL AND ${agentsHere} AND ${humans()} < 1)`;
+  const list = (ids: readonly string[]): string => ids.map(() => "?").join(", ");
+  const run = (build: () => string, ...tail: unknown[]): Record<string, unknown>[] => {
+    a.length = 0;
+    const sql = build();
+    return ctx.db.all(sql, ...a, ...tail) as Record<string, unknown>[];
+  };
+  const excl = [...new Set([...o.pinned, ...o.muted])];
+  const mutedHere = [...o.muted].filter((m) => !o.pinned.includes(m));
+  const notIn = excl.length > 0 ? `AND t.id NOT IN (${list(excl)})` : "";
+  const nonMuted = Number(
+    run(() => `SELECT COUNT(*) AS n ${base()} ${notDm()} ${notEmpty()} ${notIn}`, ...excl)[0]?.["n"] ?? 0,
+  );
+  const mutedTotal =
+    mutedHere.length === 0
+      ? 0
+      : Number(
+          run(
+            () => `SELECT COUNT(*) AS n ${base()} ${notDm()} ${notEmpty()} AND t.id IN (${list(mutedHere)})`,
+            ...mutedHere,
+          )[0]?.["n"] ?? 0,
+        );
+  const ids = new Set<string>();
+  for (const r of run(
+    () =>
+      `SELECT t.id AS id ${base()} ${notDm()} ${notEmpty()} ${notIn} ORDER BY COALESCE(l.at, t.createdAt) DESC, t.id LIMIT ?`,
+    ...excl,
+    Math.max(1, o.want),
+  ))
+    ids.add(String(r["id"]));
+  if (o.want >= nonMuted && mutedHere.length > 0)
+    for (const r of run(
+      () => `SELECT t.id AS id ${base()} ${notDm()} ${notEmpty()} AND t.id IN (${list(mutedHere)})`,
+      ...mutedHere,
+    ))
+      ids.add(String(r["id"]));
+  // every one-to-one: the team's rows
+  for (const r of run(() => `SELECT t.id AS id ${base()} AND NOT ${agentsHere} AND ${humans()} = 1`))
+    ids.add(String(r["id"]));
+  for (const id of o.pinned) ids.add(id);
+  return { rows: chatDetails(ctx, asker, [...ids]), total: nonMuted + mutedTotal };
+}
+
+/** The rows of these chats (the caller's own: a chat they are not in gives nothing), with their agents, people and unread. */
+function chatDetails(ctx: ChatCtx, asker: string, ids: readonly string[]): ChatListRow[] {
+  if (ids.length === 0) return [];
+  const IN = ids.map(() => "?").join(", ");
+  const mine = `JOIN chat_thread_member me ON me.thread = t.id AND me.principal = ? AND me.deleted_at IS NULL`;
+  const threads = ctx.db.all(
+    `SELECT t.id AS id, t.title AS title, t.scopeType AS scopeType, t.scopeId AS scopeId, t.createdAt AS createdAt, l.at AS lastAt
+       FROM chat_thread t ${mine} LEFT JOIN chat_thread_last l ON l.thread = t.id
+      WHERE t.deleted_at IS NULL AND t.kind = 'chat' AND t.id IN (${IN})`,
+    asker,
+    ...ids,
+  ) as Record<string, unknown>[];
+  const group = (sql: string, ...args: unknown[]): Map<string, string[]> => {
+    const m = new Map<string, string[]>();
+    for (const r of ctx.db.all(sql, ...args) as Record<string, unknown>[]) {
+      const k = String(r["thread"]);
+      (m.get(k) ?? m.set(k, []).get(k)!).push(String(r["v"]));
+    }
+    return m;
+  };
+  const agents = group(
+    `SELECT thread, agentId AS v FROM chat_thread_agent WHERE deleted_at IS NULL AND thread IN (${IN}) ORDER BY rowid`,
+    ...ids,
+  );
+  const people = group(
+    `SELECT thread, principal AS v FROM chat_thread_member WHERE deleted_at IS NULL AND principal <> ? AND principal NOT LIKE 'agt\\_%' ESCAPE '\\' AND thread IN (${IN}) ORDER BY rowid`,
+    asker,
+    ...ids,
+  );
+  const unread = new Map<string, number>();
+  for (const r of ctx.db.all(
+    `SELECT m.thread AS thread, COUNT(*) AS n FROM chat_message m
+       LEFT JOIN chat_thread_read rd ON rd.thread = m.thread AND rd.principal = ?
+      WHERE m.deleted_at IS NULL AND m.author <> ? AND m.threadSeq > COALESCE(rd.seq, 0) AND m.thread IN (${IN}) GROUP BY m.thread`,
+    asker,
+    asker,
+    ...ids,
+  ) as Record<string, unknown>[])
+    unread.set(String(r["thread"]), Number(r["n"]));
+  const archived = archivedIds(ctx, asker);
+  return threads.map((t) => {
+    const id = String(t["id"]);
+    return {
+      threadId: id,
+      title: t["title"] === null || t["title"] === undefined ? "New chat" : String(t["title"]),
+      agents: agents.get(id) ?? [],
+      people: people.get(id) ?? [],
+      unread: unread.get(id) ?? 0,
+      lastAt: t["lastAt"] === null || t["lastAt"] === undefined ? Number(t["createdAt"] ?? 0) : Number(t["lastAt"]),
+      archived: archived.has(id),
+      ...(t["scopeType"] === "goal" && t["scopeId"] ? { goalId: String(t["scopeId"]) } : {}),
+    };
+  });
+}
+
+/**
+ * The channels the caller is IN (the sidebar lists those; a public one they are not in is for Browse), in the Space's order, with their unread: three set-based reads for the whole list. Membership is the only way in, so
+ * what a guest sees is exactly the channels they were added to.
+ */
+export function channelList(ctx: ChatCtx, asker: string): Record<string, unknown>[] {
+  ensureReadTable(ctx);
+  const rows = ctx.db.all(
+    `SELECT c.id AS channelId, c.mainThread AS mainThreadId, c.name AS name, c.visibility AS visibility, c.createdAt AS createdAt
+       FROM chat_channel c JOIN chat_thread_member me ON me.thread = c.mainThread AND me.principal = ? AND me.deleted_at IS NULL
+      WHERE c.archived = 0 ORDER BY c.createdAt, c.id`,
+    asker,
+  ) as Record<string, unknown>[];
+  const unread = new Map<string, number>();
+  for (const r of ctx.db.all(
+    `SELECT m.thread AS thread, COUNT(*) AS n FROM chat_message m
+       JOIN chat_channel c ON c.mainThread = m.thread AND c.archived = 0
+       JOIN chat_thread_member me ON me.thread = m.thread AND me.principal = ? AND me.deleted_at IS NULL
+       LEFT JOIN chat_thread_read rd ON rd.thread = m.thread AND rd.principal = ?
+      WHERE m.deleted_at IS NULL AND m.author <> ? AND m.threadSeq > COALESCE(rd.seq, 0) GROUP BY m.thread`,
+    asker,
+    asker,
+    asker,
+  ) as Record<string, unknown>[])
+    unread.set(String(r["thread"]), Number(r["n"]));
+  return rows.map((r) => ({ ...r, unread: unread.get(String(r["mainThreadId"])) ?? 0 }));
+}
+
+/** How many of the newest chats this call must read: the first page, or up to the end of the page after `more.after`. */
+async function wantedChats(
+  ctx: ChatCtx,
+  asker: string,
+  more: { section: string; after?: string; limit?: number } | undefined,
+  pins: ReadonlyMap<string, number>,
+): Promise<number> {
+  const limit = Math.min(more?.limit ?? SIDEBAR_PAGE, SIDEBAR_PAGE_MAX);
+  if (more?.section !== "chats" || more.after === undefined) return limit;
+  // where the cursor's chat stands in the newest-first list: how many chats are newer, plus its tie-break
+  const id = more.after.startsWith("c:") ? more.after.slice(2) : undefined;
+  if (id === undefined) return 1_000_000;
+  ensureLast(ctx.db);
+  const at = ctx.db.all(
+    "SELECT COALESCE(l.at, t.createdAt) AS at FROM chat_thread t LEFT JOIN chat_thread_last l ON l.thread = t.id WHERE t.id = ?",
+    id,
+  ) as Record<string, unknown>[];
+  if (at.length === 0) return 1_000_000;
+  const n = ctx.db.all(
+    `SELECT COUNT(*) AS n FROM chat_thread t JOIN chat_thread_member me ON me.thread = t.id AND me.principal = ? AND me.deleted_at IS NULL
+       LEFT JOIN chat_thread_last l ON l.thread = t.id
+      WHERE t.deleted_at IS NULL AND t.listed = 1 AND t.closedAt IS NULL AND t.kind = 'chat' AND (COALESCE(l.at, t.createdAt) > ? OR (COALESCE(l.at, t.createdAt) = ? AND t.id <= ?))`,
+    asker,
+    Number(at[0]!["at"]),
+    Number(at[0]!["at"]),
+    id,
+  ) as Record<string, unknown>[];
+  return Number(n[0]?.["n"] ?? 0) + limit + pins.size + 5;
+}
+
 export async function chatsSidebar(
   ctx: ChatCtx,
   input: { filter?: string; more?: { section: Exclude<SectionId, "needs">; after?: string; limit?: number } },
@@ -199,7 +475,7 @@ export async function chatsSidebar(
   const safe = safeOf(ctx);
   const member = await canChat(safe);
   const src = (sources ?? defaultSources)(ctx, safe);
-  const [pins, mentionsOut, needsOut, goalsOut, projectsOut, agentsOut, peopleOut] = await Promise.all([
+  const [pins, mentionsOut, needsOut, goalsOut, projectsOut, agentsOut, peopleOut, workingOut] = await Promise.all([
     src.pins(),
     safe<{ counts?: { threadId: string; mentions: number }[] }>("notifications.unseen_by_thread", {}),
     safe<{
@@ -219,85 +495,76 @@ export async function chatsSidebar(
           },
         )
       : Promise.resolve(null),
+    safe<{ working?: { agentId: string; threadId?: string }[] }>("engine.now", {}),
   ]);
   const mentions = new Map((mentionsOut?.counts ?? []).map((c) => [c.threadId, c.mentions]));
-  const muted = src.mutedThreads();
+  const muted = await src.mutedThreads();
   const me = askerOf(ctx);
   const pinOf = (key: string): number | null => pins.get(key) ?? null;
   const items: SideItem[] = [];
-  const add = (
-    it: Omit<Item, "ask" | "draft" | "archived" | "ended"> & Partial<Item>,
-    out: Omit<
-      RowOut,
-      "key" | "title" | "unread" | "mentions" | "working" | "muted" | "pinned" | "lastAt" | "failed" | "faceIds"
-    >,
-  ): void => {
-    const full: Item = { ask: false, draft: false, archived: false, ended: false, ...it } as Item;
-    items.push({
-      ...full,
-      out: {
-        key: full.key,
-        title: full.title,
-        faceIds: full.faces.map((f) => f.id),
-        unread: full.unread,
-        mentions: full.mentions,
-        failed: false,
-        working: full.working,
-        muted: full.muted,
-        pinned: pinOf(full.key),
-        lastAt: full.lastAt,
-        ...out,
-      },
-    });
+  const add = (it: Omit<Item, "ask" | "draft" | "archived" | "ended"> & Partial<Item>, extra: Extra): void => {
+    items.push({ ask: false, draft: false, archived: false, ended: false, ...it, extra } as SideItem);
   };
+  const outOf = (it: SideItem): RowOut =>
+    (it.made ??= {
+      key: it.key,
+      title: it.title,
+      faceIds: it.faces.map((f) => f.id),
+      unread: it.unread,
+      mentions: it.mentions,
+      failed: false,
+      working: it.working,
+      muted: it.muted,
+      pinned: pinOf(it.key),
+      lastAt: it.lastAt,
+      ...it.extra,
+    });
 
-  // chats and one-to-ones from the same listing chat.recent answers
-  const recent = (await recentWithUnread(ctx, { max: Number.MAX_SAFE_INTEGER })) as unknown as Record<
-    string,
-    Record<string, any>[] | string | null
-  >; // eslint-disable-line @typescript-eslint/no-explicit-any
-
+  // chats and one-to-ones: a handful of set-based reads for the whole list
+  let chatsTotal: number | undefined;
+  const workingThreads = new Set((workingOut?.working ?? []).flatMap((w) => (w.threadId ? [w.threadId] : [])));
   const dmOf = new Map<string, Record<string, any>>(); // eslint-disable-line @typescript-eslint/no-explicit-any
-  for (const sec of ["starred", "today", "yesterday", "earlier", "archived"]) {
-    for (const r of (recent[sec] as Record<string, any>[] | undefined) ?? []) {
-      // eslint-disable-line @typescript-eslint/no-explicit-any
-      if (r["kind"] !== "chat" || r["goalId"]) continue;
-      const agents = (r["agents"] as string[]) ?? [];
-      const people = (r["people"] as string[] | undefined) ?? [];
-      const threadId = String(r["threadId"]);
-      const key = `c:${threadId}`;
-      const common = {
-        unread: Number(r["unread"] ?? 0) + Number(r["repliesUnread"] ?? 0),
-        mentions: mentions.get(threadId) ?? 0,
-        muted: muted.has(threadId),
-        working: r["working"] === true,
-        archived: sec === "archived",
-        lastAt: Number(r["lastAt"] ?? 0),
-      };
-      if (agents.length === 0 && people.length === 1) {
-        if (!dmOf.has(people[0]!)) dmOf.set(people[0]!, { ...r, ...common });
-        continue;
-      }
-      add(
-        {
-          key,
-          kind: "chat",
-          shape: agents.length > 1 ? "group" : "agent",
-          title: String(r["title"] ?? ""),
-          faces: agents.map((id) => ({ id, name: "" })),
-          ...common,
-        },
-        { kind: "chat", threadId, withPeople: people.length > 0, ...(sec === "archived" ? { archived: true } : {}) },
-      );
+  const wantChats = await wantedChats(ctx, me, input.more, pins);
+  const fastList =
+    filter === "all"
+      ? chatListFast(ctx, me, {
+          pinned: [...pins.keys()].filter((k) => k.startsWith("c:")).map((k) => k.slice(2)),
+          muted,
+          want: wantChats,
+        })
+      : null;
+  chatsTotal = fastList?.total;
+  for (const r of fastList?.rows ?? chatList(ctx, me)) {
+    if (r.goalId) continue;
+    const { threadId, agents, people } = r;
+    const key = `c:${threadId}`;
+    const common = {
+      unread: r.unread,
+      mentions: mentions.get(threadId) ?? 0,
+      muted: muted.has(threadId),
+      working: workingThreads.has(threadId),
+      archived: r.archived,
+      lastAt: r.lastAt,
+    };
+    if (agents.length === 0 && people.length === 1) {
+      if (!dmOf.has(people[0]!)) dmOf.set(people[0]!, { threadId, ...common });
+      continue;
     }
+    add(
+      {
+        key,
+        kind: "chat",
+        shape: agents.length > 1 ? "group" : "agent",
+        title: r.title,
+        faces: agents.map((id) => ({ id, name: "" })),
+        ...common,
+      },
+      { kind: "chat", threadId, withPeople: people.length > 0, ...(r.archived ? { archived: true } : {}) },
+    );
   }
   // channels (a project's own channel is the project's row)
   const projectChannels = new Set((projectsOut?.projects ?? []).map((p) => String(p["channelId"])));
-  // through the pipeline as the caller (it narrows what a guest may list); the module's own function only when there is no pipeline
-  const channels = ((await safe<{ channels?: Record<string, any>[] }>("channels.list", {})) ??
-    (typeof (ctx as { authorize?: unknown }).authorize === "function"
-      ? { channels: [] }
-      : await channelsList(ctx, {}))) as { channels?: Record<string, any>[] }; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const channels = { channels: channelList(ctx, me) };
   for (const c of channels.channels ?? []) {
     if (c["archived"] === true || projectChannels.has(String(c["channelId"]))) continue;
     const key = `ch:${c["channelId"]}`;
@@ -309,7 +576,7 @@ export async function chatsSidebar(
         title: String(c["name"]),
         unread: Number(c["unread"] ?? 0),
         mentions: mentions.get(String(c["mainThreadId"])) ?? 0,
-        muted: muted.has(String(c["mainThreadId"])),
+        muted: muted.has(String(c["mainThreadId"])) || muted.has(String(c["channelId"])),
         working: false,
         lastAt: Number(c["createdAt"] ?? 0),
         faces: [],
@@ -384,7 +651,7 @@ export async function chatsSidebar(
         faces: [{ id: p.id, name: p.name }],
         unread: Number(dm?.["unread"] ?? 0),
         mentions: Number(dm?.["mentions"] ?? 0),
-        muted: dm ? muted.has(String(dm["threadId"])) : false,
+        muted: muted.has(p.id) || (dm ? muted.has(String(dm["threadId"])) : false),
         working: false,
         lastAt: Number(dm?.["lastAt"] ?? 0),
       },
@@ -395,8 +662,7 @@ export async function chatsSidebar(
   for (const it of items)
     if (it.kind === "chat")
       for (const f of it.faces) agentLast.set(f.id, Math.max(agentLast.get(f.id) ?? 0, it.lastAt));
-  const working = await safe<{ working?: { agentId: string }[] }>("engine.now", {});
-  const workingAgents = new Set((working?.working ?? []).map((w) => w.agentId));
+  const workingAgents = new Set((workingOut?.working ?? []).map((w) => w.agentId));
   for (const a of agentsOut?.agents ?? []) {
     add(
       {
@@ -407,7 +673,7 @@ export async function chatsSidebar(
         faces: [{ id: a.agentId, name: a.name }],
         unread: 0,
         mentions: 0,
-        muted: false,
+        muted: muted.has(a.agentId),
         working: workingAgents.has(a.agentId),
         lastAt: agentLast.get(a.agentId) ?? 0,
       },
@@ -417,16 +683,14 @@ export async function chatsSidebar(
   // failed: the latest turn of the chats this answer carries, in one call (a chat the caller may not open is absent there)
   const carried = new Set<string>();
   const itemOf = new Map(items.map((i) => [i.key, i]));
+  const pinOrder = [...pins.entries()].sort((a, b) => a[1] - b[1]).map(([k]) => k);
+  let sec = sectionsOf(items, pinOrder, filter);
   for (const id of ["goals", "pinned", "chats", "channels", "team"] as const) {
-    const list = sectionsOf(
-      items,
-      [...pins.entries()].sort((a, b) => a[1] - b[1]).map(([k]) => k),
-      filter,
-    )[id];
+    const list = sec[id];
     const m = input.more?.section === id ? input.more : undefined;
     const from = m?.after !== undefined ? Math.max(0, list.findIndex((x) => x.key === m.after) + 1) : 0;
     for (const x of list.slice(from, from + Math.min(m?.limit ?? SIDEBAR_PAGE, SIDEBAR_PAGE_MAX))) {
-      const tid = itemOf.get(x.key)?.out.threadId;
+      const tid = itemOf.get(x.key)?.extra.threadId;
       if (tid) carried.add(tid);
     }
   }
@@ -442,10 +706,11 @@ export async function chatsSidebar(
       .map((x) => [x.threadId, x.failedLine ?? "Something went wrong."]),
   );
   for (const it of items) {
-    const line = it.out.threadId ? failedBy.get(it.out.threadId) : undefined;
+    const line = it.extra.threadId ? failedBy.get(it.extra.threadId) : undefined;
     if (line !== undefined) {
-      it.out.failed = true;
-      it.out.failedLine = line;
+      const o = outOf(it);
+      o.failed = true;
+      o.failedLine = line;
       it.failed = line;
     }
   }
@@ -469,9 +734,9 @@ export async function chatsSidebar(
   }));
 
   // one rule for the sections, shared with the app: precedence, order, filter
-  const pinOrder = [...pins.entries()].sort((a, b) => a[1] - b[1]).map(([k]) => k);
   const all: Item[] = [...items, ...taskItems];
-  const sec = sectionsOf(all, pinOrder, filter);
+  // the tasks only fill Needs you; the other blocks are already worked out, and only the Failed filter depends on what the engine just said
+  if (filter === "failed" || filter === "needs") sec = sectionsOf(all, pinOrder, filter);
   const byKey = new Map(items.map((i) => [i.key, i]));
   const section = (id: Exclude<SectionId, "needs">) => {
     const list = sec[id];
@@ -480,12 +745,17 @@ export async function chatsSidebar(
     const limit = Math.min(m?.limit ?? SIDEBAR_PAGE, SIDEBAR_PAGE_MAX);
     const page = list.slice(from, from + limit);
     const end = from + page.length;
+    const total = id === "chats" && chatsTotal !== undefined ? chatsTotal : list.length;
     return {
-      total: list.length,
-      rows: page.map((x) => byKey.get(x.key)!.out),
-      ...(end < list.length ? { next: page[page.length - 1]!.key } : {}),
+      total,
+      rows: page.map((x) => outOf(byKey.get(x.key)!)),
+      ...(end < total ? { next: page[page.length - 1]!.key } : {}),
     };
   };
+  // mentions in chats this page does not carry still count in the rail (the fast listing reads only a page of chats)
+  const carriedThreads = new Set(items.flatMap((i) => (i.extra.threadId ? [i.extra.threadId] : [])));
+  let unseenElsewhere = 0;
+  for (const [tid, n] of mentions) if (!carriedThreads.has(tid) && !muted.has(tid)) unseenElsewhere += n;
   const first = all.find((x) => x.kind !== "task" && x.unread + x.mentions > 0 && !x.muted && !x.archived);
   return {
     needs: { total: Math.max(needsOut?.total ?? 0, needs.length), items: needs },
@@ -494,7 +764,7 @@ export async function chatsSidebar(
     chats: section("chats"),
     channels: section("channels"),
     team: section("team"),
-    rail: railCount(all),
+    rail: railCount(all) + unseenElsewhere,
     ...(first ? { nextUnread: first.key } : {}),
   };
 }

@@ -224,10 +224,7 @@ export function showingLine(items: readonly Item[], f: FilterId): { text: string
 
 const ORDER_PRESENCE = { online: 0, away: 1 } as const;
 const byChats = (a: Item, b: Item): number =>
-  Number(a.muted) - Number(b.muted) ||
-  b.lastAt - a.lastAt ||
-  a.title.localeCompare(b.title) ||
-  a.key.localeCompare(b.key);
+  Number(a.muted) - Number(b.muted) || b.lastAt - a.lastAt || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
 
 /** The members of each block after the design's order of precedence: Needs you, then Pinned, then the item's own block. An item shows once. */
 export function sectionsOf(items: readonly Item[], pins: readonly string[], f: FilterId): Record<SectionId, Item[]> {
