@@ -993,6 +993,21 @@ export default defineManifest({
       on: ["thread", "/threadId"],
     }),
     read(
+      "engine.turn.asked_by",
+      "System use only: who asked for the calling agent's running turn in this chat (answers only to a module's own nested call). askedBy is set only when a person's own message started the turn or joined it",
+      {
+        in: {},
+        out: {
+          kind: t.enm("message", "interrupt", "wake", "handoff", "none"),
+          routine: t.bool(),
+          askedBy: t.opt(t.obj({ person: id.user, messageIds: t.arr(id.message), at: t.ts() })),
+        },
+        perm: null,
+        level: "view",
+        errors: ["permission.role_lacks_permission"],
+      },
+    ),
+    read(
       "engine.placement.decide",
       "Decide where a turn runs: host or the asker device (private chat rules, computers, routines, phone and web askers)",
       {

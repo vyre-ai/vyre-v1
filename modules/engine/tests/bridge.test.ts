@@ -1287,3 +1287,11 @@ test("a helper's running row says the same step (helpers.status reads the helper
     ["Running a command"],
   );
 });
+
+test("only a message chat marked typed is kept as one the person typed: a poke, or a line posted in their name, is not", async () => {
+  const s = setup({ script: reply("Done.") });
+  await s.say("Please move the deadline", [], "msg_typed_one", { typed: true });
+  await s.say("Poked line", [], "msg_not_typed");
+  const typed = s.h.rows("SELECT message_id FROM engine_typed_message").map((r) => r["message_id"]);
+  assert.deepEqual(typed, ["msg_typed_one"]);
+});

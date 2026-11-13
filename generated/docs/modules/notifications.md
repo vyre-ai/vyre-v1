@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: chat, ci, hooks, machines, members, runs, spaces, tasks, vault.
 
-## Capabilities (21)
+## Capabilities (22)
 
 - [notifications.away.clear](../capabilities/notifications.away.clear.md): I'm Back: end away and return what waited
 - [notifications.away.get](../capabilities/notifications.away.get.md): Am I away, until when, and who holds my approvals
@@ -27,6 +27,7 @@ Requires: chat, ci, hooks, machines, members, runs, spaces, tasks, vault.
 - [notifications.rules.get](../capabilities/notifications.rules.get.md): My notification settings: working hours, email backstop, muted agents, channels and records
 - [notifications.rules.set](../capabilities/notifications.rules.set.md): Adjust my notification settings (settings only adjusts; nothing is required)
 - [notifications.send](../capabilities/notifications.send.md): Notify a person of a kind; collapses repeats, respects hours, mutes and away, enforces the agent interrupt cap and the one-device rule
+- [notifications.unseen_by_thread](../capabilities/notifications.unseen_by_thread.md): My unseen mentions per chat or channel, for the sidebar's mention badge; only my own, newest first, at most 500 threads
 
 ## Events (10)
 

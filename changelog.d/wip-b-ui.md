@@ -6,3 +6,7 @@
 - Nothing a person sees changes: Settings shares its switch with the rest of the app, and the text boxes of Settings, the Console and other places now share one name for the check that stops a second copy.
 - Nothing a person sees changes: the check that stops a second copy of a shared piece now runs in CI and also catches copies hidden in memo, classes, aliases and other spellings of Load more.
 - The routine switches in the chat pane and the agent page now look like every other switch (accent, same size) and answer Space and Enter.
+- Every tooltip now also shows when you reach a thing with the keyboard (after a third of a second), goes away on Escape, and can hold two lines.
+- Every sheet now gives focus back to what opened it when it closes.
+- Nothing a person sees changes yet: the shared Status, Page and full-size sheet are ready for the agent computer screens and the Automations builder.
+- A screen whose refresh fails keeps showing its last numbers and now says "Couldn't refresh" with a Retry, instead of showing stale data with no sign.

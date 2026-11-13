@@ -39,6 +39,10 @@ export interface EngineCtx {
   space: string;
   principal: { kind: "person" | "agent" | "actor" | "service"; id: string };
   actingFor?: string | undefined;
+  /** The chat the caller works in, set by the server for an agent's tool call (never by the agent). */
+  thread?: string | undefined;
+  depth?: number | undefined;
+  forwarded?: boolean | undefined;
   trace: { traceId: string };
   now(): number;
   db: Db;
@@ -150,6 +154,7 @@ const SCHEMA = [
   "0012_model_cache.sql",
   "0013_tool_use.sql",
   "0014_queue_stop_reason.sql",
+  "0015_typed_message.sql",
 ]
   .map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8"))
   .join("\n")
@@ -179,8 +184,16 @@ export function ensure(db: Db): void {
     db.all("SELECT account_ref FROM engine_model_cache WHERE account_ref = ?", "probe");
     db.all("SELECT agent_id FROM engine_tool_use WHERE agent_id = ?", "probe");
     db.all("SELECT stop_reason FROM engine_thread_queue WHERE thread_id = ?", "probe");
+    db.all("SELECT message_id FROM engine_typed_message WHERE thread_id = ?", "probe");
   } catch {
-    for (const stmt of SCHEMA) db.run(stmt);
+    // a database that has most of the tables (an older build) runs the whole list again: an ALTER that was already applied says "duplicate column" and is not a failure
+    for (const stmt of SCHEMA) {
+      try {
+        db.run(stmt);
+      } catch (e) {
+        if (!/duplicate column/i.test(e instanceof Error ? e.message : String(e))) throw e;
+      }
+    }
   }
   ready.add(db);
 }

@@ -48,7 +48,7 @@ class RootBoundary extends Component<{ children: ReactNode }, { failed: boolean 
       <States
         kind="error"
         message="Couldn't open Vyre"
-        cause="Something went wrong while it started."
+        cause="Something went wrong. Try again to reload it."
         retryable
         onRetry={() => (globalThis as { location?: { assign(url: string): void } }).location?.assign("/")}
       />

@@ -1,14 +1,15 @@
 // One component for one job (contract P3, the screen set). A new one-off copy of a shared piece fails here, and the old copies only go down.
 // It counts, per file in the app (apps/app/src) and the shared UI (ui/src), five kinds of copy:
-//   declared    a component declared under the name of a shared piece (Switch, TextButton, SmallButton, Section, Empty, Select, Choice, Stepper, Segmented, Field, Sheet, FormSheet) outside its home folder;
+//   declared    a component declared under the name of a shared piece (Switch, TextButton, SmallButton, Section, Empty, Select, Choice, Stepper, Segmented, MoreRow, Field, Sheet, FormSheet, Status, StatusLabel, StatusDot, Page, LiveSurface, LiveScreen) outside its home folder;
 //   read-hook   a declared `useScreenQuery` or `useRead`: the one data hook is `useLoad` (App/load, client/src/query);
 //   load-more   the words "Load more" by hand: the paging row of `useLoadList` draws them;
-//   crew-poll   a `setInterval` in a file that reads `crew.status` and that is not a clock (a clock ticker reads Date.now()): a watched read replaces the timer;
+//   crew-poll   a `setInterval` in a file that reads `crew.status` and that is not a clock (a clock ticker reads Date.now(); one named timer is excused in EXCEPTIONS below): a watched read replaces the timer;
 // A file not in one-component.baseline.json must have none; a file in it may only go down. When you move a spot onto the shared piece, lower its count:
 //   `UPDATE_ONE_COMPONENT=1 node --import tsx --test scripts/lint/one-component.test.ts` (it lowers and never raises; a worse count is refused).
 // Out of scope: tests and test kits, the Join entry kit (apps/app/src/join: it draws before any skin or session exists, so it keeps its own pieces), ui/src/ListSections (a different job), and each piece's home folder.
+// Out of reach, honestly: an object method (`{ Switch() {} }`), `Object.assign(Toggle, ...)` and a string built by concatenation ("Load " + "more") are not found: they need types or running code, and a name list cannot see them.
 // A plain rename (a component called Toggle) is not caught: the check knows names, not shapes. It also lets a file swap one copy for another at the same count.
-// Not counted yet (later steps of the contract, with the piece they need): the word "Loading" (Loadable), a Row with no press, menu or inert (Row menu), more than seven tabs in a Page (Page), Chip as a status (Status).
+// Not counted yet (later steps of the contract, with the piece they need): the word "Loading" (Loadable), a Row with no press, menu or inert (Row menu), Chip as a status (it needs a rule that tells a status from a tag).
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
@@ -35,6 +36,22 @@ const PIECES: ReadonlyArray<{ names: readonly string[]; home: string; use: strin
     use: "ui/Field and its controls (TextBox, Select, NumberBox)",
   },
   { names: ["Segmented"], home: "ui/src/Segmented/", use: "ui/Segmented" },
+  { names: ["Page"], home: "ui/src/Page/", use: "ui/Page (one head, tabs, one scroll column)" },
+  {
+    names: ["LiveSurface", "LiveScreen"],
+    home: "ui/src/LiveSurface/",
+    use: "ui/LiveSurface (a live picture, stream or terminal in a fixed box)",
+  },
+  {
+    names: ["Status", "StatusLabel", "StatusDot"],
+    home: "ui/src/Status/",
+    use: "ui/Status (a dot, a few words, one note, one action)",
+  },
+  {
+    names: ["MoreRow"],
+    home: "ui/src/MoreRow/",
+    use: "ui/MoreRow (a row that opens a capped list in place and closes it again)",
+  },
   { names: ["Sheet", "FormSheet"], home: "ui/src/Dialog/", use: "ui/Dialog (the one Sheet frame)" },
 ];
 const USE: Record<Kind, string> = {
@@ -59,13 +76,38 @@ const stripComments = (s: string): string => s.replace(/\/\*[\s\S]*?\*\//g, "").
 
 const DECL = /^[ \t]*(?:export[ \t]+)?(?:default[ \t]+)?(?:function|const)[ \t]+([A-Za-z]+)\b[ \t]*(?:[(<=:])/gm;
 const READ_HOOK = /^[ \t]*(?:export[ \t]+)?(?:function|const)[ \t]+(?:useScreenQuery|useRead)\b/gm;
-const LOAD_MORE = /Load(?:\{\s*" "\s*\}|&nbsp;|\s)+more/gi;
+// the control: the words alone as a text or a string (after `{" "}` and &nbsp; are read as spaces), not inside a sentence such as "Couldn't load more"
+const LOAD_MORE = /(?:^|[>"'`{(])\s*Load\s+more(?:\s+[A-Za-z']+){0,3}\s*[….]*\s*(?=$|[<"'`})])/gim;
+const SPACES = /\{\s*" "\s*\}|&nbsp;/g;
 // a component made inside memo(...) or forwardRef(...), and a class
 const WRAPPED = /\b(?:memo|forwardRef)\(\s*function[ \t]+([A-Za-z]+)/g;
 const CLASS = /^[ \t]*(?:export[ \t]+)?(?:default[ \t]+)?class[ \t]+([A-Za-z]+)\b/gm;
 // `export { a as Name }` and `export { Name } from "path"`
+const EXPORT_STAR_AS = /\bexport\s*\*\s*as\s+([A-Za-z]+)/g;
 const EXPORT_LIST = /\bexport[ \t\n]*\{([^}]*)\}(?:[ \t\n]*from[ \t\n]*["']([^"']+)["'])?/g;
 const INTERVAL = /\bsetInterval\s*\(/g;
+
+/**
+ * The timers allowed on purpose: one entry per timer, with the file, the start of its arguments, what it is, why it is allowed and when. The test pins this list: an entry whose timer is no longer in
+ * its file fails (so a stale entry cannot be left to excuse a new poll), and a new entry is a visible change of this list in review.
+ */
+export const EXCEPTIONS: ReadonlyArray<{
+  file: string;
+  timer: string;
+  count: number;
+  what: string;
+  why: string;
+  added: string;
+}> = [
+  {
+    file: "apps/app/src/places/chats/conversation/Conversation.tsx",
+    timer: "retryLoads, 1500",
+    count: 1,
+    what: "asks the session to read a chat again every 1.5 s while the chat this person just started is not readable yet",
+    why: "it ends by itself: it runs only while `refusalIsPending` is true, which is false 30 s after the chat was made (JUST_MADE_MS in shell/session/just-made.ts, tested there), when the place shows the failed state; the effect clears it on unmount. Added by 42926d5c7.",
+    added: "2026-11-13",
+  },
+];
 
 /** The text of a call's arguments, from just after its opening parenthesis to the matching one. */
 function argsAt(src: string, from: number): string {
@@ -84,6 +126,7 @@ const found = new Map<string, Set<string>>();
 export function countFile(rel: string, source: string): Partial<Record<Kind, number>> {
   const src = stripComments(source);
   const out: Partial<Record<Kind, number>> = {};
+  const used = new Map<(typeof EXCEPTIONS)[number], number>();
   found.delete(rel);
   const add = (k: Kind, n: number): void => {
     if (n > 0) out[k] = (out[k] ?? 0) + n;
@@ -98,6 +141,7 @@ export function countFile(rel: string, source: string): Partial<Record<Kind, num
   for (const m of src.matchAll(DECL)) named(m[1]!);
   for (const m of src.matchAll(WRAPPED)) named(m[1]!);
   for (const m of src.matchAll(CLASS)) named(m[1]!);
+  for (const m of src.matchAll(EXPORT_STAR_AS)) named(m[1]!);
   for (const m of src.matchAll(EXPORT_LIST))
     for (const part of m[1]!.split(",")) {
       const [from, alias] = part.trim().split(/\s+as\s+/);
@@ -108,10 +152,15 @@ export function countFile(rel: string, source: string): Partial<Record<Kind, num
         named(from.trim());
     }
   add("read-hook", (src.match(READ_HOOK) ?? []).length);
-  add("load-more", (src.match(LOAD_MORE) ?? []).length);
+  add("load-more", (src.replace(SPACES, " ").match(LOAD_MORE) ?? []).length);
   if (/crew\.status/.test(src))
-    for (const m of src.matchAll(INTERVAL))
-      if (!/Date\.now\(\)/.test(argsAt(src, m.index! + m[0].length))) add("crew-poll", 1);
+    for (const m of src.matchAll(INTERVAL)) {
+      const args = argsAt(src, m.index! + m[0].length);
+      // a clock ticker reads Date.now(); anything else is a poll unless EXCEPTIONS names this one timer
+      const excused = EXCEPTIONS.find((x) => x.file === rel && args.trim() === x.timer && (used.get(x) ?? 0) < x.count);
+      if (excused) used.set(excused, (used.get(excused) ?? 0) + 1);
+      else if (!/Date\.now\(\)/.test(args)) add("crew-poll", 1);
+    }
   return out;
 }
 
@@ -254,4 +303,63 @@ test("the baseline cannot be rebuilt by accident", () => {
   assert.equal(initAllowed(true, undefined), false, "refused while a baseline exists");
   assert.equal(initAllowed(true, "force"), true);
   assert.equal(initAllowed(false, "1"), true);
+});
+
+test("Load more is the control, not a sentence that happens to contain the words", () => {
+  const at = "apps/app/src/zz/x.tsx";
+  assert.deepEqual(countFile(at, "<Text>Couldn't load more. Retry</Text>"), {});
+  assert.deepEqual(countFile(at, 'const m = "Loading more";'), {});
+  assert.deepEqual(countFile(at, 'label="Load more"'), { "load-more": 1 });
+  assert.deepEqual(countFile(at, "<Text>Load more…</Text>"), { "load-more": 1 });
+  assert.deepEqual(countFile(at, 'label={busy ? "Loading erasures…" : "Load more erasures"}'), { "load-more": 1 });
+});
+
+test("export * as a shared name is a copy under that name", () => {
+  assert.deepEqual(countFile("apps/app/src/zz/x.tsx", 'export * as Switch from "./elsewhere";'), { declared: 1 });
+});
+
+test("the timer exceptions are exactly the named ones, and each is still in its file and still ends by itself", () => {
+  assert.deepEqual(
+    EXCEPTIONS.map((x) => x.file),
+    ["apps/app/src/places/chats/conversation/Conversation.tsx"],
+  );
+  for (const x of EXCEPTIONS) {
+    const src = readFileSync(join(ROOT, x.file), "utf8");
+    assert.ok(
+      src.includes(`setInterval(${x.timer})`),
+      `${x.file}: the timer "${x.timer}" is gone: remove its exception`,
+    );
+    assert.ok(x.what && x.why && /^\d{4}-\d\d-\d\d$/.test(x.added), "an exception says what, why and when");
+  }
+  const convo = readFileSync(join(ROOT, EXCEPTIONS[0]!.file), "utf8");
+  assert.match(
+    convo,
+    /if \(!notYet\) return undefined;[\s\S]{0,200}clearInterval\(t\)/,
+    "the timer runs only while notYet and is cleared",
+  );
+  const justMade = readFileSync(join(ROOT, "apps/app/src/shell/session/just-made.ts"), "utf8");
+  assert.match(justMade, /JUST_MADE_MS = 30_000/, "the ceiling it relies on");
+});
+
+test("a second Status or StatusLabel outside ui/Status is a copy", () => {
+  assert.deepEqual(countFile("apps/app/src/zz/x.tsx", "export function StatusLabel() { return null; }"), {
+    declared: 1,
+  });
+  assert.deepEqual(countFile("ui/src/Status/index.tsx", "export function Status() { return null; }"), {});
+});
+
+test("the timer exception is exact and counts one: a second copy in the same file is a poll", () => {
+  const file = "apps/app/src/places/chats/conversation/Conversation.tsx";
+  const one = 'data.call("engine.crew.status"); setInterval(retryLoads, 1500);';
+  assert.deepEqual(countFile(file, one), {});
+  assert.deepEqual(
+    countFile(file, `${one} setInterval(retryLoads, 1500);`),
+    { "crew-poll": 1 },
+    "the second is not excused",
+  );
+  assert.deepEqual(
+    countFile(file, 'data.call("engine.crew.status"); setInterval(retryLoads, 15000);'),
+    { "crew-poll": 1 },
+    "a different delay is a different timer",
+  );
 });
