@@ -155,10 +155,10 @@ Signed: the lead, 13 Nov 2026
 
 The summary of `sites.artifact_publish@1`, the words a model reads, now begins with what the call needs ("Needs a title and exactly one of html, fileId, folderId, path or port"), gives one example call, and says that a title left out is taken from the page's own `<title>`. No input, output or error changes. The handler's refusal for two sources at once now names the two given, in the same code (`validation.bad_input`, field `html`). The tool layer (agent/src/tools) no longer shows a model the `idempotencyKey` of a `create` capability or the `threadId` of a chat tool as required; the contract is unchanged and the server still validates the full input, so an outside caller sends the key as before.
 
-Signed: (pending signature) the lead, 13 Nov 2026
+Signed: the lead (Simba), 14 Nov 2026 01:43 PKT, after reading the manifest diff: summaries only, no input, output or error change.
 
 ## 13 Nov 2026: files.create and files.write summaries give the direct-write limit (lane f-firstcall)
 
 The summaries of `files.create@1` and `files.write@1`, the words a model reads, now say a direct write holds at most 256 KB (the limit the handlers already enforce, `MAX_INLINE`). The refusal for a larger one (`validation.too_large`, as before) now says the limit and to split the content into smaller files. No input, output or error code changes.
 
-Signed: (pending signature) the lead, 13 Nov 2026
+Signed: the lead (Simba), 14 Nov 2026 01:43 PKT, after reading the manifest diff: summaries only, no input, output or error change.
