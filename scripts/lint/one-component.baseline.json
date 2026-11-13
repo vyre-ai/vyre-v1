@@ -55,7 +55,7 @@
     "read-hook": 1
   },
   "apps/app/src/places/apps/shell/editor-ui.tsx": {
-    "declared": 2,
+    "declared": 1,
     "read-hook": 1
   },
   "apps/app/src/places/automations/canvas/data.tsx": {
