@@ -63,7 +63,7 @@ import { ProfilePane, afterClose, profileTab, withTab } from "../rightpane/Profi
 import type { ProfileTab } from "../rightpane/ProfilePane.tsx";
 import type { TabKey } from "../rightpane/model.ts";
 import { ChatDetails } from "../rightpane/ChatDetails.tsx";
-import { paneSubject } from "../rightpane/subject.ts";
+import { paneAction, paneSubject } from "../rightpane/subject.ts";
 import { ReplyDetailsPane } from "../details/ReplyDetailsPane.tsx";
 import { readReplyDetails } from "../details/read.ts";
 import type { Call } from "../details/read.ts";
@@ -78,7 +78,7 @@ import { openSkills } from "../install/open.ts";
 import type { Act, Route, Shown } from "./route.ts";
 import { nameOr } from "../names.ts";
 import { viewing } from "../../../shell/noticeslot/viewing.ts";
-import { LoadFailed } from "../../../../../../ui/src/States/Loads.tsx";
+import { LoadFailed, onBackToStart } from "../../../../../../ui/src/States/Loads.tsx";
 import type { LoadFailure } from "../../../../../../ui/src/States/Loads.tsx";
 
 /** A channel id; the place shows a channel as its main thread. */
@@ -220,12 +220,16 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   const selectedFor = useRef<string | null>(null);
   // a hook line in the chat opens the pane on Hooks, at that hook
   const [paneTab, setPaneTab] = useState<TabKey | undefined>(undefined);
+  // "Back to Chats" on a refusal (ui/States) shows the start, where the list is
+  useEffect(() => onBackToStart(() => act({ t: "new" })), [act]);
   const [hookSel, setHookSel] = useState<string | null>(null);
+  // each chat opens on what it is: a tab asked for in one chat (Hooks, Knows, Skills) is not carried to the next
   // the task open beside the chat it was pressed in; it closes when the chat changes
   const [sideTask, setSideTask] = useState<string | null>(null);
   const openSideTask = useCallback((id: string): void => setSideTask(id), []);
   const chatShown = shown.route.view === "chat" ? shown.route.threadId : null;
   useEffect(() => { setSideTask(null); }, [chatShown]);
+  useEffect(() => { setPaneTab(undefined); setHookSel(null); }, [chatShown]);
   const profile = useCallback((id: string, asPerson = false): void => {
     const agent = id === rt.assistant.id ? "assistant" as const : asPerson || byId.get(id)?.kind === "person" ? "person" as const : "agent" as const;
     const tab = profileTab(id, nameOf(id), agent);
@@ -355,7 +359,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       const wired = wireConversation(rt, go, { threadId, list, nameOf, leadId, fill, ...(focus ? { focus } : {}), ...(focusN ? { focusN } : {}) });
       // a task link in the chat opens beside it, where it was pressed
       const openBeside = (kind: string, id: string): void => { if (kind === "task") openSideTask(id); else wired.nav.openBeside(kind, id); };
-      return { ...wired, nav: { ...wired.nav, openAgent: profile, openBeside, openSkills: (name: string) => { openSkills(name); act({ t: "pane-open" }); }, openDetails: (tid: string, mid: string) => replyDetails(tid, mid), openHooks: (_tid: string, hookId?: string) => { setPaneTab("hooks"); setHookSel(hookId ?? null); setRightOn(null); selectedFor.current = threadId; go.openPane(); } } };
+      return { ...wired, nav: { ...wired.nav, openAgent: profile, openBeside, openSkills: (name: string) => { openSkills(name); selectedFor.current = threadId; act({ t: "pane-open" }); }, openDetails: (tid: string, mid: string) => replyDetails(tid, mid), openHooks: (_tid: string, hookId?: string) => { setPaneTab("hooks"); setHookSel(hookId ?? null); setRightOn(null); selectedFor.current = threadId; go.openPane(); } } };
     },
     [rt, go, threadId, list, nameOf, leadId, fill, focus, focusN, profile, openSideTask, replyDetails],
   );
@@ -391,11 +395,12 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   const subject = thread.status === "ready" && threadId !== null && thread.data.thread.threadId === threadId ? paneSubject(thread.data.thread, rt.me.id, rt.assistant.id) : null;
   const subjectKey = subject === null ? null : subject.kind === "person" ? `profile:${subject.id}` : subject.kind === "agent" ? null : `chat:${threadId}`;
   useEffect(() => {
-    if (!shown.pane) { selectedFor.current = null; if (autoTab.current !== null) { const k = autoTab.current; autoTab.current = null; setRightOn((on) => (on === k ? null : on)); setRightTabs((t) => t.filter((x) => x.key !== k)); } return; }
-    if (subject === null || threadId === null || selectedFor.current === threadId) return;
+    const what = paneAction({ paneOpen: shown.pane, hasSubject: subject !== null, threadId, settledFor: selectedFor.current, rightOn, autoTab: autoTab.current });
+    if (what === "clear") { selectedFor.current = null; if (autoTab.current !== null) { const k = autoTab.current; autoTab.current = null; setRightOn((on) => (on === k ? null : on)); setRightTabs((t) => t.filter((x) => x.key !== k)); } return; }
+    if (what === "skip" || subject === null || threadId === null) return;
     selectedFor.current = threadId;
     const old = autoTab.current;
-    if (rightOn !== null && rightOn !== old) return;   // the person chose something else to look at: leave it
+    if (what === "keep") return;   // the person chose something else to look at: leave it
     if (old !== null && old !== subjectKey) setRightTabs((t) => t.filter((x) => x.key !== old));   // the last chat's person or details goes; the new one takes its place
     if (subject.kind === "person") { profile(subject.id, true); autoTab.current = `profile:${subject.id}`; }
     else if (subject.kind === "agent") { setRightOn(null); autoTab.current = null; }
@@ -493,7 +498,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       </View>
     );
   } else if (shown.pane && paneCtx && route.view === "chat") {
-    right = <View style={st.pane}><AgentPane data={paneFull ?? paneCtx} open onToggle={go.togglePane} {...(paneTab ? { tab: paneTab } : {})} onTab={(t: TabKey) => { setPaneTab(t); setRightOn(null); }} hookSel={hookSel} {...(window ? { window } : {})} extra={{ tabs: rightSpecs, active: rightOn, onSelect: setRightOn, onClose: closeRight, body: rightBody, ...(autoTab.current !== null && rightSpecs.some((x) => x.key === autoTab.current) ? { first: autoTab.current } : {}) }} /></View>;
+    right = <View style={st.pane}><AgentPane data={paneFull ?? paneCtx} open onToggle={go.togglePane} {...(paneTab ? { tab: paneTab } : {})} onTab={(t: TabKey) => { setPaneTab(t); setRightOn(null); selectedFor.current = threadId; }} hookSel={hookSel} {...(window ? { window } : {})} extra={{ tabs: rightSpecs, active: rightOn, onSelect: setRightOn, onClose: closeRight, body: rightBody, ...(autoTab.current !== null && rightSpecs.some((x) => x.key === autoTab.current) ? { first: autoTab.current } : {}) }} /></View>;
   } else if (rightOn !== null && narrow) {
     // a profile on a phone is a full-screen page with a back arrow and the name, over the bottom nav (PhoneProfile)
     const t = rightTab;
