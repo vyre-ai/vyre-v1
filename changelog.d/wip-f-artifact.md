@@ -7,3 +7,4 @@
 - In the desktop app, pressing Share (or opening a menu) on an artifact no longer ends with "This link has ended": the page comes back at a fresh one-time address instead of replaying the spent one. The line under the artifact's name is read again after sharing, so it shows who it is shared with.
 - A one-time link that has been used, shown inside Vyre, no longer offers "Open Vyre" (which opened the app inside itself).
 - `vyre-server doctor` checks that the Space's artifact address resolves to this server and answers as this Space, and names the DNS record to add when it does not. `VYRE_ARTIFACT_HOST` can now be set from the server's settings file.
+- An agent's browser step whose saved picture cannot be drawn now says "No picture of this step could be taken" instead of showing a blank box.
