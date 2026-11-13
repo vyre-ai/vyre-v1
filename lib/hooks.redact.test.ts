@@ -16,6 +16,7 @@ test("a login in a link, a secret in a query string, a JWT, a webhook secret, an
     ["GET /cb?code=1&access_token=zzzzzzzz9 failed", "GET /cb?code=1&access_token=[hidden] failed"],
     ["bad token eyJhbGciOiJIUzI1.eyJzdWIiOiIxMjM0.c2lnbmF0dXJl here", "bad token [hidden] here"],
     ["event whsec_MfKQ9r8GKYqrTwjZ failed", "event [hidden] failed"],
+    // secret-scan: fake (a made-up key id, to prove it is hidden)
     ["role AKIAABCDEFGHIJKLMNOP denied", "role [hidden] denied"],
     ["Authorization: Token plainvalue123 rejected", "Authorization: [hidden] rejected"],
   ];
