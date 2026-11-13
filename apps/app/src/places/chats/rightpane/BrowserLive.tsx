@@ -29,10 +29,11 @@ export function pointOf(x: number, y: number, box: { width: number; height: numb
  * Where a press was, inside the view, in CSS pixels. React Native's own `locationX` and `locationY` when the event has them; on the web a press event is the browser's click, which has only the window's
  * `clientX` and `clientY`, taken from the box of the element that was pressed. (Without this every click in control mode went to the page's top left corner: `?? 0`.)
  */
-export function pressPoint(e: { nativeEvent?: { locationX?: number; locationY?: number; clientX?: number; clientY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; top: number } } }): { x: number; y: number } {
-  const n = e.nativeEvent ?? {};
+type PressEvent = { nativeEvent?: unknown; currentTarget?: unknown };
+export function pressPoint(e: PressEvent): { x: number; y: number } {
+  const n = (e.nativeEvent ?? {}) as { locationX?: number; locationY?: number; clientX?: number; clientY?: number };
   if (typeof n.locationX === "number" && typeof n.locationY === "number") return { x: n.locationX, y: n.locationY };
-  const box = e.currentTarget?.getBoundingClientRect?.();
+  const box = (e.currentTarget as { getBoundingClientRect?: () => { left: number; top: number } } | undefined)?.getBoundingClientRect?.();
   if (box && typeof n.clientX === "number" && typeof n.clientY === "number") return { x: n.clientX - box.left, y: n.clientY - box.top };
   return { x: 0, y: 0 };
 }
@@ -166,7 +167,7 @@ export function BrowserLive({ agentId, control, call, spaceUrl, testID = "browse
     return () => doc.removeEventListener("keydown", onKey);
   }, [control]);
 
-  const onPress = (e: Parameters<typeof pressPoint>[0]): void => {
+  const onPress = (e: PressEvent): void => {
     if (!control) return;
     const at = pressPoint(e);
     const p = pointOf(at.x, at.y, box.current, sized(opened?.width, opened?.height) ?? natural.current ?? BROWSER_VIEW);

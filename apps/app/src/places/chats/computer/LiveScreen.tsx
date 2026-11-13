@@ -74,7 +74,7 @@ export function LiveScreen({ computerId, state, call, note, spaceUrl, display, n
     return () => doc.removeEventListener("keydown", onKey);
   }, [keys, control, forwarder]);
 
-  const press = (e: Parameters<typeof pressPoint>[0]): void => {
+  const press = (e: { nativeEvent?: unknown; currentTarget?: unknown }): void => {
     if (!control) { onIdlePress?.(); return; }
     { const at = pressPoint(e); void forwarder.press(at.x, at.y, box.current, now()); }
   };
