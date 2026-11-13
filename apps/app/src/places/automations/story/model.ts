@@ -25,6 +25,8 @@ export interface StepIn {
   proposed?: boolean;
   yes?: StepIn[];
   otherwise?: StepIn[];
+  /** A loop or parallel lanes: one indented group under a one-line head ("For each row in Leads:", "At the same time:"). */
+  group?: { head: string; steps: StepIn[] };
 }
 
 export interface TriggerIn {
@@ -89,6 +91,7 @@ export interface StoryIn {
 export type StoryRow =
   | { kind: "trigger"; id: string; app: { id: string; name: string }; sentence: Sentence }
   | { kind: "label"; label: "If yes" | "Otherwise"; depth: number }
+  | { kind: "head"; text: string; depth: number }
   | {
       kind: "step";
       id: string;
@@ -143,11 +146,9 @@ export function needOf(s: StepIn): Need | null {
   return { kind: first.kind, line: first.line, button: first.button };
 }
 
-function flatten(
-  steps: readonly StepIn[],
-  depth: number,
-  out: { s: StepIn; depth: number; label?: "If yes" | "Otherwise" }[],
-): void {
+type Flat = { s: StepIn; depth: number; label?: "If yes" | "Otherwise"; head?: string };
+
+function flatten(steps: readonly StepIn[], depth: number, out: Flat[]): void {
   for (const s of steps) {
     out.push({ s, depth });
     if (s.yes || s.otherwise) {
@@ -156,15 +157,19 @@ function flatten(
       out.push({ s, depth: depth + 1, label: "Otherwise" });
       flatten(s.otherwise ?? [], depth + 1, out);
     }
+    if (s.group) {
+      out.push({ s, depth: depth + 1, head: s.group.head });
+      flatten(s.group.steps, depth + 1, out);
+    }
   }
 }
 
 /** Every step in the order it runs, branches inline. The one place numbering comes from: the builder, the run page and the first page count the same way. */
 export function ordered(steps: readonly StepIn[]): { step: StepIn; number: number; depth: number }[] {
-  const flat: { s: StepIn; depth: number; label?: "If yes" | "Otherwise" }[] = [];
+  const flat: Flat[] = [];
   flatten(steps, 0, flat);
   let n = 0;
-  return flat.filter((f) => !f.label).map((f) => ({ step: f.s, number: ++n, depth: f.depth }));
+  return flat.filter((f) => !f.label && !f.head).map((f) => ({ step: f.s, number: ++n, depth: f.depth }));
 }
 
 export function draftState(i: { on: boolean; live: unknown; draft: unknown }): "off" | "clean" | "dirty" {
@@ -183,15 +188,19 @@ function stable(v: unknown): string {
 }
 
 export function story(i: StoryIn): Story {
-  const flat: { s: StepIn; depth: number; label?: "If yes" | "Otherwise" }[] = [];
+  const flat: Flat[] = [];
   flatten(i.steps, 0, flat);
-  const all = flat.filter((f) => !f.label).map((f) => f.s);
+  const all = flat.filter((f) => !f.label && !f.head).map((f) => f.s);
   const rows: StoryRow[] = [];
   if (i.trigger) rows.push({ kind: "trigger", id: i.trigger.id, app: i.trigger.app, sentence: sentence(i.trigger) });
   let n = 0;
   for (const f of flat) {
     if (f.label) {
       rows.push({ kind: "label", label: f.label, depth: f.depth });
+      continue;
+    }
+    if (f.head) {
+      rows.push({ kind: "head", text: f.head, depth: f.depth });
       continue;
     }
     rows.push({

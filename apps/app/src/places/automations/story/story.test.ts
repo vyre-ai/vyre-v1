@@ -209,3 +209,27 @@ test("a step whose app he may not use is shown whole with one plain line, never 
   });
   assert.equal(m.rows.length, 2);
 });
+
+test("a loop and parallel lanes read as one indented group under a one-line head, with plain numbers in run order", () => {
+  const m = story({
+    ...base,
+    steps: [
+      step({ id: "a" }),
+      step({ id: "l", group: { head: "For each row in Leads:", steps: [step({ id: "l1" }), step({ id: "l2" })] } }),
+      step({ id: "p", group: { head: "At the same time:", steps: [step({ id: "p1" }), step({ id: "p2" })] } }),
+      step({ id: "z" }),
+    ],
+  });
+  assert.deepEqual(
+    m.rows.map((r) =>
+      r.kind === "trigger"
+        ? "When"
+        : r.kind === "step"
+          ? `${r.number}${"-".repeat(r.depth)}`
+          : r.kind === "head"
+            ? `${r.text}${"-".repeat(r.depth)}`
+            : r.label,
+    ),
+    ["When", "1", "2", "For each row in Leads:-", "3-", "4-", "5", "At the same time:-", "6-", "7-", "8"],
+  );
+});

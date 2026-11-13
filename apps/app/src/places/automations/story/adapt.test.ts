@@ -142,3 +142,38 @@ test("the missing line for a step comes from the server's words, one per step, a
   assert.equal(r.steps[0]!.writes, true);
   assert.equal(r.steps[1]!.needs, undefined);
 });
+
+test("a loop is one group under 'For each ... in ...:' and parallel lanes one group under 'At the same time:'", () => {
+  const d: DefIn = {
+    triggers: [{ key: "form_submit" }],
+    nodes: [
+      {
+        id: "lp",
+        key: "loop",
+        input: { items: "{{trigger.rows}}" },
+        branches: [{ label: "body", to: "b1" }],
+        next: ["pp"],
+      },
+      { id: "b1", key: "post_message", input: { text: "row" } },
+      {
+        id: "pp",
+        key: "parallel",
+        input: {},
+        branches: [
+          { label: "a", to: "x" },
+          { label: "b", to: "y" },
+        ],
+      },
+      { id: "x", key: "send_email", input: { subject: "A" } },
+      { id: "y", key: "post_message", input: { text: "B" } },
+    ],
+  };
+  const r = fromDefinition(d, ctx());
+  assert.deepEqual(
+    r.steps.map((s) => [s.id, s.group?.head, s.group?.steps.map((g) => g.id)]),
+    [
+      ["lp", "For each item in Rows:", ["b1"]],
+      ["pp", "At the same time:", ["x", "y"]],
+    ],
+  );
+});

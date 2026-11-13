@@ -98,6 +98,12 @@ function sentenceOf(
   return { template: bits.length === 0 ? title : `${title}: ${bits.join(", ")}`, values };
 }
 
+function loopHead(n: DefNodeIn, ctx: AdaptCtx): string {
+  const v = valueOf(n.input["items"], ctx);
+  const what = !v ? "" : "chip" in v ? v.chip.label : v.text;
+  return what === "" ? "For each item:" : `For each item in ${what}:`;
+}
+
 export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn | null; steps: StepIn[] } {
   const by = new Map(def.nodes.map((n) => [n.id, n]));
   const t = def.triggers[0];
@@ -171,10 +177,11 @@ export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn 
         step.otherwise = lanes.slice(1).flatMap((l) => chain(l.to, join));
         id = join ?? undefined;
       } else if (lanes.length > 0) {
-        // parallel lanes and a loop's body are drawn in order, one after another
+        // a loop's body or parallel lanes: one group under a one-line head, in run order
         const sets = lanes.map((l) => new Set(reach(l.to)));
         const join = lanes.length > 1 ? (reach(lanes[0]!.to).find((x) => sets.every((st) => st.has(x))) ?? null) : null;
-        for (const l of lanes) out.push(...chain(l.to, join));
+        const inner = lanes.flatMap((l) => chain(l.to, join));
+        step.group = { head: n.key === "loop" ? loopHead(n, ctx) : "At the same time:", steps: inner };
         id = join ?? (n.key === "loop" ? n.next?.[0] : undefined);
       } else id = n.next?.[0];
     }

@@ -95,9 +95,12 @@ export function StoryView({ story, on }: { story: Story; on(action: StoryAction,
       <ScrollView contentContainerStyle={s.rows}>
         {/* ui-rows-lint: not a list (sentence rows with inline data chips; a Row title is plain text) */}
         {story.rows.map((r) =>
-          r.kind === "label" ? (
-            <Text key={`l-${r.label}-${r.depth}`} style={[s.quiet, { marginLeft: r.depth * 16 }]}>
-              {r.label}
+          r.kind === "label" || r.kind === "head" ? (
+            <Text
+              key={`l-${r.kind === "head" ? r.text : r.label}-${r.depth}`}
+              style={[s.quiet, { marginLeft: r.depth * 16 }]}
+            >
+              {r.kind === "head" ? r.text : r.label}
             </Text>
           ) : (
             <Pressable
