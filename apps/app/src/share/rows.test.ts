@@ -54,23 +54,32 @@ test("a link is made from the Space's own address, never from the page the app r
     setLinkOrigin(null);
     put("location", { origin: "https://team.example.com" });
     assert.equal(itemLink("site", "sit_ab12"), "https://team.example.com/a/sit_ab12");
-    // a Space on this computer alone: no address anyone else can open
-    for (const local of [
-      "http://127.0.0.1:8420",
-      "http://localhost:8420",
-      "http://a.localhost:8420",
-      "tauri://localhost",
-      "",
-    ]) {
+    // a Space with no public address (decision, 14 Nov): the WEB page at a local or network address copies its own origin (it opens for that person); the DESKTOP app copies the in-app form, which opens in Vyre on
+    // this computer only, and says so; a link meant for OTHER people (the Share sheet) on desktop is never that form: words
+    for (const local of ["http://127.0.0.1:8420", "http://localhost:8420"]) {
       setLinkOrigin(local);
-      put("location", { origin: "tauri://localhost" });
+      put("location", { origin: local });
       assert.equal(linkOrigin(), "", local);
-      assert.equal(itemLink("site", "sit_ab12"), "", local);
+      assert.equal(itemLink("site", "sit_ab12"), `${local}/a/sit_ab12`, `web at ${local}`);
     }
+    // a Space on a network address (not loopback) is an address like any other: its link opens for people on that network
+    setLinkOrigin("http://192.168.1.5:8420");
+    put("location", { origin: "tauri://localhost" });
+    assert.equal(itemLink("site", "sit_ab12"), "http://192.168.1.5:8420/a/sit_ab12");
+    setLinkOrigin("http://127.0.0.1:8420");
+    const inApp = `vyre://open?address=${encodeURIComponent("http://127.0.0.1:8420")}&kind=artifact&id=sit_ab12`;
+    assert.equal(itemLink("site", "sit_ab12"), inApp);
     copied.length = 0;
     copyItemLink("site", "sit_ab12");
-    assert.deepEqual(copied, [], "nothing dead is copied");
+    assert.deepEqual(copied, [inApp], "a personal copy on desktop: the in-app form");
+    assert.match(JSON.stringify(notices.getSnapshot()), /opens in Vyre on this computer only/);
+    copied.length = 0;
+    copyItemLink("site", "sit_ab12", true);
+    assert.deepEqual(copied, [], "a link for other people: nothing dead is copied");
     assert.match(JSON.stringify(notices.getSnapshot()), /no public address yet, so there is no link to give/);
+    // no address at all
+    setLinkOrigin(null);
+    assert.equal(itemLink("site", "sit_ab12"), "");
   } finally {
     setLinkOrigin(null);
     for (const k of ["location", "navigator"] as const) {

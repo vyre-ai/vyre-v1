@@ -13,3 +13,4 @@
 - An agent computer's live screen asks for a new stream ticket when its picture stream fails, instead of reusing one that is spent.
 - Copy link in the Share sheet (and every other Copy link: notes, files, chats, messages, agents, records) now copies the Space's own address. In the desktop app it copied an address that begins tauri://localhost, which opens nowhere. A Space with no public address says so in words instead of copying a dead link. An address under /a/ that is not an artifact's now answers a plain page, not a raw error.
 - The artifact card in a chat and a record's Copy link also copy the Space's own address, not the address of the page the app runs in.
+- On a Space with no public address, Copy link in the desktop app copies a link that opens in Vyre on this computer only and says so; a link for other people (the Share sheet) says there is none. In a web page at a local or network address it copies that address, which opens for that person.

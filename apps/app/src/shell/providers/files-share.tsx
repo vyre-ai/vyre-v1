@@ -140,7 +140,7 @@ export function FolderShareSheet({
             }),
           )
         }
-        onCopyLink={() => copyItemLink(type, folderId)}
+        onCopyLink={() => copyItemLink(type, folderId, true)}
         onShare={(i: ShareInput, opts) =>
           run(
             rt.call(

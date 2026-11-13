@@ -11,7 +11,8 @@ import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { FolderShareSheet } from "../../../shell/providers/files-share.tsx";
 import { nameLookup } from "../../../shell/providers/records-live.ts";
 import { States } from "../../../../../../ui/src/States/index.tsx";
-import { artifactAddress, artifactHostAnswers, plainLink } from "./artifact-address.ts";
+import { artifactAddress, artifactHostAnswers } from "./artifact-address.ts";
+import { copyLinkText, itemLink } from "../../../share/rows.ts";
 import { available, DesktopArtifactFrame } from "./desktop-frame.tsx";
 
 type Site = CapMap["sites.get"]["out"]["site"];
@@ -164,9 +165,7 @@ export function ArtifactView({
     );
   };
   const copy = (): void => {
-    void (
-      globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }
-    ).navigator?.clipboard?.writeText?.(plainLink(rt.baseUrl, artifactId));
+    copyLinkText(itemLink("site", artifactId)); // the Space's own address (words when there is none)
   };
   const remove = (): void => {
     void Promise.resolve(rt.call("sites.delete", { siteId: artifactId })).then(gone, (e: unknown) => setFailed(msg(e)));
