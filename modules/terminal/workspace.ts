@@ -16,6 +16,8 @@ import { NOT_FETCHED_REASON, createDockerApi, fetchableImage } from "../../sandb
 import { tarFiles } from "../../sandbox/src/tar.ts";
 import type { ContainerConfig, DockerApi, DockerHttp, DockerResponse } from "../../sandbox/src/docker.ts";
 import { createTmuxHost, HISTORY_ENV } from "./impl.ts";
+import { ensureCommand } from "./asker.ts";
+import type { AskerPlace } from "./asker.ts";
 import type { TmuxHost } from "./impl.ts";
 import type { ExecResult } from "./impl.ts";
 import type { AdoptArgs, TerminalHost } from "./projections.ts";
@@ -246,15 +248,21 @@ export interface WorkspaceManager {
  * what it forks). So `bash build.sh`, `sh -c ...` and a job left in the background (`npm run dev &`) count, where a pane's foreground command alone reads as the shell. Plain sh and /proc, no ps.
  */
 export const BUSY_SCRIPT = [
-  "t=$(tmux display-message -p '#{pid}' 2>/dev/null)",
+  "t=\" $(tmux display-message -p '#{pid}' 2>/dev/null) \"",
   "panes=\" $(tmux list-panes -a -F '#{pane_pid}' 2>/dev/null | tr '\\n' ' ') \"",
+  // the tmux servers of the people who use the agent without owning it (asker.ts) are the workspace's own too: their server and their panes' shells are not work
+  "for s in /tmp/vyre-tmux/*; do",
+  '  [ -d "$s" ] || continue',
+  "  t=\"$t$(TMUX_TMPDIR=$s tmux display-message -p '#{pid}' 2>/dev/null) \"",
+  "  panes=\"$panes$(TMUX_TMPDIR=$s tmux list-panes -a -F '#{pane_pid}' 2>/dev/null | tr '\\n' ' ') \"",
+  "done",
   "for d in /proc/[0-9]*; do",
   "  p=${d#/proc/}",
-  '  [ "$p" = "$$" ] && continue; [ "$p" = 1 ] && continue; [ "$p" = "$t" ] && continue',
+  '  [ "$p" = "$$" ] && continue; [ "$p" = 1 ] && continue; case "$t" in *" $p "*) continue;; esac',
   '  s=$(cat "$d/stat" 2>/dev/null) || continue',
   "  r=${s##*) }; set -- $r",
   '  [ "$1" = Z ] && continue',
-  '  [ "$2" = 0 ] || [ "$2" = "$$" ] || [ "$2" = "$t" ] && continue',
+  '  [ "$2" = 0 ] || [ "$2" = "$$" ] && continue; case "$t" in *" $2 "*) continue;; esac',
   '  case "$panes" in *" $p "*) continue;; esac',
   "  if [ \"$2\" = 1 ]; then c=$(tr '\\000' ' ' < \"$d/cmdline\" 2>/dev/null); [ \"$c\" = 'sleep infinity ' ] && continue; fi",
   "  echo \"$p $(tr '\\000' ' ' < \"$d/cmdline\" 2>/dev/null | cut -c1-80)\"",
@@ -1356,6 +1364,23 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
               .map((l) => l.trim())
               .filter((c) => c !== "" && !SHELLS.has(c))
           : [];
+      // a pane of a person who uses the agent without owning it is on a tmux server of their own: the same question, asked of each
+      const theirs = await execIn(
+        agentId,
+        [
+          "sh",
+          "-c",
+          'for s in /tmp/vyre-tmux/*; do [ -d "$s" ] && TMUX_TMPDIR=$s tmux list-panes -a -F "#{pane_current_command}" 2>/dev/null; done; true',
+        ],
+        undefined,
+      );
+      if (theirs.code === 0)
+        fg.push(
+          ...theirs.stdout
+            .split("\n")
+            .map((l) => l.trim())
+            .filter((c) => c !== "" && !SHELLS.has(c)),
+        );
       if (fg.length > 0) return say([...new Set(fg)].join(", "));
       const procs = await execIn(agentId, ["sh", "-c", BUSY_SCRIPT], undefined);
       if (procs.code !== 0) return say("something");
@@ -2046,7 +2071,17 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
   /** `gen`: the container start the session was last made or seen in (-1: not yet looked at since a restart); `seen`: the start it was known in, to tell a session the person ended from one a restart lost. */
   const where = new Map<
     string,
-    { agentId: string; cols: number; rows: number; cwd?: string; gen: number; seen?: number; told?: number }
+    {
+      agentId: string;
+      cols: number;
+      rows: number;
+      cwd?: string;
+      gen: number;
+      seen?: number;
+      told?: number;
+      /** A person who uses this shared agent's workspace without owning it: their own home, history and tmux server (asker.ts). */
+      place?: AskerPlace;
+    }
   >();
   const tmuxHosts = new Map<string, TmuxHost>();
   /** The first sweep of each workspace's leftover values buffers in this process: awaited before any use. */
@@ -2054,7 +2089,11 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
 
   // ---- live frames: tmux pipe-pane into a file in /tmp, read back from an offset, one reader per session however many tabs watch ----
   const streams = new Map<string, { listeners: Set<(line: string) => void>; stop(): void }>();
-  function control(agentId: string): (session: string, onLine: (line: string) => void) => () => void {
+  function control(
+    agentId: string,
+    place?: AskerPlace,
+  ): (session: string, onLine: (line: string) => void) => () => void {
+    const env = place?.tmuxEnv;
     return (session, onLine) => {
       const have = streams.get(session);
       if (have) {
@@ -2075,6 +2114,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
           void m
             .exec(agentId, ["sh", "-c", 'tmux pipe-pane -t "$1" 2>/dev/null; rm -f "$2"', "sh", session, file], {
               quiet: true,
+              ...(env === undefined ? {} : { env }),
             })
             .catch(() => undefined);
         },
@@ -2084,7 +2124,11 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
         let offset = 0;
         let carry: Uint8Array = new Uint8Array(0);
         try {
-          await m.exec(agentId, ["sh", "-c", ': > "$2"; tmux pipe-pane -t "$1" "cat >> $2"', "sh", session, file]);
+          await m.exec(
+            agentId,
+            ["sh", "-c", ': > "$2"; tmux pipe-pane -t "$1" "cat >> $2"', "sh", session, file],
+            env === undefined ? undefined : { env },
+          );
           while (!stopped) {
             const r = await m.exec(agentId, [
               "sh",
@@ -2122,28 +2166,31 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     };
   }
 
-  function tmuxFor(agentId: string): TmuxHost {
-    let h = tmuxHosts.get(agentId);
+  /** The tmux host of a workspace, or of one person's tmux server in it (a person who uses the shared agent without owning it, asker.ts). */
+  function tmuxFor(agentId: string, place?: AskerPlace): TmuxHost {
+    const key = place === undefined ? agentId : `${agentId}\u0000${place.person}`;
+    let h = tmuxHosts.get(key);
+    const tmuxEnv = place?.tmuxEnv;
     // what a program reads on its standard input (a command's values, for tmux load-buffer) goes in by the exec's environment and a pipe, never in its arguments
     const exec = (argv: readonly string[], x?: { stdin?: string }): Promise<ExecResult> =>
       x?.stdin === undefined
-        ? m.exec(agentId, argv)
+        ? m.exec(agentId, argv, tmuxEnv === undefined ? undefined : { env: tmuxEnv })
         : m.exec(agentId, ["sh", "-c", 'printf %s "$VYRE_STDIN" | (unset VYRE_STDIN; exec "$@")', "sh", ...argv], {
-            env: { VYRE_STDIN: x.stdin },
+            env: { ...tmuxEnv, VYRE_STDIN: x.stdin },
             values: true,
           });
     if (!h) {
       // a tab's live read is quiet: it neither wakes the workspace nor counts as use, so a tab left open does not keep the workspace awake, and a person watching is not taken for the agent at work
       h = createTmuxHost({
         exec,
-        quietExec: (argv) => m.exec(agentId, argv, { quiet: true }),
-        control: control(agentId),
+        quietExec: (argv) => m.exec(agentId, argv, { quiet: true, ...(tmuxEnv === undefined ? {} : { env: tmuxEnv }) }),
+        control: control(agentId, place),
         prefix,
       });
-      tmuxHosts.set(agentId, h);
+      tmuxHosts.set(key, h);
       // the first use of this workspace in this process: what a run left before a restart is removed before anyone reads (review 12 Nov, 3b); every use waits for it (third look)
       firstSweep.set(
-        agentId,
+        key,
         h.sweep().catch(() => undefined),
       );
     }
@@ -2162,30 +2209,40 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     }
     await m.ensure(w0.agentId);
     const gen = m.generation(w0.agentId);
+    const place = w0.place;
+    const envOf = (): { env: Readonly<Record<string, string>> } | undefined =>
+      place === undefined ? undefined : { env: place.tmuxEnv };
     if (remake || w0.gen !== gen) {
       // tmux died with the container (or this process never saw the session: a restart): the session is made again, empty, where it was; one that is still there is kept as it is
       const session = nameOf(terminalId);
-      if ((await m.exec(w0.agentId, ["tmux", "has-session", "-t", session])).code !== 0) {
-        await m.exec(w0.agentId, [
-          "tmux",
-          "new-session",
-          "-A",
-          ...HISTORY_ENV,
-          "-d",
-          "-s",
-          session,
-          "-x",
-          String(w0.cols),
-          "-y",
-          String(w0.rows),
-          ...(w0.cwd === undefined ? [] : ["-c", w0.cwd]),
-        ]);
-        await tmuxFor(w0.agentId).sweep();
+      if ((await m.exec(w0.agentId, ["tmux", "has-session", "-t", session], envOf())).code !== 0) {
+        // the person's own folder and tmux server folder are made again first (the container's /tmp is new after a sleep)
+        if (place !== undefined) await m.exec(w0.agentId, ensureCommand(place));
+        await m.exec(
+          w0.agentId,
+          [
+            "tmux",
+            "new-session",
+            "-A",
+            ...HISTORY_ENV,
+            ...(place === undefined ? [] : Object.entries(place.env).flatMap(([k, v]) => ["-e", `${k}=${v}`])),
+            "-d",
+            "-s",
+            session,
+            "-x",
+            String(w0.cols),
+            "-y",
+            String(w0.rows),
+            ...(w0.cwd === undefined ? [] : ["-c", w0.cwd]),
+          ],
+          envOf(),
+        );
+        await tmuxFor(w0.agentId, place).sweep();
       }
       w0.gen = gen;
     }
-    const host = tmuxFor(w0.agentId);
-    await firstSweep.get(w0.agentId);
+    const host = tmuxFor(w0.agentId, place);
+    await firstSweep.get(place === undefined ? w0.agentId : `${w0.agentId}\u0000${place.person}`);
     return { agentId: w0.agentId, host };
   }
   /** Do `f` in the session's workspace; a session tmux lost under a running workspace (its server was killed from inside) is made again once and `f` tried again. */
@@ -2211,6 +2268,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
         cols: a.cols,
         rows: a.rows,
         ...(a.cwd === undefined ? {} : { cwd: a.cwd }),
+        ...(a.place === undefined ? {} : { place: a.place }),
         gen: -1,
         seen: m.generation(a.target.agentId),
       });
@@ -2219,10 +2277,19 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       const agentId = a.target.agentId;
       if (agentId === undefined) throw wsError("Say which agent's workspace to open the terminal in.", "bad_input");
       await m.ensure(agentId);
-      const t = tmuxFor(agentId);
-      await firstSweep.get(agentId);
+      // a person who uses the shared agent without owning it: their folder and tmux server folder exist before their shell does
+      if (a.place !== undefined) await m.exec(agentId, ensureCommand(a.place));
+      const t = tmuxFor(agentId, a.place);
+      await firstSweep.get(a.place === undefined ? agentId : `${agentId}\u0000${a.place.person}`);
       const r = await t.open(a);
-      where.set(a.terminalId, { agentId, cols: a.cols, rows: a.rows, cwd: r.cwd, gen: m.generation(agentId) });
+      where.set(a.terminalId, {
+        agentId,
+        cols: a.cols,
+        rows: a.rows,
+        cwd: r.cwd,
+        ...(a.place === undefined ? {} : { place: a.place }),
+        gen: m.generation(agentId),
+      });
       return { ...r, title: "Workspace" };
     },
     async input(id, data) {
@@ -2255,12 +2322,19 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       const up = await m.awake(x.agentId).catch(() => false);
       if (!up) return { text: "", next: r.since };
       if (x.gen !== m.generation(x.agentId)) {
-        if ((await m.exec(x.agentId, ["tmux", "has-session", "-t", nameOf(id)], { quiet: true })).code !== 0)
+        if (
+          (
+            await m.exec(x.agentId, ["tmux", "has-session", "-t", nameOf(id)], {
+              quiet: true,
+              ...(x.place === undefined ? {} : { env: x.place.tmuxEnv }),
+            })
+          ).code !== 0
+        )
           return { text: "", next: r.since };
         x.gen = m.generation(x.agentId);
       }
       try {
-        return await tmuxFor(x.agentId).read(id, r);
+        return await tmuxFor(x.agentId, x.place).read(id, r);
       } catch {
         return { text: "", next: r.since };
       }
@@ -2271,7 +2345,17 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
       const release = m.hold(t.agentId);
       try {
         // a session tmux lost is made again before the line is typed; never after, so a command is never typed twice
-        if ((await m.exec(t.agentId, ["tmux", "has-session", "-t", nameOf(id)])).code !== 0) t = await at(id, true);
+        const placeEnv = where.get(id)?.place?.tmuxEnv;
+        if (
+          (
+            await m.exec(
+              t.agentId,
+              ["tmux", "has-session", "-t", nameOf(id)],
+              placeEnv === undefined ? undefined : { env: placeEnv },
+            )
+          ).code !== 0
+        )
+          t = await at(id, true);
         const g0 = m.generation(t.agentId);
         // a file a person just dropped into Files is there before the command runs (fourth look U2); if the copy takes too long, the command runs anyway and says so
         const fresh = await m.freshen(t.agentId).catch(() => false);
@@ -2305,7 +2389,7 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
         }
         // gone from the container it lived in: the person ended it (exit), so it reads as exited; gone because the container was started again since: idle, made again on its next use
         const sameStart = (x.gen !== -1 ? x.gen : x.seen) === m.generation(x.agentId);
-        const got = await tmuxFor(x.agentId).status([id]);
+        const got = await tmuxFor(x.agentId, x.place).status([id]);
         out.push(...got.map((g) => (g.state === "exited" && !sameStart ? { ...g, state: "idle" as const } : g)));
       }
       return out;
@@ -2313,14 +2397,14 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
     stream(id, onFrame) {
       const x = where.get(id);
       if (!x) return () => undefined;
-      const h = tmuxFor(x.agentId);
+      const h = tmuxFor(x.agentId, x.place);
       return h.stream ? h.stream(id, onFrame) : () => undefined;
     },
     async close(id) {
       const x = where.get(id);
       if (x) {
         const live = await m.awake(x.agentId);
-        if (live) await tmuxFor(x.agentId).close(id);
+        if (live) await tmuxFor(x.agentId, x.place).close(id);
         where.delete(id);
         return;
       }

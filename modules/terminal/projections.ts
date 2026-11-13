@@ -7,6 +7,7 @@ import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
 import { createScrubber, MIN_SECRET_LENGTH, runWithVault, variantsOf } from "../../lib/vault-use/index.ts";
 import type { ErrorCode, EventName } from "../../packages/contracts/src/types.ts";
+import type { AskerPlace } from "./asker.ts";
 
 export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
@@ -72,6 +73,8 @@ export interface TerminalHost {
     cols: number;
     rows: number;
     folders: readonly string[];
+    /** The folder, shell environment and tmux server of a person who uses a shared agent's workspace without owning it (asker.ts); absent: the agent's home as it is. */
+    place?: AskerPlace;
   }): Promise<{ cwd: string; title?: string }>;
   input(terminalId: string, data: string): Promise<void>;
   interrupt(terminalId: string): Promise<void>;
@@ -109,6 +112,8 @@ export interface AdoptArgs {
   cols: number;
   rows: number;
   cwd?: string;
+  /** As in `open`: the session is made again in the same place after a sleep or a restart. */
+  place?: AskerPlace;
 }
 
 // Two ways a host gets here: the daemon hands over this machine's own (setTerminalHost in impl.ts), and a test binds a stand-in. A stand-in bound in the process wins, so a test that boots a daemon

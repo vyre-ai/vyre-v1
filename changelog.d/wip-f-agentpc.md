@@ -1,0 +1,1 @@
+- When several people use one shared agent, each person who does not own it now works in a folder of their own in its computer, with their own shell history, settings and terminal sessions, so one person's files, history and open sessions are no longer there for another person's turn.

@@ -200,7 +200,13 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
   }
   const tidy = (text: string): string => text.replace(/\s+$/u, "");
   /** A session's shell keeps no line that starts with a space in its history (agent commands are typed that way). A tmux older than 3.0 has no -e: the session opens without it. */
-  async function newSession(session: string, cols: number, rows: number, cwd: string | undefined): Promise<void> {
+  async function newSession(
+    session: string,
+    cols: number,
+    rows: number,
+    cwd: string | undefined,
+    env: Readonly<Record<string, string>> = {},
+  ): Promise<void> {
     const rest = [
       "-d",
       "-s",
@@ -211,7 +217,9 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
       String(rows),
       ...(cwd === undefined ? [] : ["-c", cwd]),
     ];
-    const r = await o.exec(["tmux", "new-session", ...HISTORY_ENV, ...rest]);
+    // a person who uses a shared agent without owning it: their shell's home, history and config folders (asker.ts)
+    const own = Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]);
+    const r = await o.exec(["tmux", "new-session", ...HISTORY_ENV, ...own, ...rest]);
     if (r.code === 0) return;
     if (/unknown option|invalid option|usage:/i.test(r.stderr)) {
       await tmux(["new-session", ...rest]);
@@ -448,7 +456,7 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     sweep: sweepBuffers,
     async open(a) {
       const session = nameOf(a.terminalId);
-      await newSession(session, a.cols, a.rows, a.cwd);
+      await newSession(session, a.cols, a.rows, a.cwd ?? a.place?.home, a.place?.env);
       await sweepBuffers();
       const cwd = tidy(await tmux(["display-message", "-p", "-t", session, "#{pane_current_path}"])) || a.cwd || "~";
       return { cwd };

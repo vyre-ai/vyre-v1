@@ -5,6 +5,9 @@
 //   rules.get / rules.set / health
 // The machine does the work through the TerminalHost port (projections.ts); this module keeps what Vyre knows about a session and enforces who may do what in it.
 import { STOPPED_LINE } from "../stop-line.ts";
+import { hasOwnPlace } from "../../../lib/asker-place.ts";
+import { askerPlace, inOtherFolder, otherFolders, projectsNamed } from "../asker.ts";
+import type { AskerPlace } from "../asker.ts";
 import {
   MAX_RULES,
   MAX_RULE_CHARS,
@@ -200,6 +203,46 @@ const lookup = (
   return p;
 };
 
+/**
+ * The place a person has in a shared agent's workspace (owner, 13 Nov, P7 section 10 item 6: a turn sees only the asker's work folder plus the agent's own home): a folder, a shell environment and a tmux
+ * server of their own, for a person who uses the agent without owning it. None for the agent's owner (the agent's home is theirs, as it was before), for a person's own Assistant or an outside agent (private
+ * to one person already), and for a turn acting for nobody (the agent itself). `person` is who the session is for: the person an agent acts for, or the person typing.
+ */
+export async function askerPlaceFor(
+  ctx: TermCtx,
+  agentId: string,
+  person: string,
+  facts?: Facts,
+): Promise<AskerPlace | undefined> {
+  if (ctx.call === undefined) return undefined;
+  return hasOwnPlace((await lookup(ctx, agentId, facts)).agent, agentId, person) ? askerPlace(person) : undefined;
+}
+
+/**
+ * What the tool layer refuses in a turn that has a place of its own: a working directory or a command that names another person's folder, or the folder of a project the person is not on. A shell can
+ * still build a path the text does not show (`cd ..; cat`): that is the user id, which one container cannot split (see the report).
+ */
+function keepOut(ctx: TermCtx, place: AskerPlace, texts: ReadonlyArray<string | undefined>): void {
+  for (const text of texts) {
+    if (text === undefined || text === "") continue;
+    if (otherFolders(text, place.person).length > 0 || inOtherFolder(text, place.person))
+      raise(ctx, "permission.role_lacks_permission", "That is another person's folder. Work in your own.", {
+        reason: "other_persons_folder",
+      });
+    for (const project of projectsNamed(text))
+      if (ctx.authorize({ perm: null, level: "view" }, { type: "project", id: project }).effect !== "allow")
+        raise(
+          ctx,
+          "permission.role_lacks_permission",
+          "You are not on that project, so its folder is not yours to use.",
+          {
+            reason: "project_folder",
+            projectId: project,
+          },
+        );
+  }
+}
+
 /** May the caller enter this agent's workspace: yes, no, or unknown (agents.get failed for another reason than not found: try again, never a refusal that is not true). */
 async function entry(ctx: TermCtx, agentId: string, facts?: Facts): Promise<"yes" | "no" | "unknown"> {
   if (ctx.principal.kind === "agent")
@@ -279,15 +322,20 @@ const unexpected = (ctx: TermCtx, what: string, e: unknown): never => {
 /** The machine's host for a session Vyre knows, told where the session lives first: after a restart, a sleep or a lost tmux the host finds it again and remakes it on use. */
 async function hostFor(ctx: TermCtx, x: SessionRow): Promise<TerminalHost> {
   const h = hostOf(ctx);
-  await adoptOn(h, x).catch((e: unknown) => {
+  await adoptOn(ctx, h, x).catch((e: unknown) => {
     ctx.log.warn("terminal: could not find the session again", {
       reason: e instanceof Error ? e.message.slice(0, 120) : "unknown",
     });
   });
   return h;
 }
-const adoptOn = async (h: TerminalHost, x: SessionRow): Promise<void> => {
+const adoptOn = async (ctx: TermCtx, h: TerminalHost, x: SessionRow, facts?: Facts): Promise<void> => {
   if (!h.adopt) return;
+  // a session of a person who uses the shared agent without owning it is made again in their own folder and on their own tmux server
+  const place =
+    x.host === "agent_computer" && x.agentId !== undefined
+      ? await askerPlaceFor(ctx, x.agentId, x.owner, facts).catch(() => undefined)
+      : undefined;
   const target: Target = {
     host: x.host,
     ...(x.host === "agent_computer" && x.agentId !== undefined ? { agentId: x.agentId } : {}),
@@ -300,6 +348,7 @@ const adoptOn = async (h: TerminalHost, x: SessionRow): Promise<void> => {
     cols: x.cols,
     rows: x.rows,
     ...(x.cwd === "" ? {} : { cwd: x.cwd }),
+    ...(place === undefined ? {} : { place }),
   });
 };
 
@@ -414,6 +463,10 @@ async function openSession(ctx: TermCtx, a: OpenInput, mapHostError: (e: unknown
     ...(a.computerId === undefined ? {} : { computerId: a.computerId }),
     ...(a.deviceId === undefined ? {} : { deviceId: a.deviceId }),
   };
+  // a person who uses a shared agent without owning it works in a folder of their own (asker.ts)
+  const place =
+    a.host === "agent_computer" && a.agentId !== undefined ? await askerPlaceFor(ctx, a.agentId, owner) : undefined;
+  if (place !== undefined) keepOut(ctx, place, [a.cwd]);
   let started: { cwd: string; title?: string };
   try {
     started = await hostOf(ctx).open({
@@ -424,6 +477,7 @@ async function openSession(ctx: TermCtx, a: OpenInput, mapHostError: (e: unknown
       cols,
       rows,
       folders: rulesOf(ctx.db, owner).folders,
+      ...(place === undefined ? {} : { place }),
     });
   } catch (e) {
     return mapHostError(e);
@@ -584,7 +638,7 @@ export async function status(ctx: TermCtx, input: { terminalIds: string[] }) {
   const host = boundHost();
   let seen = new Map<string, { state: TermState; lastLine?: string; exitCode: number | null }>();
   if (host && known.length > 0) {
-    for (const x of known) if (x.closedAt === undefined) await adoptOn(host, x).catch(() => undefined);
+    for (const x of known) if (x.closedAt === undefined) await adoptOn(ctx, host, x, facts).catch(() => undefined);
     try {
       seen = new Map(
         (await host.status(known.filter((x) => x.closedAt === undefined).map((x) => x.terminalId))).map((r) => [
@@ -687,7 +741,7 @@ export async function close(ctx: TermCtx, input: { terminalId: string }) {
   const host = boundHost();
   if (host) {
     try {
-      await adoptOn(host, x);
+      await adoptOn(ctx, host, x);
       await host.close(x.terminalId);
     } catch (e) {
       ctx.log.warn("terminal: could not kill the session", {
@@ -984,6 +1038,11 @@ export async function run(ctx: TermCtx, a: RunInput) {
     });
 
   const s = await sessionForRun(ctx, a);
+  // a person who uses a shared agent without owning it: the command and its folder may not name another person's folder (asker.ts)
+  if (s.host === "agent_computer" && s.agentId !== undefined) {
+    const place = await askerPlaceFor(ctx, s.agentId, owner);
+    if (place !== undefined) keepOut(ctx, place, [a.cwd, command]);
+  }
   const host = await hostFor(ctx, s);
   const timeoutMs = (a.timeoutSec ?? DEFAULT_TIMEOUT_SEC) * 1000;
 

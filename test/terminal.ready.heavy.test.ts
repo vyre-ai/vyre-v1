@@ -160,6 +160,23 @@ test(
     };
 
     await phase("fresh");
+    // whose computer a helper and a crew teammate run in, by what the code does: the lead agent's own workspace, each in a tab of its own (workScope in modules/terminal/handlers/sessions.ts);
+    // so a helper or a crew teammate makes no container of its own
+    const made = (await names()).filter((x) => !before.has(x)).sort();
+    assert.deepEqual(
+      made,
+      [`vyre-ws-${plainAgent}`, `vyre-ws-${assistant}`].sort(),
+      "two workspaces: the agent's and the Assistant's",
+    );
+    const tabs = (
+      (await api("terminal.list", {})) as { terminals: Array<{ agentId?: string; by?: { kind?: string } }> }
+    ).terminals;
+    const kinds = tabs.filter((x) => x.agentId === plainAgent).map((x) => x.by?.kind ?? "agent");
+    console.log(`READY tabs in the agent's workspace: ${JSON.stringify(kinds)}`);
+    assert.ok(
+      kinds.includes("helper"),
+      `the helper and the crew teammate have tabs in the lead's workspace: ${JSON.stringify(tabs)}`,
+    );
 
     // the workspace sleeps (idle stop) and the next command wakes it
     const mgr = boundWorkspaces();

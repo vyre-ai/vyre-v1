@@ -147,7 +147,15 @@ export function fakeHost(scripts: Record<string, RunScript> = {}) {
       calls.push({
         op: "open",
         terminalId: a.terminalId,
-        args: { target: a.target, name: a.name, cwd: a.cwd, cols: a.cols, rows: a.rows, folders: a.folders },
+        args: {
+          target: a.target,
+          name: a.name,
+          cwd: a.cwd,
+          cols: a.cols,
+          rows: a.rows,
+          folders: a.folders,
+          ...(a.place === undefined ? {} : { place: a.place }),
+        },
       });
       if (failOpen) throw new Error("agentd did not answer");
       screens.set(a.terminalId, []);
