@@ -11,7 +11,7 @@ import { MarkdownBlocks, parseChunk } from "../../../../../../ui/src/stream/inde
 import type { StepId } from "../../../../../../lib/company-flow.ts";
 import { useConsoleData } from "../../shell/data.tsx";
 import { Group, Section } from "../../shell/ui.tsx";
-import { Actions, Button, Field, Note, ReadState, pickRow, useAction, useRead } from "../shared.tsx";
+import { Actions, Button, TextBox, Note, ReadState, pickRow, useAction, useRead } from "../shared.tsx";
 import { saveSso } from "../sso-save.ts";
 import { GOOGLE_HANDLE, GOOGLE_LINKS, MICROSOFT_HANDLE, MICROSOFT_LINKS, looksLikeEmail } from "../suite/model.ts";
 import {
@@ -347,19 +347,19 @@ function KeyStep({ s, provider, refresh }: { s: Status; provider: Provider; refr
             testID="company-entra"
           />
           {s.redirect ? <CopyRow label="Redirect URI" value={s.redirect} testID="company-redirect" /> : null}
-          <Field
+          <TextBox
             label="Directory (tenant) ID"
             value={hand.tenantId}
             onChange={(v) => setHand({ ...hand, tenantId: v })}
             testID="company-tenant"
           />
-          <Field
+          <TextBox
             label="Application (client) ID"
             value={hand.clientId}
             onChange={(v) => setHand({ ...hand, clientId: v })}
             testID="company-client"
           />
-          <Field
+          <TextBox
             label="Client secret Value"
             secure
             value={hand.clientSecret}
@@ -409,7 +409,7 @@ function AllowGoogle({ s, refresh }: { s: Status; refresh: () => void }): ReactE
       {s.clientId ? <CopyRow label="Client ID" value={s.clientId} testID="company-client-id" /> : null}
       {wanted.length ? <CopyRow label="Scopes, as one line" value={wanted.join(",")} testID="company-scopes" /> : null}
       <Bullets items={wanted.map((x) => x.slice(x.lastIndexOf("/") + 1))} />
-      <Field label="A Workspace admin's address" value={admin} onChange={setAdmin} testID="company-admin-email" />
+      <TextBox label="A Workspace admin's address" value={admin} onChange={setAdmin} testID="company-admin-email" />
       <Note>Vyre only signs in as this address to check the setup. Nobody's Inbox gets its mail.</Note>
       {problem ? <Note>{problem}</Note> : null}
       {act.note ? <Note>{act.note}</Note> : null}
@@ -456,7 +456,7 @@ function AllowMicrosoft({ s, refresh }: { s: Status; refresh: () => void }): Rea
     <>
       {app.data?.configured !== true && configured ? (
         <>
-          <Field label="Your domain, like yourfirm.com" value={domain} onChange={setDomain} testID="company-domain" />
+          <TextBox label="Your domain, like yourfirm.com" value={domain} onChange={setDomain} testID="company-domain" />
           <Actions>
             <Button label="Continue" disabled={act.busy} testID="company-ms-setup" onPress={() => void set()} />
           </Actions>
@@ -582,13 +582,13 @@ function SignInStep({ s, provider, refresh }: { s: Status; provider: Provider; r
           />
           <OpenLink url={withProject(OAUTH_CLIENT, s.who)} label="Create the client" testID="company-oauth" />
           {s.redirect ? <CopyRow label="Authorized redirect URI" value={s.redirect} testID="company-redirect" /> : null}
-          <Field label="Client ID" value={clientId} onChange={setClientId} testID="company-signin-client" />
-          <Field label="Client secret" secure value={secret} onChange={setSecret} testID="company-signin-secret" />
+          <TextBox label="Client ID" value={clientId} onChange={setClientId} testID="company-signin-client" />
+          <TextBox label="Client secret" secure value={secret} onChange={setSecret} testID="company-signin-secret" />
         </>
       ) : (
         <Para>The app you registered also does sign-in. Say which domain it is for.</Para>
       )}
-      <Field
+      <TextBox
         label="Your domain, like yourfirm.com"
         value={domain || have?.domainHint || ""}
         onChange={setDomain}

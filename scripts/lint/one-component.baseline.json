@@ -30,7 +30,7 @@
     "load-more": 1
   },
   "apps/app/src/console/pages/shared.tsx": {
-    "declared": 5,
+    "declared": 4,
     "read-hook": 1
   },
   "apps/app/src/console/pages/Spend.tsx": {
