@@ -8294,6 +8294,177 @@ export type ChatsPresenceOut = {
       since: number;
     }>;
 };
+export type ChatsSidebarIn = {
+  filter?: string;
+  more?: {
+    section: "goals" | "pinned" | "chats" | "channels" | "team";
+    after?: string;
+    limit?: number;
+  };
+};
+export type ChatsSidebarOut = {
+  needs: {
+    total: number;
+    items: Array<{
+        taskId: string;
+        title: string;
+        verb: "Allow" | "Review" | "Answer" | "Blocked" | "Sign";
+        askerId?: string;
+      }>;
+  };
+  goals: {
+    total: number;
+    rows: Array<{
+        key: string;
+        kind: "chat" | "channel" | "project" | "goal" | "person" | "agent";
+        title: string;
+        faceIds: Array<string>;
+        unread: number;
+        mentions: number;
+        failed: boolean;
+        failedLine?: string;
+        working: boolean;
+        muted: boolean;
+        pinned: number | null;
+        lastAt: number;
+        threadId?: string;
+        personId?: string;
+        agentId?: string;
+        progress?: {
+          done: number;
+          total: number;
+        };
+        quiet?: boolean;
+        ended?: boolean;
+        archived?: boolean;
+        private?: boolean;
+        withPeople?: boolean;
+      }>;
+    next?: string;
+  };
+  pinned: {
+    total: number;
+    rows: Array<{
+        key: string;
+        kind: "chat" | "channel" | "project" | "goal" | "person" | "agent";
+        title: string;
+        faceIds: Array<string>;
+        unread: number;
+        mentions: number;
+        failed: boolean;
+        failedLine?: string;
+        working: boolean;
+        muted: boolean;
+        pinned: number | null;
+        lastAt: number;
+        threadId?: string;
+        personId?: string;
+        agentId?: string;
+        progress?: {
+          done: number;
+          total: number;
+        };
+        quiet?: boolean;
+        ended?: boolean;
+        archived?: boolean;
+        private?: boolean;
+        withPeople?: boolean;
+      }>;
+    next?: string;
+  };
+  chats: {
+    total: number;
+    rows: Array<{
+        key: string;
+        kind: "chat" | "channel" | "project" | "goal" | "person" | "agent";
+        title: string;
+        faceIds: Array<string>;
+        unread: number;
+        mentions: number;
+        failed: boolean;
+        failedLine?: string;
+        working: boolean;
+        muted: boolean;
+        pinned: number | null;
+        lastAt: number;
+        threadId?: string;
+        personId?: string;
+        agentId?: string;
+        progress?: {
+          done: number;
+          total: number;
+        };
+        quiet?: boolean;
+        ended?: boolean;
+        archived?: boolean;
+        private?: boolean;
+        withPeople?: boolean;
+      }>;
+    next?: string;
+  };
+  channels: {
+    total: number;
+    rows: Array<{
+        key: string;
+        kind: "chat" | "channel" | "project" | "goal" | "person" | "agent";
+        title: string;
+        faceIds: Array<string>;
+        unread: number;
+        mentions: number;
+        failed: boolean;
+        failedLine?: string;
+        working: boolean;
+        muted: boolean;
+        pinned: number | null;
+        lastAt: number;
+        threadId?: string;
+        personId?: string;
+        agentId?: string;
+        progress?: {
+          done: number;
+          total: number;
+        };
+        quiet?: boolean;
+        ended?: boolean;
+        archived?: boolean;
+        private?: boolean;
+        withPeople?: boolean;
+      }>;
+    next?: string;
+  };
+  team: {
+    total: number;
+    rows: Array<{
+        key: string;
+        kind: "chat" | "channel" | "project" | "goal" | "person" | "agent";
+        title: string;
+        faceIds: Array<string>;
+        unread: number;
+        mentions: number;
+        failed: boolean;
+        failedLine?: string;
+        working: boolean;
+        muted: boolean;
+        pinned: number | null;
+        lastAt: number;
+        threadId?: string;
+        personId?: string;
+        agentId?: string;
+        progress?: {
+          done: number;
+          total: number;
+        };
+        quiet?: boolean;
+        ended?: boolean;
+        archived?: boolean;
+        private?: boolean;
+        withPeople?: boolean;
+      }>;
+    next?: string;
+  };
+  rail: number;
+  nextUnread?: string;
+};
 export type CiCostMonthIn = {
   month?: string;
 };
@@ -45369,6 +45540,7 @@ export interface CapMap {
   "chat.transcript.summary": { in: ChatTranscriptSummaryIn; out: ChatTranscriptSummaryOut };
   "chat.unpin": { in: ChatUnpinIn; out: ChatUnpinOut };
   "chats.presence": { in: ChatsPresenceIn; out: ChatsPresenceOut };
+  "chats.sidebar": { in: ChatsSidebarIn; out: ChatsSidebarOut };
   "ci.cost.month": { in: CiCostMonthIn; out: CiCostMonthOut };
   "ci.job.intake": { in: CiJobIntakeIn; out: CiJobIntakeOut };
   "ci.project.get": { in: CiProjectGetIn; out: CiProjectGetOut };

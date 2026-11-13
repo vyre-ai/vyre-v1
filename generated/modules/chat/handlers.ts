@@ -90,6 +90,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.transcript.summary": Handler<"chat.transcript.summary", X>;
   "chat.unpin": Handler<"chat.unpin", X>;
   "chats.presence": Handler<"chats.presence", X>;
+  "chats.sidebar": Handler<"chats.sidebar", X>;
   "threads.add_agent": Handler<"threads.add_agent", X>;
   "threads.agent.configure": Handler<"threads.agent.configure", X>;
   "threads.agent.create": Handler<"threads.agent.create", X>;

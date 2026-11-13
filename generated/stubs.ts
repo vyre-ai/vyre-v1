@@ -494,6 +494,7 @@ export function stubs(ctx: CallCtx) {
     },
     chats: {
       presence: call("chats.presence"),
+      sidebar: call("chats.sidebar"),
     },
     ci: {
       cost: {

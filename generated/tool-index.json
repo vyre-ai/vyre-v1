@@ -1586,6 +1586,12 @@
     },
     {
       "deferred": false,
+      "name": "chats_sidebar",
+      "summary": "The Chats sidebar in one answer: what needs me, my goals, pinned, chats, channels and team, each with its first rows, its total and its marks, plus the one number for the rail",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chrome_act",
       "summary": "Act on an element or key: click, hover, press, select, scroll, check; a send, post or payment is held and returns an id",
       "toolset": "computer"

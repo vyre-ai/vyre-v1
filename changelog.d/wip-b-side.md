@@ -8,3 +8,4 @@
 - Keys that changed meaning in the new sidebar: Cmd-1 to Cmd-9 now open your first nine pinned rows (before: your first nine starred agents); Cmd-Backslash to hide the sidebar becomes Cmd-Shift-Backslash. Cmd-T (new tab), Cmd-D, Option-Down (Inbox next unread) are unchanged.
 - A chat's mention count can now be read on its own: a new read lists the mentions you have not seen, per chat or channel, only yours.
 - A list that fails to load in one section shows one quiet line with Retry instead of a big error card; "N more" and "Show less" under a capped list are one shared row with Enter, Right and Left keys.
+- The Chats sidebar can be read in one answer: your needs, goals, pinned, chats, channels and team with their marks, a page at a time.

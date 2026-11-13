@@ -11894,6 +11894,54 @@
     },
     {
       "blocks": [],
+      "cap": "chats.sidebar",
+      "deferred": false,
+      "description": "The Chats sidebar in one answer: what needs me, my goals, pinned, chats, channels and team, each with its first rows, its total and its marks, plus the one number for the rail",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "filter": {
+            "description": "Everything (the default), or one of: unread, mentions, working, needs, failed, muted, goals, asks, archived. Anything else is refused in plain words",
+            "type": "string"
+          },
+          "more": {
+            "properties": {
+              "after": {
+                "description": "The key of the last row you have; the answer starts after it",
+                "type": "string"
+              },
+              "limit": {
+                "description": "At most 100 rows; default 50",
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "section": {
+                "enum": [
+                  "goals",
+                  "pinned",
+                  "chats",
+                  "channels",
+                  "team"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "section"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "name": "chats_sidebar",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "computers.chrome.act",
       "deferred": false,
       "description": "Act on an element or key: click, hover, press, select, scroll, check; a send, post or payment is held and returns an id",

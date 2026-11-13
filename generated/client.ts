@@ -494,6 +494,7 @@ export function createClient(transport: Transport) {
     },
     chats: {
       presence: call("chats.presence", 1),
+      sidebar: call("chats.sidebar", 1),
     },
     ci: {
       cost: {

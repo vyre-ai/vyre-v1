@@ -145,6 +145,34 @@ const channelRow = t.obj({
   createdAt: t.ts(),
   restricted: t.opt(t.bool()), // Console only: an invite-only channel the admin is not in; they can archive it and change who is in it, not read it
 });
+const sidebarRow = t.obj({
+  key: t.str({ description: "Stable: c:<thread>, ch:<channel>, pj:<project>, g:<goal>, p:<person>, f:<agent>" }),
+  kind: t.enm("chat", "channel", "project", "goal", "person", "agent"),
+  title: t.str(),
+  faceIds: t.arr(t.str()),
+  unread: t.int({ minimum: 0 }),
+  mentions: t.int({ minimum: 0 }),
+  failed: t.bool(),
+  failedLine: t.opt(t.str({ description: "Words for why, never a code or a trace id" })),
+  working: t.bool(),
+  muted: t.bool(),
+  pinned: t.nullable(t.int({ minimum: 0, description: "The caller's own pin order, 0 first; null when not pinned" })),
+  lastAt: t.ts(),
+  threadId: t.opt(id.thread),
+  personId: t.opt(t.str()),
+  agentId: t.opt(t.str()),
+  progress: t.opt(t.obj({ done: t.int({ minimum: 0 }), total: t.int({ minimum: 0 }) })),
+  quiet: t.opt(t.bool()),
+  ended: t.opt(t.bool()),
+  archived: t.opt(t.bool()),
+  private: t.opt(t.bool()),
+  withPeople: t.opt(t.bool()),
+});
+const sidebarSection = t.obj({
+  total: t.int({ minimum: 0 }),
+  rows: t.arr(sidebarRow),
+  next: t.opt(t.str({ description: "Pass as more.after to get the rows after these" })),
+});
 const recentRow = t.obj({
   threadId: id.thread,
   kind: threadKind,
@@ -1344,6 +1372,60 @@ export default defineManifest({
         tool: "chats",
         label: "check",
         errors: ["validation.not_found", "validation.bad_input"],
+      },
+    ),
+    // chats.sidebar: the Chats sidebar in ONE watched read (design 13 Nov). Answered as the CALLER: `pinned` and `muted` are the caller's own (never another person's); `title` and the face ids show only what the caller may see
+    // (a guest, who may not start chats, gets only the chats and channels they are in: no goals, no team, no agents). The SOURCE of pins and mutes is an internal detail (today the caller's stars and the chat module's own mutes;
+    // the per-person state module when it clears): the shape does not change with it, and `pinned` is an order index, 0 the first. Presence lives only in chats.presence so this answer and its patches stay quiet. A draft is the
+    // device's own knowledge and is never in it. Each section answers its first PAGE rows (50) in the order the sidebar draws them, with `total` and a cursor `next`; `more` pages one section (limit at most 100).
+    // Watched like the other live reads: it is a `q` of the chats.sidebar screen with live = true, so the session re-reads it on a change batch.
+    read(
+      "chats.sidebar",
+      "The Chats sidebar in one answer: what needs me, my goals, pinned, chats, channels and team, each with its first rows, its total and its marks, plus the one number for the rail",
+      {
+        level: "member",
+        in: {
+          filter: t.opt(
+            t.str({
+              description:
+                "Everything (the default), or one of: unread, mentions, working, needs, failed, muted, goals, asks, archived. Anything else is refused in plain words",
+            }),
+          ),
+          more: t.opt(
+            t.obj({
+              section: t.enm("goals", "pinned", "chats", "channels", "team"),
+              after: t.opt(t.str({ description: "The key of the last row you have; the answer starts after it" })),
+              limit: t.opt(t.int({ minimum: 1, maximum: 100, description: "At most 100 rows; default 50" })),
+            }),
+          ),
+        },
+        out: {
+          needs: t.obj({
+            total: t.int({ minimum: 0 }),
+            items: t.arr(
+              t.obj({
+                taskId: t.str(),
+                title: t.str(),
+                verb: t.enm("Allow", "Review", "Answer", "Blocked", "Sign"),
+                askerId: t.opt(t.str()),
+              }),
+            ),
+          }),
+          goals: sidebarSection,
+          pinned: sidebarSection,
+          chats: sidebarSection,
+          channels: sidebarSection,
+          team: sidebarSection,
+          rail: t.int({
+            minimum: 0,
+            description:
+              "What is addressed to me: waiting tasks, mentions, and new one-to-one chats; the same sum the sidebar's own marks make",
+          }),
+          nextUnread: t.opt(t.str({ description: "The key of the first unread row" })),
+        },
+        tool: "chats",
+        label: "filter",
+        errors: ["validation.bad_input"],
       },
     ),
     // chats.presence: the one small read for the sidebar's presence dots and working rings. It is kept out of the sidebar answer on purpose: it changes often, and that answer and its patches stay quiet.
@@ -2770,6 +2852,7 @@ export default defineManifest({
       q: {
         recent: ["chat.recent", { filter: "/state/filter" }, true],
         channels: ["channels.list", { section: "/state/section", folderId: "/state/folderId" }, true],
+        side: ["chats.sidebar", { filter: "/state/filter" }, true],
       },
       a: {
         newChat: ["chat.start", {}],
