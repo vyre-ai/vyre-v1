@@ -107,3 +107,35 @@ test("a failed fetch says so with Try again and Open in Google Drive, never an e
     restore();
   }
 });
+
+test("a spreadsheet too large to draw says so with Open in; one a little over the preview shows its first rows and says so", async () => {
+  const restore = installDom();
+  try {
+    for (const [size, text, want] of [
+      [20 * 1024 * 1024, undefined, "file-viewer-toolarge"],
+      [500_000, CSV, "file-viewer-cutshort"],
+    ] as const) {
+      const base = createSampleViewer();
+      const data: FilesViewerData = {
+        ...base.data,
+        call: async (cap, input) => {
+          if (cap === "files.viewer_data") {
+            const s = (await base.data.call(cap, { fileId: "f_fees" })) as { file: Record<string, unknown> };
+            return { ...s, file: { ...s.file, size, source: undefined }, text };
+          }
+          return base.data.call(cap, cap.startsWith("files.") ? { ...(input as object), fileId: "f_fees" } : input);
+        },
+      };
+      const root = await mount(
+        createRoot,
+        <FilesViewerDataProvider value={data}>
+          <FileViewer fileId="f_fees" />
+        </FilesViewerDataProvider>,
+      );
+      await flush();
+      assert.ok(find(root, want), want);
+    }
+  } finally {
+    restore();
+  }
+});

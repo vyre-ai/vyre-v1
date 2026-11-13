@@ -450,7 +450,7 @@ async function withFreeName<T>(
       taken.add(n);
     }
   }
-  return fail(ctx, "validation.duplicate", `Every name for ${name} is taken in its folder.`);
+  return fail(ctx, "validation.duplicate", "Every name Vyre could give it is taken in its folder.");
 }
 
 /** A delete of something that is already gone is not an error. */
@@ -675,7 +675,13 @@ async function applyBatch(ctx: Ctx, m: MountRec, provider: Provider, batch: Pull
       } catch (e) {
         // one item Vyre cannot bring in is counted and skipped, never the end of the listing; only a provider that cannot be reached or does not allow Vyre stops the pass
         if (isMountLevel(e)) throw e;
-        ctx.log.warn("mounts: an item could not be brought in", { mountId: m.id, code: codeOf(e) ?? "" });
+        // never the item's name: the kind of item, the refusing rule's code and the module's own message say which rule fired
+        ctx.log.warn("mounts: an item was skipped", {
+          mountId: m.id,
+          itemKind: item.isFolder ? "folder" : "file",
+          code: codeOf(e) ?? "",
+          rule: messageOf(e),
+        });
         skipped.push({ remoteId: item.id, name: item.name, reason: skipReason(e) });
         skippedIds.add(item.id);
       }

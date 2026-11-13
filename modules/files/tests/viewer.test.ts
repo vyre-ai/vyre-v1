@@ -702,3 +702,82 @@ test("viewer_data: a live file that really is empty in Drive opens as an empty f
   const v = await call(ctx, "files.viewer_data", { fileId: id });
   assert.equal(v.file.size, 0);
 });
+
+test("every viewer kind gets its content: csv, a two-sheet workbook, pdf, image, markdown, text (a kind whose content never reaches the viewer is the bug class behind the 0 rows grid)", async () => {
+  const { ctx } = world((cap, i) => {
+    if (cap === "sheets.info")
+      return {
+        sheets: [
+          { name: "Fees", rows: 1, columns: ["client", "fee"] },
+          { name: "Costs", rows: 1, columns: ["item", "cost"] },
+        ],
+      };
+    if (cap === "sheets.read_rows") return { rows: [{ rowId: "r1", values: { client: "Acme", fee: 10 } }], total: 1 };
+    if (cap === "previews.text") return { text: "Page one text", pages: 2, truncated: false, source: "pdf" };
+    if (cap === "previews.get") return { ready: true, url: "/p/x.png", pages: 2 };
+    return undefined;
+  });
+  const csv = await call(ctx, "files.viewer_data", { fileId: await make(ctx, "a.csv", "spreadsheet", { text: CSV }) });
+  assert.equal(csv.text, CSV);
+  const xls = await call(ctx, "files.viewer_data", {
+    fileId: await make(ctx, "b.xlsx", "spreadsheet", { base64: "UEsDBA==" }),
+  });
+  assert.equal(xls.sheets.length, 2);
+  assert.match(xls.text, /Acme/);
+  const pdf = await call(ctx, "files.viewer_data", { fileId: await make(ctx, "c.pdf", "pdf", { base64: "JVBERi0=" }) });
+  assert.equal(pdf.text, "Page one text");
+  assert.equal(pdf.previewUrl, "/p/x.png");
+  const img = await call(ctx, "files.viewer_data", {
+    fileId: await make(ctx, "d.png", "image", { base64: "iVBORw0=" }),
+  });
+  assert.equal(img.previewUrl, "/p/x.png");
+  const md = await call(ctx, "files.viewer_data", { fileId: await make(ctx, "e.md", "markdown", { text: "# Hi" }) });
+  assert.equal(md.text, "# Hi");
+  const txt = await call(ctx, "files.viewer_data", { fileId: await make(ctx, "f.txt", "text", { text: "plain" }) });
+  assert.equal(txt.text, "plain");
+});
+
+test("live image, PDF and Word placeholders: fetched before they are shown, and an error (never an empty picture or page) when the fetch fails", async () => {
+  const down = new VyreErr({
+    code: "provider.unavailable",
+    message: "Drive is down.",
+    retryable: true,
+    traceId: "t",
+    next: [],
+  });
+  const neighbours = (cap: string): unknown => {
+    if (cap === "previews.text") return { text: "Words", pages: 1, truncated: false, source: "pdf" };
+    if (cap === "previews.get") return { ready: true, url: "/p/y.png", pages: 1 };
+    return undefined;
+  };
+  const files: [string, string, string][] = [
+    ["MLA logo.png", "image/png", "iVBORw0="],
+    ["brief.pdf", "application/pdf", "JVBERi0="],
+    ["letter.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "UEsDBA=="],
+  ];
+  for (const [name, mime, b64] of files) {
+    const ok = await drive(async (c, fileId) => {
+      await call(c, "files.write", { fileId, content: { base64: b64 }, reason: "Fetched from Google Drive" });
+      return { mounted: true, fetched: true, source: { cached: true } };
+    }, neighbours);
+    const id = await ok.placeholder(name, mime);
+    const v = await call(ok.ctx, "files.viewer_data", { fileId: id });
+    assert.ok(v.file.size > 0, `${name} has its bytes`);
+    assert.ok(v.previewUrl !== undefined || v.text !== undefined, `${name} shows something`);
+    const bad = await drive(async () => {
+      throw down;
+    }, neighbours);
+    const badId = await bad.placeholder(name, mime);
+    assert.equal(await code(call(bad.ctx, "files.viewer_data", { fileId: badId })), "provider.unavailable", name);
+  }
+});
+
+test("content fetched from a provider as a generic blob is stored under the file's own type", async () => {
+  const { ctx } = world();
+  const holder = await make(ctx, "raw.bin", "other", { base64: "iVBORw0=" });
+  const blobId = String((ctx.db.all("SELECT * FROM files_file WHERE id = ?", holder) as Obj[])[0]!.blob);
+  ctx.db.run("UPDATE files_blob SET mime = ? WHERE id = ?", "application/octet-stream", blobId);
+  const csv = await make(ctx, "fees.csv", "spreadsheet", { text: "a\n" });
+  await call(ctx, "files.write", { fileId: csv, content: { blobId } });
+  assert.equal((ctx.db.all("SELECT * FROM files_blob WHERE id = ?", blobId) as Obj[])[0]!.mime, "text/csv");
+});

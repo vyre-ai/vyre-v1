@@ -30,6 +30,8 @@ import {
   subtitleOf,
   textToBlocks,
   viewerKindOf,
+  GRID_MAX_BYTES,
+  GRID_PREVIEW_BYTES,
 } from "./model.ts";
 import { TypeTile } from "../FileList.tsx";
 import { tileLabel } from "../tree/model.ts";
@@ -237,6 +239,25 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
 
   const file = ready.data.file;
   const now = d.clock().now;
+  // a spreadsheet too big to draw: say so and point at where the whole file opens (a 50 MB CSV is not sent to the page)
+  if (file.kind === "spreadsheet" && file.size > GRID_MAX_BYTES && (ready.data.text ?? "") === "")
+    return (
+      <View testID="file-viewer-toolarge" style={[s.frame, s.failedFrame]} accessibilityLabel="Too large to preview">
+        <View style={s.failedBox}>
+          <States kind="empty" title="Too large to preview here" icon="doc" />
+        </View>
+        {link && d.openUrl ? (
+          <Pressable
+            accessibilityRole="link"
+            testID="file-viewer-toolarge-open"
+            onPress={() => d.openUrl?.(link.webUrl)}
+            style={s.failedOpen}
+          >
+            <Text style={s.failedOpenText}>{openInWords(link.openIn)}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
   const addBox = (next: readonly MarkupBox[]): void => {
     const known = new Set(boxes.map((b) => b.id));
     const fresh = next.find((b) => !known.has(b.id));
@@ -249,6 +270,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const saveStrokes = (next: readonly Stroke[]): void => {
     void saveMarkup(d, fileId, next).catch(say);
   };
+  const cutShort = file.kind === "spreadsheet" && file.size > GRID_PREVIEW_BYTES && file.size <= GRID_MAX_BYTES;
   const edit = (next: readonly DocBlock[]): void => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
@@ -494,6 +516,11 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         }
       />
       {accessMenu.element}
+      {cutShort && !note ? (
+        <Text style={s.note} testID="file-viewer-cutshort">
+          Showing the first rows of a large file.
+        </Text>
+      ) : null}
       {note ? (
         <Text style={s.note} accessibilityLiveRegion="polite" testID="file-viewer-note">
           {note}

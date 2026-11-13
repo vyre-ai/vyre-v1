@@ -1908,6 +1908,17 @@ async function filesWrite(
   await guardAgentSettings(ctx, file);
   const mime = String(file.mime);
   const blob = await resolveBlob(ctx, content, mime);
+  // content fetched from a provider arrives as a blob of the generic type; the file's own type is what the blob is served and previewed as
+  if (
+    content.kind === "blob" &&
+    mime !== "" &&
+    mime !== "application/octet-stream" &&
+    String(file.kind) !== "google_native"
+  ) {
+    const held = one(ctx, "SELECT * FROM files_blob WHERE id = ?", blob.blobId);
+    if (held && (isNull(held.mime) || String(held.mime) === "" || String(held.mime) === "application/octet-stream"))
+      ctx.db.run("UPDATE files_blob SET mime = ? WHERE id = ?", mime, blob.blobId);
+  }
   const n = num(file.version) + 1;
   const now = ctx.now();
   ctx.db.run(

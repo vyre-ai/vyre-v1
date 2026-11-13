@@ -324,3 +324,8 @@ export function versionRows(
     n: v.n,
   }));
 }
+
+/** A delimited file is read for the grid up to this many bytes; a longer one shows its first rows and says so. */
+export const GRID_PREVIEW_BYTES = 200_000;
+/** Over this a spreadsheet file is not previewed at all: the quiet "too large to preview" line with Open in, never a hang. Matches the server's GRID_MAX_BYTES. */
+export const GRID_MAX_BYTES = 10 * 1024 * 1024;

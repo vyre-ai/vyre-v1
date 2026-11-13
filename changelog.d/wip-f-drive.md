@@ -2,3 +2,5 @@
 - A Drive that stopped syncing because of one odd file name mends itself on the next sync, with no need to reconnect.
 - A spreadsheet in Files (CSV or Excel) now opens with its rows. It used to show "0 rows, 0 columns".
 - Opening a Google Drive file that is not here yet says "Getting this from Google Drive". If Drive cannot be reached it says so, with Try again and Open in Google Drive, and an agent is told the same instead of reading an empty file.
+- A picture, PDF or Word file from Google Drive that has not been fetched yet is fetched before it is shown. If Drive cannot be reached you see Try again, never an empty checkerboard or blank page.
+- A large spreadsheet shows its first rows and says so; one over 10 MB says it is too large to preview and offers Open in Google Drive.

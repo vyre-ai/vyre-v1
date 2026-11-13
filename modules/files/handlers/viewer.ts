@@ -110,6 +110,8 @@ async function tryCall<T>(
 }
 
 const GRID_BYTES = 200_000;
+/** A delimited file over this is not read for the grid at all (the app says it is too large to preview); the whole blob would be opened on the server just to show a screenful. */
+export const GRID_MAX_BYTES = 10 * 1024 * 1024;
 const GRID_ROWS = 500;
 
 /** The text the viewer's grid reads for a spreadsheet file: a delimited file as it is (cut between rows when it is long), a workbook's first sheet as CSV. */
@@ -123,6 +125,7 @@ async function gridText(
   const name = str(file.name).toLowerCase();
   const ext = name.includes(".") ? name.slice(name.lastIndexOf(".") + 1) : "";
   if (ext === "csv" || ext === "tsv" || str(file.mime) === "text/csv") {
+    if (num(file.size) > GRID_MAX_BYTES) return undefined;
     const r = await tryCall<{ text?: string; truncated?: boolean }>(ctx, "files.read", {
       ...at,
       as: "text",
