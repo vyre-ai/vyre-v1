@@ -18,8 +18,12 @@ export interface HostServicesOptions {
 export function hostServices(o: HostServicesOptions): NonNullable<InvokeDeps["services"]> {
   return (seed, cap) => {
     // what a call schedules waits for its commit: the job may read what the call wrote, and the queue ticks while the call is still open (13 Nov 2026, the first pull of a synced app)
-    const scope = (seed as { scheduleScope?: { hold?: ScheduleHold } }).scheduleScope ?? {};
-    const hold: ScheduleHold = (scope.hold ??= { open: true, ids: [] });
+    const scope = (seed as { scheduleScope?: { traceId?: string; hold?: ScheduleHold } }).scheduleScope ?? {};
+    const hold: ScheduleHold = (scope.hold ??= {
+      open: true,
+      ids: [],
+      ...(scope.traceId ? { trace: scope.traceId } : {}),
+    });
     return {
       ...(o.base?.(seed, cap) ?? {}),
       seal: o.seal,

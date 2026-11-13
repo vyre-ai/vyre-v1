@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { splitPerf } from "./lib/perf-skip.mjs";
-import { endGroupsOnExit, killGroup, spawnGroup } from "./lib/proc-group.mjs";
+import { endGroupsOnExit, groupTree, killGroup, spawnGroup } from "./lib/proc-group.mjs";
 import { withPatternSlow } from "./lib/slow-list.mjs";
 import type { SlowEntry } from "./slow-check.ts";
 
@@ -94,8 +94,11 @@ export function runFile(file: string, opts: { cwd?: string; capMs?: number } = {
     let leftover = "";
     const dog = setTimeout(() => {
       overCap = true;
+      // name what is still running before it is ended, so a file that finished its tests and then sat until the cap shows what held it (13 Nov 2026: memory.recall.live, 122 s)
+      const tree = groupTree(p.pid ?? 0);
+      if (tree.length) leftover = `\nwatchdog: ${file}: still running when its cap was reached:\n${tree.join("\n")}\n`;
       void killGroup(p).then((gone) => {
-        if (!gone) leftover = `\nwatchdog: ${file}: some of its processes were still there 5 s after the kill\n`;
+        if (!gone) leftover += `\nwatchdog: ${file}: some of its processes were still there 5 s after the kill\n`;
       });
     }, capMs + 2000);
     p.on("close", async (code) => {

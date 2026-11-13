@@ -2382,6 +2382,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const scheduleQueue = new ScheduleQueue({
         db,
         now,
+        // a job held when the server died is released if the log shows its call committed, dropped if not (ctx/schedule.ts recover)
+        committed: async (traceId) => ((await log?.read({ trace_id: traceId, limit: 1 })) ?? [{}]).length > 0,
         run: (c) => runScheduled(c),
         onError: (c, e, final) => {
           sinkLog.warn("schedule.failed", {

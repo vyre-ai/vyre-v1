@@ -29,6 +29,8 @@ export interface ScheduleHold {
   /** Jobs added while true are held. After release or discard the call is over and a late ctx.schedule is due at once, as it always was. */
   open: boolean;
   ids: string[];
+  /** the outermost call's trace: after a crash the log says whether that call committed (a held row carries it) */
+  trace?: string;
 }
 
 export interface ScheduleSeed {
@@ -54,6 +56,8 @@ export interface ScheduleOptions {
   /** Jobs run per tick, oldest due first. Default 50. */
   batch?: number;
   onError?: (call: ScheduledCall, error: unknown, final: boolean) => void;
+  /** Did a call on this trace commit? Asked once at the first tick for the jobs an earlier run of the server left held. Absent: they are released. */
+  committed?: (traceId: string) => Promise<boolean>;
 }
 
 const CAP = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/;
@@ -95,6 +99,8 @@ export class ScheduleQueue {
   private now: () => number;
   private timer: ReturnType<typeof setInterval> | null = null;
   private ticking: Promise<number> | null = null;
+  private boot = mintUuid();
+  private recovered = false;
 
   constructor(o: ScheduleOptions) {
     this.o = o;
@@ -107,13 +113,10 @@ export class ScheduleQueue {
       last_error TEXT, created_at INTEGER NOT NULL
     )`);
     this.db.run("CREATE INDEX IF NOT EXISTS host_schedule_due ON host_schedule (state, run_at)");
-    // a process that died between a call asking for a job and the release left a held row; one older than the lease cannot belong to a call still open. It is RELEASED, not deleted: the call may have
-    // committed (the kill came after the commit and before the release), and a lost routine, expiry or backup is worse than a job that finds nothing to do (a job already runs later, against whatever
-    // state is there; a missing one is a refusal that is retried and then parked)
-    this.db.run(
-      "UPDATE host_schedule SET state = 'pending' WHERE state = 'held' AND created_at <= ?",
-      this.now() - (o.leaseMs ?? 120_000),
-    );
+    // jobs held by a call (see ScheduleHold) carry the trace of the call and the boot that held them; the first tick settles what an earlier boot left (recover)
+    const cols = (this.db.all("PRAGMA table_info(host_schedule)") as { name: string }[]).map((c) => c.name);
+    if (!cols.includes("held_trace")) this.db.run("ALTER TABLE host_schedule ADD COLUMN held_trace TEXT");
+    if (!cols.includes("held_boot")) this.db.run("ALTER TABLE host_schedule ADD COLUMN held_boot TEXT");
   }
 
   /** The ctx.schedule of one call. */
@@ -144,7 +147,7 @@ export class ScheduleQueue {
       throw fail("validation.too_large", traceId, { message: "A scheduled input is limited to 64 KB." });
     const id = `sch_${mintUuid(now).replaceAll("-", "")}`;
     this.db.run(
-      "INSERT INTO host_schedule (id, space, cap, input, principal_kind, principal_id, acting_for, trace_id, run_at, created_at, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO host_schedule (id, space, cap, input, principal_kind, principal_id, acting_for, trace_id, run_at, created_at, state, held_trace, held_boot) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       id,
       seed.space,
       cap,
@@ -156,6 +159,8 @@ export class ScheduleQueue {
       runAt,
       now,
       hold?.open ? "held" : "pending",
+      hold?.open ? (hold.trace ?? traceId) : null,
+      hold?.open ? this.boot : null,
     );
     if (hold?.open) hold.ids.push(id);
     return id;
@@ -176,13 +181,13 @@ export class ScheduleQueue {
     hold.ids = [];
   }
 
-  /** Remove a job that has not run. False when it already ran, is running or never existed. */
+  /** Remove a job that has not run (a held one too: a call may take back what it just asked for). False when it already ran, is running or never existed. */
   cancel(id: string): boolean {
-    return this.db.run("DELETE FROM host_schedule WHERE id = ? AND state = 'pending'", id).changes > 0;
+    return this.db.run("DELETE FROM host_schedule WHERE id = ? AND state IN ('pending', 'held')", id).changes > 0;
   }
 
   /** Jobs waiting to run (pending), parked after repeated failures (dead). */
-  counts(): { pending: number; dead: number } {
+  counts(): { pending: number; dead: number; held: number; heldOldestMs: number } {
     const rows = this.db.all("SELECT state, COUNT(*) AS n FROM host_schedule GROUP BY state") as {
       state: string;
       n: number;
@@ -190,7 +195,50 @@ export class ScheduleQueue {
     return {
       pending: rows.find((r) => r.state === "pending" || r.state === "running")?.n ?? 0,
       dead: rows.find((r) => r.state === "dead")?.n ?? 0,
+      // jobs waiting for the save of the call that asked for them, and how long the oldest has waited (a call open for minutes shows here; a held job that never leaves is a call that never settled)
+      held: rows.find((r) => r.state === "held")?.n ?? 0,
+      heldOldestMs: this.heldOldestMs(),
     };
+  }
+
+  private heldOldestMs(): number {
+    const r = this.db.all("SELECT MIN(created_at) AS at FROM host_schedule WHERE state = 'held'") as {
+      at: number | null;
+    }[];
+    const at = r[0]?.at;
+    return at === null || at === undefined ? 0 : Math.max(0, this.now() - at);
+  }
+
+  /**
+   * The jobs an earlier run of the server left held: it died between a call asking for them and the release. Each is released when the log shows its call committed (it runs late, never lost) and
+   * dropped when it shows none (the call never committed, so what the job was for never happened). Nothing is decided by age. A job held by THIS run is a call still open: left alone.
+   */
+  async recover(): Promise<{ released: number; dropped: number }> {
+    if (this.recovered) return { released: 0, dropped: 0 };
+    this.recovered = true;
+    const rows = this.db.all(
+      "SELECT id, held_trace AS trace FROM host_schedule WHERE state = 'held' AND (held_boot IS NULL OR held_boot <> ?) ORDER BY rowid",
+      this.boot,
+    ) as { id: string; trace: string | null }[];
+    const verdict = new Map<string, boolean>();
+    let released = 0;
+    let dropped = 0;
+    for (const r of rows) {
+      const trace = r.trace ?? "";
+      if (!verdict.has(trace))
+        verdict.set(trace, this.o.committed ? await this.o.committed(trace).catch(() => true) : true);
+      if (verdict.get(trace)) {
+        this.db.run(
+          "UPDATE host_schedule SET state = 'pending', held_trace = NULL, held_boot = NULL WHERE id = ? AND state = 'held'",
+          r.id,
+        );
+        released++;
+      } else {
+        this.db.run("DELETE FROM host_schedule WHERE id = ? AND state = 'held'", r.id);
+        dropped++;
+      }
+    }
+    return { released, dropped };
   }
 
   /** Run everything due now. Returns how many jobs ran (success or failure). A tick that is still going is joined, not doubled. */
@@ -219,6 +267,7 @@ export class ScheduleQueue {
   }
 
   private async drain(): Promise<number> {
+    await this.recover();
     const now = this.now();
     const lease = this.o.leaseMs ?? 120_000;
     const due = this.db.all(

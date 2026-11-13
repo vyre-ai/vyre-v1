@@ -14,7 +14,7 @@ const seed: ScheduleSeed = {
   trace: { traceId: "b".repeat(32) },
 };
 
-function rig(o: { maxTries?: number; failFor?: number } = {}) {
+function rig(o: { maxTries?: number; failFor?: number; committed?: (trace: string) => Promise<boolean> } = {}) {
   const db: RawDb = openRecordStore({ path: ":memory:", space: "sp_sched" }).host.tx;
   const clock = { t: T0 };
   const ran: ScheduledCall[] = [];
@@ -26,6 +26,7 @@ function rig(o: { maxTries?: number; failFor?: number } = {}) {
       now: () => clock.t,
       maxTries: o.maxTries ?? 5,
       backoffMs: (n) => n * 1000,
+      ...(o.committed ? { committed: o.committed } : {}),
       run: async (c) => {
         ran.push(c);
         if (failsLeft > 0) {
@@ -76,7 +77,7 @@ test("a job waits for its time, then runs once as the principal who scheduled it
     tries: 0,
   });
   assert.equal(await r.q.tick(), 0, "a finished job is gone");
-  assert.deepEqual(r.q.counts(), { pending: 0, dead: 0 });
+  assert.deepEqual(r.q.counts(), { pending: 0, dead: 0, held: 0, heldOldestMs: 0 });
 });
 
 test("a job scheduled by a call with no trace carries none", async () => {
@@ -118,14 +119,14 @@ test("a failure retries after the backoff, with the try count, and then succeeds
   assert.equal(await r.q.tick(), 1);
   assert.equal(r.errors.length, 1);
   assert.equal(r.errors[0]!.final, false);
-  assert.deepEqual(r.q.counts(), { pending: 1, dead: 0 });
+  assert.deepEqual(r.q.counts(), { pending: 1, dead: 0, held: 0, heldOldestMs: 0 });
   r.clock.t += 999;
   assert.equal(await r.q.tick(), 0, "inside the backoff");
   r.clock.t += 1;
   assert.equal(await r.q.tick(), 1);
   assert.equal(r.ran.length, 2);
   assert.equal(r.ran[1]!.tries, 1);
-  assert.deepEqual(r.q.counts(), { pending: 0, dead: 0 });
+  assert.deepEqual(r.q.counts(), { pending: 0, dead: 0, held: 0, heldOldestMs: 0 });
 });
 
 test("after maxTries failures a job is parked as dead and never runs again", async () => {
@@ -138,7 +139,7 @@ test("after maxTries failures a job is parked as dead and never runs again", asy
     r.errors.map((e) => e.final),
     [false, true],
   );
-  assert.deepEqual(r.q.counts(), { pending: 0, dead: 1 });
+  assert.deepEqual(r.q.counts(), { pending: 0, dead: 1, held: 0, heldOldestMs: 0 });
   r.clock.t += 3_600_000;
   assert.equal(await r.q.tick(), 0);
   assert.equal(r.ran.length, 2);
@@ -185,7 +186,7 @@ test("bad input is refused before anything is stored", async () => {
   cyc["self"] = cyc;
   await assert.rejects(add("+1m", "a.b", cyc), bad("validation.bad_input"));
   await assert.rejects(add("+1m", "a.b", { big: "x".repeat(70_000) }), bad("validation.too_large"));
-  assert.deepEqual(r.q.counts(), { pending: 0, dead: 0 });
+  assert.deepEqual(r.q.counts(), { pending: 0, dead: 0, held: 0, heldOldestMs: 0 });
 });
 
 test("start and stop drive the ticks on a timer", async () => {
@@ -205,7 +206,7 @@ test("jobs asked for while a call is open are held: not due until released, gone
   await r.q.forCtx({ ...seed, hold: kept })(T0, "gate.expire", { taskId: "tsk_kept" });
   await r.q.forCtx({ ...seed, hold: dropped })(T0, "gate.expire", { taskId: "tsk_dropped" });
   assert.equal(await r.q.tick(), 0, "a tick while the calls are open runs nothing");
-  assert.deepEqual(r.q.counts(), { pending: 0, dead: 0 });
+  assert.deepEqual(r.q.counts(), { pending: 0, dead: 0, held: 2, heldOldestMs: 0 }, "and the held jobs show");
   r.q.release(kept);
   r.q.discard(dropped);
   assert.equal(await r.q.tick(), 1);
@@ -218,21 +219,82 @@ test("jobs asked for while a call is open are held: not due until released, gone
   assert.equal(await r.q.tick(), 1);
 });
 
-test("jobs held when the server died are released at the next start, never lost (the call may have committed before the kill)", async () => {
-  const r = rig();
-  await r.q.forCtx({ ...seed, hold: { open: true, ids: [] } })(T0, "gate.expire", { taskId: "tsk_orphan" });
-  r.clock.t += 600_000;
-  assert.equal(await r.q.tick(), 0, "a call can be open for minutes: nothing touches its jobs while the server runs");
+// A server that dies between a call asking for a job and the release leaves the job held. The log says whether the call committed: yes, the job runs after the restart (once); no, it is dropped.
+const hold = (trace: string) => ({ open: true, ids: [] as string[], trace });
+test("a held job whose call committed before the server died runs after the restart, once; one whose call never committed is dropped", async () => {
+  const saw: string[] = [];
+  const r = rig({
+    committed: async (trace) => {
+      saw.push(trace);
+      return trace === "c".repeat(32);
+    },
+  });
+  await r.q.forCtx({ ...seed, hold: hold("c".repeat(32)) })(T0, "gate.expire", { taskId: "tsk_committed" });
+  await r.q.forCtx({ ...seed, hold: hold("d".repeat(32)) })(T0, "gate.expire", { taskId: "tsk_never" });
+  r.clock.t += 5_000; // the same boot: nothing is touched while the calls may still be open
+  assert.equal(await r.q.tick(), 0);
+  assert.equal(r.q.counts().held, 2);
   const q2 = r.make(); // the server starts again
-  assert.equal(await q2.tick(), 1, "released and run");
+  assert.equal(await q2.tick(), 1, "the committed call's job ran");
   assert.deepEqual(
     r.ran.map((c) => c.input),
-    [{ taskId: "tsk_orphan" }],
+    [{ taskId: "tsk_committed" }],
   );
-  // one held a moment ago may belong to a call another computer has open: left alone
-  await r.q.forCtx({ ...seed, hold: { open: true, ids: [] } })(r.clock.t, "gate.expire", { taskId: "tsk_new" });
-  assert.equal(await r.make().tick(), 0);
-  assert.equal(r.ran.length, 1);
+  assert.deepEqual(r.q.counts(), { pending: 0, dead: 0, held: 0, heldOldestMs: 0 }, "the other was dropped");
+  assert.equal(await q2.tick(), 0, "and a second tick runs nothing more: once");
+  assert.equal(saw.length, 2, "one question per trace");
+});
+
+test("a kill during the release: the jobs already released and those still held each run once after the restart", async () => {
+  const r = rig({ committed: async () => true });
+  const h = hold("e".repeat(32));
+  for (let i = 0; i < 4; i++) await r.q.forCtx({ ...seed, hold: h })(T0, "gate.expire", { n: i });
+  // the release got through two of the four rows when the server died
+  const ids = r.db.all("SELECT id FROM host_schedule ORDER BY rowid") as { id: string }[];
+  for (const row of ids.slice(0, 2)) r.db.run("UPDATE host_schedule SET state = 'pending' WHERE id = ?", row.id);
+  const q2 = r.make();
+  while ((await q2.tick()) > 0);
+  assert.deepEqual(
+    r.ran.map((c) => (c.input as { n: number }).n),
+    [0, 1, 2, 3],
+    "each ran once, in the order they were asked for",
+  );
+});
+
+test("a job held by this run of the server is a call still open: recovery leaves it", async () => {
+  const r = rig({ committed: async () => false });
+  await r.q.forCtx({ ...seed, hold: hold("f".repeat(32)) })(T0, "gate.expire", { n: 1 });
+  assert.equal(await r.q.tick(), 0);
+  assert.equal(r.q.counts().held, 1);
+});
+
+test("a call can take back a job it just asked for, while it is still held", async () => {
+  const r = rig();
+  const h = hold("a".repeat(32));
+  const id = await r.q.forCtx({ ...seed, hold: h })(T0, "gate.expire", { n: 1 });
+  assert.equal(r.q.cancel(id), true);
+  r.q.release(h);
+  assert.equal(await r.q.tick(), 0);
+  assert.equal(r.ran.length, 0);
+});
+
+test("a database made before this change gets its held columns added, and its rows keep running", async () => {
+  const db: RawDb = openRecordStore({ path: ":memory:", space: "sp_old" }).host.tx;
+  db.run(`CREATE TABLE host_schedule (
+      id TEXT PRIMARY KEY, space TEXT NOT NULL, cap TEXT NOT NULL, input TEXT NOT NULL,
+      principal_kind TEXT NOT NULL, principal_id TEXT NOT NULL, acting_for TEXT, trace_id TEXT NOT NULL,
+      run_at INTEGER NOT NULL, state TEXT NOT NULL DEFAULT 'pending', claimed_at INTEGER, tries INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT, created_at INTEGER NOT NULL
+    )`);
+  db.run(
+    "INSERT INTO host_schedule (id, space, cap, input, principal_kind, principal_id, trace_id, run_at, created_at) VALUES ('sch_old', 'spc_1', 'gate.expire', '{}', 'person', 'usr_dana', '', ?, ?)",
+    T0,
+    T0,
+  );
+  const ran: string[] = [];
+  const q = new ScheduleQueue({ db, now: () => T0, run: async (c) => void ran.push(c.id) });
+  assert.equal(await q.tick(), 1);
+  assert.deepEqual(ran, ["sch_old"]);
 });
 
 test("jobs due at the same time run in the order they were scheduled: 200 in one millisecond, fresh and from a database made before", async () => {

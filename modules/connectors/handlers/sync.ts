@@ -1114,6 +1114,9 @@ export function createSyncHandlers(deps: SyncDeps): SyncHandlers {
         } catch (e) {
           noteResult(tx, r.sync_type_id, parse<PollingRow>(r.polling), false, nowOf(deps)); // the driver waits longer after each failure in a row
           const err = (e as { error?: { code?: string; message?: string } }).error;
+          // The first pull of a type that was set up a moment ago can meet "not found" because what it needs is not saved yet (13 Nov 2026: the connection of the same apply). That is not the app refusing:
+          // the job fails and the scheduler tries it again soon (5 s, then doubling, five tries), and a pass that still cannot start ends the Run failed with the reason (host/src/daemon/dead-jobs.ts).
+          if (err?.code === "permission.not_found" && firstPull(tx, r.sync_type_id)) throw e;
           const message = err?.message ?? (e instanceof Error ? e.message : "The sync failed.");
           failed = { code: err?.code ?? "provider.unavailable", message };
           logError(r.sync_type_id, `sync of ${r.type} failed: ${message}`, input.runId);
@@ -1238,4 +1241,13 @@ export function syncRequest(
         ...(r.requested_by && r.requested_by !== "system" ? { by: r.requested_by } : {}),
       }
     : undefined;
+}
+
+/** A type that has never finished a pass: the engine keeps no place for it yet. */
+function firstPull(tx: Tx, syncTypeId: string): boolean {
+  try {
+    return tx.get("SELECT 1 AS x FROM sy_state WHERE sync_type = ?", syncTypeId) === undefined;
+  } catch {
+    return true; // the engine's tables are made by the first pass
+  }
 }

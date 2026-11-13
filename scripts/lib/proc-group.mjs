@@ -2,6 +2,7 @@
 // runner spawned leaves those running, re-parented to init, for hours (12 Nov 2026: fifteen fails-then-hangs fixtures on one box). So the runners spawn each file in a process
 // group of its own (detached; on Windows a process tree), and end the whole group: when the watchdog fires, and once the file's process has closed (anything it left behind).
 import { spawn, spawnSync } from "node:child_process";
+import fs from "node:fs";
 
 const WIN = process.platform === "win32";
 const live = new Set();
@@ -26,6 +27,37 @@ export function groupAlive(pid) {
   } catch (e) {
     return e.code === "EPERM";
   }
+}
+
+/**
+ * The processes of the group led by pid, one line each: pid, parent, age, state, whether it holds a pipe open (Linux), and its command line. For the watchdog: a file that sits past its cap
+ * with every test done is held open by something in this list (the runner waits for the pipes to close, not only for the process), and the list names it before the group is ended.
+ */
+export function groupTree(pid) {
+  if (WIN) return [];
+  const r = spawnSync("ps", ["-A", "-o", "pid=,ppid=,pgid=,etime=,stat=,args="], { encoding: "utf8" });
+  const rows = [];
+  for (const line of (r.stdout ?? "").split("\n")) {
+    const m = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line);
+    if (!m || Number(m[3]) !== pid) continue;
+    let pipes = "";
+    try {
+      const fds = fs.readdirSync(`/proc/${m[1]}/fd`);
+      pipes = fds.some((fd) => {
+        try {
+          return fs.readlinkSync(`/proc/${m[1]}/fd/${fd}`).startsWith("pipe:");
+        } catch {
+          return false;
+        }
+      })
+        ? " holds a pipe"
+        : "";
+    } catch {
+      /* no /proc here */
+    }
+    rows.push(`  pid ${m[1]} (parent ${m[2]}) up ${m[4]} ${m[5]}${pipes}: ${m[6].slice(0, 200)}`);
+  }
+  return rows;
 }
 
 /** End the child's whole group (SIGKILL; on Windows taskkill /T /F) and wait, up to waitMs, until none of it is left. Returns true when it is gone. */

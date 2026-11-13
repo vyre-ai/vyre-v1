@@ -23,7 +23,7 @@ const cap = (name: string): CapabilityDef =>
     level: "edit",
     risk: "low",
     effects: "write",
-    emits: [],
+    emits: ["demo.happened"],
     idempotency: "natural",
     surfaces: {},
     examples: [],
@@ -44,6 +44,8 @@ function rig(extra: Partial<Parameters<typeof hostServices>[0]> = {}) {
   const seal = createCtxSeal({ key: "0123456789abcdef0123456789abcdef", keyId: "k1" });
   const later: { principal: string; origin: string; trace: string; input: unknown }[] = [];
   const ranDuring: number[] = [];
+  const atCommit: { held: number; pending: number }[] = [];
+  const flags = { commitThrows: false, registerThrows: false };
   const handlers: Record<string, Handler> = {
     "demo.seal": async (ctx: Ctx) => {
       const sealed = ctx.seal.seal(enc.encode("secret"), "demo");
@@ -56,6 +58,7 @@ function rig(extra: Partial<Parameters<typeof hostServices>[0]> = {}) {
     },
     // schedules a job that is due now, then lets the queue tick while this call is still open (a tick of the real daemon can land there)
     "demo.mid": async (ctx: Ctx) => {
+      ctx.emit("demo.happened" as never, "thing/rec_1", {});
       await ctx.schedule(clock.t, "demo.later", { id: "mid" });
       ranDuring.push(await queue.tick());
       return {};
@@ -68,6 +71,21 @@ function rig(extra: Partial<Parameters<typeof hostServices>[0]> = {}) {
     },
     "demo.mid_inner": async (ctx: Ctx) => {
       await ctx.schedule(clock.t, "demo.later", { id: "inner" });
+      return {};
+    },
+    // two levels down: l1 -> l2 -> mid_inner, with jobs asked for at every level
+    "demo.l1": async (ctx: Ctx, input: unknown) => {
+      ctx.emit("demo.happened" as never, "thing/rec_1", {});
+      await ctx.schedule(clock.t, "demo.later", { id: "l1-first" });
+      await ctx.call("demo.l2" as never, { id: "rec_1" });
+      await ctx.schedule(clock.t, "demo.later", { id: "l1-last" });
+      ranDuring.push(await queue.tick());
+      if ((input as { fail?: boolean }).fail) throw new Error("the outer call failed after the inner ones succeeded");
+      return {};
+    },
+    "demo.l2": async (ctx: Ctx) => {
+      await ctx.call("demo.mid_inner" as never, { id: "rec_1" });
+      await ctx.schedule(clock.t, "demo.later", { id: "l2" });
       return {};
     },
     "demo.mid_fail": async (ctx: Ctx) => {
@@ -98,12 +116,23 @@ function rig(extra: Partial<Parameters<typeof hostServices>[0]> = {}) {
     validateInput: () => [],
     authorize: () => ({ effect: "allow", reason: "test", decisionId: "dec_1" }) as never,
     handler: (c) => handlers[c],
-    commit: async (b) => b.events.map((e, i) => ({ ...e, seq: i + 1 })),
+    commit: async (b) => {
+      const n = queue.counts();
+      atCommit.push({ held: n.held, pending: n.pending });
+      if (flags.commitThrows) throw new Error("the log is not accepting changes");
+      return b.events.map((e, i) => ({ ...e, seq: i + 1 }));
+    },
+    resources: {
+      register: () => {
+        if (flags.registerThrows) throw new Error("the registrar failed");
+        return [];
+      },
+    } as never,
     services,
   };
   const invoke = createInvoke(deps);
   const runner = invokeRunner(invoke);
-  return { clock, queue, invoke, later, services, ranDuring };
+  return { clock, queue, invoke, later, services, ranDuring, atCommit, flags };
 }
 
 test("ctx.seal and ctx.schedule reach a handler through the pipeline", async () => {
@@ -130,7 +159,7 @@ test("the scheduled call runs once the time comes, as the same principal, on the
   assert.equal(r.later[0]!.origin, "schedule");
   assert.equal(first.traceId, TRACE);
   assert.equal(r.later[0]!.trace, TRACE);
-  assert.deepEqual(r.queue.counts(), { pending: 0, dead: 0 });
+  assert.deepEqual(r.queue.counts(), { pending: 0, dead: 0, held: 0, heldOldestMs: 0 });
 });
 
 test("a top-level call that started no trace schedules without one, and the run gets a fresh trace", async () => {
@@ -199,4 +228,60 @@ test("a job a nested call schedules waits for the outermost call's commit", asyn
   assert.deepEqual(r.ranDuring, [0], "the nested call has committed, the outer one has not: nothing ran");
   assert.equal(await r.queue.tick(), 1);
   assert.deepEqual(r.later[0]!.input, { id: "inner" });
+});
+
+// The reviewer's probes (14 Nov 2026): every way a call can end, and what becomes of the jobs it asked for.
+test("the jobs are still held when the commit runs, and due only after it returned", async () => {
+  const r = rig();
+  await r.invoke("demo.mid", { id: "rec_1" }, seed);
+  assert.deepEqual(
+    r.atCommit,
+    [{ held: 1, pending: 0 }],
+    "held while the commit ran: a release before the commit would show pending 1",
+  );
+  assert.equal(r.queue.counts().pending, 1, "due after it");
+  assert.equal(r.queue.counts().held, 0);
+});
+
+test("a call that fails drops its jobs: no held row is left behind", async () => {
+  const r = rig();
+  await assert.rejects(r.invoke("demo.mid_fail", { id: "rec_1" }, seed));
+  assert.deepEqual(r.queue.counts(), { pending: 0, dead: 0, held: 0, heldOldestMs: 0 });
+});
+
+test("a throw in the commit step drops the jobs", async () => {
+  const r = rig();
+  r.flags.commitThrows = true;
+  await assert.rejects(r.invoke("demo.mid", { id: "rec_1" }, seed));
+  assert.deepEqual(r.queue.counts(), { pending: 0, dead: 0, held: 0, heldOldestMs: 0 });
+  assert.equal(await r.queue.tick(), 0);
+  assert.equal(r.later.length, 0);
+});
+
+test("a throw in the resource registrar drops the jobs", async () => {
+  const r = rig();
+  r.flags.registerThrows = true;
+  await assert.rejects(r.invoke("demo.mid", { id: "rec_1" }, seed));
+  assert.deepEqual(r.queue.counts(), { pending: 0, dead: 0, held: 0, heldOldestMs: 0 });
+  assert.equal(r.atCommit.length, 0, "it failed before the commit");
+});
+
+test("two levels of nested calls: the jobs of every level wait for the outermost commit and run in the order they were asked for", async () => {
+  const r = rig();
+  const res = await r.invoke("demo.l1", { id: "rec_1" }, seed);
+  assert.equal(res.status, "ok");
+  assert.deepEqual(r.ranDuring, [0]);
+  assert.equal(r.atCommit.at(-1)!.held, 4, "all four jobs were held when the outermost call committed");
+  assert.equal(await r.queue.tick(), 4);
+  assert.deepEqual(
+    r.later.map((l) => (l.input as { id: string }).id),
+    ["l1-first", "inner", "l2", "l1-last"],
+  );
+});
+
+test("two levels of nested calls where the outermost call then fails: nothing the chain asked for runs", async () => {
+  const r = rig();
+  await assert.rejects(r.invoke("demo.l1", { id: "rec_1", fail: true } as never, seed));
+  assert.deepEqual(r.queue.counts(), { pending: 0, dead: 0, held: 0, heldOldestMs: 0 });
+  assert.equal(await r.queue.tick(), 0);
 });

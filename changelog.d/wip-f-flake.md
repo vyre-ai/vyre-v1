@@ -1,1 +1,2 @@
 - Bringing in a CRM no longer leaves one of its lists empty now and then. The first pull of each list could start a moment before the connection it needed was saved, fail, and wait for the next check (up to an hour); work a call asks the server to do later now starts only after that call has been saved.
+- If the first pull of a list in a CRM you brought in cannot start right away, it is now tried again within seconds (up to five times) instead of waiting an hour for the next check, and a pull that still cannot start says why.

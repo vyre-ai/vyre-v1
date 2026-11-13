@@ -69,6 +69,29 @@ test("a failing app fails the Run, says why in the log, and the poll goes on", a
   assert.match(log[0]!.summary, /sync of person failed: The app answered 503\./);
 });
 
+// 13 Nov 2026: the first pull of organisations met "not found" because the connection of the same apply was not saved yet; the Run ended failed and nothing tried again for 900 s or more.
+test("a first pull that meets 'not found' is tried again, not ended failed; a second try that works finishes the Run", async () => {
+  const w = await setup();
+  w.state.fail = "x";
+  const notFound = {
+    error: { code: "permission.not_found", message: "We could not find that, or you cannot see it." },
+  };
+  (w.k.deps.engine as unknown as { run: (...a: unknown[]) => Promise<unknown> }).run = async (_c: unknown, b: any) => {
+    w.passes.push({ type: b.type, mode: "incremental" });
+    if (w.state.fail) throw notFound;
+    return { summary: "ok", pulled: 1, pushed: 0, skipped: 0, conflicts: 0, dryRun: false };
+  };
+  await assert.rejects(w.k.hs["connectors.sync_run"](w.ctx, { runId: "run_2" }), (e: unknown) => e === notFound);
+  assert.deepEqual(finishes(w.calls), [], "the Run is not ended: the scheduler tries the job again");
+  delete w.state.fail;
+  const run = await w.k.hs["connectors.sync_run"](w.ctx, { runId: "run_2" });
+  assert.equal(run.ok, true);
+  assert.deepEqual(
+    finishes(w.calls).map((f) => [f.runId, f.status]),
+    [["run_2", "succeeded"]],
+  );
+});
+
 test("polling is one chain: a pass plans one poll, a poll plans the next, a pause ends it, a resume starts it", async () => {
   const w = await setup();
   await w.k.hs["connectors.sync_run"](w.ctx, { runId: "run_1" });

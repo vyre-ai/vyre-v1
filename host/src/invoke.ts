@@ -61,7 +61,9 @@ export interface PrincipalSeed {
 /** What the caller knows before the pipeline starts: who, for whom, where from. */
 /** One chain of calls' held jobs (see ScheduleHold in ctx/schedule.ts); the services fill it, the outermost call settles it. */
 export interface ScheduleScope {
-  hold?: { open: boolean; ids: string[] };
+  /** the outermost call's trace: a held job carries it, and after a crash the log says whether that call committed */
+  traceId?: string;
+  hold?: { open: boolean; ids: string[]; trace?: string };
 }
 
 export interface CtxSeed {
@@ -633,7 +635,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         : asked.chatMode;
     // the outermost call of a chain owns the scope: what the chain schedules is released by its commit (nested calls commit earlier, but what they scheduled may read what an outer call has written and not yet committed)
     const ownsScope = asked.scheduleScope === undefined;
-    const scope: ScheduleScope = asked.scheduleScope ?? {};
+    const scope: ScheduleScope = asked.scheduleScope ?? { traceId };
     const seed: CtxSeed = {
       ...(liveMode === asked.chatMode ? asked : { ...asked, chatMode: liveMode }),
       scheduleScope: scope,
@@ -961,150 +963,156 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     if (!h) throw fail("internal.not_implemented", traceId, { details: { cap: c.name } });
     const events: EventEnvelope[] = [];
     const settle: Array<(committed: boolean) => void> = [];
-    const ctx = makeCtx(
-      c,
-      seed,
-      trace,
-      depth,
-      events,
-      approved ? approvedGates : undefined,
-      ownsScope ? settle : undefined,
-    );
-    let output: unknown;
+    let released = false; // true once the call's commit returned and what it scheduled was released; a throw on the way (handler, registrars, record access, the commit itself) drops it
     try {
-      output = await h(ctx, input); // a throw here is mapped by the outer catch: VyreErr and HostError keep their code, anything else is internal.unexpected
-    } catch (e) {
-      for (const s of settle) s(false); // a nested call that failed leaves what its chain scheduled to the outermost call
-      // refused before it went out: a person's yes this call spent is handed back, so the corrected retry is still asked for (one successful send per yes)
-      await deps.gate?.giveBack?.(input).catch(() => undefined);
-      // events the handler marked afterFailure (a refused sign-in's signin.failed) are written on their own, then the error goes on; nothing else the call buffered is
-      const keep = events.filter((ev) => survivors.has(ev));
-      if (keep.length) {
-        try {
-          deps.publish?.(
-            await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events: keep, audit: null }),
+      const ctx = makeCtx(
+        c,
+        seed,
+        trace,
+        depth,
+        events,
+        approved ? approvedGates : undefined,
+        ownsScope ? settle : undefined,
+      );
+      let output: unknown;
+      try {
+        output = await h(ctx, input); // a throw here is mapped by the outer catch: VyreErr and HostError keep their code, anything else is internal.unexpected
+      } catch (e) {
+        for (const s of settle) s(false); // a nested call that failed leaves what its chain scheduled to the outermost call
+        // refused before it went out: a person's yes this call spent is handed back, so the corrected retry is still asked for (one successful send per yes)
+        await deps.gate?.giveBack?.(input).catch(() => undefined);
+        // events the handler marked afterFailure (a refused sign-in's signin.failed) are written on their own, then the error goes on; nothing else the call buffered is
+        const keep = events.filter((ev) => survivors.has(ev));
+        if (keep.length) {
+          try {
+            deps.publish?.(
+              await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events: keep, audit: null }),
+            );
+          } catch (ce) {
+            log.warn("after-failure events were not written", {
+              cap: c.name,
+              traceId,
+              error: ce instanceof Error ? ce.message : String(ce),
+            });
+          }
+        }
+        throw e;
+      }
+      // P-H_16: every object this call created becomes a resource in the same commit, so it is authorizable at once (one place for every module)
+      if (deps.resources && events.length) {
+        for (const row of deps.resources.register({
+          cap: c,
+          input,
+          space: seed.space,
+          owner: seed.actingFor ?? seed.principal.id,
+          principal: seed.principal,
+          events,
+        })) {
+          events.push(
+            envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth) as EventEnvelope,
           );
-        } catch (ce) {
-          log.warn("after-failure events were not written", {
+          // An agent that makes a record type for the person it acts for holds Manage on it (the person owns it): it needs to set who the type is open to as part of the same work. Only a record type, only
+          // an agent acting for a person. This adds no power beyond the person: every call the agent makes still takes the lower of its grants and its asker's access.
+          if (
+            row.type === "record_type" &&
+            seed.principal.kind === "agent" &&
+            seed.actingFor !== undefined &&
+            seed.actingFor.startsWith("usr_")
+          ) {
+            const id = `gnt_${hex(16)}`;
+            events.push(
+              envelope(
+                "grant.created" as EventName,
+                `grant/${id}`,
+                {
+                  id,
+                  subject_kind: "actor",
+                  subject_id: seed.principal.id,
+                  resource_type: "record_type",
+                  resource_id: row.id,
+                  level: "manage",
+                  by: seed.actingFor,
+                },
+                seed,
+                trace,
+                depth,
+              ) as EventEnvelope,
+            );
+          }
+        }
+      }
+      if (deps.principals && events.length) {
+        for (const r of deps.principals.register({
+          space: seed.space,
+          maker: seed.actingFor ?? seed.principal.id,
+          events,
+        }))
+          events.push(
+            envelope(r.type as EventName, `${r.entity}/${r.id}`, r.payload, seed, trace, depth) as EventEnvelope,
+          );
+      }
+
+      // 7 commit: events, inline projections and the audit row land together
+      const finishOutput =
+        SCOPED_RECORD_READS.has(c.name) && !(seed.preAuth && isHostService(seed.principal))
+          ? await deps.recordAccess?.project(c.name, input, seed, output, traceId)
+          : undefined;
+      // an agent's change is audited like any sensitive act, so the log always says which agent did what for whom (a person's own file write is not)
+      const audited =
+        shouldAudit(c) || seed.auditAll === true || (seed.principal.kind === "agent" && c.effects !== "read");
+      const targets = audited ? auditTargets(c.name, input, output) : undefined;
+      const auditRow: AuditRow | null = audited
+        ? {
+            class: "allow",
+            cap: c.name,
+            v: c.v,
+            principal: seed.principal.id,
+            actingFor: seed.actingFor,
+            decisionId: did(),
+            reason: "ok",
+            resource,
+            traceId,
+            spanId: trace.spanId,
+            at: t,
+            risk: c.risk,
+            ...withNote(
+              targets,
+              fellBackNote(selfAuditNote(c, input, seed.principal, seed.actingFor), takeFallback(traceId)),
+            ),
+          }
+        : null;
+      let stored = events;
+      if (events.length || auditRow)
+        stored = await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events, audit: auditRow });
+      // what the call scheduled is due only now that what it wrote is committed (a call that fails before this leaves its held jobs to be swept)
+      for (const s of settle) s(true);
+      released = true;
+      // 8 publish after commit
+      if (stored.length) deps.publish?.(stored);
+      // Before the answer reaches the model: a failure to mark costs the next outward act nothing it should have, so it is logged and the answer still goes. The grant check reads the mark.
+      if (deps.gate?.seen && (depth === 0 || approved))
+        await deps.gate.seen(c, input, output, seed, t).catch((e: unknown) =>
+          log.warn("the Gate did not hear what a call brought in", {
             cap: c.name,
             traceId,
-            error: ce instanceof Error ? ce.message : String(ce),
+            error: e instanceof Error ? e.message : String(e),
+          }),
+        );
+      let answer = finishOutput ? await finishOutput() : output;
+      // the read gate, after: what a call an agent is behind hands back is the redacted rendition, or a refusal (Redaction for AI, seams/agent-read.ts)
+      if (deps.agentGate && (depth === 0 || approved)) {
+        const g = await deps.agentGate.after(c.name, c.effects, input, answer, seed);
+        if ("refuse" in g)
+          throw fail(g.refuse.code as ErrorCode, traceId, {
+            message: g.refuse.message,
+            details: { cap: c.name, ...g.refuse.details },
           });
-        }
+        answer = g.output;
       }
-      throw e;
+      return { status: "ok", output: answer, traceId };
+    } finally {
+      if (!released) for (const s of settle) s(false);
     }
-    // P-H_16: every object this call created becomes a resource in the same commit, so it is authorizable at once (one place for every module)
-    if (deps.resources && events.length) {
-      for (const row of deps.resources.register({
-        cap: c,
-        input,
-        space: seed.space,
-        owner: seed.actingFor ?? seed.principal.id,
-        principal: seed.principal,
-        events,
-      })) {
-        events.push(
-          envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth) as EventEnvelope,
-        );
-        // An agent that makes a record type for the person it acts for holds Manage on it (the person owns it): it needs to set who the type is open to as part of the same work. Only a record type, only
-        // an agent acting for a person. This adds no power beyond the person: every call the agent makes still takes the lower of its grants and its asker's access.
-        if (
-          row.type === "record_type" &&
-          seed.principal.kind === "agent" &&
-          seed.actingFor !== undefined &&
-          seed.actingFor.startsWith("usr_")
-        ) {
-          const id = `gnt_${hex(16)}`;
-          events.push(
-            envelope(
-              "grant.created" as EventName,
-              `grant/${id}`,
-              {
-                id,
-                subject_kind: "actor",
-                subject_id: seed.principal.id,
-                resource_type: "record_type",
-                resource_id: row.id,
-                level: "manage",
-                by: seed.actingFor,
-              },
-              seed,
-              trace,
-              depth,
-            ) as EventEnvelope,
-          );
-        }
-      }
-    }
-    if (deps.principals && events.length) {
-      for (const r of deps.principals.register({
-        space: seed.space,
-        maker: seed.actingFor ?? seed.principal.id,
-        events,
-      }))
-        events.push(
-          envelope(r.type as EventName, `${r.entity}/${r.id}`, r.payload, seed, trace, depth) as EventEnvelope,
-        );
-    }
-
-    // 7 commit: events, inline projections and the audit row land together
-    const finishOutput =
-      SCOPED_RECORD_READS.has(c.name) && !(seed.preAuth && isHostService(seed.principal))
-        ? await deps.recordAccess?.project(c.name, input, seed, output, traceId)
-        : undefined;
-    // an agent's change is audited like any sensitive act, so the log always says which agent did what for whom (a person's own file write is not)
-    const audited =
-      shouldAudit(c) || seed.auditAll === true || (seed.principal.kind === "agent" && c.effects !== "read");
-    const targets = audited ? auditTargets(c.name, input, output) : undefined;
-    const auditRow: AuditRow | null = audited
-      ? {
-          class: "allow",
-          cap: c.name,
-          v: c.v,
-          principal: seed.principal.id,
-          actingFor: seed.actingFor,
-          decisionId: did(),
-          reason: "ok",
-          resource,
-          traceId,
-          spanId: trace.spanId,
-          at: t,
-          risk: c.risk,
-          ...withNote(
-            targets,
-            fellBackNote(selfAuditNote(c, input, seed.principal, seed.actingFor), takeFallback(traceId)),
-          ),
-        }
-      : null;
-    let stored = events;
-    if (events.length || auditRow)
-      stored = await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events, audit: auditRow });
-    // what the call scheduled is due only now that what it wrote is committed (a call that fails before this leaves its held jobs to be swept)
-    for (const s of settle) s(true);
-    // 8 publish after commit
-    if (stored.length) deps.publish?.(stored);
-    // Before the answer reaches the model: a failure to mark costs the next outward act nothing it should have, so it is logged and the answer still goes. The grant check reads the mark.
-    if (deps.gate?.seen && (depth === 0 || approved))
-      await deps.gate.seen(c, input, output, seed, t).catch((e: unknown) =>
-        log.warn("the Gate did not hear what a call brought in", {
-          cap: c.name,
-          traceId,
-          error: e instanceof Error ? e.message : String(e),
-        }),
-      );
-    let answer = finishOutput ? await finishOutput() : output;
-    // the read gate, after: what a call an agent is behind hands back is the redacted rendition, or a refusal (Redaction for AI, seams/agent-read.ts)
-    if (deps.agentGate && (depth === 0 || approved)) {
-      const g = await deps.agentGate.after(c.name, c.effects, input, answer, seed);
-      if ("refuse" in g)
-        throw fail(g.refuse.code as ErrorCode, traceId, {
-          message: g.refuse.message,
-          details: { cap: c.name, ...g.refuse.details },
-        });
-      answer = g.output;
-    }
-    return { status: "ok", output: answer, traceId };
   }
 
   async function park(
