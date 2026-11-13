@@ -650,6 +650,17 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       if (!r.ok)
         throw new Error(r.status === 413 ? "The file is over the size limit" : "The upload did not go through");
     },
+    fetchBlobUrl: async (path) => {
+      if (token === null)
+        throw new CapError({ code: "auth.unauthenticated", message: "You are signed out.", traceId: "", status: 401 });
+      const send = o.fetch ?? (globalThis as { fetch?: typeof fetch }).fetch;
+      if (!send) throw new Error("This device cannot load a picture");
+      const r = await send(new URL(path, o.baseUrl).toString(), { headers: { authorization: `Bearer ${token}` } });
+      if (!r.ok) throw new Error("The picture did not load");
+      const url = (globalThis as { URL?: { createObjectURL?(b: Blob): string } }).URL;
+      if (!url?.createObjectURL) throw new Error("This device cannot show a picture");
+      return url.createObjectURL(await r.blob());
+    },
     ...(aiHome === "here" || door ? { unlockVault } : {}),
     aiHome,
     // a Space server keeps a wrap of the person's key for their Google or GitHub sign-ins: the Vault shows it, with Forget on this server

@@ -146,7 +146,10 @@ test("what the viewer says about a failed fetch follows the cause: sign-in, rate
     words: "This file was removed in Google Drive.",
     retry: false,
   });
-  assert.match(fetchFailureWords("provider.auth_failed", "Google Drive").words, /Reconnect it in Settings, under Connections/);
+  assert.match(
+    fetchFailureWords("provider.auth_failed", "Google Drive").words,
+    /Reconnect it in Settings, under Connections/,
+  );
   assert.match(fetchFailureWords("provider.rate_limited", "Google Drive").words, /slow down\. Try again in a minute/);
   assert.deepEqual(fetchFailureWords("provider.unavailable", "Google Drive"), {
     words: "Could not get this from Google Drive just now",
@@ -176,6 +179,48 @@ test("a workbook with several sheets says it shows the first, with where to see 
     );
     await flush();
     assert.match(textOf(find(root, "file-viewer-sheets")), /Showing the first of 3 sheets\./);
+  } finally {
+    restore();
+  }
+});
+
+test("a picture the Space serves is fetched with the person's token and drawn from that result: an image element sends no token, so the bare address answers 401 and the picture stayed an empty checkerboard", async () => {
+  const restore = installDom();
+  try {
+    const base = createSampleViewer();
+    const asked: string[] = [];
+    const data: FilesViewerData = {
+      ...base.data,
+      blobUrl: async (path) => {
+        asked.push(path);
+        return "blob:resolved-picture";
+      },
+      call: async (cap, input) => {
+        if (cap === "files.viewer_data") {
+          const s = (await base.data.call(cap, { fileId: "f_offer" })) as { file: Record<string, unknown> };
+          return { ...s, previewUrl: "/spaces/spc_1/blobs/blb_abc" };
+        }
+        return base.data.call(cap, cap.startsWith("files.") ? { ...(input as object), fileId: "f_offer" } : input);
+      },
+    };
+    const root = await mount(
+      createRoot,
+      <FilesViewerDataProvider value={data}>
+        <FileViewer fileId="f_offer" />
+      </FilesViewerDataProvider>,
+    );
+    await flush();
+    await flush();
+    assert.deepEqual(asked, ["/spaces/spc_1/blobs/blb_abc"]);
+    const seen = new Set<unknown>();
+    const has = (n: unknown): boolean => {
+      if (n === null || typeof n !== "object" || seen.has(n)) return false;
+      seen.add(n);
+      const o = n as { props?: Record<string, unknown>; children?: unknown[] };
+      if (JSON.stringify(o.props?.["src"] ?? o.props?.["source"] ?? "").includes("blob:resolved-picture")) return true;
+      return (o.children ?? []).some(has);
+    };
+    assert.ok(has(root), "the picture is drawn from the fetched address, not the bare one");
   } finally {
     restore();
   }

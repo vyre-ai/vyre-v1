@@ -17,7 +17,12 @@ const names = (c: readonly { name: string }[]): string[] => c.map((x) => x.name)
 
 test("the trail: from a folder it is Files and the folders to the file; from each place it is that place; the last crumb is the file", () => {
   const file = { name: "MLA logo.png", folderId: "b" };
-  assert.deepEqual(names(fileTrail({ kind: "folder", id: "b" }, nodes, file)), ["Files", "Marketing", "Brand", "MLA logo.png"]);
+  assert.deepEqual(names(fileTrail({ kind: "folder", id: "b" }, nodes, file)), [
+    "Files",
+    "Marketing",
+    "Brand",
+    "MLA logo.png",
+  ]);
   const places: [Where["kind"], string][] = [
     ["recent", "Recent"],
     ["starred", "Starred"],
@@ -31,13 +36,20 @@ test("the trail: from a folder it is Files and the folders to the file; from eac
     assert.equal(t[0]!.id, `place:${kind}`);
   }
   // a file in a folder the person cannot see: only what they can open is on the path
-  assert.deepEqual(names(fileTrail({ kind: "folder", id: null }, nodes, { name: "x.png", folderId: "hidden" })), ["Files", "x.png"]);
+  assert.deepEqual(names(fileTrail({ kind: "folder", id: null }, nodes, { name: "x.png", folderId: "hidden" })), [
+    "Files",
+    "x.png",
+  ]);
   assert.equal(fileTrail({ kind: "folder", id: null }, nodes, null).at(-1)!.name, "");
 });
 
 test("Esc leaves unless a field, a menu or dialog, or a markup tool has it", () => {
   assert.equal(escapeLeaves({ key: "Escape", defaultPrevented: false, target: { tagName: "DIV" } }), true);
-  assert.equal(escapeLeaves({ key: "Escape", defaultPrevented: true, target: { tagName: "DIV" } }), false, "taken (Draw mode)");
+  assert.equal(
+    escapeLeaves({ key: "Escape", defaultPrevented: true, target: { tagName: "DIV" } }),
+    false,
+    "taken (Draw mode)",
+  );
   assert.equal(escapeLeaves({ key: "Escape", defaultPrevented: false, target: { tagName: "TEXTAREA" } }), false);
   assert.equal(escapeLeaves({ key: "Escape", defaultPrevented: false, target: { tagName: "INPUT" } }), false);
   assert.equal(escapeLeaves({ key: "Escape", defaultPrevented: false, target: { isContentEditable: true } }), false);
@@ -82,7 +94,8 @@ test("the Back arrow leaves the file; the path names the place; Esc does the sam
     assert.match(textOf(find(root, "files-title")), /MLA logo\.png/);
     await press(find(root, "file-back"));
     assert.deepEqual(left, ["back"]);
-    const esc = (o: object = {}): void => keys.forEach((f) => f({ key: "Escape", defaultPrevented: false, target: { tagName: "DIV" }, ...o }));
+    const esc = (o: object = {}): void =>
+      keys.forEach((f) => f({ key: "Escape", defaultPrevented: false, target: { tagName: "DIV" }, ...o }));
     esc();
     assert.equal(left.length, 2, "Esc leaves");
     esc({ target: { tagName: "INPUT" } });

@@ -344,4 +344,5 @@ export function fetchFailureWords(code: string, provider: string): { words: stri
 }
 
 /** The causes the server names for a live file whose content is not here: each gets the failed state, not the "not available" screen. */
-export const FETCH_FAILURE_CODES = /^(provider\.(unavailable|network|auth_failed|rate_limited|overloaded)|timeout\.|auth\.|rate_limit\.|validation\.not_found)/;
+export const FETCH_FAILURE_CODES =
+  /^(provider\.(unavailable|network|auth_failed|rate_limited|overloaded)|timeout\.|auth\.|rate_limit\.|validation\.not_found)/;

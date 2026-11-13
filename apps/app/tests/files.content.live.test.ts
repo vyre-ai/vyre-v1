@@ -5,11 +5,35 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import zlib from "node:zlib";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
 
 const PASSWORD = "fixture password 123";
-const PNG =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+/** A real 64 by 64 red PNG, built here (a 1 by 1 picture is one pixel at 100%, which reads as an empty checkerboard). */
+function redPng(): string {
+  const w = 64;
+  const h = 64;
+  const raw = Buffer.alloc((w * 3 + 1) * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) raw.set([200, 30, 30], y * (w * 3 + 1) + 1 + x * 3);
+  const chunk = (type: string, data: Buffer): Buffer => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(zlib.crc32(Buffer.concat([Buffer.from(type), data])) >>> 0);
+    return Buffer.concat([len, Buffer.from(type), data, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0);
+  ihdr.writeUInt32BE(h, 4);
+  ihdr.set([8, 2, 0, 0, 0], 8);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", zlib.deflateSync(raw)),
+    chunk("IEND", Buffer.alloc(0)),
+  ]).toString("base64");
+}
+const PNG = redPng();
 const PDF = [
   "%PDF-1.4",
   "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj",
@@ -69,11 +93,11 @@ test("real files open with their content: csv, a two-sheet workbook, pdf, image,
       call("files.create", { folderId, name, content, ...(mime ? { mime } : {}), idempotencyKey: `w-${name}` });
     await make("fees.csv", { text: "client,fee\nAcme,10\nBeta,20\n" }, "text/csv");
     // a REAL two-sheet workbook
-    const book = (await call("sheets.create", { folderId, name: "book", format: "xlsx", columns: ["client", "fee"], sheet: "Fees" }))
+    const book = (await call("sheets.create", { folderId, name: "book", format: "xlsx", columns: ["client", "fee"], sheet: "Fees", idempotencyKey: "w-book" }))
       .file.fileId as string;
-    await call("sheets.append_rows", { fileId: book, sheet: "Fees", rows: [{ client: "Gamma", fee: "30" }] });
-    await call("sheets.add_sheet", { fileId: book, sheet: "Costs", columns: ["item", "cost"] });
-    await call("sheets.append_rows", { fileId: book, sheet: "Costs", rows: [{ item: "Rent", cost: "900" }] });
+    await call("sheets.append_rows", { fileId: book, sheet: "Fees", rows: [{ client: "Gamma", fee: "30" }], idempotencyKey: "w-r1" });
+    await call("sheets.add_sheet", { fileId: book, sheet: "Costs", columns: ["item", "cost"], idempotencyKey: "w-s2" });
+    await call("sheets.append_rows", { fileId: book, sheet: "Costs", rows: [{ item: "Rent", cost: "900" }], idempotencyKey: "w-r2" });
     await make("brief.pdf", { base64: Buffer.from(PDF).toString("base64") }, "application/pdf");
     await make("logo.png", { base64: PNG }, "image/png");
     await make("notes.md", { text: "# Walk heading\n\nA markdown paragraph." });
@@ -116,15 +140,27 @@ test("real files open with their content: csv, a two-sheet workbook, pdf, image,
     await page.getByText("Hello walk PDF").first().waitFor({ timeout: 30_000 });
     await shot("pdf");
     await back();
+    const seenResponses: string[] = [];
+    page.on("response", (r) => {
+      if (/\/spaces\/|blobs|viewer_data|previews/.test(r.url())) seenResponses.push(`${r.status()} ${r.url().replace(web.origin, "")} ${r.headers()["content-type"] ?? ""} ${r.headers()["content-length"] ?? ""}`);
+    });
     // image: a picture that loaded, not an empty checkerboard
     await open("logo.png");
-    await page.waitForFunction(
-      () => [...document.querySelectorAll("img")].some((i) => i.complete && i.naturalWidth > 0),
-      undefined,
-      { timeout: 30_000 },
-    );
+    await page.waitForTimeout(1200);
+    const drawn = await page.evaluate(() => {
+      const hit = [...document.querySelectorAll("*")].filter((e) => /blobs\//.test(getComputedStyle(e).backgroundImage));
+      const img = [...document.querySelectorAll("img")].filter((i) => i.complete && i.naturalWidth > 1);
+      return {
+        bg: hit.map((e) => [Math.round(e.getBoundingClientRect().width), Math.round(e.getBoundingClientRect().height)]),
+        img: img.map((i) => [i.naturalWidth, Math.round(i.getBoundingClientRect().width)]),
+      };
+    });
     await shot("image");
-    await back();
+    assert.ok(
+      drawn.bg.some(([w, h]) => w! >= 60 && h! >= 60) || drawn.img.some(([nw, w]) => nw! >= 60 && w! >= 60),
+      `the picture is on screen at a real size: ${JSON.stringify(drawn)} responses=${JSON.stringify(seenResponses)}`,
+    );
+        await back();
     await open("notes.md");
     await page.getByText("A markdown paragraph.").first().waitFor({ timeout: 20_000 });
     await shot("markdown");
@@ -139,6 +175,7 @@ test("real files open with their content: csv, a two-sheet workbook, pdf, image,
     // a live file whose fetch fails: the error with Try again; Try again shows the content
     const liveId = (await call("files.list", { folder: folderId })).files.find((f: any) => f.name === "live.csv").fileId as string;
     let failedOnce = false;
+    let arm = false; // the list also reads viewer_data for its thumbnails: only the viewer's own read after the file is opened fails
     await page.route("**/v1/files/get", async (route) => {
       const res = await route.fetch();
       const json = await res.json();
@@ -148,7 +185,7 @@ test("real files open with their content: csv, a two-sheet workbook, pdf, image,
     });
     await page.route("**/v1/files/viewer_data", async (route) => {
       const req = JSON.parse(route.request().postData() ?? "{}");
-      if (req.fileId === liveId && !failedOnce) {
+      if (req.fileId === liveId && arm) {
         failedOnce = true;
         await route.fulfill({
           status: 502,
@@ -161,11 +198,19 @@ test("real files open with their content: csv, a two-sheet workbook, pdf, image,
       }
       await route.continue();
     });
+    arm = true;
     await open("live.csv");
-    await page.getByTestId("file-viewer-failed").waitFor({ timeout: 20_000 });
+    await page
+      .getByTestId("file-viewer-failed")
+      .waitFor({ timeout: 20_000 })
+      .catch(async (e) => {
+        await shot("failed-missing");
+        throw new Error(`no failed state: armed=${failedOnce} body=${(await body()).slice(0, 400)} ${String(e).slice(0, 60)}`);
+      });
     assert.match(await body(), /Could not get this from Google Drive/);
     assert.doesNotMatch(await body(), /0 rows/);
     await shot("failed");
+    arm = false; // the provider is back: Try again reads the file
     await page.getByTestId("state-action").click();
     await page.getByText("Live", { exact: true }).first().waitFor({ timeout: 20_000 });
     await shot("retried");

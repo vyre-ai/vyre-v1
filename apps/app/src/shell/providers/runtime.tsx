@@ -69,6 +69,8 @@ export interface ShellRuntime extends RuntimeBase {
   callIn?(spaceId: string, cap: string, input: unknown): Promise<unknown>;
   /** Put bytes at a one-time upload address from files.upload_url, signed in as the person. */
   putBlob?(path: string, bytes: Uint8Array): Promise<void>;
+  /** Fetch a blob the Space serves (a preview, a picture) with the person's own token and hand back an address the page can draw: an image element sends no token, so the bare address answers 401. */
+  fetchBlobUrl?(path: string): Promise<string>;
   /** Open the person's own Mine vault key on this computer with their password, in place (no sign-out). Absent where there is no live Space. Rejects with a sentence the page can show. */
   unlockVault?(password: string): Promise<void>;
   /** A Space server's wrap of the person's key for provider sign-ins (owner ruling 3 Nov): what it keeps, and Forget on this server. Null state where there is no such server. */

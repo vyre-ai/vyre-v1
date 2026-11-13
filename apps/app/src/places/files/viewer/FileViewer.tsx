@@ -58,7 +58,11 @@ type Graph = CapMap["memory.graph"]["out"];
 type Load =
   | { status: "loading"; /** the provider, when the file is a live placeholder being fetched from it */ from?: string }
   | { status: "gone" }
-  | { status: "failed"; /** the provider the content could not be got from, and the cause the server named */ from: string; code: string }
+  | {
+      status: "failed";
+      /** the provider the content could not be got from, and the cause the server named */ from: string;
+      code: string;
+    }
   | { status: "ready"; data: ViewerData; comments: readonly FileComment[]; markup: Markup; graph: Graph | null };
 
 export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactElement {
@@ -117,7 +121,11 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
           (e as { code?: string; error?: { code?: string } } | null)?.code ??
           (e as { error?: { code?: string } } | null)?.error?.code;
         if (live)
-          setLoad(from !== "" && FETCH_FAILURE_CODES.test(code ?? "") ? { status: "failed", from, code: code ?? "" } : { status: "gone" });
+          setLoad(
+            from !== "" && FETCH_FAILURE_CODES.test(code ?? "")
+              ? { status: "failed", from, code: code ?? "" }
+              : { status: "gone" },
+          );
       }
     })();
     return () => {
@@ -181,6 +189,28 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         : [],
     [ready, kind, text, app, office],
   );
+  // a picture the Space serves needs the person's token, which an image element does not send: it is fetched with it and drawn from the result (an address that is not the Space's is used as it is)
+  const previewUrl = ready?.data.previewUrl;
+  const [drawable, setDrawable] = useState<{ from: string; url: string } | null>(null);
+  useEffect(() => {
+    if (!previewUrl || !previewUrl.startsWith("/spaces/") || !d.blobUrl) return undefined;
+    let live = true;
+    void d.blobUrl(previewUrl).then(
+      (url) => live && setDrawable({ from: previewUrl, url }),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [d, previewUrl]);
+  const imageSrc =
+    previewUrl === undefined
+      ? undefined
+      : !previewUrl.startsWith("/spaces/") || !d.blobUrl
+        ? previewUrl
+        : drawable?.from === previewUrl
+          ? drawable.url
+          : undefined;
   const sheet = useMemo(() => (kind === "csv" ? parseCsv(text) : undefined), [kind, text]);
   const boxes = useMemo(() => (ready ? boxesOf(ready.comments) : []), [ready]);
   const strokes = useMemo(() => (ready ? strokesOf(ready.markup.strokes) : []), [ready]);
@@ -442,7 +472,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         {...(office
           ? { noPreview: noPreviewWords(file.name) ?? "No preview of this file here. Open it in its own app." }
           : {})}
-        {...(kind === "image" && ready.data.previewUrl ? { src: ready.data.previewUrl } : {})}
+        {...(kind === "image" && imageSrc ? { src: imageSrc } : {})}
         boxes={boxes}
         strokes={strokes}
         blocks={shownBlocks}
@@ -523,7 +553,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
       />
       {accessMenu.element}
       {firstOfMany && !note ? (
-        <Text style={[s.note, cutShort ? s.noteHigh : null]} testID="file-viewer-sheets">
+        <Text style={[s.note, s.noteHigh]} testID="file-viewer-sheets">
           {`Showing the first of ${sheetCount} sheets. ${link ? openInWords(link.openIn) : "Open it in its own app"} for the rest.`}
         </Text>
       ) : null}

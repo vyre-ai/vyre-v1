@@ -9,3 +9,4 @@
 - Spreadsheet tools, for people and agents, no longer read a Drive spreadsheet that has not been fetched as an empty table, and can no longer write over the real file with an empty one.
 - A Drive item that could not be shown is asked about again on every sync, so fixing its name or permission brings it in by itself.
 - When Drive content cannot be fetched you now see why: an expired sign-in (reconnect it), a rate limit (try again in a minute) or a file removed in Drive. A workbook with several sheets says it shows the first.
+- A picture opened in Files now draws. It was fetched without your sign-in, so the Space answered 401 and the viewer showed an empty checkerboard for every image, not only Drive ones.
