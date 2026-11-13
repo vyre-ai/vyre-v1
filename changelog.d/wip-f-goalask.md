@@ -7,6 +7,6 @@
 - A goal's Activity now reads in plain sentences with names ("Dex could not check in: Vyre's server restarted while it was working"), never a raw code, and long summaries are no longer cut. The wake-up line no longer says "woken because ended".
 - A goal's Activity loads earlier rows when you reach the end of the list, so the start of the goal's story is always there.
 - The server is no longer credited as "Vyre" under an activity line.
-- An agent you asked can change a goal's words, deadline and check-in rhythm; changing who owns it, what it may do on its own, its helpers, its lead or raising its budget stays your own press on the goal's page.
+- An agent you asked can change a goal's words, deadline, check-in rhythm, time zone, stuck limit, linked records and a draft's plan; changing who owns it, what it may do on its own, its helpers, its lead, its project or raising its budget stays your own press on the goal's page.
 - Only a message you typed counts as you asking an agent: a poke, a line the server posts in your name, or a retry of a watcher's turn does not.
 - An agent can promote an Automation to the Space or rotate its webhook address only in a turn you started with your own message.
