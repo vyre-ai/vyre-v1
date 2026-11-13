@@ -50,6 +50,7 @@ import { usePersonZone } from "./TriggerForm.tsx";
 import { Glyph } from "./icons.tsx";
 import { CANVAS, CONFIG, useAutomationsData, useScreenOrRead, useScreenQuery } from "./data.tsx";
 import {
+  REMOVED_KEY,
   addAfter,
   addInto,
   addTrigger,
@@ -388,7 +389,7 @@ function CanvasBody({
         tested,
         required,
         ...(shownRun ? { run: shownRun.states } : {}),
-        keyName: (id) => data.keys.find((k) => k.id === id)?.name ?? data.name(id),
+        keyName: (id) => data.keys.find((k) => k.id === id)?.name ?? REMOVED_KEY,
       }),
     [def, issues, shownRun, data, tested, required],
   );

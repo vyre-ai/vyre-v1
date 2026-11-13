@@ -9,6 +9,7 @@ import { StepLogo } from "./StepLogo.tsx";
 import { cardLabel, moreLabel, runStateText, triggerLabel } from "../a11y.ts";
 import { chipText } from "./chip-words.ts";
 import { NOT_SET_UP } from "./form-model.ts";
+import { chipParts } from "./steps/edits.ts";
 import { CARD_H, CARD_W, TRIG_HEAD, TRIG_ROW, messages, triggerMeta } from "./model.ts";
 import type { CardNode, DefTrigger, IconKey, Issue, RunState } from "./model.ts";
 import { Face, IconButton, pointer, shadow, webOnly } from "./parts.tsx";
@@ -129,7 +130,15 @@ export function StepCard({
             testID={`card-sub-${card.id}`}
             style={[c.sub, c.subFlex, card.sub === NOT_SET_UP && c.subWarn]}
           >
-            {card.sub}
+            {chipParts(card.sub).map((part, k) =>
+              part.chip ? (
+                <Text key={k} testID={`card-chip-${card.id}-${k}`} style={c.subChip}>
+                  {part.text}
+                </Text>
+              ) : (
+                part.text
+              ),
+            )}
           </Text>
           {card.chip ? (
             <View
@@ -405,6 +414,13 @@ export const c = StyleSheet.create({
   subRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   subFlex: { flexShrink: 1, minWidth: 0 },
   subWarn: { color: "var(--warn)" as string },
+  // a data reference in a card's second line, drawn as the chip the editor draws
+  subChip: {
+    backgroundColor: "var(--accent-wash)" as string,
+    color: "var(--accent)" as string,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+  },
   status: {
     borderRadius: 6,
     paddingHorizontal: 6,

@@ -91,6 +91,8 @@ export function replicaHits(rt: ShellRuntime): readonly Hit[] {
     const data = recent.data as { today?: unknown[]; yesterday?: unknown[]; earlier?: unknown[]; starred?: unknown[] };
     for (const list of [data.starred, data.today, data.yesterday, data.earlier]) {
       for (const item of (list ?? []) as { threadId: string; title: string; kind: string }[]) {
+        // only a chat or a channel is a chat to find: an Ask pane on a task or a project carries that object's title, and the object is its own result (owner, 13 Nov 2026: the same task listed as a chat and as a task)
+        if (item.kind !== "chat" && item.kind !== "channel") continue;
         out.push({
           kind: item.kind === "channel" ? "channel" : "chat",
           id: item.threadId,
@@ -102,6 +104,42 @@ export function replicaHits(rt: ShellRuntime): readonly Hit[] {
     }
   }
   return out;
+}
+
+/**
+ * Marks each channel hit that is a record's own channel (a project's chat) as that record, from the channel list the sidebar holds (a channel carries the record it belongs to). The command bar then shows the
+ * record once; a channel that only shares the record's name carries no mark and stays. Decided by ids.
+ */
+export function linkedTo(
+  rt: ShellRuntime,
+  hits: readonly Hit[],
+  taskChats: ReadonlyMap<string, string> = new Map(),
+): Hit[] {
+  const snap = rt.screens.query("chats.sidebar", "channels", {}).getSnapshot();
+  const list =
+    snap.status === "ready"
+      ? ((snap.data as { channels?: { channelId: string; mainThreadId?: string; recordId?: string }[] }).channels ?? [])
+      : [];
+  const of = new Map<string, string>();
+  // a channel's main thread (search indexes it as a chat) is that channel's own, for every channel: found by id, shown once under the channel. A channel's reply threads have other ids and stay as their own rows.
+  const mainOf = new Map<string, string>();
+  for (const c of list) {
+    if (c.mainThreadId) mainOf.set(c.mainThreadId, `channel:${c.channelId}`);
+    if (c.recordId !== undefined) {
+      of.set(c.channelId, `record:${c.recordId}`);
+      if (c.mainThreadId) of.set(c.mainThreadId, `record:${c.recordId}`);
+    }
+  }
+  // a task's own chat is its own thread (tasks.get threadId, and workerThread when a worker has one; the thread it was created from is task.source, not these): that chat is the task, found by id; a chat that only shares the task's name carries no mark
+  return hits.map((h) =>
+    h.kind === "channel" && of.has(h.id)
+      ? ({ ...h, of: of.get(h.id) } as Hit)
+      : h.kind === "chat" && taskChats.has(h.id)
+        ? ({ ...h, of: taskChats.get(h.id) } as Hit)
+        : (h.kind === "chat" || h.kind === "channel") && mainOf.has(h.id)
+          ? ({ ...h, of: mainOf.get(h.id) } as Hit)
+          : h,
+  );
 }
 
 /** Where connecting email, calendars and numbers lives: Settings, Email and calendar. */
@@ -261,8 +299,13 @@ export function reachable(
   );
 }
 
+/** How long the command bar waits for the reads that say which chat is a task's own, before it shows the rows it has. */
+export const TASK_READ_WAIT_MS = 300;
+
 export function createGateSearch(d: GateSearchDeps): CmdKData {
   const { runtime: rt, nav, state } = d;
+  /** the task's own thread ids -> `task:<id>`, learned from the tasks a search returned (tasks.get), so the task's own chat is one row with the task. */
+  const taskChats = new Map<string, string>();
   const mine = (hits: readonly Hit[]): Hit[] => reachable(hits, d.viewer?.() ?? null, state, d.console?.());
   const online = (): boolean => !state.offline && rt.connection.get() === "online";
   const open = (hit: Hit, opts: { newTab: boolean }): void => {
@@ -280,8 +323,12 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     local: (text, types) =>
       byTitleFirst(
         mine(
-          [...replicaHits(rt), ...(text.trim() === "" ? [] : [...shellHits(state), ...settingRowHits(text)])].filter(
-            (h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text)),
+          linkedTo(
+            rt,
+            [...replicaHits(rt), ...(text.trim() === "" ? [] : [...shellHits(state), ...settingRowHits(text)])].filter(
+              (h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text)),
+            ),
+            taskChats,
           ),
         ),
         text,
@@ -290,7 +337,29 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
       const out = (await rt.call("search.query", { q: text, ...(types ? { types: [...types] } : {}), limit: 20 })) as {
         hits: Hit[];
       };
-      return mine(out.hits);
+      // the task reads run beside the search and are waited for only briefly: a slow or failed one never delays the rows, the link just lands on the next search
+      let stop: ReturnType<typeof setTimeout> | undefined;
+      const patience = new Promise<void>((done) => {
+        stop = setTimeout(done, TASK_READ_WAIT_MS);
+      });
+      await Promise.race([
+        patience,
+        Promise.all(
+          out.hits
+            .filter((h) => h.kind === "task")
+            .slice(0, 8)
+            .map((h) =>
+              Promise.resolve(rt.call("tasks.get", { taskId: h.id }))
+                .then((r) => {
+                  const t = (r as { task?: { workerThread?: string; threadId?: string } }).task;
+                  for (const th of [t?.workerThread, t?.threadId]) if (th) taskChats.set(th, `task:${h.id}`);
+                })
+                .catch(() => undefined),
+            ),
+        ),
+      ]);
+      clearTimeout(stop);
+      return mine(linkedTo(rt, out.hits, taskChats));
     },
     recent: () => mine(d.recent()),
     actions: (text) =>

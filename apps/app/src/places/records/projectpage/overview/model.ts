@@ -3,6 +3,7 @@
 import type { CapMap } from "../../../../../../../generated/types.ts";
 import { partsIn } from "../../../../../../../lib/zones.ts";
 import { markedAgent } from "../../../../../../../lib/words/agent-name.ts";
+import { isRawId } from "../../../../../../../lib/id-shapes.ts";
 
 export type OverviewDoc = CapMap["projects.overview_doc.get"]["out"];
 export type LiveOut = CapMap["projects.live_block.query"]["out"];
@@ -457,3 +458,13 @@ export const STAGE_WORD: Readonly<Record<string, string>> = {
 };
 export const stageWord = (x: string): string =>
   STAGE_WORD[x] ?? (x === "" ? x : x.charAt(0).toUpperCase() + x.slice(1));
+
+/**
+ * The rows of a live block as a person reads them. The server sends a principal's id as the title of a People row, and a record with no title field is titled by its own id: neither is shown.
+ * A member is named through the page's directory (`nameOf` answers a plain word for one it does not know); a status row's stage is put in words; any other row that is only an id reads "Untitled".
+ */
+export function liveRows(type: string, rows: readonly LiveRowOut[], nameOf: (id: string) => string): LiveRowOut[] {
+  if (type === "status") return rows.map((r) => ({ ...r, title: stageWord(r.title) }));
+  if (type === "people") return rows.map((r) => ({ ...r, title: nameOf(r.id) }));
+  return rows.map((r) => (isRawId(r.title) ? { ...r, title: "Untitled" } : r));
+}
