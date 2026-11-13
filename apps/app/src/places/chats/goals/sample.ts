@@ -179,23 +179,37 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
     ...(state === "missed" ? [240, 268] : state === "done" ? [253, 301] : []),
   ].map((v, i) => ({ at: created + i * 0.75 * DAY, value: v, ok: true }));
   const activity: ActivityLine[] = [
-    { at: now - 4 * 60_000, kind: "reading", text: "Luma, Lab 8 event: 212 (+18 since the last check-in)" },
-    { at: now - 4 * HOUR, kind: "checkin", text: "Check-in 4: 212 of 300 registrations." },
+    { at: now - 4 * 60_000, kind: "reading", text: "Luma, Lab 8 event: 212, up 18 since the last check-in" },
+    { at: now - 4 * HOUR, kind: "checkin", text: "Check-in: 212 of 300 registrations." },
     {
       at: now - 4 * HOUR + 60_000,
       kind: "report",
       text: "212, behind pace by 30. The Lab 7 reminder is the biggest lever; it waits on your approval.",
       by: "agt_labdesk>usr_irfad",
     },
-    { at: now - 26 * HOUR, kind: "waiting", text: "Waiting: Approve: email to 1,240 Lab 7 attendees", ref: "tsk_hold" },
-    { at: now - 2 * DAY, kind: "task", text: "Done: VY-312 Post Lab 8 in the MLA AI Labs community", ref: "tsk_skool" },
+    {
+      at: now - 26 * HOUR,
+      kind: "waiting",
+      text: `${whoToken("agt_labdesk")} asked ${whoToken("usr_irfad")}: Approve: email to 1,240 Lab 7 attendees?`,
+      ref: "tsk_hold",
+    },
+    {
+      at: now - 2 * DAY,
+      kind: "task",
+      text: "VY-312 Post Lab 8 in the MLA AI Labs community is done.",
+      ref: "tsk_skool",
+    },
     {
       at: now - 4 * DAY,
       kind: "plan",
       text: "Planned VY-311 Remind Lab 7 attendees who have not registered. Why: past attendees registered at 31% after one reminder. Expected: +40 to +60",
       ref: "tsk_rem",
     },
-    { at: now - 5 * DAY, kind: "started", text: `Started. Due ${atToken(goal.deadline)}.` },
+    {
+      at: now - 5 * DAY,
+      kind: "started",
+      text: `${whoToken("usr_irfad")} started the goal. Due ${atToken(goal.deadline)}.`,
+    },
     {
       at: now - 5 * DAY - 60_000,
       kind: "created",
@@ -285,7 +299,12 @@ export function goalsCall(
       return i["goalId"] === "gol_lab8"
         ? page
         : { ...page, goal: { ...page.goal, ...lines.find((l) => l.id === i["goalId"]) } };
-    if (cap === "goals.activity") return { activity: page.activity };
+    if (cap === "goals.activity") {
+      const before = typeof i["before"] === "number" ? i["before"] : Infinity;
+      return {
+        activity: page.activity.filter((a) => a.at < before).slice(0, typeof i["limit"] === "number" ? i["limit"] : 50),
+      };
+    }
     if (cap === "files.list" && i["folder"] === "fld_goal")
       return {
         files: [

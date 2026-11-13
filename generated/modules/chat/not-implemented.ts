@@ -108,6 +108,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "threads.members.add": async (ctx) => { throw new VyreErr(notImplemented("threads.members.add", ctx.trace)); },
   "threads.members.remove": async (ctx) => { throw new VyreErr(notImplemented("threads.members.remove", ctx.trace)); },
   "threads.move": async (ctx) => { throw new VyreErr(notImplemented("threads.move", ctx.trace)); },
+  "threads.open_state": async (ctx) => { throw new VyreErr(notImplemented("threads.open_state", ctx.trace)); },
   "threads.outside_agent.add": async (ctx) => { throw new VyreErr(notImplemented("threads.outside_agent.add", ctx.trace)); },
   "threads.outside_agent.remove": async (ctx) => { throw new VyreErr(notImplemented("threads.outside_agent.remove", ctx.trace)); },
   "threads.poke": async (ctx) => { throw new VyreErr(notImplemented("threads.poke", ctx.trace)); },

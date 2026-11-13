@@ -1,0 +1,14 @@
+- Attach on an agent's Computer tab now shows its terminal beside the chat you are in; it used to send the tab to the start page.
+- The same fix applies to every other link that opens the terminal list, the rules, All agents or an agent's computer over the page you are on: the page stays.
+- The More menu of a tab strip (the three dots after Computer, Chats, Files and Terminal) opens right under the dots you pressed, on a chat's pane, an agent's page and a record's pane; it used to open at the top right, over the agent's name and Share.
+- "Signed in on its browser" no longer lists the browser's own address (127.0.0.1), addresses inside your Space or server, or names that are not a site; it lists the sites the agent signed in to.
+- Inside an agent's sandbox on a server, `whoami`, `id` and git now show a user name instead of "cannot find name for user ID 1000".
+- An agent's browser screenshot of a heavy page comes back instead of failing with "validation.too_large": a picture over the 256 KB limit for a picture kept in Files is scaled down to fit (a very tall page is returned as its top 4096 px, and says so), and the answer tells the agent the page's size and the scale, so a click worked out from the picture lands where it should. A step's picture of a heavy page is kept too. The work runs off the server's main thread.
+- The live browser view in an agent's Computer tab no longer flickers while you are in control: each frame is painted over the last one on a single picture, so it never goes blank between frames and the box keeps its size.
+- When something fails on the server in a way it did not expect, the server now keeps what really happened (the error's message and stack, with the trace id and secrets taken out) in its own output, so a "Something went wrong on our side" can be traced.
+
+- An agent's first browser call right after a server update no longer fails with "Something went wrong on our side" when the browser's old container is being replaced at the same moment: each Docker step of starting the browser either finds its work already done or answers with a plain, retryable line, and callers wait on the one replace.
+- Clicks you make on an agent's browser while you are in control now land where you clicked; on the web they all went to the page's top left corner.
+- Controlling an agent's browser from the app now works: clicks used the wrong button number and landed in the page's top left corner, Space and Enter clicked that corner instead of typing, and the mouse wheel did not scroll. Clicks, typing and scrolling now reach the page.
+- Closing a terminal opened with Attach gives the right column back to the agent's pane when it was open before.
+- While you control an agent's browser, keys go to it only while its view has the focus; Tab and Escape always leave the view, and the app's own keys work again after you hand control back. The mouse wheel scrolls by lines and pages as well as pixels.

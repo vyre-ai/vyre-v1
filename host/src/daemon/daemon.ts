@@ -2792,6 +2792,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           owns: (subject, person) => (db ? ownsSubject(db, subject, person) : false),
         });
       const invoke = createInvoke({
+        secrets: () => [token],
         scheduledHere: () => scheduledHere(),
         caps: indexCapabilities(caps),
         validateInput: (cap, v, input) => (extraCaps.has(cap) ? [] : validateInput(cap, v, input)),

@@ -22,6 +22,7 @@ import {
   queueList,
   queuePeek,
   routePreview,
+  turnAskedBy,
 } from "./threads.ts";
 import { turnOfMessage } from "./reply-info.ts";
 import {
@@ -76,6 +77,7 @@ export const extraHandlers = {
   "engine.lease.release": leaseRelease,
   "engine.queue.list": queueList,
   "engine.queue.peek": queuePeek,
+  "engine.turn.asked_by": turnAskedBy,
   "engine.route.preview": routePreview,
   "engine.health": engineHealth,
 };

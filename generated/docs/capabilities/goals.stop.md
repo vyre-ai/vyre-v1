@@ -1,6 +1,6 @@
 # goals.stop
 
-Stop a goal for good: its open tasks are withdrawn and its permissions end
+Stop a goal for good: its open tasks are withdrawn and its permissions end (the owner, or an agent in a turn the owner began with their own message)
 
 | | |
 |---|---|

@@ -12104,6 +12104,24 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/engine/turn/asked_by",
+    "cap": "engine.turn.asked_by",
+    "v": 1,
+    "module": "engine",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/engine/turn/enqueue",
     "cap": "engine.turn.enqueue",
     "v": 1,
@@ -16637,7 +16655,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/google/drive/download_revision",
@@ -16656,10 +16677,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/google/drive/export_file",
@@ -22126,7 +22144,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/mcp/sessions/list",
@@ -22144,10 +22165,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/mcp/setup/set",
@@ -27605,7 +27623,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "none"
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/plugins/agent_template/use",
@@ -27623,10 +27644,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/plugins/agent_templates/list",
@@ -33156,7 +33174,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sites/list",
@@ -33174,10 +33195,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sites/logs",
@@ -38195,6 +38213,24 @@ const routes6: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/threads/open_state",
+    "cap": "threads.open_state",
+    "v": 1,
+    "module": "chat",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/threads/outside_agent/add",
     "cap": "threads.outside_agent.add",
     "v": 1,
@@ -38654,7 +38690,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "delete"
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/twilio/number/search",
@@ -38690,10 +38729,7 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/twilio/recording/delete",

@@ -82,6 +82,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.switch": Handler<"engine.switch", X>;
   "engine.time_convert": Handler<"engine.time_convert", X>;
   "engine.turn.append": Handler<"engine.turn.append", X>;
+  "engine.turn.asked_by": Handler<"engine.turn.asked_by", X>;
   "engine.turn.enqueue": Handler<"engine.turn.enqueue", X>;
   "engine.turn.fallback": Handler<"engine.turn.fallback", X>;
   "engine.turn.finish": Handler<"engine.turn.finish", X>;

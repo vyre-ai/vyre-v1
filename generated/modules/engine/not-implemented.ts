@@ -82,6 +82,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.switch": async (ctx) => { throw new VyreErr(notImplemented("engine.switch", ctx.trace)); },
   "engine.time_convert": async (ctx) => { throw new VyreErr(notImplemented("engine.time_convert", ctx.trace)); },
   "engine.turn.append": async (ctx) => { throw new VyreErr(notImplemented("engine.turn.append", ctx.trace)); },
+  "engine.turn.asked_by": async (ctx) => { throw new VyreErr(notImplemented("engine.turn.asked_by", ctx.trace)); },
   "engine.turn.enqueue": async (ctx) => { throw new VyreErr(notImplemented("engine.turn.enqueue", ctx.trace)); },
   "engine.turn.fallback": async (ctx) => { throw new VyreErr(notImplemented("engine.turn.fallback", ctx.trace)); },
   "engine.turn.finish": async (ctx) => { throw new VyreErr(notImplemented("engine.turn.finish", ctx.trace)); },
