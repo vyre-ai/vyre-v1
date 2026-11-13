@@ -42,8 +42,8 @@ export async function screenshot(ctx: CompCtx, input: Base & { ref?: string; ful
   if (!r) raise(ctx, "validation.bad_input", "The computer is asleep.");
   const out = await call(ctx, r, spec, defined({ tabId: input.tabId, ref: input.ref, fullPage: input.fullPage }));
   const kept = await keepShot(ctx, r.computer, "chrome_screenshot", out);
-  // the first answer after the browser was reopened says so (browserStep); a picture scaled to fit says so too
-  const notes = [out["reopened"] === true && typeof out["note"] === "string" ? out["note"] : "", kept.note ?? ""]
+  // the first answer after the browser was reopened says so (browserStep) and so does the first call in a person's own profile; a picture scaled to fit says so too
+  const notes = [typeof out["note"] === "string" ? out["note"] : "", kept.note ?? ""]
     .filter((x) => x !== "")
     .join(" ");
   const { note: _scaled, ...shot } = kept; // the page size and scale stay in the answer
