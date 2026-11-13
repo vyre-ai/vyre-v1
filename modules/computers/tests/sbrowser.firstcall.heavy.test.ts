@@ -35,7 +35,7 @@ const api = createDockerApi(http);
 function host(cmd: string, args: string[], timeoutMs: number): Promise<{ code: number; out: string }> {
   return new Promise((resolve) => {
     execFile(cmd, args, { cwd: ROOT, timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 }, (err, stdout, stderr) => {
-      resolve({ code: err ? ((err as NodeJS.ErrnoException & { code?: number }).code as number | undefined) ?? 1 : 0, out: `${stdout}\n${stderr}` });
+      resolve({ code: err ? ((err as unknown as { code?: number }).code ?? 1) : 0, out: `${stdout}\n${stderr}` });
     });
   });
 }
