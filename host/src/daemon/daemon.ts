@@ -51,7 +51,7 @@ import {
   createSiteHostRoute,
   createSiteSigninPage,
 } from "../routes/site-host.ts";
-import { createArtifactHostRoute } from "../routes/artifact-host.ts";
+import { createArtifactHostRoute, HOST_CHECK_PATH } from "../routes/artifact-host.ts";
 import type { SiteHostDeps } from "../routes/site-host.ts";
 import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf } from "../caddy/index.ts";
 import type { PublicFormView } from "../routes/forms-page.ts";
@@ -920,6 +920,94 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     // a Space on this computer alone: browsers send *.localhost to loopback, so a.localhost:<port> is a separate origin with the same cookie flow
     return /^(127\.0\.0\.1|localhost|\[::1\])$/.test(cfg.host) ? `a.localhost:${boundPort}` : null;
   };
+  // The artifact host this server hands out is one it has found answering: a request to HOST_CHECK_PATH on that host must come back with this Space's own marker. A name that was never routed to this server
+  // (13 Nov 2026: mla-a.vyre.run fell to the relay's wildcard and answered 404) fails here, and no address is given out for it: an artifact says so plainly and Console, Health says what to add. A Space reached
+  // through the relay is reached by its control link, which carries the artifact host's own paths only, so it is not asked over HTTP; its held phone name is the fact. A Space on this computer (a.localhost) needs no DNS.
+  type ArtifactHostState = { host: string; ok: boolean; at: number; why: string };
+  let artifactHostState: ArtifactHostState | null = null;
+  let artifactHostRun: Promise<void> | null = null;
+  const ARTIFACT_HOST_OK_MS = 10 * 60_000;
+  const ARTIFACT_HOST_RETRY_MS = 10_000;
+  const artifactMarker = (): string => sha256Hex(`${space ?? "-"}:vyre-artifact-host`).slice(0, 32);
+  const checkArtifactHost = (atStart = false): Promise<void> => {
+    if (artifactHostRun) return artifactHostRun;
+    const run = (async (): Promise<void> => {
+      const host = artifactHostOf();
+      if (!host) {
+        artifactHostState = null;
+        return;
+      }
+      let ok = false;
+      let why = "";
+      if (/^a\.localhost(:\d+)?$/.test(host) || (publicOrigin()?.relay === true && host.endsWith("-a.vyre.run"))) {
+        ok = true;
+      } else {
+        try {
+          if (!fetchFn) throw new Error("no HTTP client");
+          const ctl = new AbortController();
+          const timer = setTimeout(() => ctl.abort(), 5000);
+          timer.unref();
+          const r = await fetchFn(`https://${host}${HOST_CHECK_PATH}`, { signal: ctl.signal }).finally(() =>
+            clearTimeout(timer),
+          );
+          const body = (await r.text()).trim();
+          ok = r.ok && body === `vyre-artifact-host ${artifactMarker()}`;
+          why = ok ? "" : r.ok ? "another server answered" : `answered ${r.status}`;
+        } catch (e) {
+          why = (e instanceof Error ? e.message : String(e)).slice(0, 120);
+        }
+      }
+      const changed = artifactHostState?.host !== host || artifactHostState.ok !== ok;
+      // the start's check often runs before Caddy has the route or the certificate: a miss then is not held against the first person who opens a page
+      artifactHostState = { host, ok, at: atStart && !ok ? 0 : now(), why };
+      if (changed)
+        sink.log({
+          space: space ?? "-",
+          level: ok ? 30 : 40,
+          msg: ok ? "artifacts.host_answering" : "artifacts.host_not_answering",
+          place: "sites",
+          attrs: { host, ...(ok ? {} : { why }) },
+        });
+    })().finally(() => {
+      artifactHostRun = null;
+    });
+    artifactHostRun = run;
+    return run;
+  };
+  /** The artifact host to hand out: the configured one, once it has answered with this Space's marker. A failed answer is asked again after 10 seconds (at the next open or the slow timer), a good one after 10 minutes. */
+  const artifactHostWorking = async (): Promise<string | null> => {
+    const host = artifactHostOf();
+    if (!host) return null;
+    const s = artifactHostState;
+    if (!(s && s.host === host && now() - s.at < (s.ok ? ARTIFACT_HOST_OK_MS : ARTIFACT_HOST_RETRY_MS)))
+      await checkArtifactHost();
+    return artifactHostState?.host === host && artifactHostState.ok ? host : null;
+  };
+  /** Console, Health: one plain line, with what to do while the artifact host does not answer. Nothing where no artifact host is set up. */
+  const artifactHostFinding = async (): Promise<{
+    key: string;
+    state: "healthy" | "degraded";
+    detail: string;
+    next: string;
+  } | null> => {
+    const host = artifactHostOf();
+    if (!host) return null;
+    await artifactHostWorking();
+    const s = artifactHostState;
+    if (s?.host === host && s.ok)
+      return {
+        key: "host.artifact_host",
+        state: "healthy",
+        detail: `Artifact pages are served from ${host}, apart from the Space's own address.`,
+        next: "No action needed.",
+      };
+    return {
+      key: "host.artifact_host",
+      state: "degraded",
+      detail: `Artifact pages are served from the Space's own address. To isolate them, add this DNS record: ${host} pointing at this server.`,
+      next: `Add the record, then wait a minute: this server checks ${host} again by itself and the pages open there once it answers.`,
+    };
+  };
   let refreshDomains: () => Promise<void> = () => Promise.resolve();
   // sites Vyre deploys, at addresses of their own: set once the sites module is loaded (configureRoutes); until then no host is a site
   let siteHosts: SiteHostDeps | null = null;
@@ -967,6 +1055,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const siteSigninPage = createSiteSigninPage();
   const artifactHostRoute = createArtifactHostRoute({
     host: artifactHostOf,
+    marker: artifactMarker,
     appOrigin: () => publicOrigin()?.origin ?? null,
     appOrigins: () =>
       [publicOrigin()?.origin ?? "", "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost"].filter(
@@ -2127,6 +2216,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 ...(cfg.dockerRoot ? { dockerRoot: cfg.dockerRoot } : {}),
               })
             ).findings,
+            ...(await artifactHostFinding()
+              .catch(() => null)
+              .then((f) => (f ? [f] : []))),
             // how many networks this server's Docker has left (each site takes one): the terminal module counts them, behind the runner too
             ...(await (
               (
@@ -4733,7 +4825,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             },
             artifacts: artifactStore,
             origin: publicOrigin,
-            artifactHost: artifactHostOf,
+            artifactHost: artifactHostWorking,
             contained: fs.existsSync("/.dockerenv"),
             nodeOf: (id) =>
               (
@@ -6470,7 +6562,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         const wrote = await network.ensureIngress(host, { replace });
         // artifacts are served from a.<domain>, its own origin: the same upstream, its own certificate
         const art = artifactHostOf();
-        if (art && art !== host && art.endsWith(`.${host}`)) await network.ensureIngress(art, { replace });
+        // a host set by hand (VYRE_ARTIFACT_HOST) gets its route too, whatever it is under: the person chose it, and without a route it can never answer
+        const setByHand = (o.artifactHost ?? (process.env["VYRE_ARTIFACT_HOST"] || null)) !== null;
+        if (art && art !== host && !/^a\.localhost(:\d+)?$/.test(art) && (setByHand || art.endsWith(`.${host}`)))
+          await network.ensureIngress(art, { replace });
         if (wrote)
           sink.log({
             space: space ?? "-",
@@ -6535,6 +6630,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       reportNetwork();
       await ensureIngress(false);
       await refreshNetworkCertificate();
+      // the artifact host's self-check: a failed answer is asked again here, a good one is kept fresh
+      await artifactHostWorking().catch(() => null);
     },
   });
   // CPU, memory and disk for the Console's Infrastructure page: the health_probe row named machine, read by the one sampler the machine report uses, once a minute and once at start
@@ -6826,6 +6923,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     reportNetwork();
     // the gateway is bound, so the upstream port is known; not awaited, so a Caddy that does not answer yet never holds up the start
     void ensureIngress(true);
+    void checkArtifactHost(true).catch(() => undefined);
     // The boot checks (the scheduler's first pass) have committed events, and the consumers that react to them run after the commit. Finish that chain before the daemon reports itself started,
     // so nothing writes in the first moments after /healthz answers: a caller that reads the head at once sees the head it will keep.
     if (hasSpace) {

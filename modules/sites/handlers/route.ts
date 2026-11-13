@@ -79,8 +79,8 @@ export interface LocalFile {
 export interface SitesHost {
   /** the address people outside reach this Space at, and whether it is a phone address (name.vyre.run) */
   origin(): { origin: string; relay: boolean } | null;
-  /** The host artifacts are served from, apart from the app's own origin (a.<space> or <name>-a.vyre.run), or null where none is set up: artifacts then open at their keyed address on the app's origin, as before. */
-  artifactHost?(): string | null;
+  /** The host artifacts are served from, apart from the app's own origin (a.<address> or <name>-a.vyre.run), or null where none is set up or the server has not found it answering: an artifact then cannot open, and says so (there is no keyed address on the app's origin any more). Asked at each open, so a host that starts answering is found without a restart. */
+  artifactHost?(): string | null | Promise<string | null>;
   /** does this target answer now? (any HTTP answer on the path counts) */
   probe(target: RouteTarget, path?: string): Promise<{ answering: boolean; detail?: string }>;
   /** the last lines of a site's log on its computer */
@@ -867,8 +867,13 @@ async function artifactOpen(ctx: Ctx, input: unknown): Promise<{ path: string; u
     b.toString(16).padStart(2, "0"),
   ).join("");
   // the address is a one-time code for the artifact host (a minute, one use, traded for a cookie there); there is no address with a token in it
-  const ah = host?.artifactHost?.() ?? null;
-  if (!ah) fail(ctx, "validation.precondition_failed", "This server has no address for artifacts yet.");
+  const ah = (await host?.artifactHost?.()) ?? null;
+  if (!ah)
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "This page cannot open yet: this server's address for artifact pages is not answering. An owner can see what to do in Console, Health.",
+    );
   const expiresAt = now + EXCHANGE_MS;
   ctx.db.run(
     "INSERT INTO sites_ticket (token_hash, site_id, principal, expires_at) VALUES (?, ?, ?, ?)",

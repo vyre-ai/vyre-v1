@@ -7,9 +7,9 @@ import os from "node:os";
 import path from "node:path";
 import { bootCore } from "../../fixtures/seed/core/index.ts";
 import { fakePlatform } from "../src/platform/index.ts";
-import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
+import { reachingFetch } from "./artifact-host-kit.test.ts";
 
 /** One GET to the daemon as another host name (the artifact host shares the daemon's port). */
 function ask(
@@ -35,14 +35,6 @@ function ask(
   });
 }
 
-const caddyFetch: FetchFn = () =>
-  Promise.resolve({
-    ok: true,
-    status: 200,
-    headers: { get: () => null },
-    text: () => Promise.resolve('{"apps":{"http":{}}}'),
-  });
-
 test("an agent publishes an artifact for its person, and its going public is held", async () => {
   const core = bootCore();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-sites-agent-"));
@@ -50,6 +42,7 @@ test("an agent publishes an artifact for its person, and its going public is hel
   fs.copyFileSync(core.file, path.join(dir, "events.db"));
   core.close();
   let agent = "";
+  let url = "";
   const d = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "team.example.com"], {}, "1.2.3"),
     platform: fakePlatform({
@@ -62,7 +55,7 @@ test("an agent publishes an artifact for its person, and its going public is hel
         "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
       },
     }),
-    fetch: caddyFetch,
+    fetch: reachingFetch("a.team.example.com", () => url),
     session: (h) => {
       const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
       if (t === "olivia")
@@ -72,6 +65,7 @@ test("an agent publishes an artifact for its person, and its going public is hel
     },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
   });
+  url = d.url;
   try {
     agent =
       (d.db!.all("SELECT id FROM agents_agent WHERE deletedAt IS NULL LIMIT 1")[0] as { id?: string } | undefined)

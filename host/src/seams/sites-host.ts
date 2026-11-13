@@ -14,8 +14,8 @@ export interface SiteTarget {
 }
 export interface SitesHostDeps {
   origin(): { origin: string; relay: boolean } | null;
-  /** The host artifacts are served from, apart from the app's origin, or null where none is set up. */
-  artifactHost?(): string | null;
+  /** The host artifacts are served from, apart from the app's origin, or null where none is set up or it does not answer. */
+  artifactHost?(): string | null | Promise<string | null>;
   /** the node a computer lives on, or null for this machine */
   nodeOf(computerId: string): string | null;
   /** the container address of a computer on this machine */
