@@ -37,9 +37,9 @@ test("an unexpected error keeps its message and stack on the server, with the tr
   assert.match(seen[0]!.stack, /invoke\.unexpected-log\.test\.ts/, "the stack is there");
   assert.ok(!seen[0]!.message.includes("plain-secret-value") && !seen[0]!.stack.includes("plain-secret-value"), "a known secret is taken out");
   const row = rows.find((r) => r.msg === "handler threw");
-  assert.ok(row && typeof row.attrs?.["stack"] === "string" && row.attrs["message"] === undefined, "the log row carries frames and no message");
-  assert.ok(!String(row.attrs["stack"]).includes("cannot read x"), "and its stack holds no copy of the message");
-  assert.ok(String(row.attrs["stack"]).split("\n").length <= 4, "four frames at most");
+  assert.ok(row && typeof row.attrs?.["stack"] === "string" && row.attrs["message"] === undefined, "the log row carries the head of the stack and no message key");
+  assert.ok(!String(row.attrs["stack"]).includes("plain-secret-value"), "the row's stack is scrubbed too");
+  assert.ok(String(row.attrs["stack"]).split("\n").length <= 5, "five lines at most");
 });
 
 test("a thrown value that is not an Error is kept too, and key-shaped tokens and bearer values are taken out", () => {

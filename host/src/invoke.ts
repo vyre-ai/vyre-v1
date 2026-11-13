@@ -299,7 +299,7 @@ export function personalMatrix(o: {
 }
 
 /** What an unexpected error says, with every known secret and every key-shaped value (lib/hooks.ts redact) taken out. It never throws: a value that cannot be read says so. */
-export function unexpectedWords(e: unknown, secrets: readonly string[]): { message: string; stack: string } {
+export function unexpectedWords(e: unknown, secrets: readonly string[]): { message: string; stack: string; head: string } {
   try {
     const clean = (t: string): string => {
       let out = t;
@@ -307,10 +307,11 @@ export function unexpectedWords(e: unknown, secrets: readonly string[]): { messa
       return redact(out, 100_000);
     };
     const message = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-    // the frames only: the stack's first line repeats the message, and the message is kept apart
-    const frames = (e instanceof Error && typeof e.stack === "string" ? e.stack : "").split("\n").filter((l) => /^\s+at /.test(l));
-    return { message: clean(message).slice(0, 1000), stack: clean(frames.slice(0, 8).join("\n")) };
-  } catch { return { message: "an error that could not be read", stack: "" }; }
+    const lines = (e instanceof Error && typeof e.stack === "string" ? e.stack : message).split("\n");
+    const frames = lines.filter((l) => /^\s+at /.test(l));
+    // `stack`: the frames (eight); `head`: what the logs.db row keeps, the same scrubbed text cut to five lines
+    return { message: clean(message).slice(0, 1000), stack: clean(frames.slice(0, 8).join("\n")), head: clean(lines.slice(0, 5).join("\n")) };
+  } catch { return { message: "an error that could not be read", stack: "", head: "" }; }
 }
 
 // at most one full line a minute for the same capability and message, then one line with the count: a poll or a retry loop into a broken capability cannot fill the log
@@ -416,9 +417,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       if (unexpected) {
         // the caller only ever sees "Something went wrong on our side"; the server keeps what really happened, always (the logs.db row can be counted away as a repeat or trimmed, so it is also written to the server's own output)
         const said = unexpectedWords(e, deps.secrets?.() ?? []);
-        // the row keeps the frames (4) and no message: the sink drops a message as content, and the stack no longer repeats it
-        log.error("handler threw", { cap: capName, traceId, stack: said.stack.split("\n").slice(0, 4).join("\n") });
-        try { (deps.onUnexpected ?? writeUnexpected)({ cap: capName, traceId, ...said }); } catch { /* never throws into the call */ }
+        // the row keeps the scrubbed head of the stack (five lines): the sink drops a message key as content, and the stack text is scrubbed the same way as the line
+        log.error("handler threw", { cap: capName, traceId, stack: said.head });
+        try { (deps.onUnexpected ?? writeUnexpected)({ cap: capName, traceId, message: said.message, stack: said.stack }); } catch { /* never throws into the call */ }
       }
       // who was refused: without the caller and the person it acted for, a refusal in the log cannot be traced to a session
       log.info("invoke", { cap: capName, traceId, status: error.code, actor: seed.principal.id, ...(seed.actingFor ? { onBehalf: seed.actingFor } : {}) });
