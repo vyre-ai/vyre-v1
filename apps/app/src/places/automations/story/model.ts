@@ -1,0 +1,285 @@
+// The builder as one calm page (owner, 13 Nov 2026, design 2.5). Pure: the screen turns the saved definition into these inputs, and draws what comes back.
+// A step is a sentence with real names; what is missing is one orange line and one button; the trigger is When and steps count from 1.
+
+export type Value = { text: string } | { chip: { label: string; from: string; sample: string } };
+
+export interface Need {
+  kind: "allow" | "connect" | "ask_admin" | "unclear" | "unmapped" | "channel" | "value";
+  line: string;
+  button: string;
+  /** Not asked yet: one thing is asked at a time, so the step stays quiet until its turn. */
+  queued?: boolean;
+}
+
+export interface StepIn {
+  id: string;
+  app: { id: string; name: string };
+  /** The quiet second line: the action's name. */
+  action: string;
+  /** The sentence with `{field}` blanks. */
+  template: string;
+  values: Record<string, Value | undefined>;
+  needs?: Need[];
+  /** Sends, writes or tells someone: a test shows it and does not do it. */
+  writes?: boolean;
+  proposed?: boolean;
+  yes?: StepIn[];
+  otherwise?: StepIn[];
+}
+
+export interface TriggerIn {
+  id: string;
+  app: { id: string; name: string };
+  template: string;
+  values: Record<string, Value | undefined>;
+  hand: boolean;
+}
+
+export type Part = { t: "text"; v: string } | { t: "chip"; label: string; tip: string } | { t: "blank" };
+
+export interface Sentence {
+  parts: Part[];
+  /** The same sentence as plain words, for the run page and for screen readers. */
+  text: string;
+}
+
+export function sentence(s: { template: string; values: Record<string, Value | undefined> }): Sentence {
+  const parts: Part[] = [];
+  const re = /\{(\w+)\}/g;
+  let at = 0;
+  let text = "";
+  const push = (p: Part, plain: string) => {
+    parts.push(p);
+    text += plain;
+  };
+  for (let m = re.exec(s.template); m; m = re.exec(s.template)) {
+    if (m.index > at) push({ t: "text", v: s.template.slice(at, m.index) }, s.template.slice(at, m.index));
+    const v = s.values[m[1]!];
+    if (!v) push({ t: "blank" }, "…");
+    else if ("chip" in v)
+      push(
+        { t: "chip", label: v.chip.label, tip: `From: ${v.chip.from}\n${v.chip.label}: ${v.chip.sample}` },
+        v.chip.label,
+      );
+    else push({ t: "text", v: v.text }, v.text);
+    at = m.index + m[0].length;
+  }
+  if (at < s.template.length) push({ t: "text", v: s.template.slice(at) }, s.template.slice(at));
+  return { parts, text };
+}
+
+export interface TestResult {
+  status: "ok" | "stop";
+  line: string;
+  values: readonly (readonly [string, string])[];
+}
+
+export interface StoryIn {
+  name: string;
+  on: boolean;
+  trigger: TriggerIn | null;
+  steps: readonly StepIn[];
+  /** The Assistant's draft is on the page and not accepted. */
+  proposed: boolean;
+  /** An On Automation whose draft differs from what is live. */
+  dirty: boolean;
+  test: { caseName: string; results: Record<string, TestResult | undefined> } | null;
+}
+
+export type StoryRow =
+  | { kind: "trigger"; id: string; app: { id: string; name: string }; sentence: Sentence }
+  | { kind: "label"; label: "If yes" | "Otherwise"; depth: number }
+  | {
+      kind: "step";
+      id: string;
+      number: number;
+      depth: number;
+      app: { id: string; name: string };
+      sentence: Sentence;
+      action: string;
+      need: Need | null;
+      proposed: boolean;
+    };
+
+export interface Bar {
+  kind: "draft" | "live" | "test";
+  text: string;
+  actions: string[];
+}
+
+export interface Head {
+  name: string;
+  state: string;
+  primary: { label: "Turn on" | "Run now" | "Turn off"; disabled?: boolean; why?: string } | null;
+  /** A quiet Turn off beside Run now. */
+  secondary: { label: "Turn off" } | null;
+  test: boolean;
+}
+
+export interface Story {
+  head: Head;
+  bars: Bar[];
+  rows: StoryRow[];
+  /** Steps with their one missing thing showing. */
+  needsYou: number;
+}
+
+const MISSING_ORDER: Need["kind"][] = ["ask_admin", "allow", "connect", "unclear", "unmapped", "channel", "value"];
+
+/** One missing thing per step: the most important that is being asked now. */
+export function needOf(s: StepIn): Need | null {
+  const live = (s.needs ?? []).filter((n) => !n.queued);
+  if (live.length === 0) return null;
+  const first = [...live].sort((a, b) => MISSING_ORDER.indexOf(a.kind) - MISSING_ORDER.indexOf(b.kind))[0]!;
+  return { kind: first.kind, line: first.line, button: first.button };
+}
+
+function flatten(
+  steps: readonly StepIn[],
+  depth: number,
+  out: { s: StepIn; depth: number; label?: "If yes" | "Otherwise" }[],
+): void {
+  for (const s of steps) {
+    out.push({ s, depth });
+    if (s.yes || s.otherwise) {
+      out.push({ s, depth: depth + 1, label: "If yes" });
+      flatten(s.yes ?? [], depth + 1, out);
+      out.push({ s, depth: depth + 1, label: "Otherwise" });
+      flatten(s.otherwise ?? [], depth + 1, out);
+    }
+  }
+}
+
+/** Every step in the order it runs, branches inline. The one place numbering comes from: the builder, the run page and the first page count the same way. */
+export function ordered(steps: readonly StepIn[]): { step: StepIn; number: number; depth: number }[] {
+  const flat: { s: StepIn; depth: number; label?: "If yes" | "Otherwise" }[] = [];
+  flatten(steps, 0, flat);
+  let n = 0;
+  return flat.filter((f) => !f.label).map((f) => ({ step: f.s, number: ++n, depth: f.depth }));
+}
+
+export function draftState(i: { on: boolean; live: unknown; draft: unknown }): "off" | "clean" | "dirty" {
+  if (!i.on) return "off";
+  return stable(i.live) === stable(i.draft) ? "clean" : "dirty";
+}
+
+function stable(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stable).join(",")}]`;
+  if (v && typeof v === "object")
+    return `{${Object.keys(v)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${stable((v as Record<string, unknown>)[k])}`)
+      .join(",")}}`;
+  return JSON.stringify(v) ?? "null";
+}
+
+export function story(i: StoryIn): Story {
+  const flat: { s: StepIn; depth: number; label?: "If yes" | "Otherwise" }[] = [];
+  flatten(i.steps, 0, flat);
+  const all = flat.filter((f) => !f.label).map((f) => f.s);
+  const rows: StoryRow[] = [];
+  if (i.trigger) rows.push({ kind: "trigger", id: i.trigger.id, app: i.trigger.app, sentence: sentence(i.trigger) });
+  let n = 0;
+  for (const f of flat) {
+    if (f.label) {
+      rows.push({ kind: "label", label: f.label, depth: f.depth });
+      continue;
+    }
+    rows.push({
+      kind: "step",
+      id: f.s.id,
+      number: ++n,
+      depth: f.depth,
+      app: f.s.app,
+      sentence: sentence(f.s),
+      action: f.s.action,
+      need: needOf(f.s),
+      proposed: i.proposed || f.s.proposed === true,
+    });
+  }
+  const needsYou = rows.filter((r) => r.kind === "step" && r.need).length;
+  const hasContent = i.trigger !== null || all.length > 0;
+  const hand = i.trigger?.hand === true;
+  const state = i.on ? (i.dirty ? "On, your changes are a draft" : "On") : hasContent ? "Off, saved as a draft" : "Off";
+  let primary: Head["primary"] = null;
+  let secondary: Head["secondary"] = null;
+  if (hasContent && !i.proposed) {
+    if (!i.on) {
+      primary = { label: "Turn on" };
+      if (needsYou > 0)
+        primary = {
+          label: "Turn on",
+          disabled: true,
+          why: needsYou === 1 ? "1 step needs you" : `${needsYou} steps need you`,
+        };
+    } else if (!i.dirty) {
+      if (hand) primary = { label: "Run now" };
+      secondary = { label: "Turn off" };
+    }
+  }
+  const bars: Bar[] = [];
+  if (i.proposed)
+    bars.push({
+      kind: "draft",
+      text: `Assistant’s draft, ${all.length} ${all.length === 1 ? "step" : "steps"}. Nothing is on yet.`,
+      actions: ["Discard", "Change", "Accept"],
+    });
+  if (i.dirty && i.on)
+    bars.push({
+      kind: "live",
+      text: "Your changes are saved as a draft, not live. Runs already started finish as they were.",
+      actions: ["Discard", "Make live"],
+    });
+  if (i.test)
+    bars.push({
+      kind: "test",
+      text: `Test with ${i.test.caseName}. The test sent nothing.`,
+      actions: ["Run again", "Done"],
+    });
+  return { head: { name: i.name, state, primary, secondary, test: hasContent && !i.proposed }, bars, rows, needsYou };
+}
+
+export interface TestRow {
+  id: string;
+  mark: "done" | "stopped" | "skipped";
+  /** Not sent: the step sends or writes, and the test did not. */
+  tag: "Not sent" | null;
+  line: string | null;
+  values: readonly (readonly [string, string])[];
+  need: Need | null;
+}
+
+/**
+ * What Test shows for each step, in order. It tries the draft; the first step that needs something stops it ("Stopped here", with the same orange line and button) and the steps after it are not reached.
+ * A step that sends or writes is labelled Not sent.
+ */
+export function testView(steps: readonly StepIn[], results: Record<string, TestResult | undefined>): TestRow[] {
+  const out: TestRow[] = [];
+  let stopped = false;
+  for (const { step } of ordered(steps)) {
+    if (stopped) {
+      out.push({ id: step.id, mark: "skipped", tag: null, line: null, values: [], need: null });
+      continue;
+    }
+    const need = needOf(step);
+    const r = results[step.id];
+    if (need || r?.status === "stop") {
+      stopped = true;
+      out.push({ id: step.id, mark: "stopped", tag: null, line: "Stopped here", values: [], need });
+      continue;
+    }
+    if (!r) {
+      out.push({ id: step.id, mark: "skipped", tag: null, line: null, values: [], need: null });
+      continue;
+    }
+    out.push({
+      id: step.id,
+      mark: "done",
+      tag: step.writes ? "Not sent" : null,
+      line: r.line,
+      values: r.values,
+      need: null,
+    });
+  }
+  return out;
+}

@@ -1,0 +1,1 @@
+- The new Automations first page, step picker and builder page now have their rules written and tested before they are drawn: what needs you, one suggestion you can finish with one approval, only apps you have connected and may use, and a step as a sentence with its one missing thing.
