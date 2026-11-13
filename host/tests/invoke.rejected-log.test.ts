@@ -140,3 +140,10 @@ test("a retry that works after a refusal for input leaves a row of its own namin
   assert.equal(row?.attrs?.["tool"], "artifact_publish");
   assert.equal(row?.attrs?.["first"], false);
 });
+
+test("a refused call's row says which chat and which run it came from, so a repeated refusal can be traced", async () => {
+  const { rows } = await reject(["/title: required"], { thread: "thr_1", run: "run_9" });
+  const a = rows.find((r) => r.msg === "invoke")?.attrs;
+  assert.equal(a?.["threadId"], "thr_1");
+  assert.equal(a?.["runId"], "run_9");
+});

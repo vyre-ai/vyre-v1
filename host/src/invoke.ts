@@ -754,6 +754,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
             }
           : {}),
         ...(seed.callMeta ? { tool: seed.callMeta.tool, first: seed.callMeta.first } : {}),
+        ...(seed.thread ? { threadId: seed.thread } : {}),
+        ...(seed.run ? { runId: seed.run } : {}),
       });
       if ((seed.depth ?? 0) === 0) forgetCallSecrets(traceId);
       throw new HostError(error);

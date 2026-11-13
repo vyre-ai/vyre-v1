@@ -31,8 +31,11 @@ const EXAMPLES: Readonly<Record<string, string>> = {
 
 /** Refusals that retrying cannot change: the agent is above its clearance for the thing, or its role does not hold the permission. */
 const NEVER_AGAIN: ReadonlySet<string> = new Set(["permission.above_clearance", "permission.role_lacks_permission"]);
-/** How long a refusal of that kind is remembered across turns and runs. Within the turn that met it, it is remembered to the end of the turn. */
-export const REMEMBER_REFUSAL_MS = 30 * 60_000;
+/**
+ * A refusal is remembered only to the end of the turn that met it (13 Nov: a remembered refusal must never outlive its cause). A person can grant a permission, share a file, unlock the Vault or connect an app between
+ * two turns, and no event reaches this layer to say so; so across turns the server is asked again every time. Within one turn nothing can have changed for this agent but a person's act in the chat, and the loop
+ * is what costs.
+ */
 
 export type ToolOutcome =
   /** `parkOn`: a question asked of the person (ask_question): the turn waits on its block and makes no further model call until it is answered. */
@@ -65,8 +68,6 @@ export interface CallDeps extends AccessDeps {
   dynamic?: DynamicTools;
   hooks?: CallHooks;
   invoke: Invoke;
-  /** The clock, for how long a refusal is remembered. Default: the system clock. */
-  now?(): number;
   /** A routine (a run, not a chat) met a refusal its agent can never fix: say so once to the person it works for, as a Needs-you line. Best effort; never fails a call. */
   needsYou?(n: { agentId: string; tool: string; asker: string; code: string }): void;
   /** The asker's time zone, when known: a calendar, mail, inbox or task result then carries each time in it as well (lib/time-convert.ts withLocalTimes). */
@@ -122,8 +123,9 @@ export function createToolSession(deps: CallDeps): ToolSession {
     return { n: same?.n ?? 0, first: was === undefined, afterReject: was?.rejected === true };
   };
   /** Refusals an agent cannot fix, by agent, tool and input: answered at once the next time, without the server. */
-  const refusals = new Map<string, { error: VyreError; at: number; turn: string | undefined; told: boolean }>();
-  const clock = deps.now ?? Date.now;
+  const refusals = new Map<string, { error: VyreError; turn: string }>();
+  /** Routines that were told once about a refusal (a notice only: it never stops a call). */
+  const told = new Set<string>();
   const markRejected = (ctx: ToolCtx, tool: string, v: boolean): void => {
     const m = turnCalls.get(ctx.turnId ?? ctx.trace?.traceId ?? "none");
     const w = m?.get(tool);
@@ -326,9 +328,9 @@ export function createToolSession(deps: CallDeps): ToolSession {
           details: { tool: t.name, reason: "hook" },
         });
     }
-    const refusalKey = `${ctx.agentId}|${t.name}|${shortHash(canonical(input))}`;
+    const refusalKey = `${ctx.agentId}|${ctx.asker}|${t.name}|${shortHash(canonical(input))}`;
     const known = refusals.get(refusalKey);
-    if (known && (known.turn === ctx.turnId || clock() - known.at < REMEMBER_REFUSAL_MS))
+    if (known && ctx.turnId !== undefined && known.turn === ctx.turnId)
       return { kind: "error", error: known.error, result: { ok: false, content: { error: modelError(known.error) } } };
     const tally = countCall(ctx, t.name, input);
     const seed: CtxSeed = {
@@ -450,9 +452,11 @@ export function createToolSession(deps: CallDeps): ToolSession {
       if (e instanceof HostError && NEVER_AGAIN.has(e.error.code)) {
         // the agent cannot fix this itself: remember it, so the same call is not made again this turn or on the next run of a routine, and tell the person a routine works for, once
         if (refusals.size >= 1_000) refusals.delete(refusals.keys().next().value as string);
-        const told = known?.told === true;
-        refusals.set(refusalKey, { error: e.error, at: clock(), turn: ctx.turnId, told: true });
-        if (!told && (ctx.thread.kind === "run" || ctx.runId !== undefined)) {
+        if (ctx.turnId !== undefined) refusals.set(refusalKey, { error: e.error, turn: ctx.turnId });
+        const already = told.has(refusalKey);
+        if (told.size >= 1_000) told.clear();
+        told.add(refusalKey);
+        if (!already && (ctx.thread.kind === "run" || ctx.runId !== undefined)) {
           try {
             deps.needsYou?.({ agentId: ctx.agentId, tool: t.name, asker: ctx.asker, code: e.error.code });
           } catch {

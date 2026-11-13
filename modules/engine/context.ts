@@ -911,7 +911,9 @@ export function createContextBuilder(d: ContextDeps) {
           ? `Vault items you may use by handle: ${keys
               .slice(0, 30)
               .map((k) => `#${k.replace(/^#/, "")}`)
-              .join(", ")} (call vault_use; you never see the value).`
+              .join(
+                ", ",
+              )} (call vault_use; you never see the value). If a use is refused as above your clearance, do not ask again: tell the person it needs their approval or a change to your access.`
           : "Vault: no items are set for you; ask with vault_request when you need a key.",
       );
       const lim = agent["limits"] as Obj | undefined;

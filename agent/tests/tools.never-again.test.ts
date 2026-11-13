@@ -11,14 +11,12 @@ import type { ErrorCode } from "../../packages/contracts/src/types.ts";
 function setup(code: ErrorCode = "permission.above_clearance") {
   const loaded = loadGenerated();
   let calls = 0;
-  let clock = 1_000_000;
   const needs: Array<{ agentId: string; tool: string; asker: string }> = [];
   const s = createToolSession({
     catalog: loaded.catalog,
     defaults: loaded.defaults,
     levelFor: () => "manage",
     canEngineer: () => true,
-    now: () => clock,
     needsYou: (n) => needs.push({ agentId: n.agentId, tool: n.tool, asker: n.asker }),
     invoke: async (_cap, input) => {
       calls++;
@@ -35,7 +33,7 @@ function setup(code: ErrorCode = "permission.above_clearance") {
     turnId: turn,
     ...over,
   });
-  return { s, ctx, count: () => calls, needs, tick: (ms: number) => (clock += ms) };
+  return { s, ctx, count: () => calls, needs, tick: (_ms: number) => 0 };
 }
 const USE = { handle: "#Company_Key", fields: ["token"] };
 
@@ -61,15 +59,41 @@ test("a different call in the same turn still goes through", async () => {
   assert.equal(count(), 2);
 });
 
-test("another turn of the same agent is answered from memory too, until a while has passed", async () => {
-  const { s, ctx, count, tick } = setup();
+test("another turn asks the server again: a refusal never outlives its cause (a person grants it, then the agent's next call works)", async () => {
+  const { s, ctx, count } = setup();
   await s.call(ctx("trn_1"), "vault_use", USE);
   const later = await s.call(ctx("trn_2"), "vault_use", USE);
   assert.equal(later.kind, "error");
-  assert.equal(count(), 1, "a later turn did not try again");
-  tick(31 * 60_000);
-  await s.call(ctx("trn_3"), "vault_use", USE);
-  assert.equal(count(), 2, "after half an hour it is tried once more: something may have changed");
+  assert.equal(count(), 2, "a later turn did try the server");
+  const asker2 = await s.call(ctx("trn_2", { asker: "usr_omar" }), "vault_use", USE);
+  assert.equal(asker2.kind, "error");
+  assert.equal(count(), 3, "another asker is asked for separately");
+});
+
+test("the cause is fixed between two calls of one turn's next turn: the call succeeds at once", async () => {
+  const loaded = loadGenerated();
+  let allowed = false;
+  const s = createToolSession({
+    catalog: loaded.catalog,
+    defaults: loaded.defaults,
+    levelFor: () => "manage",
+    canEngineer: () => true,
+    invoke: async () => {
+      if (!allowed) throw new HostError(makeError("permission.above_clearance", "t"));
+      return { status: "ok", output: {}, traceId: "t" };
+    },
+  });
+  s.preload("thr_1", ["vault_use"]);
+  const ctx = (turn: string): ToolCtx => ({
+    space: "s",
+    agentId: "agt_a",
+    asker: "usr_dana",
+    thread: { threadId: "thr_1", kind: "chat", planMode: false },
+    turnId: turn,
+  });
+  assert.equal((await s.call(ctx("trn_1"), "vault_use", USE)).kind, "error");
+  allowed = true;
+  assert.equal((await s.call(ctx("trn_2"), "vault_use", USE)).kind, "result");
 });
 
 test("another agent is not held back by this agent's refusal", async () => {

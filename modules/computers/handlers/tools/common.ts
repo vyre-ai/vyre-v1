@@ -819,9 +819,25 @@ export async function grantFor(
 }
 
 /** One tool in the agent's profile of the Space browser. What comes back is scrubbed of the Vault values filled for this profile; no desktop frame exists, so there is no timeline step (the live view shows the page). */
+/**
+ * A browser that is waking (its container and Chrome starting) can fail a first call from inside Vyre in a way no later call does. That is the layer's to wait out, not the model's to retry: a call that fails
+ * outside the browser's own answer (never a HostError, which has its words) is tried again after a short wait, up to `tries` times in all, so the model sees one answer. The bound is about 6 seconds of waiting;
+ * a failure that outlasts it is reported in plain words.
+ */
+export async function coldStartRetry<T>(f: () => Promise<T>, tries = 3, waitMs = 3_000): Promise<T> {
+  for (let n = 1; ; n++) {
+    try {
+      return await f();
+    } catch (e) {
+      if (e instanceof HostError || n >= tries) throw e;
+      await new Promise((r) => setTimeout(r, waitMs));
+    }
+  }
+}
+
 async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
   try {
-    return await browserCallIn(ctx, profileId, spec, args);
+    return await coldStartRetry(() => browserCallIn(ctx, profileId, spec, args));
   } catch (e) {
     // an error the browser's own steps named (a refusal with its words) goes on as it is; anything else (a crash in the room, the hold or the agent's details on the very first call of a cold browser) was
     // reported as internal.unexpected, "retryable", and the person's agent tried again (13 Nov, owner on rc.26). It is a plain "not available", with the step it was at, and the server's log keeps the cause.

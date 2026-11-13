@@ -9,3 +9,6 @@
 - An agent that writes an input under a name the tool does not use (file_id or id for fileId, chatId for threadId) is understood; a name the tool does not have is named back to it with the names the tool does take.
 - A routine whose agent is stopped by an access limit now puts one line in Needs you for its owner, in plain words, naming the agent.
 - An agent's retried call (the same tool call delivered twice) now makes one thing, and two calls it makes on purpose make two.
+- A refusal an agent met is no longer remembered past its turn, so once a person fixes the cause (grants access, shares, unlocks) the agent's next call works at once.
+- An agent's first browser call while the browser is still waking is waited out inside the call instead of handed back as a failure.
+- The agent's Vault line now tells it not to ask again when a key is refused above its clearance, and the server log row of a refused call names the chat and the run it came from.

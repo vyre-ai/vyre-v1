@@ -75,3 +75,21 @@ test("only rows inside the period count", () => {
     ["new_tool"],
   );
 });
+
+test("the invoke logger puts the chat and the run in their columns, not in attrs", () => {
+  const { s } = sink();
+  s.invokeLogger("spc_1").info("invoke", {
+    cap: "vault.use",
+    status: "permission.above_clearance",
+    threadId: "thr_7",
+    runId: "run_3",
+  });
+  s.flush();
+  const r = s.db.prepare("SELECT thread_id, run_id, attrs FROM logs WHERE msg = 'invoke'").get() as {
+    thread_id: string;
+    run_id: string;
+    attrs: string;
+  };
+  assert.deepEqual([r.thread_id, r.run_id], ["thr_7", "run_3"]);
+  assert.ok(!r.attrs.includes("thr_7"));
+});

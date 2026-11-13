@@ -766,3 +766,11 @@ test("a shared place gives the Space's zone and now in it, so agents write dates
   );
   assert.match(sharedTimeLine(at, "Not/AZone"), /^It is Thursday, 29 October 2026, 22:07 \(UTC\)\./);
 });
+
+test("the Vault line tells the agent not to ask again when a key is refused above its clearance", async () => {
+  const f = fake({ ...FULL });
+  const ctx = await createContextBuilder({ call: f.call, skills, now: () => at }).build(input());
+  const can = ctx.sections.find((s) => s.id === "can")?.text ?? "";
+  assert.match(can, /#Dana_Lawmatics/);
+  assert.match(can, /refused as above your clearance, do not ask again/);
+});
