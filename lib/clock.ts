@@ -179,9 +179,9 @@ export function nextEvery(lastDue: number, everyMs: number, after: number = last
 
 /** The zones a wake can read its clock in, most specific first. */
 export interface ZoneChain {
-  wake?: string | null;
-  space?: string | null;
-  person?: string | null;
+  wake?: string | null | undefined;
+  space?: string | null | undefined;
+  person?: string | null | undefined;
 }
 
 /** A zone is a name. Intl also reads "+05:00" as a zone, and an offset does not follow daylight saving, so it is not one here. */
@@ -191,6 +191,9 @@ const isName = (zone: unknown): zone is string => validZone(zone) && !/^[+-]/.te
 export function zoneOf(z: ZoneChain): string {
   return [z.wake, z.space, z.person].find(isName) ?? "UTC";
 }
+
+/** A zone name stored somewhere (a goal, a profile setting) read as the clock reads it: a name Intl does not know, or none, is UTC. */
+export const zoneNamed = (zone: string | null | undefined): string => zoneOf({ wake: zone });
 
 /** When a wake is due: one moment, a time of day (in the zone named here, else the Space's), or every N hours counted from the last due time. */
 export type When =

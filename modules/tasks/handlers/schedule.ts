@@ -1,21 +1,19 @@
 // The scheduler (ticket system, C). Nothing polls: a task finishing is what moves things. A task whose dependencies are met says task.ready, and the baton starts it. A finished child rolls up: the parent's holder
 // hears only when every child is finished, a child is blocked, or a child asks, and never on any other change. A repeating task comes back when it is Done. A Run that stopped takes its tasks with it.
 // Every event here can be delivered twice: task.children_settled carries what happened, and the baton wakes once per reason and child.
-import { allTasks, emitTask, findTask, isOpen, openIndex } from "../projections.ts";
+import { addDays, addMonths } from "../../../lib/clock.ts";
+import { allTasks, emitTask, findTask, isOpen, openIndex, tzOf } from "../projections.ts";
 import type { Task, TasksCtx } from "../projections.ts";
 import { afterReview, applyMove, commitMove, planMove, submitTarget, withdraw } from "./state.ts";
 
 type Ev = { name: string; payload: { taskId?: unknown; to?: unknown; runId?: unknown; jobId?: unknown } };
-const DAY = 86_400_000;
 const MAX_WAITERS = 500;
 
-/** The next date of a repeating task, the same time of day. */
-export function nextDue(from: number, every: "day" | "week" | "month", n = 1): number {
-  if (every === "day") return from + n * DAY;
-  if (every === "week") return from + n * 7 * DAY;
-  const d = new Date(from);
-  d.setUTCMonth(d.getUTCMonth() + n);
-  return d.getTime();
+/** The next date of a repeating task, the same time of day on the clock of `zone` (UTC when none): 09:00 stays 09:00 across a daylight saving change. */
+export function nextDue(from: number, every: "day" | "week" | "month", n = 1, zone = "UTC"): number {
+  if (every === "day") return addDays(from, n, zone);
+  if (every === "week") return addDays(from, n * 7, zone);
+  return addMonths(from, n, zone);
 }
 
 /** The tasks that just lost their last unmet dependency. */
@@ -93,6 +91,8 @@ async function comeBack(ctx: TasksCtx, t: Task): Promise<void> {
   const every = t.recur.every,
     n = t.recur.n ?? 1;
   const base = t.due ?? ctx.now();
+  // the next one keeps the clock of the person who holds it (their profile time zone), as the day it falls due is theirs
+  const zone = t.assigned.kind === "person" ? tzOf(ctx.db, t.assigned.id) : "UTC";
   const made = await ctx.call("tasks.create", {
     title: t.title,
     ...(t.summary ? { summary: t.summary } : {}),
@@ -100,8 +100,8 @@ async function comeBack(ctx: TasksCtx, t: Task): Promise<void> {
     assigned: t.assigned,
     ...(t.reviewer ? { reviewer: t.reviewer } : {}),
     ...(t.approver ? { approver: t.approver } : {}),
-    due: nextDue(base, every, n),
-    ...(t.start !== undefined ? { start: nextDue(t.start, every, n) } : {}),
+    due: nextDue(base, every, n, zone),
+    ...(t.start !== undefined ? { start: nextDue(t.start, every, n, zone) } : {}),
     ...(t.effort !== undefined ? { effort: t.effort } : {}),
     ...(t.priority ? { priority: t.priority } : {}),
     labels: t.labels,

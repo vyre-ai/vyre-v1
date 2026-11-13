@@ -1,6 +1,9 @@
 // Scheduler projections (spec 2.12, 2.13; ARCH 6.8, 7.7). Schedule and wait rows, the cron engine, and the two scheduler.* settings.
 // Durable tables: migrations/0001_scheduler.sql. Every statement names only scheduler_* tables (ctx.db refuses anything else, ARCH B2).
+import { nextCron, parseCron } from "../../lib/clock.ts";
+import type { CronSpec } from "../../lib/clock.ts";
 import { isTrustedService } from "../../lib/trust.ts";
+import { validZone as validTimeZone } from "../../lib/zones.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
 
@@ -127,157 +130,10 @@ export function syncPolicy(db: Db, p: Record<string, unknown>): boolean {
   return true;
 }
 
-// ---- cron ----
+// ---- cron: the clock's (lib/clock.ts), under the names this module has always had ----
 
-interface Field {
-  set: ReadonlySet<number>;
-  star: boolean;
-}
-export interface CronSpec {
-  min: Field;
-  hour: Field;
-  dom: Field;
-  mon: Field;
-  dow: Field;
-}
-
-const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-const DOWS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-const MACROS: Record<string, string> = {
-  "@hourly": "0 * * * *",
-  "@daily": "0 0 * * *",
-  "@midnight": "0 0 * * *",
-  "@weekly": "0 0 * * 0",
-  "@monthly": "0 0 1 * *",
-  "@yearly": "0 0 1 1 *",
-  "@annually": "0 0 1 1 *",
-};
-
-function parseField(text: string, lo: number, hi: number, names?: readonly string[], nameBase = 0): Field | undefined {
-  const value = (s: string): number | undefined => {
-    if (/^\d+$/.test(s)) return Number(s);
-    const i = names ? names.indexOf(s.toLowerCase()) : -1;
-    return i >= 0 ? i + nameBase : undefined;
-  };
-  const set = new Set<number>();
-  let star = false;
-  for (const part of text.split(",")) {
-    const [range, stepText, extra] = part.split("/");
-    if (extra !== undefined || range === undefined || range === "") return undefined;
-    let step = 1;
-    if (stepText !== undefined) {
-      if (!/^\d+$/.test(stepText) || Number(stepText) < 1) return undefined;
-      step = Number(stepText);
-    }
-    let a: number | undefined;
-    let b: number | undefined;
-    if (range === "*") {
-      a = lo;
-      b = hi;
-      if (stepText === undefined) star = true;
-    } else if (range.includes("-")) {
-      const [x, y, z] = range.split("-");
-      if (z !== undefined || x === undefined || y === undefined) return undefined;
-      a = value(x);
-      b = value(y);
-    } else {
-      a = value(range);
-      b = stepText !== undefined ? hi : a;
-    }
-    if (a === undefined || b === undefined || a < lo || b > hi || a > b) return undefined;
-    for (let v = a; v <= b; v += step) set.add(v);
-  }
-  return { set, star };
-}
-
-/** A five field cron: minute hour day-of-month month day-of-week. Lists, ranges, steps, month and weekday names and the @daily style macros. Weekday 7 is Sunday. */
-export function parseCron(text: string): CronSpec | undefined {
-  const t = text.trim().toLowerCase();
-  const parts = (MACROS[t] ?? t).split(/\s+/);
-  if (parts.length !== 5) return undefined;
-  const min = parseField(parts[0]!, 0, 59);
-  const hour = parseField(parts[1]!, 0, 23);
-  const dom = parseField(parts[2]!, 1, 31);
-  const mon = parseField(parts[3]!, 1, 12, MONTHS, 1);
-  const dowRaw = parseField(parts[4]!, 0, 7, DOWS, 0);
-  if (!min || !hour || !dom || !mon || !dowRaw) return undefined;
-  const dow: Field = { star: dowRaw.star, set: new Set([...dowRaw.set].map((d) => d % 7)) };
-  return { min, hour, dom, mon, dow };
-}
-
-export function validTimeZone(tz: string): boolean {
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const fmts = new Map<string, Intl.DateTimeFormat>();
-interface Local {
-  y: number;
-  mo: number;
-  d: number;
-  h: number;
-  mi: number;
-}
-function localOf(ms: number, tz: string): Local {
-  let f = fmts.get(tz);
-  if (!f) {
-    f = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      hourCycle: "h23",
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-    });
-    fmts.set(tz, f);
-  }
-  const o: Record<string, number> = {};
-  for (const p of f.formatToParts(new Date(ms))) if (p.type !== "literal") o[p.type] = Number(p.value);
-  return { y: o.year!, mo: o.month!, d: o.day!, h: o.hour! % 24, mi: o.minute! };
-}
-const asUtc = (l: Local): number => Date.UTC(l.y, l.mo - 1, l.d, l.h, l.mi);
-/** The instant a wall-clock time has in a zone; undefined when that time does not exist (the hour skipped when clocks go forward). */
-function localToUtc(l: Local, tz: string): number | undefined {
-  const want = asUtc(l);
-  let guess = want - (asUtc(localOf(want, tz)) - want);
-  for (let i = 0; i < 2; i++) {
-    const got = asUtc(localOf(guess, tz));
-    if (got === want) return guess;
-    guess -= got - want;
-  }
-  return asUtc(localOf(guess, tz)) === want ? guess : undefined;
-}
-
-/** The first fire time strictly after `after`, in the zone's wall clock; undefined for a cron that never fires (30 February). */
-export function nextCron(spec: CronSpec, tz: string, after: number): number | undefined {
-  const start = localOf(after, tz);
-  const hours = [...spec.hour.set].sort((a, b) => a - b);
-  const mins = [...spec.min.set].sort((a, b) => a - b);
-  const day0 = Date.UTC(start.y, start.mo - 1, start.d);
-  for (let n = 0; n < 366 * 9; n++) {
-    const dt = new Date(day0 + n * DAY);
-    const y = dt.getUTCFullYear();
-    const mo = dt.getUTCMonth() + 1;
-    const d = dt.getUTCDate();
-    if (!spec.mon.set.has(mo)) continue;
-    const domOk = spec.dom.set.has(d);
-    const dowOk = spec.dow.set.has(dt.getUTCDay());
-    // when both day fields are restricted either one matches (cron's rule); a star in one leaves the other in charge
-    const dayOk = spec.dom.star || spec.dow.star ? domOk && dowOk : domOk || dowOk;
-    if (!dayOk) continue;
-    for (const h of hours)
-      for (const mi of mins) {
-        const at = localToUtc({ y, mo, d, h, mi }, tz);
-        if (at !== undefined && at > after) return at;
-      }
-  }
-  return undefined;
-}
+export { nextCron, parseCron, validTimeZone };
+export type { CronSpec };
 
 // ---- schedules ----
 

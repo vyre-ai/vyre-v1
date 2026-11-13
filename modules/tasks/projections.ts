@@ -1,6 +1,7 @@
 // Tasks projections (ARCH 4.7). The task row (tasks_core + tasks_meta), its history, the Space policy and the read queries behind
 // tasks.get, tasks.list, tasks.needs_you, tasks.count_needs_you, tasks.my_work and tasks.history.
 // Durable tables: migrations/0001_tasks_state.sql. Every statement names only tasks_* tables (ctx.db refuses anything else, ARCH B2).
+import { startOfDay, zoneNamed } from "../../lib/clock.ts";
 import { isHostService, isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { makeId } from "../../packages/contracts/src/ids.ts";
@@ -645,31 +646,9 @@ export interface NeedsItem {
   yourTurn?: boolean;
 }
 
-/** The minutes a time zone is ahead of UTC at a moment (Asia/Karachi: 300). An unknown zone reads as UTC. */
-export function tzOffsetMin(tz: string | undefined, at: number): number {
-  if (!tz || tz === "UTC") return 0;
-  try {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      hourCycle: "h23",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    }).formatToParts(new Date(at));
-    const n = (k: string): number => Number(parts.find((p) => p.type === k)?.value ?? 0);
-    const local = Date.UTC(n("year"), n("month") - 1, n("day"), n("hour") % 24, n("minute"), n("second"));
-    return Math.round((local - Math.floor(at / 1000) * 1000) / 60_000);
-  } catch {
-    return 0;
-  }
-}
-/** The start of the day a moment falls in, on the clock of a time zone. */
+/** The start of the day a moment falls in, on the clock of a time zone. A zone Intl does not know (or none) reads as UTC. */
 export function startOfDayIn(ms: number, tz?: string): number {
-  const off = tzOffsetMin(tz, ms) * 60_000;
-  return Math.floor((ms + off) / DAY) * DAY - off;
+  return startOfDay(ms, zoneNamed(tz));
 }
 /** A person's time zone: the profile.timezone setting, copied here from settings.changed (a module reads only its own tables). UTC until they set one. */
 export function tzOf(db: Db, person: string): string {

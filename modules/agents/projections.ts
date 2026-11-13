@@ -5,6 +5,8 @@
 // (every file of an agent is a file in Agents/<name>), and the small pure helpers the handlers share (status, cron, unified diffs).
 // Every statement names an agents_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";
+import { nextCron, parseCron as clockCron, startOfDay } from "../../lib/clock.ts";
+import type { CronSpec } from "../../lib/clock.ts";
 import { isHostService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintId as mint } from "../../lib/ids.ts";
@@ -1049,67 +1051,21 @@ export function storeConfig(
   );
 }
 
-// ---- cron: five fields, UTC ------------------------------------------------------------------------------------------------------------------------
+// ---- cron: five numeric fields, read in UTC ---------------------------------------------------------------------------------------------------------
 
-function fieldSet(spec: string, min: number, max: number): Set<number> | null {
-  const out = new Set<number>();
-  for (const part of spec.split(",")) {
-    const m = /^(\*|\d+(?:-\d+)?)(?:\/(\d+))?$/.exec(part);
-    if (!m) return null;
-    const step = m[2] === undefined ? 1 : Number(m[2]);
-    if (step < 1) return null;
-    let lo = min,
-      hi = max;
-    if (m[1] !== "*") {
-      const [a, b] = (m[1] as string).split("-");
-      lo = Number(a);
-      hi = b === undefined ? (m[2] === undefined ? lo : max) : Number(b);
-    }
-    if (lo < min || hi > max || lo > hi) return null;
-    for (let v = lo; v <= hi; v += step) out.add(v);
-  }
-  return out.size > 0 ? out : null;
+/** A routine's cron: five fields of numbers, lists, ranges and steps, as the agent skill teaches. Names (mon) and the @daily macros are not routine syntax. Null for anything else. */
+export function parseCron(expr: string): CronSpec | null {
+  return /^[\d*,/\s-]+$/.test(expr) ? (clockCron(expr) ?? null) : null;
 }
-export interface Cron {
-  minute: Set<number>;
-  hour: Set<number>;
-  dom: Set<number>;
-  month: Set<number>;
-  dow: Set<number>;
-  domAny: boolean;
-  dowAny: boolean;
-}
-export function parseCron(expr: string): Cron | null {
-  const f = expr.trim().split(/\s+/);
-  if (f.length !== 5) return null;
-  const minute = fieldSet(f[0] as string, 0, 59),
-    hour = fieldSet(f[1] as string, 0, 23),
-    dom = fieldSet(f[2] as string, 1, 31),
-    month = fieldSet(f[3] as string, 1, 12);
-  const dowRaw = fieldSet((f[4] as string).replace(/\b7\b/g, "0"), 0, 6);
-  if (!minute || !hour || !dom || !month || !dowRaw) return null;
-  return { minute, hour, dom, month, dow: dowRaw, domAny: f[2] === "*", dowAny: f[4] === "*" };
-}
+/** A year and a day: how far ahead a routine's next time is looked for. */
+const ROUTINE_LOOK_AHEAD_DAYS = 367;
 /** The first minute after `after` (ms, UTC) that the expression names, looking a year ahead; null when there is none (31 February). */
 export function nextRun(expr: string, after: number): number | null {
-  const c = parseCron(expr);
-  if (!c) return null;
-  const start = new Date(after - (after % 60_000) + 60_000);
-  for (let d = 0; d <= 366; d++) {
-    const day = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate() + d));
-    if (!c.month.has(day.getUTCMonth() + 1)) continue;
-    const domOk = c.dom.has(day.getUTCDate()),
-      dowOk = c.dow.has(day.getUTCDay());
-    // cron: when both day fields are restricted, either one matching is enough
-    const dayOk = c.domAny && c.dowAny ? true : c.domAny ? dowOk : c.dowAny ? domOk : domOk || dowOk;
-    if (!dayOk) continue;
-    for (const h of [...c.hour].sort((a, b) => a - b))
-      for (const m of [...c.minute].sort((a, b) => a - b)) {
-        const t = Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), h, m);
-        if (t >= start.getTime()) return t;
-      }
-  }
-  return null;
+  const spec = parseCron(expr);
+  if (!spec) return null;
+  const start = after - (after % 60_000) + 60_000;
+  const at = nextCron(spec, "UTC", start - 1);
+  return at !== undefined && at < startOfDay(start, "UTC") + ROUTINE_LOOK_AHEAD_DAYS * 86_400_000 ? at : null;
 }
 
 // ---- routines ------------------------------------------------------------------------------------------------------------------------------------------

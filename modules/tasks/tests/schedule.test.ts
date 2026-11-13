@@ -102,3 +102,35 @@ test("a repeating task comes back with its next date when it is done, once", asy
   assert.equal(made[0]!["due"], due + 7 * 86_400_000);
   assert.equal(made[0]!["idempotencyKey"], `recur:${t}`);
 });
+
+test("a repeating task across a daylight saving change stays at 09:00 for the person who holds it", async () => {
+  const made: Array<Record<string, unknown>> = [];
+  // Friday 6 March 2026, noon UTC. New York goes forward on 8 March at 07:00 UTC.
+  const h = harness({
+    now: Date.UTC(2026, 2, 6, 12),
+    calls: {
+      "tasks.create": (input) => {
+        made.push(input as Record<string, unknown>);
+        return { task: { id: "tsk_next" } };
+      },
+    },
+  });
+  h.db.run("INSERT INTO tasks_tz (person, tz) VALUES (?, ?)", alice.id, "America/New_York");
+  const due = Date.UTC(2026, 2, 7, 14); // 09:00 EST on Saturday 7 March
+  const t = (
+    await h.call(
+      "tasks.create",
+      newTask({ due, recur: { every: "day" }, assigned: { kind: "person", id: alice.id } }),
+      me,
+    )
+  ).task.id as string;
+  await h.call("tasks.transition", { taskId: t, to: "doing" }, me);
+  await h.call("tasks.transition", { taskId: t, to: "done" }, me);
+  await moved(h, t);
+  assert.equal(made.length, 1);
+  assert.equal(
+    made[0]!["due"],
+    Date.UTC(2026, 2, 8, 13),
+    "09:00 EDT on Sunday 8 March, not 10:00: the next one keeps the person's clock",
+  );
+});

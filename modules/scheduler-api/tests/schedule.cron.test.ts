@@ -116,12 +116,13 @@ test("a time zone's wall clock: Karachi is UTC+5, Kolkata UTC+5:30, Sydney moves
   );
 });
 
-test("daylight saving: a local time that does not exist is skipped that day; one that happens twice fires at its first pass", () => {
+// 13 Nov 2026, lead's decision (P1 contract, Q2): a local time that does not exist on the spring-forward day fires at the first moment after the gap. It used to be skipped that day. See docs/frozen/capabilities.md.
+test("daylight saving: a local time that does not exist fires when the gap ends; one that happens twice fires at its first pass", () => {
   // New York went forward on 8 March 2026 (02:00 became 03:00) and back on 1 November 2026 (02:00 became 01:00)
   assert.equal(
     next("30 2 * * *", "America/New_York", utc(2026, 3, 7, 8, 0)),
-    utc(2026, 3, 9, 6, 30),
-    "no 02:30 on 8 March; 9 March is already EDT",
+    utc(2026, 3, 8, 7, 0),
+    "no 02:30 on 8 March: it fires at 03:00 EDT, when the gap ends",
   );
   assert.equal(
     next("30 1 * * *", "America/New_York", utc(2026, 11, 1, 0, 0)),

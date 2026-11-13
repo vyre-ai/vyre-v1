@@ -1,1 +1,6 @@
-- Time zone and daylight saving rules now live in one place, ready for routines, goals and tasks to share (nothing you can see changes yet).
+- A schedule set for a time that daylight saving skips (02:30 on the night clocks go forward) now runs when the gap ends instead of missing that day. This covers Automation schedules, goal check-ins and quiet hours.
+- A time that happens twice when clocks go back runs once, at its first pass, in every time zone (London and Sydney used to run at the second).
+- A repeating task keeps its time of day across a daylight saving change: 09:00 stays 09:00 for the person who holds it.
+- Home's Routines today shows each routine at its right time for people outside UTC.
+- "Needs you" and "Due today" now begin at midnight on the two days a year the clocks change; for a moment after the change they began an hour off.
+- The Automation schedule picker's list of next runs follows the same daylight saving rules as the scheduler.

@@ -1,7 +1,9 @@
 // Notifications projections (spec 2.24, ARCH 3.5): the kind table, the person's rules, mutes, away and delegate chain, working hours, and the item rows.
 // Durable tables: the generated notifications_items plus migrations/0001_notifications_state.sql. Every statement names only notifications_* tables (ctx.db refuses anything else, ARCH B2).
 // The KINDS table below mirrors manifests/notifications.ts notificationKinds (frozen, ruling 9); the contract test of this module compares them.
+import { zoneNamed } from "../../lib/clock.ts";
 import { isTrustedService } from "../../lib/trust.ts";
+import { partsIn } from "../../lib/zones.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 
 export type Level = "interrupt" | "badge" | "digest";
@@ -302,27 +304,8 @@ export function render(tpl: string, vars: Record<string, unknown>): string {
 
 /** Day of week (0 is Sunday) and minutes since midnight at `at` in the zone; an unknown zone reads as UTC. */
 export function localClock(at: number, tz: string): { day: number; minutes: number } {
-  let parts: Intl.DateTimeFormatPart[];
-  try {
-    parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    }).formatToParts(new Date(at));
-  } catch {
-    parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: "UTC",
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    }).formatToParts(new Date(at));
-  }
-  const get = (t: string): string => parts.find((p) => p.type === t)?.value ?? "";
-  const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(get("weekday"));
-  return { day: day < 0 ? 0 : day, minutes: Number(get("hour")) * 60 + Number(get("minute")) };
+  const p = partsIn(at, zoneNamed(tz));
+  return { day: p.dow, minutes: p.hour * 60 + p.minute };
 }
 const mins = (hhmm: string): number => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
 /** Inside working hours? `to` before `from` is an overnight shift that belongs to the day it starts on. */

@@ -87,7 +87,8 @@ export async function routinesToday(ctx: HomeCtx): Promise<unknown> {
       );
     }
     const times =
-      ((await ctx.call("scheduler.next_times", { cron: rt.cron, tz, count: 20 })) as { times?: number[] } | null)
+      // a routine's cron is saved in UTC (the agent skill says so), so its times are asked in UTC; `tz` only draws the person's day. Asking in the person's zone read "0 4 * * *" as 04:00 there, not 09:00.
+      ((await ctx.call("scheduler.next_times", { cron: rt.cron, tz: "UTC", count: 20 })) as { times?: number[] } | null)
         ?.times ?? [];
     for (const at of times)
       if (at < day.end)

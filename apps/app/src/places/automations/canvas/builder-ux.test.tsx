@@ -129,7 +129,8 @@ test("the schedule in words, with the zone", () => {
   assert.equal(cronSummary("@daily"), "Every day at 00:00");
 });
 
-test("the next runs are in the zone of the schedule, and a time a clock change skips is skipped", () => {
+// 13 Nov 2026, lead's decision (P1 contract, Q2): a time the clock skips fires when the gap ends, as the scheduler does now. It used to be skipped that day. See docs/frozen/capabilities.md.
+test("the next runs are in the zone of the schedule, and a time a clock change skips fires when the gap ends", () => {
   const karachi = nextRuns("0 9 * * 1", "Asia/Karachi", NOW, 3);
   assert.deepEqual(
     karachi.map((t) => new Date(t).toISOString()),
@@ -144,11 +145,11 @@ test("the next runs are in the zone of the schedule, and a time a clock change s
     ["Mon 2 Nov, 09:00"],
     "the same moment reads differently in another zone",
   );
-  // New York springs forward on 8 March 2026: 02:30 does not exist that day
+  // New York springs forward on 8 March 2026: 02:30 does not exist that day, so it fires at 03:00 EDT when the gap ends
   const spring = nextRuns("30 2 * * *", "America/New_York", Date.UTC(2026, 2, 7, 12, 0), 2);
   assert.deepEqual(
     spring.map((t) => new Date(t).toISOString()),
-    ["2026-03-09T06:30:00.000Z", "2026-03-10T06:30:00.000Z"],
+    ["2026-03-08T07:00:00.000Z", "2026-03-09T06:30:00.000Z"],
   );
   assert.deepEqual(
     nextRuns("*/20 * * * *", "UTC", NOW, 3).map((t) => new Date(t).toISOString()),

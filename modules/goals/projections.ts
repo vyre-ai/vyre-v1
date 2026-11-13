@@ -3,8 +3,10 @@
 import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
 import { makeId } from "../../packages/contracts/src/ids.ts";
+import { cronAt, instantOfWall, nextCron, zoneNamed } from "../../lib/clock.ts";
 import { isHostService, isPersonPress, isTrustedService } from "../../lib/trust.ts";
 import { whoToken } from "../../lib/words/time.ts";
+import { offsetMinAt, partsIn } from "../../lib/zones.ts";
 
 export type Status = "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
 export type Ended = "done" | "missed" | "stopped";
@@ -419,37 +421,6 @@ export function mustControl(ctx: GoalsCtx, g: Goal): void {
 
 // ---- time in the owner's zone ----
 
-const fmt = new Map<string, Intl.DateTimeFormat>();
-function formatter(zone: string): Intl.DateTimeFormat {
-  let f = fmt.get(zone);
-  if (!f) {
-    try {
-      f = new Intl.DateTimeFormat("en-GB", {
-        timeZone: zone,
-        hourCycle: "h23",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        weekday: "short",
-      });
-    } catch {
-      f = new Intl.DateTimeFormat("en-GB", {
-        timeZone: "UTC",
-        hourCycle: "h23",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        weekday: "short",
-      });
-    }
-    fmt.set(zone, f);
-  }
-  return f;
-}
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export interface Local {
   y: number;
@@ -459,41 +430,25 @@ export interface Local {
   mi: number;
   wd: number;
 }
+/** The wall clock in a zone at an instant. A zone Intl does not know reads as UTC. */
 export function local(at: number, zone: string): Local {
-  const p: Record<string, string> = {};
-  for (const x of formatter(zone).formatToParts(new Date(at))) p[x.type] = x.value;
-  return {
-    y: Number(p["year"]),
-    mo: Number(p["month"]),
-    d: Number(p["day"]),
-    h: Number(p["hour"]) % 24,
-    mi: Number(p["minute"]),
-    wd: DAYS.indexOf(p["weekday"] ?? "Sun"),
-  };
+  const p = partsIn(at, zoneNamed(zone));
+  return { y: p.year, mo: p.month, d: p.day, h: p.hour, mi: p.minute, wd: p.dow };
 }
-export const offsetAt = (at: number, zone: string): number => {
-  const l = local(at, zone);
-  return Date.UTC(l.y, l.mo - 1, l.d, l.h, l.mi) - Math.floor(at / MINUTE) * MINUTE;
-};
+/** Milliseconds the zone is ahead of UTC at an instant. */
+export const offsetAt = (at: number, zone: string): number => offsetMinAt(at, zoneNamed(zone)) * MINUTE;
 /** The instant a wall-clock time falls on, in a zone. */
 export function instant(y: number, mo: number, d: number, h: number, mi: number, zone: string): number {
-  const guess = Date.UTC(y, mo - 1, d, h, mi);
-  return guess - offsetAt(guess - offsetAt(guess, zone), zone);
+  return instantOfWall(Date.UTC(y, mo - 1, d, h, mi), zoneNamed(zone));
 }
 const hm = (s: string | undefined, fallback: [number, number]): [number, number] => {
   const m = /^(\d{2}):(\d{2})$/.exec(s ?? "");
   return m ? [Number(m[1]) % 24, Number(m[2]) % 60] : fallback;
 };
-/** The first time after `at` that the wall clock in `zone` reads hh:mm. */
+/** The first time after `at` that the wall clock in `zone` reads hh:mm (on the weekday `day`, 0 is Sunday, when one is given). */
 export function nextAt(at: number, zone: string, time: string, day?: number): number {
   const [h, mi] = hm(time, [9, 0]);
-  const l = local(at, zone);
-  for (let i = 0; i < 9; i++) {
-    const base = new Date(Date.UTC(l.y, l.mo - 1, l.d + i));
-    const t = instant(base.getUTCFullYear(), base.getUTCMonth() + 1, base.getUTCDate(), h, mi, zone);
-    if (t > at && (day === undefined || base.getUTCDay() === day)) return t;
-  }
-  return at + DAY;
+  return nextCron(cronAt(h, mi, day), zoneNamed(zone), at) ?? at + DAY;
 }
 export function inQuiet(at: number, g: Pick<Goal, "quiet" | "zone">): boolean {
   if (!g.quiet) return false;

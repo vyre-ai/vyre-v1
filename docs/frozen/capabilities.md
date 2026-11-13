@@ -144,3 +144,17 @@ Signed: lead, 12 Nov 2026
 The description of the optional `blocked` line on `automations.vault_usage` steps now reads "a host not allowed for it" instead of "a host no longer allowed for it". The line itself (key-run.ts) is now one neutral sentence for a host that was removed and one never approved: "#Key is not allowed to go to <host>. Allow it on the key's page, or change this step." Description only: no field, type or error changes.
 
 Signed: lead, 12 Nov 2026
+
+## 13 Nov 2026: one clock for next fire times; a time in a daylight saving gap fires when the gap ends (lane b-clock, P1 step 2)
+
+No capability contract, version, field or error changed, and no snapshot moved. The times that `scheduler.next_times`, `scheduler.schedule`, an Automation's schedule trigger, a goal's check-in and a repeating task's next date come out as are now worked out by one file, `lib/clock.ts`, instead of three cron parsers and six zone readers. Where the old code answered differently, this is the dated behaviour change, by the lead's decision of 13 Nov 2026 (P1 contract, section 8, Q2):
+
+- A local time that does not exist on the spring-forward day (02:30 in New York on 8 March 2026) used to be skipped that day in Automations and in `scheduler.*`. It now fires at the first moment after the gap (03:00, 07:00 UTC). The same rule holds for a goal's check-in time and the end of its quiet hours. The two tests that pinned the old rule, `modules/automations/schedule/schedule.test.ts` ("daylight saving") and `modules/scheduler-api/tests/schedule.cron.test.ts` ("daylight saving"), changed to the new rule; nothing else in them changed.
+- A local time that happens twice on the fall-back day fires once, at its first pass, in every zone. It already did in New York; in London and Sydney the old code fired at the second pass.
+- A repeating task keeps its wall clock in the holder's profile time zone: 09:00 stays 09:00 across a change. It used to add fixed 24 hour days and drift by an hour.
+- Found while recording the golden times (`lib/clock.golden.json`, 229 cases recorded before the clock existed), not named by the contract: the start of a day in a zone (`startOfDayIn`, used for Needs you and due reminders) was an hour wrong on the two days a year the clocks change, for a moment after the change. It now reads midnight. Home's Routines today asked for a routine's times in the person's zone although the routine's cron is in UTC, so a person outside UTC saw shifted times; it now asks in UTC.
+- A routine's cron still takes numbers only and looks one year ahead; a weekday range that ends in 7 ("1-7") is now accepted, as in the other two parsers.
+
+Every difference is listed with its justification in `lib/clock-golden-kit.test.ts`; `lib/clock.golden.test.ts` and `test/clock.golden.wrappers.test.ts` fail if any other recorded answer moves.
+
+Signed: (not yet signed; for the lead to sign, 13 Nov 2026)
