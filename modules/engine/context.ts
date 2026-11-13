@@ -588,11 +588,13 @@ export function createContextBuilder(d: ContextDeps) {
     return parseScreen(out?.["screen"]);
   }
 
-  /** A task, as the asker when they may see it, else as the server: the agent that holds the baton must see its own task. */
-  async function taskOf(taskId: string, asker: string): Promise<Obj | undefined> {
-    const own = await read<Obj>("tasks.get", { taskId }, asker);
-    let got = own;
-    if (!got) {
+  /**
+   * A task, as the asker when they may see it. Only the thread's own task (`own`) falls back to the server, because the agent that holds the baton must see its own task. A task named by data a person
+   * can write (the `asked` note of another task) is read as the asker or not at all: nothing read from user-writable data widens what is fetched.
+   */
+  async function taskOf(taskId: string, asker: string, own = false): Promise<Obj | undefined> {
+    let got = await read<Obj>("tasks.get", { taskId }, asker);
+    if (!got && own) {
       try {
         got =
           (await Promise.race([
@@ -948,7 +950,7 @@ export function createContextBuilder(d: ContextDeps) {
     // the goal this chat or this task belongs to: the finish line, where the number stands, why the lead was woken, the plan and the rules (goals.brief, read as the owner)
     let goalTask: Obj | undefined;
     if (taskId) {
-      const t = await taskOf(taskId, asker);
+      const t = await taskOf(taskId, asker, true);
       if (t) add("task", false, taskSection(t, agentId, nameMap, await answersOf(t, asker), asker));
       goalTask = t;
     }
