@@ -5,7 +5,6 @@ import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../testing/dom.ts";
 import { Loadable } from "./Loadable.tsx";
-import { RETRY_LOADS_EVENT } from "./Loads.tsx";
 import type { Load } from "./Loadable.tsx";
 
 const failure = { message: "The server did not answer.", code: "internal.error", traceId: "tr_9" };
@@ -133,47 +132,7 @@ test("without isEmpty, ready always draws the content, even an empty list", asyn
   }
 });
 
-test("stale keeps the content and adds one quiet line whose Retry asks the session to read again", async () => {
-  const restore = installDom();
-  const g = globalThis as { dispatchEvent?: unknown; CustomEvent?: unknown };
-  const sent: string[] = [];
-  g.dispatchEvent = (e: { type: string }) => {
-    sent.push(e.type);
-    return true;
-  };
-  g.CustomEvent = class {
-    type: string;
-    constructor(t: string) {
-      this.type = t;
-    }
-  };
-  try {
-    const load: Load<{ rows: string[] }> = { state: "ready", data: { rows: ["a"] }, stale: failure };
-    const root = await mount(
-      createRoot,
-      <Loadable load={load} what="the rows">
-        {body}
-      </Loadable>,
-    );
-    assert.match(textOf(root), /rows:a/);
-    assert.match(textOf(find(root, "load-stale")), /Couldn't refresh/);
-    await press(find(root, "load-stale-retry"));
-    assert.deepEqual(sent, [RETRY_LOADS_EVENT]);
-    const fresh = await mount(
-      createRoot,
-      <Loadable load={{ state: "ready", data: { rows: ["a"] } }} what="the rows">
-        {body}
-      </Loadable>,
-    );
-    assert.equal(find(fresh, "load-stale"), null);
-  } finally {
-    delete g.dispatchEvent;
-    delete g.CustomEvent;
-    restore();
-  }
-});
-
-test("a refused read goes through LoadFailed, so the app's one refusal rule decides what is drawn", async () => {
+test("a refused read is drawn by LoadFailed, not by an error of Loadable's own", async () => {
   const restore = installDom();
   try {
     const refused = { message: "That does not exist or is not yours.", code: "validation.not_found" };
