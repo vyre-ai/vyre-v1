@@ -56,9 +56,9 @@ export function trustworthy(
   return null;
 }
 
-/** The branch this merges into: a pull request's target (GITHUB_BASE_REF), else int/rc25 (sixth look W1: not main, where the server baseline does not exist yet). */
+/** The branch this merges into: a pull request's target (GITHUB_BASE_REF), else main (sixth look W1 named int/rc25 while main had no server baseline; rc.26 put it on main, and an integration branch that is not fetched broke every push build). */
 export const baseRefOf = (env: Record<string, string | undefined> = process.env): string =>
-  `origin/${env["GITHUB_BASE_REF"] || "int/rc25"}`;
+  `origin/${env["GITHUB_BASE_REF"] || "main"}`;
 
 /**
  * The baseline as the merge base with the target branch has it: its count; "new" when the file is not there yet (it is new on this branch, which the log says); "unreadable" when the

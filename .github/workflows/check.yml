@@ -163,8 +163,10 @@ jobs:
       - uses: ./.github/actions/deps
       - name: tools/gen's TypeScript (installed by the contracts gate script)
         run: '[ -x tools/gen/node_modules/.bin/tsc ] || bash tools/gen/check.sh'
-      - name: Typecheck ratchet (the count may only fall)
-        run: node scripts/typecheck-ratchet.ts
+      - name: Typecheck ratchets (the count may only fall); the baseline is read from the merge base with main on a push, or with the pull request's target
+        run: |
+          git fetch -q origin main
+          node scripts/typecheck-ratchet.ts
       - name: Typecheck ratchet for modules, host and packages/contracts (the count may only fall; nothing typechecked them before 12 Nov)
         run: node scripts/typecheck-ratchet.ts --project tsconfig.typecheck.server.json --baseline scripts/typecheck-baseline.server.json
   images-docker:

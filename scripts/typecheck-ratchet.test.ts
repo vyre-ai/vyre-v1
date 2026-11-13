@@ -148,10 +148,10 @@ test("V5: a spawn error fails, and a baseline above the merge base's fails", asy
   assert.equal(trustworthy({ signal: null, status: 2 }, 100, 100, { update: false, mergeBaseBaseline: 100 }), null);
 });
 
-test("W1: the earlier baseline is read from the target branch (GITHUB_BASE_REF, else int/rc25): a count, a file new on this branch, or unreadable, which fails on CI", async () => {
+test("W1: the earlier baseline is read from the target branch (GITHUB_BASE_REF, else main): a count, a file new on this branch, or unreadable, which fails on CI", async () => {
   const { baseRefOf, mergeBaseBaseline } = await import("./typecheck-ratchet.ts");
   assert.equal(baseRefOf({ GITHUB_BASE_REF: "main" }), "origin/main");
-  assert.equal(baseRefOf({}), "origin/int/rc25");
+  assert.equal(baseRefOf({}), "origin/main");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ratchet-w1-"));
   const git = (...a: string[]) =>
     spawnSync("git", a, {
@@ -171,13 +171,13 @@ test("W1: the earlier baseline is read from the target branch (GITHUB_BASE_REF, 
     fs.writeFileSync(path.join(dir, "a.txt"), "a");
     git("add", "-A");
     git("commit", "-q", "-m", "base");
-    git("update-ref", "refs/remotes/origin/int/rc25", "HEAD");
+    git("update-ref", "refs/remotes/origin/main", "HEAD");
     git("checkout", "-q", "-b", "work");
     fs.writeFileSync(path.join(dir, "scripts/typecheck-baseline.server.json"), JSON.stringify({ count: 5 }));
     git("add", "-A");
     git("commit", "-q", "-m", "work");
     assert.deepEqual(
-      mergeBaseBaseline(dir, "scripts/typecheck-baseline.server.json", "origin/int/rc25"),
+      mergeBaseBaseline(dir, "scripts/typecheck-baseline.server.json", "origin/main"),
       { state: "new" },
       "new on this branch",
     );
@@ -187,10 +187,10 @@ test("W1: the earlier baseline is read from the target branch (GITHUB_BASE_REF, 
     fs.writeFileSync(path.join(dir, "scripts/typecheck-baseline.server.json"), JSON.stringify({ count: 3 }));
     git("add", "-A");
     git("commit", "-q", "-m", "base 3");
-    git("update-ref", "refs/remotes/origin/int/rc25", "HEAD");
+    git("update-ref", "refs/remotes/origin/main", "HEAD");
     git("checkout", "-q", "work");
     git("merge", "-q", "--no-edit", "-X", "ours", "base");
-    assert.deepEqual(mergeBaseBaseline(dir, "scripts/typecheck-baseline.server.json", "origin/int/rc25"), {
+    assert.deepEqual(mergeBaseBaseline(dir, "scripts/typecheck-baseline.server.json", "origin/main"), {
       state: "ok",
       count: 3,
     });
