@@ -84,3 +84,57 @@ export interface FormsFoundCard {
   site: string;
   forms: Array<{ id: string; name: string; page: string; plugin?: string; picture?: string }>;
 }
+
+// ---- the Needs-you read: `automations.needs_you.list`, one read for Automations Home and the Inbox (lead, 13 Nov)
+
+/** What the person presses to clear it. */
+export type FixKind =
+  | "add_key"
+  | "choose_value"
+  | "allow_assistant"
+  | "approve_sends"
+  | "reconnect"
+  | "ask_admin"
+  | "continue_build";
+
+export interface NeedItem {
+  id: string;
+  automation: { id: string; name: string };
+  /** Plain words, never a code or a field key. */
+  why: string;
+  fix: FixKind;
+  /** The run it belongs to, when a run stopped. */
+  run?: string;
+  app?: { id: string; name: string };
+  /** Who to ask, by name, when `fix` is ask_admin. */
+  admin?: string;
+  /** The chat thread or card to continue in, for a build that waits and for allow_assistant. */
+  thread?: string;
+  since: number;
+  /** A build that waits: the one reminder after 24 hours, set once sent. */
+  remindedAt?: number;
+}
+
+/** Answered as the caller: only their own Automations and those shared with them. */
+export interface NeedsYouRead {
+  needs: NeedItem[];
+  today: { ran: number; failed: number };
+}
+
+// ---- draft against live: `automations.draft.*`
+
+/** One overlay serves the Assistant's proposal (Accept, Change, Discard) and a person's own edits to an On Automation (Make live, Discard changes). */
+export interface AutomationVersions {
+  automation: string;
+  /** What runs. An Automation saved before drafts existed has only this. */
+  live: unknown;
+  /** The unsaved-as-live edit, when there is one. */
+  draft?: unknown;
+  /** The draft differs from live. */
+  differs: boolean;
+  /** Who made the draft: the Assistant proposed it, or the person edited. */
+  draftBy?: "assistant" | "person";
+  draftAt?: number;
+  /** Plain words for the bar: "Assistant's draft, 3 steps. Nothing is on yet." */
+  summary?: string;
+}
