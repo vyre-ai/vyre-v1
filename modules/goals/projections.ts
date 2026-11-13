@@ -254,7 +254,9 @@ export function note(ctx: Pick<GoalsCtx, "db" | "now" | "principal" | "actingFor
   const asked = askedTurn.get(ctx);
   if (asked) { text = `${text.replace(/\.$/, "")}, asked by ${whoToken(asked.person)}.`; ref ??= asked.messageIds[0]; }
   const last = (ctx.db.all("SELECT MAX(seq) AS s FROM goals_activity WHERE goal_id = ?", goalId)[0] as { s: number | null } | undefined)?.s ?? 0;
-  // the whole sentence is kept: a long summary is shown in full, never cut
+  // a line is bounded: an agent's own words (a pause or stop reason, a step result) stop at 600; the lead's check-in, retrospective and the end summary, which the contract bounds, at 2000. A cut shows its mark.
+  const cap = kind === "report" || kind === "retro" || kind === "ended" ? 2000 : 600;
+  if (text.length > cap) text = `${text.slice(0, cap - 1)}…`;
   ctx.db.run("INSERT INTO goals_activity (goal_id, seq, at, kind, text, by, ref) VALUES (?, ?, ?, ?, ?, ?, ?)", goalId, last + 1, ctx.now(), kind, text, ctx.actingFor && ctx.principal.kind === "agent" ? `${ctx.principal.id}>${ctx.actingFor}` : ctx.principal.id, ref ?? null);
   // what only an admin reads (an error code, a wake id) stays out of the sentence
   if (data) ctx.db.run("INSERT OR REPLACE INTO goals_activity_data (goal_id, seq, data) VALUES (?, ?, ?)", goalId, last + 1, JSON.stringify(data));

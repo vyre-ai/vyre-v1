@@ -38,13 +38,17 @@ test("a failed wake says why in plain words, keeps the code out of the sentence,
   assert.deepEqual([asAdmin.data.code, asAdmin.data.attempt], ["host_lost", 1]);
 });
 
-test("a long summary is kept whole", async () => {
+test("a check-in the contract allows is kept whole; an agent's own long words stop at 600 with a mark", async () => {
   const w = world({ count: 10 });
   const { goal } = await w.call("goals.create", labGoal({ plan: [step("a", "Remind Lab 7")] }));
-  const long = `${"Registrations rose in every channel we tried. ".repeat(30)}End.`;
-  await w.call("goals.report", { goalId: goal.id, summary: long }, lead);
-  const row = (await w.call("goals.activity", { goalId: goal.id }, owner)).activity.find((a: { kind: string }) => a.kind === "report");
-  assert.equal(row.text, long);
+  const full = `${"Registrations rose in every channel. ".repeat(15)}End.`.slice(0, 600);
+  await w.call("goals.report", { goalId: goal.id, summary: full }, lead);
+  await w.call("goals.pause", { goalId: goal.id, reason: "x".repeat(5000) }, owner);
+  const rows = (await w.call("goals.activity", { goalId: goal.id }, owner)).activity;
+  assert.equal(rows.find((a: { kind: string }) => a.kind === "report").text, full);
+  const paused = rows.find((a: { kind: string; text: string }) => a.kind === "status" && /^Moved from .* to Paused/.test(a.text));
+  assert.equal(paused.text.length, 600);
+  assert.ok(paused.text.endsWith("…"));
 });
 
 test("goals.activity reads a goal's whole story back, page by page, with no row lost at a page edge", async () => {
