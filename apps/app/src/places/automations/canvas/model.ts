@@ -4,10 +4,12 @@
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { messageSummary } from "../builder/compose.ts";
 import { LOOP_CHILD, PARALLEL_JOIN, parallelLaneMark } from "../chrome.ts";
-import { NOT_SET_UP, humanize, missingFor, triggerMissing, triggerSummary } from "./form-model.ts";
+import { NOT_SET_UP, missingFor, triggerMissing, triggerSummary } from "./form-model.ts";
 import type { RefNames } from "./form-model.ts";
 import { deviceTimeZone } from "./schedule.ts";
 import { chipWords } from "./steps/edits.ts";
+import { isRawId } from "../../../../../../lib/id-shapes.ts";
+import { stepInputLabel } from "../../../../../../lib/step-input-labels.ts";
 
 export type Automation = CapMap["automations.get"]["out"]["automation"];
 export type Definition = Automation["definition"];
@@ -333,13 +335,38 @@ export const REMOVED_KEY = "A removed AI account";
 /** The second line of a card: what the step does, from its inputs, in words. */
 export function subtitleOf(
   n: DefNode,
-  names: { key?: (id: string) => string; step?: (id: string) => string } = {},
+  names: {
+    key?: (id: string) => string;
+    step?: (id: string) => string;
+    thing?: (id: string) => string | undefined;
+  } = {},
 ): string {
   // a `{{ }}` reference is never the text of a card: it reads as the chip it is in the editor (owner, 13 Nov 2026)
   return chipWords(subtitleRaw(n, names), names.step ?? (() => "an earlier step"));
 }
 
-function subtitleRaw(n: DefNode, names: { key?: (id: string) => string }): string {
+/** What a kind of id points at, for a card that does not know the thing's name. */
+const THING: Readonly<Record<string, string>> = {
+  rec: "record",
+  fld: "folder",
+  fil: "file",
+  thr: "chat",
+  usr: "person",
+  agt: "agent",
+  cal: "calendar",
+  tsk: "task",
+  prj: "project",
+  aut: "automation",
+  mbx: "mailbox",
+  chn: "channel",
+  frm: "form",
+  jrn: "journey",
+};
+
+function subtitleRaw(
+  n: DefNode,
+  names: { key?: (id: string) => string; thing?: (id: string) => string | undefined },
+): string {
   const k = kindOfKey(n.key);
   const inp = n.input ?? {};
   const composed = messageSummary(n.key, inp);
@@ -424,7 +451,20 @@ function subtitleRaw(n: DefNode, names: { key?: (id: string) => string }): strin
   for (const [name, v] of Object.entries(inp)) {
     const s = str(v);
     if (!s) continue;
-    bits.push(`${humanize(name)} ${s}`);
+    const label = stepInputLabel(name);
+    // a card never prints an id: it names the thing when the card's names know it, else says what kind of thing it is
+    if (isRawId(s)) {
+      const named = names.thing?.(s);
+      const kind = THING[s.split("_")[0] ?? ""] ?? "thing";
+      const noun = `${/^[aeiou]/.test(kind) ? "an" : "a"} ${kind}`;
+      bits.push(
+        named
+          ? `${label} ${named}`
+          : kind === label.toLowerCase()
+            ? noun.charAt(0).toUpperCase() + noun.slice(1)
+            : `${label} ${noun}`,
+      );
+    } else bits.push(`${label} ${s}`);
     if (bits.length === 2) break;
   }
   return bits.join(" · ") || titleOfKey(n.key);

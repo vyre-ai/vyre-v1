@@ -9,4 +9,6 @@
 - An automation step that uses an AI account that was removed says "A removed AI account" instead of showing its id.
 - Search: a record's fields that hold other things' ids (a lead, a folder) no longer match on those ids, and records edited before this update keep their old id text in search until each is next changed or search is rebuilt.
 - A name the directory has not loaded yet shows as an ellipsis instead of "Someone"; a computer's own loopback address in a server's Console reads "This server" from another computer.
-- An automation step card names each field the way the editor does ("Record Id"), not by its raw key ("recordId").
+- An automation step card names each field in plain words ("Record", "Folder", "Web address", "Search words"), never by its stored key and never with an id; a thing it cannot name reads "a record" or "a folder".
+- The command bar keeps two things with the same name as two rows (two tasks, two chats, two untitled records); only the same thing twice, or a task and its own chat, shows once.
+- On Windows, the packaged app reads its own Space address as "This computer", not "This server".

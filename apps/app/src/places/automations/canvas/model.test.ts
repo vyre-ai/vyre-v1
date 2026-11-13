@@ -1,4 +1,5 @@
 // The canvas model (spec 3.7, 2.12): the layout of triggers, steps, Paths, Parallel and Loop; the lane a run took; the local check that mirrors automations.validate; the edits.
+import { rawIdsIn } from "../../../../../../lib/id-shapes.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -555,7 +556,7 @@ test("no card's second line is template code: a {{ }} reference reads as the chi
       },
       { step: name },
     ),
-    "Type ‹Trigger · Type› · Record Id ‹The record that started this›",
+    "Type ‹Trigger · Type› · Record ‹The record that started this›",
   );
   assert.equal(
     subtitleOf(
@@ -583,14 +584,23 @@ test("no card's second line is template code: a {{ }} reference reads as the chi
     ),
     "Text Found ‹Find the lead · Count› and ‹gone›",
   );
-  // a step's own input name is the label the editor shows for it, never the raw key (recordId reads Record Id)
+  // a step's input is named by the plain word a person would use (lib/step-input-labels.ts), never the key and never "Id"
+  const sub = (input: Record<string, unknown>, names = {}): string =>
+    subtitleOf({ id: "s4", key: "set_fields", input, next: [] }, { step: name, ...names });
+  assert.equal(sub({ recordId: "abc", due: "tomorrow" }), "Record abc · Due tomorrow");
+  assert.equal(sub({ url: "https://x.example", json: "{}" }), "Web address https://x.example · Data {}");
+  assert.equal(sub({ q: "invoices", mime: "pdf" }), "Search words invoices · File type pdf");
+  // a card never prints an id value: it names the thing when it knows it, else says what kind of thing it is
+  const recId = "rec_01a1d27b165742ddb20032cbd182aaf9",
+    fldId = "fld_01a1d27b165742ddb20032cbd182aaf9";
+  assert.equal(sub({ folderId: fldId, recordId: recId }), "A folder · A record");
   assert.equal(
-    subtitleOf(
-      { id: "s4", key: "set_fields", input: { recordId: "abc", due_date: "tomorrow" }, next: [] },
-      { step: name },
-    ),
-    "Record Id abc · Due date tomorrow",
+    sub({ recordId: recId }, { thing: (id: string) => (id === recId ? "Ada Lovelace" : undefined) }),
+    "Record Ada Lovelace",
   );
+  assert.equal(sub({ agentId: "agt_01a1d27b165742ddb20032cbd182aaf9" }), "An agent");
+  for (const s of [sub({ folderId: fldId, recordId: recId }), sub({ spreadsheetId: fldId })])
+    assert.deepEqual(rawIdsIn(s), [], s);
   // every kind of step that summarises its inputs, each with a template in every field it reads: none shows braces
   const tpl = "{{ trigger.recordId }}";
   const nodes: Definition["nodes"] = [
