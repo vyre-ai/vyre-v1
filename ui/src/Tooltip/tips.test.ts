@@ -8,7 +8,18 @@ import { TIP_DELAY_MS, createTips } from "./tips.ts";
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-function el(o: { tt?: string; title?: string; label?: string; cut?: boolean; scrollWidth?: number; clientWidth?: number; keyboard?: boolean; text?: string } = {}) {
+function el(
+  o: {
+    tt?: string;
+    title?: string;
+    label?: string;
+    cut?: boolean;
+    scrollWidth?: number;
+    clientWidth?: number;
+    keyboard?: boolean;
+    text?: string;
+  } = {},
+) {
   const attrs: Record<string, string> = o.label ? { "aria-label": o.label } : {};
   const self = {
     dataset: { tt: o.tt, ...(o.cut ? { ttCut: "1" } : {}) } as Record<string, string | undefined>,
@@ -149,7 +160,11 @@ test("the tip is drawn through the overlay layer, above dialogs, sheets and menu
   fire("mouseover", { target: el({ tt: "A switch in a sheet" }) });
   await wait(TIP_DELAY_MS + 40);
   assert.deepEqual(into, ["layer"], "inside the overlay root, not the body below it");
-  assert.match(label.attrs["style"] ?? "", /z-index:2147483647/, "above the menu layer (2147483000) and the dialog veil (99998) in that root");
+  assert.match(
+    label.attrs["style"] ?? "",
+    /z-index:2147483647/,
+    "above the menu layer (2147483000) and the dialog veil (99998) in that root",
+  );
 });
 
 test("when the element goes away while the tip shows, the tip goes too", async () => {
