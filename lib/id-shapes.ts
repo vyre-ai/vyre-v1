@@ -1,15 +1,17 @@
-// The shapes of Vyre ids, in one place (owner, 13 Nov 2026: an id is never shown to a person). The prefixes are the ones the contracts mint (manifests/_common.ts `id`); lib/tests/id-shapes.test.ts fails when
-// the two lists differ. The product uses this to refuse an id as a label; the tests use it to scan a rendered screen for one.
+// The shapes of Vyre ids, in one place (owner, 13 Nov 2026: an id is never shown to a person). The prefixes are the ones the contracts and the minters in the repo use (manifests/_common.ts `id`, and every
+// mintId/newId/mint call); lib/tests/id-shapes.test.ts fails when either has a prefix this list does not. The product uses this to refuse an id as a label; the tests use it to scan a rendered screen for one.
+//
+// The body is exactly what the minters make: lowercase hex only, as 32 digits (lib/ids.ts mintRecordId, the modules' mintId with the dashes taken out), as a dashed uuid (lib/ids.ts mintId), or as the 18 digits
+// of an owner's id (host/src/daemon/bootstrap.ts mintOwner, 9 random bytes). A word that merely starts with a prefix (`tsk_followup`, `run_scheduler`, `not_applicable`) is not an id.
 
-/** Every id prefix the contracts mint, plus `out` (an outside agent). */
+/** Every id prefix the contracts and the minters use, plus `out` (an outside agent) and `svc` (a service). */
 export const ID_PREFIXES: readonly string[] = [
-  "usr", "agt", "act", "svc", "grp", "rol", "gnt", "pol", "dev", "ses", "inv", "rec", "prj", "tsk", "run", "thr", "msg", "chn", "trn", "blk", "pln", "fil", "fld", "blb", "ver", "chg", "mnt",
-  "vit", "vfd", "aut", "jrn", "frm", "sit", "kit", "con", "mbx", "num", "dom", "evt", "mtg", "cal", "cmt", "trm", "ntf", "cfl", "fct", "not", "rpt", "dec", "spc", "gol", "out",
-];
+  "act", "adm", "adr", "agr", "agt", "aut", "bkp", "blb", "blk", "bnd", "cal", "cev", "cfl", "chg", "chn", "cld", "cmt", "cnf", "cnv", "con", "cpt", "csc", "dec", "dev", "dgs", "dom", "eml", "evt", "fct", "fil", "fld", "fnd", "fol", "frm", "gnt", "gol", "grl", "grp", "gua", "imp", "ims", "inc", "ins", "inv", "isc", "iscf", "job", "jrn", "kit", "lnk", "mbx", "mca", "mci", "mcl", "mcs", "mkt", "mnt", "mrl", "msg", "mtg", "mua", "nof", "not", "ntf", "num", "oar", "ogr", "ojb", "out", "pg", "pkg", "plg", "pln", "pol", "prc", "prj", "prm", "prv", "qst", "rcd", "rcm", "rdl", "rec", "reg", "res", "rol", "rpl", "rpt", "rst", "rte", "rtn", "rul", "run", "sch", "ses", "shot", "sit", "skl", "sko", "skr", "sks", "sms", "snp", "spc", "stm", "stp", "sub", "sug", "sup", "svc", "tha", "thm", "thr", "tmb", "tpl", "trl", "trm", "trn", "tsk", "tsl", "und", "upk", "usr", "ver", "vex", "vfd", "vhs", "vit", "vst", "wat", "wch", "out", "svc",
+].filter((p, i, all) => all.indexOf(p) === i);
 
-const BODY = "[0-9a-z]{8,}(?:-[0-9a-z]+)*";
-const ONE = new RegExp(`^(?:${ID_PREFIXES.join("|")})_${BODY}$`);
-const ANY = new RegExp(`(?<![A-Za-z0-9_])(?:${ID_PREFIXES.join("|")})_${BODY}(?![A-Za-z0-9_])`, "g");
+const HEX = "(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{18})";
+const ONE = new RegExp(`^(?:${ID_PREFIXES.join("|")})_${HEX}$`);
+const ANY = new RegExp(`(?<![A-Za-z0-9_])(?:${ID_PREFIXES.join("|")})_${HEX}(?![A-Za-z0-9_-])`, "g");
 
 /** True when the whole text is one id ("usr_ec028017ceefaf270b"). */
 export const isRawId = (text: string): boolean => ONE.test(text.trim());
