@@ -84,6 +84,18 @@ export function replicaHits(rt: ShellRuntime): readonly Hit[] {
   return out;
 }
 
+/**
+ * Marks each channel hit that is a record's own channel (a project's chat) as that record, from the channel list the sidebar holds (a channel carries the record it belongs to). The command bar then shows the
+ * record once; a channel that only shares the record's name carries no mark and stays. Decided by ids.
+ */
+export function linkedTo(rt: ShellRuntime, hits: readonly Hit[]): Hit[] {
+  const snap = rt.screens.query("chats.sidebar", "channels", {}).getSnapshot();
+  const list = snap.status === "ready" ? ((snap.data as { channels?: { channelId: string; mainThreadId?: string; recordId?: string }[] }).channels ?? []) : [];
+  const of = new Map<string, string>();
+  for (const c of list) if (c.recordId !== undefined) { of.set(c.channelId, `record:${c.recordId}`); if (c.mainThreadId) of.set(c.mainThreadId, `record:${c.recordId}`); }
+  return hits.map((h) => (h.kind === "channel" && of.has(h.id) ? ({ ...h, of: of.get(h.id) } as Hit) : h));
+}
+
 /** Where connecting email, calendars and numbers lives: Settings, Email and calendar. */
 export const MAIL_PAGE_HASH = "page=mail";
 const INBOX_HIT = "shell:inbox";
@@ -181,10 +193,10 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     online,
     // Inbox and Connect email answer a typed word only; the replica's people and chats stay the whole of an empty search
     // a result named by the words comes before one whose line under the name only mentions them (Notifications before Settings, whose line names notifications)
-    local: (text, types) => byTitleFirst(mine([...replicaHits(rt), ...(text.trim() === "" ? [] : [...shellHits(state), ...settingRowHits(text)])].filter((h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text)))), text),
+    local: (text, types) => byTitleFirst(mine(linkedTo(rt, [...replicaHits(rt), ...(text.trim() === "" ? [] : [...shellHits(state), ...settingRowHits(text)])].filter((h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text))))), text),
     server: async (text, types) => {
       const out = (await rt.call("search.query", { q: text, ...(types ? { types: [...types] } : {}), limit: 20 })) as { hits: Hit[] };
-      return mine(out.hits);
+      return mine(linkedTo(rt, out.hits));
     },
     recent: () => mine(d.recent()),
     actions: (text) => [...askActions(currentScreen()), ...gateActions(state, rt.space.kind === "team", d.signOut !== undefined)].filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),

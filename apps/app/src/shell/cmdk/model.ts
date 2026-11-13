@@ -138,12 +138,12 @@ const readable = (snippet: string | undefined): string | undefined => {
   return t === "" ? undefined : t;
 };
 
-/** The group a hit sits in for deciding whether two rows are one thing: a record of the task type is a task. */
-const thingOf = (h: Hit): string => (h.kind === "record" && h.recordType === "task" ? "task" : h.kind);
+/** A hit that is only another way to the same thing: `of` is the `kind:id` of the hit it is the own chat, own channel or own record of. Set from what the device knows (gate.ts `linkedTo`), never from a title. */
+export type LinkedHit = Hit & { of?: string };
 
 /**
  * One row per thing. The same title twice in a group is one row that keeps the first hit and takes a snippet from the later one when it has none (a chat's title, then a message hit of that chat).
- * Two kinds that are one thing seen two ways are one row too: a task found as a task and as its record, a channel found as a chat (its own thread), and a project's own channel beside the project.
+ * A hit that says it is another hit's own (a project's own channel) goes when that other hit is in the list, decided by ids, never by what the two are called: a channel that only shares a project's name stays.
  * No row is titled by an id, and no snippet carries one.
  */
 export function oneEach(hits: readonly Hit[]): Hit[] {
@@ -151,25 +151,20 @@ export function oneEach(hits: readonly Hit[]): Hit[] {
   for (const h of hits) {
     const title = plainMarks(h.title);
     const snippet = readable(h.snippet);
-    const t = { ...h, title: isRawId(title) ? "Untitled" : title } as Hit;
+    const t = { ...h, title: isRawId(title) ? "Untitled" : title } as LinkedHit;
     if (snippet !== undefined) t.snippet = snippet; else delete t.snippet;
-    const k = `${thingOf(t)}:${t.title.trim().toLowerCase()}`, seen = at.get(k);
+    const k = `${t.kind}:${t.title.trim().toLowerCase()}:${t.of ?? ""}`, seen = at.get(k);
     if (seen === undefined) { at.set(k, out.length); out.push(t); continue; }
     const mine = out[seen]!;
-    // the task itself is the row that stays over its record
-    const keep = mine.kind === "record" && t.kind === "task" ? t : mine;
-    const other = keep === mine ? t : mine;
-    out[seen] = keep.snippet === undefined && other.snippet !== undefined ? { ...keep, snippet: other.snippet } : keep;
+    if (mine.snippet === undefined && t.snippet !== undefined) out[seen] = { ...mine, snippet: t.snippet };
   }
-  // a channel's own thread is found as a chat too, and a project's own channel is found beside the project: the channel row goes (the project's page has its chat) or stays and takes the snippet
+  const present = new Set(out.map((h) => keyOf(h)));
   const name = (h: Hit): string => h.title.trim().toLowerCase();
+  // a channel's own thread is found as a chat too: the channel row is the one that stays, and takes the snippet
   const chan = new Map(out.filter((h) => h.kind === "channel").map((h) => [name(h), h] as const));
-  const projects = new Set(out.filter((h) => h.kind === "record" && h.recordType === "project").map(name));
-  const tasks = new Set(out.filter((h) => h.kind === "task").map(name));
   return out.filter((h) => {
-    if (h.kind === "channel" && projects.has(name(h))) return false;
-    // a chat named after a task is the task's own (the search lists tasks as chats): the task is the row
-    if (h.kind === "chat" && tasks.has(name(h))) return false;
+    const of = (h as LinkedHit).of;
+    if (of !== undefined && present.has(of)) return false;
     const c = h.kind === "chat" ? chan.get(name(h)) : undefined;
     if (!c) return true;
     if (c.snippet === undefined && h.snippet !== undefined) out[out.indexOf(c)] = { ...c, snippet: h.snippet };

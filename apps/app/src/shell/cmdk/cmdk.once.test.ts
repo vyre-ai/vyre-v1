@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { Hit } from "./model.ts";
 import { groupRows, mergeHits } from "./model.ts";
-import { replicaHits } from "./gate.ts";
+import { linkedTo, replicaHits } from "./gate.ts";
 import { rawIdsIn } from "../../../../../lib/id-shapes.ts";
 import type { ShellRuntime } from "../providers/runtime.tsx";
 
@@ -12,20 +12,22 @@ const hit = (kind: Hit["kind"], id: string, title: string, o: Partial<Hit> = {})
 const shown = (hits: readonly Hit[]): Hit[] => groupRows(hits, 50).flatMap((r) => (r.type === "hit" ? [r.hit] : []));
 const labels = (hits: readonly Hit[]): string[] => hits.map((h) => `${h.kind}:${h.title}`);
 
-test("a task found as a chat and as a task is one row, the task", () => {
-  const rows = shown([hit("chat", "thr_aaaaaaaa01", "Book the launch venue"), hit("task", "tsk_bbbbbbbb01", "Book the launch venue"), hit("chat", "thr_aaaaaaaa02", "Launch retro")]);
-  assert.deepEqual(labels(rows), ["chat:Launch retro", "task:Book the launch venue"]);
+test("a task and a chat or record that only share its name are separate rows: nothing is dropped by title across kinds", () => {
+  const rows = shown([hit("chat", "thr_aaaaaaaa01", "Book the launch venue"), hit("task", "tsk_bbbbbbbb01", "Book the launch venue"), hit("record", "rec_cccccccc01", "Book the launch venue", { recordType: "task" })]);
+  assert.deepEqual(labels(rows).sort(), ["chat:Book the launch venue", "record:Book the launch venue", "task:Book the launch venue"]);
 });
 
-test("a task found as a task and as its record is one row, the task", () => {
-  const rows = shown([hit("record", "rec_cccccccc01", "Write the launch announcement", { recordType: "task" }), hit("task", "tsk_bbbbbbbb02", "Write the launch announcement", { snippet: "Draft by Friday" })]);
-  assert.deepEqual(labels(rows), ["task:Write the launch announcement"]);
-  assert.equal(rows[0]!.snippet, "Draft by Friday");
+test("a project's own channel (linked by id) is one row with the project; a channel that only shares the name stays", () => {
+  const linked = { ...hit("channel", "chn_dddddddd01", "Spring launch"), of: "record:rec_eeeeeeee01" } as Hit;
+  const rows = shown([linked, hit("record", "rec_eeeeeeee01", "Spring launch", { recordType: "project" }), hit("channel", "chn_dddddddd02", "Spring launch"), hit("channel", "chn_dddddddd03", "launch-week")]);
+  assert.deepEqual(labels(rows).sort(), ["channel:Spring launch", "channel:launch-week", "record:Spring launch"].sort(), "the linked channel went; the same-named unlinked one and the other channel stayed");
+  assert.equal(rows.filter((h) => h.id === "chn_dddddddd01").length, 0);
 });
 
-test("a project and its own channel are one row, the project; a channel of another name stays", () => {
-  const rows = shown([hit("channel", "chn_dddddddd01", "Spring launch"), hit("record", "rec_eeeeeeee01", "Spring launch", { recordType: "project" }), hit("channel", "chn_dddddddd02", "launch-week")]);
-  assert.deepEqual(labels(rows), ["channel:launch-week", "record:Spring launch"]);
+test("linkedTo marks a channel with the record it belongs to, from the sidebar's channel list, and only that one", () => {
+  const rt2 = { screens: { query: () => ({ getSnapshot: () => ({ status: "ready", data: { channels: [{ channelId: "chn_dddddddd01", mainThreadId: "thr_main01", recordId: "rec_eeeeeeee01" }, { channelId: "chn_dddddddd02", mainThreadId: "thr_main02" }] } }) }) } } as unknown as ShellRuntime;
+  const out = linkedTo(rt2, [hit("channel", "chn_dddddddd01", "Spring launch"), hit("channel", "thr_main01", "Spring launch"), hit("channel", "chn_dddddddd02", "Spring launch")]) as (Hit & { of?: string })[];
+  assert.deepEqual(out.map((h) => h.of), ["record:rec_eeeeeeee01", "record:rec_eeeeeeee01", undefined]);
 });
 
 test("a record's raw fields are never its snippet, and a title that is an id reads Untitled", () => {
@@ -42,7 +44,7 @@ test("every id appears once in what a search shows, whatever merged in from the 
   const rows = shown(mergeHits(device, server));
   const ids = rows.map((h) => `${h.kind}:${h.id}`);
   assert.deepEqual(ids, [...new Set(ids)], "no id twice");
-  assert.deepEqual(labels(rows), ["channel:launch-week", "task:Launch plan"]);
+  assert.deepEqual(labels(rows).sort(), ["channel:launch-week", "chat:Launch plan", "task:Launch plan"], "each id once; a chat and a task that share a name are two things");
 });
 
 const rt = (recent: unknown): ShellRuntime => ({
