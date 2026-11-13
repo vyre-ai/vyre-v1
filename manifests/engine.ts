@@ -801,6 +801,27 @@ export default defineManifest({
       on: ["thread", "/threadId"],
       tool: "chats",
     }),
+    // engine.thread_states: the latest turn of each of up to 200 chats in ONE call, for the sidebar's failed mark. It is a read of the engine's own table (one grouped query) and changes nothing about how turns run. Answered as the
+    // caller: a chat the caller may not open is simply absent, the same answer as a chat with no turn yet, so it never says that a chat exists. `failedLine` is the plain words the turn failed with, never a code or a trace id.
+    read(
+      "engine.thread_states",
+      "The latest turn of each of up to 200 chats in one call: running, waiting, failed or done, and for a failed one the words why; a chat the asker may not open is left out",
+      {
+        in: { threadIds: t.arr(id.thread, { maxItems: 200 }) },
+        out: {
+          states: t.arr(
+            t.obj({
+              threadId: id.thread,
+              state: t.enm("running", "waiting", "failed", "done"),
+              failedLine: t.opt(t.str({ description: "Words, never a code or a trace id" })),
+            }),
+          ),
+        },
+        perm: null,
+        tool: "chats",
+        label: "filter",
+      },
+    ),
     write(
       "engine.turn.retry",
       "Retry a failed turn, optionally on another model or backup key (the next step on a turn error)",

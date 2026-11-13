@@ -12838,6 +12838,16 @@ export type EngineSwitchOut = {
   quietLine: string;
   handoffTurns: number;
 };
+export type EngineThreadStatesIn = {
+  threadIds: Array<string>;
+};
+export type EngineThreadStatesOut = {
+  states: Array<{
+      threadId: string;
+      state: "running" | "waiting" | "failed" | "done";
+      failedLine?: string;
+    }>;
+};
 export type EngineTimeConvertIn = {
   when: string;
   from?: string;
@@ -45849,6 +45859,7 @@ export interface CapMap {
   "engine.stop_all": { in: EngineStopAllIn; out: EngineStopAllOut };
   "engine.subscription_share.set": { in: EngineSubscriptionShareSetIn; out: EngineSubscriptionShareSetOut };
   "engine.switch": { in: EngineSwitchIn; out: EngineSwitchOut };
+  "engine.thread_states": { in: EngineThreadStatesIn; out: EngineThreadStatesOut };
   "engine.time_convert": { in: EngineTimeConvertIn; out: EngineTimeConvertOut };
   "engine.turn.append": { in: EngineTurnAppendIn; out: EngineTurnAppendOut };
   "engine.turn.asked_by": { in: EngineTurnAskedByIn; out: EngineTurnAskedByOut };

@@ -939,6 +939,7 @@ export function stubs(ctx: CallCtx) {
         set: call("engine.subscription_share.set"),
       },
       switch: call("engine.switch"),
+      thread_states: call("engine.thread_states"),
       time_convert: call("engine.time_convert"),
       turn: {
         append: call("engine.turn.append"),

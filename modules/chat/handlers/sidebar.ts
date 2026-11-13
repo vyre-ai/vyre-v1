@@ -368,6 +368,41 @@ export async function chatsSidebar(
       { kind: "agent", agentId: a.agentId },
     );
   }
+  // failed: the latest turn of the chats this answer carries, in one call (a chat the caller may not open is absent there)
+  const carried = new Set<string>();
+  const itemOf = new Map(items.map((i) => [i.key, i]));
+  for (const id of ["goals", "pinned", "chats", "channels", "team"] as const) {
+    const list = sectionsOf(
+      items,
+      [...pins.entries()].sort((a, b) => a[1] - b[1]).map(([k]) => k),
+      filter,
+    )[id];
+    const m = input.more?.section === id ? input.more : undefined;
+    const from = m?.after !== undefined ? Math.max(0, list.findIndex((x) => x.key === m.after) + 1) : 0;
+    for (const x of list.slice(from, from + Math.min(m?.limit ?? SIDEBAR_PAGE, SIDEBAR_PAGE_MAX))) {
+      const tid = itemOf.get(x.key)?.out.threadId;
+      if (tid) carried.add(tid);
+    }
+  }
+  const ids = [...carried].slice(0, 200);
+  const states = ids.length
+    ? await safe<{ states?: { threadId: string; state: string; failedLine?: string }[] }>("engine.thread_states", {
+        threadIds: ids,
+      })
+    : null;
+  const failedBy = new Map(
+    (states?.states ?? [])
+      .filter((x) => x.state === "failed")
+      .map((x) => [x.threadId, x.failedLine ?? "Something went wrong."]),
+  );
+  for (const it of items) {
+    const line = it.out.threadId ? failedBy.get(it.out.threadId) : undefined;
+    if (line !== undefined) {
+      it.out.failed = true;
+      it.out.failedLine = line;
+      it.failed = line;
+    }
+  }
   // what waits on me: the first answer's items, and the full count
   const needs = (needsOut?.items ?? []).map((n) => ({
     taskId: n.task.id,

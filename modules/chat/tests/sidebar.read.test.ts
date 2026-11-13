@@ -17,7 +17,15 @@ const agentChat = async (hn: Harness, title?: string): Promise<string> => {
   hn.advance(1000);
   return id;
 };
-const world = (o: { stars?: unknown[]; mentions?: unknown[]; principals?: unknown[]; goals?: unknown[] } = {}) => ({
+const world = (
+  o: {
+    stars?: unknown[];
+    mentions?: unknown[];
+    principals?: unknown[];
+    goals?: unknown[];
+    failedThreads?: string[];
+  } = {},
+) => ({
   "stars.list": () => ({ stars: o.stars ?? [] }),
   "notifications.unseen_by_thread": () => ({ counts: o.mentions ?? [], capped: false }),
   "tasks.needs_you": () => ({
@@ -48,6 +56,11 @@ const world = (o: { stars?: unknown[]; mentions?: unknown[]; principals?: unknow
     ],
   }),
   "engine.now": () => ({ working: [] }),
+  "engine.thread_states": (i: Record<string, unknown>) => ({
+    states: ((i["threadIds"] as string[]) ?? [])
+      .filter((t) => (o.failedThreads ?? []).includes(t))
+      .map((threadId) => ({ threadId, state: "failed", failedLine: "The AI provider did not answer." })),
+  }),
 });
 
 test("one answer: needs, goals, pinned, chats, channels, team and the rail; it validates against the contract", async () => {
@@ -213,4 +226,25 @@ test("proof: 2,000 chats paged to the end cost at most ceil(2000 / page) reads o
     `each read asked the neighbours the same number of times (${[...new Set(perRead)].join(",")}), not once per row`,
   );
   assert.ok(perRead[0]! <= 9, "a handful of neighbour reads per page");
+});
+
+test("a chat whose latest turn failed is marked failed with words, from one engine read for the rows the answer carries", async () => {
+  const o: { failedThreads: string[] } = { failedThreads: [] };
+  const hn = harness({ calls: world(o) });
+  const a = await agentChat(hn);
+  const b = await agentChat(hn);
+  o.failedThreads = [a];
+  hn.callLog.length = 0;
+  const out = await h["chats.sidebar"]!(hn.ctx, {});
+  const row = (id: string) => out.chats.rows.find((r: { key: string }) => r.key === `c:${id}`);
+  assert.equal(row(a).failed, true);
+  assert.equal(row(a).failedLine, "The AI provider did not answer.");
+  assert.equal(row(b).failed, false);
+  assert.equal(row(b).failedLine, undefined);
+  assert.equal(
+    hn.callLog.filter((c: { cap: string }) => c.cap === "engine.thread_states").length,
+    1,
+    "one call for all the rows",
+  );
+  assert.deepEqual(contractErrors("chats.sidebar", "out", out), []);
 });

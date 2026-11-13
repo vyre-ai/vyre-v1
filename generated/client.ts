@@ -939,6 +939,7 @@ export function createClient(transport: Transport) {
         set: call("engine.subscription_share.set", 1),
       },
       switch: call("engine.switch", 1),
+      thread_states: call("engine.thread_states", 1),
       time_convert: call("engine.time_convert", 1),
       turn: {
         append: call("engine.turn.append", 1),

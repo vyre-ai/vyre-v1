@@ -19800,6 +19800,36 @@
     },
     {
       "blocks": [],
+      "cap": "engine.thread_states",
+      "deferred": false,
+      "description": "The latest turn of each of up to 200 chats in one call: running, waiting, failed or done, and for a failed one the words why; a chat the asker may not open is left out",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadIds": {
+            "items": {
+              "examples": [
+                "thr_a1b2c3"
+              ],
+              "pattern": "^thr_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": "array"
+          }
+        },
+        "required": [
+          "threadIds"
+        ],
+        "type": "object"
+      },
+      "name": "engine_thread_states",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "engine.turn.get",
       "deferred": false,
       "description": "What happened: steps, durations, machine, model, key used and denials of one turn",

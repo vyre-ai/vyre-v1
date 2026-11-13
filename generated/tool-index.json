@@ -2960,6 +2960,12 @@
     },
     {
       "deferred": false,
+      "name": "engine_thread_states",
+      "summary": "The latest turn of each of up to 200 chats in one call: running, waiting, failed or done, and for a failed one the words why; a chat the asker may not open is left out",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "engine_turn_get",
       "summary": "What happened: steps, durations, machine, model, key used and denials of one turn",
       "toolset": "chats"

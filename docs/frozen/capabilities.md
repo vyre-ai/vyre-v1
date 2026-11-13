@@ -170,3 +170,10 @@ Signed: the lead, 13 Nov 2026
 - The SOURCE of pins and mutes is an internal detail: today the caller's stars (newest first is the order) and the chat module's own mutes behind one port; the per-person state module replaces it with no change of shape. `failed` is false until the engine offers one bulk read of the latest turn per thread (not asked per row).
 - Proof: modules/chat/tests/sidebar.read.test.ts pages 2,000 chats by cursor (each read still walks the caller's threads inside the chat module, which an indexed listing would fix; neighbours are asked the same number of times per read): one read per page, each asking every neighbour the same number of times, none per row.
 - Signed: ______ (lead)
+
+## 14 Nov 2026: engine.thread_states is added (lane b-side), for the lead to sign
+
+- What changed: one new read, `engine.thread_states@1` (module engine, tool chats). Input `{ threadIds: thread[] (at most 200) }`; output `{ states: [{ threadId, state: running | waiting | failed | done, failedLine? }] }`. Additive: no existing capability, event or kind changed, and nothing about how turns run. Snapshot: `docs/frozen/snapshots/engine.json`.
+- Why: the Chats sidebar marks a chat whose last run stopped. No read gave the latest turn of many chats at once, and one call per row would break the sidebar's "nothing per row" rule. This reads the engine's own table with one grouped query (the turn with the highest queue number per chat). queued counts as running, completed and cancelled as done. `failedLine` is the plain message the turn failed with (or "Something went wrong."), never a code, a trace id or a next-step list.
+- Asker rule: each chat is checked as the caller (view on the thread); a chat the caller may not open is simply absent, the same answer as a chat with no turn, so the read never says a chat exists. Tested with two askers.
+- Signed: ______ (lead)
