@@ -955,7 +955,14 @@ async function filesRecent(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]
   return { files: recentFiles(ctx, limit).map((file) => fileOutC(ctx, file)) };
 }
 
+/** A path answers only for what the caller may view (the same right files.get and files.folder.get check): a name nobody shows them resolves to "not in this Space", never to an id. */
 async function filesResolve(ctx: Ctx, input: unknown): Promise<{ kind: "file" | "folder"; fileId?: string; folderId?: string }> {
+  const found = await resolvePath(ctx, input);
+  const row = found.kind === "file" ? one(ctx, "SELECT * FROM files_file WHERE id = ?", found.fileId) : one(ctx, "SELECT * FROM files_folder WHERE id = ?", found.folderId);
+  if (!row || !canView(ctx, found.kind, row)) fail(ctx, "validation.not_found", "That path is not in this Space.", { field: "path" });
+  return found;
+}
+async function resolvePath(ctx: Ctx, input: unknown): Promise<{ kind: "file" | "folder"; fileId?: string; folderId?: string }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
   const raw = reqStr(ctx, o, "path").trim().replace(/^\/+/, "");
@@ -1124,7 +1131,7 @@ async function folderSearch(ctx: Ctx, input: unknown): Promise<{ folders: Folder
     if (scope === "channels") return inChannels;
     if (scope === "folders") return !inChannels;
     return true;
-  });
+  }).filter((row) => canView(ctx, "folder", row));   // a folder the caller may not view is not found by its name either
   return { folders: rows.slice(0, limit).map((row) => folderOut(ctx, row)) };
 }
 
