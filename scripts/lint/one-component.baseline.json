@@ -62,12 +62,9 @@
     "read-hook": 2
   },
   "apps/app/src/places/automations/canvas/fields.tsx": {
-    "declared": 3
+    "declared": 2
   },
   "apps/app/src/places/automations/canvas/parts.tsx": {
-    "declared": 1
-  },
-  "apps/app/src/places/automations/config/parts.tsx": {
     "declared": 1
   },
   "apps/app/src/places/automations/operations/parts.tsx": {
