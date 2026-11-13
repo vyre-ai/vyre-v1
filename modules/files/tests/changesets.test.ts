@@ -1006,10 +1006,18 @@ test("a path or a name does not find what the caller may not view: files.resolve
 test("the server's own services find what they set up (the Assistant's home, a project folder) with no grant; a tenant's service, a person and an agent do not", async () => {
   const { ctx, docs } = await setup();
   const deny = () => ({ effect: "deny", reason: "test", decisionId: "dec_n" }) as const;
-  const as = (principal: Ctx["principal"], extra: Partial<Ctx> = {}): Ctx => ({ ...ctx, principal, authorize: deny, ...extra });
+  const as = (principal: Ctx["principal"], extra: Partial<Ctx> = {}): Ctx => ({
+    ...ctx,
+    principal,
+    authorize: deny,
+    ...extra,
+  });
   for (const id of ["svc_host", "svc_engine"]) {
     const sys = as({ kind: "service", id });
-    assert.ok((await handlers["files.folder.search"](sys, { q: "docs" })).folders.some((f) => f.folderId === docs), id);
+    assert.ok(
+      (await handlers["files.folder.search"](sys, { q: "docs" })).folders.some((f) => f.folderId === docs),
+      id,
+    );
   }
   for (const who of [
     as({ kind: "service", id: `svc_${"a".repeat(32)}` }),
@@ -1021,4 +1029,3 @@ test("the server's own services find what they set up (the Assistant's home, a p
     assert.deepEqual((await handlers["files.folder.search"](who, { q: "docs" })).folders, [], who.principal.id);
   }
 });
-
