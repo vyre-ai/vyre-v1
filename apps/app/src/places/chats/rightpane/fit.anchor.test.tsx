@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MORE_KEY } from "./model.ts";
-import { useFittedTabs } from "./fit.tsx";
+import { notePress, useFittedTabs } from "./fit.tsx";
 import type { FitMenu } from "./fit.tsx";
 
 const TABS = ["About", "Computer", "Chats", "Files", "Terminal", "Knows", "Routines"].map((t) => ({ key: t.toLowerCase(), title: t }));
@@ -47,4 +47,17 @@ test("with nothing focused (the page body is the active element) the menu falls 
   assert.ok(at && at.y === 118 && at.x >= 40, `fell back to the strip's row: ${JSON.stringify(at)}`);
   const none = pressMore(undefined, { left: 40, top: 118 });
   assert.ok(none && none.y === 118, "no document at all: the fallback too");
+});
+
+test("the menu opens at the control that was pressed even when focus stayed elsewhere (a browser that does not focus a button on a click)", () => {
+  const dots = { getBoundingClientRect: () => ({ left: 301, bottom: 258, width: 28, height: 30 }), closest: () => null };
+  const label = { closest: () => dots, getBoundingClientRect: () => ({ left: 305, bottom: 250, width: 4, height: 4 }) };
+  const composer = { getBoundingClientRect: () => ({ left: 400, bottom: 760, width: 400, height: 40 }) };
+  notePress(label);
+  const at = pressMore({ body: {}, activeElement: composer }, { left: 40, top: 118 });
+  assert.deepEqual([at?.x, at?.y], [301, 262], "the More control, not the composer that has the focus");
+  // a press from long ago is not this one
+  notePress(label, Date.now() - 10_000);
+  const old = pressMore({ body: {}, activeElement: composer }, { left: 40, top: 118 });
+  assert.deepEqual([old?.x, old?.y], [400, 764], "an old press falls back to the focus");
 });

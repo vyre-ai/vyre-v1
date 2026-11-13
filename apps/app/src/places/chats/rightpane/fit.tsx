@@ -34,6 +34,28 @@ export const CHEVRON = '<svg viewBox="0 0 16 16" width="14" height="14" fill="no
 /** Three dots: the one overflow of a pane's tabs. */
 export const DOTS = '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><circle cx="3.5" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="12.5" cy="8" r="1.3"/></svg>';
 
+/** The control that was pressed last (a mouse or touch press, or Enter or Space on it), as the browser said it: the menu opens at it, not at whatever has the focus (Safari does not focus a button on a click). */
+let pressed: { target: unknown; at: number } | null = null;
+export const notePress = (target: unknown, at: number = Date.now()): void => { pressed = { target, at }; };
+type Box = { left: number; bottom: number; width: number; height: number };
+type Pressable = { closest?(sel: string): Pressable | null; getBoundingClientRect?(): Box };
+/** Just under the control that was pressed (the More tab it belongs to), when it was pressed a moment ago; null when none was. */
+export function pressedAnchor(now: number = Date.now()): { x: number; y: number } | null {
+  if (!pressed || now - pressed.at > 1500) return null;
+  const el = pressed.target as Pressable | null;
+  const control = el?.closest?.('[aria-label="More tabs"], [role="tab"], button') ?? el;
+  const box = control?.getBoundingClientRect?.();
+  return box && (box.width > 0 || box.height > 0) ? { x: box.left, y: box.bottom + 4 } : null;
+}
+let tracking = false;
+function trackPresses(): void {
+  const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: { target?: unknown; key?: string }) => void, capture: boolean): void } }).document;
+  if (tracking || !doc) return;
+  tracking = true;
+  doc.addEventListener("pointerdown", (e) => notePress(e.target), true);
+  doc.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") notePress(e.target); }, true);
+}
+
 export interface FitMenu { show(entries: MenuEntry[], x: number, y: number, kind: "other"): void }
 
 /**
@@ -44,6 +66,7 @@ export function useFittedTabs<K extends string>(
   tabs: readonly { key: K; title: string }[], active: K, width: number,
   o: { menu: FitMenu; left: number; top: number; pick(key: K): void; chrome?: number; measured?: ReadonlyMap<string, number>; extra?: number; chevron?: boolean; dots?: boolean },
 ): { strip: readonly { key: string; title: string; pinned?: boolean; label?: string; iconOnly?: boolean; icon?: string }[]; select(key: string): void } {
+  useEffect(trackPresses, []);
   const measured = o.measured;
   /** What a tab adds around its text: the strip's own (TAB_EXTRA, with a close slot) unless the caller has tabs without one. */
   const extra = o.extra ?? TAB_EXTRA;
@@ -53,9 +76,9 @@ export function useFittedTabs<K extends string>(
   const select = (key: string): void => {
     if (key === MORE_KEY) {
       const rest: MenuEntry[] = fitted.hidden.map((t) => ({ label: t.title, onSelect: () => o.pick(t.key) }));
-      // the menu opens where the control was pressed: just under the focused More tab. The window position worked out from the tabs' widths is only for a press that left no focus to read.
+      // the menu opens where the control was pressed: just under the More tab that was pressed (the press itself, else the focus). The window position worked out from the tabs' widths is only for a press that left no focus to read.
       const guess = { x: Math.max(0, o.left + fitted.shown.reduce((n, t) => n + widthOf(t.title), 0)), y: o.top };
-      const at = anchorOfFocus(guess);
+      const at = pressedAnchor() ?? anchorOfFocus(guess);
       o.menu.show(rest, at.x, at.y, "other");
       return;
     }
