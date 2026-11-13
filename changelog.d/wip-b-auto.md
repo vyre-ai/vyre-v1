@@ -6,3 +6,4 @@
 - An Automation someone else built always opens whole in the new builder: each step is a sentence with real names, a step that uses an app you may not use keeps its sentence with one plain line, and Paths show If yes and Otherwise.
 - The new Automations screens now match the approved pictures more closely: coloured group marks in the step picker with the Connect an app row always in view, outlined and quiet buttons, a header on the first page, and a run page that opens on When with the failure in two plain lines.
 - Steps in the new builder can be added between two steps with a plus, the actions of an app open beside the row you pointed at, and each Needs-you card says since when.
+- On the Vault Connections page, connections your Space owns now show under Space connections instead of My connections.

@@ -1,6 +1,7 @@
 // The Vault's own pages for two of its four sections (owner, 3 Nov; the north star is prototype/vyre-vault.html): Google and Microsoft (two cards, each with its state and one button, and the
 // keys that belong to them), and Connections (apps and tool servers your agents can use; in a Team Space two tabs, My connections and Space connections, in a Personal Space one list). And the
 // one quiet question the + asks in All: four rows, then the right picker.
+import { isMine } from "./connection-owner.ts";
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -113,7 +114,7 @@ interface Conn {
   connectionId: string;
   connector: string;
   title?: string;
-  ownerKind?: string;
+  owner?: { kind: string; id?: string };
   state?: string;
 }
 
@@ -142,7 +143,7 @@ export function ConnectionsPage({
     };
   }, [data]);
   const team = data.personal !== true;
-  const mine = (c: Conn): boolean => c.ownerKind !== "space";
+  const mine = (c: Conn): boolean => isMine(c);
   const shown = (list ?? []).filter((c) => !team || (tab === "my" ? mine(c) : !mine(c)));
   const tabs: Array<["my" | "space", string, number]> = [
     ["my", "My connections", (list ?? []).filter(mine).length],
