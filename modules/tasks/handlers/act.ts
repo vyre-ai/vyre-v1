@@ -143,7 +143,7 @@ export function readApprovalToken(ctx: TasksCtx, token: string): ApprovalClaims 
 export async function act(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
   if (!visibleTo(ctx, t)) raise(ctx, "permission.not_found", "That task is not available.");
-  const who = whoOn(ctx, t);
+  const who = whoOn(ctx, t, "act");
   const key = String(input.action ?? "");
   const note = typeof input.note === "string" ? input.note.trim() : "";
 

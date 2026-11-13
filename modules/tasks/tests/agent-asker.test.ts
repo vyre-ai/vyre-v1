@@ -165,3 +165,27 @@ test("an older task with no created_for column value: the migration backfills it
   assert.equal(findTask(h.db, id)!.createdFor, cara.id);
   void ({} as TasksCtx);
 });
+
+test("acts through the agent, by the asker's role on the task: a follower reads but may not start or cancel it, as directly; every other role works the agent's own task", async () => {
+  const roles: Array<[string, (h: Harness, id: string) => void, boolean]> = [
+    ["follower", (h, id) => h.sqlite.exec(`UPDATE tasks_meta SET followers = '["${bob.id}"]' WHERE id = '${id}'`), false],
+    ["reviewer slot", (h, id) => h.sqlite.exec(`UPDATE tasks_meta SET reviewer = '{"kind":"person","id":"${bob.id}"}' WHERE id = '${id}'`), true],
+    ["taker", (h, id) => h.sqlite.exec(`UPDATE tasks_meta SET taken_by = '${bob.id}' WHERE id = '${id}'`), true],
+    ["creator", (h, id) => h.sqlite.exec(`UPDATE tasks_core SET created_by = '${bob.id}' WHERE id = '${id}'`), true],
+    ["created for", (h, id) => h.sqlite.exec(`UPDATE tasks_core SET created_for = '${bob.id}' WHERE id = '${id}'`), true],
+    ["responsible", (h, id) => h.sqlite.exec(`UPDATE tasks_core SET responsible = '${bob.id}' WHERE id = '${id}'`), true],
+  ];
+  for (const [role, give, may] of roles) {
+    for (const move of ["start", "cancel"] as const) {
+      const h = world();
+      const id = (await h.call("tasks.create", newTask({ title: "Chase the signed copy", assigned: bot }), { id: cara.id })).task.id as string;
+      give(h, id);
+      const via = h.call(move === "start" ? "tasks.act" : "tasks.transition", move === "start" ? { taskId: id, action: "start" } : { taskId: id, to: "canceled" }, forB);
+      if (may) await via;
+      else await assert.rejects(via, `${role} must not ${move} through the agent`);
+      const seenByB = seen(await h.call("tasks.get", { taskId: id }, forB).catch(() => ({})));
+      assert.equal(seenByB, true, `${role} still reads it through the agent`);
+      assert.equal(findTask(h.db, id)!.state === "todo", !may, `${role} ${move}: the state moved only when it may`);
+    }
+  }
+});

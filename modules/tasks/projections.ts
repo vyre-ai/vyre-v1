@@ -552,7 +552,7 @@ export function whoIs(ctx: TasksCtx): Who {
 /**
  * Is this person on the task by their own right: in a slot, took it, made it, the person it was made for, responsible for its agent, or a follower? (A group or role slot is the kernel's to say.)
  */
-export function personOn(t: Task, person: string): boolean {
+export function personOn(t: Task, person: string, mode: "read" | "act" = "read"): boolean {
   if (
     [t.assigned, t.reviewer, t.approver].some(
       (a) => a !== undefined && (a.kind === "person" || a.kind === "agent") && a.id === person,
@@ -564,26 +564,27 @@ export function personOn(t: Task, person: string): boolean {
     t.createdBy === person ||
     t.createdFor === person ||
     t.responsible === person ||
-    t.followers.includes(person)
+    // a follower reads, never acts: directly a follower may not start, move or cancel the task, so through an agent neither
+    (mode === "read" && t.followers.includes(person))
   );
 }
 /**
  * Does the agent's own role on this task count in this call? Yes for a person, the server, an agent acting for nobody (a wake, a routine, the baton), and an agent in the task's own thread. For an agent
  * acting for a person, only when that person is on the task themselves: what an agent holds is its work, and never widens what another person who merely asked it can see (lib/agent-asker.ts).
  */
-export function roleCounts(ctx: TasksCtx, t: Task): boolean {
+export function roleCounts(ctx: TasksCtx, t: Task, mode: "read" | "act" = "read"): boolean {
   if (
     ctx.thread !== undefined &&
     (ctx.thread === t.threadId || ctx.thread === t.workerThread) &&
     ctx.principal.kind === "agent"
   )
     return true;
-  return agentStanding(ctx, (person) => personOn(t, person));
+  return agentStanding(ctx, (person) => personOn(t, person, mode));
 }
 /** Who the caller is on THIS task: itself, or, when an agent's own role does not count here, the person it acts for. */
-export function whoOn(ctx: TasksCtx, t: Task): Who {
+export function whoOn(ctx: TasksCtx, t: Task, mode: "read" | "act" = "read"): Who {
   const w = whoIs(ctx);
-  if (roleCounts(ctx, t) || w.actingFor === undefined) return w;
+  if (roleCounts(ctx, t, mode) || w.actingFor === undefined) return w;
   return { id: w.actingFor, kind: "person" };
 }
 export const sameAssignee = (a: Assignee | undefined, b: Assignee | undefined): boolean =>
@@ -630,7 +631,7 @@ export function actionableByMe(ctx: TasksCtx, t: Task): boolean {
   if (!slot) return false;
   const a = t[slot];
   if (!a) return false;
-  const who = whoOn(ctx, t);
+  const who = whoOn(ctx, t, "act");
   if (a.kind === "group" || a.kind === "role") {
     if (t.takenBy !== undefined && t.takenBy !== who.id && t.takenBy !== who.actingFor) return false;
     return (

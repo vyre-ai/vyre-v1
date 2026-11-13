@@ -196,7 +196,7 @@ export function checkMove(
   o: { note?: string | undefined; expectedFrom?: TaskState | undefined } = {},
   policy: Policy = readPolicy(ctx.db),
 ): Checked {
-  const who = whoOn(ctx, t);
+  const who = whoOn(ctx, t, "act");
   if (o.expectedFrom !== undefined && o.expectedFrom !== t.state)
     raise(ctx, "validation.precondition_failed", `The task is ${label(t.state)} now, not ${label(o.expectedFrom)}.`, {
       reason: "stale_state",
@@ -355,7 +355,7 @@ function batonNext(t: Task, action: MoveAction): { to: Assignee; step: "work" | 
  * responsible for its agent; or anyone the kernel grants manage on it (an admin). The server itself always may. The pipeline checks the grant first; this is the task's own word.
  */
 export function mayEdit(ctx: TasksCtx, t: Task): boolean {
-  const who = whoOn(ctx, t);
+  const who = whoOn(ctx, t, "act");
   if (isTrustedService(who)) return true;
   const me = (id: string | undefined): boolean => id !== undefined && (id === who.id || id === who.actingFor);
   if (me(t.createdBy) || me(t.responsible) || me(t.takenBy)) return true;
@@ -973,7 +973,7 @@ export async function release(ctx: TasksCtx, input: In): Promise<unknown> {
 
 const CANCELERS: readonly Actor[] = ["assigned", "reviewer", "approver", "creator", "responsible"];
 export const mayLetGo = (ctx: TasksCtx, t: Task): boolean =>
-  mayAct(t, { action: "cancel", to: "canceled", actors: CANCELERS, noteRequired: false }, whoOn(ctx, t));
+  mayAct(t, { action: "cancel", to: "canceled", actors: CANCELERS, noteRequired: false }, whoOn(ctx, t, "act"));
 
 /** Withdraw the open requests of a stopped chat or run, or one request or task, with a note. */
 export async function withdraw(ctx: TasksCtx, input: In): Promise<unknown> {
