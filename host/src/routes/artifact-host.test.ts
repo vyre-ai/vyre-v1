@@ -209,3 +209,21 @@ test("the app may read this host's plain pages to check it answers: its own orig
     await s.close();
   }
 });
+
+test("a spent one-time link inside the app's frame has no 'Open Vyre' link (it would open the app inside itself); on its own it keeps it", async () => {
+  const s = await rig();
+  try {
+    const spent = "/x/" + "b".repeat(48);
+    assert.match(await (await s.get(spent)).text(), /Open Vyre/);
+    assert.doesNotMatch(await (await s.get(`${spent}?embed=1`)).text(), /Open Vyre|href=/);
+    const dead = await s.get(spent, { "sec-fetch-dest": "iframe" });
+    assert.equal(dead.status, 404);
+    assert.doesNotMatch(await dead.text(), /Open Vyre/);
+    const noAccess = await s.get("/sit_one/", { "sec-fetch-dest": "iframe" });
+    assert.equal(noAccess.status, 403);
+    assert.doesNotMatch(await noAccess.text(), /Open it in Vyre/);
+    assert.match(await (await s.get("/sit_one/")).text(), /Open it in Vyre/);
+  } finally {
+    await s.close();
+  }
+});

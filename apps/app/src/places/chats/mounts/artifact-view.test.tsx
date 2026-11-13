@@ -12,6 +12,7 @@ const CODE = "a".repeat(48);
 const MARKED = '<!doctype html><meta name="vyre-artifact-host" content="1"><title>This link has ended</title>';
 const RELAY_404 = "<!doctype html><title>Not found</title><p>No Space of that name is connected.</p>";
 
+const READY = { status: "ready", data: [] }; // one snapshot object for good
 function runtime(url: string): ShellRuntime {
   return {
     me: { id: "usr_me", name: "Me" },
@@ -35,7 +36,7 @@ function runtime(url: string): ShellRuntime {
     },
     open: () => undefined,
     openUrl: () => undefined,
-    principals: { subscribe: () => () => undefined, getSnapshot: () => ({ status: "ready", data: [] }) },
+    principals: { subscribe: () => () => undefined, getSnapshot: () => READY },
   } as unknown as ShellRuntime;
 }
 
@@ -137,6 +138,83 @@ test("a name the relay answers with its own 404 is the same failed state; the ho
       },
     );
   } finally {
+    restore();
+  }
+});
+
+/** every node with this aria-label, the way react-native-web renders accessibilityLabel */
+const byLabel = (n: { props?: Record<string, unknown>; children?: unknown[] }, label: string): typeof n | null => {
+  if (n.props?.["aria-label"] === label) return n;
+  for (const c of n.children ?? []) {
+    if (c && typeof c === "object") {
+      const f = byLabel(c as typeof n, label);
+      if (f) return f;
+    }
+  }
+  return null;
+};
+
+test("desktop app: Share takes the native page away and it comes back at a NEW one-time address, never the spent one; the line under the name is read again", async () => {
+  const restore = installDom();
+  const g = globalThis as { __TAURI__?: unknown };
+  const shown: string[] = [];
+  const hid: number[] = [];
+  g.__TAURI__ = {
+    core: {
+      invoke: async (cmd: string, a?: { url?: string }) => {
+        if (cmd === "artifact_view_show") shown.push(String(a?.url));
+        if (cmd === "artifact_view_hide") hid.push(1);
+        return null;
+      },
+    },
+  };
+  const el = globalThis as { ResizeObserver?: unknown };
+  const hadRO = el.ResizeObserver;
+  el.ResizeObserver = undefined;
+  try {
+    let n = 0;
+    let sitesGets = 0;
+    const base = runtime("");
+    const rt = {
+      ...base,
+      screens: {},
+      call: (cap: string, input?: unknown) => {
+        if (cap === "sites.artifact_open") {
+          n += 1;
+          const code = String(n).padStart(48, "0");
+          return Promise.resolve({ path: `/x/${code}`, url: `https://a.mla.vyre.run/x/${code}`, expiresAt: 1 });
+        }
+        if (cap === "sites.get") sitesGets += 1;
+        return (base.call as (c: string, i?: unknown) => unknown)(cap, input);
+      },
+    } as unknown as ShellRuntime;
+    await withFetch(
+      async () => text(MARKED),
+      async () => {
+        const root = await mount(
+          createRoot,
+          <ArtifactView rt={rt} artifactId="sit_1" share={false} back={() => undefined} gone={() => undefined} />,
+        );
+        await flush();
+        const region = find(root, "artifact-desktop-frame");
+        assert.ok(region, "the desktop frame");
+        assert.equal(n, 1, "one code asked for so far");
+        const before = sitesGets;
+        await press(find(root, "artifact-share"));
+        await flush();
+        assert.equal(find(root, "artifact-desktop-frame"), null, "while the sheet is open the page is gone");
+        await press(byLabel(root as never, "Close") as never);
+        await flush();
+        await flush();
+        assert.equal(n, 2, "a second code was asked for at that moment, not the first one kept");
+        assert.ok(find(root, "artifact-desktop-frame"), "the frame is back");
+        assert.ok(sitesGets > before, "the artifact's row was read again, so the line under the name is current");
+        assert.ok(!shown.some((u, i) => shown.indexOf(u) !== i), "no address was ever shown twice");
+      },
+    );
+  } finally {
+    el.ResizeObserver = hadRO;
+    delete g.__TAURI__;
     restore();
   }
 });

@@ -43,6 +43,8 @@ export function createArtifactHostRoute(d: ArtifactHostDeps): {
     const o = req.headers.origin;
     return typeof o === "string" && d.appOrigins().includes(o) ? o : undefined;
   };
+  const framed = (req: http.IncomingMessage): boolean =>
+    req.headers["sec-fetch-dest"] === "iframe" || new URL(req.url ?? "/", "http://x").searchParams.get("embed") === "1";
   const sayPage = (
     res: http.ServerResponse,
     status: number,
@@ -71,7 +73,9 @@ export function createArtifactHostRoute(d: ArtifactHostDeps): {
         title: string,
         text: string,
         link?: { href: string; label: string },
-      ): void => sayPage(r, status, title, text, link, askedBy(req));
+      ): void =>
+        // framed by the app, a link back to Vyre would open the app inside itself: no such link there (the app asks for a fresh address itself)
+        sayPage(r, status, title, text, framed(req) ? undefined : link, askedBy(req));
       const ah = d.host();
       const asked = String(req.headers.host ?? "")
         .toLowerCase()

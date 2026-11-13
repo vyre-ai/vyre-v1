@@ -96,18 +96,25 @@ export function ArtifactView({
       ).then((o) => artifactAddress(o as { path: string; url?: string }, rt.baseUrl, embed)),
     [rt, artifactId],
   );
+  /** The artifact's row (its name and the line under it): read again whenever something about it may have changed (a share). */
+  const loadSite = useCallback(
+    (live: () => boolean): void => {
+      void Promise.resolve(rt.call("sites.get", { siteId: artifactId })).then(
+        (o) => {
+          if (live()) setSite((o as CapMap["sites.get"]["out"]).site);
+        },
+        () => undefined,
+      );
+    },
+    [rt, artifactId],
+  );
   useEffect(() => {
     let live = true;
     setLoaded(false);
     setFailed(null);
     setSrc(null);
     setDenied(false);
-    void Promise.resolve(rt.call("sites.get", { siteId: artifactId })).then(
-      (o) => {
-        if (live) setSite((o as CapMap["sites.get"]["out"]).site);
-      },
-      () => undefined,
-    );
+    loadSite(() => live);
     void open(!desktop)
       .then(async (u) => {
         // a frame says nothing across origins, so the app asks the artifact host itself before it frames anything: a host that does not answer is an error here, never a white rectangle
@@ -128,7 +135,7 @@ export function ArtifactView({
     return () => {
       live = false;
     };
-  }, [rt, artifactId, open, attempt, desktop]);
+  }, [rt, artifactId, open, attempt, desktop, loadSite]);
   // a page that never says it loaded is an error too, not a spinner for ever
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -138,6 +145,21 @@ export function ArtifactView({
       if (timer.current) clearTimeout(timer.current);
     };
   }, [src, loaded, failed]);
+  // The desktop app's page is a native view that goes away while a menu or the Share sheet is open. Its address was a one-time code, spent by the first load, so it comes back at a fresh address (a new code
+  // asked for at that moment), never the old one: the old one answered "This link has ended" (13 Nov 2026, after Share).
+  const [sure, setSure] = useState(false);
+  const cover = coveredBy({ sharing, menu: element !== null, sure });
+  const wasCovered = useRef(false);
+  useEffect(() => {
+    if (!desktop) return;
+    if (cover) {
+      wasCovered.current = true;
+      setSrc(null);
+    } else if (wasCovered.current) {
+      wasCovered.current = false;
+      setAttempt((n) => n + 1);
+    }
+  }, [cover, desktop]);
   const name = site?.name ?? "Artifact";
   const line = site ? subline(infoOf(site, nameOf), rt.me.id, rt.clock().now, nameOf) : "";
   const browser = (): void => {
@@ -154,7 +176,6 @@ export function ArtifactView({
   const remove = (): void => {
     void Promise.resolve(rt.call("sites.delete", { siteId: artifactId })).then(gone, (e: unknown) => setFailed(msg(e)));
   };
-  const [sure, setSure] = useState(false);
   const more = (): void => {
     const doc = (
       globalThis as {
@@ -282,7 +303,7 @@ export function ArtifactView({
               <DesktopArtifactFrame
                 url={src as string}
                 title={name}
-                covered={coveredBy({ sharing, menu: element !== null, sure })}
+                covered={cover}
                 onError={(m) => setFailed(m)}
                 onPlaced={() => setLoaded(true)}
               />
@@ -325,7 +346,10 @@ export function ArtifactView({
           rt={rt}
           folderId={artifactId}
           resource={{ type: "site", id: artifactId, name }}
-          onClose={() => setSharing(false)}
+          onClose={() => {
+            setSharing(false);
+            loadSite(() => true); // the line under the name says who it is shared with now
+          }}
         />
       ) : null}
       {element}
