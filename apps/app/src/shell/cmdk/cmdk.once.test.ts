@@ -176,3 +176,23 @@ test("things are the same only when they are the same thing: the same id is one 
   assert.equal(twice.length, 1);
   assert.equal(twice[0]!.snippet, "we start at ten");
 });
+
+test("every channel shows once: its main thread (indexed as a chat) is the channel's own, and its reply threads stay as their own rows", () => {
+  const rt2 = {
+    screens: {
+      query: () => ({
+        getSnapshot: () => ({ status: "ready", data: { channels: [{ channelId: "chn_dddddddd01", mainThreadId: "thr_main0001" }, { channelId: "chn_dddddddd02", mainThreadId: "thr_main0002", recordId: "rec_eeeeeeee01" }] } }),
+      }),
+    },
+  } as unknown as ShellRuntime;
+  const marked = linkedTo(rt2, [
+    hit("channel", "chn_dddddddd01", "launch-week"),
+    hit("chat", "thr_main0001", "launch-week"),
+    hit("chat", "thr_reply0001", "launch-week"),
+    hit("channel", "chn_dddddddd02", "Spring launch"),
+    hit("chat", "thr_main0002", "Spring launch"),
+    hit("record", "rec_eeeeeeee01", "Spring launch", { recordType: "project" }),
+  ]);
+  assert.deepEqual(labels(shown(marked)).sort(), ["channel:launch-week", "chat:launch-week", "record:Spring launch"]);
+  assert.equal(shown(marked).find((h) => h.kind === "chat")!.id, "thr_reply0001", "the reply thread stays");
+});

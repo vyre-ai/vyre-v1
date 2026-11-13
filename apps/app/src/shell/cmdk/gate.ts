@@ -121,18 +121,24 @@ export function linkedTo(
       ? ((snap.data as { channels?: { channelId: string; mainThreadId?: string; recordId?: string }[] }).channels ?? [])
       : [];
   const of = new Map<string, string>();
-  for (const c of list)
+  // a channel's main thread (search indexes it as a chat) is that channel's own, for every channel: found by id, shown once under the channel. A channel's reply threads have other ids and stay as their own rows.
+  const mainOf = new Map<string, string>();
+  for (const c of list) {
+    if (c.mainThreadId) mainOf.set(c.mainThreadId, `channel:${c.channelId}`);
     if (c.recordId !== undefined) {
       of.set(c.channelId, `record:${c.recordId}`);
       if (c.mainThreadId) of.set(c.mainThreadId, `record:${c.recordId}`);
     }
+  }
   // a task's own chat is its own thread (tasks.get threadId, and workerThread when a worker has one; the thread it was created from is task.source, not these): that chat is the task, found by id; a chat that only shares the task's name carries no mark
   return hits.map((h) =>
     h.kind === "channel" && of.has(h.id)
       ? ({ ...h, of: of.get(h.id) } as Hit)
       : h.kind === "chat" && taskChats.has(h.id)
         ? ({ ...h, of: taskChats.get(h.id) } as Hit)
-        : h,
+        : h.kind === "chat" && mainOf.has(h.id)
+          ? ({ ...h, of: mainOf.get(h.id) } as Hit)
+          : h,
   );
 }
 
