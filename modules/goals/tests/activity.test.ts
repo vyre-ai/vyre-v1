@@ -73,3 +73,24 @@ test("goals.activity reads a goal's whole story back, page by page, with no row 
   assert.ok(seen.some((s) => s.endsWith("Reading 0")), "the start of the story is there");
   void OWNER; void T0;
 });
+
+test("the end line and the retrospective are kept up to 2000 characters (rc.26 cut them at 600) and a longer one is cut with a mark", async () => {
+  const ended = async (reason: string, key: string): Promise<string> => {
+    const w = world({ count: 10 });
+    const { goal } = await w.call("goals.create", labGoal({ idempotencyKey: key }));
+    await w.call("goals.stop", { goalId: goal.id, reason }, owner);
+    return (await w.call("goals.activity", { goalId: goal.id }, owner)).activity.find((a: { kind: string }) => a.kind === "ended").text;
+  };
+  const mid = await ended("y".repeat(900), "e1");
+  assert.ok(mid.length > 600 && mid.length < 2000 && !mid.endsWith("…"), `a line between 601 and 2000 is kept whole: ${mid.length}`);
+  const long = await ended("z".repeat(5000), "e2");
+  assert.equal(long.length, 2000);
+  assert.ok(long.endsWith("…"));
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal({ idempotencyKey: "e3", finish: { kind: "owner", line: "The owner says it is done" } }));
+  await w.call("goals.finish", { goalId: goal.id }, owner);
+  const retro = "Lessons learned. ".repeat(60);
+  await w.call("goals.complete", { goalId: goal.id, retro: { summary: retro, worked: ["a"], didNot: ["b"] } }, lead);
+  const row = (await w.call("goals.activity", { goalId: goal.id }, owner)).activity.find((a: { kind: string }) => a.kind === "retro");
+  assert.ok(row.text.length > 600 && row.text.includes(retro.trim()), "the retrospective line is not cut at 600");
+});
