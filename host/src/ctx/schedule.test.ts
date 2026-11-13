@@ -198,4 +198,39 @@ test("start and stop drive the ticks on a timer", async () => {
   assert.equal(r.ran.length, 1);
 });
 
+test("jobs asked for while a call is open are held: not due until released, gone when discarded", async () => {
+  const r = rig();
+  const kept = { open: true, ids: [] as string[] };
+  const dropped = { open: true, ids: [] as string[] };
+  await r.q.forCtx({ ...seed, hold: kept })(T0, "gate.expire", { taskId: "tsk_kept" });
+  await r.q.forCtx({ ...seed, hold: dropped })(T0, "gate.expire", { taskId: "tsk_dropped" });
+  assert.equal(await r.q.tick(), 0, "a tick while the calls are open runs nothing");
+  assert.deepEqual(r.q.counts(), { pending: 0, dead: 0 });
+  r.q.release(kept);
+  r.q.discard(dropped);
+  assert.equal(await r.q.tick(), 1);
+  assert.deepEqual(
+    r.ran.map((c) => c.input),
+    [{ taskId: "tsk_kept" }],
+  );
+  // a job asked for after the call is over is due at once, as before
+  await r.q.forCtx({ ...seed, hold: kept })(T0, "gate.expire", { taskId: "tsk_late" });
+  assert.equal(await r.q.tick(), 1);
+});
+
+test("jobs held by a call that never settled are deleted when the server next starts, if older than the lease", async () => {
+  const r = rig();
+  await r.q.forCtx({ ...seed, hold: { open: true, ids: [] } })(T0, "gate.expire", { taskId: "tsk_orphan" });
+  r.clock.t += 600_000;
+  assert.equal(await r.q.tick(), 0, "a call can be open for minutes: nothing is swept while the server runs");
+  assert.equal((r.db.all("SELECT id FROM host_schedule") as unknown[]).length, 1);
+  r.make(); // the server starts again
+  assert.equal((r.db.all("SELECT id FROM host_schedule") as unknown[]).length, 0, "swept at start");
+  // one held a moment ago may belong to a call another computer has open: kept
+  await r.q.forCtx({ ...seed, hold: { open: true, ids: [] } })(r.clock.t, "gate.expire", { taskId: "tsk_new" });
+  r.make();
+  assert.equal((r.db.all("SELECT id FROM host_schedule") as unknown[]).length, 1);
+  assert.equal(r.ran.length, 0, "and none of them ran");
+});
+
 // P-H_01 final run: each named test shows its own ok line in the run on the last commit.

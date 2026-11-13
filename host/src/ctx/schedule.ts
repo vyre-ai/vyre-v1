@@ -21,11 +21,23 @@ export interface ScheduledCall {
   tries: number;
 }
 
+/**
+ * The jobs one call has asked for and that must not run before that call has committed (a job may read what the call wrote, and a tick can land at any moment). `forCtx` inserts them as
+ * `held`; `release` makes them due, `discard` drops them. A process that died before a call settled leaves held rows, which the next queue deletes at start once they are older than the lease (a call can be open for minutes, so nothing sweeps them while the server runs).
+ */
+export interface ScheduleHold {
+  /** Jobs added while true are held. After release or discard the call is over and a late ctx.schedule is due at once, as it always was. */
+  open: boolean;
+  ids: string[];
+}
+
 export interface ScheduleSeed {
   space: string;
   principal: { kind: Ctx["principal"]["kind"]; id: string };
   actingFor?: string | undefined;
   trace?: { traceId: string } | undefined;
+  /** the call's hold: its jobs wait for its commit (see ScheduleHold) */
+  hold?: ScheduleHold | undefined;
 }
 
 export interface ScheduleOptions {
@@ -95,6 +107,11 @@ export class ScheduleQueue {
       last_error TEXT, created_at INTEGER NOT NULL
     )`);
     this.db.run("CREATE INDEX IF NOT EXISTS host_schedule_due ON host_schedule (state, run_at)");
+    // a process that died between a call asking for a job and that call's commit left a held row nothing will release; one older than the lease cannot belong to a call still open
+    this.db.run(
+      "DELETE FROM host_schedule WHERE state = 'held' AND created_at <= ?",
+      this.now() - (o.leaseMs ?? 120_000),
+    );
   }
 
   /** The ctx.schedule of one call. */
@@ -104,6 +121,7 @@ export class ScheduleQueue {
 
   async add(seed: ScheduleSeed, at: number | string, cap: CapName | string, input: unknown): Promise<string> {
     const traceId = seed.trace?.traceId ?? NO_TRACE;
+    const hold = seed.hold;
     const now = this.now();
     const runAt = parseWhen(at, now, traceId);
     if (typeof cap !== "string" || !CAP.test(cap))
@@ -124,7 +142,7 @@ export class ScheduleQueue {
       throw fail("validation.too_large", traceId, { message: "A scheduled input is limited to 64 KB." });
     const id = `sch_${mintUuid(now).replaceAll("-", "")}`;
     this.db.run(
-      "INSERT INTO host_schedule (id, space, cap, input, principal_kind, principal_id, acting_for, trace_id, run_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO host_schedule (id, space, cap, input, principal_kind, principal_id, acting_for, trace_id, run_at, created_at, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       id,
       seed.space,
       cap,
@@ -135,8 +153,25 @@ export class ScheduleQueue {
       seed.trace?.traceId ?? "",
       runAt,
       now,
+      hold?.open ? "held" : "pending",
     );
+    if (hold?.open) hold.ids.push(id);
     return id;
+  }
+
+  /** The call that held these jobs has committed: they are due. */
+  release(hold: ScheduleHold): void {
+    hold.open = false;
+    for (const id of hold.ids)
+      this.db.run("UPDATE host_schedule SET state = 'pending' WHERE id = ? AND state = 'held'", id);
+    hold.ids = [];
+  }
+
+  /** The call that held these jobs did not commit: they never happen. */
+  discard(hold: ScheduleHold): void {
+    hold.open = false;
+    for (const id of hold.ids) this.db.run("DELETE FROM host_schedule WHERE id = ? AND state = 'held'", id);
+    hold.ids = [];
   }
 
   /** Remove a job that has not run. False when it already ran, is running or never existed. */

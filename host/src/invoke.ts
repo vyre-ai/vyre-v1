@@ -274,7 +274,10 @@ export interface InvokeDeps {
   services?(
     seed: CtxSeed,
     cap: CapabilityDef,
-  ): Partial<Pick<Ctx, "db" | "vault" | "http" | "schedule" | "seal" | "blobs">>;
+  ): Partial<Pick<Ctx, "db" | "vault" | "http" | "schedule" | "seal" | "blobs">> & {
+    /** Called once when the call is over: true after its commit (what it scheduled is now due), false when it failed (what it scheduled never happens). */
+    settle?(committed: boolean): void;
+  };
   /** P-H_16: registers the objects a call brought into being as resources, in the same commit (host/src/gateway/resources.ts) */
   resources?: ResourceRegistrar;
   /** an agent made by a call becomes an access principal in the same commit (host/src/gateway/principals.ts) */
@@ -944,11 +947,13 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     const h = deps.handler(c.name, c.v);
     if (!h) throw fail("internal.not_implemented", traceId, { details: { cap: c.name } });
     const events: EventEnvelope[] = [];
-    const ctx = makeCtx(c, seed, trace, depth, events, approved ? approvedGates : undefined);
+    const settle: Array<(committed: boolean) => void> = [];
+    const ctx = makeCtx(c, seed, trace, depth, events, approved ? approvedGates : undefined, settle);
     let output: unknown;
     try {
       output = await h(ctx, input); // a throw here is mapped by the outer catch: VyreErr and HostError keep their code, anything else is internal.unexpected
     } catch (e) {
+      for (const s of settle) s(false);
       // refused before it went out: a person's yes this call spent is handed back, so the corrected retry is still asked for (one successful send per yes)
       await deps.gate?.giveBack?.(input).catch(() => undefined);
       // events the handler marked afterFailure (a refused sign-in's signin.failed) are written on their own, then the error goes on; nothing else the call buffered is
@@ -1054,6 +1059,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     let stored = events;
     if (events.length || auditRow)
       stored = await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events, audit: auditRow });
+    // what the call scheduled is due only now that what it wrote is committed (a call that fails before this leaves its held jobs to be swept)
+    for (const s of settle) s(true);
     // 8 publish after commit
     if (stored.length) deps.publish?.(stored);
     // Before the answer reaches the model: a failure to mark costs the next outward act nothing it should have, so it is logged and the answer still goes. The grant check reads the mark.
@@ -1145,8 +1152,10 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     depth: number,
     buf: EventEnvelope[],
     approvedGates?: readonly { act: string; approver: string }[],
+    settle?: Array<(committed: boolean) => void>,
   ): Ctx {
     const svc = deps.services?.(seed, c) ?? {};
+    if (svc.settle) settle?.push(svc.settle.bind(svc));
     const unavailable = (what: string) => (): never => {
       throw fail("internal.not_implemented", trace.traceId, { details: { service: what, cap: c.name } });
     };

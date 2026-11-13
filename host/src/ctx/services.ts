@@ -3,7 +3,7 @@
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { CtxSeed, Invoke, InvokeDeps } from "../invoke.ts";
 import type { BlobStore } from "./blobs.ts";
-import type { ScheduledCall, ScheduleQueue } from "./schedule.ts";
+import type { ScheduledCall, ScheduleHold, ScheduleQueue } from "./schedule.ts";
 
 export interface HostServicesOptions {
   base?: InvokeDeps["services"];
@@ -16,17 +16,25 @@ export interface HostServicesOptions {
 }
 
 export function hostServices(o: HostServicesOptions): NonNullable<InvokeDeps["services"]> {
-  return (seed, cap) => ({
-    ...(o.base?.(seed, cap) ?? {}),
-    seal: o.seal,
-    schedule: o.queue.forCtx(seed),
-    ...(o.blobs
-      ? {
-          blobs: o.blobs.forModule((cap as { module?: string }).module ?? cap.name.split(".")[0]!, seed.trace?.traceId),
-        }
-      : {}),
-    ...(o.vault ? { vault: o.vault(seed, cap) } : {}),
-  });
+  return (seed, cap) => {
+    // what a call schedules waits for its commit: the job may read what the call wrote, and the queue ticks while the call is still open (13 Nov 2026, the first pull of a synced app)
+    const hold: ScheduleHold = { open: true, ids: [] };
+    return {
+      ...(o.base?.(seed, cap) ?? {}),
+      seal: o.seal,
+      schedule: o.queue.forCtx({ ...seed, hold }),
+      settle: (committed: boolean) => (committed ? o.queue.release(hold) : o.queue.discard(hold)),
+      ...(o.blobs
+        ? {
+            blobs: o.blobs.forModule(
+              (cap as { module?: string }).module ?? cap.name.split(".")[0]!,
+              seed.trace?.traceId,
+            ),
+          }
+        : {}),
+      ...(o.vault ? { vault: o.vault(seed, cap) } : {}),
+    };
+  };
 }
 
 /** ScheduleOptions.run for the real pipeline: the job runs as the principal that scheduled it, on the trace that scheduled it when there was one, with origin "schedule". */

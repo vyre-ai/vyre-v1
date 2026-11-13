@@ -43,6 +43,7 @@ function rig(extra: Partial<Parameters<typeof hostServices>[0]> = {}) {
   const db = openRecordStore({ path: ":memory:", space: "sp_svc" }).host.tx;
   const seal = createCtxSeal({ key: "0123456789abcdef0123456789abcdef", keyId: "k1" });
   const later: { principal: string; origin: string; trace: string; input: unknown }[] = [];
+  const ranDuring: number[] = [];
   const handlers: Record<string, Handler> = {
     "demo.seal": async (ctx: Ctx) => {
       const sealed = ctx.seal.seal(enc.encode("secret"), "demo");
@@ -52,6 +53,16 @@ function rig(extra: Partial<Parameters<typeof hostServices>[0]> = {}) {
     "demo.later": (ctx: Ctx, input: unknown) => {
       later.push({ principal: ctx.principal.id, origin: ctx.origin, trace: ctx.trace.traceId, input });
       return {};
+    },
+    // schedules a job that is due now, then lets the queue tick while this call is still open (a tick of the real daemon can land there)
+    "demo.mid": async (ctx: Ctx) => {
+      await ctx.schedule(clock.t, "demo.later", { id: "mid" });
+      ranDuring.push(await queue.tick());
+      return {};
+    },
+    "demo.mid_fail": async (ctx: Ctx) => {
+      await ctx.schedule(clock.t, "demo.later", { id: "mid_fail" });
+      throw new Error("the call failed after it asked for a job");
     },
     "demo.plain": (ctx: Ctx) => ({ sealIsFn: typeof ctx.seal.seal, dbIs: typeof ctx.db.all }),
     "demo.vault": async (ctx: Ctx) => {
@@ -82,7 +93,7 @@ function rig(extra: Partial<Parameters<typeof hostServices>[0]> = {}) {
   };
   const invoke = createInvoke(deps);
   const runner = invokeRunner(invoke);
-  return { clock, queue, invoke, later, services };
+  return { clock, queue, invoke, later, services, ranDuring };
 }
 
 test("ctx.seal and ctx.schedule reach a handler through the pipeline", async () => {
@@ -148,3 +159,25 @@ test("ctx.vault refuses until a Vault is given, and is the Vault's once it is", 
 });
 
 // P-H_01 final run: each named test shows its own ok line in the run on the last commit.
+
+// 13 Nov 2026 (crm.journey1 failed on CI twice on an unchanged commit): the first pull of a synced app is scheduled inside the call that makes the connection. A tick that landed before that call
+// committed ran the pull as a stranger to a connection that did not exist yet (permission.not_found), the Run failed, and one type of the person's CRM stayed empty until the next poll.
+test("a job scheduled inside a call does not run until that call has committed", async () => {
+  const r = rig();
+  const res = await r.invoke("demo.mid", { id: "rec_1" }, seed);
+  assert.equal(res.status, "ok");
+  assert.deepEqual(r.ranDuring, [0], "a tick while the call was still open ran nothing");
+  assert.equal(r.later.length, 0, "the job has not run yet");
+  assert.equal(await r.queue.tick(), 1, "once the call has committed the job is due");
+  assert.deepEqual(r.later[0]!.input, { id: "mid" });
+  assert.equal(r.later[0]!.principal, "usr_dana");
+});
+
+test("a job scheduled by a call that then failed is never run", async () => {
+  const r = rig();
+  await assert.rejects(r.invoke("demo.mid_fail", { id: "rec_1" }, seed));
+  assert.equal(await r.queue.tick(), 0);
+  r.clock.t += 10 * 60_000;
+  assert.equal(await r.queue.tick(), 0, "nor later");
+  assert.equal(r.later.length, 0);
+});
