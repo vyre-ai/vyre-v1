@@ -13,6 +13,7 @@ const { bwrapWallCommand } = await import("../src/net/bwrap.ts");
 const { ROOTS, spec } = await import("./helpers.ts");
 
 const who = { uid: 4242, gid: 4343 };
+const ME = process.getuid?.() === 0 ? { uid: 1000, gid: 1000 } : { uid: process.getuid!(), gid: process.getgid!() };
 const bound = (args: readonly string[], dest: string): string | undefined => { const i = args.findIndex((a, k) => a === dest && args[k - 2] === "--ro-bind-try"); return i < 0 ? undefined : args[i - 1]; };
 
 test("both bubblewrap wrappers bind a generated passwd and group, never the host's", () => {
@@ -46,11 +47,11 @@ test("in a real bubblewrap run `whoami`, `id -un` and `id -gn` say agent, and th
   fs.mkdirSync(scratch, { mode: 0o755 });
   try {
     const roots = { work: [base], scratch: [base] };
-    const w = bwrapCommand(spec({ mounts: [{ host: dir, mode: "ro" }], scratch } as never), roots, ["/usr/bin/sh", "-c", "whoami; id -un; id -gn; cat /etc/passwd | wc -l; id -u"], { identity: { uid: 1000, gid: 1000 } });
+    const w = bwrapCommand(spec({ mounts: [{ host: dir, mode: "ro" }], scratch } as never), roots, ["/usr/bin/sh", "-c", "whoami; id -un; id -gn; cat /etc/passwd | wc -l; id -u"], { identity: ME });
     // an ordinary user, as the daemon is: root maps itself differently
     const asUser = process.getuid?.() === 0 ? ["setpriv", "--reuid=1000", "--regid=1000", "--clear-groups", w.cmd, ...w.args] : [w.cmd, ...w.args];
     const r = spawnSync(asUser[0]!, asUser.slice(1), { encoding: "utf8", env: { PATH: process.env["PATH"] ?? "/usr/bin:/bin" } });
     assert.equal(r.status, 0, `the sandbox ran (${r.stderr.slice(0, 300)})`);
-    assert.equal(r.stdout, "agent\nagent\nagent\n2\n1000\n", `${JSON.stringify(r.stdout)} ${r.stderr.slice(0, 200)}`);
+    assert.equal(r.stdout, `agent\nagent\nagent\n2\n${ME.uid}\n`, `${JSON.stringify(r.stdout)} ${r.stderr.slice(0, 200)}`);
   } finally { fs.rmSync(base, { recursive: true, force: true }); }
 });

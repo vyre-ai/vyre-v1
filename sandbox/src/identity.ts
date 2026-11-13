@@ -7,6 +7,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { SandboxError } from "./types.ts";
 
 export interface Who { uid: number; gid: number }
 
@@ -24,10 +25,20 @@ function dirOf(): string {
   return made;
 }
 
-/** The bwrap arguments that bind the generated files over /etc/passwd and /etc/group; none when they cannot be written (the sandbox then runs without a name, as it did). */
-export function identityBinds(who: Who = { uid: process.getuid?.() ?? 1000, gid: process.getgid?.() ?? 1000 }): string[] {
+const within = (p: string, parent: string): boolean => p === parent || p.startsWith(parent.endsWith("/") ? parent : `${parent}/`);
+const overlaps = (a: string, b: string): boolean => within(a, b) || within(b, a);
+
+/**
+ * The bwrap arguments that bind the generated files over /etc/passwd and /etc/group; none when they cannot be written (the sandbox then runs without a name, as it did). `writable` is every path the
+ * sandbox binds read-write: if the folder for these files lies inside or contains one (a profile that makes the system temp folder, or a parent of it, writable), code in the sandbox could plant a
+ * link there, so that sandbox is refused with a plain error instead.
+ */
+export function identityBinds(who: Who = { uid: process.getuid?.() ?? 1000, gid: process.getgid?.() ?? 1000 }, writable: readonly string[] = []): string[] {
+  let dir: string;
+  try { dir = dirOf(); } catch { return []; }
+  const hit = writable.find((w) => overlaps(dir, path.resolve(w)));
+  if (hit !== undefined) throw new SandboxError("sandbox.policy", `The sandbox may write to ${hit}, which holds the server's own files for the user's name. Give it a folder of its own to write to instead.`);
   try {
-    const dir = dirOf();
     const files: Array<[string, string, string]> = [["passwd", passwdOf(who), "/etc/passwd"], ["group", groupOf(who), "/etc/group"]];
     const out: string[] = [];
     for (const [name, text, dest] of files) {

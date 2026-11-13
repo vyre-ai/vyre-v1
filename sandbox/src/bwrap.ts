@@ -34,7 +34,7 @@ export function bwrapCommand(spec: SandboxSpec, roots: Roots, argv: readonly str
   const a: string[] = ["--die-with-parent", "--new-session", "--unshare-all", "--cap-drop", "ALL"];
   if (o.proxyPort !== undefined) a.push("--share-net");
   for (const p of [...SYSTEM_RO, ...(o.programRead ?? [])]) a.push("--ro-bind-try", p, p);
-  a.push(...identityBinds(o.identity));
+  a.push(...identityBinds(o.identity, [...checked.mounts.filter((m) => m.mode === "rw").map((m) => m.host), ...(checked.scratch !== undefined ? [checked.scratch] : [])]));
   a.push("--symlink", "usr/bin", "/bin", "--symlink", "usr/sbin", "/sbin", "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib64", "/lib64");
   a.push("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", HOME);
   for (const m of checked.mounts) a.push(m.mode === "rw" ? "--bind" : "--ro-bind", m.host, m.host);
