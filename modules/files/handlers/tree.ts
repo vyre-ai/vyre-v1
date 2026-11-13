@@ -1444,7 +1444,9 @@ export async function openAtProvider(ctx: Ctx, fileId: string, refresh: boolean)
       const code = failure instanceof VyreErr ? failure.error.code : "";
       if (
         failure instanceof VyreErr &&
-        /^(provider\.(auth_failed|rate_limited|overloaded|network)|timeout\.|auth\.|rate_limit\.|validation\.not_found)/.test(code)
+        /^(provider\.(auth_failed|rate_limited|overloaded|network)|timeout\.|auth\.|rate_limit\.|validation\.not_found)/.test(
+          code,
+        )
       )
         throw failure;
       fail(

@@ -785,7 +785,13 @@ test("content fetched from a provider as a generic blob is stored under the file
 // ---- every door to a live file's content goes through the one fetch-or-fail path ----
 
 test("sheets.* on a live Drive CSV that is not fetched: each read fails (never 0 rows) and each write fails (the empty placeholder is never written back over the real file)", async () => {
-  const down = new VyreErr({ code: "provider.unavailable", message: "Drive is down.", retryable: true, traceId: "t", next: [] });
+  const down = new VyreErr({
+    code: "provider.unavailable",
+    message: "Drive is down.",
+    retryable: true,
+    traceId: "t",
+    next: [],
+  });
   const { ctx, placeholder } = await drive(async () => {
     throw down;
   });
@@ -801,7 +807,11 @@ test("sheets.* on a live Drive CSV that is not fetched: each read fails (never 0
   ];
   for (const [cap, input] of doors) assert.equal(await code(call(ctx, cap, input)), "provider.unavailable", cap);
   const after = (await call(ctx, "files.get", { fileId: id })).file;
-  assert.deepEqual([after.size, after.version], [before.size, before.version], "nothing was written to the placeholder");
+  assert.deepEqual(
+    [after.size, after.version],
+    [before.size, before.version],
+    "nothing was written to the placeholder",
+  );
 });
 
 test("sheets.read_rows on a live CSV that is not fetched yet fetches it first, then reads its rows", async () => {

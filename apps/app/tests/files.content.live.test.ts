@@ -93,11 +93,29 @@ test("real files open with their content: csv, a two-sheet workbook, pdf, image,
       call("files.create", { folderId, name, content, ...(mime ? { mime } : {}), idempotencyKey: `w-${name}` });
     await make("fees.csv", { text: "client,fee\nAcme,10\nBeta,20\n" }, "text/csv");
     // a REAL two-sheet workbook
-    const book = (await call("sheets.create", { folderId, name: "book", format: "xlsx", columns: ["client", "fee"], sheet: "Fees", idempotencyKey: "w-book" }))
-      .file.fileId as string;
-    await call("sheets.append_rows", { fileId: book, sheet: "Fees", rows: [{ client: "Gamma", fee: "30" }], idempotencyKey: "w-r1" });
+    const book = (
+      await call("sheets.create", {
+        folderId,
+        name: "book",
+        format: "xlsx",
+        columns: ["client", "fee"],
+        sheet: "Fees",
+        idempotencyKey: "w-book",
+      })
+    ).file.fileId as string;
+    await call("sheets.append_rows", {
+      fileId: book,
+      sheet: "Fees",
+      rows: [{ client: "Gamma", fee: "30" }],
+      idempotencyKey: "w-r1",
+    });
     await call("sheets.add_sheet", { fileId: book, sheet: "Costs", columns: ["item", "cost"], idempotencyKey: "w-s2" });
-    await call("sheets.append_rows", { fileId: book, sheet: "Costs", rows: [{ item: "Rent", cost: "900" }], idempotencyKey: "w-r2" });
+    await call("sheets.append_rows", {
+      fileId: book,
+      sheet: "Costs",
+      rows: [{ item: "Rent", cost: "900" }],
+      idempotencyKey: "w-r2",
+    });
     await make("brief.pdf", { base64: Buffer.from(PDF).toString("base64") }, "application/pdf");
     await make("logo.png", { base64: PNG }, "image/png");
     await make("notes.md", { text: "# Walk heading\n\nA markdown paragraph." });
@@ -116,7 +134,11 @@ test("real files open with their content: csv, a two-sheet workbook, pdf, image,
     const back = async (): Promise<void> => {
       await page.getByTestId("file-back").click();
       await page.getByText("fees.csv", { exact: true }).first().waitFor({ timeout: 15_000 });
-      assert.equal((await page.getByTestId("files-title").innerText()).trim(), "Walk", "Back returns to the same folder");
+      assert.equal(
+        (await page.getByTestId("files-title").innerText()).trim(),
+        "Walk",
+        "Back returns to the same folder",
+      );
     };
     const shot = (n: string): Promise<unknown> => page.screenshot({ path: path.join(shots, `${n}.png`) });
     const body = async (): Promise<string> => (await page.locator("body").innerText()).replace(/\s+/g, " ");
@@ -142,13 +164,18 @@ test("real files open with their content: csv, a two-sheet workbook, pdf, image,
     await back();
     const seenResponses: string[] = [];
     page.on("response", (r) => {
-      if (/\/spaces\/|blobs|viewer_data|previews/.test(r.url())) seenResponses.push(`${r.status()} ${r.url().replace(web.origin, "")} ${r.headers()["content-type"] ?? ""} ${r.headers()["content-length"] ?? ""}`);
+      if (/\/spaces\/|blobs|viewer_data|previews/.test(r.url()))
+        seenResponses.push(
+          `${r.status()} ${r.url().replace(web.origin, "")} ${r.headers()["content-type"] ?? ""} ${r.headers()["content-length"] ?? ""}`,
+        );
     });
     // image: a picture that loaded, not an empty checkerboard
     await open("logo.png");
     await page.waitForTimeout(1200);
     const drawn = await page.evaluate(() => {
-      const hit = [...document.querySelectorAll("*")].filter((e) => /blobs\//.test(getComputedStyle(e).backgroundImage));
+      const hit = [...document.querySelectorAll("*")].filter((e) =>
+        /blobs\//.test(getComputedStyle(e).backgroundImage),
+      );
       const img = [...document.querySelectorAll("img")].filter((i) => i.complete && i.naturalWidth > 1);
       return {
         bg: hit.map((e) => [Math.round(e.getBoundingClientRect().width), Math.round(e.getBoundingClientRect().height)]),
@@ -160,7 +187,7 @@ test("real files open with their content: csv, a two-sheet workbook, pdf, image,
       drawn.bg.some(([w, h]) => w! >= 60 && h! >= 60) || drawn.img.some(([nw, w]) => nw! >= 60 && w! >= 60),
       `the picture is on screen at a real size: ${JSON.stringify(drawn)} responses=${JSON.stringify(seenResponses)}`,
     );
-        await back();
+    await back();
     await open("notes.md");
     await page.getByText("A markdown paragraph.").first().waitFor({ timeout: 20_000 });
     await shot("markdown");
@@ -173,7 +200,8 @@ test("real files open with their content: csv, a two-sheet workbook, pdf, image,
     await page.getByText("fees.csv", { exact: true }).first().waitFor({ timeout: 15_000 });
 
     // a live file whose fetch fails: the error with Try again; Try again shows the content
-    const liveId = (await call("files.list", { folder: folderId })).files.find((f: any) => f.name === "live.csv").fileId as string;
+    const liveId = (await call("files.list", { folder: folderId })).files.find((f: any) => f.name === "live.csv")
+      .fileId as string;
     let failedOnce = false;
     let arm = false; // the list also reads viewer_data for its thumbnails: only the viewer's own read after the file is opened fails
     await page.route("**/v1/files/get", async (route) => {
@@ -191,7 +219,13 @@ test("real files open with their content: csv, a two-sheet workbook, pdf, image,
           status: 502,
           contentType: "application/json",
           body: JSON.stringify({
-            error: { code: "provider.unavailable", message: "Drive is down.", retryable: true, traceId: "0".repeat(32), next: [] },
+            error: {
+              code: "provider.unavailable",
+              message: "Drive is down.",
+              retryable: true,
+              traceId: "0".repeat(32),
+              next: [],
+            },
           }),
         });
         return;
@@ -205,7 +239,9 @@ test("real files open with their content: csv, a two-sheet workbook, pdf, image,
       .waitFor({ timeout: 20_000 })
       .catch(async (e) => {
         await shot("failed-missing");
-        throw new Error(`no failed state: armed=${failedOnce} body=${(await body()).slice(0, 400)} ${String(e).slice(0, 60)}`);
+        throw new Error(
+          `no failed state: armed=${failedOnce} body=${(await body()).slice(0, 400)} ${String(e).slice(0, 60)}`,
+        );
       });
     assert.match(await body(), /Could not get this from Google Drive/);
     assert.doesNotMatch(await body(), /0 rows/);
