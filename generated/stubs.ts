@@ -938,6 +938,7 @@ export function stubs(ctx: CallCtx) {
       time_convert: call("engine.time_convert"),
       turn: {
         append: call("engine.turn.append"),
+        asked_by: call("engine.turn.asked_by"),
         enqueue: call("engine.turn.enqueue"),
         fallback: call("engine.turn.fallback"),
         finish: call("engine.turn.finish"),
@@ -2905,6 +2906,7 @@ export function stubs(ctx: CallCtx) {
         remove: call("threads.members.remove"),
       },
       move: call("threads.move"),
+      open_state: call("threads.open_state"),
       outside_agent: {
         add: call("threads.outside_agent.add"),
         remove: call("threads.outside_agent.remove"),

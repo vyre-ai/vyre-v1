@@ -62,7 +62,7 @@ export function EverythingTab({
         id={`ev:${it.id}`}
         title={it.title}
         {...(it.note ? { note: it.note } : {})}
-        leading={<Text style={s.kind}>{KIND_LABEL[it.kind]}</Text>}
+        leading={<Text style={s.kind}>{it.label ?? KIND_LABEL[it.kind]}</Text>}
         trailing={<Text style={s.when}>{ago(it.at, now)}</Text>}
         {...(open(it) ? { onPress: open(it)! } : {})}
       />

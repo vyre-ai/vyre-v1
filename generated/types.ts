@@ -8955,6 +8955,9 @@ export type ComputersChromeScreenshotOut = {
   fileId: string;
   width: number;
   height: number;
+  pageWidth?: number;
+  pageHeight?: number;
+  scale?: number;
 };
 export type ComputersChromeSendIn = {
   computerId?: string;
@@ -12677,6 +12680,16 @@ export type EngineTurnAppendIn = {
 export type EngineTurnAppendOut = {
   idx: number;
 };
+export type EngineTurnAskedByIn = Record<string, unknown>;
+export type EngineTurnAskedByOut = {
+  kind: "message" | "interrupt" | "wake" | "handoff" | "none";
+  routine: boolean;
+  askedBy?: {
+    person: string;
+    messageIds: Array<string>;
+    at: number;
+  };
+};
 export type EngineTurnEnqueueIn = {
   threadId: string;
   agentId: string;
@@ -16328,6 +16341,7 @@ export type GoalsActivityOut = {
       text: string;
       by?: string;
       ref?: string;
+      data?: Record<string, unknown>;
       tpl?: string;
     }>;
 };
@@ -17150,6 +17164,7 @@ export type GoalsGetOut = {
       text: string;
       by?: string;
       ref?: string;
+      data?: Record<string, unknown>;
       tpl?: string;
     }>;
   readings: Array<{
@@ -42886,6 +42901,13 @@ export type ThreadsMoveOut = {
     preview?: string;
   };
 };
+export type ThreadsOpenStateIn = {
+  threadId: string;
+};
+export type ThreadsOpenStateOut = {
+  exists: boolean;
+  closed: boolean;
+};
 export type ThreadsOutsideAgentAddIn = {
   threadId: string;
   agentId: string;
@@ -45634,6 +45656,7 @@ export interface CapMap {
   "engine.switch": { in: EngineSwitchIn; out: EngineSwitchOut };
   "engine.time_convert": { in: EngineTimeConvertIn; out: EngineTimeConvertOut };
   "engine.turn.append": { in: EngineTurnAppendIn; out: EngineTurnAppendOut };
+  "engine.turn.asked_by": { in: EngineTurnAskedByIn; out: EngineTurnAskedByOut };
   "engine.turn.enqueue": { in: EngineTurnEnqueueIn; out: EngineTurnEnqueueOut };
   "engine.turn.fallback": { in: EngineTurnFallbackIn; out: EngineTurnFallbackOut };
   "engine.turn.finish": { in: EngineTurnFinishIn; out: EngineTurnFinishOut };
@@ -47064,6 +47087,7 @@ export interface CapMap {
   "threads.members.add": { in: ThreadsMembersAddIn; out: ThreadsMembersAddOut };
   "threads.members.remove": { in: ThreadsMembersRemoveIn; out: ThreadsMembersRemoveOut };
   "threads.move": { in: ThreadsMoveIn; out: ThreadsMoveOut };
+  "threads.open_state": { in: ThreadsOpenStateIn; out: ThreadsOpenStateOut };
   "threads.outside_agent.add": { in: ThreadsOutsideAgentAddIn; out: ThreadsOutsideAgentAddOut };
   "threads.outside_agent.remove": { in: ThreadsOutsideAgentRemoveIn; out: ThreadsOutsideAgentRemoveOut };
   "threads.poke": { in: ThreadsPokeIn; out: ThreadsPokeOut };

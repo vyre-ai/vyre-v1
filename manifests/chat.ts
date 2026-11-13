@@ -459,6 +459,16 @@ export default defineManifest({
         label: "check",
       },
     ),
+    read(
+      "threads.open_state",
+      "System: whether a chat still exists and whether it is closed, and nothing else, for the host's clean-up jobs. A private chat answers like any other: its content and members stay unreadable",
+      {
+        in: threadT,
+        out: { exists: t.bool(), closed: t.bool() },
+        perm: null,
+        idem: "natural",
+      },
+    ),
     read("threads.list", "List threads by kind, folder, scope or record; or the threads I am in, newest reply first", {
       in: {
         kind: t.opt(t.arr(threadKind)),
