@@ -2099,6 +2099,7 @@ export function createClient(transport: Transport) {
         set: call("notifications.rules.set", 1),
       },
       send: call("notifications.send", 1),
+      unseen_by_thread: call("notifications.unseen_by_thread", 1),
     },
     plugins: {
       agent_template: {

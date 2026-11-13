@@ -45509,6 +45509,33 @@
       "v": 1
     },
     {
+      "blocks": [],
+      "cap": "notifications.unseen_by_thread",
+      "deferred": false,
+      "description": "My unseen mentions per chat or channel, for the sidebar's mention badge; only my own, newest first, at most 500 threads",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadIds": {
+            "items": {
+              "examples": [
+                "thr_a1b2c3"
+              ],
+              "pattern": "^thr_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "name": "notifications_unseen_by_thread",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
       "blocks": [
         "note_offer"
       ],

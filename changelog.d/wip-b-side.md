@@ -6,3 +6,4 @@
 - In the new sidebar Team lists the whole team, most recent first; a one-to-one chat is that person's row in Team, not a second row in Chats.
 - A chat you started typing in keeps your unsent line on this computer and comes back when you open it; the sidebar marks such a chat with a pencil. It is cleared when you send, and is not shared across your devices.
 - Keys that changed meaning in the new sidebar: Cmd-1 to Cmd-9 now open your first nine pinned rows (before: your first nine starred agents); Cmd-Backslash to hide the sidebar becomes Cmd-Shift-Backslash. Cmd-T (new tab), Cmd-D, Option-Down (Inbox next unread) are unchanged.
+- A chat's mention count can now be read on its own: a new read lists the mentions you have not seen, per chat or channel, only yours.

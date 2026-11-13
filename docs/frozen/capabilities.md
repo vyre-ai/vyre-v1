@@ -150,3 +150,9 @@ Signed: lead, 12 Nov 2026
 `computers.chrome.screenshot@1` gains three optional answer fields, added to the output only (no input and no existing field changes): `pageWidth` and `pageHeight` (integers, the page's size in page pixels) and `scale` (a number, picture pixels per page pixel). `pageHeight` is the whole page's height even when the picture shows only its top part. They are present only when the picture is not the page as it is: a screenshot over the 256 KB limit for a picture kept in Files is scaled down to fit, and a page taller than 4096 px comes back as its top part. `width` and `height` stay the picture's own size, and the existing optional `note` now says in one sentence that `chrome_click`'s x and y are in page pixels (a point on the picture is multiplied by 1 / scale). Before this, such a screenshot failed with `validation.too_large`.
 
 Signed: the lead, 13 Nov 2026
+
+## 13 Nov 2026: notifications.unseen_by_thread is added (lane b-side), for the lead to sign
+
+- What changed: one new read, `notifications.unseen_by_thread@1` (module notifications, level member, tool meta). Input `{ threadIds?: thread[] (at most 200) }`; output `{ counts: [{ threadId, mentions >= 1 }], capped: bool }`. Additive: no existing capability, event or kind changed. Snapshot: `docs/frozen/snapshots/notifications.json`, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+- Why: the Chats sidebar shows a mention count on a row, and no read carried it (a mention reached only the rail). The read answers the caller's OWN unseen mention notifications (kinds mention and mention.thread) grouped by thread, newest first, at most 500 threads (`capped` true when there were more; the oldest are left out); it never answers for another person, and it names only threads a notification was filed for the caller about. The sidebar's read joins it onto the chats it already lists, so a thread the caller cannot open is never shown.
+- Signed: ______ (lead)
