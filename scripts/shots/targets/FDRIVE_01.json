@@ -1,0 +1,9 @@
+{
+  "targets": [
+    { "id": "FDRIVE_01-list", "route": "/m/FDRIVE_01?view=list", "proto": "files,{skin}", "waitFor": "[data-testid='fdrive-list']", "note": "My Drive as a live Drive keeps it: a name Files cannot hold shown under a safe name (Q3-Q4 plan.pdf), a second Budget.pdf and a second Plans folder told apart with (Google Drive), a Drive mark on every row, no red dot." },
+    { "id": "FDRIVE_01-live", "route": "/m/FDRIVE_01?view=live", "proto": "files,{skin}", "waitFor": "[data-testid='live-folders']", "note": "Live folders: My Drive is Live with the quiet line '3 items could not be shown' and the list opened with a reason for each; it is not red." },
+    { "id": "FDRIVE_01-csv", "route": "/m/FDRIVE_01?view=csv", "proto": "files,viewer-csv,{skin}", "waitFor": "[data-testid='vw-sheet']", "note": "A live Drive CSV after it arrived: the rows, Open in Google Drive." },
+    { "id": "FDRIVE_01-loading", "route": "/m/FDRIVE_01?view=loading", "proto": "files,{skin}", "waitFor": "[data-testid='file-viewer-getting']", "note": "A live file being fetched: the quiet skeleton and the line 'Getting this from Google Drive'." },
+    { "id": "FDRIVE_01-failed", "route": "/m/FDRIVE_01?view=failed", "proto": "files,{skin}", "waitFor": "[data-testid='file-viewer-failed']", "note": "The fetch failed: 'Could not get this from Google Drive just now', Try again and Open in Google Drive, never an empty grid." }
+  ]
+}
