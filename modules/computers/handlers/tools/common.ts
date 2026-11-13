@@ -9,6 +9,7 @@
 // Errors are only ones the capabilities declare: a person at the controls, a held item and a bad argument are validation.bad_input; Esc, a computer still starting and a silent agentd are provider.unavailable.
 // Handles are never resolved here: "agent computer logins stay on that computer" (ARCH 6.11), agentd substitutes them at the last moment and scrubs its own output. This module scrubs again.
 import { retargetRead } from "../../../../host/src/seams/answer-reads.ts";
+import { HostError } from "../../../../host/src/routes/errors.ts";
 import { noteCallSecret } from "../../../../host/src/call-secrets.ts";
 import {
   actorOf,
@@ -819,6 +820,26 @@ export async function grantFor(
 
 /** One tool in the agent's profile of the Space browser. What comes back is scrubbed of the Vault values filled for this profile; no desktop frame exists, so there is no timeline step (the live view shows the page). */
 async function browserCall(ctx: CompCtx, profileId: string, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
+  try {
+    return await browserCallIn(ctx, profileId, spec, args);
+  } catch (e) {
+    // an error the browser's own steps named (a refusal with its words) goes on as it is; anything else (a crash in the room, the hold or the agent's details on the very first call of a cold browser) was
+    // reported as internal.unexpected, "retryable", and the person's agent tried again (13 Nov, owner on rc.26). It is a plain "not available", with the step it was at, and the server's log keeps the cause.
+    if (e instanceof HostError) throw e;
+    ctx.log.warn("sbrowser: a browser tool failed outside the browser's own answer", {
+      tool: spec.name,
+      reason: e instanceof Error ? e.message.slice(0, 160) : "unknown",
+    });
+    raise(
+      ctx,
+      "provider.unavailable",
+      "The browser is not available right now, and nothing was changed. Wait a few seconds and call it once more.",
+      { reason: "browser_not_ready", tool: spec.name },
+    );
+  }
+}
+
+async function browserCallIn(ctx: CompCtx, profileId: string, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
   const sb = spaceBrowser();
   if (!sb) raise(ctx, "provider.unavailable", "The Space browser is not running on this host.");
   // a person at the controls: the agent's tools wait here, before the call reaches the browser service, however that service is reached and after it restarts (the hold is the module's own)
@@ -956,7 +977,13 @@ async function browserStep(
     given,
     args["tabId"] ?? (spec.name === "chrome_open" ? rest["tabId"] : undefined),
     secretsOf(used).map((x) => x.value),
-  );
+  ).catch((e: unknown) => {
+    // the page is already open: a failure to note which tab a value went into is the server's to log, never the agent's to retry
+    ctx.log.warn("sbrowser: could not note the tab after a call", {
+      tool: spec.name,
+      reason: e instanceof Error ? e.message.slice(0, 160) : "unknown",
+    });
+  });
   if (spec.name === "chrome_tabs" && tabsIn(rest).length > 0)
     tabsOpen(
       profileId,
