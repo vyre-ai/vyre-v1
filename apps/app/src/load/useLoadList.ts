@@ -1,4 +1,4 @@
-// The list hook (contract P3): a long list that pages by cursor and stays live. Page 1 is a watched read (re-read on every change batch); later pages are fetched by the cursor the
+// The list hook (contract P3): a long list that pages by cursor. Page 1 is a watched read (re-read on every change batch) and stays live; later pages are fetched once, by the cursor the
 // capability returns (`next`), deduped by id, one request per page and none per row. The foot of the list says "Loading more" or "Couldn't load more. Retry" through `more`, and never
 // replaces the rows. Every list capability already takes `cursor` and `limit` and answers `next` and `total` (manifests/_common.ts pageIn and pageOut).
 //   rows        the key of the answer that holds the rows (default "rows")

@@ -185,3 +185,121 @@ test("page 1 that failed is a failed load, not an empty list", async () => {
     restore();
   }
 });
+
+test("two loadMore calls in one tick ask for the page once", async () => {
+  const restore = installDom();
+  try {
+    const t = setup(120);
+    await t.render();
+    await act(async () => {
+      t.last().loadMore();
+      t.last().loadMore();
+    });
+    assert.equal(t.srv.calls.filter((c) => c.input["cursor"] === "50").length, 1);
+    assert.equal(rowsOf(t.last()).length, 100);
+  } finally {
+    restore();
+  }
+});
+
+/** A list whose pages are held until the test lets them go, and whose input the test can change. */
+function held(n: number) {
+  const srv = serverOf(n);
+  const w = watched(() => srv.page({ limit: 50 }));
+  const hooks = { capQuery: () => w.q } as unknown as ScreenHooks;
+  const release: (() => void)[] = [];
+  const call = (_cap: string, input?: unknown): Promise<unknown> =>
+    new Promise((res) => release.push(() => res(srv.page(input as Record<string, unknown>))));
+  const seen: LoadList<Row>[] = [];
+  let query = "a";
+  const Probe = (): null => (
+    seen.push(useLoadList<Row>({ cap: "things.list", input: { q: query }, idOf: (r) => r.id })),
+    null
+  );
+  const tree = createRoot();
+  const render = async (): Promise<void> => {
+    await act(async () =>
+      tree.render(
+        <ScreensProvider screens={hooks}>
+          <CapCallProvider call={call}>
+            <Probe />
+          </CapCallProvider>
+        </ScreensProvider>,
+      ),
+    );
+  };
+  return { render, release, last: () => seen[seen.length - 1]!, setQuery: (q: string) => (query = q) };
+}
+
+test("a page that comes back after the input changed is dropped, and the new input starts from its own first page", async () => {
+  const restore = installDom();
+  try {
+    const t = held(120);
+    await t.render();
+    await act(async () => t.last().loadMore());
+    assert.equal(t.last().more, "loading");
+    t.setQuery("b");
+    await t.render();
+    assert.equal(t.last().more, "idle", "the wait of the old input is over");
+    await act(async () => t.release.forEach((r) => r()));
+    assert.equal(rowsOf(t.last()).length, 50, "only the new input's first page: the old page 2 did not land");
+    assert.equal(t.last().hasMore, true);
+  } finally {
+    restore();
+  }
+});
+
+test("pages fetched for one input are not kept for the next", async () => {
+  const restore = installDom();
+  try {
+    const t = held(120);
+    await t.render();
+    await act(async () => t.last().loadMore());
+    await act(async () => t.release.forEach((r) => r()));
+    assert.equal(rowsOf(t.last()).length, 100);
+    t.setQuery("b");
+    await t.render();
+    assert.equal(rowsOf(t.last()).length, 50);
+  } finally {
+    restore();
+  }
+});
+
+test("a load that is on its way when the input changes may be asked again for the new input", async () => {
+  const restore = installDom();
+  try {
+    const t = held(120);
+    await t.render();
+    await act(async () => t.last().loadMore());
+    t.setQuery("b");
+    await t.render();
+    await act(async () => t.last().loadMore());
+    assert.equal(t.last().more, "loading", "the guard of the old request does not block the new one");
+  } finally {
+    restore();
+  }
+});
+
+test("the answer of the old input's page does not end the wait of the new input's page", async () => {
+  const restore = installDom();
+  try {
+    const t = held(120);
+    await t.render();
+    await act(async () => t.last().loadMore());
+    t.setQuery("b");
+    await t.render();
+    await act(async () => t.last().loadMore());
+    assert.equal(t.release.length, 2);
+    await act(async () => t.release[0]!());
+    assert.equal(t.last().more, "loading", "the new page is still on its way");
+    await act(async () => {
+      t.last().loadMore();
+    });
+    assert.equal(t.release.length, 2, "and it is not asked for twice");
+    await act(async () => t.release[1]!());
+    assert.equal(t.last().more, "idle");
+    assert.equal(rowsOf(t.last()).length, 100);
+  } finally {
+    restore();
+  }
+});
