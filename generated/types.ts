@@ -8955,6 +8955,9 @@ export type ComputersChromeScreenshotOut = {
   fileId: string;
   width: number;
   height: number;
+  pageWidth?: number;
+  pageHeight?: number;
+  scale?: number;
 };
 export type ComputersChromeSendIn = {
   computerId?: string;

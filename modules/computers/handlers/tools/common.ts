@@ -33,7 +33,7 @@ import { agentInfo } from "../../sbrowser/agentinfo.ts";
 import { faceSvg } from "../../sbrowser/face.ts";
 import { waitingNote } from "../../capacity.ts";
 import { moveOf, settleMove } from "../../migrate.ts";
-import { fitPng, scaledNote } from "../../png-fit.ts";
+import { fitPngOffLoop, scaledNote } from "../../png-fit.ts";
 
 export type ToolArgs = Record<string, unknown>;
 export type ToolAnswer = Record<string, unknown>;
@@ -210,7 +210,7 @@ async function keepFrame(ctx: CompCtx, c: ComputerRow, frame: unknown, at: numbe
     const folderId = await agentFolder(ctx, c.agentId);
     if (!folderId) return undefined;
     // a heavy page's picture is over the size limit for a direct write to Files: it is kept scaled down, not lost
-    const fit = fitPng(frame, { width: 0, height: 0 });
+    const fit = await fitPngOffLoop(frame, { width: 0, height: 0 });
     if (!fit.ok) return undefined;
     frame = fit.shot.base64;
     const made = (await ctx.call("files.create", {
@@ -683,7 +683,7 @@ export function shape(ctx: CompCtx, tool: string, out: ToolAnswer, want: Shape):
 // ---- a picture kept in the agent's folder ------------------------------------------------------------------------------------------------------------
 
 /** Store a screenshot agentd returned (base64 PNG) in the agent's Files folder and answer as the screenshot capabilities do. */
-export async function keepShot(ctx: CompCtx, c: ComputerRow, tool: string, out: ToolAnswer, o: { fit?: boolean } = {}): Promise<{ fileId: string; width: number; height: number; note?: string }> {
+export async function keepShot(ctx: CompCtx, c: ComputerRow, tool: string, out: ToolAnswer, o: { fit?: boolean } = {}): Promise<{ fileId: string; width: number; height: number; pageWidth?: number; pageHeight?: number; scale?: number; note?: string }> {
   const got = shape(ctx, tool, out, { png: "s", width: "n", height: "n" });
   const folderId = await agentFolder(ctx, c.agentId);
   if (!folderId) raise(ctx, "validation.bad_input", "The agent has no folder to keep the picture in.");
@@ -692,16 +692,18 @@ export async function keepShot(ctx: CompCtx, c: ComputerRow, tool: string, out: 
   let png = String(got["png"]);
   let [width, height] = [Number(got["width"]), Number(got["height"])];
   let note: string | undefined;
+  let page: { pageWidth: number; pageHeight: number; scale: number } | undefined;
   if (o.fit !== false) {
-    const fit = fitPng(png, { width, height });
+    const fit = await fitPngOffLoop(png, { width, height });
     if (!fit.ok) raise(ctx, "validation.bad_input", fit.why);
     ({ base64: png, width, height } = fit.shot);
-    if (fit.shot.scaledFrom) note = scaledNote(fit.shot);
+    // only a picture that is not the page as it is carries the page's size and the scale
+    if (fit.shot.scale !== 1 || fit.shot.topPx !== undefined) { page = { pageWidth: fit.shot.pageWidth, pageHeight: fit.shot.pageHeight, scale: fit.shot.scale }; note = scaledNote(fit.shot); }
   }
   const at = ctx.now();
   const made = (await ctx.call("files.create", {
     folderId, name: `screenshot-${new Date(at).toISOString().replace(/[:.]/g, "-")}.png`, kind: "image", mime: "image/png", content: { base64: png }, idempotencyKey: `cmpshot:${c.computerId}:${mintId("shot", at)}`,
   })) as { file: { fileId: string } };
   setComputer(ctx.db, c.computerId, { last_frame_at: at, last_frame_file: made.file.fileId });
-  return { fileId: made.file.fileId, width, height, ...(note ? { note } : {}) };
+  return { fileId: made.file.fileId, width, height, ...(page ?? {}), ...(note ? { note } : {}) };
 }

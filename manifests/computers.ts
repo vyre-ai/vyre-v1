@@ -200,7 +200,9 @@ export default defineManifest({
       out: { ...reopenOut, ok: t.bool(), waitedMs: t.int(), downloads: downloadsOut }, ...local({ mcpName: 'chrome_wait', idem: 'none', risk: 'low' }),
     }),
     read('computers.chrome.screenshot', 'Screenshot of the tab or one element, stored in the agent folder and rendered as a screenshot block', {
-      in: { ...chromeWhere, tabId, ref: t.opt(ref), fullPage: t.opt(t.bool()) }, out: { ...reopenOut, fileId: id.file, width: t.int(), height: t.int() },
+      in: { ...chromeWhere, tabId, ref: t.opt(ref), fullPage: t.opt(t.bool()) },
+      // width and height are the picture's; when it was made smaller (or is only the top of a tall page) pageWidth, pageHeight and scale say what the page is: chrome_click's x and y are in page pixels, a point on the picture times 1 / scale
+      out: { ...reopenOut, fileId: id.file, width: t.int(), height: t.int(), pageWidth: t.opt(t.int()), pageHeight: t.opt(t.int()), scale: t.opt(t.num()) },
       ...local({ mcpName: 'chrome_screenshot', agent: { planMode: 'allowed', blocks: ['screenshot'] } }),
     }),
     write('computers.chrome.eval', 'Run a JavaScript expression in the page and return the result', {

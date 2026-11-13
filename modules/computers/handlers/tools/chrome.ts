@@ -33,7 +33,7 @@ export async function screenshot(ctx: CompCtx, input: Base & { ref?: string; ful
   const kept = await keepShot(ctx, r.computer, "chrome_screenshot", out);
   // the first answer after the browser was reopened says so (browserStep); a picture scaled to fit says so too
   const notes = [out["reopened"] === true && typeof out["note"] === "string" ? out["note"] : "", kept.note ?? ""].filter((x) => x !== "").join(" ");
-  const { note: _scaled, ...shot } = kept;
+  const { note: _scaled, ...shot } = kept;   // the page size and scale stay in the answer
   return { ...shot, ...(out["reopened"] === true ? { reopened: true } : {}), ...(notes ? { note: notes } : {}) };
 }
 
