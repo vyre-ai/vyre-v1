@@ -16,8 +16,8 @@ import { SyncDot, SyncLogo } from "./parts.tsx";
 export interface SyncPageNav {
   /** The records of this type, in the table. */
   openRecords(type: string): void;
-  /** Edit mapping: the assistant opens with the spec the type was made from. */
-  editMapping(a: { app: string; type: string }): void;
+  /** Edit mapping: the assistant opens with the spec the type was made from. Absent when the assistant cannot do it (it may not build connectors and its person cannot allow it): no button. */
+  editMapping?(a: { app: string; type: string }): void;
   /** After Remove: the type is gone or plain, so the page goes back to Records. */
   closed(): void;
 }
@@ -378,13 +378,15 @@ export function SyncPage({ type, call, nav, now = Date.now, title, canManage = t
               disabled={busy || st.paused}
               why="Resume the sync first"
             />
-            <Btn
-              label="Edit mapping"
-              testID="sync-edit"
-              onPress={() => nav.editMapping({ app: st.app.title, type })}
-              disabled={!st.spec}
-              why="This type was not made from a sync spec"
-            />
+            {nav.editMapping ? (
+              <Btn
+                label="Edit mapping"
+                testID="sync-edit"
+                onPress={() => nav.editMapping!({ app: st.app.title, type })}
+                disabled={!st.spec}
+                why="This type was not made from a sync spec"
+              />
+            ) : null}
             <View style={{ flex: 1 }} />
             <Btn label="Remove" danger testID="sync-remove" onPress={() => setRemoving(true)} disabled={busy} />
           </View>

@@ -11,8 +11,9 @@ import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } fro
 import { scrubAskContext } from "../../places/automations/ask/bundle.ts";
 import { reach } from "../reach/reach.ts";
 import { useViewer } from "../reach/viewer.ts";
-import { BUILD_CONNECTOR_OPENING, connectorOpening } from "../../places/vault/itemenv/automations.ts";
+import { BUILD_CONNECTOR_OPENING, connectorOpening, readyToBuild } from "../../places/vault/itemenv/automations.ts";
 import { openAsk } from "./ask.ts";
+import { useAssistantBuilds } from "./builds.ts";
 import { AutomationsDataProvider } from "../../places/automations/canvas/data.tsx";
 import type { AutomationsData, KeysStatus } from "../../places/automations/canvas/data.tsx";
 import type { KeyChoice } from "../../places/automations/canvas/model.ts";
@@ -184,6 +185,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const addressReach = viewer === null ? null : reach({ kind: "console", page: "network" }, viewer);
   const addressDoor = addressReach !== null && addressReach.to === "open" ? addressReach.target : null;
   const addressScreen = addressDoor?.screen ?? null;
+  const assistantBuilds = useAssistantBuilds(rt);
   const data = useMemo(
     () =>
       automationsData(
@@ -266,9 +268,17 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
             rt.open({ screen: route.screen, args: route.args });
           },
           openKeys: () => rt.open({ screen: "vault.providers" }),
-          buildConnector: () => {
-            openAskPane({ thing: null, first: BUILD_CONNECTOR_OPENING }, "automations");
-          },
+          // only when the assistant can build connectors (or its person can allow it): the press allows it first
+          ...(assistantBuilds.builds
+            ? {
+                buildConnector: () => {
+                  void assistantBuilds
+                    .prepare()
+                    .then(() => openAskPane({ thing: null, first: BUILD_CONNECTOR_OPENING }, "automations"))
+                    .catch(() => undefined);
+                },
+              }
+            : {}),
           // the public address is set in Console; only a person who can open that page gets the door (reach)
           ...(addressScreen
             ? { openAddress: () => rt.open({ screen: addressScreen, args: addressDoor?.args ?? {} }) }
@@ -280,6 +290,12 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
             } | null;
             const handle = got?.item?.handle;
             if (!handle) throw new Error("Vyre could not find that Vault item. It may have moved to Trash.");
+            // the offer was shown because the assistant could finish it; this checks again and, for a person who may give it, gives the assistant the builder role with this press
+            await readyToBuild(
+              (cap, input) => Promise.resolve(rt.call(cap as never, input as never)),
+              rt.assistant.id,
+              offer.itemId,
+            );
             openAsk(
               rt,
               "assistant",
@@ -294,7 +310,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
         accounts,
         lastPicks,
       ),
-    [rt, opened, keys, keysStatus, accounts, lastPicks, addressScreen],
+    [rt, opened, keys, keysStatus, accounts, lastPicks, addressScreen, assistantBuilds],
   );
   const directory = useDirectory(rt);
   const extras = useMemo(

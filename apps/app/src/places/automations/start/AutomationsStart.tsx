@@ -268,9 +268,10 @@ export function AutomationsStart({ onTemplates, onAsk }: { onTemplates(): void; 
         ? {
             onSetUp: (o: ConnectorOffer) =>
               void run(async () => {
+                // the session starts first: a setup that cannot start (the assistant may not open the item) keeps the offer instead of using it up
+                await data.nav.setUpConnector!(o);
                 await data.call("automations.connector_offer.accept", { itemId: o.itemId });
                 setOffers((all) => all.filter((x) => x.itemId !== o.itemId));
-                await data.nav.setUpConnector!(o);
               }),
           }
         : {})}

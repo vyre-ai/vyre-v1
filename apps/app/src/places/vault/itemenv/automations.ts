@@ -1,9 +1,18 @@
 // Add to Automations, as data in and data out: which items offer it, the one opening message (an app name and a handle, never a value), and why it cannot start yet.
+import { isCompanyKey } from "../../../../../../lib/company-keys.ts";
 import type { ItemKind } from "../layout/model.ts";
 
 /** A key, an env block, a login or a loose item can become a connector. A card, a note, a code, an SSH key and an AI account cannot. */
 const OFFERS: ReadonlySet<ItemKind> = new Set<ItemKind>(["api_key", "env", "login", "other"]);
 export const offersAutomations = (kind: ItemKind): boolean => OFFERS.has(kind);
+
+/**
+ * Does this item offer Add to Automations and Sync to Records? Only when an assistant can finish them: the kind can be an app, it is not an AI account's key, it is not a company key (for the server alone;
+ * no assistant may use it), and the assistant is not known to be above-cleared out of it (`reaches` false).
+ */
+export function setupOffered(a: { kind: ItemKind; handle: string; aiKey: boolean | null; reaches?: boolean }): boolean {
+  return offersAutomations(a.kind) && a.aiKey === false && !isCompanyKey(a.handle) && a.reaches !== false;
+}
 
 const SAFE_APP = "this app";
 const SECRET_SHAPE = /(sk|pk|rk|ghp|gho|xox[abprs]|eyJ|AKIA|AIza)[-_A-Za-z0-9]{8,}/;
@@ -46,6 +55,8 @@ export type Gate =
 export interface BuilderStatus {
   allowed: boolean;
   canGrant: boolean;
+  /** Asked about an item: false when the assistant may not use it (a label above its clearance). Absent when no item was named. */
+  reaches?: boolean;
 }
 
 export function gateFor(a: {
@@ -158,4 +169,24 @@ export function blockedNote(u: UsedBy): string | undefined {
   const b = u.steps.find((s) => s.blocked)?.blocked;
   const host = b ? /go to (\S+?)\.(?:\s|$)/.exec(b)?.[1] : undefined;
   return b ? (host ? `Not allowed to go to ${host}` : "A step may no longer use this key") : undefined;
+}
+
+/**
+ * The last check before a setup session starts, for a door that offers it without the Vault's own strip (the Automations first page): the assistant must be able to use the item, and must hold the
+ * Connector builder role, which a person who may give it gives with this press (they asked for the setup). It throws one plain sentence when the setup cannot be finished, so no session starts and dead-ends.
+ */
+export async function readyToBuild(
+  call: (cap: string, input: unknown) => Promise<unknown>,
+  agentId: string,
+  itemId?: string,
+): Promise<void> {
+  const st = (await call("access.connector_builder.status", {
+    agentId,
+    ...(itemId === undefined ? {} : { itemId }),
+  })) as BuilderStatus | null;
+  if (st?.reaches === false) throw new Error("Your assistant cannot open that Vault item, so it cannot set it up.");
+  if (st?.allowed === true) return;
+  if (st?.canGrant !== true)
+    throw new Error("Your assistant needs permission to build connectors. An admin can allow it.");
+  await call("access.connector_builder.grant", { agentId });
 }

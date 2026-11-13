@@ -119,7 +119,11 @@ test("offline, the notice says the Vault is not reachable and offers Try again",
   assert.ok(v.calls.filter((c) => c.cap === "engine.accounts.list").length > before, "Try again asks again");
 });
 
-const withBuilder = (v: SampleVault, status: { allowed: boolean; canGrant: boolean }, personal = false) => {
+const withBuilder = (
+  v: SampleVault,
+  status: { allowed: boolean; canGrant: boolean; reaches?: boolean },
+  personal = false,
+) => {
   const base = v.data.call.bind(v.data);
   const seen: string[] = [];
   v.data = {
@@ -426,4 +430,34 @@ test("an Automation whose step may no longer send the key to its host says so on
   await settle();
   const row = find(root, "row-aut_nightly");
   assert.match(textOf(row), /Not allowed to go to api\.gohighlevel\.example/);
+});
+
+test("an item the assistant is not cleared for offers no setup: no Add to Automations, no Sync to Records, and no gate that cannot be cleared", async () => {
+  const v = createSampleVault();
+  withBuilder(v, { allowed: true, canGrant: true, reaches: false });
+  const root = await open(v, "vit_ghl");
+  await settle();
+  assert.equal(find(root, "item-add-automations"), null);
+  assert.equal(find(root, "item-sync-records"), null);
+  assert.equal(find(root, "auto-gate-fix"), null);
+});
+
+test("the Vault asks about the item itself, so the answer is about this item", async () => {
+  const v = createSampleVault();
+  const asked: unknown[] = [];
+  const base = v.data.call.bind(v.data);
+  v.data = {
+    ...v.data,
+    assistantId: "agt_assistant",
+    call: async (cap, input) => {
+      if (cap === "access.connector_builder.status") {
+        asked.push(input);
+        return { allowed: true, canGrant: true, reaches: true };
+      }
+      return base(cap, input);
+    },
+  };
+  await open(v, "vit_ghl");
+  await settle();
+  assert.deepEqual(asked[0], { agentId: "agt_assistant", itemId: "vit_ghl" });
 });

@@ -144,3 +144,9 @@ Signed: lead, 12 Nov 2026
 The description of the optional `blocked` line on `automations.vault_usage` steps now reads "a host not allowed for it" instead of "a host no longer allowed for it". The line itself (key-run.ts) is now one neutral sentence for a host that was removed and one never approved: "#Key is not allowed to go to <host>. Allow it on the key's page, or change this step." Description only: no field, type or error changes.
 
 Signed: lead, 12 Nov 2026
+
+## 13 Nov 2026: access.connector_builder.status can be asked about one Vault item (lane f-auto2)
+
+- What changed: `access.connector_builder.status@1` takes an optional `itemId` and, when it is given, answers an optional `reaches` (true or false) beside `allowed` and `canGrant`. `reaches` is the access check's own answer for "may this assistant, acting for the caller, use that Vault item": false for an item labelled above the assistant's clearance (a company key, anything Restricted), which no grant can lift. Nothing else in its contract changed. Snapshot: docs/frozen/snapshots/access.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+- Why: on rc.26 the Automations first page suggested setting up Google_DWD, and the assistant could not do it (above its clearance, and without the Connector builder role). A suggestion is now shown only when the assistant can finish it, and the Vault row, the first page and the setup press all ask this one question.
+- Also moved, not a contract: `modules/automations/tests/golden-replay/golden.json` holds the new words for a step that is missing an input ("Update a record: choose the record."), and `automations.steps.list` lists Google, Microsoft and GitHub steps only for apps connected on the Space that the caller may use (same input and output, fewer rows).
