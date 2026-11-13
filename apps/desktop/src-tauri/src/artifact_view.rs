@@ -7,8 +7,33 @@ use tauri::webview::WebviewBuilder;
 use tauri::{LogicalPosition, LogicalSize, Manager, Webview, WebviewUrl, Window};
 
 pub const VIEW: &str = "artifact-view";
+/// What artifact_view_bounds answers when there is no page to move; the viewer reads it (apps/app desktop-frame.tsx) and asks for a new address.
+pub const GONE: &str = "The viewer is gone.";
 /// The address the child webview shows now; a one-time code is never loaded twice, so the same address is moved, not reloaded.
 static SHOWING: Mutex<Option<String>> = Mutex::new(None);
+
+/// Where the page waits while a menu or the Share sheet is open: far outside the window, at its own size. The page is kept (its place and state stay), not closed and made again, and not drawn over the sheet.
+/// A hide of the webview itself is not used: this stays on calls the shell already makes (set_position, set_size), so the behaviour does not depend on the Tauri version.
+pub const OFFSCREEN: f64 = -30_000.0;
+
+/// What a request to show the page at an address does, from what is there now. Pure, so it is tested without a window.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ShowPlan {
+    /// There is no page: make it.
+    Create,
+    /// The same address is already there (shown, or waiting off-screen): move it back, never load it again (its one-time code is spent).
+    Move,
+    /// Another address: the old page goes and the new one is made.
+    Replace,
+}
+
+pub fn show_plan(has_view: bool, showing: Option<&str>, url: &str) -> ShowPlan {
+    match (has_view, showing) {
+        (false, _) => ShowPlan::Create,
+        (true, Some(s)) if s == url => ShowPlan::Move,
+        (true, _) => ShowPlan::Replace,
+    }
+}
 
 /// The only addresses the viewer opens: the artifact host's one-time code, https://<host>/x/<code>, or http://a.localhost:<port>/x/<code> for a Space on this computer. No credentials in the
 /// address, no other path, no IP address or other loopback name.
@@ -82,14 +107,22 @@ pub async fn artifact_view_show(window: Window, url: String, x: f64, y: f64, wid
         return Err("That frame is not on the screen.".to_string());
     }
     let parsed: tauri::Url = url.parse().map_err(|_| "That address can't be opened in the viewer.".to_string())?;
-    let same = SHOWING.lock().map_err(|_| "The viewer is busy.".to_string())?.as_deref() == Some(url.as_str());
-    if let Some(view) = view_of(&window) {
-        if same {
-            view.set_position(LogicalPosition::new(x, y)).map_err(|e| e.to_string())?;
-            view.set_size(LogicalSize::new(width, height)).map_err(|e| e.to_string())?;
+    let showing = SHOWING.lock().map_err(|_| "The viewer is busy.".to_string())?.clone();
+    let view = view_of(&window);
+    match show_plan(view.is_some(), showing.as_deref(), &url) {
+        ShowPlan::Move => {
+            if let Some(view) = view {
+                view.set_position(LogicalPosition::new(x, y)).map_err(|e| e.to_string())?;
+                view.set_size(LogicalSize::new(width, height)).map_err(|e| e.to_string())?;
+            }
             return Ok(());
         }
-        let _ = view.close();
+        ShowPlan::Replace => {
+            if let Some(view) = view {
+                let _ = view.close();
+            }
+        }
+        ShowPlan::Create => {}
     }
     let home = parsed.clone();
     // the page may stay on its own host (the code redirects to the artifact's clean address there) and nowhere else
@@ -107,16 +140,27 @@ pub async fn artifact_view_bounds(window: Window, x: f64, y: f64, width: f64, he
     if !rect_ok(x, y, width, height) {
         return Err("That frame is not on the screen.".to_string());
     }
+    // no page any more (the view was closed, the app restarted): say so, so the viewer asks for a new one-time address instead of showing nothing
+    let Some(view) = view_of(&window) else {
+        return Err(GONE.to_string());
+    };
+    view.set_position(LogicalPosition::new(x, y)).map_err(|e| e.to_string())?;
+    view.set_size(LogicalSize::new(width, height)).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// A menu or the Share sheet needs the space the page covers (a native view draws above the web page): the page steps off-screen and keeps its place and state. The next show moves it back.
+#[tauri::command]
+pub async fn artifact_view_hide(window: Window) -> Result<(), String> {
     if let Some(view) = view_of(&window) {
-        view.set_position(LogicalPosition::new(x, y)).map_err(|e| e.to_string())?;
-        view.set_size(LogicalSize::new(width, height)).map_err(|e| e.to_string())?;
+        view.set_position(LogicalPosition::new(OFFSCREEN, OFFSCREEN)).map_err(|e| e.to_string())?;
     }
     Ok(())
 }
 
-/// The viewer closed, or a menu or sheet needs the space the webview covers (a native view draws above the page).
+/// The viewer closed (the tab went, another page replaced it): the page is closed for good.
 #[tauri::command]
-pub async fn artifact_view_hide(window: Window) -> Result<(), String> {
+pub async fn artifact_view_close(window: Window) -> Result<(), String> {
     if let Some(view) = view_of(&window) {
         view.close().map_err(|e| e.to_string())?;
     }
@@ -161,6 +205,21 @@ mod tests {
             assert!(!artifact_url_ok(bad), "{bad}");
         }
         assert!(!artifact_url_ok(&format!("https://harbor-a.vyre.run/x/{}", "a".repeat(65))));
+    }
+
+    #[test]
+    fn show_moves_the_page_it_has_and_makes_one_only_when_there_is_none() {
+        let a = "https://a.team.example.com/x/aaaa";
+        assert_eq!(show_plan(false, None, a), ShowPlan::Create);
+        assert_eq!(show_plan(false, Some(a), a), ShowPlan::Create, "a page that was destroyed is made again");
+        assert_eq!(show_plan(true, Some(a), a), ShowPlan::Move, "off-screen or shown, the same page is moved, never loaded again");
+        assert_eq!(show_plan(true, Some(a), "https://a.team.example.com/x/bbbb"), ShowPlan::Replace);
+        assert_eq!(show_plan(true, None, a), ShowPlan::Replace);
+        assert!(OFFSCREEN < -rect_limit(), "off-screen is beyond anything the page may place");
+    }
+
+    fn rect_limit() -> f64 {
+        20_000.0
     }
 
     #[test]

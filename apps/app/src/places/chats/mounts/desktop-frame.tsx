@@ -46,17 +46,26 @@ export interface FrameProps {
   onError?(message: string): void;
   /** Called once the shell has placed the page (it is loading or loaded there): the viewer's own loading state can end. */
   onPlaced?(): void;
+  /** The shell no longer has the page (it was closed, the app restarted): the address it was opened at is spent, so the viewer asks for a new one. */
+  onGone?(): void;
   invoke?: Invoke;
   style?: CSSProperties;
 }
 
-/** What the frame says to the shell: the page once, then only moves; a hide takes it away and the next place shows it again. */
+/** What artifact_view_bounds answers when the shell has no page to move (src-tauri artifact_view.rs GONE). */
+export const VIEW_GONE = "The viewer is gone.";
+
+/**
+ * What the frame says to the shell: the page once, then only moves. A hide steps the page off-screen (the shell keeps it, with its place and state) and the next place brings the same page back, never a new load;
+ * a close ends it. When the shell says the page is gone, the viewer is told (onGone) and the next place shows again.
+ */
 export function createPlacer(
   call: Invoke,
   url: string,
   onError?: (message: string) => void,
   onShown?: () => void,
-): { place(rect: Rect | null): void; hide(): void } {
+  onGone?: () => void,
+): { place(rect: Rect | null): void; hide(): void; close(): void } {
   let shown = false;
   let said: Rect | null = null;
   const fail = (e: unknown): void =>
@@ -72,6 +81,12 @@ export function createPlacer(
           if (first) onShown?.();
         },
         (e) => {
+          if (e === VIEW_GONE || (e instanceof Error && e.message === VIEW_GONE)) {
+            shown = false;
+            said = null;
+            onGone?.();
+            return;
+          }
           if (first) {
             shown = false;
             said = null;
@@ -85,6 +100,11 @@ export function createPlacer(
       said = null;
       void call("artifact_view_hide").catch(() => undefined);
     },
+    close() {
+      shown = false;
+      said = null;
+      void call("artifact_view_close").catch(() => undefined);
+    },
   };
 }
 
@@ -95,22 +115,34 @@ export function DesktopArtifactFrame({
   covered = false,
   onError,
   onPlaced,
+  onGone,
   invoke,
   style,
 }: FrameProps): ReactElement {
   const box = useRef<HTMLDivElement | null>(null);
   const call = invoke ?? shellInvoke();
+  const placer = useRef<ReturnType<typeof createPlacer> | null>(null);
+  const cover = useRef(covered);
+  cover.current = covered;
+  const rectNow = (): Rect | null => {
+    const el = box.current;
+    return el && typeof el.getBoundingClientRect === "function" ? rectOf(el.getBoundingClientRect()) : null;
+  };
 
+  // the page of one address: made once, moved with the frame, closed when the address changes or the viewer goes
   useEffect(() => {
     const el = box.current;
     if (!call) return undefined;
-    const placer = createPlacer(call, url, onError, onPlaced);
-    if (covered) {
-      placer.hide();
-      return undefined;
-    }
-    if (!el || typeof el.getBoundingClientRect !== "function") return undefined;
-    const place = (): void => placer.place(rectOf(el.getBoundingClientRect()));
+    const p = createPlacer(call, url, onError, onPlaced, onGone);
+    placer.current = p;
+    if (!el || typeof el.getBoundingClientRect !== "function")
+      return () => {
+        p.close();
+        placer.current = null;
+      };
+    const place = (): void => {
+      if (!cover.current) p.place(rectOf(el.getBoundingClientRect()));
+    };
     place();
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(place) : null;
     ro?.observe(el);
@@ -124,9 +156,23 @@ export function DesktopArtifactFrame({
       ro?.disconnect();
       g.removeEventListener?.("resize", place);
       g.removeEventListener?.("scroll", place, true);
-      placer.hide(); // a new address, a cover, or leaving the viewer: the page goes
+      p.close(); // a new address or leaving the viewer: the page goes for good
+      placer.current = null;
     };
-  }, [url, covered, call]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [url, call]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // a menu or the Share sheet: the page steps aside and keeps its place, then comes back as it was
+  const first = useRef(true);
+  useEffect(() => {
+    const p = placer.current;
+    if (first.current) {
+      first.current = false;
+      if (!covered) return;
+    }
+    if (!p) return;
+    if (covered) p.hide();
+    else p.place(rectNow());
+  }, [covered]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return createElement("div", {
     ref: box,

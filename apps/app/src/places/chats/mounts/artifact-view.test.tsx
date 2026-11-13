@@ -154,16 +154,14 @@ const byLabel = (n: { props?: Record<string, unknown>; children?: unknown[] }, l
   return null;
 };
 
-test("desktop app: Share takes the native page away and it comes back at a NEW one-time address, never the spent one; the line under the name is read again", async () => {
+test("desktop app: Share steps the native page aside and it comes back as it was, with no new one-time address; the line under the name is read after a share, not on close", async () => {
   const restore = installDom();
   const g = globalThis as { __TAURI__?: unknown };
-  const shown: string[] = [];
-  const hid: number[] = [];
+  const sent: string[] = [];
   g.__TAURI__ = {
     core: {
-      invoke: async (cmd: string, a?: { url?: string }) => {
-        if (cmd === "artifact_view_show") shown.push(String(a?.url));
-        if (cmd === "artifact_view_hide") hid.push(1);
+      invoke: async (cmd: string) => {
+        sent.push(cmd);
         return null;
       },
     },
@@ -196,20 +194,19 @@ test("desktop app: Share takes the native page away and it comes back at a NEW o
           <ArtifactView rt={rt} artifactId="sit_1" share={false} back={() => undefined} gone={() => undefined} />,
         );
         await flush();
-        const region = find(root, "artifact-desktop-frame");
-        assert.ok(region, "the desktop frame");
+        assert.ok(find(root, "artifact-desktop-frame"), "the desktop frame");
         assert.equal(n, 1, "one code asked for so far");
         const before = sitesGets;
         await press(find(root, "artifact-share"));
         await flush();
-        assert.equal(find(root, "artifact-desktop-frame"), null, "while the sheet is open the page is gone");
+        assert.ok(sent.includes("artifact_view_hide"), "while the sheet is open the page steps aside");
+        assert.ok(!sent.includes("artifact_view_close"), "it is not closed");
+        assert.ok(find(root, "artifact-desktop-frame"), "the frame element stays, so the page keeps its place");
         await press(byLabel(root as never, "Close") as never);
         await flush();
         await flush();
-        assert.equal(n, 2, "a second code was asked for at that moment, not the first one kept");
-        assert.ok(find(root, "artifact-desktop-frame"), "the frame is back");
-        assert.ok(sitesGets > before, "the artifact's row was read again, so the line under the name is current");
-        assert.ok(!shown.some((u, i) => shown.indexOf(u) !== i), "no address was ever shown twice");
+        assert.equal(n, 1, "no new code: the same page comes back as it was");
+        assert.equal(sitesGets, before, "closing without sharing reads nothing again (a share does: apps/app/tests/artifact-share.live.test.ts)");
       },
     );
   } finally {

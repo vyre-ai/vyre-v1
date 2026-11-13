@@ -145,21 +145,10 @@ export function ArtifactView({
       if (timer.current) clearTimeout(timer.current);
     };
   }, [src, loaded, failed]);
-  // The desktop app's page is a native view that goes away while a menu or the Share sheet is open. Its address was a one-time code, spent by the first load, so it comes back at a fresh address (a new code
-  // asked for at that moment), never the old one: the old one answered "This link has ended" (13 Nov 2026, after Share).
+  // The desktop app's page is a native view. While a menu or the Share sheet is open it steps off-screen and comes back as it was (its place and state kept); only when the shell no longer has it
+  // (the view was closed, the app restarted) does it come back at a NEW one-time address, asked for then: the first address was spent by the first load ("This link has ended", 13 Nov 2026).
   const [sure, setSure] = useState(false);
   const cover = coveredBy({ sharing, menu: element !== null, sure });
-  const wasCovered = useRef(false);
-  useEffect(() => {
-    if (!desktop) return;
-    if (cover) {
-      wasCovered.current = true;
-      setSrc(null);
-    } else if (wasCovered.current) {
-      wasCovered.current = false;
-      setAttempt((n) => n + 1);
-    }
-  }, [cover, desktop]);
   const name = site?.name ?? "Artifact";
   const line = site ? subline(infoOf(site, nameOf), rt.me.id, rt.clock().now, nameOf) : "";
   const browser = (): void => {
@@ -306,6 +295,7 @@ export function ArtifactView({
                 covered={cover}
                 onError={(m) => setFailed(m)}
                 onPlaced={() => setLoaded(true)}
+                onGone={() => setAttempt((n) => n + 1)}
               />
             ) : null}
             {frameFor(src, desktop) === "iframe"
@@ -348,8 +338,8 @@ export function ArtifactView({
           resource={{ type: "site", id: artifactId, name }}
           onClose={() => {
             setSharing(false);
-            loadSite(() => true); // the line under the name says who it is shared with now
           }}
+          onChanged={() => loadSite(() => true)} // the line under the name says who it is shared with now, once the share has gone through
         />
       ) : null}
       {element}
