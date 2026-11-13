@@ -415,13 +415,10 @@ function SettingsBody({
             </Text>
           ) : null}
           <SavedBar />
-          {searching ? (
-            searchPage
-          ) : (
-            <Loadable load={list} what="settings">
-              {() => body}
-            </Loadable>
-          )}
+          {/* a search reads the rows too: while they are missing or failed, say so instead of "Nothing matches" */}
+          <Loadable load={list} what="settings">
+            {() => (searching ? searchPage : body)}
+          </Loadable>
         </View>
       </ScrollView>
     </View>
