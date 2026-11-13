@@ -10,24 +10,66 @@ import { claimOwner, joinGuest, joinMaya } from "./kinds-b-kit.test.ts";
 
 test("kinds-b guest: the People list of a channel and a press on a person row", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
-  if (!dist) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required"); return; }
+  if (!dist) {
+    if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required");
+    t.skip("VYRE_APP_DIST required");
+    return;
+  }
   const { chromium } = await import("playwright-core");
   const space = await bootFreshSpace();
   const web = await edge(dist, space.url);
-  const browser = await chromium.launch({ executablePath: process.env["CHROME_BIN"] || chromium.executablePath(), args: ["--no-sandbox"] });
-  const shots = process.env["VYRE_KINDS_B_SHOTS"] ?? "/tmp/vyre-kinds-b-shots"; fs.mkdirSync(shots, { recursive: true });
+  const browser = await chromium.launch({
+    executablePath: process.env["CHROME_BIN"] || chromium.executablePath(),
+    args: ["--no-sandbox"],
+  });
+  const shots = process.env["VYRE_KINDS_B_SHOTS"] ?? "/tmp/vyre-kinds-b-shots";
+  fs.mkdirSync(shots, { recursive: true });
   try {
     const { call } = await claimOwner(browser, web.origin, space.claim!);
     const { mayaId } = await joinMaya(browser, web.origin, call);
-    const ch = (await call("channels.create", { name: "partners", topic: "Work with our partner", visibility: "public", memberIds: [mayaId], agentIds: [], idempotencyKey: "kg-channel" })).channel as { mainThreadId: string };
-    const invite = await call("threads.invite_guest", { threadId: ch.mainThreadId, email: "gus@example.com", level: "reply", idempotencyKey: "kg-guest" });
+    const ch = (
+      await call("channels.create", {
+        name: "partners",
+        topic: "Work with our partner",
+        visibility: "public",
+        memberIds: [mayaId],
+        agentIds: [],
+        idempotencyKey: "kg-channel",
+      })
+    ).channel as { mainThreadId: string };
+    const invite = await call("threads.invite_guest", {
+      threadId: ch.mainThreadId,
+      email: "gus@example.com",
+      level: "reply",
+      idempotencyKey: "kg-guest",
+    });
     const guest = await joinGuest(browser, web.origin, invite.link as string);
     await guest.goto(`${web.origin}/chat#subject=thread:${ch.mainThreadId}`, { waitUntil: "load" });
     await guest.waitForTimeout(3000);
-    if (await guest.getByTestId("pane-header").first().isVisible().catch(() => false) === false && await guest.getByTestId("pane-button").count() > 0) await guest.getByTestId("pane-button").first().click();
-    await guest.getByTestId("chat-details").waitFor({ timeout: 20_000 }).catch(async () => { await guest.screenshot({ path: path.join(shots, "guest-no-details.png") }); fs.writeFileSync(path.join(shots, "guest-result.txt"), `No Details pane for the guest. Page text: ${(await guest.locator("body").innerText()).slice(0, 500)}`); return "none"; });
+    if (
+      (await guest
+        .getByTestId("pane-header")
+        .first()
+        .isVisible()
+        .catch(() => false)) === false &&
+      (await guest.getByTestId("pane-button").count()) > 0
+    )
+      await guest.getByTestId("pane-button").first().click();
+    await guest
+      .getByTestId("chat-details")
+      .waitFor({ timeout: 20_000 })
+      .catch(async () => {
+        await guest.screenshot({ path: path.join(shots, "guest-no-details.png") });
+        fs.writeFileSync(
+          path.join(shots, "guest-result.txt"),
+          `No Details pane for the guest. Page text: ${(await guest.locator("body").innerText()).slice(0, 500)}`,
+        );
+        return "none";
+      });
     if (fs.existsSync(path.join(shots, "guest-result.txt"))) return;
-    const people = await guest.locator('[data-testid^="row-chat-person-"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
+    const people = await guest
+      .locator('[data-testid^="row-chat-person-"]')
+      .evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
     await guest.screenshot({ path: path.join(shots, "guest-details.png") });
     let result = `People rows a guest sees: ${JSON.stringify(people)}\n`;
     const other = people.find((id) => id && !id.includes("gus"));
@@ -40,5 +82,9 @@ test("kinds-b guest: the People list of a channel and a press on a person row", 
       result += `After pressing ${other}: profile views=${profile}, refusal texts=${refused}\n`;
     }
     fs.writeFileSync(path.join(shots, "guest-result.txt"), result);
-  } finally { await browser.close(); web.close(); await space.stop(); }
+  } finally {
+    await browser.close();
+    web.close();
+    await space.stop();
+  }
 });

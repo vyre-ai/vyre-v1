@@ -17,14 +17,26 @@ test("a chat started a moment ago is pending, then final after 30 s", () => {
 
 test("a refused read of a chat just made is not a refusal; of any other chat it is", () => {
   noteMade("thr_mine");
-  assert.equal(refusalFinal(NOT_FOUND, isJustMade("thr_mine")), false, "pending: the loading mark shows and the read is asked again");
+  assert.equal(
+    refusalFinal(NOT_FOUND, isJustMade("thr_mine")),
+    false,
+    "pending: the loading mark shows and the read is asked again",
+  );
   assert.equal(refusalFinal(NOT_FOUND, isJustMade("thr_theirs")), true);
-  assert.equal(refusalFinal({ message: "slow", code: "timeout" }, false), false, "a transient failure is never a refusal");
+  assert.equal(
+    refusalFinal({ message: "slow", code: "timeout" }, false),
+    false,
+    "a transient failure is never a refusal",
+  );
 });
 
 test("what a chat.start answer names", () => {
   assert.equal(threadOfStart({ thread: { threadId: "thr_1" } }), "thr_1");
-  assert.equal(threadOfStart({ channel: { mainThreadId: "thr_main" } }), "thr_main", "a channel made by channels.create: its main thread");
+  assert.equal(
+    threadOfStart({ channel: { mainThreadId: "thr_main" } }),
+    "thr_main",
+    "a channel made by channels.create: its main thread",
+  );
   assert.equal(threadOfStart({ helper: { threadId: "thr_helper" } }), "thr_helper", "a helper's thread");
   assert.deepEqual([...MAKES_A_THREAD].sort(), ["channels.create", "chat.helper.start", "chat.start"]);
   assert.equal(threadOfStart({}), null);

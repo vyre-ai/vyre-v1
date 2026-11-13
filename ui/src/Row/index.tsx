@@ -30,24 +30,91 @@ function ensureRowCss(): void {
   if (cssDone) return;
   const d = (globalThis as { document?: Parameters<typeof injectCss>[0] }).document;
   if (!d || !d.head) return;
-  injectCss(d, "vyre-ui-row", ".vyre-row:hover{background-color:var(--hover)}.vyre-row{outline-offset:-2px;cursor:pointer}.vyre-row .vyre-lock{opacity:0;margin-left:6px;font-size:11px}.vyre-row:hover .vyre-lock{opacity:.6}");
+  injectCss(
+    d,
+    "vyre-ui-row",
+    ".vyre-row:hover{background-color:var(--hover)}.vyre-row{outline-offset:-2px;cursor:pointer}.vyre-row .vyre-lock{opacity:0;margin-left:6px;font-size:11px}.vyre-row:hover .vyre-lock{opacity:.6}",
+  );
   cssDone = true;
 }
 ensureRowCss();
 
-const ROW_S = { display: "flex", flexDirection: "row", alignItems: "center", flexShrink: 0, position: "relative", boxSizing: "border-box", width: "100%", padding: "0 8px", borderRadius: 11 } as const;
-const LEAD_S = { flex: "none", display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center" } as const;
+const ROW_S = {
+  display: "flex",
+  flexDirection: "row",
+  alignItems: "center",
+  flexShrink: 0,
+  position: "relative",
+  boxSizing: "border-box",
+  width: "100%",
+  padding: "0 8px",
+  borderRadius: 11,
+} as const;
+const LEAD_S = {
+  flex: "none",
+  display: "flex",
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+} as const;
 const TRAIL_S = { flex: "none", display: "flex", flexDirection: "row", alignItems: "center", marginLeft: 8 } as const;
-const TEXT_S = { flex: "1 1 0%", minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center" } as const;
-const TITLE_S = { color: "var(--ink)", fontSize: 13, lineHeight: "18px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
+const TEXT_S = {
+  flex: "1 1 0%",
+  minWidth: 0,
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "center",
+} as const;
+const TITLE_S = {
+  color: "var(--ink)",
+  fontSize: 13,
+  lineHeight: "18px",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+} as const;
 const TLINE_S = { display: "flex", flexDirection: "row", alignItems: "baseline", minWidth: 0, gap: 6 } as const;
 const TITLE_IN_LINE_S = { ...TITLE_S, flex: "none", maxWidth: "70%" } as const;
-const SUFFIX_S = { flex: "0 1 auto", minWidth: 0, color: "var(--ink-3)", fontSize: 12, lineHeight: "18px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
+const SUFFIX_S = {
+  flex: "0 1 auto",
+  minWidth: 0,
+  color: "var(--ink-3)",
+  fontSize: 12,
+  lineHeight: "18px",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+} as const;
 const MARKS_S = { flex: "none", display: "flex", flexDirection: "row", alignItems: "center", gap: 4 } as const;
-const NOTE_S = { color: "var(--ink-3)", fontSize: 11.5, lineHeight: "16px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
-const NOTE2_S = { color: "var(--ink-3)", fontSize: 11.5, lineHeight: "16px", whiteSpace: "pre-line", overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 } as const;
+const NOTE_S = {
+  color: "var(--ink-3)",
+  fontSize: 11.5,
+  lineHeight: "16px",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+} as const;
+const NOTE2_S = {
+  color: "var(--ink-3)",
+  fontSize: 11.5,
+  lineHeight: "16px",
+  whiteSpace: "pre-line",
+  overflow: "hidden",
+  display: "-webkit-box",
+  WebkitBoxOrient: "vertical",
+  WebkitLineClamp: 2,
+} as const;
 
-const TITLE_WRAP_S = { color: "var(--ink)", fontSize: 13, lineHeight: "18px", overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2, overflowWrap: "anywhere" } as const;
+const TITLE_WRAP_S = {
+  color: "var(--ink)",
+  fontSize: 13,
+  lineHeight: "18px",
+  overflow: "hidden",
+  display: "-webkit-box",
+  WebkitBoxOrient: "vertical",
+  WebkitLineClamp: 2,
+  overflowWrap: "anywhere",
+} as const;
 const TITLE_IN_LINE_WRAP_S = { ...TITLE_WRAP_S, flex: "0 1 auto", minWidth: 0 } as const;
 /** On a phone a title may run to two lines instead of one clipped one (the Console turns it on below 900 wide). The row grows with it, as it does for a taller trailing slot. */
 export const RowWrapContext = createContext(false);
@@ -58,20 +125,48 @@ type Measured = { scrollWidth: number; clientWidth: number; scrollHeight: number
 type RowEl = { querySelectorAll(q: string): ArrayLike<Measured> };
 /** Is any text inside this row cut off, with dots or by a line clamp? */
 export function isCut(row: RowEl | null | undefined): boolean {
-  return row ? Array.from(row.querySelectorAll("span,div")).some((n) => n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1) : false;
+  return row
+    ? Array.from(row.querySelectorAll("span,div")).some(
+        (n) => n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1,
+      )
+    : false;
 }
 /**
  * A row that cuts its text with dots gives the whole text in the app's one tooltip (the title attribute, as ui/Tooltip and ui/Tip do) when the pointer reaches it, and only then: a row whose text fits has no
  * tooltip repeating what is on the screen. The tooltip is React state, so a redraw of the row never drops it. The browser draws a title tooltip for the pointer only, never on keyboard focus: the screen-set work
  * (contract P3) needs one real tooltip that also opens on focus. Focus still fills the title, which a screen reader reads as the row's description.
  */
-export function useCutTip(full: string): { title: string | undefined; onMouseEnter(e: { currentTarget?: unknown }): void; onFocus(e: { currentTarget?: unknown }): void } {
+export function useCutTip(full: string): {
+  title: string | undefined;
+  onMouseEnter(e: { currentTarget?: unknown }): void;
+  onFocus(e: { currentTarget?: unknown }): void;
+} {
   const [cut, setCut] = useState(false);
   const check = (e: { currentTarget?: unknown }): void => setCut(isCut(e.currentTarget as RowEl | null));
   return { title: cut ? full : undefined, onMouseEnter: check, onFocus: check };
 }
 
-function WebRow({ inert = false, hint, locked = false, id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "accent", tall = false, emphasis = false, note, selected = false, hovered = false, accentLit = false, leading, trailing, onPress, domProps }: RowProps): ReactElement {
+function WebRow({
+  inert = false,
+  hint,
+  locked = false,
+  id,
+  title,
+  titleSuffix,
+  titleMarks,
+  noteLead,
+  noteLeadTone = "accent",
+  tall = false,
+  emphasis = false,
+  note,
+  selected = false,
+  hovered = false,
+  accentLit = false,
+  leading,
+  trailing,
+  onPress,
+  domProps,
+}: RowProps): ReactElement {
   ensureRowCss();
   const filled = accentLit && hovered && !selected;
   const inkOn = filled ? { color: "var(--accent-ink)" } : null;
@@ -79,33 +174,122 @@ function WebRow({ inert = false, hint, locked = false, id, title, titleSuffix, t
   const { style: extra, ...dom } = (domProps ?? {}) as { style?: Record<string, unknown> } & Record<string, unknown>;
   const wrapTitle = useContext(RowWrapContext);
   const titleBase = wrapTitle ? TITLE_WRAP_S : TITLE_S;
-  const full = [titleSuffix ? `${title} ${titleSuffix}` : title, [noteLead, note].filter((x) => x).join(" \u00b7 ")].filter((x) => x !== "").join("\n");
+  const full = [titleSuffix ? `${title} ${titleSuffix}` : title, [noteLead, note].filter((x) => x).join(" \u00b7 ")]
+    .filter((x) => x !== "")
+    .join("\n");
   const tip = useCutTip(full);
-  const mine = hint === undefined ? (name: "onMouseEnter" | "onFocus") => (e: { currentTarget?: unknown }): void => { tip[name](e); (dom[name] as ((e: unknown) => void) | undefined)?.(e); } : null;
+  const mine =
+    hint === undefined
+      ? (name: "onMouseEnter" | "onFocus") =>
+          (e: { currentTarget?: unknown }): void => {
+            tip[name](e);
+            (dom[name] as ((e: unknown) => void) | undefined)?.(e);
+          }
+      : null;
   const titleEl = h("span", { style: { ...(emphasis ? { ...titleBase, ...BOLD } : titleBase), ...inkOn } }, title);
   return h(
     "div",
     {
       // a row nothing presses (no onPress, no list that handles it through domProps) is not a button: it is not announced or focused as one
-      ...((onPress && !inert) || domProps !== undefined ? { role: "button", tabIndex: 0, "aria-selected": selected } : { role: "listitem" }), "aria-label": title, "data-testid": tid(""), className: inert ? "vyre-row-plain" : "vyre-row", ...(hint !== undefined ? { title: hint } : tip.title !== undefined ? { title: tip.title } : {}),
-      style: { ...ROW_S, minHeight: rowHeight(note, tall), ...(onPress && !inert ? { cursor: "pointer" } : inert ? { cursor: "default" } : null), ...(selected ? SELECTED : filled ? HOVER_ACCENT : hovered ? HOVER : null), ...extra },
-      ...(onPress && !inert ? {
-        onClick: (e: unknown) => onPress(e as never),
-        onKeyDown: (e: { key?: string; preventDefault?: () => void }) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault?.(); onPress(e as never); } },
-      } : {}),
+      ...((onPress && !inert) || domProps !== undefined
+        ? { role: "button", tabIndex: 0, "aria-selected": selected }
+        : { role: "listitem" }),
+      "aria-label": title,
+      "data-testid": tid(""),
+      className: inert ? "vyre-row-plain" : "vyre-row",
+      ...(hint !== undefined ? { title: hint } : tip.title !== undefined ? { title: tip.title } : {}),
+      style: {
+        ...ROW_S,
+        minHeight: rowHeight(note, tall),
+        ...(onPress && !inert ? { cursor: "pointer" } : inert ? { cursor: "default" } : null),
+        ...(selected ? SELECTED : filled ? HOVER_ACCENT : hovered ? HOVER : null),
+        ...extra,
+      },
+      ...(onPress && !inert
+        ? {
+            onClick: (e: unknown) => onPress(e as never),
+            onKeyDown: (e: { key?: string; preventDefault?: () => void }) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault?.();
+                onPress(e as never);
+              }
+            },
+          }
+        : {}),
       ...dom,
       ...(mine ? { onMouseEnter: mine("onMouseEnter"), onFocus: mine("onFocus") } : {}),
     },
     leading ? h("div", { style: LEAD_S, "data-testid": tid("-leading") }, leading) : null,
     h(
-      "div", { style: TEXT_S },
+      "div",
+      { style: TEXT_S },
       titleSuffix || titleMarks
-        ? h("div", { style: TLINE_S }, h("span", { style: emphasis ? { ...(wrapTitle ? TITLE_IN_LINE_WRAP_S : TITLE_IN_LINE_S), ...BOLD } : wrapTitle ? TITLE_IN_LINE_WRAP_S : TITLE_IN_LINE_S }, title), titleSuffix ? h("span", { style: SUFFIX_S, "data-testid": tid("-suffix") }, titleSuffix) : null, titleMarks ? h("div", { style: MARKS_S, "data-testid": tid("-marks") }, titleMarks) : null)
+        ? h(
+            "div",
+            { style: TLINE_S },
+            h(
+              "span",
+              {
+                style: emphasis
+                  ? { ...(wrapTitle ? TITLE_IN_LINE_WRAP_S : TITLE_IN_LINE_S), ...BOLD }
+                  : wrapTitle
+                    ? TITLE_IN_LINE_WRAP_S
+                    : TITLE_IN_LINE_S,
+              },
+              title,
+            ),
+            titleSuffix ? h("span", { style: SUFFIX_S, "data-testid": tid("-suffix") }, titleSuffix) : null,
+            titleMarks ? h("div", { style: MARKS_S, "data-testid": tid("-marks") }, titleMarks) : null,
+          )
         : titleEl,
-      note ? h("div", { style: { ...(tall || wrapTitle ? NOTE2_S : NOTE_S), ...(filled ? { color: "var(--accent-ink)", opacity: 0.8 } : null) } }, noteLead ? h("span", { "data-testid": tid("-notelead"), style: noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD }, noteLead) : null, noteLead ? " \u00b7 " : null, note) : null,
+      note
+        ? h(
+            "div",
+            {
+              style: {
+                ...(tall || wrapTitle ? NOTE2_S : NOTE_S),
+                ...(filled ? { color: "var(--accent-ink)", opacity: 0.8 } : null),
+              },
+            },
+            noteLead
+              ? h(
+                  "span",
+                  { "data-testid": tid("-notelead"), style: noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD },
+                  noteLead,
+                )
+              : null,
+            noteLead ? " \u00b7 " : null,
+            note,
+          )
+        : null,
     ),
     trailing ? h("div", { style: TRAIL_S, "data-testid": tid("-trailing") }, trailing) : null,
-    locked ? h("span", { className: "vyre-lock", "data-testid": tid("-lock"), "aria-hidden": true, style: { display: "inline-flex", alignItems: "center", color: "var(--ink-3)" } }, h("svg", { width: 11, height: 11, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round" }, h("rect", { x: 3, y: 7, width: 10, height: 7, rx: 1.5 }), h("path", { d: "M5.5 7V5a2.5 2.5 0 0 1 5 0v2" }))) : null,
+    locked
+      ? h(
+          "span",
+          {
+            className: "vyre-lock",
+            "data-testid": tid("-lock"),
+            "aria-hidden": true,
+            style: { display: "inline-flex", alignItems: "center", color: "var(--ink-3)" },
+          },
+          h(
+            "svg",
+            {
+              width: 11,
+              height: 11,
+              viewBox: "0 0 16 16",
+              fill: "none",
+              stroke: "currentColor",
+              strokeWidth: 1.5,
+              strokeLinecap: "round",
+              strokeLinejoin: "round",
+            },
+            h("rect", { x: 3, y: 7, width: 10, height: 7, rx: 1.5 }),
+            h("path", { d: "M5.5 7V5a2.5 2.5 0 0 1 5 0v2" }),
+          ),
+        )
+      : null,
   );
 }
 
@@ -113,7 +297,23 @@ export const Row = memo(function Row(props: RowProps) {
   return Platform.OS === "web" ? WebRow(props) : <NativeRow {...props} />;
 });
 
-const NativeRow = memo(function NativeRow({ inert = false, id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "accent", tall = false, emphasis = false, note, selected = false, hovered = false, leading, trailing, onPress }: RowProps) {
+const NativeRow = memo(function NativeRow({
+  inert = false,
+  id,
+  title,
+  titleSuffix,
+  titleMarks,
+  noteLead,
+  noteLeadTone = "accent",
+  tall = false,
+  emphasis = false,
+  note,
+  selected = false,
+  hovered = false,
+  leading,
+  trailing,
+  onPress,
+}: RowProps) {
   const [over, setOver] = useState(false);
   const lit = hovered || over;
   return (
@@ -128,23 +328,55 @@ const NativeRow = memo(function NativeRow({ inert = false, id, title, titleSuffi
       nativeID={id ? `row-${id}` : undefined}
       style={[styles.row, { minHeight: rowHeight(note, tall) }, lit && HOVER, selected && SELECTED]}
     >
-      {leading ? <View testID={id ? `row-${id}-leading` : undefined} style={styles.leading}>{leading}</View> : null}
+      {leading ? (
+        <View testID={id ? `row-${id}-leading` : undefined} style={styles.leading}>
+          {leading}
+        </View>
+      ) : null}
       <View style={styles.text}>
         {titleSuffix || titleMarks ? (
           <View style={styles.titleLine}>
-            <Text numberOfLines={1} style={[styles.title, styles.titleMain, emphasis && BOLD]}>{title}</Text>
-            {titleSuffix ? <Text numberOfLines={1} testID={id ? `row-${id}-suffix` : undefined} style={styles.suffix}>{titleSuffix}</Text> : null}
-            {titleMarks ? <View testID={id ? `row-${id}-marks` : undefined} style={styles.marks}>{titleMarks}</View> : null}
+            <Text numberOfLines={1} style={[styles.title, styles.titleMain, emphasis && BOLD]}>
+              {title}
+            </Text>
+            {titleSuffix ? (
+              <Text numberOfLines={1} testID={id ? `row-${id}-suffix` : undefined} style={styles.suffix}>
+                {titleSuffix}
+              </Text>
+            ) : null}
+            {titleMarks ? (
+              <View testID={id ? `row-${id}-marks` : undefined} style={styles.marks}>
+                {titleMarks}
+              </View>
+            ) : null}
           </View>
-        ) : <Text numberOfLines={1} style={[styles.title, emphasis && BOLD]}>{title}</Text>}
+        ) : (
+          <Text numberOfLines={1} style={[styles.title, emphasis && BOLD]}>
+            {title}
+          </Text>
+        )}
         {note ? (
           <Text numberOfLines={tall ? 2 : 1} style={styles.note}>
-            {noteLead ? <><Text testID={id ? `row-${id}-notelead` : undefined} style={noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD}>{noteLead}</Text>{" \u00b7 "}</> : null}
+            {noteLead ? (
+              <>
+                <Text
+                  testID={id ? `row-${id}-notelead` : undefined}
+                  style={noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD}
+                >
+                  {noteLead}
+                </Text>
+                {" \u00b7 "}
+              </>
+            ) : null}
             {note}
           </Text>
         ) : null}
       </View>
-      {trailing ? <View testID={id ? `row-${id}-trailing` : undefined} style={styles.trailing}>{trailing}</View> : null}
+      {trailing ? (
+        <View testID={id ? `row-${id}-trailing` : undefined} style={styles.trailing}>
+          {trailing}
+        </View>
+      ) : null}
     </Pressable>
   );
 });

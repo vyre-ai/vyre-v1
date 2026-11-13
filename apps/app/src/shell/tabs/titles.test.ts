@@ -128,8 +128,15 @@ test("a chat tab whose chat the person cannot open says Chats, not New chat; a t
   const ask = askForHash("chats", "subject=thread:thr_x")!;
   const run = async (err: unknown): Promise<string> => {
     let got = "";
-    const stop = followTitle({ call: () => Promise.reject(err), hooks: { capQuery: () => ({ subscribe: () => () => undefined }) } } as never, ask, (t) => { got = t; });
-    await new Promise((r) => setTimeout(r, 10)); stop();
+    const stop = followTitle(
+      { call: () => Promise.reject(err), hooks: { capQuery: () => ({ subscribe: () => () => undefined }) } } as never,
+      ask,
+      (t) => {
+        got = t;
+      },
+    );
+    await new Promise((r) => setTimeout(r, 10));
+    stop();
     return got;
   };
   assert.equal(REFUSED_CHAT_TAB, "Chats");
@@ -141,10 +148,23 @@ test("a chat tab whose chat the person cannot open says Chats, not New chat; a t
 test("a second refused chat reuses the one refusal tab; the place's own Chats tab is never taken for one", async () => {
   const { staleRefusalTab } = await import("./titles.ts");
   const place = { key: "chats", title: "Chats", hash: "", pinned: true };
-  const a = { key: "chats#a", title: "Chats", hash: "subject=thread:a" }, b = { key: "chats#b", title: "Chats", hash: "subject=thread:b" };
+  const a = { key: "chats#a", title: "Chats", hash: "subject=thread:a" },
+    b = { key: "chats#b", title: "Chats", hash: "subject=thread:b" };
   const real = { key: "chats#r", title: "Launch plan", hash: "subject=thread:r" };
-  assert.equal(staleRefusalTab([place, real, a], "chats#a", "chats#a"), null, "the first refusal has nothing to replace");
+  assert.equal(
+    staleRefusalTab([place, real, a], "chats#a", "chats#a"),
+    null,
+    "the first refusal has nothing to replace",
+  );
   assert.equal(staleRefusalTab([place, a, real, b], "chats#b", "chats#b"), "chats#a", "the older refusal tab closes");
-  assert.equal(staleRefusalTab([place, a, b], "chats#b", "chats#a"), "chats#b", "when the older one is on screen, the new one goes instead");
-  assert.equal(staleRefusalTab([place, real, b], "chats#b", "chats#b"), null, "a named chat and the place tab are not refusals");
+  assert.equal(
+    staleRefusalTab([place, a, b], "chats#b", "chats#a"),
+    "chats#b",
+    "when the older one is on screen, the new one goes instead",
+  );
+  assert.equal(
+    staleRefusalTab([place, real, b], "chats#b", "chats#b"),
+    null,
+    "a named chat and the place tab are not refusals",
+  );
 });

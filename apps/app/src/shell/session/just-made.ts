@@ -21,13 +21,21 @@ export const MAKES_A_THREAD: readonly string[] = ["chat.start", "channels.create
 
 /** What the answer of one of those names: the thread of a chat (`thread`), of a helper (`helper`) or a channel's main thread (`channel.mainThreadId`). */
 export function threadOfStart(out: unknown): string | null {
-  const o = (out ?? {}) as { thread?: { threadId?: unknown }; helper?: { threadId?: unknown }; channel?: { mainThreadId?: unknown } };
+  const o = (out ?? {}) as {
+    thread?: { threadId?: unknown };
+    helper?: { threadId?: unknown };
+    channel?: { mainThreadId?: unknown };
+  };
   const id = o.thread?.threadId ?? o.helper?.threadId ?? o.channel?.mainThreadId;
   return typeof id === "string" && id !== "" ? id : null;
 }
 
 /** A refused read of a chat this person just started: the row is still landing, so it is pending and not a refusal. Conversation shows its loading mark and reads again. */
-export const refusalIsPending = (failure: { code?: string | undefined }, threadId: string, now: number = Date.now()): boolean => {
+export const refusalIsPending = (
+  failure: { code?: string | undefined },
+  threadId: string,
+  now: number = Date.now(),
+): boolean => {
   const c = failure.code ?? "";
   return (c.startsWith("permission.") || c === "validation.not_found") && isJustMade(threadId, now);
 };

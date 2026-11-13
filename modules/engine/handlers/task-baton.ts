@@ -17,15 +17,37 @@ import { automationMark, isOutsideTrigger } from "../../../lib/automation-conten
 import type { EngineCtx } from "../projections.ts";
 
 type Obj = Record<string, unknown>;
-export interface Who { kind: string; id: string }
+export interface Who {
+  kind: string;
+  id: string;
+}
 export interface BatonTask {
-  id: string; kind: string; title: string; state: string; assigned: Who; reviewer?: Who; approver?: Who; takenBy?: string; parentTaskId?: string; threadId?: string;
-  createdBy: string; reviewLoops: number; source?: { kind: string; id: string }; workingNotes: Record<string, string>; recordId?: string; blocked?: boolean; workerThread?: string;
+  id: string;
+  kind: string;
+  title: string;
+  state: string;
+  assigned: Who;
+  reviewer?: Who;
+  approver?: Who;
+  takenBy?: string;
+  parentTaskId?: string;
+  threadId?: string;
+  createdBy: string;
+  reviewLoops: number;
+  source?: { kind: string; id: string };
+  workingNotes: Record<string, string>;
+  recordId?: string;
+  blocked?: boolean;
+  workerThread?: string;
   actions?: Array<{ key: string; label?: string }>;
 }
 /** What the baton needs of the server: a way to call a capability (as the server, or as a person), the clock, and a log. The consumer, the clock job and the turn-end hook all pass one, so none of them
  *  holds on to the ctx of a call that has finished. */
-export interface BatonHost { call(cap: string, input: unknown, as?: string): Promise<unknown>; now?: () => number; log?: (msg: string, attrs?: Record<string, unknown>) => void }
+export interface BatonHost {
+  call(cap: string, input: unknown, as?: string): Promise<unknown>;
+  now?: () => number;
+  log?: (msg: string, attrs?: Record<string, unknown>) => void;
+}
 type Db = EngineCtx["db"];
 const clockOf = (host: BatonHost): number => (host.now ?? Date.now)();
 
@@ -36,23 +58,52 @@ const isPerson = (id: unknown): id is string => typeof id === "string" && id.sta
 const isAgentId = (id: unknown): id is string => typeof id === "string" && id.startsWith("agt_");
 /** What a task that waits for a person says in its thread, once. */
 export const WAITING_NOTE = "baton.waiting";
-export const WAITING_LINE = "This came from an automation and has nobody's permission to act yet. Open it to run it as yourself.";
-export const WAITING_LINE_CHANGED = "The automation that made this now runs as someone else, so this work waits for a person. Open it to run it as yourself.";
-export const WAITING_LINE_AGENT = "An agent made this task, and no person's permission to act on it is on record. Open it to run it as yourself.";
-export const WAITING_LINE_OTHER = "Nobody asked for this work, so it has nobody's permission to act yet. Open it to run it as yourself.";
+export const WAITING_LINE =
+  "This came from an automation and has nobody's permission to act yet. Open it to run it as yourself.";
+export const WAITING_LINE_CHANGED =
+  "The automation that made this now runs as someone else, so this work waits for a person. Open it to run it as yourself.";
+export const WAITING_LINE_AGENT =
+  "An agent made this task, and no person's permission to act on it is on record. Open it to run it as yourself.";
+export const WAITING_LINE_OTHER =
+  "Nobody asked for this work, so it has nobody's permission to act yet. Open it to run it as yourself.";
 
 const ensureBaton = ensure;
 
-export interface BatonRow { taskId: string; sig: string; woken: string[]; answered: string[]; threadId?: string; asker?: string; wokeAt: number; turnEndedAt?: number; nudgedAt?: number; escalatedAt?: number }
-const arr = (v: unknown): string[] => { try { const p = JSON.parse(String(v)) as unknown; return Array.isArray(p) ? p.filter((x): x is string => typeof x === "string") : []; } catch { return []; } };
+export interface BatonRow {
+  taskId: string;
+  sig: string;
+  woken: string[];
+  answered: string[];
+  threadId?: string;
+  asker?: string;
+  wokeAt: number;
+  turnEndedAt?: number;
+  nudgedAt?: number;
+  escalatedAt?: number;
+}
+const arr = (v: unknown): string[] => {
+  try {
+    const p = JSON.parse(String(v)) as unknown;
+    return Array.isArray(p) ? p.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+};
 export function batonRow(db: EngineCtx["db"], taskId: string): BatonRow | undefined {
   ensureBaton(db);
   const r = db.all("SELECT * FROM engine_task_baton WHERE task_id = ?", taskId)[0] as Obj | undefined;
   if (!r) return undefined;
   const n = (v: unknown): number | undefined => (typeof v === "number" ? v : undefined);
   return {
-    taskId, sig: str(r["sig"]), woken: arr(r["woken"]), answered: arr(r["answered"]), ...(r["thread_id"] ? { threadId: str(r["thread_id"]) } : {}), ...(r["asker"] ? { asker: str(r["asker"]) } : {}),
-    wokeAt: Number(r["woke_at"]), ...(n(r["turn_ended_at"]) !== undefined ? { turnEndedAt: n(r["turn_ended_at"])! } : {}), ...(n(r["nudged_at"]) !== undefined ? { nudgedAt: n(r["nudged_at"])! } : {}),
+    taskId,
+    sig: str(r["sig"]),
+    woken: arr(r["woken"]),
+    answered: arr(r["answered"]),
+    ...(r["thread_id"] ? { threadId: str(r["thread_id"]) } : {}),
+    ...(r["asker"] ? { asker: str(r["asker"]) } : {}),
+    wokeAt: Number(r["woke_at"]),
+    ...(n(r["turn_ended_at"]) !== undefined ? { turnEndedAt: n(r["turn_ended_at"])! } : {}),
+    ...(n(r["nudged_at"]) !== undefined ? { nudgedAt: n(r["nudged_at"])! } : {}),
     ...(n(r["escalated_at"]) !== undefined ? { escalatedAt: n(r["escalated_at"])! } : {}),
   };
 }
@@ -60,21 +111,40 @@ export function saveBaton(db: EngineCtx["db"], b: BatonRow): void {
   ensureBaton(db);
   db.run(
     "INSERT OR REPLACE INTO engine_task_baton (task_id, sig, woken, answered, thread_id, asker, woke_at, turn_ended_at, nudged_at, escalated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    b.taskId, b.sig, JSON.stringify(b.woken), JSON.stringify(b.answered), b.threadId ?? null, b.asker ?? null, b.wokeAt, b.turnEndedAt ?? null, b.nudgedAt ?? null, b.escalatedAt ?? null,
+    b.taskId,
+    b.sig,
+    JSON.stringify(b.woken),
+    JSON.stringify(b.answered),
+    b.threadId ?? null,
+    b.asker ?? null,
+    b.wokeAt,
+    b.turnEndedAt ?? null,
+    b.nudgedAt ?? null,
+    b.escalatedAt ?? null,
   );
 }
-export function dropBaton(db: EngineCtx["db"], taskId: string): void { ensureBaton(db); db.run("DELETE FROM engine_task_baton WHERE task_id = ?", taskId); }
+export function dropBaton(db: EngineCtx["db"], taskId: string): void {
+  ensureBaton(db);
+  db.run("DELETE FROM engine_task_baton WHERE task_id = ?", taskId);
+}
 
 /** Whose move it is: the Assigned while the work is open, the Reviewer in review, the Approver in approval. Nobody once the task is finished. */
-export function holderOf(t: Pick<BatonTask, "state" | "assigned" | "reviewer" | "approver">): { role: "assigned" | "reviewer" | "approver"; who: Who } | null {
+export function holderOf(
+  t: Pick<BatonTask, "state" | "assigned" | "reviewer" | "approver">,
+): { role: "assigned" | "reviewer" | "approver"; who: Who } | null {
   if (t.state === "todo" || t.state === "doing") return { role: "assigned", who: t.assigned };
   if (t.state === "in_review" && t.reviewer) return { role: "reviewer", who: t.reviewer };
   if (t.state === "awaiting_approval" && t.approver) return { role: "approver", who: t.approver };
   return null;
 }
-export const signatureOf = (t: BatonTask, h: { role: string; who: Who }): string => `${h.role}|${t.reviewLoops}|${h.who.kind}:${h.who.id}`;
+export const signatureOf = (t: BatonTask, h: { role: string; who: Who }): string =>
+  `${h.role}|${t.reviewLoops}|${h.who.kind}:${h.who.id}`;
 
-const runsOutside = (host: BatonHost, agentId: string): Promise<boolean> => host.call("agents.get", { agentId }).then((r) => (r as { agent?: { runtime?: string } } | null)?.agent?.runtime === "outside", () => false);
+const runsOutside = (host: BatonHost, agentId: string): Promise<boolean> =>
+  host.call("agents.get", { agentId }).then(
+    (r) => (r as { agent?: { runtime?: string } } | null)?.agent?.runtime === "outside",
+    () => false,
+  );
 
 /**
  * The person a turn runs for: who asked for the work (the task's creator, or the person who started it, baton.owner). A task a service made (an Automation's step, a form, a timer) has nobody else:
@@ -86,14 +156,22 @@ export async function askerOf(host: BatonHost, t: BatonTask): Promise<string | u
 }
 
 /** askerOf with the reason a task acts for nobody, in the words its page shows. */
-export async function askerFor(host: BatonHost, t: BatonTask): Promise<{ asker?: string; line?: string; automation?: AutomationAsker }> {
+export async function askerFor(
+  host: BatonHost,
+  t: BatonTask,
+): Promise<{ asker?: string; line?: string; automation?: AutomationAsker }> {
   if (isPerson(t.createdBy)) return { asker: t.createdBy };
   const starter = t.workingNotes["baton.owner"];
   if (isPerson(starter)) {
     // the person who started (or handed on) a task a service made: they must still be able to give this agent work, checked at every wake (review 12 Nov, 5)
     if (serviceMade(t) && t.assigned.kind === "agent") {
-      const u = (await host.call("agents.outside.usable", { agentId: t.assigned.id }, starter).catch(() => null)) as { usable?: boolean } | null;
-      if (u?.usable !== true) return { line: "The person who started this can no longer give this agent work. Open it to run it as yourself." };
+      const u = (await host.call("agents.outside.usable", { agentId: t.assigned.id }, starter).catch(() => null)) as {
+        usable?: boolean;
+      } | null;
+      if (u?.usable !== true)
+        return {
+          line: "The person who started this can no longer give this agent work. Open it to run it as yourself.",
+        };
     }
     return { asker: starter };
   }
@@ -110,12 +188,22 @@ export async function askerFor(host: BatonHost, t: BatonTask): Promise<{ asker?:
   return { line: WAITING_LINE_AGENT };
 }
 
-export interface AutomationAsker { automationId: string; asker?: string; trigger?: string; line?: string }
+export interface AutomationAsker {
+  automationId: string;
+  asker?: string;
+  trigger?: string;
+  line?: string;
+}
 
 /** The Automation and trigger of a task its own Run's step made (the note binds only when that Automation's service made it), or null. */
 function automationMade(t: BatonTask): { automationId: string; trigger: string } | null {
   const automationId = t.workingNotes["automation.id"];
-  if (typeof automationId !== "string" || !/^aut_[a-z0-9]+$/.test(automationId) || t.createdBy !== `svc_${automationId.slice(4)}`) return null;
+  if (
+    typeof automationId !== "string" ||
+    !/^aut_[a-z0-9]+$/.test(automationId) ||
+    t.createdBy !== `svc_${automationId.slice(4)}`
+  )
+    return null;
   return { automationId, trigger: t.workingNotes["automation.trigger"] ?? "" };
 }
 
@@ -130,14 +218,34 @@ async function stillAsker(host: BatonHost, t: BatonTask, saved: string | undefin
   if (!serviceMade(t)) return saved ?? (isPerson(t.createdBy) ? t.createdBy : undefined);
   const now = await askerFor(host, t);
   if (now.asker !== undefined && now.asker === saved) return saved;
-  await writeWaiting(host, t, now.line ?? (now.asker !== undefined ? `${WAITING_LINE_CHANGED}` : t.source?.kind === "run" ? WAITING_LINE : WAITING_LINE_OTHER));
+  await writeWaiting(
+    host,
+    t,
+    now.line ??
+      (now.asker !== undefined
+        ? `${WAITING_LINE_CHANGED}`
+        : t.source?.kind === "run"
+          ? WAITING_LINE
+          : WAITING_LINE_OTHER),
+  );
   return undefined;
 }
 
 async function writeWaiting(host: BatonHost, t: BatonTask, body: string): Promise<void> {
   if (t.workingNotes[WAITING_NOTE] === body) return;
-  await host.call("tasks.working_notes.set", { taskId: t.id, key: WAITING_NOTE, value: body, idempotencyKey: `baton-waiting:${t.id}:${body.length}:${clockOf(host)}` })
-    .catch((e: unknown) => host.log?.("the waiting line could not be written", { taskId: t.id, error: e instanceof Error ? e.message : String(e) }));
+  await host
+    .call("tasks.working_notes.set", {
+      taskId: t.id,
+      key: WAITING_NOTE,
+      value: body,
+      idempotencyKey: `baton-waiting:${t.id}:${body.length}:${clockOf(host)}`,
+    })
+    .catch((e: unknown) =>
+      host.log?.("the waiting line could not be written", {
+        taskId: t.id,
+        error: e instanceof Error ? e.message : String(e),
+      }),
+    );
 }
 
 /**
@@ -146,19 +254,38 @@ async function writeWaiting(host: BatonHost, t: BatonTask, body: string): Promis
  */
 async function automationAsker(host: BatonHost, t: BatonTask): Promise<AutomationAsker | undefined> {
   const automationId = t.workingNotes["automation.id"];
-  if (t.source?.kind !== "run" || typeof automationId !== "string" || !/^aut_[a-z0-9]+$/.test(automationId)) return undefined;
+  if (t.source?.kind !== "run" || typeof automationId !== "string" || !/^aut_[a-z0-9]+$/.test(automationId))
+    return undefined;
   if (t.createdBy !== `svc_${automationId.slice(4)}`) return undefined;
   const agentId = t.assigned.kind === "agent" ? t.assigned.id : undefined;
   let r: { kind?: string; runsAs?: string; name?: string; trigger?: string; ok?: boolean; line?: string } | null = null;
-  try { r = (await host.call("automations.runs_as.get", { automationId, runId: t.source.id, ...(agentId ? { agentId } : {}) })) as typeof r; }
-  catch (e) { host.log?.("the automation's runs-as person could not be read", { taskId: t.id, error: e instanceof Error ? e.message : String(e) }); return { automationId }; }
+  try {
+    r = (await host.call("automations.runs_as.get", {
+      automationId,
+      runId: t.source.id,
+      ...(agentId ? { agentId } : {}),
+    })) as typeof r;
+  } catch (e) {
+    host.log?.("the automation's runs-as person could not be read", {
+      taskId: t.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return { automationId };
+  }
   const base: AutomationAsker = { automationId, ...(r?.trigger ? { trigger: r.trigger } : {}) };
   if (!r?.ok || !isPerson(r.runsAs)) return { ...base, ...(r?.line ? { line: r.line } : {}) };
   if (agentId) {
-    const u = (await host.call("agents.outside.usable", { agentId }, r.runsAs).catch(() => null)) as { usable?: boolean } | null;
+    const u = (await host.call("agents.outside.usable", { agentId }, r.runsAs).catch(() => null)) as {
+      usable?: boolean;
+    } | null;
     if (u?.usable !== true) {
-      const agentName = ((await host.call("agents.get", { agentId }).catch(() => null)) as { agent?: { name?: string } } | null)?.agent?.name ?? "this agent";
-      return { ...base, line: `${r.name ?? "The person who turned this automation on"} turned this automation on and can no longer ask ${agentName}. Open it to run it as yourself.` };
+      const agentName =
+        ((await host.call("agents.get", { agentId }).catch(() => null)) as { agent?: { name?: string } } | null)?.agent
+          ?.name ?? "this agent";
+      return {
+        ...base,
+        line: `${r.name ?? "The person who turned this automation on"} turned this automation on and can no longer ask ${agentName}. Open it to run it as yourself.`,
+      };
     }
   }
   return { ...base, asker: r.runsAs };
@@ -166,16 +293,34 @@ async function automationAsker(host: BatonHost, t: BatonTask): Promise<Automatio
 
 async function agentMembers(host: BatonHost, who: Who): Promise<string[]> {
   try {
-    const members = who.kind === "group"
-      ? ((await host.call("access.groups.get", { groupId: who.id })) as { group?: { members?: Array<{ kind?: string; id?: string }> } }).group?.members
-      : ((await host.call("access.roles.get", { roleId: who.id })) as { holders?: Array<{ kind?: string; id?: string }> }).holders;
-    return (members ?? []).filter((m) => m.kind === "agent" && typeof m.id === "string").map((m) => m.id as string).slice(0, MAX_OFFERED);
-  } catch { return []; }
+    const members =
+      who.kind === "group"
+        ? (
+            (await host.call("access.groups.get", { groupId: who.id })) as {
+              group?: { members?: Array<{ kind?: string; id?: string }> };
+            }
+          ).group?.members
+        : (
+            (await host.call("access.roles.get", { roleId: who.id })) as {
+              holders?: Array<{ kind?: string; id?: string }>;
+            }
+          ).holders;
+    return (members ?? [])
+      .filter((m) => m.kind === "agent" && typeof m.id === "string")
+      .map((m) => m.id as string)
+      .slice(0, MAX_OFFERED);
+  } catch {
+    return [];
+  }
 }
 
 /** May the work of this goal wake its agents now. A goal that cannot be read does not hold work back. */
 export async function goalGoes(host: BatonHost, goalId: string): Promise<boolean> {
-  try { return ((await host.call("goals.go", { goalId })) as { go?: boolean } | null)?.go !== false; } catch { return true; }
+  try {
+    return ((await host.call("goals.go", { goalId })) as { go?: boolean } | null)?.go !== false;
+  } catch {
+    return true;
+  }
 }
 
 /** The agents to wake for a holder. A taken group task is held by the one who took it, who is already working, so nobody else is woken. */
@@ -186,42 +331,118 @@ export async function agentsToWake(host: BatonHost, t: BatonTask, who: Who): Pro
 }
 
 async function readTask(host: BatonHost, id: string): Promise<BatonTask | undefined> {
-  try { return ((await host.call("tasks.get", { taskId: id })) as { task?: BatonTask }).task; } catch { return undefined; }
+  try {
+    return ((await host.call("tasks.get", { taskId: id })) as { task?: BatonTask }).task;
+  } catch {
+    return undefined;
+  }
 }
 
-interface ThreadOut { thread: { kind?: string; agents: Array<{ agentId: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown }> } }
+interface ThreadOut {
+  thread: {
+    kind?: string;
+    agents: Array<{ agentId: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown }>;
+  };
+}
 type Reader = (cap: string, input: unknown) => Promise<unknown>;
 
 /** The thread of a task, made when the task has none. chat.start is one thread per task, so asking again returns the same one. */
 async function threadOf(host: BatonHost, t: BatonTask, agentIds: string[], asker: string): Promise<string | undefined> {
   if (t.threadId) return t.threadId;
   try {
-    const made = (await host.call("chat.start", { kind: "chat", agentIds, scopeType: "task", scopeId: t.id, title: t.title, idempotencyKey: `task-thread:${t.id}` }, asker)) as { thread?: { threadId?: string } };
+    const made = (await host.call(
+      "chat.start",
+      {
+        kind: "chat",
+        agentIds,
+        scopeType: "task",
+        scopeId: t.id,
+        title: t.title,
+        idempotencyKey: `task-thread:${t.id}`,
+      },
+      asker,
+    )) as { thread?: { threadId?: string } };
     const id = made.thread?.threadId;
     // the thread chat could not make with the task is linked now, in one write, so the task page and the run page find it
-    if (id) await host.call("tasks.update", { taskId: t.id, threadId: id }).catch((e: unknown) => host.log?.("a task could not be linked to its thread", { taskId: t.id, error: e instanceof Error ? e.message : String(e) }));
+    if (id)
+      await host.call("tasks.update", { taskId: t.id, threadId: id }).catch((e: unknown) =>
+        host.log?.("a task could not be linked to its thread", {
+          taskId: t.id,
+          error: e instanceof Error ? e.message : String(e),
+        }),
+      );
     return id;
-  } catch (e) { host.log?.("the thread of a task could not be made", { taskId: t.id, error: e instanceof Error ? e.message : String(e) }); return undefined; }
+  } catch (e) {
+    host.log?.("the thread of a task could not be made", {
+      taskId: t.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return undefined;
+  }
 }
 
 /** Open the task's thread in the engine for this asker, with the agents chat knows, and the agent that is about to be woken among them. */
-export async function openThread(db: Db, host: BatonHost, engine: TurnEngine, threadId: string, agentId: string, asker: string, readAs?: string): Promise<boolean> {
+export async function openThread(
+  db: Db,
+  host: BatonHost,
+  engine: TurnEngine,
+  threadId: string,
+  agentId: string,
+  asker: string,
+  readAs?: string,
+): Promise<boolean> {
   // a task thread is the server's to read: whoever made the task (a service, for a Space automation) owns it, and the person it runs for need not be able to open it.
   // A goal's chat is a private chat of its owner: it is read as them (readAs).
   const read: Reader = (cap, input) => (readAs ? host.call(cap, input, readAs) : host.call(cap, input));
   let open = true;
-  try { engine.agents(threadId); } catch (e) { if (!(e instanceof RangeError)) throw e; open = false; }
+  try {
+    engine.agents(threadId);
+  } catch (e) {
+    if (!(e instanceof RangeError)) throw e;
+    open = false;
+  }
   let got: ThreadOut;
-  try { got = (await read("threads.get", { threadId })) as ThreadOut; } catch (e) { host.log?.("the thread of a task could not be read", { threadId, error: e instanceof Error ? e.message : String(e) }); return false; }
+  try {
+    got = (await read("threads.get", { threadId })) as ThreadOut;
+  } catch (e) {
+    host.log?.("the thread of a task could not be read", {
+      threadId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return false;
+  }
   if (!got.thread.agents.some((a) => a.agentId === agentId)) {
-    try { await (readAs ? host.call("threads.add_agent", { threadId, agentId, mode: "listen" }, readAs) : host.call("threads.add_agent", { threadId, agentId, mode: "listen" })); got.thread.agents.push({ agentId, mode: "listen" }); }
-    catch (e) { host.log?.("an agent could not join the thread of its task", { threadId, agentId, error: e instanceof Error ? e.message : String(e) }); return false; }
+    try {
+      await (readAs
+        ? host.call("threads.add_agent", { threadId, agentId, mode: "listen" }, readAs)
+        : host.call("threads.add_agent", { threadId, agentId, mode: "listen" }));
+      got.thread.agents.push({ agentId, mode: "listen" });
+    } catch (e) {
+      host.log?.("an agent could not join the thread of its task", {
+        threadId,
+        agentId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      return false;
+    }
   }
   const agents: EngineAgent[] = [];
   for (const a of got.thread.agents) {
     let model = a.model;
-    if (!model) { try { model = ((await read("agents.get", { agentId: a.agentId })) as { agent?: { model?: string } } | null)?.agent?.model; } catch { /* the agent's account default */ } }
-    agents.push({ id: a.agentId, mode: "listen", ...(model ? { model } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}) });
+    if (!model) {
+      try {
+        model = ((await read("agents.get", { agentId: a.agentId })) as { agent?: { model?: string } } | null)?.agent
+          ?.model;
+      } catch {
+        /* the agent's account default */
+      }
+    }
+    agents.push({
+      id: a.agentId,
+      mode: "listen",
+      ...(model ? { model } : {}),
+      ...(a.accountRef ? { accountRef: a.accountRef } : {}),
+    });
   }
   if (open) {
     for (const a of agents) engine.engage(threadId, a);
@@ -232,31 +453,79 @@ export async function openThread(db: Db, host: BatonHost, engine: TurnEngine, th
   const store = sqlMessages(db, () => clockOf(host));
   if (store.recent(threadId, 1).length === 0) {
     try {
-      const list = (await read("chat.messages.list", { threadId, limit: HISTORY })) as { messages: Array<{ messageId: string; threadSeq?: number; author: { id: string }; body: string; depth?: number }> };
+      const list = (await read("chat.messages.list", { threadId, limit: HISTORY })) as {
+        messages: Array<{
+          messageId: string;
+          threadSeq?: number;
+          author: { id: string };
+          body: string;
+          depth?: number;
+        }>;
+      };
       for (const r of [...list.messages].sort((a, b) => (a.threadSeq ?? 0) - (b.threadSeq ?? 0))) {
         if (store.get(r.messageId)) continue;
-        withMessageId(r.messageId, () => store.append({ id: r.messageId, threadId, author: { kind: r.author.id.startsWith("agt_") ? "agent" : "person", id: r.author.id }, mentions: [], depth: r.depth ?? 0, body: r.body }));
+        withMessageId(r.messageId, () =>
+          store.append({
+            id: r.messageId,
+            threadId,
+            author: { kind: r.author.id.startsWith("agt_") ? "agent" : "person", id: r.author.id },
+            mentions: [],
+            depth: r.depth ?? 0,
+            body: r.body,
+          }),
+        );
       }
-    } catch { /* an empty history still gives the agent its task section */ }
+    } catch {
+      /* an empty history still gives the agent its task section */
+    }
   }
-  try { engine.openThread({ id: threadId, kind: "thread", starter: asker, agents }); } catch (e) { if (!(e instanceof RangeError)) throw e; }
+  try {
+    engine.openThread({ id: threadId, kind: "thread", starter: asker, agents });
+  } catch (e) {
+    if (!(e instanceof RangeError)) throw e;
+  }
   return true;
 }
 
 /** The agent that holds the baton may use the task: its own grant, because an agent's reach is the least of its own and the person's. The task exists in access only once the call that made it has committed, which is why this is done here, as the person who asked (they own it; the server itself may not share). */
 async function shareTask(host: BatonHost, taskId: string, agentId: string, asker: string): Promise<void> {
   try {
-    await host.call("access.share", { resource: { type: "task", id: taskId }, subject: { kind: "agent", id: agentId }, level: "use", source: `baton:${taskId}`, idempotencyKey: `baton-share:${taskId}:${agentId}:${globalThis.crypto.randomUUID()}` }, asker);
-  } catch (e) { host.log?.("an agent could not be given its task", { taskId, agentId, error: e instanceof Error ? e.message : String(e) }); }
+    await host.call(
+      "access.share",
+      {
+        resource: { type: "task", id: taskId },
+        subject: { kind: "agent", id: agentId },
+        level: "use",
+        source: `baton:${taskId}`,
+        idempotencyKey: `baton-share:${taskId}:${agentId}:${globalThis.crypto.randomUUID()}`,
+      },
+      asker,
+    );
+  } catch (e) {
+    host.log?.("an agent could not be given its task", {
+      taskId,
+      agentId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
 }
 
-export interface TaskEvent { name: string; id?: string; payload: Obj }
+export interface TaskEvent {
+  name: string;
+  id?: string;
+  payload: Obj;
+}
 
 /**
  * One task event. Reads the task, works out whose move it is, and wakes the agent when the baton is new. Returns the agents woken (for the log and the tests).
  * `engine` is null where the runtime is not running on this host; nothing is recorded then, so a host that has it wakes the agent when it reads the event.
  */
-export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, engine: TurnEngine | null, event: TaskEvent): Promise<string[]> {
+export async function onTaskEvent(
+  ctx: Pick<EngineCtx, "db">,
+  host: BatonHost,
+  engine: TurnEngine | null,
+  event: TaskEvent,
+): Promise<string[]> {
   ensureBaton(ctx.db);
   const taskId = str(event.payload["taskId"]);
   if (taskId === "" || !engine) return [];
@@ -264,9 +533,14 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   if (!task) return [];
   let answeredChild: string | undefined;
   // the children of a parent need its holder: all finished, or one is blocked or asks. Once per reason and child, however many times the event is read.
-  if (event.name === "task.children_settled") answeredChild = `settled:${str(event.payload["reason"])}:${str(event.payload["childId"])}`;
+  if (event.name === "task.children_settled")
+    answeredChild = `settled:${str(event.payload["reason"])}:${str(event.payload["childId"])}`;
   // a question or a block that finished: the work it waited on goes on
-  if ((task.kind === "answer" || task.kind === "unblock") && task.parentTaskId && (task.state === "done" || task.state === "canceled")) {
+  if (
+    (task.kind === "answer" || task.kind === "unblock") &&
+    task.parentTaskId &&
+    (task.state === "done" || task.state === "canceled")
+  ) {
     answeredChild = task.id;
     task = await readTask(host, task.parentTaskId);
     if (!task) return [];
@@ -286,7 +560,15 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
     // the person cancelled the task: the agents it woke stop, through the same durable Stop as a press (their rows say stopping before this answers, so a restart does not bring them back)
     if (task.state === "canceled" && before?.threadId) {
       for (const was of before.woken) {
-        try { await engine.stop(before.threadId, { agentId: was, reason: "stop" }); } catch (e) { host.log?.("the agent of a cancelled task could not be stopped", { taskId: task.id, agentId: was, error: e instanceof Error ? e.message : String(e) }); }
+        try {
+          await engine.stop(before.threadId, { agentId: was, reason: "stop" });
+        } catch (e) {
+          host.log?.("the agent of a cancelled task could not be stopped", {
+            taskId: task.id,
+            agentId: was,
+            error: e instanceof Error ? e.message : String(e),
+          });
+        }
       }
     }
     if (before) dropBaton(ctx.db, task.id);
@@ -297,7 +579,8 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   if (!fresh && !(answeredChild && !before?.answered.includes(answeredChild))) return [];
   // a crew job or a helper does this work in its own thread, and it is already running: the baton does not start a second turn
   const worker = task.workingNotes["worker.kind"];
-  if (task.kind === "work" && holder.role === "assigned" && worker !== undefined) return startWorker(ctx, host, task, holder.who, worker, sig, before);
+  if (task.kind === "work" && holder.role === "assigned" && worker !== undefined)
+    return startWorker(ctx, host, task, holder.who, worker, sig, before);
   const targets = await agentsToWake(host, task, holder.who);
   // the step was given to someone else (the same seat, another holder): the agent woken for it stops, so two agents never work the same step. A baton that moved on because the agent
   // handed it in, reviewed or decided is not this: that agent's turn is still finishing its own tool call and must end by itself.
@@ -305,10 +588,18 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   if (fresh && sameSeat && before?.threadId) {
     for (const was of before.woken) {
       if (targets.includes(was)) continue;
-      try { await engine.stop(before.threadId, { agentId: was, reason: "moved" }); } catch (e) { host.log?.("the agent the task left could not be stopped", { taskId: task.id, agentId: was, error: e instanceof Error ? e.message : String(e) }); }
+      try {
+        await engine.stop(before.threadId, { agentId: was, reason: "moved" });
+      } catch (e) {
+        host.log?.("the agent the task left could not be stopped", {
+          taskId: task.id,
+          agentId: was,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
     }
   }
-  const answered = [...(fresh ? [] : before?.answered ?? []), ...(answeredChild ? [answeredChild] : [])].slice(-50);
+  const answered = [...(fresh ? [] : (before?.answered ?? [])), ...(answeredChild ? [answeredChild] : [])].slice(-50);
   const who = await askerFor(host, task);
   const asker = who.asker;
   const now = clockOf(host);
@@ -317,7 +608,10 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
     return [];
   }
   if (!asker) {
-    host.log?.("an agent holds the baton of a task nobody asked for, so it was not woken", { taskId: task.id, role: holder.role });
+    host.log?.("an agent holds the baton of a task nobody asked for, so it was not woken", {
+      taskId: task.id,
+      role: holder.role,
+    });
     // the task says so on its page, once (a task a service made has no thread yet): a person who starts it becomes the one the agent acts for, and the line goes (tasks stampStarter)
     await writeWaiting(host, task, who.line ?? (task.source?.kind === "run" ? WAITING_LINE : WAITING_LINE_OTHER));
     return [];
@@ -326,18 +620,48 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   if (!threadId) return [];
   // an automation's work acting for the person who turned it on: the audit says which automation, what set it off and for whom, so an admin sees why their name is on an act they did not press
   if (who.automation && fresh) {
-    await host.call("audit.append", { action: "automation.acts_for", class: "sensitive", resource: { type: "automation", id: who.automation.automationId }, onBehalfOf: { kind: "person", id: asker },
-      detail: { trigger: who.automation.trigger ?? null, taskId: task.id, agentIds: targets, runId: task.source?.id ?? null, role: holder.role } })
-      .catch((e: unknown) => host.log?.("the automation's act could not be audited", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }));
-    if (task.workingNotes[WAITING_NOTE] !== undefined) await host.call("tasks.working_notes.delete", { taskId: task.id, key: WAITING_NOTE, idempotencyKey: `baton-waiting-off:${task.id}:${sig}` }).catch(() => undefined);
+    await host
+      .call("audit.append", {
+        action: "automation.acts_for",
+        class: "sensitive",
+        resource: { type: "automation", id: who.automation.automationId },
+        onBehalfOf: { kind: "person", id: asker },
+        detail: {
+          trigger: who.automation.trigger ?? null,
+          taskId: task.id,
+          agentIds: targets,
+          runId: task.source?.id ?? null,
+          role: holder.role,
+        },
+      })
+      .catch((e: unknown) =>
+        host.log?.("the automation's act could not be audited", {
+          taskId: task.id,
+          error: e instanceof Error ? e.message : String(e),
+        }),
+      );
+    if (task.workingNotes[WAITING_NOTE] !== undefined)
+      await host
+        .call("tasks.working_notes.delete", {
+          taskId: task.id,
+          key: WAITING_NOTE,
+          idempotencyKey: `baton-waiting-off:${task.id}:${sig}`,
+        })
+        .catch(() => undefined);
   }
   // a task an Automation's Run made from outside (an email, a form, a webhook) carries a stranger's words in its brief: its thread is marked as holding outside content for the person the turn
   // acts for (only they clear it by speaking, gate grants.ts), whoever that person is: the runs-as person, or someone who started or was handed the task (pass 2, 2). It keeps the mode it has
   // (Auto by default), like a chat where the agent read a page: the Gate's own rules stop the dangerous acts, and the mark means no earlier typed ask lets one through (lead 12 Nov)
   const made = automationMade(task);
   if (made !== null && isOutsideTrigger(made.trigger)) {
-    await host.call("gate.taint.mark", { threads: [threadId], source: automationMark(made.automationId, made.trigger, asker) })
-      .catch((e: unknown) => host.log?.("an automation's thread could not be marked as outside content", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }));
+    await host
+      .call("gate.taint.mark", { threads: [threadId], source: automationMark(made.automationId, made.trigger, asker) })
+      .catch((e: unknown) =>
+        host.log?.("an automation's thread could not be marked as outside content", {
+          taskId: task.id,
+          error: e instanceof Error ? e.message : String(e),
+        }),
+      );
   }
   const woken: string[] = [];
   let outside = false;
@@ -346,33 +670,98 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
     if (!(await openThread(ctx.db, host, engine, threadId, agentId, asker))) continue;
     // an agent that runs outside Vyre is not woken: the task waits in its queue. Its owner's tasks only; the queue checks that.
     if (await runsOutside(host, agentId)) {
-      const q = await host.call("agents.outside.enqueue", { agentId, kind: "task", threadId, taskId: task.id, asker, title: task.title, text: task.workingNotes["brief"] ?? task.title }).catch(() => null) as { queued?: boolean } | null;
-      if (q?.queued === true) { woken.push(agentId); outside = true; }
+      const q = (await host
+        .call("agents.outside.enqueue", {
+          agentId,
+          kind: "task",
+          threadId,
+          taskId: task.id,
+          asker,
+          title: task.title,
+          text: task.workingNotes["brief"] ?? task.title,
+        })
+        .catch(() => null)) as { queued?: boolean } | null;
+      if (q?.queued === true) {
+        woken.push(agentId);
+        outside = true;
+      }
       continue;
     }
     engine.wake(threadId, agentId);
     woken.push(agentId);
   }
   // an outside agent has no turn this host sees end: its clock starts when the task is queued, and the sweep nudges it, then hands it to a person
-  saveBaton(ctx.db, { taskId: task.id, sig, woken, answered, threadId, asker, wokeAt: now, ...(outside ? { turnEndedAt: now } : {}) });
+  saveBaton(ctx.db, {
+    taskId: task.id,
+    sig,
+    woken,
+    answered,
+    threadId,
+    asker,
+    wokeAt: now,
+    ...(outside ? { turnEndedAt: now } : {}),
+  });
   // the work has started, and the status says so for everyone looking; only the state table moves it
-  if (task.kind === "work" && holder.role === "assigned" && task.state === "todo" && woken.length > 0) await host.call("tasks.transition", { taskId: task.id, to: "doing", expectedFrom: "todo" }).catch((e: unknown) => host.log?.("a woken task could not be marked as started", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }));
+  if (task.kind === "work" && holder.role === "assigned" && task.state === "todo" && woken.length > 0)
+    await host.call("tasks.transition", { taskId: task.id, to: "doing", expectedFrom: "todo" }).catch((e: unknown) =>
+      host.log?.("a woken task could not be marked as started", {
+        taskId: task.id,
+        error: e instanceof Error ? e.message : String(e),
+      }),
+    );
   return woken;
 }
 
 /** The work of a task runs in a crew job or a helper thread. A planned crew child starts its job here; a job or helper that is bound already gets a baton row, so a turn that ends on it is noticed. */
-async function startWorker(ctx: Pick<EngineCtx, "db">, host: BatonHost, task: BatonTask, who: Who, worker: string, sig: string, before: BatonRow | undefined): Promise<string[]> {
+async function startWorker(
+  ctx: Pick<EngineCtx, "db">,
+  host: BatonHost,
+  task: BatonTask,
+  who: Who,
+  worker: string,
+  sig: string,
+  before: BatonRow | undefined,
+): Promise<string[]> {
   if (before?.sig === sig) return [];
   const asker = await askerOf(host, task);
   if (!asker || who.kind !== "agent") return [];
-  if (task.workerThread) { saveBaton(ctx.db, { taskId: task.id, sig, woken: worker === "helper" ? [who.id] : [], answered: [], threadId: task.workerThread, asker, wokeAt: clockOf(host) }); return []; }
+  if (task.workerThread) {
+    saveBaton(ctx.db, {
+      taskId: task.id,
+      sig,
+      woken: worker === "helper" ? [who.id] : [],
+      answered: [],
+      threadId: task.workerThread,
+      asker,
+      wokeAt: clockOf(host),
+    });
+    return [];
+  }
   const projectId = task.workingNotes["worker.project"];
   const origin = task.source?.kind === "chat" ? task.source.id : task.workingNotes["thread.origin"];
   if (worker !== "crew" || !projectId || !origin) return [];
   try {
-    await host.call("engine.crew.start", { threadId: origin, projectId, teammateId: who.id, title: task.title.slice(0, 120), brief: task.workingNotes["brief"] ?? task.title, taskId: task.id, idempotencyKey: `task-crew:${task.id}` }, asker);
+    await host.call(
+      "engine.crew.start",
+      {
+        threadId: origin,
+        projectId,
+        teammateId: who.id,
+        title: task.title.slice(0, 120),
+        brief: task.workingNotes["brief"] ?? task.title,
+        taskId: task.id,
+        idempotencyKey: `task-crew:${task.id}`,
+      },
+      asker,
+    );
     return [who.id];
-  } catch (e) { host.log?.("a planned crew task could not start", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }); return []; }
+  } catch (e) {
+    host.log?.("a planned crew task could not start", {
+      taskId: task.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return [];
+  }
 }
 
 /** After a restart: every open task an agent holds and nothing blocks is picked up from its own state. A baton never woken is woken now; one cut off mid-turn, with no turn left to recover, is woken again. No polling: this runs once, at boot. */
@@ -381,20 +770,36 @@ export async function resumeTasks(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   const out: string[] = [];
   let cursor: string | undefined;
   for (let page = 0; page < 40; page++) {
-    const got = (await host.call("tasks.list", { scope: "all", states: ["todo", "doing", "in_review", "awaiting_approval"], kinds: ["work", "approve", "review", "answer", "unblock"], limit: 500, ...(cursor ? { cursor } : {}) })) as { tasks?: BatonTask[]; next?: string };
+    const got = (await host.call("tasks.list", {
+      scope: "all",
+      states: ["todo", "doing", "in_review", "awaiting_approval"],
+      kinds: ["work", "approve", "review", "answer", "unblock"],
+      limit: 500,
+      ...(cursor ? { cursor } : {}),
+    })) as { tasks?: BatonTask[]; next?: string };
     for (const t of got.tasks ?? []) {
       const holder = holderOf(t);
       if (!holder || holder.who.kind !== "agent" || t.blocked === true) continue;
       const row = batonRow(ctx.db, t.id);
-      if (!row) { out.push(...(await onTaskEvent(ctx, host, engine, { name: "task.ready", payload: { taskId: t.id } }))); continue; }
+      if (!row) {
+        out.push(...(await onTaskEvent(ctx, host, engine, { name: "task.ready", payload: { taskId: t.id } })));
+        continue;
+      }
       if (row.sig !== signatureOf(t, holder) || row.turnEndedAt !== undefined || !row.threadId) continue;
       let busy = false;
-      try { busy = engine.turns(row.threadId).some((x) => x.state === "running" || x.state === "waiting"); } catch { /* not open on this host yet */ }
-      if (busy || await runsOutside(host, holder.who.id)) continue;
+      try {
+        busy = engine.turns(row.threadId).some((x) => x.state === "running" || x.state === "waiting");
+      } catch {
+        /* not open on this host yet */
+      }
+      if (busy || (await runsOutside(host, holder.who.id))) continue;
       // a row with no asker was never woken for a person: it is picked up only when one starts it (askerOf), never as its creator when that is a service
       const resumeAs = await stillAsker(host, t, row.asker);
       if (resumeAs === undefined) continue;
-      if (await openThread(ctx.db, host, engine, row.threadId, holder.who.id, resumeAs)) { engine.wake(row.threadId, holder.who.id); out.push(holder.who.id); }
+      if (await openThread(ctx.db, host, engine, row.threadId, holder.who.id, resumeAs)) {
+        engine.wake(row.threadId, holder.who.id);
+        out.push(holder.who.id);
+      }
     }
     cursor = got.next;
     if (!cursor) break;
@@ -407,7 +812,8 @@ export async function resumeTasks(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
 export const DEFAULT_NUDGE_MINUTES = 30;
 const MINUTE = 60_000;
 const FINISH: Readonly<Record<string, string>> = {
-  assigned: "task_submit when the work is done, task_ask if only a person can tell you something, task_block if something stops you",
+  assigned:
+    "task_submit when the work is done, task_ask if only a person can tell you something, task_block if something stops you",
   reviewer: "task_review: approve, or send_back with numbered fixes",
   approver: "task_decide: approve, or reject with a reason",
 };
@@ -417,16 +823,29 @@ export function finishOf(task: Pick<BatonTask, "kind"> & { actions?: Array<{ key
   const keys = (task.actions ?? []).map((a) => a.key).filter((k) => k !== "delegate" && k !== "snooze");
   return `tasks_act {taskId, action: ${keys.length > 0 ? keys.join(" | ") : "the action the request offers"}, note}`;
 }
-export interface TurnEnd { type: "turn.completed" | "turn.failed" | "turn.cancelled"; threadId: string; agentId: string }
+export interface TurnEnd {
+  type: "turn.completed" | "turn.failed" | "turn.cancelled";
+  threadId: string;
+  agentId: string;
+}
 
-const nudgeMinutesOf = (t: BatonTask): number => { const n = Number(t.workingNotes["baton.nudge_minutes"]); return Number.isFinite(n) && n >= 1 ? n : DEFAULT_NUDGE_MINUTES; };
+const nudgeMinutesOf = (t: BatonTask): number => {
+  const n = Number(t.workingNotes["baton.nudge_minutes"]);
+  return Number.isFinite(n) && n >= 1 ? n : DEFAULT_NUDGE_MINUTES;
+};
 const rowsOfThread = (db: Db, threadId: string): BatonRow[] => {
   ensureBaton(db);
-  return (db.all("SELECT task_id FROM engine_task_baton WHERE thread_id = ?", threadId) as Obj[]).map((r) => batonRow(db, str(r["task_id"]))).filter((r): r is BatonRow => r !== undefined);
+  return (db.all("SELECT task_id FROM engine_task_baton WHERE thread_id = ?", threadId) as Obj[])
+    .map((r) => batonRow(db, str(r["task_id"])))
+    .filter((r): r is BatonRow => r !== undefined);
 };
 
 /** Is the work still waiting on this agent? Yes when the baton has not moved and the task is not parked on a question or a block someone else must answer. */
-async function stillOnAgent(host: BatonHost, row: BatonRow, agentId: string): Promise<{ task: BatonTask; role: string } | undefined> {
+async function stillOnAgent(
+  host: BatonHost,
+  row: BatonRow,
+  agentId: string,
+): Promise<{ task: BatonTask; role: string } | undefined> {
   const task = await readTask(host, row.taskId);
   if (!task || (task as BatonTask & { blocked?: boolean }).blocked === true) return undefined;
   const holder = holderOf(task);
@@ -439,16 +858,37 @@ async function stillOnAgent(host: BatonHost, row: BatonRow, agentId: string): Pr
  * A woken agent's turn ended. If the baton did not move, that is a silent stop: say so once in the thread and wake the agent again. A failed turn is not nudged (it would fail the same way) but
  * starts the same clock; a turn a person stopped is theirs and starts nothing. Returns what it did, for the log and the tests.
  */
-export async function onTurnEnded(ctx: Pick<EngineCtx, "db">, host: BatonHost, engine: TurnEngine, ev: TurnEnd): Promise<"nudged" | "waiting" | "stopped" | "moved" | "other"> {
+export async function onTurnEnded(
+  ctx: Pick<EngineCtx, "db">,
+  host: BatonHost,
+  engine: TurnEngine,
+  ev: TurnEnd,
+): Promise<"nudged" | "waiting" | "stopped" | "moved" | "other"> {
   let result: "nudged" | "waiting" | "stopped" | "moved" | "other" = "other";
   for (const row of rowsOfThread(ctx.db, ev.threadId)) {
     if (!row.woken.includes(ev.agentId) || row.escalatedAt !== undefined) continue;
     const now = clockOf(host);
-    if (ev.type === "turn.cancelled") { saveBaton(ctx.db, { ...row, nudgedAt: row.nudgedAt ?? now, escalatedAt: now }); result = "stopped"; continue; }
+    if (ev.type === "turn.cancelled") {
+      saveBaton(ctx.db, { ...row, nudgedAt: row.nudgedAt ?? now, escalatedAt: now });
+      result = "stopped";
+      continue;
+    }
     const on = await stillOnAgent(host, row, ev.agentId);
-    if (!on) { result = "moved"; continue; }
+    if (!on) {
+      result = "moved";
+      continue;
+    }
     // a helper's answer is its hand-in: it runs one turn and the chat that started it has the result
-    if (on.task.workingNotes["worker.kind"] === "helper") { await host.call("tasks.submit", { taskId: on.task.id, summary: "The helper finished." }).catch((e: unknown) => host.log?.("a helper's task could not be handed in", { taskId: on.task.id, error: e instanceof Error ? e.message : String(e) })); result = "moved"; continue; }
+    if (on.task.workingNotes["worker.kind"] === "helper") {
+      await host.call("tasks.submit", { taskId: on.task.id, summary: "The helper finished." }).catch((e: unknown) =>
+        host.log?.("a helper's task could not be handed in", {
+          taskId: on.task.id,
+          error: e instanceof Error ? e.message : String(e),
+        }),
+      );
+      result = "moved";
+      continue;
+    }
     const next: BatonRow = { ...row, turnEndedAt: row.turnEndedAt ?? now };
     if (ev.type === "turn.failed" || row.nudgedAt !== undefined) {
       saveBaton(ctx.db, { ...next, nudgedAt: next.nudgedAt ?? now });
@@ -456,67 +896,162 @@ export async function onTurnEnded(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
       continue;
     }
     // a retry is a new turn: the person it acts for is asked again for a task a service made
-    if ((await stillAsker(host, on.task, row.asker)) === undefined) { saveBaton(ctx.db, { ...next, nudgedAt: now }); result = "waiting"; continue; }
+    if ((await stillAsker(host, on.task, row.asker)) === undefined) {
+      saveBaton(ctx.db, { ...next, nudgedAt: now });
+      result = "waiting";
+      continue;
+    }
     saveBaton(ctx.db, { ...next, nudgedAt: now });
     try {
-      await host.call("chat.post", { threadId: ev.threadId, body: `Your turn ended without handing the task on. Finish with exactly one baton call: ${finishOf(on.task, on.role)}.`, idempotencyKey: `baton-nudge:${row.taskId}:${row.sig}` });
+      await host.call("chat.post", {
+        threadId: ev.threadId,
+        body: `Your turn ended without handing the task on. Finish with exactly one baton call: ${finishOf(on.task, on.role)}.`,
+        idempotencyKey: `baton-nudge:${row.taskId}:${row.sig}`,
+      });
       engine.wake(ev.threadId, ev.agentId);
       result = "nudged";
-    } catch (e) { host.log?.("the nudge on a task could not be sent", { taskId: row.taskId, error: e instanceof Error ? e.message : String(e) }); }
+    } catch (e) {
+      host.log?.("the nudge on a task could not be sent", {
+        taskId: row.taskId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
   return result;
 }
 
 /** The clock: a baton that has sat with an agent that stopped for nudgeMinutes goes to a person. Returns the tasks it escalated. */
-export async function sweepBaton(ctx: Pick<EngineCtx, "db">, host: BatonHost, engine: TurnEngine | null): Promise<string[]> {
+export async function sweepBaton(
+  ctx: Pick<EngineCtx, "db">,
+  host: BatonHost,
+  engine: TurnEngine | null,
+): Promise<string[]> {
   ensureBaton(ctx.db);
   const out: string[] = [];
   const now = clockOf(host);
-  for (const r of ctx.db.all("SELECT task_id FROM engine_task_baton WHERE turn_ended_at IS NOT NULL AND escalated_at IS NULL") as Obj[]) {
+  for (const r of ctx.db.all(
+    "SELECT task_id FROM engine_task_baton WHERE turn_ended_at IS NOT NULL AND escalated_at IS NULL",
+  ) as Obj[]) {
     const row = batonRow(ctx.db, str(r["task_id"]));
     if (!row || row.turnEndedAt === undefined) continue;
     const task = await readTask(host, row.taskId);
     const holder = task ? holderOf(task) : null;
-    if (!task || !holder || signatureOf(task, holder) !== row.sig || (task as BatonTask & { blocked?: boolean }).blocked === true) { if (!task || !holder) dropBaton(ctx.db, row.taskId); continue; }
+    if (
+      !task ||
+      !holder ||
+      signatureOf(task, holder) !== row.sig ||
+      (task as BatonTask & { blocked?: boolean }).blocked === true
+    ) {
+      if (!task || !holder) dropBaton(ctx.db, row.taskId);
+      continue;
+    }
     if (now - row.turnEndedAt < nudgeMinutesOf(task) * MINUTE) continue;
     // an outside agent never ends a turn here: the first time its clock runs out it is reminded and its queue gets the task again; the second time a person gets it
-    if (row.nudgedAt === undefined && row.woken.length > 0 && await runsOutside(host, row.woken[0]!)) {
+    if (row.nudgedAt === undefined && row.woken.length > 0 && (await runsOutside(host, row.woken[0]!))) {
       // the person it was queued for must still hold, as at any other wake (pass 2)
-      if ((await stillAsker(host, task, row.asker)) === undefined) { saveBaton(ctx.db, { ...row, nudgedAt: now, turnEndedAt: now }); continue; }
+      if ((await stillAsker(host, task, row.asker)) === undefined) {
+        saveBaton(ctx.db, { ...row, nudgedAt: now, turnEndedAt: now });
+        continue;
+      }
       try {
-        await host.call("chat.post", { threadId: row.threadId, body: `Still waiting on this. Finish with exactly one call: ${finishOf(task, holder.role)}.`, idempotencyKey: `baton-nudge:${row.taskId}:${row.sig}` });
-        for (const agentId of row.woken) await host.call("agents.outside.enqueue", { agentId, kind: "task", threadId: row.threadId, taskId: task.id, asker: row.asker, title: task.title, text: `Still waiting: ${task.title}` }).catch(() => null);
-      } catch (e) { host.log?.("the nudge on an outside agent's task could not be sent", { taskId: row.taskId, error: e instanceof Error ? e.message : String(e) }); }
+        await host.call("chat.post", {
+          threadId: row.threadId,
+          body: `Still waiting on this. Finish with exactly one call: ${finishOf(task, holder.role)}.`,
+          idempotencyKey: `baton-nudge:${row.taskId}:${row.sig}`,
+        });
+        for (const agentId of row.woken)
+          await host
+            .call("agents.outside.enqueue", {
+              agentId,
+              kind: "task",
+              threadId: row.threadId,
+              taskId: task.id,
+              asker: row.asker,
+              title: task.title,
+              text: `Still waiting: ${task.title}`,
+            })
+            .catch(() => null);
+      } catch (e) {
+        host.log?.("the nudge on an outside agent's task could not be sent", {
+          taskId: row.taskId,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
       saveBaton(ctx.db, { ...row, nudgedAt: now, turnEndedAt: now });
       continue;
     }
     // an agent still working on it, or parked on an approval, is not stopped
-    try { if (engine && row.threadId && engine.turns(row.threadId).some((t) => (t.state === "running" || t.state === "waiting") && row.woken.includes(t.agentId))) continue; } catch { /* a thread this host does not hold */ }
+    try {
+      if (
+        engine &&
+        row.threadId &&
+        engine
+          .turns(row.threadId)
+          .some((t) => (t.state === "running" || t.state === "waiting") && row.woken.includes(t.agentId))
+      )
+        continue;
+    } catch {
+      /* a thread this host does not hold */
+    }
     if (await escalate(ctx, host, task, holder.role, row)) out.push(task.id);
   }
   return out;
 }
 
 /** A person task in Needs you for work an agent stopped on. Its answer wakes the agent again, through the same path as any finished question. */
-async function escalate(ctx: Pick<EngineCtx, "db">, host: BatonHost, task: BatonTask, role: string, row: BatonRow): Promise<boolean> {
+async function escalate(
+  ctx: Pick<EngineCtx, "db">,
+  host: BatonHost,
+  task: BatonTask,
+  role: string,
+  row: BatonRow,
+): Promise<boolean> {
   let to: Who | undefined;
-  try { const named = JSON.parse(task.workingNotes["baton.escalate_to"] ?? "null") as Who | null; if (named && typeof named.id === "string" && typeof named.kind === "string") to = named; } catch { /* the asker */ }
-  const asker = serviceMade(task) ? (await askerFor(host, task)).asker : row.asker ?? (await askerOf(host, task));
+  try {
+    const named = JSON.parse(task.workingNotes["baton.escalate_to"] ?? "null") as Who | null;
+    if (named && typeof named.id === "string" && typeof named.kind === "string") to = named;
+  } catch {
+    /* the asker */
+  }
+  const asker = serviceMade(task) ? (await askerFor(host, task)).asker : (row.asker ?? (await askerOf(host, task)));
   if (!to && asker) to = { kind: "person", id: asker };
   if (!to) {
     host.log?.("a stopped agent task has nobody to escalate to", { taskId: task.id });
     // a task a service made whose person no longer holds: it says so on its page, so someone can start it (pass 2)
-    if (serviceMade(task)) await writeWaiting(host, task, (await askerFor(host, task)).line ?? (task.source?.kind === "run" ? WAITING_LINE : WAITING_LINE_OTHER));
+    if (serviceMade(task))
+      await writeWaiting(
+        host,
+        task,
+        (await askerFor(host, task)).line ?? (task.source?.kind === "run" ? WAITING_LINE : WAITING_LINE_OTHER),
+      );
     return false;
   }
   const minutes = nudgeMinutesOf(task);
   try {
     await host.call("tasks.create", {
-      kind: "unblock", title: `An agent stopped on "${task.title}"`, summary: `The ${role === "assigned" ? "agent doing it" : role} stopped ${minutes} minutes ago without passing the task on. Read the chat to see why, then press "Done, continue" to start it again.`,
-      assigned: to, parentTaskId: task.id, ...(task.recordId ? { recordId: task.recordId } : {}), idempotencyKey: `baton-escalate:${task.id}:${row.sig}`,
+      kind: "unblock",
+      title: `An agent stopped on "${task.title}"`,
+      summary: `The ${role === "assigned" ? "agent doing it" : role} stopped ${minutes} minutes ago without passing the task on. Read the chat to see why, then press "Done, continue" to start it again.`,
+      assigned: to,
+      parentTaskId: task.id,
+      ...(task.recordId ? { recordId: task.recordId } : {}),
+      idempotencyKey: `baton-escalate:${task.id}:${row.sig}`,
     });
-  } catch (e) { host.log?.("a stopped agent task could not be escalated", { taskId: task.id, error: e instanceof Error ? e.message : String(e) }); return false; }
+  } catch (e) {
+    host.log?.("a stopped agent task could not be escalated", {
+      taskId: task.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return false;
+  }
   saveBaton(ctx.db, { ...row, escalatedAt: clockOf(host) });
-  if (row.threadId) await host.call("chat.post", { threadId: row.threadId, body: `No hand-over after ${minutes} minutes, so this went to a person.`, idempotencyKey: `baton-escalated:${task.id}:${row.sig}` }).catch(() => undefined);
+  if (row.threadId)
+    await host
+      .call("chat.post", {
+        threadId: row.threadId,
+        body: `No hand-over after ${minutes} minutes, so this went to a person.`,
+        idempotencyKey: `baton-escalated:${task.id}:${row.sig}`,
+      })
+      .catch(() => undefined);
   return true;
 }

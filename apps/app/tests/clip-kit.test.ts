@@ -12,7 +12,10 @@ export async function clippedText(page: Page, rootSelector: string): Promise<str
         if (!own) continue;
         const cs = getComputedStyle(el);
         // a line clamp shows its whole text unless the text is taller than the clamp; the plain one-line clip shows it unless wider
-        if (el.scrollWidth > el.clientWidth + 1 || (cs.overflow !== "visible" && el.scrollHeight > el.clientHeight + 1)) out.push(`${root.getAttribute("data-testid") ?? root.tagName}: ${(el.textContent ?? "").trim().slice(0, 80)}`);
+        if (el.scrollWidth > el.clientWidth + 1 || (cs.overflow !== "visible" && el.scrollHeight > el.clientHeight + 1))
+          out.push(
+            `${root.getAttribute("data-testid") ?? root.tagName}: ${(el.textContent ?? "").trim().slice(0, 80)}`,
+          );
       }
     }
     return out;

@@ -4,7 +4,7 @@ import type { Judge } from "../reach/target.ts";
 import { adminPages } from "../providers/settings-admin.ts";
 import { createLinkPolicy } from "../reach/policy.ts";
 import { isAssistantRow } from "../../../../../lib/agent-kind.ts";
-import {createRecordsPreview} from "../../../../../client/src/gateway/records-preview.ts";
+import { createRecordsPreview } from "../../../../../client/src/gateway/records-preview.ts";
 // A signed-in Space, open (ARCH 7.0): who you are, the Space's name and kind, the capability caller on its gateway, the screen hooks every place reads, the live link that keeps them fresh, and the
 // ShellRuntime the places are handed. `openRealSession` is the only place the shell touches the network; the places only see the runtime. A call that may change something re-reads what is on screen,
 // the live link re-reads it when the Space changes under you, and while the link is down the session re-reads every few seconds so a place never goes stale silently.
@@ -22,7 +22,12 @@ import { withVaultGate } from "./vault-gate.ts";
 import { attemptKey } from "../providers/files-review.ts";
 import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
 import { handOnLive, keepKey, rehandKey, watchKey } from "../../../../../client/src/gateway/key-keeper.ts";
-import { holdKeyOnOwnNode, keyDoor, serverKeyState, setServerKeyKept } from "../../../../../client/src/gateway/local-key.ts";
+import {
+  holdKeyOnOwnNode,
+  keyDoor,
+  serverKeyState,
+  setServerKeyKept,
+} from "../../../../../client/src/gateway/local-key.ts";
 import { shellDesktopLinkBridge } from "../../../../../client/src/connection/desktop-link.ts";
 import { aiHomeOf } from "../../ai-signin/own-ai.ts";
 import { spaceLabel } from "../spaces/space-label.ts";
@@ -47,7 +52,6 @@ import { speed } from "../../speed/recorder.ts";
 import { GATE, hiddenPlaces } from "./gates.ts";
 /** How long the live link may be down before the app says it is reconnecting. */
 const LOST_AFTER_MS = 1_500;
-
 
 export interface OpenSessionOptions {
   /** The sign-in name this device typed, when it did. */
@@ -107,9 +111,11 @@ export const TOUCH_EVERY_MS = 60_000;
 /** How often a hidden window re-reads what is on screen. */
 export const HIDDEN_REFRESH_MS = 30_000;
 /** Is the window hidden (minimized, another desktop, a background tab)? Without a document (tests, native) it counts as showing. */
-const hidden = (): boolean => (globalThis as { document?: { visibilityState?: string } }).document?.visibilityState === "hidden";
+const hidden = (): boolean =>
+  (globalThis as { document?: { visibilityState?: string } }).document?.visibilityState === "hidden";
 
-const loadScreens = (): Promise<ReadonlyMap<string, ScreenIndexEntry>> => import("../../../../../generated/screens.ts").then((m) => m.screensById);
+const loadScreens = (): Promise<ReadonlyMap<string, ScreenIndexEntry>> =>
+  import("../../../../../generated/screens.ts").then((m) => m.screensById);
 
 type Out<C extends keyof CapMap> = CapMap[C]["out"];
 
@@ -123,7 +129,8 @@ export function holdsRole(roles: readonly string[], ...names: readonly string[])
 const CONSOLE_ROLES = ["owner", "admin", "developer"] as const;
 const PLAIN_ROLES = ["member", "guest"] as const;
 export const roleOpensConsole = (roles: readonly string[]): boolean => holdsRole(roles, ...CONSOLE_ROLES);
-export const roleAsksServer = (roles: readonly string[]): boolean => !roleOpensConsole(roles) && roles.some((r) => !holdsRole([r], ...PLAIN_ROLES));
+export const roleAsksServer = (roles: readonly string[]): boolean =>
+  !roleOpensConsole(roles) && roles.some((r) => !holdsRole([r], ...PLAIN_ROLES));
 /** The Console's rail button (owner ruling, 3 Nov 2026: the Console is in the app's rail for people with console.access, on desktop widths only). A built-in role answers at once; a role this
  *  Space made asks the server (`ask`, console.nav); a plain Member or Guest never sees it and is never asked for it. */
 export async function railConsole(roles: readonly string[], ask: () => Promise<boolean>): Promise<boolean> {
@@ -131,22 +138,40 @@ export async function railConsole(roles: readonly string[], ask: () => Promise<b
   return roleAsksServer(roles) ? ask().catch(() => false) : false;
 }
 /** Only the built-in Member or Guest roles, in a Team Space: no console.access, connectors.manage or schema.manage, so the UI asks for none of them (ShellRuntime.plainRole). */
-export const plainRoleOnly = (roles: readonly string[], kind: string): boolean => kind === "team" && roles.length > 0 && roles.every((r) => holdsRole([r], ...PLAIN_ROLES));
+export const plainRoleOnly = (roles: readonly string[], kind: string): boolean =>
+  kind === "team" && roles.length > 0 && roles.every((r) => holdsRole([r], ...PLAIN_ROLES));
 
-const RAIL_PLACES: readonly PlaceId[] = ["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings", "console"];
-const railPlace = (p: string): PlaceId | null => (RAIL_PLACES as readonly string[]).includes(p) ? (p as PlaceId) : null;
+const RAIL_PLACES: readonly PlaceId[] = [
+  "home",
+  "chats",
+  "inbox",
+  "records",
+  "files",
+  "apps",
+  "automations",
+  "vault",
+  "settings",
+  "console",
+];
+const railPlace = (p: string): PlaceId | null =>
+  (RAIL_PLACES as readonly string[]).includes(p) ? (p as PlaceId) : null;
 
 /** The hash a place opens its item from (see ../hash/hash.ts). */
 export const targetHash = (t: ShellTarget): string => formatHash(t);
 
 /** A live query computed from other live queries; its snapshot is the same object until one of its sources changes. */
-export function derived<T>(sources: readonly LiveQuery<unknown>[], make: (snaps: readonly QueryState<unknown>[]) => QueryState<T>): LiveQuery<T> {
+export function derived<T>(
+  sources: readonly LiveQuery<unknown>[],
+  make: (snaps: readonly QueryState<unknown>[]) => QueryState<T>,
+): LiveQuery<T> {
   let last: readonly QueryState<unknown>[] = [];
   let out: QueryState<T> = { status: "loading" };
   return {
     subscribe(l) {
       const offs = sources.map((s) => s.subscribe(l));
-      return () => { for (const off of offs) off(); };
+      return () => {
+        for (const off of offs) off();
+      };
     },
     getSnapshot() {
       const now = sources.map((s) => s.getSnapshot());
@@ -166,26 +191,44 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   let reachable = true;
   let closed = false;
   const listeners = new Set<() => void>();
-  const tell = (): void => { for (const l of [...listeners]) l(); };
+  const tell = (): void => {
+    for (const l of [...listeners]) l();
+  };
 
   const raw = createCapCaller({
     baseUrl: o.baseUrl,
     token: () => token,
     ...(o.fetch ? { fetch: o.fetch } : {}),
     ...(o.routes ? { routes: o.routes } : {}),
-    onUnauthenticated: () => { if (token !== null) { token = null; o.onSignedOut?.(); } },
+    onUnauthenticated: () => {
+      if (token !== null) {
+        token = null;
+        o.onSignedOut?.();
+      }
+    },
   });
   // Network failures (no CapError) mark the Space unreachable; any answer, even a refusal, proves it is there.
-  const reach = async (cap: string, input?: unknown, opts?: { idempotencyKey?: string; signal?: AbortSignal }): Promise<unknown> => {
+  const reach = async (
+    cap: string,
+    input?: unknown,
+    opts?: { idempotencyKey?: string; signal?: AbortSignal },
+  ): Promise<unknown> => {
     // Signed out (a 401 ended the session): nothing more goes to the Space, so a refused session is one signal and not a flood of refused calls.
-    if (token === null) throw new CapError({ code: "auth.unauthenticated", message: "You are signed out.", traceId: "", status: 401 });
+    if (token === null)
+      throw new CapError({ code: "auth.unauthenticated", message: "You are signed out.", traceId: "", status: 401 });
     try {
       const r = await raw(cap, input, opts);
-      if (!reachable) { reachable = true; tell(); }
+      if (!reachable) {
+        reachable = true;
+        tell();
+      }
       return r;
     } catch (e) {
       const up = e instanceof CapError;
-      if (up !== reachable) { reachable = up; tell(); }
+      if (up !== reachable) {
+        reachable = up;
+        tell();
+      }
       throw e;
     }
   };
@@ -195,60 +238,112 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     reach("spaces.get", {}) as Promise<Out<"spaces.get">>,
     reach("spaces.switcher", {}).catch(() => null) as Promise<Out<"spaces.switcher"> | null>,
     (o.screens ?? loadScreens)(),
-    reach("settings.kit.get",{}).catch(()=>null) as Promise<Out<"settings.kit.get">|null>,
+    reach("settings.kit.get", {}).catch(() => null) as Promise<Out<"settings.kit.get"> | null>,
   ]);
   const space = spaceOut.space;
-  const deferred = createDeferred(who.deferred, (who as typeof who & {deferredModules?:readonly string[]}).deferredModules);
-  const me: Principal = { id: who.principal.id, name: who.name, kind: "person", ...(o.username ? { username: o.username } : {}) };
+  const deferred = createDeferred(
+    who.deferred,
+    (who as typeof who & { deferredModules?: readonly string[] }).deferredModules,
+  );
+  const me: Principal = {
+    id: who.principal.id,
+    name: who.name,
+    kind: "person",
+    ...(o.username ? { username: o.username } : {}),
+  };
   // a place whose first permission the role lacks is off the rail and never warmed (a guest: no Mine automations, nothing kept in the Vault)
   // the person's permissions, kept live: a change to their role or a permission exception reaches an open session (the set is the runtime's own object, so every gate reads the new answer)
   const livePerms: Set<string> | null = who.permissions ? new Set(who.permissions) : null;
-  let permsAt = 0, permsTimer: ReturnType<typeof setTimeout> | null = null;
+  let permsAt = 0,
+    permsTimer: ReturnType<typeof setTimeout> | null = null;
   const rereadPerms = (): void => {
     if (!livePerms || closed || permsTimer !== null) return;
-    permsTimer = setTimeout(() => {
-      permsTimer = null; permsAt = Date.now();
-      void reach("identity.whoami", {}).then((out) => {
-        const next = (out as { permissions?: string[] }).permissions;
-        if (!next || closed) return;
-        if (next.length === livePerms.size && next.every((k) => livePerms.has(k))) return;
-        livePerms.clear(); for (const k of next) livePerms.add(k);
-        hooks.invalidate();
-      }, () => undefined);
-    }, Math.max(400, 3000 - (Date.now() - permsAt)));
+    permsTimer = setTimeout(
+      () => {
+        permsTimer = null;
+        permsAt = Date.now();
+        void reach("identity.whoami", {}).then(
+          (out) => {
+            const next = (out as { permissions?: string[] }).permissions;
+            if (!next || closed) return;
+            if (next.length === livePerms.size && next.every((k) => livePerms.has(k))) return;
+            livePerms.clear();
+            for (const k of next) livePerms.add(k);
+            hooks.invalidate();
+          },
+          () => undefined,
+        );
+      },
+      Math.max(400, 3000 - (Date.now() - permsAt)),
+    );
   };
   const offRail: readonly string[] = who.permissions && space.kind === "team" ? hiddenPlaces(who.permissions) : [];
 
   // A 401 means signed out (once, to sign-in): it is never a failure state a screen reacts to by asking again.
-  const hooks = createRemoteScreenHooks({ screens, read: (cap, input) => reach(cap, input), ignoreError: (e) => e instanceof CapError && e.status === 401 });
+  const hooks = createRemoteScreenHooks({
+    screens,
+    read: (cap, input) => reach(cap, input),
+    ignoreError: (e) => e instanceof CapError && e.status === 401,
+  });
   const stopPerms = livePerms ? hooks.onInvalidate(rereadPerms) : (): void => undefined;
   // While the window is hidden a change re-reads the screen at most every HIDDEN_REFRESH_MS; showing it again re-reads at once whatever is waiting.
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-  const reread = (): void => { if (refreshTimer !== null) clearTimeout(refreshTimer); refreshTimer = null; if (!closed) hooks.invalidate(); };
+  const reread = (): void => {
+    if (refreshTimer !== null) clearTimeout(refreshTimer);
+    refreshTimer = null;
+    if (!closed) hooks.invalidate();
+  };
   const refresh = (): void => {
     if (closed || refreshTimer !== null) return;
     refreshTimer = setTimeout(reread, hidden() ? HIDDEN_REFRESH_MS : 120);
   };
-  const page = (globalThis as { document?: { addEventListener?(t: string, l: () => void): void; removeEventListener?(t: string, l: () => void): void } }).document;
+  const page = (
+    globalThis as {
+      document?: {
+        addEventListener?(t: string, l: () => void): void;
+        removeEventListener?(t: string, l: () => void): void;
+      };
+    }
+  ).document;
   // the window showing again is activity too: it moves last seen (touchShown, set once the session knows its device)
   let touchShown = (): void => undefined;
-  const shown = (): void => { if (hidden()) return; if (refreshTimer !== null) reread(); touchShown(); };
+  const shown = (): void => {
+    if (hidden()) return;
+    if (refreshTimer !== null) reread();
+    touchShown();
+  };
   page?.addEventListener?.("visibilitychange", shown);
   // Retry on a failed or stalled load (ui/States Loads and Quiet) re-reads what is on screen
-  const offRetry = onRetryLoads(() => { if (!closed) hooks.invalidate(); });
+  const offRetry = onRetryLoads(() => {
+    if (!closed) hooks.invalidate();
+  });
   // A read changes nothing, so it does not re-read the screen. Re-reading after every read made a loop: a screen that reads on render re-rendered on the re-read and read again, every two
   // seconds, whole screens at a time (about 15 reads a second from an idle Mac). Until the route table has loaded, every call re-reads, as before.
   let reads: ReadonlySet<string> | null = null;
-  void import("../../../../../generated/routes.ts").then((m) => { reads = new Set(m.routes.filter((r) => r.effects === "read").map((r) => r.cap)); }, () => undefined);
+  void import("../../../../../generated/routes.ts").then(
+    (m) => {
+      reads = new Set(m.routes.filter((r) => r.effects === "read").map((r) => r.cap));
+    },
+    () => undefined,
+  );
   const unlockVault = async (password: string): Promise<void> => {
-    const got = (await reach("identity.keys_get", {})) as { keys: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string } };
+    const got = (await reach("identity.keys_get", {})) as {
+      keys: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string };
+    };
     const { openBundle, heldKeyOf, wipeOpened } = await loadCryptoKeys();
     let opened: Awaited<ReturnType<typeof openBundle>>;
-    try { opened = await openBundle(password, { ...got.keys, personKeyByRecovery: got.keys.personKeyByRecovery ?? "" }); } catch { throw new Error("That password does not open your vault."); }
     try {
-      if (!(await holdKeyOnOwnNode(o.baseUrl, token ?? "", heldKeyOf(opened)))) throw new Error("Your Vault could not be opened. Sign in again to open it.");
+      opened = await openBundle(password, { ...got.keys, personKeyByRecovery: got.keys.personKeyByRecovery ?? "" });
+    } catch {
+      throw new Error("That password does not open your vault.");
+    }
+    try {
+      if (!(await holdKeyOnOwnNode(o.baseUrl, token ?? "", heldKeyOf(opened))))
+        throw new Error("Your Vault could not be opened. Sign in again to open it.");
       await keepKey(heldKeyOf(opened), token ?? "");
-    } finally { wipeOpened(opened); }
+    } finally {
+      wipeOpened(opened);
+    }
   };
 
   const once: CapCall = async (cap, input, opts) => {
@@ -262,12 +357,21 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   // goes again. No password is asked for on a Space server (owner ruling 3 Nov): a member signed in through Google, Microsoft or GitHub gets it back from the server's own wrap, and anyone else
   // whose app no longer has it (a reloaded tab) signs in again. Only the Space on this computer asks, as its lock screen always has.
   const door = keyDoor(o.baseUrl) !== null;
-  const gated: CapCall = withVaultGate(once, aiHome === "here" || door ? unlockVault : undefined, () => rehandKey(o.baseUrl, token ?? ""));
+  const gated: CapCall = withVaultGate(once, aiHome === "here" || door ? unlockVault : undefined, () =>
+    rehandKey(o.baseUrl, token ?? ""),
+  );
   // one idempotency key per logical call: the gate's retry after the password, and any other send of the same call, carries the same opts and so the same key
   const call: CapCall = (cap, input, given) => {
     const sent = gated(cap, input, given?.idempotencyKey ? given : { ...given, idempotencyKey: attemptKey() });
     // a chat this person just started is not refused while its row is still landing (shell/session/just-made.ts)
-    if (MAKES_A_THREAD.includes(cap)) void Promise.resolve(sent).then((out) => { const id = threadOfStart(out); if (id !== null) noteMade(id); }, () => undefined);
+    if (MAKES_A_THREAD.includes(cap))
+      void Promise.resolve(sent).then(
+        (out) => {
+          const id = threadOfStart(out);
+          if (id !== null) noteMade(id);
+        },
+        () => undefined,
+      );
     return sent;
   };
 
@@ -290,13 +394,27 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     onStatus: (s) => {
       // back after a drop (the server restarted or deployed): hand the kept key back through the key door before anything needs it, so the next turn runs on the person's own account
       if (handOnLive(live, s, door)) void rehandKey(o.baseUrl, token ?? "").catch(() => false);
-      live = s; if (s === "live") everLive = true; else turns.reset();
-      if (s === "live") { lostTimer?.(); lostTimer = null; linkLost = false; }
-      else if (everLive && !linkLost && lostTimer === null) lostTimer = clock.after(LOST_AFTER_MS, () => { lostTimer = null; if (!closed && live !== "live") { linkLost = true; tell(); } });
+      live = s;
+      if (s === "live") everLive = true;
+      else turns.reset();
+      if (s === "live") {
+        lostTimer?.();
+        lostTimer = null;
+        linkLost = false;
+      } else if (everLive && !linkLost && lostTimer === null)
+        lostTimer = clock.after(LOST_AFTER_MS, () => {
+          lostTimer = null;
+          if (!closed && live !== "live") {
+            linkLost = true;
+            tell();
+          }
+        });
       tell();
     },
     onTurn: (f) => turns.onFrame(f),
-    onPurge: (epoch) => { for (const l of [...purgeListeners]) l(epoch); },
+    onPurge: (epoch) => {
+      for (const l of [...purgeListeners]) l(epoch);
+    },
     ...(o.dial ? { dial: o.dial } : {}),
     ...(o.scheduler ? { scheduler: o.scheduler } : {}),
   });
@@ -307,7 +425,9 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const detachSpeed = speed.attach({
     spaceId: space.id,
     ready: () => !closed && token !== null && reachable,
-    upload: async (samples) => { await reach("logs.client_upload", { device: who.deviceId ?? "web", entries: [], samples }); },
+    upload: async (samples) => {
+      await reach("logs.client_upload", { device: who.deviceId ?? "web", entries: [], samples });
+    },
   });
   // Last seen follows what the person does here (devices.touch, at most once a minute): opening the Space, a press, a key, the window showing again. Never a timer, so an idle window
   // goes quiet and teammates see the dot clear. Coming back after a long absence answers `back`, and the re-read brings the While you were away row.
@@ -317,7 +437,15 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     const t = (o.now ?? Date.now)();
     if (t - touchedAt < TOUCH_EVERY_MS) return;
     touchedAt = t;
-    void reach("devices.touch", typeof who.deviceId === "string" && who.deviceId.startsWith("dev_") ? { deviceId: who.deviceId } : {}).then((out) => { if ((out as { back?: boolean } | null)?.back === true && !closed) hooks.invalidate(); }, () => undefined);
+    void reach(
+      "devices.touch",
+      typeof who.deviceId === "string" && who.deviceId.startsWith("dev_") ? { deviceId: who.deviceId } : {},
+    ).then(
+      (out) => {
+        if ((out as { back?: boolean } | null)?.back === true && !closed) hooks.invalidate();
+      },
+      () => undefined,
+    );
   };
   touchShown = touch;
   page?.addEventListener?.("pointerdown", touch);
@@ -336,12 +464,20 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const prefetchPlace = (place: PlaceId): void => {
     if (closed) return;
     for (const w of PLACE_QUERIES[place] ?? []) {
-      try { hooks.prefetch(w.screen, w.query, w.state ?? {}); } catch { /* a screen the registry lacks is not worth failing a hover for */ }
+      try {
+        hooks.prefetch(w.screen, w.query, w.state ?? {});
+      } catch {
+        /* a screen the registry lacks is not worth failing a hover for */
+      }
     }
   };
   // Idle warm-up: once the Space is open, read each place's first list one after another so the first visit paints from the session's cache.
   const warmTimers: ReturnType<typeof setTimeout>[] = [];
-  WARM_ORDER.filter((place) => !offRail.includes(place)).forEach((place, i) => { warmTimers.push(setTimeout(() => prefetchPlace(place), o.warmAfterMs === undefined ? 1500 + i * 250 : o.warmAfterMs + i * 250)); });
+  WARM_ORDER.filter((place) => !offRail.includes(place)).forEach((place, i) => {
+    warmTimers.push(
+      setTimeout(() => prefetchPlace(place), o.warmAfterMs === undefined ? 1500 + i * 250 : o.warmAfterMs + i * 250),
+    );
+  });
 
   // the pictures of uploaded agent faces are files in the agents' folders: read once as the person, kept for the session
   setFaceImageLoader(async (fileId) => {
@@ -361,7 +497,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     const own = assistant();
     const list = new Map<string, Principal>([[me.id, me]]);
     // the agents this person may use are what agents.list answers (the agents module's visibility rule); any other agent is someone else's private one, credited to its person ("Irfad Imtiaz (Agent)") and never offered
-    const usable = ag?.status === "ready" ? new Set((ag.data as Out<"agents.list">).agents.map((a) => a.agentId)) : null;
+    const usable =
+      ag?.status === "ready" ? new Set((ag.data as Out<"agents.list">).agents.map((a) => a.agentId)) : null;
     // what was picked on an agent's page shows on every face of that agent, in every place (not only Chats)
     if (ag?.status === "ready") {
       const rows = (ag.data as Out<"agents.list">).agents;
@@ -375,7 +512,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       setStandIns(standInsOf(dir));
     }
     if (g?.status === "ready") {
-      for (const x of (g.data as Out<"access.groups.list">).groups) list.set(x.id, { id: x.id, name: x.name, kind: "group" });
+      for (const x of (g.data as Out<"access.groups.list">).groups)
+        list.set(x.id, { id: x.id, name: x.name, kind: "group" });
     }
     return { status: "ready", data: [...list.values()] };
   });
@@ -402,32 +540,59 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   let consoleRead: Promise<ReadonlySet<string>> | null = null;
   const consolePagesOnce = (): Promise<ReadonlySet<string>> => {
     if (consoleRead === null) {
-      consoleRead = space.kind === "personal" || (who.roles.length > 0 && plainRoleOnly(who.roles, space.kind)) ? Promise.resolve(new Set<string>())
-        : (reach("console.nav", {}) as Promise<Parameters<typeof adminPages>[0]>).then((out) => adminPages(out), () => new Set<string>());
+      consoleRead =
+        space.kind === "personal" || (who.roles.length > 0 && plainRoleOnly(who.roles, space.kind))
+          ? Promise.resolve(new Set<string>())
+          : (reach("console.nav", {}) as Promise<Parameters<typeof adminPages>[0]>).then(
+              (out) => adminPages(out),
+              () => new Set<string>(),
+            );
     }
     return consoleRead;
   };
   const open = (t: ShellTarget): void => {
     // a screen the registry lacks is one a place draws from its own hash (chats.ask, chats.notes, files.knowledge): the place its id starts with; an id of no place opens nothing
-    const where = t.screen ? (screens.get(t.screen)?.place ?? (railPlace(t.screen.split(".")[0] ?? "") ?? "")) : (t.subject ? (placeForSubject(t.subject.type) ?? "") : "");
-    if (where === "shell") { if (t.screen) o.shell?.(t.screen, t.args ?? {}); return; }
+    const where = t.screen
+      ? (screens.get(t.screen)?.place ?? railPlace(t.screen.split(".")[0] ?? "") ?? "")
+      : t.subject
+        ? (placeForSubject(t.subject.type) ?? "")
+        : "";
+    if (where === "shell") {
+      if (t.screen) o.shell?.(t.screen, t.args ?? {});
+      return;
+    }
     const place = railPlace(where);
     if (!place || !o.navigate) return;
-    const go = (): void => { o.navigate?.(place, targetHash(t), t.background === true); };
+    const go = (): void => {
+      o.navigate?.(place, targetHash(t), t.background === true);
+    };
     // a tab or view of what is already open is not a new door: no read, no refusal
-    if (t.local === true || !needsJudging(t)) { go(); return; }
+    if (t.local === true || !needsJudging(t)) {
+      go();
+      return;
+    }
     void judge(t, judging).then((r) => {
-      if (r.to === "open") { go(); return; }
+      if (r.to === "open") {
+        go();
+        return;
+      }
       // the last resort: a link should have drawn plain before it was pressed. Under test it is a failure, so the suite counts zero of these.
       if (o.notice) o.notice(noAccessLine(t));
-      else if ((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.["NODE_TEST_CONTEXT"] !== undefined) throw new Error("reach fallback fired: a link led somewhere the viewer cannot open");
+      else if (
+        (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.[
+          "NODE_TEST_CONTEXT"
+        ] !== undefined
+      )
+        throw new Error("reach fallback fired: a link led somewhere the viewer cannot open");
     });
   };
 
   // a Space that never learnt its name answers its id: it is called by its address instead (spaces/space-label.ts)
   const shownName = spaceLabel(space.name, o.baseUrl);
   // the Space image for the tile and the switcher; a Space too old to have spaces.image shows its letter
-  const face = space.logoFileId ? await (reach("spaces.image", {}) as Promise<{ logoFileId?: string; image?: string }>).catch(() => null) : null;
+  const face = space.logoFileId
+    ? await (reach("spaces.image", {}) as Promise<{ logoFileId?: string; image?: string }>).catch(() => null)
+    : null;
   const def: SpaceDef = {
     spaceId: space.id,
     name: shownName,
@@ -436,23 +601,37 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     role: switcher?.role ?? "Member",
     tint: ["#6E5CF0", "#9B6BE8"],
     ...(face?.image && face.logoFileId ? { image: face.image, imageKey: face.logoFileId } : {}),
-    kit: space.kind === "personal" ? "personal" : kitChoice?.kit.effective ?? "northwind",
-    skinDefault: typeof space.defaults.skin==="string"?space.defaults.skin:"system",
+    kit: space.kind === "personal" ? "personal" : (kitChoice?.kit.effective ?? "northwind"),
+    skinDefault: typeof space.defaults.skin === "string" ? space.defaults.skin : "system",
     starred: true,
     needsYou: (switcher?.needsYou ?? 0) > 0,
     // whoever holds console.access gets the rail button: the same answer as opening the Console by its address
-    console: await railConsole(who.roles, () => reach("console.nav", {}).then(() => true, () => false)),
+    console: await railConsole(who.roles, () =>
+      reach("console.nav", {}).then(
+        () => true,
+        () => false,
+      ),
+    ),
     ...(offRail.length ? { hidden: offRail as PlaceId[] } : {}),
     // a Personal Space has one person and their own computer: the terminal is always theirs. A Team Space gives it to owners and developers
     terminal: space.kind === "personal" || holdsRole(who.roles, "owner", "developer"),
     // members.invite is the Owner's and Admins' (manifests/permissions.ts); a Personal Space has nobody to invite
-    invite: space.kind === "team" && (who.permissions ? who.permissions.includes(GATE.invite) : holdsRole(who.roles, "owner", "admin")),
-    counts: {},   // the Chats badge is Needs you, live: ShellHost follows tasks.count_needs_you
+    invite:
+      space.kind === "team" &&
+      (who.permissions ? who.permissions.includes(GATE.invite) : holdsRole(who.roles, "owner", "admin")),
+    counts: {}, // the Chats badge is Needs you, live: ShellHost follows tasks.count_needs_you
     dots: {},
   };
 
   const runtime: ShellRuntime = {
-    createRecordsPreview: ticket => createRecordsPreview({...ticket,baseUrl:o.baseUrl,...(o.fetch?{fetch:o.fetch}:{}),...(o.routes?{routes:o.routes}:{}),now:o.now??Date.now}),
+    createRecordsPreview: (ticket) =>
+      createRecordsPreview({
+        ...ticket,
+        baseUrl: o.baseUrl,
+        ...(o.fetch ? { fetch: o.fetch } : {}),
+        ...(o.routes ? { routes: o.routes } : {}),
+        now: o.now ?? Date.now,
+      }),
     screens: hooks,
     changes: { subscribe: (l) => hooks.onInvalidate(l) },
     turns,
@@ -461,24 +640,43 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       // another Space this device is signed in to: its own address and its own token, never this Space's
       const other = readStoredSessions().find((x) => x.def.spaceId === spaceId);
       if (!other || other.def.spaceId === space.id) throw new Error("This device is not signed in to that Space");
-      const caller = createCapCaller({ baseUrl: other.baseUrl, token: () => other.token, ...(o.fetch ? { fetch: o.fetch } : {}), ...(o.routes ? { routes: o.routes } : {}) });
+      const caller = createCapCaller({
+        baseUrl: other.baseUrl,
+        token: () => other.token,
+        ...(o.fetch ? { fetch: o.fetch } : {}),
+        ...(o.routes ? { routes: o.routes } : {}),
+      });
       return caller(cap, input);
     },
     putBlob: async (path, bytes) => {
       // the upload address files.upload_url hands out: the bytes go there with the person's own token, one time
-      if (token === null) throw new CapError({ code: "auth.unauthenticated", message: "You are signed out.", traceId: "", status: 401 });
+      if (token === null)
+        throw new CapError({ code: "auth.unauthenticated", message: "You are signed out.", traceId: "", status: 401 });
       const send = o.fetch ?? (globalThis as { fetch?: typeof fetch }).fetch;
       if (!send) throw new Error("This device cannot upload");
-      const r = await send(new URL(path, o.baseUrl).toString(), { method: "PUT", headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream" }, body: bytes as unknown as BodyInit });
-      if (!r.ok) throw new Error(r.status === 413 ? "The file is over the size limit" : "The upload did not go through");
+      const r = await send(new URL(path, o.baseUrl).toString(), {
+        method: "PUT",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream" },
+        body: bytes as unknown as BodyInit,
+      });
+      if (!r.ok)
+        throw new Error(r.status === 413 ? "The file is over the size limit" : "The upload did not go through");
     },
     ...(aiHome === "here" || door ? { unlockVault } : {}),
     aiHome,
     // a Space server keeps a wrap of the person's key for their Google or GitHub sign-ins: the Vault shows it, with Forget on this server
-    serverKey: { state: () => serverKeyState(o.baseUrl, token ?? ""), keep: (keep: boolean) => setServerKeyKept(o.baseUrl, token ?? "", keep) },
+    serverKey: {
+      state: () => serverKeyState(o.baseUrl, token ?? ""),
+      keep: (keep: boolean) => setServerKeyKept(o.baseUrl, token ?? "", keep),
+    },
     connection: {
       get: () => (reachable && !linkLost && !(everLive && live === "offline") ? "online" : "offline"),
-      subscribe: (l) => { listeners.add(l); return () => { listeners.delete(l); }; },
+      subscribe: (l) => {
+        listeners.add(l);
+        return () => {
+          listeners.delete(l);
+        };
+      },
     },
     principals,
     recordTitle: () => undefined,
@@ -486,10 +684,16 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     clock: () => ({ now: (o.now ?? Date.now)(), offsetMin: -new Date().getTimezoneOffset() }),
     space: { id: space.id, kind: space.kind, name: shownName },
     baseUrl: o.baseUrl,
-    ...(o.spaceCards?{knownSpaces:o.spaceCards}:{}),
-    get assistant() { return assistant(); },
-    get aiConnected() { return connected(AI_CONNECTORS); },
-    get calendarConnected() { return connected(CALENDAR_CONNECTORS); },
+    ...(o.spaceCards ? { knownSpaces: o.spaceCards } : {}),
+    get assistant() {
+      return assistant();
+    },
+    get aiConnected() {
+      return connected(AI_CONNECTORS);
+    },
+    get calendarConnected() {
+      return connected(CALENDAR_CONNECTORS);
+    },
     plainRole: plainRoleOnly(who.roles, space.kind),
     ...(livePerms ? { permissions: livePerms } : {}),
     deferredModules: deferred.deferredModules,
@@ -503,15 +707,26 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   };
 
   return {
-    def, baseUrl: o.baseUrl, me, hooks, runtime, call,
-    onPurge: (l) => { purgeListeners.add(l); return () => { purgeListeners.delete(l); }; },
+    def,
+    baseUrl: o.baseUrl,
+    me,
+    hooks,
+    runtime,
+    call,
+    onPurge: (l) => {
+      purgeListeners.add(l);
+      return () => {
+        purgeListeners.delete(l);
+      };
+    },
     liveStatus: () => live,
     prefetchPlace,
     refresh,
     close(why = "unspecified") {
       if (closed) return;
       closed = true;
-      stopPerms(); if (permsTimer !== null) clearTimeout(permsTimer);
+      stopPerms();
+      if (permsTimer !== null) clearTimeout(permsTimer);
       detachSpeed();
       stopKeyWatch();
       console.info(`vyre session closed: ${why}`);
@@ -522,7 +737,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       page?.removeEventListener?.("pointerdown", touch);
       page?.removeEventListener?.("keydown", touch);
       offRetry();
-      lostTimer?.(); lostTimer = null;
+      lostTimer?.();
+      lostTimer = null;
       link.stop();
       turns.dispose();
       for (const off of keep) off();

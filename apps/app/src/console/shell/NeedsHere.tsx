@@ -14,7 +14,10 @@ type Out = CapMap["console.overview"]["out"];
 /** The attention items whose page sits on the same tab as `page`. */
 export function itemsHere(items: Out["attention"], page: string): Out["attention"] {
   const tab = tabOf(page);
-  return items.filter((a) => { const to = resolve(ATTENTION_PAGE[a.kind]); return tab !== undefined && tab.views.some((x) => x.page === to); });
+  return items.filter((a) => {
+    const to = resolve(ATTENTION_PAGE[a.kind]);
+    return tab !== undefined && tab.views.some((x) => x.page === to);
+  });
 }
 
 /** The line under a Needs you row on a page: what it is and for how long, never the title said again (K14, 13 Nov: the AI page read "Your team has no AI account" twice). Null when it would only repeat the title. */
@@ -32,10 +35,30 @@ export function NeedsHere({ page }: { page: string }): ReactElement | null {
   return (
     <Section title="Needs you" count={here.length}>
       <Group testID="needs-here">
-        {here.map((a, i) => { const note = hereNote(a, now); return (
-          <Row key={`${a.kind}-${a.ref ?? i}`} id={`needs-${a.kind}-${a.ref ?? i}`} title={a.title} {...(note ? { note } : {})} leading={<Lead><Glyph name="warn" size={16} color="var(--warn)" /></Lead>}
-            trailing={<LinkButton label={a.next} onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])} testID={`needs-go-${i}`} />} onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])} />
-        ); })}
+        {here.map((a, i) => {
+          const note = hereNote(a, now);
+          return (
+            <Row
+              key={`${a.kind}-${a.ref ?? i}`}
+              id={`needs-${a.kind}-${a.ref ?? i}`}
+              title={a.title}
+              {...(note ? { note } : {})}
+              leading={
+                <Lead>
+                  <Glyph name="warn" size={16} color="var(--warn)" />
+                </Lead>
+              }
+              trailing={
+                <LinkButton
+                  label={a.next}
+                  onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])}
+                  testID={`needs-go-${i}`}
+                />
+              }
+              onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])}
+            />
+          );
+        })}
       </Group>
     </Section>
   );

@@ -5,5 +5,6 @@ import assert from "node:assert/strict";
 import { CHAT_COMMANDS } from "./chat-commands.ts";
 
 test("every slash command's description fits the menu without being cut", () => {
-  for (const c of CHAT_COMMANDS) assert.ok(c.detail.length <= 42, `/${c.id}: "${c.detail}" is ${c.detail.length} characters, 42 at most`);
+  for (const c of CHAT_COMMANDS)
+    assert.ok(c.detail.length <= 42, `/${c.id}: "${c.detail}" is ${c.detail.length} characters, 42 at most`);
 });

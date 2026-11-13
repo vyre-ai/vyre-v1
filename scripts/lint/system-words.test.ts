@@ -14,14 +14,17 @@ const BASELINE = fileURLToPath(new URL("./system-words.baseline.json", import.me
 const SCOPE = ["apps/app/src", "ui/src"];
 const EXEMPT = /(\.test\.|\.support\.|\/tests?\/|\/sample|\/samples\/|\/fixtures\/|\/testing\/|\.d\.ts$|\/generated\/)/;
 /** Wake-up, principal, capability, and "turn" as a noun (the turn, a turn, its turn, turns, turn limit). "Turn on" and "turn off" are verbs and stay. */
-export const SYSTEM_WORDS = /\bwake-?ups?\b|\bwake up\b|\bprincipals?\b|\bcapabilit(?:y|ies)\b|\b(?:a|an|the|its|next|last|that|this|each|every|per|your|their|first|one)\s+turns?\b|\bturns\b|\bturn limit\b|\bthe doer\b/i;
+export const SYSTEM_WORDS =
+  /\bwake-?ups?\b|\bwake up\b|\bprincipals?\b|\bcapabilit(?:y|ies)\b|\b(?:a|an|the|its|next|last|that|this|each|every|per|your|their|first|one)\s+turns?\b|\bturns\b|\bturn limit\b|\bthe doer\b/i;
 const LITERAL = /"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\\n]|\\.)*`/g;
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
     const st = statSync(p);
-    if (st.isDirectory()) { if (name !== "node_modules" && name !== "dist") walk(p, out); } else if (/\.(ts|tsx)$/.test(name)) out.push(p);
+    if (st.isDirectory()) {
+      if (name !== "node_modules" && name !== "dist") walk(p, out);
+    } else if (/\.(ts|tsx)$/.test(name)) out.push(p);
   }
   return out;
 }
@@ -29,12 +32,14 @@ const stripComments = (s: string): string => s.replace(/\/\*[\s\S]*?\*\//g, "").
 /** JSX text between tags ("<Text>The turn ended</Text>") is a string a person reads too, on one line or wrapped over several (Prettier wraps long text). */
 const JSX_TEXT = />([^<>{}=;]*[A-Za-z][^<>{}=;]*)</g;
 /** A long string Prettier breaks is written as pieces joined by +, each on its own line: "The lead did not " +\n  "check in". Join the pieces back into the one string a person reads. */
-const joinPieces = (code: string): string => code.replace(/(["'`])\s*\+\s*\n\s*\1/g, "").replace(/(["'`])\s*\n\s*\+\s*\1/g, "");
+const joinPieces = (code: string): string =>
+  code.replace(/(["'`])\s*\+\s*\n\s*\1/g, "").replace(/(["'`])\s*\n\s*\+\s*\1/g, "");
 
 export function countIn(source: string): number {
   const code = joinPieces(stripComments(source));
   let n = 0;
-  for (const m of code.match(LITERAL) ?? []) if (/\s/.test(m) && !/^["'`]\.{0,2}\//.test(m) && SYSTEM_WORDS.test(m)) n++;
+  for (const m of code.match(LITERAL) ?? [])
+    if (/\s/.test(m) && !/^["'`]\.{0,2}\//.test(m) && SYSTEM_WORDS.test(m)) n++;
   for (const m of code.matchAll(JSX_TEXT)) if (SYSTEM_WORDS.test(m[1]!.replace(/\s+/g, " "))) n++;
   return n;
 }
@@ -54,16 +59,26 @@ export function counts(): Record<string, number> {
 
 test("no new system word in a string a person reads, and the old ones only go down", () => {
   const now = counts();
-  if (process.env["UPDATE_SYSTEM_WORDS"] === "1") { writeFileSync(BASELINE, `${JSON.stringify(now, null, 2)}\n`); return; }
+  if (process.env["UPDATE_SYSTEM_WORDS"] === "1") {
+    writeFileSync(BASELINE, `${JSON.stringify(now, null, 2)}\n`);
+    return;
+  }
   const base = JSON.parse(readFileSync(BASELINE, "utf8")) as Record<string, number>;
   const worse: string[] = [];
   for (const [file, n] of Object.entries(now)) {
     const allowed = base[file] ?? 0;
-    if (n > allowed) worse.push(`${file}: ${n} string${n === 1 ? "" : "s"} with a system word (turn, wake-up, principal, capability), ${allowed} allowed. Say it in plain words a new person understands.`);
+    if (n > allowed)
+      worse.push(
+        `${file}: ${n} string${n === 1 ? "" : "s"} with a system word (turn, wake-up, principal, capability), ${allowed} allowed. Say it in plain words a new person understands.`,
+      );
   }
   assert.deepEqual(worse, []);
   const stale = Object.keys(base).filter((f) => (now[f] ?? 0) < base[f]!);
-  assert.deepEqual(stale, [], `these files were reworded: lower their count in system-words.baseline.json (UPDATE_SYSTEM_WORDS=1):\n${stale.join("\n")}`);
+  assert.deepEqual(
+    stale,
+    [],
+    `these files were reworded: lower their count in system-words.baseline.json (UPDATE_SYSTEM_WORDS=1):\n${stale.join("\n")}`,
+  );
 });
 
 test("the check sees a system word in a string and in text, and ignores a comment, a path and a verb", () => {
@@ -76,7 +91,11 @@ test("the check sees a system word in a string and in text, and ignores a commen
     "const d = <Text>The principal is missing</Text>;",
     'const e = "capability";',
   ].join("\n");
-  assert.equal(countIn(sample), 3, "the two strings and the text; not the comment, the path, the verb or the one-word code");
+  assert.equal(
+    countIn(sample),
+    3,
+    "the two strings and the text; not the comment, the path, the verb or the one-word code",
+  );
 });
 
 test("the check sees a string that was wrapped over lines, and text that was wrapped inside JSX", () => {
@@ -92,5 +111,9 @@ test("the check sees a string that was wrapped over lines, and text that was wra
     'const c = "The agent did not " +',
     '  "report back";',
   ].join("\n");
-  assert.equal(countIn(wrapped), 2, "a joined string and wrapped JSX text with a system word count; a joined string without one does not");
+  assert.equal(
+    countIn(wrapped),
+    2,
+    "a joined string and wrapped JSX text with a system word count; a joined string without one does not",
+  );
 });

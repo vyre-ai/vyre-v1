@@ -347,5 +347,9 @@ test("the project Chat tab names its list with the app's own word for replies un
   const { THREAD_TITLE, SWITCH_TITLE } = await import("../../chats/thread-replies/model.ts");
   assert.equal(THREADS_HEAD, `${THREAD_TITLE}s`, "the sheet is called Thread, so the list is Threads");
   assert.ok(SWITCH_TITLE.includes("threads") && NO_THREADS.includes("threads"), "the chat menu says threads too");
-  assert.doesNotMatch(`${THREADS_HEAD} ${NO_THREADS}`, /\bchats?\b/i, "and it never says chat for them: the project has one chat");
+  assert.doesNotMatch(
+    `${THREADS_HEAD} ${NO_THREADS}`,
+    /\bchats?\b/i,
+    "and it never says chat for them: the project has one chat",
+  );
 });

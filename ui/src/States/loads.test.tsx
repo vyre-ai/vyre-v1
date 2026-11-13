@@ -95,13 +95,18 @@ test("a refused read never renders Retry and says in plain words that the person
   try {
     for (const code of REFUSED) {
       assert.equal(isRefused({ message: "x", code }), true, code);
-      const root = await mount(createRoot, <LoadFailed what="this chat" failure={{ message: "That chat does not exist or is not yours.", code }} />);
+      const root = await mount(
+        createRoot,
+        <LoadFailed what="this chat" failure={{ message: "That chat does not exist or is not yours.", code }} />,
+      );
       const text = textOf(find(root, "load-failed"));
       assert.equal(find(root, "state-retry"), null, `${code}: no Retry on a refusal`);
       assert.match(text, /You can't open this chat/, code);
       assert.doesNotMatch(text, /Couldn't load|does not exist/, code);
     }
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("a read that can work on a second try keeps its Retry", async () => {
@@ -109,10 +114,15 @@ test("a read that can work on a second try keeps its Retry", async () => {
   try {
     for (const code of WAITABLE) {
       assert.equal(isRefused({ message: "x", code }), false, code);
-      const root = await mount(createRoot, <LoadFailed what="this chat" failure={{ message: "It broke.", ...(code ? { code } : {}) }} />);
+      const root = await mount(
+        createRoot,
+        <LoadFailed what="this chat" failure={{ message: "It broke.", ...(code ? { code } : {}) }} />,
+      );
       assert.ok(find(root, "state-retry"), `${code || "no code"}: Retry stays`);
     }
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 // C (review, 13 Nov): a refusal is a dead end unless it offers the way out; "what needs you" cannot be refused by a person, so its read failing keeps Retry.
@@ -120,17 +130,35 @@ test("a refused read offers Back to Chats, which sends the one event the place h
   const restore = installDom();
   const g = globalThis as { dispatchEvent?: unknown; CustomEvent?: unknown };
   const sent: string[] = [];
-  g.dispatchEvent = (e: { type: string }) => { sent.push(e.type); return true; };
-  g.CustomEvent = class { type: string; constructor(t: string) { this.type = t; } };
+  g.dispatchEvent = (e: { type: string }) => {
+    sent.push(e.type);
+    return true;
+  };
+  g.CustomEvent = class {
+    type: string;
+    constructor(t: string) {
+      this.type = t;
+    }
+  };
   try {
-    const refused = await mount(createRoot, <LoadFailed what="this chat" failure={{ message: "x", code: "validation.not_found" }} />);
+    const refused = await mount(
+      createRoot,
+      <LoadFailed what="this chat" failure={{ message: "x", code: "validation.not_found" }} />,
+    );
     assert.match(textOf(find(refused, "state-action")), /Back to Chats/);
     await press(find(refused, "state-action"));
     await flush();
     assert.deepEqual(sent, [BACK_TO_START_EVENT]);
-    const needs = await mount(createRoot, <LoadFailed what="what needs you" refusable={false} failure={{ message: "x", code: "validation.not_found" }} />);
+    const needs = await mount(
+      createRoot,
+      <LoadFailed what="what needs you" refusable={false} failure={{ message: "x", code: "validation.not_found" }} />,
+    );
     assert.ok(find(needs, "state-retry"), "a list that cannot be refused keeps Retry");
     assert.equal(find(needs, "state-action"), null);
     assert.match(textOf(find(needs, "load-failed")), /Couldn't load what needs you/);
-  } finally { delete g.dispatchEvent; delete g.CustomEvent; restore(); }
+  } finally {
+    delete g.dispatchEvent;
+    delete g.CustomEvent;
+    restore();
+  }
 });

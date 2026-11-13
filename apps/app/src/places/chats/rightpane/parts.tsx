@@ -13,7 +13,9 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 
 const PATHS = {
   moon: ["M12.5 9.2A5.2 5.2 0 016.8 3.5a5.2 5.2 0 105.7 5.7z"],
-  hand: ["M5.5 8V3.8a1 1 0 012 0V7M7.5 7V2.8a1 1 0 012 0V7M9.5 7V3.8a1 1 0 012 0v4.4c0 2.6-1.4 4.3-3.6 4.3-1.5 0-2.4-.6-3.3-1.8L3.1 8.4a1 1 0 011.5-1.3z"],
+  hand: [
+    "M5.5 8V3.8a1 1 0 012 0V7M7.5 7V2.8a1 1 0 012 0V7M9.5 7V3.8a1 1 0 012 0v4.4c0 2.6-1.4 4.3-3.6 4.3-1.5 0-2.4-.6-3.3-1.8L3.1 8.4a1 1 0 011.5-1.3z",
+  ],
   expand: ["M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5L9 7M2.5 13.5L7 9"],
   terminal: ["M2.5 4.5a2 2 0 012-2h7a2 2 0 012 2v7a2 2 0 01-2 2h-7a2 2 0 01-2-2z", "M5 6.5l2 1.5-2 1.5M8.5 10h2.5"],
   lock: ["M4.5 7.5h7v5.5h-7z", "M6 7.5V5.8a2 2 0 014 0v1.7"],
@@ -25,7 +27,10 @@ const PATHS = {
   back: ["M9.500 3.500L5 8l4.500 4.500"],
   chev: ["M4 6l4 4 4-4"],
   clock: ["M8 13.500a5.500 5.500 0 100-11 5.500 5.500 0 000 11z", "M8 5v3.200l2 1.300"],
-  watch: ["M1.800 8s2.300-4.500 6.200-4.500S14.200 8 14.200 8s-2.300 4.500-6.200 4.500S1.800 8 1.800 8z", "M8 9.800a1.800 1.800 0 100-3.600 1.800 1.800 0 000 3.600z"],
+  watch: [
+    "M1.800 8s2.300-4.500 6.200-4.500S14.200 8 14.200 8s-2.300 4.500-6.200 4.500S1.800 8 1.800 8z",
+    "M8 9.800a1.800 1.800 0 100-3.600 1.800 1.800 0 000 3.600z",
+  ],
   plus: ["M8 3.500v9M3.500 8h9"],
   check: ["M3 8.500l3 3 7-7"],
   x: ["M4 4l8 8M12 4l-8 8"],
@@ -37,36 +42,93 @@ const PATHS = {
   copy: ["M5.500 5.500h7v8h-7z", "M3.500 10.500v-8h7"],
   bubble: ["M3 4.500A2 2 0 015 2.500h6a2 2 0 012 2v4.500a2 2 0 01-2 2H7l-3 2.500V11a2 2 0 01-1-1.700z"],
   rec: ["M8 11.500a3.500 3.500 0 100-7 3.500 3.500 0 000 7z"],
-  globe: ["M8 13.500a5.500 5.500 0 100-11 5.500 5.500 0 000 11z", "M2.500 8h11M8 2.500c1.500 1.600 2.200 3.400 2.200 5.500S9.500 11.900 8 13.500C6.500 11.900 5.800 10.100 5.800 8S6.500 4.100 8 2.500z"],
+  globe: [
+    "M8 13.500a5.500 5.500 0 100-11 5.500 5.500 0 000 11z",
+    "M2.500 8h11M8 2.500c1.500 1.600 2.200 3.400 2.200 5.500S9.500 11.900 8 13.500C6.500 11.900 5.800 10.100 5.800 8S6.500 4.100 8 2.500z",
+  ],
   server: ["M2.500 3h11v4h-11z", "M2.500 9h11v4h-11z", "M5 5h.01M5 11h.01"],
   share: ["M8 10V2.500M5 5.200L8 2.200l3 3M3.500 8.500v4.500h9V8.500"],
-  phone: ["M4.500 2.500h2l.8 2.800-1.400 1a7.500 7.500 0 003.300 3.300l1-1.400 2.800.8v2a1.300 1.300 0 01-1.400 1.300C7.600 12 4 8.400 3.200 3.900A1.300 1.300 0 014.500 2.500z"],
+  phone: [
+    "M4.500 2.500h2l.8 2.800-1.400 1a7.500 7.500 0 003.300 3.300l1-1.400 2.800.8v2a1.300 1.300 0 01-1.400 1.300C7.600 12 4 8.400 3.200 3.900A1.300 1.300 0 014.500 2.500z",
+  ],
   bolt: ["M9 2L4 9h3.500L7 14l5-7H8.500z"],
   warn: ["M8 2.500l6 10.500H2z", "M8 6.500v3M8 11.200h.01"],
 } as const;
 export type IconName = keyof typeof PATHS;
 
-export function Icon({ name, size = 15, color = "var(--ink-3)", width = 1.4, fill }: { name: IconName; size?: number; color?: string; width?: number; fill?: string }): ReactElement | null {
+export function Icon({
+  name,
+  size = 15,
+  color = "var(--ink-3)",
+  width = 1.4,
+  fill,
+}: {
+  name: IconName;
+  size?: number;
+  color?: string;
+  width?: number;
+  fill?: string;
+}): ReactElement | null {
   if (Platform.OS !== "web") return null;
   const paths: ReactElement[] = [];
   for (const d of PATHS[name]) paths.push(createElement("path", { key: d, d, fill: fill ?? "none" }));
-  return createElement("svg", { viewBox: "0 0 16 16", width: size, height: size, "aria-hidden": true, style: { display: "block", flex: "none", stroke: color, strokeWidth: name === "more" ? 2.4 : width, strokeLinecap: "round", strokeLinejoin: "round" } }, ...paths);
+  return createElement(
+    "svg",
+    {
+      viewBox: "0 0 16 16",
+      width: size,
+      height: size,
+      "aria-hidden": true,
+      style: {
+        display: "block",
+        flex: "none",
+        stroke: color,
+        strokeWidth: name === "more" ? 2.4 : width,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+      },
+    },
+    ...paths,
+  );
 }
 
 const webProps = (props: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? props : {});
 
 /** An agent is a pixel face on a soft tint: the shared Avatar. `pulse` rings it while it works. */
-export function Face({ name, seedId, size = 18, pulse = false, asleep = false }: { name: string; seedId?: string | undefined; size?: number; pulse?: boolean; asleep?: boolean }): ReactElement {
+export function Face({
+  name,
+  seedId,
+  size = 18,
+  pulse = false,
+  asleep = false,
+}: {
+  name: string;
+  seedId?: string | undefined;
+  size?: number;
+  pulse?: boolean;
+  asleep?: boolean;
+}): ReactElement {
   return (
     <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0, flexGrow: 0 }}>
-      <Avatar name={name} seedId={seedId} kind="agent" size={size} state={pulse ? "working" : asleep ? "asleep" : undefined} {...(pulse ? { testID: "pulse" } : {})} />
+      <Avatar
+        name={name}
+        seedId={seedId}
+        kind="agent"
+        size={size}
+        state={pulse ? "working" : asleep ? "asleep" : undefined}
+        {...(pulse ? { testID: "pulse" } : {})}
+      />
     </View>
   );
 }
 
 /** A glyph in a row's leading slot, the width of a face so titles line up. */
 export function LeadIcon({ name, color, size = 14 }: { name: IconName; color?: string; size?: number }): ReactElement {
-  return <View style={s.lead}><Icon name={name} size={size} {...(color ? { color } : {})} /></View>;
+  return (
+    <View style={s.lead}>
+      <Icon name={name} size={size} {...(color ? { color } : {})} />
+    </View>
+  );
 }
 
 /** A face in a row's leading slot: the same room and gap as LeadIcon gives an icon, so a face never sits on the title. */
@@ -75,18 +137,36 @@ export function LeadFace({ children }: { children: ReactNode }): ReactElement {
 }
 
 /** A small icon button, in a header or a row's trailing slot. */
-export function Tool({ icon, label, onPress, active = false, testID }: { icon: IconName; label: string; onPress: (x: number, y: number) => void; active?: boolean; testID?: string }): ReactElement {
+export function Tool({
+  icon,
+  label,
+  onPress,
+  active = false,
+  testID,
+}: {
+  icon: IconName;
+  label: string;
+  onPress: (x: number, y: number) => void;
+  active?: boolean;
+  testID?: string;
+}): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
-      accessibilityRole="button" accessibilityLabel={label} testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      testID={testID}
       {...webProps({ title: label })}
       onPress={(e) => {
-        const ev = e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } }; nativeEvent?: { pageX?: number; pageY?: number } };
+        const ev = e as unknown as {
+          currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
+          nativeEvent?: { pageX?: number; pageY?: number };
+        };
         const box = ev.currentTarget?.getBoundingClientRect?.();
-        onPress(box ? box.left : ev.nativeEvent?.pageX ?? 0, box ? box.bottom + 4 : ev.nativeEvent?.pageY ?? 0);
+        onPress(box ? box.left : (ev.nativeEvent?.pageX ?? 0), box ? box.bottom + 4 : (ev.nativeEvent?.pageY ?? 0));
       }}
-      onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
       style={[s.tool, (over || active) && s.toolOver]}
     >
       <Icon name={icon} size={14} color={over || active ? "var(--ink)" : "var(--ink-3)"} />
@@ -95,21 +175,58 @@ export function Tool({ icon, label, onPress, active = false, testID }: { icon: I
 }
 
 /** The on/off switch of a routine. */
-export function Switch({ on, label, onPress, testID }: { on: boolean; label: string; onPress: () => void; testID?: string }): ReactElement {
+export function Switch({
+  on,
+  label,
+  onPress,
+  testID,
+}: {
+  on: boolean;
+  label: string;
+  onPress: () => void;
+  testID?: string;
+}): ReactElement {
   return (
-    <Pressable role="switch" aria-label={label} aria-checked={on} onPress={onPress} testID={testID} style={[s.switchTrack, on && SWITCH_ON]}>
+    <Pressable
+      role="switch"
+      aria-label={label}
+      aria-checked={on}
+      onPress={onPress}
+      testID={testID}
+      style={[s.switchTrack, on && SWITCH_ON]}
+    >
       <View style={[s.switchKnob, on && s.switchKnobOn]} />
     </Pressable>
   );
 }
 
 /** A small text button in a section: "Wake", "Give back", "Run now". `primary` is the one filled action. */
-export function TextButton({ label, onPress, primary = false, filled = false, disabled = false, testID }: { label: string; onPress: () => void; primary?: boolean; /** a quiet filled button, for an offer that has to be seen */ filled?: boolean; disabled?: boolean; testID?: string }): ReactElement {
+export function TextButton({
+  label,
+  onPress,
+  primary = false,
+  filled = false,
+  disabled = false,
+  testID,
+}: {
+  label: string;
+  onPress: () => void;
+  primary?: boolean;
+  /** a quiet filled button, for an offer that has to be seen */ filled?: boolean;
+  disabled?: boolean;
+  testID?: string;
+}): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
-      accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} testID={testID} onPress={onPress}
-      onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      testID={testID}
+      onPress={onPress}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
       style={[s.btn, primary ? s.btnPrimary : filled ? s.btnFilled : over && s.btnOver, disabled && { opacity: 0.5 }]}
     >
       <Text style={[s.btnText, primary && s.btnTextPrimary]}>{label}</Text>
@@ -118,10 +235,20 @@ export function TextButton({ label, onPress, primary = false, filled = false, di
 }
 
 /** The quiet line at the foot of the pane, with Undo where the change can be taken back. */
-export function Notice({ text, onUndo, onClose }: { text: string; onUndo?: () => void; onClose: () => void }): ReactElement {
+export function Notice({
+  text,
+  onUndo,
+  onClose,
+}: {
+  text: string;
+  onUndo?: () => void;
+  onClose: () => void;
+}): ReactElement {
   return (
     <View testID="pane-notice" accessibilityRole="alert" style={s.notice}>
-      <Text numberOfLines={2} style={s.noticeText}>{text}</Text>
+      <Text numberOfLines={2} style={s.noticeText}>
+        {text}
+      </Text>
       {onUndo ? <TextButton label="Undo" onPress={onUndo} testID="notice-undo" /> : null}
       <Tool icon="x" label="Dismiss" onPress={onClose} testID="notice-close" />
     </View>
@@ -132,7 +259,19 @@ export function Notice({ text, onUndo, onClose }: { text: string; onUndo?: () =>
 
 export type Entry =
   | { key: string; type: "label"; text: string; right?: string }
-  | { key: string; type: "row"; title: string; /** quiet words after the title on the same line ("You") */ suffix?: string; note?: string; leading?: ReactNode; trailing?: ReactNode | ((over: boolean) => ReactNode); onPress?: () => void; menu?: MenuEntry[]; selected?: boolean; testID?: string }
+  | {
+      key: string;
+      type: "row";
+      title: string;
+      /** quiet words after the title on the same line ("You") */ suffix?: string;
+      note?: string;
+      leading?: ReactNode;
+      trailing?: ReactNode | ((over: boolean) => ReactNode);
+      onPress?: () => void;
+      menu?: MenuEntry[];
+      selected?: boolean;
+      testID?: string;
+    }
   | { key: string; type: "block"; node: ReactElement }
   | { key: string; type: "empty"; text: string; testID?: string };
 
@@ -143,22 +282,45 @@ function Hot({ children }: { children: (over: boolean) => ReactElement }): React
 }
 
 /** `plain` draws every entry in one scrolling column instead of a windowed list: for a short list whose rows are boxes of varying height (Memory), where measured windowing leaves gaps. */
-export function PaneList({ entries, window, testID, plain = false }: { entries: readonly Entry[]; window?: VirtualWindow; testID?: string; plain?: boolean }): ReactElement {
+export function PaneList({
+  entries,
+  window,
+  testID,
+  plain = false,
+}: {
+  entries: readonly Entry[];
+  window?: VirtualWindow;
+  testID?: string;
+  plain?: boolean;
+}): ReactElement {
   const menu = useMenu();
   const render = (e: Entry): ReactElement => {
     switch (e.type) {
-      case "label": return (
-        <View testID={`label-${e.key}`} style={s.label}>
-          <Text accessibilityRole="header" style={s.labelText}>{e.text}</Text>
-          {e.right ? <Text style={s.labelRight}>{e.right}</Text> : null}
-        </View>
-      );
-      case "empty": return <View testID={e.testID ?? `empty-${e.key}`} style={s.empty}><Text style={s.emptyText}>{e.text}</Text></View>;
-      case "block": return e.node;
+      case "label":
+        return (
+          <View testID={`label-${e.key}`} style={s.label}>
+            <Text accessibilityRole="header" style={s.labelText}>
+              {e.text}
+            </Text>
+            {e.right ? <Text style={s.labelRight}>{e.right}</Text> : null}
+          </View>
+        );
+      case "empty":
+        return (
+          <View testID={e.testID ?? `empty-${e.key}`} style={s.empty}>
+            <Text style={s.emptyText}>{e.text}</Text>
+          </View>
+        );
+      case "block":
+        return e.node;
       case "row": {
         const row = (over: boolean): ReactElement => (
           <Row
-            id={e.testID ?? e.key} title={e.title} {...(e.suffix ? { titleSuffix: e.suffix } : {})} {...(e.note ? { note: e.note } : {})} selected={e.selected === true}
+            id={e.testID ?? e.key}
+            title={e.title}
+            {...(e.suffix ? { titleSuffix: e.suffix } : {})}
+            {...(e.note ? { note: e.note } : {})}
+            selected={e.selected === true}
             {...(e.onPress ? { onPress: e.onPress } : {})}
             {...(e.leading ? { leading: e.leading } : {})}
             {...(e.trailing ? { trailing: typeof e.trailing === "function" ? e.trailing(over) : e.trailing } : {})}
@@ -166,9 +328,15 @@ export function PaneList({ entries, window, testID, plain = false }: { entries: 
         );
         const menuItems = e.menu;
         const body = <Hot>{row}</Hot>;
-        return <View style={s.rowGutter}>{menuItems && menuItems.length > 0
-          ? <View {...menuTrigger((x, y) => menu.show(menuItems, x, y, "context", { label: e.title }))}>{body}</View>
-          : body}</View>;
+        return (
+          <View style={s.rowGutter}>
+            {menuItems && menuItems.length > 0 ? (
+              <View {...menuTrigger((x, y) => menu.show(menuItems, x, y, "context", { label: e.title }))}>{body}</View>
+            ) : (
+              body
+            )}
+          </View>
+        );
       }
     }
   };
@@ -184,7 +352,13 @@ export function PaneList({ entries, window, testID, plain = false }: { entries: 
   }
   return (
     <View testID={testID ?? "pane-list"} style={s.list}>
-      <VirtualList data={entries} rowHeight="measure" keyOf={(e) => e.key} renderItem={render} {...(window ? { window } : {})} />
+      <VirtualList
+        data={entries}
+        rowHeight="measure"
+        keyOf={(e) => e.key}
+        renderItem={render}
+        {...(window ? { window } : {})}
+      />
       {menu.element}
     </View>
   );
@@ -198,22 +372,58 @@ export const s = StyleSheet.create({
   leadFace: { minWidth: 22, marginRight: 10, alignItems: "center", justifyContent: "center" },
   tool: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   toolOver: { backgroundColor: "var(--press)" as string },
-  switchTrack: { width: 28, height: 16, borderRadius: 8, backgroundColor: "var(--line-2)" as string, justifyContent: "center", paddingHorizontal: 2 },
+  switchTrack: {
+    width: 28,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "var(--line-2)" as string,
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
   switchKnob: { width: 12, height: 12, borderRadius: 6, backgroundColor: "var(--win)" as string },
   switchKnobOn: { alignSelf: "flex-end" },
-  btn: { height: 26, paddingHorizontal: 10, borderRadius: 7, alignItems: "center", justifyContent: "center", flexDirection: "row" },
+  btn: {
+    height: 26,
+    paddingHorizontal: 10,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+  },
   btnOver: { backgroundColor: "var(--hover)" as string },
   btnFilled: { backgroundColor: "var(--sel)" as string },
   btnPrimary: { backgroundColor: "var(--accent)" as string },
   btnText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string },
   btnTextPrimary: { color: "var(--accent-ink)" as string },
   list: { flex: 1, minHeight: 0 },
-  label: { minHeight: 30, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: 24, paddingTop: 26, paddingBottom: 8 },
+  label: {
+    minHeight: 30,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    paddingHorizontal: 24,
+    paddingTop: 26,
+    paddingBottom: 8,
+  },
   labelText: { fontSize: 12, fontWeight: "400", color: "var(--ink-3)" as string },
   labelRight: { fontSize: 11.5, color: "var(--ink-4)" as string },
   rowGutter: { paddingHorizontal: 16, paddingVertical: 2 },
   empty: { minHeight: 36, justifyContent: "center", paddingHorizontal: 24, paddingVertical: 6 },
   emptyText: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  notice: { position: "absolute", left: 12, right: 12, bottom: 12, flexDirection: "row", alignItems: "center", gap: 6, minHeight: 40, paddingLeft: 14, paddingRight: 6, borderRadius: 12, boxShadow: "0 6px 20px rgba(0,0,0,0.14), inset 0 0 0 1px var(--line)", backgroundColor: "var(--raised)" as string } as object,
+  notice: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    bottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 40,
+    paddingLeft: 14,
+    paddingRight: 6,
+    borderRadius: 12,
+    boxShadow: "0 6px 20px rgba(0,0,0,0.14), inset 0 0 0 1px var(--line)",
+    backgroundColor: "var(--raised)" as string,
+  } as object,
   noticeText: { flex: 1, fontSize: 12.5, color: "var(--ink-2)" as string },
 });

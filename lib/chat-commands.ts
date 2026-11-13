@@ -32,7 +32,23 @@ export const CHAT_COMMANDS: readonly ChatCommandDef[] = Object.freeze([
   { id: "stop", detail: "Stop what the agent is doing" },
 ] satisfies readonly ChatCommandDef[]);
 
-export type ChatCommandId = "plan" | "permissions" | "helper" | "handoff" | "pin" | "fork" | "export" | "continue" | "task" | "remember" | "find" | "search" | "model" | "compact" | "btw" | "stop";
+export type ChatCommandId =
+  | "plan"
+  | "permissions"
+  | "helper"
+  | "handoff"
+  | "pin"
+  | "fork"
+  | "export"
+  | "continue"
+  | "task"
+  | "remember"
+  | "find"
+  | "search"
+  | "model"
+  | "compact"
+  | "btw"
+  | "stop";
 
 const BY_ID = new Map(CHAT_COMMANDS.map((c) => [c.id, c] as const));
 export const chatCommand = (id: string): ChatCommandDef | undefined => BY_ID.get(id);
@@ -41,7 +57,10 @@ export const chatCommand = (id: string): ChatCommandDef | undefined => BY_ID.get
  * A message that is a command: "/plan", "/helper write the brief". Only a known name counts, and only at the very start; "/usr/bin" or "/ok then" is an ordinary message.
  * `extra` holds the names of plugin commands the caller also accepts.
  */
-export function parseSlash(text: string, extra: ReadonlySet<string> | readonly string[] = []): { id: string; arg: string } | null {
+export function parseSlash(
+  text: string,
+  extra: ReadonlySet<string> | readonly string[] = [],
+): { id: string; arg: string } | null {
   const m = /^\/([a-z][a-z0-9_:-]*)(?:\s+([\s\S]*))?$/i.exec(text.trim());
   if (!m) return null;
   const id = (m[1] ?? "").toLowerCase();

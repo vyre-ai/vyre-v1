@@ -25,7 +25,10 @@ export function paneSubject(t: SubjectThread, meId: string, assistantId: string)
   if (t.kind !== "chat") return { kind: "agent" };
   if (t.scopeType === "goal" || t.scopeType === "task") return { kind: "agent" };
   const people = new Set((t.members ?? []).filter((m) => m.kind === "person" && m.id !== meId).map((m) => m.id));
-  const agents = new Set([...(t.agents ?? []).map((a) => a.agentId), ...(t.members ?? []).filter((m) => m.kind === "agent").map((m) => m.id)]);
+  const agents = new Set([
+    ...(t.agents ?? []).map((a) => a.agentId),
+    ...(t.members ?? []).filter((m) => m.kind === "agent").map((m) => m.id),
+  ]);
   agents.delete(assistantId);
   if (people.size === 1 && agents.size === 0) return { kind: "person", id: [...people][0]! };
   if (people.size >= 1 || agents.size >= 2) return { kind: "group" };
@@ -37,7 +40,14 @@ export type PaneAction = "clear" | "skip" | "keep" | "select";
  * What the pane does about its first tab on this render. "clear": the pane is closed, drop the tab it chose. "skip": nothing to choose, or this chat's choice is already made (a hook line, Knows or Skills
  * asked for a tab: those requests settle the chat, even when they open a closed pane). "keep": the person is looking at something they chose; leave it. "select": show the thing the chat is.
  */
-export function paneAction(s: { paneOpen: boolean; hasSubject: boolean; threadId: string | null; settledFor: string | null; rightOn: string | null; autoTab: string | null }): PaneAction {
+export function paneAction(s: {
+  paneOpen: boolean;
+  hasSubject: boolean;
+  threadId: string | null;
+  settledFor: string | null;
+  rightOn: string | null;
+  autoTab: string | null;
+}): PaneAction {
   if (!s.paneOpen) return "clear";
   if (!s.hasSubject || s.threadId === null || s.settledFor === s.threadId) return "skip";
   if (s.rightOn !== null && s.rightOn !== s.autoTab) return "keep";
