@@ -1,0 +1,1 @@
+- The Chats sidebar has a new model behind it: needs you, now, pinned, chats, channels and team, each capped with an "N more" that shows what it hides, and one mark per row.
