@@ -188,3 +188,29 @@ test("a running goal's step renames where it stands", async () => {
   await fire(find(p, "goal-task-name-tsk_ads"), "onBlur", { nativeEvent: { target: { value: "x" } }, target: { value: "x" }, currentTarget: null });
   assert.deepEqual(calls.find((c) => c.cap === "tasks.update")?.input, { taskId: "tsk_ads", title: "Retarget the Lab 8 form, week two" });
 });
+
+test("the Activity tab reads earlier rows through goals.activity as it is scrolled, until the start of the goal's story", async () => {
+  installDom();
+  // 100 rows, newest first; goals.get carries the latest 30
+  const rows = Array.from({ length: 100 }, (_, i) => ({ at: NOW - i * 3_600_000, kind: "reading", text: `Reading number ${100 - i}` }));
+  const asked: Array<{ before: number; limit: number }> = [];
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    assert.equal(cap, "goals.activity");
+    const { before, limit } = input as { before: number; limit: number };
+    asked.push({ before, limit });
+    return { activity: rows.filter((r) => r.at < before).slice(0, limit) };
+  };
+  const data = { goal: { id: "gol_lab8" }, tasks: [], waiting: [], readings: [], activity: rows.slice(0, 30) } as never;
+  const root = await mount(createRoot as never, <Activity data={data} me="usr_irfad" nameOf={(id) => id} now={NOW} zones={{ space: "Asia/Karachi", viewer: "Asia/Karachi" }} openTask={() => undefined} call={call} />);
+  await flush();
+  const list = find(root!, "goal-activity")!;
+  assert.match(textOf(list), /Reading number 100/);
+  assert.doesNotMatch(textOf(list), /Reading number 1(?!\d)/, "the start of the story is not there yet");
+  for (let i = 0; i < 5; i++) { const more = find(root!, "row-goal-activity-earlier"); if (more) { await press(more); await flush(); } }
+  assert.match(textOf(find(root!, "goal-activity")), /Reading number 1(?!\d)/, "the first row is there after paging");
+  assert.deepEqual(asked.map((a) => a.before).slice(0, 2), [rows[29]!.at, rows[79]!.at], "each page asks from the oldest row it has");
+  assert.equal((textOf(find(root!, "goal-activity")).match(/Reading number/g) ?? []).length, 100, "every row once");
+  // nothing earlier: the end is remembered, the row goes, and no further call is made
+  assert.equal(find(root!, "row-goal-activity-earlier"), null, "no more to show");
+  assert.equal(asked.length, 3, "two pages of rows, then one empty answer");
+});

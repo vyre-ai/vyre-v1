@@ -2,7 +2,7 @@
 // (Pause, Edit finish line, Add helper, More). Under it: a stuck, budget or ended notice when there is one, the number with its chart, what waits on whom with one-tap answers, the plan as
 // tasks, then the goal chat and its composer. The pane on the right holds Activity (every step and why), Details (finish line, check-ins, budget, permissions, people) and Files.
 // Every change is one capability call; the page reads the goal again when the Space changes. Nothing blinks: numbers and bars are drawn at their values.
-import { createElement, useCallback, useEffect, useMemo, useState } from "react";
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
@@ -131,7 +131,7 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
       <View style={st.main}>{feed}</View>
       {paneOpen && !phone ? (
         <SidePane paneKey="goal-pane" toggle={{ open: true, onPress: () => setPaneOpen(false) }} title="Goal" tabs={[{ key: "details", title: "Details" }, { key: "activity", title: "Activity" }, { key: "files", title: "Files" }]} activeTab={tab} onSelectTab={(k) => setTab(k as PaneTab)} defaultWidth={340}>
-          {tab === "activity" ? <Activity data={data} me={me} nameOf={nameOf} now={now} zones={zones} openTask={openTask} /> : tab === "details" ? <GoalSettings g={g} nameOf={nameOf} zones={zones} canEdit={edit} patch={(i, said, back) => void run("goals.update", i, said, back)} pick={setPicker} removeHelper={(id) => saveHelpers(g.helpers.filter((h) => h.id !== id), `${nameOf(id)} is no longer a helper.`)} /> : <Files g={g} call={call} changes={changes} {...(openFolder ? { openFolder } : {})} {...(openFile ? { openFile } : {})} />}
+          {tab === "activity" ? <Activity data={data} me={me} nameOf={nameOf} now={now} zones={zones} openTask={openTask} call={call} /> : tab === "details" ? <GoalSettings g={g} nameOf={nameOf} zones={zones} canEdit={edit} patch={(i, said, back) => void run("goals.update", i, said, back)} pick={setPicker} removeHelper={(id) => saveHelpers(g.helpers.filter((h) => h.id !== id), `${nameOf(id)} is no longer a helper.`)} /> : <Files g={g} call={call} changes={changes} {...(openFolder ? { openFolder } : {})} {...(openFile ? { openFile } : {})} />}
         </SidePane>
       ) : null}
       {menu.element}
@@ -426,12 +426,33 @@ function Plan({ data, nameOf, openTask, edit, onDraft, onRemove, onAdd, onRename
   );
 }
 
-export function Activity({ data, me, nameOf, now, zones, openTask }: { data: GoalPageData; me: string; nameOf(id: string): string; now: number; zones: Zones; openTask(id: string): void }): ReactElement {
+export function Activity({ data, me, nameOf, now, zones, openTask, call }: { data: GoalPageData; me: string; nameOf(id: string): string; now: number; zones: Zones; openTask(id: string): void; call?: Call }): ReactElement {
   const viewer = { me, nameOf, offsetMin: 0, zone: zones.space };
-  const days = byDay(data.activity, now, zones);
+  // goals.get carries the latest rows only: earlier ones are read through goals.activity as the list is scrolled to its end, and kept while the page re-reads
+  const [earlier, setEarlier] = useState<GoalPageData["activity"]>([]);
+  const [end, setEnd] = useState(false);
+  const busy = useRef(false);
+  const oldest = data.activity[data.activity.length - 1];
+  // rows arrived so fast that the latest page no longer reaches back to what was loaded: start the earlier rows again rather than leave a gap
+  useEffect(() => { if (earlier.length > 0 && oldest && earlier[0] && oldest.at > earlier[0].at) { setEarlier([]); setEnd(false); } }, [oldest?.at]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const all = useMemo(() => {
+    const seen = new Set<string>();
+    return [...data.activity, ...earlier].filter((a) => { const k = `${a.at}|${a.kind}|${a.text}`; if (seen.has(k)) return false; seen.add(k); return true; });
+  }, [data.activity, earlier]);
+  const loadEarlier = (): void => {
+    const last = all[all.length - 1];
+    if (!call || busy.current || end || !last) return;
+    busy.current = true;
+    void call("goals.activity", { goalId: data.goal.id, before: last.at, limit: 50 }).then((r) => {
+      const rows = (r as { activity?: GoalPageData["activity"] }).activity ?? [];
+      if (rows.length === 0) setEnd(true); else setEarlier((e) => [...e, ...rows]);
+    }, () => undefined).finally(() => { busy.current = false; });
+  };
+  const days = byDay(all, now, zones);
   if (days.length === 0) return <Text style={[st.small, st.pad]}>Nothing yet.</Text>;
   return (
-    <ScrollView testID="goal-activity" contentContainerStyle={st.pad}>
+    <ScrollView testID="goal-activity" contentContainerStyle={st.pad} scrollEventThrottle={100}
+      onScroll={(e) => { const n = e.nativeEvent; if (n.contentOffset.y + n.layoutMeasurement.height >= n.contentSize.height - 160) loadEarlier(); }}>
       {/* ui-rows-lint: not a list (a day heading over its rows, which are ui/Row) */}
       {days.map((d) => (
         <View key={d.day} style={st.day}>
@@ -449,6 +470,8 @@ export function Activity({ data, me, nameOf, now, zones, openTask }: { data: Goa
           })}
         </View>
       ))}
+      {/* ui-rows-lint: not a list (one row that reads the next page; scrolling to the end presses it for you) */}
+      {call && !end && (data.activity.length >= 30 || earlier.length > 0) ? <Row id="goal-activity-earlier" title="Show earlier activity" onPress={loadEarlier} /> : null}
     </ScrollView>
   );
 }
