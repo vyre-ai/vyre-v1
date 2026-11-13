@@ -15,6 +15,7 @@ import { filler, live, openFields, reachable, turnFor, visible } from "./items.t
 import { aliasTarget } from "./signins.ts";
 import {
   atLeast, bad, denied, ensure, first, isId, levelOn, liveFolder, newId, num, obj, parseJson, patchMeta, record, rowsOf, statements, str,
+  ownRow,
 } from "../projections.ts";
 import type { Row, VaultCtx, VaultDb } from "../projections.ts";
 import type { ProviderProbe } from "./providers.ts";
@@ -224,7 +225,7 @@ export async function fill(ctx: VaultCtx, input: { handle: string; target: { kin
   if (isCompanyKey(str(r, "handle")) && ctx.principal.kind !== "person") return denied(ctx, "This key is for the server alone. Agents and automations never get it, not even by handle.");
   const f = pick(ctx, r, await openFields(ctx, r), h.field);
   const level = levelOn(ctx, "vault_item", str(r, "id"));
-  const owner = str(r, "owner") === ctx.principal.id;
+  const owner = ownRow(ctx, r);
   if (input.returnValue === true && (ctx.principal.kind === "agent" || !(owner || atLeast(level, "view")))) return denied(ctx, "Only a person at View level can have the value back. Agents use values by handle.");
   const sink = host?.sinks[kind];
   if (!sink && input.returnValue !== true) throw fail("internal.unavailable", ctx.trace.traceId, { message: `This server has no place to fill ${kind} yet.` });
@@ -237,7 +238,7 @@ export async function fill(ctx: VaultCtx, input: { handle: string; target: { kin
 // ---- vault.inject_env
 
 function folderItems(ctx: VaultCtx, folderId: string): Row[] {
-  return rowsOf(ctx.db.all(`SELECT * FROM vault_meta WHERE "folderId" = ?`, folderId)).filter((r) => visible(ctx, r) && atLeast(str(r, "owner") === ctx.principal.id ? "manage" : levelOn(ctx, "vault_item", str(r, "id")), "use"))
+  return rowsOf(ctx.db.all(`SELECT * FROM vault_meta WHERE "folderId" = ?`, folderId)).filter((r) => visible(ctx, r) && atLeast(ownRow(ctx, r) ? "manage" : levelOn(ctx, "vault_item", str(r, "id")), "use"))
     .sort((a, b) => str(a, "name").toLowerCase().localeCompare(str(b, "name").toLowerCase(), "en") || str(a, "id").localeCompare(str(b, "id")));
 }
 
@@ -290,7 +291,7 @@ async function expiryCap(ctx: VaultCtx): Promise<Expiry> {
 /** The folder's own rule, set in folders.update and until now never read: an empty list leaves it to the permission; a list means those people, and the groups and roles it names. */
 async function mayExport(ctx: VaultCtx, folder: Row): Promise<boolean> {
   const who = parseJson<Array<{ kind?: string; id?: string }>>(folder["whoCanExport"], []);
-  if (who.length === 0 || str(folder, "owner") === ctx.principal.id) return true;
+  if (who.length === 0 || ownRow(ctx, folder)) return true;
   if (who.some((s) => s.kind === ctx.principal.kind && s.id === ctx.principal.id)) return true;
   if (!who.some((s) => s.kind === "group" || s.kind === "role")) return false;
   try {
@@ -312,7 +313,7 @@ export async function exportEnv(ctx: VaultCtx, input: { folderId: string; expire
   if (ctx.principal.kind === "agent") return denied(ctx, "Agents use values by handle; they never see them.");
   const f = folderAt(ctx, input.folderId, "use");
   if (!(await mayExport(ctx, f))) return denied(ctx, "This folder names who may export it.");
-  const seeable = folderItems(ctx, str(f, "id")).filter((r) => atLeast(str(r, "owner") === ctx.principal.id ? "manage" : levelOn(ctx, "vault_item", str(r, "id")), "view"));
+  const seeable = folderItems(ctx, str(f, "id")).filter((r) => atLeast(ownRow(ctx, r) ? "manage" : levelOn(ctx, "vault_item", str(r, "id")), "view"));
   // an item set to fill on the Space only stays on the Space: a .env file is exactly what that rules out
   let items = seeable.filter((r) => num(r, "spaceOnly") !== 1 && !isCompanyKey(str(r, "handle")));
   if (input.itemIds) items = items.filter((r) => input.itemIds!.includes(str(r, "id")));
