@@ -57,6 +57,8 @@ export interface Shown {
   /** The terminal drawn beside the chat, as a side tab. */
   terminalId: string | null;
   layer: Layer | null;
+  /** Whether the agent's pane was open when the terminal took its column: closing the terminal gives the column back to it. */
+  paneBefore?: boolean;
   /** An inline thread open beside its message (the chat stays put): on a computer in the right column, on a phone as a sheet over the chat. */
   side?: string | null;
 }
@@ -130,8 +132,9 @@ export function step(s: Shown, a: Act): Shown {
     // One column on the right: the agent's pane or the terminal. The pane button closes whichever is showing, or opens the pane.
     case "pane": return s.terminalId !== null ? { ...s, terminalId: null } : { ...s, pane: !s.pane };
     case "pane-open": return { ...s, terminalId: null, pane: true };
-    case "terminal": return { ...s, terminalId: a.terminalId, pane: false, layer: null };
-    case "terminal-close": return { ...s, terminalId: null };
+    case "terminal": return { ...s, terminalId: a.terminalId, pane: false, paneBefore: s.terminalId === null ? s.pane : s.paneBefore === true, layer: null };
+    // the column goes back to the agent's pane when it was open before the terminal took it
+    case "terminal-close": { const { paneBefore, ...rest } = s; return { ...rest, terminalId: null, pane: paneBefore === true }; }
     case "layer": return { ...s, layer: a.layer };
     case "layer-close": return { ...s, layer: null };
   }
@@ -259,7 +262,7 @@ export function linkedTo(s: Shown, hash: string): Shown {
   const next = hash === "" ? START : fromHash(hash);
   // a terminal and a layer are shown over the page that is open, not instead of it: fromHash gives them on the landing page, which must not replace the page the person is on (Attach on the
   // Computer tab sent the chat to the landing page, 13 Nov)
-  if (next.terminalId !== null) return { ...s, terminalId: next.terminalId, pane: false, layer: null };
+  if (next.terminalId !== null) return { ...s, terminalId: next.terminalId, pane: false, paneBefore: s.terminalId === null ? s.pane : s.paneBefore === true, layer: null };
   if (next.layer !== null) return { ...s, layer: next.layer };
   if (JSON.stringify(next.route) === JSON.stringify(s.route)) return s;
   return { ...next, pane: s.pane, terminalId: s.terminalId };

@@ -75,8 +75,23 @@ test("on the real Space browser: watching and in control, the picture is never b
       await k.me.page.mouse.click(ox + fx * 1280 * kScale, oy + fy * 800 * kScale);
       const moves = await k.me.page.evaluate(() => (window as unknown as { __sent: string[] }).__sent.map((m) => JSON.parse(m) as { t: string; x?: number; y?: number }).filter((m) => m.t === "move"));
       assert.equal(moves.length, 1, "one move per press");
+      const downs = await k.me.page.evaluate(() => (window as unknown as { __sent: string[] }).__sent.map((m) => JSON.parse(m) as { t: string; n?: number }).filter((m) => m.t === "down"));
+      assert.deepEqual(downs.map((d) => d.n), [1], "the left button, as browserd numbers it (1)");
       assert.ok(Math.abs(moves[0]!.x! - fx * 1280) <= 3 && Math.abs(moves[0]!.y! - fy * 800) <= 3, `a press at ${fx},${fy} of the page sent ${JSON.stringify(moves[0])}`);
     }
+    // keys and the wheel reach the page too: a click in its input, then typing, then scrolling over the picture
+    const page = (expression: string) => k.real!.tool({ profileId: k.agentId, tool: "chrome_eval", args: { expression }, timeoutMs: 30_000, by: "person" }).then((r) => (r as { result?: unknown }).result);
+    await k.me.page.mouse.click(ox + 200 * kScale, oy + 120 * kScale);   // inside the page's input (x 100..400, y 100..140)
+    await k.me.page.keyboard.type("hi there");
+    let typed = "";
+    for (let i = 0; i < 40 && typed !== "hi there"; i++) { typed = String(await page("document.getElementById('t').value")); if (typed !== "hi there") await new Promise((r) => setTimeout(r, 100)); }
+    const diag = { typed, active: String(await page("document.activeElement && (document.activeElement.id || document.activeElement.tagName)")), sent: await k.me.page.evaluate(() => (window as unknown as { __sent: string[] }).__sent.slice(-12)) };
+    assert.equal(typed, "hi there", `the keys typed in control mode reached the page's input ${JSON.stringify(diag)}`);
+    await k.me.page.mouse.move(ox + 640 * kScale, oy + 500 * kScale);
+    await k.me.page.mouse.wheel(0, 600);
+    let scrolled = 0;
+    for (let i = 0; i < 40 && scrolled <= 0; i++) { scrolled = Number(await page("window.scrollY")); if (scrolled <= 0) await new Promise((r) => setTimeout(r, 100)); }
+    assert.ok(scrolled > 0, `the wheel over the picture scrolled the page (scrollY ${scrolled})`);
     assert.ok(drawn.resizes <= 1, `the canvas was sized ${drawn.resizes} times: each one clears it`);
   } finally { await k.close(); }
 });

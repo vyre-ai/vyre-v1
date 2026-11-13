@@ -25,7 +25,8 @@ test("B1 Attach shows the terminal in the chat's tab, never the new tab page", {
     const names = await k.me.page.locator("[aria-label]").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label") ?? "").filter((x) => /close|terminal|toggle|pane/i.test(x)));
     await k.me.page.getByLabel(/^Close Terminal$|^Close$/i).first().click().catch(() => { throw new Error(`no close control: ${JSON.stringify(names)}`); });
     await k.me.page.getByTestId("chats-terminal").waitFor({ state: "detached", timeout: 10_000 });
-    if (await k.me.page.getByTestId("pane-agent").count() === 0) await k.me.page.getByTestId("pane-button").click();
+    // closing the terminal gives the column back to the agent's pane, as it was before Attach
+    await k.me.page.getByTestId("pane-agent").waitFor({ timeout: 10_000 });
     await k.me.page.getByTestId("tab-computer").click();
     await k.me.page.getByTestId("terminal-attach").waitFor({ timeout: 20_000 });
     await k.me.page.getByTestId("terminal-attach").click();

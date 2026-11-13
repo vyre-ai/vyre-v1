@@ -158,3 +158,14 @@ test("every screen in the route table is classified, and an overlay keeps the pa
   }
   assert.ok(overlays >= 7, `the table has its overlays (${overlays})`);
 });
+
+test("closing a terminal gives the right column back to the agent's pane when it was open before the terminal took it", () => {
+  const open = step(START, { t: "chat", threadId: "c1", pane: true });
+  const withTerminal = linkedTo(open, "screen=chats.terminal-tab&terminalId=ter_1");
+  assert.deepEqual([withTerminal.pane, withTerminal.terminalId], [false, "ter_1"]);
+  const another = linkedTo(withTerminal, "screen=chats.terminal-tab&terminalId=ter_2");
+  const closed = step(another, { t: "terminal-close" });
+  assert.deepEqual([closed.pane, closed.terminalId], [true, null], "back to the pane he had open, also after a second terminal replaced the first");
+  const noPane = step(step(START, { t: "chat", threadId: "c1" }), { t: "terminal", terminalId: "ter_1" });
+  assert.equal(step(noPane, { t: "terminal-close" }).pane, false, "no pane before, none after");
+});

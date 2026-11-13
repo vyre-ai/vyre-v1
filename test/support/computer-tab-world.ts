@@ -43,7 +43,7 @@ export async function world(t: test.TestContext, o: { realBrowser?: string } = {
   if (real) {
     await real.tool({ profileId: agentId, tool: "chrome_open", args: { url: "about:blank" }, timeoutMs: 60_000 });
     // a page that changes all the time, so the live view has a new frame every few milliseconds
-    await real.tool({ profileId: agentId, tool: "chrome_eval", args: { expression: "document.body.style.font = '72px monospace'; setInterval(() => { document.body.textContent = String(Date.now()); }, 40); 1" }, timeoutMs: 30_000 });
+    await real.tool({ profileId: agentId, tool: "chrome_eval", args: { expression: "document.body.style.margin = '0'; document.body.style.height = '5000px'; const i = document.createElement('input'); i.id = 't'; i.style.cssText = 'position:fixed;left:100px;top:100px;width:300px;height:40px;font:20px monospace'; document.body.appendChild(i); const c = document.createElement('div'); c.id = 'c'; c.style.cssText = 'position:fixed;left:100px;top:200px;font:72px monospace'; document.body.appendChild(c); setInterval(() => { c.textContent = String(Date.now()); }, 40); 1" }, timeoutMs: 30_000 });
   }
   else browserd.rows.set(agentId, { profileId: agentId, running: true, tabs: 1, busy: false, takeover: false, viewers: 0, lastActiveAt: Date.now(), held: 0, paused: false });
   const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agentId], title: "Desk work" })).thread.threadId as string;
@@ -69,6 +69,6 @@ export async function world(t: test.TestContext, o: { realBrowser?: string } = {
     }
     picture.close(); bindSpaceBrowser(null); bindWorkspaceStatus(null); bindWorkspaces(false); bindTerminal(null); await s.close();
   };
-  return { s, w, me, guard, agentId, threadId, browserd, computerTab, close };
+  return { s, w, me, guard, agentId, threadId, browserd, real, computerTab, close };
 }
 

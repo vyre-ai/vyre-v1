@@ -76,7 +76,7 @@ export function LiveScreen({ computerId, state, call, note, spaceUrl, display, n
 
   const press = (e: { nativeEvent?: unknown; currentTarget?: unknown }): void => {
     if (!control) { onIdlePress?.(); return; }
-    { const at = pressPoint(e); void forwarder.press(at.x, at.y, box.current, now()); }
+    { const at = pressPoint(e); if (at) void forwarder.press(at.x, at.y, box.current, now()); }
   };
   const domPoint = (e: DomEvent): { x: number; y: number } => {
     const r = e.currentTarget?.getBoundingClientRect?.();

@@ -26,17 +26,22 @@ export function pointOf(x: number, y: number, box: { width: number; height: numb
 }
 
 /**
- * Where a press was, inside the view, in CSS pixels. React Native's own `locationX` and `locationY` when the event has them; on the web a press event is the browser's click, which has only the window's
+ * Where a press was, inside the view, in CSS pixels, or null when it has no place (a key pressed on the view). React Native's own `locationX` and `locationY` when the event has them; on the web a press event is the browser's click, which has only the window's
  * `clientX` and `clientY`, taken from the box of the element that was pressed. (Without this every click in control mode went to the page's top left corner: `?? 0`.)
  */
 type PressEvent = { nativeEvent?: unknown; currentTarget?: unknown };
-export function pressPoint(e: PressEvent): { x: number; y: number } {
-  const n = (e.nativeEvent ?? {}) as { locationX?: number; locationY?: number; clientX?: number; clientY?: number };
+export function pressPoint(e: PressEvent): { x: number; y: number } | null {
+  const n = (e.nativeEvent ?? {}) as { locationX?: number; locationY?: number; clientX?: number; clientY?: number; detail?: number };
   if (typeof n.locationX === "number" && typeof n.locationY === "number") return { x: n.locationX, y: n.locationY };
+  // a click the browser makes for Space or Enter on a focused element has detail 0 and a place of (0, 0): it is a key, not a press
+  if (n.detail === 0) return null;
   const box = (e.currentTarget as { getBoundingClientRect?: () => { left: number; top: number } } | undefined)?.getBoundingClientRect?.();
   if (box && typeof n.clientX === "number" && typeof n.clientY === "number") return { x: n.clientX - box.left, y: n.clientY - box.top };
-  return { x: 0, y: 0 };
+  return null;
 }
+
+/** The left button as browserd numbers it. */
+export const LEFT_BUTTON = 1;
 
 /** What a key sends: a letter or digit typed alone is text; a named key (Enter, Tab, arrows) or one with Ctrl, Alt or Meta goes as a key press and release. */
 export function keyMessages(e: { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean }): Array<Record<string, unknown>> {
@@ -153,7 +158,7 @@ export function BrowserLive({ agentId, control, call, spaceUrl, testID = "browse
 
   useEffect(() => {
     if (!control) return;
-    const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void } }).document;
+    const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void, c?: boolean): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void, c?: boolean): void } }).document;
     if (!doc) return;
     const onKey = (e: KeyboardEvent): void => {
       const tag = ((e.target as { tagName?: string } | null)?.tagName ?? "").toUpperCase();
@@ -161,21 +166,34 @@ export function BrowserLive({ agentId, control, call, spaceUrl, testID = "browse
       const out = keyMessages(e);
       if (out.length === 0) return;
       e.preventDefault();
+      e.stopPropagation();
       for (const m of out) send(m);
     };
-    doc.addEventListener("keydown", onKey);
-    return () => doc.removeEventListener("keydown", onKey);
+    // capture phase: the focused view is a button, and the framework turns Space and Enter on it into a press before a bubbling listener would see the key
+    doc.addEventListener("keydown", onKey, true);
+    return () => doc.removeEventListener("keydown", onKey, true);
   }, [control]);
 
   const onPress = (e: PressEvent): void => {
     if (!control) return;
+    // a press with no place (Space or Enter on the focused view, which the framework turns into a press) is a key, not a click: it must not click the page's top left corner
     const at = pressPoint(e);
+    if (!at) return;
     const p = pointOf(at.x, at.y, box.current, sized(opened?.width, opened?.height) ?? natural.current ?? BROWSER_VIEW);
     send({ t: "move", x: p.x, y: p.y });
-    send({ t: "down", n: 0 });
-    send({ t: "up", n: 0 });
+    // browserd numbers its buttons from 1 (1 left, 2 middle, 3 right; images/space-browser/browserd/view.ts BUTTON): n 0 does not exist and every click was refused
+    send({ t: "down", n: LEFT_BUTTON });
+    send({ t: "up", n: LEFT_BUTTON });
   };
-  const wheel = Platform.OS !== "web" ? {} : { onWheel: (e: { deltaX?: number; deltaY?: number; preventDefault?: () => void }) => { if (!control) return; e.preventDefault?.(); send({ t: "scroll", dx: e.deltaX ?? 0, dy: e.deltaY ?? 0 }); } };
+  // the wheel is a DOM listener on the view (a native press view does not forward onWheel): not passive, so the page behind does not scroll too
+  const viewRef = useRef<unknown>(null);
+  useEffect(() => {
+    const el = viewRef.current as { addEventListener?: (t: string, f: (e: WheelEvent) => void, o: { passive: boolean }) => void; removeEventListener?: (t: string, f: (e: WheelEvent) => void) => void } | null;
+    if (Platform.OS !== "web" || !control || !el?.addEventListener) return;
+    const onWheel = (e: WheelEvent): void => { e.preventDefault(); send({ t: "scroll", dx: e.deltaX ?? 0, dy: e.deltaY ?? 0 }); };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener?.("wheel", onWheel);
+  }, [control]);
   const uri = control && canvasOk ? null : control && frame ? frame : !control && opened ? viewUrl(spaceUrl, opened.url) : null;
   // while you are in control the frames are painted on one canvas that fills the box and keeps the page's shape, as the picture does ("contain"): clicks are mapped the same way (pointOf)
   const painted = control && canvasOk
@@ -183,7 +201,7 @@ export function BrowserLive({ agentId, control, call, spaceUrl, testID = "browse
     : null;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={control ? "The browser, in your control" : "The browser, live"} testID={testID} disabled={!control} onPress={onPress}
-      onLayout={(e) => { box.current = { width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height }; }} style={st.fill} {...wheel}>
+      onLayout={(e) => { box.current = { width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height }; }} ref={viewRef as never} style={st.fill}>
       {uri ? <Image testID={`${testID}-image`} accessibilityLabel="Live view" source={{ uri }} resizeMode="contain" style={st.fill}
         onLoad={(e: { nativeEvent?: { source?: { width?: number; height?: number } } }) => { natural.current = sized(e.nativeEvent?.source?.width, e.nativeEvent?.source?.height) ?? natural.current; }} /> : null}
       {painted}
