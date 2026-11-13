@@ -215,6 +215,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       catalog: deps.catalog,
       defaults: deps.defaults,
       invoke,
+      ...(deps.needsYou ? { needsYou: deps.needsYou } : {}),
       hooks,
       levelFor: () => caller.askLevel ?? null,
       canEngineer: () => false,

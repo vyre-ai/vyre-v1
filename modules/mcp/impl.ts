@@ -10,6 +10,7 @@ import {
   CRM_TOOLS,
 } from "../../lib/connector-chat.ts";
 import { ABOUT_VYRE_TOOLS } from "../../lib/about-vyre.ts";
+import { agentRefusedNeedsYou } from "../../lib/needs-you.ts";
 import { createMcpServer } from "../../agent/src/mcp/server.ts";
 import { modePair } from "../../agent/src/tools/local.ts";
 import { recordWork, sessionWorkKey } from "../../agent/src/tools/work-cards.ts";
@@ -328,6 +329,20 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
     defaults: g.defaults,
     invoke: o.invoke,
     now,
+    // a routine's agent that is refused for something it can never do tells the person it works for, once, in Needs you
+    ...(o.system
+      ? {
+          needsYou: (n: { agentId: string; tool: string; asker: string }): void => {
+            const system = o.system!;
+            void (async () => {
+              const got = (await system("agents.get", { agentId: n.agentId }).catch(() => undefined)) as
+                | { agent?: { name?: string } }
+                | undefined;
+              await agentRefusedNeedsYou(system, { ...n, ...(got?.agent?.name ? { agentName: got.agent.name } : {}) });
+            })();
+          },
+        }
+      : {}),
     ...(o.info ? { info: o.info } : {}),
     ...(o.allowedOrigins ? { allowedOrigins: o.allowedOrigins } : {}),
     challenge,
