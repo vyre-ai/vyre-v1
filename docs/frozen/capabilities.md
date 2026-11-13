@@ -190,3 +190,10 @@ Signed: (not yet signed; for the lead to sign, 13 Nov 2026)
 What a person notices after the update, in plain words (all decided by the lead, 13 Nov 2026): a repeating task held by someone in a time zone with daylight saving now keeps its wall-clock time across a clock change (it used to drift by an hour); a deadline typed in an hour that does not exist lands when the gap ends; a fixed offset such as "+05:00" is read as a time zone again.
 
 Signed: (not yet signed; for the lead to sign, 14 Nov 2026)
+
+## 14 Nov 2026: who makes a wake of another kind, a first time for the backfill, and the tick path (lane b-clock, P1 step 4, scheduler side)
+
+Additive; nothing calls it yet. `scheduler.schedule@1` gains the optional input `nextAt` (a first time carried over exactly from a routine that already had one; refused with `permission.no_grant` for anyone but the host). A schedule whose `kind` is not `call` may name only the capability its kind has in a fixed table in code (`routine` is `agents.routine.fire`, any other is `validation.bad_input`), and only the host or a nested call from `agents.routine.save`, `agents.routine.delete` or `agents.routine.delegate` may make or change one (`reschedule`, `pause`, `resume`, `cancel`); a person, an agent, a tenant service and an outside agent calling `scheduler.*` directly get `permission.no_grant`. `scheduler.report@1`'s `state` gains `skipped` (a fire the target did not start). The periodic pass `scheduler.wakes` now also claims each due fire (and a claim whose lease ran out), calls the wake's capability as module code with the Run key `<kind>:<owner id>:<due ms>`, and reports it running with its Run, or skipped. Snapshot: docs/frozen/snapshots/scheduler-api.json.
+
+Signed: (not yet signed; for the lead to sign, 14 Nov 2026)
+

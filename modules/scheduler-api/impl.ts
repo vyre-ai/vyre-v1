@@ -1,7 +1,7 @@
 // Scheduler module (lane L6). The host loads these handlers once the module is live (host/modules.json, ARCH 12.4).
 // `tick` is what the host scheduler glue calls on every pass: it fires every schedule that is due. `catch_up`, `waits.match` and `waits.expire` are capabilities the glue calls too.
 import { handlers } from "./handlers/index.ts";
-import { sweepFires, tickWakes } from "./handlers/schedule.ts";
+import { fireWakes, sweepFires, tickWakes } from "./handlers/schedule.ts";
 import { syncPolicy } from "./projections.ts";
 import type { SchedCtx } from "./projections.ts";
 
@@ -14,8 +14,13 @@ export const periodic = {
     immediate: false,
     run: async (ctx: SchedCtx): Promise<string[]> => {
       const r = tickWakes(ctx);
+      const fired = await fireWakes(ctx);
       const swept = await sweepFires(ctx);
-      return r.made + r.pruned + swept.closed > 0 ? [`${r.made} made, ${r.pruned} pruned, ${swept.closed} closed`] : [];
+      return r.made + r.pruned + swept.closed + fired.started + fired.skipped > 0
+        ? [
+            `${r.made} made, ${fired.started} started, ${fired.skipped} skipped, ${r.pruned} pruned, ${swept.closed} closed`,
+          ]
+        : [];
     },
   },
 };
@@ -30,5 +35,5 @@ export const consumers = {
     },
   },
 };
-export { prune, sweepFires, tick, tickWakes } from "./handlers/schedule.ts";
+export { fireWakes, prune, sweepFires, tick, tickWakes } from "./handlers/schedule.ts";
 export { dueSchedules, nextCron, parseCron } from "./projections.ts";

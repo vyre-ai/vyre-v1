@@ -35,6 +35,9 @@ export interface SchedCtx {
   db: Db;
   emit(name: string, subject: string, payload: unknown, opts?: EmitOpts): { id: string };
   call?(cap: string, input: unknown, opts?: CallOpts): Promise<unknown>;
+  log?: { warn(msg: string, attrs?: Record<string, unknown>): void };
+  /** On a nested call: the capability whose handler made it (the pipeline sets it; a caller cannot). */
+  callerCap?: string;
   /** May every one of these people do this? Their own grants, never the caller's. Present on a booted daemon; a hand-built test ctx may omit it. */
   mayAll?(
     people: readonly string[],
@@ -403,14 +406,14 @@ export function fireState(db: Db, scheduleId: string, dueKey: string): FireState
   return r ? (str(r.state) as FireState) : undefined;
 }
 const OPEN: readonly FireState[] = ["claimed", "running", "waiting"];
-const ENDED: readonly FireState[] = ["done", "failed", "stopped"];
+const ENDED: readonly FireState[] = ["done", "failed", "stopped", "skipped"];
 /** Moves a fire the engine holds on: running, waiting for a person, or ended. A fire that is not claimed, running or waiting does not move (a late report of a fire already ended changes nothing). */
 export function reportFire(
   db: Db,
   scheduleId: string,
   dueKey: string,
   attempt: number,
-  state: "running" | "waiting" | "done" | "failed" | "stopped",
+  state: "running" | "waiting" | "done" | "failed" | "stopped" | "skipped",
   runId: string | undefined,
   note: string | undefined,
   now: number,
@@ -472,10 +475,13 @@ export function closeFire(
   );
 }
 /** Due fires in a stable order: by due time, then the order they were made (rowid). Whoever works through them (the engine consumer) gets "first A then B" whatever the ids are. */
-export function dueFires(db: Db): { scheduleId: string; dueKey: string; scheduledFor: number }[] {
+export function dueFires(db: Db, now?: number): { scheduleId: string; dueKey: string; scheduledFor: number }[] {
+  // with `now`, a claim whose lease ran out counts too: it is the one to take again
+  const where = now === undefined ? "state = 'due'" : "(state = 'due' OR (state = 'claimed' AND lease_until < ?))";
   return (
     db.all(
-      "SELECT schedule_id, due_key, scheduled_for FROM scheduler_api_fires WHERE state = 'due' ORDER BY scheduled_for ASC, rowid ASC",
+      `SELECT schedule_id, due_key, scheduled_for FROM scheduler_api_fires WHERE ${where} ORDER BY scheduled_for ASC, rowid ASC`,
+      ...(now === undefined ? [] : [now]),
     ) as Raw[]
   ).map((r) => ({
     scheduleId: r.schedule_id as string,
@@ -704,6 +710,18 @@ export function filterMatches(filter: unknown, payload: unknown): boolean {
 export const me = (ctx: SchedCtx): string => ctx.actingFor ?? ctx.principal.id;
 export const isService = (ctx: SchedCtx): boolean => isTrustedService(ctx.principal);
 /** Manage a schedule: the host (a service caller), or the principal it runs as. */
+/**
+ * What a wake of each kind may name, a fixed table in code (never a free-form capability on the row), and who may make or change one. A person, an agent, a tenant service and an outside agent calling
+ * scheduler.* directly cannot: only the host, or the agents module's own doors as a nested call. A plain `call` schedule is as before.
+ */
+export const WAKE_CAP: Readonly<Record<string, string>> = { routine: "agents.routine.fire" };
+export const WAKE_DOORS: readonly string[] = [
+  "agents.routine.save",
+  "agents.routine.delete",
+  "agents.routine.delegate",
+];
+export const mayMakeWake = (ctx: SchedCtx): boolean =>
+  isTrustedService(ctx.principal) || (ctx.callerCap !== undefined && WAKE_DOORS.includes(ctx.callerCap));
 export const mayManage = (ctx: SchedCtx, s: Pick<Schedule, "principal">): boolean =>
   isService(ctx) || s.principal === ctx.principal.id || s.principal === ctx.actingFor;
 export function emitSched(ctx: SchedCtx, name: string, scheduleId: string, payload: Record<string, unknown>): void {

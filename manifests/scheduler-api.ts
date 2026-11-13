@@ -136,6 +136,12 @@ export default defineManifest({
           overlap: t.opt(wakeOverlap),
           answerWithinMin: t.opt(t.int({ minimum: 1 })),
           maxAttempts: t.opt(t.int({ minimum: 1, maximum: 10 })),
+          nextAt: t.opt(
+            t.ts({
+              description:
+                "System: the first time, carried over exactly from a routine that already had one (the backfill); refused for anyone but the host",
+            }),
+          ),
         },
         out: { scheduleId, nextAt: t.opt(t.ts()) },
         emits: ["schedule.created"],
@@ -214,7 +220,7 @@ export default defineManifest({
             minimum: 1,
             description: "The attempt the claim gave: a report from a claim that was taken over changes nothing",
           }),
-          state: t.enm("running", "waiting", "done", "failed", "stopped"),
+          state: t.enm("running", "waiting", "done", "failed", "stopped", "skipped"),
           runId: t.opt(id.run),
           note: t.opt(t.str()),
         },

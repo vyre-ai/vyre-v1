@@ -33478,7 +33478,7 @@ export type SchedulerPauseOut = {
 export type SchedulerReportIn = {
   fireId: string;
   attempt: number;
-  state: "running" | "waiting" | "done" | "failed" | "stopped";
+  state: "running" | "waiting" | "done" | "failed" | "stopped" | "skipped";
   runId?: string;
   note?: string;
 };
@@ -33585,6 +33585,7 @@ export type SchedulerScheduleIn = {
   overlap?: "skip" | "coalesce";
   answerWithinMin?: number;
   maxAttempts?: number;
+  nextAt?: number;
   idempotencyKey: string;
 };
 export type SchedulerScheduleOut = {

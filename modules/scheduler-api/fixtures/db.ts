@@ -94,7 +94,7 @@ export function harness(o: HarnessOptions = {}) {
   }
 
   let keys = 0;
-  async function call(cap: string, raw0: unknown, who: Caller, run?: string): Promise<any> {
+  async function call(cap: string, raw0: unknown, who: Caller, run?: string, callerCap?: string): Promise<any> {
     // eslint-disable-line @typescript-eslint/no-explicit-any
     const input =
       IDEM_KEYED.has(cap) && !(raw0 as { idempotencyKey?: unknown }).idempotencyKey
@@ -105,7 +105,7 @@ export function harness(o: HarnessOptions = {}) {
     const h = (handlers as Record<string, (ctx: SchedCtx, input: unknown) => Promise<unknown>>)[cap];
     if (!h) throw new Error(`no handler for ${cap}`);
     events = [];
-    const result = await h(ctxFor(cap, who, run), input);
+    const result = await h({ ...ctxFor(cap, who, run), ...(callerCap ? { callerCap } : {}) }, input);
     const badOut = validateOutput(cap, 1, result);
     if (badOut.length) throw new Error(`${cap} output is invalid: ${badOut.join("; ")}`);
     all.push(...events);

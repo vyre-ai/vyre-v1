@@ -19,6 +19,9 @@ import {
   closeFire,
   createFire,
   LEASE_MS,
+  WAKE_CAP,
+  dueFires,
+  mayMakeWake,
   openRunFires,
   fireIdOf,
   fireState,
@@ -83,6 +86,13 @@ function manageSchedule(ctx: SchedCtx, id: string): Schedule {
   if (!mayManage(ctx, s)) raise(ctx, "permission.not_found", "That schedule is not available.");
   return s;
 }
+/** Changing a wake of another kind (its time, pause, resume, cancel) is the server's or the agents module's own door's, like making one. */
+function manageWake(ctx: SchedCtx, id: string): Schedule {
+  const s = manageSchedule(ctx, id);
+  if (s.kind !== "call" && !mayMakeWake(ctx))
+    raise(ctx, "permission.no_grant", "Only the server changes that kind of schedule.");
+  return s;
+}
 
 export async function schedule(ctx: SchedCtx, input: In): Promise<unknown> {
   const key = input.idempotencyKey as string | undefined;
@@ -93,12 +103,25 @@ export async function schedule(ctx: SchedCtx, input: In): Promise<unknown> {
   }
   if (!CAP.test(input.cap))
     raise(ctx, "validation.bad_input", "That is not a capability name.", { reason: "bad_cap", cap: input.cap });
+  const kind = (input.kind as Schedule["kind"] | undefined) ?? "call";
+  // a wake of another kind names only the capability its kind has in the fixed table, and only the host or the agents module's own doors make one
+  if (kind !== "call") {
+    if (WAKE_CAP[kind] !== input.cap)
+      raise(ctx, "validation.bad_input", "That kind of wake cannot call that capability.", {
+        reason: "bad_wake_cap",
+        kind,
+        cap: input.cap,
+      });
+    if (!mayMakeWake(ctx)) raise(ctx, "permission.no_grant", "Only the server makes that kind of schedule.");
+  }
+  if (input.nextAt !== undefined && !isTrustedService(ctx.principal))
+    raise(ctx, "permission.no_grant", "Only the server sets a first time.");
   const when = checkWhen(ctx, input.when);
   const principal = (input.principal as string | undefined) ?? me(ctx);
   if (!isService(ctx) && principal !== ctx.principal.id && principal !== ctx.actingFor)
     raise(ctx, "permission.not_found", "A schedule can only run as you or as someone you act for.");
   const now = ctx.now();
-  const nextAt = nextFire(when, now, true);
+  const nextAt = (input.nextAt as number | undefined) ?? nextFire(when, now, true);
   if (nextAt === undefined) raise(ctx, "validation.bad_input", "That schedule never fires.", { reason: "never_fires" });
   const s: Schedule = {
     id: newId("sch", now),
@@ -112,7 +135,7 @@ export async function schedule(ctx: SchedCtx, input: In): Promise<unknown> {
     nextAt,
     createdBy: ctx.principal.id,
     createdAt: now,
-    kind: (input.kind as Schedule["kind"] | undefined) ?? "call",
+    kind,
     scope: (input.scope as Schedule["scope"] | undefined) ?? "private",
     overlap: (input.overlap as Schedule["overlap"] | undefined) ?? "skip",
     maxAttempts: (input.maxAttempts as number | undefined) ?? 1,
@@ -137,7 +160,7 @@ export async function schedule(ctx: SchedCtx, input: In): Promise<unknown> {
 }
 
 export async function reschedule(ctx: SchedCtx, input: In): Promise<unknown> {
-  const s = manageSchedule(ctx, input.scheduleId);
+  const s = manageWake(ctx, input.scheduleId);
   if (input.when) {
     s.when = checkWhen(ctx, input.when);
     if (s.active) {
@@ -153,7 +176,7 @@ export async function reschedule(ctx: SchedCtx, input: In): Promise<unknown> {
 }
 
 export async function cancel(ctx: SchedCtx, input: In): Promise<unknown> {
-  const s = manageSchedule(ctx, input.scheduleId);
+  const s = manageWake(ctx, input.scheduleId);
   s.active = false;
   s.canceledAt = ctx.now();
   delete s.nextAt;
@@ -163,7 +186,7 @@ export async function cancel(ctx: SchedCtx, input: In): Promise<unknown> {
 }
 
 export async function pause(ctx: SchedCtx, input: In): Promise<unknown> {
-  const s = manageSchedule(ctx, input.scheduleId);
+  const s = manageWake(ctx, input.scheduleId);
   if (!s.active && s.pausedReason !== undefined) return { schedule: scheduleOut(s) }; // already paused
   s.active = false;
   s.pausedReason = input.reason;
@@ -173,7 +196,7 @@ export async function pause(ctx: SchedCtx, input: In): Promise<unknown> {
 }
 
 export async function resume(ctx: SchedCtx, input: In): Promise<unknown> {
-  const s = manageSchedule(ctx, input.scheduleId);
+  const s = manageWake(ctx, input.scheduleId);
   if (s.pausedReason === undefined) return { schedule: scheduleOut(s) }; // not paused
   delete s.pausedReason;
   s.active = true;
@@ -511,6 +534,59 @@ export function tickWakes(ctx: SchedCtx): { made: number; pruned: number } {
     made += 1;
   }
   return { made, pruned: pruneFires(ctx.db, ctx.now()) };
+}
+
+/**
+ * The tick path of a wake of another kind (until the engine consumer of step 7): each due fire is claimed, the capability of the wake's kind is called as module code with the fire's key, and the fire
+ * is reported: running with its Run, or skipped when the target said it did not start (the routine was paused, gone or no longer agreed). A call that throws leaves the fire claimed: after the lease it
+ * is claimed again, and the Run key makes that one Run.
+ */
+export async function fireWakes(
+  ctx: SchedCtx,
+  host = "tick",
+): Promise<{ started: number; skipped: number; failed: number }> {
+  const out = { started: 0, skipped: 0, failed: 0 };
+  if (!ctx.call) return out;
+  for (const f of dueFires(ctx.db, ctx.now())) {
+    const s = findSchedule(ctx.db, f.scheduleId);
+    if (!s || s.kind === "call") continue;
+    const won = claimFire(ctx.db, f.scheduleId, f.dueKey, host, ctx.now());
+    if (!won) continue;
+    try {
+      const r = (await ctx.call(
+        WAKE_CAP[s.kind]!,
+        { routineId: s.owner.id, dueKey: f.dueKey },
+        { idempotencyKey: `${s.kind}:${s.owner.id}:${f.dueKey}` },
+      )) as {
+        started?: boolean;
+        runId?: string;
+        why?: string;
+      } | null;
+      if (r?.started === true) {
+        reportFire(ctx.db, f.scheduleId, f.dueKey, won.attempt, "running", r.runId, undefined, ctx.now());
+        out.started += 1;
+      } else {
+        reportFire(
+          ctx.db,
+          f.scheduleId,
+          f.dueKey,
+          won.attempt,
+          "skipped",
+          undefined,
+          r?.why ?? "Not started",
+          ctx.now(),
+        );
+        out.skipped += 1;
+      }
+    } catch (e) {
+      out.failed += 1;
+      ctx.log?.warn("a wake's capability did not run; its fire is tried again after the lease", {
+        scheduleId: f.scheduleId,
+        error: (e as { message?: string } | null)?.message,
+      });
+    }
+  }
+  return out;
 }
 
 /** One retention pass: bounded, and never a fire that is open (scheduler_api_fires, P1 "Retention"). */

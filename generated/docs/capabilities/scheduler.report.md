@@ -27,7 +27,7 @@ System: the engine says how a claimed fire is going: running, waiting for a pers
 type In = {
   fireId: string;
   attempt: number;
-  state: "running" | "waiting" | "done" | "failed" | "stopped";
+  state: "running" | "waiting" | "done" | "failed" | "stopped" | "skipped";
   runId?: string;
   note?: string;
 };

@@ -52,6 +52,7 @@ type In = {
   overlap?: "skip" | "coalesce";
   answerWithinMin?: number;
   maxAttempts?: number;
+  nextAt?: number;
   idempotencyKey: string;
 };
 ```
@@ -86,6 +87,7 @@ type Out = {
     "input": {},
     "kind": "call",
     "maxAttempts": 1,
+    "nextAt": 1760000000000,
     "overlap": "skip",
     "owner": {
       "id": "aut_a1b2c3",
