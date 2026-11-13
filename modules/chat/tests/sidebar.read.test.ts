@@ -149,16 +149,18 @@ test("an unknown filter is refused in plain words and names the choices", async 
 });
 
 test("a guest, who may not start chats, gets no goals, team or agents, and those neighbours are not asked", async () => {
-  const hn = harness({ calls: world() });
+  const hn = harness({ calls: { ...world(), "identity.whoami": () => ({ permissions: [] }) } });
   await agentChat(hn);
-  const guest = { ...hn.ctx, authorize: () => ({ effect: "deny" }) } as Harness["ctx"];
   hn.callLog.length = 0;
-  const out = await h["chats.sidebar"]!(guest, {});
+  const out = await h["chats.sidebar"]!(hn.ctx, {});
   assert.equal(out.goals.total, 0);
   assert.equal(out.team.total, 0);
   const asked = hn.callLog.map((c: { cap: string }) => c.cap);
   for (const cap of ["goals.list", "agents.list", "access.principals.list", "projects.list"])
     assert.ok(!asked.includes(cap), cap);
+  const member = harness({ calls: { ...world(), "identity.whoami": () => ({ permissions: ["chats.private"] }) } });
+  await agentChat(member);
+  assert.ok((await h["chats.sidebar"]!(member.ctx, {})).team.total > 0, "a member holding chats.private has a team");
 });
 
 test("pages: each section answers its first 50, a cursor, and `more` gives the next page; the limit has a maximum", async () => {
@@ -225,7 +227,7 @@ test("proof: 2,000 chats paged to the end cost at most ceil(2000 / page) reads o
     new Set(perRead).size === 1,
     `each read asked the neighbours the same number of times (${[...new Set(perRead)].join(",")}), not once per row`,
   );
-  assert.ok(perRead[0]! <= 9, "a handful of neighbour reads per page");
+  assert.ok(perRead[0]! <= 12, `a handful of neighbour reads per page, not one per row (${perRead[0]})`);
 });
 
 test("a chat whose latest turn failed is marked failed with words, from one engine read for the rows the answer carries", async () => {

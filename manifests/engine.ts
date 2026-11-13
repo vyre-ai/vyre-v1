@@ -817,6 +817,7 @@ export default defineManifest({
             }),
           ),
         },
+        level: "member",
         perm: null,
         tool: "chats",
         label: "filter",

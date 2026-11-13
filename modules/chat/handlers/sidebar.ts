@@ -121,20 +121,10 @@ const safeOf =
     }
   };
 
-/** Can this caller start chats? A guest cannot: they get only the chats and channels they are in. A hand-built context without the host's authorize is a member. */
-function canChat(ctx: ChatCtx): boolean {
-  const host = ctx as ChatCtx & {
-    authorize?: (
-      a: { perm: string | null; level: string },
-      r: { type: string; id: string | null },
-    ) => { effect?: string };
-  };
-  if (typeof host.authorize !== "function") return true;
-  try {
-    return host.authorize({ perm: "chats.private", level: "view" }, { type: "space", id: null }).effect === "allow";
-  } catch {
-    return false;
-  }
+/** Can this caller start chats? A guest cannot (their role holds no permission): they get only the chats and channels they are in. This is the app's own rule (it hides Team and the new-chat items when whoami lacks chats.private). A hand-built test context with no whoami is a member. */
+async function canChat(safe: Safe): Promise<boolean> {
+  const who = await safe<{ permissions?: string[] }>("identity.whoami", {});
+  return who === null ? true : (who.permissions ?? []).includes("chats.private");
 }
 
 const VERB: Record<string, "Allow" | "Review" | "Answer" | "Blocked" | "Sign"> = {
@@ -207,7 +197,7 @@ export async function chatsSidebar(
       { field: "filter" },
     );
   const safe = safeOf(ctx);
-  const member = canChat(ctx);
+  const member = await canChat(safe);
   const src = (sources ?? defaultSources)(ctx, safe);
   const [pins, mentionsOut, needsOut, goalsOut, projectsOut, agentsOut, peopleOut] = await Promise.all([
     src.pins(),
@@ -220,11 +210,14 @@ export async function chatsSidebar(
     member ? safe<{ projects?: Record<string, any>[] }>("projects.list", {}) : Promise.resolve(null), // eslint-disable-line @typescript-eslint/no-explicit-any
     member ? safe<{ agents?: { agentId: string; name: string }[] }>("agents.list", {}) : Promise.resolve(null),
     member
-      ? safe<{ principals?: { id: string; name: string }[] }>("access.principals.list", {
-          kind: "person",
-          status: "active",
-          limit: 200,
-        })
+      ? safe<{ principals?: { id: string; name: string; kind?: string; status?: string }[] }>(
+          "access.principals.list",
+          {
+            kind: "person",
+            status: "active",
+            limit: 200,
+          },
+        )
       : Promise.resolve(null),
   ]);
   const mentions = new Map((mentionsOut?.counts ?? []).map((c) => [c.threadId, c.mentions]));
@@ -263,7 +256,7 @@ export async function chatsSidebar(
     string,
     Record<string, any>[] | string | null
   >; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const personNames = new Map((peopleOut?.principals ?? []).map((p) => [p.id, p.name]));
+
   const dmOf = new Map<string, Record<string, any>>(); // eslint-disable-line @typescript-eslint/no-explicit-any
   for (const sec of ["starred", "today", "yesterday", "earlier", "archived"]) {
     for (const r of (recent[sec] as Record<string, any>[] | undefined) ?? []) {
@@ -300,7 +293,11 @@ export async function chatsSidebar(
   }
   // channels (a project's own channel is the project's row)
   const projectChannels = new Set((projectsOut?.projects ?? []).map((p) => String(p["channelId"])));
-  const channels = (await channelsList(ctx, {})) as { channels?: Record<string, any>[] }; // eslint-disable-line @typescript-eslint/no-explicit-any
+  // through the pipeline as the caller (it narrows what a guest may list); the module's own function only when there is no pipeline
+  const channels = ((await safe<{ channels?: Record<string, any>[] }>("channels.list", {})) ??
+    (typeof (ctx as { authorize?: unknown }).authorize === "function"
+      ? { channels: [] }
+      : await channelsList(ctx, {}))) as { channels?: Record<string, any>[] }; // eslint-disable-line @typescript-eslint/no-explicit-any
   for (const c of channels.channels ?? []) {
     if (c["archived"] === true || projectChannels.has(String(c["channelId"]))) continue;
     const key = `ch:${c["channelId"]}`;
@@ -370,7 +367,12 @@ export async function chatsSidebar(
   }
   // the team: everyone the caller may reach, a one-to-one being that person's row
   for (const p of peopleOut?.principals ?? []) {
-    if (p.id === me) continue;
+    if (
+      p.id === me ||
+      (p.kind !== undefined && p.kind !== "person") ||
+      (p.status !== undefined && p.status !== "active")
+    )
+      continue;
     const dm = dmOf.get(p.id);
     const key = dm ? `c:${dm["threadId"]}` : `p:${p.id}`;
     add(

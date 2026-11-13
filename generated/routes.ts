@@ -6373,7 +6373,7 @@ const routes1: Route[] = [
     "module": "chat",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -12110,7 +12110,7 @@ const routes2: Route[] = [
     "module": "engine",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },
@@ -27689,7 +27689,7 @@ const routes5: Route[] = [
     "module": "notifications",
     "effects": "read",
     "permission": null,
-    "level": "view",
+    "level": "member",
     "resource": {
       "type": "space"
     },

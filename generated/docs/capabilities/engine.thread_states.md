@@ -8,7 +8,7 @@ The latest turn of each of up to 200 chats in one call: running, waiting, failed
 | Version | 1 (since 1.0.0) |
 | Effects | read |
 | Permission | grant only |
-| Grant level | view |
+| Grant level | member |
 | Risk | low |
 | Resource | space |
 | Gate | none |

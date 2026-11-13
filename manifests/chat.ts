@@ -1441,6 +1441,7 @@ export default defineManifest({
           people: t.arr(t.obj({ personId: id.user, state: t.enm("online", "away") })),
           working: t.arr(t.obj({ agentId: id.agent, threadId: t.opt(id.thread), since: t.ts() })),
         },
+        level: "member",
         perm: null,
         tool: "chats",
         label: "filter",
