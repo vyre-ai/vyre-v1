@@ -1,0 +1,5871 @@
+{
+  "access_actors_create": {
+    "name": "Quarterly planning",
+    "provider": "Quarterly planning"
+  },
+  "access_actors_list": {},
+  "access_actors_revoke": {
+    "actorId": "act_a1b2c3"
+  },
+  "access_actors_set_engineer_mcp": {
+    "actorId": "act_a1b2c3",
+    "enabled": false
+  },
+  "access_actors_update": {
+    "actorId": "act_a1b2c3"
+  },
+  "access_agents_can_call_get": {
+    "agentId": "agt_a1b2c3"
+  },
+  "access_audience_set": {
+    "resource": {
+      "type": "space",
+      "id": "Quarterly planning"
+    }
+  },
+  "access_check": {
+    "principal": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    },
+    "action": {
+      "level": "view"
+    },
+    "resource": {
+      "type": "space",
+      "id": "Quarterly planning"
+    }
+  },
+  "access_deciders": {
+    "resource": {
+      "type": "space",
+      "id": "Quarterly planning"
+    }
+  },
+  "access_exceptions_explain": {
+    "principal": "Quarterly planning",
+    "perm": "Quarterly planning"
+  },
+  "access_exceptions_list": {},
+  "access_exceptions_remove": {
+    "exceptionId": "exc_a1b2c3"
+  },
+  "access_exceptions_set": {
+    "subject": {
+      "kind": "person",
+      "id": "usr_a1b2c3"
+    },
+    "effect": "allow"
+  },
+  "access_grants_list": {},
+  "access_grants_update": {
+    "grantId": "gnt_a1b2c3"
+  },
+  "access_groups_add_member": {
+    "groupId": "grp_a1b2c3",
+    "member": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    }
+  },
+  "access_groups_create": {
+    "name": "Quarterly planning"
+  },
+  "access_groups_defaults_get": {},
+  "access_groups_defaults_set": {
+    "grants": [
+      {
+        "resource": {
+          "type": "space",
+          "id": "Quarterly planning"
+        },
+        "level": "view"
+      }
+    ]
+  },
+  "access_groups_delete": {
+    "groupId": "grp_a1b2c3"
+  },
+  "access_groups_get": {
+    "groupId": "grp_a1b2c3"
+  },
+  "access_groups_list": {},
+  "access_groups_remove_member": {
+    "groupId": "grp_a1b2c3",
+    "member": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    }
+  },
+  "access_groups_update": {
+    "groupId": "grp_a1b2c3"
+  },
+  "access_labels_list": {},
+  "access_labels_set": {
+    "resource": {
+      "type": "space",
+      "id": "Quarterly planning"
+    },
+    "label": "public"
+  },
+  "access_lists": {
+    "type": "space"
+  },
+  "access_policies_list": {},
+  "access_policies_reset": {
+    "key": "Plan_Key",
+    "scope": "Quarterly planning"
+  },
+  "access_policies_set": {
+    "key": "Plan_Key",
+    "scope": "Quarterly planning",
+    "value": "Quarterly planning"
+  },
+  "access_principals_effective": {
+    "principal": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    }
+  },
+  "access_principals_get": {
+    "principal": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    }
+  },
+  "access_principals_list": {},
+  "access_propose_change": {
+    "resource": {
+      "type": "space",
+      "id": "Quarterly planning"
+    },
+    "change": "Quarterly planning"
+  },
+  "access_reach": {
+    "items": [
+      {
+        "type": "space",
+        "id": "Quarterly planning"
+      }
+    ]
+  },
+  "access_record_marks": {
+    "type": "contact"
+  },
+  "access_request": {
+    "resource": {
+      "type": "space",
+      "id": "Quarterly planning"
+    },
+    "level": "view"
+  },
+  "access_requests_approve": {
+    "requestId": "arq_a1b2c3"
+  },
+  "access_requests_decline": {
+    "requestId": "arq_a1b2c3"
+  },
+  "access_requests_list": {},
+  "access_reviews_close": {
+    "reviewId": "rvw_a1b2c3"
+  },
+  "access_reviews_decide": {
+    "reviewId": "rvw_a1b2c3",
+    "grantId": "gnt_a1b2c3",
+    "decision": "keep"
+  },
+  "access_reviews_get": {
+    "reviewId": "rvw_a1b2c3"
+  },
+  "access_reviews_list": {},
+  "access_reviews_start": {},
+  "access_roles_apply": {
+    "roleId": "rol_a1b2c3",
+    "permissions": [
+      "Quarterly planning"
+    ],
+    "previewHash": "Quarterly planning"
+  },
+  "access_roles_assign": {
+    "subject": {
+      "kind": "person",
+      "id": "usr_a1b2c3"
+    },
+    "roleId": "rol_a1b2c3"
+  },
+  "access_roles_create": {
+    "name": "Quarterly planning"
+  },
+  "access_roles_delete": {
+    "roleId": "rol_a1b2c3"
+  },
+  "access_roles_get": {
+    "roleId": "rol_a1b2c3"
+  },
+  "access_roles_list": {},
+  "access_roles_preview": {
+    "roleId": "rol_a1b2c3",
+    "permissions": [
+      "Quarterly planning"
+    ]
+  },
+  "access_roles_unassign": {
+    "subject": {
+      "kind": "person",
+      "id": "usr_a1b2c3"
+    },
+    "roleId": "rol_a1b2c3"
+  },
+  "access_roles_update": {
+    "roleId": "rol_a1b2c3"
+  },
+  "access_share": {
+    "resource": {
+      "type": "space",
+      "id": "Quarterly planning"
+    },
+    "subject": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    },
+    "level": "view"
+  },
+  "access_shares_of": {
+    "resource": {
+      "type": "space",
+      "id": "Quarterly planning"
+    }
+  },
+  "access_unshare": {},
+  "access_view_as": {
+    "person": "usr_a1b2c3"
+  },
+  "agents_builtin_skill_get": {
+    "name": "focus-records"
+  },
+  "agents_builtin_skills_list": {},
+  "agents_config_get": {
+    "agentId": "agt_a1b2c3"
+  },
+  "agents_config_validate": {
+    "agentId": "agt_a1b2c3",
+    "toml": "Quarterly planning"
+  },
+  "agents_create": {
+    "name": "Quarterly planning"
+  },
+  "agents_delete": {
+    "agentId": "agt_a1b2c3"
+  },
+  "agents_get": {
+    "agentId": "agt_a1b2c3"
+  },
+  "agents_guide_get": {},
+  "agents_instruction_append": {
+    "agentId": "agt_a1b2c3",
+    "line": "Quarterly planning"
+  },
+  "agents_limits_get": {
+    "agentId": "agt_a1b2c3"
+  },
+  "agents_list": {},
+  "agents_next": {},
+  "agents_pause": {
+    "agentId": "agt_a1b2c3"
+  },
+  "agents_pause_person": {
+    "personId": "usr_a1b2c3",
+    "paused": false
+  },
+  "agents_people_summary": {},
+  "agents_restore": {
+    "agentId": "agt_a1b2c3"
+  },
+  "agents_restore_version": {
+    "agentId": "agt_a1b2c3",
+    "versionId": "ver_a1b2c3"
+  },
+  "agents_resume": {
+    "agentId": "agt_a1b2c3"
+  },
+  "agents_role_line_set": {
+    "agentId": "agt_a1b2c3",
+    "description": "Here is the summary you asked for."
+  },
+  "agents_routine_delegate": {
+    "agentId": "agt_a1b2c3",
+    "routineId": "rtn_a1b2c3"
+  },
+  "agents_routine_delete": {
+    "agentId": "agt_a1b2c3",
+    "routineId": "rtn_a1b2c3"
+  },
+  "agents_routine_run_now": {
+    "agentId": "agt_a1b2c3",
+    "routineId": "rtn_a1b2c3"
+  },
+  "agents_routine_save": {
+    "agentId": "agt_a1b2c3",
+    "title": "Quarterly planning",
+    "prompt": "Here is the summary you asked for."
+  },
+  "agents_routines_list": {
+    "agentId": "agt_a1b2c3"
+  },
+  "agents_set_owner": {
+    "agentId": "agt_a1b2c3",
+    "ownerId": "usr_a1b2c3"
+  },
+  "agents_status": {
+    "agentId": "agt_a1b2c3"
+  },
+  "agents_suggestion_accept": {
+    "suggestionId": "sug_a1b2c3"
+  },
+  "agents_suggestion_dismiss": {
+    "suggestionId": "sug_a1b2c3"
+  },
+  "agents_suggestion_propose": {
+    "agentId": "agt_a1b2c3",
+    "diff": "Quarterly planning"
+  },
+  "agents_suggestions_list": {},
+  "agents_summary": {
+    "agentId": "agt_a1b2c3"
+  },
+  "agents_template_apply": {
+    "scope": "all"
+  },
+  "agents_template_get": {},
+  "agents_template_preview": {
+    "scope": "all"
+  },
+  "agents_update": {
+    "agentId": "agt_a1b2c3",
+    "patch": {}
+  },
+  "agents_versions": {
+    "agentId": "agt_a1b2c3"
+  },
+  "agents_visibility_set": {
+    "all": false
+  },
+  "artifact_publish": {
+    "title": "Quarterly planning"
+  },
+  "ask_question": {
+    "threadId": "thr_a1b2c3",
+    "prompt": "Here is the summary you asked for.",
+    "mode": "single"
+  },
+  "audit_archives_list": {},
+  "audit_checkpoints_list": {},
+  "audit_export": {},
+  "audit_get": {
+    "auditId": "aud_a1b2c3"
+  },
+  "audit_list": {},
+  "audit_verify": {},
+  "automations_account_picks": {},
+  "automations_alerts_get": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_alerts_set": {
+    "automationId": "aut_a1b2c3",
+    "alerts": {
+      "who": [
+        {
+          "kind": "person",
+          "id": "Quarterly planning"
+        }
+      ],
+      "when": {
+        "mode": "every"
+      },
+      "where": {
+        "needsYou": false,
+        "dm": false
+      },
+      "escalation": [
+        {
+          "to": {
+            "kind": "person",
+            "id": "Quarterly planning"
+          },
+          "afterHours": 1
+        }
+      ]
+    }
+  },
+  "automations_analytics": {},
+  "automations_connector_card": {
+    "threadId": "thr_a1b2c3",
+    "title": "Quarterly planning",
+    "items": [
+      {
+        "text": "Here is the summary you asked for.",
+        "done": false
+      }
+    ]
+  },
+  "automations_connector_levels": {},
+  "automations_connector_offer_accept": {
+    "itemId": "vit_a1b2c3"
+  },
+  "automations_connector_offer_decline": {
+    "itemId": "vit_a1b2c3"
+  },
+  "automations_connector_offers": {},
+  "automations_connector_share": {
+    "appName": "Quarterly planning",
+    "actions": [
+      {
+        "key": "Plan_Key",
+        "title": "Quarterly planning"
+      }
+    ]
+  },
+  "automations_connector_shares": {},
+  "automations_create": {
+    "name": "Quarterly planning"
+  },
+  "automations_delete": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_dependencies": {},
+  "automations_draft_connector": {},
+  "automations_followers_add": {
+    "automationId": "aut_a1b2c3",
+    "follower": "Quarterly planning"
+  },
+  "automations_followers_remove": {
+    "automationId": "aut_a1b2c3",
+    "follower": "Quarterly planning"
+  },
+  "automations_get": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_groups_create": {
+    "name": "Quarterly planning"
+  },
+  "automations_groups_delete": {
+    "groupId": "agr_a1b2c3"
+  },
+  "automations_groups_list": {},
+  "automations_groups_rename": {
+    "groupId": "agr_a1b2c3",
+    "name": "Quarterly planning"
+  },
+  "automations_key_hosts_list": {
+    "itemId": "Quarterly planning"
+  },
+  "automations_list": {},
+  "automations_make_personal_copy": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_migrate_runs": {
+    "automationId": "aut_a1b2c3",
+    "toVersion": 1,
+    "runIds": [
+      "run_a1b2c3"
+    ]
+  },
+  "automations_migration_preview": {
+    "automationId": "aut_a1b2c3",
+    "toVersion": 1
+  },
+  "automations_move": {
+    "automationId": "aut_a1b2c3",
+    "groupId": "agr_a1b2c3"
+  },
+  "automations_open_document": {
+    "url": "https://acme.test/plan"
+  },
+  "automations_open_mcp": {
+    "app": "Quarterly planning",
+    "url": "https://acme.test/plan"
+  },
+  "automations_packages_export": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_packages_import": {
+    "packageId": "Quarterly planning"
+  },
+  "automations_packages_list": {},
+  "automations_preview_promote": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_promote": {
+    "automationId": "aut_a1b2c3",
+    "confirm": true
+  },
+  "automations_read_docs": {
+    "url": "https://acme.test/plan"
+  },
+  "automations_replay": {
+    "automationId": "aut_a1b2c3",
+    "runId": "run_a1b2c3",
+    "version": "same",
+    "confirm": true
+  },
+  "automations_restore_version": {
+    "automationId": "aut_a1b2c3",
+    "versionId": "ver_a1b2c3"
+  },
+  "automations_retry": {
+    "automationId": "aut_a1b2c3",
+    "runId": "run_a1b2c3"
+  },
+  "automations_run": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_runs_as_get": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_schedule_choose": {
+    "automationId": "aut_a1b2c3",
+    "choice": "run_first_n"
+  },
+  "automations_senders": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_set_enabled": {
+    "automationId": "aut_a1b2c3",
+    "enabled": false
+  },
+  "automations_set_owner": {
+    "automationId": "aut_a1b2c3",
+    "ownerId": "usr_a1b2c3"
+  },
+  "automations_steps_list": {},
+  "automations_stop": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_templates_list": {},
+  "automations_templates_use": {
+    "templateKey": "Quarterly planning"
+  },
+  "automations_test": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_triggers_list": {},
+  "automations_try_read": {
+    "method": "Quarterly planning",
+    "path": "notes/plan.md",
+    "domains": [
+      "Quarterly planning"
+    ],
+    "vaultItemId": "Quarterly planning"
+  },
+  "automations_undelete": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_update": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_validate": {
+    "definition": {
+      "triggers": [
+        {
+          "key": "Plan_Key"
+        }
+      ],
+      "nodes": [
+        {
+          "id": "Quarterly planning",
+          "key": "Plan_Key",
+          "input": {}
+        }
+      ]
+    }
+  },
+  "automations_vault_usage": {},
+  "automations_versions": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_watches_list": {},
+  "automations_watches_report": {
+    "watchId": "wch_a1b2c3"
+  },
+  "automations_webhook_url_get": {
+    "automationId": "aut_a1b2c3"
+  },
+  "automations_webhook_url_rotate": {
+    "automationId": "aut_a1b2c3",
+    "confirm": true
+  },
+  "backup_config_get": {},
+  "backup_config_set": {
+    "target": {
+      "kind": "s3"
+    },
+    "schedule": "Quarterly planning",
+    "enabled": false
+  },
+  "backup_delete": {
+    "backupId": "bkp_a1b2c3"
+  },
+  "backup_export_status": {
+    "runId": "run_a1b2c3"
+  },
+  "backup_list": {},
+  "backup_restore_preview": {
+    "backupId": "bkp_a1b2c3"
+  },
+  "backup_run": {},
+  "backup_verify": {
+    "backupId": "bkp_a1b2c3"
+  },
+  "bookings_cancel": {
+    "bookingId": "bkg_a1b2c3"
+  },
+  "bookings_list": {
+    "formId": "frm_a1b2c3"
+  },
+  "bookings_page_create": {
+    "name": "Quarterly planning",
+    "hostIds": [
+      "usr_a1b2c3"
+    ],
+    "lengthMinutes": 5,
+    "recordType": "contact"
+  },
+  "browser_sites_list": {},
+  "calendar_availability": {
+    "people": [
+      "Quarterly planning"
+    ],
+    "from": 1,
+    "to": 1
+  },
+  "calendar_connect_provider": {
+    "provider": "google",
+    "ownerId": "usr_a1b2c3",
+    "account": "dana@acme.test",
+    "connectionId": "con_a1b2c3"
+  },
+  "calendar_create_calendar": {
+    "title": "Quarterly planning"
+  },
+  "calendar_create_event": {
+    "calendarId": "cld_a1b2c3",
+    "title": "Quarterly planning",
+    "startsAt": 1,
+    "endsAt": 1
+  },
+  "calendar_delete_calendar": {
+    "calendarId": "cld_a1b2c3"
+  },
+  "calendar_delete_event": {
+    "eventId": "cev_a1b2c3"
+  },
+  "calendar_duplicate_event": {
+    "eventId": "cev_a1b2c3"
+  },
+  "calendar_find_time": {
+    "people": [
+      "Quarterly planning"
+    ],
+    "durationMinutes": 5,
+    "from": 1,
+    "to": 1
+  },
+  "calendar_get_event": {
+    "eventId": "cev_a1b2c3"
+  },
+  "calendar_link_record": {
+    "eventId": "cev_a1b2c3",
+    "recordIds": [
+      "rec_a1b2c3"
+    ]
+  },
+  "calendar_list_calendars": {},
+  "calendar_list_events": {
+    "from": 1,
+    "to": 1
+  },
+  "calendar_move_to_calendar": {
+    "eventId": "cev_a1b2c3",
+    "calendarId": "cld_a1b2c3"
+  },
+  "calendar_respond": {
+    "eventId": "cev_a1b2c3",
+    "response": "accepted"
+  },
+  "calendar_restore_event": {
+    "eventId": "cev_a1b2c3"
+  },
+  "calendar_sync_now": {
+    "calendarId": "cld_a1b2c3"
+  },
+  "calendar_update_calendar": {
+    "calendarId": "cld_a1b2c3"
+  },
+  "calendar_update_event": {
+    "eventId": "cev_a1b2c3"
+  },
+  "changesets_approve": {
+    "changesetId": "chg_a1b2c3"
+  },
+  "changesets_comments_add": {
+    "changesetId": "chg_a1b2c3",
+    "anchor": {
+      "kind": "file"
+    },
+    "text": "Here is the summary you asked for."
+  },
+  "changesets_comments_list": {
+    "changesetId": "chg_a1b2c3"
+  },
+  "changesets_diff": {
+    "changesetId": "chg_a1b2c3",
+    "path": "notes/plan.md"
+  },
+  "changesets_discard": {
+    "changesetId": "chg_a1b2c3"
+  },
+  "changesets_edit": {
+    "changesetId": "chg_a1b2c3",
+    "path": "notes/plan.md",
+    "startLine": 1,
+    "removeLines": 1,
+    "lines": [
+      "Quarterly planning"
+    ]
+  },
+  "changesets_get": {
+    "changesetId": "chg_a1b2c3"
+  },
+  "changesets_list": {},
+  "changesets_request_changes": {
+    "changesetId": "chg_a1b2c3"
+  },
+  "changesets_revert_change": {
+    "changesetId": "chg_a1b2c3",
+    "path": "notes/plan.md"
+  },
+  "changesets_review_externally": {
+    "changesetId": "chg_a1b2c3"
+  },
+  "channels_agent_watch_set": {
+    "channelId": "chn_a1b2c3",
+    "agentId": "agt_a1b2c3",
+    "watches": false
+  },
+  "channels_agents_add": {
+    "channelId": "chn_a1b2c3",
+    "agentId": "agt_a1b2c3"
+  },
+  "channels_agents_remove": {
+    "channelId": "chn_a1b2c3",
+    "agentId": "agt_a1b2c3"
+  },
+  "channels_archive": {
+    "channelId": "chn_a1b2c3"
+  },
+  "channels_create": {
+    "name": "Quarterly planning",
+    "visibility": "public"
+  },
+  "channels_get": {
+    "channelId": "chn_a1b2c3"
+  },
+  "channels_home": {},
+  "channels_join": {
+    "channelId": "chn_a1b2c3"
+  },
+  "channels_leave": {
+    "channelId": "chn_a1b2c3"
+  },
+  "channels_list": {},
+  "channels_members_add": {
+    "channelId": "chn_a1b2c3",
+    "personIds": [
+      "usr_a1b2c3"
+    ]
+  },
+  "channels_members_remove": {
+    "channelId": "chn_a1b2c3",
+    "personId": "usr_a1b2c3"
+  },
+  "channels_stream": {
+    "channelId": "chn_a1b2c3"
+  },
+  "channels_stream_prefs_get": {
+    "channelId": "chn_a1b2c3"
+  },
+  "channels_stream_prefs_set": {
+    "channelId": "chn_a1b2c3",
+    "hide": [
+      "people"
+    ]
+  },
+  "channels_unarchive": {
+    "channelId": "chn_a1b2c3"
+  },
+  "channels_update": {
+    "channelId": "chn_a1b2c3"
+  },
+  "chat_answer_block": {
+    "threadId": "thr_a1b2c3",
+    "blockId": "blk_a1b2c3",
+    "answer": "Here is the summary you asked for."
+  },
+  "chat_approve_plan": {
+    "threadId": "thr_a1b2c3",
+    "planId": "pln_a1b2c3"
+  },
+  "chat_aside": {
+    "threadId": "thr_a1b2c3",
+    "question": "Here is the summary you asked for."
+  },
+  "chat_aside_keep": {
+    "asideThreadId": "thr_a1b2c3"
+  },
+  "chat_ask_level": {
+    "threadId": "thr_a1b2c3"
+  },
+  "chat_ask_suggest": {
+    "scopeType": "Quarterly planning",
+    "scopeId": "Quarterly planning"
+  },
+  "chat_asks_of": {
+    "resourceType": "Quarterly planning",
+    "resourceId": "Quarterly planning"
+  },
+  "chat_catch_up": {
+    "threadId": "thr_a1b2c3"
+  },
+  "chat_composer_suggest": {
+    "symbol": "@",
+    "q": "quarterly plan"
+  },
+  "chat_delete_message": {
+    "messageId": "msg_a1b2c3",
+    "threadId": "thr_a1b2c3"
+  },
+  "chat_edit": {
+    "messageId": "msg_a1b2c3",
+    "threadId": "thr_a1b2c3",
+    "body": "Here is the summary you asked for."
+  },
+  "chat_flow_card": {
+    "threadId": "thr_a1b2c3",
+    "automationId": "aut_a1b2c3"
+  },
+  "chat_fork": {
+    "threadId": "thr_a1b2c3"
+  },
+  "chat_helper_note_seen": {
+    "threadId": "thr_a1b2c3"
+  },
+  "chat_helper_notes": {
+    "threadId": "thr_a1b2c3"
+  },
+  "chat_helper_restart": {
+    "threadId": "thr_a1b2c3",
+    "helperId": "thr_a1b2c3"
+  },
+  "chat_helper_steer": {
+    "threadId": "thr_a1b2c3",
+    "body": "Here is the summary you asked for."
+  },
+  "chat_helpers_list": {
+    "threadId": "thr_a1b2c3"
+  },
+  "chat_history_page": {
+    "threadId": "thr_a1b2c3",
+    "before": 1
+  },
+  "chat_make_task": {
+    "threadId": "thr_a1b2c3",
+    "messageId": "msg_a1b2c3"
+  },
+  "chat_message_get": {
+    "threadId": "thr_a1b2c3",
+    "messageId": "msg_a1b2c3"
+  },
+  "chat_messages_list": {
+    "threadId": "thr_a1b2c3"
+  },
+  "chat_noted": {
+    "threadId": "thr_a1b2c3",
+    "factId": "fct_a1b2c3",
+    "kind": "Quarterly planning",
+    "text": "Here is the summary you asked for."
+  },
+  "chat_open_as_chat": {
+    "threadId": "thr_a1b2c3"
+  },
+  "chat_pace_of": {
+    "personId": "usr_a1b2c3"
+  },
+  "chat_pin": {
+    "messageId": "msg_a1b2c3",
+    "threadId": "thr_a1b2c3"
+  },
+  "chat_pins_list": {
+    "threadId": "thr_a1b2c3"
+  },
+  "chat_plan_reject": {
+    "threadId": "thr_a1b2c3",
+    "planId": "pln_a1b2c3"
+  },
+  "chat_plan_step_done": {
+    "threadId": "thr_a1b2c3",
+    "planId": "pln_a1b2c3",
+    "stepId": "stp_a1b2c3"
+  },
+  "chat_post": {
+    "threadId": "thr_a1b2c3",
+    "body": "Here is the summary you asked for."
+  },
+  "chat_react": {
+    "messageId": "msg_a1b2c3",
+    "threadId": "thr_a1b2c3",
+    "emoji": "Quarterly planning"
+  },
+  "chat_read_floor": {
+    "threadId": "thr_a1b2c3"
+  },
+  "chat_recent": {},
+  "chat_remember": {
+    "threadId": "thr_a1b2c3",
+    "messageId": "msg_a1b2c3"
+  },
+  "chat_reply_details": {
+    "threadId": "thr_a1b2c3",
+    "messageId": "msg_a1b2c3"
+  },
+  "chat_screen_get": {
+    "threadId": "thr_a1b2c3"
+  },
+  "chat_search": {
+    "q": "quarterly plan"
+  },
+  "chat_share": {
+    "threadId": "thr_a1b2c3",
+    "messageId": "msg_a1b2c3",
+    "toThreadId": "thr_a1b2c3"
+  },
+  "chat_start": {
+    "kind": "chat",
+    "agentIds": [
+      "agt_a1b2c3"
+    ]
+  },
+  "chat_thread": {
+    "threadId": "thr_a1b2c3",
+    "messageId": "msg_a1b2c3"
+  },
+  "chat_unpin": {
+    "messageId": "msg_a1b2c3",
+    "threadId": "thr_a1b2c3"
+  },
+  "chrome_act": {
+    "action": "click"
+  },
+  "chrome_api": {
+    "method": "GET",
+    "url": "https://acme.test/plan"
+  },
+  "chrome_batch": {
+    "steps": [
+      {
+        "tool": "Quarterly planning",
+        "args": {}
+      }
+    ]
+  },
+  "chrome_click": {},
+  "chrome_console": {},
+  "chrome_eval": {
+    "expression": "Quarterly planning"
+  },
+  "chrome_fill": {
+    "fields": [
+      {
+        "ref": "main",
+        "value": "Quarterly planning"
+      }
+    ]
+  },
+  "chrome_inspect": {
+    "ref": "main"
+  },
+  "chrome_net": {},
+  "chrome_open": {
+    "url": "https://acme.test/plan"
+  },
+  "chrome_plan": {
+    "goal": "Quarterly planning"
+  },
+  "chrome_resume": {},
+  "chrome_screenshot": {},
+  "chrome_send": {
+    "heldId": "Quarterly planning"
+  },
+  "chrome_snapshot": {},
+  "chrome_sources": {},
+  "chrome_state": {},
+  "chrome_status": {},
+  "chrome_stop": {},
+  "chrome_tabs": {
+    "action": "list"
+  },
+  "chrome_type": {
+    "text": "Here is the summary you asked for."
+  },
+  "chrome_wait": {
+    "until": "load"
+  },
+  "ci_cost_month": {},
+  "ci_job_intake": {
+    "action": "queued",
+    "repo": "vyre-ai/website",
+    "jobId": 1,
+    "runId": 1,
+    "labels": [
+      "Quarterly planning"
+    ]
+  },
+  "ci_project_get": {
+    "projectId": "prj_a1b2c3"
+  },
+  "ci_runs_get": {
+    "runId": "cir_a1b2c3"
+  },
+  "ci_runs_list": {},
+  "ci_settings_get": {},
+  "ci_settings_set": {},
+  "ci_sweep": {},
+  "comms_senders_list": {},
+  "comms_senders_set_default": {
+    "channel": "email",
+    "senderId": "Quarterly planning"
+  },
+  "company_access_log": {},
+  "company_check": {},
+  "company_connect": {},
+  "company_disconnect": {},
+  "company_guide": {
+    "provider": "google"
+  },
+  "company_people_done": {},
+  "company_probe": {},
+  "company_script": {
+    "provider": "google"
+  },
+  "company_start": {
+    "provider": "google"
+  },
+  "company_status": {},
+  "company_sweep": {},
+  "computer_files_delete": {
+    "path": "notes/plan.md"
+  },
+  "computer_files_list": {},
+  "computer_files_move": {
+    "from": "dana@acme.test",
+    "to": "dana@acme.test"
+  },
+  "computer_files_read": {
+    "path": "notes/plan.md"
+  },
+  "computer_files_write": {
+    "path": "notes/plan.md",
+    "content": "Here is the summary you asked for."
+  },
+  "computers_configure": {
+    "computerId": "cmt_a1b2c3"
+  },
+  "computers_get": {
+    "computerId": "cmt_a1b2c3"
+  },
+  "computers_give_back": {
+    "computerId": "cmt_a1b2c3"
+  },
+  "computers_hosts": {},
+  "computers_list": {},
+  "computers_provision": {
+    "agentId": "agt_a1b2c3"
+  },
+  "computers_record_start": {
+    "computerId": "cmt_a1b2c3"
+  },
+  "computers_record_stop": {
+    "computerId": "cmt_a1b2c3"
+  },
+  "computers_recording_delete": {
+    "recordingId": "rcd_a1b2c3"
+  },
+  "computers_recording_get": {
+    "recordingId": "rcd_a1b2c3"
+  },
+  "computers_recording_process": {
+    "recordingId": "rcd_a1b2c3",
+    "intents": [
+      "make_skill"
+    ]
+  },
+  "computers_recordings_list": {
+    "computerId": "cmt_a1b2c3"
+  },
+  "computers_remove": {
+    "computerId": "cmt_a1b2c3"
+  },
+  "computers_screenshot": {
+    "computerId": "cmt_a1b2c3"
+  },
+  "computers_session_sign_out": {
+    "computerId": "cmt_a1b2c3",
+    "site": "Quarterly planning"
+  },
+  "computers_sessions_list": {
+    "computerId": "cmt_a1b2c3"
+  },
+  "computers_skill_from_step": {
+    "computerId": "cmt_a1b2c3",
+    "stepId": "stp_a1b2c3"
+  },
+  "computers_sleep": {
+    "computerId": "cmt_a1b2c3"
+  },
+  "computers_stream": {
+    "computerId": "cmt_a1b2c3"
+  },
+  "computers_take_over": {
+    "computerId": "cmt_a1b2c3"
+  },
+  "computers_timeline": {
+    "computerId": "cmt_a1b2c3"
+  },
+  "computers_timeline_step": {
+    "computerId": "cmt_a1b2c3",
+    "stepId": "stp_a1b2c3"
+  },
+  "computers_wake": {
+    "computerId": "cmt_a1b2c3"
+  },
+  "conflicts_confirm": {
+    "conflictId": "cfl_a1b2c3"
+  },
+  "conflicts_counts": {},
+  "conflicts_field_history": {
+    "entity": "Quarterly planning",
+    "recordId": "Quarterly planning",
+    "field": "Quarterly planning"
+  },
+  "conflicts_get": {
+    "conflictId": "cfl_a1b2c3"
+  },
+  "conflicts_list": {},
+  "conflicts_redo": {
+    "resolutionId": "res_a1b2c3"
+  },
+  "conflicts_resolve": {
+    "conflictId": "cfl_a1b2c3",
+    "choice": "ours",
+    "summary": "Quarterly planning"
+  },
+  "conflicts_undo": {
+    "resolutionId": "res_a1b2c3"
+  },
+  "connections_create": {
+    "connector": "Quarterly planning",
+    "title": "Quarterly planning",
+    "ownerKind": "person"
+  },
+  "connections_delete": {
+    "connectionId": "con_a1b2c3"
+  },
+  "connections_get": {
+    "connectionId": "con_a1b2c3"
+  },
+  "connections_list": {},
+  "connections_pause": {
+    "connectionId": "con_a1b2c3"
+  },
+  "connections_reconnect": {
+    "connectionId": "con_a1b2c3"
+  },
+  "connections_resume": {
+    "connectionId": "con_a1b2c3"
+  },
+  "connections_set_secret": {
+    "connectionId": "con_a1b2c3",
+    "slot": "Quarterly planning",
+    "handle": "#Dana_Lawmatics"
+  },
+  "connections_test": {
+    "connectionId": "con_a1b2c3"
+  },
+  "connections_update": {
+    "connectionId": "con_a1b2c3"
+  },
+  "connectors_build": {
+    "key": "Plan_Key"
+  },
+  "connectors_define": {
+    "key": "Plan_Key",
+    "domains": [
+      "Quarterly planning"
+    ],
+    "auth": {
+      "type": "none"
+    },
+    "actions": [
+      {
+        "name": "Quarterly planning",
+        "url": "https://acme.test/plan"
+      }
+    ]
+  },
+  "connectors_diff": {
+    "key": "Plan_Key"
+  },
+  "connectors_export": {
+    "key": "Plan_Key"
+  },
+  "connectors_get": {
+    "key": "Plan_Key"
+  },
+  "connectors_init": {
+    "key": "Plan_Key",
+    "title": "Quarterly planning",
+    "mode": "api"
+  },
+  "connectors_list": {},
+  "connectors_outbox_cancel": {
+    "outboxId": "obx_a1b2c3"
+  },
+  "connectors_outbox_list": {},
+  "connectors_outbox_retry": {
+    "outboxId": "obx_a1b2c3"
+  },
+  "connectors_publish": {
+    "key": "Plan_Key"
+  },
+  "connectors_remove": {
+    "key": "Plan_Key"
+  },
+  "connectors_rollback": {
+    "key": "Plan_Key",
+    "version": "Quarterly planning"
+  },
+  "connectors_run": {
+    "key": "Plan_Key",
+    "action": "Quarterly planning",
+    "connectionId": "con_a1b2c3",
+    "input": "Quarterly planning"
+  },
+  "connectors_sync_now": {},
+  "connectors_test": {
+    "key": "Plan_Key"
+  },
+  "connectors_versions": {
+    "key": "Plan_Key"
+  },
+  "console_activity": {},
+  "console_assistant_open": {
+    "page": "Quarterly planning"
+  },
+  "console_assistant_tools": {},
+  "console_attention": {},
+  "console_diff_apply": {
+    "diffId": "dif_a1b2c3"
+  },
+  "console_diff_propose": {
+    "threadId": "thr_a1b2c3",
+    "diff": {
+      "diffId": "dif_a1b2c3",
+      "kind": "role",
+      "title": "Quarterly planning",
+      "changes": [
+        {
+          "path": "notes/plan.md",
+          "before": "Quarterly planning",
+          "after": "Quarterly planning"
+        }
+      ]
+    }
+  },
+  "console_diff_reject": {
+    "diffId": "dif_a1b2c3"
+  },
+  "console_explain_access": {
+    "person": "usr_a1b2c3",
+    "action": "Quarterly planning",
+    "resourceType": "Quarterly planning",
+    "resourceId": "Quarterly planning"
+  },
+  "console_nav": {},
+  "console_overview": {},
+  "console_speed": {},
+  "console_usage": {
+    "period": "day",
+    "by": "agent"
+  },
+  "contacts_address_add": {
+    "contactId": "rec_a1b2c3",
+    "kind": "email",
+    "value": "Quarterly planning"
+  },
+  "contacts_address_list": {
+    "contactId": "rec_a1b2c3"
+  },
+  "contacts_address_remove": {
+    "contactId": "rec_a1b2c3",
+    "addressId": "adr_a1b2c3"
+  },
+  "contacts_address_set_primary": {
+    "contactId": "rec_a1b2c3",
+    "addressId": "adr_a1b2c3"
+  },
+  "contacts_deliverability": {
+    "contactId": "rec_a1b2c3"
+  },
+  "contacts_dnd_screen": {
+    "context": "audience",
+    "candidates": [
+      {
+        "ref": "main"
+      }
+    ]
+  },
+  "contacts_duplicates_dismiss": {
+    "suggestionId": "Quarterly planning"
+  },
+  "contacts_duplicates_list": {},
+  "contacts_preferences_get": {
+    "contactId": "rec_a1b2c3"
+  },
+  "contacts_preferences_set": {
+    "contactId": "rec_a1b2c3"
+  },
+  "contacts_resolve": {},
+  "contacts_suppression_add": {
+    "channel": "email",
+    "addresses": [
+      "Quarterly planning"
+    ],
+    "reason": "bounce_hard"
+  },
+  "contacts_suppression_check": {
+    "channel": "email",
+    "addresses": [
+      "Quarterly planning"
+    ]
+  },
+  "contacts_suppression_import": {
+    "channel": "email",
+    "fileId": "fil_a1b2c3"
+  },
+  "contacts_suppression_list": {},
+  "contacts_suppression_remove": {
+    "suppressionId": "sup_a1b2c3"
+  },
+  "crew_list": {
+    "threadId": "thr_a1b2c3"
+  },
+  "crew_merge": {
+    "jobId": "Quarterly planning"
+  },
+  "crew_message": {
+    "jobId": "Quarterly planning",
+    "body": "Here is the summary you asked for."
+  },
+  "crew_push": {
+    "jobId": "Quarterly planning"
+  },
+  "crew_start": {
+    "threadId": "thr_a1b2c3",
+    "title": "Quarterly planning",
+    "brief": "Quarterly planning"
+  },
+  "crew_stop": {
+    "jobId": "Quarterly planning"
+  },
+  "crew_wait": {
+    "threadId": "thr_a1b2c3",
+    "repo": "acme/site",
+    "number": 1
+  },
+  "devices_get": {
+    "deviceId": "dev_a1b2c3"
+  },
+  "devices_list": {},
+  "devices_mine": {},
+  "devices_presence": {},
+  "devices_rename": {
+    "deviceId": "dev_a1b2c3",
+    "name": "Quarterly planning"
+  },
+  "devices_revoke": {
+    "deviceId": "dev_a1b2c3"
+  },
+  "devices_revoke_others": {},
+  "devices_rotate_space_key": {},
+  "devices_sessions_list": {},
+  "devices_sessions_revoke": {
+    "sessionId": "ses_a1b2c3"
+  },
+  "documents_fields": {
+    "templateFileId": "fil_a1b2c3"
+  },
+  "documents_fill": {
+    "templateFileId": "fil_a1b2c3",
+    "intoFolderId": "fld_a1b2c3"
+  },
+  "documents_mark_template": {
+    "fileId": "fil_a1b2c3",
+    "isTemplate": false
+  },
+  "documents_preview_fill": {
+    "templateFileId": "fil_a1b2c3"
+  },
+  "documents_templates_list": {},
+  "dropbox_files_create_folder": {
+    "connectionId": "con_a1b2c3",
+    "path": "notes/plan.md"
+  },
+  "dropbox_files_delete": {
+    "connectionId": "con_a1b2c3",
+    "path": "notes/plan.md"
+  },
+  "dropbox_files_download": {
+    "connectionId": "con_a1b2c3",
+    "path": "notes/plan.md"
+  },
+  "dropbox_files_get_metadata": {
+    "connectionId": "con_a1b2c3",
+    "path": "notes/plan.md"
+  },
+  "dropbox_files_list_folder": {
+    "connectionId": "con_a1b2c3"
+  },
+  "dropbox_files_list_revisions": {
+    "connectionId": "con_a1b2c3",
+    "path": "notes/plan.md"
+  },
+  "dropbox_files_restore": {
+    "connectionId": "con_a1b2c3",
+    "path": "notes/plan.md",
+    "rev": "Quarterly planning"
+  },
+  "dropbox_files_upload": {
+    "connectionId": "con_a1b2c3",
+    "fileId": "fil_a1b2c3",
+    "path": "notes/plan.md"
+  },
+  "email_builder_ask_cancel": {
+    "emailId": "eml_a1b2c3"
+  },
+  "email_builder_ask_diff": {
+    "emailId": "eml_a1b2c3",
+    "instruction": "Here is the summary you asked for."
+  },
+  "email_builder_create": {
+    "name": "Quarterly planning",
+    "mode": "blocks"
+  },
+  "email_builder_get": {
+    "emailId": "eml_a1b2c3"
+  },
+  "email_builder_html_set": {
+    "emailId": "eml_a1b2c3",
+    "html": "<h1>Quarterly plan</h1><p>Three priorities for the quarter.</p>"
+  },
+  "email_builder_list": {},
+  "email_builder_merge_fields": {
+    "type": "contact"
+  },
+  "email_builder_render": {
+    "emailId": "eml_a1b2c3",
+    "variant": "desktop"
+  },
+  "email_builder_restore_version": {
+    "emailId": "eml_a1b2c3",
+    "version": 1
+  },
+  "email_builder_save": {
+    "emailId": "eml_a1b2c3",
+    "email": {
+      "emailId": "eml_a1b2c3",
+      "name": "Quarterly planning",
+      "mode": "blocks"
+    }
+  },
+  "email_builder_saved_blocks_list": {},
+  "email_builder_saved_blocks_save": {
+    "name": "Quarterly planning",
+    "block": {
+      "type": "text",
+      "props": {}
+    }
+  },
+  "email_builder_send_test": {
+    "emailId": "eml_a1b2c3",
+    "to": "dana@acme.test"
+  },
+  "email_builder_snippets_delete": {
+    "snippetId": "snp_a1b2c3"
+  },
+  "email_builder_snippets_list": {},
+  "email_builder_snippets_save": {
+    "name": "Quarterly planning",
+    "body": "Here is the summary you asked for."
+  },
+  "email_builder_versions": {
+    "emailId": "eml_a1b2c3"
+  },
+  "engine_accounts_list": {},
+  "engine_crew_chat_repo": {
+    "threadId": "thr_a1b2c3"
+  },
+  "engine_crew_repo_get": {
+    "projectId": "prj_a1b2c3"
+  },
+  "engine_crew_repo_set": {
+    "projectId": "prj_a1b2c3",
+    "path": "notes/plan.md"
+  },
+  "engine_crew_status": {
+    "threadId": "thr_a1b2c3"
+  },
+  "engine_defaults_get": {},
+  "engine_defaults_set": {},
+  "engine_drop_queued": {
+    "threadId": "thr_a1b2c3",
+    "messageId": "msg_a1b2c3"
+  },
+  "engine_helpers_change_model": {
+    "threadId": "thr_a1b2c3",
+    "helperId": "thr_a1b2c3"
+  },
+  "engine_helpers_status": {
+    "threadId": "thr_a1b2c3"
+  },
+  "engine_helpers_stop_all": {
+    "threadId": "thr_a1b2c3"
+  },
+  "engine_incident_assign": {
+    "incidentId": "inc_a1b2c3",
+    "ownerId": "usr_a1b2c3"
+  },
+  "engine_incident_get": {
+    "incidentId": "inc_a1b2c3"
+  },
+  "engine_incident_note": {
+    "incidentId": "inc_a1b2c3",
+    "text": "Here is the summary you asked for."
+  },
+  "engine_incident_open": {
+    "kind": "label_denied",
+    "title": "Quarterly planning"
+  },
+  "engine_incident_resolve": {
+    "incidentId": "inc_a1b2c3",
+    "note": "Here is the summary you asked for."
+  },
+  "engine_incidents_list": {},
+  "engine_interrupt": {
+    "threadId": "thr_a1b2c3"
+  },
+  "engine_last_pick_get": {},
+  "engine_live_turns": {
+    "threadId": "thr_a1b2c3"
+  },
+  "engine_models_list": {},
+  "engine_now": {},
+  "engine_placement_options": {
+    "threadId": "thr_a1b2c3"
+  },
+  "engine_placement_set": {
+    "threadId": "thr_a1b2c3",
+    "target": "auto"
+  },
+  "engine_policy_get": {},
+  "engine_policy_set": {},
+  "engine_pool_status": {},
+  "engine_probe_account": {
+    "accountRef": "Quarterly planning"
+  },
+  "engine_providers_list": {},
+  "engine_queue_list": {
+    "threadId": "thr_a1b2c3"
+  },
+  "engine_review_list": {},
+  "engine_review_mark": {
+    "turnId": "trn_a1b2c3",
+    "verdict": "ok"
+  },
+  "engine_reviewer_get": {
+    "threadId": "thr_a1b2c3"
+  },
+  "engine_reviewer_set": {
+    "threadId": "thr_a1b2c3",
+    "reviewer": {
+      "kind": "agent",
+      "id": "Quarterly planning"
+    }
+  },
+  "engine_route_preview": {
+    "threadId": "thr_a1b2c3"
+  },
+  "engine_running_here": {},
+  "engine_runtime_opt_in": {
+    "enabled": false
+  },
+  "engine_set_mode": {
+    "threadId": "thr_a1b2c3",
+    "agentId": "agt_a1b2c3",
+    "mode": "lead"
+  },
+  "engine_set_model": {
+    "threadId": "thr_a1b2c3",
+    "agentId": "agt_a1b2c3"
+  },
+  "engine_spend_caps_set": {
+    "scope": "space",
+    "caps": {}
+  },
+  "engine_spend_get": {
+    "scope": "space"
+  },
+  "engine_spend_pause_all": {},
+  "engine_spend_raise": {
+    "scope": "space",
+    "limit": "run",
+    "mode": "once"
+  },
+  "engine_spend_resume_all": {},
+  "engine_stop": {
+    "threadId": "thr_a1b2c3"
+  },
+  "engine_stop_all": {
+    "threadId": "thr_a1b2c3"
+  },
+  "engine_subscription_share_set": {
+    "enabled": false
+  },
+  "engine_turn_get": {
+    "turnId": "trn_a1b2c3"
+  },
+  "engine_turn_retry": {
+    "turnId": "trn_a1b2c3"
+  },
+  "engine_turns_list": {
+    "threadId": "thr_a1b2c3"
+  },
+  "engine_turns_running": {},
+  "engine_usage_get": {
+    "threadId": "thr_a1b2c3",
+    "agentId": "agt_a1b2c3"
+  },
+  "engine_usage_query": {
+    "by": "day"
+  },
+  "engine_use_policy_export": {},
+  "esign_cancel": {
+    "envelopeId": "env_a1b2c3"
+  },
+  "esign_fetch_signed": {
+    "envelopeId": "env_a1b2c3"
+  },
+  "esign_list": {},
+  "esign_provider_set": {
+    "provider": "documenso"
+  },
+  "esign_providers": {},
+  "esign_send": {
+    "fileId": "fil_a1b2c3",
+    "signers": [
+      {
+        "name": "Quarterly planning",
+        "email": "dana@acme.test"
+      }
+    ]
+  },
+  "esign_status": {
+    "envelopeId": "env_a1b2c3"
+  },
+  "events_get": {
+    "eventId": "evt_a1b2c3"
+  },
+  "events_list": {},
+  "events_replay": {},
+  "events_since": {
+    "after": 1
+  },
+  "events_types": {},
+  "facts_as_of": {
+    "date": 1
+  },
+  "files_agent_access_get": {
+    "target": {
+      "type": "file",
+      "id": "Quarterly planning"
+    }
+  },
+  "files_ask_to_read": {
+    "fileId": "fil_a1b2c3"
+  },
+  "files_comments_add": {
+    "fileId": "fil_a1b2c3",
+    "anchor": {
+      "kind": "file"
+    },
+    "text": "Here is the summary you asked for."
+  },
+  "files_comments_delete": {
+    "commentId": "fcm_a1b2c3"
+  },
+  "files_comments_list": {
+    "fileId": "fil_a1b2c3"
+  },
+  "files_comments_resolve": {
+    "commentId": "fcm_a1b2c3",
+    "resolved": false
+  },
+  "files_copy": {
+    "fileId": "fil_a1b2c3",
+    "toFolderId": "fld_a1b2c3"
+  },
+  "files_create": {
+    "folderId": "fld_a1b2c3",
+    "name": "Quarterly planning"
+  },
+  "files_delete": {
+    "fileId": "fil_a1b2c3"
+  },
+  "files_diff": {
+    "fileId": "fil_a1b2c3"
+  },
+  "files_external_links": {
+    "fileId": "fil_a1b2c3"
+  },
+  "files_folder_create": {
+    "parentId": "fld_a1b2c3",
+    "name": "Quarterly planning"
+  },
+  "files_folder_delete": {
+    "folderId": "fld_a1b2c3"
+  },
+  "files_folder_get": {
+    "folderId": "fld_a1b2c3"
+  },
+  "files_folder_move": {
+    "folderId": "fld_a1b2c3"
+  },
+  "files_folder_rename": {
+    "folderId": "fld_a1b2c3",
+    "name": "Quarterly planning"
+  },
+  "files_folder_restore": {
+    "folderId": "fld_a1b2c3"
+  },
+  "files_folder_search": {
+    "q": "quarterly plan"
+  },
+  "files_folder_settings": {
+    "folderId": "fld_a1b2c3"
+  },
+  "files_get": {
+    "fileId": "fil_a1b2c3"
+  },
+  "files_knowledge": {},
+  "files_lint": {
+    "fileId": "fil_a1b2c3"
+  },
+  "files_list": {},
+  "files_markup_get": {
+    "fileId": "fil_a1b2c3"
+  },
+  "files_markup_save": {
+    "fileId": "fil_a1b2c3",
+    "strokes": [
+      {
+        "color": "Quarterly planning",
+        "width": 1,
+        "points": [
+          [
+            1
+          ]
+        ]
+      }
+    ]
+  },
+  "files_move": {
+    "fileId": "fil_a1b2c3",
+    "toFolderId": "fld_a1b2c3"
+  },
+  "files_name_version": {
+    "fileId": "fil_a1b2c3",
+    "versionId": "ver_a1b2c3"
+  },
+  "files_purge": {
+    "fileId": "fil_a1b2c3"
+  },
+  "files_read": {
+    "fileId": "fil_a1b2c3"
+  },
+  "files_recent": {},
+  "files_redact": {
+    "target": {
+      "type": "file",
+      "id": "Quarterly planning"
+    },
+    "kind": "redact",
+    "shape": "span"
+  },
+  "files_rename": {
+    "fileId": "fil_a1b2c3",
+    "name": "Quarterly planning"
+  },
+  "files_resolve": {
+    "path": "notes/plan.md"
+  },
+  "files_restore": {
+    "fileId": "fil_a1b2c3"
+  },
+  "files_restore_version": {
+    "fileId": "fil_a1b2c3",
+    "versionId": "ver_a1b2c3"
+  },
+  "files_revoke_external": {
+    "fileId": "fil_a1b2c3",
+    "linkId": "lnk_a1b2c3"
+  },
+  "files_save": {
+    "fileId": "fil_a1b2c3",
+    "text": "Here is the summary you asked for."
+  },
+  "files_share": {
+    "fileId": "fil_a1b2c3",
+    "subject": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    },
+    "level": "view"
+  },
+  "files_share_external": {
+    "fileId": "fil_a1b2c3"
+  },
+  "files_shared_with_me": {},
+  "files_star": {
+    "fileId": "fil_a1b2c3",
+    "starred": false
+  },
+  "files_trash_empty": {},
+  "files_trash_list": {},
+  "files_tree": {},
+  "files_upload_url": {
+    "size": 1
+  },
+  "files_versions": {
+    "fileId": "fil_a1b2c3"
+  },
+  "files_viewer_data": {
+    "fileId": "fil_a1b2c3"
+  },
+  "files_write": {
+    "fileId": "fil_a1b2c3",
+    "content": {}
+  },
+  "folders_create": {
+    "type": "space",
+    "name": "Quarterly planning"
+  },
+  "folders_delete": {
+    "folderId": "fld_a1b2c3"
+  },
+  "folders_list": {
+    "type": "space"
+  },
+  "folders_move": {
+    "folderId": "fld_a1b2c3",
+    "parentId": "fld_a1b2c3"
+  },
+  "folders_place": {
+    "resource": {
+      "type": "space",
+      "id": "Quarterly planning"
+    },
+    "folderId": "fld_a1b2c3"
+  },
+  "folders_rename": {
+    "folderId": "fld_a1b2c3",
+    "name": "Quarterly planning"
+  },
+  "folders_unplace": {
+    "resource": {
+      "type": "space",
+      "id": "Quarterly planning"
+    }
+  },
+  "follows_list": {},
+  "follows_toggle": {
+    "resource": {
+      "type": "space",
+      "id": "Quarterly planning"
+    },
+    "on": false
+  },
+  "forms_ask_cancel": {
+    "formId": "frm_a1b2c3"
+  },
+  "forms_ask_diff": {
+    "formId": "frm_a1b2c3",
+    "instruction": "Here is the summary you asked for."
+  },
+  "forms_attribution_get": {
+    "recordId": "rec_a1b2c3"
+  },
+  "forms_choices_candidates": {
+    "formId": "frm_a1b2c3",
+    "field": "Quarterly planning"
+  },
+  "forms_choices_set": {
+    "formId": "frm_a1b2c3",
+    "field": "Quarterly planning",
+    "choices": [
+      {
+        "refId": "Quarterly planning"
+      }
+    ]
+  },
+  "forms_create": {
+    "name": "Quarterly planning",
+    "recordType": "contact",
+    "kind": "public"
+  },
+  "forms_delete": {
+    "formId": "frm_a1b2c3"
+  },
+  "forms_design_set": {
+    "formId": "frm_a1b2c3"
+  },
+  "forms_fields_set": {
+    "formId": "frm_a1b2c3",
+    "fields": [
+      {
+        "field": "Quarterly planning",
+        "mode": "ask"
+      }
+    ]
+  },
+  "forms_get": {
+    "formId": "frm_a1b2c3"
+  },
+  "forms_link_create": {
+    "formId": "frm_a1b2c3",
+    "recordId": "rec_a1b2c3",
+    "singleUse": false
+  },
+  "forms_link_revoke": {
+    "formId": "frm_a1b2c3",
+    "token": "Quarterly planning"
+  },
+  "forms_list": {},
+  "forms_publish": {
+    "formId": "frm_a1b2c3"
+  },
+  "forms_submissions": {
+    "formId": "frm_a1b2c3"
+  },
+  "forms_survey_results": {
+    "formId": "frm_a1b2c3"
+  },
+  "forms_unpublish": {
+    "formId": "frm_a1b2c3"
+  },
+  "forms_update": {
+    "formId": "frm_a1b2c3"
+  },
+  "gate_acts_list": {},
+  "gate_effective_rule": {
+    "principal": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    },
+    "act": "send"
+  },
+  "gate_holds_get": {
+    "holdId": "hld_a1b2c3"
+  },
+  "gate_holds_list": {},
+  "gate_rules_list": {},
+  "gate_rules_set": {
+    "act": "send",
+    "scope": "space",
+    "mode": "hold"
+  },
+  "git_branch": {
+    "folderId": "fld_a1b2c3",
+    "action": "create",
+    "name": "Quarterly planning"
+  },
+  "git_commit": {
+    "folderId": "fld_a1b2c3",
+    "message": "Here is the summary you asked for."
+  },
+  "git_diff": {
+    "folderId": "fld_a1b2c3"
+  },
+  "git_init": {
+    "folderId": "fld_a1b2c3"
+  },
+  "git_list_branches": {
+    "folderId": "fld_a1b2c3"
+  },
+  "git_log": {
+    "folderId": "fld_a1b2c3"
+  },
+  "git_protect": {
+    "folderId": "fld_a1b2c3",
+    "branches": [
+      "Quarterly planning"
+    ]
+  },
+  "git_pull": {
+    "folderId": "fld_a1b2c3"
+  },
+  "git_push": {
+    "folderId": "fld_a1b2c3"
+  },
+  "git_remote_add": {
+    "folderId": "fld_a1b2c3",
+    "name": "origin",
+    "url": "https://github.com/vyre-ai/website.git"
+  },
+  "git_remote_remove": {
+    "folderId": "fld_a1b2c3",
+    "name": "origin"
+  },
+  "git_show": {
+    "folderId": "fld_a1b2c3",
+    "sha": "9fceb02"
+  },
+  "git_status": {
+    "folderId": "fld_a1b2c3"
+  },
+  "git_sync": {
+    "folderId": "fld_a1b2c3"
+  },
+  "github_app_complete": {
+    "code": "Quarterly planning",
+    "state": "Quarterly planning"
+  },
+  "github_app_create_manifest": {
+    "org": "Quarterly planning"
+  },
+  "github_app_get": {},
+  "github_branches_list": {
+    "repo": "vyre-ai/website"
+  },
+  "github_installations_list": {},
+  "github_issue_assign_agent": {
+    "recordId": "rec_a1b2c3",
+    "agentId": "agt_a1b2c3"
+  },
+  "github_issue_close": {
+    "repo": "vyre-ai/website",
+    "number": 1
+  },
+  "github_issue_comment": {
+    "repo": "vyre-ai/website",
+    "number": 1,
+    "body": "Here is the summary you asked for."
+  },
+  "github_issue_create": {
+    "repo": "vyre-ai/website",
+    "title": "Quarterly planning"
+  },
+  "github_issue_get": {
+    "repo": "vyre-ai/website",
+    "number": 1
+  },
+  "github_issue_update": {
+    "repo": "vyre-ai/website",
+    "number": 1
+  },
+  "github_pull_request_ask_author_fix": {
+    "recordId": "rec_a1b2c3"
+  },
+  "github_pull_request_checks": {
+    "repo": "vyre-ai/website",
+    "number": 1
+  },
+  "github_pull_request_close": {
+    "repo": "vyre-ai/website",
+    "number": 1
+  },
+  "github_pull_request_comment": {
+    "repo": "vyre-ai/website",
+    "number": 1,
+    "body": "Here is the summary you asked for."
+  },
+  "github_pull_request_create": {
+    "repo": "vyre-ai/website",
+    "head": "Quarterly planning",
+    "base": "Quarterly planning",
+    "title": "Quarterly planning"
+  },
+  "github_pull_request_diff": {
+    "repo": "vyre-ai/website",
+    "number": 1
+  },
+  "github_pull_request_get": {
+    "repo": "vyre-ai/website",
+    "number": 1
+  },
+  "github_pull_request_list_files": {
+    "repo": "vyre-ai/website",
+    "number": 1
+  },
+  "github_pull_request_merge": {
+    "repo": "vyre-ai/website",
+    "number": 1,
+    "method": "merge"
+  },
+  "github_pull_request_request_review": {
+    "repo": "vyre-ai/website",
+    "number": 1,
+    "reviewers": [
+      "Quarterly planning"
+    ]
+  },
+  "github_pull_request_rerun_checks": {
+    "repo": "vyre-ai/website",
+    "number": 1
+  },
+  "github_pull_request_update": {
+    "repo": "vyre-ai/website",
+    "number": 1
+  },
+  "github_repo_get": {
+    "repo": "vyre-ai/website"
+  },
+  "github_repos_list": {},
+  "goals_activity": {
+    "goalId": "gol_a1b2c3"
+  },
+  "goals_ask": {
+    "goalId": "gol_a1b2c3",
+    "decision": "Quarterly planning",
+    "question": "Here is the summary you asked for."
+  },
+  "goals_checkin_post": {
+    "goalId": "gol_a1b2c3",
+    "summary": "Quarterly planning"
+  },
+  "goals_complete": {
+    "goalId": "gol_a1b2c3",
+    "retro": {
+      "summary": "Quarterly planning",
+      "worked": [
+        "Quarterly planning"
+      ],
+      "didNot": [
+        "Quarterly planning"
+      ]
+    }
+  },
+  "goals_confirm": {
+    "goalId": "gol_a1b2c3"
+  },
+  "goals_count": {
+    "projectId": "prj_a1b2c3"
+  },
+  "goals_create": {
+    "title": "Quarterly planning",
+    "finish": {
+      "kind": "number",
+      "line": "Quarterly planning"
+    },
+    "deadline": 1,
+    "leadAgentId": "agt_a1b2c3"
+  },
+  "goals_extend": {
+    "goalId": "gol_a1b2c3",
+    "deadline": 1
+  },
+  "goals_finish": {
+    "goalId": "gol_a1b2c3"
+  },
+  "goals_folder": {
+    "goalId": "gol_a1b2c3"
+  },
+  "goals_get": {
+    "goalId": "gol_a1b2c3"
+  },
+  "goals_list": {
+    "scope": "mine"
+  },
+  "goals_mark_stuck": {
+    "goalId": "gol_a1b2c3",
+    "reason": "Here is the summary you asked for.",
+    "options": [
+      "Quarterly planning",
+      "Quarterly planning"
+    ]
+  },
+  "goals_pause": {
+    "goalId": "gol_a1b2c3"
+  },
+  "goals_plan_update": {
+    "goalId": "gol_a1b2c3",
+    "children": [
+      {
+        "key": "Plan_Key",
+        "title": "Quarterly planning",
+        "why": "Quarterly planning",
+        "assigned": {
+          "kind": "person",
+          "id": "Quarterly planning"
+        }
+      }
+    ]
+  },
+  "goals_progress_read": {
+    "goalId": "gol_a1b2c3"
+  },
+  "goals_resume": {
+    "goalId": "gol_a1b2c3"
+  },
+  "goals_search_past": {},
+  "goals_sources": {},
+  "goals_step": {
+    "goalId": "gol_a1b2c3",
+    "stepId": "Quarterly planning"
+  },
+  "goals_stop": {
+    "goalId": "gol_a1b2c3"
+  },
+  "goals_update": {
+    "goalId": "gol_a1b2c3"
+  },
+  "google_access_log": {},
+  "google_calendar_create_event": {
+    "connectionId": "con_a1b2c3",
+    "calendarId": "Quarterly planning"
+  },
+  "google_calendar_delete_event": {
+    "connectionId": "con_a1b2c3",
+    "calendarId": "Quarterly planning",
+    "eventId": "Quarterly planning"
+  },
+  "google_calendar_free_busy": {
+    "connectionId": "con_a1b2c3",
+    "emails": [
+      "dana@acme.test"
+    ],
+    "timeMin": "Quarterly planning",
+    "timeMax": "Quarterly planning"
+  },
+  "google_calendar_get_event": {
+    "connectionId": "con_a1b2c3",
+    "calendarId": "Quarterly planning",
+    "eventId": "Quarterly planning"
+  },
+  "google_calendar_list_calendars": {
+    "connectionId": "con_a1b2c3"
+  },
+  "google_calendar_list_events": {
+    "connectionId": "con_a1b2c3",
+    "calendarId": "Quarterly planning"
+  },
+  "google_calendar_respond": {
+    "connectionId": "con_a1b2c3",
+    "calendarId": "Quarterly planning",
+    "eventId": "Quarterly planning",
+    "response": "accepted"
+  },
+  "google_calendar_update_event": {
+    "connectionId": "con_a1b2c3",
+    "calendarId": "Quarterly planning",
+    "eventId": "Quarterly planning"
+  },
+  "google_directory_import": {
+    "people": [
+      {
+        "email": "dana@acme.test",
+        "role": "rol_a1b2c3"
+      }
+    ]
+  },
+  "google_directory_list": {},
+  "google_directory_reconcile": {},
+  "google_docs_batch_update": {
+    "connectionId": "con_a1b2c3",
+    "documentId": "Quarterly planning",
+    "requests": [
+      {}
+    ]
+  },
+  "google_docs_create_document": {
+    "connectionId": "con_a1b2c3",
+    "title": "Quarterly planning"
+  },
+  "google_docs_get_document": {
+    "connectionId": "con_a1b2c3",
+    "documentId": "Quarterly planning"
+  },
+  "google_docs_insert_text": {
+    "connectionId": "con_a1b2c3",
+    "documentId": "Quarterly planning",
+    "text": "Here is the summary you asked for."
+  },
+  "google_docs_replace_text": {
+    "connectionId": "con_a1b2c3",
+    "documentId": "Quarterly planning",
+    "find": "Quarterly planning",
+    "replace": "Quarterly planning"
+  },
+  "google_drive_copy_file": {
+    "connectionId": "con_a1b2c3",
+    "fileId": "Quarterly planning"
+  },
+  "google_drive_create_folder": {
+    "connectionId": "con_a1b2c3",
+    "name": "Quarterly planning"
+  },
+  "google_drive_download_file": {
+    "connectionId": "con_a1b2c3",
+    "fileId": "Quarterly planning"
+  },
+  "google_drive_download_revision": {
+    "connectionId": "con_a1b2c3",
+    "fileId": "Quarterly planning",
+    "revisionId": "Quarterly planning"
+  },
+  "google_drive_export_file": {
+    "connectionId": "con_a1b2c3",
+    "fileId": "Quarterly planning",
+    "mimeType": "Quarterly planning"
+  },
+  "google_drive_get_file": {
+    "connectionId": "con_a1b2c3",
+    "fileId": "Quarterly planning"
+  },
+  "google_drive_get_permissions": {
+    "connectionId": "con_a1b2c3",
+    "fileId": "Quarterly planning"
+  },
+  "google_drive_list_files": {
+    "connectionId": "con_a1b2c3"
+  },
+  "google_drive_list_revisions": {
+    "connectionId": "con_a1b2c3",
+    "fileId": "Quarterly planning"
+  },
+  "google_drive_share_file": {
+    "connectionId": "con_a1b2c3",
+    "fileId": "Quarterly planning",
+    "emails": [
+      "dana@acme.test"
+    ],
+    "role": "reader"
+  },
+  "google_drive_trash_file": {
+    "connectionId": "con_a1b2c3",
+    "fileId": "Quarterly planning"
+  },
+  "google_drive_upload_file": {
+    "connectionId": "con_a1b2c3",
+    "name": "Quarterly planning",
+    "fileId": "fil_a1b2c3"
+  },
+  "google_dwd_check_key": {
+    "vaultItem": "#Dana_Lawmatics"
+  },
+  "google_dwd_connect_all": {},
+  "google_dwd_disable": {},
+  "google_dwd_map_member": {
+    "email": "dana@acme.test"
+  },
+  "google_dwd_members": {},
+  "google_dwd_probe": {},
+  "google_dwd_scopes": {},
+  "google_dwd_set_data": {
+    "data": {
+      "mail": false,
+      "calendar": false,
+      "files": false
+    }
+  },
+  "google_dwd_set_excluded": {
+    "email": "dana@acme.test",
+    "excluded": false
+  },
+  "google_dwd_setup": {
+    "vaultItem": "#Dana_Lawmatics",
+    "adminEmail": "dana@acme.test"
+  },
+  "google_dwd_status": {},
+  "google_dwd_sync_members": {},
+  "google_gmail_create_draft": {
+    "connectionId": "con_a1b2c3",
+    "to": [
+      "dana@acme.test"
+    ],
+    "subject": "Quarterly planning"
+  },
+  "google_gmail_delete_draft": {
+    "connectionId": "con_a1b2c3",
+    "draftId": "Quarterly planning"
+  },
+  "google_gmail_get_message": {
+    "connectionId": "con_a1b2c3",
+    "messageId": "Quarterly planning"
+  },
+  "google_gmail_get_thread": {
+    "connectionId": "con_a1b2c3",
+    "threadId": "Quarterly planning"
+  },
+  "google_gmail_list_labels": {
+    "connectionId": "con_a1b2c3"
+  },
+  "google_gmail_list_messages": {
+    "connectionId": "con_a1b2c3"
+  },
+  "google_gmail_modify_labels": {
+    "connectionId": "con_a1b2c3",
+    "messageId": "Quarterly planning"
+  },
+  "google_gmail_trash_message": {
+    "connectionId": "con_a1b2c3",
+    "messageId": "Quarterly planning"
+  },
+  "google_meet_get_transcript_entries": {
+    "connectionId": "con_a1b2c3",
+    "transcript": "Quarterly planning"
+  },
+  "google_meet_list_conference_records": {
+    "connectionId": "con_a1b2c3"
+  },
+  "google_meet_list_recordings": {
+    "connectionId": "con_a1b2c3",
+    "conferenceRecord": "Quarterly planning"
+  },
+  "google_meet_list_transcripts": {
+    "connectionId": "con_a1b2c3",
+    "conferenceRecord": "Quarterly planning"
+  },
+  "google_sheets_append_values": {
+    "connectionId": "con_a1b2c3",
+    "spreadsheetId": "Quarterly planning",
+    "range": "Quarterly planning",
+    "values": [
+      [
+        "Quarterly planning"
+      ]
+    ]
+  },
+  "google_sheets_batch_update": {
+    "connectionId": "con_a1b2c3",
+    "spreadsheetId": "Quarterly planning",
+    "requests": [
+      {}
+    ]
+  },
+  "google_sheets_create_spreadsheet": {
+    "connectionId": "con_a1b2c3",
+    "title": "Quarterly planning"
+  },
+  "google_sheets_get_spreadsheet": {
+    "connectionId": "con_a1b2c3",
+    "spreadsheetId": "Quarterly planning"
+  },
+  "google_sheets_get_values": {
+    "connectionId": "con_a1b2c3",
+    "spreadsheetId": "Quarterly planning",
+    "range": "Quarterly planning"
+  },
+  "google_sheets_update_values": {
+    "connectionId": "con_a1b2c3",
+    "spreadsheetId": "Quarterly planning",
+    "range": "Quarterly planning",
+    "values": [
+      [
+        "Quarterly planning"
+      ]
+    ]
+  },
+  "governance_erase_apply": {
+    "findingId": "fnd_a1b2c3",
+    "include": [
+      "records"
+    ]
+  },
+  "governance_erase_find": {
+    "subject": {}
+  },
+  "governance_erase_list": {},
+  "governance_holds_list": {},
+  "governance_holds_place": {
+    "target": {
+      "kind": "file",
+      "id": "Quarterly planning"
+    },
+    "reason": "Here is the summary you asked for."
+  },
+  "governance_holds_release": {
+    "target": {
+      "kind": "file",
+      "id": "Quarterly planning"
+    }
+  },
+  "governance_jobs_list": {},
+  "governance_jobs_run_now": {
+    "kind": "trash"
+  },
+  "governance_retention_get": {},
+  "governance_retention_reset": {
+    "kind": "trash"
+  },
+  "governance_retention_set": {
+    "kind": "trash",
+    "value": "90d"
+  },
+  "governance_tombstones_list": {},
+  "handoff": {
+    "threadId": "thr_a1b2c3",
+    "toAgentId": "agt_a1b2c3",
+    "note": "Here is the summary you asked for."
+  },
+  "health_doctor": {},
+  "health_history": {
+    "key": "Plan_Key"
+  },
+  "health_machine": {},
+  "health_run": {},
+  "health_service_restart": {
+    "service": "Quarterly planning"
+  },
+  "health_services": {},
+  "health_status": {},
+  "health_support_bundle": {},
+  "helper_note": {
+    "threadId": "thr_a1b2c3",
+    "body": "Here is the summary you asked for."
+  },
+  "home_activity": {
+    "since": 1
+  },
+  "home_at_risk": {},
+  "home_away_digest": {
+    "since": 1
+  },
+  "home_checklist": {},
+  "home_digest": {},
+  "home_dismiss_checklist": {},
+  "home_mark_digest_seen": {
+    "digestId": "dgs_a1b2c3"
+  },
+  "home_routines_today": {},
+  "hooks_list": {},
+  "hooks_remove": {
+    "id": "Quarterly planning"
+  },
+  "hooks_runs": {},
+  "hooks_runs_latest": {
+    "threadId": "thr_a1b2c3"
+  },
+  "hooks_set": {
+    "scope": "space",
+    "event": "session.start",
+    "kind": "command"
+  },
+  "hubspot_list_objects": {
+    "connectionId": "con_a1b2c3",
+    "objectType": "contacts"
+  },
+  "hubspot_push_object": {
+    "connectionId": "con_a1b2c3",
+    "objectType": "Quarterly planning",
+    "properties": {}
+  },
+  "hubspot_test_connection": {
+    "connectionId": "con_a1b2c3"
+  },
+  "identity_github_link": {
+    "code": "Quarterly planning"
+  },
+  "identity_github_unlink": {},
+  "identity_passkey_register": {
+    "attestation": "Quarterly planning",
+    "name": "Quarterly planning"
+  },
+  "identity_passkey_remove": {
+    "name": "Quarterly planning"
+  },
+  "identity_reset_preview": {
+    "personId": "usr_a1b2c3"
+  },
+  "identity_reset_start": {
+    "personId": "usr_a1b2c3"
+  },
+  "identity_security_get": {},
+  "identity_sign_out": {},
+  "identity_totp_begin": {},
+  "identity_totp_confirm": {
+    "enrolmentId": "enr_a1b2c3",
+    "code": "Quarterly planning"
+  },
+  "identity_totp_remove": {
+    "password": "Quarterly planning"
+  },
+  "identity_whoami": {},
+  "import_commit": {
+    "importId": "imp_a1b2c3",
+    "previewToken": "Quarterly planning"
+  },
+  "import_discard": {
+    "importId": "imp_a1b2c3"
+  },
+  "import_get": {
+    "importId": "imp_a1b2c3"
+  },
+  "import_list": {},
+  "import_parse_airtable": {
+    "baseUrl": "https://acme.test/plan",
+    "key": "#Dana_Lawmatics"
+  },
+  "import_parse_csv": {},
+  "import_parse_excel": {
+    "fileId": "fil_a1b2c3"
+  },
+  "import_parse_google_sheets": {
+    "url": "https://acme.test/plan"
+  },
+  "import_parse_notion": {},
+  "import_preview": {
+    "importId": "imp_a1b2c3",
+    "type": "contact",
+    "mapping": [
+      {
+        "column": "Quarterly planning",
+        "field": "email"
+      }
+    ]
+  },
+  "import_suggest_mapping": {
+    "importId": "imp_a1b2c3",
+    "type": "contact"
+  },
+  "import_template": {
+    "type": "contact"
+  },
+  "inbox_counts": {},
+  "inbox_follow_set": {
+    "contactId": "rec_a1b2c3",
+    "follow": false
+  },
+  "inbox_following": {},
+  "inbox_list_by_contact": {},
+  "inbox_list_by_thread": {},
+  "inbox_mark_read": {
+    "conversationId": "cnv_a1b2c3"
+  },
+  "inbox_match": {
+    "conversationId": "cnv_a1b2c3",
+    "recordId": "rec_a1b2c3"
+  },
+  "inbox_match_new": {
+    "conversationId": "cnv_a1b2c3",
+    "type": "contact"
+  },
+  "inbox_match_suggestions": {
+    "conversationId": "cnv_a1b2c3"
+  },
+  "inbox_needs_match": {},
+  "inbox_recipients_search": {
+    "q": "quarterly plan"
+  },
+  "inbox_send_options": {},
+  "inbox_thread": {},
+  "inbox_thread_conversation": {
+    "threadId": "Quarterly planning"
+  },
+  "inbox_threads": {},
+  "inbox_unmatch": {
+    "conversationId": "cnv_a1b2c3"
+  },
+  "inbox_unmatched": {},
+  "install_apply": {
+    "planId": "ins_a1b2c3",
+    "for": "me"
+  },
+  "install_check_update": {
+    "installId": "ins_a1b2c3"
+  },
+  "install_from_link": {
+    "url": "https://acme.test/plan"
+  },
+  "install_get": {
+    "planId": "ins_a1b2c3"
+  },
+  "install_list": {},
+  "install_remove": {
+    "installId": "ins_a1b2c3"
+  },
+  "journeys_create": {
+    "name": "Quarterly planning",
+    "subjectType": "contact"
+  },
+  "journeys_delete": {
+    "journeyId": "jrn_a1b2c3"
+  },
+  "journeys_design": {
+    "journeyId": "jrn_a1b2c3",
+    "stages": [
+      {
+        "key": "intake",
+        "title": "Quarterly planning",
+        "order": 1,
+        "exit": {
+          "requireTasks": false
+        },
+        "tasks": [
+          {
+            "key": "collect_documents",
+            "title": "Quarterly planning",
+            "assigned": {
+              "kind": "person",
+              "id": "Quarterly planning"
+            },
+            "required": false
+          }
+        ],
+        "automations": [
+          "aut_a1b2c3"
+        ]
+      }
+    ]
+  },
+  "journeys_get": {
+    "journeyId": "jrn_a1b2c3"
+  },
+  "journeys_list": {},
+  "journeys_migrate": {
+    "journeyId": "jrn_a1b2c3",
+    "toVersion": 1,
+    "stageMap": {}
+  },
+  "journeys_move_stage": {
+    "journeyId": "jrn_a1b2c3",
+    "recordId": "rec_a1b2c3",
+    "toStage": "intake",
+    "reason": "Here is the summary you asked for."
+  },
+  "journeys_preview_migrate": {
+    "journeyId": "jrn_a1b2c3",
+    "toVersion": 1
+  },
+  "journeys_rename": {
+    "journeyId": "jrn_a1b2c3",
+    "name": "Quarterly planning"
+  },
+  "journeys_rules_set": {
+    "journeyId": "jrn_a1b2c3",
+    "stageKey": "intake"
+  },
+  "journeys_stage_counts": {
+    "journeyId": "jrn_a1b2c3"
+  },
+  "journeys_start": {
+    "journeyId": "jrn_a1b2c3",
+    "subjectRecordId": "rec_a1b2c3"
+  },
+  "journeys_tasks": {
+    "recordId": "rec_a1b2c3"
+  },
+  "journeys_versions": {
+    "journeyId": "jrn_a1b2c3"
+  },
+  "kits_builder_open": {},
+  "kits_choose": {
+    "kitId": "kit_a1b2c3",
+    "scope": "space"
+  },
+  "kits_denials": {
+    "kitId": "kit_a1b2c3"
+  },
+  "kits_get": {
+    "kitId": "kit_a1b2c3"
+  },
+  "kits_health": {
+    "kitId": "kit_a1b2c3"
+  },
+  "kits_install": {
+    "kitId": "kit_a1b2c3",
+    "accepted": true
+  },
+  "kits_install_sheet": {
+    "kitId": "kit_a1b2c3"
+  },
+  "kits_list": {},
+  "kits_preview": {
+    "kitId": "kit_a1b2c3"
+  },
+  "kits_publish": {
+    "kitId": "kit_a1b2c3",
+    "version": "Quarterly planning",
+    "channel": "stable"
+  },
+  "kits_restore_version": {
+    "kitId": "kit_a1b2c3",
+    "versionId": "ver_a1b2c3"
+  },
+  "kits_rollback": {
+    "kitId": "kit_a1b2c3"
+  },
+  "kits_test_run": {
+    "kitId": "kit_a1b2c3"
+  },
+  "kits_update": {
+    "kitId": "kit_a1b2c3"
+  },
+  "kits_versions": {
+    "kitId": "kit_a1b2c3"
+  },
+  "load_skill": {
+    "name": "Quarterly planning"
+  },
+  "logs_export": {},
+  "logs_query": {},
+  "logs_replay_get": {
+    "replayId": "rpl_a1b2c3"
+  },
+  "logs_replay_start": {
+    "atSeq": 1
+  },
+  "logs_settings_get": {},
+  "logs_settings_set": {},
+  "logs_spans": {},
+  "logs_tail": {},
+  "logs_trace": {
+    "traceId": "0123456789abcdef0123456789abcdef"
+  },
+  "machines_alerts": {},
+  "machines_alerts_notify": {},
+  "machines_fix": {
+    "machineId": "Quarterly planning",
+    "fix": "clear_caches"
+  },
+  "machines_get": {
+    "machineId": "Quarterly planning"
+  },
+  "machines_list": {},
+  "machines_move_record": {
+    "from": "dana@acme.test",
+    "to": "dana@acme.test",
+    "why": "Quarterly planning"
+  },
+  "machines_moves": {},
+  "machines_rooms": {
+    "ids": [
+      "Quarterly planning"
+    ]
+  },
+  "machines_set": {
+    "machineId": "Quarterly planning"
+  },
+  "mail_attachment_save": {
+    "messageId": "eml_a1b2c3",
+    "attachmentId": "Quarterly planning"
+  },
+  "mail_connect": {
+    "provider": "google",
+    "address": "dana@acme.test"
+  },
+  "mail_domain_add": {
+    "name": "Quarterly planning",
+    "provider": "resend"
+  },
+  "mail_domain_check": {
+    "domainId": "dom_a1b2c3"
+  },
+  "mail_domain_get": {
+    "domainId": "dom_a1b2c3"
+  },
+  "mail_domain_list": {},
+  "mail_domain_remove": {
+    "domainId": "dom_a1b2c3"
+  },
+  "mail_domain_set_default": {
+    "domainId": "dom_a1b2c3"
+  },
+  "mail_draft": {
+    "mailboxId": "mbx_a1b2c3"
+  },
+  "mail_drafts_discard": {
+    "draftId": "eml_a1b2c3"
+  },
+  "mail_drafts_list": {},
+  "mail_mailbox_create": {
+    "kind": "shared",
+    "address": "dana@acme.test",
+    "title": "Quarterly planning"
+  },
+  "mail_mailbox_disconnect": {
+    "mailboxId": "mbx_a1b2c3"
+  },
+  "mail_mailbox_get": {
+    "mailboxId": "mbx_a1b2c3"
+  },
+  "mail_mailbox_list": {},
+  "mail_mailbox_pause": {
+    "mailboxId": "mbx_a1b2c3"
+  },
+  "mail_mailbox_resume": {
+    "mailboxId": "mbx_a1b2c3"
+  },
+  "mail_mailbox_set_privacy": {
+    "mailboxId": "mbx_a1b2c3",
+    "privacy": "private"
+  },
+  "mail_mailbox_set_sync_state": {
+    "mailboxId": "mbx_a1b2c3",
+    "state": "error"
+  },
+  "mail_mailbox_update": {
+    "mailboxId": "mbx_a1b2c3"
+  },
+  "mail_message_get": {
+    "messageId": "eml_a1b2c3"
+  },
+  "mail_message_list": {},
+  "mail_message_search": {
+    "q": "quarterly plan"
+  },
+  "mail_message_set_private": {
+    "messageId": "eml_a1b2c3",
+    "isPrivate": false
+  },
+  "mail_route_list": {},
+  "mail_route_remove": {
+    "routeId": "rte_a1b2c3",
+    "domainId": "dom_a1b2c3"
+  },
+  "mail_route_set": {
+    "domainId": "dom_a1b2c3",
+    "localPart": "Quarterly planning",
+    "mailboxId": "mbx_a1b2c3"
+  },
+  "mail_send": {
+    "mailboxId": "mbx_a1b2c3",
+    "to": [
+      {
+        "address": "dana@acme.test"
+      }
+    ],
+    "subject": "Quarterly planning"
+  },
+  "mail_send_preview": {
+    "mailboxId": "mbx_a1b2c3",
+    "to": [
+      {
+        "address": "dana@acme.test"
+      }
+    ]
+  },
+  "mail_sync_now": {
+    "mailboxId": "mbx_a1b2c3"
+  },
+  "mail_thread_get": {
+    "threadId": "Quarterly planning"
+  },
+  "mcp_activity_list": {
+    "agentId": "agt_a1b2c3"
+  },
+  "mcp_call": {
+    "agentId": "agt_a1b2c3",
+    "server": "Quarterly planning",
+    "tool": "Quarterly planning"
+  },
+  "mcp_connected_link": {},
+  "mcp_read": {
+    "agentId": "agt_a1b2c3",
+    "server": "Quarterly planning",
+    "tool": "Quarterly planning"
+  },
+  "mcp_session_close": {
+    "sessionId": "ses_a1b2c3"
+  },
+  "mcp_sessions_list": {},
+  "mcp_tool_describe": {
+    "names": [
+      "Quarterly planning"
+    ]
+  },
+  "mcp_tools": {
+    "agentId": "agt_a1b2c3"
+  },
+  "mcp_tools_list": {},
+  "mcp_toolsets_list": {},
+  "meetings_attach_recording": {
+    "meetingId": "rec_a1b2c3",
+    "source": "zoom"
+  },
+  "meetings_cancel": {
+    "meetingId": "rec_a1b2c3"
+  },
+  "meetings_closeout_approve": {
+    "meetingId": "rec_a1b2c3"
+  },
+  "meetings_closeout_edit": {
+    "meetingId": "rec_a1b2c3",
+    "itemId": "Quarterly planning"
+  },
+  "meetings_closeout_get": {
+    "meetingId": "rec_a1b2c3"
+  },
+  "meetings_closeout_list": {},
+  "meetings_closeout_prepare": {
+    "meetingId": "rec_a1b2c3"
+  },
+  "meetings_closeout_propose": {
+    "meetingId": "rec_a1b2c3",
+    "summary": "Quarterly planning"
+  },
+  "meetings_closeout_share": {
+    "meetingId": "rec_a1b2c3",
+    "on": false
+  },
+  "meetings_closeout_skip": {
+    "meetingId": "rec_a1b2c3",
+    "itemId": "Quarterly planning"
+  },
+  "meetings_closeout_sync": {},
+  "meetings_get": {
+    "meetingId": "rec_a1b2c3"
+  },
+  "meetings_list": {},
+  "meetings_match_attendees": {
+    "meetingId": "rec_a1b2c3"
+  },
+  "meetings_merge": {
+    "meetingId": "rec_a1b2c3",
+    "otherId": "rec_a1b2c3"
+  },
+  "meetings_prep_get": {
+    "eventId": "cev_a1b2c3"
+  },
+  "meetings_prep_save": {
+    "eventId": "cev_a1b2c3",
+    "notes": [
+      "Quarterly planning"
+    ]
+  },
+  "meetings_prep_start": {
+    "eventId": "cev_a1b2c3"
+  },
+  "meetings_schedule": {
+    "title": "Quarterly planning",
+    "startsAt": 1,
+    "endsAt": 1,
+    "attendees": [
+      {
+        "email": "dana@acme.test"
+      }
+    ],
+    "provider": "zoom"
+  },
+  "meetings_set_summary": {
+    "meetingId": "rec_a1b2c3"
+  },
+  "meetings_summarize": {
+    "meetingId": "rec_a1b2c3"
+  },
+  "meetings_transcript_get": {
+    "meetingId": "rec_a1b2c3"
+  },
+  "meetings_unmerge": {
+    "meetingId": "rec_a1b2c3",
+    "eventId": "cev_a1b2c3"
+  },
+  "members_invites_create": {
+    "role": "rol_a1b2c3"
+  },
+  "members_invites_extend": {
+    "inviteId": "inv_a1b2c3",
+    "expiresInDays": 1
+  },
+  "members_invites_list": {},
+  "members_invites_revoke": {
+    "inviteId": "inv_a1b2c3"
+  },
+  "members_join_link_create": {},
+  "members_join_link_disable": {},
+  "members_join_link_get": {},
+  "members_join_link_rotate": {},
+  "members_join_requests_approve": {
+    "requestId": "jrq_a1b2c3"
+  },
+  "members_join_requests_decline": {
+    "requestId": "jrq_a1b2c3"
+  },
+  "members_join_requests_list": {},
+  "members_joins_list": {},
+  "members_joins_retry": {
+    "personId": "usr_a1b2c3"
+  },
+  "members_reactivate": {
+    "personId": "usr_a1b2c3"
+  },
+  "members_remove": {
+    "personId": "usr_a1b2c3",
+    "plan": [
+      {
+        "kind": "routines",
+        "action": "pause"
+      }
+    ]
+  },
+  "members_remove_preview": {
+    "personId": "usr_a1b2c3"
+  },
+  "members_second_factor_report": {},
+  "members_sign_in_github_clear": {},
+  "members_sign_in_github_get": {},
+  "members_sign_in_github_set": {
+    "clientId": "Quarterly planning"
+  },
+  "members_sign_in_policy_get": {},
+  "members_sign_in_policy_set": {
+    "policy": {
+      "secondFactor": "off",
+      "requireSso": false,
+      "allowPassword": false,
+      "allowGithub": false
+    }
+  },
+  "members_sso_list": {},
+  "members_sso_remove": {
+    "key": "google"
+  },
+  "members_sso_set": {
+    "provider": {
+      "key": "google",
+      "title": "Quarterly planning",
+      "issuer": "Quarterly planning",
+      "clientId": "Quarterly planning",
+      "clientSecretHandle": "#Dana_Lawmatics",
+      "enabled": false
+    }
+  },
+  "members_sso_test": {
+    "key": "google"
+  },
+  "members_suspend": {
+    "personId": "usr_a1b2c3"
+  },
+  "memory_backlinks": {
+    "pageId": "Quarterly planning"
+  },
+  "memory_corrections_record": {
+    "agentId": "agt_a1b2c3",
+    "how": "edit"
+  },
+  "memory_counts": {
+    "agentId": "agt_a1b2c3"
+  },
+  "memory_erase": {},
+  "memory_export_markdown": {},
+  "memory_fact_accept": {
+    "factId": "fct_a1b2c3"
+  },
+  "memory_fact_correct": {
+    "factId": "fct_a1b2c3",
+    "text": "Here is the summary you asked for."
+  },
+  "memory_fact_get": {
+    "factId": "fct_a1b2c3"
+  },
+  "memory_fact_reject": {
+    "factId": "fct_a1b2c3"
+  },
+  "memory_facts_list": {},
+  "memory_facts_remove": {},
+  "memory_forget": {
+    "factIds": [
+      "fct_a1b2c3"
+    ]
+  },
+  "memory_graph": {
+    "scope": "agent"
+  },
+  "memory_graph_everything": {},
+  "memory_graph_export": {
+    "scope": "agent"
+  },
+  "memory_key_set": {
+    "layer": "space",
+    "accountRef": "Quarterly planning"
+  },
+  "memory_keys_get": {},
+  "memory_layers_list": {},
+  "memory_layout_get": {
+    "scope": "agent"
+  },
+  "memory_layout_save": {
+    "scope": "agent",
+    "positions": {}
+  },
+  "memory_learned": {},
+  "memory_map_get": {
+    "agentId": "agt_a1b2c3"
+  },
+  "memory_meaning_rank": {
+    "query": "quarterly plan",
+    "candidates": [
+      {
+        "id": "Quarterly planning",
+        "text": "Here is the summary you asked for."
+      }
+    ]
+  },
+  "memory_meaning_status": {},
+  "memory_notes_list": {},
+  "memory_open_page": {},
+  "memory_page_delete": {
+    "pageId": "Quarterly planning"
+  },
+  "memory_page_list": {},
+  "memory_page_restore_version": {
+    "pageId": "Quarterly planning",
+    "version": 1
+  },
+  "memory_page_set_visibility": {
+    "pageId": "Quarterly planning",
+    "layer": "person"
+  },
+  "memory_page_versions": {
+    "pageId": "Quarterly planning"
+  },
+  "memory_place_archive": {
+    "placeKind": "chat",
+    "placeId": "Quarterly planning",
+    "action": "archive"
+  },
+  "memory_place_list": {
+    "placeKind": "chat",
+    "placeId": "Quarterly planning"
+  },
+  "memory_profile": {},
+  "memory_profile_move": {
+    "factId": "fct_a1b2c3",
+    "to": "public"
+  },
+  "memory_profile_suggest": {},
+  "memory_promote": {
+    "factId": "fct_a1b2c3",
+    "toLayer": "agent"
+  },
+  "memory_promotion_approve": {
+    "promotionId": "prm_a1b2c3"
+  },
+  "memory_promotion_reject": {
+    "promotionId": "prm_a1b2c3"
+  },
+  "memory_promotion_undo": {
+    "promotionId": "prm_a1b2c3"
+  },
+  "memory_propose": {
+    "text": "Here is the summary you asked for.",
+    "sourceKind": "chat",
+    "sourceRef": "Quarterly planning"
+  },
+  "memory_question_resolve": {
+    "questionId": "Quarterly planning",
+    "resolution": "keep_a"
+  },
+  "memory_questions": {},
+  "memory_quote": {},
+  "memory_remember": {
+    "text": "Here is the summary you asked for."
+  },
+  "memory_restore": {},
+  "memory_restore_version": {
+    "noteId": "not_a1b2c3",
+    "versionId": "ver_a1b2c3"
+  },
+  "memory_search": {
+    "q": "quarterly plan"
+  },
+  "memory_search_trash": {},
+  "memory_source_removed": {
+    "threadId": "thr_a1b2c3",
+    "messageId": "msg_a1b2c3"
+  },
+  "memory_trail": {},
+  "memory_undo": {
+    "factId": "fct_a1b2c3"
+  },
+  "memory_upkeep_status": {},
+  "memory_used": {
+    "threadId": "thr_a1b2c3",
+    "messageId": "msg_a1b2c3"
+  },
+  "memory_versions": {
+    "noteId": "not_a1b2c3"
+  },
+  "memory_write_page": {
+    "notes": "Quarterly planning"
+  },
+  "message_person": {
+    "to": "dana@acme.test",
+    "body": "Here is the summary you asked for."
+  },
+  "models_catalog": {},
+  "models_for_helpers": {},
+  "mounts_add": {
+    "into": "fld_a1b2c3",
+    "source": {
+      "kind": "google_drive"
+    }
+  },
+  "mounts_browse": {
+    "kind": "google_drive"
+  },
+  "mounts_doc_insert_text": {
+    "fileId": "fil_a1b2c3",
+    "text": "Here is the summary you asked for."
+  },
+  "mounts_doc_replace_text": {
+    "fileId": "fil_a1b2c3",
+    "find": "Quarterly planning",
+    "replace": "Quarterly planning"
+  },
+  "mounts_editors": {
+    "fileIds": [
+      "fil_a1b2c3"
+    ]
+  },
+  "mounts_file_link": {
+    "fileId": "fil_a1b2c3"
+  },
+  "mounts_get": {
+    "mountId": "mnt_a1b2c3"
+  },
+  "mounts_history": {
+    "fileId": "fil_a1b2c3"
+  },
+  "mounts_list": {},
+  "mounts_nudge": {
+    "source": "google"
+  },
+  "mounts_open": {
+    "fileId": "fil_a1b2c3"
+  },
+  "mounts_pause": {
+    "mountId": "mnt_a1b2c3"
+  },
+  "mounts_remove": {
+    "mountId": "mnt_a1b2c3"
+  },
+  "mounts_restore": {
+    "fileId": "fil_a1b2c3",
+    "revisionId": "Quarterly planning"
+  },
+  "mounts_resume": {
+    "mountId": "mnt_a1b2c3"
+  },
+  "mounts_sheet_append": {
+    "fileId": "fil_a1b2c3",
+    "values": [
+      []
+    ]
+  },
+  "mounts_sheet_read": {
+    "fileId": "fil_a1b2c3",
+    "range": "Quarterly planning"
+  },
+  "mounts_sheet_write": {
+    "fileId": "fil_a1b2c3",
+    "range": "Quarterly planning",
+    "values": [
+      []
+    ]
+  },
+  "mounts_sync_now": {
+    "mountId": "mnt_a1b2c3"
+  },
+  "mounts_update": {
+    "mountId": "mnt_a1b2c3"
+  },
+  "ms_access_log": {},
+  "ms_calendar_create_event": {
+    "connectionId": "con_a1b2c3"
+  },
+  "ms_calendar_delete_event": {
+    "connectionId": "con_a1b2c3",
+    "eventId": "Quarterly planning"
+  },
+  "ms_calendar_find_meeting_times": {
+    "connectionId": "con_a1b2c3",
+    "emails": [
+      "dana@acme.test"
+    ],
+    "durationMinutes": 5,
+    "start": "2026-11-20T15:00:00Z",
+    "end": "2026-11-20T15:00:00Z"
+  },
+  "ms_calendar_get_event": {
+    "connectionId": "con_a1b2c3",
+    "eventId": "Quarterly planning"
+  },
+  "ms_calendar_get_schedule": {
+    "connectionId": "con_a1b2c3",
+    "emails": [
+      "dana@acme.test"
+    ],
+    "start": "2026-11-20T15:00:00Z",
+    "end": "2026-11-20T15:00:00Z"
+  },
+  "ms_calendar_list_calendars": {
+    "connectionId": "con_a1b2c3"
+  },
+  "ms_calendar_list_events": {
+    "connectionId": "con_a1b2c3",
+    "start": "2026-11-20T15:00:00Z",
+    "end": "2026-11-20T15:00:00Z"
+  },
+  "ms_calendar_respond": {
+    "connectionId": "con_a1b2c3",
+    "eventId": "Quarterly planning",
+    "response": "accept"
+  },
+  "ms_calendar_update_event": {
+    "connectionId": "con_a1b2c3",
+    "eventId": "Quarterly planning"
+  },
+  "ms_consent_check_app": {
+    "vaultItem": "#Dana_Lawmatics"
+  },
+  "ms_consent_connect_all": {},
+  "ms_consent_disable": {},
+  "ms_consent_link": {},
+  "ms_consent_map_member": {
+    "email": "dana@acme.test"
+  },
+  "ms_consent_members": {},
+  "ms_consent_policy_snippet": {},
+  "ms_consent_set_data": {
+    "data": {
+      "mail": false,
+      "calendar": false,
+      "files": false
+    }
+  },
+  "ms_consent_set_excluded": {
+    "email": "dana@acme.test",
+    "excluded": false
+  },
+  "ms_consent_setup": {
+    "vaultItem": "#Dana_Lawmatics",
+    "tenantId": "Quarterly planning"
+  },
+  "ms_consent_status": {},
+  "ms_consent_sync_members": {},
+  "ms_consent_verify": {},
+  "ms_directory_import": {
+    "people": [
+      {
+        "email": "dana@acme.test",
+        "role": "rol_a1b2c3"
+      }
+    ]
+  },
+  "ms_directory_list": {},
+  "ms_directory_reconcile": {},
+  "ms_drive_create_folder": {
+    "connectionId": "con_a1b2c3",
+    "name": "Quarterly planning"
+  },
+  "ms_drive_delete_item": {
+    "connectionId": "con_a1b2c3",
+    "itemId": "Quarterly planning"
+  },
+  "ms_drive_download_item": {
+    "connectionId": "con_a1b2c3",
+    "itemId": "Quarterly planning"
+  },
+  "ms_drive_download_version": {
+    "connectionId": "con_a1b2c3",
+    "itemId": "Quarterly planning",
+    "versionId": "Quarterly planning"
+  },
+  "ms_drive_get_item": {
+    "connectionId": "con_a1b2c3",
+    "itemId": "Quarterly planning"
+  },
+  "ms_drive_list_items": {
+    "connectionId": "con_a1b2c3"
+  },
+  "ms_drive_list_versions": {
+    "connectionId": "con_a1b2c3",
+    "itemId": "Quarterly planning"
+  },
+  "ms_drive_share_item": {
+    "connectionId": "con_a1b2c3",
+    "itemId": "Quarterly planning",
+    "role": "read"
+  },
+  "ms_drive_upload_item": {
+    "connectionId": "con_a1b2c3",
+    "name": "Quarterly planning",
+    "fileId": "fil_a1b2c3"
+  },
+  "ms_mail_create_draft": {
+    "connectionId": "con_a1b2c3",
+    "to": [
+      "dana@acme.test"
+    ],
+    "subject": "Quarterly planning"
+  },
+  "ms_mail_delete_message": {
+    "connectionId": "con_a1b2c3",
+    "messageId": "Quarterly planning"
+  },
+  "ms_mail_get_message": {
+    "connectionId": "con_a1b2c3",
+    "messageId": "Quarterly planning"
+  },
+  "ms_mail_list_folders": {
+    "connectionId": "con_a1b2c3"
+  },
+  "ms_mail_list_messages": {
+    "connectionId": "con_a1b2c3"
+  },
+  "ms_mail_move_message": {
+    "connectionId": "con_a1b2c3",
+    "messageId": "Quarterly planning",
+    "folderId": "Quarterly planning"
+  },
+  "ms_mail_update_message": {
+    "connectionId": "con_a1b2c3",
+    "messageId": "Quarterly planning"
+  },
+  "ms_teams_recordings_get_recording": {
+    "connectionId": "con_a1b2c3",
+    "onlineMeetingId": "Quarterly planning",
+    "recordingId": "Quarterly planning"
+  },
+  "ms_teams_recordings_get_transcript": {
+    "connectionId": "con_a1b2c3",
+    "onlineMeetingId": "Quarterly planning",
+    "transcriptId": "Quarterly planning"
+  },
+  "ms_teams_recordings_list_recordings": {
+    "connectionId": "con_a1b2c3",
+    "onlineMeetingId": "Quarterly planning"
+  },
+  "ms_teams_recordings_list_transcripts": {
+    "connectionId": "con_a1b2c3",
+    "onlineMeetingId": "Quarterly planning"
+  },
+  "ms_workbook_append_rows": {
+    "connectionId": "con_a1b2c3",
+    "itemId": "Quarterly planning",
+    "sheet": "Quarterly planning",
+    "values": [
+      []
+    ]
+  },
+  "ms_workbook_get_range": {
+    "connectionId": "con_a1b2c3",
+    "itemId": "Quarterly planning",
+    "sheet": "Quarterly planning",
+    "range": "Quarterly planning"
+  },
+  "ms_workbook_update_range": {
+    "connectionId": "con_a1b2c3",
+    "itemId": "Quarterly planning",
+    "sheet": "Quarterly planning",
+    "range": "Quarterly planning",
+    "values": [
+      []
+    ]
+  },
+  "my_ai": {},
+  "network_certificate_renew": {
+    "host": "plan.acme.test"
+  },
+  "network_domain_set": {
+    "domain": "plan.acme.test"
+  },
+  "network_ingress_check": {},
+  "network_my_computer_approve": {
+    "serverId": "srv_a1b2c3"
+  },
+  "network_my_computer_code": {},
+  "network_my_computer_decline": {
+    "serverId": "srv_a1b2c3"
+  },
+  "network_my_computer_remove": {
+    "serverId": "srv_a1b2c3"
+  },
+  "network_my_computers": {},
+  "network_peer_allow": {
+    "requestId": "Quarterly planning"
+  },
+  "network_peer_conflicts": {},
+  "network_peer_decline": {
+    "requestId": "Quarterly planning"
+  },
+  "network_peer_remove": {
+    "peerId": "Quarterly planning"
+  },
+  "network_peer_requests": {},
+  "network_peer_runner": {},
+  "network_peer_server_code": {},
+  "network_peers": {},
+  "network_phone": {},
+  "network_phone_claim": {
+    "name": "Quarterly planning"
+  },
+  "network_phone_release": {},
+  "network_public_hostnames": {},
+  "network_relay_set": {
+    "mode": "own_domain"
+  },
+  "network_server_approve": {
+    "serverId": "srv_a1b2c3"
+  },
+  "network_server_decline": {
+    "serverId": "srv_a1b2c3"
+  },
+  "network_server_join_code": {},
+  "network_server_reconnect": {
+    "serverId": "srv_a1b2c3"
+  },
+  "network_server_remove": {
+    "serverId": "srv_a1b2c3"
+  },
+  "network_servers": {},
+  "network_status": {},
+  "notes_create": {},
+  "notes_get": {
+    "noteId": "nte_a1b2c3"
+  },
+  "notes_search": {
+    "q": "quarterly plan"
+  },
+  "notifications_away_clear": {},
+  "notifications_away_get": {},
+  "notifications_away_set": {
+    "until": 1,
+    "delegate": {
+      "kind": "person"
+    }
+  },
+  "notifications_away_who": {},
+  "notifications_counts": {},
+  "notifications_delegate_get": {},
+  "notifications_delegate_set": {
+    "chain": [
+      {
+        "kind": "person"
+      }
+    ]
+  },
+  "notifications_kind_set_level": {
+    "kind": "approval.requested"
+  },
+  "notifications_kinds_list": {},
+  "notifications_list": {},
+  "notifications_mark_seen": {},
+  "notifications_mute_clear": {
+    "target": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    }
+  },
+  "notifications_mute_list": {},
+  "notifications_mute_set": {
+    "target": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    }
+  },
+  "notifications_push_register": {
+    "device": "dev_a1b2c3",
+    "platform": "ios",
+    "token": "Quarterly planning"
+  },
+  "notifications_push_unregister": {
+    "device": "dev_a1b2c3"
+  },
+  "notifications_rules_get": {},
+  "notifications_rules_set": {},
+  "notifications_send": {
+    "to": "dana@acme.test",
+    "kind": "dm"
+  },
+  "offer_note": {
+    "threadId": "thr_a1b2c3",
+    "title": "Quarterly planning",
+    "body": "Here is the summary you asked for.",
+    "topic": "Quarterly planning"
+  },
+  "open_tab": {
+    "threadId": "thr_a1b2c3",
+    "targetType": "Quarterly planning",
+    "targetId": "Quarterly planning"
+  },
+  "overview_edit": {
+    "projectId": "prj_a1b2c3",
+    "ops": [
+      {
+        "op": "insert"
+      }
+    ]
+  },
+  "overview_get": {
+    "projectId": "prj_a1b2c3"
+  },
+  "people_status": {},
+  "plan_propose": {
+    "threadId": "thr_a1b2c3",
+    "title": "Quarterly planning",
+    "steps": [
+      {
+        "text": "Here is the summary you asked for."
+      }
+    ]
+  },
+  "plugins_agent_template_use": {
+    "pluginId": "plg_a1b2c3",
+    "name": "Quarterly planning"
+  },
+  "plugins_agent_templates": {},
+  "plugins_allow": {
+    "kind": "marketplace",
+    "marketplace": "Quarterly planning",
+    "allowed": false
+  },
+  "plugins_allowlist": {},
+  "plugins_browse": {},
+  "plugins_command": {
+    "name": "Quarterly planning"
+  },
+  "plugins_commands": {},
+  "plugins_config": {
+    "pluginId": "plg_a1b2c3",
+    "config": {}
+  },
+  "plugins_connection_add": {
+    "name": "Quarterly planning",
+    "scope": "space"
+  },
+  "plugins_connection_add_mine": {
+    "name": "Quarterly planning"
+  },
+  "plugins_connection_forget": {
+    "connectionId": "mcs_a1b2c3"
+  },
+  "plugins_connection_remove": {},
+  "plugins_connection_update": {
+    "connectionId": "mcs_a1b2c3"
+  },
+  "plugins_connections": {},
+  "plugins_connections_home": {},
+  "plugins_get": {
+    "pluginId": "plg_a1b2c3"
+  },
+  "plugins_install": {
+    "plugin": "Quarterly planning",
+    "scope": "space"
+  },
+  "plugins_list": {},
+  "plugins_marketplace_add": {
+    "source": "Quarterly planning"
+  },
+  "plugins_marketplace_refresh": {
+    "marketplaceId": "mkt_a1b2c3"
+  },
+  "plugins_marketplace_remove": {},
+  "plugins_marketplaces": {},
+  "plugins_mcp_servers": {},
+  "plugins_registry_search": {},
+  "plugins_set_enabled": {
+    "pluginId": "plg_a1b2c3",
+    "enabled": false
+  },
+  "plugins_uninstall": {},
+  "portal_account_create": {
+    "siteId": "sit_a1b2c3",
+    "email": "dana@acme.test",
+    "method": "magic_link"
+  },
+  "portal_account_disable": {
+    "accountId": "pac_a1b2c3"
+  },
+  "portal_accounts": {
+    "siteId": "sit_a1b2c3"
+  },
+  "portal_file_link": {
+    "accountId": "pac_a1b2c3",
+    "fileId": "fil_a1b2c3",
+    "expiresInMinutes": 1
+  },
+  "portal_link_record": {
+    "accountId": "pac_a1b2c3",
+    "recordId": "rec_a1b2c3",
+    "rowRule": "Quarterly planning"
+  },
+  "portal_post": {
+    "accountId": "pac_a1b2c3",
+    "recordId": "rec_a1b2c3",
+    "body": "Here is the summary you asked for."
+  },
+  "portal_rules": {
+    "siteId": "sit_a1b2c3"
+  },
+  "previews_get": {
+    "fileId": "fil_a1b2c3"
+  },
+  "previews_pages": {
+    "fileId": "fil_a1b2c3"
+  },
+  "previews_text": {
+    "fileId": "fil_a1b2c3"
+  },
+  "previews_thumbnails": {
+    "fileIds": [
+      "fil_a1b2c3"
+    ]
+  },
+  "projects_apply_cascade": {
+    "projectId": "prj_a1b2c3",
+    "proposalId": "csc_a1b2c3",
+    "decision": "apply"
+  },
+  "projects_archive": {
+    "projectId": "prj_a1b2c3"
+  },
+  "projects_cascade": {
+    "projectId": "prj_a1b2c3",
+    "taskId": "tsk_a1b2c3"
+  },
+  "projects_create": {
+    "type": "contact",
+    "title": "Quarterly planning"
+  },
+  "projects_crew": {
+    "projectId": "prj_a1b2c3"
+  },
+  "projects_file_chat": {
+    "projectId": "prj_a1b2c3",
+    "threadId": "thr_a1b2c3"
+  },
+  "projects_files_folder": {
+    "recordId": "rec_a1b2c3"
+  },
+  "projects_for_channel": {
+    "channelId": "chn_a1b2c3"
+  },
+  "projects_from_channel": {
+    "channelId": "chn_a1b2c3"
+  },
+  "projects_get": {
+    "projectId": "prj_a1b2c3"
+  },
+  "projects_link_tasks": {
+    "projectId": "prj_a1b2c3",
+    "fromTaskId": "tsk_a1b2c3",
+    "toTaskId": "tsk_a1b2c3"
+  },
+  "projects_links_link": {
+    "projectId": "prj_a1b2c3",
+    "kind": "record",
+    "ref": "main"
+  },
+  "projects_links_list": {
+    "projectId": "prj_a1b2c3"
+  },
+  "projects_links_rules_set": {
+    "projectId": "prj_a1b2c3",
+    "rules": [
+      {
+        "kind": "repo"
+      }
+    ]
+  },
+  "projects_links_unlink": {
+    "projectId": "prj_a1b2c3",
+    "kind": "record",
+    "ref": "main"
+  },
+  "projects_list": {},
+  "projects_live_block_query": {
+    "projectId": "prj_a1b2c3"
+  },
+  "projects_members_list": {
+    "projectId": "prj_a1b2c3"
+  },
+  "projects_members_remove": {
+    "projectId": "prj_a1b2c3",
+    "principal": "Quarterly planning"
+  },
+  "projects_members_set": {
+    "projectId": "prj_a1b2c3",
+    "principal": "Quarterly planning",
+    "role": "lead"
+  },
+  "projects_open_task_thread": {
+    "projectId": "prj_a1b2c3",
+    "taskId": "tsk_a1b2c3"
+  },
+  "projects_overview": {
+    "projectId": "prj_a1b2c3"
+  },
+  "projects_overview_doc_apply_template": {
+    "projectId": "prj_a1b2c3",
+    "templateId": "Quarterly planning"
+  },
+  "projects_overview_doc_get": {
+    "projectId": "prj_a1b2c3"
+  },
+  "projects_overview_doc_history": {
+    "projectId": "prj_a1b2c3"
+  },
+  "projects_overview_doc_restore": {
+    "projectId": "prj_a1b2c3",
+    "rev": 1
+  },
+  "projects_overview_doc_save": {
+    "projectId": "prj_a1b2c3"
+  },
+  "projects_overview_doc_templates_list": {},
+  "projects_overview_doc_templates_save": {
+    "title": "Quarterly planning"
+  },
+  "projects_overview_doc_undo": {
+    "projectId": "prj_a1b2c3"
+  },
+  "projects_pin_file": {
+    "projectId": "prj_a1b2c3",
+    "fileId": "fil_a1b2c3"
+  },
+  "projects_plan": {
+    "projectId": "prj_a1b2c3"
+  },
+  "projects_post_update": {
+    "projectId": "prj_a1b2c3"
+  },
+  "projects_reschedule": {
+    "projectId": "prj_a1b2c3",
+    "taskId": "tsk_a1b2c3"
+  },
+  "projects_roles_of": {
+    "personId": "usr_a1b2c3"
+  },
+  "projects_set": {
+    "projectId": "prj_a1b2c3",
+    "health": "on"
+  },
+  "projects_share_out": {
+    "projectId": "prj_a1b2c3"
+  },
+  "projects_stages_set": {
+    "projectId": "prj_a1b2c3",
+    "stages": [
+      {
+        "title": "Quarterly planning"
+      }
+    ]
+  },
+  "projects_teammates_create": {
+    "projectId": "prj_a1b2c3",
+    "name": "Quarterly planning",
+    "role": "lead"
+  },
+  "projects_teammates_list": {
+    "projectId": "prj_a1b2c3"
+  },
+  "projects_teammates_remove": {
+    "projectId": "prj_a1b2c3",
+    "agentId": "agt_a1b2c3"
+  },
+  "projects_templates_list": {},
+  "projects_unarchive": {
+    "projectId": "prj_a1b2c3"
+  },
+  "projects_unlink_tasks": {
+    "projectId": "prj_a1b2c3",
+    "fromTaskId": "tsk_a1b2c3",
+    "toTaskId": "tsk_a1b2c3"
+  },
+  "projects_unpin_file": {
+    "projectId": "prj_a1b2c3",
+    "fileId": "fil_a1b2c3"
+  },
+  "projects_unshare_out": {
+    "projectId": "prj_a1b2c3",
+    "url": "https://acme.test/plan"
+  },
+  "projects_update_draft": {
+    "projectId": "prj_a1b2c3"
+  },
+  "projects_update_edit": {
+    "projectId": "prj_a1b2c3",
+    "text": "Here is the summary you asked for."
+  },
+  "providers_add": {
+    "providerKey": "Quarterly planning",
+    "connection": "api_key",
+    "scope": "mine"
+  },
+  "providers_catalog": {},
+  "providers_custom_add": {
+    "name": "Quarterly planning",
+    "baseUrl": "https://acme.test/plan",
+    "scope": "mine"
+  },
+  "providers_custom_list": {},
+  "providers_custom_remove": {
+    "key": "Plan_Key"
+  },
+  "providers_list": {},
+  "providers_own_people": {},
+  "providers_remove": {
+    "providerId": "prv_a1b2c3"
+  },
+  "providers_set_keeps_nothing": {
+    "providerId": "prv_a1b2c3",
+    "keepsNothing": false
+  },
+  "providers_set_space_use": {
+    "providerId": "prv_a1b2c3",
+    "allow": false
+  },
+  "providers_space_key_get": {},
+  "providers_space_key_set": {
+    "providerKey": "Quarterly planning",
+    "apiKey": "Quarterly planning"
+  },
+  "providers_subscription_complete": {
+    "flowId": "sub_a1b2c3"
+  },
+  "providers_subscription_start": {
+    "providerKey": "Quarterly planning"
+  },
+  "providers_test": {
+    "providerId": "prv_a1b2c3"
+  },
+  "providers_uses_set": {
+    "providerId": "prv_a1b2c3",
+    "uses": {}
+  },
+  "read_link": {
+    "url": "https://acme.test/plan"
+  },
+  "read_note": {
+    "noteId": "not_a1b2c3"
+  },
+  "records_activity": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3"
+  },
+  "records_as_of": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3",
+    "at": 1
+  },
+  "records_bulk_upsert": {
+    "type": "contact",
+    "rows": [
+      {}
+    ],
+    "match": [
+      "Quarterly planning"
+    ]
+  },
+  "records_comments_add": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3",
+    "text": "Here is the summary you asked for."
+  },
+  "records_comments_delete": {
+    "commentId": "Quarterly planning"
+  },
+  "records_comments_edit": {
+    "commentId": "Quarterly planning",
+    "text": "Here is the summary you asked for."
+  },
+  "records_comments_list": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3"
+  },
+  "records_comments_resolve": {
+    "commentId": "Quarterly planning",
+    "resolved": false
+  },
+  "records_completeness": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3"
+  },
+  "records_create": {
+    "type": "contact",
+    "fields": {}
+  },
+  "records_delete": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3"
+  },
+  "records_export": {
+    "type": "contact",
+    "format": "csv"
+  },
+  "records_gap_check": {
+    "type": "contact"
+  },
+  "records_get": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3"
+  },
+  "records_history": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3"
+  },
+  "records_hold": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3",
+    "reason": "Here is the summary you asked for."
+  },
+  "records_merge": {
+    "type": "contact",
+    "survivorId": "rec_a1b2c3",
+    "mergedIds": [
+      "rec_a1b2c3"
+    ],
+    "picks": {}
+  },
+  "records_page_prefs_get": {
+    "type": "contact"
+  },
+  "records_page_prefs_set": {
+    "type": "contact"
+  },
+  "records_query": {
+    "type": "contact"
+  },
+  "records_relate": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3",
+    "field": "Quarterly planning",
+    "toId": "rec_a1b2c3"
+  },
+  "records_relations_map": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3"
+  },
+  "records_release_hold": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3"
+  },
+  "records_restore": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3"
+  },
+  "records_restore_version": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3",
+    "versionId": "ver_a1b2c3"
+  },
+  "records_search": {
+    "type": "contact",
+    "q": "quarterly plan"
+  },
+  "records_update": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3",
+    "patch": {}
+  },
+  "records_value_source": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3",
+    "field": "Quarterly planning"
+  },
+  "records_values_pending": {
+    "type": "contact"
+  },
+  "records_values_review": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3",
+    "field": "Quarterly planning",
+    "decision": "accept"
+  },
+  "records_versions": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3"
+  },
+  "records_view": {
+    "type": "contact",
+    "viewId": "viw_a1b2c3"
+  },
+  "reports_get": {
+    "reportId": "rpt_a1b2c3"
+  },
+  "reports_list": {},
+  "reports_policy_get": {},
+  "reports_policy_set": {
+    "policy": "on"
+  },
+  "reports_preview": {
+    "context": {
+      "place": "Quarterly planning"
+    }
+  },
+  "reports_submit": {
+    "bundle": {
+      "context": {
+        "place": "Quarterly planning"
+      },
+      "traceIds": [
+        "0123456789abcdef0123456789abcdef"
+      ],
+      "events": [
+        {
+          "type": "Quarterly planning",
+          "at": 1
+        }
+      ],
+      "versions": {
+        "app": "Quarterly planning",
+        "server": "Quarterly planning",
+        "device": "Quarterly planning"
+      }
+    }
+  },
+  "runbooks_list": {},
+  "runbooks_parse": {
+    "fileId": "fil_a1b2c3"
+  },
+  "runbooks_run": {
+    "fileId": "fil_a1b2c3"
+  },
+  "runbooks_runs_get": {
+    "runId": "run_a1b2c3"
+  },
+  "runbooks_runs_list": {
+    "fileId": "fil_a1b2c3"
+  },
+  "runbooks_set_target": {
+    "fileId": "fil_a1b2c3",
+    "target": {
+      "kind": "server"
+    }
+  },
+  "runbooks_targets": {},
+  "runs_count": {
+    "scope": "mine"
+  },
+  "runs_get": {
+    "runId": "run_a1b2c3"
+  },
+  "runs_list": {
+    "scope": "mine"
+  },
+  "runs_people_counts": {},
+  "runs_preview_undo": {
+    "runId": "run_a1b2c3"
+  },
+  "runs_replay": {
+    "runId": "run_a1b2c3"
+  },
+  "runs_retry": {
+    "runId": "run_a1b2c3"
+  },
+  "runs_step_io": {
+    "runId": "run_a1b2c3",
+    "step": "Quarterly planning"
+  },
+  "runs_steps": {
+    "runId": "run_a1b2c3"
+  },
+  "runs_stop": {
+    "runId": "run_a1b2c3"
+  },
+  "runs_undo": {
+    "runId": "run_a1b2c3"
+  },
+  "scheduler_cancel": {
+    "scheduleId": "sch_a1b2c3"
+  },
+  "scheduler_get": {
+    "scheduleId": "sch_a1b2c3"
+  },
+  "scheduler_list": {},
+  "scheduler_missed": {
+    "since": 1
+  },
+  "scheduler_next_times": {
+    "cron": "Quarterly planning",
+    "tz": "America/New_York"
+  },
+  "scheduler_pause": {
+    "scheduleId": "sch_a1b2c3",
+    "reason": "Here is the summary you asked for."
+  },
+  "scheduler_reschedule": {
+    "scheduleId": "sch_a1b2c3"
+  },
+  "scheduler_resume": {
+    "scheduleId": "sch_a1b2c3"
+  },
+  "scheduler_run_now": {
+    "scheduleId": "sch_a1b2c3"
+  },
+  "scheduler_waits_list": {},
+  "schema_apply": {
+    "ops": [
+      {
+        "op": "type.create",
+        "type": "contact"
+      }
+    ]
+  },
+  "schema_changes_list": {},
+  "schema_describe": {},
+  "schema_diff": {
+    "ops": [
+      {
+        "op": "type.create",
+        "type": "contact"
+      }
+    ]
+  },
+  "schema_field_types": {},
+  "schema_gap_rules_list": {
+    "type": "contact"
+  },
+  "schema_gap_rules_set": {
+    "type": "contact",
+    "rule": {
+      "ruleId": "Quarterly planning",
+      "field": "phone",
+      "when": "missing",
+      "route": "ai_field",
+      "enabled": false
+    }
+  },
+  "schema_infer": {},
+  "schema_layout_get": {
+    "type": "contact"
+  },
+  "schema_layout_set": {
+    "type": "contact",
+    "sections": [
+      {
+        "key": "Plan_Key",
+        "title": "Quarterly planning",
+        "fields": [
+          "phone"
+        ]
+      }
+    ]
+  },
+  "schema_map": {},
+  "schema_restore_field": {
+    "type": "contact",
+    "field": "phone"
+  },
+  "schema_sensitivity_scan": {
+    "type": "contact"
+  },
+  "schema_set_label": {
+    "type": "contact",
+    "label": "public"
+  },
+  "schema_trash_list": {},
+  "schema_types_get": {
+    "type": "contact"
+  },
+  "schema_types_list": {},
+  "schema_view_kinds": {},
+  "screen_click": {
+    "x": 1,
+    "y": 1
+  },
+  "screen_drag": {
+    "fromX": 1,
+    "fromY": 1,
+    "toX": 1,
+    "toY": 1
+  },
+  "screen_key": {
+    "combo": "Quarterly planning"
+  },
+  "screen_move": {
+    "x": 1,
+    "y": 1
+  },
+  "screen_screenshot": {},
+  "screen_scroll": {
+    "x": 1,
+    "y": 1,
+    "dy": 1
+  },
+  "screen_type": {
+    "text": "Here is the summary you asked for."
+  },
+  "screen_wait": {
+    "ms": 50
+  },
+  "search_actions_list": {},
+  "search_ask": {
+    "q": "quarterly plan"
+  },
+  "search_index_rebuild": {},
+  "search_index_stats": {},
+  "search_query": {
+    "q": "quarterly plan"
+  },
+  "search_recent_list": {},
+  "search_recent_record": {
+    "kind": "person",
+    "itemId": "Quarterly planning"
+  },
+  "search_related": {
+    "kind": "person",
+    "itemId": "Quarterly planning"
+  },
+  "search_resolve": {
+    "kind": "person",
+    "itemId": "Quarterly planning"
+  },
+  "sessions_archive": {
+    "conversationId": "isc_a1b2c3"
+  },
+  "sessions_continue": {
+    "conversationId": "isc_a1b2c3",
+    "destinationSpaceId": "spc_a1b2c3",
+    "destinationScope": "personal",
+    "agentId": "agt_a1b2c3"
+  },
+  "sessions_get": {
+    "conversationId": "isc_a1b2c3"
+  },
+  "sessions_import": {
+    "provider": "codex",
+    "sourceKey": "Quarterly planning",
+    "consent": {
+      "previewedAt": 1,
+      "confirmedAt": 1
+    },
+    "sessions": [
+      {
+        "sourceSessionId": "Quarterly planning",
+        "startedAt": 1,
+        "messages": [
+          {
+            "sourceMessageId": "Quarterly planning",
+            "role": "user",
+            "text": "Here is the summary you asked for.",
+            "at": 1
+          }
+        ]
+      }
+    ]
+  },
+  "sessions_list": {},
+  "sessions_rename": {
+    "conversationId": "isc_a1b2c3",
+    "title": "Quarterly planning"
+  },
+  "settings_contact_status": {},
+  "settings_contact_verify_confirm": {
+    "channel": "email",
+    "code": "Quarterly pl"
+  },
+  "settings_contact_verify_start": {
+    "channel": "email"
+  },
+  "settings_copy_profile": {
+    "fields": [
+      "photo"
+    ],
+    "values": {}
+  },
+  "settings_copy_source": {},
+  "settings_floor_set": {
+    "key": "Plan_Key",
+    "floor": "Quarterly planning"
+  },
+  "settings_get": {
+    "key": "Plan_Key"
+  },
+  "settings_kit_get": {},
+  "settings_kit_set_mine": {
+    "kitId": "kit_a1b2c3"
+  },
+  "settings_kit_set_space": {
+    "kitId": "kit_a1b2c3"
+  },
+  "settings_list": {},
+  "settings_pages": {},
+  "settings_reset": {
+    "key": "Plan_Key"
+  },
+  "settings_reset_space": {
+    "key": "Plan_Key"
+  },
+  "settings_search": {
+    "q": "quarterly plan"
+  },
+  "settings_set": {
+    "key": "Plan_Key",
+    "value": "Quarterly planning"
+  },
+  "settings_set_space": {
+    "key": "Plan_Key",
+    "value": "Quarterly planning"
+  },
+  "sheets_add_sheet": {
+    "fileId": "fil_a1b2c3",
+    "sheet": "Quarterly planning",
+    "columns": [
+      "Quarterly planning"
+    ]
+  },
+  "sheets_append_rows": {
+    "fileId": "fil_a1b2c3",
+    "rows": [
+      {}
+    ]
+  },
+  "sheets_create": {
+    "folderId": "fld_a1b2c3",
+    "name": "Quarterly planning",
+    "format": "csv",
+    "columns": [
+      "Quarterly planning"
+    ]
+  },
+  "sheets_delete_row": {
+    "fileId": "fil_a1b2c3",
+    "rowId": "Quarterly planning"
+  },
+  "sheets_info": {
+    "fileId": "fil_a1b2c3"
+  },
+  "sheets_read_rows": {
+    "fileId": "fil_a1b2c3"
+  },
+  "sheets_update_row": {
+    "fileId": "fil_a1b2c3",
+    "values": {}
+  },
+  "sheets_upsert_row": {
+    "fileId": "fil_a1b2c3",
+    "match": [
+      "Quarterly planning"
+    ],
+    "values": {}
+  },
+  "sites_addon_add": {
+    "siteId": "sit_a1b2c3",
+    "kind": "postgres"
+  },
+  "sites_addon_remove": {
+    "siteId": "sit_a1b2c3",
+    "kind": "postgres"
+  },
+  "sites_artifact_open": {
+    "artifactId": "sit_a1b2c3"
+  },
+  "sites_artifact_thumb_set": {
+    "artifactId": "sit_a1b2c3",
+    "thumb": "Quarterly planning"
+  },
+  "sites_build": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_chat_viewing": {
+    "threadId": "thr_a1b2c3"
+  },
+  "sites_create": {
+    "name": "Quarterly planning"
+  },
+  "sites_db_import": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_delete": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_deploy": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_deployments": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_domain_add": {
+    "siteId": "sit_a1b2c3",
+    "domain": "plan.acme.test"
+  },
+  "sites_domain_check": {
+    "siteId": "sit_a1b2c3",
+    "domain": "plan.acme.test"
+  },
+  "sites_domain_set": {
+    "siteId": "sit_a1b2c3",
+    "domain": "plan.acme.test"
+  },
+  "sites_domains_get": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_env_list": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_env_set": {
+    "siteId": "sit_a1b2c3",
+    "entries": [
+      {
+        "name": "Quarterly planning",
+        "vaultHandle": "#Dana_Lawmatics"
+      }
+    ]
+  },
+  "sites_get": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_host": {},
+  "sites_list": {},
+  "sites_logs": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_plan": {},
+  "sites_preview_rebuild": {
+    "siteId": "sit_a1b2c3",
+    "branch": "main"
+  },
+  "sites_preview_remove": {
+    "siteId": "sit_a1b2c3",
+    "branch": "main"
+  },
+  "sites_previews": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_promote": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_publish": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_rollback": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_service_identity": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_staging_password_set": {
+    "siteId": "sit_a1b2c3",
+    "vaultHandle": "#Dana_Lawmatics"
+  },
+  "sites_status": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_stop": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_table_create": {
+    "siteId": "sit_a1b2c3",
+    "key": "Plan_Key",
+    "fields": [
+      {
+        "key": "Plan_Key",
+        "type": "Quarterly planning",
+        "title": "Quarterly planning"
+      }
+    ]
+  },
+  "sites_table_promote": {
+    "siteId": "sit_a1b2c3",
+    "type": "Quarterly planning"
+  },
+  "sites_tables": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_update": {
+    "siteId": "sit_a1b2c3"
+  },
+  "skill_grant": {
+    "skillId": "sko_a1b2c3",
+    "agentId": "agt_a1b2c3",
+    "level": "use"
+  },
+  "skill_grants": {
+    "skillId": "sko_a1b2c3"
+  },
+  "skill_history": {
+    "skillId": "sko_a1b2c3"
+  },
+  "skill_save": {
+    "text": "Here is the summary you asked for."
+  },
+  "skill_undo": {
+    "skillId": "sko_a1b2c3"
+  },
+  "skills_add": {
+    "text": "Here is the summary you asked for."
+  },
+  "skills_list": {},
+  "skills_members": {},
+  "skills_mine_add": {
+    "text": "Here is the summary you asked for."
+  },
+  "skills_mine_remove": {
+    "skillId": "sko_a1b2c3"
+  },
+  "skills_mine_set": {
+    "skillId": "sko_a1b2c3"
+  },
+  "skills_mine_update": {
+    "skillId": "sko_a1b2c3"
+  },
+  "skills_of_agents": {},
+  "skills_page": {},
+  "skills_preview": {},
+  "skills_remove": {
+    "name": "Quarterly planning"
+  },
+  "skills_set_enabled": {
+    "name": "Quarterly planning",
+    "enabled": false
+  },
+  "skills_share": {
+    "skillId": "sko_a1b2c3"
+  },
+  "skills_shared_decide": {
+    "skillId": "sko_a1b2c3",
+    "decision": "add"
+  },
+  "skills_space_install": {
+    "text": "Here is the summary you asked for."
+  },
+  "skills_view": {},
+  "source_rules_list": {},
+  "source_rules_set": {
+    "rules": [
+      {
+        "match": "Quarterly planning",
+        "channel": "Quarterly planning"
+      }
+    ]
+  },
+  "sources_create": {
+    "connector": "Quarterly planning",
+    "title": "Quarterly planning",
+    "type": "contact",
+    "mapping": {
+      "dedupe": "Quarterly planning",
+      "fields": [
+        {
+          "from": "dana@acme.test",
+          "to": "email"
+        }
+      ],
+      "match": [
+        "email"
+      ]
+    }
+  },
+  "sources_delete": {
+    "sourceId": "src_a1b2c3"
+  },
+  "sources_deliveries_list": {
+    "sourceId": "src_a1b2c3"
+  },
+  "sources_get": {
+    "sourceId": "src_a1b2c3"
+  },
+  "sources_kinds": {},
+  "sources_link_list_pending": {},
+  "sources_link_resolve": {
+    "matchId": "mat_a1b2c3"
+  },
+  "sources_list": {},
+  "sources_pause": {
+    "sourceId": "src_a1b2c3"
+  },
+  "sources_preview_mapping": {
+    "payload": "Quarterly planning"
+  },
+  "sources_replay": {
+    "deliveryId": "dlv_a1b2c3"
+  },
+  "sources_resume": {
+    "sourceId": "src_a1b2c3"
+  },
+  "sources_set_secret": {
+    "sourceId": "src_a1b2c3",
+    "secretName": "Quarterly planning"
+  },
+  "sources_update": {
+    "sourceId": "src_a1b2c3"
+  },
+  "spaces_delete": {
+    "confirmName": "Quarterly planning"
+  },
+  "spaces_delete_cancel": {},
+  "spaces_delete_due": {},
+  "spaces_export": {},
+  "spaces_export_latest": {},
+  "spaces_get": {},
+  "spaces_leave": {
+    "confirm": true
+  },
+  "spaces_matrix": {},
+  "spaces_onboarding_complete": {
+    "step": "photo_title"
+  },
+  "spaces_onboarding_dismiss": {},
+  "spaces_onboarding_flow": {
+    "flow": "personal"
+  },
+  "spaces_onboarding_get": {},
+  "spaces_onboarding_mark": {
+    "flow": "personal",
+    "step": "Quarterly planning",
+    "state": "done"
+  },
+  "spaces_onboarding_seen": {
+    "flow": "personal"
+  },
+  "spaces_switch_address": {
+    "mode": "relay"
+  },
+  "spaces_switcher": {},
+  "spaces_timezone_set": {
+    "timezone": "America/New_York"
+  },
+  "spaces_transfer_ownership": {
+    "to": "usr_a1b2c3"
+  },
+  "spaces_update": {},
+  "stars_list": {},
+  "stars_toggle": {
+    "resource": {
+      "type": "space",
+      "id": "Quarterly planning"
+    },
+    "on": false
+  },
+  "steps_test": {
+    "key": "Plan_Key",
+    "input": {}
+  },
+  "stripe_checkout_create_session": {
+    "mode": "payment",
+    "lineItems": [
+      {
+        "quantity": 1
+      }
+    ],
+    "successUrl": "https://acme.test/plan",
+    "cancelUrl": "https://acme.test/plan"
+  },
+  "stripe_customer_create": {},
+  "stripe_customer_get": {
+    "customerId": "Quarterly planning"
+  },
+  "stripe_customer_list": {},
+  "stripe_customer_portal_create_session": {
+    "customerId": "Quarterly planning",
+    "returnUrl": "https://acme.test/plan"
+  },
+  "stripe_invoice_get": {
+    "invoiceId": "Quarterly planning"
+  },
+  "stripe_invoice_list": {},
+  "stripe_invoice_send": {
+    "invoiceId": "Quarterly planning"
+  },
+  "stripe_payment_intent_get": {
+    "paymentIntentId": "Quarterly planning"
+  },
+  "stripe_payment_intent_list": {},
+  "stripe_payment_link_create": {
+    "lineItems": [
+      {
+        "quantity": 1
+      }
+    ]
+  },
+  "stripe_price_list": {},
+  "stripe_product_list": {},
+  "stripe_refund_create": {
+    "paymentIntentId": "Quarterly planning"
+  },
+  "stripe_subscription_cancel": {
+    "subscriptionId": "Quarterly planning"
+  },
+  "stripe_subscription_get": {
+    "subscriptionId": "Quarterly planning"
+  },
+  "stripe_subscription_list": {},
+  "sub_task_model": {
+    "threadId": "thr_a1b2c3",
+    "title": "Quarterly planning",
+    "instruction": "Here is the summary you asked for."
+  },
+  "switch_model": {
+    "threadId": "thr_a1b2c3",
+    "driver": "anthropic",
+    "model": "Quarterly planning"
+  },
+  "sync_devices_lag": {},
+  "sync_entities": {},
+  "sync_specs_apply": {
+    "spec": {
+      "app": {
+        "name": "Quarterly planning",
+        "domain": "plan.acme.test"
+      },
+      "auth": {
+        "vaultHandle": "#Dana_Lawmatics",
+        "style": "bearer"
+      },
+      "objects": [
+        {
+          "remote": "Quarterly planning",
+          "label": "Quarterly planning",
+          "list": {
+            "path": "notes/plan.md"
+          },
+          "id": "Quarterly planning",
+          "itemsAt": "2026-11-20T15:00:00Z",
+          "fields": [
+            {
+              "path": "notes/plan.md",
+              "label": "Quarterly planning",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "mapping": [
+        {
+          "remote": "Quarterly planning",
+          "recordType": "contact",
+          "fields": [
+            {
+              "path": "notes/plan.md",
+              "direction": "both"
+            }
+          ]
+        }
+      ],
+      "plan": {
+        "firstPull": {
+          "words": "Quarterly planning"
+        },
+        "backfill": "later",
+        "conflicts": "newest"
+      }
+    }
+  },
+  "sync_specs_backfill": {
+    "type": "contact"
+  },
+  "sync_specs_get": {},
+  "sync_specs_preview": {
+    "spec": {
+      "app": {
+        "name": "Quarterly planning",
+        "domain": "plan.acme.test"
+      },
+      "auth": {
+        "vaultHandle": "#Dana_Lawmatics",
+        "style": "bearer"
+      },
+      "objects": [
+        {
+          "remote": "Quarterly planning",
+          "label": "Quarterly planning",
+          "list": {
+            "path": "notes/plan.md"
+          },
+          "id": "Quarterly planning",
+          "itemsAt": "2026-11-20T15:00:00Z",
+          "fields": [
+            {
+              "path": "notes/plan.md",
+              "label": "Quarterly planning",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "mapping": [
+        {
+          "remote": "Quarterly planning",
+          "recordType": "contact",
+          "fields": [
+            {
+              "path": "notes/plan.md",
+              "direction": "both"
+            }
+          ]
+        }
+      ],
+      "plan": {
+        "firstPull": {
+          "words": "Quarterly planning"
+        },
+        "backfill": "later",
+        "conflicts": "newest"
+      }
+    }
+  },
+  "sync_specs_remove": {
+    "type": "contact",
+    "records": "keep"
+  },
+  "sync_specs_sample": {
+    "auth": {
+      "vaultHandle": "#Dana_Lawmatics",
+      "style": "bearer"
+    },
+    "domain": "plan.acme.test",
+    "path": "notes/plan.md"
+  },
+  "sync_specs_survey": {
+    "auth": {
+      "vaultHandle": "#Dana_Lawmatics",
+      "style": "bearer"
+    },
+    "domain": "plan.acme.test",
+    "paths": [
+      "Quarterly planning"
+    ]
+  },
+  "sync_specs_validate": {
+    "spec": {
+      "app": {
+        "name": "Quarterly planning",
+        "domain": "plan.acme.test"
+      },
+      "auth": {
+        "vaultHandle": "#Dana_Lawmatics",
+        "style": "bearer"
+      },
+      "objects": [
+        {
+          "remote": "Quarterly planning",
+          "label": "Quarterly planning",
+          "list": {
+            "path": "notes/plan.md"
+          },
+          "id": "Quarterly planning",
+          "itemsAt": "2026-11-20T15:00:00Z",
+          "fields": [
+            {
+              "path": "notes/plan.md",
+              "label": "Quarterly planning",
+              "type": "text"
+            }
+          ]
+        }
+      ],
+      "mapping": [
+        {
+          "remote": "Quarterly planning",
+          "recordType": "contact",
+          "fields": [
+            {
+              "path": "notes/plan.md",
+              "direction": "both"
+            }
+          ]
+        }
+      ],
+      "plan": {
+        "firstPull": {
+          "words": "Quarterly planning"
+        },
+        "backfill": "later",
+        "conflicts": "newest"
+      }
+    }
+  },
+  "sync_status": {},
+  "sync_types_confirm_deletes": {
+    "type": "contact",
+    "decision": "mark_removed"
+  },
+  "sync_types_create": {
+    "type": "contact",
+    "connectionId": "con_a1b2c3",
+    "remote": "Quarterly planning",
+    "fields": [
+      {
+        "key": "email",
+        "remote": "Quarterly planning",
+        "dir": "pull"
+      }
+    ],
+    "match": [
+      "email"
+    ]
+  },
+  "sync_types_discover": {
+    "connectionId": "con_a1b2c3"
+  },
+  "sync_types_field_history": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3",
+    "field": "email"
+  },
+  "sync_types_get": {
+    "type": "contact"
+  },
+  "sync_types_list": {},
+  "sync_types_log": {
+    "type": "contact"
+  },
+  "sync_types_make_native": {
+    "type": "contact"
+  },
+  "sync_types_pause": {
+    "type": "contact"
+  },
+  "sync_types_preview": {
+    "type": "contact"
+  },
+  "sync_types_record_state": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3"
+  },
+  "sync_types_replay_conflict": {
+    "conflictId": "cfl_a1b2c3"
+  },
+  "sync_types_resolve_conflict": {
+    "conflictId": "cfl_a1b2c3",
+    "resolution": "ours"
+  },
+  "sync_types_restore_field": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3",
+    "field": "email",
+    "historyId": "Quarterly planning"
+  },
+  "sync_types_resume": {
+    "type": "contact"
+  },
+  "sync_types_review_schema": {
+    "type": "contact",
+    "accept": [
+      "Quarterly planning"
+    ],
+    "ignore": [
+      "Quarterly planning"
+    ]
+  },
+  "sync_types_schema_changes": {
+    "type": "contact"
+  },
+  "sync_types_status": {
+    "type": "contact"
+  },
+  "sync_types_undo_push": {
+    "outboxId": "obx_a1b2c3"
+  },
+  "sync_types_update": {
+    "type": "contact"
+  },
+  "talk_ask_key": {},
+  "talk_configure": {},
+  "talk_space_check": {},
+  "talk_space_configure": {},
+  "talk_space_status": {},
+  "talk_status": {},
+  "task_ask": {
+    "taskId": "tsk_a1b2c3",
+    "question": "Here is the summary you asked for."
+  },
+  "task_block": {
+    "taskId": "tsk_a1b2c3",
+    "reason": "Here is the summary you asked for."
+  },
+  "task_decide": {
+    "taskId": "tsk_a1b2c3",
+    "verdict": "approve"
+  },
+  "task_digest": {},
+  "task_plan": {
+    "children": [
+      {
+        "key": "Plan_Key",
+        "title": "Quarterly planning",
+        "assigned": {
+          "kind": "person",
+          "id": "Quarterly planning"
+        }
+      }
+    ]
+  },
+  "task_review": {
+    "taskId": "tsk_a1b2c3",
+    "verdict": "approve"
+  },
+  "task_submit": {
+    "taskId": "tsk_a1b2c3",
+    "summary": "Quarterly planning"
+  },
+  "tasks_act": {
+    "taskId": "tsk_a1b2c3",
+    "action": "Quarterly planning"
+  },
+  "tasks_agent_on_it": {
+    "taskId": "tsk_a1b2c3",
+    "agentId": "agt_a1b2c3"
+  },
+  "tasks_assign": {
+    "taskId": "tsk_a1b2c3",
+    "slot": "assigned",
+    "to": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    }
+  },
+  "tasks_by_key": {
+    "key": "Plan_Key"
+  },
+  "tasks_count_needs_you": {},
+  "tasks_create": {
+    "title": "Quarterly planning",
+    "assigned": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    }
+  },
+  "tasks_delegate": {
+    "taskId": "tsk_a1b2c3",
+    "to": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    }
+  },
+  "tasks_delete": {
+    "taskId": "tsk_a1b2c3"
+  },
+  "tasks_dependencies_add": {
+    "taskId": "tsk_a1b2c3",
+    "dependsOnId": "tsk_a1b2c3"
+  },
+  "tasks_dependencies_remove": {
+    "taskId": "tsk_a1b2c3",
+    "dependsOnId": "tsk_a1b2c3"
+  },
+  "tasks_followers_add": {
+    "taskId": "tsk_a1b2c3",
+    "follower": "Quarterly planning"
+  },
+  "tasks_followers_remove": {
+    "taskId": "tsk_a1b2c3",
+    "follower": "Quarterly planning"
+  },
+  "tasks_get": {
+    "taskId": "tsk_a1b2c3"
+  },
+  "tasks_history": {
+    "taskId": "tsk_a1b2c3"
+  },
+  "tasks_index": {
+    "scope": "mine"
+  },
+  "tasks_links_add": {
+    "taskId": "tsk_a1b2c3"
+  },
+  "tasks_links_remove": {
+    "taskId": "tsk_a1b2c3"
+  },
+  "tasks_list": {
+    "scope": "mine"
+  },
+  "tasks_my_work": {},
+  "tasks_needs_you": {},
+  "tasks_release": {
+    "taskId": "tsk_a1b2c3"
+  },
+  "tasks_restore": {
+    "taskId": "tsk_a1b2c3"
+  },
+  "tasks_rev": {},
+  "tasks_snooze": {
+    "taskId": "tsk_a1b2c3",
+    "until": 1
+  },
+  "tasks_take": {
+    "taskId": "tsk_a1b2c3"
+  },
+  "tasks_transition": {
+    "taskId": "tsk_a1b2c3",
+    "to": "todo"
+  },
+  "tasks_update": {
+    "taskId": "tsk_a1b2c3"
+  },
+  "tasks_working_notes_delete": {
+    "taskId": "tsk_a1b2c3",
+    "key": "Plan_Key"
+  },
+  "tasks_working_notes_set": {
+    "taskId": "tsk_a1b2c3",
+    "key": "Plan_Key",
+    "value": "Quarterly planning"
+  },
+  "telephony_answer": {
+    "callId": "cal_a1b2c3"
+  },
+  "telephony_call_attach_summary": {
+    "callId": "cal_a1b2c3"
+  },
+  "telephony_call_get": {
+    "callId": "cal_a1b2c3"
+  },
+  "telephony_call_list": {},
+  "telephony_call_log_task": {
+    "callId": "cal_a1b2c3",
+    "title": "Quarterly planning"
+  },
+  "telephony_decline": {
+    "callId": "cal_a1b2c3"
+  },
+  "telephony_dial": {
+    "numberId": "num_a1b2c3",
+    "to": "+14155550123"
+  },
+  "telephony_hangup": {
+    "callId": "cal_a1b2c3"
+  },
+  "telephony_hold": {
+    "callId": "cal_a1b2c3",
+    "hold": false
+  },
+  "telephony_number_assign": {
+    "numberId": "num_a1b2c3",
+    "assigneeKind": "person",
+    "assigneeId": "Quarterly planning"
+  },
+  "telephony_number_buy": {
+    "e164": "+14155550123",
+    "title": "Quarterly planning",
+    "assigneeKind": "person"
+  },
+  "telephony_number_get": {
+    "numberId": "num_a1b2c3"
+  },
+  "telephony_number_import": {},
+  "telephony_number_list": {},
+  "telephony_number_release": {
+    "numberId": "num_a1b2c3"
+  },
+  "telephony_number_search": {
+    "country": "Quarterly planning"
+  },
+  "telephony_number_set_hours": {
+    "numberId": "num_a1b2c3",
+    "hours": {
+      "zone": "America/New_York",
+      "weekly": [
+        {
+          "day": 1,
+          "start": "2026-11-20T15:00:00Z",
+          "end": "2026-11-20T15:00:00Z"
+        }
+      ],
+      "outsideHours": "voicemail"
+    }
+  },
+  "telephony_number_set_recording": {
+    "numberId": "num_a1b2c3",
+    "recording": "off"
+  },
+  "telephony_number_set_route": {
+    "numberId": "num_a1b2c3",
+    "route": {
+      "ring": [
+        {
+          "kind": "person",
+          "id": "Quarterly planning"
+        }
+      ],
+      "ringSeconds": 5,
+      "voicemail": false,
+      "voicemailTranscript": false
+    }
+  },
+  "telephony_record": {
+    "callId": "cal_a1b2c3",
+    "action": "start"
+  },
+  "telephony_registration_get": {},
+  "telephony_registration_refresh": {
+    "registrationId": "reg_a1b2c3"
+  },
+  "telephony_registration_save": {
+    "legalName": "Quarterly planning"
+  },
+  "telephony_registration_submit": {
+    "registrationId": "reg_a1b2c3"
+  },
+  "telephony_send_sms": {
+    "numberId": "num_a1b2c3",
+    "to": "+14155550123",
+    "body": "Here is the summary you asked for."
+  },
+  "telephony_sms_list": {},
+  "telephony_transfer": {
+    "callId": "cal_a1b2c3",
+    "to": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    },
+    "mode": "warm"
+  },
+  "telephony_voice_token": {},
+  "templates_install": {
+    "templateId": "tpl_a1b2c3"
+  },
+  "templates_list": {},
+  "templates_preview": {
+    "templateId": "tpl_a1b2c3"
+  },
+  "templates_project_starters": {
+    "kind": "project"
+  },
+  "templates_save": {
+    "kind": "agent",
+    "ref": "main",
+    "title": "Quarterly planning"
+  },
+  "terminal_attach": {
+    "terminalId": "trm_a1b2c3"
+  },
+  "terminal_close": {
+    "terminalId": "trm_a1b2c3"
+  },
+  "terminal_get": {
+    "terminalId": "trm_a1b2c3"
+  },
+  "terminal_input": {
+    "terminalId": "trm_a1b2c3",
+    "data": "Quarterly planning"
+  },
+  "terminal_interrupt": {
+    "terminalId": "trm_a1b2c3"
+  },
+  "terminal_list": {},
+  "terminal_open": {},
+  "terminal_open_server": {},
+  "terminal_read": {
+    "terminalId": "trm_a1b2c3"
+  },
+  "terminal_rename": {
+    "terminalId": "trm_a1b2c3",
+    "name": "Quarterly planning"
+  },
+  "terminal_request": {
+    "threadId": "thr_a1b2c3",
+    "command": "ls",
+    "why": "Quarterly planning"
+  },
+  "terminal_resize": {
+    "terminalId": "trm_a1b2c3",
+    "cols": 20,
+    "rows": 5
+  },
+  "terminal_risk": {
+    "command": "ls"
+  },
+  "terminal_rules_get": {},
+  "terminal_rules_set": {
+    "rules": {
+      "allow": [
+        "Quarterly planning"
+      ],
+      "ask": [
+        "Quarterly planning"
+      ],
+      "deny": [
+        "Quarterly planning"
+      ],
+      "folders": [
+        "fld_a1b2c3"
+      ]
+    }
+  },
+  "terminal_run": {
+    "command": "ls"
+  },
+  "terminal_status": {
+    "terminalIds": [
+      "trm_a1b2c3"
+    ]
+  },
+  "terminal_workspace": {
+    "agentId": "agt_a1b2c3"
+  },
+  "threads_add_agent": {
+    "threadId": "thr_a1b2c3",
+    "agentId": "agt_a1b2c3"
+  },
+  "threads_agent_configure": {
+    "threadId": "thr_a1b2c3",
+    "agentId": "agt_a1b2c3"
+  },
+  "threads_agent_create": {
+    "threadId": "thr_a1b2c3",
+    "name": "Quarterly planning"
+  },
+  "threads_agent_settings_set": {
+    "threadId": "thr_a1b2c3",
+    "agentId": "agt_a1b2c3"
+  },
+  "threads_archive": {
+    "threadId": "thr_a1b2c3"
+  },
+  "threads_close": {
+    "threadId": "thr_a1b2c3"
+  },
+  "threads_follow": {
+    "threadId": "thr_a1b2c3",
+    "mode": "follow"
+  },
+  "threads_get": {
+    "threadId": "thr_a1b2c3"
+  },
+  "threads_invite_guest": {
+    "threadId": "thr_a1b2c3",
+    "email": "dana@acme.test"
+  },
+  "threads_list": {},
+  "threads_make_channel": {
+    "threadId": "thr_a1b2c3",
+    "personId": "usr_a1b2c3"
+  },
+  "threads_mark_read": {
+    "threadId": "thr_a1b2c3"
+  },
+  "threads_mark_unread_from": {
+    "threadId": "thr_a1b2c3",
+    "seq": 1
+  },
+  "threads_members_add": {
+    "threadId": "thr_a1b2c3",
+    "personId": "usr_a1b2c3"
+  },
+  "threads_members_remove": {
+    "threadId": "thr_a1b2c3",
+    "personId": "usr_a1b2c3"
+  },
+  "threads_move": {
+    "threadId": "thr_a1b2c3",
+    "projectId": "prj_a1b2c3"
+  },
+  "threads_outside_agent_add": {
+    "threadId": "thr_a1b2c3",
+    "agentId": "agt_a1b2c3"
+  },
+  "threads_outside_agent_remove": {
+    "threadId": "thr_a1b2c3",
+    "agentId": "agt_a1b2c3"
+  },
+  "threads_poke": {
+    "threadId": "thr_a1b2c3",
+    "agentId": "agt_a1b2c3"
+  },
+  "threads_remove_agent": {
+    "threadId": "thr_a1b2c3",
+    "agentId": "agt_a1b2c3"
+  },
+  "threads_reopen": {
+    "threadId": "thr_a1b2c3"
+  },
+  "threads_set_agent_replies": {
+    "threadId": "thr_a1b2c3",
+    "inThreads": false
+  },
+  "threads_set_folder": {
+    "threadId": "thr_a1b2c3",
+    "folderId": "fld_a1b2c3"
+  },
+  "threads_set_mode": {
+    "threadId": "thr_a1b2c3",
+    "mode": "ask"
+  },
+  "threads_set_plan_mode": {
+    "threadId": "thr_a1b2c3",
+    "planMode": false
+  },
+  "threads_unarchive": {
+    "threadId": "thr_a1b2c3"
+  },
+  "threads_update": {
+    "threadId": "thr_a1b2c3",
+    "title": "Quarterly planning"
+  },
+  "time_convert": {
+    "when": "Quarterly planning"
+  },
+  "tool_search": {
+    "query": "quarterly plan"
+  },
+  "transcript_get": {
+    "threadId": "thr_a1b2c3",
+    "turnId": "trn_a1b2c3"
+  },
+  "transcript_read": {
+    "threadId": "thr_a1b2c3"
+  },
+  "transcript_search": {
+    "q": "quarterly plan"
+  },
+  "updates_apply": {},
+  "updates_channel_set": {
+    "channel": "stable"
+  },
+  "updates_check": {},
+  "updates_history": {},
+  "updates_rollback": {
+    "to": "1.0.0"
+  },
+  "updates_status": {},
+  "vault_export_env": {
+    "folderId": "vfd_a1b2c3",
+    "expiresIn": "1h"
+  },
+  "vault_exports_list": {},
+  "vault_exports_revoke": {
+    "exportId": "vex_a1b2c3"
+  },
+  "vault_fill": {
+    "handle": "#Dana_Lawmatics.api_key",
+    "target": {
+      "kind": "env",
+      "ref": "main"
+    }
+  },
+  "vault_folders_create": {
+    "name": "Quarterly planning",
+    "scope": "mine"
+  },
+  "vault_folders_delete": {
+    "folderId": "vfd_a1b2c3"
+  },
+  "vault_folders_list": {},
+  "vault_folders_update": {
+    "folderId": "vfd_a1b2c3"
+  },
+  "vault_generate": {
+    "kind": "password"
+  },
+  "vault_health": {},
+  "vault_import": {
+    "source": "onepassword",
+    "fileId": "fil_a1b2c3",
+    "folderId": "vfd_a1b2c3",
+    "dedupe": "skip"
+  },
+  "vault_import_parse": {
+    "source": "onepassword",
+    "fileId": "fil_a1b2c3"
+  },
+  "vault_inject_env": {
+    "folderId": "vfd_a1b2c3"
+  },
+  "vault_item_delete": {
+    "itemId": "vit_a1b2c3"
+  },
+  "vault_item_get": {
+    "itemId": "vit_a1b2c3"
+  },
+  "vault_item_history": {
+    "itemId": "vit_a1b2c3"
+  },
+  "vault_item_mark_rotated": {
+    "itemId": "vit_a1b2c3"
+  },
+  "vault_item_move": {
+    "itemId": "vit_a1b2c3",
+    "folderId": "vfd_a1b2c3"
+  },
+  "vault_item_put": {
+    "folderId": "vfd_a1b2c3",
+    "name": "Quarterly planning",
+    "kind": "login",
+    "fields": [
+      {
+        "key": "api_key",
+        "value": "Quarterly planning"
+      }
+    ]
+  },
+  "vault_item_restore": {
+    "itemId": "vit_a1b2c3"
+  },
+  "vault_item_reveal": {
+    "itemId": "vit_a1b2c3"
+  },
+  "vault_item_update": {
+    "itemId": "vit_a1b2c3"
+  },
+  "vault_item_usage": {
+    "itemId": "vit_a1b2c3"
+  },
+  "vault_items_export_mine": {
+    "expiresIn": "1h"
+  },
+  "vault_items_list": {},
+  "vault_items_match": {
+    "url": "https://acme.test/plan"
+  },
+  "vault_policy_get": {},
+  "vault_policy_set": {
+    "policy": {
+      "exportRoles": [
+        "Quarterly planning"
+      ],
+      "pullExpiryMax": "1h",
+      "blockRestrictedExport": true,
+      "revealNeedsReason": false
+    }
+  },
+  "vault_request": {
+    "name": "Quarterly planning",
+    "reason": "Here is the summary you asked for."
+  },
+  "vault_requests_cancel": {
+    "requestId": "vrq_a1b2c3"
+  },
+  "vault_requests_decline": {
+    "requestId": "vrq_a1b2c3"
+  },
+  "vault_requests_fulfil": {
+    "requestId": "vrq_a1b2c3"
+  },
+  "vault_requests_get": {
+    "requestId": "vrq_a1b2c3"
+  },
+  "vault_requests_list": {},
+  "vault_share": {
+    "resource": {
+      "type": "vault_item",
+      "id": "Quarterly planning"
+    },
+    "subject": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    },
+    "level": "view"
+  },
+  "vault_site_rules_list": {},
+  "vault_site_rules_set": {
+    "host": "plan.acme.test",
+    "neverFill": false,
+    "neverSave": false
+  },
+  "vault_unshare": {
+    "resource": {
+      "type": "vault_item",
+      "id": "Quarterly planning"
+    },
+    "subject": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    }
+  },
+  "vault_use": {
+    "item": "Quarterly planning"
+  },
+  "views_delete": {
+    "viewId": "viw_a1b2c3"
+  },
+  "views_get": {
+    "viewId": "viw_a1b2c3"
+  },
+  "views_list": {
+    "type": "contact"
+  },
+  "views_publish": {
+    "viewId": "viw_a1b2c3",
+    "shared": false
+  },
+  "views_save": {
+    "type": "contact",
+    "kind": "Quarterly planning",
+    "title": "Quarterly planning"
+  },
+  "views_share_external": {
+    "viewId": "viw_a1b2c3"
+  },
+  "wait_for": {
+    "on": {
+      "event": "Quarterly planning"
+    }
+  },
+  "webhooks_create": {
+    "name": "Quarterly planning",
+    "url": "https://acme.test/plan",
+    "eventTypes": [
+      "Quarterly planning"
+    ]
+  },
+  "webhooks_delete": {
+    "webhookId": "whk_a1b2c3"
+  },
+  "webhooks_deliveries": {
+    "webhookId": "whk_a1b2c3"
+  },
+  "webhooks_get": {
+    "webhookId": "whk_a1b2c3"
+  },
+  "webhooks_list": {},
+  "webhooks_replay_delivery": {
+    "deliveryId": "dlv_a1b2c3"
+  },
+  "webhooks_rotate_secret": {
+    "webhookId": "whk_a1b2c3"
+  },
+  "webhooks_test": {
+    "webhookId": "whk_a1b2c3"
+  },
+  "webhooks_update": {
+    "webhookId": "whk_a1b2c3"
+  },
+  "zoom_meetings_create": {
+    "topic": "Quarterly planning"
+  },
+  "zoom_meetings_delete": {
+    "meetingId": "Quarterly planning"
+  },
+  "zoom_meetings_get": {
+    "meetingId": "Quarterly planning"
+  },
+  "zoom_meetings_list": {},
+  "zoom_meetings_update": {
+    "meetingId": "Quarterly planning"
+  },
+  "zoom_recordings_download": {
+    "meetingId": "Quarterly planning",
+    "recordingFileId": "Quarterly planning"
+  },
+  "zoom_recordings_get": {
+    "meetingId": "Quarterly planning"
+  },
+  "zoom_recordings_list": {
+    "from": "dana@acme.test",
+    "to": "dana@acme.test"
+  },
+  "zoom_transcripts_get": {
+    "meetingId": "Quarterly planning"
+  }
+}

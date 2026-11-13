@@ -5,6 +5,8 @@ import { createToolSession } from "./call.ts";
 import type { CallDeps, ToolSession } from "./call.ts";
 import type { LocalDecision } from "./local.ts";
 import type { Invoke } from "../../../host/src/invoke.ts";
+import { HostError, makeError } from "../../../host/src/routes/errors.ts";
+import { validateInput } from "../../../generated/validators.ts";
 import type { AgentToolRow, Catalog, Level, McpToolRow, RegistryCapRow, ThreadFacts, ToolCtx } from "./types.ts";
 
 const read = (f: string): string => readFileSync(new URL(`../../../${f}`, import.meta.url), "utf8");
@@ -103,4 +105,27 @@ export function makeSession(
   if (o.hooks) deps.hooks = o.hooks;
   if (o.prompt) deps.prompt = o.prompt;
   return { session: createToolSession(deps), calls, loaded };
+}
+
+/**
+ * An invoke that does what the real pipeline does BEFORE a handler (host/src/invoke.ts steps 2 and 3): the generated validators on the input, then the idempotency key a `key` capability requires.
+ * A call that passes comes back ok with the input it was given, so a test reads exactly what the tool layer sent. No handler runs: this is for what the tool layer sends, not for what a handler does.
+ */
+export function validatingInvoke(caps: ReadonlyMap<string, RegistryCapRow>): {
+  invoke: Invoke;
+  sent: Array<{ cap: string; input: unknown }>;
+} {
+  const sent: Array<{ cap: string; input: unknown }> = [];
+  const invoke: Invoke = async (cap, input, seed) => {
+    const traceId = seed.trace?.traceId ?? "trace";
+    const row = caps.get(cap);
+    const problems = validateInput(cap, row?.v ?? 1, input);
+    if (problems.length)
+      throw new HostError(
+        makeError("validation.bad_input", traceId, { details: { errors: problems.slice(0, 20), cap } }),
+      );
+    sent.push({ cap, input });
+    return { status: "ok", output: { cap }, traceId };
+  };
+  return { invoke, sent };
 }
