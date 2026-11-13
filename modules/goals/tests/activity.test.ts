@@ -14,11 +14,11 @@ test("every reason a wake can carry has words, and none reads as its key", () =>
   const reasons = new Set<string>(["retry"]);
   for (const f of readdirSync(dir)) {
     const src = readFileSync(new URL(f, dir), "utf8");
-    for (const line of src.split("\n")) {
-      if (/queueWake\(/.test(line) && !/function queueWake/.test(line))
-        for (const m of line.matchAll(/(?<!=== )"([a-z_]+)"/g)) reasons.add(m[1]!);
-      for (const m of line.matchAll(/resumeGoal\(ctx, g, "([a-z_]+)"\)/g)) reasons.add(m[1]!);
-    }
+    // Read the whole file with its whitespace folded, so the scan does not depend on how Prettier wrapped a call.
+    const flat = src.replace(/\s+/g, " ");
+    for (const call of flat.matchAll(/queueWake\( ?ctx, g,([^`;]*?)(?:undefined|`|;)/g))
+      for (const m of call[1]!.matchAll(/(?<!=== )"([a-z_]+)"/g)) reasons.add(m[1]!);
+    for (const m of flat.matchAll(/resumeGoal\(ctx, g, "([a-z_]+)"\)/g)) reasons.add(m[1]!);
   }
   for (const r of [
     "start",
