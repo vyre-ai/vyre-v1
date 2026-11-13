@@ -33317,6 +33317,15 @@ export type RunsWaitForIn = {
 export type RunsWaitForOut = {
   runId: string;
 };
+export type SchedulerCanHoldIn = {
+  person: string;
+  agentId: string;
+  channelId?: string;
+};
+export type SchedulerCanHoldOut = {
+  ok: boolean;
+  reasons: Array<"not_in_space" | "cannot_use_agent" | "cannot_read_channel" | "agent_missing">;
+};
 export type SchedulerCancelIn = {
   scheduleId: string;
 };
@@ -46684,6 +46693,7 @@ export interface CapMap {
   "runs.stop": { in: RunsStopIn; out: RunsStopOut };
   "runs.undo": { in: RunsUndoIn; out: RunsUndoOut };
   "runs.wait_for": { in: RunsWaitForIn; out: RunsWaitForOut };
+  "scheduler.can_hold": { in: SchedulerCanHoldIn; out: SchedulerCanHoldOut };
   "scheduler.cancel": { in: SchedulerCancelIn; out: SchedulerCancelOut };
   "scheduler.catch_up": { in: SchedulerCatchUpIn; out: SchedulerCatchUpOut };
   "scheduler.fire": { in: SchedulerFireIn; out: SchedulerFireOut };

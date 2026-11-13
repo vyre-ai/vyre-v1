@@ -274,6 +274,30 @@ export async function runDueRoutines(ctx: AgentsCtx): Promise<string[]> {
   return fired;
 }
 
+const WHY: Record<string, string> = {
+  cannot_use_agent: "cannot use this agent",
+  cannot_read_channel: "cannot read the channel it posts to",
+  agent_missing: "cannot reach this agent",
+};
+
+/** A routine runs on its owner's account, so it goes only to someone who may use its agent and read its channel (scheduler.can_hold, one answer for every hand-over). Says why not. */
+async function mustBeAbleToHold(ctx: AgentsCtx, r: RoutineRec, person: string): Promise<void> {
+  if (!ctx.call) raise(ctx, "internal.unavailable", "This server cannot check who may take a routine.");
+  const held = (await ctx.call("scheduler.can_hold", {
+    person,
+    agentId: r.agentId,
+    ...(r.channelId ? { channelId: r.channelId } : {}),
+  })) as { ok: boolean; reasons: string[] };
+  if (held.ok) return;
+  if (held.reasons.includes("not_in_space")) raise(ctx, "validation.not_found", "That person is not in this Space.");
+  raise(
+    ctx,
+    "validation.precondition_failed",
+    `That person ${held.reasons.map((x) => WHY[x] ?? x).join(" and ")}, so they cannot take this routine.`,
+    { reasons: held.reasons },
+  );
+}
+
 /** Delegate: the owner hands a routine to another person (they become its owner) or another agent (it runs on that agent); `undo` hands it back. */
 export async function routineDelegate(
   ctx: AgentsCtx,
@@ -317,6 +341,7 @@ export async function routineDelegate(
   let agentId = r.agentId;
   if (to.kind === "person") {
     if (to.id === r.ownerId) raise(ctx, "validation.bad_input", "You already own this routine.");
+    await mustBeAbleToHold(ctx, r, to.id);
     ownerId = to.id;
   } else {
     const target = agentBy(ctx.db, to.id);

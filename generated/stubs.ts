@@ -2383,6 +2383,7 @@ export function stubs(ctx: CallCtx) {
       wait_for: call("runs.wait_for"),
     },
     scheduler: {
+      can_hold: call("scheduler.can_hold"),
       cancel: call("scheduler.cancel"),
       catch_up: call("scheduler.catch_up"),
       fire: call("scheduler.fire"),

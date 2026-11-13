@@ -2383,6 +2383,7 @@ export function createClient(transport: Transport) {
       wait_for: call("runs.wait_for", 1),
     },
     scheduler: {
+      can_hold: call("scheduler.can_hold", 1),
       cancel: call("scheduler.cancel", 1),
       catch_up: call("scheduler.catch_up", 1),
       fire: call("scheduler.fire", 1),

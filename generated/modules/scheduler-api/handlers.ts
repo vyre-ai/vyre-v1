@@ -5,6 +5,7 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "scheduler.can_hold": Handler<"scheduler.can_hold", X>;
   "scheduler.cancel": Handler<"scheduler.cancel", X>;
   "scheduler.catch_up": Handler<"scheduler.catch_up", X>;
   "scheduler.fire": Handler<"scheduler.fire", X>;

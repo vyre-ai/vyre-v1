@@ -1,6 +1,7 @@
 {
   "module": "scheduler-api",
   "capabilities": {
+    "scheduler.can_hold@1": "651ffe06cc93c880514b20b7c90e332fb35e6edcf77536766eede899f655d71b",
     "scheduler.cancel@1": "3cfb20fbbe8bed4d781622ce26bc5a3cab77f222ae7c72c9bf65efd32c1bd24c",
     "scheduler.catch_up@1": "e8963852bfe956f14f2f8063d71ef148b7c8e0f37515e58e3dc9ecf410d83b7a",
     "scheduler.fire@1": "8ed0024b57cd1c2c31210ea92019723b79b0e3885030ebe5bdd92389073f1b4b",

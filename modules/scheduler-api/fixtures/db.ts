@@ -32,6 +32,12 @@ type Callee = (input: any, who: { id: string }) => unknown; // eslint-disable-li
 export interface HarnessOptions {
   now?: number;
   calls?: Record<string, Callee>;
+  /** ctx.mayAll: may every one of these people do this? Default yes. */
+  mayAll?: (
+    people: readonly string[],
+    action: { level: string },
+    resource: { type: string; id: string | null },
+  ) => boolean;
 }
 
 const norm = (a: unknown): unknown => (a === undefined ? null : a);
@@ -81,6 +87,7 @@ export function harness(o: HarnessOptions = {}) {
         if (!f) throw new Error(`unexpected call to ${c}`);
         return f(input, who);
       },
+      mayAll: (people, action, resource) => (o.mayAll ? o.mayAll(people, action, resource) : true),
     };
   }
 

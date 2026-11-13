@@ -125,6 +125,8 @@ export function fakeFiles(clock: { t: number }) {
         },
       };
     },
+    // scheduler.can_hold: everyone may hold work unless a test answers otherwise (world.answer)
+    "scheduler.can_hold": () => ({ ok: true, reasons: [] }),
     "access.transfer_ownership": () => true,
     "access.share": (i) => ({
       grant: { id: "gnt_fake", subject: i["subject"], resource: i["resource"], level: i["level"] },

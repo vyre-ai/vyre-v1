@@ -4,6 +4,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
+  "scheduler.can_hold": async () => ({"ok":true,"reasons":["not_in_space"]} as unknown) as never,
   "scheduler.cancel": async () => ({"canceled":true} as unknown) as never,
   "scheduler.catch_up": async () => ({"ranOnce":1,"skipped":1} as unknown) as never,
   "scheduler.fire": async () => ({"runId":"run_a1b2c3"} as unknown) as never,

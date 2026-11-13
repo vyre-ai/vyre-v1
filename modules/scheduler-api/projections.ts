@@ -35,6 +35,12 @@ export interface SchedCtx {
   db: Db;
   emit(name: string, subject: string, payload: unknown, opts?: EmitOpts): { id: string };
   call?(cap: string, input: unknown, opts?: CallOpts): Promise<unknown>;
+  /** May every one of these people do this? Their own grants, never the caller's. Present on a booted daemon; a hand-built test ctx may omit it. */
+  mayAll?(
+    people: readonly string[],
+    action: { perm: string | null; level: string },
+    resource: { type: string; id: string | null },
+  ): boolean;
 }
 
 type Code = Parameters<typeof fail>[0];

@@ -4,8 +4,9 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (18)
+## Capabilities (19)
 
+- [scheduler.can_hold](../capabilities/scheduler.can_hold.md): System: may this person hold scheduled work for this agent (a routine, a goal), and read its channel? Says why not, in reasons. Gives the answer a hand-over needs
 - [scheduler.cancel](../capabilities/scheduler.cancel.md): Cancel a schedule
 - [scheduler.catch_up](../capabilities/scheduler.catch_up.md): After downtime apply each schedule if-missed rule: run once if within the missed window, else skip with a note in the owner digest
 - [scheduler.fire](../capabilities/scheduler.fire.md): Fire a due schedule: invoke its capability as its principal (called by the host tick)

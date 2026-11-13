@@ -5,6 +5,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "scheduler.can_hold": async (ctx) => { throw new VyreErr(notImplemented("scheduler.can_hold", ctx.trace)); },
   "scheduler.cancel": async (ctx) => { throw new VyreErr(notImplemented("scheduler.cancel", ctx.trace)); },
   "scheduler.catch_up": async (ctx) => { throw new VyreErr(notImplemented("scheduler.catch_up", ctx.trace)); },
   "scheduler.fire": async (ctx) => { throw new VyreErr(notImplemented("scheduler.fire", ctx.trace)); },

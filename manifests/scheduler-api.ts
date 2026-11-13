@@ -159,6 +159,19 @@ export default defineManifest({
       out: { times: t.arr(t.ts()) },
       tool: "automations",
     }),
+    read(
+      "scheduler.can_hold",
+      "System: may this person hold scheduled work for this agent (a routine, a goal), and read its channel? Says why not, in reasons. Gives the answer a hand-over needs",
+      {
+        in: { person: id.user, agentId: id.agent, channelId: t.opt(id.channel) },
+        out: {
+          ok: t.bool(),
+          reasons: t.arr(t.enm("not_in_space", "cannot_use_agent", "cannot_read_channel", "agent_missing")),
+        },
+        level: "member",
+        errors: ["validation.bad_input"],
+      },
+    ),
     write("scheduler.fire", "Fire a due schedule: invoke its capability as its principal (called by the host tick)", {
       in: { scheduleId, scheduledFor: t.ts() },
       out: { runId: t.opt(id.run) },
