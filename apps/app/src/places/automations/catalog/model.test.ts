@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { connectorSteps, groupFor, loadProductCatalog, menuGroups } from "./model.ts";
+import { connectorSteps, groupFor, loadProductCatalog, menuGroups, unlistedAppLine } from "./model.ts";
 import { withPreset } from "../canvas/model.ts";
 
 test("first-party steps land in Vyre or Connected apps, with common operations before the authenticated request", () => {
@@ -100,4 +100,49 @@ test("an action nobody tried against the real app is marked untested, and with n
     ["Acme: Create invoice", true],
   ]);
   assert.ok(connectorSteps(live, connections).every((s) => s.untested === undefined));
+});
+
+test("an existing step whose app is not listed keeps its form (all) and gets one plain line; the menu list is unchanged, and a failing full read falls back to the menu list", async () => {
+  const listed = { steps: [{ key: "http_request", title: "HTTP request", category: "data" }] };
+  const every = {
+    steps: [
+      { key: "http_request", title: "HTTP request", category: "data" },
+      {
+        key: "ms.mail.send_message",
+        title: "Microsoft · Send an Outlook message",
+        category: "send",
+        input: { required: ["to"] },
+      },
+    ],
+  };
+  const triggers = { triggers: [{ key: "manual", title: "Manual" }] };
+  const res = await loadProductCatalog(async (cap, input) =>
+    cap === "automations.steps.list"
+      ? (input as { all?: boolean }).all
+        ? every
+        : listed
+      : cap === "automations.triggers.list"
+        ? triggers
+        : { connectors: [], connections: [] },
+  );
+  assert.ok(res.ok);
+  if (res.ok) {
+    assert.deepEqual(
+      res.catalog.steps.map((s) => s.key),
+      ["http_request"],
+    );
+    assert.ok(res.catalog.all.some((s) => s.key === "ms.mail.send_message"));
+    const keys = new Set(res.catalog.steps.map((s) => s.key));
+    assert.equal(unlistedAppLine("ms.mail.send_message", keys), "Uses Microsoft 365, which you have not been given.");
+    assert.equal(unlistedAppLine("http_request", keys), null);
+  }
+  const failed = await loadProductCatalog(async (cap, input) => {
+    if (cap === "automations.steps.list" && (input as { all?: boolean }).all) throw new Error("no");
+    return cap === "automations.steps.list"
+      ? listed
+      : cap === "automations.triggers.list"
+        ? triggers
+        : { connectors: [], connections: [] };
+  });
+  assert.ok(failed.ok && failed.catalog.all.length === 1);
 });

@@ -59,11 +59,16 @@ for (const [family, code] of FAMILIES) {
 
 test("what the agent is told when its own clearance is short names the agent, not the person, and says to stop", () => {
   const e = modelError({ code: "permission.above_clearance", message: "", traceId: "t" } as never);
-  assert.match(e.say, /I am cleared to open/);
-  assert.match(e.say, /only people may open, and I cannot be given it/);
-  assert.doesNotMatch(e.say, /Ask for access|grant me/i);
+  assert.match(e.say, /labelled above what I am cleared to open/);
+  assert.match(e.say, /An admin decides who may open it/);
+  assert.doesNotMatch(
+    e.say,
+    /only people|cannot be given|open it themselves/i,
+    "not true when the person is below the label too, or an admin gave the agent a higher role",
+  );
+  assert.match(e.say, /do not ask for access for me/, "never suggests a request that cannot work");
   const r = modelError({ code: "permission.role_lacks_permission", message: "", traceId: "t" } as never);
-  assert.match(r.say, /I am not allowed to do that here/);
+  assert.match(r.say, /Neither I nor the person I work for/);
 });
 
 test("a plain message the server wrote for this very failure leads, and the table's next step follows it", () => {
@@ -88,7 +93,7 @@ test("the error envelope an agent receives, as one snapshot", () => {
     JSON.stringify(e, null, 1),
     JSON.stringify(
       {
-        say: "That item is above your clearance. This is an item only people may open, and I cannot be given it. Say so, tell the person what they can do instead (open it themselves), and stop; do not suggest a request for access.",
+        say: "That item is above your clearance. An admin decides who may open it. Tell the person it is restricted, do not ask for access for me, and stop.",
         reply: REPLY_RULE,
         message: "That item is above your clearance.",
         details: { reason: "above_clearance", tool: "vault_use" },

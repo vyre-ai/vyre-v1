@@ -3984,6 +3984,7 @@ const b1755: string[] = []; lf(x1755, p, b1755, L0); if (b1755.length) e.push(..
 if (g1755 === "object") {
 if (g1755 === 'object') { const o1755 = x1755 as Record<string, unknown>;
 if ("category" in o1755) lf(o1755["category"], p + "/category", e, L536);
+if ("all" in o1755) lf(o1755["all"], p + "/all", e, L3);
 }
 }
 }

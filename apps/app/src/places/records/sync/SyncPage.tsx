@@ -18,6 +18,8 @@ export interface SyncPageNav {
   openRecords(type: string): void;
   /** Edit mapping: the assistant opens with the spec the type was made from. Absent when the assistant cannot do it (it may not build connectors and its person cannot allow it): no button. */
   editMapping?(a: { app: string; type: string }): void;
+  /** Said before the press, while the press also allows the assistant to build connectors. */
+  editMappingNote?: string;
   /** After Remove: the type is gone or plain, so the page goes back to Records. */
   closed(): void;
 }
@@ -378,6 +380,11 @@ export function SyncPage({ type, call, nav, now = Date.now, title, canManage = t
               disabled={busy || st.paused}
               why="Resume the sync first"
             />
+            {nav.editMapping && nav.editMappingNote ? (
+              <Text style={{ fontSize: 11.5, color: "var(--ink-3)" as string }} testID="sync-edit-note">
+                {nav.editMappingNote}
+              </Text>
+            ) : null}
             {nav.editMapping ? (
               <Btn
                 label="Edit mapping"

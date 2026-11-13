@@ -171,6 +171,9 @@ export function blockedNote(u: UsedBy): string | undefined {
   return b ? (host ? `Not allowed to go to ${host}` : "A step may no longer use this key") : undefined;
 }
 
+/** Said before any press that also allows the assistant to build connectors (the first-page card says it on the server side with the same words). */
+export const ALLOW_BUILD_LINE = "Your assistant will be allowed to build connectors.";
+
 /** The gate for a setup that needs the assistant to build connectors, as the one function every door asks: the Vault row, the first page's Set up and the Records and picker doors all end here (gateFor). */
 export function builderGateFor(st: BuilderStatus | null): Gate {
   // a status that could not be read is the same as "the assistant may not, and nobody can say it may": ask_admin

@@ -272,11 +272,11 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
           ...(assistantBuilds.builds
             ? {
                 buildConnector: () => {
-                  void assistantBuilds
-                    .prepare()
-                    .then(() => openAskPane({ thing: null, first: BUILD_CONNECTOR_OPENING }, "automations"))
-                    .catch(() => undefined);
+                  assistantBuilds.press("automations", () =>
+                    openAskPane({ thing: null, first: BUILD_CONNECTOR_OPENING }, "automations"),
+                  );
                 },
+                ...(assistantBuilds.note ? { buildConnectorNote: assistantBuilds.note } : {}),
               }
             : {}),
           // the public address is set in Console; only a person who can open that page gets the door (reach)

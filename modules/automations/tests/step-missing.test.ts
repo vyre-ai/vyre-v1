@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { registry } from "../../../generated/registry.ts";
-import { chipForIssue, missingInput, missingMessage } from "../../../lib/words/step-missing.ts";
+import { chipForIssue, knownInput, missingInput, missingMessage } from "../../../lib/words/step-missing.ts";
 import { validateDefinition } from "../handlers/defs.ts";
 import type { Definition } from "../projections.ts";
 
@@ -34,6 +34,11 @@ for (const { step, field } of CASES) {
     };
     const mine = validateDefinition(def, POLICY as never).filter(
       (i) => i.nodeId === "n1" && i.severity === "error" && i.message.startsWith(`${step.title}: `),
+    );
+    assert.equal(
+      knownInput(step.key, field),
+      true,
+      `${step.key}.${field} has no row in lib/words/step-missing.ts: add one`,
     );
     const words = missingInput(step.key, field);
     assert.ok(
@@ -77,6 +82,8 @@ test("a field the table does not know still reads as words, never as its key", (
   assert.equal(CAMEL.test(w.do), false, w.do);
   assert.equal(w.do.includes("legalEntityId"), false);
   assert.equal(w.chip, "Needs a detail");
+  assert.equal(chipForIssue(`Some step: ${w.do}.`), "Needs a detail", "the card says what the table says");
+  assert.equal(knownInput("some_new_step", "legalEntityId"), false);
 });
 
 test("a chip for a message with no table row says what kind of thing it is, never error", () => {

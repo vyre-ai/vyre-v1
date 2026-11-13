@@ -96,6 +96,30 @@ test("production Automations: missing input in words, and a step menu with only 
     assert.equal(/^error$/im.test(body), false, "the bare word error is on the page");
     assert.match(body, /choose the file to send for signature/);
 
+    // an Automation that already holds a Microsoft step, opened by a person who was never given Microsoft: it opens, the step keeps its typed form (Not set up, from the full catalogue) and says so in one plain line
+    const ms = await context.request.post(`${web.origin}/v1/automations/create`, {
+      headers: auth,
+      data: {
+        name: "Outlook note",
+        idempotencyKey: "faults-ms",
+        definition: {
+          triggers: [{ key: "manual" }],
+          nodes: [{ id: "m1", key: "ms.mail.send_message", input: {} }],
+          start: ["m1"],
+        },
+      },
+    });
+    assert.equal(ms.status(), 200, await ms.text());
+    await page.goto(`${web.origin}/automations`, { waitUntil: "load" });
+    await page.getByText("Outlook note", { exact: true }).first().click({ timeout: 30_000 });
+    await page.getByTestId("card-m1").waitFor({ timeout: 20_000 });
+    await shoot("ms-step-kept");
+    assert.match(await page.getByTestId("card-sub-m1").innerText(), /Not set up/, "the step lost its typed form");
+    await page.getByTestId("unlisted-note").waitFor({ timeout: 10_000 });
+    assert.match(await page.locator("body").innerText(), /Uses Microsoft 365, which you have not been given/);
+    await page.getByText("Contract to sign", { exact: true }).first().click();
+    await page.getByTestId("chip-n1").waitFor({ timeout: 20_000 });
+
     // the step menu: this Space connected nothing, so no app's actions are listed
     await page.getByTestId("add-Add a step after Send for signature").click();
     const menu = page.getByRole("menu").last();
@@ -114,6 +138,17 @@ test("production Automations: missing input in words, and a step menu with only 
     await page.getByTestId("chip-n1").waitFor({ timeout: 20_000 });
     await shoot("step-missing-file-dark");
     assert.equal(await page.getByTestId("card-n1").getByText("Send for signature", { exact: true }).count(), 1);
+    // the first page and the step menu in the Graphite skin too
+    const night = new URL(`${web.origin}/automations`);
+    night.searchParams.set("skin", "graphite");
+    await page.goto(night.toString(), { waitUntil: "load" });
+    await page.getByTestId("automations-start").waitFor({ timeout: 30_000 });
+    await page.getByText("Set up Acme for Automations?", { exact: false }).first().waitFor({ timeout: 30_000 });
+    await shoot("start-offers-dark");
+    await page.getByText("Contract to sign", { exact: true }).first().click();
+    await page.getByTestId("add-Add a step after Send for signature").click();
+    await page.getByRole("menu").last().waitFor({ timeout: 10_000 });
+    await shoot("step-menu-dark");
     assert.deepEqual(errors, [], "no page error");
   } finally {
     await browser.close();

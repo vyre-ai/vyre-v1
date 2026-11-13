@@ -4273,6 +4273,7 @@ export type AutomationsSetOwnerOut = {
 };
 export type AutomationsStepsListIn = {
   category?: "data" | "send" | "ai" | "control" | "wait" | "code" | "sheet" | "sign" | "journey";
+  all?: boolean;
 };
 export type AutomationsStepsListOut = {
   steps: Array<{

@@ -11,7 +11,7 @@ const callerOf = (ctx: AccessCtx): string => ctx.actingFor ?? ctx.principal.id;
 
 /**
  * May the agent, acting for the caller, use this Vault item, or can it be made so with one approval? Only a missing grant is that: the person who already may use the item shares it with the agent
- * (access.request, which an agent asks for itself). A label above the agent's clearance is not: no grant lifts a clearance.
+ * (access.request, which an agent asks for itself). A label above the clearance of the agent or of the person is not: a grant does not lift a clearance (only a role with a higher one does).
  */
 function reaches(
   ctx: AccessCtx,
@@ -33,8 +33,8 @@ function reaches(
   return asAgent.reason === "no_grant" && req(caller).effect === "allow";
 }
 
-/** Does this agent hold connectors.manage now, and may the caller give it. With an `itemId` it also says whether the agent, acting for the caller, may use that Vault item or can be given it with one approval: no grant can lift an agent
- *  above its clearance, so an item labelled above it (a company key, anything Restricted) cannot be set up through the assistant at all. */
+/** Does this agent hold connectors.manage now, and may the caller give it. With an `itemId` it also says whether the agent, acting for the caller, may use that Vault item or can be given it with one approval: a grant does not lift a clearance (it is per subject: the agent, and the person it acts for), so an item labelled above the agent's
+ *  clearance (a company key, anything Restricted) is not reachable through the assistant unless an admin gives it a role with a higher one. */
 export async function builderStatus(
   ctx: AccessCtx,
   input: { agentId: string; itemId?: string },

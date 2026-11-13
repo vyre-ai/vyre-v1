@@ -105,6 +105,10 @@ const BY_STEP: Readonly<Record<string, Missing>> = {
 /** Something a person cannot read: a field key (camelCase, snake_case or a trailing Id) rather than words. */
 const KEYLIKE = /[a-z][A-Z]|_|\bId\b|[a-z]Id\b/;
 
+/** Does the table have a row for this input? A new required input must get one (the test over the catalogue fails without it). */
+export const knownInput = (stepKey: string, field: string): boolean =>
+  BY_STEP[`${stepKey}.${field}`] !== undefined || BY_FIELD[field] !== undefined;
+
 /** What to do about one missing input of a step, and the card's chip for it. A field the table does not know still reads as words (never the key). */
 export function missingInput(stepKey: string, field: string): Missing {
   const known = BY_STEP[`${stepKey}.${field}`] ?? BY_FIELD[field];
@@ -130,10 +134,11 @@ const CHIP_OF_DO = new Map<string, string>(
 
 /**
  * The chip a step card shows for what is wrong with it, in one to three words. A message the table wrote gives its own chip; a message that says "needs <something>" gives "Needs <something>";
- * anything else is "Needs a fix". Never the bare word "error".
+ * anything else is "Needs a fix". The table's fallback for an input it does not know is "Needs a detail". Never the bare word "error".
  */
 export function chipForIssue(message: string): string {
   for (const [tail, chip] of CHIP_OF_DO) if (message.endsWith(tail)) return chip;
+  if (/: fill in /.test(message)) return "Needs a detail";
   const needs = / needs ((?:a |an |the )?[^.,:]+?)\.?$/.exec(message);
   if (needs?.[1] !== undefined && needs[1].split(/\s+/).length <= 4) return `Needs ${needs[1].replace(/^the /, "a ")}`;
   return "Needs a fix";

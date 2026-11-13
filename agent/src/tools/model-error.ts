@@ -24,17 +24,28 @@ export const REPLY_RULE =
 /** Words for the codes where the agent itself, not the person, is the one refused: "you" in the person's table would read as the person's own role. */
 const AGENT_WORDS: Readonly<Record<string, { what: string; next: string }>> = {
   "permission.role_lacks_permission": {
-    what: "I am not allowed to do that here.",
-    next: "An admin can allow it for me. Say what is needed and stop; do not look for another way.",
+    what: "Neither I nor the person I work for has the permission for that.",
+    next: "An admin decides who may do it. Say so and stop; do not look for another way.",
   },
+  // raised by the access check when the label is above the clearance of the agent, of the person it acts for, or of both (clearance is per subject): one sentence true in each case
   "permission.above_clearance": {
-    what: "That is restricted beyond what I am cleared to open.",
-    next: "This is an item only people may open, and I cannot be given it. Say so, tell the person what they can do instead (open it themselves), and stop; do not suggest a request for access.",
+    what: "That is labelled above what I am cleared to open here.",
+    next: "An admin decides who may open it. Tell the person it is restricted, do not ask for access for me, and stop.",
   },
   "permission.no_grant": {
     what: "I do not have access to that.",
     next: "Offer to ask for access if there is an Ask for access step; otherwise say who can share it.",
   },
+  "permission.not_found": {
+    what: "I could not find that, or it is not open to me.",
+    next: "Ask the person which one they mean, or who can share it.",
+  },
+  "permission.expired": { what: "That access has run out.", next: "Say so; the person can ask for it again." },
+  "permission.revoked": {
+    what: "That access was taken away.",
+    next: "Say so and stop; the person can ask for it again.",
+  },
+  "permission.on_hold": { what: "A hold stops this change.", next: "Say so; an admin can lift the hold." },
   "validation.bad_input": {
     what: "That request was not right.",
     next: "Check it against the tool's description and try once more; if it fails again, say what you need.",

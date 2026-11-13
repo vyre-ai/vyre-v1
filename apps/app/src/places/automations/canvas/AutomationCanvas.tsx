@@ -16,7 +16,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { AskTab } from "../ask/AskTab.tsx";
 import { AskVyre } from "../ask/AskVyre.tsx";
 import type { AskBundle } from "../ask/bundle.ts";
-import { iconForStep, loadProductCatalog, menuGroups } from "../catalog/model.ts";
+import { iconForStep, loadProductCatalog, menuGroups, unlistedAppLine } from "../catalog/model.ts";
 import { StepLogo } from "./StepLogo.tsx";
 import type { CatalogStep, CatalogTrigger } from "../catalog/model.ts";
 import { applyAccount, connectedOption } from "../connect/accounts.ts";
@@ -190,7 +190,7 @@ const PICKER = { search: "Search steps", width: 320 } as const;
 
 type CatalogPhase =
   | { phase: "loading" }
-  | { phase: "ready"; steps: CatalogStep[]; triggers: CatalogTrigger[] }
+  | { phase: "ready"; steps: CatalogStep[]; all: CatalogStep[]; triggers: CatalogTrigger[] }
   | { phase: "unavailable"; message: string };
 
 function CanvasBody({
@@ -325,7 +325,7 @@ function CanvasBody({
       if (!live) return;
       setCatalog(
         res.ok
-          ? { phase: "ready", steps: res.catalog.steps, triggers: res.catalog.triggers }
+          ? { phase: "ready", steps: res.catalog.steps, all: res.catalog.all, triggers: res.catalog.triggers }
           : { phase: "unavailable", message: res.message },
       );
     });
@@ -345,15 +345,30 @@ function CanvasBody({
       ),
     [spaceAi],
   );
+  // a step whose app this person has not been given stays whole (its form comes from the full catalogue); one plain line says so
+  const listedKeys = useMemo(
+    () => (catalog.phase === "ready" ? new Set(catalog.steps.map((st) => st.key)) : null),
+    [catalog],
+  );
+  const unlisted = useMemo(
+    () =>
+      listedKeys === null
+        ? []
+        : def.nodes.flatMap((n) => {
+            const line = unlistedAppLine(n.key, listedKeys);
+            return line === null ? [] : [{ nodeId: n.id, severity: "warning" as const, message: line }];
+          }),
+    [def, listedKeys],
+  );
   const issues = useMemo(
-    () => sortedIssues([...check(def, a.kind, { automatic }), ...serverIssues]),
-    [def, a.kind, serverIssues, automatic],
+    () => sortedIssues([...check(def, a.kind, { automatic }), ...serverIssues, ...unlisted]),
+    [def, a.kind, serverIssues, automatic, unlisted],
   );
   const tested = useMemo(() => new Set(Object.keys(samples)), [samples]);
   const required = useMemo(() => {
     const out: Record<string, string[]> = {};
     if (catalog.phase === "ready")
-      for (const step of catalog.steps) {
+      for (const step of catalog.all) {
         const r = requiredOf(step.input);
         if (r.length > 0) out[step.key] = r;
       }
@@ -505,6 +520,7 @@ function CanvasBody({
         {
           label: "Build a connector",
           pinned: true,
+          ...(data.nav.buildConnectorNote ? { mark: data.nav.buildConnectorNote } : {}),
           leading: <StepLogo stepKey="" icon="plus" name="Build a connector" size={20} />,
           onSelect: () => build(),
         },
@@ -738,7 +754,7 @@ function CanvasBody({
         .map((issue) => {
           const node = issue.nodeId ? def.nodes.find((n) => n.id === issue.nodeId) : undefined;
           const schema =
-            node && catalog.phase === "ready" ? catalog.steps.find((step) => step.key === node.key)?.input : undefined;
+            node && catalog.phase === "ready" ? catalog.all.find((step) => step.key === node.key)?.input : undefined;
           const need = node ? stepNeed(node, schema, a.kind) : undefined;
           return node && need ? { node, need, issue } : undefined;
         })
@@ -932,7 +948,7 @@ function CanvasBody({
     setSections((cur) => ({ ...cur, [tabKey(id, trigger)]: "data" }));
   };
   const stepSchema =
-    selected && catalog.phase === "ready" ? catalog.steps.find((step) => step.key === selected.key)?.input : undefined;
+    selected && catalog.phase === "ready" ? catalog.all.find((step) => step.key === selected.key)?.input : undefined;
   const stack = frame.compact;
   const inspectorPane =
     inspect && activeStep ? (
@@ -1205,6 +1221,14 @@ function CanvasBody({
       <SubTabs tabs={tabs} active={tab} onSelect={(k) => setTab(k as CanvasTab)} label="Automation" />
       {tab === "steps" ? (
         <>
+          {unlisted.length > 0 ? (
+            <Text
+              testID="unlisted-note"
+              style={{ fontSize: 12, color: "var(--ink-3)" as string, paddingHorizontal: 16, paddingVertical: 6 }}
+            >
+              {[...new Set(unlisted.map((u) => u.message))].join(" ")}
+            </Text>
+          ) : null}
           {errors.length > 0 ? (
             <View style={s.problems} testID="problems" accessibilityRole="alert">
               <Glyph name="warn" size={13} color="var(--danger)" />
@@ -1505,7 +1529,7 @@ function CanvasBody({
           def={def}
           selectedId={sel && sel.id !== "trigger" ? sel.id : null}
           accounts={data.accounts ?? []}
-          steps={catalog.phase === "ready" ? catalog.steps.map((step) => ({ key: step.key, title: step.title })) : []}
+          steps={catalog.phase === "ready" ? catalog.all.map((step) => ({ key: step.key, title: step.title })) : []}
           onChange={edit}
           onOpenChat={(bundle) => data.nav.ask(a.id, bundle)}
           onConnect={(target) => data.nav.connect(target)}

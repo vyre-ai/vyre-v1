@@ -165,13 +165,16 @@ test("anyone else sees Ask an admin, which sends one task to the admins and then
   assert.match(textOf(root), /An admin has been asked/);
 });
 
-test("in a Personal Space the assistant is allowed without a tap", async () => {
+test("in a Personal Space too, opening the page grants nothing: the Allow press does", async () => {
   const v = createSampleVault();
   const seen = withBuilder(v, { allowed: false, canGrant: true }, true);
   const root = await open(v, "vit_ghl");
   await settle();
+  assert.deepEqual(seen, [], "looking at a key never allows the assistant");
+  assert.match(textOf(root), /needs permission to build connectors/);
+  await press(find(root, "auto-gate-fix"));
+  await settle();
   assert.deepEqual(seen, ["access.connector_builder.grant"]);
-  assert.equal(textOf(root).includes("needs permission"), false);
 });
 
 test("a pending connection built on this key asks for its missing secret inline: it is saved to the Vault by the Vault's write, handed to the connection by handle, and the value is cleared", async () => {

@@ -26,6 +26,7 @@ The step palette: every step kind with category, input and output schema, effect
 ```ts
 type In = {
   category?: "data" | "send" | "ai" | "control" | "wait" | "code" | "sheet" | "sign" | "journey";
+  all?: boolean;
 };
 ```
 
@@ -59,6 +60,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "all": true,
     "category": "data"
   },
   "output": {

@@ -3,3 +3,5 @@
 - Your assistant no longer prints error codes such as permission.above_clearance. It tells you what happened and what you can do in plain words, and gives a code only if you ask for it. The Failures list in Automations analytics reads in words too.
 - A step that is missing something says what to do ("Send for signature: choose the file to send for signature.") and its card chip says what is missing in a few words ("Needs a file"), never a field name or the word "error".
 - The step menu lists Google, Microsoft and GitHub actions only for apps connected on your Space that you may use. Your assistant proposes steps from the same list.
+- An Automation that already holds a Google, Microsoft or GitHub step you were not given still opens whole: the step keeps its form and says "Uses Microsoft 365, which you have not been given." Only the step menu leaves those apps out.
+- Build a connector, Bring in from your CRM and Edit mapping say before you press that your assistant will be allowed to build connectors, and a refusal is said in words. Opening a page never allows your assistant to build connectors, even in a Personal Space: only a press does.

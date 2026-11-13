@@ -154,9 +154,8 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
           ...(openSync ? { openSync } : {}),
           ...(assistantBuilds.builds && bringInCrm
             ? {
-                bringInCrm: () => {
-                  void assistantBuilds.prepare().then(bringInCrm, () => undefined);
-                },
+                bringInCrm: () => assistantBuilds.press("records", bringInCrm),
+                ...(assistantBuilds.note ? { bringInNote: assistantBuilds.note } : {}),
               }
             : {}),
         }
@@ -224,17 +223,16 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
               ...(assistantBuilds.builds
                 ? {
                     editMapping: (a: { app: string; type: string }) =>
-                      void assistantBuilds.prepare().then(
-                        () =>
-                          openAskPane(
-                            {
-                              thing: { kind: ASK_SCOPE, id: `sync:${a.type}`, title: `How ${a.type} syncs` },
-                              first: editMappingOpening(a),
-                            },
-                            "records",
-                          ),
-                        () => undefined,
+                      assistantBuilds.press("records", () =>
+                        openAskPane(
+                          {
+                            thing: { kind: ASK_SCOPE, id: `sync:${a.type}`, title: `How ${a.type} syncs` },
+                            first: editMappingOpening(a),
+                          },
+                          "records",
+                        ),
                       ),
+                    ...(assistantBuilds.note ? { editMappingNote: assistantBuilds.note } : {}),
                   }
                 : {}),
               closed: () => opened({}),

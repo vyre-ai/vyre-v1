@@ -392,9 +392,10 @@ async function connectedApps(ctx: AutoCtx): Promise<Set<string>> {
 }
 
 /** The steps this server cannot run, or whose app is not connected for the caller, hidden from the catalogue. A step that is here but not yet usable is not hidden: its problem shows when it is turned on. */
-async function hiddenSteps(ctx: AutoCtx): Promise<Set<string>> {
+async function hiddenSteps(ctx: AutoCtx, everyApp = false): Promise<Set<string>> {
   const s = await supportOf(ctx);
-  const apps = await connectedApps(ctx);
+  // the editor of an existing Automation asks for every step (`all`): its steps keep their forms whoever opens it; only the picker is filtered
+  const apps = everyApp ? new Set(APP_STEPS.map((a) => a.connector)) : await connectedApps(ctx);
   const unconnected = registry.steps
     .filter((st) => APP_STEPS.some((a) => st.key.startsWith(a.start) && !apps.has(a.connector)))
     .map((st) => st.key);
@@ -866,7 +867,7 @@ export function inlineRefs(schema: unknown, depth = 0): unknown {
 }
 
 export async function stepsList(ctx: AutoCtx, input: In): Promise<unknown> {
-  const hidden = await hiddenSteps(ctx);
+  const hidden = await hiddenSteps(ctx, input.all === true);
   const steps = registry.steps.filter((s) => !hidden.has(s.key) && (!input.category || s.category === input.category));
   return {
     steps: steps.map((s) =>

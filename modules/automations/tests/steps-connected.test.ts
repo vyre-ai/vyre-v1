@@ -86,3 +86,18 @@ test("the Assistant's list is this one: the same capability, asked as its person
   );
   assert.equal(has(assistant, "ms."), false);
 });
+
+test("the editor asks for every step (all): an Automation's Microsoft step keeps its form for a person without Microsoft, even when the connections read fails; the picker list does not have it", async () => {
+  for (const failing of [false, true]) {
+    const h = world({ connections: {}, failing });
+    const picker = ((await h.call("automations.steps.list", {}, alice)).steps as { key: string }[]).map((s) => s.key);
+    const all = (await h.call("automations.steps.list", { all: true }, alice)).steps as {
+      key: string;
+      input?: { required?: string[] };
+    }[];
+    assert.equal(has(picker, "ms."), false);
+    const send = all.find((s) => s.key === "ms.mail.send_message");
+    assert.ok(send, "the full catalogue holds the step");
+    assert.deepEqual([...(send!.input?.required ?? [])].sort(), ["connectionId", "subject", "to"]);
+  }
+});

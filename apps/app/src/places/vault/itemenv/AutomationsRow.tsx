@@ -93,15 +93,11 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
     let live = true;
     void (async () => {
       try {
-        let st = (await data.call("access.connector_builder.status", {
+        // nothing is granted by opening the page: the Allow button is the press that says so
+        const st = (await data.call("access.connector_builder.status", {
           agentId: assistant,
           itemId: item.id,
         })) as BuilderStatus;
-        // a Personal Space is the person's own: their assistant is allowed to build connectors without a tap
-        if (!st.allowed && st.canGrant && data.personal === true) {
-          await data.call("access.connector_builder.grant", { agentId: assistant });
-          st = { ...st, allowed: true, canGrant: true };
-        }
         if (live) setBuilder(st);
       } catch {
         if (live) setBuilder(null);
