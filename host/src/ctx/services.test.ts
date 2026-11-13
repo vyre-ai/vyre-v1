@@ -60,6 +60,16 @@ function rig(extra: Partial<Parameters<typeof hostServices>[0]> = {}) {
       ranDuring.push(await queue.tick());
       return {};
     },
+    // a nested call schedules; the outer call then lets the queue tick before it has committed
+    "demo.outer": async (ctx: Ctx) => {
+      await ctx.call("demo.mid_inner" as never, { id: "rec_1" });
+      ranDuring.push(await queue.tick());
+      return {};
+    },
+    "demo.mid_inner": async (ctx: Ctx) => {
+      await ctx.schedule(clock.t, "demo.later", { id: "inner" });
+      return {};
+    },
     "demo.mid_fail": async (ctx: Ctx) => {
       await ctx.schedule(clock.t, "demo.later", { id: "mid_fail" });
       throw new Error("the call failed after it asked for a job");
@@ -180,4 +190,13 @@ test("a job scheduled by a call that then failed is never run", async () => {
   r.clock.t += 10 * 60_000;
   assert.equal(await r.queue.tick(), 0, "nor later");
   assert.equal(r.later.length, 0);
+});
+
+test("a job a nested call schedules waits for the outermost call's commit", async () => {
+  const r = rig();
+  const res = await r.invoke("demo.outer", { id: "rec_1" }, seed);
+  assert.equal(res.status, "ok");
+  assert.deepEqual(r.ranDuring, [0], "the nested call has committed, the outer one has not: nothing ran");
+  assert.equal(await r.queue.tick(), 1);
+  assert.deepEqual(r.later[0]!.input, { id: "inner" });
 });

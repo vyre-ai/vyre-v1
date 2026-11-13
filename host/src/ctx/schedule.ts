@@ -23,7 +23,7 @@ export interface ScheduledCall {
 
 /**
  * The jobs one call has asked for and that must not run before that call has committed (a job may read what the call wrote, and a tick can land at any moment). `forCtx` inserts them as
- * `held`; `release` makes them due, `discard` drops them. A process that died before a call settled leaves held rows, which the next queue deletes at start once they are older than the lease (a call can be open for minutes, so nothing sweeps them while the server runs).
+ * `held`; `release` makes them due, `discard` drops them. A process that died before a call settled leaves held rows, which the next queue releases at start once they are older than the lease (a call can be open for minutes, so nothing touches them while the server runs).
  */
 export interface ScheduleHold {
   /** Jobs added while true are held. After release or discard the call is over and a late ctx.schedule is due at once, as it always was. */
@@ -107,9 +107,11 @@ export class ScheduleQueue {
       last_error TEXT, created_at INTEGER NOT NULL
     )`);
     this.db.run("CREATE INDEX IF NOT EXISTS host_schedule_due ON host_schedule (state, run_at)");
-    // a process that died between a call asking for a job and that call's commit left a held row nothing will release; one older than the lease cannot belong to a call still open
+    // a process that died between a call asking for a job and the release left a held row; one older than the lease cannot belong to a call still open. It is RELEASED, not deleted: the call may have
+    // committed (the kill came after the commit and before the release), and a lost routine, expiry or backup is worse than a job that finds nothing to do (a job already runs later, against whatever
+    // state is there; a missing one is a refusal that is retried and then parked)
     this.db.run(
-      "DELETE FROM host_schedule WHERE state = 'held' AND created_at <= ?",
+      "UPDATE host_schedule SET state = 'pending' WHERE state = 'held' AND created_at <= ?",
       this.now() - (o.leaseMs ?? 120_000),
     );
   }
@@ -220,7 +222,7 @@ export class ScheduleQueue {
     const now = this.now();
     const lease = this.o.leaseMs ?? 120_000;
     const due = this.db.all(
-      "SELECT id, space, cap, input, principal_kind, principal_id, acting_for, trace_id, tries FROM host_schedule WHERE (state = 'pending' AND run_at <= ?) OR (state = 'running' AND claimed_at <= ?) ORDER BY run_at, id LIMIT ?",
+      "SELECT id, space, cap, input, principal_kind, principal_id, acting_for, trace_id, tries FROM host_schedule WHERE (state = 'pending' AND run_at <= ?) OR (state = 'running' AND claimed_at <= ?) ORDER BY run_at, rowid LIMIT ?",
       now,
       now - lease,
       this.o.batch ?? 50,

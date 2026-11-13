@@ -218,19 +218,46 @@ test("jobs asked for while a call is open are held: not due until released, gone
   assert.equal(await r.q.tick(), 1);
 });
 
-test("jobs held by a call that never settled are deleted when the server next starts, if older than the lease", async () => {
+test("jobs held when the server died are released at the next start, never lost (the call may have committed before the kill)", async () => {
   const r = rig();
   await r.q.forCtx({ ...seed, hold: { open: true, ids: [] } })(T0, "gate.expire", { taskId: "tsk_orphan" });
   r.clock.t += 600_000;
-  assert.equal(await r.q.tick(), 0, "a call can be open for minutes: nothing is swept while the server runs");
-  assert.equal((r.db.all("SELECT id FROM host_schedule") as unknown[]).length, 1);
-  r.make(); // the server starts again
-  assert.equal((r.db.all("SELECT id FROM host_schedule") as unknown[]).length, 0, "swept at start");
-  // one held a moment ago may belong to a call another computer has open: kept
+  assert.equal(await r.q.tick(), 0, "a call can be open for minutes: nothing touches its jobs while the server runs");
+  const q2 = r.make(); // the server starts again
+  assert.equal(await q2.tick(), 1, "released and run");
+  assert.deepEqual(
+    r.ran.map((c) => c.input),
+    [{ taskId: "tsk_orphan" }],
+  );
+  // one held a moment ago may belong to a call another computer has open: left alone
   await r.q.forCtx({ ...seed, hold: { open: true, ids: [] } })(r.clock.t, "gate.expire", { taskId: "tsk_new" });
-  r.make();
-  assert.equal((r.db.all("SELECT id FROM host_schedule") as unknown[]).length, 1);
-  assert.equal(r.ran.length, 0, "and none of them ran");
+  assert.equal(await r.make().tick(), 0);
+  assert.equal(r.ran.length, 1);
+});
+
+test("jobs due at the same time run in the order they were scheduled: 200 in one millisecond, fresh and from a database made before", async () => {
+  const mk = async (r: ReturnType<typeof rig>, viaRaw: boolean): Promise<void> => {
+    for (let i = 0; i < 200; i++) {
+      if (viaRaw)
+        // rows as the code before this change wrote them: a random id inside the millisecond, no state column value given
+        r.db.run(
+          "INSERT INTO host_schedule (id, space, cap, input, principal_kind, principal_id, trace_id, run_at, created_at) VALUES (?, 'spc_1', 'gate.expire', ?, 'person', 'usr_dana', '', ?, ?)",
+          `sch_${Math.random().toString(16).slice(2)}${i}`,
+          JSON.stringify({ n: i }),
+          T0,
+          T0,
+        );
+      else await r.q.forCtx(seed)(T0, "gate.expire", { n: i });
+    }
+    let total = 0;
+    while (total < 200) total += await r.q.tick();
+    assert.deepEqual(
+      r.ran.map((c) => (c.input as { n: number }).n),
+      Array.from({ length: 200 }, (_, i) => i),
+    );
+  };
+  await mk(rig(), false);
+  await mk(rig(), true);
 });
 
 // P-H_01 final run: each named test shows its own ok line in the run on the last commit.

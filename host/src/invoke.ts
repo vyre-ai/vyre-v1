@@ -59,6 +59,11 @@ export interface PrincipalSeed {
   id: string;
 }
 /** What the caller knows before the pipeline starts: who, for whom, where from. */
+/** One chain of calls' held jobs (see ScheduleHold in ctx/schedule.ts); the services fill it, the outermost call settles it. */
+export interface ScheduleScope {
+  hold?: { open: boolean; ids: string[] };
+}
+
 export interface CtxSeed {
   /** made through CallOpts.asCaller: the capability sees ctx.forwarded (only that one call; its own nested calls are ordinary) */
   forwarded?: boolean | undefined;
@@ -92,6 +97,8 @@ export interface CtxSeed {
   preAuth?: boolean | undefined;
   /** set by a caller that wants the Gate to hold only on an explicit rule (a step with Ask before sending Off); it follows every nested call */
   gateMode?: "admin_only" | undefined;
+  /** Set by the pipeline for the outermost call and handed down to every nested call (ctx.call): what the whole chain schedules waits for the outermost commit. Never set by a caller. */
+  scheduleScope?: ScheduleScope | undefined;
   /** the automation step this call is, set by steps-core through CallOpts: an outward act needs a grant for it, whoever the Run runs as; it follows every nested call */
   step?: StepRef | undefined;
   /** Ask first (chat mode): a call that changes or sends something is parked for a yes before its handler runs. Set only by the tool session of a chat in Ask first mode; it follows no nested call. */
@@ -624,7 +631,13 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       asked.chatMode !== undefined && asked.thread !== undefined
         ? (deps.gate?.mode?.(asked.thread) ?? asked.chatMode)
         : asked.chatMode;
-    const seed: CtxSeed = liveMode === asked.chatMode ? asked : { ...asked, chatMode: liveMode };
+    // the outermost call of a chain owns the scope: what the chain schedules is released by its commit (nested calls commit earlier, but what they scheduled may read what an outer call has written and not yet committed)
+    const ownsScope = asked.scheduleScope === undefined;
+    const scope: ScheduleScope = asked.scheduleScope ?? {};
+    const seed: CtxSeed = {
+      ...(liveMode === asked.chatMode ? asked : { ...asked, chatMode: liveMode }),
+      scheduleScope: scope,
+    };
     if (c.rate && deps.rate && !rateChecked) {
       const k = c.rate.scope === "space" ? `space:${seed.space}:${c.name}` : `${seed.principal.id}:${c.name}`;
       if (!deps.rate.take(k, c.rate, t))
@@ -948,12 +961,20 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     if (!h) throw fail("internal.not_implemented", traceId, { details: { cap: c.name } });
     const events: EventEnvelope[] = [];
     const settle: Array<(committed: boolean) => void> = [];
-    const ctx = makeCtx(c, seed, trace, depth, events, approved ? approvedGates : undefined, settle);
+    const ctx = makeCtx(
+      c,
+      seed,
+      trace,
+      depth,
+      events,
+      approved ? approvedGates : undefined,
+      ownsScope ? settle : undefined,
+    );
     let output: unknown;
     try {
       output = await h(ctx, input); // a throw here is mapped by the outer catch: VyreErr and HostError keep their code, anything else is internal.unexpected
     } catch (e) {
-      for (const s of settle) s(false);
+      for (const s of settle) s(false); // a nested call that failed leaves what its chain scheduled to the outermost call
       // refused before it went out: a person's yes this call spent is handed back, so the corrected retry is still asked for (one successful send per yes)
       await deps.gate?.giveBack?.(input).catch(() => undefined);
       // events the handler marked afterFailure (a refused sign-in's signin.failed) are written on their own, then the error goes on; nothing else the call buffered is
