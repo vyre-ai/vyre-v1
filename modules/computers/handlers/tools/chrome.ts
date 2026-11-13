@@ -43,9 +43,11 @@ export async function screenshot(ctx: CompCtx, input: Base & { ref?: string; ful
   const out = await call(ctx, r, spec, defined({ tabId: input.tabId, ref: input.ref, fullPage: input.fullPage }));
   const kept = await keepShot(ctx, r.computer, "chrome_screenshot", out);
   // the first answer after the browser was reopened says so (browserStep)
-  return out["reopened"] === true
-    ? { ...kept, reopened: true, ...(typeof out["note"] === "string" ? { note: out["note"] } : {}) }
-    : kept;
+  return {
+    ...kept,
+    ...(out["reopened"] === true ? { reopened: true } : {}),
+    ...(typeof out["note"] === "string" ? { note: out["note"] } : {}),
+  };
 }
 
 export async function consoleMessages(ctx: CompCtx, input: Base & { level?: string; limit?: number }) {

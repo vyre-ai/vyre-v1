@@ -40,7 +40,7 @@ export async function trashKeepMs(ctx: CompCtx): Promise<number | null> {
  */
 async function askerProfiles(ctx: CompCtx, agentId: string): Promise<string[]> {
   try {
-    const out = (await ctx.call("access.principals.list", {})) as {
+    const out = (await ctx.call("access.principals.list", { kind: "person", limit: 500 })) as {
       principals?: Array<{ kind?: string; id?: string }>;
     };
     return (out.principals ?? [])

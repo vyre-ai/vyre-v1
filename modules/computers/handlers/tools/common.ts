@@ -36,7 +36,7 @@ import type { CompCtx, ComputerHost, ComputerRow, PersonalChrome, Secret } from 
 import { awaken } from "../lifecycle.ts";
 import { askedThisTurn } from "./my-chrome-ask.ts";
 import { spaceBrowser } from "../../sbrowser/port.ts";
-import { askerOfTurn, profileOfTurn } from "../../sbrowser/asker.ts";
+import { askerFolder, askerOfTurn, profileOfTurn } from "../../sbrowser/asker.ts";
 import { takeDownloads } from "../../sbrowser/downloads.ts";
 import {
   answerFrom,
@@ -298,10 +298,17 @@ function secretsOf(v: unknown): Secret[] {
   return out;
 }
 
-async function keepFrame(ctx: CompCtx, c: ComputerRow, frame: unknown, at: number): Promise<string | undefined> {
+async function keepFrame(
+  ctx: CompCtx,
+  c: ComputerRow,
+  frame: unknown,
+  at: number,
+  asker?: string,
+): Promise<string | undefined> {
   if (typeof frame !== "string" || frame === "") return undefined;
   try {
-    const folderId = await agentFolder(ctx, c.agentId);
+    // the pictures of a person's browsing of a shared agent go to that person's own Files, not the agent's folder everyone who uses the agent can open (owner, 13 Nov, P7 section 10 item 6)
+    const folderId = asker === undefined ? await agentFolder(ctx, c.agentId) : await askerFolder(ctx);
     if (!folderId) return undefined;
     const made = (await ctx.call("files.create", {
       folderId,
@@ -396,6 +403,10 @@ export interface Resolved {
     profileId: string;
   };
 }
+
+/** What the first call in a person's own profile of a shared agent tells the agent, to say to the person: their sign-ins are theirs; the ones others made are not shared here. */
+export const OWN_PROFILE_LINE =
+  "This is your own browser profile on this agent: a site that someone else signed in to is not signed in here. If a site needs a sign-in, sign in with a login you may use, or ask the person for one.";
 
 /** Name this as `computerId` to work in the person's own Chrome. An agent with no computer of its own gets it without naming it, when the person has opened their Chrome to agents. */
 export const MY_CHROME = "my-chrome";
@@ -848,6 +859,9 @@ async function browserStep(
   // an agent's own call refreshes its turn's protection (sbrowser/room.ts)
   if (ctx.principal.kind === "agent") callStarted(profileId, ctx.space, ctx.now());
   else callStarted(profileId);
+  // the first call in a profile of the person's own (a shared agent they do not own): the agent says in one plain line that sites others signed in to are not signed in here
+  const asker = await askerOfTurn(ctx);
+  const firstOfTheirs = asker !== undefined && !(await sb.profileUsed(profileId).catch(() => true));
   let raw!: ToolAnswer;
   let list!: TabLister;
   let given!: ReturnType<typeof givenCount>;
@@ -958,7 +972,7 @@ async function browserStep(
   if (reopened) {
     out["reopened"] = true;
     out["note"] = REOPENED_LINE;
-  }
+  } else if (firstOfTheirs && out["note"] === undefined) out["note"] = OWN_PROFILE_LINE;
   // what the browser finished downloading goes into the agent's Files (Downloads) and the agent is told where; only the steps that say so carry it
   // a step with a caption is one line of the agent's browser timeline, with a picture of the page, and the chat shows the browser live once per burst of work
   if (spec.caption) {
@@ -978,7 +992,7 @@ async function browserStep(
       }
     } else words = `${words} · ${cardDue(ctx, ctx.principal.id, at) ? NO_PICTURE_OR_CARD : NO_PICTURE}`;
     const c = { computerId: profileId, agentId: ctx.principal.id } as unknown as ComputerRow;
-    const frameFileId = await keepFrame(ctx, c, frame, at);
+    const frameFileId = await keepFrame(ctx, c, frame, at, await askerOfTurn(ctx));
     addStep(ctx.db, profileId, at, {
       by: "agent",
       caption: words,
@@ -1174,10 +1188,9 @@ export function shape(ctx: CompCtx, tool: string, out: ToolAnswer, want: Shape):
     res[key] = v;
   }
   // the first answer after the browser was reopened says so, whatever the tool (browserStep)
-  if (out["reopened"] === true) {
-    res["reopened"] = true;
-    if (typeof out["note"] === "string") res["note"] = out["note"];
-  }
+  if (out["reopened"] === true) res["reopened"] = true;
+  // and a line the browser layer wants said (the first call in a person's own profile, OWN_PROFILE_LINE): every chrome capability's output has `note`
+  if (typeof out["note"] === "string") res["note"] = out["note"];
   return res;
 }
 

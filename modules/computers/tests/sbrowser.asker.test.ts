@@ -67,6 +67,12 @@ function browser() {
       return new TextEncoder().encode("abcd");
     },
     async downloadAck() {},
+    async profileUsed() {
+      return false;
+    },
+    async screenshot() {
+      return { bytes: new Uint8Array([1, 2, 3]), width: 1, height: 1 };
+    },
     async profiles() {
       return { profiles: [], maxRunning: 6 };
     },
@@ -143,6 +149,40 @@ test("what a person's turn downloads goes into that person's own Files, never th
       "fld_dex",
       "the agent's folder",
     );
+  } finally {
+    off();
+  }
+});
+
+test("the pictures of a person's browsing of a shared agent are kept in that person's own Files, the owner's in the agent's folder", async () => {
+  browser();
+  const dex = { ownerId: MAYA, kind: "agent" };
+  const AG3 = "agt_01a1d4e073004405af63151b48dcb777";
+  try {
+    const mine: Array<{ cap: string; input: unknown }> = [];
+    await tool["computers.chrome.open"]!(turn(BEN, dex, mine, AG3), { url: "https://x.test/page" });
+    const bens = mine.filter((x) => x.cap === "files.create" && (x.input as { mime?: string }).mime === "image/png");
+    assert.equal(bens.length > 0, true, "a picture of the step was kept");
+    assert.equal((bens[0]!.input as { folderId?: string }).folderId, `fld_personal_of_${BEN}`, "in Ben's own Files");
+    const owner: Array<{ cap: string; input: unknown }> = [];
+    await tool["computers.chrome.open"]!(turn(MAYA, dex, owner, AG3), { url: "https://x.test/page" });
+    const hers = owner.filter((x) => x.cap === "files.create" && (x.input as { mime?: string }).mime === "image/png");
+    assert.equal((hers[0]!.input as { folderId?: string }).folderId, "fld_dex", "the agent's folder, as before");
+  } finally {
+    off();
+  }
+});
+
+test("the first call in a person's own profile says in one plain line that what others signed in to is not signed in there; the owner's profile says nothing", async () => {
+  browser();
+  const dex = { ownerId: MAYA, kind: "agent" };
+  const AG4 = "agt_01a1d4e073004405af63151b48dcb888";
+  try {
+    const first = await tool["computers.chrome.open"]!(turn(BEN, dex, [], AG4), { url: "https://x.test/" });
+    assert.match(String(first.note), /your own browser profile on this agent/);
+    assert.match(String(first.note), /someone else signed in to is not signed in here/);
+    const owner = await tool["computers.chrome.open"]!(turn(MAYA, dex, [], AG4), { url: "https://x.test/" });
+    assert.equal(owner.note, undefined);
   } finally {
     off();
   }

@@ -6,6 +6,19 @@ import type { CompCtx } from "../projections.ts";
 import { agentInfo } from "./agentinfo.ts";
 import { askerProfileId, profileIdOf } from "./policy.ts";
 
+/**
+ * The Personal root of the person's own Files (files.tree answers an agent working for a person with that person's own root), where what their turn of a shared agent produces is kept: their downloads and the
+ * pictures of their browsing. Never the agent's shared folder. Null when it cannot be reached: nothing is kept then.
+ */
+export async function askerFolder(ctx: CompCtx): Promise<string | null> {
+  try {
+    const tree = (await ctx.call("files.tree", {})) as { roots?: Array<{ key?: string; folderId?: string }> };
+    return tree.roots?.find((r) => r.key === "personal" && r.folderId)?.folderId ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** The person whose own profile this agent turn uses, or undefined when it uses the agent's own. Facts that cannot be read leave the agent's own profile (nothing changes for it). */
 export async function askerOfTurn(ctx: CompCtx): Promise<string | undefined> {
   if (ctx.principal.kind !== "agent" || ctx.actingFor === undefined) return undefined;
