@@ -1,0 +1,4 @@
+- A Google Drive folder now shows every file in it. A name Files cannot hold, such as one with a slash, appears under a safe name, and one item Vyre cannot bring in is skipped and listed ("3 items could not be shown") instead of turning the whole Drive red.
+- A Drive that stopped syncing because of one odd file name mends itself on the next sync, with no need to reconnect.
+- A spreadsheet in Files (CSV or Excel) now opens with its rows. It used to show "0 rows, 0 columns".
+- Opening a Google Drive file that is not here yet says "Getting this from Google Drive". If Drive cannot be reached it says so, with Try again and Open in Google Drive, and an agent is told the same instead of reading an empty file.

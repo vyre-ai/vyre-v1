@@ -53,6 +53,13 @@ const mountRow = t.obj({
   conflicts: t.int({ minimum: 0 }),
   fromDevice: t.opt(t.str({ examples: ["Irfad's MacBook"] })),
   error: t.opt(t.str()),
+  // items the last pass could not bring in (a name Files cannot hold, a refused file): the mount is not failing for them; the list says why for each
+  skippedCount: t.opt(t.int({ minimum: 1 })),
+  skipped: t.opt(
+    t.arr(t.obj({ name: t.str({ description: "The name the provider gives it" }), reason: t.str() }), {
+      maxItems: 200,
+    }),
+  ),
   // live: changes arrive on their own (a push channel, or an app polling every 30 s); false reads as Synced <lastSyncAt>
   live: t.opt(t.bool()),
   liveVia: t.opt(t.enm("push", "poll")),

@@ -20,6 +20,8 @@ export interface LiveRow {
   /** Quiet second part: how far behind, changes waiting, conflicts, the error. */
   detail: string;
   who: string;
+  /** Items the last pass could not bring in, each with the reason in plain words. The mount is not failing for them. */
+  skipped: readonly { name: string; reason: string }[];
   /** The first is the button; the rest go in the menu. */
   actions: LiveAction[];
 }
@@ -38,6 +40,23 @@ const ago = (ms: number): string => {
 /** Whether a failing mount is failing because the sign-in no longer works: the fix is Reconnect, not Sync now. */
 export const needsReconnect = (m: Pick<MountRow, "state" | "error">): boolean =>
   m.state === "failing" && /sign in|reconnect|auth|expired|consent|permission/i.test(m.error ?? "");
+
+/** The quiet line for items a pass could not bring in. */
+export const skippedWords = (n: number): string => `${n} ${n === 1 ? "item" : "items"} could not be shown`;
+
+/**
+ * The sentence a failing mount shows. Three of the server's messages are written for the person who set Google up (an admin): a member who reads them cannot act on them, so the line says who can,
+ * and the admin's steps (the numeric client ID, the scopes) stay in the Connections page where they are made. Every other message is already a plain sentence and is shown as it is.
+ */
+export function failureWords(error: string): string {
+  if (/has not allowed this client yet/i.test(error))
+    return "Google has not allowed Vyre yet. An admin finishes this under Connections in Settings. Vyre tries again by itself.";
+  if (/no Workspace user/i.test(error))
+    return "Google does not know the account this folder uses. An admin sets the address under Connections in Settings.";
+  if (/refused the delegated sign-in/i.test(error))
+    return "Google refused Vyre's sign-in. An admin reconnects Google under Connections in Settings.";
+  return error;
+}
 
 export function whoWords(shares: readonly Share[] | null): string {
   if (shares === null) return "";
@@ -63,7 +82,7 @@ export function liveRow(m: MountRow, shares: readonly Share[] | null, now: numbe
   if (m.state === "failing") {
     state = "Needs attention";
     tone = "bad";
-    if (m.error) bits.unshift(m.error);
+    if (m.error) bits.unshift(failureWords(m.error));
     actions = needsReconnect(m) ? ["reconnect", "sync", "pause", "open"] : ["sync", "pause", "open"];
   } else if (m.state === "paused") {
     state = "Paused";
@@ -83,6 +102,9 @@ export function liveRow(m: MountRow, shares: readonly Share[] | null, now: numbe
     tone = m.conflicts > 0 ? "warn" : "ok";
     actions = m.kind === "local" ? ["pause", "open"] : ["sync", "pause", "open"];
   }
+  const skipped = m.skipped ?? [];
+  const skippedCount = m.skippedCount ?? skipped.length;
+  if (skippedCount > 0) bits.push(skippedWords(skippedCount));
   if (behind) bits.unshift(behind);
   return {
     mountId: m.mountId,
@@ -94,6 +116,7 @@ export function liveRow(m: MountRow, shares: readonly Share[] | null, now: numbe
     tone,
     detail: bits.join(" · "),
     who: whoWords(shares),
+    skipped,
     actions,
   };
 }

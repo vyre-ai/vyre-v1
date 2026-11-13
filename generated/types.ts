@@ -27070,6 +27070,11 @@ export type MountsGetOut = {
     conflicts: number;
     fromDevice?: string;
     error?: string;
+    skippedCount?: number;
+    skipped?: Array<{
+        name: string;
+        reason: string;
+      }>;
     live?: boolean;
     liveVia?: "push" | "poll";
   };
@@ -27120,6 +27125,11 @@ export type MountsListOut = {
       conflicts: number;
       fromDevice?: string;
       error?: string;
+      skippedCount?: number;
+      skipped?: Array<{
+          name: string;
+          reason: string;
+        }>;
       live?: boolean;
       liveVia?: "push" | "poll";
     }>;
@@ -27260,6 +27270,11 @@ export type MountsUpdateOut = {
     conflicts: number;
     fromDevice?: string;
     error?: string;
+    skippedCount?: number;
+    skipped?: Array<{
+        name: string;
+        reason: string;
+      }>;
     live?: boolean;
     liveVia?: "push" | "poll";
   };

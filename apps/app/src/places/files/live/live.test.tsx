@@ -133,3 +133,58 @@ test("the view: each row has its button, the first action runs, empty and error 
   await flush();
   assert.deepEqual(done.slice(2), ["c2", "retry"]);
 });
+
+test("items a pass could not bring in are a quiet line, never a failing mount; the line opens the list with a reason for each", async () => {
+  const skipped = [
+    { name: "Q3/Q4 plan.pdf", reason: "Files would not accept this item." },
+    { name: "Old scan.tif", reason: "It is too large to bring in." },
+  ];
+  const row = liveRow(m({ skippedCount: 2, skipped }), null, NOW);
+  assert.equal(row.tone, "ok", "not red");
+  assert.equal(row.state, "Live");
+  assert.match(row.detail, /2 items could not be shown/);
+  assert.match(
+    liveRow(m({ skippedCount: 1, skipped: skipped.slice(0, 1) }), null, NOW).detail,
+    /1 item could not be shown/,
+  );
+  assert.doesNotMatch(liveRow(m({}), null, NOW).detail, /could not be shown/);
+  const root = await mount(
+    createRoot,
+    <LiveFolders
+      rows={[row]}
+      busy={new Set()}
+      said={null}
+      onAction={() => undefined}
+      onConnect={() => undefined}
+      onRetry={() => undefined}
+    />,
+  );
+  assert.match(textOf(find(root, "live-skipped-mnt_1")), /2 items could not be shown/);
+  assert.equal(find(root, "live-skipped-item-mnt_1-0"), null, "closed at first");
+  await press(find(root, "live-skipped-mnt_1"));
+  assert.match(textOf(find(root, "live-skipped-item-mnt_1-0")), /Q3\/Q4 plan\.pdf: Files would not accept this item\./);
+  assert.match(textOf(find(root, "live-skipped-item-mnt_1-1")), /too large/);
+});
+
+test("a failing mount's sentence names who can fix it: the admin-only Google messages are not shown to a member as instructions", () => {
+  const admin = liveRow(
+    m({
+      state: "failing",
+      error:
+        "Google has not allowed this client yet. Check you pasted the numeric client ID, not an email address, and the scopes. It can take up to 24 hours, usually minutes.",
+    }),
+    null,
+    NOW,
+  );
+  assert.match(admin.detail, /An admin finishes this under Connections in Settings/);
+  assert.doesNotMatch(admin.detail, /numeric client ID/);
+  assert.match(
+    liveRow(
+      m({ state: "failing", error: "Google has no Workspace user a@b.test. Type the address of a real user." }),
+      null,
+      NOW,
+    ).detail,
+    /An admin sets the address/,
+  );
+  assert.equal(liveRow(m({ state: "failing", error: "Drive is down." }), null, NOW).detail, "Drive is down.");
+});

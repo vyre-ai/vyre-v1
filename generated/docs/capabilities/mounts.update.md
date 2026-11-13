@@ -53,6 +53,11 @@ type Out = {
     conflicts: number;
     fromDevice?: string;
     error?: string;
+    skippedCount?: number;
+    skipped?: Array<{
+        name: string;
+        reason: string;
+      }>;
     live?: boolean;
     liveVia?: "push" | "poll";
   };
@@ -97,6 +102,13 @@ type Out = {
       "provider": "Google Drive",
       "ref": "example",
       "reviewChanges": true,
+      "skipped": [
+        {
+          "name": "example",
+          "reason": "example"
+        }
+      ],
+      "skippedCount": 1,
       "state": "idle"
     }
   }
