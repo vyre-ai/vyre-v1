@@ -1,0 +1,223 @@
+{
+  "apps/app/src/console/objects/ObjectList.tsx": {
+    "load-more": 2
+  },
+  "apps/app/src/console/objects/pickers.tsx": {
+    "load-more": 8
+  },
+  "apps/app/src/console/pages/ai-controls.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/console/pages/comms/common.tsx": {
+    "load-more": 1
+  },
+  "apps/app/src/console/pages/comms/RecipientPicker.tsx": {
+    "load-more": 2
+  },
+  "apps/app/src/console/pages/Connections.tsx": {
+    "load-more": 2
+  },
+  "apps/app/src/console/pages/Dnc.tsx": {
+    "load-more": 1
+  },
+  "apps/app/src/console/pages/ErasePerson.tsx": {
+    "load-more": 1
+  },
+  "apps/app/src/console/pages/GateRules.tsx": {
+    "load-more": 1
+  },
+  "apps/app/src/console/pages/Grants.tsx": {
+    "load-more": 1
+  },
+  "apps/app/src/console/pages/Groups.tsx": {
+    "load-more": 3
+  },
+  "apps/app/src/console/pages/Reviews.tsx": {
+    "load-more": 1
+  },
+  "apps/app/src/console/pages/Roles.tsx": {
+    "load-more": 3
+  },
+  "apps/app/src/console/pages/shared.tsx": {
+    "declared": 4,
+    "read-hook": 1
+  },
+  "apps/app/src/console/pages/Spend.tsx": {
+    "load-more": 1
+  },
+  "apps/app/src/console/pages/TemplateFiles.tsx": {
+    "load-more": 2
+  },
+  "apps/app/src/console/shell/data.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/console/shell/ui.tsx": {
+    "declared": 2
+  },
+  "apps/app/src/machines/MachinesView.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/mobile/sheets/Sheet.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/apps/shell/data.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/apps/shell/editor-ui.tsx": {
+    "declared": 1,
+    "read-hook": 1
+  },
+  "apps/app/src/places/automations/canvas/data.tsx": {
+    "read-hook": 2
+  },
+  "apps/app/src/places/automations/canvas/fields.tsx": {
+    "declared": 2
+  },
+  "apps/app/src/places/automations/canvas/parts.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/automations/operations/parts.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/automations/runs/data.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/chats/agentform/AgentForm.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/chats/agentpage/data.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/chats/computer/data.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/chats/conversation/Conversation.tsx": {
+    "crew-poll": 1
+  },
+  "apps/app/src/places/chats/conversation/data.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/chats/conversation/MessageView.tsx": {
+    "crew-poll": 1
+  },
+  "apps/app/src/places/chats/conversation/parts.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/chats/crew/status.ts": {
+    "crew-poll": 1
+  },
+  "apps/app/src/places/chats/goals/data.ts": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/chats/helper/data.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/chats/helper/HelperChat.tsx": {
+    "crew-poll": 1
+  },
+  "apps/app/src/places/chats/memory/data.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/chats/mounts/Layers.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/chats/mounts/RepliesPage.tsx": {
+    "load-more": 1
+  },
+  "apps/app/src/places/chats/needsyou/data.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/chats/notes/NoteSheets.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/chats/notes/NotesPage.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/chats/rightpane/data.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/chats/rightpane/parts.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/chats/rightpane/PersonProfile.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/chats/session/Overview.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/chats/sidebar/data.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/chats/thread-replies/ThreadFooter.tsx": {
+    "crew-poll": 1
+  },
+  "apps/app/src/places/files/memory/index.ts": {
+    "declared": 2
+  },
+  "apps/app/src/places/files/memory/KnowFrame.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/files/memory/KnowParts.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/files/mounts/parts.tsx": {
+    "declared": 2
+  },
+  "apps/app/src/places/files/review/DiffPanels.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/files/review/parts.tsx": {
+    "declared": 2
+  },
+  "apps/app/src/places/files/tree/data.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/files/viewer/redact.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/inbox/calendar/eventpane/EventPane.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/inbox/sidebar/data.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/records/projectpage/overview/Properties.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/records/projectpage/overview/Sheets.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/records/projectpage/ProjectPage.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/records/sidebar/data.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/records/typeedit/index.ts": {
+    "declared": 1
+  },
+  "apps/app/src/places/records/typeedit/parts.tsx": {
+    "declared": 1
+  },
+  "apps/app/src/places/settings/blocks.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/settings/data.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/settings/ui.tsx": {
+    "declared": 5
+  },
+  "apps/app/src/places/vault/layout/data.tsx": {
+    "read-hook": 1
+  },
+  "apps/app/src/places/vault/layout/Sheet.tsx": {
+    "declared": 1
+  },
+  "ui/src/EmailBuilder/index.tsx": {
+    "declared": 1
+  },
+  "ui/src/HistoryTab/index.tsx": {
+    "declared": 1
+  }
+}

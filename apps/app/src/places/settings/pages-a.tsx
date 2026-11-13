@@ -29,7 +29,7 @@ import type { SettingRow } from "./model.ts";
 import { SettingRowFor, useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
 import { VoiceRows } from "./VoiceRows.tsx";
-import { Choice, Field, Glyph, Section, SettingsRow, SmallButton, Switch, Value, pointer } from "./ui.tsx";
+import { Choice, TextBox, Glyph, Section, SettingsRow, SmallButton, Switch, Value, pointer } from "./ui.tsx";
 import { useZones } from "../../../../../ui/src/Time/index.tsx";
 import { zoneName, zoneCity } from "../../../../../lib/zones.ts";
 import { useOpenConnect } from "../../shell/connect/context.ts";
@@ -182,7 +182,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
           rowFor(
             name,
             1,
-            <Field
+            <TextBox
               value={str(name) || data.me.name}
               label="Name"
               testID="ctl-profile.display_name"
@@ -195,7 +195,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
           rowFor(
             handle,
             2,
-            <Field
+            <TextBox
               value={str(handle) || data.me.username || ""}
               label="Handle"
               placeholder="Pick a handle"
@@ -213,7 +213,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
           rowFor(
             title,
             3,
-            <Field
+            <TextBox
               value={str(title)}
               label="Title"
               placeholder="Add a title"
@@ -235,7 +235,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
             found={found === "profile.contact"}
             control={
               <View style={{ alignItems: "flex-end", gap: 6 }}>
-                <Field
+                <TextBox
                   value={c.email ?? ""}
                   label="Email"
                   placeholder="Add an email"
@@ -252,7 +252,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
             label="Phone"
             control={
               <View style={{ alignItems: "flex-end", gap: 6 }}>
-                <Field
+                <TextBox
                   value={c.phone ?? ""}
                   label="Phone"
                   placeholder="Add a phone number"

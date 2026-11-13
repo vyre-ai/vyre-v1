@@ -5,7 +5,7 @@ import { Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-nat
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Dot, Glyph } from "../../shell/glyphs.tsx";
 import { Group, Lead, Section, pointer } from "../../shell/ui.tsx";
-import { Actions, Button, Field, Select } from "../shared.tsx";
+import { Actions, Button, TextBox, Select } from "../shared.tsx";
 import { matchProblem, memberNote } from "./model.ts";
 import type { MemberRow, ServiceRow, Summary } from "./model.ts";
 
@@ -334,7 +334,7 @@ export function MatchPerson({
       <Group>
         <View style={{ padding: 12, gap: 4 }}>
           <Para>For the owner, or anyone whose work address differs from the one their invitation went to.</Para>
-          <Field
+          <TextBox
             label={`Work address${domain ? ` at ${domain}` : ""}`}
             value={email}
             onChange={setEmail}

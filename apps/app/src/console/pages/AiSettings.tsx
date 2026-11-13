@@ -8,7 +8,7 @@ import { Empty, Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { ObjectList } from "../objects/ObjectList.tsx";
 import type { ObjectListRow } from "../objects/ObjectList.tsx";
-import { Actions, Button, Field, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { Actions, Button, TextBox, Note, ReadState, useAction, useRead } from "./shared.tsx";
 import { Choice, Tick } from "./ai-controls.tsx";
 import { reviewSampling } from "./ai-data-values.ts";
 
@@ -118,7 +118,7 @@ function ReviewList({
     <View testID="console-ai-review">
       <Section title="Sampling policy">
         <Group>
-          <Field
+          <TextBox
             label="Percent of turns"
             value={percent}
             onChange={(value) => {
@@ -278,7 +278,7 @@ function ReviewObject({
       <Row title="State" note={what.turn.state} />
       <Row title="Usage" note={`${what.turn.tokensIn + what.turn.tokensOut} tokens`} />
       {what.reached?.length ? <Row title="Reached" note={what.reached.join(", ")} /> : null}
-      <Field label="Review note" value={reviewNote} onChange={setReviewNote} />
+      <TextBox label="Review note" value={reviewNote} onChange={setReviewNote} />
     </ObjectSection>
   );
   return (
