@@ -21,5 +21,17 @@ test("B1 Attach shows the terminal in the chat's tab, never the new tab page", {
     assert.ok(shown, "the terminal is on screen after Attach");
     assert.equal(await k.me.page.getByTestId("composer-field").count(), 1, "the chat is still the page: Attach shows the terminal beside it");
     await k.guard.check("after Attach");
+    // close the terminal, bring the agent's pane and its Computer tab back, and Attach again to the same terminal: it must show again (a link to the address it already has used to do nothing)
+    const names = await k.me.page.locator("[aria-label]").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label") ?? "").filter((x) => /close|terminal|toggle|pane/i.test(x)));
+    await k.me.page.getByLabel(/^Close Terminal$|^Close$/i).first().click().catch(() => { throw new Error(`no close control: ${JSON.stringify(names)}`); });
+    await k.me.page.getByTestId("chats-terminal").waitFor({ state: "detached", timeout: 10_000 });
+    if (await k.me.page.getByTestId("pane-agent").count() === 0) await k.me.page.getByTestId("pane-button").click();
+    await k.me.page.getByTestId("tab-computer").click();
+    await k.me.page.getByTestId("terminal-attach").waitFor({ timeout: 20_000 });
+    await k.me.page.getByTestId("terminal-attach").click();
+    const again = await k.me.page.getByTestId("terminal-tab").first().waitFor({ timeout: 20_000 }).then(() => true, () => false);
+    await shoot(k.me.page, `${DIR}/b1`, "03-second-attach");
+    assert.ok(again, "the second Attach shows the terminal again");
+    await k.guard.check("after the second Attach");
   } finally { await k.close(); }
 });
