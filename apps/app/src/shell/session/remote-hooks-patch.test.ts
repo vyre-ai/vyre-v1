@@ -46,3 +46,48 @@ test("undo after a real answer has replaced the patch changes nothing, and a rea
   assert.equal(typeof nothing, "function");
   nothing();
 });
+
+test("two quick patches that both fail put the original back, whichever fails first", async () => {
+  for (const order of [
+    [0, 1],
+    [1, 0],
+  ] as const) {
+    const { hooks, q } = await watching(() => ({ on: false, n: 0 }));
+    const undo = [
+      hooks.patch("things.get", { id: "t1" }, (d) => ({ ...(d as object), on: true })),
+      hooks.patch("things.get", { id: "t1" }, (d) => ({ ...(d as object), n: 1 })),
+    ];
+    assert.deepEqual(q.getSnapshot(), { status: "ready", data: { on: true, n: 1 } }, "both are shown");
+    undo[order[0]]!();
+    undo[order[1]]!();
+    assert.deepEqual(q.getSnapshot(), { status: "ready", data: { on: false, n: 0 } }, `undone in order ${order}`);
+  }
+});
+
+test("a patch that fails while another succeeds keeps only the one that stands", async () => {
+  const { hooks, q } = await watching(() => ({ on: false, n: 0 }));
+  const a = hooks.patch("things.get", { id: "t1" }, (d) => ({ ...(d as object), on: true }));
+  hooks.patch("things.get", { id: "t1" }, (d) => ({ ...(d as object), n: 1 }));
+  a();
+  assert.deepEqual(q.getSnapshot(), { status: "ready", data: { on: false, n: 1 } });
+});
+
+test("a read that has not answered, or failed, is not patched and undo does nothing", async () => {
+  const hooks = createRemoteScreenHooks({
+    screens: new Map(),
+    read: async () => {
+      throw new Error("no answer");
+    },
+  });
+  const q = hooks.capQuery("things.get", { id: "t1" });
+  q.subscribe(() => undefined);
+  const early = hooks.patch("things.get", { id: "t1" }, () => ({ on: true }));
+  assert.equal(q.getSnapshot().status, "loading", "still loading: not patched");
+  await settle();
+  assert.equal(q.getSnapshot().status, "loading");
+  assert.ok((q.getSnapshot() as { error?: unknown }).error, "failed");
+  const late = hooks.patch("things.get", { id: "t1" }, () => ({ on: true }));
+  assert.ok((q.getSnapshot() as { error?: unknown }).error, "a failed read is not turned into an answer by a patch");
+  early();
+  late();
+});

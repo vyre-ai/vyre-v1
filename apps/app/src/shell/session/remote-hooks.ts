@@ -25,7 +25,7 @@ export interface RemoteHooksOptions {
 export interface RemoteHooks extends ScreenHooks {
   /** A live query of one capability, for the shell's own lists (people, agents). */
   capQuery<T>(cap: string, input?: Record<string, unknown>): LiveQuery<T>;
-  /** Show a changed answer for a watched read at once (an optimistic change). Answers how to undo it; the next real answer replaces the patch either way. A read nobody has answered is left alone. */
+  /** Used only by useChange (apps/app/src/load), which tests it. Show a changed answer for a watched read at once (an optimistic change); each patch can be taken back alone and the answer is always the last real one with the rest applied. Answers how to undo it; the next real answer replaces the patch either way. A read nobody has answered is left alone. */
   patch(cap: string, input: Record<string, unknown>, apply: (data: unknown) => unknown): () => void;
   /** Re-read every query that is being watched. */
   invalidate(): void;
@@ -47,6 +47,9 @@ interface Entry {
   inflight: boolean;
   dirty: boolean;
   stale: boolean;
+  /** Optimistic changes shown over `base`, the last real answer: each can be taken back alone, and the answer is always base with the rest applied. */
+  patches: { apply: (data: unknown) => unknown }[];
+  base: { snap: QueryState<unknown>; json: string } | null;
   live: LiveQuery<unknown>;
 }
 
@@ -102,7 +105,11 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
     opts.read(e.cap, e.input).then(
       (data) => {
         const json = stableJson(data);
-        if (e.snap.status !== "ready" || json !== e.json) {
+        // a real answer ends every optimistic change
+        const had = e.patches.length > 0;
+        e.patches.length = 0;
+        e.base = null;
+        if (e.snap.status !== "ready" || json !== e.json || had) {
           e.json = json;
           e.snap = { status: "ready", data };
           notify(e);
@@ -143,6 +150,8 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
       inflight: false,
       dirty: false,
       stale: false,
+      patches: [],
+      base: null,
       live: {
         subscribe(l) {
           made.listeners.add(l);
@@ -174,17 +183,28 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
     patch(cap, input, apply) {
       const e = entries.get(`${cap}\u0000${stableJson(input)}`);
       if (!e || e.snap.status !== "ready") return () => undefined;
-      const was = { snap: e.snap, json: e.json };
-      const patched: QueryState<unknown> = { status: "ready", data: apply(e.snap.data) };
-      e.snap = patched;
-      // never equal to a real answer, so the next one always replaces the patch
-      e.json = "\u0000patched";
-      notify(e);
-      return () => {
-        if (e.snap !== patched) return;
-        e.snap = was.snap;
-        e.json = was.json;
+      const show = (): void => {
+        if (e.base === null || e.base.snap.status !== "ready") return;
+        // never equal to a real answer, so the next one always replaces what is shown
+        if (e.patches.length === 0) {
+          e.snap = e.base.snap;
+          e.json = e.base.json;
+          e.base = null;
+        } else {
+          e.snap = { status: "ready", data: e.patches.reduce((d, p) => p.apply(d), e.base.snap.data) };
+          e.json = "\u0000patched";
+        }
         notify(e);
+      };
+      if (e.patches.length === 0) e.base = { snap: e.snap, json: e.json };
+      const mine = { apply };
+      e.patches.push(mine);
+      show();
+      return () => {
+        const at = e.patches.indexOf(mine);
+        if (at < 0) return;
+        e.patches.splice(at, 1);
+        show();
       };
     },
     invalidate() {

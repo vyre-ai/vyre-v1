@@ -195,3 +195,47 @@ test("an optimistic change is undone when the call fails, and the plain reason i
     restore();
   }
 });
+
+test("on, off, on pressed quickly runs all three in order: the last press is never dropped", async () => {
+  const restore = installDom();
+  try {
+    const first = gate<unknown>();
+    const started: string[] = [];
+    const t = setup(
+      (_cap, input) => (
+        started.push(JSON.stringify(input)),
+        started.length === 1 ? first.promise : Promise.resolve({})
+      ),
+    );
+    await t.ready;
+    let runs: Promise<unknown>[] = [];
+    await act(async () => {
+      runs = [t.change().run({ on: true }), t.change().run({ on: false }), t.change().run({ on: true })];
+      await Promise.resolve();
+    });
+    await act(async () => {
+      first.resolve({});
+      await Promise.all(runs);
+    });
+    assert.deepEqual(started, ['{"on":true}', '{"on":false}', '{"on":true}']);
+  } finally {
+    restore();
+  }
+});
+
+test("every call carries its own idempotency key", async () => {
+  const restore = installDom();
+  try {
+    const keys: (string | undefined)[] = [];
+    const t = setup(async (_cap, _input, o) => (keys.push(o?.idempotencyKey), {}));
+    await t.ready;
+    await act(async () => {
+      await t.change().run({ id: "a" });
+      await t.change().run({ id: "b" });
+    });
+    assert.equal(keys.length, 2);
+    assert.notEqual(keys[0], keys[1]);
+  } finally {
+    restore();
+  }
+});

@@ -7,6 +7,7 @@
 // A file not in one-component.baseline.json must have none; a file in it may only go down. When you move a spot onto the shared piece, lower its count:
 //   `UPDATE_ONE_COMPONENT=1 node --import tsx --test scripts/lint/one-component.test.ts` (it lowers and never raises; a worse count is refused).
 // Out of scope: tests and test kits, the Join entry kit (apps/app/src/join: it draws before any skin or session exists, so it keeps its own pieces), ui/src/ListSections (a different job), and each piece's home folder.
+// A plain rename (a component called Toggle) is not caught: the check knows names, not shapes. It also lets a file swap one copy for another at the same count.
 // Not counted yet (later steps of the contract, with the piece they need): the word "Loading" (Loadable), a Row with no press, menu or inert (Row menu), more than seven tabs in a Page (Page), Chip as a status (Status).
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -58,7 +59,12 @@ const stripComments = (s: string): string => s.replace(/\/\*[\s\S]*?\*\//g, "").
 
 const DECL = /^[ \t]*(?:export[ \t]+)?(?:default[ \t]+)?(?:function|const)[ \t]+([A-Za-z]+)\b[ \t]*(?:[(<=:])/gm;
 const READ_HOOK = /^[ \t]*(?:export[ \t]+)?(?:function|const)[ \t]+(?:useScreenQuery|useRead)\b/gm;
-const LOAD_MORE = /Load more/g;
+const LOAD_MORE = /Load(?:\{\s*" "\s*\}|&nbsp;|\s)+more/gi;
+// a component made inside memo(...) or forwardRef(...), and a class
+const WRAPPED = /\b(?:memo|forwardRef)\(\s*function[ \t]+([A-Za-z]+)/g;
+const CLASS = /^[ \t]*(?:export[ \t]+)?(?:default[ \t]+)?class[ \t]+([A-Za-z]+)\b/gm;
+// `export { a as Name }` and `export { Name } from "path"`
+const EXPORT_LIST = /\bexport[ \t\n]*\{([^}]*)\}(?:[ \t\n]*from[ \t\n]*["']([^"']+)["'])?/g;
 const INTERVAL = /\bsetInterval\s*\(/g;
 
 /** The text of a call's arguments, from just after its opening parenthesis to the matching one. */
@@ -71,17 +77,36 @@ function argsAt(src: string, from: number): string {
   return src.slice(from);
 }
 
+/** The shared names found per file by the last count, for a message that names only the piece to use. */
+const found = new Map<string, Set<string>>();
+
 /** What one file holds, by kind. `rel` is its path from the repo root. */
 export function countFile(rel: string, source: string): Partial<Record<Kind, number>> {
   const src = stripComments(source);
   const out: Partial<Record<Kind, number>> = {};
+  found.delete(rel);
   const add = (k: Kind, n: number): void => {
     if (n > 0) out[k] = (out[k] ?? 0) + n;
   };
-  for (const m of src.matchAll(DECL)) {
-    const piece = PIECES.find((p) => p.names.includes(m[1]!));
-    if (piece && !rel.startsWith(piece.home)) add("declared", 1);
-  }
+  const named = (name: string): void => {
+    const piece = PIECES.find((p) => p.names.includes(name));
+    if (piece && !rel.startsWith(piece.home)) {
+      add("declared", 1);
+      found.get(rel)?.add(name) ?? found.set(rel, new Set([name]));
+    }
+  };
+  for (const m of src.matchAll(DECL)) named(m[1]!);
+  for (const m of src.matchAll(WRAPPED)) named(m[1]!);
+  for (const m of src.matchAll(CLASS)) named(m[1]!);
+  for (const m of src.matchAll(EXPORT_LIST))
+    for (const part of m[1]!.split(",")) {
+      const [from, alias] = part.trim().split(/\s+as\s+/);
+      if (!from) continue;
+      // an alias into a shared name is a copy under another name; a plain name counts only when it comes from a file that is not the piece's home
+      if (alias) named(alias.trim());
+      else if (m[2] !== undefined && !PIECES.some((p) => m[2]!.includes(p.home.replace("ui/src/", ""))))
+        named(from.trim());
+    }
   add("read-hook", (src.match(READ_HOOK) ?? []).length);
   add("load-more", (src.match(LOAD_MORE) ?? []).length);
   if (/crew\.status/.test(src))
@@ -106,6 +131,19 @@ export function counts(): Counts {
 const sum = (c: Counts, k: Kind): number => Object.values(c).reduce((n, f) => n + (f[k] ?? 0), 0);
 const KINDS: readonly Kind[] = ["declared", "read-hook", "load-more", "crew-poll"];
 
+const useFor = (file: string): string => {
+  const names = [...(found.get(file) ?? [])];
+  const pieces = PIECES.filter((p) => p.names.some((n) => names.includes(n)));
+  return (pieces.length > 0 ? pieces : PIECES)
+    .map((p) => `${p.names.filter((n) => names.includes(n) || pieces.length === 0).join("/")} -> ${p.use}`)
+    .join("; ");
+};
+
+/** The baseline is rebuilt only from nothing, or on purpose with ONE_COMPONENT_INIT=force. */
+export function initAllowed(baselineExists: boolean, flag: string | undefined): boolean {
+  return flag === "force" || (flag === "1" && !baselineExists);
+}
+
 function compare(now: Counts, base: Counts): { worse: string[]; lower: Counts } {
   const worse: string[] = [];
   const lower: Counts = {};
@@ -116,7 +154,7 @@ function compare(now: Counts, base: Counts): { worse: string[]; lower: Counts } 
       if (n > allowed)
         worse.push(
           k === "declared"
-            ? `${file}: ${n} component${n === 1 ? "" : "s"} declared under the name of a shared piece, ${allowed} allowed. Use ${PIECES.map((p) => `${p.names.join("/")} -> ${p.use}`).join("; ")}.`
+            ? `${file}: ${n} component${n === 1 ? "" : "s"} declared under the name of a shared piece, ${allowed} allowed. Use ${useFor(file)}.`
             : `${file}: ${n} ${k}, ${allowed} allowed. Use ${USE[k]}.`,
         );
       if (n < allowed) lower[file] = { ...lower[file], [k]: n };
@@ -127,7 +165,7 @@ function compare(now: Counts, base: Counts): { worse: string[]; lower: Counts } 
 
 test("no new one-off copy of a shared piece, and the old copies only go down", () => {
   const now = counts();
-  if (process.env["ONE_COMPONENT_INIT"] === "1") {
+  if (initAllowed(existsSync(BASELINE), process.env["ONE_COMPONENT_INIT"])) {
     writeFileSync(BASELINE, `${JSON.stringify(now, null, 2)}\n`);
     return;
   }
@@ -178,4 +216,42 @@ test("the check sees a copy under a shared name, a read hook, a hand-made Load m
     {},
     "an interval in a file that never reads crew.status is not a crew poll",
   );
+});
+
+test("a copy hidden in memo or forwardRef, as a class, behind an alias or re-exported from elsewhere is still counted", () => {
+  const at = "apps/app/src/zz/x.tsx";
+  assert.deepEqual(countFile(at, "export default memo(function Switch() { return null; });"), { declared: 1 });
+  assert.deepEqual(countFile(at, "export const Field = forwardRef(function Field() { return null; });"), {
+    declared: 2,
+  });
+  assert.deepEqual(countFile(at, "export class Segmented {}"), { declared: 1 });
+  assert.deepEqual(countFile(at, "const Toggle = () => null;\nexport { Toggle as Select };"), { declared: 1 });
+  assert.deepEqual(countFile(at, 'export { Switch } from "./elsewhere";'), { declared: 1 });
+  assert.deepEqual(
+    countFile(at, 'export { Switch } from "../../../ui/src/Switch/index.tsx";'),
+    {},
+    "a re-export of the shared piece is the cure, not a copy",
+  );
+  assert.deepEqual(
+    countFile(at, 'import { Switch } from "../ui/src/Switch/index.tsx";\nexport { Switch };'),
+    {},
+    "so is a bare export of an import",
+  );
+});
+
+test("Load more is found however it is spelled", () => {
+  const at = "apps/app/src/zz/x.tsx";
+  for (const text of [
+    '<Text>Load{" "}more</Text>',
+    "<Text>Load&nbsp;more</Text>",
+    "<Text>Load More</Text>",
+    '<Text>{"Load  more"}</Text>',
+  ])
+    assert.deepEqual(countFile(at, text), { "load-more": 1 }, text);
+});
+
+test("the baseline cannot be rebuilt by accident", () => {
+  assert.equal(initAllowed(true, undefined), false, "refused while a baseline exists");
+  assert.equal(initAllowed(true, "force"), true);
+  assert.equal(initAllowed(false, "1"), true);
 });

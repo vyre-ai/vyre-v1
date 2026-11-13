@@ -37,7 +37,8 @@ import {
 import type { IdPart } from "./model.ts";
 import { creditLine } from "../../../shell/session/private-agents.ts";
 import type { Routine } from "./model.ts";
-import { Face, LeadFace, LeadIcon, PaneList, Switch, TextButton, Tool } from "./parts.tsx";
+import { Face, LeadFace, LeadIcon, PaneList, TextButton, Tool } from "./parts.tsx";
+import { Switch } from "../../../../../../ui/src/Switch/index.tsx";
 import type { Entry } from "./parts.tsx";
 import { nameOr } from "../names.ts";
 
@@ -194,7 +195,7 @@ export function RoutinesTab({
             <Switch
               on={r.enabled}
               label="Routine on"
-              onPress={() => void setRoutine(deps, r, !r.enabled)}
+              onChange={() => void setRoutine(deps, r, !r.enabled)}
               testID="routine-switch"
             />
           </View>
@@ -432,7 +433,7 @@ export function RoutinesTab({
           <Switch
             on={r.enabled}
             label={`${r.title} on`}
-            onPress={() => void setRoutine(deps, r, !r.enabled)}
+            onChange={() => void setRoutine(deps, r, !r.enabled)}
             testID={`routine-switch-${r.routineId}`}
           />
         </View>
