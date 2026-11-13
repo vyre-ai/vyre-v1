@@ -261,12 +261,12 @@ test("the host's own calls refuse everyone but the server", async () => {
 test("the server's own calls work and conform", async () => {
   const { h, c } = seeded();
   const host = h.as(HOST);
-  h.fx.insert(c, STRANGER);
-  assert.deepEqual(await through(h, "state.arrive", host, { thing: c, pos: 3, by: STRANGER, at: h.fx.clock.t }), {
+  const pos = h.fx.insert(c, STRANGER);
+  assert.deepEqual(await through(h, "state.arrive", host, { thing: c, pos, by: STRANGER, at: h.fx.clock.t }), {
     applied: true,
     people: 3,
   });
-  assert.deepEqual(await through(h, "state.arrive", host, { thing: c, pos: 3, by: STRANGER, at: h.fx.clock.t }), {
+  assert.deepEqual(await through(h, "state.arrive", host, { thing: c, pos, by: STRANGER, at: h.fx.clock.t }), {
     applied: false,
     people: 0,
   });
@@ -279,7 +279,7 @@ test("the server's own calls work and conform", async () => {
   const a = h.fx.make("conversation", "cnv_a", [MAYA]);
   const b = h.fx.make("conversation", "cnv_b", [MAYA]);
   h.fx.post(a, STRANGER);
-  h.fx.db.run("UPDATE fx_entry SET thing = 'cnv_b', pos = 1 WHERE thing = 'cnv_a'");
+  h.fx.db.run("UPDATE fx_entry SET thing = 'cnv_b' WHERE thing = 'cnv_a'");
   assert.deepEqual(await through(h, "state.merge", host, { from: a, to: b }), { ok: true });
 });
 

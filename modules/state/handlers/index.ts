@@ -2,7 +2,7 @@
 import type { ThingState } from "../../../host/src/seams/state.ts";
 import type { Change } from "../../../lib/state.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
-import { guarded, hostOnly, mayWrite, storeOf, subjectOf } from "../projections.ts";
+import { guarded, hostOnly, mayWrite, storeOf, storeWithPeople, subjectOf } from "../projections.ts";
 import type { StateCtx } from "../projections.ts";
 
 type Thing = { type: string; id: string };
@@ -135,8 +135,9 @@ export async function arrive(
   input: { thing: Thing; pos: number; by: string | null; at: number; mentions?: string[] },
 ) {
   hostOnly(ctx);
+  const store = await storeWithPeople(ctx);
   return guarded(ctx, () =>
-    storeOf(ctx).arrive(input.thing, {
+    store.arrive(input.thing, {
       pos: input.pos,
       by: input.by,
       at: input.at,
@@ -169,8 +170,9 @@ export async function verify(
   input: { person?: string; scope?: string; repair?: boolean; deep?: boolean },
 ) {
   hostOnly(ctx);
+  const store = await storeWithPeople(ctx);
   return guarded(ctx, () =>
-    storeOf(ctx).verify({
+    store.verify({
       ...(input.person ? { person: input.person } : {}),
       ...(input.scope ? { scope: input.scope } : {}),
       ...(input.repair ? { repair: true } : {}),

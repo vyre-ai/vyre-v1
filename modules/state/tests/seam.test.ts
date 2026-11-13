@@ -284,9 +284,9 @@ test("merge keeps each person's flags and recounts the survivor", () => {
   fx.post(a, STRANGER);
   fx.post(b, STRANGER);
   stateOf(fx).set(MAYA, a, { star: true });
-  stateOf(fx).read(JONAS, b, { upto: 1 });
-  // the module moves a's entry into b, then tells the seam
-  fx.db.run("UPDATE fx_entry SET thing = 'cnv_b', pos = 2 WHERE thing = 'cnv_a'");
+  stateOf(fx).read(JONAS, b, { upto: 2 });
+  // the module moves a's entry into b (positions are Space-wide, so none changes), then tells the seam
+  fx.db.run("UPDATE fx_entry SET thing = 'cnv_b' WHERE thing = 'cnv_a'");
   fx.db.run("DELETE FROM fx_thing WHERE id = 'cnv_a'");
   stateOf(fx).merge(a, b);
   assert.equal(stateOf(fx).stateOf(MAYA, [b])[0]!.starred !== null, true, "Maya's star came along");
@@ -467,13 +467,10 @@ for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
         fx.removeNewest(ref);
         st.retract(ref);
       } else if (roll < 0.84 && alive.size > 1) {
-        // merge: the module moves every entry of the other thing in after this one's newest, and members join
+        // merge: the module moves every entry of the other thing in (positions are Space-wide and stay), and members join
         const from = pick([...alive.values()].filter((x) => x.id !== t.id && x.type === t.type));
         if (from) {
-          const top = (
-            fx.db.all("SELECT COALESCE(MAX(pos), 0) AS p FROM fx_entry WHERE thing = ?", t.id)[0] as { p: number }
-          ).p;
-          fx.db.run("UPDATE fx_entry SET thing = ?, pos = pos + ? WHERE thing = ?", t.id, top, from.id);
+          fx.db.run("UPDATE fx_entry SET thing = ? WHERE thing = ?", t.id, from.id);
           for (const m of from.members) t.members.add(m);
           fx.make(t.type, t.id, [...t.members], t.scope);
           fx.db.run("DELETE FROM fx_thing WHERE id = ?", from.id);

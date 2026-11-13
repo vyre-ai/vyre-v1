@@ -2,7 +2,10 @@
 // (ruling 25) once P-CI_02 has landed. The module keeps conversations, follows and an index of the messages, texts and calls each holds; the messages stay in mail,
 // telephony and meetings. mail.ingest, telephony and meetings call inbox.link_message for every stored item.
 import type { Handler } from "../../host/src/invoke.ts";
+import { backfill, finished } from "./backfill.ts";
 import * as h from "./handlers/index.ts";
+import { stateKinds } from "./state.ts";
+import type { InboxCtx } from "./projections.ts";
 import { matchClosingTask, matchNewClosingTask, recipientsSearchWithMembers } from "./handlers/recipients-members.ts";
 
 /** A capability on one conversation: the access rules know no row for a conversation (an unmatched sender has no record above it), so the manifest binds these to the Space and the Inbox's own rule decides who may touch it. */
@@ -38,3 +41,32 @@ export const handlers: Record<string, Handler> = {
 };
 
 export const projections = { inline: {}, consumers: {} };
+
+/** What `state` needs to know about an Inbox conversation (host/src/seams/state.ts): the host registers it at boot. */
+export { stateKinds };
+
+/**
+ * When the server starts: give every item an arrival number and every person who can see a conversation their own place in it, from what the shared read flag said (backfill.ts). It reads and logs
+ * what it is about to do first, writes once, and does nothing on a Space it has already finished; a restart changes nothing.
+ */
+export const periodic = {
+  "inbox.state_backfill": {
+    everyMs: 24 * 60 * 60_000,
+    immediate: true,
+    run: async (ctx: InboxCtx): Promise<void> => {
+      if (finished(ctx)) return;
+      const plan = await backfill(ctx, { dryRun: true });
+      // a Space with nothing in its Inbox finishes at once: everything filed from now on is filed with per-person state, and a later run must never start from the old shared flag
+      if (plan.conversations > 0) ctx.log.info("inbox: per-person state, the plan", { ...plan });
+      const done = await backfill(ctx, { dryRun: false });
+      if (!done.alreadyDone)
+        ctx.log.info("inbox: per-person state, done", { rowsMade: done.rowsMade, numbered: done.numbered });
+    },
+  },
+};
+
+/** The host's way to ask for the backfill by hand: `{ dryRun: true }` reports and writes nothing. */
+export const hostCalls = {
+  "inbox.state_backfill": (ctx: InboxCtx, input: { dryRun?: boolean }) =>
+    backfill(ctx, { dryRun: input?.dryRun !== false }),
+};

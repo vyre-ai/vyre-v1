@@ -2,6 +2,7 @@
 // The rows and the arithmetic are in host/src/seams/state.ts and lib/state.ts; this file only decides who may ask.
 import { fail } from "../../host/src/routes/errors.ts";
 import { StateRefusal, stateSeamOf } from "../../host/src/seams/state.ts";
+import { accessEnv, stateEnvOf } from "../../host/src/seams/state-env.ts";
 import type { StateStore, Thing } from "../../host/src/seams/state.ts";
 import { isHostService } from "../../lib/trust.ts";
 
@@ -19,6 +20,12 @@ export interface StateCtx {
     opts?: { vis?: "space" | "participants" | "owner" | "private" },
   ): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
+  /** each person on their own grants (the host's ctx.mayAll): what a kind asks to know whether a person may open a thing. A hand-built test ctx may omit it. */
+  mayAll?(
+    people: readonly string[],
+    action: { perm: string | null; level: "view" },
+    resource: { type: string; id: string | null },
+  ): boolean;
   /** present on a booted daemon once the host describes many things at once; a test or an older host leaves it out and a row is titled by its id */
   resources?: { describeMany?(refs: readonly Thing[]): readonly { title: string }[] };
   log: { warn(msg: string, attrs?: Record<string, unknown>): void };
@@ -27,7 +34,12 @@ export interface StateCtx {
 /** The person whose state a call is about: the person an agent acts for, else the caller. An agent with no one to act for has its own rows. */
 export const subjectOf = (ctx: Pick<StateCtx, "principal" | "actingFor">): string => ctx.actingFor ?? ctx.principal.id;
 
-export const storeOf = (ctx: StateCtx): StateStore => stateSeamOf(ctx.db, ctx.now);
+export const storeOf = (ctx: StateCtx): StateStore => stateSeamOf(ctx.db, ctx.now, accessEnv(ctx));
+
+/** The seam for a call that decides who an entry reaches (an arrival, a repair): it also reads the Space's people first, which most calls never need. */
+export async function storeWithPeople(ctx: StateCtx): Promise<StateStore> {
+  return stateSeamOf(ctx.db, ctx.now, await stateEnvOf(ctx, { people: true }));
+}
 
 /** Run a body that talks to the store: its refusals answer as the contract's errors. */
 export async function guarded<T>(ctx: Pick<StateCtx, "trace">, body: () => T | Promise<T>): Promise<T> {

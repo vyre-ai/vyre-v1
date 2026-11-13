@@ -48,7 +48,7 @@ export interface Fx {
   db: HostDb;
   /** a thing of a kind, with its members and the badge it counts in */
   make(type: string, id: string, members: string[], scope?: string): { type: string; id: string };
-  /** the module's own insert: a new entry at the next position. No state is touched. */
+  /** the module's own insert: a new entry at the next Space-wide position. No state is touched. */
   insert(thing: { type: string; id: string }, by: string | null, at?: number): number;
   /** the module's insert, then the seam call right after it, as a module does */
   post(thing: { type: string; id: string }, by: string | null, opts?: { at?: number; mentions?: string[] }): number;
@@ -83,9 +83,8 @@ export function fxOn(db: HostDb): Fx {
       return { type, id };
     },
     insert(thing, by, at) {
-      const pos =
-        ((db.all("SELECT COALESCE(MAX(pos), 0) AS p FROM fx_entry WHERE thing = ?", thing.id)[0] as { p: number }).p ??
-          0) + 1;
+      // a position is one number for the whole Space, in the order entries were filed (as the Inbox's arrival number is), so it means the same in every thing and survives a merge
+      const pos = ((db.all("SELECT COALESCE(MAX(pos), 0) AS p FROM fx_entry")[0] as { p: number }).p ?? 0) + 1;
       db.run(
         "INSERT INTO fx_entry (thing, pos, by, at) VALUES (?, ?, ?, ?)",
         thing.id,

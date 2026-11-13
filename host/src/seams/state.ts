@@ -35,12 +35,24 @@ export interface Thing {
   id: string;
 }
 
+/**
+ * What the caller of the seam knows that a kind may need and a database cannot say: the Space's people, and whether one person may open a resource. The store is synchronous, so the caller
+ * (a handler, which has `ctx`) reads these first (host/src/seams/state-env.ts) and hands them in. `NO_ENV` for a caller that has nothing to say; a kind that needs more says so by answering less.
+ */
+export interface StateEnv {
+  /** every active person of the Space */
+  people: readonly string[];
+  /** may this person open this resource? An answer that cannot be had is no. */
+  mayView(person: string, type: string, id: string): boolean;
+}
+export const NO_ENV: StateEnv = { people: [], mayView: () => false };
+
 /** What a module says about its things, once. The functions read the module's own tables through the raw connection. */
 export interface StateKind {
   /** the kind of thing: `conversation`, `chat`, `notice` */
   type: string;
   /** everyone who can see the thing now (people; an agent that follows it counts too) */
-  audience(db: RawDb, thing: string): readonly string[];
+  audience(db: RawDb, thing: string, env: StateEnv): readonly string[];
   /** the badge the thing counts in: `mailbox:mbx_a`, `chats`, `notices:inbox` */
   scope(db: RawDb, thing: string): string;
   /** the thing's entries, in any order */
@@ -49,7 +61,7 @@ export interface StateKind {
   heads(db: RawDb): readonly { thing: string; head: number; at?: number }[];
   reopen: Reopen;
   /** may this person see the thing? Absent: they are in the audience */
-  visible?(db: RawDb, thing: string, person: string): boolean;
+  visible?(db: RawDb, thing: string, person: string, env: StateEnv): boolean;
 }
 
 export class StateRefusal extends Error {
@@ -164,6 +176,13 @@ export interface StateStore {
   retract(thing: Thing): void;
   /** `from` became part of `to` (the module already moved the entries): each person's flags are merged and the rows recounted */
   merge(from: Thing, to: Thing): void;
+  /** a merge was undone (the module already moved the entries back to `to`, a thing that has none now): each person's row on `from` is copied to `to`, and both are recounted from their entries */
+  split(from: Thing, to: Thing): void;
+  /**
+   * The start for a thing that has entries and no state yet (a module's one-time backfill): `reads` is each person's place in it. A person who already has a row is left alone, so running it twice
+   * changes nothing. Answers how many rows it made.
+   */
+  seed(thing: Thing, at: number, reads: ReadonlyMap<string, number>): number;
   /** a person gets access to a scope: they start with nothing unread; flags they had before come back */
   gain(person: string, scope: string): number;
   /** a person loses access to a scope: its rows leave their lists and badge at once; done and star are kept */
@@ -176,9 +195,10 @@ export interface StateStore {
   followersOf(thing: Thing): string[];
   stateOf(person: string, things: readonly Thing[]): ThingState[];
   canSee(person: string, thing: Thing): boolean;
-  read(person: string, thing: Thing, req: ReadRequestIn): ChangeResult;
+  /** `trusted`: the caller has already decided the person may open the thing (the module's own guard ran), so the kind is not asked again */
+  read(person: string, thing: Thing, req: ReadRequestIn, o?: { trusted?: boolean }): ChangeResult;
   readScope(person: string, scope: string, before?: number): { marked: number; things: Thing[] };
-  set(person: string, thing: Thing, change: Change): ChangeResult;
+  set(person: string, thing: Thing, change: Change, o?: { trusted?: boolean }): ChangeResult;
   list(person: string, q: ListQuery): { rows: ListRow[]; next?: string };
   counts(person: string, scopes?: readonly string[]): { scope: string; things: number; entries: number }[];
 }
@@ -192,7 +212,7 @@ export interface ChangeResult {
   changed: Flag[];
 }
 
-export function createStateStore(db: StateDb, now: () => number): StateStore {
+export function createStateStore(db: StateDb, now: () => number, env: StateEnv = NO_ENV): StateStore {
   const kinds = KINDS.get(db) ?? new Map<string, StateKind>();
   const tx = <T>(fn: () => T): T => (db.tx ? db.tx(fn) : fn());
   const kindOf = (type: string): StateKind => {
@@ -270,7 +290,7 @@ export function createStateStore(db: StateDb, now: () => number): StateStore {
   };
 
   /** who an entry reaches: everyone who can see the thing now. An author from outside (a sender with no account) has no row. */
-  const people = (k: StateKind, t: Thing): string[] => [...new Set(k.audience(db, t.id))];
+  const people = (k: StateKind, t: Thing): string[] => [...new Set(k.audience(db, t.id, env))];
 
   /** the arrival itself; `thingRow` is what the head was before it */
   const applyArrival = (
@@ -315,8 +335,28 @@ export function createStateStore(db: StateDb, now: () => number): StateStore {
     });
 
   /** every row of the thing, recounted from the entries the module holds now */
-  const recountThing = (t: Thing, k: StateKind): void => {
-    const entries = k.entries(db, t.id);
+  /** make or move a thing's row: its head is the newest entry at or below `cap` */
+  const upsertThing = (t: Thing, cap: number, at: number, scope: string, k: StateKind): void => {
+    const head = k.entries(db, t.id).reduce((m, e) => (e.pos <= cap ? Math.max(m, e.pos) : m), 0);
+    db.run(
+      `INSERT INTO state_thing (type, id, head, head_at, scope_type, scope_id) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT (type, id) DO UPDATE SET head = excluded.head, head_at = excluded.head_at, scope_type = excluded.scope_type, scope_id = excluded.scope_id`,
+      t.type,
+      t.id,
+      head,
+      at,
+      splitScope(scope).type,
+      splitScope(scope).id,
+    );
+  };
+
+  /**
+   * Every row of the thing, recounted from the entries the module holds now. `cap`: entries after this position are not counted and the head stays at or below it (a merge or a split must not
+   * count an entry whose arrival has not been made yet; `arrive` does that, with its rules for who it reaches and what it reopens).
+   */
+  const recountThing = (t: Thing, k: StateKind, cap?: number): void => {
+    const all = k.entries(db, t.id);
+    const entries = cap === undefined ? all : all.filter((e) => e.pos <= cap);
     const head = entries.reduce((m, e) => Math.max(m, e.pos), 0);
     const have = headRow(t);
     const scope = have?.scope ?? k.scope(db, t.id);
@@ -365,22 +405,46 @@ export function createStateStore(db: StateDb, now: () => number): StateStore {
         drop(person, from, joinScope(String(r["scope_type"]), String(r["scope_id"])), a);
         put(person, to, scope, b, b ? mergeRows(a, b) : a);
       }
+      const gone = headRow(from);
       db.run("DELETE FROM state_thing WHERE type = ? AND id = ?", from.type, from.id);
-      const entries = k.entries(db, to.id);
-      const head = entries.reduce((m, e) => Math.max(m, e.pos), 0);
       const have = headRow(to);
-      const stamp = have?.headAt ?? now();
-      db.run(
-        `INSERT INTO state_thing (type, id, head, head_at, scope_type, scope_id) VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT (type, id) DO UPDATE SET head = excluded.head, head_at = excluded.head_at, scope_type = excluded.scope_type, scope_id = excluded.scope_id`,
-        to.type,
-        to.id,
-        head,
-        stamp,
-        splitScope(scope).type,
-        splitScope(scope).id,
-      );
-      recountThing(to, k);
+      const cap = Math.max(have?.head ?? 0, gone?.head ?? 0);
+      upsertThing(to, cap, Math.max(have?.headAt ?? 0, gone?.headAt ?? 0) || now(), scope, k);
+      recountThing(to, k, cap);
+    });
+
+  const split: StateStore["split"] = (from, to) =>
+    tx(() => {
+      const k = kindOf(to.type);
+      const scope = k.scope(db, to.id);
+      const cap = headRow(from)?.head ?? 0;
+      upsertThing(to, cap, headRow(from)?.headAt ?? now(), scope, k);
+      // each person carries what they had read, and their flags, back onto the revived thing: a position means the same on both
+      for (const r of db.all(
+        "SELECT person, " + STATE_COLS + " FROM state_person WHERE type = ? AND id = ?",
+        from.type,
+        from.id,
+      ) as Row[]) {
+        const person = String(r["person"]);
+        if (!rowOf(person, to)) put(person, to, scope, null, toState(r));
+      }
+      recountThing(from, k, cap);
+      recountThing(to, k, cap);
+    });
+
+  const seed: StateStore["seed"] = (t, at, reads) =>
+    tx(() => {
+      const k = kindOf(t.type);
+      const scope = k.scope(db, t.id);
+      upsertThing(t, Number.MAX_SAFE_INTEGER, at, scope, k);
+      const entries = k.entries(db, t.id);
+      let made = 0;
+      for (const [person, readUpto] of reads) {
+        if (rowOf(person, t)) continue;
+        put(person, t, scope, null, recount({ ...blank(readUpto) }, entries, person));
+        made += 1;
+      }
+      return made;
     });
 
   const gain: StateStore["gain"] = (person, scope) =>
@@ -443,17 +507,39 @@ export function createStateStore(db: StateDb, now: () => number): StateStore {
     ).map((r) => String(r["person"]));
 
   const stateOf: StateStore["stateOf"] = (person, things) => {
-    const out: ThingState[] = [];
-    for (const t of things) {
-      const have = rowOf(person, t);
-      out.push(view(t, have ?? blank(headRow(t)?.head ?? 0), now()));
+    // one query per kind of thing and 400 ids, not two per thing: a list of a page of rows asks once
+    const rows = new Map<string, PersonState>();
+    const heads = new Map<string, number>();
+    const byType = new Map<string, string[]>();
+    for (const t of things) byType.set(t.type, [...(byType.get(t.type) ?? []), t.id]);
+    for (const [type, ids] of byType) {
+      for (let i = 0; i < ids.length; i += 400) {
+        const part = ids.slice(i, i + 400);
+        const marks = part.map(() => "?").join(", ");
+        for (const r of db.all(
+          `SELECT id, ${STATE_COLS} FROM state_person WHERE person = ? AND type = ? AND id IN (${marks})`,
+          person,
+          type,
+          ...part,
+        ) as Row[])
+          rows.set(`${type}\u0000${String(r["id"])}`, toState(r));
+        for (const r of db.all(
+          `SELECT id, head FROM state_thing WHERE type = ? AND id IN (${marks})`,
+          type,
+          ...part,
+        ) as Row[])
+          heads.set(`${type}\u0000${String(r["id"])}`, num(r["head"]));
+      }
     }
-    return out;
+    return things.map((t) => {
+      const key = `${t.type}\u0000${t.id}`;
+      return view(t, rows.get(key) ?? blank(heads.get(key) ?? 0), now());
+    });
   };
 
   const canSee: StateStore["canSee"] = (person, t) => {
     const k = kindOf(t.type);
-    return k.visible ? k.visible(db, t.id, person) : k.audience(db, t.id).includes(person);
+    return k.visible ? k.visible(db, t.id, person, env) : k.audience(db, t.id, env).includes(person);
   };
   const mustSee = (person: string, t: Thing): StateKind => {
     const k = kindOf(t.type);
@@ -466,9 +552,9 @@ export function createStateStore(db: StateDb, now: () => number): StateStore {
     changed: changedFlags(before, after, head),
   });
 
-  const read: StateStore["read"] = (person, t, req) =>
+  const read: StateStore["read"] = (person, t, req, o) =>
     tx(() => {
-      const k = mustSee(person, t);
+      const k = o?.trusted ? kindOf(t.type) : mustSee(person, t);
       const entries = k.entries(db, t.id);
       const head = Math.max(headRow(t)?.head ?? 0, ...entries.map((e) => e.pos));
       const before = rowOf(person, t);
@@ -479,9 +565,9 @@ export function createStateStore(db: StateDb, now: () => number): StateStore {
       return result(t, before, after, head);
     });
 
-  const set: StateStore["set"] = (person, t, change) =>
+  const set: StateStore["set"] = (person, t, change, o) =>
     tx(() => {
-      const k = mustSee(person, t);
+      const k = o?.trusted ? kindOf(t.type) : mustSee(person, t);
       const head = headRow(t)?.head ?? 0;
       const before = rowOf(person, t);
       const after = setRow(before, head, change, now());
@@ -768,6 +854,8 @@ export function createStateStore(db: StateDb, now: () => number): StateStore {
     arrive,
     retract,
     merge,
+    split,
+    seed,
     gain,
     lose,
     forget,
@@ -788,10 +876,10 @@ export function createStateStore(db: StateDb, now: () => number): StateStore {
  * The seam for a module's handler: built from the module's own `ctx.db`. Throws when the handle was not made by the host's scopedDb (a hand-built test fake), because a seam on a connection the host
  * does not know would write nowhere the other modules can see.
  */
-export function stateSeamOf(ctxDb: unknown, now: () => number): StateStore {
+export function stateSeamOf(ctxDb: unknown, now: () => number, env: StateEnv = NO_ENV): StateStore {
   const raw = rawDbOf(ctxDb);
   if (!raw) throw new StateRefusal("bad_input", "This handle has no host connection to keep state on.");
-  return createStateStore(raw as StateDb, now);
+  return createStateStore(raw as StateDb, now, env);
 }
 
 /**

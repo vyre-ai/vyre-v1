@@ -8,6 +8,7 @@ import { boot, post, seededDirFrom } from "./daemon-boot-rig.ts";
 
 const seededDir = seededDirFrom(bootCore);
 const THING = { type: "conversation", id: "cnv_nobody" };
+const NO_KIND = { type: "no_such_kind", id: "x_nobody" };
 
 test("the state module migrates at boot and answers its public calls through the gateway", async () => {
   const dir = seededDir();
@@ -27,12 +28,13 @@ test("the state module migrates at boot and answers its public calls through the
     const asked = await post(d, "/v1/state/counts", { scopes: ["chats"] });
     assert.deepEqual(await asked.json(), { data: { counts: [{ scope: "chats", things: 0, entries: 0 }] } });
 
-    // no module has registered a kind of thing yet, so a thing is a plain refusal, never a crash
-    const set = await post(d, "/v1/state/set", { thing: THING, star: true });
+    // a kind nobody registered is a plain refusal, never a crash; a conversation that is not there is not found (the Inbox registers its kind at boot)
+    const set = await post(d, "/v1/state/set", { thing: NO_KIND, star: true });
     assert.equal(set.status, 422);
     assert.equal(((await set.json()) as { error: { code: string } }).error.code, "validation.bad_input");
     const read = await post(d, "/v1/state/read", { thing: THING, upto: 1 });
-    assert.equal(read.status, 422);
+    assert.equal(read.status, 404);
+    assert.equal(((await read.json()) as { error: { code: string } }).error.code, "validation.not_found");
 
     // the host's own calls are the host's: the seeded owner is refused
     for (const [path, body] of [

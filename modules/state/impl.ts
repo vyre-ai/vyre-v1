@@ -2,7 +2,7 @@
 // A module with things that carry state exports `stateKinds` (see host/src/seams/state.ts): the host registers them at boot, before the first `verify`.
 import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
-import { storeOf } from "./projections.ts";
+import { storeOf, storeWithPeople } from "./projections.ts";
 import type { StateCtx } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = {
@@ -42,7 +42,7 @@ export const periodic = {
     everyMs: 6 * 60 * 60_000,
     immediate: true,
     run: async (ctx: StateCtx): Promise<void> => {
-      const r = storeOf(ctx).verify({ repair: true });
+      const r = (await storeWithPeople(ctx)).verify({ repair: true });
       if (r.problems.length > 0)
         ctx.log.warn("state.verify repaired what a crash or a bug left", {
           problems: r.problems.length,
