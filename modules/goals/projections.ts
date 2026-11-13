@@ -401,8 +401,15 @@ export const isAdmin = (ctx: GoalsCtx): boolean =>
 
 /** Who sees a goal: its owner (and agents acting for them), the lead, helpers, people who can see its project, Space admins and the server. */
 export function canSee(ctx: GoalsCtx, g: Goal): boolean {
-  if (isSystem(ctx) || ctx.principal.id === g.owner || me(ctx) === g.owner || isLead(ctx, g) || isHelper(ctx, g))
-    return true;
+  if (isSystem(ctx) || ctx.principal.id === g.owner || me(ctx) === g.owner) return true;
+  // The goal's lead or a helper agent is the agent's own job, but it speaks for whoever is asking it: a person who may not see the goal does not see it through the agent (every call is the intersection of the
+  // agent's access and the asker's). An agent acting for the owner or a helper person, or for nobody, sees it.
+  const askerMay =
+    ctx.principal.kind !== "agent" ||
+    ctx.actingFor === undefined ||
+    ctx.actingFor === g.owner ||
+    g.helpers.some((h) => h.id === ctx.actingFor);
+  if ((isLead(ctx, g) || isHelper(ctx, g)) && askerMay) return true;
   if (
     g.projectId &&
     ctx.authorize?.({ perm: null, level: "view" }, { type: "project", id: g.projectId }).effect === "allow"

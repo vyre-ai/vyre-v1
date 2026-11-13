@@ -919,3 +919,87 @@ test("files and change sets seal under the real seal on a Space id of the shape 
     assert.ok(docs.length > 0);
   }
 });
+
+test("changeset reads follow the folder: a caller who may not view the folder lists, reads, diffs and reads comments on nothing of it", async () => {
+  const { ctx, agent, plan } = await setup({ "settings.get": { row: { value: true } } });
+  const w = await handlers["files.write"](agent, { fileId: plan, content: { text: "the staged words" } });
+  const denied: Ctx = { ...ctx, authorize: () => ({ effect: "deny", reason: "test", decisionId: "dec_no" }) };
+  assert.equal((await handlers["changesets.list"](ctx, {})).changesets.length >= 1, true, "a viewer lists it");
+  assert.deepEqual((await handlers["changesets.list"](denied, {})).changesets, [], "list");
+  await expectCode("validation.not_found", () => handlers["changesets.get"](denied, { changesetId: w.changesetId! }));
+  await expectCode("validation.not_found", () =>
+    handlers["changesets.comments.list"](denied, { changesetId: w.changesetId! }),
+  );
+});
+
+test("two people: Maya may view the folder, Noa may not; Noa asking the agent that staged the change for Maya sees nothing either (list, get, diff, comments)", async () => {
+  const { ctx, agent, plan, docs } = await setup({ "settings.get": { row: { value: true } } });
+  const w = await handlers["files.write"](agent, {
+    fileId: plan,
+    content: { text: lines(10, { 2: "LINE 2" }) },
+    baseVersion: 1,
+  });
+  const cs = w.changesetId!;
+  await handlers["changesets.comments.add"](ctx, {
+    changesetId: cs,
+    anchor: { kind: "file", path: "plan.txt" },
+    text: "Keep the old heading.",
+  });
+  // the kernel's answer for the folder: its owner's rights, and an agent acting for a person gets that person's (authorize intersects them)
+  const may = (who: Ctx): boolean => (who.actingFor ?? who.principal.id) === "per_maya";
+  const as = (c: Ctx): Ctx => ({
+    ...c,
+    authorize: (_a, r) =>
+      r.id === docs && may(c)
+        ? { effect: "allow", reason: "test", decisionId: "dec_y" }
+        : { effect: "deny", reason: "test", decisionId: "dec_n" },
+  });
+  const maya = as(ctx);
+  const noa = as(personOf(ctx, "per_noa"));
+  const agentForMaya = as(agentOf(ctx));
+  const agentForNoa = as({ ...agentOf(ctx), actingFor: "per_noa" });
+  for (const [who, name] of [
+    [maya, "Maya"],
+    [agentForMaya, "the agent for Maya"],
+  ] as const) {
+    assert.equal((await handlers["changesets.list"](who, {})).changesets.length, 1, `${name} lists it`);
+    assert.equal(
+      ((await handlers["changesets.get"](who, { changesetId: cs })).changeset as Record<string, unknown>)[
+        "changesetId"
+      ],
+      cs,
+      `${name} reads it`,
+    );
+    assert.ok(
+      (await handlers["changesets.diff"](who, { changesetId: cs, path: "plan.txt" })).hunks.length > 0,
+      `${name} reads the diff`,
+    );
+    assert.equal(
+      (await handlers["changesets.comments.list"](who, { changesetId: cs })).comments.length,
+      1,
+      `${name} reads the comments`,
+    );
+  }
+  for (const who of [noa, agentForNoa]) {
+    assert.deepEqual((await handlers["changesets.list"](who, {})).changesets, []);
+    assert.deepEqual((await handlers["changesets.list"](who, { mine: true })).changesets, []);
+    await expectCode("validation.not_found", () => handlers["changesets.get"](who, { changesetId: cs }));
+    await expectCode("validation.not_found", () =>
+      handlers["changesets.diff"](who, { changesetId: cs, path: "plan.txt" }),
+    );
+    await expectCode("validation.not_found", () => handlers["changesets.comments.list"](who, { changesetId: cs }));
+  }
+});
+
+test("a path or a name does not find what the caller may not view: files.resolve and files.folder.search", async () => {
+  const { ctx, docs } = await setup();
+  const maya = ctx;
+  const noa: Ctx = {
+    ...personOf(ctx, "per_noa"),
+    authorize: () => ({ effect: "deny", reason: "test", decisionId: "dec_n" }),
+  };
+  assert.equal((await handlers["files.resolve"](maya, { path: "Personal/Docs" })).folderId, docs);
+  assert.ok((await handlers["files.folder.search"](maya, { q: "docs" })).folders.some((f) => f.folderId === docs));
+  await expectCode("validation.not_found", () => handlers["files.resolve"](noa, { path: "Personal/Docs/plan.txt" }));
+  assert.deepEqual((await handlers["files.folder.search"](noa, { q: "docs" })).folders, []);
+});

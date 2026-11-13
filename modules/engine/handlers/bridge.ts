@@ -56,6 +56,8 @@ export function serverCause(message: string): "sandbox" | "image" | undefined {
 
 export const BRIDGE_PREFIX = "msg_brg";
 const HISTORY = 50;
+/** How long a typed-message row is kept: it is read only for a turn running or queued now. */
+const TYPED_KEEP_MS = 7 * 24 * 3600 * 1000;
 const brgId = (): string => BRIDGE_PREFIX + mintId("b").slice(2);
 
 export interface PostBlock {
@@ -298,7 +300,11 @@ export function createBridge(o: BridgeOptions): Bridge {
       /* a live view must never fail a turn */
     }
   };
-  const askerOf = new Map<string, string>(); // threadId -> the person whose turn ran last: the agent speaks for them
+  const askerOf = new Map<string, string>(); // threadId -> the person whose turn ran last: the fallback for a post that names no turn
+  // turnId -> the person that turn runs for. A post of a turn speaks for that turn's person, never for whoever's turn started last in the thread (two people's turns of two agents can overlap in a channel).
+  const askerOfTurn = new Map<string, string>();
+  const askerFor = (threadId: string, turnId?: string): string | undefined =>
+    (turnId !== undefined ? askerOfTurn.get(turnId) : undefined) ?? askerOf.get(threadId);
   const onSharedKey = new Set<string>(); // threadId|agentId: the account of this agent's turn here is a key of the Space
   const chains = new Map<string, Promise<void>>(); // per thread: posts go out one after another, in the order the events arrived
   const warn = (msg: string, attrs?: Record<string, unknown>): void => o.log?.warn(msg, attrs);
@@ -308,15 +314,15 @@ export function createBridge(o: BridgeOptions): Bridge {
   const helperOf = new Map<string, string>(); // a helper's own thread id -> the chat that started it, where the person is (gate blocker, 12 Nov)
   const pokedBy = new Map<string, string>(); // `${thread}:${agent}` -> the person who poked it: the reply says so
 
-  const askerMention = (threadId: string, agentId: string): AgentPost["mentions"] => {
-    const who = askerOf.get(threadId);
+  const askerMention = (threadId: string, agentId: string, turnId?: string): AgentPost["mentions"] => {
+    const who = askerFor(threadId, turnId);
     return who && o.addressAsker?.(threadId, agentId) ? [{ kind: "person", id: who }] : [];
   };
 
   const enqueuePost = (threadId: string, agentId: string, post: AgentPost, turnId?: string): void => {
     const prev = chains.get(threadId) ?? Promise.resolve();
+    const asker = askerFor(threadId, turnId); // read now, for this turn: not when the chain gets to it
     const next = prev.then(async () => {
-      const asker = askerOf.get(threadId);
       const as = (p: AgentPost): AgentPost =>
         asker
           ? { ...p, actingFor: asker, ...(onSharedKey.has(`${threadId}|${agentId}`) ? { sharedKey: true } : {}) }
@@ -483,6 +489,8 @@ export function createBridge(o: BridgeOptions): Bridge {
         queuedRoutine.delete(`${e.threadId}:${e.qseq}`);
         turns.set(e.turnId, { routineOwner: routine ? e.asker : null });
         askerOf.set(e.threadId, e.asker);
+        askerOfTurn.set(e.turnId, e.asker);
+        if (askerOfTurn.size > 2000) askerOfTurn.delete(askerOfTurn.keys().next().value as string); // bounded: oldest turn first
         writing.set(e.turnId, { threadId: e.threadId, agentId: e.agentId });
         const triggerId = engine?.queue(e.threadId).find((q) => q.qseq === e.qseq)?.messageId ?? undefined;
         emit({
@@ -529,7 +537,7 @@ export function createBridge(o: BridgeOptions): Bridge {
               threadId: e.threadId,
               body: "",
               blocks: seg.blocks,
-              mentions: askerMention(e.threadId, e.agentId),
+              mentions: askerMention(e.threadId, e.agentId, e.turnId),
               clientId: brgId(),
               ...(routineOwner ? { via: { routineOwner } } : {}),
             },
@@ -575,7 +583,10 @@ export function createBridge(o: BridgeOptions): Bridge {
         }
         if (e.type === "turn.waiting" && e.reason !== "approval") return;
         // a turn a dead host left has no turn.started here: who it ran for comes with the event, so the agent can still say so in the chat
-        if ((e.type === "turn.failed" || e.type === "turn.cancelled") && e.asker) askerOf.set(e.threadId, e.asker);
+        if ((e.type === "turn.failed" || e.type === "turn.cancelled") && e.asker) {
+          askerOf.set(e.threadId, e.asker);
+          askerOfTurn.set(e.turnId, e.asker);
+        }
         if (e.type === "turn.failed")
           warn("a turn failed", {
             threadId: e.threadId,
@@ -614,7 +625,7 @@ export function createBridge(o: BridgeOptions): Bridge {
             threadId: e.threadId,
             body: seg?.text ?? "",
             blocks,
-            mentions: askerMention(e.threadId, e.agentId),
+            mentions: askerMention(e.threadId, e.agentId, e.turnId),
             clientId: brgId(),
             ...(routineOwner ? { via: { routineOwner } } : {}),
           },
@@ -633,7 +644,7 @@ export function createBridge(o: BridgeOptions): Bridge {
               threadId: lead,
               body: "",
               blocks: [status(e), { type: "from_thread", v: 1, data: { threadId: e.threadId, messageId: "" } }],
-              mentions: askerMention(e.threadId, e.agentId),
+              mentions: askerMention(e.threadId, e.agentId, e.turnId),
               clientId: brgId(),
             },
             undefined,
@@ -673,7 +684,9 @@ export function createBridge(o: BridgeOptions): Bridge {
             blocks: r?.blocks ?? [],
             mentions: [
               ...msg.mentions,
-              ...askerMention(e.threadId, e.authorId).filter((m) => !msg.mentions.some((x) => x.id === m.id)),
+              ...askerMention(e.threadId, e.authorId, r?.turnId).filter(
+                (m) => !msg.mentions.some((x) => x.id === m.id),
+              ),
             ],
             clientId: msg.id,
             ...(r?.routineOwner ? { via: { routineOwner: r.routineOwner } } : {}),
@@ -1083,6 +1096,12 @@ export function createBridge(o: BridgeOptions): Bridge {
         messageId,
         threadId,
         ctx.now(),
+      );
+    // bounded: a typed row is only ever read for a turn that is running or queued now, so rows older than a week are dropped, at most 200 at a time with each new one
+    if (a.kind === "person" && p["typed"] === true)
+      ctx.db.run(
+        "DELETE FROM engine_typed_message WHERE message_id IN (SELECT message_id FROM engine_typed_message WHERE at < ? LIMIT 200)",
+        ctx.now() - TYPED_KEEP_MS,
       );
     // The only door for "asked this turn": the words a person typed, read here before the turn starts. Never the pointers, never an agent's post, never a line the server posted in a person's name.
     if (a.kind === "person" && p["typed"] === true) {
