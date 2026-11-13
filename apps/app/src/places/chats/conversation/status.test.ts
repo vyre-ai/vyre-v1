@@ -535,7 +535,10 @@ test("a reply with no AI account offers the other way out by who reads it: a mem
   const { spaceKeyWay } = await import("./status.ts");
   for (const code of ["no_account", "engine.no_account"]) {
     assert.deepEqual(spaceKeyWay(code, false), { line: "Or ask an admin to add a Space AI key." });
-    assert.deepEqual(spaceKeyWay(code, true), { line: "", action: { key: "set_space_key", label: "Set a Space AI key" } });
+    assert.deepEqual(spaceKeyWay(code, true), {
+      line: "",
+      action: { key: "set_space_key", label: "Set a Space AI key" },
+    });
   }
   assert.deepEqual(spaceKeyWay("host_lost", true), { line: "" });
   assert.deepEqual(spaceKeyWay("provider.unavailable", false), { line: "" });

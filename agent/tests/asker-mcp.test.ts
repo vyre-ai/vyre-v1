@@ -11,19 +11,55 @@ const g = loadGenerated();
 const PEOPLE = g.catalog.byName("people_status")?.cap ?? "people.status";
 function rig(callers: Record<string, McpCaller>) {
   const fake = fakeInvoke(g.caps);
-  const server = createMcpServer({ catalog: g.catalog, defaults: g.defaults, invoke: fake.invoke, open: async (t) => callers[t] ?? null, now: () => 1_000_000 });
+  const server = createMcpServer({
+    catalog: g.catalog,
+    defaults: g.defaults,
+    invoke: fake.invoke,
+    open: async (t) => callers[t] ?? null,
+    now: () => 1_000_000,
+  });
   let id = 0;
-  const post = async (token: string, method: string, params?: unknown) => server.handle({ method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, ...(params === undefined ? {} : { params }) }) });
+  const post = async (token: string, method: string, params?: unknown) =>
+    server.handle({
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method, ...(params === undefined ? {} : { params }) }),
+    });
   return { fake, post };
 }
-const driver = (sessionId: string, person: string): McpCaller => ({ kind: "driver", sessionId, space: "spc_1", principal: { kind: "agent", id: "agt_intake" }, actingFor: person, threadId: "thr_chat", traceId: "a".repeat(32) });
-const outside = (sessionId: string, person: string): McpCaller => ({ kind: "outside", sessionId, space: "spc_1", principal: { kind: "agent", id: "agt_outside" }, actingFor: person, traceId: "b".repeat(32) });
+const driver = (sessionId: string, person: string): McpCaller => ({
+  kind: "driver",
+  sessionId,
+  space: "spc_1",
+  principal: { kind: "agent", id: "agt_intake" },
+  actingFor: person,
+  threadId: "thr_chat",
+  traceId: "a".repeat(32),
+});
+const outside = (sessionId: string, person: string): McpCaller => ({
+  kind: "outside",
+  sessionId,
+  space: "spc_1",
+  principal: { kind: "agent", id: "agt_outside" },
+  actingFor: person,
+  traceId: "b".repeat(32),
+});
 
 test("each session acts for the person it was minted for, however calls interleave: two CLI sessions in one chat and an outside agent", async () => {
-  const { fake, post } = rig({ tokA: driver("ses_a", "usr_maya"), tokB: driver("ses_b", "usr_jonas"), tokO: outside("ses_o", "usr_maya") });
-  for (const t of ["tokA", "tokB", "tokO"]) await post(t, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "x", version: "1" } });
+  const { fake, post } = rig({
+    tokA: driver("ses_a", "usr_maya"),
+    tokB: driver("ses_b", "usr_jonas"),
+    tokO: outside("ses_o", "usr_maya"),
+  });
+  for (const t of ["tokA", "tokB", "tokO"])
+    await post(t, "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "x", version: "1" },
+    });
   // the same tool, in turn, one session after another, twice round
-  for (const t of ["tokA", "tokB", "tokO", "tokB", "tokA", "tokO"]) await post(t, "tools/call", { name: "people_status", arguments: {} });
+  for (const t of ["tokA", "tokB", "tokO", "tokB", "tokA", "tokO"])
+    await post(t, "tools/call", { name: "people_status", arguments: {} });
   const by = fake.calls.filter((c) => c.cap === PEOPLE).map((c) => c.actingFor);
   assert.deepEqual(by, ["usr_maya", "usr_jonas", "usr_maya", "usr_jonas", "usr_maya", "usr_maya"]);
   assert.ok(fake.calls.every((c) => c.thread === undefined || c.thread === "thr_chat"));
@@ -31,7 +67,11 @@ test("each session acts for the person it was minted for, however calls interlea
 
 test("what a call carries cannot change who it acts for: an acting-for person named in the input is ignored", async () => {
   const { fake, post } = rig({ tokB: driver("ses_b", "usr_jonas") });
-  await post("tokB", "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "x", version: "1" } });
+  await post("tokB", "initialize", {
+    protocolVersion: "2025-06-18",
+    capabilities: {},
+    clientInfo: { name: "x", version: "1" },
+  });
   await post("tokB", "tools/call", { name: "people_status", arguments: { actingFor: "usr_maya", asker: "usr_maya" } });
   assert.equal(fake.calls.find((c) => c.cap === PEOPLE)?.actingFor, "usr_jonas");
 });

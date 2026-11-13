@@ -128,9 +128,21 @@ test("it cannot be paused or handed on, and it ends with its person", async () =
 test("an agent acting for a person is judged as that person: it cannot hand work to an agent the person has no Use on; for nobody it can", async () => {
   const hn = harness();
   const other = (await h["agents.create"]!(hn.ctx, { name: "Plain", idempotencyKey: "p" })).agent.agentId;
-  hn.allowOnly((a) => !(a.level === "use"));   // the kernel's answer for Sam: no Use on that agent (an agent's own call is intersected with its asker's)
+  hn.allowOnly((a) => !(a.level === "use")); // the kernel's answer for Sam: no Use on that agent (an agent's own call is intersected with its asker's)
   const bot = hn.as({ kind: "agent", id: "agt_bot" }, SAM);
-  assert.deepEqual(await h["agents.outside.usable"]!(hn.person(SAM), { agentId: other }), { usable: false }, "Sam himself");
-  assert.deepEqual(await h["agents.outside.usable"]!(bot, { agentId: other }), { usable: false }, "an agent acting for Sam");
-  assert.deepEqual(await h["agents.outside.usable"]!(hn.as({ kind: "agent", id: "agt_bot" }), { agentId: other }), { usable: true }, "an agent acting for nobody keeps its own standing");
+  assert.deepEqual(
+    await h["agents.outside.usable"]!(hn.person(SAM), { agentId: other }),
+    { usable: false },
+    "Sam himself",
+  );
+  assert.deepEqual(
+    await h["agents.outside.usable"]!(bot, { agentId: other }),
+    { usable: false },
+    "an agent acting for Sam",
+  );
+  assert.deepEqual(
+    await h["agents.outside.usable"]!(hn.as({ kind: "agent", id: "agt_bot" }), { agentId: other }),
+    { usable: true },
+    "an agent acting for nobody keeps its own standing",
+  );
 });

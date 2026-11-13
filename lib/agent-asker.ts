@@ -5,7 +5,10 @@
 // It never widens what another person who merely asked that agent can see. "The principal is an agent with standing, so allow" is therefore wrong on its own; use agentStanding().
 //
 // A call with no actingFor, or from anything that is not an agent (a person, the server), is judged by its own standing as before.
-interface Caller { principal: { kind: string; id: string }; actingFor?: string | undefined }
+interface Caller {
+  principal: { kind: string; id: string };
+  actingFor?: string | undefined;
+}
 
 /**
  * Does the caller's own standing count for this read? True for a person, the server, and an agent acting for nobody. For an agent acting for a person, true only when `askerMay(person)` says that person may

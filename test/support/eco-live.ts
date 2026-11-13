@@ -50,7 +50,11 @@ export async function boot(dir: string, standIn: OpenSession, extra: Record<stri
     vault: { secret: async () => KEY, signRs256: async () => "" },
     engineOpenSession: standIn,
     // providers.add asks the provider whether it accepts a key before saving it (161cebfa0); a stand-in answers, so no test reaches an outside service
-    providerFetch: (async () => new Response(JSON.stringify({ data: [{ id: "claude-sonnet-5-5" }] }), { status: 200, headers: { "content-type": "application/json" } })) as unknown as typeof fetch,
+    providerFetch: (async () =>
+      new Response(JSON.stringify({ data: [{ id: "claude-sonnet-5-5" }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })) as unknown as typeof fetch,
     ...extra,
   } as Parameters<typeof startDaemon>[0]);
 }

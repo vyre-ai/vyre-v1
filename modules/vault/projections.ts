@@ -7,7 +7,10 @@ import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
 
 /** The caller's own row: an agent's own standing counts for nobody and for no one it is acting for (lib/agent-asker.ts). */
-export const ownRow = (ctx: { principal: { kind: string; id: string }; actingFor?: string | undefined }, r: Record<string, unknown>): boolean => String(r["owner"] ?? "") === ctx.principal.id && agentStanding(ctx, () => false);
+export const ownRow = (
+  ctx: { principal: { kind: string; id: string }; actingFor?: string | undefined },
+  r: Record<string, unknown>,
+): boolean => String(r["owner"] ?? "") === ctx.principal.id && agentStanding(ctx, () => false);
 export interface VaultDb {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };

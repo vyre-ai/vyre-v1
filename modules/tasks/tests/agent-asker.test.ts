@@ -24,9 +24,12 @@ function world(): Harness {
   return h;
 }
 /** Person A hands the agent a task. */
-const handed = async (h: Harness): Promise<string> => (await h.call("tasks.create", newTask({ title: "Prepare the Northwind filing", assigned: bot }), A)).task.id as string;
+const handed = async (h: Harness): Promise<string> =>
+  (await h.call("tasks.create", newTask({ title: "Prepare the Northwind filing", assigned: bot }), A)).task
+    .id as string;
 const seen = (r: { task?: unknown }): boolean => r.task !== undefined && r.task !== null;
-const ids = (r: { tasks?: Array<{ id: string }>; rows?: Array<{ id: string }> }): string[] => (r.tasks ?? r.rows ?? []).map((t) => t.id);
+const ids = (r: { tasks?: Array<{ id: string }>; rows?: Array<{ id: string }> }): string[] =>
+  (r.tasks ?? r.rows ?? []).map((t) => t.id);
 
 test("person B asks the agent about the task A gave it: get, by_key, list, index, my_work, needs_you and the digest show nothing; A asking the same agent sees it", async () => {
   const h = world();
@@ -67,13 +70,19 @@ test("the task's own thread works for anyone who may be in it: B's agent turn in
   assert.ok(thread, "the task has its own thread");
   assert.ok(seen(await h.call("tasks.get", { taskId: id }, { ...forB, thread })));
   // another chat is not the task's thread
-  await assert.rejects(h.call("tasks.get", { taskId: id }, { ...forB, thread: "thr_other" }), (e) => codeOf(e) === "permission.not_found");
+  await assert.rejects(
+    h.call("tasks.get", { taskId: id }, { ...forB, thread: "thr_other" }),
+    (e) => codeOf(e) === "permission.not_found",
+  );
 });
 
 test("act follows read: B cannot move A's task through the agent; A can; B on the task by their own seat can", async () => {
   const h = world();
   const id = await handed(h);
-  await assert.rejects(h.call("tasks.act", { taskId: id, action: "start" }, forB), (e) => codeOf(e) === "permission.not_found");
+  await assert.rejects(
+    h.call("tasks.act", { taskId: id, action: "start" }, forB),
+    (e) => codeOf(e) === "permission.not_found",
+  );
   await assert.rejects(h.call("tasks.transition", { taskId: id, to: "doing" }, forB));
   await assert.rejects(h.call("tasks.update", { taskId: id, title: "Hijacked" }, forB));
   assert.equal(findTask(h.db, id)!.state, "todo");
@@ -88,7 +97,11 @@ test("act follows read: B cannot move A's task through the agent; A can; B on th
 test("a follower, and the person the task was made for, see it through the agent", async () => {
   const h = world();
   // the agent made it for Cara (acting for her), assigned to itself
-  const made = await h.call("tasks.create", newTask({ title: "Chase the signed copy", assigned: bot }), { id: bot.id, kind: "agent", actingFor: cara.id });
+  const made = await h.call("tasks.create", newTask({ title: "Chase the signed copy", assigned: bot }), {
+    id: bot.id,
+    kind: "agent",
+    actingFor: cara.id,
+  });
   const id = made.task.id as string;
   assert.equal(findTask(h.db, id)!.createdFor, cara.id, "created_for records the person the creating turn acted for");
   assert.ok(seen(await h.call("tasks.get", { taskId: id }, { ...forNobody, actingFor: cara.id })));
@@ -101,14 +114,23 @@ test("created_for: a person's own task and a turn for nobody record none", async
   const h = world();
   const mine = await handed(h);
   assert.equal(findTask(h.db, mine)!.createdFor, undefined);
-  const wake = (await h.call("tasks.create", newTask({ title: "Weekly sweep", assigned: bot }), forNobody)).task.id as string;
+  const wake = (await h.call("tasks.create", newTask({ title: "Weekly sweep", assigned: bot }), forNobody)).task
+    .id as string;
   assert.equal(findTask(h.db, wake)!.createdFor, undefined);
 });
 
 test("a goal lead's plan: the lead in its wake sees it, the goal's owner through the lead sees it, another asker does not", async () => {
   const h = world();
   const owner = { id: bot.id, kind: "agent" as const, actingFor: alice.id };
-  const planned = await h.call("tasks.plan", { idempotencyKey: "plan_1", parent: { title: "Close the quarter" }, children: [{ key: "a", title: "Reconcile the ledger", assigned: bot }] }, owner);
+  const planned = await h.call(
+    "tasks.plan",
+    {
+      idempotencyKey: "plan_1",
+      parent: { title: "Close the quarter" },
+      children: [{ key: "a", title: "Reconcile the ledger", assigned: bot }],
+    },
+    owner,
+  );
   const child = planned.children[0].taskId as string;
   assert.equal(findTask(h.db, child)!.createdFor, alice.id);
   assert.ok(seen(await h.call("tasks.get", { taskId: child }, forNobody)), "the lead in its wake");
@@ -122,7 +144,10 @@ test("a person is judged as before: the agent's rights do not hide what the pers
   const h = world();
   const id = await handed(h);
   assert.ok(seen(await h.call("tasks.get", { taskId: id }, A)));
-  await assert.rejects(h.call("tasks.get", { taskId: id }, { id: bob.id }), (e) => codeOf(e) === "permission.not_found");
+  await assert.rejects(
+    h.call("tasks.get", { taskId: id }, { id: bob.id }),
+    (e) => codeOf(e) === "permission.not_found",
+  );
 });
 
 test("an older task with no created_for column value: the migration backfills it from the note the session wrote", async () => {
@@ -131,7 +156,11 @@ test("an older task with no created_for column value: the migration backfills it
   // simulate a row from before the column: the note says who, the column is empty
   h.sqlite.exec(`UPDATE tasks_core SET created_for = NULL WHERE id = '${id}'`);
   h.sqlite.exec(`UPDATE tasks_meta SET working_notes = '{"baton.acting_for":"${cara.id}"}' WHERE id = '${id}'`);
-  const sql = (await import("node:fs")).readFileSync(new URL("../migrations/0004_created_for.sql", import.meta.url), "utf8").split("\n").filter((l) => l.startsWith("UPDATE")).join("\n");
+  const sql = (await import("node:fs"))
+    .readFileSync(new URL("../migrations/0004_created_for.sql", import.meta.url), "utf8")
+    .split("\n")
+    .filter((l) => l.startsWith("UPDATE"))
+    .join("\n");
   h.sqlite.exec(sql);
   assert.equal(findTask(h.db, id)!.createdFor, cara.id);
   void ({} as TasksCtx);

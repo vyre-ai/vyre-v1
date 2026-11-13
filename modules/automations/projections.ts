@@ -590,5 +590,6 @@ export function page<T>(
 // ---- who ----
 
 export const isOwner = (ctx: AutoCtx, a: Pick<Automation, "ownerId" | "createdBy">): boolean =>
-  (a.ownerId === ctx.principal.id && agentStanding(ctx, () => false)) || (ctx.actingFor !== undefined && a.ownerId === ctx.actingFor);
+  (a.ownerId === ctx.principal.id && agentStanding(ctx, () => false)) ||
+  (ctx.actingFor !== undefined && a.ownerId === ctx.actingFor);
 export const me = (ctx: AutoCtx): string => ctx.actingFor ?? ctx.principal.id;

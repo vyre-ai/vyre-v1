@@ -313,9 +313,14 @@ export function wordsFor(code: string): {
  * The other way out of "Connect your AI to get replies", by who is reading (the same two ways the composer's no-AI line offers: connect yours, or set a Space AI key). A member is told to ask an admin;
  * an owner or admin gets the action. Any other code has none.
  */
-export function spaceKeyWay(code: string, canSetSpaceKey: boolean): { line: string; action?: { key: string; label: string } } {
+export function spaceKeyWay(
+  code: string,
+  canSetSpaceKey: boolean,
+): { line: string; action?: { key: string; label: string } } {
   if (code !== "no_account" && code !== "engine.no_account") return { line: "" };
-  return canSetSpaceKey ? { line: "", action: { key: "set_space_key", label: "Set a Space AI key" } } : { line: "Or ask an admin to add a Space AI key." };
+  return canSetSpaceKey
+    ? { line: "", action: { key: "set_space_key", label: "Set a Space AI key" } }
+    : { line: "Or ask an admin to add a Space AI key." };
 }
 /** The codes with words of their own (status.test.ts checks every code a turn can fail with is here). */
 export const KNOWN_CODES: readonly string[] = Object.keys(STATUS_WORDS);

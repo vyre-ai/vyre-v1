@@ -665,13 +665,25 @@ test("a private conversation opens only through its reasons even when the Space'
 test("an agent's follows are its own work: a person who merely asks that agent sees none of the contacts it follows; the person it follows for does", async () => {
   const { h } = await world();
   const agent = { ...h.ctx, principal: { kind: "agent" as const, id: "agt_helper1" } };
-  await followSet(agent, { contactId: DANA.id, follow: true, alertOnReplies: true });   // a turn for nobody: the agent's own follow
+  await followSet(agent, { contactId: DANA.id, follow: true, alertOnReplies: true }); // a turn for nobody: the agent's own follow
   const forOmar = { ...agent, actingFor: "usr_omar01" };
-  assert.ok(!(await following(forOmar, {})).rows.some((r) => r.contactId === DANA.id || r.reasons.includes("follow")), "Omar, asking the agent, sees none of what it follows");
-  assert.ok(!(await listByContact(forOmar, {})).rows.some((r) => r.contactId === DANA.id), "nor the conversations that follow opens");
-  assert.ok((await following(agent, {})).rows.some((r) => r.contactId === DANA.id && r.reasons.includes("follow")), "in a turn for nobody the agent's follow stands");
+  assert.ok(
+    !(await following(forOmar, {})).rows.some((r) => r.contactId === DANA.id || r.reasons.includes("follow")),
+    "Omar, asking the agent, sees none of what it follows",
+  );
+  assert.ok(
+    !(await listByContact(forOmar, {})).rows.some((r) => r.contactId === DANA.id),
+    "nor the conversations that follow opens",
+  );
+  assert.ok(
+    (await following(agent, {})).rows.some((r) => r.contactId === DANA.id && r.reasons.includes("follow")),
+    "in a turn for nobody the agent's follow stands",
+  );
   // following for Maya is Maya's follow: she sees it herself, and Omar does not
   await followSet({ ...agent, actingFor: "usr_maya01" }, { contactId: "rec_quiet01", follow: true });
-  assert.ok((await following(h.ctx, {})).rows.some((r) => r.contactId === "rec_quiet01"), "Maya, in her own session, sees the follow made for her");
+  assert.ok(
+    (await following(h.ctx, {})).rows.some((r) => r.contactId === "rec_quiet01"),
+    "Maya, in her own session, sees the follow made for her",
+  );
   assert.ok(!(await following(forOmar, {})).rows.some((r) => r.contactId === "rec_quiet01"));
 });
