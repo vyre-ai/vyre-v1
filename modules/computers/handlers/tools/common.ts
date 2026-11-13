@@ -36,7 +36,7 @@ import type { CompCtx, ComputerHost, ComputerRow, PersonalChrome, Secret } from 
 import { awaken } from "../lifecycle.ts";
 import { askedThisTurn } from "./my-chrome-ask.ts";
 import { spaceBrowser } from "../../sbrowser/port.ts";
-import { profileIdOf } from "../../sbrowser/policy.ts";
+import { askerOfTurn, profileOfTurn } from "../../sbrowser/asker.ts";
 import { takeDownloads } from "../../sbrowser/downloads.ts";
 import {
   answerFrom,
@@ -467,7 +467,7 @@ export async function prepare(
     (await browserUsable(spaceBrowser()!, ctx.now())) &&
     (await settleMove(ctx, ctx.principal.id, { start: !LOOKS.has(spec.name) }))
   ) {
-    const profileId = profileIdOf(ctx.principal.id);
+    const { profileId } = await profileOfTurn(ctx);
     if (!profileId)
       raise(ctx, "validation.bad_input", "This agent cannot have a browser profile: its id is not valid.");
     return {
@@ -990,7 +990,7 @@ async function browserStep(
     await browserCard(ctx, ctx.principal.id, words, frameFileId, at);
   }
   if (REPORTS_DOWNLOADS.has(spec.name)) {
-    const saved = await takeDownloads(ctx, sb, profileId, ctx.principal.id);
+    const saved = await takeDownloads(ctx, sb, profileId, ctx.principal.id, await askerOfTurn(ctx));
     if (saved.length > 0) out["downloads"] = saved;
   }
   return out;
