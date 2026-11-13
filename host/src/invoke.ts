@@ -184,12 +184,7 @@ export interface GateHook {
    * Who a resumed call runs as: exactly the ask-time caller, whom it acted for, and its run and thread, read from the held row the token names. Never the approver's. Null refuses the resume.
    * Without this method a call carrying onBehalfOf is refused.
    */
-  resume?(a: {
-    token: string;
-    onBehalfOf: string;
-    cap: CapabilityDef;
-    input: unknown;
-  }): Promise<{
+  resume?(a: { token: string; onBehalfOf: string; cap: CapabilityDef; input: unknown }): Promise<{
     principal: PrincipalSeed;
     actingFor?: string | undefined;
     run?: string | undefined;
@@ -1153,15 +1148,13 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     if (stored.length) deps.publish?.(stored);
     // Before the answer reaches the model: a failure to mark costs the next outward act nothing it should have, so it is logged and the answer still goes. The grant check reads the mark.
     if (deps.gate?.seen && (depth === 0 || approved))
-      await deps.gate
-        .seen(c, input, output, seed, t)
-        .catch((e: unknown) =>
-          log.warn("the Gate did not hear what a call brought in", {
-            cap: c.name,
-            traceId,
-            error: e instanceof Error ? e.message : String(e),
-          }),
-        );
+      await deps.gate.seen(c, input, output, seed, t).catch((e: unknown) =>
+        log.warn("the Gate did not hear what a call brought in", {
+          cap: c.name,
+          traceId,
+          error: e instanceof Error ? e.message : String(e),
+        }),
+      );
     let answer = finishOutput ? await finishOutput() : output;
     // the read gate, after: what a call an agent is behind hands back is the redacted rendition, or a refusal (Redaction for AI, seams/agent-read.ts)
     if (deps.agentGate && (depth === 0 || approved)) {
