@@ -111,3 +111,35 @@ test("a real answer clears every change shown before it: a later change starts f
   later();
   assert.deepEqual(q.getSnapshot(), { status: "ready", data: { on: false, n: 0 } }, "the old change did not come back");
 });
+
+test("a failed re-read keeps the very same snapshot and says so on the side; the next good answer clears it", async () => {
+  let fail = false;
+  const hooks = createRemoteScreenHooks({
+    screens: new Map(),
+    read: async () => {
+      if (fail) throw Object.assign(new Error("down"), { code: "internal.error" });
+      return { on: false };
+    },
+  });
+  const q = hooks.capQuery<{ on: boolean }>("things.get", { id: "t1" });
+  const side = (q as unknown as { stale: { subscribe(l: () => void): () => void; getSnapshot(): { message: string } | null } }).stale;
+  let heard = 0;
+  q.subscribe(() => undefined);
+  side.subscribe(() => heard++);
+  await settle();
+  const good = q.getSnapshot();
+  assert.equal(side.getSnapshot(), null);
+  fail = true;
+  hooks.invalidate();
+  await settle();
+  assert.equal(q.getSnapshot(), good, "the answer is the same object: nothing that reads it re-renders or re-reads");
+  assert.equal(side.getSnapshot()?.message, "down");
+  assert.equal(heard, 1);
+  hooks.invalidate();
+  await settle();
+  assert.equal(heard, 1, "the same failure again is not a change");
+  fail = false;
+  hooks.invalidate();
+  await settle();
+  assert.equal(side.getSnapshot(), null);
+});

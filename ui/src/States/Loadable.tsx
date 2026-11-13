@@ -2,18 +2,18 @@
 // A place never decides this alone, and an error is never left out: a read that failed is `failed` here, so it cannot sit behind an endless "Loading".
 // The pieces are the ones that already exist: Quiet (calm loading), LoadFailed (the error: whatever it decides about Retry for a refused read applies here too, there is no second rule in this file) and States kind=empty.
 import type { ReactElement, ReactNode } from "react";
-import { View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { States } from "./index.tsx";
-import { LoadFailed } from "./Loads.tsx";
+import { LoadFailed, retryLoads } from "./Loads.tsx";
 import type { LoadFailure } from "./Loads.tsx";
 import { Quiet } from "./Quiet.tsx";
 import type { StateAction, StateIcon } from "./props.ts";
 
-/** What a read is doing. */
+/** What a read is doing. `stale`: the last re-read failed and the old answer stays, with a quiet "Couldn't refresh. Retry". */
 export type Load<T> =
   | { state: "loading" }
   | { state: "failed"; failure: LoadFailure; retry(): void }
-  | { state: "ready"; data: T };
+  | { state: "ready"; data: T; stale?: LoadFailure };
 
 /** The code of a failure that trying again cannot fix (hooks that cannot answer this read at all): the words are shown and there is no Retry. */
 export const CANNOT_READ = "load.cannot_read";
@@ -49,5 +49,23 @@ export function Loadable<T>({ load, what, isEmpty, empty, loading, children }: L
         {...(empty?.action ? { action: empty.action } : {})}
       />
     );
-  return <>{children(load.data)}</>;
+  return (
+    <>
+      {load.stale ? (
+        <View testID="load-stale" style={st.stale}>
+          <Text style={st.line}>Couldn't refresh.</Text>
+          <Pressable accessibilityRole="button" testID="load-stale-retry" onPress={retryLoads}>
+            <Text style={st.retry}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {children(load.data)}
+    </>
+  );
 }
+
+const st = StyleSheet.create({
+  stale: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, paddingVertical: 6 },
+  line: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  retry: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
+});
