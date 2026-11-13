@@ -263,6 +263,8 @@ export function deliver(
   opts: {
     notify?: boolean;
     job?: boolean;
+    /** A copy of a thread message in the chat it hangs in: not a new message of the person. */
+    copy?: boolean;
     poke?: { agentId: string; by: string; outside?: boolean };
     /** The line tells an agent what its person answered on a card of theirs: the person's own act, so it counts as typed (see answeredCard). */
     answered?: boolean;
