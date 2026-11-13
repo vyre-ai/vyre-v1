@@ -684,7 +684,9 @@ export function createBridge(o: BridgeOptions): Bridge {
             blocks: r?.blocks ?? [],
             mentions: [
               ...msg.mentions,
-              ...askerMention(e.threadId, e.authorId, r?.turnId).filter((m) => !msg.mentions.some((x) => x.id === m.id)),
+              ...askerMention(e.threadId, e.authorId, r?.turnId).filter(
+                (m) => !msg.mentions.some((x) => x.id === m.id),
+              ),
             ],
             clientId: msg.id,
             ...(r?.routineOwner ? { via: { routineOwner: r.routineOwner } } : {}),

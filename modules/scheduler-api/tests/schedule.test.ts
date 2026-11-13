@@ -532,6 +532,9 @@ test("a schedule an agent made for nobody is its own: Bob asking that agent list
   const made = await h.call("scheduler.schedule", newSchedule(), nobody);
   const forBob = { id: "agt_bot", kind: "agent" as const, actingFor: bob.id };
   assert.equal((await h.call("scheduler.list", {}, forBob)).total, 0, "Bob lists none");
-  await assert.rejects(h.call("scheduler.get", { scheduleId: made.scheduleId }, forBob), (e) => codeOf(e) === "permission.not_found");
+  await assert.rejects(
+    h.call("scheduler.get", { scheduleId: made.scheduleId }, forBob),
+    (e) => codeOf(e) === "permission.not_found",
+  );
   assert.equal((await h.call("scheduler.list", {}, nobody)).total, 1, "the agent's own turn for nobody");
 });

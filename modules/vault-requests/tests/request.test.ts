@@ -827,6 +827,10 @@ test("an agent's key request for Alice is Alice's: Bob asking the same agent lis
   assert.equal(await failed(handlers["vault.requests.cancel"](forBob, { requestId: id })), "validation.not_found");
   assert.equal((await handlers["vault.requests.list"](forAlice, {})).requests.length, 1, "Alice through the agent");
   assert.equal((await handlers["vault.requests.get"](forAlice, { requestId: id })).request.id, id);
-  assert.equal((await handlers["vault.requests.list"](forNobody, {})).requests.length, 1, "the agent's own turn for nobody");
+  assert.equal(
+    (await handlers["vault.requests.list"](forNobody, {})).requests.length,
+    1,
+    "the agent's own turn for nobody",
+  );
   assert.deepEqual(await handlers["vault.requests.cancel"](forAlice, { requestId: id }), { ok: true });
 });

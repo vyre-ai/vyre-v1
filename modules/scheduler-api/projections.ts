@@ -612,7 +612,9 @@ export const isService = (ctx: SchedCtx): boolean => isTrustedService(ctx.princi
  * who merely asks the agent (lib/agent-asker.ts); a schedule made in a person's turn runs as that person, so it is theirs through the agent.
  */
 export const mayManage = (ctx: SchedCtx, s: Pick<Schedule, "principal">): boolean =>
-  isService(ctx) || (s.principal === ctx.principal.id && agentStanding(ctx, () => false)) || s.principal === ctx.actingFor;
+  isService(ctx) ||
+  (s.principal === ctx.principal.id && agentStanding(ctx, () => false)) ||
+  s.principal === ctx.actingFor;
 export function emitSched(ctx: SchedCtx, name: string, scheduleId: string, payload: Record<string, unknown>): void {
   ctx.emit(name, `entity/${scheduleId}`, clean({ scheduleId, ...payload }));
 }

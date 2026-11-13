@@ -160,7 +160,10 @@ test(
         const direct = (await api(r.asker, "vault.item.get", { itemId })).status === 200;
         assert.equal(r.ok, direct, `${r.asker}: through the agent ${r.ok}, directly ${direct}`);
       }
-      assert.ok(rows.filter((r) => r.asker === "usr_olivia").every((r) => r.ok), "Olivia reaches, through the agent, the key it made for her");
+      assert.ok(
+        rows.filter((r) => r.asker === "usr_olivia").every((r) => r.ok),
+        "Olivia reaches, through the agent, the key it made for her",
+      );
     } finally {
       globalThis.fetch = realFetch;
       await stop(d);

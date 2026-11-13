@@ -59,5 +59,9 @@ test("it cannot be forged: not by the agent, not from an MCP client, not for a c
 test("a person's typed message at the top of a call counts, and an edit or an attachment-only post adds no new way in", async () => {
   const w = await world();
   assert.equal(await w.post({ ...w.hn.ctx, origin: "user", depth: 0 } as Harness["ctx"], "typed_1"), true);
-  assert.equal(await w.post({ ...w.hn.ctx, origin: "mcp", depth: 0 } as Harness["ctx"], "typed_2"), undefined, "a post by an MCP client");
+  assert.equal(
+    await w.post({ ...w.hn.ctx, origin: "mcp", depth: 0 } as Harness["ctx"], "typed_2"),
+    undefined,
+    "a post by an MCP client",
+  );
 });

@@ -509,7 +509,10 @@ test("a report an agent submits for Alice is Alice's: Bob asking the same agent 
   const list = async (c: ReportsCtx): Promise<unknown[]> =>
     ((await call("reports.list", c, {})) as { reports: unknown[] }).reports;
   assert.equal((await list(agent("usr_bob"))).length, 0, "Bob lists none");
-  assert.equal((await failed(call("reports.get", agent("usr_bob"), { reportId: out.reportId }))).error.code, "permission.not_found");
+  assert.equal(
+    (await failed(call("reports.get", agent("usr_bob"), { reportId: out.reportId }))).error.code,
+    "permission.not_found",
+  );
   assert.equal((await list(agent("usr_alice"))).length, 1, "Alice through the agent");
   assert.ok(await call("reports.get", agent("usr_alice"), { reportId: out.reportId }));
   assert.equal((await list(agent())).length, 0, "the agent for nobody holds only what it made for nobody");

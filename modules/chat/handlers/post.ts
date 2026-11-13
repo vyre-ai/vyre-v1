@@ -243,7 +243,8 @@ export function answeredCard(
   author: { kind: string; id: string },
   key: string | undefined,
 ): boolean {
-  if (author.kind !== "person" || ctx.depth === 0 || typeof key !== "string" || !key.startsWith("answer_")) return false;
+  if (author.kind !== "person" || ctx.depth === 0 || typeof key !== "string" || !key.startsWith("answer_"))
+    return false;
   const b = blockBy(ctx.db, key.slice("answer_".length));
   return b !== null && b.thread === thread.id && b.state === "done" && b.answeredBy === author.id;
 }
@@ -482,7 +483,14 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   // a person who replies in a thread is in it: its later replies reach them and it counts on their Threads row
   if (author.kind === "person") joinThread(ctx, thread, author.id);
   saveScreen(ctx, thread.id, m.id, input.screen);
-  deliver(ctx, thread, m, mentions, { kind: author.kind, id: author.id }, { job, answered: answeredCard(ctx, thread, author, input.idempotencyKey) });
+  deliver(
+    ctx,
+    thread,
+    m,
+    mentions,
+    { kind: author.kind, id: author.id },
+    { job, answered: answeredCard(ctx, thread, author, input.idempotencyKey) },
+  );
   // "Also post to the chat" from a thread: the same words in the chat the thread hangs in, marked as coming from the thread, so the main chat reads the outcome and not the work. It is a copy, not a message to answer.
   if (input.alsoToChat === true && thread.kind === "thread" && thread.parentThreadId !== undefined) {
     const root = threadBy(ctx.db, thread.parentThreadId);
