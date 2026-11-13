@@ -39,7 +39,12 @@ export function draftOf(threadId: string, st: DraftStorage | null = localStore()
   return read(st)[threadId]?.t ?? "";
 }
 /** Keep what the person typed in a chat; an empty or blank line clears it (a send does the same). */
-export function setDraft(threadId: string, text: string, st: DraftStorage | null = localStore(), now = Date.now()): void {
+export function setDraft(
+  threadId: string,
+  text: string,
+  st: DraftStorage | null = localStore(),
+  now = Date.now(),
+): void {
   if (!st) return;
   const all = read(st);
   const had = all[threadId] !== undefined;
