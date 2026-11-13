@@ -253,7 +253,7 @@ export const consumers = keptWhileStopping({
       try { const n = ((await host.call("access.principals.get", { principal: { kind: "person", id: p.by ?? person } })) as { principal?: { name?: unknown } }).principal?.name; if (typeof n === "string" && n.trim() !== "") by = n.trim(); } catch { /* a person all the same */ }
       let result: unknown;
       if (approved) { try { const r = (await host.call("gate.result.take", { holdId: p.holdId })) as { found?: boolean; result?: unknown }; if (r.found) result = r.result; } catch { /* what it gave back is a convenience */ } }
-      queueHeldNote(p.threadId, agentId, heldNote({ approved, cap: p.capName ?? "call", by, ...(result !== undefined ? { result } : {}), ...(p.note ? { note: p.note } : {}) }));
+      queueHeldNote(p.threadId, agentId, heldNote({ approved, cap: p.capName ?? "call", by, ...(result !== undefined ? { result } : {}), ...(p.note ? { note: p.note } : {}) }), person);
       if (host.postAs) {
         await Promise.resolve(host.postAs(agentId, { actingFor: person, threadId: p.threadId, body: "", mentions: [], clientId: BRIDGE_PREFIX + mintEngineId("b", ctx.now()).slice(2), blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: `${approved ? "Approved" : "Declined"} by ${by}` } }] }))
           .catch((e: unknown) => host.log?.("the answer to a held call was not shown in the chat", { taskId: p.taskId, error: e instanceof Error ? e.message : String(e) }));
@@ -289,7 +289,7 @@ export const consumers = keptWhileStopping({
       if (!engine) return [];
       let by = "a person";
       try { const n = ((await host.call("access.principals.get", { principal: { kind: "person", id: p.by } })) as { principal?: { name?: unknown } }).principal?.name; if (typeof n === "string" && n.trim() !== "") by = n.trim(); } catch { /* a name is a courtesy */ }
-      queueHeldNote(p.threadId, p.agentId, `${by} reviewed ${p.name} (file ${p.fileId}). Read it again now: you get the redacted version, with [REDACTED] where a part is hidden. Do not guess what a redacted part says; if you need it, say so and ask ${by} to un-redact it.`);
+      queueHeldNote(p.threadId, p.agentId, `${by} reviewed ${p.name} (file ${p.fileId}). Read it again now: you get the redacted version, with [REDACTED] where a part is hidden. Do not guess what a redacted part says; if you need it, say so and ask ${by} to un-redact it.`, p.actingFor);
       if (host.postAs) {
         await Promise.resolve(host.postAs(p.agentId, { actingFor: p.actingFor, threadId: p.threadId, body: "", mentions: [], clientId: BRIDGE_PREFIX + mintEngineId("b", ctx.now()).slice(2), blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: `Reviewed by ${by}` } }] }))
           .catch((e: unknown) => host.log?.("the review was not shown in the chat", { requestId: p.requestId, error: e instanceof Error ? e.message : String(e) }));
