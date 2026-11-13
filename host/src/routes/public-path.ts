@@ -11,22 +11,61 @@ import type { PortRequest, PortSink } from "../seams/port-fetch.ts";
 
 export const PUBLIC_SANDBOX = "sandbox allow-scripts allow-forms allow-popups allow-downloads";
 /** Who may frame an artifact: this origin (the web app, which is served from the Space) and the desktop app's own origins (tauri://localhost on a Mac, http(s)://tauri.localhost on Windows). Nothing wider. */
-export const APP_FRAME_ANCESTORS = "frame-ancestors 'self' tauri://localhost http://tauri.localhost https://tauri.localhost";
+export const APP_FRAME_ANCESTORS =
+  "frame-ancestors 'self' tauri://localhost http://tauri.localhost https://tauri.localhost";
 const FORM = /^\/p\/forms\/(book\/)?([a-z0-9][a-z0-9-]{0,63})\/?$/;
 const UNSUBSCRIBE = /^\/p(\/u\/[A-Za-z0-9_-]+\/?)$/;
 const SHARE = /^\/p(\/share\/project\/[a-z0-9]+)$/;
 const SITE = /^\/p\/([a-z0-9][a-z0-9-]{0,62})(\/.*)?$/;
 const BODY_MAX = 8 * 1024 * 1024;
 /** What goes to a site from a visitor: never who they are. */
-const TO_SITE = ["accept", "accept-language", "content-type", "if-modified-since", "if-none-match", "range", "user-agent", "x-file-name"];
+const TO_SITE = [
+  "accept",
+  "accept-language",
+  "content-type",
+  "if-modified-since",
+  "if-none-match",
+  "range",
+  "user-agent",
+  "x-file-name",
+];
 /** What comes back from a site: nothing the browser would apply to the whole origin. */
-const FROM_SITE = new Set(["accept-ranges", "cache-control", "content-disposition", "content-encoding", "content-language", "content-length", "content-range", "content-security-policy", "content-type", "etag", "expires", "last-modified", "location", "retry-after", "vary"]);
+const FROM_SITE = new Set([
+  "accept-ranges",
+  "cache-control",
+  "content-disposition",
+  "content-encoding",
+  "content-language",
+  "content-length",
+  "content-range",
+  "content-security-policy",
+  "content-type",
+  "etag",
+  "expires",
+  "last-modified",
+  "location",
+  "retry-after",
+  "vary",
+]);
 /** The headers a caller may not bring into the public path: identity, and what this route sets itself. */
 const DROP = ["cookie", "authorization", "x-forwarded-for", "x-real-ip", "x-vyre-public-base", "x-vyre-public-origin"];
 
-interface Inner { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean }
-export interface ServedTarget { computerId?: string; port?: number; folderId?: string; container?: string }
-export interface ServedSite { siteId: string; access: string; live: boolean; blocked: boolean; target: ServedTarget }
+interface Inner {
+  handle(req: http.IncomingMessage, res: http.ServerResponse): boolean;
+}
+export interface ServedTarget {
+  computerId?: string;
+  port?: number;
+  folderId?: string;
+  container?: string;
+}
+export interface ServedSite {
+  siteId: string;
+  access: string;
+  live: boolean;
+  blocked: boolean;
+  target: ServedTarget;
+}
 export interface PublicPathDeps {
   forms(): Inner | null;
   /** The unsubscribe route; it answers what a direct address answers. */
@@ -59,7 +98,11 @@ export function formTarget(method: string, book: boolean, slug: string, url: URL
 
 function refuse(res: http.ServerResponse, status: number, text: string): void {
   const body = JSON.stringify({ error: { message: text } });
-  res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store", "content-length": Buffer.byteLength(body) });
+  res.writeHead(status, {
+    "content-type": "application/json",
+    "cache-control": "no-store",
+    "content-length": Buffer.byteLength(body),
+  });
   res.end(body);
 }
 
@@ -68,7 +111,8 @@ export function guard(res: http.ServerResponse, ancestors?: string): void {
   const write = res.writeHead.bind(res) as (...a: unknown[]) => http.ServerResponse;
   res.writeHead = ((status: number, ...rest: unknown[]) => {
     const last = rest[rest.length - 1];
-    const given = last !== null && typeof last === "object" && !Array.isArray(last) ? (last as Record<string, unknown>) : {};
+    const given =
+      last !== null && typeof last === "object" && !Array.isArray(last) ? (last as Record<string, unknown>) : {};
     const headers: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(given)) if (k.toLowerCase() !== "set-cookie") headers[k.toLowerCase()] = v;
     res.removeHeader("set-cookie");
@@ -84,7 +128,11 @@ export function guard(res: http.ServerResponse, ancestors?: string): void {
 
 function page(res: http.ServerResponse, status: number, title: string, text: string): void {
   const body = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>html{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif}main{max-width:26rem;padding:2rem 1.25rem;text-align:center}h1{font-size:1.25rem}</style><body><main><h1>${title}</h1><p>${text}</p></main></body></html>`;
-  res.writeHead(status, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-length": Buffer.byteLength(body) });
+  res.writeHead(status, {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "no-store",
+    "content-length": Buffer.byteLength(body),
+  });
   res.end(body);
 }
 
@@ -100,36 +148,78 @@ async function bodyOf(req: http.IncomingMessage): Promise<Uint8Array | null> {
 }
 
 /** A visitor's request to a site: the whole path as asked, so a site serves under its base path, and only the plain headers. */
-export async function serve(deps: PublicPathDeps, site: ServedSite, path: string, rest: string, prefix: string, req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+export async function serve(
+  deps: PublicPathDeps,
+  site: ServedSite,
+  path: string,
+  rest: string,
+  prefix: string,
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+): Promise<void> {
   const method = (req.method ?? "GET").toUpperCase();
-  if (method !== "GET" && method !== "HEAD" && method !== "POST") { res.writeHead(405, { allow: "GET, HEAD, POST", "content-length": "0" }); res.end(); return; }
+  if (method !== "GET" && method !== "HEAD" && method !== "POST") {
+    res.writeHead(405, { allow: "GET, HEAD, POST", "content-length": "0" });
+    res.end();
+    return;
+  }
   res.setHeader("access-control-allow-origin", "*");
   if (site.target.folderId !== undefined) {
-    if (method === "POST") { res.writeHead(405, { allow: "GET, HEAD", "content-length": "0" }); res.end(); return; }
+    if (method === "POST") {
+      res.writeHead(405, { allow: "GET, HEAD", "content-length": "0" });
+      res.end();
+      return;
+    }
     const rel = decodeURIComponent(rest.split("?")[0] ?? "").replace(/^\/+/, "");
-    const got = deps.file ? await deps.file(site.target.folderId, rel === "" || rel.endsWith("/") ? `${rel}index.html` : rel) : null;
-    if (!got) { page(res, 404, "Not found", "There is nothing at this address."); return; }
+    const got = deps.file
+      ? await deps.file(site.target.folderId, rel === "" || rel.endsWith("/") ? `${rel}index.html` : rel)
+      : null;
+    if (!got) {
+      page(res, 404, "Not found", "There is nothing at this address.");
+      return;
+    }
     res.writeHead(200, { "content-type": got.mime, "content-length": got.bytes.length, "cache-control": "no-cache" });
     res.end(method === "HEAD" ? undefined : Buffer.from(got.bytes));
     return;
   }
-  if (!deps.fetch) { page(res, 503, "Not available", "This server cannot reach computers yet."); return; }
+  if (!deps.fetch) {
+    page(res, 503, "Not available", "This server cannot reach computers yet.");
+    return;
+  }
   const body = method === "POST" ? await bodyOf(req) : new Uint8Array(0);
-  if (body === null) { res.writeHead(413, { "content-length": "0" }); res.end(); return; }
+  if (body === null) {
+    res.writeHead(413, { "content-length": "0" });
+    res.end();
+    return;
+  }
   const headers: Record<string, string> = { "x-forwarded-prefix": prefix, "x-forwarded-proto": "https" };
-  for (const h of TO_SITE) { const v = req.headers[h]; if (typeof v === "string") headers[h] = v; }
+  for (const h of TO_SITE) {
+    const v = req.headers[h];
+    if (typeof v === "string") headers[h] = v;
+  }
   let started = false;
-  await deps.fetch(site.target, { method, path, headers, body }, {
-    head(status, from) {
-      started = true;
-      const out: Record<string, string> = {};
-      for (const [k, v] of Object.entries(from)) if (FROM_SITE.has(k.toLowerCase())) out[k.toLowerCase()] = v;
-      res.writeHead(status, out);
+  await deps.fetch(
+    site.target,
+    { method, path, headers, body },
+    {
+      head(status, from) {
+        started = true;
+        const out: Record<string, string> = {};
+        for (const [k, v] of Object.entries(from)) if (FROM_SITE.has(k.toLowerCase())) out[k.toLowerCase()] = v;
+        res.writeHead(status, out);
+      },
+      data: (c) => {
+        res.write(c);
+      },
+      end: () => {
+        res.end();
+      },
+      fail() {
+        if (started) res.destroy();
+        else page(res, 502, "Not answering", "The app behind this address is not answering. Try again soon.");
+      },
     },
-    data: (c) => { res.write(c); },
-    end: () => { res.end(); },
-    fail() { if (started) res.destroy(); else page(res, 502, "Not answering", "The app behind this address is not answering. Try again soon."); },
-  });
+  );
 }
 
 export function createPublicPathRoute(deps: PublicPathDeps): Inner {
@@ -138,7 +228,15 @@ export function createPublicPathRoute(deps: PublicPathDeps): Inner {
       const url = new URL(req.url ?? "/", "http://vyred");
       // an artifact's plain address: the app opens it for whoever is signed in. Only a token below it serves anything
       const plain = /^\/a\/(sit_[a-z0-9]{1,64})\/?$/.exec(url.pathname);
-      if (plain && (req.method ?? "GET").toUpperCase() === "GET") { res.writeHead(302, { location: `/#subject=artifact:${plain[1] as string}`, "cache-control": "no-store", "content-length": "0" }); res.end(); return true; }
+      if (plain && (req.method ?? "GET").toUpperCase() === "GET") {
+        res.writeHead(302, {
+          location: `/#subject=artifact:${plain[1] as string}`,
+          "cache-control": "no-store",
+          "content-length": "0",
+        });
+        res.end();
+        return true;
+      }
       if (url.pathname !== "/p" && !url.pathname.startsWith("/p/")) return false;
       for (const h of DROP) delete req.headers[h];
       // the visitor the relay saw, for the per-visitor limits; on a direct connection the socket stands in
@@ -151,7 +249,10 @@ export function createPublicPathRoute(deps: PublicPathDeps): Inner {
       if (form) {
         const inner = deps.forms();
         const target = formTarget(method, form[1] !== undefined, form[2] as string, url);
-        if (!inner || target === null) { refuse(res, inner ? 405 : 404, inner ? "That is not something this address does." : "That form is not open."); return true; }
+        if (!inner || target === null) {
+          refuse(res, inner ? 405 : 404, inner ? "That is not something this address does." : "That form is not open.");
+          return true;
+        }
         req.url = target;
         req.headers["x-vyre-public-base"] = url.pathname;
         const origin = deps.origin();
@@ -168,20 +269,50 @@ export function createPublicPathRoute(deps: PublicPathDeps): Inner {
       const share = SHARE.exec(url.pathname);
       if (share) {
         req.url = share[1] as string;
-        delete req.headers["accept"];   // a page, never the JSON view: the path has one answer
+        delete req.headers["accept"]; // a page, never the JSON view: the path has one answer
         if (!deps.share?.()?.handle(req, res)) page(res, 404, "Not found", "There is nothing at this address.");
         return true;
       }
-      const fail500 = (): void => { if (!res.headersSent) page(res, 502, "Not answering", "Try again soon."); else res.end(); };
+      const fail500 = (): void => {
+        if (!res.headersSent) page(res, 502, "Not answering", "Try again soon.");
+        else res.end();
+      };
       const m = SITE.exec(url.pathname);
       const site = m && deps.site ? deps.site(m[1] as string) : null;
-      if (!m || !site) { page(res, 404, "Not found", "There is nothing at this address."); return true; }
-      if (site.blocked) { page(res, 451, "This page is not available", "It was taken down."); return true; }
-      if (!site.live) { page(res, 404, "Not found", "There is nothing at this address."); return true; }
-      if (site.access === "password") { page(res, 403, "This site has its own address", "A password needs a custom domain."); return true; }
-      if (site.access !== "public") { page(res, 404, "Not found", "There is nothing at this address."); return true; }
-      if (m[2] === undefined) { res.writeHead(308, { location: `${url.pathname}/${url.search}`, "content-length": "0" }); res.end(); return true; }
-      void serve(deps, site, `${url.pathname}${url.search}`, `${(m[2] as string)}${url.search}`, `/p/${m[1] as string}`, req, res).catch(fail500);
+      if (!m || !site) {
+        page(res, 404, "Not found", "There is nothing at this address.");
+        return true;
+      }
+      if (site.blocked) {
+        page(res, 451, "This page is not available", "It was taken down.");
+        return true;
+      }
+      if (!site.live) {
+        page(res, 404, "Not found", "There is nothing at this address.");
+        return true;
+      }
+      if (site.access === "password") {
+        page(res, 403, "This site has its own address", "A password needs a custom domain.");
+        return true;
+      }
+      if (site.access !== "public") {
+        page(res, 404, "Not found", "There is nothing at this address.");
+        return true;
+      }
+      if (m[2] === undefined) {
+        res.writeHead(308, { location: `${url.pathname}/${url.search}`, "content-length": "0" });
+        res.end();
+        return true;
+      }
+      void serve(
+        deps,
+        site,
+        `${url.pathname}${url.search}`,
+        `${m[2] as string}${url.search}`,
+        `/p/${m[1] as string}`,
+        req,
+        res,
+      ).catch(fail500);
       return true;
     },
   };

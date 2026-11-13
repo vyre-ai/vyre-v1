@@ -36,7 +36,8 @@ export interface NetWall {
 
 export async function startNetWall(o: NetWallOptions): Promise<NetWall> {
   // a long TMPDIR (or a long base a caller gave) must not break the socket: the folder goes under a short temp root instead
-  const fits = (base: string): boolean => Buffer.byteLength(path.join(base, "vyre-net-XXXXXX", "proxy.sock")) <= MAX_SOCKET_PATH;
+  const fits = (base: string): boolean =>
+    Buffer.byteLength(path.join(base, "vyre-net-XXXXXX", "proxy.sock")) <= MAX_SOCKET_PATH;
   const asked = o.baseDir ?? os.tmpdir();
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(fits(asked) ? asked : shortTempRoot(asked), "vyre-net-")));
   const socket = path.join(dir, "proxy.sock");
@@ -48,7 +49,10 @@ export async function startNetWall(o: NetWallOptions): Promise<NetWall> {
   const live = new Set<net.Socket>();
   const server = net.createServer((client) => {
     const up = net.connect({ host: "127.0.0.1", port });
-    for (const s of [client, up]) { live.add(s); s.once("close", () => live.delete(s)); }
+    for (const s of [client, up]) {
+      live.add(s);
+      s.once("close", () => live.delete(s));
+    }
     client.on("error", () => up.destroy());
     up.on("error", () => client.destroy());
     client.pipe(up);
@@ -66,7 +70,13 @@ export async function startNetWall(o: NetWallOptions): Promise<NetWall> {
   };
   try {
     port = (await proxy.listen(0, "127.0.0.1")).port;
-    await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(socket, () => { server.off("error", reject); resolve(); }); });
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(socket, () => {
+        server.off("error", reject);
+        resolve();
+      });
+    });
     // The sandbox user is not this process's user: it needs to walk the folder and connect to the socket.
     fs.chmodSync(dir, 0o755);
     fs.chmodSync(socket, 0o666);

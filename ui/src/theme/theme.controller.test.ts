@@ -6,7 +6,10 @@ import { skinById } from "../tokens/skins.ts";
 import { APPEARANCE_KEY, SEED_SPACES, createThemeController, readStore, seedSpaceSkin } from "./index.ts";
 import type { ThemeRoot, ThemeStorage } from "./index.ts";
 
-function rig(seed: string | null = null, opts: { fail?: boolean; person?: string; space?: string; dark?: boolean } = {}) {
+function rig(
+  seed: string | null = null,
+  opts: { fail?: boolean; person?: string; space?: string; dark?: boolean } = {},
+) {
   const attrs: Record<string, string> = {};
   const props: Record<string, string> = {};
   const root: ThemeRoot = {

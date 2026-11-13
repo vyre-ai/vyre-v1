@@ -45,12 +45,18 @@ export function useSchemaData(): SchemaData {
 export function useSchemaQuery<T>(screenId: string, name: string, state: Record<string, unknown> = {}): QueryState<T> {
   const { screens } = useSchemaData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>, [screens, screenId, name, key]);
+  const q = useMemo(
+    () => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>,
+    [screens, screenId, name, key],
+  );
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 
 /** The details of each type on the map, fetched once each (a card lists its fields). A type that fails to load keeps showing the links the map knows. */
-export function useTypeDetails(keys: readonly string[], preload?: ReadonlyMap<string, TypeDetail>): ReadonlyMap<string, TypeDetail> {
+export function useTypeDetails(
+  keys: readonly string[],
+  preload?: ReadonlyMap<string, TypeDetail>,
+): ReadonlyMap<string, TypeDetail> {
   const { call } = useSchemaData();
   const [details, setDetails] = useState<ReadonlyMap<string, TypeDetail>>(preload ?? new Map());
   const want = keys.join("|");
@@ -59,11 +65,15 @@ export function useTypeDetails(keys: readonly string[], preload?: ReadonlyMap<st
     for (const key of want ? want.split("|") : []) {
       if (details.has(key)) continue;
       void call("schema.types.get", { type: key }).then(
-        (out) => { if (live) setDetails((m) => new Map(m).set(key, (out as { type: TypeDetail }).type)); },
+        (out) => {
+          if (live) setDetails((m) => new Map(m).set(key, (out as { type: TypeDetail }).type));
+        },
         () => undefined,
       );
     }
-    return () => { live = false; };
+    return () => {
+      live = false;
+    };
   }, [want]);
   return details;
 }

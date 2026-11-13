@@ -6,7 +6,10 @@ import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../clien
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { canSend } from "./model.ts";
 
-export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
+export interface Connection {
+  get(): "online" | "offline";
+  subscribe(l: () => void): () => void;
+}
 
 /** Where a click goes. The shell supplies these (tabs, the Calendar view, the dialer); the Inbox never decides how a thing opens. */
 export interface InboxNav {
@@ -46,7 +49,10 @@ export interface RowExtras {
 }
 
 /** How a number is named and grouped in the sidebar (an agent's number sits under Agents and is named for the agent). */
-export interface NumberInfo { label: string; group: "mine" | "agent" }
+export interface NumberInfo {
+  label: string;
+  group: "mine" | "agent";
+}
 
 export interface InboxData {
   screens: ScreenHooks;
@@ -86,7 +92,10 @@ export function useInboxData(): InboxData {
 export function useScreenQuery<T>(screenId: string, name: string, state: Record<string, unknown> = {}): QueryState<T> {
   const { screens } = useInboxData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>, [screens, screenId, name, key]);
+  const q = useMemo(
+    () => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>,
+    [screens, screenId, name, key],
+  );
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 

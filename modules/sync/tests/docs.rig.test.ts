@@ -6,8 +6,27 @@ import assert from "node:assert/strict";
 import * as Y from "yjs";
 import type { NewEvent } from "../../../kernel/src/log/types.ts";
 import type { Frame } from "../../../sync/src/protocol.ts";
-import { BODY, createDocClient, createDocServer, createDocLive, fromB64, memoryDocStore, newDoc, toB64 } from "../docs/index.ts";
-import type { DocClient, DocCrypto, DocDecision, DocEnc, DocLive, DocOwner, DocPeer, DocServer, DocVerb } from "../docs/index.ts";
+import {
+  BODY,
+  createDocClient,
+  createDocServer,
+  createDocLive,
+  fromB64,
+  memoryDocStore,
+  newDoc,
+  toB64,
+} from "../docs/index.ts";
+import type {
+  DocClient,
+  DocCrypto,
+  DocDecision,
+  DocEnc,
+  DocLive,
+  DocOwner,
+  DocPeer,
+  DocServer,
+  DocVerb,
+} from "../docs/index.ts";
 import { openSync } from "../impl.ts";
 import type { SyncHandle } from "../impl.ts";
 import { ADA, BO, CY, NOW, buildAccess } from "../fixtures/world.ts";
@@ -15,9 +34,17 @@ import { ADA, BO, CY, NOW, buildAccess } from "../fixtures/world.ts";
 export { ADA, BO, CY, NOW };
 export const AGENT = "agt_scribe";
 export const TRACE = "0123456789abcdef0123456789abcdef";
-export const ctx = (principal: string): { trace: { traceId: string }; principal: string } => ({ trace: { traceId: TRACE }, principal });
+export const ctx = (principal: string): { trace: { traceId: string }; principal: string } => ({
+  trace: { traceId: TRACE },
+  principal,
+});
 
-export interface Acl { view: Set<string>; edit: Set<string>; enc: DocEnc; owner?: DocOwner | undefined }
+export interface Acl {
+  view: Set<string>;
+  edit: Set<string>;
+  enc: DocEnc;
+  owner?: DocOwner | undefined;
+}
 
 export interface Device {
   person: string;
@@ -43,7 +70,10 @@ export interface DocRig {
   allow(doc: string, people: string[], o?: { enc?: DocEnc; owner?: DocOwner; viewOnly?: string[] }): void;
   /** Take access away. */
   revoke(doc: string, person: string, what?: "edit" | "all"): void;
-  device(person: string, o?: { id?: string; crypto?: DocCrypto; up?: boolean; store?: ReturnType<typeof memoryDocStore> }): Device;
+  device(
+    person: string,
+    o?: { id?: string; crypto?: DocCrypto; up?: boolean; store?: ReturnType<typeof memoryDocStore> },
+  ): Device;
   /** Wait until every frame in flight has been applied. */
   settle(): Promise<void>;
   /** Errors thrown while a device applied a frame (a wrong key, for one). */
@@ -70,16 +100,28 @@ export function docRig(o: { compactEvery?: number; compactMs?: number } = {}): D
         return ok ? { ok: true, enc: a.enc, owner: a.owner } : { ok: false, reason: "denied" };
       },
     },
-    append: (ev) => { events.push(ev); return s.host.append(ev); },
+    append: (ev) => {
+      events.push(ev);
+      return s.host.append(ev);
+    },
     now: () => clock.t,
-    project: (owner, md, doc) => { projected.push({ owner, md, doc }); },
+    project: (owner, md, doc) => {
+      projected.push({ owner, md, doc });
+    },
     ...(o.compactEvery !== undefined ? { compactEvery: o.compactEvery } : {}),
     ...(o.compactMs !== undefined ? { compactMs: o.compactMs } : {}),
   });
   const live = createDocLive(server, { traceId: () => TRACE });
   let n = 0;
   const rig: DocRig = {
-    s, server, live, events, projected, clock, acl, errors,
+    s,
+    server,
+    live,
+    events,
+    projected,
+    clock,
+    acl,
+    errors,
     allow(doc, people, oo = {}) {
       const view = new Set(oo.viewOnly ?? []);
       acl.set(doc, { view, edit: new Set(people), enc: oo.enc ?? 0, owner: oo.owner });
@@ -88,20 +130,41 @@ export function docRig(o: { compactEvery?: number; compactMs?: number } = {}): D
       const a = acl.get(doc);
       if (!a) return;
       a.edit.delete(person);
-      if (what === "edit") a.view.add(person); else a.view.delete(person);
+      if (what === "edit") a.view.add(person);
+      else a.view.delete(person);
     },
     device(person, oo = {}) {
       const store = oo.store ?? memoryDocStore();
       const problems: Device["problems"] = [];
-      const client = createDocClient({ store, ...(oo.crypto ? { crypto: oo.crypto } : {}), onProblem: (doc, p) => { problems.push({ doc, code: p.code, dropped: p.dropped }); } });
+      const client = createDocClient({
+        store,
+        ...(oo.crypto ? { crypto: oo.crypto } : {}),
+        onProblem: (doc, p) => {
+          problems.push({ doc, code: p.code, dropped: p.dropped });
+        },
+      });
       const peer: DocPeer = { person, device: oo.id ?? `dev_${++n}` };
       let detach: (() => void) | null = null;
       const dev: Device = {
-        person, peer, client, store, problems,
+        person,
+        peer,
+        client,
+        store,
+        problems,
         up() {
           if (detach) return;
-          detach = live.attach(peer, (f) => { pending.push(client.onFrame(clone(f)).catch((e: unknown) => { errors.push(e); })); });
-          client.attach({ send: (f) => { live.onFrame(peer, clone(f)); } });
+          detach = live.attach(peer, (f) => {
+            pending.push(
+              client.onFrame(clone(f)).catch((e: unknown) => {
+                errors.push(e);
+              }),
+            );
+          });
+          client.attach({
+            send: (f) => {
+              live.onFrame(peer, clone(f));
+            },
+          });
         },
         down() {
           detach?.();
@@ -127,7 +190,9 @@ export function edit(from: Uint8Array[], at: number, text: string): Uint8Array {
   const y = newDoc();
   for (const u of from) Y.applyUpdate(y, u);
   let out = new Uint8Array(0);
-  y.on("update", (u: Uint8Array) => { out = u; });
+  y.on("update", (u: Uint8Array) => {
+    out = u;
+  });
   y.getText(BODY).insert(at, text);
   return out;
 }
@@ -138,8 +203,10 @@ export const un64 = fromB64;
 test("the doc rig: a device types, the other device sees it, a cut link keeps the edit until it returns", async () => {
   const rig = docRig();
   rig.allow("not_rig", [ADA, BO]);
-  const a = rig.device(ADA), b = rig.device(BO);
-  const da = a.client.open("not_rig"), db = b.client.open("not_rig");
+  const a = rig.device(ADA),
+    b = rig.device(BO);
+  const da = a.client.open("not_rig"),
+    db = b.client.open("not_rig");
   da.text().insert(0, "hello");
   await rig.settle();
   assert.equal(db.text().toString(), "hello");

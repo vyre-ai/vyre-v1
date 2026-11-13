@@ -33,9 +33,19 @@ const LOADING: QueryState<never> = { status: "loading" };
 const NEVER: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => LOADING };
 
 /** A live query the screen declares: `screens.query(screenId, name, state)`. Re-subscribes only when the name or the state changes. */
-export function useRunbookQuery<T>(name: "blocks" | "history" | "targets" | "output", state: Record<string, unknown> = {}, enabled = true): QueryState<T> {
+export function useRunbookQuery<T>(
+  name: "blocks" | "history" | "targets" | "output",
+  state: Record<string, unknown> = {},
+  enabled = true,
+): QueryState<T> {
   const { screens } = useRunbookData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => (enabled ? (screens.query(RUNBOOK_SCREEN, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>) : (NEVER as LiveQuery<T>)), [screens, name, key, enabled]);
+  const q = useMemo(
+    () =>
+      enabled
+        ? (screens.query(RUNBOOK_SCREEN, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>)
+        : (NEVER as LiveQuery<T>),
+    [screens, name, key, enabled],
+  );
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }

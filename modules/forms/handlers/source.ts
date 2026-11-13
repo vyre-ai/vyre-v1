@@ -8,7 +8,8 @@ export const CSS_MAX = 50_000;
 
 export function validateCss(ctx: Ctx, css: string): void {
   if (css.length > CSS_MAX) fail(ctx, "validation.too_large", "The custom CSS is too large.", { field: "css" });
-  if (/<\/?\s*style|<script|@import|javascript:|expression\s*\(/i.test(css)) fail(ctx, "validation.bad_input", "The custom CSS may not load other files or run script.", { field: "css" });
+  if (/<\/?\s*style|<script|@import|javascript:|expression\s*\(/i.test(css))
+    fail(ctx, "validation.bad_input", "The custom CSS may not load other files or run script.", { field: "css" });
 }
 
 /** HTML is the template grammar, every placed field an asked question of this form, and one page (steps are flattened by custom HTML, so more than one is refused). */
@@ -19,9 +20,21 @@ export function validateHtml(ctx: Ctx, form: Row, html: string, who = "The form 
   const asked = fieldsOf(ctx, str(form.id)).filter((f) => f.mode === "ask");
   const names = new Set(asked.map((f) => str(f.field)));
   const unknown = checked.fields.filter((name) => !names.has(name));
-  if (unknown.length > 0) fail(ctx, "validation.bad_input", `${unknown.join(", ")} ${unknown.length === 1 ? "is not a question" : "are not questions"} on this form. Ask for ${unknown.length === 1 ? "it" : "them"} in Build first.`, { field: "html" });
+  if (unknown.length > 0)
+    fail(
+      ctx,
+      "validation.bad_input",
+      `${unknown.join(", ")} ${unknown.length === 1 ? "is not a question" : "are not questions"} on this form. Ask for ${unknown.length === 1 ? "it" : "them"} in Build first.`,
+      { field: "html" },
+    );
   const steps = new Set(asked.map((f) => (isNull(f.step) ? 0 : Number(f.step))));
-  if (steps.size > 1) fail(ctx, "validation.precondition_failed", "Custom HTML places every question on one page. Put all questions on one step first.", { field: "html" });
+  if (steps.size > 1)
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "Custom HTML places every question on one page. Put all questions on one step first.",
+      { field: "html" },
+    );
 }
 
 export function validateJs(ctx: Ctx, js: string, who = "The form JavaScript"): void {

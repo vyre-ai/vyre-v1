@@ -11,9 +11,16 @@
 // The calls are made as the Space owner with origin "notify", as portal's are made as the owner with origin "portal": an ordinary authorized call, not a bypass.
 export type EmailOutcome = "sent" | "no_mailbox" | "no_address" | "suppressed" | "held";
 
-interface InvokeOut { status: string; output?: unknown }
+interface InvokeOut {
+  status: string;
+  output?: unknown;
+}
 export interface NotifyMailDeps {
-  invoke(cap: string, input: unknown, seed: { space: string; principal: { kind: "person"; id: string }; origin: string }): Promise<InvokeOut>;
+  invoke(
+    cap: string,
+    input: unknown,
+    seed: { space: string; principal: { kind: "person"; id: string }; origin: string },
+  ): Promise<InvokeOut>;
   space: string;
   owner(): string | null;
   /** active members' addresses (space-ports.ts createMembers), oldest acceptance first */
@@ -24,7 +31,13 @@ export interface NotifyMailDeps {
   spaceName(): Promise<string>;
   warn?(msg: string, attrs?: Record<string, unknown>): void;
 }
-export interface NoticeEmail { to: string; subject: string; line: string; open: { kind: string; id: string }; key?: string }
+export interface NoticeEmail {
+  to: string;
+  subject: string;
+  line: string;
+  open: { kind: string; id: string };
+  key?: string;
+}
 
 export interface NotifyMailer {
   email(msg: NoticeEmail): Promise<EmailOutcome>;
@@ -41,8 +54,10 @@ export function noticeLink(address: string | null, open: { kind: string; id: str
   return `vyre://open?address=${encodeURIComponent(address)}&kind=${open.kind}&id=${open.id}`;
 }
 
-const outOf = (r: InvokeOut): Record<string, unknown> | null => (r.status === "ok" && r.output !== null && typeof r.output === "object" ? (r.output as Record<string, unknown>) : null);
-const domainOf = (address: unknown): string => (typeof address === "string" && address.includes("@") ? address.slice(address.lastIndexOf("@") + 1).toLowerCase() : "");
+const outOf = (r: InvokeOut): Record<string, unknown> | null =>
+  r.status === "ok" && r.output !== null && typeof r.output === "object" ? (r.output as Record<string, unknown>) : null;
+const domainOf = (address: unknown): string =>
+  typeof address === "string" && address.includes("@") ? address.slice(address.lastIndexOf("@") + 1).toLowerCase() : "";
 
 export function createNotifyMailer(d: NotifyMailDeps): NotifyMailer {
   const seedOf = (): { space: string; principal: { kind: "person"; id: string }; origin: string } | null => {
@@ -53,11 +68,22 @@ export function createNotifyMailer(d: NotifyMailDeps): NotifyMailer {
   async function sender(): Promise<string | null> {
     const seed = seedOf();
     if (!seed) return null;
-    const boxes = outOf(await d.invoke("mail.mailbox.list", { kind: "service", scope: "all" }, seed).catch(() => ({ status: "error" })));
-    const list = Array.isArray(boxes?.["mailboxes"]) ? (boxes!["mailboxes"] as Array<{ id?: unknown; address?: unknown }>) : [];
+    const boxes = outOf(
+      await d.invoke("mail.mailbox.list", { kind: "service", scope: "all" }, seed).catch(() => ({ status: "error" })),
+    );
+    const list = Array.isArray(boxes?.["mailboxes"])
+      ? (boxes!["mailboxes"] as Array<{ id?: unknown; address?: unknown }>)
+      : [];
     if (list.length === 0) return null;
     const domains = outOf(await d.invoke("mail.domain.list", {}, seed).catch(() => ({ status: "error" })));
-    const verified = new Set((Array.isArray(domains?.["domains"]) ? (domains!["domains"] as Array<{ name?: unknown; verified?: unknown }>) : []).filter((x) => x.verified === true && typeof x.name === "string").map((x) => String(x.name).toLowerCase()));
+    const verified = new Set(
+      (Array.isArray(domains?.["domains"])
+        ? (domains!["domains"] as Array<{ name?: unknown; verified?: unknown }>)
+        : []
+      )
+        .filter((x) => x.verified === true && typeof x.name === "string")
+        .map((x) => String(x.name).toLowerCase()),
+    );
     const box = list.find((b) => typeof b.id === "string" && verified.has(domainOf(b.address)));
     return box ? String(box.id) : null;
   }
@@ -70,12 +96,28 @@ export function createNotifyMailer(d: NotifyMailDeps): NotifyMailer {
       const seed = seedOf()!;
       const space = d.address();
       const link = noticeLink(space, msg.open);
-      const text = link ? `${msg.line}\n\nOpen it in the Vyre app: ${link}\nOr go to ${space} in a browser.` : `${msg.line}\n\nOpen Vyre to see it.`;
+      const text = link
+        ? `${msg.line}\n\nOpen it in the Vyre app: ${link}\nOr go to ${space} in a browser.`
+        : `${msg.line}\n\nOpen Vyre to see it.`;
       const name = (await d.spaceName().catch(() => "")).trim();
       const subject = name ? `${name}: ${msg.subject}` : msg.subject;
-      const r = await d.invoke("mail.send", { mailboxId: mailbox, route: "space_domain", to: [{ address }], subject, text, idempotencyKey: `notify:${msg.to}:${msg.key ?? msg.subject}` }, seed);
+      const r = await d.invoke(
+        "mail.send",
+        {
+          mailboxId: mailbox,
+          route: "space_domain",
+          to: [{ address }],
+          subject,
+          text,
+          idempotencyKey: `notify:${msg.to}:${msg.key ?? msg.subject}`,
+        },
+        seed,
+      );
       const status = outOf(r)?.["status"];
-      if (r.status !== "ok") { if (r.status === "held") return "held"; throw new Error(`the notice email was not sent (${r.status})`); }
+      if (r.status !== "ok") {
+        if (r.status === "held") return "held";
+        throw new Error(`the notice email was not sent (${r.status})`);
+      }
       if (status === "queued" || status === "sent") return "sent";
       if (status === "suppressed") return "suppressed";
       if (status === "held") return "held";

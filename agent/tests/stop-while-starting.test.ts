@@ -2,19 +2,49 @@
 // (lead, 12 Nov 2026: the polish walk's Stop that never took under load).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createMemoryLeases, createMemoryMessages, createMemoryQueue, createTurnEngine, scriptedProvider } from "../src/turn-engine/index.ts";
+import {
+  createMemoryLeases,
+  createMemoryMessages,
+  createMemoryQueue,
+  createTurnEngine,
+  scriptedProvider,
+} from "../src/turn-engine/index.ts";
 import type { OpenThread, ResolvedAccount } from "../src/turn-engine/index.ts";
 
 const person = { kind: "person" as const, id: "dana" };
 const thread = (): OpenThread => ({ id: "T", kind: "chat", starter: "dana", agents: [{ id: "intake", mode: "lead" }] });
-const account = (): ResolvedAccount => ({ ref: "#Dana_Claude", driver: "claude_code", provider: "anthropic", kind: "subscription", payer: "dana", reason: "starter", itemId: "vit_1" });
+const account = (): ResolvedAccount => ({
+  ref: "#Dana_Claude",
+  driver: "claude_code",
+  provider: "anthropic",
+  kind: "subscription",
+  payer: "dana",
+  reason: "starter",
+  itemId: "vit_1",
+});
 
 test("Stop while the turn's account is still being read stops that turn", async () => {
-  const p = scriptedProvider({ script: () => [...Array.from({ length: 40 }, (_, i) => ({ type: "text" as const, text: `word${i} ` })), { type: "done" as const }], beforeEvent: () => new Promise<void>((r) => setTimeout(r, 20)) });
+  const p = scriptedProvider({
+    script: () => [
+      ...Array.from({ length: 40 }, (_, i) => ({ type: "text" as const, text: `word${i} ` })),
+      { type: "done" as const },
+    ],
+    beforeEvent: () => new Promise<void>((r) => setTimeout(r, 20)),
+  });
   let release = (): void => undefined;
-  const slow = new Promise<void>((res) => { release = res; });
+  const slow = new Promise<void>((res) => {
+    release = res;
+  });
   let asked = 0;
-  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, resolveAccount: async () => { asked += 1; await slow; return account(); } });
+  const engine = createTurnEngine({
+    holder: "host:s",
+    openSession: p.openSession,
+    resolveAccount: async () => {
+      asked += 1;
+      await slow;
+      return account();
+    },
+  });
   engine.openThread(thread());
   engine.receive({ threadId: "T", author: person, body: "write the long plan" });
   for (let i = 0; i < 50 && asked === 0; i++) await new Promise((r) => setTimeout(r, 5));
@@ -33,7 +63,18 @@ test("a Stop that marked a starting turn never stops the next one", async () => 
   const p = scriptedProvider({ script: () => [{ type: "text", text: "ok" }, { type: "done" }] });
   let release = (): void => undefined;
   let n = 0;
-  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, resolveAccount: async () => { n += 1; if (n === 1) await new Promise<void>((res) => { release = res; }); return account(); } });
+  const engine = createTurnEngine({
+    holder: "host:s",
+    openSession: p.openSession,
+    resolveAccount: async () => {
+      n += 1;
+      if (n === 1)
+        await new Promise<void>((res) => {
+          release = res;
+        });
+      return account();
+    },
+  });
   engine.openThread(thread());
   engine.receive({ threadId: "T", author: person, body: "first" });
   for (let i = 0; i < 50 && n === 0; i++) await new Promise((r) => setTimeout(r, 5));
@@ -42,7 +83,11 @@ test("a Stop that marked a starting turn never stops the next one", async () => 
   await engine.idle("T");
   engine.receive({ threadId: "T", author: person, body: "second" });
   await engine.idle("T");
-  assert.deepEqual(engine.turns("T").map((x) => x.state), ["cancelled", "completed"], "the second turn runs");
+  assert.deepEqual(
+    engine.turns("T").map((x) => x.state),
+    ["cancelled", "completed"],
+    "the second turn runs",
+  );
 });
 
 test("a turn stopped while starting opens no session, fires no hook and sends no prompt (review F1)", async () => {
@@ -51,8 +96,21 @@ test("a turn stopped while starting opens no session, fires no hook and sends no
   let release = (): void => undefined;
   let asked = 0;
   const engine = createTurnEngine({
-    holder: "host:s", openSession: p.openSession, hooks: { fire: async (f) => { fired.push(f.event); return { block: null, notes: [], ran: 0 }; } },
-    resolveAccount: async () => { asked += 1; await new Promise<void>((res) => { release = res; }); return account(); },
+    holder: "host:s",
+    openSession: p.openSession,
+    hooks: {
+      fire: async (f) => {
+        fired.push(f.event);
+        return { block: null, notes: [], ran: 0 };
+      },
+    },
+    resolveAccount: async () => {
+      asked += 1;
+      await new Promise<void>((res) => {
+        release = res;
+      });
+      return account();
+    },
   });
   engine.openThread(thread());
   engine.receive({ threadId: "T", author: person, body: "hello" });
@@ -72,8 +130,21 @@ test("a Stop while the session is opening lets it go before any hook or prompt (
   let opening = 0;
   const fired: string[] = [];
   const engine = createTurnEngine({
-    holder: "host:s", hooks: { fire: async (f) => { fired.push(f.event); return { block: null, notes: [], ran: 0 }; } }, resolveAccount: async () => account(),
-    openSession: async (spec) => { opening += 1; await new Promise<void>((res) => { opened = res; }); return base.openSession(spec); },
+    holder: "host:s",
+    hooks: {
+      fire: async (f) => {
+        fired.push(f.event);
+        return { block: null, notes: [], ran: 0 };
+      },
+    },
+    resolveAccount: async () => account(),
+    openSession: async (spec) => {
+      opening += 1;
+      await new Promise<void>((res) => {
+        opened = res;
+      });
+      return base.openSession(spec);
+    },
   });
   engine.openThread(thread());
   engine.receive({ threadId: "T", author: person, body: "hello" });
@@ -90,10 +161,21 @@ test("a Stop while the session is opening lets it go before any hook or prompt (
 test("a turn stopped while starting asks nobody for an account (review F2)", async () => {
   const p = scriptedProvider({ script: () => [{ type: "done" }] });
   let release = (): void => undefined;
-  let asked = 0, unblocks = 0;
+  let asked = 0,
+    unblocks = 0;
   const engine = createTurnEngine({
-    holder: "host:s", openSession: p.openSession, onNoAccount: async () => { unblocks += 1; },
-    resolveAccount: async () => { asked += 1; await new Promise<void>((res) => { release = res; }); return null; },
+    holder: "host:s",
+    openSession: p.openSession,
+    onNoAccount: async () => {
+      unblocks += 1;
+    },
+    resolveAccount: async () => {
+      asked += 1;
+      await new Promise<void>((res) => {
+        release = res;
+      });
+      return null;
+    },
   });
   engine.openThread(thread());
   engine.receive({ threadId: "T", author: person, body: "hello" });
@@ -106,17 +188,34 @@ test("a turn stopped while starting asks nobody for an account (review F2)", asy
 });
 
 test("a turn stopped while starting is not handed out again after a restart (review F3)", async () => {
-  const queue = createMemoryQueue(), messages = createMemoryMessages();
+  const queue = createMemoryQueue(),
+    messages = createMemoryMessages();
   let asked = 0;
-  const first = createTurnEngine({ holder: "host:a", queue, messages, leases: createMemoryLeases(), openSession: scriptedProvider({ script: () => [{ type: "done" }] }).openSession,
-    resolveAccount: async () => { asked += 1; return new Promise<ResolvedAccount>(() => undefined); } });   // the host dies while it reads the account
+  const first = createTurnEngine({
+    holder: "host:a",
+    queue,
+    messages,
+    leases: createMemoryLeases(),
+    openSession: scriptedProvider({ script: () => [{ type: "done" }] }).openSession,
+    resolveAccount: async () => {
+      asked += 1;
+      return new Promise<ResolvedAccount>(() => undefined);
+    },
+  }); // the host dies while it reads the account
   first.openThread(thread());
   first.receive({ threadId: "T", author: person, body: "write the long plan" });
   for (let i = 0; i < 50 && asked === 0; i++) await new Promise((r) => setTimeout(r, 5));
   await first.stop("T");
   // the server is back: a new engine on the same queue, with the old lease gone, recovers the thread
   const p = scriptedProvider({ script: () => [{ type: "text", text: "ran again" }, { type: "done" }] });
-  const second = createTurnEngine({ holder: "host:b", queue, messages, leases: createMemoryLeases(), openSession: p.openSession, resolveAccount: async () => account() });
+  const second = createTurnEngine({
+    holder: "host:b",
+    queue,
+    messages,
+    leases: createMemoryLeases(),
+    openSession: p.openSession,
+    resolveAccount: async () => account(),
+  });
   second.openThread(thread());
   second.recover("T");
   await second.idle("T");

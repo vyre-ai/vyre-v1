@@ -20,7 +20,18 @@ import type { OpenResult } from "../../../apps/app/src/places/chats/conversation
 
 export const title = "Chats conversation";
 
-const VARIANTS: readonly Variant[] = ["idle", "streaming", "busy", "errors", "plan", "long", "nolead", "closed", "vaultkey", "lastpick"];
+const VARIANTS: readonly Variant[] = [
+  "idle",
+  "streaming",
+  "busy",
+  "errors",
+  "plan",
+  "long",
+  "nolead",
+  "closed",
+  "vaultkey",
+  "lastpick",
+];
 const isVariant = (v: string | null): v is Variant => VARIANTS.includes(v as Variant);
 
 /** The few DOM members the probe uses; this tree has no DOM lib, so they are named here. */
@@ -61,28 +72,48 @@ function OpenProbe(): ReactNode {
     const host = doc.getElementById("open-probe-host");
     if (!host) return;
     // Wait two frames so fonts and the skin are applied before the first open, as they are in a resumed app.
-    const g = globalThis as unknown as { requestAnimationFrame(cb: () => void): number; __probes?: Record<string, unknown> };
-    g.requestAnimationFrame(() => g.requestAnimationFrame(() => {
-      openOnce(host); // warm-up, discarded
-      const runs: number[] = [];
-      let messages = 0;
-      let lastOk = true;
-      for (let i = 0; i < OPEN_RUNS; i++) {
-        const r = openOnce(host);
-        runs.push(r.ms);
-        messages = r.messages;
-        lastOk = lastOk && r.last;
-      }
-      const out = summarizeOpen(runs, lastOk ? messages : -1);
-      g.__probes = { ...(g.__probes ?? {}), chat_open: out };
-      console.log(`METRIC ${JSON.stringify({ name: "chat_open", metric: "chat.last_50_ready_browser", median_ms: +out.median.toFixed(1), worst_ms: +out.worst.toFixed(1), runs_ms: out.runs.map((x) => +x.toFixed(1)), warmup_discarded: 1, budget_ms: out.budget, messages: out.messages, ok: out.ok })}`);
-      setRes(out);
-    }));
+    const g = globalThis as unknown as {
+      requestAnimationFrame(cb: () => void): number;
+      __probes?: Record<string, unknown>;
+    };
+    g.requestAnimationFrame(() =>
+      g.requestAnimationFrame(() => {
+        openOnce(host); // warm-up, discarded
+        const runs: number[] = [];
+        let messages = 0;
+        let lastOk = true;
+        for (let i = 0; i < OPEN_RUNS; i++) {
+          const r = openOnce(host);
+          runs.push(r.ms);
+          messages = r.messages;
+          lastOk = lastOk && r.last;
+        }
+        const out = summarizeOpen(runs, lastOk ? messages : -1);
+        g.__probes = { ...(g.__probes ?? {}), chat_open: out };
+        console.log(
+          `METRIC ${JSON.stringify({ name: "chat_open", metric: "chat.last_50_ready_browser", median_ms: +out.median.toFixed(1), worst_ms: +out.worst.toFixed(1), runs_ms: out.runs.map((x) => +x.toFixed(1)), warmup_discarded: 1, budget_ms: out.budget, messages: out.messages, ok: out.ok })}`,
+        );
+        setRes(out);
+      }),
+    );
   }, []);
-  const line = res === null ? "Measuring…" : `Chat open, last ${res.messages} rows: median ${res.median.toFixed(1)} ms, worst ${res.worst.toFixed(1)} ms of ${res.runs.length} (warm-up discarded), budget ${res.budget} ms: ${openVerdict(res)}`;
+  const line =
+    res === null
+      ? "Measuring…"
+      : `Chat open, last ${res.messages} rows: median ${res.median.toFixed(1)} ms, worst ${res.worst.toFixed(1)} ms of ${res.runs.length} (warm-up discarded), budget ${res.budget} ms: ${openVerdict(res)}`;
   return (
     <View style={{ flex: 1, backgroundColor: "var(--win)" as string }}>
-      <Text testID={res === null ? "open-probe-running" : "open-probe-done"} accessibilityLiveRegion="polite" style={{ padding: 12, fontSize: 13, color: (res !== null && !res.ok ? "var(--danger)" : "var(--ink)") as string }}>{line}</Text>
+      <Text
+        testID={res === null ? "open-probe-running" : "open-probe-done"}
+        accessibilityLiveRegion="polite"
+        style={{
+          padding: 12,
+          fontSize: 13,
+          color: (res !== null && !res.ok ? "var(--danger)" : "var(--ink)") as string,
+        }}
+      >
+        {line}
+      </Text>
       <View nativeID="open-probe-host" style={{ flex: 1, position: "relative" }} />
     </View>
   );

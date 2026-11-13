@@ -16,10 +16,24 @@ export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const MIN = 60_000;
 const DAY = 86_400_000;
 
-const SPACE_DEFAULTS: Readonly<Record<string, unknown>> = { "gate.drafted_by_label": true, "gate.timeout_hours": 24, "gate.email_backstop_hours": 4, "engine.agent_hops": 8, "tasks.review_loop_limit": 2, "access.review_every_days": 90, "git.protected_branches": ["main", "master"], "files.review_changes": { git: true, cloud_mount: true, plain: false }, "vault.export_expiry_max": "1d", "contacts.sms_requires_consent": true, "google.auto_connect": true, "microsoft.auto_connect": true };
+const SPACE_DEFAULTS: Readonly<Record<string, unknown>> = {
+  "gate.drafted_by_label": true,
+  "gate.timeout_hours": 24,
+  "gate.email_backstop_hours": 4,
+  "engine.agent_hops": 8,
+  "tasks.review_loop_limit": 2,
+  "access.review_every_days": 90,
+  "git.protected_branches": ["main", "master"],
+  "files.review_changes": { git: true, cloud_mount: true, plain: false },
+  "vault.export_expiry_max": "1d",
+  "contacts.sms_requires_consent": true,
+  "google.auto_connect": true,
+  "microsoft.auto_connect": true,
+};
 
 type Def = Omit<SettingRow, "value" | "source" | "floorable"> & { value?: unknown };
-const d = (key: string, scope: "space" | "person", page: string, title: string, def: unknown, value?: unknown): Def => ({ key, scope, page, title, default: def, ...(value !== undefined ? { value } : {}) }) as Def;
+const d = (key: string, scope: "space" | "person", page: string, title: string, def: unknown, value?: unknown): Def =>
+  ({ key, scope, page, title, default: def, ...(value !== undefined ? { value } : {}) }) as Def;
 
 /** The person rows of the registry, in its order. */
 export const ROWS: readonly Def[] = [
@@ -27,29 +41,94 @@ export const ROWS: readonly Def[] = [
   d("appearance.look", "person", "appearance", "Look", {}),
   d("chat.agent_tabs", "person", "Chats", "Let agents open and switch side tabs for me", true),
   d("chat.ask_agent", "person", "Models and usage", "Agent I last used in Ask panes", null),
-  d("chrome.agents_use_my_browser", "person", "This computer", "Let agents use my Chrome (per Space, only that Space agents, with a visible indicator)", {}),
+  d(
+    "chrome.agents_use_my_browser",
+    "person",
+    "This computer",
+    "Let agents use my Chrome (per Space, only that Space agents, with a visible indicator)",
+    {},
+  ),
   d("engine.local_runs", "person", "Models and usage", "Run my private chats on this computer", true),
   d("kit.person_choice", "person", "appearance", "My Kit", null),
   d("notes.offers", "person", "Notes", "Offer to save useful things from chats as notes", true),
   d("notifications.alert_replies", "person", "Notifications", "Alert me on replies", false),
   d("notifications.email_backstop", "person", "Notifications", "Email me once if an approval waits 4 hours", true),
-  d("notifications.hand_needs_you_to", "person", "Notifications", "While you are away, hand Needs you to (a person; none leaves it with you)", null),
-  d("notifications.quiet_hours", "person", "Notifications", "Quiet hours: no sounds or pushes between the two times; Needs you may come through", { on: false, from: "22:00", to: "07:00", needs: true }),
-  d("notifications.routines_all", "person", "Notifications", "Also tell me when routines succeed (failures always)", false),
+  d(
+    "notifications.hand_needs_you_to",
+    "person",
+    "Notifications",
+    "While you are away, hand Needs you to (a person; none leaves it with you)",
+    null,
+  ),
+  d(
+    "notifications.quiet_hours",
+    "person",
+    "Notifications",
+    "Quiet hours: no sounds or pushes between the two times; Needs you may come through",
+    { on: false, from: "22:00", to: "07:00", needs: true },
+  ),
+  d(
+    "notifications.routines_all",
+    "person",
+    "Notifications",
+    "Also tell me when routines succeed (failures always)",
+    false,
+  ),
   d("profile.contact", "person", "profile", "Contact", {}),
   d("profile.display_name", "person", "profile", "Name", ""),
   d("profile.handle", "person", "profile", "Handle", ""),
   d("profile.photo", "person", "profile", "Photo", null),
   d("profile.timezone", "person", "profile", "Time zone", "UTC"),
   d("profile.title", "person", "profile", "Title", ""),
-  d("profile.working_hours", "person", "profile", "Working hours", { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:00" }),
-  d("security.chrome_mode", "person", "This computer", "Chrome prompts on this computer (Ask, Allow or Auto; one value per Space)", { base: "ask", spaces: {} }),
-  d("security.team_agents_on_my_computer", "person", "This computer", "Let team agents use my terminal (per Space, locked to a work folder)", {}),
-  d("security.terminal_mode", "person", "This computer", "Terminal prompts on this computer (Ask, Allow or Auto; one value per Space)", { base: "ask", spaces: {} }),
+  d("profile.working_hours", "person", "profile", "Working hours", {
+    days: [1, 2, 3, 4, 5],
+    from: "09:00",
+    to: "17:00",
+  }),
+  d(
+    "security.chrome_mode",
+    "person",
+    "This computer",
+    "Chrome prompts on this computer (Ask, Allow or Auto; one value per Space)",
+    { base: "ask", spaces: {} },
+  ),
+  d(
+    "security.team_agents_on_my_computer",
+    "person",
+    "This computer",
+    "Let team agents use my terminal (per Space, locked to a work folder)",
+    {},
+  ),
+  d(
+    "security.terminal_mode",
+    "person",
+    "This computer",
+    "Terminal prompts on this computer (Ask, Allow or Auto; one value per Space)",
+    { base: "ask", spaces: {} },
+  ),
 ];
 
 /** The Space rows the Space pages draw, with their shipped defaults. */
-export const SPACE_SAMPLE: readonly Def[] = SPACE_ROWS.filter((r, i) => SPACE_ROWS.findIndex((x) => x.key === r.key) === i).map((r) => d(r.key, "space", r.page, r.label, SPACE_DEFAULTS[r.key] ?? (r.control.kind === "switch" ? false : r.control.kind === "number" ? r.control.min : r.control.kind === "choice" ? r.control.options[0]!.value : r.control.kind === "list" ? [] : "")));
+export const SPACE_SAMPLE: readonly Def[] = SPACE_ROWS.filter(
+  (r, i) => SPACE_ROWS.findIndex((x) => x.key === r.key) === i,
+).map((r) =>
+  d(
+    r.key,
+    "space",
+    r.page,
+    r.label,
+    SPACE_DEFAULTS[r.key] ??
+      (r.control.kind === "switch"
+        ? false
+        : r.control.kind === "number"
+          ? r.control.min
+          : r.control.kind === "choice"
+            ? r.control.options[0]!.value
+            : r.control.kind === "list"
+              ? []
+              : ""),
+  ),
+);
 
 export interface SampleSpace {
   id: "northwind" | "harbor";
@@ -65,27 +144,88 @@ export interface SampleSpace {
 const hrs = { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:30" };
 
 export const northwind: SampleSpace = {
-  id: "northwind", name: "Northwind", me: { id: "usr_irfad", name: "Irfad Imtiaz" },
+  id: "northwind",
+  name: "Northwind",
+  me: { id: "usr_irfad", name: "Irfad Imtiaz" },
   names: namesFor("northwind", { ch_sales: "#sales", usr_aliza: "Aliza Rizvi", agt_dex: "Dex", chn_ops: "#ops" }),
   values: {
-    "appearance.skin": "system", "profile.display_name": "Irfad Imtiaz", "profile.handle": "irfad", "profile.title": "Head of operations", "profile.timezone": "America/Los_Angeles",
-    "profile.working_hours": hrs, "profile.contact": { email: "irfad@northwind.example", phone: "+1 415 555 0132" }, 
-      },
+    "appearance.skin": "system",
+    "profile.display_name": "Irfad Imtiaz",
+    "profile.handle": "irfad",
+    "profile.title": "Head of operations",
+    "profile.timezone": "America/Los_Angeles",
+    "profile.working_hours": hrs,
+    "profile.contact": { email: "irfad@northwind.example", phone: "+1 415 555 0132" },
+  },
   spaces: [
-    { id: "northwind", name: "Northwind", addr: "northwind.vyre.run", kind: "team", role: "Owner", needsYou: 0, current: true },
-    { id: "harbor", name: "Harbor Studio", addr: "harbor.vyre.run", kind: "team", role: "Member", needsYou: 2, current: false },
-    { id: "personal", name: "Personal", addr: "Only on this computer", kind: "personal", role: "Owner", needsYou: 0, current: false },
+    {
+      id: "northwind",
+      name: "Northwind",
+      addr: "northwind.vyre.run",
+      kind: "team",
+      role: "Owner",
+      needsYou: 0,
+      current: true,
+    },
+    {
+      id: "harbor",
+      name: "Harbor Studio",
+      addr: "harbor.vyre.run",
+      kind: "team",
+      role: "Member",
+      needsYou: 2,
+      current: false,
+    },
+    {
+      id: "personal",
+      name: "Personal",
+      addr: "Only on this computer",
+      kind: "personal",
+      role: "Owner",
+      needsYou: 0,
+      current: false,
+    },
   ],
-  other: { name: "Irfad Imtiaz", handle: "irfad", timezone: "America/Los_Angeles", hours: hrs, contact: { email: "irfad@harbor.example", phone: "+1 415 555 0132" } },
+  other: {
+    name: "Irfad Imtiaz",
+    handle: "irfad",
+    timezone: "America/Los_Angeles",
+    hours: hrs,
+    contact: { email: "irfad@harbor.example", phone: "+1 415 555 0132" },
+  },
 };
 
 export const harbor: SampleSpace = {
-  id: "harbor", name: "Harbor Studio", me: { id: "usr_june", name: "June Okafor" },
+  id: "harbor",
+  name: "Harbor Studio",
+  me: { id: "usr_june", name: "June Okafor" },
   names: namesFor("harbor"),
-  values: { "profile.display_name": "June Okafor", "profile.handle": "june", "profile.title": "Designer", "profile.timezone": "Europe/London", "profile.contact": { email: "june@harborstudio.example" } },
+  values: {
+    "profile.display_name": "June Okafor",
+    "profile.handle": "june",
+    "profile.title": "Designer",
+    "profile.timezone": "Europe/London",
+    "profile.contact": { email: "june@harborstudio.example" },
+  },
   spaces: [
-    { id: "harbor", name: "Harbor Studio", addr: "harbor.vyre.run", kind: "team", role: "Member", needsYou: 0, current: true },
-    { id: "northwind", name: "Northwind", addr: "northwind.vyre.run", kind: "team", role: "Member", needsYou: 1, current: false },
+    {
+      id: "harbor",
+      name: "Harbor Studio",
+      addr: "harbor.vyre.run",
+      kind: "team",
+      role: "Member",
+      needsYou: 0,
+      current: true,
+    },
+    {
+      id: "northwind",
+      name: "Northwind",
+      addr: "northwind.vyre.run",
+      kind: "team",
+      role: "Member",
+      needsYou: 1,
+      current: false,
+    },
   ],
   other: {},
 };
@@ -94,7 +234,14 @@ export const harbor: SampleSpace = {
 export const securityOf = (_space: SampleSpace): NonNullable<SettingsData["security"]> => ({
   account: { passwordChanged: "3 months ago", github: "irfad7" },
   spaces: {
-    northwind: { totp: true, passkeys: ["MacBook Touch ID"], floor: "Authenticator app or passkey", floorBy: "Northwind", sso: "Google Workspace", devices: 4 },
+    northwind: {
+      totp: true,
+      passkeys: ["MacBook Touch ID"],
+      floor: "Authenticator app or passkey",
+      floorBy: "Northwind",
+      sso: "Google Workspace",
+      devices: 4,
+    },
     harbor: { totp: false, passkeys: [], floor: "None", floorBy: "Harbor Studio", sso: "", devices: 2 },
     personal: { totp: false, passkeys: [], floor: "", floorBy: "", sso: "", devices: 1 },
   },
@@ -114,8 +261,21 @@ export interface SampleSettings {
   failNext(cap: string): void;
 }
 
-const device = (id: string, name: string, cls: "desktop" | "phone" | "web" | "extension" | "daemon", ago: number, o: { current?: boolean; location?: string } = {}): Row => ({
-  id, person: "usr_irfad", name, class: cls, epoch: 1, lastSeenAt: SAMPLE_NOW - ago, ...(o.current ? { current: true } : {}), ...(o.location ? { location: o.location } : {}),
+const device = (
+  id: string,
+  name: string,
+  cls: "desktop" | "phone" | "web" | "extension" | "daemon",
+  ago: number,
+  o: { current?: boolean; location?: string } = {},
+): Row => ({
+  id,
+  person: "usr_irfad",
+  name,
+  class: cls,
+  epoch: 1,
+  lastSeenAt: SAMPLE_NOW - ago,
+  ...(o.current ? { current: true } : {}),
+  ...(o.location ? { location: o.location } : {}),
 });
 
 export function createSampleSettings(space: SampleSpace = northwind): SampleSettings {
@@ -126,113 +286,510 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   const looks: import("./look.ts").Look[] = [];
   const previews: (string | null)[] = [];
   const failing = new Set<string>();
-  replica.put("settings", [...ROWS, ...SPACE_SAMPLE].map((r) => ({ id: r.key, ...r, ...(space.values[r.key] !== undefined ? { value: space.values[r.key] } : { value: r.default }) }) as unknown as Row));
+  replica.put(
+    "settings",
+    [...ROWS, ...SPACE_SAMPLE].map(
+      (r) =>
+        ({
+          id: r.key,
+          ...r,
+          ...(space.values[r.key] !== undefined ? { value: space.values[r.key] } : { value: r.default }),
+        }) as unknown as Row,
+    ),
+  );
   replica.put("devices", [
-    device("dev_mac", "Irfad's MacBook Pro", "desktop", 0, { current: true, location: "San Francisco" }), device("dev_phone", "Irfad's iPhone", "phone", 3 * 60 * MIN, { location: "San Francisco" }),
-    device("dev_web", "Chrome on a library computer", "web", 6 * DAY, { location: "Oakland" }), device("dev_old", "Old Windows laptop", "desktop", 30 * DAY),
+    device("dev_mac", "Irfad's MacBook Pro", "desktop", 0, { current: true, location: "San Francisco" }),
+    device("dev_phone", "Irfad's iPhone", "phone", 3 * 60 * MIN, { location: "San Francisco" }),
+    device("dev_web", "Chrome on a library computer", "web", 6 * DAY, { location: "Oakland" }),
+    device("dev_old", "Old Windows laptop", "desktop", 30 * DAY),
   ]);
-  replica.put("mutes", [{ id: "agt_docs", target: { kind: "agent", id: "agt_docs" }, until: SAMPLE_NOW + DAY }, { id: "ch_sales", target: { kind: "channel", id: "ch_sales" }, until: SAMPLE_NOW + 3 * DAY }]);
-  replica.put("mailboxes", space.id === "northwind" ? [
-    { id: "mbx_1", kind: "personal", address: "irfad@northwind.example", title: "Work", provider: "google", privacy: "private", state: "syncing", lastSyncAt: SAMPLE_NOW - 2 * MIN, ownerId: "usr_irfad" },
-    { id: "mbx_2", kind: "personal", address: "irfad.imtiaz@outlook.example", title: "Outlook", provider: "microsoft", privacy: "people", state: "paused", ownerId: "usr_irfad" },
-  ] : []);
+  replica.put("mutes", [
+    { id: "agt_docs", target: { kind: "agent", id: "agt_docs" }, until: SAMPLE_NOW + DAY },
+    { id: "ch_sales", target: { kind: "channel", id: "ch_sales" }, until: SAMPLE_NOW + 3 * DAY },
+  ]);
+  replica.put(
+    "mailboxes",
+    space.id === "northwind"
+      ? [
+          {
+            id: "mbx_1",
+            kind: "personal",
+            address: "irfad@northwind.example",
+            title: "Work",
+            provider: "google",
+            privacy: "private",
+            state: "syncing",
+            lastSyncAt: SAMPLE_NOW - 2 * MIN,
+            ownerId: "usr_irfad",
+          },
+          {
+            id: "mbx_2",
+            kind: "personal",
+            address: "irfad.imtiaz@outlook.example",
+            title: "Outlook",
+            provider: "microsoft",
+            privacy: "people",
+            state: "paused",
+            ownerId: "usr_irfad",
+          },
+        ]
+      : [],
+  );
   // Northwind has mail, a calendar and a number of Irfad's own (Inbox is on his rail); Harbor Studio has none, so its Email and calendar page is the connect tiles
-  replica.put("calendars", space.id === "northwind" ? [
-    { id: "cld_work", title: "Work", color: "#4f6bed", provider: "google", ownerId: "usr_irfad", personal: false, state: "syncing" },
-  ] : []);
-  replica.put("numbers", space.id === "northwind" ? [
-    { id: "num_main", e164: "+14155550132", title: "Main line", displayName: "Main line", capabilities: ["voice", "sms"], assigneeKind: "person", assigneeId: "usr_irfad", state: "active" },
-    { id: "num_intake", e164: "+14155550190", title: "Intake", displayName: "Intake", capabilities: ["voice", "sms"], assigneeKind: "agent", assigneeId: "agt_intake", state: "active" },
-  ] : []);
+  replica.put(
+    "calendars",
+    space.id === "northwind"
+      ? [
+          {
+            id: "cld_work",
+            title: "Work",
+            color: "#4f6bed",
+            provider: "google",
+            ownerId: "usr_irfad",
+            personal: false,
+            state: "syncing",
+          },
+        ]
+      : [],
+  );
+  replica.put(
+    "numbers",
+    space.id === "northwind"
+      ? [
+          {
+            id: "num_main",
+            e164: "+14155550132",
+            title: "Main line",
+            displayName: "Main line",
+            capabilities: ["voice", "sms"],
+            assigneeKind: "person",
+            assigneeId: "usr_irfad",
+            state: "active",
+          },
+          {
+            id: "num_intake",
+            e164: "+14155550190",
+            title: "Intake",
+            displayName: "Intake",
+            capabilities: ["voice", "sms"],
+            assigneeKind: "agent",
+            assigneeId: "agt_intake",
+            state: "active",
+          },
+        ]
+      : [],
+  );
   replica.put("accounts", [
-    { id: "acc_claude", ref: "acc_claude", driver: "claude_code", kind: "subscription", title: "Claude Max, your sign-in", mine: true, status: "ok" },
-    { id: "acc_openai", ref: "acc_openai", driver: "openai", kind: "api_key", title: "OpenAI team key", mine: false, status: "ok" },
-    { id: "acc_ocg", ref: "acc_ocg", driver: "opencode_go", kind: "api_key", title: "OpenCode Go, your key", mine: true, status: "expired" },
+    {
+      id: "acc_claude",
+      ref: "acc_claude",
+      driver: "claude_code",
+      kind: "subscription",
+      title: "Claude Max, your sign-in",
+      mine: true,
+      status: "ok",
+    },
+    {
+      id: "acc_openai",
+      ref: "acc_openai",
+      driver: "openai",
+      kind: "api_key",
+      title: "OpenAI team key",
+      mine: false,
+      status: "ok",
+    },
+    {
+      id: "acc_ocg",
+      ref: "acc_ocg",
+      driver: "opencode_go",
+      kind: "api_key",
+      title: "OpenCode Go, your key",
+      mine: true,
+      status: "expired",
+    },
   ]);
   replica.put("models", [
-    { id: "m1", provider: "anthropic", model: "claude-sonnet-5-5", title: "Claude Sonnet 5.5", driver: "claude_code", allowed: true },
-    { id: "m2", provider: "anthropic", model: "claude-haiku-5-5", title: "Claude Haiku 5.5", driver: "claude_code", allowed: true },
+    {
+      id: "m1",
+      provider: "anthropic",
+      model: "claude-sonnet-5-5",
+      title: "Claude Sonnet 5.5",
+      driver: "claude_code",
+      allowed: true,
+    },
+    {
+      id: "m2",
+      provider: "anthropic",
+      model: "claude-haiku-5-5",
+      title: "Claude Haiku 5.5",
+      driver: "claude_code",
+      allowed: true,
+    },
     { id: "m3", provider: "openai", model: "gpt-5", title: "GPT-5", driver: "openai", allowed: true },
-    { id: "m4", provider: "opencode_go", model: "kimi", title: "OpenCode Go Kimi", driver: "opencode_go", allowed: false, reason: "not_connected" },
+    {
+      id: "m4",
+      provider: "opencode_go",
+      model: "kimi",
+      title: "OpenCode Go Kimi",
+      driver: "opencode_go",
+      allowed: false,
+      reason: "not_connected",
+    },
   ]);
-  replica.put("defaults", [{ id: "d", provider: "anthropic", model: "claude-sonnet-5-5", fallback: [{ provider: "anthropic", model: "claude-haiku-5-5" }] }]);
+  replica.put("defaults", [
+    {
+      id: "d",
+      provider: "anthropic",
+      model: "claude-sonnet-5-5",
+      fallback: [{ provider: "anthropic", model: "claude-haiku-5-5" }],
+    },
+  ]);
   replica.put("usage", [
-    { id: "claude", key: "claude", title: "Claude Max, your sign-in", totals: { turns: 412, tokensIn: 3_100_000, tokensOut: 640_000, costMicros: 0 } },
-    { id: "openai", key: "openai", title: "OpenAI team key", totals: { turns: 168, tokensIn: 1_300_000, tokensOut: 240_000, costMicros: 48_200_000 } },
-    { id: "ocg", key: "ocg", title: "OpenCode Go, your key", totals: { turns: 40, tokensIn: 220_000, tokensOut: 60_000, costMicros: 3_600_000 } },
+    {
+      id: "claude",
+      key: "claude",
+      title: "Claude Max, your sign-in",
+      totals: { turns: 412, tokensIn: 3_100_000, tokensOut: 640_000, costMicros: 0 },
+    },
+    {
+      id: "openai",
+      key: "openai",
+      title: "OpenAI team key",
+      totals: { turns: 168, tokensIn: 1_300_000, tokensOut: 240_000, costMicros: 48_200_000 },
+    },
+    {
+      id: "ocg",
+      key: "ocg",
+      title: "OpenCode Go, your key",
+      totals: { turns: 40, tokensIn: 220_000, tokensOut: 60_000, costMicros: 3_600_000 },
+    },
   ]);
   // Who pays for memory: the keys picked, the accounts they may be picked from (an admin sees the shared ones for the Space and the projects)
   replica.put("memkeys", [{ id: "keys", person: null, space: null, projects: {} }]);
   const picker = (ref: string | null, shared: boolean): { accountRef: string | null; choices: unknown[] } => ({
     accountRef: ref,
     choices: [
-      ...(shared ? [] : [{ ref: "#Irfad_Claude", title: "Claude Max, your sign-in", provider: "anthropic", kind: "subscription", mine: true, state: "ok" }]),
-      { ref: "#Team_OpenAI_Key", title: "OpenAI team key", provider: "openai", kind: "api_key", mine: false, state: "ok" },
-      { ref: "#Team_Anthropic_Key", title: "Anthropic team key", provider: "anthropic", kind: "api_key", mine: false, state: "ok" },
+      ...(shared
+        ? []
+        : [
+            {
+              ref: "#Irfad_Claude",
+              title: "Claude Max, your sign-in",
+              provider: "anthropic",
+              kind: "subscription",
+              mine: true,
+              state: "ok",
+            },
+          ]),
+      {
+        ref: "#Team_OpenAI_Key",
+        title: "OpenAI team key",
+        provider: "openai",
+        kind: "api_key",
+        mine: false,
+        state: "ok",
+      },
+      {
+        ref: "#Team_Anthropic_Key",
+        title: "Anthropic team key",
+        provider: "anthropic",
+        kind: "api_key",
+        mine: false,
+        state: "ok",
+      },
     ],
   });
   replica.resolve("memory.keys.get", () => {
-    const k = replica.rows("memkeys")[0] as unknown as { person: string | null; space: string | null; projects: Record<string, string> };
-    return { personal: picker(k.person, false), admin: space.id === "northwind", ...(space.id === "northwind" ? { space: picker(k.space, true), projectKeys: k.projects } : {}) } as unknown as CapMap["memory.keys.get"]["out"];
+    const k = replica.rows("memkeys")[0] as unknown as {
+      person: string | null;
+      space: string | null;
+      projects: Record<string, string>;
+    };
+    return {
+      personal: picker(k.person, false),
+      admin: space.id === "northwind",
+      ...(space.id === "northwind" ? { space: picker(k.space, true), projectKeys: k.projects } : {}),
+    } as unknown as CapMap["memory.keys.get"]["out"];
   });
   // About you: the person's profile, public and private, learned by several agents (memory.profile.get as the person on their own page: both parts)
-  const lp = (factId: string, text: string, place: "public" | "private", extra: Record<string, unknown> = {}): Row => ({
-    id: factId, factId, text, place, layer: "person", ownerRef: space.me.id, status: "current", sourceKind: "chat", sourceRef: "thr_sample", validFrom: SAMPLE_NOW - 9 * DAY, learnedAt: SAMPLE_NOW - 9 * DAY, ...extra,
-  }) as unknown as Row;
+  const lp = (factId: string, text: string, place: "public" | "private", extra: Record<string, unknown> = {}): Row =>
+    ({
+      id: factId,
+      factId,
+      text,
+      place,
+      layer: "person",
+      ownerRef: space.me.id,
+      status: "current",
+      sourceKind: "chat",
+      sourceRef: "thr_sample",
+      validFrom: SAMPLE_NOW - 9 * DAY,
+      learnedAt: SAMPLE_NOW - 9 * DAY,
+      ...extra,
+    }) as unknown as Row;
   replica.put("profile", [
-    lp("fct_pub1", "Prefers short client emails with no exclamation marks.", "public", { agentId: "agt_intake", lineLink: "vyre://thread/thr_sample?m=msg_1", learnedAt: SAMPLE_NOW - 12 * DAY }),
-    lp("fct_pub2", "Leads intake and billing for the Harlow team.", "public", { sourceKind: "manual", sourceRef: "profile", learnedAt: SAMPLE_NOW - 20 * DAY }),
-    lp("fct_sug", "Out of office every second Friday.", "private", { agentId: "agt_docs", suggested: true, lineLink: "vyre://thread/thr_sample?m=msg_4", learnedAt: SAMPLE_NOW - 1 * DAY }),
-    lp("fct_priv1", "Picks up the kids at 3:30 on Tuesdays and Thursdays.", "private", { agentId: "agt_intake", lineLink: "vyre://thread/thr_sample?m=msg_2", learnedAt: SAMPLE_NOW - 3 * DAY }),
-    lp("fct_priv2", "Saving for a house; keep the billing raise talk out of team channels.", "private", { agentId: "agt_docs", learnedAt: SAMPLE_NOW - 6 * DAY }),
+    lp("fct_pub1", "Prefers short client emails with no exclamation marks.", "public", {
+      agentId: "agt_intake",
+      lineLink: "vyre://thread/thr_sample?m=msg_1",
+      learnedAt: SAMPLE_NOW - 12 * DAY,
+    }),
+    lp("fct_pub2", "Leads intake and billing for the Harlow team.", "public", {
+      sourceKind: "manual",
+      sourceRef: "profile",
+      learnedAt: SAMPLE_NOW - 20 * DAY,
+    }),
+    lp("fct_sug", "Out of office every second Friday.", "private", {
+      agentId: "agt_docs",
+      suggested: true,
+      lineLink: "vyre://thread/thr_sample?m=msg_4",
+      learnedAt: SAMPLE_NOW - 1 * DAY,
+    }),
+    lp("fct_priv1", "Picks up the kids at 3:30 on Tuesdays and Thursdays.", "private", {
+      agentId: "agt_intake",
+      lineLink: "vyre://thread/thr_sample?m=msg_2",
+      learnedAt: SAMPLE_NOW - 3 * DAY,
+    }),
+    lp("fct_priv2", "Saving for a house; keep the billing raise talk out of team channels.", "private", {
+      agentId: "agt_docs",
+      learnedAt: SAMPLE_NOW - 6 * DAY,
+    }),
   ]);
   (replica.resolve as unknown as (cap: string, f: () => unknown) => void)("memory.profile.get", () => {
     const all = replica.rows("profile") as unknown as Array<{ place: string }>;
     return {
       audience: "private",
-      basics: [{ key: "profile.title", label: "Title", value: "Director of Technology" }, { key: "profile.timezone", label: "Time zone", value: "Asia/Karachi" }, { key: "profile.working_hours", label: "Working hours", value: "Mon, Tue, Wed, Thu, Fri 09:00 to 17:00" }],
-      public: all.filter((f) => f.place === "public"), private: all.filter((f) => f.place === "private"),
+      basics: [
+        { key: "profile.title", label: "Title", value: "Director of Technology" },
+        { key: "profile.timezone", label: "Time zone", value: "Asia/Karachi" },
+        { key: "profile.working_hours", label: "Working hours", value: "Mon, Tue, Wed, Thu, Fri 09:00 to 17:00" },
+      ],
+      public: all.filter((f) => f.place === "public"),
+      private: all.filter((f) => f.place === "private"),
     };
   });
   // Lessons from your corrections: what the person's agents kept after being corrected, as memory.facts.list answers it for kind lesson
-  const ls = (factId: string, text: string, agentId: string, how: string, days: number, used: number, scope: string, extra: Record<string, unknown> = {}): Row => ({
-    id: factId, factId, text, layer: "person", ownerRef: space.me.id, agentId, kind: "lesson", status: "current", sourceKind: "chat", sourceRef: "thr_sample", validFrom: SAMPLE_NOW - days * DAY, learnedAt: SAMPLE_NOW - days * DAY,
-    lesson: { how, used, scope }, ...extra,
-  }) as unknown as Row;
+  const ls = (
+    factId: string,
+    text: string,
+    agentId: string,
+    how: string,
+    days: number,
+    used: number,
+    scope: string,
+    extra: Record<string, unknown> = {},
+  ): Row =>
+    ({
+      id: factId,
+      factId,
+      text,
+      layer: "person",
+      ownerRef: space.me.id,
+      agentId,
+      kind: "lesson",
+      status: "current",
+      sourceKind: "chat",
+      sourceRef: "thr_sample",
+      validFrom: SAMPLE_NOW - days * DAY,
+      learnedAt: SAMPLE_NOW - days * DAY,
+      lesson: { how, used, scope },
+      ...extra,
+    }) as unknown as Row;
   replica.put("lessons", [
-    ls("fct_les1", "Notes to Sara: three lines, the number first.", "agt_intake", "edit", 1, 1, "you", { sourceLink: "vyre://thread/thr_sample?m=msg_3" }),
+    ls("fct_les1", "Notes to Sara: three lines, the number first.", "agt_intake", "edit", 1, 1, "you", {
+      sourceLink: "vyre://thread/thr_sample?m=msg_3",
+    }),
     ls("fct_les2", "Never send anything to a client before you have seen it.", "agt_docs", "refuse", 6, 5, "space"),
     ls("fct_les3", "Invoices go out on Fridays, not Mondays.", "agt_billing", "reverse", 13, 3, "you"),
-    ls("fct_les4", "Call Dana Fox \"Ms. Fox\" until she says otherwise.", "agt_docs", "rewrite", 20, 1, "you"),
+    ls("fct_les4", 'Call Dana Fox "Ms. Fox" until she says otherwise.', "agt_docs", "rewrite", 20, 1, "you"),
   ]);
-  (replica.resolve as unknown as (cap: string, f: () => unknown) => void)("memory.facts.list", () => ({ facts: replica.rows("lessons"), total: replica.rows("lessons").length }));
+  (replica.resolve as unknown as (cap: string, f: () => unknown) => void)("memory.facts.list", () => ({
+    facts: replica.rows("lessons"),
+    total: replica.rows("lessons").length,
+  }));
   replica.resolve("memory.upkeep.status", () => {
     const cap = (replica.rows("memcap")[0] as unknown as { dollars: number } | undefined)?.dollars ?? 5;
-    return { month: "2025-10", spentMicros: 1_240_000, capMicros: cap * 1_000_000, capReached: false, modelAvailable: true, openQuestions: 1, runs: [], nights: [{ day: "2025-10-24", runs: 1, costMicros: 42_000, tokensIn: 9_100, tokensOut: 1_200 }], lastNight: { day: "2025-10-24", runs: 1, costMicros: 42_000, tokensIn: 9_100, tokensOut: 1_200 } } as unknown as CapMap["memory.upkeep.status"]["out"];
+    return {
+      month: "2025-10",
+      spentMicros: 1_240_000,
+      capMicros: cap * 1_000_000,
+      capReached: false,
+      modelAvailable: true,
+      openQuestions: 1,
+      runs: [],
+      nights: [{ day: "2025-10-24", runs: 1, costMicros: 42_000, tokensIn: 9_100, tokensOut: 1_200 }],
+      lastNight: { day: "2025-10-24", runs: 1, costMicros: 42_000, tokensIn: 9_100, tokensOut: 1_200 },
+    } as unknown as CapMap["memory.upkeep.status"]["out"];
   });
-  replica.resolve("projects.list", () => ({ projects: space.id === "northwind" ? [{ projectId: "prj_rivera", title: "Rivera matter" }, { projectId: "prj_probate", title: "Probate GTM" }] : [] }) as unknown as CapMap["projects.list"]["out"]);
-  replica.put("kits", [{ id: "kit_law", kitId: "kit_law", key: "law", title: "Law firm", version: "1.2.0", channel: "stable", installed: true, contents: ["ui", "structure"] }, { id: "kit_studio", kitId: "kit_studio", key: "studio", title: "Studio", version: "1.0.0", channel: "stable", installed: true, contents: ["ui"] }]);
+  replica.resolve(
+    "projects.list",
+    () =>
+      ({
+        projects:
+          space.id === "northwind"
+            ? [
+                { projectId: "prj_rivera", title: "Rivera matter" },
+                { projectId: "prj_probate", title: "Probate GTM" },
+              ]
+            : [],
+      }) as unknown as CapMap["projects.list"]["out"],
+  );
+  replica.put("kits", [
+    {
+      id: "kit_law",
+      kitId: "kit_law",
+      key: "law",
+      title: "Law firm",
+      version: "1.2.0",
+      channel: "stable",
+      installed: true,
+      contents: ["ui", "structure"],
+    },
+    {
+      id: "kit_studio",
+      kitId: "kit_studio",
+      key: "studio",
+      title: "Studio",
+      version: "1.0.0",
+      channel: "stable",
+      installed: true,
+      contents: ["ui"],
+    },
+  ]);
   replica.put("kit", [{ id: "k", space: "kit_law", person: null, effective: "kit_law" }]);
   replica.put("other", [{ id: "o", ...space.other }]);
 
-  const rowsNow = (): SettingRow[] => (replica.rows("settings") as unknown as (Row & { key: string; scope: "space" | "person"; page: string; title: string; value: unknown; default: unknown })[]).map((r) => ({
-    key: r.key, scope: r.scope, page: r.page, title: r.title, value: r.value, default: r.default, source: JSON.stringify(r.value) === JSON.stringify(r.default) ? "default" : "person", floorable: false,
-  }));
-  replica.resolve("settings.list", (_t, input) => ({ rows: rowsNow().filter((r) => (input.page ? r.page === input.page : true) && (input.scope ? r.scope === input.scope : true)) }) as CapMap["settings.list"]["out"]);
-  replica.resolve("settings.search", (_t, input) => ({ rows: searchRows(rowsNow(), input.q).map((h) => ({ key: h.key, page: h.page, title: h.title, score: h.score })) }) as CapMap["settings.search"]["out"]);
-  replica.resolve("settings.copy_source", () => { const o = replica.rows("other")[0] as unknown as Record<string, unknown> | undefined; const { id: _i, ...rest } = o ?? {}; return rest as CapMap["settings.copy_source"]["out"]; });
+  const rowsNow = (): SettingRow[] =>
+    (
+      replica.rows("settings") as unknown as (Row & {
+        key: string;
+        scope: "space" | "person";
+        page: string;
+        title: string;
+        value: unknown;
+        default: unknown;
+      })[]
+    ).map((r) => ({
+      key: r.key,
+      scope: r.scope,
+      page: r.page,
+      title: r.title,
+      value: r.value,
+      default: r.default,
+      source: JSON.stringify(r.value) === JSON.stringify(r.default) ? "default" : "person",
+      floorable: false,
+    }));
+  replica.resolve(
+    "settings.list",
+    (_t, input) =>
+      ({
+        rows: rowsNow().filter(
+          (r) => (input.page ? r.page === input.page : true) && (input.scope ? r.scope === input.scope : true),
+        ),
+      }) as CapMap["settings.list"]["out"],
+  );
+  replica.resolve(
+    "settings.search",
+    (_t, input) =>
+      ({
+        rows: searchRows(rowsNow(), input.q).map((h) => ({ key: h.key, page: h.page, title: h.title, score: h.score })),
+      }) as CapMap["settings.search"]["out"],
+  );
+  replica.resolve("settings.copy_source", () => {
+    const o = replica.rows("other")[0] as unknown as Record<string, unknown> | undefined;
+    const { id: _i, ...rest } = o ?? {};
+    return rest as CapMap["settings.copy_source"]["out"];
+  });
   let ghOn = space.id === "northwind";
-  const ghPolicy: Record<string, string> = { read: "always", push_branch: "ask", push_default: "never", open_pr: "ask", comment: "always", merge: "never" };
-  replica.resolve("github.me.status", () => (ghOn ? { connected: true, login: "irfad7", source: "vyre", needsReconnect: space.id === "northwind" } : { connected: false, source: space.id === "harbor" ? "vyre" : "space", needsReconnect: false }) as CapMap["github.me.status"]["out"]);
-  replica.resolve("github.me.reach", () => ({ login: "irfad7", orgs: [{ login: "irfad7", install: "all", url: "https://github.com/settings/installations/1" }, { login: "vyre-ai", install: "selected", url: "https://github.com/organizations/vyre-ai/settings/installations/2" }, { login: "northwind", install: "none", url: null }], repos: [{ repo: "vyre-ai/vyre-v1", installationId: 2 }, { repo: "vyre-ai/site", installationId: 2 }, { repo: "irfad7/notes", installationId: 1 }] }) as CapMap["github.me.reach"]["out"]);
-  replica.resolve("github.me.policy.get", () => ({ policy: { ...ghPolicy } }) as unknown as CapMap["github.me.policy.get"]["out"]);
-  replica.resolve("github.me.usage", () => ({ uses: [{ consumer: "crews", repo: "vyre-ai/vyre-v1", action: "Opened a pull request", at: 1 }, { consumer: "ci", repo: "vyre-ai/site", action: "Read code", at: 2 }] }) as CapMap["github.me.usage"]["out"]);
+  const ghPolicy: Record<string, string> = {
+    read: "always",
+    push_branch: "ask",
+    push_default: "never",
+    open_pr: "ask",
+    comment: "always",
+    merge: "never",
+  };
+  replica.resolve(
+    "github.me.status",
+    () =>
+      (ghOn
+        ? { connected: true, login: "irfad7", source: "vyre", needsReconnect: space.id === "northwind" }
+        : {
+            connected: false,
+            source: space.id === "harbor" ? "vyre" : "space",
+            needsReconnect: false,
+          }) as CapMap["github.me.status"]["out"],
+  );
+  replica.resolve(
+    "github.me.reach",
+    () =>
+      ({
+        login: "irfad7",
+        orgs: [
+          { login: "irfad7", install: "all", url: "https://github.com/settings/installations/1" },
+          {
+            login: "vyre-ai",
+            install: "selected",
+            url: "https://github.com/organizations/vyre-ai/settings/installations/2",
+          },
+          { login: "northwind", install: "none", url: null },
+        ],
+        repos: [
+          { repo: "vyre-ai/vyre-v1", installationId: 2 },
+          { repo: "vyre-ai/site", installationId: 2 },
+          { repo: "irfad7/notes", installationId: 1 },
+        ],
+      }) as CapMap["github.me.reach"]["out"],
+  );
+  replica.resolve(
+    "github.me.policy.get",
+    () => ({ policy: { ...ghPolicy } }) as unknown as CapMap["github.me.policy.get"]["out"],
+  );
+  replica.resolve(
+    "github.me.usage",
+    () =>
+      ({
+        uses: [
+          { consumer: "crews", repo: "vyre-ai/vyre-v1", action: "Opened a pull request", at: 1 },
+          { consumer: "ci", repo: "vyre-ai/site", action: "Read code", at: 2 },
+        ],
+      }) as CapMap["github.me.usage"]["out"],
+  );
   const machine = {
-    machineId: "srv_dev_mbp", kind: "computer", name: "Irfad's MacBook Pro", mine: true, ownerId: space.me.id, online: true, draining: false, restricted: false, lastSeenAt: 1_760_000_000_000, latencyMs: 18, version: "1.4.1", os: "macOS 15", arch: "arm64",
-    cores: 8, memBytes: 16e9, diskBytes: 500e9, load: { cpuPct: 21, memUsedBytes: 8e9, diskFreeBytes: 300e9 }, runs: { turns: 1, agentComputers: 0, sites: 0, automations: 0 }, can: ["claude_code"], limits: { maxTurns: 4, maxAgentComputers: 0 }, pinned: [], room: { score: 40, tightest: "cpu" },
+    machineId: "srv_dev_mbp",
+    kind: "computer",
+    name: "Irfad's MacBook Pro",
+    mine: true,
+    ownerId: space.me.id,
+    online: true,
+    draining: false,
+    restricted: false,
+    lastSeenAt: 1_760_000_000_000,
+    latencyMs: 18,
+    version: "1.4.1",
+    os: "macOS 15",
+    arch: "arm64",
+    cores: 8,
+    memBytes: 16e9,
+    diskBytes: 500e9,
+    load: { cpuPct: 21, memUsedBytes: 8e9, diskFreeBytes: 300e9 },
+    runs: { turns: 1, agentComputers: 0, sites: 0, automations: 0 },
+    can: ["claude_code"],
+    limits: { maxTurns: 4, maxAgentComputers: 0 },
+    pinned: [],
+    room: { score: 40, tightest: "cpu" },
   };
   replica.resolve("machines.list", () => ({ machines: [machine] }) as never);
-  replica.resolve("machines.get", () => ({ machine, series: { "1h": [], "24h": [], "7d": [], "30d": [] }, findings: [], alerts: [], privacy: { restricted: false } }) as never);
+  replica.resolve(
+    "machines.get",
+    () =>
+      ({
+        machine,
+        series: { "1h": [], "24h": [], "7d": [], "30d": [] },
+        findings: [],
+        alerts: [],
+        privacy: { restricted: false },
+      }) as never,
+  );
   replica.resolve("machines.alerts", () => ({ alerts: [] }) as never);
   replica.resolve("computers.hosts", () => ({ available: false, hosts: [] }) as never);
   replica.put("allow", [
@@ -240,48 +797,151 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     { id: "alw_2", kind: "always", act: "post", target: "chn_ops", agentId: "agt_dex" },
     { id: "alw_3", kind: "standing", act: "send", target: "usr_maya", agentId: "agt_dex" },
   ]);
-  replica.resolve("gate.allow.list", () => ({ rules: replica.rows("allow") as unknown as CapMap["gate.allow.list"]["out"]["rules"] }) as CapMap["gate.allow.list"]["out"]);
-  replica.resolve("devices.mine", () => ({ devices: (replica.rows("devices") as unknown as Row[]).filter((x) => x["revokedAt"] === undefined), sessions: [] }) as unknown as CapMap["devices.mine"]["out"]);
-  replica.resolve("notifications.mute.list", () => ({ mutes: (replica.rows("mutes") as unknown as { target: { kind: string; id: string }; until: number }[]).map((m) => ({ target: m.target, until: m.until })) }) as CapMap["notifications.mute.list"]["out"]);
-  replica.resolve("notifications.kinds.list", () => ({
-    kinds: [
-      { key: "approval.requested", level: "interrupt", place: "home", title: "Needs you", respectHours: false },
-      { key: "mention", level: "interrupt", place: "chats", title: "Mentions", respectHours: true },
-      { key: "reply.followed", level: "badge", place: "chats", title: "Replies to you", respectHours: true },
-      { key: "task.assigned", level: "badge", place: "home", title: "Agent finished a long task", respectHours: true },
-      { key: "routine.failed", level: "interrupt", place: "home", title: "Routines", respectHours: true },
-      { key: "digest.other", level: "digest", place: "chats", title: "Channel messages", respectHours: true },
-    ],
-  }) as unknown as CapMap["notifications.kinds.list"]["out"]);
-  replica.resolve("mail.mailbox.list", () => ({ mailboxes: replica.rows("mailboxes") as unknown as CapMap["mail.mailbox.list"]["out"]["mailboxes"] }) as CapMap["mail.mailbox.list"]["out"]);
-  replica.resolve("calendar.list_calendars", () => ({ calendars: replica.rows("calendars") as unknown as CapMap["calendar.list_calendars"]["out"]["calendars"] }) as CapMap["calendar.list_calendars"]["out"]);
-  replica.resolve("telephony.number.list", () => ({ numbers: replica.rows("numbers") as unknown as CapMap["telephony.number.list"]["out"]["numbers"] }) as CapMap["telephony.number.list"]["out"]);
-  replica.resolve("engine.accounts.list", () => ({ accounts: replica.rows("accounts") as unknown as CapMap["engine.accounts.list"]["out"]["accounts"] }) as CapMap["engine.accounts.list"]["out"]);
-  replica.resolve("engine.models.list", () => ({ models: replica.rows("models") as unknown as CapMap["engine.models.list"]["out"]["models"] }) as CapMap["engine.models.list"]["out"]);
-  replica.resolve("engine.last_pick.get", () => ({ provider: "openai", model: "gpt-5" }) as CapMap["engine.last_pick.get"]["out"]);
-  replica.resolve("engine.defaults.get", () => { const x = replica.rows("defaults")[0] as unknown as { provider: string; model: string; fallback: { provider: string; model: string }[] }; return { provider: x.provider, model: x.model, fallback: x.fallback }; });
-  replica.resolve("engine.usage.query", (_t, i) => { usageAsked.push(i as Record<string, unknown>); return { rows: replica.rows("usage") as unknown as CapMap["engine.usage.query"]["out"]["rows"], totals: { turns: 620, tokensIn: 4_600_000, tokensOut: 940_000, costMicros: 51_800_000 } } as CapMap["engine.usage.query"]["out"]; });
-  replica.resolve("kits.list", () => ({ kits: replica.rows("kits") as unknown as CapMap["kits.list"]["out"]["kits"] }) as CapMap["kits.list"]["out"]);
-  replica.resolve("settings.kit.get", () => { const k = replica.rows("kit")[0] as unknown as { space: string | null; person: string | null; effective: string }; return { kit: { space: k.space, person: k.person, effective: k.effective } }; });
+  replica.resolve(
+    "gate.allow.list",
+    () =>
+      ({
+        rules: replica.rows("allow") as unknown as CapMap["gate.allow.list"]["out"]["rules"],
+      }) as CapMap["gate.allow.list"]["out"],
+  );
+  replica.resolve(
+    "devices.mine",
+    () =>
+      ({
+        devices: (replica.rows("devices") as unknown as Row[]).filter((x) => x["revokedAt"] === undefined),
+        sessions: [],
+      }) as unknown as CapMap["devices.mine"]["out"],
+  );
+  replica.resolve(
+    "notifications.mute.list",
+    () =>
+      ({
+        mutes: (replica.rows("mutes") as unknown as { target: { kind: string; id: string }; until: number }[]).map(
+          (m) => ({ target: m.target, until: m.until }),
+        ),
+      }) as CapMap["notifications.mute.list"]["out"],
+  );
+  replica.resolve(
+    "notifications.kinds.list",
+    () =>
+      ({
+        kinds: [
+          { key: "approval.requested", level: "interrupt", place: "home", title: "Needs you", respectHours: false },
+          { key: "mention", level: "interrupt", place: "chats", title: "Mentions", respectHours: true },
+          { key: "reply.followed", level: "badge", place: "chats", title: "Replies to you", respectHours: true },
+          {
+            key: "task.assigned",
+            level: "badge",
+            place: "home",
+            title: "Agent finished a long task",
+            respectHours: true,
+          },
+          { key: "routine.failed", level: "interrupt", place: "home", title: "Routines", respectHours: true },
+          { key: "digest.other", level: "digest", place: "chats", title: "Channel messages", respectHours: true },
+        ],
+      }) as unknown as CapMap["notifications.kinds.list"]["out"],
+  );
+  replica.resolve(
+    "mail.mailbox.list",
+    () =>
+      ({
+        mailboxes: replica.rows("mailboxes") as unknown as CapMap["mail.mailbox.list"]["out"]["mailboxes"],
+      }) as CapMap["mail.mailbox.list"]["out"],
+  );
+  replica.resolve(
+    "calendar.list_calendars",
+    () =>
+      ({
+        calendars: replica.rows("calendars") as unknown as CapMap["calendar.list_calendars"]["out"]["calendars"],
+      }) as CapMap["calendar.list_calendars"]["out"],
+  );
+  replica.resolve(
+    "telephony.number.list",
+    () =>
+      ({
+        numbers: replica.rows("numbers") as unknown as CapMap["telephony.number.list"]["out"]["numbers"],
+      }) as CapMap["telephony.number.list"]["out"],
+  );
+  replica.resolve(
+    "engine.accounts.list",
+    () =>
+      ({
+        accounts: replica.rows("accounts") as unknown as CapMap["engine.accounts.list"]["out"]["accounts"],
+      }) as CapMap["engine.accounts.list"]["out"],
+  );
+  replica.resolve(
+    "engine.models.list",
+    () =>
+      ({
+        models: replica.rows("models") as unknown as CapMap["engine.models.list"]["out"]["models"],
+      }) as CapMap["engine.models.list"]["out"],
+  );
+  replica.resolve(
+    "engine.last_pick.get",
+    () => ({ provider: "openai", model: "gpt-5" }) as CapMap["engine.last_pick.get"]["out"],
+  );
+  replica.resolve("engine.defaults.get", () => {
+    const x = replica.rows("defaults")[0] as unknown as {
+      provider: string;
+      model: string;
+      fallback: { provider: string; model: string }[];
+    };
+    return { provider: x.provider, model: x.model, fallback: x.fallback };
+  });
+  replica.resolve("engine.usage.query", (_t, i) => {
+    usageAsked.push(i as Record<string, unknown>);
+    return {
+      rows: replica.rows("usage") as unknown as CapMap["engine.usage.query"]["out"]["rows"],
+      totals: { turns: 620, tokensIn: 4_600_000, tokensOut: 940_000, costMicros: 51_800_000 },
+    } as CapMap["engine.usage.query"]["out"];
+  });
+  replica.resolve(
+    "kits.list",
+    () =>
+      ({ kits: replica.rows("kits") as unknown as CapMap["kits.list"]["out"]["kits"] }) as CapMap["kits.list"]["out"],
+  );
+  replica.resolve("settings.kit.get", () => {
+    const k = replica.rows("kit")[0] as unknown as { space: string | null; person: string | null; effective: string };
+    return { kit: { space: k.space, person: k.person, effective: k.effective } };
+  });
 
-  const find = (key: string): Row => { const r = replica.rows("settings").find((x) => x.id === key); if (!r) throw new Error(`no such setting ${key}`); return r; };
+  const find = (key: string): Row => {
+    const r = replica.rows("settings").find((x) => x.id === key);
+    if (!r) throw new Error(`no such setting ${key}`);
+    return r;
+  };
   const writes: Record<string, (input: any) => unknown> = {
     "settings.set_space": (i: { key: string; value: unknown }) => {
       if (space.id !== "northwind") throw new Error("Only a Space admin can change this");
-      if (i.key === "memory.upkeep_monthly_cap") { replica.put("memcap", [{ id: "c", dollars: i.value }] as unknown as Row[]); return { ok: true }; }
+      if (i.key === "memory.upkeep_monthly_cap") {
+        replica.put("memcap", [{ id: "c", dollars: i.value }] as unknown as Row[]);
+        return { ok: true };
+      }
       const cur = find(i.key);
       replica.put("settings", [{ ...cur, value: i.value }]);
       return { row: rowsNow().find((r) => r.key === i.key), previous: cur["value"] };
     },
     "settings.set": (i: { key: string; value: unknown }) => {
       const cur = find(i.key);
-      if (i.key === "profile.handle" && typeof i.value === "string" && i.value !== "" && !/^[a-z0-9_.-]{2,32}$/.test(i.value)) throw new Error("A handle is 2 to 32 letters, numbers, dots or dashes.");
+      if (
+        i.key === "profile.handle" &&
+        typeof i.value === "string" &&
+        i.value !== "" &&
+        !/^[a-z0-9_.-]{2,32}$/.test(i.value)
+      )
+        throw new Error("A handle is 2 to 32 letters, numbers, dots or dashes.");
       replica.put("settings", [{ ...cur, value: i.value }]);
       return { row: rowsNow().find((r) => r.key === i.key), previous: cur["value"] };
     },
-    "settings.reset": (i: { key: string }) => { const cur = find(i.key); replica.put("settings", [{ ...cur, value: cur["default"] }]); return { row: rowsNow().find((r) => r.key === i.key) }; },
+    "settings.reset": (i: { key: string }) => {
+      const cur = find(i.key);
+      replica.put("settings", [{ ...cur, value: cur["default"] }]);
+      return { row: rowsNow().find((r) => r.key === i.key) };
+    },
     "settings.copy_profile": (i: { fields: string[]; values: Record<string, unknown> }) => {
-      const set = (key: string, v: unknown): void => { replica.put("settings", [{ ...find(key), value: v }]); };
+      const set = (key: string, v: unknown): void => {
+        replica.put("settings", [{ ...find(key), value: v }]);
+      };
       for (const f of i.fields) {
         if (f === "name") set("profile.display_name", i.values["name"]);
         else if (f === "handle") set("profile.handle", i.values["handle"]);
@@ -292,39 +952,164 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
       }
       return { applied: i.fields };
     },
-    "settings.kit.set_mine": (i: { kitId: string | null }) => { const k = replica.rows("kit")[0]!; replica.put("kit", [{ ...k, person: i.kitId, effective: i.kitId ?? String(k["space"]) }]); return { kit: { person: i.kitId } }; },
-    "engine.defaults.set": (i: { provider?: string; model?: string; fallback?: { provider: string; model: string }[] }) => { const cur = replica.rows("defaults")[0]!; replica.put("defaults", [{ ...cur, ...(i.provider ? { provider: i.provider } : {}), ...(i.model ? { model: i.model } : {}), ...(i.fallback ? { fallback: i.fallback } : {}) }]); return { ok: true }; },
-    "notifications.kind.set_level": (i: { kind: string; level?: string; channels?: string[] }) => { const lvl = i.level ?? ((i.channels ?? []).some((c) => c !== "email") ? "interrupt" : "badge"); if (i.kind === "approval.requested" && lvl !== "interrupt") throw new Error("Approval reminders never go below Interrupt."); return { kind: i.kind, level: lvl, channels: i.channels ?? [] }; },
-    "notifications.mute.clear": (i: { target: { id: string } }) => { replica.remove("mutes", [i.target.id]); return { ok: true }; },
-    "github.me.connect": () => ({ authUrl: "https://github.com/login/oauth/authorize?state=x", state: "x", source: "vyre" }),
-    "github.me.disconnect": () => { ghOn = false; return { disconnected: true }; },
-    "github.me.policy.set": (i: { policy: Record<string, string> }) => { Object.assign(ghPolicy, i.policy); return { policy: { ...ghPolicy } }; },
+    "settings.kit.set_mine": (i: { kitId: string | null }) => {
+      const k = replica.rows("kit")[0]!;
+      replica.put("kit", [{ ...k, person: i.kitId, effective: i.kitId ?? String(k["space"]) }]);
+      return { kit: { person: i.kitId } };
+    },
+    "engine.defaults.set": (i: {
+      provider?: string;
+      model?: string;
+      fallback?: { provider: string; model: string }[];
+    }) => {
+      const cur = replica.rows("defaults")[0]!;
+      replica.put("defaults", [
+        {
+          ...cur,
+          ...(i.provider ? { provider: i.provider } : {}),
+          ...(i.model ? { model: i.model } : {}),
+          ...(i.fallback ? { fallback: i.fallback } : {}),
+        },
+      ]);
+      return { ok: true };
+    },
+    "notifications.kind.set_level": (i: { kind: string; level?: string; channels?: string[] }) => {
+      const lvl = i.level ?? ((i.channels ?? []).some((c) => c !== "email") ? "interrupt" : "badge");
+      if (i.kind === "approval.requested" && lvl !== "interrupt")
+        throw new Error("Approval reminders never go below Interrupt.");
+      return { kind: i.kind, level: lvl, channels: i.channels ?? [] };
+    },
+    "notifications.mute.clear": (i: { target: { id: string } }) => {
+      replica.remove("mutes", [i.target.id]);
+      return { ok: true };
+    },
+    "github.me.connect": () => ({
+      authUrl: "https://github.com/login/oauth/authorize?state=x",
+      state: "x",
+      source: "vyre",
+    }),
+    "github.me.disconnect": () => {
+      ghOn = false;
+      return { disconnected: true };
+    },
+    "github.me.policy.set": (i: { policy: Record<string, string> }) => {
+      Object.assign(ghPolicy, i.policy);
+      return { policy: { ...ghPolicy } };
+    },
     "machines.set": () => ({ ok: true }),
     "machines.fix": () => ({ ok: true }),
-    "gate.allow.remove": (i: { id: string }) => { replica.remove("allow", [i.id]); return { ok: true }; },
-    "devices.revoke": (i: { deviceId: string }) => { const cur = replica.rows("devices").find((x) => x.id === i.deviceId); if (cur) replica.put("devices", [{ ...cur, revokedAt: SAMPLE_NOW }]); return { ok: true }; },
-    "devices.revoke_others": () => { let n = 0; for (const x of replica.rows("devices")) if (!x["current"] && x["revokedAt"] === undefined) { replica.put("devices", [{ ...x, revokedAt: SAMPLE_NOW }]); n++; } return { revoked: n }; },
-    "mail.mailbox.pause": (i: { mailboxId: string }) => { const m = replica.rows("mailboxes").find((x) => x.id === i.mailboxId); if (m) replica.put("mailboxes", [{ ...m, state: "paused" }]); return { ok: true }; },
-    "mail.mailbox.resume": (i: { mailboxId: string }) => { const m = replica.rows("mailboxes").find((x) => x.id === i.mailboxId); if (m) replica.put("mailboxes", [{ ...m, state: "syncing" }]); return { ok: true }; },
-    "mail.mailbox.disconnect": (i: { mailboxId: string }) => { replica.remove("mailboxes", [i.mailboxId]); return { ok: true }; },
-    "calendar.delete_calendar": (i: { calendarId: string }) => { replica.remove("calendars", [i.calendarId]); return { deleted: true }; },
+    "gate.allow.remove": (i: { id: string }) => {
+      replica.remove("allow", [i.id]);
+      return { ok: true };
+    },
+    "devices.revoke": (i: { deviceId: string }) => {
+      const cur = replica.rows("devices").find((x) => x.id === i.deviceId);
+      if (cur) replica.put("devices", [{ ...cur, revokedAt: SAMPLE_NOW }]);
+      return { ok: true };
+    },
+    "devices.revoke_others": () => {
+      let n = 0;
+      for (const x of replica.rows("devices"))
+        if (!x["current"] && x["revokedAt"] === undefined) {
+          replica.put("devices", [{ ...x, revokedAt: SAMPLE_NOW }]);
+          n++;
+        }
+      return { revoked: n };
+    },
+    "mail.mailbox.pause": (i: { mailboxId: string }) => {
+      const m = replica.rows("mailboxes").find((x) => x.id === i.mailboxId);
+      if (m) replica.put("mailboxes", [{ ...m, state: "paused" }]);
+      return { ok: true };
+    },
+    "mail.mailbox.resume": (i: { mailboxId: string }) => {
+      const m = replica.rows("mailboxes").find((x) => x.id === i.mailboxId);
+      if (m) replica.put("mailboxes", [{ ...m, state: "syncing" }]);
+      return { ok: true };
+    },
+    "mail.mailbox.disconnect": (i: { mailboxId: string }) => {
+      replica.remove("mailboxes", [i.mailboxId]);
+      return { ok: true };
+    },
+    "calendar.delete_calendar": (i: { calendarId: string }) => {
+      replica.remove("calendars", [i.calendarId]);
+      return { deleted: true };
+    },
     "memory.key.set": (i: { layer: "space" | "project" | "person"; projectId?: string; accountRef: string | null }) => {
-      const k = replica.rows("memkeys")[0] as unknown as { id: string; person: string | null; space: string | null; projects: Record<string, string> };
-      if (i.layer !== "person" && space.id !== "northwind") throw new Error("Only a Space admin sets the key for Space and project memory.");
+      const k = replica.rows("memkeys")[0] as unknown as {
+        id: string;
+        person: string | null;
+        space: string | null;
+        projects: Record<string, string>;
+      };
+      if (i.layer !== "person" && space.id !== "northwind")
+        throw new Error("Only a Space admin sets the key for Space and project memory.");
       const next = { ...k, projects: { ...k.projects } };
       if (i.layer === "person") next.person = i.accountRef;
       else if (i.layer === "space") next.space = i.accountRef;
-      else if (i.accountRef === null) delete next.projects[i.projectId ?? ""]; else next.projects[i.projectId ?? ""] = i.accountRef;
+      else if (i.accountRef === null) delete next.projects[i.projectId ?? ""];
+      else next.projects[i.projectId ?? ""] = i.accountRef;
       replica.put("memkeys", [next as unknown as Row]);
       return { layer: i.layer, accountRef: i.accountRef };
     },
-    "memory.profile.move": (i: { factId: string; to: "public" | "private" }) => { const f = replica.rows("profile").find((x) => x.id === i.factId); if (!f) throw new Error("That fact is not there."); const next = { ...f, place: i.to } as Row; delete (next as Record<string, unknown>)["suggested"]; replica.put("profile", [next]); return { fact: next }; },
-    "memory.profile.add": (i: { text: string; to: "public" | "private" }) => { const id = `fct_new${replica.rows("profile").length}`; const f = { id, factId: id, text: i.text, place: i.to, layer: "person", ownerRef: space.me.id, status: "current", sourceKind: "manual", sourceRef: "profile", validFrom: SAMPLE_NOW, learnedAt: SAMPLE_NOW } as unknown as Row; replica.put("profile", [f]); return { fact: f }; },
-    "memory.fact.correct": (i: { factId: string; text: string }) => { const f = replica.rows("profile").find((x) => x.id === i.factId); if (!f) throw new Error("That fact is not there."); replica.put("profile", [{ ...f, text: i.text } as Row]); return { fact: { ...f, text: i.text } }; },
-    "memory.forget": (i: { factIds: string[] }) => { const gone = replica.rows("profile").filter((x) => i.factIds.includes(String(x.id))); replica.put("forgotten", gone); replica.remove("profile", i.factIds); return { removed: gone.length }; },
-    "memory.restore": (i: { factId: string }) => { const f = replica.rows("forgotten").find((x) => x.id === i.factId); if (f) replica.put("profile", [f]); return { restoredFrom: "trash" }; },
-    "memory.erase": (i: { factIds: string[] }) => { replica.remove("profile", i.factIds); return { erased: i.factIds.length }; },
-    "memory.learning.today": () => ({ day: "2025-10-25", passes: 14, tokensIn: 38_000, tokensOut: 4_100, rulePasses: 0, capPasses: 200, capTokens: 2_000_000, resetsAt: SAMPLE_NOW + DAY, timezone: "Asia/Karachi", state: "learning" }),
+    "memory.profile.move": (i: { factId: string; to: "public" | "private" }) => {
+      const f = replica.rows("profile").find((x) => x.id === i.factId);
+      if (!f) throw new Error("That fact is not there.");
+      const next = { ...f, place: i.to } as Row;
+      delete (next as Record<string, unknown>)["suggested"];
+      replica.put("profile", [next]);
+      return { fact: next };
+    },
+    "memory.profile.add": (i: { text: string; to: "public" | "private" }) => {
+      const id = `fct_new${replica.rows("profile").length}`;
+      const f = {
+        id,
+        factId: id,
+        text: i.text,
+        place: i.to,
+        layer: "person",
+        ownerRef: space.me.id,
+        status: "current",
+        sourceKind: "manual",
+        sourceRef: "profile",
+        validFrom: SAMPLE_NOW,
+        learnedAt: SAMPLE_NOW,
+      } as unknown as Row;
+      replica.put("profile", [f]);
+      return { fact: f };
+    },
+    "memory.fact.correct": (i: { factId: string; text: string }) => {
+      const f = replica.rows("profile").find((x) => x.id === i.factId);
+      if (!f) throw new Error("That fact is not there.");
+      replica.put("profile", [{ ...f, text: i.text } as Row]);
+      return { fact: { ...f, text: i.text } };
+    },
+    "memory.forget": (i: { factIds: string[] }) => {
+      const gone = replica.rows("profile").filter((x) => i.factIds.includes(String(x.id)));
+      replica.put("forgotten", gone);
+      replica.remove("profile", i.factIds);
+      return { removed: gone.length };
+    },
+    "memory.restore": (i: { factId: string }) => {
+      const f = replica.rows("forgotten").find((x) => x.id === i.factId);
+      if (f) replica.put("profile", [f]);
+      return { restoredFrom: "trash" };
+    },
+    "memory.erase": (i: { factIds: string[] }) => {
+      replica.remove("profile", i.factIds);
+      return { erased: i.factIds.length };
+    },
+    "memory.learning.today": () => ({
+      day: "2025-10-25",
+      passes: 14,
+      tokensIn: 38_000,
+      tokensOut: 4_100,
+      rulePasses: 0,
+      capPasses: 200,
+      capTokens: 2_000_000,
+      resetsAt: SAMPLE_NOW + DAY,
+      timezone: "Asia/Karachi",
+      state: "learning",
+    }),
     "spaces.leave": () => ({ ok: true }),
   };
 
@@ -332,15 +1117,26 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   // the generated screen queries pass route and page parameters the fake hooks do not resolve; these are opened here with what they were given
   const screens: ScreenHooks = {
     query(screenId, name, state = {}) {
-      if (screenId === "settings.page" && name === "rows") return liveQuery(replica, "settings.list", {}) as LiveQuery<unknown>;
-      if (screenId === "settings.models-usage" && name === "usage") return liveQuery(replica, "engine.usage.query", { by: "model", ...(state["personId"] !== undefined ? { personId: state["personId"] } : {}), ...(state["from"] !== undefined ? { from: state["from"] } : {}) }) as LiveQuery<unknown>;
+      if (screenId === "settings.page" && name === "rows")
+        return liveQuery(replica, "settings.list", {}) as LiveQuery<unknown>;
+      if (screenId === "settings.models-usage" && name === "usage")
+        return liveQuery(replica, "engine.usage.query", {
+          by: "model",
+          ...(state["personId"] !== undefined ? { personId: state["personId"] } : {}),
+          ...(state["from"] !== undefined ? { from: state["from"] } : {}),
+        }) as LiveQuery<unknown>;
       return base.query(screenId, name, state);
     },
   };
   const nav: SettingsNav = {
     openLink: (l) => void opened.push(`link:${l}`),
-    openVault: () => void opened.push("vault"), openSpace: (id) => void opened.push(`space:${id}`), connect: (k) => void opened.push(`connect:${k}`),
-    choosePhoto: async () => "fil_sample", previewSkin: (id) => void previews.push(id), applyLook: (l) => void looks.push(l), manageSecurity: (kind, id) => void opened.push(`security:${kind}:${id}`),
+    openVault: () => void opened.push("vault"),
+    openSpace: (id) => void opened.push(`space:${id}`),
+    connect: (k) => void opened.push(`connect:${k}`),
+    choosePhoto: async () => "fil_sample",
+    previewSkin: (id) => void previews.push(id),
+    applyLook: (l) => void looks.push(l),
+    manageSecurity: (kind, id) => void opened.push(`security:${kind}:${id}`),
   };
   const data: SettingsData = {
     // the Owner of Northwind can open everything; Harbor Studio is a Member's Space and has no Space pages
@@ -356,7 +1152,13 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
       throw new Error(`no handler for ${cap}`);
     },
     peek: (cap, input) => replica.run(cap as keyof CapMap, input as never)?.data,
-    me: space.me, space: { id: space.id, name: space.name }, spaces: space.spaces, name: (id) => space.names[id] ?? nameOf(space.id, id), nav, clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }), security: securityOf(space),
+    me: space.me,
+    space: { id: space.id, name: space.name },
+    spaces: space.spaces,
+    name: (id) => space.names[id] ?? nameOf(space.id, id),
+    nav,
+    clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
+    security: securityOf(space),
   };
   return { data, replica, space, calls, opened, previews, looks, usageAsked, failNext: (cap) => void failing.add(cap) };
 }

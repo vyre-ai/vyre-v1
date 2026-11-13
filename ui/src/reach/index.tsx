@@ -4,7 +4,10 @@
 import { createContext, createElement, useContext, useEffect, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 
-export interface LinkSubject { type: string; id: string }
+export interface LinkSubject {
+  type: string;
+  id: string;
+}
 export type LinkState = { state: "live" | "peek" | "plain"; hint?: string };
 
 export interface LinkPolicy {
@@ -23,7 +26,13 @@ export interface LinkPolicy {
 const LIVE: LinkState = { state: "live" };
 const Ctx = createContext<LinkPolicy | null>(null);
 
-export function LinkPolicyProvider({ value, children }: { value: LinkPolicy | null; children?: ReactNode }): ReactElement {
+export function LinkPolicyProvider({
+  value,
+  children,
+}: {
+  value: LinkPolicy | null;
+  children?: ReactNode;
+}): ReactElement {
   return createElement(Ctx.Provider, { value }, children);
 }
 
@@ -36,7 +45,9 @@ export function useLinkState(subject: LinkSubject | undefined): LinkState {
   const type = subject?.type;
   const id = subject?.id;
   const asked = policy !== null && type !== undefined && id !== undefined;
-  useEffect(() => { if (asked) policy.prefetch([{ type: type as string, id: id as string }]); }, [asked, policy, type, id]);
+  useEffect(() => {
+    if (asked) policy.prefetch([{ type: type as string, id: id as string }]);
+  }, [asked, policy, type, id]);
   if (policy === null || type === undefined || id === undefined) return LIVE;
   return policy.stateOf({ type, id });
 }
@@ -45,7 +56,9 @@ export function useLinkState(subject: LinkSubject | undefined): LinkState {
 export function usePrefetch(subjects: readonly LinkSubject[]): void {
   const policy = useContext(Ctx);
   const key = subjects.map((s) => `${s.type}:${s.id}`).join("|");
-  useEffect(() => { if (policy !== null && subjects.length > 0) policy.prefetch(subjects); }, [policy, key]);
+  useEffect(() => {
+    if (policy !== null && subjects.length > 0) policy.prefetch(subjects);
+  }, [policy, key]);
 }
 
 const noop = (): (() => void) => () => undefined;

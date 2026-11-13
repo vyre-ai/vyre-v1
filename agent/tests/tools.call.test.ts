@@ -10,19 +10,31 @@ import { ctx, loadGenerated, makeSession, thread } from "../src/tools/harness.ts
 test("catalog: every generated tool joins its capability; the frozen default list is 65 real tools", () => {
   const { catalog, defaults, caps } = loadGenerated();
   // Every generated tool joins the catalog, so the count follows the generated file instead of a literal that each contract change breaks.
-  const generated = JSON.parse(readFileSync(new URL("../../generated/mcp-tools.json", import.meta.url), "utf8")) as { tools: unknown[] };
+  const generated = JSON.parse(readFileSync(new URL("../../generated/mcp-tools.json", import.meta.url), "utf8")) as {
+    tools: unknown[];
+  };
   assert.equal(catalog.all.length, generated.tools.length);
   assert.equal(defaults.size, 65);
   for (const n of defaults) assert.ok(catalog.byName(n), `default tool ${n} exists`);
   for (const t of catalog.all) assert.ok(caps.has(t.cap), t.name);
   const stricter = catalog.all.filter((t) => t.effects === "outward").length;
   // 77 until rc.8 added twelve gated outward tools: Dropbox files (create_folder, delete, restore, upload), Google Docs insert/replace text, mounts doc/sheet edits and Excel workbook writes.
-  assert.equal(stricter, 90);  // campaigns_launch left with Campaigns; mcp_call (a connection's tool called from a CLI engine, l-skills1) is gated outward; google_gmail_delete_draft (l-chrome2a) is too
+  assert.equal(stricter, 90); // campaigns_launch left with Campaigns; mcp_call (a connection's tool called from a CLI engine, l-skills1) is gated outward; google_gmail_delete_draft (l-chrome2a) is too
 });
 
 test("catalog: a tool whose capability is missing, or a duplicate name, is a build error not a quiet gap", () => {
   const cap: RegistryCapRow = { name: "a.b", v: 1, level: "view", effects: "read" };
-  const tool: McpToolRow = { name: "a_b", cap: "a.b", v: 1, toolset: "meta", description: "x", inputSchema: {}, effects: "read", planMode: "allowed", deferred: false };
+  const tool: McpToolRow = {
+    name: "a_b",
+    cap: "a.b",
+    v: 1,
+    toolset: "meta",
+    description: "x",
+    inputSchema: {},
+    effects: "read",
+    planMode: "allowed",
+    deferred: false,
+  };
   assert.equal(buildCatalog([cap], [tool]).all.length, 1);
   assert.throws(() => buildCatalog([], [tool]), /not in the registry/);
   assert.throws(() => buildCatalog([cap], [tool, tool]), /duplicate/);
@@ -34,9 +46,14 @@ test("catalog: a tool whose capability is missing, or a duplicate name, is a bui
 test("the default listed set loads every turn (about 60); the rest are found with tool_search and then callable", async () => {
   const { session, loaded } = makeSession();
   const set = session.toolsFor(ctx());
-  assert.equal(set.listed.length, 65 - loaded.catalog.all.filter((t) => loaded.defaults.has(t.name) && t.toolset === "engineer").length);
+  assert.equal(
+    set.listed.length,
+    65 - loaded.catalog.all.filter((t) => loaded.defaults.has(t.name) && t.toolset === "engineer").length,
+  );
   assert.ok(set.searchable.length > 500);
-  const notDefault = loaded.catalog.all.find((t) => !loaded.defaults.has(t.name) && t.effects === "read" && t.toolset !== "engineer");
+  const notDefault = loaded.catalog.all.find(
+    (t) => !loaded.defaults.has(t.name) && t.effects === "read" && t.toolset !== "engineer",
+  );
   assert.ok(notDefault);
   const early = await session.call(ctx(), notDefault.name, {});
   assert.equal(early.kind === "error" && early.error.code, "validation.precondition_failed");
@@ -45,21 +62,29 @@ test("the default listed set loads every turn (about 60); the rest are found wit
   const found = await session.call(ctx(), "tool_search", { query: notDefault.name });
   assert.equal(found.kind, "result");
   if (found.kind === "result") {
-    const tools = (found.result.content as { data: { tools: Array<{ name: string; inputSchema: unknown }> } }).data.tools;
+    const tools = (found.result.content as { data: { tools: Array<{ name: string; inputSchema: unknown }> } }).data
+      .tools;
     const hit = tools.find((t) => t.name === notDefault.name);
     assert.ok(hit, "the schema comes back with the name");
     assert.ok(hit.inputSchema !== undefined);
   }
   assert.equal((await session.call(ctx(), notDefault.name, {})).kind, "result");
   session.forget("T1");
-  assert.equal((await session.call(ctx(), notDefault.name, {})).kind, "error", "a new thread session starts with nothing loaded");
+  assert.equal(
+    (await session.call(ctx(), notDefault.name, {})).kind,
+    "error",
+    "a new thread session starts with nothing loaded",
+  );
 });
 
 test("tool_search is scoped to what the asker may use, and needs a query", async () => {
   const { session } = makeSession({ levels: { "per_dana:record:rec_1": "view" } });
   const c = ctx({ thread: thread({ kind: "ask", scope: { type: "record", id: "rec_1" } }) });
   const hits = session.search(c, "update record field");
-  assert.ok(hits.every((t) => t.effects === "read" || t.cap === "access.propose_change"), "no write tool is revealed to a view-only pane");
+  assert.ok(
+    hits.every((t) => t.effects === "read" || t.cap === "access.propose_change"),
+    "no write tool is revealed to a view-only pane",
+  );
   const bad = await session.call(c, "tool_search", {});
   assert.equal(bad.kind === "error" && bad.error.code, "validation.bad_input");
 });
@@ -79,7 +104,10 @@ test("agent allow and deny lists narrow the set; deny wins; a toolset name works
 test("the engineer toolset is never offered without engineer.mcp", async () => {
   const off = makeSession();
   const on = makeSession({ engineer: true });
-  const all = (s: ReturnType<typeof makeSession>) => { const x = s.session.toolsFor(ctx()); return [...x.listed, ...x.searchable]; };
+  const all = (s: ReturnType<typeof makeSession>) => {
+    const x = s.session.toolsFor(ctx());
+    return [...x.listed, ...x.searchable];
+  };
   assert.ok(all(off).every((t) => t.toolset !== "engineer"));
   assert.ok(all(on).some((t) => t.toolset === "engineer"));
   const out = await off.session.call(ctx(), "access_actors_create", {});
@@ -90,14 +118,30 @@ test("the seed names the agent as principal, the asker as who it acts for, and c
   const seeds: unknown[] = [];
   const loaded = loadGenerated();
   const session = createToolSession({
-    catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage",
-    invoke: async (_cap, _input, seed) => { seeds.push(seed); return { status: "ok", output: { id: "rec_1" }, traceId: "tr_1" }; },
+    catalog: loaded.catalog,
+    defaults: loaded.defaults,
+    levelFor: () => "manage",
+    invoke: async (_cap, _input, seed) => {
+      seeds.push(seed);
+      return { status: "ok", output: { id: "rec_1" }, traceId: "tr_1" };
+    },
   });
-  const out = await session.call(ctx({ runId: "run_9", provider: "anthropic", trace: { traceId: "tr_a", spanId: "sp_a" } }), "records_get", { id: "rec_1" });
+  const out = await session.call(
+    ctx({ runId: "run_9", provider: "anthropic", trace: { traceId: "tr_a", spanId: "sp_a" } }),
+    "records_get",
+    { id: "rec_1" },
+  );
   assert.equal(out.kind, "result");
   assert.deepEqual(seeds[0], {
-    space: "spc_1", principal: { kind: "agent", id: "agt_intake" }, actingFor: "per_dana", trace: { traceId: "tr_a", spanId: "sp_a" },
-    run: "run_9", thread: "T1", origin: "agent", provider: "anthropic", approval: undefined,
+    space: "spc_1",
+    principal: { kind: "agent", id: "agt_intake" },
+    actingFor: "per_dana",
+    trace: { traceId: "tr_a", spanId: "sp_a" },
+    run: "run_9",
+    thread: "T1",
+    origin: "agent",
+    provider: "anthropic",
+    approval: undefined,
   });
   if (out.kind === "result") assert.deepEqual(out.result, { ok: true, content: { data: { id: "rec_1" } } });
 });
@@ -113,9 +157,14 @@ test("errors from invoke come back as tool errors with their code; an unexpected
   const loaded = loadGenerated();
   let mode: "denied" | "boom" = "denied";
   const session = createToolSession({
-    catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage",
+    catalog: loaded.catalog,
+    defaults: loaded.defaults,
+    levelFor: () => "manage",
     invoke: async () => {
-      if (mode === "denied") throw new HostError(makeError("permission.no_grant", "tr_x", { next: [{ kind: "ask_access", label: "Ask for access" }] }));
+      if (mode === "denied")
+        throw new HostError(
+          makeError("permission.no_grant", "tr_x", { next: [{ kind: "ask_access", label: "Ask for access" }] }),
+        );
       throw new Error("secret connection string postgres://u:p@host");
     },
   });
@@ -128,19 +177,53 @@ test("errors from invoke come back as tool errors with their code; an unexpected
   assert.ok(!JSON.stringify(b).includes("postgres://"));
 });
 
-const LEAK = /\b(?:[a-z]{2,6}_[a-z0-9]{8,}|[0-9a-f]{16,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b|\b500\b/i;
+const LEAK =
+  /\b(?:[a-z]{2,6}_[a-z0-9]{8,}|[0-9a-f]{16,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b|\b500\b/i;
 
 test("no tool error a model receives carries a trace id, an internal id or a bare 500; the full error with its trace stays beside it for the Details", async () => {
   const loaded = loadGenerated();
   const TRACE = "6bc64f781807dd96d50562e8114b4df5";
   const failures: Array<() => never> = [
-    () => { throw new TypeError("Cannot read properties of undefined (reading 'length') at thr_01a1a392662d48efb1762dffc795f3a3"); },
-    () => { throw new HostError(makeError("validation.not_found", TRACE, { message: "Record rec_01a1a392662d48efb1762dffc795f3a3 is not here.", details: { recordId: "rec_01a1a392662d48efb1762dffc795f3a3" }, next: [{ kind: "ask_access", label: "Ask for access to rec_01a1a392662d48efb1762dffc795f3a3", action: { cap: "access.request" as never, input: { id: "x" } } }] })); },
-    () => { throw new HostError(makeError("permission.no_grant", TRACE)); },
-    () => { throw new HostError(makeError("internal.unexpected", TRACE, { message: "Something went wrong on our side.", details: { traceId: TRACE } })); },
+    () => {
+      throw new TypeError(
+        "Cannot read properties of undefined (reading 'length') at thr_01a1a392662d48efb1762dffc795f3a3",
+      );
+    },
+    () => {
+      throw new HostError(
+        makeError("validation.not_found", TRACE, {
+          message: "Record rec_01a1a392662d48efb1762dffc795f3a3 is not here.",
+          details: { recordId: "rec_01a1a392662d48efb1762dffc795f3a3" },
+          next: [
+            {
+              kind: "ask_access",
+              label: "Ask for access to rec_01a1a392662d48efb1762dffc795f3a3",
+              action: { cap: "access.request" as never, input: { id: "x" } },
+            },
+          ],
+        }),
+      );
+    },
+    () => {
+      throw new HostError(makeError("permission.no_grant", TRACE));
+    },
+    () => {
+      throw new HostError(
+        makeError("internal.unexpected", TRACE, {
+          message: "Something went wrong on our side.",
+          details: { traceId: TRACE },
+        }),
+      );
+    },
   ];
   for (const f of failures) {
-    const session = createToolSession({ catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage", traceId: () => TRACE, invoke: async () => f() });
+    const session = createToolSession({
+      catalog: loaded.catalog,
+      defaults: loaded.defaults,
+      levelFor: () => "manage",
+      traceId: () => TRACE,
+      invoke: async () => f(),
+    });
     const out = await session.call(ctx(), "memory_search", { q: "notes" });
     assert.equal(out.kind, "error");
     if (out.kind !== "error") continue;
@@ -153,11 +236,23 @@ test("no tool error a model receives carries a trace id, an internal id or a bar
 
 test("a crash inside the server reaches the agent as a plain sentence naming the tool and what to do", async () => {
   const loaded = loadGenerated();
-  const session = createToolSession({ catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage", traceId: () => "trace_fixed", invoke: async () => { throw new TypeError("boom"); } });
+  const session = createToolSession({
+    catalog: loaded.catalog,
+    defaults: loaded.defaults,
+    levelFor: () => "manage",
+    traceId: () => "trace_fixed",
+    invoke: async () => {
+      throw new TypeError("boom");
+    },
+  });
   const out = await session.call(ctx(), "memory_search", { q: "notes" });
-  const content = out.kind === "error" ? (out.result.content as { error: { code: string; message: string } }).error : null;
+  const content =
+    out.kind === "error" ? (out.result.content as { error: { code: string; message: string } }).error : null;
   assert.equal(content?.code, "internal.unexpected");
-  assert.match(content?.message ?? "", /memory_search could not finish on the server just now, and nothing was changed/);
+  assert.match(
+    content?.message ?? "",
+    /memory_search could not finish on the server just now, and nothing was changed/,
+  );
   assert.match(content?.message ?? "", /Do not paste ids or traces/);
 });
 
@@ -168,11 +263,19 @@ test("an unknown tool is a validation error and never reaches invoke", async () 
   assert.equal(calls.length, 0);
 });
 
-
 test("a probe call is refused before anything runs: example.com, a bare test and __probe_none__ reach no capability and come back with the plain refusal; a real call still works", async () => {
   const loaded = loadGenerated();
   const invoked: string[] = [];
-  const session = createToolSession({ catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage", traceId: () => "trace_fixed", invoke: async (cap) => { invoked.push(cap); return { status: "ok", output: {}, traceId: "t" } as never; } });
+  const session = createToolSession({
+    catalog: loaded.catalog,
+    defaults: loaded.defaults,
+    levelFor: () => "manage",
+    traceId: () => "trace_fixed",
+    invoke: async (cap) => {
+      invoked.push(cap);
+      return { status: "ok", output: {}, traceId: "t" } as never;
+    },
+  });
   const probes: Array<[string, unknown]> = [
     ["records_get", { recordId: "__probe_none__" }],
     ["ask_question", { prompt: "test", mode: "free" }],
@@ -185,10 +288,16 @@ test("a probe call is refused before anything runs: example.com, a bare test and
     assert.equal(out.kind, "error", `${tool} ${JSON.stringify(input)}`);
     if (out.kind !== "error") continue;
     assert.equal(out.error.code, "validation.bad_input");
-    assert.match(out.error.message, /Don't call tools to test them\. Call with the real thing the person asked for, or don't call\./);
+    assert.match(
+      out.error.message,
+      /Don't call tools to test them\. Call with the real thing the person asked for, or don't call\./,
+    );
   }
   assert.deepEqual(invoked, [], "nothing reached a capability: no card, hold, task or message");
-  const real = await session.call(ctx(), "records_get", { type: "lead", recordId: "rec_01a1a392662d48efb1762dffc795f3a3" });
+  const real = await session.call(ctx(), "records_get", {
+    type: "lead",
+    recordId: "rec_01a1a392662d48efb1762dffc795f3a3",
+  });
   assert.equal(real.kind, "result");
   assert.deepEqual(invoked, ["records.get"]);
 });
@@ -196,12 +305,25 @@ test("a probe call is refused before anything runs: example.com, a bare test and
 test("a value the person typed themselves passes the probe guard; the same value invented by the agent is refused", async () => {
   const loaded = loadGenerated();
   const invoked: string[] = [];
-  const session = createToolSession({ catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage", traceId: () => "trace_fixed", invoke: async (cap) => { invoked.push(cap); return { status: "ok", output: {}, traceId: "t" } as never; } });
+  const session = createToolSession({
+    catalog: loaded.catalog,
+    defaults: loaded.defaults,
+    levelFor: () => "manage",
+    traceId: () => "trace_fixed",
+    invoke: async (cap) => {
+      invoked.push(cap);
+      return { status: "ok", output: {}, traceId: "t" } as never;
+    },
+  });
   const input = { type: "lead", fields: { name: "test", site: "https://example.com" } };
   const invented = await session.call(ctx(), "records_create", input);
   assert.equal(invented.kind, "error", "the agent made it up: refused");
   assert.deepEqual(invoked, []);
-  const asked = await session.call(ctx({ said: "Please make a lead called test and use https://example.com as its site" }), "records_create", input);
+  const asked = await session.call(
+    ctx({ said: "Please make a lead called test and use https://example.com as its site" }),
+    "records_create",
+    input,
+  );
   assert.equal(asked.kind, "result", "the person asked for exactly that: it runs");
   assert.deepEqual(invoked, ["records.create"]);
   // the person asked for one of the two values only: the other is still the agent's invention
@@ -214,10 +336,23 @@ test("a value the person typed themselves passes the probe guard; the same value
 test("what a model reads from a failed tool says approval, never Gate or hold", async () => {
   const loaded = loadGenerated();
   const session = createToolSession({
-    catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage", traceId: () => "trace_fixed",
-    invoke: async () => { throw new HostError(makeError("permission.needs_approval", "tr_x", { message: "This send is held at the Gate. The hold waits for a person." })); },
+    catalog: loaded.catalog,
+    defaults: loaded.defaults,
+    levelFor: () => "manage",
+    traceId: () => "trace_fixed",
+    invoke: async () => {
+      throw new HostError(
+        makeError("permission.needs_approval", "tr_x", {
+          message: "This send is held at the Gate. The hold waits for a person.",
+        }),
+      );
+    },
   });
-  const out = await session.call(ctx(), "mail_send", { to: ["maya@northwind.com"], subject: "Retainer", body: "Dear Maya, the retainer is attached." });
+  const out = await session.call(ctx(), "mail_send", {
+    to: ["maya@northwind.com"],
+    subject: "Retainer",
+    body: "Dear Maya, the retainer is attached.",
+  });
   assert.equal(out.kind, "error");
   if (out.kind !== "error") return;
   const seen = JSON.stringify(out.result.content);
@@ -229,18 +364,36 @@ test("what a model reads from a failed tool says approval, never Gate or hold", 
 test("a result of a timed capability carries <key>Local in the asker's zone; another capability's result is untouched; no known zone means no change", async () => {
   const g = loadGenerated();
   const output = { event: { start: "2026-11-05T22:00:00Z", title: "Call" }, items: [{ createdAt: 1_793_916_000_000 }] };
-  const make = (zone: string | undefined) => createToolSession({
-    catalog: g.catalog, defaults: new Set([...g.defaults, "calendar_list_calendars", "agents_list"]), levelFor: () => null, canEngineer: () => false, traceId: () => "t",
-    ...(zone ? { zoneOf: () => zone } : {}),
-    invoke: async () => ({ status: "ok", output, traceId: "t" }),
-  });
-  const dataOf = async (zone: string | undefined, tool: string) => ((await make(zone).call(ctx(), tool, {})).result.content as { data: typeof output & { event: Record<string, string> } }).data;
+  const make = (zone: string | undefined) =>
+    createToolSession({
+      catalog: g.catalog,
+      defaults: new Set([...g.defaults, "calendar_list_calendars", "agents_list"]),
+      levelFor: () => null,
+      canEngineer: () => false,
+      traceId: () => "t",
+      ...(zone ? { zoneOf: () => zone } : {}),
+      invoke: async () => ({ status: "ok", output, traceId: "t" }),
+    });
+  const dataOf = async (zone: string | undefined, tool: string) =>
+    (
+      (await make(zone).call(ctx(), tool, {})).result.content as {
+        data: typeof output & { event: Record<string, string> };
+      }
+    ).data;
   const shown = await dataOf("Asia/Karachi", "calendar_list_calendars");
   assert.equal(shown.event["startLocal"], "Friday 6 November 2026, 03:00 (Asia/Karachi, UTC+5)");
   assert.equal(shown.event["start"], "2026-11-05T22:00:00Z");
   assert.match((shown.items[0] as unknown as Record<string, string>)["createdAtLocal"]!, /^Friday 6 November 2026/);
-  assert.equal((await dataOf(undefined, "calendar_list_calendars")).event["startLocal"], undefined, "no zone known: the result is as it was");
-  assert.equal((await dataOf("Asia/Karachi", "agents_list")).event["startLocal"], undefined, "agents are not a timed capability");
+  assert.equal(
+    (await dataOf(undefined, "calendar_list_calendars")).event["startLocal"],
+    undefined,
+    "no zone known: the result is as it was",
+  );
+  assert.equal(
+    (await dataOf("Asia/Karachi", "agents_list")).event["startLocal"],
+    undefined,
+    "agents are not a timed capability",
+  );
 });
 
 // The owner's agent told him a goal's deadline as "10 Nov, 23:16 UTC": the goal tool handed it a bare epoch number.
@@ -248,10 +401,16 @@ test("a goal's deadline reaches the agent with deadlineLocal in the asker's zone
   const g = loadGenerated();
   const output = { goal: { id: "gol_1", deadline: 1_793_916_000_000, nextCheckinAt: 1_793_916_000_000 } };
   const session = createToolSession({
-    catalog: g.catalog, defaults: new Set([...g.defaults, "goals_get"]), levelFor: () => null, canEngineer: () => false, traceId: () => "t", zoneOf: () => "Asia/Karachi",
+    catalog: g.catalog,
+    defaults: new Set([...g.defaults, "goals_get"]),
+    levelFor: () => null,
+    canEngineer: () => false,
+    traceId: () => "t",
+    zoneOf: () => "Asia/Karachi",
     invoke: async () => ({ status: "ok", output, traceId: "t" }),
   });
-  const goal = ((await session.call(ctx(), "goals_get", { goalId: "gol_1" })).result.content as { data: typeof output }).data.goal as Record<string, unknown>;
+  const goal = ((await session.call(ctx(), "goals_get", { goalId: "gol_1" })).result.content as { data: typeof output })
+    .data.goal as Record<string, unknown>;
   assert.equal(goal["deadline"], 1_793_916_000_000);
   assert.match(String(goal["deadlineLocal"]), /^\w+day \d+ \w+ 2026, \d\d:\d\d \(Asia\/Karachi, UTC\+5\)$/);
   assert.match(String(goal["nextCheckinAtLocal"]), /Asia\/Karachi/);
@@ -259,13 +418,33 @@ test("a goal's deadline reaches the agent with deadlineLocal in the asker's zone
 
 test("a model error keeps a plain reason word and drops an id-shaped one", async () => {
   const { modelError } = await import("../src/tools/model-error.ts");
-  const kept = modelError(makeError("validation.precondition_failed", "trc_1", { message: "That file is an agent's settings.", details: { reason: "agent_settings", tool: "files_save" } }));
+  const kept = modelError(
+    makeError("validation.precondition_failed", "trc_1", {
+      message: "That file is an agent's settings.",
+      details: { reason: "agent_settings", tool: "files_save" },
+    }),
+  );
   assert.equal(kept.details?.reason, "agent_settings");
-  assert.equal(modelError(makeError("internal.unexpected", "trc_2", { message: "x", details: { reason: "server_error" } })).details?.reason, "server_error");
-  const dropped = modelError(makeError("validation.not_found", "trc_3", { message: "No usr_5cf430c0313aa78673 here.", details: { reason: "agt_01a1a388abcd" } }));
+  assert.equal(
+    modelError(makeError("internal.unexpected", "trc_2", { message: "x", details: { reason: "server_error" } })).details
+      ?.reason,
+    "server_error",
+  );
+  const dropped = modelError(
+    makeError("validation.not_found", "trc_3", {
+      message: "No usr_5cf430c0313aa78673 here.",
+      details: { reason: "agt_01a1a388abcd" },
+    }),
+  );
   assert.equal(dropped.details?.reason, undefined);
   assert.equal(dropped.message.includes("usr_5cf430c0313aa78673"), false);
-  assert.equal(modelError(makeError("validation.precondition_failed", "trc_4", { message: "y", details: { reason: "agent_settings" } })).details?.reason, "agent_settings", "a second call gets the same answer");
+  assert.equal(
+    modelError(
+      makeError("validation.precondition_failed", "trc_4", { message: "y", details: { reason: "agent_settings" } }),
+    ).details?.reason,
+    "agent_settings",
+    "a second call gets the same answer",
+  );
 });
 
 test("an agent that asks for a computer is told what it has, and no card asks a person to set one up", async () => {
@@ -273,10 +452,21 @@ test("an agent that asks for a computer is told what it has, and no card asks a 
   const { takeWork } = await import("../src/tools/work-cards.ts");
   const { NO_COMPUTER_WORDS } = await import("../src/tools/call.ts");
   const loaded = loadGenerated();
-  const session = createToolSession({ catalog: loaded.catalog, defaults: loaded.defaults, canEngineer: () => false, levelFor: () => null, traceId: () => "trace_fixed",
-    invoke: (async () => { throw new HostError(makeError("permission.no_grant", "trace_fixed")); }) as never });
+  const session = createToolSession({
+    catalog: loaded.catalog,
+    defaults: loaded.defaults,
+    canEngineer: () => false,
+    levelFor: () => null,
+    traceId: () => "trace_fixed",
+    invoke: (async () => {
+      throw new HostError(makeError("permission.no_grant", "trace_fixed"));
+    }) as never,
+  });
   session.preload("T1", ["computers_provision"]);
-  const out = await session.call(ctx({ turnId: "trn_gc" }), "computers_provision", { agentId: "agt_intake", idempotencyKey: "k" });
+  const out = await session.call(ctx({ turnId: "trn_gc" }), "computers_provision", {
+    agentId: "agt_intake",
+    idempotencyKey: "k",
+  });
   assert.equal(out.kind, "error");
   const text = JSON.stringify(out.kind === "error" ? out.result.content : {});
   assert.match(text, /terminal_run/);

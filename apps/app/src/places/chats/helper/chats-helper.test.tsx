@@ -5,12 +5,24 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { HelperChat, HelperChatLoading } from "./HelperChat.tsx";
-import { READ_ONLY_NOTE, addressParts, blockLine, byOrder, helperStatus, metaLine, parentOf, seconds, stepCount, workSummary } from "./model.ts";
+import {
+  READ_ONLY_NOTE,
+  addressParts,
+  blockLine,
+  byOrder,
+  helperStatus,
+  metaLine,
+  parentOf,
+  seconds,
+  stepCount,
+  workSummary,
+} from "./model.ts";
 import type { Message, Thread } from "./model.ts";
 import { createSample } from "./sample.ts";
 import type { Sample, Variant } from "./sample.ts";
 
-const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+const clean = (s: string): string =>
+  s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
 const html = (s: Sample): string => clean(renderToStaticMarkup(<HelperChat data={s.data} />));
 const at = (s: string, needle: string): number => {
   const i = s.indexOf(needle);
@@ -20,16 +32,33 @@ const at = (s: string, needle: string): number => {
 const has = (s: string, needle: string): boolean => s.includes(needle);
 const inOrder = (s: string, needles: string[]): void => {
   const idx = needles.map((n) => at(s, n));
-  assert.deepEqual([...idx].sort((a, b) => a - b), idx, `in the order ${needles.join(" > ")}`);
+  assert.deepEqual(
+    [...idx].sort((a, b) => a - b),
+    idx,
+    `in the order ${needles.join(" > ")}`,
+  );
 };
-const thread = (s: Sample): Thread => (s.data.screens.query("chats.helper-chat", "thread", { threadId: s.data.threadId }).getSnapshot() as { data: { thread: Thread } }).data.thread;
-const messages = (s: Sample): Message[] => (s.data.screens.query("chats.helper-chat", "messages", { threadId: s.data.threadId }).getSnapshot() as { data: { messages: Message[] } }).data.messages;
+const thread = (s: Sample): Thread =>
+  (
+    s.data.screens.query("chats.helper-chat", "thread", { threadId: s.data.threadId }).getSnapshot() as {
+      data: { thread: Thread };
+    }
+  ).data.thread;
+const messages = (s: Sample): Message[] =>
+  (
+    s.data.screens.query("chats.helper-chat", "messages", { threadId: s.data.threadId }).getSnapshot() as {
+      data: { messages: Message[] };
+    }
+  ).data.messages;
 
 test("the address bar reads Competitor pricing > Firms 1-3; the first part links back, the last is where you are", () => {
   const out = html(createSample("done"));
   inOrder(out, ['data-testid="helper-address"', "Competitor pricing", "›", "Firms 1–3"]);
   assert.ok(has(out, 'data-testid="helper-crumb-c2"'), "the parent is a link");
-  assert.ok(has(out, 'data-testid="helper-current"') && !has(out, 'data-testid="helper-crumb-h1"'), "the helper itself is not a link");
+  assert.ok(
+    has(out, 'data-testid="helper-current"') && !has(out, 'data-testid="helper-crumb-h1"'),
+    "the helper itself is not a link",
+  );
   assert.ok(has(out, "Back to Competitor pricing"));
 });
 
@@ -45,7 +74,14 @@ test("a helper chat is read-only: no composer, a note that says why, and a way t
 test("a finished helper: the brief, the steps in order, the result, and model and time on the right", () => {
   const out = html(createSample("done"));
   assert.ok(has(out, "Helper of Research · from “Competitor pricing”"));
-  inOrder(out, ["Read the pricing pages of Harlow & Price", "Worked for 31s, 3 steps", "Opened harlowprice.example/pricing", "Opened grantlegal.example/fees", "Opened meyerlaw.example/consult", "Harlow & Price $300 · Grant Legal free first 30 min"]);
+  inOrder(out, [
+    "Read the pricing pages of Harlow & Price",
+    "Worked for 31s, 3 steps",
+    "Opened harlowprice.example/pricing",
+    "Opened grantlegal.example/fees",
+    "Opened meyerlaw.example/consult",
+    "Harlow & Price $300 · Grant Legal free first 30 min",
+  ]);
   assert.ok(!has(out, "headless Chrome"), "no engine name in a step line");
   assert.ok(has(out, "haiku · 31s"));
   assert.ok(!has(out, 'data-testid="helper-stop"') && !has(out, 'data-testid="helper-live"'));
@@ -91,15 +127,27 @@ test("status: running until the thread closes; an error block makes it failed", 
   assert.equal(helperStatus(t, m), "done");
   const { closedAt: _c, ...open } = t;
   assert.equal(helperStatus(open, m), "running");
-  const bad: Message[] = m.map((x) => ({ ...x, blocks: x.blocks.map((b, i) => (i === 0 ? { ...b, state: "error" as const } : b)) }));
+  const bad: Message[] = m.map((x) => ({
+    ...x,
+    blocks: x.blocks.map((b, i) => (i === 0 ? { ...b, state: "error" as const } : b)),
+  }));
   assert.equal(helperStatus(t, bad), "failed");
 });
 
 test("address parts: ancestors link, the helper is current; without a path it is just the title", () => {
   const t = thread(createSample("done"));
-  assert.deepEqual(addressParts(t).map((p) => [p.title, p.current]), [["Competitor pricing", false], ["Firms 1–3", true]]);
+  assert.deepEqual(
+    addressParts(t).map((p) => [p.title, p.current]),
+    [
+      ["Competitor pricing", false],
+      ["Firms 1–3", true],
+    ],
+  );
   const { path: _p, ...bare } = t;
-  assert.deepEqual(addressParts(bare).map((p) => [p.title, p.current]), [["Firms 1–3", true]]);
+  assert.deepEqual(
+    addressParts(bare).map((p) => [p.title, p.current]),
+    [["Firms 1–3", true]],
+  );
   assert.deepEqual(parentOf(t), { title: "Competitor pricing", threadId: "c2" });
   assert.deepEqual(parentOf(bare), { title: "the chat", threadId: "c2" });
   const { parentThreadId: _q, ...orphan } = bare;
@@ -120,8 +168,22 @@ test("meta, seconds, step count and the work summary", () => {
 });
 
 test("a block line reads from the registry's template for a known type and from its own title for any other", () => {
-  assert.deepEqual(blockLine({ type: "terminal", v: 1, id: "a", data: { host: "Intake computer" }, traceId: "t" }), { title: "Ran commands on Intake computer", sub: "", state: undefined });
-  assert.deepEqual(blockLine({ type: "step", v: 1, id: "b", data: { title: "Opened a page", sub: "headless Chrome" }, state: "done", traceId: "t" }), { title: "Opened a page", sub: "", state: "done" });
+  assert.deepEqual(blockLine({ type: "terminal", v: 1, id: "a", data: { host: "Intake computer" }, traceId: "t" }), {
+    title: "Ran commands on Intake computer",
+    sub: "",
+    state: undefined,
+  });
+  assert.deepEqual(
+    blockLine({
+      type: "step",
+      v: 1,
+      id: "b",
+      data: { title: "Opened a page", sub: "headless Chrome" },
+      state: "done",
+      traceId: "t",
+    }),
+    { title: "Opened a page", sub: "", state: "done" },
+  );
   assert.equal(blockLine({ type: "comet_trail", v: 1, id: "c", data: null, traceId: "t" }).title, "comet trail");
 });
 
@@ -133,6 +195,10 @@ test("variants exist for the screenshots", () => {
 test("the brief is a labelled block at the top, not the helper talking to itself, and the header says who started it and where", () => {
   const out = html(createSample("done"));
   assert.ok(has(out, 'data-testid="helper-brief"') && has(out, "Brief from "), "the brief is its own block");
-  assert.ok(has(out, 'data-testid="helper-started-by"') && has(out, "Helper chat · started by ") && has(out, "Competitor pricing"));
+  assert.ok(
+    has(out, 'data-testid="helper-started-by"') &&
+      has(out, "Helper chat · started by ") &&
+      has(out, "Competitor pricing"),
+  );
   inOrder(out, ["Helper chat · started by", "Brief from", "Read the pricing pages of Harlow & Price"]);
 });

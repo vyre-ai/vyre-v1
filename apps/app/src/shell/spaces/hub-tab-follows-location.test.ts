@@ -10,9 +10,23 @@ import { readUrlIntoHub } from "../session/url.ts";
 
 const TASK = "screen=tasks.page&taskId=tsk_1";
 function restored(tabs: TabEntry[], active: string) {
-  const rows = new Map<string, string>([[tabsStorageKey("web", "irfad", SEED_DEFS[0]!.spaceId), writeTabs({ tabs, active })]]);
-  const storage = { getItem: (k: string) => rows.get(k) ?? null, setItem: (k: string, v: string) => { rows.set(k, v); } };
-  return createShellHub({ spaces: SEED_DEFS, openId: SEED_DEFS[0]!.spaceId, personId: "irfad", deviceId: "web", storage, skeletonMs: 0 });
+  const rows = new Map<string, string>([
+    [tabsStorageKey("web", "irfad", SEED_DEFS[0]!.spaceId), writeTabs({ tabs, active })],
+  ]);
+  const storage = {
+    getItem: (k: string) => rows.get(k) ?? null,
+    setItem: (k: string, v: string) => {
+      rows.set(k, v);
+    },
+  };
+  return createShellHub({
+    spaces: SEED_DEFS,
+    openId: SEED_DEFS[0]!.spaceId,
+    personId: "irfad",
+    deviceId: "web",
+    storage,
+    skeletonMs: 0,
+  });
 }
 const shown = (hub: ReturnType<typeof restored>) => {
   const t = hub.session().tabs.state();
@@ -28,20 +42,34 @@ test("a restored selected task tab and a load at the Chats landing: the selected
   assert.deepEqual([s.place, s.hash], ["chats", ""]);
   assert.equal(s.tab.key, "chats", "the selected tab is the Chats tab");
   assert.equal(s.tab.hash, undefined);
-  assert.ok(!hub.session().tabs.state().tabs.some((t) => t.title === "Sign in to olivia again"), "no tab still names the task");
+  assert.ok(
+    !hub
+      .session()
+      .tabs.state()
+      .tabs.some((t) => t.title === "Sign in to olivia again"),
+    "no tab still names the task",
+  );
 });
 
 test("a load at the landing while another place is selected: the place's tab is the landing, and a tab on an item stays an item", () => {
-  const home = placeTab("files"), thr = placeTab("chats", "thr_1", "Renewal");
+  const home = placeTab("files"),
+    thr = placeTab("chats", "thr_1", "Renewal");
   const hub = restored([home, thr], home.key);
   readUrlIntoHub(hub, { pathname: "/chat", hash: "" });
   const s = shown(hub);
   assert.deepEqual([s.place, s.hash, s.tab.key], ["chats", "", "chats"]);
-  assert.ok(hub.session().tabs.state().tabs.some((t) => t.key === thr.key), "the chat tab is another tab and stays");
+  assert.ok(
+    hub
+      .session()
+      .tabs.state()
+      .tabs.some((t) => t.key === thr.key),
+    "the chat tab is another tab and stays",
+  );
 });
 
 test("the Chats rail (a place with no item named) goes to the tab the place has and shows what it shows", () => {
-  const home = placeTab("files"), thr = placeTab("chats", "thr_1", "Renewal");
+  const home = placeTab("files"),
+    thr = placeTab("chats", "thr_1", "Renewal");
   const hub = restored([home, thr], home.key);
   hub.go("chats");
   const s = shown(hub);
@@ -50,7 +78,8 @@ test("the Chats rail (a place with no item named) goes to the tab the place has 
 });
 
 test("a link to an item that has a tab focuses that tab; closing the selected tab shows the neighbour", () => {
-  const thr = placeTab("chats", "thr_1", "Renewal"), two = placeTab("chats", "thr_2", "Intake");
+  const thr = placeTab("chats", "thr_1", "Renewal"),
+    two = placeTab("chats", "thr_2", "Intake");
   const hub = restored([thr, two], thr.key);
   hub.go("chats", "thr_2");
   assert.deepEqual([shown(hub).tab.key, shown(hub).hash], [two.key, "thr_2"]);

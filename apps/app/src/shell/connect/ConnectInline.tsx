@@ -15,7 +15,12 @@ export interface FlowProps {
   onCancel(): void;
 }
 
-export function ConnectInlineHost({ rt, render, onConnected, children }: {
+export function ConnectInlineHost({
+  rt,
+  render,
+  onConnected,
+  children,
+}: {
   rt: ShellRuntime | null;
   /** Draws the flow. Tests pass their own. The default loads the real sheets. */
   render?(props: { need: ConnectNeed; onDone(account: Connected): void; onCancel(): void }): ReactNode;
@@ -32,20 +37,41 @@ export function ConnectInlineHost({ rt, render, onConnected, children }: {
     const done = settle.current;
     settle.current = null;
     setFlow(null);
-    if (account) { setVersion((v) => v + 1); if (need) latest.current?.(need, account); }
+    if (account) {
+      setVersion((v) => v + 1);
+      if (need) latest.current?.(need, account);
+    }
     done?.(account);
   }, []);
   const open = useCallback((need: ConnectNeed): Promise<Connected | null> => {
     settle.current?.(null);
-    return new Promise<Connected | null>((resolve) => { settle.current = resolve; setFlow({ need }); });
+    return new Promise<Connected | null>((resolve) => {
+      settle.current = resolve;
+      setFlow({ need });
+    });
   }, []);
-  useEffect(() => () => { settle.current?.(null); settle.current = null; }, []);
+  useEffect(
+    () => () => {
+      settle.current?.(null);
+      settle.current = null;
+    },
+    [],
+  );
   const value = useMemo(() => (rt || render ? { open, version } : null), [rt, render, open, version]);
   const need = flow?.need;
-  const body = need
-    ? (render
-      ? render({ need, onDone: (a) => close(a, need), onCancel: () => close(null) })
-      : rt ? <Suspense fallback={null}><Sheets rt={rt} need={need} onDone={(a) => close(a, need)} onCancel={() => close(null)} /></Suspense> : null)
-    : null;
-  return <ConnectCtx.Provider value={value}>{children}{body}</ConnectCtx.Provider>;
+  const body = need ? (
+    render ? (
+      render({ need, onDone: (a) => close(a, need), onCancel: () => close(null) })
+    ) : rt ? (
+      <Suspense fallback={null}>
+        <Sheets rt={rt} need={need} onDone={(a) => close(a, need)} onCancel={() => close(null)} />
+      </Suspense>
+    ) : null
+  ) : null;
+  return (
+    <ConnectCtx.Provider value={value}>
+      {children}
+      {body}
+    </ConnectCtx.Provider>
+  );
 }

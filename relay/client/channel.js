@@ -27,7 +27,7 @@ export const PROLOGUE_TAG = "vyre-relay-v1";
 export const MAX_FRAME = 1 << 20;
 
 /** @param {string} route */
-export const prologue = route => utf8(`${PROLOGUE_TAG}\n${route}`);
+export const prologue = (route) => utf8(`${PROLOGUE_TAG}\n${route}`);
 
 /**
  * @typedef {{ send: (bytes: Uint8Array) => void, close: (code?: number, reason?: string) => void }} Transport
@@ -62,45 +62,77 @@ export class Channel {
   /** Queue one frame; frames leave in call order. @param {number} type @param {number} id @param {Uint8Array} [payload] */
   frame(type, id, payload = EMPTY) {
     if (this.closed) return;
-    if (this.now() - this.opened > MAX_AGE) { this.close(1000, "session too old"); return; }
+    if (this.now() - this.opened > MAX_AGE) {
+      this.close(1000, "session too old");
+      return;
+    }
     const pt = new Uint8Array(5 + payload.length);
     pt[0] = type;
     new DataView(pt.buffer).setUint32(1, id);
     pt.set(payload, 5);
-    this.txq = this.txq.then(async () => {
-      if (this.closed) return;
-      const ct = await this.tx.encrypt(EMPTY, pt);
-      if (this.tx.n % this.rekeyEvery === 0) await this.tx.rekey();
-      if (!this.closed) this.transport.send(ct);
-    }).catch(e => this.close(1011, String(e?.message || e)));
+    this.txq = this.txq
+      .then(async () => {
+        if (this.closed) return;
+        const ct = await this.tx.encrypt(EMPTY, pt);
+        if (this.tx.n % this.rekeyEvery === 0) await this.tx.rekey();
+        if (!this.closed) this.transport.send(ct);
+      })
+      .catch((e) => this.close(1011, String(e?.message || e)));
   }
 
   /** @param {Uint8Array} bytes one binary WebSocket message */
   receive(bytes) {
     const b = bytes.slice();
-    this.rxq = this.rxq.then(() => this.take(b), () => {});
+    this.rxq = this.rxq.then(
+      () => this.take(b),
+      () => {},
+    );
   }
 
   /** @param {Uint8Array} bytes */
   async take(bytes) {
     if (this.closed) return;
     let pt;
-    try { pt = await this.rx.decrypt(EMPTY, bytes); } catch { this.close(4400, "decrypt failed"); return; }
+    try {
+      pt = await this.rx.decrypt(EMPTY, bytes);
+    } catch {
+      this.close(4400, "decrypt failed");
+      return;
+    }
     if (this.rx.n % this.rekeyEvery === 0) await this.rx.rekey();
     if (this.closed) return;
-    if (pt.length < 5) { this.close(4400, "short frame"); return; }
-    const type = pt[0], id = new DataView(pt.buffer, pt.byteOffset).getUint32(1), payload = pt.subarray(5);
+    if (pt.length < 5) {
+      this.close(4400, "short frame");
+      return;
+    }
+    const type = pt[0],
+      id = new DataView(pt.buffer, pt.byteOffset).getUint32(1),
+      payload = pt.subarray(5);
     // Stream 0 is the box measuring the round trip: send its bytes straight back.
-    if (id === 0) { if (type === FRAME.ping) this.frame(FRAME.pong, 0, payload.slice()); return; }
+    if (id === 0) {
+      if (type === FRAME.ping) this.frame(FRAME.pong, 0, payload.slice());
+      return;
+    }
     const s = this.streams.get(id);
-    if (!s) return;                                    // the box never opens streams; late frames for a stream already gone
+    if (!s) return; // the box never opens streams; late frames for a stream already gone
     if (type === FRAME.head) {
       let head;
-      try { head = JSON.parse(fromUtf8(payload)); } catch { s.reset("bad head"); return; }
+      try {
+        head = JSON.parse(fromUtf8(payload));
+      } catch {
+        s.reset("bad head");
+        return;
+      }
       s.onhead(head);
     } else if (type === FRAME.data) s.ondata(payload.slice());
-    else if (type === FRAME.end) { s.remoteEnded = true; s.onend(); s.gc(); }
-    else if (type === FRAME.reset) { this.streams.delete(id); s.onreset(fromUtf8(payload)); }
+    else if (type === FRAME.end) {
+      s.remoteEnded = true;
+      s.onend();
+      s.gc();
+    } else if (type === FRAME.reset) {
+      this.streams.delete(id);
+      s.onreset(fromUtf8(payload));
+    }
   }
 
   /** Open a stream with this head (a request, or a WebSocket open). */
@@ -122,7 +154,9 @@ export class Channel {
     const streams = [...this.streams.values()];
     this.streams.clear();
     for (const s of streams) s.onreset(reason || "channel closed");
-    try { this.transport.close(code, reason); } catch {}
+    try {
+      this.transport.close(code, reason);
+    } catch {}
     this.onclose(reason);
   }
 }
@@ -145,13 +179,20 @@ export class Stream {
   write(bytes) {
     for (let i = 0; i < bytes.length; i += CHUNK) this.ch.frame(FRAME.data, this.id, bytes.subarray(i, i + CHUNK));
   }
-  end() { if (this.localEnded) return; this.localEnded = true; this.ch.frame(FRAME.end, this.id); this.gc(); }
+  end() {
+    if (this.localEnded) return;
+    this.localEnded = true;
+    this.ch.frame(FRAME.end, this.id);
+    this.gc();
+  }
   reset(reason = "") {
     if (!this.ch.streams.has(this.id)) return;
     this.ch.frame(FRAME.reset, this.id, utf8(reason));
     this.ch.streams.delete(this.id);
   }
-  gc() { if (this.localEnded && this.remoteEnded) this.ch.streams.delete(this.id); }
+  gc() {
+    if (this.localEnded && this.remoteEnded) this.ch.streams.delete(this.id);
+  }
 }
 
 /**
@@ -169,31 +210,51 @@ export function dial(transport, o) {
   let failed = false;
   /** @type {{ resolve: (v: any) => void, reject: (e: any) => void }} */
   let settle = /** @type {any} */ (null);
-  const ready = new Promise((resolve, reject) => { settle = { resolve, reject }; });
-  const fail = msg => { if (failed || channel) return; failed = true; settle.reject(new Error(msg)); };
-  let q = hs.writeMessage(utf8(JSON.stringify(o.hello))).then(m1 => { if (!failed) transport.send(m1); }, e => {
-    transport.close(4400, "handshake failed");
-    fail(String(e?.message || e));
+  const ready = new Promise((resolve, reject) => {
+    settle = { resolve, reject };
   });
+  const fail = (msg) => {
+    if (failed || channel) return;
+    failed = true;
+    settle.reject(new Error(msg));
+  };
+  let q = hs.writeMessage(utf8(JSON.stringify(o.hello))).then(
+    (m1) => {
+      if (!failed) transport.send(m1);
+    },
+    (e) => {
+      transport.close(4400, "handshake failed");
+      fail(String(e?.message || e));
+    },
+  );
   return {
     ready,
-    gone(reason) { channel ? channel.close(1000, reason) : fail(reason || "connection closed"); },
+    gone(reason) {
+      channel ? channel.close(1000, reason) : fail(reason || "connection closed");
+    },
     receive(bytes) {
       const b = bytes.slice();
-      q = q.then(async () => {
-        if (channel) return channel.receive(b);
-        if (failed) return;
-        let reply;
-        try { reply = JSON.parse(fromUtf8(await hs.readMessage(b))); } catch {
-          transport.close(4400, "handshake failed");
-          fail("handshake failed: this is not the box in the QR code");
-          return;
-        }
-        channel = new Channel(transport, /** @type {any} */ (hs.send), /** @type {any} */ (hs.recv),
-          { peer: o.box, hash: /** @type {Uint8Array} */ (hs.hash), now: o.now, rekeyEvery: o.rekeyEvery });
-        settle.resolve({ channel, reply });
-      }).catch(() => {});
+      q = q
+        .then(async () => {
+          if (channel) return channel.receive(b);
+          if (failed) return;
+          let reply;
+          try {
+            reply = JSON.parse(fromUtf8(await hs.readMessage(b)));
+          } catch {
+            transport.close(4400, "handshake failed");
+            fail("handshake failed: this is not the box in the QR code");
+            return;
+          }
+          channel = new Channel(transport, /** @type {any} */ (hs.send), /** @type {any} */ (hs.recv), {
+            peer: o.box,
+            hash: /** @type {Uint8Array} */ (hs.hash),
+            now: o.now,
+            rekeyEvery: o.rekeyEvery,
+          });
+          settle.resolve({ channel, reply });
+        })
+        .catch(() => {});
     },
   };
 }
-

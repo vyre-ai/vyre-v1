@@ -9,10 +9,26 @@ import { DatabaseSync } from "node:sqlite";
 import { formatHlc } from "../../lib/hlc.ts";
 import { CLIENT_SQL, parseTables, resolveEntities, resolveReplicaSql } from "../src/replica/ddl.ts";
 import {
-  ReplicaError, bindWaSqlite, createExpoDriver, createNodeDriver, createWaDriver, loadCatalog, loadReplicaSql, openReplica, openWaReplica,
+  ReplicaError,
+  bindWaSqlite,
+  createExpoDriver,
+  createNodeDriver,
+  createWaDriver,
+  loadCatalog,
+  loadReplicaSql,
+  openReplica,
+  openWaReplica,
 } from "../src/replica/index.ts";
 import { asRow, asValue, bind, isDuplicateColumn, quoteIdent, schemaChanged } from "../src/replica/sql.ts";
-import type { ExpoDatabase, ExpoRunResult, ExpoStatement, SqlValue, WaDatabase, WaSqlite3, WaStatement } from "../src/replica/index.ts";
+import type {
+  ExpoDatabase,
+  ExpoRunResult,
+  ExpoStatement,
+  SqlValue,
+  WaDatabase,
+  WaSqlite3,
+  WaStatement,
+} from "../src/replica/index.ts";
 
 const ACTOR = "usr_ada";
 const NOW = 1_700_000_000_000;
@@ -22,7 +38,10 @@ function hlc(ms: number, counter = 1): string {
 }
 
 function scratch(): string {
-  return path.join(os.tmpdir(), `vyre-replica-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}.db`);
+  return path.join(
+    os.tmpdir(),
+    `vyre-replica-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}.db`,
+  );
 }
 
 function wipe(file: string): void {
@@ -137,27 +156,55 @@ function num(v: unknown): number | null {
 test("reopen keeps the row and a registry hash change rebuilds the schema", async () => {
   const file = scratch();
   try {
-    const first = openReplica({ driver: createNodeDriver(file), deviceClass: "desktop", registryHash: "hash-a", clock: () => NOW });
-    assert.equal(first.write({ entity: "calendar", id: "cld_keep", fields: { title: "Kept" }, hlc: hlc(1), actor: ACTOR }).applied, true);
+    const first = openReplica({
+      driver: createNodeDriver(file),
+      deviceClass: "desktop",
+      registryHash: "hash-a",
+      clock: () => NOW,
+    });
+    assert.equal(
+      first.write({ entity: "calendar", id: "cld_keep", fields: { title: "Kept" }, hlc: hlc(1), actor: ACTOR }).applied,
+      true,
+    );
     assert.equal(first.upgraded, false);
-    first.write({ entity: "calendar", id: "cld_pend", fields: { title: "Queued" }, hlc: hlc(2), actor: ACTOR, op: { opId: "op_keep", traceId: "t1", cap: "calendar.update", v: 1, input: "{}", baseSeq: "{}" } });
+    first.write({
+      entity: "calendar",
+      id: "cld_pend",
+      fields: { title: "Queued" },
+      hlc: hlc(2),
+      actor: ACTOR,
+      op: { opId: "op_keep", traceId: "t1", cap: "calendar.update", v: 1, input: "{}", baseSeq: "{}" },
+    });
     assert.equal(first.pendingCount(), 1);
     await first.close();
 
-    const second = openReplica({ driver: createNodeDriver(file), deviceClass: "desktop", registryHash: "hash-a", clock: () => NOW });
+    const second = openReplica({
+      driver: createNodeDriver(file),
+      deviceClass: "desktop",
+      registryHash: "hash-a",
+      clock: () => NOW,
+    });
     assert.equal(second.upgraded, false);
     assert.equal(second.read("calendar", "cld_keep")?.title, "Kept");
     assert.equal(second.getState("registry_hash"), "hash-a");
     await second.close();
 
-    const third = openReplica({ driver: createNodeDriver(file), deviceClass: "desktop", registryHash: "hash-b", clock: () => NOW });
+    const third = openReplica({
+      driver: createNodeDriver(file),
+      deviceClass: "desktop",
+      registryHash: "hash-b",
+      clock: () => NOW,
+    });
     assert.equal(third.upgraded, true);
     assert.equal(third.read("calendar", "cld_keep"), null);
     assert.equal(third.getState("registry_hash"), "hash-b");
     assert.equal(third.getState("needs_snapshot"), "1");
     assert.equal(third.pendingCount(), 1, "unsynced edits survive a schema rebuild");
     assert.equal(third.hasTable("fts"), true);
-    assert.equal(third.write({ entity: "calendar", id: "cld_new", fields: { title: "New" }, hlc: hlc(2), actor: ACTOR }).applied, true);
+    assert.equal(
+      third.write({ entity: "calendar", id: "cld_new", fields: { title: "New" }, hlc: hlc(2), actor: ACTOR }).applied,
+      true,
+    );
     await third.close();
   } finally {
     wipe(file);
@@ -165,11 +212,24 @@ test("reopen keeps the row and a registry hash change rebuilds the schema", asyn
 });
 
 test("expo adapter writes, invalidates and reads back", async () => {
-  const store = openReplica({ driver: createExpoDriver(wrapExpo()), deviceClass: "desktop", registryHash: "hash-expo", clock: () => NOW });
+  const store = openReplica({
+    driver: createExpoDriver(wrapExpo()),
+    deviceClass: "desktop",
+    registryHash: "hash-expo",
+    clock: () => NOW,
+  });
   try {
     let hits = 0;
-    store.subscribe({ entity: "message", id: "msg_e" }, () => { hits += 1; });
-    const wrote = store.write({ entity: "message", id: "msg_e", fields: { body: "from expo", createdAt: NOW }, hlc: hlc(1), actor: ACTOR });
+    store.subscribe({ entity: "message", id: "msg_e" }, () => {
+      hits += 1;
+    });
+    const wrote = store.write({
+      entity: "message",
+      id: "msg_e",
+      fields: { body: "from expo", createdAt: NOW },
+      hlc: hlc(1),
+      actor: ACTOR,
+    });
     assert.equal(wrote.applied, true);
     assert.equal(hits, 1);
     assert.equal(store.read("message", "msg_e")?.body, "from expo");
@@ -187,10 +247,22 @@ test("expo adapter writes, invalidates and reads back", async () => {
 test("wa adapter applies in memory, reloads after flush, and rebuilds on a new registry hash", async () => {
   const file = scratch();
   try {
-    const first = await openWaReplica(wrapWa(file), { deviceClass: "desktop", registryHash: "hash-wa", clock: () => NOW });
+    const first = await openWaReplica(wrapWa(file), {
+      deviceClass: "desktop",
+      registryHash: "hash-wa",
+      clock: () => NOW,
+    });
     let hits = 0;
-    first.subscribe({ entity: "calendar", id: "cld_wa" }, () => { hits += 1; });
-    const wrote = first.write({ entity: "calendar", id: "cld_wa", fields: { title: "Async" }, hlc: hlc(1), actor: ACTOR });
+    first.subscribe({ entity: "calendar", id: "cld_wa" }, () => {
+      hits += 1;
+    });
+    const wrote = first.write({
+      entity: "calendar",
+      id: "cld_wa",
+      fields: { title: "Async" },
+      hlc: hlc(1),
+      actor: ACTOR,
+    });
     assert.equal(wrote.applied, true);
     assert.equal(hits, 1);
     assert.equal(first.read("calendar", "cld_wa")?.title, "Async");
@@ -198,12 +270,20 @@ test("wa adapter applies in memory, reloads after flush, and rebuilds on a new r
     assert.equal((await first.load("calendar", "cld_wa"))?.title, "Async");
     await first.close();
 
-    const second = await openWaReplica(wrapWa(file), { deviceClass: "desktop", registryHash: "hash-wa", clock: () => NOW });
+    const second = await openWaReplica(wrapWa(file), {
+      deviceClass: "desktop",
+      registryHash: "hash-wa",
+      clock: () => NOW,
+    });
     assert.equal(second.upgraded, false);
     assert.equal((await second.load("calendar", "cld_wa"))?.title, "Async");
     await second.close();
 
-    const third = await openWaReplica(wrapWa(file), { deviceClass: "desktop", registryHash: "hash-wa-2", clock: () => NOW });
+    const third = await openWaReplica(wrapWa(file), {
+      deviceClass: "desktop",
+      registryHash: "hash-wa-2",
+      clock: () => NOW,
+    });
     assert.equal(third.upgraded, true);
     assert.equal(await third.load("calendar", "cld_wa"), null);
     await third.close();
@@ -215,7 +295,12 @@ test("wa adapter applies in memory, reloads after flush, and rebuilds on a new r
 test("expo driver caches statements and rolls a transaction back", () => {
   const log: string[] = [];
   let prepares = 0;
-  const result: ExpoRunResult = { getFirstSync: () => ({ id: "1" }), getAllSync: () => [{ id: "1" }], changes: 1, lastInsertRowid: 1 };
+  const result: ExpoRunResult = {
+    getFirstSync: () => ({ id: "1" }),
+    getAllSync: () => [{ id: "1" }],
+    changes: 1,
+    lastInsertRowid: 1,
+  };
   const db: ExpoDatabase = {
     execSync(sql) {
       log.push(sql);
@@ -223,7 +308,12 @@ test("expo driver caches statements and rolls a transaction back", () => {
     },
     prepareSync() {
       prepares += 1;
-      return { executeSync: () => result, finalizeSync() { log.push("finalize"); } };
+      return {
+        executeSync: () => result,
+        finalizeSync() {
+          log.push("finalize");
+        },
+      };
     },
     closeSync() {
       log.push("close");
@@ -241,7 +331,13 @@ test("expo driver caches statements and rolls a transaction back", () => {
   assert.ok(log.includes("finalize"));
   driver.prepare("SELECT id FROM t WHERE id = ?").get(["1"]);
   assert.equal(prepares, 2);
-  assert.throws(() => driver.transaction(() => { driver.prepare("INSERT INTO t (id) VALUES (?)").run(["1"]); }), /commit failed/);
+  assert.throws(
+    () =>
+      driver.transaction(() => {
+        driver.prepare("INSERT INTO t (id) VALUES (?)").run(["1"]);
+      }),
+    /commit failed/,
+  );
   assert.ok(log.includes("BEGIN IMMEDIATE"));
   assert.ok(log.includes("ROLLBACK"));
   driver.close();
@@ -251,7 +347,10 @@ test("expo driver caches statements and rolls a transaction back", () => {
   const wrapped = createExpoDriver({
     execSync() {},
     prepareSync() {
-      return { executeSync: () => ({ getFirstSync: () => null, getAllSync: () => [], changes: 0, lastInsertRowid: 0 }), finalizeSync() {} };
+      return {
+        executeSync: () => ({ getFirstSync: () => null, getAllSync: () => [], changes: 0, lastInsertRowid: 0 }),
+        finalizeSync() {},
+      };
     },
     closeSync() {},
     withTransactionSync(fn) {
@@ -259,7 +358,9 @@ test("expo driver caches statements and rolls a transaction back", () => {
       fn();
     },
   });
-  wrapped.transaction(() => { wrapped.prepare("SELECT 1").run([]); });
+  wrapped.transaction(() => {
+    wrapped.prepare("SELECT 1").run([]);
+  });
   assert.equal(used, true);
   wrapped.close();
 });
@@ -267,19 +368,38 @@ test("expo driver caches statements and rolls a transaction back", () => {
 test("wa driver queues sql, swallows a duplicate pending column, and bindWaSqlite maps rows", async () => {
   const log: string[] = [];
   const rolling = createWaDriver({
-    async exec(sql) { log.push(sql); },
-    async prepare() {
-      return { bind() {}, async step() { throw new Error("step failed"); }, row: () => [], columns: () => [], reset() {}, finalize() {} };
+    async exec(sql) {
+      log.push(sql);
     },
-    async get() { return { id: "row-1", title: "Hello" }; },
-    async all() { return []; },
-    async close() { log.push("close"); },
+    async prepare() {
+      return {
+        bind() {},
+        async step() {
+          throw new Error("step failed");
+        },
+        row: () => [],
+        columns: () => [],
+        reset() {},
+        finalize() {},
+      };
+    },
+    async get() {
+      return { id: "row-1", title: "Hello" };
+    },
+    async all() {
+      return [];
+    },
+    async close() {
+      log.push("close");
+    },
   });
   assert.equal(rolling.kind, "wa");
   assert.equal(rolling.sync, false);
   const insert = rolling.prepare("INSERT INTO t (id) VALUES (?)");
   await rolling.flush();
-  rolling.transaction(() => { insert.run(["1"]); });
+  rolling.transaction(() => {
+    insert.run(["1"]);
+  });
   await assert.rejects(rolling.flush(), /step failed/);
   assert.ok(log.includes("BEGIN IMMEDIATE"));
   assert.ok(log.includes("ROLLBACK"));
@@ -288,13 +408,29 @@ test("wa driver queues sql, swallows a duplicate pending column, and bindWaSqlit
   const reading = createWaDriver({
     async exec() {},
     async prepare() {
-      return { bind() {}, async step() { return false; }, row: () => [], columns: () => [], reset() {}, finalize() {} };
+      return {
+        bind() {},
+        async step() {
+          return false;
+        },
+        row: () => [],
+        columns: () => [],
+        reset() {},
+        finalize() {},
+      };
     },
-    async get(_sql, params) { return params[0] === "row-1" ? { id: "row-1", title: "Hello" } : undefined; },
-    async all() { return []; },
+    async get(_sql, params) {
+      return params[0] === "row-1" ? { id: "row-1", title: "Hello" } : undefined;
+    },
+    async all() {
+      return [];
+    },
     async close() {},
   });
-  assert.deepEqual(await reading.query("SELECT id, title FROM t WHERE id = ?", ["row-1"]), { id: "row-1", title: "Hello" });
+  assert.deepEqual(await reading.query("SELECT id, title FROM t WHERE id = ?", ["row-1"]), {
+    id: "row-1",
+    title: "Hello",
+  });
   assert.equal(await reading.query("SELECT id FROM t WHERE id = ?", ["missing"]), undefined);
 
   const dup = createWaDriver({
@@ -302,9 +438,15 @@ test("wa driver queues sql, swallows a duplicate pending column, and bindWaSqlit
       if (sql.includes("ADD COLUMN pending")) throw new Error("duplicate column name: pending");
       if (sql.includes("BROKEN")) throw new Error("no such table");
     },
-    async prepare() { throw new Error("not prepared"); },
-    async get() { return undefined; },
-    async all() { return []; },
+    async prepare() {
+      throw new Error("not prepared");
+    },
+    async get() {
+      return undefined;
+    },
+    async all() {
+      return [];
+    },
     async close() {},
   });
   dup.exec("ALTER TABLE t ADD COLUMN pending INTEGER");
@@ -315,12 +457,23 @@ test("wa driver queues sql, swallows a duplicate pending column, and bindWaSqlit
   let steps = 0;
   const sqlite3: WaSqlite3 = {
     async exec() {},
-    async prepare_v2(_db, sql) { return sql === "bad" ? null : 4; },
+    async prepare_v2(_db, sql) {
+      return sql === "bad" ? null : 4;
+    },
     bind_collection() {},
-    async step() { steps += 1; return steps === 1 ? 100 : 0; },
-    column_count() { return 2; },
-    column_name(_stmt, i) { return i === 0 ? "id" : "title"; },
-    column(_stmt, i) { return i === 0 ? "id-1" : "Hello"; },
+    async step() {
+      steps += 1;
+      return steps === 1 ? 100 : 0;
+    },
+    column_count() {
+      return 2;
+    },
+    column_name(_stmt, i) {
+      return i === 0 ? "id" : "title";
+    },
+    column(_stmt, i) {
+      return i === 0 ? "id-1" : "Hello";
+    },
     reset() {},
     async finalize() {},
     async close() {},
@@ -333,12 +486,23 @@ test("wa driver queues sql, swallows a duplicate pending column, and bindWaSqlit
   let allSteps = 0;
   const listed: WaSqlite3 = {
     async exec() {},
-    async prepare_v2() { return 2; },
+    async prepare_v2() {
+      return 2;
+    },
     bind_collection() {},
-    async step() { allSteps += 1; return allSteps <= 2 ? 100 : 0; },
-    column_count() { return 1; },
-    column_name() { return "id"; },
-    column() { return allSteps === 1 ? "a" : "b"; },
+    async step() {
+      allSteps += 1;
+      return allSteps <= 2 ? 100 : 0;
+    },
+    column_count() {
+      return 1;
+    },
+    column_name() {
+      return "id";
+    },
+    column() {
+      return allSteps === 1 ? "a" : "b";
+    },
     reset() {},
     async finalize() {},
     async close() {},
@@ -350,14 +514,29 @@ test("wa driver queues sql, swallows a duplicate pending column, and bindWaSqlit
   let namedSteps = 0;
   const named: WaSqlite3 = {
     async exec() {},
-    async prepare_v2() { return 1; },
+    async prepare_v2() {
+      return 1;
+    },
     bind_collection() {},
-    async step() { namedSteps += 1; return namedSteps === 1 ? 7 : 0; },
-    column_count() { return 1; },
-    column_name() { return "ignored"; },
-    column() { return "ignored"; },
-    column_names() { return ["id"]; },
-    row() { return ["only"]; },
+    async step() {
+      namedSteps += 1;
+      return namedSteps === 1 ? 7 : 0;
+    },
+    column_count() {
+      return 1;
+    },
+    column_name() {
+      return "ignored";
+    },
+    column() {
+      return "ignored";
+    },
+    column_names() {
+      return ["id"];
+    },
+    row() {
+      return ["only"];
+    },
     reset() {},
     async finalize() {},
     async close() {},
@@ -395,16 +574,24 @@ test("catalog, replica DDL and sql helpers load from the generated files", () =>
   assert.match(CLIENT_SQL, /CREATE TABLE IF NOT EXISTS pending_ops/);
   assert.match(ddl.sql, /CREATE TABLE IF NOT EXISTS "calendar_list"/);
 
-  const parsed = parseTables('CREATE TABLE IF NOT EXISTS "t" (\n  "id" TEXT PRIMARY KEY,\n  "n" INTEGER NOT NULL DEFAULT 0\n);');
+  const parsed = parseTables(
+    'CREATE TABLE IF NOT EXISTS "t" (\n  "id" TEXT PRIMARY KEY,\n  "n" INTEGER NOT NULL DEFAULT 0\n);',
+  );
   const table = parsed[0];
   assert.ok(table);
   assert.equal(table.name, "t");
   assert.equal(table.columns[1]?.defaultValue, 0);
-  assert.throws(() => parseTables("SELECT 1"), (err: unknown) => err instanceof ReplicaError && err.code === "bad_ddl");
+  assert.throws(
+    () => parseTables("SELECT 1"),
+    (err: unknown) => err instanceof ReplicaError && err.code === "bad_ddl",
+  );
   assert.throws(() => parseTables('CREATE TABLE IF NOT EXISTS "t" (\n  PRIMARY KEY ("id")\n);'), /no columns/);
 
   assert.equal(quoteIdent("id"), '"id"');
-  assert.throws(() => quoteIdent("a-b"), (err: unknown) => err instanceof ReplicaError && err.code === "bad_name");
+  assert.throws(
+    () => quoteIdent("a-b"),
+    (err: unknown) => err instanceof ReplicaError && err.code === "bad_name",
+  );
   assert.equal(schemaChanged("CREATE TABLE t (id TEXT)"), true);
   assert.equal(schemaChanged("CREATE VIRTUAL TABLE fts USING fts5(body)"), true);
   assert.equal(schemaChanged("ALTER TABLE t ADD COLUMN pending INTEGER"), true);
@@ -429,7 +616,20 @@ test("a new replica has each field-meta table's pending column in its CREATE TAB
   const ddl = loadReplicaSql();
   const fm = ddl.tables.filter((t) => t.fm);
   assert.ok(fm.length > 10);
-  const cols = (driver: ReturnType<typeof createNodeDriver>): string => ddl.tables.map((t) => `${t.name}: ${driver.prepare(`SELECT name, type, "notnull" AS nn, dflt_value AS dv, pk FROM pragma_table_info('${t.name}')`).all([]).map((c) => `${String(c["name"])} ${String(c["type"])} ${String(c["nn"])} ${String(c["dv"])} ${String(c["pk"])}`).join(", ")}`).join("\n");
+  const cols = (driver: ReturnType<typeof createNodeDriver>): string =>
+    ddl.tables
+      .map(
+        (t) =>
+          `${t.name}: ${driver
+            .prepare(`SELECT name, type, "notnull" AS nn, dflt_value AS dv, pk FROM pragma_table_info('${t.name}')`)
+            .all([])
+            .map(
+              (c) =>
+                `${String(c["name"])} ${String(c["type"])} ${String(c["nn"])} ${String(c["dv"])} ${String(c["pk"])}`,
+            )
+            .join(", ")}`,
+      )
+      .join("\n");
   // the older way: the DDL as generated, then one ALTER TABLE per field-meta table
   const older = createNodeDriver();
   older.exec(ddl.sql);
@@ -437,7 +637,10 @@ test("a new replica has each field-meta table's pending column in its CREATE TAB
   const made = createNodeDriver();
   openReplica({ driver: made, deviceClass: "desktop", registryHash: "h1", personId: "usr_a" });
   assert.equal(cols(made), cols(older));
-  assert.match(ddl.withPending, /"calendar_list__fm" \([\s\S]*?"seq" INTEGER,\n  "pending" INTEGER NOT NULL DEFAULT 0,\n  PRIMARY KEY/);
+  assert.match(
+    ddl.withPending,
+    /"calendar_list__fm" \([\s\S]*?"seq" INTEGER,\n  "pending" INTEGER NOT NULL DEFAULT 0,\n  PRIMARY KEY/,
+  );
   // an older replica opens as before: ensurePending finds the column it already added
   openReplica({ driver: older, deviceClass: "desktop", registryHash: "h1", personId: "usr_a" });
   openReplica({ driver: made, deviceClass: "desktop", registryHash: "h1", personId: "usr_a" });

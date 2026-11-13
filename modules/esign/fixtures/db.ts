@@ -10,7 +10,15 @@ import { mintId } from "../../../lib/ids.ts";
 import { registry } from "../../../generated/registry.ts";
 import { validateEvent, validateInput, validateOutput } from "../../../generated/validators.ts";
 import { ProviderPayloadError, configureEsign, fromBase64, toBase64 } from "../handlers/send.ts";
-import type { EnvelopeRequest, EnvelopeStatus, EsignProvider, ProviderKey, ProviderStatus, SignedFiles, WebhookEvent } from "../handlers/send.ts";
+import type {
+  EnvelopeRequest,
+  EnvelopeStatus,
+  EsignProvider,
+  ProviderKey,
+  ProviderStatus,
+  SignedFiles,
+  WebhookEvent,
+} from "../handlers/send.ts";
 import { handlers } from "../impl.ts";
 
 // Boundary B2 keeps the node:sqlite import out of modules; a test still needs a real SQL engine behind the host's table guard.
@@ -26,10 +34,24 @@ export const PDF = new TextEncoder().encode("%PDF-1.7 unsigned retainer");
 export const SIGNED_PDF = new TextEncoder().encode("%PDF-1.7 signed retainer");
 export const CERT_PDF = new TextEncoder().encode("%PDF-1.7 certificate");
 
-export interface Ev { name: string; subject: string; payload: Record<string, unknown>; id: string }
-export interface CallLog { cap: string; input: Record<string, any> }   // eslint-disable-line @typescript-eslint/no-explicit-any
-export interface Caller { id: string; kind?: "person" | "agent" | "actor" | "service"; run?: string; thread?: string; actingFor?: string }
-type Callee = (input: any) => unknown;   // eslint-disable-line @typescript-eslint/no-explicit-any
+export interface Ev {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+  id: string;
+}
+export interface CallLog {
+  cap: string;
+  input: Record<string, any>;
+} // eslint-disable-line @typescript-eslint/no-explicit-any
+export interface Caller {
+  id: string;
+  kind?: "person" | "agent" | "actor" | "service";
+  run?: string;
+  thread?: string;
+  actingFor?: string;
+}
+type Callee = (input: any) => unknown; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 export const dana: Caller = { id: "usr_dana", kind: "person" };
 
@@ -54,7 +76,10 @@ export class FakeProvider implements EsignProvider {
     if (this.failCreate) throw new Error(this.failCreate);
     this.created.push(req);
     const ref = `doc_${this.nextRef++}`;
-    this.state = { state: "sent", signers: req.signers.map((s) => ({ name: s.name, email: s.email, status: "sent" as EnvelopeStatus })) };
+    this.state = {
+      state: "sent",
+      signers: req.signers.map((s) => ({ name: s.name, email: s.email, status: "sent" as EnvelopeStatus })),
+    };
     return { ref };
   }
 
@@ -77,7 +102,8 @@ export class FakeProvider implements EsignProvider {
 
   webhook(payload: unknown): WebhookEvent | null {
     const p = payload as Partial<WebhookEvent> & { ignore?: boolean };
-    if (this.malformed || typeof p !== "object" || p === null || typeof p.ref !== "string") throw new ProviderPayloadError("That is not a fake webhook.");
+    if (this.malformed || typeof p !== "object" || p === null || typeof p.ref !== "string")
+      throw new ProviderPayloadError("That is not a fake webhook.");
     return p.ignore ? null : (p as WebhookEvent);
   }
 
@@ -88,11 +114,17 @@ export class FakeProvider implements EsignProvider {
 
   /** the provider's own state after every signer signed */
   allSigned(): void {
-    this.state = { state: "signed", signers: this.state.signers.map((s) => ({ ...s, status: "signed" as EnvelopeStatus })) };
+    this.state = {
+      state: "signed",
+      signers: this.state.signers.map((s) => ({ ...s, status: "signed" as EnvelopeStatus })),
+    };
   }
 }
 
-export interface HarnessOptions { now?: number; providers?: Partial<Record<ProviderKey, EsignProvider>> | null }
+export interface HarnessOptions {
+  now?: number;
+  providers?: Partial<Record<ProviderKey, EsignProvider>> | null;
+}
 
 export function harness(o: HarnessOptions = {}) {
   const sqlite = new DatabaseSync(":memory:");
@@ -100,7 +132,9 @@ export function harness(o: HarnessOptions = {}) {
   const norm = (a: unknown): unknown => (a === undefined ? null : a);
   const raw = {
     all: (sql: string, ...args: unknown[]): unknown[] => sqlite.prepare(sql).all(...(args.map(norm) as never[])),
-    run: (sql: string, ...args: unknown[]): { changes: number } => ({ changes: Number(sqlite.prepare(sql).run(...(args.map(norm) as never[])).changes) }),
+    run: (sql: string, ...args: unknown[]): { changes: number } => ({
+      changes: Number(sqlite.prepare(sql).run(...(args.map(norm) as never[])).changes),
+    }),
   };
   const provider = new FakeProvider();
   configureEsign(o.providers === null ? null : { providers: o.providers ?? { documenso: provider } });
@@ -117,8 +151,14 @@ export function harness(o: HarnessOptions = {}) {
   function ctxFor(cap: string | null, who: Caller): Ctx {
     const allowed = cap ? emitsOf(cap) : null;
     return {
-      space: "spc_test", principal: { kind: who.kind ?? "person", id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}), trace: { traceId: TRACE, spanId: "0123456789abcdef" },
-      ...(who.run ? { run: who.run } : {}), ...(who.thread ? { thread: who.thread } : {}), origin: "user", depth: 0,
+      space: "spc_test",
+      principal: { kind: who.kind ?? "person", id: who.id },
+      ...(who.actingFor ? { actingFor: who.actingFor } : {}),
+      trace: { traceId: TRACE, spanId: "0123456789abcdef" },
+      ...(who.run ? { run: who.run } : {}),
+      ...(who.thread ? { thread: who.thread } : {}),
+      origin: "user",
+      depth: 0,
       now: () => clock,
       db: scopedDb("esign", raw, TRACE),
       emit<T>(name: EventName, subj: string, payload: T): EventEnvelope<T> {
@@ -137,15 +177,25 @@ export function harness(o: HarnessOptions = {}) {
       },
       authorize: () => ({ effect: "allow", reason: "granted", decisionId: "dec_1" }),
       vault: { async fill() {}, use: (handle) => ({ handle }) },
-      http: async () => { throw new Error("no network in esign tests"); },
-      log: { debug() {}, info() {}, warn: (msg: string) => { warnings.push(msg); }, error() {} },
+      http: async () => {
+        throw new Error("no network in esign tests");
+      },
+      log: {
+        debug() {},
+        info() {},
+        warn: (msg: string) => {
+          warnings.push(msg);
+        },
+        error() {},
+      },
       schedule: async () => "sch_1",
       seal: { seal: () => ({ keyId: "k", nonce: "n", bytes: "b" }), unseal: () => new Uint8Array() },
     };
   }
 
   /** Calls a handler like the pipeline does: input and output are validated unless `check` is false (to test what the handler itself refuses). */
-  async function call(cap: string, input: unknown, who: Caller = dana, check = true): Promise<any> {   // eslint-disable-line @typescript-eslint/no-explicit-any
+  async function call(cap: string, input: unknown, who: Caller = dana, check = true): Promise<any> {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
     const bad = check ? validateInput(cap, 1, input) : [];
     if (bad.length) throw new Error(`${cap} input is invalid: ${bad.join("; ")}`);
     const h = (handlers as Record<string, (ctx: Ctx, input: unknown) => Promise<unknown>>)[cap];
@@ -158,10 +208,26 @@ export function harness(o: HarnessOptions = {}) {
   }
 
   // the neighbours, with the answers the real modules give
-  callees["files.get"] = (i: { fileId: string }) => ({ file: { fileId: i.fileId, folderId: FOLDER, name: "Retainer.pdf", kind: "pdf", mime: "application/pdf", size: PDF.length, version: 1 } });
+  callees["files.get"] = (i: { fileId: string }) => ({
+    file: {
+      fileId: i.fileId,
+      folderId: FOLDER,
+      name: "Retainer.pdf",
+      kind: "pdf",
+      mime: "application/pdf",
+      size: PDF.length,
+      version: 1,
+    },
+  });
   callees["projects.files_folder"] = () => ({ folderId: "fld_record_files" });
   callees["files.move"] = (i: { fileId: string }) => ({ file: { fileId: i.fileId } });
-  callees["files.read"] = () => ({ base64: toBase64(PDF), mime: "application/pdf", size: PDF.length, version: 1, truncated: false });
+  callees["files.read"] = () => ({
+    base64: toBase64(PDF),
+    mime: "application/pdf",
+    size: PDF.length,
+    version: 1,
+    truncated: false,
+  });
   callees["files.write"] = (i: { fileId: string; content: { base64: string }; reason?: string }) => {
     written.push({ fileId: i.fileId, base64: i.content.base64, ...(i.reason ? { reason: i.reason } : {}) });
     return { file: { fileId: i.fileId, version: 2 }, versionId: "ver_2" };
@@ -175,19 +241,34 @@ export function harness(o: HarnessOptions = {}) {
   callees["chat.post"] = () => ({ message: { id: "msg_1" } });
 
   return {
-    sqlite, db: raw, call, ctxFor, provider,
-    get events(): Ev[] { return events; },
-    calls, warnings, written, created,
-    callee(cap: string, f: Callee): void { callees[cap] = f; },
+    sqlite,
+    db: raw,
+    call,
+    ctxFor,
+    provider,
+    get events(): Ev[] {
+      return events;
+    },
+    calls,
+    warnings,
+    written,
+    created,
+    callee(cap: string, f: Callee): void {
+      callees[cap] = f;
+    },
     callsTo: (cap: string): CallLog[] => calls.filter((c) => c.cap === cap),
-    advance(ms: number): void { clock += ms; },
+    advance(ms: number): void {
+      clock += ms;
+    },
     now: (): number => clock,
     rows: (table: string): Record<string, unknown>[] => raw.all(`SELECT * FROM ${table}`) as Record<string, unknown>[],
   };
 }
 export type Harness = ReturnType<typeof harness>;
 
-export function codeOf(e: unknown): string | undefined { return (e as { error?: { code?: string } } | null)?.error?.code; }
+export function codeOf(e: unknown): string | undefined {
+  return (e as { error?: { code?: string } } | null)?.error?.code;
+}
 
 export async function refused(p: Promise<unknown>, code: string): Promise<void> {
   try {

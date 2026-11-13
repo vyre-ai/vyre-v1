@@ -22,12 +22,23 @@ const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object
 
 /** The daemon's /healthz (host/src/daemon/http.ts): `{ ok, version, roles, space, ... }`. A Space server lists the space role and names its spc_ id. */
 export function spaceHealth(body: unknown): boolean {
-  return isObj(body) && Array.isArray(body["roles"]) && body["roles"].includes("space") && typeof body["space"] === "string" && /^spc_[A-Za-z0-9_-]{1,128}$/.test(body["space"]);
+  return (
+    isObj(body) &&
+    Array.isArray(body["roles"]) &&
+    body["roles"].includes("space") &&
+    typeof body["space"] === "string" &&
+    /^spc_[A-Za-z0-9_-]{1,128}$/.test(body["space"])
+  );
 }
 
 /** identity.sign_in_options' answer: what a Space's sign-in page offers. */
 function signInOptions(data: unknown): boolean {
-  return isObj(data) && typeof data["name"] === "string" && typeof data["password"] === "boolean" && typeof data["github"] === "boolean";
+  return (
+    isObj(data) &&
+    typeof data["name"] === "string" &&
+    typeof data["password"] === "boolean" &&
+    typeof data["github"] === "boolean"
+  );
 }
 
 async function withTimeout<T>(ms: number, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
@@ -36,9 +47,16 @@ async function withTimeout<T>(ms: number, run: (signal: AbortSignal) => Promise<
   try {
     return await Promise.race([
       run(ctl.signal),
-      new Promise<never>((_, reject) => { timer = setTimeout(() => { ctl.abort(); reject(new Error("timed out")); }, ms); }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          ctl.abort();
+          reject(new Error("timed out"));
+        }, ms);
+      }),
     ]);
-  } finally { if (timer !== undefined) clearTimeout(timer); }
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 /**
@@ -48,19 +66,42 @@ async function withTimeout<T>(ms: number, run: (signal: AbortSignal) => Promise<
  */
 export async function probeDirectSpace(address: string, o: ProbeOptions = {}): Promise<boolean> {
   let base: string;
-  try { const u = new URL(address); if (u.protocol !== "https:" && u.protocol !== "http:") return false; base = u.origin; } catch { return false; }
+  try {
+    const u = new URL(address);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return false;
+    base = u.origin;
+  } catch {
+    return false;
+  }
   const doFetch = o.fetch ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
   const ms = o.timeoutMs ?? PROBE_TIMEOUT_MS;
   try {
     const healthy = await withTimeout(ms, async (signal) => {
-      const res = await doFetch(`${base}/healthz`, { method: "GET", headers: { accept: "application/json" }, cache: "no-store", redirect: "error", signal });
+      const res = await doFetch(`${base}/healthz`, {
+        method: "GET",
+        headers: { accept: "application/json" },
+        cache: "no-store",
+        redirect: "error",
+        signal,
+      });
       if (res.status !== 200 || !/^application\/json\b/i.test(res.headers.get("content-type") ?? "")) return false;
       return spaceHealth(await res.json());
     });
     if (healthy) return true;
-  } catch { /* unreadable (CORS on an older server), offline or slow: ask the second way */ }
+  } catch {
+    /* unreadable (CORS on an older server), offline or slow: ask the second way */
+  }
   try {
-    const call = createCapCaller({ baseUrl: base, token: () => null, fetch: doFetch, ...(o.routes ? { routes: o.routes } : {}) });
-    return await withTimeout(ms, async (signal) => signInOptions(await call("identity.sign_in_options", {}, { signal })));
-  } catch { return false; }
+    const call = createCapCaller({
+      baseUrl: base,
+      token: () => null,
+      fetch: doFetch,
+      ...(o.routes ? { routes: o.routes } : {}),
+    });
+    return await withTimeout(ms, async (signal) =>
+      signInOptions(await call("identity.sign_in_options", {}, { signal })),
+    );
+  } catch {
+    return false;
+  }
 }

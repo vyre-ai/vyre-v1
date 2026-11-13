@@ -10,24 +10,61 @@ import type { AvatarKind } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Btn, Glyph } from "../layout/parts.tsx";
 import type { Share } from "../layout/model.ts";
 
-export const LEVEL_LABEL: Readonly<Record<Share["level"], string>> = { use: "Use", view: "View", edit: "Edit", manage: "Manage" };
+export const LEVEL_LABEL: Readonly<Record<Share["level"], string>> = {
+  use: "Use",
+  view: "View",
+  edit: "Edit",
+  manage: "Manage",
+};
 const LEVEL_NOTE: Readonly<Record<Share["level"], string>> = {
-  use: "Works with it without seeing the value", view: "Can reveal values (asks once, logged)", edit: "Can edit the fields", manage: "Can edit, share and delete",
+  use: "Works with it without seeing the value",
+  view: "Can reveal values (asks once, logged)",
+  edit: "Can edit the fields",
+  manage: "Can edit, share and delete",
 };
 const LEVELS: readonly Share["level"][] = ["use", "view", "edit", "manage"];
 // A person or an agent needs no label: the face and the name say it. Only what a name alone does not say is written (a group, a role, an Automation, an outside agent, a link), the way the share sheet's rows read.
-const KIND_LABEL: Readonly<Record<Share["subject"]["kind"], string>> = { person: "", group: "Group", role: "Role", agent: "", actor: "Outside agent", service: "Automation", link: "Link" };
+const KIND_LABEL: Readonly<Record<Share["subject"]["kind"], string>> = {
+  person: "",
+  group: "Group",
+  role: "Role",
+  agent: "",
+  actor: "Outside agent",
+  service: "Automation",
+  link: "Link",
+};
 /** The one line under a name: what it is when the name does not say, and how it came to hold the item when it is not a direct grant. Empty is no line. */
 export function noteOf(kind: Share["subject"]["kind"], through: Share["through"]): string {
-  const via = through === "folder" ? "from the folder" : through === "group" || through === "role" ? `through a ${through}` : "";
+  const via =
+    through === "folder" ? "from the folder" : through === "group" || through === "role" ? `through a ${through}` : "";
   return [KIND_LABEL[kind], via].filter((x) => x !== "").join(" · ");
 }
-const FACE: Readonly<Record<Share["subject"]["kind"], AvatarKind>> = { person: "person", group: "group", role: "group", agent: "agent", actor: "person", service: "automation", link: "group" };
+const FACE: Readonly<Record<Share["subject"]["kind"], AvatarKind>> = {
+  person: "person",
+  group: "group",
+  role: "group",
+  agent: "agent",
+  actor: "person",
+  service: "automation",
+  link: "group",
+};
 /** People first, then agents, groups and roles, then Automations, then anything outside. */
-const ORDER: Readonly<Record<Share["subject"]["kind"], number>> = { person: 0, agent: 1, group: 2, role: 2, service: 3, actor: 4, link: 5 };
+const ORDER: Readonly<Record<Share["subject"]["kind"], number>> = {
+  person: 0,
+  agent: 1,
+  group: 2,
+  role: 2,
+  service: 3,
+  actor: 4,
+  link: 5,
+};
 
 /** The menu of one grant's level: the four levels with the current one checked, then Stop sharing. */
-export function levelEntries(current: Share["level"], pick: (l: Share["level"]) => void, remove: () => void): MenuEntry[] {
+export function levelEntries(
+  current: Share["level"],
+  pick: (l: Share["level"]) => void,
+  remove: () => void,
+): MenuEntry[] {
   const out: MenuEntry[] = [{ head: "Can" }];
   for (const l of LEVELS) out.push({ label: `${LEVEL_LABEL[l]}`, checked: current === l, onSelect: () => pick(l) });
   out.push({ separator: true }, { label: "Stop sharing", danger: true, onSelect: remove });
@@ -51,12 +88,33 @@ export interface WhoCanUseProps {
   onMenu: (entries: MenuEntry[], x: number, y: number) => void;
 }
 
-export function WhoCanUse({ shares, you, nameOf, meId, canManage, onLevel, onRemove, onShare, onMenu }: WhoCanUseProps): ReactElement {
+export function WhoCanUse({
+  shares,
+  you,
+  nameOf,
+  meId,
+  canManage,
+  onLevel,
+  onRemove,
+  onShare,
+  onMenu,
+}: WhoCanUseProps): ReactElement {
   const rows: ReactElement[] = [
     <Row
-      key="you" id="who:you" title="You" {...(you.owner ? { note: "Owner" } : {})}
-      leading={<View style={s.face}><Avatar name={you.name} seedId={meId} kind="person" size={28} /></View>}
-      trailing={<Text style={s.levelFixed} testID="who-level-you">{LEVEL_LABEL[you.level]}</Text>}
+      key="you"
+      id="who:you"
+      title="You"
+      {...(you.owner ? { note: "Owner" } : {})}
+      leading={
+        <View style={s.face}>
+          <Avatar name={you.name} seedId={meId} kind="person" size={28} />
+        </View>
+      }
+      trailing={
+        <Text style={s.levelFixed} testID="who-level-you">
+          {LEVEL_LABEL[you.level]}
+        </Text>
+      }
     />,
   ];
   const others = shares.filter((sh) => !(sh.subject.kind === "person" && sh.subject.id === meId));
@@ -66,19 +124,52 @@ export function WhoCanUse({ shares, you, nameOf, meId, canManage, onLevel, onRem
     const name = nameOf(sh.subject);
     const key = `${sh.subject.kind}:${sh.subject.id}`;
     const direct = sh.through === "direct" && canManage;
-    const open = (x: number, y: number): void => onMenu(levelEntries(sh.level, (l) => onLevel(sh, l), () => onRemove(sh)), x, y);
+    const open = (x: number, y: number): void =>
+      onMenu(
+        levelEntries(
+          sh.level,
+          (l) => onLevel(sh, l),
+          () => onRemove(sh),
+        ),
+        x,
+        y,
+      );
     rows.push(
-      <View key={key} style={noteOf(sh.subject.kind, sh.through) === "" ? s.bare : undefined} {...(direct ? menuTrigger(open) : {})}>
+      <View
+        key={key}
+        style={noteOf(sh.subject.kind, sh.through) === "" ? s.bare : undefined}
+        {...(direct ? menuTrigger(open) : {})}
+      >
         <Row
           id={`who:${key}`}
           title={name}
           {...(noteOf(sh.subject.kind, sh.through) !== "" ? { note: noteOf(sh.subject.kind, sh.through) } : {})}
-          leading={<View style={s.face}><Avatar name={name} seedId={sh.subject.id} kind={FACE[sh.subject.kind]} size={28} /></View>}
-          trailing={direct ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={`${name} can ${LEVEL_LABEL[sh.level]}. Change`} testID={`who-level-${key}`} onPress={(e) => { const r = rectOf(e); open(r.x, r.y); }} style={s.level}>
-              <Text style={s.levelText}>{LEVEL_LABEL[sh.level]}</Text><Glyph name="chevd" size={10} />
-            </Pressable>
-          ) : <Text style={s.levelFixed} testID={`who-level-${key}`}>{LEVEL_LABEL[sh.level]}</Text>}
+          leading={
+            <View style={s.face}>
+              <Avatar name={name} seedId={sh.subject.id} kind={FACE[sh.subject.kind]} size={28} />
+            </View>
+          }
+          trailing={
+            direct ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${name} can ${LEVEL_LABEL[sh.level]}. Change`}
+                testID={`who-level-${key}`}
+                onPress={(e) => {
+                  const r = rectOf(e);
+                  open(r.x, r.y);
+                }}
+                style={s.level}
+              >
+                <Text style={s.levelText}>{LEVEL_LABEL[sh.level]}</Text>
+                <Glyph name="chevd" size={10} />
+              </Pressable>
+            ) : (
+              <Text style={s.levelFixed} testID={`who-level-${key}`}>
+                {LEVEL_LABEL[sh.level]}
+              </Text>
+            )
+          }
         />
       </View>,
     );
@@ -96,7 +187,10 @@ export function WhoCanUse({ shares, you, nameOf, meId, canManage, onLevel, onRem
 }
 
 function rectOf(e: unknown): { x: number; y: number } {
-  const ev = e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } }; nativeEvent?: { pageX?: number; pageY?: number } };
+  const ev = e as {
+    currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
+    nativeEvent?: { pageX?: number; pageY?: number };
+  };
   const box = ev.currentTarget?.getBoundingClientRect?.();
   return box ? { x: box.left, y: box.bottom } : { x: ev.nativeEvent?.pageX ?? 0, y: ev.nativeEvent?.pageY ?? 0 };
 }

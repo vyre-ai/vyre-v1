@@ -7,12 +7,29 @@ import type { Level, ResourceType } from "../../../../packages/contracts/src/typ
 /** The runtime call every adapter makes through. Rejects with the host error shape. */
 export type ShareCall = (cap: string, input: Record<string, unknown>) => Promise<unknown>;
 
-export type ShareKind = "note" | "vault_item" | "vault_folder" | "file" | "folder" | "artifact" | "record" | "record_type" | "project" | "agent";
+export type ShareKind =
+  | "note"
+  | "vault_item"
+  | "vault_folder"
+  | "file"
+  | "folder"
+  | "artifact"
+  | "record"
+  | "record_type"
+  | "project"
+  | "agent";
 
-export interface Subject { kind: "person" | "group" | "role" | "agent"; id: string }
+export interface Subject {
+  kind: "person" | "group" | "role" | "agent";
+  id: string;
+}
 
 /** One level a type offers: its words in the sheet and what the person gets. */
-export interface LevelOption { id: Level; label: string; gets: string }
+export interface LevelOption {
+  id: Level;
+  label: string;
+  gets: string;
+}
 
 export interface AccessEntry {
   subject: Subject;
@@ -53,7 +70,9 @@ export interface ShareAdapter {
 
 export class NotContained extends Error {
   readonly code = "permission.not_contained";
-  constructor(have: Level | null, want: Level) { super(`you hold ${have ?? "nothing"} here and cannot give ${want}`); }
+  constructor(have: Level | null, want: Level) {
+    super(`you hold ${have ?? "nothing"} here and cannot give ${want}`);
+  }
 }
 
 /* ---------- what each type offers, in its own words ---------- */
@@ -82,7 +101,11 @@ export const LEVELS: Readonly<Record<ShareKind, readonly LevelOption[]>> = {
     OPT("manage", "Can manage", "They can also share it and delete it."),
   ],
   agent: [
-    OPT("use", "Can use", "Chat with it and put it to work in their own chats, tasks, automations and crews, on their own AI account."),
+    OPT(
+      "use",
+      "Can use",
+      "Chat with it and put it to work in their own chats, tasks, automations and crews, on their own AI account.",
+    ),
     OPT("edit", "Can edit", "Change its instructions, context and tools."),
     OPT("manage", "Can manage", "Share it, move it and delete it."),
   ],
@@ -90,16 +113,40 @@ export const LEVELS: Readonly<Record<ShareKind, readonly LevelOption[]>> = {
     OPT("view", "Can view", "They can read the note."),
     OPT("edit", "Can edit", "They can read and change the note."),
   ],
-  file: [OPT("view", "Can view", "They can open it."), OPT("edit", "Can edit", "They can open and change it."), OPT("manage", "Can manage", "They can also share it, move it and delete it.")],
-  folder: [OPT("view", "Can view", "They can open everything inside."), OPT("edit", "Can edit", "They can open and change everything inside."), OPT("manage", "Can manage", "They can also share it, move it and delete it.")],
-  artifact: [OPT("view", "Can view", "They can open it."), OPT("edit", "Can edit", "They can open and change it."), OPT("manage", "Can manage", "They can also share it, move it and delete it.")],
-  project: [OPT("view", "Can view", "They can open the project and its work."), OPT("edit", "Can edit", "They can change the plan, tasks and files."), OPT("manage", "Can manage", "They can also share it and delete it.")],
+  file: [
+    OPT("view", "Can view", "They can open it."),
+    OPT("edit", "Can edit", "They can open and change it."),
+    OPT("manage", "Can manage", "They can also share it, move it and delete it."),
+  ],
+  folder: [
+    OPT("view", "Can view", "They can open everything inside."),
+    OPT("edit", "Can edit", "They can open and change everything inside."),
+    OPT("manage", "Can manage", "They can also share it, move it and delete it."),
+  ],
+  artifact: [
+    OPT("view", "Can view", "They can open it."),
+    OPT("edit", "Can edit", "They can open and change it."),
+    OPT("manage", "Can manage", "They can also share it, move it and delete it."),
+  ],
+  project: [
+    OPT("view", "Can view", "They can open the project and its work."),
+    OPT("edit", "Can edit", "They can change the plan, tasks and files."),
+    OPT("manage", "Can manage", "They can also share it and delete it."),
+  ],
 };
 
 /** The access resource type a kind lives under. */
 export const RESOURCE_OF: Readonly<Record<ShareKind, ResourceType>> = {
-  note: "file", vault_item: "vault_item", vault_folder: "vault_folder", file: "file", folder: "folder", artifact: "site",
-  record: "record", record_type: "record_type", project: "project", agent: "agent",
+  note: "file",
+  vault_item: "vault_item",
+  vault_folder: "vault_folder",
+  file: "file",
+  folder: "folder",
+  artifact: "site",
+  record: "record",
+  record_type: "record_type",
+  project: "project",
+  agent: "agent",
 };
 
 const rankOf = (type: string, l: Level): number => ladderFor(type as ResourceType).indexOf(l);
@@ -114,7 +161,15 @@ export function offered(kind: ShareKind, mine: Level | null): LevelOption[] {
 /* ---------- access.* adapters (everything but Notes) ---------- */
 
 interface SharesOut {
-  shares: Array<{ grant: { subject: { kind: string; id: string }; level: Level; conditions: { export?: boolean; reshare?: boolean }; resource: { id: string } }; through: string }>;
+  shares: Array<{
+    grant: {
+      subject: { kind: string; id: string };
+      level: Level;
+      conditions: { export?: boolean; reshare?: boolean };
+      resource: { id: string };
+    };
+    through: string;
+  }>;
   mine?: Level;
   can?: { share: boolean; manage: boolean };
 }
@@ -128,13 +183,22 @@ export interface AdapterDeps {
   nameOf(id: string): string;
 }
 
-export function accessAdapter(deps: AdapterDeps, kind: Exclude<ShareKind, "note">, resource: { type?: string; id: string }): ShareAdapter {
+export function accessAdapter(
+  deps: AdapterDeps,
+  kind: Exclude<ShareKind, "note">,
+  resource: { type?: string; id: string },
+): ShareAdapter {
   const ref = { type: resource.type ?? RESOURCE_OF[kind], id: resource.id };
   let mine: Level | null = null;
-  const owns = (want: Level): void => { if (mine === null || rankOf(ref.type, want) > rankOf(ref.type, mine)) throw new NotContained(mine, want); };
-  const known = (want: Level): void => { if (!LEVELS[kind].some((o) => o.id === want)) throw new Error(`${kind} does not offer ${want}`); };
+  const owns = (want: Level): void => {
+    if (mine === null || rankOf(ref.type, want) > rankOf(ref.type, mine)) throw new NotContained(mine, want);
+  };
+  const known = (want: Level): void => {
+    if (!LEVELS[kind].some((o) => o.id === want)) throw new Error(`${kind} does not offer ${want}`);
+  };
   const adapter: ShareAdapter = {
-    kind, resource: ref,
+    kind,
+    resource: ref,
     levels: [],
     hasAnyone: kind !== "record",
     async list() {
@@ -146,13 +210,25 @@ export function accessAdapter(deps: AdapterDeps, kind: Exclude<ShareKind, "note"
       let anyone: Level | null = null;
       for (const s of out.shares) {
         const g = s.grant;
-        if (s.through === "owner") { owner = { id: g.subject.id, name: deps.nameOf(g.subject.id) }; continue; }
-        if (g.subject.kind === EVERYONE.kind && g.subject.id === EVERYONE.id && s.through !== "folder") { anyone = g.level; continue; }
+        if (s.through === "owner") {
+          owner = { id: g.subject.id, name: deps.nameOf(g.subject.id) };
+          continue;
+        }
+        if (g.subject.kind === EVERYONE.kind && g.subject.id === EVERYONE.id && s.through !== "folder") {
+          anyone = g.level;
+          continue;
+        }
         if (!SUBJECTS.has(g.subject.kind)) continue;
-        const flags = { ...(g.conditions.export === true ? { export: true } : {}), ...(g.conditions.reshare === true ? { reshare: true } : {}) };
+        const flags = {
+          ...(g.conditions.export === true ? { export: true } : {}),
+          ...(g.conditions.reshare === true ? { reshare: true } : {}),
+        };
         entries.push({
-          subject: { kind: g.subject.kind as Subject["kind"], id: g.subject.id }, name: deps.nameOf(g.subject.id), level: g.level,
-          via: s.through === "folder" ? "folder" : "grant", fromFolderId: s.through === "folder" ? g.resource.id : null,
+          subject: { kind: g.subject.kind as Subject["kind"], id: g.subject.id },
+          name: deps.nameOf(g.subject.id),
+          level: g.level,
+          via: s.through === "folder" ? "folder" : "grant",
+          fromFolderId: s.through === "folder" ? g.resource.id : null,
           ...(Object.keys(flags).length > 0 ? { flags } : {}),
         });
       }
@@ -160,14 +236,25 @@ export function accessAdapter(deps: AdapterDeps, kind: Exclude<ShareKind, "note"
       return { owner, entries, anyone, mine, canShare };
     },
     async set(subject, level) {
-      known(level); owns(level);
-      await deps.call(kind === "vault_item" || kind === "vault_folder" ? "vault.share" : "access.share", { resource: ref, subject, level });
+      known(level);
+      owns(level);
+      await deps.call(kind === "vault_item" || kind === "vault_folder" ? "vault.share" : "access.share", {
+        resource: ref,
+        subject,
+        level,
+      });
     },
     async remove(subject) {
-      await deps.call(kind === "vault_item" || kind === "vault_folder" ? "vault.unshare" : "access.unshare", { resource: ref, subject });
+      await deps.call(kind === "vault_item" || kind === "vault_folder" ? "vault.unshare" : "access.unshare", {
+        resource: ref,
+        subject,
+      });
     },
     async setAnyone(level) {
-      if (level === null) { await adapter.remove(EVERYONE); return; }
+      if (level === null) {
+        await adapter.remove(EVERYONE);
+        return;
+      }
       await adapter.set(EVERYONE, level);
     },
   };
@@ -176,8 +263,15 @@ export function accessAdapter(deps: AdapterDeps, kind: Exclude<ShareKind, "note"
 
 /* ---------- Notes: notes.share, only the owner shares, View or Edit ---------- */
 
-interface NoteShare { people: Array<{ personId: string; role: "edit" | "view" }>; space: "off" | "view" | "edit" }
-interface NoteLike { noteId: string; owner: string; share: NoteShare }
+interface NoteShare {
+  people: Array<{ personId: string; role: "edit" | "view" }>;
+  space: "off" | "view" | "edit";
+}
+interface NoteLike {
+  noteId: string;
+  owner: string;
+  share: NoteShare;
+}
 
 export function noteAdapter(deps: AdapterDeps, noteId: string, me: string): ShareAdapter {
   const ref = { type: "note", id: noteId };
@@ -188,16 +282,29 @@ export function noteAdapter(deps: AdapterDeps, noteId: string, me: string): Shar
     return state;
   };
   const adapter: ShareAdapter = {
-    kind: "note", resource: ref, levels: [], hasAnyone: true,
+    kind: "note",
+    resource: ref,
+    levels: [],
+    hasAnyone: true,
     async list() {
       const n = await readNote();
       const isOwner = n.owner === me;
       (adapter as { levels: readonly LevelOption[] }).levels = isOwner ? LEVELS.note : [];
       return {
         owner: { id: n.owner, name: deps.nameOf(n.owner) },
-        entries: n.share.people.map((p) => ({ subject: { kind: "person" as const, id: p.personId }, name: deps.nameOf(p.personId), level: p.role as Level, via: "grant" as const, fromFolderId: null })),
+        entries: n.share.people.map((p) => ({
+          subject: { kind: "person" as const, id: p.personId },
+          name: deps.nameOf(p.personId),
+          level: p.role as Level,
+          via: "grant" as const,
+          fromFolderId: null,
+        })),
         anyone: n.share.space === "off" ? null : n.share.space,
-        mine: isOwner ? "manage" : n.share.space === "edit" || n.share.people.find((p) => p.personId === me)?.role === "edit" ? "edit" : "view",
+        mine: isOwner
+          ? "manage"
+          : n.share.space === "edit" || n.share.people.find((p) => p.personId === me)?.role === "edit"
+            ? "edit"
+            : "view",
         canShare: isOwner,
       };
     },

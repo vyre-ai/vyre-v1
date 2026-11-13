@@ -73,7 +73,10 @@ const minimal = {
 
 test("budgets.json has one row per ARCH 9 budget with id, metric, p50, p95, and machine", () => {
   const budgets = loadBudgets();
-  assert.deepEqual(budgets.map((b) => b.id), ARCH_IDS);
+  assert.deepEqual(
+    budgets.map((b) => b.id),
+    ARCH_IDS,
+  );
   for (const budget of budgets) {
     assert.equal(budget.machine, "mid laptop");
     assert.equal(typeof budget.metric, "string");
@@ -175,7 +178,9 @@ test("the fast lane runs the rows whose probe ids the changed paths touch", () =
   assert.equal(rowsForLane("fast", ["perf/harness/headless.ts"], budgets, probes).length, budgets.length);
   assert.equal(rowsForLane("full", ["docs/lanes/L11.md"], budgets, probes).length, budgets.length);
   assert.deepEqual(
-    rowsForLane("fast", ["apps/app/src/home/checklist.tsx"], budgets, probes).map((b) => b.id).sort(),
+    rowsForLane("fast", ["apps/app/src/home/checklist.tsx"], budgets, probes)
+      .map((b) => b.id)
+      .sort(),
     ["layout_shift", "startup"],
   );
   for (const budget of budgets) {
@@ -198,7 +203,13 @@ test("the headless client keeps one sqlite connection across 20 screens and stor
     assert.equal(client.connectionCount, 1);
     assert.throws(() => client.db.prepare("INSERT INTO connection (id, device_id) VALUES (1, ?)").run("dev_other"));
     const parent = client.mark({ name: "app.start", budgetId: "startup", traceId: "tr_1", durMs: 5 });
-    const child = client.mark({ name: "replica.open", budgetId: "startup", traceId: "tr_1", durMs: 2, parentId: parent.id });
+    const child = client.mark({
+      name: "replica.open",
+      budgetId: "startup",
+      traceId: "tr_1",
+      durMs: 2,
+      parentId: parent.id,
+    });
     const rows = client.spans();
     assert.equal(rows[0]?.startMs, 0);
     assert.equal(rows[0]?.endMs, 5);
@@ -216,7 +227,8 @@ test("rollup marks a budget over when its p95 exceeds the row", () => {
   try {
     for (const budget of budgets) {
       const dur = durationFor(budget);
-      for (let i = 0; i < 5; i++) client.mark({ name: budget.metric, budgetId: budget.id, traceId: `tr_${budget.id}_${i}`, durMs: dur });
+      for (let i = 0; i < 5; i++)
+        client.mark({ name: budget.metric, budgetId: budget.id, traceId: `tr_${budget.id}_${i}`, durMs: dur });
     }
     for (const row of rollup(client.spans(), budgets)) assert.equal(row.over, false, row.budgetId);
     client.mark({ name: "app.usable", budgetId: "startup", traceId: "tr_over", durMs: 5000 });
@@ -242,7 +254,8 @@ test("console_speed rollup of five samples stays inside the budgets.json row", (
   try {
     for (const budget of budgets) {
       const dur = durationFor(budget);
-      for (let i = 0; i < SAMPLE_COUNT; i++) client.mark({ name: budget.metric, budgetId: budget.id, traceId: `tr_${budget.id}_${i}`, durMs: dur });
+      for (let i = 0; i < SAMPLE_COUNT; i++)
+        client.mark({ name: budget.metric, budgetId: budget.id, traceId: `tr_${budget.id}_${i}`, durMs: dur });
     }
     rollup(client.spans(), budgets);
     const values: number[] = [];
@@ -251,16 +264,38 @@ test("console_speed rollup of five samples stays inside the budgets.json row", (
       rollup(client.spans(), budgets);
       values.push(performance.now() - t0);
     }
-    const report = judge(row, values.map((value, i) => ({ value, traceId: `tr_console_${i}`, spans: client.spans() })));
+    const report = judge(
+      row,
+      values.map((value, i) => ({ value, traceId: `tr_console_${i}`, spans: client.spans() })),
+    );
     assert.equal(values.length, 5);
     assert.equal(report.p50, median(values));
     assert.equal(report.ok, true, failureText(report));
     assert.ok(report.p50 <= row.p50, `console_speed p50 ${report.p50} is over ${row.p50}`);
     assert.ok(report.p95 <= row.p95, `console_speed p95 ${report.p95} is over ${row.p95}`);
     const line = metricLine(report);
-    console.log(JSON.stringify({ id: report.id, metric: report.metric, machine: report.machine, unit: report.unit, p50: report.p50, p95: report.p95, budgetP50: report.budgetP50, budgetP95: report.budgetP95, ok: report.ok }));
+    console.log(
+      JSON.stringify({
+        id: report.id,
+        metric: report.metric,
+        machine: report.machine,
+        unit: report.unit,
+        p50: report.p50,
+        p95: report.p95,
+        budgetP50: report.budgetP50,
+        budgetP95: report.budgetP95,
+        ok: report.ok,
+      }),
+    );
     console.log(line);
-    const metric = JSON.parse(line.slice("METRIC ".length)) as { name: string; p50: number; p95: number; budget_p50: number; budget_p95: number; pass: boolean };
+    const metric = JSON.parse(line.slice("METRIC ".length)) as {
+      name: string;
+      p50: number;
+      p95: number;
+      budget_p50: number;
+      budget_p95: number;
+      pass: boolean;
+    };
     assert.equal(metric.name, "console_speed");
     assert.equal(metric.pass, true);
     assert.equal(metric.budget_p50, row.p50);

@@ -14,7 +14,10 @@ function Probe({ call }: { call: (cap: string, input: unknown) => Promise<unknow
 
 test("a finished helper's steps read that fails is tried again", async () => {
   let calls = 0;
-  const call = (): Promise<unknown> => { calls += 1; return calls === 1 ? Promise.reject(new Error("busy")) : Promise.resolve({ messages: [] }); };
+  const call = (): Promise<unknown> => {
+    calls += 1;
+    return calls === 1 ? Promise.reject(new Error("busy")) : Promise.resolve({ messages: [] });
+  };
   const root = await mount(createRoot, createElement(Probe, { call }));
   await new Promise((r) => setTimeout(r, 1900));
   assert.equal(calls, 2, "one failed read, then one more");

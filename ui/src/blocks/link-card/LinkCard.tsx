@@ -29,7 +29,20 @@ export interface LinkCardProps {
   time?: string;
 }
 
-export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state, hidden, onAskAccess, asked, time }: LinkCardProps): ReactElement {
+export function LinkCard({
+  id,
+  data,
+  nameOf,
+  icon,
+  onOpen,
+  onAction,
+  done,
+  state,
+  hidden,
+  onAskAccess,
+  asked,
+  time,
+}: LinkCardProps): ReactElement {
   const line = linkCardLine(data, nameOf);
   const open = data.target && onOpen && !hidden ? (): void => onOpen(data.target!) : undefined;
   const head = (
@@ -37,11 +50,39 @@ export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state
       {icon ? <View style={st.icon}>{icon}</View> : null}
       <Text numberOfLines={2} style={st.text}>
         {data.style === "question" ? "" : `${line}: `}
-        <Text accessibilityRole={open ? "link" : "text"} testID={`link-card-${id}-open`} onPress={open} style={open ? st.link : data.style === "question" ? st.qtitle : st.title}>{hidden ? hiddenTitle(data.target?.type) : data.title}</Text>
+        <Text
+          accessibilityRole={open ? "link" : "text"}
+          testID={`link-card-${id}-open`}
+          onPress={open}
+          style={open ? st.link : data.style === "question" ? st.qtitle : st.title}
+        >
+          {hidden ? hiddenTitle(data.target?.type) : data.title}
+        </Text>
         {hidden && onAskAccess ? <Text style={st.title}>{" \u00b7 "}</Text> : null}
-        {hidden && onAskAccess ? <Text accessibilityRole={asked ? "text" : "link"} testID={`link-card-${id}-ask`} onPress={asked ? undefined : onAskAccess} style={asked ? st.title : st.link}>{asked ? "Asked for access" : "Ask for access"}</Text> : null}
+        {hidden && onAskAccess ? (
+          <Text
+            accessibilityRole={asked ? "text" : "link"}
+            testID={`link-card-${id}-ask`}
+            onPress={asked ? undefined : onAskAccess}
+            style={asked ? st.title : st.link}
+          >
+            {asked ? "Asked for access" : "Ask for access"}
+          </Text>
+        ) : null}
       </Text>
-      {state && !hidden ? <Text testID={`link-card-${id}-state`} style={[st.state, state.tone === "ok" && st.ok, state.tone === "warn" && st.warn, state.tone === "bad" && st.bad]}>{state.text}</Text> : null}
+      {state && !hidden ? (
+        <Text
+          testID={`link-card-${id}-state`}
+          style={[
+            st.state,
+            state.tone === "ok" && st.ok,
+            state.tone === "warn" && st.warn,
+            state.tone === "bad" && st.bad,
+          ]}
+        >
+          {state.text}
+        </Text>
+      ) : null}
     </View>
   );
   // the buttons are built in a loop: they are a few small buttons under a card, not the rows of a list
@@ -49,8 +90,19 @@ export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state
   for (const a of data.actions ?? []) {
     const was = done?.has(a.key) === true;
     buttons.push(
-      <Pressable key={a.key} accessibilityRole="button" accessibilityLabel={a.label} accessibilityState={{ disabled: was }} disabled={was || !onAction} testID={`link-card-${id}-${a.key}`} onPress={() => onAction?.(a.key)} style={[st.btn, was && st.btnDone, data.style === "question" && buttons.length === 0 && st.btnPrimary]}>
-        <Text style={[st.btnText, data.style === "question" && buttons.length === 0 && st.btnPrimaryText]}>{was ? `${a.label} \u2713` : a.label}</Text>
+      <Pressable
+        key={a.key}
+        accessibilityRole="button"
+        accessibilityLabel={a.label}
+        accessibilityState={{ disabled: was }}
+        disabled={was || !onAction}
+        testID={`link-card-${id}-${a.key}`}
+        onPress={() => onAction?.(a.key)}
+        style={[st.btn, was && st.btnDone, data.style === "question" && buttons.length === 0 && st.btnPrimary]}
+      >
+        <Text style={[st.btnText, data.style === "question" && buttons.length === 0 && st.btnPrimaryText]}>
+          {was ? `${a.label} \u2713` : a.label}
+        </Text>
       </Pressable>,
     );
   }
@@ -65,9 +117,22 @@ export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state
           <Text>{`${data.lead}, `}</Text>
           <Text style={st.notedWords}>{data.title.charAt(0).toLowerCase() + data.title.slice(1)}</Text>
           {a ? <Text>{" \u00b7 "}</Text> : null}
-          {a ? <Text accessibilityRole="button" testID={`link-card-${id}-${a.key}`} onPress={was || !onAction ? undefined : () => onAction(a.key)} style={st.notedUndo}>{was ? `${a.label} \u2713` : a.label}</Text> : null}
+          {a ? (
+            <Text
+              accessibilityRole="button"
+              testID={`link-card-${id}-${a.key}`}
+              onPress={was || !onAction ? undefined : () => onAction(a.key)}
+              style={st.notedUndo}
+            >
+              {was ? `${a.label} \u2713` : a.label}
+            </Text>
+          ) : null}
         </Text>
-        {time ? <Text testID={`link-card-${id}-time`} style={st.notedTime}>{time}</Text> : null}
+        {time ? (
+          <Text testID={`link-card-${id}-time`} style={st.notedTime}>
+            {time}
+          </Text>
+        ) : null}
       </View>
     );
   }
@@ -77,29 +142,55 @@ export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state
     return (
       <View testID={`link-card-${id}`} style={st.line}>
         {head}
-        <Pressable accessibilityRole="button" accessibilityLabel={a.label} disabled={was || !onAction} testID={`link-card-${id}-${a.key}`} onPress={() => onAction?.(a.key)}><Text style={[st.link, st.inlineBtn]}>{was ? `${a.label} \u2713` : a.label}</Text></Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={a.label}
+          disabled={was || !onAction}
+          testID={`link-card-${id}-${a.key}`}
+          onPress={() => onAction?.(a.key)}
+        >
+          <Text style={[st.link, st.inlineBtn]}>{was ? `${a.label} \u2713` : a.label}</Text>
+        </Pressable>
       </View>
     );
   }
-  if (!isFullCard(data)) return <View testID={`link-card-${id}`} accessibilityRole="text" style={st.line}>{head}</View>;
+  if (!isFullCard(data))
+    return (
+      <View testID={`link-card-${id}`} accessibilityRole="text" style={st.line}>
+        {head}
+      </View>
+    );
   return (
     <View testID={`link-card-${id}`} style={st.card}>
       {head}
       {data.sub ? <Text style={st.sub}>{data.sub}</Text> : null}
       {data.body ? <Text style={st.body}>{data.body}</Text> : null}
-      {data.actions?.length ? (
-        <View style={st.acts}>
-          {buttons}
-        </View>
-      ) : null}
+      {data.actions?.length ? <View style={st.acts}>{buttons}</View> : null}
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  line: { flexShrink: 1, minWidth: 0, paddingVertical: 0, marginVertical: 0, flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", gap: 8 },
+  line: {
+    flexShrink: 1,
+    minWidth: 0,
+    paddingVertical: 0,
+    marginVertical: 0,
+    flexDirection: "row",
+    alignItems: "baseline",
+    flexWrap: "wrap",
+    gap: 8,
+  },
   inlineBtn: { fontSize: 13, lineHeight: 20 },
-  card: { marginVertical: 6, maxWidth: 520, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 8, boxShadow: "inset 0 0 0 1px var(--line-2)" } as object,
+  card: {
+    marginVertical: 6,
+    maxWidth: 520,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 8,
+    boxShadow: "inset 0 0 0 1px var(--line-2)",
+  } as object,
   head: { flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "flex-start", gap: 8 },
   icon: { width: 18, height: 20, alignItems: "center", justifyContent: "center" },
   text: { flex: 1, minWidth: 0, fontSize: 13, lineHeight: 20, color: "var(--ink-3)" as string },
@@ -111,7 +202,13 @@ const st = StyleSheet.create({
   bad: { color: "var(--danger)" as string },
   body: { fontSize: 13.5, lineHeight: 21, color: "var(--ink)" as string },
   acts: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  btn: { height: 28, paddingHorizontal: 12, borderRadius: 8, justifyContent: "center", backgroundColor: "var(--sunk)" as string },
+  btn: {
+    height: 28,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    justifyContent: "center",
+    backgroundColor: "var(--sunk)" as string,
+  },
   btnDone: { opacity: 0.6 },
   btnPrimary: { backgroundColor: "var(--ink)" as string },
   btnPrimaryText: { color: "var(--win)" as string },

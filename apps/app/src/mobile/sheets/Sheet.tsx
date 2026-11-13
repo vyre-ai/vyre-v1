@@ -5,18 +5,44 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Overlay } from "../../../../../ui/src/Overlay/index.tsx";
 import { useEscapeLayer } from "../../../../../ui/src/Overlay/escape.ts";
 
-export function Sheet({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: ReactNode }): ReactElement | null {
-  useEscapeLayer(open, onClose);   // one Escape closes the topmost layer only: this sheet, or the menu or picker drawn over it, never both
+export function Sheet({
+  open,
+  title,
+  onClose,
+  children,
+}: {
+  open: boolean;
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}): ReactElement | null {
+  useEscapeLayer(open, onClose); // one Escape closes the topmost layer only: this sheet, or the menu or picker drawn over it, never both
   if (!open) return null;
   return (
     <Overlay>
       <View testID="sheet" style={st.layer}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} testID="sheet-scrim" style={st.scrim} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          onPress={onClose}
+          testID="sheet-scrim"
+          style={st.scrim}
+        />
         <View role="dialog" aria-label={title} aria-modal style={st.panel}>
           <View style={st.grab} />
           <View style={st.head}>
-            <Text accessibilityRole="header" style={st.title}>{title}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} testID="sheet-close" style={st.close}><Text style={st.closeText}>Done</Text></Pressable>
+            <Text accessibilityRole="header" style={st.title}>
+              {title}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              onPress={onClose}
+              testID="sheet-close"
+              style={st.close}
+            >
+              <Text style={st.closeText}>Done</Text>
+            </Pressable>
           </View>
           <View style={st.body}>{children}</View>
         </View>
@@ -28,9 +54,31 @@ export function Sheet({ open, title, onClose, children }: { open: boolean; title
 const st = StyleSheet.create({
   layer: { position: "fixed" as "absolute", left: 0, top: 0, right: 0, bottom: 0, justifyContent: "flex-end" },
   scrim: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.32)" },
-  panel: { maxHeight: "80%", backgroundColor: "var(--raised)" as string, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 20, alignSelf: "center", width: "100%", maxWidth: 520 },
-  grab: { alignSelf: "center", width: 36, height: 4, borderRadius: 2, backgroundColor: "var(--line-2)" as string, marginTop: 8 },
-  head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, height: 44 },
+  panel: {
+    maxHeight: "80%",
+    backgroundColor: "var(--raised)" as string,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 20,
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 520,
+  },
+  grab: {
+    alignSelf: "center",
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "var(--line-2)" as string,
+    marginTop: 8,
+  },
+  head: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    height: 44,
+  },
   title: { fontSize: 16, fontWeight: "600", color: "var(--ink)" as string },
   close: { height: 32, paddingHorizontal: 8, justifyContent: "center" },
   closeText: { fontSize: 15, fontWeight: "500", color: "var(--accent)" as string },

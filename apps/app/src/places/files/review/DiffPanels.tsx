@@ -15,7 +15,11 @@ const LOADING_HEIGHT = 240;
 const isAddress = (s: string): boolean => /^(data:|https?:|\/)/.test(s);
 
 function Empty({ text }: { text: string }): ReactElement {
-  return <View style={st.empty} testID="diff-empty"><Text style={st.emptyText}>{text}</Text></View>;
+  return (
+    <View style={st.empty} testID="diff-empty">
+      <Text style={st.emptyText}>{text}</Text>
+    </View>
+  );
 }
 
 export interface FileDiffProps {
@@ -40,8 +44,12 @@ export function FileDiff({ fileId, from, to, name, density = "regular", bare = t
   useEffect(() => {
     if (!prose || !from || !to) return;
     let live = true;
-    void readTexts(data.call, fileId, from, to).then((t) => { if (live && t) setFull(wholeDocument(paragraphsOfText(t.from), paragraphsOfText(t.to))); });
-    return () => { live = false; };
+    void readTexts(data.call, fileId, from, to).then((t) => {
+      if (live && t) setFull(wholeDocument(paragraphsOfText(t.from), paragraphsOfText(t.to)));
+    });
+    return () => {
+      live = false;
+    };
   }, [prose, from, to, fileId, data]);
   const files = useMemo<DiffFile[]>(() => {
     if (q.status !== "ready") return [];
@@ -51,7 +59,18 @@ export function FileDiff({ fileId, from, to, name, density = "regular", bare = t
   if (q.status !== "ready") return <Skeleton height={LOADING_HEIGHT} testID="diff-loading" />;
   if (q.data.identical) return <Empty text="These two versions are the same." />;
   return (
-    <DiffTab title={name} layout="unified" wordMarks files={files} comments={[]} selectedPath={name} density={density} bare={bare} invoke={(c, i) => data.call(c, i)} testID="file-diff" />
+    <DiffTab
+      title={name}
+      layout="unified"
+      wordMarks
+      files={files}
+      comments={[]}
+      selectedPath={name}
+      density={density}
+      bare={bare}
+      invoke={(c, i) => data.call(c, i)}
+      testID="file-diff"
+    />
   );
 }
 
@@ -68,7 +87,10 @@ export function ChangesetDiff({ changesetId, density = "regular", path }: Change
   const cs = useCap("changesets.get", { changesetId });
   const paths = useMemo<string[]>(() => (cs.status === "ready" ? cs.data.files.map((f) => f.path) : []), [cs]);
   // context full: every paragraph of the base and the staged text, so the open file reads as the whole document
-  const diffs = useCapMany("changesets.diff", paths.map((p) => ({ changesetId, path: p, context: "full" as const })));
+  const diffs = useCapMany(
+    "changesets.diff",
+    paths.map((p) => ({ changesetId, path: p, context: "full" as const })),
+  );
   const comments = useCap("changesets.comments.list", { changesetId });
   const [pictures, setPictures] = useState<Record<string, string>>({});
   const baseVersion = cs.status === "ready" ? Number(cs.data.changeset.baseVersion) : 0;
@@ -79,9 +101,13 @@ export function ChangesetDiff({ changesetId, density = "regular", path }: Change
       const d = diffs.items[i];
       if (!f.fileId || !d || d.kind !== "image" || !d.images?.left || isAddress(d.images.left)) return;
       const fileId = f.fileId;
-      void basePreviewUrl(data.call, fileId, baseVersion).then((url) => { if (live && url) setPictures((m) => ({ ...m, [f.path]: url })); });
+      void basePreviewUrl(data.call, fileId, baseVersion).then((url) => {
+        if (live && url) setPictures((m) => ({ ...m, [f.path]: url }));
+      });
     });
-    return () => { live = false; };
+    return () => {
+      live = false;
+    };
   }, [cs, diffs, baseVersion, data]);
   const files = useMemo<DiffFile[]>(() => {
     const out: DiffFile[] = [];
@@ -90,11 +116,25 @@ export function ChangesetDiff({ changesetId, density = "regular", path }: Change
       if (!d) return;
       const f = diffFileOf(p, d);
       // a picture's before is the file's preview at its base version; an address the capability already gave stays
-      out.push(f.body === "image" ? { ...f, hunks: f.hunks.map((h) => ({ ...h, removed: isAddress(h.removed) ? h.removed : (pictures[p] ?? ""), added: isAddress(h.added) ? h.added : "" })) } : f);
+      out.push(
+        f.body === "image"
+          ? {
+              ...f,
+              hunks: f.hunks.map((h) => ({
+                ...h,
+                removed: isAddress(h.removed) ? h.removed : (pictures[p] ?? ""),
+                added: isAddress(h.added) ? h.added : "",
+              })),
+            }
+          : f,
+      );
     });
     return out;
   }, [paths, diffs, pictures]);
-  const notes = useMemo(() => (comments.status === "ready" ? commentsOf(comments.data.comments, files, data.nameOf, data.clock().now) : []), [comments, files, data]);
+  const notes = useMemo(
+    () => (comments.status === "ready" ? commentsOf(comments.data.comments, files, data.nameOf, data.clock().now) : []),
+    [comments, files, data],
+  );
   const [layout] = useReviewLayout();
   if (cs.status !== "ready" || !diffs.ready) return <Skeleton height={LOADING_HEIGHT} testID="diff-loading" />;
   if (!files.length) return <Empty text="Nothing to review in this changeset." />;
@@ -130,7 +170,16 @@ export function CommitDiff({ folderId, sha, path, density = "regular" }: CommitD
   const files = useMemo<DiffFile[]>(() => (q.status === "ready" ? commitFiles(q.data, path) : []), [q, path]);
   if (q.status !== "ready") return <Skeleton height={LOADING_HEIGHT} testID="diff-loading" />;
   return (
-    <DiffTab title={q.data.commit.message} layout="unified" wordMarks files={files} comments={[]} selectedPath={files[0]?.path ?? null} density={density} testID="commit-diff" />
+    <DiffTab
+      title={q.data.commit.message}
+      layout="unified"
+      wordMarks
+      files={files}
+      comments={[]}
+      selectedPath={files[0]?.path ?? null}
+      density={density}
+      testID="commit-diff"
+    />
   );
 }
 

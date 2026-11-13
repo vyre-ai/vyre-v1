@@ -20,33 +20,78 @@ export const RETRY_GAP_MS = 30_000;
 
 let lister: ModelLister | null = null;
 /** The runtime binds the opener's model list when it is built (runtime.ts); null at shutdown. Tests bind their own. */
-export function bindModelLister(l: ModelLister | null): void { lister = l; }
-
-const CATALOG = JSON.parse(readFileSync(new URL("./models-catalog.json", import.meta.url), "utf8")) as Record<LiveDriver, LiveModel[]> & { pins: Record<LiveDriver, string> };
-/** The list shipped with this release for an engine (the pinned CLI's own answer, signed out). */
-export function shippedModels(driver: string): LiveModel[] {
-  return LIVE_DRIVERS.has(driver) ? CATALOG[driver as LiveDriver].map((m) => ({ ...m, ...(m.efforts ? { efforts: [...m.efforts] } : {}) })) : [];
+export function bindModelLister(l: ModelLister | null): void {
+  lister = l;
 }
 
-interface Saved { models: LiveModel[]; fetchedAt: number | null; triedAt: number | null; error: string | null }
+const CATALOG = JSON.parse(readFileSync(new URL("./models-catalog.json", import.meta.url), "utf8")) as Record<
+  LiveDriver,
+  LiveModel[]
+> & { pins: Record<LiveDriver, string> };
+/** The list shipped with this release for an engine (the pinned CLI's own answer, signed out). */
+export function shippedModels(driver: string): LiveModel[] {
+  return LIVE_DRIVERS.has(driver)
+    ? CATALOG[driver as LiveDriver].map((m) => ({ ...m, ...(m.efforts ? { efforts: [...m.efforts] } : {}) }))
+    : [];
+}
+
+interface Saved {
+  models: LiveModel[];
+  fetchedAt: number | null;
+  triedAt: number | null;
+  error: string | null;
+}
 
 function saved(db: Db, ref: string): Saved | null {
   ensure(db);
-  const r = db.all("SELECT models_json, fetched_at, tried_at, error FROM engine_model_cache WHERE account_ref = ?", ref)[0] as { models_json: string | null; fetched_at: number | null; tried_at: number | null; error: string | null } | undefined;
+  const r = db.all(
+    "SELECT models_json, fetched_at, tried_at, error FROM engine_model_cache WHERE account_ref = ?",
+    ref,
+  )[0] as
+    | { models_json: string | null; fetched_at: number | null; tried_at: number | null; error: string | null }
+    | undefined;
   if (!r) return null;
   let models: LiveModel[] = [];
-  try { const v: unknown = JSON.parse(r.models_json ?? "[]"); if (Array.isArray(v)) models = v.filter((m): m is LiveModel => typeof m === "object" && m !== null && typeof (m as LiveModel).id === "string" && (m as LiveModel).id !== ""); } catch { models = []; }
+  try {
+    const v: unknown = JSON.parse(r.models_json ?? "[]");
+    if (Array.isArray(v))
+      models = v.filter(
+        (m): m is LiveModel =>
+          typeof m === "object" && m !== null && typeof (m as LiveModel).id === "string" && (m as LiveModel).id !== "",
+      );
+  } catch {
+    models = [];
+  }
   return { models, fetchedAt: r.fetched_at, triedAt: r.tried_at, error: r.error };
 }
 
-function write(db: Db, ref: string, driver: string, at: number, got: { models: LiveModel[] } | { error: string }): void {
+function write(
+  db: Db,
+  ref: string,
+  driver: string,
+  at: number,
+  got: { models: LiveModel[] } | { error: string },
+): void {
   ensure(db);
   if ("models" in got) {
-    db.run(`INSERT INTO engine_model_cache (account_ref, driver, models_json, fetched_at, tried_at, error) VALUES (?, ?, ?, ?, ?, NULL)
-      ON CONFLICT(account_ref) DO UPDATE SET driver = excluded.driver, models_json = excluded.models_json, fetched_at = excluded.fetched_at, tried_at = excluded.tried_at, error = NULL`, ref, driver, JSON.stringify(got.models), at, at);
+    db.run(
+      `INSERT INTO engine_model_cache (account_ref, driver, models_json, fetched_at, tried_at, error) VALUES (?, ?, ?, ?, ?, NULL)
+      ON CONFLICT(account_ref) DO UPDATE SET driver = excluded.driver, models_json = excluded.models_json, fetched_at = excluded.fetched_at, tried_at = excluded.tried_at, error = NULL`,
+      ref,
+      driver,
+      JSON.stringify(got.models),
+      at,
+      at,
+    );
   } else {
-    db.run(`INSERT INTO engine_model_cache (account_ref, driver, models_json, fetched_at, tried_at, error) VALUES (?, ?, NULL, NULL, ?, ?)
-      ON CONFLICT(account_ref) DO UPDATE SET tried_at = excluded.tried_at, error = excluded.error`, ref, driver, at, got.error.slice(0, 200));
+    db.run(
+      `INSERT INTO engine_model_cache (account_ref, driver, models_json, fetched_at, tried_at, error) VALUES (?, ?, NULL, NULL, ?, ?)
+      ON CONFLICT(account_ref) DO UPDATE SET tried_at = excluded.tried_at, error = excluded.error`,
+      ref,
+      driver,
+      at,
+      got.error.slice(0, 200),
+    );
   }
 }
 
@@ -54,7 +99,12 @@ function write(db: Db, ref: string, driver: string, at: number, got: { models: L
 const inflight = new Map<string, Promise<void>>();
 
 /** Ask the engine for the account's list once and save it (or the reason it failed). Never throws. */
-export function refreshModels(db: Db, account: { ref: string; driver: string }, asker: string, now: () => number): Promise<void> {
+export function refreshModels(
+  db: Db,
+  account: { ref: string; driver: string },
+  asker: string,
+  now: () => number,
+): Promise<void> {
   const running = inflight.get(account.ref);
   if (running) return running;
   const l = lister;
@@ -66,15 +116,24 @@ export function refreshModels(db: Db, account: { ref: string; driver: string }, 
       if (got.length === 0) write(db, account.ref, account.driver, now(), { error: "The engine listed no models." });
       else write(db, account.ref, account.driver, now(), { models: got });
     } catch (e) {
-      write(db, account.ref, account.driver, now(), { error: e instanceof Error ? e.message : "The engine did not list its models." });
-    } finally { inflight.delete(account.ref); }
+      write(db, account.ref, account.driver, now(), {
+        error: e instanceof Error ? e.message : "The engine did not list its models.",
+      });
+    } finally {
+      inflight.delete(account.ref);
+    }
   })();
   inflight.set(account.ref, run);
   return run;
 }
 
 /** Where the list came from: the vendor just now or earlier (live), or the release (shipped). `failed`: the last refresh did not answer, so this is the saved or shipped list. */
-export interface ModelsState { source: "live" | "shipped"; updatedAt?: number; refreshing: boolean; failed: boolean }
+export interface ModelsState {
+  source: "live" | "shipped";
+  updatedAt?: number;
+  refreshing: boolean;
+  failed: boolean;
+}
 
 /**
  * The live rows, with the effort levels the shipped catalog knows filled in where the CLI said none (an older CLI). Names, the default and the rows themselves are the account's own: shipped
@@ -85,7 +144,11 @@ function merged(live: readonly LiveModel[], driver: string): LiveModel[] {
   return live.map((m) => {
     const s = ship.get(m.id);
     if (!s || m.efforts) return m;
-    return { ...m, ...(s.efforts ? { efforts: s.efforts } : {}), ...(m.defaultEffort === undefined && s.defaultEffort ? { defaultEffort: s.defaultEffort } : {}) };
+    return {
+      ...m,
+      ...(s.efforts ? { efforts: s.efforts } : {}),
+      ...(m.defaultEffort === undefined && s.defaultEffort ? { defaultEffort: s.defaultEffort } : {}),
+    };
   });
 }
 
@@ -93,22 +156,42 @@ function merged(live: readonly LiveModel[], driver: string): LiveModel[] {
  * The account's models now, and whether a refresh runs. `refresh`: the menu opened (start one unless one ran a moment ago). `waitMs`: wait this long for a run in flight (the menu's
  * second, quiet call). A saved list a day old is refreshed whatever is asked, unless `passive`: a background reader (memory learning) gets the saved or shipped list and starts nothing.
  */
-export async function modelsFor(db: Db, account: { ref: string; driver: string }, asker: string, o: { now: () => number; refresh?: boolean; waitMs?: number; passive?: boolean }): Promise<{ models: LiveModel[]; state: ModelsState }> {
+export async function modelsFor(
+  db: Db,
+  account: { ref: string; driver: string },
+  asker: string,
+  o: { now: () => number; refresh?: boolean; waitMs?: number; passive?: boolean },
+): Promise<{ models: LiveModel[]; state: ModelsState }> {
   const before = saved(db, account.ref);
   const t = o.now();
   const old = before?.fetchedAt == null || t - before.fetchedAt > DAY_MS;
   const triedLately = before?.triedAt != null && t - before.triedAt < RETRY_GAP_MS;
-  if (o.passive !== true && lister && !inflight.has(account.ref) && ((o.refresh === true && !triedLately) || (old && !triedLately))) void refreshModels(db, account, asker, o.now);
+  if (
+    o.passive !== true &&
+    lister &&
+    !inflight.has(account.ref) &&
+    ((o.refresh === true && !triedLately) || (old && !triedLately))
+  )
+    void refreshModels(db, account, asker, o.now);
   const running = inflight.get(account.ref);
   if (running && o.waitMs !== undefined && o.waitMs > 0) {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([running, new Promise<void>((r) => { timer = setTimeout(r, o.waitMs); })]);
+    await Promise.race([
+      running,
+      new Promise<void>((r) => {
+        timer = setTimeout(r, o.waitMs);
+      }),
+    ]);
     if (timer !== undefined) clearTimeout(timer);
   }
   const now = saved(db, account.ref);
   const refreshing = inflight.has(account.ref);
   const failed = now?.error != null && now.triedAt != null && (now.fetchedAt == null || now.triedAt > now.fetchedAt);
-  if (now && now.models.length > 0) return { models: merged(now.models, account.driver), state: { source: "live", ...(now.fetchedAt != null ? { updatedAt: now.fetchedAt } : {}), refreshing, failed } };
+  if (now && now.models.length > 0)
+    return {
+      models: merged(now.models, account.driver),
+      state: { source: "live", ...(now.fetchedAt != null ? { updatedAt: now.fetchedAt } : {}), refreshing, failed },
+    };
   return { models: shippedModels(account.driver), state: { source: "shipped", refreshing, failed } };
 }
 
@@ -119,7 +202,9 @@ export function resolvePick(models: readonly LiveModel[], pick: string): string 
 }
 
 /** Tests: forget runs in flight. */
-export function resetLiveModels(): void { inflight.clear(); }
+export function resetLiveModels(): void {
+  inflight.clear();
+}
 
 /** An API key's models as its last good test listed them (providers.test through engine.models.list), saved so a background reader can have them without asking the vendor again. */
 export function saveTested(db: Db, ref: string, driver: string, at: number, models: readonly string[]): void {

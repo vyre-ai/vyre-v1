@@ -38,7 +38,10 @@ export function ensureAll(ctx: Pick<MailCtx, "db">): void {
 
 export const DEFAULT_LIMIT = 50;
 
-export interface PageIn { cursor?: string; limit?: number }
+export interface PageIn {
+  cursor?: string;
+  limit?: number;
+}
 
 export function parsePage(ctx: MailCtx, input: PageIn): { offset: number; limit: number } {
   const limit = input.limit === undefined ? DEFAULT_LIMIT : input.limit;
@@ -105,7 +108,10 @@ export function preconditionFailed(ctx: MailCtx, message: string): never {
 
 export function idemRef(ctx: MailCtx, key: unknown, kind: string): string | null {
   if (typeof key !== "string" || key.length === 0) bad(ctx, "Idempotency key is required.");
-  return strOrNull(first(ctx.db.all(`SELECT "refId" FROM mail_idem WHERE "idemKey" = ? AND kind = ?`, key, kind)), "refId");
+  return strOrNull(
+    first(ctx.db.all(`SELECT "refId" FROM mail_idem WHERE "idemKey" = ? AND kind = ?`, key, kind)),
+    "refId",
+  );
 }
 
 export function rememberIdem(ctx: MailCtx, key: string, kind: string, refId: string): void {
@@ -134,14 +140,38 @@ export interface MessageRow {
 
 /** Every mail_message column except the body, which can be large and which the list shapes never return. */
 export const MESSAGE_COLUMNS = [
-  "id", "mailboxId", "inboxIds", "providerId", "rfcMessageId", "threadId", "direction", "status", "fromAddress", "toAddresses", "ccAddresses",
-  "subject", "snippet", "sentAt", "contactId", "isPrivate", "attachments", "draftedByAgent", "traceId", "version", "updated_at",
-].map((c) => `"${c}"`).join(", ");
+  "id",
+  "mailboxId",
+  "inboxIds",
+  "providerId",
+  "rfcMessageId",
+  "threadId",
+  "direction",
+  "status",
+  "fromAddress",
+  "toAddresses",
+  "ccAddresses",
+  "subject",
+  "snippet",
+  "sentAt",
+  "contactId",
+  "isPrivate",
+  "attachments",
+  "draftedByAgent",
+  "traceId",
+  "version",
+  "updated_at",
+]
+  .map((c) => `"${c}"`)
+  .join(", ");
 
 export function messageRow(ctx: MailCtx, row: Row): MessageRow {
   const id = str(row, "id");
   const inboxIds = readStrings(str(row, "inboxIds"));
-  const fromName = strOrNull(first(ctx.db.all(`SELECT "fromName" FROM mail_body WHERE "messageId" = ?`, id)), "fromName");
+  const fromName = strOrNull(
+    first(ctx.db.all(`SELECT "fromName" FROM mail_body WHERE "messageId" = ?`, id)),
+    "fromName",
+  );
   const from: Party = { address: str(row, "fromAddress") };
   if (fromName) from.name = fromName;
   const out: MessageRow = {

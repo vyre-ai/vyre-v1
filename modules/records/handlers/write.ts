@@ -31,8 +31,14 @@ export interface WriteDeps {
 }
 
 export interface WriteHandlers {
-  "records.create"(ctx: WriteCtx, input: { type: string; fields: Record<string, unknown>; idempotencyKey?: string }): Promise<{ record: RecordRow }>;
-  "records.update"(ctx: WriteCtx, input: { type: string; recordId: string; patch: Record<string, unknown>; baseVersion?: number }): Promise<{ record: RecordRow }>;
+  "records.create"(
+    ctx: WriteCtx,
+    input: { type: string; fields: Record<string, unknown>; idempotencyKey?: string },
+  ): Promise<{ record: RecordRow }>;
+  "records.update"(
+    ctx: WriteCtx,
+    input: { type: string; recordId: string; patch: Record<string, unknown>; baseVersion?: number },
+  ): Promise<{ record: RecordRow }>;
   "records.delete"(ctx: WriteCtx, input: { type: string; recordId: string }): Promise<{ deleted: boolean }>;
   "records.restore"(ctx: WriteCtx, input: { type: string; recordId: string }): Promise<{ record: RecordRow }>;
 }
@@ -53,15 +59,26 @@ export class RecordsError extends StoreError {
 }
 
 const NEXT: Record<NextStep["kind"], string> = {
-  retry: "Try again", switch_model: "Switch model", use_backup_key: "Use the backup key", ask_access: "Ask for access", open_settings: "Open settings",
-  reconnect: "Reconnect", edit_input: "Fix the input", wait: "Wait a moment", contact_admin: "Contact an admin", report: "Report a problem",
+  retry: "Try again",
+  switch_model: "Switch model",
+  use_backup_key: "Use the backup key",
+  ask_access: "Ask for access",
+  open_settings: "Open settings",
+  reconnect: "Reconnect",
+  edit_input: "Fix the input",
+  wait: "Wait a moment",
+  contact_admin: "Contact an admin",
+  report: "Report a problem",
 };
 
 export function fail(ctx: WriteCtx, code: ErrorCode, message: string, details?: Record<string, unknown>): never {
   const def = ERROR_CODES.find((e) => e.code === code) ?? ERROR_CODES.find((e) => e.code === "internal.unexpected");
   if (!def) throw new Error("error catalogue is empty");
   const error: VyreError = {
-    code: def.code, message, retryable: def.retryable, traceId: ctx.trace.traceId,
+    code: def.code,
+    message,
+    retryable: def.retryable,
+    traceId: ctx.trace.traceId,
     next: def.next.map((kind) => ({ kind, label: NEXT[kind] })),
   };
   if (details) error.details = details;
@@ -85,7 +102,11 @@ export function mapError(ctx: WriteCtx, e: unknown): never {
 }
 
 async function guard<T>(ctx: WriteCtx, run: () => Promise<T>): Promise<T> {
-  try { return await run(); } catch (e) { return mapError(ctx, e); }
+  try {
+    return await run();
+  } catch (e) {
+    return mapError(ctx, e);
+  }
 }
 
 const subject = (id: string): string => `record/${id}`;
@@ -121,47 +142,59 @@ function before(keys: string[], data: Record<string, unknown>): Record<string, u
 export function createWriteHandlers(deps: WriteDeps): WriteHandlers {
   const seen = new Map<string, { type: string; id: string }>();
   return {
-    "records.create": (ctx, input) => guard(ctx, async () => {
-      const key = input.idempotencyKey === undefined ? undefined : `${input.type}\0${input.idempotencyKey}`;
-      const prior = key === undefined ? undefined : seen.get(key);
-      if (prior) {
-        const have = await deps.store.get(prior.type, prior.id);
-        if (have) return { record: toRow(have, deps.meta(prior.type, prior.id)) };
-      }
-      const id = mintRecordId();
-      const rec = await deps.store.create(input.type, id, input.fields);
-      if (key !== undefined) seen.set(key, { type: input.type, id: rec.id });
-      ctx.emit("record.created", subject(rec.id), { recordId: rec.id, type: rec.type, fields: { ...rec.data } });
-      return { record: toRow(rec, deps.meta(rec.type, rec.id)) };
-    }),
-    "records.update": (ctx, input) => guard(ctx, async () => {
-      let base = input.baseVersion;
-      if (base === undefined) {
+    "records.create": (ctx, input) =>
+      guard(ctx, async () => {
+        const key = input.idempotencyKey === undefined ? undefined : `${input.type}\0${input.idempotencyKey}`;
+        const prior = key === undefined ? undefined : seen.get(key);
+        if (prior) {
+          const have = await deps.store.get(prior.type, prior.id);
+          if (have) return { record: toRow(have, deps.meta(prior.type, prior.id)) };
+        }
+        const id = mintRecordId();
+        const rec = await deps.store.create(input.type, id, input.fields);
+        if (key !== undefined) seen.set(key, { type: input.type, id: rec.id });
+        ctx.emit("record.created", subject(rec.id), { recordId: rec.id, type: rec.type, fields: { ...rec.data } });
+        return { record: toRow(rec, deps.meta(rec.type, rec.id)) };
+      }),
+    "records.update": (ctx, input) =>
+      guard(ctx, async () => {
+        let base = input.baseVersion;
+        if (base === undefined) {
+          const cur = await deps.store.get(input.type, input.recordId);
+          if (!cur) throw new StoreError("not_found", `no ${input.type} ${input.recordId}`);
+          base = cur.version;
+        }
+        const prior = await deps.store.get(input.type, input.recordId);
+        const rec = await deps.store.update(input.type, input.recordId, input.patch, base);
+        const keys = Object.keys(input.patch);
+        // the store answers the same version when the patch changed nothing: that is no write, so no event
+        if (prior && rec.version === prior.version) return { record: toRow(rec, deps.meta(rec.type, rec.id)) };
+        ctx.emit("record.updated", subject(rec.id), {
+          recordId: rec.id,
+          type: rec.type,
+          fields: changed(keys, rec.data),
+          prev: before(keys, prior?.data ?? {}),
+          version: rec.version,
+        });
+        return { record: toRow(rec, deps.meta(rec.type, rec.id)) };
+      }),
+    "records.delete": (ctx, input) =>
+      guard(ctx, async () => {
         const cur = await deps.store.get(input.type, input.recordId);
         if (!cur) throw new StoreError("not_found", `no ${input.type} ${input.recordId}`);
-        base = cur.version;
-      }
-      const prior = await deps.store.get(input.type, input.recordId);
-      const rec = await deps.store.update(input.type, input.recordId, input.patch, base);
-      const keys = Object.keys(input.patch);
-      // the store answers the same version when the patch changed nothing: that is no write, so no event
-      if (prior && rec.version === prior.version) return { record: toRow(rec, deps.meta(rec.type, rec.id)) };
-      ctx.emit("record.updated", subject(rec.id), {
-        recordId: rec.id, type: rec.type, fields: changed(keys, rec.data), prev: before(keys, prior?.data ?? {}), version: rec.version,
-      });
-      return { record: toRow(rec, deps.meta(rec.type, rec.id)) };
-    }),
-    "records.delete": (ctx, input) => guard(ctx, async () => {
-      const cur = await deps.store.get(input.type, input.recordId);
-      if (!cur) throw new StoreError("not_found", `no ${input.type} ${input.recordId}`);
-      await deps.store.remove(input.type, input.recordId, cur.version);
-      ctx.emit("record.deleted", subject(input.recordId), { recordId: input.recordId, type: input.type, prev: { ...cur.data } });
-      return { deleted: true };
-    }),
-    "records.restore": (ctx, input) => guard(ctx, async () => {
-      const rec = await deps.store.restore(input.type, input.recordId);
-      ctx.emit("record.restored", subject(rec.id), { recordId: rec.id, type: rec.type });
-      return { record: toRow(rec, deps.meta(rec.type, rec.id)) };
-    }),
+        await deps.store.remove(input.type, input.recordId, cur.version);
+        ctx.emit("record.deleted", subject(input.recordId), {
+          recordId: input.recordId,
+          type: input.type,
+          prev: { ...cur.data },
+        });
+        return { deleted: true };
+      }),
+    "records.restore": (ctx, input) =>
+      guard(ctx, async () => {
+        const rec = await deps.store.restore(input.type, input.recordId);
+        ctx.emit("record.restored", subject(rec.id), { recordId: rec.id, type: rec.type });
+        return { record: toRow(rec, deps.meta(rec.type, rec.id)) };
+      }),
   };
 }

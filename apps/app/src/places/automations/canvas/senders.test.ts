@@ -8,8 +8,14 @@ const box = { id: "mbx_a", channel: "email", address: "hello@firm.com", usable: 
 test("the line names what the Automation sends from, and says so when it cannot", () => {
   assert.equal(sendsFromLine([]), null);
   assert.deepEqual(sendsFromLine([box]), { text: "Sends from hello@firm.com", ok: true });
-  assert.equal(sendsFromLine([box, { ...box, id: "num_a", channel: "text", address: "+14155550100" }])?.text, "Sends from hello@firm.com and +14155550100");
-  assert.deepEqual(sendsFromLine([{ ...box, usable: false, why: "Paused. Resume it in Console, Comms." }]), { text: "hello@firm.com cannot send. Paused. Resume it in Console, Comms.", ok: false });
+  assert.equal(
+    sendsFromLine([box, { ...box, id: "num_a", channel: "text", address: "+14155550100" }])?.text,
+    "Sends from hello@firm.com and +14155550100",
+  );
+  assert.deepEqual(sendsFromLine([{ ...box, usable: false, why: "Paused. Resume it in Console, Comms." }]), {
+    text: "hello@firm.com cannot send. Paused. Resume it in Console, Comms.",
+    ok: false,
+  });
 });
 
 test("a refusal that a connection fixes offers Connect", () => {

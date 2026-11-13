@@ -7,10 +7,17 @@ export function tidy(list: readonly (MenuEntry | null | false | undefined)[]): M
   const out: MenuEntry[] = [];
   for (const e of list) {
     if (!e) continue;
-    if ("separator" in e) { if (out.length > 0 && !("separator" in out[out.length - 1]!)) out.push(e); continue; }
+    if ("separator" in e) {
+      if (out.length > 0 && !("separator" in out[out.length - 1]!)) out.push(e);
+      continue;
+    }
     out.push(e);
   }
   while (out.length > 0 && "separator" in out[out.length - 1]!) out.pop();
   return out;
 }
-export const item = (label: string, onSelect: () => void, o: Partial<MenuItem> = {}): MenuItem => ({ label, onSelect, ...o });
+export const item = (label: string, onSelect: () => void, o: Partial<MenuItem> = {}): MenuItem => ({
+  label,
+  onSelect,
+  ...o,
+});

@@ -3,11 +3,26 @@
 export { createCoalescer, frameScheduler } from "./coalesce.ts";
 export type { Coalescer, CoalescerStats, FrameScheduler } from "./coalesce.ts";
 export { createIncrementalMarkdown, parseChartSpec, parseChunk, parseInline } from "./markdown.ts";
-export type { Block, Callout, ChartSpec, IncrementalMarkdown, Inline, MarkdownStats, MarkdownView } from "./markdown.ts";
+export type {
+  Block,
+  Callout,
+  ChartSpec,
+  IncrementalMarkdown,
+  Inline,
+  MarkdownStats,
+  MarkdownView,
+} from "./markdown.ts";
 export { highlight } from "./highlight.ts";
 export type { Token, TokenKind } from "./highlight.ts";
 export { chartGeometry, chartTable, niceMax } from "./charts.ts";
-export { hasDiagramLoader, hasMathLoader, renderDiagram, renderMath, setDiagramLoader, setMathLoader } from "./loaders.ts";
+export {
+  hasDiagramLoader,
+  hasMathLoader,
+  renderDiagram,
+  renderMath,
+  setDiagramLoader,
+  setMathLoader,
+} from "./loaders.ts";
 export type { DiagramRender, DiagramTheme, MathRender } from "./loaders.ts";
 export { createStreamStore } from "./store.ts";
 export type { StreamSnapshot, StreamStats, StreamStore } from "./store.ts";
@@ -20,5 +35,16 @@ export { StreamText } from "./StreamText.tsx";
 export type { StreamTextProps } from "./StreamText.tsx";
 export { END_SLACK, Feed, isAtEnd } from "./Feed.tsx";
 export type { FeedProps } from "./Feed.tsx";
-export { AVATAR_SIZE, AvatarSlot, BLOCK_GAP, BODY_LINE, BODY_SIZE, HEADER_GAP, HEADER_HEIGHT, ReservedImage, SkeletonMessage, messageHeight } from "./Reserved.tsx";
+export {
+  AVATAR_SIZE,
+  AvatarSlot,
+  BLOCK_GAP,
+  BODY_LINE,
+  BODY_SIZE,
+  HEADER_GAP,
+  HEADER_HEIGHT,
+  ReservedImage,
+  SkeletonMessage,
+  messageHeight,
+} from "./Reserved.tsx";
 export type { AvatarSlotProps, ReservedImageProps, SkeletonMessageProps } from "./Reserved.tsx";

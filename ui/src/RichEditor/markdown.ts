@@ -56,7 +56,11 @@ export function parseInline(src: string, marks: readonly Mark[] = [], href?: str
   while (i < src.length) {
     const rest = src.slice(i);
     const ch = rest.charAt(0);
-    if (ch === "\\" && rest.length > 1) { buf += rest.charAt(1); i += 2; continue; }
+    if (ch === "\\" && rest.length > 1) {
+      buf += rest.charAt(1);
+      i += 2;
+      continue;
+    }
     let m: RegExpExecArray | null = null;
     if (ch === "`" && (m = /^`([^`]+)`/.exec(rest))) {
       flush();
@@ -65,16 +69,31 @@ export function parseInline(src: string, marks: readonly Mark[] = [], href?: str
       continue;
     }
     if (ch === "*" && (m = /^\*\*(?=\S)([\s\S]+?)(?<=\S)\*\*(?!\*)/.exec(rest))) {
-      flush(); out.push(...parseInline(m[1] ?? "", withMark(marks, "bold"), href)); i += m[0].length; continue;
+      flush();
+      out.push(...parseInline(m[1] ?? "", withMark(marks, "bold"), href));
+      i += m[0].length;
+      continue;
     }
     if (ch === "~" && (m = /^~~(?=\S)([\s\S]+?)(?<=\S)~~(?!~)/.exec(rest))) {
-      flush(); out.push(...parseInline(m[1] ?? "", withMark(marks, "strike"), href)); i += m[0].length; continue;
+      flush();
+      out.push(...parseInline(m[1] ?? "", withMark(marks, "strike"), href));
+      i += m[0].length;
+      continue;
     }
-    if ((ch === "*" && (m = /^\*(?=[^\s*])([^*]+?)(?<=[^\s*])\*(?!\*)/.exec(rest))) || (ch === "_" && (m = /^_(?=[^\s_])([^_]+?)(?<=[^\s_])_(?![\w_])/.exec(rest)))) {
-      flush(); out.push(...parseInline(m[1] ?? "", withMark(marks, "italic"), href)); i += m[0].length; continue;
+    if (
+      (ch === "*" && (m = /^\*(?=[^\s*])([^*]+?)(?<=[^\s*])\*(?!\*)/.exec(rest))) ||
+      (ch === "_" && (m = /^_(?=[^\s_])([^_]+?)(?<=[^\s_])_(?![\w_])/.exec(rest)))
+    ) {
+      flush();
+      out.push(...parseInline(m[1] ?? "", withMark(marks, "italic"), href));
+      i += m[0].length;
+      continue;
     }
     if (ch === "[" && (m = /^\[([^\]]+)\]\(([^)\s]+)\)/.exec(rest))) {
-      flush(); out.push(...parseInline(m[1] ?? "", withMark(marks, "link"), m[2] ?? "")); i += m[0].length; continue;
+      flush();
+      out.push(...parseInline(m[1] ?? "", withMark(marks, "link"), m[2] ?? ""));
+      i += m[0].length;
+      continue;
     }
     buf += ch;
     i += 1;
@@ -125,26 +144,46 @@ export function parseMarkdown(md: string): Block[] {
   const lines = md.replace(/\r\n?/g, "\n").split("\n");
   const blocks: Block[] = [];
   let i = 0;
-  const startsBlock = (line: string): boolean => FENCE.test(line) || HEADING.test(line) || RULE.test(line) || BULLET.test(line) || ORDERED.test(line) || QUOTE.test(line);
+  const startsBlock = (line: string): boolean =>
+    FENCE.test(line) ||
+    HEADING.test(line) ||
+    RULE.test(line) ||
+    BULLET.test(line) ||
+    ORDERED.test(line) ||
+    QUOTE.test(line);
   while (i < lines.length) {
     const line = lines[i] ?? "";
-    if (line.trim() === "") { i += 1; continue; }
+    if (line.trim() === "") {
+      i += 1;
+      continue;
+    }
     const fence = FENCE.exec(line);
     if (fence) {
       const body: string[] = [];
       i += 1;
-      while (i < lines.length && !/^```\s*$/.test(lines[i] ?? "")) { body.push(lines[i] ?? ""); i += 1; }
+      while (i < lines.length && !/^```\s*$/.test(lines[i] ?? "")) {
+        body.push(lines[i] ?? "");
+        i += 1;
+      }
       i += 1;
       blocks.push({ type: "codeBlock", lang: fence[1] ?? "", text: body.join("\n") });
       continue;
     }
     const heading = HEADING.exec(line);
     if (heading) {
-      blocks.push({ type: "heading", level: Math.min(6, (heading[1] ?? "#").length) as 1 | 2 | 3 | 4 | 5 | 6, runs: parseInline(heading[2] ?? "") });
+      blocks.push({
+        type: "heading",
+        level: Math.min(6, (heading[1] ?? "#").length) as 1 | 2 | 3 | 4 | 5 | 6,
+        runs: parseInline(heading[2] ?? ""),
+      });
       i += 1;
       continue;
     }
-    if (RULE.test(line)) { blocks.push({ type: "horizontalRule" }); i += 1; continue; }
+    if (RULE.test(line)) {
+      blocks.push({ type: "horizontalRule" });
+      i += 1;
+      continue;
+    }
     if (BULLET.test(line) || ORDERED.test(line)) {
       const ordered = ORDERED.test(line) && !BULLET.test(line);
       const items: Run[][] = [];
@@ -160,12 +199,18 @@ export function parseMarkdown(md: string): Block[] {
     }
     if (QUOTE.test(line)) {
       const body: string[] = [];
-      while (i < lines.length && QUOTE.test(lines[i] ?? "")) { body.push(QUOTE.exec(lines[i] ?? "")?.[1] ?? ""); i += 1; }
+      while (i < lines.length && QUOTE.test(lines[i] ?? "")) {
+        body.push(QUOTE.exec(lines[i] ?? "")?.[1] ?? "");
+        i += 1;
+      }
       blocks.push({ type: "blockquote", runs: parseInline(body.join("\n")) });
       continue;
     }
     const para: string[] = [];
-    while (i < lines.length && (lines[i] ?? "").trim() !== "" && (para.length === 0 || !startsBlock(lines[i] ?? ""))) { para.push(lines[i] ?? ""); i += 1; }
+    while (i < lines.length && (lines[i] ?? "").trim() !== "" && (para.length === 0 || !startsBlock(lines[i] ?? ""))) {
+      para.push(lines[i] ?? "");
+      i += 1;
+    }
     blocks.push({ type: "paragraph", runs: parseInline(para.join("\n")) });
   }
   return blocks;
@@ -176,14 +221,34 @@ export function renderMarkdown(blocks: readonly Block[]): string {
   const parts: string[] = [];
   for (const b of blocks) {
     switch (b.type) {
-      case "paragraph": parts.push(renderInline(b.runs)); break;
-      case "heading": parts.push(`${"#".repeat(b.level)} ${renderInline(b.runs)}`); break;
-      case "bulletList": parts.push(b.items.map((r) => `- ${renderInline(r)}`).join("\n")); break;
-      case "orderedList": parts.push(b.items.map((r, n) => `${n + 1}. ${renderInline(r)}`).join("\n")); break;
-      case "blockquote": parts.push(renderInline(b.runs).split("\n").map((l) => `> ${l}`).join("\n")); break;
-      case "codeBlock": parts.push(`\`\`\`${b.lang}\n${b.text}\n\`\`\``); break;
-      case "horizontalRule": parts.push("---"); break;
-      default: break;
+      case "paragraph":
+        parts.push(renderInline(b.runs));
+        break;
+      case "heading":
+        parts.push(`${"#".repeat(b.level)} ${renderInline(b.runs)}`);
+        break;
+      case "bulletList":
+        parts.push(b.items.map((r) => `- ${renderInline(r)}`).join("\n"));
+        break;
+      case "orderedList":
+        parts.push(b.items.map((r, n) => `${n + 1}. ${renderInline(r)}`).join("\n"));
+        break;
+      case "blockquote":
+        parts.push(
+          renderInline(b.runs)
+            .split("\n")
+            .map((l) => `> ${l}`)
+            .join("\n"),
+        );
+        break;
+      case "codeBlock":
+        parts.push(`\`\`\`${b.lang}\n${b.text}\n\`\`\``);
+        break;
+      case "horizontalRule":
+        parts.push("---");
+        break;
+      default:
+        break;
     }
   }
   return parts.join("\n\n") + (parts.length > 0 ? "\n" : "");

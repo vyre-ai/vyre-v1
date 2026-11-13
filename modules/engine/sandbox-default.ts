@@ -9,7 +9,14 @@ import type { EgressEvent, EgressRule, LocalRoute } from "../../sandbox/src/inde
 import { DISTRO_PIN } from "../../sandbox/src/wsl/pins.ts";
 import { ensureDistro, startWslAgent, wslOn } from "../../sandbox/src/wsl/wsl.ts";
 import type { AgentOptions } from "../../sandbox/src/wsl/wsl.ts";
-import { LABELS, ensureLowrun, ensureSshShim, labelKeyStores, lowrunPossible, setLabel } from "../../sandbox/src/win/lowrun.ts";
+import {
+  LABELS,
+  ensureLowrun,
+  ensureSshShim,
+  labelKeyStores,
+  lowrunPossible,
+  setLabel,
+} from "../../sandbox/src/win/lowrun.ts";
 import type { KeyStores } from "../../sandbox/src/win/lowrun.ts";
 import { homeDenies, insideFolder } from "../../sandbox/src/engine-access.ts";
 import { privateBash } from "../../sandbox/src/win/msys.ts";
@@ -18,7 +25,16 @@ import type { EngineSandbox, SandboxPlan } from "./sandbox.ts";
 
 /** The AI providers' API and sign-in hosts: what a CLI engine needs to work at all, and all it may reach under "Only the AI providers". */
 export const ENGINE_EGRESS_HOSTS: readonly string[] = [
-  "api.anthropic.com", "*.anthropic.com", "claude.ai", "*.claude.ai", "api.openai.com", "*.openai.com", "chatgpt.com", "*.chatgpt.com", "api.x.ai", "*.x.ai",
+  "api.anthropic.com",
+  "*.anthropic.com",
+  "claude.ai",
+  "*.claude.ai",
+  "api.openai.com",
+  "*.openai.com",
+  "chatgpt.com",
+  "*.chatgpt.com",
+  "api.x.ai",
+  "*.x.ai",
 ];
 
 /**
@@ -27,22 +43,35 @@ export const ENGINE_EGRESS_HOSTS: readonly string[] = [
  *   providers  only the AI providers (ENGINE_EGRESS_HOSTS), the old behaviour
  *   list       the AI providers and the hosts listed
  */
-export interface EgressPolicy { mode: "public" | "providers" | "list"; hosts: readonly string[] }
-export const DEFAULT_EGRESS_POLICY: EgressPolicy = Object.freeze({ mode: "public", hosts: Object.freeze([]) as readonly string[] });
+export interface EgressPolicy {
+  mode: "public" | "providers" | "list";
+  hosts: readonly string[];
+}
+export const DEFAULT_EGRESS_POLICY: EgressPolicy = Object.freeze({
+  mode: "public",
+  hosts: Object.freeze([]) as readonly string[],
+});
 
 /** The wall's egress options: the allow-list and the rule. Plain JSON, so the Windows (WSL2) sandbox sends it into its VM as it is, to the same startNetWall. */
 /** The Space's own git address, answered inside the wall for a walled engine (the egress proxy, sandbox/src/egress.ts). Set by the runtime when the host has a git proxy. */
 let gitLocal: LocalRoute | null = null;
-export const setGitLocal = (r: LocalRoute | null): void => { gitLocal = r; };
+export const setGitLocal = (r: LocalRoute | null): void => {
+  gitLocal = r;
+};
 const localRoute = (): LocalRoute | null => gitLocal;
 
-export interface WallEgress { allow: string[]; rule: EgressRule }
+export interface WallEgress {
+  allow: string[];
+  rule: EgressRule;
+}
 
 /** A setting value read back from the store, or anything: what it says, with every host it lists that is not a host name dropped. Unreadable is the default. */
 export function egressPolicyOf(v: unknown): EgressPolicy {
   const o = (v !== null && typeof v === "object" ? v : {}) as { mode?: unknown; hosts?: unknown };
   const mode = o.mode === "providers" || o.mode === "list" || o.mode === "public" ? o.mode : DEFAULT_EGRESS_POLICY.mode;
-  const hosts = Array.isArray(o.hosts) ? [...new Set(o.hosts.filter((h): h is string => typeof h === "string" && validHostPattern(h)))].slice(0, 500) : [];
+  const hosts = Array.isArray(o.hosts)
+    ? [...new Set(o.hosts.filter((h): h is string => typeof h === "string" && validHostPattern(h)))].slice(0, 500)
+    : [];
   return { mode, hosts };
 }
 
@@ -62,10 +91,16 @@ export function wallEgressOfRule(rule: EgressRule): WallEgress {
   return rule.egress === "public" ? { allow: [...ENGINE_EGRESS_HOSTS], rule } : { allow: [...rule.allow], rule };
 }
 
-export interface DefaultSandbox { plan: SandboxPlan; close(): Promise<void> }
+export interface DefaultSandbox {
+  plan: SandboxPlan;
+  close(): Promise<void>;
+}
 
 /** A wall of its own for one engine process: the sandbox to run it in, and how to stop the wall when the process has ended. */
-export interface OpenedWall { sandbox: EngineSandbox; close(): Promise<void> }
+export interface OpenedWall {
+  sandbox: EngineSandbox;
+  close(): Promise<void>;
+}
 
 export interface DefaultSandboxOptions {
   dataDir: string;
@@ -98,15 +133,22 @@ export interface DefaultSandboxOptions {
 
 /** How a Windows computer runs CLI engines: Personal (E) or Contained (B). VYRE_WINDOWS_SANDBOX=contained turns Contained on for the computer until it has a switch in its details. */
 export type WindowsMode = "personal" | "contained";
-export const windowsMode = (env: Readonly<Record<string, string | undefined>> = process.env): WindowsMode => (env["VYRE_WINDOWS_SANDBOX"] === "contained" ? "contained" : "personal");
+export const windowsMode = (env: Readonly<Record<string, string | undefined>> = process.env): WindowsMode =>
+  env["VYRE_WINDOWS_SANDBOX"] === "contained" ? "contained" : "personal";
 
 /** The code a CLI turn refuses with where CLI engines cannot be sandboxed: Windows Contained without WSL has its own, so the chat can say how to turn it on. */
-export function cliSandboxCode(platform: NodeJS.Platform = process.platform, mode: WindowsMode = windowsMode()): "sandbox.wsl_off" | "sandbox.unavailable" {
+export function cliSandboxCode(
+  platform: NodeJS.Platform = process.platform,
+  mode: WindowsMode = windowsMode(),
+): "sandbox.wsl_off" | "sandbox.unavailable" {
   return platform === "win32" && mode === "contained" ? "sandbox.wsl_off" : "sandbox.unavailable";
 }
 
 /** Vyre's own folders on Windows: the app's data folder (personal\ and vyred\ under %APPDATA%\ai.vyre.desktop) and its local folder (the webview's profile, the helper). */
-export function vyrePrivateDirs(dataDir: string, env: Readonly<Record<string, string | undefined>> = process.env): string[] {
+export function vyrePrivateDirs(
+  dataDir: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string[] {
   const parent = path.win32.dirname(dataDir);
   const own = path.win32.basename(parent).toLowerCase() === "ai.vyre.desktop" ? parent : dataDir;
   const local = env["LOCALAPPDATA"] ? path.win32.join(env["LOCALAPPDATA"], "ai.vyre.desktop") : null;
@@ -118,7 +160,12 @@ export function vyrePrivateDirs(dataDir: string, env: Readonly<Record<string, st
  * private folders get "no read up"; the engines folder is readable but not writable; the folders an engine may change are labelled Low when it starts (sandbox.ts lowWrap). Once per computer and
  * label version: a marker beside the helper says it was done.
  */
-export function protectVyreData(helper: string, binDir: string, dirs: readonly string[], readable: readonly string[]): void {
+export function protectVyreData(
+  helper: string,
+  binDir: string,
+  dirs: readonly string[],
+  readable: readonly string[],
+): void {
   const marker = path.join(binDir, `protected-${fnv([LABELS, dirs, readable])}`);
   if (fs.existsSync(marker)) return;
   for (const d of dirs) setLabel(helper, d, "private");
@@ -129,7 +176,10 @@ export function protectVyreData(helper: string, binDir: string, dirs: readonly s
 /** A short name for what was labelled (FNV-1a over its JSON): a new list, or new labels, is labelled again. */
 function fnv(v: unknown): string {
   let h = 0x811c9dc5;
-  for (const c of JSON.stringify(v)) { h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
+  for (const c of JSON.stringify(v)) {
+    h ^= c.charCodeAt(0);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
   return h.toString(16).padStart(8, "0");
 }
 
@@ -137,15 +187,26 @@ function fnv(v: unknown): string {
  * The person's key stores on this Windows computer (engine-access.ts homeDenies, the list a Mac engine is denied): the ones that are there now, never one that holds Vyre's own folders or is
  * inside them (protectVyreData keeps those). ~/.ssh is private but its known_hosts, config and public keys stay readable: git's ssh reads them; the private keys go through the agent relay.
  */
-export function winKeyStores(home: string, own: readonly string[] = [], stat: (p: string) => fs.Stats | undefined = (p) => fs.statSync(p, { throwIfNoEntry: false }), list: (d: string) => string[] = (d) => fs.readdirSync(d)): KeyStores {
-  const dirs: string[] = []; const files: string[] = []; const readable: string[] = [];
+export function winKeyStores(
+  home: string,
+  own: readonly string[] = [],
+  stat: (p: string) => fs.Stats | undefined = (p) => fs.statSync(p, { throwIfNoEntry: false }),
+  list: (d: string) => string[] = (d) => fs.readdirSync(d),
+): KeyStores {
+  const dirs: string[] = [];
+  const files: string[] = [];
+  const readable: string[] = [];
   for (const p of homeDenies(home, "win32")) {
     if (own.some((d) => insideFolder(p, d, "win32") || insideFolder(d, p, "win32"))) continue;
     const st = stat(p);
     if (!st) continue;
-    if (!st.isDirectory()) { files.push(p); continue; }
+    if (!st.isDirectory()) {
+      files.push(p);
+      continue;
+    }
     dirs.push(p);
-    if (path.win32.basename(p).toLowerCase() === ".ssh") for (const f of list(p)) if (/^(known_hosts2?|config|.+\.pub)$/i.test(f)) readable.push(path.win32.join(p, f));
+    if (path.win32.basename(p).toLowerCase() === ".ssh")
+      for (const f of list(p)) if (/^(known_hosts2?|config|.+\.pub)$/i.test(f)) readable.push(path.win32.join(p, f));
   }
   return { dirs, files, readable };
 }
@@ -159,7 +220,8 @@ export function protectKeyStores(helper: string, binDir: string, ks: KeyStores):
 }
 
 /** Where the Windows helper lives: Vyre's own folder, never the roaming profile. */
-export const winBinDir = (env: Readonly<Record<string, string | undefined>> = process.env): string => path.win32.join(env["LOCALAPPDATA"] ?? env["APPDATA"] ?? "C:\\", "ai.vyre.desktop", "bin");
+export const winBinDir = (env: Readonly<Record<string, string | undefined>> = process.env): string =>
+  path.win32.join(env["LOCALAPPDATA"] ?? env["APPDATA"] ?? "C:\\", "ai.vyre.desktop", "bin");
 
 const BWRAP = ["/usr/bin/bwrap", "/usr/local/bin/bwrap", "/bin/bwrap"];
 
@@ -171,14 +233,40 @@ const CLI_NAMES = ["claude", "codex", "grok"] as const;
  * folders below. They are appended (the given PATH keeps priority) and only the ones that exist are added, newest nvm version first. Other platforms keep their PATH as it is. `owned` are the folders of
  * Vyre's own engines (engine-install.ts ownedProgramDirs), last on every platform: a person's own install wins, then a copy an app carries, then Vyre's.
  */
-export function enginePath(env: { PATH?: string | undefined }, home: string, platform: NodeJS.Platform = process.platform, exists: (p: string) => boolean = fs.existsSync, list: (p: string) => string[] = (p) => fs.readdirSync(p), owned: readonly string[] = []): string {
+export function enginePath(
+  env: { PATH?: string | undefined },
+  home: string,
+  platform: NodeJS.Platform = process.platform,
+  exists: (p: string) => boolean = fs.existsSync,
+  list: (p: string) => string[] = (p) => fs.readdirSync(p),
+  owned: readonly string[] = [],
+): string {
   const have = (env.PATH ?? "/usr/bin:/bin").split(path.delimiter).filter((p) => p !== "");
-  const last = (more: readonly string[]): string => [...have, ...more.filter((p, i) => !have.includes(p) && more.indexOf(p) === i && exists(p))].join(path.delimiter);
+  const last = (more: readonly string[]): string =>
+    [...have, ...more.filter((p, i) => !have.includes(p) && more.indexOf(p) === i && exists(p))].join(path.delimiter);
   if (platform !== "darwin") return last(owned);
   const nvm = path.join(home, ".nvm", "versions", "node");
   let versions: string[] = [];
-  try { versions = exists(nvm) ? list(nvm).filter((v) => /^v\d+/.test(v)).sort((a, b) => b.localeCompare(a, undefined, { numeric: true })).map((v) => path.join(nvm, v, "bin")) : []; } catch { /* no nvm */ }
-  return last([path.join(home, ".local", "bin"), "/opt/homebrew/bin", "/usr/local/bin", path.join(home, ".claude", "local"), path.join(home, ".bun", "bin"), path.join(home, ".volta", "bin"), ...versions, ...owned]);
+  try {
+    versions = exists(nvm)
+      ? list(nvm)
+          .filter((v) => /^v\d+/.test(v))
+          .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+          .map((v) => path.join(nvm, v, "bin"))
+      : [];
+  } catch {
+    /* no nvm */
+  }
+  return last([
+    path.join(home, ".local", "bin"),
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    path.join(home, ".claude", "local"),
+    path.join(home, ".bun", "bin"),
+    path.join(home, ".volta", "bin"),
+    ...versions,
+    ...owned,
+  ]);
 }
 
 // The CLIs a desktop app carries inside itself (the codex in ChatGPT.app, Claude Code under the Claude app) are not looked in: they are builds tied to their app, and the ChatGPT
@@ -190,9 +278,19 @@ export function enginePath(env: { PATH?: string | undefined }, home: string, pla
  * (the link's own and the real file's), so a prefix that holds the CLI, its node_modules and its node can be read. Never the home folder, a parent of it, or the folders that hold a person's sign-ins
  * and history (`~/.claude`, `~/.codex`, `~/.grok`): only a folder inside them.
  */
-export function cliInstallRoots(env: { PATH?: string | undefined }, home: string, exists: (p: string) => boolean = fs.existsSync, real: (p: string) => string = fs.realpathSync): string[] {
+export function cliInstallRoots(
+  env: { PATH?: string | undefined },
+  home: string,
+  exists: (p: string) => boolean = fs.existsSync,
+  real: (p: string) => string = fs.realpathSync,
+): string[] {
   const closed = new Set([".claude", ".codex", ".grok"].map((d) => path.join(home, d)));
-  const tooWide = (p: string): boolean => p === "/" || p === home || home.startsWith(`${p}${path.sep}`) || closed.has(p) || ["/usr", "/bin", "/sbin", "/System", "/Library", "/private", "/Users", "/Applications"].includes(p);
+  const tooWide = (p: string): boolean =>
+    p === "/" ||
+    p === home ||
+    home.startsWith(`${p}${path.sep}`) ||
+    closed.has(p) ||
+    ["/usr", "/bin", "/sbin", "/System", "/Library", "/private", "/Users", "/Applications"].includes(p);
   const out = new Set<string>();
   for (const dir of (env.PATH ?? "").split(path.delimiter)) {
     if (dir === "" || !path.isAbsolute(dir)) continue;
@@ -200,8 +298,18 @@ export function cliInstallRoots(env: { PATH?: string | undefined }, home: string
       const found = path.join(dir, name);
       if (!exists(found)) continue;
       let target = found;
-      try { target = real(found); } catch { /* a link that leads nowhere has nothing to read */ continue; }
-      for (const p of [path.dirname(found), path.dirname(path.dirname(found)), path.dirname(target), path.dirname(path.dirname(target))]) if (!tooWide(p)) out.add(p);
+      try {
+        target = real(found);
+      } catch {
+        /* a link that leads nowhere has nothing to read */ continue;
+      }
+      for (const p of [
+        path.dirname(found),
+        path.dirname(path.dirname(found)),
+        path.dirname(target),
+        path.dirname(path.dirname(target)),
+      ])
+        if (!tooWide(p)) out.add(p);
     }
   }
   return [...out];
@@ -211,10 +319,21 @@ export function cliInstallRoots(env: { PATH?: string | undefined }, home: string
  * What Apple's `git` needs to run under Seatbelt. /usr/bin/git is a shim that asks xcrun where the real git is, and xcrun loads a library from the developer folder: with that folder closed, git answers
  * "unable to load libxcrun (file system sandbox blocked open())" and every `git add` a crew teammate runs fails. The folder holds Apple's public tools, so it is opened for reading only.
  */
-export function appleDeveloperRoots(exists: (p: string) => boolean = fs.existsSync, selected: string | null = selectedDeveloperDir()): string[] {
+export function appleDeveloperRoots(
+  exists: (p: string) => boolean = fs.existsSync,
+  selected: string | null = selectedDeveloperDir(),
+): string[] {
   // the developer folder `xcode-select` points at is the one the shim runs (a hosted runner has /Applications/Xcode_26.6.app, not Xcode.app); inside an app, its Contents holds the frameworks the tools load
-  const chosen = selected === null ? [] : [selected.endsWith("/Contents/Developer") ? selected.slice(0, -"/Developer".length) : selected];
-  const all = [...chosen, "/Library/Developer/CommandLineTools", "/Applications/Xcode.app/Contents", "/Library/Preferences/com.apple.dt.Xcode.plist"];
+  const chosen =
+    selected === null
+      ? []
+      : [selected.endsWith("/Contents/Developer") ? selected.slice(0, -"/Developer".length) : selected];
+  const all = [
+    ...chosen,
+    "/Library/Developer/CommandLineTools",
+    "/Applications/Xcode.app/Contents",
+    "/Library/Preferences/com.apple.dt.Xcode.plist",
+  ];
   return [...new Set(all)].filter((p) => exists(p));
 }
 
@@ -224,47 +343,91 @@ export function selectedDeveloperDir(): string | null {
     const r = spawnSync("/usr/bin/xcode-select", ["-p"], { encoding: "utf8", timeout: 3000 });
     const out = r.status === 0 ? r.stdout.trim() : "";
     return out.startsWith("/") ? out : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 /**
  * Why CLI engines cannot be sandboxed on this computer, in one line a person can read, or null where they can. The same answer defaultSandbox gives: a turn refuses with it (sandbox.unavailable), the
  * account picker passes over CLI accounts for it (runnable-account.ts), and the AI accounts page shows it as what the account needs (engine.providers.list). Never a reason to run an engine unwrapped.
  */
-export function cliSandboxGap(o: { platform?: NodeJS.Platform; bwrapPaths?: readonly string[]; windowsMode?: WindowsMode } = {}): string | null {
+export function cliSandboxGap(
+  o: { platform?: NodeJS.Platform; bwrapPaths?: readonly string[]; windowsMode?: WindowsMode } = {},
+): string | null {
   const platform = o.platform ?? process.platform;
   if (platform === "darwin") return null;
-  if (platform === "linux") return (o.bwrapPaths ?? BWRAP).some((p) => fs.existsSync(p)) ? null : "bubblewrap (bwrap) is not installed on this server, so CLI engines cannot be sandboxed";
+  if (platform === "linux")
+    return (o.bwrapPaths ?? BWRAP).some((p) => fs.existsSync(p))
+      ? null
+      : "bubblewrap (bwrap) is not installed on this server, so CLI engines cannot be sandboxed";
   // Windows: Personal runs them at Low integrity in a Job Object (sandbox/src/win), built with the compiler Windows ships; Contained runs them in Vyre's own Linux under WSL2 (sandbox/src/wsl),
   // which needs WSL turned on, once, with admin and a restart
   if (platform === "win32") {
-    if ((o.windowsMode ?? windowsMode()) === "contained") return wslOn() ? null : "Claude Code, Codex and Grok run in a Linux sandbox on this computer, and WSL is not turned on";
-    return lowrunPossible(winBinDir()) ? null : "this Windows has no .NET Framework compiler, which Vyre needs to set up the engine's sandbox";
+    if ((o.windowsMode ?? windowsMode()) === "contained")
+      return wslOn()
+        ? null
+        : "Claude Code, Codex and Grok run in a Linux sandbox on this computer, and WSL is not turned on";
+    return lowrunPossible(winBinDir())
+      ? null
+      : "this Windows has no .NET Framework compiler, which Vyre needs to set up the engine's sandbox";
   }
   return `CLI engines cannot be sandboxed on ${platform}`;
 }
 
 export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultSandbox> {
   const platform = o.platform ?? process.platform;
-  const egress: WallEgress = o.egressHosts ? { allow: [...o.egressHosts], rule: { egress: "list", allow: [...o.egressHosts] } } : (o.egress ?? wallEgress());
+  const egress: WallEgress = o.egressHosts
+    ? { allow: [...o.egressHosts], rule: { egress: "list", allow: [...o.egressHosts] } }
+    : (o.egress ?? wallEgress());
   const hosts = egress.allow;
   const node = o.node ?? process.execPath;
-  const unavailable = (reason: string): DefaultSandbox => ({ plan: { sandbox: { kind: "server", reason }, dataDir: o.dataDir, egressHosts: hosts }, close: async () => undefined });
-  const done = (sandbox: EngineSandbox, close: () => Promise<void>, openWall: NonNullable<SandboxPlan["openWall"]>): DefaultSandbox => ({ plan: { sandbox, dataDir: o.dataDir, egressHosts: hosts, egressRule: egress.rule, openWall }, close });
-  const watched = (onEvent?: (e: EgressEvent) => void) => ({ egress: { local: localRoute, ...(onEvent ? { onEvent } : {}) } });
+  const unavailable = (reason: string): DefaultSandbox => ({
+    plan: { sandbox: { kind: "server", reason }, dataDir: o.dataDir, egressHosts: hosts },
+    close: async () => undefined,
+  });
+  const done = (
+    sandbox: EngineSandbox,
+    close: () => Promise<void>,
+    openWall: NonNullable<SandboxPlan["openWall"]>,
+  ): DefaultSandbox => ({
+    plan: { sandbox, dataDir: o.dataDir, egressHosts: hosts, egressRule: egress.rule, openWall },
+    close,
+  });
+  const watched = (onEvent?: (e: EgressEvent) => void) => ({
+    egress: { local: localRoute, ...(onEvent ? { onEvent } : {}) },
+  });
   if (platform === "win32") {
     // Windows: a Personal Space runs engines at Low integrity in a Job Object (E, RULINGS 14); Team Space turns and a Contained computer run them in Vyre's WSL2 Linux (B, RULINGS 15)
     const mode = o.windowsMode ?? windowsMode();
     const gap = cliSandboxGap({ platform, windowsMode: mode });
     if (gap !== null) return unavailable(gap);
     if (mode === "contained") {
-      const root = o.wslRoot ?? path.win32.join(process.env["LOCALAPPDATA"] ?? path.win32.join(o.dataDir, ".."), "ai.vyre.desktop", "wsl");
+      const root =
+        o.wslRoot ??
+        path.win32.join(process.env["LOCALAPPDATA"] ?? path.win32.join(o.dataDir, ".."), "ai.vyre.desktop", "wsl");
       await ensureDistro({ root, ...(o.onPhase ? { onPhase: o.onPhase } : {}) });
       const wall: AgentOptions["wall"] = { allow: egress.allow, rule: egress.rule };
-      const agent = await startWslAgent({ options: { wall, base: `/home/${DISTRO_PIN.user}/.vyre-run`, ...(o.wslTestRoutes ? { testRoutes: o.wslTestRoutes } : {}) } });
-      const base: EngineSandbox = { kind: "wsl", distro: DISTRO_PIN.name, user: DISTRO_PIN.user, agent, wall, ...(o.programRead ? { programRead: o.programRead } : {}) };
+      const agent = await startWslAgent({
+        options: {
+          wall,
+          base: `/home/${DISTRO_PIN.user}/.vyre-run`,
+          ...(o.wslTestRoutes ? { testRoutes: o.wslTestRoutes } : {}),
+        },
+      });
+      const base: EngineSandbox = {
+        kind: "wsl",
+        distro: DISTRO_PIN.name,
+        user: DISTRO_PIN.user,
+        agent,
+        wall,
+        ...(o.programRead ? { programRead: o.programRead } : {}),
+      };
       // one wall in the VM for every turn; a turn's rule (the Space's choice when it started) is sent to it as the engine starts (sandbox.ts wslWrap)
-      const openWall = async (e: WallEgress): Promise<OpenedWall> => ({ sandbox: { ...base, wall: { allow: e.allow, rule: e.rule } }, close: async () => undefined });
+      const openWall = async (e: WallEgress): Promise<OpenedWall> => ({
+        sandbox: { ...base, wall: { allow: e.allow, rule: e.rule } },
+        close: async () => undefined,
+      });
       return done(base, () => agent.close(), openWall);
     }
     const bin = o.winBin ?? winBinDir();
@@ -274,13 +437,29 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
     // Vyre's folders (and the data folder itself, which the work folders are under) private; the roots an engine works under, its engines and its Git Bash readable
     const priv = [...new Set([...(o.privateDirs ?? vyrePrivateDirs(o.dataDir)), o.dataDir])];
     const roots = layoutRoots("win32");
-    protectVyreData(helper, bin, priv, [path.join(o.dataDir, roots.work), path.join(o.dataDir, roots.scratch), path.join(o.dataDir, "engines"), ...(bash ? [msys] : [])]);
+    protectVyreData(helper, bin, priv, [
+      path.join(o.dataDir, roots.work),
+      path.join(o.dataDir, roots.scratch),
+      path.join(o.dataDir, "engines"),
+      ...(bash ? [msys] : []),
+    ]);
     // the person's key stores (Credential Manager, DPAPI's keys, the browsers' cookies and saved passwords, 1Password, ~/.ssh's private keys): no read up, as Vyre's own files
-    const keyStores = winKeyStores(o.home ?? process.env["USERPROFILE"] ?? path.win32.dirname(path.win32.dirname(o.dataDir)), [...priv, bin, msys]);
+    const keyStores = winKeyStores(
+      o.home ?? process.env["USERPROFILE"] ?? path.win32.dirname(path.win32.dirname(o.dataDir)),
+      [...priv, bin, msys],
+    );
     protectKeyStores(helper, bin, keyStores);
     // git's ssh (no shell, Vyre's config), where the engine may run it and not change it: beside the engines Vyre installed, which are labelled readable
     const ssh = ensureSshShim(helper, path.join(o.dataDir, "engines", "vyre-ssh"));
-    const low = (port: number): EngineSandbox => ({ kind: "lowil", helper, proxyPort: port, ssh, keyStores, ...(o.writable ? { writable: o.writable } : {}), ...(bash ? { bash } : {}) });
+    const low = (port: number): EngineSandbox => ({
+      kind: "lowil",
+      helper,
+      proxyPort: port,
+      ssh,
+      keyStores,
+      ...(o.writable ? { writable: o.writable } : {}),
+      ...(bash ? { bash } : {}),
+    });
     const proxy = createEgressProxy({ ...egress, local: localRoute });
     const { port } = await proxy.listen();
     // a turn's own proxy: the rule it carries and its own record of where it went, as on a Mac
@@ -295,10 +474,18 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
   const gapHere = cliSandboxGap({ platform, ...(o.bwrapPaths ? { bwrapPaths: o.bwrapPaths } : {}) });
   if (gapHere !== null) return unavailable(gapHere);
   if (platform === "linux") {
-    const bw = (dir: string): EngineSandbox => ({ kind: "bwrap", wallDir: dir, node, ...(o.programRead ? { programRead: o.programRead } : {}) });
+    const bw = (dir: string): EngineSandbox => ({
+      kind: "bwrap",
+      wallDir: dir,
+      node,
+      ...(o.programRead ? { programRead: o.programRead } : {}),
+    });
     const wall = await startNetWall({ ...egress, egress: { local: localRoute } });
     // a turn's own wall: the rule it carries (the Space's choice when it started) and its own record of where it went
-    const openWall = async (e: WallEgress, onEvent?: (ev: EgressEvent) => void): Promise<OpenedWall> => { const w = await startNetWall({ ...e, ...watched(onEvent) }); return { sandbox: bw(w.dir), close: () => w.close() }; };
+    const openWall = async (e: WallEgress, onEvent?: (ev: EgressEvent) => void): Promise<OpenedWall> => {
+      const w = await startNetWall({ ...e, ...watched(onEvent) });
+      return { sandbox: bw(w.dir), close: () => w.close() };
+    };
     return done(bw(wall.dir), () => wall.close(), openWall);
   }
   if (platform === "darwin") {
@@ -306,7 +493,15 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
     const { port } = await proxy.listen();
     // Seatbelt denies reads by default: the program being run (this Node, and the CLI's install folders) must be readable.
     const home = process.env["HOME"] ?? "/";
-    const programRead = [...(o.programRead ?? []), ...appleDeveloperRoots(), path.dirname(path.dirname(node)), path.join(home, ".local"), "/opt/homebrew", "/usr/local", ...cliInstallRoots({ PATH: enginePath(process.env, home) }, home)].filter((p) => p !== "/");
+    const programRead = [
+      ...(o.programRead ?? []),
+      ...appleDeveloperRoots(),
+      path.dirname(path.dirname(node)),
+      path.join(home, ".local"),
+      "/opt/homebrew",
+      "/usr/local",
+      ...cliInstallRoots({ PATH: enginePath(process.env, home) }, home),
+    ].filter((p) => p !== "/");
     const openWall = async (e: WallEgress, onEvent?: (ev: EgressEvent) => void): Promise<OpenedWall> => {
       const p = createEgressProxy({ ...e, local: localRoute, ...(onEvent ? { onEvent } : {}) });
       const l = await p.listen();

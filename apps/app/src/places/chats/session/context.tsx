@@ -22,15 +22,22 @@ export function SessionProvider({ threadId, children }: { threadId: string; chil
   const [summary, setSummary] = useState<SessionSummary>(NO_SESSION);
   const kept = useRef("");
   const jumper = useRef<((messageId: string) => void) | null>(null);
-  useEffect(() => { kept.current = ""; setSummary(NO_SESSION); }, [threadId]);
+  useEffect(() => {
+    kept.current = "";
+    setSummary(NO_SESSION);
+  }, [threadId]);
   const publish = useCallback((s: SessionSummary): void => {
     const key = JSON.stringify(s);
     if (key === kept.current) return;
     kept.current = key;
     setSummary(s);
   }, []);
-  const onJump = useCallback((fn: ((messageId: string) => void) | null): void => { jumper.current = fn; }, []);
-  const jump = useCallback((id: string): void => { jumper.current?.(id); }, []);
+  const onJump = useCallback((fn: ((messageId: string) => void) | null): void => {
+    jumper.current = fn;
+  }, []);
+  const jump = useCallback((id: string): void => {
+    jumper.current?.(id);
+  }, []);
   const value = useMemo<SessionCtx>(() => ({ summary, publish, onJump, jump }), [summary, publish, onJump, jump]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

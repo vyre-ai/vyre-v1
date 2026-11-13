@@ -13,7 +13,8 @@ import { SessionProvider, useSession } from "./context.tsx";
 import type { SessionSummary } from "./model.ts";
 
 const MIN = 60_000;
-const LONG_ANSWER = "The release is built and signed. Two things are left: the Mac upload finishes in a few minutes, then MLA updates. I will post here when it is healthy, and I will not touch MLA before you say so, as you asked earlier tonight.";
+const LONG_ANSWER =
+  "The release is built and signed. Two things are left: the Mac upload finishes in a few minutes, then MLA updates. I will post here when it is healthy, and I will not touch MLA before you say so, as you asked earlier tonight.";
 
 /** The idle sample plus a night's traffic after it: chatter, one jump, one long answer, in four hours. Returns the first new sequence number. */
 function night(s: Sample): { firstSeq: number } {
@@ -21,18 +22,39 @@ function night(s: Sample): { firstSeq: number } {
   const last = rows.reduce((n, m) => Math.max(n, m.threadSeq), 0);
   const t0 = rows.reduce((n, m) => Math.max(n, m.createdAt), 0) + 30 * MIN;
   const agent = { kind: "agent" as const, id: "agt_intake" };
-  const add = (i: number, body: string, o: Partial<Message> = {}): Message => ({ messageId: `n${i}`, threadId: "c1", threadSeq: last + 1 + i, author: agent, kind: "agent", body, blocks: [], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: t0 + i * 6 * MIN, ...o } as Message);
+  const add = (i: number, body: string, o: Partial<Message> = {}): Message =>
+    ({
+      messageId: `n${i}`,
+      threadId: "c1",
+      threadSeq: last + 1 + i,
+      author: agent,
+      kind: "agent",
+      body,
+      blocks: [],
+      depth: 0,
+      attachments: [],
+      reactions: [],
+      pinned: false,
+      createdAt: t0 + i * 6 * MIN,
+      ...o,
+    }) as Message;
   const out: Message[] = [];
   for (let i = 0; i < 40; i += 1) out.push(add(i, `quiet step ${i}`));
   out[20] = add(20, "Release v1.0.0-rc.22.1 tagged", { kind: "system", author: agent });
   out[30] = add(30, LONG_ANSWER);
-  s.replica.put("messages", out.map((m) => ({ id: m.messageId, ...m })));
+  s.replica.put(
+    "messages",
+    out.map((m) => ({ id: m.messageId, ...m })),
+  );
   return { firstSeq: last + 1 };
 }
 
 const withCatchUp = (s: Sample, since: number): Sample["data"] => ({
   ...s.data,
-  call: async (cap: string, input: unknown): Promise<unknown> => (cap === "chat.catch_up" ? { unread: 40, since, top: since + 40, firstMessageId: "n0", people: [], tasks: [], decisions: [], at: [] } : s.data.call(cap, input)),
+  call: async (cap: string, input: unknown): Promise<unknown> =>
+    cap === "chat.catch_up"
+      ? { unread: 40, since, top: since + 40, firstMessageId: "n0", people: [], tasks: [], decisions: [], at: [] }
+      : s.data.call(cap, input),
 });
 
 test("a long chat gets hour marks and a jump row; quiet messages since the last read fold into one row that opens in place", async () => {
@@ -40,8 +62,17 @@ test("a long chat gets hour marks and a jump row; quiet messages since the last 
     const s = createSample("idle");
     const { firstSeq } = night(s);
     let summary: SessionSummary | null = null;
-    function Probe(): null { summary = useSession()?.summary ?? null; return null; }
-    const root = await mount(createRoot, <SessionProvider threadId="c1"><Probe /><Conversation data={withCatchUp(s, firstSeq - 1)} /></SessionProvider>);
+    function Probe(): null {
+      summary = useSession()?.summary ?? null;
+      return null;
+    }
+    const root = await mount(
+      createRoot,
+      <SessionProvider threadId="c1">
+        <Probe />
+        <Conversation data={withCatchUp(s, firstSeq - 1)} />
+      </SessionProvider>,
+    );
     await flush();
     const text = textOf(root);
     assert.ok(text.includes("While you were away"), "the away row");

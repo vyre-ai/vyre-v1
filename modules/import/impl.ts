@@ -10,13 +10,19 @@ export const handlers: Record<string, Handler> = table as unknown as Record<stri
 
 /** At boot and every minute: an import a restart cut off ends failed, and its Run's owner is told (handlers/commit.ts interrupted). */
 export const periodic = {
-  "import.interrupted": { everyMs: 60_000, immediate: true, run: (ctx: ImportCtx): Promise<string[]> => interrupted(ctx) },
+  "import.interrupted": {
+    everyMs: 60_000,
+    immediate: true,
+    run: (ctx: ImportCtx): Promise<string[]> => interrupted(ctx),
+  },
 };
 
 export { setHost } from "./projections.ts";
 
 /** The Vault value behind a handle, for Airtable and Notion keys (ruling 32). The daemon calls this with its driver of the same name at boot. */
-export function setImportHost(h: ImportHost | null): void { setHost(h ?? undefined); }
+export function setImportHost(h: ImportHost | null): void {
+  setHost(h ?? undefined);
+}
 export const hostSeams = { setImportHost };
 export { convert, parseDate, parseNumber, inferType, compileTransform, suggest } from "./mapping.ts";
 export { parseCsvText, readXlsx, unzip } from "./sources.ts";

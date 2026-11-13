@@ -6,13 +6,26 @@ import { alice, as, bob, bot, cara, newTask, owner } from "../fixtures/seed.ts";
 import { consumers } from "../impl.ts";
 
 const svc = { id: "svc_host", kind: "service" as const };
-const withOwner = () => { const h = harness({ authorize: () => true }); h.callee("spaces.get", () => ({ space: { owner: owner.id } })); return h; };
-const stored = async (h: ReturnType<typeof harness>, id: string, who = owner) => (await h.call("tasks.get", { taskId: id }, as(who))).task;
-const left = (h: ReturnType<typeof harness>, personId: string) => consumers["tasks.person_left"].run(h.ctxFor("tasks.assign", svc), { payload: { personId } } as never);
+const withOwner = () => {
+  const h = harness({ authorize: () => true });
+  h.callee("spaces.get", () => ({ space: { owner: owner.id } }));
+  return h;
+};
+const stored = async (h: ReturnType<typeof harness>, id: string, who = owner) =>
+  (await h.call("tasks.get", { taskId: id }, as(who))).task;
+const left = (h: ReturnType<typeof harness>, personId: string) =>
+  consumers["tasks.person_left"].run(h.ctxFor("tasks.assign", svc), { payload: { personId } } as never);
 // a consumer may emit what any capability of its module declares
 const gone = (h: ReturnType<typeof harness>, agentId: string) => {
-  const moves = h.ctxFor("tasks.assign", svc), ends = h.ctxFor("tasks.withdraw", svc);
-  const ctx = { ...moves, emit: (name: string, ...rest: unknown[]) => (name === "task.withdrawn" ? (ends.emit as (...a: unknown[]) => unknown)(name, ...rest) : (moves.emit as (...a: unknown[]) => unknown)(name, ...rest)) };
+  const moves = h.ctxFor("tasks.assign", svc),
+    ends = h.ctxFor("tasks.withdraw", svc);
+  const ctx = {
+    ...moves,
+    emit: (name: string, ...rest: unknown[]) =>
+      name === "task.withdrawn"
+        ? (ends.emit as (...a: unknown[]) => unknown)(name, ...rest)
+        : (moves.emit as (...a: unknown[]) => unknown)(name, ...rest),
+  };
   return consumers["tasks.agent_deleted"].run(ctx as never, { payload: { agentId } } as never);
 };
 
@@ -40,8 +53,16 @@ test("a deleted agent's work goes to the person behind it; its own requests end;
   const h = withOwner();
   h.callee("agents.get", () => ({ agent: { ownerId: bob.id } }));
   const work = (await h.call("tasks.create", newTask({ assigned: bot }), as(alice))).task;
-  const asked = (await h.call("tasks.create", newTask({ kind: "answer", assigned: alice, title: "Which draft?" }), as(bot, { actingFor: alice.id }))).task;
-  const mine = (await h.call("tasks.create", newTask({ kind: "answer", assigned: alice, title: "Which draft?" }), as(bob))).task;
+  const asked = (
+    await h.call(
+      "tasks.create",
+      newTask({ kind: "answer", assigned: alice, title: "Which draft?" }),
+      as(bot, { actingFor: alice.id }),
+    )
+  ).task;
+  const mine = (
+    await h.call("tasks.create", newTask({ kind: "answer", assigned: alice, title: "Which draft?" }), as(bob))
+  ).task;
   const touched = await gone(h, bot.id);
   assert.deepEqual([...touched].sort(), [work.id, asked.id].sort());
   const moved = await stored(h, work.id);

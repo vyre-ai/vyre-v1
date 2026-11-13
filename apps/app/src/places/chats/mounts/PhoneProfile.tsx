@@ -5,15 +5,31 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
 import { Glyph } from "../conversation/parts.tsx";
 
-export function PhoneProfile({ title, onBack, children }: { title: string; onBack(): void; children: ReactNode }): ReactElement {
+export function PhoneProfile({
+  title,
+  onBack,
+  children,
+}: {
+  title: string;
+  onBack(): void;
+  children: ReactNode;
+}): ReactElement {
   return (
     <Overlay>
       <View testID="phone-profile" role="dialog" aria-label={title} aria-modal style={st.page}>
         <View style={st.head}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} testID="phone-profile-back" style={st.back}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            onPress={onBack}
+            testID="phone-profile-back"
+            style={st.back}
+          >
             <Glyph name="back" size={18} color="var(--accent)" />
           </Pressable>
-          <Text accessibilityRole="header" numberOfLines={1} style={st.title}>{title}</Text>
+          <Text accessibilityRole="header" numberOfLines={1} style={st.title}>
+            {title}
+          </Text>
           <View style={st.back} />
         </View>
         <View style={st.body}>{children}</View>
@@ -23,8 +39,23 @@ export function PhoneProfile({ title, onBack, children }: { title: string; onBac
 }
 
 const st = StyleSheet.create({
-  page: { position: "fixed" as "absolute", left: 0, top: 0, right: 0, bottom: 0, backgroundColor: "var(--side)" as string, paddingTop: "env(safe-area-inset-top)" as unknown as number },
-  head: { flexDirection: "row", alignItems: "center", height: 48, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  page: {
+    position: "fixed" as "absolute",
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "var(--side)" as string,
+    paddingTop: "env(safe-area-inset-top)" as unknown as number,
+  },
+  head: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 48,
+    paddingHorizontal: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   back: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   title: { flex: 1, textAlign: "center", fontSize: 16, fontWeight: "600", color: "var(--ink)" as string },
   body: { flex: 1, minHeight: 0 },

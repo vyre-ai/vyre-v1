@@ -20,7 +20,8 @@ export function syncOpening(item: { name: string; handle: string }): string {
 }
 
 /** Bring in from your CRM, in the Records sidebar: the app is not picked yet. */
-export const BRING_IN_OPENING = "Bring my CRM into Records. Ask me which app. Look for its key in the Vault first. Load the crm-sync-builder skill. Never ask me to paste a key in chat.";
+export const BRING_IN_OPENING =
+  "Bring my CRM into Records. Ask me which app. Look for its key in the Vault first. Load the crm-sync-builder skill. Never ask me to paste a key in chat.";
 
 /** Edit mapping on the Sync page: the agent opens with the spec that made the type. */
 export function editMappingOpening(a: { app: string; type: string }): string {

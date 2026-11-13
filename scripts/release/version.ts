@@ -37,7 +37,11 @@ export const VERSION_FILES: readonly string[] = [
 ];
 
 /** One place in a file that holds the version. A plain .json file has one (its top-level version); the lockfiles and Cargo files have their own. */
-interface Slot { label: string; get: (text: string) => string | undefined; set: (text: string, to: string) => string }
+interface Slot {
+  label: string;
+  get: (text: string) => string | undefined;
+  set: (text: string, to: string) => string;
+}
 
 const CARGO_PACKAGE = /(\[package\][^[]*?\n\s*version\s*=\s*")([^"]*)(")/;
 const CARGO_LOCK_DESKTOP = /(\[\[package\]\]\nname = "vyre-desktop"\nversion = ")([^"]*)(")/;
@@ -45,7 +49,10 @@ const CARGO_LOCK_DESKTOP = /(\[\[package\]\]\nname = "vyre-desktop"\nversion = "
 function jsonSlot(label: string, pick: (doc: Record<string, unknown>) => Record<string, unknown> | undefined): Slot {
   return {
     label,
-    get: (text) => { const v = pick(JSON.parse(text) as Record<string, unknown>)?.["version"]; return typeof v === "string" ? v : undefined; },
+    get: (text) => {
+      const v = pick(JSON.parse(text) as Record<string, unknown>)?.["version"];
+      return typeof v === "string" ? v : undefined;
+    },
     set: (text, to) => {
       const doc = JSON.parse(text) as Record<string, unknown>;
       const target = pick(doc);
@@ -61,11 +68,15 @@ function regexSlot(label: string, re: RegExp): Slot {
   return {
     label,
     get: (text) => re.exec(text)?.[2],
-    set: (text, to) => { if (!re.test(text)) throw new Error(`${label}: not found`); return text.replace(re, `$1${to}$3`); },
+    set: (text, to) => {
+      if (!re.test(text)) throw new Error(`${label}: not found`);
+      return text.replace(re, `$1${to}$3`);
+    },
   };
 }
 
-const lockPackages = (doc: Record<string, unknown>): Record<string, Record<string, unknown>> => (doc["packages"] ?? {}) as Record<string, Record<string, unknown>>;
+const lockPackages = (doc: Record<string, unknown>): Record<string, Record<string, unknown>> =>
+  (doc["packages"] ?? {}) as Record<string, Record<string, unknown>>;
 
 function slotsOf(file: string): Slot[] {
   const base = path.basename(file);
@@ -73,7 +84,9 @@ function slotsOf(file: string): Slot[] {
     return [
       jsonSlot("version", (d) => d),
       jsonSlot('packages[""].version', (d) => lockPackages(d)[""]),
-      ...(file.startsWith("apps/desktop/") || !file.includes("/") ? [jsonSlot('packages["apps/desktop"].version', (d) => lockPackages(d)["apps/desktop"])] : []),
+      ...(file.startsWith("apps/desktop/") || !file.includes("/")
+        ? [jsonSlot('packages["apps/desktop"].version', (d) => lockPackages(d)["apps/desktop"])]
+        : []),
     ];
   }
   if (base === "Cargo.toml") return [regexSlot("[package] version", CARGO_PACKAGE)];
@@ -81,7 +94,10 @@ function slotsOf(file: string): Slot[] {
   return [jsonSlot("version", (d) => d)];
 }
 
-interface Found { file: string; version: string | undefined }
+interface Found {
+  file: string;
+  version: string | undefined;
+}
 
 /** Every version a file carries, as one row per place (a lockfile has several). */
 function readSlots(root: string, files: readonly string[]): Found[] {
@@ -89,7 +105,8 @@ function readSlots(root: string, files: readonly string[]): Found[] {
   for (const file of files) {
     const text = fs.readFileSync(path.join(root, file), "utf8");
     const slots = slotsOf(file);
-    for (const slot of slots) out.push({ file: slots.length > 1 ? `${file} ${slot.label}` : file, version: slot.get(text) });
+    for (const slot of slots)
+      out.push({ file: slots.length > 1 ? `${file} ${slot.label}` : file, version: slot.get(text) });
   }
   return out;
 }
@@ -102,11 +119,19 @@ export function readVersions(root: string, files: readonly string[] = VERSION_FI
 export function versionProblems(root: string, files: readonly string[] = VERSION_FILES): string[] {
   const all = readVersions(root, files);
   const want = all[0]?.version;
-  return all.filter((x) => x.version !== want).map((x) => `${x.file} says ${x.version ?? "nothing"}, ${all[0]?.file ?? "the first file"} says ${want ?? "nothing"}`);
+  return all
+    .filter((x) => x.version !== want)
+    .map(
+      (x) => `${x.file} says ${x.version ?? "nothing"}, ${all[0]?.file ?? "the first file"} says ${want ?? "nothing"}`,
+    );
 }
 
 /** Set every version file to `to`. Only the version changes; indentation and the final newline are kept. */
-export function bump(root: string, to: string, files: readonly string[] = VERSION_FILES): { from: string | undefined; to: string } {
+export function bump(
+  root: string,
+  to: string,
+  files: readonly string[] = VERSION_FILES,
+): { from: string | undefined; to: string } {
   if (!VERSION.test(to)) throw new Error(`${to} is not a version (1.2.3 or 1.2.3-rc.1)`);
   const from = readVersions(root, files)[0]?.version;
   for (const file of files) {
@@ -124,7 +149,12 @@ export function bump(root: string, to: string, files: readonly string[] = VERSIO
 export function tagVersion(tag: string): string | null {
   const v = tag.replace(/^refs\/tags\//, "");
   if (!v.startsWith("v")) return null;
-  try { releaseCounter(v); return v.slice(1); } catch { return null; }
+  try {
+    releaseCounter(v);
+    return v.slice(1);
+  } catch {
+    return null;
+  }
 }
 
 /** Which update channel a version goes to: a release is stable, a beta or an rc goes to beta (the rolling `channel-beta` release). A nightly build is tagged `v1.2.3-nightly.N` is not a release version and is refused here. */

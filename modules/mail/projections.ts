@@ -21,14 +21,22 @@ export interface MailCtx {
   run?: string;
   now(): number;
   db: MailDb;
-  emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
+  emit(
+    name: string,
+    subject: string,
+    payload: unknown,
+    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+  ): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
   authorize(
     action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
     resource: { type: string; id: string | null },
   ): { effect: "allow" | "deny" | "hold"; reason: string; decisionId: string };
   vault: { use(handle: string): { handle: string } };
-  log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
+  log: {
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 export type Level = "view" | "use" | "edit" | "manage";
@@ -101,12 +109,14 @@ export function strOrNull(row: Row | null, key: string): string | null {
 export const normalizeEmail = (address: string): string => address.trim().toLowerCase();
 
 export function partyJson(parties: readonly Party[]): string {
-  return JSON.stringify(parties.map((party) => {
-    const out: Party = { address: normalizeEmail(party.address) };
-    if (party.name) out.name = party.name;
-    if (party.contactId) out.contactId = party.contactId;
-    return out;
-  }));
+  return JSON.stringify(
+    parties.map((party) => {
+      const out: Party = { address: normalizeEmail(party.address) };
+      if (party.name) out.name = party.name;
+      if (party.contactId) out.contactId = party.contactId;
+      return out;
+    }),
+  );
 }
 
 export function readParties(value: unknown): Party[] {
@@ -150,14 +160,20 @@ export function snippetOf(text: string | undefined, subject: string, html?: stri
 export function logRead(ctx: MailCtx, mailboxId: string, actor: string, action: string): void {
   ctx.db.run(
     `INSERT INTO mail_read_log (id, actor, "mailboxId", action, at) VALUES (?, ?, ?, ?, ?)`,
-    newId("rdl", ctx.now()), actor, mailboxId, action, ctx.now(),
+    newId("rdl", ctx.now()),
+    actor,
+    mailboxId,
+    action,
+    ctx.now(),
   );
 }
 
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_mail_core.sql", "0005_mail_copy.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = ["0001_mail_core.sql", "0005_mail_copy.sql"]
+  .map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8"))
+  .join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];

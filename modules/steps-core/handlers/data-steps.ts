@@ -11,7 +11,8 @@ function pathGet(value: unknown, path: string): unknown {
 }
 
 export function transformValue(value: unknown, mapping: unknown): Record<string, unknown> {
-  if (!mapping || typeof mapping !== "object" || Array.isArray(mapping)) throw stepError("validation.bad_input", "Transform needs a mapping.", false);
+  if (!mapping || typeof mapping !== "object" || Array.isArray(mapping))
+    throw stepError("validation.bad_input", "Transform needs a mapping.", false);
   const out: Record<string, unknown> = {};
   for (const [key, src] of Object.entries(mapping)) {
     if (typeof src !== "string" || !src) continue;
@@ -23,7 +24,9 @@ export function transformValue(value: unknown, mapping: unknown): Record<string,
 
 export function collectItems(items: unknown, fields?: unknown): { items: unknown[]; count: number } {
   if (!Array.isArray(items)) throw stepError("validation.bad_input", "Collect needs a list.", false);
-  const pick = Array.isArray(fields) ? fields.filter((field): field is string => typeof field === "string" && field.length > 0) : [];
+  const pick = Array.isArray(fields)
+    ? fields.filter((field): field is string => typeof field === "string" && field.length > 0)
+    : [];
   const out = items.map((item) => {
     if (pick.length === 0 || !item || typeof item !== "object" || Array.isArray(item)) return item;
     const row: Record<string, unknown> = {};
@@ -46,7 +49,10 @@ export function groupItems(items: unknown, by: string): { key: string; items: un
     }
     const list = map.get(key);
     if (list) list.push(item);
-    else { map.set(key, [item]); order.push(key); }
+    else {
+      map.set(key, [item]);
+      order.push(key);
+    }
   }
   return order.map((key) => {
     const grouped = map.get(key) ?? [];

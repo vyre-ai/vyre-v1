@@ -7,7 +7,11 @@
 // DECISION: a person typing a message is not made to wait (window and throttle apply to automations and agents), but a person's message still counts toward the cap and is refused over it.
 
 export type SendWindow = "8-20" | "9-17" | "any";
-export interface SendLimits { cap: number; window: SendWindow; perMinute: number }
+export interface SendLimits {
+  cap: number;
+  window: SendWindow;
+  perMinute: number;
+}
 
 export const DEFAULT_LIMITS: SendLimits = { cap: 2000, window: "8-20", perMinute: 20 };
 export const HOUR = 3_600_000;
@@ -30,7 +34,11 @@ const formatters = new Map<string, Intl.DateTimeFormat>();
 export function localHour(ms: number, zone: string): number {
   let f = formatters.get(zone);
   if (!f) {
-    try { f = new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", hourCycle: "h23" }); } catch { f = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", hour: "numeric", hourCycle: "h23" }); }
+    try {
+      f = new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", hourCycle: "h23" });
+    } catch {
+      f = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", hour: "numeric", hourCycle: "h23" });
+    }
     formatters.set(zone, f);
   }
   for (const part of f.formatToParts(new Date(ms))) if (part.type === "hour") return Number(part.value) % 24;
@@ -81,13 +89,22 @@ export interface PlanIn {
 /** Decides one message: refused over the daily cap, else the time it may leave and what held it, if anything. */
 export function planSend(i: PlanIn): Plan {
   const recent = i.ticks.filter((at) => at > i.now - DAY).sort((a, b) => a - b);
-  if (recent.length >= i.limits.cap) return { ok: false, reason: "send_cap_reached", limit: i.limits.cap, resetAt: (recent[recent.length - i.limits.cap] ?? i.now) + DAY };
+  if (recent.length >= i.limits.cap)
+    return {
+      ok: false,
+      reason: "send_cap_reached",
+      limit: i.limits.cap,
+      resetAt: (recent[recent.length - i.limits.cap] ?? i.now) + DAY,
+    };
   if (!i.bulk) return { ok: true, at: i.wanted, held: null };
   let at = i.wanted;
   let held: "window" | "throttle" | null = null;
   for (let n = 0; n < 200; n++) {
     const open = nextOpen(at, i.zone, i.limits.window);
-    if (open !== at) { at = open; held = "window"; }
+    if (open !== at) {
+      at = open;
+      held = "window";
+    }
     const slot = throttleSlot(i.ticks, at, i.limits.perMinute);
     if (slot === at) break;
     at = slot;
@@ -101,7 +118,18 @@ const pad = (n: number): string => String(n).padStart(2, "0");
 export function whenText(ms: number, zone: string): string {
   const d = new Date(ms);
   let f: Intl.DateTimeFormat;
-  try { f = new Intl.DateTimeFormat("en-GB", { timeZone: zone, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }); } catch { return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`; }
+  try {
+    f = new Intl.DateTimeFormat("en-GB", {
+      timeZone: zone,
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+  } catch {
+    return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
+  }
   const parts = Object.fromEntries(f.formatToParts(d).map((p) => [p.type, p.value]));
   return `${parts["hour"]}:${parts["minute"]} on ${parts["day"]} ${parts["month"]} (${zone})`;
 }
@@ -110,5 +138,7 @@ export function capMessage(limit: number, resetAt: number, zone: string): string
   return `This Space reached its limit of ${limit.toLocaleString("en-US")} messages a day. Sending opens again at ${whenText(resetAt, zone)}. An admin can raise the limit in Console, Messaging, Rules.`;
 }
 export function heldText(held: "window" | "throttle", at: number, zone: string): string {
-  return held === "window" ? `Held until the sending window opens at ${whenText(at, zone)}.` : `Waiting its turn under the sending speed limit; it leaves at ${whenText(at, zone)}.`;
+  return held === "window"
+    ? `Held until the sending window opens at ${whenText(at, zone)}.`
+    : `Waiting its turn under the sending speed limit; it leaves at ${whenText(at, zone)}.`;
 }

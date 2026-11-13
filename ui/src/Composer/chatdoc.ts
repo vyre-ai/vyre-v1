@@ -2,8 +2,17 @@
 // atomic chip. These functions turn the string and the mention ranges into the field's document and back, and map a character offset to a position in the document and back, so the composer's
 // logic (triggers, popups, tokens, the send payload) is the same with the new field as with the old one. No DOM here; a test drives them.
 
-export interface ChatRange { start: number; end: number; kind: string }
-export interface ChatNode { type: string; attrs?: Record<string, unknown>; content?: ChatNode[]; text?: string }
+export interface ChatRange {
+  start: number;
+  end: number;
+  kind: string;
+}
+export interface ChatNode {
+  type: string;
+  attrs?: Record<string, unknown>;
+  content?: ChatNode[];
+  text?: string;
+}
 
 const textNode = (text: string): ChatNode => ({ type: "text", text });
 
@@ -12,7 +21,10 @@ export function chatDoc(text: string, ranges: readonly ChatRange[]): ChatNode {
   const content: ChatNode[] = [];
   const plain = (s: string): void => {
     const parts = s.split("\n");
-    parts.forEach((p, i) => { if (i > 0) content.push({ type: "hardBreak" }); if (p !== "") content.push(textNode(p)); });
+    parts.forEach((p, i) => {
+      if (i > 0) content.push({ type: "hardBreak" });
+      if (p !== "") content.push(textNode(p));
+    });
   };
   let at = 0;
   for (const r of ranges) {
@@ -38,7 +50,14 @@ export function chatText(doc: ChatNode): string {
   return out;
 }
 
-const width = (n: ChatNode): number => (n.type === "text" ? (n.text ?? "").length : n.type === "hardBreak" ? 1 : n.type === "chip" ? String(n.attrs?.["label"] ?? "").length : 0);
+const width = (n: ChatNode): number =>
+  n.type === "text"
+    ? (n.text ?? "").length
+    : n.type === "hardBreak"
+      ? 1
+      : n.type === "chip"
+        ? String(n.attrs?.["label"] ?? "").length
+        : 0;
 /** The size of a node in document positions: a text is its length, an atom is 1. */
 const size = (n: ChatNode): number => (n.type === "text" ? (n.text ?? "").length : 1);
 
@@ -76,7 +95,13 @@ export function posToOffset(doc: ChatNode, pos: number): number {
 /** The pieces of pasted text as nodes: plain runs and hard breaks (a paste is plain text). */
 export function pasteNodes(text: string): ChatNode[] {
   const out: ChatNode[] = [];
-  text.replace(/\r\n?/g, "\n").split("\n").forEach((line, i) => { if (i > 0) out.push({ type: "hardBreak" }); if (line !== "") out.push(textNode(line)); });
+  text
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .forEach((line, i) => {
+      if (i > 0) out.push({ type: "hardBreak" });
+      if (line !== "") out.push(textNode(line));
+    });
   return out;
 }
 

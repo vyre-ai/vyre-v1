@@ -13,14 +13,28 @@ import { fakeInvoke, loadGenerated } from "../../../agent/src/tools/harness.ts";
 import type { McpToolRow } from "../../../agent/src/tools/types.ts";
 
 const read = (f: string): string => readFileSync(new URL(`../../../${f}`, import.meta.url), "utf8");
-interface Cap { name: string; v: number; module: string; caller?: string; effects: string; surfaces?: { mcp?: { toolset: string }; agent?: boolean } }
-const reg = JSON.parse(read("generated/registry.json")) as { capabilities: Cap[]; agentTools: Array<{ name: string; cap?: string }> };
+interface Cap {
+  name: string;
+  v: number;
+  module: string;
+  caller?: string;
+  effects: string;
+  surfaces?: { mcp?: { toolset: string }; agent?: boolean };
+}
+const reg = JSON.parse(read("generated/registry.json")) as {
+  capabilities: Cap[];
+  agentTools: Array<{ name: string; cap?: string }>;
+};
 const tools = (JSON.parse(read("generated/mcp-tools.json")) as { tools: McpToolRow[] }).tools;
 const g = loadGenerated();
 
 const optedOut = new Set(reg.capabilities.filter((c) => c.surfaces?.agent === false).map((c) => c.name));
-const mcpCaps = new Set(reg.capabilities.filter((c) => c.surfaces?.mcp !== undefined && !optedOut.has(c.name)).map((c) => c.name));
-const wrapped = new Set(reg.agentTools.flatMap((a) => (a.cap !== undefined ? [a.cap] : [])).filter((c) => !optedOut.has(c)));
+const mcpCaps = new Set(
+  reg.capabilities.filter((c) => c.surfaces?.mcp !== undefined && !optedOut.has(c.name)).map((c) => c.name),
+);
+const wrapped = new Set(
+  reg.agentTools.flatMap((a) => (a.cap !== undefined ? [a.cap] : [])).filter((c) => !optedOut.has(c)),
+);
 
 test("the tool list is the capability list: every MCP capability and every agentTools wrapper has a tool, nothing else does, names are unique", () => {
   const names = tools.map((t) => t.name);
@@ -28,7 +42,11 @@ test("the tool list is the capability list: every MCP capability and every agent
   const toolCaps = new Set(tools.map((t) => t.cap));
   for (const c of mcpCaps) assert.ok(toolCaps.has(c), `capability ${c} has an MCP surface and no tool`);
   for (const c of wrapped) assert.ok(toolCaps.has(c), `agentTools wrapper for ${c} has no tool`);
-  for (const c of toolCaps) assert.ok(mcpCaps.has(c as string) || wrapped.has(c as string), `tool for ${String(c)} has neither an MCP surface nor an agentTools entry`);
+  for (const c of toolCaps)
+    assert.ok(
+      mcpCaps.has(c as string) || wrapped.has(c as string),
+      `tool for ${String(c)} has neither an MCP surface nor an agentTools entry`,
+    );
   for (const c of optedOut) assert.ok(!toolCaps.has(c), `${c} opted out of agents and still has a tool`);
   assert.equal(g.catalog.all.length, tools.length, "the catalog joins every generated tool with its capability");
 });
@@ -45,7 +63,50 @@ test("agent-optout is exactly the automation plumbing and the provider check, an
   // whether other agents may hand work to an agent is a person's decision with Manage on it (l-share2), never an agent's own
   // handing an item or a note to another owner is the owner's own act (l-share2); a Talk key and a Talk session are a person's own voice set-up (l-voice21)
   // the quiet "Merged" line is left by the person who merged, from the merge record (l-crews), never by an agent
-  assert.deepEqual([...optedOut].sort(), ["access.agents_can_call.set", "access.connector_builder.grant", "access.connector_builder.status", "access.make_owner", "access.provider_check", "automations.http_read", "automations.http_send", "automations.watches.check", "automations.watches.remove", "automations.watches.save", "chat.crew_line", "chat.note_offer.answer", "engine.mcp.oauth_complete", "engine.mcp.oauth_start", "engine.mcp.oauth_status", "engine.step_turn", "files.agent_access.set", "files.agent_states", "files.agent_view", "files.marks.list", "files.marks.place", "files.marks.remove", "files.redact.detect", "files.redact.later", "files.review", "notes.clip", "notes.delete", "notes.restore", "notes.set_owner", "notes.share", "notes.to_record", "notes.to_task", "plugins.connection.checked", "sessions.delete", "talk.connect", "talk.disconnect", "talk.session", "talk.space.connect", "talk.space.disconnect", "threads.delete", "threads.leave", "threads.restore"]);   // plugins.connection.checked: the host's record of what a connection last did (l-connections), never an agent's
+  assert.deepEqual([...optedOut].sort(), [
+    "access.agents_can_call.set",
+    "access.connector_builder.grant",
+    "access.connector_builder.status",
+    "access.make_owner",
+    "access.provider_check",
+    "automations.http_read",
+    "automations.http_send",
+    "automations.watches.check",
+    "automations.watches.remove",
+    "automations.watches.save",
+    "chat.crew_line",
+    "chat.note_offer.answer",
+    "engine.mcp.oauth_complete",
+    "engine.mcp.oauth_start",
+    "engine.mcp.oauth_status",
+    "engine.step_turn",
+    "files.agent_access.set",
+    "files.agent_states",
+    "files.agent_view",
+    "files.marks.list",
+    "files.marks.place",
+    "files.marks.remove",
+    "files.redact.detect",
+    "files.redact.later",
+    "files.review",
+    "notes.clip",
+    "notes.delete",
+    "notes.restore",
+    "notes.set_owner",
+    "notes.share",
+    "notes.to_record",
+    "notes.to_task",
+    "plugins.connection.checked",
+    "sessions.delete",
+    "talk.connect",
+    "talk.disconnect",
+    "talk.session",
+    "talk.space.connect",
+    "talk.space.disconnect",
+    "threads.delete",
+    "threads.leave",
+    "threads.restore",
+  ]); // plugins.connection.checked: the host's record of what a connection last did (l-connections), never an agent's
   const pre = reg.capabilities.filter((c) => c.caller === "anonymous" || c.caller === "pending").map((c) => c.name);
   assert.ok(pre.length >= 10);
   const toolCaps = new Set(tools.map((t) => t.cap));
@@ -56,14 +117,23 @@ test("the default listed set is in the catalog; everything else is found with to
   for (const n of g.defaults) assert.ok(g.catalog.byName(n), `default tool ${n} exists`);
   assert.ok(g.defaults.size >= 55 && g.defaults.size <= 65, `${g.defaults.size} default tools`);
   assert.ok(g.defaults.has("tool_search"));
-  assert.ok(![...g.defaults].some((n) => g.catalog.byName(n)!.toolset === "engineer"), "the engineer toolset is never in the default list");
+  assert.ok(
+    ![...g.defaults].some((n) => g.catalog.byName(n)!.toolset === "engineer"),
+    "the engineer toolset is never in the default list",
+  );
 });
 
 test("mcp.toolsets.list counts every toolset from the generated list, and engineer is allowed only with engineer.mcp", () => {
   const hn = harness();
   const out = toolsetsList(hn.ctx, {});
-  assert.equal(out.toolsets.reduce((n, t) => n + t.tools, 0), tools.length);
-  assert.equal(out.toolsets.reduce((n, t) => n + t.listed, 0), g.defaults.size);
+  assert.equal(
+    out.toolsets.reduce((n, t) => n + t.tools, 0),
+    tools.length,
+  );
+  assert.equal(
+    out.toolsets.reduce((n, t) => n + t.listed, 0),
+    g.defaults.size,
+  );
   for (const t of out.toolsets) {
     assert.equal(t.tools, tools.filter((x) => x.toolset === t.toolset).length, t.toolset);
     assert.equal(t.allowed, true);
@@ -95,13 +165,19 @@ test("mcp.tool.search and describe return the schemas, search respects the limit
   const hn = harness();
   const found = toolSearch(hn.ctx, { query: "mail send draft", limit: 5 });
   assert.ok(found.tools.length > 0 && found.tools.length <= 5);
-  assert.ok(found.tools.every((t) => t.deferred && t.input !== undefined && t.summary.length > 0), "search finds deferred tools, with their schemas");
+  assert.ok(
+    found.tools.every((t) => t.deferred && t.input !== undefined && t.summary.length > 0),
+    "search finds deferred tools, with their schemas",
+  );
   const inFiles = toolSearch(hn.ctx, { query: "file", toolset: "files" });
   assert.ok(inFiles.tools.every((t) => t.toolset === "files"));
   assert.deepEqual(toolSearch(hn.ctx, { query: "   " }).tools, []);
   const names = [found.tools[0]!.name, "records_query", "no_such_tool"];
   const d = toolDescribe(hn.ctx, { names });
-  assert.deepEqual(d.tools.map((t) => t.name), [found.tools[0]!.name, "records_query"]);
+  assert.deepEqual(
+    d.tools.map((t) => t.name),
+    [found.tools[0]!.name, "records_query"],
+  );
   hn.allowOnly((a) => a.perm !== "engineer.mcp");
   const eng = tools.find((t) => t.toolset === "engineer")!;
   assert.deepEqual(toolDescribe(hn.ctx, { names: [eng.name] }).tools, []);
@@ -110,11 +186,32 @@ test("mcp.tool.search and describe return the schemas, search respects the limit
 test("the capability and the server agree: tool_search over MCP finds what mcp.tool.search finds, for a caller without engineer.mcp", async () => {
   const hn = harness();
   hn.allowOnly((a) => a.perm !== "engineer.mcp");
-  const caller: McpCaller = { kind: "driver", sessionId: "ses_d", space: "spc_1", principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_dana", threadId: "thr_1" };
-  const server = createMcpServer({ catalog: g.catalog, defaults: g.defaults, invoke: fakeInvoke(g.caps).invoke, open: async () => caller });
+  const caller: McpCaller = {
+    kind: "driver",
+    sessionId: "ses_d",
+    space: "spc_1",
+    principal: { kind: "agent", id: "agt_intake" },
+    actingFor: "usr_dana",
+    threadId: "thr_1",
+  };
+  const server = createMcpServer({
+    catalog: g.catalog,
+    defaults: g.defaults,
+    invoke: fakeInvoke(g.caps).invoke,
+    open: async () => caller,
+  });
   let n = 0;
   for (const query of ["invoice", "record history", "browser", "calendar event", "github pull request"]) {
-    const r = await server.handle({ method: "POST", headers: { authorization: "Bearer t" }, body: JSON.stringify({ jsonrpc: "2.0", id: ++n, method: "tools/call", params: { name: "tool_search", arguments: { query } } }) });
+    const r = await server.handle({
+      method: "POST",
+      headers: { authorization: "Bearer t" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: ++n,
+        method: "tools/call",
+        params: { name: "tool_search", arguments: { query } },
+      }),
+    });
     const over = (JSON.parse(r.body) as any).result.structuredContent.data.tools.map((t: any) => t.name) as string[];
     const cap = toolSearch(hn.ctx, { query }).tools.map((t) => t.name);
     assert.deepEqual(over, cap, `search for "${query}"`);
@@ -122,11 +219,30 @@ test("the capability and the server agree: tool_search over MCP finds what mcp.t
 });
 
 test("an outside agent's list is the default set cut by what stays with people, plus use_tool and agents_next", async () => {
-  const caller: McpCaller = { kind: "outside", sessionId: "ses_o", space: "spc_1", principal: { kind: "agent", id: "agt_cc" }, actingFor: "usr_dana" };
-  const server = createMcpServer({ catalog: g.catalog, defaults: g.defaults, invoke: fakeInvoke(g.caps).invoke, open: async () => caller });
-  const r = await server.handle({ method: "POST", headers: { authorization: "Bearer t" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
+  const caller: McpCaller = {
+    kind: "outside",
+    sessionId: "ses_o",
+    space: "spc_1",
+    principal: { kind: "agent", id: "agt_cc" },
+    actingFor: "usr_dana",
+  };
+  const server = createMcpServer({
+    catalog: g.catalog,
+    defaults: g.defaults,
+    invoke: fakeInvoke(g.caps).invoke,
+    open: async () => caller,
+  });
+  const r = await server.handle({
+    method: "POST",
+    headers: { authorization: "Bearer t" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+  });
   const listed = new Set(((JSON.parse(r.body) as any).result.tools as Array<{ name: string }>).map((t) => t.name));
-  const expected = new Set([...[...g.defaults].filter((n) => outsideAllows(g.catalog.byName(n)!)), "use_tool", "agents_next"]);
+  const expected = new Set([
+    ...[...g.defaults].filter((n) => outsideAllows(g.catalog.byName(n)!)),
+    "use_tool",
+    "agents_next",
+  ]);
   assert.deepEqual(listed, expected);
   for (const n of listed) {
     if (n === "use_tool") continue;

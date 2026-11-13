@@ -25,14 +25,32 @@ export const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeou
 export const post = (d: Daemon, cap: string, body: unknown, token = d.token): Promise<Response> => {
   const route = routes.find((r) => r.cap === cap);
   if (!route) throw new Error(`no route for ${cap}`);
-  return fetch(`${d.url}${route.path}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+  return fetch(`${d.url}${route.path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
 };
 
 /** A device session for a person the seed has (what sign-in writes), and its bearer token. */
 export function signedIn(d: Daemon, person: string, device: string): string {
-  const now = Date.now(), session = `ses_${device.slice(4)}`;
-  d.db!.run(`INSERT OR IGNORE INTO devices_device (id, person, name, class, epoch, lastSeenAt, location, revokedAt, version, updated_at, deleted_at) VALUES (?, ?, ?, 'desktop', 0, ?, NULL, NULL, 0, ?, NULL)`, device, person, `${person} laptop`, now, now);
-  d.db!.run(`INSERT OR IGNORE INTO devices_session (id, person, kind, principal_kind, device_id, started_at, last_seen_at, location, revoked_at) VALUES (?, ?, 'device', 'person', ?, ?, ?, NULL, NULL)`, session, person, device, now, now);
+  const now = Date.now(),
+    session = `ses_${device.slice(4)}`;
+  d.db!.run(
+    `INSERT OR IGNORE INTO devices_device (id, person, name, class, epoch, lastSeenAt, location, revokedAt, version, updated_at, deleted_at) VALUES (?, ?, ?, 'desktop', 0, ?, NULL, NULL, 0, ?, NULL)`,
+    device,
+    person,
+    `${person} laptop`,
+    now,
+    now,
+  );
+  d.db!.run(
+    `INSERT OR IGNORE INTO devices_session (id, person, kind, principal_kind, device_id, started_at, last_seen_at, location, revoked_at) VALUES (?, ?, 'device', 'person', ?, ?, ?, NULL, NULL)`,
+    session,
+    person,
+    device,
+    now,
+    now,
+  );
   return issueSessionToken(d.db!, session);
 }
-

@@ -4,10 +4,25 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Prose } from "./runbook/Prose.tsx";
 
-const links = { targets: new Map([["VYRE.md", { id: "fil_v", name: "VYRE.md", path: "VYRE.md" }], ["agent.toml", { id: "fil_t", name: "agent.toml", path: "Agents/Intake/agent.toml" }], ["Brand voice", null]]), open: () => undefined, create: () => undefined } as never;
+const links = {
+  targets: new Map([
+    ["VYRE.md", { id: "fil_v", name: "VYRE.md", path: "VYRE.md" }],
+    ["agent.toml", { id: "fil_t", name: "agent.toml", path: "Agents/Intake/agent.toml" }],
+    ["Brand voice", null],
+  ]),
+  open: () => undefined,
+  create: () => undefined,
+} as never;
 
 test("Prose draws file names as links, bullets too, and leaves code alone", () => {
-  const html = renderToStaticMarkup(<Prose links={links} text={"# Intake\n\nInherits: VYRE.md\n\n- Settings: agent.toml\n- Voice: [[Brand voice]]\n- run `agent.toml` literally"} />);
+  const html = renderToStaticMarkup(
+    <Prose
+      links={links}
+      text={
+        "# Intake\n\nInherits: VYRE.md\n\n- Settings: agent.toml\n- Voice: [[Brand voice]]\n- run `agent.toml` literally"
+      }
+    />,
+  );
   assert.match(html, /data-testid="filelink-fil_v"/);
   assert.match(html, /data-testid="filelink-fil_t"/);
   assert.match(html, /data-testid="filelink-missing-Brand voice"/);

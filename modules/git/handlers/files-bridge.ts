@@ -10,8 +10,14 @@ import path from "node:path";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 
 type Row = Record<string, unknown>;
-interface Entry { fileId: string; /** what Files said when the bytes were written: updatedAt:size */ stamp: string; /** sha-256 of the bytes on disk then */ sha: string }
-interface Book { files: Record<string, Entry> }
+interface Entry {
+  fileId: string;
+  /** what Files said when the bytes were written: updatedAt:size */ stamp: string;
+  /** sha-256 of the bytes on disk then */ sha: string;
+}
+interface Book {
+  files: Record<string, Entry>;
+}
 
 const CHUNK = 200_000;
 /** Files accepts a direct write up to this size (files MAX_INLINE). */
@@ -31,7 +37,9 @@ function readBook(treesDir: string, folderId: string): Book {
   try {
     const v = obj(JSON.parse(fs.readFileSync(bookPath(treesDir, folderId), "utf8")));
     return { files: obj(v["files"]) as Record<string, Entry> };
-  } catch { return { files: {} }; }
+  } catch {
+    return { files: {} };
+  }
 }
 function saveBook(treesDir: string, folderId: string, book: Book): void {
   fs.mkdirSync(treesDir, { recursive: true });
@@ -40,7 +48,8 @@ function saveBook(treesDir: string, folderId: string, book: Book): void {
 
 /** Every page of files.list for one folder: its files and its folders. */
 async function listAll(ctx: Ctx, folder: string): Promise<{ files: Row[]; folders: Row[] }> {
-  const files: Row[] = [], folders: Row[] = [];
+  const files: Row[] = [],
+    folders: Row[] = [];
   let cursor: string | undefined;
   for (let pages = 0; pages < 1000; pages++) {
     const page = obj(await ctx.call("files.list", { folder, limit: 500, ...(cursor ? { cursor } : {}) }));
@@ -77,13 +86,14 @@ export async function toTree(ctx: Ctx, treesDir: string, dir: string, folderId: 
     const walk = async (folder: string, rel: string): Promise<void> => {
       const { files, folders } = await listAll(ctx, folder);
       for (const f of files) {
-        const name = str(f["name"]), fileId = str(f["fileId"]);
-        if (!name || !fileId || f["deletedAt"] !== undefined && f["deletedAt"] !== null) continue;
+        const name = str(f["name"]),
+          fileId = str(f["fileId"]);
+        if (!name || !fileId || (f["deletedAt"] !== undefined && f["deletedAt"] !== null)) continue;
         const relPath = rel ? `${rel}/${name}` : name;
         seen.add(relPath);
         const have = book.files[relPath];
         const target = path.join(dir, relPath);
-        if (have && have.fileId === fileId && have.stamp === stampOf(f) && fs.existsSync(target)) continue;   // nothing new in Files for this one
+        if (have && have.fileId === fileId && have.stamp === stampOf(f) && fs.existsSync(target)) continue; // nothing new in Files for this one
         const bytes = await readAll(ctx, fileId);
         if (!bytes) continue;
         fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -91,7 +101,8 @@ export async function toTree(ctx: Ctx, treesDir: string, dir: string, folderId: 
         book.files[relPath] = { fileId, stamp: stampOf(f), sha: await sha256(bytes) };
       }
       for (const sub of folders) {
-        const name = str(sub["name"]), id = str(sub["folderId"]);
+        const name = str(sub["name"]),
+          id = str(sub["folderId"]);
         if (name && id) await walk(id, rel ? `${rel}/${name}` : name);
       }
     };
@@ -102,19 +113,28 @@ export async function toTree(ctx: Ctx, treesDir: string, dir: string, folderId: 
       const target = path.join(dir, relPath);
       try {
         if (fs.existsSync(target) && (await sha256(fs.readFileSync(target))) === entry.sha) fs.unlinkSync(target);
-      } catch { /* leave it */ }
+      } catch {
+        /* leave it */
+      }
       delete book.files[relPath];
     }
     saveBook(treesDir, folderId, book);
   } catch (e) {
-    ctx.log?.warn("git: could not copy Files into the working copy", { folderId, error: e instanceof Error ? e.message : String(e) });
+    ctx.log?.warn("git: could not copy Files into the working copy", {
+      folderId,
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 }
 
 function walkDisk(root: string, rel = ""): string[] {
   const out: string[] = [];
   let names: fs.Dirent[];
-  try { names = fs.readdirSync(path.join(root, rel), { withFileTypes: true }); } catch { return out; }
+  try {
+    names = fs.readdirSync(path.join(root, rel), { withFileTypes: true });
+  } catch {
+    return out;
+  }
   for (const e of names) {
     if (rel === "" && e.name === ".git") continue;
     const r = rel ? `${rel}/${e.name}` : e.name;
@@ -134,11 +154,23 @@ export async function fromTree(ctx: Ctx, treesDir: string, dir: string, folderId
       const known = folderIds.get(rel);
       if (known) return known;
       const cut = rel.lastIndexOf("/");
-      const parentRel = cut < 0 ? "" : rel.slice(0, cut), name = cut < 0 ? rel : rel.slice(cut + 1);
+      const parentRel = cut < 0 ? "" : rel.slice(0, cut),
+        name = cut < 0 ? rel : rel.slice(cut + 1);
       const parent = await folderFor(parentRel);
       const { folders } = await listAll(ctx, parent);
       let id = str(folders.find((f) => str(f["name"]) === name)?.["folderId"]);
-      if (!id) id = str(obj(obj(await ctx.call("files.folder.create", { idempotencyKey: `git-in:${folderId}:dir:${rel}`, parentId: parent, name }))["folder"])["folderId"]);
+      if (!id)
+        id = str(
+          obj(
+            obj(
+              await ctx.call("files.folder.create", {
+                idempotencyKey: `git-in:${folderId}:dir:${rel}`,
+                parentId: parent,
+                name,
+              }),
+            )["folder"],
+          )["folderId"],
+        );
       if (!id) throw new Error(`no Files folder for ${rel}`);
       folderIds.set(rel, id);
       return id;
@@ -149,7 +181,13 @@ export async function fromTree(ctx: Ctx, treesDir: string, dir: string, folderId
       const sha = await sha256(bytes);
       const have = book.files[relPath];
       if (have && have.sha === sha) continue;
-      if (bytes.byteLength > DIRECT) { ctx.log?.warn("git: a working copy file is over the direct write limit and stays out of Files", { folderId, path: relPath }); continue; }
+      if (bytes.byteLength > DIRECT) {
+        ctx.log?.warn("git: a working copy file is over the direct write limit and stays out of Files", {
+          folderId,
+          path: relPath,
+        });
+        continue;
+      }
       const content = { base64: Buffer.from(bytes).toString("base64") };
       let made: Row;
       if (have) made = obj(obj(await ctx.call("files.write", { fileId: have.fileId, content, reason: "git" }))["file"]);
@@ -157,7 +195,16 @@ export async function fromTree(ctx: Ctx, treesDir: string, dir: string, folderId
         const cut = relPath.lastIndexOf("/");
         const parent = await folderFor(cut < 0 ? "" : relPath.slice(0, cut));
         const name = cut < 0 ? relPath : relPath.slice(cut + 1);
-        made = obj(obj(await ctx.call("files.create", { idempotencyKey: `git-in:${folderId}:${relPath}:${sha}`, folderId: parent, name, content }))["file"]);
+        made = obj(
+          obj(
+            await ctx.call("files.create", {
+              idempotencyKey: `git-in:${folderId}:${relPath}:${sha}`,
+              folderId: parent,
+              name,
+              content,
+            }),
+          )["file"],
+        );
       }
       const fileId = str(made["fileId"]) || have?.fileId || "";
       if (fileId) book.files[relPath] = { fileId, stamp: stampOf(made), sha };
@@ -166,11 +213,18 @@ export async function fromTree(ctx: Ctx, treesDir: string, dir: string, folderId
     const present = new Set(onDisk);
     for (const [relPath, entry] of Object.entries(book.files)) {
       if (present.has(relPath)) continue;
-      try { await ctx.call("files.delete", { fileId: entry.fileId }); } catch { /* already gone */ }
+      try {
+        await ctx.call("files.delete", { fileId: entry.fileId });
+      } catch {
+        /* already gone */
+      }
       delete book.files[relPath];
     }
     saveBook(treesDir, folderId, book);
   } catch (e) {
-    ctx.log?.warn("git: could not bring the working copy into Files", { folderId, error: e instanceof Error ? e.message : String(e) });
+    ctx.log?.warn("git: could not bring the working copy into Files", {
+      folderId,
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 }

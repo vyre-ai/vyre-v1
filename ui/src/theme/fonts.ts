@@ -11,9 +11,24 @@ export const MONO_VAR = `var(--mono, ${MONO})`;
 
 /** Hosts that get the sans stack: the document, the app root, every overlay root and the canvas label hosts. */
 export const SANS_HOSTS = [
-  "html", "body", "#root", "#__next", "[data-vyre-root]",
-  "[data-overlay-root]", "[role=menu]", "[role=menubar]", "[role=listbox]", "[role=dialog]", "[role=alertdialog]", "[role=tooltip]", "[role=status]", "[data-portal]",
-  "svg text", "svg foreignObject", "[data-canvas-labels]", "[data-canvas-labels] *",
+  "html",
+  "body",
+  "#root",
+  "#__next",
+  "[data-vyre-root]",
+  "[data-overlay-root]",
+  "[role=menu]",
+  "[role=menubar]",
+  "[role=listbox]",
+  "[role=dialog]",
+  "[role=alertdialog]",
+  "[role=tooltip]",
+  "[role=status]",
+  "[data-portal]",
+  "svg text",
+  "svg foreignObject",
+  "[data-canvas-labels]",
+  "[data-canvas-labels] *",
 ] as const;
 
 /** Hosts that get the mono stack: code and keys by meaning. */
@@ -24,13 +39,23 @@ export const INHERIT_HOSTS = ["input", "textarea", "select", "button"] as const;
 
 /** The stylesheet text: three rules, no per-component patches. */
 export function rootFontCss(): string {
-  return `${SANS_HOSTS.join(",")}{font-family:${SANS_VAR}}` +
+  return (
+    `${SANS_HOSTS.join(",")}{font-family:${SANS_VAR}}` +
     `${INHERIT_HOSTS.join(",")}{font-family:inherit}` +
-    `${MONO_HOSTS.join(",")},${MONO_HOSTS.map((h) => `${h} *`).join(",")}{font-family:${MONO_VAR}}`;
+    `${MONO_HOSTS.join(",")},${MONO_HOSTS.map((h) => `${h} *`).join(",")}{font-family:${MONO_VAR}}`
+  );
 }
 
 /** Adds the rule to a document head once (id vyre-root-font); returns false when it was already there or there is no document. */
-export function installRootFont(doc: { head?: { appendChild(n: unknown): unknown } | null; getElementById?(id: string): unknown; createElement?(t: string): { id: string; textContent: string | null } } | undefined): boolean {
+export function installRootFont(
+  doc:
+    | {
+        head?: { appendChild(n: unknown): unknown } | null;
+        getElementById?(id: string): unknown;
+        createElement?(t: string): { id: string; textContent: string | null };
+      }
+    | undefined,
+): boolean {
   if (!doc || !doc.head || !doc.createElement || !doc.getElementById) return false;
   if (doc.getElementById("vyre-root-font")) return false;
   return injectCss(doc as never, "vyre-root-font", rootFontCss());

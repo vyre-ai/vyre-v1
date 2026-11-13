@@ -10,7 +10,10 @@ const DIRECT = "wss://direct.example/live";
 const RELAY = "wss://relay.example/live";
 
 async function run(rig: LiveRig, ms: number): Promise<void> {
-  for (let t = 0; t < ms; t += HEARTBEAT_MS) { rig.sched.advance(HEARTBEAT_MS); await settle(); }
+  for (let t = 0; t < ms; t += HEARTBEAT_MS) {
+    rig.sched.advance(HEARTBEAT_MS);
+    await settle();
+  }
 }
 const rowIds = (ids: string[]): string[] => ids.map((x) => x.split("@")[0]!);
 

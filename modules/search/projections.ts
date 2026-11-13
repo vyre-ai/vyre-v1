@@ -15,8 +15,35 @@ export interface Db {
 }
 
 export type Level = "view" | "use" | "edit" | "manage";
-export type Kind = "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note";
-export const KINDS: readonly Kind[] = ["person", "agent", "chat", "inbox", "record", "file", "automation", "app", "setting", "memory", "task", "channel", "note"];
+export type Kind =
+  | "person"
+  | "agent"
+  | "chat"
+  | "inbox"
+  | "record"
+  | "file"
+  | "automation"
+  | "app"
+  | "setting"
+  | "memory"
+  | "task"
+  | "channel"
+  | "note";
+export const KINDS: readonly Kind[] = [
+  "person",
+  "agent",
+  "chat",
+  "inbox",
+  "record",
+  "file",
+  "automation",
+  "app",
+  "setting",
+  "memory",
+  "task",
+  "channel",
+  "note",
+];
 export const LABELS = ["public", "internal", "confidential", "restricted"] as const;
 export type LabelName = (typeof LABELS)[number];
 
@@ -34,11 +61,19 @@ export interface SearchCtx {
   db: Db;
   emit(name: EventName, subject: string, payload: unknown): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
-  authorize(action: { perm: string | null; level: Level }, resource: { type: string; id: string | null }): { effect: "allow" | "deny" | "hold" };
+  authorize(
+    action: { perm: string | null; level: Level },
+    resource: { type: string; id: string | null },
+  ): { effect: "allow" | "deny" | "hold" };
   log: { warn(msg: string, attrs?: Record<string, unknown>): void };
 }
 
-export function raise(ctx: Pick<SearchCtx, "trace">, code: ErrorCode, message: string, details?: Record<string, unknown>): never {
+export function raise(
+  ctx: Pick<SearchCtx, "trace">,
+  code: ErrorCode,
+  message: string,
+  details?: Record<string, unknown>,
+): never {
   throw fail(code, ctx.trace.traceId, { message, ...(details ? { details } : {}) });
 }
 
@@ -49,13 +84,20 @@ export type Row = Record<string, unknown>;
 export const rowsOf = (db: Db, sql: string, ...args: unknown[]): Row[] => db.all(sql, ...args) as Row[];
 export const str = (v: unknown): string => String(v ?? "");
 export const num = (v: unknown): number => Number(v ?? 0);
-export const mintId = (prefix: string, now: number = Date.now()): string => `${prefix}_${mintUuid(now).replaceAll("-", "")}`;
+export const mintId = (prefix: string, now: number = Date.now()): string =>
+  `${prefix}_${mintUuid(now).replaceAll("-", "")}`;
 
 // ---- schema
 
-const SCHEMA = ["0001_index.sql", "0002_agent_view.sql"].flatMap((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")
-  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((s) => s.trim()).filter((s) => s.length > 0));
+const SCHEMA = ["0001_index.sql", "0002_agent_view.sql"].flatMap((f) =>
+  readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n")
+    .split(";")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0),
+);
 
 const ready = new WeakSet<object>();
 
@@ -74,14 +116,37 @@ export function ensure(db: Db): void {
 // ---- documents
 
 export const KIND_OF_ENTITY: Readonly<Record<string, Kind>> = {
-  record: "record", file: "file", thread: "chat", chat: "chat", agent: "agent", automation: "automation", task: "task", channel: "channel", principal: "person", person: "person",
-  inbox: "inbox", app: "app", setting: "setting", memory: "memory",
+  record: "record",
+  file: "file",
+  thread: "chat",
+  chat: "chat",
+  agent: "agent",
+  automation: "automation",
+  task: "task",
+  channel: "channel",
+  principal: "person",
+  person: "person",
+  inbox: "inbox",
+  app: "app",
+  setting: "setting",
+  memory: "memory",
 };
 
 /** The permission resource a kind is checked on. */
 export const RESOURCE_OF_KIND: Readonly<Record<Kind, string>> = {
-  person: "space", agent: "agent", chat: "thread", inbox: "space", record: "record", file: "file", automation: "automation", app: "space", setting: "space", memory: "space", task: "task", channel: "channel",
-  note: "space",   // never in the index: notes answer through FEDERATED (handlers/query.ts) as the asker
+  person: "space",
+  agent: "agent",
+  chat: "thread",
+  inbox: "space",
+  record: "record",
+  file: "file",
+  automation: "automation",
+  app: "space",
+  setting: "space",
+  memory: "space",
+  task: "task",
+  channel: "channel",
+  note: "space", // never in the index: notes answer through FEDERATED (handlers/query.ts) as the asker
 };
 
 /** One thing the index holds. `enc` is never stored: private content never reaches this module. */
@@ -102,17 +167,47 @@ export interface IndexDoc {
   agent?: AgentView;
 }
 
-export interface AgentView { title: string; path?: string; body: string; withheld?: boolean }
+export interface AgentView {
+  title: string;
+  path?: string;
+  body: string;
+  withheld?: boolean;
+}
 
 export interface DocRow {
-  n: number; entity: string; id: string; kind: Kind; title: string; body: string; path: string | null; link: string; label: number;
-  resType: string; resId: string | null; folderId: string | null; recordType: string | null; updatedAt: number | null; embedded: number;
+  n: number;
+  entity: string;
+  id: string;
+  kind: Kind;
+  title: string;
+  body: string;
+  path: string | null;
+  link: string;
+  label: number;
+  resType: string;
+  resId: string | null;
+  folderId: string | null;
+  recordType: string | null;
+  updatedAt: number | null;
+  embedded: number;
 }
 
 export const docOf = (r: Row): DocRow => ({
-  n: num(r["n"]), entity: str(r["entity"]), id: str(r["id"]), kind: str(r["kind"]) as Kind, title: str(r["title"]), body: str(r["body"]), path: r["path"] === null ? null : str(r["path"]), link: str(r["link"]),
-  label: num(r["label"]), resType: str(r["res_type"]), resId: r["res_id"] === null ? null : str(r["res_id"]), folderId: r["folder_id"] === null ? null : str(r["folder_id"]),
-  recordType: r["record_type"] === null ? null : str(r["record_type"]), updatedAt: r["updated_at"] === null ? null : num(r["updated_at"]), embedded: num(r["embedded"]),
+  n: num(r["n"]),
+  entity: str(r["entity"]),
+  id: str(r["id"]),
+  kind: str(r["kind"]) as Kind,
+  title: str(r["title"]),
+  body: str(r["body"]),
+  path: r["path"] === null ? null : str(r["path"]),
+  link: str(r["link"]),
+  label: num(r["label"]),
+  resType: str(r["res_type"]),
+  resId: r["res_id"] === null ? null : str(r["res_id"]),
+  folderId: r["folder_id"] === null ? null : str(r["folder_id"]),
+  recordType: r["record_type"] === null ? null : str(r["record_type"]),
+  updatedAt: r["updated_at"] === null ? null : num(r["updated_at"]),
+  embedded: num(r["embedded"]),
 });
 
 /** Words as the full text index and the query see them: letters, digits and underscore. */
@@ -133,13 +228,40 @@ export function putDoc(db: Db, space: string, d: IndexDoc, now: number): number 
   const body = d.body.length > BODY_CAP ? d.body.slice(0, BODY_CAP) : d.body;
   db.run(
     "INSERT INTO search_docs (entity, id, kind, title, body, path, link, label, res_type, res_id, folder_id, record_type, updated_at, embedded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
-    d.entity, d.id, d.kind, d.title, body, d.path ?? null, d.link, d.label, d.resource.type, d.resource.id, d.folderId ?? null, d.recordType ?? null, d.updatedAt ?? now,
+    d.entity,
+    d.id,
+    d.kind,
+    d.title,
+    body,
+    d.path ?? null,
+    d.link,
+    d.label,
+    d.resource.type,
+    d.resource.id,
+    d.folderId ?? null,
+    d.recordType ?? null,
+    d.updatedAt ?? now,
   );
   const n = num(rowsOf(db, "SELECT n FROM search_docs WHERE entity = ? AND id = ?", d.entity, d.id)[0]?.["n"]);
-  db.run("INSERT INTO search_fts (rowid, title, body, kind, rtype, folder) VALUES (?, ?, ?, ?, ?, ?)", n, d.title, body, d.kind, d.recordType ?? "", d.folderId ?? "");
+  db.run(
+    "INSERT INTO search_fts (rowid, title, body, kind, rtype, folder) VALUES (?, ?, ?, ?, ?, ?)",
+    n,
+    d.title,
+    body,
+    d.kind,
+    d.recordType ?? "",
+    d.folderId ?? "",
+  );
   if (d.agent) {
     const a = d.agent;
-    db.run("INSERT INTO search_agent_docs (n, title, path, body, withheld) VALUES (?, ?, ?, ?, ?)", n, a.title, a.path ?? null, a.body.length > BODY_CAP ? a.body.slice(0, BODY_CAP) : a.body, a.withheld ? 1 : 0);
+    db.run(
+      "INSERT INTO search_agent_docs (n, title, path, body, withheld) VALUES (?, ?, ?, ?, ?)",
+      n,
+      a.title,
+      a.path ?? null,
+      a.body.length > BODY_CAP ? a.body.slice(0, BODY_CAP) : a.body,
+      a.withheld ? 1 : 0,
+    );
   }
   return n;
 }
@@ -164,7 +286,10 @@ export const DIM = 384;
 
 function fnv(s: string): number {
   let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
   return h >>> 0;
 }
 
@@ -197,7 +322,9 @@ export function hashEmbed(text: string): Float32Array {
 
 let embedder: Embedder = async (texts) => texts.map((t) => hashEmbed(t));
 /** The host gives the module its model; null puts the stand-in back. */
-export function setEmbedder(e: Embedder | null): void { embedder = e ?? (async (texts) => texts.map((t) => hashEmbed(t))); }
+export function setEmbedder(e: Embedder | null): void {
+  embedder = e ?? (async (texts) => texts.map((t) => hashEmbed(t)));
+}
 export async function embed(texts: readonly string[]): Promise<Float32Array[]> {
   const out = await embedder(texts);
   return out.map((v) => {
@@ -226,7 +353,12 @@ export interface VectorStore {
   /** Copy the vector in slot `from` into slot `to` (the last vector fills the gap a removal leaves). */
   move(to: number, from: number): void;
   /** `count` is how many slots are in use; `accept` skips slots the caller does not want. */
-  top(q: Float32Array, count: number, k: number, accept?: (slot: number) => boolean): Array<{ slot: number; score: number }>;
+  top(
+    q: Float32Array,
+    count: number,
+    k: number,
+    accept?: (slot: number) => boolean,
+  ): Array<{ slot: number; score: number }>;
 }
 
 /** Eight independent accumulators keep the multiply-adds from waiting on each other. */
@@ -234,21 +366,36 @@ export const jsKernel: VectorKernel = {
   name: "js",
   score(d, from, count, q, out) {
     for (let s = 0, o = from; s < count; s++, o += DIM) {
-      let a0 = 0, a1 = 0, a2 = 0, a3 = 0, a4 = 0, a5 = 0, a6 = 0, a7 = 0;
+      let a0 = 0,
+        a1 = 0,
+        a2 = 0,
+        a3 = 0,
+        a4 = 0,
+        a5 = 0,
+        a6 = 0,
+        a7 = 0;
       for (let i = 0; i < DIM; i += 8) {
-        a0 += d[o + i]! * q[i]!; a1 += d[o + i + 1]! * q[i + 1]!; a2 += d[o + i + 2]! * q[i + 2]!; a3 += d[o + i + 3]! * q[i + 3]!;
-        a4 += d[o + i + 4]! * q[i + 4]!; a5 += d[o + i + 5]! * q[i + 5]!; a6 += d[o + i + 6]! * q[i + 6]!; a7 += d[o + i + 7]! * q[i + 7]!;
+        a0 += d[o + i]! * q[i]!;
+        a1 += d[o + i + 1]! * q[i + 1]!;
+        a2 += d[o + i + 2]! * q[i + 2]!;
+        a3 += d[o + i + 3]! * q[i + 3]!;
+        a4 += d[o + i + 4]! * q[i + 4]!;
+        a5 += d[o + i + 5]! * q[i + 5]!;
+        a6 += d[o + i + 6]! * q[i + 6]!;
+        a7 += d[o + i + 7]! * q[i + 7]!;
       }
-      out[s] = ((a0 + a1) + (a2 + a3)) + ((a4 + a5) + (a6 + a7));
+      out[s] = a0 + a1 + (a2 + a3) + (a4 + a5 + (a6 + a7));
     }
   },
 };
 
 let kernel: VectorKernel = jsKernel;
 /** The host (or the vectors spike) gives the module a faster kernel; null puts the JavaScript one back. */
-export function setVectorKernel(k: VectorKernel | null): void { kernel = k ?? jsKernel; }
+export function setVectorKernel(k: VectorKernel | null): void {
+  kernel = k ?? jsKernel;
+}
 
-export const CHUNK = 16_384;   // exported so the chunking test follows the constant (S13 raised it from 4,096)
+export const CHUNK = 16_384; // exported so the chunking test follows the constant (S13 raised it from 4,096)
 
 /** Every vector of one Space, scanned in full for a query: brute force, fine to about 200k vectors (ARCH R14). With a kernel that offers storage the kernel keeps the vectors; otherwise they lie in one array. */
 export class VectorIndex {
@@ -266,13 +413,21 @@ export class VectorIndex {
     this.cap = capacity;
     this.ids = new Int32Array(capacity);
     const k = use ?? kernel;
-    if (k.store) { this.store = k.store(capacity); } else { this.f32 = new Float32Array(capacity * DIM); }
+    if (k.store) {
+      this.store = k.store(capacity);
+    } else {
+      this.f32 = new Float32Array(capacity * DIM);
+    }
   }
 
   /** Which kernel scans. */
-  get kernel(): string { return (this.use ?? kernel).name; }
+  get kernel(): string {
+    return (this.use ?? kernel).name;
+  }
   /** True when the kernel keeps the vectors (its own form), false when they lie in a plain array. */
-  get kernelStored(): boolean { return this.store !== null; }
+  get kernelStored(): boolean {
+    return this.store !== null;
+  }
 
   private grow(): void {
     const cap = this.cap * 2;
@@ -280,7 +435,11 @@ export class VectorIndex {
     ids.set(this.ids.subarray(0, this.size));
     this.ids = ids;
     if (this.store) this.store.reserve(cap);
-    else { const d = new Float32Array(cap * DIM); d.set(this.f32!.subarray(0, this.size * DIM)); this.f32 = d; }
+    else {
+      const d = new Float32Array(cap * DIM);
+      d.set(this.f32!.subarray(0, this.size * DIM));
+      this.f32 = d;
+    }
     this.cap = cap;
   }
 
@@ -294,7 +453,8 @@ export class VectorIndex {
       this.slot.set(n, s);
       this.ids[s] = n;
     }
-    if (this.store) this.store.set(s, v); else this.f32!.set(v, s * DIM);
+    if (this.store) this.store.set(s, v);
+    else this.f32!.set(v, s * DIM);
   }
 
   remove(n: number): void {
@@ -302,7 +462,8 @@ export class VectorIndex {
     if (s === undefined) return;
     const last = this.size - 1;
     if (s !== last) {
-      if (this.store) this.store.move(s, last); else this.f32!.copyWithin(s * DIM, last * DIM, (last + 1) * DIM);
+      if (this.store) this.store.move(s, last);
+      else this.f32!.copyWithin(s * DIM, last * DIM, (last + 1) * DIM);
       const moved = this.ids[last]!;
       this.ids[s] = moved;
       this.slot.set(moved, s);
@@ -311,12 +472,16 @@ export class VectorIndex {
     this.size--;
   }
 
-  has(n: number): boolean { return this.slot.has(n); }
+  has(n: number): boolean {
+    return this.slot.has(n);
+  }
 
   /** The k best documents by cosine, best first. */
   top(q: Float32Array, k: number, accept?: (n: number) => boolean): Array<{ n: number; score: number }> {
     if (this.store) {
-      return this.store.top(q, this.size, k, accept ? (s) => accept(this.ids[s]!) : undefined).map((r) => ({ n: this.ids[r.slot]!, score: r.score }));
+      return this.store
+        .top(q, this.size, k, accept ? (s) => accept(this.ids[s]!) : undefined)
+        .map((r) => ({ n: this.ids[r.slot]!, score: r.score }));
     }
     const best: Array<{ n: number; score: number }> = [];
     let floor = -Infinity;
@@ -344,7 +509,10 @@ export class VectorIndex {
 // generation counter in search_meta: a vector written or dropped anywhere bumps it, and the next reader reloads only when its own copy is behind.
 const caches = new Map<string, { index: VectorIndex; gen: string | null }>();
 
-const genOf = (db: Db): string | null => { const r = rowsOf(db, "SELECT v FROM search_meta WHERE k = 'vec_gen'")[0]; return r ? str(r["v"]) : null; };
+const genOf = (db: Db): string | null => {
+  const r = rowsOf(db, "SELECT v FROM search_meta WHERE k = 'vec_gen'")[0];
+  return r ? str(r["v"]) : null;
+};
 function bump(db: Db): string {
   const g = String(num(genOf(db)) + 1);
   db.run("INSERT INTO search_meta (k, v) VALUES ('vec_gen', ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v", g);
@@ -358,7 +526,8 @@ export function vectorsOf(db: Db, space: string): VectorIndex {
   const gen = genOf(db);
   if (!c || c.gen !== gen) {
     const index = new VectorIndex();
-    for (const r of rowsOf(db, "SELECT n, vec FROM search_vectors")) index.set(num(r["n"]), decodeVector(r["vec"] as Uint8Array));
+    for (const r of rowsOf(db, "SELECT n, vec FROM search_vectors"))
+      index.set(num(r["n"]), decodeVector(r["vec"] as Uint8Array));
     c = { index, gen };
     caches.set(space, c);
   }
@@ -368,7 +537,12 @@ export function vectorsOf(db: Db, space: string): VectorIndex {
 /** Store the vector of a document (unit length) and put it in the scan. */
 export function writeVector(db: Db, space: string, n: number, v: Float32Array): void {
   const index = vectorsOf(db, space);
-  db.run("INSERT INTO search_vectors (n, dim, vec) VALUES (?, ?, ?) ON CONFLICT (n) DO UPDATE SET dim = excluded.dim, vec = excluded.vec", n, DIM, encodeVector(v));
+  db.run(
+    "INSERT INTO search_vectors (n, dim, vec) VALUES (?, ?, ?) ON CONFLICT (n) DO UPDATE SET dim = excluded.dim, vec = excluded.vec",
+    n,
+    DIM,
+    encodeVector(v),
+  );
   index.set(n, v);
   const c = caches.get(space);
   if (c) c.gen = bump(db);
@@ -385,7 +559,10 @@ export function dropVector(db: Db, space: string, n: number): void {
 }
 
 /** A test or a reset forgets the in-memory copies. */
-export function forgetVectors(space?: string): void { if (space === undefined) caches.clear(); else caches.delete(space); }
+export function forgetVectors(space?: string): void {
+  if (space === undefined) caches.clear();
+  else caches.delete(space);
+}
 
 export function encodeVector(v: Float32Array): Uint8Array {
   const out = new Uint8Array(v.length * 4);
@@ -408,7 +585,8 @@ export type Source = (ctx: SearchCtx, id: string, sub: string | undefined) => Pr
 const extraSources = new Map<string, Source>();
 /** The host (or a module's own wiring) gives the index a source for an entity the defaults do not cover (people, the inbox, space-layer memory, settings, apps). */
 export function setSource(entity: string, s: Source | null): void {
-  if (s) extraSources.set(entity, s); else extraSources.delete(entity);
+  if (s) extraSources.set(entity, s);
+  else extraSources.delete(entity);
 }
 export const sourceFor = (entity: string): Source | undefined => extraSources.get(entity);
 

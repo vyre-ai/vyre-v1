@@ -11,7 +11,10 @@ import { OUT, model, hash } from "./support/chat-flows.ts";
 
 test("the @mention line in a chat: Lee is not in this chat, with Add, for the sender only; a reload keeps it; Add brings Lee in, tells them, and they open the message", async (t) => {
   const env = await browserOrSkip();
-  if (typeof env === "string") { t.skip(env); return; }
+  if (typeof env === "string") {
+    t.skip(env);
+    return;
+  }
   const s = await bootScreens({ kind: "team", engineOpenSession: model }, env);
   const dir = `${OUT}/mention-line`;
   try {
@@ -24,7 +27,14 @@ test("the @mention line in a chat: Lee is not in this chat, with Add, for the se
     const her = await seat(s, maya, "Member");
     const lee = await w.join("lee");
     const leeSeat = await seat(s, lee, "Member");
-    const pricing = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agent], title: "Pricing copy", idempotencyKey: "j2-pricing" })).thread.threadId as string;
+    const pricing = (
+      await w.owner.ok("chat.start", {
+        kind: "chat",
+        agentIds: [agent],
+        title: "Pricing copy",
+        idempotencyKey: "j2-pricing",
+      })
+    ).thread.threadId as string;
     await w.owner.ok("threads.members.add", { threadId: pricing, personId: maya.id });
     const mention = async (who: string, pick: string, rest: string): Promise<void> => {
       const c = me.page.getByTestId("composer-field");
@@ -41,10 +51,17 @@ test("the @mention line in a chat: Lee is not in this chat, with Add, for the se
     await line.waitFor({ timeout: 20_000 });
     assert.equal(await line.innerText(), "lee is not in this chat.");
     assert.equal(await me.page.getByTestId("not-in-chat-add").innerText(), "Add");
-    await shoot(me.page, dir, "line-under-message", { restore: async () => { await open(me, s, hash(pricing)); } });
+    await shoot(me.page, dir, "line-under-message", {
+      restore: async () => {
+        await open(me, s, hash(pricing));
+      },
+    });
     // Maya, in the same chat, does not see it
     await open(her, s, hash(pricing));
-    await her.page.getByText(/check the pricing copy/).first().waitFor({ timeout: 20_000 });
+    await her.page
+      .getByText(/check the pricing copy/)
+      .first()
+      .waitFor({ timeout: 20_000 });
     await her.page.waitForTimeout(800);
     assert.equal(await her.page.getByTestId("not-in-chat-text").count(), 0, "only the sender sees the line");
     // a reload keeps it while it is true
@@ -53,11 +70,32 @@ test("the @mention line in a chat: Lee is not in this chat, with Add, for the se
     // Add: Lee is in the chat, the line goes, Lee is told and can open the message
     await me.page.getByTestId("not-in-chat-add").click();
     await line.waitFor({ state: "detached", timeout: 20_000 });
-    assert.ok(((await w.owner.ok("threads.get", { threadId: pricing })).thread.members as Array<{ id: string }>).some((m) => m.id === lee.id), "Lee is a member now");
-    const told = await until(async () => (((await lee.ok("notifications.list", {})).notifications as Array<{ kind: string; subject?: { id: string } }> | undefined) ?? []).some((n) => n.kind === "mention" && n.subject?.id === pricing) ? true : null, "Lee is told about the mention", 15_000);
+    assert.ok(
+      ((await w.owner.ok("threads.get", { threadId: pricing })).thread.members as Array<{ id: string }>).some(
+        (m) => m.id === lee.id,
+      ),
+      "Lee is a member now",
+    );
+    const told = await until(
+      async () =>
+        (
+          ((await lee.ok("notifications.list", {})).notifications as
+            | Array<{ kind: string; subject?: { id: string } }>
+            | undefined) ?? []
+        ).some((n) => n.kind === "mention" && n.subject?.id === pricing)
+          ? true
+          : null,
+      "Lee is told about the mention",
+      15_000,
+    );
     assert.ok(told, "Lee has a mention notification for the chat");
     await open(leeSeat, s, hash(pricing));
-    await leeSeat.page.getByText(/check the pricing copy/).first().waitFor({ timeout: 20_000 });
+    await leeSeat.page
+      .getByText(/check the pricing copy/)
+      .first()
+      .waitFor({ timeout: 20_000 });
     assert.deepEqual([...me.errors, ...her.errors, ...leeSeat.errors], [], "no page errors");
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });

@@ -5,8 +5,46 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
-  EmailBuilder, EMAIL_BLOCK_KINDS, EMAIL_MODES, EMAIL_PREVIEWS, PANE_TABS, PREVIEW_TEXT_LIMIT, SUBJECT_LIMIT,
-  blocksToPlain, RAIL_ORDER, SOCIAL_LIMIT, SPACER_MAX, SPACER_MIN, clampSpacer, dropSaved, savedInner, netLabel, highlightHtml, emailBlockHtml, hasUnsub, formatHtml, compileEmail as compile2, DEFAULT_EMAIL_STYLE, EMAIL_WIDTHS, EMAIL_FONTS, COLOR_LABEL, isHex, splitTokens, canRedo, canUndo, compileEmail, editBlock, fillMerge, focusKey, mergeFieldsOf, mergeToken, moveBlock, newBlock, pushHistory, runChecks, stepHistory,
+  EmailBuilder,
+  EMAIL_BLOCK_KINDS,
+  EMAIL_MODES,
+  EMAIL_PREVIEWS,
+  PANE_TABS,
+  PREVIEW_TEXT_LIMIT,
+  SUBJECT_LIMIT,
+  blocksToPlain,
+  RAIL_ORDER,
+  SOCIAL_LIMIT,
+  SPACER_MAX,
+  SPACER_MIN,
+  clampSpacer,
+  dropSaved,
+  savedInner,
+  netLabel,
+  highlightHtml,
+  emailBlockHtml,
+  hasUnsub,
+  formatHtml,
+  compileEmail as compile2,
+  DEFAULT_EMAIL_STYLE,
+  EMAIL_WIDTHS,
+  EMAIL_FONTS,
+  COLOR_LABEL,
+  isHex,
+  splitTokens,
+  canRedo,
+  canUndo,
+  compileEmail,
+  editBlock,
+  fillMerge,
+  focusKey,
+  mergeFieldsOf,
+  mergeToken,
+  moveBlock,
+  newBlock,
+  pushHistory,
+  runChecks,
+  stepHistory,
 } from "./index.tsx";
 import type { EmailBlock, EmailBuilderViewProps, EmailDiff, EmailHistory, EmailSnapshot } from "./index.tsx";
 
@@ -21,7 +59,15 @@ const DIFFS: readonly EmailDiff[] = [
   { id: "d-body", summary: "Tighten the first paragraph" },
   { id: "d-cta", summary: "Change the button to Book 15 minutes" },
 ];
-const base: EmailBuilderViewProps = { id: "em1", title: "Q4 follow-up", subject: "Following up on our Friday call", previewText: "Two times that work this week", mode: "visual", blocks: BLOCKS, diffs: DIFFS };
+const base: EmailBuilderViewProps = {
+  id: "em1",
+  title: "Q4 follow-up",
+  subject: "Following up on our Friday call",
+  previewText: "Two times that work this week",
+  mode: "visual",
+  blocks: BLOCKS,
+  diffs: DIFFS,
+};
 
 const tag = (html: string, id: string): string => {
   const m = new RegExp(`<[^>]*data-testid="${id}"[^>]*>`).exec(html);
@@ -46,15 +92,29 @@ test("compile: send keeps merge tokens, preview fills them from the record, esca
   assert.match(compileEmail(withTok, { dark: true }), /#121214/);
   assert.equal(fillMerge("{{a}}{{b|x}}", { a: "1" }), "1x");
   assert.equal(mergeToken("first_name", "there"), "{{first_name|there}}");
-  assert.deepEqual(mergeFieldsOf("{{first_name|there}} and {{org.name}} and {{first_name}}"), ["first_name", "org.name"]);
+  assert.deepEqual(mergeFieldsOf("{{first_name|there}} and {{org.name}} and {{first_name}}"), [
+    "first_name",
+    "org.name",
+  ]);
 });
 
 test("blocks: every kind builds; move, duplicate-safe edit, nested edit and bounds", () => {
   for (const k of EMAIL_BLOCK_KINDS) assert.equal(newBlock(k, `n-${k}`).kind, k);
   assert.equal(newBlock("columns", "c").children?.length, 2);
-  assert.deepEqual(moveBlock(BLOCKS, "b1", -1).map((b) => b.id), ["t1", "b1", "m1", "d1"]);
-  assert.deepEqual(moveBlock(BLOCKS, "t1", -1).map((b) => b.id), ["t1", "m1", "b1", "d1"], "first block does not move up");
-  assert.deepEqual(moveBlock(BLOCKS, "d1", 1).map((b) => b.id), ["t1", "m1", "b1", "d1"], "last block does not move down");
+  assert.deepEqual(
+    moveBlock(BLOCKS, "b1", -1).map((b) => b.id),
+    ["t1", "b1", "m1", "d1"],
+  );
+  assert.deepEqual(
+    moveBlock(BLOCKS, "t1", -1).map((b) => b.id),
+    ["t1", "m1", "b1", "d1"],
+    "first block does not move up",
+  );
+  assert.deepEqual(
+    moveBlock(BLOCKS, "d1", 1).map((b) => b.id),
+    ["t1", "m1", "b1", "d1"],
+    "last block does not move down",
+  );
   const cols = [newBlock("columns", "c")];
   assert.equal(editBlock(cols, "c-a", { text: "Edited" })[0]?.children?.[0]?.text, "Edited");
 });
@@ -62,11 +122,38 @@ test("blocks: every kind builds; move, duplicate-safe edit, nested edit and boun
 test("checks: subject, preview text, plain part and unsubscribe each report a level", () => {
   const html = compileEmail(BLOCKS);
   const ok = runChecks({ subject: "Friday follow-up", previewText: "Two times", html, plain: "Hi\n\nUnsubscribe" });
-  assert.deepEqual(ok.map((c) => c.level), ["ok", "ok", "ok", "ok"]);
+  assert.deepEqual(
+    ok.map((c) => c.level),
+    ["ok", "ok", "ok", "ok"],
+  );
   const bad = runChecks({ subject: "", previewText: "", html: "<p>x</p>", plain: "" });
-  assert.deepEqual(bad.map((c) => [c.id, c.level]), [["subject", "bad"], ["preview", "warn"], ["plain", "bad"], ["unsub", "bad"]]);
-  assert.equal(runChecks({ subject: "x".repeat(SUBJECT_LIMIT + 1), previewText: "y".repeat(PREVIEW_TEXT_LIMIT + 1), html, plain: "Unsubscribe" })[0]?.level, "warn");
-  assert.equal(runChecks({ subject: "x".repeat(SUBJECT_LIMIT + 1), previewText: "y".repeat(PREVIEW_TEXT_LIMIT + 1), html, plain: "Unsubscribe" })[1]?.level, "warn");
+  assert.deepEqual(
+    bad.map((c) => [c.id, c.level]),
+    [
+      ["subject", "bad"],
+      ["preview", "warn"],
+      ["plain", "bad"],
+      ["unsub", "bad"],
+    ],
+  );
+  assert.equal(
+    runChecks({
+      subject: "x".repeat(SUBJECT_LIMIT + 1),
+      previewText: "y".repeat(PREVIEW_TEXT_LIMIT + 1),
+      html,
+      plain: "Unsubscribe",
+    })[0]?.level,
+    "warn",
+  );
+  assert.equal(
+    runChecks({
+      subject: "x".repeat(SUBJECT_LIMIT + 1),
+      previewText: "y".repeat(PREVIEW_TEXT_LIMIT + 1),
+      html,
+      plain: "Unsubscribe",
+    })[1]?.level,
+    "warn",
+  );
 });
 
 test("autosave versions: undo and redo walk the edits and stop at the ends; a new edit drops the redo tail", () => {
@@ -81,7 +168,10 @@ test("autosave versions: undo and redo walk the edits and stop at the ends; a ne
   assert.equal(h.entries[h.at]?.subject, "b");
   assert.equal(canRedo(h), true);
   h = pushHistory(h, snap("d"));
-  assert.deepEqual(h.entries.map((e) => e.subject), ["a", "b", "d"]);
+  assert.deepEqual(
+    h.entries.map((e) => e.subject),
+    ["a", "b", "d"],
+  );
   assert.equal(stepHistory(stepHistory(stepHistory(h, -1), -1), -1).at, 0);
 });
 
@@ -112,15 +202,23 @@ test("every mode renders its own editor and marks itself on the root", () => {
 test("focus mode hides the header, envelope, rail and pane and shows the leave hint", () => {
   const html = renderToStaticMarkup(<EmailBuilder {...base} focus />);
   assert.match(tag(html, "email-builder"), /data-focus="true"/);
-  for (const id of ["em-head", "em-env", "em-rail", "em-pane"]) assert.ok(!html.includes(`data-testid="${id}"`), `${id} hidden in focus`);
+  for (const id of ["em-head", "em-env", "em-rail", "em-pane"])
+    assert.ok(!html.includes(`data-testid="${id}"`), `${id} hidden in focus`);
   assert.ok(html.includes('data-testid="em-focus-hint"'));
   const normal = renderToStaticMarkup(<EmailBuilder {...base} />);
-  for (const id of ["em-head", "em-env", "em-rail", "em-pane"]) assert.ok(normal.includes(`data-testid="${id}"`), `${id} shown`);
+  for (const id of ["em-head", "em-env", "em-rail", "em-pane"])
+    assert.ok(normal.includes(`data-testid="${id}"`), `${id} shown`);
   assert.match(tag(normal, "email-builder"), /data-focus="false"/);
 });
 
 test("Ask pane lists the three suggested diffs, each with its own Allow; an allowed one reads Allowed", () => {
-  const html = renderToStaticMarkup(<EmailBuilder {...base} askOpen diffs={[...DIFFS.slice(0, 1).map((d) => ({ ...d, accepted: true })), ...DIFFS.slice(1)]} />);
+  const html = renderToStaticMarkup(
+    <EmailBuilder
+      {...base}
+      askOpen
+      diffs={[...DIFFS.slice(0, 1).map((d) => ({ ...d, accepted: true })), ...DIFFS.slice(1)]}
+    />,
+  );
   for (const d of DIFFS) assert.match(html, new RegExp(`data-testid="em-diff-${d.id}"`));
   assert.match(tag(html, "em-diff-d-subject"), /data-accepted="true"/);
   assert.match(tag(html, "em-diff-d-body"), /data-accepted="false"/);
@@ -133,19 +231,54 @@ test("every open change can be accepted or rejected, and a running Ask names its
   const open = renderToStaticMarkup(<EmailBuilder {...base} askOpen diffs={DIFFS} />);
   assert.equal(open.match(/data-testid="em-reject-/g)?.length, DIFFS.length, "each open change has Deny beside Allow");
   assert.equal(open.includes('data-testid="em-asking"'), false);
-  const waiting = renderToStaticMarkup(<EmailBuilder {...base} askOpen diffs={[]} asking={{ agent: "Writer", onCancel: () => undefined }} />);
+  const waiting = renderToStaticMarkup(
+    <EmailBuilder {...base} askOpen diffs={[]} asking={{ agent: "Writer", onCancel: () => undefined }} />,
+  );
   assert.match(waiting, /Asking Writer/);
   assert.match(waiting, /data-testid="em-ask-cancel"/);
-  const failed = renderToStaticMarkup(<EmailBuilder {...base} askOpen diffs={[]} askError="The provider rejected the key or sign-in for this agent. Open Settings and reconnect it." />);
+  const failed = renderToStaticMarkup(
+    <EmailBuilder
+      {...base}
+      askOpen
+      diffs={[]}
+      askError="The provider rejected the key or sign-in for this agent. Open Settings and reconnect it."
+    />,
+  );
   assert.match(failed, /data-testid="em-ask-error"/);
   assert.match(failed, /reconnect it/);
-  assert.equal(renderToStaticMarkup(<EmailBuilder {...base} askOpen diffs={[]} asking={{ agent: "Writer", onCancel: () => undefined }} askError="old failure" />).includes("old failure"), false, "an old failure is hidden while a new Ask runs");
+  assert.equal(
+    renderToStaticMarkup(
+      <EmailBuilder
+        {...base}
+        askOpen
+        diffs={[]}
+        asking={{ agent: "Writer", onCancel: () => undefined }}
+        askError="old failure"
+      />,
+    ).includes("old failure"),
+    false,
+    "an old failure is hidden while a new Ask runs",
+  );
 });
 
 test("the header has Test send, Focus, Undo and Redo, the saved version and the shared Ask control when given", () => {
-  const html = renderToStaticMarkup(<EmailBuilder {...base} version={4}
-    ask={{ place: "email", context: { kind: "email", id: "em1", title: "Q4 follow-up", access: "edit" }, agents: [{ id: "a", name: "Assistant", assistant: true }, { id: "w", name: "Writer" }], onAsk: () => undefined }} />);
-  for (const id of ["em-test-send", "em-focus", "em-undo", "em-redo"]) assert.ok(html.includes(`data-testid="${id}"`), id);
+  const html = renderToStaticMarkup(
+    <EmailBuilder
+      {...base}
+      version={4}
+      ask={{
+        place: "email",
+        context: { kind: "email", id: "em1", title: "Q4 follow-up", access: "edit" },
+        agents: [
+          { id: "a", name: "Assistant", assistant: true },
+          { id: "w", name: "Writer" },
+        ],
+        onAsk: () => undefined,
+      }}
+    />,
+  );
+  for (const id of ["em-test-send", "em-focus", "em-undo", "em-redo"])
+    assert.ok(html.includes(`data-testid="${id}"`), id);
   assert.match(html, /Saved v4/);
   assert.match(html, /Ask/);
   assert.match(tag(html, "em-undo"), /aria-disabled="true"|disabled/);
@@ -154,27 +287,65 @@ test("the header has Test send, Focus, Undo and Redo, the saved version and the 
 test("preview frames: desktop, mobile and dark are the three tabs; the pane tabs are Style, Ask, Preview, Checks", () => {
   assert.deepEqual([...EMAIL_PREVIEWS], ["desktop", "mobile", "dark"]);
   assert.deepEqual([...PANE_TABS], ["style", "ask", "preview", "checks"]);
-  const html = renderToStaticMarkup(<EmailBuilder {...base} paneTab="preview" preview="mobile" mergeValues={{ first_name: "Elena" }} />);
+  const html = renderToStaticMarkup(
+    <EmailBuilder {...base} paneTab="preview" preview="mobile" mergeValues={{ first_name: "Elena" }} />,
+  );
   assert.match(tag(html, "email-builder"), /data-preview="mobile"/);
   for (const p of EMAIL_PREVIEWS) assert.ok(html.includes(`data-testid="em-pv-${p}"`), p);
   const checks = renderToStaticMarkup(<EmailBuilder {...base} paneTab="checks" />);
-  for (const id of ["subject", "preview", "plain", "unsub"]) assert.ok(checks.includes(`data-testid="em-check-${id}"`), id);
+  for (const id of ["subject", "preview", "plain", "unsub"])
+    assert.ok(checks.includes(`data-testid="em-check-${id}"`), id);
 });
 
 test("merge tokens draw as chips and keep the token in data-token", () => {
-  assert.deepEqual(splitTokens("Hi {{first_name|there}}, ok").map((r) => r.text), ["Hi ", "first name", ", ok"]);
-  const html = renderToStaticMarkup(<EmailBuilder {...base} blocks={[{ id: "t", kind: "text", text: "Hi {{first_name|there}}" }]} />);
+  assert.deepEqual(
+    splitTokens("Hi {{first_name|there}}, ok").map((r) => r.text),
+    ["Hi ", "first name", ", ok"],
+  );
+  const html = renderToStaticMarkup(
+    <EmailBuilder {...base} blocks={[{ id: "t", kind: "text", text: "Hi {{first_name|there}}" }]} />,
+  );
   assert.match(html, /data-token="\{\{first_name\|there\}\}"/);
 });
 
 test("Style pane shows the brand with Use brand; Preview pane shows the inbox row and Send test; Ask pane shows the conversation and composer", () => {
-  const style = renderToStaticMarkup(<EmailBuilder {...base} brand={{ name: "Northwind", color: "#5B5BD6", font: "Inter" }} />);
-  assert.ok(style.includes('data-testid="em-brand"') && style.includes('data-testid="em-use-brand"') && style.includes("#5B5BD6"));
-  assert.ok(!renderToStaticMarkup(<EmailBuilder {...base} />).includes('data-testid="em-brand"'), "no brand, no section");
-  const pv = renderToStaticMarkup(<EmailBuilder {...base} paneTab="preview" fromName="Maya Chen" testTo="Irfad" previewAs="Elena Rivera" />);
-  assert.ok(pv.includes('data-testid="em-inbox"') && pv.includes('data-testid="em-preview-send"') && pv.includes("Maya Chen") && pv.includes("For Elena Rivera"));
-  const ask = renderToStaticMarkup(<EmailBuilder {...base} paneTab="ask" askThread={[{ from: "you", text: "Warmer please" }, { from: "assistant", text: "Done" }]} />);
-  assert.ok(ask.includes('data-testid="em-composer"') && ask.includes('data-testid="em-msg-0"') && ask.includes("Warmer please") && ask.includes("Done"));
+  const style = renderToStaticMarkup(
+    <EmailBuilder {...base} brand={{ name: "Northwind", color: "#5B5BD6", font: "Inter" }} />,
+  );
+  assert.ok(
+    style.includes('data-testid="em-brand"') &&
+      style.includes('data-testid="em-use-brand"') &&
+      style.includes("#5B5BD6"),
+  );
+  assert.ok(
+    !renderToStaticMarkup(<EmailBuilder {...base} />).includes('data-testid="em-brand"'),
+    "no brand, no section",
+  );
+  const pv = renderToStaticMarkup(
+    <EmailBuilder {...base} paneTab="preview" fromName="Maya Chen" testTo="Irfad" previewAs="Elena Rivera" />,
+  );
+  assert.ok(
+    pv.includes('data-testid="em-inbox"') &&
+      pv.includes('data-testid="em-preview-send"') &&
+      pv.includes("Maya Chen") &&
+      pv.includes("For Elena Rivera"),
+  );
+  const ask = renderToStaticMarkup(
+    <EmailBuilder
+      {...base}
+      paneTab="ask"
+      askThread={[
+        { from: "you", text: "Warmer please" },
+        { from: "assistant", text: "Done" },
+      ]}
+    />,
+  );
+  assert.ok(
+    ask.includes('data-testid="em-composer"') &&
+      ask.includes('data-testid="em-msg-0"') &&
+      ask.includes("Warmer please") &&
+      ask.includes("Done"),
+  );
 });
 
 test("HTML mode shows the compiled email one tag per line", () => {
@@ -184,12 +355,49 @@ test("HTML mode shows the compiled email one tag per line", () => {
 });
 
 test("the email style drives the compiled HTML: width, font, text size, padding, radius and the seven colours", () => {
-  const st = { ...DEFAULT_EMAIL_STYLE, width: 480, font: "Georgia", size: 18, padding: 20, radius: 4, colors: { ...DEFAULT_EMAIL_STYLE.colors, page: "#010203", email: "#0A0B0C", text: "#111111", muted: "#222222", links: "#333333", button: "#444444", buttonText: "#555555" } };
+  const st = {
+    ...DEFAULT_EMAIL_STYLE,
+    width: 480,
+    font: "Georgia",
+    size: 18,
+    padding: 20,
+    radius: 4,
+    colors: {
+      ...DEFAULT_EMAIL_STYLE.colors,
+      page: "#010203",
+      email: "#0A0B0C",
+      text: "#111111",
+      muted: "#222222",
+      links: "#333333",
+      button: "#444444",
+      buttonText: "#555555",
+    },
+  };
   const html = compile2(BLOCKS, { style: st });
-  for (const part of ["max-width:480px", "padding:28px 20px", "border-radius:4px", "background:#010203", "background:#0A0B0C", "Georgia,Arial", "font:18px/26px", "color:#111111", "background:#444444", "color:#555555", "color:#333333", "color:#222222"]) assert.ok(html.includes(part), part);
-  assert.ok(compile2(BLOCKS).includes("max-width:600px") && compile2(BLOCKS).includes("#5B5BD6"), "the default style is Northwind");
+  for (const part of [
+    "max-width:480px",
+    "padding:28px 20px",
+    "border-radius:4px",
+    "background:#010203",
+    "background:#0A0B0C",
+    "Georgia,Arial",
+    "font:18px/26px",
+    "color:#111111",
+    "background:#444444",
+    "color:#555555",
+    "color:#333333",
+    "color:#222222",
+  ])
+    assert.ok(html.includes(part), part);
+  assert.ok(
+    compile2(BLOCKS).includes("max-width:600px") && compile2(BLOCKS).includes("#5B5BD6"),
+    "the default style is Northwind",
+  );
   const dark = compile2(BLOCKS, { style: st, dark: true });
-  assert.ok(dark.includes("background:#121214") && dark.includes("color:#EDEDEF") && dark.includes("background:#444444"), "Dark swaps page, email and text, keeps the button");
+  assert.ok(
+    dark.includes("background:#121214") && dark.includes("color:#EDEDEF") && dark.includes("background:#444444"),
+    "Dark swaps page, email and text, keeps the button",
+  );
   assert.deepEqual([...EMAIL_WIDTHS], [480, 560, 600, 640, 700]);
   assert.ok(EMAIL_FONTS.includes("Inter") && isHex("#5B5BD6") && !isHex("5B5BD6") && !isHex("#5B5"));
   assert.equal(Object.keys(COLOR_LABEL).length, 7);
@@ -197,19 +405,51 @@ test("the email style drives the compiled HTML: width, font, text size, padding,
 
 test("the Style pane shows Width, Font, the three steppers and the seven colours; HTML mode has Tidy and the status strip", () => {
   const style = renderToStaticMarkup(<EmailBuilder {...base} />);
-  for (const id of ["em-width", "em-width-600", "em-font", "em-size", "em-padding", "em-radius", "em-colours", "em-hex-page", "em-hex-buttonText"]) assert.ok(style.includes(`data-testid="${id}"`), id);
+  for (const id of [
+    "em-width",
+    "em-width-600",
+    "em-font",
+    "em-size",
+    "em-padding",
+    "em-radius",
+    "em-colours",
+    "em-hex-page",
+    "em-hex-buttonText",
+  ])
+    assert.ok(style.includes(`data-testid="${id}"`), id);
   assert.match(tag(style, "em-width-600"), /aria-selected="true"/);
-  assert.match(tag(renderToStaticMarkup(<EmailBuilder {...base} emailStyle={{ ...DEFAULT_EMAIL_STYLE, width: 480 }} />), "em-width-480"), /aria-selected="true"/);
+  assert.match(
+    tag(
+      renderToStaticMarkup(<EmailBuilder {...base} emailStyle={{ ...DEFAULT_EMAIL_STYLE, width: 480 }} />),
+      "em-width-480",
+    ),
+    /aria-selected="true"/,
+  );
   const html = renderToStaticMarkup(<EmailBuilder {...base} mode="html" />);
   assert.ok(html.includes('data-testid="em-tidy"') && html.includes('data-testid="em-status"'));
   assert.match(html, /Unsubscribe link present/);
   assert.match(html, /KB, under the 102 KB Gmail clip limit/);
-  assert.match(renderToStaticMarkup(<EmailBuilder {...base} mode="html" html="<p>no footer</p>" />), /No unsubscribe link/);
+  assert.match(
+    renderToStaticMarkup(<EmailBuilder {...base} mode="html" html="<p>no footer</p>" />),
+    /No unsubscribe link/,
+  );
 });
 
 test("heading and footer export through emailBlockHtml; a footer with unsubscribe replaces the default line and passes the check", () => {
-  const head: EmailBlock = { id: "h", kind: "heading", text: "Hello {{first_name|there}} & team", size: 30, align: "center" };
-  const foot: EmailBlock = { id: "f", kind: "footer", text: "Northwind, 410 Market Street", align: "center", unsub: true };
+  const head: EmailBlock = {
+    id: "h",
+    kind: "heading",
+    text: "Hello {{first_name|there}} & team",
+    size: 30,
+    align: "center",
+  };
+  const foot: EmailBlock = {
+    id: "f",
+    kind: "footer",
+    text: "Northwind, 410 Market Street",
+    align: "center",
+    unsub: true,
+  };
   assert.match(emailBlockHtml(head) ?? "", /<h1 style="margin:0;font:700 30px\/1.2 sans-serif;text-align:center/);
   assert.ok(compileEmail([head]).includes(emailBlockHtml(head) ?? "x"), "the export carries the shared HTML");
   assert.match(compileEmail([head], { mode: "preview", values: { first_name: "Elena" } }), /Hello Elena &amp; team/);
@@ -217,25 +457,48 @@ test("heading and footer export through emailBlockHtml; a footer with unsubscrib
   assert.equal(hasUnsub([head]), false);
   assert.equal(hasUnsub([head, foot]), true);
   const withFoot = compileEmail([head, foot]);
-  assert.ok(withFoot.includes(emailBlockHtml(foot) ?? "x") && withFoot.includes("{{unsubscribe_url}}") && withFoot.includes("{{preferences_url}}"));
+  assert.ok(
+    withFoot.includes(emailBlockHtml(foot) ?? "x") &&
+      withFoot.includes("{{unsubscribe_url}}") &&
+      withFoot.includes("{{preferences_url}}"),
+  );
   assert.ok(!withFoot.includes('href="#unsubscribe"'), "no second default unsubscribe line");
   assert.ok(compileEmail([head]).includes('href="#unsubscribe"'), "without a footer block the default line stays");
-  assert.equal(runChecks({ subject: "s", previewText: "p", html: withFoot, plain: blocksToPlain([head, foot]) }).find((c) => c.id === "unsub")?.level, "ok");
-  assert.match(blocksToPlain([head, foot]), /Hello \{\{first_name\|there\}\} & team\n\nNorthwind, 410 Market Street\nUnsubscribe: \{\{unsubscribe_url\}\}/);
+  assert.equal(
+    runChecks({ subject: "s", previewText: "p", html: withFoot, plain: blocksToPlain([head, foot]) }).find(
+      (c) => c.id === "unsub",
+    )?.level,
+    "ok",
+  );
+  assert.match(
+    blocksToPlain([head, foot]),
+    /Hello \{\{first_name\|there\}\} & team\n\nNorthwind, 410 Market Street\nUnsubscribe: \{\{unsubscribe_url\}\}/,
+  );
   assert.equal(newBlock("heading", "x").size, 24);
   assert.equal(newBlock("footer", "x").unsub, true);
 });
 
 test("the rail adds Heading and Footer, and a selected heading or footer shows Align, Size and the unsubscribe switch", () => {
-  const html = renderToStaticMarkup(<EmailBuilder {...base} blocks={[{ id: "h", kind: "heading", text: "Hi", size: 28 }, { id: "f", kind: "footer", text: "Foot", unsub: true }]} />);
+  const html = renderToStaticMarkup(
+    <EmailBuilder
+      {...base}
+      blocks={[
+        { id: "h", kind: "heading", text: "Hi", size: 28 },
+        { id: "f", kind: "footer", text: "Foot", unsub: true },
+      ]}
+    />,
+  );
   for (const k of ["heading", "footer"]) assert.ok(html.includes(`data-testid="em-add-${k}"`), k);
   assert.ok(html.includes('data-testid="em-unsub-f"') && html.includes("Unsubscribe · Email preferences"));
 });
 
-const CONTACTS = [{ id: "c1", name: "Elena Rivera", values: { first_name: "Elena" } }, { id: "c2", name: "Omar Haddad", values: { first_name: "Omar" } }];
+const CONTACTS = [
+  { id: "c1", name: "Elena Rivera", values: { first_name: "Elena" } },
+  { id: "c2", name: "Omar Haddad", values: { first_name: "Omar" } },
+];
 
 test("HTML source colouring: tags, attribute names, strings and comments, and the runs always join back to the source", () => {
-  const src = '<!-- note --><a href="#x" class=\'k\' disabled>Hi <b>there</b></a>\n<br/>';
+  const src = "<!-- note --><a href=\"#x\" class='k' disabled>Hi <b>there</b></a>\n<br/>";
   const toks = highlightHtml(src);
   assert.equal(toks.map((k) => k.text).join(""), src);
   const kinds = (k: string): string[] => toks.filter((t) => t.kind === k).map((t) => t.text);
@@ -244,16 +507,28 @@ test("HTML source colouring: tags, attribute names, strings and comments, and th
   assert.deepEqual(kinds("attr"), ["href", "class", "disabled"]);
   assert.deepEqual(kinds("str"), ['"#x"', "'k'"]);
   const html = renderToStaticMarkup(<EmailBuilder {...base} mode="html" />);
-  assert.ok(html.includes('data-testid="em-highlight"') && html.includes('data-kind="tag"') && html.includes('data-kind="attr"'));
+  assert.ok(
+    html.includes('data-testid="em-highlight"') &&
+      html.includes('data-kind="tag"') &&
+      html.includes('data-kind="attr"'),
+  );
 });
 
 test("the header has Preview as, Templates, Version history and Comments; Preview as lists only when there are contacts", () => {
   const html = renderToStaticMarkup(<EmailBuilder {...base} contacts={CONTACTS} onSaveTemplate={() => undefined} />);
-  assert.ok(!renderToStaticMarkup(<EmailBuilder {...base} contacts={CONTACTS} />).includes('data-testid="em-templates"'), "no templates and nowhere to save one: no Templates button that opens an empty menu");
-  for (const id of ["em-previewas", "em-templates", "em-history", "em-comments"]) assert.ok(html.includes(`data-testid="${id}"`), id);
+  assert.ok(
+    !renderToStaticMarkup(<EmailBuilder {...base} contacts={CONTACTS} />).includes('data-testid="em-templates"'),
+    "no templates and nowhere to save one: no Templates button that opens an empty menu",
+  );
+  for (const id of ["em-previewas", "em-templates", "em-history", "em-comments"])
+    assert.ok(html.includes(`data-testid="${id}"`), id);
   assert.match(html, /Preview as Elena Rivera/);
   assert.ok(!renderToStaticMarkup(<EmailBuilder {...base} />).includes('data-testid="em-previewas"'));
-  assert.ok(renderToStaticMarkup(<EmailBuilder {...base} contacts={CONTACTS} contactId="c2" />).includes("Preview as Omar Haddad"));
+  assert.ok(
+    renderToStaticMarkup(<EmailBuilder {...base} contacts={CONTACTS} contactId="c2" />).includes(
+      "Preview as Omar Haddad",
+    ),
+  );
 });
 
 test("the subject row has Suggest 5 and no A/B test; preview text starts empty with the prototype's hint and a 90 limit", () => {
@@ -265,12 +540,31 @@ test("the subject row has Suggest 5 and no A/B test; preview text starts empty w
 });
 
 test("Preview opens as the main canvas with the Desktop, Mobile, Dark and Send test toolbar; the pane keeps the inbox row and the test send; contacts fill the merge fields", () => {
-  const html = renderToStaticMarkup(<EmailBuilder {...base} subject="Hi {{first_name}}" paneTab="preview" contacts={CONTACTS} fromName="Maya" />);
-  for (const id of ["em-previewstage", "em-pvbar", "em-pv-desktop", "em-pv-mobile", "em-pv-dark", "em-stage-send", "em-previewas-stage", "em-frame", "em-inbox", "em-preview-send"]) assert.ok(html.includes(`data-testid="${id}"`), id);
+  const html = renderToStaticMarkup(
+    <EmailBuilder {...base} subject="Hi {{first_name}}" paneTab="preview" contacts={CONTACTS} fromName="Maya" />,
+  );
+  for (const id of [
+    "em-previewstage",
+    "em-pvbar",
+    "em-pv-desktop",
+    "em-pv-mobile",
+    "em-pv-dark",
+    "em-stage-send",
+    "em-previewas-stage",
+    "em-frame",
+    "em-inbox",
+    "em-preview-send",
+  ])
+    assert.ok(html.includes(`data-testid="${id}"`), id);
   assert.equal(html.match(/data-testid="em-pv-desktop"/g)?.length, 1, "the toolbar is not repeated in the pane");
   assert.ok(!html.includes('data-testid="em-card"'), "the blocks card gives way to the preview");
   assert.match(html, /Hi Elena/);
-  assert.match(renderToStaticMarkup(<EmailBuilder {...base} subject="Hi {{first_name}}" paneTab="preview" contacts={CONTACTS} contactId="c2" />), /Hi Omar/);
+  assert.match(
+    renderToStaticMarkup(
+      <EmailBuilder {...base} subject="Hi {{first_name}}" paneTab="preview" contacts={CONTACTS} contactId="c2" />,
+    ),
+    /Hi Omar/,
+  );
 });
 
 test("a merge block draws as a chip with its label and prints as {{field}} in the plain part; Plain text mode has its hint", () => {
@@ -279,12 +573,21 @@ test("a merge block draws as a chip with its label and prints as {{field}} in th
   const html = renderToStaticMarkup(<EmailBuilder {...base} blocks={[merge]} />);
   assert.match(html, /data-token="\{\{owner_name\|owner name\}\}"/);
   assert.ok(html.includes(">owner name<"), "the chip shows the label, not the token");
-  assert.match(renderToStaticMarkup(<EmailBuilder {...base} mode="plain" />), /Made from your blocks\. Edit it to write your own\./);
+  assert.match(
+    renderToStaticMarkup(<EmailBuilder {...base} mode="plain" />),
+    /Made from your blocks\. Edit it to write your own\./,
+  );
 });
 
 test("spacer, social and saved blocks: add, edit and export end to end", () => {
   const sp = newBlock("spacer", "s");
-  const so = { ...newBlock("social", "o"), links: [{ network: "linkedin" as const, url: "https://linkedin.com/company/northwind" }, { network: "x" as const, url: "javascript:alert(1)" }] };
+  const so = {
+    ...newBlock("social", "o"),
+    links: [
+      { network: "linkedin" as const, url: "https://linkedin.com/company/northwind" },
+      { network: "x" as const, url: "javascript:alert(1)" },
+    ],
+  };
   assert.equal(sp.size, 24);
   assert.match(compileEmail([sp]), /height:24px/);
   assert.match(compileEmail([{ ...sp, size: 40 }]), /height:40px/);
@@ -298,7 +601,10 @@ test("spacer, social and saved blocks: add, edit and export end to end", () => {
   assert.equal(netLabel("x"), "X");
   assert.equal(netLabel("linkedin"), "Linkedin");
   assert.equal(SOCIAL_LIMIT, 12);
-  const saved = dropSaved({ id: "blk_1", name: "Sign-off", block: { id: "orig", kind: "text", text: "Warm regards, {{owner_name|Maya}}" } }, "n1");
+  const saved = dropSaved(
+    { id: "blk_1", name: "Sign-off", block: { id: "orig", kind: "text", text: "Warm regards, {{owner_name|Maya}}" } },
+    "n1",
+  );
   assert.equal(saved.kind, "saved");
   assert.equal(saved.savedId, "blk_1");
   assert.equal(saved.children?.[0]?.id, "n1-0", "the dropped copy has fresh ids");
@@ -312,27 +618,72 @@ test("spacer, social and saved blocks: add, edit and export end to end", () => {
 
 test("the rail follows the prototype order and holds every kind once; Saved opens the library, the others add", () => {
   assert.deepEqual([...RAIL_ORDER].sort(), [...EMAIL_BLOCK_KINDS].sort());
-  assert.deepEqual(RAIL_ORDER.slice(0, 9), ["text", "heading", "image", "button", "divider", "spacer", "columns", "social", "footer"]);
+  assert.deepEqual(RAIL_ORDER.slice(0, 9), [
+    "text",
+    "heading",
+    "image",
+    "button",
+    "divider",
+    "spacer",
+    "columns",
+    "social",
+    "footer",
+  ]);
   const html = renderToStaticMarkup(<EmailBuilder {...base} />);
   for (const k of ["spacer", "social", "saved"]) assert.ok(html.includes(`data-testid="em-add-${k}"`), k);
-  assert.ok(html.indexOf("em-add-spacer") < html.indexOf("em-add-columns") && html.indexOf("em-add-footer") < html.indexOf("em-add-saved"));
+  assert.ok(
+    html.indexOf("em-add-spacer") < html.indexOf("em-add-columns") &&
+      html.indexOf("em-add-footer") < html.indexOf("em-add-saved"),
+  );
 });
 
 test("the canvas draws each new kind", () => {
   const blocks: EmailBlock[] = [
     { id: "sp", kind: "spacer", size: 32 },
-    { id: "so", kind: "social", align: "center", links: [{ network: "linkedin", url: "https://x.example" }, { network: "x", url: "https://x.example" }] },
-    { id: "sv", kind: "saved", text: "Sign-off", savedId: "blk_1", children: [{ id: "sv-0", kind: "text", text: "Warm regards" }] },
+    {
+      id: "so",
+      kind: "social",
+      align: "center",
+      links: [
+        { network: "linkedin", url: "https://x.example" },
+        { network: "x", url: "https://x.example" },
+      ],
+    },
+    {
+      id: "sv",
+      kind: "saved",
+      text: "Sign-off",
+      savedId: "blk_1",
+      children: [{ id: "sv-0", kind: "text", text: "Warm regards" }],
+    },
   ];
   const html = renderToStaticMarkup(<EmailBuilder {...base} blocks={blocks} />);
   for (const id of ["em-spacer-sp", "em-social-so", "em-saved-sv"]) assert.ok(html.includes(`data-testid="${id}"`), id);
-  assert.ok(html.includes("32 px") && html.includes("Linkedin") && html.includes(">X<") && html.includes("Saved block: Sign-off") && html.includes("Warm regards"));
+  assert.ok(
+    html.includes("32 px") &&
+      html.includes("Linkedin") &&
+      html.includes(">X<") &&
+      html.includes("Saved block: Sign-off") &&
+      html.includes("Warm regards"),
+  );
 });
 
 test("HTML previews sandbox author content and visual links retain real destinations", () => {
-  const out = renderToStaticMarkup(<EmailBuilder id="sandbox" title="Fixture" subject="Fixture" mode="html" html="<script>parent.document.body.textContent='unsafe'</script><p>Visible</p>" preview="desktop" />);
+  const out = renderToStaticMarkup(
+    <EmailBuilder
+      id="sandbox"
+      title="Fixture"
+      subject="Fixture"
+      mode="html"
+      html="<script>parent.document.body.textContent='unsafe'</script><p>Visible</p>"
+      preview="desktop"
+    />,
+  );
   assert.match(out, /sandbox=""/);
-  const html = compileEmail([{ id: "image", kind: "image", src: "https://example.com/logo.png", alt: "Logo" }, { id: "button", kind: "button", text: "Read", href: "https://example.com/read" }]);
+  const html = compileEmail([
+    { id: "image", kind: "image", src: "https://example.com/logo.png", alt: "Logo" },
+    { id: "button", kind: "button", text: "Read", href: "https://example.com/read" },
+  ]);
   assert.match(html, /src="https:\/\/example.com\/logo.png"/);
   assert.match(html, /href="https:\/\/example.com\/read"/);
 });
@@ -344,6 +695,9 @@ test("the section tabs (Ask, Style and the rest) have no options button: its Clo
 });
 
 test("the automation composer's button says Preview (nothing is sent); the default still says Test send", () => {
-  assert.match(tag(renderToStaticMarkup(<EmailBuilder {...base} testSendLabel="Preview" />), "em-test-send"), /aria-label="Preview"/);
+  assert.match(
+    tag(renderToStaticMarkup(<EmailBuilder {...base} testSendLabel="Preview" />), "em-test-send"),
+    /aria-label="Preview"/,
+  );
   assert.match(tag(renderToStaticMarkup(<EmailBuilder {...base} />), "em-test-send"), /aria-label="Test send"/);
 });

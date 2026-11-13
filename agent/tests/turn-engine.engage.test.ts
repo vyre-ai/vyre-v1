@@ -11,10 +11,21 @@ test("engage adds an agent once, as a listener beside a lead, and a wake then ru
   engine.openThread({ id: "T", kind: "thread", starter: "svc", agents: [{ id: "doer", mode: "lead" }] });
   engine.engage("T", { id: "checker", mode: "lead" });
   engine.engage("T", { id: "checker", mode: "lead" });
-  assert.deepEqual(engine.agents("T").map((a) => [a.id, a.mode]), [["doer", "lead"], ["checker", "listen"]], "one lead per thread, and joining twice changes nothing");
+  assert.deepEqual(
+    engine.agents("T").map((a) => [a.id, a.mode]),
+    [
+      ["doer", "lead"],
+      ["checker", "listen"],
+    ],
+    "one lead per thread, and joining twice changes nothing",
+  );
   engine.wake("T", "checker");
   await engine.idle("T");
-  assert.equal(p.specs[0]!.agent.id, "checker", "the wake runs the engaged agent first (its plain reply then goes to the lead, as in any chat)");
+  assert.equal(
+    p.specs[0]!.agent.id,
+    "checker",
+    "the wake runs the engaged agent first (its plain reply then goes to the lead, as in any chat)",
+  );
 });
 
 test("a wake runs for the starter, and setStarter changes whose that is", async () => {

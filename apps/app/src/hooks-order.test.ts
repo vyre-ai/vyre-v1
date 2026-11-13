@@ -13,8 +13,9 @@ const ROOT = fileURLToPath(new URL(".", import.meta.url));
 function files(dir: string, out: string[] = []): string[] {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const f = path.join(dir, e.name);
-    if (e.isDirectory()) { if (e.name !== "node_modules") files(f, out); }
-    else if (/\.tsx$/.test(e.name) && !/\.test\.tsx$/.test(e.name)) out.push(f);
+    if (e.isDirectory()) {
+      if (e.name !== "node_modules") files(f, out);
+    } else if (/\.tsx$/.test(e.name) && !/\.test\.tsx$/.test(e.name)) out.push(f);
   }
   return out;
 }
@@ -26,21 +27,34 @@ export function hooksAfterEarlyReturn(text: string): { line: number; code: strin
   let early = false;
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i]!;
-    if (/^\S/.test(l) && !/^[})\]]/.test(l)) early = false;   // a new top-level statement starts a new function
-    if (/^  if \([^{]*\) return\b[^;]*;\s*$/.test(l)) early = true;   // return null and a bare return count too (ChromeStepCard did `if (!found) return null;` then useState)
-    else if (early && /^  (const|let) .*= use[A-Z]\w*\(|^  use[A-Z]\w*\(/.test(l)) found.push({ line: i + 1, code: l.trim().slice(0, 100) });
+    if (/^\S/.test(l) && !/^[})\]]/.test(l)) early = false; // a new top-level statement starts a new function
+    if (/^  if \([^{]*\) return\b[^;]*;\s*$/.test(l))
+      early = true; // return null and a bare return count too (ChromeStepCard did `if (!found) return null;` then useState)
+    else if (early && /^  (const|let) .*= use[A-Z]\w*\(|^  use[A-Z]\w*\(/.test(l))
+      found.push({ line: i + 1, code: l.trim().slice(0, 100) });
   }
   return found;
 }
 
 test("the scan finds a hook after an early return and nothing else", () => {
-  const bad = "function A() {\n  const a = useX();\n  if (!a) return <Loading />;\n  const b = useY();\n  return <b />;\n}\nfunction B() {\n  const a = useX();\n  const b = useY();\n  if (!a) return <Loading />;\n  return <b />;\n}\n";
-  assert.deepEqual(hooksAfterEarlyReturn(bad).map((f) => f.line), [4]);
-  assert.deepEqual(hooksAfterEarlyReturn("function C({ d }) {\n  if (!d) return null;\n  const [s] = useState(d.open);\n  return <V />;\n}\n").map((f) => f.line), [3]);
+  const bad =
+    "function A() {\n  const a = useX();\n  if (!a) return <Loading />;\n  const b = useY();\n  return <b />;\n}\nfunction B() {\n  const a = useX();\n  const b = useY();\n  if (!a) return <Loading />;\n  return <b />;\n}\n";
+  assert.deepEqual(
+    hooksAfterEarlyReturn(bad).map((f) => f.line),
+    [4],
+  );
+  assert.deepEqual(
+    hooksAfterEarlyReturn(
+      "function C({ d }) {\n  if (!d) return null;\n  const [s] = useState(d.open);\n  return <V />;\n}\n",
+    ).map((f) => f.line),
+    [3],
+  );
 });
 
 test("no component in the app calls a hook after an early return", () => {
   const all: string[] = [];
-  for (const f of files(ROOT)) for (const hit of hooksAfterEarlyReturn(fs.readFileSync(f, "utf8"))) all.push(`${path.relative(ROOT, f)}:${hit.line} ${hit.code}`);
+  for (const f of files(ROOT))
+    for (const hit of hooksAfterEarlyReturn(fs.readFileSync(f, "utf8")))
+      all.push(`${path.relative(ROOT, f)}:${hit.line} ${hit.code}`);
   assert.deepEqual(all, []);
 });

@@ -19,13 +19,22 @@ export interface DropboxCtx {
   actingFor?: string;
   trace: { traceId: string };
   seal: { seal(v: Uint8Array, scope: string): Sealed; unseal(s: Sealed): Uint8Array };
-  authorize(action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): { effect: "allow" | "deny" | "hold"; reason: string; decisionId: string };
+  authorize(
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
+    resource: { type: string; id: string | null },
+  ): { effect: "allow" | "deny" | "hold"; reason: string; decisionId: string };
   now(): number;
   db: DropboxDb;
   emit(name: string, subject: string, payload: unknown): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
-  http: (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ status: number; text(): Promise<string> }>;
-  log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
+  http: (
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string },
+  ) => Promise<{ status: number; text(): Promise<string> }>;
+  log: {
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 export type Row = Record<string, string | number | null>;
@@ -41,13 +50,22 @@ export interface DropboxHost {
   /** The address people reach this Space at (https://host), for the redirect the sign-in comes back to. */
   publicUrl(ctx: DropboxCtx): Promise<string>;
   /** Trade the sign-in code for tokens (PKCE: the verifier proves it is the same server). */
-  exchange(ctx: DropboxCtx, a: { appHandle: string; code: string; verifier: string; redirectUri: string }): Promise<{ refreshToken: string; accessToken: string; expiresAt: number; accountId?: string }>;
+  exchange(
+    ctx: DropboxCtx,
+    a: { appHandle: string; code: string; verifier: string; redirectUri: string },
+  ): Promise<{ refreshToken: string; accessToken: string; expiresAt: number; accountId?: string }>;
   /** An access token made from the account's refresh token. Cached by the host under `cacheKey` (the connection id, never the token) until a minute before it ends. */
-  token(ctx: DropboxCtx, a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean }): Promise<{ token: string; expiresAt: number }>;
+  token(
+    ctx: DropboxCtx,
+    a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean },
+  ): Promise<{ token: string; expiresAt: number }>;
   /** POST a file's bytes: the Space file goes to content.dropboxapi.com/2/files/upload with the arguments in Dropbox-API-Arg. Answers the status and the JSON. */
   upload(ctx: DropboxCtx, a: { token: string; arg: Json; fileId: string }): Promise<{ status: number; json: Json }>;
   /** Download a file's bytes (content.dropboxapi.com/2/files/download) into a blob. A non-2xx answer comes back as status and json, with no blob. */
-  download(ctx: DropboxCtx, a: { token: string; arg: Json; mime?: string }): Promise<{ status: number; json: Json; blob?: { blobId: string; size: number; mime: string } }>;
+  download(
+    ctx: DropboxCtx,
+    a: { token: string; arg: Json; mime?: string },
+  ): Promise<{ status: number; json: Json; blob?: { blobId: string; size: number; mime: string } }>;
 }
 
 let host: DropboxHost | null = null;
@@ -56,7 +74,8 @@ export function setDropboxHost(h: DropboxHost | null): void {
   host = h;
 }
 export function needHost(ctx: Pick<DropboxCtx, "trace">): DropboxHost {
-  if (!host) throw fail("internal.unavailable", ctx.trace.traceId, { message: "Dropbox is not set up on this server." });
+  if (!host)
+    throw fail("internal.unavailable", ctx.trace.traceId, { message: "Dropbox is not set up on this server." });
   return host;
 }
 
@@ -65,7 +84,13 @@ export const APP_HANDLE = /^#[A-Za-z0-9_]+$/;
 export const API = "https://api.dropboxapi.com/2";
 export const NOTIFY = "https://notify.dropboxapi.com/2";
 export const AUTHORIZE = "https://www.dropbox.com/oauth2/authorize";
-export const SCOPES = ["account_info.read", "files.metadata.read", "files.metadata.write", "files.content.read", "files.content.write"] as const;
+export const SCOPES = [
+  "account_info.read",
+  "files.metadata.read",
+  "files.metadata.write",
+  "files.content.read",
+  "files.content.write",
+] as const;
 
 // ---- readers
 
@@ -78,7 +103,8 @@ export const obj = (v: unknown): Json => (v && typeof v === "object" && !Array.i
 export const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 export const text = (v: unknown): string => (typeof v === "string" ? v : "");
 export const strOrUndef = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
-export const intOrUndef = (v: unknown): number | undefined => (typeof v === "number" && Number.isSafeInteger(v) && v >= 0 ? v : undefined);
+export const intOrUndef = (v: unknown): number | undefined =>
+  typeof v === "number" && Number.isSafeInteger(v) && v >= 0 ? v : undefined;
 export const str = (row: Row | null, key: string): string => {
   const v = row?.[key];
   return typeof v === "string" ? v : "";
@@ -87,7 +113,7 @@ export const strOrNull = (row: Row | null, key: string): string | null => {
   const v = row?.[key];
   return typeof v === "string" && v !== "" ? v : null;
 };
-export const codeOf = (err: unknown): string => ((err as { error?: { code?: string } } | null)?.error?.code ?? "");
+export const codeOf = (err: unknown): string => (err as { error?: { code?: string } } | null)?.error?.code ?? "";
 
 export function bad(ctx: Pick<DropboxCtx, "trace">, message: string): never {
   throw fail("validation.bad_input", ctx.trace.traceId, { message });
@@ -139,17 +165,33 @@ export function config(ctx: DropboxCtx): Row | null {
 /** The configured app, or a refusal that says how to set it up. */
 export function needConfig(ctx: DropboxCtx): { vaultItem: string; appKey: string } {
   const cfg = config(ctx);
-  if (!cfg) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Dropbox is not set up on this server. An admin adds the Dropbox app first." });
+  if (!cfg)
+    throw fail("validation.precondition_failed", ctx.trace.traceId, {
+      message: "Dropbox is not set up on this server. An admin adds the Dropbox app first.",
+    });
   return { vaultItem: str(cfg, "vaultItem"), appKey: str(cfg, "appKey") };
 }
 
 // ---- accounts
 
-export interface Account { connectionId: string; ownerKind: "person" | "space"; ownerId: string; accountId: string; email: string | null; name: string | null; refreshSealed: string }
+export interface Account {
+  connectionId: string;
+  ownerKind: "person" | "space";
+  ownerId: string;
+  accountId: string;
+  email: string | null;
+  name: string | null;
+  refreshSealed: string;
+}
 
 const accountOfRow = (r: Row): Account => ({
-  connectionId: str(r, "connectionId"), ownerKind: str(r, "ownerKind") === "space" ? "space" : "person", ownerId: str(r, "ownerId"), accountId: str(r, "accountId"),
-  email: strOrNull(r, "email"), name: strOrNull(r, "name"), refreshSealed: str(r, "refreshSealed"),
+  connectionId: str(r, "connectionId"),
+  ownerKind: str(r, "ownerKind") === "space" ? "space" : "person",
+  ownerId: str(r, "ownerId"),
+  accountId: str(r, "accountId"),
+  email: strOrNull(r, "email"),
+  name: strOrNull(r, "name"),
+  refreshSealed: str(r, "refreshSealed"),
 });
 
 /** Whether the caller may use the connection: a person's own is theirs alone (and the host's own services act for them), a Space's is open to every member. */
@@ -160,14 +202,17 @@ function usable(ctx: DropboxCtx, a: Account): boolean {
 
 export function accountsFor(ctx: DropboxCtx): Account[] {
   ensure(ctx);
-  return rowsOf(ctx.db.all(`SELECT * FROM dropbox_account ORDER BY "created_at"`)).map(accountOfRow).filter((a) => usable(ctx, a));
+  return rowsOf(ctx.db.all(`SELECT * FROM dropbox_account ORDER BY "created_at"`))
+    .map(accountOfRow)
+    .filter((a) => usable(ctx, a));
 }
 
 export function accountOf(ctx: DropboxCtx, connectionId: string): Account {
   ensure(ctx);
   const r = first(ctx.db.all(`SELECT * FROM dropbox_account WHERE "connectionId" = ?`, connectionId));
   const a = r ? accountOfRow(r) : null;
-  if (!a || !usable(ctx, a)) throw fail("validation.not_found", ctx.trace.traceId, { message: "There is no such Dropbox connection." });
+  if (!a || !usable(ctx, a))
+    throw fail("validation.not_found", ctx.trace.traceId, { message: "There is no such Dropbox connection." });
   return a;
 }
 
@@ -178,7 +223,12 @@ export async function tokenFor(ctx: DropboxCtx, a: Account, fresh = false): Prom
   const { vaultItem } = needConfig(ctx);
   // The refresh token is sealed in this module's own table. It is opened here for one call and handed to the host to make an access token; no capability answers with it and it is in no Vault item.
   const refreshToken = new TextDecoder().decode(ctx.seal.unseal(JSON.parse(a.refreshSealed) as Sealed));
-  const t = await needHost(ctx).token(ctx, { appHandle: vaultItem, refreshToken, cacheKey: a.connectionId, ...(fresh ? { fresh: true } : {}) });
+  const t = await needHost(ctx).token(ctx, {
+    appHandle: vaultItem,
+    refreshToken,
+    cacheKey: a.connectionId,
+    ...(fresh ? { fresh: true } : {}),
+  });
   return t.token;
 }
 
@@ -190,16 +240,28 @@ export function parseBody(body: string): Json {
   }
 }
 
-export interface Call { host?: "api" | "notify"; path: string; body?: unknown }
+export interface Call {
+  host?: "api" | "notify";
+  path: string;
+  body?: unknown;
+}
 
 /** One POST to the Dropbox API with the given access token (none for the notify endpoint). Answers the status and the raw body. */
-export async function sendJson(ctx: DropboxCtx, token: string | undefined, c: Call): Promise<{ status: number; raw: string }> {
+export async function sendJson(
+  ctx: DropboxCtx,
+  token: string | undefined,
+  c: Call,
+): Promise<{ status: number; raw: string }> {
   const headers: Record<string, string> = { accept: "application/json" };
   if (token !== undefined) headers["authorization"] = `Bearer ${token}`;
   // Dropbox takes a body-less call with no content type, and a JSON call with it
   if (c.body !== undefined) headers["content-type"] = "application/json";
   try {
-    const res = await ctx.http(`${c.host === "notify" ? NOTIFY : API}${c.path}`, { method: "POST", headers, ...(c.body !== undefined ? { body: JSON.stringify(c.body) } : {}) });
+    const res = await ctx.http(`${c.host === "notify" ? NOTIFY : API}${c.path}`, {
+      method: "POST",
+      headers,
+      ...(c.body !== undefined ? { body: JSON.stringify(c.body) } : {}),
+    });
     return { status: res.status, raw: await res.text() };
   } catch (e) {
     if (typeof e === "object" && e !== null && "error" in e) throw e;
@@ -224,15 +286,34 @@ export function refusal(ctx: Pick<DropboxCtx, "trace">, status: number, raw: str
   const summary = typeof body["error_summary"] === "string" ? (body["error_summary"] as string) : "";
   // only Dropbox's error tags (path/not_found) go in the details; the rest of the summary can be a file name
   const tags: string[] = [];
-  for (const seg of summary.split("/")) { if (!/^[a-z][a-z_]*$/.test(seg)) break; tags.push(seg); }
+  for (const seg of summary.split("/")) {
+    if (!/^[a-z][a-z_]*$/.test(seg)) break;
+    tags.push(seg);
+  }
   const details: Record<string, unknown> = { status, ...(tags.length ? { why: tags.join("/") } : {}) };
   if (status === 429) return fail("provider.rate_limited", t, { message: "Dropbox asked us to slow down.", details });
-  if (status === 401 || status === 403) return fail("provider.auth_failed", t, { message: "Dropbox did not accept the connection. Connect Dropbox again.", details });
-  if (status >= 500) return fail("provider.unavailable", t, { message: "Dropbox is not answering right now.", details });
-  if (/(^|\/)(not_found|not_file|not_folder)(\/|$)/.test(summary)) return fail("validation.not_found", t, { message: "Dropbox has no such file or folder.", details });
-  if (/(^|\/)conflict(\/|$)/.test(summary) || /too_many_write_operations/.test(summary)) return fail("validation.version_conflict", t, { message: "The file changed in Dropbox since it was read.", details });
-  if (/(^|\/)reset(\/|$)/.test(summary)) return fail("validation.precondition_failed", t, { message: "Dropbox no longer knows that place in the change feed. Read the folder again.", details: { ...details, reason: "cursor_reset" } });
-  if (/insufficient_space/.test(summary)) return fail("validation.too_large", t, { message: "The Dropbox account is out of space.", details });
-  if (status === 400 || status === 409) return fail("validation.bad_input", t, { message: "Dropbox could not use that request.", details });
+  if (status === 401 || status === 403)
+    return fail("provider.auth_failed", t, {
+      message: "Dropbox did not accept the connection. Connect Dropbox again.",
+      details,
+    });
+  if (status >= 500)
+    return fail("provider.unavailable", t, { message: "Dropbox is not answering right now.", details });
+  if (/(^|\/)(not_found|not_file|not_folder)(\/|$)/.test(summary))
+    return fail("validation.not_found", t, { message: "Dropbox has no such file or folder.", details });
+  if (/(^|\/)conflict(\/|$)/.test(summary) || /too_many_write_operations/.test(summary))
+    return fail("validation.version_conflict", t, {
+      message: "The file changed in Dropbox since it was read.",
+      details,
+    });
+  if (/(^|\/)reset(\/|$)/.test(summary))
+    return fail("validation.precondition_failed", t, {
+      message: "Dropbox no longer knows that place in the change feed. Read the folder again.",
+      details: { ...details, reason: "cursor_reset" },
+    });
+  if (/insufficient_space/.test(summary))
+    return fail("validation.too_large", t, { message: "The Dropbox account is out of space.", details });
+  if (status === 400 || status === 409)
+    return fail("validation.bad_input", t, { message: "Dropbox could not use that request.", details });
   return fail("provider.bad_response", t, { message: "Dropbox answered something unexpected.", details });
 }

@@ -12,7 +12,18 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useInboxData, useOnline, useOptionalInboxData, useScreenQuery } from "../sidebar/data.tsx";
 import { listTime } from "../sidebar/model.ts";
 import { Ghost, Glyph, IconButton, pointOf } from "../sidebar/parts.tsx";
-import { EMPTY_LINE, OFFLINE_LINE, SCREEN, addedLine, createdLine, matchedLine, newestFirst, scorePercent, suggestionLabel, waitingLine } from "./model.ts";
+import {
+  EMPTY_LINE,
+  OFFLINE_LINE,
+  SCREEN,
+  addedLine,
+  createdLine,
+  matchedLine,
+  newestFirst,
+  scorePercent,
+  suggestionLabel,
+  waitingLine,
+} from "./model.ts";
 import type { CreateOut, MatchOut, Suggestion, Unmatched, UnmatchedOut } from "./model.ts";
 
 const DOUBLE_MS = 450;
@@ -30,17 +41,29 @@ export interface UnmatchedProps {
 const keyOf = (): string => globalThis.crypto.randomUUID();
 
 /** The entries of the Match menu for one line. */
-export function matchMenuEntries(suggestions: readonly Suggestion[], on: { match(s: Suggestion): void; search(): void; create(type: "contact" | "company"): void }): MenuEntry[] {
+export function matchMenuEntries(
+  suggestions: readonly Suggestion[],
+  on: { match(s: Suggestion): void; search(): void; create(type: "contact" | "company"): void },
+): MenuEntry[] {
   const out: MenuEntry[] = [{ head: "Suggested" }];
   if (suggestions.length === 0) out.push({ head: "No suggestions yet" });
-  for (const s of [...suggestions].sort((a, b) => b.score - a.score)) out.push({ label: suggestionLabel(s), count: scorePercent(s), onSelect: () => on.match(s) });
-  out.push({ separator: true }, { label: "Search Records…", onSelect: on.search }, { label: "Create a contact", onSelect: () => on.create("contact") }, { label: "Create a company", onSelect: () => on.create("company") });
+  for (const s of [...suggestions].sort((a, b) => b.score - a.score))
+    out.push({ label: suggestionLabel(s), count: scorePercent(s), onSelect: () => on.match(s) });
+  out.push(
+    { separator: true },
+    { label: "Search Records…", onSelect: on.search },
+    { label: "Create a contact", onSelect: () => on.create("contact") },
+    { label: "Create a company", onSelect: () => on.create("company") },
+  );
   return out;
 }
 
 /** Where a menu opened from a button goes: under the button, whatever pointer or keyboard opened it (a press with no coordinates still lands in the same place). */
 function anchorOf(e: unknown): { x: number; y: number } {
-  const t = ((e as { currentTarget?: unknown; target?: unknown }).currentTarget ?? (e as { target?: unknown }).target) as { getBoundingClientRect?: () => { left: number; bottom: number } } | undefined;
+  const t = ((e as { currentTarget?: unknown; target?: unknown }).currentTarget ??
+    (e as { target?: unknown }).target) as
+    | { getBoundingClientRect?: () => { left: number; bottom: number } }
+    | undefined;
   const r = t?.getBoundingClientRect?.();
   return r ? { x: r.left, y: r.bottom + 4 } : pointOf(e);
 }
@@ -48,25 +71,70 @@ function anchorOf(e: unknown): { x: number; y: number } {
 /** Below this width the two actions are icons (their names stay as labels), so the sender's name keeps its room. */
 const NARROW = 560;
 
-function Line({ u, selected, now, offsetMin, onPress, onMatch, onAdd }: { u: Unmatched; selected: boolean; now: number; offsetMin: number; onPress(): void; onMatch(x: number, y: number): void; onAdd(): void }): ReactElement {
+function Line({
+  u,
+  selected,
+  now,
+  offsetMin,
+  onPress,
+  onMatch,
+  onAdd,
+}: {
+  u: Unmatched;
+  selected: boolean;
+  now: number;
+  offsetMin: number;
+  onPress(): void;
+  onMatch(x: number, y: number): void;
+  onAdd(): void;
+}): ReactElement {
   const narrow = useWindowDimensions().width < NARROW;
   return (
     <View testID={`unmatched-${u.id}`} style={s.slot} {...menuTrigger(onMatch)}>
-      <Pressable accessibilityRole="button" accessibilityLabel={u.displayName || u.address} accessibilityState={{ selected }} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [s.block, WASH, (hovered === true || selected) && s.over]}>
-        <View style={s.face}><Ghost size={36} /></View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={u.displayName || u.address}
+        accessibilityState={{ selected }}
+        onPress={onPress}
+        style={({ hovered }: { hovered?: boolean }) => [s.block, WASH, (hovered === true || selected) && s.over]}
+      >
+        <View style={s.face}>
+          <Ghost size={36} />
+        </View>
         <View style={s.text}>
-          <Text numberOfLines={1} style={[s.name, u.unreadCount > 0 && s.bold]}>{u.displayName || u.address}</Text>
-          <Text numberOfLines={1} style={s.note}>{u.lastPreview || "No preview"}</Text>
+          <Text numberOfLines={1} style={[s.name, u.unreadCount > 0 && s.bold]}>
+            {u.displayName || u.address}
+          </Text>
+          <Text numberOfLines={1} style={s.note}>
+            {u.lastPreview || "No preview"}
+          </Text>
         </View>
         <View style={s.right}>
           <Text style={[s.time, u.unreadCount > 0 && s.timeUnread]}>{listTime(u.lastMessageAt, now, offsetMin)}</Text>
           <View style={s.btns}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Add ${u.displayName || u.address} as a client`} testID={`add-client-${u.id}`} onPress={onAdd} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}>
-            <Glyph name="plus" size={12} color="var(--accent)" />{narrow ? null : <Text style={s.btnText}>Add as a client</Text>}
-          </Pressable>
-          <Pressable accessibilityRole="link" accessibilityLabel="Match to a record" testID={`match-${u.id}`} onPress={(e) => { const p = anchorOf(e); onMatch(p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}>
-            <Glyph name="link" size={12} color="var(--accent)" />{narrow ? null : <Text style={s.btnText}>Match to a record</Text>}
-          </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Add ${u.displayName || u.address} as a client`}
+              testID={`add-client-${u.id}`}
+              onPress={onAdd}
+              style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}
+            >
+              <Glyph name="plus" size={12} color="var(--accent)" />
+              {narrow ? null : <Text style={s.btnText}>Add as a client</Text>}
+            </Pressable>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="Match to a record"
+              testID={`match-${u.id}`}
+              onPress={(e) => {
+                const p = anchorOf(e);
+                onMatch(p.x, p.y);
+              }}
+              style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}
+            >
+              <Glyph name="link" size={12} color="var(--accent)" />
+              {narrow ? null : <Text style={s.btnText}>Match to a record</Text>}
+            </Pressable>
           </View>
         </View>
       </Pressable>
@@ -86,30 +154,76 @@ function List({ onSearchRecords, onShowAll }: UnmatchedProps): ReactElement {
   const rows = q.status === "ready" ? newestFirst(q.data.rows) : [];
 
   const run = async (u: Unmatched, work: () => Promise<{ text: string; undo?: () => void }>): Promise<void> => {
-    try { setNote(await work()); } catch (e) { setNote({ text: `Could not do that: ${e instanceof Error ? e.message : "try again"}` }); }
+    try {
+      setNote(await work());
+    } catch (e) {
+      setNote({ text: `Could not do that: ${e instanceof Error ? e.message : "try again"}` });
+    }
     setSelected((cur) => (cur === u.id ? null : cur));
   };
   const who = (u: Unmatched): string => u.displayName || u.address;
-  const match = (u: Unmatched, sg: Suggestion): Promise<void> => run(u, async () => {
-    const out = (await data.call("inbox.match", { conversationId: u.id, recordId: sg.recordId, idempotencyKey: keyOf() })) as MatchOut;
-    return { text: matchedLine(who(u), sg.name), undo: () => { void run(u, async () => { await data.call("inbox.unmatch", { conversationId: u.id, undoToken: out.undoToken }); return { text: `${who(u)} is unmatched again` }; }); } };
-  });
-  const create = (u: Unmatched, type: "contact" | "company"): Promise<void> => run(u, async () => {
-    const out = (await data.call("inbox.match_new", { conversationId: u.id, type, idempotencyKey: keyOf() })) as CreateOut;
-    void out;
-    return { text: createdLine(who(u), type) };
-  });
+  const match = (u: Unmatched, sg: Suggestion): Promise<void> =>
+    run(u, async () => {
+      const out = (await data.call("inbox.match", {
+        conversationId: u.id,
+        recordId: sg.recordId,
+        idempotencyKey: keyOf(),
+      })) as MatchOut;
+      return {
+        text: matchedLine(who(u), sg.name),
+        undo: () => {
+          void run(u, async () => {
+            await data.call("inbox.unmatch", { conversationId: u.id, undoToken: out.undoToken });
+            return { text: `${who(u)} is unmatched again` };
+          });
+        },
+      };
+    });
+  const create = (u: Unmatched, type: "contact" | "company"): Promise<void> =>
+    run(u, async () => {
+      const out = (await data.call("inbox.match_new", {
+        conversationId: u.id,
+        type,
+        idempotencyKey: keyOf(),
+      })) as CreateOut;
+      void out;
+      return { text: createdLine(who(u), type) };
+    });
   // one tap: the contact, the conversation linked, the attachments filed in the record's folder and a Reply task on my list
-  const addClient = (u: Unmatched): Promise<void> => run(u, async () => {
-    const out = (await data.call("inbox.match_new", { conversationId: u.id, type: "contact", fileAttachments: true, replyTask: true, idempotencyKey: keyOf() })) as CreateOut;
-    return { text: addedLine(who(u), out) };
-  });
+  const addClient = (u: Unmatched): Promise<void> =>
+    run(u, async () => {
+      const out = (await data.call("inbox.match_new", {
+        conversationId: u.id,
+        type: "contact",
+        fileAttachments: true,
+        replyTask: true,
+        idempotencyKey: keyOf(),
+      })) as CreateOut;
+      return { text: addedLine(who(u), out) };
+    });
   const open = (u: Unmatched, x: number, y: number): void => {
     setSelected(u.id);
     void (async () => {
       let sg: Suggestion[] = [];
-      try { sg = ((await data.call("inbox.match_suggestions", { conversationId: u.id })) as { suggestions: Suggestion[] }).suggestions; } catch { /* the menu still offers the two ways out */ }
-      menu.show(matchMenuEntries(sg, { match: (x1) => { void match(u, x1); }, search: () => onSearchRecords?.(u), create: (t) => { void create(u, t); } }), x, y);
+      try {
+        sg = ((await data.call("inbox.match_suggestions", { conversationId: u.id })) as { suggestions: Suggestion[] })
+          .suggestions;
+      } catch {
+        /* the menu still offers the two ways out */
+      }
+      menu.show(
+        matchMenuEntries(sg, {
+          match: (x1) => {
+            void match(u, x1);
+          },
+          search: () => onSearchRecords?.(u),
+          create: (t) => {
+            void create(u, t);
+          },
+        }),
+        x,
+        y,
+      );
     })();
   };
   const press = (u: Unmatched): void => {
@@ -119,38 +233,83 @@ function List({ onSearchRecords, onShowAll }: UnmatchedProps): ReactElement {
     setSelected(u.id);
     if (dbl) data.nav.openConversation(u.id);
   };
-  const renderLine = (u: Unmatched): ReactElement => <Line u={u} selected={selected === u.id} now={clock.now} offsetMin={clock.offsetMin} onPress={() => press(u)} onMatch={(x, y) => open(u, x, y)} onAdd={() => { void addClient(u); }} />;
+  const renderLine = (u: Unmatched): ReactElement => (
+    <Line
+      u={u}
+      selected={selected === u.id}
+      now={clock.now}
+      offsetMin={clock.offsetMin}
+      onPress={() => press(u)}
+      onMatch={(x, y) => open(u, x, y)}
+      onAdd={() => {
+        void addClient(u);
+      }}
+    />
+  );
   const onKeyDown = (ev: { key?: string; preventDefault?: () => void }): void => {
     const at = rows.findIndex((r) => r.id === selected);
-    if (ev.key === "ArrowDown" || ev.key === "ArrowUp") { ev.preventDefault?.(); const n = rows[Math.max(0, Math.min(rows.length - 1, at + (ev.key === "ArrowDown" ? 1 : -1)))]; if (n) setSelected(n.id); }
-    else if (ev.key === "Enter" && at >= 0) { ev.preventDefault?.(); open(rows[at]!, 0, 0); }
+    if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+      ev.preventDefault?.();
+      const n = rows[Math.max(0, Math.min(rows.length - 1, at + (ev.key === "ArrowDown" ? 1 : -1)))];
+      if (n) setSelected(n.id);
+    } else if (ev.key === "Enter" && at >= 0) {
+      ev.preventDefault?.();
+      open(rows[at]!, 0, 0);
+    }
   };
 
   return (
     <View style={s.main} testID="inbox-unmatched">
       <View style={s.head}>
-        <Text accessibilityRole="header" aria-level={1} style={s.h1}>All inboxes</Text>
-        {rows.length > 0 ? <Text style={s.meta} testID="unmatched-count">{waitingLine(rows.length)}</Text> : null}
+        <Text accessibilityRole="header" aria-level={1} style={s.h1}>
+          All inboxes
+        </Text>
+        {rows.length > 0 ? (
+          <Text style={s.meta} testID="unmatched-count">
+            {waitingLine(rows.length)}
+          </Text>
+        ) : null}
         <View style={s.grow} />
         <IconButton icon="filter" label="Filter" on testID="unmatched-filter" onPress={() => {}} />
         <IconButton icon="call" label="Dial" testID="unmatched-dial" onPress={() => data.nav.openDialer()} />
       </View>
       <View style={s.showing} testID="unmatched-showing">
-        <Text style={s.showingText}>Showing <Text style={s.showingBold}>Unmatched</Text></Text>
+        <Text style={s.showingText}>
+          Showing <Text style={s.showingBold}>Unmatched</Text>
+        </Text>
         <Text style={s.sep}>{"·"}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Show all" testID="unmatched-showall" onPress={() => onShowAll?.()}><Text style={s.link}>Show all</Text></Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Show all"
+          testID="unmatched-showall"
+          onPress={() => onShowAll?.()}
+        >
+          <Text style={s.link}>Show all</Text>
+        </Pressable>
       </View>
       {note ? (
         <View style={s.noteLine} testID="unmatched-note">
           <Text style={s.noteText}>{note.text}</Text>
-          {note.undo ? <Pressable accessibilityRole="button" accessibilityLabel="Undo" testID="unmatched-undo" onPress={note.undo}><Text style={s.undo}>Undo</Text></Pressable> : null}
+          {note.undo ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Undo" testID="unmatched-undo" onPress={note.undo}>
+              <Text style={s.undo}>Undo</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
-      {online ? null : <Text style={s.offline} accessibilityRole="alert" testID="unmatched-offline">{OFFLINE_LINE}</Text>}
-      {q.status !== "ready" ? <View testID="unmatched-loading" accessibilityLabel="Loading" style={s.loading} /> : rows.length === 0 ? (
+      {online ? null : (
+        <Text style={s.offline} accessibilityRole="alert" testID="unmatched-offline">
+          {OFFLINE_LINE}
+        </Text>
+      )}
+      {q.status !== "ready" ? (
+        <View testID="unmatched-loading" accessibilityLabel="Loading" style={s.loading} />
+      ) : rows.length === 0 ? (
         <States kind="empty" title={EMPTY_LINE} icon="inbox" />
       ) : (
-        <View style={s.listBox} {...({ onKeyDown } as object)}><VirtualList data={rows} rowHeight={ROW} keyOf={(u) => u.id} renderItem={renderLine} /></View>
+        <View style={s.listBox} {...({ onKeyDown } as object)}>
+          <VirtualList data={rows} rowHeight={ROW} keyOf={(u) => u.id} renderItem={renderLine} />
+        </View>
       )}
       {menu.element}
     </View>
@@ -165,16 +324,41 @@ export function InboxUnmatched(props: UnmatchedProps): ReactElement {
 
 const s = StyleSheet.create({
   main: { flex: 1, minWidth: 0, backgroundColor: "var(--win)" as string },
-  head: { height: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  head: {
+    height: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   h1: { margin: 0, fontSize: 14, fontWeight: "600", letterSpacing: -0.07, color: "var(--ink)" as string },
   grow: { flex: 1 },
-  showing: { flexDirection: "row", alignItems: "center", gap: 8, height: 30, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
+  showing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 30,
+    paddingHorizontal: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+    backgroundColor: "var(--side)" as string,
+  },
   showingText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   showingBold: { fontWeight: "600", color: "var(--ink-2)" as string },
   sep: { fontSize: 12.5, color: "var(--ink-4)" as string },
   link: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },
   meta: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  noteLine: { flexDirection: "row", alignItems: "center", gap: 10, height: 30, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  noteLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    height: 30,
+    paddingHorizontal: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   noteText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   undo: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },
   offline: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingHorizontal: 18, paddingVertical: 6 },

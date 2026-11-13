@@ -54,7 +54,9 @@ export function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
     const at = { i: 0 };
     const pred = compile(sel[2], args, at);
     if (at.i !== args.length) throw new Error(`unused sql values: ${text}`);
-    return bag(name).filter(pred).map((row) => ({ ...row }));
+    return bag(name)
+      .filter(pred)
+      .map((row) => ({ ...row }));
   };
   const run = (sql: string, ...args: unknown[]): { changes: number } => {
     const text = sql.replace(/\s+/g, " ").trim();
@@ -64,10 +66,12 @@ export function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
       const name = insert[1];
       const colSql = insert[2];
       const valSql = insert[3];
-      if (name === undefined || colSql === undefined || valSql === undefined) throw new Error(`unsupported sql: ${text}`);
+      if (name === undefined || colSql === undefined || valSql === undefined)
+        throw new Error(`unsupported sql: ${text}`);
       const cols = colSql.split(",").map((col) => col.trim());
       const marks = valSql.split(",").map((mark) => mark.trim());
-      if (marks.some((mark) => mark !== "?") || marks.length !== cols.length) throw new Error(`unsupported sql: ${text}`);
+      if (marks.some((mark) => mark !== "?") || marks.length !== cols.length)
+        throw new Error(`unsupported sql: ${text}`);
       const row: Row = {};
       for (const col of cols) row[col] = take(args, at);
       if (at.i !== args.length) throw new Error(`unused sql values: ${text}`);
@@ -79,7 +83,8 @@ export function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
       const name = update[1];
       const setSql = update[2];
       const where = update[3];
-      if (name === undefined || setSql === undefined || where === undefined) throw new Error(`unsupported sql: ${text}`);
+      if (name === undefined || setSql === undefined || where === undefined)
+        throw new Error(`unsupported sql: ${text}`);
       const assigns: { col: string; val: unknown }[] = [];
       for (const part of setSql.split(", ")) {
         const m = /^(\w+) = \?$/.exec(part);
@@ -124,7 +129,8 @@ function spaceSeal(key: Uint8Array): Ctx["seal"] {
       const parsed: unknown = JSON.parse(sealed.bytes);
       if (parsed === null || typeof parsed !== "object") throw new Error("bad box");
       const box = parsed as { ct?: unknown; tag?: unknown; aad?: unknown };
-      if (typeof box.ct !== "string" || typeof box.tag !== "string" || typeof box.aad !== "string") throw new Error("bad box");
+      if (typeof box.ct !== "string" || typeof box.tag !== "string" || typeof box.aad !== "string")
+        throw new Error("bad box");
       return aesUnwrap(key, { iv: sealed.nonce, ct: box.ct, tag: box.tag }, box.aad);
     },
   };
@@ -133,7 +139,12 @@ function spaceSeal(key: Uint8Array): Ctx["seal"] {
 export type Called = { cap: string; input: unknown };
 
 /** A Ctx over the in-memory db. `script` answers ctx.call; a capability it does not answer throws, so a test names every call the handler may make. */
-export function open(script: (cap: string, input: unknown, who: string) => unknown = () => { throw new Error("call is not used"); }, who = "per_maya"): { ctx: Ctx; events: { name: string; payload: unknown }[]; db: ReturnType<typeof memoryDb>; calls: Called[] } {
+export function open(
+  script: (cap: string, input: unknown, who: string) => unknown = () => {
+    throw new Error("call is not used");
+  },
+  who = "per_maya",
+): { ctx: Ctx; events: { name: string; payload: unknown }[]; db: ReturnType<typeof memoryDb>; calls: Called[] } {
   const calls: Called[] = [];
   const db = memoryDb();
   const events: { name: string; payload: unknown }[] = [];
@@ -182,4 +193,3 @@ export function open(script: (cap: string, input: unknown, who: string) => unkno
   };
   return { ctx, events, db, calls };
 }
-

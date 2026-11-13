@@ -9,20 +9,41 @@ test("the command goes to the newest live session of that host, or a new session
   const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push({ cap, input: input as Record<string, unknown> });
-    if (cap === "terminal.list") return { terminals: [{ terminalId: "old", host: "device", state: "idle", lastActiveAt: 1 }, { terminalId: "new", host: "device", state: "idle", lastActiveAt: 9 }, { terminalId: "gone", host: "device", state: "exited", lastActiveAt: 99 }] };
+    if (cap === "terminal.list")
+      return {
+        terminals: [
+          { terminalId: "old", host: "device", state: "idle", lastActiveAt: 1 },
+          { terminalId: "new", host: "device", state: "idle", lastActiveAt: 9 },
+          { terminalId: "gone", host: "device", state: "exited", lastActiveAt: 99 },
+        ],
+      };
     return { terminal: { terminalId: "trm_new" } };
   };
   assert.equal(await sessionFor({ call, newKey: () => "k" }, {}), "new");
   assert.equal(await sessionFor({ call, newKey: () => "k" }, { host: "agent_computer", agentId: "agt_a" }), "trm_new");
-  assert.deepEqual(calls.find((c) => c.cap === "terminal.open")?.input, { host: "agent_computer", agentId: "agt_a", idempotencyKey: "k" });
+  assert.deepEqual(calls.find((c) => c.cap === "terminal.open")?.input, {
+    host: "agent_computer",
+    agentId: "agt_a",
+    idempotencyKey: "k",
+  });
 });
 
 test("typing sends the command without Enter after reading where the screen was", async () => {
   const calls: Array<{ cap: string; input: unknown }> = [];
-  const call = async (cap: string, input: unknown): Promise<unknown> => { calls.push({ cap, input }); return { next: 42 }; };
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    calls.push({ cap, input });
+    return { next: 42 };
+  };
   assert.deepEqual(await typeCommand({ call, newKey: () => "k" }, "trm_1", "sudo apt install ffmpeg"), { cursor: 42 });
-  assert.deepEqual(calls.map((c) => c.cap), ["terminal.read", "terminal.input"]);
-  assert.deepEqual(calls[1]!.input, { terminalId: "trm_1", data: "sudo apt install ffmpeg" }, "no newline: the person presses Enter");
+  assert.deepEqual(
+    calls.map((c) => c.cap),
+    ["terminal.read", "terminal.input"],
+  );
+  assert.deepEqual(
+    calls[1]!.input,
+    { terminalId: "trm_1", data: "sudo apt install ffmpeg" },
+    "no newline: the person presses Enter",
+  );
 });
 
 test("waiting: idle before Enter keeps waiting, running then idle is done, and what printed since the cursor comes back", async () => {
@@ -40,9 +61,26 @@ test("waiting: idle before Enter keeps waiting, running then idle is done, and w
 });
 
 test("a closed terminal ends the wait, and a person who never presses Enter times out", async () => {
-  const closed = await waitForRun({ call: async (cap) => (cap === "terminal.status" ? { rows: [{ state: "exited" }] } : { text: "x" }), newKey: () => "k", sleep: tick }, "t", 0);
+  const closed = await waitForRun(
+    {
+      call: async (cap) => (cap === "terminal.status" ? { rows: [{ state: "exited" }] } : { text: "x" }),
+      newKey: () => "k",
+      sleep: tick,
+    },
+    "t",
+    0,
+  );
   assert.equal(closed.state, "exited");
-  const never = await waitForRun({ call: async (cap) => (cap === "terminal.status" ? { rows: [{ state: "idle" }] } : { text: "" }), newKey: () => "k", sleep: tick }, "t", 0, { everyMs: 1000, timeoutMs: 3000 });
+  const never = await waitForRun(
+    {
+      call: async (cap) => (cap === "terminal.status" ? { rows: [{ state: "idle" }] } : { text: "" }),
+      newKey: () => "k",
+      sleep: tick,
+    },
+    "t",
+    0,
+    { everyMs: 1000, timeoutMs: 3000 },
+  );
   assert.equal(never.state, "timeout");
 });
 

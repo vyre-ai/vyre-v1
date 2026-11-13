@@ -12,7 +12,18 @@ import { Glyph } from "./icons.tsx";
 import type { DefTrigger } from "./model.ts";
 import { TextButton, pointer } from "./parts.tsx";
 import {
-  DAY_SHORT, EVERY_CHOICES, configFromDraft, cronFromDraft, deviceTimeZone, draftProblem, nextRuns, runWords, scheduleOf, scheduleWords, timeParts, validTimeZone,
+  DAY_SHORT,
+  EVERY_CHOICES,
+  configFromDraft,
+  cronFromDraft,
+  deviceTimeZone,
+  draftProblem,
+  nextRuns,
+  runWords,
+  scheduleOf,
+  scheduleWords,
+  timeParts,
+  validTimeZone,
 } from "./schedule.ts";
 import type { Every, ScheduleDraft } from "./schedule.ts";
 import { useRefPicks } from "./steps/useLists.ts";
@@ -21,8 +32,22 @@ import { useSpaceZone } from "../../../../../../ui/src/Time/index.tsx";
 
 /** The common zones, for the Change link. The person's own zone and this device's always head the list. */
 const ZONES: readonly string[] = [
-  "UTC", "America/Los_Angeles", "America/Denver", "America/Chicago", "America/New_York", "America/Sao_Paulo", "Europe/London", "Europe/Berlin", "Africa/Cairo",
-  "Asia/Dubai", "Asia/Karachi", "Asia/Kolkata", "Asia/Kuala_Lumpur", "Asia/Singapore", "Asia/Tokyo", "Australia/Sydney",
+  "UTC",
+  "America/Los_Angeles",
+  "America/Denver",
+  "America/Chicago",
+  "America/New_York",
+  "America/Sao_Paulo",
+  "Europe/London",
+  "Europe/Berlin",
+  "Africa/Cairo",
+  "Asia/Dubai",
+  "Asia/Karachi",
+  "Asia/Kolkata",
+  "Asia/Kuala_Lumpur",
+  "Asia/Singapore",
+  "Asia/Tokyo",
+  "Australia/Sydney",
 ];
 
 /** The zone a new schedule starts in. A Space automation is shared, so it starts in the Space's time zone (a schedule that already has a zone keeps it). Without one (a Space that has none yet), the person's zone from
@@ -34,22 +59,43 @@ export function usePersonZone(): string {
   useEffect(() => {
     if (!data || spaceZone) return undefined;
     let live = true;
-    data.call("settings.get", { key: "profile.timezone" }).then((out) => {
-      const row = out && typeof out === "object" ? (out as { row?: { value?: unknown } }).row : undefined;
-      if (live && typeof row?.value === "string" && validTimeZone(row.value)) setZone(row.value);
-    }, () => undefined);
-    return () => { live = false; };
+    data.call("settings.get", { key: "profile.timezone" }).then(
+      (out) => {
+        const row = out && typeof out === "object" ? (out as { row?: { value?: unknown } }).row : undefined;
+        if (live && typeof row?.value === "string" && validTimeZone(row.value)) setZone(row.value);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
   }, [data, spaceZone]);
   return spaceZone && validTimeZone(spaceZone) ? spaceZone : zone;
 }
 
 const EVERY_LABEL: Record<Every, string> = {
-  minutes: "Every few minutes", hours: "Every few hours", day: "Every day", weekdays: "Every weekday", week: "Every week", month: "Every month", cron: "Custom (cron)",
+  minutes: "Every few minutes",
+  hours: "Every few hours",
+  day: "Every day",
+  weekdays: "Every weekday",
+  week: "Every week",
+  month: "Every month",
+  cron: "Custom (cron)",
 };
 const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0] as const;
 
-export function SchedulePicker({ trigger, onChange, openMenu, zone: personZone, now }: {
-  trigger: DefTrigger; onChange(next: DefTrigger): void; openMenu: OpenMenu; zone: string; now?: number;
+export function SchedulePicker({
+  trigger,
+  onChange,
+  openMenu,
+  zone: personZone,
+  now,
+}: {
+  trigger: DefTrigger;
+  onChange(next: DefTrigger): void;
+  openMenu: OpenMenu;
+  zone: string;
+  now?: number;
 }): ReactElement {
   const cfg = trigger.config;
   const read = scheduleOf(cfg, personZone);
@@ -76,28 +122,78 @@ export function SchedulePicker({ trigger, onChange, openMenu, zone: personZone, 
   const runs = cron ? nextRuns(cron, tz, at, 3) : [];
   const zones = useMemo(() => {
     const out: string[] = [];
-    for (const z of [personZone, deviceTimeZone(), tz, ...ZONES]) if (z && validTimeZone(z) && !out.includes(z)) out.push(z);
+    for (const z of [personZone, deviceTimeZone(), tz, ...ZONES])
+      if (z && validTimeZone(z) && !out.includes(z)) out.push(z);
     return out;
   }, [personZone, tz]);
   const minute = timeParts(draft.time)?.m ?? 0;
   return (
     <View style={s.wrap} testID="schedule-picker">
       <Choice
-        label="Repeat" value={EVERY_LABEL[draft.every]} testID="schedule-every"
-        onOpen={(x, y) => openMenu(EVERY_CHOICES.map((c): MenuEntry => ({
-          label: EVERY_LABEL[c.key], checked: draft.every === c.key,
-          onSelect: () => { setAdvanced(false); save({ ...draft, every: c.key, ...(c.key === "minutes" && (draft.n < 1 || draft.n > 59) ? { n: 15 } : {}), ...(c.key === "hours" && (draft.n < 1 || draft.n > 23) ? { n: 1 } : {}) }); },
-        })), x, y, "other")}
+        label="Repeat"
+        value={EVERY_LABEL[draft.every]}
+        testID="schedule-every"
+        onOpen={(x, y) =>
+          openMenu(
+            EVERY_CHOICES.map(
+              (c): MenuEntry => ({
+                label: EVERY_LABEL[c.key],
+                checked: draft.every === c.key,
+                onSelect: () => {
+                  setAdvanced(false);
+                  save({
+                    ...draft,
+                    every: c.key,
+                    ...(c.key === "minutes" && (draft.n < 1 || draft.n > 59) ? { n: 15 } : {}),
+                    ...(c.key === "hours" && (draft.n < 1 || draft.n > 23) ? { n: 1 } : {}),
+                  });
+                },
+              }),
+            ),
+            x,
+            y,
+            "other",
+          )
+        }
       />
-      {draft.every === "minutes" ? <Field label="Every how many minutes" value={String(draft.n)} testID="schedule-n" onCommit={(t) => patch({ n: Number(t.trim()) })} /> : null}
+      {draft.every === "minutes" ? (
+        <Field
+          label="Every how many minutes"
+          value={String(draft.n)}
+          testID="schedule-n"
+          onCommit={(t) => patch({ n: Number(t.trim()) })}
+        />
+      ) : null}
       {draft.every === "hours" ? (
         <>
-          <Field label="Every how many hours" value={String(draft.n)} testID="schedule-n" onCommit={(t) => patch({ n: Number(t.trim()) })} />
-          <Field label="At minute" value={String(minute)} testID="schedule-minute" onCommit={(t) => { const m = Number(t.trim()); patch({ time: Number.isInteger(m) && m >= 0 && m <= 59 ? `00:${String(m).padStart(2, "0")}` : "xx" }); }} />
+          <Field
+            label="Every how many hours"
+            value={String(draft.n)}
+            testID="schedule-n"
+            onCommit={(t) => patch({ n: Number(t.trim()) })}
+          />
+          <Field
+            label="At minute"
+            value={String(minute)}
+            testID="schedule-minute"
+            onCommit={(t) => {
+              const m = Number(t.trim());
+              patch({ time: Number.isInteger(m) && m >= 0 && m <= 59 ? `00:${String(m).padStart(2, "0")}` : "xx" });
+            }}
+          />
         </>
       ) : null}
       {draft.every === "day" || draft.every === "weekdays" || draft.every === "week" || draft.every === "month" ? (
-        <Field label="At (24-hour time)" value={draft.time} placeholder="09:00" testID="schedule-time" onCommit={(t) => { const p = timeParts(t); patch({ time: p ? `${String(p.h).padStart(2, "0")}:${String(p.m).padStart(2, "0")}` : t.trim() }); }} />
+        <Field
+          label="At (24-hour time)"
+          value={draft.time}
+          placeholder="09:00"
+          testID="schedule-time"
+          onCommit={(t) => {
+            const p = timeParts(t);
+            patch({ time: p ? `${String(p.h).padStart(2, "0")}:${String(p.m).padStart(2, "0")}` : t.trim() });
+          }}
+        />
       ) : null}
       {draft.every === "week" ? (
         <View style={s.field}>
@@ -108,7 +204,12 @@ export function SchedulePicker({ trigger, onChange, openMenu, zone: personZone, 
               const on = draft.days.includes(d);
               return (
                 <Pressable
-                  key={d} accessibilityRole="checkbox" accessibilityState={{ checked: on }} aria-checked={on} accessibilityLabel={DAY_SHORT[d]} testID={`schedule-day-${d}`}
+                  key={d}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: on }}
+                  aria-checked={on}
+                  accessibilityLabel={DAY_SHORT[d]}
+                  testID={`schedule-day-${d}`}
                   onPress={() => patch({ days: on ? draft.days.filter((x) => x !== d) : [...draft.days, d] })}
                   style={[s.chip, on && s.chipOn, pointer]}
                 >
@@ -119,50 +220,126 @@ export function SchedulePicker({ trigger, onChange, openMenu, zone: personZone, 
           </View>
         </View>
       ) : null}
-      {draft.every === "month" ? <Field label="On day of the month" value={String(draft.day)} testID="schedule-day-of-month" onCommit={(t) => patch({ day: Number(t.trim()) })} /> : null}
+      {draft.every === "month" ? (
+        <Field
+          label="On day of the month"
+          value={String(draft.day)}
+          testID="schedule-day-of-month"
+          onCommit={(t) => patch({ day: Number(t.trim()) })}
+        />
+      ) : null}
       <View style={s.field}>
         <Text style={s.label}>Time zone</Text>
         <View style={s.zoneRow}>
-          <Text testID="schedule-zone" style={s.zone}>{tz}</Text>
+          <Text testID="schedule-zone" style={s.zone}>
+            {tz}
+          </Text>
           <Pressable
-            accessibilityRole="button" accessibilityLabel={`Change the time zone, now ${tz}`} testID="schedule-zone-change" style={pointer}
+            accessibilityRole="button"
+            accessibilityLabel={`Change the time zone, now ${tz}`}
+            testID="schedule-zone-change"
+            style={pointer}
             onPress={(e) => {
-              const ev = e as unknown as { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } };
+              const ev = e as unknown as {
+                nativeEvent?: { pageX?: number; pageY?: number };
+                currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
+              };
               const r = ev.currentTarget?.getBoundingClientRect?.();
-              openMenu(zones.map((z): MenuEntry => ({ label: z === personZone ? `${z} (yours)` : z, checked: z === tz, onSelect: () => save(draft, z) })), r?.left ?? ev.nativeEvent?.pageX ?? 0, (r?.bottom ?? ev.nativeEvent?.pageY ?? 0) + 4, "other");
+              openMenu(
+                zones.map(
+                  (z): MenuEntry => ({
+                    label: z === personZone ? `${z} (yours)` : z,
+                    checked: z === tz,
+                    onSelect: () => save(draft, z),
+                  }),
+                ),
+                r?.left ?? ev.nativeEvent?.pageX ?? 0,
+                (r?.bottom ?? ev.nativeEvent?.pageY ?? 0) + 4,
+                "other",
+              );
             }}
           >
             <Text style={s.link}>Change</Text>
           </Pressable>
         </View>
       </View>
-      {problem ? <Hint danger testID="schedule-problem">{problem}</Hint> : null}
+      {problem ? (
+        <Hint danger testID="schedule-problem">
+          {problem}
+        </Hint>
+      ) : null}
       {words ? (
         <View style={s.preview} testID="schedule-preview-box">
-          <Text testID="schedule-preview" style={s.previewText}>{words}</Text>
+          <Text testID="schedule-preview" style={s.previewText}>
+            {words}
+          </Text>
           <Text style={s.label}>Next 3 runs</Text>
           {/* ui-rows-lint: not a list (three next run times, one line each) */}
-          {runs.length === 0 ? <Text testID="schedule-no-runs" style={s.hint}>This schedule never runs.</Text> : runs.map((r, n) => <Text key={r} testID={`schedule-next-${n}`} style={s.hint}>{runWords(r, tz)}</Text>)}
+          {runs.length === 0 ? (
+            <Text testID="schedule-no-runs" style={s.hint}>
+              This schedule never runs.
+            </Text>
+          ) : (
+            runs.map((r, n) => (
+              <Text key={r} testID={`schedule-next-${n}`} style={s.hint}>
+                {runWords(r, tz)}
+              </Text>
+            ))
+          )}
         </View>
       ) : null}
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: advanced }} accessibilityLabel={advanced ? "Hide advanced" : "Advanced"} testID="schedule-advanced" onPress={() => setAdvanced(!advanced)} style={[s.adv, pointer]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: advanced }}
+        accessibilityLabel={advanced ? "Hide advanced" : "Advanced"}
+        testID="schedule-advanced"
+        onPress={() => setAdvanced(!advanced)}
+        style={[s.adv, pointer]}
+      >
         <Glyph name={advanced ? "chevD" : "chevR"} size={12} color="var(--ink-3)" />
         <Text style={s.advText}>Advanced</Text>
       </Pressable>
       {advanced ? (
         <>
           <Field
-            label="Custom (cron)" value={draft.every === "cron" ? draft.cron : (cron ?? "")} mono placeholder="0 9 * * 1" testID="schedule-cron"
+            label="Custom (cron)"
+            value={draft.every === "cron" ? draft.cron : (cron ?? "")}
+            mono
+            placeholder="0 9 * * 1"
+            testID="schedule-cron"
             onCommit={(t) => save({ ...draft, every: "cron", cron: t })}
           />
           <Hint>Five fields: minute, hour, day of the month, month, day of the week.</Hint>
           <Choice
-            label="If a run was missed" value={read.missed === "run_once" ? "Run once" : read.missed === "backfill_each_tick" ? "Run each missed time" : "Skip it"} testID="schedule-missed"
-            onOpen={(x, y) => openMenu([
-              { label: "Skip it", checked: read.missed === "skip", onSelect: () => save(draft, tz, "skip") },
-              { label: "Run once", checked: read.missed === "run_once", onSelect: () => save(draft, tz, "run_once") },
-              { label: "Run each missed time", checked: read.missed === "backfill_each_tick", onSelect: () => save(draft, tz, "backfill_each_tick") },
-            ], x, y, "other")}
+            label="If a run was missed"
+            value={
+              read.missed === "run_once"
+                ? "Run once"
+                : read.missed === "backfill_each_tick"
+                  ? "Run each missed time"
+                  : "Skip it"
+            }
+            testID="schedule-missed"
+            onOpen={(x, y) =>
+              openMenu(
+                [
+                  { label: "Skip it", checked: read.missed === "skip", onSelect: () => save(draft, tz, "skip") },
+                  {
+                    label: "Run once",
+                    checked: read.missed === "run_once",
+                    onSelect: () => save(draft, tz, "run_once"),
+                  },
+                  {
+                    label: "Run each missed time",
+                    checked: read.missed === "backfill_each_tick",
+                    onSelect: () => save(draft, tz, "backfill_each_tick"),
+                  },
+                ],
+                x,
+                y,
+                "other",
+              )
+            }
           />
         </>
       ) : null}
@@ -175,21 +352,48 @@ function useNow(): number {
   return useMemo(() => data?.clock().now ?? Date.now(), [data]);
 }
 
-function PickInner({ field, value, onText, openMenu }: { field: TriggerField; value: unknown; onText(text: string): void; openMenu: OpenMenu }): ReactElement {
+function PickInner({
+  field,
+  value,
+  onText,
+  openMenu,
+}: {
+  field: TriggerField;
+  value: unknown;
+  onText(text: string): void;
+  openMenu: OpenMenu;
+}): ReactElement {
   const picks = useRefPicks(field.from ?? "types");
   const text = typeof value === "string" ? value : "";
   const label = field.required ? `${field.label} (required)` : field.label;
   if (picks.state !== "ready" || picks.items.length === 0) {
-    return <Field label={label} value={text} placeholder={field.placeholder ?? ""} testID={`trigger-${field.name}`} onCommit={onText} />;
+    return (
+      <Field
+        label={label}
+        value={text}
+        placeholder={field.placeholder ?? ""}
+        testID={`trigger-${field.name}`}
+        onCommit={onText}
+      />
+    );
   }
   const shown = text === "" ? "Any" : (picks.items.find((i) => i.value === text)?.label ?? text);
   return (
     <Choice
-      label={label} value={shown} testID={`trigger-${field.name}`}
-      onOpen={(x, y) => openMenu([
-        ...(field.required ? [] : [{ label: "Any", checked: text === "", onSelect: () => onText("") }]),
-        ...picks.items.map((i) => ({ label: i.label, checked: i.value === text, onSelect: () => onText(i.value) })),
-      ], x, y, "other")}
+      label={label}
+      value={shown}
+      testID={`trigger-${field.name}`}
+      onOpen={(x, y) =>
+        openMenu(
+          [
+            ...(field.required ? [] : [{ label: "Any", checked: text === "", onSelect: () => onText("") }]),
+            ...picks.items.map((i) => ({ label: i.label, checked: i.value === text, onSelect: () => onText(i.value) })),
+          ],
+          x,
+          y,
+          "other",
+        )
+      }
     />
   );
 }
@@ -202,8 +406,16 @@ function WebhookAddress({ automationId }: { automationId: string }): ReactElemen
   useEffect(() => {
     if (!data) return undefined;
     let live = true;
-    data.call("automations.webhook_url.get", { automationId }).then((o) => { const u = (o as { url?: unknown } | null)?.url; if (live) setUrl(typeof u === "string" && u !== "" ? u : null); }, () => undefined);
-    return () => { live = false; };
+    data.call("automations.webhook_url.get", { automationId }).then(
+      (o) => {
+        const u = (o as { url?: unknown } | null)?.url;
+        if (live) setUrl(typeof u === "string" && u !== "" ? u : null);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
   }, [data, automationId]);
   if (!url) return null;
   // without a public address the server can only name a path, which no app outside can call: say so, and give the way forward to whoever can act
@@ -211,29 +423,62 @@ function WebhookAddress({ automationId }: { automationId: string }): ReactElemen
     const open = data?.nav.openAddress;
     return (
       <View style={s.hook} testID="trigger-webhook">
-        <Text style={s.hookNote}>{open ? "No app outside can reach this yet. The Space needs a public address of its own." : "No app outside can reach this yet. Ask an admin to give this Space a public address."}</Text>
-        {open ? <View style={s.hookCopy}><TextButton label="Set the address" onPress={open} testID="trigger-webhook-set-address" /></View> : null}
+        <Text style={s.hookNote}>
+          {open
+            ? "No app outside can reach this yet. The Space needs a public address of its own."
+            : "No app outside can reach this yet. Ask an admin to give this Space a public address."}
+        </Text>
+        {open ? (
+          <View style={s.hookCopy}>
+            <TextButton label="Set the address" onPress={open} testID="trigger-webhook-set-address" />
+          </View>
+        ) : null}
       </View>
     );
   }
   const copy = (): void => {
-    const clip = (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator?.clipboard;
-    void clip?.writeText?.(url)?.then(() => setCopied(true), () => undefined);
+    const clip = (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator
+      ?.clipboard;
+    void clip?.writeText?.(url)?.then(
+      () => setCopied(true),
+      () => undefined,
+    );
   };
   return (
     <View style={s.hook} testID="trigger-webhook">
-      <Text selectable style={s.hookUrl} testID="trigger-webhook-url">{url}</Text>
-      <View style={s.hookCopy}><TextButton label={copied ? "Copied" : "Copy"} onPress={copy} testID="trigger-webhook-copy" /></View>
+      <Text selectable style={s.hookUrl} testID="trigger-webhook-url">
+        {url}
+      </Text>
+      <View style={s.hookCopy}>
+        <TextButton label={copied ? "Copied" : "Copy"} onPress={copy} testID="trigger-webhook-copy" />
+      </View>
     </View>
   );
 }
 
-export function TriggerForm({ trigger, onChange, openMenu, zone, now, automationId }: { trigger: DefTrigger; onChange(next: DefTrigger): void; openMenu: OpenMenu; zone: string; now?: number; automationId?: string }): ReactElement {
+export function TriggerForm({
+  trigger,
+  onChange,
+  openMenu,
+  zone,
+  now,
+  automationId,
+}: {
+  trigger: DefTrigger;
+  onChange(next: DefTrigger): void;
+  openMenu: OpenMenu;
+  zone: string;
+  now?: number;
+  automationId?: string;
+}): ReactElement {
   const [problem, setProblem] = useState<{ name: string; message: string } | null>(null);
   const note = specOf(trigger.key).note;
   const write = (field: TriggerField, text: string): void => {
     const out = writeTriggerField(trigger, field, text);
-    if ("problem" in out) { setProblem({ name: field.name, message: out.problem }); return; }
+    if ("problem" in out) {
+      setProblem({ name: field.name, message: out.problem });
+      return;
+    }
     setProblem(null);
     onChange(out as DefTrigger);
   };
@@ -243,24 +488,60 @@ export function TriggerForm({ trigger, onChange, openMenu, zone, now, automation
     const v = triggerValue(trigger, field);
     const id = `trigger-${field.name}`;
     const label = field.required ? `${field.label} (required)` : field.label;
-    const help = problem?.name === field.name ? <Hint danger testID={`${id}-problem`}>{problem.message}</Hint> : field.help ? <Hint>{field.help}</Hint> : null;
+    const help =
+      problem?.name === field.name ? (
+        <Hint danger testID={`${id}-problem`}>
+          {problem.message}
+        </Hint>
+      ) : field.help ? (
+        <Hint>{field.help}</Hint>
+      ) : null;
     if (field.kind === "choice") {
       const current = typeof v === "string" ? v : "";
       return (
         <View key={field.name} style={s.group}>
-          <Choice label={label} value={current || "Any"} testID={id} onOpen={(x, y) => openMenu([
-            ...(field.required ? [] : [{ label: "Any", checked: current === "", onSelect: () => write(field, "") }]),
-            ...(field.options ?? []).map((o) => ({ label: o, checked: current === o, onSelect: () => write(field, o) })),
-          ], x, y, "other")} />
+          <Choice
+            label={label}
+            value={current || "Any"}
+            testID={id}
+            onOpen={(x, y) =>
+              openMenu(
+                [
+                  ...(field.required
+                    ? []
+                    : [{ label: "Any", checked: current === "", onSelect: () => write(field, "") }]),
+                  ...(field.options ?? []).map((o) => ({
+                    label: o,
+                    checked: current === o,
+                    onSelect: () => write(field, o),
+                  })),
+                ],
+                x,
+                y,
+                "other",
+              )
+            }
+          />
           {help}
         </View>
       );
     }
-    if (field.kind === "pick") return <View key={field.name} style={s.group}><PickInner field={field} value={v} onText={(t) => write(field, t)} openMenu={openMenu} />{help}</View>;
+    if (field.kind === "pick")
+      return (
+        <View key={field.name} style={s.group}>
+          <PickInner field={field} value={v} onText={(t) => write(field, t)} openMenu={openMenu} />
+          {help}
+        </View>
+      );
     return (
       <View key={field.name} style={s.group}>
         <Field
-          label={label} value={triggerText(field, v)} testID={id} placeholder={field.placeholder ?? ""} mono={field.kind === "json"} invalid={problem?.name === field.name}
+          label={label}
+          value={triggerText(field, v)}
+          testID={id}
+          placeholder={field.placeholder ?? ""}
+          mono={field.kind === "json"}
+          invalid={problem?.name === field.name}
           {...(field.kind === "list" ? { rows: 3 } : field.kind === "json" ? { rows: 4 } : {})}
           onCommit={(t) => write(field, t)}
         />
@@ -271,7 +552,15 @@ export function TriggerForm({ trigger, onChange, openMenu, zone, now, automation
   return (
     <View style={s.wrap} testID="trigger-form">
       {name ? render(name) : null}
-      {trigger.key === "schedule" ? <SchedulePicker trigger={trigger} onChange={onChange} openMenu={openMenu} zone={zone} {...(now !== undefined ? { now } : {})} /> : null}
+      {trigger.key === "schedule" ? (
+        <SchedulePicker
+          trigger={trigger}
+          onChange={onChange}
+          openMenu={openMenu}
+          zone={zone}
+          {...(now !== undefined ? { now } : {})}
+        />
+      ) : null}
       {rest.map(render)}
       {trigger.key === "webhook" && automationId ? <WebhookAddress automationId={automationId} /> : null}
       {note ? <Hint testID="trigger-note">{note}</Hint> : null}
@@ -281,16 +570,42 @@ export function TriggerForm({ trigger, onChange, openMenu, zone, now, automation
 
 const s = StyleSheet.create({
   wrap: { gap: 12 },
-  hook: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--field)" as string, borderWidth: 1, borderColor: "var(--field-line)" as string },
+  hook: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: "var(--field)" as string,
+    borderWidth: 1,
+    borderColor: "var(--field-line)" as string,
+  },
   hookCopy: { flexShrink: 0 },
   hookNote: { flex: 1, minWidth: 0, fontSize: 12.5, lineHeight: 18, color: "var(--ink-2)" as string },
-  hookUrl: { flex: 1, minWidth: 0, fontSize: 12, color: "var(--ink-2)" as string, ...({ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", wordBreak: "break-all" } as object) },
+  hookUrl: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 12,
+    color: "var(--ink-2)" as string,
+    ...({ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", wordBreak: "break-all" } as object),
+  },
   group: { gap: 4 },
   field: { gap: 4 },
   label: { fontSize: 11.5, color: "var(--ink-3)" as string },
   hint: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
-  chip: { minWidth: 34, height: 28, paddingHorizontal: 8, borderRadius: 7, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, alignItems: "center", justifyContent: "center" },
+  chip: {
+    minWidth: 34,
+    height: 28,
+    paddingHorizontal: 8,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: "var(--field-line)" as string,
+    backgroundColor: "var(--field)" as string,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   chipOn: { backgroundColor: "var(--accent-wash)" as string, borderColor: "var(--accent)" as string },
   chipText: { fontSize: 12, color: "var(--ink-2)" as string },
   chipTextOn: { color: "var(--ink)" as string, fontWeight: "600" },

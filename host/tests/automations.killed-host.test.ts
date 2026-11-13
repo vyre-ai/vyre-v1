@@ -20,7 +20,13 @@ const HOLDER = fileURLToPath(new URL("./daemon-hold.ts", import.meta.url));
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const OWNER = "tok-usr_olivia";
 const NOAH = "tok-usr_noah";
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 
 function seededDir(): string {
   const core = bootCore();
@@ -35,7 +41,9 @@ function boot(dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> 
   return startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "exec-live", free: 80e9,
+      os: "linux",
+      hostname: "exec-live",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -53,7 +61,11 @@ function boot(dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> 
   });
 }
 
-interface Reply { status: number; data: Record<string, unknown>; text: string }
+interface Reply {
+  status: number;
+  data: Record<string, unknown>;
+  text: string;
+}
 
 async function call(base: string, route: string, body: unknown): Promise<Reply> {
   const response = await fetch(`${base}${route}`, {
@@ -64,7 +76,11 @@ async function call(base: string, route: string, body: unknown): Promise<Reply> 
   });
   const text = await response.text();
   let data: Record<string, unknown> = {};
-  try { data = (JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {}; } catch { /* not JSON */ }
+  try {
+    data = (JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {};
+  } catch {
+    /* not JSON */
+  }
   return { status: response.status, data, text };
 }
 
@@ -85,7 +101,9 @@ async function until<T>(what: string, ms: number, look: () => Promise<T | undefi
 }
 
 async function noteCount(base: string, title: string): Promise<number> {
-  const rows = (await ok(base, "/v1/records/query", { type: "note_board" }))["rows"] as { fields?: { title?: string } }[];
+  const rows = (await ok(base, "/v1/records/query", { type: "note_board" }))["rows"] as {
+    fields?: { title?: string };
+  }[];
   return rows.filter((row) => row.fields?.title === title).length;
 }
 
@@ -97,16 +115,25 @@ async function runStatus(base: string, runId: string): Promise<string> {
 }
 
 async function waitingChild(base: string, parentId: string): Promise<string | undefined> {
-  const runs = (await ok(base, "/v1/runs/list", { scope: "mine", statuses: ["waiting"], limit: 50 }))["runs"] as { id?: string; parentRun?: string }[];
+  const runs = (await ok(base, "/v1/runs/list", { scope: "mine", statuses: ["waiting"], limit: 50 }))["runs"] as {
+    id?: string;
+    parentRun?: string;
+  }[];
   return runs.find((row) => row.parentRun === parentId && typeof row.id === "string")?.id;
 }
 
 function hold(dir: string): Promise<{ child: ChildProcess; url: string }> {
-  const child = spawn(process.execPath, ["--experimental-strip-types", HOLDER, "--data-dir", dir], { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(process.execPath, ["--experimental-strip-types", HOLDER, "--data-dir", dir], {
+    cwd: ROOT,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   return new Promise((resolve, reject) => {
     let buf = "";
     let err = "";
-    const timer = setTimeout(() => { child.kill("SIGKILL"); reject(new Error(`daemon did not listen\n${buf}\n${err}`)); }, 45_000);   // the same bound as the vyred smoke boot, and a late daemon must not hold the file open past its cap
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error(`daemon did not listen\n${buf}\n${err}`));
+    }, 45_000); // the same bound as the vyred smoke boot, and a late daemon must not hold the file open past its cap
     child.stdout?.on("data", (chunk: Buffer) => {
       buf += chunk.toString();
       const found = /listening (http\S+)/.exec(buf);
@@ -114,7 +141,9 @@ function hold(dir: string): Promise<{ child: ChildProcess; url: string }> {
       clearTimeout(timer);
       resolve({ child, url: found[1] });
     });
-    child.stderr?.on("data", (chunk: Buffer) => { err += chunk.toString(); });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      err += chunk.toString();
+    });
     child.on("exit", (code) => {
       clearTimeout(timer);
       reject(new Error(`daemon exited ${code ?? "null"}\n${err}`));
@@ -129,7 +158,11 @@ async function sigkill(child: ChildProcess): Promise<void> {
 }
 
 async function automation(base: string, name: string, nodes: unknown[]): Promise<string> {
-  const made = await ok(base, "/v1/automations/create", { idempotencyKey: `killed-${name}`, name, definition: { triggers: [{ key: "manual" }], nodes } });
+  const made = await ok(base, "/v1/automations/create", {
+    idempotencyKey: `killed-${name}`,
+    name,
+    definition: { triggers: [{ key: "manual" }], nodes },
+  });
   const id = String((made["automation"] as { id?: string } | undefined)?.id ?? made["automationId"]);
   assert.match(id, /^aut_/);
   return id;
@@ -146,15 +179,21 @@ describe("killed host", { concurrency: 1 }, () => {
         { id: "pause", key: "wait", input: { forDuration: "5s" } },
         { id: "note", key: "records.create", input: { type: "note_board", fields: { title } } },
       ]);
-      runId = String((await ok(first.url, "/v1/automations/run", { automationId: id, idempotencyKey: "killed-run" }))["runId"]);
-      await until("the run to wait", 10_000, async () => (await runStatus(first.url, runId)) === "waiting" ? true : undefined);
+      runId = String(
+        (await ok(first.url, "/v1/automations/run", { automationId: id, idempotencyKey: "killed-run" }))["runId"],
+      );
+      await until("the run to wait", 10_000, async () =>
+        (await runStatus(first.url, runId)) === "waiting" ? true : undefined,
+      );
       assert.equal(await noteCount(first.url, title), 0);
     } finally {
       await sigkill(first.child);
     }
     const recovered = await boot(dir);
     try {
-      await until("the recovered run to succeed", 20_000, async () => (await runStatus(recovered.url, runId)) === "succeeded" ? true : undefined);
+      await until("the recovered run to succeed", 20_000, async () =>
+        (await runStatus(recovered.url, runId)) === "succeeded" ? true : undefined,
+      );
       assert.equal(await noteCount(recovered.url, title), 1);
     } finally {
       await recovered.stop();
@@ -179,14 +218,17 @@ describe("killed host", { concurrency: 1 }, () => {
     try {
       const id = await automation(first.url, "loop-wait", [
         {
-          id: "each", key: "loop",
+          id: "each",
+          key: "loop",
           input: { items: [{ id: "only" }], concurrency: 1, maxIterations: 10 },
           branches: [{ label: "body", to: "pause" }],
         },
         { id: "pause", key: "wait", input: { forDuration: "5s" }, next: ["note"] },
         { id: "note", key: "records.create", input: { type: "note_board", fields: { title } } },
       ]);
-      runId = String((await ok(first.url, "/v1/automations/run", { automationId: id, idempotencyKey: "killed-loop" }))["runId"]);
+      runId = String(
+        (await ok(first.url, "/v1/automations/run", { automationId: id, idempotencyKey: "killed-loop" }))["runId"],
+      );
       childId = await until("a loop child to wait", 10_000, async () => waitingChild(first.url, runId));
       assert.equal(await runStatus(first.url, childId), "waiting");
       assert.equal(await noteCount(first.url, title), 0);

@@ -16,7 +16,8 @@ import type { Refusal, ToolCtx, ToolDef, ToolResult, ToolSet } from "./types.ts"
 import { withLocalTimes } from "../../../lib/time-convert.ts";
 
 /** What an agent is told when it asks for a computer: agents no longer get a desktop (6 Nov), they have a terminal and a browser already. There is nothing for a person to set up. */
-export const NO_COMPUTER_WORDS = "Agents no longer get a desktop computer. You already have a terminal in your own workspace (terminal_run, terminal_open) and a browser in the Space browser (chrome_open, chrome_snapshot, chrome_act). Use those. Use the person's own Chrome only if they ask for it.";
+export const NO_COMPUTER_WORDS =
+  "Agents no longer get a desktop computer. You already have a terminal in your own workspace (terminal_run, terminal_open) and a browser in the Space browser (chrome_open, chrome_snapshot, chrome_act). Use those. Use the person's own Chrome only if they ask for it.";
 
 /** The capabilities whose results are times a person schedules by. */
 const TIMED = /^(?:calendar|mail|inbox|tasks|meetings|events|goals)\./;
@@ -75,7 +76,8 @@ export interface ToolSession {
   preload(threadId: string, names: readonly string[]): void;
 }
 
-const hex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
+const hex = (n: number): string =>
+  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 
 export function createToolSession(deps: CallDeps): ToolSession {
   const loadedBy = deps.loadedStore ?? new Map<string, Set<string>>();
@@ -84,11 +86,18 @@ export function createToolSession(deps: CallDeps): ToolSession {
   const newTrace = deps.traceId ?? ((): string => hex(16));
   const loadedSet = (threadId: string): Set<string> => {
     let s = loadedBy.get(threadId);
-    if (!s) { s = new Set(); loadedBy.set(threadId, s); }
+    if (!s) {
+      s = new Set();
+      loadedBy.set(threadId, s);
+    }
     return s;
   };
 
-  const fail = (code: ErrorCode, traceId: string, o: { message?: string; details?: Record<string, unknown>; next?: NextStep[] } = {}): ToolOutcome => {
+  const fail = (
+    code: ErrorCode,
+    traceId: string,
+    o: { message?: string; details?: Record<string, unknown>; next?: NextStep[] } = {},
+  ): ToolOutcome => {
     const error = makeError(code, traceId, o);
     return { kind: "error", error, result: { ok: false, content: { error: modelError(error) } } };
   };
@@ -96,7 +105,13 @@ export function createToolSession(deps: CallDeps): ToolSession {
   const askAccessNext = (ctx: ToolCtx, t: ToolDef): NextStep[] => {
     const scope = ctx.thread.scope;
     if (!scope) return [];
-    return [{ kind: "ask_access", label: "Ask for access", action: { cap: "access.request" as CapName, input: { resource: scope, level: t.level } } }];
+    return [
+      {
+        kind: "ask_access",
+        label: "Ask for access",
+        action: { cap: "access.request" as CapName, input: { resource: scope, level: t.level } },
+      },
+    ];
   };
 
   const refused = (why: Refusal, ctx: ToolCtx, t: ToolDef, traceId: string): ToolOutcome => {
@@ -104,22 +119,47 @@ export function createToolSession(deps: CallDeps): ToolSession {
       case "plan_mode":
         return fail("permission.plan_mode", traceId, { details: { tool: t.name } });
       case "ask_level":
-        return fail("permission.role_lacks_permission", traceId, { message: "This pane only has view access to what you are looking at.", details: { tool: t.name, reason: "ask_level", needs: t.level }, next: askAccessNext(ctx, t) });
+        return fail("permission.role_lacks_permission", traceId, {
+          message: "This pane only has view access to what you are looking at.",
+          details: { tool: t.name, reason: "ask_level", needs: t.level },
+          next: askAccessNext(ctx, t),
+        });
       case "ask_scope":
-        return fail("permission.role_lacks_permission", traceId, { message: "This Ask changes only what it is about. Continue in a chat to change anything else.", details: { tool: t.name, reason: "ask_scope" } });
+        return fail("permission.role_lacks_permission", traceId, {
+          message: "This Ask changes only what it is about. Continue in a chat to change anything else.",
+          details: { tool: t.name, reason: "ask_scope" },
+        });
       case "no_access":
-        return fail("permission.no_grant", traceId, { details: { tool: t.name, reason: "no_access" }, next: askAccessNext(ctx, t) });
+        return fail("permission.no_grant", traceId, {
+          details: { tool: t.name, reason: "no_access" },
+          next: askAccessNext(ctx, t),
+        });
       case "agent_denied":
-        return fail("permission.role_lacks_permission", traceId, { message: "This agent is not allowed to use that tool.", details: { tool: t.name, reason: "agent_denied" } });
+        return fail("permission.role_lacks_permission", traceId, {
+          message: "This agent is not allowed to use that tool.",
+          details: { tool: t.name, reason: "agent_denied" },
+        });
       case "engineer":
-        return fail("permission.role_lacks_permission", traceId, { message: "The engineer tools need engineer access.", details: { tool: t.name, reason: "engineer" } });
+        return fail("permission.role_lacks_permission", traceId, {
+          message: "The engineer tools need engineer access.",
+          details: { tool: t.name, reason: "engineer" },
+        });
     }
   };
 
-  async function call(ctx: ToolCtx, name: string, input: unknown, opts: { approval?: string } = {}): Promise<ToolOutcome> {
+  async function call(
+    ctx: ToolCtx,
+    name: string,
+    input: unknown,
+    opts: { approval?: string } = {},
+  ): Promise<ToolOutcome> {
     const traceId = ctx.trace?.traceId ?? newTrace();
     const t = deps.catalog.byName(name) ?? (await deps.dynamic?.find(ctx, name));
-    if (!t) return fail("validation.unknown_capability", traceId, { message: "There is no such tool.", details: { tool: name } });
+    if (!t)
+      return fail("validation.unknown_capability", traceId, {
+        message: "There is no such tool.",
+        details: { tool: name },
+      });
 
     const level = askLevel(deps, ctx.asker, ctx.thread);
     const why = refusalFor(deps, ctx, t, level);
@@ -128,57 +168,118 @@ export function createToolSession(deps: CallDeps): ToolSession {
 
     // a tool is never called to see if it works, and never with placeholder content: refused before anything runs, so no card, hold, task or message reaches the chat
     const placeholder = probeIn(input, "", ctx.said ?? "", t.inputSchema);
-    if (placeholder !== null) return fail("validation.bad_input", traceId, { message: PROBE_MESSAGE, details: { tool: t.name, reason: "placeholder" } });
+    if (placeholder !== null)
+      return fail("validation.bad_input", traceId, {
+        message: PROBE_MESSAGE,
+        details: { tool: t.name, reason: "placeholder" },
+      });
 
     const isDynamic = !deps.catalog.byName(name);
-    if (!isDynamic && !deps.defaults.has(t.name) && !(ctx.thread.scope?.type === "task" && TASK_BATON_TOOLS.has(t.name)) && !loadedSet(ctx.thread.threadId).has(t.name)) {
-      return fail("validation.precondition_failed", traceId, { message: "Find this tool with tool_search first.", details: { tool: t.name, reason: "not_loaded" } });
+    if (
+      !isDynamic &&
+      !deps.defaults.has(t.name) &&
+      !(ctx.thread.scope?.type === "task" && TASK_BATON_TOOLS.has(t.name)) &&
+      !loadedSet(ctx.thread.threadId).has(t.name)
+    ) {
+      return fail("validation.precondition_failed", traceId, {
+        message: "Find this tool with tool_search first.",
+        details: { tool: t.name, reason: "not_loaded" },
+      });
     }
 
     if (t.name === "tool_search") {
       const query = (input as { query?: unknown } | null)?.query;
-      if (typeof query !== "string" || query.trim() === "") return fail("validation.bad_input", traceId, { details: { errors: ["/query: required"], tool: t.name } });
+      if (typeof query !== "string" || query.trim() === "")
+        return fail("validation.bad_input", traceId, { details: { errors: ["/query: required"], tool: t.name } });
       // The same search twice in one turn finds the same tools: the second time says so instead of searching again (a model went round this loop nineteen times).
       if (ctx.turnId) {
         const key = query.trim().toLowerCase().replace(/\s+/g, " ");
         let asked = searchedIn.get(ctx.turnId);
-        if (!asked) { asked = new Set(); searchedIn.set(ctx.turnId, asked); if (searchedIn.size > 200) searchedIn.delete(searchedIn.keys().next().value as string); }
+        if (!asked) {
+          asked = new Set();
+          searchedIn.set(ctx.turnId, asked);
+          if (searchedIn.size > 200) searchedIn.delete(searchedIn.keys().next().value as string);
+        }
         if (asked.has(key)) {
-          return { kind: "result", traceId, result: { ok: true, content: { data: { tools: [], hint: "You already searched for that in this turn. What it found can be called now; call one of those tools, or change the words. If nothing fits, answer with what you have and say what is missing." } } } };
+          return {
+            kind: "result",
+            traceId,
+            result: {
+              ok: true,
+              content: {
+                data: {
+                  tools: [],
+                  hint: "You already searched for that in this turn. What it found can be called now; call one of those tools, or change the words. If nothing fits, answer with what you have and say what is missing.",
+                },
+              },
+            },
+          };
         }
         asked.add(key);
       }
       const found = api.search(ctx, query);
       return {
-        kind: "result", traceId,
-        result: { ok: true, content: { data: { tools: found.map((f) => ({ name: f.name, summary: f.summary, toolset: f.toolset, inputSchema: f.inputSchema })) } } },
+        kind: "result",
+        traceId,
+        result: {
+          ok: true,
+          content: {
+            data: {
+              tools: found.map((f) => ({
+                name: f.name,
+                summary: f.summary,
+                toolset: f.toolset,
+                inputSchema: f.inputSchema,
+              })),
+            },
+          },
+        },
       };
     }
 
     let localAsk = false;
     if (t.local !== "none") {
-      const d = deps.localPolicy ? deps.localPolicy(t, ctx, input) : ({ action: "refuse", reason: "no local policy" } as LocalDecision);
-      if (d.action === "refuse") return fail("permission.role_lacks_permission", traceId, { message: "That is not allowed on this computer.", details: { tool: t.name, reason: d.reason } });
+      const d = deps.localPolicy
+        ? deps.localPolicy(t, ctx, input)
+        : ({ action: "refuse", reason: "no local policy" } as LocalDecision);
+      if (d.action === "refuse")
+        return fail("permission.role_lacks_permission", traceId, {
+          message: "That is not allowed on this computer.",
+          details: { tool: t.name, reason: d.reason },
+        });
       if (d.action === "prompt") {
         // With no way to ask on the spot (a turn that runs on a server) the question is the Gate's: the call is held for a yes the person answers in the chat, never refused and never run unasked.
         if (deps.prompt) {
           const yes = await deps.prompt(t, ctx, input);
-          if (!yes) return fail("permission.needs_approval", traceId, { message: "The person did not allow this.", details: { tool: t.name, reason: "local_prompt" } });
+          if (!yes)
+            return fail("permission.needs_approval", traceId, {
+              message: "The person did not allow this.",
+              details: { tool: t.name, reason: "local_prompt" },
+            });
         } else localAsk = true;
       }
     }
 
     let hookNotes: string[] = [];
     if (deps.hooks?.fire) {
-      const asked = async (event: "tool.before" | "outward.before"): Promise<HookVerdict | null> => deps.hooks!.fire!(ctx, { event, tool: t.name, cap: t.cap, input }).catch(() => null);
+      const asked = async (event: "tool.before" | "outward.before"): Promise<HookVerdict | null> =>
+        deps.hooks!.fire!(ctx, { event, tool: t.name, cap: t.cap, input }).catch(() => null);
       const v = await asked("tool.before");
       const o = v?.block ? null : t.effects === "outward" || t.gated ? await asked("outward.before") : null;
       const stop = v?.block ?? o?.block ?? null;
-      if (stop) return fail("permission.role_lacks_permission", traceId, { message: `A hook stopped this: ${stop.reason}`, details: { tool: t.name, reason: "hook", hookId: stop.hookId } });
+      if (stop)
+        return fail("permission.role_lacks_permission", traceId, {
+          message: `A hook stopped this: ${stop.reason}`,
+          details: { tool: t.name, reason: "hook", hookId: stop.hookId },
+        });
       hookNotes = [...(v?.notes ?? []), ...(o?.notes ?? [])];
     } else if (deps.hooks?.before) {
       const reason = await deps.hooks.before(ctx, t, input).catch(() => null);
-      if (reason !== null) return fail("permission.role_lacks_permission", traceId, { message: `A plugin hook stopped this: ${reason}`, details: { tool: t.name, reason: "hook" } });
+      if (reason !== null)
+        return fail("permission.role_lacks_permission", traceId, {
+          message: `A plugin hook stopped this: ${reason}`,
+          details: { tool: t.name, reason: "hook" },
+        });
     }
     const seed: CtxSeed = {
       space: ctx.space,
@@ -193,16 +294,29 @@ export function createToolSession(deps: CallDeps): ToolSession {
       ...(ctx.thread.mode !== undefined ? { chatMode: ctx.thread.mode } : {}),
       // Ask first: a tool that changes or sends something is parked for a yes before it runs. Tools plan mode allows (reads, questions, plan proposals) never wait. Auto adds nothing and removes nothing: the Gate decides, as before.
       // An Ask pane never sends anything out on its own, in any mode: what leaves Vyre from one always stops for a yes.
-      ...((ctx.thread.mode === "ask" && t.effects !== "read" && t.planMode === "blocked") || (localAsk && t.effects !== "read") || (ctx.thread.kind === "ask" && t.effects === "outward") ? { askFirst: true } : {}),
+      ...((ctx.thread.mode === "ask" && t.effects !== "read" && t.planMode === "blocked") ||
+      (localAsk && t.effects !== "read") ||
+      (ctx.thread.kind === "ask" && t.effects === "outward")
+        ? { askFirst: true }
+        : {}),
       ...(localAsk && t.effects !== "read" ? { mustAsk: true } : {}),
       ...(t.effects !== "read" && t.planMode === "blocked" ? { askable: true } : {}),
     };
     try {
-      const res = await deps.invoke(t.cap, isDynamic && deps.dynamic ? deps.dynamic.input(ctx, t, input) : limited(t.cap, unstringified(t.inputSchema, input)), seed);
+      const res = await deps.invoke(
+        t.cap,
+        isDynamic && deps.dynamic
+          ? deps.dynamic.input(ctx, t, input)
+          : limited(t.cap, unstringified(t.inputSchema, input)),
+        seed,
+      );
       if (res.status === "held") {
         recordWork(ctx.turnId, heldCard(t.cap, res.taskId, input));
         return {
-          kind: "held", taskId: res.taskId, traceId: res.traceId, ...(res.runId === undefined ? {} : { runId: res.runId }),
+          kind: "held",
+          taskId: res.taskId,
+          traceId: res.traceId,
+          ...(res.runId === undefined ? {} : { runId: res.runId }),
           result: { ok: false, content: { held: true, taskId: res.taskId, message: "Waiting for approval." } },
         };
       }
@@ -210,7 +324,14 @@ export function createToolSession(deps: CallDeps): ToolSession {
       // as the agent; the card itself is written by that server handler, so the agent cannot dress up a button.
       if (t.cap === "automations.create" && ctx.thread.threadId) {
         const made = (res.output as { automation?: { id?: unknown } } | null)?.automation?.id;
-        if (typeof made === "string") await deps.invoke("chat.flow_card", { threadId: ctx.thread.threadId, automationId: made, idempotencyKey: `flow-card:${made}` }, seed).catch(() => undefined);
+        if (typeof made === "string")
+          await deps
+            .invoke(
+              "chat.flow_card",
+              { threadId: ctx.thread.threadId, automationId: made, idempotencyKey: `flow-card:${made}` },
+              seed,
+            )
+            .catch(() => undefined);
       }
       recordWork(ctx.turnId, workCardOf(t.cap, input, res.output));
       // the calendar and mail reads come back to a model as compact rows with a count and a size (compact.ts); the full answer is what the hooks and the work card see
@@ -218,27 +339,47 @@ export function createToolSession(deps: CallDeps): ToolSession {
       // times in the person's zone beside the ISO and epoch ones, for the tools that return times people schedule by
       const zone = TIMED.test(t.cap) ? deps.zoneOf?.(ctx) : undefined;
       const data = shaped ? shaped.data : res.output;
-      const content: { data: unknown; meta?: unknown; blocks?: string[]; next?: string } = { data: zone ? withLocalTimes(data, zone) : data, ...(shaped ? { meta: shaped.meta } : {}) };
+      const content: { data: unknown; meta?: unknown; blocks?: string[]; next?: string } = {
+        data: zone ? withLocalTimes(data, zone) : data,
+        ...(shaped ? { meta: shaped.meta } : {}),
+      };
       if (t.blocks.length > 0) content.blocks = t.blocks;
       // a list names the tool that reads one item, and that tool is listed from now on: no search to find it
       const reads = deps.nextHints === true ? nextReads(t.name) : [];
       if (reads.length > 0) {
-        const set = toolsFor(deps, ctx), offered = new Set([...set.listed, ...set.searchable].map((x) => x.name));
+        const set = toolsFor(deps, ctx),
+          offered = new Set([...set.listed, ...set.searchable].map((x) => x.name));
         const ready = reads.filter((n) => offered.has(n));
-        if (ready.length > 0) { for (const n of ready) loadedSet(ctx.thread.threadId).add(n); content.next = `To read one of these, call ${ready.join(" or ")} with its id. ${ready.length > 1 ? "They are" : "It is"} ready to call now.`; }
+        if (ready.length > 0) {
+          for (const n of ready) loadedSet(ctx.thread.threadId).add(n);
+          content.next = `To read one of these, call ${ready.join(" or ")} with its id. ${ready.length > 1 ? "They are" : "It is"} ready to call now.`;
+        }
       }
       if (hookNotes.length > 0) (content as { hookNotes?: string[] }).hookNotes = hookNotes;
-      if (deps.hooks?.fire) void deps.hooks.fire(ctx, { event: "tool.after", tool: t.name, cap: t.cap, input, output: res.output, ok: true }).catch(() => undefined);
-      else if (deps.hooks?.after) void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);
+      if (deps.hooks?.fire)
+        void deps.hooks
+          .fire(ctx, { event: "tool.after", tool: t.name, cap: t.cap, input, output: res.output, ok: true })
+          .catch(() => undefined);
+      else if (deps.hooks?.after)
+        void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);
       const asked = t.cap === "chat.question.ask" ? (res.output as { blockId?: unknown } | null)?.blockId : undefined;
-      return { kind: "result", traceId: res.traceId, result: { ok: true, content }, ...(typeof asked === "string" ? { parkOn: { blockId: asked } } : {}) };
+      return {
+        kind: "result",
+        traceId: res.traceId,
+        result: { ok: true, content },
+        ...(typeof asked === "string" ? { parkOn: { blockId: asked } } : {}),
+      };
     } catch (e) {
       // An agent that asks for a computer is refused for want of the grant; what it needs to hear is what it has, not that it lacks permission, and no person has anything to press.
       if (e instanceof HostError && e.error.code === "permission.no_grant" && t.cap === "computers.provision") {
-        const error = makeError("permission.no_grant", traceId, { message: NO_COMPUTER_WORDS, details: { tool: t.name, reason: "no_new_desktop" } });
+        const error = makeError("permission.no_grant", traceId, {
+          message: NO_COMPUTER_WORDS,
+          details: { tool: t.name, reason: "no_new_desktop" },
+        });
         return { kind: "error", error, result: { ok: false, content: { error: modelError(error) } } };
       }
-      if (e instanceof HostError) return { kind: "error", error: e.error, result: { ok: false, content: { error: modelError(e.error) } } };
+      if (e instanceof HostError)
+        return { kind: "error", error: e.error, result: { ok: false, content: { error: modelError(e.error) } } };
       // a failure nobody named (a crash inside a module): a plain sentence the model can act on, never a bare "500"; the cause and stack are in the server log under this trace (host/src/invoke.ts)
       return fail("internal.unexpected", traceId, {
         message: `${t.name} could not finish on the server just now, and nothing was changed. Try it once more; if it fails again, tell the person in plain words that it did not work. Do not paste ids or traces.`,
@@ -257,8 +398,13 @@ export function createToolSession(deps: CallDeps): ToolSession {
       return found;
     },
     loaded: (threadId) => loadedSet(threadId),
-    forget: (threadId) => { loadedBy.delete(threadId); },
-    preload: (threadId, names) => { const set = loadedSet(threadId); for (const n of names) set.add(n); },
+    forget: (threadId) => {
+      loadedBy.delete(threadId);
+    },
+    preload: (threadId, names) => {
+      const set = loadedSet(threadId);
+      for (const n of names) set.add(n);
+    },
   };
   return api;
 }
@@ -278,8 +424,15 @@ export function unstringified(schema: unknown, input: unknown): unknown {
     if (!(want === "array" ? s.startsWith("[") : s.startsWith("{"))) continue;
     try {
       const parsed = JSON.parse(s) as unknown;
-      if (want === "array" ? Array.isArray(parsed) : parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) (out ??= { ...(input as Record<string, unknown>) })[k] = parsed;
-    } catch { /* not JSON: validation says so */ }
+      if (
+        want === "array"
+          ? Array.isArray(parsed)
+          : parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+      )
+        (out ??= { ...(input as Record<string, unknown>) })[k] = parsed;
+    } catch {
+      /* not JSON: validation says so */
+    }
   }
   return out ?? input;
 }

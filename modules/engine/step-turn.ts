@@ -32,7 +32,14 @@ export interface StepTurnIn {
   stepId: string;
   idempotencyKey: string;
 }
-export interface StepTurnOut { text: string; keyUsed: string; modelUsed: string; tokensIn: number; tokensOut: number; agentName?: string }
+export interface StepTurnOut {
+  text: string;
+  keyUsed: string;
+  modelUsed: string;
+  tokensIn: number;
+  tokensOut: number;
+  agentName?: string;
+}
 
 /** The agent id of a turn that runs as no agent in particular. The Vault lookup reads it as "the person or service itself". */
 export const STEP_AGENT = "step";
@@ -41,16 +48,35 @@ const MEMORY_CHARS = 3_000;
 const DEFAULT_MINUTES = 5;
 let msPerMinute = 60_000;
 /** Tests shorten a minute so a stuck turn can be proved to time out. */
-export function setMinuteForTests(ms: number): void { msPerMinute = ms; }
+export function setMinuteForTests(ms: number): void {
+  msPerMinute = ms;
+}
 
-interface AgentOut { agent: { agentId: string; name: string; role?: string; model?: string; accountPolicy: "asker" | "key"; accountKey?: string; status?: string } }
-interface PolicyOut { allowedAccounts: "any" | "company"; allowedModels?: string[]; allowedProviders?: string[] }
-interface FactsOut { facts?: Array<{ text?: string; layer?: string }> }
+interface AgentOut {
+  agent: {
+    agentId: string;
+    name: string;
+    role?: string;
+    model?: string;
+    accountPolicy: "asker" | "key";
+    accountKey?: string;
+    status?: string;
+  };
+}
+interface PolicyOut {
+  allowedAccounts: "any" | "company";
+  allowedModels?: string[];
+  allowedProviders?: string[];
+}
+interface FactsOut {
+  facts?: Array<{ text?: string; layer?: string }>;
+}
 
 const codeOfDriver = (code: string): { code: string; retryable: boolean } => {
   if (code === "provider.rate_limited" || code === "provider.overloaded") return { code, retryable: true };
   if (code.startsWith("provider.") || code.startsWith("timeout.")) return { code, retryable: false };
-  if (code === "auth.expired" || code === "engine.no_account" || code === "engine.account_unsupported") return { code: "provider.auth_failed", retryable: false };
+  if (code === "auth.expired" || code === "engine.no_account" || code === "engine.account_unsupported")
+    return { code: "provider.auth_failed", retryable: false };
   if (code === "engine.timeout") return { code: "timeout.deadline", retryable: false };
   return { code: "provider.unavailable", retryable: true };
 };
@@ -59,40 +85,65 @@ const codeOfDriver = (code: string): { code: string; retryable: boolean } => {
 const WHY: Readonly<Record<string, string>> = {
   "provider.rate_limited": "The AI provider is rate limiting this account. Try again in a moment.",
   "provider.overloaded": "The AI provider is overloaded. Try again in a moment.",
-  "provider.auth_failed": "The AI provider did not accept the key or sign-in for this step. Reconnect it in AI settings.",
+  "provider.auth_failed":
+    "The AI provider did not accept the key or sign-in for this step. Reconnect it in AI settings.",
   "provider.context_too_long": "The input to this AI step is longer than the model accepts.",
   "provider.content_filtered": "The AI provider filtered this request.",
   "timeout.deadline": "The AI step did not answer in time.",
 };
 const whyOf = (code: string): string => WHY[code] ?? "The AI provider could not answer this step.";
 /** The step's own words when the AI account needs a model and the step gives it none (the API driver refuses an empty model before sending). */
-export const NO_MODEL_STEP = "This AI step has no model. Give it an agent that has a model, or set a model on its agent.";
+export const NO_MODEL_STEP =
+  "This AI step has no model. Give it an agent that has a model, or set a model on its agent.";
 
 const hex = (s: string): string => {
   let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
   return h.toString(16).padStart(8, "0");
 };
 
 async function agentContext(ctx: EngineCtx, agentId: string): Promise<{ agent: AgentOut["agent"]; header: string }> {
   const got = (await ctx.call("agents.get", { agentId })) as AgentOut;
   const a = got.agent;
-  if (a.status === "paused") raise(ctx, "permission.limit", `${a.name} is paused, so this step cannot run as that agent.`, { reason: "agent_paused" });
+  if (a.status === "paused")
+    raise(ctx, "permission.limit", `${a.name} is paused, so this step cannot run as that agent.`, {
+      reason: "agent_paused",
+    });
   let facts = "";
   try {
-    const out = (await ctx.call("memory.facts.list", { agentId, status: ["current"], limit: MEMORY_FACTS })) as FactsOut;
+    const out = (await ctx.call("memory.facts.list", {
+      agentId,
+      status: ["current"],
+      limit: MEMORY_FACTS,
+    })) as FactsOut;
     for (const f of out.facts ?? []) {
       if (typeof f.text !== "string" || f.text === "") continue;
       if (facts.length + f.text.length > MEMORY_CHARS) break;
       facts += `- ${f.text}\n`;
     }
-  } catch { /* memory the asker may not read is simply not in the prompt */ }
-  const header = [`You are ${a.name}, an agent in Vyre.${a.role ? ` ${a.role}` : ""}`, facts !== "" ? `What you remember that applies:\n${facts.trimEnd()}` : ""].filter((x) => x !== "").join("\n\n");
+  } catch {
+    /* memory the asker may not read is simply not in the prompt */
+  }
+  const header = [
+    `You are ${a.name}, an agent in Vyre.${a.role ? ` ${a.role}` : ""}`,
+    facts !== "" ? `What you remember that applies:\n${facts.trimEnd()}` : "",
+  ]
+    .filter((x) => x !== "")
+    .join("\n\n");
   return { agent: a, header };
 }
 
 /** The account that pays, by the same rules as a chat (agent/src/accounts/resolve.ts), narrowed for a Space automation to the keys the Space shares. */
-async function accountFor(ctx: EngineCtx, i: StepTurnIn, asker: string, service: boolean, agent: AgentOut["agent"] | undefined): Promise<{ row: AccountRow; itemId?: string; payer: string }> {
+async function accountFor(
+  ctx: EngineCtx,
+  i: StepTurnIn,
+  asker: string,
+  service: boolean,
+  agent: AgentOut["agent"] | undefined,
+): Promise<{ row: AccountRow; itemId?: string; payer: string }> {
   const { rows, itemByRef, idByRef } = await load(ctx as never);
   // The step names its key the way the place shows it: the provider id, the Vault item id, the handle or the name. The accounts are matched by handle, so the name is turned into the handle first.
   const refFor = (key: string | undefined): string | undefined => {
@@ -112,10 +163,17 @@ async function accountFor(ctx: EngineCtx, i: StepTurnIn, asker: string, service:
     // an automation's step: its key, then the Space AI accounts kept for automations, then the person's own (a sign-in only with "Let the Space run work on my subscription" on)
     trigger: "task",
     ...(keyRef ? { stepKey: keyRef } : {}),
-    agent: { ...(agent?.agentId ? { agentId: agent.agentId } : {}), accountPolicy: agent?.accountPolicy ?? "asker", ...(agent?.accountKey ? { accountKey: agent.accountKey } : {}), ...(provider ? { provider } : {}) },
+    agent: {
+      ...(agent?.agentId ? { agentId: agent.agentId } : {}),
+      accountPolicy: agent?.accountPolicy ?? "asker",
+      ...(agent?.accountKey ? { accountKey: agent.accountKey } : {}),
+      ...(provider ? { provider } : {}),
+    },
     ...(agent?.model ? { model: agent.model } : {}),
     backupRefs: backupRef ? [backupRef] : [],
-    ...(i.keyFrom === "automation" ? { useChecked: [keyRef, backupRef].filter((x): x is string => x !== undefined) } : {}),
+    ...(i.keyFrom === "automation"
+      ? { useChecked: [keyRef, backupRef].filter((x): x is string => x !== undefined) }
+      : {}),
     policy: policy.allowedAccounts,
     accounts: usable,
     onServer: true,
@@ -123,17 +181,21 @@ async function accountFor(ctx: EngineCtx, i: StepTurnIn, asker: string, service:
   const row = res.accountRef ? usable.find((r) => r.ref === res.accountRef) : undefined;
   if (!res.allowed || !row || !res.payer) {
     const pinWhy = res.pin?.why;
-    const pinName = res.pin ? rows.find((r) => r.ref === res.pin?.ref)?.title ?? res.pin.ref : "";
-    const why = i.keyFrom === "automation" && (pinWhy === "not_used_for" || pinWhy === "capped")
-      ? pinWhy === "capped"
-        ? `${pinName}, the AI account chosen for this automation, has reached its monthly cap, and no other Space AI account that pays for automations could take the step. An admin can raise the cap in the Vault under AI accounts.`
-        : `${pinName}, the AI account chosen for this automation, is not set to pay for automations, and no other Space AI account that does could take the step. An admin can tick Automations for it in the Vault under AI accounts.`
-      : service
-      ? i.keyId
-        ? "The key chosen for this AI step is not a Space-shared key that works. Share the key with the Space in the Vault (AI providers), or choose another."
-        : "A Space automation needs a Space AI account that pays for automations. An owner or admin sets one in the Vault, under AI accounts, or chooses a key in the AI step."
-      : "This AI step runs on your own AI account and you have none that works on the server. Sign in with Claude or Codex (and turn on Let the Space run work on my subscription), or add an API key, in AI settings.";
-    raise(ctx, "provider.auth_failed", why, { reason: "no_account", next: [{ kind: "open_settings", label: "Open AI settings" }] });
+    const pinName = res.pin ? (rows.find((r) => r.ref === res.pin?.ref)?.title ?? res.pin.ref) : "";
+    const why =
+      i.keyFrom === "automation" && (pinWhy === "not_used_for" || pinWhy === "capped")
+        ? pinWhy === "capped"
+          ? `${pinName}, the AI account chosen for this automation, has reached its monthly cap, and no other Space AI account that pays for automations could take the step. An admin can raise the cap in the Vault under AI accounts.`
+          : `${pinName}, the AI account chosen for this automation, is not set to pay for automations, and no other Space AI account that does could take the step. An admin can tick Automations for it in the Vault under AI accounts.`
+        : service
+          ? i.keyId
+            ? "The key chosen for this AI step is not a Space-shared key that works. Share the key with the Space in the Vault (AI providers), or choose another."
+            : "A Space automation needs a Space AI account that pays for automations. An owner or admin sets one in the Vault, under AI accounts, or chooses a key in the AI step."
+          : "This AI step runs on your own AI account and you have none that works on the server. Sign in with Claude or Codex (and turn on Let the Space run work on my subscription), or add an API key, in AI settings.";
+    raise(ctx, "provider.auth_failed", why, {
+      reason: "no_account",
+      next: [{ kind: "open_settings", label: "Open AI settings" }],
+    });
   }
   const itemId = itemByRef.get(row.ref);
   return { row, ...(itemId ? { itemId } : {}), payer: res.payer };
@@ -141,19 +203,35 @@ async function accountFor(ctx: EngineCtx, i: StepTurnIn, asker: string, service:
 
 export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepTurnOut> {
   ensure(ctx.db);
-  const stored = ctx.db.all("SELECT result_json FROM engine_step_turns WHERE key = ?", input.idempotencyKey)[0] as { result_json?: string } | undefined;
+  const stored = ctx.db.all("SELECT result_json FROM engine_step_turns WHERE key = ?", input.idempotencyKey)[0] as
+    | { result_json?: string }
+    | undefined;
   if (stored?.result_json) return JSON.parse(stored.result_json) as StepTurnOut;
   const open = stepOpenOf();
-  if (!open) raise(ctx, "internal.unavailable", "The agent runtime is not running on this server, so an AI step cannot run.");
-  if (typeof input.prompt !== "string" || input.prompt.trim() === "") raise(ctx, "validation.bad_input", "An AI step needs a prompt.");
+  if (!open)
+    raise(ctx, "internal.unavailable", "The agent runtime is not running on this server, so an AI step cannot run.");
+  if (typeof input.prompt !== "string" || input.prompt.trim() === "")
+    raise(ctx, "validation.bad_input", "An AI step needs a prompt.");
   const service = ctx.principal.kind === "service";
   const asker = ctx.actingFor ?? ctx.principal.id;
-  if (isPaused(ctx)) raise(ctx, "permission.limit", "All AI spend is paused in this Space, so this AI step is waiting for it to resume.", { reason: "spend_paused" });
+  if (isPaused(ctx))
+    raise(
+      ctx,
+      "permission.limit",
+      "All AI spend is paused in this Space, so this AI step is waiting for it to resume.",
+      { reason: "spend_paused" },
+    );
 
   const withAgent = input.agentId ? await agentContext(ctx, input.agentId) : undefined;
   const agentKey = withAgent?.agent.agentId ?? STEP_AGENT;
   const hit = limitReached(ctx, { agentId: agentKey, asker }, ctx.now());
-  if (hit) raise(ctx, "permission.limit", `The ${hit.scope === "space" ? "Space" : hit.scope === "agent" ? "agent" : "person"} has reached a ${hit.limit} AI limit, so this step did not run. Raise it or wait.`, { reason: "limit", scope: hit.scope, limit: hit.limit });
+  if (hit)
+    raise(
+      ctx,
+      "permission.limit",
+      `The ${hit.scope === "space" ? "Space" : hit.scope === "agent" ? "agent" : "person"} has reached a ${hit.limit} AI limit, so this step did not run. Raise it or wait.`,
+      { reason: "limit", scope: hit.scope, limit: hit.limit },
+    );
 
   const paid = await accountFor(ctx, input, asker, service, withAgent?.agent);
   // The label rule of a chat applies to what a step puts in the prompt: the Space's rule (label against provider) is asked of every record the run read, and one it forbids refuses the step.
@@ -161,45 +239,114 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
     const keys = [paid.row.driver, paid.row.provider].filter((k): k is string => typeof k === "string" && k !== "");
     let blocked: Array<{ id: string; label?: string }> | null = null;
     for (const k of keys) {
-      const r = (await ctx.call("access.provider_check", { resources: input.recordIds.map((id) => ({ type: "record", id })), provider: k })) as { blocked?: Array<{ id: string; label?: string }> };
+      const r = (await ctx.call("access.provider_check", {
+        resources: input.recordIds.map((id) => ({ type: "record", id })),
+        provider: k,
+      })) as { blocked?: Array<{ id: string; label?: string }> };
       const b = r.blocked ?? [];
-      if (b.length === 0) { blocked = null; break; }
+      if (b.length === 0) {
+        blocked = null;
+        break;
+      }
       blocked = b;
     }
     if (blocked) {
       const label = blocked.find((x) => x.label)?.label;
-      raise(ctx, "permission.provider_label", `This AI step has ${label ? `${label} ` : "labelled "}records in its input, and this Space does not let them go to that AI provider. The step did not run.`, { reason: "label_provider", count: blocked.length });
+      raise(
+        ctx,
+        "permission.provider_label",
+        `This AI step has ${label ? `${label} ` : "labelled "}records in its input, and this Space does not let them go to that AI provider. The step did not run.`,
+        { reason: "label_provider", count: blocked.length },
+      );
     }
   }
   // on the Space AI key the step runs on a model the key unlocks: the agent's when the key serves it, else the first one
-  let stepModel = paid.row.spaceKey === true
-    ? fitModel(withAgent?.agent.model, await (ctx.call("providers.space_key.get", {}) as Promise<{ models?: string[] }>).then((r) => r.models ?? [], () => [] as string[]))
-    : withAgent?.agent.model;
+  let stepModel =
+    paid.row.spaceKey === true
+      ? fitModel(
+          withAgent?.agent.model,
+          await (ctx.call("providers.space_key.get", {}) as Promise<{ models?: string[] }>).then(
+            (r) => r.models ?? [],
+            () => [] as string[],
+          ),
+        )
+      : withAgent?.agent.model;
   // no model named, on a provider that runs its own default (OpenRouter): the Space policy is checked first, before anything is sent (one rule with chat: config.ts providerDefaultBlocked)
   if (!stepModel && PROVIDER_DEFAULT_DRIVERS.has(paid.row.driver)) {
     const limits = (await ctx.call("engine.policy.get", {})) as PolicyOut;
-    const why = providerDefaultBlocked({ allowedModels: limits.allowedModels ?? [], allowedProviders: limits.allowedProviders ?? [] }, paid.row.driver);
+    const why = providerDefaultBlocked(
+      { allowedModels: limits.allowedModels ?? [], allowedProviders: limits.allowedProviders ?? [] },
+      paid.row.driver,
+    );
     if (why !== null) raise(ctx as never, "permission.provider_label", PROVIDER_DEFAULT_WORDS, { reason: why });
   }
   // nothing names a model, on a person's API key: the default nobody chose, from the key's own list (first-model.ts; one rule with chat); never written, the step's record names what ran
   if (!stepModel && paid.row.spaceKey !== true) {
-    const limits = (await ctx.call("engine.policy.get", {})) as PolicyOut & { labelProviders?: Record<string, string[]> };
+    const limits = (await ctx.call("engine.policy.get", {})) as PolicyOut & {
+      labelProviders?: Record<string, string[]>;
+    };
     const providerId = (await load(ctx as never)).idByRef.get(paid.row.ref);
-    const d = await defaultModelFor({ db: ctx.db as never, now: ctx.now(), call: (cap, i) => ctx.call(cap as never, i as never), policy: { allowedModels: limits.allowedModels ?? [], allowedProviders: limits.allowedProviders ?? [], labelProviders: limits.labelProviders ?? {} } },
-      { ref: paid.row.ref, driver: paid.row.driver, provider: paid.row.provider ?? paid.row.driver, kind: paid.row.kind, providerId, models: paid.row.models });
-    if (d.why === "policy") raise(ctx as never, "permission.provider_label", PROVIDER_DEFAULT_WORDS, { reason: "policy_model" });
+    const d = await defaultModelFor(
+      {
+        db: ctx.db as never,
+        now: ctx.now(),
+        call: (cap, i) => ctx.call(cap as never, i as never),
+        policy: {
+          allowedModels: limits.allowedModels ?? [],
+          allowedProviders: limits.allowedProviders ?? [],
+          labelProviders: limits.labelProviders ?? {},
+        },
+      },
+      {
+        ref: paid.row.ref,
+        driver: paid.row.driver,
+        provider: paid.row.provider ?? paid.row.driver,
+        kind: paid.row.kind,
+        providerId,
+        models: paid.row.models,
+      },
+    );
+    if (d.why === "policy")
+      raise(ctx as never, "permission.provider_label", PROVIDER_DEFAULT_WORDS, { reason: "policy_model" });
     stepModel = d.model;
   }
-  const agent: EngineAgent = { id: agentKey, ...(withAgent ? { name: withAgent.agent.name } : {}), mode: "lead", ...(stepModel ? { model: stepModel } : {}) };
+  const agent: EngineAgent = {
+    id: agentKey,
+    ...(withAgent ? { name: withAgent.agent.name } : {}),
+    mode: "lead",
+    ...(stepModel ? { model: stepModel } : {}),
+  };
   const slug = hex(input.idempotencyKey);
   const threadId = `thr_step${slug}`;
   const turnId = `trn_step${slug}${hex(String(ctx.now()))}`;
   const spec: SessionSpec = {
-    threadId, agent, asker, turnId, traceId: ctx.trace.traceId, tools: "none",
-    account: { ref: paid.row.ref, driver: paid.row.driver, provider: providerOfDriver(paid.row.driver), kind: paid.row.kind, payer: paid.payer, reason: input.keyId ? "step_key" : "starter", ...(paid.itemId ? { itemId: paid.itemId } : {}), ...(paid.row.spaceKey === true ? { spaceKey: true, shared: true } : {}) },
+    threadId,
+    agent,
+    asker,
+    turnId,
+    traceId: ctx.trace.traceId,
+    tools: "none",
+    account: {
+      ref: paid.row.ref,
+      driver: paid.row.driver,
+      provider: providerOfDriver(paid.row.driver),
+      kind: paid.row.kind,
+      payer: paid.payer,
+      reason: input.keyId ? "step_key" : "starter",
+      ...(paid.itemId ? { itemId: paid.itemId } : {}),
+      ...(paid.row.spaceKey === true ? { spaceKey: true, shared: true } : {}),
+    },
   };
   const text = `${withAgent ? `${withAgent.header}\n\n` : ""}${input.prompt}`;
-  const trigger: StoredMessage = { id: `msg_step${slug}`, threadId, threadSeq: 1, author: { kind: "person", id: asker }, mentions: [], depth: 0, body: text };
+  const trigger: StoredMessage = {
+    id: `msg_step${slug}`,
+    threadId,
+    threadSeq: 1,
+    author: { kind: "person", id: asker },
+    mentions: [],
+    depth: 0,
+    body: text,
+  };
 
   const minutes = Math.min(30, Math.max(1, input.timeoutMinutes ?? DEFAULT_MINUTES));
   const session = await open(spec).catch((e: unknown) => {
@@ -213,30 +360,74 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
   let tokensOut = 0;
   let failure: { code: string; message: string } | null = null;
   let timedOut = false;
-  const timer = setTimeout(() => { timedOut = true; void session.cancel(); }, minutes * msPerMinute);
+  const timer = setTimeout(() => {
+    timedOut = true;
+    void session.cancel();
+  }, minutes * msPerMinute);
   try {
-    for await (const ev of session.send({ threadId, turnId, agent, trigger, asker, history: [], listeners: [] }) as AsyncIterable<DriverEvent>) {
+    for await (const ev of session.send({
+      threadId,
+      turnId,
+      agent,
+      trigger,
+      asker,
+      history: [],
+      listeners: [],
+    }) as AsyncIterable<DriverEvent>) {
       if (ev.type === "text") reply += ev.text;
-      else if (ev.type === "usage") { tokensIn += ev.inputTokens; tokensOut += ev.outputTokens; }
-      else if (ev.type === "error") { failure = { code: ev.code, message: ev.message }; break; }
-      else if (ev.type === "tool_call") { failure = { code: "engine.no_tools", message: "The AI engine asked for a tool, and this step gives it none." }; await session.cancel(); break; }
-      else if (ev.type === "done") break;
+      else if (ev.type === "usage") {
+        tokensIn += ev.inputTokens;
+        tokensOut += ev.outputTokens;
+      } else if (ev.type === "error") {
+        failure = { code: ev.code, message: ev.message };
+        break;
+      } else if (ev.type === "tool_call") {
+        failure = { code: "engine.no_tools", message: "The AI engine asked for a tool, and this step gives it none." };
+        await session.cancel();
+        break;
+      } else if (ev.type === "done") break;
     }
   } finally {
     clearTimeout(timer);
-    try { await session.close(); } catch { /* a session that will not close is dropped */ }
+    try {
+      await session.close();
+    } catch {
+      /* a session that will not close is dropped */
+    }
   }
   // what ran is counted whether or not it answered
   const model = stepModel ?? paid.row.driver;
-  recordStepUsage(ctx, { turnId, agentId: agentKey, asker, model, tokensIn, tokensOut, ...(paid.itemId ? { itemId: paid.itemId } : {}) });
-  if (timedOut) raise(ctx, "timeout.deadline", `The AI step did not answer within ${minutes} minutes.`, { reason: "timeout" });
+  recordStepUsage(ctx, {
+    turnId,
+    agentId: agentKey,
+    asker,
+    model,
+    tokensIn,
+    tokensOut,
+    ...(paid.itemId ? { itemId: paid.itemId } : {}),
+  });
+  if (timedOut)
+    raise(ctx, "timeout.deadline", `The AI step did not answer within ${minutes} minutes.`, { reason: "timeout" });
   if (failure) {
     // the account needs a model and the step gave it none: plain words, not "the provider could not answer" (a subscription runs on its CLI's own default and never says this)
-    if (failure.code === "engine.no_model") raise(ctx, "validation.precondition_failed", NO_MODEL_STEP, { reason: "no_model" });
+    if (failure.code === "engine.no_model")
+      raise(ctx, "validation.precondition_failed", NO_MODEL_STEP, { reason: "no_model" });
     const mapped = codeOfDriver(failure.code);
     raise(ctx, mapped.code as never, whyOf(mapped.code), { reason: "engine" });
   }
-  const out: StepTurnOut = { text: reply, keyUsed: paid.row.ref, modelUsed: model, tokensIn, tokensOut, ...(withAgent ? { agentName: withAgent.agent.name } : {}) };
-  ctx.db.run("INSERT OR IGNORE INTO engine_step_turns (key, result_json, at) VALUES (?, ?, ?)", input.idempotencyKey, JSON.stringify(out), ctx.now());
+  const out: StepTurnOut = {
+    text: reply,
+    keyUsed: paid.row.ref,
+    modelUsed: model,
+    tokensIn,
+    tokensOut,
+    ...(withAgent ? { agentName: withAgent.agent.name } : {}),
+  };
+  ctx.db.run(
+    "INSERT OR IGNORE INTO engine_step_turns (key, result_json, at) VALUES (?, ?, ?)",
+    input.idempotencyKey,
+    JSON.stringify(out),
+    ctx.now(),
+  );
   return out;
 }

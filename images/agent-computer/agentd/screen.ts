@@ -4,15 +4,42 @@ import { screenshotPng } from "./x11.ts";
 import type { Injector, Screen } from "./x11.ts";
 
 const BUTTONS: Record<string, number> = { left: 1, middle: 2, right: 3 };
-const MODIFIERS: Record<string, string> = { ctrl: "Control_L", control: "Control_L", alt: "Alt_L", shift: "Shift_L", super: "Super_L", meta: "Super_L", cmd: "Super_L" };
+const MODIFIERS: Record<string, string> = {
+  ctrl: "Control_L",
+  control: "Control_L",
+  alt: "Alt_L",
+  shift: "Shift_L",
+  super: "Super_L",
+  meta: "Super_L",
+  cmd: "Super_L",
+};
 const NAMES: Record<string, string> = {
-  enter: "Return", return: "Return", esc: "Escape", escape: "Escape", tab: "Tab", del: "Delete", delete: "Delete", backspace: "BackSpace", space: "space", left: "Left", right: "Right", up: "Up", down: "Down",
-  pageup: "Prior", pagedown: "Next", home: "Home", end: "End", insert: "Insert",
+  enter: "Return",
+  return: "Return",
+  esc: "Escape",
+  escape: "Escape",
+  tab: "Tab",
+  del: "Delete",
+  delete: "Delete",
+  backspace: "BackSpace",
+  space: "space",
+  left: "Left",
+  right: "Right",
+  up: "Up",
+  down: "Down",
+  pageup: "Prior",
+  pagedown: "Next",
+  home: "Home",
+  end: "End",
+  insert: "Insert",
 };
 
 /** "ctrl+l" -> the keys to press, modifiers first. */
 export function comboKeys(combo: string): { modifiers: string[]; key: string } {
-  const parts = combo.split("+").map((p) => p.trim()).filter(Boolean);
+  const parts = combo
+    .split("+")
+    .map((p) => p.trim())
+    .filter(Boolean);
   const last = parts.pop();
   if (!last) throw badInput("Name a key or a combination such as ctrl+l.");
   const modifiers = parts.map((p) => MODIFIERS[p.toLowerCase()] ?? "");
@@ -23,16 +50,29 @@ export function comboKeys(combo: string): { modifiers: string[]; key: string } {
   return { modifiers, key };
 }
 
-export interface ScreenTools { run(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>> }
+export interface ScreenTools {
+  run(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>>;
+}
 
-export function screenTools(screen: Screen, input: Injector, onInput: (e: Record<string, unknown>) => void): ScreenTools {
+export function screenTools(
+  screen: Screen,
+  input: Injector,
+  onInput: (e: Record<string, unknown>) => void,
+): ScreenTools {
   const int = (v: unknown, name: string, max: number): number => {
-    if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > max) throw badInput(`${name} is a whole number from 0 to ${max}.`);
+    if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > max)
+      throw badInput(`${name} is a whole number from 0 to ${max}.`);
     return v;
   };
-  const at = (x: unknown, y: unknown): { x: number; y: number } => ({ x: int(x, "x", screen.width - 1), y: int(y, "y", screen.height - 1) });
+  const at = (x: unknown, y: unknown): { x: number; y: number } => ({
+    x: int(x, "x", screen.width - 1),
+    y: int(y, "y", screen.height - 1),
+  });
   const click = async (n: number, count: number): Promise<void> => {
-    for (let i = 0; i < count; i++) { await input.call({ op: "button", n, down: true }); await input.call({ op: "button", n, down: false }); }
+    for (let i = 0; i < count; i++) {
+      await input.call({ op: "button", n, down: true });
+      await input.call({ op: "button", n, down: false });
+    }
   };
 
   return {
@@ -59,7 +99,12 @@ export function screenTools(screen: Screen, input: Injector, onInput: (e: Record
           const to = at(args["toX"], args["toY"]);
           await input.call({ op: "move", ...from });
           await input.call({ op: "button", n: 1, down: true });
-          for (let i = 1; i <= 8; i++) await input.call({ op: "move", x: Math.round(from.x + ((to.x - from.x) * i) / 8), y: Math.round(from.y + ((to.y - from.y) * i) / 8) });
+          for (let i = 1; i <= 8; i++)
+            await input.call({
+              op: "move",
+              x: Math.round(from.x + ((to.x - from.x) * i) / 8),
+              y: Math.round(from.y + ((to.y - from.y) * i) / 8),
+            });
           await input.call({ op: "button", n: 1, down: false });
           onInput({ type: "drag", from, to });
           return { ok: true };

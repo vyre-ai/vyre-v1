@@ -11,9 +11,15 @@ import type { BrowserOpened } from "./browser-stream.ts";
 async function world() {
   const upstreamInput: string[] = [];
   const upstream = http.createServer((req, res) => {
-    if (new URL(req.url ?? "/", "http://x").pathname !== "/stream") { res.writeHead(404).end(); return; }
+    if (new URL(req.url ?? "/", "http://x").pathname !== "/stream") {
+      res.writeHead(404).end();
+      return;
+    }
     res.writeHead(200, { "content-type": "multipart/x-mixed-replace; boundary=vyreframe" });
-    const t = setInterval(() => res.write("--vyreframe\r\ncontent-type: image/jpeg\r\ncontent-length: 4\r\n\r\nJPEG\r\n"), 20);
+    const t = setInterval(
+      () => res.write("--vyreframe\r\ncontent-type: image/jpeg\r\ncontent-length: 4\r\n\r\nJPEG\r\n"),
+      20,
+    );
     res.once("close", () => clearInterval(t));
   });
   upstream.on("upgrade", (req, socket, head) => {
@@ -21,34 +27,94 @@ async function world() {
     if (!peer) return;
     const t = setInterval(() => peer.send(new Uint8Array([0xff, 0xd8, 1, 2, 0xff, 0xd9])), 20);
     peer.onClose(() => clearInterval(t));
-    peer.onMessage((d) => { const text = d.toString("utf8"); upstreamInput.push(text); const seq = (JSON.parse(text) as { seq?: number }).seq ?? 0; peer.send(JSON.stringify({ t: "ack", seq })); });
+    peer.onMessage((d) => {
+      const text = d.toString("utf8");
+      upstreamInput.push(text);
+      const seq = (JSON.parse(text) as { seq?: number }).seq ?? 0;
+      peer.send(JSON.stringify({ t: "ack", seq }));
+    });
   });
   await new Promise<void>((r) => upstream.listen(0, "127.0.0.1", r));
   const up = (upstream.address() as AddressInfo).port;
   const tickets = new Map<string, BrowserOpened>();
   let holds = true;
-  const relay = createBrowserStream({ open: async (t, agent) => (agent === "agt_dex" ? tickets.get(t) ?? null : null), mayInput: async () => holds, now: Date.now });
-  const front = http.createServer((req, res) => { if (!relay.handle(req, res)) { res.writeHead(404).end(); } });
-  front.on("upgrade", (req, socket, head) => { if (relay.claims(req)) relay.upgrade(req, socket, head); else socket.destroy(); });
+  const relay = createBrowserStream({
+    open: async (t, agent) => (agent === "agt_dex" ? (tickets.get(t) ?? null) : null),
+    mayInput: async () => holds,
+    now: Date.now,
+  });
+  const front = http.createServer((req, res) => {
+    if (!relay.handle(req, res)) {
+      res.writeHead(404).end();
+    }
+  });
+  front.on("upgrade", (req, socket, head) => {
+    if (relay.claims(req)) relay.upgrade(req, socket, head);
+    else socket.destroy();
+  });
   await new Promise<void>((r) => front.listen(0, "127.0.0.1", r));
   const port = (front.address() as AddressInfo).port;
-  const issue = (t: string, input: boolean): string => { tickets.set(t, { url: `http://127.0.0.1:${up}/stream`, ws: `ws://127.0.0.1:${up}/ws`, personId: "usr_dana", input }); return t; };
-  return { port, relay, issue, upstreamInput, setHolds(v: boolean) { holds = v; }, close: async () => { front.closeAllConnections(); upstream.closeAllConnections(); front.close(); upstream.close(); } };
+  const issue = (t: string, input: boolean): string => {
+    tickets.set(t, {
+      url: `http://127.0.0.1:${up}/stream`,
+      ws: `ws://127.0.0.1:${up}/ws`,
+      personId: "usr_dana",
+      input,
+    });
+    return t;
+  };
+  return {
+    port,
+    relay,
+    issue,
+    upstreamInput,
+    setHolds(v: boolean) {
+      holds = v;
+    },
+    close: async () => {
+      front.closeAllConnections();
+      upstream.closeAllConnections();
+      front.close();
+      upstream.close();
+    },
+  };
 }
 
-const open = (port: number, path: string): Promise<{ ws: WebSocket; frames: number; msgs: Array<{ t: string; seq?: number; reason?: string }>; failed: boolean }> => new Promise((resolve) => {
-  const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`);
-  ws.binaryType = "arraybuffer";
-  const out = { ws, frames: 0, msgs: [] as Array<{ t: string; seq?: number; reason?: string }>, failed: false };
-  ws.addEventListener("message", (ev: MessageEvent) => { if (typeof ev.data === "string") out.msgs.push(JSON.parse(ev.data)); else out.frames += 1; });
-  ws.addEventListener("open", () => resolve(out));
-  ws.addEventListener("error", () => { out.failed = true; resolve(out); });
-});
+const open = (
+  port: number,
+  path: string,
+): Promise<{
+  ws: WebSocket;
+  frames: number;
+  msgs: Array<{ t: string; seq?: number; reason?: string }>;
+  failed: boolean;
+}> =>
+  new Promise((resolve) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`);
+    ws.binaryType = "arraybuffer";
+    const out = { ws, frames: 0, msgs: [] as Array<{ t: string; seq?: number; reason?: string }>, failed: false };
+    ws.addEventListener("message", (ev: MessageEvent) => {
+      if (typeof ev.data === "string") out.msgs.push(JSON.parse(ev.data));
+      else out.frames += 1;
+    });
+    ws.addEventListener("open", () => resolve(out));
+    ws.addEventListener("error", () => {
+      out.failed = true;
+      resolve(out);
+    });
+  });
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-const ask = async (v: { ws: WebSocket; msgs: Array<{ t: string; seq?: number; reason?: string }> }, m: Record<string, unknown>) => {
+const ask = async (
+  v: { ws: WebSocket; msgs: Array<{ t: string; seq?: number; reason?: string }> },
+  m: Record<string, unknown>,
+) => {
   const seq = Math.floor(Math.random() * 1e9);
   v.ws.send(JSON.stringify({ ...m, seq }));
-  for (let i = 0; i < 60; i++) { const got = v.msgs.find((x) => x.seq === seq); if (got) return got; await sleep(10); }
+  for (let i = 0; i < 60; i++) {
+    const got = v.msgs.find((x) => x.seq === seq);
+    if (got) return got;
+    await sleep(10);
+  }
   throw new Error("no answer");
 };
 
@@ -58,15 +124,23 @@ test("MJPEG: a good ticket relays the browser's frames; no ticket, a wrong one o
   assert.equal((await fetch(`http://127.0.0.1:${w.port}/browsers/agt_dex/stream`)).status, 403);
   assert.equal((await fetch(`http://127.0.0.1:${w.port}/browsers/agt_dex/stream?ticket=nope`)).status, 403);
   w.issue("good", false);
-  assert.equal((await fetch(`http://127.0.0.1:${w.port}/browsers/agt_other/stream?ticket=good`)).status, 403, "a ticket is for one agent's browser");
-  assert.equal((await fetch(`http://127.0.0.1:${w.port}/browsers/agt_dex/stream?ticket=good`, { method: "POST" })).status, 405);
+  assert.equal(
+    (await fetch(`http://127.0.0.1:${w.port}/browsers/agt_other/stream?ticket=good`)).status,
+    403,
+    "a ticket is for one agent's browser",
+  );
+  assert.equal(
+    (await fetch(`http://127.0.0.1:${w.port}/browsers/agt_dex/stream?ticket=good`, { method: "POST" })).status,
+    405,
+  );
   const res = await fetch(`http://127.0.0.1:${w.port}/browsers/agt_dex/stream?ticket=good`);
   assert.equal(res.status, 200);
   assert.match(res.headers.get("content-type") ?? "", /multipart\/x-mixed-replace/);
   const reader = res.body!.getReader();
   let text = "";
   const dec = new TextDecoder();
-  for (let i = 0; i < 6 && !/JPEG[\s\S]*--vyreframe[\s\S]*JPEG/.test(text); i++) text += dec.decode((await reader.read()).value ?? new Uint8Array());
+  for (let i = 0; i < 6 && !/JPEG[\s\S]*--vyreframe[\s\S]*JPEG/.test(text); i++)
+    text += dec.decode((await reader.read()).value ?? new Uint8Array());
   assert.match(text, /JPEG/);
   assert.ok(!text.includes("127.0.0.1"), "the browser service's address does not reach the viewer");
   await reader.cancel();
@@ -102,15 +176,35 @@ test("WebSocket: frames come down; a watch ticket never sends input; a take-over
 test("a WebSocket view that answers no ping is closed, and so is its view in the browser service; one that answers stays", async (t) => {
   const upstreamClosed: number[] = [];
   const upstream = http.createServer();
-  upstream.on("upgrade", (req, socket, head) => { const peer = acceptPeer(req, socket, head, 4096); if (peer) peer.onClose(() => upstreamClosed.push(Date.now())); });
+  upstream.on("upgrade", (req, socket, head) => {
+    const peer = acceptPeer(req, socket, head, 4096);
+    if (peer) peer.onClose(() => upstreamClosed.push(Date.now()));
+  });
   await new Promise<void>((r) => upstream.listen(0, "127.0.0.1", r));
   const up = (upstream.address() as AddressInfo).port;
-  const relay = createBrowserStream({ open: async () => ({ url: `http://127.0.0.1:${up}/stream`, ws: `ws://127.0.0.1:${up}/ws`, personId: "usr_dana", input: true }), mayInput: async () => true, pingMs: 50, deadMs: 300 });
-  const front = http.createServer((req, res) => { if (!relay.handle(req, res)) res.writeHead(404).end(); });
+  const relay = createBrowserStream({
+    open: async () => ({
+      url: `http://127.0.0.1:${up}/stream`,
+      ws: `ws://127.0.0.1:${up}/ws`,
+      personId: "usr_dana",
+      input: true,
+    }),
+    mayInput: async () => true,
+    pingMs: 50,
+    deadMs: 300,
+  });
+  const front = http.createServer((req, res) => {
+    if (!relay.handle(req, res)) res.writeHead(404).end();
+  });
   front.on("upgrade", (req, socket, head) => relay.upgrade(req, socket, head));
   await new Promise<void>((r) => front.listen(0, "127.0.0.1", r));
   const port = (front.address() as AddressInfo).port;
-  t.after(() => { front.closeAllConnections(); upstream.closeAllConnections(); front.close(); upstream.close(); });
+  t.after(() => {
+    front.closeAllConnections();
+    upstream.closeAllConnections();
+    front.close();
+    upstream.close();
+  });
   // a viewer that answers pings (a browser does by itself)
   const good = new WebSocket(`ws://127.0.0.1:${port}/browsers/agt_dex/ws?ticket=x`);
   await new Promise<void>((r) => good.addEventListener("open", () => r()));
@@ -118,10 +212,14 @@ test("a WebSocket view that answers no ping is closed, and so is its view in the
   const net = await import("node:net");
   const dead = net.connect(port, "127.0.0.1");
   await new Promise<void>((r) => dead.once("connect", () => r()));
-  dead.write(`GET /browsers/agt_dex/ws?ticket=y HTTP/1.1\r\nhost: x\r\nupgrade: websocket\r\nconnection: Upgrade\r\nsec-websocket-key: dGhlIHNhbXBsZSBub25jZQ==\r\nsec-websocket-version: 13\r\n\r\n`);
+  dead.write(
+    `GET /browsers/agt_dex/ws?ticket=y HTTP/1.1\r\nhost: x\r\nupgrade: websocket\r\nconnection: Upgrade\r\nsec-websocket-key: dGhlIHNhbXBsZSBub25jZQ==\r\nsec-websocket-version: 13\r\n\r\n`,
+  );
   dead.on("data", () => undefined);
   let deadClosed = false;
-  dead.on("close", () => { deadClosed = true; });
+  dead.on("close", () => {
+    deadClosed = true;
+  });
   for (let i = 0; i < 40 && !deadClosed; i++) await sleep(50);
   assert.equal(deadClosed, true, "the view that answered nothing was closed");
   assert.equal(upstreamClosed.length, 1, "and its view in the browser service with it");
@@ -136,16 +234,41 @@ test("an MJPEG view of a still page whose viewer stopped taking anything is clos
   const upstream = http.createServer((req, res) => {
     res.writeHead(200, { "content-type": "multipart/x-mixed-replace; boundary=vyreframe" });
     // one frame, then a still page: nothing more, ever
-    res.write(Buffer.concat([Buffer.from(`--vyreframe\r\ncontent-type: image/jpeg\r\ncontent-length: ${frame.length}\r\n\r\n`), frame, Buffer.from("\r\n--vyreframe\r\n")]));
-    res.once("close", () => { upstreamClosed += 1; });
+    res.write(
+      Buffer.concat([
+        Buffer.from(`--vyreframe\r\ncontent-type: image/jpeg\r\ncontent-length: ${frame.length}\r\n\r\n`),
+        frame,
+        Buffer.from("\r\n--vyreframe\r\n"),
+      ]),
+    );
+    res.once("close", () => {
+      upstreamClosed += 1;
+    });
   });
   await new Promise<void>((r) => upstream.listen(0, "127.0.0.1", r));
   const up = (upstream.address() as AddressInfo).port;
-  const relay = createBrowserStream({ open: async () => ({ url: `http://127.0.0.1:${up}/stream`, ws: `ws://127.0.0.1:${up}/ws`, personId: "usr_dana", input: true }), mayInput: async () => true, pingMs: 30, deadMs: 500 });
-  const front = http.createServer((req, res) => { if (!relay.handle(req, res)) res.writeHead(404).end(); });
+  const relay = createBrowserStream({
+    open: async () => ({
+      url: `http://127.0.0.1:${up}/stream`,
+      ws: `ws://127.0.0.1:${up}/ws`,
+      personId: "usr_dana",
+      input: true,
+    }),
+    mayInput: async () => true,
+    pingMs: 30,
+    deadMs: 500,
+  });
+  const front = http.createServer((req, res) => {
+    if (!relay.handle(req, res)) res.writeHead(404).end();
+  });
   await new Promise<void>((r) => front.listen(0, "127.0.0.1", r));
   const port = (front.address() as AddressInfo).port;
-  t.after(() => { front.closeAllConnections(); upstream.closeAllConnections(); front.close(); upstream.close(); });
+  t.after(() => {
+    front.closeAllConnections();
+    upstream.closeAllConnections();
+    front.close();
+    upstream.close();
+  });
   const net = await import("node:net");
   const viewer = net.connect(port, "127.0.0.1");
   await new Promise<void>((r) => viewer.once("connect", () => r()));
@@ -154,7 +277,9 @@ test("an MJPEG view of a still page whose viewer stopped taking anything is clos
   await new Promise<void>((r) => viewer.once("data", () => r()));
   viewer.pause();
   let closed = false;
-  viewer.on("close", () => { closed = true; });
+  viewer.on("close", () => {
+    closed = true;
+  });
   for (let i = 0; i < 200 && (relay.views() > 0 || upstreamClosed === 0); i++) await sleep(50);
   assert.equal(relay.views(), 0, "the view was ended by the timer, though no frame came after the first");
   assert.equal(upstreamClosed, 1, "and its view in the browser service was closed");

@@ -14,13 +14,19 @@ export type { DomainEdge } from "./route.ts";
 type Row = Record<string, unknown>;
 const DOMAIN = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 export type DomainState = "waiting_dns" | "issuing" | "live";
-export interface DnsRecord { type: "CNAME" | "A"; name: string; value: string }
+export interface DnsRecord {
+  type: "CNAME" | "A";
+  name: string;
+  value: string;
+}
 
 function cleanDomain(ctx: Ctx, raw: string): string {
   const d = raw.trim().toLowerCase().replace(/\.$/, "");
-  if (!DOMAIN.test(d)) fail(ctx, "validation.bad_input", "That is not a domain name, for example www.example.com.", { field: "domain" });
+  if (!DOMAIN.test(d))
+    fail(ctx, "validation.bad_input", "That is not a domain name, for example www.example.com.", { field: "domain" });
   const o = routesHost()?.origin();
-  if (o && new URL(o.origin).hostname === d) fail(ctx, "validation.bad_input", "That is this Space's own address.", { field: "domain" });
+  if (o && new URL(o.origin).hostname === d)
+    fail(ctx, "validation.bad_input", "That is this Space's own address.", { field: "domain" });
   return d;
 }
 
@@ -34,7 +40,11 @@ function recordsFor(domain: string, to: { hostname?: string; ip?: string }): Dns
 
 const targetOf = targetOfRow;
 
-async function stateOf(target: RouteTarget, domain: string, to: { hostname?: string; ip?: string }): Promise<DomainState> {
+async function stateOf(
+  target: RouteTarget,
+  domain: string,
+  to: { hostname?: string; ip?: string },
+): Promise<DomainState> {
   const edge = domainEdge();
   if (!edge || !(await edge.dnsOk(domain, to))) return "waiting_dns";
   return (await edge.certIssued(target, domain)) ? "live" : "issuing";
@@ -46,29 +56,57 @@ async function need(ctx: Ctx, site: Row): Promise<{ target: RouteTarget; to: { h
     // a site Vyre deploys is served by this server's gateway, which asks for the password or the sign-in its access needs: the domain points here
     const edge = domainEdge();
     const to = edge ? await edge.public({}) : null;
-    if (!to) fail(ctx, "validation.precondition_failed", "A custom domain needs this server to have a public address and Caddy.");
+    if (!to)
+      fail(
+        ctx,
+        "validation.precondition_failed",
+        "A custom domain needs this server to have a public address and Caddy.",
+      );
     return { target: {}, to };
   }
-  if (target.port === undefined) fail(ctx, "validation.precondition_failed", "Say which port it runs on first. A custom domain points at a running port.");
+  if (target.port === undefined)
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "Say which port it runs on first. A custom domain points at a running port.",
+    );
   const edge = domainEdge();
   const to = edge ? await edge.public(target) : null;
-  if (!to) fail(ctx, "validation.precondition_failed", "A custom domain needs a server with a public address. Add a server in Settings, Computers.");
+  if (!to)
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "A custom domain needs a server with a public address. Add a server in Settings, Computers.",
+    );
   return { target, to };
 }
 
-async function domainAdd(ctx: Ctx, input: unknown): Promise<{ domain: string; records: DnsRecord[]; state: DomainState }> {
+async function domainAdd(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ domain: string; records: DnsRecord[]; state: DomainState }> {
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
   const siteId = str(site.id);
   const domain = cleanDomain(ctx, reqStr(ctx, o, "domain"));
   // a custom domain is the public internet, with no sandbox and no sign-in in front of it: only a public site has one, and its route waits for the site to be published through the Gate
   const deployed = site.source !== null && site.source !== undefined;
-  if (site.access !== "public" && !deployed) fail(ctx, "validation.precondition_failed", "A custom domain is public. Make the site public first.");
+  if (site.access !== "public" && !deployed)
+    fail(ctx, "validation.precondition_failed", "A custom domain is public. Make the site public first.");
   const { target, to } = await need(ctx, site);
-  if (many(ctx, "SELECT * FROM sites_domain WHERE domain = ?", domain).some((r) => r.site_id !== siteId)) fail(ctx, "validation.duplicate", "Another site already uses that domain.", { domain });
+  if (many(ctx, "SELECT * FROM sites_domain WHERE domain = ?", domain).some((r) => r.site_id !== siteId))
+    fail(ctx, "validation.duplicate", "Another site already uses that domain.", { domain });
   const now = ctx.now();
   if (!one(ctx, "SELECT * FROM sites_domain WHERE site_id = ? AND domain = ?", siteId, domain)) {
-    ctx.db.run("INSERT INTO sites_domain (site_id, domain, dns_ok, certificate, created_at, checked_at) VALUES (?, ?, ?, ?, ?, ?)", siteId, domain, 0, "pending", now, now);
+    ctx.db.run(
+      "INSERT INTO sites_domain (site_id, domain, dns_ok, certificate, created_at, checked_at) VALUES (?, ?, ?, ?, ?, ?)",
+      siteId,
+      domain,
+      0,
+      "pending",
+      now,
+      now,
+    );
   }
   if (deployed) await routesHost()?.hostRoute?.(siteId, true);
   else if (flag(site.live)) await (domainEdge() as DomainEdge).setRoute(target, domain, target.port as number);
@@ -77,18 +115,33 @@ async function domainAdd(ctx: Ctx, input: unknown): Promise<{ domain: string; re
   return { domain, records: recordsFor(domain, to), state: await stateOf(target, domain, to) };
 }
 
-async function domainCheck(ctx: Ctx, input: unknown): Promise<{ domain: string; records: DnsRecord[]; state: DomainState }> {
+async function domainCheck(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ domain: string; records: DnsRecord[]; state: DomainState }> {
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
   const domain = cleanDomain(ctx, reqStr(ctx, o, "domain"));
-  if (!one(ctx, "SELECT * FROM sites_domain WHERE site_id = ? AND domain = ?", site.id, domain)) fail(ctx, "validation.not_found", "That domain is not on this site.");
+  if (!one(ctx, "SELECT * FROM sites_domain WHERE site_id = ? AND domain = ?", site.id, domain))
+    fail(ctx, "validation.not_found", "That domain is not on this site.");
   const { target, to } = await need(ctx, site);
   return { domain, records: recordsFor(domain, to), state: await stateOf(target, domain, to) };
 }
 
-async function domainsGet(ctx: Ctx, input: unknown): Promise<{ domains: { domain: string; dnsOk: boolean; certificate: "pending" | "issued" | "failed" }[] }> {
+async function domainsGet(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ domains: { domain: string; dnsOk: boolean; certificate: "pending" | "issued" | "failed" }[] }> {
   const site = mustSite(ctx, reqStr(ctx, rec(ctx, input), "siteId"));
-  return { domains: many(ctx, "SELECT * FROM sites_domain WHERE site_id = ?", site.id).sort((a, b) => str(a.domain).localeCompare(str(b.domain))).map((r) => ({ domain: str(r.domain), dnsOk: r.dns_ok === 1, certificate: r.certificate === "issued" ? "issued" : r.certificate === "failed" ? "failed" : "pending" })) };
+  return {
+    domains: many(ctx, "SELECT * FROM sites_domain WHERE site_id = ?", site.id)
+      .sort((a, b) => str(a.domain).localeCompare(str(b.domain)))
+      .map((r) => ({
+        domain: str(r.domain),
+        dnsOk: r.dns_ok === 1,
+        certificate: r.certificate === "issued" ? "issued" : r.certificate === "failed" ? "failed" : "pending",
+      })),
+  };
 }
 
 async function domainSet(ctx: Ctx, input: unknown): Promise<{ dnsOk: boolean }> {
@@ -96,22 +149,44 @@ async function domainSet(ctx: Ctx, input: unknown): Promise<{ dnsOk: boolean }> 
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
   const siteId = str(site.id);
   const domain = cleanDomain(ctx, reqStr(ctx, o, "domain"));
-  if (o.remove !== true) { await domainAdd(ctx, input); return { dnsOk: false }; }
+  if (o.remove !== true) {
+    await domainAdd(ctx, input);
+    return { dnsOk: false };
+  }
   ctx.db.run("DELETE FROM sites_domain WHERE site_id = ? AND domain = ?", siteId, domain);
   const edge = domainEdge();
-  if (edge) { try { await edge.removeRoute(targetOf(site), domain); } catch (e) { ctx.log.warn("sites: route removal failed", { domain, error: e instanceof Error ? e.message : String(e) }); } }
+  if (edge) {
+    try {
+      await edge.removeRoute(targetOf(site), domain);
+    } catch (e) {
+      ctx.log.warn("sites: route removal failed", { domain, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
   touchActivity(ctx.db, siteId, "site.domain_changed", ctx.now());
   ctx.emit("site.domain_changed", `site/${siteId}`, { siteId, domain });
   return { dnsOk: true };
 }
 
 /** Write every live public site's domains again: a computer that restarted has a new container address. The host calls this on a timer. Host call, not a capability. */
-export async function refreshDomainRoutes(ctx: Pick<Ctx, "db">, warn: (msg: string, attrs: Record<string, unknown>) => void): Promise<number> {
+export async function refreshDomainRoutes(
+  ctx: Pick<Ctx, "db">,
+  warn: (msg: string, attrs: Record<string, unknown>) => void,
+): Promise<number> {
   const edge = domainEdge();
   if (!edge) return 0;
   let n = 0;
-  for (const row of ctx.db.all("SELECT d.domain AS domain, s.computer_id AS computer_id, s.port AS port FROM sites_domain d JOIN sites_site s ON s.id = d.site_id WHERE s.deleted_at IS NULL AND s.live = 1 AND s.access = 'public' AND s.port IS NOT NULL AND s.source IS NULL") as Row[]) {
-    try { await edge.setRoute(targetOf(row), str(row.domain), Number(row.port)); n++; } catch (e) { warn("sites: a domain route was not refreshed", { domain: str(row.domain), error: e instanceof Error ? e.message : String(e) }); }
+  for (const row of ctx.db.all(
+    "SELECT d.domain AS domain, s.computer_id AS computer_id, s.port AS port FROM sites_domain d JOIN sites_site s ON s.id = d.site_id WHERE s.deleted_at IS NULL AND s.live = 1 AND s.access = 'public' AND s.port IS NOT NULL AND s.source IS NULL",
+  ) as Row[]) {
+    try {
+      await edge.setRoute(targetOf(row), str(row.domain), Number(row.port));
+      n++;
+    } catch (e) {
+      warn("sites: a domain route was not refreshed", {
+        domain: str(row.domain),
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   }
   return n;
 }

@@ -1,6 +1,17 @@
 // Fake Docker, Caddy and DNS drivers for sites tests. They record every call so a test can assert what reached the router and the runtime.
 
-import type { BuildRequest, BuildResult, CertState, RouteSpec, SiteDns, SiteDrivers, SiteRouter, SiteRuntime, StartRequest, StartResult } from "../handlers/deploy.ts";
+import type {
+  BuildRequest,
+  BuildResult,
+  CertState,
+  RouteSpec,
+  SiteDns,
+  SiteDrivers,
+  SiteRouter,
+  SiteRuntime,
+  StartRequest,
+  StartResult,
+} from "../handlers/deploy.ts";
 
 export const SPACE_DOMAIN = "acme.vyre.run";
 
@@ -20,7 +31,12 @@ export class FakeRuntime implements SiteRuntime {
     const planned = this.outcomes.get(req.branch);
     if (planned && planned.ok === false) return { ok: false, log: planned.log ?? ["build failed"] };
     this.seq += 1;
-    const out: BuildResult = { ok: true, image: `vyre-site/${req.siteId}:${this.seq}`, commit: `c0ffee${String(this.seq).padStart(2, "0")}`, log: planned?.log ?? [`building ${req.branch}`, "done"] };
+    const out: BuildResult = {
+      ok: true,
+      image: `vyre-site/${req.siteId}:${this.seq}`,
+      commit: `c0ffee${String(this.seq).padStart(2, "0")}`,
+      log: planned?.log ?? [`building ${req.branch}`, "done"],
+    };
     if (planned?.pullRequest !== undefined) out.pullRequest = planned.pullRequest;
     return out;
   }

@@ -10,7 +10,8 @@ const ASK: readonly RegExp[] = [
   /\bmy\s+open\s+tabs?\b/gi,
   /\bthe\s+tab\s+i\s+(?:have|already\s+have)\s+open\b/gi,
 ];
-const NO = /(?:\b(?:don'?t|do\s+not|dont|never|not|without|no\s+need\s+(?:to|for)|instead\s+of|rather\s+than|stay\s+out\s+of|leave)\b[^.!?\n]{0,25})$/i;
+const NO =
+  /(?:\b(?:don'?t|do\s+not|dont|never|not|without|no\s+need\s+(?:to|for)|instead\s+of|rather\s+than|stay\s+out\s+of|leave)\b[^.!?\n]{0,25})$/i;
 
 /** Does this line ask for the person's own Chrome? */
 export function saidMyChrome(text: string): boolean {
@@ -23,7 +24,11 @@ export function saidMyChrome(text: string): boolean {
   return false;
 }
 
-interface Line { author?: { kind?: string; id?: string }; body?: string; threadSeq?: number }
+interface Line {
+  author?: { kind?: string; id?: string };
+  body?: string;
+  threadSeq?: number;
+}
 
 /** The person asked in the turn this call belongs to. False when there is no chat to read, nobody to ask for, or the newest line from the person does not ask. */
 export async function askedThisTurn(ctx: Pick<CompCtx, "call" | "thread" | "actingFor">): Promise<boolean> {
@@ -31,7 +36,10 @@ export async function askedThisTurn(ctx: Pick<CompCtx, "call" | "thread" | "acti
   try {
     const page = (await ctx.call("chat.messages.list", { threadId: ctx.thread, limit: 12 })) as { messages?: Line[] };
     const mine = (page.messages ?? []).filter((m) => m.author?.kind === "person" && m.author.id === ctx.actingFor);
-    const last = mine.reduce<Line | undefined>((a, m) => (a === undefined || (m.threadSeq ?? 0) >= (a.threadSeq ?? 0) ? m : a), undefined);
+    const last = mine.reduce<Line | undefined>(
+      (a, m) => (a === undefined || (m.threadSeq ?? 0) >= (a.threadSeq ?? 0) ? m : a),
+      undefined,
+    );
     return last !== undefined && saidMyChrome(String(last.body ?? ""));
   } catch {
     return false;

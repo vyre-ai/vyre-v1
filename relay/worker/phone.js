@@ -44,15 +44,40 @@ export const PUBLIC = Object.freeze({
   timeoutMs: 30_000,
   sandbox: "sandbox allow-scripts allow-forms allow-popups allow-downloads",
 });
-const REQUEST_KEEP = new Set(["accept", "accept-language", "content-type", "if-modified-since", "if-none-match", "range", "user-agent", "x-file-name"]);
-const RESPONSE_KEEP = new Set(["accept-ranges", "cache-control", "content-disposition", "content-encoding", "content-language", "content-length", "content-range", "content-security-policy", "content-type", "etag", "expires", "last-modified", "retry-after", "vary"]);
+const REQUEST_KEEP = new Set([
+  "accept",
+  "accept-language",
+  "content-type",
+  "if-modified-since",
+  "if-none-match",
+  "range",
+  "user-agent",
+  "x-file-name",
+]);
+const RESPONSE_KEEP = new Set([
+  "accept-ranges",
+  "cache-control",
+  "content-disposition",
+  "content-encoding",
+  "content-language",
+  "content-length",
+  "content-range",
+  "content-security-policy",
+  "content-type",
+  "etag",
+  "expires",
+  "last-modified",
+  "retry-after",
+  "vary",
+]);
 
 /**
  * The door for outside agents: an MCP client talks to `/mcp` and signs in at the OAuth addresses, as plain HTTPS, because that is what every MCP client speaks. This is the one path where the relay carries a credential: the access
  * token in Authorization crosses this Worker in the clear, in memory only, never logged, on `/mcp` and nowhere else. An outside agent's token is short lived and bound to this address. Everything else here stays as it is on `/p/`:
  * no Cookie, no Set-Cookie, and only the paths below. A browser's sign-in to Vyre never comes this way: the page on this door takes no password.
  */
-export const DOOR = /^\/(?:mcp|oauth\/(?:authorize|register|token|wait)|\.well-known\/oauth-(?:protected-resource(?:\/mcp)?|authorization-server))$/;
+export const DOOR =
+  /^\/(?:mcp|oauth\/(?:authorize|register|token|wait)|\.well-known\/oauth-(?:protected-resource(?:\/mcp)?|authorization-server))$/;
 /**
  * A web request trigger: POST /hooks/automation/<id>/<secret> and that exact shape only (host/src/seams/relay.ts HOOK and host/src/routes/webhooks.ts AUTOMATION_PATH say the same). It is a new way in
  * from the internet, so it is narrow: POST only, no query, a body of 1 MB at most, only content-type and an idempotency key reach the box, and a Space takes 120 a minute, one hook 30 and one visitor 20 on one hook
@@ -60,10 +85,30 @@ export const DOOR = /^\/(?:mcp|oauth\/(?:authorize|register|token|wait)|\.well-k
  * and some senders turn an endpoint off after repeated 404s); every other refusal is the same bare 404, and the path, which carries the secret, is never logged.
  */
 export const HOOK = /^\/hooks\/automation\/(aut_[a-z0-9]{1,64})\/[A-Za-z0-9_-]{8,200}$/;
-export const HOOKS = Object.freeze({ maxBody: 1 << 20, perMinute: 120, perHookPerMinute: 30, perVisitorPerMinute: 20, refusedPerVisitor: 20 });
+export const HOOKS = Object.freeze({
+  maxBody: 1 << 20,
+  perMinute: 120,
+  perHookPerMinute: 30,
+  perVisitorPerMinute: 20,
+  refusedPerVisitor: 20,
+});
 const DOOR_KEEP = new Set([...REQUEST_KEEP, "mcp-session-id", "mcp-protocol-version", "origin", "last-event-id"]);
-const DOOR_BACK = new Set([...RESPONSE_KEEP, "www-authenticate", "mcp-session-id", "location", "allow", "x-frame-options", "x-content-type-options", "x-robots-tag", "referrer-policy", "cross-origin-opener-policy", "access-control-allow-origin", "access-control-allow-methods", "access-control-allow-headers", "access-control-max-age"]);
-
+const DOOR_BACK = new Set([
+  ...RESPONSE_KEEP,
+  "www-authenticate",
+  "mcp-session-id",
+  "location",
+  "allow",
+  "x-frame-options",
+  "x-content-type-options",
+  "x-robots-tag",
+  "referrer-policy",
+  "cross-origin-opener-policy",
+  "access-control-allow-origin",
+  "access-control-allow-methods",
+  "access-control-allow-headers",
+  "access-control-max-age",
+]);
 
 /**
  * The artifact host, `<name>-a.vyre.run`: its own origin, apart from the app's. It serves two kinds of path and nothing else: the one-time code `/x/<code>` (which sets the artifact session) and an artifact's own address `/sit_.../`.
@@ -77,24 +122,61 @@ export const ARTIFACT_SUFFIX = "-a";
 /** The labels the deploy fenced from the zone's own records (edge.mjs writes them to the FENCE_HOSTS secret): every host that exists, whatever the static list says. @param {any} env */
 export function fenceOf(env) {
   const raw = typeof env.FENCE_HOSTS === "string" ? env.FENCE_HOSTS : "";
-  return new Set(raw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean));
+  return new Set(
+    raw
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  );
 }
 
-export const INFRA = Object.freeze(new Set([
-  "names", "app", "api", "www", "relay", "acme", "mail", "docs", "status", "web", "reports", "escrow", "edge", "vyre", "phone", "setup",
-  // the hosts that exist in the zone today and are not Workers; a claim also checks live DNS (dnsTaken), so a host added later is fenced too
-  "dl", "prototype", "tracker", "tess", "updates", "freemanwine", "vyreqa-lab7",
-]));
+export const INFRA = Object.freeze(
+  new Set([
+    "names",
+    "app",
+    "api",
+    "www",
+    "relay",
+    "acme",
+    "mail",
+    "docs",
+    "status",
+    "web",
+    "reports",
+    "escrow",
+    "edge",
+    "vyre",
+    "phone",
+    "setup",
+    // the hosts that exist in the zone today and are not Workers; a claim also checks live DNS (dnsTaken), so a host added later is fenced too
+    "dl",
+    "prototype",
+    "tracker",
+    "tess",
+    "updates",
+    "freemanwine",
+    "vyreqa-lab7",
+  ]),
+);
 
-const json = (status, body, headers = {}) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store", ...headers } });
+const json = (status, body, headers = {}) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json", "cache-control": "no-store", ...headers },
+  });
 
 /** A nickname safe to show: no control characters, no bidi marks, trimmed. @param {unknown} s */
 export function cleanLabel(s) {
-  return String(s ?? "").replace(/[\u0000-\u001f\u007f-\u009f\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]+/g, " ").replace(/ {2,}/g, " ").trim().slice(0, PHONE.labelMax);
+  return String(s ?? "")
+    .replace(/[\u0000-\u001f\u007f-\u009f\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]+/g, " ")
+    .replace(/ {2,}/g, " ")
+    .trim()
+    .slice(0, PHONE.labelMax);
 }
 
 /** @param {string} s */
-const esc = s => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] || c);
+const esc = (s) =>
+  s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] || c);
 
 /**
  * What the Worker does with this request's host:
@@ -109,14 +191,18 @@ export function gatewayOf(url, env) {
   if (env.STAGE_HOST && env.STAGE_NAME) {
     // the staging host is also the relay's own address: its sockets and health check are the relay's, everything else is the one name's
     if (url.pathname === "/health" || url.pathname.startsWith("/v1/")) return null;
-    return host === String(env.STAGE_HOST).toLowerCase() && PHONE.nameRe.test(String(env.STAGE_NAME)) ? { name: String(env.STAGE_NAME) } : null;
+    return host === String(env.STAGE_HOST).toLowerCase() && PHONE.nameRe.test(String(env.STAGE_NAME))
+      ? { name: String(env.STAGE_NAME) }
+      : null;
   }
   const zone = String(env.HOST_ZONE || PHONE.zone).toLowerCase();
   if (!host.endsWith(`.${zone}`) || host === String(env.RELAY_HOST || `relay.${zone}`).toLowerCase()) return null;
   const label = host.slice(0, -(zone.length + 1));
   if (label.endsWith(ARTIFACT_SUFFIX)) {
     const base = label.slice(0, -ARTIFACT_SUFFIX.length);
-    return PHONE.nameRe.test(base) && !INFRA.has(base) && !fenceOf(env).has(base) ? { name: base, artifact: true } : { pass: true };
+    return PHONE.nameRe.test(base) && !INFRA.has(base) && !fenceOf(env).has(base)
+      ? { name: base, artifact: true }
+      : { pass: true };
   }
   return PHONE.nameRe.test(label) && !INFRA.has(label) && !fenceOf(env).has(label) ? { name: label } : { pass: true };
 }
@@ -130,21 +216,44 @@ const slotOf = (env, name) => env.HOSTS.get(env.HOSTS.idFromName(`hn:${name}`));
  */
 export class HostSlot {
   /** @param {any} ctx @param {any} env */
-  constructor(ctx, env) { this.ctx = ctx; this.env = env; }
+  constructor(ctx, env) {
+    this.ctx = ctx;
+    this.env = env;
+  }
 
   /** @param {Request} request */
   async fetch(request) {
     const url = new URL(request.url);
     const cur = (await this.ctx.storage.get("h")) || null;
     if (request.method === "GET" && url.pathname === "/info") {
-      return json(200, cur ? { route: cur.route, label: cur.label, released: Boolean(cur.released), members: Array.isArray(cur.members) ? cur.members : [], ...(cur.kind === "server" ? { kind: "server" } : {}) } : {});
+      return json(
+        200,
+        cur
+          ? {
+              route: cur.route,
+              label: cur.label,
+              released: Boolean(cur.released),
+              members: Array.isArray(cur.members) ? cur.members : [],
+              ...(cur.kind === "server" ? { kind: "server" } : {}),
+            }
+          : {},
+      );
     }
     let body;
-    try { body = await request.json(); } catch { return json(400, { error: "bad request" }); }
-    const route = String(body && body.route || "");
+    try {
+      body = await request.json();
+    } catch {
+      return json(400, { error: "bad request" });
+    }
+    const route = String((body && body.route) || "");
     if (request.method === "PUT" && url.pathname === "/claim") {
       if (cur && cur.route !== route) return json(200, { status: "taken" });
-      await this.ctx.storage.put("h", { route, label: cleanLabel(body.label), at: cur ? cur.at : Date.now(), ...(cur && Array.isArray(cur.members) ? { members: cur.members } : {}) });
+      await this.ctx.storage.put("h", {
+        route,
+        label: cleanLabel(body.label),
+        at: cur ? cur.at : Date.now(),
+        ...(cur && Array.isArray(cur.members) ? { members: cur.members } : {}),
+      });
       return json(200, { status: "claimed" });
     }
     // The other computers of the same Personal Space (lane l-multidevice): they hold the same box key, so the phone's pin holds for each, and the gateway sends the phone to whichever is awake.
@@ -154,12 +263,16 @@ export class HostSlot {
       const list = Array.isArray(body.members) ? body.members : [];
       const members = [];
       for (const m of list) {
-        const r = String(m && m.route || "");
-        if (!/^[a-z2-7]{26}$/.test(r) || r === route || members.some(x => x.route === r)) continue;
+        const r = String((m && m.route) || "");
+        if (!/^[a-z2-7]{26}$/.test(r) || r === route || members.some((x) => x.route === r)) continue;
         members.push({ route: r, label: cleanLabel(m.label), ...(m && m.kind === "server" ? { kind: "server" } : {}) });
         if (members.length >= PHONE.members) break;
       }
-      await this.ctx.storage.put("h", { ...cur, members, ...(body.selfKind === "server" ? { kind: "server" } : { kind: undefined }) });
+      await this.ctx.storage.put("h", {
+        ...cur,
+        members,
+        ...(body.selfKind === "server" ? { kind: "server" } : { kind: undefined }),
+      });
       return json(200, { status: "ok", count: members.length });
     }
     if (request.method === "POST" && url.pathname === "/release") {
@@ -175,11 +288,16 @@ export class HostSlot {
 async function nameStatus(env, name) {
   const f = typeof env.NAMES_FETCH === "function" ? env.NAMES_FETCH : globalThis.fetch.bind(globalThis);
   try {
-    const r = await f(`${String(env.NAMES_ORIGIN || "https://names.vyre.run").replace(/\/+$/, "")}/v1/names/check?name=${encodeURIComponent(name)}`, { headers: { accept: "application/json" } });
+    const r = await f(
+      `${String(env.NAMES_ORIGIN || "https://names.vyre.run").replace(/\/+$/, "")}/v1/names/check?name=${encodeURIComponent(name)}`,
+      { headers: { accept: "application/json" } },
+    );
     const j = /** @type {any} */ (await r.json());
     const s = r.ok && j && j.data && typeof j.data.status === "string" ? j.data.status : "";
     return ["ok", "taken", "reserved", "invalid"].includes(s) ? s : "unavailable";
-  } catch { return "unavailable"; }
+  } catch {
+    return "unavailable";
+  }
 }
 
 /**
@@ -194,16 +312,23 @@ async function dnsTaken(env, name) {
   const zone = String(env.HOST_ZONE || PHONE.zone);
   const control = `zz-${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
   /** @param {string} label */
-  const answers = async label => {
-    const r = await f(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(`${label}.${zone}`)}&type=A`, { headers: { accept: "application/dns-json" } });
+  const answers = async (label) => {
+    const r = await f(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(`${label}.${zone}`)}&type=A`, {
+      headers: { accept: "application/dns-json" },
+    });
     const j = /** @type {any} */ (await r.json());
     if (!r.ok || !j || typeof j.Status !== "number") throw new Error("no answer");
-    return (j.Status === 0 && Array.isArray(j.Answer) ? j.Answer : []).map((/** @type {any} */ a) => `${a.type}:${a.data}`).sort().join(",");
+    return (j.Status === 0 && Array.isArray(j.Answer) ? j.Answer : [])
+      .map((/** @type {any} */ a) => `${a.type}:${a.data}`)
+      .sort()
+      .join(",");
   };
   try {
     const [mine, none] = await Promise.all([answers(name), answers(control)]);
     return mine === none ? "ok" : "taken";
-  } catch { return "unavailable"; }
+  } catch {
+    return "unavailable";
+  }
 }
 
 const day = () => Math.floor(Date.now() / 86_400_000);
@@ -223,22 +348,41 @@ export async function hostControl(relay, ws, m) {
   if (op === "status") {
     if (!mine) return reply(op, "none");
     const info = await (await slotOf(env, mine.name).fetch("https://host/info")).json();
-    return reply(op, info.route === route && !info.released ? "claimed" : "none", { name: mine.name, label: info.label || mine.label || "" });
+    return reply(op, info.route === route && !info.released ? "claimed" : "none", {
+      name: mine.name,
+      label: info.label || mine.label || "",
+    });
   }
   if (op === "members") {
     if (!mine) return reply(op, "none");
-    const out = /** @type {any} */ (await (await slotOf(env, mine.name).fetch("https://host/members", { method: "PUT", body: JSON.stringify({ route, selfKind: m.selfKind === "server" ? "server" : "computer", members: Array.isArray(m.members) ? m.members.slice(0, 32) : [] }) })).json());
+    const out = /** @type {any} */ (
+      await (
+        await slotOf(env, mine.name).fetch("https://host/members", {
+          method: "PUT",
+          body: JSON.stringify({
+            route,
+            selfKind: m.selfKind === "server" ? "server" : "computer",
+            members: Array.isArray(m.members) ? m.members.slice(0, 32) : [],
+          }),
+        })
+      ).json()
+    );
     return reply(op, out.status, { name: mine.name });
   }
   if (op === "release") {
     if (!mine) return reply(op, "none");
-    const out = /** @type {any} */ (await (await slotOf(env, mine.name).fetch("https://host/release", { method: "POST", body: JSON.stringify({ route }) })).json());
+    const out = /** @type {any} */ (
+      await (
+        await slotOf(env, mine.name).fetch("https://host/release", { method: "POST", body: JSON.stringify({ route }) })
+      ).json()
+    );
     await relay.ctx.storage.delete("host");
     return reply(op, out.status, { name: mine.name });
   }
   if (op !== "claim") return;
   const name = String(m.name || "").toLowerCase();
-  if (!PHONE.nameRe.test(name) || INFRA.has(name) || name.endsWith(ARTIFACT_SUFFIX)) return reply(op, "invalid", { name });
+  if (!PHONE.nameRe.test(name) || INFRA.has(name) || name.endsWith(ARTIFACT_SUFFIX))
+    return reply(op, "invalid", { name });
   if (fenceOf(env).has(name)) return reply(op, "reserved", { name });
   if (mine && mine.name !== name) return reply(op, "has_name", { name: mine.name });
   const label = cleanLabel(m.label);
@@ -255,7 +399,9 @@ export async function hostControl(relay, ws, m) {
     const d = await dnsTaken(env, name);
     if (d !== "ok") return reply(op, d, { name });
   }
-  const out = /** @type {any} */ (await (await slot.fetch("https://host/claim", { method: "PUT", body: JSON.stringify({ route, label }) })).json());
+  const out = /** @type {any} */ (
+    await (await slot.fetch("https://host/claim", { method: "PUT", body: JSON.stringify({ route, label }) })).json()
+  );
   if (out.status !== "claimed") return reply(op, out.status, { name });
   await relay.ctx.storage.put("host", { name, label });
   return reply(op, "claimed", { name, label });
@@ -269,7 +415,8 @@ const SHELL_HEADERS = (relayWss) => ({
   "content-security-policy": `default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ${relayWss}; worker-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
 });
 
-const PAGE_STYLE = "html{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;background:Canvas;color:CanvasText}main{max-width:26rem;padding:2rem 1.25rem;text-align:center}h1{font-size:1.25rem;margin:0 0 .5rem}p{margin:.25rem 0;opacity:.75}";
+const PAGE_STYLE =
+  "html{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;background:Canvas;color:CanvasText}main{max-width:26rem;padding:2rem 1.25rem;text-align:center}h1{font-size:1.25rem;margin:0 0 .5rem}p{margin:.25rem 0;opacity:.75}";
 
 /** How long ago, in words. @param {number | null} at @param {number} now */
 export function agoText(at, now) {
@@ -289,8 +436,12 @@ function asleepPage(label, name, computers = []) {
   const who = esc(label || name);
   const many = computers.length > 1;
   const title = many ? "Your computers are asleep" : `${who} is asleep`;
-  const list = many ? `<ul style="list-style:none;padding:0;margin:1rem 0 0">${computers.map(c => `<li>${esc(c.label || "A computer")}: ${esc(agoText(c.seenAt, Date.now()))}</li>`).join("")}</ul>` : "";
-  const line = many ? "Wake any of them and this page opens by itself." : "Wake the computer and this page opens by itself.";
+  const list = many
+    ? `<ul style="list-style:none;padding:0;margin:1rem 0 0">${computers.map((c) => `<li>${esc(c.label || "A computer")}: ${esc(agoText(c.seenAt, Date.now()))}</li>`).join("")}</ul>`
+    : "";
+  const line = many
+    ? "Wake any of them and this page opens by itself."
+    : "Wake the computer and this page opens by itself.";
   return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="20"><title>${title}</title><style>${PAGE_STYLE}</style><body><main><h1>${title}</h1><p>${line}</p>${list}</main></body></html>`;
 }
 
@@ -304,7 +455,12 @@ export function publicHead(request, url, artifact = false) {
   /** @type {Record<string, string>} */
   const headers = {};
   for (const [k, v] of request.headers) if (REQUEST_KEEP.has(k.toLowerCase())) headers[k.toLowerCase()] = v;
-  const head = { method: request.method, path: `${url.pathname}${url.search}`, ip: request.headers.get("cf-connecting-ip") || "", headers };
+  const head = {
+    method: request.method,
+    path: `${url.pathname}${url.search}`,
+    ip: request.headers.get("cf-connecting-ip") || "",
+    headers,
+  };
   if (!artifact) return head;
   // the artifact host's own cookie goes to the box, and the host it was asked on, so the box checks the person against this origin only
   const cookie = request.headers.get("cookie");
@@ -315,11 +471,11 @@ export function publicHead(request, url, artifact = false) {
 /** The one Set-Cookie the artifact host may send: host-only (no Domain), HttpOnly, Secure, SameSite=Lax, for the artifact paths. Anything looser is dropped. @param {string | null} v */
 export function artifactCookie(v) {
   if (!v || v.length > 1024) return null;
-  const parts = v.split(";").map(x => x.trim().toLowerCase());
+  const parts = v.split(";").map((x) => x.trim().toLowerCase());
   const has = (/** @type {string} */ a) => parts.includes(a);
-  if (parts.some(x => x.startsWith("domain="))) return null;
+  if (parts.some((x) => x.startsWith("domain="))) return null;
   if (!has("httponly") || !has("secure") || !has("samesite=lax")) return null;
-  const path = parts.find(x => x.startsWith("path="));
+  const path = parts.find((x) => x.startsWith("path="));
   if (path && path !== "path=/") return null;
   return v;
 }
@@ -328,12 +484,23 @@ export function artifactCookie(v) {
 export function publicHeaders(from, url, artifact = false) {
   const h = new Headers();
   for (const [k, v] of from) if (RESPONSE_KEEP.has(k.toLowerCase())) h.append(k, v);
-  if (artifact) { const c = artifactCookie(from.get("set-cookie")); if (c) h.append("set-cookie", c); }
+  if (artifact) {
+    const c = artifactCookie(from.get("set-cookie"));
+    if (c) h.append("set-cookie", c);
+  }
   const location = from.get("location");
   if (location) {
     let to = null;
-    try { to = new URL(location, url); } catch { /* not an address */ }
-    if (to && (to.origin !== url.origin || to.pathname.startsWith("/p/") || (artifact && ARTIFACT_HOST.test(to.pathname)))) h.set("location", to.href);
+    try {
+      to = new URL(location, url);
+    } catch {
+      /* not an address */
+    }
+    if (
+      to &&
+      (to.origin !== url.origin || to.pathname.startsWith("/p/") || (artifact && ARTIFACT_HOST.test(to.pathname)))
+    )
+      h.set("location", to.href);
   }
   // a second policy only narrows: whatever the page sent, this one still applies
   h.append("content-security-policy", PUBLIC.sandbox);
@@ -347,13 +514,22 @@ export function publicHeaders(from, url, artifact = false) {
 /** A page the relay itself answers on `/p/`, under the same policy as any other. @param {number} status @param {string} title @param {string} text @param {URL} url @param {Record<string, string>} [extra] */
 function publicPage(status, title, text, url, extra = {}) {
   const body = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>${PAGE_STYLE}</style><body><main><h1>${esc(title)}</h1><p>${esc(text)}</p></main></body></html>`;
-  return new Response(body, { status, headers: publicHeaders(new Headers({ "content-type": "text/html; charset=utf-8", "cache-control": "no-store", ...extra }), url) });
+  return new Response(body, {
+    status,
+    headers: publicHeaders(
+      new Headers({ "content-type": "text/html; charset=utf-8", "cache-control": "no-store", ...extra }),
+      url,
+    ),
+  });
 }
 
 /** Names or `name/site` pairs the operator took down (the P_BLOCKED secret, comma separated): the kill switch. @param {any} env @param {string} name @param {string} site */
 export function publicBlocked(env, name, site) {
   const raw = typeof env.P_BLOCKED === "string" ? env.P_BLOCKED : "";
-  const list = raw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+  const list = raw
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
   return list.includes(name) || (site !== "" && list.includes(`${name}/${site.toLowerCase()}`));
 }
 
@@ -365,8 +541,12 @@ async function onPublic(request, env, name, info, online, artifact = false) {
   const url = new URL(request.url);
   // a token never reaches a log
   const site = url.pathname.split("/")[2] || "";
-  const done = (/** @type {Response} */ res) => { console.log(JSON.stringify({ p: url.hostname, site, status: res.status })); return res; };
-  if (publicBlocked(env, name, site)) return done(publicPage(451, "This page is not available", "It was taken down.", url));
+  const done = (/** @type {Response} */ res) => {
+    console.log(JSON.stringify({ p: url.hostname, site, status: res.status }));
+    return res;
+  };
+  if (publicBlocked(env, name, site))
+    return done(publicPage(451, "This page is not available", "It was taken down.", url));
   if (request.method === "OPTIONS") {
     const h = publicHeaders(new Headers({ "cache-control": "no-store" }), url, artifact);
     h.set("access-control-allow-methods", "GET, HEAD, POST, OPTIONS");
@@ -374,27 +554,58 @@ async function onPublic(request, env, name, info, online, artifact = false) {
     h.set("access-control-max-age", "600");
     return new Response(null, { status: 204, headers: h });
   }
-  if (!["GET", "HEAD", "POST"].includes(request.method)) return done(new Response(null, { status: 405, headers: publicHeaders(new Headers({ allow: "GET, HEAD, POST, OPTIONS" }), url, artifact) }));
-  if (Number(request.headers.get("content-length") || 0) > PUBLIC.maxBody) return done(new Response(null, { status: 413, headers: publicHeaders(new Headers(), url, artifact) }));
+  if (!["GET", "HEAD", "POST"].includes(request.method))
+    return done(
+      new Response(null, {
+        status: 405,
+        headers: publicHeaders(new Headers({ allow: "GET, HEAD, POST, OPTIONS" }), url, artifact),
+      }),
+    );
+  if (Number(request.headers.get("content-length") || 0) > PUBLIC.maxBody)
+    return done(new Response(null, { status: 413, headers: publicHeaders(new Headers(), url, artifact) }));
   const body = request.method === "POST" ? new Uint8Array(await request.arrayBuffer()) : new Uint8Array(0);
-  if (body.length > PUBLIC.maxBody) return done(new Response(null, { status: 413, headers: publicHeaders(new Headers(), url, artifact) }));
-  const asleep = () => publicPage(503, `${info.label || name} is offline`, "This page lives on a computer that is off or not connected. Try again soon.", url, { "retry-after": "20" });
+  if (body.length > PUBLIC.maxBody)
+    return done(new Response(null, { status: 413, headers: publicHeaders(new Headers(), url, artifact) }));
+  const asleep = () =>
+    publicPage(
+      503,
+      `${info.label || name} is offline`,
+      "This page lives on a computer that is off or not connected. Try again soon.",
+      url,
+      { "retry-after": "20" },
+    );
   if (!(await online())) return done(asleep());
   let res;
   try {
-    res = await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/p", { method: "POST", headers: { "x-vyre-p": JSON.stringify(publicHead(request, url, artifact)) }, body });
-  } catch { return done(asleep()); }
+    res = await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/p", {
+      method: "POST",
+      headers: { "x-vyre-p": JSON.stringify(publicHead(request, url, artifact)) },
+      body,
+    });
+  } catch {
+    return done(asleep());
+  }
   if (res.status === 599) return done(asleep());
-  return done(new Response(request.method === "HEAD" ? null : res.body, { status: res.status, headers: publicHeaders(res.headers, url, artifact) }));
+  return done(
+    new Response(request.method === "HEAD" ? null : res.body, {
+      status: res.status,
+      headers: publicHeaders(res.headers, url, artifact),
+    }),
+  );
 }
 
 /** One web request trigger through the relay. @param {Request} request @param {any} env @param {string} name @param {any} info @param {() => Promise<boolean>} online */
 export async function onHook(request, env, name, info, online) {
   const url = new URL(request.url);
-  const notFound = () => new Response(null, { status: 404, headers: { "cache-control": "no-store", "x-robots-tag": "noindex" } });
-  const done = (/** @type {Response} */ res) => { console.log(JSON.stringify({ p: url.hostname, hook: true, status: res.status })); return res; };
+  const notFound = () =>
+    new Response(null, { status: 404, headers: { "cache-control": "no-store", "x-robots-tag": "noindex" } });
+  const done = (/** @type {Response} */ res) => {
+    console.log(JSON.stringify({ p: url.hostname, hook: true, status: res.status }));
+    return res;
+  };
   const m = HOOK.exec(url.pathname);
-  if (!m || url.search !== "" || request.method !== "POST" || publicBlocked(env, name, "hooks")) return done(notFound());
+  if (!m || url.search !== "" || request.method !== "POST" || publicBlocked(env, name, "hooks"))
+    return done(notFound());
   if (Number(request.headers.get("content-length") || 0) > HOOKS.maxBody) return done(notFound());
   const body = new Uint8Array(await request.arrayBuffer());
   if (body.length > HOOKS.maxBody) return done(notFound());
@@ -405,12 +616,32 @@ export async function onHook(request, env, name, info, online) {
   if (type && type.length <= 200) headers["content-type"] = type;
   const key = request.headers.get("idempotency-key");
   if (key && key.length <= 200 && /^[\x21-\x7e]+$/.test(key)) headers["idempotency-key"] = key;
-  const head = { method: "POST", path: url.pathname, ip: request.headers.get("cf-connecting-ip") || "", headers, hook: m[1] };
+  const head = {
+    method: "POST",
+    path: url.pathname,
+    ip: request.headers.get("cf-connecting-ip") || "",
+    headers,
+    hook: m[1],
+  };
   let res;
-  try { res = await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/p", { method: "POST", headers: { "x-vyre-p": JSON.stringify(head) }, body }); } catch { return done(notFound()); }
-  if (res.status === 429) return done(new Response(null, { status: 429, headers: { "retry-after": "60", "cache-control": "no-store" } }));
+  try {
+    res = await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/p", {
+      method: "POST",
+      headers: { "x-vyre-p": JSON.stringify(head) },
+      body,
+    });
+  } catch {
+    return done(notFound());
+  }
+  if (res.status === 429)
+    return done(new Response(null, { status: 429, headers: { "retry-after": "60", "cache-control": "no-store" } }));
   if (res.status !== 200) return done(notFound());
-  return done(new Response('{"accepted":true}', { status: 200, headers: { "content-type": "application/json", "cache-control": "no-store", "x-content-type-options": "nosniff" } }));
+  return done(
+    new Response('{"accepted":true}', {
+      status: 200,
+      headers: { "content-type": "application/json", "cache-control": "no-store", "x-content-type-options": "nosniff" },
+    }),
+  );
 }
 
 /** What the box may see of a request on the door. @param {Request} request @param {URL} url */
@@ -420,7 +651,13 @@ export function doorHead(request, url) {
   for (const [k, v] of request.headers) if (DOOR_KEEP.has(k.toLowerCase())) headers[k.toLowerCase()] = v;
   const auth = request.headers.get("authorization");
   if (auth && url.pathname === "/mcp") headers["authorization"] = auth;
-  return { method: request.method, path: `${url.pathname}${url.search}`, ip: request.headers.get("cf-connecting-ip") || "", headers, door: true };
+  return {
+    method: request.method,
+    path: `${url.pathname}${url.search}`,
+    ip: request.headers.get("cf-connecting-ip") || "",
+    headers,
+    door: true,
+  };
 }
 
 /** The headers a door answer leaves with: the box's own policy on a page stays, and nothing that sets state in a browser leaves. @param {Headers} from */
@@ -438,22 +675,49 @@ export function doorHeaders(from) {
  */
 async function onDoor(request, env, name, info, online) {
   const url = new URL(request.url);
-  const done = (/** @type {Response} */ res) => { console.log(JSON.stringify({ door: url.hostname, status: res.status })); return res; };
+  const done = (/** @type {Response} */ res) => {
+    console.log(JSON.stringify({ door: url.hostname, status: res.status }));
+    return res;
+  };
   if (publicBlocked(env, name, "")) return done(new Response(null, { status: 451 }));
-  if (!["GET", "HEAD", "POST", "DELETE", "OPTIONS"].includes(request.method)) return done(new Response(null, { status: 405, headers: { allow: "GET, HEAD, POST, DELETE, OPTIONS" } }));
-  if (Number(request.headers.get("content-length") || 0) > PUBLIC.maxBody) return done(new Response(null, { status: 413 }));
+  if (!["GET", "HEAD", "POST", "DELETE", "OPTIONS"].includes(request.method))
+    return done(new Response(null, { status: 405, headers: { allow: "GET, HEAD, POST, DELETE, OPTIONS" } }));
+  if (Number(request.headers.get("content-length") || 0) > PUBLIC.maxBody)
+    return done(new Response(null, { status: 413 }));
   const body = request.method === "POST" ? new Uint8Array(await request.arrayBuffer()) : new Uint8Array(0);
   if (body.length > PUBLIC.maxBody) return done(new Response(null, { status: 413 }));
-  const asleep = () => (url.pathname === "/oauth/authorize"
-    ? new Response(asleepPage(info.label, name), { status: 503, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "retry-after": "20" } })
-    : json(503, { error: "temporarily_unavailable", error_description: "The computer this Space runs on is off or not connected." }, { "retry-after": "20" }));
+  const asleep = () =>
+    url.pathname === "/oauth/authorize"
+      ? new Response(asleepPage(info.label, name), {
+          status: 503,
+          headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "retry-after": "20" },
+        })
+      : json(
+          503,
+          {
+            error: "temporarily_unavailable",
+            error_description: "The computer this Space runs on is off or not connected.",
+          },
+          { "retry-after": "20" },
+        );
   if (!(await online())) return done(asleep());
   let res;
   try {
-    res = await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/p", { method: "POST", headers: { "x-vyre-p": JSON.stringify(doorHead(request, url)) }, body });
-  } catch { return done(asleep()); }
+    res = await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/p", {
+      method: "POST",
+      headers: { "x-vyre-p": JSON.stringify(doorHead(request, url)) },
+      body,
+    });
+  } catch {
+    return done(asleep());
+  }
   if (res.status === 599) return done(asleep());
-  return done(new Response(request.method === "HEAD" ? null : res.body, { status: res.status, headers: doorHeaders(res.headers) }));
+  return done(
+    new Response(request.method === "HEAD" ? null : res.body, {
+      status: res.status,
+      headers: doorHeaders(res.headers),
+    }),
+  );
 }
 
 /** Names seen unclaimed a moment ago, per isolate, so the hosts under the wildcard that are not phone names cost one lookup a minute, not one per request. */
@@ -462,20 +726,30 @@ const negative = new Map();
 /** @param {string} host @param {boolean} [set] */
 function unclaimed(host, set = false) {
   const now = Date.now();
-  if (set) { if (negative.size > 512) negative.clear(); negative.set(host, now + NEGATIVE_MS); return true; }
+  if (set) {
+    if (negative.size > 512) negative.clear();
+    negative.set(host, now + NEGATIVE_MS);
+    return true;
+  }
   const until = negative.get(host);
   return until !== undefined && until > now;
 }
 /** Forget a cached "unclaimed" (a claim just made; tests). @param {string} [host] */
-export function forgetUnclaimed(host) { host === undefined ? negative.clear() : negative.delete(host); }
+export function forgetUnclaimed(host) {
+  host === undefined ? negative.clear() : negative.delete(host);
+}
 
 /** The request to the origin of its own host. A staging Worker has no origin behind its host, and an origin that answers with a Cloudflare error is a name nobody holds. @param {Request} request @param {any} env */
 export async function passthrough(request, env) {
   if (env.STAGE_HOST) return new Response(null, { status: 404 });
   try {
-    const res = await (typeof env.ORIGIN_FETCH === "function" ? env.ORIGIN_FETCH : globalThis.fetch.bind(globalThis))(request);
+    const res = await (typeof env.ORIGIN_FETCH === "function" ? env.ORIGIN_FETCH : globalThis.fetch.bind(globalThis))(
+      request,
+    );
     return res.status >= 520 ? new Response(null, { status: 404 }) : res;
-  } catch { return new Response(null, { status: 404 }); }
+  } catch {
+    return new Response(null, { status: 404 });
+  }
 }
 
 /**
@@ -495,53 +769,109 @@ export async function onHost(request, env, name, artifact = false) {
       info = await (await slotOf(env, name).fetch("https://host/info")).json();
       if (!info.route || info.released) unclaimed(url.hostname, true);
     }
-  } catch { return passthrough(request, env); }
+  } catch {
+    return passthrough(request, env);
+  }
   if (!info.route || info.released) return passthrough(request, env);
   const relayWss = String(env.RELAY_PUBLIC_URL || "wss://relay.vyre.run");
   /** @param {string} route @returns {Promise<{ online: boolean, seenAt: number | null }>} */
-  const stateOf = async route => {
-    try { const j = /** @type {any} */ (await (await env.ROUTES.get(env.ROUTES.idFromName(route)).fetch("https://route/online")).json()); return { online: Boolean(j.online), seenAt: typeof j.seenAt === "number" ? j.seenAt : null }; } catch { return { online: false, seenAt: null }; }
+  const stateOf = async (route) => {
+    try {
+      const j = /** @type {any} */ (
+        await (await env.ROUTES.get(env.ROUTES.idFromName(route)).fetch("https://route/online")).json()
+      );
+      return { online: Boolean(j.online), seenAt: typeof j.seenAt === "number" ? j.seenAt : null };
+    } catch {
+      return { online: false, seenAt: null };
+    }
   };
   // One Personal Space on several computers: the person's computers first (the name's own route first among them), then their servers (the owner's order of 3 Nov: a computer of theirs that is
   // awake, then their own server). The phone goes to the first that is awake, and so do public pages and the door; a phone's chat runs on the computer it reached.
   const members = Array.isArray(info.members) ? info.members : [];
-  const all0 = [{ route: info.route, label: info.label || "", server: info.kind === "server" }, ...members.map((/** @type {any} */ m) => ({ route: String(m.route), label: String(m.label || ""), server: m.kind === "server" }))];
-  const routes = [...all0.filter(r => !r.server), ...all0.filter(r => r.server)];
+  const all0 = [
+    { route: info.route, label: info.label || "", server: info.kind === "server" },
+    ...members.map((/** @type {any} */ m) => ({
+      route: String(m.route),
+      label: String(m.label || ""),
+      server: m.kind === "server",
+    })),
+  ];
+  const routes = [...all0.filter((r) => !r.server), ...all0.filter((r) => r.server)];
   let states = /** @type {{ online: boolean, seenAt: number | null }[] | null} */ (null);
-  const all = async () => (states ??= await Promise.all(routes.map(r => stateOf(r.route))));
+  const all = async () => (states ??= await Promise.all(routes.map((r) => stateOf(r.route))));
   if (members.length) {
     const s = await all();
     const awake = routes.findIndex((_, i) => s[i]?.online);
     if (awake >= 0) info = { ...info, route: routes[awake].route };
   }
-  const online = async () => (await all()).some(x => x.online);
+  const online = async () => (await all()).some((x) => x.online);
   // the artifact host answers its own two kinds of path and nothing else: never the app, the door or /p/
-  if (artifact) return ARTIFACT_HOST.test(url.pathname) ? onPublic(request, env, name, info, online, true) : new Response(null, { status: 404, headers: { "cache-control": "no-store", "x-robots-tag": "noindex" } });
+  if (artifact)
+    return ARTIFACT_HOST.test(url.pathname)
+      ? onPublic(request, env, name, info, online, true)
+      : new Response(null, { status: 404, headers: { "cache-control": "no-store", "x-robots-tag": "noindex" } });
   if (url.pathname.startsWith("/hooks/")) return onHook(request, env, name, info, online);
   if (url.pathname === "/p" || url.pathname.startsWith("/p/")) return onPublic(request, env, name, info, online);
   if (DOOR.test(url.pathname)) return onDoor(request, env, name, info, online);
   // an artifact's plain address: the app opens it for whoever is signed in
   const plain = /^\/a\/([a-z0-9_]{1,80})\/?$/.exec(url.pathname);
-  if (plain && request.method === "GET") return new Response(null, { status: 302, headers: { location: `/#subject=artifact:${plain[1]}`, "cache-control": "no-store" } });
+  if (plain && request.method === "GET")
+    return new Response(null, {
+      status: 302,
+      headers: { location: `/#subject=artifact:${plain[1]}`, "cache-control": "no-store" },
+    });
   if (url.pathname === "/__vyre/info.json") {
     const s = await all();
-    return json(200, { name, label: info.label || "", route: info.route, relay: relayWss, online: await online(), hooks: true, ...(members.length ? { computers: routes.map((r, i) => ({ label: r.label, online: Boolean(s[i]?.online), seenAt: s[i]?.seenAt ?? null })) } : {}) });
+    return json(200, {
+      name,
+      label: info.label || "",
+      route: info.route,
+      relay: relayWss,
+      online: await online(),
+      hooks: true,
+      ...(members.length
+        ? {
+            computers: routes.map((r, i) => ({
+              label: r.label,
+              online: Boolean(s[i]?.online),
+              seenAt: s[i]?.seenAt ?? null,
+            })),
+          }
+        : {}),
+    });
   }
   if (url.pathname.startsWith("/__vyre/")) {
-    if (!env.ASSETS || (request.method !== "GET" && request.method !== "HEAD")) return new Response(null, { status: 404, headers: { "x-vyre-gateway": "no-assets" } });
-    const res = await env.ASSETS.fetch(new Request(new URL(url.pathname, "https://assets.invalid"), { method: request.method }));
-    if (res.status !== 200) return new Response(null, { status: 404, headers: { "x-vyre-gateway": `asset-${res.status}` } });
+    if (!env.ASSETS || (request.method !== "GET" && request.method !== "HEAD"))
+      return new Response(null, { status: 404, headers: { "x-vyre-gateway": "no-assets" } });
+    const res = await env.ASSETS.fetch(
+      new Request(new URL(url.pathname, "https://assets.invalid"), { method: request.method }),
+    );
+    if (res.status !== 200)
+      return new Response(null, { status: 404, headers: { "x-vyre-gateway": `asset-${res.status}` } });
     const headers = new Headers(res.headers);
     headers.set("cache-control", "no-cache");
     headers.set("x-content-type-options", "nosniff");
-    if (url.pathname === "/__vyre/sw.js") { headers.set("service-worker-allowed", "/"); headers.set("content-type", "text/javascript; charset=utf-8"); }
+    if (url.pathname === "/__vyre/sw.js") {
+      headers.set("service-worker-allowed", "/");
+      headers.set("content-type", "text/javascript; charset=utf-8");
+    }
     return new Response(res.body, { status: 200, headers });
   }
-  if (request.method !== "GET" && request.method !== "HEAD") return new Response(null, { status: 405, headers: { allow: "GET, HEAD" } });
+  if (request.method !== "GET" && request.method !== "HEAD")
+    return new Response(null, { status: 405, headers: { allow: "GET, HEAD" } });
   const headers = SHELL_HEADERS(relayWss);
   if (!(await online())) {
     const s = await all();
-    return new Response(request.method === "HEAD" ? null : asleepPage(info.label, name, routes.map((r, i) => ({ label: r.label, seenAt: s[i]?.seenAt ?? null }))), { status: 503, headers: { ...headers, "retry-after": "20" } });
+    return new Response(
+      request.method === "HEAD"
+        ? null
+        : asleepPage(
+            info.label,
+            name,
+            routes.map((r, i) => ({ label: r.label, seenAt: s[i]?.seenAt ?? null })),
+          ),
+      { status: 503, headers: { ...headers, "retry-after": "20" } },
+    );
   }
   return new Response(request.method === "HEAD" ? null : shellPage(info.label, name), { status: 200, headers });
 }

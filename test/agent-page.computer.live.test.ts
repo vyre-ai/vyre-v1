@@ -15,12 +15,20 @@ const OUT = "shots-evidence/agentpage";
 
 test("the agent page: Terminal and Browser in its Computer tab, no host says so in a line, and every door to its computer opens that tab", async (t) => {
   const env = await browserOrSkip();
-  if (typeof env === "string") { t.skip(env); return; }
+  if (typeof env === "string") {
+    t.skip(env);
+    return;
+  }
   const s = await bootScreens({ kind: "team" }, env);
   try {
     const w = s.world;
     await unlockVault(w);
-    const machine = { ...fakeHost().host, async tool() { return { ok: true, frame: PNG }; } } as unknown as ComputerHost;
+    const machine = {
+      ...fakeHost().host,
+      async tool() {
+        return { ok: true, frame: PNG };
+      },
+    } as unknown as ComputerHost;
     bindTerminal(scriptedTerminal());
     bindComputers(machine);
     const agentId = await agentFor(w, "team");
@@ -36,12 +44,23 @@ test("the agent page: Terminal and Browser in its Computer tab, no host says so 
     await shoot(page, OUT, "page-no-host");
     await page.getByTestId("browser-note").waitFor({ timeout: 20_000 });
     assert.match(await page.getByTestId("browser-note").innerText(), /nowhere to run a browser yet/);
-    for (const id of ["browser-take", "browser-give", "browser-open", "browser-loading"]) assert.equal(await page.getByTestId(id).count(), 0, `${id} is not offered where nothing can run`);
+    for (const id of ["browser-take", "browser-give", "browser-open", "browser-loading"])
+      assert.equal(await page.getByTestId(id).count(), 0, `${id} is not offered where nothing can run`);
 
     // a Space browser: the page's Computer tab is Terminal and Browser, and Take over and Give back work from it
     const browserd = fakeSpaceBrowser();
     bindSpaceBrowser(browserd.sb);
-    browserd.rows.set(agentId, { profileId: agentId, running: true, tabs: 1, busy: false, takeover: false, viewers: 0, lastActiveAt: Date.now(), held: 0, paused: false });
+    browserd.rows.set(agentId, {
+      profileId: agentId,
+      running: true,
+      tabs: 1,
+      busy: false,
+      takeover: false,
+      viewers: 0,
+      lastActiveAt: Date.now(),
+      held: 0,
+      paused: false,
+    });
     await open(me, s, agentPage);
     await page.getByTestId("agent-page").waitFor({ timeout: 30_000 });
     await shoot(page, OUT, "page-computer-tab");
@@ -62,5 +81,10 @@ test("the agent page: Terminal and Browser in its Computer tab, no host says so 
     await page.getByTestId("browser-card").waitFor({ timeout: 20_000 });
     assert.equal(await page.getByTestId("computer-screen").count(), 0);
     assert.deepEqual(me.errors, [], "no page errors");
-  } finally { bindSpaceBrowser(null); bindComputers(null); bindTerminal(null); await s.close(); }
+  } finally {
+    bindSpaceBrowser(null);
+    bindComputers(null);
+    bindTerminal(null);
+    await s.close();
+  }
 });

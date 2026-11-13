@@ -25,21 +25,39 @@ export const INVITE_CODES_MIGRATION = fileURLToPath(new URL("../migrations/0005_
 type Cell = string | number | null;
 export type Row = Record<string, Cell>;
 
-interface Col { name: string; notNull: boolean }
-interface Table { name: string; cols: Col[]; pk: string[]; auto: string | null; rows: Row[]; nextId: number }
+interface Col {
+  name: string;
+  notNull: boolean;
+}
+interface Table {
+  name: string;
+  cols: Col[];
+  pk: string[];
+  auto: string | null;
+  rows: Row[];
+  nextId: number;
+}
 
 function stripComments(sql: string): string {
-  return sql.split("\n").map((l) => l.replace(/--.*$/, "")).join("\n");
+  return sql
+    .split("\n")
+    .map((l) => l.replace(/--.*$/, ""))
+    .join("\n");
 }
 
 /** Split on commas that are not inside parentheses. */
 function topLevel(body: string): string[] {
   const parts: string[] = [];
-  let depth = 0, cur = "";
+  let depth = 0,
+    cur = "";
   for (const c of body) {
     if (c === "(") depth++;
     if (c === ")") depth--;
-    if (c === "," && depth === 0) { parts.push(cur.trim()); cur = ""; continue; }
+    if (c === "," && depth === 0) {
+      parts.push(cur.trim());
+      cur = "";
+      continue;
+    }
     cur += c;
   }
   if (cur.trim()) parts.push(cur.trim());
@@ -51,17 +69,28 @@ export function parseMigration(sql: string): Map<string, Table> {
   const text = stripComments(sql).replace(/"/g, "");
   const re = /CREATE TABLE IF NOT EXISTS (\w+)\s*\(/g;
   for (let m = re.exec(text); m; m = re.exec(text)) {
-    let depth = 1, i = re.lastIndex;
-    while (i < text.length && depth > 0) { if (text[i] === "(") depth++; else if (text[i] === ")") depth--; i++; }
+    let depth = 1,
+      i = re.lastIndex;
+    while (i < text.length && depth > 0) {
+      if (text[i] === "(") depth++;
+      else if (text[i] === ")") depth--;
+      i++;
+    }
     const body = text.slice(re.lastIndex, i - 1);
     const t: Table = { name: m[1]!, cols: [], pk: [], auto: null, rows: [], nextId: 1 };
     for (const part of topLevel(body)) {
       const tablePk = /^PRIMARY KEY\s*\(([^)]*)\)$/i.exec(part);
-      if (tablePk) { t.pk = tablePk[1]!.split(",").map((c) => c.trim()); continue; }
+      if (tablePk) {
+        t.pk = tablePk[1]!.split(",").map((c) => c.trim());
+        continue;
+      }
       const name = /^(\w+)/.exec(part)![1]!;
       const isPk = /PRIMARY KEY/i.test(part);
       t.cols.push({ name, notNull: /NOT NULL/i.test(part) || isPk });
-      if (isPk) { t.pk = [name]; if (/INTEGER\s+PRIMARY KEY/i.test(part)) t.auto = name; }
+      if (isPk) {
+        t.pk = [name];
+        if (/INTEGER\s+PRIMARY KEY/i.test(part)) t.auto = name;
+      }
     }
     tables.set(t.name, t);
   }
@@ -71,7 +100,8 @@ export function parseMigration(sql: string): Map<string, Table> {
 /** Order two non-null cells: numbers numerically, anything else as text. */
 function cmp(a: string | number, b: string | number): number {
   if (typeof a === "number" && typeof b === "number") return a - b;
-  const x = String(a), y = String(b);
+  const x = String(a),
+    y = String(b);
   return x === y ? 0 : x < y ? -1 : 1;
 }
 
@@ -104,17 +134,50 @@ class Parser {
   private bound = 0;
   private toks: Tok[];
   private args: unknown[];
-  constructor(toks: Tok[], args: unknown[]) { this.toks = toks; this.args = args; }
+  constructor(toks: Tok[], args: unknown[]) {
+    this.toks = toks;
+    this.args = args;
+  }
 
-  done(): boolean { return this.i >= this.toks.length; }
-  peekWord(): string { const t = this.toks[this.i]; return t && t.k === "id" ? t.v.toUpperCase() : ""; }
-  peekP(): string { const t = this.toks[this.i]; return t && t.k === "p" ? t.v : ""; }
-  word(w: string): boolean { if (this.peekWord() === w) { this.i++; return true; } return false; }
-  need(w: string): void { if (!this.word(w)) throw new Error(`expected ${w}`); }
-  p(v: string): boolean { if (this.peekP() === v) { this.i++; return true; } return false; }
-  needP(v: string): void { if (!this.p(v)) throw new Error(`expected ${v}`); }
-  ident(): string { const t = this.toks[this.i++]; if (!t || t.k !== "id") throw new Error("expected a name"); return t.v; }
-  unused(): number { return this.args.length - this.bound; }
+  done(): boolean {
+    return this.i >= this.toks.length;
+  }
+  peekWord(): string {
+    const t = this.toks[this.i];
+    return t && t.k === "id" ? t.v.toUpperCase() : "";
+  }
+  peekP(): string {
+    const t = this.toks[this.i];
+    return t && t.k === "p" ? t.v : "";
+  }
+  word(w: string): boolean {
+    if (this.peekWord() === w) {
+      this.i++;
+      return true;
+    }
+    return false;
+  }
+  need(w: string): void {
+    if (!this.word(w)) throw new Error(`expected ${w}`);
+  }
+  p(v: string): boolean {
+    if (this.peekP() === v) {
+      this.i++;
+      return true;
+    }
+    return false;
+  }
+  needP(v: string): void {
+    if (!this.p(v)) throw new Error(`expected ${v}`);
+  }
+  ident(): string {
+    const t = this.toks[this.i++];
+    if (!t || t.k !== "id") throw new Error("expected a name");
+    return t.v;
+  }
+  unused(): number {
+    return this.args.length - this.bound;
+  }
 
   /** A value: a bound parameter, a number or a quoted string. */
   value(): Cell {
@@ -134,7 +197,9 @@ class Parser {
     throw new Error(`expected a value, got ${t.v}`);
   }
 
-  where(): (row: Row) => boolean { return this.orExpr(); }
+  where(): (row: Row) => boolean {
+    return this.orExpr();
+  }
 
   private orExpr(): (row: Row) => boolean {
     const parts = [this.andExpr()];
@@ -147,7 +212,11 @@ class Parser {
     return (row) => parts.every((f) => f(row));
   }
   private atom(): (row: Row) => boolean {
-    if (this.p("(")) { const f = this.orExpr(); this.needP(")"); return f; }
+    if (this.p("(")) {
+      const f = this.orExpr();
+      this.needP(")");
+      return f;
+    }
     const col = this.ident();
     if (this.word("IS")) {
       const not = this.word("NOT");
@@ -161,13 +230,21 @@ class Parser {
       const a = row[col];
       if (a === null || a === undefined || v === null) return false;
       switch (op.v) {
-        case "=": return a === v;
-        case "!=": case "<>": return a !== v;
-        case "<": return cmp(a, v) < 0;
-        case "<=": return cmp(a, v) <= 0;
-        case ">": return cmp(a, v) > 0;
-        case ">=": return cmp(a, v) >= 0;
-        default: throw new Error(`unsupported operator ${op.v}`);
+        case "=":
+          return a === v;
+        case "!=":
+        case "<>":
+          return a !== v;
+        case "<":
+          return cmp(a, v) < 0;
+        case "<=":
+          return cmp(a, v) <= 0;
+        case ">":
+          return cmp(a, v) > 0;
+        case ">=":
+          return cmp(a, v) >= 0;
+        default:
+          throw new Error(`unsupported operator ${op.v}`);
       }
     };
   }
@@ -179,10 +256,22 @@ export class FakeMembersDb implements RawDb {
   readonly log: string[] = [];
 
   constructor(migrationPath: string = MIGRATION) {
-    this.tables = parseMigration(readFileSync(migrationPath, "utf8") + (migrationPath === MIGRATION ? "\n" + readFileSync(GUEST_MIGRATION, "utf8") + "\n" + readFileSync(JOIN_LINK_MIGRATION, "utf8") + "\n" + readFileSync(INVITE_CODES_MIGRATION, "utf8") : ""));
+    this.tables = parseMigration(
+      readFileSync(migrationPath, "utf8") +
+        (migrationPath === MIGRATION
+          ? "\n" +
+            readFileSync(GUEST_MIGRATION, "utf8") +
+            "\n" +
+            readFileSync(JOIN_LINK_MIGRATION, "utf8") +
+            "\n" +
+            readFileSync(INVITE_CODES_MIGRATION, "utf8")
+          : ""),
+    );
   }
 
-  rows(table: string): Row[] { return this.table(table).rows.map((r) => ({ ...r })); }
+  rows(table: string): Row[] {
+    return this.table(table).rows.map((r) => ({ ...r }));
+  }
 
   private table(name: string): Table {
     const t = this.tables.get(name);
@@ -198,8 +287,17 @@ export class FakeMembersDb implements RawDb {
     let countAs = "n";
     let cols: string[] | null = null;
     if (p.p("*")) cols = null;
-    else if (p.word("COUNT")) { p.needP("("); p.needP("*"); p.needP(")"); p.need("AS"); countAs = p.ident(); count = true; }
-    else { cols = [p.ident()]; while (p.p(",")) cols.push(p.ident()); }
+    else if (p.word("COUNT")) {
+      p.needP("(");
+      p.needP("*");
+      p.needP(")");
+      p.need("AS");
+      countAs = p.ident();
+      count = true;
+    } else {
+      cols = [p.ident()];
+      while (p.p(",")) cols.push(p.ident());
+    }
     p.need("FROM");
     const t = this.table(p.ident());
     const pred = p.word("WHERE") ? p.where() : () => true;
@@ -213,7 +311,8 @@ export class FakeMembersDb implements RawDb {
         order.push({ col, desc });
       } while (p.p(","));
     }
-    let limit: number | null = null, offset = 0;
+    let limit: number | null = null,
+      offset = 0;
     if (p.word("LIMIT")) limit = Number(p.value());
     if (p.word("OFFSET")) offset = Number(p.value());
     if (!p.done()) throw new Error("unsupported SELECT shape");
@@ -225,7 +324,8 @@ export class FakeMembersDb implements RawDb {
     for (let k = order.length - 1; k >= 0; k--) {
       const { col, desc } = order[k]!;
       rows.sort((a, b) => {
-        const x = a[col] ?? null, y = b[col] ?? null;
+        const x = a[col] ?? null,
+          y = b[col] ?? null;
         if (x === y) return 0;
         if (x === null) return desc ? 1 : -1;
         if (y === null) return desc ? -1 : 1;
@@ -284,7 +384,10 @@ export class FakeMembersDb implements RawDb {
 
   private insert(p: Parser): { changes: number } {
     let replace = false;
-    if (p.word("OR")) { p.need("REPLACE"); replace = true; }
+    if (p.word("OR")) {
+      p.need("REPLACE");
+      replace = true;
+    }
     p.need("INTO");
     const t = this.table(p.ident());
     p.needP("(");
@@ -310,7 +413,8 @@ export class FakeMembersDb implements RawDb {
       if (fresh) row[t.auto] = t.nextId;
       t.nextId = Math.max(t.nextId, Number(row[t.auto]) + 1);
     }
-    for (const c of t.cols) if (c.notNull && row[c.name] === null) throw new Error(`NOT NULL constraint failed: ${t.name}.${c.name}`);
+    for (const c of t.cols)
+      if (c.notNull && row[c.name] === null) throw new Error(`NOT NULL constraint failed: ${t.name}.${c.name}`);
     const same = (r: Row): boolean => t.pk.length > 0 && t.pk.every((k) => r[k] === row[k]);
     const at = fresh ? -1 : t.rows.findIndex(same);
     if (at >= 0) {
@@ -323,8 +427,18 @@ export class FakeMembersDb implements RawDb {
 
 // ---- the harness: real handlers, the in-memory database above and a small fake of the capabilities members calls ------------------------------------
 
-export interface FakePrincipal { id: string; kind: "person" | "agent"; name: string; status: "active" | "suspended" | "removed"; roles: string[]; groups: string[] }
-export interface Call { cap: string; input: unknown }
+export interface FakePrincipal {
+  id: string;
+  kind: "person" | "agent";
+  name: string;
+  status: "active" | "suspended" | "removed";
+  roles: string[];
+  groups: string[];
+}
+export interface Call {
+  cap: string;
+  input: unknown;
+}
 
 export const KEYS = {
   personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk",
@@ -346,13 +460,24 @@ export function harness(now = NOW) {
   let clock = now;
   const world = {
     host: "maya.vyre.run" as string | undefined,
-    roles: new Map<string, string>([["rol_owner", "Owner"], ["rol_admin", "Admin"], ["rol_member", "Member"], ["rol_guest", "Guest"]]),
+    roles: new Map<string, string>([
+      ["rol_owner", "Owner"],
+      ["rol_admin", "Admin"],
+      ["rol_member", "Member"],
+      ["rol_guest", "Guest"],
+    ]),
     groups: new Set<string>(["grp_everyone", "grp_sales", "grp_ops"]),
     principals: new Map<string, FakePrincipal>(),
     /** who is in each channel and holds a role on each project, as channels and projects keep them */
     channelMembers: new Map<string, Set<string>>(),
     /** audit rows, as audit.list answers them: a test puts an admin's change here */
-    audit: [] as Array<{ at: number; actor: { kind: string; id: string }; action: string; class: string; after: { targets: Array<{ kind: string; id: string }> } }>,
+    audit: [] as Array<{
+      at: number;
+      actor: { kind: string; id: string };
+      action: string;
+      class: string;
+      after: { targets: Array<{ kind: string; id: string }> };
+    }>,
     projectRoles: new Map<string, Map<string, string>>(),
     devices: new Map<string, { id: string; revokedAt?: number }[]>(),
     holds: [] as { id: string; taskId: string; principal: { id: string }; actingFor?: string }[],
@@ -368,49 +493,145 @@ export function harness(now = NOW) {
     vaultMissing: new Set<string>(),
   };
   const person = (id: string, name: string, roles: string[] = ["rol_member"]): FakePrincipal => {
-    const p: FakePrincipal = { id, kind: "person", name, status: "active", roles: [...roles], groups: ["grp_everyone"] };
+    const p: FakePrincipal = {
+      id,
+      kind: "person",
+      name,
+      status: "active",
+      roles: [...roles],
+      groups: ["grp_everyone"],
+    };
     world.principals.set(id, p);
     return p;
   };
-  const gone = (traceId: string, code: "validation.not_found"): never => { throw fail(code, traceId, {}); };
+  const gone = (traceId: string, code: "validation.not_found"): never => {
+    throw fail(code, traceId, {});
+  };
 
   // eslint-free fake of the host's ctx.call: only the capabilities members uses, with the answers their manifests promise
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push({ cap, input });
     const i = (input ?? {}) as Record<string, any>;
     const arg = i.roleId ?? i.groupId ?? i.channelId ?? i.projectId ?? i.resource?.id ?? "";
-    if (world.failing.has(cap) || world.failing.has(`${cap}:${arg}`)) throw fail("internal.unexpected", TRACE, { message: `${cap} is down` });
+    if (world.failing.has(cap) || world.failing.has(`${cap}:${arg}`))
+      throw fail("internal.unexpected", TRACE, { message: `${cap} is down` });
     switch (cap) {
-      case "spaces.get": return { space: { id: SPACE, name: "Maya Studio", fingerprint: "ab12 cd34 ef56 7890", address: world.host ? { mode: "relay", host: world.host } : { mode: "device" } } };
-      case "access.roles.get": { const n = world.roles.get(i.roleId); return n ? { role: { id: i.roleId, name: n }, holders: [] } : gone(TRACE, "validation.not_found"); }
-      case "access.groups.get": return world.groups.has(i.groupId) ? { group: { id: i.groupId } } : gone(TRACE, "validation.not_found");
-      case "access.principals.get": { const p = world.principals.get(i.principal.id); return p ? { principal: { ...p } } : gone(TRACE, "validation.not_found"); }
-      case "access.principals.list": return { principals: [...world.principals.values()].filter((p) => p.kind === "person" && p.status === "active").map((p) => ({ id: p.id, name: p.name })) };
-      case "access.roles.assign": { const p = world.principals.get(i.subject.id) ?? gone(TRACE, "validation.not_found"); if (!p.roles.includes(i.roleId)) p.roles.push(i.roleId); return { roles: p.roles }; }
-      case "access.roles.unassign": { const p = world.principals.get(i.subject.id) ?? gone(TRACE, "validation.not_found"); p.roles = p.roles.filter((r) => r !== i.roleId); return { roles: p.roles }; }
-      case "access.groups.add_member": { const p = world.principals.get(i.member.id) ?? gone(TRACE, "validation.not_found"); if (!p.groups.includes(i.groupId)) p.groups.push(i.groupId); return { group: {} }; }
-      case "access.groups.remove_member": { const p = world.principals.get(i.member.id) ?? gone(TRACE, "validation.not_found"); p.groups = p.groups.filter((g) => g !== i.groupId); return { group: {} }; }
+      case "spaces.get":
+        return {
+          space: {
+            id: SPACE,
+            name: "Maya Studio",
+            fingerprint: "ab12 cd34 ef56 7890",
+            address: world.host ? { mode: "relay", host: world.host } : { mode: "device" },
+          },
+        };
+      case "access.roles.get": {
+        const n = world.roles.get(i.roleId);
+        return n ? { role: { id: i.roleId, name: n }, holders: [] } : gone(TRACE, "validation.not_found");
+      }
+      case "access.groups.get":
+        return world.groups.has(i.groupId) ? { group: { id: i.groupId } } : gone(TRACE, "validation.not_found");
+      case "access.principals.get": {
+        const p = world.principals.get(i.principal.id);
+        return p ? { principal: { ...p } } : gone(TRACE, "validation.not_found");
+      }
+      case "access.principals.list":
+        return {
+          principals: [...world.principals.values()]
+            .filter((p) => p.kind === "person" && p.status === "active")
+            .map((p) => ({ id: p.id, name: p.name })),
+        };
+      case "access.roles.assign": {
+        const p = world.principals.get(i.subject.id) ?? gone(TRACE, "validation.not_found");
+        if (!p.roles.includes(i.roleId)) p.roles.push(i.roleId);
+        return { roles: p.roles };
+      }
+      case "access.roles.unassign": {
+        const p = world.principals.get(i.subject.id) ?? gone(TRACE, "validation.not_found");
+        p.roles = p.roles.filter((r) => r !== i.roleId);
+        return { roles: p.roles };
+      }
+      case "access.groups.add_member": {
+        const p = world.principals.get(i.member.id) ?? gone(TRACE, "validation.not_found");
+        if (!p.groups.includes(i.groupId)) p.groups.push(i.groupId);
+        return { group: {} };
+      }
+      case "access.groups.remove_member": {
+        const p = world.principals.get(i.member.id) ?? gone(TRACE, "validation.not_found");
+        p.groups = p.groups.filter((g) => g !== i.groupId);
+        return { group: {} };
+      }
       case "vault.use": {
         const item = String(i.item).toLowerCase();
         if (world.vaultMissing.has(item)) throw fail("validation.not_found", TRACE, {});
         if (world.vaultDenied.has(item)) throw fail("permission.no_grant", TRACE, {});
         return { handle: i.item, itemId: "vit_members1", fields: ["value"] };
       }
-      case "projects.members.set": { const m = world.projectRoles.get(i.projectId) ?? new Map<string, string>(); m.set(i.principal, i.role); world.projectRoles.set(i.projectId, m); return { member: { principal: i.principal, role: i.role } }; }
-      case "projects.members.remove": { const had = world.projectRoles.get(i.projectId)?.delete(i.principal) ?? false; return { removed: had }; }
-      case "projects.members.list": return { members: [...(world.projectRoles.get(i.projectId) ?? new Map<string, string>())].map(([principal, role]) => ({ principal, role })) };
-      case "channels.members.add": { const m = world.channelMembers.get(i.channelId) ?? new Set<string>(); for (const id of i.personIds as string[]) m.add(id); world.channelMembers.set(i.channelId, m); return { ok: true }; }
-      case "channels.members.remove": { world.channelMembers.get(i.channelId)?.delete(i.personId); return { ok: true }; }
-      case "channels.get": return { channel: { channelId: i.channelId, members: [...(world.channelMembers.get(i.channelId) ?? new Set<string>())].map((id) => ({ kind: "person", id })) } };
-      case "access.shares_of": return { shares: [] };
-      case "audit.list": return { rows: world.audit.filter((r) => r.at >= Number(i.from ?? 0) && (!i.target || r.after.targets.some((t) => t.kind === i.target.kind && t.id === i.target.id))) };
-      case "access.share": return { ok: true };
-      case "channels.home_join": return { channelId: "chn_vyre", added: true };
-      case "access.join_share": return { grant: { id: "gnt_join" } };
-      case "devices.list": return { devices: (world.devices.get(i.person) ?? []).map((d) => ({ ...d })) };
-      case "devices.revoke": { for (const list of world.devices.values()) for (const d of list) if (d.id === i.deviceId) d.revokedAt = clock; return { ok: true }; }
-      case "gate.holds.list": return { holds: world.holds.map((h) => ({ ...h })) };
-      case "gate.deny": { world.holds = world.holds.filter((h) => h.id !== i.holdId); return { ok: true }; }
+      case "projects.members.set": {
+        const m = world.projectRoles.get(i.projectId) ?? new Map<string, string>();
+        m.set(i.principal, i.role);
+        world.projectRoles.set(i.projectId, m);
+        return { member: { principal: i.principal, role: i.role } };
+      }
+      case "projects.members.remove": {
+        const had = world.projectRoles.get(i.projectId)?.delete(i.principal) ?? false;
+        return { removed: had };
+      }
+      case "projects.members.list":
+        return {
+          members: [...(world.projectRoles.get(i.projectId) ?? new Map<string, string>())].map(([principal, role]) => ({
+            principal,
+            role,
+          })),
+        };
+      case "channels.members.add": {
+        const m = world.channelMembers.get(i.channelId) ?? new Set<string>();
+        for (const id of i.personIds as string[]) m.add(id);
+        world.channelMembers.set(i.channelId, m);
+        return { ok: true };
+      }
+      case "channels.members.remove": {
+        world.channelMembers.get(i.channelId)?.delete(i.personId);
+        return { ok: true };
+      }
+      case "channels.get":
+        return {
+          channel: {
+            channelId: i.channelId,
+            members: [...(world.channelMembers.get(i.channelId) ?? new Set<string>())].map((id) => ({
+              kind: "person",
+              id,
+            })),
+          },
+        };
+      case "access.shares_of":
+        return { shares: [] };
+      case "audit.list":
+        return {
+          rows: world.audit.filter(
+            (r) =>
+              r.at >= Number(i.from ?? 0) &&
+              (!i.target || r.after.targets.some((t) => t.kind === i.target.kind && t.id === i.target.id)),
+          ),
+        };
+      case "access.share":
+        return { ok: true };
+      case "channels.home_join":
+        return { channelId: "chn_vyre", added: true };
+      case "access.join_share":
+        return { grant: { id: "gnt_join" } };
+      case "devices.list":
+        return { devices: (world.devices.get(i.person) ?? []).map((d) => ({ ...d })) };
+      case "devices.revoke": {
+        for (const list of world.devices.values()) for (const d of list) if (d.id === i.deviceId) d.revokedAt = clock;
+        return { ok: true };
+      }
+      case "gate.holds.list":
+        return { holds: world.holds.map((h) => ({ ...h })) };
+      case "gate.deny": {
+        world.holds = world.holds.filter((h) => h.id !== i.holdId);
+        return { ok: true };
+      }
       case "invites.accept_create_account": {
         // what identity does with the seam members hands it: peek, make the account, accept
         const seam = invitesSeam(ctx);
@@ -418,13 +639,21 @@ export function harness(now = NOW) {
         if (inv === "invalid") throw fail("auth.invalid_code", TRACE, {});
         if (inv === "expired") throw fail("auth.expired", TRACE, {});
         const id = `usr_${String(i.username)}`;
-        person(id, i.displayName ?? i.username, []).groups = [];   // a new person is in no group until the join's group steps put them in (Everyone is one of those steps)
+        person(id, i.displayName ?? i.username, []).groups = []; // a new person is in no group until the join's group steps put them in (Everyone is one of those steps)
         seam.accept(inv.inviteId, id);
         events.push({ name: "principal.created", subject: id, payload: { principalId: id, kind: "person" } });
-        events.push({ name: "member.joined", subject: id, payload: { personId: id, inviteId: inv.inviteId, role: inv.role, invitedBy: inv.invitedBy } });
-        return { status: "ok", session: { sessionId: "ses_1", deviceId: "dev_1", token: "vst_token", expiresAt: clock + 1000, epoch: 1 } };
+        events.push({
+          name: "member.joined",
+          subject: id,
+          payload: { personId: id, inviteId: inv.inviteId, role: inv.role, invitedBy: inv.invitedBy },
+        });
+        return {
+          status: "ok",
+          session: { sessionId: "ses_1", deviceId: "dev_1", token: "vst_token", expiresAt: clock + 1000, epoch: 1 },
+        };
       }
-      default: throw new Error(`the fake host does not answer ${cap}`);
+      default:
+        throw new Error(`the fake host does not answer ${cap}`);
     }
   };
 
@@ -433,7 +662,9 @@ export function harness(now = NOW) {
     trace: { traceId: TRACE },
     now: () => clock,
     db,
-    emit(name: string, subject: string, payload: unknown) { events.push({ name, subject, payload }); },
+    emit(name: string, subject: string, payload: unknown) {
+      events.push({ name, subject, payload });
+    },
     call,
     http: async (url: string) => {
       const r = world.http.get(url);
@@ -448,9 +679,9 @@ export function harness(now = NOW) {
         return world.owned.get(id)?.[kind]?.count ?? 0;
       },
     },
-    signInMethods:{github:true,sso:["google","microsoft","okta"],newMemberMfaEnrollment:true},
-    spaceOwner:()=>"usr_owner",
-    breakGlass:{ssoLinked:()=>true,hasRecovery:()=>true},
+    signInMethods: { github: true, sso: ["google", "microsoft", "okta"], newMemberMfaEnrollment: true },
+    spaceOwner: () => "usr_owner",
+    breakGlass: { ssoLinked: () => true, hasRecovery: () => true },
     factors: { of: (id: string) => world.factors.get(id) ?? [] },
   };
   const ctx: MembersCtx = base;
@@ -459,5 +690,19 @@ export function harness(now = NOW) {
   const anon: MembersCtx = { ...base };
   person("usr_owner", "Olive", ["rol_owner"]);
   person("usr_admin", "Ada", ["rol_admin"]);
-  return { db, raw, events, calls, world, person, as, anon, ctx, advance(ms: number) { clock += ms; }, now: () => clock };
+  return {
+    db,
+    raw,
+    events,
+    calls,
+    world,
+    person,
+    as,
+    anon,
+    ctx,
+    advance(ms: number) {
+      clock += ms;
+    },
+    now: () => clock,
+  };
 }

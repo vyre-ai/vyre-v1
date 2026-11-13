@@ -14,20 +14,39 @@ export const projections = {};
 
 /** Every minute: a Space whose deletion date has passed is removed and marked deleted. Before the date, and with nothing scheduled, it does nothing. */
 export const periodic = {
-  "spaces.delete_due": { everyMs: 60_000, run: async (ctx: ExtraCtx): Promise<string[]> => { await deleteDue(ctx, {}); return []; } },
+  "spaces.delete_due": {
+    everyMs: 60_000,
+    run: async (ctx: ExtraCtx): Promise<string[]> => {
+      await deleteDue(ctx, {});
+      return [];
+    },
+  },
 };
 export const codecs = {};
 export const hostSeams: SeamSetters = { configureSpaceAdmin };
 
 /** The Space\'s profile, made once at boot from the space.created event: its name and where people reach it. Nothing is overwritten except the kind, which follows the node's --space-kind. */
 export const hostCalls = {
-  "spaces.ensure_profile": (ctx: Ctx, i: { name: string; kind?: "team" | "personal"; address?: string | null }): void => {
+  "spaces.ensure_profile": (
+    ctx: Ctx,
+    i: { name: string; kind?: "team" | "personal"; address?: string | null },
+  ): void => {
     for (const sql of SCHEMA) ctx.db.run(sql);
-    ctx.db.run("INSERT OR IGNORE INTO spaces_profile (id, name, logo_file_id, kind) VALUES (?, ?, NULL, ?)", ctx.space, i.name, i.kind ?? "team");
+    ctx.db.run(
+      "INSERT OR IGNORE INTO spaces_profile (id, name, logo_file_id, kind) VALUES (?, ?, NULL, ?)",
+      ctx.space,
+      i.name,
+      i.kind ?? "team",
+    );
     // the kind is the node's own setting (--space-kind), not something a person edits: a restart under a different setting is the truth
     if (i.kind) ctx.db.run("UPDATE spaces_profile SET kind = ? WHERE id = ?", i.kind, ctx.space);
     const host = i.address ? i.address.replace(/^https?:\/\//, "").replace(/\/.*$/, "") : null;
-    ctx.db.run("INSERT OR IGNORE INTO spaces_profile_extra (id, legal_name, defaults_json, address_mode, address_host, created_at, deleted_at) VALUES (?, NULL, '{}', ?, ?, ?, NULL)",
-      ctx.space, host ? "own_domain" : (i.kind === "personal" ? "device" : "relay"), host, ctx.now());
+    ctx.db.run(
+      "INSERT OR IGNORE INTO spaces_profile_extra (id, legal_name, defaults_json, address_mode, address_host, created_at, deleted_at) VALUES (?, NULL, '{}', ?, ?, ?, NULL)",
+      ctx.space,
+      host ? "own_domain" : i.kind === "personal" ? "device" : "relay",
+      host,
+      ctx.now(),
+    );
   },
 };

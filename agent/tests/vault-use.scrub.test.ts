@@ -7,7 +7,10 @@ import type { Lookup, Secret, ValueSource } from "../src/vault-use/index.ts";
 
 function rng(seed: number): () => number {
   let s = seed >>> 0;
-  return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 0x100000000; };
+  return () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 0x100000000;
+  };
 }
 const ALPHABETS = [
   "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
@@ -33,7 +36,8 @@ const secretRow = (value: string, n = 1): Secret => ({ handle: `#Item${n}.api_ke
 /** The ways a value turns up in command output. */
 function spellings(value: string, r: () => number): string[] {
   const buf = (s: string): Buffer => Buffer.from(s, "utf8");
-  const pre = noise(r, Math.floor(r() * 6)), post = noise(r, Math.floor(r() * 6));
+  const pre = noise(r, Math.floor(r() * 6)),
+    post = noise(r, Math.floor(r() * 6));
   const wrapped = buf(pre + value + post);
   const url = encodeURIComponent(value);
   return [
@@ -59,7 +63,8 @@ test("property: 400 random values in every spelling and every base64 alignment n
     const sc = createScrubber([s]);
     for (const spelled of spellings(value, r)) {
       const out = sc.scrub(`${noise(r, 5)}${spelled}${noise(r, 5)}`);
-      for (const v of variantsOf(value)) assert.ok(!out.includes(v), `a spelling of the value survived: ${JSON.stringify(v.length)} chars`);
+      for (const v of variantsOf(value))
+        assert.ok(!out.includes(v), `a spelling of the value survived: ${JSON.stringify(v.length)} chars`);
       assert.deepEqual(sc.residual(out), [], "no long fragment is left");
       checked++;
     }
@@ -77,7 +82,12 @@ test("property: streaming in chunks of 1 to 9 characters scrubs exactly what the
     const pieces: string[] = [];
     for (let at = 0; at < text.length; at += size) pieces.push(text.slice(at, at + size));
     let got = "";
-    for await (const p of sc.stream((async function* () { yield* pieces; })())) got += p;
+    for await (const p of sc.stream(
+      (async function* () {
+        yield* pieces;
+      })(),
+    ))
+      got += p;
     assert.equal(got, sc.scrub(text), `chunk size ${size}`);
     assert.ok(!got.includes(value));
   }
@@ -98,31 +108,70 @@ test("a value too short to scrub is refused before it is ever filled", () => {
 function source(rows: Record<string, Lookup>): ValueSource {
   return { lookup: async (h) => rows[h] ?? { kind: "unknown" } };
 }
-const lookupOf = (value: string, itemId = "vit_1"): Lookup => ({ kind: "value", itemId, value, spaceOnly: false, injectIntoDeployments: false });
+const lookupOf = (value: string, itemId = "vit_1"): Lookup => ({
+  kind: "value",
+  itemId,
+  value,
+  spaceOnly: false,
+  injectIntoDeployments: false,
+});
 
 test("a fragment that gets past the exact and encoded matches is a scrub_miss: reported by id and place, output withheld, value nowhere", async () => {
   const value = "sk_live_ABCDEFGH12345678"; // secret-scan: fake
   const misses: Array<{ itemId: string; place: string; traceId: string }> = [];
   const run = await runWithVault(
-    { source: source({ "#Dana_Stripe.api_key": lookupOf(value) }), reportMiss: (m) => { misses.push(m); } },
-    { tool: "terminal_run", args: { command: "curl -u #Dana_Stripe.api_key: https://api" }, traceId: "tr_1", agentId: "agt_1", asker: "usr_dana", where: "host" },
-    async () => `ok sk_live_\u001b[0mABCDEFGH12345678 done`,   // an escape code splits the value: no exact match, but a long fragment remains
+    {
+      source: source({ "#Dana_Stripe.api_key": lookupOf(value) }),
+      reportMiss: (m) => {
+        misses.push(m);
+      },
+    },
+    {
+      tool: "terminal_run",
+      args: { command: "curl -u #Dana_Stripe.api_key: https://api" },
+      traceId: "tr_1",
+      agentId: "agt_1",
+      asker: "usr_dana",
+      where: "host",
+    },
+    async () => `ok sk_live_\u001b[0mABCDEFGH12345678 done`, // an escape code splits the value: no exact match, but a long fragment remains
   );
   assert.equal(run.ok, true);
   if (!run.ok) return;
   assert.equal(run.scrubMiss, true);
   assert.equal(run.output, WITHHELD);
   assert.deepEqual(misses, [{ itemId: "vit_1", place: "terminal", traceId: "tr_1" }]);
-  assert.ok(!JSON.stringify({ run, misses }).includes("ABCDEFGH"), "no part of the value is in what the model or the event sees");
+  assert.ok(
+    !JSON.stringify({ run, misses }).includes("ABCDEFGH"),
+    "no part of the value is in what the model or the event sees",
+  );
 });
 
 test("a streamed miss replaces the rest of the stream and reports once", async () => {
   const value = "sk_live_ABCDEFGH12345678"; // secret-scan: fake
   let reports = 0;
   const run = await runWithVault(
-    { source: source({ "#Dana_Stripe.api_key": lookupOf(value) }), reportMiss: () => { reports++; } },
-    { tool: "terminal_run", args: { command: "tail -f log #Dana_Stripe.api_key" }, traceId: "tr_2", agentId: "agt_1", asker: "usr_dana", where: "host" },
-    async () => (async function* () { yield "line one\n".padEnd(200, "."); yield "tok sk_live_\u001b[1m"; yield "ABCDEFGH12345678\n"; yield "line three\n"; })(),
+    {
+      source: source({ "#Dana_Stripe.api_key": lookupOf(value) }),
+      reportMiss: () => {
+        reports++;
+      },
+    },
+    {
+      tool: "terminal_run",
+      args: { command: "tail -f log #Dana_Stripe.api_key" },
+      traceId: "tr_2",
+      agentId: "agt_1",
+      asker: "usr_dana",
+      where: "host",
+    },
+    async () =>
+      (async function* () {
+        yield "line one\n".padEnd(200, ".");
+        yield "tok sk_live_\u001b[1m";
+        yield "ABCDEFGH12345678\n";
+        yield "line three\n";
+      })(),
   );
   assert.equal(run.ok, true);
   if (!run.ok || typeof run.output === "string") return assert.fail("expected a stream");
@@ -141,8 +190,20 @@ test("value never reaches transcript or model context: arguments as written, scr
     const value = secretOf(r);
     const echo = spellings(value, r).join(" | ");
     const run = await runWithVault(
-      { source: source({ "#Dana_Key.api_key": lookupOf(value) }), reportMiss: () => { throw new Error("unexpected miss"); } },
-      { tool: "terminal_run", args: { command: "run", env: { TOKEN: "#Dana_Key.api_key" } }, traceId: "tr", agentId: "agt_1", asker: "usr_dana", where: "host" },
+      {
+        source: source({ "#Dana_Key.api_key": lookupOf(value) }),
+        reportMiss: () => {
+          throw new Error("unexpected miss");
+        },
+      },
+      {
+        tool: "terminal_run",
+        args: { command: "run", env: { TOKEN: "#Dana_Key.api_key" } },
+        traceId: "tr",
+        agentId: "agt_1",
+        asker: "usr_dana",
+        where: "host",
+      },
       async (filled) => {
         assert.equal((filled as { env: { TOKEN: string } }).env.TOKEN, value, "the executor does get the value");
         return `used ${echo}`;
@@ -156,8 +217,17 @@ test("value never reaches transcript or model context: arguments as written, scr
 
     const failed = await runWithVault(
       { source: source({ "#Dana_Key.api_key": lookupOf(value) }), reportMiss: () => {} },
-      { tool: "terminal_run", args: { command: "run #Dana_Key.api_key" }, traceId: "tr", agentId: "agt_1", asker: "usr_dana", where: "host" },
-      async (filled) => { throw new Error(`exec failed: ${(filled as { command: string }).command}`); },
+      {
+        tool: "terminal_run",
+        args: { command: "run #Dana_Key.api_key" },
+        traceId: "tr",
+        agentId: "agt_1",
+        asker: "usr_dana",
+        where: "host",
+      },
+      async (filled) => {
+        throw new Error(`exec failed: ${(filled as { command: string }).command}`);
+      },
     );
     assert.equal(failed.ok, false);
     if (!failed.ok) for (const v of variantsOf(value)) assert.ok(!JSON.stringify(failed).includes(v));
@@ -168,10 +238,10 @@ test("review findings 5 and 6: the spellings a shell or a terminal makes of a va
   const value = "it's a\nsecret\tkey!";
   const s = createScrubber([{ handle: "#K.v", itemId: "itm", value }]);
   const forms = [
-    value.replaceAll("\n", "\r\n"),                                   // the pty's line ends, as the live view gets them
-    `'${value.replace(/'/g, "'\\''")}'`,                              // xtrace and shQuote
-    "$'it\\'s a\\nsecret\\tkey!'",                                    // bash's $'...' (set -x, printf %q of a control character)
-    "it\\'s\\ a\\\nsecret\\\tkey\\!",                                  // backslash before each special character (printf %q of a plain one)
+    value.replaceAll("\n", "\r\n"), // the pty's line ends, as the live view gets them
+    `'${value.replace(/'/g, "'\\''")}'`, // xtrace and shQuote
+    "$'it\\'s a\\nsecret\\tkey!'", // bash's $'...' (set -x, printf %q of a control character)
+    "it\\'s\\ a\\\nsecret\\\tkey\\!", // backslash before each special character (printf %q of a plain one)
   ];
   for (const f of forms) {
     const out = s.scrub(`x ${f} y`);

@@ -10,19 +10,50 @@ const folderName = (o: { folder?: { name?: string } }): string => (o?.folder?.na
  * (lib/reversal.ts, memory.corrections.record). A changeset keeps its author, so that one needs no event lookup.
  */
 export const REVERSALS = {
-  "files.restore": { subject: fileOf, types: ["file.deleted"], was: (_i: unknown, o: never) => `deleted the file${fileName(o)}` },
-  "files.folder.restore": { subject: (i: { folderId: string }) => ({ type: "folder", id: i.folderId }), types: ["folder.deleted"], was: (_i: unknown, o: never) => `deleted the folder${folderName(o)}` },
-  "files.restore_version": { subject: fileOf, types: ["file.version_added", "file.created"], was: (_i: unknown, o: never) => `changed the file${fileName(o)}` },
+  "files.restore": {
+    subject: fileOf,
+    types: ["file.deleted"],
+    was: (_i: unknown, o: never) => `deleted the file${fileName(o)}`,
+  },
+  "files.folder.restore": {
+    subject: (i: { folderId: string }) => ({ type: "folder", id: i.folderId }),
+    types: ["folder.deleted"],
+    was: (_i: unknown, o: never) => `deleted the folder${folderName(o)}`,
+  },
+  "files.restore_version": {
+    subject: fileOf,
+    types: ["file.version_added", "file.created"],
+    was: (_i: unknown, o: never) => `changed the file${fileName(o)}`,
+  },
   "files.move": {
-    subject: fileOf, types: ["file.moved"], match: (e: { payload: Record<string, unknown> }, i: { toFolderId?: string }) => e.payload["fromFolderId"] === i.toFolderId,
+    subject: fileOf,
+    types: ["file.moved"],
+    match: (e: { payload: Record<string, unknown> }, i: { toFolderId?: string }) =>
+      e.payload["fromFolderId"] === i.toFolderId,
     was: (_i: unknown, o: never) => `moved the file${fileName(o)}`,
   },
-  "changesets.revert_change": { actOf: (ctx: never, i: { changesetId: string }) => changesetAuthor(ctx, i.changesetId), was: (i: { path?: string }) => `changed ${i.path ? `"${i.path}"` : "a file"} and proposed it for review` },
-  "changesets.discard": { actOf: (ctx: never, i: { changesetId: string }) => changesetAuthor(ctx, i.changesetId), how: "refuse" as const, was: () => "proposed changes to files for review" },
+  "changesets.revert_change": {
+    actOf: (ctx: never, i: { changesetId: string }) => changesetAuthor(ctx, i.changesetId),
+    was: (i: { path?: string }) => `changed ${i.path ? `"${i.path}"` : "a file"} and proposed it for review`,
+  },
+  "changesets.discard": {
+    actOf: (ctx: never, i: { changesetId: string }) => changesetAuthor(ctx, i.changesetId),
+    how: "refuse" as const,
+    was: () => "proposed changes to files for review",
+  },
 };
 
-function changesetAuthor(ctx: { db: { all(sql: string, ...args: unknown[]): unknown[] } }, id: string): { agentId: string; ref: string; threadId?: string } | null {
-  const row = (ctx.db.all("SELECT id, author, thread_id FROM files_changeset WHERE id = ?", id) as Array<{ id: string; author: string; thread_id: string | null }>)[0];
+function changesetAuthor(
+  ctx: { db: { all(sql: string, ...args: unknown[]): unknown[] } },
+  id: string,
+): { agentId: string; ref: string; threadId?: string } | null {
+  const row = (
+    ctx.db.all("SELECT id, author, thread_id FROM files_changeset WHERE id = ?", id) as Array<{
+      id: string;
+      author: string;
+      thread_id: string | null;
+    }>
+  )[0];
   if (!row || !isAgentId(row.author)) return null;
   return { agentId: row.author, ref: row.id, ...(row.thread_id ? { threadId: row.thread_id } : {}) };
 }

@@ -14,7 +14,30 @@
 import { HostError, fail } from "../../../host/src/routes/errors.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 import {
-  APP_EVENTS, APP_PERMISSIONS, APP_ROW, api, bad, codeOf, ensure, first, HANDLE, installationFor, intOrUndef, list, mintToken, needHost, num, numberOf, obj, raw, refuse, refusal, repoPath, strOrUndef, text, WEB,
+  APP_EVENTS,
+  APP_PERMISSIONS,
+  APP_ROW,
+  api,
+  bad,
+  codeOf,
+  ensure,
+  first,
+  HANDLE,
+  installationFor,
+  intOrUndef,
+  list,
+  mintToken,
+  needHost,
+  num,
+  numberOf,
+  obj,
+  raw,
+  refuse,
+  refusal,
+  repoPath,
+  strOrUndef,
+  text,
+  WEB,
 } from "../projections.ts";
 import type { GithubCtx, Json } from "../projections.ts";
 
@@ -28,14 +51,28 @@ function appRow(ctx: GithubCtx) {
   return first(ctx.db.all(`SELECT * FROM github_app WHERE id = ?`, APP_ROW));
 }
 
-export async function appCreateManifest(ctx: GithubCtx, input: { org: string; name?: string }): Promise<{ manifest: Json; postUrl: string; state: string }> {
+export async function appCreateManifest(
+  ctx: GithubCtx,
+  input: { org: string; name?: string },
+): Promise<{ manifest: Json; postUrl: string; state: string }> {
   ensure(ctx);
-  if (typeof input.org !== "string" || !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(input.org)) bad(ctx, "The organisation is its GitHub login.");
-  if (input.name !== undefined && (typeof input.name !== "string" || input.name.trim() === "" || input.name.length > 34)) bad(ctx, "An App name is 1 to 34 characters.");
+  if (typeof input.org !== "string" || !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(input.org))
+    bad(ctx, "The organisation is its GitHub login.");
+  if (
+    input.name !== undefined &&
+    (typeof input.name !== "string" || input.name.trim() === "" || input.name.length > 34)
+  )
+    bad(ctx, "An App name is 1 to 34 characters.");
   if (appRow(ctx)) refuse(ctx, "This Space already has a GitHub App.");
   const base = (await needHost(ctx).publicUrl(ctx)).replace(/\/+$/, "");
   const state = mintUuid(ctx.now()).replaceAll("-", "");
-  ctx.db.run(`INSERT INTO github_app_state ("state", "org", "createdAt", "usedAt") VALUES (?, ?, ?, ?)`, state, input.org, ctx.now(), null);
+  ctx.db.run(
+    `INSERT INTO github_app_state ("state", "org", "createdAt", "usedAt") VALUES (?, ?, ?, ?)`,
+    state,
+    input.org,
+    ctx.now(),
+    null,
+  );
   const manifest: Json = {
     name: input.name?.trim() || `Vyre ${state.slice(0, 6)}`,
     url: base,
@@ -47,54 +84,93 @@ export async function appCreateManifest(ctx: GithubCtx, input: { org: string; na
     default_permissions: { ...APP_PERMISSIONS },
     default_events: [...APP_EVENTS],
   };
-  return { manifest, postUrl: `${WEB}/organizations/${encodeURIComponent(input.org)}/settings/apps/new?state=${state}`, state };
+  return {
+    manifest,
+    postUrl: `${WEB}/organizations/${encodeURIComponent(input.org)}/settings/apps/new?state=${state}`,
+    state,
+  };
 }
 
-export async function appComplete(ctx: GithubCtx, input: { code: string; state: string; idempotencyKey?: string }): Promise<{ appId: number; slug: string; installUrl: string }> {
+export async function appComplete(
+  ctx: GithubCtx,
+  input: { code: string; state: string; idempotencyKey?: string },
+): Promise<{ appId: number; slug: string; installUrl: string }> {
   ensure(ctx);
-  if (typeof input.code !== "string" || !/^[A-Za-z0-9_-]{8,128}$/.test(input.code)) bad(ctx, "That is not a GitHub manifest code.");
-  if (typeof input.state !== "string" || !/^[a-f0-9]{32}$/.test(input.state)) bad(ctx, "That is not a state this server gave.");
+  if (typeof input.code !== "string" || !/^[A-Za-z0-9_-]{8,128}$/.test(input.code))
+    bad(ctx, "That is not a GitHub manifest code.");
+  if (typeof input.state !== "string" || !/^[a-f0-9]{32}$/.test(input.state))
+    bad(ctx, "That is not a state this server gave.");
   if (appRow(ctx)) refuse(ctx, "This Space already has a GitHub App.");
   const st = first(ctx.db.all(`SELECT * FROM github_app_state WHERE state = ?`, input.state));
-  if (!st || st.usedAt !== null || ctx.now() - num(st, "createdAt") > STATE_TTL) refuse(ctx, "That setup link has expired or was already used. Start the GitHub setup again.");
-  const a = await raw(ctx, { method: "POST", path: `/app-manifests/${encodeURIComponent(input.code)}/conversions`, auth: { as: "none" } });
-  if (a.status === 404 || a.status === 422) refuse(ctx, "GitHub does not know that code. It may have expired. Start the GitHub setup again.");
+  if (!st || st.usedAt !== null || ctx.now() - num(st, "createdAt") > STATE_TTL)
+    refuse(ctx, "That setup link has expired or was already used. Start the GitHub setup again.");
+  const a = await raw(ctx, {
+    method: "POST",
+    path: `/app-manifests/${encodeURIComponent(input.code)}/conversions`,
+    auth: { as: "none" },
+  });
+  if (a.status === 404 || a.status === 422)
+    refuse(ctx, "GitHub does not know that code. It may have expired. Start the GitHub setup again.");
   if (a.status >= 300) throw refusal(ctx, a.status, a.json);
   const appId = intOrUndef(a.json.id);
   const slug = strOrUndef(a.json.slug);
   const pem = strOrUndef(a.json.pem);
   const hook = strOrUndef(a.json.webhook_secret);
-  if (appId === undefined || !slug || !pem || !hook) throw fail("provider.bad_response", ctx.trace.traceId, { message: "GitHub answered the App setup without the App's id, key or secret." });
+  if (appId === undefined || !slug || !pem || !hook)
+    throw fail("provider.bad_response", ctx.trace.traceId, {
+      message: "GitHub answered the App setup without the App's id, key or secret.",
+    });
   const secrets = [
-    { name: "GitHub_App_Id", value: String(appId) }, { name: "GitHub_App_Key", value: pem }, { name: "GitHub_App_Webhook_Secret", value: hook },
+    { name: "GitHub_App_Id", value: String(appId) },
+    { name: "GitHub_App_Key", value: pem },
+    { name: "GitHub_App_Webhook_Secret", value: hook },
     ...(strOrUndef(a.json.client_id) ? [{ name: "GitHub_App_Client_Id", value: text(a.json.client_id) }] : []),
-    ...(strOrUndef(a.json.client_secret) ? [{ name: "GitHub_App_Client_Secret", value: text(a.json.client_secret) }] : []),
+    ...(strOrUndef(a.json.client_secret)
+      ? [{ name: "GitHub_App_Client_Secret", value: text(a.json.client_secret) }]
+      : []),
   ];
   await needHost(ctx).storeSecrets(ctx, secrets);
-  const permissions = Object.fromEntries(Object.entries(obj(a.json.permissions)).filter((e): e is [string, string] => typeof e[1] === "string"));
+  const permissions = Object.fromEntries(
+    Object.entries(obj(a.json.permissions)).filter((e): e is [string, string] => typeof e[1] === "string"),
+  );
   const events = list(a.json.events).filter((e): e is string => typeof e === "string");
   ctx.db.run(
     `INSERT INTO github_app ("id", "appId", "slug", "name", "permissions", "events", "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    APP_ROW, appId, slug, text(a.json.name) || slug, JSON.stringify(permissions), JSON.stringify(events), ctx.now(),
+    APP_ROW,
+    appId,
+    slug,
+    text(a.json.name) || slug,
+    JSON.stringify(permissions),
+    JSON.stringify(events),
+    ctx.now(),
   );
   ctx.db.run(`UPDATE github_app_state SET "usedAt" = ? WHERE state = ?`, ctx.now(), input.state);
   ctx.emit("github.app_created", `entity/${slug}`, { appId, slug });
   return { appId, slug, installUrl: `${WEB}/apps/${encodeURIComponent(slug)}/installations/new` };
 }
 
-export async function appGet(ctx: GithubCtx): Promise<{ id: number; slug: string; name: string; permissions: Record<string, string>; events: string[] }> {
+export async function appGet(
+  ctx: GithubCtx,
+): Promise<{ id: number; slug: string; name: string; permissions: Record<string, string>; events: string[] }> {
   ensure(ctx);
   const j = await api(ctx, { path: "/app", auth: { as: "app" } });
   const id = intOrUndef(j.id);
-  if (id === undefined) throw fail("provider.bad_response", ctx.trace.traceId, { message: "GitHub answered the App with no id." });
+  if (id === undefined)
+    throw fail("provider.bad_response", ctx.trace.traceId, { message: "GitHub answered the App with no id." });
   return {
-    id, slug: text(j.slug), name: text(j.name) || text(j.slug),
-    permissions: Object.fromEntries(Object.entries(obj(j.permissions)).filter((e): e is [string, string] => typeof e[1] === "string")),
+    id,
+    slug: text(j.slug),
+    name: text(j.name) || text(j.slug),
+    permissions: Object.fromEntries(
+      Object.entries(obj(j.permissions)).filter((e): e is [string, string] => typeof e[1] === "string"),
+    ),
     events: list(j.events).filter((e): e is string => typeof e === "string"),
   };
 }
 
-export async function installationsList(ctx: GithubCtx): Promise<{ installations: { id: number; account: string; repositorySelection: "all" | "selected" }[] }> {
+export async function installationsList(
+  ctx: GithubCtx,
+): Promise<{ installations: { id: number; account: string; repositorySelection: "all" | "selected" }[] }> {
   ensure(ctx);
   const j = await api(ctx, { path: "/app/installations", auth: { as: "app" }, query: { per_page: PAGE_MAX } });
   const installations: { id: number; account: string; repositorySelection: "all" | "selected" }[] = [];
@@ -105,15 +181,32 @@ export async function installationsList(ctx: GithubCtx): Promise<{ installations
     const repositorySelection = text(raw.repository_selection) === "all" ? "all" : "selected";
     installations.push({ id, account, repositorySelection });
     const have = first(ctx.db.all(`SELECT id FROM github_installation WHERE id = ?`, id));
-    if (have) ctx.db.run(`UPDATE github_installation SET account = ?, "repositorySelection" = ?, "at" = ? WHERE id = ?`, account, repositorySelection, ctx.now(), id);
-    else ctx.db.run(`INSERT INTO github_installation ("id", "account", "repositorySelection", "at") VALUES (?, ?, ?, ?)`, id, account, repositorySelection, ctx.now());
+    if (have)
+      ctx.db.run(
+        `UPDATE github_installation SET account = ?, "repositorySelection" = ?, "at" = ? WHERE id = ?`,
+        account,
+        repositorySelection,
+        ctx.now(),
+        id,
+      );
+    else
+      ctx.db.run(
+        `INSERT INTO github_installation ("id", "account", "repositorySelection", "at") VALUES (?, ?, ?, ?)`,
+        id,
+        account,
+        repositorySelection,
+        ctx.now(),
+      );
   }
   return { installations };
 }
 
 // ---- repositories and branches
 
-interface PageIn { cursor?: string; limit?: number }
+interface PageIn {
+  cursor?: string;
+  limit?: number;
+}
 
 function pageOf(ctx: GithubCtx, input: PageIn): { page: number; perPage: number } {
   const perPage = input.limit ?? 30;
@@ -123,17 +216,37 @@ function pageOf(ctx: GithubCtx, input: PageIn): { page: number; perPage: number 
   return { page, perPage: Math.min(perPage, PAGE_MAX) };
 }
 
-interface RepoOut { repo: string; private: boolean; defaultBranch: string; url: string }
-const repoOut = (r: Json): RepoOut => ({ repo: text(r.full_name), private: r.private === true, defaultBranch: text(r.default_branch), url: text(r.html_url) });
+interface RepoOut {
+  repo: string;
+  private: boolean;
+  defaultBranch: string;
+  url: string;
+}
+const repoOut = (r: Json): RepoOut => ({
+  repo: text(r.full_name),
+  private: r.private === true,
+  defaultBranch: text(r.default_branch),
+  url: text(r.html_url),
+});
 
-export async function reposList(ctx: GithubCtx, input: PageIn & { installationId?: number; query?: string }): Promise<{ repos: RepoOut[]; next?: string; total?: number }> {
+export async function reposList(
+  ctx: GithubCtx,
+  input: PageIn & { installationId?: number; query?: string },
+): Promise<{ repos: RepoOut[]; next?: string; total?: number }> {
   ensure(ctx);
   if (input.query !== undefined && typeof input.query !== "string") bad(ctx, "Search text must be text.");
-  const installationId = await installationFor(ctx, input.installationId === undefined ? {} : { installationId: input.installationId });
+  const installationId = await installationFor(
+    ctx,
+    input.installationId === undefined ? {} : { installationId: input.installationId },
+  );
   const { page, perPage } = pageOf(ctx, input);
   const q = input.query?.trim().toLowerCase();
   if (!q) {
-    const j = await api(ctx, { path: "/installation/repositories", auth: { as: "installation", installationId }, query: { per_page: perPage, page } });
+    const j = await api(ctx, {
+      path: "/installation/repositories",
+      auth: { as: "installation", installationId },
+      query: { per_page: perPage, page },
+    });
     const total = intOrUndef(j.total_count);
     const repos = list(j.repositories).map(obj).map(repoOut);
     const more = total !== undefined ? page * perPage < total : repos.length === perPage;
@@ -142,7 +255,11 @@ export async function reposList(ctx: GithubCtx, input: PageIn & { installationId
   // A search reads up to ten pages of 100 and filters here; its cursor is an offset into the matches.
   const all: RepoOut[] = [];
   for (let p = 1; p <= MAX_SEARCH_PAGES; p++) {
-    const j = await api(ctx, { path: "/installation/repositories", auth: { as: "installation", installationId }, query: { per_page: PAGE_MAX, page: p } });
+    const j = await api(ctx, {
+      path: "/installation/repositories",
+      auth: { as: "installation", installationId },
+      query: { per_page: PAGE_MAX, page: p },
+    });
     const rows = list(j.repositories).map(obj).map(repoOut);
     all.push(...rows.filter((r) => r.repo.toLowerCase().includes(q)));
     if (rows.length < PAGE_MAX) break;
@@ -151,7 +268,11 @@ export async function reposList(ctx: GithubCtx, input: PageIn & { installationId
   if (!Number.isSafeInteger(offset) || offset < 0) bad(ctx, "That cursor is not one this list gave.");
   const limit = Math.min(input.limit ?? 30, PAGE_MAX);
   const repos = all.slice(offset, offset + limit);
-  return { repos, ...(offset + repos.length < all.length ? { next: String(offset + repos.length) } : {}), total: all.length };
+  return {
+    repos,
+    ...(offset + repos.length < all.length ? { next: String(offset + repos.length) } : {}),
+    total: all.length,
+  };
 }
 
 export async function repoGet(ctx: GithubCtx, input: { repo: string }): Promise<RepoOut & { description?: string }> {
@@ -165,19 +286,31 @@ export async function repoGet(ctx: GithubCtx, input: { repo: string }): Promise<
   return out;
 }
 
-export async function branchesList(ctx: GithubCtx, input: PageIn & { repo: string }): Promise<{ branches: { name: string; sha: string; protected: boolean }[]; next?: string }> {
+export async function branchesList(
+  ctx: GithubCtx,
+  input: PageIn & { repo: string },
+): Promise<{ branches: { name: string; sha: string; protected: boolean }[]; next?: string }> {
   ensure(ctx);
   const path = repoPath(ctx, input.repo);
   const { page, perPage } = pageOf(ctx, input);
   const installationId = await installationFor(ctx, { repo: input.repo });
-  const j = await api(ctx, { path: `${path}/branches`, auth: { as: "installation", installationId }, query: { per_page: perPage, page } });
-  const branches = list(j.items).map(obj).map((b) => ({ name: text(b.name), sha: text(obj(b.commit).sha), protected: b.protected === true }));
+  const j = await api(ctx, {
+    path: `${path}/branches`,
+    auth: { as: "installation", installationId },
+    query: { per_page: perPage, page },
+  });
+  const branches = list(j.items)
+    .map(obj)
+    .map((b) => ({ name: text(b.name), sha: text(obj(b.commit).sha), protected: b.protected === true }));
   return { branches, ...(branches.length === perPage ? { next: String(page + 1) } : {}) };
 }
 
 // ---- installation token for git
 
-export async function installationToken(ctx: GithubCtx, input: { repo?: string; installationId?: number }): Promise<{ handle: string; expiresAt: number }> {
+export async function installationToken(
+  ctx: GithubCtx,
+  input: { repo?: string; installationId?: number },
+): Promise<{ handle: string; expiresAt: number }> {
   ensure(ctx);
   const target: { repo?: string; installationId?: number } = {};
   if (input.repo !== undefined) {
@@ -188,25 +321,38 @@ export async function installationToken(ctx: GithubCtx, input: { repo?: string; 
   const installationId = await installationFor(ctx, target);
   const name = input.repo?.split("/")[1];
   const minted = await mintToken(ctx, installationId, name ? [name] : undefined);
-  const handle = await needHost(ctx).fillerHandle(ctx, { token: minted.token, expiresAt: minted.expiresAt, ...(input.repo ? { repo: input.repo } : {}) });
+  const handle = await needHost(ctx).fillerHandle(ctx, {
+    token: minted.token,
+    expiresAt: minted.expiresAt,
+    ...(input.repo ? { repo: input.repo } : {}),
+  });
   return { handle, expiresAt: minted.expiresAt };
 }
 
 // ---- health
 
-export async function health(ctx: GithubCtx): Promise<{ state: "healthy" | "degraded" | "down"; detail?: string; latencyMs?: number }> {
+export async function health(
+  ctx: GithubCtx,
+): Promise<{ state: "healthy" | "degraded" | "down"; detail?: string; latencyMs?: number }> {
   const t0 = ctx.now();
   try {
     const a = await raw(ctx, { path: "/app", auth: { as: "app" } });
     const latencyMs = Math.max(0, ctx.now() - t0);
     if (a.status < 300) return { state: "healthy", latencyMs };
-    if (a.status === 401 || a.status === 403) return { state: "down", detail: "GitHub did not accept the App. Check the GitHub App key in the Vault and that the App still exists." };
+    if (a.status === 401 || a.status === 403)
+      return {
+        state: "down",
+        detail: "GitHub did not accept the App. Check the GitHub App key in the Vault and that the App still exists.",
+      };
     if (a.status === 429) return { state: "degraded", detail: "GitHub is asking us to slow down.", latencyMs };
     return { state: "degraded", detail: "GitHub is not answering well right now.", latencyMs };
   } catch (e) {
-    if (e instanceof HostError && e.error.code === "internal.unavailable") return { state: "healthy", detail: "GitHub is not set up yet." };
-    if (e instanceof HostError && e.error.code === "provider.network") return { state: "down", detail: "GitHub could not be reached." };
-    if (e instanceof HostError && e.error.code === "provider.auth_failed") return { state: "healthy", detail: "The GitHub App is not set up yet. Create it in Settings, Integrations." };
+    if (e instanceof HostError && e.error.code === "internal.unavailable")
+      return { state: "healthy", detail: "GitHub is not set up yet." };
+    if (e instanceof HostError && e.error.code === "provider.network")
+      return { state: "down", detail: "GitHub could not be reached." };
+    if (e instanceof HostError && e.error.code === "provider.auth_failed")
+      return { state: "healthy", detail: "The GitHub App is not set up yet. Create it in Settings, Integrations." };
     throw e;
   }
 }
@@ -217,7 +363,9 @@ const utf8 = (v: string) => new TextEncoder().encode(v);
 
 /** HMAC-SHA256 through the platform's Web Crypto (B3: product code does not import node:crypto), in hex. The key is the Vault secret handed over for this one call. */
 export async function signatureOf(secret: string, body: string): Promise<string> {
-  const key = await globalThis.crypto.subtle.importKey("raw", utf8(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const key = await globalThis.crypto.subtle.importKey("raw", utf8(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+  ]);
   const sig = new Uint8Array(await globalThis.crypto.subtle.sign("HMAC", key, utf8(body)));
   return `sha256=${Array.from(sig, (b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
@@ -248,10 +396,22 @@ export interface WebhookIn {
   runnerName?: string;
 }
 
-const EVENTS: readonly string[] = ["ping", "installation", "push", "pull_request", "issues", "check_run", "workflow_run", "workflow_job"];
+const EVENTS: readonly string[] = [
+  "ping",
+  "installation",
+  "push",
+  "pull_request",
+  "issues",
+  "check_run",
+  "workflow_run",
+  "workflow_job",
+];
 
 /** What the host's /hooks/github route calls first: the body is GitHub's only if the signature is. Returns the input of github.receive_webhook, or null for an event Vyre does not follow. */
-export async function verifyWebhook(ctx: GithubCtx, a: { signature: string | undefined; event: string | undefined; deliveryId: string | undefined; body: string }): Promise<WebhookIn | null> {
+export async function verifyWebhook(
+  ctx: GithubCtx,
+  a: { signature: string | undefined; event: string | undefined; deliveryId: string | undefined; body: string },
+): Promise<WebhookIn | null> {
   const secret = await needHost(ctx).secret(ctx, HANDLE.webhook);
   if (!a.signature || !(await signatureMatches(secret, a.signature, a.body))) {
     throw fail("auth.bad_credentials", ctx.trace.traceId, { message: "That request was not signed by GitHub." });
@@ -281,7 +441,7 @@ export function parseDelivery(event: string, deliveryId: string, body: unknown):
     const ref = text(b.ref);
     if (ref.startsWith("refs/heads/")) out.branch = ref.slice("refs/heads/".length);
     const after = strOrUndef(b.after);
-    if (after && !/^0+$/.test(after)) out.sha = after;   // a deleted branch has an all-zero "after"
+    if (after && !/^0+$/.test(after)) out.sha = after; // a deleted branch has an all-zero "after"
   } else if (event === "pull_request") {
     const pr = obj(b.pull_request);
     const n = intOrUndef(b.number) ?? intOrUndef(pr.number);
@@ -326,7 +486,9 @@ export function parseDelivery(event: string, deliveryId: string, body: unknown):
     if (sha) out.sha = sha;
     const runnerName = strOrUndef(job.runner_name);
     if (runnerName) out.runnerName = runnerName;
-    out.labels = list(job.labels).filter((l): l is string => typeof l === "string").slice(0, 20);
+    out.labels = list(job.labels)
+      .filter((l): l is string => typeof l === "string")
+      .slice(0, 20);
   }
   return out;
 }
@@ -336,8 +498,14 @@ const CHECK_CONCLUSIONS = ["success", "failure", "neutral", "cancelled", "timed_
 export async function receiveWebhook(ctx: GithubCtx, input: WebhookIn): Promise<{ accepted: boolean }> {
   ensure(ctx);
   if (!input.deliveryId || !EVENTS.includes(input.event)) bad(ctx, "A delivery needs its id and a known event.");
-  if (first(ctx.db.all(`SELECT "deliveryId" FROM github_delivery WHERE "deliveryId" = ?`, input.deliveryId))) return { accepted: true };   // redelivered: applied once
-  ctx.db.run(`INSERT INTO github_delivery ("deliveryId", "event", "at") VALUES (?, ?, ?)`, input.deliveryId, input.event, ctx.now());
+  if (first(ctx.db.all(`SELECT "deliveryId" FROM github_delivery WHERE "deliveryId" = ?`, input.deliveryId)))
+    return { accepted: true }; // redelivered: applied once
+  ctx.db.run(
+    `INSERT INTO github_delivery ("deliveryId", "event", "at") VALUES (?, ?, ?)`,
+    input.deliveryId,
+    input.event,
+    ctx.now(),
+  );
   const seen: Json = { deliveryId: input.deliveryId, event: input.event };
   if (input.action) seen.action = input.action;
   if (input.repo) seen.repo = input.repo;
@@ -357,15 +525,60 @@ export async function receiveWebhook(ctx: GithubCtx, input: WebhookIn): Promise<
     }
   } else if (input.event === "issues" && input.action === "opened" && repo && number !== undefined) {
     const recordId = await recordIdOf(ctx, "issue", repo, number);
-    ctx.emit("issue.opened", `entity/${repo}`, { repo, number, ...(recordId ? { recordId } : {}), author: await authorOf(ctx, input, "issues") });
-  } else if (input.event === "check_run" && input.action === "completed" && repo && input.sha && input.name && input.conclusion) {
+    ctx.emit("issue.opened", `entity/${repo}`, {
+      repo,
+      number,
+      ...(recordId ? { recordId } : {}),
+      author: await authorOf(ctx, input, "issues"),
+    });
+  } else if (
+    input.event === "check_run" &&
+    input.action === "completed" &&
+    repo &&
+    input.sha &&
+    input.name &&
+    input.conclusion
+  ) {
     const conclusion = CHECK_CONCLUSIONS.find((c) => c === input.conclusion);
-    if (conclusion) ctx.emit("github.check_completed", `entity/${repo}`, { repo, sha: input.sha, name: input.name, conclusion, ...(number !== undefined ? { number } : {}) });
-  } else if (input.event === "workflow_run" && input.action === "completed" && repo && input.sha && input.name && input.conclusion) {
-    ctx.emit("workflow.completed", `entity/${repo}`, { repo, name: input.name, conclusion: input.conclusion, sha: input.sha });
-  } else if (input.event === "workflow_job" && repo && input.jobId !== undefined && input.runId !== undefined && (input.action === "queued" || input.action === "completed")) {
-    const base = { repo, jobId: input.jobId, runId: input.runId, name: input.name ?? "job", labels: input.labels ?? [], ...(input.runnerName ? { runnerName: input.runnerName } : {}) };
-    if (input.action === "queued") ctx.emit("workflow_job.queued", `entity/${repo}`, { ...base, fork: await forkOf(ctx, input) });
+    if (conclusion)
+      ctx.emit("github.check_completed", `entity/${repo}`, {
+        repo,
+        sha: input.sha,
+        name: input.name,
+        conclusion,
+        ...(number !== undefined ? { number } : {}),
+      });
+  } else if (
+    input.event === "workflow_run" &&
+    input.action === "completed" &&
+    repo &&
+    input.sha &&
+    input.name &&
+    input.conclusion
+  ) {
+    ctx.emit("workflow.completed", `entity/${repo}`, {
+      repo,
+      name: input.name,
+      conclusion: input.conclusion,
+      sha: input.sha,
+    });
+  } else if (
+    input.event === "workflow_job" &&
+    repo &&
+    input.jobId !== undefined &&
+    input.runId !== undefined &&
+    (input.action === "queued" || input.action === "completed")
+  ) {
+    const base = {
+      repo,
+      jobId: input.jobId,
+      runId: input.runId,
+      name: input.name ?? "job",
+      labels: input.labels ?? [],
+      ...(input.runnerName ? { runnerName: input.runnerName } : {}),
+    };
+    if (input.action === "queued")
+      ctx.emit("workflow_job.queued", `entity/${repo}`, { ...base, fork: await forkOf(ctx, input) });
     else ctx.emit("workflow_job.completed", `entity/${repo}`, { ...base, conclusion: input.conclusion ?? "unknown" });
   }
   return { accepted: true };
@@ -374,9 +587,16 @@ export async function receiveWebhook(ctx: GithubCtx, input: WebhookIn): Promise<
 /** Whether a run came from a fork's pull request, asked of GitHub (a job's own payload does not say). "unknown" when GitHub cannot be asked: the caller must treat it as a fork. */
 async function forkOf(ctx: GithubCtx, input: WebhookIn): Promise<"no" | "yes" | "unknown"> {
   try {
-    const installationId = await installationFor(ctx, input.installationId !== undefined ? { installationId: input.installationId } : { repo: input.repo ?? "" });
-    const run = await api(ctx, { path: `${repoPath(ctx, input.repo)}/actions/runs/${input.runId}`, auth: { as: "installation", installationId } });
-    const head = strOrUndef(obj(run.head_repository).full_name), base = strOrUndef(obj(run.repository).full_name);
+    const installationId = await installationFor(
+      ctx,
+      input.installationId !== undefined ? { installationId: input.installationId } : { repo: input.repo ?? "" },
+    );
+    const run = await api(ctx, {
+      path: `${repoPath(ctx, input.repo)}/actions/runs/${input.runId}`,
+      auth: { as: "installation", installationId },
+    });
+    const head = strOrUndef(obj(run.head_repository).full_name),
+      base = strOrUndef(obj(run.repository).full_name);
     if (!head || !base) return "unknown";
     return head.toLowerCase() === base.toLowerCase() ? "no" : "yes";
   } catch (e) {
@@ -386,9 +606,25 @@ async function forkOf(ctx: GithubCtx, input: WebhookIn): Promise<"no" | "yes" | 
 }
 
 /** The synced record for a pull request or issue, if the sync has made it yet. A records module that is down gives none. */
-async function recordIdOf(ctx: GithubCtx, type: "pull_request" | "issue", repo: string, number: number): Promise<string | undefined> {
+async function recordIdOf(
+  ctx: GithubCtx,
+  type: "pull_request" | "issue",
+  repo: string,
+  number: number,
+): Promise<string | undefined> {
   try {
-    const res = obj(await ctx.call("records.query", { type, filter: { and: [{ field: "repo", op: "eq", value: repo }, { field: "number", op: "eq", value: number }] }, limit: 1 }));
+    const res = obj(
+      await ctx.call("records.query", {
+        type,
+        filter: {
+          and: [
+            { field: "repo", op: "eq", value: repo },
+            { field: "number", op: "eq", value: number },
+          ],
+        },
+        limit: 1,
+      }),
+    );
     return strOrUndef(obj(list(res.rows)[0]).id);
   } catch (e) {
     ctx.log.warn("github: could not look up the record of a delivery", { code: codeOf(e) });
@@ -399,8 +635,14 @@ async function recordIdOf(ctx: GithubCtx, type: "pull_request" | "issue", repo: 
 /** Who opened it, from GitHub. "unknown" when GitHub cannot be asked: the event still matters. */
 async function authorOf(ctx: GithubCtx, input: WebhookIn, kind: "pulls" | "issues"): Promise<string> {
   try {
-    const installationId = await installationFor(ctx, input.installationId !== undefined ? { installationId: input.installationId } : { repo: input.repo ?? "" });
-    const j = await api(ctx, { path: `${repoPath(ctx, input.repo)}/${kind}/${input.number}`, auth: { as: "installation", installationId } });
+    const installationId = await installationFor(
+      ctx,
+      input.installationId !== undefined ? { installationId: input.installationId } : { repo: input.repo ?? "" },
+    );
+    const j = await api(ctx, {
+      path: `${repoPath(ctx, input.repo)}/${kind}/${input.number}`,
+      auth: { as: "installation", installationId },
+    });
     return strOrUndef(obj(j.user).login) ?? "unknown";
   } catch (e) {
     ctx.log.warn("github: could not read who opened it", { code: codeOf(e) });
@@ -408,16 +650,30 @@ async function authorOf(ctx: GithubCtx, input: WebhookIn, kind: "pulls" | "issue
   }
 }
 
-
 // ---- runners (the CI module): a just-in-time runner for one job, and whether the repository holds secrets
 
 /** A just-in-time runner config for one job. The runner takes one job and is gone; the config is passed to the new machine and never stored. */
-export async function runnersJitConfig(ctx: GithubCtx, input: { repo: string; name: string; labels: string[]; installationId?: number }): Promise<{ runnerId: number; jitConfig: string }> {
+export async function runnersJitConfig(
+  ctx: GithubCtx,
+  input: { repo: string; name: string; labels: string[]; installationId?: number },
+): Promise<{ runnerId: number; jitConfig: string }> {
   ensure(ctx);
-  const installationId = await installationFor(ctx, input.installationId !== undefined ? { installationId: input.installationId } : { repo: input.repo });
-  const j = await api(ctx, { method: "POST", path: `${repoPath(ctx, input.repo)}/actions/runners/generate-jitconfig`, auth: { as: "installation", installationId }, body: { name: input.name, runner_group_id: 1, labels: input.labels, work_folder: "_work" } });
-  const jitConfig = text(j.encoded_jit_config), runnerId = intOrUndef(obj(j.runner).id);
-  if (!jitConfig || runnerId === undefined) throw fail("provider.bad_response", ctx.trace.traceId, { message: "GitHub answered a runner request with no runner." });
+  const installationId = await installationFor(
+    ctx,
+    input.installationId !== undefined ? { installationId: input.installationId } : { repo: input.repo },
+  );
+  const j = await api(ctx, {
+    method: "POST",
+    path: `${repoPath(ctx, input.repo)}/actions/runners/generate-jitconfig`,
+    auth: { as: "installation", installationId },
+    body: { name: input.name, runner_group_id: 1, labels: input.labels, work_folder: "_work" },
+  });
+  const jitConfig = text(j.encoded_jit_config),
+    runnerId = intOrUndef(obj(j.runner).id);
+  if (!jitConfig || runnerId === undefined)
+    throw fail("provider.bad_response", ctx.trace.traceId, {
+      message: "GitHub answered a runner request with no runner.",
+    });
   return { runnerId, jitConfig };
 }
 
@@ -426,7 +682,11 @@ export async function actionsSecrets(ctx: GithubCtx, input: { repo: string }): P
   ensure(ctx);
   try {
     const installationId = await installationFor(ctx, { repo: input.repo });
-    const j = await api(ctx, { path: `${repoPath(ctx, input.repo)}/actions/secrets`, query: { per_page: 1 }, auth: { as: "installation", installationId } });
+    const j = await api(ctx, {
+      path: `${repoPath(ctx, input.repo)}/actions/secrets`,
+      query: { per_page: 1 },
+      auth: { as: "installation", installationId },
+    });
     const n = intOrUndef(j.total_count);
     return { count: n ?? null };
   } catch (e) {
@@ -436,11 +696,18 @@ export async function actionsSecrets(ctx: GithubCtx, input: { repo: string }): P
 }
 
 /** Take a runner that never ran back from GitHub (a machine that failed to start). A runner that is already gone answers fine. */
-export async function runnersRemove(ctx: GithubCtx, input: { repo: string; runnerId: number }): Promise<{ removed: boolean }> {
+export async function runnersRemove(
+  ctx: GithubCtx,
+  input: { repo: string; runnerId: number },
+): Promise<{ removed: boolean }> {
   ensure(ctx);
   try {
     const installationId = await installationFor(ctx, { repo: input.repo });
-    const a = await raw(ctx, { method: "DELETE", path: `${repoPath(ctx, input.repo)}/actions/runners/${numberOf(ctx, input.runnerId, "The runner")}`, auth: { as: "installation", installationId } });
+    const a = await raw(ctx, {
+      method: "DELETE",
+      path: `${repoPath(ctx, input.repo)}/actions/runners/${numberOf(ctx, input.runnerId, "The runner")}`,
+      auth: { as: "installation", installationId },
+    });
     return { removed: a.status < 300 || a.status === 404 };
   } catch (e) {
     ctx.log.warn("github: could not remove a runner", { code: codeOf(e) });
@@ -449,9 +716,17 @@ export async function runnersRemove(ctx: GithubCtx, input: { repo: string; runne
 }
 
 /** The files of a release of the Actions runner and the checksum GitHub itself lists for each (the CI module checks it against its pin before it starts any machine). No credentials: it is public. */
-export async function runnerRelease(ctx: GithubCtx, input: { version: string }): Promise<{ assets: Array<{ name: string; digest: string | null }> }> {
+export async function runnerRelease(
+  ctx: GithubCtx,
+  input: { version: string },
+): Promise<{ assets: Array<{ name: string; digest: string | null }> }> {
   ensure(ctx);
   if (!/^\d+\.\d+\.\d+$/.test(input.version)) bad(ctx, "A runner version looks like 2.338.2.");
   const j = await api(ctx, { path: `/repos/actions/runner/releases/tags/v${input.version}`, auth: { as: "none" } });
-  return { assets: list(j.assets).map(obj).map((a) => ({ name: text(a.name), digest: strOrUndef(a.digest) ?? null })).filter((a) => a.name) };
+  return {
+    assets: list(j.assets)
+      .map(obj)
+      .map((a) => ({ name: text(a.name), digest: strOrUndef(a.digest) ?? null }))
+      .filter((a) => a.name),
+  };
 }

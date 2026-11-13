@@ -31,7 +31,10 @@ export interface CapabilityContract {
   executorVersion: string;
 }
 
-export interface ContractIssue { code: string; message: string }
+export interface ContractIssue {
+  code: string;
+  message: string;
+}
 
 const SECRET_KEY = /(secret|password|authorization|cookie|token|api[-_]?key|credential)/i;
 
@@ -54,17 +57,30 @@ export function sameValue(a: ValueExpr, b: ValueExpr): boolean {
 
 export function admit(cap: CapabilityContract): { stable: boolean; issues: ContractIssue[] } {
   const issues: ContractIssue[] = [];
-  if (cap.inputSchema === undefined || cap.inputSchema === null) issues.push({ code: "capability.input", message: `${cap.key} needs an input schema.` });
-  if (cap.outputSchema === undefined || cap.outputSchema === null) issues.push({ code: "capability.output", message: `${cap.key} needs an output schema.` });
+  if (cap.inputSchema === undefined || cap.inputSchema === null)
+    issues.push({ code: "capability.input", message: `${cap.key} needs an input schema.` });
+  if (cap.outputSchema === undefined || cap.outputSchema === null)
+    issues.push({ code: "capability.output", message: `${cap.key} needs an output schema.` });
   if (!cap.effects) issues.push({ code: "capability.effects", message: `${cap.key} needs an effect classification.` });
-  if (!cap.connection) issues.push({ code: "capability.connection", message: `${cap.key} needs an explicit connection requirement.` });
-  if (!cap.errors || cap.errors.length === 0) issues.push({ code: "capability.errors", message: `${cap.key} needs documented errors.` });
+  if (!cap.connection)
+    issues.push({ code: "capability.connection", message: `${cap.key} needs an explicit connection requirement.` });
+  if (!cap.errors || cap.errors.length === 0)
+    issues.push({ code: "capability.errors", message: `${cap.key} needs documented errors.` });
   if (!cap.test) issues.push({ code: "capability.test", message: `${cap.key} needs a test behavior.` });
-  if (!cap.idempotency) issues.push({ code: "capability.idempotency", message: `${cap.key} needs an idempotency behavior.` });
-  if (!cap.executorVersion) issues.push({ code: "capability.executor", message: `${cap.key} needs an executor version.` });
-  if (cap.availability !== "live") issues.push({ code: "capability.availability", message: `${cap.key} is ${cap.availability} and cannot publish as a stable action.` });
+  if (!cap.idempotency)
+    issues.push({ code: "capability.idempotency", message: `${cap.key} needs an idempotency behavior.` });
+  if (!cap.executorVersion)
+    issues.push({ code: "capability.executor", message: `${cap.key} needs an executor version.` });
+  if (cap.availability !== "live")
+    issues.push({
+      code: "capability.availability",
+      message: `${cap.key} is ${cap.availability} and cannot publish as a stable action.`,
+    });
   if (SECRET_KEY.test(JSON.stringify(cap.outputSchema ?? {}))) {
-    issues.push({ code: "capability.output_secret", message: `${cap.key} output schema names a secret. Stable output must stay scrubbed.` });
+    issues.push({
+      code: "capability.output_secret",
+      message: `${cap.key} output schema names a secret. Stable output must stay scrubbed.`,
+    });
   }
   return { stable: issues.length === 0, issues };
 }
@@ -97,20 +113,32 @@ function propertyNames(schema: unknown): Set<string> {
 }
 
 /** The catalogue row is the contract. A missing field stays missing so admit() can refuse it. */
-export function contractOf(step: CatalogueStep, availability: CapabilityContract["availability"] = "live"): CapabilityContract {
+export function contractOf(
+  step: CatalogueStep,
+  availability: CapabilityContract["availability"] = "live",
+): CapabilityContract {
   const required = requiredNames(step.input);
   const props = propertyNames(step.input);
   const account = ACCOUNT_FIELDS.find((name) => required.has(name) || props.has(name));
-  const idempotency: CapabilityContract["idempotency"] = step.idempotency === "none"
-    ? (step.effects === "read" ? "read-only" : "none")
-    : "key";
+  const idempotency: CapabilityContract["idempotency"] =
+    step.idempotency === "none" ? (step.effects === "read" ? "read-only" : "none") : "key";
   return {
     key: step.key,
     inputSchema: step.input,
     outputSchema: step.output,
     effects: step.effects,
-    ...(account ? { connection: { required: required.has(account), app: account === "mailboxId" ? "mail" : account === "numberId" ? "sms" : "connection" } } : { connection: { required: false } }),
-    errors: (step.errors ?? []).map((code) => ({ code, retryable: code.startsWith("timeout.") || code === "internal.unexpected" || code.startsWith("provider.") })),
+    ...(account
+      ? {
+          connection: {
+            required: required.has(account),
+            app: account === "mailboxId" ? "mail" : account === "numberId" ? "sms" : "connection",
+          },
+        }
+      : { connection: { required: false } }),
+    errors: (step.errors ?? []).map((code) => ({
+      code,
+      retryable: code.startsWith("timeout.") || code === "internal.unexpected" || code.startsWith("provider."),
+    })),
     test: { mode: step.effects === "read" ? "live-read" : "stub-write" },
     idempotency,
     availability,

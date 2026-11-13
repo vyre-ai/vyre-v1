@@ -28,7 +28,9 @@ export async function trashKeepMs(ctx: CompCtx): Promise<number | null> {
     const v = out.kinds?.find((k) => k.key === "trash")?.value;
     const ms = typeof v === "string" ? retentionMs(v) : undefined;
     if (ms !== undefined) return ms;
-  } catch { /* governance is not running here (a Personal Space has no retention settings): its default */ }
+  } catch {
+    /* governance is not running here (a Personal Space has no retention settings): its default */
+  }
   return TRASH_KEEP_MS;
 }
 
@@ -40,9 +42,19 @@ export async function browserOfDeleted(ctx: CompCtx, agentId: unknown): Promise<
   ensure(ctx.db);
   dropHold(ctx, id);
   releaseRoom(ctx, id);
-  ctx.db.run("INSERT INTO computers_browser_gone (profile_id, deleted_at) VALUES (?, ?) ON CONFLICT (profile_id) DO NOTHING", id, ctx.now());
+  ctx.db.run(
+    "INSERT INTO computers_browser_gone (profile_id, deleted_at) VALUES (?, ?) ON CONFLICT (profile_id) DO NOTHING",
+    id,
+    ctx.now(),
+  );
   const sb = spaceBrowser();
-  if (sb && (await sb.available().catch(() => false))) { try { await sb.stop(id); } catch { /* stopped after idle anyway */ } }
+  if (sb && (await sb.available().catch(() => false))) {
+    try {
+      await sb.stop(id);
+    } catch {
+      /* stopped after idle anyway */
+    }
+  }
   return true;
 }
 
@@ -61,12 +73,23 @@ export async function forgetExpired(ctx: CompCtx): Promise<string[]> {
   if (rowsOf(ctx.db, "SELECT 1 FROM computers_browser_gone LIMIT 1").length === 0) return [];
   const keep = await trashKeepMs(ctx);
   if (keep === null) return [];
-  const due = rowsOf(ctx.db, "SELECT profile_id FROM computers_browser_gone WHERE deleted_at <= ?", ctx.now() - keep).map((r) => String(r["profile_id"]));
+  const due = rowsOf(
+    ctx.db,
+    "SELECT profile_id FROM computers_browser_gone WHERE deleted_at <= ?",
+    ctx.now() - keep,
+  ).map((r) => String(r["profile_id"]));
   if (due.length === 0 || !(await sb.available().catch(() => false))) return [];
   const done: string[] = [];
   for (const id of due) {
-    try { await sb.forget(id); ctx.db.run("DELETE FROM computers_browser_gone WHERE profile_id = ?", id); done.push(id); } catch (e) {
-      ctx.log.warn("sbrowser: the browser profile of an agent in Trash could not be removed; tried again later", { agentId: id, reason: e instanceof Error ? e.message.slice(0, 160) : "unknown" });
+    try {
+      await sb.forget(id);
+      ctx.db.run("DELETE FROM computers_browser_gone WHERE profile_id = ?", id);
+      done.push(id);
+    } catch (e) {
+      ctx.log.warn("sbrowser: the browser profile of an agent in Trash could not be removed; tried again later", {
+        agentId: id,
+        reason: e instanceof Error ? e.message.slice(0, 160) : "unknown",
+      });
     }
   }
   return done;

@@ -1,10 +1,26 @@
 // Anthropic Messages API, streaming. The stable system blocks and the tool list end in a cache marker; tool calls are completed here from input_json_delta pieces so the session sees whole calls.
 import { orderSystem, sortTools } from "./prefix.ts";
-import type { CallRequest, Decoded, ModelInfo, ProviderAdapter, SseEvent, StreamDecoder, ToolCall, Usage, WireRequest } from "./types.ts";
+import type {
+  CallRequest,
+  Decoded,
+  ModelInfo,
+  ProviderAdapter,
+  SseEvent,
+  StreamDecoder,
+  ToolCall,
+  Usage,
+  WireRequest,
+} from "./types.ts";
 
 const VERSION = "2023-06-01";
 
-interface Block { type: string; text?: string; id?: string; name?: string; source?: unknown }
+interface Block {
+  type: string;
+  text?: string;
+  id?: string;
+  name?: string;
+  source?: unknown;
+}
 
 function wireMessages(req: CallRequest): unknown[] {
   const out: unknown[] = [];
@@ -16,7 +32,12 @@ function wireMessages(req: CallRequest): unknown[] {
   for (const m of req.messages) {
     if (m.role === "tool") {
       // All results of one assistant step travel in a single user message, as the API requires.
-      pendingResults.push({ type: "tool_result", tool_use_id: m.callId, content: m.content, ...(m.ok ? {} : { is_error: true }) });
+      pendingResults.push({
+        type: "tool_result",
+        tool_use_id: m.callId,
+        content: m.content,
+        ...(m.ok ? {} : { is_error: true }),
+      });
       continue;
     }
     flushResults();
@@ -37,21 +58,30 @@ function wireMessages(req: CallRequest): unknown[] {
  * Models that take `output_config.effort` (GA, no beta header): Opus 4.6 and later, Sonnet 4.6 and later, Fable, Mythos, and the 5.x Haiku. Older models refuse the field, so it is left out for them.
  * Vyre's four levels are the API's own (low, medium, high, max). Thinking is left as it is: turning it on would need the thinking blocks carried between tool steps.
  */
-export const takesEffort = (model: string): boolean => /^claude-(opus|sonnet)-(4-[6-9]|[5-9])|^claude-(fable|mythos)-|^claude-haiku-[5-9]/.test(model);
+export const takesEffort = (model: string): boolean =>
+  /^claude-(opus|sonnet)-(4-[6-9]|[5-9])|^claude-(fable|mythos)-|^claude-haiku-[5-9]/.test(model);
 
 function request(req: CallRequest): WireRequest {
   const ordered = orderSystem(req.system);
   const lastStable = ordered.reduce((n, b, i) => (b.stable ? i : n), -1);
-  const system = ordered.map((b, i) => ({ type: "text", text: b.text, ...(i === lastStable ? { cache_control: { type: "ephemeral" } } : {}) }));
+  const system = ordered.map((b, i) => ({
+    type: "text",
+    text: b.text,
+    ...(i === lastStable ? { cache_control: { type: "ephemeral" } } : {}),
+  }));
   const tools = sortTools(req.tools).map((t, i, all) => ({
-    name: t.name, description: t.description, input_schema: t.inputSchema ?? { type: "object", properties: {} },
+    name: t.name,
+    description: t.description,
+    input_schema: t.inputSchema ?? { type: "object", properties: {} },
     ...(i === all.length - 1 ? { cache_control: { type: "ephemeral" } } : {}),
   }));
   return {
     path: "/v1/messages",
     headers: { "content-type": "application/json", "anthropic-version": VERSION, accept: "text/event-stream" },
     body: {
-      model: req.model, max_tokens: req.maxOutputTokens, stream: true,
+      model: req.model,
+      max_tokens: req.maxOutputTokens,
+      stream: true,
       ...(system.length > 0 ? { system } : {}),
       ...(tools.length > 0 ? { tools, tool_choice: { type: "auto", disable_parallel_tool_use: false } } : {}),
       ...(req.effort !== undefined && takesEffort(req.model) ? { output_config: { effort: req.effort } } : {}),
@@ -60,7 +90,12 @@ function request(req: CallRequest): WireRequest {
   };
 }
 
-interface OpenBlock { kind: "text" | "thinking" | "tool"; id: string; name: string; json: string }
+interface OpenBlock {
+  kind: "text" | "thinking" | "tool";
+  id: string;
+  name: string;
+  json: string;
+}
 
 function decoder(): StreamDecoder {
   const open = new Map<number, OpenBlock>();
@@ -82,7 +117,18 @@ function decoder(): StreamDecoder {
     if (!b || b.kind !== "tool") return [];
     let input: unknown = {};
     if (b.json.trim() !== "") {
-      try { input = JSON.parse(b.json); } catch { return [{ type: "error", status: 200, code: "provider.bad_response", message: `Tool call ${b.name} arrived with unreadable arguments.` }]; }
+      try {
+        input = JSON.parse(b.json);
+      } catch {
+        return [
+          {
+            type: "error",
+            status: 200,
+            code: "provider.bad_response",
+            message: `Tool call ${b.name} arrived with unreadable arguments.`,
+          },
+        ];
+      }
     }
     const call: ToolCall = { id: b.id, name: b.name, input };
     return [{ type: "tool_call", call }];
@@ -92,14 +138,20 @@ function decoder(): StreamDecoder {
     push(ev: SseEvent): Decoded[] {
       if (ev.event === "ping") return [];
       let j: Record<string, any>;
-      try { j = JSON.parse(ev.data) as Record<string, any>; } catch { return []; }
+      try {
+        j = JSON.parse(ev.data) as Record<string, any>;
+      } catch {
+        return [];
+      }
       switch (j["type"]) {
-        case "message_start": return [{ type: "usage", usage: usageOf(j["message"]?.usage) }];
+        case "message_start":
+          return [{ type: "usage", usage: usageOf(j["message"]?.usage) }];
         case "content_block_start": {
           const cb = j["content_block"] as Record<string, any> | undefined;
           const index = Number(j["index"]);
           if (!cb) return [];
-          if (cb["type"] === "tool_use") open.set(index, { kind: "tool", id: String(cb["id"]), name: String(cb["name"]), json: "" });
+          if (cb["type"] === "tool_use")
+            open.set(index, { kind: "tool", id: String(cb["id"]), name: String(cb["name"]), json: "" });
           else open.set(index, { kind: cb["type"] === "thinking" ? "thinking" : "text", id: "", name: "", json: "" });
           // A block may carry its first text right in the start event.
           return typeof cb["text"] === "string" && cb["text"] !== "" ? [{ type: "text", text: cb["text"] }] : [];
@@ -115,21 +167,40 @@ function decoder(): StreamDecoder {
           }
           return [];
         }
-        case "content_block_stop": return closeBlock(Number(j["index"]));
+        case "content_block_stop":
+          return closeBlock(Number(j["index"]));
         case "message_delta": {
           const reason = j["delta"]?.stop_reason as string | null | undefined;
           if (reason) {
             sawStop = true;
-            stopReason = reason === "tool_use" ? "tool_use" : reason === "max_tokens" ? "length" : reason === "refusal" ? "filtered" : reason === "end_turn" || reason === "stop_sequence" ? "end" : "other";
+            stopReason =
+              reason === "tool_use"
+                ? "tool_use"
+                : reason === "max_tokens"
+                  ? "length"
+                  : reason === "refusal"
+                    ? "filtered"
+                    : reason === "end_turn" || reason === "stop_sequence"
+                      ? "end"
+                      : "other";
           }
           return [{ type: "usage", usage: usageOf(j["usage"]) }];
         }
-        case "message_stop": return [{ type: "stop", reason: sawStop ? stopReason : "end" }];
+        case "message_stop":
+          return [{ type: "stop", reason: sawStop ? stopReason : "end" }];
         case "error": {
           const e = j["error"] as Record<string, any> | undefined;
-          return [{ type: "error", status: 200, code: String(e?.["type"] ?? "error"), message: String(e?.["message"] ?? "The provider reported an error.") }];
+          return [
+            {
+              type: "error",
+              status: 200,
+              code: String(e?.["type"] ?? "error"),
+              message: String(e?.["message"] ?? "The provider reported an error."),
+            },
+          ];
         }
-        default: return [];
+        default:
+          return [];
       }
     },
     end(): Decoded[] {
@@ -150,7 +221,17 @@ export const anthropic: ProviderAdapter = {
   decoder,
   modelsRequest: () => ({ path: "/v1/models?limit=100", headers: { "anthropic-version": VERSION } }),
   parseModels(json): ModelInfo[] {
-    const rows = (json as { data?: Array<{ id?: unknown; display_name?: unknown; max_input_tokens?: unknown }> } | null)?.data ?? [];
-    return rows.filter((r) => typeof r.id === "string").map((r) => ({ id: String(r.id), ...(typeof r.display_name === "string" ? { label: r.display_name } : {}), ...(typeof r.max_input_tokens === "number" && r.max_input_tokens > 0 ? { contextTokens: r.max_input_tokens } : {}) }));
+    const rows =
+      (json as { data?: Array<{ id?: unknown; display_name?: unknown; max_input_tokens?: unknown }> } | null)?.data ??
+      [];
+    return rows
+      .filter((r) => typeof r.id === "string")
+      .map((r) => ({
+        id: String(r.id),
+        ...(typeof r.display_name === "string" ? { label: r.display_name } : {}),
+        ...(typeof r.max_input_tokens === "number" && r.max_input_tokens > 0
+          ? { contextTokens: r.max_input_tokens }
+          : {}),
+      }));
   },
 };

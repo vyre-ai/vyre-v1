@@ -1,5 +1,5 @@
-import type {SignInPolicy,SignInMethods} from "../../lib/sign-in-policy.ts";
-import {assertSignInPolicy} from "./policy.ts";
+import type { SignInPolicy, SignInMethods } from "../../lib/sign-in-policy.ts";
+import { assertSignInPolicy } from "./policy.ts";
 // Identity projections (spec 3.13, 2.25, ARCH 7.13). Accounts, sessions, challenges, one-time codes and the wrapped key bundle.
 // The server keeps a salted Argon2id verifier of the login secret, never the secret, and never an unwrapped key.
 // Durable tables: migrations/0001_identity.sql. Handlers reach them only through ctx.db.
@@ -7,7 +7,7 @@ import {assertSignInPolicy} from "./policy.ts";
 import { argon2id } from "../../kernel/src/identity/stretch.ts";
 import { sameMac, sha256b64 } from "../../kernel/src/seal/wire.ts";
 import { fail } from "../../host/src/routes/errors.ts";
-import type {RecoveryCommit} from "../../packages/contracts/src/identity-recovery.ts";
+import type { RecoveryCommit } from "../../packages/contracts/src/identity-recovery.ts";
 
 export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
@@ -29,10 +29,10 @@ export interface Github {
   signedIn?(githubId: string, person: string): Promise<void>;
 }
 export interface IdentityCtx {
-  recoveryCommit?:RecoveryCommit;
-  signInPolicy?: {current():Readonly<SignInPolicy>;methods:Readonly<SignInMethods>};
+  recoveryCommit?: RecoveryCommit;
+  signInPolicy?: { current(): Readonly<SignInPolicy>; methods: Readonly<SignInMethods> };
   /** Current canonical Space owner, supplied read-only by the access projection. */
-  spaceOwner?():string|null;
+  spaceOwner?(): string | null;
   space: string;
   /** Absent on pre-auth calls (caller 'anonymous'). */
   principal?: { kind: string; id: string };
@@ -60,7 +60,10 @@ export interface IdentityCtx {
    */
   membership?: { check(personId: string, o?: { joining?: boolean }): "ok" | "refused" | "unavailable" };
   /** Invites, supplied by the members module through the host: peek never spends, accept marks the invite accepted and puts the person in the Space with its role and groups. */
-  invites?: { peek(code: string): Invite | "invalid" | "expired" | Promise<Invite | "invalid" | "expired">; accept(inviteId: string, personId: string): void | Promise<void> };
+  invites?: {
+    peek(code: string): Invite | "invalid" | "expired" | Promise<Invite | "invalid" | "expired">;
+    accept(inviteId: string, personId: string): void | Promise<void>;
+  };
   /** Counts for the reset preview, supplied by the vault, chat and memory modules through the host. */
   losses?: { of(personId: string): { vault_mine: number; private_chats: number; personal_memory: number } };
 }
@@ -77,7 +80,13 @@ export interface Keyring {
   dropWrap?(personId: string): void;
 }
 
-export interface Invite { inviteId: string; role: string; groups: string[]; invitedBy: string; email?: string }
+export interface Invite {
+  inviteId: string;
+  role: string;
+  groups: string[];
+  invitedBy: string;
+  email?: string;
+}
 
 export interface Account {
   person_id: string;
@@ -133,17 +142,27 @@ export function raise(traceId: string, code: Code, message?: string): never {
 }
 
 // ---- small crypto helpers
-export function randomBytes(n: number): Buffer { return Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(n))); }
-export function nid(prefix: string): string { return `${prefix}_${randomBytes(9).toString("hex")}`; }
-export function sha(s: string): string { return sha256b64(s); }
-export function newToken(): string { return `vst_${randomBytes(32).toString("base64url")}`; }
+export function randomBytes(n: number): Buffer {
+  return Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(n)));
+}
+export function nid(prefix: string): string {
+  return `${prefix}_${randomBytes(9).toString("hex")}`;
+}
+export function sha(s: string): string {
+  return sha256b64(s);
+}
+export function newToken(): string {
+  return `vst_${randomBytes(32).toString("base64url")}`;
+}
 export function pairCode(): string {
   const b = randomBytes(8);
   let s = "";
   for (let i = 0; i < 8; i++) s += PAIR_ALPHABET[b[i]! % PAIR_ALPHABET.length];
   return `${s.slice(0, 4)}-${s.slice(4)}`;
 }
-export function normCode(code: string): string { return code.trim().toUpperCase().replace(/\s+/g, ""); }
+export function normCode(code: string): string {
+  return code.trim().toUpperCase().replace(/\s+/g, "");
+}
 
 function stretch(secret: string, salt: Buffer, memoryKiB: number, passes: number): string {
   return argon2id(secret.normalize("NFKC"), salt, { memoryKiB, passes }).toString("base64url");
@@ -168,27 +187,44 @@ export async function burnVerify(secret: string): Promise<void> {
 
 // ---- TOTP (RFC 6238, SHA-1, 6 digits, 30 s)
 export function base32(b: Uint8Array): string {
-  let bits = 0, val = 0, out = "";
+  let bits = 0,
+    val = 0,
+    out = "";
   for (const x of b) {
-    val = (val << 8) | x; bits += 8;
-    while (bits >= 5) { out += B32[(val >>> (bits - 5)) & 31]; bits -= 5; }
+    val = (val << 8) | x;
+    bits += 8;
+    while (bits >= 5) {
+      out += B32[(val >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
   }
   if (bits > 0) out += B32[(val << (5 - bits)) & 31];
   return out;
 }
 export function unbase32(s: string): Buffer {
-  let bits = 0, val = 0;
+  let bits = 0,
+    val = 0;
   const out: number[] = [];
   for (const ch of s.replace(/=+$/, "").toUpperCase()) {
     const i = B32.indexOf(ch);
     if (i < 0) throw new Error("bad base32");
-    val = (val << 5) | i; bits += 5;
-    if (bits >= 8) { out.push((val >>> (bits - 8)) & 255); bits -= 8; }
+    val = (val << 5) | i;
+    bits += 5;
+    if (bits >= 8) {
+      out.push((val >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
   }
   return Buffer.from(out);
 }
 async function hmacSha1(key: Uint8Array, msg: Uint8Array): Promise<Buffer> {
-  const k = await globalThis.crypto.subtle.importKey("raw", key as BufferSource, { name: "HMAC", hash: "SHA-1" }, false, ["sign"]);
+  const k = await globalThis.crypto.subtle.importKey(
+    "raw",
+    key as BufferSource,
+    { name: "HMAC", hash: "SHA-1" },
+    false,
+    ["sign"],
+  );
   return Buffer.from(await globalThis.crypto.subtle.sign("HMAC", k, msg as BufferSource));
 }
 export async function totpAt(secret: string, step: number): Promise<string> {
@@ -208,20 +244,35 @@ export async function matchTotp(secret: string, code: string, nowMs: number, aft
   }
   return null;
 }
-export function newTotpSecret(): string { return base32(randomBytes(20)); }
+export function newTotpSecret(): string {
+  return base32(randomBytes(20));
+}
 
 // ---- key bundle
 export function validBundle(k: KeyBundle): boolean {
   const ok = (s: unknown): boolean => typeof s === "string" && s.length > 0 && B64.test(s);
-  return ok(k.personKeyByPassword) && ok(k.privateKeyWrapped) && ok(k.publicKey) && (k.personKeyByRecovery === undefined || ok(k.personKeyByRecovery)) && (k.formerKey === undefined || ok(k.formerKey))
-    && Array.isArray(k.spaceKeys) && k.spaceKeys.every((s) => Number.isInteger(s.epoch) && s.epoch >= 0 && ok(s.wrapped));
+  return (
+    ok(k.personKeyByPassword) &&
+    ok(k.privateKeyWrapped) &&
+    ok(k.publicKey) &&
+    (k.personKeyByRecovery === undefined || ok(k.personKeyByRecovery)) &&
+    (k.formerKey === undefined || ok(k.formerKey)) &&
+    Array.isArray(k.spaceKeys) &&
+    k.spaceKeys.every((s) => Number.isInteger(s.epoch) && s.epoch >= 0 && ok(s.wrapped))
+  );
 }
-export function epochOf(k: KeyBundle): number { return k.spaceKeys.reduce((m, s) => Math.max(m, s.epoch), 0); }
-export function bundleOf(a: Account): KeyBundle | undefined { return a.keys_json ? (JSON.parse(a.keys_json) as KeyBundle) : undefined; }
+export function epochOf(k: KeyBundle): number {
+  return k.spaceKeys.reduce((m, s) => Math.max(m, s.epoch), 0);
+}
+export function bundleOf(a: Account): KeyBundle | undefined {
+  return a.keys_json ? (JSON.parse(a.keys_json) as KeyBundle) : undefined;
+}
 
 // ---- account access
 export function accountByName(ctx: IdentityCtx, username: string): Account | undefined {
-  return ctx.db.all(`SELECT * FROM identity_accounts WHERE username = ?`, username.trim().toLowerCase())[0] as Account | undefined;
+  return ctx.db.all(`SELECT * FROM identity_accounts WHERE username = ?`, username.trim().toLowerCase())[0] as
+    | Account
+    | undefined;
 }
 export function accountById(ctx: IdentityCtx, id: string): Account | undefined {
   return ctx.db.all(`SELECT * FROM identity_accounts WHERE person_id = ?`, id)[0] as Account | undefined;
@@ -238,24 +289,43 @@ export function me(ctx: IdentityCtx): Account {
 }
 export function setKeys(ctx: IdentityCtx, personId: string, keys: KeyBundle, reason: string): void {
   if (!validBundle(keys)) raise(ctx.trace.traceId, "validation.bad_input", "keys must be base64 ciphertext");
-  ctx.db.run(`UPDATE identity_accounts SET keys_json = ?, epoch = ?, recovery_hash = ? WHERE person_id = ?`,
-    JSON.stringify(keys), epochOf(keys), null, personId);
+  ctx.db.run(
+    `UPDATE identity_accounts SET keys_json = ?, epoch = ?, recovery_hash = ? WHERE person_id = ?`,
+    JSON.stringify(keys),
+    epochOf(keys),
+    null,
+    personId,
+  );
   ctx.emit("keys.stored", personId, { personId, reason });
 }
 
 // ---- failures and lockout
-export function lockedFor(a: Account, now: number): number { return a.locked_until > now ? Math.ceil((a.locked_until - now) / 1000) : 0; }
-export function noteFail(ctx: IdentityCtx, a: Account | undefined, username: string, reason: "bad_credentials" | "bad_code" | "locked" | "sso_denied"): void {
+export function lockedFor(a: Account, now: number): number {
+  return a.locked_until > now ? Math.ceil((a.locked_until - now) / 1000) : 0;
+}
+export function noteFail(
+  ctx: IdentityCtx,
+  a: Account | undefined,
+  username: string,
+  reason: "bad_credentials" | "bad_code" | "locked" | "sso_denied",
+): void {
   if (a && reason !== "locked") {
     const fails = a.fails + 1;
-    const until = fails >= LOCK_AFTER ? ctx.now() + Math.min(15 * 60_000, 15_000 * 2 ** (fails - LOCK_AFTER)) : a.locked_until;
-    ctx.db.run(`UPDATE identity_accounts SET fails = ?, locked_until = ? WHERE person_id = ?`, fails, until, a.person_id);
+    const until =
+      fails >= LOCK_AFTER ? ctx.now() + Math.min(15 * 60_000, 15_000 * 2 ** (fails - LOCK_AFTER)) : a.locked_until;
+    ctx.db.run(
+      `UPDATE identity_accounts SET fails = ?, locked_until = ? WHERE person_id = ?`,
+      fails,
+      until,
+      a.person_id,
+    );
   }
   // the call that refuses is about to throw, which drops what it buffered: this one is written regardless
   ctx.emit("signin.failed", username, { username, reason }, { afterFailure: true });
 }
 export function clearFails(ctx: IdentityCtx, a: Account): void {
-  if (a.fails > 0 || a.locked_until > 0) ctx.db.run(`UPDATE identity_accounts SET fails = 0, locked_until = 0 WHERE person_id = ?`, a.person_id);
+  if (a.fails > 0 || a.locked_until > 0)
+    ctx.db.run(`UPDATE identity_accounts SET fails = 0, locked_until = 0 WHERE person_id = ?`, a.person_id);
 }
 
 // ---- sessions
@@ -264,21 +334,39 @@ export function clearFails(ctx: IdentityCtx, a: Account): void {
  * there for a session the devices module holds. `mint` creates that token for a devices session id; `end` stops the session at the gateway (devices_session.revoked_at). The host calls
  * configureSessionTokens once at boot. Without it sign-in refuses: a token nothing honors would sign a person in to an app that gets 401 on every call (P-SEC_05).
  */
-export interface SessionTokens { mint(sessionId: string): string; end(sessionId: string): void }
+export interface SessionTokens {
+  mint(sessionId: string): string;
+  end(sessionId: string): void;
+}
 let sessionTokens: SessionTokens | null = null;
-export function configureSessionTokens(t: SessionTokens | null): void { sessionTokens = t; }
+export function configureSessionTokens(t: SessionTokens | null): void {
+  sessionTokens = t;
+}
 
 /** Open a per-device session: devices.register makes the device and its session, the host mints the token for that session, and identity keeps the row that sign-out and reset act on. */
-export async function issueSession(ctx: IdentityCtx, a: Account, dev: Device, method: Method, opts: { joining?: boolean; /** the provider a single sign-on proved the person at */ provider?: string } = {}): Promise<SignInOut> {
+export async function issueSession(
+  ctx: IdentityCtx,
+  a: Account,
+  dev: Device,
+  method: Method,
+  opts: { joining?: boolean; /** the provider a single sign-on proved the person at */ provider?: string } = {},
+): Promise<SignInOut> {
   const tid = ctx.trace.traceId;
-  assertSignInPolicy(ctx,a,method);
-  if (!sessionTokens || typeof ctx.call !== "function") raise(tid, "internal.unavailable", "Sign-in cannot open a device session on this server yet.");
+  assertSignInPolicy(ctx, a, method);
+  if (!sessionTokens || typeof ctx.call !== "function")
+    raise(tid, "internal.unavailable", "Sign-in cannot open a device session on this server yet.");
   // a suspended or removed person gets no session by any route (password, pair code, reset, recovery, GitHub): they are told what a wrong password is told
   const member = ctx.membership?.check(a.person_id, opts);
-  if (member === "unavailable") raise(tid, "internal.unavailable", "Access is being re-checked on this server. Try again in a moment.");
+  if (member === "unavailable")
+    raise(tid, "internal.unavailable", "Access is being re-checked on this server. Try again in a moment.");
   if (member === "refused") raise(tid, "auth.bad_credentials");
-  const reg = (await ctx.call("devices.register", { person: a.person_id, name: dev.deviceName, class: dev.deviceClass, idempotencyKey: nid("sin") })) as { device?: { id?: unknown }; sessionId?: unknown };
-  assertSignInPolicy(ctx,a,method);
+  const reg = (await ctx.call("devices.register", {
+    person: a.person_id,
+    name: dev.deviceName,
+    class: dev.deviceClass,
+    idempotencyKey: nid("sin"),
+  })) as { device?: { id?: unknown }; sessionId?: unknown };
+  assertSignInPolicy(ctx, a, method);
   const deviceId = typeof reg?.device?.id === "string" ? reg.device.id : "";
   const sessionId = typeof reg?.sessionId === "string" ? reg.sessionId : "";
   if (!deviceId || !sessionId) raise(tid, "internal.unexpected", "The device could not be registered.");
@@ -288,71 +376,149 @@ export async function issueSession(ctx: IdentityCtx, a: Account, dev: Device, me
   const expiresAt = now + SESSION_TTL_MS;
   ctx.db.run(
     `INSERT INTO identity_sessions (id, person_id, device_id, device_name, device_class, token_hash, method, created_at, expires_at, revoked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    sessionId, a.person_id, deviceId, dev.deviceName, dev.deviceClass, sha(token), method, now, expiresAt, null);
+    sessionId,
+    a.person_id,
+    deviceId,
+    dev.deviceName,
+    dev.deviceClass,
+    sha(token),
+    method,
+    now,
+    expiresAt,
+    null,
+  );
   ctx.emit("signin.succeeded", a.person_id, { personId: a.person_id, method, deviceId });
   // a provider proved who this is: the server's wrap of their key, if it keeps one, opens for this session, so their own AI accounts work with nothing to type. Each open is an audit row.
   if ((method === "sso" || method === "github") && !opts.joining && ctx.keyring?.openWrap?.(a.person_id, sessionId)) {
-    const provider = method === "github" ? "github" : opts.provider ?? "sso";
-    await ctx.call("audit.append", { action: "vault.key_opened_after_sign_in", class: "sign_in", onBehalfOf: { kind: "person", id: a.person_id }, detail: { provider, sessionId } })
-      .catch(() => undefined);   // the audit module not being live does not undo a sign-in
+    const provider = method === "github" ? "github" : (opts.provider ?? "sso");
+    await ctx
+      .call("audit.append", {
+        action: "vault.key_opened_after_sign_in",
+        class: "sign_in",
+        onBehalfOf: { kind: "person", id: a.person_id },
+        detail: { provider, sessionId },
+      })
+      .catch(() => undefined); // the audit module not being live does not undo a sign-in
   }
   const keys = bundleOf(a);
-  return { status: "ok", session: { sessionId, deviceId, token, expiresAt, epoch: a.epoch }, ...(keys ? { keys } : {}) };
+  return {
+    status: "ok",
+    session: { sessionId, deviceId, token, expiresAt, epoch: a.epoch },
+    ...(keys ? { keys } : {}),
+  };
 }
 /** The caller's own session: the one the call names, else the live session of the device the gateway resolved the token to. */
 export function currentSessionId(ctx: IdentityCtx, personId: string): string | undefined {
   const deviceId = ctx.device ?? ctx.session?.deviceId;
   if (!deviceId) return undefined;
-  const rows = ctx.db.all(`SELECT * FROM identity_sessions WHERE person_id = ?`, personId) as { id: string; device_id: string; revoked_at: number | null; expires_at: number; created_at: number }[];
+  const rows = ctx.db.all(`SELECT * FROM identity_sessions WHERE person_id = ?`, personId) as {
+    id: string;
+    device_id: string;
+    revoked_at: number | null;
+    expires_at: number;
+    created_at: number;
+  }[];
   // not filtered on expires_at: nothing where requests come in checks it (host/src/daemon/session.ts reads the devices tables), so a session past it still works and must still be found to end it
-  return rows.filter((r) => r.device_id === deviceId && r.revoked_at === null && (!ctx.session?.id || r.id === ctx.session.id))
+  return rows
+    .filter((r) => r.device_id === deviceId && r.revoked_at === null && (!ctx.session?.id || r.id === ctx.session.id))
     .sort((a, b) => b.created_at - a.created_at)[0]?.id;
 }
 /** End one session here and at the gateway. */
 export function endSessionRow(ctx: IdentityCtx, personId: string, sessionId: string): void {
-  const got = ctx.db.run(`UPDATE identity_sessions SET revoked_at = ? WHERE id = ? AND person_id = ? AND revoked_at IS NULL`, ctx.now(), sessionId, personId);
+  const got = ctx.db.run(
+    `UPDATE identity_sessions SET revoked_at = ? WHERE id = ? AND person_id = ? AND revoked_at IS NULL`,
+    ctx.now(),
+    sessionId,
+    personId,
+  );
   if (got.changes > 0) sessionTokens?.end(sessionId);
 }
 /** Revoke every live session of a person, except one when given, here and at the gateway. A password change or reset also takes their key out of memory. */
 export function revokeSessions(ctx: IdentityCtx, personId: string, except?: string): void {
   ctx.keyring?.clear(personId);
   ctx.keyring?.dropWrap?.(personId);
-  const live = ctx.db.all(`SELECT id FROM identity_sessions WHERE person_id = ? AND revoked_at IS NULL AND id != ?`, personId, except ?? "") as { id: string }[];
-  ctx.db.run(`UPDATE identity_sessions SET revoked_at = ? WHERE person_id = ? AND revoked_at IS NULL AND id != ?`, ctx.now(), personId, except ?? "");
+  const live = ctx.db.all(
+    `SELECT id FROM identity_sessions WHERE person_id = ? AND revoked_at IS NULL AND id != ?`,
+    personId,
+    except ?? "",
+  ) as { id: string }[];
+  ctx.db.run(
+    `UPDATE identity_sessions SET revoked_at = ? WHERE person_id = ? AND revoked_at IS NULL AND id != ?`,
+    ctx.now(),
+    personId,
+    except ?? "",
+  );
   for (const r of live) sessionTokens?.end(r.id);
 }
 /** The private recovery transaction already revoked both durable session tables. */
-export function finishRecoverySessions(ctx:IdentityCtx,personId:string,sessions:readonly string[]):void{
- ctx.keyring?.clear(personId);ctx.keyring?.dropWrap?.(personId);for(const id of sessions)sessionTokens?.end(id);
+export function finishRecoverySessions(ctx: IdentityCtx, personId: string, sessions: readonly string[]): void {
+  ctx.keyring?.clear(personId);
+  ctx.keyring?.dropWrap?.(personId);
+  for (const id of sessions) sessionTokens?.end(id);
 }
 /** Resolve a bearer token to its live session; the host gateway calls this to build the principal. */
-export function sessionOfToken(ctx: IdentityCtx, token: string): { sessionId: string; personId: string; deviceId: string } | undefined {
-  const r = ctx.db.all(`SELECT id, person_id, device_id, expires_at, revoked_at FROM identity_sessions WHERE token_hash = ?`, sha(token))[0] as
-    { id: string; person_id: string; device_id: string; expires_at: number; revoked_at: number | null } | undefined;
+export function sessionOfToken(
+  ctx: IdentityCtx,
+  token: string,
+): { sessionId: string; personId: string; deviceId: string } | undefined {
+  const r = ctx.db.all(
+    `SELECT id, person_id, device_id, expires_at, revoked_at FROM identity_sessions WHERE token_hash = ?`,
+    sha(token),
+  )[0] as
+    | { id: string; person_id: string; device_id: string; expires_at: number; revoked_at: number | null }
+    | undefined;
   // a session's age never ends it (owner rule: a Space stays signed in); expires_at is kept on the row and read nowhere
   if (!r || r.revoked_at !== null) return undefined;
   return { sessionId: r.id, personId: r.person_id, deviceId: r.device_id };
 }
 
 // ---- one-time codes (pair, reset, claim)
-export function putCode(ctx: IdentityCtx, kind: "pair" | "reset" | "claim", personId: string, code: string, ttl: number, purpose?: string): number {
+export function putCode(
+  ctx: IdentityCtx,
+  kind: "pair" | "reset" | "claim",
+  personId: string,
+  code: string,
+  ttl: number,
+  purpose?: string,
+): number {
   const expiresAt = ctx.now() + ttl;
-  ctx.db.run(`INSERT INTO identity_codes (code_hash, kind, person_id, purpose, expires_at, used_at) VALUES (?, ?, ?, ?, ?, ?)`,
-    sha(`${kind}:${code}`), kind, personId, purpose ?? null, expiresAt, null);
+  ctx.db.run(
+    `INSERT INTO identity_codes (code_hash, kind, person_id, purpose, expires_at, used_at) VALUES (?, ?, ?, ?, ?, ?)`,
+    sha(`${kind}:${code}`),
+    kind,
+    personId,
+    purpose ?? null,
+    expiresAt,
+    null,
+  );
   return expiresAt;
 }
 /** Spend a code once. Unknown, spent and expired codes all read the same to the caller except expired. */
-export function peekCode(ctx: IdentityCtx, kind: "pair" | "reset" | "claim", code: string): { personId: string; purpose: string | null } {
+export function peekCode(
+  ctx: IdentityCtx,
+  kind: "pair" | "reset" | "claim",
+  code: string,
+): { personId: string; purpose: string | null } {
   const h = sha(`${kind}:${code}`);
-  const r = ctx.db.all(`SELECT person_id, purpose, expires_at, used_at FROM identity_codes WHERE code_hash = ?`, h)[0] as
-    { person_id: string; purpose: string | null; expires_at: number; used_at: number | null } | undefined;
+  const r = ctx.db.all(
+    `SELECT person_id, purpose, expires_at, used_at FROM identity_codes WHERE code_hash = ?`,
+    h,
+  )[0] as { person_id: string; purpose: string | null; expires_at: number; used_at: number | null } | undefined;
   if (!r || r.used_at !== null) raise(ctx.trace.traceId, "auth.invalid_code");
   if (r.expires_at <= ctx.now()) raise(ctx.trace.traceId, "auth.expired");
   return { personId: r.person_id, purpose: r.purpose };
 }
-export function spendCode(ctx: IdentityCtx, kind: "pair" | "reset" | "claim", code: string): { personId: string; purpose: string | null } {
-  const row=peekCode(ctx,kind,code);
-  const got = ctx.db.run(`UPDATE identity_codes SET used_at = ? WHERE code_hash = ? AND used_at IS NULL`, ctx.now(), sha(`${kind}:${code}`));
+export function spendCode(
+  ctx: IdentityCtx,
+  kind: "pair" | "reset" | "claim",
+  code: string,
+): { personId: string; purpose: string | null } {
+  const row = peekCode(ctx, kind, code);
+  const got = ctx.db.run(
+    `UPDATE identity_codes SET used_at = ? WHERE code_hash = ? AND used_at IS NULL`,
+    ctx.now(),
+    sha(`${kind}:${code}`),
+  );
   if (got.changes !== 1) raise(ctx.trace.traceId, "auth.invalid_code");
   return row;
 }
@@ -360,19 +526,44 @@ export function spendCode(ctx: IdentityCtx, kind: "pair" | "reset" | "claim", co
 // ---- challenges for the second factor
 export function newChallenge(ctx: IdentityCtx, personId: string, method: Method): string {
   const id = nid("chl");
-  ctx.db.run(`INSERT INTO identity_challenges (id, person_id, method, expires_at, used_at, tries) VALUES (?, ?, ?, ?, ?, ?)`, id, personId, method, ctx.now() + CHALLENGE_TTL_MS, null, 0);
+  ctx.db.run(
+    `INSERT INTO identity_challenges (id, person_id, method, expires_at, used_at, tries) VALUES (?, ?, ?, ?, ?, ?)`,
+    id,
+    personId,
+    method,
+    ctx.now() + CHALLENGE_TTL_MS,
+    null,
+    0,
+  );
   return id;
 }
 
 /** Create an account. The members module's invite accept reaches this through the host (identity.pair_redeem on an invite) and tests seed through it. */
-export async function provisionAccount(ctx: IdentityCtx, p: { personId: string; username: string; name: string; secret: string }): Promise<Account> {
-  if (!USERNAME.test(p.username)) raise(ctx.trace.traceId, "validation.bad_input", "username is 2 to 32 letters, digits, dot, dash or underscore");
+export async function provisionAccount(
+  ctx: IdentityCtx,
+  p: { personId: string; username: string; name: string; secret: string },
+): Promise<Account> {
+  if (!USERNAME.test(p.username))
+    raise(ctx.trace.traceId, "validation.bad_input", "username is 2 to 32 letters, digits, dot, dash or underscore");
   if (p.secret.length < MIN_SECRET) raise(ctx.trace.traceId, "validation.bad_input", "password is too short");
   if (accountByName(ctx, p.username)) raise(ctx.trace.traceId, "validation.duplicate", "that username is taken");
   const verifier = await makeVerifier(p.secret);
   ctx.db.run(
     `INSERT INTO identity_accounts (person_id, username, name, verifier, totp_secret, totp_last_step, github_id, github_login, keys_json, recovery_hash, fails, locked_until, epoch, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    p.personId, p.username, p.name, verifier, null, 0, null, null, null, null, 0, 0, 0, ctx.now());
+    p.personId,
+    p.username,
+    p.name,
+    verifier,
+    null,
+    0,
+    null,
+    null,
+    null,
+    null,
+    0,
+    0,
+    0,
+    ctx.now(),
+  );
   return mustAccount(ctx, p.personId);
 }
-

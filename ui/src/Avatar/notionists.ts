@@ -11,7 +11,12 @@ const cache = new Map<string, string>();
 export function notionistsSvg(seed: string): string {
   const hit = cache.get(seed);
   if (hit !== undefined) return hit;
-  const svg = createAvatar(notionists, { seed, size: 64, backgroundColor: [faceTint(seed)], backgroundType: ["solid"] }).toString();
+  const svg = createAvatar(notionists, {
+    seed,
+    size: 64,
+    backgroundColor: [faceTint(seed)],
+    backgroundType: ["solid"],
+  }).toString();
   cache.set(seed, svg);
   return svg;
 }

@@ -3,7 +3,10 @@
 import { fail } from "../../host/src/routes/errors.ts";
 
 export type PKind = "person" | "agent" | "actor" | "service";
-export interface Ref { kind: PKind; id: string }
+export interface Ref {
+  kind: PKind;
+  id: string;
+}
 export type State = "waiting" | "fulfilled" | "declined" | "canceled";
 
 export interface Db {
@@ -28,8 +31,23 @@ export interface VaultReqCtx {
 }
 
 export interface RequestRow {
-  id: string; name: string; fields_json: string; reason: string; requester_kind: PKind; requester_id: string; for_run: string | null; folder_id: string | null; state: State;
-  item_id: string | null; note: string | null; idem_key: string; managers_json: string; task_ids_json: string; at: number; decided_by: string | null; decided_at: number | null;
+  id: string;
+  name: string;
+  fields_json: string;
+  reason: string;
+  requester_kind: PKind;
+  requester_id: string;
+  for_run: string | null;
+  folder_id: string | null;
+  state: State;
+  item_id: string | null;
+  note: string | null;
+  idem_key: string;
+  managers_json: string;
+  task_ids_json: string;
+  at: number;
+  decided_by: string | null;
+  decided_at: number | null;
   /** 1: the requester gets the key's name only, never Use on it (an outside agent, docs/ask-the-person.md). */
   handle_only?: number | null;
   /** the person an agent asked on behalf of (migrations/0003_asker.sql); null when a person asked for themselves */
@@ -51,7 +69,11 @@ export function nid(prefix: string): string {
   return `${prefix}_${s}`;
 }
 
-export function page<T>(all: readonly T[], cursor?: string, limit?: number): { rows: T[]; next?: string; total: number } {
+export function page<T>(
+  all: readonly T[],
+  cursor?: string,
+  limit?: number,
+): { rows: T[]; next?: string; total: number } {
   const lim = Math.min(500, Math.max(1, limit ?? 50));
   const start = cursor && /^\d+$/.test(cursor) ? Number(cursor) : 0;
   const rows = all.slice(start, start + lim);
@@ -61,7 +83,8 @@ export function page<T>(all: readonly T[], cursor?: string, limit?: number): { r
 }
 
 export const TABLE = "vault_requests_requests";
-export const asRow = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+export const asRow = (v: unknown): Record<string, unknown> | null =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 export const strOf = (v: unknown): string | undefined => (typeof v === "string" && v.length > 0 ? v : undefined);
 export const idsOf = (json: string): string[] => JSON.parse(json) as string[];
 
@@ -69,10 +92,21 @@ export const idsOf = (json: string): string[] => JSON.parse(json) as string[];
 export function requestOut(r: RequestRow) {
   const tasks = idsOf(r.task_ids_json);
   return {
-    id: r.id, name: r.name, fields: idsOf(r.fields_json), reason: r.reason, requester: { kind: r.requester_kind, id: r.requester_id },
-    ...(r.for_run ? { forRun: r.for_run } : {}), ...(r.folder_id ? { folderId: r.folder_id } : {}), state: r.state,
-    ...(r.item_id ? { itemId: r.item_id } : {}), ...(r.note ? { note: r.note } : {}), taskId: tasks[0] ?? "", at: r.at, ...(r.decided_at !== null ? { decidedAt: r.decided_at } : {}),
+    id: r.id,
+    name: r.name,
+    fields: idsOf(r.fields_json),
+    reason: r.reason,
+    requester: { kind: r.requester_kind, id: r.requester_id },
+    ...(r.for_run ? { forRun: r.for_run } : {}),
+    ...(r.folder_id ? { folderId: r.folder_id } : {}),
+    state: r.state,
+    ...(r.item_id ? { itemId: r.item_id } : {}),
+    ...(r.note ? { note: r.note } : {}),
+    taskId: tasks[0] ?? "",
+    at: r.at,
+    ...(r.decided_at !== null ? { decidedAt: r.decided_at } : {}),
   };
 }
 
-export const requestById = (ctx: { db: Db }, id: string): RequestRow | undefined => ctx.db.all(`SELECT * FROM ${TABLE} WHERE id = ?`, id)[0] as RequestRow | undefined;
+export const requestById = (ctx: { db: Db }, id: string): RequestRow | undefined =>
+  ctx.db.all(`SELECT * FROM ${TABLE} WHERE id = ?`, id)[0] as RequestRow | undefined;

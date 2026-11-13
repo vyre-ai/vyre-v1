@@ -3,15 +3,29 @@
 import { useMemo, useSyncExternalStore } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 
-export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
+export interface Connection {
+  get(): "online" | "offline";
+  subscribe(l: () => void): () => void;
+}
 
 const LOADING: QueryState<never> = { status: "loading" };
 const NOTHING: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => LOADING };
 
 /** A live query of a registry screen: `screens.query(screenId, name, state)`. Re-subscribes only when the screen, the query or the state changes. */
-export function useLive<T>(screens: ScreenHooks, screenId: string, name: string, state: Record<string, unknown> | null = {}): QueryState<T> {
+export function useLive<T>(
+  screens: ScreenHooks,
+  screenId: string,
+  name: string,
+  state: Record<string, unknown> | null = {},
+): QueryState<T> {
   const key = JSON.stringify(state);
-  const q = useMemo(() => (state === null ? NOTHING : (screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>)), [screens, screenId, name, key]); // eslint-disable-line react-hooks/exhaustive-deps -- key stands for state
+  const q = useMemo(
+    () =>
+      state === null
+        ? NOTHING
+        : (screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>),
+    [screens, screenId, name, key],
+  ); // eslint-disable-line react-hooks/exhaustive-deps -- key stands for state
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 

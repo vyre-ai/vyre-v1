@@ -17,7 +17,10 @@ test("an assistant whose role line changes stays private to its owner", async ()
   hn.allowOnly(() => true);
   const seen = (await H["agents.list"]!(hn.person(LEO), { limit: 100 })).agents;
   assert.ok(!seen.some((a: any) => a.agentId === id), "another member never sees it");
-  await assert.rejects(() => H["agents.get"]!(hn.person(LEO), { agentId: id }), (e) => code(e) === "validation.not_found");
+  await assert.rejects(
+    () => H["agents.get"]!(hn.person(LEO), { agentId: id }),
+    (e) => code(e) === "validation.not_found",
+  );
   assert.equal((await H["agents.get"]!(hn.person(DANA), { agentId: id })).agent.kind, "assistant");
 });
 
@@ -26,7 +29,10 @@ test("an agent someone calls assistant is an ordinary agent: the word grants no 
   const made = (await H["agents.create"]!(hn.person(DANA), { name: "Front Desk", role: "assistant" })).agent;
   assert.equal(made.kind, "agent");
   hn.allowOnly(() => true);
-  assert.ok((await H["agents.list"]!(hn.person(LEO), { limit: 100 })).agents.some((a: any) => a.agentId === made.agentId), "a shared agent stays listed");
+  assert.ok(
+    (await H["agents.list"]!(hn.person(LEO), { limit: 100 })).agents.some((a: any) => a.agentId === made.agentId),
+    "a shared agent stays listed",
+  );
   const [mine] = await ensureAssistant(hn.person(DANA), born(DANA, "Dana Reyes"));
   assert.notEqual(mine, made.agentId, "the person still gets their real assistant");
 });
@@ -37,7 +43,10 @@ test("a teammate says so in its kind and project, and kind is on every read", as
   assert.equal(made.kind, "teammate");
   assert.equal(made.teammateOf, "prj_1");
   const listed = (await H["agents.list"]!(hn.person(DANA), { projectId: "prj_1", limit: 10 })).agents;
-  assert.deepEqual(listed.map((a: any) => [a.agentId, a.kind]), [[made.agentId, "teammate"]]);
+  assert.deepEqual(
+    listed.map((a: any) => [a.agentId, a.kind]),
+    [[made.agentId, "teammate"]],
+  );
 });
 
 test("agents made before the column are read from what they carried: the migration moves the role word and the teammate key", async () => {
@@ -45,13 +54,27 @@ test("agents made before the column are read from what they carried: the migrati
   const [id] = await ensureAssistant(hn.person(DANA), born(DANA, "Dana Reyes"));
   const mate = (await H["agents.create"]!(hn.person(DANA), { name: "Reviewer", projectId: "prj_1" })).agent;
   hn.db.run("UPDATE agents_agent SET kind = 'agent', projectId = NULL");
-  hn.db.run("INSERT INTO agents_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", `teammate:${mate.agentId}`, "prj_1");
+  hn.db.run(
+    "INSERT INTO agents_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    `teammate:${mate.agentId}`,
+    "prj_1",
+  );
   const { readFileSync } = await import("node:fs");
-  const sql = readFileSync(new URL("../migrations/0006_agent_kind.sql", import.meta.url), "utf8").split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n");
-  for (const stmt of sql.split(";").map((s) => s.trim()).filter((s) => s.startsWith("UPDATE"))) hn.db.run(stmt);
+  const sql = readFileSync(new URL("../migrations/0006_agent_kind.sql", import.meta.url), "utf8")
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n");
+  for (const stmt of sql
+    .split(";")
+    .map((s) => s.trim())
+    .filter((s) => s.startsWith("UPDATE")))
+    hn.db.run(stmt);
   const rows = hn.rows("SELECT id, kind, projectId FROM agents_agent ORDER BY name");
   assert.deepEqual(rows.find((r) => r["id"] === id)?.["kind"], "assistant");
-  assert.deepEqual(rows.find((r) => r["id"] === mate.agentId), { id: mate.agentId, kind: "teammate", projectId: "prj_1" });
+  assert.deepEqual(
+    rows.find((r) => r["id"] === mate.agentId),
+    { id: mate.agentId, kind: "teammate", projectId: "prj_1" },
+  );
 });
 
 test("the removal wizard leaves the private assistant out of what can be handed on, by kind", async () => {

@@ -12,8 +12,20 @@ export interface Viewer {
   /** an IANA zone to read times in (the Space's): wins over offsetMin, and follows daylight saving */
   zone?: string | undefined;
 }
-export interface ActivityEvent { kind?: string; text: string; /** the sentence with tokens, when the server sent both */ tpl?: string | undefined; by?: string | undefined; at: number; ref?: string | undefined }
-export interface ActivityLine { text: string; credit: string; at: number; ref?: string | undefined }
+export interface ActivityEvent {
+  kind?: string;
+  text: string;
+  /** the sentence with tokens, when the server sent both */ tpl?: string | undefined;
+  by?: string | undefined;
+  at: number;
+  ref?: string | undefined;
+}
+export interface ActivityLine {
+  text: string;
+  credit: string;
+  at: number;
+  ref?: string | undefined;
+}
 
 const TOKEN = /\{(at|who):([^}]+)\}/g;
 const cap = (s: string): string => (s === "" ? s : s[0]!.toUpperCase() + s.slice(1));
@@ -25,7 +37,14 @@ export function expandWords(text: string, v: Viewer): string {
   for (const m of text.matchAll(TOKEN)) {
     const i = m.index ?? 0;
     out += text.slice(last, i);
-    const val = m[1] === "at" ? (v.zone ? shortTimeIn(Number(m[2]), v.zone) : shortTime(Number(m[2]), v.offsetMin)) : m[2] === v.me ? "you" : v.nameOf(m[2]!);
+    const val =
+      m[1] === "at"
+        ? v.zone
+          ? shortTimeIn(Number(m[2]), v.zone)
+          : shortTime(Number(m[2]), v.offsetMin)
+        : m[2] === v.me
+          ? "you"
+          : v.nameOf(m[2]!);
     const start = out === "" || /[.!?]\s*$/.test(out);
     out += start ? cap(val) : val;
     last = i + m[0].length;
@@ -37,7 +56,7 @@ export function expandWords(text: string, v: Viewer): string {
 export function creditOf(by: string | undefined, v: Viewer): string {
   if (!by) return "";
   const actor = by.split(">")[0] ?? by;
-  if (actor.startsWith("svc_")) return "";   // the server is not a name to credit: the sentence already says what happened
+  if (actor.startsWith("svc_")) return ""; // the server is not a name to credit: the sentence already says what happened
   return actor === v.me ? "You" : v.nameOf(actor);
 }
 

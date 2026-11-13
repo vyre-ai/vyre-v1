@@ -12,49 +12,119 @@ type AgentOut = CapMap["agents.get"]["out"]["agent"];
 type ThreadAgent = CapMap["threads.get"]["out"]["thread"]["agents"][number];
 
 /** "Leads this chat" or "Listens": how the chat's own settings have the agent answer. */
-export const respondsWord = (mode: ThreadAgent["mode"] | undefined): string | undefined => (mode === "lead" ? "Leads this chat" : mode === "listen" ? "Listens, answers when asked" : undefined);
+export const respondsWord = (mode: ThreadAgent["mode"] | undefined): string | undefined =>
+  mode === "lead" ? "Leads this chat" : mode === "listen" ? "Listens, answers when asked" : undefined;
 
 /** The one quiet row for an agent with no terminal or browser here (a host that has not bound the workspace and the Space browser). It offers nothing to set up. */
 export function NoComputerRow({ name }: { name: string }): ReactElement {
   return (
     <View testID="about-no-computer" style={st.quiet}>
       <Icon name="terminal" size={16} color="var(--ink-3)" />
-      <Text style={st.quietText}><Text style={st.quietLead}>No terminal or browser here yet.</Text> {name} works through tools.</Text>
+      <Text style={st.quietText}>
+        <Text style={st.quietLead}>No terminal or browser here yet.</Text> {name} works through tools.
+      </Text>
     </View>
   );
 }
 
-export function AboutTab({ agent, name, hasComputer, computerNote, onOpenFiles, onOpenKnows }: {
-  agent: AgentOut | null; name: string; hasComputer: boolean; computerNote?: string | undefined; onOpenFiles(): void; onOpenKnows(): void;
+export function AboutTab({
+  agent,
+  name,
+  hasComputer,
+  computerNote,
+  onOpenFiles,
+  onOpenKnows,
+}: {
+  agent: AgentOut | null;
+  name: string;
+  hasComputer: boolean;
+  computerNote?: string | undefined;
+  onOpenFiles(): void;
+  onOpenKnows(): void;
 }): ReactElement {
   const data = usePaneData();
-  const summary = useScreenQuery<CapMap["agents.summary"]["out"]>(AGENT_PAGE_SCREEN, "summary", { agentId: data.agent.agentId });
+  const summary = useScreenQuery<CapMap["agents.summary"]["out"]>(AGENT_PAGE_SCREEN, "summary", {
+    agentId: data.agent.agentId,
+  });
   const [mine, setMine] = useState<ThreadAgent | null>(null);
   useEffect(() => {
     let live = true;
-    void Promise.resolve(data.call("threads.get", { threadId: data.threadId })).then((o) => {
-      if (live) setMine((o as CapMap["threads.get"]["out"]).thread.agents.find((a) => a.agentId === data.agent.agentId) ?? null);
-    }, () => undefined);
-    return () => { live = false; };
+    void Promise.resolve(data.call("threads.get", { threadId: data.threadId })).then(
+      (o) => {
+        if (live)
+          setMine(
+            (o as CapMap["threads.get"]["out"]).thread.agents.find((a) => a.agentId === data.agent.agentId) ?? null,
+          );
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
   }, [data, data.threadId, data.agent.agentId]);
   const working = summary.status === "ready" ? summary.data.workingOn : [];
   const facts = summary.status === "ready" ? summary.data.memoryFacts : 0;
   const responds = respondsWord(mine?.mode);
-  const kv = (k: string, v: string | undefined): ReactElement | null => (v === undefined || v === "" ? null : <View key={k} style={st.kv}><Text style={st.k}>{k}</Text><Text style={[st.v, st.vEnd]}>{v}</Text></View>);
-  const label = (t: string, key?: string): ReactElement => <Text key={key ?? t} style={st.label}>{t}</Text>;
+  const kv = (k: string, v: string | undefined): ReactElement | null =>
+    v === undefined || v === "" ? null : (
+      <View key={k} style={st.kv}>
+        <Text style={st.k}>{k}</Text>
+        <Text style={[st.v, st.vEnd]}>{v}</Text>
+      </View>
+    );
+  const label = (t: string, key?: string): ReactElement => (
+    <Text key={key ?? t} style={st.label}>
+      {t}
+    </Text>
+  );
   return (
     <ScrollView testID="about-tab" style={st.root} contentContainerStyle={st.content}>
       {hasComputer ? null : <NoComputerRow name={name} />}
-      {agent?.role ? <>{label("Responsible for")}<Text testID="about-role" style={st.body}>{agent.role}</Text></> : null}
+      {agent?.role ? (
+        <>
+          {label("Responsible for")}
+          <Text testID="about-role" style={st.body}>
+            {agent.role}
+          </Text>
+        </>
+      ) : null}
       {working.length > 0 || computerNote ? label("Right now") : null}
       {/* ui-rows-lint: not a list (what the agent is doing right now, as status lines) */}
-      {working.slice(0, 4).map((w) => <View key={w.id} style={st.now}><View style={st.nowDot} /><Text numberOfLines={2} style={st.v}>{w.title}</Text></View>)}
-      {working.length === 0 && computerNote ? <View style={st.now}><View style={[st.nowDot, { backgroundColor: "var(--ink-4)" as string }]} /><Text style={st.v}>{computerNote}</Text></View> : null}
+      {working.slice(0, 4).map((w) => (
+        <View key={w.id} style={st.now}>
+          <View style={st.nowDot} />
+          <Text numberOfLines={2} style={st.v}>
+            {w.title}
+          </Text>
+        </View>
+      ))}
+      {working.length === 0 && computerNote ? (
+        <View style={st.now}>
+          <View style={[st.nowDot, { backgroundColor: "var(--ink-4)" as string }]} />
+          <Text style={st.v}>{computerNote}</Text>
+        </View>
+      ) : null}
       {responds || mine?.model || mine?.effort ? label("How it responds here") : null}
-      {kv("Responds", responds)}{kv("Model", mine?.model ?? agent?.model)}{kv("Effort", mine?.effort ? `${mine.effort.charAt(0).toUpperCase()}${mine.effort.slice(1)}` : undefined)}
+      {kv("Responds", responds)}
+      {kv("Model", mine?.model ?? agent?.model)}
+      {kv("Effort", mine?.effort ? `${mine.effort.charAt(0).toUpperCase()}${mine.effort.slice(1)}` : undefined)}
       {label("Shared context")}
-      <Pressable role="button" testID="about-files" onPress={onOpenFiles} style={st.row}><LeadIcon name="folder" /><View style={st.rowText}><Text style={st.v}>{`${name}'s folder`}</Text><Text style={st.sub}>Shared with Vyre Files</Text></View></Pressable>
-      {facts > 0 ? <Pressable role="button" testID="about-knows" onPress={onOpenKnows} style={st.row}><LeadIcon name="doc" /><View style={st.rowText}><Text style={st.v}>What it knows</Text><Text style={st.sub}>{facts === 1 ? "1 thing" : `${facts} things`}</Text></View></Pressable> : null}
+      <Pressable role="button" testID="about-files" onPress={onOpenFiles} style={st.row}>
+        <LeadIcon name="folder" />
+        <View style={st.rowText}>
+          <Text style={st.v}>{`${name}'s folder`}</Text>
+          <Text style={st.sub}>Shared with Vyre Files</Text>
+        </View>
+      </Pressable>
+      {facts > 0 ? (
+        <Pressable role="button" testID="about-knows" onPress={onOpenKnows} style={st.row}>
+          <LeadIcon name="doc" />
+          <View style={st.rowText}>
+            <Text style={st.v}>What it knows</Text>
+            <Text style={st.sub}>{facts === 1 ? "1 thing" : `${facts} things`}</Text>
+          </View>
+        </Pressable>
+      ) : null}
     </ScrollView>
   );
 }
@@ -66,14 +136,30 @@ const st = StyleSheet.create({
   body: { fontSize: 14, lineHeight: 21, color: "var(--ink-2)" as string },
   now: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingVertical: 3 },
   nowDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6, backgroundColor: "var(--ok)" as string },
-  kv: { flexDirection: "row", justifyContent: "space-between", gap: 14, paddingVertical: 12, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  kv: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 14,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
   k: { flexShrink: 0, fontSize: 13.5, color: "var(--ink-3)" as string },
   vEnd: { flex: 1, textAlign: "right" },
   v: { flexShrink: 1, fontSize: 13.5, lineHeight: 18, color: "var(--ink)" as string },
   sub: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
   row: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 56, paddingVertical: 10 },
   rowText: { flex: 1, minWidth: 0 },
-  quiet: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 16, padding: 16, borderRadius: 14, backgroundColor: "var(--sunk)" as string },
+  quiet: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 14,
+    backgroundColor: "var(--sunk)" as string,
+  },
   quietText: { flex: 1, minWidth: 140, fontSize: 13, lineHeight: 18, color: "var(--ink-3)" as string },
   quietLead: { color: "var(--ink-2)" as string, fontWeight: "500" },
 });

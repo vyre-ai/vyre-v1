@@ -23,7 +23,13 @@ export const SERVER: Target = { kind: "server" };
 
 export type Segment =
   | { kind: "prose"; text: string }
-  | { kind: "code"; lang: string; code: string; line: number; /** index among the runnable blocks, the index runbooks.parse uses */ runIndex: number | null };
+  | {
+      kind: "code";
+      lang: string;
+      code: string;
+      line: number;
+      /** index among the runnable blocks, the index runbooks.parse uses */ runIndex: number | null;
+    };
 
 /** The runnable languages. The contract parses sh and bash; other fenced code is shown but has no Run button. */
 export const RUNNABLE: readonly string[] = ["sh", "bash"];
@@ -40,7 +46,13 @@ export function splitRunbook(text: string): Segment[] {
     if (before.trim()) out.push({ kind: "prose", text: before });
     const lang = (m[1] ?? "").toLowerCase();
     const runnable = RUNNABLE.includes(lang);
-    out.push({ kind: "code", lang: m[1] ?? "", code: m[2] ?? "", line: text.slice(0, m.index).split("\n").length, runIndex: runnable ? run : null });
+    out.push({
+      kind: "code",
+      lang: m[1] ?? "",
+      code: m[2] ?? "",
+      line: text.slice(0, m.index).split("\n").length,
+      runIndex: runnable ? run : null,
+    });
     if (runnable) run += 1;
     last = re.lastIndex;
   }
@@ -49,7 +61,8 @@ export function splitRunbook(text: string): Segment[] {
   return out;
 }
 
-export const runnableCount = (segments: readonly Segment[]): number => segments.filter((s) => s.kind === "code" && s.runIndex !== null).length;
+export const runnableCount = (segments: readonly Segment[]): number =>
+  segments.filter((s) => s.kind === "code" && s.runIndex !== null).length;
 
 /** A stable id for a block: its index and a short hash of its code, so an edit above it does not rename it and an edit inside it does. */
 export function blockIdOf(index: number, code: string): string {
@@ -63,7 +76,13 @@ export function parseRunnable(text: string): BlockRow[] {
   const rows: BlockRow[] = [];
   for (const s of splitRunbook(text)) {
     if (s.kind !== "code" || s.runIndex === null) continue;
-    rows.push({ blockId: blockIdOf(s.runIndex, s.code), index: s.runIndex, lang: s.lang.toLowerCase() === "bash" ? "bash" : "sh", code: s.code, line: s.line });
+    rows.push({
+      blockId: blockIdOf(s.runIndex, s.code),
+      index: s.runIndex,
+      lang: s.lang.toLowerCase() === "bash" ? "bash" : "sh",
+      code: s.code,
+      line: s.line,
+    });
   }
   return rows;
 }
@@ -71,7 +90,31 @@ export function parseRunnable(text: string): BlockRow[] {
 // ---------------------------------------------------------------- colours of a command line
 
 export type Tok = { text: string; kind: "k" | "s" | "c" | "t" };
-const COMMANDS = new Set(["git", "npm", "npx", "pnpm", "yarn", "rsync", "cd", "echo", "railway", "curl", "docker", "make", "ssh", "sudo", "export", "node", "pip", "python3", "brew", "cp", "mv", "rm", "mkdir"]);
+const COMMANDS = new Set([
+  "git",
+  "npm",
+  "npx",
+  "pnpm",
+  "yarn",
+  "rsync",
+  "cd",
+  "echo",
+  "railway",
+  "curl",
+  "docker",
+  "make",
+  "ssh",
+  "sudo",
+  "export",
+  "node",
+  "pip",
+  "python3",
+  "brew",
+  "cp",
+  "mv",
+  "rm",
+  "mkdir",
+]);
 
 /** One line of shell as coloured pieces: the first command word, quoted strings, a trailing comment. */
 export function highlight(line: string): Tok[] {
@@ -79,13 +122,17 @@ export function highlight(line: string): Tok[] {
   const push = (text: string, kind: Tok["kind"]): void => {
     if (!text) return;
     const prev = out[out.length - 1];
-    if (prev && prev.kind === kind) prev.text += text; else out.push({ text, kind });
+    if (prev && prev.kind === kind) prev.text += text;
+    else out.push({ text, kind });
   };
   let i = 0;
   let first = true;
   while (i < line.length) {
     const c = line[i] as string;
-    if (c === "#" && (i === 0 || /\s/.test(line[i - 1] as string))) { push(line.slice(i), "c"); break; }
+    if (c === "#" && (i === 0 || /\s/.test(line[i - 1] as string))) {
+      push(line.slice(i), "c");
+      break;
+    }
     if (c === '"' || c === "'") {
       const j = line.indexOf(c, i + 1);
       const end = j < 0 ? line.length : j + 1;
@@ -94,7 +141,11 @@ export function highlight(line: string): Tok[] {
       first = false;
       continue;
     }
-    if (/\s/.test(c)) { push(c, "t"); i += 1; continue; }
+    if (/\s/.test(c)) {
+      push(c, "t");
+      i += 1;
+      continue;
+    }
     let j = i;
     while (j < line.length && !/[\s"'#]/.test(line[j] as string)) j += 1;
     if (j === i) j = i + 1;
@@ -108,7 +159,8 @@ export function highlight(line: string): Tok[] {
 
 // ---------------------------------------------------------------- where it runs
 
-export const sameTarget = (a: Target, b: Target): boolean => a.kind === b.kind && (a.computerId ?? "") === (b.computerId ?? "");
+export const sameTarget = (a: Target, b: Target): boolean =>
+  a.kind === b.kind && (a.computerId ?? "") === (b.computerId ?? "");
 
 /** "Space server" or the computer's name from the targets list. */
 export function targetName(t: Target, targets: readonly TargetRow[]): string {
@@ -139,7 +191,16 @@ export function latestByBlock(runs: readonly RunRow[]): Map<string, BlockStatus>
   for (const r of newest) {
     for (const b of r.blocks) {
       if (out.has(b.blockId)) continue;
-      out.set(b.blockId, { runId: r.runId, state: b.state, ...(b.exit !== undefined ? { exit: b.exit } : {}), ...(b.ms !== undefined ? { ms: b.ms } : {}), by: r.by, at: r.at, target: r.target, all: r.all });
+      out.set(b.blockId, {
+        runId: r.runId,
+        state: b.state,
+        ...(b.exit !== undefined ? { exit: b.exit } : {}),
+        ...(b.ms !== undefined ? { ms: b.ms } : {}),
+        by: r.by,
+        at: r.at,
+        target: r.target,
+        all: r.all,
+      });
     }
   }
   return out;
@@ -188,7 +249,11 @@ export const hasOutputPanel = (s: BlockStatus): boolean => s.state !== "stopped"
 
 /** The output of one block as text, in the order it arrived. */
 export function outputText(rows: readonly OutputRow[], blockId?: string): string {
-  return rows.filter((r) => blockId === undefined || r.blockId === blockId).sort((a, b) => a.seq - b.seq).map((r) => r.text).join("\n");
+  return rows
+    .filter((r) => blockId === undefined || r.blockId === blockId)
+    .sort((a, b) => a.seq - b.seq)
+    .map((r) => r.text)
+    .join("\n");
 }
 
 /** History row title: "Block 2", "Run all", or "Run all · stopped at block 2". */
@@ -223,7 +288,10 @@ export function fmtTime(at: number, now: number, offsetMin: number): string {
   const n = new Date(now + offsetMin * 60_000);
   const h = d.getUTCHours();
   const clock = `${h % 12 === 0 ? 12 : h % 12}:${String(d.getUTCMinutes()).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
-  const same = d.getUTCFullYear() === n.getUTCFullYear() && d.getUTCMonth() === n.getUTCMonth() && d.getUTCDate() === n.getUTCDate();
+  const same =
+    d.getUTCFullYear() === n.getUTCFullYear() &&
+    d.getUTCMonth() === n.getUTCMonth() &&
+    d.getUTCDate() === n.getUTCDate();
   return same ? clock : `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${clock}`;
 }
 
@@ -232,7 +300,8 @@ export function runError(err: unknown): string {
   const e = err as { code?: unknown; message?: unknown } | null;
   const text = `${typeof e?.code === "string" ? e.code : ""} ${typeof e?.message === "string" ? e.message : ""}`;
   // a Personal Space runs commands too (on the person's computer or a server they added): this refusal means no computer can take them now, never that the Space is the wrong kind
-  if (text.includes("permission.needs_team")) return "No computer can run this right now. Start the agent's computer, or pick another place to run it.";
+  if (text.includes("permission.needs_team"))
+    return "No computer can run this right now. Start the agent's computer, or pick another place to run it.";
   if (text.includes("permission")) return "You need Use on this file and terminal access to run it.";
   if (text.includes("conflict")) return "Something is already running. Wait for it, or stop it first.";
   if (text.includes("precondition")) return "That computer is not available. Pick another place to run it.";

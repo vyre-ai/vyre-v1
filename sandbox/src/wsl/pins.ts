@@ -2,7 +2,11 @@
 // its size and SHA-256, checked before anything is imported. Alpine's minirootfs is small (3 MB) and its package manager checks every package against the signing keys inside that pinned file.
 // The packages are pinned to their minor version (`~`): Alpine keeps only the newest -rN of a version, so an exact -rN would stop installing on its first security rebuild.
 
-export interface DistroBuild { url: string; size: number; sha256: string }
+export interface DistroBuild {
+  url: string;
+  size: number;
+  sha256: string;
+}
 
 export interface DistroPin {
   /** The name the distribution is imported under; one per Windows user. */
@@ -23,8 +27,16 @@ export const DISTRO_PIN: DistroPin = Object.freeze({
   version: "alpine-3.22.7",
   stamp: "alpine-3.22.7+bwrap0.12+node22+2",
   builds: {
-    x64: { url: "https://dl-cdn.alpinelinux.org/alpine/v3.22/releases/x86_64/alpine-minirootfs-3.22.7-x86_64.tar.gz", size: 3_647_472, sha256: "57e364a241bab0699cd8a760c0fd7b270e9cbcbd3cee822cb2b07ca6d925c16c" },
-    arm64: { url: "https://dl-cdn.alpinelinux.org/alpine/v3.22/releases/aarch64/alpine-minirootfs-3.22.7-aarch64.tar.gz", size: 3_971_679, sha256: "7e9b34ff3304381909e566e2c93de450664ccc724191261423974fc121c11623" },
+    x64: {
+      url: "https://dl-cdn.alpinelinux.org/alpine/v3.22/releases/x86_64/alpine-minirootfs-3.22.7-x86_64.tar.gz",
+      size: 3_647_472,
+      sha256: "57e364a241bab0699cd8a760c0fd7b270e9cbcbd3cee822cb2b07ca6d925c16c",
+    },
+    arm64: {
+      url: "https://dl-cdn.alpinelinux.org/alpine/v3.22/releases/aarch64/alpine-minirootfs-3.22.7-aarch64.tar.gz",
+      size: 3_971_679,
+      sha256: "7e9b34ff3304381909e566e2c93de450664ccc724191261423974fc121c11623",
+    },
   },
   packages: ["bubblewrap~0.12", "nodejs~22", "bash", "git", "ripgrep", "libgcc", "libstdc++", "ca-certificates"],
 });

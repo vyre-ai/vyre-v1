@@ -4,20 +4,46 @@ import assert from "node:assert/strict";
 import { NO_ACCOUNT_LINE, checkGroupAccount } from "../group-account.ts";
 import type { AgentPost } from "../handlers/bridge.ts";
 
-function world(o: { members?: string[]; agents?: string[]; usable?: (agentId: string, person: string) => boolean; failResolve?: boolean } = {}) {
+function world(
+  o: {
+    members?: string[];
+    agents?: string[];
+    usable?: (agentId: string, person: string) => boolean;
+    failResolve?: boolean;
+  } = {},
+) {
   const posts: Array<{ agentId: string; post: AgentPost }> = [];
   const call = async (cap: string, input: unknown, as?: string): Promise<unknown> => {
     const i = input as { agentId: string; askerId: string };
-    if (cap === "engine.account.resolve") assert.equal(as, i.askerId, "asked as the person: the host's own service cannot see an agent");
-    if (cap === "threads.get") return { thread: { starter: "usr_dana", members: (o.members ?? ["usr_dana", "usr_sara"]).map((id) => ({ kind: "person", id })), agents: (o.agents ?? ["agt_a"]).map((agentId) => ({ agentId })) } };
+    if (cap === "engine.account.resolve")
+      assert.equal(as, i.askerId, "asked as the person: the host's own service cannot see an agent");
+    if (cap === "threads.get")
+      return {
+        thread: {
+          starter: "usr_dana",
+          members: (o.members ?? ["usr_dana", "usr_sara"]).map((id) => ({ kind: "person", id })),
+          agents: (o.agents ?? ["agt_a"]).map((agentId) => ({ agentId })),
+        },
+      };
     if (cap === "access.principals.list") return { principals: [{ id: "usr_sara", name: "Sara Khan" }] };
     if (cap === "engine.account.resolve") {
       if (o.failResolve) throw new Error("no answer");
-      return (o.usable ?? ((_a, p) => p === "usr_dana"))(i.agentId, i.askerId) ? { allowed: true, accountRef: "#Key" } : { allowed: false, accountRef: null };
+      return (o.usable ?? ((_a, p) => p === "usr_dana"))(i.agentId, i.askerId)
+        ? { allowed: true, accountRef: "#Key" }
+        : { allowed: false, accountRef: null };
     }
     throw new Error(`unexpected ${cap}`);
   };
-  return { posts, d: { call, postAs: async (agentId: string, post: AgentPost) => { posts.push({ agentId, post }); return {}; } } };
+  return {
+    posts,
+    d: {
+      call,
+      postAs: async (agentId: string, post: AgentPost) => {
+        posts.push({ agentId, post });
+        return {};
+      },
+    },
+  };
 }
 const lineOf = (p: AgentPost): unknown => (p.blocks[0] as { data: { text: string } }).data.text;
 

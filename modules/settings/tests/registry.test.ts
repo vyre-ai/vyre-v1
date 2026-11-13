@@ -18,8 +18,14 @@ const adminOmar = (h: Harness) => h.as(OMAR, { admin: true });
 test("the registry has a SettingDef for every row the pages of You show, and pages counts them", async () => {
   const h = harness();
   const out = await handlers["settings.pages"](asMaya(h), {});
-  assert.deepEqual(out.pages.map((p) => p.title), ["Profile", "Notifications", "Appearance", "AI", "Connected", "Sign-in and devices", "This computer"]);
-  assert.deepEqual(out.pages.map((p) => p.group), ["you", "you", "you", "you", "you", "you", "you"]);
+  assert.deepEqual(
+    out.pages.map((p) => p.title),
+    ["Profile", "Notifications", "Appearance", "AI", "Connected", "Sign-in and devices", "This computer"],
+  );
+  assert.deepEqual(
+    out.pages.map((p) => p.group),
+    ["you", "you", "you", "you", "you", "you", "you"],
+  );
   const total = out.pages.reduce((n, p) => n + p.rows, 0);
   assert.equal(total, defs.filter((d) => pageOf(d) !== null).length);
   assert.ok(out.pages.find((p) => p.key === "profile")!.rows >= 7);
@@ -47,7 +53,10 @@ test("Space settings are not on the pages of You but can be listed by name", asy
   assert.ok(!all.some((r) => r.key === some.key));
   const asked = (await handlers["settings.list"](asMaya(h), { scope: "space", page: some.page })).rows;
   assert.ok(asked.some((r) => r.key === some.key));
-  assert.ok(!(await handlers["settings.search"](asMaya(h), { q: some.title })).rows.some((r) => r.key === some.key), "Cmd-F in the app does not offer Console rows");
+  assert.ok(
+    !(await handlers["settings.search"](asMaya(h), { q: some.title })).rows.some((r) => r.key === some.key),
+    "Cmd-F in the app does not offer Console rows",
+  );
 });
 
 test("search takes words in any order, ranks a title that starts with the first word first, and finds nothing for nothing", async () => {
@@ -58,7 +67,10 @@ test("search takes words in any order, ranks a title that starts with the first 
   assert.deepEqual(b.rows.map((r) => r.key).sort(), a.rows.map((r) => r.key).sort());
   assert.deepEqual((await handlers["settings.search"](asMaya(h), { q: "   " })).rows, []);
   assert.deepEqual((await handlers["settings.search"](asMaya(h), { q: "zzzzzz" })).rows, []);
-  assert.ok(search("appearance").some((r) => r.key === "appearance.skin"), "the page name is searched too");
+  assert.ok(
+    search("appearance").some((r) => r.key === "appearance.skin"),
+    "the page name is searched too",
+  );
 });
 
 test("a setting nobody changed reads as its shipped default", async () => {
@@ -70,7 +82,10 @@ test("a setting nobody changed reads as its shipped default", async () => {
   assert.equal(r.page, "ai");
   assert.equal(r.scope, "person");
   assert.equal(r.floorable, false);
-  await assert.rejects(handlers["settings.get"](asMaya(h), { key: "no.such" }), (e) => codeOf(e) === "validation.not_found");
+  await assert.rejects(
+    handlers["settings.get"](asMaya(h), { key: "no.such" }),
+    (e) => codeOf(e) === "validation.not_found",
+  );
 });
 
 test("a change saves as it is made, says what it was, and Undo is one more call", async () => {
@@ -80,7 +95,14 @@ test("a change saves as it is made, says what it was, and Undo is one more call"
   assert.equal(out.row.source, "person");
   assert.equal(out.previous, "UTC");
   assert.deepEqual(names(h), ["settings.changed"]);
-  assert.deepEqual(h.events[0]!.payload, { key: "profile.timezone", scope: "person", person: MAYA, before: "UTC", after: "Asia/Karachi", by: MAYA });
+  assert.deepEqual(h.events[0]!.payload, {
+    key: "profile.timezone",
+    scope: "person",
+    person: MAYA,
+    before: "UTC",
+    after: "Asia/Karachi",
+    by: MAYA,
+  });
   const undo = await handlers["settings.set"](asMaya(h), { key: "profile.timezone", value: out.previous });
   assert.equal(undo.row.value, "UTC");
   assert.equal(undo.previous, "Asia/Karachi");
@@ -93,7 +115,11 @@ test("each person's value is their own: Omar's change does not move Maya's", asy
   assert.equal(omar.value, true);
   assert.equal((await handlers["settings.get"](asMaya(h), { key: "chat.agent_tabs" })).row.value, false);
   const lists = (await handlers["settings.list"](asMaya(h), { page: "ai" })).rows;
-  assert.deepEqual(lists.map((r) => r.key).sort(), ["chat.agent_tabs", "chat.ask_agent", "engine.local_runs", "memory.lessons"], "a page of You lists no Space row, even one declared under the same name");
+  assert.deepEqual(
+    lists.map((r) => r.key).sort(),
+    ["chat.agent_tabs", "chat.ask_agent", "engine.local_runs", "memory.lessons"],
+    "a page of You lists no Space row, even one declared under the same name",
+  );
 });
 
 test("a value the schema refuses is refused with a sentence and nothing is written", async () => {
@@ -109,12 +135,19 @@ test("a value the schema refuses is refused with a sentence and nothing is writt
   await bad("chat.agent_tabs", "yes", "validation.bad_input");
   await bad("access.review_every_days", 30, "validation.bad_input");
   assert.equal(h.raw.rows("settings_value").length, 0);
-  try { await handlers["settings.set"](asMaya(h), { key: "profile.handle", value: "A B" }); } catch (e) { assert.match(JSON.stringify(e), /Handle/); }
+  try {
+    await handlers["settings.set"](asMaya(h), { key: "profile.handle", value: "A B" });
+  } catch (e) {
+    assert.match(JSON.stringify(e), /Handle/);
+  }
 });
 
 test("a call that is not a person is refused", async () => {
   const h = harness();
-  await assert.rejects(handlers["settings.set"](h.system(), { key: "profile.title", value: "x" }), (e) => codeOf(e) === "auth.unauthenticated");
+  await assert.rejects(
+    handlers["settings.set"](h.system(), { key: "profile.title", value: "x" }),
+    (e) => codeOf(e) === "auth.unauthenticated",
+  );
   await assert.rejects(handlers["settings.list"](h.system(), {}), (e) => codeOf(e) === "auth.unauthenticated");
 });
 
@@ -125,7 +158,10 @@ test("reset puts the Space default back, says so, and says nothing when nothing 
   const out = await handlers["settings.reset"](asMaya(h), { key: "chat.agent_tabs" });
   assert.equal(out.row.value, true);
   assert.equal(out.row.source, "default");
-  assert.deepEqual(h.events.map((e) => (e.payload as { after: unknown }).after), [true]);
+  assert.deepEqual(
+    h.events.map((e) => (e.payload as { after: unknown }).after),
+    [true],
+  );
   h.events.length = 0;
   await handlers["settings.reset"](asMaya(h), { key: "chat.agent_tabs" });
   assert.deepEqual(h.events, [], "already at the default");
@@ -152,50 +188,111 @@ test("a Space value is the default everyone gets until they choose their own, an
 
 test("a person cannot change a Space-wide row through set, and the Space row is refused for a wrong value", async () => {
   const h = harness();
-  await assert.rejects(handlers["settings.set"](asMaya(h), { key: "access.review_every_days", value: 10 }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(handlers["settings.reset"](asMaya(h), { key: "access.review_every_days" }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(handlers["settings.set_space"](adminOmar(h), { key: "access.review_every_days", value: 900 }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(
+    handlers["settings.set"](asMaya(h), { key: "access.review_every_days", value: 10 }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  await assert.rejects(
+    handlers["settings.reset"](asMaya(h), { key: "access.review_every_days" }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  await assert.rejects(
+    handlers["settings.set_space"](adminOmar(h), { key: "access.review_every_days", value: 900 }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
   const ok = await handlers["settings.set_space"](adminOmar(h), { key: "access.review_every_days", value: 10 });
   assert.equal(ok.row.value, 10);
 });
 
 test("the owner floor: nobody may choose a value less strict than it, and the row says what the floor is", async () => {
   const h = harness();
-  await assert.rejects(handlers["settings.floor_set"](adminOmar(h), { key: "profile.title", floor: "x" }), (e) => codeOf(e) === "validation.bad_input", "a setting that is not floorable");
-  await assert.rejects(handlers["settings.floor_set"](adminOmar(h), { key: "security.chrome_mode", floor: "paranoid" }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(
+    handlers["settings.floor_set"](adminOmar(h), { key: "profile.title", floor: "x" }),
+    (e) => codeOf(e) === "validation.bad_input",
+    "a setting that is not floorable",
+  );
+  await assert.rejects(
+    handlers["settings.floor_set"](adminOmar(h), { key: "security.chrome_mode", floor: "paranoid" }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
   const allow = { base: "allow", spaces: {} };
   const set = await handlers["settings.floor_set"](adminOmar(h), { key: "security.chrome_mode", floor: allow });
   assert.equal(set.row.floorable, true);
   assert.deepEqual(set.row.floor, allow);
   assert.deepEqual(names(h), ["settings.floor_changed"]);
-  await assert.rejects(handlers["settings.set"](asMaya(h), { key: "security.chrome_mode", value: { base: "auto", spaces: {} } }), (e) => codeOf(e) === "validation.field_locked");
-  assert.deepEqual((await handlers["settings.set"](asMaya(h), { key: "security.chrome_mode", value: { base: "ask", spaces: {} } })).row.value, { base: "ask", spaces: {} });
-  assert.deepEqual((await handlers["settings.set"](asMaya(h), { key: "security.chrome_mode", value: allow })).row.value, allow);
+  await assert.rejects(
+    handlers["settings.set"](asMaya(h), { key: "security.chrome_mode", value: { base: "auto", spaces: {} } }),
+    (e) => codeOf(e) === "validation.field_locked",
+  );
+  assert.deepEqual(
+    (await handlers["settings.set"](asMaya(h), { key: "security.chrome_mode", value: { base: "ask", spaces: {} } })).row
+      .value,
+    { base: "ask", spaces: {} },
+  );
+  assert.deepEqual(
+    (await handlers["settings.set"](asMaya(h), { key: "security.chrome_mode", value: allow })).row.value,
+    allow,
+  );
   const row = (await handlers["settings.get"](asMaya(h), { key: "security.chrome_mode" })).row;
   assert.deepEqual(row.floor, allow);
 });
 
 test("a floor holds for a mode's per-Space values too, and a number floor counts a smaller value as stricter", async () => {
   const h = harness();
-  await handlers["settings.floor_set"](adminOmar(h), { key: "security.terminal_mode", floor: { base: "allow", spaces: {} } });
-  await assert.rejects(handlers["settings.set"](asMaya(h), { key: "security.terminal_mode", value: { base: "auto", spaces: {} } }), (e) => codeOf(e) === "validation.field_locked");
-  await assert.rejects(handlers["settings.set"](asMaya(h), { key: "security.terminal_mode", value: { base: "ask", spaces: { spc_x: "auto" } } }), (e) => codeOf(e) === "validation.field_locked");
-  assert.ok((await handlers["settings.set"](asMaya(h), { key: "security.terminal_mode", value: { base: "ask", spaces: { spc_x: "allow" } } })).row);
+  await handlers["settings.floor_set"](adminOmar(h), {
+    key: "security.terminal_mode",
+    floor: { base: "allow", spaces: {} },
+  });
+  await assert.rejects(
+    handlers["settings.set"](asMaya(h), { key: "security.terminal_mode", value: { base: "auto", spaces: {} } }),
+    (e) => codeOf(e) === "validation.field_locked",
+  );
+  await assert.rejects(
+    handlers["settings.set"](asMaya(h), {
+      key: "security.terminal_mode",
+      value: { base: "ask", spaces: { spc_x: "auto" } },
+    }),
+    (e) => codeOf(e) === "validation.field_locked",
+  );
+  assert.ok(
+    (
+      await handlers["settings.set"](asMaya(h), {
+        key: "security.terminal_mode",
+        value: { base: "ask", spaces: { spc_x: "allow" } },
+      })
+    ).row,
+  );
   await handlers["settings.floor_set"](adminOmar(h), { key: "engine.agent_hops", floor: 6 });
-  await assert.rejects(handlers["settings.set_space"](adminOmar(h), { key: "engine.agent_hops", value: 8 }), (e) => codeOf(e) === "validation.field_locked");
-  assert.equal((await handlers["settings.set_space"](adminOmar(h), { key: "engine.agent_hops", value: 3 })).row.value, 3);
+  await assert.rejects(
+    handlers["settings.set_space"](adminOmar(h), { key: "engine.agent_hops", value: 8 }),
+    (e) => codeOf(e) === "validation.field_locked",
+  );
+  assert.equal(
+    (await handlers["settings.set_space"](adminOmar(h), { key: "engine.agent_hops", value: 3 })).row.value,
+    3,
+  );
 });
 
 test("Copy from another Space: the source offers my profile without a title and without empty values", async () => {
   const h = harness();
-  assert.deepEqual(await handlers["settings.copy_source"](asMaya(h), {}), { timezone: "UTC", hours: { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:00" } });
+  assert.deepEqual(await handlers["settings.copy_source"](asMaya(h), {}), {
+    timezone: "UTC",
+    hours: { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:00" },
+  });
   await handlers["settings.set"](asMaya(h), { key: "profile.display_name", value: "Maya Chen" });
   await handlers["settings.set"](asMaya(h), { key: "profile.handle", value: "maya" });
   await handlers["settings.set"](asMaya(h), { key: "profile.title", value: "Partner" });
   await handlers["settings.set"](asMaya(h), { key: "profile.contact", value: { email: "maya@northwind.example" } });
   await handlers["settings.set"](asMaya(h), { key: "profile.photo", value: "fil_maya1" });
   const src = await handlers["settings.copy_source"](asMaya(h), {});
-  assert.deepEqual(src, { photoFileId: "fil_maya1", name: "Maya Chen", handle: "maya", timezone: "UTC", hours: { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:00" }, contact: { email: "maya@northwind.example" } });
+  assert.deepEqual(src, {
+    photoFileId: "fil_maya1",
+    name: "Maya Chen",
+    handle: "maya",
+    timezone: "UTC",
+    hours: { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:00" },
+    contact: { email: "maya@northwind.example" },
+  });
   assert.ok(!("title" in src));
 });
 
@@ -203,7 +300,14 @@ test("Copy from another Space applies only the ticked fields, never the title, a
   const h = harness();
   const out = await handlers["settings.copy_profile"](asMaya(h), {
     fields: ["name", "handle", "contact", "photo"],
-    values: { name: "Maya Chen", handle: "maya", contact: { phone: "+1 415 555 0100" }, photo: "fil_maya1", title: "Partner", timezone: "Asia/Karachi" },
+    values: {
+      name: "Maya Chen",
+      handle: "maya",
+      contact: { phone: "+1 415 555 0100" },
+      photo: "fil_maya1",
+      title: "Partner",
+      timezone: "Asia/Karachi",
+    },
   });
   assert.deepEqual(out.applied, ["name", "handle", "contact", "photo"]);
   const get = async (k: string) => (await handlers["settings.get"](asMaya(h), { key: k })).row.value;
@@ -218,25 +322,52 @@ test("Copy from another Space applies only the ticked fields, never the title, a
 
 test("Copy from another Space refuses a bad value or a missing one before it writes anything", async () => {
   const h = harness();
-  await assert.rejects(handlers["settings.copy_profile"](asMaya(h), { fields: ["name", "handle"], values: { name: "Maya", handle: "A B" } }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(handlers["settings.copy_profile"](asMaya(h), { fields: ["timezone"], values: {} }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(handlers["settings.copy_profile"](asMaya(h), { fields: ["title" as never], values: { title: "x" } }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(
+    handlers["settings.copy_profile"](asMaya(h), {
+      fields: ["name", "handle"],
+      values: { name: "Maya", handle: "A B" },
+    }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  await assert.rejects(
+    handlers["settings.copy_profile"](asMaya(h), { fields: ["timezone"], values: {} }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  await assert.rejects(
+    handlers["settings.copy_profile"](asMaya(h), { fields: ["title" as never], values: { title: "x" } }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
   assert.equal(h.raw.rows("settings_value").length, 0);
   assert.deepEqual(h.events, []);
 });
 
 test("the Kit: the Space's choice, mine, and the one in effect, with null following the Space", async () => {
   const h = harness();
-  assert.deepEqual((await handlers["settings.kit.get"](asMaya(h), {})).kit, { space: null, person: null, effective: "kit_default" });
+  assert.deepEqual((await handlers["settings.kit.get"](asMaya(h), {})).kit, {
+    space: null,
+    person: null,
+    effective: "kit_default",
+  });
   const sp = await handlers["settings.kit.set_space"](adminOmar(h), { kitId: "kit_law" });
   assert.deepEqual(sp.kit, { space: "kit_law", person: null, effective: "kit_law" });
   const mine = await handlers["settings.kit.set_mine"](asMaya(h), { kitId: "kit_studio" });
   assert.deepEqual(mine.kit, { space: "kit_law", person: "kit_studio", effective: "kit_studio" });
-  assert.deepEqual((await handlers["settings.kit.get"](h.as(OMAR), {})).kit, { space: "kit_law", person: null, effective: "kit_law" }, "Omar still follows the Space");
+  assert.deepEqual(
+    (await handlers["settings.kit.get"](h.as(OMAR), {})).kit,
+    { space: "kit_law", person: null, effective: "kit_law" },
+    "Omar still follows the Space",
+  );
   const follow = await handlers["settings.kit.set_mine"](asMaya(h), { kitId: null });
   assert.deepEqual(follow.kit, { space: "kit_law", person: null, effective: "kit_law" });
-  await assert.rejects(handlers["settings.kit.set_mine"](asMaya(h), { kitId: "studio" }), (e) => codeOf(e) === "validation.bad_input");
-  assert.equal(names(h).filter((n) => n === "settings.changed").length, 3, "a repeat that changes nothing says nothing");
+  await assert.rejects(
+    handlers["settings.kit.set_mine"](asMaya(h), { kitId: "studio" }),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  assert.equal(
+    names(h).filter((n) => n === "settings.changed").length,
+    3,
+    "a repeat that changes nothing says nothing",
+  );
   h.events.length = 0;
   await handlers["settings.kit.set_mine"](asMaya(h), { kitId: null });
   assert.deepEqual(h.events, []);
@@ -246,7 +377,10 @@ test("every statement the module sends is one the host's table guard allows", as
   const h = harness();
   await handlers["settings.set"](asMaya(h), { key: "profile.title", value: "Partner" });
   await handlers["settings.set_space"](adminOmar(h), { key: "chat.agent_tabs", value: false });
-  await handlers["settings.floor_set"](adminOmar(h), { key: "security.chrome_mode", floor: { base: "allow", spaces: {} } });
+  await handlers["settings.floor_set"](adminOmar(h), {
+    key: "security.chrome_mode",
+    floor: { base: "allow", spaces: {} },
+  });
   for (const sql of h.raw.log) assert.match(sql, /settings_(value|floor)/);
   assert.ok(PAGES.length === 7);
 });
@@ -256,10 +390,20 @@ test("every statement the module sends is one the host's table guard allows", as
 test("an agent acting for a person reads that person's settings, and only reads them", async () => {
   const h = harness();
   await handlers["settings.set"](asMaya(h), { key: "profile.timezone", value: "Asia/Karachi" });
-  const agent = { ...asMaya(h), principal: { kind: "agent" as const, id: "agt_helper" }, actingFor: MAYA } as SettingsCtx;
+  const agent = {
+    ...asMaya(h),
+    principal: { kind: "agent" as const, id: "agt_helper" },
+    actingFor: MAYA,
+  } as SettingsCtx;
   assert.equal((await handlers["settings.get"](agent, { key: "profile.timezone" })).row.value, "Asia/Karachi");
   assert.ok((await handlers["settings.list"](agent, {})).rows.length > 0);
-  await assert.rejects(handlers["settings.set"](agent, { key: "profile.timezone", value: "UTC" }), (e) => codeOf(e) === "auth.unauthenticated");
+  await assert.rejects(
+    handlers["settings.set"](agent, { key: "profile.timezone", value: "UTC" }),
+    (e) => codeOf(e) === "auth.unauthenticated",
+  );
   const stranger = { ...agent, actingFor: undefined } as SettingsCtx;
-  await assert.rejects(handlers["settings.get"](stranger, { key: "profile.timezone" }), (e) => codeOf(e) === "auth.unauthenticated");
+  await assert.rejects(
+    handlers["settings.get"](stranger, { key: "profile.timezone" }),
+    (e) => codeOf(e) === "auth.unauthenticated",
+  );
 });

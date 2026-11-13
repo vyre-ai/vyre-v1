@@ -2,7 +2,15 @@
 import type { SpacesCtx } from "../projections.ts";
 import { raise } from "../projections.ts";
 import { followsList, followsToggle, starsList, starsToggle } from "./stars.ts";
-import { onboardingComplete, onboardingDismiss, onboardingFlow, onboardingGet, onboardingMark, onboardingSeen, switcher } from "./switcher.ts";
+import {
+  onboardingComplete,
+  onboardingDismiss,
+  onboardingFlow,
+  onboardingGet,
+  onboardingMark,
+  onboardingSeen,
+  switcher,
+} from "./switcher.ts";
 
 async function later(ctx: SpacesCtx, _input: unknown): Promise<never> {
   raise(ctx.trace.traceId, "internal.not_implemented", "this capability is a later packet");

@@ -19,7 +19,10 @@ export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };
 }
-export interface Principal { kind: "person" | "agent" | "actor" | "service"; id: string }
+export interface Principal {
+  kind: "person" | "agent" | "actor" | "service";
+  id: string;
+}
 export type Level = "view" | "use" | "edit" | "manage";
 
 /** The part of the host Ctx these handlers read. A test passes a small object; the host passes the full Ctx. */
@@ -33,7 +36,10 @@ export interface ProjectsCtx {
   db: Db;
   emit(name: EventName, subject: string, payload: unknown): unknown;
   call?(cap: string, input: unknown, opts?: { idempotencyKey?: string }): Promise<unknown>;
-  authorize?(action: { perm: string | null; level: Level }, resource: { type: string; id: string | null }): { effect: "allow" | "deny" | "hold" };
+  authorize?(
+    action: { perm: string | null; level: Level },
+    resource: { type: string; id: string | null },
+  ): { effect: "allow" | "deny" | "hold" };
   log: { warn(msg: string, attrs?: Record<string, unknown>): void };
 }
 
@@ -41,7 +47,12 @@ type Row = Record<string, unknown>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type In = Record<string, any>;
 
-export function raise(ctx: Pick<ProjectsCtx, "trace">, code: ErrorCode, message: string, details?: Record<string, unknown>): never {
+export function raise(
+  ctx: Pick<ProjectsCtx, "trace">,
+  code: ErrorCode,
+  message: string,
+  details?: Record<string, unknown>,
+): never {
   throw fail(code, ctx.trace.traceId, { message, ...(details ? { details } : {}) });
 }
 export const newId = (prefix: string, now: number): string => mint(prefix, now).replaceAll("-", "");
@@ -49,7 +60,13 @@ const str = (v: unknown): string => String(v);
 const optStr = (v: unknown): string | undefined => (v === null || v === undefined || v === "" ? undefined : String(v));
 const num = (v: unknown): number => Number(v);
 const optNum = (v: unknown): number | undefined => (v === null || v === undefined ? undefined : Number(v));
-const parseJson = <T>(raw: unknown, fallback: T): T => { try { return raw === null || raw === undefined ? fallback : (JSON.parse(str(raw)) as T); } catch { return fallback; } };
+const parseJson = <T>(raw: unknown, fallback: T): T => {
+  try {
+    return raw === null || raw === undefined ? fallback : (JSON.parse(str(raw)) as T);
+  } catch {
+    return fallback;
+  }
+};
 export function clean<T extends Record<string, unknown>>(o: T): T {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(o)) if (v !== undefined) out[k] = v;
@@ -57,58 +74,113 @@ export function clean<T extends Record<string, unknown>>(o: T): T {
 }
 /** The person behind a call: the person an agent acts for, else the caller. */
 export const me = (ctx: Pick<ProjectsCtx, "principal" | "actingFor">): string => ctx.actingFor ?? ctx.principal.id;
-export const isPerson = (ctx: Pick<ProjectsCtx, "principal" | "actingFor">): boolean => ctx.principal.kind === "person" && (ctx.actingFor === undefined || ctx.actingFor.startsWith("usr_"));
+export const isPerson = (ctx: Pick<ProjectsCtx, "principal" | "actingFor">): boolean =>
+  ctx.principal.kind === "person" && (ctx.actingFor === undefined || ctx.actingFor.startsWith("usr_"));
 
 // ---- schema ----
 
-const SCHEMA = ["0001_projects.sql", "0002_links.sql", "0003_overview.sql", "0004_archive.sql"].flatMap((file) => readFileSync(new URL(`./migrations/${file}`, import.meta.url), "utf8")
-  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((s) => s.trim()).filter((s) => s.length > 0));
+const SCHEMA = ["0001_projects.sql", "0002_links.sql", "0003_overview.sql", "0004_archive.sql"].flatMap((file) =>
+  readFileSync(new URL(`./migrations/${file}`, import.meta.url), "utf8")
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n")
+    .split(";")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0),
+);
 const ready = new WeakSet<object>();
 
 /** Make sure the projects tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT key FROM projects_key WHERE key = ?", "probe"); db.all("SELECT ruleId FROM projects_rule WHERE ruleId = ?", "probe"); db.all("SELECT templateId FROM projects_page_template WHERE templateId = ?", "probe"); db.all("SELECT projectId FROM projects_archived WHERE projectId = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try {
+    db.all("SELECT key FROM projects_key WHERE key = ?", "probe");
+    db.all("SELECT ruleId FROM projects_rule WHERE ruleId = ?", "probe");
+    db.all("SELECT templateId FROM projects_page_template WHERE templateId = ?", "probe");
+    db.all("SELECT projectId FROM projects_archived WHERE projectId = ?", "probe");
+  } catch {
+    for (const stmt of SCHEMA) db.run(stmt);
+  }
   ready.add(db);
 }
 
 // ---- ports to neighbours ----
 
-export async function call<T>(ctx: ProjectsCtx, cap: string, input: unknown, opts?: { idempotencyKey?: string }): Promise<T> {
+export async function call<T>(
+  ctx: ProjectsCtx,
+  cap: string,
+  input: unknown,
+  opts?: { idempotencyKey?: string },
+): Promise<T> {
   if (!ctx.call) raise(ctx, "internal.unexpected", "That part of the app is not available right now.", { cap });
   // the pipeline reads the key from the call's input, so a key the caller gave as an option goes into the input too (a neighbour that needs one refuses its absence)
-  const body = opts?.idempotencyKey !== undefined && input !== null && typeof input === "object" && !Array.isArray(input) && !("idempotencyKey" in input)
-    ? { ...(input as Record<string, unknown>), idempotencyKey: opts.idempotencyKey } : input;
+  const body =
+    opts?.idempotencyKey !== undefined &&
+    input !== null &&
+    typeof input === "object" &&
+    !Array.isArray(input) &&
+    !("idempotencyKey" in input)
+      ? { ...(input as Record<string, unknown>), idempotencyKey: opts.idempotencyKey }
+      : input;
   return (await ctx.call(cap, body, opts)) as T;
 }
 /** Like `call`, but a neighbour that is not there (or refuses) gives the fallback: what a page shows must not fail because a neighbour is down. */
 export async function tolerant<T>(ctx: ProjectsCtx, cap: string, input: unknown, fallback: T): Promise<T> {
   if (!ctx.call) return fallback;
-  try { return ((await ctx.call(cap, input)) as T | null | undefined) ?? fallback; } catch (e) {
-    ctx.log.warn("projects: a neighbour did not answer", { cap, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+  try {
+    return ((await ctx.call(cap, input)) as T | null | undefined) ?? fallback;
+  } catch (e) {
+    ctx.log.warn("projects: a neighbour did not answer", {
+      cap,
+      error: e instanceof Error ? e.message.slice(0, 200) : "error",
+    });
     return fallback;
   }
 }
 /** The code of an error thrown by a call, if it has one. */
-export const codeOf = (e: unknown): string => { const x = e as { error?: { code?: string }; code?: string }; return x?.error?.code ?? x?.code ?? "unknown"; };
+export const codeOf = (e: unknown): string => {
+  const x = e as { error?: { code?: string }; code?: string };
+  return x?.error?.code ?? x?.code ?? "unknown";
+};
 
 // ---- projects ----
 
 export type Source = "new" | "channel" | "journey" | "template";
 export interface Project {
-  projectId: string; recordId: string; type: string; channelId?: string | undefined; folderId?: string | undefined; threadId?: string | undefined;
-  source: Source; createdBy: string; createdAt: number;
+  projectId: string;
+  recordId: string;
+  type: string;
+  channelId?: string | undefined;
+  folderId?: string | undefined;
+  threadId?: string | undefined;
+  source: Source;
+  createdBy: string;
+  createdAt: number;
 }
 const toProject = (r: Row): Project => ({
-  projectId: str(r["projectId"]), recordId: str(r["recordId"]), type: str(r["type"]), channelId: optStr(r["channelId"]), folderId: optStr(r["folderId"]), threadId: optStr(r["threadId"]),
-  source: str(r["source"]) as Source, createdBy: str(r["createdBy"]), createdAt: num(r["createdAt"]),
+  projectId: str(r["projectId"]),
+  recordId: str(r["recordId"]),
+  type: str(r["type"]),
+  channelId: optStr(r["channelId"]),
+  folderId: optStr(r["folderId"]),
+  threadId: optStr(r["threadId"]),
+  source: str(r["source"]) as Source,
+  createdBy: str(r["createdBy"]),
+  createdAt: num(r["createdAt"]),
 });
 export function saveProject(db: Db, p: Project): void {
   db.run(
     `INSERT INTO projects_project (projectId, recordId, type, channelId, folderId, threadId, source, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(projectId) DO UPDATE SET channelId = excluded.channelId, folderId = excluded.folderId, threadId = excluded.threadId`,
-    p.projectId, p.recordId, p.type, p.channelId ?? null, p.folderId ?? null, p.threadId ?? null, p.source, p.createdBy, p.createdAt,
+    p.projectId,
+    p.recordId,
+    p.type,
+    p.channelId ?? null,
+    p.folderId ?? null,
+    p.threadId ?? null,
+    p.source,
+    p.createdBy,
+    p.createdAt,
   );
 }
 export function projectBy(db: Db, projectId: string): Project | undefined {
@@ -134,7 +206,9 @@ export function allows(ctx: ProjectsCtx, level: Level, projectId: string): boole
 }
 /** A Space owner or admin (the Console's own right): they may change who is on any project and in what role, whoever leads it, so naming an agent Lead never locks the people out of their own project. */
 export function isSpaceAdmin(ctx: ProjectsCtx): boolean {
-  return ctx.authorize?.({ perm: "console.access", level: "view" }, { type: "space", id: ctx.space }).effect === "allow";
+  return (
+    ctx.authorize?.({ perm: "console.access", level: "view" }, { type: "space", id: ctx.space }).effect === "allow"
+  );
 }
 /** A project the caller may see, or the same answer as for one that is not there (what exists is not leaked). */
 export function visible(ctx: ProjectsCtx, projectId: string, level: Level = "view"): Project {
@@ -143,7 +217,13 @@ export function visible(ctx: ProjectsCtx, projectId: string, level: Level = "vie
   if (!p) raise(ctx, "validation.not_found", "That project does not exist.");
   if (!allows(ctx, level, projectId)) {
     // someone who can see the project is told what they lack; someone who cannot is told what they are told for a project that is not there (what exists is not leaked)
-    if (level !== "view" && allows(ctx, "view", projectId)) raise(ctx, "permission.no_grant", `You need ${level === "manage" ? "Manage" : level === "edit" ? "Edit" : "more access"} on this project to do that.`, { reason: "needs_level", level });
+    if (level !== "view" && allows(ctx, "view", projectId))
+      raise(
+        ctx,
+        "permission.no_grant",
+        `You need ${level === "manage" ? "Manage" : level === "edit" ? "Edit" : "more access"} on this project to do that.`,
+        { reason: "needs_level", level },
+      );
     raise(ctx, "validation.not_found", "That project does not exist.");
   }
   return p;
@@ -152,28 +232,50 @@ export function visible(ctx: ProjectsCtx, projectId: string, level: Level = "vie
 // ---- people ----
 
 export type Role = "lead" | "member" | "reviewer" | "guest";
-export interface Member { principal: string; role: Role; kind: "person" | "agent" | "group"; since: number }
-const toMember = (r: Row): Member => ({ principal: str(r["principal"]), role: str(r["role"]) as Role, kind: str(r["kind"]) as Member["kind"], since: num(r["since"]) });
+export interface Member {
+  principal: string;
+  role: Role;
+  kind: "person" | "agent" | "group";
+  since: number;
+}
+const toMember = (r: Row): Member => ({
+  principal: str(r["principal"]),
+  role: str(r["role"]) as Role,
+  kind: str(r["kind"]) as Member["kind"],
+  since: num(r["since"]),
+});
 export function membersOf(db: Db, projectId: string): Member[] {
-  return (db.all("SELECT * FROM projects_member WHERE projectId = ? ORDER BY since ASC, principal ASC", projectId) as Row[]).map(toMember);
+  return (
+    db.all("SELECT * FROM projects_member WHERE projectId = ? ORDER BY since ASC, principal ASC", projectId) as Row[]
+  ).map(toMember);
 }
 export function memberOf(db: Db, projectId: string, principal: string): Member | undefined {
-  const r = (db.all("SELECT * FROM projects_member WHERE projectId = ? AND principal = ?", projectId, principal) as Row[])[0];
+  const r = (
+    db.all("SELECT * FROM projects_member WHERE projectId = ? AND principal = ?", projectId, principal) as Row[]
+  )[0];
   return r ? toMember(r) : undefined;
 }
 export function saveMember(db: Db, projectId: string, m: Member): void {
   db.run(
     "INSERT INTO projects_member (projectId, principal, role, kind, since) VALUES (?, ?, ?, ?, ?) ON CONFLICT(projectId, principal) DO UPDATE SET role = excluded.role",
-    projectId, m.principal, m.role, m.kind, m.since,
+    projectId,
+    m.principal,
+    m.role,
+    m.kind,
+    m.since,
   );
 }
 export function dropMember(db: Db, projectId: string, principal: string): boolean {
   return db.run("DELETE FROM projects_member WHERE projectId = ? AND principal = ?", projectId, principal).changes > 0;
 }
 export function countMembers(db: Db, projectId: string): number {
-  return num((db.all("SELECT COUNT(*) AS n FROM projects_member WHERE projectId = ?", projectId) as Row[])[0]?.["n"] ?? 0);
+  return num(
+    (db.all("SELECT COUNT(*) AS n FROM projects_member WHERE projectId = ?", projectId) as Row[])[0]?.["n"] ?? 0,
+  );
 }
-export function isMember(db: Db, projectId: string, principal: string): boolean { return memberOf(db, projectId, principal) !== undefined; }
+export function isMember(db: Db, projectId: string, principal: string): boolean {
+  return memberOf(db, projectId, principal) !== undefined;
+}
 /** The kind of a principal id (usr, agt, grp); roles and automations cannot hold a project role. */
 export function kindOfPrincipal(id: string): Member["kind"] | undefined {
   if (id.startsWith("usr_")) return "person";
@@ -186,24 +288,49 @@ export const LEVEL_OF: Record<Role, Level> = { lead: "manage", member: "edit", r
 
 // ---- stages ----
 
-export interface Stage { key: string; title: string; order: number }
+export interface Stage {
+  key: string;
+  title: string;
+  order: number;
+}
 export function stagesOf(db: Db, projectId: string): Stage[] {
-  return (db.all("SELECT key, title, ord FROM projects_stage WHERE projectId = ? ORDER BY ord ASC, key ASC", projectId) as Row[]).map((r) => ({ key: str(r["key"]), title: str(r["title"]), order: num(r["ord"]) }));
+  return (
+    db.all(
+      "SELECT key, title, ord FROM projects_stage WHERE projectId = ? ORDER BY ord ASC, key ASC",
+      projectId,
+    ) as Row[]
+  ).map((r) => ({ key: str(r["key"]), title: str(r["title"]), order: num(r["ord"]) }));
 }
 export function replaceStages(db: Db, projectId: string, stages: readonly Stage[]): void {
   db.run("DELETE FROM projects_stage WHERE projectId = ?", projectId);
-  for (const s of stages) db.run("INSERT INTO projects_stage (projectId, key, title, ord) VALUES (?, ?, ?, ?)", projectId, s.key, s.title, s.order);
+  for (const s of stages)
+    db.run(
+      "INSERT INTO projects_stage (projectId, key, title, ord) VALUES (?, ?, ?, ?)",
+      projectId,
+      s.key,
+      s.title,
+      s.order,
+    );
 }
-const slug = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40);
+const slug = (s: string): string =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40);
 /** Stages from a list of {key?, title}: keys kept, missing ones made from the title, no key twice. */
-export function buildStages(ctx: Pick<ProjectsCtx, "trace">, input: ReadonlyArray<{ key?: string | undefined; title: string }>): Stage[] {
+export function buildStages(
+  ctx: Pick<ProjectsCtx, "trace">,
+  input: ReadonlyArray<{ key?: string | undefined; title: string }>,
+): Stage[] {
   const out: Stage[] = [];
   const used = new Set<string>();
   for (const s of input) {
     const title = String(s.title ?? "").trim();
     if (!title) raise(ctx, "validation.bad_input", "A stage needs a name.");
     let key = s.key;
-    if (key !== undefined && !/^[a-z][a-z0-9_]*$/.test(key)) raise(ctx, "validation.bad_input", `${key} is not a stage key.`, { stage: key });
+    if (key !== undefined && !/^[a-z][a-z0-9_]*$/.test(key))
+      raise(ctx, "validation.bad_input", `${key} is not a stage key.`, { stage: key });
     if (key === undefined) {
       const base = /^[a-z]/.test(slug(title)) ? slug(title) : `s_${slug(title)}`;
       key = base;
@@ -218,37 +345,82 @@ export function buildStages(ctx: Pick<ProjectsCtx, "trace">, input: ReadonlyArra
 
 // ---- plan facts of a task ----
 
-export interface PlanRow { taskId: string; stage?: string | undefined; start?: number | undefined; ord?: number | undefined; threadId?: string | undefined }
-const toPlan = (r: Row): PlanRow => ({ taskId: str(r["taskId"]), stage: optStr(r["stage"]), start: optNum(r["start"]), ord: optNum(r["ord"]), threadId: optStr(r["threadId"]) });
+export interface PlanRow {
+  taskId: string;
+  stage?: string | undefined;
+  start?: number | undefined;
+  ord?: number | undefined;
+  threadId?: string | undefined;
+}
+const toPlan = (r: Row): PlanRow => ({
+  taskId: str(r["taskId"]),
+  stage: optStr(r["stage"]),
+  start: optNum(r["start"]),
+  ord: optNum(r["ord"]),
+  threadId: optStr(r["threadId"]),
+});
 export function plansOf(db: Db, projectId: string): Map<string, PlanRow> {
-  return new Map((db.all("SELECT * FROM projects_plan WHERE projectId = ?", projectId) as Row[]).map((r) => [str(r["taskId"]), toPlan(r)]));
+  return new Map(
+    (db.all("SELECT * FROM projects_plan WHERE projectId = ?", projectId) as Row[]).map((r) => [
+      str(r["taskId"]),
+      toPlan(r),
+    ]),
+  );
 }
 export function planOf(db: Db, projectId: string, taskId: string): PlanRow | undefined {
   const r = (db.all("SELECT * FROM projects_plan WHERE projectId = ? AND taskId = ?", projectId, taskId) as Row[])[0];
   return r ? toPlan(r) : undefined;
 }
 /** Write the plan facts of a task: a field left out stays as it was; `null` clears it. */
-export function savePlan(db: Db, projectId: string, taskId: string, patch: { stage?: string | null; start?: number | null; ord?: number | null; threadId?: string | null }): void {
+export function savePlan(
+  db: Db,
+  projectId: string,
+  taskId: string,
+  patch: { stage?: string | null; start?: number | null; ord?: number | null; threadId?: string | null },
+): void {
   const cur = planOf(db, projectId, taskId);
   const pick = <T>(k: T | null | undefined, old: T | undefined): T | null => (k === undefined ? (old ?? null) : k);
   db.run(
     `INSERT INTO projects_plan (projectId, taskId, stage, start, ord, threadId) VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(projectId, taskId) DO UPDATE SET stage = excluded.stage, start = excluded.start, ord = excluded.ord, threadId = excluded.threadId`,
-    projectId, taskId, pick(patch.stage, cur?.stage), pick(patch.start, cur?.start), pick(patch.ord, cur?.ord), pick(patch.threadId, cur?.threadId),
+    projectId,
+    taskId,
+    pick(patch.stage, cur?.stage),
+    pick(patch.start, cur?.start),
+    pick(patch.ord, cur?.ord),
+    pick(patch.threadId, cur?.threadId),
   );
 }
 
 // ---- dependency arrows ----
 
-export interface Link { from: string; to: string }
+export interface Link {
+  from: string;
+  to: string;
+}
 export function linksOf(db: Db, projectId: string): Link[] {
-  return (db.all("SELECT fromTask, toTask FROM projects_link WHERE projectId = ? ORDER BY fromTask, toTask", projectId) as Row[]).map((r) => ({ from: str(r["fromTask"]), to: str(r["toTask"]) }));
+  return (
+    db.all(
+      "SELECT fromTask, toTask FROM projects_link WHERE projectId = ? ORDER BY fromTask, toTask",
+      projectId,
+    ) as Row[]
+  ).map((r) => ({ from: str(r["fromTask"]), to: str(r["toTask"]) }));
 }
 export function addLink(db: Db, projectId: string, l: Link): boolean {
-  return db.run("INSERT OR IGNORE INTO projects_link (projectId, fromTask, toTask) VALUES (?, ?, ?)", projectId, l.from, l.to).changes > 0;
+  return (
+    db.run(
+      "INSERT OR IGNORE INTO projects_link (projectId, fromTask, toTask) VALUES (?, ?, ?)",
+      projectId,
+      l.from,
+      l.to,
+    ).changes > 0
+  );
 }
 export function dropLink(db: Db, projectId: string, l: Link): boolean {
-  return db.run("DELETE FROM projects_link WHERE projectId = ? AND fromTask = ? AND toTask = ?", projectId, l.from, l.to).changes > 0;
+  return (
+    db.run("DELETE FROM projects_link WHERE projectId = ? AND fromTask = ? AND toTask = ?", projectId, l.from, l.to)
+      .changes > 0
+  );
 }
 /** Would an arrow from -> to close a loop? True when `from` is already reachable from `to`. */
 export function closesLoop(links: readonly Link[], l: Link): boolean {
@@ -269,18 +441,52 @@ export function closesLoop(links: readonly Link[], l: Link): boolean {
 
 // ---- cascade proposals ----
 
-export interface Move { taskId: string; fromStart?: number | undefined; toStart?: number | undefined; fromDue?: number | undefined; toDue?: number | undefined }
-export interface Hold { taskId: string; reason: string }
-export interface Proposal { proposalId: string; projectId: string; taskId: string; by: string; createdAt: number; state: "open" | "applied" | "kept"; moves: Move[]; holds: Hold[]; summary: string }
+export interface Move {
+  taskId: string;
+  fromStart?: number | undefined;
+  toStart?: number | undefined;
+  fromDue?: number | undefined;
+  toDue?: number | undefined;
+}
+export interface Hold {
+  taskId: string;
+  reason: string;
+}
+export interface Proposal {
+  proposalId: string;
+  projectId: string;
+  taskId: string;
+  by: string;
+  createdAt: number;
+  state: "open" | "applied" | "kept";
+  moves: Move[];
+  holds: Hold[];
+  summary: string;
+}
 const toProposal = (r: Row): Proposal => ({
-  proposalId: str(r["proposalId"]), projectId: str(r["projectId"]), taskId: str(r["taskId"]), by: str(r["byWho"]), createdAt: num(r["createdAt"]), state: str(r["state"]) as Proposal["state"],
-  moves: parseJson<Move[]>(r["moves"], []), holds: parseJson<Hold[]>(r["holds"], []), summary: str(r["summary"]),
+  proposalId: str(r["proposalId"]),
+  projectId: str(r["projectId"]),
+  taskId: str(r["taskId"]),
+  by: str(r["byWho"]),
+  createdAt: num(r["createdAt"]),
+  state: str(r["state"]) as Proposal["state"],
+  moves: parseJson<Move[]>(r["moves"], []),
+  holds: parseJson<Hold[]>(r["holds"], []),
+  summary: str(r["summary"]),
 });
 export function saveProposal(db: Db, p: Proposal): void {
   db.run(
     `INSERT INTO projects_proposal (proposalId, projectId, taskId, byWho, createdAt, state, moves, holds, summary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(proposalId) DO UPDATE SET state = excluded.state`,
-    p.proposalId, p.projectId, p.taskId, p.by, p.createdAt, p.state, JSON.stringify(p.moves), JSON.stringify(p.holds), p.summary,
+    p.proposalId,
+    p.projectId,
+    p.taskId,
+    p.by,
+    p.createdAt,
+    p.state,
+    JSON.stringify(p.moves),
+    JSON.stringify(p.holds),
+    p.summary,
   );
 }
 export function proposalBy(db: Db, proposalId: string): Proposal | undefined {
@@ -288,39 +494,80 @@ export function proposalBy(db: Db, proposalId: string): Proposal | undefined {
   return r ? toProposal(r) : undefined;
 }
 export function openProposals(db: Db, projectId: string): Proposal[] {
-  return (db.all("SELECT * FROM projects_proposal WHERE projectId = ? AND state = 'open' ORDER BY createdAt ASC", projectId) as Row[]).map(toProposal);
+  return (
+    db.all(
+      "SELECT * FROM projects_proposal WHERE projectId = ? AND state = 'open' ORDER BY createdAt ASC",
+      projectId,
+    ) as Row[]
+  ).map(toProposal);
 }
 
 // ---- status update, pins, filed chats, share links, keys ----
 
-export interface UpdateRow { text: string; at: number; by: string; drafted: boolean }
+export interface UpdateRow {
+  text: string;
+  at: number;
+  by: string;
+  drafted: boolean;
+}
 export function updateOf(db: Db, projectId: string): UpdateRow | undefined {
   const r = (db.all("SELECT * FROM projects_update WHERE projectId = ?", projectId) as Row[])[0];
-  return r ? { text: str(r["text"]), at: num(r["at"]), by: str(r["byWho"]), drafted: num(r["drafted"]) === 1 } : undefined;
+  return r
+    ? { text: str(r["text"]), at: num(r["at"]), by: str(r["byWho"]), drafted: num(r["drafted"]) === 1 }
+    : undefined;
 }
 export function saveUpdate(db: Db, projectId: string, u: UpdateRow): void {
   db.run(
     "INSERT INTO projects_update (projectId, text, at, byWho, drafted) VALUES (?, ?, ?, ?, ?) ON CONFLICT(projectId) DO UPDATE SET text = excluded.text, at = excluded.at, byWho = excluded.byWho, drafted = excluded.drafted",
-    projectId, u.text, u.at, u.by, u.drafted ? 1 : 0,
+    projectId,
+    u.text,
+    u.at,
+    u.by,
+    u.drafted ? 1 : 0,
   );
 }
 export function pinsOf(db: Db, projectId: string): string[] {
-  return (db.all("SELECT fileId FROM projects_pin WHERE projectId = ? ORDER BY at ASC, fileId ASC", projectId) as Row[]).map((r) => str(r["fileId"]));
+  return (
+    db.all("SELECT fileId FROM projects_pin WHERE projectId = ? ORDER BY at ASC, fileId ASC", projectId) as Row[]
+  ).map((r) => str(r["fileId"]));
 }
-export function addPin(db: Db, projectId: string, fileId: string, at: number): boolean { return db.run("INSERT OR IGNORE INTO projects_pin (projectId, fileId, at) VALUES (?, ?, ?)", projectId, fileId, at).changes > 0; }
+export function addPin(db: Db, projectId: string, fileId: string, at: number): boolean {
+  return (
+    db.run("INSERT OR IGNORE INTO projects_pin (projectId, fileId, at) VALUES (?, ?, ?)", projectId, fileId, at)
+      .changes > 0
+  );
+}
 /** When a project was archived, or undefined when it is not. */
 export function archivedAt(db: Db, projectId: string): number | undefined {
   const r = (db.all("SELECT archivedAt FROM projects_archived WHERE projectId = ?", projectId) as Row[])[0];
   return r === undefined ? undefined : num(r["archivedAt"]);
 }
 export function setArchived(db: Db, projectId: string, at: number, by: string): boolean {
-  return db.run("INSERT OR IGNORE INTO projects_archived (projectId, archivedAt, archivedBy) VALUES (?, ?, ?)", projectId, at, by).changes > 0;
+  return (
+    db.run(
+      "INSERT OR IGNORE INTO projects_archived (projectId, archivedAt, archivedBy) VALUES (?, ?, ?)",
+      projectId,
+      at,
+      by,
+    ).changes > 0
+  );
 }
-export function clearArchived(db: Db, projectId: string): boolean { return db.run("DELETE FROM projects_archived WHERE projectId = ?", projectId).changes > 0; }
-export function archivedIds(db: Db): Set<string> { return new Set((db.all("SELECT projectId FROM projects_archived") as Row[]).map((r) => str(r["projectId"]))); }
+export function clearArchived(db: Db, projectId: string): boolean {
+  return db.run("DELETE FROM projects_archived WHERE projectId = ?", projectId).changes > 0;
+}
+export function archivedIds(db: Db): Set<string> {
+  return new Set((db.all("SELECT projectId FROM projects_archived") as Row[]).map((r) => str(r["projectId"])));
+}
 
-export function dropPin(db: Db, projectId: string, fileId: string): boolean { return db.run("DELETE FROM projects_pin WHERE projectId = ? AND fileId = ?", projectId, fileId).changes > 0; }
-export function addFiled(db: Db, projectId: string, threadId: string, at: number): boolean { return db.run("INSERT OR IGNORE INTO projects_filed (projectId, threadId, at) VALUES (?, ?, ?)", projectId, threadId, at).changes > 0; }
+export function dropPin(db: Db, projectId: string, fileId: string): boolean {
+  return db.run("DELETE FROM projects_pin WHERE projectId = ? AND fileId = ?", projectId, fileId).changes > 0;
+}
+export function addFiled(db: Db, projectId: string, threadId: string, at: number): boolean {
+  return (
+    db.run("INSERT OR IGNORE INTO projects_filed (projectId, threadId, at) VALUES (?, ?, ?)", projectId, threadId, at)
+      .changes > 0
+  );
+}
 
 /** The answer a keyed call already gave, if any. */
 export function keyed<T>(db: Db, key: string | undefined, cap: string): T | undefined {
@@ -337,16 +584,33 @@ export function remember(db: Db, key: string | undefined, cap: string, result: u
 
 export type TaskState = "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
 export interface TaskView {
-  taskId: string; title: string; state: TaskState; due?: number | undefined; assigned?: string | undefined; reviewer?: string | undefined; approver?: string | undefined;
-  threadId?: string | undefined; dependsOn: string[]; createdAt: number;
+  taskId: string;
+  title: string;
+  state: TaskState;
+  due?: number | undefined;
+  assigned?: string | undefined;
+  reviewer?: string | undefined;
+  approver?: string | undefined;
+  threadId?: string | undefined;
+  dependsOn: string[];
+  createdAt: number;
 }
 export const isOpenState = (s: TaskState): boolean => s !== "done" && s !== "canceled";
-const slot = (v: unknown): string | undefined => (v && typeof v === "object" ? optStr((v as { id?: unknown }).id) : undefined);
+const slot = (v: unknown): string | undefined =>
+  v && typeof v === "object" ? optStr((v as { id?: unknown }).id) : undefined;
 export function toTask(raw: unknown): TaskView {
   const r = (raw ?? {}) as Row;
   return {
-    taskId: str(r["id"] ?? r["taskId"]), title: str(r["title"] ?? ""), state: str(r["state"] ?? "todo") as TaskState, due: optNum(r["due"]), assigned: slot(r["assigned"]), reviewer: slot(r["reviewer"]),
-    approver: slot(r["approver"]), threadId: optStr(r["threadId"]), dependsOn: Array.isArray(r["dependsOn"]) ? (r["dependsOn"] as unknown[]).map(str) : [], createdAt: num(r["createdAt"] ?? 0),
+    taskId: str(r["id"] ?? r["taskId"]),
+    title: str(r["title"] ?? ""),
+    state: str(r["state"] ?? "todo") as TaskState,
+    due: optNum(r["due"]),
+    assigned: slot(r["assigned"]),
+    reviewer: slot(r["reviewer"]),
+    approver: slot(r["approver"]),
+    threadId: optStr(r["threadId"]),
+    dependsOn: Array.isArray(r["dependsOn"]) ? (r["dependsOn"] as unknown[]).map(str) : [],
+    createdAt: num(r["createdAt"] ?? 0),
   };
 }
 /** Every task linked to the project record, in pages of 500. */
@@ -354,7 +618,12 @@ export async function loadTasks(ctx: ProjectsCtx, p: Project): Promise<TaskView[
   const out: TaskView[] = [];
   let cursor: string | undefined;
   for (let i = 0; i < 20; i++) {
-    const page = await call<{ tasks?: unknown[]; next?: string }>(ctx, "tasks.list", { scope: "record", recordId: p.recordId, limit: 500, ...(cursor ? { cursor } : {}) });
+    const page = await call<{ tasks?: unknown[]; next?: string }>(ctx, "tasks.list", {
+      scope: "record",
+      recordId: p.recordId,
+      limit: 500,
+      ...(cursor ? { cursor } : {}),
+    });
     out.push(...(page.tasks ?? []).map(toTask));
     if (!page.next) break;
     cursor = page.next;
@@ -363,28 +632,64 @@ export async function loadTasks(ctx: ProjectsCtx, p: Project): Promise<TaskView[
 }
 
 export interface PlanTask {
-  taskId: string; title: string; stage?: string | undefined; start?: number | undefined; due?: number | undefined; milestone: boolean; status: TaskState;
-  assigned?: string | undefined; reviewer?: string | undefined; approver?: string | undefined; ring?: "review" | "approval" | undefined; threadId?: string | undefined; order?: number | undefined;
+  taskId: string;
+  title: string;
+  stage?: string | undefined;
+  start?: number | undefined;
+  due?: number | undefined;
+  milestone: boolean;
+  status: TaskState;
+  assigned?: string | undefined;
+  reviewer?: string | undefined;
+  approver?: string | undefined;
+  ring?: "review" | "approval" | undefined;
+  threadId?: string | undefined;
+  order?: number | undefined;
 }
 /** A task as the plan shows it: the task's own facts with the project's plan facts beside them. */
 export function planTask(t: TaskView, plan: PlanRow | undefined): PlanTask {
   const start = plan?.start;
   return clean({
-    taskId: t.taskId, title: t.title, stage: plan?.stage, start, due: t.due, milestone: start !== undefined && t.due !== undefined && start === t.due, status: t.state,
-    assigned: t.assigned, reviewer: t.reviewer, approver: t.approver, ring: t.state === "in_review" ? "review" as const : t.state === "awaiting_approval" ? "approval" as const : undefined,
-    threadId: t.threadId ?? plan?.threadId, order: plan?.ord,
+    taskId: t.taskId,
+    title: t.title,
+    stage: plan?.stage,
+    start,
+    due: t.due,
+    milestone: start !== undefined && t.due !== undefined && start === t.due,
+    status: t.state,
+    assigned: t.assigned,
+    reviewer: t.reviewer,
+    approver: t.approver,
+    ring:
+      t.state === "in_review"
+        ? ("review" as const)
+        : t.state === "awaiting_approval"
+          ? ("approval" as const)
+          : undefined,
+    threadId: t.threadId ?? plan?.threadId,
+    order: plan?.ord,
   });
 }
 export function sortPlan(tasks: PlanTask[]): PlanTask[] {
-  return [...tasks].sort((a, b) =>
-    (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) || (a.start ?? a.due ?? Number.MAX_SAFE_INTEGER) - (b.start ?? b.due ?? Number.MAX_SAFE_INTEGER) || a.title.localeCompare(b.title) || a.taskId.localeCompare(b.taskId));
+  return [...tasks].sort(
+    (a, b) =>
+      (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) ||
+      (a.start ?? a.due ?? Number.MAX_SAFE_INTEGER) - (b.start ?? b.due ?? Number.MAX_SAFE_INTEGER) ||
+      a.title.localeCompare(b.title) ||
+      a.taskId.localeCompare(b.taskId),
+  );
 }
 
 // ---- the record of the project (module records owns it) ----
 
-export interface RecordFields { fields: Record<string, unknown> }
+export interface RecordFields {
+  fields: Record<string, unknown>;
+}
 export async function readRecord(ctx: ProjectsCtx, p: Project): Promise<Record<string, unknown>> {
-  const r = await call<{ record?: { fields?: Record<string, unknown> } }>(ctx, "records.get", { type: p.type, recordId: p.recordId });
+  const r = await call<{ record?: { fields?: Record<string, unknown> } }>(ctx, "records.get", {
+    type: p.type,
+    recordId: p.recordId,
+  });
   return r.record?.fields ?? {};
 }
 export async function writeRecord(ctx: ProjectsCtx, p: Project, patch: Record<string, unknown>): Promise<void> {
@@ -394,20 +699,49 @@ export async function writeRecord(ctx: ProjectsCtx, p: Project, patch: Record<st
 export interface ProjectRowOut {
   /** Set when the project is archived. */
   archivedAt?: number;
-  projectId: string; recordId: string; type: string; title: string; summary?: string; status: string; lead?: string; start?: number; due?: number;
-  channelId: string; folderId: string; memberCount: number; openTasks: number; lateTasks: number;
-  health?: "on" | "risk" | "off" | "hold" | "done"; healthSetBy?: string; healthSetAt?: number;
+  projectId: string;
+  recordId: string;
+  type: string;
+  title: string;
+  summary?: string;
+  status: string;
+  lead?: string;
+  start?: number;
+  due?: number;
+  channelId: string;
+  folderId: string;
+  memberCount: number;
+  openTasks: number;
+  lateTasks: number;
+  health?: "on" | "risk" | "off" | "hold" | "done";
+  healthSetBy?: string;
+  healthSetAt?: number;
 }
 const fstr = (v: unknown): string | undefined => (typeof v === "string" && v.length > 0 ? v : undefined);
 const fnum = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
 /** The project as the list and the page show it: the record's fields, the channel and folder, and counts from the tasks. */
-export function projectRow(ctx: ProjectsCtx, p: Project, fields: Record<string, unknown>, tasks: readonly TaskView[]): ProjectRowOut {
+export function projectRow(
+  ctx: ProjectsCtx,
+  p: Project,
+  fields: Record<string, unknown>,
+  tasks: readonly TaskView[],
+): ProjectRowOut {
   const open = tasks.filter((t) => isOpenState(t.state));
   const now = ctx.now();
   return clean({
-    projectId: p.projectId, recordId: p.recordId, type: p.type, title: fstr(fields["title"]) ?? fstr(fields["name"]) ?? "", summary: fstr(fields["summary"]),
-    status: fstr(fields["status"]) ?? "planning", lead: fstr(fields["lead"]), start: fnum(fields["start"]), due: fnum(fields["due"]),
-    channelId: p.channelId ?? "", folderId: p.folderId ?? "", memberCount: countMembers(ctx.db, p.projectId), openTasks: open.length,
+    projectId: p.projectId,
+    recordId: p.recordId,
+    type: p.type,
+    title: fstr(fields["title"]) ?? fstr(fields["name"]) ?? "",
+    summary: fstr(fields["summary"]),
+    status: fstr(fields["status"]) ?? "planning",
+    lead: fstr(fields["lead"]),
+    start: fnum(fields["start"]),
+    due: fnum(fields["due"]),
+    channelId: p.channelId ?? "",
+    folderId: p.folderId ?? "",
+    memberCount: countMembers(ctx.db, p.projectId),
+    openTasks: open.length,
     lateTasks: open.filter((t) => t.due !== undefined && t.due < now).length,
     ...healthFields(ctx.db, p.projectId),
     ...(archivedAt(ctx.db, p.projectId) !== undefined ? { archivedAt: archivedAt(ctx.db, p.projectId) } : {}),
@@ -417,7 +751,11 @@ export function projectRow(ctx: ProjectsCtx, p: Project, fields: Record<string, 
 export function emitP(ctx: ProjectsCtx, name: EventName, projectId: string, payload: Record<string, unknown>): void {
   ctx.emit(name, `project/${projectId}`, clean({ projectId, ...payload }));
 }
-export function page<T>(all: readonly T[], cursor?: string, limit?: number): { rows: T[]; next?: string; total: number } {
+export function page<T>(
+  all: readonly T[],
+  cursor?: string,
+  limit?: number,
+): { rows: T[]; next?: string; total: number } {
   const lim = Math.min(500, Math.max(1, limit ?? 50));
   const start = cursor && /^\d+$/.test(cursor) ? Number(cursor) : 0;
   const rows = all.slice(start, start + lim);
@@ -426,19 +764,31 @@ export function page<T>(all: readonly T[], cursor?: string, limit?: number): { r
   return res;
 }
 
-
 // ---- health set by hand ----
 
 export type Health = "on" | "risk" | "off" | "hold" | "done";
 export const HEALTHS: readonly Health[] = ["on", "risk", "off", "hold", "done"];
-export interface HealthRow { health: Health; by: string; at: number }
+export interface HealthRow {
+  health: Health;
+  by: string;
+  at: number;
+}
 export function healthOf(db: Db, projectId: string): HealthRow | undefined {
   const r = (db.all("SELECT * FROM projects_health WHERE projectId = ?", projectId) as Row[])[0];
   return r ? { health: str(r["health"]) as Health, by: str(r["byWho"]), at: num(r["at"]) } : undefined;
 }
 export function saveHealth(db: Db, projectId: string, h: HealthRow | null): void {
-  if (h === null) { db.run("DELETE FROM projects_health WHERE projectId = ?", projectId); return; }
-  db.run("INSERT INTO projects_health (projectId, health, byWho, at) VALUES (?, ?, ?, ?) ON CONFLICT(projectId) DO UPDATE SET health = excluded.health, byWho = excluded.byWho, at = excluded.at", projectId, h.health, h.by, h.at);
+  if (h === null) {
+    db.run("DELETE FROM projects_health WHERE projectId = ?", projectId);
+    return;
+  }
+  db.run(
+    "INSERT INTO projects_health (projectId, health, byWho, at) VALUES (?, ?, ?, ?) ON CONFLICT(projectId) DO UPDATE SET health = excluded.health, byWho = excluded.byWho, at = excluded.at",
+    projectId,
+    h.health,
+    h.by,
+    h.at,
+  );
 }
 /** The row's health fields: present only while a manager's override is set ("Set by <name>"). */
 function healthFields(db: Db, projectId: string): { health?: Health; healthSetBy?: string; healthSetAt?: number } {
@@ -448,94 +798,254 @@ function healthFields(db: Db, projectId: string): { health?: Health; healthSetBy
 
 // ---- the status update's draft ----
 
-export interface DraftRow { text: string; by: string; at: number }
+export interface DraftRow {
+  text: string;
+  by: string;
+  at: number;
+}
 export function draftOf(db: Db, projectId: string): DraftRow | undefined {
   const r = (db.all("SELECT * FROM projects_draft WHERE projectId = ?", projectId) as Row[])[0];
   return r ? { text: str(r["text"]), by: str(r["byWho"]), at: num(r["at"]) } : undefined;
 }
 export function saveDraft(db: Db, projectId: string, d: DraftRow | null): void {
-  if (d === null) { db.run("DELETE FROM projects_draft WHERE projectId = ?", projectId); return; }
-  db.run("INSERT INTO projects_draft (projectId, text, byWho, at) VALUES (?, ?, ?, ?) ON CONFLICT(projectId) DO UPDATE SET text = excluded.text, byWho = excluded.byWho, at = excluded.at", projectId, d.text, d.by, d.at);
+  if (d === null) {
+    db.run("DELETE FROM projects_draft WHERE projectId = ?", projectId);
+    return;
+  }
+  db.run(
+    "INSERT INTO projects_draft (projectId, text, byWho, at) VALUES (?, ?, ?, ?) ON CONFLICT(projectId) DO UPDATE SET text = excluded.text, byWho = excluded.byWho, at = excluded.at",
+    projectId,
+    d.text,
+    d.by,
+    d.at,
+  );
 }
 
 // ---- things linked to a project ----
 
-export const LINK_KINDS = ["record", "file", "chat", "task", "artifact", "mail_thread", "calendar_event", "github.pr", "github.commit", "ci.run", "url"] as const;
+export const LINK_KINDS = [
+  "record",
+  "file",
+  "chat",
+  "task",
+  "artifact",
+  "mail_thread",
+  "calendar_event",
+  "github.pr",
+  "github.commit",
+  "ci.run",
+  "url",
+] as const;
 export type LinkKind = (typeof LINK_KINDS)[number];
 export type LinkSource = "manual" | "agent" | "rule";
-export interface Attach { linkId: string; projectId: string; kind: LinkKind; ref: string; source: LinkSource; addedBy: string; ruleId?: string | undefined; addedAt: number; snapshot?: { state?: string | undefined; label?: string | undefined; url?: string | undefined } | undefined }
+export interface Attach {
+  linkId: string;
+  projectId: string;
+  kind: LinkKind;
+  ref: string;
+  source: LinkSource;
+  addedBy: string;
+  ruleId?: string | undefined;
+  addedAt: number;
+  snapshot?: { state?: string | undefined; label?: string | undefined; url?: string | undefined } | undefined;
+}
 const toAttach = (r: Row): Attach => ({
-  linkId: str(r["linkId"]), projectId: str(r["projectId"]), kind: str(r["kind"]) as LinkKind, ref: str(r["ref"]), source: str(r["source"]) as LinkSource, addedBy: str(r["addedBy"]),
-  ruleId: optStr(r["ruleId"]), addedAt: num(r["addedAt"]), snapshot: parseJson<Attach["snapshot"]>(r["snapshot"], undefined),
+  linkId: str(r["linkId"]),
+  projectId: str(r["projectId"]),
+  kind: str(r["kind"]) as LinkKind,
+  ref: str(r["ref"]),
+  source: str(r["source"]) as LinkSource,
+  addedBy: str(r["addedBy"]),
+  ruleId: optStr(r["ruleId"]),
+  addedAt: num(r["addedAt"]),
+  snapshot: parseJson<Attach["snapshot"]>(r["snapshot"], undefined),
 });
 export function attachesOf(db: Db, projectId: string, kind?: string): Attach[] {
-  const rows = (kind === undefined
-    ? db.all("SELECT * FROM projects_attach WHERE projectId = ? ORDER BY addedAt DESC, linkId DESC", projectId)
-    : db.all("SELECT * FROM projects_attach WHERE projectId = ? AND kind = ? ORDER BY addedAt DESC, linkId DESC", projectId, kind)) as Row[];
+  const rows = (
+    kind === undefined
+      ? db.all("SELECT * FROM projects_attach WHERE projectId = ? ORDER BY addedAt DESC, linkId DESC", projectId)
+      : db.all(
+          "SELECT * FROM projects_attach WHERE projectId = ? AND kind = ? ORDER BY addedAt DESC, linkId DESC",
+          projectId,
+          kind,
+        )
+  ) as Row[];
   return rows.map(toAttach);
 }
 export function attachBy(db: Db, projectId: string, kind: string, ref: string): Attach | undefined {
-  const r = (db.all("SELECT * FROM projects_attach WHERE projectId = ? AND kind = ? AND ref = ?", projectId, kind, ref) as Row[])[0];
+  const r = (
+    db.all("SELECT * FROM projects_attach WHERE projectId = ? AND kind = ? AND ref = ?", projectId, kind, ref) as Row[]
+  )[0];
   return r ? toAttach(r) : undefined;
 }
 export function saveAttach(db: Db, a: Attach): boolean {
-  return db.run(
-    "INSERT OR IGNORE INTO projects_attach (linkId, projectId, kind, ref, source, addedBy, ruleId, addedAt, snapshot) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    a.linkId, a.projectId, a.kind, a.ref, a.source, a.addedBy, a.ruleId ?? null, a.addedAt, a.snapshot ? JSON.stringify(a.snapshot) : null,
-  ).changes > 0;
+  return (
+    db.run(
+      "INSERT OR IGNORE INTO projects_attach (linkId, projectId, kind, ref, source, addedBy, ruleId, addedAt, snapshot) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      a.linkId,
+      a.projectId,
+      a.kind,
+      a.ref,
+      a.source,
+      a.addedBy,
+      a.ruleId ?? null,
+      a.addedAt,
+      a.snapshot ? JSON.stringify(a.snapshot) : null,
+    ).changes > 0
+  );
 }
 /** A link brought a newer state, label or address (a CI run changes every few minutes): the link keeps the latest. */
-export function updateSnapshot(db: Db, projectId: string, kind: string, ref: string, snapshot: NonNullable<Attach["snapshot"]>): void {
-  db.run("UPDATE projects_attach SET snapshot = ? WHERE projectId = ? AND kind = ? AND ref = ?", JSON.stringify(snapshot), projectId, kind, ref);
+export function updateSnapshot(
+  db: Db,
+  projectId: string,
+  kind: string,
+  ref: string,
+  snapshot: NonNullable<Attach["snapshot"]>,
+): void {
+  db.run(
+    "UPDATE projects_attach SET snapshot = ? WHERE projectId = ? AND kind = ? AND ref = ?",
+    JSON.stringify(snapshot),
+    projectId,
+    kind,
+    ref,
+  );
 }
 export function dropAttach(db: Db, projectId: string, kind: string, ref: string): boolean {
-  return db.run("DELETE FROM projects_attach WHERE projectId = ? AND kind = ? AND ref = ?", projectId, kind, ref).changes > 0;
+  return (
+    db.run("DELETE FROM projects_attach WHERE projectId = ? AND kind = ? AND ref = ?", projectId, kind, ref).changes > 0
+  );
 }
 export function isException(db: Db, projectId: string, kind: string, ref: string): boolean {
-  return (db.all("SELECT 1 AS x FROM projects_exception WHERE projectId = ? AND kind = ? AND ref = ?", projectId, kind, ref) as Row[]).length > 0;
+  return (
+    (
+      db.all(
+        "SELECT 1 AS x FROM projects_exception WHERE projectId = ? AND kind = ? AND ref = ?",
+        projectId,
+        kind,
+        ref,
+      ) as Row[]
+    ).length > 0
+  );
 }
 export function saveException(db: Db, projectId: string, kind: string, ref: string, by: string, at: number): void {
-  db.run("INSERT OR IGNORE INTO projects_exception (projectId, kind, ref, byWho, at) VALUES (?, ?, ?, ?, ?)", projectId, kind, ref, by, at);
+  db.run(
+    "INSERT OR IGNORE INTO projects_exception (projectId, kind, ref, byWho, at) VALUES (?, ?, ?, ?, ?)",
+    projectId,
+    kind,
+    ref,
+    by,
+    at,
+  );
 }
 export function dropException(db: Db, projectId: string, kind: string, ref: string): void {
   db.run("DELETE FROM projects_exception WHERE projectId = ? AND kind = ? AND ref = ?", projectId, kind, ref);
 }
 
 export type RuleKind = "repo" | "record_filter" | "email_domain";
-export interface RuleSpec { repo?: string | undefined; recordType?: string | undefined; field?: string | undefined; equals?: string | undefined; domain?: string | undefined }
-export interface Rule { ruleId: string; projectId: string; kind: RuleKind; spec: RuleSpec; by: string; at: number }
-const toRule = (r: Row): Rule => ({ ruleId: str(r["ruleId"]), projectId: str(r["projectId"]), kind: str(r["kind"]) as RuleKind, spec: parseJson<RuleSpec>(r["spec"], {}), by: str(r["byWho"]), at: num(r["at"]) });
+export interface RuleSpec {
+  repo?: string | undefined;
+  recordType?: string | undefined;
+  field?: string | undefined;
+  equals?: string | undefined;
+  domain?: string | undefined;
+}
+export interface Rule {
+  ruleId: string;
+  projectId: string;
+  kind: RuleKind;
+  spec: RuleSpec;
+  by: string;
+  at: number;
+}
+const toRule = (r: Row): Rule => ({
+  ruleId: str(r["ruleId"]),
+  projectId: str(r["projectId"]),
+  kind: str(r["kind"]) as RuleKind,
+  spec: parseJson<RuleSpec>(r["spec"], {}),
+  by: str(r["byWho"]),
+  at: num(r["at"]),
+});
 export function rulesOf(db: Db, projectId: string): Rule[] {
-  return (db.all("SELECT * FROM projects_rule WHERE projectId = ? ORDER BY at ASC, ruleId ASC", projectId) as Row[]).map(toRule);
+  return (
+    db.all("SELECT * FROM projects_rule WHERE projectId = ? ORDER BY at ASC, ruleId ASC", projectId) as Row[]
+  ).map(toRule);
 }
 export function allRules(db: Db): Rule[] {
   return (db.all("SELECT * FROM projects_rule ORDER BY at ASC, ruleId ASC") as Row[]).map(toRule);
 }
 export function replaceRules(db: Db, projectId: string, rules: readonly Rule[]): void {
   db.run("DELETE FROM projects_rule WHERE projectId = ?", projectId);
-  for (const r of rules) db.run("INSERT INTO projects_rule (ruleId, projectId, kind, spec, byWho, at) VALUES (?, ?, ?, ?, ?, ?)", r.ruleId, projectId, r.kind, JSON.stringify(r.spec), r.by, r.at);
+  for (const r of rules)
+    db.run(
+      "INSERT INTO projects_rule (ruleId, projectId, kind, spec, byWho, at) VALUES (?, ?, ?, ?, ?, ?)",
+      r.ruleId,
+      projectId,
+      r.kind,
+      JSON.stringify(r.spec),
+      r.by,
+      r.at,
+    );
 }
-
 
 // ---- the Overview page ----
 
 export type LiveType = "tasks" | "milestones" | "links" | "records" | "metric" | "ci" | "goal" | "people" | "status";
-export const LIVE_TYPES: readonly LiveType[] = ["tasks", "milestones", "links", "records", "metric", "ci", "goal", "people", "status"];
+export const LIVE_TYPES: readonly LiveType[] = [
+  "tasks",
+  "milestones",
+  "links",
+  "records",
+  "metric",
+  "ci",
+  "goal",
+  "people",
+  "status",
+];
 export interface PageBlock {
-  id: string; kind: "text" | "heading" | "live"; text?: string | undefined; level?: number | undefined;
-  live?: { type: LiveType; spec: Record<string, unknown>; view?: "list" | "table" | "count" | "cards" | undefined } | undefined;
-  by?: string | undefined; at?: number | undefined;
+  id: string;
+  kind: "text" | "heading" | "live";
+  text?: string | undefined;
+  level?: number | undefined;
+  live?:
+    | { type: LiveType; spec: Record<string, unknown>; view?: "list" | "table" | "count" | "cards" | undefined }
+    | undefined;
+  by?: string | undefined;
+  at?: number | undefined;
 }
-export interface DocRow { rev: number; blocks: PageBlock[]; by: string; at: number }
+export interface DocRow {
+  rev: number;
+  blocks: PageBlock[];
+  by: string;
+  at: number;
+}
 export function docOf(db: Db, projectId: string): DocRow | undefined {
   const r = (db.all("SELECT * FROM projects_doc WHERE projectId = ?", projectId) as Row[])[0];
-  return r ? { rev: num(r["rev"]), blocks: parseJson<PageBlock[]>(r["blocks"], []), by: str(r["byWho"]), at: num(r["at"]) } : undefined;
+  return r
+    ? { rev: num(r["rev"]), blocks: parseJson<PageBlock[]>(r["blocks"], []), by: str(r["byWho"]), at: num(r["at"]) }
+    : undefined;
 }
-export interface RevRow { rev: number; by: string; authorKind: "person" | "agent"; summary: string; undoOf?: number | undefined; at: number; before: PageBlock[]; props?: Record<string, unknown> | undefined }
+export interface RevRow {
+  rev: number;
+  by: string;
+  authorKind: "person" | "agent";
+  summary: string;
+  undoOf?: number | undefined;
+  at: number;
+  before: PageBlock[];
+  props?: Record<string, unknown> | undefined;
+}
 export function revsOf(db: Db, projectId: string, limit = 50): RevRow[] {
-  return (db.all("SELECT * FROM projects_doc_rev WHERE projectId = ? ORDER BY rev DESC LIMIT ?", projectId, limit) as Row[]).map((r) => ({
-    rev: num(r["rev"]), by: str(r["byWho"]), authorKind: str(r["authorKind"]) as RevRow["authorKind"], summary: str(r["summary"]), undoOf: optNum(r["undoOf"]), at: num(r["at"]),
-    before: parseJson<PageBlock[]>(r["before"], []), props: parseJson<Record<string, unknown> | undefined>(r["props"], undefined),
+  return (
+    db.all("SELECT * FROM projects_doc_rev WHERE projectId = ? ORDER BY rev DESC LIMIT ?", projectId, limit) as Row[]
+  ).map((r) => ({
+    rev: num(r["rev"]),
+    by: str(r["byWho"]),
+    authorKind: str(r["authorKind"]) as RevRow["authorKind"],
+    summary: str(r["summary"]),
+    undoOf: optNum(r["undoOf"]),
+    at: num(r["at"]),
+    before: parseJson<PageBlock[]>(r["before"], []),
+    props: parseJson<Record<string, unknown> | undefined>(r["props"], undefined),
   }));
 }
 /** The blocks the page had as of one revision (what that revision saved), or undefined when it is gone (the oldest beyond 200 are dropped). */
@@ -544,22 +1054,81 @@ export function revBlocks(db: Db, projectId: string, rev: number): PageBlock[] |
   return r === undefined ? undefined : parseJson<PageBlock[]>(r["blocks"], []);
 }
 /** Write the page as a new revision. The oldest revisions beyond 200 are dropped. */
-export function saveDoc(db: Db, projectId: string, o: { blocks: PageBlock[]; before: PageBlock[]; props?: Record<string, unknown> | undefined; by: string; authorKind: "person" | "agent"; summary: string; undoOf?: number | undefined; at: number }): number {
+export function saveDoc(
+  db: Db,
+  projectId: string,
+  o: {
+    blocks: PageBlock[];
+    before: PageBlock[];
+    props?: Record<string, unknown> | undefined;
+    by: string;
+    authorKind: "person" | "agent";
+    summary: string;
+    undoOf?: number | undefined;
+    at: number;
+  },
+): number {
   const rev = (docOf(db, projectId)?.rev ?? 0) + 1;
-  db.run("INSERT INTO projects_doc (projectId, rev, blocks, byWho, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(projectId) DO UPDATE SET rev = excluded.rev, blocks = excluded.blocks, byWho = excluded.byWho, at = excluded.at", projectId, rev, JSON.stringify(o.blocks), o.by, o.at);
-  db.run("INSERT INTO projects_doc_rev (projectId, rev, blocks, before, props, byWho, authorKind, summary, undoOf, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", projectId, rev, JSON.stringify(o.blocks), JSON.stringify(o.before), o.props ? JSON.stringify(o.props) : null, o.by, o.authorKind, o.summary, o.undoOf ?? null, o.at);
+  db.run(
+    "INSERT INTO projects_doc (projectId, rev, blocks, byWho, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(projectId) DO UPDATE SET rev = excluded.rev, blocks = excluded.blocks, byWho = excluded.byWho, at = excluded.at",
+    projectId,
+    rev,
+    JSON.stringify(o.blocks),
+    o.by,
+    o.at,
+  );
+  db.run(
+    "INSERT INTO projects_doc_rev (projectId, rev, blocks, before, props, byWho, authorKind, summary, undoOf, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    projectId,
+    rev,
+    JSON.stringify(o.blocks),
+    JSON.stringify(o.before),
+    o.props ? JSON.stringify(o.props) : null,
+    o.by,
+    o.authorKind,
+    o.summary,
+    o.undoOf ?? null,
+    o.at,
+  );
   db.run("DELETE FROM projects_doc_rev WHERE projectId = ? AND rev <= ?", projectId, rev - 200);
   return rev;
 }
-export interface PageTemplate { templateId: string; title: string; summary?: string | undefined; blocks: PageBlock[]; builtin: boolean; by: string; at: number }
-const toTemplate = (r: Row): PageTemplate => ({ templateId: str(r["templateId"]), title: str(r["title"]), summary: optStr(r["summary"]), blocks: parseJson<PageBlock[]>(r["blocks"], []), builtin: num(r["builtin"]) === 1, by: str(r["byWho"]), at: num(r["at"]) });
+export interface PageTemplate {
+  templateId: string;
+  title: string;
+  summary?: string | undefined;
+  blocks: PageBlock[];
+  builtin: boolean;
+  by: string;
+  at: number;
+}
+const toTemplate = (r: Row): PageTemplate => ({
+  templateId: str(r["templateId"]),
+  title: str(r["title"]),
+  summary: optStr(r["summary"]),
+  blocks: parseJson<PageBlock[]>(r["blocks"], []),
+  builtin: num(r["builtin"]) === 1,
+  by: str(r["byWho"]),
+  at: num(r["at"]),
+});
 export function templatesOf(db: Db): PageTemplate[] {
-  return (db.all("SELECT * FROM projects_page_template ORDER BY builtin DESC, at ASC, templateId ASC") as Row[]).map(toTemplate);
+  return (db.all("SELECT * FROM projects_page_template ORDER BY builtin DESC, at ASC, templateId ASC") as Row[]).map(
+    toTemplate,
+  );
 }
 export function templateBy(db: Db, templateId: string): PageTemplate | undefined {
   const r = (db.all("SELECT * FROM projects_page_template WHERE templateId = ?", templateId) as Row[])[0];
   return r ? toTemplate(r) : undefined;
 }
 export function saveTemplate(db: Db, t: PageTemplate): void {
-  db.run("INSERT INTO projects_page_template (templateId, title, summary, blocks, builtin, byWho, at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(templateId) DO UPDATE SET title = excluded.title, summary = excluded.summary, blocks = excluded.blocks", t.templateId, t.title, t.summary ?? null, JSON.stringify(t.blocks), t.builtin ? 1 : 0, t.by, t.at);
+  db.run(
+    "INSERT INTO projects_page_template (templateId, title, summary, blocks, builtin, byWho, at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(templateId) DO UPDATE SET title = excluded.title, summary = excluded.summary, blocks = excluded.blocks",
+    t.templateId,
+    t.title,
+    t.summary ?? null,
+    JSON.stringify(t.blocks),
+    t.builtin ? 1 : 0,
+    t.by,
+    t.at,
+  );
 }

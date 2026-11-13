@@ -26,7 +26,10 @@ export interface ProofBody {
 }
 
 export interface ProofFetch {
-  (url: string, init: { method: string; headers: Record<string, string>; body: string }): Promise<{ ok: boolean; status: number }>;
+  (
+    url: string,
+    init: { method: string; headers: Record<string, string>; body: string },
+  ): Promise<{ ok: boolean; status: number }>;
 }
 
 export interface ShotResultMeta {
@@ -60,7 +63,12 @@ function slug(name: string): string {
   return name.trim().toLowerCase().replaceAll(" ", "-");
 }
 
-export async function postProof(tracker: string, packetId: string, body: ProofBody, fetchImpl: ProofFetch): Promise<{ url: string; status: number }> {
+export async function postProof(
+  tracker: string,
+  packetId: string,
+  body: ProofBody,
+  fetchImpl: ProofFetch,
+): Promise<{ url: string; status: number }> {
   const url = proofUrl(tracker, packetId);
   const headers: Record<string, string> = { "content-type": "application/json" };
   const token = process.env.VYRE_TRACKER_TOKEN;
@@ -174,7 +182,9 @@ async function main(): Promise<void> {
   const screenId = flag(args, "--screen") ?? "batch1";
   const tracker = flag(args, "--tracker") ?? process.env.VYRE_TRACKER_URL ?? "http://127.0.0.1:7790";
   if (!packetId) {
-    console.error("usage: node scripts/shots/capture.ts --packet <id> [--screen batch1|screens] [--skin <Northwind|Harbor Studio>] [--width 390|1280] [--density compact|regular] [--both] [--tracker url]");
+    console.error(
+      "usage: node scripts/shots/capture.ts --packet <id> [--screen batch1|screens] [--skin <Northwind|Harbor Studio>] [--width 390|1280] [--density compact|regular] [--both] [--tracker url]",
+    );
     process.exit(2);
   }
   const browser = await launchPlaywright();
@@ -191,7 +201,11 @@ async function main(): Promise<void> {
       if (densityFlag !== undefined && densityFlag !== "compact" && densityFlag !== "regular") {
         throw new Error(`Unknown density: ${densityFlag}`);
       }
-      jobs.push(densityFlag === "compact" || densityFlag === "regular" ? { skin, width, density: densityFlag } : { skin, width });
+      jobs.push(
+        densityFlag === "compact" || densityFlag === "regular"
+          ? { skin, width, density: densityFlag }
+          : { skin, width },
+      );
     }
     for (const job of jobs) {
       const shot = await captureShot({

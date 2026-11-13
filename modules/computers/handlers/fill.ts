@@ -19,19 +19,34 @@ export type FillLookup =
   | { kind: "denied"; reason: string };
 
 export interface FillSource {
-  lookup(handle: string, who: { agentId: string; asker: string; where: "host" | "device" | "computer" }): Promise<FillLookup>;
+  lookup(
+    handle: string,
+    who: { agentId: string; asker: string; where: "host" | "device" | "computer" },
+  ): Promise<FillLookup>;
   /**
    * A Vault capability for Vyre for Chrome inside a Space browser profile, as the agent the profile belongs to (the extension asks which items fit a page, and for a handle to one). Only the capabilities in
    * FILL_INVOKE are asked; a source without this answers 404 and the extension finds nothing to fill.
    */
-  invoke?(capability: string, input: Record<string, unknown>, who: { agentId: string; asker: string }): Promise<unknown>;
+  invoke?(
+    capability: string,
+    input: Record<string, unknown>,
+    who: { agentId: string; asker: string },
+  ): Promise<unknown>;
 }
 
 /** What the extension in a Space browser profile may ask of the Vault through the fill channel: which items fit a page (names and field keys, never values) and a handle to one item. A value goes only by #Handle.field. */
 export const FILL_INVOKE: readonly string[] = ["vault.items.match", "vault.use"];
 
 /** What the host remembers about one use: who, what, where. Never the value. */
-export interface FillUse { computerId: string; agentId: string; asker: string; handle: string; itemId: string; outcome: "filled" | "refused" | "missing"; at: number }
+export interface FillUse {
+  computerId: string;
+  agentId: string;
+  asker: string;
+  handle: string;
+  itemId: string;
+  outcome: "filled" | "refused" | "missing";
+  at: number;
+}
 
 export interface FillServiceDeps {
   source: FillSource;
@@ -40,19 +55,38 @@ export interface FillServiceDeps {
   now?: () => number;
 }
 
-export interface FillGrant { fillToken: string; revoke(): void; /** Start the token's life again (its ttl), while calls keep it in use. */ extend?(): void; /** No call is running: the token answers nothing (401) until resume, so nothing fills for this person between calls. */ pause?(): void; resume?(): void }
-export interface FillResponse { status: 200 | 400 | 401 | 403 | 404 | 503; body: Record<string, unknown> }
+export interface FillGrant {
+  fillToken: string;
+  revoke(): void;
+  /** Start the token's life again (its ttl), while calls keep it in use. */ extend?(): void;
+  /** No call is running: the token answers nothing (401) until resume, so nothing fills for this person between calls. */ pause?(): void;
+  resume?(): void;
+}
+export interface FillResponse {
+  status: 200 | 400 | 401 | 403 | 404 | 503;
+  body: Record<string, unknown>;
+}
 
 /**
  * `nodeId` is set for a computer that lives on a computer that joined the Space: its fill crosses a network link, which must be private. `turn`: a token for one person's tool calls in a Space browser
  * profile, ended when they finish; several live side by side (one team agent working for two people at once), so a fill is always looked up as the person whose call it rides.
  */
-interface Holder { computerId: string; agentId: string; asker: string; nodeId?: string; turn?: boolean; /** No fill or invoke is answered while this is set: the person has no call running. */ paused?: boolean; /** The token ends this long after it was issued (or last extended): a missed revoke is never for ever. */ ttlMs?: number; until?: number }
+interface Holder {
+  computerId: string;
+  agentId: string;
+  asker: string;
+  nodeId?: string;
+  turn?: boolean;
+  /** No fill or invoke is answered while this is set: the person has no call running. */ paused?: boolean;
+  /** The token ends this long after it was issued (or last extended): a missed revoke is never for ever. */ ttlMs?: number;
+  until?: number;
+}
 
 const HANDLE = /^[A-Za-z][A-Za-z0-9_]*$/;
 const FIELD = /^[A-Za-z0-9_]+$/;
 
-const hex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
+const hex = (n: number): string =>
+  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 async function sha256(text: string): Promise<string> {
   const d = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -62,7 +96,11 @@ export interface FillService {
   /** A token for one computer, held as a hash. Issuing again for the same computer ends the earlier token, except a `turn` token, which lives beside the others until it is revoked. */
   issue(h: Holder): Promise<FillGrant>;
   /** The endpoint, without the transport: header and parsed body in, status and body out. */
-  serve(req: { authorization: string | undefined; body: unknown; /** is the link the request came over private (TLS, or this machine)? */ secure?: boolean }): Promise<FillResponse>;
+  serve(req: {
+    authorization: string | undefined;
+    body: unknown;
+    /** is the link the request came over private (TLS, or this machine)? */ secure?: boolean;
+  }): Promise<FillResponse>;
   /** How many computers hold a live token (tests). */
   live(): number;
 }
@@ -70,7 +108,7 @@ export interface FillService {
 export function createFillService(d: FillServiceDeps): FillService {
   const now = d.now ?? Date.now;
   const byHash = new Map<string, Holder>();
-  const hashOf = new Map<string, string>();   // computerId -> hash
+  const hashOf = new Map<string, string>(); // computerId -> hash
 
   return {
     async issue(h) {
@@ -85,9 +123,15 @@ export function createFillService(d: FillServiceDeps): FillService {
       byHash.set(hash, holder);
       return {
         fillToken: token,
-        extend() { if (holder.ttlMs !== undefined) holder.until = now() + holder.ttlMs; },
-        pause() { holder.paused = true; },
-        resume() { holder.paused = false; },
+        extend() {
+          if (holder.ttlMs !== undefined) holder.until = now() + holder.ttlMs;
+        },
+        pause() {
+          holder.paused = true;
+        },
+        resume() {
+          holder.paused = false;
+        },
         revoke() {
           if (hashOf.get(h.computerId) === hash) hashOf.delete(h.computerId);
           byHash.delete(hash);
@@ -101,43 +145,112 @@ export function createFillService(d: FillServiceDeps): FillService {
       const holder = hashed ? byHash.get(hashed) : undefined;
       if (!holder) return { status: 401, body: { code: "unauthorized" } };
       if (holder.paused === true) return { status: 401, body: { code: "unauthorized" } };
-      if (holder.until !== undefined && now() > holder.until) { byHash.delete(hashed!); return { status: 401, body: { code: "unauthorized" } }; }
-      const b = req.body as { handle?: unknown; field?: unknown; computerId?: unknown; op?: unknown; capability?: unknown; input?: unknown } | null;
+      if (holder.until !== undefined && now() > holder.until) {
+        byHash.delete(hashed!);
+        return { status: 401, body: { code: "unauthorized" } };
+      }
+      const b = req.body as {
+        handle?: unknown;
+        field?: unknown;
+        computerId?: unknown;
+        op?: unknown;
+        capability?: unknown;
+        input?: unknown;
+      } | null;
       if (b && b.op === "invoke") {
-        if (typeof b.computerId !== "string" || b.computerId !== holder.computerId) return { status: 403, body: { code: "forbidden" } };
-        if (typeof b.capability !== "string" || !FILL_INVOKE.includes(b.capability) || typeof b.input !== "object" || b.input === null || Array.isArray(b.input)) return { status: 400, body: { code: "bad_input" } };
+        if (typeof b.computerId !== "string" || b.computerId !== holder.computerId)
+          return { status: 403, body: { code: "forbidden" } };
+        if (
+          typeof b.capability !== "string" ||
+          !FILL_INVOKE.includes(b.capability) ||
+          typeof b.input !== "object" ||
+          b.input === null ||
+          Array.isArray(b.input)
+        )
+          return { status: 400, body: { code: "bad_input" } };
         if (!d.source.invoke) return { status: 404, body: { code: "not_found" } };
         if (holder.nodeId !== undefined && req.secure !== true) return { status: 403, body: { code: "insecure_link" } };
         try {
-          return { status: 200, body: { output: await d.source.invoke(b.capability, b.input as Record<string, unknown>, { agentId: holder.agentId, asker: holder.asker }) } };
+          return {
+            status: 200,
+            body: {
+              output: await d.source.invoke(b.capability, b.input as Record<string, unknown>, {
+                agentId: holder.agentId,
+                asker: holder.asker,
+              }),
+            },
+          };
         } catch (e) {
           const code = (e as { error?: { code?: unknown } } | null)?.error?.code;
-          return typeof code === "string" && /permission|not_found/.test(code) ? { status: code.includes("not_found") ? 404 : 403, body: { code: code.includes("not_found") ? "not_found" : "forbidden" } } : { status: 503, body: { code: "unavailable" } };
+          return typeof code === "string" && /permission|not_found/.test(code)
+            ? {
+                status: code.includes("not_found") ? 404 : 403,
+                body: { code: code.includes("not_found") ? "not_found" : "forbidden" },
+              }
+            : { status: 503, body: { code: "unavailable" } };
         }
       }
-      if (!b || typeof b.handle !== "string" || typeof b.field !== "string" || !HANDLE.test(b.handle) || !FIELD.test(b.field)) return { status: 400, body: { code: "bad_input" } };
+      if (
+        !b ||
+        typeof b.handle !== "string" ||
+        typeof b.field !== "string" ||
+        !HANDLE.test(b.handle) ||
+        !FIELD.test(b.field)
+      )
+        return { status: 400, body: { code: "bad_input" } };
       // A token is for one computer. A body that names another is a computer asking for what it was not given.
-      if (typeof b.computerId !== "string" || b.computerId !== holder.computerId) return { status: 403, body: { code: "forbidden" } };
+      if (typeof b.computerId !== "string" || b.computerId !== holder.computerId)
+        return { status: 403, body: { code: "forbidden" } };
 
       const handle = `#${b.handle}.${b.field}`;
       // A computer on a server of the person's asks over the network: a secret goes only over a private link, and nothing is read from the Vault for one that is not.
       if (holder.nodeId !== undefined && req.secure !== true) {
-        await Promise.resolve(d.log({ computerId: holder.computerId, agentId: holder.agentId, asker: holder.asker, handle, itemId: handle, outcome: "refused", at: now() })).catch(() => undefined);
+        await Promise.resolve(
+          d.log({
+            computerId: holder.computerId,
+            agentId: holder.agentId,
+            asker: holder.asker,
+            handle,
+            itemId: handle,
+            outcome: "refused",
+            at: now(),
+          }),
+        ).catch(() => undefined);
         return { status: 403, body: { code: "insecure_link" } };
       }
-      const use = (outcome: FillUse["outcome"], itemId: string): FillUse => ({ computerId: holder.computerId, agentId: holder.agentId, asker: holder.asker, handle, itemId, outcome, at: now() });
+      const use = (outcome: FillUse["outcome"], itemId: string): FillUse => ({
+        computerId: holder.computerId,
+        agentId: holder.agentId,
+        asker: holder.asker,
+        handle,
+        itemId,
+        outcome,
+        at: now(),
+      });
       // A log that throws (or rejects) must not decide the answer of a refusal.
-      const note = async (u: FillUse): Promise<void> => { try { await d.log(u); } catch { /* the refusal stands */ } };
+      const note = async (u: FillUse): Promise<void> => {
+        try {
+          await d.log(u);
+        } catch {
+          /* the refusal stands */
+        }
+      };
       let found: FillLookup;
       try {
         found = await d.source.lookup(handle, { agentId: holder.agentId, asker: holder.asker, where: "computer" });
       } catch {
-        return { status: 503, body: { code: "unavailable" } };   // never the original error: it may carry request text
+        return { status: 503, body: { code: "unavailable" } }; // never the original error: it may carry request text
       }
       if (found.kind === "denied") {
         await note(use("refused", handle));
         // why, in the agent's words: a team agent's shared computer, or an item that needs approval nothing here can ask for (the other refusals say no more than "forbidden")
-        const why = found.reason === "team_agent" || found.reason === "team_shared" || found.reason === "team_unknown_agent" || found.reason === "needs_approval" ? { reason: found.reason, message: deniedLine(handle, found.reason) } : {};
+        const why =
+          found.reason === "team_agent" ||
+          found.reason === "team_shared" ||
+          found.reason === "team_unknown_agent" ||
+          found.reason === "needs_approval"
+            ? { reason: found.reason, message: deniedLine(handle, found.reason) }
+            : {};
         return { status: 403, body: { code: "forbidden", ...why } };
       }
       if (found.kind === "unknown") {
@@ -147,7 +260,7 @@ export function createFillService(d: FillServiceDeps): FillService {
       try {
         await d.log(use("filled", found.itemId));
       } catch {
-        return { status: 503, body: { code: "unavailable" } };   // the use could not be recorded, so the value is not handed out
+        return { status: 503, body: { code: "unavailable" } }; // the use could not be recorded, so the value is not handed out
       }
       // every value handed to a computer is taken out of all it answers from now on, whoever fills it (a tool, or Vyre for Chrome on its own): agentd and browserd report only what a tool typed
       rememberSecrets(holder.computerId, [{ handle, itemId: found.itemId, value: found.value }]);
@@ -165,19 +278,32 @@ export function fillHttp(service: FillService): (req: IncomingMessage, res: Serv
       res.writeHead(r.status, { "content-type": "application/json", "cache-control": "no-store" });
       res.end(JSON.stringify(r.body));
     };
-    if (req.method !== "POST") { send({ status: 404, body: { code: "not_found" } }); return; }
+    if (req.method !== "POST") {
+      send({ status: 404, body: { code: "not_found" } });
+      return;
+    }
     let size = 0;
     const chunks: Buffer[] = [];
     req.on("data", (c: Buffer) => {
       size += c.length;
-      if (size > 4096) { send({ status: 400, body: { code: "bad_input" } }); req.destroy(); return; }
+      if (size > 4096) {
+        send({ status: 400, body: { code: "bad_input" } });
+        req.destroy();
+        return;
+      }
       chunks.push(c);
     });
     req.on("end", () => {
       let body: unknown = null;
-      try { body = JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch { /* a body that is not JSON is a 400 below */ }
+      try {
+        body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      } catch {
+        /* a body that is not JSON is a 400 below */
+      }
       const auth = req.headers["authorization"];
-      void service.serve({ authorization: typeof auth === "string" ? auth : undefined, body, secure: linkIsSecure(req) }).then(send, () => send({ status: 503, body: { code: "unavailable" } }));
+      void service
+        .serve({ authorization: typeof auth === "string" ? auth : undefined, body, secure: linkIsSecure(req) })
+        .then(send, () => send({ status: 503, body: { code: "unavailable" } }));
     });
   };
 }

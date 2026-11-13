@@ -14,21 +14,56 @@ import { directoryResolve } from "./resolve.js";
 
 const env = process.env;
 const host = env.VYRE_RELAY_HOST || "0.0.0.0";
-const num = (/** @type {string | undefined} */ v, /** @type {number} */ d) => (v === undefined || v === "" ? d : Number(v));
+const num = (/** @type {string | undefined} */ v, /** @type {number} */ d) =>
+  v === undefined || v === "" ? d : Number(v);
 const log = (/** @type {string} */ m) => console.log(`${new Date().toISOString()} ${m}`);
 const stops = [];
 const relayPort = num(env.VYRE_RELAY_PORT, 8080);
 if (relayPort > 0) {
   const trust = env.VYRE_TRUST_PROXY === "1";
-  const tunnelDir = env.VYRE_TUNNEL_DIRECTORY, secret = env.VYRE_RELAY_SECRET || "";
-  if (tunnelDir && secret.length < 32) { log("VYRE_RELAY_SECRET must be at least 32 characters when VYRE_TUNNEL_DIRECTORY is set"); process.exit(1); }
+  const tunnelDir = env.VYRE_TUNNEL_DIRECTORY,
+    secret = env.VYRE_RELAY_SECRET || "";
+  if (tunnelDir && secret.length < 32) {
+    log("VYRE_RELAY_SECRET must be at least 32 characters when VYRE_TUNNEL_DIRECTORY is set");
+    process.exit(1);
+  }
   // Which route serves this public host: the directory says (declared app or share hosts of a box that is not suspended), or nothing.
   const resolve = directoryResolve({ base: tunnelDir || "", secret });
-  const relay = createRelay({ ...(tunnelDir ? { tunnel: { resolve } } : {}), log, clientAddress: req => (trust && String(req.headers["x-forwarded-for"] || "").split(",").pop()?.trim()) || String(req.socket.remoteAddress || "") });
+  const relay = createRelay({
+    ...(tunnelDir ? { tunnel: { resolve } } : {}),
+    log,
+    clientAddress: (req) =>
+      (trust &&
+        String(req.headers["x-forwarded-for"] || "")
+          .split(",")
+          .pop()
+          ?.trim()) ||
+      String(req.socket.remoteAddress || ""),
+  });
   log(`relay on ${await relay.listen(relayPort, host)}`);
-  if (tunnelDir) { const t = await relay.listenTunnel({ tlsPort: num(env.VYRE_TUNNEL_TLS_PORT, 443), httpPort: num(env.VYRE_TUNNEL_HTTP_PORT, 80), host }); log(`publish tunnel: tls ${t.tls}, http ${t.http}`); }
+  if (tunnelDir) {
+    const t = await relay.listenTunnel({
+      tlsPort: num(env.VYRE_TUNNEL_TLS_PORT, 443),
+      httpPort: num(env.VYRE_TUNNEL_HTTP_PORT, 80),
+      host,
+    });
+    log(`publish tunnel: tls ${t.tls}, http ${t.http}`);
+  }
   stops.push(() => relay.close());
 }
-if (!stops.length) { log("nothing to run: VYRE_RELAY_PORT is 0"); process.exit(1); }
-const stop = async () => { for (const f of stops) { try { await f(); } catch { /* going down */ } } process.exit(0); };
-process.on("SIGTERM", stop); process.on("SIGINT", stop);
+if (!stops.length) {
+  log("nothing to run: VYRE_RELAY_PORT is 0");
+  process.exit(1);
+}
+const stop = async () => {
+  for (const f of stops) {
+    try {
+      await f();
+    } catch {
+      /* going down */
+    }
+  }
+  process.exit(0);
+};
+process.on("SIGTERM", stop);
+process.on("SIGINT", stop);

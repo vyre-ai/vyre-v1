@@ -20,13 +20,21 @@ export interface InboxCtx {
   trace: { traceId: string };
   now(): number;
   db: InboxDb;
-  emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
+  emit(
+    name: string,
+    subject: string,
+    payload: unknown,
+    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+  ): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
   authorize(
     action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
     resource: { type: string; id: string | null },
   ): { effect: "allow" | "deny" | "hold"; reason: string; decisionId: string };
-  log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
+  log: {
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 export type Row = Record<string, string | number | null>;
@@ -42,7 +50,8 @@ export const PHONE = /^\+[1-9][0-9]{6,14}$/;
 export function newId(prefix: string, now: number): string {
   return `${prefix}_${mintUuid(now).replaceAll("-", "")}`;
 }
-export const isId = (prefix: string, v: unknown): v is string => typeof v === "string" && new RegExp(`^${prefix}_[a-z0-9]+$`).test(v);
+export const isId = (prefix: string, v: unknown): v is string =>
+  typeof v === "string" && new RegExp(`^${prefix}_[a-z0-9]+$`).test(v);
 
 export function bad(ctx: Pick<InboxCtx, "trace">, message: string): never {
   throw fail("validation.bad_input", ctx.trace.traceId, { message });
@@ -53,7 +62,8 @@ export function missing(ctx: Pick<InboxCtx, "trace">, message: string): never {
 export function refuse(ctx: Pick<InboxCtx, "trace">, message: string): never {
   throw fail("validation.precondition_failed", ctx.trace.traceId, { message });
 }
-export const isNotFound = (e: unknown): boolean => e instanceof HostError && (e.error.code === "validation.not_found" || e.error.code === "permission.not_found");
+export const isNotFound = (e: unknown): boolean =>
+  e instanceof HostError && (e.error.code === "validation.not_found" || e.error.code === "permission.not_found");
 export const codeOf = (e: unknown): string => (e instanceof HostError ? e.error.code : "");
 
 // ---- readers
@@ -101,12 +111,15 @@ export function normAddress(value: string): string {
   if (PHONE.test(phone)) return phone;
   return v.toLowerCase().replace(/^@+/, "");
 }
-export const kindOfAddress = (a: string): "email" | "phone" | "handle" => (EMAIL.test(a) ? "email" : PHONE.test(a) ? "phone" : "handle");
+export const kindOfAddress = (a: string): "email" | "phone" | "handle" =>
+  EMAIL.test(a) ? "email" : PHONE.test(a) ? "phone" : "handle";
 
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_inbox.sql", "0002_inbox_private.sql", "0004_inbox_party.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = ["0001_inbox.sql", "0002_inbox_private.sql", "0004_inbox_party.sql"]
+  .map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8"))
+  .join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -178,21 +191,43 @@ export function getConversation(ctx: Pick<InboxCtx, "db">, id: string): Row | nu
  * Whose follows and conversations the caller's reads are (lib/agent-asker.ts): the person an agent acts for, else the caller. An agent's own follows and ownership are its work in a turn for nobody; they
  * never open a conversation for a person who merely asked that agent.
  */
-export const holderOf = (ctx: Pick<InboxCtx, "principal" | "actingFor">): string => (ctx.principal.kind === "agent" && ctx.actingFor !== undefined && ctx.actingFor.startsWith("usr_") ? ctx.actingFor : ctx.principal.id);
+export const holderOf = (ctx: Pick<InboxCtx, "principal" | "actingFor">): string =>
+  ctx.principal.kind === "agent" && ctx.actingFor !== undefined && ctx.actingFor.startsWith("usr_")
+    ? ctx.actingFor
+    : ctx.principal.id;
 
 /** The caller's own follow of a contact, if any. */
-export function followOf(ctx: Pick<InboxCtx, "db" | "principal" | "actingFor">, contactId: string | null): { followed: boolean; alertOnReplies: boolean } {
+export function followOf(
+  ctx: Pick<InboxCtx, "db" | "principal" | "actingFor">,
+  contactId: string | null,
+): { followed: boolean; alertOnReplies: boolean } {
   if (!contactId) return { followed: false, alertOnReplies: false };
-  const row = first(ctx.db.all(`SELECT * FROM inbox_follow WHERE "contactId" = ? AND "principalId" = ? AND deleted_at IS NULL`, contactId, holderOf(ctx)));
-  return row ? { followed: true, alertOnReplies: num(row, "alertOnReplies") === 1 } : { followed: false, alertOnReplies: false };
+  const row = first(
+    ctx.db.all(
+      `SELECT * FROM inbox_follow WHERE "contactId" = ? AND "principalId" = ? AND deleted_at IS NULL`,
+      contactId,
+      holderOf(ctx),
+    ),
+  );
+  return row
+    ? { followed: true, alertOnReplies: num(row, "alertOnReplies") === 1 }
+    : { followed: false, alertOnReplies: false };
 }
 
 export function toConversation(ctx: Pick<InboxCtx, "db" | "principal">, row: Row): ConversationRow {
   const ch = str(row, "lastChannel");
   const out: ConversationRow = {
-    id: str(row, "id"), address: str(row, "address"), displayName: str(row, "displayName") || str(row, "address"), lastMessageAt: num(row, "lastMessageAt"),
-    lastChannel: ch === "sms" || ch === "call" ? ch : "email", lastPreview: str(row, "lastPreview"), unreadCount: Math.max(0, Math.trunc(num(row, "unreadCount"))),
-    needsMatch: num(row, "needsMatch") === 1, mailboxIds: jsonList(row.mailboxIds), followed: false, alertOnReplies: false,
+    id: str(row, "id"),
+    address: str(row, "address"),
+    displayName: str(row, "displayName") || str(row, "address"),
+    lastMessageAt: num(row, "lastMessageAt"),
+    lastChannel: ch === "sms" || ch === "call" ? ch : "email",
+    lastPreview: str(row, "lastPreview"),
+    unreadCount: Math.max(0, Math.trunc(num(row, "unreadCount"))),
+    needsMatch: num(row, "needsMatch") === 1,
+    mailboxIds: jsonList(row.mailboxIds),
+    followed: false,
+    alertOnReplies: false,
   };
   const contactId = strOrNull(row, "contactId");
   if (contactId) out.contactId = contactId;
@@ -237,14 +272,26 @@ export async function findRecord(ctx: InboxCtx, recordId: string): Promise<Recor
 /** The items a conversation shows: its own, and, for a contact's conversation, every email that contact is on through inbox_party. */
 export function itemsOf(ctx: Pick<InboxCtx, "db">, conv: Row, where = "", ...args: unknown[]): Row[] {
   const extra = where ? ` AND ${where}` : "";
-  const out = rowsOf(ctx.db.all(`SELECT * FROM inbox_item WHERE "conversationId" = ?${extra}`, str(conv, "id"), ...args));
+  const out = rowsOf(
+    ctx.db.all(`SELECT * FROM inbox_item WHERE "conversationId" = ?${extra}`, str(conv, "id"), ...args),
+  );
   const contactId = strOrNull(conv, "contactId");
   if (!contactId) return out;
   const have = new Set(out.map((r) => str(r, "id")));
-  const party = rowsOf(ctx.db.all(`SELECT "itemId" FROM inbox_party WHERE "contactId" = ?`, contactId)).map((r) => str(r, "itemId")).filter((id) => !have.has(id));
+  const party = rowsOf(ctx.db.all(`SELECT "itemId" FROM inbox_party WHERE "contactId" = ?`, contactId))
+    .map((r) => str(r, "itemId"))
+    .filter((id) => !have.has(id));
   for (let i = 0; i < party.length; i += 400) {
     const part = party.slice(i, i + 400);
-    out.push(...rowsOf(ctx.db.all(`SELECT * FROM inbox_item WHERE id IN (${part.map(() => "?").join(", ")})${extra}`, ...part, ...args)));
+    out.push(
+      ...rowsOf(
+        ctx.db.all(
+          `SELECT * FROM inbox_item WHERE id IN (${part.map(() => "?").join(", ")})${extra}`,
+          ...part,
+          ...args,
+        ),
+      ),
+    );
   }
   return out;
 }
@@ -253,10 +300,19 @@ export function itemsOf(ctx: Pick<InboxCtx, "db">, conv: Row, where = "", ...arg
 export function conversationsShowing(ctx: Pick<InboxCtx, "db">, itemIds: string[]): string[] {
   const out = new Set<string>();
   for (const id of itemIds) {
-    const own = strOrNull(first(ctx.db.all(`SELECT "conversationId" FROM inbox_item WHERE id = ?`, id)), "conversationId");
+    const own = strOrNull(
+      first(ctx.db.all(`SELECT "conversationId" FROM inbox_item WHERE id = ?`, id)),
+      "conversationId",
+    );
     if (own) out.add(own);
     for (const p of rowsOf(ctx.db.all(`SELECT "contactId" FROM inbox_party WHERE "itemId" = ?`, id))) {
-      for (const c of rowsOf(ctx.db.all(`SELECT id FROM inbox_conversation WHERE "contactId" = ? AND deleted_at IS NULL`, str(p, "contactId")))) out.add(str(c, "id"));
+      for (const c of rowsOf(
+        ctx.db.all(
+          `SELECT id FROM inbox_conversation WHERE "contactId" = ? AND deleted_at IS NULL`,
+          str(p, "contactId"),
+        ),
+      ))
+        out.add(str(c, "id"));
     }
   }
   return [...out];

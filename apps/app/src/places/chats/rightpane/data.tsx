@@ -35,7 +35,10 @@ export interface RightPaneNav {
   openComputerInConsole?(computerId: string): void;
 }
 
-export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
+export interface Connection {
+  get(): "online" | "offline";
+  subscribe(l: () => void): () => void;
+}
 
 /** The agent of the open chat. The pane follows it: change chats and the pane shows the other agent. */
 export interface PaneAgent {
@@ -79,7 +82,13 @@ export interface ChatRightPaneData {
 
 const Ctx = createContext<ChatRightPaneData | null>(null);
 
-export function RightPaneDataProvider({ value, children }: { value: ChatRightPaneData; children: ReactNode }): ReactElement {
+export function RightPaneDataProvider({
+  value,
+  children,
+}: {
+  value: ChatRightPaneData;
+  children: ReactNode;
+}): ReactElement {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
@@ -97,7 +106,10 @@ export function usePaneData(): ChatRightPaneData {
 export function useScreenQuery<T>(screenId: string, name: string, state: Record<string, unknown> = {}): QueryState<T> {
   const { screens } = usePaneData();
   const key = JSON.stringify(state);
-  const q = useMemo(() => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>, [screens, screenId, name, key]);
+  const q = useMemo(
+    () => screens.query(screenId, name, JSON.parse(key) as Record<string, unknown>) as LiveQuery<T>,
+    [screens, screenId, name, key],
+  );
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 

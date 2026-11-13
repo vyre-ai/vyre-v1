@@ -14,7 +14,10 @@ type YFrame = Extract<Frame, { doc: string }>;
 export type DocFrameType = YFrame["t"];
 
 /** Whoever sits behind a socket. The hub's LiveWho fits. */
-export interface DocPeer { person: string; device: string }
+export interface DocPeer {
+  person: string;
+  device: string;
+}
 
 export interface DocLive {
   /** A socket opened. Returns the detach to call when it closes. */
@@ -26,9 +29,14 @@ export interface DocLive {
   subscribers(doc: string): number;
 }
 
-interface Conn { who: DocPeer; send(f: Frame): void; docs: Set<string> }
+interface Conn {
+  who: DocPeer;
+  send(f: Frame): void;
+  docs: Set<string>;
+}
 
-const rec = (v: unknown): Record<string, unknown> => (v !== null && typeof v === "object" ? (v as Record<string, unknown>) : {});
+const rec = (v: unknown): Record<string, unknown> =>
+  v !== null && typeof v === "object" ? (v as Record<string, unknown>) : {};
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 
 function errorOf(e: unknown): { code: string; message: string } {
@@ -41,7 +49,7 @@ export function createDocLive(server: DocServer, o: { traceId?: () => string } =
   const subs = new Map<string, Set<Conn>>();
   const trace = o.traceId ?? ((): string => globalThis.crypto.randomUUID().replace(/-/g, ""));
 
-  const frame = (t: DocFrameType, doc: string, data: unknown): Frame => ({ t, doc, data } as Frame);
+  const frame = (t: DocFrameType, doc: string, data: unknown): Frame => ({ t, doc, data }) as Frame;
 
   function join(c: Conn, doc: string): void {
     c.docs.add(doc);
@@ -52,7 +60,10 @@ export function createDocLive(server: DocServer, o: { traceId?: () => string } =
   function leave(c: Conn, doc: string): void {
     c.docs.delete(doc);
     const set = subs.get(doc);
-    if (set) { set.delete(c); if (set.size === 0) subs.delete(doc); }
+    if (set) {
+      set.delete(c);
+      if (set.size === 0) subs.delete(doc);
+    }
   }
   function drop(c: Conn, doc: string, err: { code: string; message: string }): void {
     leave(c, doc);
@@ -66,7 +77,14 @@ export function createDocLive(server: DocServer, o: { traceId?: () => string } =
       const out = server.open(c.who.person, sv ? { doc, sv } : { doc }, tr);
       join(c, doc);
       if (out.enc === 2) {
-        c.send(frame("ydoc.sync2", doc, { enc: 2, ...(out.snapshot ? { snapshot: out.snapshot } : {}), updates: out.updates, upto: out.upto }));
+        c.send(
+          frame("ydoc.sync2", doc, {
+            enc: 2,
+            ...(out.snapshot ? { snapshot: out.snapshot } : {}),
+            updates: out.updates,
+            upto: out.upto,
+          }),
+        );
       } else {
         c.send(frame("ydoc.sync2", doc, { enc: 0, update: out.snapshot ?? out.updates[0] ?? "", upto: out.upto }));
         // The client now answers with the part the server lacks (a sync2).
@@ -82,7 +100,12 @@ export function createDocLive(server: DocServer, o: { traceId?: () => string } =
   function onUpdate(c: Conn, doc: string, data: Record<string, unknown>): void {
     const tr = str(data["tr"]) ?? trace();
     const update = str(data["update"]);
-    if (update === undefined) { c.send(frame("ydoc.sync2", doc, { error: { code: "validation.bad_input", message: "The frame has no update." } })); return; }
+    if (update === undefined) {
+      c.send(
+        frame("ydoc.sync2", doc, { error: { code: "validation.bad_input", message: "The frame has no update." } }),
+      );
+      return;
+    }
     const enc = typeof data["enc"] === "number" ? data["enc"] : undefined;
     const suggest = data["suggest"] === true;
     try {
@@ -93,7 +116,10 @@ export function createDocLive(server: DocServer, o: { traceId?: () => string } =
       const relay = frame("ydoc.update", doc, { update, enc: enc ?? 0, suggest, seq: r.seq, actor: c.who.person });
       for (const other of [...(subs.get(doc) ?? [])]) {
         if (other === c) continue;
-        if (!server.allowed(other.who.person, doc, "view")) { drop(other, doc, { code: "permission.revoked", message: "You no longer have access to this document." }); continue; }
+        if (!server.allowed(other.who.person, doc, "view")) {
+          drop(other, doc, { code: "permission.revoked", message: "You no longer have access to this document." });
+          continue;
+        }
         other.send(relay);
       }
     } catch (e) {
@@ -106,10 +132,17 @@ export function createDocLive(server: DocServer, o: { traceId?: () => string } =
 
   function onAwareness(c: Conn, doc: string, data: Record<string, unknown>): void {
     if (!c.docs.has(doc)) return;
-    if (!server.allowed(c.who.person, doc, "view")) { drop(c, doc, { code: "permission.revoked", message: "You no longer have access to this document." }); return; }
+    if (!server.allowed(c.who.person, doc, "view")) {
+      drop(c, doc, { code: "permission.revoked", message: "You no longer have access to this document." });
+      return;
+    }
     const update = str(data["update"]);
     if (update === undefined) return;
-    try { fromB64(update); } catch { return; }
+    try {
+      fromB64(update);
+    } catch {
+      return;
+    }
     const relay = frame("ydoc.awareness", doc, { update });
     for (const other of subs.get(doc) ?? []) if (other !== c) other.send(relay);
   }
@@ -137,7 +170,10 @@ export function createDocLive(server: DocServer, o: { traceId?: () => string } =
       for (const [name, set] of [...subs]) {
         if (doc !== undefined && name !== doc) continue;
         for (const c of [...set]) {
-          if (!server.allowed(c.who.person, name, "view")) { drop(c, name, { code: "permission.revoked", message: "You no longer have access to this document." }); n++; }
+          if (!server.allowed(c.who.person, name, "view")) {
+            drop(c, name, { code: "permission.revoked", message: "You no longer have access to this document." });
+            n++;
+          }
         }
       }
       return n;

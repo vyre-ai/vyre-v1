@@ -12,19 +12,34 @@ export const ICON = {
   plus: ["M8 3v10M3 8h10"],
   all: ["M3 3h4v4H3zM9 3h4v4H9zM3 9h4v4H3zM9 9h4v4H9z"],
   providers: ["M8 2v3M8 11v3M2 8h3M11 8h3M3.8 3.8l2.1 2.1M10.1 10.1l2.1 2.1M12.2 3.8l-2.1 2.1M5.9 10.1l-2.1 2.1"],
-  keys: ["M6 3.5C4.8 3.5 4.5 4.3 4.5 5.2v1.2c0 .8-.5 1.6-1.5 1.6 1 0 1.5.8 1.5 1.6v1.2c0 .9.3 1.7 1.5 1.7", "M10 3.5c1.2 0 1.5.8 1.5 1.7v1.2c0 .8.5 1.6 1.5 1.6-1 0-1.5.8-1.5 1.6v1.2c0 .9-.3 1.7-1.5 1.7"],
-  logins: ["M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z", "M2.8 8h10.4M8 2.6c1.5 1.5 2.2 3.3 2.2 5.4S9.5 11.9 8 13.4C6.5 11.9 5.8 10.1 5.8 8S6.5 4.1 8 2.6z"],
+  keys: [
+    "M6 3.5C4.8 3.5 4.5 4.3 4.5 5.2v1.2c0 .8-.5 1.6-1.5 1.6 1 0 1.5.8 1.5 1.6v1.2c0 .9.3 1.7 1.5 1.7",
+    "M10 3.5c1.2 0 1.5.8 1.5 1.7v1.2c0 .8.5 1.6 1.5 1.6-1 0-1.5.8-1.5 1.6v1.2c0 .9-.3 1.7-1.5 1.7",
+  ],
+  logins: [
+    "M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z",
+    "M2.8 8h10.4M8 2.6c1.5 1.5 2.2 3.3 2.2 5.4S9.5 11.9 8 13.4C6.5 11.9 5.8 10.1 5.8 8S6.5 4.1 8 2.6z",
+  ],
   cards: ["M3 4.5h10a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5a1 1 0 011-1z", "M2 7h12"],
   health: ["M8 2l5 1.8v4c0 3-2.2 5-5 6.2C5.2 12.8 3 10.8 3 7.8v-4z"],
-  google: ["M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z", "M2.8 8h10.4M8 2.6c1.5 1.5 2.2 3.3 2.2 5.4S9.5 11.9 8 13.4C6.5 11.9 5.8 10.1 5.8 8S6.5 4.1 8 2.6z"],
+  google: [
+    "M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z",
+    "M2.8 8h10.4M8 2.6c1.5 1.5 2.2 3.3 2.2 5.4S9.5 11.9 8 13.4C6.5 11.9 5.8 10.1 5.8 8S6.5 4.1 8 2.6z",
+  ],
   connections: ["M6.6 9.4l2.8-2.8", "M7.3 4.4l1-1a2.6 2.6 0 013.7 3.7l-1 1", "M8.7 11.6l-1 1a2.6 2.6 0 01-3.7-3.7l1-1"],
   requested: ["M5 11a2.5 2.5 0 110-5 2.5 2.5 0 010 5z", "M7.5 8.5H13M11 8.5v2M13 8.5v1.5"],
   mine: ["M10.5 5.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z", "M3 13.5c.6-2.6 2.6-4 5-4s4.4 1.4 5 4"],
   folder: ["M2.5 5A1.5 1.5 0 014 3.5h2.2l1.3 1.5H12A1.5 1.5 0 0113.5 6.5v5A1.5 1.5 0 0112 13H4a1.5 1.5 0 01-1.5-1.5z"],
-  advanced: ["M8 10a2 2 0 100-4 2 2 0 000 4z", "M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.8 3.8l1 1M11.2 11.2l1 1M12.2 3.8l-1 1M4.8 11.2l-1 1"],
+  advanced: [
+    "M8 10a2 2 0 100-4 2 2 0 000 4z",
+    "M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.8 3.8l1 1M11.2 11.2l1 1M12.2 3.8l-1 1M4.8 11.2l-1 1",
+  ],
   more: ["M3.5 8h.01", "M8 8h.01", "M12.5 8h.01"],
   eye: ["M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z", "M8 9.8a1.8 1.8 0 100-3.6 1.8 1.8 0 000 3.6z"],
-  eyeOff: ["M2.5 2.5l11 11", "M6.2 4A6.6 6.6 0 018 3.5c4 0 6.5 4.5 6.5 4.5a11 11 0 01-2 2.5M9.8 12a6.6 6.6 0 01-1.8.5C4 12.5 1.5 8 1.5 8a11 11 0 012-2.5"],
+  eyeOff: [
+    "M2.5 2.5l11 11",
+    "M6.2 4A6.6 6.6 0 018 3.5c4 0 6.5 4.5 6.5 4.5a11 11 0 01-2 2.5M9.8 12a6.6 6.6 0 01-1.8.5C4 12.5 1.5 8 1.5 8a11 11 0 012-2.5",
+  ],
   copy: ["M5.5 5.5h6.5a1 1 0 011 1V13a1 1 0 01-1 1H5.5a1 1 0 01-1-1V6.5a1 1 0 011-1z", "M3.5 10.5v-7a1 1 0 011-1h6"],
   lock: ["M4.5 7.5h7v5.5h-7z", "M6 7.5V5.8a2 2 0 014 0v1.7"],
   check: ["M3 8.5l3 3 7-7"],
@@ -38,21 +53,52 @@ export const ICON = {
   wand: ["M3 13l7-7M9 3l.5 1.5L11 5l-1.5.5L9 7l-.5-1.5L7 5l1.5-.5zM12.5 8l.4 1 1 .4-1 .4-.4 1-.4-1-1-.4 1-.4z"],
   back: ["M10 3.5L5.5 8l4.5 4.5"],
   chevd: ["M3.5 6l4.5 4.5L12.5 6"],
-  braces: ["M6 3C4.6 3 4 3.7 4 5v1.5C4 7.4 3.5 8 2.5 8c1 0 1.5.6 1.5 1.5V11c0 1.3.6 2 2 2", "M10 3c1.4 0 2 .7 2 2v1.5c0 .9.5 1.5 1.5 1.5-1 0-1.5.6-1.5 1.5V11c0 1.3-.6 2-2 2"],
-  globe: ["M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z", "M2.8 8h10.4M8 2.6c1.5 1.5 2.2 3.3 2.2 5.4S9.5 11.9 8 13.4C6.5 11.9 5.8 10.1 5.8 8S6.5 4.1 8 2.6z"],
+  braces: [
+    "M6 3C4.6 3 4 3.7 4 5v1.5C4 7.4 3.5 8 2.5 8c1 0 1.5.6 1.5 1.5V11c0 1.3.6 2 2 2",
+    "M10 3c1.4 0 2 .7 2 2v1.5c0 .9.5 1.5 1.5 1.5-1 0-1.5.6-1.5 1.5V11c0 1.3-.6 2-2 2",
+  ],
+  globe: [
+    "M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z",
+    "M2.8 8h10.4M8 2.6c1.5 1.5 2.2 3.3 2.2 5.4S9.5 11.9 8 13.4C6.5 11.9 5.8 10.1 5.8 8S6.5 4.1 8 2.6z",
+  ],
   card: ["M3 4.5h10a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5a1 1 0 011-1z", "M2 7h12"],
-  link: ["M6.6 9.4l2.8-2.8", "M7.3 4.6l1.1-1.1a2.6 2.6 0 013.7 3.7L11 8.3", "M8.7 11.4l-1.1 1.1a2.6 2.6 0 01-3.7-3.7L5 7.7"],
+  link: [
+    "M6.6 9.4l2.8-2.8",
+    "M7.3 4.6l1.1-1.1a2.6 2.6 0 013.7 3.7L11 8.3",
+    "M8.7 11.4l-1.1 1.1a2.6 2.6 0 01-3.7-3.7L5 7.7",
+  ],
 } as const;
 export type IconName = keyof typeof ICON;
 
 /** One stroke icon. Web only (an SVG); other platforms draw nothing until their own icon set lands. */
-export function Glyph({ name, size = 15, color = "var(--ink-3)" }: { name: IconName; size?: number; color?: string }): ReactElement | null {
+export function Glyph({
+  name,
+  size = 15,
+  color = "var(--ink-3)",
+}: {
+  name: IconName;
+  size?: number;
+  color?: string;
+}): ReactElement | null {
   if (Platform.OS !== "web") return null;
   const paths: ReactElement[] = [];
   for (const d of ICON[name]) paths.push(createElement("path", { key: d, d, fill: "none" }));
   return createElement(
     "svg",
-    { viewBox: "0 0 16 16", width: size, height: size, "aria-hidden": true, style: { display: "block", flex: "none", stroke: color, strokeWidth: name === "more" ? 2.4 : 1.4, strokeLinecap: "round", strokeLinejoin: "round" } },
+    {
+      viewBox: "0 0 16 16",
+      width: size,
+      height: size,
+      "aria-hidden": true,
+      style: {
+        display: "block",
+        flex: "none",
+        stroke: color,
+        strokeWidth: name === "more" ? 2.4 : 1.4,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+      },
+    },
     ...paths,
   );
 }
@@ -63,14 +109,45 @@ export function LogoTile({ name, size = 32 }: { name: string; size?: number }): 
 }
 
 /** A small round-cornered button: quiet by default, accent when `primary`. */
-export function Btn({ label, onPress, icon, trailingIcon, primary = false, danger = false, disabled = false, why, testID }: { label: string; onPress: (e?: unknown) => void; icon?: IconName | undefined; /** After the label: a picklist's chevron. */ trailingIcon?: IconName | undefined; primary?: boolean; danger?: boolean; disabled?: boolean; why?: string | undefined; testID?: string | undefined }): ReactElement {
+export function Btn({
+  label,
+  onPress,
+  icon,
+  trailingIcon,
+  primary = false,
+  danger = false,
+  disabled = false,
+  why,
+  testID,
+}: {
+  label: string;
+  onPress: (e?: unknown) => void;
+  icon?: IconName | undefined;
+  /** After the label: a picklist's chevron. */ trailingIcon?: IconName | undefined;
+  primary?: boolean;
+  danger?: boolean;
+  disabled?: boolean;
+  why?: string | undefined;
+  testID?: string | undefined;
+}): ReactElement {
   const [over, setOver] = useState(false);
   const color = danger ? "var(--danger)" : primary ? "var(--accent-ink)" : "var(--ink)";
   const button = (
     <Pressable
-      accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} testID={testID}
-      onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
-      style={[s.btn, primary ? s.btnPrimary : { backgroundColor: (over ? "var(--hover)" : "transparent") as string }, primary && over && { opacity: 0.9 }, disabled && { opacity: 0.45 }]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      testID={testID}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
+      style={[
+        s.btn,
+        primary ? s.btnPrimary : { backgroundColor: (over ? "var(--hover)" : "transparent") as string },
+        primary && over && { opacity: 0.9 },
+        disabled && { opacity: 0.45 },
+      ]}
     >
       {icon ? <Glyph name={icon} size={14} color={color as string} /> : null}
       <Text style={[s.btnText, { color: color as string }]}>{label}</Text>
@@ -81,17 +158,45 @@ export function Btn({ label, onPress, icon, trailingIcon, primary = false, dange
 }
 
 /** An icon-only button with a label for screen readers and a hover wash. */
-export function IconBtn({ icon, label, onPress, testID, color = "var(--ink-3)" }: { icon: IconName; label: string; onPress: (e: unknown) => void; testID?: string | undefined; color?: string }): ReactElement {
+export function IconBtn({
+  icon,
+  label,
+  onPress,
+  testID,
+  color = "var(--ink-3)",
+}: {
+  icon: IconName;
+  label: string;
+  onPress: (e: unknown) => void;
+  testID?: string | undefined;
+  color?: string;
+}): ReactElement {
   const [over, setOver] = useState(false);
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} testID={testID} onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)} style={[s.ibtn, over && { backgroundColor: "var(--hover)" as string }]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      testID={testID}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
+      style={[s.ibtn, over && { backgroundColor: "var(--hover)" as string }]}
+    >
       <Glyph name={icon} size={15} color={over ? "var(--ink)" : color} />
     </Pressable>
   );
 }
 
 /** The quiet line (a change and its Undo). No toast: it sits in the place and fades. */
-export function QuietLine({ text, onUndo, testID }: { text: string; onUndo?: (() => void) | undefined; testID?: string | undefined }): ReactElement {
+export function QuietLine({
+  text,
+  onUndo,
+  testID,
+}: {
+  text: string;
+  onUndo?: (() => void) | undefined;
+  testID?: string | undefined;
+}): ReactElement {
   return (
     <View style={s.line} testID={testID} accessibilityRole="status" accessibilityLiveRegion="polite">
       <View style={s.lineDot} />
@@ -101,8 +206,26 @@ export function QuietLine({ text, onUndo, testID }: { text: string; onUndo?: (()
   );
 }
 
-export function Mono({ children, color, size = 12.5 }: { children: ReactNode; color?: string; size?: number }): ReactElement {
-  return <Text style={{ fontFamily: "var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace)" as string, fontSize: size, color: (color ?? "var(--ink)") as string }}>{children}</Text>;
+export function Mono({
+  children,
+  color,
+  size = 12.5,
+}: {
+  children: ReactNode;
+  color?: string;
+  size?: number;
+}): ReactElement {
+  return (
+    <Text
+      style={{
+        fontFamily: "var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace)" as string,
+        fontSize: size,
+        color: (color ?? "var(--ink)") as string,
+      }}
+    >
+      {children}
+    </Text>
+  );
 }
 
 const s = StyleSheet.create({
@@ -116,18 +239,59 @@ const s = StyleSheet.create({
 });
 
 /** An On or Off switch with its state in words beside it. Hover lifts the track, Space or Enter flips it, and a screen reader hears a switch with its state. */
-export function Toggle({ on, onChange, label, testID }: { on: boolean; onChange(next: boolean): void; label: string; testID?: string }): ReactElement {
+export function Toggle({
+  on,
+  onChange,
+  label,
+  testID,
+}: {
+  on: boolean;
+  onChange(next: boolean): void;
+  label: string;
+  testID?: string;
+}): ReactElement {
   const [over, setOver] = useState(false);
-  const flip = (e: { key?: string; preventDefault?: () => void }): void => { if (e.key === " " || e.key === "Enter") { e.preventDefault?.(); onChange(!on); } };
+  const flip = (e: { key?: string; preventDefault?: () => void }): void => {
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault?.();
+      onChange(!on);
+    }
+  };
   return (
     <Pressable
-      accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: on }} aria-checked={on} testID={testID}
-      onPress={() => onChange(!on)} onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)} {...({ onKeyDown: flip } as object)}
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: on }}
+      aria-checked={on}
+      testID={testID}
+      onPress={() => onChange(!on)}
+      onHoverIn={() => setOver(true)}
+      onHoverOut={() => setOver(false)}
+      {...({ onKeyDown: flip } as object)}
       style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
     >
       <Text style={{ fontSize: 12.5, color: "var(--ink-3)" as string }}>{on ? "On" : "Off"}</Text>
-      <View style={{ width: 34, height: 20, borderRadius: 10, justifyContent: "center", backgroundColor: (on ? "var(--accent)" : "var(--press)") as string, opacity: over ? 0.85 : 1 }}>
-        <View style={{ position: "absolute", top: 2, left: on ? 17 : 2, width: 16, height: 16, borderRadius: 8, backgroundColor: "#fff" }} />
+      <View
+        style={{
+          width: 34,
+          height: 20,
+          borderRadius: 10,
+          justifyContent: "center",
+          backgroundColor: (on ? "var(--accent)" : "var(--press)") as string,
+          opacity: over ? 0.85 : 1,
+        }}
+      >
+        <View
+          style={{
+            position: "absolute",
+            top: 2,
+            left: on ? 17 : 2,
+            width: 16,
+            height: 16,
+            borderRadius: 8,
+            backgroundColor: "#fff",
+          }}
+        />
       </View>
     </Pressable>
   );

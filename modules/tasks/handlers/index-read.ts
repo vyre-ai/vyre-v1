@@ -1,9 +1,20 @@
 // The long list (tasks.index): every row a Tasks page draws, in one read, at 5,000 tasks. It reads only the columns a row shows, never the blocks, the notes or the actions, and it answers nothing when the caller
 // already holds this revision. tasks.rev is the one number a screen watches, so a change anywhere else in the Space costs one small read and no list.
-import { actionableByMe, clean, findTask, involved, isMyTurn, isOpen, openIndex, visibleTo, whoIs, whoOn } from "../projections.ts";
+import {
+  actionableByMe,
+  clean,
+  findTask,
+  involved,
+  isMyTurn,
+  isOpen,
+  openIndex,
+  visibleTo,
+  whoIs,
+  whoOn,
+} from "../projections.ts";
 import type { Assignee, Task, TaskKind, TaskState, TasksCtx } from "../projections.ts";
 
-type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 type Raw = Record<string, unknown>;
 const WEEK = 7 * 86_400_000;
 const MAX_ROWS = 20_000;
@@ -14,12 +25,21 @@ const COLS = `c.id AS id, c.key AS key, m.kind AS kind, c.title AS title, c.stat
   m.source_kind AS source_kind, m.source_id AS source_id, m.snoozed_until AS snoozed_until, m.followers AS followers, c.created_by AS created_by, c.created_for AS created_for, c.responsible AS responsible, c.created_at AS created_at, c.updated_at AS updated_at,
   (m.working_notes LIKE '%"fixes"%') AS has_fixes, (m.working_notes LIKE '%"plan.parent":"1"%') AS plan_parent`;
 
-const parse = <T>(v: unknown, or: T): T => { if (typeof v !== "string" || v === "") return or; try { return JSON.parse(v) as T; } catch { return or; } };
+const parse = <T>(v: unknown, or: T): T => {
+  if (typeof v !== "string" || v === "") return or;
+  try {
+    return JSON.parse(v) as T;
+  } catch {
+    return or;
+  }
+};
 const str = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
 const num = (v: unknown): number | undefined => (typeof v === "number" ? v : undefined);
 
 export function revOf(db: TasksCtx["db"]): string {
-  const r = db.all("SELECT COUNT(*) AS n, MAX(updated_at) AS u, SUM(version) AS v FROM tasks_meta WHERE deleted_at IS NULL")[0] as { n?: number; u?: number | null; v?: number | null } | undefined;
+  const r = db.all(
+    "SELECT COUNT(*) AS n, MAX(updated_at) AS u, SUM(version) AS v FROM tasks_meta WHERE deleted_at IS NULL",
+  )[0] as { n?: number; u?: number | null; v?: number | null } | undefined;
   return `${r?.n ?? 0}.${r?.u ?? 0}.${r?.v ?? 0}`;
 }
 
@@ -28,43 +48,101 @@ export async function rev(ctx: TasksCtx, _input: In): Promise<unknown> {
 }
 
 /** Just enough of a row for the scope checks the full read uses, so a row is mine or not by the same rule everywhere. */
-function asTask(r: Raw, assigned: Assignee, reviewer: Assignee | null, approver: Assignee | null, followers: string[]): Task {
+function asTask(
+  r: Raw,
+  assigned: Assignee,
+  reviewer: Assignee | null,
+  approver: Assignee | null,
+  followers: string[],
+): Task {
   // only the two notes the turn rule reads, from flags the query worked out: a row never parses the notes
-  const notes: Record<string, string> = { ...(r["has_fixes"] ? { fixes: "[]" } : {}), ...(r["plan_parent"] ? { "plan.parent": "1" } : {}) };
+  const notes: Record<string, string> = {
+    ...(r["has_fixes"] ? { fixes: "[]" } : {}),
+    ...(r["plan_parent"] ? { "plan.parent": "1" } : {}),
+  };
   return {
-    id: String(r["id"]), kind: r["kind"] as TaskKind, title: String(r["title"]), state: r["state"] as TaskState, assigned, ...(reviewer ? { reviewer } : {}), ...(approver ? { approver } : {}),
-    ...(str(r["taken_by"]) ? { takenBy: String(r["taken_by"]) } : {}), blocks: [], actions: [], fileIds: [], dependsOn: parse<string[]>(r["depends_on"], []), followers, workingNotes: notes, labels: [], fields: {}, reviewLoops: 0,
-    createdBy: String(r["created_by"]), ...(str(r["created_for"]) ? { createdFor: String(r["created_for"]) } : {}), ...(str(r["responsible"]) ? { responsible: String(r["responsible"]) } : {}),
-    ...(str(r["thread_id"]) ? { threadId: String(r["thread_id"]) } : {}), ...(str(r["worker_thread"]) ? { workerThread: String(r["worker_thread"]) } : {}), createdAt: Number(r["created_at"]), updatedAt: Number(r["updated_at"]), version: 0,
+    id: String(r["id"]),
+    kind: r["kind"] as TaskKind,
+    title: String(r["title"]),
+    state: r["state"] as TaskState,
+    assigned,
+    ...(reviewer ? { reviewer } : {}),
+    ...(approver ? { approver } : {}),
+    ...(str(r["taken_by"]) ? { takenBy: String(r["taken_by"]) } : {}),
+    blocks: [],
+    actions: [],
+    fileIds: [],
+    dependsOn: parse<string[]>(r["depends_on"], []),
+    followers,
+    workingNotes: notes,
+    labels: [],
+    fields: {},
+    reviewLoops: 0,
+    createdBy: String(r["created_by"]),
+    ...(str(r["created_for"]) ? { createdFor: String(r["created_for"]) } : {}),
+    ...(str(r["responsible"]) ? { responsible: String(r["responsible"]) } : {}),
+    ...(str(r["thread_id"]) ? { threadId: String(r["thread_id"]) } : {}),
+    ...(str(r["worker_thread"]) ? { workerThread: String(r["worker_thread"]) } : {}),
+    createdAt: Number(r["created_at"]),
+    updatedAt: Number(r["updated_at"]),
+    version: 0,
   };
 }
 
 export async function index(ctx: TasksCtx, input: In): Promise<unknown> {
   const now = revOf(ctx.db);
   const wantDone = input.done === true;
-  if (typeof input.rev === "string" && input.rev === now) return { rev: now, unchanged: true, rows: [], doneThisWeek: 0, total: 0 };
+  if (typeof input.rev === "string" && input.rev === now)
+    return { rev: now, unchanged: true, rows: [], doneThisWeek: 0, total: 0 };
   const clock = ctx.now();
   const who = whoIs(ctx);
   const scope = input.scope as "mine" | "given" | "everyone";
   const where = ["m.deleted_at IS NULL"];
   const args: unknown[] = [];
-  if (input.recordId !== undefined) { where.push("c.record_id = ?"); args.push(input.recordId); }
-  if (input.parentTaskId !== undefined) { where.push("m.parent_task = ?"); args.push(input.parentTaskId); }
+  if (input.recordId !== undefined) {
+    where.push("c.record_id = ?");
+    args.push(input.recordId);
+  }
+  if (input.parentTaskId !== undefined) {
+    where.push("m.parent_task = ?");
+    args.push(input.parentTaskId);
+  }
   // the work under a chat: the children of the plans that live in that thread
-  if (input.underThread !== undefined) { where.push("m.parent_task IN (SELECT id FROM tasks_meta WHERE thread_id = ? AND deleted_at IS NULL)"); args.push(input.underThread); }
+  if (input.underThread !== undefined) {
+    where.push("m.parent_task IN (SELECT id FROM tasks_meta WHERE thread_id = ? AND deleted_at IS NULL)");
+    args.push(input.underThread);
+  }
   // words: every one must be somewhere in the title, the key, the summary, the why or the notes (the brief, what done means, working notes, what was handed in)
-  const words = typeof input.q === "string" ? input.q.toLowerCase().split(/\s+/).map((w: string) => w.replace(/[%_\\]/g, "")).filter((w: string) => w !== "").slice(0, 8) : [];
+  const words =
+    typeof input.q === "string"
+      ? input.q
+          .toLowerCase()
+          .split(/\s+/)
+          .map((w: string) => w.replace(/[%_\\]/g, ""))
+          .filter((w: string) => w !== "")
+          .slice(0, 8)
+      : [];
   for (const w of words) {
-    where.push("(lower(c.title) LIKE ? OR lower(coalesce(c.key, '')) LIKE ? OR lower(coalesce(c.summary, '')) LIKE ? OR lower(coalesce(m.why, '')) LIKE ? OR lower(coalesce(m.working_notes, '')) LIKE ?)");
+    where.push(
+      "(lower(c.title) LIKE ? OR lower(coalesce(c.key, '')) LIKE ? OR lower(coalesce(c.summary, '')) LIKE ? OR lower(coalesce(m.why, '')) LIKE ? OR lower(coalesce(m.working_notes, '')) LIKE ?)",
+    );
     const like = `%${w}%`;
     args.push(like, like, like, like, like);
   }
   const snoozedOnly = input.snoozed === true;
-  if (scope === "given") { where.push("c.created_by = ?"); args.push(who.id); }
-  const rows = ctx.db.all(`SELECT ${COLS} FROM tasks_core c JOIN tasks_meta m ON m.id = c.id WHERE ${where.join(" AND ")} ORDER BY c.created_at DESC, c.id DESC`, ...args) as Raw[];
+  if (scope === "given") {
+    where.push("c.created_by = ?");
+    args.push(who.id);
+  }
+  const rows = ctx.db.all(
+    `SELECT ${COLS} FROM tasks_core c JOIN tasks_meta m ON m.id = c.id WHERE ${where.join(" AND ")} ORDER BY c.created_at DESC, c.id DESC`,
+    ...args,
+  ) as Raw[];
   // the rollup of a parent reads every child, seen or not: a count says nothing about a child
   const children = new Map<string, { total: number; done: number }>();
-  for (const r of ctx.db.all("SELECT m.parent_task AS parent, c.state AS state, m.kind AS kind FROM tasks_meta m JOIN tasks_core c ON c.id = m.id WHERE m.parent_task IS NOT NULL AND m.deleted_at IS NULL") as Raw[]) {
+  for (const r of ctx.db.all(
+    "SELECT m.parent_task AS parent, c.state AS state, m.kind AS kind FROM tasks_meta m JOIN tasks_core c ON c.id = m.id WHERE m.parent_task IS NOT NULL AND m.deleted_at IS NULL",
+  ) as Raw[]) {
     if (r["kind"] !== "work") continue;
     const p = String(r["parent"]);
     const c = children.get(p) ?? { total: 0, done: 0 };
@@ -80,17 +158,23 @@ export async function index(ctx: TasksCtx, input: In): Promise<unknown> {
     const state = r["state"] as TaskState;
     const open = isOpen(state);
     const assigned = parse<Assignee>(r["assigned"], { kind: "person", id: "" });
-    const reviewer = parse<Assignee | null>(r["reviewer"], null), approver = parse<Assignee | null>(r["approver"], null);
+    const reviewer = parse<Assignee | null>(r["reviewer"], null),
+      approver = parse<Assignee | null>(r["approver"], null);
     const followers = parse<string[]>(r["followers"], []);
     // an agent's own role on the row counts only when it counts on the task (lib/agent-asker.ts): the row is judged as the person it acts for otherwise
     const t0 = asTask(r, assigned, reviewer, approver, followers);
     const wr = whoOn(ctx, t0);
     const me = (id: string): boolean => id === wr.id || id === wr.actingFor;
-    const direct = me(assigned.id) || (reviewer !== null && me(reviewer.id)) || (approver !== null && me(approver.id)) || me(String(r["taken_by"] ?? ""));
+    const direct =
+      me(assigned.id) ||
+      (reviewer !== null && me(reviewer.id)) ||
+      (approver !== null && me(approver.id)) ||
+      me(String(r["taken_by"] ?? ""));
     const t = direct && !open ? null : t0;
     if (scope === "mine" && !direct && !(t !== null && (involved(t, wr) || actionableByMe(ctx, t)))) continue;
     if (snoozedOnly && !(open && num(r["snoozed_until"]) !== undefined && Number(r["snoozed_until"]) > clock)) continue;
-    if (scope === "given" && (assigned.id === who.id || (wr.id !== who.id && String(r["created_by"]) !== wr.id))) continue;
+    if (scope === "given" && (assigned.id === who.id || (wr.id !== who.id && String(r["created_by"]) !== wr.id)))
+      continue;
     if (!direct && !me(String(r["created_by"])) && !followers.some(me) && t !== null && !visibleTo(ctx, t)) continue;
     if (!open) {
       if (Number(r["updated_at"]) >= clock - WEEK && state === "done") doneThisWeek += 1;
@@ -102,21 +186,52 @@ export async function index(ctx: TasksCtx, input: In): Promise<unknown> {
     if (out.length >= MAX_ROWS) continue;
     const id = String(r["id"]);
     const dependsOn = parse<string[]>(r["depends_on"], []);
-    const sk = str(r["source_kind"]), si = str(r["source_id"]);
-    out.push(clean({
-      id, key: str(r["key"]), kind: r["kind"], title: r["title"], state, blocked: open && (idx.unblockParents.has(id) || dependsOn.some((d) => idx.open.has(d))),
-      assigned, reviewer: reviewer ?? undefined, approver: approver ?? undefined, takenBy: str(r["taken_by"]), due: num(r["due"]), start: num(r["start_at"]), effort: num(r["effort"]), priority: str(r["priority"]),
-      labels: parse<string[]>(r["labels"], []), recordId: str(r["record_id"]), parentTaskId: str(r["parent_task"]), dependsOn, threadId: str(r["thread_id"]), workerThread: str(r["worker_thread"]),
-      source: sk !== undefined && si !== undefined ? { kind: sk, id: si } : undefined, snoozedUntil: snoozed, children: children.get(id), createdBy: r["created_by"], createdAt: r["created_at"], updatedAt: r["updated_at"],
-      yourTurn: open && t !== null && isMyTurn(ctx, t, idx) ? true : undefined,
-    }));
+    const sk = str(r["source_kind"]),
+      si = str(r["source_id"]);
+    out.push(
+      clean({
+        id,
+        key: str(r["key"]),
+        kind: r["kind"],
+        title: r["title"],
+        state,
+        blocked: open && (idx.unblockParents.has(id) || dependsOn.some((d) => idx.open.has(d))),
+        assigned,
+        reviewer: reviewer ?? undefined,
+        approver: approver ?? undefined,
+        takenBy: str(r["taken_by"]),
+        due: num(r["due"]),
+        start: num(r["start_at"]),
+        effort: num(r["effort"]),
+        priority: str(r["priority"]),
+        labels: parse<string[]>(r["labels"], []),
+        recordId: str(r["record_id"]),
+        parentTaskId: str(r["parent_task"]),
+        dependsOn,
+        threadId: str(r["thread_id"]),
+        workerThread: str(r["worker_thread"]),
+        source: sk !== undefined && si !== undefined ? { kind: sk, id: si } : undefined,
+        snoozedUntil: snoozed,
+        children: children.get(id),
+        createdBy: r["created_by"],
+        createdAt: r["created_at"],
+        updatedAt: r["updated_at"],
+        yourTurn: open && t !== null && isMyTurn(ctx, t, idx) ? true : undefined,
+      }),
+    );
   }
   return { rev: now, unchanged: false, rows: out, doneThisWeek, total: out.length };
 }
 
 export async function byKey(ctx: TasksCtx, input: In): Promise<unknown> {
-  const key = String(input.key ?? "").trim().toUpperCase().replace(/^#/, "");
-  const row = ctx.db.all("SELECT c.id AS id FROM tasks_core c JOIN tasks_meta m ON m.id = c.id WHERE c.key = ? AND m.deleted_at IS NULL", key)[0] as { id?: string } | undefined;
+  const key = String(input.key ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/^#/, "");
+  const row = ctx.db.all(
+    "SELECT c.id AS id FROM tasks_core c JOIN tasks_meta m ON m.id = c.id WHERE c.key = ? AND m.deleted_at IS NULL",
+    key,
+  )[0] as { id?: string } | undefined;
   if (!row?.id) return { taskId: null };
   const t = findTask(ctx.db, row.id);
   return { taskId: t && visibleTo(ctx, t) ? t.id : null };

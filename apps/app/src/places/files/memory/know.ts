@@ -39,15 +39,38 @@ export type KnowRoute =
 export type KnowView = KnowRoute["v"];
 
 export const LIST_KINDS: readonly ListKind[] = ["person", "client", "project", "topic"];
-export const LIST_TITLE: Record<ListKind, string> = { person: "People", client: "Clients", project: "Projects", topic: "Topics" };
+export const LIST_TITLE: Record<ListKind, string> = {
+  person: "People",
+  client: "Clients",
+  project: "Projects",
+  topic: "Topics",
+};
 export const LIST_LEDE: Record<ListKind, string> = {
   person: "Your team and how they like to work.",
   client: "Clients and their contacts.",
   project: "Facts each project keeps.",
   topic: "Rules that cut across.",
 };
-export const KIND_ONE: Record<PageKind, string> = { person: "Person", client: "Client", project: "Project", agent: "Agent", record: "Record", topic: "Topic", decision: "Decision", site: "Site" };
-export const KIND_MANY: Record<PageKind, string> = { person: "People", client: "Clients", project: "Projects", agent: "Agents", record: "Records", topic: "Topics", decision: "Decisions", site: "Sites" };
+export const KIND_ONE: Record<PageKind, string> = {
+  person: "Person",
+  client: "Client",
+  project: "Project",
+  agent: "Agent",
+  record: "Record",
+  topic: "Topic",
+  decision: "Decision",
+  site: "Site",
+};
+export const KIND_MANY: Record<PageKind, string> = {
+  person: "People",
+  client: "Clients",
+  project: "Projects",
+  agent: "Agents",
+  record: "Records",
+  topic: "Topics",
+  decision: "Decisions",
+  site: "Sites",
+};
 
 /** The sidebar rows of Knowledge, in order. Search is not a row: it is the field in every header. */
 export const KNOW_ROWS: readonly { id: string; title: string; glyph: string; route: KnowRoute }[] = [
@@ -65,14 +88,36 @@ export const KNOW_ROWS: readonly { id: string; title: string; glyph: string; rou
 /** The sidebar row a route lights. A page lights the list of its kind; a search lights nothing. */
 export function rowOf(r: KnowRoute, pageKind?: PageKind): string | null {
   switch (r.v) {
-    case "learned": return "learned";
-    case "list": return r.kind === "person" ? "people" : r.kind === "client" ? "clients" : r.kind === "project" ? "projects" : "topics";
-    case "page": return pageKind === "person" ? "people" : pageKind === "client" ? "clients" : pageKind === "project" ? "projects" : pageKind === "topic" ? "topics" : null;
-    case "graph": return "graph";
-    case "history": return "history";
-    case "trash": return "trash";
-    case "archive": return "archive";
-    case "search": return null;
+    case "learned":
+      return "learned";
+    case "list":
+      return r.kind === "person"
+        ? "people"
+        : r.kind === "client"
+          ? "clients"
+          : r.kind === "project"
+            ? "projects"
+            : "topics";
+    case "page":
+      return pageKind === "person"
+        ? "people"
+        : pageKind === "client"
+          ? "clients"
+          : pageKind === "project"
+            ? "projects"
+            : pageKind === "topic"
+              ? "topics"
+              : null;
+    case "graph":
+      return "graph";
+    case "history":
+      return "history";
+    case "trash":
+      return "trash";
+    case "archive":
+      return "archive";
+    case "search":
+      return null;
   }
 }
 
@@ -80,7 +125,12 @@ export const sameRoute = (a: KnowRoute, b: KnowRoute): boolean => JSON.stringify
 
 // ---------------------------------------------------------------- words
 
-export const LAYER_NAME: Record<BaseFact["layer"], string> = { space: "Space", project: "Project", agent: "Agent", person: "Private to you" };
+export const LAYER_NAME: Record<BaseFact["layer"], string> = {
+  space: "Space",
+  project: "Project",
+  agent: "Agent",
+  person: "Private to you",
+};
 
 const DAY = 86_400_000;
 /** "today", "yesterday", "11 days ago", "1 month ago", "3 months ago": how old a fact is, as the page says it. */
@@ -97,7 +147,8 @@ const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct
 const two = (n: number): string => String(n).padStart(2, "0");
 /** "Today 9:40", "Yesterday 17:00", "Oct 22 9:12": the time a line of the feed or the trail carries (UTC, so a test and a screenshot agree). */
 export function stampText(at: number, now: number): string {
-  const d = new Date(at), t = `${d.getUTCHours()}:${two(d.getUTCMinutes())}`;
+  const d = new Date(at),
+    t = `${d.getUTCHours()}:${two(d.getUTCMinutes())}`;
   const days = Math.floor(now / DAY) - Math.floor(at / DAY);
   if (days <= 0) return `Today ${t}`;
   if (days === 1) return `Yesterday ${t}`;
@@ -118,7 +169,11 @@ export function dayGroup(at: number, now: number): DayGroup {
 }
 
 /** A list cut into the day groups, in the order the feed draws them, an empty group left out. */
-export function groupByDay<T>(items: readonly T[], at: (x: T) => number, now: number): { label: DayGroup; items: T[] }[] {
+export function groupByDay<T>(
+  items: readonly T[],
+  at: (x: T) => number,
+  now: number,
+): { label: DayGroup; items: T[] }[] {
   const order: DayGroup[] = ["Today", "Yesterday", "Earlier"];
   const out: { label: DayGroup; items: T[] }[] = [];
   for (const label of order) {
@@ -131,20 +186,45 @@ export function groupByDay<T>(items: readonly T[], at: (x: T) => number, now: nu
 /** The icon family of a source chip. */
 export type SourceGlyph = "chat" | "channel" | "record" | "run" | "note";
 export function sourceGlyph(k: BaseFact["sourceKind"]): SourceGlyph {
-  return k === "chat" ? "chat" : k === "channel" ? "channel" : k === "record" ? "record" : k === "run" || k === "journey" ? "run" : "note";
+  return k === "chat"
+    ? "chat"
+    : k === "channel"
+      ? "channel"
+      : k === "record"
+        ? "record"
+        : k === "run" || k === "journey"
+          ? "run"
+          : "note";
 }
 
 /** The label on a source chip: the title of the chat, run or record when the row has it, otherwise a plain name for the kind. */
 export function chipLabel(f: KFact): string {
   if (f.sourceTitle) return f.sourceTitle;
-  return f.sourceKind === "chat" ? "A chat" : f.sourceKind === "channel" ? "A channel" : f.sourceKind === "record" ? "A record" : f.sourceKind === "run" ? "An automation run" : f.sourceKind === "journey" ? "A journey" : f.sourceKind === "task" ? "A task" : "Written by hand";
+  return f.sourceKind === "chat"
+    ? "A chat"
+    : f.sourceKind === "channel"
+      ? "A channel"
+      : f.sourceKind === "record"
+        ? "A record"
+        : f.sourceKind === "run"
+          ? "An automation run"
+          : f.sourceKind === "journey"
+            ? "A journey"
+            : f.sourceKind === "task"
+              ? "A task"
+              : "Written by hand";
 }
 
 /** "Intake learned it from Maya Chen", "Billing wrote it down", "you": who a line credits. `who` turns an id into a name. */
 export function learnedLine(item: LearnedItem & { fact: KFact }, who: (id: string) => string): string {
   const agent = who(item.actor);
-  if (item.actorKind === "person") return item.from && item.from !== item.actor ? `${agent} noted it from ${who(item.from)}` : `${agent === "you" ? "You" : agent} wrote it down`;
-  return item.from && item.from !== item.actor ? `${agent} learned it from ${item.from === "you" ? "you" : who(item.from)}` : `${agent} wrote it down`;
+  if (item.actorKind === "person")
+    return item.from && item.from !== item.actor
+      ? `${agent} noted it from ${who(item.from)}`
+      : `${agent === "you" ? "You" : agent} wrote it down`;
+  return item.from && item.from !== item.actor
+    ? `${agent} learned it from ${item.from === "you" ? "you" : who(item.from)}`
+    : `${agent} wrote it down`;
 }
 
 /** Plural helper: "1 fact", "2 facts". */
@@ -183,26 +263,58 @@ export const KNOW_SCREEN = "files.knowledge";
 /** A route as the hash args that name it (every value a string, nothing set when it is not used). */
 export function routeToArgs(r: KnowRoute): Record<string, string> {
   switch (r.v) {
-    case "list": return { v: "list", kind: r.kind };
-    case "page": return { v: "page", pageId: r.pageId, ...(r.hl ? { hl: r.hl } : {}) };
-    case "graph": return { v: "graph", ...(r.focus ? { focus: r.focus } : {}), ...(r.scope ? { scope: r.scope } : {}), ...(r.edge ? { edge: r.edge } : {}) };
-    case "history": case "trash": return { v: r.v, ...(r.pageId ? { pageId: r.pageId } : {}) };
-    case "search": return { v: "search", q: r.q };
-    default: return { v: r.v };
+    case "list":
+      return { v: "list", kind: r.kind };
+    case "page":
+      return { v: "page", pageId: r.pageId, ...(r.hl ? { hl: r.hl } : {}) };
+    case "graph":
+      return {
+        v: "graph",
+        ...(r.focus ? { focus: r.focus } : {}),
+        ...(r.scope ? { scope: r.scope } : {}),
+        ...(r.edge ? { edge: r.edge } : {}),
+      };
+    case "history":
+    case "trash":
+      return { v: r.v, ...(r.pageId ? { pageId: r.pageId } : {}) };
+    case "search":
+      return { v: "search", q: r.q };
+    default:
+      return { v: r.v };
   }
 }
 
 /** The route a hash names; anything it does not understand opens Learned. */
 export function routeFromArgs(a: Record<string, unknown>): KnowRoute {
-  const s = (k: string): string | undefined => (typeof a[k] === "string" && (a[k] as string) !== "" ? (a[k] as string) : undefined);
+  const s = (k: string): string | undefined =>
+    typeof a[k] === "string" && (a[k] as string) !== "" ? (a[k] as string) : undefined;
   switch (s("v")) {
-    case "list": { const k = s("kind"); return { v: "list", kind: k === "client" || k === "project" || k === "topic" ? k : "person" }; }
-    case "page": { const id = s("pageId"); return id ? { v: "page", pageId: id, ...(s("hl") ? { hl: s("hl")! } : {}) } : { v: "learned" }; }
-    case "graph": { const sc = s("scope"); return { v: "graph", ...(s("focus") ? { focus: s("focus")! } : {}), ...(sc === "around" || sc === "space" ? { scope: sc } : {}), ...(s("edge") ? { edge: s("edge")! } : {}) }; }
-    case "history": return { v: "history", ...(s("pageId") ? { pageId: s("pageId")! } : {}) };
-    case "trash": return { v: "trash", ...(s("pageId") ? { pageId: s("pageId")! } : {}) };
-    case "archive": return { v: "archive" };
-    case "search": return { v: "search", q: s("q") ?? "" };
-    default: return { v: "learned" };
+    case "list": {
+      const k = s("kind");
+      return { v: "list", kind: k === "client" || k === "project" || k === "topic" ? k : "person" };
+    }
+    case "page": {
+      const id = s("pageId");
+      return id ? { v: "page", pageId: id, ...(s("hl") ? { hl: s("hl")! } : {}) } : { v: "learned" };
+    }
+    case "graph": {
+      const sc = s("scope");
+      return {
+        v: "graph",
+        ...(s("focus") ? { focus: s("focus")! } : {}),
+        ...(sc === "around" || sc === "space" ? { scope: sc } : {}),
+        ...(s("edge") ? { edge: s("edge")! } : {}),
+      };
+    }
+    case "history":
+      return { v: "history", ...(s("pageId") ? { pageId: s("pageId")! } : {}) };
+    case "trash":
+      return { v: "trash", ...(s("pageId") ? { pageId: s("pageId")! } : {}) };
+    case "archive":
+      return { v: "archive" };
+    case "search":
+      return { v: "search", q: s("q") ?? "" };
+    default:
+      return { v: "learned" };
   }
 }

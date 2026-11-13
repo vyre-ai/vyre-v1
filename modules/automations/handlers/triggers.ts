@@ -8,19 +8,44 @@ import { isTrustedService } from "../../../lib/trust.ts";
 import { registry } from "../../../generated/registry.ts";
 import { validateDefinition, webhookSecretMatches } from "./defs.ts";
 import {
-  allAutomations, clean, emitAuto, findAutomation, findRunLink, getAutomation, isOwner, listChildLinks, me, principalFor, raise, readPolicy, saveRunLink, serviceFor, touch, vaultAllowlist, versionDefinition,
+  allAutomations,
+  clean,
+  emitAuto,
+  findAutomation,
+  findRunLink,
+  getAutomation,
+  isOwner,
+  listChildLinks,
+  me,
+  principalFor,
+  raise,
+  readPolicy,
+  saveRunLink,
+  serviceFor,
+  touch,
+  vaultAllowlist,
+  versionDefinition,
 } from "../projections.ts";
 import type { AutoCtx, Automation, Definition, Policy, RunLink, RunScope, TriggerRef } from "../projections.ts";
 
-type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const TRIGGERS = new Map(registry.triggers.map((t) => [t.key, t] as const));
-const rand = (): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("");
+const rand = (): string =>
+  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("");
 export type DropReason = "self_trigger" | "depth_limit" | "paused" | "filter_error";
 
 export interface StartOpts {
-  trigger: string; payload: unknown; test: boolean; depth: number; origin?: string | undefined; eventId?: string | undefined; version?: number | undefined;
-  parentRun?: string | undefined; key: string; principal?: { kind: "person" | "service"; id: string } | undefined;
+  trigger: string;
+  payload: unknown;
+  test: boolean;
+  depth: number;
+  origin?: string | undefined;
+  eventId?: string | undefined;
+  version?: number | undefined;
+  parentRun?: string | undefined;
+  key: string;
+  principal?: { kind: "person" | "service"; id: string } | undefined;
   scope?: RunScope | undefined;
   /** Park the new Run before anyone is told it started, so a loop slot does not run ahead of the concurrency cap. */
   hold?: boolean | undefined;
@@ -30,36 +55,69 @@ export interface StartOpts {
 export async function startRun(ctx: AutoCtx, a: Automation, o: StartOpts): Promise<string> {
   if (!ctx.call) raise(ctx, "internal.unavailable", "Runs are not available right now.");
   const version = o.version ?? a.version;
-  if (versionDefinition(ctx.db, a.id, version) === undefined) raise(ctx, "validation.not_found", "That version does not exist.", { reason: "no_version", version });
-  const started = (await ctx.call("runs.start", clean({
-    kind: o.test ? "automation_test" : "automation", name: a.name, owner: a.ownerId, subject: { type: "automation", id: a.id }, definitionVersion: version, parentRun: o.parentRun,
-    idempotencyKey: o.key,
-  }))) as { runId: string };
+  if (versionDefinition(ctx.db, a.id, version) === undefined)
+    raise(ctx, "validation.not_found", "That version does not exist.", { reason: "no_version", version });
+  const started = (await ctx.call(
+    "runs.start",
+    clean({
+      kind: o.test ? "automation_test" : "automation",
+      name: a.name,
+      owner: a.ownerId,
+      subject: { type: "automation", id: a.id },
+      definitionVersion: version,
+      parentRun: o.parentRun,
+      idempotencyKey: o.key,
+    }),
+  )) as { runId: string };
   if (findRunLink(ctx.db, started.runId)) return started.runId;
   const link: RunLink = clean({
-    runId: started.runId, automationId: a.id, version, trigger: o.trigger, test: o.test, payload: o.payload, depth: o.depth, origin: o.origin, eventId: o.eventId,
-    principal: o.principal ?? principalFor(a), parentRun: o.parentRun, startedAt: ctx.now(), scope: o.scope,
+    runId: started.runId,
+    automationId: a.id,
+    version,
+    trigger: o.trigger,
+    test: o.test,
+    payload: o.payload,
+    depth: o.depth,
+    origin: o.origin,
+    eventId: o.eventId,
+    principal: o.principal ?? principalFor(a),
+    parentRun: o.parentRun,
+    startedAt: ctx.now(),
+    scope: o.scope,
   }) as RunLink;
   saveRunLink(ctx.db, link);
   // A held iteration is waiting before run_started, so the drive consumer finds it parked and leaves it there.
   if (o.hold) await ctx.call("runs.mark_waiting", { runId: started.runId, reason: "background", on: "a loop slot" });
-  emitAuto(ctx, "automation.run_started", a.id, clean({ runId: started.runId, trigger: o.trigger, version, test: o.test, depth: o.depth, origin: o.origin }));
+  emitAuto(
+    ctx,
+    "automation.run_started",
+    a.id,
+    clean({ runId: started.runId, trigger: o.trigger, version, test: o.test, depth: o.depth, origin: o.origin }),
+  );
   return started.runId;
 }
 
 /** What the executor needs for a Run: the pinned definition, what started it, the principal and the vault names a Space Automation may use. */
-export function loadRunPlan(ctx: Pick<AutoCtx, "db">, runId: string): { link: RunLink; definition: Definition; vault: string[] } | undefined {
+export function loadRunPlan(
+  ctx: Pick<AutoCtx, "db">,
+  runId: string,
+): { link: RunLink; definition: Definition; vault: string[] } | undefined {
   const link = findRunLink(ctx.db, runId);
   if (!link) return undefined;
   const definition = versionDefinition(ctx.db, link.automationId, link.version);
   if (!definition) return undefined;
-  return { link, definition, vault: link.principal.kind === "service" ? vaultAllowlist(ctx.db, link.automationId) : [] };
+  return {
+    link,
+    definition,
+    vault: link.principal.kind === "service" ? vaultAllowlist(ctx.db, link.automationId) : [],
+  };
 }
 
 // ---- test, run, retry, replay, stop ----
 
 function usable(ctx: AutoCtx, a: Automation): void {
-  if (a.status === "paused") raise(ctx, "validation.precondition_failed", a.pausedReason ?? "This automation is paused.", { reason: "paused" });
+  if (a.status === "paused")
+    raise(ctx, "validation.precondition_failed", a.pausedReason ?? "This automation is paused.", { reason: "paused" });
 }
 
 /** A personal automation starts only as its owner. Its own service may start it, and so may a host service (the schedule clock). A Space automation does not use this rule. */
@@ -82,7 +140,12 @@ export async function test(ctx: AutoCtx, input: In): Promise<unknown> {
   const def = TRIGGERS.get(key);
   if (!def) raise(ctx, "validation.bad_input", `There is no trigger called ${key}.`);
   const runId = await startRun(ctx, a, {
-    trigger: key, payload: input.sample ?? def.sample, test: true, depth: 0, version: input.version, key: `test:${a.id}:${ctx.now()}:${rand()}`,
+    trigger: key,
+    payload: input.sample ?? def.sample,
+    test: true,
+    depth: 0,
+    version: input.version,
+    key: `test:${a.id}:${ctx.now()}:${rand()}`,
     principal: { kind: "person", id: me(ctx) },
   });
   return { runId };
@@ -100,26 +163,64 @@ export async function run(ctx: AutoCtx, input: In): Promise<unknown> {
   const def = TRIGGERS.get(key);
   if (!def) raise(ctx, "validation.bad_input", `There is no trigger called ${key}.`);
   const manual = "manual" in def.source || "button" in def.source;
-  if (!manual) raise(ctx, "validation.precondition_failed", "Only the manual and button triggers start by hand.", { reason: "not_manual", trigger: key });
-  const payload = key === "manual" ? { startedBy: me(ctx), ...(input.payload ? { input: input.payload } : {}) } : { pressedBy: me(ctx), ...(input.payload ?? {}) };
+  if (!manual)
+    raise(ctx, "validation.precondition_failed", "Only the manual and button triggers start by hand.", {
+      reason: "not_manual",
+      trigger: key,
+    });
+  const payload =
+    key === "manual"
+      ? { startedBy: me(ctx), ...(input.payload ? { input: input.payload } : {}) }
+      : { pressedBy: me(ctx), ...(input.payload ?? {}) };
   // a Run an agent starts by hand carries what the agent put in its payload, which may be a stranger's text: it counts as from outside (its brief fences it, its task thread is marked)
   const byAgent = ctx.principal.kind === "agent";
-  const runId = await startRun(ctx, a, { trigger: key, payload, test: false, depth: 0, key: `run:${a.id}:${input.idempotencyKey}`, ...(byAgent ? { origin: `${AGENT_RUN_ORIGIN}${ctx.principal.id}` } : {}) });
+  const runId = await startRun(ctx, a, {
+    trigger: key,
+    payload,
+    test: false,
+    depth: 0,
+    key: `run:${a.id}:${input.idempotencyKey}`,
+    ...(byAgent ? { origin: `${AGENT_RUN_ORIGIN}${ctx.principal.id}` } : {}),
+  });
   return { runId };
 }
 
 export async function retry(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = getAutomation(ctx, input.automationId);
   const old = findRunLink(ctx.db, input.runId);
-  if (!old || old.automationId !== a.id) raise(ctx, "validation.precondition_failed", "That run does not belong to this automation.", { reason: "not_a_run_of_this" });
+  if (!old || old.automationId !== a.id)
+    raise(ctx, "validation.precondition_failed", "That run does not belong to this automation.", {
+      reason: "not_a_run_of_this",
+    });
   usable(ctx, a);
   if (!ctx.call) raise(ctx, "internal.unavailable", "Runs are not available right now.");
-  const from: string | undefined = input.fromStep ?? await unfinishedStep(ctx, old.runId);
+  const from: string | undefined = input.fromStep ?? (await unfinishedStep(ctx, old.runId));
   const r = (await ctx.call("runs.retry", clean({ runId: old.runId, fromStep: input.fromStep }))) as { runId: string };
   if (!findRunLink(ctx.db, r.runId)) {
     await carryFinishedChildren(ctx, old.runId, r.runId, from);
-    saveRunLink(ctx.db, clean({ ...old, runId: r.runId, parentRun: old.runId, principal: principalFor(a), startedAt: ctx.now() }) as RunLink);
-    emitAuto(ctx, "automation.run_started", a.id, clean({ runId: r.runId, trigger: old.trigger, version: old.version, test: old.test, depth: old.depth, origin: old.origin }));
+    saveRunLink(
+      ctx.db,
+      clean({
+        ...old,
+        runId: r.runId,
+        parentRun: old.runId,
+        principal: principalFor(a),
+        startedAt: ctx.now(),
+      }) as RunLink,
+    );
+    emitAuto(
+      ctx,
+      "automation.run_started",
+      a.id,
+      clean({
+        runId: r.runId,
+        trigger: old.trigger,
+        version: old.version,
+        test: old.test,
+        depth: old.depth,
+        origin: old.origin,
+      }),
+    );
   }
   return { runId: r.runId };
 }
@@ -127,16 +228,25 @@ export async function retry(ctx: AutoCtx, input: In): Promise<unknown> {
 /** The step a retry goes on from: the first that did not finish (the same rule as runs.retry). */
 async function unfinishedStep(ctx: AutoCtx, runId: string): Promise<string | undefined> {
   try {
-    const out = (await ctx.call?.("runs.steps", { runId, limit: 500 })) as { steps?: Array<{ step?: string; state?: string }> } | null;
+    const out = (await ctx.call?.("runs.steps", { runId, limit: 500 })) as {
+      steps?: Array<{ step?: string; state?: string }>;
+    } | null;
     return out?.steps?.find((s) => s.state !== "succeeded" && s.state !== "skipped")?.step;
-  } catch { return undefined; }
+  } catch {
+    return undefined;
+  }
 }
 
 /**
  * A loop or parallel step that is retried must not run again the lanes and iterations that succeeded: they may have sent. They move to the new Run, so it counts them as done and starts only what did not finish.
  * The old Run keeps its own step log; its list of children loses the ones that moved.
  */
-async function carryFinishedChildren(ctx: AutoCtx, oldId: string, freshId: string, step: string | undefined): Promise<void> {
+async function carryFinishedChildren(
+  ctx: AutoCtx,
+  oldId: string,
+  freshId: string,
+  step: string | undefined,
+): Promise<void> {
   if (!step || !ctx.call) return;
   for (const child of listChildLinks(ctx.db, oldId)) {
     if (child.scope?.containerNodeId !== step) continue;
@@ -149,7 +259,20 @@ async function carryFinishedChildren(ctx: AutoCtx, oldId: string, freshId: strin
  * A Run of an Automation retried or replayed through runs.*, as the Runs pages and the notification's Retry button do: it needs what automations.retry gives it, the link to the definition, and the event that
  * drives it. Without them the new Run sat queued for ever. A paused Automation ends the Run at once with the reason, so nothing waits in silence. automations.retry links the Run first, and then this does nothing.
  */
-export async function adoptRun(ctx: AutoCtx, event: { name: string; payload: { runId?: string; newRunId?: string; fromStep?: string; kind?: string; parentRun?: string; definitionVersion?: number } }): Promise<string | undefined> {
+export async function adoptRun(
+  ctx: AutoCtx,
+  event: {
+    name: string;
+    payload: {
+      runId?: string;
+      newRunId?: string;
+      fromStep?: string;
+      kind?: string;
+      parentRun?: string;
+      definitionVersion?: number;
+    };
+  },
+): Promise<string | undefined> {
   const p = event.payload;
   const replay = event.name === "run.started" && p.kind === "replay";
   if (event.name === "run.started" && !replay) return undefined;
@@ -157,27 +280,63 @@ export async function adoptRun(ctx: AutoCtx, event: { name: string; payload: { r
   const oldId = replay ? p.parentRun : p.runId;
   if (!fresh || !oldId || findRunLink(ctx.db, fresh)) return undefined;
   const old = findRunLink(ctx.db, oldId);
-  if (!old) return undefined;   // not a Run of an Automation
+  if (!old) return undefined; // not a Run of an Automation
   const a = findAutomation(ctx.db, old.automationId);
   if (!a) return undefined;
-  if (a.status === "paused" && !replay) { await ctx.call?.("runs.stop", { runId: fresh, reason: a.pausedReason ?? "This automation is paused." }); return undefined; }
+  if (a.status === "paused" && !replay) {
+    await ctx.call?.("runs.stop", { runId: fresh, reason: a.pausedReason ?? "This automation is paused." });
+    return undefined;
+  }
   const version = replay && p.definitionVersion === undefined ? a.version : old.version;
   if (!replay) await carryFinishedChildren(ctx, old.runId, fresh, p.fromStep);
-  saveRunLink(ctx.db, clean({ ...old, runId: fresh, version, parentRun: old.runId, principal: principalFor(a), startedAt: ctx.now() }) as RunLink);
-  emitAuto(ctx, "automation.run_started", a.id, clean({ runId: fresh, trigger: old.trigger, version, test: replay ? true : old.test, depth: old.depth, origin: old.origin }));
+  saveRunLink(
+    ctx.db,
+    clean({
+      ...old,
+      runId: fresh,
+      version,
+      parentRun: old.runId,
+      principal: principalFor(a),
+      startedAt: ctx.now(),
+    }) as RunLink,
+  );
+  emitAuto(
+    ctx,
+    "automation.run_started",
+    a.id,
+    clean({
+      runId: fresh,
+      trigger: old.trigger,
+      version,
+      test: replay ? true : old.test,
+      depth: old.depth,
+      origin: old.origin,
+    }),
+  );
   return fresh;
 }
 
 /** A live rerun repeats outward steps. It is not a sandbox replay, so a missing confirmation does not start a run. */
 export async function replay(ctx: AutoCtx, input: In): Promise<unknown> {
-  if (input.confirm !== true) raise(ctx, "validation.precondition_failed", "A live rerun needs confirmation.", { reason: "needs_confirm" });
+  if (input.confirm !== true)
+    raise(ctx, "validation.precondition_failed", "A live rerun needs confirmation.", { reason: "needs_confirm" });
   const a = getAutomation(ctx, input.automationId);
   const old = findRunLink(ctx.db, input.runId);
-  if (!old || old.automationId !== a.id) raise(ctx, "validation.precondition_failed", "That run does not belong to this automation.", { reason: "not_a_run_of_this" });
+  if (!old || old.automationId !== a.id)
+    raise(ctx, "validation.precondition_failed", "That run does not belong to this automation.", {
+      reason: "not_a_run_of_this",
+    });
   usable(ctx, a);
   const version = input.version === "current" ? a.version : old.version;
   const runId = await startRun(ctx, a, {
-    trigger: old.trigger, payload: old.payload, test: old.test, depth: old.depth, origin: old.origin, eventId: old.eventId, version, parentRun: old.runId,
+    trigger: old.trigger,
+    payload: old.payload,
+    test: old.test,
+    depth: old.depth,
+    origin: old.origin,
+    eventId: old.eventId,
+    version,
+    parentRun: old.runId,
     key: `replay:${old.runId}:${input.version}:${ctx.now()}:${rand()}`,
   });
   return { runId };
@@ -228,12 +387,18 @@ export async function stop(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = getAutomation(ctx, input.automationId);
   if (!ctx.call) raise(ctx, "internal.unavailable", "Runs are not available right now.");
   const listed = (await ctx.call("runs.list", {
-    scope: "subject", subject: { type: "automation", id: a.id }, statuses: [...ACTIVE_RUN], limit: 500,
+    scope: "subject",
+    subject: { type: "automation", id: a.id },
+    statuses: [...ACTIVE_RUN],
+    limit: 500,
   })) as { runs?: { id: string }[] } | null;
   const active = new Set((listed?.runs ?? []).map((x) => x.id));
   let roots: string[];
   if (input.runId) {
-    if (findRunLink(ctx.db, input.runId)?.automationId !== a.id) raise(ctx, "validation.precondition_failed", "That run does not belong to this automation.", { reason: "not_a_run_of_this" });
+    if (findRunLink(ctx.db, input.runId)?.automationId !== a.id)
+      raise(ctx, "validation.precondition_failed", "That run does not belong to this automation.", {
+        reason: "not_a_run_of_this",
+      });
     roots = [input.runId];
   } else roots = [...active];
   // Unfinished children stop with the parent. A child that already finished is not asked again.
@@ -259,10 +424,22 @@ export async function stop(ctx: AutoCtx, input: In): Promise<unknown> {
 
 // ---- fire: a matched trigger event starts a Run ----
 
-export interface Firing { trigger: string; eventId?: string | undefined; payload: unknown; origin?: string | undefined; depth: number; key: string }
+export interface Firing {
+  trigger: string;
+  eventId?: string | undefined;
+  payload: unknown;
+  origin?: string | undefined;
+  depth: number;
+  key: string;
+}
 
 /** The guards between a matched event and a Run: paused, self-trigger, chain depth. Returns the reason an event is dropped, or null. */
-export function dropReason(a: Automation, t: TriggerRef | undefined, f: Pick<Firing, "origin" | "depth">, policy: Policy): DropReason | null {
+export function dropReason(
+  a: Automation,
+  t: TriggerRef | undefined,
+  f: Pick<Firing, "origin" | "depth">,
+  policy: Policy,
+): DropReason | null {
   if (a.status !== "on") return "paused";
   if (!t) return "filter_error";
   const allowed = a.definition.allowSelfTrigger === true || TRIGGERS.get(t.key)?.allowSelfTrigger === true;
@@ -271,16 +448,33 @@ export function dropReason(a: Automation, t: TriggerRef | undefined, f: Pick<Fir
   return null;
 }
 
-function dropped(ctx: AutoCtx, a: Automation, reason: DropReason, eventId: string | undefined): { dropped: DropReason } {
+function dropped(
+  ctx: AutoCtx,
+  a: Automation,
+  reason: DropReason,
+  eventId: string | undefined,
+): { dropped: DropReason } {
   if (eventId) emitAuto(ctx, "automation.trigger_dropped", a.id, { eventId, reason });
   return { dropped: reason };
 }
 
-export async function fireOne(ctx: AutoCtx, a: Automation, f: Firing): Promise<{ runId: string } | { dropped: DropReason }> {
+export async function fireOne(
+  ctx: AutoCtx,
+  a: Automation,
+  f: Firing,
+): Promise<{ runId: string } | { dropped: DropReason }> {
   const t = a.definition.triggers.find((x) => x.key === f.trigger);
   const why = dropReason(a, t, f, readPolicy(ctx.db));
   if (why) return dropped(ctx, a, why, f.eventId);
-  const runId = await startRun(ctx, a, { trigger: f.trigger, payload: f.payload, test: false, depth: f.depth, origin: f.origin, eventId: f.eventId, key: f.key });
+  const runId = await startRun(ctx, a, {
+    trigger: f.trigger,
+    payload: f.payload,
+    test: false,
+    depth: f.depth,
+    origin: f.origin,
+    eventId: f.eventId,
+    key: f.key,
+  });
   return { runId };
 }
 
@@ -289,7 +483,10 @@ export async function fireOne(ctx: AutoCtx, a: Automation, f: Firing): Promise<{
  * Answers null for every refusal (unknown, deleted, turned off, no webhook trigger, a Personal Space, a wrong or rotated secret) so a caller learns nothing about which it was.
  * The body is the trigger data. The same Idempotency-Key starts one Run.
  */
-export async function acceptHook(ctx: AutoCtx, input: { automationId?: unknown; secret?: unknown; payload?: unknown; idempotencyKey?: unknown }): Promise<{ accepted: true; runId?: string } | null> {
+export async function acceptHook(
+  ctx: AutoCtx,
+  input: { automationId?: unknown; secret?: unknown; payload?: unknown; idempotencyKey?: unknown },
+): Promise<{ accepted: true; runId?: string } | null> {
   const id = typeof input.automationId === "string" ? input.automationId : "";
   const secret = typeof input.secret === "string" ? input.secret : "";
   if (!/^aut_[a-z0-9]+$/.test(id) || secret === "") return null;
@@ -297,10 +494,21 @@ export async function acceptHook(ctx: AutoCtx, input: { automationId?: unknown; 
   if (!found) return null;
   const match = webhookSecretMatches(ctx, id, secret);
   if (!match) return null;
-  if (found.status !== "on" || !found.definition.triggers.some((t) => t.key === "webhook") || readPolicy(ctx.db).personalSpace) return null;
-  const given = typeof input.idempotencyKey === "string" && input.idempotencyKey !== "" && input.idempotencyKey.length <= 200 ? input.idempotencyKey : "";
+  if (
+    found.status !== "on" ||
+    !found.definition.triggers.some((t) => t.key === "webhook") ||
+    readPolicy(ctx.db).personalSpace
+  )
+    return null;
+  const given =
+    typeof input.idempotencyKey === "string" && input.idempotencyKey !== "" && input.idempotencyKey.length <= 200
+      ? input.idempotencyKey
+      : "";
   const fired = await fireOne(ctx, found, {
-    trigger: "webhook", payload: input.payload ?? null, depth: 0, eventId: given ? `hook:${given}` : undefined,
+    trigger: "webhook",
+    payload: input.payload ?? null,
+    depth: 0,
+    eventId: given ? `hook:${given}` : undefined,
     key: `hook:${id}:${given || `${ctx.now()}-${rand()}${rand()}`}`,
   });
   return "runId" in fired ? { accepted: true, runId: fired.runId } : { accepted: true };
@@ -310,33 +518,71 @@ export async function fire(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = getAutomation(ctx, input.automationId);
   onlyAsOwner(ctx, a);
   if (!TRIGGERS.has(input.trigger)) raise(ctx, "validation.bad_input", `There is no trigger called ${input.trigger}.`);
-  if (!a.definition.triggers.some((x) => x.key === input.trigger)) raise(ctx, "validation.precondition_failed", "This automation does not use that trigger.", { reason: "no_such_trigger", trigger: input.trigger });
+  if (!a.definition.triggers.some((x) => x.key === input.trigger))
+    raise(ctx, "validation.precondition_failed", "This automation does not use that trigger.", {
+      reason: "no_such_trigger",
+      trigger: input.trigger,
+    });
   const r = await fireOne(ctx, a, {
-    trigger: input.trigger, eventId: input.eventId, payload: input.payload, origin: input.origin, depth: input.depth, key: `fire:${a.id}:${input.eventId ?? input.idempotencyKey}`,
+    trigger: input.trigger,
+    eventId: input.eventId,
+    payload: input.payload,
+    origin: input.origin,
+    depth: input.depth,
+    key: `fire:${a.id}:${input.eventId ?? input.idempotencyKey}`,
   });
   return r;
 }
 
 // ---- the consumer: events in, Runs out ----
 
-export interface LoggedEvent { id: string; type: string; payload: Record<string, unknown>; origin?: string; depth?: number; /** written by an importer or sync backfill */ imported?: boolean }
+export interface LoggedEvent {
+  id: string;
+  type: string;
+  payload: Record<string, unknown>;
+  origin?: string;
+  depth?: number;
+  /** written by an importer or sync backfill */ imported?: boolean;
+}
 
 const shallowMatch = (want: unknown, have: Record<string, unknown>): boolean => {
   if (!want || typeof want !== "object" || Array.isArray(want)) return false;
-  return Object.entries(want as Record<string, unknown>).every(([k, v]) => JSON.stringify(have[k]) === JSON.stringify(v));
+  return Object.entries(want as Record<string, unknown>).every(
+    ([k, v]) => JSON.stringify(have[k]) === JSON.stringify(v),
+  );
 };
 
 function recordOp(type: string): "created" | "updated" | "deleted" | undefined {
-  return type === "record.created" ? "created" : type === "record.updated" ? "updated" : type === "record.deleted" ? "deleted" : undefined;
+  return type === "record.created"
+    ? "created"
+    : type === "record.updated"
+      ? "updated"
+      : type === "record.deleted"
+        ? "deleted"
+        : undefined;
 }
 
 /** The payload a trigger gives the Run ($trigger): record changes are reshaped, everything else passes through. */
 export function triggerPayload(key: string, ev: LoggedEvent): unknown {
   if (key !== "record_change") return ev.payload;
-  const p = ev.payload as { recordId?: string; type?: string; fields?: Record<string, unknown>; prev?: Record<string, unknown>; version?: number };
+  const p = ev.payload as {
+    recordId?: string;
+    type?: string;
+    fields?: Record<string, unknown>;
+    prev?: Record<string, unknown>;
+    version?: number;
+  };
   const op = recordOp(ev.type);
   const fields = p.fields ?? p.prev ?? {};
-  return clean({ record: fields, recordId: p.recordId, type: p.type, op, fields: Object.keys(p.fields ?? p.prev ?? {}), changed: op === "updated" ? p.fields : undefined, version: p.version });
+  return clean({
+    record: fields,
+    recordId: p.recordId,
+    type: p.type,
+    op,
+    fields: Object.keys(p.fields ?? p.prev ?? {}),
+    changed: op === "updated" ? p.fields : undefined,
+    version: p.version,
+  });
 }
 
 /** Does this trigger reference match this event? The filter narrows a record change by type, operation, changed field and values. A broken filter is reported, not guessed. */
@@ -390,14 +636,24 @@ async function pauseForBurst(ctx: AutoCtx, a: Automation): Promise<void> {
   if (!ctx.call) return;
   try {
     await ctx.call("tasks.create", {
-      kind: "unblock", title: `${a.name} was paused`, summary: a.pausedReason, why: "Too many things started it at once, so it stopped before starting thousands of Runs.",
-      assigned: { kind: "person", id: a.ownerId }, source: { kind: "manual", id: `flow:${a.id}` }, idempotencyKey: `flow-burst:${a.id}:${ctx.now()}`,
+      kind: "unblock",
+      title: `${a.name} was paused`,
+      summary: a.pausedReason,
+      why: "Too many things started it at once, so it stopped before starting thousands of Runs.",
+      assigned: { kind: "person", id: a.ownerId },
+      source: { kind: "manual", id: `flow:${a.id}` },
+      idempotencyKey: `flow-burst:${a.id}:${ctx.now()}`,
     });
-  } catch { /* the pause stands and shows on the Flow even if the note could not be made */ }
+  } catch {
+    /* the pause stands and shows on the Flow even if the note could not be made */
+  }
 }
 
 /** One event from the log: start a Run of every enabled Automation it triggers. Importers and sync backfill are skipped unless the Space turned that on. */
-export async function consumeEvent(ctx: AutoCtx, ev: LoggedEvent): Promise<{ automationId: string; result: { runId: string } | { dropped: DropReason } }[]> {
+export async function consumeEvent(
+  ctx: AutoCtx,
+  ev: LoggedEvent,
+): Promise<{ automationId: string; result: { runId: string } | { dropped: DropReason } }[]> {
   const policy = readPolicy(ctx.db);
   const out: { automationId: string; result: { runId: string } | { dropped: DropReason } }[] = [];
   if (ev.imported && !policy.runOnImport) return out;
@@ -406,12 +662,25 @@ export async function consumeEvent(ctx: AutoCtx, ev: LoggedEvent): Promise<{ aut
     for (const ref of a.definition.triggers) {
       const m = matches(ref, ev);
       if (m === false) continue;
-      if (m === "filter_error") { out.push({ automationId: a.id, result: dropped(ctx, a, "filter_error", ev.id) }); continue; }
-      if (a.status === "on" && overBurst(a.id, ctx.now())) { await pauseForBurst(ctx, a); out.push({ automationId: a.id, result: dropped(ctx, a, "paused", ev.id) }); continue; }
-      const f: Firing = { trigger: ref.key, eventId: ev.id, payload: triggerPayload(ref.key, ev), origin: ev.origin, depth: ev.depth ?? 0, key: `fire:${a.id}:${ev.id}:${ref.key}` };
+      if (m === "filter_error") {
+        out.push({ automationId: a.id, result: dropped(ctx, a, "filter_error", ev.id) });
+        continue;
+      }
+      if (a.status === "on" && overBurst(a.id, ctx.now())) {
+        await pauseForBurst(ctx, a);
+        out.push({ automationId: a.id, result: dropped(ctx, a, "paused", ev.id) });
+        continue;
+      }
+      const f: Firing = {
+        trigger: ref.key,
+        eventId: ev.id,
+        payload: triggerPayload(ref.key, ev),
+        origin: ev.origin,
+        depth: ev.depth ?? 0,
+        key: `fire:${a.id}:${ev.id}:${ref.key}`,
+      };
       out.push({ automationId: a.id, result: await fireOne(ctx, a, f) });
     }
   }
   return out;
 }
-

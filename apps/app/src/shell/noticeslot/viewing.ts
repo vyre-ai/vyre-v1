@@ -12,5 +12,10 @@ export const viewing = {
     for (const l of [...listeners]) l();
   },
   has: (id: string | undefined): boolean => id !== undefined && ids.has(id),
-  subscribe(l: Listener): () => void { listeners.add(l); return () => { listeners.delete(l); }; },
+  subscribe(l: Listener): () => void {
+    listeners.add(l);
+    return () => {
+      listeners.delete(l);
+    };
+  },
 };

@@ -3,7 +3,13 @@
 // and the trace id, so a screen can show the line and quote the id. The route table is loaded on the first call, not at startup (it is large and the first paint does not need it).
 import type { Route } from "../../../generated/routes.ts";
 
-export interface CapErrorInit { code: string; message: string; traceId: string; status: number; details?: Record<string, unknown> }
+export interface CapErrorInit {
+  code: string;
+  message: string;
+  traceId: string;
+  status: number;
+  details?: Record<string, unknown>;
+}
 
 export class CapError extends Error {
   readonly code: string;
@@ -21,7 +27,11 @@ export class CapError extends Error {
 }
 
 export type RouteRow = Pick<Route, "method" | "path" | "cap" | "v"> & Partial<Pick<Route, "idempotency">>;
-export type CapCall = (cap: string, input?: unknown, o?: { idempotencyKey?: string; signal?: AbortSignal }) => Promise<unknown>;
+export type CapCall = (
+  cap: string,
+  input?: unknown,
+  o?: { idempotencyKey?: string; signal?: AbortSignal },
+) => Promise<unknown>;
 
 export interface CapCallerOptions {
   /** The Space's address, e.g. http://127.0.0.1:7777. No trailing slash needed. */
@@ -64,7 +74,8 @@ export function queryString(input: unknown): string {
 
 function errorOf(status: number, body: unknown, trace: string | null): CapError {
   const e = isObj(body) && isObj(body["error"]) ? body["error"] : null;
-  const code = e && typeof e["code"] === "string" ? e["code"] : status === 401 ? "auth.unauthenticated" : "internal.unexpected";
+  const code =
+    e && typeof e["code"] === "string" ? e["code"] : status === 401 ? "auth.unauthenticated" : "internal.unexpected";
   const message = e && typeof e["message"] === "string" ? e["message"] : "Something went wrong on our side.";
   const traceId = e && typeof e["traceId"] === "string" ? e["traceId"] : (trace ?? "");
   const details = e && isObj(e["details"]) ? e["details"] : undefined;
@@ -76,7 +87,10 @@ export function vaultLocked(body: unknown): boolean {
   const e = isObj(body) && isObj(body["error"]) ? body["error"] : null;
   if (!e) return false;
   const d = isObj(e["details"]) ? e["details"] : null;
-  return d?.["reason"] === "vault_locked" || (typeof e["message"] === "string" && /vault key is locked|sign-ins are locked/i.test(e["message"]));
+  return (
+    d?.["reason"] === "vault_locked" ||
+    (typeof e["message"] === "string" && /vault key is locked|sign-ins are locked/i.test(e["message"]))
+  );
 }
 
 let mints = 0;
@@ -105,10 +119,18 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
     const token = o.token();
     index ??= load().then(indexByCap);
     const route = (await index).get(cap);
-    if (!route) throw new CapError({ code: "validation.unknown_capability", message: "There is no such endpoint.", traceId: "", status: 404, details: { cap } });
+    if (!route)
+      throw new CapError({
+        code: "validation.unknown_capability",
+        message: "There is no such endpoint.",
+        traceId: "",
+        status: 404,
+        details: { cap },
+      });
     const headers: Record<string, string> = { accept: "application/json" };
     if (token) headers["authorization"] = `Bearer ${token}`;
-    if (opts.idempotencyKey && route.idempotency !== "none" && route.idempotency !== "natural") headers["idempotency-key"] = opts.idempotencyKey;
+    if (opts.idempotencyKey && route.idempotency !== "none" && route.idempotency !== "natural")
+      headers["idempotency-key"] = opts.idempotencyKey;
     const get = route.method.toUpperCase() === "GET";
     if (!get) headers["content-type"] = "application/json";
     const res = await doFetch(`${base}${route.path}${get ? queryString(input) : ""}`, {
@@ -118,9 +140,14 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
       ...(opts.signal ? { signal: opts.signal } : {}),
     });
     let body: unknown = null;
-    try { body = await res.json(); } catch { /* an empty or non-JSON answer: the status decides */ }
+    try {
+      body = await res.json();
+    } catch {
+      /* an empty or non-JSON answer: the status decides */
+    }
     if (res.status === 401 && token && !vaultLocked(body)) o.onUnauthenticated?.();
-    if (res.status >= 400 || (isObj(body) && body["error"] !== undefined)) throw errorOf(res.status, body, res.headers.get("x-vyre-trace"));
+    if (res.status >= 400 || (isObj(body) && body["error"] !== undefined))
+      throw errorOf(res.status, body, res.headers.get("x-vyre-trace"));
     return isObj(body) ? body["data"] : undefined;
   };
 }

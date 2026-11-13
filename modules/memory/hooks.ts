@@ -8,7 +8,11 @@ import type { Db } from "./projections.ts";
 const NIGHT_MIN_AGE = 20 * 3_600_000;
 const NIGHT_MAX_AGE = 36 * 3_600_000;
 
-interface HookCtx { now(): number; db: Db; call(cap: string, input: unknown): Promise<unknown> }
+interface HookCtx {
+  now(): number;
+  db: Db;
+  call(cap: string, input: unknown): Promise<unknown>;
+}
 
 const ready = new WeakSet<object>();
 function tables(db: Db): void {
@@ -18,7 +22,10 @@ function tables(db: Db): void {
 }
 
 /** Run memory.maintain about once a night: after the small hours when 20 hours have passed, or whenever 36 have (a host that was off at night). */
-export async function nightly(ctx: HookCtx, hourOf: (t: number) => number = (t) => new Date(t).getHours()): Promise<string[]> {
+export async function nightly(
+  ctx: HookCtx,
+  hourOf: (t: number) => number = (t) => new Date(t).getHours(),
+): Promise<string[]> {
   tables(ctx.db);
   const now = ctx.now();
   const last = num(rowsOf(ctx.db, "SELECT at FROM memory_job_state WHERE name = 'nightly'")[0]?.["at"]);
@@ -27,12 +34,21 @@ export async function nightly(ctx: HookCtx, hourOf: (t: number) => number = (t) 
   if (!(age >= NIGHT_MAX_AGE || (age >= NIGHT_MIN_AGE && hour >= 1 && hour <= 5))) return [];
   await ctx.call("memory.maintain", {});
   await ctx.call("memory.archive_sweep", {});
-  ctx.db.run("INSERT INTO memory_job_state (name, at) VALUES ('nightly', ?) ON CONFLICT(name) DO UPDATE SET at = excluded.at", now);
+  ctx.db.run(
+    "INSERT INTO memory_job_state (name, at) VALUES ('nightly', ?) ON CONFLICT(name) DO UPDATE SET at = excluded.at",
+    now,
+  );
   return ["nightly"];
 }
 
 export const periodic = {
   "memory.nightly": { everyMs: 3_600_000, run: (ctx: unknown): Promise<string[]> => nightly(ctx as HookCtx) },
   // personal keys (personal.ts, settle.ts): re-seal to each signed-in person's own key, fold what capture wrote while they were out, warm their in-memory index, drop what a sign-out left
-  "memory.personal_keys": { everyMs: 30_000, immediate: true, run: async (ctx: unknown): Promise<void> => { settlePersonal(ctx as MemCtx); } },
+  "memory.personal_keys": {
+    everyMs: 30_000,
+    immediate: true,
+    run: async (ctx: unknown): Promise<void> => {
+      settlePersonal(ctx as MemCtx);
+    },
+  },
 };

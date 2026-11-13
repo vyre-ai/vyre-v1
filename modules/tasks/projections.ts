@@ -10,12 +10,29 @@ export type TaskKind = "work" | "approve" | "review" | "answer" | "unblock" | "s
 export type TaskState = "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
 export type Slot = "assigned" | "reviewer" | "approver";
 export type AssigneeKind = "person" | "agent" | "group" | "role" | "automation";
-export interface Assignee { kind: AssigneeKind; id: string }
-export interface Block { type: string; v?: number; data: unknown }
-export interface ActionDef { key: string; label: string; note?: "required" | "optional" }
-export interface TaskSource { kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual"; id: string }
+export interface Assignee {
+  kind: AssigneeKind;
+  id: string;
+}
+export interface Block {
+  type: string;
+  v?: number;
+  data: unknown;
+}
+export interface ActionDef {
+  key: string;
+  label: string;
+  note?: "required" | "optional";
+}
+export interface TaskSource {
+  kind: "chat" | "run" | "gate" | "journey" | "meeting" | "goal" | "manual";
+  id: string;
+}
 export type Priority = "urgent" | "high" | "normal" | "low";
-export interface Recur { every: "day" | "week" | "month"; n?: number }
+export interface Recur {
+  every: "day" | "week" | "month";
+  n?: number;
+}
 
 export const KINDS: readonly TaskKind[] = ["work", "approve", "review", "answer", "unblock", "signature"];
 export const STATES: readonly TaskState[] = ["todo", "doing", "in_review", "awaiting_approval", "done", "canceled"];
@@ -82,7 +99,11 @@ export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };
 }
-export interface EmitOpts { idempotencyKey?: string; vis?: string; cause?: string }
+export interface EmitOpts {
+  idempotencyKey?: string;
+  vis?: string;
+  cause?: string;
+}
 export interface TasksCtx {
   space: string;
   principal: { kind: string; id: string };
@@ -95,12 +116,23 @@ export interface TasksCtx {
   db: Db;
   emit(name: string, subject: string, payload: unknown, opts?: EmitOpts): { id: string };
   call?(cap: string, input: unknown): Promise<unknown>;
-  authorize?(action: { perm: string | null; level: string }, resource: { type: string; id: string | null }): { effect: string };
-  seal?: { seal(v: Uint8Array, scope: string): { keyId: string; nonce: string; bytes: string }; unseal(s: { keyId: string; nonce: string; bytes: string }): Uint8Array };
+  authorize?(
+    action: { perm: string | null; level: string },
+    resource: { type: string; id: string | null },
+  ): { effect: string };
+  seal?: {
+    seal(v: Uint8Array, scope: string): { keyId: string; nonce: string; bytes: string };
+    unseal(s: { keyId: string; nonce: string; bytes: string }): Uint8Array;
+  };
 }
 
 type Code = Parameters<typeof fail>[0];
-export function raise(ctx: { trace: { traceId: string } }, code: Code, message?: string, details?: Record<string, unknown>): never {
+export function raise(
+  ctx: { trace: { traceId: string } },
+  code: Code,
+  message?: string,
+  details?: Record<string, unknown>,
+): never {
   throw fail(code, ctx.trace.traceId, { ...(message ? { message } : {}), ...(details ? { details } : {}) });
 }
 
@@ -115,21 +147,39 @@ export function newTaskId(): string {
   return makeId("tsk", globalThis.crypto.getRandomValues(new Uint8Array(14)));
 }
 function randomHex(n: number): string {
-  return Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join(
+    "",
+  );
 }
 
 // ---- policy (the three tasks.* settings) ----
 
-export interface Policy { reviewLoopLimit: number; allowSelfReview: boolean; requireHumanApprover: boolean }
+export interface Policy {
+  reviewLoopLimit: number;
+  allowSelfReview: boolean;
+  requireHumanApprover: boolean;
+}
 export const POLICY_DEFAULTS: Policy = { reviewLoopLimit: 2, allowSelfReview: false, requireHumanApprover: false };
 
-const POLICY_KEYS: ReadonlySet<string> = new Set(["tasks.review_loop_limit", "tasks.allow_self_review", "tasks.require_human_approver"]);
+const POLICY_KEYS: ReadonlySet<string> = new Set([
+  "tasks.review_loop_limit",
+  "tasks.allow_self_review",
+  "tasks.require_human_approver",
+]);
 export function readPolicy(db: Db): Policy {
   const p: Policy = { ...POLICY_DEFAULTS };
-  for (const r of db.all("SELECT policy_key, policy_value FROM tasks_policy") as { policy_key: string; policy_value: string }[]) {
+  for (const r of db.all("SELECT policy_key, policy_value FROM tasks_policy") as {
+    policy_key: string;
+    policy_value: string;
+  }[]) {
     let v: unknown;
-    try { v = JSON.parse(r.policy_value); } catch { continue; }
-    if (r.policy_key === "tasks.review_loop_limit" && typeof v === "number" && Number.isInteger(v) && v >= 1) p.reviewLoopLimit = v;
+    try {
+      v = JSON.parse(r.policy_value);
+    } catch {
+      continue;
+    }
+    if (r.policy_key === "tasks.review_loop_limit" && typeof v === "number" && Number.isInteger(v) && v >= 1)
+      p.reviewLoopLimit = v;
     if (r.policy_key === "tasks.allow_self_review" && typeof v === "boolean") p.allowSelfReview = v;
     if (r.policy_key === "tasks.require_human_approver" && typeof v === "boolean") p.requireHumanApprover = v;
   }
@@ -143,7 +193,11 @@ export function readPolicy(db: Db): Policy {
 export function syncPolicy(db: Db, p: Record<string, unknown>): boolean {
   const key = String(p["key"] ?? "");
   if (!POLICY_KEYS.has(key) || p["scope"] !== "space" || p["after"] === undefined) return false;
-  db.run("INSERT OR REPLACE INTO tasks_policy (policy_key, policy_value) VALUES (?, ?)", key, JSON.stringify(p["after"]));
+  db.run(
+    "INSERT OR REPLACE INTO tasks_policy (policy_key, policy_value) VALUES (?, ?)",
+    key,
+    JSON.stringify(p["after"]),
+  );
   return true;
 }
 
@@ -164,7 +218,11 @@ const str = (v: unknown): string | undefined => (typeof v === "string" && v.leng
 const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
 function json<T>(v: unknown, fallback: T): T {
   if (typeof v !== "string" || v.length === 0) return fallback;
-  try { return JSON.parse(v) as T; } catch { return fallback; }
+  try {
+    return JSON.parse(v) as T;
+  } catch {
+    return fallback;
+  }
 }
 
 function rowToTask(r: Raw): Task {
@@ -188,33 +246,59 @@ function rowToTask(r: Raw): Task {
     updatedAt: r.updated_at as number,
     version: num(r.version) ?? 0,
   };
-  const summary = str(r.summary); if (summary !== undefined) t.summary = summary;
-  const why = str(r.why); if (why !== undefined) t.why = why;
-  const reviewer = json<Assignee | null>(r.reviewer, null); if (reviewer) t.reviewer = reviewer;
-  const approver = json<Assignee | null>(r.approver, null); if (approver) t.approver = approver;
-  const takenBy = str(r.taken_by); if (takenBy !== undefined) t.takenBy = takenBy;
-  const takenAt = num(r.taken_at); if (takenAt !== undefined) t.takenAt = takenAt;
-  const due = num(r.due); if (due !== undefined) t.due = due;
-  const effort = num(r.effort); if (effort !== undefined) t.effort = effort;
-  const recordId = str(r.record_id); if (recordId !== undefined) t.recordId = recordId;
-  const sk = str(r.source_kind), si = str(r.source_id);
+  const summary = str(r.summary);
+  if (summary !== undefined) t.summary = summary;
+  const why = str(r.why);
+  if (why !== undefined) t.why = why;
+  const reviewer = json<Assignee | null>(r.reviewer, null);
+  if (reviewer) t.reviewer = reviewer;
+  const approver = json<Assignee | null>(r.approver, null);
+  if (approver) t.approver = approver;
+  const takenBy = str(r.taken_by);
+  if (takenBy !== undefined) t.takenBy = takenBy;
+  const takenAt = num(r.taken_at);
+  if (takenAt !== undefined) t.takenAt = takenAt;
+  const due = num(r.due);
+  if (due !== undefined) t.due = due;
+  const effort = num(r.effort);
+  if (effort !== undefined) t.effort = effort;
+  const recordId = str(r.record_id);
+  if (recordId !== undefined) t.recordId = recordId;
+  const sk = str(r.source_kind),
+    si = str(r.source_id);
   if (sk !== undefined && si !== undefined) t.source = { kind: sk as TaskSource["kind"], id: si };
-  const parent = str(r.parent_task); if (parent !== undefined) t.parentTaskId = parent;
-  const thread = str(r.thread_id); if (thread !== undefined) t.threadId = thread;
-  const snoozed = num(r.snoozed_until); if (snoozed !== undefined) t.snoozedUntil = snoozed;
-  const expires = num(r.expires_at); if (expires !== undefined) t.expiresAt = expires;
-  const decision = str(r.decision_id); if (decision !== undefined) t.decisionId = decision;
-  const hash = str(r.payload_hash); if (hash !== undefined) t.payloadHash = hash;
-  const handledBy = str(r.handled_by); if (handledBy !== undefined) t.handledBy = handledBy;
-  const handledAt = num(r.handled_at); if (handledAt !== undefined) t.handledAt = handledAt;
-  const responsible = str(r.responsible); if (responsible !== undefined) t.responsible = responsible;
-  const key = str(r.key); if (key !== undefined) t.key = key;
-  const keyNo = num(r.key_no); if (keyNo !== undefined) t.keyNo = keyNo;
-  const priority = str(r.priority); if (priority !== undefined) t.priority = priority as Priority;
-  const start = num(r.start_at); if (start !== undefined) t.start = start;
-  const recur = json<Recur | null>(r.recur, null); if (recur) t.recur = recur;
-  const worker = str(r.worker_thread); if (worker !== undefined) t.workerThread = worker;
-  const createdFor = str(r.created_for); if (createdFor !== undefined) t.createdFor = createdFor;
+  const parent = str(r.parent_task);
+  if (parent !== undefined) t.parentTaskId = parent;
+  const thread = str(r.thread_id);
+  if (thread !== undefined) t.threadId = thread;
+  const snoozed = num(r.snoozed_until);
+  if (snoozed !== undefined) t.snoozedUntil = snoozed;
+  const expires = num(r.expires_at);
+  if (expires !== undefined) t.expiresAt = expires;
+  const decision = str(r.decision_id);
+  if (decision !== undefined) t.decisionId = decision;
+  const hash = str(r.payload_hash);
+  if (hash !== undefined) t.payloadHash = hash;
+  const handledBy = str(r.handled_by);
+  if (handledBy !== undefined) t.handledBy = handledBy;
+  const handledAt = num(r.handled_at);
+  if (handledAt !== undefined) t.handledAt = handledAt;
+  const responsible = str(r.responsible);
+  if (responsible !== undefined) t.responsible = responsible;
+  const key = str(r.key);
+  if (key !== undefined) t.key = key;
+  const keyNo = num(r.key_no);
+  if (keyNo !== undefined) t.keyNo = keyNo;
+  const priority = str(r.priority);
+  if (priority !== undefined) t.priority = priority as Priority;
+  const start = num(r.start_at);
+  if (start !== undefined) t.start = start;
+  const recur = json<Recur | null>(r.recur, null);
+  if (recur) t.recur = recur;
+  const worker = str(r.worker_thread);
+  if (worker !== undefined) t.workerThread = worker;
+  const createdFor = str(r.created_for);
+  if (createdFor !== undefined) t.createdFor = createdFor;
   return t;
 }
 
@@ -227,16 +311,58 @@ export function saveTask(db: Db, t: Task): void {
   db.run(
     `INSERT OR REPLACE INTO tasks_core (id, title, summary, state, actions, file_ids, record_id, created_by, created_at, updated_at, handled_by, handled_at, responsible, key, key_no, priority, labels, start_at, fields, recur, worker_thread, created_for)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    t.id, t.title, nul(t.summary), t.state, js(t.actions), js(t.fileIds), nul(t.recordId), t.createdBy, t.createdAt, t.updatedAt,
-    nul(t.handledBy), nul(t.handledAt), nul(t.responsible), nul(t.key), nul(t.keyNo), nul(t.priority), js(t.labels), nul(t.start), js(t.fields), t.recur ? js(t.recur) : null, nul(t.workerThread), nul(t.createdFor),
+    t.id,
+    t.title,
+    nul(t.summary),
+    t.state,
+    js(t.actions),
+    js(t.fileIds),
+    nul(t.recordId),
+    t.createdBy,
+    t.createdAt,
+    t.updatedAt,
+    nul(t.handledBy),
+    nul(t.handledAt),
+    nul(t.responsible),
+    nul(t.key),
+    nul(t.keyNo),
+    nul(t.priority),
+    js(t.labels),
+    nul(t.start),
+    js(t.fields),
+    t.recur ? js(t.recur) : null,
+    nul(t.workerThread),
+    nul(t.createdFor),
   );
   db.run(
     `INSERT OR REPLACE INTO tasks_meta (id, kind, assigned, reviewer, approver, taken_by, taken_at, snoozed_until, why, blocks, source_kind, source_id,
        parent_task, depends_on, followers, working_notes, review_loops, decision_id, payload_hash, expires_at, due, effort, thread_id, version, updated_at, deleted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
-    t.id, t.kind, js(t.assigned), t.reviewer ? js(t.reviewer) : null, t.approver ? js(t.approver) : null, nul(t.takenBy), nul(t.takenAt),
-    nul(t.snoozedUntil), nul(t.why), js(t.blocks), nul(t.source?.kind), nul(t.source?.id), nul(t.parentTaskId), js(t.dependsOn), js(t.followers),
-    js(t.workingNotes), t.reviewLoops, nul(t.decisionId), nul(t.payloadHash), nul(t.expiresAt), nul(t.due), nul(t.effort), nul(t.threadId), t.version, t.updatedAt,
+    t.id,
+    t.kind,
+    js(t.assigned),
+    t.reviewer ? js(t.reviewer) : null,
+    t.approver ? js(t.approver) : null,
+    nul(t.takenBy),
+    nul(t.takenAt),
+    nul(t.snoozedUntil),
+    nul(t.why),
+    js(t.blocks),
+    nul(t.source?.kind),
+    nul(t.source?.id),
+    nul(t.parentTaskId),
+    js(t.dependsOn),
+    js(t.followers),
+    js(t.workingNotes),
+    t.reviewLoops,
+    nul(t.decisionId),
+    nul(t.payloadHash),
+    nul(t.expiresAt),
+    nul(t.due),
+    nul(t.effort),
+    nul(t.threadId),
+    t.version,
+    t.updatedAt,
   );
 }
 
@@ -244,20 +370,41 @@ const PREFIX_KEY = "tasks.key_prefix";
 const DEFAULT_PREFIX = "VY";
 /** The letters of a Space's keys: the first two of its name, or the first letter of each of two words. */
 export function prefixOf(name: string): string {
-  const words = name.toUpperCase().split(/[^A-Z0-9]+/).filter((w) => w !== "");
-  const out = words.length > 1 ? words.slice(0, 2).map((w) => w[0]).join("") : (words[0] ?? "").slice(0, 2);
+  const words = name
+    .toUpperCase()
+    .split(/[^A-Z0-9]+/)
+    .filter((w) => w !== "");
+  const out =
+    words.length > 1
+      ? words
+          .slice(0, 2)
+          .map((w) => w[0])
+          .join("")
+      : (words[0] ?? "").slice(0, 2);
   return out.length === 2 ? out : DEFAULT_PREFIX;
 }
 export function keyPrefix(db: Db): string | undefined {
-  const raw = (db.all("SELECT policy_value FROM tasks_policy WHERE policy_key = ?", PREFIX_KEY)[0] as { policy_value?: string } | undefined)?.policy_value;
+  const raw = (
+    db.all("SELECT policy_value FROM tasks_policy WHERE policy_key = ?", PREFIX_KEY)[0] as
+      | { policy_value?: string }
+      | undefined
+  )?.policy_value;
   return typeof raw === "string" ? json<string | undefined>(raw, undefined) : undefined;
 }
 /** Named once, the first time the Space makes a task, from the Space's name. A key already given never changes. */
 export async function ensurePrefix(ctx: TasksCtx): Promise<void> {
   if (keyPrefix(ctx.db) !== undefined) return;
   let name = "";
-  try { name = String(((await ctx.call?.("spaces.get", {})) as { space?: { name?: unknown } } | null)?.space?.name ?? ""); } catch { /* the default letters */ }
-  ctx.db.run("INSERT OR REPLACE INTO tasks_policy (policy_key, policy_value) VALUES (?, ?)", PREFIX_KEY, JSON.stringify(prefixOf(name)));
+  try {
+    name = String(((await ctx.call?.("spaces.get", {})) as { space?: { name?: unknown } } | null)?.space?.name ?? "");
+  } catch {
+    /* the default letters */
+  }
+  ctx.db.run(
+    "INSERT OR REPLACE INTO tasks_policy (policy_key, policy_value) VALUES (?, ?)",
+    PREFIX_KEY,
+    JSON.stringify(prefixOf(name)),
+  );
 }
 function mintKey(db: Db, t: Task): void {
   const last = (db.all("SELECT MAX(key_no) AS n FROM tasks_core")[0] as { n?: number | null } | undefined)?.n ?? 0;
@@ -280,7 +427,12 @@ export function getTask(ctx: TasksCtx, id: string): Task {
   return t;
 }
 export function allTasks(db: Db, where = "", ...args: unknown[]): Task[] {
-  return (db.all(`${SELECT} WHERE m.deleted_at IS NULL${where ? ` AND ${where}` : ""} ORDER BY c.created_at DESC, c.id DESC`, ...args) as Raw[]).map(rowToTask);
+  return (
+    db.all(
+      `${SELECT} WHERE m.deleted_at IS NULL${where ? ` AND ${where}` : ""} ORDER BY c.created_at DESC, c.id DESC`,
+      ...args,
+    ) as Raw[]
+  ).map(rowToTask);
 }
 
 /** Bump version and updatedAt, then write. */
@@ -312,7 +464,10 @@ export function openIndex(db: Db): OpenIndex {
   for (const r of rows) {
     const id = r.id as string;
     const parent = str(r.parent_task);
-    if (r.kind === "unblock" && parent !== undefined) { idx.unblockParents.add(parent); idx.blocking.add(id); }
+    if (r.kind === "unblock" && parent !== undefined) {
+      idx.unblockParents.add(parent);
+      idx.blocking.add(id);
+    }
     for (const d of json<string[]>(r.depends_on, [])) {
       if (!idx.open.has(d)) continue;
       idx.blocking.add(d);
@@ -334,13 +489,43 @@ export function isBlocked(t: Task, idx: OpenIndex): boolean {
 export function toOut(t: Task, idx: OpenIndex): Record<string, unknown> {
   const notes: Record<string, string> = { ...t.workingNotes };
   return clean({
-    id: t.id, kind: t.kind, title: t.title, summary: t.summary, why: t.why, state: t.state,
-    blocked: isBlocked(t, idx), blocks: t.blocks, actions: t.actions,
-    assigned: t.assigned, reviewer: t.reviewer, approver: t.approver,
-    takenBy: t.takenBy, due: t.due, effort: t.effort, recordId: t.recordId, fileIds: t.fileIds, source: t.source,
-    key: t.key, priority: t.priority, labels: t.labels, start: t.start, fields: t.fields, recur: t.recur, workerThread: t.workerThread,
-    parentTaskId: t.parentTaskId, dependsOn: t.dependsOn, followers: t.followers, workingNotes: notes, threadId: t.threadId,
-    reviewLoops: t.reviewLoops, snoozedUntil: t.snoozedUntil, expiresAt: t.expiresAt, createdBy: t.createdBy, createdAt: t.createdAt, updatedAt: t.updatedAt, version: t.version,
+    id: t.id,
+    kind: t.kind,
+    title: t.title,
+    summary: t.summary,
+    why: t.why,
+    state: t.state,
+    blocked: isBlocked(t, idx),
+    blocks: t.blocks,
+    actions: t.actions,
+    assigned: t.assigned,
+    reviewer: t.reviewer,
+    approver: t.approver,
+    takenBy: t.takenBy,
+    due: t.due,
+    effort: t.effort,
+    recordId: t.recordId,
+    fileIds: t.fileIds,
+    source: t.source,
+    key: t.key,
+    priority: t.priority,
+    labels: t.labels,
+    start: t.start,
+    fields: t.fields,
+    recur: t.recur,
+    workerThread: t.workerThread,
+    parentTaskId: t.parentTaskId,
+    dependsOn: t.dependsOn,
+    followers: t.followers,
+    workingNotes: notes,
+    threadId: t.threadId,
+    reviewLoops: t.reviewLoops,
+    snoozedUntil: t.snoozedUntil,
+    expiresAt: t.expiresAt,
+    createdBy: t.createdBy,
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+    version: t.version,
   });
 }
 /** The row a caller reads: the task, and whether the next move is theirs. */
@@ -349,11 +534,18 @@ export const out = (ctx: TasksCtx, t: Task): Record<string, unknown> => {
   const o = toOut(t, idx);
   return isMyTurn(ctx, t, idx) ? { ...o, yourTurn: true } : o;
 };
-export const outFor = (ctx: TasksCtx, t: Task, idx: OpenIndex): Record<string, unknown> => { const o = toOut(t, idx); return isMyTurn(ctx, t, idx) ? { ...o, yourTurn: true } : o; };
+export const outFor = (ctx: TasksCtx, t: Task, idx: OpenIndex): Record<string, unknown> => {
+  const o = toOut(t, idx);
+  return isMyTurn(ctx, t, idx) ? { ...o, yourTurn: true } : o;
+};
 
 // ---- participation ----
 
-export interface Who { id: string; kind: string; actingFor?: string | undefined }
+export interface Who {
+  id: string;
+  kind: string;
+  actingFor?: string | undefined;
+}
 export function whoIs(ctx: TasksCtx): Who {
   return { id: ctx.principal.id, kind: ctx.principal.kind, ...(ctx.actingFor ? { actingFor: ctx.actingFor } : {}) };
 }
@@ -361,15 +553,31 @@ export function whoIs(ctx: TasksCtx): Who {
  * Is this person on the task by their own right: in a slot, took it, made it, the person it was made for, responsible for its agent, or a follower? (A group or role slot is the kernel's to say.)
  */
 export function personOn(t: Task, person: string): boolean {
-  if ([t.assigned, t.reviewer, t.approver].some((a) => a !== undefined && (a.kind === "person" || a.kind === "agent") && a.id === person)) return true;
-  return t.takenBy === person || t.createdBy === person || t.createdFor === person || t.responsible === person || t.followers.includes(person);
+  if (
+    [t.assigned, t.reviewer, t.approver].some(
+      (a) => a !== undefined && (a.kind === "person" || a.kind === "agent") && a.id === person,
+    )
+  )
+    return true;
+  return (
+    t.takenBy === person ||
+    t.createdBy === person ||
+    t.createdFor === person ||
+    t.responsible === person ||
+    t.followers.includes(person)
+  );
 }
 /**
  * Does the agent's own role on this task count in this call? Yes for a person, the server, an agent acting for nobody (a wake, a routine, the baton), and an agent in the task's own thread. For an agent
  * acting for a person, only when that person is on the task themselves: what an agent holds is its work, and never widens what another person who merely asked it can see (lib/agent-asker.ts).
  */
 export function roleCounts(ctx: TasksCtx, t: Task): boolean {
-  if (ctx.thread !== undefined && (ctx.thread === t.threadId || ctx.thread === t.workerThread) && ctx.principal.kind === "agent") return true;
+  if (
+    ctx.thread !== undefined &&
+    (ctx.thread === t.threadId || ctx.thread === t.workerThread) &&
+    ctx.principal.kind === "agent"
+  )
+    return true;
   return agentStanding(ctx, (person) => personOn(t, person));
 }
 /** Who the caller is on THIS task: itself, or, when an agent's own role does not count here, the person it acts for. */
@@ -378,7 +586,8 @@ export function whoOn(ctx: TasksCtx, t: Task): Who {
   if (roleCounts(ctx, t) || w.actingFor === undefined) return w;
   return { id: w.actingFor, kind: "person" };
 }
-export const sameAssignee = (a: Assignee | undefined, b: Assignee | undefined): boolean => !!a && !!b && a.kind === b.kind && a.id === b.id;
+export const sameAssignee = (a: Assignee | undefined, b: Assignee | undefined): boolean =>
+  !!a && !!b && a.kind === b.kind && a.id === b.id;
 
 /** Does the caller stand behind this slot? Persons, agents and automations by id. A group or role slot is open to any holder (the pipeline already authorized
  *  the call at level use on the task) until one of them takes it. A service caller (Gate, Journeys, e-sign) acts for every slot. */
@@ -424,25 +633,44 @@ export function actionableByMe(ctx: TasksCtx, t: Task): boolean {
   const who = whoOn(ctx, t);
   if (a.kind === "group" || a.kind === "role") {
     if (t.takenBy !== undefined && t.takenBy !== who.id && t.takenBy !== who.actingFor) return false;
-    return !!ctx.authorize && ctx.authorize({ perm: null, level: "use" }, { type: "task", id: t.id }).effect === "allow";
+    return (
+      !!ctx.authorize && ctx.authorize({ perm: null, level: "use" }, { type: "task", id: t.id }).effect === "allow"
+    );
   }
   return holds(t, slot, who);
 }
 
 // ---- history and events ----
 
-export function emitTask(ctx: TasksCtx, db: Db, name: string, t: Pick<Task, "id">, payload: Record<string, unknown>, h: { type: string; by: string; note?: string }): string {
+export function emitTask(
+  ctx: TasksCtx,
+  db: Db,
+  name: string,
+  t: Pick<Task, "id">,
+  payload: Record<string, unknown>,
+  h: { type: string; by: string; note?: string },
+): string {
   const ev = ctx.emit(name, `task/${t.id}`, clean({ taskId: t.id, ...payload }), { vis: "participants" });
   db.run(
     "INSERT INTO tasks_history (id, task_id, at, type, actor, note, event_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    `thx_${randomHex(8)}`, t.id, ctx.now(), h.type, h.by, nul(h.note), ev.id,
+    `thx_${randomHex(8)}`,
+    t.id,
+    ctx.now(),
+    h.type,
+    h.by,
+    nul(h.note),
+    ev.id,
   );
   return ev.id;
 }
 
 // ---- queries ----
 
-export function page<T>(all: readonly T[], cursor?: string, limit?: number): { rows: T[]; next?: string; total: number } {
+export function page<T>(
+  all: readonly T[],
+  cursor?: string,
+  limit?: number,
+): { rows: T[]; next?: string; total: number } {
   const lim = Math.min(500, Math.max(1, limit ?? 50));
   const start = cursor && /^\d+$/.test(cursor) ? Number(cursor) : 0;
   const rows = all.slice(start, start + lim);
@@ -453,17 +681,33 @@ export function page<T>(all: readonly T[], cursor?: string, limit?: number): { r
 
 const DAY = 86_400_000;
 export type Reason = "ready" | "due_today" | "overdue" | "blocking";
-export interface NeedsItem { task: Task; reason: Reason; handledBy?: string; yourTurn?: boolean }
+export interface NeedsItem {
+  task: Task;
+  reason: Reason;
+  handledBy?: string;
+  yourTurn?: boolean;
+}
 
 /** The minutes a time zone is ahead of UTC at a moment (Asia/Karachi: 300). An unknown zone reads as UTC. */
 export function tzOffsetMin(tz: string | undefined, at: number): number {
   if (!tz || tz === "UTC") return 0;
   try {
-    const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).formatToParts(new Date(at));
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }).formatToParts(new Date(at));
     const n = (k: string): number => Number(parts.find((p) => p.type === k)?.value ?? 0);
     const local = Date.UTC(n("year"), n("month") - 1, n("day"), n("hour") % 24, n("minute"), n("second"));
     return Math.round((local - Math.floor(at / 1000) * 1000) / 60_000);
-  } catch { return 0; }
+  } catch {
+    return 0;
+  }
 }
 /** The start of the day a moment falls in, on the clock of a time zone. */
 export function startOfDayIn(ms: number, tz?: string): number {
@@ -472,7 +716,12 @@ export function startOfDayIn(ms: number, tz?: string): number {
 }
 /** A person's time zone: the profile.timezone setting, copied here from settings.changed (a module reads only its own tables). UTC until they set one. */
 export function tzOf(db: Db, person: string): string {
-  try { const r = db.all("SELECT tz FROM tasks_tz WHERE person = ?", person)[0] as { tz?: string } | undefined; return r?.tz || "UTC"; } catch { return "UTC"; }
+  try {
+    const r = db.all("SELECT tz FROM tasks_tz WHERE person = ?", person)[0] as { tz?: string } | undefined;
+    return r?.tz || "UTC";
+  } catch {
+    return "UTC";
+  }
 }
 export function syncTz(db: Db, p: Record<string, unknown>): boolean {
   if (p["key"] !== "profile.timezone" || p["scope"] !== "person" || typeof p["person"] !== "string") return false;
@@ -498,7 +747,12 @@ export function isMyTurn(ctx: TasksCtx, t: Task, idx: OpenIndex): boolean {
   if (shared && t.takenBy === undefined) return true;
   if (t.workingNotes["fixes"] !== undefined) return true;
   const who = whoOn(ctx, t);
-  return t.state === "todo" && t.createdBy !== who.id && t.createdBy !== who.actingFor && t.workingNotes["plan.parent"] !== "1";
+  return (
+    t.state === "todo" &&
+    t.createdBy !== who.id &&
+    t.createdBy !== who.actingFor &&
+    t.workingNotes["plan.parent"] !== "1"
+  );
 }
 
 /** The Needs you rule of spec 2.8: my Ready requests (Approve, Review, Answer, Unblock), or tasks due today or overdue, or tasks that block someone.
@@ -512,7 +766,9 @@ export function needsYou(ctx: TasksCtx): NeedsItem[] {
   const eod = sod + DAY;
   const items: NeedsItem[] = [];
   for (const t of allTasks(ctx.db, "c.state NOT IN ('done', 'canceled')")) {
-    const mine = actionableByMe(ctx, t) || (t.assigned.kind !== "group" && t.assigned.kind !== "role" && involved(t, whoOn(ctx, t)));
+    const mine =
+      actionableByMe(ctx, t) ||
+      (t.assigned.kind !== "group" && t.assigned.kind !== "role" && involved(t, whoOn(ctx, t)));
     if (!mine) continue;
     if (t.snoozedUntil !== undefined && t.snoozedUntil > now) continue;
     const turn = isMyTurn(ctx, t, idx);
@@ -524,15 +780,30 @@ export function needsYou(ctx: TasksCtx): NeedsItem[] {
     if (reason) items.push(turn ? { task: t, reason, yourTurn: true } : { task: t, reason });
   }
   // role-addressed requests resolved by someone else in the last day
-  for (const t of allTasks(ctx.db, "c.state IN ('done', 'canceled') AND c.handled_by IS NOT NULL AND c.handled_at >= ?", now - DAY)) {
+  for (const t of allTasks(
+    ctx.db,
+    "c.state IN ('done', 'canceled') AND c.handled_by IS NOT NULL AND c.handled_at >= ?",
+    now - DAY,
+  )) {
     if (!isRequest(t.kind) || t.handledBy === undefined || t.handledBy === who.id) continue;
     const addressed = [t.assigned, t.reviewer, t.approver].some((a) => a && (a.kind === "group" || a.kind === "role"));
-    if (!addressed || !ctx.authorize || ctx.authorize({ perm: null, level: "view" }, { type: "task", id: t.id }).effect !== "allow") continue;
+    if (
+      !addressed ||
+      !ctx.authorize ||
+      ctx.authorize({ perm: null, level: "view" }, { type: "task", id: t.id }).effect !== "allow"
+    )
+      continue;
     items.push({ task: t, reason: "ready", handledBy: t.handledBy });
   }
   const rank: Record<Reason, number> = { overdue: 0, due_today: 1, blocking: 2, ready: 3 };
   const handledLast = (i: NeedsItem): number => (i.handledBy === undefined ? 0 : 1);
-  items.sort((a, b) => handledLast(a) - handledLast(b) || rank[a.reason] - rank[b.reason] || (a.task.due ?? Infinity) - (b.task.due ?? Infinity) || b.task.createdAt - a.task.createdAt);
+  items.sort(
+    (a, b) =>
+      handledLast(a) - handledLast(b) ||
+      rank[a.reason] - rank[b.reason] ||
+      (a.task.due ?? Infinity) - (b.task.due ?? Infinity) ||
+      b.task.createdAt - a.task.createdAt,
+  );
   return items;
 }
 
@@ -550,10 +821,14 @@ export interface ListFilter {
 export function listTasks(ctx: TasksCtx, f: ListFilter): Task[] {
   const now = ctx.now();
   const who = whoIs(ctx);
-  const pool = f.scope === "record" && f.recordId !== undefined ? allTasks(ctx.db, "c.record_id = ?", f.recordId)
-    : f.scope === "run" && f.runId !== undefined ? allTasks(ctx.db, "m.source_kind = 'run' AND m.source_id = ?", f.runId)
-    : f.scope === "assigned_by_me" ? allTasks(ctx.db, "c.created_by = ?", who.id)
-    : allTasks(ctx.db);
+  const pool =
+    f.scope === "record" && f.recordId !== undefined
+      ? allTasks(ctx.db, "c.record_id = ?", f.recordId)
+      : f.scope === "run" && f.runId !== undefined
+        ? allTasks(ctx.db, "m.source_kind = 'run' AND m.source_id = ?", f.runId)
+        : f.scope === "assigned_by_me"
+          ? allTasks(ctx.db, "c.created_by = ?", who.id)
+          : allTasks(ctx.db);
   return pool.filter((t) => {
     const w = whoOn(ctx, t);
     if (f.scope === "mine" && !(involved(t, w) || actionableByMe(ctx, t))) return false;
@@ -570,18 +845,42 @@ export function listTasks(ctx: TasksCtx, f: ListFilter): Task[] {
 }
 
 export type Section = "open" | "assigned_by_me" | "done" | "all";
-export function myWork(ctx: TasksCtx, section: Section): { tasks: Task[]; counts: { open: number; assignedByMe: number; done: number } } {
+export function myWork(
+  ctx: TasksCtx,
+  section: Section,
+): { tasks: Task[]; counts: { open: number; assignedByMe: number; done: number } } {
   const on = (t: Task): Who => whoOn(ctx, t);
   const all = allTasks(ctx.db).filter((t) => involved(t, on(t)) || t.createdBy === on(t).id || actionableByMe(ctx, t));
   const open = all.filter((t) => isOpen(t.state) && (involved(t, on(t)) || actionableByMe(ctx, t)));
   const byMe = all.filter((t) => isOpen(t.state) && t.createdBy === on(t).id && !(t.assigned.id === on(t).id));
   const done = all.filter((t) => !isOpen(t.state) && (involved(t, on(t)) || t.createdBy === on(t).id));
   const counts = { open: open.length, assignedByMe: byMe.length, done: done.length };
-  const pick = section === "open" ? open : section === "assigned_by_me" ? byMe : section === "done" ? done : [...new Map([...open, ...byMe, ...done].map((t) => [t.id, t] as const)).values()];
+  const pick =
+    section === "open"
+      ? open
+      : section === "assigned_by_me"
+        ? byMe
+        : section === "done"
+          ? done
+          : [...new Map([...open, ...byMe, ...done].map((t) => [t.id, t] as const)).values()];
   return { tasks: pick, counts };
 }
 
-export function historyOf(db: Db, taskId: string): { at: number; type: string; by: string; note?: string; eventId: string }[] {
-  const rows = db.all("SELECT at, type, actor, note, event_id FROM tasks_history WHERE task_id = ? ORDER BY at DESC, rowid DESC", taskId) as Raw[];
-  return rows.map((r) => clean({ at: r.at as number, type: r.type as string, by: r.actor as string, note: str(r.note), eventId: r.event_id as string }));
+export function historyOf(
+  db: Db,
+  taskId: string,
+): { at: number; type: string; by: string; note?: string; eventId: string }[] {
+  const rows = db.all(
+    "SELECT at, type, actor, note, event_id FROM tasks_history WHERE task_id = ? ORDER BY at DESC, rowid DESC",
+    taskId,
+  ) as Raw[];
+  return rows.map((r) =>
+    clean({
+      at: r.at as number,
+      type: r.type as string,
+      by: r.actor as string,
+      note: str(r.note),
+      eventId: r.event_id as string,
+    }),
+  );
 }

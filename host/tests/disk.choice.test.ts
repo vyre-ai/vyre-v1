@@ -10,7 +10,10 @@ import { NEXT } from "../src/daemon/doctor-next.ts";
 test("each recorded or seen state of the data disk has its own words and its own next step", () => {
   const plain = diskChoiceResult({ kind: "plain", since: "2026-11-11" })!;
   assert.equal(plain.state, "degraded");
-  assert.match(plain.detail!, /^The data is NOT encrypted at rest\. You chose to install on a plain disk on 2026-11-11/);
+  assert.match(
+    plain.detail!,
+    /^The data is NOT encrypted at rest\. You chose to install on a plain disk on 2026-11-11/,
+  );
   assert.equal(diskNext(plain.detail), NEXT.diskPlain, "not told to enable what was chosen not to");
   const prov = diskChoiceResult({ kind: "provider", since: "2026-11-11" })!;
   assert.equal(prov.state, "degraded");
@@ -27,29 +30,65 @@ test("each recorded or seen state of the data disk has its own words and its own
 
 test("Docker's data root: verified is healthy; the Space's data encrypted and Docker's root not is a finding of its own; the person's choice says agent browser sign-ins sit on that disk; never down", () => {
   const dir = "/var/lib/docker";
-  assert.equal(dockerRootFinding(undefined, true, "detected"), null, "an older host script reports nothing, and doctor says nothing");
+  assert.equal(
+    dockerRootFinding(undefined, true, "detected"),
+    null,
+    "an older host script reports nothing, and doctor says nothing",
+  );
   const ok = dockerRootFinding({ dir, state: "encrypted" }, false, undefined)!;
   assert.equal(ok.state, "healthy");
   const mixed = dockerRootFinding({ dir, state: "plain" }, true, "detected")!;
   assert.equal(mixed.state, "degraded");
   assert.equal(mixed.key, "host.docker_root");
-  assert.match(mixed.detail, /Docker's data root \(\/var\/lib\/docker\) is not on an encrypted volume, but the Space's data is\. Agent browser sign-ins \(agent computers' and the Space browser's Chrome profiles\) are stored unsealed in Docker volumes there, so they are not encrypted at rest\./);
+  assert.match(
+    mixed.detail,
+    /Docker's data root \(\/var\/lib\/docker\) is not on an encrypted volume, but the Space's data is\. Agent browser sign-ins \(agent computers' and the Space browser's Chrome profiles\) are stored unsealed in Docker volumes there, so they are not encrypted at rest\./,
+  );
   assert.equal(mixed.next, "Move Docker's data root onto the encrypted volume, or encrypt its disk.");
-  assert.match(dockerRootFinding({ dir, state: "plain" }, false, "plain")!.detail, /are stored unsealed in Docker volumes on Docker's disk \(\/var\/lib\/docker\), which is not encrypted at rest \(the plain-disk choice you made covers it\)/);
-  assert.match(dockerRootFinding({ dir, state: "plain" }, false, "provider")!.detail, /^Not verified: agent browser sign-ins .* stored unsealed in Docker volumes on Docker's disk/);
+  assert.match(
+    dockerRootFinding({ dir, state: "plain" }, false, "plain")!.detail,
+    /are stored unsealed in Docker volumes on Docker's disk \(\/var\/lib\/docker\), which is not encrypted at rest \(the plain-disk choice you made covers it\)/,
+  );
+  assert.match(
+    dockerRootFinding({ dir, state: "plain" }, false, "provider")!.detail,
+    /^Not verified: agent browser sign-ins .* stored unsealed in Docker volumes on Docker's disk/,
+  );
   assert.match(dockerRootFinding({ dir, state: "plain" }, false, undefined)!.detail, /not verified encrypted/);
   // "cannot tell" is its own state and is not called plain
   const unknown = dockerRootFinding({ dir, state: "unknown" }, true, "detected")!;
   assert.equal(unknown.state, "degraded");
-  assert.match(unknown.detail, /^Could not tell whether Docker's data root \(\/var\/lib\/docker\) is encrypted: it is not a disk this server can look at \(as when Docker runs in a virtual machine, as on a Mac, where FileVault covers that machine's disk image\)\./);
+  assert.match(
+    unknown.detail,
+    /^Could not tell whether Docker's data root \(\/var\/lib\/docker\) is encrypted: it is not a disk this server can look at \(as when Docker runs in a virtual machine, as on a Mac, where FileVault covers that machine's disk image\)\./,
+  );
   assert.doesNotMatch(unknown.detail, /not encrypted at rest|not on an encrypted volume/);
   assert.equal(unknown.next, "Check the encryption of the disk Docker's data lives on yourself.");
   assert.match(ok.detail, /stored unsealed in Docker volumes there; that disk's encryption protects them/);
-  for (const state of ["plain", "unknown", "encrypted"]) for (const [data, choice] of [[true, "detected"], [false, "plain"], [false, "provider"], [false, undefined]] as const) assert.notEqual(dockerRootFinding({ dir, state }, data, choice)!.state, "down", "it reports; it never stops an existing server");
+  for (const state of ["plain", "unknown", "encrypted"])
+    for (const [data, choice] of [
+      [true, "detected"],
+      [false, "plain"],
+      [false, "provider"],
+      [false, undefined],
+    ] as const)
+      assert.notEqual(
+        dockerRootFinding({ dir, state }, data, choice)!.state,
+        "down",
+        "it reports; it never stops an existing server",
+      );
 });
 
 test("the daemon reads what the host script reports about the disk and Docker's data root", () => {
-  const cfg = loadConfig(["--data-dir", "/tmp/x"], { VYRE_DISK_ENCRYPTION: "provider", VYRE_DISK_ENCRYPTION_SINCE: "2026-11-11", VYRE_DOCKER_ROOT_DIR: "/var/lib/docker", VYRE_DOCKER_ROOT_STATE: "plain" }, "1.0.0");
+  const cfg = loadConfig(
+    ["--data-dir", "/tmp/x"],
+    {
+      VYRE_DISK_ENCRYPTION: "provider",
+      VYRE_DISK_ENCRYPTION_SINCE: "2026-11-11",
+      VYRE_DOCKER_ROOT_DIR: "/var/lib/docker",
+      VYRE_DOCKER_ROOT_STATE: "plain",
+    },
+    "1.0.0",
+  );
   assert.deepEqual(cfg.diskChoice, { kind: "provider", since: "2026-11-11" });
   assert.deepEqual(cfg.dockerRoot, { dir: "/var/lib/docker", state: "plain" });
   assert.equal(loadConfig(["--data-dir", "/tmp/x"], {}, "1.0.0").dockerRoot, undefined);

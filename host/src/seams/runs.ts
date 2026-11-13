@@ -13,31 +13,80 @@ import type { StepOnError } from "../../../lib/step-failure.ts";
 import { codeForReason } from "../routes/errors.ts";
 
 type Row = Record<string, unknown>;
-interface Branch { label?: string; to?: string }
+interface Branch {
+  label?: string;
+  to?: string;
+}
 interface GNode {
-  id: string; key: string; input: Record<string, unknown>; next?: string[]; branches?: Branch[];
+  id: string;
+  key: string;
+  input: Record<string, unknown>;
+  next?: string[];
+  branches?: Branch[];
   onError?: StepOnError;
 }
 interface Scope {
-  containerNodeId: string; laneId?: string; iterationIndex?: number; iterationKey?: string; item?: unknown; held?: boolean;
+  containerNodeId: string;
+  laneId?: string;
+  iterationIndex?: number;
+  iterationKey?: string;
+  item?: unknown;
+  held?: boolean;
 }
-interface PlanLink { principal: { kind: "person" | "agent" | "service"; id: string }; payload?: unknown; automationId: string; scope?: Scope; depth?: number }
-interface Plan { link: PlanLink; definition: { nodes: GNode[]; start?: string[] } }
+interface PlanLink {
+  principal: { kind: "person" | "agent" | "service"; id: string };
+  payload?: unknown;
+  automationId: string;
+  scope?: Scope;
+  depth?: number;
+}
+interface Plan {
+  link: PlanLink;
+  definition: { nodes: GNode[]; start?: string[] };
+}
 interface PlanStep {
-  id: string; key?: string; input?: unknown; next?: string | null;
+  id: string;
+  key?: string;
+  input?: unknown;
+  next?: string | null;
   retry?: { max: number; backoff: "none" | "linear" | "exp"; baseMs: number };
-  effects?: "read" | "write" | "outward"; sample?: unknown;
+  effects?: "read" | "write" | "outward";
+  sample?: unknown;
 }
 interface ChildReport {
-  id: string; runId?: string; status: string; error?: string; laneId?: string; iterationKey?: string; iterationIndex?: number; held?: boolean;
+  id: string;
+  runId?: string;
+  status: string;
+  error?: string;
+  laneId?: string;
+  iterationKey?: string;
+  iterationIndex?: number;
+  held?: boolean;
 }
-interface LoopIteration { iterationKey: string; iterationIndex: number; item: unknown }
-interface StepResult { output?: unknown; next?: string | null; wait?: unknown; prepare?: { iterations: LoopIteration[] } }
+interface LoopIteration {
+  iterationKey: string;
+  iterationIndex: number;
+  item: unknown;
+}
+interface StepResult {
+  output?: unknown;
+  next?: string | null;
+  wait?: unknown;
+  prepare?: { iterations: LoopIteration[] };
+}
 type Call = Row & { attempt: number; prepare?: boolean; children?: ChildReport[]; item?: unknown; index?: number };
 
-export type HostCall = (name: string, input: unknown, as?: { principal: { kind: "person" | "agent" | "service"; id: string }; run?: string }) => Promise<unknown>;
+export type HostCall = (
+  name: string,
+  input: unknown,
+  as?: { principal: { kind: "person" | "agent" | "service"; id: string }; run?: string },
+) => Promise<unknown>;
 
-const STEPS = new Map((registry.steps as unknown as { key: string; effects: "read" | "write" | "outward"; sample?: unknown }[]).map((s) => [s.key, s] as const));
+const STEPS = new Map(
+  (registry.steps as unknown as { key: string; effects: "read" | "write" | "outward"; sample?: unknown }[]).map(
+    (s) => [s.key, s] as const,
+  ),
+);
 
 /** How many Runs one server drives at once; the rest wait their turn. */
 export const MAX_DRIVES = 8;
@@ -68,7 +117,10 @@ function hostError(code: string, message: string): never {
 
 function lanesOf(n: GNode): { id: string; entry: string }[] {
   if (n.branches && n.branches.length > 0) {
-    return n.branches.map((b, i) => ({ id: (b.label && b.label.trim()) || b.to || `lane_${i + 1}`, entry: b.to ?? "" }));
+    return n.branches.map((b, i) => ({
+      id: (b.label && b.label.trim()) || b.to || `lane_${i + 1}`,
+      entry: b.to ?? "",
+    }));
   }
   const raw = n.input?.["branches"];
   if (Array.isArray(raw) && raw.every((x) => typeof x === "string")) return raw.map((entry) => ({ id: entry, entry }));
@@ -104,7 +156,9 @@ function reach(by: Map<string, GNode>, from: string): string[] {
 
 /** The first node every lane reaches. The same rule as the canvas join. */
 function joinOf(by: Map<string, GNode>, n: GNode): string | null {
-  const heads = lanesOf(n).map((l) => l.entry).filter((id) => id.length > 0);
+  const heads = lanesOf(n)
+    .map((l) => l.entry)
+    .filter((id) => id.length > 0);
   if (heads.length < 2) return null;
   const sets = heads.map((h) => new Set(reach(by, h)));
   for (const id of reach(by, heads[0]!)) if (sets.every((s) => s.has(id))) return id;
@@ -196,7 +250,11 @@ function clippedNext(by: Map<string, GNode>, n: GNode, ids: Set<string>): string
 /** A nested coordinator keeps the loop item the body steps read. The inner key and index stay the ones just above. */
 function carryItem(scope: Scope | undefined): Partial<Scope> {
   if (!scope || (scope.item === undefined && scope.iterationKey === undefined)) return {};
-  return { item: scope.item, ...(scope.iterationIndex !== undefined ? { iterationIndex: scope.iterationIndex } : {}), ...(scope.iterationKey !== undefined ? { iterationKey: scope.iterationKey } : {}) };
+  return {
+    item: scope.item,
+    ...(scope.iterationIndex !== undefined ? { iterationIndex: scope.iterationIndex } : {}),
+    ...(scope.iterationKey !== undefined ? { iterationKey: scope.iterationKey } : {}),
+  };
 }
 
 function concurrencyOf(input: Record<string, unknown>): number {
@@ -217,13 +275,17 @@ function childSlice(by: Map<string, GNode>, scope: Scope): GNode[] {
   return walkUntil(by, lane.entry, laneStop(by, container));
 }
 
-export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: string, attrs: Record<string, unknown>) => void }) {
+export function createRunsHost(d: {
+  call: HostCall;
+  max?: number;
+  log?: (msg: string, attrs: Record<string, unknown>) => void;
+}) {
   const max = d.max ?? MAX_DRIVES;
   const waiting: string[] = [];
-  const known = new Set<string>();      // queued or being driven
-  const again = new Set<string>();      // asked for again while being driven: driven once more when this one ends
+  const known = new Set<string>(); // queued or being driven
+  const again = new Set<string>(); // asked for again while being driven: driven once more when this one ends
   const inflight = new Set<Promise<void>>();
-  const later = new Map<string, ReturnType<typeof setTimeout>>();  // a retry whose time has not come
+  const later = new Map<string, ReturnType<typeof setTimeout>>(); // a retry whose time has not come
   let active = 0;
   const due = (result: unknown): number | undefined => {
     if (!result || typeof result !== "object") return undefined;
@@ -233,17 +295,36 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
   const schedule = (runId: string, at: number): void => {
     const prev = later.get(runId);
     if (prev) clearTimeout(prev);
-    const timer = setTimeout(() => { later.delete(runId); enqueue(runId); }, Math.min(2_147_483_647, Math.max(0, at - Date.now())));  // a timer cannot hold more than ~24 days; an early call finds the retry not due and schedules again
+    const timer = setTimeout(
+      () => {
+        later.delete(runId);
+        enqueue(runId);
+      },
+      Math.min(2_147_483_647, Math.max(0, at - Date.now())),
+    ); // a timer cannot hold more than ~24 days; an early call finds the retry not due and schedules again
     later.set(runId, timer);
   };
   const pump = (): void => {
     while (active < max && waiting.length > 0) {
       const id = waiting.shift()!;
       active += 1;
-      const p: Promise<void> = d.call("runs.drive_run", { runId: id })
-        .then((result) => due(result), (e: unknown) => { d.log?.("runs.drive_failed", { runId: id, error: e instanceof Error ? e.message : String((e as { error?: { message?: string } })?.error?.message ?? e) }); return undefined; })
+      const p: Promise<void> = d
+        .call("runs.drive_run", { runId: id })
+        .then(
+          (result) => due(result),
+          (e: unknown) => {
+            d.log?.("runs.drive_failed", {
+              runId: id,
+              error:
+                e instanceof Error ? e.message : String((e as { error?: { message?: string } })?.error?.message ?? e),
+            });
+            return undefined;
+          },
+        )
         .then((retryAt) => {
-          active -= 1; inflight.delete(p); known.delete(id);
+          active -= 1;
+          inflight.delete(p);
+          known.delete(id);
           if (again.delete(id)) enqueue(id);
           else {
             // the engine returned the time of the next attempt; call again then, without holding a drive slot for the wait
@@ -255,33 +336,52 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
     }
   };
   function enqueue(runId: string): void {
-    if (known.has(runId)) { again.add(runId); return; }
-    known.add(runId); waiting.push(runId); pump();
+    if (known.has(runId)) {
+      again.add(runId);
+      return;
+    }
+    known.add(runId);
+    waiting.push(runId);
+    pump();
   }
 
   async function reportsOf(parentId: string, containerId: string): Promise<ChildReport[]> {
-    const links = (await d.call("automations.child_links", { parentRunId: parentId, containerNodeId: containerId })) as { runId: string; scope: Scope | null }[];
+    const links = (await d.call("automations.child_links", {
+      parentRunId: parentId,
+      containerNodeId: containerId,
+    })) as { runId: string; scope: Scope | null }[];
     const out: ChildReport[] = [];
     for (const l of Array.isArray(links) ? links : []) {
       const got = (await d.call("runs.get", { runId: l.runId })) as { run?: { status?: string; summary?: string } };
       const status = got?.run?.status ?? "queued";
       const sc = l.scope ?? { containerNodeId: containerId };
       out.push({
-        id: sc.laneId ?? sc.iterationKey ?? l.runId, runId: l.runId, status,
+        id: sc.laneId ?? sc.iterationKey ?? l.runId,
+        runId: l.runId,
+        status,
         ...(status === "failed" ? { error: got?.run?.summary ?? "it did not finish" } : {}),
-        laneId: sc.laneId, iterationKey: sc.iterationKey, iterationIndex: sc.iterationIndex, held: sc.held === true,
+        laneId: sc.laneId,
+        iterationKey: sc.iterationKey,
+        iterationIndex: sc.iterationIndex,
+        held: sc.held === true,
       });
     }
     return out;
   }
 
   async function spawn(parentId: string, key: string, scope: Scope, hold: boolean): Promise<void> {
-    const made = (await d.call("automations.spawn_child", { parentRunId: parentId, key, scope, hold })) as { runId?: string } | null;
+    const made = (await d.call("automations.spawn_child", { parentRunId: parentId, key, scope, hold })) as {
+      runId?: string;
+    } | null;
     if (made?.runId && !hold) enqueue(made.runId);
   }
 
   async function stopRun(runId: string, reason: string): Promise<void> {
-    try { await d.call("runs.stop", { runId, reason }); } catch { /* already finished */ }
+    try {
+      await d.call("runs.stop", { runId, reason });
+    } catch {
+      /* already finished */
+    }
   }
 
   function toPlan(by: Map<string, GNode>, ordered: GNode[]): PlanStep[] {
@@ -289,14 +389,25 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
     return ordered.map((n) => {
       const kind = STEPS.get(n.key);
       // an HTTP request step whose method is written as GET or HEAD reads: a sandbox runs it for real. A method taken from earlier data stays outward, as every other method does.
-      const effects = n.key === "http_request" && typeof n.input?.["method"] === "string" && /^(GET|HEAD)$/i.test(n.input["method"]) ? "read" as const : kind?.effects ?? "write";
+      const effects =
+        n.key === "http_request" && typeof n.input?.["method"] === "string" && /^(GET|HEAD)$/i.test(n.input["method"])
+          ? ("read" as const)
+          : (kind?.effects ?? "write");
       const requested = n.onError?.max;
-      const retry = n.onError?.mode === "retry"
-        ? { max: clampRetry(typeof requested === "number" && Number.isFinite(requested) ? requested : 3), backoff: "exp" as const, baseMs: 1000 }
-        : undefined;
+      const retry =
+        n.onError?.mode === "retry"
+          ? {
+              max: clampRetry(typeof requested === "number" && Number.isFinite(requested) ? requested : 3),
+              backoff: "exp" as const,
+              baseMs: 1000,
+            }
+          : undefined;
       const next = clippedNext(by, n, ids);
       return {
-        id: n.id, key: n.key, input: n.input, effects,
+        id: n.id,
+        key: n.key,
+        input: n.input,
+        effects,
         ...(next !== undefined ? { next } : {}),
         ...(kind?.sample !== undefined ? { sample: kind.sample } : {}),
         ...(retry ? { retry } : {}),
@@ -304,7 +415,9 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
     });
   }
 
-  async function resolve(run: { id: string }): Promise<{ plan: PlanStep[]; exec: (step: PlanStep, call: never) => Promise<StepResult> } | undefined> {
+  async function resolve(run: {
+    id: string;
+  }): Promise<{ plan: PlanStep[]; exec: (step: PlanStep, call: never) => Promise<StepResult> } | undefined> {
     const p = (await d.call("automations.run_plan", { runId: run.id })) as Plan | null;
     if (!p || p.definition.nodes.length === 0) return undefined;
     const nodes = p.definition.nodes;
@@ -323,12 +436,33 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
     const planIds = new Set(ordered.map((n) => n.id));
     const callStep = async (node: GNode, call: Call, extra: Partial<Call>): Promise<StepResult> => {
       const withItem: Call = {
-        ...call, ...extra, trigger: p.link.payload, vars: {},
-        ...(scope?.item !== undefined || scope?.iterationKey !== undefined ? { item: scope.item, index: scope.iterationIndex } : {}),
+        ...call,
+        ...extra,
+        trigger: p.link.payload,
+        vars: {},
+        ...(scope?.item !== undefined || scope?.iterationKey !== undefined
+          ? { item: scope.item, index: scope.iterationIndex }
+          : {}),
       };
-      return (await d.call("steps-core.run_step", {
-        node, call: withItem, run: { id: run.id, automation: p.link.automationId, trigger: typeof p.link.origin === "string" && p.link.origin.startsWith("agent:") ? "agent_run" : p.link.trigger, defHash, ...(typeof p.link.depth === "number" ? { depth: p.link.depth } : {}), ...(p.definition.ai && (p.definition.ai.keyId || p.definition.ai.backupKeyId) ? { ai: p.definition.ai } : {}) },
-      }, { principal: p.link.principal, run: run.id })) as StepResult;
+      return (await d.call(
+        "steps-core.run_step",
+        {
+          node,
+          call: withItem,
+          run: {
+            id: run.id,
+            automation: p.link.automationId,
+            trigger:
+              typeof p.link.origin === "string" && p.link.origin.startsWith("agent:") ? "agent_run" : p.link.trigger,
+            defHash,
+            ...(typeof p.link.depth === "number" ? { depth: p.link.depth } : {}),
+            ...(p.definition.ai && (p.definition.ai.keyId || p.definition.ai.backupKeyId)
+              ? { ai: p.definition.ai }
+              : {}),
+          },
+        },
+        { principal: p.link.principal, run: run.id },
+      )) as StepResult;
     };
     const finish = (node: GNode, r: StepResult): StepResult => {
       const rest: StepResult = { output: r.output, next: r.next, wait: r.wait };
@@ -344,35 +478,61 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
       const have = new Set(kids.map((k) => k.laneId));
       for (const lane of lanes) {
         if (!lane.entry || have.has(lane.id)) continue;
-        await spawn(run.id, `child:${run.id}:${node.id}:lane:${lane.id}`, { ...carryItem(scope), containerNodeId: node.id, laneId: lane.id }, false);
+        await spawn(
+          run.id,
+          `child:${run.id}:${node.id}:lane:${lane.id}`,
+          { ...carryItem(scope), containerNodeId: node.id, laneId: lane.id },
+          false,
+        );
       }
       kids = await reportsOf(run.id, node.id);
       for (const lane of lanes) if (!lane.entry) kids.push({ id: lane.id, status: "succeeded", laneId: lane.id });
       if (node.input["waitFor"] === "any" && kids.some((k) => k.status === "succeeded")) {
         for (const k of kids) {
-          if (k.runId && !TERMINAL.has(k.status)) await stopRun(k.runId, "Another lane finished first. Steps that already ran are not undone.");
+          if (k.runId && !TERMINAL.has(k.status))
+            await stopRun(k.runId, "Another lane finished first. Steps that already ran are not undone.");
         }
         kids = await reportsOf(run.id, node.id);
-        for (const lane of lanes) if (!lane.entry && !kids.some((k) => k.laneId === lane.id)) kids.push({ id: lane.id, status: "succeeded", laneId: lane.id });
+        for (const lane of lanes)
+          if (!lane.entry && !kids.some((k) => k.laneId === lane.id))
+            kids.push({ id: lane.id, status: "succeeded", laneId: lane.id });
       }
       return finish(node, await callStep(node, call, { children: kids }));
     };
     const releaseLoop = async (node: GNode, kids: ChildReport[]): Promise<ChildReport[]> => {
       const cap = concurrencyOf(node.input);
-      const inflight = kids.filter((k) => k.status === "queued" || k.status === "running" || (k.status === "waiting" && k.held !== true));
+      const inflight = kids.filter(
+        (k) => k.status === "queued" || k.status === "running" || (k.status === "waiting" && k.held !== true),
+      );
       if (kids.some((k) => k.status === "failed")) {
-        for (const k of kids) if (k.held && k.runId && !TERMINAL.has(k.status)) await stopRun(k.runId, "A loop iteration failed. Steps that already ran are not undone.");
+        for (const k of kids)
+          if (k.held && k.runId && !TERMINAL.has(k.status))
+            await stopRun(k.runId, "A loop iteration failed. Steps that already ran are not undone.");
       } else {
         let room = cap - inflight.length;
-        const links = (await d.call("automations.child_links", { parentRunId: run.id, containerNodeId: node.id })) as { runId: string; scope: Scope | null }[];
+        const links = (await d.call("automations.child_links", { parentRunId: run.id, containerNodeId: node.id })) as {
+          runId: string;
+          scope: Scope | null;
+        }[];
         const scopes = new Map((Array.isArray(links) ? links : []).map((l) => [l.runId, l.scope] as const));
-        const held = kids.filter((k) => k.held && k.runId && (k.status === "waiting" || k.status === "queued")).slice().sort((a, b) => (a.iterationIndex ?? 0) - (b.iterationIndex ?? 0));
+        const held = kids
+          .filter((k) => k.held && k.runId && (k.status === "waiting" || k.status === "queued"))
+          .slice()
+          .sort((a, b) => (a.iterationIndex ?? 0) - (b.iterationIndex ?? 0));
         for (const k of held) {
           if (room <= 0 || !k.runId) break;
-          const prev = scopes.get(k.runId) ?? { containerNodeId: node.id, iterationKey: k.iterationKey, iterationIndex: k.iterationIndex };
+          const prev = scopes.get(k.runId) ?? {
+            containerNodeId: node.id,
+            iterationKey: k.iterationKey,
+            iterationIndex: k.iterationIndex,
+          };
           await d.call("automations.patch_scope", { runId: k.runId, scope: { ...prev, held: false } });
           if (k.status === "waiting") {
-            try { await d.call("runs.resume", { runId: k.runId, reason: "background" }); } catch { /* not waiting */ }
+            try {
+              await d.call("runs.resume", { runId: k.runId, reason: "background" });
+            } catch {
+              /* not waiting */
+            }
           }
           enqueue(k.runId);
           room -= 1;
@@ -395,9 +555,19 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
         if (have.has(it.iterationKey)) continue;
         const hold = room <= 0;
         if (!hold) room -= 1;
-        await spawn(run.id, `child:${run.id}:${node.id}:iter:${it.iterationKey}`, {
-          ...carryItem(scope), containerNodeId: node.id, iterationIndex: it.iterationIndex, iterationKey: it.iterationKey, item: it.item, ...(hold ? { held: true } : {}),
-        }, hold);
+        await spawn(
+          run.id,
+          `child:${run.id}:${node.id}:iter:${it.iterationKey}`,
+          {
+            ...carryItem(scope),
+            containerNodeId: node.id,
+            iterationIndex: it.iterationIndex,
+            iterationKey: it.iterationKey,
+            item: it.item,
+            ...(hold ? { held: true } : {}),
+          },
+          hold,
+        );
       }
       kids = await reportsOf(run.id, node.id);
       if (started) kids = await releaseLoop(node, kids);
@@ -414,7 +584,7 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
         return finish(node, r);
       } catch (raw) {
         const e = refusal(raw);
-        if (e !== raw) throw e;   // a person who is no longer let in fails the Run whatever the step's own error rule says
+        if (e !== raw) throw e; // a person who is no longer let in fails the Run whatever the step's own error rule says
         const decided = failureResult(node.onError, e);
         if (decided === "throw" || decided === "retry") throw e;
         if (decided.next !== undefined && !by.has(decided.next)) throw e;
@@ -442,7 +612,9 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
       for (const [parentId, kids] of byParent) {
         const got = (await d.call("runs.get", { runId: parentId })) as { run?: { status?: string } };
         if (got?.run?.status !== "waiting") continue;
-        const page = (await d.call("runs.steps", { runId: parentId, limit: 500 })) as { steps?: { step?: string; state?: string }[] };
+        const page = (await d.call("runs.steps", { runId: parentId, limit: 500 })) as {
+          steps?: { step?: string; state?: string }[];
+        };
         const waitingStep = [...(page?.steps ?? [])].reverse().find((s) => s.state === "waiting");
         if (!waitingStep?.step) continue;
         const resolved = await resolve({ id: parentId });
@@ -455,7 +627,11 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
           if (g?.run?.status && TERMINAL.has(g.run.status)) terminal = true;
         }
         if (!terminal) continue;
-        try { await d.call("runs.resume", { runId: parentId, reason: "background" }); } catch { continue; }
+        try {
+          await d.call("runs.resume", { runId: parentId, reason: "background" });
+        } catch {
+          continue;
+        }
         enqueue(parentId);
       }
       return ids.length;
@@ -465,7 +641,16 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
       for (const timer of later.values()) clearTimeout(timer);
       later.clear();
       let giveUp: ReturnType<typeof setTimeout> | undefined;
-      try { await Promise.race([Promise.allSettled([...inflight]), new Promise((r) => { giveUp = setTimeout(r, ms); })]); } finally { clearTimeout(giveUp); }   // a timer left running would hold the process open after shutdown
+      try {
+        await Promise.race([
+          Promise.allSettled([...inflight]),
+          new Promise((r) => {
+            giveUp = setTimeout(r, ms);
+          }),
+        ]);
+      } finally {
+        clearTimeout(giveUp);
+      } // a timer left running would hold the process open after shutdown
     },
     resolve,
   };

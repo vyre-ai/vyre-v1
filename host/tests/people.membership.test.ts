@@ -27,7 +27,7 @@ test("an active person is ok; suspended, removed and unknown people are refused;
 });
 
 test("while the snapshot is stale everyone but the owner is unavailable, never ok", () => {
-  const check = checkWith((id) => id !== "usr_active");   // the host's staleFor lets the owner through: here usr_active stands for the owner
+  const check = checkWith((id) => id !== "usr_active"); // the host's staleFor lets the owner through: here usr_active stands for the owner
   assert.equal(check("usr_active"), "ok", "the owner is still answered");
   for (const id of ["usr_suspended", "usr_removed", "usr_erased"]) assert.equal(check(id), "unavailable", id);
   assert.equal(check("usr_new", { joining: true }), "unavailable", "and a join waits");

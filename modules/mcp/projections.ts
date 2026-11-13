@@ -29,11 +29,19 @@ export interface McpCtx {
   now(): number;
   db: Db;
   emit(name: EventName, subject: string, payload: unknown): unknown;
-  authorize(action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): { effect: "allow" | "deny" | "hold" };
+  authorize(
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
+    resource: { type: string; id: string | null },
+  ): { effect: "allow" | "deny" | "hold" };
   log: { warn(msg: string, attrs?: Record<string, unknown>): void };
 }
 
-export function raise(ctx: Pick<McpCtx, "trace">, code: ErrorCode, message: string, details?: Record<string, unknown>): never {
+export function raise(
+  ctx: Pick<McpCtx, "trace">,
+  code: ErrorCode,
+  message: string,
+  details?: Record<string, unknown>,
+): never {
   throw fail(code, ctx.trace.traceId, { message, ...(details ? { details } : {}) });
 }
 
@@ -51,19 +59,28 @@ export interface Endpoint {
 const DEFAULT_ENDPOINT: Endpoint = { url: "http://127.0.0.1:41800/mcp", loopbackUrl: "http://127.0.0.1:41800/mcp" };
 let endpoint: Endpoint | (() => Endpoint) = DEFAULT_ENDPOINT;
 /** A function when the address can change while the host runs: a phone name claimed later is the Space's address from then on. */
-export function bindEndpoint(e: Endpoint | (() => Endpoint) | null): void { endpoint = e ?? DEFAULT_ENDPOINT; }
+export function bindEndpoint(e: Endpoint | (() => Endpoint) | null): void {
+  endpoint = e ?? DEFAULT_ENDPOINT;
+}
 export const endpointOf = (): Endpoint => (typeof endpoint === "function" ? endpoint() : endpoint);
 
 let server: McpServer | null = null;
 /** The live server on this host, so closing a session also ends it there. */
-export function bindServer(s: McpServer | null): void { server = s; }
+export function bindServer(s: McpServer | null): void {
+  server = s;
+}
 export const boundServer = (): McpServer | null => server;
 
 // ---- schema -----------------------------------------------------------------------------------------------------------------------------------------
 
-const schemaOf = (file: string): string[] => readFileSync(new URL(`./migrations/${file}`, import.meta.url), "utf8")
-  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+const schemaOf = (file: string): string[] =>
+  readFileSync(new URL(`./migrations/${file}`, import.meta.url), "utf8")
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n")
+    .split(";")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
 const SCHEMA = [...schemaOf("0001_init.sql"), ...schemaOf("0002_oauth.sql")];
 const SETUP_SCHEMA = schemaOf("0003_setup_grants.sql");
 const ready = new WeakSet<object>();
@@ -71,8 +88,16 @@ const ready = new WeakSet<object>();
 /** Make sure the mcp tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT session_id FROM mcp_oauth_grants WHERE grant_id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
-  try { db.all("SELECT agent_id FROM mcp_setup_grants WHERE agent_id = ?", "probe"); } catch { for (const stmt of SETUP_SCHEMA) db.run(stmt); }
+  try {
+    db.all("SELECT session_id FROM mcp_oauth_grants WHERE grant_id = ?", "probe");
+  } catch {
+    for (const stmt of SCHEMA) db.run(stmt);
+  }
+  try {
+    db.all("SELECT agent_id FROM mcp_setup_grants WHERE agent_id = ?", "probe");
+  } catch {
+    for (const stmt of SETUP_SCHEMA) db.run(stmt);
+  }
   ready.add(db);
 }
 
@@ -81,22 +106,36 @@ export function ensure(db: Db): void {
 /** Does this outside agent act for this person including setup? Read on every call, so taking it back counts at the next one. */
 export function hasSetup(db: Db, agentId: string, person: string): boolean {
   ensure(db);
-  const r = (db.all("SELECT setup FROM mcp_setup_grants WHERE agent_id = ? AND person = ?", agentId, person) as Record<string, unknown>[])[0];
+  const r = (
+    db.all("SELECT setup FROM mcp_setup_grants WHERE agent_id = ? AND person = ?", agentId, person) as Record<
+      string,
+      unknown
+    >[]
+  )[0];
   return Number(r?.["setup"] ?? 0) === 1;
 }
 
 export function putSetup(db: Db, agentId: string, person: string, setup: boolean, by: string, at: number): void {
   ensure(db);
   db.run("DELETE FROM mcp_setup_grants WHERE agent_id = ?", agentId);
-  db.run("INSERT INTO mcp_setup_grants (agent_id, person, setup, set_by, set_at) VALUES (?, ?, ?, ?, ?)", agentId, person, setup ? 1 : 0, by, at);
+  db.run(
+    "INSERT INTO mcp_setup_grants (agent_id, person, setup, set_by, set_at) VALUES (?, ?, ?, ?, ?)",
+    agentId,
+    person,
+    setup ? 1 : 0,
+    by,
+    at,
+  );
 }
 
 // ---- ids and secrets ----------------------------------------------------------------------------------------------------------------------------------
 
 /** Contract ids are `<prefix>_<lowercase alphanumerics>`. */
-export const mintId = (prefix: string, now: number = Date.now()): string => `${prefix}_${mintUuid(now).replaceAll("-", "")}`;
+export const mintId = (prefix: string, now: number = Date.now()): string =>
+  `${prefix}_${mintUuid(now).replaceAll("-", "")}`;
 
-const bytesHex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
+const bytesHex = (n: number): string =>
+  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 /** A token nobody can guess: 192 random bits behind a readable prefix. */
 export const secret = (prefix: string): string => `${prefix}_${bytesHex(24)}`;
 
@@ -115,14 +154,38 @@ const optStr = (v: unknown): string | undefined => (v === null || v === undefine
 const num = (v: unknown): number => Number(v);
 
 export interface SessionRow {
-  sessionId: string; kind: "outside" | "driver"; tokenHash?: string; principal: string; actingFor?: string; threadId?: string; runId?: string; traceId?: string;
-  name?: string; startedAt: number; expiresAt?: number; lastCallAt?: number; calls: number; closedAt?: number;
+  sessionId: string;
+  kind: "outside" | "driver";
+  tokenHash?: string;
+  principal: string;
+  actingFor?: string;
+  threadId?: string;
+  runId?: string;
+  traceId?: string;
+  name?: string;
+  startedAt: number;
+  expiresAt?: number;
+  lastCallAt?: number;
+  calls: number;
+  closedAt?: number;
 }
 export function sessionOf(r: Row): SessionRow {
-  const out: SessionRow = { sessionId: str(r["session_id"]), kind: str(r["kind"]) as SessionRow["kind"], principal: str(r["principal"]), startedAt: num(r["started_at"]), calls: num(r["calls"]) };
-  const set = <K extends keyof SessionRow>(k: K, v: SessionRow[K] | undefined): void => { if (v !== undefined) out[k] = v; };
-  set("tokenHash", optStr(r["token_hash"])); set("actingFor", optStr(r["acting_for"])); set("threadId", optStr(r["thread_id"]));
-  set("runId", optStr(r["run_id"])); set("traceId", optStr(r["trace_id"])); set("name", optStr(r["name"]));
+  const out: SessionRow = {
+    sessionId: str(r["session_id"]),
+    kind: str(r["kind"]) as SessionRow["kind"],
+    principal: str(r["principal"]),
+    startedAt: num(r["started_at"]),
+    calls: num(r["calls"]),
+  };
+  const set = <K extends keyof SessionRow>(k: K, v: SessionRow[K] | undefined): void => {
+    if (v !== undefined) out[k] = v;
+  };
+  set("tokenHash", optStr(r["token_hash"]));
+  set("actingFor", optStr(r["acting_for"]));
+  set("threadId", optStr(r["thread_id"]));
+  set("runId", optStr(r["run_id"]));
+  set("traceId", optStr(r["trace_id"]));
+  set("name", optStr(r["name"]));
   if (r["expires_at"] !== null && r["expires_at"] !== undefined) out.expiresAt = num(r["expires_at"]);
   if (r["last_call_at"] !== null && r["last_call_at"] !== undefined) out.lastCallAt = num(r["last_call_at"]);
   if (r["closed_at"] !== null && r["closed_at"] !== undefined) out.closedAt = num(r["closed_at"]);
@@ -138,7 +201,17 @@ export function insertSession(db: Db, s: SessionRow): void {
   db.run(
     `INSERT INTO mcp_sessions (session_id, kind, token_hash, principal, acting_for, thread_id, run_id, trace_id, name, started_at, expires_at, last_call_at, calls, closed_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, NULL)`,
-    s.sessionId, s.kind, s.tokenHash ?? null, s.principal, s.actingFor ?? null, s.threadId ?? null, s.runId ?? null, s.traceId ?? null, s.name ?? null, s.startedAt, s.expiresAt ?? null,
+    s.sessionId,
+    s.kind,
+    s.tokenHash ?? null,
+    s.principal,
+    s.actingFor ?? null,
+    s.threadId ?? null,
+    s.runId ?? null,
+    s.traceId ?? null,
+    s.name ?? null,
+    s.startedAt,
+    s.expiresAt ?? null,
   );
 }
 
@@ -153,14 +226,22 @@ export function isLive(_db: Db, s: SessionRow, now: number): boolean {
 }
 
 export function countLive(db: Db, now: number): number {
-  const rows = db.all("SELECT * FROM mcp_sessions WHERE closed_at IS NULL AND (expires_at IS NULL OR expires_at > ?)", now) as Row[];
+  const rows = db.all(
+    "SELECT * FROM mcp_sessions WHERE closed_at IS NULL AND (expires_at IS NULL OR expires_at > ?)",
+    now,
+  ) as Row[];
   return rows.map(sessionOf).filter((s) => isLive(db, s, now)).length;
 }
 
 // ---- who is calling ---------------------------------------------------------------------------------------------------------------------------------
 
 /** The session token of a CLI engine: finds the one minted for it. An outside agent's access token is read in oauth.ts. */
-export async function driverForToken(db: Db, space: string, token: string, now: number): Promise<{ caller: McpCaller } | { refused: "unknown" | "expired" | "revoked" }> {
+export async function driverForToken(
+  db: Db,
+  space: string,
+  token: string,
+  now: number,
+): Promise<{ caller: McpCaller } | { refused: "unknown" | "expired" | "revoked" }> {
   ensure(db);
   const own = sessionBy(db, "token_hash", await sha256(token));
   if (!own) return { refused: "unknown" };
@@ -171,22 +252,37 @@ export async function driverForToken(db: Db, space: string, token: string, now: 
 
 export function outsideCaller(space: string, s: SessionRow, resource: string): McpCaller {
   return {
-    kind: "outside", sessionId: s.sessionId, space, principal: { kind: "agent", id: s.principal }, ...(s.actingFor === undefined ? {} : { actingFor: s.actingFor }),
-    provider: OUTSIDE_PROVIDER, resource, ...(s.name === undefined ? {} : { name: s.name }),
+    kind: "outside",
+    sessionId: s.sessionId,
+    space,
+    principal: { kind: "agent", id: s.principal },
+    ...(s.actingFor === undefined ? {} : { actingFor: s.actingFor }),
+    provider: OUTSIDE_PROVIDER,
+    resource,
+    ...(s.name === undefined ? {} : { name: s.name }),
   };
 }
 
 export function driverCaller(space: string, s: SessionRow): McpCaller {
   return {
-    kind: "driver", sessionId: s.sessionId, space, principal: { kind: "agent", id: s.principal }, ...(s.actingFor === undefined ? {} : { actingFor: s.actingFor }),
-    ...(s.threadId === undefined ? {} : { threadId: s.threadId }), ...(s.runId === undefined ? {} : { runId: s.runId }), ...(s.traceId === undefined ? {} : { traceId: s.traceId }),
+    kind: "driver",
+    sessionId: s.sessionId,
+    space,
+    principal: { kind: "agent", id: s.principal },
+    ...(s.actingFor === undefined ? {} : { actingFor: s.actingFor }),
+    ...(s.threadId === undefined ? {} : { threadId: s.threadId }),
+    ...(s.runId === undefined ? {} : { runId: s.runId }),
+    ...(s.traceId === undefined ? {} : { traceId: s.traceId }),
     ...(s.name === undefined ? {} : { name: s.name }),
   };
 }
 
 // ---- the generated catalog ----------------------------------------------------------------------------------------------------------------------------
 
-export interface Generated { catalog: Catalog; defaults: Set<string> }
+export interface Generated {
+  catalog: Catalog;
+  defaults: Set<string>;
+}
 let generated: Generated | null = null;
 
 const read = (rel: string): string => readFileSync(new URL(`../../${rel}`, import.meta.url), "utf8");
@@ -194,7 +290,10 @@ const read = (rel: string): string => readFileSync(new URL(`../../${rel}`, impor
 /** The tool list the generator wrote, joined with the registry, and the frozen default listed set. Read once. */
 export function loadGenerated(): Generated {
   if (generated) return generated;
-  const reg = JSON.parse(read("generated/registry.json")) as { capabilities: RegistryCapRow[]; agentTools: AgentToolRow[] };
+  const reg = JSON.parse(read("generated/registry.json")) as {
+    capabilities: RegistryCapRow[];
+    agentTools: AgentToolRow[];
+  };
   const tools = (JSON.parse(read("generated/mcp-tools.json")) as { tools: McpToolRow[] }).tools;
   generated = {
     catalog: offerable(buildCatalog(reg.capabilities, tools, reg.agentTools), (cap) => DEFERRED_CAPS.has(cap)),

@@ -52,9 +52,7 @@ export class Replica {
     if (key.length !== 32) throw new Error("replica key must be 32 bytes");
     const opfs = new OpfsDirectory(dir);
     const db = new DatabaseSync(opfs.path("replica.sqlite"));
-    db.exec(
-      "PRAGMA journal_mode=DELETE; CREATE TABLE IF NOT EXISTS rows (id TEXT PRIMARY KEY, blob BLOB NOT NULL)",
-    );
+    db.exec("PRAGMA journal_mode=DELETE; CREATE TABLE IF NOT EXISTS rows (id TEXT PRIMARY KEY, blob BLOB NOT NULL)");
     return new Replica(opfs, key, db);
   }
 

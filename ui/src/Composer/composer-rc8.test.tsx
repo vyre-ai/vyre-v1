@@ -10,32 +10,86 @@ import { createRoot } from "test-renderer";
 import { installDom, mount, find, press, flush, typeInto, textOf } from "../testing/dom.ts";
 import type { Node } from "../testing/dom.ts";
 import {
-  Composer, ModelPanel, OutgoingHeader, answering, applyAttachPick, contextFor, contextRing, deleteToken, enterAction, groupSenders, initialState, lowSuggestion, nextMode,
-  popupFor, resetLabel, sendControl, sizeLabel, tokenRanges,
+  Composer,
+  ModelPanel,
+  OutgoingHeader,
+  answering,
+  applyAttachPick,
+  contextFor,
+  contextRing,
+  deleteToken,
+  enterAction,
+  groupSenders,
+  initialState,
+  lowSuggestion,
+  nextMode,
+  popupFor,
+  resetLabel,
+  sendControl,
+  sizeLabel,
+  tokenRanges,
 } from "./index.tsx";
-import type { ChatMode, ComposerAgent, ComposerLists, ComposerSend, ComposerSender, Effort, PanelAccount, PanelModel, PanelUsage, PopupItem } from "./index.tsx";
+import type {
+  ChatMode,
+  ComposerAgent,
+  ComposerLists,
+  ComposerSend,
+  ComposerSender,
+  Effort,
+  PanelAccount,
+  PanelModel,
+  PanelUsage,
+  PopupItem,
+} from "./index.tsx";
 
-const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+const clean = (s: string): string =>
+  s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
 const lists: ComposerLists = {
-  agents: [{ t: "Intake", ref: "agt_intake", kind: "Agent", s: "Leads this chat" }, { t: "Docs", ref: "agt_docs", kind: "Agent" }],
+  agents: [
+    { t: "Intake", ref: "agt_intake", kind: "Agent", s: "Leads this chat" },
+    { t: "Docs", ref: "agt_docs", kind: "Agent" },
+  ],
   people: [{ t: "Sam Patel", ref: "usr_sam", kind: "Person", s: "In this chat" }],
 };
 const agents: ComposerAgent[] = [
-  { id: "agt_intake", name: "Intake", provider: "claude_code", modelTitle: "Sonnet 5.5", effort: "high", context: { used: 170_000, window: 200_000 } },
+  {
+    id: "agt_intake",
+    name: "Intake",
+    provider: "claude_code",
+    modelTitle: "Sonnet 5.5",
+    effort: "high",
+    context: { used: 170_000, window: 200_000 },
+  },
   { id: "agt_docs", name: "Docs", provider: "codex", modelTitle: "GPT-5", effort: "low" },
 ];
-const key = (k: string, extra: Record<string, unknown> = {}) => ({ key: k, ...extra, nativeEvent: { key: k, ...extra }, target: {}, stopPropagation() {}, preventDefault() {}, isDefaultPrevented: () => false });
+const key = (k: string, extra: Record<string, unknown> = {}) => ({
+  key: k,
+  ...extra,
+  nativeEvent: { key: k, ...extra },
+  target: {},
+  stopPropagation() {},
+  preventDefault() {},
+  isDefaultPrevented: () => false,
+});
 const keyDown = async (n: Node | null, k: string, extra: Record<string, unknown> = {}): Promise<void> => {
   const { act } = await import("react");
-  await act(async () => { (n!.props.onKeyDown as (e: unknown) => void)(key(k, extra)); });
+  await act(async () => {
+    (n!.props.onKeyDown as (e: unknown) => void)(key(k, extra));
+  });
 };
 const focus = async (n: Node | null): Promise<void> => {
   const { act } = await import("react");
-  await act(async () => { (n!.props.onFocus as (e: unknown) => void)({ nativeEvent: {}, target: {} }); });
+  await act(async () => {
+    (n!.props.onFocus as (e: unknown) => void)({ nativeEvent: {}, target: {} });
+  });
 };
 async function withDom(run: () => Promise<void>): Promise<void> {
   const restore = installDom();
-  try { await run(); } finally { restore(); }
+  try {
+    await run();
+  } finally {
+    restore();
+  }
 }
 
 /* ---------- the strip ---------- */
@@ -47,23 +101,56 @@ test("the settings icon shows only when an AI will answer: the lead; an @mention
   assert.doesNotMatch(lead, /aria-label="Effort 3 of 4"/, "no effort bars in the composer: the menu has them");
   assert.doesNotMatch(lead, />Sonnet 5\.5</, "the composer names no model: the menu does");
   assert.doesNotMatch(lead, /composer-unavailable|Not available here</, "no quiet line in the composer either");
-  const off = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={[{ ...agents[0]!, effort: "medium", unavailable: true }, agents[1]!]} />));
+  const off = clean(
+    renderToStaticMarkup(
+      <Composer
+        whoWillAnswer=""
+        lead="Intake"
+        lists={lists}
+        agents={[{ ...agents[0]!, effort: "medium", unavailable: true }, agents[1]!]}
+      />,
+    ),
+  );
   assert.match(off, /Intake will answer on Sonnet 5\.5, not available here/, "the label says the pick cannot run here");
   assert.match(off, /composer-settings-dot/, "and the icon carries the dot");
   const people = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={agents} />));
   assert.doesNotMatch(people, /composer-strip/, "people only: no icon");
-  const mentioned = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={agents} value="@Docs can you check" />));
+  const mentioned = clean(
+    renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={agents} value="@Docs can you check" />),
+  );
   assert.match(mentioned, /Docs will answer on GPT-5/, "an @mentioned agent brings the icon");
-  const toPerson = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} value="@Sam can you check" />));
+  const toPerson = clean(
+    renderToStaticMarkup(
+      <Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} value="@Sam can you check" />,
+    ),
+  );
   assert.doesNotMatch(toPerson, /composer-strip/, "addressed to a person: no AI answers");
-  const outside = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} sendsOutside />));
+  const outside = clean(
+    renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} sendsOutside />),
+  );
   assert.doesNotMatch(outside, /composer-strip/, "a message that leaves Vyre has no agent icon");
-  assert.deepEqual(answering(["Intake"], agents).map((a) => a.id), ["agt_intake"]);
-  assert.deepEqual(answering(["Nobody"], agents), [{ id: "Nobody", name: "Nobody" }], "an agent the place knows nothing about still shows by name");
+  assert.deepEqual(
+    answering(["Intake"], agents).map((a) => a.id),
+    ["agt_intake"],
+  );
+  assert.deepEqual(
+    answering(["Nobody"], agents),
+    [{ id: "Nobody", name: "Nobody" }],
+    "an agent the place knows nothing about still shows by name",
+  );
 });
 
 test("the composer shows no account name and no context ring (they are in the menu); the ring rule itself holds past 60 percent, amber past 80", () => {
-  const two = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={[{ ...agents[0]!, accountName: "MLA work", context: { used: 170_000, window: 200_000 } }]} />));
+  const two = clean(
+    renderToStaticMarkup(
+      <Composer
+        whoWillAnswer=""
+        lead="Intake"
+        lists={lists}
+        agents={[{ ...agents[0]!, accountName: "MLA work", context: { used: 170_000, window: 200_000 } }]}
+      />,
+    ),
+  );
   assert.doesNotMatch(two, /MLA work</);
   assert.doesNotMatch(two, /composer-ring/);
   assert.equal(contextRing({ used: 60, window: 100 }), null);
@@ -77,18 +164,71 @@ test("the settings dot shows only while something is off its default (a mode oth
   assert.equal(nextMode("ask"), "plan");
   assert.equal(nextMode("plan"), "auto");
   const plain = { ...agents[0]!, effort: "medium" as const };
-  const out = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={[plain, agents[1]!]} mode="auto" onMode={() => undefined} />));
+  const out = clean(
+    renderToStaticMarkup(
+      <Composer
+        whoWillAnswer=""
+        lead="Intake"
+        lists={lists}
+        agents={[plain, agents[1]!]}
+        mode="auto"
+        onMode={() => undefined}
+      />,
+    ),
+  );
   assert.doesNotMatch(out, /composer-settings-dot/, "everything at its default: no dot");
   assert.doesNotMatch(out, /composer-mode|composer-runs/, "no mode or place chips in the composer");
-  const asked = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={[plain, agents[1]!]} mode="ask" onMode={() => undefined} />));
+  const asked = clean(
+    renderToStaticMarkup(
+      <Composer
+        whoWillAnswer=""
+        lead="Intake"
+        lists={lists}
+        agents={[plain, agents[1]!]}
+        mode="ask"
+        onMode={() => undefined}
+      />,
+    ),
+  );
   assert.match(asked, /composer-settings-dot/, "Ask first is not the default");
-  const runs = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={[plain, agents[1]!]} mode="auto" onMode={() => undefined} runsChip="Northwind" />));
+  const runs = clean(
+    renderToStaticMarkup(
+      <Composer
+        whoWillAnswer=""
+        lead="Intake"
+        lists={lists}
+        agents={[plain, agents[1]!]}
+        mode="auto"
+        onMode={() => undefined}
+        runsChip="Northwind"
+      />,
+    ),
+  );
   assert.match(runs, /composer-settings-dot/, "running somewhere else is not the default");
-  const effortHigh = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} mode="auto" onMode={() => undefined} />));
+  const effortHigh = clean(
+    renderToStaticMarkup(
+      <Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} mode="auto" onMode={() => undefined} />,
+    ),
+  );
   assert.match(effortHigh, /composer-settings-dot/, "a set effort is not the default");
   await withDom(async () => {
     const modes: ChatMode[] = [];
-    function Host(): ReactElement { const [m, setM] = useState<ChatMode>("ask"); return <Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} mode={m} onMode={(x) => { modes.push(x); setM(x); }} />; }
+    function Host(): ReactElement {
+      const [m, setM] = useState<ChatMode>("ask");
+      return (
+        <Composer
+          whoWillAnswer=""
+          lead="Intake"
+          lists={lists}
+          agents={agents}
+          mode={m}
+          onMode={(x) => {
+            modes.push(x);
+            setM(x);
+          }}
+        />
+      );
+    }
     const root = await mount(createRoot, <Host />);
     await keyDown(find(root, "composer-field"), "Tab", { shiftKey: true });
     await keyDown(find(root, "composer-field"), "Tab", { shiftKey: true });
@@ -105,7 +245,10 @@ const ACCTS: PanelAccount[] = [
   { ref: "#gpt", name: "ChatGPT Plus", provider: "codex", session: null },
 ];
 const MODELS: Record<string, PanelModel[]> = {
-  claude_code: [{ id: "opus", title: "Opus 5.5", window: 200_000 }, { id: "sonnet", title: "Sonnet 5.5", window: 1_000_000 }],
+  claude_code: [
+    { id: "opus", title: "Opus 5.5", window: 200_000 },
+    { id: "sonnet", title: "Sonnet 5.5", window: 1_000_000 },
+  ],
   codex: [{ id: "gpt-5", title: "GPT-5", window: 400_000 }],
 };
 
@@ -116,12 +259,50 @@ function PanelHost({ log, usageOf }: { log: string[]; usageOf: (ref: string) => 
   const [mode, setMode] = useState<ChatMode>("ask");
   const prov = ACCTS.find((a) => a.ref === ref)!.provider;
   return (
-    <Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} mode={mode} onMode={setMode}
+    <Composer
+      whoWillAnswer=""
+      lead="Intake"
+      lists={lists}
+      agents={agents}
+      mode={mode}
+      onMode={setMode}
       renderPanel={(agent, close) => (
-        <ModelPanel agent={agent} scope="chat" onScope={() => undefined} accounts={ACCTS} accountRef={ref} onAccount={(r) => { log.push(`account:${r}`); setRef(r); }}
-          models={MODELS[prov]!} model={model} onModel={(m) => { log.push(`model:${m}`); setModel(m); }} effort={effort} onEffort={(e) => { log.push(`effort:${e}`); setEffort(e); }}
-          usage={usageOf(ref)} mode={mode} onMode={(m) => { log.push(`mode:${m}`); setMode(m); }} onClose={() => { log.push("close"); close(); }} onAddProvider={() => log.push("add")} now={0} />
-      )} />
+        <ModelPanel
+          agent={agent}
+          scope="chat"
+          onScope={() => undefined}
+          accounts={ACCTS}
+          accountRef={ref}
+          onAccount={(r) => {
+            log.push(`account:${r}`);
+            setRef(r);
+          }}
+          models={MODELS[prov]!}
+          model={model}
+          onModel={(m) => {
+            log.push(`model:${m}`);
+            setModel(m);
+          }}
+          effort={effort}
+          onEffort={(e) => {
+            log.push(`effort:${e}`);
+            setEffort(e);
+          }}
+          usage={usageOf(ref)}
+          mode={mode}
+          onMode={(m) => {
+            log.push(`mode:${m}`);
+            setMode(m);
+          }}
+          onClose={() => {
+            log.push("close");
+            close();
+          }}
+          onAddProvider={() => log.push("add")}
+          now={0}
+        />
+      )}
+    />
   );
 }
 
@@ -169,7 +350,11 @@ test("the Provider submenu lists only the connected accounts, by the names given
 
 test("usage follows the selected account and model, and a meter the engine did not report is left out", async () => {
   const usage: Record<string, PanelUsage | null> = {
-    "#cl_personal": { context: { used: 84_000, window: 200_000 }, session: { pct: 0.88, resetsAt: 3_600_000 }, week: { pct: 0.41, resetsAt: 5 * 86_400_000 } },
+    "#cl_personal": {
+      context: { used: 84_000, window: 200_000 },
+      session: { pct: 0.88, resetsAt: 3_600_000 },
+      week: { pct: 0.41, resetsAt: 5 * 86_400_000 },
+    },
     "#cl_work": { context: { used: 84_000, window: 200_000 }, session: { pct: 0.22 }, week: null },
     "#gpt": { context: { used: 10_000, window: 400_000, approximate: true }, session: null, week: null },
   };
@@ -191,9 +376,16 @@ test("usage follows the selected account and model, and a meter the engine did n
     await press(find(root, "model-account"));
     await press(find(root, "row-model-account-#gpt"));
     assert.equal(find(root, "meter-session"), null, "Codex reports no session: hidden, not faked");
-    assert.match(textOf(find(root, "meter-context")), /about 3% of 400k/, "Codex reports only a turn's total: the figure is estimated and says about");
+    assert.match(
+      textOf(find(root, "meter-context")),
+      /about 3% of 400k/,
+      "Codex reports only a turn's total: the figure is estimated and says about",
+    );
   });
-  assert.deepEqual(contextFor({ context: { used: 1, window: 10 }, session: null, week: null }, { id: "x", title: "X", window: 99 }), { used: 1, window: 99 });
+  assert.deepEqual(
+    contextFor({ context: { used: 1, window: 10 }, session: null, week: null }, { id: "x", title: "X", window: 99 }),
+    { used: 1, window: 99 },
+  );
   assert.equal(contextFor({ context: null, session: null, week: null }, undefined), null);
   assert.equal(lowSuggestion(ACCTS, "#cl_work", 0.5), null, "not low: no suggestion");
   assert.equal(resetLabel(undefined), "");
@@ -214,8 +406,25 @@ test("# opens one grouped search with section heads, a preview of the item you a
   await withDom(async () => {
     const sent: ComposerSend[] = [];
     const asked: string[] = [];
-    const root = await mount(createRoot, <Composer whoWillAnswer="" lead="Intake" lists={hashLists} agents={agents} onSubmit={(p) => sent.push(p)}
-      preview={async (item) => { asked.push(item.ref ?? ""); return { fields: [["Stage", "Negotiation"], ["Close", "12 Nov"]] }; }} />);
+    const root = await mount(
+      createRoot,
+      <Composer
+        whoWillAnswer=""
+        lead="Intake"
+        lists={hashLists}
+        agents={agents}
+        onSubmit={(p) => sent.push(p)}
+        preview={async (item) => {
+          asked.push(item.ref ?? "");
+          return {
+            fields: [
+              ["Stage", "Negotiation"],
+              ["Close", "12 Nov"],
+            ],
+          };
+        }}
+      />,
+    );
     const field = find(root, "composer-field");
     await focus(field);
     await typeInto(field, "see #");
@@ -234,15 +443,29 @@ test("# opens one grouped search with section heads, a preview of the item you a
     await press(find(root, "composer-send"));
     assert.deepEqual(sent[0]!.refs, [{ kind: "Record", id: "rec_1", title: "Northwind renewal", token: "#" }]);
   });
-  const ranges = tokenRanges("see #Northwind renewal and @Intake", [{ kind: "Record", id: "rec_1", title: "Northwind renewal", token: "#" }], ["Intake"]);
-  assert.deepEqual(ranges.map((r) => r.kind), ["link", "mention"]);
-  assert.deepEqual(deleteToken("see #Northwind renewal ", 23, ranges), { text: "see ", cursor: 4 }, "Backspace after a token takes all of it");
+  const ranges = tokenRanges(
+    "see #Northwind renewal and @Intake",
+    [{ kind: "Record", id: "rec_1", title: "Northwind renewal", token: "#" }],
+    ["Intake"],
+  );
+  assert.deepEqual(
+    ranges.map((r) => r.kind),
+    ["link", "mention"],
+  );
+  assert.deepEqual(
+    deleteToken("see #Northwind renewal ", 23, ranges),
+    { text: "see ", cursor: 4 },
+    "Backspace after a token takes all of it",
+  );
 });
 
 test("# picking a folder sets the folder chip; the scope narrows the search to one group", async () => {
   await withDom(async () => {
     const folders: (string | null)[] = [];
-    const root = await mount(createRoot, <Composer whoWillAnswer="" lead="Intake" lists={hashLists} onFolder={(f) => folders.push(f)} />);
+    const root = await mount(
+      createRoot,
+      <Composer whoWillAnswer="" lead="Intake" lists={hashLists} onFolder={(f) => folders.push(f)} />,
+    );
     const field = find(root, "composer-field");
     await focus(field);
     await typeInto(field, "#Cli");
@@ -252,20 +475,40 @@ test("# picking a folder sets the folder chip; the scope narrows the search to o
     assert.equal(find(root, "composer-field")!.props.value, "");
   });
   const files = popupFor({ ch: "#", start: 0, end: 1, query: "" }, hashLists, true, "Files");
-  assert.deepEqual(files.map((e) => ("head" in e && e.head !== undefined ? e.head : (e as PopupItem).label)), ["Files", "Q4 pricing.pdf"]);
+  assert.deepEqual(
+    files.map((e) => ("head" in e && e.head !== undefined ? e.head : (e as PopupItem).label)),
+    ["Files", "Q4 pricing.pdf"],
+  );
 });
 
 test("@ and / menus: agents and people with their place in the chat; commands and skills under their own heads", async () => {
   await withDom(async () => {
-    const root = await mount(createRoot, <Composer whoWillAnswer="" lead="Intake" lists={{ ...lists, commands: [{ t: "plan", s: "Plan mode on or off", kind: "Command", body: "plan" }, { t: "summarise", s: "Summarise this chat", kind: "Plugin", body: "summarise" }] }} />);
+    const root = await mount(
+      createRoot,
+      <Composer
+        whoWillAnswer=""
+        lead="Intake"
+        lists={{
+          ...lists,
+          commands: [
+            { t: "plan", s: "Plan mode on or off", kind: "Command", body: "plan" },
+            { t: "summarise", s: "Summarise this chat", kind: "Plugin", body: "summarise" },
+          ],
+        }}
+      />,
+    );
     const field = find(root, "composer-field");
     await focus(field);
     await typeInto(field, "@");
     const at = textOf(find(root, "composer-popup"));
-    assert.ok(at.includes("Agents") && at.includes("People") && at.includes("Leads this chat") && at.includes("In this chat"));
+    assert.ok(
+      at.includes("Agents") && at.includes("People") && at.includes("Leads this chat") && at.includes("In this chat"),
+    );
     await typeInto(field, "/");
     const slash = textOf(find(root, "composer-popup"));
-    assert.ok(slash.includes("Commands") && slash.includes("/plan") && slash.includes("Skills") && slash.includes("/summarise"));
+    assert.ok(
+      slash.includes("Commands") && slash.includes("/plan") && slash.includes("Skills") && slash.includes("/summarise"),
+    );
   });
 });
 
@@ -279,7 +522,18 @@ test("while it works: Stop with nothing typed; Queue and Now once you type, send
   assert.equal(enterAction({}, true, true), "send");
   await withDom(async () => {
     const log: string[] = [];
-    const root = await mount(createRoot, <Composer whoWillAnswer="" lead="Intake" lists={lists} working onStop={() => log.push("stop")} onSubmit={(p) => log.push(`${p.mode}:${p.text}`)} onInterrupt={(p) => log.push(`${p.mode}:${p.text}`)} />);
+    const root = await mount(
+      createRoot,
+      <Composer
+        whoWillAnswer=""
+        lead="Intake"
+        lists={lists}
+        working
+        onStop={() => log.push("stop")}
+        onSubmit={(p) => log.push(`${p.mode}:${p.text}`)}
+        onInterrupt={(p) => log.push(`${p.mode}:${p.text}`)}
+      />,
+    );
     assert.equal(find(root, "composer-send")!.props["aria-label"], "Stop");
     await press(find(root, "composer-send"));
     const field = find(root, "composer-field");
@@ -299,12 +553,17 @@ test("while it works: Stop with nothing typed; Queue and Now once you type, send
 test("the tray shows each file with its size and removes it; From Files puts a kept file in the tray by its id", async () => {
   assert.equal(sizeLabel(2_400_000), "2.4 MB");
   assert.equal(sizeLabel(800), "1 KB");
-  const out = clean(renderToStaticMarkup(<Composer whoWillAnswer="" attachments={[{ name: "brief.pdf", size: 2_400_000 }]} />));
+  const out = clean(
+    renderToStaticMarkup(<Composer whoWillAnswer="" attachments={[{ name: "brief.pdf", size: 2_400_000 }]} />),
+  );
   assert.match(out, /brief\.pdf/);
   assert.match(out, /2\.4 MB/);
   await withDom(async () => {
     const sent: ComposerSend[] = [];
-    const root = await mount(createRoot, <Composer whoWillAnswer="" lists={hashLists} suggest={async () => hashLists} onSubmit={(p) => sent.push(p)} />);
+    const root = await mount(
+      createRoot,
+      <Composer whoWillAnswer="" lists={hashLists} suggest={async () => hashLists} onSubmit={(p) => sent.push(p)} />,
+    );
     await press(find(root, "composer-attach"));
     assert.ok(textOf(find(root, "composer-plus")).includes("Upload files"));
     await press(find(root, "row-plus-files"));
@@ -325,24 +584,82 @@ test("the tray shows each file with its size and removes it; From Files puts a k
 /* ---------- outside: email and text ---------- */
 
 const SENDERS: ComposerSender[] = [
-  { id: "mbx_1", channel: "email", name: "Irfad Imtiaz", address: "irfad@example.test", via: "Gmail", provider: "gmail", default: true },
-  { id: "mbx_2", channel: "email", name: "Updates", address: "hello@updates.example.test", via: "Mailgun", provider: "mailgun" },
-  { id: "mbx_3", channel: "email", name: "Team", address: "team@example.test", via: "Gmail", provider: "gmail", usable: false, why: "Signed out" },
+  {
+    id: "mbx_1",
+    channel: "email",
+    name: "Irfad Imtiaz",
+    address: "irfad@example.test",
+    via: "Gmail",
+    provider: "gmail",
+    default: true,
+  },
+  {
+    id: "mbx_2",
+    channel: "email",
+    name: "Updates",
+    address: "hello@updates.example.test",
+    via: "Mailgun",
+    provider: "mailgun",
+  },
+  {
+    id: "mbx_3",
+    channel: "email",
+    name: "Team",
+    address: "team@example.test",
+    via: "Gmail",
+    provider: "gmail",
+    usable: false,
+    why: "Signed out",
+  },
   { id: "num_1", channel: "text", name: "Main line", address: "+1 415 555 0142", via: "Twilio", provider: "twilio" },
 ];
 
 test("the From picker groups every sender by service with its logo and address, greys one that cannot send, and a pick names the sender", async () => {
-  assert.deepEqual(groupSenders(SENDERS, "email").map((g) => [g.via, g.items.map((x) => x.id)]), [["Gmail", ["mbx_1", "mbx_3"]], ["Mailgun", ["mbx_2"]]]);
-  assert.deepEqual(groupSenders(SENDERS, "text").map((g) => g.via), ["Twilio"]);
+  assert.deepEqual(
+    groupSenders(SENDERS, "email").map((g) => [g.via, g.items.map((x) => x.id)]),
+    [
+      ["Gmail", ["mbx_1", "mbx_3"]],
+      ["Mailgun", ["mbx_2"]],
+    ],
+  );
+  assert.deepEqual(
+    groupSenders(SENDERS, "text").map((g) => g.via),
+    ["Twilio"],
+  );
   await withDom(async () => {
     const picked: string[] = [];
     const connect: string[] = [];
-    function Host(): ReactElement { const [id, setId] = useState("mbx_1"); return <OutgoingHeader channel="email" channels={["email", "text"]} onChannel={() => undefined} to={null} senders={SENDERS} senderId={id} onSender={(x) => { picked.push(x); setId(x); }} onConnect={(c) => connect.push(c)} subject="" onSubject={() => undefined} />; }
+    function Host(): ReactElement {
+      const [id, setId] = useState("mbx_1");
+      return (
+        <OutgoingHeader
+          channel="email"
+          channels={["email", "text"]}
+          onChannel={() => undefined}
+          to={null}
+          senders={SENDERS}
+          senderId={id}
+          onSender={(x) => {
+            picked.push(x);
+            setId(x);
+          }}
+          onConnect={(c) => connect.push(c)}
+          subject=""
+          onSubject={() => undefined}
+        />
+      );
+    }
     const root = await mount(createRoot, <Host />);
     assert.match(textOf(find(root, "from-name")), /Irfad Imtiaz/);
     await press(find(root, "from-pick"));
     const menu = textOf(find(root, "from-menu"));
-    assert.ok(menu.includes("Gmail") && menu.includes("Mailgun") && menu.includes("hello@updates.example.test") && menu.includes("Signed out") && menu.includes("Connect a mailbox or sending domain"));
+    assert.ok(
+      menu.includes("Gmail") &&
+        menu.includes("Mailgun") &&
+        menu.includes("hello@updates.example.test") &&
+        menu.includes("Signed out") &&
+        menu.includes("Connect a mailbox or sending domain"),
+    );
     assert.ok(find(root, "logo-gmail") && find(root, "logo-mailgun"), "each service's logo");
     assert.equal(find(root, "row-from-mbx_3")!.props.onClick, undefined, "a sender that cannot send is not choosable");
     await press(find(root, "row-from-mbx_2"));
@@ -356,10 +673,36 @@ test("the From picker groups every sender by service with its logo and address, 
 });
 
 test("Subject only for email; Cmd+Enter sends an email and a plain Enter writes a line", () => {
-  const mail = clean(renderToStaticMarkup(<OutgoingHeader channel="email" channels={["email", "text"]} onChannel={() => undefined} to={null} senders={SENDERS} senderId="mbx_1" onSender={() => undefined} subject="Re: Proposal" onSubject={() => undefined} />));
+  const mail = clean(
+    renderToStaticMarkup(
+      <OutgoingHeader
+        channel="email"
+        channels={["email", "text"]}
+        onChannel={() => undefined}
+        to={null}
+        senders={SENDERS}
+        senderId="mbx_1"
+        onSender={() => undefined}
+        subject="Re: Proposal"
+        onSubject={() => undefined}
+      />,
+    ),
+  );
   assert.match(mail, /data-testid="contact-subject"/);
   assert.match(mail, /Re: Proposal/);
-  const text = clean(renderToStaticMarkup(<OutgoingHeader channel="text" channels={["email", "text"]} onChannel={() => undefined} to={null} senders={SENDERS} senderId="num_1" onSender={() => undefined} />));
+  const text = clean(
+    renderToStaticMarkup(
+      <OutgoingHeader
+        channel="text"
+        channels={["email", "text"]}
+        onChannel={() => undefined}
+        to={null}
+        senders={SENDERS}
+        senderId="num_1"
+        onSender={() => undefined}
+      />,
+    ),
+  );
   assert.doesNotMatch(text, /contact-subject/);
   assert.match(text, /aria-label="Text from"/);
   assert.equal(enterAction({}, false, false), "newline");
@@ -368,16 +711,46 @@ test("Subject only for email; Cmd+Enter sends an email and a plain Enter writes 
 });
 
 test("a provider with a long model list scrolls inside the Model submenu and can be searched; a model out of usage stays listed with why", async () => {
-  const many: PanelModel[] = Array.from({ length: 40 }, (_, i) => ({ id: `m${i}`, title: i === 7 ? "Kimi K2" : `Model ${i}`, window: 128_000, ...(i === 3 ? { allowed: false, reason: "Out of usage until 18:00" } : {}) }));
+  const many: PanelModel[] = Array.from({ length: 40 }, (_, i) => ({
+    id: `m${i}`,
+    title: i === 7 ? "Kimi K2" : `Model ${i}`,
+    window: 128_000,
+    ...(i === 3 ? { allowed: false, reason: "Out of usage until 18:00" } : {}),
+  }));
   function Many({ log }: { log: string[] }): ReactElement {
     const [model, setModel] = useState("m0");
     return (
-      <Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} mode="ask" onMode={() => undefined}
+      <Composer
+        whoWillAnswer=""
+        lead="Intake"
+        lists={lists}
+        agents={agents}
+        mode="ask"
+        onMode={() => undefined}
         renderPanel={(agent, close) => (
-          <ModelPanel agent={agent} scope="chat" onScope={() => undefined} accounts={[{ ref: "#ocg", name: "OpenCode Go", provider: "opencode_go", session: null }]} accountRef="#ocg" onAccount={() => undefined}
-            models={many} model={model} onModel={(m) => { log.push(`model:${m}`); setModel(m); }} effort="medium" onEffort={() => undefined}
-            usage={null} mode="ask" onMode={() => undefined} onClose={close} now={0} />
-        )} />
+          <ModelPanel
+            agent={agent}
+            scope="chat"
+            onScope={() => undefined}
+            accounts={[{ ref: "#ocg", name: "OpenCode Go", provider: "opencode_go", session: null }]}
+            accountRef="#ocg"
+            onAccount={() => undefined}
+            models={many}
+            model={model}
+            onModel={(m) => {
+              log.push(`model:${m}`);
+              setModel(m);
+            }}
+            effort="medium"
+            onEffort={() => undefined}
+            usage={null}
+            mode="ask"
+            onMode={() => undefined}
+            onClose={close}
+            now={0}
+          />
+        )}
+      />
     );
   }
   await withDom(async () => {
@@ -415,7 +788,17 @@ test("a send that fails gives the draft back with the reason and Try again; tryi
   installDom();
   const sent: string[] = [];
   let fail = true;
-  const root = await mount(createRoot, <Composer whoWillAnswer="" lead="Intake" onSubmit={(p: ComposerSend) => { sent.push(p.text); return fail ? Promise.reject(new Error("Could not start the chat.")) : Promise.resolve(); }} />);
+  const root = await mount(
+    createRoot,
+    <Composer
+      whoWillAnswer=""
+      lead="Intake"
+      onSubmit={(p: ComposerSend) => {
+        sent.push(p.text);
+        return fail ? Promise.reject(new Error("Could not start the chat.")) : Promise.resolve();
+      }}
+    />,
+  );
   const field = find(root, "composer-field");
   await focus(field);
   await typeInto(field, "hello there");
@@ -445,7 +828,10 @@ for (const how of ["escape", "strip", "again"] as const) {
         assert.ok(find(root, "model-panel"), "and leaves the menu");
         await keyDown(find(root, "model-panel"), "Escape");
       } else if (how === "strip") await press(find(root, "composer-strip"));
-      else { await press(find(root, "row-model-sonnet")); await press(find(root, "composer-strip")); }
+      else {
+        await press(find(root, "row-model-sonnet"));
+        await press(find(root, "composer-strip"));
+      }
       assert.equal(find(root, "model-panel"), null, "the menu is gone");
       assert.equal(find(root, "model-sub"), null, "the side list is gone with it");
     });
@@ -482,10 +868,18 @@ test("the menu names the model and the account at its top, and follows a new pic
 test("a chat with an agent in it has the settings icon even when nobody will answer, when the place can open the menu", () => {
   const noPanel = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={agents} />));
   assert.doesNotMatch(noPanel, /composer-strip/, "no menu to open: no icon");
-  const channel = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={agents} renderPanel={() => null} />));
+  const channel = clean(
+    renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={agents} renderPanel={() => null} />),
+  );
   assert.match(channel, /data-testid="composer-strip"/, "an agent is in the chat: the icon");
-  const outside = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={agents} renderPanel={() => null} sendsOutside />));
+  const outside = clean(
+    renderToStaticMarkup(
+      <Composer whoWillAnswer="" lists={lists} agents={agents} renderPanel={() => null} sendsOutside />,
+    ),
+  );
   assert.doesNotMatch(outside, /composer-strip/, "a message that leaves Vyre has none");
-  const alone = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={[]} renderPanel={() => null} />));
+  const alone = clean(
+    renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={[]} renderPanel={() => null} />),
+  );
   assert.doesNotMatch(alone, /composer-strip/, "no agent in the chat: no icon");
 });

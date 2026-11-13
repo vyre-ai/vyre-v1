@@ -15,7 +15,11 @@ const only = (args.find((a) => a.startsWith("--only=")) ?? "").slice(7).split(",
 const sizeOnly = (args.find((a) => a.startsWith("--size=")) ?? "").slice(7);
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), {
+    cwd: appDir,
+    stdio: "inherit",
+    env: exportEnv(),
+  });
 }
 fs.mkdirSync(out, { recursive: true });
 const SIZES = { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
@@ -23,30 +27,54 @@ const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
-const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => t.id.startsWith("CALWEEK_01") && (only.length === 0 || only.includes(t.id.replace("CALWEEK_01-", ""))));
-for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [size, vp] of Object.entries(SIZES)) {
-  if (sizeOnly && size !== sizeOnly) continue;
-  if (size === "wide" && t.id.includes("phone")) continue;
-  const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
-  const page = await ctx.newPage();
-  const errs = [];
-  page.on("pageerror", (e) => errs.push(String(e)));
-  // a busy box drops a navigation now and then: one more try before giving up
-  const url = routeUrl(real.origin, t.route, skin);
-  await page.goto(url, { waitUntil: "load", timeout: 60000 }).catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
-  await page.waitForTimeout(500);
-  let found = true;
-  if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => { found = false; });
-  await page.waitForTimeout(900);
-  if (t.id.endsWith("-week") && size === "wide") {
-    // the hover card: rest the pointer on an event
-    const ev = page.locator("[data-testid='event-body:e_x_hart']");
-    if (await ev.count()) { await ev.hover(); await page.waitForTimeout(900); await page.screenshot({ path: path.join(out, `hover-${skin}-${size}.png`) }); console.log(`shot hover-${skin}-${size}.png`); await page.mouse.move(5, 5); await page.waitForTimeout(400); }
-  }
-  const file = path.join(out, `${t.id.replace("CALWEEK_01-", "")}-${skin}-${size}.png`);
-  await page.screenshot({ path: file });
-  console.log(`shot ${path.basename(file)} waitFor=${found}${errs.length ? " errors=" + errs.join(" | ").slice(0, 400) : ""}`);
-  await ctx.close();
-}
-await browser.close(); real.close();
+const targets = loadTargets(path.join(REPO, "scripts/shots")).filter(
+  (t) => t.id.startsWith("CALWEEK_01") && (only.length === 0 || only.includes(t.id.replace("CALWEEK_01-", ""))),
+);
+for (const t of targets)
+  for (const skin of ["paper", "graphite"])
+    for (const [size, vp] of Object.entries(SIZES)) {
+      if (sizeOnly && size !== sizeOnly) continue;
+      if (size === "wide" && t.id.includes("phone")) continue;
+      const ctx = await browser.newContext({
+        viewport: vp,
+        deviceScaleFactor: 1,
+        colorScheme: skin === "graphite" ? "dark" : "light",
+        reducedMotion: "reduce",
+      });
+      const page = await ctx.newPage();
+      const errs = [];
+      page.on("pageerror", (e) => errs.push(String(e)));
+      // a busy box drops a navigation now and then: one more try before giving up
+      const url = routeUrl(real.origin, t.route, skin);
+      await page
+        .goto(url, { waitUntil: "load", timeout: 60000 })
+        .catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
+      await page.waitForTimeout(500);
+      let found = true;
+      if (t.waitFor)
+        await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => {
+          found = false;
+        });
+      await page.waitForTimeout(900);
+      if (t.id.endsWith("-week") && size === "wide") {
+        // the hover card: rest the pointer on an event
+        const ev = page.locator("[data-testid='event-body:e_x_hart']");
+        if (await ev.count()) {
+          await ev.hover();
+          await page.waitForTimeout(900);
+          await page.screenshot({ path: path.join(out, `hover-${skin}-${size}.png`) });
+          console.log(`shot hover-${skin}-${size}.png`);
+          await page.mouse.move(5, 5);
+          await page.waitForTimeout(400);
+        }
+      }
+      const file = path.join(out, `${t.id.replace("CALWEEK_01-", "")}-${skin}-${size}.png`);
+      await page.screenshot({ path: file });
+      console.log(
+        `shot ${path.basename(file)} waitFor=${found}${errs.length ? " errors=" + errs.join(" | ").slice(0, 400) : ""}`,
+      );
+      await ctx.close();
+    }
+await browser.close();
+real.close();
 process.exit(0);

@@ -17,7 +17,13 @@ export default function Mount(): ReactNode {
   const sample = useMemo(() => {
     const x = createSample(params.get("v") === "harbor" ? "harbor" : "northwind");
     const n8 = (x.replica.rows("needs") as unknown as Item[]).find((i) => i.task.id === "n8");
-    if (params.get("expired") === "1" && n8) x.replica.put("needs", [{ ...n8, task: { ...n8.task, workingNotes: { ...n8.task.workingNotes, withdrawn: "Not sent, it waited 7 days" } } }] as never);
+    if (params.get("expired") === "1" && n8)
+      x.replica.put("needs", [
+        {
+          ...n8,
+          task: { ...n8.task, workingNotes: { ...n8.task.workingNotes, withdrawn: "Not sent, it waited 7 days" } },
+        },
+      ] as never);
     return x;
   }, [params]);
   if (search === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;

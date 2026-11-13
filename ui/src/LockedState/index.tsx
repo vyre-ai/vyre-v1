@@ -46,22 +46,55 @@ export function reasonLine(reason: LockedReason, title: string): string {
     : `Your role does not include what ${title} needs.`;
 }
 
-export function requestInput(props: Pick<LockedStateProps, "resourceType" | "resourceId">, level: LockedLevel, note: string): AccessRequestInput {
+export function requestInput(
+  props: Pick<LockedStateProps, "resourceType" | "resourceId">,
+  level: LockedLevel,
+  note: string,
+): AccessRequestInput {
   const text = note.trim();
-  return { resource: { type: props.resourceType, id: props.resourceId }, level, ...(text.length > 0 ? { note: text } : {}) };
+  return {
+    resource: { type: props.resourceType, id: props.resourceId },
+    level,
+    ...(text.length > 0 ? { note: text } : {}),
+  };
 }
 
 /** What the state shows for each status: the button label, whether it can be pressed, and a quiet line. */
-export function statusView(status: AccessRequestStatus, canRequest: boolean, note: string): { button: string; enabled: boolean; line: string } {
-  if (status === "waiting") return { button: ACCESS_REQUEST_STATUS_LABEL.waiting, enabled: false, line: "Asked. You will see the answer here." };
-  if (status === "granted") return { button: ACCESS_REQUEST_STATUS_LABEL.granted, enabled: false, line: "You have access now." };
-  if (status === "declined") return { button: ASK_FOR_ACCESS_LABEL, enabled: canRequest, line: note.trim().length > 0 ? `Declined: ${note.trim()}` : "Declined." };
-  if (!canRequest) return { button: ASK_FOR_ACCESS_LABEL, enabled: false, line: "Guests cannot ask for access. Ask a member to share it with you." };
+export function statusView(
+  status: AccessRequestStatus,
+  canRequest: boolean,
+  note: string,
+): { button: string; enabled: boolean; line: string } {
+  if (status === "waiting")
+    return {
+      button: ACCESS_REQUEST_STATUS_LABEL.waiting,
+      enabled: false,
+      line: "Asked. You will see the answer here.",
+    };
+  if (status === "granted")
+    return { button: ACCESS_REQUEST_STATUS_LABEL.granted, enabled: false, line: "You have access now." };
+  if (status === "declined")
+    return {
+      button: ASK_FOR_ACCESS_LABEL,
+      enabled: canRequest,
+      line: note.trim().length > 0 ? `Declined: ${note.trim()}` : "Declined.",
+    };
+  if (!canRequest)
+    return {
+      button: ASK_FOR_ACCESS_LABEL,
+      enabled: false,
+      line: "Guests cannot ask for access. Ask a member to share it with you.",
+    };
   return { button: ASK_FOR_ACCESS_LABEL, enabled: true, line: "" };
 }
 
 /** Sends the request. The caller's invoke is the generated client; a duplicate means one is already open, so the state is Waiting either way. */
-export async function askForAccess(invoke: AskInvoke, props: Pick<LockedStateProps, "resourceType" | "resourceId">, level: LockedLevel, note: string): Promise<AccessRequestStatus> {
+export async function askForAccess(
+  invoke: AskInvoke,
+  props: Pick<LockedStateProps, "resourceType" | "resourceId">,
+  level: LockedLevel,
+  note: string,
+): Promise<AccessRequestStatus> {
   try {
     await invoke(ASK_CAPABILITY, requestInput(props, level, note));
     return "waiting";
@@ -81,12 +114,17 @@ export interface LockedStateViewProps extends LockedStateProps {
 
 const webProps = (props: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? props : {});
 const FIELD_STYLE = { outlineStyle: "none", outlineWidth: 0 } as unknown as TextStyle;
-const LOCK = '<svg viewBox="0 0 16 16" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.500" y="7" width="9" height="6.500" rx="1.600"/><path d="M5.500 7V5.200a2.500 2.500 0 015 0V7"/></svg>';
-const CHEVRON = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>';
+const LOCK =
+  '<svg viewBox="0 0 16 16" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.500" y="7" width="9" height="6.500" rx="1.600"/><path d="M5.500 7V5.200a2.500 2.500 0 015 0V7"/></svg>';
+const CHEVRON =
+  '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>';
 
 function Svg({ markup, color }: { markup: string; color: string }): ReactElement | null {
   if (Platform.OS !== "web") return null;
-  return createElement("span", { style: { display: "inline-flex", color }, dangerouslySetInnerHTML: { __html: markup } });
+  return createElement("span", {
+    style: { display: "inline-flex", color },
+    dangerouslySetInnerHTML: { __html: markup },
+  });
 }
 
 export function LockedState(props: LockedStateViewProps): ReactElement {
@@ -113,22 +151,35 @@ export function LockedState(props: LockedStateViewProps): ReactElement {
 
   const levels = (): MenuEntry[] => {
     const out: MenuEntry[] = [];
-    for (const l of LOCKED_LEVELS) out.push({ label: l.label, checked: l.id === level, onSelect: () => setLevel(l.id) });
+    for (const l of LOCKED_LEVELS)
+      out.push({ label: l.label, checked: l.id === level, onSelect: () => setLevel(l.id) });
     return out;
   };
   const pickLevel = (x: number, y: number): void => menu.show(levels(), x, y, "context", { label: "Access level" });
   const canPick = status === "none" || status === "declined";
 
   return (
-    <View style={[styles.root, compact && styles.rootCompact]} testID={props.testID ?? `locked-${props.resourceId}`} accessibilityRole="alert" accessibilityLabel={`${props.title} is locked`}>
-      <View style={styles.icon}><Svg markup={LOCK} color="var(--ink-4)" />{Platform.OS === "web" ? null : <Text style={styles.nativeLock}>{"⚿"}</Text>}</View>
+    <View
+      style={[styles.root, compact && styles.rootCompact]}
+      testID={props.testID ?? `locked-${props.resourceId}`}
+      accessibilityRole="alert"
+      accessibilityLabel={`${props.title} is locked`}
+    >
+      <View style={styles.icon}>
+        <Svg markup={LOCK} color="var(--ink-4)" />
+        {Platform.OS === "web" ? null : <Text style={styles.nativeLock}>{"⚿"}</Text>}
+      </View>
       <Text style={styles.title}>{props.title}</Text>
-      <Text style={styles.reason} testID="locked-reason">{reasonLine(props.reason, props.title)}</Text>
+      <Text style={styles.reason} testID="locked-reason">
+        {reasonLine(props.reason, props.title)}
+      </Text>
       {canPick && props.canRequest ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Level to ask for: ${levelLabel(level)}`}
-          onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number } }) => pickLevel(e.nativeEvent?.pageX ?? 0, e.nativeEvent?.pageY ?? 0)}
+          onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number } }) =>
+            pickLevel(e.nativeEvent?.pageX ?? 0, e.nativeEvent?.pageY ?? 0)
+          }
           testID="locked-level"
           {...menuTrigger(pickLevel)}
           style={({ hovered }: { hovered?: boolean }) => [styles.level, hovered === true && styles.levelHover]}
@@ -156,28 +207,78 @@ export function LockedState(props: LockedStateViewProps): ReactElement {
         onPress={status === "granted" ? props.onOpen : ask}
         testID="locked-ask"
         {...webProps({ title: view.button })}
-        style={({ hovered }: { hovered?: boolean }) => [styles.button, !view.enabled && styles.buttonOff, status === "granted" && styles.buttonOk, hovered === true && view.enabled && styles.buttonHover]}
+        style={({ hovered }: { hovered?: boolean }) => [
+          styles.button,
+          !view.enabled && styles.buttonOff,
+          status === "granted" && styles.buttonOk,
+          hovered === true && view.enabled && styles.buttonHover,
+        ]}
       >
-        <Text style={[styles.buttonText, !view.enabled && status !== "granted" && styles.buttonTextOff]}>{status === "granted" ? "Open" : view.button}</Text>
+        <Text style={[styles.buttonText, !view.enabled && status !== "granted" && styles.buttonTextOff]}>
+          {status === "granted" ? "Open" : view.button}
+        </Text>
       </Pressable>
-      {error !== null ? <Text style={[styles.line, styles.lineError]} testID="locked-error" accessibilityLiveRegion="polite">{error}</Text> : view.line.length > 0 ? <Text style={styles.line} testID="locked-line" accessibilityLiveRegion="polite">{view.line}</Text> : null}
+      {error !== null ? (
+        <Text style={[styles.line, styles.lineError]} testID="locked-error" accessibilityLiveRegion="polite">
+          {error}
+        </Text>
+      ) : view.line.length > 0 ? (
+        <Text style={styles.line} testID="locked-line" accessibilityLiveRegion="polite">
+          {view.line}
+        </Text>
+      ) : null}
       {menu.element}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { width: "100%", maxWidth: 360, alignSelf: "center", alignItems: "center", paddingVertical: 24, paddingHorizontal: 24, gap: 6 },
+  root: {
+    width: "100%",
+    maxWidth: 360,
+    alignSelf: "center",
+    alignItems: "center",
+    paddingVertical: 24,
+    paddingHorizontal: 24,
+    gap: 6,
+  },
   rootCompact: { paddingHorizontal: 20 },
   icon: { width: 24, height: 24, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   nativeLock: { color: "var(--ink-4)" as string, fontSize: 20 },
   title: { color: "var(--ink)" as string, fontSize: 17, lineHeight: 24, fontWeight: "600", textAlign: "center" },
   reason: { color: "var(--ink-3)" as string, fontSize: 13.5, lineHeight: 20, textAlign: "center" },
-  level: { marginTop: 10, flexDirection: "row", alignItems: "center", gap: 5, height: 28, paddingHorizontal: 10, borderRadius: 7 },
+  level: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    height: 28,
+    paddingHorizontal: 10,
+    borderRadius: 7,
+  },
   levelHover: { backgroundColor: "var(--hover)" as string },
   levelText: { color: "var(--ink-2)" as string, fontSize: 13 },
-  note: { width: "100%", height: 34, borderRadius: 8, paddingHorizontal: 11, backgroundColor: "var(--field)" as string, color: "var(--ink)" as string, fontSize: 13, borderWidth: 1, borderColor: "var(--field-line)" },
-  button: { marginTop: 12, minWidth: 120, height: 32, paddingHorizontal: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string },
+  note: {
+    width: "100%",
+    height: 34,
+    borderRadius: 8,
+    paddingHorizontal: 11,
+    backgroundColor: "var(--field)" as string,
+    color: "var(--ink)" as string,
+    fontSize: 13,
+    borderWidth: 1,
+    borderColor: "var(--field-line)",
+  },
+  button: {
+    marginTop: 12,
+    minWidth: 120,
+    height: 32,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--accent)" as string,
+  },
   buttonOff: { backgroundColor: "var(--hover)" as string },
   buttonOk: { backgroundColor: "var(--accent)" as string },
   buttonHover: { opacity: 0.92 },

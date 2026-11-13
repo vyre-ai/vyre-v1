@@ -17,10 +17,17 @@ export interface Keyring {
   clearAll(): void;
 }
 
-interface Entry { key: Uint8Array; sessions: Set<string>; unbound: boolean }
+interface Entry {
+  key: Uint8Array;
+  sessions: Set<string>;
+  unbound: boolean;
+}
 
 export function createKeyring(o: {
-  /** may this node hold the person's key; `sessionId` is the session handing it over, absent for the local admin */ allowed(personId: string, sessionId?: string): boolean;
+  /** may this node hold the person's key; `sessionId` is the session handing it over, absent for the local admin */ allowed(
+    personId: string,
+    sessionId?: string,
+  ): boolean;
   /** is this session still signed in; omitted: sessions never end */ live?(sessionId: string): boolean;
   /**
    * The key is not held (the server restarted, or deployed) but the person is still signed in through a provider that proved who they are: the server's wrap opens again for those sessions (fix for
@@ -31,18 +38,31 @@ export function createKeyring(o: {
   const held = new Map<string, Entry>();
   /** Persons who pressed Lock, and when: the server's wrap reopens only for a provider session made after that. */
   const locked = new Map<string, number>();
-  const wipe = (e: Entry | undefined): void => { e?.key.fill(0); };
+  const wipe = (e: Entry | undefined): void => {
+    e?.key.fill(0);
+  };
   const fresh = (personId: string): Uint8Array | null => {
     let e = held.get(personId);
     if (!e && o.reopen) {
       const r = o.reopen(personId, locked.get(personId));
       if (r) {
-        try { if (r.key.length === 32 && r.sessions.length > 0) { e = { key: Uint8Array.from(r.key), sessions: new Set(r.sessions), unbound: false }; held.set(personId, e); } } finally { r.key.fill(0); }
+        try {
+          if (r.key.length === 32 && r.sessions.length > 0) {
+            e = { key: Uint8Array.from(r.key), sessions: new Set(r.sessions), unbound: false };
+            held.set(personId, e);
+          }
+        } finally {
+          r.key.fill(0);
+        }
       }
     }
     if (!e) return null;
     if (o.live) for (const id of e.sessions) if (!o.live(id)) e.sessions.delete(id);
-    if (!e.unbound && e.sessions.size === 0) { wipe(e); held.delete(personId); return null; }
+    if (!e.unbound && e.sessions.size === 0) {
+      wipe(e);
+      held.delete(personId);
+      return null;
+    }
     return Uint8Array.from(e.key);
   };
   return {
@@ -58,15 +78,30 @@ export function createKeyring(o: {
       });
       return true;
     },
-    clear(personId) { wipe(held.get(personId)); held.delete(personId); },
-    lock(personId) { wipe(held.get(personId)); held.delete(personId); locked.set(personId, Date.now()); },
+    clear(personId) {
+      wipe(held.get(personId));
+      held.delete(personId);
+    },
+    lock(personId) {
+      wipe(held.get(personId));
+      held.delete(personId);
+      locked.set(personId, Date.now());
+    },
     get: (personId) => fresh(personId),
     sweep() {
       let n = 0;
-      for (const personId of [...held.keys()]) { const had = held.has(personId); void fresh(personId); if (had && !held.has(personId)) n++; }
+      for (const personId of [...held.keys()]) {
+        const had = held.has(personId);
+        void fresh(personId);
+        if (had && !held.has(personId)) n++;
+      }
       return n;
     },
     holds: (personId) => held.has(personId),
-    clearAll() { for (const e of held.values()) wipe(e); held.clear(); locked.clear(); },
+    clearAll() {
+      for (const e of held.values()) wipe(e);
+      held.clear();
+      locked.clear();
+    },
   };
 }

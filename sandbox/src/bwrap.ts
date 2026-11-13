@@ -7,7 +7,15 @@ import type { PolicyOptions } from "./policy.ts";
 import { SandboxError } from "./types.ts";
 import type { Roots, SandboxSpec } from "./types.ts";
 
-const SYSTEM_RO: readonly string[] = ["/usr", "/etc/ssl", "/etc/ca-certificates", "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/localtime"];
+const SYSTEM_RO: readonly string[] = [
+  "/usr",
+  "/etc/ssl",
+  "/etc/ca-certificates",
+  "/etc/resolv.conf",
+  "/etc/hosts",
+  "/etc/nsswitch.conf",
+  "/etc/localtime",
+];
 const HOME = "/home/agent";
 
 export interface BwrapOptions {
@@ -24,18 +32,40 @@ export interface WrappedCommand {
   enforcement: { files: "kernel"; network: "kernel" | "proxy-env" };
 }
 
-export function bwrapCommand(spec: SandboxSpec, roots: Roots, argv: readonly string[], o: BwrapOptions = {}, policy?: PolicyOptions): WrappedCommand {
+export function bwrapCommand(
+  spec: SandboxSpec,
+  roots: Roots,
+  argv: readonly string[],
+  o: BwrapOptions = {},
+  policy?: PolicyOptions,
+): WrappedCommand {
   if (argv.length === 0) throw new SandboxError("sandbox.policy", "nothing to run");
   const checked = validateSpec(spec, roots, policy);
   const a: string[] = ["--die-with-parent", "--new-session", "--unshare-all", "--cap-drop", "ALL"];
   if (o.proxyPort !== undefined) a.push("--share-net");
   for (const p of [...SYSTEM_RO, ...(o.programRead ?? [])]) a.push("--ro-bind-try", p, p);
-  a.push("--symlink", "usr/bin", "/bin", "--symlink", "usr/sbin", "/sbin", "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib64", "/lib64");
+  a.push(
+    "--symlink",
+    "usr/bin",
+    "/bin",
+    "--symlink",
+    "usr/sbin",
+    "/sbin",
+    "--symlink",
+    "usr/lib",
+    "/lib",
+    "--symlink",
+    "usr/lib64",
+    "/lib64",
+  );
   a.push("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", HOME);
   for (const m of checked.mounts) a.push(m.mode === "rw" ? "--bind" : "--ro-bind", m.host, m.host);
   if (checked.scratch !== undefined) a.push("--bind", checked.scratch, checked.scratch);
   const env: Record<string, string> = {
-    ...(spec.env ?? {}), HOME, PATH: "/usr/local/bin:/usr/bin:/bin", LANG: "C.UTF-8",
+    ...(spec.env ?? {}),
+    HOME,
+    PATH: "/usr/local/bin:/usr/bin:/bin",
+    LANG: "C.UTF-8",
     ...(o.proxyPort !== undefined ? proxyEnv(`http://127.0.0.1:${o.proxyPort}`) : {}),
   };
   // bwrap builds the new root as a writable tmpfs; nothing may be written on it (the real bwrap run found the self-test could). The binds above are their own mounts and stay as asked.
@@ -43,5 +73,10 @@ export function bwrapCommand(spec: SandboxSpec, roots: Roots, argv: readonly str
   a.push("--clearenv");
   for (const [k, v] of Object.entries(env)) a.push("--setenv", k, v);
   a.push("--chdir", checked.mounts[0]?.host ?? HOME, "--", ...argv);
-  return { cmd: "bwrap", args: a, env: {}, enforcement: { files: "kernel", network: o.proxyPort === undefined ? "kernel" : "proxy-env" } };
+  return {
+    cmd: "bwrap",
+    args: a,
+    env: {},
+    enforcement: { files: "kernel", network: o.proxyPort === undefined ? "kernel" : "proxy-env" },
+  };
 }

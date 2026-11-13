@@ -12,12 +12,18 @@ import { createChromeBridge } from "../../../../lib/chrome-bridge.ts";
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const OUT = process.env["VYRE_SHOT_DIR"] ?? path.join(os.tmpdir(), "vyre-chrome-e2e-shots");
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, "manifest.json"), "utf8")) as { key: string };
-export const EXT_ID = [...createHash("sha256").update(Buffer.from(manifest.key, "base64")).digest("hex").slice(0, 32)].map((c) => String.fromCharCode(97 + parseInt(c, 16))).join("");
+export const EXT_ID = [...createHash("sha256").update(Buffer.from(manifest.key, "base64")).digest("hex").slice(0, 32)]
+  .map((c) => String.fromCharCode(97 + parseInt(c, 16)))
+  .join("");
 
 /** Playwright's chromium launcher, or null when playwright-core is not installed. The one place the e2e rigs load it (scripts/boundaries.json names this file). */
 export async function playwrightChromium(): Promise<any | null> {
   let pw: any;
-  try { pw = await import("playwright-core"); } catch { return null; }
+  try {
+    pw = await import("playwright-core");
+  } catch {
+    return null;
+  }
   return pw.chromium ?? pw.default?.chromium ?? null;
 }
 
@@ -25,7 +31,18 @@ export async function findChromium(): Promise<{ chromium: any; exe: string } | n
   if (process.platform === "darwin" && !process.env["VYRE_E2E_ON_MAC"]) return null; // never on the Mac: the build box runs these
   const chromium = await playwrightChromium();
   if (!chromium) return null;
-  const candidates = [process.env["CHROME_BIN"], (() => { try { return chromium.executablePath(); } catch { return undefined; } })(), "/usr/bin/chromium", "/usr/bin/chromium-browser"].filter((c): c is string => !!c && fs.existsSync(c));
+  const candidates = [
+    process.env["CHROME_BIN"],
+    (() => {
+      try {
+        return chromium.executablePath();
+      } catch {
+        return undefined;
+      }
+    })(),
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+  ].filter((c): c is string => !!c && fs.existsSync(c));
   // the extension runs only in a full Chromium: a headless shell (what CHROME_BIN names for the app walks) is taken only when there is nothing else, and then
   // extensionChromeProblem says so at once instead of the test waiting for an extension worker that never starts
   const exe = candidates.find((c) => !isHeadlessShell(c)) ?? candidates[0];
@@ -51,25 +68,51 @@ export function site(pages: Record<string, string | ((req: http.IncomingMessage,
   const server = http.createServer((req, res) => {
     const u = new URL(req.url ?? "/", "http://x");
     let body = "";
-    req.on("data", (c) => { body += c; });
+    req.on("data", (c) => {
+      body += c;
+    });
     req.on("end", () => {
       hits.push({ method: req.method ?? "GET", path: u.pathname, body });
       const p = pages[u.pathname];
-      if (p === undefined) { res.writeHead(404); res.end(); return; }
+      if (p === undefined) {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       res.end(typeof p === "function" ? p(req, body) : p);
     });
   });
-  return new Promise<{ url: string; hits: typeof hits; close: () => Promise<void> }>((resolve) => server.listen(0, "127.0.0.1", () => resolve({
-    url: `http://127.0.0.1:${(server.address() as { port: number }).port}`, hits, close: () => new Promise<void>((r) => { server.closeAllConnections(); server.close(() => r()); }),
-  })));
+  return new Promise<{ url: string; hits: typeof hits; close: () => Promise<void> }>((resolve) =>
+    server.listen(0, "127.0.0.1", () =>
+      resolve({
+        url: `http://127.0.0.1:${(server.address() as { port: number }).port}`,
+        hits,
+        close: () =>
+          new Promise<void>((r) => {
+            server.closeAllConnections();
+            server.close(() => r());
+          }),
+      }),
+    ),
+  );
 }
 
 /**
  * Start the fake app (the daemon's bridge with handlers) and a Chromium with the extension. `ops` answers bridge operations by name, `caps` answers capability calls by name.
  * Every call is recorded in `calls`. Returns the browser context, the extension's service worker, and helpers.
  */
-export async function launch(found: { chromium: any; exe: string }, o: { ops?: Record<string, Handler>; caps?: Record<string, Handler>; colorScheme?: "light" | "dark"; incognito?: boolean; agent?: boolean; daemon?: { url: string; token: string } } = {}) {
+export async function launch(
+  found: { chromium: any; exe: string },
+  o: {
+    ops?: Record<string, Handler>;
+    caps?: Record<string, Handler>;
+    colorScheme?: "light" | "dark";
+    incognito?: boolean;
+    agent?: boolean;
+    daemon?: { url: string; token: string };
+  } = {},
+) {
   const why = extensionChromeProblem(found);
   if (why) throw new Error(why);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-e2e-"));
@@ -81,27 +124,62 @@ export async function launch(found: { chromium: any; exe: string }, o: { ops?: R
   const calls: { kind: "op" | "invoke"; name: string; input: Record<string, any>; extra?: Record<string, any> }[] = [];
   const events: Record<string, any>[] = [];
   const ops: Record<string, Handler> = {
-    hello: () => ({ version: "e2e", spaces: [{ id: "spc_mla", name: "My Legal Academy", webUrl: "https://mla.vyre.test" }, { id: "spc_me", name: "Personal", webUrl: "https://me.vyre.test" }], active: "spc_mla", locked: false }),
+    hello: () => ({
+      version: "e2e",
+      spaces: [
+        { id: "spc_mla", name: "My Legal Academy", webUrl: "https://mla.vyre.test" },
+        { id: "spc_me", name: "Personal", webUrl: "https://me.vyre.test" },
+      ],
+      active: "spc_mla",
+      locked: false,
+    }),
     ...o.ops,
   };
   const caps: Record<string, Handler> = { ...o.caps };
   const bridge = createChromeBridge({
     token,
-    op: async (name, input) => { calls.push({ kind: "op", name, input }); const h = ops[name]; if (!h) throw Object.assign(new Error("not here"), { code: "not_available" }); return h(input); },
-    invoke: async (name, input, extra) => { calls.push({ kind: "invoke", name, input, extra }); const h = caps[name]; if (!h) throw Object.assign(new Error("not here"), { code: "not_available" }); return h(input, extra); },
-    onEvent: (e) => { events.push(e); },
+    op: async (name, input) => {
+      calls.push({ kind: "op", name, input });
+      const h = ops[name];
+      if (!h) throw Object.assign(new Error("not here"), { code: "not_available" });
+      return h(input);
+    },
+    invoke: async (name, input, extra) => {
+      calls.push({ kind: "invoke", name, input, extra });
+      const h = caps[name];
+      if (!h) throw Object.assign(new Error("not here"), { code: "not_available" });
+      return h(input, extra);
+    },
+    onEvent: (e) => {
+      events.push(e);
+    },
   });
-  const server = http.createServer((req, res) => { if (!bridge.handle(req, res)) { res.writeHead(404); res.end(); } });
+  const server = http.createServer((req, res) => {
+    if (!bridge.handle(req, res)) {
+      res.writeHead(404);
+      res.end();
+    }
+  });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   // with `daemon` the native host reaches a booted daemon's own bridge instead of this rig's fake app
-  fs.writeFileSync(path.join(data, "vyred.json"), JSON.stringify({ url: o.daemon?.url ?? url, pid: process.pid, roles: ["space"] }));
+  fs.writeFileSync(
+    path.join(data, "vyred.json"),
+    JSON.stringify({ url: o.daemon?.url ?? url, pid: process.pid, roles: ["space"] }),
+  );
   fs.writeFileSync(path.join(data, "admin.token"), o.daemon?.token ?? token);
 
   // The native host, as the desktop app installs it: a launcher Chromium starts, which runs host.js with node.
   const launcher = path.join(dir, "run-vyre-bridge");
-  fs.writeFileSync(launcher, `#!/bin/sh\nexport VYRE_DATA_DIR='${data}'\nexec '${process.execPath}' '${path.join(ROOT, "src/worker/native/host.js")}' "$@"\n`, { mode: 0o755 });
-  const hostManifest = fs.readFileSync(path.join(ROOT, "src/worker/native/run.vyre.bridge.json"), "utf8").replace("__HOST_PATH__", launcher).replace("__EXTENSION_ID__", EXT_ID);
+  fs.writeFileSync(
+    launcher,
+    `#!/bin/sh\nexport VYRE_DATA_DIR='${data}'\nexec '${process.execPath}' '${path.join(ROOT, "src/worker/native/host.js")}' "$@"\n`,
+    { mode: 0o755 },
+  );
+  const hostManifest = fs
+    .readFileSync(path.join(ROOT, "src/worker/native/run.vyre.bridge.json"), "utf8")
+    .replace("__HOST_PATH__", launcher)
+    .replace("__EXTENSION_ID__", EXT_ID);
   fs.writeFileSync(path.join(profile, "NativeMessagingHosts", "run.vyre.bridge.json"), hostManifest);
 
   // "Allow in Incognito", as a person turns it on at chrome://extensions, seeded in the profile before Chromium starts.
@@ -123,11 +201,26 @@ export async function launch(found: { chromium: any; exe: string }, o: { ops?: R
     fs.writeFileSync(path.join(extRoot, "manifest.json"), JSON.stringify(m));
   }
   const context = await found.chromium.launchPersistentContext(profile, {
-    executablePath: found.exe, headless: true, channel: "chromium", viewport: { width: 1280, height: 800 }, colorScheme: o.colorScheme ?? "light",
-    args: [`--disable-extensions-except=${extRoot}`, `--load-extension=${extRoot}`, "--no-first-run", "--no-default-browser-check", "--disable-features=DisableLoadExtensionCommandLineSwitch", "--enable-unsafe-extension-debugging"],
+    executablePath: found.exe,
+    headless: true,
+    channel: "chromium",
+    viewport: { width: 1280, height: 800 },
+    colorScheme: o.colorScheme ?? "light",
+    args: [
+      `--disable-extensions-except=${extRoot}`,
+      `--load-extension=${extRoot}`,
+      "--no-first-run",
+      "--no-default-browser-check",
+      "--disable-features=DisableLoadExtensionCommandLineSwitch",
+      "--enable-unsafe-extension-debugging",
+    ],
   });
   let worker = context.serviceWorkers().find((w: any) => w.url().startsWith(`chrome-extension://${EXT_ID}/`));
-  if (!worker) worker = await context.waitForEvent("serviceworker", { predicate: (w: any) => w.url().startsWith(`chrome-extension://${EXT_ID}/`), timeout: 10_000 });
+  if (!worker)
+    worker = await context.waitForEvent("serviceworker", {
+      predicate: (w: any) => w.url().startsWith(`chrome-extension://${EXT_ID}/`),
+      timeout: 10_000,
+    });
 
   async function waitFor<T>(f: () => T | undefined | null | false, ms = 5000, what = "a condition"): Promise<T> {
     const until = Date.now() + ms;
@@ -140,7 +233,14 @@ export async function launch(found: { chromium: any; exe: string }, o: { ops?: R
   }
 
   return {
-    context, worker, bridge, calls, events, ops, caps, url,
+    context,
+    worker,
+    bridge,
+    calls,
+    events,
+    ops,
+    caps,
+    url,
     extUrl: (p: string) => `chrome-extension://${EXT_ID}/${p}`,
     waitFor,
     /** The calls made to one bridge operation or capability. */

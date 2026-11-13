@@ -9,26 +9,37 @@ import { asPerson, harness } from "../fixtures/harness.ts";
 import { FACTS, NOTES, OMAR, TRAPS, DANA, seedWorld } from "../fixtures/world.ts";
 import { QUESTIONS } from "../fixtures/questions.ts";
 
-const baseline = (JSON.parse(readFileSync(new URL("../fixtures/proofset-baseline.json", import.meta.url), "utf8")) as { metrics: Record<string, number> }).metrics;
+const baseline = (
+  JSON.parse(readFileSync(new URL("../fixtures/proofset-baseline.json", import.meta.url), "utf8")) as {
+    metrics: Record<string, number>;
+  }
+).metrics;
 
 const textOf = new Map<string, string>([...FACTS, ...TRAPS].map((f) => [f.id, f.text] as const));
 const titleOf = new Map<string, string>(NOTES.map((n) => [`not_${n.fileId.replace(/^fil_/, "")}`, n.title] as const));
 const trapIds = new Set(TRAPS.map((t) => t.id));
 const trapTexts = new Set(TRAPS.map((t) => t.text));
 
-interface Line { title: string; fact?: string; path: string }
+interface Line {
+  title: string;
+  fact?: string;
+  path: string;
+}
 
 /** Which fact or note a pointer line shows. */
 function keyOfLine(line: Line): string {
   if (line.fact !== undefined) {
-    for (const [id, text] of textOf) if (text === line.fact || (line.fact.endsWith("...") && text.startsWith(line.fact.slice(0, -3)))) return `fact:${id}`;
+    for (const [id, text] of textOf)
+      if (text === line.fact || (line.fact.endsWith("...") && text.startsWith(line.fact.slice(0, -3))))
+        return `fact:${id}`;
     return `fact:?`;
   }
   for (const [id, title] of titleOf) if (title === line.title) return `note:${id}`;
   return "note:?";
 }
 
-const p95 = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.floor(0.95 * xs.length))] ?? 0;
+const p95 = (xs: number[]): number =>
+  [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.floor(0.95 * xs.length))] ?? 0;
 
 async function run() {
   const h = harness();
@@ -76,7 +87,8 @@ async function run() {
       stale.push(top3 && !hitKeys.some((k) => forbidden.includes(k)) && !keys.some((k) => forbidden.includes(k)));
     }
   }
-  const rate = (xs: boolean[]): number => (xs.length === 0 ? 0 : Math.round((xs.filter(Boolean).length / xs.length) * 1000) / 1000);
+  const rate = (xs: boolean[]): number =>
+    xs.length === 0 ? 0 : Math.round((xs.filter(Boolean).length / xs.length) * 1000) / 1000;
   const metrics: Record<string, number> = {
     "search.hit_at_3": rate(searchHit),
     "pointer.top1": rate(pointerTop),
@@ -105,7 +117,11 @@ test("proof set: no metric is more than 0.02 below the recorded baseline", async
     const v = r.metrics[k] ?? -1;
     return k === "leakage" || k === "closed.offered" ? v > floor : v < floor - 0.02;
   });
-  assert.deepEqual(worse, [], `${worse.map(([k, floor]) => `${k}: floor ${floor}, now ${r.metrics[k]}`).join("\n")}\n${r.detail.join("\n")}`);
+  assert.deepEqual(
+    worse,
+    [],
+    `${worse.map(([k, floor]) => `${k}: floor ${floor}, now ${r.metrics[k]}`).join("\n")}\n${r.detail.join("\n")}`,
+  );
 });
 
 test("proof set: leakage is 0 and a closed, removed or proposed fact is never offered", async () => {
@@ -119,7 +135,10 @@ test("proof set: another person's layer is theirs alone, and it opens for them",
   // Omar sees his own facts through the same lookups; Dana never does. The rows hold no plain text.
   const omar = asPerson(h, { kind: "person", id: OMAR });
   const mine = await search(omar.ctx, { q: "interviewing another company" });
-  assert.ok(mine.hits.some((x) => x.factId === "fct_o01"), "Omar finds his own fact");
+  assert.ok(
+    mine.hits.some((x) => x.factId === "fct_o01"),
+    "Omar finds his own fact",
+  );
   const dana = await search(h.ctx, { q: "interviewing another company salary Omar expectation" });
   assert.ok(!dana.hits.some((x) => x.factId === "fct_o01" || x.factId === "fct_o02"), "Dana does not");
   const list = await factsList(h.ctx, { layer: "person", limit: 100 });

@@ -7,13 +7,18 @@ export const RELEASE_REPO = "vyre-ai/vyre-v1";
 
 /** The `VYRE_UPDATE_URL` a channel is read from. Stable is the newest published release; beta and nightly are rolling releases with a fixed tag, because "latest" never points at a prerelease. */
 export function feedBase(channel: UpdateChannel, repo: string = RELEASE_REPO): string {
-  return channel === "stable" ? `https://github.com/${repo}/releases/latest/download/` : `https://github.com/${repo}/releases/download/channel-${channel}/`;
+  return channel === "stable"
+    ? `https://github.com/${repo}/releases/latest/download/`
+    : `https://github.com/${repo}/releases/download/channel-${channel}/`;
 }
 
 /** The release assets one signed entry becomes: the manifest text and its detached signature, under the names the installer and the updater read. */
 export function assetsFor(e: FeedEntry): Array<{ name: string; content: string }> {
   const stem = e.kind === "server" ? `${e.channel}.json` : `${e.channel}-${e.kind}.json`;
-  return [{ name: stem, content: e.manifest }, { name: `${stem}.sig`, content: `${e.signature}\n` }];
+  return [
+    { name: stem, content: e.manifest },
+    { name: `${stem}.sig`, content: `${e.signature}\n` },
+  ];
 }
 
 export const assetKinds = (entries: readonly FeedEntry[]): ChannelKind[] => entries.map((e) => e.kind);

@@ -16,8 +16,25 @@ installDom();
 
 const T = Date.UTC(2026, 10, 3);
 const seed = (): LessonRowOut[] => [
-  { factId: "fct_l1", text: "Notes to Sara: three lines, the number first", agentId: "agt_intake", sourceKind: "chat", sourceRef: "thr_1", sourceLink: "/chats/thr_1#msg_3", learnedAt: T, lesson: { how: "edit", used: 1, scope: "you" } },
-  { factId: "fct_l2", text: "Never send anything to a client before you have seen it", agentId: "agt_docs", sourceKind: "chat", sourceRef: "thr_2", learnedAt: T - 6 * 86_400_000, lesson: { how: "refuse", used: 5, scope: "space" } },
+  {
+    factId: "fct_l1",
+    text: "Notes to Sara: three lines, the number first",
+    agentId: "agt_intake",
+    sourceKind: "chat",
+    sourceRef: "thr_1",
+    sourceLink: "/chats/thr_1#msg_3",
+    learnedAt: T,
+    lesson: { how: "edit", used: 1, scope: "you" },
+  },
+  {
+    factId: "fct_l2",
+    text: "Never send anything to a client before you have seen it",
+    agentId: "agt_docs",
+    sourceKind: "chat",
+    sourceRef: "thr_2",
+    learnedAt: T - 6 * 86_400_000,
+    lesson: { how: "refuse", used: 5, scope: "space" },
+  },
 ];
 
 async function page() {
@@ -29,20 +46,49 @@ async function page() {
   s.data.call = (async (cap: string, input: Record<string, unknown>) => {
     calls.push({ cap, input });
     switch (cap) {
-      case "settings.get": return { row: { value: on } };
-      case "settings.set": on = input["value"] === true; return { row: { value: on }, previous: !on };
-      case "memory.facts.list": return { facts: lessons };
-      case "memory.forget": lessons = lessons.filter((l) => !(input["factIds"] as string[]).includes(l.factId)); return {};
-      case "memory.restore": lessons = seed(); return {};
-      case "memory.fact.correct": lessons = lessons.map((l) => (l.factId === input["factId"] ? { ...l, text: String(input["text"]) } : l)); return { fact: { factId: String(input["factId"]) } };
-      default: return base(cap, input as never);
+      case "settings.get":
+        return { row: { value: on } };
+      case "settings.set":
+        on = input["value"] === true;
+        return { row: { value: on }, previous: !on };
+      case "memory.facts.list":
+        return { facts: lessons };
+      case "memory.forget":
+        lessons = lessons.filter((l) => !(input["factIds"] as string[]).includes(l.factId));
+        return {};
+      case "memory.restore":
+        lessons = seed();
+        return {};
+      case "memory.fact.correct":
+        lessons = lessons.map((l) => (l.factId === input["factId"] ? { ...l, text: String(input["text"]) } : l));
+        return { fact: { factId: String(input["factId"]) } };
+      default:
+        return base(cap, input as never);
     }
   }) as never;
-  const root = await mount(createRoot, <SavedProvider><SettingsDataProvider value={s.data}><LessonsSection /><SavedBar /></SettingsDataProvider></SavedProvider>);
+  const root = await mount(
+    createRoot,
+    <SavedProvider>
+      <SettingsDataProvider value={s.data}>
+        <LessonsSection />
+        <SavedBar />
+      </SettingsDataProvider>
+    </SavedProvider>,
+  );
   await flush();
   return { s, root, calls };
 }
-const key = async (n: Node | null, k: string): Promise<void> => { await act(async () => { (n!.props.onKeyDown as ((e: unknown) => void) | undefined)?.({ key: k, nativeEvent: { key: k }, preventDefault() {}, stopPropagation() {}, isDefaultPrevented: () => false }); }); };
+const key = async (n: Node | null, k: string): Promise<void> => {
+  await act(async () => {
+    (n!.props.onKeyDown as ((e: unknown) => void) | undefined)?.({
+      key: k,
+      nativeEvent: { key: k },
+      preventDefault() {},
+      stopPropagation() {},
+      isDefaultPrevented: () => false,
+    });
+  });
+};
 
 test("each lesson says how it was caught, which agent learned it, when, how often it was used and who may read it", async () => {
   const { root } = await page();
@@ -53,14 +99,20 @@ test("each lesson says how it was caught, which agent learned it, when, how ofte
   assert.match(t, /used 1 time · Only you/);
   assert.match(t, /You said no · .* · 28 Oct · used 5 times · Shared with the Space/);
   assert.doesNotMatch(t, /—|§/);
-  assert.equal(lessonSub({ ...seed()[0]!, lesson: undefined }, () => "Mira").startsWith("From a correction · Mira"), true);
+  assert.equal(
+    lessonSub({ ...seed()[0]!, lesson: undefined }, () => "Mira").startsWith("From a correction · Mira"),
+    true,
+  );
 });
 
 test("the switch turns learning off and hides the list; Undo turns it back on", async () => {
   const { root, calls } = await page();
   await press(find(root, "lessons-switch"));
   await flush();
-  assert.deepEqual(calls.filter((c) => c.cap === "settings.set").map((c) => c.input), [{ key: "memory.lessons", value: false }]);
+  assert.deepEqual(
+    calls.filter((c) => c.cap === "settings.set").map((c) => c.input),
+    [{ key: "memory.lessons", value: false }],
+  );
   assert.match(textOf(root), /Off\. Agents do not keep lessons from what you change\./);
   assert.doesNotMatch(textOf(root), /Notes to Sara/);
   assert.match(textOf(root), /Agents stop keeping lessons\./);

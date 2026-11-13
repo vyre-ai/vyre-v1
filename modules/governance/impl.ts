@@ -18,7 +18,8 @@ export const handlers: Record<string, Handler> = {
   "governance.erase.apply": (ctx, i) => h.eraseApply(ctx, i),
   "governance.erase.list": (ctx, i) => h.eraseList(ctx, i),
   "governance.tombstones.list": (ctx, i) => h.tombstonesList(ctx, i),
-  "governance.tombstones.reapply": (ctx, input) => h.tombstonesReapply(ctx, input as Parameters<typeof h.tombstonesReapply>[1]),
+  "governance.tombstones.reapply": (ctx, input) =>
+    h.tombstonesReapply(ctx, input as Parameters<typeof h.tombstonesReapply>[1]),
   "governance.jobs_health": (ctx) => h.jobsHealth(ctx),
 };
 
@@ -27,7 +28,10 @@ export const handlers: Record<string, Handler> = {
  * boot, so a short interval is what puts the first tick within a minute of boot; the check is a few indexed reads and schedules nothing when every kind already has its tick.
  */
 export const periodic = {
-  "governance.seed_ticks": { everyMs: 60_000, run: (ctx: unknown) => h.seedTicks(ctx as Parameters<typeof h.seedTicks>[0]) },
+  "governance.seed_ticks": {
+    everyMs: 60_000,
+    run: (ctx: unknown) => h.seedTicks(ctx as Parameters<typeof h.seedTicks>[0]),
+  },
 };
 
 /** The host binds the event log behind erase (host/src/daemon): erase then reaches the append-only log, and a restore replays it. */
@@ -41,8 +45,14 @@ export const projections = { inline: {}, consumers: {} };
 export const hostCalls = {
   "governance.held_among": (ctx: Ctx, i: { person: string; ids: string[] }): number => {
     try {
-      const held = new Set((ctx.db.all(`SELECT "kind", "targetId" FROM governance_hold`) as { kind: string; targetId: string }[]).map((r) => (r.kind === "person" ? `person:${r.targetId}` : r.targetId)));
+      const held = new Set(
+        (ctx.db.all(`SELECT "kind", "targetId" FROM governance_hold`) as { kind: string; targetId: string }[]).map(
+          (r) => (r.kind === "person" ? `person:${r.targetId}` : r.targetId),
+        ),
+      );
       return [`person:${i.person}`, ...i.ids].filter((x) => held.has(x)).length;
-    } catch { return 0; }
+    } catch {
+      return 0;
+    }
   },
 };

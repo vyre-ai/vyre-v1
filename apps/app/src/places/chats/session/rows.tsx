@@ -22,10 +22,21 @@ export function HourMark({ id, label }: { id: string; label: string }): ReactEle
 /** A moment worth coming back to: a flag, what happened, the detail and the time. The Overview jumps here. */
 export function JumpRow({ row }: { row: Jump }): ReactElement {
   return (
-    <View testID={`jump-${row.messageId}`} accessibilityRole="text" accessibilityLabel={`${row.label}. ${row.sub}`} style={st.jump}>
-      <View style={st.flag}><Glyph name="flag" size={13} color="var(--accent)" /></View>
-      <Text numberOfLines={1} style={st.jumpWhat}>{row.label}</Text>
-      <Text numberOfLines={1} style={st.jumpSub}>{row.sub !== "" ? `${row.sub} · ${row.time}` : row.time}</Text>
+    <View
+      testID={`jump-${row.messageId}`}
+      accessibilityRole="text"
+      accessibilityLabel={`${row.label}. ${row.sub}`}
+      style={st.jump}
+    >
+      <View style={st.flag}>
+        <Glyph name="flag" size={13} color="var(--accent)" />
+      </View>
+      <Text numberOfLines={1} style={st.jumpWhat}>
+        {row.label}
+      </Text>
+      <Text numberOfLines={1} style={st.jumpSub}>
+        {row.sub !== "" ? `${row.sub} · ${row.time}` : row.time}
+      </Text>
     </View>
   );
 }
@@ -40,15 +51,37 @@ export function AwayRow({ row }: { row: Away }): ReactElement {
   const shown = all ? row.lines : row.lines.slice(0, AWAY_SHOWN);
   return (
     <View testID={`away-${row.key}`} style={st.away}>
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`While you were away. ${awayWords(row)}`} testID={`away-${row.key}-toggle`} onPress={() => setOpen((o) => !o)} style={({ hovered }: { hovered?: boolean }) => [st.awayHead, hovered === true && st.hover]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={`While you were away. ${awayWords(row)}`}
+        testID={`away-${row.key}-toggle`}
+        onPress={() => setOpen((o) => !o)}
+        style={({ hovered }: { hovered?: boolean }) => [st.awayHead, hovered === true && st.hover]}
+      >
         <View style={st.dot} />
-        <Text numberOfLines={2} style={st.awayText}><Text style={st.awayLead}>While you were away </Text>{awayWords(row)}</Text>
+        <Text numberOfLines={2} style={st.awayText}>
+          <Text style={st.awayLead}>While you were away </Text>
+          {awayWords(row)}
+        </Text>
         <Text style={st.awaySpan}>{row.span}</Text>
       </Pressable>
       {open ? (
         <View testID={`away-${row.key}-items`} style={st.lines}>
-          {shown.map((l) => <Row key={l.id} id={`away-line-${l.id}`} title={l.who !== "" ? `${l.who}  ${l.text}` : l.text} trailing={<Text style={st.lineTime}>{l.time}</Text>} inert />)}
-          {row.lines.length > shown.length ? <Pressable accessibilityRole="button" testID={`away-${row.key}-more`} onPress={() => setAll(true)}><Text style={st.more}>{`${row.lines.length - shown.length} more, all quiet`}</Text></Pressable> : null}
+          {shown.map((l) => (
+            <Row
+              key={l.id}
+              id={`away-line-${l.id}`}
+              title={l.who !== "" ? `${l.who}  ${l.text}` : l.text}
+              trailing={<Text style={st.lineTime}>{l.time}</Text>}
+              inert
+            />
+          ))}
+          {row.lines.length > shown.length ? (
+            <Pressable accessibilityRole="button" testID={`away-${row.key}-more`} onPress={() => setAll(true)}>
+              <Text style={st.more}>{`${row.lines.length - shown.length} more, all quiet`}</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -63,7 +96,15 @@ const st = StyleSheet.create({
   jumpWhat: { flexShrink: 0, fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   jumpSub: { flexShrink: 1, minWidth: 0, fontSize: 13, color: "var(--ink-3)" as string },
   away: { marginVertical: 12 },
-  awayHead: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 36, paddingHorizontal: 8, marginHorizontal: -8, borderRadius: 12 },
+  awayHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 36,
+    paddingHorizontal: 8,
+    marginHorizontal: -8,
+    borderRadius: 12,
+  },
   hover: { backgroundColor: "var(--hover)" as string },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--accent)" as string },
   awayText: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink-2)" as string },

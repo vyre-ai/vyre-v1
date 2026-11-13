@@ -19,10 +19,10 @@ test("a step test result does not contain a secret from the step input", async (
   assert.equal(sentText.includes(BEARER), false);
   assert.equal((sent as { stubbed?: boolean }).stubbed, true);
 
-  const read = await stepsTest(h.ctx, {
+  const read = (await stepsTest(h.ctx, {
     key: "google.gmail.list_messages",
     input: { connectionId: "con_1", q: SECRET, authorization: `Bearer ${BEARER}` },
-  }) as { output: unknown; error?: { code?: string; message?: string } };
+  })) as { output: unknown; error?: { code?: string; message?: string } };
   const readText = JSON.stringify(read);
   assert.equal(readText.includes(SECRET), false);
   assert.equal(readText.includes(BEARER), false);

@@ -5,7 +5,9 @@ import { redact } from "./sanitize.ts";
 const CUT = 200;
 
 export function cut(v: unknown, n: number = CUT): string {
-  const s = String(v ?? "").replace(/\s+/g, " ").trim();
+  const s = String(v ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
   return s.length > n ? `${s.slice(0, n - 1)}…` : s;
 }
 
@@ -19,7 +21,18 @@ export function clip(v: unknown, n: number): string {
 export const TOOL_KINDS = ["read", "edit", "write", "run", "search", "fetch", "mcp", "task", "other"] as const;
 export type ToolKind = (typeof TOOL_KINDS)[number];
 const KIND_OF: Readonly<Record<string, ToolKind>> = {
-  Read: "read", Write: "write", Edit: "edit", MultiEdit: "edit", NotebookEdit: "edit", Grep: "search", Glob: "search", Bash: "run", WebFetch: "fetch", WebSearch: "fetch", Task: "task", Agent: "task",
+  Read: "read",
+  Write: "write",
+  Edit: "edit",
+  MultiEdit: "edit",
+  NotebookEdit: "edit",
+  Grep: "search",
+  Glob: "search",
+  Bash: "run",
+  WebFetch: "fetch",
+  WebSearch: "fetch",
+  Task: "task",
+  Agent: "task",
 };
 
 export function toolKind(name: string, hint?: string): ToolKind {
@@ -32,10 +45,12 @@ export function toolKind(name: string, hint?: string): ToolKind {
 export function describe(name: string, input: unknown): string {
   const i = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
   if (name === "Bash") return cut(clip(String(i["command"] ?? ""), 4000));
-  if (["Write", "Edit", "MultiEdit", "Read", "NotebookEdit"].includes(name)) return `${name} ${cut(i["file_path"] ?? i["notebook_path"] ?? "")}`.trim();
+  if (["Write", "Edit", "MultiEdit", "Read", "NotebookEdit"].includes(name))
+    return `${name} ${cut(i["file_path"] ?? i["notebook_path"] ?? "")}`.trim();
   if (name === "WebFetch") return `fetch ${cut(clip(i["url"], 500))}`;
   if (name === "WebSearch") return `search ${cut(clip(i["query"], 500))}`;
-  if (name === "Glob" || name === "Grep") return `${name} ${cut(i["pattern"])}${i["path"] ? ` in ${cut(i["path"], 80)}` : ""}`;
+  if (name === "Glob" || name === "Grep")
+    return `${name} ${cut(i["pattern"])}${i["path"] ? ` in ${cut(i["path"], 80)}` : ""}`;
   const first = Object.entries(i).find(([, v]) => typeof v === "string");
   return cut(clip(`${name}${first ? ` ${first[0]}: ${String(first[1])}` : ""}`, 600));
 }

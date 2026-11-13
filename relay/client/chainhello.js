@@ -14,9 +14,15 @@ export async function chainHello(o) {
   const nonce = base64url(globalThis.crypto.getRandomValues(new Uint8Array(18)));
   const ts = o.now ?? Date.now();
   // the presence key the hello will offer is bound by its hash: the entry key signs over it
-  const pk = o.presencePublicKey ? [...(await o.sha256(new TextEncoder().encode(o.presencePublicKey)))].map((x) => x.toString(16).padStart(2, "0")).join("") : "";
+  const pk = o.presencePublicKey
+    ? [...(await o.sha256(new TextEncoder().encode(o.presencePublicKey)))]
+        .map((x) => x.toString(16).padStart(2, "0"))
+        .join("")
+    : "";
   const h = { identity: o.identity, entry: o.entry, ts, nonce, channel, ...(pk ? { pk } : {}) };
-  const message = utf8(`vyre-chain-hello-v1\n${o.box}\n${h.identity}\n${h.entry}\n${h.ts}\n${h.nonce}\n${h.channel}\n${pk || "-"}`);
+  const message = utf8(
+    `vyre-chain-hello-v1\n${o.box}\n${h.identity}\n${h.entry}\n${h.ts}\n${h.nonce}\n${h.channel}\n${pk || "-"}`,
+  );
   const sig = base64url(new Uint8Array(await o.sign(message)));
   return { ...h, sig, ...(o.name ? { name: o.name } : {}) };
 }

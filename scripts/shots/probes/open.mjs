@@ -18,17 +18,23 @@ export function parseProbe(target) {
   const p = target.probe;
   if (p === undefined || p === null) return null;
   if (p.kind !== "open") return null;
-  if (typeof p.budgetMs !== "number" || !(p.budgetMs > 0)) throw new Error(`${target.id}: probe.budgetMs must be a positive number`);
+  if (typeof p.budgetMs !== "number" || !(p.budgetMs > 0))
+    throw new Error(`${target.id}: probe.budgetMs must be a positive number`);
   const runs = p.runs === undefined ? DEFAULT_RUNS : p.runs;
-  if (!Number.isInteger(runs) || runs < MIN_RUNS) throw new Error(`${target.id}: probe.runs must be an integer of at least ${MIN_RUNS} (the first is a discarded warm-up)`);
-  if (!target.waitFor) throw new Error(`${target.id}: an open probe needs the target's waitFor selector (what "open" means)`);
+  if (!Number.isInteger(runs) || runs < MIN_RUNS)
+    throw new Error(
+      `${target.id}: probe.runs must be an integer of at least ${MIN_RUNS} (the first is a discarded warm-up)`,
+    );
+  if (!target.waitFor)
+    throw new Error(`${target.id}: an open probe needs the target's waitFor selector (what "open" means)`);
   return { budgetMs: p.budgetMs, runs };
 }
 
 /** Median of a list of numbers; NaN when empty. */
 export function median(xs) {
   if (!xs.length) return NaN;
-  const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
+  const s = [...xs].sort((a, b) => a - b),
+    m = s.length >> 1;
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
@@ -39,7 +45,14 @@ export function summarizeOpen(times, budgetMs) {
   const ok = timed.filter((t) => t !== null && t >= 0);
   const med = failed || !ok.length ? Infinity : Math.round(median(ok) * 10) / 10;
   const worst = ok.length ? Math.round(Math.max(...ok) * 10) / 10 : Infinity;
-  return { warmup_ms: times[0] === null ? null : Math.round(times[0] * 10) / 10, samples: ok.map((t) => Math.round(t * 10) / 10), median_ms: med, worst_ms: worst, failed, ok: !failed && med <= budgetMs };
+  return {
+    warmup_ms: times[0] === null ? null : Math.round(times[0] * 10) / 10,
+    samples: ok.map((t) => Math.round(t * 10) / 10),
+    median_ms: med,
+    worst_ms: worst,
+    failed,
+    ok: !failed && med <= budgetMs,
+  };
 }
 
 /** One fresh mount: a new context, navigate, and the time until the selector is visible, from navigation start. Null when it never appears. */
@@ -48,16 +61,35 @@ export async function timeOpen(browser, { url, selector, viewport, scheme = "lig
   try {
     const page = await ctx.newPage();
     await page.goto(url, { waitUntil: "commit", timeout: timeoutMs });
-    const ms = await page.evaluate(({ selector, timeoutMs }) => new Promise((resolve) => {
-      const seen = () => { const el = document.querySelector(selector); return el !== null && (el.getClientRects().length > 0); };
-      const done = () => resolve(performance.now());
-      if (seen()) return done();
-      const mo = new MutationObserver(() => { if (seen()) { mo.disconnect(); done(); } });
-      mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
-      setTimeout(() => { mo.disconnect(); resolve(null); }, timeoutMs);
-    }), { selector, timeoutMs }).catch(() => null);
+    const ms = await page
+      .evaluate(
+        ({ selector, timeoutMs }) =>
+          new Promise((resolve) => {
+            const seen = () => {
+              const el = document.querySelector(selector);
+              return el !== null && el.getClientRects().length > 0;
+            };
+            const done = () => resolve(performance.now());
+            if (seen()) return done();
+            const mo = new MutationObserver(() => {
+              if (seen()) {
+                mo.disconnect();
+                done();
+              }
+            });
+            mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+            setTimeout(() => {
+              mo.disconnect();
+              resolve(null);
+            }, timeoutMs);
+          }),
+        { selector, timeoutMs },
+      )
+      .catch(() => null);
     return ms;
-  } finally { await ctx.close(); }
+  } finally {
+    await ctx.close();
+  }
 }
 
 /** Runs a target's probe: `runs` fresh mounts, summary against the budget. `time` is injectable so tests pass a fake mount. */
@@ -77,14 +109,27 @@ async function main() {
   const { parseArgs, routeUrl, loadTargets, SIZES } = await import("../lib.mjs");
   const { serve } = await import("../serve.mjs");
   const { ensureDeps, ensureChromium } = await import("../ensure-deps.mjs");
-  const HERE = path.dirname(fileURLToPath(import.meta.url)), SHOTS = path.resolve(HERE, ".."), REPO = path.resolve(SHOTS, "../..");
+  const HERE = path.dirname(fileURLToPath(import.meta.url)),
+    SHOTS = path.resolve(HERE, ".."),
+    REPO = path.resolve(SHOTS, "../..");
   const args = parseArgs(process.argv.slice(2));
   const want = args.target || "all";
   const skin = args.skin || "paper";
-  const targets = loadTargets(SHOTS).filter((t) => t.probe && t.probe.kind === "open" && (want === "all" || t.id === want || (want.startsWith("P-") && t.id.startsWith(want + "-"))));
-  if (!targets.length) { console.log(`open probe: skipped, no target of ${want} declares probe.kind "open"`); return 0; }
+  const targets = loadTargets(SHOTS).filter(
+    (t) =>
+      t.probe &&
+      t.probe.kind === "open" &&
+      (want === "all" || t.id === want || (want.startsWith("P-") && t.id.startsWith(want + "-"))),
+  );
+  if (!targets.length) {
+    console.log(`open probe: skipped, no target of ${want} declares probe.kind "open"`);
+    return 0;
+  }
   const dist = path.join(path.resolve(REPO, args.app || "scripts/shots/app"), "dist");
-  if (!fs.existsSync(path.join(dist, "index.html"))) { console.log("open probe: skipped, no web export (shots.mjs exports it first)"); return 0; }
+  if (!fs.existsSync(path.join(dist, "index.html"))) {
+    console.log("open probe: skipped, no web export (shots.mjs exports it first)");
+    return 0;
+  }
   await ensureDeps(REPO);
   ensureChromium(REPO);
   const server = await serve(dist, { spa: true });
@@ -93,13 +138,28 @@ async function main() {
   const failed = [];
   try {
     for (const t of targets) {
-      const r = await runOpenProbe(t, { time: (tg) => timeOpen(browser, { url: routeUrl(server.origin, tg.route, skin), selector: tg.waitFor, viewport: SIZES.desktop }) });
+      const r = await runOpenProbe(t, {
+        time: (tg) =>
+          timeOpen(browser, {
+            url: routeUrl(server.origin, tg.route, skin),
+            selector: tg.waitFor,
+            viewport: SIZES.desktop,
+          }),
+      });
       console.log(metricLine(r));
-      console.log(`open ${r.ok ? "ok" : "OVER BUDGET"} ${t.id}: median ${r.median_ms}ms of ${r.samples.length} (budget ${r.budget_ms}ms), worst ${r.worst_ms}ms, warm-up ${r.warmup_ms}ms discarded`);
+      console.log(
+        `open ${r.ok ? "ok" : "OVER BUDGET"} ${t.id}: median ${r.median_ms}ms of ${r.samples.length} (budget ${r.budget_ms}ms), worst ${r.worst_ms}ms, warm-up ${r.warmup_ms}ms discarded`,
+      );
       if (!r.ok) failed.push(t.id);
     }
-  } finally { await browser.close(); server.close(); }
-  if (failed.length) { console.error(`open probe over budget: ${failed.join(", ")}`); return 1; }
+  } finally {
+    await browser.close();
+    server.close();
+  }
+  if (failed.length) {
+    console.error(`open probe over budget: ${failed.join(", ")}`);
+    return 1;
+  }
   return 0;
 }
 

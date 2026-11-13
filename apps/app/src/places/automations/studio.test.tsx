@@ -21,7 +21,11 @@ import { SidebarContent } from "../../shell/sidebar/index.ts";
 const has = (s: string, needle: string): boolean => s.includes(needle);
 
 test("the sidebar registers through SidebarContent", () => {
-  const el = AutomationsSidebarSlot({ selectedId: null, view: "automations", onView: () => undefined }) as ReactElement<{ title: string; searchPlaceholder?: string }>;
+  const el = AutomationsSidebarSlot({
+    selectedId: null,
+    view: "automations",
+    onView: () => undefined,
+  }) as ReactElement<{ title: string; searchPlaceholder?: string }>;
   assert.equal(el.type, SidebarContent);
   assert.deepEqual([el.props.title, el.props.searchPlaceholder], ["Automations", "Search automations"]);
 });
@@ -29,7 +33,9 @@ test("the sidebar registers through SidebarContent", () => {
 test("Promote opens the sheet", () => {
   const s = createSampleAutomations(northwind);
   const out = renderToStaticMarkup(
-    <AutomationsDataProvider value={s.data}><AutomationCanvas automationId="aut_digest" initialPromote /></AutomationsDataProvider>,
+    <AutomationsDataProvider value={s.data}>
+      <AutomationCanvas automationId="aut_digest" initialPromote />
+    </AutomationsDataProvider>,
   );
   assert.ok(has(out, 'data-testid="promote-sheet"'));
   assert.ok(!has(out, "Promote opens its own sheet"));
@@ -37,7 +43,11 @@ test("Promote opens the sheet", () => {
 
 test("a failed run has no Stop, and replay and live re-run are different labels", () => {
   const s = createSampleRuns(runsNorthwind);
-  const out = renderToStaticMarkup(<RunsDataProvider value={s.data}><RunChat runId="rl1" /></RunsDataProvider>);
+  const out = renderToStaticMarkup(
+    <RunsDataProvider value={s.data}>
+      <RunChat runId="rl1" />
+    </RunsDataProvider>,
+  );
   assert.ok(!has(out, 'data-testid="stop-failed"') && !has(out, 'data-testid="stop-run"'));
   assert.ok(has(out, SANDBOX_REPLAY_LABEL) && has(out, LIVE_RERUN_LABEL));
   assert.notEqual(SANDBOX_REPLAY_LABEL, LIVE_RERUN_LABEL);
@@ -47,14 +57,34 @@ test("a failed run has no Stop, and replay and live re-run are different labels"
 });
 
 test("AI and Code are live steps: every step and trigger is available, and the catalog lists what the server sends", () => {
-  for (const key of ["ai", "code", "http_request", "parallel", "loop", "wait"]) assert.equal(availabilityFor(key, "step"), "available", key);
+  for (const key of ["ai", "code", "http_request", "parallel", "loop", "wait"])
+    assert.equal(availabilityFor(key, "step"), "available", key);
   assert.equal(availabilityFor("schedule", "trigger"), "available");
-  const kept = stepsFromRuntime({ steps: [
-    { key: "ai", title: "AI step", category: "ai" }, { key: "code", title: "Run code", category: "code" }, { key: "http_request", title: "HTTP request", category: "data" }, { key: "records.find", title: "Find records", category: "data" },
-  ] })!;
-  assert.deepEqual(kept.map((s) => [s.key, s.group, s.availability]), [["ai", "AI and code", "available"], ["code", "AI and code", "available"], ["http_request", "Connected apps", "available"], ["records.find", "Data & transforms", "available"]]);
-  assert.deepEqual(menuGroups(kept).map((g) => g.head), ["Connected apps", "AI and code", "Data & transforms"]);
-  assert.ok(kept.every((s) => s.note === undefined), "no step carries a preview note");
+  const kept = stepsFromRuntime({
+    steps: [
+      { key: "ai", title: "AI step", category: "ai" },
+      { key: "code", title: "Run code", category: "code" },
+      { key: "http_request", title: "HTTP request", category: "data" },
+      { key: "records.find", title: "Find records", category: "data" },
+    ],
+  })!;
+  assert.deepEqual(
+    kept.map((s) => [s.key, s.group, s.availability]),
+    [
+      ["ai", "AI and code", "available"],
+      ["code", "AI and code", "available"],
+      ["http_request", "Connected apps", "available"],
+      ["records.find", "Data & transforms", "available"],
+    ],
+  );
+  assert.deepEqual(
+    menuGroups(kept).map((g) => g.head),
+    ["Connected apps", "AI and code", "Data & transforms"],
+  );
+  assert.ok(
+    kept.every((s) => s.note === undefined),
+    "no step carries a preview note",
+  );
 });
 
 test("Ask Vyre context omits a field named secret, authorization, or cookie", () => {

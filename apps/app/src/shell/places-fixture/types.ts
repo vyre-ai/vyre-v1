@@ -24,9 +24,21 @@ export interface HomeNav {
   openSubject(subject: { type: string; id: string }): void;
   openInbox?(which: "unread" | "match"): void;
 }
-export interface HomeData extends RuntimeBase { nav: HomeNav }
+export interface HomeData extends RuntimeBase {
+  nav: HomeNav;
+}
 
-export type GoTarget = "ai" | "photo_and_title" | "connect_mailbox_and_calendar" | "meet_assistant" | "open_first_project" | "import" | "new_project" | "new_record" | "upload" | "team_space";
+export type GoTarget =
+  | "ai"
+  | "photo_and_title"
+  | "connect_mailbox_and_calendar"
+  | "meet_assistant"
+  | "open_first_project"
+  | "import"
+  | "new_project"
+  | "new_record"
+  | "upload"
+  | "team_space";
 export interface HomeBExtras {
   space: { kind: "team" | "personal"; name: string };
   assistant: { id: string; name: string };

@@ -4,26 +4,47 @@
 // the hit is accepted and marked fileLevel so the obligation stays on that dependency's files.
 // AGPL, GPL, LGPL, and SSPL are blocked. An OR expression is accepted when one side is allowed.
 // cargo deny output (human tree or JSON diagnostics) is parsed; a rejected crate is never accepted.
-import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-export const ALLOWED_LICENSES = ['MIT', 'MIT-0', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'BSD', 'ISC', 'MPL-2.0', 'BlueOak-1.0.0', 'Unlicense', 'Zlib', '0BSD', 'Python-2.0'] as const;
+export const ALLOWED_LICENSES = [
+  "MIT",
+  "MIT-0",
+  "Apache-2.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "BSD",
+  "ISC",
+  "MPL-2.0",
+  "BlueOak-1.0.0",
+  "Unlicense",
+  "Zlib",
+  "0BSD",
+  "Python-2.0",
+] as const;
 /** CC-BY-4.0 is a data licence: allowed only for these packages, which ship data and no code (ruling 84). Attribution stays in the third-party notices. */
-export const DATA_PACKAGES = ['caniuse-lite'] as const;
+export const DATA_PACKAGES = ["caniuse-lite"] as const;
 /**
  * Packages whose package.json has no license field, with the licence read from their repository, for one version each. Only a missing field is filled in, only for that exact version:
  * a new version is checked again by hand, and a package that states a licence is judged on what it states.
  */
-export const RECORDED_LICENSES: Readonly<Record<string, { version: string; license: string; source: string; reason: string }>> = {
-  khroma: { version: '2.1.0', license: 'MIT', source: 'https://github.com/fabiospampinato/khroma/blob/4968165afb0d3d09be66497e7985a34f7bfe6d42/license', reason: 'package.json lacks a license field; the repo LICENSE is MIT (needed by mermaid 11.17.2)' },
+export const RECORDED_LICENSES: Readonly<
+  Record<string, { version: string; license: string; source: string; reason: string }>
+> = {
+  khroma: {
+    version: "2.1.0",
+    license: "MIT",
+    source: "https://github.com/fabiospampinato/khroma/blob/4968165afb0d3d09be66497e7985a34f7bfe6d42/license",
+    reason: "package.json lacks a license field; the repo LICENSE is MIT (needed by mermaid 11.17.2)",
+  },
 };
 
 /** The licence to judge: the package's own, or the recorded one when its package.json states none and the version matches. */
 export function recordedLicense(name: string, version: unknown, license: string): string {
   const r = RECORDED_LICENSES[name];
-  return license === '' && r !== undefined && version === r.version ? r.license : license;
+  return license === "" && r !== undefined && version === r.version ? r.license : license;
 }
 
 export interface LicenseHit {
@@ -44,19 +65,19 @@ export interface CargoDenyHit {
 }
 
 export function licenseText(license: unknown): string {
-  if (typeof license === 'string') return license;
-  if (license && typeof license === 'object' && 'type' in license) {
+  if (typeof license === "string") return license;
+  if (license && typeof license === "object" && "type" in license) {
     const t = (license as { type?: unknown }).type;
-    if (typeof t === 'string') return t;
+    if (typeof t === "string") return t;
   }
-  return '';
+  return "";
 }
 
 function balanced(s: string): boolean {
   let depth = 0;
   for (const c of s) {
-    if (c === '(') depth += 1;
-    else if (c === ')') {
+    if (c === "(") depth += 1;
+    else if (c === ")") {
       depth -= 1;
       if (depth < 0) return false;
     }
@@ -66,37 +87,37 @@ function balanced(s: string): boolean {
 
 function unwrap(s: string): string {
   let t = s.trim();
-  while (t.startsWith('(') && t.endsWith(')') && balanced(t.slice(1, -1))) t = t.slice(1, -1).trim();
+  while (t.startsWith("(") && t.endsWith(")") && balanced(t.slice(1, -1))) t = t.slice(1, -1).trim();
   return t;
 }
 
 /** Split on OR or AND that sits at parenthesis depth 0. */
-function splitTop(expr: string, op: 'OR' | 'AND'): string[] {
+function splitTop(expr: string, op: "OR" | "AND"): string[] {
   const parts: string[] = [];
   let depth = 0;
-  let cur = '';
+  let cur = "";
   let i = 0;
   while (i < expr.length) {
-    const c = expr[i] ?? '';
-    if (c === '(') {
+    const c = expr[i] ?? "";
+    if (c === "(") {
       depth += 1;
       cur += c;
       i += 1;
       continue;
     }
-    if (c === ')') {
+    if (c === ")") {
       depth = Math.max(0, depth - 1);
       cur += c;
       i += 1;
       continue;
     }
     if (depth === 0 && expr.slice(i, i + op.length).toUpperCase() === op) {
-      const before = i === 0 || /\s/.test(expr[i - 1] ?? '');
+      const before = i === 0 || /\s/.test(expr[i - 1] ?? "");
       const afterIdx = i + op.length;
-      const after = afterIdx >= expr.length || /\s/.test(expr[afterIdx] ?? '');
+      const after = afterIdx >= expr.length || /\s/.test(expr[afterIdx] ?? "");
       if (before && after) {
         parts.push(cur.trim());
-        cur = '';
+        cur = "";
         i = afterIdx;
         continue;
       }
@@ -110,33 +131,36 @@ function splitTop(expr: string, op: 'OR' | 'AND'): string[] {
 
 /** Map a single SPDX id or a common prose name onto a canonical id. */
 export function normalizeLicense(raw: string): string {
-  const s = unwrap(raw).replace(/\s+WITH\s+[A-Za-z0-9.-]+/gi, '').trim();
-  const u = s.toLowerCase().replace(/[_\s]+/g, ' ');
-  if (u === 'mit' || u === 'mit license' || u === 'expat') return 'MIT';
-  if (u.startsWith('apache') || u.includes('apache')) return 'Apache-2.0';
-  if (u === 'isc' || u === 'isc license') return 'ISC';
-  if (u === 'bsd' || u === 'bsd license') return 'BSD';
-  if (u.startsWith('bsd-2') || u.includes('2-clause') || u.includes('simplified bsd')) return 'BSD-2-Clause';
-  if (u.startsWith('bsd-3') || u.includes('3-clause') || u.includes('revised bsd')) return 'BSD-3-Clause';
-  if (u.startsWith('bsd-')) return s.replace(/\s+/g, '-');
-  if (u.startsWith('mpl') || u.includes('mozilla public')) return 'MPL-2.0';
-  if (u.includes('affero') || u.includes('agpl')) return 'AGPL-3.0';
-  if (u.includes('sspl') || u.includes('server side public')) return 'SSPL-1.0';
-  if (u.includes('lesser') || u.includes('lgpl')) return 'LGPL';
-  if (u.includes('gpl') || u.includes('gnu general')) return 'GPL-3.0';
-  if (/^AGPL/i.test(s)) return 'AGPL-3.0';
-  if (/^GPL/i.test(s)) return 'GPL-3.0';
-  if (/^SSPL/i.test(s)) return 'SSPL-1.0';
+  const s = unwrap(raw)
+    .replace(/\s+WITH\s+[A-Za-z0-9.-]+/gi, "")
+    .trim();
+  const u = s.toLowerCase().replace(/[_\s]+/g, " ");
+  if (u === "mit" || u === "mit license" || u === "expat") return "MIT";
+  if (u.startsWith("apache") || u.includes("apache")) return "Apache-2.0";
+  if (u === "isc" || u === "isc license") return "ISC";
+  if (u === "bsd" || u === "bsd license") return "BSD";
+  if (u.startsWith("bsd-2") || u.includes("2-clause") || u.includes("simplified bsd")) return "BSD-2-Clause";
+  if (u.startsWith("bsd-3") || u.includes("3-clause") || u.includes("revised bsd")) return "BSD-3-Clause";
+  if (u.startsWith("bsd-")) return s.replace(/\s+/g, "-");
+  if (u.startsWith("mpl") || u.includes("mozilla public")) return "MPL-2.0";
+  if (u.includes("affero") || u.includes("agpl")) return "AGPL-3.0";
+  if (u.includes("sspl") || u.includes("server side public")) return "SSPL-1.0";
+  if (u.includes("lesser") || u.includes("lgpl")) return "LGPL";
+  if (u.includes("gpl") || u.includes("gnu general")) return "GPL-3.0";
+  if (/^AGPL/i.test(s)) return "AGPL-3.0";
+  if (/^GPL/i.test(s)) return "GPL-3.0";
+  if (/^SSPL/i.test(s)) return "SSPL-1.0";
   return s;
 }
 
 function isAllowedId(id: string, pkg?: string): boolean {
   if (/^(?:AGPL|GPL|SSPL|LGPL)(?:-|$)/.test(id)) return false;
-  if (id === 'MIT' || id === 'MIT-0' || id === 'Apache-2.0' || id === 'ISC' || id === 'MPL-2.0' || id === 'BSD') return true;
-  if (id === 'BlueOak-1.0.0' || id === 'Unlicense' || id === 'Zlib') return true;   // rulings 77 and 78: permissive, no copyleft
-  if (id === '0BSD' || id === 'Python-2.0') return true;   // ruling 84: permissive
-  if (id === 'CC-BY-4.0') return pkg !== undefined && (DATA_PACKAGES as readonly string[]).includes(pkg);   // ruling 84: data packages only
-  if (id.startsWith('BSD-')) return true;
+  if (id === "MIT" || id === "MIT-0" || id === "Apache-2.0" || id === "ISC" || id === "MPL-2.0" || id === "BSD")
+    return true;
+  if (id === "BlueOak-1.0.0" || id === "Unlicense" || id === "Zlib") return true; // rulings 77 and 78: permissive, no copyleft
+  if (id === "0BSD" || id === "Python-2.0") return true; // ruling 84: permissive
+  if (id === "CC-BY-4.0") return pkg !== undefined && (DATA_PACKAGES as readonly string[]).includes(pkg); // ruling 84: data packages only
+  if (id.startsWith("BSD-")) return true;
   return false;
 }
 
@@ -145,11 +169,11 @@ function isAllowedId(id: string, pkg?: string): boolean {
  * MPL-2.0 sets fileLevel: the copyleft applies to that dependency's files, not the whole program.
  */
 export function evaluateLicense(expr: string, pkg?: string): { ok: boolean; fileLevel: boolean; reason: string } {
-  const cleaned = unwrap(expr.replace(/\s+WITH\s+[A-Za-z0-9.-]+/gi, '').trim());
-  if (!cleaned) return { ok: false, fileLevel: false, reason: 'missing license' };
+  const cleaned = unwrap(expr.replace(/\s+WITH\s+[A-Za-z0-9.-]+/gi, "").trim());
+  if (!cleaned) return { ok: false, fileLevel: false, reason: "missing license" };
   const failures: string[] = [];
-  for (const or of splitTop(cleaned, 'OR')) {
-    const ands = splitTop(unwrap(or), 'AND').map((part) => normalizeLicense(unwrap(part)));
+  for (const or of splitTop(cleaned, "OR")) {
+    const ands = splitTop(unwrap(or), "AND").map((part) => normalizeLicense(unwrap(part)));
     let ok = true;
     let fileLevel = false;
     for (const id of ands) {
@@ -158,17 +182,17 @@ export function evaluateLicense(expr: string, pkg?: string): { ok: boolean; file
         failures.push(id);
         break;
       }
-      if (id === 'MPL-2.0') fileLevel = true;
+      if (id === "MPL-2.0") fileLevel = true;
     }
     if (ok) {
       return {
         ok: true,
         fileLevel,
-        reason: fileLevel ? 'MPL-2.0 is allowed at file level only' : 'allowed',
+        reason: fileLevel ? "MPL-2.0 is allowed at file level only" : "allowed",
       };
     }
   }
-  return { ok: false, fileLevel: false, reason: `blocked: ${failures.join(', ') || cleaned}` };
+  return { ok: false, fileLevel: false, reason: `blocked: ${failures.join(", ") || cleaned}` };
 }
 
 export function checkNpmLicenses(deps: Array<{ name: string; license: unknown; version?: unknown }>): LicenseHit[] {
@@ -185,51 +209,51 @@ function pushDeny(hits: CargoDenyHit[], crate: string, version: string, license:
   hits.push({
     crate,
     version,
-    license: license || 'unknown',
+    license: license || "unknown",
     ok: false,
     fileLevel: ev.fileLevel,
-    reason: ev.ok ? 'cargo deny rejected' : ev.reason,
+    reason: ev.ok ? "cargo deny rejected" : ev.reason,
   });
 }
 
 /** Human cargo-deny tree: `├ AGPL-3.0-only: 1` / `└─ name version`, or a `┌─ name` diagnostic with `license expression:`. */
 function parseCargoDenyText(output: string): CargoDenyHit[] {
   const hits: CargoDenyHit[] = [];
-  let license = '';
-  let crate = '';
-  let version = '';
+  let license = "";
+  let crate = "";
+  let version = "";
   const flush = () => {
     if (!crate) return;
     pushDeny(hits, crate, version, license);
-    crate = '';
-    version = '';
+    crate = "";
+    version = "";
   };
   for (const line of output.split(/\r?\n/)) {
     const named = /license(?:\s+expression)?\s*[:=]\s*(.+?)\s*$/i.exec(line);
     if (named) {
-      license = (named[1] ?? '').trim();
+      license = (named[1] ?? "").trim();
       if (crate) flush();
       continue;
     }
     const box = /┌─\s*([A-Za-z0-9_-]+)\s+v?(\d+\S+)/.exec(line);
     if (box) {
       flush();
-      crate = box[1] ?? '';
-      version = box[2] ?? '';
-      license = '';
+      crate = box[1] ?? "";
+      version = box[2] ?? "";
+      license = "";
       continue;
     }
-    if (!line.includes('─')) {
+    if (!line.includes("─")) {
       const banner = /^\s*[├└]\s+([A-Za-z0-9.+-]+)\b/.exec(line);
       if (banner) {
-        license = banner[1] ?? '';
+        license = banner[1] ?? "";
         continue;
       }
     }
     const leaf = /[└├]─\s*([A-Za-z0-9_-]+)\s+v?(\d+\S+)/.exec(line);
     if (leaf) {
-      crate = leaf[1] ?? '';
-      version = leaf[2] ?? '';
+      crate = leaf[1] ?? "";
+      version = leaf[2] ?? "";
       flush();
     }
   }
@@ -242,21 +266,22 @@ function collectJson(value: unknown, hits: CargoDenyHit[]): void {
     for (const item of value) collectJson(item, hits);
     return;
   }
-  if (!value || typeof value !== 'object') return;
+  if (!value || typeof value !== "object") return;
   const obj = value as Record<string, unknown>;
-  const fields = obj.fields && typeof obj.fields === 'object' ? obj.fields as Record<string, unknown> : obj;
-  const severity = typeof fields.severity === 'string' ? fields.severity : '';
+  const fields = obj.fields && typeof obj.fields === "object" ? (obj.fields as Record<string, unknown>) : obj;
+  const severity = typeof fields.severity === "string" ? fields.severity : "";
   const code = fields.code;
-  const codeStr = typeof code === 'string'
-    ? code
-    : code && typeof code === 'object' && typeof (code as { code?: unknown }).code === 'string'
-      ? (code as { code: string }).code
-      : '';
-  if (severity !== 'error' && codeStr !== 'rejected') return;
+  const codeStr =
+    typeof code === "string"
+      ? code
+      : code && typeof code === "object" && typeof (code as { code?: unknown }).code === "string"
+        ? (code as { code: string }).code
+        : "";
+  if (severity !== "error" && codeStr !== "rejected") return;
   const blob = JSON.stringify(value);
   const lic = /license(?:\s+expression)?\s*[:=]\s*([^"\\]+)/i.exec(blob);
   const crate = /([A-Za-z0-9_-]+) (\d+\.\d+\.\d+[A-Za-z0-9.+-]*)/.exec(blob);
-  pushDeny(hits, crate?.[1] ?? 'unknown', crate?.[2] ?? '', (lic?.[1] ?? '').trim());
+  pushDeny(hits, crate?.[1] ?? "unknown", crate?.[2] ?? "", (lic?.[1] ?? "").trim());
 }
 
 function parseCargoDenyJson(text: string): CargoDenyHit[] {
@@ -267,7 +292,7 @@ function parseCargoDenyJson(text: string): CargoDenyHit[] {
   } catch {
     for (const line of text.split(/\r?\n/)) {
       const t = line.trim();
-      if (!t.startsWith('{') && !t.startsWith('[')) continue;
+      if (!t.startsWith("{") && !t.startsWith("[")) continue;
       try {
         collectJson(JSON.parse(t) as unknown, hits);
       } catch {
@@ -281,7 +306,7 @@ function parseCargoDenyJson(text: string): CargoDenyHit[] {
 /** Parse `cargo deny check licenses` text or `--format json`. Every returned hit was rejected. */
 export function parseCargoDeny(output: string): CargoDenyHit[] {
   const trimmed = output.trim();
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
     const hits = parseCargoDenyJson(trimmed);
     if (hits.length > 0) return hits;
   }
@@ -289,31 +314,36 @@ export function parseCargoDeny(output: string): CargoDenyHit[] {
 }
 
 function repoRoot(): string {
-  return resolve(dirname(fileURLToPath(import.meta.url)), '..');
+  return resolve(dirname(fileURLToPath(import.meta.url)), "..");
 }
 
 function readInstalled(root: string): Array<{ name: string; license: unknown; version?: unknown }> {
-  const nm = join(root, 'node_modules');
+  const nm = join(root, "node_modules");
   if (!existsSync(nm)) return [];
   const out: Array<{ name: string; license: unknown; version?: unknown }> = [];
   const take = (pkgPath: string) => {
     if (!existsSync(pkgPath)) return;
     let parsed: { name?: unknown; license?: unknown; private?: unknown; version?: unknown };
     try {
-      parsed = JSON.parse(readFileSync(pkgPath, 'utf8')) as { name?: unknown; license?: unknown; private?: unknown; version?: unknown };
+      parsed = JSON.parse(readFileSync(pkgPath, "utf8")) as {
+        name?: unknown;
+        license?: unknown;
+        private?: unknown;
+        version?: unknown;
+      };
     } catch {
       return;
     }
     if (parsed.private === true) return;
-    if (typeof parsed.name !== 'string') return;
+    if (typeof parsed.name !== "string") return;
     out.push({ name: parsed.name, license: parsed.license, version: parsed.version });
   };
   for (const name of readdirSync(nm)) {
-    if (name === '.bin' || name.startsWith('.')) continue;
-    if (name.startsWith('@')) {
+    if (name === ".bin" || name.startsWith(".")) continue;
+    if (name.startsWith("@")) {
       const scope = join(nm, name);
-      for (const sub of readdirSync(scope)) take(join(scope, sub, 'package.json'));
-    } else take(join(nm, name, 'package.json'));
+      for (const sub of readdirSync(scope)) take(join(scope, sub, "package.json"));
+    } else take(join(nm, name, "package.json"));
   }
   return out;
 }
@@ -324,7 +354,7 @@ function reportNpm(deps: Array<{ name: string; license: unknown; version?: unkno
   for (const hit of hits) {
     if (hit.ok && hit.fileLevel) console.log(`file-level ${hit.name}: ${hit.license}`);
     if (!hit.ok) {
-      console.error(`${hit.name}: ${hit.license || '(none)'} ${hit.reason}`);
+      console.error(`${hit.name}: ${hit.license || "(none)"} ${hit.reason}`);
       failed += 1;
     }
   }
@@ -340,28 +370,32 @@ function reportCargo(output: string): number {
 function main(): number {
   const root = repoRoot();
   const args = process.argv.slice(2);
-  const npmIdx = args.indexOf('--npm');
-  const cargoIdx = args.indexOf('--cargo');
+  const npmIdx = args.indexOf("--npm");
+  const cargoIdx = args.indexOf("--cargo");
   let failed = 0;
   let saw = false;
   if (npmIdx >= 0) {
     saw = true;
     const file = args[npmIdx + 1];
     if (!file) {
-      console.error('--npm needs a JSON file of {name, license}');
+      console.error("--npm needs a JSON file of {name, license}");
       return 1;
     }
-    const parsed = JSON.parse(readFileSync(file, 'utf8')) as Array<{ name: string; license: unknown; version?: unknown }>;
+    const parsed = JSON.parse(readFileSync(file, "utf8")) as Array<{
+      name: string;
+      license: unknown;
+      version?: unknown;
+    }>;
     failed += reportNpm(parsed);
   }
   if (cargoIdx >= 0) {
     saw = true;
     const file = args[cargoIdx + 1];
     if (!file) {
-      console.error('--cargo needs a cargo deny output file');
+      console.error("--cargo needs a cargo deny output file");
       return 1;
     }
-    failed += reportCargo(readFileSync(file, 'utf8'));
+    failed += reportCargo(readFileSync(file, "utf8"));
   }
   if (!saw) {
     const installed = readInstalled(root);
@@ -369,20 +403,20 @@ function main(): number {
       saw = true;
       failed += reportNpm(installed);
     }
-    const cargoToml = join(root, 'Cargo.toml');
+    const cargoToml = join(root, "Cargo.toml");
     if (existsSync(cargoToml)) {
       saw = true;
-      const r = spawnSync('cargo', ['deny', 'check', 'licenses'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
-      const output = `${r.stdout ?? ''}\n${r.stderr ?? ''}`;
+      const r = spawnSync("cargo", ["deny", "check", "licenses"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
+      const output = `${r.stdout ?? ""}\n${r.stderr ?? ""}`;
       const n = reportCargo(output);
       if (n === 0 && r.status !== 0) {
-        console.error((r.stderr || r.error?.message || 'cargo deny failed').trim());
+        console.error((r.stderr || r.error?.message || "cargo deny failed").trim());
         failed += 1;
       } else failed += n;
     }
   }
-  if (!saw) console.log('license-check: nothing to reject');
-  else if (failed === 0) console.log('license-check: no blocked licenses');
+  if (!saw) console.log("license-check: nothing to reject");
+  else if (failed === 0) console.log("license-check: no blocked licenses");
   return failed > 0 ? 1 : 0;
 }
 

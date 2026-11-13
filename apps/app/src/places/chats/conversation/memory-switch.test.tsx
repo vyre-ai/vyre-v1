@@ -11,7 +11,9 @@ test("off by default: a chat memory cannot answer for is remembered, and nothing
   assert.equal(rememberOf(undefined), true);
   assert.equal(rememberOf({ remember: true }), true);
   assert.equal(rememberOf({ remember: false }), false);
-  const out = renderToStaticMarkup(<MemorySwitch threadId="thr_1" call={() => new Promise(() => undefined)} say={() => undefined} />).replaceAll("&#x27;", "'");
+  const out = renderToStaticMarkup(
+    <MemorySwitch threadId="thr_1" call={() => new Promise(() => undefined)} say={() => undefined} />,
+  ).replaceAll("&#x27;", "'");
   assert.ok(out.includes(`aria-label="${SWITCH_LABEL}"`) && out.includes('aria-checked="false"'));
   assert.ok(!out.includes(QUIET_LINE));
   assert.ok(!out.includes("pill"));
@@ -30,7 +32,11 @@ test("turning it on writes remember: false to memory and shows the quiet line; p
     };
     const said: string[] = [];
     const root = await mount(createRoot, <MemorySwitch threadId="thr_1" call={call} say={(l) => said.push(l)} />);
-    assert.deepEqual(calls[0], { cap: "memory.chat_learning.get", input: { threadId: "thr_1" } }, "the state is read from memory");
+    assert.deepEqual(
+      calls[0],
+      { cap: "memory.chat_learning.get", input: { threadId: "thr_1" } },
+      "the state is read from memory",
+    );
     await press(find(root, "memory-switch"));
     await flush();
     assert.deepEqual(calls.at(-1), { cap: "memory.chat_learning.set", input: { threadId: "thr_1", remember: false } });
@@ -44,16 +50,30 @@ test("turning it on writes remember: false to memory and shows the quiet line; p
     assert.deepEqual(calls.at(-1), { cap: "memory.chat_learning.set", input: { threadId: "thr_1", remember: true } });
     assert.equal(find(root, "memory-off-line"), null);
     assert.deepEqual(said, ["Nothing from this chat will be remembered", "This chat is remembered again"]);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("a chat memory already holds as not remembered opens with the quiet line; a refused change puts the switch back", async () => {
   const restore = installDom();
   try {
-    const root = await mount(createRoot, <MemorySwitch threadId="thr_2" call={async (cap) => { if (cap === "memory.chat_learning.set") throw new Error("no"); return { remember: false }; }} say={() => undefined} />);
+    const root = await mount(
+      createRoot,
+      <MemorySwitch
+        threadId="thr_2"
+        call={async (cap) => {
+          if (cap === "memory.chat_learning.set") throw new Error("no");
+          return { remember: false };
+        }}
+        say={() => undefined}
+      />,
+    );
     assert.ok(find(root, "memory-off-line"));
     await press(find(root, "memory-switch"));
     await flush();
     assert.ok(find(root, "memory-off-line"), "still not remembered");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

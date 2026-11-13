@@ -1,6 +1,10 @@
 // Markdown helpers shared by files, memory notes, previews and search. Small on purpose: no parser, no dependencies, same result on a server, a phone and a browser.
 
-export interface Heading { level: number; text: string; line: number }
+export interface Heading {
+  level: number;
+  text: string;
+  line: number;
+}
 
 /** Split a leading `---` front-matter block (flat `key: value` lines) from the body. Anything the block cannot express is left in the body untouched. */
 export function frontmatter(md: string): { data: Record<string, string>; body: string } {
@@ -21,7 +25,10 @@ export function headings(md: string): Heading[] {
   let fence: string | null = null;
   md.split(/\r?\n/).forEach((raw, i) => {
     const f = /^\s{0,3}(```+|~~~+)/.exec(raw);
-    if (f) { fence = fence === null ? f[1]![0]! : fence === f[1]![0] ? null : fence; return; }
+    if (f) {
+      fence = fence === null ? f[1]![0]! : fence === f[1]![0] ? null : fence;
+      return;
+    }
     if (fence !== null) return;
     const h = /^\s{0,3}(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$/.exec(raw);
     if (h) out.push({ level: h[1]!.length, text: h[2]!, line: i + 1 });
@@ -38,8 +45,8 @@ export function links(md: string): { wiki: string[]; urls: string[] } {
 
 /** Markdown to readable plain text for search indexes, notifications and previews. */
 export function toPlain(md: string): string {
-  return frontmatter(md).body
-    .replace(/```[^\n]*\n([\s\S]*?)```/g, "$1")
+  return frontmatter(md)
+    .body.replace(/```[^\n]*\n([\s\S]*?)```/g, "$1")
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, "$2")
     .replace(/\[\[([^\]]+)\]\]/g, "$1")
@@ -72,5 +79,10 @@ export function escapeMd(text: string): string {
 
 /** Slug for anchors and file names: lowercase, ascii letters and digits, single dashes. */
 export function slug(text: string): string {
-  return text.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return text
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }

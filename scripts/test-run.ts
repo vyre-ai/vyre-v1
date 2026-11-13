@@ -15,7 +15,15 @@ import type { SlowEntry } from "./slow-check.ts";
 // Ruling 52 (P-CI_31): 30 s, was 20 s. Cold pass caches on the new hosts and hosted runners made real 20-22 s UI files hit the old cap; CI hygiene only, speed budgets stay on v1-perf (ruling 46).
 export const DEFAULT_CAP_MS = 30_000;
 
-export type RunResult = { file: string; ok: boolean; ms: number; capMs: number; overCap: boolean; breakdown: { name: string; ms: number }[]; out: string };
+export type RunResult = {
+  file: string;
+  ok: boolean;
+  ms: number;
+  capMs: number;
+  overCap: boolean;
+  breakdown: { name: string; ms: number }[];
+  out: string;
+};
 
 /** Cap in ms for a file: its slow-list capSec, else the default. */
 export function capFor(file: string, slow: SlowEntry[], defaultMs = DEFAULT_CAP_MS): number {
@@ -36,7 +44,8 @@ export function breakdown(out: string, top = 5): { name: string; ms: number }[] 
 /** Runs one test file in its own node process. Fails (overCap) if it runs past capMs, even when every test passed. */
 export function runFile(file: string, opts: { cwd?: string; capMs?: number } = {}): Promise<RunResult> {
   // A runner started from inside `node --test` must not inherit its test context, or the child file runs as a subtest.
-  const env: NodeJS.ProcessEnv = { ...process.env }; delete env.NODE_TEST_CONTEXT;
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
   // a key is checked with its provider before it is saved; a test that adds a fixture key has no real provider to ask, so the host probe accepts keys unless the test asks for the real answer (host/src/seams/vault.ts)
   env.VYRE_TEST_KEY_CHECK ??= "accept";
   // A test daemon uses the images built on this computer and never asks a registry (no test reaches an outside service). Without a setting, a daemon whose version looks like a release
@@ -47,27 +56,59 @@ export function runFile(file: string, opts: { cwd?: string; capMs?: number } = {
   env.VYRE_WORKSPACE_IMAGE ??= "vyre/agent-workspace:1";
   // Ruling 21 (same rule as test-run.mjs): .tsx files, and .ts files that opt in with `// @tsx`, run through the tsx loader with react-native mapped to react-native-web.
   const cwd0 = opts.cwd ?? process.cwd();
-  const tsx = file.endsWith(".tsx") || (() => { try { return /^\s*\/\/\s*@tsx\b/m.test(fs.readFileSync(path.resolve(cwd0, file), "utf8")); } catch { return false; } })();
+  const tsx =
+    file.endsWith(".tsx") ||
+    (() => {
+      try {
+        return /^\s*\/\/\s*@tsx\b/m.test(fs.readFileSync(path.resolve(cwd0, file), "utf8"));
+      } catch {
+        return false;
+      }
+    })();
   if (tsx) env.TSX_TSCONFIG_PATH = path.join(cwd0, "tsconfig.base.json");
   const loader = tsx ? ["--import", "tsx", "--import", path.join(cwd0, "scripts/shots/rn-alias.mjs")] : [];
-  const capMs = opts.capMs ?? DEFAULT_CAP_MS, cwd = opts.cwd ?? process.cwd(), t0 = Date.now();
+  const capMs = opts.capMs ?? DEFAULT_CAP_MS,
+    cwd = opts.cwd ?? process.cwd(),
+    t0 = Date.now();
   return new Promise((resolve) => {
     endGroupsOnExit();
-    const p = spawnGroup(process.execPath, [...loader, "--test", "--test-reporter=spec", "--test-reporter-destination=stdout", `--test-reporter=${path.join(path.dirname(fileURLToPath(import.meta.url)), "lib/failure-reporter.mjs")}`, "--test-reporter-destination=stdout", `--test-timeout=${capMs}`, file], { cwd, stdio: ["ignore", "pipe", "pipe"], env });
-    let out = "", overCap = false;
-    p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (out += d));
+    const p = spawnGroup(
+      process.execPath,
+      [
+        ...loader,
+        "--test",
+        "--test-reporter=spec",
+        "--test-reporter-destination=stdout",
+        `--test-reporter=${path.join(path.dirname(fileURLToPath(import.meta.url)), "lib/failure-reporter.mjs")}`,
+        "--test-reporter-destination=stdout",
+        `--test-timeout=${capMs}`,
+        file,
+      ],
+      { cwd, stdio: ["ignore", "pipe", "pipe"], env },
+    );
+    let out = "",
+      overCap = false;
+    p.stdout.on("data", (d) => (out += d));
+    p.stderr.on("data", (d) => (out += d));
     // watchdog 2 s after the cap, so a file just over it is reported over-cap with its breakdown, not killed mid-test; it ends the file's whole process group (proc-group.mjs)
     let leftover = "";
-    const dog = setTimeout(() => { overCap = true; void killGroup(p).then((gone) => { if (!gone) leftover = `\nwatchdog: ${file}: some of its processes were still there 5 s after the kill\n`; }); }, capMs + 2000);
+    const dog = setTimeout(() => {
+      overCap = true;
+      void killGroup(p).then((gone) => {
+        if (!gone) leftover = `\nwatchdog: ${file}: some of its processes were still there 5 s after the kill\n`;
+      });
+    }, capMs + 2000);
     p.on("close", async (code) => {
       clearTimeout(dog);
       // whatever the file left behind (a child of its own that outlived it) goes with it, and is waited for
-      if (!(await killGroup(p))) leftover ||= `\n${file}: some of its processes were still there 5 s after the file ended\n`;
+      if (!(await killGroup(p)))
+        leftover ||= `\n${file}: some of its processes were still there 5 s after the file ended\n`;
       out += leftover;
       const ms = Date.now() - t0;
       overCap = overCap || ms > capMs;
       const rows = breakdown(out);
-      if (overCap) out += `\nwatchdog: ${file} exceeded its ${capMs / 1000} s cap after ${ms} ms\nslowest tests:\n${rows.map((r) => `  ${r.ms} ms  ${r.name}`).join("\n") || "  (none finished)"}\n`;
+      if (overCap)
+        out += `\nwatchdog: ${file} exceeded its ${capMs / 1000} s cap after ${ms} ms\nslowest tests:\n${rows.map((r) => `  ${r.ms} ms  ${r.name}`).join("\n") || "  (none finished)"}\n`;
       resolve({ file, ok: code === 0 && !overCap, ms, capMs, overCap, breakdown: rows, out });
     });
   });
@@ -76,18 +117,29 @@ export function runFile(file: string, opts: { cwd?: string; capMs?: number } = {
 /** Tests a file skipped, from the spec reporter: the count and each skipped test's line with its reason. */
 export function skippedOf(out: string): { n: number; lines: string[] } {
   const n = Number(/^ℹ skipped (\d+)/m.exec(out)?.[1] ?? 0);
-  return { n, lines: out.split("\n").filter((l) => /^\s*﹣ .* # /.test(l)).map((l) => l.trim()) };
+  return {
+    n,
+    lines: out
+      .split("\n")
+      .filter((l) => /^\s*﹣ .* # /.test(l))
+      .map((l) => l.trim()),
+  };
 }
 
 /** A file whose every test was skipped (it ran nothing): the reason of the first skip, or "no reason given". Null when any test ran or the file skipped nothing. A skip is not a pass. */
 export function allSkipped(out: string): string | null {
   const n = Number(/^ℹ skipped (\d+)/m.exec(out)?.[1] ?? 0);
-  if (n === 0 || Number(/^ℹ pass (\d+)/m.exec(out)?.[1] ?? 0) > 0 || Number(/^ℹ fail (\d+)/m.exec(out)?.[1] ?? 0) > 0) return null;
+  if (n === 0 || Number(/^ℹ pass (\d+)/m.exec(out)?.[1] ?? 0) > 0 || Number(/^ℹ fail (\d+)/m.exec(out)?.[1] ?? 0) > 0)
+    return null;
   return /^\s*﹣ .*? # (.+)$/m.exec(out)?.[1]?.trim() ?? "no reason given";
 }
 
 /** Merges this run's durations into a timings table: { file: { ms, at } }. */
-export function mergeTimings(prev: Record<string, { ms: number; at: string }>, results: RunResult[], at = new Date().toISOString()) {
+export function mergeTimings(
+  prev: Record<string, { ms: number; at: string }>,
+  results: RunResult[],
+  at = new Date().toISOString(),
+) {
   const next = { ...prev };
   for (const r of results) if (r.ok) next[r.file] = { ms: r.ms, at };
   return next;
@@ -96,28 +148,64 @@ export function mergeTimings(prev: Record<string, { ms: number; at: string }>, r
 const self = fileURLToPath(import.meta.url);
 if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   const repo = path.resolve(path.dirname(self), "..");
-  const arg = (n: string) => process.argv.includes(n), val = (n: string) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
+  const arg = (n: string) => process.argv.includes(n),
+    val = (n: string) => {
+      const i = process.argv.indexOf(n);
+      return i >= 0 ? process.argv[i + 1] : undefined;
+    };
   const slow: SlowEntry[] = JSON.parse(fs.readFileSync(path.join(repo, "test/slow.json"), "utf8"));
-  const files = process.argv.slice(process.argv.indexOf("--files") + 1).filter((a) => !a.startsWith("--") && a !== val("--jobs"));
-  const slowAll = withPatternSlow(files, slow, (f) => fs.readFileSync(path.join(repo, f), "utf8")) as SlowEntry[];   // slow by pattern (golden steps) as well as by list
-  const sp = splitPerf(files.filter((f) => (arg("--slow") ? slowAll.some((s) => s.file === f) : !slowAll.some((s) => s.file === f))), slow, process.env);
-  for (const f of sp.skipped) console.log(`skip (perf) ${f}`);   // speed numbers count only on the perf host (ruling 46)
+  const files = process.argv
+    .slice(process.argv.indexOf("--files") + 1)
+    .filter((a) => !a.startsWith("--") && a !== val("--jobs"));
+  const slowAll = withPatternSlow(files, slow, (f) => fs.readFileSync(path.join(repo, f), "utf8")) as SlowEntry[]; // slow by pattern (golden steps) as well as by list
+  const sp = splitPerf(
+    files.filter((f) => (arg("--slow") ? slowAll.some((s) => s.file === f) : !slowAll.some((s) => s.file === f))),
+    slow,
+    process.env,
+  );
+  for (const f of sp.skipped) console.log(`skip (perf) ${f}`); // speed numbers count only on the perf host (ruling 46)
   const picked = sp.run;
-  if (picked.some((f) => f.endsWith(".tsx") || /^\s*\/\/\s*@tsx\b/m.test(fs.readFileSync(path.join(repo, f), "utf8")))) await (await import("./shots/ensure-deps.mjs")).ensureDeps(repo);
+  if (picked.some((f) => f.endsWith(".tsx") || /^\s*\/\/\s*@tsx\b/m.test(fs.readFileSync(path.join(repo, f), "utf8"))))
+    await (await import("./shots/ensure-deps.mjs")).ensureDeps(repo);
   const jobs = Number(val("--jobs")) || Math.max(2, Math.floor(os.cpus().length / 2));
-  const queue = [...picked], results: RunResult[] = [];
-  await Promise.all(Array.from({ length: Math.min(jobs, queue.length) }, async () => { while (queue.length) { const f = queue.shift()!; results.push(await runFile(f, { cwd: repo, capMs: capFor(f, slowAll) })); } }));
-  if (arg("--no-skip")) for (const r of results) { const sk = skippedOf(r.out); if (r.ok && sk.n > 0) { r.ok = false; r.out = `${r.file} skipped ${sk.n} test(s), and with --no-skip a skip is a failure:\n${sk.lines.join("\n")}\n`; } }
+  const queue = [...picked],
+    results: RunResult[] = [];
+  await Promise.all(
+    Array.from({ length: Math.min(jobs, queue.length) }, async () => {
+      while (queue.length) {
+        const f = queue.shift()!;
+        results.push(await runFile(f, { cwd: repo, capMs: capFor(f, slowAll) }));
+      }
+    }),
+  );
+  if (arg("--no-skip"))
+    for (const r of results) {
+      const sk = skippedOf(r.out);
+      if (r.ok && sk.n > 0) {
+        r.ok = false;
+        r.out = `${r.file} skipped ${sk.n} test(s), and with --no-skip a skip is a failure:\n${sk.lines.join("\n")}\n`;
+      }
+    }
   let skipped = 0;
   for (const r of results.sort((a, b) => a.file.localeCompare(b.file))) {
     const why = r.ok ? allSkipped(r.out) : null;
-    if (why !== null) { skipped += 1; console.log(`skip ${r.file} (${why})`); continue; }
-    console.log(`${r.ok ? "ok  " : "FAIL"} ${r.file} ${r.ms} ms`); if (!r.ok) console.log(r.out);
+    if (why !== null) {
+      skipped += 1;
+      console.log(`skip ${r.file} (${why})`);
+      continue;
+    }
+    console.log(`${r.ok ? "ok  " : "FAIL"} ${r.file} ${r.ms} ms`);
+    if (!r.ok) console.log(r.out);
   }
-  console.log(`${results.length} files, ${results.filter((r) => !r.ok).length} failed, ${skipped} skipped (a skipped file did not run and is not a pass)`);
+  console.log(
+    `${results.length} files, ${results.filter((r) => !r.ok).length} failed, ${skipped} skipped (a skipped file did not run and is not a pass)`,
+  );
   if (arg("--timings")) {
     const tf = path.join(repo, "test/timings.json");
-    fs.writeFileSync(tf, JSON.stringify(mergeTimings(JSON.parse(fs.readFileSync(tf, "utf8")), results), null, 2) + "\n");
+    fs.writeFileSync(
+      tf,
+      JSON.stringify(mergeTimings(JSON.parse(fs.readFileSync(tf, "utf8")), results), null, 2) + "\n",
+    );
   }
   process.exit(results.some((r) => !r.ok) ? 1 : 0);
 }

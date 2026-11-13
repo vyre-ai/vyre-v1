@@ -43,8 +43,16 @@ function forEvent(name: string): (tx: ProjTx, e: ProjEvent) => void {
 }
 
 const SITE_EVENTS = [
-  "site.created", "site.build_failed", "site.deployed", "site.promoted", "site.rolled_back",
-  "site.preview_created", "site.preview_removed", "site.table_created", "site.table_promoted", "site.domain_changed",
+  "site.created",
+  "site.build_failed",
+  "site.deployed",
+  "site.promoted",
+  "site.rolled_back",
+  "site.preview_created",
+  "site.preview_removed",
+  "site.table_created",
+  "site.table_promoted",
+  "site.domain_changed",
 ] as const;
 
 export const activityProjection = {
@@ -55,12 +63,18 @@ export const activityProjection = {
   reset(tx: ProjTx): void {
     tx.run("DELETE FROM sites_activity");
   },
-  on: Object.fromEntries(SITE_EVENTS.map((n) => [n, forEvent(n)])) as Record<string, (tx: ProjTx, e: ProjEvent) => void>,
+  on: Object.fromEntries(SITE_EVENTS.map((n) => [n, forEvent(n)])) as Record<
+    string,
+    (tx: ProjTx, e: ProjEvent) => void
+  >,
 };
 
 /** True when a site repo url names the repo `owner/name` (https, ssh or git@ forms, with or without .git). */
 export function repoMatches(repoUrl: string, repo: string): boolean {
-  const clean = repoUrl.trim().replace(/\.git$/, "").replace(/\/+$/, "");
+  const clean = repoUrl
+    .trim()
+    .replace(/\.git$/, "")
+    .replace(/\/+$/, "");
   const want = repo.trim().replace(/\.git$/, "");
   if (!want) return false;
   return clean === want || clean.endsWith(`/${want}`) || clean.endsWith(`:${want}`);
@@ -74,7 +88,11 @@ export function markMerged(tx: ProjTx, repo: string, number: number): number {
     if (typeof s.repo_url !== "string" || !repoMatches(s.repo_url, repo)) continue;
     const res = tx.run(
       "UPDATE sites_deployment SET merge_pending = ? WHERE site_id = ? AND env = ? AND pr_number = ? AND removed_at IS NULL AND merge_pending = ?",
-      1, s.id, "preview", number, 0,
+      1,
+      s.id,
+      "preview",
+      number,
+      0,
     );
     marked += res.changes;
   }

@@ -15,10 +15,17 @@ export interface VoiceDeviceLike {
 }
 export type LoadVoiceDevice = (token: string) => Promise<VoiceDeviceLike>;
 
-export interface Phone { device: PhoneDeviceLike; data: InboxData; close(): void }
+export interface Phone {
+  device: PhoneDeviceLike;
+  data: InboxData;
+  close(): void;
+}
 
 /** The phone for a session, or undefined when this Space has no telephony set up. `openConversation` opens a caller's conversation in the Inbox. */
-export async function openPhone(session: Pick<RealSession, "call" | "runtime">, o: { loadDevice?: LoadVoiceDevice | undefined; openConversation(id: string): void }): Promise<Phone | undefined> {
+export async function openPhone(
+  session: Pick<RealSession, "call" | "runtime">,
+  o: { loadDevice?: LoadVoiceDevice | undefined; openConversation(id: string): void },
+): Promise<Phone | undefined> {
   if (o.loadDevice === undefined) return undefined;
   if (session.runtime.isDeferred("telephony.voice_token")) return undefined;
   let token: string;
@@ -32,7 +39,11 @@ export async function openPhone(session: Pick<RealSession, "call" | "runtime">, 
   const dev = await o.loadDevice(token);
   await dev.register();
   return {
-    device: { connect: (opts) => dev.connect(opts), on: (event, handler) => dev.on(event, handler), destroy: () => dev.destroy() },
+    device: {
+      connect: (opts) => dev.connect(opts),
+      on: (event, handler) => dev.on(event, handler),
+      destroy: () => dev.destroy(),
+    },
     data: inboxData(session.runtime, o.openConversation),
     close: () => dev.destroy(),
   };

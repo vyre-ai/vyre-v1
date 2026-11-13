@@ -11,12 +11,23 @@ export type RunStep = CapMap["runs.steps"]["out"]["steps"][number];
 export type ThreadMessage = CapMap["chat.messages.list"]["out"]["messages"][number];
 export type UndoPreview = CapMap["runs.preview_undo"]["out"];
 
-export const STATUS_WORD: Readonly<Record<RunStatus, string>> = { queued: "Queued", running: "Running", waiting: "Waiting", succeeded: "Succeeded", failed: "Failed", stopped: "Stopped" };
+export const STATUS_WORD: Readonly<Record<RunStatus, string>> = {
+  queued: "Queued",
+  running: "Running",
+  waiting: "Waiting",
+  succeeded: "Succeeded",
+  failed: "Failed",
+  stopped: "Stopped",
+};
 
 /* ---------- filters (the quiet menu in the History header) ---------- */
 
 export type FilterKey = "all" | "failed" | "succeeded" | "queued" | "running" | "waiting" | "stopped" | "test";
-export interface FilterDef { key: FilterKey; label: string; showing: string }
+export interface FilterDef {
+  key: FilterKey;
+  label: string;
+  showing: string;
+}
 export const FILTERS: readonly FilterDef[] = [
   { key: "all", label: "All runs", showing: "all runs" },
   { key: "failed", label: "Failed", showing: "failed runs" },
@@ -36,7 +47,8 @@ export function handledIds(runs: readonly Run[]): ReadonlySet<string> {
   for (const r of runs) if (r.parentRun) out.add(r.parentRun);
   return out;
 }
-export const needsAttention = (r: Run, handled: ReadonlySet<string>): boolean => r.status === "failed" && !handled.has(r.id);
+export const needsAttention = (r: Run, handled: ReadonlySet<string>): boolean =>
+  r.status === "failed" && !handled.has(r.id);
 
 export function matchesFilter(r: Run, key: FilterKey): boolean {
   if (key === "all") return true;
@@ -52,7 +64,13 @@ export function filterCount(runs: readonly Run[], key: FilterKey): number {
 export const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
 export function waitWords(reason: Run["waitReason"]): string {
-  return reason === "approval" ? "Waiting for a yes" : reason === "key" ? "Waiting for a key" : reason === "background" ? "Waiting on background work" : "Waiting";
+  return reason === "approval"
+    ? "Waiting for a yes"
+    : reason === "key"
+      ? "Waiting for a key"
+      : reason === "background"
+        ? "Waiting on background work"
+        : "Waiting";
 }
 
 export function durationSeconds(r: Run): number | null {
@@ -62,12 +80,20 @@ export function durationSeconds(r: Run): number | null {
 /** The line under a run's title: what it is doing, why it failed, or how it went. */
 export function metaLine(r: Run): string {
   switch (r.status) {
-    case "queued": return "Queued, starts when a slot is free";
-    case "waiting": return waitWords(r.waitReason);
-    case "running": return "Running";
-    case "failed": return r.summary || "Failed";
-    case "stopped": return "Stopped";
-    case "succeeded": { const d = durationSeconds(r); return r.summary || (d === null ? "Succeeded" : `Succeeded, ${d} s`); }
+    case "queued":
+      return "Queued, starts when a slot is free";
+    case "waiting":
+      return waitWords(r.waitReason);
+    case "running":
+      return "Running";
+    case "failed":
+      return r.summary || "Failed";
+    case "stopped":
+      return "Stopped";
+    case "succeeded": {
+      const d = durationSeconds(r);
+      return r.summary || (d === null ? "Succeeded" : `Succeeded, ${d} s`);
+    }
   }
 }
 
@@ -79,9 +105,15 @@ export const runTitle = (r: Run): string => r.name || "Started";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 const two = (n: number): string => String(n).padStart(2, "0");
-const dayNumber = (ts: number): number => { const d = new Date(ts); return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000); };
+const dayNumber = (ts: number): number => {
+  const d = new Date(ts);
+  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000);
+};
 
-export const clock = (ts: number): string => { const d = new Date(ts); return `${two(d.getHours())}:${two(d.getMinutes())}`; };
+export const clock = (ts: number): string => {
+  const d = new Date(ts);
+  return `${two(d.getHours())}:${two(d.getMinutes())}`;
+};
 export type DayGroup = "Today" | "Yesterday" | "Earlier";
 export function dayGroup(ts: number, now: number): DayGroup {
   const back = dayNumber(now) - dayNumber(ts);
@@ -107,7 +139,10 @@ export function ago(ts: number, now: number): string {
   return stamp(ts, now);
 }
 
-export interface DaySection { group: DayGroup; runs: Run[] }
+export interface DaySection {
+  group: DayGroup;
+  runs: Run[];
+}
 /** Newest first, under Today, Yesterday and Earlier; an empty group is left out. */
 export function daySections(runs: readonly Run[], now: number): DaySection[] {
   const sorted = [...runs].sort((a, b) => b.startedAt - a.startedAt);
@@ -115,7 +150,8 @@ export function daySections(runs: readonly Run[], now: number): DaySection[] {
   for (const r of sorted) {
     const g = dayGroup(r.startedAt, now);
     const last = out[out.length - 1];
-    if (last && last.group === g) last.runs.push(r); else out.push({ group: g, runs: [r] });
+    if (last && last.group === g) last.runs.push(r);
+    else out.push({ group: g, runs: [r] });
   }
   return out;
 }
@@ -137,10 +173,26 @@ export function failedHeadline(rows: number, automations: number): string {
 /* ---------- the run thread as chat lines ---------- */
 
 export type Tone = "ok" | "wait" | "bad" | "muted";
-export interface Who { kind: "person" | "agent" | "actor" | "service"; id: string }
+export interface Who {
+  kind: "person" | "agent" | "actor" | "service";
+  id: string;
+}
 export type RunLine =
   | { kind: "row"; id: string; text: string; icon: string; tone: Tone; retry?: string; offset: number }
-  | { kind: "turn"; id: string; who: Who; step?: string; text: string; thought?: { secs: number; text: string }; did: string[]; skipped: string[]; key?: string; model?: string; backup?: string; offset: number }
+  | {
+      kind: "turn";
+      id: string;
+      who: Who;
+      step?: string;
+      text: string;
+      thought?: { secs: number; text: string };
+      did: string[];
+      skipped: string[];
+      key?: string;
+      model?: string;
+      backup?: string;
+      offset: number;
+    }
   | { kind: "join"; id: string; who: Who; text: string }
   | { kind: "wait"; id: string; text: string; holdId?: string; taskId?: string; offset: number }
   | { kind: "error"; id: string; text: string; detail: string; retry?: string; step?: string; offset: number }
@@ -148,7 +200,8 @@ export type RunLine =
   | { kind: "stat"; id: string; text: string }
   | { kind: "branch"; id: string; label: string; lines: RunLine[] };
 
-const rec = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+const rec = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 const str = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
 const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
 const strs = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
@@ -163,31 +216,70 @@ function lineOf(m: ThreadMessage, run: Pick<Run, "startedAt">): RunLine | null {
   const id = m.messageId;
   if (b?.type === "run.join") return { kind: "join", id, who: m.author, text: m.body };
   if (b?.type === "run.stat") return { kind: "stat", id, text: m.body };
-  if (b?.type === "run.wait") return { kind: "wait", id, text: m.body, ...(str(b.data["holdId"]) ? { holdId: str(b.data["holdId"])! } : {}), ...(str(b.data["taskId"]) ? { taskId: str(b.data["taskId"])! } : {}), offset };
-  if (b?.type === "run.error") return { kind: "error", id, text: m.body, detail: str(b.data["detail"]) ?? "", ...(str(b.data["retry"]) ? { retry: str(b.data["retry"])! } : {}), ...(str(b.data["step"]) ? { step: str(b.data["step"])! } : {}), offset };
+  if (b?.type === "run.wait")
+    return {
+      kind: "wait",
+      id,
+      text: m.body,
+      ...(str(b.data["holdId"]) ? { holdId: str(b.data["holdId"])! } : {}),
+      ...(str(b.data["taskId"]) ? { taskId: str(b.data["taskId"])! } : {}),
+      offset,
+    };
+  if (b?.type === "run.error")
+    return {
+      kind: "error",
+      id,
+      text: m.body,
+      detail: str(b.data["detail"]) ?? "",
+      ...(str(b.data["retry"]) ? { retry: str(b.data["retry"])! } : {}),
+      ...(str(b.data["step"]) ? { step: str(b.data["step"])! } : {}),
+      offset,
+    };
   if (b?.type === "run.row") {
     const retry = str(b.data["retry"]);
     const icon = str(b.data["icon"]) ?? (retry ? "retry" : "check");
-    return { kind: "row", id, text: m.body, icon, tone: (str(b.data["tone"]) as Tone | undefined) ?? (retry ? "wait" : icon === "check" ? "ok" : "muted"), ...(retry ? { retry } : {}), offset };
+    return {
+      kind: "row",
+      id,
+      text: m.body,
+      icon,
+      tone: (str(b.data["tone"]) as Tone | undefined) ?? (retry ? "wait" : icon === "check" ? "ok" : "muted"),
+      ...(retry ? { retry } : {}),
+      offset,
+    };
   }
   if (b?.type === "run.turn" || m.kind === "agent") {
     const d: Record<string, unknown> = b?.data ?? {};
     const th = rec(d["thought"]);
     const thoughtText = str(th["text"]);
     return {
-      kind: "turn", id, who: m.author, text: m.body, did: strs(d["did"]), skipped: strs(d["skipped"]), offset,
+      kind: "turn",
+      id,
+      who: m.author,
+      text: m.body,
+      did: strs(d["did"]),
+      skipped: strs(d["skipped"]),
+      offset,
       ...(str(d["title"]) ? { step: str(d["title"])! } : {}),
       ...(thoughtText ? { thought: { secs: num(th["secs"]) ?? 3, text: thoughtText } } : {}),
-      ...(str(d["key"]) ? { key: str(d["key"])! } : {}), ...(str(d["model"]) ? { model: str(d["model"])! } : {}), ...(str(d["backup"]) ? { backup: str(d["backup"])! } : {}),
+      ...(str(d["key"]) ? { key: str(d["key"])! } : {}),
+      ...(str(d["model"]) ? { model: str(d["model"])! } : {}),
+      ...(str(d["backup"]) ? { backup: str(d["backup"])! } : {}),
     };
   }
   if (m.kind === "text") return { kind: "say", id, who: m.author, text: m.body, offset };
-  if (m.kind === "system" || m.kind === "quiet") return { kind: "row", id, text: m.body, icon: "check", tone: "ok", offset };
+  if (m.kind === "system" || m.kind === "quiet")
+    return { kind: "row", id, text: m.body, icon: "check", tone: "ok", offset };
   return null;
 }
 
 /** The chat lines of a Run: the thread in order, side threads grouped, and an error row from the step log when the thread has none for a failed Run. */
-export function buildLines(run: Pick<Run, "id" | "status" | "startedAt">, messages: readonly ThreadMessage[], steps: readonly RunStep[], nameOf: StepNamer = stepNamer(undefined)): RunLine[] {
+export function buildLines(
+  run: Pick<Run, "id" | "status" | "startedAt">,
+  messages: readonly ThreadMessage[],
+  steps: readonly RunStep[],
+  nameOf: StepNamer = stepNamer(undefined),
+): RunLine[] {
   const sorted = [...messages].sort((a, b) => a.threadSeq - b.threadSeq);
   const out: RunLine[] = [];
   let branch: Extract<RunLine, { kind: "branch" }> | null = null;
@@ -196,7 +288,10 @@ export function buildLines(run: Pick<Run, "id" | "status" | "startedAt">, messag
     if (!line) continue;
     if (m.depth > 0) {
       const label = str(rec(m.blocks.find((x) => x.type === "run.branch")?.data)["label"]);
-      if (!branch || (label && label !== branch.label)) { branch = { kind: "branch", id: `branch-${m.messageId}`, label: label ?? "Side chat", lines: [] }; out.push(branch); }
+      if (!branch || (label && label !== branch.label)) {
+        branch = { kind: "branch", id: `branch-${m.messageId}`, label: label ?? "Side chat", lines: [] };
+        out.push(branch);
+      }
       branch.lines.push(line);
     } else {
       branch = null;
@@ -208,7 +303,16 @@ export function buildLines(run: Pick<Run, "id" | "status" | "startedAt">, messag
   const hasError = flat(out).some((l) => l.kind === "error");
   if (run.status === "failed" && !hasError) {
     const failed = [...steps].reverse().find((s) => s.state === "failed" && s.error);
-    if (failed?.error) out.push({ kind: "error", id: `err-${failed.step}`, text: failed.error.message, detail: "", step: failed.step, retry: `Try ${failed.attempt}, failed.`, offset: Math.max(0, Math.round(((failed.endedAt ?? run.startedAt) - run.startedAt) / 1000)) });
+    if (failed?.error)
+      out.push({
+        kind: "error",
+        id: `err-${failed.step}`,
+        text: failed.error.message,
+        detail: "",
+        step: failed.step,
+        retry: `Try ${failed.attempt}, failed.`,
+        offset: Math.max(0, Math.round(((failed.endedAt ?? run.startedAt) - run.startedAt) / 1000)),
+      });
   }
   return out;
 }
@@ -219,20 +323,29 @@ export function stepNamer(nodes: readonly StepNode[] | undefined): StepNamer {
   return (stepId) => {
     const i = list.findIndex((n) => n.id === stepId);
     if (i >= 0) return stepWords(list[i]!, undefined, i + 1);
-    if (!idLike(stepId) && /[a-z]{3}/i.test(stepId)) { const w = stepId.replace(/[_.-]+/g, " ").trim(); return w.charAt(0).toUpperCase() + w.slice(1); }
+    if (!idLike(stepId) && /[a-z]{3}/i.test(stepId)) {
+      const w = stepId.replace(/[_.-]+/g, " ").trim();
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }
     const m = /(\d+)$/.exec(stepId);
     return m ? `Step ${m[1]}` : "A step";
   };
 }
 /** One row per step from the step log (the latest attempt of each), for a run with no thread lines. */
-export function stepRows(run: Pick<Run, "startedAt">, steps: readonly RunStep[], nameOf: StepNamer = stepNamer(undefined)): RunLine[] {
+export function stepRows(
+  run: Pick<Run, "startedAt">,
+  steps: readonly RunStep[],
+  nameOf: StepNamer = stepNamer(undefined),
+): RunLine[] {
   const latest = new Map<string, RunStep>();
   for (const st of steps) latest.set(st.step, st);
   return [...latest.values()].map((st): RunLine => {
     const name = nameOf(st.step);
     const offset = Math.max(0, Math.round(((st.endedAt ?? st.startedAt ?? run.startedAt) - run.startedAt) / 1000));
-    if (st.state === "failed") return { kind: "row", id: `step-${st.step}`, text: `${name} failed`, icon: "x", tone: "bad", offset };
-    if (st.state === "succeeded") return { kind: "row", id: `step-${st.step}`, text: name, icon: "check", tone: "ok", offset };
+    if (st.state === "failed")
+      return { kind: "row", id: `step-${st.step}`, text: `${name} failed`, icon: "x", tone: "bad", offset };
+    if (st.state === "succeeded")
+      return { kind: "row", id: `step-${st.step}`, text: name, icon: "check", tone: "ok", offset };
     return { kind: "row", id: `step-${st.step}`, text: `${name}, ${st.state}`, icon: "clock", tone: "muted", offset };
   });
 }
@@ -258,7 +371,8 @@ export function failedStep(lines: readonly RunLine[], steps: readonly RunStep[])
 export const offsetWords = (offset: number): string => `+${offset} s`;
 
 /** The right-hand time of a line: the offset into the run, or the start time for the first line. */
-export const lineTime = (offset: number, run: Pick<Run, "startedAt">): string => (offset > 0 ? offsetWords(offset) : clock(run.startedAt));
+export const lineTime = (offset: number, run: Pick<Run, "startedAt">): string =>
+  offset > 0 ? offsetWords(offset) : clock(run.startedAt);
 
 /* ---------- undo ---------- */
 
@@ -275,8 +389,11 @@ export const SKIP_WORDS: Readonly<Record<UndoPreview["skipped"][number]["reason"
   deployed: "Already deployed",
 };
 export function undoResult(p: UndoPreview): string {
-  const done = p.undone.length, left = p.skipped.length;
-  return left ? `Undid ${plural(done, "change")}. ${plural(left, "change")} could not be undone.` : `Undid ${plural(done, "change")}.`;
+  const done = p.undone.length,
+    left = p.skipped.length;
+  return left
+    ? `Undid ${plural(done, "change")}. ${plural(left, "change")} could not be undone.`
+    : `Undid ${plural(done, "change")}.`;
 }
 
 /* ---------- keyboard order ---------- */

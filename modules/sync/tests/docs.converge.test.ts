@@ -4,7 +4,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as Y from "yjs";
-import { BODY, CONTENT, baseSnapshot, buildDoc, fromB64, headSeq, memoryDocStore, toMarkdown, updatesAfter, versions } from "../docs/index.ts";
+import {
+  BODY,
+  CONTENT,
+  baseSnapshot,
+  buildDoc,
+  fromB64,
+  headSeq,
+  memoryDocStore,
+  toMarkdown,
+  updatesAfter,
+  versions,
+} from "../docs/index.ts";
 import { ADA, AGENT, BO, ctx, docRig } from "./docs.rig.test.ts";
 import { createDocHandlers } from "../handlers/docs.ts";
 
@@ -14,8 +25,12 @@ const OWNER = { entity: "note", id: "n_conv" };
 test("3 clients (one offline, one agent actor) converge; the server store rebuilds the same text; the Markdown snapshot matches", async () => {
   const rig = docRig();
   rig.allow(DOC, [ADA, BO, AGENT], { owner: OWNER });
-  const a = rig.device(ADA), b = rig.device(BO), g = rig.device(AGENT);
-  const dA = a.client.open(DOC), dB = b.client.open(DOC), dG = g.client.open(DOC);
+  const a = rig.device(ADA),
+    b = rig.device(BO),
+    g = rig.device(AGENT);
+  const dA = a.client.open(DOC),
+    dB = b.client.open(DOC),
+    dG = g.client.open(DOC);
   dA.text().insert(0, "# Plan\n\nstart\n");
   await rig.settle();
   assert.equal(dB.text().toString(), dA.text().toString());
@@ -24,7 +39,10 @@ test("3 clients (one offline, one agent actor) converge; the server store rebuil
   b.down();
   // Deterministic edits: B (offline, 40 of them), A and the agent (online).
   let seed = 7;
-  const rnd = (): number => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  const rnd = (): number => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
   const put = (d: typeof dA, tag: string, i: number): void => {
     const t = d.text();
     // at the start or the end, so one actor's tag never lands inside another's
@@ -46,7 +64,8 @@ test("3 clients (one offline, one agent actor) converge; the server store rebuil
   const text = dA.text().toString();
   assert.equal(dB.text().toString(), text);
   assert.equal(dG.text().toString(), text);
-  for (const tag of ["a0", "a39", "b0", "b39", "g0", "g39"]) assert.ok(text.includes(`[${tag}]`), `${tag} survived the merge`);
+  for (const tag of ["a0", "a39", "b0", "b39", "g0", "g39"])
+    assert.ok(text.includes(`[${tag}]`), `${tag} survived the merge`);
   assert.ok(!text.includes("start"), "A's concurrent delete holds");
   assert.equal(dB.dirty(), false);
   assert.deepEqual(rig.errors, []);

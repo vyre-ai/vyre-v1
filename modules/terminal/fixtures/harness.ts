@@ -5,15 +5,39 @@ import { registry } from "../../../generated/registry.ts";
 import { scopedDb } from "../../../host/src/ctx/db.ts";
 import type { RawDb } from "../../../host/src/ctx/db.ts";
 import { validate } from "../../../packages/contracts/src/jsonschema.ts";
-import { bindHost, bindKit, bindPlace, bindTeam, bindValues, bindWorkspaces, forgetAllSecrets } from "../projections.ts";
-import type { Lookup, Secret, TermCtx, TerminalHost, TermState, ValueSource, VaultKit, VaultRun } from "../projections.ts";
+import {
+  bindHost,
+  bindKit,
+  bindPlace,
+  bindTeam,
+  bindValues,
+  bindWorkspaces,
+  forgetAllSecrets,
+} from "../projections.ts";
+import type {
+  Lookup,
+  Secret,
+  TermCtx,
+  TerminalHost,
+  TermState,
+  ValueSource,
+  VaultKit,
+  VaultRun,
+} from "../projections.ts";
 
 export const NOW = 1_760_000_000_000;
 export const TRACE = "0123456789abcdef0123456789abcdef";
 export const SPACE = "spc_termtest";
 
-export interface Emitted { name: string; subject: string; payload: Record<string, unknown> }
-export interface Logged { msg: string; attrs?: Record<string, unknown> | undefined }
+export interface Emitted {
+  name: string;
+  subject: string;
+  payload: Record<string, unknown>;
+}
+export interface Logged {
+  msg: string;
+  attrs?: Record<string, unknown> | undefined;
+}
 
 export function openRaw(): RawDb {
   const host = ProjectionHost.open({ path: ":memory:", space: SPACE, projections: [] });
@@ -47,25 +71,59 @@ export function harness(o: HarnessOptions = {}) {
     trace: { traceId: TRACE },
     now: () => clock.t,
     db,
-    emit(name, subject, payload) { emitted.push({ name, subject, payload: payload as Record<string, unknown> }); return null; },
+    emit(name, subject, payload) {
+      emitted.push({ name, subject, payload: payload as Record<string, unknown> });
+      return null;
+    },
     authorize: (action, resource) => ({ effect: allow(action, resource) ? "allow" : "deny" }),
-    log: { warn(msg, attrs) { logged.push({ msg, attrs }); } },
+    log: {
+      warn(msg, attrs) {
+        logged.push({ msg, attrs });
+      },
+    },
   };
   return {
-    ctx, raw, db, emitted, logged, clock,
-    advance(ms: number) { clock.t += ms; },
-    allowOnly(f: NonNullable<HarnessOptions["allow"]>) { allow = f; },
-    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] { return db.all(sql, ...args) as Record<string, unknown>[]; },
-    named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },
-    as(principal: TermCtx["principal"], actingFor?: string, run?: string): TermCtx { return { ...ctx, principal, ...(actingFor === undefined ? {} : { actingFor }), ...(run === undefined ? {} : { run }) }; },
+    ctx,
+    raw,
+    db,
+    emitted,
+    logged,
+    clock,
+    advance(ms: number) {
+      clock.t += ms;
+    },
+    allowOnly(f: NonNullable<HarnessOptions["allow"]>) {
+      allow = f;
+    },
+    rows(sql: string, ...args: unknown[]): Record<string, unknown>[] {
+      return db.all(sql, ...args) as Record<string, unknown>[];
+    },
+    named(name: string): Emitted[] {
+      return emitted.filter((e) => e.name === name);
+    },
+    as(principal: TermCtx["principal"], actingFor?: string, run?: string): TermCtx {
+      return {
+        ...ctx,
+        principal,
+        ...(actingFor === undefined ? {} : { actingFor }),
+        ...(run === undefined ? {} : { run }),
+      };
+    },
   };
 }
 export type Harness = ReturnType<typeof harness>;
 
 // ---- a scripted machine ----------------------------------------------------------------------------------------------------------------------------------
 
-export interface RunResult { exitCode: number | null; output: string; truncated?: boolean; durationMs?: number }
-export type RunScript = RunResult | ((command: string, env: Readonly<Record<string, string>>) => RunResult | Promise<RunResult>);
+export interface RunResult {
+  exitCode: number | null;
+  output: string;
+  truncated?: boolean;
+  durationMs?: number;
+}
+export type RunScript =
+  | RunResult
+  | ((command: string, env: Readonly<Record<string, string>>) => RunResult | Promise<RunResult>);
 
 /** Keeps a screen per session like tmux would, runs commands from `scripts`, and records what it was asked. */
 export function fakeHost(scripts: Record<string, RunScript> = {}) {
@@ -76,51 +134,119 @@ export function fakeHost(scripts: Record<string, RunScript> = {}) {
   let installed = true;
   let failOpen = false;
   let failRun: Error | null = null;
-  const screen = (id: string): string[] => { let s = screens.get(id); if (!s) { s = []; screens.set(id, s); } return s; };
+  const screen = (id: string): string[] => {
+    let s = screens.get(id);
+    if (!s) {
+      s = [];
+      screens.set(id, s);
+    }
+    return s;
+  };
   const host: TerminalHost = {
     async open(a) {
-      calls.push({ op: "open", terminalId: a.terminalId, args: { target: a.target, name: a.name, cwd: a.cwd, cols: a.cols, rows: a.rows, folders: a.folders } });
+      calls.push({
+        op: "open",
+        terminalId: a.terminalId,
+        args: { target: a.target, name: a.name, cwd: a.cwd, cols: a.cols, rows: a.rows, folders: a.folders },
+      });
       if (failOpen) throw new Error("agentd did not answer");
       screens.set(a.terminalId, []);
       states.set(a.terminalId, "idle");
       return { cwd: a.cwd ?? "/home/agent", ...(a.target.agentId ? { title: `${a.target.agentId}'s computer` } : {}) };
     },
-    async input(id, data) { calls.push({ op: "input", terminalId: id, args: data }); screen(id).push(data); },
-    async interrupt(id) { calls.push({ op: "interrupt", terminalId: id }); screen(id).push("^C"); },
-    async resize(id, cols, rows) { calls.push({ op: "resize", terminalId: id, args: { cols, rows } }); },
+    async input(id, data) {
+      calls.push({ op: "input", terminalId: id, args: data });
+      screen(id).push(data);
+    },
+    async interrupt(id) {
+      calls.push({ op: "interrupt", terminalId: id });
+      screen(id).push("^C");
+    },
+    async resize(id, cols, rows) {
+      calls.push({ op: "resize", terminalId: id, args: { cols, rows } });
+    },
     async read(id, r) {
       calls.push({ op: "read", terminalId: id, args: r });
       const all = screen(id);
       return { text: (r.since === undefined ? all.slice(-r.lines) : all.slice(r.since)).join("\n"), next: all.length };
     },
     async run(id, r) {
-      calls.push({ op: "run", terminalId: id, args: { command: r.command, env: r.env, cwd: r.cwd, timeoutMs: r.timeoutMs } });
+      calls.push({
+        op: "run",
+        terminalId: id,
+        args: { command: r.command, env: r.env, cwd: r.cwd, timeoutMs: r.timeoutMs },
+      });
       if (failRun) throw failRun;
       states.set(id, "running");
       const sc = scripts[r.command];
-      const res: RunResult = sc === undefined ? { exitCode: 127, output: `${r.command}: command not found` } : typeof sc === "function" ? await sc(r.command, r.env) : sc;
+      const res: RunResult =
+        sc === undefined
+          ? { exitCode: 127, output: `${r.command}: command not found` }
+          : typeof sc === "function"
+            ? await sc(r.command, r.env)
+            : sc;
       screen(id).push(`$ ${r.command}`, ...(res.output === "" ? [] : res.output.split("\n")));
       states.set(id, "idle");
-      return { exitCode: res.exitCode, output: res.output, truncated: res.truncated ?? false, durationMs: res.durationMs ?? 12 };
+      return {
+        exitCode: res.exitCode,
+        output: res.output,
+        truncated: res.truncated ?? false,
+        durationMs: res.durationMs ?? 12,
+      };
     },
-    async status(ids) { calls.push({ op: "status", args: ids }); return ids.map((terminalId) => ({ terminalId, state: states.get(terminalId) ?? "exited", exitCode: null, ...(screen(terminalId).length ? { lastLine: screen(terminalId).at(-1) as string } : {}) })); },
-    async close(id) { calls.push({ op: "close", terminalId: id }); states.set(id, "exited"); },
-    async health() { return installed ? { ok: true, detail: "tmux 3.4", sessions: [...states.values()].filter((s) => s !== "exited").length } : { ok: false, detail: "tmux is not installed on this host", sessions: 0 }; },
+    async status(ids) {
+      calls.push({ op: "status", args: ids });
+      return ids.map((terminalId) => ({
+        terminalId,
+        state: states.get(terminalId) ?? "exited",
+        exitCode: null,
+        ...(screen(terminalId).length ? { lastLine: screen(terminalId).at(-1) as string } : {}),
+      }));
+    },
+    async close(id) {
+      calls.push({ op: "close", terminalId: id });
+      states.set(id, "exited");
+    },
+    async health() {
+      return installed
+        ? { ok: true, detail: "tmux 3.4", sessions: [...states.values()].filter((s) => s !== "exited").length }
+        : { ok: false, detail: "tmux is not installed on this host", sessions: 0 };
+    },
     stream(id, onFrame) {
       const list = frames.get(id) ?? [];
       list.push(onFrame);
       frames.set(id, list);
-      return () => { frames.set(id, (frames.get(id) ?? []).filter((f) => f !== onFrame)); };
+      return () => {
+        frames.set(
+          id,
+          (frames.get(id) ?? []).filter((f) => f !== onFrame),
+        );
+      };
     },
   };
   return {
-    host, calls, screens, scripts,
-    count(op: string): number { return calls.filter((c) => c.op === op).length; },
-    emitFrame(id: string, text: string) { for (const f of frames.get(id) ?? []) f(text); },
-    listeners(id: string): number { return (frames.get(id) ?? []).length; },
-    setInstalled(v: boolean) { installed = v; },
-    failOpenWith(v: boolean) { failOpen = v; },
-    failRunWith(e: Error | null) { failRun = e; },
+    host,
+    calls,
+    screens,
+    scripts,
+    count(op: string): number {
+      return calls.filter((c) => c.op === op).length;
+    },
+    emitFrame(id: string, text: string) {
+      for (const f of frames.get(id) ?? []) f(text);
+    },
+    listeners(id: string): number {
+      return (frames.get(id) ?? []).length;
+    },
+    setInstalled(v: boolean) {
+      installed = v;
+    },
+    failOpenWith(v: boolean) {
+      failOpen = v;
+    },
+    failRunWith(e: Error | null) {
+      failRun = e;
+    },
   };
 }
 export type FakeHost = ReturnType<typeof fakeHost>;
@@ -131,7 +257,15 @@ export function fakeValues(table: Record<string, string>, deny: ReadonlySet<stri
     async lookup(handle): Promise<Lookup> {
       if (deny.has(handle)) return { kind: "denied", reason: "no_access" };
       const v = table[handle];
-      return v === undefined ? { kind: "unknown" } : { kind: "value", itemId: `vit_${handle.replace(/\W/g, "")}`, value: v, spaceOnly: false, injectIntoDeployments: false };
+      return v === undefined
+        ? { kind: "unknown" }
+        : {
+            kind: "value",
+            itemId: `vit_${handle.replace(/\W/g, "")}`,
+            value: v,
+            spaceOnly: false,
+            injectIntoDeployments: false,
+          };
     },
   };
 }
@@ -142,29 +276,60 @@ export function fakeValues(table: Record<string, string>, deny: ReadonlySet<stri
  */
 export function testKit(): VaultKit {
   const HANDLE = /#[A-Za-z0-9_]+(?:\.[A-Za-z][A-Za-z0-9_]*)?/g;
-  const spellings = (v: string): string[] => [...new Set([v, btoa(v), btoa(v).replace(/=+$/, ""), Array.from(new TextEncoder().encode(v), (b) => b.toString(16).padStart(2, "0")).join(""), encodeURIComponent(v)])];
+  const spellings = (v: string): string[] => [
+    ...new Set([
+      v,
+      btoa(v),
+      btoa(v).replace(/=+$/, ""),
+      Array.from(new TextEncoder().encode(v), (b) => b.toString(16).padStart(2, "0")).join(""),
+      encodeURIComponent(v),
+    ]),
+  ];
   const createScrubber = (secrets: readonly Secret[]) => ({
     scrub(text: string): string {
       let out = text;
-      for (const x of [...secrets].sort((a, b) => b.value.length - a.value.length)) for (const sp of spellings(x.value).sort((a, b) => b.length - a.length)) out = out.split(sp).join(`[${x.handle}]`);
+      for (const x of [...secrets].sort((a, b) => b.value.length - a.value.length))
+        for (const sp of spellings(x.value).sort((a, b) => b.length - a.length))
+          out = out.split(sp).join(`[${x.handle}]`);
       return out;
     },
   });
   const walk = (v: unknown, f: (s: string) => string): unknown =>
-    typeof v === "string" ? f(v) : Array.isArray(v) ? v.map((x) => walk(x, f)) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x, f)])) : v;
+    typeof v === "string"
+      ? f(v)
+      : Array.isArray(v)
+        ? v.map((x) => walk(x, f))
+        : v && typeof v === "object"
+          ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x, f)]))
+          : v;
   return {
     spellings,
     createScrubber,
     async run(deps, call, exec): Promise<VaultRun> {
       const handles = new Set<string>();
-      walk(call.args, (s) => { for (const m of s.matchAll(HANDLE)) handles.add(m[0]); return s; });
+      walk(call.args, (s) => {
+        for (const m of s.matchAll(HANDLE)) handles.add(m[0]);
+        return s;
+      });
       const values = new Map<string, string>();
       const secrets: Secret[] = [];
       for (const hd of handles) {
         const r = await deps.source.lookup(hd, { agentId: call.agentId, asker: call.asker, where: call.where });
         if (r.kind === "unknown") continue;
-        if (r.kind === "denied") return { ok: false, display: call.args, used: [], error: { code: "permission.no_grant", handle: hd, message: `You cannot use ${hd} here.` } };
-        if (r.value.length < 4) return { ok: false, display: call.args, used: [], error: { code: "validation.bad_input", handle: hd, message: `${hd} is too short to fill safely.` } };
+        if (r.kind === "denied")
+          return {
+            ok: false,
+            display: call.args,
+            used: [],
+            error: { code: "permission.no_grant", handle: hd, message: `You cannot use ${hd} here.` },
+          };
+        if (r.value.length < 4)
+          return {
+            ok: false,
+            display: call.args,
+            used: [],
+            error: { code: "validation.bad_input", handle: hd, message: `${hd} is too short to fill safely.` },
+          };
         values.set(hd, r.value);
         secrets.push({ handle: hd, itemId: r.itemId, value: r.value });
       }
@@ -174,16 +339,38 @@ export function testKit(): VaultKit {
       try {
         const raw = await exec(secrets.length === 0 ? call.args : filled);
         const text = typeof raw === "string" ? raw : "";
-        return { ok: true, display: call.args, output: secrets.length === 0 ? text : createScrubber(secrets).scrub(text), used, scrubMiss: false };
+        return {
+          ok: true,
+          display: call.args,
+          output: secrets.length === 0 ? text : createScrubber(secrets).scrub(text),
+          used,
+          scrubMiss: false,
+        };
       } catch (e) {
         const msg = e instanceof Error ? e.message : "The tool failed.";
-        return { ok: false, display: call.args, used, error: { code: "provider.unavailable", message: secrets.length === 0 ? msg : createScrubber(secrets).scrub(msg) } };
+        return {
+          ok: false,
+          display: call.args,
+          used,
+          error: {
+            code: "provider.unavailable",
+            message: secrets.length === 0 ? msg : createScrubber(secrets).scrub(msg),
+          },
+        };
       }
     },
   };
 }
 
-export function reset(): void { bindHost(null); bindValues(null); bindTeam(null); bindPlace(null); bindWorkspaces(false); bindKit(testKit()); forgetAllSecrets(); }
+export function reset(): void {
+  bindHost(null);
+  bindValues(null);
+  bindTeam(null);
+  bindPlace(null);
+  bindWorkspaces(false);
+  bindKit(testKit());
+  forgetAllSecrets();
+}
 
 export function eventErrors(name: string, payload: unknown): string[] {
   const def = registry.events.find((e) => e.name === name);

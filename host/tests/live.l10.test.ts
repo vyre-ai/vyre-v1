@@ -16,28 +16,61 @@ import type { Daemon } from "../src/daemon/daemon.ts";
 const OWNER_TOKEN = "tok-usr_olivia";
 const MEMBER_TOKEN = "tok-usr_noah";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 
 const KIT = {
-  key: "livekit", title: "Live Kit", version: "1.0.0", channel: "stable", description: "One record type, to prove install on a booted daemon.",
-  items: [{
-    key: "rt.live_note", content: "structure", type: "record_type", title: "Live note", recordType: "live_note",
-    apply: {
-      cap: "schema.apply",
-      input: {
-        ops: [{ op: "type.create", type: "live_note", def: { title: "Live note", plural: "Live notes", icon: "note", group: "Notes", label: "internal", titleField: "title", fields: [{ key: "title", type: "text", title: "Title", required: true }] } }],
-        idempotencyKey: "kit.livekit.rt.live_note", reason: "Kit install",
+  key: "livekit",
+  title: "Live Kit",
+  version: "1.0.0",
+  channel: "stable",
+  description: "One record type, to prove install on a booted daemon.",
+  items: [
+    {
+      key: "rt.live_note",
+      content: "structure",
+      type: "record_type",
+      title: "Live note",
+      recordType: "live_note",
+      apply: {
+        cap: "schema.apply",
+        input: {
+          ops: [
+            {
+              op: "type.create",
+              type: "live_note",
+              def: {
+                title: "Live note",
+                plural: "Live notes",
+                icon: "note",
+                group: "Notes",
+                label: "internal",
+                titleField: "title",
+                fields: [{ key: "title", type: "text", title: "Title", required: true }],
+              },
+            },
+          ],
+          idempotencyKey: "kit.livekit.rt.live_note",
+          reason: "Kit install",
+        },
       },
     },
-  }],
+  ],
 };
 
 /** The real code root, with one more shipped Kit (kits/livekit) that only applies schema.apply, a live module. Every other file is a symlink to the real one. */
 function codeRootWithTestKit(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-l10-root-"));
-  for (const name of fs.readdirSync(CODE_ROOT)) if (!name.startsWith(".") && name !== "kits") fs.symlinkSync(path.join(CODE_ROOT, name), path.join(root, name));
+  for (const name of fs.readdirSync(CODE_ROOT))
+    if (!name.startsWith(".") && name !== "kits") fs.symlinkSync(path.join(CODE_ROOT, name), path.join(root, name));
   fs.mkdirSync(path.join(root, "kits"));
-  for (const name of fs.readdirSync(path.join(CODE_ROOT, "kits"))) fs.symlinkSync(path.join(CODE_ROOT, "kits", name), path.join(root, "kits", name));
+  for (const name of fs.readdirSync(path.join(CODE_ROOT, "kits")))
+    fs.symlinkSync(path.join(CODE_ROOT, "kits", name), path.join(root, "kits", name));
   fs.mkdirSync(path.join(root, "kits", KIT.key));
   fs.writeFileSync(path.join(root, "kits", KIT.key, "kit.json"), JSON.stringify(KIT));
   return root;
@@ -57,7 +90,9 @@ function boot(dir: string, codeRoot: string): Promise<Daemon> {
     codeRoot,
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "l10-live", free: 80e9,
+      os: "linux",
+      hostname: "l10-live",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -79,11 +114,17 @@ const post = (d: { url: string }, token: string, cap: string, body: Record<strin
   const [mod, name] = cap.split(".") as [string, string];
   const prefix = mod === "reports-client" ? "reports" : mod;
   return fetch(`${d.url}/v1/${prefix}/${name}`, {
-    method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
     body: JSON.stringify({ idempotencyKey: `l10-live-${++n}`, ...body }),
   });
 };
-const ok = async (d: { url: string }, token: string, cap: string, body: Record<string, unknown> = {}): Promise<unknown> => {
+const ok = async (
+  d: { url: string },
+  token: string,
+  cap: string,
+  body: Record<string, unknown> = {},
+): Promise<unknown> => {
   const r = await post(d, token, cap, body);
   const text = await r.text();
   assert.equal(r.status, 200, `${cap} answers through the live handler: ${text}`);
@@ -91,9 +132,14 @@ const ok = async (d: { url: string }, token: string, cap: string, body: Record<s
 };
 
 test("l10 live: kits and browser (Vyre for Chrome's Browser connections) are live in host/modules.json", () => {
-  const file = JSON.parse(fs.readFileSync(new URL("../modules.json", import.meta.url), "utf8")) as { modules: { id: string; owner: string; status: string }[] };
+  const file = JSON.parse(fs.readFileSync(new URL("../modules.json", import.meta.url), "utf8")) as {
+    modules: { id: string; owner: string; status: string }[];
+  };
   const mine = file.modules.filter((m) => m.owner === "L10");
-  assert.deepEqual(mine.map((m) => m.id), ["browser", "kits"]);
+  assert.deepEqual(
+    mine.map((m) => m.id),
+    ["browser", "kits"],
+  );
   for (const m of mine) assert.equal(m.status, "live", m.id);
 });
 
@@ -102,16 +148,28 @@ test("l10 live: a booted daemon wires the Kit source, and kits answers reads and
   const d = await boot(dir, codeRootWithTestKit());
   try {
     assert.ok((d.seams?.wired ?? []).includes("setKitsHost"), "setKitsHost is wired");
-    assert.deepEqual((d.seams?.missing ?? []).filter((m) => m.module === "kits"), [], "kits is not reported as not set up");
+    assert.deepEqual(
+      (d.seams?.missing ?? []).filter((m) => m.module === "kits"),
+      [],
+      "kits is not reported as not set up",
+    );
     const listed = (await ok(d, OWNER_TOKEN, "kits.list", {})) as { kits: { key: string; kitId: string }[] };
-    for (const k of ["default", "livekit"]) assert.ok(listed.kits.some((x) => x.key === k), `${k} is listed`);
+    for (const k of ["default", "livekit"])
+      assert.ok(
+        listed.kits.some((x) => x.key === k),
+        `${k} is listed`,
+      );
     const kit = listed.kits.find((x) => x.key === "livekit")!;
     await ok(d, OWNER_TOKEN, "kits.install_sheet", { kitId: kit.kitId });
     // a member cannot install; the owner can, and the Kit's step lands in the Space
     const refused = await post(d, MEMBER_TOKEN, "kits.install", { kitId: kit.kitId, accepted: true });
     assert.equal(refused.status, 403, "kits.install refuses a member");
-    const installed = (await ok(d, OWNER_TOKEN, "kits.install", { kitId: kit.kitId, accepted: true })) as { kit: { installed: boolean } };
+    const installed = (await ok(d, OWNER_TOKEN, "kits.install", { kitId: kit.kitId, accepted: true })) as {
+      kit: { installed: boolean };
+    };
     assert.equal(installed.kit.installed, true, "the Kit is installed");
     await ok(d, OWNER_TOKEN, "kits.choose", { kitId: kit.kitId, scope: "space" });
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });

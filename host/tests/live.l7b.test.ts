@@ -20,7 +20,13 @@ const GAP: string[] = [];
 const OWNER_TOKEN = "tok-usr_olivia";
 const MEMBER_TOKEN = "tok-usr_noah";
 
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 
 function seededDir(): string {
   const core = bootCore();
@@ -35,7 +41,9 @@ function boot(dir: string): Promise<Daemon> {
   return startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     platform: fakePlatform({
-      os: "linux", hostname: "l7b-live", free: 80e9,
+      os: "linux",
+      hostname: "l7b-live",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -57,11 +65,17 @@ const post = (d: { url: string }, token: string, cap: string, body: Record<strin
   const [mod, name] = cap.split(".") as [string, string];
   const prefix = mod === "reports-client" ? "reports" : mod;
   return fetch(`${d.url}/v1/${prefix}/${name}`, {
-    method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
     body: JSON.stringify({ idempotencyKey: `l7b-live-${++n}`, ...body }),
   });
 };
-const ok = async (d: { url: string }, token: string, cap: string, body: Record<string, unknown> = {}): Promise<unknown> => {
+const ok = async (
+  d: { url: string },
+  token: string,
+  cap: string,
+  body: Record<string, unknown> = {},
+): Promise<unknown> => {
   const r = await post(d, token, cap, body);
   const text = await r.text();
   assert.equal(r.status, 200, `${cap} answers through the live handler: ${text}`);
@@ -69,10 +83,16 @@ const ok = async (d: { url: string }, token: string, cap: string, body: Record<s
 };
 
 test("l7b live: every L7b module is live in host/modules.json", () => {
-  const file = JSON.parse(fs.readFileSync(new URL("../modules.json", import.meta.url), "utf8")) as { modules: { id: string; owner: string; status: string }[] };
-  const mine = file.modules.filter((m) => m.owner === "L7b").map((m) => m.id).sort();
+  const file = JSON.parse(fs.readFileSync(new URL("../modules.json", import.meta.url), "utf8")) as {
+    modules: { id: string; owner: string; status: string }[];
+  };
+  const mine = file.modules
+    .filter((m) => m.owner === "L7b")
+    .map((m) => m.id)
+    .sort();
   assert.deepEqual(mine, [...L7B].sort());
-  for (const m of file.modules.filter((x) => x.owner === "L7b")) assert.equal(m.status, GAP.includes(m.id) ? "stub" : "live", `${m.id} status`);
+  for (const m of file.modules.filter((x) => x.owner === "L7b"))
+    assert.equal(m.status, GAP.includes(m.id) ? "stub" : "live", `${m.id} status`);
 });
 
 test("l7b live: a booted daemon wires backup and reports no L7b module as not set up", async () => {
@@ -82,7 +102,9 @@ test("l7b live: a booted daemon wires backup and reports no L7b module as not se
     const notSetUp = (d.seams?.missing ?? []).filter((m) => m.module !== undefined && m.module === "backup");
     assert.deepEqual(notSetUp, [], "backup has its driver");
     assert.ok((d.seams?.wired ?? []).includes("setBackupHost"), "setBackupHost is wired");
-  } finally { await d.stop(); }
+  } finally {
+    await d.stop();
+  }
 });
 
 test("l7b live: each module answers a read and a write through the gateway as the owner, and a member is refused", async () => {
@@ -91,8 +113,15 @@ test("l7b live: each module answers a read and a write through the gateway as th
   const d = await boot(dir);
   try {
     const reads: [string, Record<string, unknown>][] = [
-      ["logs.settings_get", {}], ["network.status", {}], ["network.endpoints", {}], ["health.status", {}], ["console.nav", {}], ["console.overview", {}],
-      ["backup.config_get", {}], ["backup.list", {}], ["console.assistant_tools", {}],
+      ["logs.settings_get", {}],
+      ["network.status", {}],
+      ["network.endpoints", {}],
+      ["health.status", {}],
+      ["console.nav", {}],
+      ["console.overview", {}],
+      ["backup.config_get", {}],
+      ["backup.list", {}],
+      ["console.assistant_tools", {}],
     ];
     for (const [cap, body] of reads) await ok(d, OWNER_TOKEN, cap, body);
 
@@ -107,25 +136,45 @@ test("l7b live: each module answers a read and a write through the gateway as th
     // Report a problem is real: the host wires its bundle sources and client (host/src/seams/reports.ts), so reports.list answers. Only the inbound webhook stays deferred (ruling 60)
     const reports = (await ok(d, OWNER_TOKEN, "reports.list", {})) as { reports: unknown[] };
     assert.deepEqual(reports.reports, []);
-    assert.ok(deferredCaps().includes("reports.resolved"), "the inbound webhook is registered and refuses until its signature check and route exist");
-    assert.ok(!deferredCaps().includes("reports.submit") && !deferredCaps().includes("reports.list"), "the rest of Report a problem is real");
+    assert.ok(
+      deferredCaps().includes("reports.resolved"),
+      "the inbound webhook is registered and refuses until its signature check and route exist",
+    );
+    assert.ok(
+      !deferredCaps().includes("reports.submit") && !deferredCaps().includes("reports.list"),
+      "the rest of Report a problem is real",
+    );
 
     // the Console assistant needs an AI account behind it; a fresh Space has none, and the live handler says so (a typed precondition error, not a stub answer)
     const opened = await post(d, OWNER_TOKEN, "console.assistant_open", { page: "access.roles" });
     const openedBody = (await opened.json()) as { error?: { code?: string } };
-    assert.equal(openedBody.error?.code, "validation.precondition_failed", "console.assistant_open answers that the assistant is not set up");
+    assert.equal(
+      openedBody.error?.code,
+      "validation.precondition_failed",
+      "console.assistant_open answers that the assistant is not set up",
+    );
 
     // the backup source is the host's: a run writes an archive to the target, and the list shows it
     await ok(d, OWNER_TOKEN, "backup.run", {});
     const listed = (await ok(d, OWNER_TOKEN, "backup.list", {})) as { backups: { backupId: string }[] };
     assert.ok(listed.backups.length >= 1, "the backup is listed");
-    const verified = (await ok(d, OWNER_TOKEN, "backup.verify", { backupId: listed.backups[0]!.backupId })) as { ok: boolean };
+    const verified = (await ok(d, OWNER_TOKEN, "backup.verify", { backupId: listed.backups[0]!.backupId })) as {
+      ok: boolean;
+    };
     assert.equal(verified.ok, true, "the archive restores into a scratch directory and the chain checks");
 
     // refusals: a member holds none of these permissions
-    for (const [cap, body] of [["backup.config_get", {}], ["logs.settings_get", {}], ["network.status", {}], ["logs.settings_set", { level: "debug" }]] as const) {
+    for (const [cap, body] of [
+      ["backup.config_get", {}],
+      ["logs.settings_get", {}],
+      ["network.status", {}],
+      ["logs.settings_set", { level: "debug" }],
+    ] as const) {
       const r = await post(d, MEMBER_TOKEN, cap, body);
       assert.equal(r.status, 403, `${cap} refuses a member`);
     }
-  } finally { await d.stop(); fs.rmSync(target, { recursive: true, force: true }); }
+  } finally {
+    await d.stop();
+    fs.rmSync(target, { recursive: true, force: true });
+  }
 });

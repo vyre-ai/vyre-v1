@@ -10,22 +10,42 @@ import { HOUR, MIN, NOW, alice, as, bob, sendInput, svc } from "../fixtures/seed
 import { consumers } from "../impl.ts";
 
 const sender = as(svc);
-const send = (h: Harness, over: Record<string, unknown> = {}): Promise<any> => h.call("notifications.send", sendInput(over), sender);   // eslint-disable-line @typescript-eslint/no-explicit-any
+const send = (h: Harness, over: Record<string, unknown> = {}): Promise<any> =>
+  h.call("notifications.send", sendInput(over), sender); // eslint-disable-line @typescript-eslint/no-explicit-any
 /** The settings module announces a change; the consumer keeps the copy. */
 async function setting(h: Harness, person: string, key: string, after: unknown): Promise<void> {
-  const out = await consumers["notifications.settings_sync"].run(h.ctxFor("notifications.send", sender), { name: "settings.changed", payload: { key, scope: "person", person, before: null, after, by: person } });
+  const out = await consumers["notifications.settings_sync"].run(h.ctxFor("notifications.send", sender), {
+    name: "settings.changed",
+    payload: { key, scope: "person", person, before: null, after, by: person },
+  });
   assert.deepEqual(out, [key]);
 }
 
 test("settings.changed is kept for notification keys of a person only; a reset drops the copy", async () => {
   const h = harness();
-  const run = (payload: Record<string, unknown>) => consumers["notifications.settings_sync"].run(h.ctxFor("notifications.send", sender), { name: "settings.changed", payload });
-  assert.deepEqual(await run({ key: "appearance.skin", scope: "person", person: alice.id, after: "paper" }), [], "another page's key is not ours");
-  assert.deepEqual(await run({ key: "notifications.alert_replies", scope: "space", after: true }), [], "a Space-wide key is not a person's");
+  const run = (payload: Record<string, unknown>) =>
+    consumers["notifications.settings_sync"].run(h.ctxFor("notifications.send", sender), {
+      name: "settings.changed",
+      payload,
+    });
+  assert.deepEqual(
+    await run({ key: "appearance.skin", scope: "person", person: alice.id, after: "paper" }),
+    [],
+    "another page's key is not ours",
+  );
+  assert.deepEqual(
+    await run({ key: "notifications.alert_replies", scope: "space", after: true }),
+    [],
+    "a Space-wide key is not a person's",
+  );
   await setting(h, alice.id, "notifications.alert_replies", true);
   assert.equal((await send(h, { kind: "reply.followed", collapseKey: "a" })).outcome, "interrupt");
   await run({ key: "notifications.alert_replies", scope: "person", person: alice.id });
-  assert.equal((await send(h, { kind: "reply.followed", collapseKey: "b" })).outcome, "badge", "back to the shipped level");
+  assert.equal(
+    (await send(h, { kind: "reply.followed", collapseKey: "b" })).outcome,
+    "badge",
+    "back to the shipped level",
+  );
 });
 
 test("alert me on replies: a followed reply interrupts only when on, only for that person, and my own kind choice wins", async () => {
@@ -35,17 +55,36 @@ test("alert me on replies: a followed reply interrupts only when on, only for th
   assert.equal((await send(h, { kind: "reply.followed", collapseKey: "b" })).outcome, "interrupt");
   assert.equal((await send(h, { to: bob.id, kind: "reply.followed", collapseKey: "c" })).outcome, "badge");
   await h.call("notifications.kind.set_level", { kind: "reply.followed", channels: [] }, as(alice));
-  assert.equal((await send(h, { kind: "reply.followed", collapseKey: "d" })).outcome, "badge", "her explicit choice for the kind beats the setting");
+  assert.equal(
+    (await send(h, { kind: "reply.followed", collapseKey: "d" })).outcome,
+    "badge",
+    "her explicit choice for the kind beats the setting",
+  );
 });
 
 test("quiet hours hold an interrupt in the digest, let Needs you and calls through, and one summary is scheduled for when they end", async () => {
-  const h = harness({ now: Date.UTC(2025, 9, 9, 10, 0, 0) });   // Thursday 10:00 UTC, inside working hours
+  const h = harness({ now: Date.UTC(2025, 9, 9, 10, 0, 0) }); // Thursday 10:00 UTC, inside working hours
   await setting(h, alice.id, "notifications.quiet_hours", { on: true, from: "09:00", to: "11:30", needs: true });
   assert.equal((await send(h, { kind: "dm" })).outcome, "digest", "a message is held");
-  assert.equal((await send(h, { kind: "mention", data: { from: "x", where: "y" }, collapseKey: "m" })).outcome, "digest");
-  assert.equal((await send(h, { kind: "approval.requested", title: "x", collapseKey: "n" })).outcome, "interrupt", "Needs you comes through");
-  assert.equal((await send(h, { kind: "call.incoming", data: { from: "Lee" } })).outcome, "interrupt", "a call always does");
-  assert.equal((await send(h, { kind: "task.assigned", data: { from: "B", title: "t" } })).outcome, "badge", "a badge was never a push");
+  assert.equal(
+    (await send(h, { kind: "mention", data: { from: "x", where: "y" }, collapseKey: "m" })).outcome,
+    "digest",
+  );
+  assert.equal(
+    (await send(h, { kind: "approval.requested", title: "x", collapseKey: "n" })).outcome,
+    "interrupt",
+    "Needs you comes through",
+  );
+  assert.equal(
+    (await send(h, { kind: "call.incoming", data: { from: "Lee" } })).outcome,
+    "interrupt",
+    "a call always does",
+  );
+  assert.equal(
+    (await send(h, { kind: "task.assigned", data: { from: "B", title: "t" } })).outcome,
+    "badge",
+    "a badge was never a push",
+  );
   const sums = h.schedules.filter((s) => s.cap === "notifications.send");
   assert.equal(sums.length, 1, "one summary for the window, however many were held");
   assert.equal(sums[0]!.at, Date.UTC(2025, 9, 9, 11, 30, 0), "at the end of quiet hours");
@@ -63,10 +102,14 @@ test("quiet hours hold an interrupt in the digest, let Needs you and calls throu
 
 test("quiet hours across midnight and when off", async () => {
   const late = harness({ now: Date.UTC(2025, 9, 9, 23, 0, 0) });
-  await late.call("notifications.rules.set", { workingHours: null }, as(alice));   // with working hours on, 23:00 is already a badge before quiet hours are asked
+  await late.call("notifications.rules.set", { workingHours: null }, as(alice)); // with working hours on, 23:00 is already a badge before quiet hours are asked
   await setting(late, alice.id, "notifications.quiet_hours", { on: true, from: "22:00", to: "07:00", needs: true });
   await send(late, { kind: "dm" });
-  assert.equal(late.schedules.find((s) => s.cap === "notifications.send")!.at, Date.UTC(2025, 9, 10, 7, 0, 0), "ends the next morning");
+  assert.equal(
+    late.schedules.find((s) => s.cap === "notifications.send")!.at,
+    Date.UTC(2025, 9, 10, 7, 0, 0),
+    "ends the next morning",
+  );
   const off = harness();
   await setting(off, alice.id, "notifications.quiet_hours", { on: false, from: "09:00", to: "18:00", needs: true });
   assert.equal((await send(off, { kind: "dm" })).outcome, "interrupt");
@@ -78,15 +121,34 @@ test("hand Needs you to: while away, a Needs you item goes to that person, with 
   await setting(h, alice.id, "notifications.hand_needs_you_to", bob.id);
   await h.call("notifications.away.set", { until: NOW + 8 * HOUR, delegate: { kind: "none" } }, as(alice));
   const r = await send(h, { kind: "approval.requested", title: "Sign", collapseKey: "s" });
-  const rows = h.sqlite.prepare("SELECT person, kind FROM notifications_items ORDER BY at").all() as { person: string; kind: string }[];
-  assert.deepEqual(rows.map((x) => [x.person, x.kind]), [[bob.id, "approval.requested"]], "Bob holds it");
+  const rows = h.sqlite.prepare("SELECT person, kind FROM notifications_items ORDER BY at").all() as {
+    person: string;
+    kind: string;
+  }[];
+  assert.deepEqual(
+    rows.map((x) => [x.person, x.kind]),
+    [[bob.id, "approval.requested"]],
+    "Bob holds it",
+  );
   assert.equal(r.outcome, "interrupt", "for Bob it is a normal approval");
   await send(h, { kind: "reply.followed", collapseKey: "r" });
-  assert.equal((h.sqlite.prepare("SELECT COUNT(*) AS n FROM notifications_items WHERE person = ?").get(alice.id) as { n: number }).n, 1, "a reply stays with her, in the digest");
+  assert.equal(
+    (h.sqlite.prepare("SELECT COUNT(*) AS n FROM notifications_items WHERE person = ?").get(alice.id) as { n: number })
+      .n,
+    1,
+    "a reply stays with her, in the digest",
+  );
   // not away: it stays with her; no self-handoff
   await h.call("notifications.away.clear", {}, as(alice));
   await send(h, { kind: "approval.requested", title: "Again", collapseKey: "t" });
-  assert.equal((h.sqlite.prepare("SELECT COUNT(*) AS n FROM notifications_items WHERE person = ? AND kind = ?").get(alice.id, "approval.requested") as { n: number }).n, 1);
+  assert.equal(
+    (
+      h.sqlite
+        .prepare("SELECT COUNT(*) AS n FROM notifications_items WHERE person = ? AND kind = ?")
+        .get(alice.id, "approval.requested") as { n: number }
+    ).n,
+    1,
+  );
 });
 
 test("routines also when they succeed: a routine success reaches only an owner who asked, failures always do", async () => {
@@ -99,16 +161,31 @@ test("routines also when they succeed: a routine success reaches only an owner w
   await setting(h, alice.id, "notifications.routines_all", true);
   const out = await fan.run(h.ctxFor("notifications.send", sender), ev);
   assert.equal(out.length, 1);
-  assert.equal((h.sqlite.prepare("SELECT kind, title FROM notifications_items WHERE id = ?").get(out[0]!) as { kind: string; title: string }).kind, "agent.task_finished");
-  assert.deepEqual(await fan.run(ctx, { name: "run.succeeded", payload: { runId: "run_2", kind: "automation", costMicros: 0 } }), [], "only routines");
-  const failed = await fan.run(ctx, { name: "run.failed", payload: { runId: "run_3", kind: "routine", code: "x", message: "boom", owner: bob.id } });
+  assert.equal(
+    (
+      h.sqlite.prepare("SELECT kind, title FROM notifications_items WHERE id = ?").get(out[0]!) as {
+        kind: string;
+        title: string;
+      }
+    ).kind,
+    "agent.task_finished",
+  );
+  assert.deepEqual(
+    await fan.run(ctx, { name: "run.succeeded", payload: { runId: "run_2", kind: "automation", costMicros: 0 } }),
+    [],
+    "only routines",
+  );
+  const failed = await fan.run(ctx, {
+    name: "run.failed",
+    payload: { runId: "run_3", kind: "routine", code: "x", message: "boom", owner: bob.id },
+  });
   assert.equal(failed.length, 1, "a failure is always told, whatever the setting");
   void MIN;
 });
 
 test("the email backstop and the working hours from Settings are the ones delivery reads, in the person's time zone", async () => {
   const h = harness();
-  const rules = async (): Promise<any> => (await h.call("notifications.rules.get", {}, as(alice))).rules;   // eslint-disable-line @typescript-eslint/no-explicit-any
+  const rules = async (): Promise<any> => (await h.call("notifications.rules.get", {}, as(alice))).rules; // eslint-disable-line @typescript-eslint/no-explicit-any
   await setting(h, alice.id, "notifications.email_backstop", false);
   assert.equal((await rules()).emailBackstop, false);
   await setting(h, alice.id, "profile.working_hours", { days: [1, 2], from: "10:00", to: "12:00" });

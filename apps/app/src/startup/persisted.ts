@@ -4,7 +4,9 @@ import type { UiState, UiStateStore } from "./startup.ts";
 const KEY = "vyre.ui.v1";
 const EMPTY: UiState = { lastPlace: null, railOrder: [] };
 
-export function webUiStateStore(storage: Pick<Storage, "getItem" | "setItem"> | undefined = (globalThis as { localStorage?: Storage }).localStorage): UiStateStore {
+export function webUiStateStore(
+  storage: Pick<Storage, "getItem" | "setItem"> | undefined = (globalThis as { localStorage?: Storage }).localStorage,
+): UiStateStore {
   let memory: UiState = { ...EMPTY };
   return {
     read() {
@@ -18,7 +20,11 @@ export function webUiStateStore(storage: Pick<Storage, "getItem" | "setItem"> | 
     },
     write(patch) {
       memory = { ...memory, ...patch };
-      try { storage?.setItem(KEY, JSON.stringify(memory)); } catch { /* blocked storage: memory only */ }
+      try {
+        storage?.setItem(KEY, JSON.stringify(memory));
+      } catch {
+        /* blocked storage: memory only */
+      }
     },
   };
 }

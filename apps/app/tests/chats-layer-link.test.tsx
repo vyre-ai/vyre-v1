@@ -18,17 +18,26 @@ test("a link that opens the terminal list while Chats is open is consumed: the t
     const opened = (t: Opened): void => void reported.push(t);
     const window = { start: 0, end: 500 };
     const r = createRoot();
-    await act(async () => { r.render(<ChatsMounted rt={s.rt} hash="" opened={opened} window={window} />); });
+    await act(async () => {
+      r.render(<ChatsMounted rt={s.rt} hash="" opened={opened} window={window} />);
+    });
     await flush();
     const root = r.container as unknown as Parameters<typeof find>[0];
     reported.length = 0;
-    await act(async () => { r.render(<ChatsMounted rt={s.rt} hash="screen=chats.terminal-list&at=1" opened={opened} window={window} />); });
+    await act(async () => {
+      r.render(<ChatsMounted rt={s.rt} hash="screen=chats.terminal-list&at=1" opened={opened} window={window} />);
+    });
     await flush();
     assert.ok(find(root, "terminal-list") && find(root, "terminal-list-veil"), "the link opened the list");
     assert.deepEqual(reported, [{}], "the tab was told to go back to the page under it, with no layer in its address");
     await press(find(root, "terminal-list-veil"));
     await flush();
     assert.equal(find(root, "terminal-list"), null, "a press on the veil closed it");
-    assert.ok(reported.every((t) => Object.keys(t).length === 0), "and the tab still names only the page");
-  } finally { restoreDom(); }
+    assert.ok(
+      reported.every((t) => Object.keys(t).length === 0),
+      "and the tab still names only the page",
+    );
+  } finally {
+    restoreDom();
+  }
 });

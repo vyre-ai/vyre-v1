@@ -32,16 +32,20 @@ export const CAPABILITIES = Object.freeze({
   "notes.clip": "clip the page into a private note: its address, title, the selected text and a screenshot",
   "vault.share": "share a saved login with the person's agent at Use level",
   "notes.clip": "Save to Notes from a page: the address, title, the selection and a masked screenshot (lane l-notes)",
-  "skills.mine.add": "save a recording the person reviewed as one of their skills: SKILL.md and its replay script (lane l-skills2)",
+  "skills.mine.add":
+    "save a recording the person reviewed as one of their skills: SKILL.md and its replay script (lane l-skills2)",
   "skills.mine.set": "put a saved skill on the person's agents (the share card's Add to my agents) (lane l-skills2)",
   "skills.share": "share that skill with people in the Space, who each get a card (lane l-skills2)",
-  "engine.models.list": "the live models the person's AI account can reach, for the side panel's model picker (lane l-livemodels; never a list kept here)",
+  "engine.models.list":
+    "the live models the person's AI account can reach, for the side panel's model picker (lane l-livemodels; never a list kept here)",
   "browser.sites.list": "the Space's Browser connections: sites agents may use, where they run, each agent's rights",
   "automations.watches.list": "the person's watches that run in this Chrome",
   "automations.watches.save": "create or change a watch from the Watch sheet",
   "automations.watches.remove": "remove or pause a watch",
-  "automations.watches.check": "Check now for a watch that runs on an agent's computer (wakes the agent) or in this Chrome",
-  "automations.watches.report": "a My Chrome watch checked a page: what it read, and the before and after when it changed",
+  "automations.watches.check":
+    "Check now for a watch that runs on an agent's computer (wakes the agent) or in this Chrome",
+  "automations.watches.report":
+    "a My Chrome watch checked a page: what it read, and the before and after when it changed",
 });
 
 /** Bridge-level operations that are not capabilities: they are about this computer and this browser, not a Space's data. */
@@ -49,17 +53,23 @@ export const BRIDGE_OPS = Object.freeze({
   hello: "the app's version, the Spaces it knows and which is active",
   "space.select": "make one Space the extension's active Space (autofill and agents follow it)",
   "agents.list": "the active Space's agents with faces, and the suggested one for a page",
-  "login.check": "the filler compares a submitted login with the vault and says known, changed or new, without revealing anything",
+  "login.check":
+    "the filler compares a submitted login with the vault and says known, changed or new, without revealing anything",
   "ask.page": "start an Ask about this page with an agent; the page title and address go, the question is the person's",
-  "artifact.open": "open an artifact link as the signed-in person: the Space mints a single-use address and the extension opens it in a tab (never page cookies)",
-  "artifact.thumb": "keep a small picture of an artifact the person just opened (480 px webp, password and card fields blacked out first) so its card and the Artifacts grid show it",
+  "artifact.open":
+    "open an artifact link as the signed-in person: the Space mints a single-use address and the extension opens it in a tab (never page cookies)",
+  "artifact.thumb":
+    "keep a small picture of an artifact the person just opened (480 px webp, password and card fields blacked out first) so its card and the Artifacts grid show it",
   "app.open": "open the Vyre app at a place (the Vault, an item, a chat, a note, a skill, Automations > Watching)",
-  "chat.ask": "send a side panel message to an agent in the active Space: the same thread as Vyre Chats; the reply streams back as chat.delta pushes",
+  "chat.ask":
+    "send a side panel message to an agent in the active Space: the same thread as Vyre Chats; the reply streams back as chat.delta pushes",
   "chat.search": "find the person's chats in the active Space by words, for the side panel's chat search",
   "chat.thread": "one chat's messages, to show it in the side panel",
-  "people.list": "the people and channels the signed-in person may pick to tell or to share with (their own view of the Space, nothing more)",
+  "people.list":
+    "the people and channels the signed-in person may pick to tell or to share with (their own view of the Space, nothing more)",
   "goals.pick": "the signed-in person's own open goals that have a number, for Counts toward a goal",
-  "records.match": "records that match a page: from its address and the email addresses and phone numbers written on it, with their recent chats and goals",
+  "records.match":
+    "records that match a page: from its address and the email addresses and phone numbers written on it, with their recent chats and goals",
 });
 
 /** Where a field value goes. `role` says what the page field is for. */
@@ -81,8 +91,10 @@ export const isObject = (v) => typeof v === "object" && v !== null && !Array.isA
  * @param {Record<string, any>} [input]
  */
 export function request(id, type, name, input = {}) {
-  if (type === "invoke" && !(name in CAPABILITIES)) throw new BridgeFailure("not_allowed", `the extension may not call ${name}`);
-  if (type === "bridge" && !(name in BRIDGE_OPS)) throw new BridgeFailure("not_allowed", `the extension has no bridge operation ${name}`);
+  if (type === "invoke" && !(name in CAPABILITIES))
+    throw new BridgeFailure("not_allowed", `the extension may not call ${name}`);
+  if (type === "bridge" && !(name in BRIDGE_OPS))
+    throw new BridgeFailure("not_allowed", `the extension has no bridge operation ${name}`);
   return type === "invoke" ? { id, type, capability: name, input } : { id, type, op: name, input };
 }
 
@@ -95,15 +107,35 @@ export function parseIncoming(m) {
   if (!isObject(m)) return null;
   if (typeof m["id"] === "string" && m["ok"] === true) return { id: m["id"], ok: true, output: m["output"] };
   if (typeof m["id"] === "string" && m["ok"] === false && isObject(m["error"])) {
-    return { id: m["id"], ok: false, error: { code: String(m["error"]["code"] ?? "error"), message: String(m["error"]["message"] ?? "") } };
+    return {
+      id: m["id"],
+      ok: false,
+      error: { code: String(m["error"]["code"] ?? "error"), message: String(m["error"]["message"] ?? "") },
+    };
   }
-  if (m["type"] === "fill" && typeof m["ref"] === "string" && typeof m["value"] === "string") return { type: "fill", ref: m["ref"], value: m["value"] };
-  if (m["type"] === "spaces" && Array.isArray(m["spaces"])) return { type: "spaces", spaces: m["spaces"], active: typeof m["active"] === "string" ? m["active"] : null };
-  if (m["type"] === "chat.delta" && typeof m["threadId"] === "string" && typeof m["turnId"] === "string" && typeof m["text"] === "string") {
-    return { type: "chat.delta", threadId: m["threadId"], turnId: m["turnId"], text: m["text"].slice(0, 200_000), done: m["done"] === true, error: typeof m["error"] === "string" ? m["error"].slice(0, 500) : null };
+  if (m["type"] === "fill" && typeof m["ref"] === "string" && typeof m["value"] === "string")
+    return { type: "fill", ref: m["ref"], value: m["value"] };
+  if (m["type"] === "spaces" && Array.isArray(m["spaces"]))
+    return { type: "spaces", spaces: m["spaces"], active: typeof m["active"] === "string" ? m["active"] : null };
+  if (
+    m["type"] === "chat.delta" &&
+    typeof m["threadId"] === "string" &&
+    typeof m["turnId"] === "string" &&
+    typeof m["text"] === "string"
+  ) {
+    return {
+      type: "chat.delta",
+      threadId: m["threadId"],
+      turnId: m["turnId"],
+      text: m["text"].slice(0, 200_000),
+      done: m["done"] === true,
+      error: typeof m["error"] === "string" ? m["error"].slice(0, 500) : null,
+    };
   }
-  if (m["type"] === "watch.run" && typeof m["watchId"] === "string") return { type: "watch.run", watchId: m["watchId"] };
-  if (m["type"] === "tab.open" && typeof m["url"] === "string" && /^https?:\/\//i.test(m["url"])) return { type: "tab.open", url: m["url"] };
+  if (m["type"] === "watch.run" && typeof m["watchId"] === "string")
+    return { type: "watch.run", watchId: m["watchId"] };
+  if (m["type"] === "tab.open" && typeof m["url"] === "string" && /^https?:\/\//i.test(m["url"]))
+    return { type: "tab.open", url: m["url"] };
   return null;
 }
 
@@ -138,5 +170,10 @@ export function wordsFor(e) {
   const code = e instanceof BridgeFailure ? e.code : isObject(e) && typeof e["code"] === "string" ? e["code"] : "";
   /** @type {Record<string,string>} */
   const table = WORDS;
-  return table[code] ?? (isObject(e) && typeof e["message"] === "string" && e["message"] ? e["message"] : "Something went wrong. Try again.");
+  return (
+    table[code] ??
+    (isObject(e) && typeof e["message"] === "string" && e["message"]
+      ? e["message"]
+      : "Something went wrong. Try again.")
+  );
 }

@@ -15,7 +15,13 @@ import { CODE_ROOT, startDaemon } from "../host/src/daemon/daemon.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 
 export const DAY = 86_400_000;
-const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
+const caddyFetch: FetchFn = () =>
+  Promise.resolve({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    text: () => Promise.resolve('{"apps":{"http":{}}}'),
+  });
 export const tmp = (p: string): string => fs.mkdtempSync(path.join(os.tmpdir(), p));
 
 export function seededDir(): string {
@@ -43,12 +49,31 @@ export const standIn: OpenSession = async () => {
       if (!m && body.startsWith("Tasks:")) {
         // an upkeep request: answer like a model would, with one pattern fact drawn from the first fact listed, and report the tokens
         const first = /^- (fct_[a-z0-9]+) /m.exec(body)?.[1];
-        yield { type: "text", text: JSON.stringify({ actions: first ? [{ type: "create", text: "Pattern noticed by the stand-in", kind: "pattern", from: [first], reason: "seen more than once" }] : [] }) };
+        yield {
+          type: "text",
+          text: JSON.stringify({
+            actions: first
+              ? [
+                  {
+                    type: "create",
+                    text: "Pattern noticed by the stand-in",
+                    kind: "pattern",
+                    from: [first],
+                    reason: "seen more than once",
+                  },
+                ]
+              : [],
+          }),
+        };
         yield { type: "usage", inputTokens: 1_200, outputTokens: 80 };
         yield { type: "done" };
         return;
       }
-      if (!m) { yield { type: "text", text: defaultPrompt(input, true) }; yield { type: "done" }; return; }
+      if (!m) {
+        yield { type: "text", text: defaultPrompt(input, true) };
+        yield { type: "done" };
+        return;
+      }
       // a tool outside the default set is found with tool_search before it can be called, as a model must do
       const first = `call_${waiting.size + 1}`;
       const found = new Promise<{ ok: boolean; content: unknown }>((resolve) => waiting.set(first, resolve));
@@ -63,21 +88,33 @@ export const standIn: OpenSession = async () => {
       yield { type: "text", text: `TOOL RESULT ${r.ok ? "ok" : "failed"} ${JSON.stringify(r.content)}` };
       yield { type: "done" };
     },
-    sendToolResult(callId: string, result: { ok: boolean; content: unknown }) { waiting.get(callId)?.(result); },
+    sendToolResult(callId: string, result: { ok: boolean; content: unknown }) {
+      waiting.get(callId)?.(result);
+    },
     inject() {},
-    async cancel() { cancelled = true; for (const f of waiting.values()) f({ ok: false, content: "cancelled" }); },
+    async cancel() {
+      cancelled = true;
+      for (const f of waiting.values()) f({ ok: false, content: "cancelled" });
+    },
     async close() {},
   } as EngineSession;
 };
 
 /** `http` is the network under ctx.http (a provider's own API): tests answer it; omitted, it is the real network. */
-export async function boot(dir: string, openSession: OpenSession = standIn, http?: Parameters<typeof startDaemon>[0]["http"], extra: Partial<Parameters<typeof startDaemon>[0]> = {}): Promise<Daemon> {
+export async function boot(
+  dir: string,
+  openSession: OpenSession = standIn,
+  http?: Parameters<typeof startDaemon>[0]["http"],
+  extra: Partial<Parameters<typeof startDaemon>[0]> = {},
+): Promise<Daemon> {
   return startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     codeRoot: CODE_ROOT,
     now: () => clock.t,
     platform: fakePlatform({
-      os: "linux", hostname: "memory-core-live", free: 80e9,
+      os: "linux",
+      hostname: "memory-core-live",
+      free: 80e9,
       commands: {
         [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
         "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
@@ -95,16 +132,27 @@ export async function boot(dir: string, openSession: OpenSession = standIn, http
   });
 }
 
-export async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: number; data: any }> {   // eslint-disable-line @typescript-eslint/no-explicit-any
-  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify(input) });
+export async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: number; data: any }> {
+  // eslint-disable-line @typescript-eslint/no-explicit-any
+  const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` },
+    body: JSON.stringify(input),
+  });
   const body = (await r.json()) as { data?: unknown; error?: unknown };
   return { status: r.status, data: body.data ?? body };
 }
 
 export function hostLog(d: Daemon): string {
   d.sink.flush();
-  const rows = new DatabaseSync(d.paths.logs, { readOnly: true }).prepare("SELECT level, place, cap, msg, attrs FROM logs WHERE level >= 30 OR msg LIKE '%consumer%' OR msg LIKE '%bridge%' OR msg LIKE '%engine%' ORDER BY id DESC LIMIT 30").all() as Array<{ level: number; place: string | null; cap: string | null; msg: string; attrs: string | null }>;
-  return JSON.stringify(rows.map((r) => `${r.level} ${r.place ?? ""} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 300)}`));
+  const rows = new DatabaseSync(d.paths.logs, { readOnly: true })
+    .prepare(
+      "SELECT level, place, cap, msg, attrs FROM logs WHERE level >= 30 OR msg LIKE '%consumer%' OR msg LIKE '%bridge%' OR msg LIKE '%engine%' ORDER BY id DESC LIMIT 30",
+    )
+    .all() as Array<{ level: number; place: string | null; cap: string | null; msg: string; attrs: string | null }>;
+  return JSON.stringify(
+    rows.map((r) => `${r.level} ${r.place ?? ""} ${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 300)}`),
+  );
 }
 
 export async function waitFor<T>(f: () => Promise<T | null>, ms = 40_000, why?: () => string): Promise<T> {
@@ -118,37 +166,77 @@ export async function waitFor<T>(f: () => Promise<T | null>, ms = 40_000, why?: 
 }
 
 export async function connect(d: Daemon): Promise<void> {
-  const unlock = await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
+  const unlock = await fetch(`${d.url}/local/vault/key/unlock`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` },
+    body: JSON.stringify({
+      key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64"),
+    }),
+  });
   assert.equal(unlock.status, 204, `unlock: ${unlock.status}`);
-  const folder = await call(d, "vault.folders.create", { idempotencyKey: "mc-folder", name: "Accounts", scope: "mine" });
+  const folder = await call(d, "vault.folders.create", {
+    idempotencyKey: "mc-folder",
+    name: "Accounts",
+    scope: "mine",
+  });
   const flow = await call(d, "providers.subscription_start", { idempotencyKey: "mc-flow", providerKey: "claude-code" });
-  const item = await call(d, "vault.item.put", { idempotencyKey: "mc-item", folderId: folder.data.folder.id, name: "Olivia_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: KEY, secret: true }] });
+  const item = await call(d, "vault.item.put", {
+    idempotencyKey: "mc-item",
+    folderId: folder.data.folder.id,
+    name: "Olivia_Claude",
+    kind: "ai_subscription",
+    fields: [{ key: "setup_token", value: KEY, secret: true }],
+  });
   assert.equal(item.status, 200, JSON.stringify(item.data));
   const provider = await call(d, "providers.subscription_complete", { flowId: flow.data.flowId });
   assert.equal(provider.status, 200, JSON.stringify(provider.data));
-  const allowed = await call(d, "providers.set_space_use", { idempotencyKey: "mc-spaceuse", providerId: provider.data.provider.id, allow: true });
+  const allowed = await call(d, "providers.set_space_use", {
+    idempotencyKey: "mc-spaceuse",
+    providerId: provider.data.provider.id,
+    allow: true,
+  });
   assert.equal(allowed.status, 200, JSON.stringify(allowed.data));
 }
 
 /** An agent as a person makes it: no memory settings at all, so whatever the default capture mode is applies. */
 export async function newAgent(d: Daemon, name: string): Promise<{ id: string; captureMode: string }> {
-  const made = await call(d, "agents.create", { name, role: "You answer intake questions.", idempotencyKey: `mc-agent-${name}` });
+  const made = await call(d, "agents.create", {
+    name,
+    role: "You answer intake questions.",
+    idempotencyKey: `mc-agent-${name}`,
+  });
   assert.equal(made.status, 200, JSON.stringify(made.data));
   return { id: made.data.agent.agentId as string, captureMode: made.data.agent.captureMode as string };
 }
 
-export async function say(d: Daemon, agentId: string, body: string, key: string): Promise<{ threadId: string; reply: string }> {
+export async function say(
+  d: Daemon,
+  agentId: string,
+  body: string,
+  key: string,
+): Promise<{ threadId: string; reply: string }> {
   const started = await call(d, "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: `${key}-start` });
   assert.equal(started.status, 200, JSON.stringify(started.data));
   const threadId = started.data.thread.threadId as string;
-  const posted = await call(d, "chat.post", { threadId, body, mentions: [{ kind: "agent", id: agentId }], idempotencyKey: `${key}-post` });
+  const posted = await call(d, "chat.post", {
+    threadId,
+    body,
+    mentions: [{ kind: "agent", id: agentId }],
+    idempotencyKey: `${key}-post`,
+  });
   assert.equal(posted.status, 200, JSON.stringify(posted.data));
-  const reply = await waitFor(async () => {
-    await d.hooks?.pump?.();
-    const r = await call(d, "chat.messages.list", { threadId });
-    const m = (r.data.messages as Array<{ author?: { kind?: string }; body?: string }> | undefined)?.find((x) => x.author?.kind === "agent" && (x.body ?? "") !== "");
-    return m?.body ?? null;
-  }, 40_000, () => hostLog(d));
+  const reply = await waitFor(
+    async () => {
+      await d.hooks?.pump?.();
+      const r = await call(d, "chat.messages.list", { threadId });
+      const m = (r.data.messages as Array<{ author?: { kind?: string }; body?: string }> | undefined)?.find(
+        (x) => x.author?.kind === "agent" && (x.body ?? "") !== "",
+      );
+      return m?.body ?? null;
+    },
+    40_000,
+    () => hostLog(d),
+  );
   return { threadId, reply };
 }
 
@@ -157,4 +245,3 @@ export async function close(d: Daemon, threadId: string): Promise<void> {
   assert.equal(r.status, 200, JSON.stringify(r.data));
   await d.hooks?.pump?.();
 }
-

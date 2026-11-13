@@ -13,7 +13,20 @@ import { useReviewData } from "./data.tsx";
 import { MODEL_CHOICES, formValue, humanKey, parseToml, rawFromForm, setTomlValue, tomlKind } from "./model.ts";
 import type { TomlEntry } from "./model.ts";
 import { PickerButton, Switch, TextField, anchorOf } from "./parts.tsx";
-import { FORM_GROUPS, extraEntries, fieldText, isNumberText, listItems, listRaw, modelLabel, pickLabel, rawFor, tablesNamed, tomlTables, writeField } from "./tomlFields.ts";
+import {
+  FORM_GROUPS,
+  extraEntries,
+  fieldText,
+  isNumberText,
+  listItems,
+  listRaw,
+  modelLabel,
+  pickLabel,
+  rawFor,
+  tablesNamed,
+  tomlTables,
+  writeField,
+} from "./tomlFields.ts";
 import type { FormField, FormGroup, TomlTable } from "./tomlFields.ts";
 
 /** A problem the lint found, shown under the key on its line. */
@@ -54,62 +67,165 @@ function TextBox({ slot, shared, label }: { slot: Slot; shared: Shared; label: s
   const [draft, setDraft] = useState(value);
   const [seen, setSeen] = useState(value);
   const [bad, setBad] = useState(false);
-  if (value !== seen) { setSeen(value); setDraft(value); setBad(false); }
+  if (value !== seen) {
+    setSeen(value);
+    setDraft(value);
+    setBad(false);
+  }
   const write = (v: string): void => {
     setDraft(v);
-    if (field.kind === "number" && v.trim() !== "" && !isNumberText(v)) { setBad(true); return; }
+    if (field.kind === "number" && v.trim() !== "" && !isNumberText(v)) {
+      setBad(true);
+      return;
+    }
     setBad(false);
     if (field.kind === "number" && v.trim() === "") return;
     shared.onChange(writeField(shared.text, field, entry, slot.table, slot.section, rawFor(field, v, entry)));
   };
   return (
     <View style={st.box}>
-      <TextField form value={draft} onChange={write} label={label} placeholder={entry ? "" : "Not set"} testID={`toml-field:${slot.id}`} />
-      {bad ? <Text style={[st.hint, st.hintErr]} testID={`toml-hint:${slot.id}`} role="alert">That field needs a number</Text> : null}
+      <TextField
+        form
+        value={draft}
+        onChange={write}
+        label={label}
+        placeholder={entry ? "" : "Not set"}
+        testID={`toml-field:${slot.id}`}
+      />
+      {bad ? (
+        <Text style={[st.hint, st.hintErr]} testID={`toml-hint:${slot.id}`} role="alert">
+          That field needs a number
+        </Text>
+      ) : null}
     </View>
   );
 }
 
 /** The control of one key. */
-function Control({ slot, shared, people }: { slot: Slot; shared: Shared; people: readonly { id: string; name: string }[] }): ReactElement {
+function Control({
+  slot,
+  shared,
+  people,
+}: {
+  slot: Slot;
+  shared: Shared;
+  people: readonly { id: string; name: string }[];
+}): ReactElement {
   const { field, entry } = slot;
   const { element, show } = useMenu();
   const label = field.label;
-  const write = (raw: string): void => shared.onChange(writeField(shared.text, field, entry, slot.table, slot.section, raw));
-  if (entry && (entry.end > entry.line || shared.readOnly)) return <Text style={st.fixed} numberOfLines={1} testID={`toml-fixed:${slot.id}`}>{formValue(entry.raw)}</Text>;
-  if (!entry && shared.readOnly) return <Text style={st.fixed} testID={`toml-fixed:${slot.id}`}>Not set</Text>;
-  const open = (items: readonly MenuEntry[]) => (e: unknown): void => {
-    const at = anchorOf(e);
-    show(items, at.x, at.y, "other");
-  };
+  const write = (raw: string): void =>
+    shared.onChange(writeField(shared.text, field, entry, slot.table, slot.section, raw));
+  if (entry && (entry.end > entry.line || shared.readOnly))
+    return (
+      <Text style={st.fixed} numberOfLines={1} testID={`toml-fixed:${slot.id}`}>
+        {formValue(entry.raw)}
+      </Text>
+    );
+  if (!entry && shared.readOnly)
+    return (
+      <Text style={st.fixed} testID={`toml-fixed:${slot.id}`}>
+        Not set
+      </Text>
+    );
+  const open =
+    (items: readonly MenuEntry[]) =>
+    (e: unknown): void => {
+      const at = anchorOf(e);
+      show(items, at.x, at.y, "other");
+    };
   const raw = entry?.raw ?? "";
   const value = entry ? formValue(raw) : "";
   const tid = `toml-select:${slot.id}`;
   if (field.kind === "bool") {
-    return <View style={st.sw}><Switch on={raw.trim() === "true"} onChange={(on) => write(on ? "true" : "false")} label={label} testID={`toml-switch:${slot.id}`} /></View>;
+    return (
+      <View style={st.sw}>
+        <Switch
+          on={raw.trim() === "true"}
+          onChange={(on) => write(on ? "true" : "false")}
+          label={label}
+          testID={`toml-switch:${slot.id}`}
+        />
+      </View>
+    );
   }
   if (field.kind === "enum" && field.choices) {
     const choices = field.choices;
-    const items: MenuEntry[] = choices.map((c) => ({ label: c.label, checked: c.id === value, onSelect: () => write(`"${c.id}"`) }));
-    return <><PickerButton label={label} shown={entry ? pickLabel(choices, value) : "Not set"} onPress={open(items)} testID={tid} />{element}</>;
+    const items: MenuEntry[] = choices.map((c) => ({
+      label: c.label,
+      checked: c.id === value,
+      onSelect: () => write(`"${c.id}"`),
+    }));
+    return (
+      <>
+        <PickerButton
+          label={label}
+          shown={entry ? pickLabel(choices, value) : "Not set"}
+          onPress={open(items)}
+          testID={tid}
+        />
+        {element}
+      </>
+    );
   }
   if (field.kind === "model") {
-    const items: MenuEntry[] = [{ head: "Model" }, ...MODEL_CHOICES.map((c): MenuEntry => ({ label: c.label, checked: c.id === value, onSelect: () => write(`"${c.id}"`) }))];
-    return <><PickerButton label={label} shown={entry && value ? modelLabel(value) : "Not set"} onPress={open(items)} testID={tid} />{element}</>;
+    const items: MenuEntry[] = [
+      { head: "Model" },
+      ...MODEL_CHOICES.map(
+        (c): MenuEntry => ({ label: c.label, checked: c.id === value, onSelect: () => write(`"${c.id}"`) }),
+      ),
+    ];
+    return (
+      <>
+        <PickerButton
+          label={label}
+          shown={entry && value ? modelLabel(value) : "Not set"}
+          onPress={open(items)}
+          testID={tid}
+        />
+        {element}
+      </>
+    );
   }
   if (field.kind === "models") {
     const have = entry ? listItems(raw) : [];
-    const toggle = (id: string): void => write(listRaw(have.includes(id) ? have.filter((x) => x !== id) : [...have, id]));
-    const items: MenuEntry[] = [{ head: "Tried in order if the main model fails" }, ...MODEL_CHOICES.map((c): MenuEntry => ({ label: c.label, checked: have.includes(c.id), onSelect: () => toggle(c.id) }))];
-    return <><PickerButton label={label} shown={have.length ? have.map(modelLabel).join(", ") : "None"} onPress={open(items)} testID={tid} />{element}</>;
+    const toggle = (id: string): void =>
+      write(listRaw(have.includes(id) ? have.filter((x) => x !== id) : [...have, id]));
+    const items: MenuEntry[] = [
+      { head: "Tried in order if the main model fails" },
+      ...MODEL_CHOICES.map(
+        (c): MenuEntry => ({ label: c.label, checked: have.includes(c.id), onSelect: () => toggle(c.id) }),
+      ),
+    ];
+    return (
+      <>
+        <PickerButton
+          label={label}
+          shown={have.length ? have.map(modelLabel).join(", ") : "None"}
+          onPress={open(items)}
+          testID={tid}
+        />
+        {element}
+      </>
+    );
   }
   if (field.kind === "owner") {
     const who = people.some((p) => p.id === value) || !value ? people : [...people, { id: value, name: value }];
     const name = who.find((p) => p.id === value)?.name ?? "";
-    const items: MenuEntry[] = who.map((p) => ({ label: p.name, checked: p.id === value, onSelect: () => write(`"${p.id}"`) }));
+    const items: MenuEntry[] = who.map((p) => ({
+      label: p.name,
+      checked: p.id === value,
+      onSelect: () => write(`"${p.id}"`),
+    }));
     return (
       <>
-        <PickerButton label={label} shown={name || "Not set"} onPress={open(items)} testID={tid} {...(name ? { leading: <Avatar name={name} seedId={value} kind="person" size={18} /> } : {})} />
+        <PickerButton
+          label={label}
+          shown={name || "Not set"}
+          onPress={open(items)}
+          testID={tid}
+          {...(name ? { leading: <Avatar name={name} seedId={value} kind="person" size={18} /> } : {})}
+        />
         {element}
       </>
     );
@@ -121,9 +237,33 @@ function Control({ slot, shared, people }: { slot: Slot; shared: Shared; people:
 function ExtraControl({ entry, shared, section }: { entry: TomlEntry; shared: Shared; section: string }): ReactElement {
   const kind = tomlKind(entry.raw);
   const label = `${section ? `${humanKey(section)} ` : ""}${humanKey(entry.key)}`;
-  if (entry.end > entry.line || shared.readOnly) return <Text style={st.fixed} numberOfLines={1} testID={`toml-fixed:${entry.line}`}>{formValue(entry.raw)}</Text>;
-  if (kind === "bool") return <View style={st.sw}><Switch on={entry.raw.trim() === "true"} onChange={(on) => shared.onChange(setTomlValue(shared.text, entry, on ? "true" : "false"))} label={label} testID={`toml-switch:${entry.line}`} /></View>;
-  return <TextField form mono={kind !== "string"} value={formValue(entry.raw)} onChange={(v) => shared.onChange(setTomlValue(shared.text, entry, rawFromForm(kind, v)))} label={label} testID={`toml-field:${entry.line}`} />;
+  if (entry.end > entry.line || shared.readOnly)
+    return (
+      <Text style={st.fixed} numberOfLines={1} testID={`toml-fixed:${entry.line}`}>
+        {formValue(entry.raw)}
+      </Text>
+    );
+  if (kind === "bool")
+    return (
+      <View style={st.sw}>
+        <Switch
+          on={entry.raw.trim() === "true"}
+          onChange={(on) => shared.onChange(setTomlValue(shared.text, entry, on ? "true" : "false"))}
+          label={label}
+          testID={`toml-switch:${entry.line}`}
+        />
+      </View>
+    );
+  return (
+    <TextField
+      form
+      mono={kind !== "string"}
+      value={formValue(entry.raw)}
+      onChange={(v) => shared.onChange(setTomlValue(shared.text, entry, rawFromForm(kind, v)))}
+      label={label}
+      testID={`toml-field:${entry.line}`}
+    />
+  );
 }
 
 function Hints({ issues, line }: { issues: readonly TomlIssue[]; line: number | undefined }): ReactElement | null {
@@ -131,14 +271,27 @@ function Hints({ issues, line }: { issues: readonly TomlIssue[]; line: number | 
   const here = issues.filter((i) => i.line === line);
   if (!here.length) return null;
   // ui-rows-lint: not a list (the lint's messages under a key, plain text lines)
-  return <View style={st.hints}>{here.map((i) => <Text key={`${i.severity}${i.message}`} style={[st.hint, i.severity === "error" ? st.hintErr : st.hintWarn]}>{i.message}</Text>)}</View>;
+  return (
+    <View style={st.hints}>
+      {here.map((i) => (
+        <Text key={`${i.severity}${i.message}`} style={[st.hint, i.severity === "error" ? st.hintErr : st.hintWarn]}>
+          {i.message}
+        </Text>
+      ))}
+    </View>
+  );
 }
 
 export function TomlForm({ text, onChange, readOnly = false, issues = [] }: TomlFormProps): ReactElement {
   const data = useReviewData();
   const [width, setWidth] = useState(0);
   const found = parseToml(text);
-  if (!found.length) return <View style={st.wrap} testID="toml-form"><Text style={st.empty}>Nothing in agent.toml yet. Switch to Text to write the first line.</Text></View>;
+  if (!found.length)
+    return (
+      <View style={st.wrap} testID="toml-form">
+        <Text style={st.empty}>Nothing in agent.toml yet. Switch to Text to write the first line.</Text>
+      </View>
+    );
   const shared: Shared = { text, onChange, readOnly };
   const tables = tomlTables(text);
   const people = data.people ?? [];
@@ -150,7 +303,12 @@ export function TomlForm({ text, onChange, readOnly = false, issues = [] }: Toml
 
   const line = (key: string, title: string, control: ReactElement, at: number | undefined): ReactElement => (
     <View key={key}>
-      <Row id={key} title={title} trailing={<View style={[st.ctl, { width: box }]}>{control}</View>} domProps={{ style: ROW_STYLE }} />
+      <Row
+        id={key}
+        title={title}
+        trailing={<View style={[st.ctl, { width: box }]}>{control}</View>}
+        domProps={{ style: ROW_STYLE }}
+      />
       <Hints issues={issues} line={at} />
     </View>
   );
@@ -161,7 +319,10 @@ export function TomlForm({ text, onChange, readOnly = false, issues = [] }: Toml
     const blocks: (TomlTable | undefined)[] = ts.length ? ts : [undefined];
     return (
       <View key={g.section} style={st.group} testID={`toml-group:${g.section}`}>
-        <Text accessibilityRole="header" aria-level={3} style={st.head}>{g.title}{g.multi ? <Text style={st.count}>{`  ${ts.length}`}</Text> : null}</Text>
+        <Text accessibilityRole="header" aria-level={3} style={st.head}>
+          {g.title}
+          {g.multi ? <Text style={st.count}>{`  ${ts.length}`}</Text> : null}
+        </Text>
         {/* ui-rows-lint: not a list (one block per [[table]]; each block's lines are ui/Row) */}
         {blocks.map((t, ti) => {
           const rows: ReactElement[] = [];
@@ -169,13 +330,28 @@ export function TomlForm({ text, onChange, readOnly = false, issues = [] }: Toml
             const entry = t?.entries.find((e) => e.key === f.key);
             const idn = `${g.section}${g.multi ? `#${ti + 1}` : ""}.${f.key}`;
             const slot: Slot = { field: f, entry, table: t, section: g.section, id: entry ? String(entry.line) : idn };
-            rows.push(line(`toml:${slot.id}`, f.label, <Control slot={slot} shared={shared} people={people} />, entry?.line));
+            rows.push(
+              line(`toml:${slot.id}`, f.label, <Control slot={slot} shared={shared} people={people} />, entry?.line),
+            );
           });
-          if (t) for (const e of extraEntries(t, g)) rows.push(line(`toml:${e.line}`, humanKey(e.key), <ExtraControl entry={e} shared={shared} section={g.section} />, e.line));
+          if (t)
+            for (const e of extraEntries(t, g))
+              rows.push(
+                line(
+                  `toml:${e.line}`,
+                  humanKey(e.key),
+                  <ExtraControl entry={e} shared={shared} section={g.section} />,
+                  e.line,
+                ),
+              );
           const idKey = t?.entries.find((e) => e.key === "id");
           return (
             <View key={t ? t.line : "none"} style={ti > 0 ? st.block : undefined}>
-              {g.multi && ts.length > 1 ? <Text style={st.blockName}>{`${g.title.replace(/s$/, "")} ${ti + 1}${idKey ? ` · ${formValue(idKey.raw)}` : ""}`}</Text> : null}
+              {g.multi && ts.length > 1 ? (
+                <Text
+                  style={st.blockName}
+                >{`${g.title.replace(/s$/, "")} ${ti + 1}${idKey ? ` · ${formValue(idKey.raw)}` : ""}`}</Text>
+              ) : null}
               {rows}
             </View>
           );
@@ -197,14 +373,24 @@ export function TomlForm({ text, onChange, readOnly = false, issues = [] }: Toml
     seen.add(key);
     strays.push(
       <View key={key} style={st.group} testID={`toml-group:${t.name || "top"}`}>
-        <Text accessibilityRole="header" aria-level={3} style={st.head}>{title}</Text>
-        {entries.map((e) => line(`toml:${e.line}`, humanKey(e.key), <ExtraControl entry={e} shared={shared} section={t.name} />, e.line))}
+        <Text accessibilityRole="header" aria-level={3} style={st.head}>
+          {title}
+        </Text>
+        {entries.map((e) =>
+          line(`toml:${e.line}`, humanKey(e.key), <ExtraControl entry={e} shared={shared} section={t.name} />, e.line),
+        )}
       </View>,
     );
   }
 
   return (
-    <View style={st.wrap} testID="toml-form" role="form" aria-label="agent.toml as a form" onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+    <View
+      style={st.wrap}
+      testID="toml-form"
+      role="form"
+      aria-label="agent.toml as a form"
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+    >
       {/* ui-rows-lint: not a list (table sections; each section is a heading and its ui/Row lines) */}
       {FORM_GROUPS.map(groupBlock)}
       {strays}

@@ -8,8 +8,15 @@ export const FRAGMENT_TAIL = FRAGMENT - 1;
 const FRAGMENT_MIN_SECRET = 12;
 export const WITHHELD = "[output withheld: it may contain a secret]";
 
-export interface Secret { handle: string; itemId: string; value: string }
-export interface MissReport { itemId: string; handle: string }
+export interface Secret {
+  handle: string;
+  itemId: string;
+  value: string;
+}
+export interface MissReport {
+  itemId: string;
+  handle: string;
+}
 
 function b64Variants(raw: Uint8Array): string[] {
   const out: string[] = [];
@@ -29,8 +36,24 @@ function b64Variants(raw: Uint8Array): string[] {
 
 /** The inside of bash's $'...' for a value: named escapes, an escaped quote and backslash, octal for any other control character. */
 function ansiC(value: string): string {
-  const named: Record<string, string> = { "\n": "\\n", "\t": "\\t", "\r": "\\r", "\x07": "\\a", "\b": "\\b", "\x1b": "\\E", "\f": "\\f", "\v": "\\v", "'": "\\'", "\\": "\\\\" };
-  return Array.from(value, (c) => named[c] ?? (c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127 ? `\\${c.charCodeAt(0).toString(8).padStart(3, "0")}` : c)).join("");
+  const named: Record<string, string> = {
+    "\n": "\\n",
+    "\t": "\\t",
+    "\r": "\\r",
+    "\x07": "\\a",
+    "\b": "\\b",
+    "\x1b": "\\E",
+    "\f": "\\f",
+    "\v": "\\v",
+    "'": "\\'",
+    "\\": "\\\\",
+  };
+  return Array.from(
+    value,
+    (c) =>
+      named[c] ??
+      (c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127 ? `\\${c.charCodeAt(0).toString(8).padStart(3, "0")}` : c),
+  ).join("");
 }
 
 /** Every spelling of `value` we remove. */
@@ -89,21 +112,31 @@ export function createScrubber(secrets: readonly Secret[]): Scrubber {
     const merged: Array<[number, number, string]> = [];
     for (const m of all) {
       const last = merged[merged.length - 1];
-      if (last && m[0] < last[1]) { if (m[1] > last[1]) last[1] = m[1]; } else merged.push([m[0], m[1], m[2]]);
+      if (last && m[0] < last[1]) {
+        if (m[1] > last[1]) last[1] = m[1];
+      } else merged.push([m[0], m[1], m[2]]);
     }
     return merged;
   };
   const scrub = (text: string): string => {
-    let out = "", at = 0;
-    for (const [a, b, h] of spans(text)) { out += text.slice(at, a) + mark(h); at = b; }
+    let out = "",
+      at = 0;
+    for (const [a, b, h] of spans(text)) {
+      out += text.slice(at, a) + mark(h);
+      at = b;
+    }
     return out + text.slice(at);
   };
 
-  const windows = secrets.filter((s) => s.value.length >= FRAGMENT_MIN_SECRET).map((s) => {
-    const w: string[] = [];
-    for (const v of variantsOf(s.value)) if (v.length >= FRAGMENT_MIN_SECRET) for (let i = 0; i + FRAGMENT <= v.length; i++) w.push(v.slice(i, i + FRAGMENT));
-    return { s, w: [...new Set(w)] };
-  });
+  const windows = secrets
+    .filter((s) => s.value.length >= FRAGMENT_MIN_SECRET)
+    .map((s) => {
+      const w: string[] = [];
+      for (const v of variantsOf(s.value))
+        if (v.length >= FRAGMENT_MIN_SECRET)
+          for (let i = 0; i + FRAGMENT <= v.length; i++) w.push(v.slice(i, i + FRAGMENT));
+      return { s, w: [...new Set(w)] };
+    });
 
   return {
     span,

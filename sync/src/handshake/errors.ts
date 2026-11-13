@@ -4,8 +4,10 @@ import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 export function updateRequiredError(traceId: string, appVersion?: string): VyreErr {
   return new VyreErr({
     code: "permission.update_required",
-    message: "This app is too old for this Space. You can still read everything. Update the app to make changes. Changes you made are kept.",
-    retryable: false, traceId,
+    message:
+      "This app is too old for this Space. You can still read everything. Update the app to make changes. Changes you made are kept.",
+    retryable: false,
+    traceId,
     next: [{ kind: "update_app", label: "Update the app" }],
     ...(appVersion ? { details: { appVersion } } : {}),
   });

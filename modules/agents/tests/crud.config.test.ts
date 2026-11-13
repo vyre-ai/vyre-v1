@@ -9,7 +9,12 @@ import type { Harness } from "../fixtures/harness.ts";
 
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 let n = 0;
-const call = async (hn: Harness, cap: string, input: Record<string, unknown>, ctx: Harness["ctx"] = hn.ctx): Promise<any> => {
+const call = async (
+  hn: Harness,
+  cap: string,
+  input: Record<string, unknown>,
+  ctx: Harness["ctx"] = hn.ctx,
+): Promise<any> => {
   assert.deepEqual(contractErrors(cap, "in", input), [], `${cap}: input`);
   const out = await h[cap]!(ctx, input);
   assert.deepEqual(contractErrors(cap, "out", out), [], `${cap}: output`);
@@ -17,7 +22,14 @@ const call = async (hn: Harness, cap: string, input: Record<string, unknown>, ct
 };
 async function setup(over: Record<string, unknown> = {}) {
   const hn = harness();
-  const agent = (await call(hn, "agents.create", { name: "Intake", role: "Use me when a form arrives.", idempotencyKey: `c${++n}`, ...over })).agent;
+  const agent = (
+    await call(hn, "agents.create", {
+      name: "Intake",
+      role: "Use me when a form arrives.",
+      idempotencyKey: `c${++n}`,
+      ...over,
+    })
+  ).agent;
   const home = hn.world.folderNamed("Intake", hn.world.root)!;
   const toml = hn.world.fileIn(home.folderId, "agent.toml")!;
   const md = hn.world.fileIn(home.folderId, "AGENT.md")!;
@@ -31,18 +43,71 @@ const watch = consumers["agents.config_watch"];
 test("update changes the fields, saves agent.toml as one version, and announces what changed", async () => {
   const { hn, id, toml } = await setup();
   const before = hn.world.files.get(toml.fileId)!.versions.length;
-  const out = await call(hn, "agents.update", { agentId: id, patch: {
-    model: "claude-opus-4-5", fallbackModel: "claude-sonnet-5-5", toolsAllowed: ["files"], toolsDenied: ["terminal"], vaultKeys: ["#Team_Anthropic_Key"], captureMode: "auto_low_risk",
-    limits: { dayCostMicros: 2_000_000, turnsPerDay: 50 }, handoffs: ["Drafter"], face: "new-face",
-  } });
+  const out = await call(hn, "agents.update", {
+    agentId: id,
+    patch: {
+      model: "claude-opus-4-5",
+      fallbackModel: "claude-sonnet-5-5",
+      toolsAllowed: ["files"],
+      toolsDenied: ["terminal"],
+      vaultKeys: ["#Team_Anthropic_Key"],
+      captureMode: "auto_low_risk",
+      limits: { dayCostMicros: 2_000_000, turnsPerDay: 50 },
+      handoffs: ["Drafter"],
+      face: "new-face",
+    },
+  });
   const a = out.agent;
-  assert.deepEqual([a.model, a.fallbackModel, a.toolsAllowed, a.toolsDenied, a.vaultKeys, a.captureMode, a.limits, a.face], ["claude-opus-4-5", "claude-sonnet-5-5", ["files"], ["terminal"], ["#Team_Anthropic_Key"], "auto_low_risk", { dayCostMicros: 2_000_000, turnsPerDay: 50 }, "new-face"]);
+  assert.deepEqual(
+    [a.model, a.fallbackModel, a.toolsAllowed, a.toolsDenied, a.vaultKeys, a.captureMode, a.limits, a.face],
+    [
+      "claude-opus-4-5",
+      "claude-sonnet-5-5",
+      ["files"],
+      ["terminal"],
+      ["#Team_Anthropic_Key"],
+      "auto_low_risk",
+      { dayCostMicros: 2_000_000, turnsPerDay: 50 },
+      "new-face",
+    ],
+  );
   assert.equal(hn.world.files.get(toml.fileId)!.versions.length, before + 1, "one save, one version");
   const doc = parseToml(hn.world.text(toml.fileId)).value as any;
-  assert.deepEqual([doc.model, doc.fallback_model, doc.tools.allowed, doc.vault.keys, doc.memory.capture, doc.limits.per_day, doc.limits.turns, doc.handoffs], ["claude-opus-4-5", "claude-sonnet-5-5", ["files"], ["#Team_Anthropic_Key"], "auto_low_risk", 2_000_000, 50, ["Drafter"]]);
+  assert.deepEqual(
+    [
+      doc.model,
+      doc.fallback_model,
+      doc.tools.allowed,
+      doc.vault.keys,
+      doc.memory.capture,
+      doc.limits.per_day,
+      doc.limits.turns,
+      doc.handoffs,
+    ],
+    [
+      "claude-opus-4-5",
+      "claude-sonnet-5-5",
+      ["files"],
+      ["#Team_Anthropic_Key"],
+      "auto_low_risk",
+      2_000_000,
+      50,
+      ["Drafter"],
+    ],
+  );
   const ev = hn.named("agent.config_changed");
   assert.equal(ev.length, 1);
-  assert.deepEqual((ev[0]!.payload["fields"] as string[]).sort(), ["captureMode", "face", "fallbackModel", "handoffs", "limits", "model", "toolsAllowed", "toolsDenied", "vaultKeys"]);
+  assert.deepEqual((ev[0]!.payload["fields"] as string[]).sort(), [
+    "captureMode",
+    "face",
+    "fallbackModel",
+    "handoffs",
+    "limits",
+    "model",
+    "toolsAllowed",
+    "toolsDenied",
+    "vaultKeys",
+  ]);
   assert.equal(ev[0]!.payload["versionId"], hn.world.files.get(toml.fileId)!.versions.at(-1)!.versionId);
   assert.deepEqual(assertEventsConform(hn), []);
   const cfg = await call(hn, "agents.config.get", { agentId: id });
@@ -61,8 +126,10 @@ test("update with a face only, or with nothing, saves no file and announces only
 
 test("update refuses what cannot be changed here, what is not a field, and what would not pass; nothing is half applied", async () => {
   const { hn, id, toml } = await setup();
-  const bad = (patch: Record<string, unknown>, code: string, label: string) => failure(() => call(hn, "agents.update", { agentId: id, patch })).then((c) => assert.equal(c, code, label));
-  for (const k of ["ownerId", "folderId", "status", "templateVersion", "createdAt", "hasComputer", "agentId"]) await bad({ [k]: "x", model: "m" }, "validation.field_locked", `${k} is locked`);
+  const bad = (patch: Record<string, unknown>, code: string, label: string) =>
+    failure(() => call(hn, "agents.update", { agentId: id, patch })).then((c) => assert.equal(c, code, label));
+  for (const k of ["ownerId", "folderId", "status", "templateVersion", "createdAt", "hasComputer", "agentId"])
+    await bad({ [k]: "x", model: "m" }, "validation.field_locked", `${k} is locked`);
   await bad({ colour: "red" }, "validation.bad_input", "unknown field");
   await bad({ name: "a/b" }, "validation.bad_input", "bad name");
   await bad({ role: "two\nlines" }, "validation.bad_input", "role one line");
@@ -78,31 +145,59 @@ test("update refuses what cannot be changed here, what is not a field, and what 
   assert.equal(hn.world.files.get(toml.fileId)!.versions.length, 1, "no version was made by any of these");
   assert.equal((await call(hn, "agents.get", { agentId: id })).agent.model, undefined);
   assert.deepEqual(hn.names(), []);
-  const keyed = await call(hn, "agents.update", { agentId: id, patch: { accountPolicy: "key", accountKey: "#Team_Anthropic_Key" } });
+  const keyed = await call(hn, "agents.update", {
+    agentId: id,
+    patch: { accountPolicy: "key", accountKey: "#Team_Anthropic_Key" },
+  });
   assert.deepEqual([keyed.agent.accountPolicy, keyed.agent.accountKey], ["key", "#Team_Anthropic_Key"]);
-  assert.equal(await failure(() => call(hn, "agents.update", { agentId: id, patch: { accountPolicy: "asker" } })), "none", "back to the asker's account");
+  assert.equal(
+    await failure(() => call(hn, "agents.update", { agentId: id, patch: { accountPolicy: "asker" } })),
+    "none",
+    "back to the asker's account",
+  );
 });
 
 test("a rename renames the folder, is unique among agents, and the old name is free", async () => {
   const { hn, id, home } = await setup();
   await call(hn, "agents.create", { name: "Drafter", idempotencyKey: "d1" });
-  assert.equal(await failure(() => call(hn, "agents.update", { agentId: id, patch: { name: "drafter" } })), "validation.bad_input");
+  assert.equal(
+    await failure(() => call(hn, "agents.update", { agentId: id, patch: { name: "drafter" } })),
+    "validation.bad_input",
+  );
   const out = await call(hn, "agents.update", { agentId: id, patch: { name: "Front Desk" } });
   assert.equal(out.agent.name, "Front Desk");
   assert.equal(hn.world.folders.get(home.folderId)!.name, "Front Desk");
-  assert.equal((await call(hn, "agents.list", {})).agents.some((a: any) => a.name === "Intake"), false);
+  assert.equal(
+    (await call(hn, "agents.list", {})).agents.some((a: any) => a.name === "Intake"),
+    false,
+  );
   await call(hn, "agents.create", { name: "Intake", idempotencyKey: "d2" });
-  hn.world.answer("files.folder.rename", () => { throw Object.assign(new Error("exists"), { error: { code: "validation.duplicate" } }); });
-  assert.equal(await failure(() => call(hn, "agents.update", { agentId: id, patch: { name: "Other" } })), "validation.bad_input", "a taken folder name is the same refusal");
+  hn.world.answer("files.folder.rename", () => {
+    throw Object.assign(new Error("exists"), { error: { code: "validation.duplicate" } });
+  });
+  assert.equal(
+    await failure(() => call(hn, "agents.update", { agentId: id, patch: { name: "Other" } })),
+    "validation.bad_input",
+    "a taken folder name is the same refusal",
+  );
 });
 
 test("without Edit an agent can be read and not changed", async () => {
   const { hn, id } = await setup();
   hn.allowOnly((a) => a.level === "view");
   assert.equal((await call(hn, "agents.get", { agentId: id })).agent.name, "Intake");
-  assert.equal(await failure(() => call(hn, "agents.update", { agentId: id, patch: { model: "m" } })), "permission.no_grant");
-  assert.equal(await failure(() => call(hn, "agents.role_line.set", { agentId: id, description: "x" })), "permission.no_grant");
-  assert.equal(await failure(() => call(hn, "agents.restore_version", { agentId: id, versionId: "ver_000001" })), "permission.no_grant");
+  assert.equal(
+    await failure(() => call(hn, "agents.update", { agentId: id, patch: { model: "m" } })),
+    "permission.no_grant",
+  );
+  assert.equal(
+    await failure(() => call(hn, "agents.role_line.set", { agentId: id, description: "x" })),
+    "permission.no_grant",
+  );
+  assert.equal(
+    await failure(() => call(hn, "agents.restore_version", { agentId: id, versionId: "ver_000001" })),
+    "permission.no_grant",
+  );
 });
 
 // ---- make a lesson an instruction -----------------------------------------------------------------------------------------------------------------
@@ -110,7 +205,10 @@ test("without Edit an agent can be read and not changed", async () => {
 test("a lesson becomes one bullet in AGENT.md under its own heading, as a new version with Undo; the same line twice adds nothing; it needs Edit", async () => {
   const { hn, id, md } = await setup();
   const v1 = hn.world.files.get(md.fileId)!.versions[0]!;
-  const out = await call(hn, "agents.instruction.append", { agentId: id, line: "Notes to Sara: three lines, the number first." });
+  const out = await call(hn, "agents.instruction.append", {
+    agentId: id,
+    line: "Notes to Sara: three lines, the number first.",
+  });
   assert.equal(out.added, true);
   assert.equal(out.undoVersionId, v1.versionId);
   const text = hn.world.text(md.fileId);
@@ -124,13 +222,23 @@ test("a lesson becomes one bullet in AGENT.md under its own heading, as a new ve
   const same = await call(hn, "agents.instruction.append", { agentId: id, line: "Ask before sending to a client." });
   assert.equal(same.added, false);
   assert.equal(hn.world.files.get(md.fileId)!.versions.length, 3);
-  assert.equal(await failure(() => call(hn, "agents.instruction.append", { agentId: id, line: "   " })), "validation.bad_input");
+  assert.equal(
+    await failure(() => call(hn, "agents.instruction.append", { agentId: id, line: "   " })),
+    "validation.bad_input",
+  );
   // Undo is the same restore the role line uses
-  const undone = await call(hn, "agents.restore_version", { agentId: id, versionId: out.undoVersionId, file: "AGENT.md" });
+  const undone = await call(hn, "agents.restore_version", {
+    agentId: id,
+    versionId: out.undoVersionId,
+    file: "AGENT.md",
+  });
   assert.ok(undone.agent);
   assert.equal(hn.world.text(md.fileId).includes("Lessons from corrections"), false);
   hn.allowOnly((a) => a.level === "view");
-  assert.equal(await failure(() => call(hn, "agents.instruction.append", { agentId: id, line: "No." })), "permission.no_grant");
+  assert.equal(
+    await failure(() => call(hn, "agents.instruction.append", { agentId: id, line: "No." })),
+    "permission.no_grant",
+  );
 });
 
 // ---- the role line ----------------------------------------------------------------------------------------------------------------------------------
@@ -147,7 +255,11 @@ test("the role line edits agent.toml in place and hands back the version Undo go
   assert.deepEqual(assertEventsConform(hn), []);
 
   // Undo is one call: the old text comes back as a new version, and the agent reads as it did.
-  const undone = await call(hn, "agents.restore_version", { agentId: id, versionId: out.undoVersionId, file: "agent.toml" });
+  const undone = await call(hn, "agents.restore_version", {
+    agentId: id,
+    versionId: out.undoVersionId,
+    file: "agent.toml",
+  });
   assert.equal(undone.agent.role, "Use me when a form arrives.");
   assert.equal((parseToml(hn.world.text(toml.fileId)).value as any).description, "Use me when a form arrives.");
   assert.equal(hn.world.files.get(toml.fileId)!.versions.length, 3, "undo adds a version; nothing is lost");
@@ -161,7 +273,10 @@ test("a role line that is already the role line saves nothing; it is one line of
   assert.equal(same.undoVersionId, hn.world.files.get(toml.fileId)!.versions[0]!.versionId);
   assert.equal(hn.world.files.get(toml.fileId)!.versions.length, 1);
   assert.deepEqual(hn.names(), []);
-  assert.equal(await failure(() => call(hn, "agents.role_line.set", { agentId: id, description: "two\nlines" })), "validation.bad_input");
+  assert.equal(
+    await failure(() => call(hn, "agents.role_line.set", { agentId: id, description: "two\nlines" })),
+    "validation.bad_input",
+  );
   const cleared = await call(hn, "agents.role_line.set", { agentId: id, description: "" });
   assert.equal(cleared.agent.role, undefined);
   assert.equal((parseToml(hn.world.text(toml.fileId)).value as any).description, undefined);
@@ -176,7 +291,11 @@ test("a person saves agent.toml with an error in Files: the last good version ke
   assert.deepEqual(touched, [id]);
   const ev = hn.named("agent.config_error");
   assert.equal(ev.length, 1);
-  assert.deepEqual(ev[0]!.payload, { agentId: id, message: '"claude-opus" is not a value; text needs quotes.', line: 2 });
+  assert.deepEqual(ev[0]!.payload, {
+    agentId: id,
+    message: '"claude-opus" is not a value; text needs quotes.',
+    line: 2,
+  });
   assert.deepEqual(assertEventsConform(hn), []);
   const agent = (await call(hn, "agents.get", { agentId: id })).agent;
   assert.equal(agent.model, "claude-sonnet-5-5", "the last good version is what runs");
@@ -215,52 +334,130 @@ test("a change to AGENT.md is announced with the file name; an unknown file is n
   assert.deepEqual(hn.named("agent.config_changed")[0]!.payload["fields"], ["AGENT.md"]);
   const lines = (await call(hn, "agents.config.get", { agentId: id })).lines;
   assert.equal(lines.agentMd, 5);
-  assert.deepEqual(await watch.run(hn.ctx, { payload: { fileId: "fil_nothing", versionId: "ver_x", n: 1, by: DANA } }), []);
+  assert.deepEqual(
+    await watch.run(hn.ctx, { payload: { fileId: "fil_nothing", versionId: "ver_x", n: 1, by: DANA } }),
+    [],
+  );
 });
 
 test("agents.config.validate checks a text without saving it and says what it would widen", async () => {
-  const { hn, id, toml } = await setup({ tools: { allowed: ["files"], denied: ["terminal"] }, limits: { dayCostMicros: 1_000_000 } });
-  const okText = 'name = "Intake"\naccount_policy = "asker"\nhandoffs = []\n\n[tools]\nallowed = ["files", "browser"]\ndenied = []\n\n[vault]\nkeys = ["#Stripe"]\n\n[limits]\nper_day = 5000000\n';
+  const { hn, id, toml } = await setup({
+    tools: { allowed: ["files"], denied: ["terminal"] },
+    limits: { dayCostMicros: 1_000_000 },
+  });
+  const okText =
+    'name = "Intake"\naccount_policy = "asker"\nhandoffs = []\n\n[tools]\nallowed = ["files", "browser"]\ndenied = []\n\n[vault]\nkeys = ["#Stripe"]\n\n[limits]\nper_day = 5000000\n';
   const r = await call(hn, "agents.config.validate", { agentId: id, toml: okText });
   assert.equal(r.ok, true);
-  assert.deepEqual(r.widens.sort(), ["limits.per_day goes from 1000000 to 5000000", "tools.allowed adds browser", "tools.denied no longer denies terminal", "vault.keys adds #Stripe"].sort());
-  const bad = await call(hn, "agents.config.validate", { agentId: id, toml: 'name = "x"\n[limits]\nper_day = -5\nunknown = 1\n' });
+  assert.deepEqual(
+    r.widens.sort(),
+    [
+      "limits.per_day goes from 1000000 to 5000000",
+      "tools.allowed adds browser",
+      "tools.denied no longer denies terminal",
+      "vault.keys adds #Stripe",
+    ].sort(),
+  );
+  const bad = await call(hn, "agents.config.validate", {
+    agentId: id,
+    toml: 'name = "x"\n[limits]\nper_day = -5\nunknown = 1\n',
+  });
   assert.equal(bad.ok, false);
-  assert.deepEqual(bad.errors.map((e: any) => [e.line, e.message]), [[3, "limits.per_day is a number, zero or more."], [4, "limits.unknown is not a limit and is ignored."]]);
+  assert.deepEqual(
+    bad.errors.map((e: any) => [e.line, e.message]),
+    [
+      [3, "limits.per_day is a number, zero or more."],
+      [4, "limits.unknown is not a limit and is ignored."],
+    ],
+  );
   assert.deepEqual(bad.widens, []);
-  const warn = await call(hn, "agents.config.validate", { agentId: id, toml: 'name = "Intake"\nhandoffs = ["Nobody"]\nweird = 1\n' });
+  const warn = await call(hn, "agents.config.validate", {
+    agentId: id,
+    toml: 'name = "Intake"\nhandoffs = ["Nobody"]\nweird = 1\n',
+  });
   assert.equal(warn.ok, true, "warnings do not stop a save");
-  assert.deepEqual(warn.errors.map((e: any) => e.message), ["weird is not a field of agent.toml and is ignored."]);
+  assert.deepEqual(
+    warn.errors.map((e: any) => e.message),
+    ["weird is not a field of agent.toml and is ignored."],
+  );
   assert.equal(hn.world.files.get(toml.fileId)!.versions.length, 1, "nothing was saved");
-  for (const t of ['name = "a"\ndescription = "two\\nlines"\n', "name = 5\n", 'name = "a"\nmodel = 5\n', 'name = "a"\naccount_policy = "both"\n', 'name = "a"\n[memory]\ncapture = "x"\n']) assert.equal((await call(hn, "agents.config.validate", { agentId: id, toml: t })).ok, false, t);
+  for (const t of [
+    'name = "a"\ndescription = "two\\nlines"\n',
+    "name = 5\n",
+    'name = "a"\nmodel = 5\n',
+    'name = "a"\naccount_policy = "both"\n',
+    'name = "a"\n[memory]\ncapture = "x"\n',
+  ])
+    assert.equal((await call(hn, "agents.config.validate", { agentId: id, toml: t })).ok, false, t);
 });
 
 // ---- limits, snapshots, versions --------------------------------------------------------------------------------------------------------------
 
 test("limits: agent.toml can never exceed a Space or person cap, and the answer says whose limit applies", async () => {
-  const { hn, id } = await setup({ limits: { dayCostMicros: 9_000_000, monthCostMicros: 50_000_000, turnsPerDay: 100, tokensPerDay: 1_000_000 } });
-  hn.world.answer("engine.spend.get", (i: any) => ({ caps: i.scope === "space" ? { dayMicros: 5_000_000, turnsPerDay: 200, timeMinutesPerRun: 30 } : { monthMicros: 20_000_000 }, todayMicros: 0, monthMicros: 0, turnsToday: 0, paused: false }));
+  const { hn, id } = await setup({
+    limits: { dayCostMicros: 9_000_000, monthCostMicros: 50_000_000, turnsPerDay: 100, tokensPerDay: 1_000_000 },
+  });
+  hn.world.answer("engine.spend.get", (i: any) => ({
+    caps:
+      i.scope === "space"
+        ? { dayMicros: 5_000_000, turnsPerDay: 200, timeMinutesPerRun: 30 }
+        : { monthMicros: 20_000_000 },
+    todayMicros: 0,
+    monthMicros: 0,
+    turnsToday: 0,
+    paused: false,
+  }));
   const r = await call(hn, "agents.limits.get", { agentId: id });
-  assert.deepEqual(r.limits, { dayCostMicros: 5_000_000, monthCostMicros: 20_000_000, turnsPerDay: 100, minutesPerRun: 30, tokensPerDay: 1_000_000 });
-  assert.deepEqual(r.source, { per_day: "space", per_month: "person", turns: "agent", minutes: "space", tokens: "agent" });
+  assert.deepEqual(r.limits, {
+    dayCostMicros: 5_000_000,
+    monthCostMicros: 20_000_000,
+    turnsPerDay: 100,
+    minutesPerRun: 30,
+    tokensPerDay: 1_000_000,
+  });
+  assert.deepEqual(r.source, {
+    per_day: "space",
+    per_month: "person",
+    turns: "agent",
+    minutes: "space",
+    tokens: "agent",
+  });
   const none = await setup();
-  none.hn.world.answer("engine.spend.get", () => { throw new Error("engine is down"); });
-  assert.deepEqual((await call(none.hn, "agents.limits.get", { agentId: none.id })).limits, {}, "without the engine only the agent's own limits count, and there are none");
+  none.hn.world.answer("engine.spend.get", () => {
+    throw new Error("engine is down");
+  });
+  assert.deepEqual(
+    (await call(none.hn, "agents.limits.get", { agentId: none.id })).limits,
+    {},
+    "without the engine only the agent's own limits count, and there are none",
+  );
 });
 
 test("a snapshot is the files as they were when a run started: changes apply between runs", async () => {
   const { hn, id, toml } = await setup({ model: "claude-sonnet-5-5" });
   const s1 = await call(hn, "agents.snapshot.take", { agentId: id, runId: "run_a1" });
   assert.equal(s1.version, 1);
-  assert.deepEqual(await call(hn, "agents.snapshot.take", { agentId: id, runId: "run_a1" }), s1, "the same run asks again, gets the same snapshot");
-  assert.deepEqual(await call(hn, "agents.snapshot.take", { agentId: id }), s1, "nothing changed and no run asked for its own: the same snapshot serves");
+  assert.deepEqual(
+    await call(hn, "agents.snapshot.take", { agentId: id, runId: "run_a1" }),
+    s1,
+    "the same run asks again, gets the same snapshot",
+  );
+  assert.deepEqual(
+    await call(hn, "agents.snapshot.take", { agentId: id }),
+    s1,
+    "nothing changed and no run asked for its own: the same snapshot serves",
+  );
   const row = hn.rows("SELECT * FROM agents_snapshot WHERE id = ?", s1.snapshotId)[0]!;
   assert.equal(JSON.parse(String(row["config"])).model, "claude-sonnet-5-5");
   assert.equal(row["tomlVersionId"], hn.world.files.get(toml.fileId)!.versions.at(-1)!.versionId);
   await call(hn, "agents.update", { agentId: id, patch: { model: "claude-opus-4-5" } });
   const s2 = await call(hn, "agents.snapshot.take", { agentId: id, runId: "run_a2" });
   assert.equal(s2.version, 2);
-  assert.equal(JSON.parse(String(hn.rows("SELECT config FROM agents_snapshot WHERE id = ?", s1.snapshotId)[0]!["config"])).model, "claude-sonnet-5-5", "the first run's snapshot did not move");
+  assert.equal(
+    JSON.parse(String(hn.rows("SELECT config FROM agents_snapshot WHERE id = ?", s1.snapshotId)[0]!["config"])).model,
+    "claude-sonnet-5-5",
+    "the first run's snapshot did not move",
+  );
   // Unchanged files and no run: the latest snapshot serves.
   const again = await call(hn, "agents.snapshot.take", { agentId: id });
   assert.deepEqual(again, s2);
@@ -275,7 +472,10 @@ test("versions lists the agent's files newest first, one file or both; restore b
   await call(hn, "agents.update", { agentId: id, patch: { model: "m2" } });
   const all = (await call(hn, "agents.versions", { agentId: id })).versions;
   assert.equal(all.length, 5);
-  assert.deepEqual(all.map((v: any) => v.at), [...all.map((v: any) => v.at)].sort((x: number, y: number) => y - x));
+  assert.deepEqual(
+    all.map((v: any) => v.at),
+    [...all.map((v: any) => v.at)].sort((x: number, y: number) => y - x),
+  );
   const tomlOnly = (await call(hn, "agents.versions", { agentId: id, file: "agent.toml" })).versions;
   assert.equal(tomlOnly.length, 3);
   assert.equal((await call(hn, "agents.versions", { agentId: id, file: "AGENT.md" })).versions.length, 2);
@@ -291,7 +491,10 @@ test("versions lists the agent's files newest first, one file or both; restore b
   const mdBack = await call(hn, "agents.restore_version", { agentId: id, versionId: first.versionId });
   assert.equal(mdBack.agent.name, "Intake");
   assert.deepEqual(hn.named("agent.config_changed").at(-1)!.payload["fields"], ["AGENT.md"]);
-  assert.equal(await failure(() => call(hn, "agents.restore_version", { agentId: id, versionId: "ver_zzzzzz" })), "validation.not_found");
+  assert.equal(
+    await failure(() => call(hn, "agents.restore_version", { agentId: id, versionId: "ver_zzzzzz" })),
+    "validation.not_found",
+  );
 });
 
 test("an old version that would not pass today is not restored: the last good configuration keeps running", async () => {
@@ -300,43 +503,117 @@ test("an old version that would not pass today is not restored: the last good co
   const old = hn.world.files.get(toml.fileId)!.versions.at(-1)!;
   hn.world.edit(toml.fileId, 'name = "Intake"\nmodel = "m9"\n');
   hn.clear();
-  assert.equal(await failure(() => call(hn, "agents.restore_version", { agentId: id, versionId: old.versionId })), "validation.bad_input");
+  assert.equal(
+    await failure(() => call(hn, "agents.restore_version", { agentId: id, versionId: old.versionId })),
+    "validation.bad_input",
+  );
   assert.equal(hn.world.files.get(toml.fileId)!.versions.length, 3, "nothing was restored");
   assert.deepEqual(hn.names(), []);
 });
 
 test("summary assembles the strip from the neighbours and survives any of them being down", async () => {
   const { hn, id } = await setup({ limits: { dayCostMicros: 3_000_000 } });
-  hn.world.answer("threads.list", () => ({ threads: [{ agents: [{ agentId: id }], createdAt: hn.clock.t - 3600_000 }, { agents: [{ agentId: id }], createdAt: hn.clock.t - 9 * 86_400_000 }, { agents: [{ agentId: "agt_other" }], createdAt: hn.clock.t }] }));
-  hn.world.answer("tasks.list", () => ({ tasks: [{ id: "tsk_a1", title: "Draft the letter", state: "doing" }, { id: "tsk_a2", title: "Check the form", state: "todo" }, { id: "tsk_a3", title: "Old", state: "done" }] }));
-  hn.world.answer("runs.list", () => ({ runs: [{ id: "run_a1", name: "Intake flow", status: "running" }, { id: "run_a2", status: "succeeded" }] }));
+  hn.world.answer("threads.list", () => ({
+    threads: [
+      { agents: [{ agentId: id }], createdAt: hn.clock.t - 3600_000 },
+      { agents: [{ agentId: id }], createdAt: hn.clock.t - 9 * 86_400_000 },
+      { agents: [{ agentId: "agt_other" }], createdAt: hn.clock.t },
+    ],
+  }));
+  hn.world.answer("tasks.list", () => ({
+    tasks: [
+      { id: "tsk_a1", title: "Draft the letter", state: "doing" },
+      { id: "tsk_a2", title: "Check the form", state: "todo" },
+      { id: "tsk_a3", title: "Old", state: "done" },
+    ],
+  }));
+  hn.world.answer("runs.list", () => ({
+    runs: [
+      { id: "run_a1", name: "Intake flow", status: "running" },
+      { id: "run_a2", status: "succeeded" },
+    ],
+  }));
   hn.world.answer("engine.spend.get", () => ({ todayMicros: 1_250_000 }));
   hn.world.answer("memory.counts", () => ({ current: 12, proposed: 3, fromMe: 1 }));
-  await call(hn, "agents.routine.save", { agentId: id, title: "Digest", cron: "0 9 * * *", prompt: "Summarise", channelId: "chn_intake", idempotencyKey: "r1" });
-  const s = await call(hn, "agents.summary", { agentId: id });
-  assert.deepEqual({ ...s, workingOn: undefined, linked: undefined }, {
-    chatsThisWeek: 1, openTasks: 2, runsToday: 2, spendTodayMicros: 1_250_000, spendLimitMicros: 3_000_000, memoryFacts: 12, proposedFacts: 3, watches: ["chn_intake"], workingOn: undefined, linked: undefined,
+  await call(hn, "agents.routine.save", {
+    agentId: id,
+    title: "Digest",
+    cron: "0 9 * * *",
+    prompt: "Summarise",
+    channelId: "chn_intake",
+    idempotencyKey: "r1",
   });
-  assert.deepEqual(s.workingOn, [{ kind: "task", id: "tsk_a1", title: "Draft the letter" }, { kind: "run", id: "run_a1", title: "Intake flow" }]);
+  const s = await call(hn, "agents.summary", { agentId: id });
+  assert.deepEqual(
+    { ...s, workingOn: undefined, linked: undefined },
+    {
+      chatsThisWeek: 1,
+      openTasks: 2,
+      runsToday: 2,
+      spendTodayMicros: 1_250_000,
+      spendLimitMicros: 3_000_000,
+      memoryFacts: 12,
+      proposedFacts: 3,
+      watches: ["chn_intake"],
+      workingOn: undefined,
+      linked: undefined,
+    },
+  );
+  assert.deepEqual(s.workingOn, [
+    { kind: "task", id: "tsk_a1", title: "Draft the letter" },
+    { kind: "run", id: "run_a1", title: "Intake flow" },
+  ]);
   assert.deepEqual(s.linked, [{ kind: "task", id: "tsk_a2", title: "Check the form" }]);
   const down = await setup();
   const d = await call(down.hn, "agents.summary", { agentId: down.id });
-  assert.deepEqual([d.chatsThisWeek, d.openTasks, d.runsToday, d.spendTodayMicros, d.memoryFacts, d.proposedFacts, d.workingOn, d.linked, d.watches], [0, 0, 0, 0, 0, 0, [], [], []]);
+  assert.deepEqual(
+    [
+      d.chatsThisWeek,
+      d.openTasks,
+      d.runsToday,
+      d.spendTodayMicros,
+      d.memoryFacts,
+      d.proposedFacts,
+      d.workingOn,
+      d.linked,
+      d.watches,
+    ],
+    [0, 0, 0, 0, 0, 0, [], [], []],
+  );
 });
 
 test("the chat key, the ordered fallback list and the memory key are settings of the agent, kept in order, checked as Vault names, and shown in agent.toml", async () => {
   const hn = harness();
-  const a = (await h["agents.create"]!(hn.ctx, { name: "Keyed", role: "Use me for keys.", idempotencyKey: "kk1" })).agent;
+  const a = (await h["agents.create"]!(hn.ctx, { name: "Keyed", role: "Use me for keys.", idempotencyKey: "kk1" }))
+    .agent;
   assert.deepEqual(a.accountFallback, []);
-  const set = await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { accountPolicy: "key", accountKey: "#Team_A", accountFallback: ["#Team_C", "#Team_B", "#Team_C"], memoryKey: "#Team_M" } });
-  assert.deepEqual([set.agent.accountKey, set.agent.accountFallback, set.agent.memoryKey], ["#Team_A", ["#Team_C", "#Team_B"], "#Team_M"], "order kept, repeats dropped");
+  const set = await h["agents.update"]!(hn.ctx, {
+    agentId: a.agentId,
+    patch: {
+      accountPolicy: "key",
+      accountKey: "#Team_A",
+      accountFallback: ["#Team_C", "#Team_B", "#Team_C"],
+      memoryKey: "#Team_M",
+    },
+  });
+  assert.deepEqual(
+    [set.agent.accountKey, set.agent.accountFallback, set.agent.memoryKey],
+    ["#Team_A", ["#Team_C", "#Team_B"], "#Team_M"],
+    "order kept, repeats dropped",
+  );
   const toml = String(hn.rows("SELECT tomlText FROM agents_agent WHERE id = ?", a.agentId)[0]!["tomlText"]);
   assert.match(toml, /account_fallback = \["#Team_C", "#Team_B"\]/);
   assert.match(toml, /memory_key = "#Team_M"/);
   for (const bad of [{ accountFallback: ["not a handle"] }, { memoryKey: "nope" }, { accountFallback: "x" }]) {
-    await assert.rejects(() => h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: bad }), /Vault name|list of names|fallback keys/);
+    await assert.rejects(
+      () => h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: bad }),
+      /Vault name|list of names|fallback keys/,
+    );
   }
-  const cleared = await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { accountFallback: [], memoryKey: null } });
+  const cleared = await h["agents.update"]!(hn.ctx, {
+    agentId: a.agentId,
+    patch: { accountFallback: [], memoryKey: null },
+  });
   assert.deepEqual([cleared.agent.accountFallback, cleared.agent.memoryKey], [[], undefined]);
 });
 
@@ -348,61 +625,116 @@ test("a late event for an older agent.toml version does not undo a newer save: t
   // the host delivers consumers after commit, at least once: the event for the version agents.create wrote can arrive after the update
   await watch.run(hn.ctx, v1);
   assert.equal((await call(hn, "agents.get", { agentId: id })).agent.memoryKey, "#Team_M");
-  assert.deepEqual(await h["agents.memory_key.get"]!(hn.as({ kind: "service", id: "svc_host" }), { agentId: id }), { memoryKey: "#Team_M", ownerId: DANA });
-  assert.equal(hn.named("agent.config_changed").filter((e) => e.payload["versionId"] === first.versionId).length, 0, "nothing announces the old version");
+  assert.deepEqual(await h["agents.memory_key.get"]!(hn.as({ kind: "service", id: "svc_host" }), { agentId: id }), {
+    memoryKey: "#Team_M",
+    ownerId: DANA,
+  });
+  assert.equal(
+    hn.named("agent.config_changed").filter((e) => e.payload["versionId"] === first.versionId).length,
+    0,
+    "nothing announces the old version",
+  );
 });
 
 test("switch when limits run out is a setting of the agent, on until set to false, kept in agent.toml and checked as true or false", async () => {
   const hn = harness();
-  const a = (await h["agents.create"]!(hn.ctx, { name: "Switchy", role: "Use me when a limit runs out.", idempotencyKey: "sw1" })).agent;
+  const a = (
+    await h["agents.create"]!(hn.ctx, { name: "Switchy", role: "Use me when a limit runs out.", idempotencyKey: "sw1" })
+  ).agent;
   assert.equal(a.switchOnLimit, undefined, "absent means on");
   const off = await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { switchOnLimit: false } });
   assert.equal(off.agent.switchOnLimit, false);
-  assert.match(String(hn.rows("SELECT tomlText FROM agents_agent WHERE id = ?", a.agentId)[0]!["tomlText"]), /switch_on_limit = false/);
+  assert.match(
+    String(hn.rows("SELECT tomlText FROM agents_agent WHERE id = ?", a.agentId)[0]!["tomlText"]),
+    /switch_on_limit = false/,
+  );
   assert.equal((await h["agents.get"]!(hn.ctx, { agentId: a.agentId })).agent.switchOnLimit, false);
-  await assert.rejects(() => h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { switchOnLimit: "no" } }), /true or false/);
+  await assert.rejects(
+    () => h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { switchOnLimit: "no" } }),
+    /true or false/,
+  );
   const on = await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { switchOnLimit: true } });
   assert.equal(on.agent.switchOnLimit, true);
 });
 
 test("the server reads an agent's memory key for the nightly job without seeing the agent page; a person who cannot see the agent is told it does not exist", async () => {
   const hn = harness({ allow: (a, r) => !(r.type === "agent" && a.level === "view") });
-  const a = (await h["agents.create"]!(hn.ctx, { name: "Hidden", role: "Use me for keys.", idempotencyKey: "kk2" })).agent;
+  const a = (await h["agents.create"]!(hn.ctx, { name: "Hidden", role: "Use me for keys.", idempotencyKey: "kk2" }))
+    .agent;
   await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { memoryKey: "#Team_M" } });
   const stranger = hn.person("usr_stranger");
-  assert.equal(await failure(() => h["agents.memory_key.get"]!(stranger, { agentId: a.agentId })), "validation.not_found");
+  assert.equal(
+    await failure(() => h["agents.memory_key.get"]!(stranger, { agentId: a.agentId })),
+    "validation.not_found",
+  );
   const host = hn.as({ kind: "service", id: "svc_host" });
-  assert.deepEqual(await h["agents.memory_key.get"]!(host, { agentId: a.agentId }), { memoryKey: "#Team_M", ownerId: "usr_dana" });
+  assert.deepEqual(await h["agents.memory_key.get"]!(host, { agentId: a.agentId }), {
+    memoryKey: "#Team_M",
+    ownerId: "usr_dana",
+  });
   const other = hn.as({ kind: "service", id: "svc_deadbeefdeadbeefdeadbeefdeadbeef" });
-  assert.equal(await failure(() => h["agents.memory_key.get"]!(other, { agentId: a.agentId })), "validation.not_found", "a tenant's service is not the server");
+  assert.equal(
+    await failure(() => h["agents.memory_key.get"]!(other, { agentId: a.agentId })),
+    "validation.not_found",
+    "a tenant's service is not the server",
+  );
 });
 
 test("an agent's AI account for its own work is a setting: set, kept in agent.toml, checked as a Vault name, cleared back to Automatic, and hidden from a person who cannot see the setup", async () => {
   const hn = harness();
-  const a = (await h["agents.create"]!(hn.ctx, { name: "Worker", role: "Use me for routines.", idempotencyKey: "wk1" })).agent;
+  const a = (await h["agents.create"]!(hn.ctx, { name: "Worker", role: "Use me for routines.", idempotencyKey: "wk1" }))
+    .agent;
   assert.equal(a.workKey, undefined, "absent is Automatic");
   const set = await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { workKey: "#Team_Credits" } });
   assert.equal(set.agent.workKey, "#Team_Credits");
-  assert.equal(set.agent.accountPolicy, "asker", "the chat key is not touched: a chat still runs on the asker's own account");
+  assert.equal(
+    set.agent.accountPolicy,
+    "asker",
+    "the chat key is not touched: a chat still runs on the asker's own account",
+  );
   const toml = String(hn.rows("SELECT tomlText FROM agents_agent WHERE id = ?", a.agentId)[0]!["tomlText"]);
   assert.match(toml, /work_key = "#Team_Credits"/);
   assert.equal((await h["agents.get"]!(hn.ctx, { agentId: a.agentId })).agent.workKey, "#Team_Credits");
-  await assert.rejects(() => h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { workKey: "nope" } }), /Vault name/);
+  await assert.rejects(
+    () => h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { workKey: "nope" } }),
+    /Vault name/,
+  );
   const cleared = await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { workKey: null } });
   assert.equal(cleared.agent.workKey, undefined);
-  assert.doesNotMatch(String(hn.rows("SELECT tomlText FROM agents_agent WHERE id = ?", a.agentId)[0]!["tomlText"]), /work_key/);
+  assert.doesNotMatch(
+    String(hn.rows("SELECT tomlText FROM agents_agent WHERE id = ?", a.agentId)[0]!["tomlText"]),
+    /work_key/,
+  );
 });
 
 test("the Chat key is off for a new agent and set only by someone who manages the Space's AI accounts", async () => {
   const hn = harness();
-  const a = (await h["agents.create"]!(hn.ctx, { name: "Plain", role: "Use me for chats.", idempotencyKey: "ck1" })).agent;
-  assert.deepEqual([a.accountPolicy, a.accountKey], ["asker", undefined], "off by default: the asker's own account answers");
+  const a = (await h["agents.create"]!(hn.ctx, { name: "Plain", role: "Use me for chats.", idempotencyKey: "ck1" }))
+    .agent;
+  assert.deepEqual(
+    [a.accountPolicy, a.accountKey],
+    ["asker", undefined],
+    "off by default: the asker's own account answers",
+  );
   assert.equal((await h["agents.get"]!(hn.ctx, { agentId: a.agentId })).agent.accountPolicy, "asker");
-  const on = await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { accountPolicy: "key", accountKey: "#Team_A" } });
+  const on = await h["agents.update"]!(hn.ctx, {
+    agentId: a.agentId,
+    patch: { accountPolicy: "key", accountKey: "#Team_A" },
+  });
   assert.deepEqual([on.agent.accountPolicy, on.agent.accountKey], ["key", "#Team_A"]);
   const member = harness({ allow: (act) => act.perm !== "policy.manage" });
-  const b = (await h["agents.create"]!(member.ctx, { name: "Plain2", role: "Use me for chats.", idempotencyKey: "ck2" })).agent;
-  await assert.rejects(() => h["agents.update"]!(member.ctx, { agentId: b.agentId, patch: { accountPolicy: "key", accountKey: "#Team_A" } }), /manage the Space's AI accounts/);
+  const b = (
+    await h["agents.create"]!(member.ctx, { name: "Plain2", role: "Use me for chats.", idempotencyKey: "ck2" })
+  ).agent;
+  await assert.rejects(
+    () =>
+      h["agents.update"]!(member.ctx, { agentId: b.agentId, patch: { accountPolicy: "key", accountKey: "#Team_A" } }),
+    /manage the Space's AI accounts/,
+  );
   const stillOff = await h["agents.update"]!(member.ctx, { agentId: b.agentId, patch: { workKey: "#Team_A" } });
-  assert.equal(stillOff.agent.accountPolicy, "asker", "the AI account for its own work is not the Chat key, and anyone who edits the agent may set it");
+  assert.equal(
+    stillOff.agent.accountPolicy,
+    "asker",
+    "the AI account for its own work is not the Chat key, and anyone who edits the agent may set it",
+  );
 });

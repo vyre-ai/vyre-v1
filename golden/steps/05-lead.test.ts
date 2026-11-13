@@ -12,7 +12,8 @@ const run = (): ReturnType<typeof runLead> => (started ??= runLead(LIVE_FOR_LEAD
 test("golden 5: the steps that are wired already pass", async () => {
   const { trail } = await run();
   const ok = okSteps(trail);
-  for (const name of ["the contact type exists", "a lead is made"]) assert.ok(ok.includes(name), `${name} is ok\n${trail.report()}`);
+  for (const name of ["the contact type exists", "a lead is made"])
+    assert.ok(ok.includes(name), `${name} is ok\n${trail.report()}`);
 });
 
 test("golden 5: lead-automation-reply-call", { todo: todoOf(GAPS) }, async () => {

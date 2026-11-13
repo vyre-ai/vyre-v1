@@ -10,8 +10,29 @@ import { agentStanding } from "../../../lib/agent-asker.ts";
 import { ownerAsked } from "../../../lib/owner-asked.ts";
 import { registry } from "../../../generated/registry.ts";
 import {
-  allAutomations, clean, defaultAlerts, emitAuto, findGroup, getAutomation, isOwner, listGroups, listVersions, markDeleted, markRestored, me, newId, newSecret, out, page,
-  noteRunsAs, raise, readPolicy, saveAutomation, saveVersion, touch, versionById,
+  allAutomations,
+  clean,
+  defaultAlerts,
+  emitAuto,
+  findGroup,
+  getAutomation,
+  isOwner,
+  listGroups,
+  listVersions,
+  markDeleted,
+  markRestored,
+  me,
+  newId,
+  newSecret,
+  out,
+  page,
+  noteRunsAs,
+  raise,
+  readPolicy,
+  saveAutomation,
+  saveVersion,
+  touch,
+  versionById,
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
 import { regrant, sendersOf, shareSenders } from "../grants.ts";
@@ -24,15 +45,26 @@ import { admit, contractOf } from "../val.ts";
 import { containsSecret } from "../trust.ts";
 import type { Alerts, AutoCtx, Automation, Db, Definition, Grant, Node, Policy } from "../projections.ts";
 
-type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 // ---- the catalogue ----
 
 const STEPS = new Map(registry.steps.map((s) => [s.key, s] as const));
 const TRIGGERS = new Map(registry.triggers.map((t) => [t.key, t] as const));
-export interface Issue { nodeId?: string; severity: "error" | "warning"; message: string }
-interface Sender { id: string; channel: string; address: string; usable: boolean; why?: string }
-const issue = (severity: Issue["severity"], message: string, nodeId?: string): Issue => clean({ nodeId, severity, message });
+export interface Issue {
+  nodeId?: string;
+  severity: "error" | "warning";
+  message: string;
+}
+interface Sender {
+  id: string;
+  channel: string;
+  address: string;
+  usable: boolean;
+  why?: string;
+}
+const issue = (severity: Issue["severity"], message: string, nodeId?: string): Issue =>
+  clean({ nodeId, severity, message });
 const requiredOf = (schema: unknown): string[] => {
   const r = (schema as { required?: unknown } | null)?.required;
   return Array.isArray(r) ? r.filter((x): x is string => typeof x === "string") : [];
@@ -41,7 +73,11 @@ const requiredOf = (schema: unknown): string[] => {
 const present = (v: unknown): boolean => v !== undefined && v !== null && v !== "";
 
 function edges(n: Node): string[] {
-  return [...(n.next ?? []), ...(n.branches ?? []).map((b) => b.to), ...(n.onError?.mode === "route" && n.onError.route ? [n.onError.route] : [])];
+  return [
+    ...(n.next ?? []),
+    ...(n.branches ?? []).map((b) => b.to),
+    ...(n.onError?.mode === "route" && n.onError.route ? [n.onError.route] : []),
+  ];
 }
 
 function laneEntries(n: Node): string[] {
@@ -138,17 +174,26 @@ function httpIssues(id: string, have: Record<string, unknown>): Issue[] {
   const out: Issue[] = [];
   const method = typeof have["method"] === "string" ? have["method"].toUpperCase() : "";
   const url = have["url"];
-  if (method !== "" && !["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"].includes(method)) out.push(issue("error", `${method} is not an HTTP request method this step sends.`, id));
-  if (typeof url === "string" && !url.includes("{{") && !/^https:\/\//i.test(url.trim())) out.push(issue("error", "An HTTP request address must start with https://.", id));
-  if ((method === "GET" || method === "HEAD") && (present(have["json"]) || present(have["text"]))) out.push(issue("error", `${method} cannot carry a body.`, id));
-  if (present(have["json"]) && present(have["text"])) out.push(issue("error", "An HTTP request carries a JSON body or a text body, not both.", id));
+  if (method !== "" && !["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"].includes(method))
+    out.push(issue("error", `${method} is not an HTTP request method this step sends.`, id));
+  if (typeof url === "string" && !url.includes("{{") && !/^https:\/\//i.test(url.trim()))
+    out.push(issue("error", "An HTTP request address must start with https://.", id));
+  if ((method === "GET" || method === "HEAD") && (present(have["json"]) || present(have["text"])))
+    out.push(issue("error", `${method} cannot carry a body.`, id));
+  if (present(have["json"]) && present(have["text"]))
+    out.push(issue("error", "An HTTP request carries a JSON body or a text body, not both.", id));
   const auth = have["auth"];
   if (auth !== undefined && auth !== null) {
     const a = (typeof auth === "object" && !Array.isArray(auth) ? auth : {}) as Record<string, unknown>;
-    if (a["kind"] !== "bearer" && a["kind"] !== "basic" && a["kind"] !== "header") out.push(issue("error", "Auth is bearer, basic or a named header.", id));
-    if (typeof a["handle"] !== "string" || !VAULT_HANDLE.test(a["handle"])) out.push(issue("error", "Auth needs a Vault handle such as #Acme_API. Pick the key in the Vault; do not paste it.", id));
+    if (a["kind"] !== "bearer" && a["kind"] !== "basic" && a["kind"] !== "header")
+      out.push(issue("error", "Auth is bearer, basic or a named header.", id));
+    if (typeof a["handle"] !== "string" || !VAULT_HANDLE.test(a["handle"]))
+      out.push(
+        issue("error", "Auth needs a Vault handle such as #Acme_API. Pick the key in the Vault; do not paste it.", id),
+      );
     if (a["kind"] === "basic" && !present(a["username"])) out.push(issue("error", "Basic auth needs a user name.", id));
-    if (a["kind"] === "header" && !present(a["header"])) out.push(issue("error", "Auth by header needs the header name.", id));
+    if (a["kind"] === "header" && !present(a["header"]))
+      out.push(issue("error", "Auth by header needs the header name.", id));
   }
   return out;
 }
@@ -161,10 +206,13 @@ export function structuralIssues(def: Definition): Issue[] {
     if (ids.has(n.id)) out.push(issue("error", `Two steps share the id ${n.id}.`, n.id));
     ids.add(n.id);
   }
-  for (const t of def.triggers) if (!TRIGGERS.has(t.key)) out.push(issue("error", `There is no trigger called ${t.key}.`));
+  for (const t of def.triggers)
+    if (!TRIGGERS.has(t.key)) out.push(issue("error", `There is no trigger called ${t.key}.`));
   for (const n of def.nodes) {
-    if (!STEPS.has(n.key) && connectorLevel(n) === undefined) out.push(issue("error", `There is no step called ${n.key}.`, n.id));
-    for (const to of edges(n)) if (!ids.has(to)) out.push(issue("error", `This step points at ${to}, which does not exist.`, n.id));
+    if (!STEPS.has(n.key) && connectorLevel(n) === undefined)
+      out.push(issue("error", `There is no step called ${n.key}.`, n.id));
+    for (const to of edges(n))
+      if (!ids.has(to)) out.push(issue("error", `This step points at ${to}, which does not exist.`, n.id));
   }
   for (const s of def.start ?? []) if (!ids.has(s)) out.push(issue("error", `The start step ${s} does not exist.`));
   return out;
@@ -183,20 +231,30 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
     const s = STEPS.get(n.key);
     if (!s) continue;
     const have = { ...(n.ai ?? {}), ...n.input } as Record<string, unknown>;
-    for (const k of requiredOf(s.input)) if (!present(have[k])) out.push(issue("error", `${s.title} needs ${k}.`, n.id));
-    if (n.key === "send_email" && !present(have["mailboxId"])) out.push(issue("error", "Send an email needs a mailbox.", n.id));
-    if (n.key === "send_sms" && !present(have["numberId"])) out.push(issue("error", "Send a text needs a number.", n.id));
-    if (n.key === "connector_request" && !present(have["connector"])) out.push(issue("error", "An authenticated request needs a connector.", n.id));
-    if (n.key === "connector_request" && !present(have["action"])) out.push(issue("error", "An authenticated request needs an action.", n.id));
-    if (n.key === "connector_request" && !present(have["connectionId"])) out.push(issue("error", "An authenticated request needs a connection.", n.id));
-    if (n.key === "connector_request" && containsSecret(have["input"])) out.push(issue("error", "An authenticated request cannot hold a secret. Use the connection.", n.id));
+    for (const k of requiredOf(s.input))
+      if (!present(have[k])) out.push(issue("error", `${s.title} needs ${k}.`, n.id));
+    if (n.key === "send_email" && !present(have["mailboxId"]))
+      out.push(issue("error", "Send an email needs a mailbox.", n.id));
+    if (n.key === "send_sms" && !present(have["numberId"]))
+      out.push(issue("error", "Send a text needs a number.", n.id));
+    if (n.key === "connector_request" && !present(have["connector"]))
+      out.push(issue("error", "An authenticated request needs a connector.", n.id));
+    if (n.key === "connector_request" && !present(have["action"]))
+      out.push(issue("error", "An authenticated request needs an action.", n.id));
+    if (n.key === "connector_request" && !present(have["connectionId"]))
+      out.push(issue("error", "An authenticated request needs a connection.", n.id));
+    if (n.key === "connector_request" && containsSecret(have["input"]))
+      out.push(issue("error", "An authenticated request cannot hold a secret. Use the connection.", n.id));
     if (n.key === "http_request") out.push(...httpIssues(n.id, have));
     if (n.key === "loop") {
       const max = have["maxIterations"];
-      if (typeof max === "number" && max > 1000) out.push(issue("error", "A loop allows at most 1000 iterations.", n.id));
+      if (typeof max === "number" && max > 1000)
+        out.push(issue("error", "A loop allows at most 1000 iterations.", n.id));
     }
-    if (n.askBeforeSending !== undefined && s.effects !== "outward") out.push(issue("error", "Ask before sending applies only to a step that sends.", n.id));
-    if (n.onError?.mode === "route" && !n.onError.route) out.push(issue("error", "On error: route needs a step to go to.", n.id));
+    if (n.askBeforeSending !== undefined && s.effects !== "outward")
+      out.push(issue("error", "Ask before sending applies only to a step that sends.", n.id));
+    if (n.onError?.mode === "route" && !n.onError.route)
+      out.push(issue("error", "On error: route needs a step to go to.", n.id));
   }
   const nested = new Set<string>();
   for (const n of def.nodes) {
@@ -207,7 +265,9 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
       out.push(issue("error", "A loop cannot contain another loop.", inner.id));
     }
   }
-  const starts = (def.start && def.start.length ? def.start : def.nodes[0] ? [def.nodes[0].id] : []).filter((s) => byId.has(s));
+  const starts = (def.start && def.start.length ? def.start : def.nodes[0] ? [def.nodes[0].id] : []).filter((s) =>
+    byId.has(s),
+  );
   const seen = new Set<string>();
   const stack = [...starts];
   while (stack.length) {
@@ -221,17 +281,20 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
   const state = new Map<string, 0 | 1 | 2>();
   const path: string[] = [];
   const dfs = (id: string): void => {
-    state.set(id, 1); path.push(id);
+    state.set(id, 1);
+    path.push(id);
     for (const to of edges(byId.get(id)!)) {
       if (!byId.has(to)) continue;
       const st = state.get(to) ?? 0;
       if (st === 0) dfs(to);
       else if (st === 1) {
         const cycle = path.slice(path.indexOf(to));
-        if (!cycle.some((c) => byId.get(c)!.key === "loop")) out.push(issue("error", `This path loops back to ${to} without a Loop step.`, id));
+        if (!cycle.some((c) => byId.get(c)!.key === "loop"))
+          out.push(issue("error", `This path loops back to ${to} without a Loop step.`, id));
       }
     }
-    path.pop(); state.set(id, 2);
+    path.pop();
+    state.set(id, 2);
   };
   for (const n of def.nodes) if ((state.get(n.id) ?? 0) === 0) dfs(n.id);
   if (hasPastedSecret(def)) out.push(issue("error", "A definition cannot hold a secret. Use a connection."));
@@ -266,9 +329,22 @@ const hasErrors = (issues: readonly Issue[]): boolean => issues.some((i) => i.se
 // AI and Code are live steps. A draft may hold either. Turning the Automation on checks that this server can run them and that the AI step has an account to pay for it.
 //   Run code needs the sandbox (steps.support says whether this server has it), and is refused with the reason where it does not.
 //   An AI step in a Personal automation runs on its owner's own account (keyId may pick one); in a Space automation it needs a Space-shared key in keyId. The message names what to add.
-interface Support { code: { available: boolean; reason?: string }; ai: { available: boolean; reason?: string } }
+interface Support {
+  code: { available: boolean; reason?: string };
+  ai: { available: boolean; reason?: string };
+}
 /** One AI account as engine.accounts.list { place: "automation" } answers it: the same rule the resolver applies, with the reason when it cannot run an automation. */
-interface AccountLite { ref: string; providerId?: string; name?: string; title: string; mine: boolean; status: string; usable?: boolean; why?: string; aliases?: string[] }
+interface AccountLite {
+  ref: string;
+  providerId?: string;
+  name?: string;
+  title: string;
+  mine: boolean;
+  status: string;
+  usable?: boolean;
+  why?: string;
+  aliases?: string[];
+}
 
 async function supportOf(ctx: AutoCtx): Promise<Support> {
   const none = { available: false, reason: "This server has not started the part that runs it." };
@@ -290,14 +366,19 @@ async function hiddenSteps(ctx: AutoCtx): Promise<Set<string>> {
 async function providersOf(ctx: AutoCtx, kind: Automation["kind"], explicit = false): Promise<AccountLite[] | null> {
   if (!ctx.call) return null;
   try {
-    const r = (await ctx.call("engine.accounts.list", { place: "automation", runsAs: kind === "space" ? "space" : "person", ...(explicit ? { explicit: true } : {}) })) as { accounts?: AccountLite[] } | null;
+    const r = (await ctx.call("engine.accounts.list", {
+      place: "automation",
+      runsAs: kind === "space" ? "space" : "person",
+      ...(explicit ? { explicit: true } : {}),
+    })) as { accounts?: AccountLite[] } | null;
     return Array.isArray(r?.accounts) ? r!.accounts : [];
   } catch {
     return null;
   }
 }
 
-const refOf = (p: AccountLite): string[] => [p.ref, p.providerId, ...(p.aliases ?? []), p.name].filter((x): x is string => typeof x === "string" && x !== "");
+const refOf = (p: AccountLite): string[] =>
+  [p.ref, p.providerId, ...(p.aliases ?? []), p.name].filter((x): x is string => typeof x === "string" && x !== "");
 const nameOf = (p: AccountLite): string => p.name ?? p.title;
 /** A Space AI account, kept for automations, working and under its cap: what Automatic picks from (the resolver's own answer for the automation place). */
 const paysForAutomations = (p: AccountLite): boolean => !p.mine && p.usable === true;
@@ -308,40 +389,109 @@ async function aiAccountIssues(ctx: AutoCtx, kind: Automation["kind"], def: Defi
   if (nodes.length === 0) return [];
   // an account the step itself names is the person's own choice for it, so a Space account is not checked against what it is kept for; the automation's own account and Automatic are
   const forAutomation = await providersOf(ctx, kind);
-  const forStep = def.nodes.some((n) => n.key === "ai" && typeof ({ ...(n.ai ?? {}), ...n.input } as Record<string, unknown>)["keyId"] === "string") ? await providersOf(ctx, kind, true) : forAutomation;
+  const forStep = def.nodes.some(
+    (n) => n.key === "ai" && typeof ({ ...(n.ai ?? {}), ...n.input } as Record<string, unknown>)["keyId"] === "string",
+  )
+    ? await providersOf(ctx, kind, true)
+    : forAutomation;
   const out: Issue[] = [];
   for (const n of nodes) {
     const have = { ...(n.ai ?? {}), ...n.input } as Record<string, unknown>;
     // the step's own account, else the automation's AI account and backup (Settings > AI account); neither is Automatic
     const own = typeof have["keyId"] === "string" && have["keyId"] !== "" ? have["keyId"] : undefined;
     const key = own ?? (def.ai?.keyId && def.ai.keyId !== "" ? def.ai.keyId : undefined);
-    const backup = typeof have["backupKeyId"] === "string" && have["backupKeyId"] !== "" ? have["backupKeyId"] : (own === undefined && def.ai?.backupKeyId ? def.ai.backupKeyId : undefined);
+    const backup =
+      typeof have["backupKeyId"] === "string" && have["backupKeyId"] !== ""
+        ? have["backupKeyId"]
+        : own === undefined && def.ai?.backupKeyId
+          ? def.ai.backupKeyId
+          : undefined;
     const fromAutomation = own === undefined;
     const providers = own === undefined ? forAutomation : forStep;
     const pick = (ref: string): AccountLite | undefined => providers?.find((p) => refOf(p).includes(ref));
-    if (providers === null) { out.push(issue("error", "AI steps run on the agent runtime, which this server has not started.", n.id)); continue; }
+    if (providers === null) {
+      out.push(issue("error", "AI steps run on the agent runtime, which this server has not started.", n.id));
+      continue;
+    }
     if (kind === "space") {
       if (!key) {
         // Automatic: the cheapest Space AI account that is kept for automations
-        if (!providers.some(paysForAutomations)) out.push(issue("error", "A Space AI step needs a Space AI account that pays for automations. An admin adds one in the Vault under AI accounts and ticks Automations, or you choose one in this step or in the automation's Settings.", n.id))
-        if (backup) { const b = pick(backup); if (!b) out.push(issue("error", `The backup AI account ${backup} is not in the Vault. Choose another in Settings.`, n.id)); }
+        if (!providers.some(paysForAutomations))
+          out.push(
+            issue(
+              "error",
+              "A Space AI step needs a Space AI account that pays for automations. An admin adds one in the Vault under AI accounts and ticks Automations, or you choose one in this step or in the automation's Settings.",
+              n.id,
+            ),
+          );
+        if (backup) {
+          const b = pick(backup);
+          if (!b)
+            out.push(
+              issue("error", `The backup AI account ${backup} is not in the Vault. Choose another in Settings.`, n.id),
+            );
+        }
         continue;
       }
       for (const ref of [key, ...(backup ? [backup] : [])]) {
         const p = pick(ref);
-        if (!p) out.push(issue("error", `The AI key ${ref} is not in the Vault. Add a Space-shared AI key and choose it in this step.`, n.id));
-        else if (p.mine) out.push(issue("error", `The AI key ${nameOf(p)} belongs to one person. A Space automation needs a Space-shared AI key: share it with the Space in the Vault, or add one.`, n.id));
-        else if (p.usable === false) out.push(issue("error", `${nameOf(p)}, the AI account chosen for ${fromAutomation ? "this automation" : "this step"}, cannot run it. ${p.why ?? "Fix it in AI settings or choose another."}`, n.id));
+        if (!p)
+          out.push(
+            issue(
+              "error",
+              `The AI key ${ref} is not in the Vault. Add a Space-shared AI key and choose it in this step.`,
+              n.id,
+            ),
+          );
+        else if (p.mine)
+          out.push(
+            issue(
+              "error",
+              `The AI key ${nameOf(p)} belongs to one person. A Space automation needs a Space-shared AI key: share it with the Space in the Vault, or add one.`,
+              n.id,
+            ),
+          );
+        else if (p.usable === false)
+          out.push(
+            issue(
+              "error",
+              `${nameOf(p)}, the AI account chosen for ${fromAutomation ? "this automation" : "this step"}, cannot run it. ${p.why ?? "Fix it in AI settings or choose another."}`,
+              n.id,
+            ),
+          );
       }
       continue;
     }
     if (key) {
       const p = pick(key);
-      if (!p) { out.push(issue("error", `The AI key ${key} is not in the Vault. Pick one of your AI accounts, or clear the choice to use your default.`, n.id)); continue; }
-      if (p.usable === false) out.push(issue("error", `${nameOf(p)} cannot run this step. ${p.why ?? "Fix it in AI settings or choose another."}`, n.id));
+      if (!p) {
+        out.push(
+          issue(
+            "error",
+            `The AI key ${key} is not in the Vault. Pick one of your AI accounts, or clear the choice to use your default.`,
+            n.id,
+          ),
+        );
+        continue;
+      }
+      if (p.usable === false)
+        out.push(
+          issue(
+            "error",
+            `${nameOf(p)} cannot run this step. ${p.why ?? "Fix it in AI settings or choose another."}`,
+            n.id,
+          ),
+        );
       continue;
     }
-    if (!providers.some((p) => p.usable === true)) out.push(issue("error", "This AI step runs on your own AI account and you have none that works on the server. Add an API key, or sign in with Claude or Codex and turn on Let the Space run work on my subscription, in AI settings.", n.id))
+    if (!providers.some((p) => p.usable === true))
+      out.push(
+        issue(
+          "error",
+          "This AI step runs on your own AI account and you have none that works on the server. Add an API key, or sign in with Claude or Codex and turn on Let the Space run work on my subscription, in AI settings.",
+          n.id,
+        ),
+      );
   }
   return out;
 }
@@ -351,7 +501,12 @@ export async function liveStepIssues(ctx: AutoCtx, kind: Automation["kind"], def
   const out: Issue[] = [];
   if (def.nodes.some((n) => n.key === "code")) {
     const code = (await supportOf(ctx)).code;
-    if (!code.available) for (const n of def.nodes) if (n.key === "code") out.push(issue("error", `Run code cannot be turned on here. ${code.reason ?? "This server has no sandbox."}`, n.id));
+    if (!code.available)
+      for (const n of def.nodes)
+        if (n.key === "code")
+          out.push(
+            issue("error", `Run code cannot be turned on here. ${code.reason ?? "This server has no sandbox."}`, n.id),
+          );
   }
   return [...out, ...(await aiAccountIssues(ctx, kind, def)), ...(await agentStepIssues(ctx, kind, def))];
 }
@@ -368,27 +523,43 @@ export async function agentStepIssues(ctx: AutoCtx, kind: Automation["kind"], de
     const cfg = { ...(n.input ?? {}), ...(n.ai ?? {}) } as Record<string, unknown>;
     const ids = new Set<string>();
     if (typeof cfg["agentId"] === "string" && cfg["agentId"] !== "") ids.add(cfg["agentId"]);
-    for (const slot of ["assigned", "reviewer", "approver"]) { const w = cfg[slot] as { kind?: unknown; id?: unknown } | undefined; if (w && w.kind === "agent" && typeof w.id === "string") ids.add(w.id); }
+    for (const slot of ["assigned", "reviewer", "approver"]) {
+      const w = cfg[slot] as { kind?: unknown; id?: unknown } | undefined;
+      if (w && w.kind === "agent" && typeof w.id === "string") ids.add(w.id);
+    }
     for (const agentId of ids) {
       const line = await agentRefusal(ctx, kind, agentId, me(ctx));
-      if (line) { out.push(issue("error", line, n.id)); break; }
+      if (line) {
+        out.push(issue("error", line, n.id));
+        break;
+      }
     }
   }
   return out;
 }
 
 /** Why this Automation may not hand work to this agent, in a plain line, or null. Used at save (as the person saving) and at run. */
-export async function agentRefusal(ctx: AutoCtx, kind: Automation["kind"], agentId: string, builder: string | undefined): Promise<string | null> {
+export async function agentRefusal(
+  ctx: AutoCtx,
+  kind: Automation["kind"],
+  agentId: string,
+  builder: string | undefined,
+): Promise<string | null> {
   if (!ctx.call) return null;
-  const got = (await ctx.call("agents.get", { agentId }).catch(() => null)) as { agent?: { kind?: string; ownerId?: string; name?: string } } | null;
+  const got = (await ctx.call("agents.get", { agentId }).catch(() => null)) as {
+    agent?: { kind?: string; ownerId?: string; name?: string };
+  } | null;
   const a = got?.agent;
-  if (!a) return null;   // a missing agent is found where it matters, as before
+  if (!a) return null; // a missing agent is found where it matters, as before
   const name = a.name ?? "That agent";
-  if (a.kind === "assistant" && kind === "space") return `${name} is a person's Assistant. A Space automation cannot give work to anyone's Assistant: choose a team agent.`;
-  if (a.kind === "assistant" && a.ownerId !== builder) return `${name} is someone else's Assistant. Choose your own Assistant or a team agent.`;
+  if (a.kind === "assistant" && kind === "space")
+    return `${name} is a person's Assistant. A Space automation cannot give work to anyone's Assistant: choose a team agent.`;
+  if (a.kind === "assistant" && a.ownerId !== builder)
+    return `${name} is someone else's Assistant. Choose your own Assistant or a team agent.`;
   if (ctx.principal.kind === "person") {
     const u = (await ctx.call("agents.outside.usable", { agentId }).catch(() => null)) as { usable?: boolean } | null;
-    if (u?.usable === false) return `You cannot give ${name} work. Ask its owner to share it with you with Can use, or choose another agent.`;
+    if (u?.usable === false)
+      return `You cannot give ${name} work. Ask its owner to share it with you with Can use, or choose another agent.`;
   }
   return null;
 }
@@ -419,21 +590,44 @@ function draftedActionIssues(def: Definition, db: Db): Issue[] {
 
 /** Turn on says it plainly when a send step has nothing to send from, in the words the Inbox uses for the same sender. A person's own list decides: their access is what the Automation will get. */
 async function senderIssues(ctx: AutoCtx, def: Definition): Promise<Issue[]> {
-  const steps = def.nodes.filter((n) => (n.key === "send_email" && n.input?.["draftOnly"] !== true) || n.key === "send_sms");
+  const steps = def.nodes.filter(
+    (n) => (n.key === "send_email" && n.input?.["draftOnly"] !== true) || n.key === "send_sms",
+  );
   if (steps.length === 0 || ctx.principal.kind !== "person" || !ctx.call) return [];
   let senders: Sender[];
-  try { senders = ((await ctx.call("comms.senders.list", {})) as { senders: Sender[] }).senders; } catch { return []; }   // no list, no verdict: the send itself still checks
+  try {
+    senders = ((await ctx.call("comms.senders.list", {})) as { senders: Sender[] }).senders;
+  } catch {
+    return [];
+  } // no list, no verdict: the send itself still checks
   const out: Issue[] = [];
   const named = new Map(sendersOf(def).map((s) => [s.stepId, s.resource.id] as const));
   for (const n of steps) {
     const email = n.key === "send_email";
     const ofKind = senders.filter((s) => s.channel === (email ? "email" : "text"));
     const id = named.get(n.id);
-    if (ofKind.length === 0) out.push(issue("error", email ? "No mailbox is connected yet. Connect one in Console, Comms, then turn this on." : "No texting number is connected yet. Connect one in Console, Comms, then turn this on.", n.id));
-    else if (id === undefined) continue;   // validation names the missing pick
+    if (ofKind.length === 0)
+      out.push(
+        issue(
+          "error",
+          email
+            ? "No mailbox is connected yet. Connect one in Console, Comms, then turn this on."
+            : "No texting number is connected yet. Connect one in Console, Comms, then turn this on.",
+          n.id,
+        ),
+      );
+    else if (id === undefined)
+      continue; // validation names the missing pick
     else {
       const s = ofKind.find((x) => x.id === id);
-      if (!s) out.push(issue("error", `You cannot send from the ${email ? "mailbox" : "number"} this step names. Pick another, or ask for access to it.`, n.id));
+      if (!s)
+        out.push(
+          issue(
+            "error",
+            `You cannot send from the ${email ? "mailbox" : "number"} this step names. Pick another, or ask for access to it.`,
+            n.id,
+          ),
+        );
       else if (!s.usable) out.push(issue("error", `${s.address} cannot send right now. ${s.why ?? ""}`.trim(), n.id));
     }
   }
@@ -444,20 +638,42 @@ export async function senders(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   const named = sendersOf(a.definition);
   if (named.length === 0 || !ctx.call) return { senders: [] };
-  const known = await ctx.call("comms.senders.list", {}).then((o) => (o as { senders: Sender[] }).senders, () => [] as Sender[]);
+  const known = await ctx.call("comms.senders.list", {}).then(
+    (o) => (o as { senders: Sender[] }).senders,
+    () => [] as Sender[],
+  );
   const seen = new Set<string>();
   const out: Record<string, unknown>[] = [];
   for (const { resource } of named) {
     if (seen.has(resource.id)) continue;
     seen.add(resource.id);
     const s = known.find((x) => x.id === resource.id);
-    out.push(clean({ id: resource.id, channel: resource.type === "mailbox" ? "email" : "text", address: s?.address ?? resource.id, usable: s?.usable === true, why: s ? s.why : "You cannot see this sender." }));
+    out.push(
+      clean({
+        id: resource.id,
+        channel: resource.type === "mailbox" ? "email" : "text",
+        address: s?.address ?? resource.id,
+        usable: s?.usable === true,
+        why: s ? s.why : "You cannot see this sender.",
+      }),
+    );
   }
   return { senders: out };
 }
 
-async function blocksGoingLive(ctx: AutoCtx, kind: Automation["kind"], def: Definition, policy: Policy): Promise<Issue[]> {
-  return [...(await senderIssues(ctx, def)), ...validateDefinition(def, policy), ...admissionIssues(def), ...draftedActionIssues(def, ctx.db), ...(await liveStepIssues(ctx, kind, def))];
+async function blocksGoingLive(
+  ctx: AutoCtx,
+  kind: Automation["kind"],
+  def: Definition,
+  policy: Policy,
+): Promise<Issue[]> {
+  return [
+    ...(await senderIssues(ctx, def)),
+    ...validateDefinition(def, policy),
+    ...admissionIssues(def),
+    ...draftedActionIssues(def, ctx.db),
+    ...(await liveStepIssues(ctx, kind, def)),
+  ];
 }
 
 // ---- reads ----
@@ -470,8 +686,16 @@ export async function get(ctx: AutoCtx, input: In): Promise<unknown> {
 /** Who may see an Automation: the owner, a follower, a service caller, or anyone the kernel lets view it. */
 export function canView(ctx: AutoCtx, a: Automation): boolean {
   // the agent that created it stands behind it only for the people it belongs to (lib/agent-asker.ts)
-  if (isTrustedService(ctx.principal) || isOwner(ctx, a) || a.followers.includes(me(ctx)) || (a.createdBy === ctx.principal.id && agentStanding(ctx, (p) => p === a.ownerId || a.followers.includes(p)))) return true;
-  return !!ctx.authorize && ctx.authorize({ perm: null, level: "view" }, { type: "automation", id: a.id }).effect === "allow";
+  if (
+    isTrustedService(ctx.principal) ||
+    isOwner(ctx, a) ||
+    a.followers.includes(me(ctx)) ||
+    (a.createdBy === ctx.principal.id && agentStanding(ctx, (p) => p === a.ownerId || a.followers.includes(p)))
+  )
+    return true;
+  return (
+    !!ctx.authorize && ctx.authorize({ perm: null, level: "view" }, { type: "automation", id: a.id }).effect === "allow"
+  );
 }
 /**
  * May the caller change or delete this Automation (owner ruling, 3 Nov 2026)? A Personal one: whoever the gateway let through. A Space one: the Space's owners and admins (Manage on the
@@ -483,26 +707,46 @@ export async function canChangeSpace(ctx: AutoCtx, a: Automation): Promise<boole
   if (ctx.authorize({ perm: null, level: "manage" }, { type: "space", id: ctx.space }).effect === "allow") return true;
   if (ctx.authorize({ perm: null, level: "manage" }, { type: "automation", id: a.id }).effect === "allow") return true;
   // Edit given on that automation itself (a person or one of their groups), not the Edit every member holds on the Space: the kernel's direct check, no inner read to be refused
-  return ctx.authorize({ perm: null, level: "edit", direct: true }, { type: "automation", id: a.id }).effect === "allow";
+  return (
+    ctx.authorize({ perm: null, level: "edit", direct: true }, { type: "automation", id: a.id }).effect === "allow"
+  );
 }
 /** Refuse a change to a Space Automation the caller may not change, before anything is written. */
 export async function mustChange(ctx: AutoCtx, a: Automation): Promise<void> {
-  if (!(await canChangeSpace(ctx, a))) raise(ctx, "permission.role_lacks_permission", "Owners and admins change Space automations. Make a personal copy, or ask an admin.", { reason: "space_automation" });
+  if (!(await canChangeSpace(ctx, a)))
+    raise(
+      ctx,
+      "permission.role_lacks_permission",
+      "Owners and admins change Space automations. Make a personal copy, or ask an admin.",
+      { reason: "space_automation" },
+    );
 }
 function visible(ctx: AutoCtx, a: Automation): Automation {
   if (!canView(ctx, a)) raise(ctx, "permission.not_found", "That automation is not available.");
   return a;
 }
 
-async function runStats(ctx: AutoCtx, id: string): Promise<{ lastRun?: { runId: string; status: string; at: number }; failedRuns: number }> {
+async function runStats(
+  ctx: AutoCtx,
+  id: string,
+): Promise<{ lastRun?: { runId: string; status: string; at: number }; failedRuns: number }> {
   if (!ctx.call) return { failedRuns: 0 };
   try {
     const subject = { type: "automation", id };
-    const last = (await ctx.call("runs.list", { scope: "subject", subject, limit: 1 })) as { runs?: { id: string; status: string; startedAt: number }[] } | null;
-    const failed = (await ctx.call("runs.list", { scope: "subject", subject, statuses: ["failed"], limit: 1 })) as { total?: number } | null;
+    const last = (await ctx.call("runs.list", { scope: "subject", subject, limit: 1 })) as {
+      runs?: { id: string; status: string; startedAt: number }[];
+    } | null;
+    const failed = (await ctx.call("runs.list", { scope: "subject", subject, statuses: ["failed"], limit: 1 })) as {
+      total?: number;
+    } | null;
     const r = last?.runs?.[0];
-    return clean({ lastRun: r ? { runId: r.id, status: r.status, at: r.startedAt } : undefined, failedRuns: failed?.total ?? 0 });
-  } catch { return { failedRuns: 0 }; }
+    return clean({
+      lastRun: r ? { runId: r.id, status: r.status, at: r.startedAt } : undefined,
+      failedRuns: failed?.total ?? 0,
+    });
+  } catch {
+    return { failedRuns: 0 };
+  }
 }
 
 export async function list(ctx: AutoCtx, input: In): Promise<unknown> {
@@ -514,15 +758,29 @@ export async function list(ctx: AutoCtx, input: In): Promise<unknown> {
   if (input.folder) rows = rows.filter((a) => a.folderId === input.folder);
   if (input.groupId) rows = rows.filter((a) => a.groupId === input.groupId);
   if (input.status) rows = rows.filter((a) => a.status === input.status);
-  if (typeof input.q === "string" && input.q.trim()) { const q = input.q.trim().toLowerCase(); rows = rows.filter((a) => a.name.toLowerCase().includes(q)); }
+  if (typeof input.q === "string" && input.q.trim()) {
+    const q = input.q.trim().toLowerCase();
+    rows = rows.filter((a) => a.name.toLowerCase().includes(q));
+  }
   const p = page(rows, input.cursor, input.limit);
   const automations = [];
   for (const a of p.rows) {
     const s = await runStats(ctx, a.id);
-    automations.push(clean({
-      id: a.id, name: a.name, kind: a.kind, groupId: a.groupId, ownerId: a.ownerId, status: a.status, version: a.version, triggers: a.definition.triggers.map((t) => t.key),
-      updatedAt: a.updatedAt, lastRun: s.lastRun, failedRuns: s.failedRuns,
-    }));
+    automations.push(
+      clean({
+        id: a.id,
+        name: a.name,
+        kind: a.kind,
+        groupId: a.groupId,
+        ownerId: a.ownerId,
+        status: a.status,
+        version: a.version,
+        triggers: a.definition.triggers.map((t) => t.key),
+        updatedAt: a.updatedAt,
+        lastRun: s.lastRun,
+        failedRuns: s.failedRuns,
+      }),
+    );
   }
   return clean({ automations, next: p.next, total: p.total });
 }
@@ -530,12 +788,23 @@ export async function list(ctx: AutoCtx, input: In): Promise<unknown> {
 export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
   const def = input.definition as Definition;
   // a key-bearing step whose host was taken off its key's list shows before the next Run, with the line that Run would fail with
-  const keyBlocked = Array.isArray(def?.nodes) ? (await blockedKeySteps(ctx, def.nodes)).map((b) => issue("error", b.line, b.nodeId)) : [];
+  const keyBlocked = Array.isArray(def?.nodes)
+    ? (await blockedKeySteps(ctx, def.nodes)).map((b) => issue("error", b.line, b.nodeId))
+    : [];
   const issues = [...validateDefinition(def, readPolicy(ctx.db)), ...keyBlocked];
   return { ok: !hasErrors(issues), issues };
 }
 export async function triggersList(): Promise<unknown> {
-  return { triggers: registry.triggers.map((t) => ({ key: t.key, title: t.title, payload: t.payload, sample: t.sample, personalOk: t.personalOk, allowSelfTrigger: t.allowSelfTrigger })) };
+  return {
+    triggers: registry.triggers.map((t) => ({
+      key: t.key,
+      title: t.title,
+      payload: t.payload,
+      sample: t.sample,
+      personalOk: t.personalOk,
+      allowSelfTrigger: t.allowSelfTrigger,
+    })),
+  };
 }
 const SCHEMA_DEFS = (registry as unknown as { $defs?: Record<string, unknown> }).$defs ?? {};
 /** Put each `$ref` of an input schema in place, so a client that has no `$defs` table (the step panel) can still draw a field for every property. The depth is capped, so a cycle ends. */
@@ -549,7 +818,10 @@ export function inlineRefs(schema: unknown, depth = 0): unknown {
   }
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(rec)) {
-    if (k === "properties" && v && typeof v === "object") out[k] = Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([name, p]) => [name, inlineRefs(p, depth + 1)]));
+    if (k === "properties" && v && typeof v === "object")
+      out[k] = Object.fromEntries(
+        Object.entries(v as Record<string, unknown>).map(([name, p]) => [name, inlineRefs(p, depth + 1)]),
+      );
     else if (k === "items") out[k] = inlineRefs(v, depth + 1);
     else out[k] = v;
   }
@@ -559,7 +831,20 @@ export function inlineRefs(schema: unknown, depth = 0): unknown {
 export async function stepsList(ctx: AutoCtx, input: In): Promise<unknown> {
   const hidden = await hiddenSteps(ctx);
   const steps = registry.steps.filter((s) => !hidden.has(s.key) && (!input.category || s.category === input.category));
-  return { steps: steps.map((s) => clean({ key: s.key, title: s.title, category: s.category, kind: s.kind, input: inlineRefs(s.input), output: s.output, effects: s.effects, gateAct: s.gateAct })) };
+  return {
+    steps: steps.map((s) =>
+      clean({
+        key: s.key,
+        title: s.title,
+        category: s.category,
+        kind: s.kind,
+        input: inlineRefs(s.input),
+        output: s.output,
+        effects: s.effects,
+        gateAct: s.gateAct,
+      }),
+    ),
+  };
 }
 
 // ---- create, update, versions ----
@@ -578,14 +863,32 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
   checkStructure(ctx, def);
   refuseSecret(ctx, def);
   const agentIssue = (await agentStepIssues(ctx, "personal", def))[0];
-  if (agentIssue) raise(ctx, "validation.precondition_failed", agentIssue.message, { reason: "agent_not_yours", issues: [agentIssue] });
+  if (agentIssue)
+    raise(ctx, "validation.precondition_failed", agentIssue.message, {
+      reason: "agent_not_yours",
+      issues: [agentIssue],
+    });
   await guardKeySteps(ctx, undefined, def);
-  if (input.groupId && !findGroup(ctx.db, input.groupId)) raise(ctx, "validation.not_found", "That Group does not exist.", { reason: "no_group" });
+  if (input.groupId && !findGroup(ctx.db, input.groupId))
+    raise(ctx, "validation.not_found", "That Group does not exist.", { reason: "no_group" });
   const now = ctx.now();
   const owner = me(ctx);
   const a: Automation = clean({
-    id: newId("aut", now), name, description: input.description, kind: "personal" as const, groupId: input.groupId, folderId: input.folderId, ownerId: owner, status: "draft" as const,
-    version: 1, definition: def, followers: [owner], alerts: defaultAlerts(readPolicy(ctx.db), owner), createdBy: ctx.principal.id, createdAt: now, updatedAt: now,
+    id: newId("aut", now),
+    name,
+    description: input.description,
+    kind: "personal" as const,
+    groupId: input.groupId,
+    folderId: input.folderId,
+    ownerId: owner,
+    status: "draft" as const,
+    version: 1,
+    definition: def,
+    followers: [owner],
+    alerts: defaultAlerts(readPolicy(ctx.db), owner),
+    createdBy: ctx.principal.id,
+    createdAt: now,
+    updatedAt: now,
   });
   saveAutomation(ctx.db, a);
   saveVersion(ctx, a, "Created");
@@ -602,11 +905,20 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   const wasRunsAs = a.runsAs;
   await mustChange(ctx, a);
   if (input.expectedVersion !== undefined && input.expectedVersion !== a.version) {
-    raise(ctx, "validation.version_conflict", `This automation is at version ${a.version} now.`, { current: a.version, expected: input.expectedVersion });
+    raise(ctx, "validation.version_conflict", `This automation is at version ${a.version} now.`, {
+      current: a.version,
+      expected: input.expectedVersion,
+    });
   }
   const fields: string[] = [];
-  if (typeof input.name === "string" && input.name.trim() && input.name.trim() !== a.name) { a.name = input.name.trim(); fields.push("name"); }
-  if (typeof input.description === "string" && input.description !== (a.description ?? "")) { a.description = input.description; fields.push("description"); }
+  if (typeof input.name === "string" && input.name.trim() && input.name.trim() !== a.name) {
+    a.name = input.name.trim();
+    fields.push("name");
+  }
+  if (typeof input.description === "string" && input.description !== (a.description ?? "")) {
+    a.description = input.description;
+    fields.push("description");
+  }
   let definitionChanged = false;
   let before: Definition | undefined;
   if (input.definition !== undefined && !same(input.definition, a.definition)) {
@@ -616,10 +928,19 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
     const policy = readPolicy(ctx.db);
     // an agent the saver may not give work to is refused at once, on or off: it is not a draft to finish later but someone else's (lead 12 Nov, rule 4)
     const agentIssue = (await agentStepIssues(ctx, a.kind, input.definition))[0];
-    if (agentIssue) raise(ctx, "validation.precondition_failed", agentIssue.message, { reason: "agent_not_yours", issues: [agentIssue] });
-    const blocking = a.status === "on" ? await blocksGoingLive(ctx, a.kind, input.definition, policy) : validateDefinition(input.definition, policy);
+    if (agentIssue)
+      raise(ctx, "validation.precondition_failed", agentIssue.message, {
+        reason: "agent_not_yours",
+        issues: [agentIssue],
+      });
+    const blocking =
+      a.status === "on"
+        ? await blocksGoingLive(ctx, a.kind, input.definition, policy)
+        : validateDefinition(input.definition, policy);
     if (a.status === "on" && hasErrors(blocking)) {
-      raise(ctx, "validation.precondition_failed", "Turn the automation off before saving a definition with errors.", { reason: "invalid_definition" });
+      raise(ctx, "validation.precondition_failed", "Turn the automation off before saving a definition with errors.", {
+        reason: "invalid_definition",
+      });
     }
     before = a.definition;
     a.definition = input.definition;
@@ -652,7 +973,11 @@ export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
       if (a.runsAs !== wasRunsAs) {
         // a new runs-as person by pressing On again: the agent check runs for them, as on a first turn-on (review 12 Nov, 8)
         const agentIssue = (await agentStepIssues(ctx, a.kind, a.definition))[0];
-        if (agentIssue) raise(ctx, "validation.precondition_failed", agentIssue.message, { reason: "live_step", issues: [agentIssue] });
+        if (agentIssue)
+          raise(ctx, "validation.precondition_failed", agentIssue.message, {
+            reason: "live_step",
+            issues: [agentIssue],
+          });
         touch(ctx, a);
       }
       await regrant(ctx, a, "on");
@@ -665,7 +990,10 @@ export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
       const live = await liveStepIssues(ctx, a.kind, a.definition);
       const drafted = draftedActionIssues(a.definition, ctx.db);
       const reason = live.length > 0 ? "live_step" : drafted.length > 0 ? "draft" : "invalid_definition";
-      raise(ctx, "validation.precondition_failed", issues.find((i) => i.severity === "error")!.message, { reason, issues });
+      raise(ctx, "validation.precondition_failed", issues.find((i) => i.severity === "error")!.message, {
+        reason,
+        issues,
+      });
     }
     a.status = "on";
     delete a.pausedReason;
@@ -695,26 +1023,41 @@ export async function remove(ctx: AutoCtx, input: In): Promise<unknown> {
 export async function setOwner(ctx: AutoCtx, input: In & { ownerId?: string }): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   await mustChange(ctx, a);
-  if (a.kind !== "space") raise(ctx, "validation.bad_input", "A Personal Automation belongs to its person. Promote it to the Space first.");
+  if (a.kind !== "space")
+    raise(ctx, "validation.bad_input", "A Personal Automation belongs to its person. Promote it to the Space first.");
   const to = typeof input.ownerId === "string" ? input.ownerId : "";
   if (!to.startsWith("usr_") || to === a.ownerId) raise(ctx, "validation.bad_input", "Pick another person.");
   const from = a.ownerId;
   a.ownerId = to;
   touch(ctx, a);
   // the previous owner keeps Manage, so handing it over never locks them out
-  await ctx.call?.("access.share", { resource: { type: "automation", id: a.id }, subject: { kind: "person", id: from }, level: "manage", source: `automation-owner:${a.id}`, idempotencyKey: `owner:${a.id}:${to}:${globalThis.crypto.randomUUID()}` }).catch(() => undefined);
+  await ctx
+    .call?.("access.share", {
+      resource: { type: "automation", id: a.id },
+      subject: { kind: "person", id: from },
+      level: "manage",
+      source: `automation-owner:${a.id}`,
+      idempotencyKey: `owner:${a.id}:${to}:${globalThis.crypto.randomUUID()}`,
+    })
+    .catch(() => undefined);
   emitAuto(ctx, "automation.updated", a.id, { version: a.version, fields: ["ownerId"] });
   return { automation: out(a) };
 }
 export async function undelete(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = getAutomation(ctx, input.automationId, true);
   visible(ctx, a);
-  const row = ctx.db.all("SELECT deleted_at FROM automations_defs WHERE id = ?", a.id) as { deleted_at: number | null }[];
+  const row = ctx.db.all("SELECT deleted_at FROM automations_defs WHERE id = ?", a.id) as {
+    deleted_at: number | null;
+  }[];
   if (row[0]?.deleted_at == null) return { automation: out(a) };
   markRestored(ctx, a.id);
   const back = getAutomation(ctx, a.id);
   // it comes back off: nothing fires until someone turns it on
-  if (back.status === "on" || back.status === "paused") { back.status = "off"; delete back.pausedReason; touch(ctx, back); }
+  if (back.status === "on" || back.status === "paused") {
+    back.status = "off";
+    delete back.pausedReason;
+    touch(ctx, back);
+  }
   emitAuto(ctx, "automation.restored", a.id, {});
   return { automation: out(back) };
 }
@@ -732,14 +1075,19 @@ export async function restoreVersion(ctx: AutoCtx, input: In): Promise<unknown> 
   if (!v) raise(ctx, "validation.not_found", "That version does not exist.", { reason: "no_version" });
   refuseSecret(ctx, v.definition);
   await guardKeySteps(ctx, a.definition, v.definition);
-  const restored = a.status === "on" ? await blocksGoingLive(ctx, a.kind, v.definition, readPolicy(ctx.db)) : validateDefinition(v.definition, readPolicy(ctx.db));
+  const restored =
+    a.status === "on"
+      ? await blocksGoingLive(ctx, a.kind, v.definition, readPolicy(ctx.db))
+      : validateDefinition(v.definition, readPolicy(ctx.db));
   if (a.status === "on" && hasErrors(restored)) {
-    raise(ctx, "validation.precondition_failed", "Turn the automation off before restoring a version with errors.", { reason: "invalid_definition" });
+    raise(ctx, "validation.precondition_failed", "Turn the automation off before restoring a version with errors.", {
+      reason: "invalid_definition",
+    });
   }
   const before = a.definition;
   a.definition = v.definition;
   a.version += 1;
-  if (a.status === "on") noteRunsAs(ctx, a);   // restoring a version of a live automation publishes it: the person who did is who it runs as
+  if (a.status === "on") noteRunsAs(ctx, a); // restoring a version of a live automation publishes it: the person who did is who it runs as
   touch(ctx, a);
   const row = saveVersion(ctx, a, `Restored version ${v.n}`);
   await regrant(ctx, a, "save", before);
@@ -751,16 +1099,24 @@ export async function restoreVersion(ctx: AutoCtx, input: In): Promise<unknown> 
 
 // ---- Groups ----
 
-const groupOut = (g: { id: string; name: string; count: number; order: number }): Record<string, unknown> => ({ id: g.id, name: g.name, count: g.count, order: g.order });
+const groupOut = (g: { id: string; name: string; count: number; order: number }): Record<string, unknown> => ({
+  id: g.id,
+  name: g.name,
+  count: g.count,
+  order: g.order,
+});
 const cleanName = (ctx: AutoCtx, n: unknown): string => {
   const s = typeof n === "string" ? n.trim() : "";
   if (!s) raise(ctx, "validation.bad_input", "A Group needs a name.");
   return s;
 };
 function noDuplicateGroup(ctx: AutoCtx, name: string, exceptId?: string): void {
-  if (listGroups(ctx.db).some((g) => g.id !== exceptId && g.name.toLowerCase() === name.toLowerCase())) raise(ctx, "validation.duplicate", "A Group with that name exists.", { reason: "group_name" });
+  if (listGroups(ctx.db).some((g) => g.id !== exceptId && g.name.toLowerCase() === name.toLowerCase()))
+    raise(ctx, "validation.duplicate", "A Group with that name exists.", { reason: "group_name" });
 }
-export async function groupsList(ctx: AutoCtx): Promise<unknown> { return { groups: listGroups(ctx.db).map(groupOut) }; }
+export async function groupsList(ctx: AutoCtx): Promise<unknown> {
+  return { groups: listGroups(ctx.db).map(groupOut) };
+}
 export async function groupsCreate(ctx: AutoCtx, input: In): Promise<unknown> {
   const name = cleanName(ctx, input.name);
   noDuplicateGroup(ctx, name);
@@ -789,8 +1145,10 @@ export async function move(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   await mustChange(ctx, a);
   const gid: string | null = input.groupId ?? null;
-  if (gid !== null && !findGroup(ctx.db, gid)) raise(ctx, "validation.not_found", "That Group does not exist.", { reason: "no_group" });
-  if (gid === null) delete a.groupId; else a.groupId = gid;
+  if (gid !== null && !findGroup(ctx.db, gid))
+    raise(ctx, "validation.not_found", "That Group does not exist.", { reason: "no_group" });
+  if (gid === null) delete a.groupId;
+  else a.groupId = gid;
   touch(ctx, a);
   emitAuto(ctx, "automation.moved", a.id, { groupId: gid });
   return { automation: out(a) };
@@ -804,9 +1162,13 @@ export async function alertsGet(ctx: AutoCtx, input: In): Promise<unknown> {
 export async function alertsSet(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   const al = input.alerts as Alerts;
-  if (al.when.mode === "after_n" && al.when.n === undefined) raise(ctx, "validation.bad_input", "Say after how many failures in a row.", { reason: "n_required" });
+  if (al.when.mode === "after_n" && al.when.n === undefined)
+    raise(ctx, "validation.bad_input", "Say after how many failures in a row.", { reason: "n_required" });
   const hours = al.escalation.map((e) => e.afterHours);
-  if (hours.some((h, i) => i > 0 && h <= hours[i - 1]!)) raise(ctx, "validation.bad_input", "Each step of the escalation chain comes later than the one before.", { reason: "escalation_order" });
+  if (hours.some((h, i) => i > 0 && h <= hours[i - 1]!))
+    raise(ctx, "validation.bad_input", "Each step of the escalation chain comes later than the one before.", {
+      reason: "escalation_order",
+    });
   a.alerts = al;
   touch(ctx, a);
   emitAuto(ctx, "automation.alerts_changed", a.id, {});
@@ -832,18 +1194,28 @@ export async function followersRemove(ctx: AutoCtx, input: In): Promise<unknown>
 }
 
 /** The address an app posts to: the Space's own public address from the host (a context's own base first, for a host that sets one); a bare path when the Space has none that carries web requests. */
-function webhookUrl(ctx: AutoCtx, id: string, secret: string): string { return `${(ctx.baseUrl ?? hookBase() ?? "").replace(/\/+$/, "")}/hooks/automation/${id}/${secret}`; }
+function webhookUrl(ctx: AutoCtx, id: string, secret: string): string {
+  return `${(ctx.baseUrl ?? hookBase() ?? "").replace(/\/+$/, "")}/hooks/automation/${id}/${secret}`;
+}
 function needWebhookTrigger(ctx: AutoCtx, a: Automation): void {
-  if (!a.definition.triggers.some((t) => t.key === "webhook")) raise(ctx, "validation.precondition_failed", "Add a webhook trigger first.", { reason: "no_webhook_trigger" });
+  if (!a.definition.triggers.some((t) => t.key === "webhook"))
+    raise(ctx, "validation.precondition_failed", "Add a webhook trigger first.", { reason: "no_webhook_trigger" });
 }
 export async function webhookGet(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   needWebhookTrigger(ctx, a);
-  const have = (ctx.db.all("SELECT secret FROM automations_webhooks WHERE automation_id = ?", a.id) as { secret: string }[])[0];
+  const have = (
+    ctx.db.all("SELECT secret FROM automations_webhooks WHERE automation_id = ?", a.id) as { secret: string }[]
+  )[0];
   let secret = have?.secret;
   if (!secret) {
     secret = newSecret();
-    ctx.db.run("INSERT INTO automations_webhooks (automation_id, secret, rotated_at) VALUES (?, ?, ?)", a.id, secret, ctx.now());
+    ctx.db.run(
+      "INSERT INTO automations_webhooks (automation_id, secret, rotated_at) VALUES (?, ?, ?)",
+      a.id,
+      secret,
+      ctx.now(),
+    );
   }
   return { url: webhookUrl(ctx, a.id, secret), method: "POST" };
 }
@@ -854,22 +1226,35 @@ export async function webhookGet(ctx: AutoCtx, input: In): Promise<unknown> {
 async function mustBeAskedIfAgent(ctx: AutoCtx, a: Automation): Promise<void> {
   if (ctx.principal.kind !== "agent") return;
   if (await ownerAsked(ctx as never, a.ownerId)) return;
-  raise(ctx, "validation.precondition_failed", "An agent can do that only in a turn the owner started with their own message. This needs the owner's own message. Carry on without it and mention it once at your next check-in; do not ask each time.", { reason: "owner_asked_only" });
+  raise(
+    ctx,
+    "validation.precondition_failed",
+    "An agent can do that only in a turn the owner started with their own message. This needs the owner's own message. Carry on without it and mention it once at your next check-in; do not ask each time.",
+    { reason: "owner_asked_only" },
+  );
 }
 export async function webhookRotate(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   await mustBeAskedIfAgent(ctx, a);
   needWebhookTrigger(ctx, a);
   const secret = newSecret();
-  ctx.db.run("INSERT OR REPLACE INTO automations_webhooks (automation_id, secret, rotated_at) VALUES (?, ?, ?)", a.id, secret, ctx.now());
+  ctx.db.run(
+    "INSERT OR REPLACE INTO automations_webhooks (automation_id, secret, rotated_at) VALUES (?, ?, ?)",
+    a.id,
+    secret,
+    ctx.now(),
+  );
   return { url: webhookUrl(ctx, a.id, secret) };
 }
 /** The webhook receiver asks this: does the secret in the URL belong to this Automation. */
 export function webhookSecretMatches(ctx: AutoCtx, automationId: string, secret: string): boolean {
-  const have = (ctx.db.all("SELECT secret FROM automations_webhooks WHERE automation_id = ?", automationId) as { secret: string }[])[0];
+  const have = (
+    ctx.db.all("SELECT secret FROM automations_webhooks WHERE automation_id = ?", automationId) as { secret: string }[]
+  )[0];
   if (!have) return false;
   // Every character is compared whatever the first mismatch, so the time taken does not say how much of a guess was right.
-  const a = have.secret, b = secret;
+  const a = have.secret,
+    b = secret;
   let diff = a.length ^ b.length;
   for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
   return diff === 0;
@@ -878,7 +1263,18 @@ export function webhookSecretMatches(ctx: AutoCtx, automationId: string, secret:
 // ---- Promote and the Personal copy ----
 
 const HANDLE = /#[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)?/g;
-const RESOURCE_PREFIX: Record<string, string> = { rec: "record", fil: "file", fld: "folder", chn: "channel", prj: "project", frm: "form", sit: "site", kit: "kit", mbx: "mailbox", num: "number" };
+const RESOURCE_PREFIX: Record<string, string> = {
+  rec: "record",
+  fil: "file",
+  fld: "folder",
+  chn: "channel",
+  prj: "project",
+  frm: "form",
+  sit: "site",
+  kit: "kit",
+  mbx: "mailbox",
+  num: "number",
+};
 const LEVELS = ["view", "use", "edit", "manage"] as const;
 
 function walk(v: unknown, f: (s: string) => void): void {
@@ -888,9 +1284,17 @@ function walk(v: unknown, f: (s: string) => void): void {
 }
 
 export interface Diff {
-  grants: Grant[]; vaultNames: string[]; connections: string[]; keysToReplace: { stepId: string; keyId: string; reason: string }[];
+  grants: Grant[];
+  vaultNames: string[];
+  connections: string[];
+  keysToReplace: { stepId: string; keyId: string; reason: string }[];
 }
-interface VaultItem { id: string; handle?: string; name?: string; kind?: string }
+interface VaultItem {
+  id: string;
+  handle?: string;
+  name?: string;
+  kind?: string;
+}
 
 /** What a Space Automation would hold as itself: the resources its steps touch, the vault names and connections it uses, the subscription keys that must change. */
 export async function accessDiff(ctx: AutoCtx, a: Automation): Promise<Diff> {
@@ -905,7 +1309,10 @@ export async function accessDiff(ctx: AutoCtx, a: Automation): Promise<Diff> {
       if (/^con_[a-z0-9]+$/.test(s)) connections.add(s);
       const m = /^([a-z]{3})_[a-z0-9]+$/.exec(s);
       const type = m ? RESOURCE_PREFIX[m[1]!] : undefined;
-      if (type) { const k = `${type}/${s}`; need.set(k, Math.max(need.get(k) ?? 0, lvl)); }
+      if (type) {
+        const k = `${type}/${s}`;
+        need.set(k, Math.max(need.get(k) ?? 0, lvl));
+      }
     });
   }
   // the AI step's key is named by provider id; the Vault item behind it is what the Space automation must be allowed to use
@@ -917,21 +1324,33 @@ export async function accessDiff(ctx: AutoCtx, a: Automation): Promise<Diff> {
       if (p?.handle) vault.add(p.handle);
     }
   }
-  const grants: Grant[] = [...need.entries()].sort(([x], [y]) => (x < y ? -1 : 1)).map(([resource, l]) => {
-    const level = LEVELS[l]!;
-    const [type, id] = resource.split("/") as [string, string];
-    const holds = !!ctx.authorize && ctx.authorize({ perm: null, level }, { type, id }).effect === "allow";
-    return { resource, level, via: holds ? "owner_access" : "new_grant" };
-  });
+  const grants: Grant[] = [...need.entries()]
+    .sort(([x], [y]) => (x < y ? -1 : 1))
+    .map(([resource, l]) => {
+      const level = LEVELS[l]!;
+      const [type, id] = resource.split("/") as [string, string];
+      const holds = !!ctx.authorize && ctx.authorize({ perm: null, level }, { type, id }).effect === "allow";
+      return { resource, level, via: holds ? "owner_access" : "new_grant" };
+    });
   const keysToReplace: Diff["keysToReplace"] = [];
   const subs = await subscriptionKeys(ctx);
   for (const n of a.definition.nodes) {
     for (const k of [n.ai?.keyId, n.ai?.backupKeyId]) {
-      if (k && subs.has(k)) keysToReplace.push({ stepId: n.id, keyId: k, reason: "A subscription belongs to one person. A Space automation needs a shared API key." });
+      if (k && subs.has(k))
+        keysToReplace.push({
+          stepId: n.id,
+          keyId: k,
+          reason: "A subscription belongs to one person. A Space automation needs a shared API key.",
+        });
     }
     // an AI step that used its owner's own account has no key to carry over: the Space automation needs one
     const picked = (n.ai?.keyId ?? (n.input as Record<string, unknown>)["keyId"]) as unknown;
-    if (n.key === "ai" && (typeof picked !== "string" || picked === "")) keysToReplace.push({ stepId: n.id, keyId: "", reason: "This AI step ran on your own account. A Space automation needs a Space-shared AI key." });
+    if (n.key === "ai" && (typeof picked !== "string" || picked === ""))
+      keysToReplace.push({
+        stepId: n.id,
+        keyId: "",
+        reason: "This AI step ran on your own account. A Space automation needs a Space-shared AI key.",
+      });
   }
   return { grants, vaultNames: [...vault].sort(), connections: [...connections].sort(), keysToReplace };
 }
@@ -940,9 +1359,15 @@ async function subscriptionKeys(ctx: AutoCtx): Promise<Set<string>> {
   const s = new Set<string>();
   if (!ctx.call) return s;
   try {
-    const r = (await ctx.call("vault.items.list", { kind: "ai_subscription", limit: 500 })) as { items?: VaultItem[] } | null;
-    for (const i of r?.items ?? []) if (i.kind === undefined || i.kind === "ai_subscription") for (const k of [i.id, i.handle, i.name]) if (k) s.add(k);
-  } catch { /* without the vault list nothing is flagged; promote then trusts the caller */ }
+    const r = (await ctx.call("vault.items.list", { kind: "ai_subscription", limit: 500 })) as {
+      items?: VaultItem[];
+    } | null;
+    for (const i of r?.items ?? [])
+      if (i.kind === undefined || i.kind === "ai_subscription")
+        for (const k of [i.id, i.handle, i.name]) if (k) s.add(k);
+  } catch {
+    /* without the vault list nothing is flagged; promote then trusts the caller */
+  }
   return s;
 }
 
@@ -956,16 +1381,31 @@ export async function promote(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   await mustBeAskedIfAgent(ctx, a);
   const wasRunsAs = a.runsAs;
-  if (a.kind === "space") raise(ctx, "validation.precondition_failed", "That automation is already a Space automation.", { reason: "already_space" });
+  if (a.kind === "space")
+    raise(ctx, "validation.precondition_failed", "That automation is already a Space automation.", {
+      reason: "already_space",
+    });
   const diff = await accessDiff(ctx, a);
   const replace = new Map<string, string>();
   for (const r of (input.replaceKeys ?? []) as { stepId: string; keyId: string }[]) replace.set(r.stepId, r.keyId);
   const open = diff.keysToReplace.filter((k) => !replace.has(k.stepId));
   if (open.length) {
-    raise(ctx, "validation.precondition_failed", "Replace the subscription keys with shared API keys before promoting.", { reason: "keys_not_replaced", steps: open.map((k) => k.stepId) });
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      "Replace the subscription keys with shared API keys before promoting.",
+      { reason: "keys_not_replaced", steps: open.map((k) => k.stepId) },
+    );
   }
-  const issues = [...validateDefinition(a.definition, readPolicy(ctx.db)), ...(await agentStepIssues(ctx, "space", a.definition))];
-  if (hasErrors(issues)) raise(ctx, "validation.precondition_failed", issues.find((i) => i.severity === "error")!.message, { reason: "invalid_definition", issues });
+  const issues = [
+    ...validateDefinition(a.definition, readPolicy(ctx.db)),
+    ...(await agentStepIssues(ctx, "space", a.definition)),
+  ];
+  if (hasErrors(issues))
+    raise(ctx, "validation.precondition_failed", issues.find((i) => i.severity === "error")!.message, {
+      reason: "invalid_definition",
+      issues,
+    });
   // a move to the Space is a save: the mover may use every key its steps use
   await guardKeySteps(ctx, undefined, a.definition);
   let replaced = 0;
@@ -976,40 +1416,76 @@ export async function promote(ctx: AutoCtx, input: In): Promise<unknown> {
       if (!k) continue;
       if (!n.ai) n.ai = {};
       const wasSub = new Set(diff.keysToReplace.filter((x) => x.stepId === n.id).map((x) => x.keyId));
-      if (n.ai.keyId && wasSub.has(n.ai.keyId)) { n.ai.keyId = k; replaced += 1; }
-      else if (!n.ai.keyId && wasSub.has("")) { n.ai.keyId = k; replaced += 1; }
-      if (n.ai.backupKeyId && wasSub.has(n.ai.backupKeyId)) { n.ai.backupKeyId = k; replaced += 1; }
+      if (n.ai.keyId && wasSub.has(n.ai.keyId)) {
+        n.ai.keyId = k;
+        replaced += 1;
+      } else if (!n.ai.keyId && wasSub.has("")) {
+        n.ai.keyId = k;
+        replaced += 1;
+      }
+      if (n.ai.backupKeyId && wasSub.has(n.ai.backupKeyId)) {
+        n.ai.backupKeyId = k;
+        replaced += 1;
+      }
     }
     a.definition = def;
     a.version += 1;
   }
   a.kind = "space";
   a.ownerId = typeof input.ownerId === "string" && input.ownerId ? input.ownerId : me(ctx);
-  noteRunsAs(ctx, a);   // the person who puts it on the Space is who it runs as until someone else turns it on
+  noteRunsAs(ctx, a); // the person who puts it on the Space is who it runs as until someone else turns it on
   touch(ctx, a);
-  if (replaced > 0) { saveVersion(ctx, a, "Promoted to the Space: shared keys"); await regrant(ctx, a, "save", a.definition); }
+  if (replaced > 0) {
+    saveVersion(ctx, a, "Promoted to the Space: shared keys");
+    await regrant(ctx, a, "save", a.definition);
+  }
   ctx.db.run("DELETE FROM automations_access WHERE automation_id = ?", a.id);
-  for (const g of diff.grants) ctx.db.run("INSERT INTO automations_access (automation_id, resource, level, via) VALUES (?, ?, ?, ?)", a.id, g.resource, g.level, g.via);
+  for (const g of diff.grants)
+    ctx.db.run(
+      "INSERT INTO automations_access (automation_id, resource, level, via) VALUES (?, ?, ?, ?)",
+      a.id,
+      g.resource,
+      g.level,
+      g.via,
+    );
   ctx.db.run("DELETE FROM automations_vault WHERE automation_id = ?", a.id);
-  for (const v of diff.vaultNames) ctx.db.run("INSERT INTO automations_vault (automation_id, name) VALUES (?, ?)", a.id, v);
-  await shareSenders(ctx, a, "on");   // Promote says it will run on the access shown, and the person confirmed it; the service is registered when this call commits
-  emitAuto(ctx, "automation.promoted", a.id, { ownerId: a.ownerId, grants: diff.grants.length, keysReplaced: replaced });
+  for (const v of diff.vaultNames)
+    ctx.db.run("INSERT INTO automations_vault (automation_id, name) VALUES (?, ?)", a.id, v);
+  await shareSenders(ctx, a, "on"); // Promote says it will run on the access shown, and the person confirmed it; the service is registered when this call commits
+  emitAuto(ctx, "automation.promoted", a.id, {
+    ownerId: a.ownerId,
+    grants: diff.grants.length,
+    keysReplaced: replaced,
+  });
   await runsAsMoved(ctx, a, wasRunsAs, "promote");
   return { automation: out(a), diff };
 }
 
 export async function makePersonalCopy(ctx: AutoCtx, input: In): Promise<unknown> {
   const src = visible(ctx, getAutomation(ctx, input.automationId));
-  if (src.kind !== "space") raise(ctx, "validation.precondition_failed", "Only a Space automation can be copied to Personal.", { reason: "not_space" });
+  if (src.kind !== "space")
+    raise(ctx, "validation.precondition_failed", "Only a Space automation can be copied to Personal.", {
+      reason: "not_space",
+    });
   const now = ctx.now();
   const owner = me(ctx);
   const name = typeof input.name === "string" && input.name.trim() ? input.name.trim() : `${src.name} (copy)`;
   // a copy is a save: the copier may use every key its steps use
   await guardKeySteps(ctx, undefined, src.definition);
   const copy: Automation = clean({
-    id: newId("aut", now), name, description: src.description, kind: "personal" as const, ownerId: owner, status: "draft" as const, version: 1,
-    definition: JSON.parse(JSON.stringify(src.definition)) as Definition, followers: [owner], alerts: defaultAlerts(readPolicy(ctx.db), owner), createdBy: ctx.principal.id,
-    createdAt: now, updatedAt: now,
+    id: newId("aut", now),
+    name,
+    description: src.description,
+    kind: "personal" as const,
+    ownerId: owner,
+    status: "draft" as const,
+    version: 1,
+    definition: JSON.parse(JSON.stringify(src.definition)) as Definition,
+    followers: [owner],
+    alerts: defaultAlerts(readPolicy(ctx.db), owner),
+    createdBy: ctx.principal.id,
+    createdAt: now,
+    updatedAt: now,
   });
   saveAutomation(ctx.db, copy);
   saveVersion(ctx, copy, `Copied from ${src.name}`);
@@ -1018,7 +1494,6 @@ export async function makePersonalCopy(ctx: AutoCtx, input: In): Promise<unknown
   return { automation: out(copy) };
 }
 
-
 /**
  * automations.runs_as.get: whose yes a Space automation's agent work runs on, checked now (lead 12 Nov). A Personal automation runs as its owner. A Space one runs as the person who last turned it
  * on or published a change to it; it has nobody when no person did, when that person is no longer an active member, or when the agent is someone's Assistant or runs on someone's own computer.
@@ -1026,42 +1501,128 @@ export async function makePersonalCopy(ctx: AutoCtx, input: In): Promise<unknown
  */
 export async function runsAsGet(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
-  const trigger = typeof input.runId === "string"
-    ? (ctx.db.all("SELECT trigger_key FROM automations_runs WHERE run_id = ? AND automation_id = ?", input.runId, a.id)[0] as { trigger_key?: string } | undefined)?.trigger_key
-    : undefined;
+  const trigger =
+    typeof input.runId === "string"
+      ? (
+          ctx.db.all(
+            "SELECT trigger_key FROM automations_runs WHERE run_id = ? AND automation_id = ?",
+            input.runId,
+            a.id,
+          )[0] as { trigger_key?: string } | undefined
+        )?.trigger_key
+      : undefined;
   const base = clean({ kind: a.kind, trigger });
   const person = a.kind === "personal" ? a.ownerId : a.runsAs;
   if (!person) return { ...base, ok: false, reason: "nobody", line: NOBODY_LINE };
   let name = person;
   try {
-    const p = ((await ctx.call?.("access.principals.get", { principal: { kind: "person", id: person } })) as { principal?: { name?: string; status?: string; kind?: string } } | undefined)?.principal;
+    const p = (
+      (await ctx.call?.("access.principals.get", { principal: { kind: "person", id: person } })) as
+        | { principal?: { name?: string; status?: string; kind?: string } }
+        | undefined
+    )?.principal;
     if (p?.name) name = p.name;
-    if (p?.kind !== "person" || p.status !== "active") return { ...base, runsAs: person, name, ok: false, reason: "not_active", line: `${name} turned this automation on and is no longer an active member. Open it to run it as yourself.` };
-  } catch { return { ...base, runsAs: person, ok: false, reason: "not_active", line: NOBODY_LINE }; }
+    if (p?.kind !== "person" || p.status !== "active")
+      return {
+        ...base,
+        runsAs: person,
+        name,
+        ok: false,
+        reason: "not_active",
+        line: `${name} turned this automation on and is no longer an active member. Open it to run it as yourself.`,
+      };
+  } catch {
+    return { ...base, runsAs: person, ok: false, reason: "not_active", line: NOBODY_LINE };
+  }
   if (typeof input.agentId === "string" && a.kind === "space") {
-    const ag = ((await ctx.call?.("agents.get", { agentId: input.agentId }).catch(() => null)) as { agent?: { kind?: string; runtime?: string; name?: string } } | null)?.agent;
-    if (ag && (ag.kind === "assistant" || ag.runtime === "outside")) return { ...base, runsAs: person, name, ok: false, reason: "assistant", line: `${ag.name ?? "That agent"} is a person's own agent, which a Space automation never gives work to. Choose a team agent.` };
+    const ag = (
+      (await ctx.call?.("agents.get", { agentId: input.agentId }).catch(() => null)) as {
+        agent?: { kind?: string; runtime?: string; name?: string };
+      } | null
+    )?.agent;
+    if (ag && (ag.kind === "assistant" || ag.runtime === "outside"))
+      return {
+        ...base,
+        runsAs: person,
+        name,
+        ok: false,
+        reason: "assistant",
+        line: `${ag.name ?? "That agent"} is a person's own agent, which a Space automation never gives work to. Choose a team agent.`,
+      };
   }
   return { ...base, runsAs: person, name, ok: true };
 }
-export const NOBODY_LINE = "This came from an automation and has nobody's permission to act yet. Open it to run it as yourself.";
+export const NOBODY_LINE =
+  "This came from an automation and has nobody's permission to act yet. Open it to run it as yourself.";
 
 /**
  * The person a Space automation runs as moved (review 12 Nov, 4): the event says so, the audit has a sensitive row (who, from whom, why), and the previous person hears it once in Needs you; when
  * nobody pressed (an agent's change), the accountable owner does, since its agent work now waits. Nothing happens when it stayed the same. Called after every write of the call.
  */
-async function runsAsMoved(ctx: AutoCtx, a: Automation, from: string | undefined, how: "on" | "save" | "restore" | "promote"): Promise<void> {
+async function runsAsMoved(
+  ctx: AutoCtx,
+  a: Automation,
+  from: string | undefined,
+  how: "on" | "save" | "restore" | "promote",
+): Promise<void> {
   if (a.kind !== "space" || a.runsAs === from) return;
   const why = a.runsAs === undefined ? "cleared" : how;
-  emitAuto(ctx, "automation.runs_as_changed", a.id, { from: from ?? null, to: a.runsAs ?? null, by: ctx.principal.id, why });
+  emitAuto(ctx, "automation.runs_as_changed", a.id, {
+    from: from ?? null,
+    to: a.runsAs ?? null,
+    by: ctx.principal.id,
+    why,
+  });
   if (!ctx.call) return;
-  await ctx.call("audit.append", { action: "automation.runs_as_changed", class: "sensitive", resource: { type: "automation", id: a.id }, ...(a.runsAs ? { onBehalfOf: { kind: "person", id: a.runsAs } } : {}), detail: { from: from ?? null, to: a.runsAs ?? null, by: ctx.principal.id, why } })
-    .catch((e: unknown) => ctx.log?.warn("automations: a runs-as change could not be audited", { automationId: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" }));
-  const nameOf = async (id: string): Promise<string> => { try { return ((await ctx.call!("access.principals.get", { principal: { kind: "person", id } })) as { principal?: { name?: string } } | null)?.principal?.name ?? id; } catch { return id; } };
-  const tell = async (to: string, line: string): Promise<void> => {
-    await ctx.call!("tasks.create", { kind: "work", title: line.slice(0, 300), assigned: { kind: "person", id: to }, due: ctx.now(), idempotencyKey: `runs-as:${a.id}:${to}:${a.version}:${ctx.now()}` })
-      .catch((e: unknown) => ctx.log?.warn("automations: the previous runs-as person could not be told", { automationId: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" }));
+  await ctx
+    .call("audit.append", {
+      action: "automation.runs_as_changed",
+      class: "sensitive",
+      resource: { type: "automation", id: a.id },
+      ...(a.runsAs ? { onBehalfOf: { kind: "person", id: a.runsAs } } : {}),
+      detail: { from: from ?? null, to: a.runsAs ?? null, by: ctx.principal.id, why },
+    })
+    .catch((e: unknown) =>
+      ctx.log?.warn("automations: a runs-as change could not be audited", {
+        automationId: a.id,
+        error: e instanceof Error ? e.message.slice(0, 200) : "error",
+      }),
+    );
+  const nameOf = async (id: string): Promise<string> => {
+    try {
+      return (
+        (
+          (await ctx.call!("access.principals.get", { principal: { kind: "person", id } })) as {
+            principal?: { name?: string };
+          } | null
+        )?.principal?.name ?? id
+      );
+    } catch {
+      return id;
+    }
   };
-  if (a.runsAs !== undefined && from !== undefined && from.startsWith("usr_")) await tell(from, `${a.name} now runs as ${await nameOf(a.runsAs)}, who ${why === "on" ? "turned it on" : why === "promote" ? "put it on the Space" : "changed it"}. It no longer uses your access.`);
-  if (a.runsAs === undefined && a.ownerId.startsWith("usr_")) await tell(a.ownerId, `${a.name} now runs as nobody, since a change no person pressed. Its agent work waits until someone turns it on again.`);
+  const tell = async (to: string, line: string): Promise<void> => {
+    await ctx.call!("tasks.create", {
+      kind: "work",
+      title: line.slice(0, 300),
+      assigned: { kind: "person", id: to },
+      due: ctx.now(),
+      idempotencyKey: `runs-as:${a.id}:${to}:${a.version}:${ctx.now()}`,
+    }).catch((e: unknown) =>
+      ctx.log?.warn("automations: the previous runs-as person could not be told", {
+        automationId: a.id,
+        error: e instanceof Error ? e.message.slice(0, 200) : "error",
+      }),
+    );
+  };
+  if (a.runsAs !== undefined && from !== undefined && from.startsWith("usr_"))
+    await tell(
+      from,
+      `${a.name} now runs as ${await nameOf(a.runsAs)}, who ${why === "on" ? "turned it on" : why === "promote" ? "put it on the Space" : "changed it"}. It no longer uses your access.`,
+    );
+  if (a.runsAs === undefined && a.ownerId.startsWith("usr_"))
+    await tell(
+      a.ownerId,
+      `${a.name} now runs as nobody, since a change no person pressed. Its agent work waits until someone turns it on again.`,
+    );
 }

@@ -6,32 +6,57 @@ import { CLI_ADAPTERS, TOKEN_ENV, channel, classifyCli, defaultPrompt, lines } f
 import type { CommandOptions } from "../src/drivers/cli/index.ts";
 import { message, turnOf } from "../fixtures/golden-streams/rig.ts";
 
-const BASE: CommandOptions = { model: null, resume: null, mcpUrl: "http://127.0.0.1:4100/mcp", planMode: false, workFolder: null, system: null };
+const BASE: CommandOptions = {
+  model: null,
+  resume: null,
+  mcpUrl: "http://127.0.0.1:4100/mcp",
+  planMode: false,
+  workFolder: null,
+  system: null,
+};
 const after = (argv: readonly string[], flag: string): string | undefined => argv[argv.indexOf(flag) + 1];
 const SECRET = "tok-allowed-0123456789abcdef";
 
 test("claude: headless stream-json both ways with partial messages, Vyre's server only, Vyre's tools only", () => {
   const argv = CLI_ADAPTERS.claude_code.command(BASE);
   assert.equal(argv[0], "claude");
-  for (const f of ["-p", "--verbose", "--include-partial-messages", "--strict-mcp-config"]) assert.ok(argv.includes(f), f);
+  for (const f of ["-p", "--verbose", "--include-partial-messages", "--strict-mcp-config"])
+    assert.ok(argv.includes(f), f);
   assert.equal(after(argv, "--input-format"), "stream-json");
   assert.equal(after(argv, "--output-format"), "stream-json");
   assert.equal(after(argv, "--permission-mode"), "default");
   assert.equal(after(argv, "--allowedTools"), "mcp__vyre__*");
   assert.equal(after(argv, "--tools"), "", "the CLI's own tools are off on a chat with no work folder");
   assert.equal(argv.includes("--add-dir"), false);
-  const cfg = JSON.parse(after(argv, "--mcp-config") ?? "{}") as { mcpServers: Record<string, { url: string; headers: Record<string, string> }> };
+  const cfg = JSON.parse(after(argv, "--mcp-config") ?? "{}") as {
+    mcpServers: Record<string, { url: string; headers: Record<string, string> }>;
+  };
   assert.deepEqual(Object.keys(cfg.mcpServers), ["vyre"]);
   assert.equal(cfg.mcpServers["vyre"]?.url, BASE.mcpUrl);
-  assert.equal(cfg.mcpServers["vyre"]?.headers["Authorization"], "Bearer ${" + TOKEN_ENV + "}", "the token is named, never carried");
+  assert.equal(
+    cfg.mcpServers["vyre"]?.headers["Authorization"],
+    "Bearer ${" + TOKEN_ENV + "}",
+    "the token is named, never carried",
+  );
 });
 
 test("claude: a granted work folder turns the file and shell tools on inside it; plan mode, model, resume and the guide are flags", () => {
-  const argv = CLI_ADAPTERS.claude_code.command({ ...BASE, workFolder: "/work/acme", planMode: true, model: "sonnet", resume: "sess-9", system: "You are Intake." });
+  const argv = CLI_ADAPTERS.claude_code.command({
+    ...BASE,
+    workFolder: "/work/acme",
+    planMode: true,
+    model: "sonnet",
+    resume: "sess-9",
+    system: "You are Intake.",
+  });
   assert.equal(argv.includes("--tools"), false);
   assert.equal(after(argv, "--add-dir"), "/work/acme");
   const allowed = argv.slice(argv.indexOf("--allowedTools") + 1, argv.indexOf("--add-dir"));
-  assert.deepEqual(allowed, ["mcp__vyre__*", "WebSearch", "WebFetch", "Read", "Edit", "Write", "Glob", "Grep", "Bash", "Skill"], "Skill opens the skills Vyre wrote into the work folder");
+  assert.deepEqual(
+    allowed,
+    ["mcp__vyre__*", "WebSearch", "WebFetch", "Read", "Edit", "Write", "Glob", "Grep", "Bash", "Skill"],
+    "Skill opens the skills Vyre wrote into the work folder",
+  );
   assert.equal(after(argv, "--permission-mode"), "plan");
   assert.equal(after(argv, "--model"), "sonnet");
   assert.equal(after(argv, "--resume"), "sess-9");
@@ -41,7 +66,10 @@ test("claude: a granted work folder turns the file and shell tools on inside it;
 test("claude: a user message is one JSON line on stdin", () => {
   const wire = CLI_ADAPTERS.claude_code.encode("hello\nthere");
   assert.ok(wire.endsWith("\n"));
-  assert.deepEqual(JSON.parse(wire), { type: "user", message: { role: "user", content: [{ type: "text", text: "hello\nthere" }] } });
+  assert.deepEqual(JSON.parse(wire), {
+    type: "user",
+    message: { role: "user", content: [{ type: "text", text: "hello\nthere" }] },
+  });
   assert.equal(wire.trimEnd().includes("\n"), false);
 });
 
@@ -57,9 +85,13 @@ test("codex: exec --json, its own sandbox read-only unless a work folder was gra
     `mcp_servers.vyre.bearer_token_env_var="${TOKEN_ENV}"`,
   ]);
   assert.equal(argv.includes("resume"), false);
-  const folder = CLI_ADAPTERS.codex.command({ ...BASE, workFolder: "/work/acme" }).filter((_, i, a) => a[i - 1] === "-c")[0];
+  const folder = CLI_ADAPTERS.codex
+    .command({ ...BASE, workFolder: "/work/acme" })
+    .filter((_, i, a) => a[i - 1] === "-c")[0];
   assert.equal(folder, 'sandbox_mode="workspace-write"');
-  const plan = CLI_ADAPTERS.codex.command({ ...BASE, workFolder: "/work/acme", planMode: true }).filter((_, i, a) => a[i - 1] === "-c")[0];
+  const plan = CLI_ADAPTERS.codex
+    .command({ ...BASE, workFolder: "/work/acme", planMode: true })
+    .filter((_, i, a) => a[i - 1] === "-c")[0];
   assert.equal(plan, 'sandbox_mode="read-only"', "plan mode never writes");
 });
 
@@ -83,7 +115,10 @@ test("grok: headless streaming-json, resume by id, and the person's other MCP co
 test("no command line of any CLI can carry a token: the options have no field for one", () => {
   for (const id of ["claude_code", "codex", "grok"] as const) {
     const argv = CLI_ADAPTERS[id].command({ ...BASE, resume: "r", model: "m", workFolder: "/w", system: "s" });
-    assert.equal(argv.some((a) => a.includes(SECRET)), false);
+    assert.equal(
+      argv.some((a) => a.includes(SECRET)),
+      false,
+    );
     assert.ok(argv.join(" ").includes(TOKEN_ENV), `${id} names the variable`);
   }
 });
@@ -92,14 +127,20 @@ test("lines: a chunk may end mid-line or mid-character; blank lines are dropped;
   const bytes = new TextEncoder().encode('{"a":"é"}\n\n{"b":2}\r\n{"c":3}');
   const cut = [bytes.slice(0, 7), bytes.slice(7, 11), bytes.slice(11, 20), bytes.slice(20)];
   const out: string[] = [];
-  for await (const l of lines((async function* () { for (const c of cut) yield c; })())) out.push(l);
+  for await (const l of lines(
+    (async function* () {
+      for (const c of cut) yield c;
+    })(),
+  ))
+    out.push(l);
   assert.deepEqual(out, ['{"a":"é"}', '{"b":2}', '{"c":3}']);
 });
 
 test("channel: values come out in order; a wait gives up as idle after its time and as null when aborted", async () => {
   const ch = channel<number>();
   const ac = new AbortController();
-  ch.push(1); ch.push(2);
+  ch.push(1);
+  ch.push(2);
   assert.equal(await ch.next(1000, ac.signal), 1);
   assert.equal(await ch.next(1000, ac.signal), 2);
   assert.equal(await ch.next(30, ac.signal), "idle");
@@ -117,7 +158,10 @@ test("failures are named so the accounts module can move a turn to the backup ke
   assert.equal(classifyCli("Claude AI usage limit reached|1760000000"), "provider.rate_limited");
   assert.equal(classifyCli("429 Too Many Requests"), "provider.rate_limited");
   // overloaded is the vendor being busy, not a limit (owner ruling, 3 Nov): the engine retries the same account once, then the backup
-  assert.equal(classifyCli('API Error: 529 {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}'), "provider.overloaded");
+  assert.equal(
+    classifyCli('API Error: 529 {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}'),
+    "provider.overloaded",
+  );
   assert.equal(classifyCli("Overloaded"), "provider.overloaded");
   assert.equal(classifyCli("Prompt is too long"), "provider.context_too_long");
   assert.equal(classifyCli("boom: the engine crashed"), "engine.cli_error");
@@ -128,10 +172,15 @@ test("prompt: a new engine session gets the recent thread; a resumed one only wh
   const mine = message("Checked it, it is fine.", "m2", { author: { kind: "agent", id: "agt_intake" } });
   const later = message("And the fax number?", "m3", { author: { kind: "person", id: "per_sam" } });
   const input = turnOf("Thanks", { history: [other, mine, later], trigger: message("Thanks", "m4") });
-  assert.equal(defaultPrompt(input, true), "Earlier in this thread:\nper_sam: Can you check the intake form?\nagt_intake: Checked it, it is fine.\nper_sam: And the fax number?\n\nThanks");
+  assert.equal(
+    defaultPrompt(input, true),
+    "Earlier in this thread:\nper_sam: Can you check the intake form?\nagt_intake: Checked it, it is fine.\nper_sam: And the fax number?\n\nThanks",
+  );
   assert.equal(defaultPrompt(input, false), "Since your last reply:\nper_sam: And the fax number?\n\nThanks");
   assert.equal(defaultPrompt(turnOf("hi"), false), "hi");
   assert.equal(defaultPrompt(turnOf("hi", { trigger: null }), false), "(continue)");
-  const steered = defaultPrompt(turnOf("hi"), false, [message("also this", "m9", { author: { kind: "person", id: "per_sam" } })]);
+  const steered = defaultPrompt(turnOf("hi"), false, [
+    message("also this", "m9", { author: { kind: "person", id: "per_sam" } }),
+  ]);
   assert.equal(steered, "per_sam: also this\n\nhi");
 });

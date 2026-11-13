@@ -19,7 +19,8 @@ export function useTabs(controller: TabsController): TabsState {
 
 export function tabSpecs(tabs: readonly TabEntry[]): TabSpec[] {
   const out: TabSpec[] = [];
-  for (const t of tabs) out.push({ key: t.key, title: t.title, icon: iconMarkup(t.place), ...(t.pinned === true ? { pinned: true } : {}) });
+  for (const t of tabs)
+    out.push({ key: t.key, title: t.title, icon: iconMarkup(t.place), ...(t.pinned === true ? { pinned: true } : {}) });
   return out;
 }
 
@@ -40,23 +41,52 @@ export function MainTabs({ controller, onNavigate, onNewTab, onGoToPlace }: Main
     const tab = now.tabs.find((t) => t.key === now.active);
     if (tab !== undefined && onNavigate !== undefined) onNavigate(tab);
   };
-  const closeKey = (key: string): void => { controller.close(key); goActive(); };
+  const closeKey = (key: string): void => {
+    controller.close(key);
+    goActive();
+  };
   /** The tab's whole menu (chats/menus/kinds-b.ts): what Close, Pin and Reopen mean for this tab now. */
   const entries = (key: string): MenuEntry[] => {
     const tab = find(key);
     if (tab === undefined) return [];
-    const place = tab.hash !== undefined && onGoToPlace !== undefined ? [{ label: `Open in ${PLACE_TITLE[tab.place]}`, onSelect: () => onGoToPlace(tab.place) } as MenuEntry, { separator: true } as MenuEntry] : [];
-    return [...place, ...tabMenu(
-      { title: tab.title, pinned: tab.pinned === true, count: state.tabs.length, toTheRight: keysToTheRight(state, key).length, item: tab.hash !== undefined && tab.isNew !== true, canReopen: controller.canReopen() },
-      {
-        close: () => closeKey(key),
-        closeOthers: () => { controller.closeMany(state.tabs.filter((t) => t.key !== key).map((t) => t.key)); controller.select(key); goActive(); },
-        closeRight: () => { controller.closeRight(key); goActive(); },
-        copyLink: () => copyToClipboard(vyreLink(tab.place, tab.hash ?? "")),
-        pin: (on) => controller.pin(key, on),
-        reopen: () => { controller.reopen(); goActive(); },
-      },
-    )];
+    const place =
+      tab.hash !== undefined && onGoToPlace !== undefined
+        ? [
+            { label: `Open in ${PLACE_TITLE[tab.place]}`, onSelect: () => onGoToPlace(tab.place) } as MenuEntry,
+            { separator: true } as MenuEntry,
+          ]
+        : [];
+    return [
+      ...place,
+      ...tabMenu(
+        {
+          title: tab.title,
+          pinned: tab.pinned === true,
+          count: state.tabs.length,
+          toTheRight: keysToTheRight(state, key).length,
+          item: tab.hash !== undefined && tab.isNew !== true,
+          canReopen: controller.canReopen(),
+        },
+        {
+          close: () => closeKey(key),
+          closeOthers: () => {
+            controller.closeMany(state.tabs.filter((t) => t.key !== key).map((t) => t.key));
+            controller.select(key);
+            goActive();
+          },
+          closeRight: () => {
+            controller.closeRight(key);
+            goActive();
+          },
+          copyLink: () => copyToClipboard(vyreLink(tab.place, tab.hash ?? "")),
+          pin: (on) => controller.pin(key, on),
+          reopen: () => {
+            controller.reopen();
+            goActive();
+          },
+        },
+      ),
+    ];
   };
   return (
     <TabStrip

@@ -15,23 +15,57 @@ const web = Platform.OS === "web";
 /** An answer that is long enough to fold: many characters or many lines. */
 export const needsFold = (body: string): boolean => body.length > FOLD_CHARS || body.split("\n").length > FOLD_LINES;
 
-export function KeptAside({ id, question, body, time }: { id: string; question: string; body: string; time: string }): ReactElement {
+export function KeptAside({
+  id,
+  question,
+  body,
+  time,
+}: {
+  id: string;
+  question: string;
+  body: string;
+  time: string;
+}): ReactElement {
   const long = needsFold(body);
   const [open, setOpen] = useState(false);
   const folded = long && !open;
   return (
-    <View testID={`kept-aside-${id}`} accessibilityRole="summary" accessibilityLabel={`Kept side answer, ${time}`} style={st.root}>
+    <View
+      testID={`kept-aside-${id}`}
+      accessibilityRole="summary"
+      accessibilityLabel={`Kept side answer, ${time}`}
+      style={st.root}
+    >
       <View style={st.head}>
         <Glyph name="lock" size={12} color="var(--ink-4)" />
-        <Text numberOfLines={1} style={st.question}>{question}</Text>
+        <Text numberOfLines={1} style={st.question}>
+          {question}
+        </Text>
         <Text style={st.time}>{time}</Text>
       </View>
       <View style={st.rule}>
-        <View testID={`kept-aside-body-${id}`} style={[folded ? { maxHeight: FOLD_HEIGHT, overflow: "hidden" } : null, folded && web ? ({ maskImage: "linear-gradient(to bottom,#000 calc(100% - 28px),transparent)", WebkitMaskImage: "linear-gradient(to bottom,#000 calc(100% - 28px),transparent)" } as object) : null]}>
+        <View
+          testID={`kept-aside-body-${id}`}
+          style={[
+            folded ? { maxHeight: FOLD_HEIGHT, overflow: "hidden" } : null,
+            folded && web
+              ? ({
+                  maskImage: "linear-gradient(to bottom,#000 calc(100% - 28px),transparent)",
+                  WebkitMaskImage: "linear-gradient(to bottom,#000 calc(100% - 28px),transparent)",
+                } as object)
+              : null,
+          ]}
+        >
           <MarkdownBlocks blocks={bodyBlocks(id, body)} />
         </View>
         {long ? (
-          <Pressable testID={`kept-aside-fold-${id}`} accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={st.fold}>
+          <Pressable
+            testID={`kept-aside-fold-${id}`}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: open }}
+            onPress={() => setOpen((o) => !o)}
+            style={st.fold}
+          >
             <Text style={st.foldText}>{open ? "Show less" : "Show more"}</Text>
           </Pressable>
         ) : null}

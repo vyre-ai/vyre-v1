@@ -18,10 +18,26 @@ export function buildAccess(opts: { boFilter?: Expr | null; boHidden?: string[] 
   snap.addPrincipalRole({ holder: BO, role: "member" });
   snap.addPrincipalRole({ holder: CY, role: "guest" });
   for (const type of ["record", "thread", "space", "file", "number"]) {
-    snap.putGrant({ id: `gr_ada_${type}`, subject_kind: "actor", subject_id: ADA, resource_type: type, resource_id: null, level: "manage" });
     snap.putGrant({
-      id: `gr_bo_${type}`, subject_kind: "actor", subject_id: BO, resource_type: type, resource_id: null, level: "view",
-      conditions: { rowFilter: opts.boFilter === undefined ? { op: "eq", field: "region", value: "eu" } : opts.boFilter ?? undefined, hiddenFields: opts.boHidden ?? ["phone"] },
+      id: `gr_ada_${type}`,
+      subject_kind: "actor",
+      subject_id: ADA,
+      resource_type: type,
+      resource_id: null,
+      level: "manage",
+    });
+    snap.putGrant({
+      id: `gr_bo_${type}`,
+      subject_kind: "actor",
+      subject_id: BO,
+      resource_type: type,
+      resource_id: null,
+      level: "view",
+      conditions: {
+        rowFilter:
+          opts.boFilter === undefined ? { op: "eq", field: "region", value: "eu" } : (opts.boFilter ?? undefined),
+        hiddenFields: opts.boHidden ?? ["phone"],
+      },
     });
   }
   return snap;
@@ -29,5 +45,8 @@ export function buildAccess(opts: { boFilter?: Expr | null; boHidden?: string[] 
 
 export const CONTACT_TYPE = Object.freeze({
   name: "contact",
-  fields: ["name", "email", "phone", "region", "stage", "owner", "amount"].map((n) => ({ name: n, kind: n === "amount" ? "number" : "text" })),
+  fields: ["name", "email", "phone", "region", "stage", "owner", "amount"].map((n) => ({
+    name: n,
+    kind: n === "amount" ? "number" : "text",
+  })),
 });

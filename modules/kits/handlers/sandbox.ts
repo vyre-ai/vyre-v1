@@ -38,10 +38,26 @@ export interface SandboxResult {
   ms: number;
 }
 
-export const DEFAULTS = { cpuMs: 1000, wallMs: 5000, maxCalls: 100, maxSourceBytes: 20_000, maxResultBytes: 1_000_000, memoryMb: 256 };
+export const DEFAULTS = {
+  cpuMs: 1000,
+  wallMs: 5000,
+  maxCalls: 100,
+  maxSourceBytes: 20_000,
+  maxResultBytes: 1_000_000,
+  memoryMb: 256,
+};
 
 /** Names a script may try to reach for the outside. Each becomes a stub that reports a denial (see BOOTSTRAP). */
-export const DENIED_GLOBALS = ["fetch", "XMLHttpRequest", "WebSocket", "EventSource", "require", "Worker", "process", "module"] as const;
+export const DENIED_GLOBALS = [
+  "fetch",
+  "XMLHttpRequest",
+  "WebSocket",
+  "EventSource",
+  "require",
+  "Worker",
+  "process",
+  "module",
+] as const;
 
 // ---- the realm (runs in the worker) ---------------------------------------------------------------------------
 
@@ -115,14 +131,23 @@ async function workerMain(): Promise<void> {
     port.postMessage({ type: "deny", what: String(what).slice(0, 200) });
   };
   try {
-    const context = vm.createContext(Object.create(null) as object, { codeGeneration: { strings: false, wasm: false } });
-    const api = new vm.Script(BOOTSTRAP, { filename: "kit-bootstrap" }).runInContext(context)(hostCall, hostDeny) as unknown;
-    const fn = new vm.Script(wrap(data.source), { filename: "kit-script" }).runInContext(context, { timeout: data.cpuMs }) as (input: string, api: unknown) => unknown;
+    const context = vm.createContext(Object.create(null) as object, {
+      codeGeneration: { strings: false, wasm: false },
+    });
+    const api = new vm.Script(BOOTSTRAP, { filename: "kit-bootstrap" }).runInContext(context)(
+      hostCall,
+      hostDeny,
+    ) as unknown;
+    const fn = new vm.Script(wrap(data.source), { filename: "kit-script" }).runInContext(context, {
+      timeout: data.cpuMs,
+    }) as (input: string, api: unknown) => unknown;
     // the synchronous part of the script runs inside a timed vm call; later turns of the event loop are cut by the main thread's wall clock
     Object.defineProperty(context, "__run", { value: fn, enumerable: false, configurable: true });
     Object.defineProperty(context, "__in", { value: data.inputJson, enumerable: false, configurable: true });
     Object.defineProperty(context, "__api", { value: api, enumerable: false, configurable: true });
-    const started = new vm.Script("__run(__in, __api)", { filename: "kit-run" }).runInContext(context, { timeout: data.cpuMs }) as Promise<unknown>;
+    const started = new vm.Script("__run(__in, __api)", { filename: "kit-run" }).runInContext(context, {
+      timeout: data.cpuMs,
+    }) as Promise<unknown>;
     const out = await started;
     const text = typeof out === "string" ? out : "null";
     if (text.length > data.maxResultBytes) {
@@ -131,7 +156,12 @@ async function workerMain(): Promise<void> {
     }
     port.postMessage({ type: "done", ok: true, json: text });
   } catch (e) {
-    const raw = e instanceof Error ? e.message : typeof e === "object" && e !== null && "message" in e ? String((e as { message: unknown }).message) : String(e);
+    const raw =
+      e instanceof Error
+        ? e.message
+        : typeof e === "object" && e !== null && "message" in e
+          ? String((e as { message: unknown }).message)
+          : String(e);
     port.postMessage({ type: "done", ok: false, error: raw.slice(0, 300) });
   }
 }
@@ -173,9 +203,19 @@ export function runSandboxed(o: SandboxOptions): Promise<SandboxResult> {
 
   return new Promise<SandboxResult>((resolve) => {
     let done = false;
-    const data: WorkerData = { kitSandbox: true, source: o.source, inputJson, cpuMs, maxResultBytes: DEFAULTS.maxResultBytes };
+    const data: WorkerData = {
+      kitSandbox: true,
+      source: o.source,
+      inputJson,
+      cpuMs,
+      maxResultBytes: DEFAULTS.maxResultBytes,
+    };
     const worker = new Worker(new URL(import.meta.url), {
-      workerData: data, env: {}, stdout: true, stderr: true, execArgv: [],
+      workerData: data,
+      env: {},
+      stdout: true,
+      stderr: true,
+      execArgv: [],
       resourceLimits: { maxOldGenerationSizeMb: DEFAULTS.memoryMb, maxYoungGenerationSizeMb: 32, stackSizeMb: 2 },
     });
     const finish = (r: { ok: boolean; value?: unknown; error?: string }): void => {
@@ -185,55 +225,84 @@ export function runSandboxed(o: SandboxOptions): Promise<SandboxResult> {
       void worker.terminate();
       resolve({ ...r, denials, calls, ms: Math.round(performance.now() - t0) });
     };
-    const timer = setTimeout(() => finish({ ok: false, error: `The script ran longer than ${wallMs} ms and was stopped.` }), wallMs);
+    const timer = setTimeout(
+      () => finish({ ok: false, error: `The script ran longer than ${wallMs} ms and was stopped.` }),
+      wallMs,
+    );
 
     const answer = (id: number, body: { ok: true; value: string } | { ok: false; error: string }): void => {
       if (!done) worker.postMessage({ type: "answer", id, answer: JSON.stringify(body) });
     };
 
-    worker.on("message", (m: { type: string; id?: number; cap?: string; input?: string; what?: string; ok?: boolean; json?: string; error?: string }) => {
-      if (m.type === "deny" && typeof m.what === "string") {
-        denials.push(m.what);
-      } else if (m.type === "call" && typeof m.id === "number" && typeof m.cap === "string" && typeof m.input === "string") {
-        const id = m.id, cap = m.cap;
-        calls += 1;
-        if (calls > maxCalls) {
-          denials.push(`api.call limit of ${maxCalls} reached`);
-          answer(id, { ok: false, error: `A script may make at most ${maxCalls} calls.` });
-          return;
-        }
-        if (!o.caps.includes(cap)) {
-          denials.push(`api.call ${cap.slice(0, 80)}`);
-          answer(id, { ok: false, error: `${cap.slice(0, 80)} is not one of the tools this Kit declared.` });
-          return;
-        }
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(m.input);
-        } catch {
-          answer(id, { ok: false, error: "api.call input must be JSON." });
-          return;
-        }
-        o.call(cap, parsed).then(
-          (value) => answer(id, { ok: true, value: JSON.stringify(value === undefined ? null : value) }),
-          (e: unknown) => {
-            const code = (e as { error?: { code?: unknown } } | null)?.error?.code;
-            if (typeof code === "string" && code.startsWith("permission.")) denials.push(`api.call ${cap.slice(0, 80)} (${code})`);
-            const msg = (e as { error?: { message?: unknown } } | null)?.error?.message ?? (e instanceof Error ? e.message : "The call failed.");
-            answer(id, { ok: false, error: String(msg).slice(0, 300) });
-          },
-        );
-      } else if (m.type === "done") {
-        if (m.ok === true && typeof m.json === "string") {
-          try {
-            finish({ ok: true, value: JSON.parse(m.json) });
-          } catch {
-            finish({ ok: false, error: "The script returned something that is not JSON." });
+    worker.on(
+      "message",
+      (m: {
+        type: string;
+        id?: number;
+        cap?: string;
+        input?: string;
+        what?: string;
+        ok?: boolean;
+        json?: string;
+        error?: string;
+      }) => {
+        if (m.type === "deny" && typeof m.what === "string") {
+          denials.push(m.what);
+        } else if (
+          m.type === "call" &&
+          typeof m.id === "number" &&
+          typeof m.cap === "string" &&
+          typeof m.input === "string"
+        ) {
+          const id = m.id,
+            cap = m.cap;
+          calls += 1;
+          if (calls > maxCalls) {
+            denials.push(`api.call limit of ${maxCalls} reached`);
+            answer(id, { ok: false, error: `A script may make at most ${maxCalls} calls.` });
+            return;
           }
-        } else finish({ ok: false, error: m.error ?? "The script failed." });
-      }
-    });
-    worker.on("error", (e) => finish({ ok: false, error: /heap|memory/i.test(e.message) ? "The script used more memory than allowed." : e.message.slice(0, 300) }));
+          if (!o.caps.includes(cap)) {
+            denials.push(`api.call ${cap.slice(0, 80)}`);
+            answer(id, { ok: false, error: `${cap.slice(0, 80)} is not one of the tools this Kit declared.` });
+            return;
+          }
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(m.input);
+          } catch {
+            answer(id, { ok: false, error: "api.call input must be JSON." });
+            return;
+          }
+          o.call(cap, parsed).then(
+            (value) => answer(id, { ok: true, value: JSON.stringify(value === undefined ? null : value) }),
+            (e: unknown) => {
+              const code = (e as { error?: { code?: unknown } } | null)?.error?.code;
+              if (typeof code === "string" && code.startsWith("permission."))
+                denials.push(`api.call ${cap.slice(0, 80)} (${code})`);
+              const msg =
+                (e as { error?: { message?: unknown } } | null)?.error?.message ??
+                (e instanceof Error ? e.message : "The call failed.");
+              answer(id, { ok: false, error: String(msg).slice(0, 300) });
+            },
+          );
+        } else if (m.type === "done") {
+          if (m.ok === true && typeof m.json === "string") {
+            try {
+              finish({ ok: true, value: JSON.parse(m.json) });
+            } catch {
+              finish({ ok: false, error: "The script returned something that is not JSON." });
+            }
+          } else finish({ ok: false, error: m.error ?? "The script failed." });
+        }
+      },
+    );
+    worker.on("error", (e) =>
+      finish({
+        ok: false,
+        error: /heap|memory/i.test(e.message) ? "The script used more memory than allowed." : e.message.slice(0, 300),
+      }),
+    );
     worker.on("exit", () => finish({ ok: false, error: "The script stopped unexpectedly." }));
   });
 }

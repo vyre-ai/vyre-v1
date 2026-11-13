@@ -17,31 +17,68 @@ import type { PlaceContext } from "../shell/spaces/Shell.tsx";
 const ALL = { start: 0, end: 500 };
 const place = (open = true): string =>
   renderToStaticMarkup(
-    <ChatsPlace sidebar={createSampleSidebar(northwind).data} conversation={createConversationSample("idle").data} pane={createPaneSample("northwind").data} paneOpen={open} window={ALL} />,
-  ).replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&amp;", "&");
+    <ChatsPlace
+      sidebar={createSampleSidebar(northwind).data}
+      conversation={createConversationSample("idle").data}
+      pane={createPaneSample("northwind").data}
+      paneOpen={open}
+      window={ALL}
+    />,
+  )
+    .replaceAll("<!-- -->", "")
+    .replaceAll("&#x27;", "'")
+    .replaceAll("&amp;", "&");
 const has = (s: string, needle: string): boolean => s.includes(needle);
 /** The sidebar the place registers in the shell's shared slot (P-L9b_22), drawn on the same sample data: the slot's content is portalled, so it is read from the element the place renders. */
 const side = (): string => {
-  const el = ChatsSidebarSlot({ data: createSampleSidebar(northwind).data, window: ALL }) as ReactElement<{ title: string; children: (q: string, slot: SidebarSlotApi) => ReactElement }>;
+  const el = ChatsSidebarSlot({ data: createSampleSidebar(northwind).data, window: ALL }) as ReactElement<{
+    title: string;
+    children: (q: string, slot: SidebarSlotApi) => ReactElement;
+  }>;
   assert.equal(el.type, SidebarContent);
-  const slot: SidebarSlotApi = { query: "", collapsed: false, setCollapsed: () => undefined, hasSidebar: true, compact: false, openBody: () => undefined, back: () => undefined, view: "body", title: "Chats" };
-  return renderToStaticMarkup(el.props.children("", slot)).replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&amp;", "&");
+  const slot: SidebarSlotApi = {
+    query: "",
+    collapsed: false,
+    setCollapsed: () => undefined,
+    hasSidebar: true,
+    compact: false,
+    openBody: () => undefined,
+    back: () => undefined,
+    view: "body",
+    title: "Chats",
+  };
+  return renderToStaticMarkup(el.props.children("", slot))
+    .replaceAll("<!-- -->", "")
+    .replaceAll("&#x27;", "'")
+    .replaceAll("&amp;", "&");
 };
 
 test("the sidebar, the open chat and the agent pane sit side by side, in that order", () => {
   const out = place();
-  const at = (n: string): number => { const i = out.indexOf(n); assert.ok(i >= 0, n); return i; };
+  const at = (n: string): number => {
+    const i = out.indexOf(n);
+    assert.ok(i >= 0, n);
+    return i;
+  };
   assert.ok(at('data-testid="chats-place-chat"') < at('data-testid="chats-right-pane"'));
-  assert.ok(!out.includes('data-testid="chats-place-sidebar"'), "the sidebar is the shell's slot (P-L9b_22), not a column in the place");
+  assert.ok(
+    !out.includes('data-testid="chats-place-sidebar"'),
+    "the sidebar is the shell's slot (P-L9b_22), not a column in the place",
+  );
   assert.equal(SIDEBAR_W, 272);
   assert.equal(WIDE, 640);
 });
 
 test("the sidebar runs Tasks, Recent, Channels, Agents in the prototype's order", () => {
   const out = side();
-  const ids = ["row-nav:tasks", "head-recent", "head-channels", "head-faces"].map((id) => out.indexOf(`data-testid="${id}"`));
+  const ids = ["row-nav:tasks", "head-recent", "head-channels", "head-faces"].map((id) =>
+    out.indexOf(`data-testid="${id}"`),
+  );
   assert.ok(ids.every((i) => i >= 0));
-  assert.deepEqual([...ids].sort((a, b) => a - b), ids);
+  assert.deepEqual(
+    [...ids].sort((a, b) => a - b),
+    ids,
+  );
 });
 
 test("the open chat is Rivera intake with its composer, and the pane follows its agent on shared tabs", () => {
@@ -56,10 +93,26 @@ test("there is no Comment or Notes control: those are the prototype's review too
 });
 
 test("the sample shell shows the Chats place on Chats and the sample rows everywhere else", () => {
-  const ctx = (place: string): PlaceContext => ({ spaceId: "nw", spaceName: "Northwind", kind: "team", place, hash: "", epoch: 0, kit: { id: "team", places: [], top: [], start: "chats" } } as unknown as PlaceContext);
+  const ctx = (place: string): PlaceContext =>
+    ({
+      spaceId: "nw",
+      spaceName: "Northwind",
+      kind: "team",
+      place,
+      hash: "",
+      epoch: 0,
+      kit: { id: "team", places: [], top: [], start: "chats" },
+    }) as unknown as PlaceContext;
   const chats = renderToStaticMarkup(chatsPlace(ctx("chats")) as never).replaceAll("<!-- -->", "");
-  assert.ok(has(chats, 'data-testid="chats-place"') && has(side(), "Tasks"), "the place, and its sidebar in the shell's slot");
+  assert.ok(
+    has(chats, 'data-testid="chats-place"') && has(side(), "Tasks"),
+    "the place, and its sidebar in the shell's slot",
+  );
   // Any other place falls back to the sample place (rendered inside a hub in the shell); here only what it returns is looked at: not the Chats place.
   const other = chatsPlace(ctx("files")) as { type?: unknown };
-  assert.notEqual(other.type, (chatsPlace(ctx("chats")) as { type?: unknown }).type, "the other places are not the Chats place");
+  assert.notEqual(
+    other.type,
+    (chatsPlace(ctx("chats")) as { type?: unknown }).type,
+    "the other places are not the Chats place",
+  );
 });

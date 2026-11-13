@@ -30,7 +30,9 @@ export function checkNoContentInLogs(file: string, source: string): Finding[] {
     for (const key of keysIn(source, span.start, span.end)) {
       if (seen.has(key.index)) continue;
       seen.add(key.index);
-      out.push(finding(RULE, file, source, key.index, `log attr "${key.name}" is content; logs keep ids and counts only`));
+      out.push(
+        finding(RULE, file, source, key.index, `log attr "${key.name}" is content; logs keep ids and counts only`),
+      );
     }
   }
   return out;
@@ -49,7 +51,7 @@ function keysIn(source: string, start: number, end: number): { name: string; ind
       if (c === quote) quote = "";
       continue;
     }
-    if (c === "'" || c === "\"" || c === "`") {
+    if (c === "'" || c === '"' || c === "`") {
       quote = c;
       continue;
     }

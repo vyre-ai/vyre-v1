@@ -14,12 +14,17 @@ async function until(cond: () => boolean, ms = 2000): Promise<void> {
     await new Promise<void>((r) => setImmediate(r));
   }
 }
-const pct = (xs: number[], p: number): number => [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.ceil(p * xs.length) - 1)]!;
+const pct = (xs: number[], p: number): number =>
+  [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.ceil(p * xs.length) - 1)]!;
 
 test("connection_count: twenty screens on each of two devices are exactly two sockets on the server", async () => {
   const rig = liveRig();
-  const a = rig.client(ADA, "dev_a"), b = rig.client(ADA, "dev_b");
-  const handles = [...Array.from({ length: 20 }, () => a.conn.acquire()), ...Array.from({ length: 20 }, () => b.conn.acquire())];
+  const a = rig.client(ADA, "dev_a"),
+    b = rig.client(ADA, "dev_b");
+  const handles = [
+    ...Array.from({ length: 20 }, () => a.conn.acquire()),
+    ...Array.from({ length: 20 }, () => b.conn.acquire()),
+  ];
   await settle();
   assert.equal(rig.open(), 2, "one per device after each raced its endpoints");
   assert.equal(rig.hub.sessions(), 2);
@@ -30,6 +35,7 @@ test("connection_count: twenty screens on each of two devices are exactly two so
   await settle();
   assert.equal(a.st.applied.length, 1, "twenty subscribers, one delivery");
   for (const h of handles) h.release();
-  a.conn.stop(); b.conn.stop();
+  a.conn.stop();
+  b.conn.stop();
   rig.hub.close();
 });

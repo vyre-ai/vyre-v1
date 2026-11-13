@@ -10,7 +10,19 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 import { Glyph } from "./parts.tsx";
 import { collect } from "./model.ts";
-import { askLine, askRows, denyNote, diffLines, doneLine, excerptLines, heldOf, outcomeOf, plainRows, sentLine, wantsLine } from "./approval-model.ts";
+import {
+  askLine,
+  askRows,
+  denyNote,
+  diffLines,
+  doneLine,
+  excerptLines,
+  heldOf,
+  outcomeOf,
+  plainRows,
+  sentLine,
+  wantsLine,
+} from "./approval-model.ts";
 import type { DiffLine } from "./approval-model.ts";
 import { Face } from "../needsyou/parts.tsx";
 import { HeldCard } from "./held-card.tsx";
@@ -27,19 +39,62 @@ type Data = Pick<ConversationData, "call" | "nav" | "threadId" | "changes">;
 async function subjectOf(data: Data, cap: string, input: Record<string, unknown>): Promise<string | undefined> {
   // a message to a teammate names them: "Send this to Rubab Khan?" (lane l-agentdm)
   if (cap === "chat.message_person" && typeof input["to"] === "string") {
-    try { return ((await data.call("access.principals.get", { principal: { kind: "person", id: input["to"] } })) as { principal?: { name?: string } }).principal?.name || undefined; } catch { return undefined; }
+    try {
+      return (
+        (
+          (await data.call("access.principals.get", { principal: { kind: "person", id: input["to"] } })) as {
+            principal?: { name?: string };
+          }
+        ).principal?.name || undefined
+      );
+    } catch {
+      return undefined;
+    }
   }
   const fileId = input["fileId"];
   if (cap.startsWith("files.") && typeof fileId === "string") {
-    try { return ((await data.call("files.get", { fileId })) as CapMap["files.get"]["out"]).file.name; } catch { return undefined; }
+    try {
+      return ((await data.call("files.get", { fileId })) as CapMap["files.get"]["out"]).file.name;
+    } catch {
+      return undefined;
+    }
   }
   return undefined;
 }
 
 /** 24-hour clock time of a moment, in a zone or the viewer's own. */
-const clock = (at: number, timeZone?: string): string => { try { return new Date(at).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: false, ...(timeZone ? { timeZone } : {}) }); } catch { return new Date(at).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: false }); } };
+const clock = (at: number, timeZone?: string): string => {
+  try {
+    return new Date(at).toLocaleTimeString("en-GB", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: false,
+      ...(timeZone ? { timeZone } : {}),
+    });
+  } catch {
+    return new Date(at).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: false });
+  }
+};
 
-export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, editor, othersLine }: { taskId: string; /** what a reader who may not see the request reads instead (lead, 12 Nov, H3): it waits for someone else, said plainly; without it they see nothing */ othersLine?: string; /** a helper's request wears the helper's own face: the id its face is drawn from */ faceSeed?: string; agent: string; agentId: string; data: Data; /** an agent asking for its person wears that person's face (lane l-agentdm) */ face?: string; /** the held card's editor, when a test or a screenshot puts its own in */ editor?: HeldEditor }): ReactElement | null {
+export function ApprovalCard({
+  taskId,
+  agent,
+  agentId,
+  data,
+  face,
+  faceSeed,
+  editor,
+  othersLine,
+}: {
+  taskId: string;
+  /** what a reader who may not see the request reads instead (lead, 12 Nov, H3): it waits for someone else, said plainly; without it they see nothing */ othersLine?: string;
+  /** a helper's request wears the helper's own face: the id its face is drawn from */ faceSeed?: string;
+  agent: string;
+  agentId: string;
+  data: Data;
+  /** an agent asking for its person wears that person's face (lane l-agentdm) */ face?: string;
+  /** the held card's editor, when a test or a screenshot puts its own in */ editor?: HeldEditor;
+}): ReactElement | null {
   const [task, setTask] = useState<Task | null | undefined>(undefined);
   const [subject, setSubject] = useState<string | undefined>(undefined);
   const [theirTz, setTheirTz] = useState<string | undefined>(undefined);
@@ -50,9 +105,19 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
   const [line, setLine] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<"allowed" | "denied" | null>(null);
   /** A held test read of a Vault key: what the server says it would send (the item and the host), never what the agent wrote. */
-  const [keyRead, setKeyRead] = useState<{ found: boolean; itemId?: string; handle?: string; name?: string; host?: string } | null>(null);
+  const [keyRead, setKeyRead] = useState<{
+    found: boolean;
+    itemId?: string;
+    handle?: string;
+    name?: string;
+    host?: string;
+  } | null>(null);
   /** A held binding of a Vault key to a connector: the keys and every domain it would send them to, as the server reads them. */
-  const [keyBind, setKeyBind] = useState<{ found: boolean; items: { itemId: string; handle: string; name: string }[]; hosts: string[] } | null>(null);
+  const [keyBind, setKeyBind] = useState<{
+    found: boolean;
+    items: { itemId: string; handle: string; name: string }[];
+    hosts: string[];
+  } | null>(null);
   const mounted = useRef(true);
   const described = useRef(false);
 
@@ -68,65 +133,186 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
       const s = await subjectOf(data, h.cap, h.input);
       // when it waits for a time, the recipient's own zone (what they set themselves) says what hour it is for them
       const who = (h.outward ?? outwardOf(h.cap, h.input))?.to.find((r) => r.kind === "person")?.id;
-      const tz = who ? await Promise.resolve(data.call("settings.public_of", { personId: who })).then((r) => (r as { timezone?: string }).timezone, () => undefined) : undefined;
+      const tz = who
+        ? await Promise.resolve(data.call("settings.public_of", { personId: who })).then(
+            (r) => (r as { timezone?: string }).timezone,
+            () => undefined,
+          )
+        : undefined;
       let d: { lines: DiffLine[]; more: number } | null = null;
       const next = (h.input["content"] as { text?: unknown } | undefined)?.text;
       if (h.cap === "files.write" && typeof next === "string" && typeof h.input["fileId"] === "string") {
         try {
-          const cur = ((await data.call("files.read", { fileId: h.input["fileId"], as: "text" })) as { text?: string }).text;
+          const cur = ((await data.call("files.read", { fileId: h.input["fileId"], as: "text" })) as { text?: string })
+            .text;
           if (typeof cur === "string") d = diffLines(cur, next);
-        } catch { /* no current text: the new text is shown */ }
+        } catch {
+          /* no current text: the new text is shown */
+        }
       }
-      const k = h.cap === "automations.try_read" ? await Promise.resolve(data.call("automations.key_hosts.pending", h.input)).then((r) => r as { found: boolean; itemId?: string; handle?: string; name?: string; host?: string }, () => ({ found: false })) : null;
-      const b = h.cap === "connections.create" || h.cap === "connections.set_secret" ? await Promise.resolve(data.call("automations.key_hosts.pending_bind", h.input)).then((r) => r as { found: boolean; items: { itemId: string; handle: string; name: string }[]; hosts: string[] }, () => ({ found: false, items: [], hosts: [] })) : null;
-      if (mounted.current) { setSubject(s); setDiff(d); setTheirTz(tz); setKeyRead(k); setKeyBind(b); }
-    } catch { if (mounted.current) setTask((was) => was ?? null); }
+      const k =
+        h.cap === "automations.try_read"
+          ? await Promise.resolve(data.call("automations.key_hosts.pending", h.input)).then(
+              (r) => r as { found: boolean; itemId?: string; handle?: string; name?: string; host?: string },
+              () => ({ found: false }),
+            )
+          : null;
+      const b =
+        h.cap === "connections.create" || h.cap === "connections.set_secret"
+          ? await Promise.resolve(data.call("automations.key_hosts.pending_bind", h.input)).then(
+              (r) =>
+                r as { found: boolean; items: { itemId: string; handle: string; name: string }[]; hosts: string[] },
+              () => ({ found: false, items: [], hosts: [] }),
+            )
+          : null;
+      if (mounted.current) {
+        setSubject(s);
+        setDiff(d);
+        setTheirTz(tz);
+        setKeyRead(k);
+        setKeyBind(b);
+      }
+    } catch {
+      if (mounted.current) setTask((was) => was ?? null);
+    }
   }, [data, taskId]);
-  useEffect(() => { mounted.current = true; void load(); return () => { mounted.current = false; }; }, [load]);
-  useFollow(data.changes, load, task === undefined || (task !== null && outcomeOf(task.state) === null && outcome === null));
+  useEffect(() => {
+    mounted.current = true;
+    void load();
+    return () => {
+      mounted.current = false;
+    };
+  }, [load]);
+  useFollow(
+    data.changes,
+    load,
+    task === undefined || (task !== null && outcomeOf(task.state) === null && outcome === null),
+  );
 
-  if (task === null && othersLine) return <Text testID={`approval-others-${taskId}`} style={{ fontSize: 13, color: "var(--ink-3)" as string, marginVertical: 4 }}>{othersLine}</Text>;
+  if (task === null && othersLine)
+    return (
+      <Text
+        testID={`approval-others-${taskId}`}
+        style={{ fontSize: 13, color: "var(--ink-3)" as string, marginVertical: 4 }}
+      >
+        {othersLine}
+      </Text>
+    );
   if (task === undefined || task === null) return null;
   const held = heldOf(task.blocks);
   // a held message, email, text or post: the one held card (held-card.tsx). The Gate writes who, how, when and what into the hold; a hold parked before that is read from its input the same way.
-  const ow: Outward | null = held.what || held.plain ? null : held.outward ?? outwardOf(held.cap, held.input);
+  const ow: Outward | null = held.what || held.plain ? null : (held.outward ?? outwardOf(held.cap, held.input));
   if (ow) {
     const ended = outcome ?? outcomeOf(task.state);
     const ev = ow.event;
-    const viewerTz = ((): string | undefined => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return undefined; } })();
+    const viewerTz = ((): string | undefined => {
+      try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone;
+      } catch {
+        return undefined;
+      }
+    })();
     const host = (u: string): string => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
-    const nameOf = (r: Recipient): string => (r.kind === "person" ? r.name ?? subject ?? "a teammate" : r.kind === "thread" ? "this chat" : r.address ?? "");
+    const nameOf = (r: Recipient): string =>
+      r.kind === "person" ? (r.name ?? subject ?? "a teammate") : r.kind === "thread" ? "this chat" : (r.address ?? "");
     const first = ow.to[0] ? nameOf(ow.to[0]) : "";
-    const hhmm = new Date((task as { updatedAt?: number }).updatedAt ?? Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
-    const only = !ev && ow.to.length === 1 && ow.to[0]!.kind !== "thread" ? (ow.to[0]!.id ?? ow.to[0]!.address ?? "").toLowerCase() : "";
+    const hhmm = new Date((task as { updatedAt?: number }).updatedAt ?? Date.now()).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const only =
+      !ev && ow.to.length === 1 && ow.to[0]!.kind !== "thread"
+        ? (ow.to[0]!.id ?? ow.to[0]!.address ?? "").toLowerCase()
+        : "";
     /** The rule is for this agent, this one recipient and this channel's act: nothing wider. Settings lists it and takes it back. */
-    const always = only && held.act !== "pay" ? async (): Promise<void> => {
-      await data.call("gate.allow.set", { act: held.act, target: only, agentId, recipient: true });
-      await answer("approve");
-    } : undefined;
-    const answer = (key: "approve" | "reject", note?: string): Promise<void> => Promise.resolve(data.call("tasks.act", { taskId, action: key, ...(note !== undefined ? { note } : {}) })).then(
-      () => { setOutcome(key === "approve" ? "allowed" : "denied"); },
-      (e: unknown) => { if (isDecided(e)) { void load(); throw new Error(DECIDED_LINE); } throw e; },
-    );
+    const always =
+      only && held.act !== "pay"
+        ? async (): Promise<void> => {
+            await data.call("gate.allow.set", { act: held.act, target: only, agentId, recipient: true });
+            await answer("approve");
+          }
+        : undefined;
+    const answer = (key: "approve" | "reject", note?: string): Promise<void> =>
+      Promise.resolve(data.call("tasks.act", { taskId, action: key, ...(note !== undefined ? { note } : {}) })).then(
+        () => {
+          setOutcome(key === "approve" ? "allowed" : "denied");
+        },
+        (e: unknown) => {
+          if (isDecided(e)) {
+            void load();
+            throw new Error(DECIDED_LINE);
+          }
+          throw e;
+        },
+      );
     return (
       <HeldCard
-        testID={ended ? `approval-done-${taskId}` : `approval-${taskId}`} agent={agent} headFace={{ name: agent, seed: agentId, kind: "agent" }} to={ev ? [] : ow.to.map((r) => ({ name: nameOf(r), seed: r.id ?? r.address ?? agentId, kind: "person" as const }))} verb={verbOfChannel(ow, nameOf)}
-        schedule={scheduleLine(ow.schedule, { yours: (at) => clock(at), theirs: theirTz ? (at) => clock(at, theirTz) : null })} subject={ow.subject} body={ow.body}
-        {...(ev ? {
-          subjectLabel: "Title", editSubject: true, fold: "Agenda", fieldMd: ["Where"],
-          fields: [["When", whenWords(ev, viewerTz) ?? "Not given"], ...(ev.where || ev.link ? [["Where", [ev.where ?? "", ev.link ? `[${host(ev.link)}](${ev.link})` : ""].filter(Boolean).join(" · ")] as const] : [])],
-          invitees: ow.to.map((r) => ({ name: r.name ?? r.address ?? "A guest", seed: r.address ?? r.id ?? agentId })),
-          inviteNote: ow.to.length === 0 ? "No guests" : ev.notify ? "They get an email invite" : "They are not emailed",
-        } : {})}
+        testID={ended ? `approval-done-${taskId}` : `approval-${taskId}`}
+        agent={agent}
+        headFace={{ name: agent, seed: agentId, kind: "agent" }}
+        to={
+          ev ? [] : ow.to.map((r) => ({ name: nameOf(r), seed: r.id ?? r.address ?? agentId, kind: "person" as const }))
+        }
+        verb={verbOfChannel(ow, nameOf)}
+        schedule={scheduleLine(ow.schedule, {
+          yours: (at) => clock(at),
+          theirs: theirTz ? (at) => clock(at, theirTz) : null,
+        })}
+        subject={ow.subject}
+        body={ow.body}
+        {...(ev
+          ? {
+              subjectLabel: "Title",
+              editSubject: true,
+              fold: "Agenda",
+              fieldMd: ["Where"],
+              fields: [
+                ["When", whenWords(ev, viewerTz) ?? "Not given"],
+                ...(ev.where || ev.link
+                  ? [
+                      [
+                        "Where",
+                        [ev.where ?? "", ev.link ? `[${host(ev.link)}](${ev.link})` : ""].filter(Boolean).join(" · "),
+                      ] as const,
+                    ]
+                  : []),
+              ],
+              invitees: ow.to.map((r) => ({
+                name: r.name ?? r.address ?? "A guest",
+                seed: r.address ?? r.id ?? agentId,
+              })),
+              inviteNote:
+                ow.to.length === 0 ? "No guests" : ev.notify ? "They get an email invite" : "They are not emailed",
+            }
+          : {})}
         {...(always ? { alwaysLabel: `Always allow ${agent} to ${verbOfChannel(ow, nameOf)}`, onAlways: always } : {})}
-        edited={Boolean(ow.edited)} state={ended === "allowed" ? "sent" : ended === "denied" ? "dropped" : "waiting"}
-        doneLine={ended === "allowed" ? (ev ? `${ev.notify ? "Invites sent" : "Added to the calendar"} · ${hhmm}` : `Sent${first ? ` to ${first}` : ""} · ${hhmm}`) : "Not sent"} editable={Boolean(held.holdId) && !ended} editSubject={Boolean(ev)}
-        {...(editor ? { editor } : {})} onSend={() => answer("approve")} onDrop={(reason) => answer("reject", denyNote(reason))}
+        edited={Boolean(ow.edited)}
+        state={ended === "allowed" ? "sent" : ended === "denied" ? "dropped" : "waiting"}
+        doneLine={
+          ended === "allowed"
+            ? ev
+              ? `${ev.notify ? "Invites sent" : "Added to the calendar"} · ${hhmm}`
+              : `Sent${first ? ` to ${first}` : ""} · ${hhmm}`
+            : "Not sent"
+        }
+        editable={Boolean(held.holdId) && !ended}
+        editSubject={Boolean(ev)}
+        {...(editor ? { editor } : {})}
+        onSend={() => answer("approve")}
+        onDrop={(reason) => answer("reject", denyNote(reason))}
         onSave={async ({ body, subject }) => {
           if (!held.holdId) throw new Error("This cannot be edited.");
-          await data.call("gate.holds.revise", { holdId: held.holdId, taskId, body, ...(ev && subject !== undefined ? { title: subject } : {}) });
+          await data.call("gate.holds.revise", {
+            holdId: held.holdId,
+            taskId,
+            body,
+            ...(ev && subject !== undefined ? { title: subject } : {}),
+          });
           // the edit is a lesson for the agent: the way the person changed what it wrote (memory's own path for corrections; where memory does not have it yet, nothing is lost)
-          void Promise.resolve(data.call("memory.corrections.record", { agentId, how: "edit", was: ow.body, now: body })).catch(() => undefined);
+          void Promise.resolve(
+            data.call("memory.corrections.record", { agentId, how: "edit", was: ow.body, now: body }),
+          ).catch(() => undefined);
           described.current = true;
           await load();
         }}
@@ -135,59 +321,134 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
   }
   // a change held only because the chat is in Ask first is a person's to always allow; any other act needs an admin, so the card does not offer it
   // a connector's test read that would send a Vault key to a host nobody approved: Always allow saves that host on the key (the Vault item page lists it and takes it back), then sends this one
-  const keyApprove = held.cap === "automations.try_read" && keyRead?.found === true && keyRead.itemId && keyRead.host ? { itemId: keyRead.itemId, host: keyRead.host } : null;
+  const keyApprove =
+    held.cap === "automations.try_read" && keyRead?.found === true && keyRead.itemId && keyRead.host
+      ? { itemId: keyRead.itemId, host: keyRead.host }
+      : null;
   const allowable = held.act === "approve" || keyApprove !== null;
   const ended = outcome ?? outcomeOf(task.state);
   if (ended) {
     return (
-      <CardDone testID={`approval-done-${taskId}`} ok={ended === "allowed"} glyph={<Glyph name={ended === "allowed" ? "check" : "x"} size={13} color={ended === "allowed" ? "var(--ok)" : "var(--ink-3)"} />} text={held.plain ? `${ended === "allowed" ? "Approved" : "Sent back"} · ${task.title}` : held.cap === "chat.message_person" ? sentLine(ended, subject, (task.workingNotes as Record<string, string> | undefined)?.["approved_in"] === "chat") : doneLine(ended, held.cap, subject, held.input)} />
+      <CardDone
+        testID={`approval-done-${taskId}`}
+        ok={ended === "allowed"}
+        glyph={
+          <Glyph
+            name={ended === "allowed" ? "check" : "x"}
+            size={13}
+            color={ended === "allowed" ? "var(--ok)" : "var(--ink-3)"}
+          />
+        }
+        text={
+          held.plain
+            ? `${ended === "allowed" ? "Approved" : "Sent back"} · ${task.title}`
+            : held.cap === "chat.message_person"
+              ? sentLine(
+                  ended,
+                  subject,
+                  (task.workingNotes as Record<string, string> | undefined)?.["approved_in"] === "chat",
+                )
+              : doneLine(ended, held.cap, subject, held.input)
+        }
+      />
     );
   }
   const act = (key: "approve" | "reject", note?: string): void => {
-    setBusy(true); setLine(null);
+    setBusy(true);
+    setLine(null);
     // allowing a key binding approves every domain it names for every key it binds, then lets the binding through: the key's page lists them under Sent to
     if (key === "approve" && keyBind?.found) {
-      const saves = keyBind.items.flatMap((i) => keyBind.hosts.map((host) => Promise.resolve(data.call("automations.key_hosts.allow", { vaultItemId: i.itemId, host }))));
-      void Promise.all(saves).then(() => answerTask(key, note), () => { setBusy(false); setLine("Could not save where the key may go. Try again."); });
+      const saves = keyBind.items.flatMap((i) =>
+        keyBind.hosts.map((host) =>
+          Promise.resolve(data.call("automations.key_hosts.allow", { vaultItemId: i.itemId, host })),
+        ),
+      );
+      void Promise.all(saves).then(
+        () => answerTask(key, note),
+        () => {
+          setBusy(false);
+          setLine("Could not save where the key may go. Try again.");
+        },
+      );
       return;
     }
     answerTask(key, note);
   };
   const answerTask = (key: "approve" | "reject", note?: string): void => {
-    void Promise.resolve(data.call("tasks.act", { taskId, action: key, ...(note !== undefined ? { note } : {}) })).then(
-      () => setOutcome(key === "approve" ? "allowed" : "denied"),
-      (e: unknown) => { setLine(isDecided(e) ? DECIDED_LINE : e instanceof Error && e.message ? `Failed. ${e.message}` : "Failed. Try again."); if (isDecided(e)) void load(); },
-    ).finally(() => setBusy(false));
+    void Promise.resolve(data.call("tasks.act", { taskId, action: key, ...(note !== undefined ? { note } : {}) }))
+      .then(
+        () => setOutcome(key === "approve" ? "allowed" : "denied"),
+        (e: unknown) => {
+          setLine(
+            isDecided(e)
+              ? DECIDED_LINE
+              : e instanceof Error && e.message
+                ? `Failed. ${e.message}`
+                : "Failed. Try again.",
+          );
+          if (isDecided(e)) void load();
+        },
+      )
+      .finally(() => setBusy(false));
   };
   /** Allow this and every call like it from this agent in this chat, for 30 days. The rule is the Gate's; /permissions lists it and takes it back. */
   const always = (): void => {
-    setBusy(true); setLine(null);
-    const keep = keyApprove !== null
-      ? data.call("automations.key_hosts.allow", { vaultItemId: keyApprove.itemId, host: keyApprove.host })
-      : data.call("gate.allow.set", { act: "approve", target: held.cap, agentId, threadId: data.threadId });
+    setBusy(true);
+    setLine(null);
+    const keep =
+      keyApprove !== null
+        ? data.call("automations.key_hosts.allow", { vaultItemId: keyApprove.itemId, host: keyApprove.host })
+        : data.call("gate.allow.set", { act: "approve", target: held.cap, agentId, threadId: data.threadId });
     void Promise.resolve(keep).then(
       () => act("approve"),
-      () => { setBusy(false); setLine("Could not keep that rule. Try Allow."); },
+      () => {
+        setBusy(false);
+        setLine("Could not keep that rule. Try Allow.");
+      },
     );
   };
   // an outside agent asking its person: what happens, that it runs as them, and every input
   const rows = held.plain ? plainRows(held) : held.what ? askRows(task.blocks) : excerptLines(held.input, 5, held.cap);
   // a key's test read names the key the server resolved, with its name, and the host: "Scout wants to send #Notely (Notely API key) to api.notely.com"
-  const both = (xs: readonly string[]): string => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : xs[0] ?? "");
-  const bindLine = keyBind?.found ? `${agent} wants to use ${both(keyBind.items.map((i) => i.handle))} with ${both(keyBind.hosts)}` : null;
-  const keyLine = bindLine ?? (held.cap === "automations.try_read" ? (keyRead?.found ? `${agent} wants to send ${keyRead.handle} (${keyRead.name}) to ${keyRead.host}` : `${agent} wants to send a key you cannot see${keyRead?.host ? ` to ${keyRead.host}` : ""}`) : null);
-  const headline = held.what ? askLine(agent, held.what) : keyLine ?? wantsLine(agent, held.cap, subject, held.input);
+  const both = (xs: readonly string[]): string =>
+    xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : (xs[0] ?? "");
+  const bindLine = keyBind?.found
+    ? `${agent} wants to use ${both(keyBind.items.map((i) => i.handle))} with ${both(keyBind.hosts)}`
+    : null;
+  const keyLine =
+    bindLine ??
+    (held.cap === "automations.try_read"
+      ? keyRead?.found
+        ? `${agent} wants to send ${keyRead.handle} (${keyRead.name}) to ${keyRead.host}`
+        : `${agent} wants to send a key you cannot see${keyRead?.host ? ` to ${keyRead.host}` : ""}`
+      : null);
+  const headline = held.what ? askLine(agent, held.what) : (keyLine ?? wantsLine(agent, held.cap, subject, held.input));
   return (
-    <Card kind="decision" testID={`approval-${taskId}`} label={headline} onCancel={denying ? () => setDenying(false) : undefined}>
-      <CardHead title={headline} lead={<Face name={agent} seedId={face ?? faceSeed ?? agentId} kind={face ? "person" : "agent"} size={20} />} />
+    <Card
+      kind="decision"
+      testID={`approval-${taskId}`}
+      label={headline}
+      onCancel={denying ? () => setDenying(false) : undefined}
+    >
+      <CardHead
+        title={headline}
+        lead={<Face name={agent} seedId={face ?? faceSeed ?? agentId} kind={face ? "person" : "agent"} size={20} />}
+      />
       {diff && diff.lines.length > 0 ? (
         <View testID={`approval-diff-${taskId}`} style={st.excerpt}>
-          {collect(diff.lines.map((l, i) => ({ ...l, i })), (l) => (
-            <View key={l.i} style={st.diffLine}>
-              <Text style={[st.mark, { color: l.kind === "add" ? "var(--ok)" : "var(--danger)" }]}>{l.kind === "add" ? "+" : "\u2212"}</Text>
-              <Text numberOfLines={2} style={[st.value, l.kind === "del" && st.del]}>{l.text}</Text>
-            </View>
-          ))}
+          {collect(
+            diff.lines.map((l, i) => ({ ...l, i })),
+            (l) => (
+              <View key={l.i} style={st.diffLine}>
+                <Text style={[st.mark, { color: l.kind === "add" ? "var(--ok)" : "var(--danger)" }]}>
+                  {l.kind === "add" ? "+" : "\u2212"}
+                </Text>
+                <Text numberOfLines={2} style={[st.value, l.kind === "del" && st.del]}>
+                  {l.text}
+                </Text>
+              </View>
+            ),
+          )}
           {diff.more > 0 ? <Text style={st.label}>{`+${diff.more} more`}</Text> : null}
         </View>
       ) : rows.length > 0 ? (
@@ -195,17 +456,41 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
           {collect(rows, (r) => (
             <View key={r.label} style={st.line}>
               <Text style={st.label}>{r.label}</Text>
-              {/^https?:\/\/\S+$/.test(r.text) ? <Text accessibilityRole="link" {...({ href: r.text, hrefAttrs: { target: "_blank", rel: "noopener noreferrer" } } as object)} style={st.link}>{r.text.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}</Text> : <Text numberOfLines={5} style={st.value}>{r.text}</Text>}
+              {/^https?:\/\/\S+$/.test(r.text) ? (
+                <Text
+                  accessibilityRole="link"
+                  {...({ href: r.text, hrefAttrs: { target: "_blank", rel: "noopener noreferrer" } } as object)}
+                  style={st.link}
+                >
+                  {r.text.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
+                </Text>
+              ) : (
+                <Text numberOfLines={5} style={st.value}>
+                  {r.text}
+                </Text>
+              )}
             </View>
           ))}
         </View>
       ) : null}
       {denying ? (
-        <CardDeny ids={{ reason: `approval-reason-${taskId}`, back: `approval-back-${taskId}`, go: `approval-deny-go-${taskId}` }} busy={busy} onBack={() => setDenying(false)} onDeny={(r) => act("reject", denyNote(r))} />
+        <CardDeny
+          ids={{
+            reason: `approval-reason-${taskId}`,
+            back: `approval-back-${taskId}`,
+            go: `approval-deny-go-${taskId}`,
+          }}
+          busy={busy}
+          onBack={() => setDenying(false)}
+          onDeny={(r) => act("reject", denyNote(r))}
+        />
       ) : (
         <CardActions
           busy={busy}
-          secondary={[...(allowable ? [{ label: "Always allow", onPress: always, testID: `approval-always-${taskId}` }] : []), { label: "Deny", onPress: () => setDenying(true), testID: `approval-deny-${taskId}` }]}
+          secondary={[
+            ...(allowable ? [{ label: "Always allow", onPress: always, testID: `approval-always-${taskId}` }] : []),
+            { label: "Deny", onPress: () => setDenying(true), testID: `approval-deny-${taskId}` },
+          ]}
           primary={{ label: "Allow", onPress: () => act("approve"), testID: `approval-allow-${taskId}` }}
           error={line}
         />

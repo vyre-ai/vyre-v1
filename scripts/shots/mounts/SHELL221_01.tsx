@@ -25,11 +25,27 @@ import { consolePageFor } from "../../../apps/app/src/shell/providers/console.ts
 
 export const title = "Shell layout";
 
-interface RootLike { setAttribute(name: string, value: string): void; style: { setProperty(name: string, value: string): void; removeProperty(name: string): void } }
+interface RootLike {
+  setAttribute(name: string, value: string): void;
+  style: { setProperty(name: string, value: string): void; removeProperty(name: string): void };
+}
 
-function Place({ ctx, sidebar, initialPane }: { ctx: PlaceContext; sidebar: boolean; initialPane: boolean }): ReactNode {
+function Place({
+  ctx,
+  sidebar,
+  initialPane,
+}: {
+  ctx: PlaceContext;
+  sidebar: boolean;
+  initialPane: boolean;
+}): ReactNode {
   const [pane, setPane] = useState(initialPane);
-  useEffect(() => { (globalThis as { __pane?: (on: boolean) => void }).__pane = setPane; return () => { (globalThis as { __pane?: unknown }).__pane = undefined; }; }, []);
+  useEffect(() => {
+    (globalThis as { __pane?: (on: boolean) => void }).__pane = setPane;
+    return () => {
+      (globalThis as { __pane?: unknown }).__pane = undefined;
+    };
+  }, []);
   const { element, show } = useMenu();
   const name = ctx.place[0]!.toUpperCase() + ctx.place.slice(1);
   return (
@@ -38,7 +54,12 @@ function Place({ ctx, sidebar, initialPane }: { ctx: PlaceContext; sidebar: bool
         <SidebarContent title={name} searchPlaceholder={`Search ${ctx.place}`}>
           {() => (
             <View style={{ padding: 10, gap: 4 }}>
-              {["One", "Two", "Three", "Four"].map((n) => <Text key={n} style={{ color: "var(--ink)" as string, fontSize: 14, paddingVertical: 8, paddingHorizontal: 8 }}>{`${name} ${n}`}</Text>)}
+              {["One", "Two", "Three", "Four"].map((n) => (
+                <Text
+                  key={n}
+                  style={{ color: "var(--ink)" as string, fontSize: 14, paddingVertical: 8, paddingHorizontal: 8 }}
+                >{`${name} ${n}`}</Text>
+              ))}
             </View>
           )}
         </SidebarContent>
@@ -46,14 +67,71 @@ function Place({ ctx, sidebar, initialPane }: { ctx: PlaceContext; sidebar: bool
       <View testID="place-main" style={{ flex: 1, minHeight: 0, alignItems: "center", paddingTop: 24 }}>
         <View testID="reading" style={{ width: "100%", maxWidth: 720, paddingHorizontal: 16, gap: 12 }}>
           <Text style={{ color: "var(--ink)" as string, fontSize: 22, fontWeight: "600" }}>{name}</Text>
-          <Text style={{ color: "var(--ink-2)" as string, fontSize: 15 }}>The reading column is capped at 720 and centred inside main.</Text>
-          <Pressable testID="open-pane" onPress={() => setPane(true)} style={{ height: 32, paddingHorizontal: 12, borderRadius: 10, justifyContent: "center", alignSelf: "flex-start", backgroundColor: "var(--accent-wash)" as string }}><Text style={{ color: "var(--accent)" as string, fontSize: 14 }}>Open the side pane</Text></Pressable>
+          <Text style={{ color: "var(--ink-2)" as string, fontSize: 15 }}>
+            The reading column is capped at 720 and centred inside main.
+          </Text>
+          <Pressable
+            testID="open-pane"
+            onPress={() => setPane(true)}
+            style={{
+              height: 32,
+              paddingHorizontal: 12,
+              borderRadius: 10,
+              justifyContent: "center",
+              alignSelf: "flex-start",
+              backgroundColor: "var(--accent-wash)" as string,
+            }}
+          >
+            <Text style={{ color: "var(--accent)" as string, fontSize: 14 }}>Open the side pane</Text>
+          </Pressable>
         </View>
       </View>
-      <Pressable testID="edge-menu" onPress={(e) => { const b = (e as unknown as { currentTarget: { getBoundingClientRect(): { left: number; right: number; bottom: number } } }).currentTarget.getBoundingClientRect(); show([{ label: "Rename", onSelect: () => undefined }, { label: "Duplicate a long label that needs room", onSelect: () => undefined }, { label: "Delete", onSelect: () => undefined }], b.left, b.bottom, "context", { label: "Edge menu" }, { anchorRight: b.right }); }} style={{ position: "absolute", top: 12, right: 12, height: 32, paddingHorizontal: 12, borderRadius: 12, justifyContent: "center", backgroundColor: "var(--hover)" as string }}><Text style={{ color: "var(--ink)" as string, fontSize: 14 }}>Menu</Text></Pressable>
+      <Pressable
+        testID="edge-menu"
+        onPress={(e) => {
+          const b = (
+            e as unknown as {
+              currentTarget: { getBoundingClientRect(): { left: number; right: number; bottom: number } };
+            }
+          ).currentTarget.getBoundingClientRect();
+          show(
+            [
+              { label: "Rename", onSelect: () => undefined },
+              { label: "Duplicate a long label that needs room", onSelect: () => undefined },
+              { label: "Delete", onSelect: () => undefined },
+            ],
+            b.left,
+            b.bottom,
+            "context",
+            { label: "Edge menu" },
+            { anchorRight: b.right },
+          );
+        }}
+        style={{
+          position: "absolute",
+          top: 12,
+          right: 12,
+          height: 32,
+          paddingHorizontal: 12,
+          borderRadius: 12,
+          justifyContent: "center",
+          backgroundColor: "var(--hover)" as string,
+        }}
+      >
+        <Text style={{ color: "var(--ink)" as string, fontSize: 14 }}>Menu</Text>
+      </Pressable>
       {element}
-      <SidePane paneKey="shell221-pane" toggle={{ open: pane, onPress: () => setPane(false) }} title="Details" tabs={[{ key: "d", title: "Details" }]} activeTab="d" onCloseTab={() => setPane(false)}>
-        <View style={{ padding: 16 }}><Text style={{ color: "var(--ink)" as string, fontSize: 14 }}>Side pane content</Text></View>
+      <SidePane
+        paneKey="shell221-pane"
+        toggle={{ open: pane, onPress: () => setPane(false) }}
+        title="Details"
+        tabs={[{ key: "d", title: "Details" }]}
+        activeTab="d"
+        onCloseTab={() => setPane(false)}
+      >
+        <View style={{ padding: 16 }}>
+          <Text style={{ color: "var(--ink)" as string, fontSize: 14 }}>Side pane content</Text>
+        </View>
       </SidePane>
     </View>
   );
@@ -64,9 +142,32 @@ const settingsSample = createSampleSettings();
 const consoleSample = createSampleConsole();
 
 function Real({ place, pane }: { place: string; pane: boolean }): ReactNode | null {
-  if (place === "vault") return <View style={{ flex: 1, minHeight: 0 }}><Vault data={vaultSample.data} /></View>;
-  if (place === "settings") return <SettingsDataProvider value={settingsSample.data}><View style={{ flex: 1, minHeight: 0 }}><SettingsPlace initialPage="profile" /></View></SettingsDataProvider>;
-  if (place === "console") return <ConsoleDataProvider value={consoleSample.data}><View style={{ flex: 1, minHeight: 0 }}><ConsoleShell embedded initialPage="people" renderPage={(id, state) => consolePageFor(id, state as Record<string, string | undefined>)} /></View></ConsoleDataProvider>;
+  if (place === "vault")
+    return (
+      <View style={{ flex: 1, minHeight: 0 }}>
+        <Vault data={vaultSample.data} />
+      </View>
+    );
+  if (place === "settings")
+    return (
+      <SettingsDataProvider value={settingsSample.data}>
+        <View style={{ flex: 1, minHeight: 0 }}>
+          <SettingsPlace initialPage="profile" />
+        </View>
+      </SettingsDataProvider>
+    );
+  if (place === "console")
+    return (
+      <ConsoleDataProvider value={consoleSample.data}>
+        <View style={{ flex: 1, minHeight: 0 }}>
+          <ConsoleShell
+            embedded
+            initialPage="people"
+            renderPage={(id, state) => consolePageFor(id, state as Record<string, string | undefined>)}
+          />
+        </View>
+      </ConsoleDataProvider>
+    );
   void pane;
   return null;
 }
@@ -77,13 +178,51 @@ function Inner({ search }: { search: string }): ReactNode {
     const query = new URLSearchParams(search);
     const skin = query.get("skin") ?? "paper";
     const root = (globalThis as { document?: { documentElement?: RootLike } }).document?.documentElement;
-    const themeRoot: ThemeRoot = { setAttribute: (n, v) => { root?.setAttribute(n, v); }, setProperty: (n, v) => { root?.style.setProperty(n, v); }, removeProperty: (n) => { root?.style.removeProperty(n); } };
-    const theme = createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin, hb: skin, me: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
+    const themeRoot: ThemeRoot = {
+      setAttribute: (n, v) => {
+        root?.setAttribute(n, v);
+      },
+      setProperty: (n, v) => {
+        root?.style.setProperty(n, v);
+      },
+      removeProperty: (n) => {
+        root?.style.removeProperty(n);
+      },
+    };
+    const theme = createThemeController({
+      personId: "irfad",
+      spaceId: "nw",
+      spaceSkin: { nw: skin, hb: skin, me: skin },
+      prefersDark: skin === "graphite",
+      root: themeRoot,
+      storage: null,
+    });
     const hub = createSampleShell({ openId: "nw", theme });
     hub.go((query.get("place") ?? "chats") as PlaceId);
-    return { hub, theme, sidebar: query.get("nosidebar") !== "1", pane: query.get("pane") === "1", real: query.get("real") === "1" };
+    return {
+      hub,
+      theme,
+      sidebar: query.get("nosidebar") !== "1",
+      pane: query.get("pane") === "1",
+      real: query.get("real") === "1",
+    };
   }, [search]);
-  return <View style={{ height }}><Shell hub={made.hub} theme={made.theme} me={{ id: "usr_irfad", name: "Irfad Imtiaz" }} renderPlace={(ctx) => (made.real && Real({ place: ctx.place, pane: made.pane }) !== null ? <Real place={ctx.place} pane={made.pane} /> : <Place ctx={ctx} sidebar={made.sidebar} initialPane={made.pane} />)} /></View>;
+  return (
+    <View style={{ height }}>
+      <Shell
+        hub={made.hub}
+        theme={made.theme}
+        me={{ id: "usr_irfad", name: "Irfad Imtiaz" }}
+        renderPlace={(ctx) =>
+          made.real && Real({ place: ctx.place, pane: made.pane }) !== null ? (
+            <Real place={ctx.place} pane={made.pane} />
+          ) : (
+            <Place ctx={ctx} sidebar={made.sidebar} initialPane={made.pane} />
+          )
+        }
+      />
+    </View>
+  );
 }
 
 export default function Mount(): ReactNode {

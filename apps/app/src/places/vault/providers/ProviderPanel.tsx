@@ -13,7 +13,19 @@ import { Info } from "../../../../../../ui/src/Tip/index.tsx";
 import { SignInPanel } from "../../../ai-signin/SignInPanel.tsx";
 import { startFlow } from "../../../ai-signin/flow.ts";
 import type { Flow } from "../../../ai-signin/flow.ts";
-import { canShare, cliDriverOf, countWords, howConnected, needsWords, rightNow, scopeWords, spaceUseWords, testWords, usageWords, userKind } from "./model.ts";
+import {
+  canShare,
+  cliDriverOf,
+  countWords,
+  howConnected,
+  needsWords,
+  rightNow,
+  scopeWords,
+  spaceUseWords,
+  testWords,
+  usageWords,
+  userKind,
+} from "./model.ts";
 
 export interface ProviderPanelProps {
   provider: Provider;
@@ -34,7 +46,11 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
   // a subscription that needs signing in again: Sign in again starts that provider's own sign-in right here and, once it is in, tests the account so the state follows
   const [flow, setFlow] = useState<Flow | null>(null);
   const signAgain = async (): Promise<void> => {
-    try { setFlow(await startFlow(data.call as never, provider.providerKey, `again:${provider.id}:${Date.now()}`)); } catch (e) { fail(e); }
+    try {
+      setFlow(await startFlow(data.call as never, provider.providerKey, `again:${provider.id}:${Date.now()}`));
+    } catch (e) {
+      fail(e);
+    }
   };
   const [spaceMay, setSpaceMay] = useState(provider.spaceMayUse);
   const fail = (e: unknown): void => onNote(e instanceof Error ? e.message : "That did not work.");
@@ -45,65 +61,223 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
   const [chatWhy, setChatWhy] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
-    void (data.call("engine.accounts.list", { place: "chat" }) as Promise<{ accounts: Array<{ providerId?: string; usable?: boolean; why?: string }> }>)
-      .then((o) => { const row = o.accounts.find((a) => a.providerId === provider.id); if (live) setChatWhy(row && row.usable === false ? row.why ?? "A chat cannot use it here." : null); }).catch(() => undefined);
-    return () => { live = false; };
+    void (
+      data.call("engine.accounts.list", { place: "chat" }) as Promise<{
+        accounts: Array<{ providerId?: string; usable?: boolean; why?: string }>;
+      }>
+    )
+      .then((o) => {
+        const row = o.accounts.find((a) => a.providerId === provider.id);
+        if (live) setChatWhy(row && row.usable === false ? (row.why ?? "A chat cannot use it here.") : null);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
   }, [provider.id]);
   useEffect(() => {
-    if (!cli) { setNeeds(null); return; }
+    if (!cli) {
+      setNeeds(null);
+      return;
+    }
     let live = true;
-    void (data.call("engine.providers.list", {}) as Promise<{ providers: Array<{ driver: string; kind: string; allowed: boolean; reason?: string }> }>)
-      .then((o) => { if (live) setNeeds(needsWords(provider, o.providers)); }).catch(() => undefined);
-    return () => { live = false; };
+    void (
+      data.call("engine.providers.list", {}) as Promise<{
+        providers: Array<{ driver: string; kind: string; allowed: boolean; reason?: string }>;
+      }>
+    )
+      .then((o) => {
+        if (live) setNeeds(needsWords(provider, o.providers));
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
   }, [cli, provider.id]);
 
   const test = async (): Promise<void> => {
-    setTesting(true); setResult(null);
-    try { setResult(testWords((await data.call("providers.test", { providerId: provider.id })) as { ok: boolean; models: string[]; latencyMs: number; detail?: string })); } catch (e) { fail(e); }
+    setTesting(true);
+    setResult(null);
+    try {
+      setResult(
+        testWords(
+          (await data.call("providers.test", { providerId: provider.id })) as {
+            ok: boolean;
+            models: string[];
+            latencyMs: number;
+            detail?: string;
+          },
+        ),
+      );
+    } catch (e) {
+      fail(e);
+    }
     setTesting(false);
   };
   const toggleSpace = async (): Promise<void> => {
     const allow = !spaceMay;
-    try { await data.call("providers.set_space_use", { providerId: provider.id, allow }); setSpaceMay(allow); onNote(allow ? `The Space can use ${provider.name}` : `The Space no longer uses ${provider.name}`); } catch (e) { fail(e); }
+    try {
+      await data.call("providers.set_space_use", { providerId: provider.id, allow });
+      setSpaceMay(allow);
+      onNote(allow ? `The Space can use ${provider.name}` : `The Space no longer uses ${provider.name}`);
+    } catch (e) {
+      fail(e);
+    }
   };
   const remove = async (): Promise<void> => {
     setAsking(false);
-    try { await data.call("providers.remove", { providerId: provider.id }); onNote(`Removed ${provider.name}`); onRemoved(); } catch (e) { fail(e); }
+    try {
+      await data.call("providers.remove", { providerId: provider.id });
+      onNote(`Removed ${provider.name}`);
+      onRemoved();
+    } catch (e) {
+      fail(e);
+    }
   };
 
   return (
     <View style={s.panel} testID="provider-panel" accessibilityLabel={`${provider.name}, AI provider`}>
       <ScrollView style={s.scroll} contentContainerStyle={s.body}>
         <View style={s.facts}>
-          <View style={s.fact}><Text style={s.k}>Connects with</Text><Text style={s.v} testID="provider-how">{howConnected(provider)}</Text></View>
-          <View style={s.fact}><Text style={s.k}>Belongs to</Text><Text style={s.v} testID="provider-scope">{scopeWords(provider)}</Text></View>
-          <View style={s.fact}><Text style={s.k}>Right now</Text><View style={s.state}><View style={[s.dot, { backgroundColor: STATE_COLOR[rightNow(provider.state, provider.unopenable, needs, chatWhy).tone] as string }]} /><Text style={s.v} testID="provider-state">{rightNow(provider.state, provider.unopenable, needs, chatWhy).text}</Text></View></View>
-          <View style={s.fact}><Text style={s.k}>This month</Text><Text style={s.v} testID="provider-usage">{usageWords(provider)}</Text></View>
+          <View style={s.fact}>
+            <Text style={s.k}>Connects with</Text>
+            <Text style={s.v} testID="provider-how">
+              {howConnected(provider)}
+            </Text>
+          </View>
+          <View style={s.fact}>
+            <Text style={s.k}>Belongs to</Text>
+            <Text style={s.v} testID="provider-scope">
+              {scopeWords(provider)}
+            </Text>
+          </View>
+          <View style={s.fact}>
+            <Text style={s.k}>Right now</Text>
+            <View style={s.state}>
+              <View
+                style={[
+                  s.dot,
+                  {
+                    backgroundColor: STATE_COLOR[
+                      rightNow(provider.state, provider.unopenable, needs, chatWhy).tone
+                    ] as string,
+                  },
+                ]}
+              />
+              <Text style={s.v} testID="provider-state">
+                {rightNow(provider.state, provider.unopenable, needs, chatWhy).text}
+              </Text>
+            </View>
+          </View>
+          <View style={s.fact}>
+            <Text style={s.k}>This month</Text>
+            <Text style={s.v} testID="provider-usage">
+              {usageWords(provider)}
+            </Text>
+          </View>
         </View>
 
-        <Text accessibilityRole="header" style={s.head}>{`Used by ${countWords(provider.agentsUsing.length, "agent or Automation", "agents and Automations")}`}</Text>
-        {provider.agentsUsing.length === 0 ? <Text style={s.none} testID="provider-nobody">Nothing uses it yet.</Text> : provider.agentsUsing.map((id) => (
-          <Row key={id} id={`use:${id}`} title={people.name(id)} note={userKind(id) === "automation" ? "Automation" : "Agent"} leading={<View style={s.face}><Avatar name={people.name(id)} seedId={id} kind={userKind(id)} size={24} /></View>}
-            {...(userKind(id) === "agent" ? { trailing: <Glyph name="chevron" size={11} />, onPress: () => data.nav.openAgent(id) } : {})} />
-        ))}
+        <Text
+          accessibilityRole="header"
+          style={s.head}
+        >{`Used by ${countWords(provider.agentsUsing.length, "agent or Automation", "agents and Automations")}`}</Text>
+        {provider.agentsUsing.length === 0 ? (
+          <Text style={s.none} testID="provider-nobody">
+            Nothing uses it yet.
+          </Text>
+        ) : (
+          provider.agentsUsing.map((id) => (
+            <Row
+              key={id}
+              id={`use:${id}`}
+              title={people.name(id)}
+              note={userKind(id) === "automation" ? "Automation" : "Agent"}
+              leading={
+                <View style={s.face}>
+                  <Avatar name={people.name(id)} seedId={id} kind={userKind(id)} size={24} />
+                </View>
+              }
+              {...(userKind(id) === "agent"
+                ? { trailing: <Glyph name="chevron" size={11} />, onPress: () => data.nav.openAgent(id) }
+                : {})}
+            />
+          ))
+        )}
 
         <View style={s.acts}>
-          {provider.connection === "subscription" && (provider.state === "needs_sign_in" || needs !== null) ? <Btn label="Sign in again" icon="check" onPress={() => void signAgain()} testID="provider-sign-in-again" /> : null}
-          <Btn label={testing ? "Testing" : "Test connection"} icon="check" onPress={() => void test()} disabled={testing} testID="provider-test" />
-          {canShare(provider) ? <Btn label="Share" icon="share" onPress={() => data.nav.openShare(provider.itemId)} testID="provider-share" /> : null}
+          {provider.connection === "subscription" && (provider.state === "needs_sign_in" || needs !== null) ? (
+            <Btn label="Sign in again" icon="check" onPress={() => void signAgain()} testID="provider-sign-in-again" />
+          ) : null}
+          <Btn
+            label={testing ? "Testing" : "Test connection"}
+            icon="check"
+            onPress={() => void test()}
+            disabled={testing}
+            testID="provider-test"
+          />
+          {canShare(provider) ? (
+            <Btn
+              label="Share"
+              icon="share"
+              onPress={() => data.nav.openShare(provider.itemId)}
+              testID="provider-share"
+            />
+          ) : null}
           {asking ? (
-            <View style={s.ask}><Text style={s.askText}>{`Remove ${provider.name}?`}</Text><Btn label="Remove" danger onPress={() => void remove()} testID="provider-remove-yes" /><Btn label="Keep" onPress={() => setAsking(false)} testID="provider-remove-no" /></View>
-          ) : <Btn label="Remove" danger onPress={() => setAsking(true)} testID="provider-remove" />}
+            <View style={s.ask}>
+              <Text style={s.askText}>{`Remove ${provider.name}?`}</Text>
+              <Btn label="Remove" danger onPress={() => void remove()} testID="provider-remove-yes" />
+              <Btn label="Keep" onPress={() => setAsking(false)} testID="provider-remove-no" />
+            </View>
+          ) : (
+            <Btn label="Remove" danger onPress={() => setAsking(true)} testID="provider-remove" />
+          )}
         </View>
-        {flow ? <SignInPanel call={data.call as never} flow={flow} onCancel={() => setFlow(null)} onDone={() => { setFlow(null); onNote("Signed in again"); void test(); }} /> : null}
-        {result ? <Text style={s.result} accessibilityLiveRegion="polite" testID="provider-result">{result}</Text> : null}
+        {flow ? (
+          <SignInPanel
+            call={data.call as never}
+            flow={flow}
+            onCancel={() => setFlow(null)}
+            onDone={() => {
+              setFlow(null);
+              onNote("Signed in again");
+              void test();
+            }}
+          />
+        ) : null}
+        {result ? (
+          <Text style={s.result} accessibilityLiveRegion="polite" testID="provider-result">
+            {result}
+          </Text>
+        ) : null}
 
         {canShare(provider) ? (
-          <Pressable accessibilityRole="switch" accessibilityState={{ checked: spaceMay }} aria-checked={spaceMay} testID="provider-space" onPress={() => void toggleSpace()} style={s.switchRow}>
-            <View style={{ flex: 1 }}><Text style={s.switchTitle}>{spaceUseWords(provider).title}</Text><Text style={s.switchNote}>{spaceUseWords(provider).note}</Text></View>
-            <View style={[s.track, spaceMay && s.trackOn]}><View style={[s.knob, spaceMay && s.knobOn]} /></View>
+          <Pressable
+            accessibilityRole="switch"
+            accessibilityState={{ checked: spaceMay }}
+            aria-checked={spaceMay}
+            testID="provider-space"
+            onPress={() => void toggleSpace()}
+            style={s.switchRow}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={s.switchTitle}>{spaceUseWords(provider).title}</Text>
+              <Text style={s.switchNote}>{spaceUseWords(provider).note}</Text>
+            </View>
+            <View style={[s.track, spaceMay && s.trackOn]}>
+              <View style={[s.knob, spaceMay && s.knobOn]} />
+            </View>
           </Pressable>
-        ) : <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 12 }} testID="provider-private"><Glyph name="lock" size={12} color="var(--ink-3)" /><Text style={s.note}>Mine</Text><Info help="Only you can use this sign-in" /></View>}
+        ) : (
+          <View
+            style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 12 }}
+            testID="provider-private"
+          >
+            <Glyph name="lock" size={12} color="var(--ink-3)" />
+            <Text style={s.note}>Mine</Text>
+            <Info help="Only you can use this sign-in" />
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -129,7 +303,14 @@ const s = StyleSheet.create({
   switchRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingTop: 12 },
   switchTitle: { fontSize: 13, color: "var(--ink)" as string },
   switchNote: { fontSize: 12, color: "var(--ink-3)" as string },
-  track: { width: 34, height: 20, borderRadius: 99, backgroundColor: "var(--line-2)" as string, justifyContent: "center", paddingHorizontal: 2 },
+  track: {
+    width: 34,
+    height: 20,
+    borderRadius: 99,
+    backgroundColor: "var(--line-2)" as string,
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
   trackOn: { backgroundColor: "var(--accent)" as string },
   knob: { width: 16, height: 16, borderRadius: 99, backgroundColor: "var(--raised)" as string },
   knobOn: { alignSelf: "flex-end" },

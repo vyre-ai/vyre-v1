@@ -7,26 +7,63 @@ import { mintRecordId } from "../../../lib/ids.ts";
 import { openRecordStore } from "../../../kernel/src/store/records.ts";
 import type { Store, StoredRecord } from "../../../kernel/src/store/types.ts";
 import { openSources } from "../impl.ts";
-import { confirmDeletes, flushOutbox, removedAtSource, resolveConflict, retryPush, runSync, undoPush } from "../handlers/sync.ts";
+import {
+  confirmDeletes,
+  flushOutbox,
+  removedAtSource,
+  resolveConflict,
+  retryPush,
+  runSync,
+  undoPush,
+} from "../handlers/sync.ts";
 import type { SyncBinding, SyncDeps } from "../handlers/sync.ts";
 
-const LOCAL = { name: "contact", label: "Contact", fields: [
-  { name: "name", kind: "text", label: "Name" }, { name: "email", kind: "text", label: "Email" }, { name: "phone", kind: "text", label: "Phone" },
-  { name: "city", kind: "text", label: "City" }, { name: "notes", kind: "text", label: "Notes" },
-] };
-const REMOTE = { name: "hs_contact", label: "HubSpot contact", fields: [
-  { name: "full_name", kind: "text" }, { name: "email_address", kind: "text" }, { name: "phone_number", kind: "text" }, { name: "town", kind: "text" }, { name: "private", kind: "text" },
-] };
-const BINDING: SyncBinding = {
-  syncTypeId: "syt_1", type: "contact", remote: "hs_contact", connector: "hubspot", label: "HubSpot",
+const LOCAL = {
+  name: "contact",
+  label: "Contact",
   fields: [
-    { local: "name", remote: "full_name", direction: "both" }, { local: "email", remote: "email_address", direction: "both" },
-    { local: "phone", remote: "phone_number", direction: "pull" }, { local: "city", remote: "town", direction: "push" }, { local: "notes", remote: "private", direction: "off" },
+    { name: "name", kind: "text", label: "Name" },
+    { name: "email", kind: "text", label: "Email" },
+    { name: "phone", kind: "text", label: "Phone" },
+    { name: "city", kind: "text", label: "City" },
+    { name: "notes", kind: "text", label: "Notes" },
   ],
-  match: ["email"], createAtSource: false, deletes: false, conflict: "newest",
+};
+const REMOTE = {
+  name: "hs_contact",
+  label: "HubSpot contact",
+  fields: [
+    { name: "full_name", kind: "text" },
+    { name: "email_address", kind: "text" },
+    { name: "phone_number", kind: "text" },
+    { name: "town", kind: "text" },
+    { name: "private", kind: "text" },
+  ],
+};
+const BINDING: SyncBinding = {
+  syncTypeId: "syt_1",
+  type: "contact",
+  remote: "hs_contact",
+  connector: "hubspot",
+  label: "HubSpot",
+  fields: [
+    { local: "name", remote: "full_name", direction: "both" },
+    { local: "email", remote: "email_address", direction: "both" },
+    { local: "phone", remote: "phone_number", direction: "pull" },
+    { local: "city", remote: "town", direction: "push" },
+    { local: "notes", remote: "private", direction: "off" },
+  ],
+  match: ["email"],
+  createAtSource: false,
+  deletes: false,
+  conflict: "newest",
 };
 
-interface Seen { name: string; subject: string; payload: Record<string, any> }
+interface Seen {
+  name: string;
+  subject: string;
+  payload: Record<string, any>;
+}
 async function kit(b: Partial<SyncBinding> = {}) {
   const clock = { t: 1000 };
   const localOpen = openRecordStore({ path: ":memory:", space: "sp_local", clock: () => clock.t });
@@ -37,27 +74,76 @@ async function kit(b: Partial<SyncBinding> = {}) {
   const seen: Seen[] = [];
   const binding: SyncBinding = { ...BINDING, ...b };
   let remote: Store = remoteOpen.store;
-  const deps = (): SyncDeps => ({ local: localOpen.store, remote, tx: localOpen.host.tx, now: () => clock.t, emit: (name, subject, payload) => { seen.push({ name, subject, payload }); } });
+  const deps = (): SyncDeps => ({
+    local: localOpen.store,
+    remote,
+    tx: localOpen.host.tx,
+    now: () => clock.t,
+    emit: (name, subject, payload) => {
+      seen.push({ name, subject, payload });
+    },
+  });
   const local = localOpen.store;
   const remoteStore = remoteOpen.store;
   const events = (name: string) => seen.filter((e) => e.name === name).map((e) => e.payload);
-  const addRemote = async (data: Record<string, unknown>) => (await remoteStore.create("hs_contact", mintRecordId(), data)).id;
+  const addRemote = async (data: Record<string, unknown>) =>
+    (await remoteStore.create("hs_contact", mintRecordId(), data)).id;
   const addLocal = async (data: Record<string, unknown>) => (await local.create("contact", mintRecordId(), data)).id;
-  const editLocal = async (id: string, patch: Record<string, unknown>) => { const r = await local.get("contact", id); return local.update("contact", id, patch, r!.version); };
-  const editRemote = async (id: string, patch: Record<string, unknown>) => { const r = await remoteStore.get("hs_contact", id); return remoteStore.update("hs_contact", id, patch, r!.version); };
+  const editLocal = async (id: string, patch: Record<string, unknown>) => {
+    const r = await local.get("contact", id);
+    return local.update("contact", id, patch, r!.version);
+  };
+  const editRemote = async (id: string, patch: Record<string, unknown>) => {
+    const r = await remoteStore.get("hs_contact", id);
+    return remoteStore.update("hs_contact", id, patch, r!.version);
+  };
   const run = (o: Parameters<typeof runSync>[2] = {}) => runSync(deps(), binding, o);
-  const locals = async (): Promise<StoredRecord[]> => (await local.query("contact", { page: { limit: 500 } })).rows as StoredRecord[];
+  const locals = async (): Promise<StoredRecord[]> =>
+    (await local.query("contact", { page: { limit: 500 } })).rows as StoredRecord[];
   // The store lists rows in an order that depends on when and with which id they were created, which a test must not lean on: sorted by name (numbers in order), then id.
-  const remotes = async (): Promise<StoredRecord[]> => ((await remoteStore.query("hs_contact", { page: { limit: 500 } })).rows as StoredRecord[])
-    .sort((x, y) => String(x.data["full_name"] ?? "").localeCompare(String(y.data["full_name"] ?? ""), "en", { numeric: true }) || x.id.localeCompare(y.id));
+  const remotes = async (): Promise<StoredRecord[]> =>
+    ((await remoteStore.query("hs_contact", { page: { limit: 500 } })).rows as StoredRecord[]).sort(
+      (x, y) =>
+        String(x.data["full_name"] ?? "").localeCompare(String(y.data["full_name"] ?? ""), "en", { numeric: true }) ||
+        x.id.localeCompare(y.id),
+    );
   const count = (table: string) => src.tx.get<{ n: number }>(`SELECT count(*) AS n FROM ${table}`)!.n;
-  const swapRemote = (r: Store) => { remote = r; };
-  return { clock, deps, seen, events, binding, addRemote, addLocal, editLocal, editRemote, run, locals, remotes, count, local, remoteStore, tx: src.tx, swapRemote };
+  const swapRemote = (r: Store) => {
+    remote = r;
+  };
+  return {
+    clock,
+    deps,
+    seen,
+    events,
+    binding,
+    addRemote,
+    addLocal,
+    editLocal,
+    editRemote,
+    run,
+    locals,
+    remotes,
+    count,
+    local,
+    remoteStore,
+    tx: src.tx,
+    swapRemote,
+  };
 }
 type Kit = Awaited<ReturnType<typeof kit>>;
 const seed = async (k: Kit, n: number): Promise<string[]> => {
   const ids: string[] = [];
-  for (let i = 0; i < n; i++) ids.push(await k.addRemote({ full_name: `Person ${i}`, email_address: `p${i}@x.com`, phone_number: `555-000${i}`, town: `Town ${i}`, private: "secret" }));
+  for (let i = 0; i < n; i++)
+    ids.push(
+      await k.addRemote({
+        full_name: `Person ${i}`,
+        email_address: `p${i}@x.com`,
+        phone_number: `555-000${i}`,
+        town: `Town ${i}`,
+        private: "secret",
+      }),
+    );
   return ids;
 };
 
@@ -65,20 +151,44 @@ test("first sync pulls what the directions allow, a second sync changes nothing"
   const k = await kit();
   await seed(k, 3);
   const r1 = await k.run();
-  assert.deepEqual([r1.local.created, r1.local.updated, r1.remote.created, r1.remote.updated, r1.dryRun], [3, 0, 0, 0, false]);
+  assert.deepEqual(
+    [r1.local.created, r1.local.updated, r1.remote.created, r1.remote.updated, r1.dryRun],
+    [3, 0, 0, 0, false],
+  );
   const rows = await k.locals();
   assert.equal(rows.length, 3);
   const p0 = rows.find((r) => r.data.email === "p0@x.com")!;
-  assert.deepEqual({ ...p0.data }, { name: "Person 0", email: "p0@x.com", phone: "555-0000" }, "city is push-only and notes is off: neither is pulled");
+  assert.deepEqual(
+    { ...p0.data },
+    { name: "Person 0", email: "p0@x.com", phone: "555-0000" },
+    "city is push-only and notes is off: neither is pulled",
+  );
   assert.equal(k.count("sy_links"), 3);
 
   const r2 = await k.run();
-  assert.deepEqual([r2.local.created, r2.local.updated, r2.remote.created, r2.remote.updated, r2.matched, r2.conflicts], [0, 0, 0, 0, 0, 0]);
+  assert.deepEqual(
+    [r2.local.created, r2.local.updated, r2.remote.created, r2.remote.updated, r2.matched, r2.conflicts],
+    [0, 0, 0, 0, 0, 0],
+  );
   assert.equal(r2.summary, "Nothing to change.");
   assert.equal(k.count("sy_outbox"), 0);
   const done = k.events("sync.completed");
   assert.equal(done.length, 2);
-  assert.deepEqual({ ...done[0], runId: undefined }, { runId: undefined, syncTypeId: "syt_1", type: "contact", connector: "hubspot", mode: "both", pulled: 3, pushed: 0, created: 3, updated: 0, removed: 0 });
+  assert.deepEqual(
+    { ...done[0], runId: undefined },
+    {
+      runId: undefined,
+      syncTypeId: "syt_1",
+      type: "contact",
+      connector: "hubspot",
+      mode: "both",
+      pulled: 3,
+      pushed: 0,
+      created: 3,
+      updated: 0,
+      removed: 0,
+    },
+  );
   assert.match(done[0]!.runId, /^run_[a-z0-9]+$/);
 });
 
@@ -88,7 +198,10 @@ test("imports fire no automations unless the importer ticks run automations", as
   await k.run();
   const created = k.events("record.created");
   assert.equal(created.length, 2);
-  assert.ok(created.every((e) => e.quiet === true && e.type === "contact"), "quiet by default");
+  assert.ok(
+    created.every((e) => e.quiet === true && e.type === "contact"),
+    "quiet by default",
+  );
   await k.editRemote((await k.remotes())[0]!.id, { full_name: "Changed" });
   await k.run();
   assert.equal(k.events("record.updated").at(-1)!.quiet, true);
@@ -112,13 +225,28 @@ test("dry run: the diff in words and counts, and nothing written anywhere", asyn
   await k.editLocal(byEmail("p2@x.com").id, { name: "Local 2" });
   await k.addRemote({ full_name: "Fresh", email_address: "fresh@x.com" });
   k.seen.length = 0;
-  const before = { links: k.count("sy_links"), outbox: k.count("sy_outbox"), log: k.count("sy_log"), locals: JSON.stringify(await k.locals()), remotes: JSON.stringify(await k.remotes()) };
+  const before = {
+    links: k.count("sy_links"),
+    outbox: k.count("sy_outbox"),
+    log: k.count("sy_log"),
+    locals: JSON.stringify(await k.locals()),
+    remotes: JSON.stringify(await k.remotes()),
+  };
 
   const dry = await k.run({ dryRun: true });
   assert.equal(dry.dryRun, true);
   assert.deepEqual([dry.local.created, dry.local.updated, dry.remote.updated], [1, 2, 1]);
   assert.equal(dry.summary, "Will create 1 record here, update 2 records here, update 1 record in HubSpot.");
-  assert.deepEqual({ links: k.count("sy_links"), outbox: k.count("sy_outbox"), log: k.count("sy_log"), locals: JSON.stringify(await k.locals()), remotes: JSON.stringify(await k.remotes()) }, before);
+  assert.deepEqual(
+    {
+      links: k.count("sy_links"),
+      outbox: k.count("sy_outbox"),
+      log: k.count("sy_log"),
+      locals: JSON.stringify(await k.locals()),
+      remotes: JSON.stringify(await k.remotes()),
+    },
+    before,
+  );
   assert.deepEqual(k.seen, [], "a dry run announces nothing");
 
   const real = await k.run();
@@ -139,7 +267,9 @@ test("push goes through the outbox with the replaced value, and an undo puts it 
   assert.deepEqual([r.remote.updated, r.queued, r.failed], [1, 1, 0]);
   const remote = (await k.remotes())[0]!;
   assert.deepEqual([remote.data.full_name, remote.data.town], ["Renamed", "Oslo"]);
-  const row = k.tx.get<{ outbox_id: string; status: string; replaced: string; op: string; attempts: number }>("SELECT * FROM sy_outbox")!;
+  const row = k.tx.get<{ outbox_id: string; status: string; replaced: string; op: string; attempts: number }>(
+    "SELECT * FROM sy_outbox",
+  )!;
   assert.deepEqual([row.status, row.op, row.attempts], ["done", "update", 0]);
   assert.deepEqual(JSON.parse(row.replaced), { full_name: "Person 0", town: "Town 0" });
   assert.deepEqual(k.events("sync.pushed"), [{ syncTypeId: "syt_1", recordId: lid, outboxId: row.outbox_id }]);
@@ -217,8 +347,15 @@ test("conflicts: newest wins by default, source or vyre when asked, a person whe
     await k.run();
     const lid = (await k.locals())[0]!.id;
     k.clock.t = 2000;
-    if (localLater) { await k.editRemote(rid!, { full_name: "Remote" }); k.clock.t = 3000; await k.editLocal(lid, { name: "Local" }); }
-    else { await k.editLocal(lid, { name: "Local" }); k.clock.t = 3000; await k.editRemote(rid!, { full_name: "Remote" }); }
+    if (localLater) {
+      await k.editRemote(rid!, { full_name: "Remote" });
+      k.clock.t = 3000;
+      await k.editLocal(lid, { name: "Local" });
+    } else {
+      await k.editLocal(lid, { name: "Local" });
+      k.clock.t = 3000;
+      await k.editRemote(rid!, { full_name: "Remote" });
+    }
     k.seen.length = 0;
     const rep = await k.run();
     return { k, rep, local: (await k.locals())[0]!.data.name, remote: (await k.remotes())[0]!.data.full_name, lid };
@@ -236,7 +373,10 @@ test("conflicts: newest wins by default, source or vyre when asked, a person whe
   assert.deepEqual([e.local, e.remote, e.rep.askedConflicts], ["Local", "Remote", 1], "neither side is touched");
   const ev = e.k.events("sync.conflict");
   assert.equal(ev.length, 1);
-  assert.deepEqual({ ...ev[0], conflictId: undefined }, { conflictId: undefined, syncTypeId: "syt_1", type: "contact", recordId: e.lid, field: "name", rule: "ask" });
+  assert.deepEqual(
+    { ...ev[0], conflictId: undefined },
+    { conflictId: undefined, syncTypeId: "syt_1", type: "contact", recordId: e.lid, field: "name", rule: "ask" },
+  );
   await e.k.run();
   assert.equal(e.k.events("sync.conflict").length, 1, "the same open conflict is not announced twice");
   assert.equal(e.k.count("sy_conflicts"), 1);
@@ -246,12 +386,18 @@ test("conflicts: newest wins by default, source or vyre when asked, a person whe
   await resolveConflict(e.k.deps(), e.k.binding, id, "theirs");
   assert.equal((await e.k.locals())[0]!.data.name, "Remote");
   await e.k.run();
-  assert.deepEqual([(await e.k.locals())[0]!.data.name, (await e.k.remotes())[0]!.data.full_name], ["Remote", "Remote"]);
+  assert.deepEqual(
+    [(await e.k.locals())[0]!.data.name, (await e.k.remotes())[0]!.data.full_name],
+    ["Remote", "Remote"],
+  );
   await assert.rejects(resolveConflict(e.k.deps(), e.k.binding, id, "ours"), /no open conflict/);
 });
 
 test("resolving a conflict with ours or a typed value pushes it", async () => {
-  for (const [resolution, value, expected] of [["ours", undefined, "Local"], ["value", "Typed", "Typed"]] as const) {
+  for (const [resolution, value, expected] of [
+    ["ours", undefined, "Local"],
+    ["value", "Typed", "Typed"],
+  ] as const) {
     const k = await kit({ conflict: "ask" });
     const [rid] = await seed(k, 1);
     await k.run();
@@ -262,7 +408,11 @@ test("resolving a conflict with ours or a typed value pushes it", async () => {
     await k.run();
     const cid = k.events("sync.conflict")[0]!.conflictId as string;
     await resolveConflict(k.deps(), k.binding, cid, resolution, value);
-    assert.deepEqual([(await k.locals())[0]!.data.name, (await k.remotes())[0]!.data.full_name], [expected, expected], resolution);
+    assert.deepEqual(
+      [(await k.locals())[0]!.data.name, (await k.remotes())[0]!.data.full_name],
+      [expected, expected],
+      resolution,
+    );
     assert.equal((await k.run()).conflicts, 0);
   }
 });
@@ -283,9 +433,17 @@ test("first sync matches records that exist on both sides instead of duplicating
   const m = (await k.locals()).find((x) => x.id === mine)!;
   assert.equal(m.data.phone, "555-0000", "the pull fills what the local record lacked");
   assert.equal(m.data.name, "Local Zero", "and does not overwrite what only we changed");
-  assert.equal((await k.remotes()).find((x) => x.data.email_address === "p0@x.com")!.data.full_name, "Local Zero", "our difference is pushed");
+  assert.equal(
+    (await k.remotes()).find((x) => x.data.email_address === "p0@x.com")!.data.full_name,
+    "Local Zero",
+    "our difference is pushed",
+  );
   assert.equal((await k.remotes()).find((x) => x.data.email_address === "p0@x.com")!.data.town, "Oslo");
-  assert.equal((await k.remotes()).filter((x) => x.data.email_address === "dup@x.com").length, 1, "the ambiguous pair is left for a person");
+  assert.equal(
+    (await k.remotes()).filter((x) => x.data.email_address === "dup@x.com").length,
+    1,
+    "the ambiguous pair is left for a person",
+  );
   assert.equal(k.count("sy_links"), 2);
 });
 
@@ -296,14 +454,24 @@ test("create at source: off keeps local-only records local, on creates and links
   assert.equal((await off.remotes()).length, 0);
 
   const k = await kit({ createAtSource: true });
-  const lid = await k.addLocal({ name: "Only Here", email: "here@x.com", city: "Rome", notes: "never sent", phone: "never sent either" });
+  const lid = await k.addLocal({
+    name: "Only Here",
+    email: "here@x.com",
+    city: "Rome",
+    notes: "never sent",
+    phone: "never sent either",
+  });
   const dry = await k.run({ dryRun: true });
   assert.equal(dry.summary, "Will create 1 record in HubSpot.");
   assert.equal((await k.remotes()).length, 0);
   const r = await k.run();
   assert.equal(r.remote.created, 1);
   const made = (await k.remotes())[0]!;
-  assert.deepEqual({ ...made.data }, { full_name: "Only Here", email_address: "here@x.com", town: "Rome" }, "push fields only: phone is pull-only, notes is off");
+  assert.deepEqual(
+    { ...made.data },
+    { full_name: "Only Here", email_address: "here@x.com", town: "Rome" },
+    "push fields only: phone is pull-only, notes is off",
+  );
   const link = k.tx.get<{ remote_id: string }>("SELECT remote_id FROM sy_links WHERE local_id = ?", lid)!;
   assert.equal(link.remote_id, made.id);
   assert.equal((await k.run()).remote.created, 0, "linked: not created twice");
@@ -314,7 +482,12 @@ test("create at source: off keeps local-only records local, on creates and links
 });
 
 test("transforms apply to what is pulled", async () => {
-  const k = await kit({ fields: [{ local: "name", remote: "full_name", direction: "pull", transform: "upper(value)" }, { local: "email", remote: "email_address", direction: "pull", transform: "lower(value)" }] });
+  const k = await kit({
+    fields: [
+      { local: "name", remote: "full_name", direction: "pull", transform: "upper(value)" },
+      { local: "email", remote: "email_address", direction: "pull", transform: "lower(value)" },
+    ],
+  });
   await k.addRemote({ full_name: "Ann Lee", email_address: "ANN@X.COM" });
   await k.run();
   assert.deepEqual({ ...(await k.locals())[0]!.data }, { name: "ANN LEE", email: "ann@x.com" });
@@ -325,7 +498,8 @@ test("deletes at the source are soft; more than 10 percent waits for a person", 
   const k = await kit();
   const ids = await seed(k, 20);
   await k.run();
-  const idOf = (i: number) => (k.tx.get<{ local_id: string }>("SELECT local_id FROM sy_links WHERE remote_id = ?", ids[i]!)!).local_id;
+  const idOf = (i: number) =>
+    k.tx.get<{ local_id: string }>("SELECT local_id FROM sy_links WHERE remote_id = ?", ids[i]!)!.local_id;
 
   await k.remoteStore.remove("hs_contact", ids[0]!, (await k.remoteStore.get("hs_contact", ids[0]!))!.version);
   const dry = await k.run({ dryRun: true });
@@ -340,7 +514,8 @@ test("deletes at the source are soft; more than 10 percent waits for a person", 
   await k.run();
   assert.deepEqual(removedAtSource(k.deps(), k.binding), [], "it came back");
 
-  for (const i of [1, 2, 3]) await k.remoteStore.remove("hs_contact", ids[i]!, (await k.remoteStore.get("hs_contact", ids[i]!))!.version);
+  for (const i of [1, 2, 3])
+    await k.remoteStore.remove("hs_contact", ids[i]!, (await k.remoteStore.get("hs_contact", ids[i]!))!.version);
   k.seen.length = 0;
   const big = await k.run();
   assert.deepEqual([big.pausedDeletes, big.removedAtSource], [true, 0]);
@@ -356,7 +531,8 @@ test("keep: records that vanished stay live and are not asked about again", asyn
   const k = await kit();
   const ids = await seed(k, 10);
   await k.run();
-  for (const i of [0, 1]) await k.remoteStore.remove("hs_contact", ids[i]!, (await k.remoteStore.get("hs_contact", ids[i]!))!.version);
+  for (const i of [0, 1])
+    await k.remoteStore.remove("hs_contact", ids[i]!, (await k.remoteStore.get("hs_contact", ids[i]!))!.version);
   assert.equal((await k.run()).pausedDeletes, true);
   assert.equal(confirmDeletes(k.deps(), k.binding, "keep"), 0);
   const again = await k.run();
@@ -391,7 +567,13 @@ test("a push that keeps failing is retried, reported once, and can be retried by
   await k.editLocal((await k.locals())[0]!.id, { name: "Pushed" });
   const real = k.remoteStore;
   let broken = true;
-  k.swapRemote({ ...real, update: async (...a: Parameters<Store["update"]>) => { if (broken) throw new Error("HubSpot is down"); return real.update(...a); } } as Store);
+  k.swapRemote({
+    ...real,
+    update: async (...a: Parameters<Store["update"]>) => {
+      if (broken) throw new Error("HubSpot is down");
+      return real.update(...a);
+    },
+  } as Store);
   k.seen.length = 0;
   const r1 = await k.run();
   assert.deepEqual([r1.queued, r1.failed], [1, 0]);
@@ -400,11 +582,23 @@ test("a push that keeps failing is retried, reported once, and can be retried by
   const r3 = await k.run();
   assert.equal(r3.failed, 1);
   assert.equal(k.count("sy_outbox"), 1);
-  const row = k.tx.get<{ outbox_id: string; status: string; attempts: number; error: string }>("SELECT * FROM sy_outbox")!;
+  const row = k.tx.get<{ outbox_id: string; status: string; attempts: number; error: string }>(
+    "SELECT * FROM sy_outbox",
+  )!;
   assert.deepEqual([row.status, row.attempts, row.error], ["failed", 3, "HubSpot is down"]);
   const ev = k.events("sync.push_failed");
   assert.equal(ev.length, 1);
-  assert.deepEqual({ ...ev[0] }, { syncTypeId: "syt_1", type: "contact", recordId: (await k.locals())[0]!.id, outboxId: row.outbox_id, error: "HubSpot is down", attempts: 3 });
+  assert.deepEqual(
+    { ...ev[0] },
+    {
+      syncTypeId: "syt_1",
+      type: "contact",
+      recordId: (await k.locals())[0]!.id,
+      outboxId: row.outbox_id,
+      error: "HubSpot is down",
+      attempts: 3,
+    },
+  );
   assert.equal((await k.run()).failed, 0, "a failed push is left alone until retried");
   assert.equal((await k.remotes())[0]!.data.full_name, "Person 0");
 
@@ -420,8 +614,13 @@ test("the log records each pass under its run id", async () => {
   const k = await kit();
   await seed(k, 1);
   const r = await k.run({ traceId: "0123456789abcdef0123456789abcdef" });
-  const rows = k.tx.all<{ kind: string; run_id: string; trace_id: string; summary: string }>("SELECT kind, run_id, trace_id, summary FROM sy_log ORDER BY id");
-  assert.deepEqual(rows.map((x) => x.kind), ["pull", "push"]);
+  const rows = k.tx.all<{ kind: string; run_id: string; trace_id: string; summary: string }>(
+    "SELECT kind, run_id, trace_id, summary FROM sy_log ORDER BY id",
+  );
+  assert.deepEqual(
+    rows.map((x) => x.kind),
+    ["pull", "push"],
+  );
   assert.ok(rows.every((x) => x.run_id === r.runId && x.trace_id === "0123456789abcdef0123456789abcdef"));
   assert.match(rows[0]!.summary, /1 created, 0 updated here/);
 });

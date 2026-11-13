@@ -14,7 +14,13 @@ const realGet: Getter = async (url, headers) => {
   return { status: r.status, json: () => r.json() as Promise<unknown> };
 };
 
-export interface GetOptions { token: string; get?: Getter; attempts?: number; pauseMs?: number; sleep?: (ms: number) => Promise<void> }
+export interface GetOptions {
+  token: string;
+  get?: Getter;
+  attempts?: number;
+  pauseMs?: number;
+  sleep?: (ms: number) => Promise<void>;
+}
 
 const retryable = (status: number): boolean => status === 0 || status === 403 || status === 429 || status >= 500;
 
@@ -23,14 +29,20 @@ export async function getJson<T>(url: string, o: GetOptions): Promise<T> {
   const get = o.get ?? realGet;
   const attempts = o.attempts ?? 5;
   const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
-  const headers = { authorization: `Bearer ${o.token}`, accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28" };
+  const headers = {
+    authorization: `Bearer ${o.token}`,
+    accept: "application/vnd.github+json",
+    "x-github-api-version": "2022-11-28",
+  };
   let status = 0;
   for (let n = 1; n <= attempts; n++) {
     try {
       const r = await get(url, headers);
       status = r.status;
       if (status === 200) return (await r.json()) as T;
-    } catch { status = 0; }
+    } catch {
+      status = 0;
+    }
     if (!retryable(status) || n === attempts) break;
     await sleep((o.pauseMs ?? Number(process.env["GH_API_PAUSE_MS"] ?? 5000)) * 2 ** (n - 1));
   }

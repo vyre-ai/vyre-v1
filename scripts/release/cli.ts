@@ -18,7 +18,15 @@ import { fileURLToPath } from "node:url";
 import { UPDATE_CHANNELS, buildEntries } from "./channels.ts";
 import type { FeedEntry, Releases, UpdateChannel } from "./channels.ts";
 import { assetsFor, feedBase } from "./feed.ts";
-import { APP_TARBALL, EXTENSION_ZIP, KITS_TARBALL, packExtension, packFolder, packServer, releasesFrom } from "./pack.ts";
+import {
+  APP_TARBALL,
+  EXTENSION_ZIP,
+  KITS_TARBALL,
+  packExtension,
+  packFolder,
+  packServer,
+  releasesFrom,
+} from "./pack.ts";
 import type { ImageKey } from "./pack.ts";
 import { imageHasChrome, stageBridge, stageChrome } from "./computer.ts";
 import { GithubReleases, publishRelease, updateRolling } from "./publish.ts";
@@ -30,8 +38,16 @@ import { lineage, newestStable } from "./lineage.ts";
 import { SIGNING_KEY_ENV, keyId, publicKeyHexOf } from "./sign.ts";
 import { bump, channelOfVersion, releaseCounter, tagVersion, versionProblems } from "./version.ts";
 
-const run = (a: string[]): string => execFileSync(a[0] ?? "", a.slice(1), { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
-const isAncestor = (x: string, y: string): boolean => { try { execFileSync("git", ["merge-base", "--is-ancestor", x, y], { stdio: "ignore" }); return true; } catch { return false; } };
+const run = (a: string[]): string =>
+  execFileSync(a[0] ?? "", a.slice(1), { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+const isAncestor = (x: string, y: string): boolean => {
+  try {
+    execFileSync("git", ["merge-base", "--is-ancestor", x, y], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 /** `repoRoot`: the tree to read; a test passes its own copy so it never packs folders other tests are writing to at the same moment. */
 export function main(argv: string[], repoRoot?: string): number {
@@ -39,32 +55,73 @@ export function main(argv: string[], repoRoot?: string): number {
   const root = repoRoot ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
   try {
     switch (cmd) {
-      case "counter": console.log(releaseCounter(a ?? "")); return 0;
+      case "counter":
+        console.log(releaseCounter(a ?? ""));
+        return 0;
       case "bump": {
-        if (a === "--check") { const p = versionProblems(root); for (const l of p) console.error(`release: ${l}`); return p.length > 0 ? 1 : 0; }
-        if (a === undefined) { console.error("usage: bump <version> | --check"); return 2; }
-        const r = bump(root, a); console.log(`release: ${r.from ?? "none"} -> ${r.to}`); return 0;
+        if (a === "--check") {
+          const p = versionProblems(root);
+          for (const l of p) console.error(`release: ${l}`);
+          return p.length > 0 ? 1 : 0;
+        }
+        if (a === undefined) {
+          console.error("usage: bump <version> | --check");
+          return 2;
+        }
+        const r = bump(root, a);
+        console.log(`release: ${r.from ?? "none"} -> ${r.to}`);
+        return 0;
       }
       case "lineage": {
-        if (a === undefined || b === undefined) { console.error("usage: lineage <sha> <tag>"); return 2; }
-        const published = run(["gh", "release", "list", "--limit", "100", "--json", "tagName,isPrerelease,isDraft", "-q", ".[]|select(.isPrerelease==false and .isDraft==false)|.tagName"]).split("\n").filter(Boolean);
+        if (a === undefined || b === undefined) {
+          console.error("usage: lineage <sha> <tag>");
+          return 2;
+        }
+        const published = run([
+          "gh",
+          "release",
+          "list",
+          "--limit",
+          "100",
+          "--json",
+          "tagName,isPrerelease,isDraft",
+          "-q",
+          ".[]|select(.isPrerelease==false and .isDraft==false)|.tagName",
+        ])
+          .split("\n")
+          .filter(Boolean);
         const prev = newestStable(published.filter((t) => t !== b));
-        const problems = lineage({ tag: b, prev, prevIsAncestor: prev !== null && isAncestor(`refs/tags/${prev}`, a), onHotfixBranch: isAncestor(a, `origin/hotfix/${b}`) });
+        const problems = lineage({
+          tag: b,
+          prev,
+          prevIsAncestor: prev !== null && isAncestor(`refs/tags/${prev}`, a),
+          onHotfixBranch: isAncestor(a, `origin/hotfix/${b}`),
+        });
         for (const p of problems) console.error(`release-lineage: ${p}`);
         return problems.length > 0 ? 1 : 0;
       }
       case "pubkey": {
         const pem = process.env[SIGNING_KEY_ENV] ?? "";
-        if (pem === "") { console.error(`${SIGNING_KEY_ENV} is only set in the release environment`); return 2; }
+        if (pem === "") {
+          console.error(`${SIGNING_KEY_ENV} is only set in the release environment`);
+          return 2;
+        }
         const publicKey = publicKeyHexOf(pem);
-        if (a !== undefined) fs.writeFileSync(a, `${JSON.stringify({ publicKey, keyId: keyId(publicKey) }, null, 2)}\n`);
+        if (a !== undefined)
+          fs.writeFileSync(a, `${JSON.stringify({ publicKey, keyId: keyId(publicKey) }, null, 2)}\n`);
         console.log(`${publicKey} ${keyId(publicKey)}`);
         return 0;
       }
       case "sign": {
         const pem = process.env[SIGNING_KEY_ENV] ?? "";
-        if (a === undefined || b === undefined || c === undefined || pem === "") { console.error(`usage: ${SIGNING_KEY_ENV}=<pkcs8 pem> sign <dir> <channel> <pinned-public-key-hex>`); return 2; }
-        if (!(UPDATE_CHANNELS as readonly string[]).includes(b)) { console.error(`release: channel must be one of ${UPDATE_CHANNELS.join(", ")}`); return 2; }
+        if (a === undefined || b === undefined || c === undefined || pem === "") {
+          console.error(`usage: ${SIGNING_KEY_ENV}=<pkcs8 pem> sign <dir> <channel> <pinned-public-key-hex>`);
+          return 2;
+        }
+        if (!(UPDATE_CHANNELS as readonly string[]).includes(b)) {
+          console.error(`release: channel must be one of ${UPDATE_CHANNELS.join(", ")}`);
+          return 2;
+        }
         const releases = JSON.parse(fs.readFileSync(path.join(a, "releases.json"), "utf8")) as Releases;
         const entries = buildEntries({ channel: b as UpdateChannel, releases, privateKeyPem: pem, pinnedPublicKey: c });
         fs.writeFileSync(path.join(a, "feed.json"), JSON.stringify(entries));
@@ -74,44 +131,90 @@ export function main(argv: string[], repoRoot?: string): number {
       case "tag": {
         // tag <tag>: the version the tag names and its channel; refuses a tag that is not a release version or does not equal package.json
         const v = tagVersion(a ?? "");
-        if (v === null) { console.error(`release: ${a ?? ""} is not a release tag (v1.2.3, v1.2.3-rc.1)`); return 1; }
-        const pkg = (JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")) as { version?: string }).version;
-        if (pkg !== v) { console.error(`release: the tag says ${v} and package.json says ${pkg ?? "nothing"}; bump first`); return 1; }
+        if (v === null) {
+          console.error(`release: ${a ?? ""} is not a release tag (v1.2.3, v1.2.3-rc.1)`);
+          return 1;
+        }
+        const pkg = (JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")) as { version?: string })
+          .version;
+        if (pkg !== v) {
+          console.error(`release: the tag says ${v} and package.json says ${pkg ?? "nothing"}; bump first`);
+          return 1;
+        }
         console.log(`${v} ${channelOfVersion(v)}`);
         return 0;
       }
       case "pack": {
         // pack <dir> <version>: server (needs IMAGE_* env), app web export (APP_DIST), extension and kits, into <dir>; each only when its input is given
-        if (a === undefined || b === undefined) { console.error("usage: pack <dir> <version>   (env: VYRE_IMAGE[, VYRE_AGENT_IMAGE, VYRE_BROWSER_IMAGE, VYRE_WORKSPACE_IMAGE, VYRE_SANDBOX_IMAGE] APP_DIST)"); return 2; }
+        if (a === undefined || b === undefined) {
+          console.error(
+            "usage: pack <dir> <version>   (env: VYRE_IMAGE[, VYRE_AGENT_IMAGE, VYRE_BROWSER_IMAGE, VYRE_WORKSPACE_IMAGE, VYRE_SANDBOX_IMAGE] APP_DIST)",
+          );
+          return 2;
+        }
         fs.mkdirSync(a, { recursive: true });
         const images: Partial<Record<ImageKey, string>> = {};
-        for (const k of ["VYRE_IMAGE", "VYRE_AGENT_IMAGE", "VYRE_BROWSER_IMAGE", "VYRE_WORKSPACE_IMAGE", "VYRE_SANDBOX_IMAGE"] as const) { const v = process.env[k]; if (v) images[k] = v; }
+        for (const k of [
+          "VYRE_IMAGE",
+          "VYRE_AGENT_IMAGE",
+          "VYRE_BROWSER_IMAGE",
+          "VYRE_WORKSPACE_IMAGE",
+          "VYRE_SANDBOX_IMAGE",
+        ] as const) {
+          const v = process.env[k];
+          if (v) images[k] = v;
+        }
         const made: string[] = [];
-        if (images.VYRE_IMAGE) { packServer({ root, outDir: a, version: b, images }); made.push("vyre.tgz"); }
+        if (images.VYRE_IMAGE) {
+          packServer({ root, outDir: a, version: b, images });
+          made.push("vyre.tgz");
+        }
         const dist = process.env["APP_DIST"];
-        if (dist) { packFolder({ dir: dist, outFile: path.join(a, APP_TARBALL), topName: "app-web" }); made.push(APP_TARBALL); }
-        packExtension({ dir: path.join(root, "apps/chrome"), outFile: path.join(a, EXTENSION_ZIP), release: b }); made.push(EXTENSION_ZIP);
-        packFolder({ dir: path.join(root, "kits"), outFile: path.join(a, KITS_TARBALL), topName: "kits" }); made.push(KITS_TARBALL);
+        if (dist) {
+          packFolder({ dir: dist, outFile: path.join(a, APP_TARBALL), topName: "app-web" });
+          made.push(APP_TARBALL);
+        }
+        packExtension({ dir: path.join(root, "apps/chrome"), outFile: path.join(a, EXTENSION_ZIP), release: b });
+        made.push(EXTENSION_ZIP);
+        packFolder({ dir: path.join(root, "kits"), outFile: path.join(a, KITS_TARBALL), topName: "kits" });
+        made.push(KITS_TARBALL);
         fs.writeFileSync(path.join(a, "releases.json"), JSON.stringify(releasesFrom({ version: b, dir: a })));
         console.log(`release: packed ${made.join(", ")}`);
         return 0;
       }
-      case "stage-chrome": { console.log(`release: staged ${stageChrome(root).length} Vyre for Chrome files into images/agent-computer/vyre-chrome`); return 0; }
-      case "stage-bridge": { console.log(`release: staged ${stageBridge(root)} into the Space browser build context`); return 0; }
+      case "stage-chrome": {
+        console.log(
+          `release: staged ${stageChrome(root).length} Vyre for Chrome files into images/agent-computer/vyre-chrome`,
+        );
+        return 0;
+      }
+      case "stage-bridge": {
+        console.log(`release: staged ${stageBridge(root)} into the Space browser build context`);
+        return 0;
+      }
       case "image-has-chrome": {
-        if (a === undefined) { console.error("usage: image-has-chrome <image>"); return 2; }
+        if (a === undefined) {
+          console.error("usage: image-has-chrome <image>");
+          return 2;
+        }
         imageHasChrome(a, stageChrome(root));
         console.log(`release: ${a} holds Vyre for Chrome`);
         return 0;
       }
       case "feed-base": {
-        if (!(UPDATE_CHANNELS as readonly string[]).includes(a ?? "")) { console.error("usage: feed-base <stable|beta|nightly>"); return 2; }
+        if (!(UPDATE_CHANNELS as readonly string[]).includes(a ?? "")) {
+          console.error("usage: feed-base <stable|beta|nightly>");
+          return 2;
+        }
         console.log(feedBase(a as UpdateChannel));
         return 0;
       }
       case "updater-digest": {
         // updater-digest <file>: the "<BLAKE2b-512 hex>  <name>" line the desktop build writes beside an update artifact (the file itself never goes through sign)
-        if (a === undefined) { console.error("usage: updater-digest <file>"); return 2; }
+        if (a === undefined) {
+          console.error("usage: updater-digest <file>");
+          return 2;
+        }
         process.stdout.write(digestLine(a));
         return 0;
       }
@@ -119,61 +222,149 @@ export function main(argv: string[], repoRoot?: string): number {
         // VYRE_SIGNING_KEY=<pem> updater <dir> <version> <channel> <tag> <pinned-public-key-hex>: a minisign signature per digest in <dir> and desktop-<channel>.json (Tauri's feed), made with the release key
         const pem = process.env[SIGNING_KEY_ENV] ?? "";
         const pinned = argv[5];
-        if (a === undefined || b === undefined || c === undefined || argv[4] === undefined || pinned === undefined || pem === "") { console.error(`usage: ${SIGNING_KEY_ENV}=<pkcs8 pem> updater <dir> <version> <channel> <tag> <pinned-public-key-hex>`); return 2; }
-        if (!(UPDATE_CHANNELS as readonly string[]).includes(c)) { console.error(`release: channel must be one of ${UPDATE_CHANNELS.join(", ")}`); return 2; }
+        if (
+          a === undefined ||
+          b === undefined ||
+          c === undefined ||
+          argv[4] === undefined ||
+          pinned === undefined ||
+          pem === ""
+        ) {
+          console.error(
+            `usage: ${SIGNING_KEY_ENV}=<pkcs8 pem> updater <dir> <version> <channel> <tag> <pinned-public-key-hex>`,
+          );
+          return 2;
+        }
+        if (!(UPDATE_CHANNELS as readonly string[]).includes(c)) {
+          console.error(`release: channel must be one of ${UPDATE_CHANNELS.join(", ")}`);
+          return 2;
+        }
         let whatsNew: unknown = null;
-        try { whatsNew = JSON.parse(fs.readFileSync(path.join(root, WHATS_NEW_FILE), "utf8")); } catch { /* no What's new: the notes say the version */ }
-        const written = signDesktop({ dir: a, version: b, channel: c, tag: argv[4], repo: process.env["GITHUB_REPOSITORY"] ?? "vyre-ai/vyre-v1", privateKeyPem: pem, pinnedPublicKey: pinned, now: () => new Date(), notes: feedNotes(b, whatsNew) });
+        try {
+          whatsNew = JSON.parse(fs.readFileSync(path.join(root, WHATS_NEW_FILE), "utf8"));
+        } catch {
+          /* no What's new: the notes say the version */
+        }
+        const written = signDesktop({
+          dir: a,
+          version: b,
+          channel: c,
+          tag: argv[4],
+          repo: process.env["GITHUB_REPOSITORY"] ?? "vyre-ai/vyre-v1",
+          privateKeyPem: pem,
+          pinnedPublicKey: pinned,
+          now: () => new Date(),
+          notes: feedNotes(b, whatsNew),
+        });
         console.log(`release: signed the desktop updates: ${written.join(", ")}`);
         return 0;
       }
       case "updater-check": {
         // updater-check <dir> <artifacts>: every update artifact in <artifacts> is the file the digest in <dir> was made from
-        if (a === undefined || b === undefined) { console.error("usage: updater-check <dir> <artifacts>"); return 2; }
+        if (a === undefined || b === undefined) {
+          console.error("usage: updater-check <dir> <artifacts>");
+          return 2;
+        }
         console.log(`release: the desktop update files match their digests: ${checkDesktopArtifacts(a, b).join(", ")}`);
         return 0;
       }
       case "assets": {
-        if (a === undefined) { console.error("usage: assets <dir>   (writes the release assets from <dir>/feed.json)"); return 2; }
+        if (a === undefined) {
+          console.error("usage: assets <dir>   (writes the release assets from <dir>/feed.json)");
+          return 2;
+        }
         const entries = JSON.parse(fs.readFileSync(path.join(a, "feed.json"), "utf8")) as FeedEntry[];
-        const names = entries.flatMap(assetsFor).map((f) => { fs.writeFileSync(path.join(a, f.name), f.content); return f.name; });
+        const names = entries.flatMap(assetsFor).map((f) => {
+          fs.writeFileSync(path.join(a, f.name), f.content);
+          return f.name;
+        });
         console.log(`release: wrote ${names.join(", ")}`);
         return 0;
       }
-      default: console.error("usage: counter | bump | tag | lineage | pack | stage-chrome | stage-bridge | image-has-chrome | pubkey | sign | updater-digest | updater | updater-check | assets | feed-base | publish | rolling | unpublish | smoke | reuse"); return 2;
+      default:
+        console.error(
+          "usage: counter | bump | tag | lineage | pack | stage-chrome | stage-bridge | image-has-chrome | pubkey | sign | updater-digest | updater | updater-check | assets | feed-base | publish | rolling | unpublish | smoke | reuse",
+        );
+        return 2;
     }
-  } catch (e) { console.error(`release: ${e instanceof Error ? e.message : "failed"}`); return 1; }
+  } catch (e) {
+    console.error(`release: ${e instanceof Error ? e.message : "failed"}`);
+    return 1;
+  }
 }
 
 /** publish <dir> | rolling <dir> <channel> | unpublish <tag>: GitHub Releases over the REST API (repo from GITHUB_REPOSITORY, token from GH_TOKEN, tag from TAG). */
 export async function publishMain(argv: string[]): Promise<number> {
   const [cmd, a, b] = argv;
-  const repo = process.env["GITHUB_REPOSITORY"] ?? "", token = process.env["GH_TOKEN"] ?? "", tag = process.env["TAG"] ?? "";
-  if (repo === "" || token === "") { console.error("release: GITHUB_REPOSITORY and GH_TOKEN are needed"); return 2; }
+  const repo = process.env["GITHUB_REPOSITORY"] ?? "",
+    token = process.env["GH_TOKEN"] ?? "",
+    tag = process.env["TAG"] ?? "";
+  if (repo === "" || token === "") {
+    console.error("release: GITHUB_REPOSITORY and GH_TOKEN are needed");
+    return 2;
+  }
   try {
     if (cmd === "publish" && a) {
       const channel = process.env["CHANNEL"] ?? "stable";
-      const r = await publishRelease({ repo, token, tag, dir: a, prerelease: channel !== "stable", notes: `Release ${tag}. Signed manifests: ${channel}.json and ${channel}.json.sig.` });
-      console.log(`release: attached ${r.attached.join(", ")} to ${tag}${r.skipped.length ? ` (already there with the right size and checksum, not sent again: ${r.skipped.join(", ")})` : ""}`);
+      const r = await publishRelease({
+        repo,
+        token,
+        tag,
+        dir: a,
+        prerelease: channel !== "stable",
+        notes: `Release ${tag}. Signed manifests: ${channel}.json and ${channel}.json.sig.`,
+      });
+      console.log(
+        `release: attached ${r.attached.join(", ")} to ${tag}${r.skipped.length ? ` (already there with the right size and checksum, not sent again: ${r.skipped.join(", ")})` : ""}`,
+      );
       return 0;
     }
-    if (cmd === "rolling" && a && b) { const r = await updateRolling({ repo, token, dir: a, channel: b }); console.log(`release: channel-${b} now has ${r.attached.join(", ")}${r.skipped.length ? ` (unchanged, not sent again: ${r.skipped.join(", ")})` : ""}`); return 0; }
-    if (cmd === "unpublish" && a) { console.log((await new GithubReleases(repo, token).remove(a)) ? `release: deleted the release of ${a}` : `release: no release of ${a}`); return 0; }
-    console.error("usage: publish <dir> | rolling <dir> <channel> | unpublish <tag>"); return 2;
-  } catch (e) { console.error(`release: ${e instanceof Error ? e.message : "failed"}`); return 1; }
+    if (cmd === "rolling" && a && b) {
+      const r = await updateRolling({ repo, token, dir: a, channel: b });
+      console.log(
+        `release: channel-${b} now has ${r.attached.join(", ")}${r.skipped.length ? ` (unchanged, not sent again: ${r.skipped.join(", ")})` : ""}`,
+      );
+      return 0;
+    }
+    if (cmd === "unpublish" && a) {
+      console.log(
+        (await new GithubReleases(repo, token).remove(a))
+          ? `release: deleted the release of ${a}`
+          : `release: no release of ${a}`,
+      );
+      return 0;
+    }
+    console.error("usage: publish <dir> | rolling <dir> <channel> | unpublish <tag>");
+    return 2;
+  } catch (e) {
+    console.error(`release: ${e instanceof Error ? e.message : "failed"}`);
+    return 1;
+  }
 }
 
 /** reuse <sha>: names a finished whole-suite main.yml run for exactly <sha>, or says why none qualifies. It exits 0 either way (no run means the release runs the suite itself); it only fails on a usage error. */
 export async function reuseMain(argv: string[]): Promise<number> {
   const sha = argv[1] ?? "";
-  const repo = process.env["GITHUB_REPOSITORY"] ?? "", token = process.env["GH_TOKEN"] ?? "";
-  if (!/^[0-9a-f]{40}$/.test(sha) || repo === "" || token === "") { console.error("usage: reuse <40-hex sha>   (env: GITHUB_REPOSITORY, GH_TOKEN)"); return 2; }
-  const out = (k: string, v: string) => { const f = process.env["GITHUB_OUTPUT"]; if (f) fs.appendFileSync(f, `${k}=${v}\n`); };
-  const summary = (t: string) => { const f = process.env["GITHUB_STEP_SUMMARY"]; if (f) fs.appendFileSync(f, `${t}\n`); };
+  const repo = process.env["GITHUB_REPOSITORY"] ?? "",
+    token = process.env["GH_TOKEN"] ?? "";
+  if (!/^[0-9a-f]{40}$/.test(sha) || repo === "" || token === "") {
+    console.error("usage: reuse <40-hex sha>   (env: GITHUB_REPOSITORY, GH_TOKEN)");
+    return 2;
+  }
+  const out = (k: string, v: string) => {
+    const f = process.env["GITHUB_OUTPUT"];
+    if (f) fs.appendFileSync(f, `${k}=${v}\n`);
+  };
+  const summary = (t: string) => {
+    const f = process.env["GITHUB_STEP_SUMMARY"];
+    if (f) fs.appendFileSync(f, `${t}\n`);
+  };
   const none = (why: string[]) => {
     const line = `Tests: no reusable whole-suite run, so this release ran the whole suite itself (${why.join(" | ")})`;
-    console.log(line); summary(line);
-    out("run", ""); out("tests", line.replace(/\n/g, " "));
+    console.log(line);
+    summary(line);
+    out("run", "");
+    out("tests", line.replace(/\n/g, " "));
     return 0;
   };
   try {
@@ -181,27 +372,39 @@ export async function reuseMain(argv: string[]): Promise<number> {
     const found = await findReusable({ repo, sha, shards: wholeSuiteShards(root), token });
     for (const r of found.refused) console.log(`reuse: ${r}`);
     if (!found.found) return none(found.refused);
-    console.log(found.found.line); summary(found.found.line);
-    out("run", String(found.found.run.id)); out("url", found.found.run.html_url); out("tests", found.found.line);
+    console.log(found.found.line);
+    summary(found.found.line);
+    out("run", String(found.found.run.id));
+    out("url", found.found.run.html_url);
+    out("tests", found.found.line);
     return 0;
-  } catch (e) { return none([e instanceof Error ? e.message : "lookup failed"]); }
+  } catch (e) {
+    return none([e instanceof Error ? e.message : "lookup failed"]);
+  }
 }
 
 /** smoke <base> <stable|beta|nightly> <public-key-hex> <version>: asynchronous, so it is not a case of main(). */
 export async function smokeMain(argv: string[]): Promise<number> {
   const [, base, channel, key, version] = argv;
-  if (!base || !channel || !key || !version || !(UPDATE_CHANNELS as readonly string[]).includes(channel)) { console.error("usage: smoke <base> <stable|beta|nightly> <public-key-hex> <version>"); return 2; }
+  if (!base || !channel || !key || !version || !(UPDATE_CHANNELS as readonly string[]).includes(channel)) {
+    console.error("usage: smoke <base> <stable|beta|nightly> <public-key-hex> <version>");
+    return 2;
+  }
   try {
     const r = await smokeRelease({ base, channel: channel as UpdateChannel, publicKeyHex: key, version });
     for (const s of r.steps) console.log(`${s.ok ? "ok  " : "FAIL"} ${s.step}${s.detail ? ` (${s.detail})` : ""}`);
     return r.ok ? 0 : 1;
-  } catch (e) { console.error(`release: ${e instanceof Error ? e.message : "smoke failed"}`); return 1; }
+  } catch (e) {
+    console.error(`release: ${e instanceof Error ? e.message : "smoke failed"}`);
+    return 1;
+  }
 }
 
 if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const args = process.argv.slice(2);
   if (args[0] === "smoke") void smokeMain(args).then((code) => process.exit(code));
   else if (args[0] === "reuse") void reuseMain(args).then((code) => process.exit(code));
-  else if (args[0] === "publish" || args[0] === "rolling" || args[0] === "unpublish") void publishMain(args).then((code) => process.exit(code));
+  else if (args[0] === "publish" || args[0] === "rolling" || args[0] === "unpublish")
+    void publishMain(args).then((code) => process.exit(code));
   else process.exit(main(args));
 }

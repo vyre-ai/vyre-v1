@@ -9,7 +9,17 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { Button, Face, Icon } from "../needsyou/parts.tsx";
 import { HelperDataProvider, useHelperData, useOnline, useOptionalHelperData, useScreenQuery } from "./data.tsx";
 import type { HelperChatData } from "./data.tsx";
-import { READ_ONLY_NOTE, addressParts, blockLine, byOrder, helperStatus, metaLine, parentOf, whenLabel, workSummary } from "./model.ts";
+import {
+  READ_ONLY_NOTE,
+  addressParts,
+  blockLine,
+  byOrder,
+  helperStatus,
+  metaLine,
+  parentOf,
+  whenLabel,
+  workSummary,
+} from "./model.ts";
 import type { Message } from "./model.ts";
 import type { CrewMember } from "../crew/model.ts";
 import { modelName } from "../../../../../../lib/model-names.ts";
@@ -29,12 +39,26 @@ export function HelperChat({ data }: { data?: HelperChatData }): ReactElement {
   const ctx = useOptionalHelperData();
   const value = data ?? ctx;
   if (!value) return <HelperChatLoading />;
-  return <HelperDataProvider value={value}><HelperView /></HelperDataProvider>;
+  return (
+    <HelperDataProvider value={value}>
+      <HelperView />
+    </HelperDataProvider>
+  );
 }
 
 /** The frame before data: the address bar and a feed the size of the real one, so nothing moves when the data arrives. */
 export function HelperChatLoading(): ReactElement {
-  return <View testID="helper-loading" accessibilityLabel="Loading" style={st.root}><View style={st.bar}><View style={st.skBar} /></View><View style={st.feed}><View style={st.skLine} /><View style={[st.skLine, { width: "60%" }]} /></View></View>;
+  return (
+    <View testID="helper-loading" accessibilityLabel="Loading" style={st.root}>
+      <View style={st.bar}>
+        <View style={st.skBar} />
+      </View>
+      <View style={st.feed}>
+        <View style={st.skLine} />
+        <View style={[st.skLine, { width: "60%" }]} />
+      </View>
+    </View>
+  );
 }
 
 function HelperView(): ReactElement {
@@ -44,9 +68,17 @@ function HelperView(): ReactElement {
   const threadQ = useScreenQuery<ThreadOut>(HELPER_SCREEN, "thread", { threadId: data.threadId });
   const messagesQ = useScreenQuery<MessagesOut>(HELPER_SCREEN, "messages", { threadId: data.threadId });
   const hooksQ = useScreenQuery<HelperHooksOut>(HELPER_SCREEN, "hooks", { threadId: data.threadId });
-  const stop = useMemo(() => async (): Promise<void> => {
-    try { await data.call("engine.stop", { threadId: data.threadId }); setLine("Stopped. The helper's steps so far are kept."); } catch { setLine("Could not stop it. Try again."); }
-  }, [data]);
+  const stop = useMemo(
+    () => async (): Promise<void> => {
+      try {
+        await data.call("engine.stop", { threadId: data.threadId });
+        setLine("Stopped. The helper's steps so far are kept.");
+      } catch {
+        setLine("Could not stop it. Try again.");
+      }
+    },
+    [data],
+  );
 
   // where the helper stands comes from the crew read of the chat above (the same one the strip draws), so a Done helper shows Done and no Stop
   const parentId = threadQ.status === "ready" ? threadQ.data.thread.parentThreadId : undefined;
@@ -54,12 +86,26 @@ function HelperView(): ReactElement {
   useEffect(() => {
     if (!parentId) return undefined;
     let dead = false;
-    const read = (): void => { void Promise.resolve(data.call("engine.crew.status", { threadId: parentId })).then((r) => { if (!dead) setMember((((r as { members?: CrewMember[] } | undefined)?.members ?? []).find((m) => m.id === data.threadId)) ?? null); }, () => undefined); };
+    const read = (): void => {
+      void Promise.resolve(data.call("engine.crew.status", { threadId: parentId })).then(
+        (r) => {
+          if (!dead)
+            setMember(
+              ((r as { members?: CrewMember[] } | undefined)?.members ?? []).find((m) => m.id === data.threadId) ??
+                null,
+            );
+        },
+        () => undefined,
+      );
+    };
     read();
     const t = setInterval(read, 2500);
     (t as { unref?: () => void }).unref?.();
-    return () => { dead = true; clearInterval(t); };
-  }, [parentId, data.threadId]);  // eslint-disable-line react-hooks/exhaustive-deps
+    return () => {
+      dead = true;
+      clearInterval(t);
+    };
+  }, [parentId, data.threadId]); // eslint-disable-line react-hooks/exhaustive-deps
   const winW = useWindowDimensions().width;
   const narrow = isPhoneWidth(winW);
   const failed = failureOf(threadQ, messagesQ);
@@ -67,7 +113,13 @@ function HelperView(): ReactElement {
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <HelperChatLoading />;
   const thread = threadQ.data.thread;
   const messages = byOrder(messagesQ.data.messages);
-  const status = member ? (member.state === "working" || member.state === "needs_you" ? "running" : member.state === "failed" ? "failed" : "done") : helperStatus(thread, messages);
+  const status = member
+    ? member.state === "working" || member.state === "needs_you"
+      ? "running"
+      : member.state === "failed"
+        ? "failed"
+        : "done"
+    : helperStatus(thread, messages);
   const parent = parentOf(thread);
   const parts = addressParts(thread);
   const clock = data.clock();
@@ -78,20 +130,42 @@ function HelperView(): ReactElement {
 
   const crumbs: ReactElement[] = [];
   for (const [i, p] of parts.entries()) {
-    if (i > 0) crumbs.push(<Text key={`s${i}`} style={st.sep}>›</Text>);
+    if (i > 0)
+      crumbs.push(
+        <Text key={`s${i}`} style={st.sep}>
+          ›
+        </Text>,
+      );
     crumbs.push(
       p.current ? (
-        <View key={p.threadId} testID="helper-current" style={st.cur}><Icon name="helper" size={13} color="var(--ink-2)" /><Text numberOfLines={1} style={st.curText}>{p.title}</Text></View>
+        <View key={p.threadId} testID="helper-current" style={st.cur}>
+          <Icon name="helper" size={13} color="var(--ink-2)" />
+          <Text numberOfLines={1} style={st.curText}>
+            {p.title}
+          </Text>
+        </View>
       ) : (
-        <Pressable key={p.threadId} accessibilityRole="link" accessibilityLabel={`Back to ${p.title}`} onPress={() => data.nav.openThread(p.threadId)} testID={`helper-crumb-${p.threadId}`} style={st.seg}>
-          <Text numberOfLines={1} style={st.segText}>{p.title}</Text>
+        <Pressable
+          key={p.threadId}
+          accessibilityRole="link"
+          accessibilityLabel={`Back to ${p.title}`}
+          onPress={() => data.nav.openThread(p.threadId)}
+          testID={`helper-crumb-${p.threadId}`}
+          style={st.seg}
+        >
+          <Text numberOfLines={1} style={st.segText}>
+            {p.title}
+          </Text>
         </Pressable>
       ),
     );
   }
 
   const feed: ReactElement[] = [];
-  const noteOf = (m: Message): { data: Record<string, unknown> } | undefined => { const b = m.blocks.find((x) => x.type === "helper_note"); return b ? { data: (b.data ?? {}) as Record<string, unknown> } : undefined; };
+  const noteOf = (m: Message): { data: Record<string, unknown> } | undefined => {
+    const b = m.blocks.find((x) => x.type === "helper_note");
+    return b ? { data: (b.data ?? {}) as Record<string, unknown> } : undefined;
+  };
   const work = messages.filter((m) => m.blocks.some((b) => !BOOKKEEPING.has(b.type)));
   const summary = workSummary(thread, messages, status);
   let workShown = false;
@@ -103,9 +177,17 @@ function HelperView(): ReactElement {
     if (m === messages[0]) {
       feed.push(
         <View key={m.messageId} testID="helper-brief" accessibilityLabel={`Brief from ${who}`} style={st.brief}>
-          <View style={st.briefTop}><Face name={who} seedId={m.author.id} size={16} /><Text style={st.briefHead}>{`Brief from ${who}`}</Text><Text style={st.time}>{whenLabel(m.createdAt, clock)}</Text></View>
+          <View style={st.briefTop}>
+            <Face name={who} seedId={m.author.id} size={16} />
+            <Text style={st.briefHead}>{`Brief from ${who}`}</Text>
+            <Text style={st.time}>{whenLabel(m.createdAt, clock)}</Text>
+          </View>
           {m.body ? <Text style={st.body}>{m.body}</Text> : null}
-          {thread.agents[0]?.model ? <Text testID="helper-brief-model" style={st.time}>{modelName(thread.agents[0].model)}</Text> : null}
+          {thread.agents[0]?.model ? (
+            <Text testID="helper-brief-model" style={st.time}>
+              {modelName(thread.agents[0].model)}
+            </Text>
+          ) : null}
         </View>,
       );
       continue;
@@ -113,12 +195,34 @@ function HelperView(): ReactElement {
     // a note between the helper and the agent that started it keeps its sender: a follow-up is the agent's, a question or progress is the helper's, a steer is the person's (own words, no block)
     if (note) {
       // a restart is a quiet line, not a message from anyone: "Restarted on Opus 5.5"
-      if (note.data["restart"] === true) { feed.push(<Text key={m.messageId} testID={`restart-${m.messageId}`} style={st.restartLine}>{`Restarted${typeof note.data["model"] === "string" ? ` on ${note.data["model"]}` : ""}`}</Text>); continue; }
+      if (note.data["restart"] === true) {
+        feed.push(
+          <Text
+            key={m.messageId}
+            testID={`restart-${m.messageId}`}
+            style={st.restartLine}
+          >{`Restarted${typeof note.data["model"] === "string" ? ` on ${note.data["model"]}` : ""}`}</Text>,
+        );
+        continue;
+      }
       const down = note.data["direction"] === "down";
       const asking = note.data["kind"] === "question";
       feed.push(
-        <View key={m.messageId} testID={`note-${m.messageId}`} accessibilityLabel={down ? `Follow-up from ${who}` : asking ? "Question from the helper" : "Note from the helper"} style={[st.noteBlock, down && st.noteDown]}>
-          <Text style={st.briefHead}>{down ? `Follow-up from ${who}${note.data["seenAt"] !== undefined ? " · seen" : ""}` : asking ? `${owner} asks${note.data["state"] === "answered" ? " · answered" : ""}` : `${owner} · ${note.data["kind"] === "result" ? "result" : "progress"}`}</Text>
+        <View
+          key={m.messageId}
+          testID={`note-${m.messageId}`}
+          accessibilityLabel={
+            down ? `Follow-up from ${who}` : asking ? "Question from the helper" : "Note from the helper"
+          }
+          style={[st.noteBlock, down && st.noteDown]}
+        >
+          <Text style={st.briefHead}>
+            {down
+              ? `Follow-up from ${who}${note.data["seenAt"] !== undefined ? " · seen" : ""}`
+              : asking
+                ? `${owner} asks${note.data["state"] === "answered" ? " · answered" : ""}`
+                : `${owner} · ${note.data["kind"] === "result" ? "result" : "progress"}`}
+          </Text>
           <Text style={st.body}>{m.body}</Text>
         </View>,
       );
@@ -132,10 +236,28 @@ function HelperView(): ReactElement {
     const helperName = thread.title ?? who;
     // the helper's answer to a person's line says whom it answers, as the prototype does
     const prev = messages[messages.indexOf(m) - 1];
-    const toPerson = !byPerson && prev !== undefined && prev !== messages[0] && prev.author.id.startsWith("usr_") ? (data.me?.id === prev.author.id ? "you" : data.nameOf(prev.author.id)) : "";
+    const toPerson =
+      !byPerson && prev !== undefined && prev !== messages[0] && prev.author.id.startsWith("usr_")
+        ? data.me?.id === prev.author.id
+          ? "you"
+          : data.nameOf(prev.author.id)
+        : "";
     feed.push(
       <View key={m.messageId} testID={`msg-${m.messageId}`} style={st.msg}>
-        <View style={st.by}><Face name={isHelperVoice ? helperName : who} seedId={isHelperVoice ? data.threadId : m.author.id} size={20} /><Text style={st.who}>{byPerson && data.me?.id === m.author.id ? "You" : isHelperVoice ? helperName : who}</Text><Text style={st.time}>{whenLabel(m.createdAt, clock)}</Text>{toPerson !== "" ? <Text testID={`reply-to-${m.messageId}`} style={st.time}>{`replying to ${toPerson}`}</Text> : null}</View>
+        <View style={st.by}>
+          <Face
+            name={isHelperVoice ? helperName : who}
+            seedId={isHelperVoice ? data.threadId : m.author.id}
+            size={20}
+          />
+          <Text style={st.who}>
+            {byPerson && data.me?.id === m.author.id ? "You" : isHelperVoice ? helperName : who}
+          </Text>
+          <Text style={st.time}>{whenLabel(m.createdAt, clock)}</Text>
+          {toPerson !== "" ? (
+            <Text testID={`reply-to-${m.messageId}`} style={st.time}>{`replying to ${toPerson}`}</Text>
+          ) : null}
+        </View>
         {hasWork && !workShown ? <Work summary={summary} messages={work} /> : null}
         {m.body ? <Text style={st.body}>{m.body}</Text> : null}
       </View>,
@@ -147,46 +269,135 @@ function HelperView(): ReactElement {
     <View testID="helper-chat" accessibilityLabel="Helper chat" style={st.root}>
       <View testID="helper-address" accessibilityRole="header" style={st.bar}>
         <View style={st.crumbs}>{crumbs}</View>
-        {status === "running" ? <View testID="helper-live" style={st.live}><View style={st.liveDot} />{narrow ? null : <Text style={st.liveText}>Working</Text>}</View> : <Text testID="helper-meta" style={st.meta}>{metaLine(thread, status)}</Text>}
-        {status === "failed" ? <Text testID="helper-failed" style={st.failed}>Failed</Text> : null}
+        {status === "running" ? (
+          <View testID="helper-live" style={st.live}>
+            <View style={st.liveDot} />
+            {narrow ? null : <Text style={st.liveText}>Working</Text>}
+          </View>
+        ) : (
+          <Text testID="helper-meta" style={st.meta}>
+            {metaLine(thread, status)}
+          </Text>
+        )}
+        {status === "failed" ? (
+          <Text testID="helper-failed" style={st.failed}>
+            Failed
+          </Text>
+        ) : null}
         {status === "running" ? <Button label="Stop" onPress={() => void stop()} testID="helper-stop" /> : null}
-        {online ? null : <Text testID="helper-offline" style={st.meta}>Offline</Text>}
+        {online ? null : (
+          <Text testID="helper-offline" style={st.meta}>
+            Offline
+          </Text>
+        )}
       </View>
       {parent ? (
         <View style={st.startedBy}>
-          <Text numberOfLines={1} style={st.startedByPlain}>{`Helper chat · started by ${startedBy} in `}
-            <Text accessibilityRole="link" accessibilityLabel={`Back to the message that started this helper in ${parent.title}`} testID="helper-started-by" onPress={() => (data.nav.openMessage && thread.parentMessageId ? data.nav.openMessage(parent.threadId, thread.parentMessageId) : data.nav.openThread(parent.threadId))} style={st.startedByText}>{parent.title}</Text>
+          <Text numberOfLines={1} style={st.startedByPlain}>
+            {`Helper chat · started by ${startedBy} in `}
+            <Text
+              accessibilityRole="link"
+              accessibilityLabel={`Back to the message that started this helper in ${parent.title}`}
+              testID="helper-started-by"
+              onPress={() =>
+                data.nav.openMessage && thread.parentMessageId
+                  ? data.nav.openMessage(parent.threadId, thread.parentMessageId)
+                  : data.nav.openThread(parent.threadId)
+              }
+              style={st.startedByText}
+            >
+              {parent.title}
+            </Text>
           </Text>
         </View>
       ) : null}
       <ScrollView testID="helper-feed" style={{ flex: 1 }} contentContainerStyle={st.feed}>
         <Text style={st.daysep}>{`Helper of ${owner}${parent ? ` · from “${parent.title}”` : ""}`}</Text>
-        {messages.length === 0 ? <States kind="empty" icon="chat" title="Nothing yet. The helper has not started." /> : feed}
-        {hooksQ.status === "ready" ? <HelperHooks hooks={hooksQ.data.hooks} helperThreadId={data.threadId} lead={owner} name={thread.title ?? "this helper"} {...(data.nav.openHooks ? { open: data.nav.openHooks } : {})} /> : null}
+        {messages.length === 0 ? (
+          <States kind="empty" icon="chat" title="Nothing yet. The helper has not started." />
+        ) : (
+          feed
+        )}
+        {hooksQ.status === "ready" ? (
+          <HelperHooks
+            hooks={hooksQ.data.hooks}
+            helperThreadId={data.threadId}
+            lead={owner}
+            name={thread.title ?? "this helper"}
+            {...(data.nav.openHooks ? { open: data.nav.openHooks } : {})}
+          />
+        ) : null}
       </ScrollView>
-      {line ? <View testID="helper-line" style={st.note}><Text style={st.noteText}>{line}</Text></View> : null}
-      {status === "running" && data.me?.id !== undefined ? <AskBox threadId={data.threadId} name={thread.title ?? "the helper"} call={data.call} say={setLine} /> : null}
+      {line ? (
+        <View testID="helper-line" style={st.note}>
+          <Text style={st.noteText}>{line}</Text>
+        </View>
+      ) : null}
+      {status === "running" && data.me?.id !== undefined ? (
+        <AskBox threadId={data.threadId} name={thread.title ?? "the helper"} call={data.call} say={setLine} />
+      ) : null}
       <View testID="helper-readonly" style={st.readonly}>
         <Icon name="lock" size={14} />
         {narrow ? null : <Text style={st.readonlyText}>{READ_ONLY_NOTE}</Text>}
-        {parent ? <Button label={`Reply in “${parent.title}”`} onPress={() => data.nav.openThread(parent.threadId)} testID="helper-reply" /> : null}
+        {parent ? (
+          <Button
+            label={`Reply in “${parent.title}”`}
+            onPress={() => data.nav.openThread(parent.threadId)}
+            testID="helper-reply"
+          />
+        ) : null}
       </View>
     </View>
   );
 }
 
 /** Ask the helper something while it works: it goes to the helper as the person's own words (chat.helper.steer). */
-function AskBox({ threadId, name, call, say }: { threadId: string; name: string; call: (cap: string, input: unknown) => Promise<unknown>; say: (t: string) => void }): ReactElement {
+function AskBox({
+  threadId,
+  name,
+  call,
+  say,
+}: {
+  threadId: string;
+  name: string;
+  call: (cap: string, input: unknown) => Promise<unknown>;
+  say: (t: string) => void;
+}): ReactElement {
   const [text, setText] = useState("");
   const send = (): void => {
     const body = text.trim();
     if (body === "") return;
-    void Promise.resolve(call("chat.helper.steer", { threadId, body, idempotencyKey: `steer-${threadId}-${Date.now()}` })).then(() => { setText(""); say("Sent. It reads this on its next step."); }, () => say("It could not take that. Ask in the chat that started it."));
+    void Promise.resolve(
+      call("chat.helper.steer", { threadId, body, idempotencyKey: `steer-${threadId}-${Date.now()}` }),
+    ).then(
+      () => {
+        setText("");
+        say("Sent. It reads this on its next step.");
+      },
+      () => say("It could not take that. Ask in the chat that started it."),
+    );
   };
   return (
     <View style={st.ask}>
-      <TextInput testID="helper-ask" value={text} onChangeText={setText} onSubmitEditing={send} accessibilityLabel={`Ask ${name} something`} placeholder="Message this helper" placeholderTextColor="var(--ink-4)" style={st.askInput} />
-      <Pressable accessibilityRole="button" accessibilityLabel="Send" testID="helper-ask-send" onPress={send} style={st.askSend}><Text style={st.askSendT}>↑</Text></Pressable>
+      <TextInput
+        testID="helper-ask"
+        value={text}
+        onChangeText={setText}
+        onSubmitEditing={send}
+        accessibilityLabel={`Ask ${name} something`}
+        placeholder="Message this helper"
+        placeholderTextColor="var(--ink-4)"
+        style={st.askInput}
+      />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Send"
+        testID="helper-ask-send"
+        onPress={send}
+        style={st.askSend}
+      >
+        <Text style={st.askSendT}>↑</Text>
+      </Pressable>
     </View>
   );
 }
@@ -217,20 +428,71 @@ function Work({ summary, messages }: { summary: string; messages: readonly Messa
 
 const st = StyleSheet.create({
   restartLine: { alignSelf: "center", fontSize: 12, color: "var(--ink-3)" as string },
-  noteBlock: { alignSelf: "stretch", gap: 6, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--sunk)" as string },
-  noteDown: { borderLeftWidth: 3, borderLeftColor: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string },
-  ask: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  askInput: { flex: 1, height: 36, paddingHorizontal: 12, borderRadius: 18, fontSize: 13.5, color: "var(--ink)" as string, backgroundColor: "var(--field)" as string },
-  askSend: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string },
+  noteBlock: {
+    alignSelf: "stretch",
+    gap: 6,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    backgroundColor: "var(--sunk)" as string,
+  },
+  noteDown: {
+    borderLeftWidth: 3,
+    borderLeftColor: "var(--accent)" as string,
+    backgroundColor: "var(--accent-wash)" as string,
+  },
+  ask: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
+  askInput: {
+    flex: 1,
+    height: 36,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    fontSize: 13.5,
+    color: "var(--ink)" as string,
+    backgroundColor: "var(--field)" as string,
+  },
+  askSend: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--accent)" as string,
+  },
   askSendT: { fontSize: 16, color: "var(--accent-ink)" as string },
-  brief: { alignSelf: "stretch", gap: 6, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
+  brief: {
+    alignSelf: "stretch",
+    gap: 6,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    backgroundColor: "var(--side)" as string,
+  },
   briefHead: { flex: 1, fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   briefTop: { flexDirection: "row", alignItems: "center", gap: 8 },
   startedBy: { minHeight: 28, justifyContent: "center", paddingHorizontal: 16 },
   startedByPlain: { fontSize: 12.5, color: "var(--ink-3)" as string },
   startedByText: { fontSize: 12.5, color: "var(--accent)" as string },
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
-  bar: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  bar: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
   crumbs: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 },
   sep: { fontSize: 13, color: "var(--ink-4)" as string },
   seg: { height: 26, justifyContent: "center", paddingHorizontal: 6, borderRadius: 6 },
@@ -259,7 +521,16 @@ const st = StyleSheet.create({
   stepSub: { fontSize: 12, color: "var(--ink-4)" as string },
   note: { paddingHorizontal: 16, paddingVertical: 6, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   noteText: { fontSize: 12.5, color: "var(--ink-2)" as string },
-  readonly: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
+  readonly: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+    backgroundColor: "var(--side)" as string,
+  },
   readonlyText: { flex: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
   skBar: { height: 12, width: "40%", borderRadius: 6, backgroundColor: "var(--sunk)" as string },
   skLine: { height: 10, width: "80%", borderRadius: 5, backgroundColor: "var(--sunk)" as string },

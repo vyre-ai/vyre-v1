@@ -10,7 +10,8 @@ test("access: public, space, private and password at the site's own address", { 
   t.after(() => w.cleanup());
   const { site, deployment } = await w.deploy("static");
   assert.equal(deployment.state, "ready", deployment.problem);
-  const id = site.siteId, slug = site.slug;
+  const id = site.siteId,
+    slug = site.slug;
 
   // space (the default): a visitor is sent to sign in at the Space; a member's link gives a cookie; a removed member is out on the next request
   const anon = await w.get(slug, "/");
@@ -36,9 +37,17 @@ test("access: public, space, private and password at the site's own address", { 
   const form = await w.get(slug, "/");
   assert.equal(form.status, 200);
   assert.match(form.body, /This site has a password/);
-  const wrong = await w.get(slug, "/__vyre/password", { method: "POST", type: "application/x-www-form-urlencoded", body: "password=nope&next=%2F" });
+  const wrong = await w.get(slug, "/__vyre/password", {
+    method: "POST",
+    type: "application/x-www-form-urlencoded",
+    body: "password=nope&next=%2F",
+  });
   assert.equal(wrong.status, 401);
-  const right = await w.get(slug, "/__vyre/password", { method: "POST", type: "application/x-www-form-urlencoded", body: "password=correct+horse&next=%2Fabout%2F" });
+  const right = await w.get(slug, "/__vyre/password", {
+    method: "POST",
+    type: "application/x-www-form-urlencoded",
+    body: "password=correct+horse&next=%2Fabout%2F",
+  });
   assert.equal(right.status, 303);
   assert.equal(right.headers.location, "/about/");
   const pw = String(right.headers["set-cookie"]).split(";")[0] as string;

@@ -13,41 +13,104 @@ import { code, run } from "../fixtures/seed.ts";
 const MIN = 60_000;
 const TZ = "America/Los_Angeles";
 
-interface Page { formId: string; slug: string; public: Ctx }
-interface Slot { startsAt: number; endsAt: number; hostId: string }
-interface Booking { bookingId: string; formId: string; recordId: string; startsAt: number; endsAt: number; hostId: string; state: string }
-
-async function openPage(w: World, o: { hosts?: string[]; length?: number; buffer?: number; name?: string; publish?: boolean } = {}): Promise<Page> {
-  const made = await run<{ form: { formId: string; slug: string } }>(w.ctx, "bookings.page_create", {
-    name: o.name ?? "Call", hostIds: o.hosts ?? ["usr_host1"], lengthMinutes: o.length ?? 30, ...(o.buffer !== undefined ? { bufferMinutes: o.buffer } : {}), recordType: "contact",
-  });
-  await run(w.ctx, "forms.fields_set", { formId: made.form.formId, fields: [{ field: "email", mode: "ask" }, { field: "name", mode: "ask" }] });
-  if (o.publish !== false) await run(w.ctx, "forms.publish", { formId: made.form.formId });
-  return { formId: made.form.formId, slug: made.form.slug, public: w.as({ kind: "service", id: formPrincipal(made.form.formId) }) };
+interface Page {
+  formId: string;
+  slug: string;
+  public: Ctx;
+}
+interface Slot {
+  startsAt: number;
+  endsAt: number;
+  hostId: string;
+}
+interface Booking {
+  bookingId: string;
+  formId: string;
+  recordId: string;
+  startsAt: number;
+  endsAt: number;
+  hostId: string;
+  state: string;
 }
 
-const slotsOf = async (p: Page, from: number, to: number, tz = TZ) => run<{ slots: Slot[]; available: boolean }>(p.public, "bookings.availability", { slug: p.slug, tz, from, to });
-const book = (p: Page, startsAt: number, answers: Record<string, unknown> = { email: "lee@x.example", name: "Lee" }, tz = TZ) =>
-  run<{ booking: Booking }>(p.public, "bookings.book", { slug: p.slug, startsAt, answers, tz });
+async function openPage(
+  w: World,
+  o: { hosts?: string[]; length?: number; buffer?: number; name?: string; publish?: boolean } = {},
+): Promise<Page> {
+  const made = await run<{ form: { formId: string; slug: string } }>(w.ctx, "bookings.page_create", {
+    name: o.name ?? "Call",
+    hostIds: o.hosts ?? ["usr_host1"],
+    lengthMinutes: o.length ?? 30,
+    ...(o.buffer !== undefined ? { bufferMinutes: o.buffer } : {}),
+    recordType: "contact",
+  });
+  await run(w.ctx, "forms.fields_set", {
+    formId: made.form.formId,
+    fields: [
+      { field: "email", mode: "ask" },
+      { field: "name", mode: "ask" },
+    ],
+  });
+  if (o.publish !== false) await run(w.ctx, "forms.publish", { formId: made.form.formId });
+  return {
+    formId: made.form.formId,
+    slug: made.form.slug,
+    public: w.as({ kind: "service", id: formPrincipal(made.form.formId) }),
+  };
+}
+
+const slotsOf = async (p: Page, from: number, to: number, tz = TZ) =>
+  run<{ slots: Slot[]; available: boolean }>(p.public, "bookings.availability", { slug: p.slug, tz, from, to });
+const book = (
+  p: Page,
+  startsAt: number,
+  answers: Record<string, unknown> = { email: "lee@x.example", name: "Lee" },
+  tz = TZ,
+) => run<{ booking: Booking }>(p.public, "bookings.book", { slug: p.slug, startsAt, answers, tz });
 
 test("a booking page is a form of kind booking that asks for an email and publishes at /book/<slug>", async () => {
   const w = harness();
-  const made = await run<{ form: { formId: string; slug: string; kind: string; state: string } }>(w.ctx, "bookings.page_create", { name: "Intro call", hostIds: ["usr_host1", "usr_host1", "usr_host2"], lengthMinutes: 30, bufferMinutes: 10, recordType: "contact" });
+  const made = await run<{ form: { formId: string; slug: string; kind: string; state: string } }>(
+    w.ctx,
+    "bookings.page_create",
+    {
+      name: "Intro call",
+      hostIds: ["usr_host1", "usr_host1", "usr_host2"],
+      lengthMinutes: 30,
+      bufferMinutes: 10,
+      recordType: "contact",
+    },
+  );
   assert.equal(made.form.kind, "booking");
   assert.equal(made.form.state, "draft");
   assert.deepEqual(JSON.parse(String(w.db.rows("forms_booking_page")[0]?.host_ids)), ["usr_host1", "usr_host2"]);
-  const got = await run<{ fields: { field: string; mode: string }[] }>(w.ctx, "forms.get", { formId: made.form.formId });
+  const got = await run<{ fields: { field: string; mode: string }[] }>(w.ctx, "forms.get", {
+    formId: made.form.formId,
+  });
   assert.deepEqual(got.fields, [{ field: "email", mode: "ask" }]);
   const pub = await run<{ url: string }>(w.ctx, "forms.publish", { formId: made.form.formId });
   assert.equal(pub.url, `https://harbor.example/book/${made.form.slug}`);
-  assert.equal(await code(run(w.ctx, "forms.fields_set", { formId: made.form.formId, fields: [{ field: "name", mode: "ask" }] })), "validation.precondition_failed");
+  assert.equal(
+    await code(run(w.ctx, "forms.fields_set", { formId: made.form.formId, fields: [{ field: "name", mode: "ask" }] })),
+    "validation.precondition_failed",
+  );
   const listed = await run<{ forms: { kind: string }[] }>(w.ctx, "forms.list", {});
-  assert.deepEqual(listed.forms.map((x) => x.kind), ["booking"]);
+  assert.deepEqual(
+    listed.forms.map((x) => x.kind),
+    ["booking"],
+  );
 });
 
 test("page_create refuses bad input", async () => {
   const w = harness();
-  const make = (o: Record<string, unknown>) => run(w.ctx, "bookings.page_create", { name: "Call", hostIds: ["usr_host1"], lengthMinutes: 30, recordType: "contact", ...o });
+  const make = (o: Record<string, unknown>) =>
+    run(w.ctx, "bookings.page_create", {
+      name: "Call",
+      hostIds: ["usr_host1"],
+      lengthMinutes: 30,
+      recordType: "contact",
+      ...o,
+    });
   assert.equal(await code(make({ name: " " })), "validation.bad_input");
   assert.equal(await code(make({ hostIds: [] })), "validation.bad_input");
   assert.equal(await code(make({ hostIds: [5] })), "validation.bad_input");
@@ -95,10 +158,17 @@ test("a draft page and a plain form are not bookable", async () => {
   const w = harness();
   const draft = await openPage(w, { publish: false });
   assert.equal(await code(slotsOf(draft, NOW, NOW + HOUR)), "validation.not_found");
-  const plain = await run<{ form: { formId: string; slug: string } }>(w.ctx, "forms.create", { name: "Plain", recordType: "contact", kind: "public" });
+  const plain = await run<{ form: { formId: string; slug: string } }>(w.ctx, "forms.create", {
+    name: "Plain",
+    recordType: "contact",
+    kind: "public",
+  });
   await run(w.ctx, "forms.fields_set", { formId: plain.form.formId, fields: [{ field: "email", mode: "ask" }] });
   await run(w.ctx, "forms.publish", { formId: plain.form.formId });
-  assert.equal(await code(run(w.ctx, "bookings.availability", { slug: plain.form.slug, tz: TZ, from: NOW, to: NOW + HOUR })), "validation.not_found");
+  assert.equal(
+    await code(run(w.ctx, "bookings.availability", { slug: plain.form.slug, tz: TZ, from: NOW, to: NOW + HOUR })),
+    "validation.not_found",
+  );
 });
 
 test("busy blocks and the buffer remove slots around them", async () => {
@@ -175,16 +245,34 @@ test("booking makes the record, the calendar event and the booking, and fires bo
   const ev = w.calendarEvents[0];
   const { idempotencyKey: eventKey, ...eventInput } = ev?.input as Record<string, unknown>;
   assert.match(String(eventKey), /^forms\.book:.*:event$/);
-  assert.deepEqual(eventInput, { calendarId: "cld_host1", title: "Call: Lee", startsAt: TEN_UTC, endsAt: TEN_UTC + 30 * MIN, attendees: [{ email: "lee@x.example" }], recordIds: [b.recordId], fromBookingPage: p.formId });
-  assert.deepEqual(w.events.find((e) => e.name === "booking.created")?.payload, { bookingId: b.bookingId, formId: p.formId, recordId: b.recordId });
+  assert.deepEqual(eventInput, {
+    calendarId: "cld_host1",
+    title: "Call: Lee",
+    startsAt: TEN_UTC,
+    endsAt: TEN_UTC + 30 * MIN,
+    attendees: [{ email: "lee@x.example" }],
+    recordIds: [b.recordId],
+    fromBookingPage: p.formId,
+  });
+  assert.deepEqual(w.events.find((e) => e.name === "booking.created")?.payload, {
+    bookingId: b.bookingId,
+    formId: p.formId,
+    recordId: b.recordId,
+  });
   const create = w.calls.find((c) => c.cap === "records.create");
   assert.equal(create?.principal.id, formPrincipal(p.formId));
   const listed = await run<{ bookings: Booking[] }>(w.ctx, "bookings.list", { formId: p.formId });
-  assert.deepEqual(listed.bookings.map((x) => x.bookingId), [b.bookingId]);
+  assert.deepEqual(
+    listed.bookings.map((x) => x.bookingId),
+    [b.bookingId],
+  );
   const subs = await run<{ total: number }>(w.ctx, "forms.submissions", { formId: p.formId });
   assert.equal(subs.total, 1);
   const after = await slotsOf(p, NOW, NOW + 3 * HOUR);
-  assert.equal(after.slots.some((s) => s.startsAt === TEN_UTC || s.startsAt === TEN_UTC + 15 * MIN), false);
+  assert.equal(
+    after.slots.some((s) => s.startsAt === TEN_UTC || s.startsAt === TEN_UTC + 15 * MIN),
+    false,
+  );
   assert.equal(after.slots[0]?.startsAt, TEN_UTC + 30 * MIN);
 });
 
@@ -204,8 +292,16 @@ test("booking refuses a taken slot, an off-grid time, a closed hour, a missing e
   await book(p, TEN_UTC);
   assert.equal(await code(book(p, TEN_UTC, { email: "b@x.example" })), "validation.precondition_failed");
   assert.equal(await code(book(p, TEN_UTC + 30 * MIN + 1, { email: "b@x.example" })), "validation.precondition_failed");
-  assert.equal(await code(book(p, TEN_UTC + 2 * 24 * HOUR, { email: "b@x.example" })), "validation.precondition_failed", "Saturday");
-  assert.equal(await code(book(p, NOW + 5 * MIN, { email: "b@x.example" })), "validation.precondition_failed", "inside the notice");
+  assert.equal(
+    await code(book(p, TEN_UTC + 2 * 24 * HOUR, { email: "b@x.example" })),
+    "validation.precondition_failed",
+    "Saturday",
+  );
+  assert.equal(
+    await code(book(p, NOW + 5 * MIN, { email: "b@x.example" })),
+    "validation.precondition_failed",
+    "inside the notice",
+  );
   assert.equal(await code(book(p, TEN_UTC + HOUR, { name: "No email" })), "validation.bad_input");
   assert.equal(await code(book(p, TEN_UTC + HOUR, { email: "b@x.example" }, "Nowhere/Land")), "validation.bad_input");
   assert.equal(await code(book(p, TEN_UTC + HOUR, { email: "b@x.example", extra: "x" })), "validation.bad_input");
@@ -216,7 +312,10 @@ test("booking refuses a taken slot, an off-grid time, a closed hour, a missing e
 test("two bookings for one slot at once: one wins, no second event is left behind", async () => {
   const w = harness();
   const p = await openPage(w);
-  const results = await Promise.allSettled([book(p, TEN_UTC, { email: "a@x.example" }), book(p, TEN_UTC, { email: "b@x.example" })]);
+  const results = await Promise.allSettled([
+    book(p, TEN_UTC, { email: "a@x.example" }),
+    book(p, TEN_UTC, { email: "b@x.example" }),
+  ]);
   assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
   const lost = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
   assert.equal(lost.reason.error.code, "validation.precondition_failed");
@@ -232,7 +331,10 @@ test("cancelling frees the slot, removes the event and fires booking.cancelled o
   const cancelled = await run<{ booking: Booking }>(w.ctx, "bookings.cancel", { bookingId: booking.bookingId });
   assert.equal(cancelled.booking.state, "cancelled");
   assert.deepEqual(w.deletedEvents, [w.calendarEvents[0]?.id]);
-  assert.deepEqual(w.events.find((e) => e.name === "booking.cancelled")?.payload, { bookingId: booking.bookingId, formId: p.formId });
+  assert.deepEqual(w.events.find((e) => e.name === "booking.cancelled")?.payload, {
+    bookingId: booking.bookingId,
+    formId: p.formId,
+  });
   const again = await run<{ booking: Booking }>(w.ctx, "bookings.cancel", { bookingId: booking.bookingId });
   assert.equal(again.booking.state, "cancelled");
   assert.equal(w.names().filter((n) => n === "booking.cancelled").length, 1);
@@ -266,7 +368,12 @@ test("a calendar that refuses the event leaves no booking and no booking.created
 test("booking pages obey the form's rate limit, consent text and captcha", async () => {
   const w = harness();
   const p = await openPage(w);
-  await run(w.ctx, "forms.update", { formId: p.formId, rateLimit: 3, consentText: "I agree to be contacted.", captcha: true });
+  await run(w.ctx, "forms.update", {
+    formId: p.formId,
+    rateLimit: 3,
+    consentText: "I agree to be contacted.",
+    captcha: true,
+  });
   const answers = (n: number, extra: Record<string, unknown> = {}) => ({ email: `v${n}@x.example`, ...extra });
   assert.equal(await code(book(p, TEN_UTC, answers(1, { captcha: "human" }))), "validation.bad_input", "consent first");
   assert.equal(await code(book(p, TEN_UTC, answers(2, { consent: true }))), "auth.invalid_code", "no captcha token");
@@ -281,12 +388,30 @@ test("booking pages obey the form's rate limit, consent text and captcha", async
 test("bookings.list pages by start time", async () => {
   const w = harness();
   const p = await openPage(w);
-  for (const [n, off] of [[1, 3], [2, 1], [3, 2]] as const) await book(p, TEN_UTC + off * HOUR, { email: `p${n}@x.example` });
-  const first = await run<{ bookings: Booking[]; next?: string; total: number }>(w.ctx, "bookings.list", { formId: p.formId, limit: 2 });
-  assert.deepEqual(first.bookings.map((b) => b.startsAt), [TEN_UTC + HOUR, TEN_UTC + 2 * HOUR]);
+  for (const [n, off] of [
+    [1, 3],
+    [2, 1],
+    [3, 2],
+  ] as const)
+    await book(p, TEN_UTC + off * HOUR, { email: `p${n}@x.example` });
+  const first = await run<{ bookings: Booking[]; next?: string; total: number }>(w.ctx, "bookings.list", {
+    formId: p.formId,
+    limit: 2,
+  });
+  assert.deepEqual(
+    first.bookings.map((b) => b.startsAt),
+    [TEN_UTC + HOUR, TEN_UTC + 2 * HOUR],
+  );
   assert.equal(first.total, 3);
   assert.equal(first.next, "2");
-  const rest = await run<{ bookings: Booking[]; next?: string }>(w.ctx, "bookings.list", { formId: p.formId, limit: 2, cursor: first.next });
-  assert.deepEqual(rest.bookings.map((b) => b.startsAt), [TEN_UTC + 3 * HOUR]);
+  const rest = await run<{ bookings: Booking[]; next?: string }>(w.ctx, "bookings.list", {
+    formId: p.formId,
+    limit: 2,
+    cursor: first.next,
+  });
+  assert.deepEqual(
+    rest.bookings.map((b) => b.startsAt),
+    [TEN_UTC + 3 * HOUR],
+  );
   assert.equal(rest.next, undefined);
 });

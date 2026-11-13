@@ -23,8 +23,26 @@ import type { AccountOption } from "../../places/automations/connect/accounts.ts
 import { connectionRoute } from "../../places/automations/connect/route.ts";
 import { ConfigExtrasProvider } from "../../places/automations/config/data.tsx";
 import { RunsDataProvider } from "../../places/automations/runs/data.tsx";
-import { AutomationRuns, FailedView, JourneyNewView, JourneyView, RunView, configExtras, runsData, useDirectory } from "./automations-parts.tsx";
-import { AllRuns, Dependencies, LiveEvents, NeedsYou, Packages, SpaceAnalytics, TemplateGallery, Watching } from "../../places/automations/operations/StudioViews.tsx";
+import {
+  AutomationRuns,
+  FailedView,
+  JourneyNewView,
+  JourneyView,
+  RunView,
+  configExtras,
+  runsData,
+  useDirectory,
+} from "./automations-parts.tsx";
+import {
+  AllRuns,
+  Dependencies,
+  LiveEvents,
+  NeedsYou,
+  Packages,
+  SpaceAnalytics,
+  TemplateGallery,
+  Watching,
+} from "../../places/automations/operations/StudioViews.tsx";
 import { AutomationsStart } from "../../places/automations/start/AutomationsStart.tsx";
 import { openAskPane } from "../ask/pane.ts";
 import { AutomationsSidebarSlot, StudioNav } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
@@ -35,14 +53,39 @@ import { nameOf } from "./misc-common.ts";
 import { GATE, allows, useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
-export function automationsData(rt: ShellRuntime, nav: AutomationsData["nav"], keys: readonly KeyChoice[] = [], keysStatus?: KeysStatus, accounts?: readonly AccountOption[], lastPicks?: Readonly<Record<string, string>>): AutomationsData {
-  return { ...(rt.space.kind === "personal" ? { personalSpace: true } : {}), screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name }, spaceName: rt.space.name, name: nameOf(rt), keys, ...(keysStatus ? { keysStatus } : {}), ...(accounts ? { accounts } : {}), ...(lastPicks ? { lastPicks } : {}), nav, clock: () => ({ now: rt.clock().now }), canSpace: allows(rt, GATE.spaceAutomations) };
+export function automationsData(
+  rt: ShellRuntime,
+  nav: AutomationsData["nav"],
+  keys: readonly KeyChoice[] = [],
+  keysStatus?: KeysStatus,
+  accounts?: readonly AccountOption[],
+  lastPicks?: Readonly<Record<string, string>>,
+): AutomationsData {
+  return {
+    ...(rt.space.kind === "personal" ? { personalSpace: true } : {}),
+    screens: rt.screens,
+    call: rt.call,
+    me: { id: rt.me.id, name: rt.me.name },
+    spaceName: rt.space.name,
+    name: nameOf(rt),
+    keys,
+    ...(keysStatus ? { keysStatus } : {}),
+    ...(accounts ? { accounts } : {}),
+    ...(lastPicks ? { lastPicks } : {}),
+    nav,
+    clock: () => ({ now: rt.clock().now }),
+    canSpace: allows(rt, GATE.spaceAutomations),
+  };
 }
 
 /** The tab hash names the Watching view. */
 export const watchingHash = (screen: string | undefined): boolean => screen === "watching";
 
-type Overlay = { kind: "failed" } | { kind: "run"; id: string } | { kind: "journey"; id: string } | { kind: "journeyNew" };
+type Overlay =
+  | { kind: "failed" }
+  | { kind: "run"; id: string }
+  | { kind: "journey"; id: string }
+  | { kind: "journeyNew" };
 
 function Loading(): ReactElement {
   return <View style={s.page} testID="automations-loading" />;
@@ -58,7 +101,12 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const [step, setStep] = useState<string | null>(null);
   const [sideRun, setSideRun] = useState<string | null>(null);
   // a task a run made, beside the run: its thread, brief and baton buttons (the Back button returns to the run)
-  const setView = (next: StudioView): void => { setOverlay(null); setViewRaw(next); if (next === "watching") opened({ screen: "watching" }); else if (watchingHash(target.screen)) opened({}); };
+  const setView = (next: StudioView): void => {
+    setOverlay(null);
+    setViewRaw(next);
+    if (next === "watching") opened({ screen: "watching" });
+    else if (watchingHash(target.screen)) opened({});
+  };
   const [keys, setKeys] = useState<readonly KeyChoice[]>([]);
   const [keysStatus, setKeysStatus] = useState<KeysStatus>("loading");
   const [accounts, setAccounts] = useState<readonly AccountOption[]>([]);
@@ -67,18 +115,42 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   // the Automations row in the sidebar leaves the open automation (the hash keeps naming it, so that id is remembered as left)
   const [left, setLeft] = useState<string | null>(null);
   const openId = picked ?? (hashed !== null && hashed === left ? null : hashed);
-  const goHome = (): void => { setOpenId(null); setLeft(hashed); setStep(null); setSideRun(null); };
-  const missing = useMissing(rt.screens, "automations.canvas", "automation", openId ? { automationId: openId, route: { automationId: openId } } : null);
+  const goHome = (): void => {
+    setOpenId(null);
+    setLeft(hashed);
+    setStep(null);
+    setSideRun(null);
+  };
+  const missing = useMissing(
+    rt.screens,
+    "automations.canvas",
+    "automation",
+    openId ? { automationId: openId, route: { automationId: openId } } : null,
+  );
   useEffect(() => {
     let live = true;
-    void rt.call("engine.accounts.list", { place: "automation" }).then((out) => {
-      if (!live) return;
-      const parsed = keysFromAccounts(out);
-      if (!parsed) { setKeys([]); setKeysStatus("unavailable"); return; }
-      setKeys(parsed);
-      setKeysStatus(parsed.length > 0 ? "ready" : "empty");
-    }).catch(() => { if (live) { setKeys([]); setKeysStatus("unavailable"); } });
-    return () => { live = false; };
+    void rt
+      .call("engine.accounts.list", { place: "automation" })
+      .then((out) => {
+        if (!live) return;
+        const parsed = keysFromAccounts(out);
+        if (!parsed) {
+          setKeys([]);
+          setKeysStatus("unavailable");
+          return;
+        }
+        setKeys(parsed);
+        setKeysStatus(parsed.length > 0 ? "ready" : "empty");
+      })
+      .catch(() => {
+        if (live) {
+          setKeys([]);
+          setKeysStatus("unavailable");
+        }
+      });
+    return () => {
+      live = false;
+    };
   }, [rt, connectVersion]);
   useEffect(() => {
     let live = true;
@@ -86,119 +158,249 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       rt.call("connections.list", { whose: "all" }),
       rt.call("mail.mailbox.list", { scope: "all" }),
       rt.call("automations.account_picks", {}),
-    ]).then(([connectionsOut, mailOut, picksOut]) => {
-      if (!live) return;
-      const nextAccounts = accountsFromVault(connectionsOut, mailOut);
-      const nextPicks = picksByApp(picksOut);
-      if (!nextAccounts || !nextPicks) {
+    ])
+      .then(([connectionsOut, mailOut, picksOut]) => {
+        if (!live) return;
+        const nextAccounts = accountsFromVault(connectionsOut, mailOut);
+        const nextPicks = picksByApp(picksOut);
+        if (!nextAccounts || !nextPicks) {
+          setAccounts([]);
+          setLastPicks(undefined);
+          return;
+        }
+        setAccounts(nextAccounts);
+        setLastPicks(nextPicks);
+      })
+      .catch(() => {
+        if (!live) return;
         setAccounts([]);
         setLastPicks(undefined);
-        return;
-      }
-      setAccounts(nextAccounts);
-      setLastPicks(nextPicks);
-    }).catch(() => {
-      if (!live) return;
-      setAccounts([]);
-      setLastPicks(undefined);
-    });
-    return () => { live = false; };
+      });
+    return () => {
+      live = false;
+    };
   }, [rt, connectVersion]);
   const viewer = useViewer(rt);
   const addressReach = viewer === null ? null : reach({ kind: "console", page: "network" }, viewer);
   const addressDoor = addressReach !== null && addressReach.to === "open" ? addressReach.target : null;
   const addressScreen = addressDoor?.screen ?? null;
-  const data = useMemo(() => automationsData(rt, {
-    openAutomation: (id) => { setView("automations"); setStep(null); setOpenId(id); opened({ subject: { type: "automation", id } }); },
-    openJourney: (id) => { setViewRaw("automations"); setOverlay({ kind: "journey", id }); },
-    newJourney: () => { setViewRaw("automations"); setOverlay({ kind: "journeyNew" }); },
-    openFailedRuns: () => { setViewRaw("automations"); setOverlay({ kind: "failed" }); },
-    openTemplates: () => setView("templates"),
-    openRun: (runId) => { setViewRaw("automations"); setOverlay({ kind: "run", id: runId }); },
-    ask: (id, context) => {
-      // the Ask pane opens beside the automation, about it, with the scrubbed failure (step, error code, trace) as what the agent is told; the message is put in the composer to send
-      const bundle = scrubAskContext({ ...(context ?? {}), resource: context?.resource ?? id });
-      // a door that only knows "automation" or a step id (a step's test, a list's error) asks about Automations itself, with what it does know as context
-      const isAutomation = /^aut_[A-Za-z0-9_]+$/.test(id);
-      const ask = (title?: string): void => { openAskPane({
-        thing: isAutomation ? { kind: "automation", id, ...(title ? { title } : {}) } : null,
-        ...(bundle.message ? { draft: bundle.message.trim().endsWith("?") ? bundle.message : `Why does this fail? ${bundle.message}` } : {}),
-        context: {
-          actions: ["explain a failed run", "propose a fix as a draft", "suggest a template"],
-          ...(bundle.nodeId ? { selection: [{ type: "step", id: bundle.nodeId, ...(bundle.stepKey ? { title: bundle.stepKey } : {}) }] } : !isAutomation && id !== "automation" ? { selection: [{ type: "step", id }] } : {}),
-          ...(bundle.errorCode || bundle.traceId ? { filters: { ...(bundle.errorCode ? { errorCode: bundle.errorCode } : {}), ...(bundle.traceId ? { traceId: bundle.traceId } : {}) } } : {}),
+  const data = useMemo(
+    () =>
+      automationsData(
+        rt,
+        {
+          openAutomation: (id) => {
+            setView("automations");
+            setStep(null);
+            setOpenId(id);
+            opened({ subject: { type: "automation", id } });
+          },
+          openJourney: (id) => {
+            setViewRaw("automations");
+            setOverlay({ kind: "journey", id });
+          },
+          newJourney: () => {
+            setViewRaw("automations");
+            setOverlay({ kind: "journeyNew" });
+          },
+          openFailedRuns: () => {
+            setViewRaw("automations");
+            setOverlay({ kind: "failed" });
+          },
+          openTemplates: () => setView("templates"),
+          openRun: (runId) => {
+            setViewRaw("automations");
+            setOverlay({ kind: "run", id: runId });
+          },
+          ask: (id, context) => {
+            // the Ask pane opens beside the automation, about it, with the scrubbed failure (step, error code, trace) as what the agent is told; the message is put in the composer to send
+            const bundle = scrubAskContext({ ...(context ?? {}), resource: context?.resource ?? id });
+            // a door that only knows "automation" or a step id (a step's test, a list's error) asks about Automations itself, with what it does know as context
+            const isAutomation = /^aut_[A-Za-z0-9_]+$/.test(id);
+            const ask = (title?: string): void => {
+              openAskPane(
+                {
+                  thing: isAutomation ? { kind: "automation", id, ...(title ? { title } : {}) } : null,
+                  ...(bundle.message
+                    ? {
+                        draft: bundle.message.trim().endsWith("?")
+                          ? bundle.message
+                          : `Why does this fail? ${bundle.message}`,
+                      }
+                    : {}),
+                  context: {
+                    actions: ["explain a failed run", "propose a fix as a draft", "suggest a template"],
+                    ...(bundle.nodeId
+                      ? {
+                          selection: [
+                            { type: "step", id: bundle.nodeId, ...(bundle.stepKey ? { title: bundle.stepKey } : {}) },
+                          ],
+                        }
+                      : !isAutomation && id !== "automation"
+                        ? { selection: [{ type: "step", id }] }
+                        : {}),
+                    ...(bundle.errorCode || bundle.traceId
+                      ? {
+                          filters: {
+                            ...(bundle.errorCode ? { errorCode: bundle.errorCode } : {}),
+                            ...(bundle.traceId ? { traceId: bundle.traceId } : {}),
+                          },
+                        }
+                      : {}),
+                  },
+                },
+                "automations",
+              );
+            };
+            if (!isAutomation) {
+              ask();
+              return;
+            }
+            void Promise.resolve(rt.call("automations.get", { automationId: id })).then(
+              (o) => ask((o as { automation?: { name?: string } } | null)?.automation?.name),
+              () => ask(),
+            );
+          },
+          connect: (target) => {
+            const route = connectionRoute(target, rt.space.kind === "personal");
+            rt.open({ screen: route.screen, args: route.args });
+          },
+          openKeys: () => rt.open({ screen: "vault.providers" }),
+          buildConnector: () => {
+            openAskPane({ thing: null, first: BUILD_CONNECTOR_OPENING }, "automations");
+          },
+          // the public address is set in Console; only a person who can open that page gets the door (reach)
+          ...(addressScreen
+            ? { openAddress: () => rt.open({ screen: addressScreen, args: addressDoor?.args ?? {} }) }
+            : {}),
+          setUpConnector: async (offer) => {
+            // the offer holds an item id and a name; the handle comes from the Vault, which never sends a value
+            const got = (await rt.call("vault.item.get", { itemId: offer.itemId })) as {
+              item?: { handle?: string; name?: string };
+            } | null;
+            const handle = got?.item?.handle;
+            if (!handle) throw new Error("Vyre could not find that Vault item. It may have moved to Trash.");
+            openAsk(
+              rt,
+              "assistant",
+              { kind: "vault_item", id: offer.itemId, title: offer.appName },
+              undefined,
+              connectorOpening({ name: got?.item?.name ?? offer.appName, handle }),
+            );
+          },
         },
-      }, "automations"); };
-      if (!isAutomation) { ask(); return; }
-      void Promise.resolve(rt.call("automations.get", { automationId: id })).then((o) => ask((o as { automation?: { name?: string } } | null)?.automation?.name), () => ask());
-    },
-    connect: (target) => {
-      const route = connectionRoute(target, rt.space.kind === "personal");
-      rt.open({ screen: route.screen, args: route.args });
-    },
-    openKeys: () => rt.open({ screen: "vault.providers" }),
-    buildConnector: () => { openAskPane({ thing: null, first: BUILD_CONNECTOR_OPENING }, "automations"); },
-    // the public address is set in Console; only a person who can open that page gets the door (reach)
-    ...(addressScreen ? { openAddress: () => rt.open({ screen: addressScreen, args: addressDoor?.args ?? {} }) } : {}),
-    setUpConnector: async (offer) => {
-      // the offer holds an item id and a name; the handle comes from the Vault, which never sends a value
-      const got = (await rt.call("vault.item.get", { itemId: offer.itemId })) as { item?: { handle?: string; name?: string } } | null;
-      const handle = got?.item?.handle;
-      if (!handle) throw new Error("Vyre could not find that Vault item. It may have moved to Trash.");
-      openAsk(rt, "assistant", { kind: "vault_item", id: offer.itemId, title: offer.appName }, undefined, connectorOpening({ name: got?.item?.name ?? offer.appName, handle }));
-    },
-  }, keys, keysStatus, accounts, lastPicks), [rt, opened, keys, keysStatus, accounts, lastPicks, addressScreen]);
+        keys,
+        keysStatus,
+        accounts,
+        lastPicks,
+      ),
+    [rt, opened, keys, keysStatus, accounts, lastPicks, addressScreen],
+  );
   const directory = useDirectory(rt);
-  const extras = useMemo(() => configExtras(directory, {
-    openAutomation: (id) => data.nav.openAutomation(id),
-    openRuns: (id) => { data.nav.openAutomation(id); setSideRun(null); },
-    // a Journey's records open in Records on their board
-    openRecords: (type) => rt.open({ screen: "records.saved-views", args: { type, kind: "board" } }),
-  }), [directory, data, rt]);
-  const runs = useMemo(() => runsData(rt, {
-    openAutomation: (id, stepId) => { data.nav.openAutomation(id); if (stepId) setStep(stepId); },
-    openRun: (runId) => data.nav.openRun(runId),
-    openRunSide: (runId) => { setSideRun(runId); },
-    openTaskSide: (taskId) => rt.open({ screen: "tasks.page", args: { taskId } }),
-    ask: (id, context) => data.nav.ask(id, context),
-  }), [rt, data]);
+  const extras = useMemo(
+    () =>
+      configExtras(directory, {
+        openAutomation: (id) => data.nav.openAutomation(id),
+        openRuns: (id) => {
+          data.nav.openAutomation(id);
+          setSideRun(null);
+        },
+        // a Journey's records open in Records on their board
+        openRecords: (type) => rt.open({ screen: "records.saved-views", args: { type, kind: "board" } }),
+      }),
+    [directory, data, rt],
+  );
+  const runs = useMemo(
+    () =>
+      runsData(rt, {
+        openAutomation: (id, stepId) => {
+          data.nav.openAutomation(id);
+          if (stepId) setStep(stepId);
+        },
+        openRun: (runId) => data.nav.openRun(runId),
+        openRunSide: (runId) => {
+          setSideRun(runId);
+        },
+        openTaskSide: (taskId) => rt.open({ screen: "tasks.page", args: { taskId } }),
+        ask: (id, context) => data.nav.ask(id, context),
+      }),
+    [rt, data],
+  );
   const winW = useWindowDimensions().width;
-  const phone = isPhoneWidth(winW);   // the phone has no sidebar beside the body: the list is the first screen
+  const phone = isPhoneWidth(winW); // the phone has no sidebar beside the body: the list is the first screen
   const canvas = openId ? (
     phone && sideRun ? (
       // on the phone a run takes the whole screen; Close goes back to the editor
       <View style={s.main}>
-        <View style={s.sideHead}><TextButton label="Back" icon="x" testID="close-side-run" onPress={() => setSideRun(null)} /></View>
+        <View style={s.sideHead}>
+          <TextButton label="Back" icon="x" testID="close-side-run" onPress={() => setSideRun(null)} />
+        </View>
         <RunView runId={sideRun} />
       </View>
-    ) : <View style={s.withSide}>
-      <View style={s.main}>
-        <AutomationCanvas
-          key={`${openId}:${step ?? ""}`} automationId={openId}
-          tabBodies={{ runs: <AutomationRuns automationId={openId} selectedRunId={sideRun} /> }}
-          {...(step ? { initialSelected: step, initialPanel: true } : {})}
-        />
+    ) : (
+      <View style={s.withSide}>
+        <View style={s.main}>
+          <AutomationCanvas
+            key={`${openId}:${step ?? ""}`}
+            automationId={openId}
+            tabBodies={{ runs: <AutomationRuns automationId={openId} selectedRunId={sideRun} /> }}
+            {...(step ? { initialSelected: step, initialPanel: true } : {})}
+          />
+        </View>
+        {sideRun ? (
+          <ResizableColumn
+            paneKey="automation-run-side"
+            defaultWidth={380}
+            grow="left"
+            min={280}
+            style={s.side as never}
+          >
+            <View style={s.sideHead}>
+              <TextButton label="Close" icon="x" testID="close-side-run" onPress={() => setSideRun(null)} />
+            </View>
+            <RunView runId={sideRun} />
+          </ResizableColumn>
+        ) : null}
       </View>
-      {sideRun ? <ResizableColumn paneKey="automation-run-side" defaultWidth={380} grow="left" min={280} style={s.side as never}><View style={s.sideHead}><TextButton label="Close" icon="x" testID="close-side-run" onPress={() => setSideRun(null)} /></View><RunView runId={sideRun} /></ResizableColumn> : null}
-    </View>
+    )
   ) : null;
-  const main = overlay?.kind === "failed" ? <FailedView selectedRunId={sideRun} />
-    : overlay?.kind === "run" ? <RunView runId={overlay.id} />
-    : overlay?.kind === "journey" ? <JourneyView journeyId={overlay.id} />
-    : overlay?.kind === "journeyNew" ? <JourneyNewView onClose={() => setOverlay((o) => (o?.kind === "journeyNew" ? null : o))} />
-    : view === "needs" ? <NeedsYou />
-    : view === "runs" ? <AllRuns />
-    : view === "events" ? <LiveEvents />
-    : view === "analytics" ? <SpaceAnalytics />
-    : view === "dependencies" ? <Dependencies />
-    : view === "packages" ? <Packages />
-    : view === "watching" ? <Watching />
-    : view === "templates" ? <TemplateGallery />
-    : openId && missing ? <NotFound what="automation" />
-    : canvas
-    ? canvas
-    : phone ? <PhoneList view={view} onView={setView} />
-    : <AutomationsStart onTemplates={() => setView("templates")} onAsk={() => openAskPane({ thing: null, hint: ASK_HINT, context: ASK_AUTOMATIONS }, "automations")} />;
+  const main =
+    overlay?.kind === "failed" ? (
+      <FailedView selectedRunId={sideRun} />
+    ) : overlay?.kind === "run" ? (
+      <RunView runId={overlay.id} />
+    ) : overlay?.kind === "journey" ? (
+      <JourneyView journeyId={overlay.id} />
+    ) : overlay?.kind === "journeyNew" ? (
+      <JourneyNewView onClose={() => setOverlay((o) => (o?.kind === "journeyNew" ? null : o))} />
+    ) : view === "needs" ? (
+      <NeedsYou />
+    ) : view === "runs" ? (
+      <AllRuns />
+    ) : view === "events" ? (
+      <LiveEvents />
+    ) : view === "analytics" ? (
+      <SpaceAnalytics />
+    ) : view === "dependencies" ? (
+      <Dependencies />
+    ) : view === "packages" ? (
+      <Packages />
+    ) : view === "watching" ? (
+      <Watching />
+    ) : view === "templates" ? (
+      <TemplateGallery />
+    ) : openId && missing ? (
+      <NotFound what="automation" />
+    ) : canvas ? (
+      canvas
+    ) : phone ? (
+      <PhoneList view={view} onView={setView} />
+    ) : (
+      <AutomationsStart
+        onTemplates={() => setView("templates")}
+        onAsk={() => openAskPane({ thing: null, hint: ASK_HINT, context: ASK_AUTOMATIONS }, "automations")}
+      />
+    );
   return (
     <AutomationsDataProvider value={data}>
       <RunsDataProvider value={runs}>
@@ -206,7 +408,16 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
           <View style={s.page} testID="automations-place">
             {phone ? null : <AutomationsSidebarSlot selectedId={openId} view={view} onView={setView} onHome={goHome} />}
             <View style={s.main}>
-              {phone && view !== "automations" && !openId ? <Pressable accessibilityRole="button" testID="phone-back-to-list" onPress={() => setView("automations")} style={s.backChip}><Text style={s.backText}>{"‹ Automations"}</Text></Pressable> : null}
+              {phone && view !== "automations" && !openId ? (
+                <Pressable
+                  accessibilityRole="button"
+                  testID="phone-back-to-list"
+                  onPress={() => setView("automations")}
+                  style={s.backChip}
+                >
+                  <Text style={s.backText}>{"‹ Automations"}</Text>
+                </Pressable>
+              ) : null}
               {main}
             </View>
           </View>
@@ -226,7 +437,15 @@ function PhoneList({ view, onView }: { view: StudioView; onView(next: StudioView
   const [q, setQ] = useState("");
   return (
     <View style={s.phoneList} testID="automations-phone-list">
-      <TextInput value={q} onChangeText={setQ} placeholder="Search automations" placeholderTextColor="var(--ink-3)" accessibilityLabel="Search automations" style={s.phoneSearch} testID="automations-phone-search" />
+      <TextInput
+        value={q}
+        onChangeText={setQ}
+        placeholder="Search automations"
+        placeholderTextColor="var(--ink-3)"
+        accessibilityLabel="Search automations"
+        style={s.phoneSearch}
+        testID="automations-phone-search"
+      />
       <AutomationsSidebar hosted query={q} selectedId={null} onChoose={() => onView("automations")} />
       <StudioNav view={view} onView={onView} />
     </View>
@@ -234,12 +453,25 @@ function PhoneList({ view, onView }: { view: StudioView; onView(next: StudioView
 }
 
 /** What the Automations Ask pane tells the assistant about the place: the focus skill for it and what it may propose. Ids and names only. */
-const ASK_AUTOMATIONS = { title: "Automations", actions: ["propose an automation", "suggest a template", "explain a failed run"], focus: "focus-automations" };
+const ASK_AUTOMATIONS = {
+  title: "Automations",
+  actions: ["propose an automation", "suggest a template", "explain a failed run"],
+  focus: "focus-automations",
+};
 const ASK_HINT = "Say what you want to automate. I will draft it and you decide what to keep.";
 
 const s = StyleSheet.create({
   phoneList: { flex: 1, minHeight: 0 },
-  phoneSearch: { height: 36, marginHorizontal: 12, marginTop: 10, paddingHorizontal: 12, borderRadius: 9, backgroundColor: "var(--sunk)" as string, color: "var(--ink)" as string, fontSize: 14 },
+  phoneSearch: {
+    height: 36,
+    marginHorizontal: 12,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    borderRadius: 9,
+    backgroundColor: "var(--sunk)" as string,
+    color: "var(--ink)" as string,
+    fontSize: 14,
+  },
   backChip: { height: 36, justifyContent: "center", paddingHorizontal: 14 },
   backText: { fontSize: 14, color: "var(--accent)" as string },
   page: { flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string },

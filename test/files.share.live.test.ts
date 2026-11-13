@@ -6,14 +6,23 @@ import { bootScreens, browserOrSkip, open, seat, shoot } from "./support/mail-br
 
 test("files share journey, team: a folder's Share opens the sheet on that folder", async (t) => {
   const env = await browserOrSkip();
-  if (typeof env === "string") { t.skip(env); return; }
+  if (typeof env === "string") {
+    t.skip(env);
+    return;
+  }
   const s = await bootScreens({ kind: "team" }, env);
   try {
     const w = s.world;
-    const tree = (await w.owner.ok("files.tree", {})) as { roots: Array<{ key: string; kind: string; folderId?: string }> };
+    const tree = (await w.owner.ok("files.tree", {})) as {
+      roots: Array<{ key: string; kind: string; folderId?: string }>;
+    };
     const root = tree.roots.find((r) => r.key === "personal" && r.folderId !== undefined)?.folderId;
     assert.ok(root, `the Space has a top folder: ${JSON.stringify(tree).slice(0, 400)}`);
-    await w.owner.ok("files.folder.create", { parentId: root, name: "Shared plans", idempotencyKey: "share-journey-folder" });
+    await w.owner.ok("files.folder.create", {
+      parentId: root,
+      name: "Shared plans",
+      idempotencyKey: "share-journey-folder",
+    });
     const me = await seat(s, w.owner, "Owner");
     await open(me, s, "/files");
     await me.page.getByTestId("files-place").waitFor({ timeout: 20_000 });
@@ -22,12 +31,14 @@ test("files share journey, team: a folder's Share opens the sheet on that folder
     await row.click({ button: "right" });
     await me.page.getByText("Share…", { exact: true }).first().click({ timeout: 10_000 });
     await me.page.getByTestId("files-share").waitFor({ timeout: 15_000 });
-    await me.page.getByText("Share \u201CShared plans\u201D").waitFor({ timeout: 15_000 });   // titled with the folder's own name
-    await me.page.getByText(/Folder · \d+ with access/).waitFor({ timeout: 15_000 });   // the subtitle counts the owner and whoever else holds it
+    await me.page.getByText("Share \u201CShared plans\u201D").waitFor({ timeout: 15_000 }); // titled with the folder's own name
+    await me.page.getByText(/Folder · \d+ with access/).waitFor({ timeout: 15_000 }); // the subtitle counts the owner and whoever else holds it
     await me.page.getByText("General access", { exact: true }).waitFor({ timeout: 15_000 });
     await me.page.getByTestId("row-as-acc-owner").waitFor({ timeout: 15_000 });
     await shoot(me.page, "shots-evidence/files-share", "team-folder-share");
     assert.equal(await me.page.getByTestId("share-error").count(), 0, "no error line");
     assert.deepEqual(me.errors, [], "no page errors");
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });

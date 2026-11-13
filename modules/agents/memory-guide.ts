@@ -11,8 +11,13 @@ export async function syncMemoryGuide(ctx: AgentsCtx, input: { agentId: string }
   const a = agentBy(ctx.db, input.agentId);
   if (!a || a.folderId === undefined) return [];
   let map: string | undefined;
-  try { map = ((await call<{ map?: { body?: string } }>(ctx, "memory.map.get", { agentId: a.id })).map?.body); } catch (e) {
-    ctx.log.warn("agents: the memory map could not be read for the guide", { agent: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+  try {
+    map = (await call<{ map?: { body?: string } }>(ctx, "memory.map.get", { agentId: a.id })).map?.body;
+  } catch (e) {
+    ctx.log.warn("agents: the memory map could not be read for the guide", {
+      agent: a.id,
+      error: e instanceof Error ? e.message.slice(0, 200) : "error",
+    });
     return [];
   }
   if (map === undefined) return [];
@@ -24,7 +29,7 @@ export async function syncMemoryGuide(ctx: AgentsCtx, input: { agentId: string }
       let id = meta(ctx.db, key);
       if (id) {
         try {
-          const now = ((await call<{ text?: string }>(ctx, "files.read", { fileId: id, as: "text" })).text) ?? "";
+          const now = (await call<{ text?: string }>(ctx, "files.read", { fileId: id, as: "text" })).text ?? "";
           if (now === body) continue;
           if (now !== "" && !isGuide(now)) continue;
           await call(ctx, "files.write", { fileId: id, content: { text: body }, reason: "Memory guide from MAP.md" });
@@ -40,7 +45,12 @@ export async function syncMemoryGuide(ctx: AgentsCtx, input: { agentId: string }
       written.push(name);
     } catch (e) {
       // a file already there with that name is somebody's; anything else is worth a line
-      if (codeOf(e) !== "validation.duplicate") ctx.log.warn("agents: the memory guide could not be written", { agent: a.id, file: name, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+      if (codeOf(e) !== "validation.duplicate")
+        ctx.log.warn("agents: the memory guide could not be written", {
+          agent: a.id,
+          file: name,
+          error: e instanceof Error ? e.message.slice(0, 200) : "error",
+        });
     }
   }
   return written;
@@ -50,6 +60,7 @@ export const memoryGuideConsumers = {
   /** The nightly job rewrote an agent's MAP.md: its folder's CLAUDE.md and AGENTS.md follow. */
   "agents.memory_guide": {
     on: ["memory.map_rewritten"],
-    run: (ctx: AgentsCtx, event: { payload: { agentId?: string } }): Promise<string[]> => (event.payload.agentId ? syncMemoryGuide(ctx, { agentId: event.payload.agentId }) : Promise.resolve([])),
+    run: (ctx: AgentsCtx, event: { payload: { agentId?: string } }): Promise<string[]> =>
+      event.payload.agentId ? syncMemoryGuide(ctx, { agentId: event.payload.agentId }) : Promise.resolve([]),
   },
 };

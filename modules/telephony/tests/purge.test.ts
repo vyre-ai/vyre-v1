@@ -13,20 +13,58 @@ type Json = Record<string, unknown>;
 
 function seed(t: Harness): void {
   ensure(t.ctx);
-  const sms = (id: string, to: string) => t.ctx.db.run(
-    `INSERT INTO telephony_sms ("id", "numberId", "direction", "from", "to", "body", "status", "at", "version") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, "num_a1b2c3", "in", to, "+14155550100", "call me back about the trust", "delivered", 1, 0);
+  const sms = (id: string, to: string) =>
+    t.ctx.db.run(
+      `INSERT INTO telephony_sms ("id", "numberId", "direction", "from", "to", "body", "status", "at", "version") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id,
+      "num_a1b2c3",
+      "in",
+      to,
+      "+14155550100",
+      "call me back about the trust",
+      "delivered",
+      1,
+      0,
+    );
   sms("sms_pat00001", "+14155550177");
   sms("sms_other001", "+14155550188");
-  const call = (id: string, file: string | null) => t.ctx.db.run(
-    `INSERT INTO telephony_call ("id", "numberId", "direction", "from", "to", "state", "startedAt", "recordingFileId", "transcript", "summary", "version") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, "num_a1b2c3", "in", "+14155550177", "+14155550100", "ended", 1, file, "Pat: I want a trust", "Wants a trust", 0);
+  const call = (id: string, file: string | null) =>
+    t.ctx.db.run(
+      `INSERT INTO telephony_call ("id", "numberId", "direction", "from", "to", "state", "startedAt", "recordingFileId", "transcript", "summary", "version") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id,
+      "num_a1b2c3",
+      "in",
+      "+14155550177",
+      "+14155550100",
+      "ended",
+      1,
+      file,
+      "Pat: I want a trust",
+      "Wants a trust",
+      0,
+    );
   call("cal_pat00001", "fil_rec00001");
   call("cal_other001", null);
-  t.ctx.db.run(`INSERT INTO telephony_call_meta ("callId", "hold", "recording", "recordingSid") VALUES (?, ?, ?, ?)`, "cal_pat00001", 0, 0, "RE00000000000000000000000000000001");
-  t.ctx.db.run(`INSERT INTO telephony_call_meta ("callId", "hold", "recording") VALUES (?, ?, ?)`, "cal_other001", 0, 0);
+  t.ctx.db.run(
+    `INSERT INTO telephony_call_meta ("callId", "hold", "recording", "recordingSid") VALUES (?, ?, ?, ?)`,
+    "cal_pat00001",
+    0,
+    0,
+    "RE00000000000000000000000000000001",
+  );
+  t.ctx.db.run(
+    `INSERT INTO telephony_call_meta ("callId", "hold", "recording") VALUES (?, ?, ?)`,
+    "cal_other001",
+    0,
+    0,
+  );
 }
 
-const rows = (t: Harness, table: string): string[] => t.rows(`SELECT id FROM ${table}`).map((r) => String(r["id"])).sort();
+const rows = (t: Harness, table: string): string[] =>
+  t
+    .rows(`SELECT id FROM ${table}`)
+    .map((r) => String(r["id"]))
+    .sort();
 
 test("sms.erase removes the text and its conversation entry, leaves other texts, and answers erased false the second time", async () => {
   const t = harness();
@@ -36,8 +74,14 @@ test("sms.erase removes the text and its conversation entry, leaves other texts,
   assert.deepEqual(contractErrors("telephony.sms.erase", "out", out), []);
   assert.deepEqual(out, { erased: true });
   assert.deepEqual(rows(t, "telephony_sms"), ["sms_other001"]);
-  assert.deepEqual(t.calls("inbox.item.erase").map((c) => c.input["refId"]), ["sms_pat00001"]);
-  assert.deepEqual(t.named("sms.erased").map((e) => e.payload), [{ smsId: "sms_pat00001" }]);
+  assert.deepEqual(
+    t.calls("inbox.item.erase").map((c) => c.input["refId"]),
+    ["sms_pat00001"],
+  );
+  assert.deepEqual(
+    t.named("sms.erased").map((e) => e.payload),
+    [{ smsId: "sms_pat00001" }],
+  );
   for (const e of t.named("sms.erased")) assert.deepEqual(eventErrors(e.name, e.payload), []);
   assert.deepEqual(await h.smsErase(t.ctx, { smsId: "sms_pat00001", idempotencyKey: "k2" }), { erased: false });
   assert.equal(t.named("sms.erased").length, 1);
@@ -54,10 +98,22 @@ test("call.erase removes the call, its meta, its recording from Twilio and Files
   const out = (await h.callErase(t.ctx, { callId: "cal_pat00001", idempotencyKey: "k1" })) as Json;
   assert.deepEqual(contractErrors("telephony.call.erase", "out", out), []);
   assert.deepEqual(rows(t, "telephony_call"), ["cal_other001"]);
-  assert.deepEqual(t.rows(`SELECT "callId" FROM telephony_call_meta`).map((r) => r["callId"]), ["cal_other001"]);
-  assert.deepEqual(t.calls("twilio.recording.delete").map((c) => c.input["recordingSid"]), ["RE00000000000000000000000000000001"]);
-  assert.deepEqual([t.calls("files.delete")[0]?.input["fileId"], t.calls("files.purge")[0]?.input["fileId"]], ["fil_rec00001", "fil_rec00001"]);
-  assert.deepEqual(t.named("call.erased").map((e) => e.payload), [{ callId: "cal_pat00001" }]);
+  assert.deepEqual(
+    t.rows(`SELECT "callId" FROM telephony_call_meta`).map((r) => r["callId"]),
+    ["cal_other001"],
+  );
+  assert.deepEqual(
+    t.calls("twilio.recording.delete").map((c) => c.input["recordingSid"]),
+    ["RE00000000000000000000000000000001"],
+  );
+  assert.deepEqual(
+    [t.calls("files.delete")[0]?.input["fileId"], t.calls("files.purge")[0]?.input["fileId"]],
+    ["fil_rec00001", "fil_rec00001"],
+  );
+  assert.deepEqual(
+    t.named("call.erased").map((e) => e.payload),
+    [{ callId: "cal_pat00001" }],
+  );
   for (const e of t.named("call.erased")) assert.deepEqual(eventErrors(e.name, e.payload), []);
   assert.deepEqual(await h.callErase(t.ctx, { callId: "cal_pat00001", idempotencyKey: "k2" }), { erased: false });
 });
@@ -66,15 +122,26 @@ test("a recording the provider or Files no longer has does not stop the erase; a
   const t = harness();
   seed(t);
   t.script("inbox.item.erase", () => ({ erased: true }));
-  t.script("twilio.recording.delete", () => { throw t.err("validation.not_found", "gone"); });
-  t.script("files.delete", () => { throw t.err("validation.not_found", "gone"); });
-  t.script("files.purge", () => { throw t.err("validation.not_found", "gone"); });
+  t.script("twilio.recording.delete", () => {
+    throw t.err("validation.not_found", "gone");
+  });
+  t.script("files.delete", () => {
+    throw t.err("validation.not_found", "gone");
+  });
+  t.script("files.purge", () => {
+    throw t.err("validation.not_found", "gone");
+  });
   assert.deepEqual(await h.callErase(t.ctx, { callId: "cal_pat00001", idempotencyKey: "k1" }), { erased: true });
 
   const u = harness();
   seed(u);
   u.script("inbox.item.erase", () => ({ erased: true }));
-  u.script("twilio.recording.delete", () => { throw u.err("provider.unavailable", "Twilio is down"); });
-  await assert.rejects(h.callErase(u.ctx, { callId: "cal_pat00001", idempotencyKey: "k1" }), (e) => (e as { error?: { code?: string } }).error?.code === "provider.unavailable");
+  u.script("twilio.recording.delete", () => {
+    throw u.err("provider.unavailable", "Twilio is down");
+  });
+  await assert.rejects(
+    h.callErase(u.ctx, { callId: "cal_pat00001", idempotencyKey: "k1" }),
+    (e) => (e as { error?: { code?: string } }).error?.code === "provider.unavailable",
+  );
   assert.ok(rows(u, "telephony_call").includes("cal_pat00001"), "nothing local is removed before the provider copy is");
 });

@@ -12,7 +12,8 @@ test("an artifact links to its own address on the Space; every other kind to the
   assert.equal(itemLink("record_type", "deal", o), `${o}/open/record_type/deal`);
   assert.equal(itemLink("vault_item", "vit_1", o), `${o}/open/vault/vit_1`);
   assert.equal(itemLink("automation", "aut_1", o), `${o}/open/automation/aut_1`);
-  for (const t of ["note", "agent", "folder", "record", "project"]) assert.ok(!itemLink(t, "x", o).startsWith("vyre://"), t);
+  for (const t of ["note", "agent", "folder", "record", "project"])
+    assert.ok(!itemLink(t, "x", o).startsWith("vyre://"), t);
 });
 
 test("withNotify adds notify only when the person asked to tell them, with the message", () => {
@@ -20,5 +21,8 @@ test("withNotify adds notify only when the person asked to tell them, with the m
   assert.deepEqual(withNotify(base), base);
   assert.deepEqual(withNotify(base, { notify: false }), base);
   assert.deepEqual(withNotify(base, { notify: true }), { ...base, notify: {} });
-  assert.deepEqual(withNotify(base, { notify: true, message: "Take a look" }), { ...base, notify: { message: "Take a look" } });
+  assert.deepEqual(withNotify(base, { notify: true, message: "Take a look" }), {
+    ...base,
+    notify: { message: "Take a look" },
+  });
 });

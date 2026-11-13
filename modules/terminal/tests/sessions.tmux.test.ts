@@ -13,11 +13,28 @@ import type { FakeTmuxOptions } from "../fixtures/fake-tmux.ts";
 function rig(o: FakeTmuxOptions = {}, extra: { maxOutput?: number; scrollback?: number } = {}) {
   const tm = fakeTmux(o);
   const clock = { t: 0 };
-  const host = createTmuxHost({ exec: tm.exec, control: tm.control, now: () => clock.t, sleep: async (ms) => { clock.t += ms; }, pollMs: 50, ...extra });
+  const host = createTmuxHost({
+    exec: tm.exec,
+    control: tm.control,
+    now: () => clock.t,
+    sleep: async (ms) => {
+      clock.t += ms;
+    },
+    pollMs: 50,
+    ...extra,
+  });
   return { tm, host, clock };
 }
 const open = (host: ReturnType<typeof createTmuxHost>, id = "trm_a1", extra: { cwd?: string } = {}) =>
-  host.open({ terminalId: id, target: { host: "agent_computer", agentId: "agt_intake" }, name: "build", cols: 100, rows: 30, folders: [], ...extra });
+  host.open({
+    terminalId: id,
+    target: { host: "agent_computer", agentId: "agt_intake" },
+    name: "build",
+    cols: 100,
+    rows: 30,
+    folders: [],
+    ...extra,
+  });
 
 test("shQuote closes, escapes and reopens around a single quote, so a value cannot end its own quoting", () => {
   assert.equal(shQuote("plain"), "'plain'");
@@ -30,7 +47,21 @@ test("open: one tmux session named for the terminal, at the size and folder aske
   const { tm, host } = rig();
   const r = await open(host, "trm_a1", { cwd: "/work/site" });
   // HISTCONTROL: the shell keeps no line typed with a leading space (every agent command) in its history, so none reaches ~/.bash_history
-  assert.deepEqual(tm.calls[0], ["tmux", "new-session", "-e", "HISTCONTROL=ignorespace", "-d", "-s", "vyre-trm_a1", "-x", "100", "-y", "30", "-c", "/work/site"]);
+  assert.deepEqual(tm.calls[0], [
+    "tmux",
+    "new-session",
+    "-e",
+    "HISTCONTROL=ignorespace",
+    "-d",
+    "-s",
+    "vyre-trm_a1",
+    "-x",
+    "100",
+    "-y",
+    "30",
+    "-c",
+    "/work/site",
+  ]);
   assert.deepEqual(r, { cwd: "/work/site" });
   const none = await open(host, "trm_a2");
   assert.deepEqual(none, { cwd: "/home/agent" });
@@ -70,18 +101,32 @@ test("read: the last lines of the screen, or only what came after a cursor", asy
 // ---- run
 
 test("run: the shell prints its own markers around the command, and the output is exactly what came between them", async () => {
-  const { tm, host } = rig({ scripts: { "git status": { out: "On branch main\nnothing to commit", code: 0 }, "false": { out: "", code: 1 }, "make": { out: "cc a.c\ncc b.c\nerror: b.c:3", code: 2 } } });
+  const { tm, host } = rig({
+    scripts: {
+      "git status": { out: "On branch main\nnothing to commit", code: 0 },
+      false: { out: "", code: 1 },
+      make: { out: "cc a.c\ncc b.c\nerror: b.c:3", code: 2 },
+    },
+  });
   await open(host);
   const a = await host.run("trm_a1", { command: "git status", env: {}, timeoutMs: 5000 });
-  assert.deepEqual({ exitCode: a.exitCode, output: a.output, truncated: a.truncated }, { exitCode: 0, output: "On branch main\nnothing to commit", truncated: false });
+  assert.deepEqual(
+    { exitCode: a.exitCode, output: a.output, truncated: a.truncated },
+    { exitCode: 0, output: "On branch main\nnothing to commit", truncated: false },
+  );
   const b = await host.run("trm_a1", { command: "false", env: {}, timeoutMs: 5000 });
   assert.deepEqual([b.exitCode, b.output], [1, ""]);
   const c = await host.run("trm_a1", { command: "make", env: {}, timeoutMs: 5000 });
   assert.deepEqual([c.exitCode, c.output], [2, "cc a.c\ncc b.c\nerror: b.c:3"]);
   // What it typed is one line with the command in braces, so `cd` and exports stay in the session like typed by hand.
-  const typed = tm.calls.find((x) => x[1] === "send-keys" && x.includes("-l") && x.at(-1)!.includes("git status"))!.at(-1)!;
+  const typed = tm.calls
+    .find((x) => x[1] === "send-keys" && x.includes("-l") && x.at(-1)!.includes("git status"))!
+    .at(-1)!;
   // 12 Nov: the exit code is also stored in a tmux option of the session, which a program cannot draw over on the screen
-  assert.match(typed, /^ printf '%s\\n' '__VYRE_BEG_[0-9a-f]{12}__'; \{ git status\n\}; __vyre_rc=\$\?; 'tmux' set-option -q -t 'vyre-trm_a1' @vyre_rc_[0-9a-f]{12} "\$__vyre_rc" 2>\/dev\/null; printf '\\n%s:%d\\n' '__VYRE_END_[0-9a-f]{12}__' "\$__vyre_rc"; unset __vyre_rc$/);
+  assert.match(
+    typed,
+    /^ printf '%s\\n' '__VYRE_BEG_[0-9a-f]{12}__'; \{ git status\n\}; __vyre_rc=\$\?; 'tmux' set-option -q -t 'vyre-trm_a1' @vyre_rc_[0-9a-f]{12} "\$__vyre_rc" 2>\/dev\/null; printf '\\n%s:%d\\n' '__VYRE_END_[0-9a-f]{12}__' "\$__vyre_rc"; unset __vyre_rc$/,
+  );
   assert.ok(tm.calls.some((x) => x[1] === "send-keys" && x.at(-1) === "Enter"));
   // The screen keeps the earlier output; a later command's answer is not mixed with it.
   assert.match(tm.screen("vyre-trm_a1"), /On branch main/);
@@ -91,23 +136,47 @@ test("run: a folder to run in, and variables, which live in a subshell and are q
   const VALUE = "x'; touch /tmp/pwned; '";
   const { tm, host } = rig({ scripts: { "echo $A": (_c, env) => ({ out: `A=${env["A"]} B=${env["B"]}`, code: 0 }) } });
   await open(host);
-  const r = await host.run("trm_a1", { command: "echo $A", cwd: "/work/it's", env: { A: VALUE, B: "plain" }, timeoutMs: 5000 });
+  const r = await host.run("trm_a1", {
+    command: "echo $A",
+    cwd: "/work/it's",
+    env: { A: VALUE, B: "plain" },
+    timeoutMs: 5000,
+  });
   assert.deepEqual([r.exitCode, r.output], [0, `A=${VALUE} B=plain`], "the command got both values exactly");
-  const typed = tm.calls.find((x) => x[1] === "send-keys" && x.includes("-l") && x.at(-1)!.includes("echo $A"))!.at(-1)!;
-  assert.ok(typed.startsWith(" printf ") && typed.includes(`cd '/work/it'\\''s' && ( { set +xv; } 2>/dev/null; __vyre_env=`) && typed.includes(`unset __vyre_env; echo $A\n); __vyre_rc=$?; `), typed);
+  const typed = tm.calls
+    .find((x) => x[1] === "send-keys" && x.includes("-l") && x.at(-1)!.includes("echo $A"))!
+    .at(-1)!;
+  assert.ok(
+    typed.startsWith(" printf ") &&
+      typed.includes(`cd '/work/it'\\''s' && ( { set +xv; } 2>/dev/null; __vyre_env=`) &&
+      typed.includes(`unset __vyre_env; echo $A\n); __vyre_rc=$?; `),
+    typed,
+  );
   // W6: a value is never typed and never in a program's arguments; it went in on load-buffer's standard input, and the buffer is gone after the command
-  assert.equal(tm.calls.some((x) => x.some((a) => a.includes("touch /tmp/pwned") || a.includes("plain"))), false, JSON.stringify(tm.calls));
-  assert.ok(tm.calls.some((x) => x[1] === "load-buffer" && x.at(-1) === "-"), "the values went in through load-buffer's standard input");
+  assert.equal(
+    tm.calls.some((x) => x.some((a) => a.includes("touch /tmp/pwned") || a.includes("plain"))),
+    false,
+    JSON.stringify(tm.calls),
+  );
+  assert.ok(
+    tm.calls.some((x) => x[1] === "load-buffer" && x.at(-1) === "-"),
+    "the values went in through load-buffer's standard input",
+  );
   assert.equal(tm.buffers.size, 0, "and the buffer is deleted");
   await assert.rejects(() => host.run("trm_a1", { command: "ls", env: { "A B": "x" }, timeoutMs: 5000 }), /not a name/);
-  await assert.rejects(() => host.run("trm_a1", { command: "ls", env: { "A;rm": "x" }, timeoutMs: 5000 }), /not a name/);
+  await assert.rejects(
+    () => host.run("trm_a1", { command: "ls", env: { "A;rm": "x" }, timeoutMs: 5000 }),
+    /not a name/,
+  );
 });
 
 test("run: output that merely looks like a marker is not one, and a command whose output has no newline still ends cleanly", async () => {
-  const { host } = rig({ scripts: {
-    spoof: { out: "__VYRE_END_000000000000__:0\n__VYRE_BEG_000000000000__\nstill output", code: 3 },
-    nonl: { out: "abc", code: 0 },
-  } });
+  const { host } = rig({
+    scripts: {
+      spoof: { out: "__VYRE_END_000000000000__:0\n__VYRE_BEG_000000000000__\nstill output", code: 3 },
+      nonl: { out: "abc", code: 0 },
+    },
+  });
   await open(host);
   const a = await host.run("trm_a1", { command: "spoof", env: {}, timeoutMs: 5000 });
   assert.equal(a.exitCode, 3);
@@ -119,9 +188,15 @@ test("run: output that merely looks like a marker is not one, and a command whos
 test("run: a command that does not finish is interrupted at the deadline and reported as a timeout; the session is usable afterwards", async () => {
   const { tm, host, clock } = rig({ scripts: { "sleep 999": { hang: true }, ls: { out: "a", code: 0 } } });
   await open(host);
-  await assert.rejects(() => host.run("trm_a1", { command: "sleep 999", env: {}, timeoutMs: 1000 }), (e: unknown) => (e as { code?: string }).code === "timeout");
+  await assert.rejects(
+    () => host.run("trm_a1", { command: "sleep 999", env: {}, timeoutMs: 1000 }),
+    (e: unknown) => (e as { code?: string }).code === "timeout",
+  );
   assert.ok(clock.t >= 1000 && clock.t < 1200, `waited about the deadline (${clock.t} ms)`);
-  assert.ok(tm.calls.some((x) => x[1] === "send-keys" && x.at(-1) === "C-c"), "Ctrl-C was sent");
+  assert.ok(
+    tm.calls.some((x) => x[1] === "send-keys" && x.at(-1) === "C-c"),
+    "Ctrl-C was sent",
+  );
   assert.equal(tm.sessions.get("vyre-trm_a1")!.hung, false);
   assert.equal((await host.run("trm_a1", { command: "ls", env: {}, timeoutMs: 1000 })).output, "a");
 });
@@ -175,11 +250,25 @@ test("close kills the tmux session; a session that is already gone is closed; a 
 
 test("health: tmux missing, or present with the number of Vyre sessions in it", async () => {
   const missing = rig({ installed: false });
-  assert.deepEqual(await missing.host.health(), { ok: false, detail: "tmux is not installed on this host", sessions: 0 });
+  assert.deepEqual(await missing.host.health(), {
+    ok: false,
+    detail: "tmux is not installed on this host",
+    sessions: 0,
+  });
   const { tm, host } = rig({ version: "tmux 3.5a" });
   await open(host, "trm_a1");
   await open(host, "trm_a2");
-  tm.sessions.set("someone-elses", { name: "someone-elses", cols: 1, rows: 1, cwd: "/", lines: [], typed: "", hung: false, env: {}, opts: new Map() });
+  tm.sessions.set("someone-elses", {
+    name: "someone-elses",
+    cols: 1,
+    rows: 1,
+    cwd: "/",
+    lines: [],
+    typed: "",
+    hung: false,
+    env: {},
+    opts: new Map(),
+  });
   assert.deepEqual(await host.health(), { ok: true, detail: "tmux 3.5a", sessions: 2 });
 });
 
@@ -238,24 +327,40 @@ test("the module end to end on tmux: an agent's command, the person's typing, th
   assert.equal((await h["terminal.health"]!(hn.ctx, {})).state, "healthy");
   await h["terminal.close"]!(hn.ctx, { terminalId: r.terminalId });
   assert.equal(tm.sessions.size, 0);
-  assert.equal(codeOf(await h["terminal.read"]!(hn.ctx, { terminalId: r.terminalId }).catch((e: unknown) => e)), "validation.not_found");
+  assert.equal(
+    codeOf(await h["terminal.read"]!(hn.ctx, { terminalId: r.terminalId }).catch((e: unknown) => e)),
+    "validation.not_found",
+  );
 });
 
 test("stream: a viewer that has stopped gets nothing more, even when its tmux client still delivers lines it had already written", async () => {
   // a real `tmux -C attach` is ended asynchronously: lines already in its pipe arrive after stop() returned
   const lines = new Map<string, (line: string) => void>();
-  const host = createTmuxHost({ exec: fakeTmux().exec, control: (session, onLine) => { lines.set(session, onLine); return () => undefined; }, pollMs: 50 });
+  const host = createTmuxHost({
+    exec: fakeTmux().exec,
+    control: (session, onLine) => {
+      lines.set(session, onLine);
+      return () => undefined;
+    },
+    pollMs: 50,
+  });
   const got: string[] = [];
   const stop = host.stream!("trm_a1", (f) => got.push(f));
   const push = lines.get("vyre-trm_a1")!;
   push("%output %1 first\\015\\012");
   stop();
   push("%output %1 late\\015\\012");
-  assert.deepEqual(got.map((f) => f.trim()), ["first"], "the line that arrived after stop() never reaches the viewer");
+  assert.deepEqual(
+    got.map((f) => f.trim()),
+    ["first"],
+    "the line that arrived after stop() never reaches the viewer",
+  );
 });
 
 test("review finding 3: a run with values goes only to a tab at its prompt, never into one another run is in, removes values buffers an earlier daemon left, and names its own unguessably", async () => {
-  const { tm, host } = rig({ scripts: { "echo $A": (_c, env) => ({ out: `A=${env["A"]}`, code: 0 }), "sleep 999": { hang: true } } });
+  const { tm, host } = rig({
+    scripts: { "echo $A": (_c, env) => ({ out: `A=${env["A"]}`, code: 0 }), "sleep 999": { hang: true } },
+  });
   await open(host);
   // left by a daemon that died between load and delete
   tm.buffers.set("vyre-env-0-0000000000000000", "export A='left'\n");
@@ -266,9 +371,16 @@ test("review finding 3: a run with values goes only to a tab at its prompt, neve
   assert.match(loaded[3]!, /^vyre-env-0-[0-9a-f]{32}$/, "a name nobody can guess, with this daemon's mark");
   // a tab running something: refused before anything is loaded or typed
   const before = tm.calls.length;
-  tm.sessions.get("vyre-trm_a1")!.hung = true;   // a person left a program running in the tab
-  await assert.rejects(() => host.run("trm_a1", { command: "echo $A", env: { A: "x-value" }, timeoutMs: 5000 }), /still running something/);
-  assert.equal(tm.calls.slice(before).some((x) => x[1] === "load-buffer"), false, "no values were loaded for a busy tab");
+  tm.sessions.get("vyre-trm_a1")!.hung = true; // a person left a program running in the tab
+  await assert.rejects(
+    () => host.run("trm_a1", { command: "echo $A", env: { A: "x-value" }, timeoutMs: 5000 }),
+    /still running something/,
+  );
+  assert.equal(
+    tm.calls.slice(before).some((x) => x[1] === "load-buffer"),
+    false,
+    "no values were loaded for a busy tab",
+  );
 });
 
 test("review finding 3b: a leftover values buffer of this daemon is removed when a session opens and at the start of every run, values or not; another daemon's is left alone", async () => {
@@ -276,8 +388,16 @@ test("review finding 3b: a leftover values buffer of this daemon is removed when
   tm.buffers.set("vyre-env-0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "export A='left by a crash'\n");
   tm.buffers.set("vyre-env-other-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "export B='another daemon, mid-run'\n");
   await open(host);
-  assert.deepEqual([...tm.buffers.keys()], ["vyre-env-other-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"], "opening a session swept this daemon's leftover, not the other daemon's");
+  assert.deepEqual(
+    [...tm.buffers.keys()],
+    ["vyre-env-other-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+    "opening a session swept this daemon's leftover, not the other daemon's",
+  );
   tm.buffers.set("vyre-env-0-cccccccccccccccccccccccccccccccc", "export A='left again'\n");
   await host.run("trm_a1", { command: "ls", env: {}, timeoutMs: 5000 });
-  assert.deepEqual([...tm.buffers.keys()], ["vyre-env-other-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"], "a run without values sweeps too");
+  assert.deepEqual(
+    [...tm.buffers.keys()],
+    ["vyre-env-other-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+    "a run without values sweeps too",
+  );
 });

@@ -2,4 +2,6 @@
 import test from "node:test";
 import { projectsShellWalk } from "./projects-shell-kit.test.ts";
 
-test("Projects shell as a member, wide: sidebar group, project tab, header and tabs", async (t) => { await projectsShellWalk(t, "member", "wide"); });
+test("Projects shell as a member, wide: sidebar group, project tab, header and tabs", async (t) => {
+  await projectsShellWalk(t, "member", "wide");
+});

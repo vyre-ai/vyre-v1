@@ -6,7 +6,18 @@
 // code against a fake imapflow. Reads use imapflow's default BODY.PEEK fetch and a read-only folder lock, so the person's unread mail stays unread.
 import { fail } from "../../host/src/routes/errors.ts";
 import type { Handler } from "../../host/src/invoke.ts";
-import { connect, draft, draftsDiscard, draftsList, ingest, messageErase, send, sendAs, sendPreview, syncNow } from "./handlers/index.ts";
+import {
+  connect,
+  draft,
+  draftsDiscard,
+  draftsList,
+  ingest,
+  messageErase,
+  send,
+  sendAs,
+  sendPreview,
+  syncNow,
+} from "./handlers/index.ts";
 import { extraHandlers } from "./handlers/extra/index.ts";
 import { setDefaultImapSession } from "./handlers/ingest.ts";
 import { setMailLinksHost, unsubscribe } from "./handlers/unsubscribe.ts";
@@ -31,15 +42,35 @@ export const handlers: Record<string, Handler> = {
 };
 
 /** A person's mailbox connections end: nothing more syncs or files, the IMAP settings go, and mail already filed to records stays. Answers how many ended. A second run changes nothing. */
-function revokeOwned(ctx: { now(): number; db: { all(sql: string, ...a: unknown[]): unknown[]; run(sql: string, ...a: unknown[]): unknown } }, person: string): number {
+function revokeOwned(
+  ctx: {
+    now(): number;
+    db: { all(sql: string, ...a: unknown[]): unknown[]; run(sql: string, ...a: unknown[]): unknown };
+  },
+  person: string,
+): number {
   try {
-    const live = (ctx.db.all(`SELECT id, state FROM mail_mailbox WHERE "ownerId" = ? AND deleted_at IS NULL`, person) as { id: string; state: string }[]).filter((r) => r.state !== "disconnected");
+    const live = (
+      ctx.db.all(`SELECT id, state FROM mail_mailbox WHERE "ownerId" = ? AND deleted_at IS NULL`, person) as {
+        id: string;
+        state: string;
+      }[]
+    ).filter((r) => r.state !== "disconnected");
     for (const { id } of live) {
       ctx.db.run(`DELETE FROM mail_imap WHERE "mailboxId" = ?`, id);
-      ctx.db.run(`UPDATE mail_mailbox SET state = ?, paused = ?, "connectionId" = ?, updated_at = ? WHERE id = ?`, "disconnected", 1, null, ctx.now(), id);
+      ctx.db.run(
+        `UPDATE mail_mailbox SET state = ?, paused = ?, "connectionId" = ?, updated_at = ? WHERE id = ?`,
+        "disconnected",
+        1,
+        null,
+        ctx.now(),
+        id,
+      );
     }
     return live.length;
-  } catch { return 0; }   // a Space that never used mail has no tables yet
+  } catch {
+    return 0;
+  } // a Space that never used mail has no tables yet
 }
 
 /** Leaving a Space ends a person's connections as the removal wizard does: spaces.leave has no wizard, only this event, and a person who left must not go on filing mail into it. */
@@ -47,7 +78,8 @@ const consumersAll = {
   ...consumers,
   "mail.person_left": {
     on: ["member.removed"],
-    run: (ctx: Parameters<typeof revokeOwned>[0], event: { payload: { personId?: unknown } }): number => (typeof event.payload.personId === "string" ? revokeOwned(ctx, event.payload.personId) : 0),
+    run: (ctx: Parameters<typeof revokeOwned>[0], event: { payload: { personId?: unknown } }): number =>
+      typeof event.payload.personId === "string" ? revokeOwned(ctx, event.payload.personId) : 0,
   },
 };
 
@@ -56,7 +88,10 @@ export { codecs, inline, consumersAll as consumers };
 
 // ---- live IMAP over imapflow
 
-export interface FlowAddress { name?: string; address?: string }
+export interface FlowAddress {
+  name?: string;
+  address?: string;
+}
 export interface FlowFetched {
   uid: number;
   envelope?: { messageId?: string; subject?: string; from?: FlowAddress[]; to?: FlowAddress[]; cc?: FlowAddress[] };
@@ -76,7 +111,13 @@ export interface FlowClient {
   on(event: "exists", cb: () => void): unknown;
   off(event: "exists", cb: () => void): unknown;
 }
-export type FlowCtor = new (opts: { host: string; port: number; secure: boolean; auth: { user: string; pass: string }; logger: false }) => FlowClient;
+export type FlowCtor = new (opts: {
+  host: string;
+  port: number;
+  secure: boolean;
+  auth: { user: string; pass: string };
+  logger: false;
+}) => FlowClient;
 export interface ParsedMail {
   text?: string;
   html?: string | false;
@@ -99,7 +140,10 @@ export function setImapSecretResolver(fn: LiveImapDeps["secret"] | null): void {
 
 /** The default secret source: the resolver the host registered, else a refusal the owner sees as a failed sign-in. */
 export async function vaultSecret(handle: string, ctx: MailCtx): Promise<string> {
-  if (!secretResolver) throw fail("provider.auth_failed", ctx.trace.traceId, { message: "The vault did not release the mailbox password." });
+  if (!secretResolver)
+    throw fail("provider.auth_failed", ctx.trace.traceId, {
+      message: "The vault did not release the mailbox password.",
+    });
   return secretResolver(handle, ctx, askerFor(ctx, handle));
 }
 
@@ -110,12 +154,20 @@ export async function vaultSecret(handle: string, ctx: MailCtx): Promise<string>
 function askerFor(ctx: MailCtx, handle: string): string | undefined {
   if (ctx.principal.kind === "person") return ctx.principal.id;
   try {
-    const imap = ctx.db.all(`SELECT "mailboxId" FROM mail_imap WHERE "passwordHandle" = ?`, handle) as Array<Record<string, unknown>>;
+    const imap = ctx.db.all(`SELECT "mailboxId" FROM mail_imap WHERE "passwordHandle" = ?`, handle) as Array<
+      Record<string, unknown>
+    >;
     for (const r of imap) {
-      const box = (ctx.db.all(`SELECT "ownerId" FROM mail_mailbox WHERE id = ? AND "deleted_at" IS NULL`, r["mailboxId"]) as Array<Record<string, unknown>>)[0];
+      const box = (
+        ctx.db.all(`SELECT "ownerId" FROM mail_mailbox WHERE id = ? AND "deleted_at" IS NULL`, r["mailboxId"]) as Array<
+          Record<string, unknown>
+        >
+      )[0];
       if (typeof box?.["ownerId"] === "string") return box["ownerId"];
     }
-  } catch { /* no such table yet: no asker */ }
+  } catch {
+    /* no such table yet: no asker */
+  }
   return undefined;
 }
 
@@ -132,8 +184,10 @@ const defaultDeps: LiveImapDeps = {
 };
 
 const INBOX = "INBOX";
-const toParty = (a: FlowAddress): Party | null => (a.address ? (a.name ? { address: a.address, name: a.name } : { address: a.address }) : null);
-const parties = (list: FlowAddress[] | undefined): Party[] => (list ?? []).map(toParty).filter((p): p is Party => p !== null);
+const toParty = (a: FlowAddress): Party | null =>
+  a.address ? (a.name ? { address: a.address, name: a.name } : { address: a.address }) : null;
+const parties = (list: FlowAddress[] | undefined): Party[] =>
+  (list ?? []).map(toParty).filter((p): p is Party => p !== null);
 
 /** IDLE until the server reports new mail or `ms` pass. Any later command ends the IDLE, so the wait never outlives the call. */
 function waitForExists(c: FlowClient, ms: number): Promise<boolean> {
@@ -171,7 +225,11 @@ export function createLiveImapFactory(deps: LiveImapDeps = defaultDeps): ImapSes
         const epoch = c.mailbox ? Number(c.mailbox.uidValidity) : 0;
         if (folder === INBOX) uidValidity = epoch;
         // "N:*" always yields the newest message even when it is older than N: the uid check below drops it.
-        for await (const m of c.fetch(`${after + 1}:*`, { uid: true, envelope: true, internalDate: true, source: true }, { uid: true })) {
+        for await (const m of c.fetch(
+          `${after + 1}:*`,
+          { uid: true, envelope: true, internalDate: true, source: true },
+          { uid: true },
+        )) {
           if (m.uid <= after) continue;
           const parsed = m.source ? await deps.parseMail(m.source) : {};
           const env = m.envelope ?? {};
@@ -182,8 +240,14 @@ export function createLiveImapFactory(deps: LiveImapDeps = defaultDeps): ImapSes
           if (parsed.inReplyTo) headers["in-reply-to"] = parsed.inReplyTo;
           if (refs) headers.references = refs;
           const msg: ImapMessage = {
-            folder, uid: m.uid, providerId, rfcMessageId: env.messageId || `<${providerId}@${cfg.host}>`,
-            direction: folder === INBOX ? "in" : "out", from, to: parties(env.to), subject: env.subject ?? "",
+            folder,
+            uid: m.uid,
+            providerId,
+            rfcMessageId: env.messageId || `<${providerId}@${cfg.host}>`,
+            direction: folder === INBOX ? "in" : "out",
+            from,
+            to: parties(env.to),
+            subject: env.subject ?? "",
             receivedAt: m.internalDate ? new Date(m.internalDate).getTime() : ctx.now(),
           };
           const cc = parties(env.cc);
@@ -201,9 +265,15 @@ export function createLiveImapFactory(deps: LiveImapDeps = defaultDeps): ImapSes
 
     return {
       async connect() {
-        const pass = await deps.secret(cfg.passwordHandle, ctx);   // the vault answers first: a refusal never loads the library
+        const pass = await deps.secret(cfg.passwordHandle, ctx); // the vault answers first: a refusal never loads the library
         const Flow = await deps.loadImapflow();
-        client = new Flow({ host: cfg.host, port: cfg.port, secure: cfg.secure, auth: { user: cfg.username, pass }, logger: false });
+        client = new Flow({
+          host: cfg.host,
+          port: cfg.port,
+          secure: cfg.secure,
+          auth: { user: cfg.username, pass },
+          logger: false,
+        });
         await client.connect();
         const lock = await client.getMailboxLock(INBOX, { readOnly: true });
         try {
@@ -232,7 +302,7 @@ export function createLiveImapFactory(deps: LiveImapDeps = defaultDeps): ImapSes
           try {
             woke = await waitForExists(c, deadline - Date.now());
           } finally {
-            lock.release();   // the catch-up fetch takes its own lock
+            lock.release(); // the catch-up fetch takes its own lock
           }
           if (!woke) return;
           await onExists();
@@ -242,7 +312,11 @@ export function createLiveImapFactory(deps: LiveImapDeps = defaultDeps): ImapSes
         if (!client) return;
         const c = client;
         client = null;
-        try { await c.logout(); } catch { c.close?.(); }
+        try {
+          await c.logout();
+        } catch {
+          c.close?.();
+        }
       },
     };
   };
@@ -252,20 +326,48 @@ export function createLiveImapFactory(deps: LiveImapDeps = defaultDeps): ImapSes
 setDefaultImapSession(createLiveImapFactory());
 
 /** Where the host registers the IMAP secret resolver at boot (ruling 31): the loader reads this export. */
-export const hostSeams: import("../../host/src/seams/index.ts").SeamSetters = { setImapSecretResolver, setMailLinksHost };
+export const hostSeams: import("../../host/src/seams/index.ts").SeamSetters = {
+  setImapSecretResolver,
+  setMailLinksHost,
+};
 
 /**
  * Host calls for the removal wizard (members.owned, host/src/seams/people.ts): what a person owns here and what happens to it (P-L7_21). The host runs them with this module's ctx, so no other module
  * reads these tables. `owned_by` answers { <kind>: { count, sample, ids } }; `reassign_owned` applies one wizard action to one kind and answers how many things it touched.
  */
 type OwnedRow = Record<string, unknown>;
-const ownedRows = (ctx: { db: { all(sql: string, ...a: unknown[]): unknown[] } }, sql: string, ...a: unknown[]): OwnedRow[] => { try { return ctx.db.all(sql, ...a) as OwnedRow[]; } catch { return []; } };
-const ownedKept = (r: OwnedRow[], type: string, title: string) => ({ count: r.length, sample: r.slice(0, 5).map((x) => ({ type, id: String(x["id"]), title: String(x[title] ?? x["id"]) })), ids: r.slice(0, 500).map((x) => String(x["id"])) });
+const ownedRows = (
+  ctx: { db: { all(sql: string, ...a: unknown[]): unknown[] } },
+  sql: string,
+  ...a: unknown[]
+): OwnedRow[] => {
+  try {
+    return ctx.db.all(sql, ...a) as OwnedRow[];
+  } catch {
+    return [];
+  }
+};
+const ownedKept = (r: OwnedRow[], type: string, title: string) => ({
+  count: r.length,
+  sample: r.slice(0, 5).map((x) => ({ type, id: String(x["id"]), title: String(x[title] ?? x["id"]) })),
+  ids: r.slice(0, 500).map((x) => String(x["id"])),
+});
 export const hostCalls = {
   "mail.owned_by": (ctx: { db: { all(sql: string, ...a: unknown[]): unknown[] } }, i: { person: string }) => ({
-    mailbox_connections: ownedKept(ownedRows(ctx, `SELECT "id", COALESCE("title", "address") AS "title" FROM mail_mailbox WHERE "ownerId" = ? AND "deleted_at" IS NULL AND "state" <> 'disconnected'`, i.person), "mailbox", "title"),
+    mailbox_connections: ownedKept(
+      ownedRows(
+        ctx,
+        `SELECT "id", COALESCE("title", "address") AS "title" FROM mail_mailbox WHERE "ownerId" = ? AND "deleted_at" IS NULL AND "state" <> 'disconnected'`,
+        i.person,
+      ),
+      "mailbox",
+      "title",
+    ),
   }),
-  "mail.reassign_owned": (ctx: Parameters<typeof revokeOwned>[0], i: { person: string; kind: string; action: string }): number => {
-    return i.kind === "mailbox_connections" && i.action === "revoke" ? revokeOwned(ctx, i.person) : 0;   // the connection ends; mail already filed to records stays
+  "mail.reassign_owned": (
+    ctx: Parameters<typeof revokeOwned>[0],
+    i: { person: string; kind: string; action: string },
+  ): number => {
+    return i.kind === "mailbox_connections" && i.action === "revoke" ? revokeOwned(ctx, i.person) : 0; // the connection ends; mail already filed to records stays
   },
 };

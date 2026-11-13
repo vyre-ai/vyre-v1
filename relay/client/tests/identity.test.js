@@ -15,14 +15,29 @@ const sha = async (/** @type {Uint8Array} */ b) => new Uint8Array(await subtle.d
 async function identity() {
   const kp = /** @type {CryptoKeyPair} */ (await subtle.generateKey("Ed25519", false, ["sign", "verify"]));
   const publicKey = new Uint8Array(await subtle.exportKey("raw", kp.publicKey));
-  return { publicKey, sign: async (/** @type {Uint8Array} */ m) => new Uint8Array(await subtle.sign("Ed25519", kp.privateKey, m)), verify: (/** @type {Uint8Array} */ sig, /** @type {Uint8Array} */ m) => subtle.verify("Ed25519", kp.publicKey, sig, m) };
+  return {
+    publicKey,
+    sign: async (/** @type {Uint8Array} */ m) => new Uint8Array(await subtle.sign("Ed25519", kp.privateKey, m)),
+    verify: (/** @type {Uint8Array} */ sig, /** @type {Uint8Array} */ m) =>
+      subtle.verify("Ed25519", kp.publicKey, sig, m),
+  };
 }
 
 test("install code: 179 signed bytes the installer can check, good for 30 minutes", async () => {
   const id = await identity();
-  const secret = new Uint8Array(16).fill(1), fingerprint = new Uint8Array(16).fill(2), nonce = new Uint8Array(16).fill(3);
+  const secret = new Uint8Array(16).fill(1),
+    fingerprint = new Uint8Array(16).fill(2),
+    nonce = new Uint8Array(16).fill(3);
   const now = 1_760_000_000_000;
-  const { code, exp, person } = await mintPairCode({ person: PERSON, publicKey: base64url(id.publicKey), sign: id.sign, secret, fingerprint, now: () => now, random: n => nonce.slice(0, n) });
+  const { code, exp, person } = await mintPairCode({
+    person: PERSON,
+    publicKey: base64url(id.publicKey),
+    sign: id.sign,
+    secret,
+    fingerprint,
+    now: () => now,
+    random: (n) => nonce.slice(0, n),
+  });
   assert.equal(person, PERSON);
   assert.equal(exp, Math.floor(now / 1000) + 1800);
   assert.equal(PAIR_TTL_MS, 30 * 60 * 1000);
@@ -36,7 +51,8 @@ test("install code: 179 signed bytes the installer can check, good for 30 minute
   assert.deepEqual(raw.slice(53, 69), secret);
   assert.deepEqual(raw.slice(69, 85), fingerprint);
   assert.equal(fromUtf8(raw.slice(85, 85 + PERSON.length)), PERSON);
-  const body = raw.slice(0, raw.length - 64), sig = raw.slice(raw.length - 64);
+  const body = raw.slice(0, raw.length - 64),
+    sig = raw.slice(raw.length - 64);
   const signed = concat(utf8(PAIR_TAG), body);
   assert.equal(await id.verify(sig, signed), true, "the identity key signed the tagged bytes");
   assert.equal(await id.verify(sig, body), false, "the tag is part of what is signed");
@@ -44,8 +60,21 @@ test("install code: 179 signed bytes the installer can check, good for 30 minute
 
 test("install code: refuses input the installer would refuse, and prints the one install line", async () => {
   const id = await identity();
-  const good = { person: PERSON, publicKey: base64url(id.publicKey), sign: id.sign, secret: new Uint8Array(16), fingerprint: new Uint8Array(16) };
-  const code = async (/** @type {any} */ o) => { try { await mintPairCode({ ...good, ...o }); } catch (e) { return /** @type {any} */ (e).code; } return "none"; };
+  const good = {
+    person: PERSON,
+    publicKey: base64url(id.publicKey),
+    sign: id.sign,
+    secret: new Uint8Array(16),
+    fingerprint: new Uint8Array(16),
+  };
+  const code = async (/** @type {any} */ o) => {
+    try {
+      await mintPairCode({ ...good, ...o });
+    } catch (e) {
+      return /** @type {any} */ (e).code;
+    }
+    return "none";
+  };
   assert.equal(await code({}), "none");
   assert.equal(await code({ person: "alex" }), "bad_input");
   assert.equal(await code({ person: "per_" + "A".repeat(26) }), "bad_input");
@@ -53,7 +82,11 @@ test("install code: refuses input the installer would refuse, and prints the one
   assert.equal(await code({ secret: new Uint8Array(15) }), "bad_input");
   assert.equal(await code({ fingerprint: new Uint8Array(17) }), "bad_input");
   assert.equal(await code({ sign: async () => new Uint8Array(63) }), "bad_input");
-  assert.equal(installCommand("CODE"), "curl -fsSL vyre.run/i | VYRE_CODE=CODE sh", "the code is an environment variable, never an argument");
+  assert.equal(
+    installCommand("CODE"),
+    "curl -fsSL vyre.run/i | VYRE_CODE=CODE sh",
+    "the code is an environment variable, never an argument",
+  );
   const short = await mintPairCode({ ...good, ttlMs: 60_000, now: () => 5000 });
   assert.equal(short.exp, 5 + 60);
 });
@@ -62,7 +95,18 @@ test("chain hello: the chain key signs this device, this server, this identity a
   const id = await identity();
   const devicePub = new Uint8Array(32).fill(4);
   const signed = /** @type {Uint8Array[]} */ ([]);
-  const base = { sha256: sha, devicePub, box: "BOXKEY", identity: "per_x", entry: "ent_1", now: 1_760_000_000_000, sign: async (/** @type {Uint8Array} */ m) => { signed.push(m); return id.sign(m); } };
+  const base = {
+    sha256: sha,
+    devicePub,
+    box: "BOXKEY",
+    identity: "per_x",
+    entry: "ent_1",
+    now: 1_760_000_000_000,
+    sign: async (/** @type {Uint8Array} */ m) => {
+      signed.push(m);
+      return id.sign(m);
+    },
+  };
   const h = await chainHello(base);
   assert.equal(h.channel, base32(await sha(devicePub)).slice(0, 16), "the relay's id of this device key");
   assert.equal(h.ts, base.now);

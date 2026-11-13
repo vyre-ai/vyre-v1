@@ -35,15 +35,25 @@ export function setDefaultDns(lookup: DnsLookup | null): void {
 
 /** node:dns with a short timeout, loaded on first use. A TXT answer split into 255-byte chunks is joined. */
 export function nodeDns(): DnsLookup {
-  let resolver: Promise<{ resolveTxt(n: string): Promise<string[][]>; resolveCname(n: string): Promise<string[]>; resolveMx(n: string): Promise<{ exchange: string }[]> }> | null = null;
+  let resolver: Promise<{
+    resolveTxt(n: string): Promise<string[][]>;
+    resolveCname(n: string): Promise<string[]>;
+    resolveMx(n: string): Promise<{ exchange: string }[]>;
+  }> | null = null;
   const load = (): NonNullable<typeof resolver> => {
     resolver ??= import("node:dns/promises").then((m) => new m.Resolver({ timeout: 3000, tries: 2 }));
     return resolver;
   };
   return {
-    async txt(name) { return (await (await load()).resolveTxt(name)).map((chunks) => chunks.join("")); },
-    async cname(name) { return (await load()).resolveCname(name); },
-    async mx(name) { return (await (await load()).resolveMx(name)).map((m) => m.exchange); },
+    async txt(name) {
+      return (await (await load()).resolveTxt(name)).map((chunks) => chunks.join(""));
+    },
+    async cname(name) {
+      return (await load()).resolveCname(name);
+    },
+    async mx(name) {
+      return (await (await load()).resolveMx(name)).map((m) => m.exchange);
+    },
   };
 }
 
@@ -55,7 +65,8 @@ export function dnsFor(ctx: MailCtx): DnsLookup {
 }
 
 const ABSENT = new Set(["ENODATA", "ENOTFOUND", "NXDOMAIN", "ENOENT"]);
-const isAbsent = (e: unknown): boolean => typeof e === "object" && e !== null && ABSENT.has(String((e as { code?: unknown }).code));
+const isAbsent = (e: unknown): boolean =>
+  typeof e === "object" && e !== null && ABSENT.has(String((e as { code?: unknown }).code));
 
 type Found = { kind: "values"; values: string[] } | { kind: "absent" } | { kind: "error" };
 
@@ -79,7 +90,7 @@ const squash = (v: string): string => v.replace(/^"+|"+$/g, "").replace(/\s+/g, 
 const host = (v: string): string => v.trim().toLowerCase().replace(/\.$/, "");
 
 function settle(found: Found, matches: (values: string[]) => boolean, previous: DnsState): DnsState {
-  if (found.kind === "error") return previous;                        // a lookup that failed says nothing new
+  if (found.kind === "error") return previous; // a lookup that failed says nothing new
   if (found.kind === "absent") return previous === "pass" ? "fail" : "pending";
   return matches(found.values) ? "pass" : "fail";
 }
@@ -88,7 +99,10 @@ function settle(found: Found, matches: (values: string[]) => boolean, previous: 
 function spfMatches(published: string[], expected: string): boolean {
   const have = published.filter((v) => /^\s*v=spf1\b/i.test(v));
   if (have.length === 0) return false;
-  const wanted = expected.toLowerCase().split(/\s+/).filter((tok) => tok.startsWith("include:") || tok.startsWith("redirect="));
+  const wanted = expected
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((tok) => tok.startsWith("include:") || tok.startsWith("redirect="));
   if (wanted.length === 0) return have.some((v) => squash(v).toLowerCase() === squash(expected).toLowerCase());
   return have.some((v) => {
     const tokens = new Set(v.toLowerCase().split(/\s+/));
@@ -111,7 +125,8 @@ export async function checkRecord(domain: string, rec: PublishedRecord, dns: Dns
   return settle(found, (vs) => vs.some((v) => squash(v) === squash(rec.value)), rec.state);
 }
 
-const dmarcPublished = (values: string[]): boolean => values.some((v) => /^\s*v=DMARC1\s*;/i.test(v) && /;\s*p=(none|quarantine|reject)\b/i.test(v));
+const dmarcPublished = (values: string[]): boolean =>
+  values.some((v) => /^\s*v=DMARC1\s*;/i.test(v) && /;\s*p=(none|quarantine|reject)\b/i.test(v));
 
 /** The domain's own DMARC policy: a v=DMARC1 record with a p= tag at _dmarc.<domain>. */
 export async function checkDmarc(domain: string, dns: DnsLookup, previous: DnsState): Promise<DnsState> {

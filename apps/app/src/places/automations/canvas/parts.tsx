@@ -15,10 +15,32 @@ export const webOnly = (o: Record<string, unknown>): Record<string, unknown> => 
 export const pointer = (web ? { cursor: "pointer" } : {}) as ViewStyle;
 export const shadow = (v: string): ViewStyle => (web ? ({ boxShadow: v } as ViewStyle) : {});
 
-export interface KeyEventLike { key?: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean; preventDefault?: () => void; stopPropagation?: () => void }
+export interface KeyEventLike {
+  key?: string;
+  metaKey?: boolean;
+  ctrlKey?: boolean;
+  shiftKey?: boolean;
+  altKey?: boolean;
+  preventDefault?: () => void;
+  stopPropagation?: () => void;
+}
 
 /** A 26 px icon button: hover paints the quiet hover token, label is the accessible name and the tooltip. */
-export function IconButton({ icon, label, onPress, on = false, size = 26, testID }: { icon: GlyphName | IconKey; label: string; onPress?: () => void; on?: boolean; size?: number; testID?: string }): ReactElement {
+export function IconButton({
+  icon,
+  label,
+  onPress,
+  on = false,
+  size = 26,
+  testID,
+}: {
+  icon: GlyphName | IconKey;
+  label: string;
+  onPress?: () => void;
+  on?: boolean;
+  size?: number;
+  testID?: string;
+}): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
@@ -37,7 +59,25 @@ export function IconButton({ icon, label, onPress, on = false, size = 26, testID
 }
 
 /** A text button in the prototype's header style: quiet by default, accent when primary. */
-export function TextButton({ label, icon, onPress, primary = false, disabled = false, testID, trailing, bare = false }: { label: string; /** Icon only (the label stays as its accessible name): a narrow window keeps the room for the title. */ bare?: boolean; icon?: GlyphName | IconKey; onPress?: () => void; primary?: boolean; disabled?: boolean; testID?: string; trailing?: ReactNode }): ReactElement {
+export function TextButton({
+  label,
+  icon,
+  onPress,
+  primary = false,
+  disabled = false,
+  testID,
+  trailing,
+  bare = false,
+}: {
+  label: string;
+  /** Icon only (the label stays as its accessible name): a narrow window keeps the room for the title. */ bare?: boolean;
+  icon?: GlyphName | IconKey;
+  onPress?: () => void;
+  primary?: boolean;
+  disabled?: boolean;
+  testID?: string;
+  trailing?: ReactNode;
+}): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
@@ -49,27 +89,59 @@ export function TextButton({ label, icon, onPress, primary = false, disabled = f
       onPress={onPress}
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
-      style={[s.textBtn, primary && s.textBtnPrimary, over && !primary && { backgroundColor: "var(--hover)" }, over && primary && { opacity: 0.9 }, disabled && { opacity: 0.45 }, pointer]}
+      style={[
+        s.textBtn,
+        primary && s.textBtnPrimary,
+        over && !primary && { backgroundColor: "var(--hover)" },
+        over && primary && { opacity: 0.9 },
+        disabled && { opacity: 0.45 },
+        pointer,
+      ]}
     >
       {icon ? <Glyph name={icon} size={14} color={primary ? "var(--accent-ink)" : "var(--ink-2)"} /> : null}
-      {bare && icon ? null : <Text style={[s.textBtnLabel, primary && { color: "var(--accent-ink)" as string }]} numberOfLines={1}>{label}</Text>}
+      {bare && icon ? null : (
+        <Text style={[s.textBtnLabel, primary && { color: "var(--accent-ink)" as string }]} numberOfLines={1}>
+          {label}
+        </Text>
+      )}
       {trailing}
     </Pressable>
   );
 }
 
-export interface SubTab { key: string; label: string; note?: string; tone?: "danger" | "muted" }
+export interface SubTab {
+  key: string;
+  label: string;
+  note?: string;
+  tone?: "danger" | "muted";
+}
 
 /** Underline tabs (the prototype's pane tabs): the active one is ink with a 2 px accent bar under it; left and right arrows move, Home and End jump. */
-export function SubTabs({ tabs, active, onSelect, label }: { tabs: readonly SubTab[]; active: string; onSelect: (key: string) => void; label: string }): ReactElement {
-  const onKey = (key: string) => (e: KeyEventLike): void => {
-    const next = keyNeighbour(tabs.map((t) => t.key), key, e.key ?? "");
-    if (!next) return;
-    e.preventDefault?.();
-    onSelect(next);
-    const doc = (globalThis as { document?: { querySelector(s: string): { focus?: () => void } | null } }).document;
-    setTimeout(() => doc?.querySelector(`[data-testid="subtab-${next}"]`)?.focus?.(), 0);
-  };
+export function SubTabs({
+  tabs,
+  active,
+  onSelect,
+  label,
+}: {
+  tabs: readonly SubTab[];
+  active: string;
+  onSelect: (key: string) => void;
+  label: string;
+}): ReactElement {
+  const onKey =
+    (key: string) =>
+    (e: KeyEventLike): void => {
+      const next = keyNeighbour(
+        tabs.map((t) => t.key),
+        key,
+        e.key ?? "",
+      );
+      if (!next) return;
+      e.preventDefault?.();
+      onSelect(next);
+      const doc = (globalThis as { document?: { querySelector(s: string): { focus?: () => void } | null } }).document;
+      setTimeout(() => doc?.querySelector(`[data-testid="subtab-${next}"]`)?.focus?.(), 0);
+    };
   const items: ReactElement[] = [];
   for (const t of tabs) {
     const on = t.key === active;
@@ -86,7 +158,9 @@ export function SubTabs({ tabs, active, onSelect, label }: { tabs: readonly SubT
         style={[s.tab, on && s.tabOn, pointer]}
       >
         <Text style={[s.tabText, on && { color: "var(--ink)" as string }]}>{t.label}</Text>
-        {t.note ? <Text style={[s.tabNote, t.tone === "danger" && { color: "var(--danger)" as string }]}>{t.note}</Text> : null}
+        {t.note ? (
+          <Text style={[s.tabNote, t.tone === "danger" && { color: "var(--danger)" as string }]}>{t.note}</Text>
+        ) : null}
       </Pressable>,
     );
   }
@@ -98,7 +172,15 @@ export function SubTabs({ tabs, active, onSelect, label }: { tabs: readonly SubT
 }
 
 /** A small count pill; tone danger for failed runs. */
-export function Badge({ n, tone = "muted", testID }: { n: number | string; tone?: "muted" | "danger" | "accent"; testID?: string }): ReactElement {
+export function Badge({
+  n,
+  tone = "muted",
+  testID,
+}: {
+  n: number | string;
+  tone?: "muted" | "danger" | "accent";
+  testID?: string;
+}): ReactElement {
   const bg = tone === "danger" ? "var(--danger)" : tone === "accent" ? "var(--accent)" : "var(--press)";
   const fg = tone === "muted" ? "var(--ink-2)" : "#fff";
   return (
@@ -109,13 +191,38 @@ export function Badge({ n, tone = "muted", testID }: { n: number | string; tone?
 }
 
 /** A dot in a status colour. */
-export function Dot({ tone, size = 7 }: { tone: "ok" | "warn" | "danger" | "muted" | "accent"; size?: number }): ReactElement {
-  const bg = tone === "ok" ? "var(--ok)" : tone === "warn" ? "var(--warn)" : tone === "danger" ? "var(--danger)" : tone === "accent" ? "var(--accent)" : "var(--ink-4)";
+export function Dot({
+  tone,
+  size = 7,
+}: {
+  tone: "ok" | "warn" | "danger" | "muted" | "accent";
+  size?: number;
+}): ReactElement {
+  const bg =
+    tone === "ok"
+      ? "var(--ok)"
+      : tone === "warn"
+        ? "var(--warn)"
+        : tone === "danger"
+          ? "var(--danger)"
+          : tone === "accent"
+            ? "var(--accent)"
+            : "var(--ink-4)";
   return <View aria-hidden style={{ width: size, height: size, borderRadius: size, backgroundColor: bg as string }} />;
 }
 
 /** A person is a round marble, an agent a pixel face on a soft tint: the shared Avatar. */
-export function Face({ name, seedId, kind = "person", size = 18 }: { name: string; seedId?: string | undefined; kind?: string; size?: number }): ReactElement {
+export function Face({
+  name,
+  seedId,
+  kind = "person",
+  size = 18,
+}: {
+  name: string;
+  seedId?: string | undefined;
+  kind?: string;
+  size?: number;
+}): ReactElement {
   return (
     <View aria-hidden style={{ width: size, height: size, flexShrink: 0 }}>
       <Avatar name={name} seedId={seedId} kind={kind === "person" ? "person" : "agent"} size={size} />
@@ -128,11 +235,34 @@ export const s = StyleSheet.create({
   textBtn: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 9, borderRadius: 7 },
   textBtnPrimary: { backgroundColor: "var(--accent)" as string },
   textBtnLabel: { fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string },
-  tabs: { flexDirection: "row", alignItems: "flex-end", gap: 18, paddingHorizontal: 20, height: 38, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
-  tab: { height: 38, flexDirection: "row", alignItems: "center", gap: 6, borderBottomWidth: 2, borderBottomColor: "transparent", marginBottom: -1 },
+  tabs: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 18,
+    paddingHorizontal: 20,
+    height: 38,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+  },
+  tab: {
+    height: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+    marginBottom: -1,
+  },
   tabOn: { borderBottomColor: "var(--ink)" as string },
   tabText: { fontSize: 13, lineHeight: 18, color: "var(--ink-3)" as string },
   tabNote: { fontSize: 12, lineHeight: 16, color: "var(--ink-4)" as string },
-  badge: { minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+  badge: {
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   badgeText: { fontSize: 11, lineHeight: 14, fontWeight: "600" },
 });

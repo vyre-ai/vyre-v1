@@ -15,8 +15,20 @@ export { ACTS, effectiveRule, summaryLine } from "./projections.ts";
 /** Once, on update: holds raised for a placeholder call (example.com, "test", __probe_none__) are dropped and their tasks leave Needs you. */
 export const periodic = {
   /** A held act nobody answered in 7 days, or whose chat or task closed, expires as "Not sent"; at start it also clears what earlier releases left. */
-  "gate.stale_holds": { everyMs: 3_600_000, immediate: true, run: async (ctx: GateCtx) => { await expireStaleHolds(ctx); } },
-  "gate.placeholder_cleanup": { everyMs: 86_400_000, immediate: true, run: async (ctx: GateCtx) => { await dropPlaceholderHolds(ctx); } },
+  "gate.stale_holds": {
+    everyMs: 3_600_000,
+    immediate: true,
+    run: async (ctx: GateCtx) => {
+      await expireStaleHolds(ctx);
+    },
+  },
+  "gate.placeholder_cleanup": {
+    everyMs: 86_400_000,
+    immediate: true,
+    run: async (ctx: GateCtx) => {
+      await dropPlaceholderHolds(ctx);
+    },
+  },
 };
 
 /** Async consumers by name: the events each one reads and what it does with one. */
@@ -24,7 +36,9 @@ export const consumers = {
   /** The Space's gate.* settings, copied here from settings.changed: a module reads only its own tables. */
   "gate.settings_sync": {
     on: ["settings.changed"],
-    async run(ctx: GateCtx, event: { payload: Record<string, unknown> }): Promise<string[]> { return syncPolicy(ctx.db, event.payload) ? [String(event.payload["key"])] : []; },
+    async run(ctx: GateCtx, event: { payload: Record<string, unknown> }): Promise<string[]> {
+      return syncPolicy(ctx.db, event.payload) ? [String(event.payload["key"])] : [];
+    },
   },
   /**
    * The Gate is the one source of truth for who decides a hold. When its task is assigned, delegated or escalated to someone else, the hold's approver follows, and the move is on the log: who moved it, from whom,
@@ -32,7 +46,9 @@ export const consumers = {
    */
   "gate.approver_sync": {
     on: ["task.assigned", "task.delegated", "task.escalated"],
-    async run(ctx: GateCtx, event: { name: string; payload: Record<string, unknown> }): Promise<string[]> { return syncApprover(ctx, event); },
+    async run(ctx: GateCtx, event: { name: string; payload: Record<string, unknown> }): Promise<string[]> {
+      return syncApprover(ctx, event);
+    },
   },
   /** An agent was deleted: what it had held at the Gate is dropped, so nobody can approve an act of an agent that is gone (hole 10). */
   "gate.agent_deleted": {

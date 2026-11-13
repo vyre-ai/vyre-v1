@@ -11,8 +11,20 @@ test("a workspace container is made with the limits capacity.ts hands out, and t
   const want = hostConfigLimits("workspace");
   const c = workspaceContainerConfig("agt_dex", "vyre/agent-workspace:1", { projects: ["prj_a"] }, { runner: true });
   const h = c.HostConfig;
-  assert.deepEqual({ NanoCpus: h.NanoCpus, Memory: h.Memory, MemorySwap: h.MemorySwap, PidsLimit: h.PidsLimit, MemoryReservation: h.MemoryReservation, CpuShares: h.CpuShares }, want);
-  const net = (agent: string, n: string): boolean => n === `vyre-wsnet-${createHash("sha256").update(agent).digest("hex").slice(0, 16)}` && n === workspaceNetworkName(agent);
+  assert.deepEqual(
+    {
+      NanoCpus: h.NanoCpus,
+      Memory: h.Memory,
+      MemorySwap: h.MemorySwap,
+      PidsLimit: h.PidsLimit,
+      MemoryReservation: h.MemoryReservation,
+      CpuShares: h.CpuShares,
+    },
+    want,
+  );
+  const net = (agent: string, n: string): boolean =>
+    n === `vyre-wsnet-${createHash("sha256").update(agent).digest("hex").slice(0, 16)}` &&
+    n === workspaceNetworkName(agent);
   const r = workspaceBody(workspaceName("agt_dex"), c, net);
   assert.ok("body" in r, "why" in r ? r.why : "");
 });

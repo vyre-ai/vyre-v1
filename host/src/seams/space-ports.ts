@@ -4,7 +4,9 @@
 import type { SpaceBlobs, SpaceFiles, SpaceMembers } from "./ports.ts";
 
 /** The part of the database the member list reads. */
-export interface PortDb { all(sql: string, ...args: unknown[]): unknown[] }
+export interface PortDb {
+  all(sql: string, ...args: unknown[]): unknown[];
+}
 
 export interface SpacePortDeps {
   db: PortDb;
@@ -16,7 +18,8 @@ export interface SpacePortDeps {
   putToSlot(url: string, bytes: Uint8Array): Promise<void>;
 }
 
-const obj = (v: unknown): Record<string, unknown> => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+const obj = (v: unknown): Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 const MAX_FILE = 100 * 1024 * 1024;
 
 /**
@@ -27,8 +30,13 @@ export function createMembers(d: Pick<SpacePortDeps, "db" | "active">): SpaceMem
   return {
     async emails() {
       let rows: unknown[];
-      try { rows = d.db.all(`SELECT email, accepted_by AS userId FROM members_invites WHERE state = 'accepted' AND email IS NOT NULL AND accepted_by IS NOT NULL ORDER BY accepted_at ASC`); }
-      catch { return []; }   // the members module has made no invitation yet
+      try {
+        rows = d.db.all(
+          `SELECT email, accepted_by AS userId FROM members_invites WHERE state = 'accepted' AND email IS NOT NULL AND accepted_by IS NOT NULL ORDER BY accepted_at ASC`,
+        );
+      } catch {
+        return [];
+      } // the members module has made no invitation yet
       const seen = new Set<string>();
       const out: { userId: string; email: string }[] = [];
       for (const r of rows.map(obj)) {
@@ -59,7 +67,11 @@ export function createFiles(d: Pick<SpacePortDeps, "call">): SpaceFiles {
         offset += bytes.length;
         if (part["truncated"] !== true || bytes.length === 0 || offset > MAX_FILE) break;
       }
-      return { name: typeof meta["name"] === "string" ? meta["name"] : fileId, mime: typeof meta["mime"] === "string" ? meta["mime"] : "application/octet-stream", bytes: new Uint8Array(Buffer.concat(chunks)) };
+      return {
+        name: typeof meta["name"] === "string" ? meta["name"] : fileId,
+        mime: typeof meta["mime"] === "string" ? meta["mime"] : "application/octet-stream",
+        bytes: new Uint8Array(Buffer.concat(chunks)),
+      };
     },
   };
 }
@@ -72,7 +84,8 @@ export function createBlobs(d: Pick<SpacePortDeps, "call" | "putToSlot">): Space
   return {
     async put(_space, bytes, mime) {
       const slot = obj(await d.call("files.upload_url", { size: bytes.byteLength, mime }));
-      if (typeof slot["url"] !== "string" || typeof slot["blobId"] !== "string") throw new Error("Files gave no upload slot.");
+      if (typeof slot["url"] !== "string" || typeof slot["blobId"] !== "string")
+        throw new Error("Files gave no upload slot.");
       await d.putToSlot(slot["url"], bytes);
       return slot["blobId"];
     },

@@ -11,8 +11,16 @@ import { StoreError } from "../../../kernel/src/store/types.ts";
 import type { FieldDef, Store, TypeDef } from "../../../kernel/src/store/types.ts";
 import { TYPE_NAME } from "../projections.ts";
 
-export interface SiteField { key: string; type: string; title?: string }
-export interface SiteTableEvent { siteId: string; type: string; fields?: readonly SiteField[] }
+export interface SiteField {
+  key: string;
+  type: string;
+  title?: string;
+}
+export interface SiteTableEvent {
+  siteId: string;
+  type: string;
+  fields?: readonly SiteField[];
+}
 
 export const SITES_GROUP = "Sites";
 const SITE_ID = /^sit_[a-z0-9]+$/;
@@ -21,25 +29,64 @@ const KIND = /^[a-z][a-z0-9_.]{0,39}$/;
 
 /** The field types a site table is asked for (the record field types of the manifest) and the kind the store keeps each as. A kernel kind passes through; anything else is text. */
 const KINDS: Record<string, string> = {
-  text: "text", longtext: "rich_text", number: "number", money: "money", datetime: "datetime", duration: "number", choice: "choice", status: "stage", multichoice: "multi_choice",
-  checkbox: "boolean", rating: "rating", person: "text", email: "text", phone: "text", url: "url", address: "address", relation: "link",
+  text: "text",
+  longtext: "rich_text",
+  number: "number",
+  money: "money",
+  datetime: "datetime",
+  duration: "number",
+  choice: "choice",
+  status: "stage",
+  multichoice: "multi_choice",
+  checkbox: "boolean",
+  rating: "rating",
+  person: "text",
+  email: "text",
+  phone: "text",
+  url: "url",
+  address: "address",
+  relation: "link",
 };
-const STORE_KINDS = new Set(["text", "rich_text", "number", "money", "boolean", "date", "datetime", "choice", "stage", "multi_choice", "url", "link", "actor", "file", "address", "phones", "emails", "urls"]);
+const STORE_KINDS = new Set([
+  "text",
+  "rich_text",
+  "number",
+  "money",
+  "boolean",
+  "date",
+  "datetime",
+  "choice",
+  "stage",
+  "multi_choice",
+  "url",
+  "link",
+  "actor",
+  "file",
+  "address",
+  "phones",
+  "emails",
+  "urls",
+]);
 export const kindOf = (type: string): string => KINDS[type] ?? (STORE_KINDS.has(type) ? type : "text");
 
-const refuse = (message: string): never => { throw new StoreError("invalid", message); };
+const refuse = (message: string): never => {
+  throw new StoreError("invalid", message);
+};
 
 /** Is this type a site table that still belongs to its site? */
-export const isSiteTable = (def: Record<string, unknown>): boolean => def["scope"] === "site" && typeof def["site_id"] === "string";
+export const isSiteTable = (def: Record<string, unknown>): boolean =>
+  def["scope"] === "site" && typeof def["site_id"] === "string";
 /** The site a table belongs to, or was promoted from. */
 export const siteOf = (def: Record<string, unknown>): string | undefined => {
-  const a = def["site_id"], b = def["promoted_from_site"];
+  const a = def["site_id"],
+    b = def["promoted_from_site"];
   return typeof a === "string" ? a : typeof b === "string" ? b : undefined;
 };
 /** The Console's "create a record type" offers every type except the ones a site made for itself. */
 export const consoleCreatable = (def: Record<string, unknown>): boolean => def["console_create"] !== false;
 /** Records lists a site table under the Sites group; any other type lists under its own group. */
-export const listGroup = (def: Record<string, unknown>): string | undefined => (isSiteTable(def) ? SITES_GROUP : typeof def["group"] === "string" ? def["group"] : undefined);
+export const listGroup = (def: Record<string, unknown>): string | undefined =>
+  isSiteTable(def) ? SITES_GROUP : typeof def["group"] === "string" ? def["group"] : undefined;
 
 /** Site tables of one site that are still scoped to it (a promoted table is a Space type and is not listed here). */
 export async function siteTablesOf(store: Store, siteId: string): Promise<TypeDef[]> {
@@ -67,8 +114,10 @@ function fieldsOf(raw: readonly SiteField[] | undefined): FieldDef[] {
 }
 
 function check(ev: SiteTableEvent): void {
-  if (!ev || typeof ev.siteId !== "string" || !SITE_ID.test(ev.siteId)) refuse(`${String(ev?.siteId)} is not a site id`);
-  if (typeof ev.type !== "string" || !TYPE_NAME.test(ev.type) || !ev.type.startsWith("site_")) refuse(`${String(ev?.type)} is not a site table key`);
+  if (!ev || typeof ev.siteId !== "string" || !SITE_ID.test(ev.siteId))
+    refuse(`${String(ev?.siteId)} is not a site id`);
+  if (typeof ev.type !== "string" || !TYPE_NAME.test(ev.type) || !ev.type.startsWith("site_"))
+    refuse(`${String(ev?.type)} is not a site table key`);
 }
 
 export interface SiteTableHandlers {
@@ -79,7 +128,8 @@ export interface SiteTableHandlers {
 }
 
 export function createSiteTableHandlers(deps: { store: Store }): SiteTableHandlers {
-  const find = async (type: string): Promise<TypeDef | undefined> => (await deps.store.types()).find((t) => t.name === type);
+  const find = async (type: string): Promise<TypeDef | undefined> =>
+    (await deps.store.types()).find((t) => t.name === type);
   return {
     async created(ev) {
       check(ev);
@@ -89,7 +139,15 @@ export function createSiteTableHandlers(deps: { store: Store }): SiteTableHandle
         if (siteOf(have) === ev.siteId) return { applied: false, type: ev.type };
         refuse(`${ev.type} already exists and does not belong to site ${ev.siteId}`);
       }
-      const def: TypeDef = { name: ev.type, label: label(ev.type), fields: fieldsOf(ev.fields), scope: "site", site_id: ev.siteId, group: SITES_GROUP, console_create: false };
+      const def: TypeDef = {
+        name: ev.type,
+        label: label(ev.type),
+        fields: fieldsOf(ev.fields),
+        scope: "site",
+        site_id: ev.siteId,
+        group: SITES_GROUP,
+        console_create: false,
+      };
       const res = await deps.store.define({ add_types: [def] });
       return { applied: res.applied, type: ev.type };
     },

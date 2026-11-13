@@ -9,24 +9,68 @@ import type { ToolCtx } from "../../../agent/src/tools/types.ts";
 import { createPluginTools, matches, mcpToolName } from "../plugin-tools.ts";
 import type { HookSpec, PluginRuntime, ServerSpec } from "../plugin-runtime.ts";
 
-const spec = (key: string, over: Partial<ServerSpec> = {}): ServerSpec => ({ key, name: key.split("/").pop()!, from: "plugin", pluginId: "plg_a", transport: "stdio", command: "node", args: [], env: {}, headers: {}, needs: [], ...over });
-const ctx = (thread = "thr_1"): ToolCtx => ({ space: "spc_1", agentId: "agt_1", asker: "usr_1", thread: { threadId: thread, kind: "chat", planMode: false } });
+const spec = (key: string, over: Partial<ServerSpec> = {}): ServerSpec => ({
+  key,
+  name: key.split("/").pop()!,
+  from: "plugin",
+  pluginId: "plg_a",
+  transport: "stdio",
+  command: "node",
+  args: [],
+  env: {},
+  headers: {},
+  needs: [],
+  ...over,
+});
+const ctx = (thread = "thr_1"): ToolCtx => ({
+  space: "spc_1",
+  agentId: "agt_1",
+  asker: "usr_1",
+  thread: { threadId: thread, kind: "chat", planMode: false },
+});
 
-function fixture(servers: ServerSpec[], hooks: HookSpec[] = [], hookRun: (h: HookSpec, ev: any) => { code: number; stderr?: string } = () => ({ code: 0 })) {
+function fixture(
+  servers: ServerSpec[],
+  hooks: HookSpec[] = [],
+  hookRun: (h: HookSpec, ev: any) => { code: number; stderr?: string } = () => ({ code: 0 }),
+) {
   const ran: string[] = [];
   const invoked: Array<{ cap: string; input: unknown }> = [];
   const rt = {
-    tools: async (s: ServerSpec) => (s.key === "bad/down" ? Promise.reject(new Error("down")) : [
-      { name: "look up", description: "Find a thing", inputSchema: { type: "object", properties: { q: { type: "string" } } }, readOnly: true },
-      { name: "change", description: "Change a thing", inputSchema: { type: "object" }, readOnly: false },
-    ]),
-    runHook: async (h: HookSpec, _w: unknown, ev: any) => { ran.push(`${h.event}:${ev.tool_name}`); const r = hookRun(h, ev); return { code: r.code, stdout: "", stderr: r.stderr ?? "", timedOut: false }; },
+    tools: async (s: ServerSpec) =>
+      s.key === "bad/down"
+        ? Promise.reject(new Error("down"))
+        : [
+            {
+              name: "look up",
+              description: "Find a thing",
+              inputSchema: { type: "object", properties: { q: { type: "string" } } },
+              readOnly: true,
+            },
+            { name: "change", description: "Change a thing", inputSchema: { type: "object" }, readOnly: false },
+          ],
+    runHook: async (h: HookSpec, _w: unknown, ev: any) => {
+      ran.push(`${h.event}:${ev.tool_name}`);
+      const r = hookRun(h, ev);
+      return { code: r.code, stdout: "", stderr: r.stderr ?? "", timedOut: false };
+    },
   } as unknown as PluginRuntime;
-  const plugins = createPluginTools({ call: async (cap) => (cap === "plugins.mcp.servers" ? { servers } : cap === "plugins.hooks.list" ? { hooks } : {}), runtime: () => rt });
+  const plugins = createPluginTools({
+    call: async (cap) => (cap === "plugins.mcp.servers" ? { servers } : cap === "plugins.hooks.list" ? { hooks } : {}),
+    runtime: () => rt,
+  });
   const { catalog, defaults } = loadGenerated();
   const session = createToolSession({
-    invoke: (async (cap: string, input: unknown) => { invoked.push({ cap, input }); return { status: "ok", output: { isError: false, text: "done" }, traceId: "t".repeat(32) }; }) as never,
-    catalog, defaults, levelFor: () => null, canEngineer: () => false, dynamic: plugins.dynamic, hooks: plugins.hooks,
+    invoke: (async (cap: string, input: unknown) => {
+      invoked.push({ cap, input });
+      return { status: "ok", output: { isError: false, text: "done" }, traceId: "t".repeat(32) };
+    }) as never,
+    catalog,
+    defaults,
+    levelFor: () => null,
+    canEngineer: () => false,
+    dynamic: plugins.dynamic,
+    hooks: plugins.hooks,
   });
   const api = createApiTools({ session, space: "spc_1", system: () => [], extra: plugins.extra });
   return { api, session, invoked, ran };
@@ -34,14 +78,18 @@ function fixture(servers: ServerSpec[], hooks: HookSpec[] = [], hookRun: (h: Hoo
 
 test("names: mcp__<server>__<tool>, only safe characters, at most 64, and two long names stay apart", () => {
   assert.equal(mcpToolName("greeter/echo", "look up"), "mcp__greeter-echo__look-up");
-  const a = mcpToolName("x".repeat(80), "tool_a"), b = mcpToolName("x".repeat(80), "tool_b");
+  const a = mcpToolName("x".repeat(80), "tool_a"),
+    b = mcpToolName("x".repeat(80), "tool_b");
   assert.ok(a.length <= 64 && b.length <= 64 && a !== b);
   assert.ok(matches("", "x") && matches("*", "x") && matches("a|b", "b") && !matches("a", "ab") && !matches("(", "x"));
 });
 
 test("the tools of the agent's servers are listed to the model; a server waiting for an option or one that is down is left out", async () => {
   const f = fixture([spec("p/ok"), spec("p/wait", { needs: ["token"] }), spec("bad/down")]);
-  const c = await f.api.context({ agent: { id: "agt_1" }, asker: "usr_1" } as never, { threadId: "thr_1", agent: { id: "agt_1" }, asker: "usr_1" } as never);
+  const c = await f.api.context(
+    { agent: { id: "agt_1" }, asker: "usr_1" } as never,
+    { threadId: "thr_1", agent: { id: "agt_1" }, asker: "usr_1" } as never,
+  );
   const names = c.tools.map((t) => t.name).filter((n) => n.startsWith("mcp__"));
   assert.deepEqual(names, ["mcp__p-ok__change", "mcp__p-ok__look-up"]);
   assert.match(c.tools.find((t) => t.name === "mcp__p-ok__look-up")!.description, /^\[ok\] Find a thing/);
@@ -49,16 +97,32 @@ test("the tools of the agent's servers are listed to the model; a server waiting
 
 test("a read-only tool is engine.mcp.read, the other engine.mcp.call, each with the server and tool it stands for", async () => {
   const f = fixture([spec("p/ok")]);
-  await f.api.context({ agent: { id: "agt_1" }, asker: "usr_1" } as never, { threadId: "thr_1", agent: { id: "agt_1" }, asker: "usr_1" } as never);
+  await f.api.context(
+    { agent: { id: "agt_1" }, asker: "usr_1" } as never,
+    { threadId: "thr_1", agent: { id: "agt_1" }, asker: "usr_1" } as never,
+  );
   const a = await f.session.call(ctx(), "mcp__p-ok__look-up", { q: "dana" });
   const b = await f.session.call(ctx(), "mcp__p-ok__change", { x: 1 });
   assert.equal(a.kind, "result");
   assert.equal(b.kind, "result");
-  assert.match((f.invoked[1]!.input as { idempotencyKey: string }).idempotencyKey, /^mcp-[0-9a-z]+$/, "a call that may change things carries a key");
+  assert.match(
+    (f.invoked[1]!.input as { idempotencyKey: string }).idempotencyKey,
+    /^mcp-[0-9a-z]+$/,
+    "a call that may change things carries a key",
+  );
   assert.equal("idempotencyKey" in (f.invoked[0]!.input as object), false);
   assert.deepEqual(f.invoked, [
     { cap: "engine.mcp.read", input: { agentId: "agt_1", server: "p/ok", tool: "look up", input: { q: "dana" } } },
-    { cap: "engine.mcp.call", input: { agentId: "agt_1", server: "p/ok", tool: "change", input: { x: 1 }, idempotencyKey: (f.invoked[1]!.input as { idempotencyKey: string }).idempotencyKey } },
+    {
+      cap: "engine.mcp.call",
+      input: {
+        agentId: "agt_1",
+        server: "p/ok",
+        tool: "change",
+        input: { x: 1 },
+        idempotencyKey: (f.invoked[1]!.input as { idempotencyKey: string }).idempotencyKey,
+      },
+    },
   ]);
 });
 
@@ -85,7 +149,9 @@ test("hooks: a PreToolUse hook that exits 2 stops the call with its reason; a Po
     { pluginId: "plg_a", plugin: "a", event: "PostToolUse", matcher: "*", command: "log", args: [] },
     { pluginId: "plg_a", plugin: "a", event: "PostToolUse", matcher: "records_.*", command: "other", args: [] },
   ];
-  const f = fixture([spec("p/ok")], hooks, (h) => (h.command === "check" ? { code: 2, stderr: "not on a Friday" } : { code: 0 }));
+  const f = fixture([spec("p/ok")], hooks, (h) =>
+    h.command === "check" ? { code: 2, stderr: "not on a Friday" } : { code: 0 },
+  );
   const stopped = await f.session.call(ctx(), "mcp__p-ok__change", {});
   assert.equal(stopped.kind, "error");
   assert.match(JSON.stringify(stopped.result), /not on a Friday/);

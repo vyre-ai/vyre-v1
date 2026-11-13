@@ -4,15 +4,41 @@ import type { CapMap } from "../../../../../generated/types.ts";
 
 export type SettingRow = CapMap["settings.list"]["out"]["rows"][number];
 export type PageInfo = CapMap["settings.pages"]["out"]["pages"][number];
-export type YouPage = "github" | "profile" | "notifications" | "appearance" | "ai" | "memory" | "notes" | "skills" | "connected" | "mail" | "signin" | "computer" | "about";
+export type YouPage =
+  | "github"
+  | "profile"
+  | "notifications"
+  | "appearance"
+  | "ai"
+  | "memory"
+  | "notes"
+  | "skills"
+  | "connected"
+  | "mail"
+  | "signin"
+  | "computer"
+  | "about";
 export type SpacePage = "space" | "people" | "agents" | "data" | "apps" | "advanced";
 export type PageKey = YouPage | SpacePage;
 
-export interface PageDef { key: PageKey; title: string; group: "you" | "space"; icon: string; /** left out of the page list: its address still works and lands on `home(key)` */ hidden?: boolean; /** the other `page` strings a registry row can carry for this page */ pages: readonly string[] }
+export interface PageDef {
+  key: PageKey;
+  title: string;
+  group: "you" | "space";
+  icon: string;
+  /** left out of the page list: its address still works and lands on `home(key)` */ hidden?: boolean;
+  /** the other `page` strings a registry row can carry for this page */ pages: readonly string[];
+}
 
 export const PAGES: readonly PageDef[] = [
   { key: "profile", title: "Profile", group: "you", icon: "person", pages: [] },
-  { key: "ai", title: "Your AI", group: "you", icon: "chip", pages: ["Models and usage", "Chats", "Memory and privacy"] },
+  {
+    key: "ai",
+    title: "Your AI",
+    group: "you",
+    icon: "chip",
+    pages: ["Models and usage", "Chats", "Memory and privacy"],
+  },
   { key: "github", title: "GitHub", group: "you", icon: "link", pages: ["GitHub"] },
   { key: "notifications", title: "Notifications", group: "you", icon: "bell", pages: ["Notifications"] },
   { key: "appearance", title: "Appearance", group: "you", icon: "palette", pages: [] },
@@ -34,18 +60,38 @@ export const PAGES: readonly PageDef[] = [
 
 /** One sentence under every page title: the job in plain words. */
 export const PAGE_SUB: Readonly<Partial<Record<PageKey, string>>> = {
-  profile: "How people in this Space see you.", ai: "The AI accounts and models you use.", github: "One GitHub connection that every model and feature in Vyre uses.",
-  notifications: "What reaches you and where.", appearance: "How Vyre looks for you.", computer: "This computer and what Vyre can do on it.",
-  signin: "Your password, two-step sign-in and where you are signed in.", connected: "Your app connections live in Vault now.", mail: "Add an inbox or a calendar from Inbox.",
+  profile: "How people in this Space see you.",
+  ai: "The AI accounts and models you use.",
+  github: "One GitHub connection that every model and feature in Vyre uses.",
+  notifications: "What reaches you and where.",
+  appearance: "How Vyre looks for you.",
+  computer: "This computer and what Vyre can do on it.",
+  signin: "Your password, two-step sign-in and where you are signed in.",
+  connected: "Your app connections live in Vault now.",
+  mail: "Add an inbox or a calendar from Inbox.",
 };
 
 /** Pages that folded into another: the address still works and the page it lands on shows what was there. */
-export const FOLDED_INTO: Readonly<Partial<Record<PageKey, PageKey>>> = { memory: "profile", notes: "ai", skills: "ai", about: "computer" };
+export const FOLDED_INTO: Readonly<Partial<Record<PageKey, PageKey>>> = {
+  memory: "profile",
+  notes: "ai",
+  skills: "ai",
+  about: "computer",
+};
 /** The page that shows `key`: itself, or the one it folded into. */
 export const homeOf = (key: PageKey): PageKey => FOLDED_INTO[key] ?? key;
 
 /** Addresses from before the pages folded together still land on the right page. */
-export const OLD_PAGES: Readonly<Record<string, PageKey>> = { connections: "connected", models: "ai", privacy: "ai", keyboard: "appearance", spaces: "signin", you: "profile", "this-computer": "computer", "sign-in": "signin" };
+export const OLD_PAGES: Readonly<Record<string, PageKey>> = {
+  connections: "connected",
+  models: "ai",
+  privacy: "ai",
+  keyboard: "appearance",
+  spaces: "signin",
+  you: "profile",
+  "this-computer": "computer",
+  "sign-in": "signin",
+};
 
 export function pageByKey(key: string): PageDef {
   return PAGES.find((p) => p.key === key) ?? PAGES[0]!;
@@ -59,12 +105,24 @@ export function pageOfRow(row: SettingRow): PageDef | null {
 
 // ---------------------------------------------------------------- sections: the headings a page's rows sit under
 
-export interface SectionDef { title: string; note?: string; keys: readonly string[] }
+export interface SectionDef {
+  title: string;
+  note?: string;
+  keys: readonly string[];
+}
 
 /** Person rows that stay in the registry but are not rows here: remembered state, what a Kit install or the composer sets, and what the chat's mode dial replaces. */
 export const HIDDEN_ROWS: readonly string[] = [
-  "chat.ask_agent", "kit.person_choice", "notifications.alert_replies", "comms.default_sender_email", "comms.default_sender_text",
-  "security.terminal_mode", "security.chrome_mode", "security.team_agents_on_my_computer", "chrome.agents_use_my_browser", "appearance.look",
+  "chat.ask_agent",
+  "kit.person_choice",
+  "notifications.alert_replies",
+  "comms.default_sender_email",
+  "comms.default_sender_text",
+  "security.terminal_mode",
+  "security.chrome_mode",
+  "security.team_agents_on_my_computer",
+  "chrome.agents_use_my_browser",
+  "appearance.look",
 ];
 
 /** Settings that a page draws itself (a card, a picker, a table) and so are not repeated as rows. */
@@ -76,7 +134,12 @@ export const DRAWN_BY_PAGE: Readonly<Record<string, readonly string[]>> = {
 
 export const SECTIONS: Readonly<Record<YouPage, readonly SectionDef[]>> = {
   profile: [{ title: "Availability", keys: ["profile.timezone", "profile.working_hours"] }],
-  notifications: [{ title: "Delivery", keys: ["notifications.email_backstop", "notifications.alert_replies", "notifications.routines_all"] }],
+  notifications: [
+    {
+      title: "Delivery",
+      keys: ["notifications.email_backstop", "notifications.alert_replies", "notifications.routines_all"],
+    },
+  ],
   appearance: [],
   ai: [{ title: "Working with agents", keys: ["engine.local_runs", "chat.agent_tabs"] }],
   memory: [],
@@ -89,7 +152,10 @@ export const SECTIONS: Readonly<Record<YouPage, readonly SectionDef[]>> = {
   about: [],
 };
 
-export interface Section { title: string; rows: SettingRow[] }
+export interface Section {
+  title: string;
+  rows: SettingRow[];
+}
 
 /** Rows of one page, in sections. A row the table does not name goes in the last section, so no row of the registry is lost. */
 export function sectionsFor(page: YouPage, rows: readonly SettingRow[]): Section[] {
@@ -99,7 +165,9 @@ export function sectionsFor(page: YouPage, rows: readonly SettingRow[]): Section
   const out: Section[] = [];
   const used = new Set<string>();
   for (const def of SECTIONS[page]) {
-    const hit = def.keys.map((k) => left.find((r) => r.key === k)).filter((r): r is SettingRow => r !== undefined && !used.has(r.key));
+    const hit = def.keys
+      .map((k) => left.find((r) => r.key === k))
+      .filter((r): r is SettingRow => r !== undefined && !used.has(r.key));
     for (const r of hit) used.add(r.key);
     if (hit.length > 0) out.push({ title: def.title, rows: hit });
   }
@@ -119,48 +187,318 @@ export type SpaceControl =
   /** One true or false inside a Space setting that holds several. */
   | { kind: "flag"; field: string };
 
-export interface SpaceRowDef { id: string; key: string; page: SpacePage; section: string; label: string; help: string; control: SpaceControl; words?: string }
+export interface SpaceRowDef {
+  id: string;
+  key: string;
+  page: SpacePage;
+  section: string;
+  label: string;
+  help: string;
+  control: SpaceControl;
+  words?: string;
+}
 
-const yes = [{ value: "server_copy", label: "Yes" }, { value: "live_only", label: "No" }];
-const sr = (key: string, page: SpacePage, section: string, label: string, control: SpaceControl, help: string, words?: string): SpaceRowDef => ({ id: control.kind === "flag" ? `${key}.${control.field}` : key, key, page, section, label, help, control, ...(words ? { words } : {}) });
+const yes = [
+  { value: "server_copy", label: "Yes" },
+  { value: "live_only", label: "No" },
+];
+const sr = (
+  key: string,
+  page: SpacePage,
+  section: string,
+  label: string,
+  control: SpaceControl,
+  help: string,
+  words?: string,
+): SpaceRowDef => ({
+  id: control.kind === "flag" ? `${key}.${control.field}` : key,
+  key,
+  page,
+  section,
+  label,
+  help,
+  control,
+  ...(words ? { words } : {}),
+});
 
 /** Space defaults, each with its reader in team/v1/AUDIT-settings-2nov.md. The Console draws these; a Personal Space, which has none, draws PERSONAL_SPACE_ROWS in Settings. */
 export const SPACE_ROWS: readonly SpaceRowDef[] = [
-  sr("access.review_every_days", "people", "Access", "Review who has access every", { kind: "number", min: 7, max: 365, unit: "days" }, "How often Vyre asks admins to confirm who keeps access."),
-  sr("gate.timeout_hours", "agents", "Approvals", "A waiting approval times out after", { kind: "number", min: 1, max: 720, unit: "hours" }, "A held action nobody answers is dropped after this long. A Gate rule can set its own.", "gate hold"),
-  sr("gate.email_backstop_hours", "agents", "Approvals", "Email the approver after", { kind: "number", min: 1, max: 72, unit: "hours" }, "One email to the approver if a hold is still waiting.", "gate hold reminder"),
-  sr("gate.drafted_by_label", "agents", "Approvals", "Label messages an agent drafted", { kind: "switch" }, "Adds a line saying an agent drafted it to messages that leave Vyre."),
-  sr("comms.agents_may_send", "agents", "Approvals", "Agents can send", { kind: "switch" }, "Agents send email, texts and calls for the person who asked, from what that person may use. Off, no agent sends in this Space."),
-  sr("tasks.require_human_approver", "agents", "Approvals", "Only people can approve", { kind: "switch" }, "An agent can never be the approver of a task."),
-  sr("tasks.allow_self_review", "agents", "Approvals", "A reviewer can also be the assignee", { kind: "switch" }, "Off, whoever does the work cannot also review or approve it."),
-  sr("changesets.different_person", "agents", "Approvals", "The approver must be someone else", { kind: "switch" }, "The person who asked an agent for file changes cannot approve them."),
-  sr("engine.agent_hops", "agents", "Limits", "Agents can reply to each other", { kind: "number", min: 1, max: 20, unit: "times" }, "After this many agent turns, helpers and teammates counted, a person has to answer or press Continue. It stops loops."),
-  sr("tasks.review_loop_limit", "agents", "Limits", "A reviewer can send work back", { kind: "number", min: 1, max: 10, unit: "times" }, "After this many send-backs, a person decides."),
-  sr("memory.require_review", "agents", "Memory and automations", "Review shared memory first", { kind: "switch" }, "Everything an agent learns for the Space waits in Proposed until someone accepts it."),
-  sr("memory.meaning_search", "agents", "Memory and automations", "Search by meaning", { kind: "choice", options: [{ value: "local", label: "On this server" }, { value: "key", label: "With the memory key" }, { value: "off", label: "Off" }] }, "Finds memory by meaning as well as by its words."),
-  sr("automations.run_automations_on_import", "agents", "Memory and automations", "Imports run automations", { kind: "switch" }, "Off, records that arrive by import or sync do not fire automations."),
-  sr("reports.vyre", "agents", "Memory and automations", "Send problem reports to Vyre", { kind: "choice", options: [{ value: "on", label: "On" }, { value: "ask", label: "Ask" }, { value: "off", label: "Off" }] }, "Where Report a problem goes. On sends it to the Vyre team, Ask leaves that to an admin, Off keeps it here."),
-  sr("git.protected_branches", "data", "Files", "Branches that need an approved push", { kind: "list" }, "An agent's push to one of these waits for an approval."),
-  sr("files.review_changes", "data", "Files", "Review agent changes in Git folders", { kind: "flag", field: "git" }, "An agent's changes wait for review before they reach the repository."),
-  sr("files.review_changes", "data", "Files", "Review agent changes in cloud folders", { kind: "flag", field: "cloud_mount" }, "An agent's changes wait for review before they reach Drive or OneDrive."),
-  sr("files.review_changes", "data", "Files", "Review agent changes in other folders", { kind: "flag", field: "plain" }, "An agent's changes to a plain folder wait for review."),
-  sr("vault.export_expiry_max", "data", "Files", "Longest life of a .env link", { kind: "choice", options: [{ value: "1h", label: "1 hour" }, { value: "1d", label: "1 day" }, { value: "7d", label: "7 days" }] }, "A pulled .env link stops working after this long."),
-  sr("mail.provider", "apps", "Email and texts", "Send email through", { kind: "choice", options: [{ value: "resend", label: "Resend" }, { value: "mailgun", label: "Mailgun" }] }, "The service that sends this Space's email."),
-  sr("contacts.sms_requires_consent", "apps", "Email and texts", "Texts need consent", { kind: "switch" }, "A contact must have agreed to texts before anyone can text them. Replying to their text is always allowed."),
-  sr("telephony.recording_default", "apps", "Email and texts", "Record calls on new numbers", { kind: "choice", options: [{ value: "off", label: "Off" }, { value: "announce", label: "Announce and record" }, { value: "ask", label: "Ask each call" }] }, "The recording rule a new number starts with."),
-  sr("google.auto_connect", "apps", "Suites", "Connect people's Google mail and calendar", { kind: "switch" }, "When Google Workspace is connected, each person's mail and calendar connect by themselves."),
-  sr("microsoft.auto_connect", "apps", "Suites", "Connect people's Microsoft mail and calendar", { kind: "switch" }, "When Microsoft 365 is connected, each person's mail and calendar connect by themselves."),
-  sr("mounts.public_address", "advanced", "Files", "Public address for file changes", { kind: "text" }, "Where Drive and OneDrive send change notices. Empty, Vyre checks them on a timer."),
-  sr("files.local_mount_default", "advanced", "Files", "Local folders keep a server copy", { kind: "choice", options: yes }, "Yes keeps a copy on the Space server, so a folder is there when the computer is off."),
-  sr("mailgun.region", "advanced", "Email", "Mailgun region", { kind: "choice", options: [{ value: "us", label: "US" }, { value: "eu", label: "EU" }] }, "Pick the region your Mailgun account lives in."),
+  sr(
+    "access.review_every_days",
+    "people",
+    "Access",
+    "Review who has access every",
+    { kind: "number", min: 7, max: 365, unit: "days" },
+    "How often Vyre asks admins to confirm who keeps access.",
+  ),
+  sr(
+    "gate.timeout_hours",
+    "agents",
+    "Approvals",
+    "A waiting approval times out after",
+    { kind: "number", min: 1, max: 720, unit: "hours" },
+    "A held action nobody answers is dropped after this long. A Gate rule can set its own.",
+    "gate hold",
+  ),
+  sr(
+    "gate.email_backstop_hours",
+    "agents",
+    "Approvals",
+    "Email the approver after",
+    { kind: "number", min: 1, max: 72, unit: "hours" },
+    "One email to the approver if a hold is still waiting.",
+    "gate hold reminder",
+  ),
+  sr(
+    "gate.drafted_by_label",
+    "agents",
+    "Approvals",
+    "Label messages an agent drafted",
+    { kind: "switch" },
+    "Adds a line saying an agent drafted it to messages that leave Vyre.",
+  ),
+  sr(
+    "comms.agents_may_send",
+    "agents",
+    "Approvals",
+    "Agents can send",
+    { kind: "switch" },
+    "Agents send email, texts and calls for the person who asked, from what that person may use. Off, no agent sends in this Space.",
+  ),
+  sr(
+    "tasks.require_human_approver",
+    "agents",
+    "Approvals",
+    "Only people can approve",
+    { kind: "switch" },
+    "An agent can never be the approver of a task.",
+  ),
+  sr(
+    "tasks.allow_self_review",
+    "agents",
+    "Approvals",
+    "A reviewer can also be the assignee",
+    { kind: "switch" },
+    "Off, whoever does the work cannot also review or approve it.",
+  ),
+  sr(
+    "changesets.different_person",
+    "agents",
+    "Approvals",
+    "The approver must be someone else",
+    { kind: "switch" },
+    "The person who asked an agent for file changes cannot approve them.",
+  ),
+  sr(
+    "engine.agent_hops",
+    "agents",
+    "Limits",
+    "Agents can reply to each other",
+    { kind: "number", min: 1, max: 20, unit: "times" },
+    "After this many agent turns, helpers and teammates counted, a person has to answer or press Continue. It stops loops.",
+  ),
+  sr(
+    "tasks.review_loop_limit",
+    "agents",
+    "Limits",
+    "A reviewer can send work back",
+    { kind: "number", min: 1, max: 10, unit: "times" },
+    "After this many send-backs, a person decides.",
+  ),
+  sr(
+    "memory.require_review",
+    "agents",
+    "Memory and automations",
+    "Review shared memory first",
+    { kind: "switch" },
+    "Everything an agent learns for the Space waits in Proposed until someone accepts it.",
+  ),
+  sr(
+    "memory.meaning_search",
+    "agents",
+    "Memory and automations",
+    "Search by meaning",
+    {
+      kind: "choice",
+      options: [
+        { value: "local", label: "On this server" },
+        { value: "key", label: "With the memory key" },
+        { value: "off", label: "Off" },
+      ],
+    },
+    "Finds memory by meaning as well as by its words.",
+  ),
+  sr(
+    "automations.run_automations_on_import",
+    "agents",
+    "Memory and automations",
+    "Imports run automations",
+    { kind: "switch" },
+    "Off, records that arrive by import or sync do not fire automations.",
+  ),
+  sr(
+    "reports.vyre",
+    "agents",
+    "Memory and automations",
+    "Send problem reports to Vyre",
+    {
+      kind: "choice",
+      options: [
+        { value: "on", label: "On" },
+        { value: "ask", label: "Ask" },
+        { value: "off", label: "Off" },
+      ],
+    },
+    "Where Report a problem goes. On sends it to the Vyre team, Ask leaves that to an admin, Off keeps it here.",
+  ),
+  sr(
+    "git.protected_branches",
+    "data",
+    "Files",
+    "Branches that need an approved push",
+    { kind: "list" },
+    "An agent's push to one of these waits for an approval.",
+  ),
+  sr(
+    "files.review_changes",
+    "data",
+    "Files",
+    "Review agent changes in Git folders",
+    { kind: "flag", field: "git" },
+    "An agent's changes wait for review before they reach the repository.",
+  ),
+  sr(
+    "files.review_changes",
+    "data",
+    "Files",
+    "Review agent changes in cloud folders",
+    { kind: "flag", field: "cloud_mount" },
+    "An agent's changes wait for review before they reach Drive or OneDrive.",
+  ),
+  sr(
+    "files.review_changes",
+    "data",
+    "Files",
+    "Review agent changes in other folders",
+    { kind: "flag", field: "plain" },
+    "An agent's changes to a plain folder wait for review.",
+  ),
+  sr(
+    "vault.export_expiry_max",
+    "data",
+    "Files",
+    "Longest life of a .env link",
+    {
+      kind: "choice",
+      options: [
+        { value: "1h", label: "1 hour" },
+        { value: "1d", label: "1 day" },
+        { value: "7d", label: "7 days" },
+      ],
+    },
+    "A pulled .env link stops working after this long.",
+  ),
+  sr(
+    "mail.provider",
+    "apps",
+    "Email and texts",
+    "Send email through",
+    {
+      kind: "choice",
+      options: [
+        { value: "resend", label: "Resend" },
+        { value: "mailgun", label: "Mailgun" },
+      ],
+    },
+    "The service that sends this Space's email.",
+  ),
+  sr(
+    "contacts.sms_requires_consent",
+    "apps",
+    "Email and texts",
+    "Texts need consent",
+    { kind: "switch" },
+    "A contact must have agreed to texts before anyone can text them. Replying to their text is always allowed.",
+  ),
+  sr(
+    "telephony.recording_default",
+    "apps",
+    "Email and texts",
+    "Record calls on new numbers",
+    {
+      kind: "choice",
+      options: [
+        { value: "off", label: "Off" },
+        { value: "announce", label: "Announce and record" },
+        { value: "ask", label: "Ask each call" },
+      ],
+    },
+    "The recording rule a new number starts with.",
+  ),
+  sr(
+    "google.auto_connect",
+    "apps",
+    "Suites",
+    "Connect people's Google mail and calendar",
+    { kind: "switch" },
+    "When Google Workspace is connected, each person's mail and calendar connect by themselves.",
+  ),
+  sr(
+    "microsoft.auto_connect",
+    "apps",
+    "Suites",
+    "Connect people's Microsoft mail and calendar",
+    { kind: "switch" },
+    "When Microsoft 365 is connected, each person's mail and calendar connect by themselves.",
+  ),
+  sr(
+    "mounts.public_address",
+    "advanced",
+    "Files",
+    "Public address for file changes",
+    { kind: "text" },
+    "Where Drive and OneDrive send change notices. Empty, Vyre checks them on a timer.",
+  ),
+  sr(
+    "files.local_mount_default",
+    "advanced",
+    "Files",
+    "Local folders keep a server copy",
+    { kind: "choice", options: yes },
+    "Yes keeps a copy on the Space server, so a folder is there when the computer is off.",
+  ),
+  sr(
+    "mailgun.region",
+    "advanced",
+    "Email",
+    "Mailgun region",
+    {
+      kind: "choice",
+      options: [
+        { value: "us", label: "US" },
+        { value: "eu", label: "EU" },
+      ],
+    },
+    "Pick the region your Mailgun account lives in.",
+  ),
 ];
 
 /** Space rows that mean something with one person in the Space. A Personal Space has no Console, so these show in its Settings, and only there. */
 export const PERSONAL_SPACE_ROWS: ReadonlySet<string> = new Set([
-  "engine.agent_hops", "memory.meaning_search", "reports.vyre",
-  "git.protected_branches", "files.review_changes.git", "files.review_changes.cloud_mount", "files.review_changes.plain", "vault.export_expiry_max",
-  "mail.provider", "contacts.sms_requires_consent", "telephony.recording_default",
-  "mounts.public_address", "files.local_mount_default", "mailgun.region",
+  "engine.agent_hops",
+  "memory.meaning_search",
+  "reports.vyre",
+  "git.protected_branches",
+  "files.review_changes.git",
+  "files.review_changes.cloud_mount",
+  "files.review_changes.plain",
+  "vault.export_expiry_max",
+  "mail.provider",
+  "contacts.sms_requires_consent",
+  "telephony.recording_default",
+  "mounts.public_address",
+  "files.local_mount_default",
+  "mailgun.region",
 ]);
 
 /** The Space pages in Settings: only in a Personal Space. In a Team Space every Space row is the Console's, and no setting is in both. */
@@ -183,7 +521,17 @@ export type Control =
   | { kind: "list" }
   | { kind: "summary" };
 
-export interface Schema { type?: string; enum?: readonly unknown[]; minimum?: number; maximum?: number; pattern?: string; properties?: Record<string, unknown>; items?: unknown; anyOf?: unknown[]; $ref?: string }
+export interface Schema {
+  type?: string;
+  enum?: readonly unknown[];
+  minimum?: number;
+  maximum?: number;
+  pattern?: string;
+  properties?: Record<string, unknown>;
+  items?: unknown;
+  anyOf?: unknown[];
+  $ref?: string;
+}
 
 /** What the registry's schema says that the row itself does not: the choices of an enum and the range of a number. The shell may pass the real schema; this table covers the person rows. */
 export const HINTS: Readonly<Record<string, Schema>> = {};
@@ -210,17 +558,29 @@ export const TIMEZONES: readonly { value: string; label: string }[] = [
 
 /** "8:11 PM" in a time zone, at a moment. A zone the runtime does not know falls back to UTC. */
 export function timeIn(at: number, tz: string): string {
-  try { return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: tz }).format(new Date(at)); }
-  catch { return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(new Date(at)); }
+  try {
+    return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: tz }).format(new Date(at));
+  } catch {
+    return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(
+      new Date(at),
+    );
+  }
 }
 
 export function controlFor(row: SettingRow, schema: Schema | undefined = HINTS[row.key]): Control {
   if (row.key === "profile.timezone") return { kind: "zone" };
   if (row.key.endsWith("working_hours")) return { kind: "hours" };
-  if (schema?.enum) return { kind: "choice", options: schema.enum.map((v) => ({ value: String(v), label: labelOf(String(v)) })) };
+  if (schema?.enum)
+    return { kind: "choice", options: schema.enum.map((v) => ({ value: String(v), label: labelOf(String(v)) })) };
   const v = row.default;
   if (typeof v === "boolean") return { kind: "switch" };
-  if (typeof v === "number") return { kind: "number", ...(schema?.minimum !== undefined ? { min: schema.minimum } : {}), ...(schema?.maximum !== undefined ? { max: schema.maximum } : {}), step: v >= 1000 ? 100 : 1 };
+  if (typeof v === "number")
+    return {
+      kind: "number",
+      ...(schema?.minimum !== undefined ? { min: schema.minimum } : {}),
+      ...(schema?.maximum !== undefined ? { max: schema.maximum } : {}),
+      step: v >= 1000 ? 100 : 1,
+    };
   if (typeof v === "string") return { kind: "text", ...(schema?.pattern ? { pattern: schema.pattern } : {}) };
   if (Array.isArray(v)) return { kind: "list" };
   return { kind: "summary" };
@@ -240,16 +600,20 @@ export const ROW_LABELS: Readonly<Record<string, string>> = {
 };
 /** What a row does. It shows on hover, never as a line on the page. */
 export const ROW_HELP: Readonly<Record<string, string>> = {
-  "profile.timezone": "Your own clock: working hours, quiet hours and what agents schedule for you. Shared places read in the Space's time zone and show this beside it.",
-  "profile.working_hours": "When you work. People and agents see it, Find a time keeps to it, and outside it only calls, urgent approvals and incidents interrupt you.",
+  "profile.timezone":
+    "Your own clock: working hours, quiet hours and what agents schedule for you. Shared places read in the Space's time zone and show this beside it.",
+  "profile.working_hours":
+    "When you work. People and agents see it, Find a time keeps to it, and outside it only calls, urgent approvals and incidents interrupt you.",
   "notifications.email_backstop": "One email if an approval has been waiting on you for 4 hours.",
   "notifications.alert_replies": "A reply to a message you follow interrupts you. Off, it is a badge.",
   "notifications.routines_all": "Failures always reach you. On, successes do too.",
   "notifications.quiet_hours": "No sounds or pushes between these times. What arrives waits in one summary.",
   "notifications.hand_needs_you_to": "While you are away, what needs you goes to this person.",
-  "engine.local_runs": "Your private chats run here while this computer is on. Off, they run on the Space's computer. One chat can pick its own place in the model menu.",
+  "engine.local_runs":
+    "Your private chats run here while this computer is on. Off, they run on the Space's computer. One chat can pick its own place in the model menu.",
   "chat.agent_tabs": "Lets an agent open or switch a tab beside your chat to show you something.",
-  "notes.offers": "When something in a chat is worth keeping (a link, an answer, a decision), an agent may offer to save it as a private note. Nothing is saved until you press Save.",
+  "notes.offers":
+    "When something in a chat is worth keeping (a link, an answer, a decision), an agent may offer to save it as a private note. Nothing is saved until you press Save.",
   "model.default": "The model a new chat starts with. You can change it in any chat.",
   "model.fallback": "Used when the default is out of credits or down.",
 };
@@ -265,7 +629,12 @@ export function labelOf(value: string): string {
 
 export const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
-export interface Hours { days: number[]; from: string; to: string; tz?: string }
+export interface Hours {
+  days: number[];
+  from: string;
+  to: string;
+  tz?: string;
+}
 
 /** "Mon to Fri, 9:00 AM to 5:30 PM": runs of days are joined, times are in the person's own clock style. */
 export function hoursSummary(h: Hours | null | undefined): string {
@@ -274,10 +643,14 @@ export function hoursSummary(h: Hours | null | undefined): string {
   const runs: number[][] = [];
   for (const d of days) {
     const last = runs[runs.length - 1];
-    if (last && d === last[last.length - 1]! + 1) last.push(d); else runs.push([d]);
+    if (last && d === last[last.length - 1]! + 1) last.push(d);
+    else runs.push([d]);
   }
   const parts: string[] = [];
-  for (const r of runs) parts.push(r.length >= 3 ? `${DAY_NAMES[r[0]!]} to ${DAY_NAMES[r[r.length - 1]!]}` : r.map((d) => DAY_NAMES[d]!).join(", "));
+  for (const r of runs)
+    parts.push(
+      r.length >= 3 ? `${DAY_NAMES[r[0]!]} to ${DAY_NAMES[r[r.length - 1]!]}` : r.map((d) => DAY_NAMES[d]!).join(", "),
+    );
   return `${parts.join(", ")}, ${clock(h.from)} to ${clock(h.to)}`;
 }
 
@@ -293,15 +666,25 @@ export function summaryOf(value: unknown): string {
   if (value === null || value === undefined) return "Not set";
   if (typeof value === "boolean") return value ? "On" : "Off";
   if (typeof value === "number" || typeof value === "string") return String(value);
-  if (Array.isArray(value)) return value.length === 0 ? "None" : value.length <= 3 ? value.map(String).join(", ") : `${value.length} items`;
+  if (Array.isArray(value))
+    return value.length === 0 ? "None" : value.length <= 3 ? value.map(String).join(", ") : `${value.length} items`;
   const entries = Object.entries(value as Record<string, unknown>);
   if (entries.length === 0) return "Default";
-  return entries.map(([k, v]) => `${labelOf(k)} ${typeof v === "object" ? "set" : String(v)}`).join(", ").slice(0, 60);
+  return entries
+    .map(([k, v]) => `${labelOf(k)} ${typeof v === "object" ? "set" : String(v)}`)
+    .join(", ")
+    .slice(0, 60);
 }
 
 // ---------------------------------------------------------------- search (Cmd-F)
 
-export interface Hit { key: string; page: PageKey; title: string; score: number; sub?: string }
+export interface Hit {
+  key: string;
+  page: PageKey;
+  title: string;
+  score: number;
+  sub?: string;
+}
 
 /** Extra words that find a row whose title says too little. */
 export const HIT_HELP: Readonly<Record<string, { sub?: string; words?: string }>> = {
@@ -311,34 +694,144 @@ export const HIT_HELP: Readonly<Record<string, { sub?: string; words?: string }>
 /** Rows a page draws itself that Cmd-F still finds. */
 export const DRAWN_ROWS: readonly { key: string; page: PageKey; title: string; sub: string; words: string }[] = [
   { key: "signin.password", page: "signin", title: "Password", sub: "Change your password", words: "sign in login" },
-  { key: "signin.recovery", page: "signin", title: "Recovery code", sub: "Make a new recovery code", words: "recovery code lost forgot reset new" },
-  { key: "signin.link", page: "signin", title: "Use one account everywhere", sub: "Keep one of two Vyre accounts", words: "merge link join two accounts username password" },
+  {
+    key: "signin.recovery",
+    page: "signin",
+    title: "Recovery code",
+    sub: "Make a new recovery code",
+    words: "recovery code lost forgot reset new",
+  },
+  {
+    key: "signin.link",
+    page: "signin",
+    title: "Use one account everywhere",
+    sub: "Keep one of two Vyre accounts",
+    words: "merge link join two accounts username password",
+  },
   { key: "signin.github", page: "signin", title: "GitHub", sub: "Sign in with one click", words: "sign in login" },
-  { key: "signin.totp", page: "signin", title: "Authenticator app", sub: "One-time codes on your phone", words: "second factor 2fa totp" },
-  { key: "signin.passkey", page: "signin", title: "Passkeys", sub: "Touch ID and security keys", words: "second factor biometric" },
+  {
+    key: "signin.totp",
+    page: "signin",
+    title: "Authenticator app",
+    sub: "One-time codes on your phone",
+    words: "second factor 2fa totp",
+  },
+  {
+    key: "signin.passkey",
+    page: "signin",
+    title: "Passkeys",
+    sub: "Touch ID and security keys",
+    words: "second factor biometric",
+  },
   { key: "signin.devs", page: "signin", title: "Devices", sub: "Where you are signed in", words: "computers sign out" },
   { key: "signin.spaces", page: "signin", title: "Your Spaces", sub: "Open or leave a Space", words: "switch leave" },
-  { key: "shortcuts", page: "appearance", title: "Keyboard shortcuts", sub: "Every shortcut, in one list", words: "keys hotkey keybinding" },
+  {
+    key: "shortcuts",
+    page: "appearance",
+    title: "Keyboard shortcuts",
+    sub: "Every shortcut, in one list",
+    words: "keys hotkey keybinding",
+  },
   // the Display settings are one stored row (appearance.look, hidden above) that the page draws as four rows, so Cmd-F needs these to find them; each key is the id of the row it marks
-  { key: "appearance.text", page: "appearance", title: "Text size", sub: "How big the words are", words: "font zoom larger smaller display" },
-  { key: "appearance.density", page: "appearance", title: "Density", sub: "Comfortable or compact", words: "compact comfortable spacing display" },
-  { key: "appearance.motion", page: "appearance", title: "Reduce motion", sub: "Fewer animations everywhere", words: "animation accessibility display" },
-  { key: "appearance.lang", page: "appearance", title: "Language", sub: "The language of the app", words: "locale display" },
+  {
+    key: "appearance.text",
+    page: "appearance",
+    title: "Text size",
+    sub: "How big the words are",
+    words: "font zoom larger smaller display",
+  },
+  {
+    key: "appearance.density",
+    page: "appearance",
+    title: "Density",
+    sub: "Comfortable or compact",
+    words: "compact comfortable spacing display",
+  },
+  {
+    key: "appearance.motion",
+    page: "appearance",
+    title: "Reduce motion",
+    sub: "Fewer animations everywhere",
+    words: "animation accessibility display",
+  },
+  {
+    key: "appearance.lang",
+    page: "appearance",
+    title: "Language",
+    sub: "The language of the app",
+    words: "locale display",
+  },
   { key: "model.default", page: "ai", title: "Default model", sub: "For new chats", words: "claude sonnet opus gpt" },
-  { key: "voice.cover", page: "ai", title: "Voice", sub: "What covers your Talk, language and model", words: "talk mic microphone speech dictation deepgram transcription language" },
-  { key: "model.fallback", page: "ai", title: "Fallback model", sub: "When the default is unavailable", words: "backup" },
+  {
+    key: "voice.cover",
+    page: "ai",
+    title: "Voice",
+    sub: "What covers your Talk, language and model",
+    words: "talk mic microphone speech dictation deepgram transcription language",
+  },
+  {
+    key: "model.fallback",
+    page: "ai",
+    title: "Fallback model",
+    sub: "When the default is unavailable",
+    words: "backup",
+  },
   { key: "usage", page: "ai", title: "Usage this month", sub: "You and your agents", words: "limit cost tokens spend" },
-  { key: "open-vault", page: "ai", title: "AI accounts", sub: "Sign-ins and keys live in the Vault", words: "provider api key openai anthropic subscription" },
-  { key: "memory.about", page: "memory", title: "About you", sub: "What agents know about you, public and private", words: "profile personal private public remember forget erase" },
-  { key: "memory.keys", page: "memory", title: "Who pays for memory", sub: "Learning uses the AI account you chat with", words: "upkeep spend learning limit" },
-  { key: "connect-mailbox", page: "connected", title: "Connect a mailbox", sub: "Google, Microsoft or IMAP", words: "email gmail outlook" },
-  { key: "connect-calendar", page: "connected", title: "Connect a calendar", sub: "Google or Microsoft", words: "events" },
-  { key: "connect-twilio", page: "connected", title: "Connect Twilio", sub: "Texts and calls", words: "phone number sms" },
-  { key: "computers-list", page: "computer", title: "Computers", sub: "Where your agents can run", words: "server docker device" },
+  {
+    key: "open-vault",
+    page: "ai",
+    title: "AI accounts",
+    sub: "Sign-ins and keys live in the Vault",
+    words: "provider api key openai anthropic subscription",
+  },
+  {
+    key: "memory.about",
+    page: "memory",
+    title: "About you",
+    sub: "What agents know about you, public and private",
+    words: "profile personal private public remember forget erase",
+  },
+  {
+    key: "memory.keys",
+    page: "memory",
+    title: "Who pays for memory",
+    sub: "Learning uses the AI account you chat with",
+    words: "upkeep spend learning limit",
+  },
+  {
+    key: "connect-mailbox",
+    page: "connected",
+    title: "Connect a mailbox",
+    sub: "Google, Microsoft or IMAP",
+    words: "email gmail outlook",
+  },
+  {
+    key: "connect-calendar",
+    page: "connected",
+    title: "Connect a calendar",
+    sub: "Google or Microsoft",
+    words: "events",
+  },
+  {
+    key: "connect-twilio",
+    page: "connected",
+    title: "Connect Twilio",
+    sub: "Texts and calls",
+    words: "phone number sms",
+  },
+  {
+    key: "computers-list",
+    page: "computer",
+    title: "Computers",
+    sub: "Where your agents can run",
+    words: "server docker device",
+  },
 ];
 
 /** What a search looks through beyond the person's own rows: nothing in a Personal Space or for someone who cannot change the Space. */
-export interface SearchScope { personal?: boolean }
+export interface SearchScope {
+  personal?: boolean;
+}
 
 const matches = (words: readonly string[], hay: string): boolean => words.every((w) => hay.toLowerCase().includes(w));
 const scored = (title: string, words: readonly string[]): number => (title.toLowerCase().startsWith(words[0]!) ? 2 : 1);
@@ -353,17 +846,40 @@ export function searchRows(rows: readonly SettingRow[], q: string, scope: Search
     if (!page || (scope.personal && TEAM_ONLY_ROWS.includes(r.key))) continue;
     const help = HIT_HELP[r.key];
     const label = rowLabel(r);
-    if (!matches(words, `${label} ${r.key.replace(/[._]/g, " ")} ${page.title} ${help?.sub ?? ""} ${help?.words ?? ""}`)) continue;
-    out.push({ key: r.key, page: page.key, title: label, score: scored(label, words), ...(help?.sub ? { sub: help.sub } : {}) });
+    if (
+      !matches(words, `${label} ${r.key.replace(/[._]/g, " ")} ${page.title} ${help?.sub ?? ""} ${help?.words ?? ""}`)
+    )
+      continue;
+    out.push({
+      key: r.key,
+      page: page.key,
+      title: label,
+      score: scored(label, words),
+      ...(help?.sub ? { sub: help.sub } : {}),
+    });
   }
   for (const d of DRAWN_ROWS) {
     if (!matches(words, `${d.title} ${d.sub} ${d.words} ${pageByKey(d.page).title}`)) continue;
     out.push({ key: d.key, page: d.page, title: d.title, score: scored(d.title, words), sub: d.sub });
   }
-  if (scope.personal) for (const r of SPACE_ROWS) {
-    if (!PERSONAL_SPACE_ROWS.has(r.id) || !matches(words, `${r.label} ${r.words ?? ""} ${r.help} ${r.key.replace(/[._]/g, " ")} ${pageByKey(r.page).title}`)) continue;
-    out.push({ key: r.id, page: r.page, title: r.label, score: scored(r.label, words), sub: pageByKey(r.page).title });
-  }
+  if (scope.personal)
+    for (const r of SPACE_ROWS) {
+      if (
+        !PERSONAL_SPACE_ROWS.has(r.id) ||
+        !matches(
+          words,
+          `${r.label} ${r.words ?? ""} ${r.help} ${r.key.replace(/[._]/g, " ")} ${pageByKey(r.page).title}`,
+        )
+      )
+        continue;
+      out.push({
+        key: r.id,
+        page: r.page,
+        title: r.label,
+        score: scored(r.label, words),
+        sub: pageByKey(r.page).title,
+      });
+    }
   return out.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
 }
 

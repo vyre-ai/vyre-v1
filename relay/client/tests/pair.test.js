@@ -5,7 +5,16 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { pair, pairOffer, pairTicket, resolveTicket, parsePairUrl, keyFingerprint, connect, PAIR_BASE } from "../client.js";
+import {
+  pair,
+  pairOffer,
+  pairTicket,
+  resolveTicket,
+  parsePairUrl,
+  keyFingerprint,
+  connect,
+  PAIR_BASE,
+} from "../client.js";
 import { memoryKeyStore } from "../webcrypto.js";
 import { base32, base64url, fromBase64url, utf8 } from "../bytes.js";
 import { crypto, fakeFetch, fakeRelay, offerUrl, ROUTE, settle, ticketRecord } from "./box.js";
@@ -19,9 +28,11 @@ async function world(extra = {}) {
   const used = new Set();
   const secret = "s3cret-" + base64url(crypto.randomBytes(9));
   const relay = fakeRelay(crypto, {
-    box, ...extra,
+    box,
+    ...extra,
     admit: async (pub, hello) => {
-      if (hello.pair !== (/** @type {any} */ (extra).secret ?? secret)) throw new Error("not a pairing code this box minted");
+      if (hello.pair !== /** @type {any} */ (extra.secret ?? secret))
+        throw new Error("not a pairing code this box minted");
       if (used.has(hello.pair)) throw new Error("this pairing code was already used");
       used.add(hello.pair);
       return { v: 1, box: { name: "juno" }, device: "d2x4q6", presence: null };
@@ -30,13 +41,22 @@ async function world(extra = {}) {
   return { box, secret, ...relay };
 }
 
-const url = (/** @type {Awaited<ReturnType<typeof world>>} */ w, o = {}) => offerUrl({ relay: RELAY, box: w.box.publicKey, secret: w.secret, name: "juno's box", ...o });
+const url = (/** @type {Awaited<ReturnType<typeof world>>} */ w, o = {}) =>
+  offerUrl({ relay: RELAY, box: w.box.publicKey, secret: w.secret, name: "juno's box", ...o });
 
 test("pair by invite code: the QR offer pairs this device, and the result holds no secret", async () => {
   const w = await world();
   const keyStore = memoryKeyStore();
   const paired = await pair(url(w), { name: "alex's phone", keyStore, crypto, WebSocket: w.WebSocket });
-  assert.deepEqual(paired, { relay: RELAY, route: ROUTE, box: base64url(w.box.publicKey), name: "juno", device: "d2x4q6", presence: null, enroll: null });
+  assert.deepEqual(paired, {
+    relay: RELAY,
+    route: ROUTE,
+    box: base64url(w.box.publicKey),
+    name: "juno",
+    device: "d2x4q6",
+    presence: null,
+    enroll: null,
+  });
   assert.equal(JSON.stringify(paired).includes(w.secret), false, "the one-time secret is not kept");
   assert.equal(w.world.dials, 1);
   assert.equal(w.world.urls[0], `${RELAY}/v1/device?route=${ROUTE}`);
@@ -45,7 +65,8 @@ test("pair by invite code: the QR offer pairs this device, and the result holds 
 });
 
 test("pair by invite code: the device key is made once, non-extractable, and reused by the next pairing", async () => {
-  const a = await world(), b = await world();
+  const a = await world(),
+    b = await world();
   const keyStore = memoryKeyStore();
   assert.equal(await keyStore.get(), null);
   await pair(url(a), { keyStore, crypto, WebSocket: a.WebSocket });
@@ -56,26 +77,50 @@ test("pair by invite code: the device key is made once, non-extractable, and reu
   await assert.rejects(globalThis.crypto.subtle.exportKey("raw", key.privateKey));
   await pair(url(b), { keyStore, crypto, WebSocket: b.WebSocket });
   assert.deepEqual((await keyStore.get())?.publicKey, key.publicKey);
-  assert.deepEqual(/** @type {any} */ (b.world.channels[0]).peer, key.publicKey, "the second box sees the same device key");
+  assert.deepEqual(
+    /** @type {any} */ (b.world.channels[0]).peer,
+    key.publicKey,
+    "the second box sees the same device key",
+  );
 });
 
 test("pair by invite code: a used, wrong or foreign code is refused with pair_failed", async () => {
   const w = await world();
   const o = { keyStore: memoryKeyStore(), crypto, WebSocket: w.WebSocket, timeout: 2000 };
   await pair(url(w), o);
-  await assert.rejects(pair(url(w), o), e => /** @type {any} */ (e).code === "pair_failed" && /already used/.test(/** @type {Error} */ (e).message));
-  await assert.rejects(pair(url(w, { secret: "wrong" }), o), e => /** @type {any} */ (e).code === "pair_failed");
+  await assert.rejects(
+    pair(url(w), o),
+    (e) => /** @type {any} */ (e).code === "pair_failed" && /already used/.test(/** @type {Error} */ (e).message),
+  );
+  await assert.rejects(pair(url(w, { secret: "wrong" }), o), (e) => /** @type {any} */ (e).code === "pair_failed");
   // a QR for a different box: the handshake cannot complete, and the person is told it is not the box in the code
   const stranger = await crypto.generateKeyPair();
-  await assert.rejects(pair(url(w, { box: stranger.publicKey }), o), e => /** @type {any} */ (e).code === "pair_failed");
+  await assert.rejects(
+    pair(url(w, { box: stranger.publicKey }), o),
+    (e) => /** @type {any} */ (e).code === "pair_failed",
+  );
   w.world.down = true;
-  await assert.rejects(pair(url(w, { secret: "x" }), o), e => /** @type {any} */ (e).code === "pair_failed" && /reach the relay/.test(/** @type {Error} */ (e).message));
+  await assert.rejects(
+    pair(url(w, { secret: "x" }), o),
+    (e) => /** @type {any} */ (e).code === "pair_failed" && /reach the relay/.test(/** @type {Error} */ (e).message),
+  );
 });
 
 test("pair by invite code: not a Vyre code is bad_input before any connection", async () => {
   const w = await world();
-  for (const bad of ["", "not a url", `${PAIR_BASE}#!!`, `${PAIR_BASE}`, "https://example.com/pair#" + url(w).split("#")[1], url(w).slice(0, -6)]) {
-    await assert.rejects(pair(bad, { keyStore: memoryKeyStore(), crypto, WebSocket: w.WebSocket }), e => /** @type {any} */ (e).code === "bad_input", bad);
+  for (const bad of [
+    "",
+    "not a url",
+    `${PAIR_BASE}#!!`,
+    `${PAIR_BASE}`,
+    "https://example.com/pair#" + url(w).split("#")[1],
+    url(w).slice(0, -6),
+  ]) {
+    await assert.rejects(
+      pair(bad, { keyStore: memoryKeyStore(), crypto, WebSocket: w.WebSocket }),
+      (e) => /** @type {any} */ (e).code === "bad_input",
+      bad,
+    );
   }
   assert.equal(w.world.dials, 0);
 });
@@ -89,7 +134,10 @@ test("pair by invite code: the pairing page is the Space's to choose (PAIR_BASE 
   assert.equal(parsePairUrl(mine, own)?.route, ROUTE);
   assert.equal(parsePairUrl(url(w), own), null);
   assert.equal(parsePairUrl(url(w), "")?.route ?? null, null, "an empty base matches nothing");
-  await assert.rejects(pair(mine, { keyStore: memoryKeyStore(), crypto, WebSocket: w.WebSocket }), e => /** @type {any} */ (e).code === "bad_input");
+  await assert.rejects(
+    pair(mine, { keyStore: memoryKeyStore(), crypto, WebSocket: w.WebSocket }),
+    (e) => /** @type {any} */ (e).code === "bad_input",
+  );
   const paired = await pair(mine, { pairBase: own, keyStore: memoryKeyStore(), crypto, WebSocket: w.WebSocket });
   assert.equal(paired.name, "juno");
 });
@@ -99,7 +147,11 @@ test("pair: the box's name is made safe to show, and a gated pairing is marked p
   const mk = async (/** @type {any} */ reply) => {
     const box = await crypto.generateKeyPair();
     const r = fakeRelay(crypto, { box, admit: async () => reply });
-    return pair(offerUrl({ relay: RELAY, box: box.publicKey, secret: "s" }), { keyStore: memoryKeyStore(), crypto, WebSocket: r.WebSocket });
+    return pair(offerUrl({ relay: RELAY, box: box.publicKey, secret: "s" }), {
+      keyStore: memoryKeyStore(),
+      crypto,
+      WebSocket: r.WebSocket,
+    });
   };
   assert.equal((await mk({ box: { name: "ju‮no\n\u0000box" }, device: "d1" })).name, "ju no box");
   assert.equal((await mk({ box: { name: "‮\n" }, device: "d1" })).name, "a Vyre box", "nothing left to show");
@@ -113,7 +165,17 @@ test("pair: the box's name is made safe to show, and a gated pairing is marked p
 
 test("pair by pair code: the ticket resolves to who the box says it is, before anything is paired", async () => {
   const w = await world();
-  const record = { v: 1, relay: RELAY, route: ROUTE, box: base64url(w.box.publicKey), name: "juno", handle: "juno", identity: base64url(new Uint8Array(8).fill(4)), address: "https://juno.example.com", exp: Date.now() + 60_000 };
+  const record = {
+    v: 1,
+    relay: RELAY,
+    route: ROUTE,
+    box: base64url(w.box.publicKey),
+    name: "juno",
+    handle: "juno",
+    identity: base64url(new Uint8Array(8).fill(4)),
+    address: "https://juno.example.com",
+    exp: Date.now() + 60_000,
+  };
   const rec = await ticketRecord(crypto, TICKET, record);
   const store = new Map([[rec.loc, { record: rec.record, mac: rec.mac }]]);
   const fetch = fakeFetch(store);
@@ -140,28 +202,77 @@ test("pair by pair code: the ticket resolves to who the box says it is, before a
 
 test("pair by pair code: confirm, then pairOffer pairs with the secret the ticket derives", async () => {
   const w = await world({ secret: undefined });
-  const rec = await ticketRecord(crypto, TICKET, { v: 1, relay: RELAY, route: ROUTE, box: base64url(w.box.publicKey), name: "juno", exp: Date.now() + 60_000 });
+  const rec = await ticketRecord(crypto, TICKET, {
+    v: 1,
+    relay: RELAY,
+    route: ROUTE,
+    box: base64url(w.box.publicKey),
+    name: "juno",
+    exp: Date.now() + 60_000,
+  });
   // this box admits the ticket's own secret
-  const relay = fakeRelay(crypto, { box: w.box, admit: async (_pub, hello) => { assert.equal(hello.pair, rec.secret); return { v: 1, box: { name: "juno" }, device: "dv3" }; } });
-  const { offer, name, fingerprint } = await resolveTicket(TICKET, { relay: RELAY, crypto, fetch: fakeFetch(new Map([[rec.loc, { record: rec.record, mac: rec.mac }]])) });
+  const relay = fakeRelay(crypto, {
+    box: w.box,
+    admit: async (_pub, hello) => {
+      assert.equal(hello.pair, rec.secret);
+      return { v: 1, box: { name: "juno" }, device: "dv3" };
+    },
+  });
+  const { offer, name, fingerprint } = await resolveTicket(TICKET, {
+    relay: RELAY,
+    crypto,
+    fetch: fakeFetch(new Map([[rec.loc, { record: rec.record, mac: rec.mac }]])),
+  });
   assert.match(fingerprint, /^[a-z2-7]{4} [a-z2-7]{4}$/);
   assert.equal(name, "juno");
   let shown = "";
   const keyStore = memoryKeyStore();
-  const paired = await pairOffer(offer, { name: "alex's phone", keyStore, crypto, WebSocket: relay.WebSocket, onFingerprint: f => { shown = f; } });
+  const paired = await pairOffer(offer, {
+    name: "alex's phone",
+    keyStore,
+    crypto,
+    WebSocket: relay.WebSocket,
+    onFingerprint: (f) => {
+      shown = f;
+    },
+  });
   assert.equal(paired.device, "dv3");
   assert.equal(paired.name, "juno");
   assert.equal(paired.box, base64url(w.box.publicKey));
   const key = await keyStore.get();
-  assert.equal(shown, await keyFingerprint(/** @type {any} */ (key).publicKey, crypto), "this phone shows the same fingerprint the box shows beside Confirm");
+  assert.equal(
+    shown,
+    await keyFingerprint(/** @type {any} */ (key).publicKey, crypto),
+    "this phone shows the same fingerprint the box shows beside Confirm",
+  );
 });
 
 test("pair by pair code: pairTicket does both, and returns the box's address and handle when it gave them", async () => {
   const w = await world();
-  const record = { v: 1, relay: RELAY, route: ROUTE, box: base64url(w.box.publicKey), name: "juno", handle: "juno", address: "https://juno.example.com", exp: Date.now() + 60_000 };
+  const record = {
+    v: 1,
+    relay: RELAY,
+    route: ROUTE,
+    box: base64url(w.box.publicKey),
+    name: "juno",
+    handle: "juno",
+    address: "https://juno.example.com",
+    exp: Date.now() + 60_000,
+  };
   const rec = await ticketRecord(crypto, TICKET, record);
-  const relay = fakeRelay(crypto, { box: w.box, admit: async (_p, hello) => (hello.pair === rec.secret ? { v: 1, box: { name: "juno" }, device: "dv4" } : Promise.reject(new Error("no"))) });
-  const paired = await pairTicket(TICKET, { relay: RELAY, name: "alex's phone", keyStore: memoryKeyStore(), crypto, WebSocket: relay.WebSocket, fetch: fakeFetch(new Map([[rec.loc, { record: rec.record, mac: rec.mac }]])) });
+  const relay = fakeRelay(crypto, {
+    box: w.box,
+    admit: async (_p, hello) =>
+      hello.pair === rec.secret ? { v: 1, box: { name: "juno" }, device: "dv4" } : Promise.reject(new Error("no")),
+  });
+  const paired = await pairTicket(TICKET, {
+    relay: RELAY,
+    name: "alex's phone",
+    keyStore: memoryKeyStore(),
+    crypto,
+    WebSocket: relay.WebSocket,
+    fetch: fakeFetch(new Map([[rec.loc, { record: rec.record, mac: rec.mac }]])),
+  });
   assert.equal(paired.device, "dv4");
   assert.equal(/** @type {any} */ (paired).address, "https://juno.example.com");
   assert.equal(/** @type {any} */ (paired).handle, "juno");
@@ -169,10 +280,24 @@ test("pair by pair code: pairTicket does both, and returns the box's address and
 
 test("pair by pair code: a code is single use, and the relay's refusals keep their reasons", async () => {
   const w = await world();
-  const rec = await ticketRecord(crypto, TICKET, { v: 1, relay: RELAY, route: ROUTE, box: base64url(w.box.publicKey), name: "juno", exp: Date.now() + 60_000 });
+  const rec = await ticketRecord(crypto, TICKET, {
+    v: 1,
+    relay: RELAY,
+    route: ROUTE,
+    box: base64url(w.box.publicKey),
+    name: "juno",
+    exp: Date.now() + 60_000,
+  });
   const fetch = fakeFetch(new Map([[rec.loc, { record: rec.record, mac: rec.mac }]]));
   await resolveTicket(TICKET, { relay: RELAY, crypto, fetch });
-  const code = async (/** @type {() => Promise<unknown>} */ fn) => { try { await fn(); } catch (e) { return /** @type {any} */ (e).code; } return "none"; };
+  const code = async (/** @type {() => Promise<unknown>} */ fn) => {
+    try {
+      await fn();
+    } catch (e) {
+      return /** @type {any} */ (e).code;
+    }
+    return "none";
+  };
   assert.equal(await code(() => resolveTicket(TICKET, { relay: RELAY, crypto, fetch })), "ticket_gone");
   const status = (/** @type {number} */ s) => async () => ({ status: s, ok: s < 300, json: async () => ({}) });
   assert.equal(await code(() => resolveTicket(TICKET, { relay: RELAY, crypto, fetch: status(429) })), "rate_limited");
@@ -183,15 +308,39 @@ test("pair by pair code: a code is single use, and the relay's refusals keep the
 
 test("pair by pair code: a relay that tampers, or a record that lies, is refused before anything is offered", async () => {
   const w = await world();
-  const code = async (/** @type {() => Promise<unknown>} */ fn) => { try { await fn(); } catch (e) { return /** @type {any} */ (e).code; } return "none"; };
-  const base = { v: 1, relay: RELAY, route: ROUTE, box: base64url(w.box.publicKey), name: "juno", exp: Date.now() + 60_000 };
+  const code = async (/** @type {() => Promise<unknown>} */ fn) => {
+    try {
+      await fn();
+    } catch (e) {
+      return /** @type {any} */ (e).code;
+    }
+    return "none";
+  };
+  const base = {
+    v: 1,
+    relay: RELAY,
+    route: ROUTE,
+    box: base64url(w.box.publicKey),
+    name: "juno",
+    exp: Date.now() + 60_000,
+  };
   const resolveWith = async (/** @type {any} */ record, tweak = (/** @type {any} */ r) => r) => {
     const rec = await ticketRecord(crypto, TICKET, record);
-    return resolveTicket(TICKET, { relay: RELAY, crypto, fetch: fakeFetch(new Map([[rec.loc, tweak({ record: rec.record, mac: rec.mac })]])) });
+    return resolveTicket(TICKET, {
+      relay: RELAY,
+      crypto,
+      fetch: fakeFetch(new Map([[rec.loc, tweak({ record: rec.record, mac: rec.mac })]])),
+    });
   };
   // the relay swaps the sealed bytes, or keeps them and forges the MAC
-  assert.equal(await code(() => resolveWith(base, r => ({ ...r, record: base64url(utf8("swapped by the relay")) }))), "bad_record");
-  assert.equal(await code(() => resolveWith(base, r => ({ ...r, mac: base64url(new Uint8Array(32)) }))), "bad_record");
+  assert.equal(
+    await code(() => resolveWith(base, (r) => ({ ...r, record: base64url(utf8("swapped by the relay")) }))),
+    "bad_record",
+  );
+  assert.equal(
+    await code(() => resolveWith(base, (r) => ({ ...r, mac: base64url(new Uint8Array(32)) }))),
+    "bad_record",
+  );
   // a record the box did not make for this ticket cannot be opened
   const other = await ticketRecord(crypto, Uint8Array.from([9, 9, 9, 9, 9, 9, 9, 9]), base);
   assert.equal(await code(() => resolveWith(base, () => ({ record: other.record, mac: other.mac }))), "bad_record");
@@ -205,7 +354,14 @@ test("pair by pair code: a relay that tampers, or a record that lies, is refused
   assert.equal(await code(() => resolveWith({ ...base, box: "!!" })), "bad_record");
   assert.equal(await code(() => resolveWith(null)), "bad_record");
   // odd but valid fields are cleaned, not trusted
-  const clean = await resolveWith({ ...base, name: "ju‮no", handle: "not a handle!", address: "http://insecure.example", identity: "short", offer: { big: "x".repeat(3000) } });
+  const clean = await resolveWith({
+    ...base,
+    name: "ju‮no",
+    handle: "not a handle!",
+    address: "http://insecure.example",
+    identity: "short",
+    offer: { big: "x".repeat(3000) },
+  });
   assert.equal(clean.name, "ju no");
   assert.equal(clean.handle, null);
   assert.equal(clean.address, null);
@@ -214,19 +370,31 @@ test("pair by pair code: a relay that tampers, or a record that lies, is refused
   assert.deepEqual((await resolveWith({ ...base, offer: { hello: 1 } })).invite, { hello: 1 });
 });
 
-test("connect after pairing: requests and the keepalive text ride the paired channel", async t => {
+test("connect after pairing: requests and the keepalive text ride the paired channel", async (t) => {
   const w = await world();
   const keyStore = memoryKeyStore();
   const paired = await pair(url(w), { keyStore, crypto, WebSocket: w.WebSocket });
   const served = fakeRelay(crypto, {
-    box: w.box, admit: async () => ({ v: 1, box: { name: "juno" } }),
-    serve: channel => {
-      channel.onstream = s => {
+    box: w.box,
+    admit: async () => ({ v: 1, box: { name: "juno" } }),
+    serve: (channel) => {
+      channel.onstream = (s) => {
         let body = "";
-        s.ondata = c => { body += new TextDecoder().decode(c); };
+        s.ondata = (c) => {
+          body += new TextDecoder().decode(c);
+        };
         s.onend = () => {
           channel.respond(s, { status: 200, headers: { "content-type": "application/json" } });
-          s.write(utf8(JSON.stringify({ path: s.head.path, method: s.head.method, body, key: s.head.headers["idempotency-key"] ?? null })));
+          s.write(
+            utf8(
+              JSON.stringify({
+                path: s.head.path,
+                method: s.head.method,
+                body,
+                key: s.head.headers["idempotency-key"] ?? null,
+              }),
+            ),
+          );
           s.end();
         };
       };
@@ -237,7 +405,9 @@ test("connect after pairing: requests and the keepalive text ride the paired cha
   const res = await conn.fetch("/v1/health");
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { path: "/v1/health", method: "GET", body: "", key: null });
-  const post = await (await conn.fetch("/v1/tools/notes.add", { method: "POST", body: JSON.stringify({ text: "hi" }) })).json();
+  const post = await (
+    await conn.fetch("/v1/tools/notes.add", { method: "POST", body: JSON.stringify({ text: "hi" }) })
+  ).json();
   assert.equal(post.method, "POST");
   assert.equal(post.body, '{"text":"hi"}');
   assert.match(post.key, /^[0-9a-f-]{36}$/, "every non-GET carries an Idempotency-Key");

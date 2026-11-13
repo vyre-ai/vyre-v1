@@ -19,7 +19,12 @@ export default function Mount(): ReactNode {
   return (
     <SettingsDataProvider value={sample.data}>
       <View style={{ height }}>
-        <SettingsPlace initialPage={page} initialQuery={q.get("q") ?? ""} initialView={q.get("view") === "nav" ? "nav" : "page"} initialFound={q.get("found")} />
+        <SettingsPlace
+          initialPage={page}
+          initialQuery={q.get("q") ?? ""}
+          initialView={q.get("view") === "nav" ? "nav" : "page"}
+          initialFound={q.get("found")}
+        />
       </View>
     </SettingsDataProvider>
   );

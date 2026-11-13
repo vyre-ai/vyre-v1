@@ -3,7 +3,12 @@ import type { FlowKind, Progress, StepState } from "./flow.ts";
 import { stateOn, visibleSteps } from "./device.ts";
 import type { Device } from "./device.ts";
 
-export interface SetupRow { key: string; title: string; note: string; state: StepState }
+export interface SetupRow {
+  key: string;
+  title: string;
+  note: string;
+  state: StepState;
+}
 
 /** The quiet line under a step's row: Skipped for a step put off, else its own line. */
 export const setupNote = (row: SetupRow): string => (row.state === "later" ? "Skipped" : row.note);
@@ -16,5 +21,10 @@ export function setupTop(rows: readonly SetupRow[], most = 3): { rows: SetupRow[
 
 /** The steps this device shows (a browser has no sessions or folders, a phone no Chrome and its own step is done); the Mac app shows all. */
 export function setupRows(flow: FlowKind, progress: Progress, device: Device = "mac"): SetupRow[] {
-  return visibleSteps(flow, device).map((s) => ({ key: s.key, title: s.title, note: s.line, state: stateOn(progress, s, device) }));
+  return visibleSteps(flow, device).map((s) => ({
+    key: s.key,
+    title: s.title,
+    note: s.line,
+    state: stateOn(progress, s, device),
+  }));
 }

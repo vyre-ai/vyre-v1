@@ -22,12 +22,35 @@ export function ConnectHere({ connected, onPick }: ConnectHereProps): ReactEleme
   const rows: ReactElement[] = [];
   for (const o of SIGNIN_BUTTONS) {
     if (connected.has(o.key)) continue;
-    rows.push(<Row key={o.key} id={`vault-connect-${o.key}`} title={`Connect ${o.label}`} note="Sign in with your plan" leading={<View style={s.logo}><LogoTile name={o.label} size={26} /></View>} onPress={() => onPick({ providerKey: o.key, connection: "subscription" })} />);
+    rows.push(
+      <Row
+        key={o.key}
+        id={`vault-connect-${o.key}`}
+        title={`Connect ${o.label}`}
+        note="Sign in with your plan"
+        leading={
+          <View style={s.logo}>
+            <LogoTile name={o.label} size={26} />
+          </View>
+        }
+        onPress={() => onPick({ providerKey: o.key, connection: "subscription" })}
+      />,
+    );
   }
-  rows.push(<Row key="api-key" id="vault-connect-key" title="Use an API key" note="OpenCode Go, Anthropic, OpenAI, OpenRouter and more" onPress={() => onPick(null)} />);
+  rows.push(
+    <Row
+      key="api-key"
+      id="vault-connect-key"
+      title="Use an API key"
+      note="OpenCode Go, Anthropic, OpenAI, OpenRouter and more"
+      onPress={() => onPick(null)}
+    />,
+  );
   return (
     <View style={s.wrap} testID="vault-connect-here">
-      {data.personal === true ? null : <SpaceAiStatus call={(cap, input) => data.call(cap, input ?? {})} me={data.me.id} testID="vault-space-ai" />}
+      {data.personal === true ? null : (
+        <SpaceAiStatus call={(cap, input) => data.call(cap, input ?? {})} me={data.me.id} testID="vault-space-ai" />
+      )}
       <Text style={s.head}>Connect your AI</Text>
       <View style={s.box}>{rows}</View>
     </View>
@@ -37,6 +60,12 @@ export function ConnectHere({ connected, onPick }: ConnectHereProps): ReactEleme
 const s = StyleSheet.create({
   wrap: { paddingHorizontal: 12, paddingTop: 10, gap: 6 },
   head: { fontSize: 12, fontWeight: "500", color: "var(--ink-3)" as string, paddingHorizontal: 4 },
-  box: { borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, padding: 4, backgroundColor: "var(--win)" as string },
+  box: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "var(--line)" as string,
+    padding: 4,
+    backgroundColor: "var(--win)" as string,
+  },
   logo: { marginRight: 10 },
 });

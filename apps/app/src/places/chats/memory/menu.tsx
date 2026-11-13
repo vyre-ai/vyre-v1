@@ -10,34 +10,59 @@ import { useThreadMemory } from "./thread.tsx";
 import type { ThreadMemory } from "./thread.tsx";
 
 /** What the menu needs of a message. */
-export interface MenuMessage { messageId: string; body: string; createdAt: number }
+export interface MenuMessage {
+  messageId: string;
+  body: string;
+  createdAt: number;
+}
 export type ShowMenu = (items: readonly MenuEntry[], x: number, y: number, label: string) => void;
 
 const MAX_PAGES = 14;
 
 /** The memory entries for one message, or none where the chat has no memory. `at` is where the picker opens (under the menu that asked). */
-export function memoryEntries(thread: ThreadMemory, m: MenuMessage, at: { x: number; y: number }, show: ShowMenu): MenuEntry[] {
+export function memoryEntries(
+  thread: ThreadMemory,
+  m: MenuMessage,
+  at: { x: number; y: number },
+  show: ShowMenu,
+): MenuEntry[] {
   const { memory } = thread;
   const say = thread.flash;
   const pick = (): void => {
     const pages = thread.pages.filter((p) => SUBJECT_KINDS.has(p.kind)).slice(0, MAX_PAGES);
     show(
       pages.length > 0
-        ? [{ head: "Add to a page" } as MenuEntry, ...pages.map((p): MenuEntry => ({ label: `${p.title} \u00B7 ${KIND_ONE[p.kind as keyof typeof KIND_ONE] ?? p.kind}`, onSelect: () => void addMessageToPage(memory, m, p.pageId, p.title, say) }))]
+        ? [
+            { head: "Add to a page" } as MenuEntry,
+            ...pages.map(
+              (p): MenuEntry => ({
+                label: `${p.title} \u00B7 ${KIND_ONE[p.kind as keyof typeof KIND_ONE] ?? p.kind}`,
+                onSelect: () => void addMessageToPage(memory, m, p.pageId, p.title, say),
+              }),
+            ),
+          ]
         : [{ head: "No pages to add to yet" } as MenuEntry],
-      at.x, at.y, "Add to a page",
+      at.x,
+      at.y,
+      "Add to a page",
     );
   };
   return [
     { separator: true },
     { label: "Remember This", onSelect: () => void rememberMessage(memory, thread.threadId, m, say) },
     { label: "Add to a Page\u2026", onSelect: pick },
-    { label: "Forget This", danger: true, onSelect: () => void forgetMessage(memory, thread.currentFrom(m.messageId), say) },
+    {
+      label: "Forget This",
+      danger: true,
+      onSelect: () => void forgetMessage(memory, thread.currentFrom(m.messageId), say),
+    },
   ];
 }
 
 /** The hook the conversation calls once: a function from a message and a point to its memory entries (empty without memory). */
-export function useMemoryEntries(): ((m: MenuMessage, x: number, y: number, show: ShowMenu) => MenuEntry[]) | undefined {
+export function useMemoryEntries():
+  | ((m: MenuMessage, x: number, y: number, show: ShowMenu) => MenuEntry[])
+  | undefined {
   const thread = useThreadMemory();
   if (!thread) return undefined;
   return (m, x, y, show) => memoryEntries(thread, m, { x, y }, show);

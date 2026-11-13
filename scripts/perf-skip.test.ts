@@ -26,8 +26,14 @@ test("a perf file runs under VYRE_PERF_FULL=1 and on a perf matrix entry (VYRE_P
 test("the runners print one 'skip (perf)' line per skipped file and do not run it", () => {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const file = "kernel/tests/authorize.bench.test.ts";
-  const env = { ...process.env }; delete env["VYRE_PERF_FULL"]; delete env["VYRE_PERF_RUN"]; delete env["NODE_TEST_CONTEXT"];
-  for (const cmd of [["scripts/test-run.mjs", "--slow", "--no-cache", "--files", file], ["scripts/test-run.ts", "--slow", "--files", file]]) {
+  const env = { ...process.env };
+  delete env["VYRE_PERF_FULL"];
+  delete env["VYRE_PERF_RUN"];
+  delete env["NODE_TEST_CONTEXT"];
+  for (const cmd of [
+    ["scripts/test-run.mjs", "--slow", "--no-cache", "--files", file],
+    ["scripts/test-run.ts", "--slow", "--files", file],
+  ]) {
     const r = spawnSync(process.execPath, cmd, { cwd: root, env, encoding: "utf8", timeout: 20000 });
     assert.equal(r.status, 0, `${cmd[0]}: ${r.stdout}${r.stderr}`);
     assert.equal((r.stdout.match(/^skip \(perf\) /gm) ?? []).length, 1, r.stdout);

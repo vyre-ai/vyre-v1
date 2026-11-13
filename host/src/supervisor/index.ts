@@ -4,7 +4,11 @@
 import { spawn } from "node:child_process";
 import type { Logger } from "../../../packages/contracts/src/ctx.ts";
 
-export interface UnitExit { code?: number | null; signal?: string | null; error?: string }
+export interface UnitExit {
+  code?: number | null;
+  signal?: string | null;
+  error?: string;
+}
 export interface RunningUnit {
   /** stop the unit and resolve once it is gone */
   stop(): Promise<void>;
@@ -59,7 +63,8 @@ interface Entry {
   gen: number;
 }
 
-const stateOf = (p: Phase): ServiceState => (p === "running" ? "healthy" : p === "failed" || p === "stopped" ? "down" : "degraded");
+const stateOf = (p: Phase): ServiceState =>
+  p === "running" ? "healthy" : p === "failed" || p === "stopped" ? "down" : "degraded";
 
 export class Supervisor {
   private entries = new Map<string, Entry>();
@@ -70,30 +75,63 @@ export class Supervisor {
 
   constructor(o: SupervisorOptions = {}) {
     this.now = o.now ?? Date.now;
-    this.sleep = o.sleep ?? ((ms) => new Promise((r) => { const t = setTimeout(r, ms); t.unref(); }));
+    this.sleep =
+      o.sleep ??
+      ((ms) =>
+        new Promise((r) => {
+          const t = setTimeout(r, ms);
+          t.unref();
+        }));
     this.report = o.report ?? (() => {});
     this.log = o.log;
   }
 
   add(spec: ServiceSpec): void {
     if (this.entries.has(spec.name)) throw new Error(`service ${spec.name} is already registered`);
-    this.entries.set(spec.name, { spec, policy: { ...DEFAULT_POLICY, ...spec.policy }, unit: null, phase: "idle", startedAt: this.now(), restarts: 0, crashes: [], gen: 0 });
+    this.entries.set(spec.name, {
+      spec,
+      policy: { ...DEFAULT_POLICY, ...spec.policy },
+      unit: null,
+      phase: "idle",
+      startedAt: this.now(),
+      restarts: 0,
+      crashes: [],
+      gen: 0,
+    });
   }
 
-  has(name: string): boolean { return this.entries.has(name); }
-  names(): string[] { return [...this.entries.keys()]; }
+  has(name: string): boolean {
+    return this.entries.has(name);
+  }
+  names(): string[] {
+    return [...this.entries.keys()];
+  }
 
   status(name?: string): ServiceStatus[] {
     return [...this.entries.values()].filter((e) => !name || e.spec.name === name).map((e) => this.snapshot(e));
   }
 
   private snapshot(e: Entry): ServiceStatus {
-    return { name: e.spec.name, phase: e.phase, state: stateOf(e.phase), startedAt: e.startedAt, restarts: e.restarts, ...(e.lastExit ? { lastExit: e.lastExit } : {}) };
+    return {
+      name: e.spec.name,
+      phase: e.phase,
+      state: stateOf(e.phase),
+      startedAt: e.startedAt,
+      restarts: e.restarts,
+      ...(e.lastExit ? { lastExit: e.lastExit } : {}),
+    };
   }
 
   private set(e: Entry, phase: Phase): void {
     e.phase = phase;
-    try { this.report(this.snapshot(e)); } catch (err) { this.log?.warn("supervisor.report_failed", { service: e.spec.name, error: err instanceof Error ? err.message : String(err) }); }
+    try {
+      this.report(this.snapshot(e));
+    } catch (err) {
+      this.log?.warn("supervisor.report_failed", {
+        service: e.spec.name,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   private get(name: string): Entry {
@@ -123,30 +161,57 @@ export class Supervisor {
       unit = await e.spec.start();
     } catch (err) {
       if (e.gen !== gen) return;
-      if (once) { e.unit = null; e.lastExit = { error: err instanceof Error ? err.message : String(err) }; e.gen++; this.log?.warn("supervisor.exit", { service: e.spec.name, code: null, error: e.lastExit.error ?? null, crashes: 1 }); this.set(e, "failed"); return; }
+      if (once) {
+        e.unit = null;
+        e.lastExit = { error: err instanceof Error ? err.message : String(err) };
+        e.gen++;
+        this.log?.warn("supervisor.exit", {
+          service: e.spec.name,
+          code: null,
+          error: e.lastExit.error ?? null,
+          crashes: 1,
+        });
+        this.set(e, "failed");
+        return;
+      }
       await this.onExit(e, gen, { error: err instanceof Error ? err.message : String(err) });
       return;
     }
-    if (e.gen !== gen) { await unit.stop().catch(() => {}); return; }   // stopped while starting
+    if (e.gen !== gen) {
+      await unit.stop().catch(() => {});
+      return;
+    } // stopped while starting
     e.unit = unit;
     e.startedAt = this.now();
     this.set(e, "running");
-    void unit.exited.then((x) => this.onExit(e, gen, x), (err: unknown) => this.onExit(e, gen, { error: err instanceof Error ? err.message : String(err) }));
+    void unit.exited.then(
+      (x) => this.onExit(e, gen, x),
+      (err: unknown) => this.onExit(e, gen, { error: err instanceof Error ? err.message : String(err) }),
+    );
   }
 
   private async onExit(e: Entry, gen: number, exit: UnitExit): Promise<void> {
-    if (e.gen !== gen) return;   // we stopped it, or a newer unit replaced it
+    if (e.gen !== gen) return; // we stopped it, or a newer unit replaced it
     e.unit = null;
     e.lastExit = exit;
     const t = this.now();
     e.crashes = e.crashes.filter((c) => t - c < e.policy.windowMs);
     e.crashes.push(t);
-    this.log?.warn("supervisor.exit", { service: e.spec.name, code: exit.code ?? null, error: exit.error ?? null, crashes: e.crashes.length });
-    if (e.crashes.length > e.policy.maxRestarts) { e.gen++; this.set(e, "failed"); return; }
+    this.log?.warn("supervisor.exit", {
+      service: e.spec.name,
+      code: exit.code ?? null,
+      error: exit.error ?? null,
+      crashes: e.crashes.length,
+    });
+    if (e.crashes.length > e.policy.maxRestarts) {
+      e.gen++;
+      this.set(e, "failed");
+      return;
+    }
     this.set(e, "backoff");
     const wait = e.policy.backoffMs[Math.min(e.crashes.length, e.policy.backoffMs.length) - 1] ?? 0;
     await this.sleep(wait);
-    if (e.gen !== gen) return;   // stopped or restarted by hand while waiting
+    if (e.gen !== gen) return; // stopped or restarted by hand while waiting
     e.restarts++;
     await this.launch(e);
   }
@@ -157,7 +222,13 @@ export class Supervisor {
     e.gen++;
     const unit = e.unit;
     e.unit = null;
-    if (unit) await unit.stop().catch((err: unknown) => this.log?.warn("supervisor.stop_failed", { service: name, error: err instanceof Error ? err.message : String(err) }));
+    if (unit)
+      await unit.stop().catch((err: unknown) =>
+        this.log?.warn("supervisor.stop_failed", {
+          service: name,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
     if (e.phase !== "idle") this.set(e, "stopped");
   }
 
@@ -189,27 +260,47 @@ export interface ProcessUnitOptions {
 }
 
 /** A unit that is a child process (Caddy, a sidecar). `exited` resolves when the process ends. */
-export function processUnit(cmd: string, args: readonly string[], o: ProcessUnitOptions = {}): () => Promise<RunningUnit> {
-  return () => new Promise<RunningUnit>((resolve, reject) => {
-    const child = spawn(cmd, [...args], { env: { ...process.env, ...o.env }, ...(o.cwd ? { cwd: o.cwd } : {}), stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
-    let done = false;
-    const exited = new Promise<UnitExit>((res) => {
-      child.once("exit", (code, signal) => { done = true; res({ code, signal }); });
-      child.once("error", (err) => { done = true; res({ error: err.message }); });
+export function processUnit(
+  cmd: string,
+  args: readonly string[],
+  o: ProcessUnitOptions = {},
+): () => Promise<RunningUnit> {
+  return () =>
+    new Promise<RunningUnit>((resolve, reject) => {
+      const child = spawn(cmd, [...args], {
+        env: { ...process.env, ...o.env },
+        ...(o.cwd ? { cwd: o.cwd } : {}),
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      });
+      let done = false;
+      const exited = new Promise<UnitExit>((res) => {
+        child.once("exit", (code, signal) => {
+          done = true;
+          res({ code, signal });
+        });
+        child.once("error", (err) => {
+          done = true;
+          res({ error: err.message });
+        });
+      });
+      child.stdout?.on("data", (d: Buffer) => o.onOutput?.("stdout", d.toString()));
+      child.stderr?.on("data", (d: Buffer) => o.onOutput?.("stderr", d.toString()));
+      child.once("spawn", () =>
+        resolve({
+          exited,
+          async stop() {
+            if (done) return;
+            child.kill(o.signal ?? "SIGTERM");
+            const timer = setTimeout(() => {
+              if (!done) child.kill("SIGKILL");
+            }, o.killAfterMs ?? 5000);
+            timer.unref();
+            await exited;
+            clearTimeout(timer);
+          },
+        }),
+      );
+      child.once("error", (err) => reject(err));
     });
-    child.stdout?.on("data", (d: Buffer) => o.onOutput?.("stdout", d.toString()));
-    child.stderr?.on("data", (d: Buffer) => o.onOutput?.("stderr", d.toString()));
-    child.once("spawn", () => resolve({
-      exited,
-      async stop() {
-        if (done) return;
-        child.kill(o.signal ?? "SIGTERM");
-        const timer = setTimeout(() => { if (!done) child.kill("SIGKILL"); }, o.killAfterMs ?? 5000);
-        timer.unref();
-        await exited;
-        clearTimeout(timer);
-      },
-    }));
-    child.once("error", (err) => reject(err));
-  });
 }

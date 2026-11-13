@@ -15,9 +15,31 @@ const T = "thr_estate";
 const LEAD = "agt_intake";
 const WATCHER = "agt_watch";
 
-interface ChatRow { messageId: string; threadId: string; threadSeq: number; author: { kind: string; id: string }; body: string; blocks: unknown[]; mentions: unknown[]; via?: { routineOwner: string }; depth: number; attachments?: string[] }
+interface ChatRow {
+  messageId: string;
+  threadId: string;
+  threadSeq: number;
+  author: { kind: string; id: string };
+  body: string;
+  blocks: unknown[];
+  mentions: unknown[];
+  via?: { routineOwner: string };
+  depth: number;
+  attachments?: string[];
+}
 
-function setup(opts: { thread?: Record<string, unknown>; task?: Record<string, unknown>; account?: () => ResolvedAccount; agentModel?: string; log?: { warn(m: string, a?: Record<string, unknown>): void }; stream?: (e: StreamEvent) => void; addressAsker?: (threadId: string, agentId: string) => boolean; refuse?: (p: AgentPost) => boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
+function setup(opts: {
+  thread?: Record<string, unknown>;
+  task?: Record<string, unknown>;
+  account?: () => ResolvedAccount;
+  agentModel?: string;
+  log?: { warn(m: string, a?: Record<string, unknown>): void };
+  stream?: (e: StreamEvent) => void;
+  addressAsker?: (threadId: string, agentId: string) => boolean;
+  refuse?: (p: AgentPost) => boolean;
+  agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>;
+  script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]);
+}) {
   const h = harness();
   const chat: ChatRow[] = [];
   const echoes: Array<{ id: string; result: unknown }> = [];
@@ -27,13 +49,24 @@ function setup(opts: { thread?: Record<string, unknown>; task?: Record<string, u
     ...h.ctx,
     async call(cap: string, input: unknown) {
       const b = input as { threadId: string; messageId?: string; fileId?: string };
-      if (cap === "gate.grants.ask") { asks.push(input as (typeof asks)[number]); return { asked: 1 }; }
-      if (cap === "threads.get") return { thread: { threadId: T, kind: "chat", starter: "usr_dana", agents, ...(opts.thread ?? {}) } };
+      if (cap === "gate.grants.ask") {
+        asks.push(input as (typeof asks)[number]);
+        return { asked: 1 };
+      }
+      if (cap === "threads.get")
+        return { thread: { threadId: T, kind: "chat", starter: "usr_dana", agents, ...(opts.thread ?? {}) } };
       if (cap === "tasks.get") return { task: opts.task ?? {} };
-      if (cap === "agents.get") { if (!opts.agentModel) throw new Error("no such agent"); return { agent: { agentId: LEAD, model: opts.agentModel } }; }
+      if (cap === "agents.get") {
+        if (!opts.agentModel) throw new Error("no such agent");
+        return { agent: { agentId: LEAD, model: opts.agentModel } };
+      }
       if (cap === "chat.message.get") return { message: chat.find((r) => r.messageId === b.messageId) };
-      if (cap === "files.get") { if (b.fileId === "fil_gone") throw new Error("not found"); return { file: { fileId: b.fileId, name: b.fileId === "fil_1" ? "brief.docx" : "other.pdf" } }; }
-      if (cap === "chat.messages.list") return { messages: chat.filter((r) => r.threadId === b.threadId), hasMore: false };
+      if (cap === "files.get") {
+        if (b.fileId === "fil_gone") throw new Error("not found");
+        return { file: { fileId: b.fileId, name: b.fileId === "fil_1" ? "brief.docx" : "other.pdf" } };
+      }
+      if (cap === "chat.messages.list")
+        return { messages: chat.filter((r) => r.threadId === b.threadId), hasMore: false };
       return h.ctx.call(cap, input);
     },
   };
@@ -42,29 +75,86 @@ function setup(opts: { thread?: Record<string, unknown>; task?: Record<string, u
     // chat.post as the agent: stored under the clientId, then message.received like any message. Chat refuses a message with more than 20 blocks, as the real chat.post does.
     if (p.blocks.length > 20) throw new Error("A message can carry at most 20 blocks.");
     if (opts.refuse?.(p)) throw new Error("chat.post refused");
-    const row: ChatRow = { messageId: p.clientId, threadId: p.threadId, threadSeq: chat.length + 1, author: { kind: "agent", id: agentId }, body: p.body, blocks: p.blocks, mentions: p.mentions, depth: 1, ...(p.via ? { via: p.via } : {}) };
+    const row: ChatRow = {
+      messageId: p.clientId,
+      threadId: p.threadId,
+      threadSeq: chat.length + 1,
+      author: { kind: "agent", id: agentId },
+      body: p.body,
+      blocks: p.blocks,
+      mentions: p.mentions,
+      depth: 1,
+      ...(p.via ? { via: p.via } : {}),
+    };
     chat.push(row);
-    const result = await bridge.onEvent(ctx, { name: "message.received", payload: { messageId: row.messageId, threadId: T, author: { kind: "agent", id: agentId }, mentions: p.mentions, depth: 1 } });
+    const result = await bridge.onEvent(ctx, {
+      name: "message.received",
+      payload: {
+        messageId: row.messageId,
+        threadId: T,
+        author: { kind: "agent", id: agentId },
+        mentions: p.mentions,
+        depth: 1,
+      },
+    });
     echoes.push({ id: row.messageId, result });
   };
-  bridge = createBridge({ postAs, ...(opts.log ? { log: opts.log } : {}), ...(opts.stream ? { stream: opts.stream } : {}), ...(opts.addressAsker ? { addressAsker: opts.addressAsker } : {}) });
+  bridge = createBridge({
+    postAs,
+    ...(opts.log ? { log: opts.log } : {}),
+    ...(opts.stream ? { stream: opts.stream } : {}),
+    ...(opts.addressAsker ? { addressAsker: opts.addressAsker } : {}),
+  });
   const provider = scriptedProvider({ script: opts.script });
   const open = bridge.tap(provider.openSession);
-  const engine = h.runtime({ openSession: (spec) => open(opts.account ? { ...spec, account: opts.account() } : spec), schedule: () => () => {} });
+  const engine = h.runtime({
+    openSession: (spec) => open(opts.account ? { ...spec, account: opts.account() } : spec),
+    schedule: () => () => {},
+  });
   bridge.attach(engine);
   /** A person writes in chat: stored there first, then the consumer runs on message.received. */
-  async function say(body: string, mentions: Array<{ kind: "agent" | "person"; id: string }> = [], id = `msg_p${chat.length + 1}`, extra: { attachments?: string[]; blocks?: unknown[]; typed?: boolean } = {}) {
-    chat.push({ messageId: id, threadId: T, threadSeq: chat.length + 1, author: { kind: "person", id: "usr_dana" }, body, blocks: extra.blocks ?? [], mentions, depth: 0, ...(extra.attachments ? { attachments: extra.attachments } : {}) });
-    const result = await bridge.onEvent(ctx, { name: "message.received", payload: { messageId: id, threadId: T, author: { kind: "person", id: "usr_dana" }, mentions, depth: 0, ...(extra.typed ? { typed: true } : {}) } });
-    if (result.receivedAs) await engine.idle(T);   // a skipped message opened no thread
+  async function say(
+    body: string,
+    mentions: Array<{ kind: "agent" | "person"; id: string }> = [],
+    id = `msg_p${chat.length + 1}`,
+    extra: { attachments?: string[]; blocks?: unknown[]; typed?: boolean } = {},
+  ) {
+    chat.push({
+      messageId: id,
+      threadId: T,
+      threadSeq: chat.length + 1,
+      author: { kind: "person", id: "usr_dana" },
+      body,
+      blocks: extra.blocks ?? [],
+      mentions,
+      depth: 0,
+      ...(extra.attachments ? { attachments: extra.attachments } : {}),
+    });
+    const result = await bridge.onEvent(ctx, {
+      name: "message.received",
+      payload: {
+        messageId: id,
+        threadId: T,
+        author: { kind: "person", id: "usr_dana" },
+        mentions,
+        depth: 0,
+        ...(extra.typed ? { typed: true } : {}),
+      },
+    });
+    if (result.receivedAs) await engine.idle(T); // a skipped message opened no thread
     await bridge.flush();
     return { id, result };
   }
   return { h, chat, echoes, asks, ctx, bridge, engine, provider, say };
 }
 
-const reply = (text: string): DriverEvent[] => [{ type: "text", text }, { type: "usage", inputTokens: 5, outputTokens: 2 }, { type: "done" }];
-const dbIds = (h: Harness): string[] => h.rows("SELECT id FROM engine_messages ORDER BY thread_seq").map((r) => String(r["id"]));
+const reply = (text: string): DriverEvent[] => [
+  { type: "text", text },
+  { type: "usage", inputTokens: 5, outputTokens: 2 },
+  { type: "done" },
+];
+const dbIds = (h: Harness): string[] =>
+  h.rows("SELECT id FROM engine_messages ORDER BY thread_seq").map((r) => String(r["id"]));
 
 test("a person's message reaches engine.receive under chat's own id and the engine has nothing else to read", async () => {
   const s = setup({ script: reply("Done.") });
@@ -80,23 +170,43 @@ test("a person's message reaches engine.receive under chat's own id and the engi
 test("the agent's text and blocks come back as one chat post by the agent, text first, blocks in order", async () => {
   const s = setup({
     script: [
-      { type: "text", text: "Looking." }, { type: "block", kind: "chart", payload: { n: 1 } }, { type: "text", text: " Found it." },
-      { type: "block", kind: "table", payload: { n: 2 } }, { type: "done" },
+      { type: "text", text: "Looking." },
+      { type: "block", kind: "chart", payload: { n: 1 } },
+      { type: "text", text: " Found it." },
+      { type: "block", kind: "table", payload: { n: 2 } },
+      { type: "done" },
     ],
   });
   await s.say("What did we file?");
   const posts = s.chat.filter((r) => r.author.id === LEAD);
   assert.equal(posts.length, 1);
   assert.equal(posts[0]?.body, "Looking. Found it.");
-  assert.deepEqual(posts[0]?.blocks, [{ type: "chart", v: 1, data: { n: 1 } }, { type: "table", v: 1, data: { n: 2 } }]);
+  assert.deepEqual(posts[0]?.blocks, [
+    { type: "chart", v: 1, data: { n: 1 } },
+    { type: "table", v: 1, data: { n: 2 } },
+  ]);
   assert.equal(posts[0]?.via, undefined, "a person's turn carries no routine label");
 });
 
 test("a reply on a key of the Space says so to the post; the same agent on the person's own account does not", async () => {
-  const base = { ref: "#Key", driver: "api", provider: "anthropic", kind: "key" as const, payer: "usr_dana", reason: "starter" as const };
+  const base = {
+    ref: "#Key",
+    driver: "api",
+    provider: "anthropic",
+    kind: "key" as const,
+    payer: "usr_dana",
+    reason: "starter" as const,
+  };
   let shared = true;
   const seen: AgentPost[] = [];
-  const s = setup({ script: reply("Done."), refuse: (p) => { seen.push(p); return false; }, account: () => ({ ...base, ...(shared ? { shared: true } : {}) }) });
+  const s = setup({
+    script: reply("Done."),
+    refuse: (p) => {
+      seen.push(p);
+      return false;
+    },
+    account: () => ({ ...base, ...(shared ? { shared: true } : {}) }),
+  });
   await s.say("one");
   assert.equal(seen.at(-1)?.sharedKey, true);
   assert.equal(seen.at(-1)?.actingFor, "usr_dana", "the agent still speaks for that person");
@@ -111,8 +221,14 @@ test("posts go out in the order of the turns", async () => {
   await s.say("one");
   await s.say("two");
   await s.say("three");
-  assert.deepEqual(s.chat.filter((r) => r.author.id === LEAD).map((r) => r.body), ["Answer 1", "Answer 2", "Answer 3"]);
-  assert.deepEqual(s.chat.map((r) => r.threadSeq), [1, 2, 3, 4, 5, 6].slice(0, s.chat.length));
+  assert.deepEqual(
+    s.chat.filter((r) => r.author.id === LEAD).map((r) => r.body),
+    ["Answer 1", "Answer 2", "Answer 3"],
+  );
+  assert.deepEqual(
+    s.chat.map((r) => r.threadSeq),
+    [1, 2, 3, 4, 5, 6].slice(0, s.chat.length),
+  );
 });
 
 test("the agent's own post never loops back: one turn per person message, one row per message, ids shared with chat", async () => {
@@ -121,10 +237,17 @@ test("the agent's own post never loops back: one turn per person message, one ro
   assert.equal(s.engine.turns(T).length, 1, "no second turn from the echo");
   const post = s.chat.find((r) => r.author.id === LEAD);
   assert.ok(post);
-  assert.deepEqual(s.echoes.map((e) => e.result), [{ skipped: "known" }], "the echo is recognised by the engine's own row");
+  assert.deepEqual(
+    s.echoes.map((e) => e.result),
+    [{ skipped: "known" }],
+    "the echo is recognised by the engine's own row",
+  );
   assert.deepEqual(dbIds(s.h), [id, post.messageId], "engine_messages is chat's id list, nothing more");
   // a replay of the person's message (the consumer runs at least once) is not received twice
-  const again = await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: id, threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0 } });
+  const again = await s.bridge.onEvent(s.ctx, {
+    name: "message.received",
+    payload: { messageId: id, threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0 },
+  });
   assert.deepEqual(again, { skipped: "known" });
   await s.engine.idle(T);
   assert.equal(s.engine.turns(T).length, 1);
@@ -133,7 +256,10 @@ test("the agent's own post never loops back: one turn per person message, one ro
 test("the words a person typed ask, before the turn starts; the ask names the message and what it asked for", async () => {
   const s = setup({ script: reply("Done.") });
   const { id } = await s.say("Email the letter to lee@acme.test", [], "msg_typed", { typed: true });
-  assert.deepEqual(s.asks.map((a) => [a.threadId, a.messageId]), [[T, id]]);
+  assert.deepEqual(
+    s.asks.map((a) => [a.threadId, a.messageId]),
+    [[T, id]],
+  );
   assert.deepEqual(s.asks[0]!.asked, [{ act: "send", target: "lee@acme.test" }]);
 });
 
@@ -145,8 +271,28 @@ test("a line the server posted in a person's name asks for nothing, whatever it 
 
 test("an agent's post asks for nothing, even one that claims to be typed", async () => {
   const s = setup({ script: reply("Seen.") });
-  s.chat.push({ messageId: "msg_agent", threadId: T, threadSeq: 1, author: { kind: "agent", id: "agt_docs" }, body: "Email the letter to lee@acme.test", blocks: [], mentions: [], depth: 0 });
-  await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_agent", threadId: T, author: { kind: "agent", id: "agt_docs" }, actingFor: "usr_dana", mentions: [], depth: 0, typed: true } });
+  s.chat.push({
+    messageId: "msg_agent",
+    threadId: T,
+    threadSeq: 1,
+    author: { kind: "agent", id: "agt_docs" },
+    body: "Email the letter to lee@acme.test",
+    blocks: [],
+    mentions: [],
+    depth: 0,
+  });
+  await s.bridge.onEvent(s.ctx, {
+    name: "message.received",
+    payload: {
+      messageId: "msg_agent",
+      threadId: T,
+      author: { kind: "agent", id: "agt_docs" },
+      actingFor: "usr_dana",
+      mentions: [],
+      depth: 0,
+      typed: true,
+    },
+  });
   await s.engine.idle(T);
   assert.deepEqual(s.asks, []);
 });
@@ -154,7 +300,17 @@ test("an agent's post asks for nothing, even one that claims to be typed", async
 test("a message the engine has seen asks once", async () => {
   const s = setup({ script: reply("Done.") });
   await s.say("Email the letter to lee@acme.test", [], "msg_once", { typed: true });
-  await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_once", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0, typed: true } });
+  await s.bridge.onEvent(s.ctx, {
+    name: "message.received",
+    payload: {
+      messageId: "msg_once",
+      threadId: T,
+      author: { kind: "person", id: "usr_dana" },
+      mentions: [],
+      depth: 0,
+      typed: true,
+    },
+  });
   assert.equal(s.asks.length, 1);
 });
 
@@ -174,7 +330,10 @@ test("a turn with blocks and no text posts the blocks, and the bridge's own post
   assert.equal(post.body, "");
   assert.deepEqual(post.blocks, [{ type: "chart", v: 1, data: { n: 1 } }]);
   assert.ok(post.messageId.startsWith("msg_brg"));
-  assert.deepEqual(s.echoes.map((e) => e.result), [{ skipped: "own_post" }]);
+  assert.deepEqual(
+    s.echoes.map((e) => e.result),
+    [{ skipped: "own_post" }],
+  );
   assert.equal(s.engine.turns(T).length, 1);
 });
 
@@ -183,47 +342,139 @@ test("a failed turn becomes a status block in the chat", async () => {
   await s.say("Go");
   const post = s.chat.find((r) => r.author.id === LEAD);
   assert.ok(post);
-  assert.deepEqual(post.blocks, [{ type: "turn_status", v: 1, data: { state: "failed", turnId: s.engine.turns(T)[0]?.id, code: "rate_limited" } }]);
+  assert.deepEqual(post.blocks, [
+    { type: "turn_status", v: 1, data: { state: "failed", turnId: s.engine.turns(T)[0]?.id, code: "rate_limited" } },
+  ]);
 });
 
 test("an engine that died on the server's sandbox or a missing image carries a fixed `why` word in the chat's status block, never the engine's text (rc.22 bug 11)", async () => {
-  const sandbox = setup({ script: [{ type: "error", code: "engine.cli_error", message: "claude exited with code 1: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces" }] });
+  const sandbox = setup({
+    script: [
+      {
+        type: "error",
+        code: "engine.cli_error",
+        message:
+          "claude exited with code 1: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces",
+      },
+    ],
+  });
   await sandbox.say("Go");
   const data = (sandbox.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data;
   assert.equal(data["why"], "sandbox");
   assert.equal(data["exit"], "1");
   assert.ok(!JSON.stringify(data).includes("bwrap"), "the engine's words are not carried");
-  const image = setup({ script: [{ type: "error", code: "engine.cli_error", message: "Unable to find image 'vyre/agent-computer:1' locally" }] });
+  const image = setup({
+    script: [
+      { type: "error", code: "engine.cli_error", message: "Unable to find image 'vyre/agent-computer:1' locally" },
+    ],
+  });
   await image.say("Go");
-  assert.equal((image.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["why"], "image");
-  const plain = setup({ script: [{ type: "error", code: "engine.cli_error", message: "the engine exited with code 137" }] });
+  assert.equal(
+    (image.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["why"],
+    "image",
+  );
+  const plain = setup({
+    script: [{ type: "error", code: "engine.cli_error", message: "the engine exited with code 137" }],
+  });
   await plain.say("Go");
-  assert.equal((plain.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["why"], undefined);
+  assert.equal(
+    (plain.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["why"],
+    undefined,
+  );
 });
 
 test("a missing engine and an unreadable Vault carry what the chat needs to say precisely: the program, the Vault's own code, nothing else", async () => {
-  const missing = setup({ script: [{ type: "error", code: "engine.cli_missing", message: "codex is not installed on this computer." }] });
+  const missing = setup({
+    script: [{ type: "error", code: "engine.cli_missing", message: "codex is not installed on this computer." }],
+  });
   await missing.say("Go");
-  assert.deepEqual(missing.chat.find((r) => r.author.id === LEAD)?.blocks, [{ type: "turn_status", v: 1, data: { state: "failed", turnId: missing.engine.turns(T)[0]?.id, code: "engine.cli_missing", program: "codex" } }]);
-  const notSetUp = setup({ script: [{ type: "error", code: "engine.cli_missing", message: "grok is not installed on this computer (offline)." }] });
+  assert.deepEqual(missing.chat.find((r) => r.author.id === LEAD)?.blocks, [
+    {
+      type: "turn_status",
+      v: 1,
+      data: { state: "failed", turnId: missing.engine.turns(T)[0]?.id, code: "engine.cli_missing", program: "codex" },
+    },
+  ]);
+  const notSetUp = setup({
+    script: [
+      { type: "error", code: "engine.cli_missing", message: "grok is not installed on this computer (offline)." },
+    ],
+  });
   await notSetUp.say("Go");
-  assert.deepEqual((notSetUp.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data, { state: "failed", turnId: notSetUp.engine.turns(T)[0]?.id, code: "engine.cli_missing", program: "grok", setup: "offline" }, "why Vyre's own install did not finish, as one fixed word");
-  const odd = setup({ script: [{ type: "error", code: "engine.cli_missing", message: "codex is not installed on this computer (rm -rf)." }] });
+  assert.deepEqual(
+    (notSetUp.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data,
+    {
+      state: "failed",
+      turnId: notSetUp.engine.turns(T)[0]?.id,
+      code: "engine.cli_missing",
+      program: "grok",
+      setup: "offline",
+    },
+    "why Vyre's own install did not finish, as one fixed word",
+  );
+  const odd = setup({
+    script: [
+      { type: "error", code: "engine.cli_missing", message: "codex is not installed on this computer (rm -rf)." },
+    ],
+  });
   await odd.say("Go");
-  assert.equal((odd.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["setup"], undefined, "only the known reasons are carried");
+  assert.equal(
+    (odd.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["setup"],
+    undefined,
+    "only the known reasons are carried",
+  );
   const free = setup({ script: [{ type: "error", code: "engine.cli_missing", message: "rm -rf is not installed" }] });
   await free.say("Go");
-  assert.equal((free.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["program"], undefined, "only the engines are named");
-  const vault = setup({ script: [{ type: "error", code: "engine.vault_unreadable", message: "The Vault could not be read (provider.unavailable)." }] });
+  assert.equal(
+    (free.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["program"],
+    undefined,
+    "only the engines are named",
+  );
+  const vault = setup({
+    script: [
+      {
+        type: "error",
+        code: "engine.vault_unreadable",
+        message: "The Vault could not be read (provider.unavailable).",
+      },
+    ],
+  });
   await vault.say("Go");
-  assert.equal((vault.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["reason"], "provider.unavailable");
+  assert.equal(
+    (vault.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["reason"],
+    "provider.unavailable",
+  );
 });
 
 test("an agent message the engine did not write is received like any other (an outside post)", async () => {
-  const s = setup({ agents: [{ agentId: LEAD, mode: "lead" }, { agentId: "agt_docs", mode: "listen" }], script: reply("Seen.") });
+  const s = setup({
+    agents: [
+      { agentId: LEAD, mode: "lead" },
+      { agentId: "agt_docs", mode: "listen" },
+    ],
+    script: reply("Seen."),
+  });
   await s.say("hi");
-  s.chat.push({ messageId: "msg_outside", threadId: T, threadSeq: 9, author: { kind: "agent", id: "agt_docs" }, body: "FYI", blocks: [], mentions: [], depth: 0 });
-  const r = await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_outside", threadId: T, author: { kind: "agent", id: "agt_docs" }, mentions: [], depth: 0 } });
+  s.chat.push({
+    messageId: "msg_outside",
+    threadId: T,
+    threadSeq: 9,
+    author: { kind: "agent", id: "agt_docs" },
+    body: "FYI",
+    blocks: [],
+    mentions: [],
+    depth: 0,
+  });
+  const r = await s.bridge.onEvent(s.ctx, {
+    name: "message.received",
+    payload: {
+      messageId: "msg_outside",
+      threadId: T,
+      author: { kind: "agent", id: "agt_docs" },
+      mentions: [],
+      depth: 0,
+    },
+  });
   assert.deepEqual(r, { receivedAs: [LEAD] }, "no echo guard hides a message the engine never stored");
   await s.engine.idle(T);
   assert.ok(dbIds(s.h).includes("msg_outside"));
@@ -231,7 +482,16 @@ test("an agent message the engine did not write is received like any other (an o
 
 test("history is copied under chat ids when the thread first opens, and an edit reaches the mirror", async () => {
   const s = setup({ script: reply("ok") });
-  s.chat.push({ messageId: "msg_old1", threadId: T, threadSeq: 1, author: { kind: "person", id: "usr_dana" }, body: "earlier", blocks: [], mentions: [], depth: 0 });
+  s.chat.push({
+    messageId: "msg_old1",
+    threadId: T,
+    threadSeq: 1,
+    author: { kind: "person", id: "usr_dana" },
+    body: "earlier",
+    blocks: [],
+    mentions: [],
+    depth: 0,
+  });
   const { id } = await s.say("now");
   assert.deepEqual(dbIds(s.h).slice(0, 2), ["msg_old1", id]);
   assert.equal(s.provider.sessions[0]?.inputs[0]?.history[0]?.body, "earlier");
@@ -246,18 +506,45 @@ test("a thread with no agents is left alone, and a host without an engine skips"
   assert.deepEqual(result, { skipped: "no_agents" });
   assert.equal(s.h.rows("SELECT id FROM engine_messages").length, 0);
   const bare = createBridge({ postAs: async () => {} });
-  assert.deepEqual(await bare.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_x", threadId: T } }), { skipped: "engine_not_running" });
+  assert.deepEqual(
+    await bare.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_x", threadId: T } }),
+    { skipped: "engine_not_running" },
+  );
 });
 
 test("a thread the bridge cannot read is skipped as unreadable, never as having no agents (rc.22 bug 15: the log said not_found, no_agents for a chat that had its agent)", async () => {
   const s = setup({ script: reply("x") });
-  s.chat.push({ messageId: "msg_u1", threadId: T, threadSeq: 1, author: { kind: "person", id: "usr_dana" }, body: "hello", blocks: [], mentions: [], depth: 0 });
+  s.chat.push({
+    messageId: "msg_u1",
+    threadId: T,
+    threadSeq: 1,
+    author: { kind: "person", id: "usr_dana" },
+    body: "hello",
+    blocks: [],
+    mentions: [],
+    depth: 0,
+  });
   const warns: Array<[string, Record<string, unknown> | undefined]> = [];
-  const blind = { ...s.ctx, log: { ...s.ctx.log, warn: (m: string, a?: Record<string, unknown>) => { warns.push([m, a]); } }, call: async (cap: string, input: unknown) => {
-    if (cap === "threads.get") throw Object.assign(new Error("That chat does not exist or is not yours."), { error: { code: "validation.not_found" } });
-    return s.ctx.call(cap, input);
-  } } as typeof s.ctx;
-  const out = await s.bridge.onEvent(blind, { name: "message.received", payload: { messageId: "msg_u1", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0 } });
+  const blind = {
+    ...s.ctx,
+    log: {
+      ...s.ctx.log,
+      warn: (m: string, a?: Record<string, unknown>) => {
+        warns.push([m, a]);
+      },
+    },
+    call: async (cap: string, input: unknown) => {
+      if (cap === "threads.get")
+        throw Object.assign(new Error("That chat does not exist or is not yours."), {
+          error: { code: "validation.not_found" },
+        });
+      return s.ctx.call(cap, input);
+    },
+  } as typeof s.ctx;
+  const out = await s.bridge.onEvent(blind, {
+    name: "message.received",
+    payload: { messageId: "msg_u1", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0 },
+  });
   assert.deepEqual(out, { skipped: "thread_unreadable" });
   assert.equal(warns.length, 1, "and it is logged with the code the read answered");
   assert.equal(warns[0]![1]?.["code"], "validation.not_found");
@@ -270,7 +557,15 @@ test("a reply that is addressed to the asker (a reviewer's verdict) carries an @
   const s = setup({ script: reply("Approved."), addressAsker: (_t, agent) => agent === LEAD });
   await s.say("check this");
   assert.deepEqual(s.chat.at(-1)?.mentions, [{ kind: "person", id: "usr_dana" }]);
-  assert.equal(s.engine.messages(T).filter((m) => m.author.kind === "agent").at(-1)?.mentions.some((m) => m.kind === "person"), true, "the engine routes the reply with the mention, so the lead does not answer it");
+  assert.equal(
+    s.engine
+      .messages(T)
+      .filter((m) => m.author.kind === "agent")
+      .at(-1)
+      ?.mentions.some((m) => m.kind === "person"),
+    true,
+    "the engine routes the reply with the mention, so the lead does not answer it",
+  );
   const plain = setup({ script: reply("Done.") });
   await plain.say("do this");
   assert.deepEqual(plain.chat.at(-1)?.mentions, []);
@@ -278,15 +573,32 @@ test("a reply that is addressed to the asker (a reviewer's verdict) carries an @
 
 test("a live turn streams start, each piece of text, end, then the message it became, in that order", async () => {
   const seen: StreamEvent[] = [];
-  const s = setup({ stream: (e) => seen.push(e), script: [{ type: "text", text: "Hel" }, { type: "text", text: "lo." }, { type: "usage", inputTokens: 1, outputTokens: 1 }, { type: "done" }] });
+  const s = setup({
+    stream: (e) => seen.push(e),
+    script: [
+      { type: "text", text: "Hel" },
+      { type: "text", text: "lo." },
+      { type: "usage", inputTokens: 1, outputTokens: 1 },
+      { type: "done" },
+    ],
+  });
   await s.say("hi");
   const post = s.chat.find((r) => r.author.id === LEAD);
-  assert.deepEqual(seen.map((e) => e.kind), ["start", "delta", "delta", "end", "final"]);
-  assert.deepEqual(seen.filter((e) => e.kind === "delta").map((e) => (e as { text: string }).text), ["Hel", "lo."]);
+  assert.deepEqual(
+    seen.map((e) => e.kind),
+    ["start", "delta", "delta", "end", "final"],
+  );
+  assert.deepEqual(
+    seen.filter((e) => e.kind === "delta").map((e) => (e as { text: string }).text),
+    ["Hel", "lo."],
+  );
   assert.equal(new Set(seen.map((e) => e.turnId)).size, 1, "one turn id on every event");
   const last = seen[seen.length - 1] as Extract<StreamEvent, { kind: "final" }>;
   assert.equal(last.messageId, post?.messageId, "the final event names the chat message the turn became");
-  assert.equal(seen.every((e) => e.threadId === T && e.agentId === LEAD), true);
+  assert.equal(
+    seen.every((e) => e.threadId === T && e.agentId === LEAD),
+    true,
+  );
 });
 
 test("the start of a live turn names the message that started it, so a screen can put the reply after it", async () => {
@@ -298,7 +610,12 @@ test("the start of a live turn names the message that started it, so a screen ca
 });
 
 test("a stream listener that throws never fails the turn or the post", async () => {
-  const s = setup({ stream: () => { throw new Error("socket gone"); }, script: reply("Fine.") });
+  const s = setup({
+    stream: () => {
+      throw new Error("socket gone");
+    },
+    script: reply("Fine."),
+  });
   await s.say("hi");
   assert.equal(s.engine.turns(T)[0]?.state, "completed");
   assert.equal(s.chat.filter((r) => r.author.id === LEAD).length, 1);
@@ -306,7 +623,13 @@ test("a stream listener that throws never fails the turn or the post", async () 
 
 test("a failed turn ends the stream as failed and its final names the status post", async () => {
   const seen: StreamEvent[] = [];
-  const s = setup({ stream: (e) => seen.push(e), script: [{ type: "text", text: "Part" }, { type: "error", code: "provider.down", message: "boom", retryable: false }] });
+  const s = setup({
+    stream: (e) => seen.push(e),
+    script: [
+      { type: "text", text: "Part" },
+      { type: "error", code: "provider.down", message: "boom", retryable: false },
+    ],
+  });
   await s.say("hi");
   const end = seen.find((e) => e.kind === "end") as Extract<StreamEvent, { kind: "end" }> | undefined;
   assert.equal(end?.state, "failed");
@@ -317,10 +640,19 @@ test("a failed turn ends the stream as failed and its final names the status pos
 
 test("the agent is told which files and links came with a message, by name, and chat keeps the words as typed", async () => {
   const s = setup({ script: reply("Read it.") });
-  const refs = { id: "blk_r", type: "refs", v: 1, state: "done", data: { refs: [{ kind: "record", id: "rec_2", title: "Rivera Holdings" }] } };
+  const refs = {
+    id: "blk_r",
+    type: "refs",
+    v: 1,
+    state: "done",
+    data: { refs: [{ kind: "record", id: "rec_2", title: "Rivera Holdings" }] },
+  };
   const { id } = await s.say("Please summarise", [], "msg_pf", { attachments: ["fil_1", "fil_gone"], blocks: [refs] });
   const seen = s.provider.sessions[0]?.inputs[0]?.trigger?.body ?? "";
-  assert.equal(seen, "Please summarise\n\n[Attached: brief.docx (file fil_1)]\n[Attached: file fil_gone]\n[Linked: Rivera Holdings (record rec_2)]");
+  assert.equal(
+    seen,
+    "Please summarise\n\n[Attached: brief.docx (file fil_1)]\n[Attached: file fil_gone]\n[Linked: Rivera Holdings (record rec_2)]",
+  );
   assert.equal(s.chat.find((r) => r.messageId === id)?.body, "Please summarise");
 });
 
@@ -336,18 +668,29 @@ test("a chat that pins no model runs on the agent's own model, so the turn and i
   assert.equal(s.engine.turns(T)[0]?.model, "claude-haiku-5-5");
   const none = setup({ script: reply("Hi.") });
   await none.say("Hello");
-  assert.equal(none.engine.turns(T)[0]?.model ?? null, null, "an agent with no model of its own leaves the turn unpinned");
+  assert.equal(
+    none.engine.turns(T)[0]?.model ?? null,
+    null,
+    "an agent with no model of its own leaves the turn unpinned",
+  );
 });
 
 test("an agent that joined the chat after it was opened here hears a message that @mentions it", async () => {
   const agents: Array<{ agentId: string; mode: "lead" | "listen" }> = [{ agentId: LEAD, mode: "lead" }];
   const s = setup({ script: reply("Here you go."), agents });
   await s.say("Morning.");
-  assert.equal(s.engine.agents(T).some((a) => a.id === WATCHER), false, "not in the engine yet");
+  assert.equal(
+    s.engine.agents(T).some((a) => a.id === WATCHER),
+    false,
+    "not in the engine yet",
+  );
   agents.push({ agentId: WATCHER, mode: "listen" });
   const { result } = await s.say("@Watch sum this up", [{ kind: "agent", id: WATCHER }]);
   assert.deepEqual(result, { receivedAs: [WATCHER] }, "the mention reaches the agent that joined later");
-  assert.equal(s.engine.agents(T).some((a) => a.id === WATCHER), true);
+  assert.equal(
+    s.engine.agents(T).some((a) => a.id === WATCHER),
+    true,
+  );
 });
 
 test("the turns being written are listed with their text so far, and each piece carries where it starts", async () => {
@@ -356,32 +699,83 @@ test("the turns being written are listed with their text so far, and each piece 
   await s.say("Hi");
   const at = seen.filter((e) => e.kind === "delta").map((e) => (e as { at: number }).at);
   assert.equal(at[0], 0);
-  assert.ok(at.every((x, i) => i === 0 || x > at[i - 1]!), "each piece starts after the one before");
+  assert.ok(
+    at.every((x, i) => i === 0 || x > at[i - 1]!),
+    "each piece starts after the one before",
+  );
   assert.deepEqual(s.bridge.liveTurns(T), [], "an ended turn is not listed");
 });
 
 test("a message that arrives while the thread is being opened for an earlier one is not copied as history, so its own event still reaches the agent", async () => {
   const s = setup({ script: reply("Here you go.") });
-  s.chat.push({ messageId: "msg_early", threadId: T, threadSeq: 1, author: { kind: "person", id: "usr_dana" }, body: "Morning.", blocks: [], mentions: [], depth: 0 } as never);
-  s.chat.push({ messageId: "msg_late", threadId: T, threadSeq: 2, author: { kind: "person", id: "usr_dana" }, body: "Please sum up.", blocks: [], mentions: [{ kind: "agent", id: LEAD }], depth: 0 } as never);
-  await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_early", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0 } });
-  const late = await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_late", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [{ kind: "agent", id: LEAD }], depth: 0 } });
+  s.chat.push({
+    messageId: "msg_early",
+    threadId: T,
+    threadSeq: 1,
+    author: { kind: "person", id: "usr_dana" },
+    body: "Morning.",
+    blocks: [],
+    mentions: [],
+    depth: 0,
+  } as never);
+  s.chat.push({
+    messageId: "msg_late",
+    threadId: T,
+    threadSeq: 2,
+    author: { kind: "person", id: "usr_dana" },
+    body: "Please sum up.",
+    blocks: [],
+    mentions: [{ kind: "agent", id: LEAD }],
+    depth: 0,
+  } as never);
+  await s.bridge.onEvent(s.ctx, {
+    name: "message.received",
+    payload: {
+      messageId: "msg_early",
+      threadId: T,
+      author: { kind: "person", id: "usr_dana" },
+      mentions: [],
+      depth: 0,
+    },
+  });
+  const late = await s.bridge.onEvent(s.ctx, {
+    name: "message.received",
+    payload: {
+      messageId: "msg_late",
+      threadId: T,
+      author: { kind: "person", id: "usr_dana" },
+      mentions: [{ kind: "agent", id: LEAD }],
+      depth: 0,
+    },
+  });
   assert.deepEqual(late, { receivedAs: [LEAD] });
 });
 
-const steps = (n: number): DriverEvent[] => Array.from({ length: n }, (_, i): DriverEvent[] => [
-  { type: "block", kind: "tool_call", payload: { id: `c${i}`, name: "records_query" } }, { type: "block", kind: "tool_result", payload: { id: `c${i}`, ok: i !== 7 } },
-]).flat();
+const steps = (n: number): DriverEvent[] =>
+  Array.from({ length: n }, (_, i): DriverEvent[] => [
+    { type: "block", kind: "tool_call", payload: { id: `c${i}`, name: "records_query" } },
+    { type: "block", kind: "tool_result", payload: { id: `c${i}`, ok: i !== 7 } },
+  ]).flat();
 
 test("a turn of 30 tool calls posts its reply: the steps fold into one summary, the text and the cards stay", async () => {
-  const s = setup({ script: [...steps(30), { type: "block", kind: "chart", payload: { n: 1 } }, { type: "text", text: "Here is what I found." }, { type: "done" }] });
+  const s = setup({
+    script: [
+      ...steps(30),
+      { type: "block", kind: "chart", payload: { n: 1 } },
+      { type: "text", text: "Here is what I found." },
+      { type: "done" },
+    ],
+  });
   await s.say("Check everything.");
   const posts = s.chat.filter((r) => r.author.id === LEAD);
   assert.equal(posts.length, 1, "one reply");
   assert.equal(posts[0]?.body, "Here is what I found.");
   const blocks = posts[0]!.blocks as { type: string; data: Record<string, unknown> }[];
   assert.ok(blocks.length <= 20);
-  assert.deepEqual(blocks.map((b) => b.type), ["tool_steps", "chart"]);
+  assert.deepEqual(
+    blocks.map((b) => b.type),
+    ["tool_steps", "chart"],
+  );
   assert.deepEqual(blocks[0]!.data, { calls: 30, results: 30, failed: 1 });
 });
 
@@ -391,25 +785,51 @@ test("cards past the limit are not dropped: they follow in messages of their own
   await s.say("Make cards.");
   const posts = s.chat.filter((r) => r.author.id === LEAD);
   assert.equal(posts[0]?.body, "Done.");
-  assert.deepEqual(posts.map((p) => p.blocks.length), [20, 20, 5]);
-  assert.deepEqual(posts.flatMap((p) => (p.blocks as { data: { n: number } }[]).map((b) => b.data.n)), cards.map((_, i) => i));
+  assert.deepEqual(
+    posts.map((p) => p.blocks.length),
+    [20, 20, 5],
+  );
+  assert.deepEqual(
+    posts.flatMap((p) => (p.blocks as { data: { n: number } }[]).map((b) => b.data.n)),
+    cards.map((_, i) => i),
+  );
 });
 
 test("a post that is refused is never silent: the person gets the words and a failed turn they can retry", async () => {
   let refused = 0;
-  const s = setup({ refuse: (p) => p.blocks.some((b) => b.type === "chart") && ++refused > 0, script: [{ type: "block", kind: "chart", payload: {} }, { type: "text", text: "The answer is 42." }, { type: "done" }] });
+  const s = setup({
+    refuse: (p) => p.blocks.some((b) => b.type === "chart") && ++refused > 0,
+    script: [
+      { type: "block", kind: "chart", payload: {} },
+      { type: "text", text: "The answer is 42." },
+      { type: "done" },
+    ],
+  });
   await s.say("What is it?");
   const posts = s.chat.filter((r) => r.author.id === LEAD);
   assert.equal(refused, 1);
   assert.equal(posts.length, 1);
   assert.equal(posts[0]?.body, "The answer is 42.", "the words survive");
-  assert.deepEqual(posts[0]?.blocks, [{ type: "turn_status", v: 1, data: { state: "failed", turnId: (posts[0]!.blocks[0] as { data: { turnId: string } }).data.turnId, code: "engine.post_failed" } }]);
+  assert.deepEqual(posts[0]?.blocks, [
+    {
+      type: "turn_status",
+      v: 1,
+      data: {
+        state: "failed",
+        turnId: (posts[0]!.blocks[0] as { data: { turnId: string } }).data.turnId,
+        code: "engine.post_failed",
+      },
+    },
+  ]);
 });
 
 test("what a turn started comes under its reply as cards, in one message, in the order it was made", async () => {
   const s = setup({
     script: (i) => {
-      recordWork(i.turnId, workCardOf("records.create", {}, { record: { id: "rec_1", type: "contact", fields: { name: "Dana Fox" } } }));
+      recordWork(
+        i.turnId,
+        workCardOf("records.create", {}, { record: { id: "rec_1", type: "contact", fields: { name: "Dana Fox" } } }),
+      );
       recordWork(i.turnId, workCardOf("tasks.create", {}, { task: { id: "tsk_1", title: "Call Dana" } }));
       return [{ type: "text", text: "Done, I made both." }, { type: "done" }];
     },
@@ -418,45 +838,108 @@ test("what a turn started comes under its reply as cards, in one message, in the
   const posts = s.chat.filter((r) => r.author.id === LEAD);
   assert.equal(posts.length, 1, "one reply, not a pile");
   assert.equal(posts[0]?.body, "Done, I made both.");
-  assert.deepEqual((posts[0]!.blocks as { type: string; data: { lead: string; title: string } }[]).map((b) => `${b.type}:${b.data.lead}:${b.data.title}`), ["link_card:Record:Dana Fox", "link_card:Task:Call Dana"]);
+  assert.deepEqual(
+    (posts[0]!.blocks as { type: string; data: { lead: string; title: string } }[]).map(
+      (b) => `${b.type}:${b.data.lead}:${b.data.title}`,
+    ),
+    ["link_card:Record:Dana Fox", "link_card:Task:Call Dana"],
+  );
 });
 
 test("steps and thinking go to the live link as they happen, names only, and the saved reply keeps its steps and how long the turn took", async () => {
   const seen: StreamEvent[] = [];
   const s = setup({
     stream: (e) => seen.push(e),
-    script: [{ type: "thinking", text: "I will read it" }, { type: "block", kind: "tool_call", payload: { id: "c1", name: "Read" } }, { type: "block", kind: "tool_input", payload: { id: "c1", detail: "model.ts" } }, { type: "block", kind: "tool_result", payload: { id: "c1", ok: true } }, { type: "text", text: "Done." }, { type: "usage", inputTokens: 5, outputTokens: 2 }, { type: "done" }],
+    script: [
+      { type: "thinking", text: "I will read it" },
+      { type: "block", kind: "tool_call", payload: { id: "c1", name: "Read" } },
+      { type: "block", kind: "tool_input", payload: { id: "c1", detail: "model.ts" } },
+      { type: "block", kind: "tool_result", payload: { id: "c1", ok: true } },
+      { type: "text", text: "Done." },
+      { type: "usage", inputTokens: 5, outputTokens: 2 },
+      { type: "done" },
+    ],
   });
   await s.say("Please check the file.");
   const kinds = seen.map((e) => e.kind);
-  assert.deepEqual(kinds.filter((k) => k !== "delta"), ["start", "thinking", "step", "step", "step", "end", "final"]);
+  assert.deepEqual(
+    kinds.filter((k) => k !== "delta"),
+    ["start", "thinking", "step", "step", "step", "end", "final"],
+  );
   const steps = seen.filter((e): e is Extract<StreamEvent, { kind: "step" }> => e.kind === "step");
-  assert.deepEqual(steps.map((e) => [e.phase, e.id, e.name, e.detail]), [["call", "c1", "Read", undefined], ["input", "c1", undefined, "model.ts"], ["result", "c1", "Read", undefined]]);
-  assert.ok(!JSON.stringify(steps).includes("file_path") && !JSON.stringify(steps).includes("command"), "names and one short safe detail: no raw input of the step goes out");
-  const post = s.chat.find((r) => r.author.id === LEAD && r.blocks.length > 0) as { blocks: Array<{ type: string; data: Record<string, unknown> }> } | undefined;
-  assert.deepEqual(post?.blocks.map((b) => b.type), ["tool_call", "tool_result"], "what a call touches is not saved with the reply");
+  assert.deepEqual(
+    steps.map((e) => [e.phase, e.id, e.name, e.detail]),
+    [
+      ["call", "c1", "Read", undefined],
+      ["input", "c1", undefined, "model.ts"],
+      ["result", "c1", "Read", undefined],
+    ],
+  );
+  assert.ok(
+    !JSON.stringify(steps).includes("file_path") && !JSON.stringify(steps).includes("command"),
+    "names and one short safe detail: no raw input of the step goes out",
+  );
+  const post = s.chat.find((r) => r.author.id === LEAD && r.blocks.length > 0) as
+    | { blocks: Array<{ type: string; data: Record<string, unknown> }> }
+    | undefined;
+  assert.deepEqual(
+    post?.blocks.map((b) => b.type),
+    ["tool_call", "tool_result"],
+    "what a call touches is not saved with the reply",
+  );
   // a saved step keeps only its short plain label (owner, 5 Nov: "Read model.ts"), never the path, the raw input or the output
-  assert.ok(!/file_path|"command"|\/[\w.-]+\/model\.ts/.test(JSON.stringify(post)), "only the short label is saved, never a path or the raw input");
+  assert.ok(
+    !/file_path|"command"|\/[\w.-]+\/model\.ts/.test(JSON.stringify(post)),
+    "only the short label is saved, never a path or the raw input",
+  );
   assert.equal(post?.blocks[1]?.data["name"], "Read");
-  assert.equal(typeof post?.blocks[1]?.data["turnSecs"], "number", "how long the whole turn took rides on the last step");
+  assert.equal(
+    typeof post?.blocks[1]?.data["turnSecs"],
+    "number",
+    "how long the whole turn took rides on the last step",
+  );
 });
 
 test("an agent message chat already holds (a crew card posted by the host) is not posted a second time", async () => {
   const s = setup({ script: reply("Done.") });
   await s.say("Please draft the closing letter.");
   const before = s.echoes.length;
-  const row: ChatRow = { messageId: "msg_crwcard1", threadId: T, threadSeq: s.chat.length + 1, author: { kind: "agent", id: LEAD }, body: "Ember finished it.", blocks: [{ type: "crew_result", v: 1, data: { jobId: "crw_1" } }], mentions: [], depth: 1 };
+  const row: ChatRow = {
+    messageId: "msg_crwcard1",
+    threadId: T,
+    threadSeq: s.chat.length + 1,
+    author: { kind: "agent", id: LEAD },
+    body: "Ember finished it.",
+    blocks: [{ type: "crew_result", v: 1, data: { jobId: "crw_1" } }],
+    mentions: [],
+    depth: 1,
+  };
   s.chat.push(row);
-  await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: row.messageId, threadId: T, author: { kind: "agent", id: LEAD }, mentions: [], depth: 1 } });
+  await s.bridge.onEvent(s.ctx, {
+    name: "message.received",
+    payload: { messageId: row.messageId, threadId: T, author: { kind: "agent", id: LEAD }, mentions: [], depth: 1 },
+  });
   await s.bridge.flush();
   assert.equal(s.echoes.length, before, "no second post of a message chat already has");
   assert.equal(s.chat.filter((r) => r.messageId === "msg_crwcard1").length, 1);
 });
 
 test("words after a tool call start a new paragraph instead of running into the sentence before it", async () => {
-  const s = setup({ script: [{ type: "text", text: "Heredoc blocked by the sandbox; I'll use Edit." }, { type: "block", kind: "tool_call", payload: { id: "t1", name: "Edit" } }, { type: "block", kind: "tool_result", payload: { id: "t1", ok: true } }, { type: "text", text: "The footer is added." }, { type: "usage", inputTokens: 5, outputTokens: 2 }, { type: "done" }] });
+  const s = setup({
+    script: [
+      { type: "text", text: "Heredoc blocked by the sandbox; I'll use Edit." },
+      { type: "block", kind: "tool_call", payload: { id: "t1", name: "Edit" } },
+      { type: "block", kind: "tool_result", payload: { id: "t1", ok: true } },
+      { type: "text", text: "The footer is added." },
+      { type: "usage", inputTokens: 5, outputTokens: 2 },
+      { type: "done" },
+    ],
+  });
   await s.say("Add a footer.");
-  const body = s.chat.filter((r) => r.author.kind === "agent").map((r) => r.body).join("");
+  const body = s.chat
+    .filter((r) => r.author.kind === "agent")
+    .map((r) => r.body)
+    .join("");
   assert.match(body, /I'll use Edit\.\n\nThe footer is added\./);
 });
 
@@ -466,41 +949,107 @@ test("a turn that read something streams its text to the asker only, and shows n
   let mid: Array<{ text: string }> = [];
   let b: Bridge | null = null;
   const s = setup({
-    stream: (e) => { seen.push(e); if (e.kind === "delta" && b) mid = b.liveTurns(T); },
-    script: (i) => { noteRead({ thread: i.threadId, agent: i.agent.id, asker: i.asker, resource: { type: "record", id: "rec_1" } }); return [{ type: "text", text: "The deal is at 310k." }, { type: "done" }]; },
+    stream: (e) => {
+      seen.push(e);
+      if (e.kind === "delta" && b) mid = b.liveTurns(T);
+    },
+    script: (i) => {
+      noteRead({ thread: i.threadId, agent: i.agent.id, asker: i.asker, resource: { type: "record", id: "rec_1" } });
+      return [{ type: "text", text: "The deal is at 310k." }, { type: "done" }];
+    },
   });
   b = s.bridge;
   await s.say("where is the deal?");
   const deltas = seen.filter((e) => e.kind === "delta") as Array<Extract<StreamEvent, { kind: "delta" }>>;
   assert.ok(deltas.length > 0);
-  assert.ok(deltas.every((e) => e.privately === true && e.asker === "usr_dana"), JSON.stringify(deltas));
-  assert.deepEqual(mid.map((t) => t.text), [""], "liveTurns shows the turn, not its words");
+  assert.ok(
+    deltas.every((e) => e.privately === true && e.asker === "usr_dana"),
+    JSON.stringify(deltas),
+  );
+  assert.deepEqual(
+    mid.map((t) => t.text),
+    [""],
+    "liveTurns shows the turn, not its words",
+  );
   clearReads(T, LEAD, "usr_dana");
 });
 
 test("a task's thread with several agents: the one that works the task answers without an @, else the one that made it; the others need one", async () => {
-  const A = "agt_maker", B = "agt_worker", C = "agt_other";
-  const agents = [{ agentId: A, mode: "listen" as const }, { agentId: B, mode: "listen" as const }, { agentId: C, mode: "listen" as const }];
+  const A = "agt_maker",
+    B = "agt_worker",
+    C = "agt_other";
+  const agents = [
+    { agentId: A, mode: "listen" as const },
+    { agentId: B, mode: "listen" as const },
+    { agentId: C, mode: "listen" as const },
+  ];
   const thread = { kind: "thread", scopeType: "task", scopeId: "tsk_1", members: [{ kind: "person", id: "usr_dana" }] };
-  const worked = setup({ script: reply("On it."), agents, thread, task: { assigned: { kind: "agent", id: B }, createdBy: A } });
-  assert.deepEqual((await worked.say("Please also check the invoices")).result, { receivedAs: [B] }, "the agent working the task");
-  const made = setup({ script: reply("On it."), agents, thread, task: { assigned: { kind: "person", id: "usr_dana" }, createdBy: A } });
-  assert.deepEqual((await made.say("Please also check the invoices")).result, { receivedAs: [A] }, "the agent that made it, when a person holds it");
-  assert.deepEqual((await made.say("and you", [{ kind: "agent", id: C }])).result, { receivedAs: [C] }, "another agent needs an @");
-  const group = setup({ script: reply("On it."), agents, thread: { ...thread, members: [{ kind: "person", id: "usr_dana" }, { kind: "person", id: "usr_aliza" }] }, task: { assigned: { kind: "agent", id: B }, createdBy: A } });
-  assert.deepEqual((await group.say("Aliza, can you look at this?", [{ kind: "person", id: "usr_aliza" }])).result, { receivedAs: [] }, "a message to the other person in the thread is for them");
+  const worked = setup({
+    script: reply("On it."),
+    agents,
+    thread,
+    task: { assigned: { kind: "agent", id: B }, createdBy: A },
+  });
+  assert.deepEqual(
+    (await worked.say("Please also check the invoices")).result,
+    { receivedAs: [B] },
+    "the agent working the task",
+  );
+  const made = setup({
+    script: reply("On it."),
+    agents,
+    thread,
+    task: { assigned: { kind: "person", id: "usr_dana" }, createdBy: A },
+  });
+  assert.deepEqual(
+    (await made.say("Please also check the invoices")).result,
+    { receivedAs: [A] },
+    "the agent that made it, when a person holds it",
+  );
+  assert.deepEqual(
+    (await made.say("and you", [{ kind: "agent", id: C }])).result,
+    { receivedAs: [C] },
+    "another agent needs an @",
+  );
+  const group = setup({
+    script: reply("On it."),
+    agents,
+    thread: {
+      ...thread,
+      members: [
+        { kind: "person", id: "usr_dana" },
+        { kind: "person", id: "usr_aliza" },
+      ],
+    },
+    task: { assigned: { kind: "agent", id: B }, createdBy: A },
+  });
+  assert.deepEqual(
+    (await group.say("Aliza, can you look at this?", [{ kind: "person", id: "usr_aliza" }])).result,
+    { receivedAs: [] },
+    "a message to the other person in the thread is for them",
+  );
 });
 
 // ---- the Add people and agents sheet (lane l-addsheet): Listening, When, and a poke
 
-type Rost = { agentId: string; mode: "lead" | "listen"; quiet?: boolean; when?: "always" | "topics" | "hours"; topics?: string; hoursFrom?: string; hoursTo?: string; style?: "short" | "full" };
+type Rost = {
+  agentId: string;
+  mode: "lead" | "listen";
+  quiet?: boolean;
+  when?: "always" | "topics" | "hours";
+  topics?: string;
+  hoursFrom?: string;
+  hoursTo?: string;
+  style?: "short" | "full";
+};
 
 test("topics set in the chat reach the engine before the next message: the lead answers what is about them and stays out of the rest", async () => {
   const agents: Rost[] = [{ agentId: LEAD, mode: "lead" }];
   const s = setup({ script: reply("On it."), agents: agents as never });
   await s.say("Morning.");
   assert.equal(s.provider.sessions.length, 1, "no setting: the lead answers everything");
-  agents[0]!.when = "topics"; agents[0]!.topics = "invoices, billing";
+  agents[0]!.when = "topics";
+  agents[0]!.topics = "invoices, billing";
   s.bridge.rosterChanged(T);
   const lunch = await s.say("Lunch on Friday?");
   assert.deepEqual(lunch.result, { receivedAs: [] }, "not about its topics");
@@ -518,18 +1067,28 @@ test("hours are read in the speaker's time: inside them the lead answers, outsid
   const s = setup({ script: reply("Yes."), agents: agents as never });
   // the bridge reads the real clock, in UTC when the speaker set no zone: pick hours that hold it and hours that do not
   const t = new Date();
-  const hh = (n: number) => `${String(Math.floor(((n % 1440) + 1440) % 1440 / 60)).padStart(2, "0")}:${String(((n % 1440) + 1440) % 1440 % 60).padStart(2, "0")}`;
+  const hh = (n: number) =>
+    `${String(Math.floor((((n % 1440) + 1440) % 1440) / 60)).padStart(2, "0")}:${String((((n % 1440) + 1440) % 1440) % 60).padStart(2, "0")}`;
   const mins = t.getUTCHours() * 60 + t.getUTCMinutes();
-  agents[0]!.hoursFrom = hh(mins - 60); agents[0]!.hoursTo = hh(mins + 60);
+  agents[0]!.hoursFrom = hh(mins - 60);
+  agents[0]!.hoursTo = hh(mins + 60);
   assert.deepEqual((await s.say("Inside hours?")).result, { receivedAs: [LEAD] });
-  agents[0]!.hoursFrom = hh(mins + 120); agents[0]!.hoursTo = hh(mins + 180);
+  agents[0]!.hoursFrom = hh(mins + 120);
+  agents[0]!.hoursTo = hh(mins + 180);
   s.bridge.rosterChanged(T);
   assert.deepEqual((await s.say("Outside hours?")).result, { receivedAs: [] });
-  assert.deepEqual((await s.say("@Intake now please", [{ kind: "agent", id: LEAD }])).result, { receivedAs: [LEAD] }, "a tag always answers");
+  assert.deepEqual(
+    (await s.say("@Intake now please", [{ kind: "agent", id: LEAD }])).result,
+    { receivedAs: [LEAD] },
+    "a tag always answers",
+  );
 });
 
 test("a poke runs a Listening agent once from the last 12 messages, the reply says who poked it, and a tag alone never wakes it", async () => {
-  const agents: Rost[] = [{ agentId: LEAD, mode: "lead" }, { agentId: WATCHER, mode: "listen", quiet: true }];
+  const agents: Rost[] = [
+    { agentId: LEAD, mode: "lead" },
+    { agentId: WATCHER, mode: "listen", quiet: true },
+  ];
   const s = setup({ script: reply("Here is where we are."), agents: agents as never });
   for (let i = 1; i <= 14; i++) await s.say(`Note ${i}`);
   const turnsBefore = s.provider.sessions.length;
@@ -537,10 +1096,30 @@ test("a poke runs a Listening agent once from the last 12 messages, the reply sa
   assert.deepEqual(tagged.result, { receivedAs: [] }, "Listening: not even a tag");
   assert.equal(s.provider.sessions.length, turnsBefore);
   // the poke line, as threads.poke writes it, with its event
-  s.chat.push({ messageId: "msg_poke1", threadId: T, threadSeq: s.chat.length + 1, author: { kind: "person", id: "usr_dana" }, body: "Dana poked Watch", blocks: [], mentions: [{ kind: "agent", id: WATCHER }], depth: 0 } as never);
-  const res = await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_poke1", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [{ kind: "agent", id: WATCHER }], depth: 0, poke: { agentId: WATCHER, by: "usr_dana" } } });
+  s.chat.push({
+    messageId: "msg_poke1",
+    threadId: T,
+    threadSeq: s.chat.length + 1,
+    author: { kind: "person", id: "usr_dana" },
+    body: "Dana poked Watch",
+    blocks: [],
+    mentions: [{ kind: "agent", id: WATCHER }],
+    depth: 0,
+  } as never);
+  const res = await s.bridge.onEvent(s.ctx, {
+    name: "message.received",
+    payload: {
+      messageId: "msg_poke1",
+      threadId: T,
+      author: { kind: "person", id: "usr_dana" },
+      mentions: [{ kind: "agent", id: WATCHER }],
+      depth: 0,
+      poke: { agentId: WATCHER, by: "usr_dana" },
+    },
+  });
   assert.deepEqual(res, { receivedAs: [WATCHER] });
-  await s.engine.idle(T); await s.bridge.flush();
+  await s.engine.idle(T);
+  await s.bridge.flush();
   const turn = s.provider.sessions.filter((x) => x.spec.agent.id === WATCHER);
   assert.equal(turn.length, 1);
   const input = turn[0]!.inputs[0]!;
@@ -549,7 +1128,10 @@ test("a poke runs a Listening agent once from the last 12 messages, the reply sa
   assert.match(input.trigger?.body ?? "", /chat_history_page/, "it is told how to read further back");
   const post = s.chat.filter((r) => r.author.id === WATCHER).at(-1)!;
   assert.equal(post.body, "Here is where we are.");
-  assert.deepEqual((post.blocks as Array<{ type: string; data: unknown }>).filter((b) => b.type === "poked").map((b) => b.data), [{ by: "usr_dana", agentId: WATCHER }]);
+  assert.deepEqual(
+    (post.blocks as Array<{ type: string; data: unknown }>).filter((b) => b.type === "poked").map((b) => b.data),
+    [{ by: "usr_dana", agentId: WATCHER }],
+  );
   // the next reply of that agent carries no marker
   await s.say("@Watch again?", [{ kind: "agent", id: WATCHER }]);
   assert.equal(s.chat.filter((r) => r.author.id === WATCHER).length, 1, "still Listening");
@@ -559,7 +1141,17 @@ test("the poke of an outside agent is left to its queue: nothing runs here", asy
   const s = setup({ script: reply("x") });
   await s.say("Hello");
   const n = s.provider.sessions.length;
-  const res = await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_pk", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0, poke: { agentId: "agt_cc", by: "usr_dana", outside: true } } });
+  const res = await s.bridge.onEvent(s.ctx, {
+    name: "message.received",
+    payload: {
+      messageId: "msg_pk",
+      threadId: T,
+      author: { kind: "person", id: "usr_dana" },
+      mentions: [],
+      depth: 0,
+      poke: { agentId: "agt_cc", by: "usr_dana", outside: true },
+    },
+  });
   assert.deepEqual(res, { skipped: "poke_outside" });
   assert.equal(s.provider.sessions.length, n);
 });
@@ -568,47 +1160,108 @@ test("a copy of a thread message into its chat (Also post to the chat) is read, 
   const s = setup({ script: reply("x") });
   await s.say("Hello");
   const n = s.provider.sessions.length;
-  const res = await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_copy1", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0, copy: true } });
+  const res = await s.bridge.onEvent(s.ctx, {
+    name: "message.received",
+    payload: {
+      messageId: "msg_copy1",
+      threadId: T,
+      author: { kind: "person", id: "usr_dana" },
+      mentions: [],
+      depth: 0,
+      copy: true,
+    },
+  });
   assert.deepEqual(res, { skipped: "copy" });
   assert.equal(s.provider.sessions.length, n);
 });
 
 test("an agent's hand-off cut at the hop limit is never silent: one quiet line in the chat and a warn with the depth", async () => {
   const warns: Array<[string, Record<string, unknown> | undefined]> = [];
-  const s = setup({ agents: [{ agentId: LEAD, mode: "lead" }, { agentId: "agt_docs", mode: "listen" }], script: reply("x"), log: { warn: (m, a) => warns.push([m, a]) } });
-  await s.say("hello");   // opens the thread
-  s.chat.push({ messageId: "msg_agent9", threadId: T, threadSeq: s.chat.length + 1, author: { kind: "agent", id: LEAD }, body: "over to docs", blocks: [], mentions: [{ kind: "agent", id: "agt_docs" }], depth: 6 } as never);
-  await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_agent9", threadId: T, author: { kind: "agent", id: LEAD }, mentions: [{ kind: "agent", id: "agt_docs" }], depth: 6, actingFor: "usr_dana" } });
+  const s = setup({
+    agents: [
+      { agentId: LEAD, mode: "lead" },
+      { agentId: "agt_docs", mode: "listen" },
+    ],
+    script: reply("x"),
+    log: { warn: (m, a) => warns.push([m, a]) },
+  });
+  await s.say("hello"); // opens the thread
+  s.chat.push({
+    messageId: "msg_agent9",
+    threadId: T,
+    threadSeq: s.chat.length + 1,
+    author: { kind: "agent", id: LEAD },
+    body: "over to docs",
+    blocks: [],
+    mentions: [{ kind: "agent", id: "agt_docs" }],
+    depth: 6,
+  } as never);
+  await s.bridge.onEvent(s.ctx, {
+    name: "message.received",
+    payload: {
+      messageId: "msg_agent9",
+      threadId: T,
+      author: { kind: "agent", id: LEAD },
+      mentions: [{ kind: "agent", id: "agt_docs" }],
+      depth: 6,
+      actingFor: "usr_dana",
+    },
+  });
   await s.bridge.flush();
   const cut = warns.find(([m]) => /hop limit/.test(m));
   assert.equal(cut?.[1]?.["depth"], 6);
-  const note = s.chat.flatMap((r) => r.blocks as Array<{ type?: string; data?: { text?: string } }>).find((b) => b.type === "turn_status" && /Stopped passing this on after 3 hand-offs/.test(b.data?.text ?? ""));
+  const note = s.chat
+    .flatMap((r) => r.blocks as Array<{ type?: string; data?: { text?: string } }>)
+    .find((b) => b.type === "turn_status" && /Stopped passing this on after 3 hand-offs/.test(b.data?.text ?? ""));
   assert.ok(note, "the chat says so, once");
 });
 
 import { serverCause } from "../handlers/bridge.ts";
 test("a server setup cause in the engine's own words becomes a fixed word, and nothing else does", () => {
-  assert.equal(serverCause("claude exited with code 1: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces"), "sandbox");
+  assert.equal(
+    serverCause(
+      "claude exited with code 1: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces",
+    ),
+    "sandbox",
+  );
   assert.equal(serverCause("Unable to find image 'vyre-engine:1' locally"), "image");
   assert.equal(serverCause("the engine exited with code 137"), undefined);
   assert.equal(serverCause(""), undefined);
 });
 
 test("an API model's tool call is a plain step on the live row while it runs: terminal_run reads Running a command, read_link reads Reading a page; never the tool's name (lead, 12 Nov)", async () => {
-  for (const [name, words] of [["terminal_run", "Running a command"], ["read_link", "Reading a page"]] as const) {
+  for (const [name, words] of [
+    ["terminal_run", "Running a command"],
+    ["read_link", "Reading a page"],
+  ] as const) {
     const seen: StreamEvent[] = [];
     let mid: Array<{ step?: string }> = [];
     let b: Bridge | null = null;
     const s = setup({
       // the API driver yields a tool_call event (not a block): the engine runs it and hands the result back with sendToolResult
-      stream: (e) => { seen.push(e); if (e.kind === "step" && e.phase === "call" && b) mid = b.liveTurns(T); },
-      script: [{ type: "tool_call", id: "c1", name, input: { command: "sleep 1" } }, { type: "text", text: "Done." }, { type: "done" }],
+      stream: (e) => {
+        seen.push(e);
+        if (e.kind === "step" && e.phase === "call" && b) mid = b.liveTurns(T);
+      },
+      script: [
+        { type: "tool_call", id: "c1", name, input: { command: "sleep 1" } },
+        { type: "text", text: "Done." },
+        { type: "done" },
+      ],
     });
     b = s.bridge;
     await s.say("go");
-    assert.deepEqual(mid.map((t) => t.step), [words], `${name}: the row says what it is doing`);
+    assert.deepEqual(
+      mid.map((t) => t.step),
+      [words],
+      `${name}: the row says what it is doing`,
+    );
     const steps = seen.filter((e) => e.kind === "step") as Array<Extract<StreamEvent, { kind: "step" }>>;
-    assert.deepEqual(steps.map((e) => e.phase), ["call", "result"], `${name}: the call and its end are both said`);
+    assert.deepEqual(
+      steps.map((e) => e.phase),
+      ["call", "result"],
+      `${name}: the call and its end are both said`,
+    );
     assert.ok(!JSON.stringify(mid).includes(name), "the tool's own name never shows");
   }
 });
@@ -618,12 +1271,21 @@ test("a helper's running row says the same step (helpers.status reads the helper
   let b: Bridge | null = null;
   const s = setup({
     thread: { kind: "helper", parentThreadId: "thr_lead" },
-    stream: (e) => { if (e.kind === "step" && e.phase === "call" && b) mid = b.liveTurns(T); },
-    script: [{ type: "tool_call", id: "c1", name: "terminal_run", input: { command: "npm test" } }, { type: "text", text: "Done." }, { type: "done" }],
+    stream: (e) => {
+      if (e.kind === "step" && e.phase === "call" && b) mid = b.liveTurns(T);
+    },
+    script: [
+      { type: "tool_call", id: "c1", name: "terminal_run", input: { command: "npm test" } },
+      { type: "text", text: "Done." },
+      { type: "done" },
+    ],
   });
   b = s.bridge;
   await s.say("run the tests");
-  assert.deepEqual(mid.map((t) => t.step), ["Running a command"]);
+  assert.deepEqual(
+    mid.map((t) => t.step),
+    ["Running a command"],
+  );
 });
 
 test("only a message chat marked typed is kept as one the person typed: a poke, or a line posted in their name, is not", async () => {

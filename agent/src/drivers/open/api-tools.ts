@@ -36,7 +36,21 @@ export const BATCH_PROVIDERS: ReadonlySet<string> = new Set(["local", "custom"])
 const BATCH_TOOL: ApiTool = {
   name: "tool_batch",
   description: `Run up to ${BATCH_MAX} independent read-only tools at once. Each request has an id you choose, the tool name and its input; the results come back keyed by id. Only reads: anything that changes or sends something is called on its own.`,
-  inputSchema: { type: "object", properties: { requests: { type: "array", maxItems: BATCH_MAX, items: { type: "object", properties: { id: { type: "string" }, tool: { type: "string" }, input: { type: "object" } }, required: ["id", "tool"] } } }, required: ["requests"] },
+  inputSchema: {
+    type: "object",
+    properties: {
+      requests: {
+        type: "array",
+        maxItems: BATCH_MAX,
+        items: {
+          type: "object",
+          properties: { id: { type: "string" }, tool: { type: "string" }, input: { type: "object" } },
+          required: ["id", "tool"],
+        },
+      },
+    },
+    required: ["requests"],
+  },
 };
 
 export interface ApiTools {
@@ -48,7 +62,11 @@ export interface ApiTools {
   toolClass?: (name: string) => "read" | "other";
 }
 
-const view = (t: ToolDef): ApiTool => ({ name: t.name, description: t.summary, inputSchema: t.inputSchema ?? { type: "object", properties: {} } });
+const view = (t: ToolDef): ApiTool => ({
+  name: t.name,
+  description: t.summary,
+  inputSchema: t.inputSchema ?? { type: "object", properties: {} },
+});
 
 export function createApiTools(d: ApiToolsDeps): ApiTools {
   /** The engine's provider per thread, recorded when the turn's context is built, so the label-vs-provider rule sees it when the tool runs. */
@@ -57,26 +75,53 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
     const rules = d.rules?.(agentId);
     const provider = providerOf.get(threadId);
     return {
-      space: d.space, agentId, asker, thread: { threadId, kind: "chat", planMode: false, ...d.thread?.(threadId) },
-      ...(rules ? { rules } : {}), ...(provider ? { provider } : {}), ...(turnId ? { turnId } : {}),
+      space: d.space,
+      agentId,
+      asker,
+      thread: { threadId, kind: "chat", planMode: false, ...d.thread?.(threadId) },
+      ...(rules ? { rules } : {}),
+      ...(provider ? { provider } : {}),
+      ...(turnId ? { turnId } : {}),
     };
   };
   /** tool_batch: the reads run together and each answer comes back under its request id; a request that is not an independent read is refused by itself and does not stop the rest. */
-  const runBatch = async (input: unknown, ctx: { threadId: string; agentId: string; asker: string; turnId: string }): Promise<ToolOutcomeLike> => {
-    const asked = ((input as { requests?: unknown } | null)?.requests);
+  const runBatch = async (
+    input: unknown,
+    ctx: { threadId: string; agentId: string; asker: string; turnId: string },
+  ): Promise<ToolOutcomeLike> => {
+    const asked = (input as { requests?: unknown } | null)?.requests;
     const list = Array.isArray(asked) ? asked.slice(0, BATCH_MAX) : [];
     const c = ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId);
-    const settled = await Promise.allSettled(list.map(async (r, i) => {
-      const q = (r ?? {}) as { id?: unknown; tool?: unknown; input?: unknown };
-      const id = typeof q.id === "string" && q.id !== "" ? q.id : String(i + 1);
-      if (typeof q.tool !== "string" || !d.isRead!(q.tool)) return [id, { ok: false, content: { error: "tool_batch runs independent reads only. Call this one on its own." } }] as const;
-      const out = await d.session.call(c, q.tool, q.input ?? {});
-      if (out.kind === "result" && out.result.ok) { try { d.used?.(ctx.agentId, q.tool); } catch { /* counting never fails a call */ } }
-      return [id, { ok: out.result.ok, content: out.result.content }] as const;
-    }));
+    const settled = await Promise.allSettled(
+      list.map(async (r, i) => {
+        const q = (r ?? {}) as { id?: unknown; tool?: unknown; input?: unknown };
+        const id = typeof q.id === "string" && q.id !== "" ? q.id : String(i + 1);
+        if (typeof q.tool !== "string" || !d.isRead!(q.tool))
+          return [
+            id,
+            { ok: false, content: { error: "tool_batch runs independent reads only. Call this one on its own." } },
+          ] as const;
+        const out = await d.session.call(c, q.tool, q.input ?? {});
+        if (out.kind === "result" && out.result.ok) {
+          try {
+            d.used?.(ctx.agentId, q.tool);
+          } catch {
+            /* counting never fails a call */
+          }
+        }
+        return [id, { ok: out.result.ok, content: out.result.content }] as const;
+      }),
+    );
     const results: Record<string, unknown> = {};
-    settled.forEach((s, i) => { const id = s.status === "fulfilled" ? s.value[0] : String(i + 1); results[id] = s.status === "fulfilled" ? s.value[1] : { ok: false, content: { error: "That read failed." } }; });
-    if (Array.isArray(asked) && asked.length > BATCH_MAX) results["_skipped"] = { ok: false, content: { error: `Only the first ${BATCH_MAX} requests ran. Ask for the rest in another call.` } };
+    settled.forEach((s, i) => {
+      const id = s.status === "fulfilled" ? s.value[0] : String(i + 1);
+      results[id] = s.status === "fulfilled" ? s.value[1] : { ok: false, content: { error: "That read failed." } };
+    });
+    if (Array.isArray(asked) && asked.length > BATCH_MAX)
+      results["_skipped"] = {
+        ok: false,
+        content: { error: `Only the first ${BATCH_MAX} requests ran. Ask for the rest in another call.` },
+      };
     return { kind: "result", result: { ok: true, content: { data: { results } } } };
   };
   return {
@@ -84,14 +129,24 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
       const account = (spec as SessionSpec & { account?: { provider?: string } }).account;
       if (account?.provider) providerOf.set(input.threadId, account.provider);
       // The system prompt first: building it may read what decides the tool set (the agent's lists, the thread, the asker's level on an Ask pane's object).
-      await d.prepare?.({ threadId: input.threadId, agentId: input.agent.id, asker: input.asker, turnId: input.turnId });
+      await d.prepare?.({
+        threadId: input.threadId,
+        agentId: input.agent.id,
+        asker: input.asker,
+        turnId: input.turnId,
+      });
       const system = await d.system(spec, input);
       const c = ctxFor(input.threadId, input.agent.id, input.asker, input.turnId);
       const set = d.session.toolsFor(c);
       const loaded = d.session.loaded(input.threadId);
       const extra = d.extra ? await d.extra(c).catch(() => []) : [];
-      const batch = account?.provider !== undefined && BATCH_PROVIDERS.has(account.provider) && d.isRead !== undefined ? [BATCH_TOOL] : [];
-      const tools = [...set.listed, ...set.searchable.filter((t) => loaded.has(t.name)), ...extra].map(view).concat(batch);
+      const batch =
+        account?.provider !== undefined && BATCH_PROVIDERS.has(account.provider) && d.isRead !== undefined
+          ? [BATCH_TOOL]
+          : [];
+      const tools = [...set.listed, ...set.searchable.filter((t) => loaded.has(t.name)), ...extra]
+        .map(view)
+        .concat(batch);
       // the same set read again: after tool_search the loaded set has grown, and the driver adds what is new to the next step of the turn
       const reload = async (): Promise<ApiTool[]> => {
         const now = d.session.toolsFor(c);
@@ -103,8 +158,21 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
     runner: toolRunnerFrom(async (call, ctx) => {
       await d.prepare?.(ctx);
       if (call.name === "tool_batch" && d.isRead) return runBatch(call.input, ctx);
-      const out = await d.session.call({ ...ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId), ...(ctx.said !== undefined ? { said: ctx.said } : {}) }, call.name, call.input);
-      if (out.kind === "result" && out.result.ok && call.name !== "tool_search") { try { d.used?.(ctx.agentId, call.name); } catch { /* counting never fails a call */ } }
+      const out = await d.session.call(
+        {
+          ...ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId),
+          ...(ctx.said !== undefined ? { said: ctx.said } : {}),
+        },
+        call.name,
+        call.input,
+      );
+      if (out.kind === "result" && out.result.ok && call.name !== "tool_search") {
+        try {
+          d.used?.(ctx.agentId, call.name);
+        } catch {
+          /* counting never fails a call */
+        }
+      }
       return out;
     }),
   };

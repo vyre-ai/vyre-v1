@@ -6,6 +6,6 @@ import { denyModules } from "../src/peers/sync.ts";
 
 test("the access cursor's table never travels between computers; the access tables themselves do", () => {
   assert.equal(denyModules("access_local_cursor"), true);
-  for (const t of ["access_fields", "access_grants", "access_principals", "access_resources"]) assert.equal(denyModules(t), false, t);
+  for (const t of ["access_fields", "access_grants", "access_principals", "access_resources"])
+    assert.equal(denyModules(t), false, t);
 });
-

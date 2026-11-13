@@ -20,11 +20,21 @@ const waitExec: Executor = async (s: PlanStep, c: StepCall): Promise<StepResult>
   const hasEvent = i.event !== undefined;
   const timeoutAt = hasEvent ? c.startedAt + (i.timeout ?? 30 * 86_400_000) : undefined;
   if (c.resumed) {
-    if (i.until !== undefined && now < i.until) return { wait: { reason: "background", on: "a time", at: i.until, cancelOn: CANCEL } };
-    if (hasEvent && timeoutAt !== undefined && now < timeoutAt && !seenEvent) return { wait: { reason: "background", on: "an event", event: i.event!, timeoutAt, cancelOn: CANCEL } };
+    if (i.until !== undefined && now < i.until)
+      return { wait: { reason: "background", on: "a time", at: i.until, cancelOn: CANCEL } };
+    if (hasEvent && timeoutAt !== undefined && now < timeoutAt && !seenEvent)
+      return { wait: { reason: "background", on: "an event", event: i.event!, timeoutAt, cancelOn: CANCEL } };
     return { output: { resumedBy: hasEvent ? (seenEvent ? "event" : "timeout") : "time", at: now } };
   }
-  return { wait: { reason: "background", on: hasEvent ? `event ${i.event!.event}` : "a time", ...(i.until !== undefined ? { at: i.until } : {}), ...(hasEvent ? { event: i.event!, timeoutAt: timeoutAt! } : {}), cancelOn: CANCEL } };
+  return {
+    wait: {
+      reason: "background",
+      on: hasEvent ? `event ${i.event!.event}` : "a time",
+      ...(i.until !== undefined ? { at: i.until } : {}),
+      ...(hasEvent ? { event: i.event!, timeoutAt: timeoutAt! } : {}),
+      cancelOn: CANCEL,
+    },
+  };
 };
 let h0: Harness;
 let seenEvent = false;
@@ -36,8 +46,9 @@ async function setup(input: In): Promise<{ h: Harness; id: string; plan: PlanSte
   const id = (await h.call("runs.start", newRun({ name: "Intake" }), engine)).runId as string;
   return { h, id, plan: [{ id: "wait", input }, { id: "after" }] };
 }
-const stepsOf = (h: Harness, id: string): string[] => allSteps(h.db, id).map((s) => `${s.step}#${s.attempt}:${s.state}`);
-const run = async (h: Harness, id: string): Promise<any> => (await h.call("runs.get", { runId: id }, engine)).run;   // eslint-disable-line @typescript-eslint/no-explicit-any
+const stepsOf = (h: Harness, id: string): string[] =>
+  allSteps(h.db, id).map((s) => `${s.step}#${s.attempt}:${s.state}`);
+const run = async (h: Harness, id: string): Promise<any> => (await h.call("runs.get", { runId: id }, engine)).run; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 test("wait until a time: drive registers the time; an early wake keeps waiting; the sweep at the time lets the Run go on", async () => {
   const { h, id, plan } = await setup({});
@@ -62,9 +73,12 @@ test("a resumed Wait keeps waiting: a wake before its time parks the Run again o
   await h.engineRun(engine, (ctx) => drive(ctx, id, plan, waitExec));
   const first = allSteps(h.db, id)[0]!.startedAt;
   h.advance(10 * 60_000);
-  await h.call("runs.resume", { runId: id, reason: "background" }, engine);   // an early wake
+  await h.call("runs.resume", { runId: id, reason: "background" }, engine); // an early wake
   const calls: StepCall[] = [];
-  const spy: Executor = async (s, c) => { calls.push(c); return waitExec(s, c); };
+  const spy: Executor = async (s, c) => {
+    calls.push(c);
+    return waitExec(s, c);
+  };
   assert.deepEqual(await h.engineRun(engine, (ctx) => drive(ctx, id, plan, spy)), { status: "waiting" });
   assert.equal(calls[0]!.startedAt, first);
   assert.equal(calls[0]!.resumed, true);
@@ -74,14 +88,23 @@ test("a resumed Wait keeps waiting: a wake before its time parks the Run again o
 });
 
 test("wait for an event: the matching event wakes the Run and the step ends with resumedBy event", async () => {
-  const { h, id, plan } = await setup({ event: { event: "record.updated", filter: { recordId: "rec_1" } }, timeout: 2 * HOUR });
+  const { h, id, plan } = await setup({
+    event: { event: "record.updated", filter: { recordId: "rec_1" } },
+    timeout: 2 * HOUR,
+  });
   const t0 = h.now();
   await h.engineRun(engine, (ctx) => drive(ctx, id, plan, waitExec));
   assert.deepEqual(readWait(h.db, id)?.on, { event: "record.updated", filter: { recordId: "rec_1" } });
   assert.equal(readWait(h.db, id)?.untilAt, t0 + 2 * HOUR);
-  assert.deepEqual(await h.engineRun(engine, (ctx) => wake(ctx, { type: "record.updated", payload: { recordId: "rec_x" } })), []);
+  assert.deepEqual(
+    await h.engineRun(engine, (ctx) => wake(ctx, { type: "record.updated", payload: { recordId: "rec_x" } })),
+    [],
+  );
   seenEvent = true;
-  assert.deepEqual(await h.engineRun(engine, (ctx) => wake(ctx, { type: "record.updated", payload: { recordId: "rec_1" } })), [id]);
+  assert.deepEqual(
+    await h.engineRun(engine, (ctx) => wake(ctx, { type: "record.updated", payload: { recordId: "rec_1" } })),
+    [id],
+  );
   assert.deepEqual(await h.engineRun(engine, (ctx) => drive(ctx, id, plan, waitExec)), { status: "succeeded" });
   const out = JSON.parse(allSteps(h.db, id)[0]!.outputJson!);
   assert.equal(out.resumedBy, "event");

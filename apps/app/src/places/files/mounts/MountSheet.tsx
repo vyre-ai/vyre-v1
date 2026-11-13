@@ -18,13 +18,39 @@ import { useMountsData } from "./data.tsx";
 import { Glyph, Mark } from "./icons.tsx";
 import type { MarkKind } from "./icons.tsx";
 import {
-  SOURCES, accountKey, back, canMount, mountError, canNext, chooseSource, crumbs, defaultName, emptyDraft, isMounted, metaOf, next, pathKey as pathKeyOf, pick, setQuery, sourceOf, togglePerson, walkInto, walkTo, whoLabel,
+  SOURCES,
+  accountKey,
+  back,
+  canMount,
+  mountError,
+  canNext,
+  chooseSource,
+  crumbs,
+  defaultName,
+  emptyDraft,
+  isMounted,
+  metaOf,
+  next,
+  pathKey as pathKeyOf,
+  pick,
+  setQuery,
+  sourceOf,
+  togglePerson,
+  walkInto,
+  walkTo,
+  whoLabel,
 } from "./model.ts";
 import type { Accounts, BrowseItem, Draft, MountKind, MountRow, SourceId } from "./model.ts";
 import type { DialogAction } from "../../../../../../ui/src/Dialog/index.tsx";
 import { ErrorLine, Field, IconButton, MenuButton, Segmented, Sheet, TextField, anchorOf } from "./parts.tsx";
 
-export interface MountedInfo { mountId: string; folderId: string; runId: string; name: string; warning?: string }
+export interface MountedInfo {
+  mountId: string;
+  folderId: string;
+  runId: string;
+  name: string;
+  warning?: string;
+}
 
 export interface MountSheetProps {
   onClose(): void;
@@ -45,13 +71,28 @@ const markKind = (k: MountKind | SourceId): MarkKind => (k === "microsoft" ? "mi
 
 type ListState = { status: "loading" } | { status: "ready"; items: BrowseItem[]; next?: string } | { status: "error" };
 
-export function MountSheet({ onClose, onMounted, into, initial, preload, invoke = shellInvoke() }: MountSheetProps): ReactElement {
+export function MountSheet({
+  onClose,
+  onMounted,
+  into,
+  initial,
+  preload,
+  invoke = shellInvoke(),
+}: MountSheetProps): ReactElement {
   const data = useMountsData();
   const dataRef = useRef(data);
   dataRef.current = data;
   const menu = useMenu();
   const [d, setD] = useState<Draft>(() => ({ ...emptyDraft(into ?? data.folders[0]?.id ?? ""), ...initial }));
-  const [list, setList] = useState<ListState>(() => (preload ? { status: "ready", items: preload.listing.items, ...(preload.listing.next !== undefined ? { next: preload.listing.next } : {}) } : { status: "loading" }));
+  const [list, setList] = useState<ListState>(() =>
+    preload
+      ? {
+          status: "ready",
+          items: preload.listing.items,
+          ...(preload.listing.next !== undefined ? { next: preload.listing.next } : {}),
+        }
+      : { status: "loading" },
+  );
   const [mounted, setMounted] = useState<MountRow[]>(preload?.mounted ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,44 +107,77 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
   const [connecting, setConnecting] = useState<SourceId | null>(null);
   // A repository's branches, read when its options open, so the branch is picked and not typed. Null while reading or when the read failed (the field then takes typing).
   const [branches, setBranches] = useState<string[] | null>(null);
-  const repo = d.step === 3 && d.source === "github" ? d.picked?.ref ?? null : null;
+  const repo = d.step === 3 && d.source === "github" ? (d.picked?.ref ?? null) : null;
   useEffect(() => {
     setBranches(null);
     if (repo === null) return undefined;
     let live = true;
-    void (dataRef.current.call("github.branches.list", { repo, limit: 100 }) as Promise<{ branches: Array<{ name: string }> }>).then(
-      (o) => { if (!live) return; const names = o.branches.map((b) => b.name); setBranches(names.length ? names : null); if (names.length && !names.includes(d.branch)) setD((x) => ({ ...x, branch: names.includes("main") ? "main" : names.includes("master") ? "master" : (names[0] as string) })); },
+    void (
+      dataRef.current.call("github.branches.list", { repo, limit: 100 }) as Promise<{
+        branches: Array<{ name: string }>;
+      }>
+    ).then(
+      (o) => {
+        if (!live) return;
+        const names = o.branches.map((b) => b.name);
+        setBranches(names.length ? names : null);
+        if (names.length && !names.includes(d.branch))
+          setD((x) => ({
+            ...x,
+            branch: names.includes("main") ? "main" : names.includes("master") ? "master" : (names[0] as string),
+          }));
+      },
       () => undefined,
     );
-    return () => { live = false; };
+    return () => {
+      live = false;
+    };
   }, [repo]);
 
   useEffect(() => {
     let live = true;
-    void mountedRows(dataRef.current.call).then((rows) => { if (live && !preload) setMounted(rows); });
-    return () => { live = false; };
+    void mountedRows(dataRef.current.call).then((rows) => {
+      if (live && !preload) setMounted(rows);
+    });
+    return () => {
+      live = false;
+    };
   }, []);
 
   const pathKey = pathKeyOf(d);
   useEffect(() => {
     if (d.step !== 2 || d.source === null) return;
-    if (skipFirst.current) { skipFirst.current = false; return; }
+    if (skipFirst.current) {
+      skipFirst.current = false;
+      return;
+    }
     let live = true;
     setList({ status: "loading" });
-    const t = setTimeout(() => {
-      const cur = dataRef.current;
-      void browse(cur.call, d, accountsRef.current).then(
-        (l) => {
-          if (!live) return;
-          // OneDrive has one drive at its root: open it, so the person lands on their folders and not on a one-row list
-          const only = l.items[0];
-          if (d.source === "onedrive" && d.path.length === 0 && !d.q && l.items.length === 1 && only?.isFolder) { setD((x) => (x.path.length === 0 ? walkInto(x, only) : x)); return; }
-          setList({ status: "ready", items: l.items, ...(l.next !== undefined ? { next: l.next } : {}) });
-        },
-        () => { if (live) setList({ status: "error" }); },
-      );
-    }, d.q ? 180 : 0);
-    return () => { live = false; clearTimeout(t); };
+    const t = setTimeout(
+      () => {
+        const cur = dataRef.current;
+        void browse(cur.call, d, accountsRef.current).then(
+          (l) => {
+            if (!live) return;
+            // OneDrive has one drive at its root: open it, so the person lands on their folders and not on a one-row list
+            const only = l.items[0];
+            if (d.source === "onedrive" && d.path.length === 0 && !d.q && l.items.length === 1 && only?.isFolder) {
+              setD((x) => (x.path.length === 0 ? walkInto(x, only) : x));
+              return;
+            }
+            setList({ status: "ready", items: l.items, ...(l.next !== undefined ? { next: l.next } : {}) });
+          },
+          () => {
+            if (live) setList({ status: "error" });
+          },
+        );
+      },
+      d.q ? 180 : 0,
+    );
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
   }, [d.step, d.source, pathKey, d.q, attempt]);
 
   const upd = (patch: Partial<Draft>): void => setD((x) => ({ ...x, ...patch }));
@@ -114,7 +188,8 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
     const cursor = list.next;
     const keep = list.items;
     void browse(data.call, d, accounts, cursor).then(
-      (l) => setList({ status: "ready", items: [...keep, ...l.items], ...(l.next !== undefined ? { next: l.next } : {}) }),
+      (l) =>
+        setList({ status: "ready", items: [...keep, ...l.items], ...(l.next !== undefined ? { next: l.next } : {}) }),
       () => setList({ status: "error" }),
     );
   };
@@ -124,7 +199,12 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
     const now = Date.now();
     const twice = last.current.key === key && now - last.current.at < DOUBLE_MS;
     last.current = { key, at: now };
-    if (twice) { if (d.source === "github") setD((x) => next(pick(x, it))); else if (it.isFolder) setD((x) => walkInto(x, it)); else setD((x) => next(pick(x, it))); return; }
+    if (twice) {
+      if (d.source === "github") setD((x) => next(pick(x, it)));
+      else if (it.isFolder) setD((x) => walkInto(x, it));
+      else setD((x) => next(pick(x, it)));
+      return;
+    }
     setD((x) => pick(x, it));
   };
 
@@ -134,36 +214,66 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
     setError(null);
     void submitMount(data.call, d, accounts, data.space.everyoneGroupId).then((r) => {
       setBusy(false);
-      if (r.ok) onMounted({ mountId: r.mountId, folderId: r.folderId, runId: r.runId, name: r.name, ...(r.warning !== undefined ? { warning: r.warning } : {}) });
+      if (r.ok)
+        onMounted({
+          mountId: r.mountId,
+          folderId: r.folderId,
+          runId: r.runId,
+          name: r.name,
+          ...(r.warning !== undefined ? { warning: r.warning } : {}),
+        });
       else setError(r.error);
     });
   };
 
   // This computer: the system folder dialog, then the pick is mounted at once (live only), the same call onboarding makes. No dialog on the web or the phone, so the sheet says where to add one.
   const chooseLocal = async (): Promise<void> => {
-    if (!invoke) { setError("Local folders are added from the Mac or PC app."); return; }
+    if (!invoke) {
+      setError("Local folders are added from the Mac or PC app.");
+      return;
+    }
     if (busy) return;
     setError(null);
     let picked: string[];
-    try { picked = await pickFolders(invoke); } catch { setError("Could not open the folder dialog."); return; }
+    try {
+      picked = await pickFolders(invoke);
+    } catch {
+      setError("Could not open the folder dialog.");
+      return;
+    }
     const path = picked[0];
     const deviceId = dataRef.current.accounts.local.deviceId;
     if (path === undefined) return;
     const target = d.into || dataRef.current.folders[0]?.id || "";
-    if (!deviceId || !target) { setError("This computer is not ready to share folders yet. Try again in a moment."); return; }
+    if (!deviceId || !target) {
+      setError("This computer is not ready to share folders yet. Try again in a moment.");
+      return;
+    }
     setBusy(true);
     try {
       const out = await mountLocalFolder(dataRef.current.call, path, { into: target, deviceId });
       setBusy(false);
       onMounted({ mountId: out.mountId, folderId: out.folderId, runId: "", name: baseName(path) });
-    } catch (e) { setBusy(false); setError(mountError(e, "This computer")); }
+    } catch (e) {
+      setBusy(false);
+      setError(mountError(e, "This computer"));
+    }
   };
 
   const choose = (id: SourceId): void => {
-    if (id === "local") { void chooseLocal(); return; }
+    if (id === "local") {
+      void chooseLocal();
+      return;
+    }
     if (connecting !== null) return;
-    const open = (): void => { setList({ status: "loading" }); setD((x) => chooseSource(x, id)); };
-    if (accounts[accountKey(id)].connected) { open(); return; }
+    const open = (): void => {
+      setList({ status: "loading" });
+      setD((x) => chooseSource(x, id));
+    };
+    if (accounts[accountKey(id)].connected) {
+      open();
+      return;
+    }
     // Not connected: sign in right here, then go on to the folders without leaving the sheet.
     setError(null);
     setConnecting(id);
@@ -175,31 +285,58 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
         setFresh((f) => ({ ...f, [accountKey(id)]: got }));
         open();
       },
-      () => { setConnecting(null); setError(`Could not connect ${sourceOf(id).name}. Try again.`); },
+      () => {
+        setConnecting(null);
+        setError(`Could not connect ${sourceOf(id).name}. Try again.`);
+      },
     );
   };
 
   const onKey = (e: { key: string; target?: { tagName?: string } }): boolean => {
-    if (d.step === 1 && /^[1-5]$/.test(e.key)) { const s = SOURCES[Number(e.key) - 1]; if (s) choose(s.id); return true; }
+    if (d.step === 1 && /^[1-5]$/.test(e.key)) {
+      const s = SOURCES[Number(e.key) - 1];
+      if (s) choose(s.id);
+      return true;
+    }
     return false;
   };
 
   const whoMenu = (e: unknown): void => {
     const { x, y } = anchorOf(e);
-    const items: MenuEntry[] = [{ label: "Only you", checked: d.who.mode === "me", onSelect: () => upd({ who: { mode: "me" } }) }];
-    if (data.space.everyoneGroupId) items.push({ label: `Everyone in ${data.space.name}`, checked: d.who.mode === "everyone", onSelect: () => upd({ who: { mode: "everyone" } }) });
+    const items: MenuEntry[] = [
+      { label: "Only you", checked: d.who.mode === "me", onSelect: () => upd({ who: { mode: "me" } }) },
+    ];
+    if (data.space.everyoneGroupId)
+      items.push({
+        label: `Everyone in ${data.space.name}`,
+        checked: d.who.mode === "everyone",
+        onSelect: () => upd({ who: { mode: "everyone" } }),
+      });
     if (data.people.length) items.push({ separator: true });
-    for (const p of data.people) items.push({ label: p.name, checked: d.who.mode === "people" && d.who.ids.includes(p.id), onSelect: () => upd({ who: togglePerson(d.who, p.id) }) });
+    for (const p of data.people)
+      items.push({
+        label: p.name,
+        checked: d.who.mode === "people" && d.who.ids.includes(p.id),
+        onSelect: () => upd({ who: togglePerson(d.who, p.id) }),
+      });
     menu.show(items, x, y, "other");
   };
   const branchMenu = (e: unknown): void => {
     const { x, y } = anchorOf(e);
-    menu.show((branches ?? []).map((b): MenuEntry => ({ label: b, checked: b === d.branch, onSelect: () => upd({ branch: b }) })), x, y, "other");
+    menu.show(
+      (branches ?? []).map(
+        (b): MenuEntry => ({ label: b, checked: b === d.branch, onSelect: () => upd({ branch: b }) }),
+      ),
+      x,
+      y,
+      "other",
+    );
   };
   const intoMenu = (e: unknown): void => {
     const { x, y } = anchorOf(e);
     const items: MenuEntry[] = [];
-    for (const f of data.folders) items.push({ label: f.name, checked: f.id === d.into, onSelect: () => upd({ into: f.id }) });
+    for (const f of data.folders)
+      items.push({ label: f.name, checked: f.id === d.into, onSelect: () => upd({ into: f.id }) });
     menu.show(items, x, y, "other");
   };
 
@@ -207,11 +344,30 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
   if (d.step >= 2 && source) title = source.name;
   if (d.step === 3 && d.picked && source) title = source.id === "github" ? d.picked.ref : d.picked.name;
 
-  const actions: DialogAction[] = d.step === 2
-    ? [{ label: "Back", onPress: () => setD((x) => back(x)), testID: "mount-back" }, { label: "Next", primary: true, disabled: !canNext(d), onPress: () => setD((x) => next(x)), testID: "mount-next" }]
-    : d.step === 3
-      ? [{ label: "Back", onPress: () => setD((x) => back(x)), testID: "mount-back" }, { label: busy ? "Mounting…" : "Mount", primary: true, disabled: busy || !canMount(d), onPress: mount, testID: "mount-go" }]
-      : [{ label: "Cancel", onPress: onClose, testID: "mount-cancel" }];
+  const actions: DialogAction[] =
+    d.step === 2
+      ? [
+          { label: "Back", onPress: () => setD((x) => back(x)), testID: "mount-back" },
+          {
+            label: "Next",
+            primary: true,
+            disabled: !canNext(d),
+            onPress: () => setD((x) => next(x)),
+            testID: "mount-next",
+          },
+        ]
+      : d.step === 3
+        ? [
+            { label: "Back", onPress: () => setD((x) => back(x)), testID: "mount-back" },
+            {
+              label: busy ? "Mounting…" : "Mount",
+              primary: true,
+              disabled: busy || !canMount(d),
+              onPress: mount,
+              testID: "mount-go",
+            },
+          ]
+        : [{ label: "Cancel", onPress: onClose, testID: "mount-cancel" }];
   return (
     <Sheet label={title} onClose={onClose} onKey={onKey} actions={actions} testID="mount-sheet">
       {d.step === 1 ? <SourceStep onChoose={choose} accounts={accounts} connecting={connecting} /> : null}
@@ -231,27 +387,68 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
       {d.step === 3 && d.picked && source ? (
         <View testID="mount-options">
           <Field label="Name" first>
-            <TextField value={d.name !== null ? d.name : defaultName(d)} onChange={(v) => upd({ name: v })} label="Name" onSubmit={mount} testID="mount-name" />
+            <TextField
+              value={d.name !== null ? d.name : defaultName(d)}
+              onChange={(v) => upd({ name: v })}
+              label="Name"
+              onSubmit={mount}
+              testID="mount-name"
+            />
           </Field>
           <Field label="Who can see it">
-            <MenuButton value={whoLabel(d.who, data.space.name, data.people)} label="Who can see it" onPress={whoMenu} testID="mount-who" />
+            <MenuButton
+              value={whoLabel(d.who, data.space.name, data.people)}
+              label="Who can see it"
+              onPress={whoMenu}
+              testID="mount-who"
+            />
           </Field>
           {source.id === "local" ? (
             <Field label="Copy">
-              <Segmented label="Copy" testID="mount-copy" value={d.copy} onChange={(v) => upd({ copy: v })} options={[{ id: "server_copy", label: "Synced copy" }, { id: "live_only", label: "Live only" }]} />
+              <Segmented
+                label="Copy"
+                testID="mount-copy"
+                value={d.copy}
+                onChange={(v) => upd({ copy: v })}
+                options={[
+                  { id: "server_copy", label: "Synced copy" },
+                  { id: "live_only", label: "Live only" },
+                ]}
+              />
             </Field>
           ) : null}
           {source.id === "github" ? (
             <Field label="Branch">
               {branches ? (
-                <MenuButton value={d.branch} label="Branch" leading={<Glyph name="branch" size={14} />} onPress={branchMenu} testID="mount-branch-menu" />
+                <MenuButton
+                  value={d.branch}
+                  label="Branch"
+                  leading={<Glyph name="branch" size={14} />}
+                  onPress={branchMenu}
+                  testID="mount-branch-menu"
+                />
               ) : (
-                <View style={st.branch}><Glyph name="branch" size={14} /><TextField value={d.branch} onChange={(v) => upd({ branch: v })} label="Branch" onSubmit={mount} testID="mount-branch" width={150} /></View>
+                <View style={st.branch}>
+                  <Glyph name="branch" size={14} />
+                  <TextField
+                    value={d.branch}
+                    onChange={(v) => upd({ branch: v })}
+                    label="Branch"
+                    onSubmit={mount}
+                    testID="mount-branch"
+                    width={150}
+                  />
+                </View>
               )}
             </Field>
           ) : null}
           <Field label="Into">
-            <MenuButton value={data.folders.find((f) => f.id === d.into)?.name ?? "Choose a folder"} label="Into" onPress={intoMenu} testID="mount-into" />
+            <MenuButton
+              value={data.folders.find((f) => f.id === d.into)?.name ?? "Choose a folder"}
+              label="Into"
+              onPress={intoMenu}
+              testID="mount-into"
+            />
           </Field>
         </View>
       ) : null}
@@ -263,7 +460,15 @@ export function MountSheet({ onClose, onMounted, into, initial, preload, invoke 
 
 // ---------------------------------------------------------------- step 1
 
-function SourceStep({ onChoose, accounts, connecting }: { onChoose: (id: SourceId) => void; accounts: Accounts; connecting: SourceId | null }): ReactElement {
+function SourceStep({
+  onChoose,
+  accounts,
+  connecting,
+}: {
+  onChoose: (id: SourceId) => void;
+  accounts: Accounts;
+  connecting: SourceId | null;
+}): ReactElement {
   const rows: ReactElement[] = [];
   for (const s of SOURCES) {
     const acc = accounts[accountKey(s.id)];
@@ -273,13 +478,29 @@ function SourceStep({ onChoose, accounts, connecting }: { onChoose: (id: SourceI
         id={`source:${s.id}`}
         title={s.name}
         note={acc.connected ? acc.label : "Not connected"}
-        leading={<View style={st.markSlot}><Mark kind={markKind(s.id)} size={24} /></View>}
-        trailing={connecting === s.id ? <Text style={st.meta}>Connecting</Text> : acc.connected ? <Glyph name="chev" size={12} /> : <Text style={st.connect}>Connect</Text>}
+        leading={
+          <View style={st.markSlot}>
+            <Mark kind={markKind(s.id)} size={24} />
+          </View>
+        }
+        trailing={
+          connecting === s.id ? (
+            <Text style={st.meta}>Connecting</Text>
+          ) : acc.connected ? (
+            <Glyph name="chev" size={12} />
+          ) : (
+            <Text style={st.connect}>Connect</Text>
+          )
+        }
         onPress={() => onChoose(s.id)}
       />,
     );
   }
-  return <View testID="mount-sources" accessibilityRole="list">{rows}</View>;
+  return (
+    <View testID="mount-sources" accessibilityRole="list">
+      {rows}
+    </View>
+  );
 }
 
 // ---------------------------------------------------------------- step 2
@@ -305,7 +526,13 @@ function PickStep({ d, list, mounted, onQuery, onPress, onInto, onCrumb, onMore,
     crumbViews.push(
       <View key={`${i}:${name}`} style={st.crumbWrap}>
         {i > 0 ? <Glyph name="chev" size={9} /> : null}
-        <Pressable accessibilityRole="button" accessibilityLabel={name} onPress={() => onCrumb(i)} testID={`crumb-${i}`} style={st.crumb}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={name}
+          onPress={() => onCrumb(i)}
+          testID={`crumb-${i}`}
+          style={st.crumb}
+        >
           <Text style={[st.crumbText, i === trail.length - 1 && st.crumbCur]}>{name}</Text>
         </Pressable>
       </View>,
@@ -313,23 +540,47 @@ function PickStep({ d, list, mounted, onQuery, onPress, onInto, onCrumb, onMore,
   }
   const browseRows: ReactElement[] = [];
   if (list.status === "ready") {
-    for (const it of list.items) browseRows.push(<BrowseRow key={`${it.kind}:${it.ref}`} d={d} it={it} done={isMounted(it, mounted)} onPress={onPress} onInto={onInto} />);
+    for (const it of list.items)
+      browseRows.push(
+        <BrowseRow
+          key={`${it.kind}:${it.ref}`}
+          d={d}
+          it={it}
+          done={isMounted(it, mounted)}
+          onPress={onPress}
+          onInto={onInto}
+        />,
+      );
   }
   return (
     <View style={st.pick} testID="mount-pick">
       {github ? <SearchBox value={d.q} onChange={onQuery} /> : null}
-      {trail.length ? <View style={st.crumbs} role="navigation" aria-label="Path" testID="mount-crumbs">{crumbViews}</View> : null}
+      {trail.length ? (
+        <View style={st.crumbs} role="navigation" aria-label="Path" testID="mount-crumbs">
+          {crumbViews}
+        </View>
+      ) : null}
       <ScrollView style={st.listBox} keyboardShouldPersistTaps="handled" testID="mount-list">
         {list.status === "loading" ? <ListSkeleton /> : null}
         {list.status === "error" ? (
           <View style={st.none} testID="mount-list-error">
             <Text style={st.noneText}>Could not load that.</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Try again" onPress={onRetry} testID="mount-retry"><Text style={st.retry}>Try again</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Try again" onPress={onRetry} testID="mount-retry">
+              <Text style={st.retry}>Try again</Text>
+            </Pressable>
           </View>
         ) : null}
         {list.status === "ready" && list.items.length === 0 ? (
           <View style={st.none} testID="mount-list-empty">
-            <Text style={st.noneText}>{github && d.q.trim() ? `No repositories match “${d.q.trim()}”` : github ? "No repositories yet" : d.q.trim() ? `Nothing matches “${d.q.trim()}”` : "Nothing in this folder"}</Text>
+            <Text style={st.noneText}>
+              {github && d.q.trim()
+                ? `No repositories match “${d.q.trim()}”`
+                : github
+                  ? "No repositories yet"
+                  : d.q.trim()
+                    ? `Nothing matches “${d.q.trim()}”`
+                    : "Nothing in this folder"}
+            </Text>
           </View>
         ) : null}
         {browseRows}
@@ -341,14 +592,29 @@ function PickStep({ d, list, mounted, onQuery, onPress, onInto, onCrumb, onMore,
   );
 }
 
-function BrowseRow({ d, it, done, onPress, onInto }: { d: Draft; it: BrowseItem; done: boolean; onPress: (it: BrowseItem) => void; onInto: (it: BrowseItem) => void }): ReactElement {
+function BrowseRow({
+  d,
+  it,
+  done,
+  onPress,
+  onInto,
+}: {
+  d: Draft;
+  it: BrowseItem;
+  done: boolean;
+  onPress: (it: BrowseItem) => void;
+  onInto: (it: BrowseItem) => void;
+}): ReactElement {
   const github = d.source === "github";
   const on = d.picked !== null && d.picked.kind === it.kind && d.picked.ref === it.ref;
   const atRoot = d.path.length === 0;
   const meta = metaOf(it, done);
-  const leading = github || (atRoot && d.source !== "local")
-    ? <Mark kind={github ? "github" : markKind(it.kind)} size={20} />
-    : <Glyph name="folder" size={18} />;
+  const leading =
+    github || (atRoot && d.source !== "local") ? (
+      <Mark kind={github ? "github" : markKind(it.kind)} size={20} />
+    ) : (
+      <Glyph name="folder" size={18} />
+    );
   const walkable = !github && it.isFolder;
   return (
     <View style={done ? st.dis : undefined} {...(done ? { pointerEvents: "none" as const } : {})}>
@@ -357,13 +623,24 @@ function BrowseRow({ d, it, done, onPress, onInto }: { d: Draft; it: BrowseItem;
         title={it.name}
         selected={on}
         leading={<View style={st.markSlot}>{leading}</View>}
-        trailing={(
+        trailing={
           <View style={st.trail}>
-            {meta ? <Text numberOfLines={1} style={st.meta}>{meta}</Text> : null}
+            {meta ? (
+              <Text numberOfLines={1} style={st.meta}>
+                {meta}
+              </Text>
+            ) : null}
             {on ? <Glyph name="check" size={14} color="var(--accent)" width={1.6} /> : null}
-            {walkable ? <IconButton glyph="chev" label={`Open ${it.name}`} onPress={() => onInto(it)} testID={`browse-into-${it.ref}`} /> : null}
+            {walkable ? (
+              <IconButton
+                glyph="chev"
+                label={`Open ${it.name}`}
+                onPress={() => onInto(it)}
+                testID={`browse-into-${it.ref}`}
+              />
+            ) : null}
           </View>
-        )}
+        }
         onPress={() => onPress(it)}
       />
     </View>
@@ -372,8 +649,18 @@ function BrowseRow({ d, it, done, onPress, onInto }: { d: Draft; it: BrowseItem;
 
 function ListSkeleton(): ReactElement {
   const rows: ReactElement[] = [];
-  for (let i = 0; i < 4; i++) rows.push(<View key={i} style={st.skRow}><View style={st.skMark} /><View style={[st.skBar, { width: `${48 - i * 7}%` }]} /></View>);
-  return <View testID="mount-list-loading" accessibilityLabel="Loading" accessibilityRole="progressbar">{rows}</View>;
+  for (let i = 0; i < 4; i++)
+    rows.push(
+      <View key={i} style={st.skRow}>
+        <View style={st.skMark} />
+        <View style={[st.skBar, { width: `${48 - i * 7}%` }]} />
+      </View>,
+    );
+  return (
+    <View testID="mount-list-loading" accessibilityLabel="Loading" accessibilityRole="progressbar">
+      {rows}
+    </View>
+  );
 }
 
 function SearchBox({ value, onChange }: { value: string; onChange: (v: string) => void }): ReactElement {
@@ -422,8 +709,16 @@ const st = StyleSheet.create({
   skRow: { height: 28, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 8 },
   skMark: { width: 20, height: 20, borderRadius: 5, backgroundColor: "var(--hover)" as string },
   skBar: { height: 10, borderRadius: 5, backgroundColor: "var(--hover)" as string },
-  search: sx({ height: 34, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 11, borderRadius: 8, backgroundColor: "var(--field)", boxShadow: "inset 0 0 0 1px var(--field-line)" }),
+  search: sx({
+    height: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 11,
+    borderRadius: 8,
+    backgroundColor: "var(--field)",
+    boxShadow: "inset 0 0 0 1px var(--field-line)",
+  }),
   searchFocus: sx({ boxShadow: "inset 0 0 0 1px var(--accent-line), 0 0 0 3px var(--accent-wash)" }),
   searchInput: sx({ flex: 1, minWidth: 0, height: 34, color: "var(--ink)", fontSize: 13.5, outlineStyle: "none" }),
 });
-

@@ -2,7 +2,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { embedRun } from "../handlers/index.ts";
-import { CHUNK, DIM, VectorIndex, decodeVector, embed, encodeVector, forgetVectors, hashEmbed, jsKernel, normalise, setVectorKernel, vectorsOf, writeVector } from "../projections.ts";
+import {
+  CHUNK,
+  DIM,
+  VectorIndex,
+  decodeVector,
+  embed,
+  encodeVector,
+  forgetVectors,
+  hashEmbed,
+  jsKernel,
+  normalise,
+  setVectorKernel,
+  vectorsOf,
+  writeVector,
+} from "../projections.ts";
 import type { VectorKernel } from "../projections.ts";
 import { harness, randomUnit, seed } from "../fixtures/harness.ts";
 
@@ -18,9 +32,17 @@ test("the plain kernel finds the exact nearest neighbours over 20,000 vectors, b
   const top = index.top(q, 10);
   // the answer a straightforward loop gives
   const all: Array<{ n: number; score: number }> = [];
-  for (let i = 0; i < N; i++) { const x = randomUnit(i + 1, v); let s = 0; for (let j = 0; j < DIM; j++) s += x[j]! * q[j]!; all.push({ n: i + 1, score: s }); }
+  for (let i = 0; i < N; i++) {
+    const x = randomUnit(i + 1, v);
+    let s = 0;
+    for (let j = 0; j < DIM; j++) s += x[j]! * q[j]!;
+    all.push({ n: i + 1, score: s });
+  }
   all.sort((a, b) => b.score - a.score);
-  assert.deepEqual(top.map((t) => t.n), all.slice(0, 10).map((t) => t.n));
+  assert.deepEqual(
+    top.map((t) => t.n),
+    all.slice(0, 10).map((t) => t.n),
+  );
   for (let i = 0; i < 10; i++) assert.ok(Math.abs(top[i]!.score - all[i]!.score) < 1e-4);
   const self = index.top(randomUnit(123), 1)[0]!;
   assert.equal(self.n, 123);
@@ -29,26 +51,44 @@ test("the plain kernel finds the exact nearest neighbours over 20,000 vectors, b
 
 test("a faster kernel can be given to the index and to the module, and gives the same answer", () => {
   const calls: number[] = [];
-  const mirror: VectorKernel = { name: "mirror", score(d, from, count, q, out) { calls.push(count); jsKernel.score(d, from, count, q, out); } };
+  const mirror: VectorKernel = {
+    name: "mirror",
+    score(d, from, count, q, out) {
+      calls.push(count);
+      jsKernel.score(d, from, count, q, out);
+    },
+  };
   const plain = new VectorIndex(64);
   const fast = new VectorIndex(64, mirror);
   const v = new Float32Array(DIM);
-  const N = CHUNK + 1_904;   // one full chunk and a remainder, whatever the chunk size is
-  for (let i = 0; i < N; i++) { randomUnit(i + 1, v); plain.set(i + 1, v); fast.set(i + 1, v); }
+  const N = CHUNK + 1_904; // one full chunk and a remainder, whatever the chunk size is
+  for (let i = 0; i < N; i++) {
+    randomUnit(i + 1, v);
+    plain.set(i + 1, v);
+    fast.set(i + 1, v);
+  }
   const q = randomUnit(99);
   assert.equal(fast.kernel, "mirror");
   assert.deepEqual(fast.top(q, 5), plain.top(q, 5));
   assert.deepEqual(calls, [CHUNK, 1904], "scanned in chunks");
   setVectorKernel(mirror);
-  try { assert.equal(new VectorIndex(8).kernel, "mirror"); } finally { setVectorKernel(null); }
+  try {
+    assert.equal(new VectorIndex(8).kernel, "mirror");
+  } finally {
+    setVectorKernel(null);
+  }
   assert.equal(new VectorIndex(8).kernel, "js");
 });
 
 test("set replaces, remove swaps the last vector into the gap, and an accept filter narrows the scan", () => {
   for (let round = 0; round < 2; round++) {
     const index = new VectorIndex(4);
-    const a = randomUnit(1), b = randomUnit(2), c = randomUnit(3);
-    index.set(10, a); index.set(20, b); index.set(30, c);
+    const a = randomUnit(1),
+      b = randomUnit(2),
+      c = randomUnit(3);
+    index.set(10, a);
+    index.set(20, b);
+    index.set(30, c);
     assert.equal(index.size, 3);
     index.set(20, c); // replace
     assert.equal(index.size, 3);
@@ -79,9 +119,17 @@ test("a vector survives the BLOB, and a change made through another handle reloa
 });
 
 test("the stand-in embedder is 384 unit vectors that put similar texts close and unrelated texts far", async () => {
-  const [a, b, c] = await embed(["harbor warehouse rent schedule", "monthly rent for the harbor warehouse", "soup salad and bread for lunch"]);
+  const [a, b, c] = await embed([
+    "harbor warehouse rent schedule",
+    "monthly rent for the harbor warehouse",
+    "soup salad and bread for lunch",
+  ]);
   assert.equal(a!.length, DIM);
-  const dot = (x: Float32Array, y: Float32Array): number => { let s = 0; for (let i = 0; i < DIM; i++) s += x[i]! * y[i]!; return s; };
+  const dot = (x: Float32Array, y: Float32Array): number => {
+    let s = 0;
+    for (let i = 0; i < DIM; i++) s += x[i]! * y[i]!;
+    return s;
+  };
   assert.ok(Math.abs(dot(a!, a!) - 1) < 1e-4, "unit length");
   assert.ok(dot(a!, b!) > 0.3 && dot(a!, b!) > dot(a!, c!) + 0.2, `${dot(a!, b!)} against ${dot(a!, c!)}`);
   assert.deepEqual([...hashEmbed("same text")], [...hashEmbed("same text")], "deterministic");

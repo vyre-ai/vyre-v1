@@ -6,12 +6,25 @@
 // Rule inputs: following() lists what the person follows (Inbox visibility uses Follow only); starred() lists the Home and sidebar Starred section.
 import type { ReplicaStore, SqlDriver } from "../replica/index.ts";
 
-export interface Resource { type: string; id: string }
+export interface Resource {
+  type: string;
+  id: string;
+}
 
 /** Resource type to replica entity key, where they differ from the type name. Records are found by id (see `recordEntities`). */
 const ENTITY_OF: Readonly<Record<string, string>> = Object.freeze({
-  channel: "thread", thread: "thread", file: "file", folder: "folder", calendar: "calendar", inbox: "mailbox", mailbox: "mailbox",
-  agent: "agent", run: "run", number: "number", vault_item: "vault_meta", vault_folder: "vault_meta",
+  channel: "thread",
+  thread: "thread",
+  file: "file",
+  folder: "folder",
+  calendar: "calendar",
+  inbox: "mailbox",
+  mailbox: "mailbox",
+  agent: "agent",
+  run: "run",
+  number: "number",
+  vault_item: "vault_meta",
+  vault_folder: "vault_meta",
 });
 
 export interface StarredOpts {
@@ -37,7 +50,10 @@ export interface Starred {
   toggleStar(r: Resource, on: boolean, alsoFollow?: boolean): void;
   toggleFollow(r: Resource, on: boolean): void;
   /** A star or follow row arrived or changed through sync. */
-  onRow(entity: "star" | "follow", row: { person?: unknown; resourceType?: unknown; resourceId?: unknown; deleted_at?: unknown }): void;
+  onRow(
+    entity: "star" | "follow",
+    row: { person?: unknown; resourceType?: unknown; resourceId?: unknown; deleted_at?: unknown },
+  ): void;
   /** Rebuild every flag from the star and follow rows of the person. */
   refresh(driver: SqlDriver): void;
   /** Re-apply the flags to rows that arrived after their star did (run after applying a pull page). */
@@ -75,15 +91,19 @@ export function createStarred(o: StarredOpts): Starred {
   function write(entity: "star" | "follow", r: Resource, on: boolean, cap: string, input: unknown): void {
     const at = now();
     o.store.write({
-      entity, id: rowId(entity === "star" ? "str_" : "flw_", r),
+      entity,
+      id: rowId(entity === "star" ? "str_" : "flw_", r),
       fields: { person: o.person, resourceType: r.type, resourceId: r.id, createdAt: at, deleted_at: on ? null : at },
-      hlc: o.hlc(), actor: o.actor, origin: "local",
+      hlc: o.hlc(),
+      actor: o.actor,
+      origin: "local",
       op: { opId: o.newId(), traceId: o.newTrace(), cap, v: 1, input: JSON.stringify(input), baseSeq: "{}" },
     });
   }
 
   function set(map: Map<string, Resource>, r: Resource, on: boolean): void {
-    if (on) map.set(keyOf(r), r); else map.delete(keyOf(r));
+    if (on) map.set(keyOf(r), r);
+    else map.delete(keyOf(r));
   }
 
   return {
@@ -97,7 +117,10 @@ export function createStarred(o: StarredOpts): Starred {
       set(stars, r, on);
       flag(r, "starred", on);
       // The server writes the follow row for "Also follow"; this device shows it at once.
-      if (on && alsoFollow === true && !follows.has(keyOf(r))) { set(follows, r, true); flag(r, "follows", true); }
+      if (on && alsoFollow === true && !follows.has(keyOf(r))) {
+        set(follows, r, true);
+        flag(r, "follows", true);
+      }
     },
     toggleFollow(r, on) {
       write("follow", r, on, "follows.toggle", { resource: r, on });
@@ -109,14 +132,29 @@ export function createStarred(o: StarredOpts): Starred {
       if (row.person !== undefined && row.person !== o.person) return;
       const r: Resource = { type: row.resourceType, id: row.resourceId };
       const on = row.deleted_at === null || row.deleted_at === undefined;
-      if (entity === "star") { set(stars, r, on); flag(r, "starred", on); } else { set(follows, r, on); flag(r, "follows", on); }
+      if (entity === "star") {
+        set(stars, r, on);
+        flag(r, "starred", on);
+      } else {
+        set(follows, r, on);
+        flag(r, "follows", on);
+      }
     },
     refresh(driver) {
       stars.clear();
       follows.clear();
-      for (const [table, map] of [["spaces_star", stars], ["spaces_follow", follows]] as const) {
-        for (const row of driver.prepare(`SELECT resourceType, resourceId FROM ${table} WHERE person = ? AND deleted_at IS NULL`).all([o.person])) {
-          if (typeof row["resourceType"] === "string" && typeof row["resourceId"] === "string") map.set(keyOf({ type: row["resourceType"], id: row["resourceId"] }), { type: row["resourceType"], id: row["resourceId"] });
+      for (const [table, map] of [
+        ["spaces_star", stars],
+        ["spaces_follow", follows],
+      ] as const) {
+        for (const row of driver
+          .prepare(`SELECT resourceType, resourceId FROM ${table} WHERE person = ? AND deleted_at IS NULL`)
+          .all([o.person])) {
+          if (typeof row["resourceType"] === "string" && typeof row["resourceId"] === "string")
+            map.set(keyOf({ type: row["resourceType"], id: row["resourceId"] }), {
+              type: row["resourceType"],
+              id: row["resourceId"],
+            });
         }
       }
       recheck();

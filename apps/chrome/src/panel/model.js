@@ -3,7 +3,8 @@
 
 /** Two quiet suggestions for an empty chat, from what the page is. @param {{ host: string, title: string, record: { name: string, kind: string } | null }} p */
 export function suggestions(p) {
-  if (p.record && /contact|person|lead/i.test(p.record.kind)) return [`What should I know about ${p.record.name} before we talk?`, `Summarize ${p.record.name}'s activity`];
+  if (p.record && /contact|person|lead/i.test(p.record.kind))
+    return [`What should I know about ${p.record.name} before we talk?`, `Summarize ${p.record.name}'s activity`];
   if (p.record) return [`What is new on ${p.record.name}?`, "Summarize this page"];
   if (!p.host) return [];
   return ["Summarize this page", "What should I do next here?"];
@@ -17,7 +18,12 @@ export function suggestions(p) {
 export function chips(s) {
   const may = Boolean(s.privacy && s.privacy.read);
   const removed = s.pageRemoved === null ? Boolean(s.privacy && s.privacy.mode === "ask") : s.pageRemoved;
-  return { page: may && !removed, selected: may && Boolean(s.selection.trim()) && !s.selectionRemoved, canAttach: may && removed, never: Boolean(s.privacy && !s.privacy.read) };
+  return {
+    page: may && !removed,
+    selected: may && Boolean(s.selection.trim()) && !s.selectionRemoved,
+    canAttach: may && removed,
+    never: Boolean(s.privacy && !s.privacy.read),
+  };
 }
 
 /**
@@ -48,12 +54,27 @@ export function groupThreads(threads, host) {
 export function modelGroups(models) {
   /** @type {Map<string, typeof models>} */
   const by = new Map();
-  for (const m of models) { const g = by.get(m.provider) ?? []; g.push(m); by.set(m.provider, g); }
-  const NAMES = /** @type {Record<string,string>} */ ({ anthropic: "Claude", openai: "OpenAI", google: "Gemini", openrouter: "OpenRouter", ollama: "On this computer" });
+  for (const m of models) {
+    const g = by.get(m.provider) ?? [];
+    g.push(m);
+    by.set(m.provider, g);
+  }
+  const NAMES = /** @type {Record<string,string>} */ ({
+    anthropic: "Claude",
+    openai: "OpenAI",
+    google: "Gemini",
+    openrouter: "OpenRouter",
+    ollama: "On this computer",
+  });
   return [...by.entries()].map(([provider, list]) => ({ provider, title: NAMES[provider] ?? provider, models: list }));
 }
 
-export const WHY_NOT = Object.freeze({ label_provider: "Not for this chat's label", policy_model: "Turned off by your Space", not_connected: "Not connected", usage_limit: "Usage limit reached" });
+export const WHY_NOT = Object.freeze({
+  label_provider: "Not for this chat's label",
+  policy_model: "Turned off by your Space",
+  not_connected: "Not connected",
+  usage_limit: "Usage limit reached",
+});
 
 /** The label on the model picker: the picked model's title, else the default's. @param {{ id: string, title: string, isDefault: boolean }[]} models @param {string} picked */
 export function modelLabel(models, picked) {

@@ -11,7 +11,10 @@ const block = { id: "pl1", data: { kind: "plan", id: "file_1", name: "Rivera onb
 
 test("the plan card line is the count alone on a phone and on a desktop", async () => {
   installDom();
-  for (const [width, hint] of [[390, false], [1280, false]] as const) {
+  for (const [width, hint] of [
+    [390, false],
+    [1280, false],
+  ] as const) {
     widen(width);
     const root = await mount(createRoot, <PlanFileCard block={block} onOpen={() => undefined} />);
     const text = textOf(find(root, "plancard-pl1"));

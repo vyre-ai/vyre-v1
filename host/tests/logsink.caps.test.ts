@@ -10,18 +10,39 @@ import { LogSink, LOGS_SCHEMA, ROLLUP_MS, SLOW_MS, invokeLogs, jobRanLog } from 
 const T0 = 1_800_000_000_000;
 const DAY = 86_400_000;
 const tmp = (): string => path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-logcaps-")), "logs.db");
-type Row = { msg: string; level: number; result: string | null; dur_ms: number | null; actor: string | null; cap: string | null; attrs: string | null };
-const rows = (sink: LogSink): Row[] => { sink.flush(); return sink.db.prepare("SELECT msg, level, result, dur_ms, actor, cap, attrs FROM logs ORDER BY id").all() as unknown as Row[]; };
+type Row = {
+  msg: string;
+  level: number;
+  result: string | null;
+  dur_ms: number | null;
+  actor: string | null;
+  cap: string | null;
+  attrs: string | null;
+};
+const rows = (sink: LogSink): Row[] => {
+  sink.flush();
+  return sink.db
+    .prepare("SELECT msg, level, result, dur_ms, actor, cap, attrs FROM logs ORDER BY id")
+    .all() as unknown as Row[];
+};
 const n = (sink: LogSink, sql: string): number => Number(sink.db.prepare(sql).get()?.["n"]);
 
 test("a routine job run is counted, and its window ends in one job.ran row with the count, the total time and the slowest", () => {
   let now = T0;
   const sink = new LogSink({ batchMs: 0, now: () => now });
   const ran = jobRanLog(sink, () => "spc_test");
-  ran({ job: "commands.poll", ok: true, ms: 2 });                 // the first run of a job is a row
-  for (let i = 0; i < 3599; i++) { now += 1000; ran({ job: "commands.poll", ok: true, ms: i === 7 ? 9 : 1 }); }
-  assert.deepEqual(rows(sink).map((r) => [r.msg, r.level, r.result]), [["job.ran", 10, "ok"]], "an hour of polls wrote nothing past the first");
-  now += 2000; ran({ job: "commands.poll", ok: true, ms: 1 });   // the window is over: this run starts the next one
+  ran({ job: "commands.poll", ok: true, ms: 2 }); // the first run of a job is a row
+  for (let i = 0; i < 3599; i++) {
+    now += 1000;
+    ran({ job: "commands.poll", ok: true, ms: i === 7 ? 9 : 1 });
+  }
+  assert.deepEqual(
+    rows(sink).map((r) => [r.msg, r.level, r.result]),
+    [["job.ran", 10, "ok"]],
+    "an hour of polls wrote nothing past the first",
+  );
+  now += 2000;
+  ran({ job: "commands.poll", ok: true, ms: 1 }); // the window is over: this run starts the next one
   const all = rows(sink);
   assert.equal(all.length, 2);
   assert.equal(all[1]!.msg, "job.ran");
@@ -35,7 +56,10 @@ test("a failure, a recovery and a slow run are rows of their own; a failure that
   let now = T0;
   const sink = new LogSink({ batchMs: 0, now: () => now });
   const ran = jobRanLog(sink, () => "spc_test");
-  const tick = (r: Parameters<typeof ran>[0]): void => { now += 1000; ran(r); };
+  const tick = (r: Parameters<typeof ran>[0]): void => {
+    now += 1000;
+    ran(r);
+  };
   tick({ job: "hooks.pump", ok: true, ms: 3 });
   tick({ job: "hooks.pump", ok: true, ms: 3 });
   tick({ job: "hooks.pump", ok: false, ms: 4, error: "disk full" });
@@ -44,13 +68,16 @@ test("a failure, a recovery and a slow run are rows of their own; a failure that
   tick({ job: "hooks.pump", ok: false, ms: 4, error: "locked" });
   tick({ job: "hooks.pump", ok: true, ms: 3 });
   tick({ job: "hooks.pump", ok: true, ms: SLOW_MS + 5 });
-  assert.deepEqual(rows(sink).map((r) => [r.level, r.result, r.attrs]), [
-    [10, "ok", null],
-    [40, "error", '{"error":"disk full"}'],
-    [40, "error", '{"error":"locked"}'],
-    [20, "ok", null],
-    [20, "ok", '{"slow":true}'],
-  ]);
+  assert.deepEqual(
+    rows(sink).map((r) => [r.level, r.result, r.attrs]),
+    [
+      [10, "ok", null],
+      [40, "error", '{"error":"disk full"}'],
+      [40, "error", '{"error":"locked"}'],
+      [20, "ok", null],
+      [20, "ok", '{"slow":true}'],
+    ],
+  );
   sink.close();
 });
 
@@ -59,24 +86,50 @@ test("close writes what every open window has counted, so a restart loses no cou
   let now = T0;
   const sink = new LogSink({ path: file, batchMs: 0, now: () => now });
   const ran = jobRanLog(sink, () => "spc_test");
-  for (let i = 0; i < 5; i++) { now += 1000; ran({ job: "schedule.tick", ok: true, ms: 1 }); }
-  for (let i = 0; i < 3; i++) { now += 1000; ran({ job: "schedule.tick", ok: false, ms: 1, error: "x" }); }
+  for (let i = 0; i < 5; i++) {
+    now += 1000;
+    ran({ job: "schedule.tick", ok: true, ms: 1 });
+  }
+  for (let i = 0; i < 3; i++) {
+    now += 1000;
+    ran({ job: "schedule.tick", ok: false, ms: 1, error: "x" });
+  }
   sink.close();
   const db = new DatabaseSync(file, { readOnly: true });
-  const got = db.prepare("SELECT level, result, attrs FROM logs ORDER BY id").all().map((r) => [r["level"], r["result"], r["attrs"] ? JSON.parse(String(r["attrs"])).count ?? null : null]);
+  const got = db
+    .prepare("SELECT level, result, attrs FROM logs ORDER BY id")
+    .all()
+    .map((r) => [r["level"], r["result"], r["attrs"] ? (JSON.parse(String(r["attrs"])).count ?? null) : null]);
   db.close();
-  assert.deepEqual(got, [[10, "ok", null], [40, "error", null], [10, "ok", 4], [40, "error", 2]]);
+  assert.deepEqual(got, [
+    [10, "ok", null],
+    [40, "error", null],
+    [10, "ok", 4],
+    [40, "error", 2],
+  ]);
 });
 
 test("a fast read keeps its first span per capability and caller each window, so its trace opens; writes, failures and slow reads keep every span", () => {
   let now = T0;
   const sink = new LogSink({ batchMs: 0, now: () => now });
-  const { onSpan: span } = invokeLogs(sink, "spc_test", { routine: (cap) => cap.endsWith(".get"), read: (cap) => cap.endsWith(".get") });
+  const { onSpan: span } = invokeLogs(sink, "spc_test", {
+    routine: (cap) => cap.endsWith(".get"),
+    read: (cap) => cap.endsWith(".get"),
+  });
   let i = 0;
   const call = (cap: string, o: { status?: "ok" | "error"; ms?: number; principal?: string } = {}): string => {
     const traceId = (++i).toString(16).padStart(32, "0");
     now += 100;
-    span({ traceId, spanId: "1".repeat(16), name: "invoke", cap, startedAt: now, ms: o.ms ?? 2, status: o.status ?? "ok", principal: o.principal ?? "usr_a" });
+    span({
+      traceId,
+      spanId: "1".repeat(16),
+      name: "invoke",
+      cap,
+      startedAt: now,
+      ms: o.ms ?? 2,
+      status: o.status ?? "ok",
+      principal: o.principal ?? "usr_a",
+    });
     return traceId;
   };
   const first = call("spaces.get");
@@ -115,12 +168,20 @@ test("rows past the age cap are pruned while the sink runs, in small batches; to
   let now = T0;
   const sink = new LogSink({ path: file, batchMs: 0, now: () => now, keepMs: 7 * DAY });
   sink.log({ space: "-", level: 20, msg: "old", actor: "usr_gone" });
-  sink.span({ trace_id: "a".repeat(32), span_id: "a".repeat(16), parent: null, name: "invoke", at: now, dur_us: 1, attrs: null });
+  sink.span({
+    trace_id: "a".repeat(32),
+    span_id: "a".repeat(16),
+    parent: null,
+    name: "invoke",
+    at: now,
+    dur_us: 1,
+    attrs: null,
+  });
   sink.erase("usr_gone");
   for (let i = 0; i < 4500; i++) sink.log({ space: "-", level: 20, msg: "old.bulk" });
   now += 3 * DAY;
   sink.log({ space: "-", level: 20, msg: "young" });
-  now += 5 * DAY;                                 // the first rows are now eight days old
+  now += 5 * DAY; // the first rows are now eight days old
   sink.log({ space: "-", level: 20, msg: "after" });
   const left = (sink.db.prepare("SELECT msg FROM logs ORDER BY id").all() as { msg: string }[]).map((r) => r.msg);
   assert.deepEqual(left, ["young", "after"], "a flush a minute after the last prune pruned every old row");
@@ -129,7 +190,11 @@ test("rows past the age cap are pruned while the sink runs, in small batches; to
   const lastId = n(sink, "SELECT MAX(id) AS n FROM logs");
   now += 8 * DAY;
   sink.log({ space: "-", level: 20, msg: "later" });
-  assert.deepEqual((sink.db.prepare("SELECT id, msg FROM logs").all() as { id: number; msg: string }[]).map((r) => [r.id, r.msg]), [[lastId + 1, "later"]], "ids go on from the last one, never reused");
+  assert.deepEqual(
+    (sink.db.prepare("SELECT id, msg FROM logs").all() as { id: number; msg: string }[]).map((r) => [r.id, r.msg]),
+    [[lastId + 1, "later"]],
+    "ids go on from the last one, never reused",
+  );
   sink.close();
   const again = new LogSink({ path: file, batchMs: 0, now: () => now });
   again.log({ space: "-", level: 20, msg: "reopened" });
@@ -144,7 +209,20 @@ test("a file over the size cap loses its oldest rows until it takes three quarte
   const maxBytes = 512 * 1024;
   const sink = new LogSink({ path: file, batchMs: 60_000, now: () => now, maxBytes });
   const pad = "x".repeat(400);
-  for (let i = 0; i < 6000; i++) { sink.log({ space: "-", level: 20, msg: "fill", attrs: { i, pad } }); if (i % 500 === 0) sink.span({ trace_id: i.toString(16).padStart(32, "0"), span_id: "b".repeat(16), parent: null, name: "invoke", at: now, dur_us: 1, attrs: null }); now += 5; }
+  for (let i = 0; i < 6000; i++) {
+    sink.log({ space: "-", level: 20, msg: "fill", attrs: { i, pad } });
+    if (i % 500 === 0)
+      sink.span({
+        trace_id: i.toString(16).padStart(32, "0"),
+        span_id: "b".repeat(16),
+        parent: null,
+        name: "invoke",
+        at: now,
+        dur_us: 1,
+        attrs: null,
+      });
+    now += 5;
+  }
   sink.drain();
   sink.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
   const before = fs.statSync(file).size;
@@ -153,10 +231,19 @@ test("a file over the size cap loses its oldest rows until it takes three quarte
   sink.log({ space: "-", level: 20, msg: "newest" });
   sink.flush();
   sink.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-  for (let i = 0; i < 20 && fs.statSync(file).size > maxBytes; i++) { now += 61_000; sink.log({ space: "-", level: 20, msg: "newest" }); sink.flush(); sink.db.exec("PRAGMA wal_checkpoint(TRUNCATE)"); }
+  for (let i = 0; i < 20 && fs.statSync(file).size > maxBytes; i++) {
+    now += 61_000;
+    sink.log({ space: "-", level: 20, msg: "newest" });
+    sink.flush();
+    sink.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  }
   const size = fs.statSync(file).size;
   assert.ok(size <= maxBytes, `the file shrank under the cap: ${before} -> ${size}`);
-  const kept = sink.db.prepare("SELECT MIN(json_extract(attrs, '$.i')) AS lo, MAX(json_extract(attrs, '$.i')) AS hi FROM logs WHERE msg = 'fill'").get()!;
+  const kept = sink.db
+    .prepare(
+      "SELECT MIN(json_extract(attrs, '$.i')) AS lo, MAX(json_extract(attrs, '$.i')) AS hi FROM logs WHERE msg = 'fill'",
+    )
+    .get()!;
   assert.equal(kept["hi"], 5999, "the newest rows stay");
   assert.ok(Number(kept["lo"]) > 0, "the oldest went");
   assert.ok((sink.db.prepare("SELECT msg FROM logs").all() as { msg: string }[]).some((r) => r.msg === "newest"));
@@ -177,8 +264,15 @@ test("a logs.db from before the caps is pruned and vacuumed once at open, and ta
   const sink = new LogSink({ path: file, batchMs: 0, now: () => T0 });
   assert.equal(sink.db.prepare("PRAGMA auto_vacuum").get()?.["auto_vacuum"], 2);
   assert.equal(sink.db.prepare("PRAGMA journal_mode").get()?.["journal_mode"], "wal");
-  assert.deepEqual((sink.db.prepare("SELECT msg FROM logs").all() as { msg: string }[]).map((r) => r.msg), ["recent"]);
-  assert.equal(n(sink, "SELECT freelist_count AS n FROM pragma_freelist_count"), 0, "the vacuum gave the pruned pages back");
+  assert.deepEqual(
+    (sink.db.prepare("SELECT msg FROM logs").all() as { msg: string }[]).map((r) => r.msg),
+    ["recent"],
+  );
+  assert.equal(
+    n(sink, "SELECT freelist_count AS n FROM pragma_freelist_count"),
+    0,
+    "the vacuum gave the pruned pages back",
+  );
   sink.log({ space: "-", level: 20, msg: "next" });
   sink.flush();
   assert.equal(n(sink, "SELECT MAX(id) AS n FROM logs"), 3002, "the sequence carries on past the pruned rows");
@@ -188,14 +282,30 @@ test("a logs.db from before the caps is pruned and vacuumed once at open, and ta
 test("a read that keeps failing the same way is one row per window: the first failure and a new error keep their span and rows, repeats are counted, and the recovery is a row", () => {
   let now = T0;
   const sink = new LogSink({ batchMs: 0, now: () => now });
-  const logs = invokeLogs(sink, "spc_test", { routine: (cap) => cap.endsWith(".get") || cap.startsWith("host.hook."), read: (cap) => cap.endsWith(".get") });
+  const logs = invokeLogs(sink, "spc_test", {
+    routine: (cap) => cap.endsWith(".get") || cap.startsWith("host.hook."),
+    read: (cap) => cap.endsWith(".get"),
+  });
   let i = 0;
   // what the pipeline does on a failure: the span, then the rows
-  const call = (cap: string, o: { status?: "ok" | "error" | "denied"; code?: string; ms?: number; unexpected?: boolean } = {}): string => {
+  const call = (
+    cap: string,
+    o: { status?: "ok" | "error" | "denied"; code?: string; ms?: number; unexpected?: boolean } = {},
+  ): string => {
     const traceId = (++i).toString(16).padStart(32, "0");
     now += 1000;
     const status = o.status ?? "ok";
-    logs.onSpan({ traceId, spanId: "2".repeat(16), name: "invoke", cap, startedAt: now, ms: o.ms ?? 2, status, ...(o.code ? { code: o.code } : {}), principal: "usr_a" });
+    logs.onSpan({
+      traceId,
+      spanId: "2".repeat(16),
+      name: "invoke",
+      cap,
+      startedAt: now,
+      ms: o.ms ?? 2,
+      status,
+      ...(o.code ? { code: o.code } : {}),
+      principal: "usr_a",
+    });
     if (status !== "ok") {
       if (o.unexpected) logs.log.error("handler threw", { cap, traceId, stack: "at x" });
       logs.log.info("invoke", { cap, traceId, status: o.code });
@@ -211,10 +321,18 @@ test("a read that keeps failing the same way is one row per window: the first fa
   const writes = [1, 2].map(() => call("notes.create", { status: "error", code: "validation.bad_input" }));
   const hook = [1, 2].map(() => call("host.hook.periodic.x", { status: "error", code: "internal.unexpected" }));
   const recovered = call("settings.get");
-  for (const t of [first, changed, slow, ...refused, ...writes, ...hook, recovered]) assert.equal(sink.trace(t).spans.length, 1, `kept: ${t}`);
+  for (const t of [first, changed, slow, ...refused, ...writes, ...hook, recovered])
+    assert.equal(sink.trace(t).spans.length, 1, `kept: ${t}`);
   for (const t of [...repeats, again]) assert.deepEqual(sink.trace(t), { logs: [], spans: [] }, `counted: ${t}`);
-  assert.deepEqual(sink.trace(changed).logs.map((l) => l.msg), ["handler threw", "invoke"], "a new error keeps its rows");
-  assert.deepEqual(sink.trace(recovered).logs.map((l) => [l.msg, l.level]), [["invoke.recovered", 20]]);
+  assert.deepEqual(
+    sink.trace(changed).logs.map((l) => l.msg),
+    ["handler threw", "invoke"],
+    "a new error keeps its rows",
+  );
+  assert.deepEqual(
+    sink.trace(recovered).logs.map((l) => [l.msg, l.level]),
+    [["invoke.recovered", 20]],
+  );
   sink.close();
 });
 
@@ -226,12 +344,39 @@ test("the counted failures of a window close as one invoke row with the error co
   for (let k = 0; k < 5; k++) {
     now += 1000;
     const traceId = k.toString(16).padStart(32, "0");
-    logs.onSpan({ traceId, spanId: "3".repeat(16), name: "invoke", cap: "settings.get", startedAt: now, ms: 2, status: "error", code: "validation.bad_input", principal: "usr_a" });
+    logs.onSpan({
+      traceId,
+      spanId: "3".repeat(16),
+      name: "invoke",
+      cap: "settings.get",
+      startedAt: now,
+      ms: 2,
+      status: "error",
+      code: "validation.bad_input",
+      principal: "usr_a",
+    });
     logs.log.info("invoke", { cap: "settings.get", traceId, status: "validation.bad_input" });
   }
   sink.close();
   const db = new DatabaseSync(file, { readOnly: true });
-  const got = db.prepare("SELECT msg, level, cap, actor, result, attrs FROM logs ORDER BY id").all().map((r) => [r["msg"], r["level"], r["cap"], r["actor"], r["result"], r["attrs"] ? JSON.parse(String(r["attrs"])).count ?? null : null]);
+  const got = db
+    .prepare("SELECT msg, level, cap, actor, result, attrs FROM logs ORDER BY id")
+    .all()
+    .map((r) => [
+      r["msg"],
+      r["level"],
+      r["cap"],
+      r["actor"],
+      r["result"],
+      r["attrs"] ? (JSON.parse(String(r["attrs"])).count ?? null) : null,
+    ]);
   db.close();
-  assert.deepEqual(got, [["invoke", 20, "settings.get", null, "validation.bad_input", null], ["invoke", 20, "settings.get", "usr_a", "validation.bad_input", 4]], "the first failure as the pipeline logged it (its result in the result column), then the four repeats on one row");
+  assert.deepEqual(
+    got,
+    [
+      ["invoke", 20, "settings.get", null, "validation.bad_input", null],
+      ["invoke", 20, "settings.get", "usr_a", "validation.bad_input", 4],
+    ],
+    "the first failure as the pipeline logged it (its result in the result column), then the four repeats on one row",
+  );
 });

@@ -7,8 +7,27 @@
 // @reads ../../../images/documenso/documenso.lock
 
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import { ProviderPayloadError, envelopeOf, fail, finishTask, one, providerOf, saveSigned, subject, tellThread, PROVIDER_KEYS } from "./send.ts";
-import type { EnvelopeRequest, EnvelopeStatus, EsignProvider, ProviderKey, ProviderStatus, SignedFiles, WebhookEvent } from "./send.ts";
+import {
+  ProviderPayloadError,
+  envelopeOf,
+  fail,
+  finishTask,
+  one,
+  providerOf,
+  saveSigned,
+  subject,
+  tellThread,
+  PROVIDER_KEYS,
+} from "./send.ts";
+import type {
+  EnvelopeRequest,
+  EnvelopeStatus,
+  EsignProvider,
+  ProviderKey,
+  ProviderStatus,
+  SignedFiles,
+  WebhookEvent,
+} from "./send.ts";
 
 // ---- the pinned container -----------------------------------------------------------------------------------
 
@@ -46,7 +65,10 @@ export interface HttpResponse {
   arrayBuffer(): Promise<ArrayBuffer>;
 }
 
-export type HttpFn = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string | Uint8Array }) => Promise<HttpResponse>;
+export type HttpFn = (
+  url: string,
+  init?: { method?: string; headers?: Record<string, string>; body?: string | Uint8Array },
+) => Promise<HttpResponse>;
 
 export interface DocumensoOptions {
   /** where the container answers on this server, for example http://127.0.0.1:3010 */
@@ -62,12 +84,23 @@ const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !
 const s = (v: unknown): string => (typeof v === "string" ? v : "");
 
 function mapStatus(doc: Obj): ProviderStatus {
-  const recipients = Array.isArray(doc.recipients) ? doc.recipients.filter(isObj) : Array.isArray(doc.Recipient) ? (doc.Recipient as unknown[]).filter(isObj) : [];
+  const recipients = Array.isArray(doc.recipients)
+    ? doc.recipients.filter(isObj)
+    : Array.isArray(doc.Recipient)
+      ? (doc.Recipient as unknown[]).filter(isObj)
+      : [];
   const signers = recipients
     .filter((r) => s(r.role) === "" || s(r.role) === "SIGNER" || s(r.role) === "APPROVER")
     .map((r) => {
       const sig = s(r.signingStatus);
-      const st: EnvelopeStatus = sig === "SIGNED" ? "signed" : sig === "REJECTED" ? "declined" : s(r.readStatus) === "OPENED" ? "viewed" : "sent";
+      const st: EnvelopeStatus =
+        sig === "SIGNED"
+          ? "signed"
+          : sig === "REJECTED"
+            ? "declined"
+            : s(r.readStatus) === "OPENED"
+              ? "viewed"
+              : "sent";
       return { name: s(r.name), email: s(r.email).toLowerCase(), status: st };
     });
   const docStatus = s(doc.status);
@@ -86,8 +119,10 @@ function mapStatus(doc: Obj): ProviderStatus {
 export function multipartPdf(boundary: string, payload: unknown, fileName: string, pdf: Uint8Array): Uint8Array {
   const enc = new TextEncoder();
   const safeName = fileName.replace(/[^A-Za-z0-9._ -]/g, "_") || "document.pdf";
-  const head = enc.encode(`--${boundary}\r\nContent-Disposition: form-data; name="payload"\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(payload)}\r\n`
-    + `--${boundary}\r\nContent-Disposition: form-data; name="files"; filename="${safeName}"\r\nContent-Type: application/pdf\r\n\r\n`);
+  const head = enc.encode(
+    `--${boundary}\r\nContent-Disposition: form-data; name="payload"\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(payload)}\r\n` +
+      `--${boundary}\r\nContent-Disposition: form-data; name="files"; filename="${safeName}"\r\nContent-Type: application/pdf\r\n\r\n`,
+  );
   const tail = enc.encode(`\r\n--${boundary}--\r\n`);
   const out = new Uint8Array(head.length + pdf.length + tail.length);
   out.set(head, 0);
@@ -97,7 +132,13 @@ export function multipartPdf(boundary: string, payload: unknown, fileName: strin
 }
 
 /** Where each signer's signature box goes: page 1, left margin, one box per signer stacked upwards from the bottom (percent of the page). */
-function signatureBox(index: number): { page: number; positionX: number; positionY: number; width: number; height: number } {
+function signatureBox(index: number): {
+  page: number;
+  positionX: number;
+  positionY: number;
+  width: number;
+  height: number;
+} {
   return { page: 1, positionX: 10, positionY: Math.max(5, 85 - index * 12), width: 30, height: 8 };
 }
 
@@ -106,7 +147,11 @@ export function documenso(o: DocumensoOptions): EsignProvider {
   const auth = { Authorization: o.apiToken };
 
   async function api(method: string, path: string, body?: unknown): Promise<unknown> {
-    const res = await o.http(`${base}/api/v2${path}`, { method, headers: { ...auth, ...(body === undefined ? {} : { "Content-Type": "application/json" }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const res = await o.http(`${base}/api/v2${path}`, {
+      method,
+      headers: { ...auth, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
     if (!res.ok) throw new Error(`Documenso answered ${res.status} for ${method} ${path}`);
     return res.status === 204 ? {} : res.json();
   }
@@ -121,20 +166,34 @@ export function documenso(o: DocumensoOptions): EsignProvider {
     async create(req: EnvelopeRequest): Promise<{ ref: string }> {
       const sequential = req.signers.some((x) => x.order > 1);
       const payload = {
-        type: "DOCUMENT", title: req.title, externalId: req.envelopeId,
+        type: "DOCUMENT",
+        title: req.title,
+        externalId: req.envelopeId,
         recipients: req.signers.map((x, i) => ({
-          name: x.name, email: x.email, role: "SIGNER", signingOrder: x.order,
-          fields: [{ type: "SIGNATURE", identifier: 0, ...signatureBox(i), fieldMeta: { type: "signature", required: true } }],
+          name: x.name,
+          email: x.email,
+          role: "SIGNER",
+          signingOrder: x.order,
+          fields: [
+            { type: "SIGNATURE", identifier: 0, ...signatureBox(i), fieldMeta: { type: "signature", required: true } },
+          ],
         })),
-        meta: { signingOrder: sequential ? "SEQUENTIAL" : "PARALLEL", subject: `Please sign: ${req.title}`, distributionMethod: "EMAIL" },
+        meta: {
+          signingOrder: sequential ? "SEQUENTIAL" : "PARALLEL",
+          subject: `Please sign: ${req.title}`,
+          distributionMethod: "EMAIL",
+        },
       };
       const boundary = `vyre${req.envelopeId.replace(/[^A-Za-z0-9]/g, "")}`;
       const made = await o.http(`${base}/api/v2/envelope/create`, {
-        method: "POST", headers: { ...auth, "Content-Type": `multipart/form-data; boundary=${boundary}` }, body: multipartPdf(boundary, payload, req.fileName, req.pdf),
+        method: "POST",
+        headers: { ...auth, "Content-Type": `multipart/form-data; boundary=${boundary}` },
+        body: multipartPdf(boundary, payload, req.fileName, req.pdf),
       });
       if (!made.ok) throw new Error(`Documenso refused the document (${made.status})`);
       const json = await made.json();
-      if (!isObj(json) || typeof json.id !== "string" || json.id === "") throw new Error("Documenso returned no envelope id");
+      if (!isObj(json) || typeof json.id !== "string" || json.id === "")
+        throw new Error("Documenso returned no envelope id");
       const ref = json.id;
       await api("POST", "/envelope/distribute", { envelopeId: ref, meta: { subject: `Please sign: ${req.title}` } });
       return { ref };
@@ -153,32 +212,54 @@ export function documenso(o: DocumensoOptions): EsignProvider {
       const items = Array.isArray(doc.envelopeItems) ? doc.envelopeItems.filter(isObj) : [];
       const first = items[0];
       if (!first || typeof first.id !== "string") throw new Error("Documenso returned no document to download");
-      const res = await o.http(`${base}/api/v2/envelope/item/${encodeURIComponent(first.id)}/download?version=signed`, { method: "GET", headers: auth });
+      const res = await o.http(`${base}/api/v2/envelope/item/${encodeURIComponent(first.id)}/download?version=signed`, {
+        method: "GET",
+        headers: auth,
+      });
       if (!res.ok) throw new Error(`Documenso refused the download (${res.status})`);
       // the signing certificate is part of the signed PDF in Documenso, so there is no second file
       return { pdf: new Uint8Array(await res.arrayBuffer()) };
     },
 
     webhook(payload: unknown): WebhookEvent | null {
-      if (!isObj(payload) || typeof payload.event !== "string" || !isObj(payload.payload)) throw new ProviderPayloadError("That is not a Documenso webhook.");
+      if (!isObj(payload) || typeof payload.event !== "string" || !isObj(payload.payload))
+        throw new ProviderPayloadError("That is not a Documenso webhook.");
       const doc = payload.payload;
       const id = typeof doc.envelopeId === "string" && doc.envelopeId !== "" ? doc.envelopeId : doc.id;
-      if (typeof id !== "number" && typeof id !== "string") throw new ProviderPayloadError("The webhook names no document.");
+      if (typeof id !== "number" && typeof id !== "string")
+        throw new ProviderPayloadError("The webhook names no document.");
       const kinds: Record<string, WebhookEvent["kind"]> = {
-        DOCUMENT_OPENED: "viewed", DOCUMENT_SIGNED: "signed", DOCUMENT_COMPLETED: "completed", DOCUMENT_REJECTED: "declined", DOCUMENT_CANCELLED: "cancelled",
+        DOCUMENT_OPENED: "viewed",
+        DOCUMENT_SIGNED: "signed",
+        DOCUMENT_COMPLETED: "completed",
+        DOCUMENT_REJECTED: "declined",
+        DOCUMENT_CANCELLED: "cancelled",
       };
       const kind = kinds[payload.event];
       if (!kind) return null;
       const list = Array.isArray(doc.Recipient) ? doc.Recipient : Array.isArray(doc.recipients) ? doc.recipients : [];
       const recipients = list.filter(isObj).map((r) => ({
-        email: s(r.email).toLowerCase(), name: s(r.name),
-        read: s(r.readStatus) === "OPENED", signed: s(r.signingStatus) === "SIGNED", rejected: s(r.signingStatus) === "REJECTED",
+        email: s(r.email).toLowerCase(),
+        name: s(r.name),
+        read: s(r.readStatus) === "OPENED",
+        signed: s(r.signingStatus) === "SIGNED",
+        rejected: s(r.signingStatus) === "REJECTED",
       }));
       const rejected = list.filter(isObj).find((r) => s(r.signingStatus) === "REJECTED");
       const reason = rejected && s(rejected.rejectionReason) !== "" ? s(rejected.rejectionReason) : undefined;
       const createdAt = s(payload.createdAt);
-      const seen = recipients.filter((r) => r.read || r.signed || r.rejected).map((r) => `${r.email}:${r.read ? "r" : ""}${r.signed ? "s" : ""}${r.rejected ? "x" : ""}`).sort().join(",");
-      return { id: `${payload.event}:${String(id)}:${createdAt}:${seen}`, ref: String(id), kind, recipients, ...(reason ? { reason } : {}) };
+      const seen = recipients
+        .filter((r) => r.read || r.signed || r.rejected)
+        .map((r) => `${r.email}:${r.read ? "r" : ""}${r.signed ? "s" : ""}${r.rejected ? "x" : ""}`)
+        .sort()
+        .join(",");
+      return {
+        id: `${payload.event}:${String(id)}:${createdAt}:${seen}`,
+        ref: String(id),
+        kind,
+        recipients,
+        ...(reason ? { reason } : {}),
+      };
     },
 
     async health(): Promise<{ ok: boolean; detail?: string }> {
@@ -194,10 +275,14 @@ const ORDER: Record<EnvelopeStatus, number> = { sent: 0, viewed: 1, signed: 2, d
 
 async function hook(ctx: Ctx, input: unknown): Promise<{ ok: true }> {
   const o = isObj(input) ? input : {};
-  const key = typeof o.provider === "string" && (PROVIDER_KEYS as readonly string[]).includes(o.provider) ? (o.provider as ProviderKey) : undefined;
+  const key =
+    typeof o.provider === "string" && (PROVIDER_KEYS as readonly string[]).includes(o.provider)
+      ? (o.provider as ProviderKey)
+      : undefined;
   if (!key) fail(ctx, "validation.bad_input", "Choose documenso, dropbox_sign or docusign.", { field: "provider" });
   const provider = providerOf(key);
-  if (!provider) fail(ctx, "validation.precondition_failed", `${key.replace("_", " ")} is not connected on this server.`);
+  if (!provider)
+    fail(ctx, "validation.precondition_failed", `${key.replace("_", " ")} is not connected on this server.`);
   let ev: WebhookEvent | null;
   try {
     ev = provider.webhook(o.payload);
@@ -220,22 +305,38 @@ async function hook(ctx: Ctx, input: unknown): Promise<{ ok: true }> {
     for (const r of ev.recipients.filter((x) => x.read)) {
       const signer = one(ctx, "SELECT * FROM esign_signer WHERE envelope_id = ? AND email = ?", env.id, r.email);
       if (!signer || signer.status !== "sent") continue;
-      ctx.db.run("UPDATE esign_signer SET status = ?, viewed_at = ? WHERE envelope_id = ? AND email = ?", "viewed", ctx.now(), env.id, r.email);
+      ctx.db.run(
+        "UPDATE esign_signer SET status = ?, viewed_at = ? WHERE envelope_id = ? AND email = ?",
+        "viewed",
+        ctx.now(),
+        env.id,
+        r.email,
+      );
       ctx.emit("signature.viewed", subject(env.id), { envelopeId: env.id, signer: r.email });
     }
-    if (ORDER[env.status] < ORDER.viewed) ctx.db.run("UPDATE esign_envelope SET status = ?, updated_at = ? WHERE id = ?", "viewed", ctx.now(), env.id);
+    if (ORDER[env.status] < ORDER.viewed)
+      ctx.db.run("UPDATE esign_envelope SET status = ?, updated_at = ? WHERE id = ?", "viewed", ctx.now(), env.id);
     return { ok: true };
   }
 
   if (ev.kind === "signed") {
     for (const r of ev.recipients.filter((x) => x.signed)) {
-      ctx.db.run("UPDATE esign_signer SET status = ?, signed_at = ? WHERE envelope_id = ? AND email = ? AND status != ?", "signed", ctx.now(), env.id, r.email, "signed");
+      ctx.db.run(
+        "UPDATE esign_signer SET status = ?, signed_at = ? WHERE envelope_id = ? AND email = ? AND status != ?",
+        "signed",
+        ctx.now(),
+        env.id,
+        r.email,
+        "signed",
+      );
     }
     return { ok: true };
   }
 
   // the rest change the envelope for good, so the provider's own answer decides
-  const forget = (): void => { ctx.db.run("DELETE FROM esign_hook_seen WHERE provider = ? AND dedupe_key = ?", key, ev.id); };
+  const forget = (): void => {
+    ctx.db.run("DELETE FROM esign_hook_seen WHERE provider = ? AND dedupe_key = ?", key, ev.id);
+  };
   let truth: ProviderStatus | null;
   try {
     truth = await provider.status(ev.ref);
@@ -243,7 +344,11 @@ async function hook(ctx: Ctx, input: unknown): Promise<{ ok: true }> {
     // a document deleted at the provider answers "not found", which is what a cancel looks like
     if (ev.kind === "cancelled") truth = null;
     else {
-      ctx.log.warn("esign: could not confirm a webhook with the provider", { provider: key, ref: ev.ref, error: e instanceof Error ? e.message : String(e) });
+      ctx.log.warn("esign: could not confirm a webhook with the provider", {
+        provider: key,
+        ref: ev.ref,
+        error: e instanceof Error ? e.message : String(e),
+      });
       forget();
       fail(ctx, "provider.unavailable", "The provider could not confirm that event. It will be retried.");
     }
@@ -251,7 +356,11 @@ async function hook(ctx: Ctx, input: unknown): Promise<{ ok: true }> {
 
   if (ev.kind === "completed") {
     if (truth?.state !== "signed") {
-      ctx.log.warn("esign: completed webhook not confirmed by the provider", { provider: key, ref: ev.ref, state: truth?.state ?? "gone" });
+      ctx.log.warn("esign: completed webhook not confirmed by the provider", {
+        provider: key,
+        ref: ev.ref,
+        state: truth?.state ?? "gone",
+      });
       forget();
       return { ok: true };
     }
@@ -261,25 +370,45 @@ async function hook(ctx: Ctx, input: unknown): Promise<{ ok: true }> {
 
   if (ev.kind === "declined") {
     if (truth?.state !== "declined") {
-      ctx.log.warn("esign: declined webhook not confirmed by the provider", { provider: key, ref: ev.ref, state: truth?.state ?? "gone" });
+      ctx.log.warn("esign: declined webhook not confirmed by the provider", {
+        provider: key,
+        ref: ev.ref,
+        state: truth?.state ?? "gone",
+      });
       forget();
       return { ok: true };
     }
     const who = truth.signers.find((x) => x.status === "declined") ?? ev.recipients.find((x) => x.rejected);
     const signer = who ? who.email : "";
-    if (signer) ctx.db.run("UPDATE esign_signer SET status = ? WHERE envelope_id = ? AND email = ?", "declined", env.id, signer);
+    if (signer)
+      ctx.db.run("UPDATE esign_signer SET status = ? WHERE envelope_id = ? AND email = ?", "declined", env.id, signer);
     ctx.db.run("UPDATE esign_envelope SET status = ?, updated_at = ? WHERE id = ?", "declined", ctx.now(), env.id);
     const reason = truth.reason ?? ev.reason;
-    ctx.emit("signature.declined", subject(env.id), { envelopeId: env.id, signer: signer || "a signer", ...(reason ? { reason } : {}) });
+    ctx.emit("signature.declined", subject(env.id), {
+      envelopeId: env.id,
+      signer: signer || "a signer",
+      ...(reason ? { reason } : {}),
+    });
     await finishTask(ctx, env, "canceled", "A signer declined.");
-    await tellThread(ctx, env, `${signer || "A signer"} declined to sign ${env.title}${reason ? `: ${reason}` : "."}`, "sig-declined");
+    await tellThread(
+      ctx,
+      env,
+      `${signer || "A signer"} declined to sign ${env.title}${reason ? `: ${reason}` : "."}`,
+      "sig-declined",
+    );
     return { ok: true };
   }
 
   // cancelled at the provider (someone deleted the document there)
   if (truth === null || truth.state === "cancelled") {
     ctx.db.run("UPDATE esign_envelope SET status = ?, updated_at = ? WHERE id = ?", "cancelled", ctx.now(), env.id);
-    ctx.db.run("UPDATE esign_signer SET status = ? WHERE envelope_id = ? AND status IN (?, ?)", "cancelled", env.id, "sent", "viewed");
+    ctx.db.run(
+      "UPDATE esign_signer SET status = ? WHERE envelope_id = ? AND status IN (?, ?)",
+      "cancelled",
+      env.id,
+      "sent",
+      "viewed",
+    );
     await finishTask(ctx, env, "canceled", "The envelope was cancelled at the provider.");
   }
   return { ok: true };

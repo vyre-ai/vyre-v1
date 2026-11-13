@@ -8,10 +8,18 @@ import { SessionGate } from "./SessionGate.tsx";
 const frame = (env: { tauri?: boolean; width?: number }): string => {
   const g = globalThis as { __TAURI__?: unknown; innerWidth?: number };
   const had = { t: g.__TAURI__, w: g.innerWidth };
-  if (env.tauri) g.__TAURI__ = { core: { invoke: async () => undefined } }; else delete g.__TAURI__;
-  if (env.width !== undefined) g.innerWidth = env.width; else delete g.innerWidth;
-  try { return renderToString(<SessionGate baseUrl={null} />); }
-  finally { if (had.t === undefined) delete g.__TAURI__; else g.__TAURI__ = had.t; if (had.w === undefined) delete g.innerWidth; else g.innerWidth = had.w; }
+  if (env.tauri) g.__TAURI__ = { core: { invoke: async () => undefined } };
+  else delete g.__TAURI__;
+  if (env.width !== undefined) g.innerWidth = env.width;
+  else delete g.innerWidth;
+  try {
+    return renderToString(<SessionGate baseUrl={null} />);
+  } finally {
+    if (had.t === undefined) delete g.__TAURI__;
+    else g.__TAURI__ = had.t;
+    if (had.w === undefined) delete g.innerWidth;
+    else g.innerWidth = had.w;
+  }
 };
 
 test("the first frame is the same in a browser, the desktop app and at a phone width", () => {

@@ -11,4 +11,5 @@ export function unnamed(id: string): string {
 }
 
 /** The name from a lookup, else the plain word. */
-export const nameOr = (name: string | undefined, id: string): string => (name !== undefined && name !== "" ? name : unnamed(id));
+export const nameOr = (name: string | undefined, id: string): string =>
+  name !== undefined && name !== "" ? name : unnamed(id);

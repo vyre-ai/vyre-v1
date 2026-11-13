@@ -10,18 +10,45 @@ const PROVIDERS = [
   { key: "deepgram", name: "Deepgram", keyUrl: "https://console.deepgram.com/", models: [], languages: [] },
   { key: "elevenlabs", name: "ElevenLabs", keyUrl: "https://elevenlabs.io/", models: [], languages: [] },
 ];
-const ME = { on: true, provider: "deepgram", language: "multi", model: "nova-3", source: "space", spaceOn: true, mayManage: true, providers: PROVIDERS };
+const ME = {
+  on: true,
+  provider: "deepgram",
+  language: "multi",
+  model: "nova-3",
+  source: "space",
+  spaceOn: true,
+  mayManage: true,
+  providers: PROVIDERS,
+};
 
 async function page(keyed: string[]) {
   const restore = installDom();
   const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
-  const space = { set: true, on: true, provider: "deepgram", setBy: "usr_a", checkedAt: Date.now(), state: "ok", peopleOwnKey: 0, keyed };
-  const call = async (cap: string, input: unknown): Promise<unknown> => { calls.push({ cap, input: input as Record<string, unknown> }); return space; };
+  const space = {
+    set: true,
+    on: true,
+    provider: "deepgram",
+    setBy: "usr_a",
+    checkedAt: Date.now(),
+    state: "ok",
+    peopleOwnKey: 0,
+    keyed,
+  };
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    calls.push({ cap, input: input as Record<string, unknown> });
+    return space;
+  };
   const { createRoot } = await import("test-renderer");
-  const root = await mount(createRoot, <ConsoleDataProvider value={dataWith({ "talk.space.status": space, "talk.status": ME }, { call } as never)}><VoiceSettings /></ConsoleDataProvider>);
+  const root = await mount(
+    createRoot,
+    <ConsoleDataProvider value={dataWith({ "talk.space.status": space, "talk.status": ME }, { call } as never)}>
+      <VoiceSettings />
+    </ConsoleDataProvider>,
+  );
   return { root, calls, restore };
 }
-const configure = (calls: Array<{ cap: string; input: Record<string, unknown> }>) => calls.filter((c) => c.cap === "talk.space.configure").map((c) => c.input);
+const configure = (calls: Array<{ cap: string; input: Record<string, unknown> }>) =>
+  calls.filter((c) => c.cap === "talk.space.configure").map((c) => c.input);
 
 test("the row names the provider in use and the one with no key yet", async () => {
   const { root, restore } = await page(["deepgram"]);
@@ -31,7 +58,9 @@ test("the row names the provider in use and the one with no key yet", async () =
     assert.match(row, /ElevenLabs \(no key yet\)/);
     assert.ok(find(root, "voice-use-elevenlabs"));
     assert.equal(find(root, "voice-use-deepgram"), null, "the one in use has no button");
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("a provider with no key opens its key form instead of switching", async () => {
@@ -42,7 +71,9 @@ test("a provider with no key opens its key form instead of switching", async () 
     assert.ok(find(root, "voice-key"), "the key form is open");
     assert.match(textOf(root), /ElevenLabs key/);
     assert.deepEqual(configure(calls), []);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });
 
 test("a provider the Space has a key for is switched to with talk.space.configure", async () => {
@@ -51,5 +82,7 @@ test("a provider the Space has a key for is switched to with talk.space.configur
     assert.match(textOf(find(root, "voice-use-elevenlabs")), /Use ElevenLabs/);
     await press(find(root, "voice-use-elevenlabs"));
     assert.deepEqual(configure(calls), [{ provider: "elevenlabs" }]);
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

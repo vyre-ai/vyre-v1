@@ -25,15 +25,43 @@ export interface CrewCtx {
 const Ctx = createContext<CrewCtx | null>(null);
 export const useCrew = (): CrewCtx | null => useContext(Ctx);
 
-export function CrewProvider({ call, threadId, onShow, children }: { call: Call | undefined; threadId: string; onShow?: () => void; children: ReactNode }): ReactElement {
+export function CrewProvider({
+  call,
+  threadId,
+  onShow,
+  children,
+}: {
+  call: Call | undefined;
+  threadId: string;
+  onShow?: () => void;
+  children: ReactNode;
+}): ReactElement {
   const [signal, setSignal] = useState(0);
   const { status } = useCrewStatus(call, threadId, signal);
   const [selected, setSelected] = useState<string | null>(null);
   const [seq, setSeq] = useState(0);
   const [open, setOpen] = useState(false);
-  const value = useMemo<CrewCtx>(() => ({
-    status, refresh: () => setSignal((n) => n + 1), selected, seq, call, threadId, open, close: () => { setOpen(false); setSelected(null); },
-    show: (id) => { setSelected(id); setSeq((n) => n + 1); setOpen(true); onShow?.(); },
-  }), [status, selected, seq, call, threadId, onShow, open]);
+  const value = useMemo<CrewCtx>(
+    () => ({
+      status,
+      refresh: () => setSignal((n) => n + 1),
+      selected,
+      seq,
+      call,
+      threadId,
+      open,
+      close: () => {
+        setOpen(false);
+        setSelected(null);
+      },
+      show: (id) => {
+        setSelected(id);
+        setSeq((n) => n + 1);
+        setOpen(true);
+        onShow?.();
+      },
+    }),
+    [status, selected, seq, call, threadId, onShow, open],
+  );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

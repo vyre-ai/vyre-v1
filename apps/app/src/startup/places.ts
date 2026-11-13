@@ -3,7 +3,19 @@
 import type { ComponentType } from "react";
 
 export const PLACES = [
-  "chat", "files", "records", "mail", "calendar", "tasks", "sites", "forms", "automations", "agents", "vault", "settings", "console",
+  "chat",
+  "files",
+  "records",
+  "mail",
+  "calendar",
+  "tasks",
+  "sites",
+  "forms",
+  "automations",
+  "agents",
+  "vault",
+  "settings",
+  "console",
 ] as const;
 
 export type PlaceId = (typeof PLACES)[number];

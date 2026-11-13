@@ -14,12 +14,31 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, "..", "..", "..");
 
 /** Workspaces the device daemon loads, and docs/frozen, whose agent-tools.md the MCP and engine modules read at start (a daemon with the Space role cannot start its gateway without it). Every other workspace keeps only its package.json so `npm ci` can resolve the lockfile. */
-export const RUNTIME_DIRS = ["lib", "manifest", "contracts", "kernel", "host", "sync", "client", "agent", "sandbox", "modules", "connectors", "generated", "manifests", "packages", "relay/client", "testkit", "docs/frozen"] as const;
+export const RUNTIME_DIRS = [
+  "lib",
+  "manifest",
+  "contracts",
+  "kernel",
+  "host",
+  "sync",
+  "client",
+  "agent",
+  "sandbox",
+  "modules",
+  "connectors",
+  "generated",
+  "manifests",
+  "packages",
+  "relay/client",
+  "testkit",
+  "docs/frozen",
+] as const;
 /** Single files outside those directories that staged modules read by a path relative to their own file (new URL("../../perf/budgets.json", import.meta.url)); apps/desktop/tests/stage-runtime.test.ts finds any that are missing here. */
 export const STAGE_FILES = ["perf/budgets.json", "images/agent-computer/seccomp.json"] as const;
 export const ROOT_FILES = ["package.json", "package-lock.json", "tsconfig.base.json", "LICENSE", "NOTICE"] as const;
 /** Never staged, whatever the directory: tests, screenshots, caches and build output. */
-export const SKIP = /(^|\/)(node_modules|\.git|target|dist|coverage|__screens__|tests?|golden|fixtures)(\/|$)|\.test\.(ts|js|mjs|tsx)$|\.heavy\.test\./;
+export const SKIP =
+  /(^|\/)(node_modules|\.git|target|dist|coverage|__screens__|tests?|golden|fixtures)(\/|$)|\.test\.(ts|js|mjs|tsx)$|\.heavy\.test\./;
 
 export type StagePlan = { copyDirs: string[]; packageOnly: string[]; rootFiles: string[]; files: string[] };
 
@@ -33,7 +52,12 @@ export function plan(workspaces: string[], exists: (rel: string) => boolean = ()
   const want = new Set<string>(RUNTIME_DIRS);
   const copyDirs = [...want].filter((d) => exists(d));
   const packageOnly = dirs.filter((d) => !want.has(d) && !copyDirs.some((c) => d === c || d.startsWith(`${c}/`)));
-  return { copyDirs, packageOnly, rootFiles: [...ROOT_FILES].filter((f) => exists(f)), files: [...STAGE_FILES].filter((f) => exists(f)) };
+  return {
+    copyDirs,
+    packageOnly,
+    rootFiles: [...ROOT_FILES].filter((f) => exists(f)),
+    files: [...STAGE_FILES].filter((f) => exists(f)),
+  };
 }
 
 /** The Rust target triple of this machine, as Tauri names external binaries. */
@@ -73,7 +97,10 @@ export function stageChromeExtension(runtime: string, release: string): string {
   fs.mkdirSync(dest, { recursive: true });
   copyTree(path.join(REPO, "apps", "chrome"), dest, "");
   fs.rmSync(path.join(dest, "package.json"), { force: true });
-  fs.writeFileSync(path.join(dest, "manifest.json"), withReleaseVersion(fs.readFileSync(path.join(REPO, "apps", "chrome", "manifest.json"), "utf8"), release));
+  fs.writeFileSync(
+    path.join(dest, "manifest.json"),
+    withReleaseVersion(fs.readFileSync(path.join(REPO, "apps", "chrome", "manifest.json"), "utf8"), release),
+  );
   return dest;
 }
 
@@ -100,8 +127,11 @@ function main(): void {
   for (const w of rootPkg.workspaces) {
     if (w.endsWith("/*")) {
       const base = w.slice(0, -2);
-      for (const e of fs.existsSync(path.join(REPO, base)) ? fs.readdirSync(path.join(REPO, base), { withFileTypes: true }) : []) {
-        if (e.isDirectory() && fs.existsSync(path.join(REPO, base, e.name, "package.json"))) expanded.push(`${base}/${e.name}`);
+      for (const e of fs.existsSync(path.join(REPO, base))
+        ? fs.readdirSync(path.join(REPO, base), { withFileTypes: true })
+        : []) {
+        if (e.isDirectory() && fs.existsSync(path.join(REPO, base, e.name, "package.json")))
+          expanded.push(`${base}/${e.name}`);
       }
     } else expanded.push(w);
   }
@@ -126,10 +156,17 @@ function main(): void {
     fs.mkdirSync(path.join(runtime, d), { recursive: true });
     fs.copyFileSync(path.join(REPO, d, "package.json"), path.join(runtime, d, "package.json"));
   }
-  execFileSync("npm", ["ci", "--omit=dev", "--no-audit", "--no-fund", "--ignore-scripts"], { cwd: runtime, stdio: "inherit", shell: os.platform() === "win32" });
+  execFileSync("npm", ["ci", "--omit=dev", "--no-audit", "--no-fund", "--ignore-scripts"], {
+    cwd: runtime,
+    stdio: "inherit",
+    shell: os.platform() === "win32",
+  });
   const shell = JSON.parse(fs.readFileSync(path.join(HERE, "tauri.conf.json"), "utf8")) as { version: string };
   stageChromeExtension(runtime, shell.version);
-  if (!stageAppWeb(runtime)) process.stdout.write("no web export at apps/app/dist: a Space this Mac serves will not hand the app to a browser (run npm run web first)\n");
+  if (!stageAppWeb(runtime))
+    process.stdout.write(
+      "no web export at apps/app/dist: a Space this Mac serves will not hand the app to a browser (run npm run web first)\n",
+    );
   const bin = path.join(out, "binaries");
   fs.mkdirSync(bin, { recursive: true });
   const target = path.join(bin, binaryName(hostTriple()));

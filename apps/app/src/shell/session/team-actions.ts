@@ -8,23 +8,42 @@ export const INVITE_DAYS = 7;
 export const AWAY_HOLD_MS = 30 * 24 * 3_600_000;
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
-export interface TeamHub { flash(text: string): void; setAway(on: boolean): void }
-export interface Clipboard { writeText(text: string): Promise<void> }
+export interface TeamHub {
+  flash(text: string): void;
+  setAway(on: boolean): void;
+}
+export interface Clipboard {
+  writeText(text: string): Promise<void>;
+}
 
-const clipboard = (): Clipboard | undefined => (globalThis as { navigator?: { clipboard?: Clipboard } }).navigator?.clipboard;
+const clipboard = (): Clipboard | undefined =>
+  (globalThis as { navigator?: { clipboard?: Clipboard } }).navigator?.clipboard;
 const reason = (e: unknown): string => (e instanceof Error && e.message ? e.message : "try again");
-const key = (): string => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
+const key = (): string => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 
-export function teamActions(o: { call: Call; hub: TeamHub; space: string; now?: () => number; clip?: () => Clipboard | undefined }): { invite(): Promise<string | null>; away(on: boolean): Promise<void>; load(): Promise<boolean> } {
+export function teamActions(o: {
+  call: Call;
+  hub: TeamHub;
+  space: string;
+  now?: () => number;
+  clip?: () => Clipboard | undefined;
+}): { invite(): Promise<string | null>; away(on: boolean): Promise<void>; load(): Promise<boolean> } {
   const now = o.now ?? Date.now;
   const clip = o.clip ?? clipboard;
   return {
     async invite() {
       let link: string;
       try {
-        const out = (await o.call("members.invites.create", { role: INVITE_ROLE, expiresInDays: INVITE_DAYS, idempotencyKey: key() })) as { link: string };
+        const out = (await o.call("members.invites.create", {
+          role: INVITE_ROLE,
+          expiresInDays: INVITE_DAYS,
+          idempotencyKey: key(),
+        })) as { link: string };
         link = out.link;
-      } catch (e) { o.hub.flash(`Couldn't make an invite link: ${reason(e)}`); return null; }
+      } catch (e) {
+        o.hub.flash(`Couldn't make an invite link: ${reason(e)}`);
+        return null;
+      }
       try {
         const c = clip();
         if (!c) throw new Error("no clipboard");
@@ -40,7 +59,10 @@ export function teamActions(o: { call: Call; hub: TeamHub; space: string; now?: 
       try {
         if (on) await o.call("notifications.away.set", { until: now() + AWAY_HOLD_MS, delegate: { kind: "none" } });
         else await o.call("notifications.away.clear", {});
-      } catch (e) { o.hub.flash(`Couldn't change away: ${reason(e)}`); return; }
+      } catch (e) {
+        o.hub.flash(`Couldn't change away: ${reason(e)}`);
+        return;
+      }
       o.hub.setAway(on);
       o.hub.flash(on ? "You are away. Teammates see it, and only calls interrupt you." : "Welcome back");
     },
@@ -50,7 +72,9 @@ export function teamActions(o: { call: Call; hub: TeamHub; space: string; now?: 
         const away = out.away === true;
         o.hub.setAway(away);
         return away;
-      } catch { return false; }
+      } catch {
+        return false;
+      }
     },
   };
 }

@@ -15,7 +15,10 @@ export function childRunLine(child: LineageChild): string {
 }
 
 /** A step's try: its name (the step's own title or what it does, never its id), how it ended, which try and which lane. */
-export function attemptLine(step: { step: string; state: string; attempt?: number; branch?: string }, nameOf: (stepId: string) => string = (id) => id): string {
+export function attemptLine(
+  step: { step: string; state: string; attempt?: number; branch?: string },
+  nameOf: (stepId: string) => string = (id) => id,
+): string {
   const parts = [nameOf(step.step), step.state];
   if (typeof step.attempt === "number") parts.push(`attempt ${step.attempt}`);
   if (step.branch) parts.push(step.branch);
@@ -34,11 +37,17 @@ export interface LineageLines {
   children: { id: string; text: string }[];
 }
 
-export function lineageLines(parentRun: string | undefined, steps: readonly { attempt?: number }[], children: readonly LineageChild[]): LineageLines | null {
+export function lineageLines(
+  parentRun: string | undefined,
+  steps: readonly { attempt?: number }[],
+  children: readonly LineageChild[],
+): LineageLines | null {
   const kids = children.filter((child) => child.runId.length > 0);
   const hasParent = typeof parentRun === "string" && parentRun.length > 0;
   if (!hasParent && kids.length === 0) return null;
-  const attempts = [...steps.map((step) => step.attempt), ...kids.map((child) => child.attempt)].filter((n): n is number => typeof n === "number");
+  const attempts = [...steps.map((step) => step.attempt), ...kids.map((child) => child.attempt)].filter(
+    (n): n is number => typeof n === "number",
+  );
   const attempt = attempts.length > 0 ? Math.max(...attempts) : undefined;
   return {
     ...(hasParent ? { parent: "Retry of an earlier run" } : {}),

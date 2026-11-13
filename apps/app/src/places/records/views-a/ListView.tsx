@@ -21,17 +21,64 @@ import { ViewHead, useViewState } from "./view.tsx";
 import type { ViewCtx } from "./view.tsx";
 
 /** One record as the shared ui/Row: a face leading (the lead's, else the record's own seeded by its id), the status tag trailing, a menu on right-click. It is named Row because the rows lint reads a list item by that name. */
-function Row({ r, title, note, selected, person, badge, names, mark, onOpen, onMenu }: {
-  r: RecordRow; title: string; note: string; selected: boolean; person: unknown; badge: FieldDef | undefined; names: (id: string) => string; mark: "private" | "shared" | null; onOpen: () => void; onMenu: (x: number, y: number) => void;
+function Row({
+  r,
+  title,
+  note,
+  selected,
+  person,
+  badge,
+  names,
+  mark,
+  onOpen,
+  onMenu,
+}: {
+  r: RecordRow;
+  title: string;
+  note: string;
+  selected: boolean;
+  person: unknown;
+  badge: FieldDef | undefined;
+  names: (id: string) => string;
+  mark: "private" | "shared" | null;
+  onOpen: () => void;
+  onMenu: (x: number, y: number) => void;
 }): ReactElement {
   const bv = badge ? r.fields[badge.key] : undefined;
   const trig = menuTrigger(onMenu);
   return (
     <View testID={`list-${r.id}`} style={l.cell} {...(trig as object)}>
       <UiRow
-        id={`rec-${r.id}`} title={title} note={note} selected={selected}
-        leading={<View style={l.face}>{typeof person === "string" && person !== "" ? <Avatar name={names(person)} seedId={person} kind="person" size={24} testID={`face-${names(person)}`} /> : <Avatar name={title} seedId={r.id} kind="person" size={24} testID={`face-${title}`} />}</View>}
-        {...((badge && typeof bv === "string" && bv !== "") || mark ? { trailing: <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>{badge && typeof bv === "string" && bv !== "" ? <Tag field={badge} value={bv} /> : null}{mark ? <View testID={`mark-${r.id}`} accessibilityLabel={mark === "private" ? "Set apart from its type" : "Shared with people"}><Glyph name={mark === "private" ? "lock" : "people"} size={13} color="var(--ink-3)" /></View> : null}</View> } : {})}
+        id={`rec-${r.id}`}
+        title={title}
+        note={note}
+        selected={selected}
+        leading={
+          <View style={l.face}>
+            {typeof person === "string" && person !== "" ? (
+              <Avatar name={names(person)} seedId={person} kind="person" size={24} testID={`face-${names(person)}`} />
+            ) : (
+              <Avatar name={title} seedId={r.id} kind="person" size={24} testID={`face-${title}`} />
+            )}
+          </View>
+        }
+        {...((badge && typeof bv === "string" && bv !== "") || mark
+          ? {
+              trailing: (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  {badge && typeof bv === "string" && bv !== "" ? <Tag field={badge} value={bv} /> : null}
+                  {mark ? (
+                    <View
+                      testID={`mark-${r.id}`}
+                      accessibilityLabel={mark === "private" ? "Set apart from its type" : "Shared with people"}
+                    >
+                      <Glyph name={mark === "private" ? "lock" : "people"} size={13} color="var(--ink-3)" />
+                    </View>
+                  ) : null}
+                </View>
+              ),
+            }
+          : {})}
         onPress={onOpen}
       />
     </View>
@@ -48,22 +95,55 @@ function AddingRow({ ctx, onDone }: { ctx: ViewCtx; onDone: () => void }): React
     const n = name.trim();
     if (n === "" || busy) return;
     setBusy(true);
-    makeRecord(data.call, ctx.def, n, `new-${ctx.type}-${Date.now()}`).then((id) => { onDone(); if (id) data.nav.openRecord(id); }, (e: unknown) => { setBusy(false); setError(e instanceof Error ? e.message : `Could not make the ${ctx.def.title.toLowerCase()}.`); });
+    makeRecord(data.call, ctx.def, n, `new-${ctx.type}-${Date.now()}`).then(
+      (id) => {
+        onDone();
+        if (id) data.nav.openRecord(id);
+      },
+      (e: unknown) => {
+        setBusy(false);
+        setError(e instanceof Error ? e.message : `Could not make the ${ctx.def.title.toLowerCase()}.`);
+      },
+    );
   };
   return (
     <View style={l.adding} testID="records-adding">
-      <TextInput value={name} onChangeText={setName} autoFocus selectTextOnFocus editable={!busy} onSubmitEditing={make} accessibilityLabel={`New ${ctx.def.title.toLowerCase()}`} testID="records-adding-input" style={l.addingInput} />
-      <Pressable accessibilityRole="button" testID="records-adding-create" onPress={make}><Text style={l.addingLink}>Create</Text></Pressable>
-      <Pressable accessibilityRole="button" testID="records-adding-cancel" onPress={onDone}><Text style={l.addingCancel}>Cancel</Text></Pressable>
+      <TextInput
+        value={name}
+        onChangeText={setName}
+        autoFocus
+        selectTextOnFocus
+        editable={!busy}
+        onSubmitEditing={make}
+        accessibilityLabel={`New ${ctx.def.title.toLowerCase()}`}
+        testID="records-adding-input"
+        style={l.addingInput}
+      />
+      <Pressable accessibilityRole="button" testID="records-adding-create" onPress={make}>
+        <Text style={l.addingLink}>Create</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" testID="records-adding-cancel" onPress={onDone}>
+        <Text style={l.addingCancel}>Cancel</Text>
+      </Pressable>
       {error ? <Text style={l.addingError}>{error}</Text> : null}
     </View>
   );
 }
 
-export function ListView({ ctx, startNew = false, onStarted }: { ctx: ViewCtx; startNew?: boolean; onStarted?: () => void }): ReactElement {
+export function ListView({
+  ctx,
+  startNew = false,
+  onStarted,
+}: {
+  ctx: ViewCtx;
+  startNew?: boolean;
+  onStarted?: () => void;
+}): ReactElement {
   const [adding, setAdding] = useState(false);
   // on the phone a change of address redraws the place, so the request is spent when the row is done (made or cancelled), not when it is shown
-  useEffect(() => { if (startNew) setAdding(true); }, [startNew]);
+  useEffect(() => {
+    if (startNew) setAdding(true);
+  }, [startNew]);
   const data = useRecordsData();
   const st = useViewState(ctx);
   const menu = useMenu();
@@ -86,33 +166,92 @@ export function ListView({ ctx, startNew = false, onStarted }: { ctx: ViewCtx; s
   return (
     <View style={l.main} testID="records-list" accessibilityLabel={`${def.plural} list`}>
       <ViewHead ctx={ctx} st={st} sort />
-      {adding ? <AddingRow ctx={ctx} onDone={() => { setAdding(false); onStarted?.(); }} /> : null}
+      {adding ? (
+        <AddingRow
+          ctx={ctx}
+          onDone={() => {
+            setAdding(false);
+            onStarted?.();
+          }}
+        />
+      ) : null}
       <View style={l.sheet}>
         {count === 0 && rows.length === 0 ? (
-          <States kind="empty" title={st.v.clauses.length > 0 || st.v.find ? "Nothing matches these filters." : `No ${def.plural.toLowerCase()} yet.`} icon="records" />
+          <States
+            kind="empty"
+            title={
+              st.v.clauses.length > 0 || st.v.find
+                ? "Nothing matches these filters."
+                : `No ${def.plural.toLowerCase()} yet.`
+            }
+            icon="records"
+          />
         ) : (
           <VirtualList<RecordRow>
-            data={rows} rowHeight={44} keyOf={(r) => r.id} renderItem={(r) => (
+            data={rows}
+            rowHeight={44}
+            keyOf={(r) => r.id}
+            renderItem={(r) => (
               <Row
-                r={r} title={(tf ? cellText(tf, r.fields[tf.key], names) : "") || "Untitled"} note={noteOf(each(note, (f) => valueText(f, r, names))) || def.title} selected={selected === r.id}
-                person={who ? r.fields[who.key] : undefined} badge={badge} names={names} mark={access.marks.get(r.id) ?? null}
-                onOpen={() => { setSelected(r.id); data.nav.openRecord(r.id); }}
-                onMenu={(x, y) => { setSelected(r.id); menu.show([{ label: "Open", onSelect: () => data.nav.openRecord(r.id) }], x, y); }}
+                r={r}
+                title={(tf ? cellText(tf, r.fields[tf.key], names) : "") || "Untitled"}
+                note={noteOf(each(note, (f) => valueText(f, r, names))) || def.title}
+                selected={selected === r.id}
+                person={who ? r.fields[who.key] : undefined}
+                badge={badge}
+                names={names}
+                mark={access.marks.get(r.id) ?? null}
+                onOpen={() => {
+                  setSelected(r.id);
+                  data.nav.openRecord(r.id);
+                }}
+                onMenu={(x, y) => {
+                  setSelected(r.id);
+                  menu.show([{ label: "Open", onSelect: () => data.nav.openRecord(r.id) }], x, y);
+                }}
               />
             )}
-            onEndReached={() => { if (rows.length < count) setLimit((x) => x + LIST_PAGE); }}
+            onEndReached={() => {
+              if (rows.length < count) setLimit((x) => x + LIST_PAGE);
+            }}
           />
         )}
       </View>
-      <View style={l.foot}><Text style={l.footText} testID="records-count">{`${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()}`}</Text></View>
+      <View style={l.foot}>
+        <Text
+          style={l.footText}
+          testID="records-count"
+        >{`${count.toLocaleString("en-US")} ${count === 1 ? def.title.toLowerCase() : def.plural.toLowerCase()}`}</Text>
+      </View>
       {menu.element}
     </View>
   );
 }
 
 const l = StyleSheet.create({
-  adding: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, backgroundColor: "var(--sel)" as string },
-  addingInput: { flex: 1, minWidth: 140, height: 34, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: "var(--accent)" as string, backgroundColor: "var(--win)" as string, color: "var(--ink)" as string, fontSize: 15 },
+  adding: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+    backgroundColor: "var(--sel)" as string,
+  },
+  addingInput: {
+    flex: 1,
+    minWidth: 140,
+    height: 34,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "var(--accent)" as string,
+    backgroundColor: "var(--win)" as string,
+    color: "var(--ink)" as string,
+    fontSize: 15,
+  },
   addingLink: { fontSize: 14, fontWeight: "600", color: "var(--accent)" as string },
   addingCancel: { fontSize: 14, color: "var(--ink-2)" as string },
   addingError: { width: "100%", fontSize: 12.5, color: "var(--danger)" as string },
@@ -120,6 +259,12 @@ const l = StyleSheet.create({
   sheet: { flex: 1, minHeight: 0, paddingHorizontal: 10, paddingTop: 6 },
   face: { marginRight: 8, marginLeft: 2 },
   cell: { height: 44, justifyContent: "center" },
-  foot: { height: 32, justifyContent: "center", paddingHorizontal: 18, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  foot: {
+    height: 32,
+    justifyContent: "center",
+    paddingHorizontal: 18,
+    borderTopWidth: 1,
+    borderTopColor: "var(--line)" as string,
+  },
   footText: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
 });

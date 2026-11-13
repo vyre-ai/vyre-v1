@@ -24,7 +24,10 @@ export function createTraffic(cdp, o = {}) {
   /** @param {number} tabId @returns {TabTraffic} */
   const of = (tabId) => {
     let t = tabs.get(tabId);
-    if (!t) { t = { requests: [], byId: new Map(), lines: [], inflight: 0, navigations: 0, loads: 0, lastActivity: now() }; tabs.set(tabId, t); }
+    if (!t) {
+      t = { requests: [], byId: new Map(), lines: [], inflight: 0, navigations: 0, loads: 0, lastActivity: now() };
+      tabs.set(tabId, t);
+    }
     return t;
   };
 
@@ -39,42 +42,82 @@ export function createTraffic(cdp, o = {}) {
         const req = p.request ?? {};
         const prior = t.byId.get(p.requestId);
         // A redirect re-uses the request id: the earlier hop is finished with its redirect status.
-        if (prior && p.redirectResponse) { prior.status = p.redirectResponse.status; prior.finished = true; t.inflight = Math.max(0, t.inflight - 1); }
+        if (prior && p.redirectResponse) {
+          prior.status = p.redirectResponse.status;
+          prior.finished = true;
+          t.inflight = Math.max(0, t.inflight - 1);
+        }
         /** @type {Req} */
-        const r = { id: String(p.requestId), method: String(req.method ?? "GET"), url: String(req.url ?? ""), type: String(p.type ?? "Other"), startedAt: Number(p.timestamp ?? 0) * 1000, finished: false, requestHeaders: maskHeaders(req.headers) };
+        const r = {
+          id: String(p.requestId),
+          method: String(req.method ?? "GET"),
+          url: String(req.url ?? ""),
+          type: String(p.type ?? "Other"),
+          startedAt: Number(p.timestamp ?? 0) * 1000,
+          finished: false,
+          requestHeaders: maskHeaders(req.headers),
+        };
         if (typeof req.postData === "string") r.postData = req.postData;
         t.requests.push(r);
         t.byId.set(r.id, r);
         t.inflight++;
-        if (t.requests.length > MAX_REQUESTS) { const gone = t.requests.shift(); if (gone && t.byId.get(gone.id) === gone) t.byId.delete(gone.id); }
+        if (t.requests.length > MAX_REQUESTS) {
+          const gone = t.requests.shift();
+          if (gone && t.byId.get(gone.id) === gone) t.byId.delete(gone.id);
+        }
         break;
       }
       case "Network.responseReceived": {
         const r = t.byId.get(String(p.requestId));
-        if (r) { r.status = Number(p.response?.status ?? 0); r.mime = String(p.response?.mimeType ?? ""); }
+        if (r) {
+          r.status = Number(p.response?.status ?? 0);
+          r.mime = String(p.response?.mimeType ?? "");
+        }
         break;
       }
       case "Network.loadingFinished": {
         const r = t.byId.get(String(p.requestId));
-        if (r && !r.finished) { r.finished = true; r.ms = Math.max(0, Math.round(Number(p.timestamp ?? 0) * 1000 - r.startedAt)); t.inflight = Math.max(0, t.inflight - 1); }
+        if (r && !r.finished) {
+          r.finished = true;
+          r.ms = Math.max(0, Math.round(Number(p.timestamp ?? 0) * 1000 - r.startedAt));
+          t.inflight = Math.max(0, t.inflight - 1);
+        }
         break;
       }
       case "Network.loadingFailed": {
         const r = t.byId.get(String(p.requestId));
-        if (r && !r.finished) { r.finished = true; r.failed = String(p.errorText ?? "failed"); t.inflight = Math.max(0, t.inflight - 1); }
+        if (r && !r.finished) {
+          r.finished = true;
+          r.failed = String(p.errorText ?? "failed");
+          t.inflight = Math.max(0, t.inflight - 1);
+        }
         break;
       }
-      case "Page.frameStartedLoading": t.navigations++; break;
-      case "Page.loadEventFired": t.loads++; break;
+      case "Page.frameStartedLoading":
+        t.navigations++;
+        break;
+      case "Page.loadEventFired":
+        t.loads++;
+        break;
       case "Runtime.consoleAPICalled": {
-        const text = (Array.isArray(p.args) ? p.args : []).map((/** @type {any} */ a) => (a && "value" in a ? String(a.value) : String(a?.description ?? ""))).join(" ");
-        t.lines.push({ level: levelOf(String(p.type)), text: maskText(text).slice(0, 1000), at: new Date(Number(p.timestamp ?? now())).toISOString() });
+        const text = (Array.isArray(p.args) ? p.args : [])
+          .map((/** @type {any} */ a) => (a && "value" in a ? String(a.value) : String(a?.description ?? "")))
+          .join(" ");
+        t.lines.push({
+          level: levelOf(String(p.type)),
+          text: maskText(text).slice(0, 1000),
+          at: new Date(Number(p.timestamp ?? now())).toISOString(),
+        });
         if (t.lines.length > MAX_CONSOLE) t.lines.shift();
         break;
       }
       case "Runtime.exceptionThrown": {
         const d = p.exceptionDetails ?? {};
-        t.lines.push({ level: "error", text: maskText(String(d.exception?.description ?? d.text ?? "error")).slice(0, 1000), at: new Date(Number(p.timestamp ?? now())).toISOString() });
+        t.lines.push({
+          level: "error",
+          text: maskText(String(d.exception?.description ?? d.text ?? "error")).slice(0, 1000),
+          at: new Date(Number(p.timestamp ?? now())).toISOString(),
+        });
         if (t.lines.length > MAX_CONSOLE) t.lines.shift();
         break;
       }
@@ -87,7 +130,9 @@ export function createTraffic(cdp, o = {}) {
     requests(tabId, q = {}) {
       const all = [...of(tabId).requests].reverse();
       const f = q.filter ? q.filter.toLowerCase() : "";
-      return all.filter((r) => !f || r.url.toLowerCase().includes(f) || r.method.toLowerCase() === f).slice(0, Math.max(1, Math.min(500, q.limit ?? 100)));
+      return all
+        .filter((r) => !f || r.url.toLowerCase().includes(f) || r.method.toLowerCase() === f)
+        .slice(0, Math.max(1, Math.min(500, q.limit ?? 100)));
     },
     /** @param {Req} r the request as an agent may read it: masked URL, status, timing */
     present(r) {
@@ -98,10 +143,13 @@ export function createTraffic(cdp, o = {}) {
       return out;
     },
     /** The request body as sent, masked. @param {Req} r */
-    sentBody: (r) => (r.postData === undefined ? undefined : maskBody(r.postData, r.requestHeaders["content-type"] ?? "")),
+    sentBody: (r) =>
+      r.postData === undefined ? undefined : maskBody(r.postData, r.requestHeaders["content-type"] ?? ""),
     /** @param {number} tabId @param {number} [limit] */
     console(tabId, level, limit = 100) {
-      return of(tabId).lines.filter((l) => !level || l.level === level).slice(-Math.max(1, Math.min(500, limit)));
+      return of(tabId)
+        .lines.filter((l) => !level || l.level === level)
+        .slice(-Math.max(1, Math.min(500, limit)));
     },
     /** Endpoints a page calls (XHR and fetch), each once, newest first, and the scripts it loads. @param {number} tabId */
     sources(tabId) {
@@ -114,7 +162,10 @@ export function createTraffic(cdp, o = {}) {
         const u = maskUrl(r.url).split("?")[0] ?? "";
         if (r.type === "XHR" || r.type === "Fetch") {
           const key = `${r.method} ${u}`;
-          if (!seen.has(key)) { seen.add(key); endpoints.push({ method: r.method, url: u }); }
+          if (!seen.has(key)) {
+            seen.add(key);
+            endpoints.push({ method: r.method, url: u });
+          }
         } else if (r.type === "Script" && !scripts.includes(u)) scripts.push(u);
       }
       return { endpoints: endpoints.slice(0, 200), scripts: scripts.slice(0, 200) };
@@ -128,7 +179,9 @@ export function createTraffic(cdp, o = {}) {
     /** @param {number} tabId */
     lastActivity: (tabId) => of(tabId).lastActivity,
     /** @param {number} tabId */
-    forget(tabId) { tabs.delete(tabId); },
+    forget(tabId) {
+      tabs.delete(tabId);
+    },
     MASK,
   };
 }

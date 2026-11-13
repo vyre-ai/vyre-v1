@@ -17,7 +17,12 @@ const MAX_VIEWS = 16;
 const INPUT_CHECK_MS = 500;
 const INPUT = new Set(["move", "down", "up", "key", "scroll", "type"]);
 
-export interface BrowserOpened { url: string; ws: string; personId: string; input: boolean }
+export interface BrowserOpened {
+  url: string;
+  ws: string;
+  personId: string;
+  input: boolean;
+}
 export interface BrowserStreamDeps {
   /** Spend a viewer's ticket for this agent's browser: the browser service's own addresses, who the ticket was issued to, and whether it is a take-over ticket. Null when the ticket is not good. */
   open(ticket: string, agentId: string): Promise<BrowserOpened | null>;
@@ -43,7 +48,9 @@ function plain(res: http.ServerResponse, status: number, code: string, message: 
   res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store" });
   res.end(JSON.stringify({ error: makeError(code as never, TRACE, { message }) }));
 }
-const refuseUpgrade = (socket: Duplex, status: string): void => { socket.end(`HTTP/1.1 ${status}\r\nconnection: close\r\n\r\n`); };
+const refuseUpgrade = (socket: Duplex, status: string): void => {
+  socket.end(`HTTP/1.1 ${status}\r\nconnection: close\r\n\r\n`);
+};
 
 // A view counts only while it is alive (second look D, 12 Nov): the holder's own open view keeps a takeover going (sbrowser/hold.ts), so a view whose other end went away (a closed laptop, a proxy that keeps
 // the connection) must close here, or it would hold the agent's browser for good. A WebSocket view is pinged and closed when nothing came back for deadMs; a MJPEG view that takes no frame for deadMs
@@ -58,22 +65,53 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStream {
 
   function mjpeg(req: http.IncomingMessage, res: http.ServerResponse, agentId: string): void {
     const ticket = new URL(req.url ?? "/", "http://x").searchParams.get("ticket") ?? "";
-    if (views >= MAX_VIEWS) return plain(res, 429, "rate_limit.exceeded", "Browsers already have as many viewers as the Space serves.");
+    if (views >= MAX_VIEWS)
+      return plain(res, 429, "rate_limit.exceeded", "Browsers already have as many viewers as the Space serves.");
     views += 1;
     const abort = new AbortController();
     let done = false;
-    const finish = (): void => { if (done) return; done = true; views -= 1; abort.abort(); };
+    const finish = (): void => {
+      if (done) return;
+      done = true;
+      views -= 1;
+      abort.abort();
+    };
     res.once("close", finish);
     void (async () => {
       const opened = ticket ? await deps.open(ticket, agentId).catch(() => null) : null;
-      if (!opened) { finish(); return plain(res, 403, "permission.no_grant", "This view needs a live ticket for this browser."); }
+      if (!opened) {
+        finish();
+        return plain(res, 403, "permission.no_grant", "This view needs a live ticket for this browser.");
+      }
       let up: Response;
-      try { up = await fetch(opened.url, { signal: abort.signal }); } catch { finish(); return plain(res, 502, "provider.unavailable", "The browser did not open its view."); }
-      if (!up.ok || !up.body) { finish(); return plain(res, 502, "provider.unavailable", "The browser did not open its view."); }
-      const entry = { personId: opened.personId, end: () => { abort.abort(); try { res.end(); } catch { /* gone */ } } };
+      try {
+        up = await fetch(opened.url, { signal: abort.signal });
+      } catch {
+        finish();
+        return plain(res, 502, "provider.unavailable", "The browser did not open its view.");
+      }
+      if (!up.ok || !up.body) {
+        finish();
+        return plain(res, 502, "provider.unavailable", "The browser did not open its view.");
+      }
+      const entry = {
+        personId: opened.personId,
+        end: () => {
+          abort.abort();
+          try {
+            res.end();
+          } catch {
+            /* gone */
+          }
+        },
+      };
       open.add(entry);
       res.once("close", () => open.delete(entry));
-      res.writeHead(200, { "content-type": up.headers.get("content-type") ?? "multipart/x-mixed-replace", "cache-control": "no-store", connection: "close" });
+      res.writeHead(200, {
+        "content-type": up.headers.get("content-type") ?? "multipart/x-mixed-replace",
+        "cache-control": "no-store",
+        connection: "close",
+      });
       const reader = up.body.getReader();
       let behindSince = 0;
       // A still page sends no frame, so a viewer that went away (a closed laptop) would never be found out by the frames alone (fourth look, 12 Nov). The last whole frame is kept, sent again when
@@ -83,23 +121,54 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStream {
       let lastPart: Buffer | null = null;
       let wroteAt = now();
       const stalled = (): boolean => {
-        if (res.writableLength <= 2 * 1024 * 1024) { behindSince = 0; return false; }
+        if (res.writableLength <= 2 * 1024 * 1024) {
+          behindSince = 0;
+          return false;
+        }
         if (behindSince === 0) behindSince = now();
         return now() - behindSince >= DEAD_MS;
       };
-      const end = (): void => { clearInterval(watch); try { abort.abort(); } catch { /* gone */ } try { res.end(); } catch { /* gone */ } finish(); };
-      const watch = setInterval(() => {
-        if (done || res.destroyed || res.writableEnded) { end(); return; }
-        if (stalled()) { end(); return; }
-        if (lastPart && now() - wroteAt >= PING_MS) { res.write(lastPart); wroteAt = now(); }
-      }, Math.max(10, Math.min(PING_MS, DEAD_MS) / 2));
+      const end = (): void => {
+        clearInterval(watch);
+        try {
+          abort.abort();
+        } catch {
+          /* gone */
+        }
+        try {
+          res.end();
+        } catch {
+          /* gone */
+        }
+        finish();
+      };
+      const watch = setInterval(
+        () => {
+          if (done || res.destroyed || res.writableEnded) {
+            end();
+            return;
+          }
+          if (stalled()) {
+            end();
+            return;
+          }
+          if (lastPart && now() - wroteAt >= PING_MS) {
+            res.write(lastPart);
+            wroteAt = now();
+          }
+        },
+        Math.max(10, Math.min(PING_MS, DEAD_MS) / 2),
+      );
       (watch as { unref?: () => void }).unref?.();
       try {
         for (;;) {
           const { value, done: eof } = await reader.read();
           if (eof || done) break;
           pending = pending.length === 0 ? Buffer.from(value) : Buffer.concat([pending, Buffer.from(value)]);
-          for (let at = pending.indexOf(BOUNDARY, 1); at > 0; at = pending.indexOf(BOUNDARY, 1)) { lastPart = pending.subarray(0, at); pending = pending.subarray(at); }
+          for (let at = pending.indexOf(BOUNDARY, 1); at > 0; at = pending.indexOf(BOUNDARY, 1)) {
+            lastPart = pending.subarray(0, at);
+            pending = pending.subarray(at);
+          }
           if (pending.length > 8 * 1024 * 1024) pending = Buffer.alloc(0);
           // a viewer that is behind sees fewer frames, never old ones; one that has taken nothing for DEAD_MS is gone
           if (stalled()) break;
@@ -107,9 +176,15 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStream {
           res.write(value);
           wroteAt = now();
         }
-      } catch { /* the viewer left or the browser closed it */ }
+      } catch {
+        /* the viewer left or the browser closed it */
+      }
       end();
-    })().catch(() => { finish(); if (!res.headersSent) plain(res, 500, "internal.unexpected", "The view failed."); else res.end(); });
+    })().catch(() => {
+      finish();
+      if (!res.headersSent) plain(res, 500, "internal.unexpected", "The view failed.");
+      else res.end();
+    });
   }
 
   function socket(req: http.IncomingMessage, sock: Duplex, head: Buffer, agentId: string): void {
@@ -117,51 +192,132 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStream {
     if (views >= MAX_VIEWS) return refuseUpgrade(sock, "429 Too Many Requests");
     views += 1;
     let counted = true;
-    const release = (): void => { if (counted) { counted = false; views -= 1; } };
+    const release = (): void => {
+      if (counted) {
+        counted = false;
+        views -= 1;
+      }
+    };
     void (async () => {
       const opened = ticket ? await deps.open(ticket, agentId).catch(() => null) : null;
-      if (!opened) { release(); return refuseUpgrade(sock, "403 Forbidden"); }
+      if (!opened) {
+        release();
+        return refuseUpgrade(sock, "403 Forbidden");
+      }
       const up = new WebSocket(opened.ws);
       up.binaryType = "arraybuffer";
-      const connected = await new Promise<boolean>((resolve) => { up.addEventListener("open", () => resolve(true)); up.addEventListener("error", () => resolve(false)); up.addEventListener("close", () => resolve(false)); });
-      if (!connected) { release(); return refuseUpgrade(sock, "502 Bad Gateway"); }
+      const connected = await new Promise<boolean>((resolve) => {
+        up.addEventListener("open", () => resolve(true));
+        up.addEventListener("error", () => resolve(false));
+        up.addEventListener("close", () => resolve(false));
+      });
+      if (!connected) {
+        release();
+        return refuseUpgrade(sock, "502 Bad Gateway");
+      }
       const peer: Peer | null = accept(req, sock, head, MAX_VIEWER_MESSAGE);
-      if (!peer) { release(); try { up.close(); } catch { /* gone */ } return; }
+      if (!peer) {
+        release();
+        try {
+          up.close();
+        } catch {
+          /* gone */
+        }
+        return;
+      }
       let inputOk = { at: 0, ok: false };
       // alive or closed: pinged every PING_MS, closed when nothing came back for DEAD_MS
       const alive = setInterval(() => {
-        if (!peer.open) { clearInterval(alive); return; }
-        if (peer.heardAt && Date.now() - peer.heardAt() >= DEAD_MS) { clearInterval(alive); peer.close(1001); try { up.close(); } catch { /* gone */ } release(); return; }
+        if (!peer.open) {
+          clearInterval(alive);
+          return;
+        }
+        if (peer.heardAt && Date.now() - peer.heardAt() >= DEAD_MS) {
+          clearInterval(alive);
+          peer.close(1001);
+          try {
+            up.close();
+          } catch {
+            /* gone */
+          }
+          release();
+          return;
+        }
         peer.ping?.();
       }, PING_MS);
       (alive as { unref?: () => void }).unref?.();
-      const entry = { personId: opened.personId, end: () => { peer.close(1008); try { up.close(); } catch { /* gone */ } } };
+      const entry = {
+        personId: opened.personId,
+        end: () => {
+          peer.close(1008);
+          try {
+            up.close();
+          } catch {
+            /* gone */
+          }
+        },
+      };
       open.add(entry);
       peer.onClose(() => open.delete(entry));
-      up.addEventListener("message", (ev: MessageEvent) => { if (typeof ev.data === "string") peer.send(ev.data); else peer.send(new Uint8Array(ev.data as ArrayBuffer)); });
-      up.addEventListener("close", () => { peer.close(1000); release(); });
-      peer.onClose(() => { clearInterval(alive); release(); try { up.close(); } catch { /* gone */ } });
+      up.addEventListener("message", (ev: MessageEvent) => {
+        if (typeof ev.data === "string") peer.send(ev.data);
+        else peer.send(new Uint8Array(ev.data as ArrayBuffer));
+      });
+      up.addEventListener("close", () => {
+        peer.close(1000);
+        release();
+      });
+      peer.onClose(() => {
+        clearInterval(alive);
+        release();
+        try {
+          up.close();
+        } catch {
+          /* gone */
+        }
+      });
       peer.onMessage((data, binary) => {
         if (binary) return;
         const text = data.toString("utf8");
         let m: { t?: unknown; seq?: unknown };
-        try { m = JSON.parse(text) as typeof m; } catch { return; }
+        try {
+          m = JSON.parse(text) as typeof m;
+        } catch {
+          return;
+        }
         const seq = typeof m.seq === "number" ? m.seq : 0;
-        if (m.t === "ping") { peer.send(JSON.stringify({ t: "pong", seq })); return; }
-        if (typeof m.t !== "string" || !INPUT.has(m.t)) { peer.send(JSON.stringify({ t: "refused", seq, reason: "I do not know that input." })); return; }
+        if (m.t === "ping") {
+          peer.send(JSON.stringify({ t: "pong", seq }));
+          return;
+        }
+        if (typeof m.t !== "string" || !INPUT.has(m.t)) {
+          peer.send(JSON.stringify({ t: "refused", seq, reason: "I do not know that input." }));
+          return;
+        }
         void (async () => {
           const at = now();
           // only a take-over ticket, and only while its person still holds the controls: the service is asked again, not more than twice a second
-          if (opened.input && at - inputOk.at >= INPUT_CHECK_MS) inputOk = { at, ok: await deps.mayInput(agentId, opened.personId).catch(() => false) };
-          if (!opened.input || !inputOk.ok) { peer.send(JSON.stringify({ t: "refused", seq, reason: "A person has to take over before the view takes input." })); return; }
+          if (opened.input && at - inputOk.at >= INPUT_CHECK_MS)
+            inputOk = { at, ok: await deps.mayInput(agentId, opened.personId).catch(() => false) };
+          if (!opened.input || !inputOk.ok) {
+            peer.send(
+              JSON.stringify({ t: "refused", seq, reason: "A person has to take over before the view takes input." }),
+            );
+            return;
+          }
           if (up.readyState === 1) up.send(text);
         })();
       });
-    })().catch(() => { release(); refuseUpgrade(sock, "500 Internal Server Error"); });
+    })().catch(() => {
+      release();
+      refuseUpgrade(sock, "500 Internal Server Error");
+    });
   }
 
   return {
-    claims(req) { return VIEW_PATH.test(new URL(req.url ?? "/", "http://x").pathname); },
+    claims(req) {
+      return VIEW_PATH.test(new URL(req.url ?? "/", "http://x").pathname);
+    },
     upgrade(req, sock, head) {
       const m = VIEW_PATH.exec(new URL(req.url ?? "/", "http://x").pathname);
       if (!m || m[2] !== "ws") return refuseUpgrade(sock, "404 Not Found");
@@ -170,14 +326,22 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStream {
     handle(req, res) {
       const m = VIEW_PATH.exec(new URL(req.url ?? "/", "http://x").pathname);
       if (!m || m[2] !== "stream") return false;
-      if (req.method !== "GET") { plain(res, 405, "validation.bad_input", "Use GET."); return true; }
+      if (req.method !== "GET") {
+        plain(res, 405, "validation.bad_input", "Use GET.");
+        return true;
+      }
       mjpeg(req, res, m[1]!);
       return true;
     },
     views: () => views,
     endPerson(personId) {
       let n = 0;
-      for (const e of [...open]) if (e.personId === personId) { open.delete(e); e.end(); n++; }
+      for (const e of [...open])
+        if (e.personId === personId) {
+          open.delete(e);
+          e.end();
+          n++;
+        }
       return n;
     },
   };

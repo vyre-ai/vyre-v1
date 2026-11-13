@@ -5,7 +5,23 @@
 //   next      the one call that takes work: the agent's own tool. The chat it names is where its work shows from then on.
 //   seen      a tool call happened: Working for a minute, Awake for two, then Offline.
 import { isHostService, isSystemCall } from "../../../lib/trust.ts";
-import { MAX_NAME, NAME_BAD, agentBy, agentByName, allows, askerOf, canSee, chatOf, ensure, isAssistant, mintId, nameKey, raise, seesAll, tolerant } from "../projections.ts";
+import {
+  MAX_NAME,
+  NAME_BAD,
+  agentBy,
+  agentByName,
+  allows,
+  askerOf,
+  canSee,
+  chatOf,
+  ensure,
+  isAssistant,
+  mintId,
+  nameKey,
+  raise,
+  seesAll,
+  tolerant,
+} from "../projections.ts";
 import type { AgentRec, AgentsCtx } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -14,45 +30,119 @@ const MAX_TEXT = 2000;
 const clip = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 /** Words that would let an app pass for Vyre itself or for someone with authority in a chat. */
-const RESERVED = new Set(["vyre", "assistant", "admin", "administrator", "owner", "system", "support", "security", "you"]);
+const RESERVED = new Set([
+  "vyre",
+  "assistant",
+  "admin",
+  "administrator",
+  "owner",
+  "system",
+  "support",
+  "security",
+  "you",
+]);
 
 /** The name an app gets: its own word, cut to what a name may hold. One that reads like Vyre, a role or a person here is marked, so a hostile client cannot sit in the sidebar as someone else. */
 export async function outsideName(ctx: AgentsCtx, clientName: string): Promise<string> {
-  const base = clientName.replace(new RegExp(NAME_BAD.source, "gu"), " ").replace(/\s+/g, " ").replace(/^[.\s]+/, "").trim().slice(0, MAX_NAME - 12).trim() || "Outside agent";
-  const people = await tolerant<{ principals?: Array<{ name?: string }> }>(ctx, "access.principals.list", { kind: "person", limit: 500 }, {});
-  const claims = RESERVED.has(nameKey(base)) || (people.principals ?? []).some((p) => typeof p.name === "string" && nameKey(p.name) === nameKey(base));
+  const base =
+    clientName
+      .replace(new RegExp(NAME_BAD.source, "gu"), " ")
+      .replace(/\s+/g, " ")
+      .replace(/^[.\s]+/, "")
+      .trim()
+      .slice(0, MAX_NAME - 12)
+      .trim() || "Outside agent";
+  const people = await tolerant<{ principals?: Array<{ name?: string }> }>(
+    ctx,
+    "access.principals.list",
+    { kind: "person", limit: 500 },
+    {},
+  );
+  const claims =
+    RESERVED.has(nameKey(base)) ||
+    (people.principals ?? []).some((p) => typeof p.name === "string" && nameKey(p.name) === nameKey(base));
   const wanted = claims ? `${base} (outside)` : base;
   if (!agentByName(ctx.db, wanted)) return wanted;
-  for (let n = 2; n < 100; n++) { const next = `${wanted} ${n}`; if (!agentByName(ctx.db, next)) return next; }
+  for (let n = 2; n < 100; n++) {
+    const next = `${wanted} ${n}`;
+    if (!agentByName(ctx.db, next)) return next;
+  }
   return `${wanted} ${mintId("n", ctx.now()).slice(-6)}`;
 }
 
 /** A face from the avatar library: its seed. A client has no say in it. */
 export const outsideFace = (ctx: AgentsCtx): string => `outside-${mintId("f", ctx.now()).slice(-10)}`;
 
-export interface OutsideJob { jobId: string; kind: "mention" | "task" | "answer"; threadId?: string; taskId?: string; messageId?: string; from: string; title: string; text: string; queuedAt: number }
+export interface OutsideJob {
+  jobId: string;
+  kind: "mention" | "task" | "answer";
+  threadId?: string;
+  taskId?: string;
+  messageId?: string;
+  from: string;
+  title: string;
+  text: string;
+  queuedAt: number;
+}
 function jobOf(r: Row): OutsideJob {
   return {
-    jobId: String(r["id"]), kind: String(r["kind"]) as OutsideJob["kind"], ...(r["threadId"] ? { threadId: String(r["threadId"]) } : {}), ...(r["taskId"] ? { taskId: String(r["taskId"]) } : {}), ...(r["messageId"] ? { messageId: String(r["messageId"]) } : {}),
-    from: String(r["from"]), title: String(r["title"]), text: String(r["text"]), queuedAt: Number(r["queuedAt"]),
+    jobId: String(r["id"]),
+    kind: String(r["kind"]) as OutsideJob["kind"],
+    ...(r["threadId"] ? { threadId: String(r["threadId"]) } : {}),
+    ...(r["taskId"] ? { taskId: String(r["taskId"]) } : {}),
+    ...(r["messageId"] ? { messageId: String(r["messageId"]) } : {}),
+    from: String(r["from"]),
+    title: String(r["title"]),
+    text: String(r["text"]),
+    queuedAt: Number(r["queuedAt"]),
   };
 }
 
 export const isOutside = (a: Pick<AgentRec, "runtime">): boolean => a.runtime === "outside";
 
-export function enqueue(ctx: AgentsCtx, input: { agentId: string; kind: "mention" | "task" | "answer"; threadId?: string; taskId?: string; messageId?: string; asker: string; title?: string; text?: string }) {
-  if (!isSystemCall({ depth: ctx.depth ?? 0, principal: ctx.principal, forwarded: ctx.forwarded })) raise(ctx, "permission.no_grant", "Only the server puts work in this queue.");
+export function enqueue(
+  ctx: AgentsCtx,
+  input: {
+    agentId: string;
+    kind: "mention" | "task" | "answer";
+    threadId?: string;
+    taskId?: string;
+    messageId?: string;
+    asker: string;
+    title?: string;
+    text?: string;
+  },
+) {
+  if (!isSystemCall({ depth: ctx.depth ?? 0, principal: ctx.principal, forwarded: ctx.forwarded }))
+    raise(ctx, "permission.no_grant", "Only the server puts work in this queue.");
   ensure(ctx.db);
   const a = agentBy(ctx.db, input.agentId);
   // owner only: a teammate's ask never runs on someone else's machine or on someone else's access
   if (!a || !isOutside(a) || a.ownerId !== input.asker) return { queued: false };
-  if (Number((ctx.db.all("SELECT COUNT(*) AS n FROM agents_outside_jobs WHERE agentId = ? AND takenAt IS NULL", a.id) as Row[])[0]?.["n"] ?? 0) >= MAX_JOBS) return { queued: false };
+  if (
+    Number(
+      (
+        ctx.db.all("SELECT COUNT(*) AS n FROM agents_outside_jobs WHERE agentId = ? AND takenAt IS NULL", a.id) as Row[]
+      )[0]?.["n"] ?? 0,
+    ) >= MAX_JOBS
+  )
+    return { queued: false };
   const now = ctx.now();
   const id = mintId("ojb", now);
   const dedupe = input.messageId ?? (input.taskId ? `task:${input.taskId}:${input.kind}` : null);
   const put = ctx.db.run(
     `INSERT OR IGNORE INTO agents_outside_jobs (id, agentId, kind, threadId, taskId, messageId, "from", title, text, dedupe, queuedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, a.id, input.kind, input.threadId ?? null, input.taskId ?? null, input.messageId ?? null, input.asker, clip(input.title ?? "", 200), clip(input.text ?? "", MAX_TEXT), dedupe, now,
+    id,
+    a.id,
+    input.kind,
+    input.threadId ?? null,
+    input.taskId ?? null,
+    input.messageId ?? null,
+    input.asker,
+    clip(input.title ?? "", 200),
+    clip(input.text ?? "", MAX_TEXT),
+    dedupe,
+    now,
   );
   if (put.changes !== 1) return { queued: false };
   ctx.emit("agent.job_queued", a.id, { agentId: a.id, jobId: id, kind: input.kind });
@@ -62,15 +152,27 @@ export function enqueue(ctx: AgentsCtx, input: { agentId: string; kind: "mention
 export function next(ctx: AgentsCtx, _input: Record<string, never>) {
   ensure(ctx.db);
   const a = ctx.principal.kind === "agent" ? agentBy(ctx.db, ctx.principal.id) : null;
-  if (!a || !isOutside(a)) raise(ctx, "validation.precondition_failed", "Only an outside agent has a queue. Vyre wakes its own agents.");
-  const rows = ctx.db.all("SELECT * FROM agents_outside_jobs WHERE agentId = ? AND takenAt IS NULL ORDER BY queuedAt, id LIMIT 2", a.id) as Row[];
+  if (!a || !isOutside(a))
+    raise(ctx, "validation.precondition_failed", "Only an outside agent has a queue. Vyre wakes its own agents.");
+  const rows = ctx.db.all(
+    "SELECT * FROM agents_outside_jobs WHERE agentId = ? AND takenAt IS NULL ORDER BY queuedAt, id LIMIT 2",
+    a.id,
+  ) as Row[];
   const first = rows[0];
   if (!first) return { job: null, waiting: 0 };
   const now = ctx.now();
-  if (ctx.db.run("UPDATE agents_outside_jobs SET takenAt = ? WHERE id = ? AND takenAt IS NULL", now, first["id"]).changes !== 1) return { job: null, waiting: rows.length - 1 };
+  if (
+    ctx.db.run("UPDATE agents_outside_jobs SET takenAt = ? WHERE id = ? AND takenAt IS NULL", now, first["id"])
+      .changes !== 1
+  )
+    return { job: null, waiting: rows.length - 1 };
   const job = jobOf(first);
   ctx.emit("agent.job_taken", a.id, { agentId: a.id, jobId: job.jobId });
-  const left = Number((ctx.db.all("SELECT COUNT(*) AS n FROM agents_outside_jobs WHERE agentId = ? AND takenAt IS NULL", a.id) as Row[])[0]?.["n"] ?? 0);
+  const left = Number(
+    (
+      ctx.db.all("SELECT COUNT(*) AS n FROM agents_outside_jobs WHERE agentId = ? AND takenAt IS NULL", a.id) as Row[]
+    )[0]?.["n"] ?? 0,
+  );
   return { job, waiting: left };
 }
 
@@ -82,21 +184,24 @@ export function next(ctx: AgentsCtx, _input: Record<string, never>) {
 export function usable(ctx: AgentsCtx, input: { agentId: string }) {
   ensure(ctx.db);
   const a = agentBy(ctx.db, input.agentId);
-  if (!a) return { usable: false };   // an agent that is not there takes no work (review 12 Nov, 9: not found is not usable)
+  if (!a) return { usable: false }; // an agent that is not there takes no work (review 12 Nov, 9: not found is not usable)
   const who = askerOf(ctx);
   if (isHostService(ctx.principal)) return { usable: true };
-  if (isAssistant(a)) return { usable: a.ownerId === who };   // a person's Assistant is theirs alone
+  if (isAssistant(a)) return { usable: a.ownerId === who }; // a person's Assistant is theirs alone
   // an agent a private chat made, to someone who may not see it, is one that does not exist (owner decision, 12 Nov 2026): the answer an agent that is not there gets here, above
   // ("not usable"), so a task, a hand-off or an Add for it reads exactly as one for a missing agent
   if (chatOf(a) !== undefined && !canSee(ctx, a)) return { usable: false };
   // an agent acting for a person is judged as that person (allows() intersects them): the agent's own standing never hands the asker work for an agent they have no Use on (lib/agent-asker.ts)
-  const bound = ctx.principal.kind === "person" || (ctx.principal.kind === "agent" && ctx.actingFor?.startsWith("usr_") === true);
-  if (!isOutside(a) && a.ownerId !== who && bound && !allows(ctx, null, "use", "agent", a.id) && !seesAll(ctx)) return { usable: false };
+  const bound =
+    ctx.principal.kind === "person" || (ctx.principal.kind === "agent" && ctx.actingFor?.startsWith("usr_") === true);
+  if (!isOutside(a) && a.ownerId !== who && bound && !allows(ctx, null, "use", "agent", a.id) && !seesAll(ctx))
+    return { usable: false };
   return { usable: !isOutside(a) || a.ownerId === who };
 }
 
 export function seen(ctx: AgentsCtx, input: { agentId: string }) {
-  if (!isSystemCall({ depth: ctx.depth ?? 0, principal: ctx.principal, forwarded: ctx.forwarded })) raise(ctx, "permission.no_grant", "Only the server says that.");
+  if (!isSystemCall({ depth: ctx.depth ?? 0, principal: ctx.principal, forwarded: ctx.forwarded }))
+    raise(ctx, "permission.no_grant", "Only the server says that.");
   ensure(ctx.db);
   const a = agentBy(ctx.db, input.agentId);
   if (!a || !isOutside(a)) return { ok: false };

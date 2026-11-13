@@ -3,7 +3,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const FILES = ["places/chats/conversation/MessageView.tsx", "places/automations/config/RunsTab.tsx", "places/automations/runs/actions.tsx"];
+const FILES = [
+  "places/chats/conversation/MessageView.tsx",
+  "places/automations/config/RunsTab.tsx",
+  "places/automations/runs/actions.tsx",
+];
 
 test("the error menus say Copy error details, not Copy Trace Id", () => {
   for (const f of FILES) {

@@ -23,8 +23,21 @@ export const TEMPLATES: readonly Template[] = [
     definition: {
       triggers: [{ key: "form_submit", filter: {} }],
       nodes: [
-        { id: "mark", key: "records.update", title: "Mark the record as new", input: { type: "{{ trigger.type }}", recordId: "{{ trigger.recordId }}", patch: { status: "new" } }, next: ["tell"] },
-        { id: "tell", key: "post_message", title: "Tell the channel", input: { text: "A new {{ trigger.type }} came in from a form. Open record {{ trigger.recordId }} to follow up." } },
+        {
+          id: "mark",
+          key: "records.update",
+          title: "Mark the record as new",
+          input: { type: "{{ trigger.type }}", recordId: "{{ trigger.recordId }}", patch: { status: "new" } },
+          next: ["tell"],
+        },
+        {
+          id: "tell",
+          key: "post_message",
+          title: "Tell the channel",
+          input: {
+            text: "A new {{ trigger.type }} came in from a form. Open record {{ trigger.recordId }} to follow up.",
+          },
+        },
       ],
     },
   },
@@ -37,8 +50,23 @@ export const TEMPLATES: readonly Template[] = [
     definition: {
       triggers: [{ key: "schedule", config: { cron: "0 9 * * 1", timezone: "UTC", missed: "skip" } }],
       nodes: [
-        { id: "recent", key: "records.find", title: "Find recent records", input: { type: "contact", limit: 100 }, next: ["send"] },
-        { id: "send", key: "send_email", title: "Send the digest", input: { to: [], subject: "Weekly digest", body: "{{ steps.recent.out.count }} records are in view this week." } },
+        {
+          id: "recent",
+          key: "records.find",
+          title: "Find recent records",
+          input: { type: "contact", limit: 100 },
+          next: ["send"],
+        },
+        {
+          id: "send",
+          key: "send_email",
+          title: "Send the digest",
+          input: {
+            to: [],
+            subject: "Weekly digest",
+            body: "{{ steps.recent.out.count }} records are in view this week.",
+          },
+        },
       ],
     },
   },
@@ -51,10 +79,26 @@ export const TEMPLATES: readonly Template[] = [
     definition: {
       triggers: [{ key: "manual" }],
       nodes: [
-        { id: "approve", key: "approval", title: "Ask for approval", input: { title: "Approve this message before it goes out", approver: { kind: "role", id: "rol_admin" }, timeout: "2d" }, next: ["decide"] },
         {
-          id: "decide", key: "paths", title: "Was it approved", input: { paths: [{ name: "Approved", when: "steps.approve.out.decision == \"approved\"" }], otherwise: true },
-          branches: [{ label: "Allowed", when: "steps.approve.out.decision == \"approved\"", to: "send" }, { label: "Otherwise", to: "end" }],
+          id: "approve",
+          key: "approval",
+          title: "Ask for approval",
+          input: {
+            title: "Approve this message before it goes out",
+            approver: { kind: "role", id: "rol_admin" },
+            timeout: "2d",
+          },
+          next: ["decide"],
+        },
+        {
+          id: "decide",
+          key: "paths",
+          title: "Was it approved",
+          input: { paths: [{ name: "Approved", when: 'steps.approve.out.decision == "approved"' }], otherwise: true },
+          branches: [
+            { label: "Allowed", when: 'steps.approve.out.decision == "approved"', to: "send" },
+            { label: "Otherwise", to: "end" },
+          ],
         },
         { id: "send", key: "send_email", title: "Send the message", input: { to: [], subject: "", body: "" } },
         { id: "end", key: "stop", title: "Stop without sending", input: {} },
@@ -66,12 +110,18 @@ export const TEMPLATES: readonly Template[] = [
     title: "Retry-safe web request to record",
     summary: "Turn a posted request into a record. A failed write is tried again and never makes a second record.",
     starts: "A web request arrives",
-    setUp: ["Choose the record type", "Match the fields to what the sender posts", "Copy the address from the web request trigger"],
+    setUp: [
+      "Choose the record type",
+      "Match the fields to what the sender posts",
+      "Copy the address from the web request trigger",
+    ],
     definition: {
       triggers: [{ key: "webhook" }],
       nodes: [
         {
-          id: "make", key: "records.create", title: "Create the record",
+          id: "make",
+          key: "records.create",
+          title: "Create the record",
           input: { type: "contact", fields: { name: "{{ trigger.body.name }}", email: "{{ trigger.body.email }}" } },
           onError: { mode: "retry", max: 3 },
         },

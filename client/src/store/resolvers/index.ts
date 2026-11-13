@@ -18,7 +18,15 @@ export { MISS } from "./types.ts";
 export type { Resolver, ResolverCtx } from "./types.ts";
 
 /** Every read capability the replica can answer today. The rest stay on the gateway (chat.recent needs server-side unread state, for one). */
-export const RESOLVERS: readonly Resolver[] = [threadsGet, threadsList, messagesList, starsList, listCalendars, listEvents, notificationsList];
+export const RESOLVERS: readonly Resolver[] = [
+  threadsGet,
+  threadsList,
+  messagesList,
+  starsList,
+  listCalendars,
+  listEvents,
+  notificationsList,
+];
 
 type Hit = { hit: false } | { hit: true; data: unknown };
 
@@ -35,16 +43,29 @@ function replicaFirst(local: LiveQuery<Hit>, fallback: () => LiveQuery<unknown>)
       const sync = (): void => {
         const wantFar = !hitOf(local.getSnapshot());
         if (wantFar && !offFar) offFar = far().subscribe(listener);
-        if (!wantFar && offFar) { offFar(); offFar = null; }
+        if (!wantFar && offFar) {
+          offFar();
+          offFar = null;
+        }
       };
-      const offLocal = local.subscribe(() => { sync(); listener(); });
+      const offLocal = local.subscribe(() => {
+        sync();
+        listener();
+      });
       sync();
-      return () => { offLocal(); offFar?.(); offFar = null; };
+      return () => {
+        offLocal();
+        offFar?.();
+        offFar = null;
+      };
     },
     getSnapshot() {
       const s = local.getSnapshot();
       if (!hitOf(s)) return far().getSnapshot();
-      if (s !== seen) { seen = s; shown = { status: "ready", data: (s as { data: { data: unknown } }).data.data }; }
+      if (s !== seen) {
+        seen = s;
+        shown = { status: "ready", data: (s as { data: { data: unknown } }).data.data };
+      }
       return shown;
     },
   };
@@ -61,7 +82,9 @@ export interface ReplicaHooksOptions {
   client?: QueryClient;
 }
 
-export function createReplicaHooks(o: ReplicaHooksOptions): ScreenHooks & { client: QueryClient; local(cap: string): boolean } {
+export function createReplicaHooks(
+  o: ReplicaHooksOptions,
+): ScreenHooks & { client: QueryClient; local(cap: string): boolean } {
   const client = o.client ?? createQueryClient(o.store);
   const byCap = new Map((o.resolvers ?? RESOLVERS).map((r) => [r.cap, r]));
   return {
@@ -74,8 +97,12 @@ export function createReplicaHooks(o: ReplicaHooksOptions): ScreenHooks & { clie
       if (!screen || !q || !q.live || !r) return o.fallback.query(screenId, name, state);
       const input = resolveInput(q.input, state);
       const def: QueryDef<Record<string, unknown>, Hit> = {
-        cap: r.cap, entities: r.entities,
-        run: (db, i) => { const v = (r as Resolver<Record<string, unknown>>).run(db, i, o.ctx); return v === MISS ? { hit: false } : { hit: true, data: v }; },
+        cap: r.cap,
+        entities: r.entities,
+        run: (db, i) => {
+          const v = (r as Resolver<Record<string, unknown>>).run(db, i, o.ctx);
+          return v === MISS ? { hit: false } : { hit: true, data: v };
+        },
         ...(r.affects ? { affects: (c, i) => (r as Resolver<Record<string, unknown>>).affects!(c, i) } : {}),
       };
       return replicaFirst(client.query(def, input), () => o.fallback.query(screenId, name, state));

@@ -9,152 +9,430 @@
 //   Ask, Allow and Auto never loosen the Gate.
 // DECISION: Starred terminals are `stars` rows owned by module spaces; terminal.status gives Home the live status it shows.
 // Secrets appear in commands only as #Handle.field; the executing process substitutes the value and scrubs the output (ARCHITECTURE-V1.md 6.11).
-import { block, create, defineManifest, ev, health, list, read, screen, t, write } from '../packages/contracts/src/index.ts';
-import { id, pageIn, pageOut } from './_common.ts';
+import {
+  block,
+  create,
+  defineManifest,
+  ev,
+  health,
+  list,
+  read,
+  screen,
+  t,
+  write,
+} from "../packages/contracts/src/index.ts";
+import { id, pageIn, pageOut } from "./_common.ts";
 
-const host = t.enm('agent_computer', 'space_server', 'device');
-const termState = t.enm('running', 'idle', 'exited');
+const host = t.enm("agent_computer", "space_server", "device");
+const termState = t.enm("running", "idle", "exited");
 const terminalRow = t.obj({
-  terminalId: id.terminal, name: t.str({ examples: ['build'] }), host, hostTitle: t.str({ examples: ["Intake's computer"] }), agentId: t.opt(id.agent), computerId: t.opt(id.computer), deviceId: t.opt(id.device),
-  cwd: t.str(), state: termState, exitCode: t.nullable(t.int()), named: t.bool(), cols: t.int(), rows: t.int(), createdAt: t.ts(), lastActiveAt: t.ts(), runId: t.opt(id.run),
-  by: t.opt(t.obj({ kind: t.enm('agent', 'helper', 'person'), name: t.opt(t.str({ examples: ['Ember'] })) }, { description: 'Whose tab it is in a workspace: the agent itself, a helper or crew member it started (by name), or a person who opened it' })),
+  terminalId: id.terminal,
+  name: t.str({ examples: ["build"] }),
+  host,
+  hostTitle: t.str({ examples: ["Intake's computer"] }),
+  agentId: t.opt(id.agent),
+  computerId: t.opt(id.computer),
+  deviceId: t.opt(id.device),
+  cwd: t.str(),
+  state: termState,
+  exitCode: t.nullable(t.int()),
+  named: t.bool(),
+  cols: t.int(),
+  rows: t.int(),
+  createdAt: t.ts(),
+  lastActiveAt: t.ts(),
+  runId: t.opt(id.run),
+  by: t.opt(
+    t.obj(
+      { kind: t.enm("agent", "helper", "person"), name: t.opt(t.str({ examples: ["Ember"] })) },
+      {
+        description:
+          "Whose tab it is in a workspace: the agent itself, a helper or crew member it started (by name), or a person who opened it",
+      },
+    ),
+  ),
 });
-const command = t.obj({ command: t.str(), exitCode: t.nullable(t.int()), startedAt: t.ts(), durationMs: t.opt(t.int()) });
+const command = t.obj({
+  command: t.str(),
+  exitCode: t.nullable(t.int()),
+  startedAt: t.ts(),
+  durationMs: t.opt(t.int()),
+});
 const rules = t.obj({ allow: t.arr(t.str()), ask: t.arr(t.str()), deny: t.arr(t.str()), folders: t.arr(id.folder) });
 const target = { terminalId: id.terminal };
-const listIn = { section: t.opt(t.enm('personal', 'shared', 'space')), folderId: t.opt(id.folder), host: t.opt(host), state: t.opt(t.arr(termState)), ...pageIn };
+const listIn = {
+  section: t.opt(t.enm("personal", "shared", "space")),
+  folderId: t.opt(id.folder),
+  host: t.opt(host),
+  state: t.opt(t.arr(termState)),
+  ...pageIn,
+};
 
 export default defineManifest({
-  id: 'terminal',
-  title: 'Terminal',
-  owner: 'L2',
-  lists: [
-    list('terminal', 'Terminal', 'Terminals', 'terminal.list'),
-  ],
+  id: "terminal",
+  title: "Terminal",
+  owner: "L2",
+  lists: [list("terminal", "Terminal", "Terminals", "terminal.list")],
   capabilities: [
-    read('terminal.list', 'List terminal sessions you can see, including named leftover scripts', {
-      in: listIn, out: { terminals: t.arr(terminalRow), ...pageOut }, tool: 'terminal', label: 'filter', cli: 'vyre terminal list',
+    read("terminal.list", "List terminal sessions you can see, including named leftover scripts", {
+      in: listIn,
+      out: { terminals: t.arr(terminalRow), ...pageOut },
+      tool: "terminal",
+      label: "filter",
+      cli: "vyre terminal list",
     }),
-    read('terminal.workspace', 'An agent\'s workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet, where it is, whether you may attach and why not; with no machine to run it, one plain line', {
-      in: { agentId: id.agent },
+    read(
+      "terminal.workspace",
+      "An agent's workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet, where it is, whether you may attach and why not; with no machine to run it, one plain line",
+      {
+        in: { agentId: id.agent },
+        out: {
+          state: t.enm("running", "asleep", "waiting", "none", "unavailable"),
+          line: t.opt(t.str({ description: "Waiting: the room line. Unavailable: why, and what to do" })),
+          host: t.opt(t.enm("space", "server")),
+          nodeId: t.opt(t.str()),
+          projects: t.opt(t.arr(id.project)),
+          canAttach: t.bool(),
+          cannotAttach: t.opt(t.str({ description: "Why not, as one sentence" })),
+        },
+        tool: "terminal",
+        label: "check",
+      },
+    ),
+    read("terminal.get", "Read one terminal session: host, state, working folder, last exit code", {
+      in: target,
+      out: { terminal: terminalRow },
+      on: ["terminal", "/terminalId"],
+      tool: "terminal",
+      errors: ["validation.not_found"],
+    }),
+    read("terminal.status", "Live status of terminals for Home (state and last line read from tmux)", {
+      in: { terminalIds: t.arr(id.terminal, { maxItems: 50 }) },
       out: {
-        state: t.enm('running', 'asleep', 'waiting', 'none', 'unavailable'), line: t.opt(t.str({ description: 'Waiting: the room line. Unavailable: why, and what to do' })), host: t.opt(t.enm('space', 'server')),
-        nodeId: t.opt(t.str()), projects: t.opt(t.arr(id.project)), canAttach: t.bool(), cannotAttach: t.opt(t.str({ description: 'Why not, as one sentence' })),
+        rows: t.arr(
+          t.obj({ terminalId: id.terminal, state: termState, lastLine: t.opt(t.str()), exitCode: t.nullable(t.int()) }),
+        ),
       },
-      tool: 'terminal', label: 'check',
+      tool: "terminal",
+      label: "filter",
     }),
-    read('terminal.get', 'Read one terminal session: host, state, working folder, last exit code', {
-      in: target, out: { terminal: terminalRow }, on: ['terminal', '/terminalId'], tool: 'terminal', errors: ['validation.not_found'],
-    }),
-    read('terminal.status', 'Live status of terminals for Home (state and last line read from tmux)', {
-      in: { terminalIds: t.arr(id.terminal, { maxItems: 50 }) }, out: { rows: t.arr(t.obj({ terminalId: id.terminal, state: termState, lastLine: t.opt(t.str()), exitCode: t.nullable(t.int()) })) },
-      tool: 'terminal', label: 'filter',
-    }),
-    create('terminal.open', 'Open a terminal tab: a named tmux session in your workspace (an agent that names no host gets one in its own workspace, or its parent\'s when it is a helper), or on your own computer (the device daemon)', {
-      in: {
-        host: t.opt(t.enm('agent_computer', 'device')), agentId: t.opt(id.agent), computerId: t.opt(id.computer), deviceId: t.opt(id.device), name: t.opt(t.str({ description: 'The tab\'s name, such as build or tests; a helper\'s tab is named for the helper when left out' })),
-        cwd: t.opt(t.str()), cols: t.opt(t.int({ minimum: 20, maximum: 500 })), rows: t.opt(t.int({ minimum: 5, maximum: 200 })),
+    create(
+      "terminal.open",
+      "Open a terminal tab: a named tmux session in your workspace (an agent that names no host gets one in its own workspace, or its parent's when it is a helper), or on your own computer (the device daemon)",
+      {
+        in: {
+          host: t.opt(t.enm("agent_computer", "device")),
+          agentId: t.opt(id.agent),
+          computerId: t.opt(id.computer),
+          deviceId: t.opt(id.device),
+          name: t.opt(
+            t.str({
+              description:
+                "The tab's name, such as build or tests; a helper's tab is named for the helper when left out",
+            }),
+          ),
+          cwd: t.opt(t.str()),
+          cols: t.opt(t.int({ minimum: 20, maximum: 500 })),
+          rows: t.opt(t.int({ minimum: 5, maximum: 200 })),
+        },
+        out: { terminal: terminalRow },
+        perm: "terminal.use",
+        emits: ["terminal.opened"],
+        tool: "terminal",
+        errors: ["permission.needs_team", "provider.unavailable"],
+        cli: "vyre terminal open",
       },
-      out: { terminal: terminalRow }, perm: 'terminal.use', emits: ['terminal.opened'], tool: 'terminal', errors: ['permission.needs_team', 'provider.unavailable'], cli: 'vyre terminal open',
-    }),
-    create('terminal.open_server', 'Open a shell on the Space server (needs server.services; locked state with Ask for access otherwise)', {
-      in: { name: t.opt(t.str()), cwd: t.opt(t.str()), cols: t.opt(t.int({ minimum: 20, maximum: 500 })), rows: t.opt(t.int({ minimum: 5, maximum: 200 })) },
-      out: { terminal: terminalRow }, perm: 'server.services', level: 'manage', risk: 'high', audit: 'always', emits: ['terminal.opened'], tool: 'terminal',
-    }),
-    write('terminal.rename', 'Name a session so it can be found and starred (leftover scripts become named sessions)', {
-      in: { ...target, name: t.str() }, out: { terminal: terminalRow }, on: ['terminal', '/terminalId'], emits: ['terminal.renamed'], tool: 'terminal', offline: 'patch',
-    }),
-    write('terminal.close', 'Close a session and kill its tmux session', {
-      in: target, out: { closed: t.bool() }, on: ['terminal', '/terminalId'], level: 'edit', emits: ['terminal.closed'], tool: 'terminal', idem: 'natural', offline: 'online',
-    }),
-    write('terminal.input', 'Send keystrokes to a session (a person typing in the terminal tab; output returns as live frames)', {
-      in: { ...target, data: t.str() }, out: { ok: t.bool() }, on: ['terminal', '/terminalId'], level: 'use', tool: 'terminal', idem: 'none', offline: 'online', risk: 'medium',
-      rate: { n: 600, perSeconds: 60, scope: 'principal' },
-    }),
-    write('terminal.interrupt', 'Send Ctrl-C to a session', {
-      in: target, out: { ok: t.bool() }, on: ['terminal', '/terminalId'], level: 'use', tool: 'terminal', idem: 'none', offline: 'online', risk: 'low',
-    }),
-    write('terminal.resize', 'Resize the terminal window', {
-      in: { ...target, cols: t.int({ minimum: 20, maximum: 500 }), rows: t.int({ minimum: 5, maximum: 200 }) }, out: { ok: t.bool() }, on: ['terminal', '/terminalId'], level: 'use',
-      idem: 'natural', offline: 'online', risk: 'low', tool: 'terminal',
-    }),
-    read('terminal.read', 'Read the scrollback of a session (secrets already scrubbed)', {
-      in: { ...target, lines: t.opt(t.int({ minimum: 1, maximum: 5000 })), since: t.opt(t.int()) }, out: { text: t.str(), next: t.int() }, on: ['terminal', '/terminalId'], tool: 'terminal', label: 'check',
-    }),
-    read('terminal.attach', 'Attach to a session as a live stream; the same session an agent used, so Open terminal shows its commands', {
-      in: target, out: { ticket: t.str(), expiresAt: t.ts(), replay: t.str() }, on: ['terminal', '/terminalId'], level: 'view', tool: 'terminal',
-    }),
-    write('terminal.run', 'Run a command in a session and wait for it (the terminal_run tool); secrets only as #Handle.field; output is scrubbed before it returns', {
-      in: {
-        command: t.str(), terminalId: t.opt(id.terminal), session: t.opt(t.str({ maxLength: 80, description: 'The name of the tab to run it in; made when there is none. Left out: your own tab (a helper\'s is named for the helper)' })), host: t.opt(t.enm('agent_computer', 'device')), agentId: t.opt(id.agent), cwd: t.opt(t.str()),
-        timeoutSec: t.opt(t.int({ minimum: 1, maximum: 3600 })), env: t.opt(t.rec(t.str({ description: 'Literal or a #Handle.field reference' }))),
+    ),
+    create(
+      "terminal.open_server",
+      "Open a shell on the Space server (needs server.services; locked state with Ask for access otherwise)",
+      {
+        in: {
+          name: t.opt(t.str()),
+          cwd: t.opt(t.str()),
+          cols: t.opt(t.int({ minimum: 20, maximum: 500 })),
+          rows: t.opt(t.int({ minimum: 5, maximum: 200 })),
+        },
+        out: { terminal: terminalRow },
+        perm: "server.services",
+        level: "manage",
+        risk: "high",
+        audit: "always",
+        emits: ["terminal.opened"],
+        tool: "terminal",
       },
-      out: { terminalId: id.terminal, exitCode: t.nullable(t.int()), output: t.str(), truncated: t.bool(), durationMs: t.int() },
-      level: 'use', perm: 'terminal.use', emits: ['terminal.opened', 'terminal.command_finished'], tool: 'terminal', mcpName: 'terminal_run',
-      gate: { act: 'approve', when: 'terminal.is_danger(input.command)' },
-      agent: { planMode: 'blocked', blocks: ['terminal'] }, idem: 'key', audit: 'sensitive', risk: 'high', offline: 'online',
-      errors: ['permission.needs_approval', 'timeout.deadline', 'provider.unavailable', 'validation.not_found'],
+    ),
+    write("terminal.rename", "Name a session so it can be found and starred (leftover scripts become named sessions)", {
+      in: { ...target, name: t.str() },
+      out: { terminal: terminalRow },
+      on: ["terminal", "/terminalId"],
+      emits: ["terminal.renamed"],
+      tool: "terminal",
+      offline: "patch",
     }),
-    write('terminal.request', 'Ask the person to run a command themselves (sudo, a login, an interactive install): the chat shows the command, why and its risk, and the person runs it in their terminal, copies it or declines; what it printed comes back to you', {
-      in: { threadId: id.thread, command: t.str(), why: t.str(), host: t.opt(host) },
-      out: { blockId: id.block, messageId: id.message, risk: t.enm('read', 'change', 'danger') },
-      on: ['thread', '/threadId'], level: 'use', tool: 'terminal', mcpName: 'terminal_request', agent: { planMode: 'allowed', blocks: ['question'] },
-      errors: ['permission.role_lacks_permission', 'validation.bad_input'],
+    write("terminal.close", "Close a session and kill its tmux session", {
+      in: target,
+      out: { closed: t.bool() },
+      on: ["terminal", "/terminalId"],
+      level: "edit",
+      emits: ["terminal.closed"],
+      tool: "terminal",
+      idem: "natural",
+      offline: "online",
     }),
-    read('terminal.risk', 'What a command can do before it runs: read-only, changes something or destructive, and what your rules say; red always asks', {
-      in: { command: t.str() }, out: { risk: t.enm('read', 'change', 'danger'), verdict: t.enm('deny', 'ask', 'allow', 'none'), why: t.str(), entry: t.opt(t.str()) }, tool: 'terminal',
+    write(
+      "terminal.input",
+      "Send keystrokes to a session (a person typing in the terminal tab; output returns as live frames)",
+      {
+        in: { ...target, data: t.str() },
+        out: { ok: t.bool() },
+        on: ["terminal", "/terminalId"],
+        level: "use",
+        tool: "terminal",
+        idem: "none",
+        offline: "online",
+        risk: "medium",
+        rate: { n: 600, perSeconds: 60, scope: "principal" },
+      },
+    ),
+    write("terminal.interrupt", "Send Ctrl-C to a session", {
+      in: target,
+      out: { ok: t.bool() },
+      on: ["terminal", "/terminalId"],
+      level: "use",
+      tool: "terminal",
+      idem: "none",
+      offline: "online",
+      risk: "low",
     }),
-    read('terminal.rules.get', 'Your allow, ask and deny rules and the folders the terminal is locked to', {
-      out: { rules }, tool: 'terminal',
+    write("terminal.resize", "Resize the terminal window", {
+      in: { ...target, cols: t.int({ minimum: 20, maximum: 500 }), rows: t.int({ minimum: 5, maximum: 200 }) },
+      out: { ok: t.bool() },
+      on: ["terminal", "/terminalId"],
+      level: "use",
+      idem: "natural",
+      offline: "online",
+      risk: "low",
+      tool: "terminal",
     }),
-    write('terminal.rules.set', 'Change your allow, ask and deny rules and the extra folders (a Personal Space terminal is locked to its own folder plus these)', {
-      in: { rules }, out: { rules }, perm: 'terminal.use', emits: ['terminal.rules_changed'], tool: 'terminal', audit: 'sensitive', idem: 'natural', offline: 'patch',
+    read("terminal.read", "Read the scrollback of a session (secrets already scrubbed)", {
+      in: { ...target, lines: t.opt(t.int({ minimum: 1, maximum: 5000 })), since: t.opt(t.int()) },
+      out: { text: t.str(), next: t.int() },
+      on: ["terminal", "/terminalId"],
+      tool: "terminal",
+      label: "check",
     }),
-    read('terminal.health', 'Health of tmux and the session relay on the host', {
-      out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()), sessions: t.int() },
+    read(
+      "terminal.attach",
+      "Attach to a session as a live stream; the same session an agent used, so Open terminal shows its commands",
+      {
+        in: target,
+        out: { ticket: t.str(), expiresAt: t.ts(), replay: t.str() },
+        on: ["terminal", "/terminalId"],
+        level: "view",
+        tool: "terminal",
+      },
+    ),
+    write(
+      "terminal.run",
+      "Run a command in a session and wait for it (the terminal_run tool); secrets only as #Handle.field; output is scrubbed before it returns",
+      {
+        in: {
+          command: t.str(),
+          terminalId: t.opt(id.terminal),
+          session: t.opt(
+            t.str({
+              maxLength: 80,
+              description:
+                "The name of the tab to run it in; made when there is none. Left out: your own tab (a helper's is named for the helper)",
+            }),
+          ),
+          host: t.opt(t.enm("agent_computer", "device")),
+          agentId: t.opt(id.agent),
+          cwd: t.opt(t.str()),
+          timeoutSec: t.opt(t.int({ minimum: 1, maximum: 3600 })),
+          env: t.opt(t.rec(t.str({ description: "Literal or a #Handle.field reference" }))),
+        },
+        out: {
+          terminalId: id.terminal,
+          exitCode: t.nullable(t.int()),
+          output: t.str(),
+          truncated: t.bool(),
+          durationMs: t.int(),
+        },
+        level: "use",
+        perm: "terminal.use",
+        emits: ["terminal.opened", "terminal.command_finished"],
+        tool: "terminal",
+        mcpName: "terminal_run",
+        gate: { act: "approve", when: "terminal.is_danger(input.command)" },
+        agent: { planMode: "blocked", blocks: ["terminal"] },
+        idem: "key",
+        audit: "sensitive",
+        risk: "high",
+        offline: "online",
+        errors: ["permission.needs_approval", "timeout.deadline", "provider.unavailable", "validation.not_found"],
+      },
+    ),
+    write(
+      "terminal.request",
+      "Ask the person to run a command themselves (sudo, a login, an interactive install): the chat shows the command, why and its risk, and the person runs it in their terminal, copies it or declines; what it printed comes back to you",
+      {
+        in: { threadId: id.thread, command: t.str(), why: t.str(), host: t.opt(host) },
+        out: { blockId: id.block, messageId: id.message, risk: t.enm("read", "change", "danger") },
+        on: ["thread", "/threadId"],
+        level: "use",
+        tool: "terminal",
+        mcpName: "terminal_request",
+        agent: { planMode: "allowed", blocks: ["question"] },
+        errors: ["permission.role_lacks_permission", "validation.bad_input"],
+      },
+    ),
+    read(
+      "terminal.risk",
+      "What a command can do before it runs: read-only, changes something or destructive, and what your rules say; red always asks",
+      {
+        in: { command: t.str() },
+        out: {
+          risk: t.enm("read", "change", "danger"),
+          verdict: t.enm("deny", "ask", "allow", "none"),
+          why: t.str(),
+          entry: t.opt(t.str()),
+        },
+        tool: "terminal",
+      },
+    ),
+    read("terminal.rules.get", "Your allow, ask and deny rules and the folders the terminal is locked to", {
+      out: { rules },
+      tool: "terminal",
+    }),
+    write(
+      "terminal.rules.set",
+      "Change your allow, ask and deny rules and the extra folders (a Personal Space terminal is locked to its own folder plus these)",
+      {
+        in: { rules },
+        out: { rules },
+        perm: "terminal.use",
+        emits: ["terminal.rules_changed"],
+        tool: "terminal",
+        audit: "sensitive",
+        idem: "natural",
+        offline: "patch",
+      },
+    ),
+    read("terminal.health", "Health of tmux and the session relay on the host", {
+      out: {
+        state: t.enm("healthy", "degraded", "down"),
+        detail: t.opt(t.str()),
+        latencyMs: t.opt(t.int()),
+        sessions: t.int(),
+      },
     }),
   ],
   events: [
-    ev('terminal.opened', 'A terminal session was opened', { p: { terminalId: id.terminal, host: t.str(), agentId: t.opt(id.agent), by: t.str() }, subject: ['terminal', '/terminalId'], vis: 'participants' }),
-    ev('terminal.closed', 'A terminal session was closed', { p: { terminalId: id.terminal, by: t.str() }, subject: ['terminal', '/terminalId'], vis: 'participants' }),
-    ev('terminal.renamed', 'A terminal session was renamed', { p: { terminalId: id.terminal, name: t.str() }, subject: ['terminal', '/terminalId'], vis: 'participants' }),
-    ev('terminal.command_finished', 'A command finished (exit code and duration only, never the command or output)', {
-      p: { terminalId: id.terminal, exitCode: t.nullable(t.int()), durationMs: t.int(), by: t.str(), runId: t.opt(id.run) }, subject: ['terminal', '/terminalId'], vis: 'participants', retention: 'logs',
+    ev("terminal.opened", "A terminal session was opened", {
+      p: { terminalId: id.terminal, host: t.str(), agentId: t.opt(id.agent), by: t.str() },
+      subject: ["terminal", "/terminalId"],
+      vis: "participants",
     }),
-    ev('terminal.rules_changed', 'A person changed their terminal rules', { p: { personId: id.user }, subject: ['entity', '/personId'], vis: 'owner' }),
+    ev("terminal.closed", "A terminal session was closed", {
+      p: { terminalId: id.terminal, by: t.str() },
+      subject: ["terminal", "/terminalId"],
+      vis: "participants",
+    }),
+    ev("terminal.renamed", "A terminal session was renamed", {
+      p: { terminalId: id.terminal, name: t.str() },
+      subject: ["terminal", "/terminalId"],
+      vis: "participants",
+    }),
+    ev("terminal.command_finished", "A command finished (exit code and duration only, never the command or output)", {
+      p: {
+        terminalId: id.terminal,
+        exitCode: t.nullable(t.int()),
+        durationMs: t.int(),
+        by: t.str(),
+        runId: t.opt(id.run),
+      },
+      subject: ["terminal", "/terminalId"],
+      vis: "participants",
+      retention: "logs",
+    }),
+    ev("terminal.rules_changed", "A person changed their terminal rules", {
+      p: { personId: id.user },
+      subject: ["entity", "/personId"],
+      vis: "owner",
+    }),
   ],
   blocks: [
-    block('terminal', {
-      terminalId: id.terminal, title: t.str(), host, hostTitle: t.str(), commands: t.arr(command), tail: t.str(), state: termState, exitCode: t.nullable(t.int()),
-    }, 'Ran {{commands.length}} commands on {{hostTitle}}', {
-      opens: { tab: 'terminal', input: { terminalId: '/terminalId' } },
-      actions: [
-        { key: 'interrupt', label: 'Interrupt', cap: 'terminal.interrupt', input: { terminalId: '/terminalId' } },
-        { key: 'close', label: 'Close', cap: 'terminal.close', input: { terminalId: '/terminalId' } },
-      ],
-    }),
+    block(
+      "terminal",
+      {
+        terminalId: id.terminal,
+        title: t.str(),
+        host,
+        hostTitle: t.str(),
+        commands: t.arr(command),
+        tail: t.str(),
+        state: termState,
+        exitCode: t.nullable(t.int()),
+      },
+      "Ran {{commands.length}} commands on {{hostTitle}}",
+      {
+        opens: { tab: "terminal", input: { terminalId: "/terminalId" } },
+        actions: [
+          { key: "interrupt", label: "Interrupt", cap: "terminal.interrupt", input: { terminalId: "/terminalId" } },
+          { key: "close", label: "Close", cap: "terminal.close", input: { terminalId: "/terminalId" } },
+        ],
+      },
+    ),
   ],
   health: [
-    health('terminal', 'Terminals', 'terminal.health', 'Check that tmux is installed on the host, then reopen the session'),
+    health(
+      "terminal",
+      "Terminals",
+      "terminal.health",
+      "Check that tmux is installed on the host, then reopen the session",
+    ),
   ],
   screens: [
-    screen('chats.terminal-tab', 'chats', 'ui:TerminalTab', {
-      slot: 'tab',
-      q: { terminal: ['terminal.get', { terminalId: '/state/terminalId' }, true], attach: ['terminal.attach', { terminalId: '/state/terminalId' }, false] },
-      a: {
-        input: ['terminal.input', { terminalId: '/state/terminalId' }], resize: ['terminal.resize', { terminalId: '/state/terminalId' }], interrupt: ['terminal.interrupt', { terminalId: '/state/terminalId' }],
-        rename: ['terminal.rename', { terminalId: '/state/terminalId' }], close: ['terminal.close', { terminalId: '/state/terminalId' }, 'Close this session?'],
+    screen("chats.terminal-tab", "chats", "ui:TerminalTab", {
+      slot: "tab",
+      q: {
+        terminal: ["terminal.get", { terminalId: "/state/terminalId" }, true],
+        attach: ["terminal.attach", { terminalId: "/state/terminalId" }, false],
       },
-      empty: 'No session', primary: 'New terminal', needs: ['terminal.use'],
+      a: {
+        input: ["terminal.input", { terminalId: "/state/terminalId" }],
+        resize: ["terminal.resize", { terminalId: "/state/terminalId" }],
+        interrupt: ["terminal.interrupt", { terminalId: "/state/terminalId" }],
+        rename: ["terminal.rename", { terminalId: "/state/terminalId" }],
+        close: ["terminal.close", { terminalId: "/state/terminalId" }, "Close this session?"],
+      },
+      empty: "No session",
+      primary: "New terminal",
+      needs: ["terminal.use"],
     }),
-    screen('chats.terminal-list', 'chats', 'ui:TerminalList', {
-      slot: 'popover',
-      q: { terminals: ['terminal.list', { section: '/state/section', folderId: '/state/folderId', host: '/state/host' }, true] },
-      a: { open: ['terminal.open', {}], openServer: ['terminal.open_server', {}] },
-      empty: 'No terminals yet', primary: 'New terminal', needs: ['terminal.use'],
+    screen("chats.terminal-list", "chats", "ui:TerminalList", {
+      slot: "popover",
+      q: {
+        terminals: [
+          "terminal.list",
+          { section: "/state/section", folderId: "/state/folderId", host: "/state/host" },
+          true,
+        ],
+      },
+      a: { open: ["terminal.open", {}], openServer: ["terminal.open_server", {}] },
+      empty: "No terminals yet",
+      primary: "New terminal",
+      needs: ["terminal.use"],
     }),
-    screen('chats.terminal-rules', 'chats', 'ui:TerminalRules', {
-      slot: 'sheet', q: { rules: ['terminal.rules.get', {}, true] }, a: { save: ['terminal.rules.set', {}] }, empty: 'No rules yet', primary: 'Add a rule', needs: ['terminal.use'],
+    screen("chats.terminal-rules", "chats", "ui:TerminalRules", {
+      slot: "sheet",
+      q: { rules: ["terminal.rules.get", {}, true] },
+      a: { save: ["terminal.rules.set", {}] },
+      empty: "No rules yet",
+      primary: "Add a rule",
+      needs: ["terminal.use"],
     }),
   ],
 });

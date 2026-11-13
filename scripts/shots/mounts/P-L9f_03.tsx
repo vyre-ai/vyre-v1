@@ -23,7 +23,11 @@ export const title = "Automation config and Journeys";
 
 function Migrate({ id, onClose }: { id: string; onClose(): void }): ReactNode {
   const st = useJourney(id);
-  return st.journey ? <Overlay label="Move records" onClose={onClose}><MigrateSheet journey={st.journey} onClose={onClose} /></Overlay> : null;
+  return st.journey ? (
+    <Overlay label="Move records" onClose={onClose}>
+      <MigrateSheet journey={st.journey} onClose={onClose} />
+    </Overlay>
+  ) : null;
 }
 
 export default function Mount(): ReactNode {
@@ -34,32 +38,89 @@ export default function Mount(): ReactNode {
   const { width, height } = useWindowDimensions();
   const phone = width < 640;
   const harborView = space.id === "harbor";
-  const [sel, setSel] = useState<Selection | null>(view === "stage" ? { stage: harborView ? "shoot" : "intake" } : view === "task" ? { stage: harborView ? "shoot" : "intake", task: harborView ? "h_plan" : "t_review" } : null);
+  const [sel, setSel] = useState<Selection | null>(
+    view === "stage"
+      ? { stage: harborView ? "shoot" : "intake" }
+      : view === "task"
+        ? { stage: harborView ? "shoot" : "intake", task: harborView ? "h_plan" : "t_review" }
+        : null,
+  );
   const journeyId = harborView ? "jrn_h" : "jrn_onboard";
   const autoId = view === "personal" || view === "promote" ? "aut_brief" : harborView ? "aut_h1" : "aut_lead";
   const journeyView = ["journey", "stage", "task", "migrate", "new"].includes(view);
   const tab = view === "alerts" ? "alerts" : view === "runs" ? "runs" : "settings";
 
-  const sidebar = <AutomationsSidebar selectedId={journeyView ? null : autoId} initialTab={journeyView ? "journeys" : "automations"} shared={sample.shared} reasons={sample.space.reasons} />;
+  const sidebar = (
+    <AutomationsSidebar
+      selectedId={journeyView ? null : autoId}
+      initialTab={journeyView ? "journeys" : "automations"}
+      shared={sample.shared}
+      reasons={sample.space.reasons}
+    />
+  );
   const body = journeyView ? (
     <>
-      <View style={{ flex: 1, minWidth: 0 }}><JourneyDesigner journeyId={journeyId} selection={sel} onSelect={setSel} canDesign={view !== "viewonly"} /></View>
-      {sel ? <View style={{ width: 380, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string }}><JourneyPane journeyId={journeyId} selection={sel} /></View> : null}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <JourneyDesigner journeyId={journeyId} selection={sel} onSelect={setSel} canDesign={view !== "viewonly"} />
+      </View>
+      {sel ? (
+        <View style={{ width: 380, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string }}>
+          <JourneyPane journeyId={journeyId} selection={sel} />
+        </View>
+      ) : null}
     </>
   ) : (
     <>
-      <View style={{ flex: 1, minWidth: 0 }}><AutomationCanvas automationId={autoId} /></View>
-      <View style={{ width: 380, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string }}><AutomationConfig automationId={autoId} initialTab={tab} openPromote={view === "promote"} openShare={view === "share"} /></View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <AutomationCanvas automationId={autoId} />
+      </View>
+      <View style={{ width: 380, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string }}>
+        <AutomationConfig
+          automationId={autoId}
+          initialTab={tab}
+          openPromote={view === "promote"}
+          openShare={view === "share"}
+        />
+      </View>
     </>
   );
   return (
     <AutomationsDataProvider value={sample.data}>
       <ConfigExtrasProvider value={sample.extras}>
         <View style={{ height, flexDirection: "row", backgroundColor: "var(--win)" as string }}>
-          {phone ? (journeyView ? (sel ? <JourneyPane journeyId={journeyId} selection={sel} /> : <JourneyDesigner journeyId={journeyId} selection={sel} onSelect={setSel} />) : <AutomationConfig automationId={autoId} initialTab={tab} openPromote={view === "promote"} openShare={view === "share"} />) : (<>{sidebar}{body}</>)}
+          {phone ? (
+            journeyView ? (
+              sel ? (
+                <JourneyPane journeyId={journeyId} selection={sel} />
+              ) : (
+                <JourneyDesigner journeyId={journeyId} selection={sel} onSelect={setSel} />
+              )
+            ) : (
+              <AutomationConfig
+                automationId={autoId}
+                initialTab={tab}
+                openPromote={view === "promote"}
+                openShare={view === "share"}
+              />
+            )
+          ) : (
+            <>
+              {sidebar}
+              {body}
+            </>
+          )}
         </View>
         {view === "migrate" ? <Migrate id={journeyId} onClose={() => undefined} /> : null}
-        {view === "new" ? <Overlay label="New Journey type" onClose={() => undefined}><JourneyNewSheet onClose={() => undefined} initialName="Hire" initialSubject="person" initialStages="Posted, Screening, Interviews, Offer, Onboarding" /></Overlay> : null}
+        {view === "new" ? (
+          <Overlay label="New Journey type" onClose={() => undefined}>
+            <JourneyNewSheet
+              onClose={() => undefined}
+              initialName="Hire"
+              initialSubject="person"
+              initialStages="Posted, Screening, Interviews, Offer, Onboarding"
+            />
+          </Overlay>
+        ) : null}
       </ConfigExtrasProvider>
     </AutomationsDataProvider>
   );

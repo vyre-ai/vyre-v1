@@ -25,7 +25,8 @@ test("Select all N finds every id of the view, page by page, and reports as it g
 test("a filter narrows what Select all N finds", async () => {
   const s = createSampleRecords(northwind, { bulk: 100 });
   const filter = { field: "status", op: "eq", value: "active" };
-  const count = (s.replica.run("records.counts", { type: "clients", filter }) as { data: { count: number } }).data.count;
+  const count = (s.replica.run("records.counts", { type: "clients", filter }) as { data: { count: number } }).data
+    .count;
   const ids = await allIds(s.data.call, { type: "clients", filter }, count, () => undefined);
   assert.equal(ids.length, count);
   assert.ok(count > 0 && count < 114);

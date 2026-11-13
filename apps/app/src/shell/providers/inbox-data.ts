@@ -14,9 +14,21 @@ export function inboxData(rt: ShellRuntime, openConversation: (id: string) => vo
     openDialer: () => rt.open({ screen: "telephony.softphone" }),
     openMatch: (conversationId) => rt.open({ screen: "inbox.unmatched", args: { conversationId } }),
     // no compose screen exists yet (message-detail only reads a message), so New message opens the assistant beside the Inbox to draft it
-    compose: () => { openAskPane({ thing: { kind: "compose", id: "email", title: "A new email" }, draft: "Draft an email to ", hint: "Say who to write to and what about. I will draft it for you to send." }, "inbox"); },
+    compose: () => {
+      openAskPane(
+        {
+          thing: { kind: "compose", id: "email", title: "A new email" },
+          draft: "Draft an email to ",
+          hint: "Say who to write to and what about. I will draft it for you to send.",
+        },
+        "inbox",
+      );
+    },
     // Twilio is an account, not a mailbox: its Account SID and Auth Token go to the Vault from the Twilio template
-    connect: (kind) => kind === "twilio" ? rt.open({ screen: "vault.layout", args: { add: "twilio" } }) : rt.open({ screen: "settings.page", args: { page: "mail" } }),
+    connect: (kind) =>
+      kind === "twilio"
+        ? rt.open({ screen: "vault.layout", args: { add: "twilio" } })
+        : rt.open({ screen: "settings.page", args: { page: "mail" } }),
     openEmailDesign: (emailId) => rt.open({ screen: "apps.email-builder", ...(emailId ? { args: { emailId } } : {}) }),
     openInboxSettings: (inboxId) => rt.open({ screen: "settings.page", args: { page: "inboxes", inboxId } }),
     openCalendarSettings: () => rt.open({ screen: "settings.page", args: { page: "mail" } }),

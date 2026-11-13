@@ -18,13 +18,20 @@ test("an assistant without the role is not allowed; the grant makes the role onc
   assert.equal(first.created, true);
   const role = store.roles.get(first.roleId)!;
   assert.deepEqual([role.name, role.builtIn, role.assignableToAgents], [BUILDER_ROLE, false, true]);
-  assert.ok(role.permissions.includes("connectors.manage") && role.permissions.includes("records.edit"), "Member permissions plus connectors.manage");
+  assert.ok(
+    role.permissions.includes("connectors.manage") && role.permissions.includes("records.edit"),
+    "Member permissions plus connectors.manage",
+  );
   assert.ok(!role.permissions.includes("engineer.mcp") && !role.permissions.includes("access.manage"), "nothing more");
   assert.equal((await builderStatus(h.ctx, { agentId: "agt_a" })).allowed, true);
   const second = await builderGrant(h.ctx, { agentId: "agt_a" });
   assert.deepEqual([second.created, second.roleId], [false, first.roleId]);
   assert.equal([...store.roles.values()].filter((r) => r.name === BUILDER_ROLE).length, 1);
-  assert.deepEqual(store.rolesOf("agt_a").filter((r) => r === first.roleId), [first.roleId], "held once");
+  assert.deepEqual(
+    store.rolesOf("agt_a").filter((r) => r === first.roleId),
+    [first.roleId],
+    "held once",
+  );
   dropStore(h.db);
 });
 

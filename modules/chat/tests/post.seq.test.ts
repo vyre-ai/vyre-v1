@@ -13,11 +13,15 @@ async function chat(hn: Harness): Promise<string> {
   return (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "k" })).thread.threadId;
 }
 let n = 0;
-const say = (hn: Harness, threadId: string, body = "hello", extra: Record<string, unknown> = {}) => h["chat.post"]!(hn.ctx, { threadId, body, idempotencyKey: `p${++n}`, ...extra });
+const say = (hn: Harness, threadId: string, body = "hello", extra: Record<string, unknown> = {}) =>
+  h["chat.post"]!(hn.ctx, { threadId, body, idempotencyKey: `p${++n}`, ...extra });
 
 test("messages of a thread are numbered 1..n in order, and two threads count apart", async () => {
   const hn = harness();
-  const a = await chat(hn), b = await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "k2" }).then((r) => r.thread.threadId as string);
+  const a = await chat(hn),
+    b = await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "k2" }).then(
+      (r) => r.thread.threadId as string,
+    );
   const seen: Record<string, number[]> = { [a]: [], [b]: [] };
   for (let i = 0; i < 25; i++) {
     for (const t of [a, b]) seen[t]!.push((await say(hn, t, `m${i}`)).message.threadSeq);
@@ -26,7 +30,10 @@ test("messages of a thread are numbered 1..n in order, and two threads count apa
   assert.deepEqual(seen[a], want);
   assert.deepEqual(seen[b], want);
   const rows = hn.rows("SELECT threadSeq FROM chat_message WHERE thread = ? ORDER BY threadSeq", a);
-  assert.deepEqual(rows.map((r) => r["threadSeq"]), want);
+  assert.deepEqual(
+    rows.map((r) => r["threadSeq"]),
+    want,
+  );
 });
 
 test("forty posts started in the same tick get forty different numbers, none missing", async () => {
@@ -34,7 +41,10 @@ test("forty posts started in the same tick get forty different numbers, none mis
   const t = await chat(hn);
   const out = await Promise.all(Array.from({ length: 40 }, (_, i) => say(hn, t, `m${i}`)));
   const seqs = out.map((o) => o.message.threadSeq as number).sort((x, y) => x - y);
-  assert.deepEqual(seqs, Array.from({ length: 40 }, (_, i) => i + 1));
+  assert.deepEqual(
+    seqs,
+    Array.from({ length: 40 }, (_, i) => i + 1),
+  );
 });
 
 test("a post that is refused takes no number", async () => {
@@ -43,14 +53,23 @@ test("a post that is refused takes no number", async () => {
   assert.equal((await say(hn, t)).message.threadSeq, 1);
   assert.equal(await failure(() => say(hn, t, "   ")), "validation.bad_input");
   assert.equal(await failure(() => say(hn, t, "x", { replyTo: "msg_none" })), "validation.bad_input");
-  assert.equal(await failure(() => say(hn, t, "x", { blocks: [{ type: "question", v: 1, data: {} }] })), "validation.bad_input");
+  assert.equal(
+    await failure(() => say(hn, t, "x", { blocks: [{ type: "question", v: 1, data: {} }] })),
+    "validation.bad_input",
+  );
   assert.equal(await failure(() => say(hn, "thr_none")), "validation.not_found");
-  assert.equal(await failure(() => h["chat.post"]!(hn.person(MAYA), { threadId: t, body: "let me in", idempotencyKey: "z" })), "validation.not_found");
+  assert.equal(
+    await failure(() => h["chat.post"]!(hn.person(MAYA), { threadId: t, body: "let me in", idempotencyKey: "z" })),
+    "validation.not_found",
+  );
   hn.raw.run("UPDATE chat_thread SET closedAt = 1 WHERE id = ?", t);
   assert.equal(await failure(() => say(hn, t)), "validation.bad_input");
   hn.raw.run("UPDATE chat_thread SET closedAt = NULL WHERE id = ?", t);
   assert.equal((await say(hn, t)).message.threadSeq, 2);
-  assert.deepEqual(hn.rows("SELECT threadSeq FROM chat_message WHERE thread = ? ORDER BY threadSeq", t).map((r) => r["threadSeq"]), [1, 2]);
+  assert.deepEqual(
+    hn.rows("SELECT threadSeq FROM chat_message WHERE thread = ? ORDER BY threadSeq", t).map((r) => r["threadSeq"]),
+    [1, 2],
+  );
 });
 
 test("a resend with the same client id is the same message: same number, one row, one event", async () => {
@@ -65,7 +84,9 @@ test("a resend with the same client id is the same message: same number, one row
   assert.equal(hn.rows("SELECT id FROM chat_message WHERE thread = ?", t).length, 1);
   assert.equal(hn.named("message.received").length, 0, "a resend does not announce the message twice");
   assert.equal((await say(hn, t, "next")).message.threadSeq, 2);
-  const other = await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "k3" }).then((r) => r.thread.threadId as string);
+  const other = await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "k3" }).then(
+    (r) => r.thread.threadId as string,
+  );
   assert.equal(await failure(() => say(hn, other, "x", { clientId })), "validation.bad_input");
 });
 
@@ -73,9 +94,12 @@ test("the unique index refuses two messages with one number, and a lost counter 
   const hn = harness();
   const t = await chat(hn);
   for (let i = 0; i < 3; i++) await say(hn, t, `m${i}`);
-  assert.throws(() => hn.raw.run(
-    "INSERT INTO chat_message (id, thread, threadSeq, author, kind, body, blocks, depth, pinned, reactions, createdAt, version) VALUES ('msg_dup', ?, 2, 'usr_dana', 'text', 'x', '[]', 0, 0, '[]', 1, 0)", t,
-  ));
+  assert.throws(() =>
+    hn.raw.run(
+      "INSERT INTO chat_message (id, thread, threadSeq, author, kind, body, blocks, depth, pinned, reactions, createdAt, version) VALUES ('msg_dup', ?, 2, 'usr_dana', 'text', 'x', '[]', 0, 0, '[]', 1, 0)",
+      t,
+    ),
+  );
   hn.raw.run("DELETE FROM chat_thread_seq WHERE thread = ?", t);
   assert.equal((await say(hn, t, "after the counter was lost")).message.threadSeq, 4);
 });
@@ -86,15 +110,30 @@ test("resume: the last 50 messages of a long chat come off the index, oldest fir
   for (let i = 0; i < 120; i++) await say(hn, t, `m${i}`);
   const tail = lastMessages(hn.db, t);
   assert.equal(tail.length, 50);
-  assert.deepEqual(tail.map((m) => m.seq), Array.from({ length: 50 }, (_, i) => 71 + i));
+  assert.deepEqual(
+    tail.map((m) => m.seq),
+    Array.from({ length: 50 }, (_, i) => 71 + i),
+  );
   assert.equal(tail[49]!.body, "m119");
   const older = lastMessages(hn.db, t, 50, 71);
-  assert.deepEqual(older.map((m) => m.seq), Array.from({ length: 50 }, (_, i) => 21 + i));
+  assert.deepEqual(
+    older.map((m) => m.seq),
+    Array.from({ length: 50 }, (_, i) => 21 + i),
+  );
   const rest = lastMessages(hn.db, t, 50, 21);
-  assert.deepEqual(rest.map((m) => m.seq), Array.from({ length: 20 }, (_, i) => 1 + i));
+  assert.deepEqual(
+    rest.map((m) => m.seq),
+    Array.from({ length: 20 }, (_, i) => 1 + i),
+  );
 
-  const plan = (hn.raw.all("EXPLAIN QUERY PLAN SELECT * FROM chat_message WHERE thread = ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT 50", t) as Array<Record<string, unknown>>).map((r) => String(r["detail"])).join(" | ");
+  const plan = (
+    hn.raw.all(
+      "EXPLAIN QUERY PLAN SELECT * FROM chat_message WHERE thread = ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT 50",
+      t,
+    ) as Array<Record<string, unknown>>
+  )
+    .map((r) => String(r["detail"]))
+    .join(" | ");
   assert.match(plan, /chat_message__seq/, plan);
   assert.doesNotMatch(plan, /TEMP B-TREE/, `no sort: ${plan}`);
 });
-

@@ -1,9 +1,14 @@
 // Small helpers for the turn-engine tests: a manual gate, a poll-until, a manual clock. No assertions here.
-export interface Gate { readonly wait: Promise<void>; open(): void }
+export interface Gate {
+  readonly wait: Promise<void>;
+  open(): void;
+}
 
 export function gate(): Gate {
   let open: () => void = () => {};
-  const wait = new Promise<void>((resolve) => { open = resolve; });
+  const wait = new Promise<void>((resolve) => {
+    open = resolve;
+  });
   return { wait, open: () => open() };
 }
 
@@ -16,8 +21,16 @@ export async function until(cond: () => boolean, limit = 2000): Promise<void> {
   throw new Error("until: condition never became true");
 }
 
-export interface ManualClock { now(): number; advance(ms: number): void }
+export interface ManualClock {
+  now(): number;
+  advance(ms: number): void;
+}
 export function manualClock(start = 1_760_000_000_000): ManualClock {
   let t = start;
-  return { now: () => t, advance: (ms) => { t += ms; } };
+  return {
+    now: () => t,
+    advance: (ms) => {
+      t += ms;
+    },
+  };
 }

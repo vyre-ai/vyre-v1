@@ -9,5 +9,9 @@ test("a runtime without capQuery gives a loading query with one stable snapshot"
   const a = q.getSnapshot();
   assert.equal(a.status, "loading");
   assert.equal(q.getSnapshot(), a, "the same object on every read");
-  assert.equal(capLive({ screens: {} } as unknown as ShellRuntime, "x").getSnapshot(), a, "and the same one for every such query");
+  assert.equal(
+    capLive({ screens: {} } as unknown as ShellRuntime, "x").getSnapshot(),
+    a,
+    "and the same one for every such query",
+  );
 });

@@ -4,7 +4,13 @@ import type { ChoiceLimits, ScheduleChoiceKey } from "../schedule/schedule.ts";
 import type { AutoCtx } from "../projections.ts";
 import { raise } from "../projections.ts";
 
-const CHOICES = new Set<ScheduleChoiceKey>(["run_first_n", "run_latest_n", "skip_backlog_and_resume", "change_limits", "keep_paused"]);
+const CHOICES = new Set<ScheduleChoiceKey>([
+  "run_first_n",
+  "run_latest_n",
+  "skip_backlog_and_resume",
+  "change_limits",
+  "keep_paused",
+]);
 
 type In = {
   automationId?: unknown;
@@ -20,7 +26,8 @@ function limitsOf(value: unknown): ChoiceLimits | undefined {
   if (typeof row["lookbackMs"] === "number") out.lookbackMs = row["lookbackMs"];
   if (typeof row["cap"] === "number") out.cap = row["cap"];
   if (typeof row["spacingMs"] === "number") out.spacingMs = row["spacingMs"];
-  if (row["overlap"] === "queue" || row["overlap"] === "skip_while_active" || row["overlap"] === "bounded_concurrency") out.overlap = row["overlap"];
+  if (row["overlap"] === "queue" || row["overlap"] === "skip_while_active" || row["overlap"] === "bounded_concurrency")
+    out.overlap = row["overlap"];
   if (typeof row["concurrency"] === "number") out.concurrency = row["concurrency"];
   return out;
 }

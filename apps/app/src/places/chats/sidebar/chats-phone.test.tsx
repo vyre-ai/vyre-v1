@@ -14,9 +14,15 @@ const widen = (width: number): void => Dimensions.set({ window: { width, height:
 
 test("another Space needing you: a dot by the header on a desktop, none on a phone (the You tab carries it)", async () => {
   installDom();
-  for (const [width, dot] of [[390, false], [1280, true]] as const) {
+  for (const [width, dot] of [
+    [390, false],
+    [1280, true],
+  ] as const) {
     widen(width);
-    const root = await mount(createRoot, <ChatsSidebar data={createSampleSidebar(northwind).data} window={{ start: 0, end: 500 }} />);
+    const root = await mount(
+      createRoot,
+      <ChatsSidebar data={createSampleSidebar(northwind).data} window={{ start: 0, end: 500 }} />,
+    );
     assert.equal(find(root, "other-space-dot") !== null, dot, `${width} wide`);
   }
 });
@@ -39,7 +45,16 @@ test("a conversation shows a Back chevron in its own header only when the phone 
   let backs = 0;
   const bare = await mount(createRoot, <Conversation data={createSample("idle").data} />);
   assert.equal(find(bare, "conversation-back"), null, "no Back without the phone shell");
-  const root = await mount(createRoot, <MobileBackContext.Provider value={() => { backs++; }}><Conversation data={createSample("idle").data} /></MobileBackContext.Provider>);
+  const root = await mount(
+    createRoot,
+    <MobileBackContext.Provider
+      value={() => {
+        backs++;
+      }}
+    >
+      <Conversation data={createSample("idle").data} />
+    </MobileBackContext.Provider>,
+  );
   await press(find(root, "conversation-back"));
   assert.equal(backs, 1);
   widen(1280);

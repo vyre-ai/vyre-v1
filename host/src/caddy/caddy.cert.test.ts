@@ -7,8 +7,12 @@ import { FakeCaddy } from "./fake.ts";
 
 const NOW = Date.parse("2026-10-25T12:00:00Z");
 const good = (o: Partial<PeerCert> = {}): PeerCert => ({
-  subjectaltname: "DNS:www.firm.com", subject: { CN: "www.firm.com" }, issuer: { CN: "R11", O: "Let's Encrypt" },
-  valid_from: "Oct 20 00:00:00 2026 GMT", valid_to: "Jan 18 00:00:00 2027 GMT", ...o,
+  subjectaltname: "DNS:www.firm.com",
+  subject: { CN: "www.firm.com" },
+  issuer: { CN: "R11", O: "Let's Encrypt" },
+  valid_from: "Oct 20 00:00:00 2026 GMT",
+  valid_to: "Jan 18 00:00:00 2027 GMT",
+  ...o,
 });
 
 test("a certificate that names the host, is in date and has an outside issuer is issued", () => {
@@ -38,15 +42,29 @@ test("a wildcard name covers one label, the subject name is used when there is n
   assert.equal(judgeCert(good({ subjectaltname: "DNS:*.acme.vyre.run" }), "staging-1.acme.vyre.run", NOW).issued, true);
   assert.equal(judgeCert(good({ subjectaltname: "DNS:*.acme.vyre.run" }), "a.b.acme.vyre.run", NOW).issued, false);
   assert.equal(judgeCert(good({ subjectaltname: "DNS:*.acme.vyre.run" }), "acme.vyre.run", NOW).issued, false);
-  assert.equal(judgeCert(good({ subjectaltname: undefined, subject: { CN: "WWW.firm.com" } }), "www.FIRM.com", NOW).issued, true);
+  assert.equal(
+    judgeCert(good({ subjectaltname: undefined, subject: { CN: "WWW.firm.com" } }), "www.FIRM.com", NOW).issued,
+    true,
+  );
 });
 
 function rig(peer: PeerFn, failAfter?: number) {
   const clock = { t: NOW };
   const calls: [string, number, string][] = [];
   const router = new CaddyRouter({
-    admin: new CaddyAdmin({ fetch: new FakeCaddy().fetch }), space: "spc_1", now: () => clock.t, ...(failAfter !== undefined ? { certFailAfterMs: failAfter } : {}),
-    tls: { host: "127.0.0.1", port: 443, peer: async (h, p, sn, ms) => { calls.push([h, p, sn]); void ms; return peer(h, p, sn, ms); } },
+    admin: new CaddyAdmin({ fetch: new FakeCaddy().fetch }),
+    space: "spc_1",
+    now: () => clock.t,
+    ...(failAfter !== undefined ? { certFailAfterMs: failAfter } : {}),
+    tls: {
+      host: "127.0.0.1",
+      port: 443,
+      peer: async (h, p, sn, ms) => {
+        calls.push([h, p, sn]);
+        void ms;
+        return peer(h, p, sn, ms);
+      },
+    },
   });
   return { clock, calls, router };
 }
@@ -62,7 +80,11 @@ test("pending right after the route is added, failed once the wait is over, issu
   assert.equal(await r.router.certState("www.firm.com"), "failed");
   cert = good();
   assert.equal(await r.router.certState("www.firm.com"), "issued");
-  assert.deepEqual(r.calls[0], ["127.0.0.1", 443, "www.firm.com"], "the check goes to the local listener with the host as SNI");
+  assert.deepEqual(
+    r.calls[0],
+    ["127.0.0.1", 443, "www.firm.com"],
+    "the check goes to the local listener with the host as SNI",
+  );
 });
 
 test("a host the router never added is pending, not failed", async () => {

@@ -24,11 +24,17 @@ function stamp(ts: number, offsetMin: number): string {
 
 /** A file name from the chat's title: letters, digits and dashes, 60 characters at most. */
 export function exportName(title: string, format: ExportFormat): string {
-  const slug = title.normalize("NFKD").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "chat";
+  const slug =
+    title
+      .normalize("NFKD")
+      .replace(/[^\p{L}\p{N}]+/gu, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "chat";
   return `${slug}.${format}`;
 }
 
-export const exportMime = (format: ExportFormat): string => (format === "md" ? "text/markdown;charset=utf-8" : "application/json;charset=utf-8");
+export const exportMime = (format: ExportFormat): string =>
+  format === "md" ? "text/markdown;charset=utf-8" : "application/json;charset=utf-8";
 
 function blockLines(m: Message): string[] {
   const out: string[] = [];
@@ -45,11 +51,25 @@ function blockLines(m: Message): string[] {
 
 export function exportMarkdown(i: ExportInput): string {
   const title = titleOf(i.thread, i.nameOf);
-  const who = [...i.thread.members.filter((p) => p.kind === "person").map((p) => i.nameOf(p.id)), ...i.thread.agents.map((a) => i.nameOf(a.agentId))];
-  const lines: string[] = [`# ${title}`, "", `Exported ${stamp(i.exportedAt ?? i.clock.now, i.clock.offsetMin)}. ${i.messages.length} ${i.messages.length === 1 ? "message" : "messages"}. With ${who.join(", ") || "no one else"}.`, ""];
+  const who = [
+    ...i.thread.members.filter((p) => p.kind === "person").map((p) => i.nameOf(p.id)),
+    ...i.thread.agents.map((a) => i.nameOf(a.agentId)),
+  ];
+  const lines: string[] = [
+    `# ${title}`,
+    "",
+    `Exported ${stamp(i.exportedAt ?? i.clock.now, i.clock.offsetMin)}. ${i.messages.length} ${i.messages.length === 1 ? "message" : "messages"}. With ${who.join(", ") || "no one else"}.`,
+    "",
+  ];
   for (const m of i.messages) {
-    if (m.kind === "system" || m.kind === "quiet") { lines.push(`_${m.body}_`, ""); continue; }
-    lines.push(`**${i.nameOf(m.author.id)}** · ${stamp(m.createdAt, i.clock.offsetMin)}${m.pinned ? " · pinned" : ""}`, "");
+    if (m.kind === "system" || m.kind === "quiet") {
+      lines.push(`_${m.body}_`, "");
+      continue;
+    }
+    lines.push(
+      `**${i.nameOf(m.author.id)}** · ${stamp(m.createdAt, i.clock.offsetMin)}${m.pinned ? " · pinned" : ""}`,
+      "",
+    );
     if (m.body.trim() !== "") lines.push(m.body.trimEnd(), "");
     for (const f of m.attachments) lines.push(`Attached: ${i.fileName(f)}`);
     if (m.attachments.length > 0) lines.push("");
@@ -63,22 +83,40 @@ export function exportJson(i: ExportInput): string {
   const doc = {
     exportedAt: new Date(i.exportedAt ?? i.clock.now).toISOString(),
     thread: {
-      id: i.thread.threadId, title: titleOf(i.thread, i.nameOf), kind: i.thread.kind,
+      id: i.thread.threadId,
+      title: titleOf(i.thread, i.nameOf),
+      kind: i.thread.kind,
       people: i.thread.members.filter((p) => p.kind === "person").map((p) => ({ id: p.id, name: i.nameOf(p.id) })),
-      agents: i.thread.agents.map((a) => ({ id: a.agentId, name: i.nameOf(a.agentId), mode: a.mode, ...(a.model ? { model: a.model } : {}) })),
+      agents: i.thread.agents.map((a) => ({
+        id: a.agentId,
+        name: i.nameOf(a.agentId),
+        mode: a.mode,
+        ...(a.model ? { model: a.model } : {}),
+      })),
     },
     messages: i.messages.map((m) => ({
-      id: m.messageId, seq: m.threadSeq, at: new Date(m.createdAt).toISOString(), author: { id: m.author.id, name: i.nameOf(m.author.id), kind: m.author.kind },
-      kind: m.kind, body: m.body, ...(m.replyTo ? { replyTo: m.replyTo } : {}), pinned: m.pinned,
+      id: m.messageId,
+      seq: m.threadSeq,
+      at: new Date(m.createdAt).toISOString(),
+      author: { id: m.author.id, name: i.nameOf(m.author.id), kind: m.author.kind },
+      kind: m.kind,
+      body: m.body,
+      ...(m.replyTo ? { replyTo: m.replyTo } : {}),
+      pinned: m.pinned,
       attachments: m.attachments.map((f) => ({ id: f, name: i.fileName(f) })),
       blocks: m.blocks.map((b) => ({ type: b.type, state: b.state, data: b.data })),
-      ...(m.reactions.length > 0 ? { reactions: m.reactions.map((r) => ({ emoji: r.emoji, by: r.by.map(i.nameOf) })) } : {}),
+      ...(m.reactions.length > 0
+        ? { reactions: m.reactions.map((r) => ({ emoji: r.emoji, by: r.by.map(i.nameOf) })) }
+        : {}),
     })),
   };
   return `${JSON.stringify(doc, null, 2)}\n`;
 }
 
 export function exportAs(format: ExportFormat, i: ExportInput): { name: string; mime: string; content: string } {
-  return { name: exportName(titleOf(i.thread, i.nameOf), format), mime: exportMime(format), content: format === "md" ? exportMarkdown(i) : exportJson(i) };
+  return {
+    name: exportName(titleOf(i.thread, i.nameOf), format),
+    mime: exportMime(format),
+    content: format === "md" ? exportMarkdown(i) : exportJson(i),
+  };
 }
-

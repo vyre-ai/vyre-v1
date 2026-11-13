@@ -15,7 +15,7 @@ export function mintUuid(now: number = Date.now(), rand: (n: number) => Uint8Arr
   if (!Number.isSafeInteger(now) || now < 0 || now >= 2 ** 48) throw new RangeError("time out of range for an id");
   const r = rand(10);
   const b = new Uint8Array(16);
-  for (let i = 5, t = now; i >= 0; i--, t = Math.floor(t / 256)) b[i] = t % 256;   // 48 bits, big-endian
+  for (let i = 5, t = now; i >= 0; i--, t = Math.floor(t / 256)) b[i] = t % 256; // 48 bits, big-endian
   b[6] = 0x40 | (r[0]! & 0x0f);
   b[7] = r[1]!;
   b[8] = 0x80 | (r[2]! & 0x3f);
@@ -25,7 +25,8 @@ export function mintUuid(now: number = Date.now(), rand: (n: number) => Uint8Arr
 }
 
 /** `dec_`, `gr_`, `evt_`... plus a time-prefixed uuid. @param {string} prefix */
-export const mintId = (prefix: string, now: number = Date.now(), rand?: (n: number) => Uint8Array): string => `${prefix}_${mintUuid(now, rand)}`;
+export const mintId = (prefix: string, now: number = Date.now(), rand?: (n: number) => Uint8Array): string =>
+  `${prefix}_${mintUuid(now, rand)}`;
 
 export const isUuid = (s: unknown): boolean => typeof s === "string" && HEX.test(s);
 
@@ -40,5 +41,6 @@ export function timeOf(id: string): number | null {
  * This is the one place a record id is minted or checked; the kernel record store accepts nothing else (P-H_14). Contacts are records, so they use the same prefix (id.contact is `rec`).
  */
 export const RECORD_ID = /^rec_[0-9a-f]{32}$/;
-export const mintRecordId = (now: number = Date.now(), rand?: (n: number) => Uint8Array): string => `rec_${mintUuid(now, rand).replaceAll("-", "")}`;
+export const mintRecordId = (now: number = Date.now(), rand?: (n: number) => Uint8Array): string =>
+  `rec_${mintUuid(now, rand).replaceAll("-", "")}`;
 export const isRecordId = (s: unknown): boolean => typeof s === "string" && RECORD_ID.test(s);

@@ -64,7 +64,9 @@ function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
     const at = { i: 0 };
     const pred = compile(sel[2], args, at);
     if (at.i !== args.length) throw new Error(`unused sql values: ${text}`);
-    return bag(name).filter(pred).map((row) => ({ ...row }));
+    return bag(name)
+      .filter(pred)
+      .map((row) => ({ ...row }));
   };
   const run = (sql: string, ...args: unknown[]): { changes: number } => {
     const text = sql.replace(/\s+/g, " ").trim();
@@ -74,10 +76,12 @@ function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
       const name = insert[1];
       const colSql = insert[2];
       const valSql = insert[3];
-      if (name === undefined || colSql === undefined || valSql === undefined) throw new Error(`unsupported sql: ${text}`);
+      if (name === undefined || colSql === undefined || valSql === undefined)
+        throw new Error(`unsupported sql: ${text}`);
       const cols = colSql.split(",").map((col) => col.trim());
       const marks = valSql.split(",").map((mark) => mark.trim());
-      if (marks.some((mark) => mark !== "?") || marks.length !== cols.length) throw new Error(`unsupported sql: ${text}`);
+      if (marks.some((mark) => mark !== "?") || marks.length !== cols.length)
+        throw new Error(`unsupported sql: ${text}`);
       const row: Row = {};
       for (const col of cols) row[col] = take(args, at);
       if (at.i !== args.length) throw new Error(`unused sql values: ${text}`);
@@ -89,7 +93,8 @@ function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
       const name = update[1];
       const setSql = update[2];
       const where = update[3];
-      if (name === undefined || setSql === undefined || where === undefined) throw new Error(`unsupported sql: ${text}`);
+      if (name === undefined || setSql === undefined || where === undefined)
+        throw new Error(`unsupported sql: ${text}`);
       const assigns: { col: string; val: unknown }[] = [];
       for (const part of setSql.split(", ")) {
         const m = /^(\w+) = \?$/.exec(part);
@@ -134,13 +139,19 @@ function spaceSeal(key: Uint8Array): Ctx["seal"] {
       const parsed: unknown = JSON.parse(sealed.bytes);
       if (parsed === null || typeof parsed !== "object") throw new Error("bad box");
       const box = parsed as { ct?: unknown; tag?: unknown; aad?: unknown };
-      if (typeof box.ct !== "string" || typeof box.tag !== "string" || typeof box.aad !== "string") throw new Error("bad box");
+      if (typeof box.ct !== "string" || typeof box.tag !== "string" || typeof box.aad !== "string")
+        throw new Error("bad box");
       return aesUnwrap(key, { iv: sealed.nonce, ct: box.ct, tag: box.tag }, box.aad);
     },
   };
 }
 
-function open(answers: Record<string, unknown> = {}): { ctx: Ctx; events: { name: string; payload: unknown }[]; db: ReturnType<typeof memoryDb>; calls: { cap: string; input: unknown }[] } {
+function open(answers: Record<string, unknown> = {}): {
+  ctx: Ctx;
+  events: { name: string; payload: unknown }[];
+  db: ReturnType<typeof memoryDb>;
+  calls: { cap: string; input: unknown }[];
+} {
   const db = memoryDb();
   const calls: { cap: string; input: unknown }[] = [];
   const events: { name: string; payload: unknown }[] = [];
@@ -205,50 +216,88 @@ async function expectCode(code: string, run: () => Promise<unknown>): Promise<vo
   assert.fail(`expected ${code}`);
 }
 
-
-const agentOf = (ctx: Ctx, id = "agt_docs"): Ctx => ({ ...ctx, principal: { kind: "agent", id }, actingFor: "per_maya", thread: "thr_1" });
-const paragraphs = (n: number, edits: Record<number, string> = {}): string => Array.from({ length: n }, (_, i) => edits[i + 1] ?? `Paragraph ${i + 1} of the letter, with its own words.`).join("\n\n");
+const agentOf = (ctx: Ctx, id = "agt_docs"): Ctx => ({
+  ...ctx,
+  principal: { kind: "agent", id },
+  actingFor: "per_maya",
+  thread: "thr_1",
+});
+const paragraphs = (n: number, edits: Record<number, string> = {}): string =>
+  Array.from({ length: n }, (_, i) => edits[i + 1] ?? `Paragraph ${i + 1} of the letter, with its own words.`).join(
+    "\n\n",
+  );
 
 async function stage(edits: Record<number, string>, n = 14) {
   const k = open();
   const tree = await handlers["files.tree"](k.ctx, {});
   const personal = tree.roots.find((r) => r.key === "personal")?.folderId;
   assert.ok(personal);
-  const docs = (await handlers["files.folder.create"](k.ctx, { parentId: personal, name: "Letters", reviewChanges: true })).folder.folderId;
-  const letter = (await handlers["files.create"](k.ctx, { folderId: docs, name: "letter.md", content: { text: paragraphs(n) } })).file.fileId;
-  const w = await handlers["files.write"](agentOf(k.ctx), { fileId: letter, content: { text: paragraphs(n, edits) }, baseVersion: 1 });
+  const docs = (
+    await handlers["files.folder.create"](k.ctx, { parentId: personal, name: "Letters", reviewChanges: true })
+  ).folder.folderId;
+  const letter = (
+    await handlers["files.create"](k.ctx, { folderId: docs, name: "letter.md", content: { text: paragraphs(n) } })
+  ).file.fileId;
+  const w = await handlers["files.write"](agentOf(k.ctx), {
+    fileId: letter,
+    content: { text: paragraphs(n, edits) },
+    baseVersion: 1,
+  });
   assert.match(w.changesetId ?? "", /^chg_/);
   return { ctx: k.ctx, letter, cs: w.changesetId as string };
 }
 
 test("changesets.diff with context full returns every paragraph of the base and the staged text, and the same hunks as without it", async () => {
-  const { ctx, cs } = await stage({ 2: "Paragraph 2 of the letter, with new words.", 12: "Paragraph 12 of the letter, now rewritten completely and differently." });
+  const { ctx, cs } = await stage({
+    2: "Paragraph 2 of the letter, with new words.",
+    12: "Paragraph 12 of the letter, now rewritten completely and differently.",
+  });
   const near = await handlers["changesets.diff"](ctx, { changesetId: cs, path: "letter.md" });
   const full = await handlers["changesets.diff"](ctx, { changesetId: cs, path: "letter.md", context: "full" });
   assert.equal(full.kind, "paragraph");
-  assert.deepEqual(full.hunks.map((h) => h.hunkId), near.hunks.map((h) => h.hunkId), "the changes keep their ids");
+  assert.deepEqual(
+    full.hunks.map((h) => h.hunkId),
+    near.hunks.map((h) => h.hunkId),
+    "the changes keep their ids",
+  );
   const lines = full.hunks.flatMap((h) => h.lines);
   const base = lines.filter((l) => l.op !== "add").map((l) => l.text);
   const staged = lines.filter((l) => l.op !== "del").map((l) => l.text);
-  assert.deepEqual(base, Array.from({ length: 14 }, (_, i) => `Paragraph ${i + 1} of the letter, with its own words.`), "every paragraph of the base, once");
+  assert.deepEqual(
+    base,
+    Array.from({ length: 14 }, (_, i) => `Paragraph ${i + 1} of the letter, with its own words.`),
+    "every paragraph of the base, once",
+  );
   assert.equal(staged.length, 14, "every paragraph of the staged text, once");
   assert.equal(staged[1], "Paragraph 2 of the letter, with new words.");
   assert.equal(staged[11], "Paragraph 12 of the letter, now rewritten completely and differently.");
   assert.ok(near.hunks.flatMap((h) => h.lines).length < lines.length, "without full the context is a few paragraphs");
-  assert.ok(lines.some((l) => l.op === "add" && l.marks !== undefined), "the changed pair carries its marks");
+  assert.ok(
+    lines.some((l) => l.op === "add" && l.marks !== undefined),
+    "the changed pair carries its marks",
+  );
   assert.equal(full.hunks[0]?.newStart, 1, "the first hunk starts at the top");
   const last = full.hunks[full.hunks.length - 1];
-  assert.equal(last?.lines[last.lines.length - 1]?.text, "Paragraph 14 of the letter, with its own words.", "the last hunk runs to the end");
+  assert.equal(
+    last?.lines[last.lines.length - 1]?.text,
+    "Paragraph 14 of the letter, with its own words.",
+    "the last hunk runs to the end",
+  );
   assert.deepEqual([full.added, full.removed], [near.added, near.removed], "the counts do not change");
 });
 
 test("changesets.get names the file of a staged change; context only takes hunks or full", async () => {
   const { ctx, letter, cs } = await stage({ 3: "Paragraph 3, changed." });
   const got = await handlers["changesets.get"](ctx, { changesetId: cs });
-  assert.deepEqual(got.files.map((f) => [f.path, f.fileId, f.status]), [["letter.md", letter, "modified"]]);
+  assert.deepEqual(
+    got.files.map((f) => [f.path, f.fileId, f.status]),
+    [["letter.md", letter, "modified"]],
+  );
   const hunks = await handlers["changesets.diff"](ctx, { changesetId: cs, path: "letter.md", context: "hunks" });
   assert.equal(hunks.hunks.length, 1);
-  await expectCode("validation.bad_input", () => handlers["changesets.diff"](ctx, { changesetId: cs, path: "letter.md", context: "everything" }));
+  await expectCode("validation.bad_input", () =>
+    handlers["changesets.diff"](ctx, { changesetId: cs, path: "letter.md", context: "everything" }),
+  );
 });
 
 test("a text file with full context is every line, and a change in the middle keeps the lines on both sides", async () => {
@@ -256,13 +305,37 @@ test("a text file with full context is every line, and a change in the middle ke
   const tree = await handlers["files.tree"](k.ctx, {});
   const personal = tree.roots.find((r) => r.key === "personal")?.folderId;
   assert.ok(personal);
-  const docs = (await handlers["files.folder.create"](k.ctx, { parentId: personal, name: "Notes", reviewChanges: true })).folder.folderId;
+  const docs = (
+    await handlers["files.folder.create"](k.ctx, { parentId: personal, name: "Notes", reviewChanges: true })
+  ).folder.folderId;
   const base = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`);
-  const file = (await handlers["files.create"](k.ctx, { folderId: docs, name: "plan.txt", content: { text: base.join("\n") } })).file.fileId;
+  const file = (
+    await handlers["files.create"](k.ctx, { folderId: docs, name: "plan.txt", content: { text: base.join("\n") } })
+  ).file.fileId;
   const edited = base.map((l, i) => (i === 14 ? "line 15 changed" : l));
-  const w = await handlers["files.write"](agentOf(k.ctx), { fileId: file, content: { text: edited.join("\n") }, baseVersion: 1 });
-  const full = await handlers["changesets.diff"](k.ctx, { changesetId: w.changesetId as string, path: "plan.txt", context: "full" });
+  const w = await handlers["files.write"](agentOf(k.ctx), {
+    fileId: file,
+    content: { text: edited.join("\n") },
+    baseVersion: 1,
+  });
+  const full = await handlers["changesets.diff"](k.ctx, {
+    changesetId: w.changesetId as string,
+    path: "plan.txt",
+    context: "full",
+  });
   assert.equal(full.kind, "text");
-  assert.deepEqual(full.hunks.flatMap((h) => h.lines).filter((l) => l.op !== "add").map((l) => l.text), base);
-  assert.deepEqual(full.hunks.flatMap((h) => h.lines).filter((l) => l.op !== "del").map((l) => l.text), edited);
+  assert.deepEqual(
+    full.hunks
+      .flatMap((h) => h.lines)
+      .filter((l) => l.op !== "add")
+      .map((l) => l.text),
+    base,
+  );
+  assert.deepEqual(
+    full.hunks
+      .flatMap((h) => h.lines)
+      .filter((l) => l.op !== "del")
+      .map((l) => l.text),
+    edited,
+  );
 });

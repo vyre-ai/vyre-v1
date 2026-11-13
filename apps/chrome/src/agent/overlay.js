@@ -45,7 +45,10 @@ export function overlayShow(o) {
     bar.setAttribute("role", "status");
     const dot = doc.createElement("span");
     dot.className = "dot";
-    dot.textContent = String(o.name || "?").trim().charAt(0).toUpperCase();
+    dot.textContent = String(o.name || "?")
+      .trim()
+      .charAt(0)
+      .toUpperCase();
     const text = doc.createElement("span");
     text.className = "t";
     const goal = doc.createElement("span");
@@ -55,9 +58,22 @@ export function overlayShow(o) {
     take.type = "button";
     const handNs = "http://www.w3.org/2000/svg";
     const hand = doc.createElementNS(handNs, "svg");
-    for (const [k, v] of [["width", "13"], ["height", "13"], ["viewBox", "0 0 16 16"], ["fill", "none"], ["stroke", "currentColor"], ["stroke-width", "1.4"], ["stroke-linecap", "round"], ["stroke-linejoin", "round"]]) hand.setAttribute(/** @type {string} */ (k), /** @type {string} */ (v));
+    for (const [k, v] of [
+      ["width", "13"],
+      ["height", "13"],
+      ["viewBox", "0 0 16 16"],
+      ["fill", "none"],
+      ["stroke", "currentColor"],
+      ["stroke-width", "1.4"],
+      ["stroke-linecap", "round"],
+      ["stroke-linejoin", "round"],
+    ])
+      hand.setAttribute(/** @type {string} */ (k), /** @type {string} */ (v));
     const hp = doc.createElementNS(handNs, "path");
-    hp.setAttribute("d", "M5.5 8.5V3.8a1 1 0 012 0V7m0-3.4a1 1 0 012 0V7m0-2.4a1 1 0 012 0V9m0-3.2a1 1 0 012 0v3.4c0 2.6-1.700 4.300-4 4.300-1.800 0-2.800-.8-3.800-2.300L3 9.800a1 1 0 011.500-1.200z");
+    hp.setAttribute(
+      "d",
+      "M5.5 8.5V3.8a1 1 0 012 0V7m0-3.4a1 1 0 012 0V7m0-2.4a1 1 0 012 0V9m0-3.2a1 1 0 012 0v3.4c0 2.6-1.700 4.300-4 4.300-1.800 0-2.800-.8-3.800-2.300L3 9.800a1 1 0 011.500-1.200z",
+    );
     hand.append(hp);
     take.append(hand, " Take over");
     const stop = doc.createElement("button");
@@ -105,16 +121,62 @@ export function overlayShow(o) {
     root.append(style, frame, bar, cursor);
     doc.documentElement.append(host);
 
-    const port = g.chrome && g.chrome.runtime && g.chrome.runtime.connect ? g.chrome.runtime.connect({ name: o.port }) : null;
-    stop.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "stop" }); });
-    open.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "openvyre" }); });
-    give.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "giveback" }); });
-    resume.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "giveback" }); });
-    end.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "endtask" }); });
-    take.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "takeover" }); });
-    const onKey = (/** @type {any} */ e) => { if (e.key === "Escape" && !s.paused && port) port.postMessage({ type: "esc" }); };
+    const port =
+      g.chrome && g.chrome.runtime && g.chrome.runtime.connect ? g.chrome.runtime.connect({ name: o.port }) : null;
+    stop.addEventListener("click", (/** @type {any} */ e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (port) port.postMessage({ type: "stop" });
+    });
+    open.addEventListener("click", (/** @type {any} */ e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (port) port.postMessage({ type: "openvyre" });
+    });
+    give.addEventListener("click", (/** @type {any} */ e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (port) port.postMessage({ type: "giveback" });
+    });
+    resume.addEventListener("click", (/** @type {any} */ e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (port) port.postMessage({ type: "giveback" });
+    });
+    end.addEventListener("click", (/** @type {any} */ e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (port) port.postMessage({ type: "endtask" });
+    });
+    take.addEventListener("click", (/** @type {any} */ e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (port) port.postMessage({ type: "takeover" });
+    });
+    const onKey = (/** @type {any} */ e) => {
+      if (e.key === "Escape" && !s.paused && port) port.postMessage({ type: "esc" });
+    };
     g.addEventListener("keydown", onKey, true);
-    s = { host, frame, bar, text, goal, stop, take, hint, open, give, resume, end, cursor, chip, port, onKey, paused: false, moved: false };
+    s = {
+      host,
+      frame,
+      bar,
+      text,
+      goal,
+      stop,
+      take,
+      hint,
+      open,
+      give,
+      resume,
+      end,
+      cursor,
+      chip,
+      port,
+      onKey,
+      paused: false,
+      moved: false,
+    };
     g[KEY] = s;
   }
   s.paused = Boolean(o.paused);
@@ -123,7 +185,16 @@ export function overlayShow(o) {
   s.frame.className = s.paused ? "frame paused" : "frame";
   if (o.color) s.host.style.setProperty("--grp", String(o.color));
   s.bar.className = s.paused ? "bar paused" : waiting ? "bar waiting" : "bar";
-  s.text.textContent = state === "takeover" ? `You're in control. ${o.name} waits.` : state === "stopped" ? `Stopped. ${o.name} does nothing until you choose.` : s.paused ? `${o.name} is paused` : waiting ? "Waiting for you in Vyre" : `${o.name} is using this tab`;
+  s.text.textContent =
+    state === "takeover"
+      ? `You're in control. ${o.name} waits.`
+      : state === "stopped"
+        ? `Stopped. ${o.name} does nothing until you choose.`
+        : s.paused
+          ? `${o.name} is paused`
+          : waiting
+            ? "Waiting for you in Vyre"
+            : `${o.name} is using this tab`;
   s.frame.style.display = state ? "none" : "";
   const live = !s.paused && !state;
   s.take.style.display = live && !waiting ? "" : "none";
@@ -150,11 +221,22 @@ export function overlayCursor(x, y, click) {
   if (s.moved) s.cursor.classList.add("go");
   s.cursor.style.transform = `translate(${Math.round(x)}px,${Math.round(y)}px)`;
   s.moved = true;
-  if (click && typeof s.cursor.animate === "function" && !(g.matchMedia && g.matchMedia("(prefers-reduced-motion: reduce)").matches)) {
+  if (
+    click &&
+    typeof s.cursor.animate === "function" &&
+    !(g.matchMedia && g.matchMedia("(prefers-reduced-motion: reduce)").matches)
+  ) {
     const ring = g.document.createElement("span");
-    ring.style.cssText = "position:absolute;left:-6px;top:-6px;width:12px;height:12px;border-radius:50%;border:2px solid #4f46e5;pointer-events:none";
+    ring.style.cssText =
+      "position:absolute;left:-6px;top:-6px;width:12px;height:12px;border-radius:50%;border:2px solid #4f46e5;pointer-events:none";
     s.cursor.append(ring);
-    const a = ring.animate([{ transform: "scale(.6)", opacity: 1 }, { transform: "scale(2.6)", opacity: 0 }], { duration: 380, easing: "ease-out" });
+    const a = ring.animate(
+      [
+        { transform: "scale(.6)", opacity: 1 },
+        { transform: "scale(2.6)", opacity: 0 },
+      ],
+      { duration: 380, easing: "ease-out" },
+    );
     a.onfinish = () => ring.remove();
   }
   return true;
@@ -167,7 +249,11 @@ export function overlayHide() {
   const s = g[KEY];
   if (!s) return false;
   g.removeEventListener("keydown", s.onKey, true);
-  try { if (s.port) s.port.disconnect(); } catch { /* already closed */ }
+  try {
+    if (s.port) s.port.disconnect();
+  } catch {
+    /* already closed */
+  }
   s.host.remove();
   delete g[KEY];
   return true;

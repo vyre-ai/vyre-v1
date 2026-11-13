@@ -1,15 +1,36 @@
 // The clock. Once a minute the host runs runDueSchedules for every Automation that is on and has a schedule trigger.
 // A tick starts through automations.fire, which pins the definition version. The same tick id is not started twice.
 // A backlog over the cap starts nothing, pauses that Automation only, and opens one Needs You request.
-import { deliverScheduleNeedsYou, loadOpenScheduleKeys, resolveScheduleRequest } from "../../../host/src/seams/automation-schedule.ts";
+import {
+  deliverScheduleNeedsYou,
+  loadOpenScheduleKeys,
+  resolveScheduleRequest,
+} from "../../../host/src/seams/automation-schedule.ts";
 import type { ScheduleHostCall } from "../../../host/src/seams/automation-schedule.ts";
 import { regrant } from "../grants.ts";
 import { fire } from "../handlers/triggers.ts";
 import { allAutomations, emitAuto, saveVersion, touch } from "../projections.ts";
 import type { AutoCtx, Automation } from "../projections.ts";
 import { applyScheduleChoice, planSchedule, scheduleRequestKey } from "./schedule.ts";
-import type { AutomationSchedule, ChoiceLimits, MissedPolicy, OverlapPolicy, ScheduleChoiceKey, SchedulePlan } from "./schedule.ts";
-import { armState, claimStarted, claimedTickIds, lastClaimedAt, previousTickAt, readState, saveCursor, savePaused, saveRequestOpen } from "./state.ts";
+import type {
+  AutomationSchedule,
+  ChoiceLimits,
+  MissedPolicy,
+  OverlapPolicy,
+  ScheduleChoiceKey,
+  SchedulePlan,
+} from "./schedule.ts";
+import {
+  armState,
+  claimStarted,
+  claimedTickIds,
+  lastClaimedAt,
+  previousTickAt,
+  readState,
+  saveCursor,
+  savePaused,
+  saveRequestOpen,
+} from "./state.ts";
 
 export const SCHEDULE_EVERY_MS = 60_000;
 const PAUSE_REASON = "Schedule backlog is over its cap";
@@ -69,7 +90,12 @@ export function scheduleFrom(automation: Automation): AutomationSchedule | undef
 function writeConfig(automation: Automation, schedule: AutomationSchedule): void {
   const trigger = automation.definition.triggers.find((item) => item.key === "schedule");
   if (!trigger) return;
-  const config: Record<string, unknown> = { ...(trigger.config ?? {}), cron: schedule.cron, timezone: schedule.timezone, missed: schedule.missed };
+  const config: Record<string, unknown> = {
+    ...(trigger.config ?? {}),
+    cron: schedule.cron,
+    timezone: schedule.timezone,
+    missed: schedule.missed,
+  };
   if (schedule.lookbackMs !== undefined) config["lookbackMs"] = schedule.lookbackMs;
   if (schedule.cap !== undefined) config["cap"] = schedule.cap;
   if (schedule.spacingMs !== undefined) config["spacingMs"] = schedule.spacingMs;
@@ -90,12 +116,12 @@ function hostCall(ctx: AutoCtx): ScheduleHostCall {
 async function activeCount(ctx: AutoCtx, automationId: string): Promise<number | "unknown"> {
   if (!ctx.call) return "unknown";
   try {
-    const out = await ctx.call("runs.list", {
+    const out = (await ctx.call("runs.list", {
       scope: "subject",
       subject: { type: "automation", id: automationId },
       statuses: ["queued", "running", "waiting"],
       limit: 50,
-    }) as { runs?: unknown };
+    })) as { runs?: unknown };
     return Array.isArray(out?.runs) ? out.runs.length : 0;
   } catch {
     return "unknown";
@@ -127,7 +153,12 @@ function resumeAutomation(ctx: AutoCtx, automation: Automation): void {
   emitAuto(ctx, "automation.enabled", automation.id, {});
 }
 
-async function fireTick(ctx: AutoCtx, automation: Automation, tick: { tickId: string; fireAt: number }, cron: string | undefined): Promise<string> {
+async function fireTick(
+  ctx: AutoCtx,
+  automation: Automation,
+  tick: { tickId: string; fireAt: number },
+  cron: string | undefined,
+): Promise<string> {
   const payload: Record<string, unknown> = {
     firedAt: ctx.now(),
     scheduledFor: tick.fireAt,
@@ -138,21 +169,35 @@ async function fireTick(ctx: AutoCtx, automation: Automation, tick: { tickId: st
   const previous = previousTickAt(ctx.db, automation.id);
   if (previous !== undefined && previous < tick.fireAt) payload["previousScheduledFor"] = previous;
   if (cron !== undefined) payload["cron"] = cron;
-  const out = await fire(ctx, {
+  const out = (await fire(ctx, {
     automationId: automation.id,
     trigger: "schedule",
     payload,
     depth: 0,
     origin: "schedule",
     idempotencyKey: tick.tickId,
-  }) as { runId?: string; dropped?: string };
-  if (!out.runId) throw new Error(out.dropped ? `The schedule tick was dropped (${out.dropped}).` : "The schedule tick did not start a run.");
-  claimStarted(ctx.db, { tickId: tick.tickId, automationId: automation.id, fireAt: tick.fireAt, runId: out.runId, at: ctx.now() });
+  })) as { runId?: string; dropped?: string };
+  if (!out.runId)
+    throw new Error(
+      out.dropped ? `The schedule tick was dropped (${out.dropped}).` : "The schedule tick did not start a run.",
+    );
+  claimStarted(ctx.db, {
+    tickId: tick.tickId,
+    automationId: automation.id,
+    fireAt: tick.fireAt,
+    runId: out.runId,
+    at: ctx.now(),
+  });
   saveCursor(ctx.db, automation.id, tick.fireAt, ctx.now());
   return out.runId;
 }
 
-async function deliverPause(ctx: AutoCtx, automation: Automation, plan: SchedulePlan, keys: Set<string> | "unknown"): Promise<void> {
+async function deliverPause(
+  ctx: AutoCtx,
+  automation: Automation,
+  plan: SchedulePlan,
+  keys: Set<string> | "unknown",
+): Promise<void> {
   pauseAutomation(ctx, automation);
   savePaused(ctx.db, automation.id, true, "backfill_over_cap", ctx.now());
   const state = readState(ctx.db, automation.id);
@@ -185,16 +230,22 @@ export async function runDueSchedules(ctx: AutoCtx): Promise<DueReport> {
     if (state.paused) savePaused(ctx.db, automation.id, false, undefined, ctx.now());
     const active = await activeCount(ctx, automation.id);
     if (active === "unknown") {
-      report.errors.push({ automationId: automation.id, message: "Runs could not be listed, so this schedule did not start." });
+      report.errors.push({
+        automationId: automation.id,
+        message: "Runs could not be listed, so this schedule did not start.",
+      });
       continue;
     }
     const planned = planSchedule(schedule, {
       now: ctx.now(),
       cursor: state.cursor,
       startedTickIds: claimedTickIds(ctx.db, automation.id),
-      ...(lastClaimedAt(ctx.db, automation.id) === undefined ? {} : { lastStartedAt: lastClaimedAt(ctx.db, automation.id) }),
+      ...(lastClaimedAt(ctx.db, automation.id) === undefined
+        ? {}
+        : { lastStartedAt: lastClaimedAt(ctx.db, automation.id) }),
       activeRunCount: active,
-      openRequestKeys: keys === "unknown" ? new Set(state.requestOpen ? [scheduleRequestKey(automation.id)] : []) : keys,
+      openRequestKeys:
+        keys === "unknown" ? new Set(state.requestOpen ? [scheduleRequestKey(automation.id)] : []) : keys,
       ownerId: automation.ownerId,
       sharedRecipientIds: automation.followers,
     });
@@ -208,7 +259,10 @@ export async function runDueSchedules(ctx: AutoCtx): Promise<DueReport> {
         await deliverPause(ctx, automation, plan, keys);
         report.paused.push(automation.id);
       } catch (error) {
-        report.errors.push({ automationId: automation.id, message: error instanceof Error ? error.message : String(error) });
+        report.errors.push({
+          automationId: automation.id,
+          message: error instanceof Error ? error.message : String(error),
+        });
       }
       continue;
     }
@@ -219,7 +273,10 @@ export async function runDueSchedules(ctx: AutoCtx): Promise<DueReport> {
         report.started.push({ automationId: automation.id, tickId: tick.tickId, runId });
       } catch (error) {
         failed = true;
-        report.errors.push({ automationId: automation.id, message: error instanceof Error ? error.message : String(error) });
+        report.errors.push({
+          automationId: automation.id,
+          message: error instanceof Error ? error.message : String(error),
+        });
         break;
       }
     }
@@ -240,7 +297,10 @@ export interface ChoiceInput {
  * Run first N and run latest N start those ticks and resume. Skip backlog resumes without starts.
  * Change limits stays paused. Keep paused closes the request and stays paused.
  */
-export async function chooseScheduleRecovery(ctx: AutoCtx, input: ChoiceInput): Promise<{ ok: true; started: TickRun[]; paused: boolean } | { ok: false; error: string }> {
+export async function chooseScheduleRecovery(
+  ctx: AutoCtx,
+  input: ChoiceInput,
+): Promise<{ ok: true; started: TickRun[]; paused: boolean } | { ok: false; error: string }> {
   const rows = allAutomations(ctx.db, "id = ?", input.automationId);
   const automation = rows[0];
   if (!automation) return { ok: false, error: "That automation is not available." };
@@ -258,12 +318,18 @@ export async function chooseScheduleRecovery(ctx: AutoCtx, input: ChoiceInput): 
     sharedRecipientIds: automation.followers,
   });
   if (!planned.ok) return { ok: false, error: planned.message };
-  const choice = applyScheduleChoice(schedule, planned.plan.backlog, claimedTickIds(ctx.db, automation.id), input.choice, {
-    now: ctx.now(),
-    cursor: state.cursor,
-    ...(input.n === undefined ? {} : { n: input.n }),
-    ...(input.limits === undefined ? {} : { limits: input.limits }),
-  });
+  const choice = applyScheduleChoice(
+    schedule,
+    planned.plan.backlog,
+    claimedTickIds(ctx.db, automation.id),
+    input.choice,
+    {
+      now: ctx.now(),
+      cursor: state.cursor,
+      ...(input.n === undefined ? {} : { n: input.n }),
+      ...(input.limits === undefined ? {} : { limits: input.limits }),
+    },
+  );
   if (!choice.ok) return { ok: false, error: choice.error };
   if (input.choice === "change_limits") {
     writeConfig(automation, choice.spec);
@@ -298,16 +364,17 @@ async function clearRequest(ctx: AutoCtx, automationId: string): Promise<void> {
   try {
     const keys = await loadOpenScheduleKeys(hostCall(ctx));
     if (!keys.has(scheduleRequestKey(automationId))) return;
-    const listed = await ctx.call("tasks.list", {
+    const listed = (await ctx.call("tasks.list", {
       scope: "all",
       kinds: ["unblock"],
       states: ["todo", "doing", "in_review", "awaiting_approval"],
       limit: 200,
-    }) as { tasks?: { id?: string; source?: { id?: string } }[] };
-    const task = (listed.tasks ?? []).find((row) => row.source?.id === scheduleRequestKey(automationId) && typeof row.id === "string");
+    })) as { tasks?: { id?: string; source?: { id?: string } }[] };
+    const task = (listed.tasks ?? []).find(
+      (row) => row.source?.id === scheduleRequestKey(automationId) && typeof row.id === "string",
+    );
     if (task?.id) await resolveScheduleRequest(hostCall(ctx), task.id);
   } catch {
     /* The schedule is already resumed. A leftover request can be closed by hand. */
   }
 }
-

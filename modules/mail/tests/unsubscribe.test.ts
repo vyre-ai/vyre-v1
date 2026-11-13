@@ -9,7 +9,13 @@ import type { Rig } from "./send.rig.test.ts";
 
 const tokenIn = (s: string): string => /\/u\/([A-Za-z0-9_-]+)/.exec(s)?.[1] ?? "";
 const flow = { origin: "automation:aut_welcome", principal: { kind: "service", id: "svc_automations" } } as const;
-const sentBody = (r: Rig, n = 0) => r.calls("resend.send_email")[n]!.input as { text?: string; html?: string; headers: Record<string, string>; to: string[] };
+const sentBody = (r: Rig, n = 0) =>
+  r.calls("resend.send_email")[n]!.input as {
+    text?: string;
+    html?: string;
+    headers: Record<string, string>;
+    to: string[];
+  };
 const optouts = (r: Rig) => r.calls("contacts.apply_optout");
 function withOptout(r: Rig): void {
   const inner = r.ctx.call;
@@ -17,7 +23,10 @@ function withOptout(r: Rig): void {
     if (cap !== "contacts.apply_optout") return inner(cap, input);
     r.seen.push({ cap, input: input as Record<string, unknown> });
     assert.deepEqual(contractErrors(cap, "in", input), []);
-    if (r.state.failNext !== null) { r.state.failNext = null; throw new Error("the opt-out did not land"); }
+    if (r.state.failNext !== null) {
+      r.state.failNext = null;
+      throw new Error("the opt-out did not land");
+    }
     return { suppressionId: "sup_1" };
   };
 }
@@ -43,7 +52,10 @@ test("a message that asks for it carries the link in the text and the one-click 
 test("html gets the link before the end of the body", async () => {
   const r = rig(flow);
   await send(r.ctx, sendIn({ text: undefined, html: "<html><body><p>Hi</p></body></html>", unsubscribe: true }));
-  assert.match(sentBody(r).html ?? "", /<p>Hi<\/p><p style="[^"]*"><a href="https:\/\/harbor\.vyre\.run\/u\/[^"]+">Unsubscribe<\/a><\/p><\/body>/);
+  assert.match(
+    sentBody(r).html ?? "",
+    /<p>Hi<\/p><p style="[^"]*"><a href="https:\/\/harbor\.vyre\.run\/u\/[^"]+">Unsubscribe<\/a><\/p><\/body>/,
+  );
 });
 
 test("on a phone address the link lives under /p, the only path the relay carries", async () => {
@@ -73,32 +85,57 @@ test("with no public address one email to one person still goes, without a link 
 test("with no public address a mailing to several people is refused in plain words and nothing leaves", async () => {
   setMailLinksHost({});
   const r = rig(flow);
-  await assert.rejects(send(r.ctx, sendIn({ to: [{ address: "pat@acme.test" }, { address: "lee@acme.test" }], unsubscribe: true })), (e: unknown) => {
-    assert.equal(codeOf(e), "validation.precondition_failed");
-    assert.match((e as { error: { message: string } }).error.message, /no public address yet, so its emails could not carry an unsubscribe link/);
-    return true;
-  });
+  await assert.rejects(
+    send(r.ctx, sendIn({ to: [{ address: "pat@acme.test" }, { address: "lee@acme.test" }], unsubscribe: true })),
+    (e: unknown) => {
+      assert.equal(codeOf(e), "validation.precondition_failed");
+      assert.match(
+        (e as { error: { message: string } }).error.message,
+        /no public address yet, so its emails could not carry an unsubscribe link/,
+      );
+      return true;
+    },
+  );
   assert.equal(r.sent().length, 0);
   assert.equal(r.h.rows("SELECT * FROM mail_message").length, 0);
 });
 
 test("several recipients get one message each with their own link, and a retry sends nothing twice", async () => {
   const r = rig(flow);
-  const input = sendIn({ to: [{ address: "pat@acme.test" }, { address: "lee@acme.test" }], cc: [{ address: "sam@acme.test" }], unsubscribe: true });
+  const input = sendIn({
+    to: [{ address: "pat@acme.test" }, { address: "lee@acme.test" }],
+    cc: [{ address: "sam@acme.test" }],
+    unsubscribe: true,
+  });
   const out = await send(r.ctx, input);
   assert.equal(out.status, "sent");
-  assert.deepEqual(r.calls("resend.send_email").map((c) => c.input.to), [["pat@acme.test"], ["lee@acme.test"], ["sam@acme.test"]]);
+  assert.deepEqual(
+    r.calls("resend.send_email").map((c) => c.input.to),
+    [["pat@acme.test"], ["lee@acme.test"], ["sam@acme.test"]],
+  );
   assert.equal(new Set([0, 1, 2].map((n) => tokenIn(sentBody(r, n).text ?? ""))).size, 3);
-  assert.deepEqual(r.h.rows("SELECT address FROM mail_unsub").map((x) => x.address).sort(), ["lee@acme.test", "pat@acme.test", "sam@acme.test"]);
+  assert.deepEqual(
+    r.h
+      .rows("SELECT address FROM mail_unsub")
+      .map((x) => x.address)
+      .sort(),
+    ["lee@acme.test", "pat@acme.test", "sam@acme.test"],
+  );
   await send(r.ctx, input);
   assert.equal(r.calls("resend.send_email").length, 3);
 });
 
 test("a suppressed recipient is left out of a flow's send, and the rest get their link", async () => {
   const r = rig({ ...flow, suppressed: { "gone@acme.test": "unsubscribe" } });
-  const out = await send(r.ctx, sendIn({ to: [{ address: "pat@acme.test" }, { address: "gone@acme.test" }], unsubscribe: true }));
+  const out = await send(
+    r.ctx,
+    sendIn({ to: [{ address: "pat@acme.test" }, { address: "gone@acme.test" }], unsubscribe: true }),
+  );
   assert.deepEqual(out.suppressed, ["gone@acme.test"]);
-  assert.deepEqual(r.calls("resend.send_email").map((c) => c.input.to), [["pat@acme.test"]]);
+  assert.deepEqual(
+    r.calls("resend.send_email").map((c) => c.input.to),
+    [["pat@acme.test"]],
+  );
 });
 
 test("the link opts the address out once; used again it answers the same and writes nothing", async () => {
@@ -109,7 +146,13 @@ test("the link opts the address out once; used again it answers the same and wri
   assert.deepEqual(await unsubscribe(r.ctx, { token }), { ok: true });
   assert.deepEqual(await unsubscribe(r.ctx, { token }), { ok: true });
   assert.equal(optouts(r).length, 1);
-  assert.deepEqual(optouts(r)[0]!.input, { channel: "email", address: "pat@acme.test", keyword: "UNSUBSCRIBE", source: "link", at: r.ctx.now() });
+  assert.deepEqual(optouts(r)[0]!.input, {
+    channel: "email",
+    address: "pat@acme.test",
+    keyword: "UNSUBSCRIBE",
+    source: "link",
+    at: r.ctx.now(),
+  });
 });
 
 test("a failed opt-out leaves the link good, so the retry takes effect", async () => {
@@ -127,5 +170,8 @@ test("a failed opt-out leaves the link good, so the retry takes effect", async (
 test("a token this Space never gave out is refused", async () => {
   const r = rig(flow);
   await send(r.ctx, sendIn({ unsubscribe: true }));
-  await assert.rejects(unsubscribe(r.ctx, { token: "AbCdEfGhIjKlMnOpQrSt" }), (e: unknown) => codeOf(e) === "auth.invalid_code");
+  await assert.rejects(
+    unsubscribe(r.ctx, { token: "AbCdEfGhIjKlMnOpQrSt" }),
+    (e: unknown) => codeOf(e) === "auth.invalid_code",
+  );
 });

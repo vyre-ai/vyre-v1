@@ -14,7 +14,8 @@ const run = (): ReturnType<typeof runJoining> => (started ??= runJoining(LIVE_FO
 test("golden 2: the steps that are wired already pass", async () => {
   const { trail } = await run();
   const ok = okSteps(trail);
-  for (const name of ["owner makes the Sales group", "the Member role is listed"]) assert.ok(ok.includes(name), `${name} is ok\n${trail.report()}`);
+  for (const name of ["owner makes the Sales group", "the Member role is listed"])
+    assert.ok(ok.includes(name), `${name} is ok\n${trail.report()}`);
 });
 
 test("golden 2: person-joining", { todo: todoOf(GAPS) }, async () => {

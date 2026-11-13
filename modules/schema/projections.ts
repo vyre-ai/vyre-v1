@@ -54,7 +54,14 @@ export interface TypeDefT {
 }
 
 /** A minimal JSON schema as the registry carries it for field options. */
-export interface SchemaLite { type?: string; properties?: Record<string, SchemaLite>; required?: string[]; enum?: unknown[]; pattern?: string; items?: SchemaLite }
+export interface SchemaLite {
+  type?: string;
+  properties?: Record<string, SchemaLite>;
+  required?: string[];
+  enum?: unknown[];
+  pattern?: string;
+  items?: SchemaLite;
+}
 
 export interface FieldTypeRow {
   key: string;
@@ -67,9 +74,20 @@ export interface FieldTypeRow {
   storage?: { derived?: string; columns?: { suffix: string; sql: string }[] };
   merge?: string;
 }
-export interface ViewKindRow { key: string; title: string; needs?: { fieldType: string; as: string }[] }
-export interface SeedType extends Omit<TypeDefT, "version" | "label" | "fields"> { label?: Label; fields: FieldDefT[] }
-export interface Registry { fieldTypes: FieldTypeRow[]; viewKinds: ViewKindRow[]; recordTypes: SeedType[] }
+export interface ViewKindRow {
+  key: string;
+  title: string;
+  needs?: { fieldType: string; as: string }[];
+}
+export interface SeedType extends Omit<TypeDefT, "version" | "label" | "fields"> {
+  label?: Label;
+  fields: FieldDefT[];
+}
+export interface Registry {
+  fieldTypes: FieldTypeRow[];
+  viewKinds: ViewKindRow[];
+  recordTypes: SeedType[];
+}
 
 export interface SchemaDeps {
   store: Store;
@@ -97,13 +115,21 @@ export interface SchemaCtx {
   /** The capability API, as the caller. */
   call?: (cap: string, input: unknown) => Promise<unknown>;
   /** The host's access check for the caller (and the person they act for). Absent where a handler runs without a caller. */
-  authorize?(action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string }): { effect: string; reason: string };
+  authorize?(
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
+    resource: { type: string; id: string },
+  ): { effect: string; reason: string };
 }
 
 export type ErrCode = Parameters<typeof fail>[0];
 
 /** Throw the catalogue error for a refused call. */
-export function refuse(ctx: Pick<SchemaCtx, "trace">, code: ErrCode, message: string, details?: Record<string, unknown>): never {
+export function refuse(
+  ctx: Pick<SchemaCtx, "trace">,
+  code: ErrCode,
+  message: string,
+  details?: Record<string, unknown>,
+): never {
   throw fail(code, ctx.trace.traceId, { message, ...(details ? { details } : {}) });
 }
 
@@ -123,22 +149,69 @@ export function ensureTables(tx: Tx): void {
 
 export function rowCount(tx: Tx, type: string): number {
   if (!TYPE_KEY.test(type)) return 0;
-  try { return tx.get<{ n: number }>(`SELECT count(*) AS n FROM rt_${type} WHERE deleted_at IS NULL`)?.n ?? 0; } catch { return 0; }
+  try {
+    return tx.get<{ n: number }>(`SELECT count(*) AS n FROM rt_${type} WHERE deleted_at IS NULL`)?.n ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 // ---- mapping to the Store ----
 
 /** The kernel store's value kind for each field type (kernel/src/store/values.ts). Derived types are never written; they keep a harmless kind. */
 const STORE_KIND: Record<string, string> = {
-  text: "text", longtext: "rich_text", number: "number", money: "money", datetime: "datetime", duration: "number", choice: "choice", multichoice: "multi_choice",
-  status: "stage", checkbox: "boolean", rating: "rating", person: "text", email: "text", phone: "text", url: "url", address: "address", relation: "link",
-  sealed: "sealed", ai: "rich_text", files: "urls", signature: "address", autonumber: "number", created_time: "datetime", modified_time: "datetime",
-  created_by: "text", modified_by: "text", formula: "text", lookup: "text", rollup: "text", button: "text",
+  text: "text",
+  longtext: "rich_text",
+  number: "number",
+  money: "money",
+  datetime: "datetime",
+  duration: "number",
+  choice: "choice",
+  multichoice: "multi_choice",
+  status: "stage",
+  checkbox: "boolean",
+  rating: "rating",
+  person: "text",
+  email: "text",
+  phone: "text",
+  url: "url",
+  address: "address",
+  relation: "link",
+  sealed: "sealed",
+  ai: "rich_text",
+  files: "urls",
+  signature: "address",
+  autonumber: "number",
+  created_time: "datetime",
+  modified_time: "datetime",
+  created_by: "text",
+  modified_by: "text",
+  formula: "text",
+  lookup: "text",
+  rollup: "text",
+  button: "text",
 };
 const FROM_STORE: Record<string, string> = {
-  text: "text", rich_text: "longtext", number: "number", money: "money", boolean: "checkbox", date: "datetime", datetime: "datetime", choice: "choice",
-  multi_choice: "multichoice", rating: "rating", url: "url", link: "relation", actor: "person", file: "files", address: "address", phones: "phone",
-  emails: "email", urls: "url", sealed: "sealed", stage: "status",
+  text: "text",
+  rich_text: "longtext",
+  number: "number",
+  money: "money",
+  boolean: "checkbox",
+  date: "datetime",
+  datetime: "datetime",
+  choice: "choice",
+  multi_choice: "multichoice",
+  rating: "rating",
+  url: "url",
+  link: "relation",
+  actor: "person",
+  file: "files",
+  address: "address",
+  phones: "phone",
+  emails: "email",
+  urls: "url",
+  sealed: "sealed",
+  stage: "status",
 };
 
 export const isDerived = (reg: Registry, type: string): boolean => {
@@ -149,18 +222,28 @@ export const isDerived = (reg: Registry, type: string): boolean => {
 function choiceKeys(o: Record<string, unknown> | undefined, list: "choices" | "stages"): string[] {
   const v = o?.[list];
   if (!Array.isArray(v)) return [];
-  return v.flatMap((x) => (x && typeof x === "object" && typeof (x as { key?: unknown }).key === "string" ? [(x as { key: string }).key] : typeof x === "string" ? [x] : []));
+  return v.flatMap((x) =>
+    x && typeof x === "object" && typeof (x as { key?: unknown }).key === "string"
+      ? [(x as { key: string }).key]
+      : typeof x === "string"
+        ? [x]
+        : [],
+  );
 }
 
 /** The gates of a status field's stages: for each stage that has any, the field keys required to enter it and to leave it. */
-export function stageGatesOf(o: Record<string, unknown> | undefined): Record<string, { enter: string[]; leave: string[] }> | undefined {
+export function stageGatesOf(
+  o: Record<string, unknown> | undefined,
+): Record<string, { enter: string[]; leave: string[] }> | undefined {
   const list = o?.["stages"];
   if (!Array.isArray(o?.["stages"])) return undefined;
   const out: Record<string, { enter: string[]; leave: string[] }> = {};
-  const keys = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x !== "") : []);
+  const keys = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x !== "") : [];
   for (const x of list as { key?: unknown; needToEnter?: unknown; needToLeave?: unknown }[]) {
     if (!x || typeof x !== "object" || typeof x.key !== "string") continue;
-    const enter = keys(x.needToEnter), leave = keys(x.needToLeave);
+    const enter = keys(x.needToEnter),
+      leave = keys(x.needToLeave);
     if (enter.length || leave.length) out[x.key] = { enter, leave };
   }
   return Object.keys(out).length ? out : undefined;
@@ -173,9 +256,13 @@ export function toStoreField(reg: Registry, f: FieldDefT): FieldDef {
   if (f.merge) out["merge"] = f.merge;
   if (f.lockAfter) out["lockAfter"] = f.lockAfter;
   if (f.label) out["sensitivity"] = f.label;
-  if (f.type === "choice" || f.type === "multichoice") { const k = choiceKeys(f.options, "choices"); if (k.length) out.options = k; }
+  if (f.type === "choice" || f.type === "multichoice") {
+    const k = choiceKeys(f.options, "choices");
+    if (k.length) out.options = k;
+  }
   if (f.type === "status") {
-    const k = choiceKeys(f.options, "stages"); if (k.length) out.options = k;
+    const k = choiceKeys(f.options, "stages");
+    if (k.length) out.options = k;
     // fields a stage needs filled to be entered or left, kept on the store field so the records module can refuse a stage change for every caller
     const gates = stageGatesOf(f.options);
     if (gates) out["stageGates"] = gates;
@@ -192,7 +279,23 @@ export function toStoreField(reg: Registry, f: FieldDefT): FieldDef {
 }
 
 /** Keys this module owns on a store field; anything else on the store's own field (write_once, protected, seal ...) is kept when a type is redefined. */
-const MANAGED = ["name", "kind", "label", "ftype", "required", "unique", "merge", "lockAfter", "sensitivity", "options", "to", "many", "inverse", "derived", "stageGates"];
+const MANAGED = [
+  "name",
+  "kind",
+  "label",
+  "ftype",
+  "required",
+  "unique",
+  "merge",
+  "lockAfter",
+  "sensitivity",
+  "options",
+  "to",
+  "many",
+  "inverse",
+  "derived",
+  "stageGates",
+];
 
 export function toStoreType(reg: Registry, d: TypeDefT, prior?: TypeDef): TypeDef {
   const fields = d.fields.map((f) => {
@@ -202,7 +305,9 @@ export function toStoreType(reg: Registry, d: TypeDefT, prior?: TypeDef): TypeDe
     const kept = Object.fromEntries(Object.entries(was).filter(([k]) => !MANAGED.includes(k)));
     return { ...kept, ...mapped } as FieldDef;
   });
-  const extras = prior ? Object.fromEntries(Object.entries(prior).filter(([k]) => !["name", "label", "fields"].includes(k))) : {};
+  const extras = prior
+    ? Object.fromEntries(Object.entries(prior).filter(([k]) => !["name", "label", "fields"].includes(k)))
+    : {};
   return { ...extras, name: d.key, label: d.title, fields } as TypeDef;
 }
 
@@ -226,12 +331,25 @@ export function fromStoreType(td: TypeDef): TypeDefT {
   });
   const title = td.label ?? titleCase(td.name);
   const first = fields.find((f) => f.type === "text") ?? fields[0];
-  return { key: td.name, title, plural: `${title}s`, icon: "table", label: "internal", titleField: first?.key ?? "", fields, version: 0 };
+  return {
+    key: td.name,
+    title,
+    plural: `${title}s`,
+    icon: "table",
+    label: "internal",
+    titleField: first?.key ?? "",
+    fields,
+    version: 0,
+  };
 }
 
 // ---- definitions ----
 
-interface MetaRow { def: string; version: number; system: number }
+interface MetaRow {
+  def: string;
+  version: number;
+  system: number;
+}
 
 /** Every type: the definitions in sc_types, then types only the store knows. Keyed by type, in store order. */
 export async function allDefs(deps: SchemaDeps): Promise<Map<string, TypeDefT>> {
@@ -253,12 +371,18 @@ export function saveDef(deps: SchemaDeps, d: TypeDefT, version: number): void {
   void _v;
   deps.tx.run(
     "INSERT INTO sc_types (type, def, version, system, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(type) DO UPDATE SET def = excluded.def, version = excluded.version, system = excluded.system, updated_at = excluded.updated_at",
-    d.key, JSON.stringify(rest), version, d.system ? 1 : 0, now, now,
+    d.key,
+    JSON.stringify(rest),
+    version,
+    d.system ? 1 : 0,
+    now,
+    now,
   );
 }
 
 export const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
-export const cloneDefs = (m: Map<string, TypeDefT>): Map<string, TypeDefT> => new Map([...m].map(([k, v]) => [k, clone(v)]));
+export const cloneDefs = (m: Map<string, TypeDefT>): Map<string, TypeDefT> =>
+  new Map([...m].map(([k, v]) => [k, clone(v)]));
 
 /** Put the types the manifests declare into the store and sc_types (once per open; idempotent). Types the store already has under that name are adopted. */
 const seeded = new WeakSet<object>();
@@ -290,15 +414,24 @@ export function checkLite(schema: SchemaLite | undefined, value: unknown, path =
     const ok = schema.type === "integer" ? Number.isInteger(value) : schema.type === k;
     if (!ok) return `${path} must be ${schema.type === "object" ? "an object" : `a ${schema.type}`}`;
   }
-  if (schema.enum && !schema.enum.includes(value)) return `${path} must be one of ${schema.enum.map(String).join(", ")}`;
-  if (schema.pattern && typeof value === "string" && !new RegExp(schema.pattern).test(value)) return `${path} is not in the expected form`;
+  if (schema.enum && !schema.enum.includes(value))
+    return `${path} must be one of ${schema.enum.map(String).join(", ")}`;
+  if (schema.pattern && typeof value === "string" && !new RegExp(schema.pattern).test(value))
+    return `${path} is not in the expected form`;
   if (schema.type === "object" && value && typeof value === "object") {
     const o = value as Record<string, unknown>;
     for (const r of schema.required ?? []) if (o[r] === undefined) return `${path}.${r} is required`;
-    for (const [k, s] of Object.entries(schema.properties ?? {})) if (o[k] !== undefined) { const e = checkLite(s, o[k], `${path}.${k}`); if (e) return e; }
+    for (const [k, s] of Object.entries(schema.properties ?? {}))
+      if (o[k] !== undefined) {
+        const e = checkLite(s, o[k], `${path}.${k}`);
+        if (e) return e;
+      }
   }
   if (schema.type === "array" && Array.isArray(value) && schema.items) {
-    for (let i = 0; i < value.length; i++) { const e = checkLite(schema.items, value[i], `${path}[${i}]`); if (e) return e; }
+    for (let i = 0; i < value.length; i++) {
+      const e = checkLite(schema.items, value[i], `${path}[${i}]`);
+      if (e) return e;
+    }
   }
   return null;
 }

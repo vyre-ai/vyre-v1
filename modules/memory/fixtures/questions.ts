@@ -13,8 +13,19 @@ export interface Question {
 
 const n = (id: string): string => `note:not_${id}`;
 const f = (id: string): string => `fact:fct_${id}`;
-const r = (q: string, expect: string[], agentId: string = INTAKE): Question => ({ q, kind: "relevant", agentId, expect });
-const s = (q: string, expect: string[], forbid: string[], agentId: string = INTAKE): Question => ({ q, kind: "stale", agentId, expect, forbid });
+const r = (q: string, expect: string[], agentId: string = INTAKE): Question => ({
+  q,
+  kind: "relevant",
+  agentId,
+  expect,
+});
+const s = (q: string, expect: string[], forbid: string[], agentId: string = INTAKE): Question => ({
+  q,
+  kind: "stale",
+  agentId,
+  expect,
+  forbid,
+});
 const i = (q: string): Question => ({ q, kind: "irrelevant", agentId: INTAKE, expect: [] });
 
 export const QUESTIONS: Question[] = [

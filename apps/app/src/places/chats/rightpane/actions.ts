@@ -15,7 +15,14 @@ export function reasonOf(e: unknown): string {
 }
 
 async function attempt(d: PaneDeps, what: string, fn: () => Promise<void>): Promise<boolean> {
-  try { await fn(); return true; } catch (e) { const why = reasonOf(e); d.note(why ? `Could not ${what}: ${why}` : `Could not ${what}.`); return false; }
+  try {
+    await fn();
+    return true;
+  } catch (e) {
+    const why = reasonOf(e);
+    d.note(why ? `Could not ${what}: ${why}` : `Could not ${what}.`);
+    return false;
+  }
 }
 
 let seq = 0;
@@ -27,13 +34,25 @@ const key = (what: string, id: string): string => `rp-${what}-${id}-${++seq}`;
  * Why the last wake of a computer was refused or failed, kept here because a refusal before the server's own handler (the gateway, the network) never reaches the computer's row: the row says Asleep, and this is
  * the only place that knows it did not start. The computer panel shows it as the failed state with the server's own words in Details. A wake that works, or a new press, clears it.
  */
-export interface Failure { message: string; code?: string }
+export interface Failure {
+  message: string;
+  code?: string;
+}
 const wakeFailed = new Map<string, Failure>();
 const wakeSubs = new Set<() => void>();
 export const wakeFailure = {
   get: (computerId: string): Failure | undefined => wakeFailed.get(computerId),
-  subscribe: (fn: () => void): (() => void) => { wakeSubs.add(fn); return () => { wakeSubs.delete(fn); }; },
-  set(computerId: string, f: Failure | null): void { if (f === null) wakeFailed.delete(computerId); else wakeFailed.set(computerId, f); for (const fn of [...wakeSubs]) fn(); },
+  subscribe: (fn: () => void): (() => void) => {
+    wakeSubs.add(fn);
+    return () => {
+      wakeSubs.delete(fn);
+    };
+  },
+  set(computerId: string, f: Failure | null): void {
+    if (f === null) wakeFailed.delete(computerId);
+    else wakeFailed.set(computerId, f);
+    for (const fn of [...wakeSubs]) fn();
+  },
 };
 
 const fullOf = (e: unknown): string => (e instanceof Error ? e.message.trim() : "");
@@ -43,7 +62,11 @@ const failureOf = (e: unknown, fallback: string): Failure => {
   const code = (e as { code?: unknown } | null)?.code;
   return { message: fullOf(e) || fallback, ...(typeof code === "string" ? { code } : {}) };
 };
-export interface Words { sentence: string; details: string; /** the cause is the server itself: pressing again cannot help, so a member has no button and an admin is sent to Console */ server: boolean }
+export interface Words {
+  sentence: string;
+  details: string;
+  /** the cause is the server itself: pressing again cannot help, so a member has no button and an admin is sent to Console */ server: boolean;
+}
 /**
  * What the panel says for a computer that could not be made or woken, from the server's own message. A first line the server wrote for people ("This server can't start agent computers yet.") shows as it is, worded by
  * role. provider.unavailable (the runtime is down) is the same kind of cause, in plain words. Anything else shows "Vyre couldn't start <name>'s computer." and the server's words go under Details, never as the sentence.
@@ -54,12 +77,27 @@ export function computerWords(f: Failure, admin: boolean, name = "its"): Words {
   const line = first.split("\n")[0]!.trim();
   const details = rest.length ? `${rest.join("\n").trim()}\n${line}`.trim() : body;
   const role = admin ? "Check Console > Computers." : "Ask your admin.";
-  if (SERVER_CANNOT.test(line)) return { sentence: `This server can't start agent computers yet. ${admin ? "Update this server from Console > Computers." : "Ask your admin to update it."}`, details: rest.join("\n").trim() || body, server: true };
-  if (f.code === "provider.unavailable") return { sentence: `This server can't start agent computers right now. ${role}`, details: body, server: true };
-  return { sentence: `Vyre couldn't start ${name === "its" ? "its" : `${name}'s`} computer.`, details: body, server: false };
+  if (SERVER_CANNOT.test(line))
+    return {
+      sentence: `This server can't start agent computers yet. ${admin ? "Update this server from Console > Computers." : "Ask your admin to update it."}`,
+      details: rest.join("\n").trim() || body,
+      server: true,
+    };
+  if (f.code === "provider.unavailable")
+    return { sentence: `This server can't start agent computers right now. ${role}`, details: body, server: true };
+  return {
+    sentence: `Vyre couldn't start ${name === "its" ? "its" : `${name}'s`} computer.`,
+    details: body,
+    server: false,
+  };
 }
 
-export async function wake(d: PaneDeps, computerId: string, name: string, o: { quiet?: boolean } = {}): Promise<boolean> {
+export async function wake(
+  d: PaneDeps,
+  computerId: string,
+  name: string,
+  o: { quiet?: boolean } = {},
+): Promise<boolean> {
   try {
     await d.call("computers.wake", { computerId });
     wakeFailure.set(computerId, null);
@@ -74,7 +112,10 @@ export async function wake(d: PaneDeps, computerId: string, name: string, o: { q
 }
 
 export function signOut(d: PaneDeps, computerId: string, site: string): Promise<boolean> {
-  return attempt(d, `sign out of ${site}`, async () => { await d.call("computers.session.sign_out", { computerId, site }); d.note(`Signed out of ${site}`); });
+  return attempt(d, `sign out of ${site}`, async () => {
+    await d.call("computers.session.sign_out", { computerId, site });
+    d.note(`Signed out of ${site}`);
+  });
 }
 
 /* ---------- memory ---------- */
@@ -83,7 +124,11 @@ export function signOut(d: PaneDeps, computerId: string, site: string): Promise<
 export function accept(d: PaneDeps, f: Fact): Promise<boolean> {
   return attempt(d, "accept that fact", async () => {
     await d.call("memory.fact.accept", { factId: f.factId });
-    d.note("Accepted. It is in what the agent knows.", () => attempt(d, "undo that", async () => { await d.call("memory.fact.reject", { factId: f.factId }); }).then(() => undefined));
+    d.note("Accepted. It is in what the agent knows.", () =>
+      attempt(d, "undo that", async () => {
+        await d.call("memory.fact.reject", { factId: f.factId });
+      }).then(() => undefined),
+    );
   });
 }
 
@@ -91,7 +136,11 @@ export function accept(d: PaneDeps, f: Fact): Promise<boolean> {
 export function reject(d: PaneDeps, f: Fact): Promise<boolean> {
   return attempt(d, "reject that fact", async () => {
     await d.call("memory.fact.reject", { factId: f.factId });
-    d.note("Rejected. It will not be remembered.", () => attempt(d, "undo that", async () => { await d.call("memory.fact.accept", { factId: f.factId }); }).then(() => undefined));
+    d.note("Rejected. It will not be remembered.", () =>
+      attempt(d, "undo that", async () => {
+        await d.call("memory.fact.accept", { factId: f.factId });
+      }).then(() => undefined),
+    );
   });
 }
 
@@ -116,19 +165,42 @@ export function removeFact(d: PaneDeps, f: Fact): Promise<boolean> {
 /* ---------- routines ---------- */
 
 /** What a routine saves as: a schedule keeps its cron, a watcher its trigger. */
-export function routineBody(r: Routine): { cron?: string; kind?: "schedule" | "watch"; watch?: { on: "message"; channelId: string } } {
-  return { ...(r.cron !== undefined ? { cron: r.cron } : {}), ...(r.kind !== undefined ? { kind: r.kind } : {}), ...(r.watch !== undefined ? { watch: r.watch } : {}) };
+export function routineBody(r: Routine): {
+  cron?: string;
+  kind?: "schedule" | "watch";
+  watch?: { on: "message"; channelId: string };
+} {
+  return {
+    ...(r.cron !== undefined ? { cron: r.cron } : {}),
+    ...(r.kind !== undefined ? { kind: r.kind } : {}),
+    ...(r.watch !== undefined ? { watch: r.watch } : {}),
+  };
 }
 
 function routineInput(r: Routine, enabled: boolean): Record<string, unknown> {
-  return { agentId: r.agentId, routineId: r.routineId, title: r.title, ...routineBody(r), prompt: r.prompt, ...(r.channelId ? { channelId: r.channelId } : {}), enabled };
+  return {
+    agentId: r.agentId,
+    routineId: r.routineId,
+    title: r.title,
+    ...routineBody(r),
+    prompt: r.prompt,
+    ...(r.channelId ? { channelId: r.channelId } : {}),
+    enabled,
+  };
 }
 
 /** Turn a routine on or off. Undo flips it back. */
 export function setRoutine(d: PaneDeps, r: Routine, enabled: boolean): Promise<boolean> {
   return attempt(d, enabled ? "resume it" : "pause it", async () => {
     await d.call("agents.routine.save", { ...routineInput(r, enabled), idempotencyKey: key("routine", r.routineId) });
-    d.note(`${enabled ? "Resumed" : "Paused"} ${r.title}`, () => attempt(d, "undo that", async () => { await d.call("agents.routine.save", { ...routineInput(r, !enabled), idempotencyKey: key("routine", r.routineId) }); }).then(() => undefined));
+    d.note(`${enabled ? "Resumed" : "Paused"} ${r.title}`, () =>
+      attempt(d, "undo that", async () => {
+        await d.call("agents.routine.save", {
+          ...routineInput(r, !enabled),
+          idempotencyKey: key("routine", r.routineId),
+        });
+      }).then(() => undefined),
+    );
   });
 }
 
@@ -137,7 +209,14 @@ export function setRoutine(d: PaneDeps, r: Routine, enabled: boolean): Promise<b
  * schedule id a routine row does not carry): P-L9b_09 asks the contract steward for it. Until it exists the call fails and the pane says "Could not run it".
  */
 export function runNow(d: PaneDeps, r: Routine): Promise<boolean> {
-  return attempt(d, "run it", async () => { await d.call("agents.routine.run_now", { agentId: r.agentId, routineId: r.routineId, idempotencyKey: key("routine-run", r.routineId) }); d.note(`Running ${r.title}`); });
+  return attempt(d, "run it", async () => {
+    await d.call("agents.routine.run_now", {
+      agentId: r.agentId,
+      routineId: r.routineId,
+      idempotencyKey: key("routine-run", r.routineId),
+    });
+    d.note(`Running ${r.title}`);
+  });
 }
 
 /**
@@ -147,15 +226,31 @@ export function runNow(d: PaneDeps, r: Routine): Promise<boolean> {
 export function delegateRoutine(d: PaneDeps, r: Routine, ownerId: string, name: string): Promise<boolean> {
   if (ownerId === r.ownerId) return Promise.resolve(false);
   return attempt(d, "hand it over", async () => {
-    await d.call("agents.routine.delegate", { agentId: r.agentId, routineId: r.routineId, to: { kind: "person", id: ownerId } });
-    d.note(`${r.title} now belongs to ${name}`, () => attempt(d, "undo that", async () => { await d.call("agents.routine.delegate", { agentId: r.agentId, routineId: r.routineId, undo: true }); }).then(() => undefined));
+    await d.call("agents.routine.delegate", {
+      agentId: r.agentId,
+      routineId: r.routineId,
+      to: { kind: "person", id: ownerId },
+    });
+    d.note(`${r.title} now belongs to ${name}`, () =>
+      attempt(d, "undo that", async () => {
+        await d.call("agents.routine.delegate", { agentId: r.agentId, routineId: r.routineId, undo: true });
+      }).then(() => undefined),
+    );
   });
 }
 
 /** Duplicate a routine, paused until you turn it on. */
 export function duplicateRoutine(d: PaneDeps, r: Routine): Promise<boolean> {
   return attempt(d, "duplicate it", async () => {
-    await d.call("agents.routine.save", { agentId: r.agentId, title: `${r.title} copy`, ...routineBody(r), prompt: r.prompt, ...(r.channelId ? { channelId: r.channelId } : {}), enabled: false, idempotencyKey: key("routine-copy", r.routineId) });
+    await d.call("agents.routine.save", {
+      agentId: r.agentId,
+      title: `${r.title} copy`,
+      ...routineBody(r),
+      prompt: r.prompt,
+      ...(r.channelId ? { channelId: r.channelId } : {}),
+      enabled: false,
+      idempotencyKey: key("routine-copy", r.routineId),
+    });
     d.note("Duplicated, paused until you turn it on");
   });
 }
@@ -164,33 +259,66 @@ export function duplicateRoutine(d: PaneDeps, r: Routine): Promise<boolean> {
 export function renameRoutine(d: PaneDeps, r: Routine, title: string): Promise<boolean> {
   const next = title.trim();
   if (next === "" || next === r.title) return Promise.resolve(false);
-  return attempt(d, "rename it", async () => { await d.call("agents.routine.save", { ...routineInput(r, r.enabled), title: next, idempotencyKey: key("routine", r.routineId) }); d.note(`Renamed to ${next}`); });
+  return attempt(d, "rename it", async () => {
+    await d.call("agents.routine.save", {
+      ...routineInput(r, r.enabled),
+      title: next,
+      idempotencyKey: key("routine", r.routineId),
+    });
+    d.note(`Renamed to ${next}`);
+  });
 }
 
 /** Delete a routine. Undo saves it again as it was. */
 export function deleteRoutine(d: PaneDeps, r: Routine): Promise<boolean> {
   return attempt(d, "delete it", async () => {
     await d.call("agents.routine.delete", { agentId: r.agentId, routineId: r.routineId });
-    d.note(`Deleted ${r.title}`, () => attempt(d, "undo that", async () => {
-      await d.call("agents.routine.save", { agentId: r.agentId, title: r.title, ...routineBody(r), prompt: r.prompt, ...(r.channelId ? { channelId: r.channelId } : {}), enabled: r.enabled, idempotencyKey: key("routine-undo", r.routineId) });
-    }).then(() => undefined));
+    d.note(`Deleted ${r.title}`, () =>
+      attempt(d, "undo that", async () => {
+        await d.call("agents.routine.save", {
+          agentId: r.agentId,
+          title: r.title,
+          ...routineBody(r),
+          prompt: r.prompt,
+          ...(r.channelId ? { channelId: r.channelId } : {}),
+          enabled: r.enabled,
+          idempotencyKey: key("routine-undo", r.routineId),
+        });
+      }).then(() => undefined),
+    );
   });
 }
 
 /** Take over the agent's computer. Its actions become one "You took over" step. */
 export function takeOver(d: PaneDeps, computerId: string, name: string): Promise<boolean> {
-  return attempt(d, "take over", async () => { await d.call("computers.take_over", { computerId }); d.note(`You're in control. ${name} waits.`); });
+  return attempt(d, "take over", async () => {
+    await d.call("computers.take_over", { computerId });
+    d.note(`You're in control. ${name} waits.`);
+  });
 }
 
 /**
  * Give control back to the agent. When the chat the work was for is known, the person says so there ("I took care of it. Carry on."): the message is theirs, so the agent answers on the person's own
  * account and picks the work up again; nothing is posted if giving back failed.
  */
-export async function giveBack(d: PaneDeps, computerId: string, name: string, back?: { threadId: string; agentId: string }): Promise<boolean> {
-  const ok = await attempt(d, "give control back", async () => { await d.call("computers.give_back", { computerId }); d.note(`Control given back to ${name}`); });
+export async function giveBack(
+  d: PaneDeps,
+  computerId: string,
+  name: string,
+  back?: { threadId: string; agentId: string },
+): Promise<boolean> {
+  const ok = await attempt(d, "give control back", async () => {
+    await d.call("computers.give_back", { computerId });
+    d.note(`Control given back to ${name}`);
+  });
   if (ok && back) {
     await attempt(d, "tell it to carry on", async () => {
-      await d.call("chat.post", { threadId: back.threadId, body: "I took care of it. Carry on.", mentions: [{ kind: "agent", id: back.agentId }], idempotencyKey: key("handback", computerId) });
+      await d.call("chat.post", {
+        threadId: back.threadId,
+        body: "I took care of it. Carry on.",
+        mentions: [{ kind: "agent", id: back.agentId }],
+        idempotencyKey: key("handback", computerId),
+      });
     });
   }
   return ok;
@@ -200,15 +328,26 @@ export async function giveBack(d: PaneDeps, computerId: string, name: string, ba
 export function sleep(d: PaneDeps, computerId: string, name: string): Promise<boolean> {
   return attempt(d, "put it to sleep", async () => {
     await d.call("computers.sleep", { computerId });
-    d.note(`${name}'s computer is asleep`, () => attempt(d, "undo that", async () => { await d.call("computers.wake", { computerId }); }).then(() => undefined));
+    d.note(`${name}'s computer is asleep`, () =>
+      attempt(d, "undo that", async () => {
+        await d.call("computers.wake", { computerId });
+      }).then(() => undefined),
+    );
   });
 }
 
 /** Copy text to the clipboard and say so. Where there is no clipboard it says it could not. */
 export async function copyText(d: PaneDeps, text: string): Promise<boolean> {
-  const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard;
-  if (!clip) { d.note("Could not copy. Select the text and copy it."); return false; }
-  return attempt(d, "copy that", async () => { await clip.writeText(text); d.note("Copied"); });
+  const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator
+    ?.clipboard;
+  if (!clip) {
+    d.note("Could not copy. Select the text and copy it.");
+    return false;
+  }
+  return attempt(d, "copy that", async () => {
+    await clip.writeText(text);
+    d.note("Copied");
+  });
 }
 
 /** Save new instructions for a routine. The old version is kept, so nothing is lost. */
@@ -216,8 +355,19 @@ export function saveInstructions(d: PaneDeps, r: Routine, prompt: string): Promi
   const next = prompt.trim();
   if (next === "" || next === r.prompt) return Promise.resolve(false);
   return attempt(d, "save the instructions", async () => {
-    await d.call("agents.routine.save", { ...routineInput(r, r.enabled), prompt: next, idempotencyKey: key("routine", r.routineId) });
-    d.note("Saved as a new version. The old one is kept.", () => attempt(d, "undo that", async () => { await d.call("agents.routine.save", { ...routineInput(r, r.enabled), idempotencyKey: key("routine", r.routineId) }); }).then(() => undefined));
+    await d.call("agents.routine.save", {
+      ...routineInput(r, r.enabled),
+      prompt: next,
+      idempotencyKey: key("routine", r.routineId),
+    });
+    d.note("Saved as a new version. The old one is kept.", () =>
+      attempt(d, "undo that", async () => {
+        await d.call("agents.routine.save", {
+          ...routineInput(r, r.enabled),
+          idempotencyKey: key("routine", r.routineId),
+        });
+      }).then(() => undefined),
+    );
   });
 }
 
@@ -225,42 +375,71 @@ export function saveInstructions(d: PaneDeps, r: Routine, prompt: string): Promi
 
 export function crewMerge(d: PaneDeps, jobId: string, name: string, branch: string): Promise<boolean> {
   return attempt(d, `merge ${name}'s work`, async () => {
-    const out = (await d.call("engine.crew.merge", { jobId, idempotencyKey: key("merge", jobId) })) as { landed: boolean; note?: string };
-    d.note(out.landed ? `Merged ${branch}` : out.note ?? `${branch} is waiting to be merged`);
+    const out = (await d.call("engine.crew.merge", { jobId, idempotencyKey: key("merge", jobId) })) as {
+      landed: boolean;
+      note?: string;
+    };
+    d.note(out.landed ? `Merged ${branch}` : (out.note ?? `${branch} is waiting to be merged`));
   });
 }
 
 /** Run a lost Job again, on a person's word. It may have done part of the work, so the teammate is told to look first. */
 export function crewRunAgain(d: PaneDeps, jobId: string, name: string): Promise<boolean> {
   return attempt(d, `run ${name} again`, async () => {
-    await d.call("engine.crew.message", { jobId, body: "The server stopped while you were working. Check what is already done before you do anything again, then carry on.", idempotencyKey: key("again", jobId) });
+    await d.call("engine.crew.message", {
+      jobId,
+      body: "The server stopped while you were working. Check what is already done before you do anything again, then carry on.",
+      idempotencyKey: key("again", jobId),
+    });
     d.note(`${name} is running again`);
   });
 }
 
 export function crewStop(d: PaneDeps, jobId: string, name: string): Promise<boolean> {
-  return attempt(d, `stop ${name}`, async () => { await d.call("engine.crew.stop", { jobId, idempotencyKey: key("stop", jobId) }); d.note(`Stopped ${name}`); });
+  return attempt(d, `stop ${name}`, async () => {
+    await d.call("engine.crew.stop", { jobId, idempotencyKey: key("stop", jobId) });
+    d.note(`Stopped ${name}`);
+  });
 }
 
 /* ---------- hooks ---------- */
 
 /** Pause a hook or turn it back on. */
 export function hookPause(d: PaneDeps, id: string, threadId: string, paused: boolean): Promise<boolean> {
-  return attempt(d, paused ? "pause that hook" : "turn that hook back on", async () => { await d.call("hooks.pause", { id, paused, threadId }); d.note(paused ? "Hook paused" : "Hook running again"); });
+  return attempt(d, paused ? "pause that hook" : "turn that hook back on", async () => {
+    await d.call("hooks.pause", { id, paused, threadId });
+    d.note(paused ? "Hook paused" : "Hook running again");
+  });
 }
 /** Remove a hook. Undo makes the same hook again. */
-export function hookRemove(d: PaneDeps, id: string, threadId: string, again: Record<string, unknown>, title = "hook"): Promise<boolean> {
+export function hookRemove(
+  d: PaneDeps,
+  id: string,
+  threadId: string,
+  again: Record<string, unknown>,
+  title = "hook",
+): Promise<boolean> {
   return attempt(d, "remove that hook", async () => {
     await d.call("hooks.remove", { id, threadId });
-    d.note(`Removed: ${title}`, () => attempt(d, "bring it back", async () => { await d.call("hooks.set", again); }).then(() => undefined));
+    d.note(`Removed: ${title}`, () =>
+      attempt(d, "bring it back", async () => {
+        await d.call("hooks.set", again);
+      }).then(() => undefined),
+    );
   });
 }
 /** Save the words of a hook. */
 export function hookSave(d: PaneDeps, input: Record<string, unknown>): Promise<boolean> {
-  return attempt(d, "save that hook", async () => { await d.call("hooks.set", input); d.note("Hook saved"); });
+  return attempt(d, "save that hook", async () => {
+    await d.call("hooks.set", input);
+    d.note("Hook saved");
+  });
 }
 
 /** Take an always-allow rule away: the hook guards that kind of act again. */
 export function hookAllowRemove(d: PaneDeps, ruleId: string, what: string): Promise<boolean> {
-  return attempt(d, "remove that rule", async () => { await d.call("hooks.allow_remove", { id: ruleId }); d.note(`The hook guards ${what} again`); });
+  return attempt(d, "remove that rule", async () => {
+    await d.call("hooks.allow_remove", { id: ruleId });
+    d.note(`The hook guards ${what} again`);
+  });
 }

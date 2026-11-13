@@ -16,19 +16,21 @@ export const REPO = fileURLToPath(new URL("../../..", import.meta.url));
 /** Which module each step needs, and the packet that flips it (docs/lanes: L7 identity/spaces, L2 chat, L3 records, L4 files). */
 export const STEP_NEEDS: Record<string, { modules: string[]; packet: string }> = {
   "sign in": { modules: ["identity", "spaces", "devices"], packet: "P-L7_LIVE" },
-  "home": { modules: ["home", "tasks"], packet: "P-L6_LIVE" },
-  "chats": { modules: ["chat"], packet: "P-L2_LIVE" },
-  "records": { modules: ["records"], packet: "P-L3_LIVE" },
-  "files": { modules: ["files"], packet: "P-L4_LIVE" },
-  "inbox": { modules: ["inbox"], packet: "P-L5_LIVE" },
-  "apps": { modules: ["sites", "forms"], packet: "P-L8_LIVE" },
-  "automations": { modules: ["automations"], packet: "P-L3_LIVE" },
-  "vault": { modules: ["vault"], packet: "P-L7_LIVE" },
-  "settings": { modules: ["settings"], packet: "P-L7_LIVE" },
+  home: { modules: ["home", "tasks"], packet: "P-L6_LIVE" },
+  chats: { modules: ["chat"], packet: "P-L2_LIVE" },
+  records: { modules: ["records"], packet: "P-L3_LIVE" },
+  files: { modules: ["files"], packet: "P-L4_LIVE" },
+  inbox: { modules: ["inbox"], packet: "P-L5_LIVE" },
+  apps: { modules: ["sites", "forms"], packet: "P-L8_LIVE" },
+  automations: { modules: ["automations"], packet: "P-L3_LIVE" },
+  vault: { modules: ["vault"], packet: "P-L7_LIVE" },
+  settings: { modules: ["settings"], packet: "P-L7_LIVE" },
 };
 
 export function liveModules(root = REPO): Set<string> {
-  const list = JSON.parse(fs.readFileSync(path.join(root, "host/modules.json"), "utf8")) as { modules: { id: string; status: string }[] };
+  const list = JSON.parse(fs.readFileSync(path.join(root, "host/modules.json"), "utf8")) as {
+    modules: { id: string; status: string }[];
+  };
   return new Set(list.modules.filter((m) => m.status === "live").map((m) => m.id));
 }
 
@@ -37,26 +39,69 @@ export function todoFor(step: string, live: Set<string>): string | null {
   const need = STEP_NEEDS[step];
   if (!need) throw new Error(`unknown step ${step}`);
   const missing = need.modules.filter((m) => !live.has(m));
-  return missing.length === 0 ? null : `${step}: ${missing.join(", ")} still a stub in host/modules.json (live with ${need.packet})`;
+  return missing.length === 0
+    ? null
+    : `${step}: ${missing.join(", ")} still a stub in host/modules.json (live with ${need.packet})`;
 }
 
-const TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".png": "image/png", ".svg": "image/svg+xml", ".ico": "image/x-icon", ".woff2": "font/woff2", ".ttf": "font/ttf" };
+const TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript",
+  ".css": "text/css",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+};
 
-export interface Edge { origin: string; close(): void }
+export interface Edge {
+  origin: string;
+  close(): void;
+}
 
 /** The app's export on one origin, with the gateway (/v1, /sync, /healthz) and the live socket (/live) passed through to the daemon. */
-export function edge(dist: string, daemonUrl: string | (() => string), tls?: { key: string; cert: string }, port = 0): Promise<Edge> {
+export function edge(
+  dist: string,
+  daemonUrl: string | (() => string),
+  tls?: { key: string; cert: string },
+  port = 0,
+): Promise<Edge> {
   // a function gives the daemon's address when the first request needs it: the edge can listen (and so hold its port) before the daemon it fronts has finished starting
   const targetNow = (): URL => new URL(typeof daemonUrl === "function" ? daemonUrl() : daemonUrl);
   const base = path.resolve(dist);
-  const proxied = (p: string): boolean => p.startsWith("/v1/") || p.startsWith("/sync/") || p === "/healthz" || p.startsWith("/live") || p.startsWith("/local/vault/key/") || p === "/mcp" || p.startsWith("/.well-known/oauth-") || /^\/oauth\/(authorize|register|token|wait)$/.test(p);
+  const proxied = (p: string): boolean =>
+    p.startsWith("/v1/") ||
+    p.startsWith("/sync/") ||
+    p === "/healthz" ||
+    p.startsWith("/live") ||
+    p.startsWith("/local/vault/key/") ||
+    p === "/mcp" ||
+    p.startsWith("/.well-known/oauth-") ||
+    /^\/oauth\/(authorize|register|token|wait)$/.test(p);
   const handle: http.RequestListener = (req, res) => {
     const u = new URL(req.url ?? "/", "http://edge");
     if (proxied(u.pathname)) {
       let target: URL;
-      try { target = targetNow(); } catch { res.writeHead(503); res.end("the daemon is still starting"); return; }
-      const up = http.request({ host: target.hostname, port: target.port, path: req.url, method: req.method, headers: req.headers }, (r) => { res.writeHead(r.statusCode ?? 502, r.headers); r.pipe(res); });
-      up.on("error", () => { res.writeHead(502); res.end("daemon unreachable"); });
+      try {
+        target = targetNow();
+      } catch {
+        res.writeHead(503);
+        res.end("the daemon is still starting");
+        return;
+      }
+      const up = http.request(
+        { host: target.hostname, port: target.port, path: req.url, method: req.method, headers: req.headers },
+        (r) => {
+          res.writeHead(r.statusCode ?? 502, r.headers);
+          r.pipe(res);
+        },
+      );
+      up.on("error", () => {
+        res.writeHead(502);
+        res.end("daemon unreachable");
+      });
       req.pipe(up);
       return;
     }
@@ -70,7 +115,12 @@ export function edge(dist: string, daemonUrl: string | (() => string), tls?: { k
   const server = tls ? https.createServer(tls, handle) : http.createServer(handle);
   server.on("upgrade", (req, socket, head) => {
     let target: URL;
-    try { target = targetNow(); } catch { socket.destroy(); return; }
+    try {
+      target = targetNow();
+    } catch {
+      socket.destroy();
+      return;
+    }
     const up = net.connect(Number(target.port), target.hostname, () => {
       const lines = [`${req.method ?? "GET"} ${req.url ?? "/"} HTTP/1.1`];
       for (let i = 0; i < req.rawHeaders.length; i += 2) lines.push(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}`);
@@ -81,35 +131,76 @@ export function edge(dist: string, daemonUrl: string | (() => string), tls?: { k
     up.on("error", () => socket.destroy());
     socket.on("error", () => up.destroy());
   });
-  return new Promise((resolve, reject) => { server.once("error", reject); server.listen(port, "127.0.0.1", () => resolve({ origin: `${tls ? "https" : "http"}://127.0.0.1:${(server.address() as net.AddressInfo).port}`, close: () => server.close() })); });
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, "127.0.0.1", () =>
+      resolve({
+        origin: `${tls ? "https" : "http"}://127.0.0.1:${(server.address() as net.AddressInfo).port}`,
+        close: () => server.close(),
+      }),
+    );
+  });
 }
 
 const ADMIN_TOKEN = "e2e-owner-bootstrap-token";
 
-export interface Space { url: string; token: string; space: string; dir: string; stop(): Promise<void>; /** The one-time owner claim link the daemon printed (fresh installs only), or null. */ claim: string | null }
+export interface Space {
+  url: string;
+  token: string;
+  space: string;
+  dir: string;
+  stop(): Promise<void>;
+  /** The one-time owner claim link the daemon printed (fresh installs only), or null. */ claim: string | null;
+}
 
-const stopper = (child: ChildProcess): (() => Promise<void>) => () => new Promise<void>((resolve) => { child.once("exit", () => resolve()); child.kill("SIGTERM"); setTimeout(() => child.kill("SIGKILL"), 10_000).unref(); });
+const stopper =
+  (child: ChildProcess): (() => Promise<void>) =>
+  () =>
+    new Promise<void>((resolve) => {
+      child.once("exit", () => resolve());
+      child.kill("SIGTERM");
+      setTimeout(() => child.kill("SIGKILL"), 10_000).unref();
+    });
 
 /** Starts the daemon as a person does and reads the address it prints (and, on a fresh install, the claim link it prints right after). */
-async function startDaemon(dir: string, extra: string[], port=0): Promise<{ child: ChildProcess; url: string; claim: string | null }> {
+async function startDaemon(
+  dir: string,
+  extra: string[],
+  port = 0,
+): Promise<{ child: ChildProcess; url: string; claim: string | null }> {
   // A key is checked with its provider before it is saved, so a walk that adds a fixture key needs a provider that answers: unless the walk brought its own stand-in (VYRE_TEST_VENDOR) or opted out
   // (VYRE_TEST_NO_VENDOR=1, for a walk that wants the real provider's answer), the daemon gets the shared stand-in, which accepts keys and refuses one with "invalid" in it.
   let env: NodeJS.ProcessEnv = { ...process.env, VYRE_ADMIN_TOKEN: ADMIN_TOKEN };
   let standIn: { close(): void } | null = null;
   if (!process.env["VYRE_TEST_VENDOR"] && process.env["VYRE_TEST_NO_VENDOR"] !== "1") {
     const { vendor } = await import("../../../fixtures/model-vendor.ts");
-    const v = await vendor(); standIn = v;
-    env = { ...env, VYRE_TEST_VENDOR: v.base, NODE_OPTIONS: `${process.env["NODE_OPTIONS"] ?? ""} --import ${fileURLToPath(new URL("../../../fixtures/model-vendor-preload.mjs", import.meta.url))}`.trim() };
+    const v = await vendor();
+    standIn = v;
+    env = {
+      ...env,
+      VYRE_TEST_VENDOR: v.base,
+      NODE_OPTIONS:
+        `${process.env["NODE_OPTIONS"] ?? ""} --import ${fileURLToPath(new URL("../../../fixtures/model-vendor-preload.mjs", import.meta.url))}`.trim(),
+    };
   }
-  const child: ChildProcess = spawn(process.execPath, ["host/src/daemon/main.ts", "--role", "space", "--data-dir", dir, "--port", String(port), ...extra], {
-    cwd: REPO, env, stdio: ["ignore", "pipe", "inherit"],
-  });
+  const child: ChildProcess = spawn(
+    process.execPath,
+    ["host/src/daemon/main.ts", "--role", "space", "--data-dir", dir, "--port", String(port), ...extra],
+    {
+      cwd: REPO,
+      env,
+      stdio: ["ignore", "pipe", "inherit"],
+    },
+  );
   child.once("exit", () => standIn?.close());
   const printed = await new Promise<{ url: string; claim: string | null }>((resolve, reject) => {
     let out = "";
     let url: string | null = null;
     let settle: ReturnType<typeof setTimeout> | null = null;
-    const timer = setTimeout(() => { child.kill("SIGKILL"); reject(new Error(`the daemon did not start in 30 s: ${out}`)); }, 30_000);   // a daemon that never came up must not outlive the failed boot
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error(`the daemon did not start in 30 s: ${out}`));
+    }, 30_000); // a daemon that never came up must not outlive the failed boot
     const done = (): void => {
       clearTimeout(timer);
       if (settle) clearTimeout(settle);
@@ -119,11 +210,17 @@ async function startDaemon(dir: string, extra: string[], port=0): Promise<{ chil
       out += d.toString();
       if (!url) {
         const m = /listening on (http\S+)/.exec(out);
-        if (m?.[1]) { url = m[1]; settle = setTimeout(done, 2000); }   // the claim line follows at once on a fresh install; a seeded Space prints none
+        if (m?.[1]) {
+          url = m[1];
+          settle = setTimeout(done, 2000);
+        } // the claim line follows at once on a fresh install; a seeded Space prints none
       }
       if (url && /Claim this Space[^\n]*?: http\S+/.test(out)) done();
     });
-    child.once("exit", (code) => { clearTimeout(timer); reject(new Error(`the daemon exited with ${String(code)}: ${out}`)); });
+    child.once("exit", (code) => {
+      clearTimeout(timer);
+      reject(new Error(`the daemon exited with ${String(code)}: ${out}`));
+    });
   });
   return { child, ...printed };
 }
@@ -140,27 +237,57 @@ export async function bootSpace(): Promise<Space> {
 }
 
 /** A fresh install (ruling 71): an empty data directory. The host makes the Space and prints a one-time claim link; the owner becomes the owner by claiming it, as a person does. */
-export async function bootFreshSpace(kind?:"personal", publishLocal=false, unnamed=false): Promise<Space> {
+export async function bootFreshSpace(kind?: "personal", publishLocal = false, unnamed = false): Promise<Space> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-real-app-fresh-"));
   // A walk that publishes the daemon's own address needs the port before the daemon starts, and the daemon binds it itself, so a port picked and given back can be taken in between. When that happens the daemon exits
   // (or never starts) and the boot is tried again on another port; whatever a failed try started is stopped first.
   for (let attempt = 1; ; attempt++) {
-    const port=publishLocal?await new Promise<number>((resolve,reject)=>{const server=net.createServer();server.once("error",reject);server.listen(0,"127.0.0.1",()=>{const selected=(server.address()as net.AddressInfo).port;server.close(()=>resolve(selected));});}):0;
-    const address=publishLocal?`http://127.0.0.1:${port}`:null;
+    const port = publishLocal
+      ? await new Promise<number>((resolve, reject) => {
+          const server = net.createServer();
+          server.once("error", reject);
+          server.listen(0, "127.0.0.1", () => {
+            const selected = (server.address() as net.AddressInfo).port;
+            server.close(() => resolve(selected));
+          });
+        })
+      : 0;
+    const address = publishLocal ? `http://127.0.0.1:${port}` : null;
     try {
-      const d = await startDaemon(dir, ["--space", "spc_fresh", ...(unnamed?[]:["--space-name", kind==="personal"?"Personal":"Fresh Co"]), ...(kind?["--space-kind",kind]:[]),...(address?["--address",address]:[])],port);
-      if(address&&d.url!==address){ d.child.kill("SIGKILL"); throw new Error("The fixture must publish its actual listening endpoint"); }
+      const d = await startDaemon(
+        dir,
+        [
+          "--space",
+          "spc_fresh",
+          ...(unnamed ? [] : ["--space-name", kind === "personal" ? "Personal" : "Fresh Co"]),
+          ...(kind ? ["--space-kind", kind] : []),
+          ...(address ? ["--address", address] : []),
+        ],
+        port,
+      );
+      if (address && d.url !== address) {
+        d.child.kill("SIGKILL");
+        throw new Error("The fixture must publish its actual listening endpoint");
+      }
       return { url: d.url, token: ADMIN_TOKEN, space: "spc_fresh", dir, stop: stopper(d.child), claim: d.claim };
     } catch (e) {
       if (!publishLocal || attempt >= 4) throw e;
-      fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
+      fs.rmSync(dir, { recursive: true, force: true });
+      fs.mkdirSync(dir, { recursive: true });
     }
   }
 }
 
 /** The claim link as the browser opens it: the daemon prints its own address, the page is served from the edge, so the path and fragment move to the edge's origin. */
-interface Loc { waitFor(o?: { timeout?: number; state?: "detached" | "visible" }): Promise<void>; click(o?: { timeout?: number }): Promise<void>; first(): Loc; or(other: Loc): Loc }
-interface Pg { getByTestId(id: string): Loc }
+interface Loc {
+  waitFor(o?: { timeout?: number; state?: "detached" | "visible" }): Promise<void>;
+  click(o?: { timeout?: number }): Promise<void>;
+  first(): Loc;
+  or(other: Loc): Loc;
+}
+interface Pg {
+  getByTestId(id: string): Loc;
+}
 
 /**
  * Onboarding opens fullscreen the first time a person enters a Space (right after a claim or a join). A live test that is not about onboarding walks past it the way a person does:
@@ -169,7 +296,11 @@ interface Pg { getByTestId(id: string): Loc }
 export async function dismissOnboarding(page: Pg, o: { wait?: number } = {}): Promise<boolean> {
   await page.getByTestId("shell").or(page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30_000 });
   const screen = page.getByTestId("onboarding");
-  try { await screen.waitFor({ timeout: o.wait ?? 8_000 }); } catch { return false; }
+  try {
+    await screen.waitFor({ timeout: o.wait ?? 8_000 });
+  } catch {
+    return false;
+  }
   // the wide layout closes with "Finish later" (onboarding-close); a phone or a narrow window has the X (onboarding-x)
   await page.getByTestId("onboarding-close").or(page.getByTestId("onboarding-x")).first().click({ timeout: 10_000 });
   await screen.waitFor({ state: "detached", timeout: 10_000 });
@@ -182,8 +313,26 @@ export function claimOnEdge(link: string, origin: string): string {
 }
 
 /** What a browser holds once signed in as the owner of this Space (the owner bootstrap token, the same door the CLI and the Console use). */
-export function ownerSession(space: Space, origin: string): { baseUrl: string; token: string; def: Record<string, unknown>; personId: string } {
-  const def = { spaceId: space.space, name: "Space", kind: "team", address: origin, role: "Owner", tint: ["#6E5CF0", "#9B6BE8"], kit: "northwind", skinDefault: "system", starred: true, needsYou: false, console: true, terminal: true, counts: {}, dots: {} };
+export function ownerSession(
+  space: Space,
+  origin: string,
+): { baseUrl: string; token: string; def: Record<string, unknown>; personId: string } {
+  const def = {
+    spaceId: space.space,
+    name: "Space",
+    kind: "team",
+    address: origin,
+    role: "Owner",
+    tint: ["#6E5CF0", "#9B6BE8"],
+    kit: "northwind",
+    skinDefault: "system",
+    starred: true,
+    needsYou: false,
+    console: true,
+    terminal: true,
+    counts: {},
+    dots: {},
+  };
   return { baseUrl: origin, token: space.token, def, personId: "owner" };
 }
 
@@ -191,7 +340,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 test("harness: the owner session a browser carries names the Space, the owner token and the origin it was served from", () => {
-  const s = ownerSession({ url: "http://127.0.0.1:1", token: "tok", space: "spc_core", dir: "/x", stop: async () => undefined, claim: null }, "http://127.0.0.1:2");
+  const s = ownerSession(
+    { url: "http://127.0.0.1:1", token: "tok", space: "spc_core", dir: "/x", stop: async () => undefined, claim: null },
+    "http://127.0.0.1:2",
+  );
   assert.equal(s.baseUrl, "http://127.0.0.1:2");
   assert.equal(s.token, "tok");
   assert.equal(s.def["spaceId"], "spc_core");
@@ -199,5 +351,8 @@ test("harness: the owner session a browser carries names the Space, the owner to
 });
 
 test("harness: the claim link moves to the edge's origin with its path and fragment", () => {
-  assert.equal(claimOnEdge("http://127.0.0.1:7777/claim/clm_abc#fp=aa11&s=spc_fresh", "http://127.0.0.1:9000"), "http://127.0.0.1:9000/claim/clm_abc#fp=aa11&s=spc_fresh");
+  assert.equal(
+    claimOnEdge("http://127.0.0.1:7777/claim/clm_abc#fp=aa11&s=spc_fresh", "http://127.0.0.1:9000"),
+    "http://127.0.0.1:9000/claim/clm_abc#fp=aa11&s=spc_fresh",
+  );
 });

@@ -44,7 +44,13 @@ export interface BridgeHub {
   close(): void;
 }
 
-interface Rec { id: string; token: string; bridge: ChromeBridge; hello: boolean; optedIn: string | null }
+interface Rec {
+  id: string;
+  token: string;
+  bridge: ChromeBridge;
+  hello: boolean;
+  optedIn: string | null;
+}
 
 export async function createBridgeHub(o: BridgeHubOptions): Promise<BridgeHub> {
   const byToken = new Map<string, Rec>();
@@ -62,7 +68,13 @@ export async function createBridgeHub(o: BridgeHubOptions): Promise<BridgeHub> {
         if (op === "hello") {
           rec.hello = true;
           const space = p.spaceId;
-          return { version: "1", spaces: space ? [{ id: space, name: "Space", webUrl: "" }] : [], active: space ?? null, locked: false, signedIn: Boolean(space) && p.vault.hasChannel() };
+          return {
+            version: "1",
+            spaces: space ? [{ id: space, name: "Space", webUrl: "" }] : [],
+            active: space ?? null,
+            locked: false,
+            signedIn: Boolean(space) && p.vault.hasChannel(),
+          };
         }
         if (op === "space.select") return { active: p.spaceId ?? null };
         const e = new Error("The browser of an agent does not do that.") as Error & { code: string };
@@ -73,7 +85,13 @@ export async function createBridgeHub(o: BridgeHubOptions): Promise<BridgeHub> {
         if (capability === "vault.items.match" || capability === "vault.use") return p.vault.invoke(capability, input);
         if (capability === "vault.fill") {
           const target = input["target"] as { kind?: unknown; ref?: unknown } | undefined;
-          if (typeof input["handle"] !== "string" || !target || target.kind !== "browser" || typeof target.ref !== "string") throw Object.assign(new Error("Say which handle field goes to which element."), { code: "bad_request" });
+          if (
+            typeof input["handle"] !== "string" ||
+            !target ||
+            target.kind !== "browser" ||
+            typeof target.ref !== "string"
+          )
+            throw Object.assign(new Error("Say which handle field goes to which element."), { code: "bad_request" });
           const v = await p.vault.value(input["handle"]);
           // the value goes to the extension once, for the one ref it handed out; nothing here keeps it
           const sent = rec.bridge.push({ type: "fill", ref: target.ref, value: v.value });
@@ -91,10 +109,16 @@ export async function createBridgeHub(o: BridgeHubOptions): Promise<BridgeHub> {
   const server: Server = createServer((req, res) => {
     const auth = req.headers["authorization"];
     const rec = typeof auth === "string" && auth.startsWith("Bearer ") ? byToken.get(auth.slice(7)) : undefined;
-    if (!rec) { res.writeHead(401, { "content-type": "application/json" }).end('{"error":{"code":"unauthorized"}}'); return; }
+    if (!rec) {
+      res.writeHead(401, { "content-type": "application/json" }).end('{"error":{"code":"unauthorized"}}');
+      return;
+    }
     if (!rec.bridge.handle(req as never, res as never)) res.writeHead(404).end();
   });
-  await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(o.port, "127.0.0.1", () => resolve()); });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(o.port, "127.0.0.1", () => resolve());
+  });
   const port = (server.address() as { port: number }).port;
   o.log(`bridge on 127.0.0.1:${port}`);
 
@@ -103,7 +127,10 @@ export async function createBridgeHub(o: BridgeHubOptions): Promise<BridgeHub> {
       const rec = recOf(profileId);
       const dir = join(o.root, "profiles", profileId, "bridge");
       mkdirSync(dir, { recursive: true, mode: 0o700 });
-      writeFileSync(join(dir, "vyred.json"), JSON.stringify({ url: `http://127.0.0.1:${port}`, pid: process.pid, roles: ["space"] }));
+      writeFileSync(
+        join(dir, "vyred.json"),
+        JSON.stringify({ url: `http://127.0.0.1:${port}`, pid: process.pid, roles: ["space"] }),
+      );
       writeFileSync(join(dir, "admin.token"), rec.token, { mode: 0o600 });
       chmodSync(join(dir, "admin.token"), 0o600);
       return { env: { VYRE_DATA_DIR: dir } };
@@ -117,9 +144,14 @@ export async function createBridgeHub(o: BridgeHubOptions): Promise<BridgeHub> {
     },
     state(profileId) {
       const rec = byProfile.get(profileId);
-      return rec ? { connected: rec.bridge.connected, hello: rec.hello, optin: rec.optedIn !== null } : { connected: 0, hello: false, optin: false };
+      return rec
+        ? { connected: rec.bridge.connected, hello: rec.hello, optin: rec.optedIn !== null }
+        : { connected: 0, hello: false, optin: false };
     },
     address: () => `http://127.0.0.1:${port}`,
-    close() { server.close(); for (const r of byProfile.values()) r.bridge.closeStreams(); },
+    close() {
+      server.close();
+      for (const r of byProfile.values()) r.bridge.closeStreams();
+    },
   };
 }

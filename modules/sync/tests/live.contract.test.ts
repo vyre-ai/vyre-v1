@@ -2,7 +2,13 @@
 // The client cannot import sync/src/protocol.ts and the hub cannot import the client, so each has its own copy of the frame shapes and the timing constants. This file holds the two together.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { memoryLink, HEARTBEAT_DEAD_MS as CLIENT_DEAD, HEARTBEAT_MS as CLIENT_HB, readEvent, readHelloOk } from "../../../client/src/connection/index.ts";
+import {
+  memoryLink,
+  HEARTBEAT_DEAD_MS as CLIENT_DEAD,
+  HEARTBEAT_MS as CLIENT_HB,
+  readEvent,
+  readHelloOk,
+} from "../../../client/src/connection/index.ts";
 import { HEARTBEAT_DEAD_MS, HEARTBEAT_MS, parseFrame } from "../../../sync/src/protocol.ts";
 import type { Frame } from "../../../sync/src/protocol.ts";
 import { ADA, liveRig, settle } from "./live.rig.test.ts";
@@ -19,7 +25,18 @@ test("frames the hub sends are frames the protocol validator and the client read
   const got: unknown[] = [];
   link.client.onFrame((f) => got.push(f));
   rig.hub.accept(link.server, { person: ADA, device: "dev1", deviceClass: "desktop" });
-  link.client.send({ t: "hello", hello: { deviceId: "dev1", deviceClass: "desktop", appVersion: "1.0.0", registryHash: "h1", cursor: 0, epoch: 0, replica: { entities: {} } } });
+  link.client.send({
+    t: "hello",
+    hello: {
+      deviceId: "dev1",
+      deviceClass: "desktop",
+      appVersion: "1.0.0",
+      registryHash: "h1",
+      cursor: 0,
+      epoch: 0,
+      replica: { entities: {} },
+    },
+  });
   await settle();
   const ok = got.find((f) => (f as { t: string }).t === "hello_ok")!;
   const ev = got.find((f) => (f as { t: string }).t === "ev")!;

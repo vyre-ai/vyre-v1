@@ -8,8 +8,29 @@
 // capabilities. It is sealed with the Space seal in dropbox_account, which no capability returns: only this module opens it, for one call, and who may use it is accountOf (the owner, or the host's own services).
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
-  accountOf, accountsFor, actorOf, APP_HANDLE, AUTHORIZE, bad, codeOf, config, CONFIG_ID, ensure, first, intOrUndef, needConfig, needHost, obj, parseBody, rowsOf, SCOPES, sendJson,
-  str, strOrUndef, text, tokenFor,
+  accountOf,
+  accountsFor,
+  actorOf,
+  APP_HANDLE,
+  AUTHORIZE,
+  bad,
+  codeOf,
+  config,
+  CONFIG_ID,
+  ensure,
+  first,
+  intOrUndef,
+  needConfig,
+  needHost,
+  obj,
+  parseBody,
+  rowsOf,
+  SCOPES,
+  sendJson,
+  str,
+  strOrUndef,
+  text,
+  tokenFor,
 } from "../projections.ts";
 import type { Account, DropboxCtx } from "../projections.ts";
 
@@ -24,9 +45,16 @@ async function pkce(): Promise<{ verifier: string; challenge: string }> {
 }
 
 /** The refresh token as it is kept: sealed with the Space seal, in this module's table only. */
-const sealed = (ctx: DropboxCtx, token: string): string => JSON.stringify(ctx.seal.seal(new TextEncoder().encode(token), "dropbox.refresh"));
+const sealed = (ctx: DropboxCtx, token: string): string =>
+  JSON.stringify(ctx.seal.seal(new TextEncoder().encode(token), "dropbox.refresh"));
 
-const accountRow = (a: Account) => ({ connectionId: a.connectionId, ownerKind: a.ownerKind, accountId: a.accountId, ...(a.email ? { email: a.email } : {}), ...(a.name ? { name: a.name } : {}) });
+const accountRow = (a: Account) => ({
+  connectionId: a.connectionId,
+  ownerKind: a.ownerKind,
+  accountId: a.accountId,
+  ...(a.email ? { email: a.email } : {}),
+  ...(a.name ? { name: a.name } : {}),
+});
 
 // ---- the app
 
@@ -36,9 +64,15 @@ export async function appStatus(ctx: DropboxCtx) {
   const host = needHost(ctx);
   const base = (await host.publicUrl(ctx).catch(() => undefined))?.replace(/\/+$/, "");
   // change notices can be verified when the app has a secret; the address to give Dropbox for them is this Space's /hooks/dropbox
-  const webhooks = await host.app(ctx, str(cfg, "vaultItem")).then((a) => a.hasSecret, () => false);
+  const webhooks = await host.app(ctx, str(cfg, "vaultItem")).then(
+    (a) => a.hasSecret,
+    () => false,
+  );
   return {
-    configured: true, appKey: str(cfg, "appKey"), vaultItem: str(cfg, "vaultItem"), webhooks,
+    configured: true,
+    appKey: str(cfg, "appKey"),
+    vaultItem: str(cfg, "vaultItem"),
+    webhooks,
     ...(base ? { redirectUri: `${base}/oauth/callback`, webhookUri: `${base}/hooks/dropbox` } : {}),
   };
 }
@@ -49,8 +83,22 @@ export async function appSet(ctx: DropboxCtx, input: unknown) {
   if (!APP_HANDLE.test(handle)) bad(ctx, "The Vault item is not a valid handle, such as #Dropbox_App.");
   const app = await needHost(ctx).app(ctx, handle);
   const now = ctx.now();
-  if (config(ctx)) ctx.db.run(`UPDATE dropbox_config SET "vaultItem" = ?, "appKey" = ?, "updated_at" = ? WHERE "id" = ?`, handle, app.appKey, now, CONFIG_ID);
-  else ctx.db.run(`INSERT INTO dropbox_config ("id", "vaultItem", "appKey", "updated_at") VALUES (?, ?, ?, ?)`, CONFIG_ID, handle, app.appKey, now);
+  if (config(ctx))
+    ctx.db.run(
+      `UPDATE dropbox_config SET "vaultItem" = ?, "appKey" = ?, "updated_at" = ? WHERE "id" = ?`,
+      handle,
+      app.appKey,
+      now,
+      CONFIG_ID,
+    );
+  else
+    ctx.db.run(
+      `INSERT INTO dropbox_config ("id", "vaultItem", "appKey", "updated_at") VALUES (?, ?, ?, ?)`,
+      CONFIG_ID,
+      handle,
+      app.appKey,
+      now,
+    );
   return { configured: true, appKey: app.appKey, webhooks: app.hasSecret };
 }
 
@@ -59,8 +107,13 @@ export async function appSet(ctx: DropboxCtx, input: unknown) {
 export async function connectStart(ctx: DropboxCtx, input: unknown) {
   ensure(ctx);
   const ownerKind = obj(input)["ownerKind"] === "space" ? "space" : "person";
-  if (ownerKind === "space" && ctx.authorize({ perm: "connectors.manage", level: "manage" }, { type: "space", id: ctx.space }).effect !== "allow") {
-    throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only an admin can connect a Dropbox for the whole Space." });
+  if (
+    ownerKind === "space" &&
+    ctx.authorize({ perm: "connectors.manage", level: "manage" }, { type: "space", id: ctx.space }).effect !== "allow"
+  ) {
+    throw fail("permission.no_grant", ctx.trace.traceId, {
+      message: "Only an admin can connect a Dropbox for the whole Space.",
+    });
   }
   const { appKey } = needConfig(ctx);
   const base = (await needHost(ctx).publicUrl(ctx)).replace(/\/+$/, "");
@@ -70,7 +123,15 @@ export async function connectStart(ctx: DropboxCtx, input: unknown) {
   ctx.db.run(`DELETE FROM dropbox_oauth WHERE "startedBy" = ? AND "created_at" < ?`, actorOf(ctx), now - OAUTH_TTL_MS);
   const state = `dbs_${hex(24)}`;
   const { verifier, challenge } = await pkce();
-  ctx.db.run(`INSERT INTO dropbox_oauth ("state", "ownerKind", "startedBy", "verifier", "redirectUri", "created_at") VALUES (?, ?, ?, ?, ?, ?)`, state, ownerKind, actorOf(ctx), verifier, redirectUri, now);
+  ctx.db.run(
+    `INSERT INTO dropbox_oauth ("state", "ownerKind", "startedBy", "verifier", "redirectUri", "created_at") VALUES (?, ?, ?, ?, ?, ?)`,
+    state,
+    ownerKind,
+    actorOf(ctx),
+    verifier,
+    redirectUri,
+    now,
+  );
   const u = new URL(AUTHORIZE);
   u.searchParams.set("client_id", appKey);
   u.searchParams.set("response_type", "code");
@@ -88,46 +149,90 @@ export async function connectComplete(ctx: DropboxCtx, input: unknown) {
   const i = obj(input);
   const state = text(i["state"]);
   const row = first(ctx.db.all(`SELECT * FROM dropbox_oauth WHERE "state" = ?`, state));
-  if (!row) throw fail("auth.invalid_code", ctx.trace.traceId, { message: "This sign-in link is wrong or was already used." });
+  if (!row)
+    throw fail("auth.invalid_code", ctx.trace.traceId, { message: "This sign-in link is wrong or was already used." });
   // whose sign-in this is decided before the state is used up: someone else holding the link can neither finish it nor spend it
-  if (str(row, "startedBy") !== actorOf(ctx)) throw fail("permission.no_grant", ctx.trace.traceId, { message: "This sign-in was started by someone else. Only they can finish it." });
-  ctx.db.run(`DELETE FROM dropbox_oauth WHERE "state" = ?`, state);   // one use, whatever happens next
-  if (ctx.now() - Number(row["created_at"]) > OAUTH_TTL_MS) throw fail("auth.invalid_code", ctx.trace.traceId, { message: "This sign-in link has expired: start again." });
+  if (str(row, "startedBy") !== actorOf(ctx))
+    throw fail("permission.no_grant", ctx.trace.traceId, {
+      message: "This sign-in was started by someone else. Only they can finish it.",
+    });
+  ctx.db.run(`DELETE FROM dropbox_oauth WHERE "state" = ?`, state); // one use, whatever happens next
+  if (ctx.now() - Number(row["created_at"]) > OAUTH_TTL_MS)
+    throw fail("auth.invalid_code", ctx.trace.traceId, { message: "This sign-in link has expired: start again." });
   if (strOrUndef(i["error"]) !== undefined) {
     throw fail("validation.precondition_failed", ctx.trace.traceId, {
-      message: i["error"] === "access_denied" ? "Dropbox was not given access: the sign-in was declined." : "Dropbox ended the sign-in without giving access.", details: { reason: "declined" },
+      message:
+        i["error"] === "access_denied"
+          ? "Dropbox was not given access: the sign-in was declined."
+          : "Dropbox ended the sign-in without giving access.",
+      details: { reason: "declined" },
     });
   }
   const code = text(i["code"]);
   if (code === "") bad(ctx, "Dropbox did not send a sign-in code.");
 
   const { vaultItem } = needConfig(ctx);
-  const tokens = await needHost(ctx).exchange(ctx, { appHandle: vaultItem, code, verifier: str(row, "verifier"), redirectUri: str(row, "redirectUri") });
+  const tokens = await needHost(ctx).exchange(ctx, {
+    appHandle: vaultItem,
+    code,
+    verifier: str(row, "verifier"),
+    redirectUri: str(row, "redirectUri"),
+  });
   // who the account is: its id, address and name
   const me = await sendJson(ctx, tokens.accessToken, { path: "/users/get_current_account" });
-  if (me.status >= 300) throw fail("provider.auth_failed", ctx.trace.traceId, { message: "Dropbox did not accept the new sign-in.", details: { status: me.status } });
+  if (me.status >= 300)
+    throw fail("provider.auth_failed", ctx.trace.traceId, {
+      message: "Dropbox did not accept the new sign-in.",
+      details: { status: me.status },
+    });
   const who = parseBody(me.raw);
   const accountId = text(who["account_id"]) || tokens.accountId || "";
-  if (accountId === "") throw fail("provider.bad_response", ctx.trace.traceId, { message: "Dropbox did not say whose account this is." });
+  if (accountId === "")
+    throw fail("provider.bad_response", ctx.trace.traceId, { message: "Dropbox did not say whose account this is." });
   const email = strOrUndef(who["email"]);
   const name = strOrUndef(obj(who["name"])["display_name"]);
 
   const ownerKind = str(row, "ownerKind") === "space" ? "space" : "person";
   const ownerId = ownerKind === "space" ? "space" : actorOf(ctx);
-  const known = first(ctx.db.all(`SELECT * FROM dropbox_account WHERE "ownerKind" = ? AND "ownerId" = ? AND "accountId" = ?`, ownerKind, ownerId, accountId));
+  const known = first(
+    ctx.db.all(
+      `SELECT * FROM dropbox_account WHERE "ownerKind" = ? AND "ownerId" = ? AND "accountId" = ?`,
+      ownerKind,
+      ownerId,
+      accountId,
+    ),
+  );
   let connectionId: string;
   if (known) {
     // signing in again to the same Dropbox account keeps the connection (and every mount on it) and replaces the token
     connectionId = str(known, "connectionId");
-    ctx.db.run(`UPDATE dropbox_account SET "email" = ?, "name" = ?, "refreshSealed" = ? WHERE "connectionId" = ?`, email ?? null, name ?? null, sealed(ctx, tokens.refreshToken), connectionId);
+    ctx.db.run(
+      `UPDATE dropbox_account SET "email" = ?, "name" = ?, "refreshSealed" = ? WHERE "connectionId" = ?`,
+      email ?? null,
+      name ?? null,
+      sealed(ctx, tokens.refreshToken),
+      connectionId,
+    );
   } else {
     connectionId = `con_${hex(12)}`;
     ctx.db.run(
       `INSERT INTO dropbox_account ("connectionId", "ownerKind", "ownerId", "accountId", "email", "name", "refreshSealed", "created_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      connectionId, ownerKind, ownerId, accountId, email ?? null, name ?? null, sealed(ctx, tokens.refreshToken), ctx.now(),
+      connectionId,
+      ownerKind,
+      ownerId,
+      accountId,
+      email ?? null,
+      name ?? null,
+      sealed(ctx, tokens.refreshToken),
+      ctx.now(),
     );
   }
-  ctx.emit("dropbox.connected", `entity/${connectionId}`, { connectionId, accountId, ownerKind, ...(email ? { email } : {}) });
+  ctx.emit("dropbox.connected", `entity/${connectionId}`, {
+    connectionId,
+    accountId,
+    ownerKind,
+    ...(email ? { email } : {}),
+  });
   return { connectionId, accountId, ...(email ? { email } : {}), ...(name ? { name } : {}) };
 }
 
@@ -139,11 +244,18 @@ export function accountList(ctx: DropboxCtx) {
 
 export async function accountRemove(ctx: DropboxCtx, input: unknown) {
   const a = accountOf(ctx, text(obj(input)["connectionId"]));
-  if (a.ownerKind === "space" && ctx.authorize({ perm: "connectors.manage", level: "manage" }, { type: "space", id: ctx.space }).effect !== "allow") {
+  if (
+    a.ownerKind === "space" &&
+    ctx.authorize({ perm: "connectors.manage", level: "manage" }, { type: "space", id: ctx.space }).effect !== "allow"
+  ) {
     throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only an admin can remove the Space's Dropbox." });
   }
   // Dropbox is told first (best effort: a token it already lost is not a reason to keep the connection), then the rows (and with them the sealed token) go
-  try { await sendJson(ctx, await tokenFor(ctx, a), { path: "/auth/token/revoke" }); } catch (e) { ctx.log.warn("dropbox token was not revoked", { code: codeOf(e) }); }
+  try {
+    await sendJson(ctx, await tokenFor(ctx, a), { path: "/auth/token/revoke" });
+  } catch (e) {
+    ctx.log.warn("dropbox token was not revoked", { code: codeOf(e) });
+  }
   ctx.db.run(`DELETE FROM dropbox_account WHERE "connectionId" = ?`, a.connectionId);
   ctx.db.run(`DELETE FROM dropbox_node WHERE "connectionId" = ?`, a.connectionId);
   return { removed: true };
@@ -159,10 +271,17 @@ export async function health(ctx: DropboxCtx) {
   try {
     const acct = accountOf(ctx, str(a, "connectionId"));
     const res = await sendJson(ctx, await tokenFor(ctx, acct), { path: "/users/get_current_account" });
-    if (res.status === 401 || res.status === 403) return { state: "down" as const, detail: "Dropbox no longer accepts the connection. Connect it again." };
+    if (res.status === 401 || res.status === 403)
+      return { state: "down" as const, detail: "Dropbox no longer accepts the connection. Connect it again." };
     if (res.status >= 300) return { state: "degraded" as const, detail: `Dropbox answered ${res.status}.` };
   } catch (e) {
-    return { state: "down" as const, detail: codeOf(e) === "provider.auth_failed" ? "Dropbox no longer accepts the connection. Connect it again." : "Dropbox could not be reached." };
+    return {
+      state: "down" as const,
+      detail:
+        codeOf(e) === "provider.auth_failed"
+          ? "Dropbox no longer accepts the connection. Connect it again."
+          : "Dropbox could not be reached.",
+    };
   }
   const ms = ctx.now() - started;
   return { state: ms > 2000 ? ("degraded" as const) : ("healthy" as const), latencyMs: intOrUndef(ms) ?? 0 };

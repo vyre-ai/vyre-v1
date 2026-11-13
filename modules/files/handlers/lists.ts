@@ -8,17 +8,50 @@
 // @reads ../migrations/0001_files_tree.sql
 
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import { KINDS, ensureReady, fail, fileOutC, folderOut, isNull, many, num, one, optStr, pageArgs, rec, slicePage } from "./tree.ts";
+import {
+  KINDS,
+  ensureReady,
+  fail,
+  fileOutC,
+  folderOut,
+  isNull,
+  many,
+  num,
+  one,
+  optStr,
+  pageArgs,
+  rec,
+  slicePage,
+} from "./tree.ts";
 import type { FileOut, FolderOut } from "./tree.ts";
 
 type Row = Record<string, unknown>;
 
-interface ListRow { type: string; id: string; title: string; via: string; level: string }
-interface ListPage { rows: ListRow[]; total?: number; next?: string }
-interface ShareList { shares: { grant: { createdAt?: number }; through: string }[] }
+interface ListRow {
+  type: string;
+  id: string;
+  title: string;
+  via: string;
+  level: string;
+}
+interface ListPage {
+  rows: ListRow[];
+  total?: number;
+  next?: string;
+}
+interface ShareList {
+  shares: { grant: { createdAt?: number }; through: string }[];
+}
 
-interface ListOut { files: FileOut[]; folders: FolderOut[]; total: number; next?: string }
-interface KnowledgeOut extends ListOut { views: { key: "memory" | "graph"; title: string; count: number }[] }
+interface ListOut {
+  files: FileOut[];
+  folders: FolderOut[];
+  total: number;
+  next?: string;
+}
+interface KnowledgeOut extends ListOut {
+  views: { key: "memory" | "graph"; title: string; count: number }[];
+}
 
 /** Everything access lists for the caller for one resource type, in one section or in all of them. */
 async function accessRows(ctx: Ctx, type: "file" | "folder", section?: "shared"): Promise<ListRow[]> {
@@ -26,7 +59,12 @@ async function accessRows(ctx: Ctx, type: "file" | "folder", section?: "shared")
   let cursor: string | undefined;
   // a cursor that comes back unchanged ends the walk: a source that repeats one (the access stub's example page does) would otherwise loop for ever
   for (let pages = 0; pages < 1000; pages++) {
-    const page = (await ctx.call("access.lists", { type, ...(section ? { section } : {}), limit: 500, ...(cursor ? { cursor } : {}) })) as ListPage;
+    const page = (await ctx.call("access.lists", {
+      type,
+      ...(section ? { section } : {}),
+      limit: 500,
+      ...(cursor ? { cursor } : {}),
+    })) as ListPage;
     out.push(...page.rows);
     if (!page.next || page.next === cursor) return out;
     cursor = page.next;
@@ -67,7 +105,8 @@ async function sharedAt(ctx: Ctx, type: "file" | "folder", id: string): Promise<
 
 function kindOf(ctx: Ctx, o: Record<string, unknown>): string | undefined {
   const kind = optStr(ctx, o, "kind");
-  if (kind !== undefined && !KINDS.has(kind)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "kind" });
+  if (kind !== undefined && !KINDS.has(kind))
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "kind" });
   return kind;
 }
 
@@ -98,7 +137,8 @@ async function sharedWithMe(ctx: Ctx, input: unknown): Promise<ListOut> {
     }
     return false;
   };
-  const notMine = (row: Row, folderId: unknown): boolean => String(row.owner ?? "") !== me && String(row.owner ?? "") !== ctx.space && !inAgentHome(folderId);
+  const notMine = (row: Row, folderId: unknown): boolean =>
+    String(row.owner ?? "") !== me && String(row.owner ?? "") !== ctx.space && !inAgentHome(folderId);
   const sharedFolders = new Map<string, Row>();
   for (const r of await accessRows(ctx, "folder", "shared")) {
     const row = liveFolder(ctx, r.id);
@@ -121,7 +161,9 @@ async function sharedWithMe(ctx: Ctx, input: unknown): Promise<ListOut> {
     }
   }
   for (const item of items) item.at = await sharedAt(ctx, item.kind, item.id);
-  items.sort((a, b) => b.at - a.at || a.name.toLowerCase().localeCompare(b.name.toLowerCase(), "en") || a.id.localeCompare(b.id));
+  items.sort(
+    (a, b) => b.at - a.at || a.name.toLowerCase().localeCompare(b.name.toLowerCase(), "en") || a.id.localeCompare(b.id),
+  );
 
   const paged = slicePage(items, offset, limit);
   const out: ListOut = {
@@ -146,16 +188,26 @@ async function knowledge(ctx: Ctx, input: unknown): Promise<KnowledgeOut> {
   const items: Item[] = [];
   if (root && isNull(root.deleted_at)) {
     for (const row of many(ctx, "SELECT * FROM files_folder WHERE parent_id = ? AND deleted_at IS NULL", root.id)) {
-      if (readableFolders.has(String(row.id))) items.push({ kind: "folder", id: String(row.id), name: String(row.name), row });
+      if (readableFolders.has(String(row.id)))
+        items.push({ kind: "folder", id: String(row.id), name: String(row.name), row });
     }
     for (const row of many(ctx, "SELECT * FROM files_file WHERE folder_id = ? AND deleted_at IS NULL", root.id)) {
-      if (readableFiles.has(String(row.id))) items.push({ kind: "file", id: String(row.id), name: String(row.name), row });
+      if (readableFiles.has(String(row.id)))
+        items.push({ kind: "file", id: String(row.id), name: String(row.name), row });
     }
   }
-  items.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "folder" ? -1 : 1) || a.name.toLowerCase().localeCompare(b.name.toLowerCase(), "en") || a.id.localeCompare(b.id));
+  items.sort(
+    (a, b) =>
+      (a.kind === b.kind ? 0 : a.kind === "folder" ? -1 : 1) ||
+      a.name.toLowerCase().localeCompare(b.name.toLowerCase(), "en") ||
+      a.id.localeCompare(b.id),
+  );
   const paged = slicePage(items, offset, limit);
 
-  const notes = (await ctx.call("memory.notes.list", { layer: "space", limit: 1 })) as { total?: number; notes?: unknown[] };
+  const notes = (await ctx.call("memory.notes.list", { layer: "space", limit: 1 })) as {
+    total?: number;
+    notes?: unknown[];
+  };
   const graph = (await ctx.call("memory.graph", { scope: "space" })) as { nodes?: unknown[] };
   const out: KnowledgeOut = {
     files: paged.rows.filter((i) => i.kind === "file").map((i) => fileOutC(ctx, i.row)),

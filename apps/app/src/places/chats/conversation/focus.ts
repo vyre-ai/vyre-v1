@@ -8,13 +8,22 @@ import type { Message } from "./model.ts";
 export const BEFORE = 30;
 export const SPAN = 70;
 
-export async function windowAround(data: Pick<ConversationData, "call" | "threadId">, messageId: string): Promise<Message[] | null> {
+export async function windowAround(
+  data: Pick<ConversationData, "call" | "threadId">,
+  messageId: string,
+): Promise<Message[] | null> {
   let seq: number;
   try {
-    seq = ((await data.call("chat.message.get", { threadId: data.threadId, messageId })) as CapMap["chat.message.get"]["out"]).message.threadSeq;
+    seq = (
+      (await data.call("chat.message.get", { threadId: data.threadId, messageId })) as CapMap["chat.message.get"]["out"]
+    ).message.threadSeq;
   } catch {
-    return null;   // deleted, or not in a chat the person can read
+    return null; // deleted, or not in a chat the person can read
   }
-  const page = (await data.call("chat.messages.list", { threadId: data.threadId, after: Math.max(0, seq - BEFORE - 1), limit: SPAN })) as CapMap["chat.messages.list"]["out"];
+  const page = (await data.call("chat.messages.list", {
+    threadId: data.threadId,
+    after: Math.max(0, seq - BEFORE - 1),
+    limit: SPAN,
+  })) as CapMap["chat.messages.list"]["out"];
   return page.messages;
 }

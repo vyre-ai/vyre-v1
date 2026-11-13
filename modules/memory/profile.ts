@@ -23,14 +23,21 @@ const ready = new WeakSet<object>();
 export function ensureProfile(db: Db): void {
   ensure(db);
   if (ready.has(db)) return;
-  try { db.all("SELECT profile FROM memory_facts WHERE id = ?", "probe"); } catch {
-    try { db.run('ALTER TABLE memory_facts ADD COLUMN "profile" TEXT'); } catch { /* already there */ }
+  try {
+    db.all("SELECT profile FROM memory_facts WHERE id = ?", "probe");
+  } catch {
+    try {
+      db.run('ALTER TABLE memory_facts ADD COLUMN "profile" TEXT');
+    } catch {
+      /* already there */
+    }
   }
   ready.add(db);
 }
 
 /** The audience of a chat for the profile: the one audience function memory recall uses (lib/audience.ts), nothing of its own. */
-export const profileAudience = (ctx: Pick<MemCtx, "call">, threadId: string): Promise<Audience> => chatAudience((cap, input) => ctx.call(cap, input), threadId);
+export const profileAudience = (ctx: Pick<MemCtx, "call">, threadId: string): Promise<Audience> =>
+  chatAudience((cap, input) => ctx.call(cap, input), threadId);
 
 /** Is a chat with this audience private to `me` (no other person reads it)? */
 export const privateTo = (a: Audience, me: string): boolean => !othersRead(a, me);
@@ -49,7 +56,11 @@ const ORDER = "CASE kind WHEN 'profile' THEN 0 WHEN 'preference' THEN 1 ELSE 2 E
 export const placeOf = (r: Row): Place => (str(r["profile"]) === "public" ? "public" : "private");
 
 function lineOf(ctx: MemCtx, factId: string): string | null {
-  const r = rowsOf(ctx.db, "SELECT ref FROM memory_fact_links WHERE fact_id = ? AND kind = 'capture' LIMIT 1", factId)[0];
+  const r = rowsOf(
+    ctx.db,
+    "SELECT ref FROM memory_fact_links WHERE fact_id = ? AND kind = 'capture' LIMIT 1",
+    factId,
+  )[0];
   if (!r) return null;
   const [thread, message] = str(r["ref"]).split(":");
   return thread && message ? `vyre://thread/${thread}?m=${message}` : null;
@@ -66,7 +77,8 @@ export function profileFacts(ctx: MemCtx, owner: string, which: "public" | "all"
   const rows = rowsOf(
     ctx.db,
     `SELECT * FROM memory_facts WHERE layer = 'person' AND owner_ref = ? AND status = 'current' AND (valid_to IS NULL OR valid_to > ?) AND COALESCE(kind, '') <> 'lesson'${onlyPublic ? " AND profile = 'public'" : ""} ORDER BY ${ORDER}`,
-    owner, ctx.now(),
+    owner,
+    ctx.now(),
   );
   const out: ProfileFact[] = [];
   for (const r of rows) {
@@ -82,7 +94,13 @@ export function profileFacts(ctx: MemCtx, owner: string, which: "public" | "all"
 
 /** The contract row of a profile fact. */
 export function profileOut(p: ProfileFact) {
-  return { ...factOut(p.fact), ...(p.fact.agentId ? { agentId: p.fact.agentId } : {}), place: p.place, ...(p.suggested ? { suggested: true } : {}), ...(p.lineLink ? { lineLink: p.lineLink } : {}) };
+  return {
+    ...factOut(p.fact),
+    ...(p.fact.agentId ? { agentId: p.fact.agentId } : {}),
+    place: p.place,
+    ...(p.suggested ? { suggested: true } : {}),
+    ...(p.lineLink ? { lineLink: p.lineLink } : {}),
+  };
 }
 
 /**
@@ -91,10 +109,33 @@ export function profileOut(p: ProfileFact) {
  */
 export function setPlace(ctx: MemCtx, f: Fact, to: Place | "suggested"): void {
   ensureProfile(ctx.db);
-  if (to === "public") ctx.db.run("UPDATE memory_facts SET text = ?, sealed = NULL, enc = 0, profile = 'public' WHERE id = ?", f.text, f.id);
-  else if (to === "private") ctx.db.run("UPDATE memory_facts SET text = '', sealed = ?, enc = 2, profile = NULL WHERE id = ?", sealText(ctx, f.ownerRef, f.text), f.id);
+  if (to === "public")
+    ctx.db.run(
+      "UPDATE memory_facts SET text = ?, sealed = NULL, enc = 0, profile = 'public' WHERE id = ?",
+      f.text,
+      f.id,
+    );
+  else if (to === "private")
+    ctx.db.run(
+      "UPDATE memory_facts SET text = '', sealed = ?, enc = 2, profile = NULL WHERE id = ?",
+      sealText(ctx, f.ownerRef, f.text),
+      f.id,
+    );
   else ctx.db.run("UPDATE memory_facts SET profile = 'suggested' WHERE id = ? AND profile IS NULL", f.id);
-  trail(ctx, { action: to === "suggested" ? "flag" : "edit", factId: f.id, layer: f.layer, ownerRef: f.ownerRef, agentId: f.agentId, projectId: f.projectId, reason: to === "public" ? "moved to the public profile" : to === "private" ? "moved to the private profile" : "suggested for the public profile" });
+  trail(ctx, {
+    action: to === "suggested" ? "flag" : "edit",
+    factId: f.id,
+    layer: f.layer,
+    ownerRef: f.ownerRef,
+    agentId: f.agentId,
+    projectId: f.projectId,
+    reason:
+      to === "public"
+        ? "moved to the public profile"
+        : to === "private"
+          ? "moved to the private profile"
+          : "suggested for the public profile",
+  });
 }
 
 /** A corrected fact keeps its place: the new version of a public fact is public too. */

@@ -7,9 +7,18 @@ import { SpaceEntry } from "./SpaceEntry.tsx";
 
 test("the Space entry listens for Escape in the capture phase and goes back when it comes", async () => {
   const restore = installDom();
-  const doc = (globalThis as { document: { addEventListener: (t: string, f: (e: unknown) => void, c?: boolean) => void; removeEventListener: (t: string, f: (e: unknown) => void, c?: boolean) => void } }).document;
+  const doc = (
+    globalThis as {
+      document: {
+        addEventListener: (t: string, f: (e: unknown) => void, c?: boolean) => void;
+        removeEventListener: (t: string, f: (e: unknown) => void, c?: boolean) => void;
+      };
+    }
+  ).document;
   const added: { type: string; fn: (e: unknown) => void; capture: boolean | undefined }[] = [];
-  doc.addEventListener = (type, fn, capture) => { added.push({ type, fn, capture }); };
+  doc.addEventListener = (type, fn, capture) => {
+    added.push({ type, fn, capture });
+  };
   doc.removeEventListener = () => undefined;
   let backs = 0;
   try {
@@ -17,13 +26,27 @@ test("the Space entry listens for Escape in the capture phase and goes back when
     for (const startAt of ["join", "team"] as const) {
       added.length = 0;
       backs = 0;
-      await mount(createRoot, <SpaceEntry startAt={startAt} onTarget={async () => undefined} onBack={() => { backs++; }} />);
+      await mount(
+        createRoot,
+        <SpaceEntry
+          startAt={startAt}
+          onTarget={async () => undefined}
+          onBack={() => {
+            backs++;
+          }}
+        />,
+      );
       await flush();
       const keys = added.filter((a) => a.type === "keydown");
       assert.ok(keys.length > 0, `${startAt}: a key listener is on the document`);
-      assert.ok(keys.every((k) => k.capture === true), `${startAt}: in the capture phase, so a focused field cannot swallow Escape`);
+      assert.ok(
+        keys.every((k) => k.capture === true),
+        `${startAt}: in the capture phase, so a focused field cannot swallow Escape`,
+      );
       keys[keys.length - 1]!.fn({ key: "Escape", preventDefault() {} });
       assert.equal(backs, 1, `${startAt}: Escape goes back to the doors`);
     }
-  } finally { restore(); }
+  } finally {
+    restore();
+  }
 });

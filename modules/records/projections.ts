@@ -14,7 +14,11 @@ export function fieldMetaTable(type: string): string {
 /** History text. A sealed field is masked: the plaintext and the handle stay out of history. */
 export function historyText(kind: string | undefined, field: string, value: unknown): string {
   if (kind === "sealed") return JSON.stringify({ sealed: field, masked: true });
-  try { return JSON.stringify(value ?? null); } catch { return "null"; }
+  try {
+    return JSON.stringify(value ?? null);
+  } catch {
+    return "null";
+  }
 }
 
 const HISTORY = `CREATE TABLE IF NOT EXISTS records_field_history (
@@ -39,11 +43,19 @@ const META = `CREATE TABLE IF NOT EXISTS records_row_meta (
 
 /** Clock tables already created on a connection: the DDL is parsed once, not on every append. Dropped names are forgotten. */
 const made = new WeakMap<object, Set<string>>();
-const forget = (tx: Tx, type?: string): void => { const s = made.get(tx); if (!s) return; if (type === undefined) s.clear(); else s.delete(type); };
+const forget = (tx: Tx, type?: string): void => {
+  const s = made.get(tx);
+  if (!s) return;
+  if (type === undefined) s.clear();
+  else s.delete(type);
+};
 
 function ensureFm(tx: Tx, type: string): void {
   let have = made.get(tx);
-  if (!have) { have = new Set(); made.set(tx, have); }
+  if (!have) {
+    have = new Set();
+    made.set(tx, have);
+  }
   if (have.has(type)) return;
   have.add(type);
   tx.exec(`CREATE TABLE IF NOT EXISTS "${fieldMetaTable(type)}" (
@@ -58,32 +70,44 @@ function ensureFm(tx: Tx, type: string): void {
 
 function dropFm(tx: Tx): void {
   forget(tx);
-  const rows = tx.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'rt\\_%\\_\\_fm' ESCAPE '\\'");
+  const rows = tx.all<{ name: string }>(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'rt\\_%\\_\\_fm' ESCAPE '\\'",
+  );
   for (const row of rows) {
     if (!/^rt_[a-z0-9_]+__fm$/.test(row.name)) continue;
     tx.exec(`DROP TABLE IF EXISTS "${row.name}"`);
   }
 }
 
-interface LooseField { name?: string; kind?: string }
+interface LooseField {
+  name?: string;
+  kind?: string;
+}
 function kinds(tx: Tx, type: string): Map<string, string> {
   const out = new Map<string, string>();
   const row = tx.get<{ def: string }>("SELECT def FROM rs_types WHERE name = ?", type);
   if (!row) return out;
   try {
     const def = JSON.parse(row.def) as { fields?: LooseField[] };
-    for (const f of def.fields ?? []) if (typeof f.name === "string" && typeof f.kind === "string") out.set(f.name, f.kind);
-  } catch { /* a bad def masks nothing; the row write still stands */ }
+    for (const f of def.fields ?? [])
+      if (typeof f.name === "string" && typeof f.kind === "string") out.set(f.name, f.kind);
+  } catch {
+    /* a bad def masks nothing; the row write still stands */
+  }
   return out;
 }
 
 function same(a: unknown, b: unknown): boolean {
   if (a === b) return true;
-  try { return canonical(a) === canonical(b); } catch { return false; }
+  try {
+    return canonical(a) === canonical(b);
+  } catch {
+    return false;
+  }
 }
 
 function asRecord(v: unknown): Record<string, unknown> {
-  return v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {};
+  return v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 }
 
 /** `records.field_meta`: clocks beside rt_<type>, rebuildable from the log. */
@@ -125,11 +149,16 @@ export const recordsFieldMeta: InlineProjection = {
         // One statement for every field of the row; the text depends only on the field count, so the statement cache hits.
         const marks = names.map(() => "(?, ?, ?, ?, 1)").join(", ");
         const args = names.flatMap((field) => [p.id, field, e.hlc, e.actor]);
-        tx.run(`INSERT INTO "${table}" (id, field, hlc, actor, seq) VALUES ${marks} ON CONFLICT(id, field) DO UPDATE SET hlc = excluded.hlc, actor = excluded.actor, seq = excluded.seq`, ...args);
+        tx.run(
+          `INSERT INTO "${table}" (id, field, hlc, actor, seq) VALUES ${marks} ON CONFLICT(id, field) DO UPDATE SET hlc = excluded.hlc, actor = excluded.actor, seq = excluded.seq`,
+          ...args,
+        );
       }
       tx.run(
         "INSERT INTO records_row_meta (type, id, owner, label, holds) VALUES (?, ?, ?, 0, 0) ON CONFLICT(type, id) DO NOTHING",
-        p.type, p.id, e.actor,
+        p.type,
+        p.id,
+        e.actor,
       );
     },
     "record.updated"(tx, e) {
@@ -151,12 +180,22 @@ export const recordsFieldMeta: InlineProjection = {
         if (had) {
           tx.run(
             "INSERT INTO records_field_history (type, id, field, value, hlc, actor, seq, reason) VALUES (?, ?, ?, ?, ?, ?, ?, 'previous')",
-            p.type, p.id, field, historyText(kind.get(field), field, before[field]), e.hlc, e.actor, seq,
+            p.type,
+            p.id,
+            field,
+            historyText(kind.get(field), field, before[field]),
+            e.hlc,
+            e.actor,
+            seq,
           );
         }
         tx.run(
           `INSERT INTO "${table}" (id, field, hlc, actor, seq) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id, field) DO UPDATE SET hlc = excluded.hlc, actor = excluded.actor, seq = excluded.seq`,
-          p.id, field, e.hlc, e.actor, seq,
+          p.id,
+          field,
+          e.hlc,
+          e.actor,
+          seq,
         );
       }
     },

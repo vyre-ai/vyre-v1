@@ -7,7 +7,20 @@
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { createDocLive, createDocServer } from "../docs/index.ts";
-import type { CompactInput, DocAccess, DocDecision, DocDeps, DocEnc, DocLive, DocOwner, DocServer, DocVerb, OpenInput, OpenOut, UpdateInput } from "../docs/index.ts";
+import type {
+  CompactInput,
+  DocAccess,
+  DocDecision,
+  DocDeps,
+  DocEnc,
+  DocLive,
+  DocOwner,
+  DocServer,
+  DocVerb,
+  OpenInput,
+  OpenOut,
+  UpdateInput,
+} from "../docs/index.ts";
 import type { SyncHandle } from "../impl.ts";
 
 /** The caller of a document capability: the trace and the principal (a person, or an agent writing as itself). */
@@ -21,7 +34,10 @@ export interface DocCtx {
 export interface DocHandlers {
   "sync.doc.open"(ctx: DocCtx, input: OpenInput): Promise<OpenOut>;
   "sync.doc.update"(ctx: DocCtx, input: UpdateInput): Promise<{ seq: number }>;
-  "sync.doc.close"(ctx: DocCtx, input: { doc: string; name?: string | undefined }): Promise<{ versioned: boolean; upto: number }>;
+  "sync.doc.close"(
+    ctx: DocCtx,
+    input: { doc: string; name?: string | undefined },
+  ): Promise<{ versioned: boolean; upto: number }>;
   "sync.doc.compact"(ctx: DocCtx, input: CompactInput): Promise<{ upto: number; bytes: number }>;
 }
 
@@ -32,19 +48,29 @@ export function toDocCtx(ctx: { trace: { traceId: string }; principal: { id: str
 
 export function createDocHandlers(server: DocServer): DocHandlers {
   return {
-    async "sync.doc.open"(ctx, input) { return server.open(ctx.principal, input, ctx.trace.traceId); },
+    async "sync.doc.open"(ctx, input) {
+      return server.open(ctx.principal, input, ctx.trace.traceId);
+    },
     async "sync.doc.update"(ctx, input) {
       const r = server.update(ctx.principal, input, ctx.trace.traceId);
-      if (r.fresh) ctx.emit?.("doc.updated", input.doc, { doc: input.doc, bytes: r.bytes, actor: ctx.principal, seq: r.seq });
+      if (r.fresh)
+        ctx.emit?.("doc.updated", input.doc, { doc: input.doc, bytes: r.bytes, actor: ctx.principal, seq: r.seq });
       return { seq: r.seq };
     },
-    async "sync.doc.close"(ctx, input) { return server.close(ctx.principal, input, ctx.trace.traceId); },
-    async "sync.doc.compact"(ctx, input) { return server.compact(ctx.principal, input, ctx.trace.traceId); },
+    async "sync.doc.close"(ctx, input) {
+      return server.close(ctx.principal, input, ctx.trace.traceId);
+    },
+    async "sync.doc.compact"(ctx, input) {
+      return server.compact(ctx.principal, input, ctx.trace.traceId);
+    },
   };
 }
 
 /** The document server over the sync module's own store and log. */
-export function docServerOf(s: SyncHandle, o: { access: DocAccess; now?: () => number; project?: DocDeps["project"]; compactEvery?: number; compactMs?: number }): DocServer {
+export function docServerOf(
+  s: SyncHandle,
+  o: { access: DocAccess; now?: () => number; project?: DocDeps["project"]; compactEvery?: number; compactMs?: number },
+): DocServer {
   return createDocServer({
     db: s.host.tx,
     access: o.access,
@@ -75,7 +101,12 @@ export interface DocRowRef {
 }
 
 /** Document access from the kernel's authorize: view or edit on the owning row, for the person (or the person an agent acts for). A hold counts as a refusal. */
-export function snapshotDocAccess(o: { snapshot: () => AccessSnapshot; rowOf: (doc: string) => DocRowRef | undefined; now: () => number; actingFor?: (principal: string) => string | undefined }): DocAccess {
+export function snapshotDocAccess(o: {
+  snapshot: () => AccessSnapshot;
+  rowOf: (doc: string) => DocRowRef | undefined;
+  now: () => number;
+  actingFor?: (principal: string) => string | undefined;
+}): DocAccess {
   return {
     decide(who: string, doc: string, verb: DocVerb): DocDecision {
       const row = o.rowOf(doc);

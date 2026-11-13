@@ -21,8 +21,20 @@ export interface BrowserCtx {
   call(cap: string, input: unknown): Promise<unknown>;
 }
 
-export interface SiteRow { id: string; owner: string; host: string; runs_in: RunsIn; rights_json: string; removed: number; at: number; updated_at: number }
-export interface RightRow { agentId: string; right: Right }
+export interface SiteRow {
+  id: string;
+  owner: string;
+  host: string;
+  runs_in: RunsIn;
+  rights_json: string;
+  removed: number;
+  at: number;
+  updated_at: number;
+}
+export interface RightRow {
+  agentId: string;
+  right: Right;
+}
 
 export const TABLE = "browser_sites";
 type Code = Parameters<typeof fail>[0];
@@ -43,7 +55,13 @@ export function hostOf(raw: string): string | null {
   const s = raw.trim().toLowerCase();
   if (!s || /[\s*]/.test(s)) return null;
   let h = s;
-  if (/^[a-z][a-z0-9+.-]*:\/\//.test(s)) { try { h = new URL(s).hostname; } catch { return null; } } else h = s.split(/[/?#]/)[0]!.replace(/:\d+$/, "");
+  if (/^[a-z][a-z0-9+.-]*:\/\//.test(s)) {
+    try {
+      h = new URL(s).hostname;
+    } catch {
+      return null;
+    }
+  } else h = s.split(/[/?#]/)[0]!.replace(/:\d+$/, "");
   h = h.replace(/\.$/, "");
   if (!/^[a-z0-9.-]+$/.test(h) || h.startsWith(".") || h.includes("..")) return null;
   return h === "localhost" || h.includes(".") ? h : null;

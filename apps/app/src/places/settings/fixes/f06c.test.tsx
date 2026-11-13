@@ -12,10 +12,15 @@ import { createSampleSettings, harbor, northwind } from "../sample.ts";
 import type { SampleSettings } from "../sample.ts";
 
 const html = (s: SampleSettings, props: SettingsProps = {}): string =>
-  renderToStaticMarkup(<SettingsDataProvider value={s.data}><SettingsPlace width={1280} {...props} /></SettingsDataProvider>).replaceAll("<!-- -->", "");
+  renderToStaticMarkup(
+    <SettingsDataProvider value={s.data}>
+      <SettingsPlace width={1280} {...props} />
+    </SettingsDataProvider>,
+  ).replaceAll("<!-- -->", "");
 const has = (s: string, needle: string): boolean => s.includes(needle);
 const tag = (out: string, id: string): string => out.match(new RegExp(`<[^>]*data-testid="${id}"[^>]*>`))?.[0] ?? "";
-const rowsOf = (s: SampleSettings): SettingRow[] => (s.data.screens.query("settings.page", "rows", {}).getSnapshot() as { data: { rows: SettingRow[] } }).data.rows;
+const rowsOf = (s: SampleSettings): SettingRow[] =>
+  (s.data.screens.query("settings.page", "rows", {}).getSnapshot() as { data: { rows: SettingRow[] } }).data.rows;
 
 test("search: a query opens a Search page with the count and each row with its page, the page list stays", () => {
   const out = html(createSampleSettings(northwind), { initialQuery: "skin" });
@@ -28,44 +33,95 @@ test("search: a query opens a Search page with the count and each row with its p
 test("search: drawn rows (sign-in) are found too, and nothing found says so with the query", () => {
   const rows = rowsOf(createSampleSettings(northwind));
   const hits = searchRows(rows, "authenticator");
-  assert.deepEqual(hits.map((h) => [h.title, h.page]), [["Authenticator app", "signin"]]);
+  assert.deepEqual(
+    hits.map((h) => [h.title, h.page]),
+    [["Authenticator app", "signin"]],
+  );
   assert.ok(searchRows(rows, "2fa").some((h) => h.key === "signin.totp"));
-  assert.ok(has(html(createSampleSettings(northwind), { initialQuery: "qqqq" }), 'Nothing matches &quot;qqqq&quot;'));
+  assert.ok(has(html(createSampleSettings(northwind), { initialQuery: "qqqq" }), "Nothing matches &quot;qqqq&quot;"));
 });
 
 test("search on a phone: the results take the place of the page list under the search box", () => {
   const out = html(createSampleSettings(northwind), { initialQuery: "text", width: 390 });
-  assert.ok(has(out, 'data-testid="settings-nav"') && has(out, 'data-testid="search-results"') && !has(out, 'data-testid="row-page-profile"'));
+  assert.ok(
+    has(out, 'data-testid="settings-nav"') &&
+      has(out, 'data-testid="search-results"') &&
+      !has(out, 'data-testid="row-page-profile"'),
+  );
 });
 
 test("Notifications: Notify me on lists each kind with how it arrives, with no explaining sentence under it", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "notifications" });
   assert.ok(has(out, "Notify me on"));
-  for (const t of ["Needs you", "Mentions", "Replies to you", "Tasks given to you", "Routines", "Channel messages"]) assert.ok(has(out, t), t);
+  for (const t of ["Needs you", "Mentions", "Replies to you", "Tasks given to you", "Routines", "Channel messages"])
+    assert.ok(has(out, t), t);
   assert.ok(has(out, "Desktop and phone") && has(out, "Badge only") && has(out, ">Email<"));
-  for (const gone of ["Interrupt rings and shows a banner", "Waits outside your working hours", "How each kind arrives"]) assert.ok(!has(out, gone), gone);
+  for (const gone of [
+    "Interrupt rings and shows a banner",
+    "Waits outside your working hours",
+    "How each kind arrives",
+  ])
+    assert.ok(!has(out, gone), gone);
 });
 
 test("Sign-in and devices: Password and GitHub, then one card per Space with its second factor, passkeys, floor, single sign-on and devices", async () => {
   const s = createSampleSettings(northwind);
   const out = html(s, { initialPage: "signin" });
-  assert.ok(has(out, 'data-testid="signin-account"') && has(out, "Changed 3 months ago") && has(out, "Connected as @irfad7"));
+  assert.ok(
+    has(out, 'data-testid="signin-account"') && has(out, "Changed 3 months ago") && has(out, "Connected as @irfad7"),
+  );
   for (const sp of ["northwind", "harbor", "personal"]) assert.ok(has(out, `data-testid="security-${sp}"`), sp);
   const nw = out.slice(out.indexOf('data-testid="security-northwind"'), out.indexOf('data-testid="security-harbor"'));
-  assert.ok(has(nw, "One-time codes on your phone") && has(nw, "MacBook Touch ID") && has(nw, "Second factor required") && has(nw, "Set by Northwind") && has(nw, "Authenticator app or passkey"));
-  assert.ok(has(nw, "Your admin signs you in with Google Workspace") && has(nw, "Signed in on 4 devices") && has(nw, "Open now"));
+  assert.ok(
+    has(nw, "One-time codes on your phone") &&
+      has(nw, "MacBook Touch ID") &&
+      has(nw, "Second factor required") &&
+      has(nw, "Set by Northwind") &&
+      has(nw, "Authenticator app or passkey"),
+  );
+  assert.ok(
+    has(nw, "Your admin signs you in with Google Workspace") &&
+      has(nw, "Signed in on 4 devices") &&
+      has(nw, "Open now"),
+  );
   const hb = out.slice(out.indexOf('data-testid="security-harbor"'), out.indexOf('data-testid="security-personal"'));
-  assert.ok(has(hb, "Not set up") && has(hb, "None yet") && has(hb, "This Space uses its own password") && has(hb, 'data-testid="open-harbor"'));
+  assert.ok(
+    has(hb, "Not set up") &&
+      has(hb, "None yet") &&
+      has(hb, "This Space uses its own password") &&
+      has(hb, 'data-testid="open-harbor"'),
+  );
   const me = out.slice(out.indexOf('data-testid="security-personal"'));
   assert.ok(has(me, "This computer only") && !has(me, "Single sign-on"));
-  assert.ok(out.indexOf("signin-account") < out.indexOf("security-northwind") && out.indexOf("security-personal") < out.indexOf("Devices and computers"));
-  for (const gone of ["A signed-out device loses its copy", "There is no central account"]) assert.ok(!has(out, gone), gone);
+  assert.ok(
+    out.indexOf("signin-account") < out.indexOf("security-northwind") &&
+      out.indexOf("security-personal") < out.indexOf("Devices and computers"),
+  );
+  for (const gone of ["A signed-out device loses its copy", "There is no central account"])
+    assert.ok(!has(out, gone), gone);
 });
 
 test("no page carries an explaining paragraph under its heading", () => {
   const s = createSampleSettings(northwind);
-  for (const key of ["profile", "notifications", "ai", "connected", "mail", "signin", "appearance", "computer"] as const) {
+  for (const key of [
+    "profile",
+    "notifications",
+    "ai",
+    "connected",
+    "mail",
+    "signin",
+    "appearance",
+    "computer",
+  ] as const) {
     const out = html(s, { initialPage: key });
-    for (const gone of ["Your hours are", "Provider sign-ins and keys live in the Vault", "Connect a mailbox and calendar so agents", "Your private items stay yours", "Type the keys you want", "Agents work on this computer only as far"]) assert.ok(!has(out, gone), `${key}: ${gone}`);
+    for (const gone of [
+      "Your hours are",
+      "Provider sign-ins and keys live in the Vault",
+      "Connect a mailbox and calendar so agents",
+      "Your private items stay yours",
+      "Type the keys you want",
+      "Agents work on this computer only as far",
+    ])
+      assert.ok(!has(out, gone), `${key}: ${gone}`);
   }
 });

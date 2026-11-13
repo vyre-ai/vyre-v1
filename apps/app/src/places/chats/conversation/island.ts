@@ -39,7 +39,12 @@ export function openQuestions(messages: readonly Message[]): OpenQuestion[] {
  * The ones to dock, with the index that shows: the newest unless the person stepped to another. A put-away question is not in the list, and neither is one whose own card is on screen (`inView`):
  * the island is for the question that has scrolled out of sight, so the same question never shows twice.
  */
-export function islandView(all: readonly OpenQuestion[], dismissed: ReadonlySet<string>, picked: string | null, inView: ReadonlySet<string> = new Set()): { list: OpenQuestion[]; index: number } {
+export function islandView(
+  all: readonly OpenQuestion[],
+  dismissed: ReadonlySet<string>,
+  picked: string | null,
+  inView: ReadonlySet<string> = new Set(),
+): { list: OpenQuestion[]; index: number } {
   const list = all.filter((q) => !dismissed.has(q.id) && !inView.has(q.id));
   const at = picked === null ? -1 : list.findIndex((q) => q.id === picked);
   return { list, index: at >= 0 ? at : list.length - 1 };

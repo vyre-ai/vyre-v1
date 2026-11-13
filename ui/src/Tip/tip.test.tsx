@@ -4,10 +4,22 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Info, Tip } from "./index.tsx";
 
 test("Tip carries its help as the browser tooltip and leaves the child as it was", () => {
-  const out = renderToStaticMarkup(<Tip help="Why it is off"><span id="child">Save</span></Tip>);
+  const out = renderToStaticMarkup(
+    <Tip help="Why it is off">
+      <span id="child">Save</span>
+    </Tip>,
+  );
   assert.match(out, /title="Why it is off"/);
   assert.match(out, /<span id="child">Save<\/span>/);
-  assert.equal(renderToStaticMarkup(<Tip help={undefined}><span id="child">Save</span></Tip>), '<span id="child">Save</span>', "no help, no wrapper");
+  assert.equal(
+    renderToStaticMarkup(
+      <Tip help={undefined}>
+        <span id="child">Save</span>
+      </Tip>,
+    ),
+    '<span id="child">Save</span>',
+    "no help, no wrapper",
+  );
 });
 
 test("Info is a small mark whose tooltip and label are the sentence", () => {

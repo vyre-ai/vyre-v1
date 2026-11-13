@@ -10,43 +10,122 @@ import type { Harness } from "../fixtures/harness.ts";
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 let n = 0;
 const key = (): string => `k${++n}`;
-const call = async (hn: Harness, cap: string, input: Record<string, unknown>, ctx: Harness["ctx"] = hn.ctx): Promise<any> => {
+const call = async (
+  hn: Harness,
+  cap: string,
+  input: Record<string, unknown>,
+  ctx: Harness["ctx"] = hn.ctx,
+): Promise<any> => {
   assert.deepEqual(contractErrors(cap, "in", input), [], `${cap}: input`);
   const out = await h[cap]!(ctx, input);
   assert.deepEqual(contractErrors(cap, "out", out), [], `${cap}: output`);
   return out;
 };
-const makeRaw = (hn: Harness, over: Record<string, unknown> = {}): Promise<any> => h["agents.create"]!(hn.ctx, { name: "Intake", role: "Use me when a new client form arrives.", idempotencyKey: key(), ...over });
-const make = (hn: Harness, over: Record<string, unknown> = {}): Promise<any> => call(hn, "agents.create", { name: "Intake", role: "Use me when a new client form arrives.", idempotencyKey: key(), ...over });
+const makeRaw = (hn: Harness, over: Record<string, unknown> = {}): Promise<any> =>
+  h["agents.create"]!(hn.ctx, {
+    name: "Intake",
+    role: "Use me when a new client form arrives.",
+    idempotencyKey: key(),
+    ...over,
+  });
+const make = (hn: Harness, over: Record<string, unknown> = {}): Promise<any> =>
+  call(hn, "agents.create", {
+    name: "Intake",
+    role: "Use me when a new client form arrives.",
+    idempotencyKey: key(),
+    ...over,
+  });
 
 // ---- create -----------------------------------------------------------------------------------------------------------------------------------------
 
 test("create makes the record, Agents/<name> with the decided tree, AGENT.md and agent.toml, and announces it once", async () => {
   const hn = harness();
-  const out = await make(hn, { model: "claude-sonnet-5-5", tools: { allowed: ["files", "records"], denied: ["terminal"] }, limits: { dayCostMicros: 5_000_000, turnsPerDay: 40 }, face: "intake-face" });
+  const out = await make(hn, {
+    model: "claude-sonnet-5-5",
+    tools: { allowed: ["files", "records"], denied: ["terminal"] },
+    limits: { dayCostMicros: 5_000_000, turnsPerDay: 40 },
+    face: "intake-face",
+  });
   const a = out.agent;
   assert.match(a.agentId, /^agt_[0-9a-z]+$/);
-  assert.deepEqual({ name: a.name, role: a.role, face: a.face, status: a.status, ownerId: a.ownerId, model: a.model, hasComputer: a.hasComputer, accountPolicy: a.accountPolicy, captureMode: a.captureMode },
-    { name: "Intake", role: "Use me when a new client form arrives.", face: "intake-face", status: "awake", ownerId: DANA, model: "claude-sonnet-5-5", hasComputer: false, accountPolicy: "asker", captureMode: "auto" });
-  assert.deepEqual([a.toolsAllowed, a.toolsDenied, a.limits], [["files", "records"], ["terminal"], { dayCostMicros: 5_000_000, turnsPerDay: 40 }]);
+  assert.deepEqual(
+    {
+      name: a.name,
+      role: a.role,
+      face: a.face,
+      status: a.status,
+      ownerId: a.ownerId,
+      model: a.model,
+      hasComputer: a.hasComputer,
+      accountPolicy: a.accountPolicy,
+      captureMode: a.captureMode,
+    },
+    {
+      name: "Intake",
+      role: "Use me when a new client form arrives.",
+      face: "intake-face",
+      status: "awake",
+      ownerId: DANA,
+      model: "claude-sonnet-5-5",
+      hasComputer: false,
+      accountPolicy: "asker",
+      captureMode: "auto",
+    },
+  );
+  assert.deepEqual(
+    [a.toolsAllowed, a.toolsDenied, a.limits],
+    [["files", "records"], ["terminal"], { dayCostMicros: 5_000_000, turnsPerDay: 40 }],
+  );
   assert.equal(a.templateVersion, 1);
 
   const home = hn.world.folderNamed("Intake", hn.world.root)!;
   assert.equal(a.folderId, home.folderId);
   const tree = hn.world.tree(home.folderId);
-  for (const want of ["AGENT.md", "agent.toml", "memory/", "memory/MAP.md", "memory/notes/", "memory/proposed/", "memory/recipes/", "memory/journal/", "skills/", "routines/", "knowledge/", "inbox/", "work/", "work/drafts/", "work/done/", "work/scratch/", "downloads/", "logs/", "chats/", ".vyre/", ".vyre/guide.md", ".index/"]) {
+  for (const want of [
+    "AGENT.md",
+    "agent.toml",
+    "memory/",
+    "memory/MAP.md",
+    "memory/notes/",
+    "memory/proposed/",
+    "memory/recipes/",
+    "memory/journal/",
+    "skills/",
+    "routines/",
+    "knowledge/",
+    "inbox/",
+    "work/",
+    "work/drafts/",
+    "work/done/",
+    "work/scratch/",
+    "downloads/",
+    "logs/",
+    "chats/",
+    ".vyre/",
+    ".vyre/guide.md",
+    ".index/",
+  ]) {
     assert.ok(tree.includes(want), `${want} is in the tree: ${tree.join(" ")}`);
   }
   const toml = parseToml(hn.world.text(hn.world.fileIn(home.folderId, "agent.toml")!.fileId)).value;
   assert.equal(toml["name"], "Intake");
   assert.equal(toml["description"], "Use me when a new client form arrives.");
   assert.equal(toml["model"], "claude-sonnet-5-5");
-  assert.match(hn.world.text(hn.world.fileIn(home.folderId, "AGENT.md")!.fileId), /^# Intake\n\nInherits: VYRE\.md\n[\s\S]*People use you when a new client form arrives\./);
+  assert.match(
+    hn.world.text(hn.world.fileIn(home.folderId, "AGENT.md")!.fileId),
+    /^# Intake\n\nInherits: VYRE\.md\n[\s\S]*People use you when a new client form arrives\./,
+  );
   const vyreDir = hn.world.folderNamed(".vyre", home.folderId)!;
   assert.match(hn.world.text(hn.world.fileIn(vyreDir.folderId, "guide.md")!.fileId), /How Vyre works for you/);
 
   assert.deepEqual(hn.names(), ["agent.created"]);
-  assert.deepEqual(hn.named("agent.created")[0]!.payload, { agentId: a.agentId, name: "Intake", ownerId: DANA, folderId: a.folderId, templateVersion: 1 });
+  assert.deepEqual(hn.named("agent.created")[0]!.payload, {
+    agentId: a.agentId,
+    name: "Intake",
+    ownerId: DANA,
+    folderId: a.folderId,
+    templateVersion: 1,
+  });
   assert.deepEqual(assertEventsConform(hn), []);
   const got = await call(hn, "agents.get", { agentId: a.agentId });
   assert.deepEqual(got.agent, out.agent);
@@ -55,11 +134,19 @@ test("create makes the record, Agents/<name> with the decided tree, AGENT.md and
 test("create: a name is unique among agents (kept after a delete is freed), a person owns it, limits are numbers", async () => {
   const hn = harness();
   await make(hn);
-  assert.equal(await failure(() => makeRaw(hn, { name: "  intake " })), "validation.duplicate", "case and spaces do not make another agent");
-  for (const name of ["", "a/b", "Who: me", ".hidden", "x".repeat(61), 'q"uote']) assert.equal(await failure(() => makeRaw(hn, { name })), "validation.bad_input", JSON.stringify(name));
+  assert.equal(
+    await failure(() => makeRaw(hn, { name: "  intake " })),
+    "validation.duplicate",
+    "case and spaces do not make another agent",
+  );
+  for (const name of ["", "a/b", "Who: me", ".hidden", "x".repeat(61), 'q"uote'])
+    assert.equal(await failure(() => makeRaw(hn, { name })), "validation.bad_input", JSON.stringify(name));
   assert.equal(await failure(() => makeRaw(hn, { name: "Other", ownerId: "agt_nope" })), "validation.bad_input");
   assert.equal(await failure(() => makeRaw(hn, { name: "Other", role: "two\nlines" })), "validation.bad_input");
-  assert.equal(await failure(() => makeRaw(hn, { name: "Other", limits: { dayCostMicros: -1 } })), "validation.bad_input");
+  assert.equal(
+    await failure(() => makeRaw(hn, { name: "Other", limits: { dayCostMicros: -1 } })),
+    "validation.bad_input",
+  );
   const owned = await make(hn, { name: "Maya's", ownerId: MAYA });
   assert.equal(owned.agent.ownerId, MAYA);
   assert.equal(hn.rows("SELECT id FROM agents_agent").length, 2, "refused creations left nothing behind");
@@ -68,26 +155,58 @@ test("create: a name is unique among agents (kept after a delete is freed), a pe
 
 test("an agent that creates one for a person creates it as theirs; the computer flag is kept", async () => {
   const hn = harness();
-  const out = await call(hn, "agents.create", { name: "Drafter", computer: true, idempotencyKey: key() }, hn.as({ kind: "agent", id: "agt_assistant" }, MAYA));
+  const out = await call(
+    hn,
+    "agents.create",
+    { name: "Drafter", computer: true, idempotencyKey: key() },
+    hn.as({ kind: "agent", id: "agt_assistant" }, MAYA),
+  );
   assert.equal(out.agent.ownerId, MAYA);
   assert.equal(out.agent.hasComputer, true);
 });
 
 test("create-agent ends in one Approve card: the skill names one plan, and the plan lists what agents.create will make", async () => {
   // The skill is the file every agent carries (builtin_skills); it asks questions, proposes exactly one plan, and creates only after approval.
-  assert.equal((CREATE_AGENT_SKILL.match(/plan_propose/g) ?? []).length, 1, "the skill proposes a plan in one place only");
+  assert.equal(
+    (CREATE_AGENT_SKILL.match(/plan_propose/g) ?? []).length,
+    1,
+    "the skill proposes a plan in one place only",
+  );
   assert.match(CREATE_AGENT_SKILL, /Do not create anything yet/);
   assert.match(CREATE_AGENT_SKILL, /exactly one plan/);
   assert.match(CREATE_AGENT_SKILL, /After approval call agents\.create once/);
   const skills = await call(harness(), "agents.builtin_skills.list", {});
-  assert.deepEqual(skills.skills.map((s: any) => s.key), ["working_in_vyre", "create_agent"]);
+  assert.deepEqual(
+    skills.skills.map((s: any) => s.key),
+    ["working_in_vyre", "create_agent"],
+  );
   assert.match(skills.skills[1].summary, /exactly one Approve card/);
 
-  const input = { name: "Intake", role: "Use me when a form arrives", model: "claude-sonnet-5-5", computer: true, tools: { allowed: ["files"], denied: ["terminal"] }, limits: { dayCostMicros: 1_000_000 } };
+  const input = {
+    name: "Intake",
+    role: "Use me when a form arrives",
+    model: "claude-sonnet-5-5",
+    computer: true,
+    tools: { allowed: ["files"], denied: ["terminal"] },
+    limits: { dayCostMicros: 1_000_000 },
+  };
   const plan = createAgentPlan("thr_a1", input);
-  assert.deepEqual(contractErrors("chat.plan.propose", "in", plan), [], "it is a valid plan_propose call, which becomes the one plan block");
+  assert.deepEqual(
+    contractErrors("chat.plan.propose", "in", plan),
+    [],
+    "it is a valid plan_propose call, which becomes the one plan block",
+  );
   assert.equal(plan.title, "Create the agent Intake");
-  assert.deepEqual(plan.steps.map((s) => s.text), ["Create the agent Intake", "Make the folder Agents/Intake with AGENT.md, agent.toml and the decided tree", "Run it on claude-sonnet-5-5", "Set what it may use", "Set its limits"]);
+  assert.deepEqual(
+    plan.steps.map((s) => s.text),
+    [
+      "Create the agent Intake",
+      "Make the folder Agents/Intake with AGENT.md, agent.toml and the decided tree",
+      "Run it on claude-sonnet-5-5",
+      "Set what it may use",
+      "Set its limits",
+    ],
+  );
   assert.equal(createAgentPlan("thr_a1", { name: "Bare" }).steps.length, 2, "only what was asked appears");
 
   // And what was approved is what is made: the same input to agents.create gives the agent the plan described.
@@ -106,18 +225,35 @@ test("list shows the agents the person is in or that are shared with them; the a
   const theirs = (await make(hn, { name: "Theirs", ownerId: MAYA })).agent;
   const secret = (await make(hn, { name: "Secret", ownerId: LEO })).agent;
   // Dana may see her own and what is shared with her (a grant on Theirs), not Secret.
-  hn.allowOnly((a, r) => (a.perm === null && a.level === "view" && r.type === "agent" && r.id === theirs.agentId) || a.perm === "access.manage");
-  const ids = async (input: Record<string, unknown> = {}) => (await call(hn, "agents.list", input)).agents.map((x: any) => x.agentId);
+  hn.allowOnly(
+    (a, r) =>
+      (a.perm === null && a.level === "view" && r.type === "agent" && r.id === theirs.agentId) ||
+      a.perm === "access.manage",
+  );
+  const ids = async (input: Record<string, unknown> = {}) =>
+    (await call(hn, "agents.list", input)).agents.map((x: any) => x.agentId);
   assert.deepEqual((await ids()).sort(), [mine.agentId, theirs.agentId].sort());
   assert.deepEqual(await ids({ section: "personal" }), [mine.agentId]);
   assert.deepEqual(await ids({ section: "shared" }), [theirs.agentId]);
-  assert.equal(await failure(() => call(hn, "agents.get", { agentId: secret.agentId })), "validation.not_found", "what exists is not leaked");
+  assert.equal(
+    await failure(() => call(hn, "agents.get", { agentId: secret.agentId })),
+    "validation.not_found",
+    "what exists is not leaked",
+  );
   assert.deepEqual(await call(hn, "agents.visibility.set", { all: true }), { all: true });
   // owner ruling 4 Nov: All in the Space no longer reaches a person's own agents that nobody shared; what an admin has of them is the summary per person
   assert.equal((await ids()).length, 2, "All in the Space shows the Space's agents, not Secret");
-  assert.equal(await failure(() => call(hn, "agents.get", { agentId: secret.agentId })), "validation.not_found", "Secret stays Leo's");
+  assert.equal(
+    await failure(() => call(hn, "agents.get", { agentId: secret.agentId })),
+    "validation.not_found",
+    "Secret stays Leo's",
+  );
   hn.allowOnly(() => false);
-  assert.equal((await ids()).length, 1, "the toggle stops counting when the admin permission goes: only her own are left");
+  assert.equal(
+    (await ids()).length,
+    1,
+    "the toggle stops counting when the admin permission goes: only her own are left",
+  );
   hn.allowOnly(() => true);
   await call(hn, "agents.visibility.set", { all: false });
   hn.allowOnly((a, r) => a.perm === null && r.id === mine.agentId);
@@ -126,7 +262,9 @@ test("list shows the agents the person is in or that are shared with them; the a
 
 test("list pages and filters by status; status follows pause, work and the two idle minutes", async () => {
   const hn = harness();
-  const a = (await make(hn, { name: "A" })).agent, b = (await make(hn, { name: "B" })).agent, c = (await make(hn, { name: "C" })).agent;
+  const a = (await make(hn, { name: "A" })).agent,
+    b = (await make(hn, { name: "B" })).agent,
+    c = (await make(hn, { name: "C" })).agent;
   const page1 = await call(hn, "agents.list", { limit: 2 });
   assert.deepEqual([page1.agents.length, page1.next, page1.total], [2, "2", 3]);
   assert.equal((await call(hn, "agents.list", { limit: 2, cursor: page1.next })).agents.length, 1);
@@ -141,7 +279,10 @@ test("list pages and filters by status; status follows pause, work and the two i
   await call(hn, "agents.pause", { agentId: c.agentId, reason: "Cost review" });
   const statuses = Object.fromEntries((await call(hn, "agents.list", {})).agents.map((x: any) => [x.name, x.status]));
   assert.deepEqual(statuses, { A: "asleep", B: "working", C: "paused" });
-  assert.deepEqual((await call(hn, "agents.list", { status: ["paused", "working"] })).agents.map((x: any) => x.name).sort(), ["B", "C"]);
+  assert.deepEqual(
+    (await call(hn, "agents.list", { status: ["paused", "working"] })).agents.map((x: any) => x.name).sort(),
+    ["B", "C"],
+  );
 });
 
 test("status of a paused agent carries the reason and who; the activity feed moves working and awake", async () => {
@@ -158,11 +299,19 @@ test("status of a paused agent carries the reason and who; the activity feed mov
   onTurn(hn.ctx, "started", { payload: { agentId: a.agentId } });
   assert.equal((await call(hn, "agents.status", { agentId: a.agentId })).status, "working");
   onTurn(hn.ctx, "ended", { payload: { agentId: a.agentId } });
-  assert.equal((await call(hn, "agents.status", { agentId: a.agentId })).status, "working", "one of two turns is still running");
+  assert.equal(
+    (await call(hn, "agents.status", { agentId: a.agentId })).status,
+    "working",
+    "one of two turns is still running",
+  );
   onTurn(hn.ctx, "ended", { payload: { agentId: a.agentId } });
   assert.equal((await call(hn, "agents.status", { agentId: a.agentId })).status, "awake");
   onTurn(hn.ctx, "ended", { payload: { agentId: a.agentId } });
-  assert.equal(hn.rows("SELECT working FROM agents_agent WHERE id = ?", a.agentId)[0]!["working"], 0, "never below zero");
+  assert.equal(
+    hn.rows("SELECT working FROM agents_agent WHERE id = ?", a.agentId)[0]!["working"],
+    0,
+    "never below zero",
+  );
 });
 
 // ---- lifecycle ----------------------------------------------------------------------------------------------------------------------------------------
@@ -197,7 +346,11 @@ test("delete moves the agent and its folder to Trash and frees the name; restore
   assert.equal((await call(hn, "agents.list", {})).total, 0);
   const again = await make(hn);
   assert.notEqual(again.agent.agentId, a.agentId, "the name is free again");
-  assert.equal(await failure(() => call(hn, "agents.restore", { agentId: a.agentId })), "validation.bad_input", "that name is another agent's now");
+  assert.equal(
+    await failure(() => call(hn, "agents.restore", { agentId: a.agentId })),
+    "validation.bad_input",
+    "that name is another agent's now",
+  );
   await call(hn, "agents.delete", { agentId: again.agent.agentId });
   hn.clear();
   const back = await call(hn, "agents.restore", { agentId: a.agentId });
@@ -211,7 +364,9 @@ test("delete moves the agent and its folder to Trash and frees the name; restore
 test("delete still works when Files is down: the agent is gone from the lists and the failure is logged, not thrown", async () => {
   const hn = harness();
   const a = (await make(hn)).agent;
-  hn.world.answer("files.folder.delete", () => { throw new Error("files is down"); });
+  hn.world.answer("files.folder.delete", () => {
+    throw new Error("files is down");
+  });
   assert.deepEqual(await call(hn, "agents.delete", { agentId: a.agentId }), { deleted: true });
   assert.ok(hn.warned.some((w) => /neighbour/.test(w)));
 });
@@ -222,36 +377,74 @@ test("set_owner hands the agent and its folder to an active person, and refuses 
   hn.clear();
   const out = await h["agents.set_owner"]!(hn.ctx, { agentId: a.agentId, ownerId: "usr_leo" });
   assert.equal(out.agent.ownerId, "usr_leo");
-  const moved = hn.world.calls.filter((c) => c.cap === "access.transfer_ownership").map((c) => c.input as { resource: { type: string }; from: string; to: string });
+  const moved = hn.world.calls
+    .filter((c) => c.cap === "access.transfer_ownership")
+    .map((c) => c.input as { resource: { type: string }; from: string; to: string });
   assert.deepEqual(moved.map((m) => m.resource.type).sort(), ["agent", "folder"]);
   assert.ok(moved.every((m) => m.to === "usr_leo" && m.from === a.ownerId));
   assert.ok(hn.emitted.some((e) => e.name === "agent.owner_changed" && e.payload["to"] === "usr_leo"));
-  await assert.rejects(h["agents.set_owner"]!(hn.ctx, { agentId: a.agentId, ownerId: "agt_bot" }), (e: unknown) => /person/.test(String((e as Error).message)));
-  await assert.rejects(h["agents.set_owner"]!(hn.ctx, { agentId: a.agentId, ownerId: "usr_gone" }), (e: unknown) => /active person/.test(String((e as Error).message)));
+  await assert.rejects(h["agents.set_owner"]!(hn.ctx, { agentId: a.agentId, ownerId: "agt_bot" }), (e: unknown) =>
+    /person/.test(String((e as Error).message)),
+  );
+  await assert.rejects(h["agents.set_owner"]!(hn.ctx, { agentId: a.agentId, ownerId: "usr_gone" }), (e: unknown) =>
+    /active person/.test(String((e as Error).message)),
+  );
   hn.clear();
   await h["agents.set_owner"]!(hn.ctx, { agentId: a.agentId, ownerId: "usr_leo" });
-  assert.equal(hn.world.calls.filter((c) => c.cap === "access.transfer_ownership").length, 0, "the same owner changes nothing");
+  assert.equal(
+    hn.world.calls.filter((c) => c.cap === "access.transfer_ownership").length,
+    0,
+    "the same owner changes nothing",
+  );
 });
 
 test("a failed ownership move changes nothing: the owner stays, moves already made are put back, nothing is emitted", async () => {
   const hn = harness();
   const a = (await h["agents.create"]!(hn.ctx, { name: "Sticky", idempotencyKey: "so-2" })).agent;
   let n = 0;
-  hn.world.handlers["access.transfer_ownership"] = (i: any) => { n++; if (n === 2) throw Object.assign(new Error("access is not live"), { error: { code: "internal.unavailable", message: "access is not live" } }); return true; };
+  hn.world.handlers["access.transfer_ownership"] = (i: any) => {
+    n++;
+    if (n === 2)
+      throw Object.assign(new Error("access is not live"), {
+        error: { code: "internal.unavailable", message: "access is not live" },
+      });
+    return true;
+  };
   hn.clear();
-  await assert.rejects(h["agents.set_owner"]!(hn.ctx, { agentId: a.agentId, ownerId: "usr_leo" }), (e: unknown) => /nothing changed/.test(String((e as Error).message)));
-  assert.equal((await h["agents.get"]!(hn.ctx, { agentId: a.agentId })).agent.ownerId, a.ownerId, "the owner is unchanged");
+  await assert.rejects(h["agents.set_owner"]!(hn.ctx, { agentId: a.agentId, ownerId: "usr_leo" }), (e: unknown) =>
+    /nothing changed/.test(String((e as Error).message)),
+  );
+  assert.equal(
+    (await h["agents.get"]!(hn.ctx, { agentId: a.agentId })).agent.ownerId,
+    a.ownerId,
+    "the owner is unchanged",
+  );
   assert.equal(hn.emitted.filter((e) => e.name === "agent.owner_changed").length, 0);
-  const calls = hn.world.calls.filter((c) => c.cap === "access.transfer_ownership").map((c) => c.input as { from: string; to: string });
-  assert.deepEqual(calls.map((c) => `${c.from}>${c.to}`), [`${a.ownerId}>usr_leo`, `${a.ownerId}>usr_leo`, `usr_leo>${a.ownerId}`], "the first move was put back");
+  const calls = hn.world.calls
+    .filter((c) => c.cap === "access.transfer_ownership")
+    .map((c) => c.input as { from: string; to: string });
+  assert.deepEqual(
+    calls.map((c) => `${c.from}>${c.to}`),
+    [`${a.ownerId}>usr_leo`, `${a.ownerId}>usr_leo`, `usr_leo>${a.ownerId}`],
+    "the first move was put back",
+  );
 });
 
 test("a rollback that itself fails is logged at error level with the agent and resource, and the original failure is still raised", async () => {
   const hn = harness();
   const a = (await h["agents.create"]!(hn.ctx, { name: "Halfway", idempotencyKey: "so-3" })).agent;
   let n = 0;
-  hn.world.handlers["access.transfer_ownership"] = () => { n++; if (n >= 2) throw Object.assign(new Error("access is not live"), { error: { code: "internal.unavailable", message: "access is not live" } }); return true; };
-  await assert.rejects(h["agents.set_owner"]!(hn.ctx, { agentId: a.agentId, ownerId: "usr_leo" }), (e: unknown) => /nothing changed/.test(String((e as Error).message)));
+  hn.world.handlers["access.transfer_ownership"] = () => {
+    n++;
+    if (n >= 2)
+      throw Object.assign(new Error("access is not live"), {
+        error: { code: "internal.unavailable", message: "access is not live" },
+      });
+    return true;
+  };
+  await assert.rejects(h["agents.set_owner"]!(hn.ctx, { agentId: a.agentId, ownerId: "usr_leo" }), (e: unknown) =>
+    /nothing changed/.test(String((e as Error).message)),
+  );
   assert.equal(hn.errored.length, 1, "the half-moved state is visible");
   assert.equal(hn.errored[0]!.attrs!["agentId"], a.agentId);
   assert.equal((hn.errored[0]!.attrs!["resource"] as { type: string }).type, "agent");

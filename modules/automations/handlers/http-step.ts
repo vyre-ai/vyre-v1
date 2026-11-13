@@ -18,7 +18,9 @@ export interface HttpStepHost {
 }
 
 let host: HttpStepHost | null = null;
-export function setHttpStepHost(next: HttpStepHost | null): void { host = next; }
+export function setHttpStepHost(next: HttpStepHost | null): void {
+  host = next;
+}
 
 type Row = Record<string, unknown>;
 const READ = new Set(["GET", "HEAD"]);
@@ -26,9 +28,22 @@ const SEND = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const MAX_BODY = 1_000_000;
 const NAME = /^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,64}$/;
 /** Headers the step sets itself or that would change how the request is framed. */
-const OWN = new Set(["host", "content-length", "connection", "transfer-encoding", "upgrade", "te", "keep-alive", "proxy-authorization", "proxy-connection", "trailer", "expect"]);
+const OWN = new Set([
+  "host",
+  "content-length",
+  "connection",
+  "transfer-encoding",
+  "upgrade",
+  "te",
+  "keep-alive",
+  "proxy-authorization",
+  "proxy-connection",
+  "trailer",
+  "expect",
+]);
 /** Response headers that carry a login or a session, never handed to a step. */
-const HIDDEN_RESPONSE = /^(set-cookie|set-cookie2|authorization|proxy-authenticate|www-authenticate|x-api-key|x-auth-token)$/i;
+const HIDDEN_RESPONSE =
+  /^(set-cookie|set-cookie2|authorization|proxy-authenticate|www-authenticate|x-api-key|x-auth-token)$/i;
 
 async function lookupHost(h: string): Promise<string[]> {
   const rows = await lookup(h, { all: true, verbatim: true });
@@ -38,38 +53,56 @@ async function lookupHost(h: string): Promise<string[]> {
 const isRec = (v: unknown): v is Row => typeof v === "object" && v !== null && !Array.isArray(v);
 
 function headerValue(ctx: AutoCtx, name: string, value: unknown): string {
-  if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") raise(ctx, "validation.bad_input", `The header ${name} must be text.`);
+  if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean")
+    raise(ctx, "validation.bad_input", `The header ${name} must be text.`);
   const text = String(value);
   if (/[\r\n\0]/.test(text)) raise(ctx, "validation.bad_input", `The header ${name} has a line break in it.`);
   return text;
 }
 
 function buildUrl(ctx: AutoCtx, raw: unknown, query: unknown): string {
-  if (typeof raw !== "string" || raw.trim() === "") raise(ctx, "validation.bad_input", "An HTTP request needs an address.");
+  if (typeof raw !== "string" || raw.trim() === "")
+    raise(ctx, "validation.bad_input", "An HTTP request needs an address.");
   let url: URL;
-  try { url = new URL(raw.trim()); } catch { raise(ctx, "validation.bad_input", "That address cannot be opened."); }
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    raise(ctx, "validation.bad_input", "That address cannot be opened.");
+  }
   if (isRec(query)) {
     for (const [k, v] of Object.entries(query)) {
       if (v === undefined || v === null) continue;
-      if (Array.isArray(v)) { for (const item of v) url.searchParams.append(k, String(item)); } else url.searchParams.append(k, typeof v === "object" ? JSON.stringify(v) : String(v));
+      if (Array.isArray(v)) {
+        for (const item of v) url.searchParams.append(k, String(item));
+      } else url.searchParams.append(k, typeof v === "object" ? JSON.stringify(v) : String(v));
     }
   }
   return url.href;
 }
 
 /** Fill the key, build the one header it goes in, and report the value so the response can be scrubbed. */
-async function authHeader(ctx: AutoCtx, auth: unknown, url: string): Promise<{ name: string; value: string; secret: string } | null> {
+async function authHeader(
+  ctx: AutoCtx,
+  auth: unknown,
+  url: string,
+): Promise<{ name: string; value: string; secret: string } | null> {
   if (auth === undefined || auth === null) return null;
   if (!isRec(auth)) raise(ctx, "validation.bad_input", "Auth must name a kind and a Vault handle.");
   const kind = auth["kind"];
   const handle = auth["handle"];
-  if (kind !== "bearer" && kind !== "basic" && kind !== "header") raise(ctx, "validation.bad_input", "Auth kind is bearer, basic or header.");
-  if (typeof handle !== "string" || !/^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/.test(handle)) raise(ctx, "validation.bad_input", "Auth needs a Vault handle such as #Acme_API.");
+  if (kind !== "bearer" && kind !== "basic" && kind !== "header")
+    raise(ctx, "validation.bad_input", "Auth kind is bearer, basic or header.");
+  if (typeof handle !== "string" || !/^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/.test(handle))
+    raise(ctx, "validation.bad_input", "Auth needs a Vault handle such as #Acme_API.");
   if (!host) raise(ctx, "validation.precondition_failed", "This server cannot fill a Vault key for a request yet.");
   let secret: string;
   let itemId: string | undefined;
-  try { const f = await host.fill(ctx, handle); secret = f.value; itemId = f.itemId; } catch (e) {
-    if ((e as { error?: unknown } | null)?.error) throw e;   // the Vault's own refusal (no access, no such item) goes through as it is
+  try {
+    const f = await host.fill(ctx, handle);
+    secret = f.value;
+    itemId = f.itemId;
+  } catch (e) {
+    if ((e as { error?: unknown } | null)?.error) throw e; // the Vault's own refusal (no access, no such item) goes through as it is
     raise(ctx, "permission.no_grant", "The Vault did not give this request its key.");
   }
   // the item the Vault filled (not the one this step expected) must be allowed to go to this host; nothing that cannot be checked is sent
@@ -82,27 +115,39 @@ async function authHeader(ctx: AutoCtx, auth: unknown, url: string): Promise<{ n
     return { name: "authorization", value: `Basic ${Buffer.from(`${user}:${secret}`).toString("base64")}`, secret };
   }
   const name = typeof auth["header"] === "string" ? auth["header"].trim() : "";
-  if (!NAME.test(name) || OWN.has(name.toLowerCase())) raise(ctx, "validation.bad_input", "Auth header needs a valid header name.");
+  if (!NAME.test(name) || OWN.has(name.toLowerCase()))
+    raise(ctx, "validation.bad_input", "Auth header needs a valid header name.");
   return { name: name.toLowerCase(), value: secret, secret };
 }
 
 function scrub(text: string, secrets: readonly string[]): string {
   let out = text;
-  for (const s of [...secrets].sort((a, b) => b.length - a.length)) if (s.length >= 4) out = out.split(s).join("[hidden]");
+  for (const s of [...secrets].sort((a, b) => b.length - a.length))
+    if (s.length >= 4) out = out.split(s).join("[hidden]");
   return out;
 }
 
 function parseBody(text: string, type: string): unknown {
   if (text === "") return null;
   if (/json/i.test(type) || /^\s*[[{]/.test(text)) {
-    try { return JSON.parse(text) as unknown; } catch { /* not JSON after all: keep the text */ }
+    try {
+      return JSON.parse(text) as unknown;
+    } catch {
+      /* not JSON after all: keep the text */
+    }
   }
   return text;
 }
 
-async function request(ctx: AutoCtx, input: Row, allowed: ReadonlySet<string>, key: string | undefined): Promise<unknown> {
+async function request(
+  ctx: AutoCtx,
+  input: Row,
+  allowed: ReadonlySet<string>,
+  key: string | undefined,
+): Promise<unknown> {
   const method = typeof input["method"] === "string" ? input["method"].toUpperCase() : "";
-  if (!allowed.has(method)) raise(ctx, "validation.bad_input", `This request needs a method from ${[...allowed].join(", ")}.`);
+  if (!allowed.has(method))
+    raise(ctx, "validation.bad_input", `This request needs a method from ${[...allowed].join(", ")}.`);
   const url = buildUrl(ctx, input["url"], input["query"]);
   const headers: Record<string, string> = {};
   if (input["headers"] !== undefined) {
@@ -122,29 +167,64 @@ async function request(ctx: AutoCtx, input: Row, allowed: ReadonlySet<string>, k
     if (!("content-type" in headers)) headers["content-type"] = "text/plain; charset=utf-8";
   }
   if (body !== undefined && READ.has(method)) raise(ctx, "validation.bad_input", `${method} cannot carry a body.`);
-  if (body !== undefined && Buffer.byteLength(body) > MAX_BODY) raise(ctx, "validation.too_large", "The request body is over 1 MB.");
+  if (body !== undefined && Buffer.byteLength(body) > MAX_BODY)
+    raise(ctx, "validation.too_large", "The request body is over 1 MB.");
   if (key && !READ.has(method)) headers["idempotency-key"] = key;
   const secrets: string[] = [];
   // the key goes only to a host approved for it, whoever saved the step (checked before the Vault is asked)
   const authIn = input["auth"] as { handle?: unknown } | undefined;
-  if (authIn && typeof authIn === "object" && typeof authIn.handle === "string") await assertKeyMayGo(ctx, authIn.handle, url);
+  if (authIn && typeof authIn === "object" && typeof authIn.handle === "string")
+    await assertKeyMayGo(ctx, authIn.handle, url);
   const auth = await authHeader(ctx, input["auth"], url);
   // the value, the header, and the forms an app may echo it in (base64, base64 of "user:key", URL-encoded)
-  if (auth) { headers[auth.name] = auth.value; secrets.push(auth.value, ...secretForms(auth.secret, typeof (input["auth"] as { username?: unknown }).username === "string" ? [String((input["auth"] as { username?: unknown }).username)] : [])); }
+  if (auth) {
+    headers[auth.name] = auth.value;
+    secrets.push(
+      auth.value,
+      ...secretForms(
+        auth.secret,
+        typeof (input["auth"] as { username?: unknown }).username === "string"
+          ? [String((input["auth"] as { username?: unknown }).username)]
+          : [],
+      ),
+    );
+  }
   const deps: FetchDeps = documentNetwork() ?? { fetch: globalThis.fetch, lookup: lookupHost };
   // the key's own header, whatever it is called, and any header that holds a Vault value stay on the origin the person wrote: a redirect elsewhere goes without them
-  const result = await requestPublic({ method, url, headers, ...(body !== undefined ? { body } : {}), ...(auth ? { secretHeaders: [auth.name], secretValues: secrets } : {}) }, deps);
+  const result = await requestPublic(
+    {
+      method,
+      url,
+      headers,
+      ...(body !== undefined ? { body } : {}),
+      ...(auth ? { secretHeaders: [auth.name], secretValues: secrets } : {}),
+    },
+    deps,
+  );
   if (!result.ok) {
-    const code = result.reason === "The document is too large." ? "validation.too_large" : /not a public host|Only an https|cannot be opened|username or password/.test(result.reason) ? "validation.bad_input" : "provider.network";
+    const code =
+      result.reason === "The document is too large."
+        ? "validation.too_large"
+        : /not a public host|Only an https|cannot be opened|username or password/.test(result.reason)
+          ? "validation.bad_input"
+          : "provider.network";
     raise(ctx, code, scrub(result.reason, secrets));
   }
   const responseHeaders: Record<string, string> = {};
-  for (const [name, value] of Object.entries(result.headers)) if (!HIDDEN_RESPONSE.test(name)) responseHeaders[name] = scrub(value, secrets);
+  for (const [name, value] of Object.entries(result.headers))
+    if (!HIDDEN_RESPONSE.test(name)) responseHeaders[name] = scrub(value, secrets);
   const text = scrub(result.text, secrets);
-  return { status: result.status, ok: result.status >= 200 && result.status < 300, headers: responseHeaders, body: parseBody(text, result.headers["content-type"] ?? "") };
+  return {
+    status: result.status,
+    ok: result.status >= 200 && result.status < 300,
+    headers: responseHeaders,
+    body: parseBody(text, result.headers["content-type"] ?? ""),
+  };
 }
 
-export function httpRead(ctx: AutoCtx, input: Row): Promise<unknown> { return request(ctx, input, new Set(["GET", "HEAD"]), undefined); }
+export function httpRead(ctx: AutoCtx, input: Row): Promise<unknown> {
+  return request(ctx, input, new Set(["GET", "HEAD"]), undefined);
+}
 
 export function httpSend(ctx: AutoCtx, input: Row): Promise<unknown> {
   const key = typeof input["idempotencyKey"] === "string" ? input["idempotencyKey"] : undefined;

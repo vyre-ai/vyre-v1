@@ -48,7 +48,12 @@ export function NeedsTeamSpace({ what, density, onAction, testID }: NeedsTeamSpa
         onPressOut={() => setDown(false)}
         testID="needs-team-space-action"
         {...webProps({ title: NEEDS_TEAM_SPACE_ACTION })}
-        style={({ hovered }: { hovered?: boolean }) => [styles.button, compact && styles.buttonCompact, hovered === true && styles.buttonHover, down && styles.buttonDown]}
+        style={({ hovered }: { hovered?: boolean }) => [
+          styles.button,
+          compact && styles.buttonCompact,
+          hovered === true && styles.buttonHover,
+          down && styles.buttonDown,
+        ]}
       >
         <Text style={styles.buttonText}>{NEEDS_TEAM_SPACE_ACTION}</Text>
       </Pressable>
@@ -57,12 +62,29 @@ export function NeedsTeamSpace({ what, density, onAction, testID }: NeedsTeamSpa
 }
 
 const styles = StyleSheet.create({
-  box: { maxWidth: 560, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10, backgroundColor: "var(--sunk)" as string },
+  box: {
+    maxWidth: 560,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: "var(--sunk)" as string,
+  },
   boxCompact: { flexDirection: "column", alignItems: "flex-start", gap: 10 },
   text: { flex: 1, color: "var(--ink-2)" as string, fontSize: 13, lineHeight: 19 },
   textCompact: { flex: 0, width: "100%" },
   label: { color: "var(--ink)" as string, fontWeight: "600" },
-  button: { height: 28, paddingHorizontal: 12, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string },
+  button: {
+    height: 28,
+    paddingHorizontal: 12,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "var(--accent)" as string,
+  },
   buttonCompact: { height: 34 },
   buttonHover: { opacity: 0.92 },
   buttonDown: { opacity: 0.85 },

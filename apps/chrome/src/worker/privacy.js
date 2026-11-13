@@ -34,10 +34,12 @@ export function privacyFor(host, list) {
  */
 export function allowed(tab, list) {
   const page = pageOf(tab && tab.url);
-  if (tab && tab.incognito) return { off: true, why: "incognito", host: page ? page.host : null, mode: "never", records: false, read: false };
+  if (tab && tab.incognito)
+    return { off: true, why: "incognito", host: page ? page.host : null, mode: "never", records: false, read: false };
   if (!page) return { off: true, why: "not_a_page", host: null, mode: "never", records: false, read: false };
   const p = privacyFor(page.host, list);
-  if (p.mode === "never") return { off: false, why: "never", host: page.host, mode: "never", records: false, read: false };
+  if (p.mode === "never")
+    return { off: false, why: "never", host: page.host, mode: "never", records: false, read: false };
   return { off: false, why: null, host: page.host, mode: p.mode, records: p.records, read: true };
 }
 
@@ -52,7 +54,9 @@ export function createPrivacy(store) {
   return {
     list,
     /** @param {{ url?: string, incognito?: boolean } | null | undefined} tab */
-    async of(tab) { return allowed(tab, await list()); },
+    async of(tab) {
+      return allowed(tab, await list());
+    },
     /**
      * Set one host's choice. Going back to the defaults removes the row.
      * @param {string} host @param {{ mode?: Mode, records?: boolean }} change
@@ -65,7 +69,8 @@ export function createPrivacy(store) {
       const now = privacyFor(h, rows);
       const next = { host: h, mode: change.mode ?? now.mode, records: change.records ?? now.records };
       const kept = rows.filter((r) => r.host !== h);
-      if (next.mode !== DEFAULT.mode || next.records !== DEFAULT.records || kept.some((r) => hostUnder(h, r.host))) kept.push(next);
+      if (next.mode !== DEFAULT.mode || next.records !== DEFAULT.records || kept.some((r) => hostUnder(h, r.host)))
+        kept.push(next);
       await store.set({ sitePrivacy: kept.slice(-2000) });
       return next;
     },

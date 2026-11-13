@@ -8,14 +8,36 @@ import type { HoldNames } from "../../../lib/hold-words.ts";
 import { outwardOf } from "../../../lib/outward.ts";
 import { handleOf } from "../../../lib/person-handle.ts";
 import {
-  ACTS, APPROVER_RANK, RISK_RANK, actOf, allRules, approverFor, askBlocks, clean, cut, effectiveRule, getHold, holdOut, holdsWhere, insertHold, mayHandle, newHoldId, previewBlocks, putRule,
-  raise, rawSecretIn, readPolicy, saveHold, sha, summaryLine,
+  ACTS,
+  APPROVER_RANK,
+  RISK_RANK,
+  actOf,
+  allRules,
+  approverFor,
+  askBlocks,
+  clean,
+  cut,
+  effectiveRule,
+  getHold,
+  holdOut,
+  holdsWhere,
+  insertHold,
+  mayHandle,
+  newHoldId,
+  previewBlocks,
+  putRule,
+  raise,
+  rawSecretIn,
+  readPolicy,
+  saveHold,
+  sha,
+  summaryLine,
 } from "../projections.ts";
 import { isHostService } from "../../../lib/trust.ts";
 import type { ActDef, GateCtx, Hold, PrincipalRef, RuleRow, Scope } from "../projections.ts";
 import { dropHold } from "./approve.ts";
 
-type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const HOUR = 3_600_000;
 
 // ---- gate.park ----
@@ -26,35 +48,60 @@ async function askerOf(ctx: GateCtx, p: PrincipalRef, actingFor: string | undefi
   if (p.kind === "person") return p.id;
   if (p.kind === "agent" && ctx.call) {
     try {
-      const r = (await ctx.call("access.principals.get", { principal: { kind: "agent", id: p.id } })) as { principal?: { owner?: unknown } } | null;
+      const r = (await ctx.call("access.principals.get", { principal: { kind: "agent", id: p.id } })) as {
+        principal?: { owner?: unknown };
+      } | null;
       const owner = r?.principal?.owner;
       if (typeof owner === "string" && owner) return owner;
-    } catch { /* falls to the admins */ }
+    } catch {
+      /* falls to the admins */
+    }
   }
   return undefined;
 }
-
 
 /** "Started by the automation <name> (<trigger>)" for a thread that is the task thread of an Automation's outside-started Run, else "". */
 async function automationStartLine(ctx: GateCtx, threadId: string): Promise<string> {
   if (!ctx.call) return "";
   // a thread the Run's agent started from there (a task, a helper, a crew job) carries the Run's mark: the line comes from it, whether or not a message since cleared it for outward acts
   const named = async (automationId: string, trigger: string): Promise<string> => {
-    const name = ((await ctx.call!("automations.get", { automationId }).catch(() => null)) as { automation?: { name?: string } } | null)?.automation?.name ?? "an automation";
+    const name =
+      (
+        (await ctx.call!("automations.get", { automationId }).catch(() => null)) as {
+          automation?: { name?: string };
+        } | null
+      )?.automation?.name ?? "an automation";
     return `Started by the automation ${name} (${triggerWords(trigger)})`;
   };
   const fromMark = async (): Promise<string> => {
-    const m = readAutomationMark((ctx.db.all("SELECT source FROM gate_taint WHERE thread_id = ?", threadId)[0] as { source?: string } | undefined)?.source);
+    const m = readAutomationMark(
+      (ctx.db.all("SELECT source FROM gate_taint WHERE thread_id = ?", threadId)[0] as { source?: string } | undefined)
+        ?.source,
+    );
     return m && isOutsideTrigger(m.trigger) ? named(m.automationId, m.trigger) : "";
   };
   try {
-    const th = ((await ctx.call("threads.get", { threadId })) as { thread?: { scopeType?: string; scopeId?: string } } | null)?.thread;
+    const th = (
+      (await ctx.call("threads.get", { threadId })) as { thread?: { scopeType?: string; scopeId?: string } } | null
+    )?.thread;
     if (th?.scopeType !== "task" || typeof th.scopeId !== "string") return await fromMark();
-    const t = ((await ctx.call("tasks.get", { taskId: th.scopeId })) as { task?: { createdBy?: string; workingNotes?: Record<string, string> } } | null)?.task;
-    const automationId = t?.workingNotes?.["automation.id"], trigger = t?.workingNotes?.["automation.trigger"] ?? "";
-    if (typeof automationId !== "string" || t?.createdBy !== `svc_${automationId.slice(4)}` || !isOutsideTrigger(trigger)) return await fromMark();
+    const t = (
+      (await ctx.call("tasks.get", { taskId: th.scopeId })) as {
+        task?: { createdBy?: string; workingNotes?: Record<string, string> };
+      } | null
+    )?.task;
+    const automationId = t?.workingNotes?.["automation.id"],
+      trigger = t?.workingNotes?.["automation.trigger"] ?? "";
+    if (
+      typeof automationId !== "string" ||
+      t?.createdBy !== `svc_${automationId.slice(4)}` ||
+      !isOutsideTrigger(trigger)
+    )
+      return await fromMark();
     return await named(automationId, trigger);
-  } catch { return ""; }
+  } catch {
+    return "";
+  }
 }
 /** Open asks one agent may have waiting for one person (lead ruling, 3 Nov). */
 export const MAX_OPEN_ASKS = 5;
@@ -62,10 +109,14 @@ export const MAX_OPEN_ASKS = 5;
 /** A principal's name as people know it, for the card and the answers. Falls back to "An agent", or what the caller names. */
 async function nameOf(ctx: GateCtx, p: PrincipalRef, fallback = "An agent"): Promise<string> {
   try {
-    const r = (await ctx.call?.("access.principals.get", { principal: { kind: p.kind, id: p.id } })) as { principal?: { name?: unknown } } | null;
+    const r = (await ctx.call?.("access.principals.get", { principal: { kind: p.kind, id: p.id } })) as {
+      principal?: { name?: unknown };
+    } | null;
     const name = r?.principal?.name;
     if (typeof name === "string" && name.trim()) return cut(name.trim(), 60);
-  } catch { /* the card still says an agent asked */ }
+  } catch {
+    /* the card still says an agent asked */
+  }
   return fallback;
 }
 
@@ -75,16 +126,35 @@ export async function holdNamesOf(ctx: GateCtx, cap: string, input: unknown): Pr
   const o = outwardOf(cap, input);
   for (const r of o?.to ?? []) {
     if (r.kind !== "person" || !r.id) continue;
-    if (r.id.startsWith("usr_")) { const n = await nameOf(ctx, { kind: "person", id: r.id }, ""); if (n) (out.people ??= {})[r.id] = n; continue; }
+    if (r.id.startsWith("usr_")) {
+      const n = await nameOf(ctx, { kind: "person", id: r.id }, "");
+      if (n) (out.people ??= {})[r.id] = n;
+      continue;
+    }
     try {
-      const l = (await ctx.call?.("access.principals.list", { kind: "person", status: "active", limit: 50 })) as { principals?: Array<{ id?: string; name?: string }> } | null;
-      const hit = (l?.principals ?? []).find((p) => typeof p.id === "string" && typeof p.name === "string" && (handleOf(p.name, p.id) === r.id || p.name.split(" ")[0]?.toLowerCase() === r.id!.toLowerCase()));
+      const l = (await ctx.call?.("access.principals.list", { kind: "person", status: "active", limit: 50 })) as {
+        principals?: Array<{ id?: string; name?: string }>;
+      } | null;
+      const hit = (l?.principals ?? []).find(
+        (p) =>
+          typeof p.id === "string" &&
+          typeof p.name === "string" &&
+          (handleOf(p.name, p.id) === r.id || p.name.split(" ")[0]?.toLowerCase() === r.id!.toLowerCase()),
+      );
       if (hit?.name) (out.people ??= {})[r.id] = hit.name;
-    } catch { /* the plain word stands */ }
+    } catch {
+      /* the plain word stands */
+    }
   }
-  const fileId = typeof (input as { fileId?: unknown } | null)?.fileId === "string" ? (input as { fileId: string }).fileId : "";
+  const fileId =
+    typeof (input as { fileId?: unknown } | null)?.fileId === "string" ? (input as { fileId: string }).fileId : "";
   if (cap.startsWith("files.") && fileId) {
-    try { const f = (await ctx.call?.("files.get", { fileId })) as { file?: { name?: string } } | null; if (f?.file?.name) out.file = cut(f.file.name, 60); } catch { /* the plain word stands */ }
+    try {
+      const f = (await ctx.call?.("files.get", { fileId })) as { file?: { name?: string } } | null;
+      if (f?.file?.name) out.file = cut(f.file.name, 60);
+    } catch {
+      /* the plain word stands */
+    }
   }
   return out;
 }
@@ -92,9 +162,12 @@ export async function holdNamesOf(ctx: GateCtx, cap: string, input: unknown): Pr
 export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   // Only the pipeline parks a call: the Gate hook calls with origin "gate" (as the Space's owner, for the Space itself), the host with svc_host, and only at the top of the call: a capability the Gate hook ran that calls gate.park nested has depth above zero and is refused. The hold names the principal, the capability and the input
   // that gate.release later runs as that principal, so a hold a caller wrote themselves would run anything as anyone (P-SEC_10).
-  if (!isHostService(ctx.principal) && !(ctx.origin === "gate" && (ctx.depth ?? 0) === 0)) raise(ctx, "permission.role_lacks_permission", "Only the server parks a call for approval.", { reason: "system_only" });
+  if (!isHostService(ctx.principal) && !(ctx.origin === "gate" && (ctx.depth ?? 0) === 0))
+    raise(ctx, "permission.role_lacks_permission", "Only the server parks a call for approval.", {
+      reason: "system_only",
+    });
   const same = holdsWhere(ctx.db, "decision_id = ?", input.decisionId)[0];
-  if (same) return clean({ holdId: same.id, taskId: same.taskId, runId: same.runId });   // the same decision parked twice is one hold
+  if (same) return clean({ holdId: same.id, taskId: same.taskId, runId: same.runId }); // the same decision parked twice is one hold
   if (!ctx.call) raise(ctx, "internal.unavailable", "Approvals are not available right now.", { service: "call" });
   const principal = input.principal as PrincipalRef;
   const a = actOf(input.act);
@@ -102,17 +175,33 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   // Ask the person (docs/ask-the-person.md): the hold is the person's own call, so they and only they approve it, whatever rule the act has; nobody else's yes can run something as them.
   // Unanswered, it is dropped, never passed to a delegate. The agent that asked is named on the card, in the events and on the row.
   const ask = input.ask as { by: PrincipalRef; what: string } | undefined;
-  if (ask && principal.kind !== "person") raise(ctx, "validation.bad_input", "Only a person is asked.", { reason: "ask_not_person" });
+  if (ask && principal.kind !== "person")
+    raise(ctx, "validation.bad_input", "Only a person is asked.", { reason: "ask_not_person" });
   if (ask) {
     const at = rawSecretIn(input.input);
-    if (at) raise(ctx, "validation.bad_input", `Do not send a secret in ${at}. Put it in the Vault first (vault_item_put asks the person to paste it) and pass its handle, like #Google_Client_Secret.`, { reason: "raw_secret", path: at });
+    if (at)
+      raise(
+        ctx,
+        "validation.bad_input",
+        `Do not send a secret in ${at}. Put it in the Vault first (vault_item_put asks the person to paste it) and pass its handle, like #Google_Client_Secret.`,
+        { reason: "raw_secret", path: at },
+      );
     // the flood guard (lead ruling, 3 Nov): one open ask per capability and input, and at most MAX_OPEN_ASKS open asks from one agent to one person. A repeat is the same card, not a new one.
-    const open = holdsWhere(ctx.db, "state = 'held' AND asked_by IS NOT NULL AND principal_id = ?", principal.id).filter((h) => h.askedBy?.id === ask.by.id);
+    const open = holdsWhere(
+      ctx.db,
+      "state = 'held' AND asked_by IS NOT NULL AND principal_id = ?",
+      principal.id,
+    ).filter((h) => h.askedBy?.id === ask.by.id);
     const inputHash = await sha(input.input ?? null);
     const again = open.find((h) => h.taskId !== "" && h.capName === input.capName && h.inputHash === inputHash);
     if (again) return clean({ holdId: again.id, taskId: again.taskId, runId: again.runId });
     if (open.length >= MAX_OPEN_ASKS) {
-      raise(ctx, "validation.precondition_failed", `You have ${MAX_OPEN_ASKS} requests waiting for ${await nameOf(ctx, principal, "the person you act for")}. Wait for an answer.`, { reason: "asks_waiting", waiting: open.length });
+      raise(
+        ctx,
+        "validation.precondition_failed",
+        `You have ${MAX_OPEN_ASKS} requests waiting for ${await nameOf(ctx, principal, "the person you act for")}. Wait for an answer.`,
+        { reason: "asks_waiting", waiting: open.length },
+      );
     }
   }
   const effective = effectiveRule(ctx.db, principal, a.key, policy);
@@ -128,29 +217,64 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   const agentSays = !ask && principal.kind === "agent" ? await nameOf(ctx, principal, "") : "";
   const names = agentSays ? await holdNamesOf(ctx, input.capName, input.input) : {};
   const sentence = agentSays ? cut(holdSentence(agentSays, input.capName, input.input, names), 120) : "";
-  const summary = ask ? cut(`${agentName} asks you to: ${ask.what}`, 120) : sentence || summaryLine(a, input.capName, input.input);
+  const summary = ask
+    ? cut(`${agentName} asks you to: ${ask.what}`, 120)
+    : sentence || summaryLine(a, input.capName, input.input);
   // a turn in the task thread of an Automation's outside-started Run: the card says which Automation and what set it off, read from the task (its automation and trigger, written when the
   // Run's step made it), so a message typed in the thread never takes the line away (lead 12 Nov, pass 2, 2)
   const startedBy = typeof input.threadId === "string" ? await automationStartLine(ctx, input.threadId) : "";
   const hold: Hold = {
-    id, act: a.key, capName: input.capName, capVersion: input.capVersion, input: input.input ?? null, inputHash: await sha(input.input ?? null), payloadHash: input.payloadHash,
-    principal, decisionId: input.decisionId, taskId: "", state: "held", summary, approver, rule, createdAt: now, expiresAt, backstopAt, possiblySent: false,
+    id,
+    act: a.key,
+    capName: input.capName,
+    capVersion: input.capVersion,
+    input: input.input ?? null,
+    inputHash: await sha(input.input ?? null),
+    payloadHash: input.payloadHash,
+    principal,
+    decisionId: input.decisionId,
+    taskId: "",
+    state: "held",
+    summary,
+    approver,
+    rule,
+    createdAt: now,
+    expiresAt,
+    backstopAt,
+    possiblySent: false,
   };
   if (input.actingFor) hold.actingFor = input.actingFor;
   if (input.runId) hold.runId = input.runId;
   if (input.threadId) hold.threadId = input.threadId;
   if (input.step) hold.step = input.step;
   if (ask) hold.askedBy = { kind: ask.by.kind, id: ask.by.id };
-  ctx.db.run("UPDATE gate_holds SET result = NULL WHERE result IS NOT NULL AND expires_at < ?", ctx.now());   // an answer nobody collected is not kept past its hold
+  ctx.db.run("UPDATE gate_holds SET result = NULL WHERE result IS NOT NULL AND expires_at < ?", ctx.now()); // an answer nobody collected is not kept past its hold
   insertHold(ctx.db, hold);
 
   let taskId: string;
   try {
-    const r = (await ctx.call("tasks.create", clean({
-      kind: "approve", title: ask ? cut(`${agentName} asks: ${ask.what}`, 120) : sentence || `Approve: ${holdTitle(input.capName, input.input, a.title)}`, summary, why: ask ? "Only you can do this here. Approve runs it as you, once, exactly as shown." : startedBy ? `${startedBy}. ${rule.reason}` : rule.reason, assigned: approver,
-      blocks: ask ? askBlocks({ act: a.key, what: ask.what, agentName, capName: input.capName, input: input.input }) : previewBlocks(a, input.capName, input.input, undefined, id, names),
-      source: { kind: "gate", id }, expiresAt, idempotencyKey: `gate:${id}`,
-    }))) as { task: { id: string } };
+    const r = (await ctx.call(
+      "tasks.create",
+      clean({
+        kind: "approve",
+        title: ask
+          ? cut(`${agentName} asks: ${ask.what}`, 120)
+          : sentence || `Approve: ${holdTitle(input.capName, input.input, a.title)}`,
+        summary,
+        why: ask
+          ? "Only you can do this here. Approve runs it as you, once, exactly as shown."
+          : startedBy
+            ? `${startedBy}. ${rule.reason}`
+            : rule.reason,
+        assigned: approver,
+        blocks: ask
+          ? askBlocks({ act: a.key, what: ask.what, agentName, capName: input.capName, input: input.input })
+          : previewBlocks(a, input.capName, input.input, undefined, id, names),
+        source: { kind: "gate", id },
+        expiresAt,
+        idempotencyKey: `gate:${id}`,
+      }),
+    )) as { task: { id: string } };
     taskId = r.task.id;
     await ctx.call("tasks.working_notes.set", { taskId, key: "decision_id", value: input.decisionId });
     await ctx.call("tasks.working_notes.set", { taskId, key: "payload_hash", value: input.payloadHash });
@@ -163,23 +287,50 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   hold.taskId = taskId;
 
   if (input.runId) {
-    try { await ctx.call("runs.mark_waiting", { runId: input.runId, reason: "approval", taskId }); } catch { /* the Run shows Waiting when it can; the hold stands either way */ }
+    try {
+      await ctx.call("runs.mark_waiting", { runId: input.runId, reason: "approval", taskId });
+    } catch {
+      /* the Run shows Waiting when it can; the hold stands either way */
+    }
   }
   if (ctx.schedule) {
-    try { hold.expireSchedule = await ctx.schedule(expiresAt, "gate.expire", { holdId: id }); } catch { ctx.log?.warn("gate.timer_failed", { holdId: id, which: "expire" }); }
+    try {
+      hold.expireSchedule = await ctx.schedule(expiresAt, "gate.expire", { holdId: id });
+    } catch {
+      ctx.log?.warn("gate.timer_failed", { holdId: id, which: "expire" });
+    }
     if (approver.kind === "person" && backstopAt < expiresAt) {
       try {
         hold.backstopSchedule = await ctx.schedule(backstopAt, "notifications.send", {
-          to: approver.id, kind: "approval.backstop", subject: { type: "task", id: taskId }, title: summary, collapseKey: `approval.backstop:${taskId}`,
+          to: approver.id,
+          kind: "approval.backstop",
+          subject: { type: "task", id: taskId },
+          title: summary,
+          collapseKey: `approval.backstop:${taskId}`,
         });
-      } catch { ctx.log?.warn("gate.timer_failed", { holdId: id, which: "backstop" }); }
+      } catch {
+        ctx.log?.warn("gate.timer_failed", { holdId: id, which: "backstop" });
+      }
     }
   }
   saveHold(ctx.db, hold);
 
-  ctx.emit("gate.requested", `task/${taskId}`, clean({
-    holdId: id, act: a.key, capName: input.capName, taskId, principal, actingFor: input.actingFor, runId: input.runId, expiresAt, askedBy: hold.askedBy,
-  }), { vis: "participants" });
+  ctx.emit(
+    "gate.requested",
+    `task/${taskId}`,
+    clean({
+      holdId: id,
+      act: a.key,
+      capName: input.capName,
+      taskId,
+      principal,
+      actingFor: input.actingFor,
+      runId: input.runId,
+      expiresAt,
+      askedBy: hold.askedBy,
+    }),
+    { vis: "participants" },
+  );
   return clean({ holdId: id, taskId, runId: input.runId });
 }
 
@@ -187,11 +338,28 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
 
 export async function effectiveRuleOf(ctx: GateCtx, input: In): Promise<unknown> {
   const e = effectiveRule(ctx.db, input.principal as PrincipalRef, input.act, undefined, input.adminOnly === true);
-  return { hold: e.hold, adminRule: e.adminRule, reason: e.reason, approvers: e.approvers, peopleOnly: e.peopleOnly, afterHours: e.afterHours, onTimeout: e.onTimeout, sources: e.sources };
+  return {
+    hold: e.hold,
+    adminRule: e.adminRule,
+    reason: e.reason,
+    approvers: e.approvers,
+    peopleOnly: e.peopleOnly,
+    afterHours: e.afterHours,
+    onTimeout: e.onTimeout,
+    sources: e.sources,
+  };
 }
 
 export async function actsList(_ctx: GateCtx, _input: In): Promise<unknown> {
-  return { acts: ACTS.map((a) => ({ key: a.key, title: a.title, risk: a.risk, humanToo: a.humanToo, peopleOnly: a.agentOkFor === undefined || RISK_RANK[a.agentOkFor] < RISK_RANK[a.risk] })) };
+  return {
+    acts: ACTS.map((a) => ({
+      key: a.key,
+      title: a.title,
+      risk: a.risk,
+      humanToo: a.humanToo,
+      peopleOnly: a.agentOkFor === undefined || RISK_RANK[a.agentOkFor] < RISK_RANK[a.risk],
+    })),
+  };
 }
 
 function page<T>(all: readonly T[], cursor?: string, limit?: number): { rows: T[]; next?: string; total: number } {
@@ -205,15 +373,22 @@ function page<T>(all: readonly T[], cursor?: string, limit?: number): { rows: T[
 
 export async function holdsList(ctx: GateCtx, input: In): Promise<unknown> {
   // a hold is written before its Approve task is made (a retry of the same decision then finds it), so for that moment it has no task: it is not a hold anyone can act on yet, and its empty taskId is not a valid id
-  const all = holdsWhere(ctx.db).filter((h) => h.taskId !== "" &&
-    (!input.states || (input.states as string[]).includes(h.state)) && (!input.act || h.act === input.act) && (!input.runId || h.runId === input.runId) && mayHandle(ctx, h));
+  const all = holdsWhere(ctx.db).filter(
+    (h) =>
+      h.taskId !== "" &&
+      (!input.states || (input.states as string[]).includes(h.state)) &&
+      (!input.act || h.act === input.act) &&
+      (!input.runId || h.runId === input.runId) &&
+      mayHandle(ctx, h),
+  );
   const p = page(all, input.cursor, input.limit);
   return clean({ holds: p.rows.map(holdOut), next: p.next, total: p.total });
 }
 
 /** System: the answer of an approved call, handed to the engine once and cleared. A hold past its expiry keeps nothing. */
 export async function resultTake(ctx: GateCtx, input: In): Promise<unknown> {
-  if (!isHostService(ctx.principal)) raise(ctx, "permission.role_lacks_permission", "Only the server reads this.", { reason: "system_only" });
+  if (!isHostService(ctx.principal))
+    raise(ctx, "permission.role_lacks_permission", "Only the server reads this.", { reason: "system_only" });
   const h = getHold(ctx, input.holdId);
   const result = ctx.now() <= h.expiresAt ? h.result : undefined;
   if (h.result !== undefined) ctx.db.run("UPDATE gate_holds SET result = NULL WHERE id = ?", h.id);
@@ -228,13 +403,27 @@ export async function holdsGet(ctx: GateCtx, input: In): Promise<unknown> {
 
 // ---- rules ----
 
-function ruleOut(r: RuleRow | undefined, a: ActDef, scope: Scope, agentId: string, ctx: GateCtx): Record<string, unknown> {
+function ruleOut(
+  r: RuleRow | undefined,
+  a: ActDef,
+  scope: Scope,
+  agentId: string,
+  ctx: GateCtx,
+): Record<string, unknown> {
   const policy = readPolicy(ctx.db);
   const okFor = r?.agentOkFor ?? a.agentOkFor;
   return clean({
-    act: a.key, mode: r?.mode ?? "hold", approvers: r?.approvers ?? a.approvers, peopleOnly: okFor === undefined || RISK_RANK[okFor] < RISK_RANK[a.risk], agentOkFor: okFor,
-    afterHours: r?.afterHours ?? policy.timeoutHours, onTimeout: r?.onTimeout ?? a.onTimeout, escalateTo: r?.escalateTo ?? a.escalateTo,
-    emailBackstopHours: Math.min(policy.emailBackstopHours, a.emailBackstopHours), scope, agentId: agentId || undefined,
+    act: a.key,
+    mode: r?.mode ?? "hold",
+    approvers: r?.approvers ?? a.approvers,
+    peopleOnly: okFor === undefined || RISK_RANK[okFor] < RISK_RANK[a.risk],
+    agentOkFor: okFor,
+    afterHours: r?.afterHours ?? policy.timeoutHours,
+    onTimeout: r?.onTimeout ?? a.onTimeout,
+    escalateTo: r?.escalateTo ?? a.escalateTo,
+    emailBackstopHours: Math.min(policy.emailBackstopHours, a.emailBackstopHours),
+    scope,
+    agentId: agentId || undefined,
   });
 }
 
@@ -242,7 +431,16 @@ export async function rulesList(ctx: GateCtx, input: In): Promise<unknown> {
   const rules: Record<string, unknown>[] = [];
   const stored = allRules(ctx.db);
   if (input.scope === undefined || input.scope === "space") {
-    for (const a of ACTS) rules.push(ruleOut(stored.find((r) => r.act === a.key && r.scope === "space"), a, "space", "", ctx));   // the defaults show too
+    for (const a of ACTS)
+      rules.push(
+        ruleOut(
+          stored.find((r) => r.act === a.key && r.scope === "space"),
+          a,
+          "space",
+          "",
+          ctx,
+        ),
+      ); // the defaults show too
   }
   for (const r of stored) {
     if (r.scope === "space" || (input.scope !== undefined && r.scope !== input.scope)) continue;
@@ -258,27 +456,68 @@ export async function rulesSet(ctx: GateCtx, input: In): Promise<unknown> {
   const a = actOf(input.act);
   const scope = input.scope as Scope;
   const agentId = (input.agentId as string | undefined) ?? "";
-  if (scope === "agent" && !agentId) raise(ctx, "validation.precondition_failed", "An agent rule names the agent.", { reason: "agent_required" });
-  if (scope !== "agent" && agentId) raise(ctx, "validation.precondition_failed", "Only an agent rule names an agent.", { reason: "agent_not_allowed" });
-  if (scope === "floor" && input.mode === "allow") raise(ctx, "validation.precondition_failed", "The owner floor only asks. To let something through, change the Space rule.", { reason: "floor_holds_only" });
-  if (input.approvers !== undefined && !APPROVERS.test(input.approvers)) raise(ctx, "validation.precondition_failed", "Approvers are owner, asker or role:<name>.", { reason: "bad_approvers" });
-  if (a.alwaysStops && (input.mode === "allow" || input.agentOkFor !== undefined || input.approvers === "asker")) raise(ctx, "validation.precondition_failed", "A company connection or a sign-in change always waits for a person with the right role.", { reason: "always_stops" });
-  if (a.personOnly && (input.approvers !== undefined || input.escalateTo !== undefined || input.onTimeout !== undefined)) raise(ctx, "validation.precondition_failed", "This is decided by the person it is asked of, and by nobody else. Who approves and what happens on a timeout are not changeable.", { reason: "person_only" });
+  if (scope === "agent" && !agentId)
+    raise(ctx, "validation.precondition_failed", "An agent rule names the agent.", { reason: "agent_required" });
+  if (scope !== "agent" && agentId)
+    raise(ctx, "validation.precondition_failed", "Only an agent rule names an agent.", { reason: "agent_not_allowed" });
+  if (scope === "floor" && input.mode === "allow")
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      "The owner floor only asks. To let something through, change the Space rule.",
+      { reason: "floor_holds_only" },
+    );
+  if (input.approvers !== undefined && !APPROVERS.test(input.approvers))
+    raise(ctx, "validation.precondition_failed", "Approvers are owner, asker or role:<name>.", {
+      reason: "bad_approvers",
+    });
+  if (a.alwaysStops && (input.mode === "allow" || input.agentOkFor !== undefined || input.approvers === "asker"))
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      "A company connection or a sign-in change always waits for a person with the right role.",
+      { reason: "always_stops" },
+    );
+  if (
+    a.personOnly &&
+    (input.approvers !== undefined || input.escalateTo !== undefined || input.onTimeout !== undefined)
+  )
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      "This is decided by the person it is asked of, and by nobody else. Who approves and what happens on a timeout are not changeable.",
+      { reason: "person_only" },
+    );
 
   // a rule can never loosen the strictest level: below the Space, it can only tighten what the Space says
   if (scope !== "space") {
     const policy = readPolicy(ctx.db);
     const space = allRules(ctx.db).find((r) => r.act === a.key && r.scope === "space");
     const base = {
-      mode: space?.mode ?? "hold", approvers: space?.approvers ?? a.approvers, afterHours: space?.afterHours ?? policy.timeoutHours, onTimeout: space?.onTimeout ?? a.onTimeout,
+      mode: space?.mode ?? "hold",
+      approvers: space?.approvers ?? a.approvers,
+      afterHours: space?.afterHours ?? policy.timeoutHours,
+      onTimeout: space?.onTimeout ?? a.onTimeout,
       agentOkFor: space?.agentOkFor ?? a.agentOkFor,
     };
-    const loosens = (what: string): never => raise(ctx, "validation.precondition_failed", `That would loosen the Space rule (${what}). Rules below the Space can only tighten it.`, { reason: "would_loosen", what });
+    const loosens = (what: string): never =>
+      raise(
+        ctx,
+        "validation.precondition_failed",
+        `That would loosen the Space rule (${what}). Rules below the Space can only tighten it.`,
+        { reason: "would_loosen", what },
+      );
     if (input.mode === "allow" && base.mode === "hold") loosens("mode");
-    if (input.approvers !== undefined && APPROVER_RANK(input.approvers) < APPROVER_RANK(base.approvers)) loosens("approvers");
+    if (input.approvers !== undefined && APPROVER_RANK(input.approvers) < APPROVER_RANK(base.approvers))
+      loosens("approvers");
     if (input.afterHours !== undefined && input.afterHours > base.afterHours) loosens("afterHours");
     if (input.onTimeout === "escalate" && base.onTimeout === "drop") loosens("onTimeout");
-    if (input.agentOkFor !== undefined && (base.agentOkFor === undefined || RISK_RANK[input.agentOkFor as keyof typeof RISK_RANK] > RISK_RANK[base.agentOkFor])) loosens("agentOkFor");
+    if (
+      input.agentOkFor !== undefined &&
+      (base.agentOkFor === undefined ||
+        RISK_RANK[input.agentOkFor as keyof typeof RISK_RANK] > RISK_RANK[base.agentOkFor])
+    )
+      loosens("agentOkFor");
   }
   const row: RuleRow = { act: a.key, scope, agentId, mode: input.mode, updatedAt: ctx.now() };
   if (input.approvers !== undefined) row.approvers = input.approvers;
@@ -287,7 +526,11 @@ export async function rulesSet(ctx: GateCtx, input: In): Promise<unknown> {
   if (input.onTimeout !== undefined) row.onTimeout = input.onTimeout;
   if (input.escalateTo !== undefined) row.escalateTo = input.escalateTo;
   putRule(ctx.db, row);
-  ctx.emit("gate.rule_changed", `entity/${a.key}`, clean({ act: a.key, scope, agentId: agentId || undefined, by: ctx.principal.id }));
+  ctx.emit(
+    "gate.rule_changed",
+    `entity/${a.key}`,
+    clean({ act: a.key, scope, agentId: agentId || undefined, by: ctx.principal.id }),
+  );
   return { rule: ruleOut(row, a, scope, agentId, ctx) };
 }
 
@@ -302,7 +545,15 @@ export async function recover(ctx: Pick<GateCtx, "db" | "now" | "call">): Promis
     h.error = "Interrupted while sending. It may have gone out. Check before sending it again.";
     saveHold(ctx.db, h);
     if (ctx.call && h.taskId) {
-      try { await ctx.call("tasks.working_notes.set", { taskId: h.taskId, key: "possibly_sent", value: "This may already have been sent. Check before approving again." }); } catch { /* the hold row carries the mark */ }
+      try {
+        await ctx.call("tasks.working_notes.set", {
+          taskId: h.taskId,
+          key: "possibly_sent",
+          value: "This may already have been sent. Check before approving again.",
+        });
+      } catch {
+        /* the hold row carries the mark */
+      }
     }
   }
   return stuck.map((h) => h.id);
@@ -310,11 +561,11 @@ export async function recover(ctx: Pick<GateCtx, "db" | "now" | "call">): Promis
 
 /** A person was removed: everything they asked the Gate to send is dropped, never sent. */
 export async function rejectAllOf(ctx: GateCtx, person: string, reason: string): Promise<string[]> {
-  ctx.db.run("DELETE FROM gate_grants WHERE person = ? AND kind IN ('turn', 'always')", person);   // what they asked for and allowed goes with them; an automation's permission stays with the automation
+  ctx.db.run("DELETE FROM gate_grants WHERE person = ? AND kind IN ('turn', 'always')", person); // what they asked for and allowed goes with them; an automation's permission stays with the automation
   const mine = holdsWhere(ctx.db, "state = 'held' AND (principal_id = ? OR acting_for = ?)", person, person);
   const done: string[] = [];
   for (const h of mine) {
-    if (h.sendingAt !== undefined) continue;   // mid-send: recover() sorts it out
+    if (h.sendingAt !== undefined) continue; // mid-send: recover() sorts it out
     await dropHold(ctx, h, reason);
     done.push(h.id);
   }

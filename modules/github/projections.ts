@@ -19,10 +19,21 @@ export interface GithubCtx {
   trace: { traceId: string };
   now(): number;
   db: GithubDb;
-  emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
+  emit(
+    name: string,
+    subject: string,
+    payload: unknown,
+    opts?: { vis?: "space" | "participants" | "owner" | "private" },
+  ): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
-  http: (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ status: number; text(): Promise<string> }>;
-  log: { info(msg: string, attrs?: Record<string, unknown>): void; warn(msg: string, attrs?: Record<string, unknown>): void };
+  http: (
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string },
+  ) => Promise<{ status: number; text(): Promise<string> }>;
+  log: {
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 export type Row = Record<string, string | number | null>;
@@ -45,7 +56,12 @@ export interface GithubHost {
   publicUrl(ctx: GithubCtx): Promise<string>;
 }
 
-export interface UserTokens { accessToken: string; refreshToken: string; expiresAt: number; /** a ticket the host minted for the GitHub identity just verified; identity.github_link takes it in place of a code */ linkTicket?: string }
+export interface UserTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+  /** a ticket the host minted for the GitHub identity just verified; identity.github_link takes it in place of a code */ linkTicket?: string;
+}
 export interface UserHost {
   /** The OAuth client to use: the Space's own GitHub App when an admin set one up, otherwise the default Vyre app. */
   app(ctx: GithubCtx): Promise<{ clientId: string; source: "space" | "vyre" }>;
@@ -54,7 +70,10 @@ export interface UserHost {
   refresh(ctx: GithubCtx, a: { refreshToken: string }): Promise<UserTokens>;
   revoke(ctx: GithubCtx, a: { accessToken: string }): Promise<void>;
   /** Tokens a sign-in with GitHub left for this GitHub id (taken once), or null. */
-  adopt(ctx: GithubCtx, a: { githubId: string }): Promise<{ login: string; accessToken: string; refreshToken: string; expiresAt: number } | null>;
+  adopt(
+    ctx: GithubCtx,
+    a: { githubId: string },
+  ): Promise<{ login: string; accessToken: string; refreshToken: string; expiresAt: number } | null>;
   /** The person's own Vault, Mine item "GitHub". */
   keep(ctx: GithubCtx, person: string, a: { refreshToken: string }): Promise<void>;
   recall(ctx: GithubCtx, person: string): Promise<string | null>;
@@ -79,7 +98,16 @@ export const API_VERSION = "2022-11-28";
 export const APP_ROW = "app";
 export const HANDLE = { webhook: "#GitHub_App_Webhook_Secret" } as const;
 /** What the App asks GitHub for. contents write is for pushes through the filler; the rest is what the pull request and issue pages need. */
-export const APP_PERMISSIONS: Record<string, string> = { contents: "write", pull_requests: "write", issues: "write", checks: "read", metadata: "read", actions: "read", administration: "write", secrets: "read" };
+export const APP_PERMISSIONS: Record<string, string> = {
+  contents: "write",
+  pull_requests: "write",
+  issues: "write",
+  checks: "read",
+  metadata: "read",
+  actions: "read",
+  administration: "write",
+  secrets: "read",
+};
 export const APP_EVENTS = ["push", "pull_request", "issues", "check_run", "workflow_run", "workflow_job"];
 export const MAX_FIX_ROUNDS = 3;
 
@@ -94,7 +122,8 @@ export const obj = (v: unknown): Json => (v && typeof v === "object" && !Array.i
 export const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 export const text = (v: unknown): string => (typeof v === "string" ? v : "");
 export const strOrUndef = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
-export const intOrUndef = (v: unknown): number | undefined => (typeof v === "number" && Number.isSafeInteger(v) ? v : undefined);
+export const intOrUndef = (v: unknown): number | undefined =>
+  typeof v === "number" && Number.isSafeInteger(v) ? v : undefined;
 export const num = (row: Row | null, key: string): number => {
   const v = row?.[key];
   return typeof v === "number" ? v : 0;
@@ -103,7 +132,7 @@ export const str = (row: Row | null, key: string): string => {
   const v = row?.[key];
   return typeof v === "string" ? v : "";
 };
-export const codeOf = (err: unknown): string => ((err as { error?: { code?: string } } | null)?.error?.code ?? "");
+export const codeOf = (err: unknown): string => (err as { error?: { code?: string } } | null)?.error?.code ?? "";
 /** An ISO time to milliseconds. */
 export const msOf = (v: unknown): number | undefined => {
   const t = typeof v === "string" ? Date.parse(v) : NaN;
@@ -119,7 +148,8 @@ export function refuse(ctx: Pick<GithubCtx, "trace">, message: string): never {
 
 /** `owner/name` as the path `/repos/owner/name`: each part encoded, and "." and ".." refused so a name cannot climb out of /repos. */
 export function repoPath(ctx: Pick<GithubCtx, "trace">, repo: unknown): string {
-  if (typeof repo !== "string" || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) bad(ctx, "A repository is written owner/name.");
+  if (typeof repo !== "string" || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo))
+    bad(ctx, "A repository is written owner/name.");
   const [owner = "", name = ""] = repo.split("/");
   if (owner === "." || owner === ".." || name === "." || name === "..") bad(ctx, "A repository is written owner/name.");
   return `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`;
@@ -138,8 +168,11 @@ const meSql = readFileSync(fileURLToPath(new URL("./migrations/0002_github_me.sq
 /** The tables of a person's own connection, made on first use (the first migration's tables are made by ensure). */
 export function ensureMe(ctx: Pick<GithubCtx, "db">): void {
   if (readyMe.has(ctx.db)) return;
-  try { ctx.db.all(`SELECT "person" FROM github_use WHERE "person" = ?`, "probe"); }
-  catch { for (const statement of statements(meSql)) ctx.db.run(statement); }
+  try {
+    ctx.db.all(`SELECT "person" FROM github_use WHERE "person" = ?`, "probe");
+  } catch {
+    for (const statement of statements(meSql)) ctx.db.run(statement);
+  }
   readyMe.add(ctx.db);
 }
 const migrationSql = readFileSync(fileURLToPath(new URL("./migrations/0001_github.sql", import.meta.url)), "utf8");
@@ -183,7 +216,11 @@ export interface Answer {
   text: string;
 }
 
-export type Auth = { as: "none" } | { as: "app" } | { as: "installation"; installationId: number } | { as: "user"; token: string };
+export type Auth =
+  | { as: "none" }
+  | { as: "app" }
+  | { as: "installation"; installationId: number }
+  | { as: "user"; token: string };
 
 export interface Request {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
@@ -221,16 +258,28 @@ function installCache(db: object): Map<string, number> {
 }
 
 async function send(ctx: GithubCtx, c: Request, bearer: string | null): Promise<Answer> {
-  const pairs = Object.entries(c.query ?? {}).filter((e): e is [string, string | number | boolean] => e[1] !== undefined);
-  const qs = pairs.length ? `?${pairs.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`).join("&")}` : "";
-  const headers: Record<string, string> = { accept: c.accept ?? "application/vnd.github+json", "x-github-api-version": API_VERSION, "user-agent": "vyre" };
+  const pairs = Object.entries(c.query ?? {}).filter(
+    (e): e is [string, string | number | boolean] => e[1] !== undefined,
+  );
+  const qs = pairs.length
+    ? `?${pairs.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`).join("&")}`
+    : "";
+  const headers: Record<string, string> = {
+    accept: c.accept ?? "application/vnd.github+json",
+    "x-github-api-version": API_VERSION,
+    "user-agent": "vyre",
+  };
   if (bearer) headers.authorization = `Bearer ${bearer}`;
   if (c.body !== undefined) headers["content-type"] = "application/json";
   let res: { status: number; text(): Promise<string> };
   try {
-    res = await ctx.http(`${API}${c.path}${qs}`, { method: c.method ?? "GET", headers, ...(c.body !== undefined ? { body: JSON.stringify(c.body) } : {}) });
+    res = await ctx.http(`${API}${c.path}${qs}`, {
+      method: c.method ?? "GET",
+      headers,
+      ...(c.body !== undefined ? { body: JSON.stringify(c.body) } : {}),
+    });
   } catch (e) {
-    if (typeof e === "object" && e !== null && "error" in e) throw e;   // a HostError such as the egress guard
+    if (typeof e === "object" && e !== null && "error" in e) throw e; // a HostError such as the egress guard
     throw fail("provider.network", ctx.trace.traceId, { message: "GitHub could not be reached." });
   }
   const body = await res.text();
@@ -239,9 +288,10 @@ async function send(ctx: GithubCtx, c: Request, bearer: string | null): Promise<
     try {
       const parsed = body ? (JSON.parse(body) as unknown) : {};
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) json = parsed as Json;
-      else if (Array.isArray(parsed)) json = { items: parsed };   // a list answers as a bare array
+      else if (Array.isArray(parsed)) json = { items: parsed }; // a list answers as a bare array
     } catch {
-      if (res.status < 300) throw fail("provider.bad_response", ctx.trace.traceId, { message: "GitHub answered something unreadable." });
+      if (res.status < 300)
+        throw fail("provider.bad_response", ctx.trace.traceId, { message: "GitHub answered something unreadable." });
     }
   }
   return { status: res.status, json, text: body };
@@ -258,14 +308,27 @@ export async function installationToken(ctx: GithubCtx, installationId: number, 
 }
 
 /** A new installation token (always from GitHub). `repositories` narrows it to those repositories. */
-export async function mintToken(ctx: GithubCtx, installationId: number, repositories?: string[], permissions?: Record<string, string>): Promise<Cached> {
+export async function mintToken(
+  ctx: GithubCtx,
+  installationId: number,
+  repositories?: string[],
+  permissions?: Record<string, string>,
+): Promise<Cached> {
   const a = await raw(ctx, {
-    method: "POST", path: `/app/installations/${installationId}/access_tokens`, auth: { as: "app" }, ...(repositories || permissions ? { body: { ...(repositories ? { repositories } : {}), ...(permissions ? { permissions } : {}) } } : {}),
+    method: "POST",
+    path: `/app/installations/${installationId}/access_tokens`,
+    auth: { as: "app" },
+    ...(repositories || permissions
+      ? { body: { ...(repositories ? { repositories } : {}), ...(permissions ? { permissions } : {}) } }
+      : {}),
   });
   if (a.status >= 300) throw refusal(ctx, a.status, a.json);
   const token = text(a.json.token);
   const expiresAt = msOf(a.json.expires_at);
-  if (!token || expiresAt === undefined) throw fail("provider.bad_response", ctx.trace.traceId, { message: "GitHub answered an installation token request with no token." });
+  if (!token || expiresAt === undefined)
+    throw fail("provider.bad_response", ctx.trace.traceId, {
+      message: "GitHub answered an installation token request with no token.",
+    });
   return { token, expiresAt };
 }
 
@@ -294,11 +357,25 @@ export function refusal(ctx: Pick<GithubCtx, "trace">, status: number, json: Jso
   const details = { status };
   const limited = status === 429 || (status === 403 && /rate limit/i.test(text(json.message)));
   if (limited) return fail("provider.rate_limited", t, { message: "GitHub asked us to slow down.", details });
-  if (status === 401) return fail("provider.auth_failed", t, { message: "GitHub did not accept the App. Check the GitHub App key in the Vault.", details });
-  if (status === 403) return fail("provider.auth_failed", t, { message: "The GitHub App may not do this. Check its permissions and that it is installed on the repository.", details });
-  if (status === 404) return fail("validation.not_found", t, { message: "GitHub has no such item, or the App cannot see it.", details });
-  if (status === 405 || status === 409) return fail("validation.precondition_failed", t, { message: "GitHub refused because of the state of the item.", details });
-  if (status === 422 || status === 400) return fail("validation.bad_input", t, { message: "GitHub could not use that request.", details });
+  if (status === 401)
+    return fail("provider.auth_failed", t, {
+      message: "GitHub did not accept the App. Check the GitHub App key in the Vault.",
+      details,
+    });
+  if (status === 403)
+    return fail("provider.auth_failed", t, {
+      message: "The GitHub App may not do this. Check its permissions and that it is installed on the repository.",
+      details,
+    });
+  if (status === 404)
+    return fail("validation.not_found", t, { message: "GitHub has no such item, or the App cannot see it.", details });
+  if (status === 405 || status === 409)
+    return fail("validation.precondition_failed", t, {
+      message: "GitHub refused because of the state of the item.",
+      details,
+    });
+  if (status === 422 || status === 400)
+    return fail("validation.bad_input", t, { message: "GitHub could not use that request.", details });
   if (status >= 500) return fail("provider.unavailable", t, { message: "GitHub is not answering right now.", details });
   return fail("provider.bad_response", t, { message: "GitHub answered something unexpected.", details });
 }
@@ -314,16 +391,25 @@ export async function installationFor(ctx: GithubCtx, a: { installationId?: numb
     if (hit !== undefined) return hit;
     const found = await api(ctx, { path: `${repoPath(ctx, a.repo)}/installation`, auth: { as: "app" } });
     const id = intOrUndef(found.id);
-    if (id === undefined) throw fail("provider.bad_response", ctx.trace.traceId, { message: "GitHub did not say which installation holds that repository." });
+    if (id === undefined)
+      throw fail("provider.bad_response", ctx.trace.traceId, {
+        message: "GitHub did not say which installation holds that repository.",
+      });
     known.set(a.repo, id);
     return id;
   }
   const res = await api(ctx, { path: "/app/installations", auth: { as: "app" } });
   const all = list(res.items).map(obj);
-  if (all.length === 0) refuse(ctx, "The GitHub App is not installed on any account yet. Install it from the link in Settings, Integrations.");
-  if (all.length > 1) refuse(ctx, "The GitHub App is installed on more than one account. Say which repository or installation.");
+  if (all.length === 0)
+    refuse(
+      ctx,
+      "The GitHub App is not installed on any account yet. Install it from the link in Settings, Integrations.",
+    );
+  if (all.length > 1)
+    refuse(ctx, "The GitHub App is installed on more than one account. Say which repository or installation.");
   const id = intOrUndef(all[0]?.id);
-  if (id === undefined) throw fail("provider.bad_response", ctx.trace.traceId, { message: "GitHub answered an installation with no id." });
+  if (id === undefined)
+    throw fail("provider.bad_response", ctx.trace.traceId, { message: "GitHub answered an installation with no id." });
   return id;
 }
 

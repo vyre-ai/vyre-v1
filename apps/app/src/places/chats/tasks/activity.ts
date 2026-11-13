@@ -3,11 +3,17 @@
 import type { Message } from "../conversation/model.ts";
 
 export type ActivityShow = "all" | "comments" | "updates";
-interface Entry { at: number; type: string; by: string; note?: string; eventId: string }
+interface Entry {
+  at: number;
+  type: string;
+  by: string;
+  note?: string;
+  eventId: string;
+}
 
 const WORDS: Record<string, (who: string) => string> = {
   created: (w) => `${w} created this`,
-  transitioned: (w) => `${w} changed the status`,   // a line from before the history named where it went
+  transitioned: (w) => `${w} changed the status`, // a line from before the history named where it went
   completed: (w) => `${w} marked this Done`,
   assigned: (w) => `${w} changed who is on this`,
   doing: (w) => `${w} moved this to Doing`,
@@ -31,7 +37,12 @@ const WORDS: Record<string, (who: string) => string> = {
 const BORN_MS = 2000;
 
 /** The history of a task as event lines of its thread. Fine detail (notes, followers, field edits) stays in the record's history. */
-export function activityOf(entries: readonly Entry[], threadId: string, nameOf: (id: string) => string, assigned?: string): Message[] {
+export function activityOf(
+  entries: readonly Entry[],
+  threadId: string,
+  nameOf: (id: string) => string,
+  assigned?: string,
+): Message[] {
   const out: Message[] = [];
   let madeAt = -BORN_MS;
   // tasks.history is newest first; two lines from one moment read in the order they happened
@@ -45,7 +56,16 @@ export function activityOf(entries: readonly Entry[], threadId: string, nameOf: 
     // the host marks work as started when it wakes the one assigned: it is their start
     const by = assigned && e.by.startsWith("svc_") && e.type === "transitioned:doing" ? assigned : e.by;
     const body = `${say(nameOf(by))}${e.note ? `: ${e.note}` : ""}`;
-    out.push({ messageId: `act:${e.eventId}`, threadId, threadSeq: 0, kind: "quiet", body, blocks: [], createdAt: e.at, author: { kind: "person", id: e.by } } as unknown as Message);
+    out.push({
+      messageId: `act:${e.eventId}`,
+      threadId,
+      threadSeq: 0,
+      kind: "quiet",
+      body,
+      blocks: [],
+      createdAt: e.at,
+      author: { kind: "person", id: e.by },
+    } as unknown as Message);
   }
   return out;
 }

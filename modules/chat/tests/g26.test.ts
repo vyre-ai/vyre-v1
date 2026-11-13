@@ -11,17 +11,21 @@ import { ensurePrivate } from "../handlers/private.ts";
 import { DANA, INTAKE, MAYA, assertEventsConform, codeOf, contractErrors, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
-const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const NOW = 1_760_000_000_000;
 
 async function chatWith(hn: Harness, ...ids: string[]) {
   // a chat with another person starts as a direct message with them
-  const input = ids.length > 0 ? { kind: "chat", personId: ids[0], idempotencyKey: `k${ids.join("")}${Math.random()}` } : { kind: "chat", agentIds: [INTAKE], idempotencyKey: `k${Math.random()}` };
+  const input =
+    ids.length > 0
+      ? { kind: "chat", personId: ids[0], idempotencyKey: `k${ids.join("")}${Math.random()}` }
+      : { kind: "chat", agentIds: [INTAKE], idempotencyKey: `k${Math.random()}` };
   return (await h["chat.start"]!(hn.ctx, input)).thread.threadId as string;
 }
 
 test("the finished handlers replace the group's entries of the same name in the table", () => {
-  for (const name of Object.keys(g26Handlers)) assert.equal(h[name], (g26Handlers as Record<string, unknown>)[name], name);
+  for (const name of Object.keys(g26Handlers))
+    assert.equal(h[name], (g26Handlers as Record<string, unknown>)[name], name);
 });
 
 test("chat.recent counts unread messages from others past the read cursor, filter unread keeps only those, and nextUnread names the first", async () => {
@@ -40,7 +44,10 @@ test("chat.recent counts unread messages from others past the read cursor, filte
   assert.equal(rows.find((r) => r.threadId === quiet)!.unread, 0);
   assert.equal(all.nextUnread, busy);
   const only = await h["chat.recent"]!(hn.ctx, { filter: "unread" });
-  assert.deepEqual([...only.today, ...only.yesterday, ...only.earlier].map((r: { threadId: string }) => r.threadId), [busy]);
+  assert.deepEqual(
+    [...only.today, ...only.yesterday, ...only.earlier].map((r: { threadId: string }) => r.threadId),
+    [busy],
+  );
   await markRead(hn.ctx, { threadId: busy });
   const after = await h["chat.recent"]!(hn.ctx, { filter: "unread" });
   assert.deepEqual([...after.today, ...after.yesterday, ...after.earlier], []);
@@ -52,10 +59,16 @@ test("the composer / table lists the commands chat runs, filtered by what was ty
   const hn = harness();
   const all = await h["chat.composer.suggest"]!(hn.ctx, { symbol: "/", q: "" });
   assert.deepEqual(contractErrors("chat.composer.suggest", "out", all), []);
-  assert.deepEqual(all.items.map((i: { id: string }) => i.id), CHAT_COMMANDS.map((c) => c.id));
+  assert.deepEqual(
+    all.items.map((i: { id: string }) => i.id),
+    CHAT_COMMANDS.map((c) => c.id),
+  );
   assert.ok(all.items.every((i: { kind: string; group: string }) => i.kind === "command" && i.group === "Commands"));
   const some = await h["chat.composer.suggest"]!(hn.ctx, { symbol: "/", q: "/pl" });
-  assert.deepEqual(some.items.map((i: { id: string }) => i.id), ["plan"]);
+  assert.deepEqual(
+    some.items.map((i: { id: string }) => i.id),
+    ["plan"],
+  );
   const at = await h["chat.composer.suggest"]!(hn.ctx, { symbol: "@", q: "" });
   assert.deepEqual(contractErrors("chat.composer.suggest", "out", at), []);
 });
@@ -72,18 +85,36 @@ test("chat.open_tab opens when the setting is on and a device is online; the per
 
   const off = harness({ calls: { ...base, "settings.get": () => ({ row: { value: false } }) } });
   const tb = await chatWith(off);
-  const no = await h["chat.open_tab"]!(off.agent(INTAKE, DANA), { threadId: tb, targetType: "file", targetId: "fil_1" });
+  const no = await h["chat.open_tab"]!(off.agent(INTAKE, DANA), {
+    threadId: tb,
+    targetType: "file",
+    targetId: "fil_1",
+  });
   assert.deepEqual(no, { opened: false, reason: "disabled_by_person" });
   assert.equal(off.named("tab.opened").length, 0);
-  assert.equal(off.rows("SELECT * FROM chat_message WHERE kind = 'agent'").length, 0, "no line is posted when the tab is not opened");
+  assert.equal(
+    off.rows("SELECT * FROM chat_message WHERE kind = 'agent'").length,
+    0,
+    "no line is posted when the tab is not opened",
+  );
 
-  const none = harness({ calls: { ...base, "devices.mine": () => ({ devices: [{ id: "dev_1", lastSeenAt: NOW - 10 * 60_000 }] }) } });
+  const none = harness({
+    calls: { ...base, "devices.mine": () => ({ devices: [{ id: "dev_1", lastSeenAt: NOW - 10 * 60_000 }] }) },
+  });
   const tc = await chatWith(none);
-  assert.deepEqual(await h["chat.open_tab"]!(none.agent(INTAKE, DANA), { threadId: tc, targetType: "file", targetId: "fil_1" }), { opened: false, reason: "no_device" });
+  assert.deepEqual(
+    await h["chat.open_tab"]!(none.agent(INTAKE, DANA), { threadId: tc, targetType: "file", targetId: "fil_1" }),
+    { opened: false, reason: "no_device" },
+  );
 
   const unreadable = harness({ calls: {} });
   const td = await chatWith(unreadable);
-  assert.equal((await h["chat.open_tab"]!(unreadable.agent(INTAKE, DANA), { threadId: td, targetType: "file", targetId: "fil_1" })).opened, true, "settings and devices that cannot be read do not turn a tab away");
+  assert.equal(
+    (await h["chat.open_tab"]!(unreadable.agent(INTAKE, DANA), { threadId: td, targetType: "file", targetId: "fil_1" }))
+      .opened,
+    true,
+    "settings and devices that cannot be read do not turn a tab away",
+  );
 });
 
 test("in a sealed thread the server-written messages are refused with bad_input and nothing is written; in an open thread they work as before", async () => {
@@ -91,7 +122,13 @@ test("in a sealed thread the server-written messages are refused with bad_input 
   const open = await chatWith(hn);
   const sealed = await chatWith(hn);
   ensurePrivate(hn.db);
-  hn.db.run("INSERT INTO chat_private (thread, owner, keyId, sealedAt) VALUES (?, ?, ?, ?)", sealed, DANA, "key_1", NOW);
+  hn.db.run(
+    "INSERT INTO chat_private (thread, owner, keyId, sealedAt) VALUES (?, ?, ?, ?)",
+    sealed,
+    DANA,
+    "key_1",
+    NOW,
+  );
   assert.equal(sealedThread(hn.ctx, sealed), true);
   assert.equal(sealedThread(hn.ctx, open), false);
   const before = hn.rows("SELECT * FROM chat_message WHERE thread = ?", sealed).length;
@@ -103,7 +140,11 @@ test("in a sealed thread the server-written messages are refused with bad_input 
     h["chat.handoff"]!(agent, { threadId: sealed, toAgentId: "agt_drafter", note: "Over to you" }),
   ];
   for (const p of refusals) await assert.rejects(p, (e) => codeOf(e) === "validation.bad_input");
-  assert.equal(hn.rows("SELECT * FROM chat_message WHERE thread = ?", sealed).length, before, "no message was written in the sealed thread");
+  assert.equal(
+    hn.rows("SELECT * FROM chat_message WHERE thread = ?", sealed).length,
+    before,
+    "no message was written in the sealed thread",
+  );
   const q = await h["chat.question.ask"]!(agent, { threadId: open, prompt: "Which one do you want?", mode: "free" });
   assert.deepEqual(contractErrors("chat.question.ask", "out", q), []);
 });

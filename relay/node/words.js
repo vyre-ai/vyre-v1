@@ -5,7 +5,8 @@
 // are common, short and distinct in their first four letters. Four words carry 44 bits. The list
 // is repeated in relay/client/words.js; relay/client/setup.test.js checks the two match.
 
-export const WORDS = Object.freeze(`
+export const WORDS = Object.freeze(
+  `
   abandon ability able about above absent absorb abstract absurd abuse access accident
   account accuse achieve acid acoustic acquire across act action actor actress actual
   adapt add addict address adjust admit adult advance advice aerobic affair afford
@@ -177,4 +178,7 @@ export const WORDS = Object.freeze(`
   winter wire wisdom wise wish witness wolf woman wonder wood wool word
   work world worry worth wrap wreck wrestle wrist write wrong yard year
   yellow you young youth zebra zero zone zoo
-`.trim().split(/\s+/));
+`
+    .trim()
+    .split(/\s+/),
+);

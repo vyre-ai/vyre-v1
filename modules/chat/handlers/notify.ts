@@ -6,15 +6,28 @@ import { agentsOf, encOf, membersOf, messageBy, refOf, threadBy } from "../proje
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
 import { placeOf } from "./follow.ts";
 
-export interface NotifyEvent { name: string; payload: Record<string, unknown> }
-interface Send { to: string; kind: "dm" | "mention" | "reply.thread"; subject: { type: string; id: string }; data: Record<string, unknown>; body?: string; collapseKey?: string }
+export interface NotifyEvent {
+  name: string;
+  payload: Record<string, unknown>;
+}
+interface Send {
+  to: string;
+  kind: "dm" | "mention" | "reply.thread";
+  subject: { type: string; id: string };
+  data: Record<string, unknown>;
+  body?: string;
+  collapseKey?: string;
+}
 
 export const NOTIFY_EVENTS = ["message.mentioned", "message.direct", "thread.replied"] as const;
 
 /** The first line of a message, short, where the server may read it. A private chat's words never leave it. */
 export function previewOf(ctx: Pick<ChatCtx, "db">, t: ThreadRec, m: MessageRec): string | undefined {
   if (encOf(ctx.db, t) !== 0) return undefined;
-  const line = m.body.split("\n").map((x) => x.trim()).find((x) => x !== "");
+  const line = m.body
+    .split("\n")
+    .map((x) => x.trim())
+    .find((x) => x !== "");
   if (!line) return undefined;
   return line.length > 140 ? `${line.slice(0, 139)}…` : line;
 }
@@ -23,17 +36,25 @@ export function previewOf(ctx: Pick<ChatCtx, "db">, t: ThreadRec, m: MessageRec)
 async function nameOf(ctx: ChatCtx, id: string): Promise<string> {
   const ref = refOf(id);
   try {
-    const out = (await ctx.call?.("access.principals.get", { principal: { kind: ref.kind, id } })) as { principal?: { name?: unknown } } | undefined;
+    const out = (await ctx.call?.("access.principals.get", { principal: { kind: ref.kind, id } })) as
+      | { principal?: { name?: unknown } }
+      | undefined;
     const name = out?.principal?.name;
     if (typeof name === "string" && name.trim() !== "") return name.trim();
-  } catch { /* the directory cannot be read: the plain word below */ }
+  } catch {
+    /* the directory cannot be read: the plain word below */
+  }
   return ref.kind === "agent" ? "An agent" : "Someone";
 }
 
 /** Where it happened, in the chat's one name (lib/chat-name.ts): "#intake", its title, else who is in it ("Dex and Aliza"); a direct message is the other person. */
 async function whereOf(ctx: ChatCtx, t: ThreadRec, to: string): Promise<string> {
   let root: ThreadRec = t;
-  for (let i = 0; i < 8 && root.parentThreadId; i++) { const up = threadBy(ctx.db, root.parentThreadId); if (!up) break; root = up; }
+  for (let i = 0; i < 8 && root.parentThreadId; i++) {
+    const up = threadBy(ctx.db, root.parentThreadId);
+    if (!up) break;
+    root = up;
+  }
   if (root.kind !== "chat") return placeOf(ctx, t);
   const agents = agentsOf(ctx.db, root.id).map((a) => a.agentId);
   const people = membersOf(ctx.db, root.id).filter((p) => p.startsWith("usr_") && p !== to);
@@ -52,7 +73,12 @@ export async function planNotice(ctx: ChatCtx, e: NotifyEvent): Promise<Send | u
   // a task's thread carries its status lines: the task tells its people about those itself
   if (e.name === "thread.replied" && t.scopeType === "task") return undefined;
   const author = refOf(m.author);
-  const data: Record<string, unknown> = { from: await nameOf(ctx, m.author), where: await whereOf(ctx, t, to), threadId: t.id, messageId: m.id };
+  const data: Record<string, unknown> = {
+    from: await nameOf(ctx, m.author),
+    where: await whereOf(ctx, t, to),
+    threadId: t.id,
+    messageId: m.id,
+  };
   if (author.kind === "person") data["fromId"] = m.author;
   if (author.kind === "agent") data["agentId"] = m.author;
   if (t.channelId !== undefined) data["channelId"] = t.channelId;
@@ -72,8 +98,15 @@ export async function notify(ctx: ChatCtx, e: NotifyEvent): Promise<string[]> {
     const t = typeof e.payload["threadId"] === "string" ? threadBy(ctx.db, e.payload["threadId"]) : null;
     const to = String(e.payload["personId"] ?? "");
     if (t?.scopeType === "task" && t.scopeId && to.startsWith("usr_")) {
-      try { await ctx.call("tasks.followers.add", { taskId: t.scopeId, follower: to }); out.push(`follower:${to}`); }
-      catch (x) { ctx.log.warn("could not make the person a follower of the task", { taskId: t.scopeId, error: (x as Error).message }); }
+      try {
+        await ctx.call("tasks.followers.add", { taskId: t.scopeId, follower: to });
+        out.push(`follower:${to}`);
+      } catch (x) {
+        ctx.log.warn("could not make the person a follower of the task", {
+          taskId: t.scopeId,
+          error: (x as Error).message,
+        });
+      }
     }
   }
   const send = await planNotice(ctx, e);
@@ -81,6 +114,8 @@ export async function notify(ctx: ChatCtx, e: NotifyEvent): Promise<string[]> {
   try {
     const r = (await ctx.call("notifications.send", send)) as { notificationId?: string } | undefined;
     if (r?.notificationId) out.push(r.notificationId);
-  } catch (x) { ctx.log.warn("could not file the notification", { kind: send.kind, error: (x as Error).message }); }
+  } catch (x) {
+    ctx.log.warn("could not file the notification", { kind: send.kind, error: (x as Error).message });
+  }
   return out;
 }

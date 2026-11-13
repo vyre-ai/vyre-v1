@@ -3,11 +3,33 @@
 import { dueLabel, PRIORITIES } from "./model.ts";
 
 export type Pick = "mine" | "current";
-export interface ClashRow { key: string; label: string; mine: unknown; current: unknown; pick: Pick }
-export interface Clash { version: number; by: string | undefined; rows: ClashRow[] }
+export interface ClashRow {
+  key: string;
+  label: string;
+  mine: unknown;
+  current: unknown;
+  pick: Pick;
+}
+export interface Clash {
+  version: number;
+  by: string | undefined;
+  rows: ClashRow[];
+}
 
 export const FIELD_LABEL: Record<string, string> = {
-  title: "Title", brief: "Description", summary: "Summary", why: "Reason", due: "Due", start: "Start", effort: "Estimate", priority: "Priority", labels: "Labels", recur: "Repeat", fields: "Fields", blocks: "Content", parentTaskId: "Parent",
+  title: "Title",
+  brief: "Description",
+  summary: "Summary",
+  why: "Reason",
+  due: "Due",
+  start: "Start",
+  effort: "Estimate",
+  priority: "Priority",
+  labels: "Labels",
+  recur: "Repeat",
+  fields: "Fields",
+  blocks: "Content",
+  parentTaskId: "Parent",
 };
 
 const SKIP = new Set(["taskId", "expectedVersion", "idempotencyKey"]);
@@ -17,7 +39,13 @@ const same = (a: unknown, b: unknown): boolean => JSON.stringify(a ?? null) === 
 export function clashFrom(error: unknown, mine: Record<string, unknown>): Clash | null {
   const e = error as { code?: string; details?: Record<string, unknown> } | null;
   const d = e?.details;
-  if (e?.code !== "validation.precondition_failed" || !d || d.reason !== "stale_version" || typeof d.version !== "number") return null;
+  if (
+    e?.code !== "validation.precondition_failed" ||
+    !d ||
+    d.reason !== "stale_version" ||
+    typeof d.version !== "number"
+  )
+    return null;
   const current = (d.current && typeof d.current === "object" ? d.current : {}) as Record<string, unknown>;
   const rows: ClashRow[] = [];
   for (const key of Object.keys(mine)) {
@@ -30,7 +58,10 @@ export function clashFrom(error: unknown, mine: Record<string, unknown>): Clash 
 /** A second refused save while the card is open (the person changed another field too) adds its rows to the same card, on the same version. Another version means the task changed again: the new card replaces it. */
 export function mergeClash(prev: Clash | null, next: Clash): Clash {
   if (!prev || prev.version !== next.version) return next;
-  const rows = prev.rows.map((r) => { const n = next.rows.find((x) => x.key === r.key); return n ? { ...n, pick: r.pick } : r; });
+  const rows = prev.rows.map((r) => {
+    const n = next.rows.find((x) => x.key === r.key);
+    return n ? { ...n, pick: r.pick } : r;
+  });
   for (const n of next.rows) if (!rows.some((r) => r.key === n.key)) rows.push(n);
   return { ...next, rows };
 }
@@ -38,7 +69,10 @@ export function mergeClash(prev: Clash | null, next: Clash): Clash {
 /** What a field value reads as on screen. */
 export function wordsOf(key: string, v: unknown, now: number, offsetMin: number): string {
   if (v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0)) return "Empty";
-  if ((key === "due" || key === "start") && typeof v === "number") { const l = dueLabel(v, now, offsetMin); return l.text; }
+  if ((key === "due" || key === "start") && typeof v === "number") {
+    const l = dueLabel(v, now, offsetMin);
+    return l.text;
+  }
   if (key === "effort" && typeof v === "number") return v >= 60 && v % 60 === 0 ? `${v / 60} h` : `${v} min`;
   if (key === "priority") return PRIORITIES.find((p) => p.key === v)?.title ?? String(v);
   if (key === "labels" && Array.isArray(v)) return v.map((x) => `#${String(x)}`).join(", ");
@@ -47,7 +81,10 @@ export function wordsOf(key: string, v: unknown, now: number, offsetMin: number)
   return JSON.stringify(v);
 }
 
-export const setPick = (c: Clash, key: string, pick: Pick): Clash => ({ ...c, rows: c.rows.map((r) => (r.key === key ? { ...r, pick } : r)) });
+export const setPick = (c: Clash, key: string, pick: Pick): Clash => ({
+  ...c,
+  rows: c.rows.map((r) => (r.key === key ? { ...r, pick } : r)),
+});
 export const setAll = (c: Clash, pick: Pick): Clash => ({ ...c, rows: c.rows.map((r) => ({ ...r, pick })) });
 /** The fields the person keeps as theirs: what one tasks.update on the version they just saw carries. */
 export function keptPatch(c: Clash): Record<string, unknown> {
@@ -72,13 +109,21 @@ export function shortDiff(a: unknown, b: unknown): [string, string] | null {
   while (tail < a.length - head && tail < b.length - head && a[a.length - 1 - tail] === b[b.length - 1 - tail]) tail++;
   const ctx = 24;
   const cut = (v: string): string => {
-    const from = Math.max(0, head - ctx), to = Math.min(v.length, v.length - tail + ctx);
+    const from = Math.max(0, head - ctx),
+      to = Math.min(v.length, v.length - tail + ctx);
     return `${from > 0 ? "\u2026" : ""}${v.slice(from, to)}${to < v.length ? "\u2026" : ""}`;
   };
   return [cut(a), cut(b)];
 }
 
-const list = (v: string | undefined): unknown[] => { try { const x = JSON.parse(v ?? "[]") as unknown; return Array.isArray(x) ? x : []; } catch { return []; } };
+const list = (v: string | undefined): unknown[] => {
+  try {
+    const x = JSON.parse(v ?? "[]") as unknown;
+    return Array.isArray(x) ? x : [];
+  } catch {
+    return [];
+  }
+};
 /** The notes that are lists (Done means, and which of them are ticked). Two people changing one do not clash: both changes are kept. */
 export const LIST_NOTES: ReadonlySet<string> = new Set(["done_means", "done_ticks"]);
 /**
@@ -86,8 +131,11 @@ export const LIST_NOTES: ReadonlySet<string> = new Set(["done_means", "done_tick
  * join the end; items the writer removed or unticked leave; items the other person added or ticked stay.
  */
 export function mergeList(base: string | undefined, mine: string, current: string | undefined): string {
-  const b = list(base), m = list(mine), c = list(current);
+  const b = list(base),
+    m = list(mine),
+    c = list(current);
   const has = (xs: unknown[], x: unknown): boolean => xs.some((y) => JSON.stringify(y) === JSON.stringify(x));
-  const added = m.filter((x) => !has(b, x)), removed = b.filter((x) => !has(m, x));
+  const added = m.filter((x) => !has(b, x)),
+    removed = b.filter((x) => !has(m, x));
   return JSON.stringify([...c.filter((x) => !has(removed, x)), ...added.filter((x) => !has(c, x))]);
 }

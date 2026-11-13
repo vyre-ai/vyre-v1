@@ -9,17 +9,40 @@ import type { WorkspaceCapacity } from "../workspace.ts";
 import { bindWorkspaces, workspacesFor } from "../projections.ts";
 import { fakeDocker } from "../fixtures/fake-docker.ts";
 
-const A = "agt_dex", B = "agt_pam";
-const mgr = (dk: ReturnType<typeof fakeDocker>, o: { capacity?: WorkspaceCapacity; runner?: boolean } = {}) => createWorkspaceManager({ api: createDockerApi(dk.http), http: dk.http, idleMs: 600_000, ...o });
+const A = "agt_dex",
+  B = "agt_pam";
+const mgr = (dk: ReturnType<typeof fakeDocker>, o: { capacity?: WorkspaceCapacity; runner?: boolean } = {}) =>
+  createWorkspaceManager({ api: createDockerApi(dk.http), http: dk.http, idleMs: 600_000, ...o });
 
 test("remote Docker: a request becomes one question with its body as text or base64, and the answer comes back as a Docker answer", async () => {
   const asked: Array<{ input: Record<string, unknown>; timeoutMs: number }> = [];
-  const http = remoteDockerHttp(async (input, timeoutMs) => { asked.push({ input: input as Record<string, unknown>, timeoutMs }); return { status: 201, bodyB64: Buffer.from('{"Id":"abc"}').toString("base64") }; });
-  const r = await http({ method: "POST", path: "/containers/create", query: { name: "vyre-ws-x" }, json: { Image: "i" }, timeoutMs: 5000 });
+  const http = remoteDockerHttp(async (input, timeoutMs) => {
+    asked.push({ input: input as Record<string, unknown>, timeoutMs });
+    return { status: 201, bodyB64: Buffer.from('{"Id":"abc"}').toString("base64") };
+  });
+  const r = await http({
+    method: "POST",
+    path: "/containers/create",
+    query: { name: "vyre-ws-x" },
+    json: { Image: "i" },
+    timeoutMs: 5000,
+  });
   assert.deepEqual([r.status, new TextDecoder().decode(r.body)], [201, '{"Id":"abc"}']);
-  assert.deepEqual(asked[0]!.input, { method: "POST", path: "/containers/create", query: { name: "vyre-ws-x" }, jsonText: '{"Image":"i"}', timeoutMs: 5000 });
+  assert.deepEqual(asked[0]!.input, {
+    method: "POST",
+    path: "/containers/create",
+    query: { name: "vyre-ws-x" },
+    jsonText: '{"Image":"i"}',
+    timeoutMs: 5000,
+  });
   assert.equal(asked[0]!.timeoutMs, 15_000, "the link waits a little longer than Docker is given");
-  await http({ method: "PUT", path: "/containers/x/archive", query: { path: "/home/agent/Vyre" }, body: new Uint8Array([1, 2, 3]), contentType: "application/x-tar" });
+  await http({
+    method: "PUT",
+    path: "/containers/x/archive",
+    query: { path: "/home/agent/Vyre" },
+    body: new Uint8Array([1, 2, 3]),
+    contentType: "application/x-tar",
+  });
   assert.equal(asked[1]!.input["bodyB64"], "AQID");
   assert.equal(asked[1]!.input["contentType"], "application/x-tar");
   const none = remoteDockerHttp(async () => null);
@@ -27,23 +50,36 @@ test("remote Docker: a request becomes one question with its body as text or bas
 });
 
 test("the Space's own runtime takes a workspace first; with none, the server the owner has that is connected; with neither, nothing and a plain line", async () => {
-  const space = fakeDocker(), node = fakeDocker();
+  const space = fakeDocker(),
+    node = fakeDocker();
   const both = createWorkspaceFleet({ space: mgr(space), node: () => mgr(node), place: async () => "srv_a" });
   await both.ensure(A);
   assert.equal(space.boxes.has(workspaceName(A)), true);
   assert.equal(node.boxes.size, 0, "the Space's runtime is first");
-  const noSpace = fakeDocker(), onNode = fakeDocker();
+  const noSpace = fakeDocker(),
+    onNode = fakeDocker();
   const nodes: string[] = [];
-  const f = createWorkspaceFleet({ space: null, node: (id) => { nodes.push(id); return mgr(onNode, { runner: true }); }, place: async (a) => (a === A ? "srv_a" : null) });
+  const f = createWorkspaceFleet({
+    space: null,
+    node: (id) => {
+      nodes.push(id);
+      return mgr(onNode, { runner: true });
+    },
+    place: async (a) => (a === A ? "srv_a" : null),
+  });
   assert.equal(await f.available(A), true);
   assert.equal(await f.available(B), false, "no server for this agent's owner");
   assert.equal(await f.ensure(A), "created");
   assert.deepEqual([nodes, onNode.boxes.has(workspaceName(A)), noSpace.boxes.size], [["srv_a"], true, 0]);
-  await assert.rejects(() => f.ensure(B), (e: Error) => e.message === NO_PLACE && (e as { workspace?: boolean }).workspace === true);
+  await assert.rejects(
+    () => f.ensure(B),
+    (e: Error) => e.message === NO_PLACE && (e as { workspace?: boolean }).workspace === true,
+  );
 });
 
 test("a workspace stays on the machine it is on: found there after a restart, whatever the placement says now", async () => {
-  const space = fakeDocker(), node = fakeDocker();
+  const space = fakeDocker(),
+    node = fakeDocker();
   const first = createWorkspaceFleet({ space: mgr(space), node: () => mgr(node), place: async () => "srv_a" });
   await first.ensure(A);
   // the same workspace, a new process: the Space's runtime has it, so it is not made again on the server the placement now names
@@ -51,10 +87,19 @@ test("a workspace stays on the machine it is on: found there after a restart, wh
   assert.equal(await second.ensure(A), "running");
   assert.equal(node.boxes.size, 0);
   // the other way: it was made on a server (the Space had no runtime then); the Space has one now, and the workspace stays where its volumes are
-  const sp2 = fakeDocker(), nd2 = fakeDocker();
-  const onNode = createWorkspaceFleet({ space: null, node: () => mgr(nd2, { runner: true }), place: async () => "srv_a" });
+  const sp2 = fakeDocker(),
+    nd2 = fakeDocker();
+  const onNode = createWorkspaceFleet({
+    space: null,
+    node: () => mgr(nd2, { runner: true }),
+    place: async () => "srv_a",
+  });
   await onNode.ensure(A);
-  const later = createWorkspaceFleet({ space: mgr(sp2), node: () => mgr(nd2, { runner: true }), place: async () => "srv_a" });
+  const later = createWorkspaceFleet({
+    space: mgr(sp2),
+    node: () => mgr(nd2, { runner: true }),
+    place: async () => "srv_a",
+  });
   assert.equal(await later.ensure(A), "running", "found on the server");
   assert.equal(sp2.boxes.size, 0);
 });
@@ -63,15 +108,61 @@ test("a server's workspace is run through the same terminal: commands, tabs and 
   const node = fakeDocker({ tmux: { scripts: { "echo hi": { out: "hi", code: 0 } } } });
   const calls: Array<{ node: string; method: string; path: string }> = [];
   const fleet = createWorkspaceFleet({
-    space: null, place: async () => "srv_a",
-    node: (id) => createWorkspaceManager({ api: createDockerApi(remoteDockerHttp(async (input) => { const i = input as { method: string; path: string; query?: Record<string, string>; jsonText?: string; bodyB64?: string }; calls.push({ node: id, method: i.method, path: i.path }); const r = await node.http({ method: i.method, path: i.path, ...(i.query ? { query: i.query } : {}), ...(i.jsonText ? { json: JSON.parse(i.jsonText) } : {}), ...(i.bodyB64 ? { body: new Uint8Array(Buffer.from(i.bodyB64, "base64")) } : {}) }); return { status: r.status, bodyB64: Buffer.from(r.body).toString("base64") }; })), http: remoteDockerHttp(async (input) => { const i = input as { method: string; path: string; query?: Record<string, string>; jsonText?: string }; calls.push({ node: id, method: i.method, path: i.path }); const r = await node.http({ method: i.method, path: i.path, ...(i.query ? { query: i.query } : {}), ...(i.jsonText ? { json: JSON.parse(i.jsonText) } : {}) }); return { status: r.status, bodyB64: Buffer.from(r.body).toString("base64") }; }), runner: true, idleMs: 600_000 }),
+    space: null,
+    place: async () => "srv_a",
+    node: (id) =>
+      createWorkspaceManager({
+        api: createDockerApi(
+          remoteDockerHttp(async (input) => {
+            const i = input as {
+              method: string;
+              path: string;
+              query?: Record<string, string>;
+              jsonText?: string;
+              bodyB64?: string;
+            };
+            calls.push({ node: id, method: i.method, path: i.path });
+            const r = await node.http({
+              method: i.method,
+              path: i.path,
+              ...(i.query ? { query: i.query } : {}),
+              ...(i.jsonText ? { json: JSON.parse(i.jsonText) } : {}),
+              ...(i.bodyB64 ? { body: new Uint8Array(Buffer.from(i.bodyB64, "base64")) } : {}),
+            });
+            return { status: r.status, bodyB64: Buffer.from(r.body).toString("base64") };
+          }),
+        ),
+        http: remoteDockerHttp(async (input) => {
+          const i = input as { method: string; path: string; query?: Record<string, string>; jsonText?: string };
+          calls.push({ node: id, method: i.method, path: i.path });
+          const r = await node.http({
+            method: i.method,
+            path: i.path,
+            ...(i.query ? { query: i.query } : {}),
+            ...(i.jsonText ? { json: JSON.parse(i.jsonText) } : {}),
+          });
+          return { status: r.status, bodyB64: Buffer.from(r.body).toString("base64") };
+        }),
+        runner: true,
+        idleMs: 600_000,
+      }),
   });
   const h = createWorkspaceTerminalHost({ manager: fleet });
-  await h.open({ terminalId: "trm_1", target: { host: "agent_computer", agentId: A }, name: "agent", cols: 100, rows: 30, folders: [] });
+  await h.open({
+    terminalId: "trm_1",
+    target: { host: "agent_computer", agentId: A },
+    name: "agent",
+    cols: 100,
+    rows: 30,
+    folders: [],
+  });
   const r = await h.run("trm_1", { command: "echo hi", env: {}, timeoutMs: 5000 });
   assert.deepEqual([r.exitCode, r.output], [0, "hi"]);
   assert.ok(calls.length > 5 && calls.every((c) => c.node === "srv_a"), "every Docker question went to that server");
-  assert.deepEqual((await fleet.list()).map((x) => [x.agentId, x.state]), [[A, "running"]]);
+  assert.deepEqual(
+    (await fleet.list()).map((x) => [x.agentId, x.state]),
+    [[A, "running"]],
+  );
   assert.equal((await fleet.health()).ok, true);
   assert.equal(await h.has("trm_1"), true);
 });
@@ -79,14 +170,34 @@ test("a server's workspace is run through the same terminal: commands, tabs and 
 test("room is asked for on the server the workspace is on, and given back there", async () => {
   const node = fakeDocker();
   const log: string[] = [];
-  const f = createWorkspaceFleet({ space: null, place: async () => "srv_a", node: () => mgr(node, { runner: true, capacity: { claim: async (a) => { log.push(`claim ${a}`); return { state: "running" }; }, release: async (a) => { log.push(`release ${a}`); } } }) });
+  const f = createWorkspaceFleet({
+    space: null,
+    place: async () => "srv_a",
+    node: () =>
+      mgr(node, {
+        runner: true,
+        capacity: {
+          claim: async (a) => {
+            log.push(`claim ${a}`);
+            return { state: "running" };
+          },
+          release: async (a) => {
+            log.push(`release ${a}`);
+          },
+        },
+      }),
+  });
   await f.ensure(A);
   await f.sleep(A);
   assert.deepEqual(log, [`claim ${A}`, `release ${A}`]);
 });
 
 test("workspacesFor follows the fleet: a machine for this agent now, or the agent's commands go where its turn runs", async () => {
-  const f = createWorkspaceFleet({ space: null, node: () => mgr(fakeDocker()), place: async (a) => (a === A ? "srv_a" : null) });
+  const f = createWorkspaceFleet({
+    space: null,
+    node: () => mgr(fakeDocker()),
+    place: async (a) => (a === A ? "srv_a" : null),
+  });
   bindWorkspaces((id) => f.available(id));
   assert.deepEqual([await workspacesFor(A), await workspacesFor(B)], [true, false]);
   bindWorkspaces(() => Promise.reject(new Error("boom")));
@@ -96,14 +207,28 @@ test("workspacesFor follows the fleet: a machine for this agent now, or the agen
 });
 
 test("status: a manager says asleep, running, waiting (with the line) or none, without waking or making anything; the fleet says which machine", async () => {
-  const space = fakeDocker(), nodeDk = fakeDocker();
+  const space = fakeDocker(),
+    nodeDk = fakeDocker();
   let full = true;
-  const cap: WorkspaceCapacity = { claim: async () => (full ? { state: "waiting", line: "Waiting for room on the Space server." } : { state: "running" }), release: async () => undefined };
-  const m = createWorkspaceManager({ api: createDockerApi(space.http), http: space.http, idleMs: 600_000, capacity: cap, projectsOf: () => ["prj_a"] });
+  const cap: WorkspaceCapacity = {
+    claim: async () =>
+      full ? { state: "waiting", line: "Waiting for room on the Space server." } : { state: "running" },
+    release: async () => undefined,
+  };
+  const m = createWorkspaceManager({
+    api: createDockerApi(space.http),
+    http: space.http,
+    idleMs: 600_000,
+    capacity: cap,
+    projectsOf: () => ["prj_a"],
+  });
   assert.deepEqual(await m.status(A), { state: "none" });
   await assert.rejects(() => m.ensure(A));
   // the host's line, with what is true for a workspace after it (12 Nov, audit item 9)
-  assert.deepEqual(await m.status(A), { state: "waiting", line: "Waiting for room on the Space server. The workspace starts by itself when there is room." });
+  assert.deepEqual(await m.status(A), {
+    state: "waiting",
+    line: "Waiting for room on the Space server. The workspace starts by itself when there is room.",
+  });
   assert.equal(space.boxes.size, 0, "a status read makes nothing");
   full = false;
   await m.ensure(A);
@@ -114,7 +239,11 @@ test("status: a manager says asleep, running, waiting (with the line) or none, w
   const f = createWorkspaceFleet({ space: m, node: () => mgr(nodeDk, { runner: true }), place: async () => "srv_a" });
   assert.deepEqual(await f.status(A), { state: "asleep", host: "space", projects: ["prj_a"] });
   assert.deepEqual(await f.status(B), { state: "none" });
-  const onlyNode = createWorkspaceFleet({ space: null, node: () => mgr(nodeDk, { runner: true }), place: async () => "srv_a" });
+  const onlyNode = createWorkspaceFleet({
+    space: null,
+    node: () => mgr(nodeDk, { runner: true }),
+    place: async () => "srv_a",
+  });
   await onlyNode.ensure(B);
   assert.deepEqual(await onlyNode.status(B), { state: "running", host: "server", nodeId: "srv_a" });
 });
@@ -126,21 +255,52 @@ test("review finding 4: a workspace on a joined server gets Vault values only ov
     const asked: string[] = [];
     // the node's socket: each Docker question is answered by the server's own Docker (here a stand-in)
     const ask = async (_node: string, _kind: string, input: unknown): Promise<unknown> => {
-      const q = input as { method: string; path: string; query?: Record<string, string>; jsonText?: string; bodyB64?: string; timeoutMs?: number };
+      const q = input as {
+        method: string;
+        path: string;
+        query?: Record<string, string>;
+        jsonText?: string;
+        bodyB64?: string;
+        timeoutMs?: number;
+      };
       asked.push(JSON.stringify(q));
-      const r = await dk.http({ method: q.method as "GET", path: q.path, ...(q.query ? { query: q.query } : {}), ...(q.jsonText ? { json: JSON.parse(q.jsonText) } : {}), ...(q.bodyB64 ? { body: new Uint8Array(Buffer.from(q.bodyB64, "base64")) } : {}) });
+      const r = await dk.http({
+        method: q.method as "GET",
+        path: q.path,
+        ...(q.query ? { query: q.query } : {}),
+        ...(q.jsonText ? { json: JSON.parse(q.jsonText) } : {}),
+        ...(q.bodyB64 ? { body: new Uint8Array(Buffer.from(q.bodyB64, "base64")) } : {}),
+      });
       return { status: r.status, bodyB64: Buffer.from(r.body).toString("base64") };
     };
-    const fleet = buildWorkspaceFleet({ image: "vyre/agent-workspace:test", nodes: { ask, place: async () => "srv_plain", secure: () => secure } });
+    const fleet = buildWorkspaceFleet({
+      image: "vyre/agent-workspace:test",
+      nodes: { ask, place: async () => "srv_plain", secure: () => secure },
+    });
     const host = createWorkspaceTerminalHost({ manager: fleet });
-    await host.open({ terminalId: "trm_n1", target: { host: "agent_computer", agentId: A }, name: "x", cols: 80, rows: 24, folders: [] });
+    await host.open({
+      terminalId: "trm_n1",
+      target: { host: "agent_computer", agentId: A },
+      name: "x",
+      cols: 80,
+      rows: 24,
+      folders: [],
+    });
     const run = host.run("trm_n1", { command: "true", env: { K: "sk-live-over-the-link-0123" }, timeoutMs: 2000 });
     if (!secure) {
       await assert.rejects(run, /not private/);
-      assert.equal(asked.some((x) => x.includes("VYRE_STDIN") || x.includes("sk-live-over-the-link")), false, "nothing of the values crossed the plain link");
+      assert.equal(
+        asked.some((x) => x.includes("VYRE_STDIN") || x.includes("sk-live-over-the-link")),
+        false,
+        "nothing of the values crossed the plain link",
+      );
     } else {
       await run.catch(() => undefined);
-      assert.equal(asked.some((x) => x.includes("VYRE_STDIN")), true, "over a private link the values go");
+      assert.equal(
+        asked.some((x) => x.includes("VYRE_STDIN")),
+        true,
+        "over a private link the values go",
+      );
     }
     fleet.close();
   }

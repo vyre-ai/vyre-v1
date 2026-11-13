@@ -10,19 +10,27 @@ const OUT = "shots-evidence/chat-calm-activity";
 // The daemon's shutdown does not close the CLI session, so the process ends 1.5 s after the journey with the code of its result.
 let passes = 0;
 let ran = false;
-after(() => { if (ran) setTimeout(() => process.exit(passes === 1 ? 0 : 1), 1_500); });
+after(() => {
+  if (ran) setTimeout(() => process.exit(passes === 1 ? 0 : 1), 1_500);
+});
 
 test("calm activity line: one mark node, almost no animation restarts, words change at most every 4 s, no layout shift", async (t) => {
   const env = await browserOrSkip();
-  if (typeof env === "string") { t.skip(env); return; }
+  if (typeof env === "string") {
+    t.skip(env);
+    return;
+  }
   ran = true;
   const s = await bootScreens({ kind: "personal", engineCli: cli }, env);
   const dir = `${OUT}/calm`;
   try {
     const w = s.world;
     await connectSubscription(w);
-    const agent = (await w.owner.ok("agents.create", { name: "Haiku", role: "You answer briefly.", idempotencyKey: "ca-agent" })).agent.agentId as string;
-    const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agent], idempotencyKey: "ca-chat" })).thread.threadId as string;
+    const agent = (
+      await w.owner.ok("agents.create", { name: "Haiku", role: "You answer briefly.", idempotencyKey: "ca-agent" })
+    ).agent.agentId as string;
+    const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agent], idempotencyKey: "ca-chat" }))
+      .thread.threadId as string;
     await w.owner.ok("threads.set_mode", { threadId, mode: "auto", idempotencyKey: "ca-auto" });
     const me = await seat(s, w.owner, "Owner");
     await open(me, s, `/chat#screen=chats.conversation&threadId=${threadId}`);
@@ -35,11 +43,20 @@ test("calm activity line: one mark node, almost no animation restarts, words cha
 
     // watch: tag the mark's node, count animationstart events, record the line's words and the row's box every 100 ms
     await me.page.evaluate(() => {
-      const w = window as unknown as { __calm: { starts: string[]; words: Array<[number, string]>; boxes: string[]; node: Element | null } };
+      const w = window as unknown as {
+        __calm: { starts: string[]; words: Array<[number, string]>; boxes: string[]; node: Element | null };
+      };
       const node = document.querySelector('[data-testid="working-mark"]');
       (node as unknown as { __tag: string }).__tag = "kept";
       w.__calm = { starts: [], words: [], boxes: [], node };
-      document.addEventListener("animationstart", (e) => w.__calm.starts.push(`${(e.target as Element).className?.baseVal ?? (e.target as Element).className}:${e.animationName}`), true);
+      document.addEventListener(
+        "animationstart",
+        (e) =>
+          w.__calm.starts.push(
+            `${(e.target as Element).className?.baseVal ?? (e.target as Element).className}:${e.animationName}`,
+          ),
+        true,
+      );
       const t0 = performance.now();
       setInterval(() => {
         const line = document.querySelector('[data-testid="activity-line"]') as HTMLElement | null;
@@ -53,20 +70,37 @@ test("calm activity line: one mark node, almost no animation restarts, words cha
     });
     await me.page.waitForTimeout(14_500);
     const r = await me.page.evaluate(() => {
-      const c = (window as unknown as { __calm: { starts: string[]; words: Array<[number, string]>; boxes: string[]; node: Element | null } }).__calm;
+      const c = (
+        window as unknown as {
+          __calm: { starts: string[]; words: Array<[number, string]>; boxes: string[]; node: Element | null };
+        }
+      ).__calm;
       const now = document.querySelector('[data-testid="working-mark"]');
-      return { starts: c.starts, words: c.words, same: now === c.node && (now as unknown as { __tag?: string })?.__tag === "kept", boxes: [...new Set(c.boxes.map((b) => b.split("@")[0]))] };
+      return {
+        starts: c.starts,
+        words: c.words,
+        same: now === c.node && (now as unknown as { __tag?: string })?.__tag === "kept",
+        boxes: [...new Set(c.boxes.map((b) => b.split("@")[0]))],
+      };
     });
     console.error("CALM", JSON.stringify({ starts: r.starts, words: r.words, same: r.same, heights: r.boxes }));
     assert.ok(r.same, "the mark is the same element after 15 s of fast tool calls");
-    assert.ok(r.starts.every((x) => x.endsWith(":vy-fade")) && r.starts.length <= r.words.length, `animationstart is only the soft crossfade of a words change: ${r.starts.join(", ")}`);
+    assert.ok(
+      r.starts.every((x) => x.endsWith(":vy-fade")) && r.starts.length <= r.words.length,
+      `animationstart is only the soft crossfade of a words change: ${r.starts.join(", ")}`,
+    );
     const gaps = r.words.slice(1).map((x, i) => x[0] - r.words[i]![0]);
     // the first word was already on screen before the watcher started, so its gap is not measured from its start
-    assert.ok(gaps.slice(1).every((g) => g >= 3_800), `the line's words dwell at least 4 s: ${JSON.stringify(r.words)}`);
+    assert.ok(
+      gaps.slice(1).every((g) => g >= 3_800),
+      `the line's words dwell at least 4 s: ${JSON.stringify(r.words)}`,
+    );
     assert.ok(r.words.length <= 5, `fewer than five changes in 15 s: ${r.words.length}`);
     assert.equal(r.boxes.length, 1, `the line never changes height: ${r.boxes.join(",")}`);
     // a theme switch restarts every CSS animation on the page, so the shots come after the measurement
     await shoot(me.page, dir, "after-flurry", { phone: false });
     passes += 1;
-  } finally { await s.close(); }
+  } finally {
+    await s.close();
+  }
 });

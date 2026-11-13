@@ -8,7 +8,14 @@ import { mintRecordId } from "../../lib/ids.ts";
 import { StoreError } from "../src/store/types.ts";
 
 const dir = () => fs.mkdtempSync(path.join(os.tmpdir(), "vyre-rs-"));
-const CONTACT = { name: "contact", label: "Contact", fields: [{ name: "name", kind: "text", required: true }, { name: "age", kind: "number" }] };
+const CONTACT = {
+  name: "contact",
+  label: "Contact",
+  fields: [
+    { name: "name", kind: "text", required: true },
+    { name: "age", kind: "number" },
+  ],
+};
 
 test("writes are events: one record event per write, hash chain intact, rows and changes follow", async () => {
   const { host, store } = openRecordStore({ path: ":memory:", space: "sp_1" });
@@ -18,10 +25,24 @@ test("writes are events: one record event per write, hash chain intact, rows and
   await store.update("contact", id, { age: 3 }, a.version);
   await store.remove("contact", id, 2);
   await store.restore("contact", id);
-  assert.deepEqual(host.store.read({ limit: 100 }).map((e) => e.type), ["schema.applied", "record.created", "record.updated", "record.removed", "record.restored"]);
-  assert.deepEqual(host.store.read({ type: "record.*" }).map((e) => e.entity_id), [id, id, id, id]);
+  assert.deepEqual(
+    host.store.read({ limit: 100 }).map((e) => e.type),
+    ["schema.applied", "record.created", "record.updated", "record.removed", "record.restored"],
+  );
+  assert.deepEqual(
+    host.store.read({ type: "record.*" }).map((e) => e.entity_id),
+    [id, id, id, id],
+  );
   assert.equal(host.store.verify().ok, true);
-  assert.deepEqual((await store.changes(null, 10)).entries.map((e) => [e.kind, e.version]), [["created", 1], ["updated", 2], ["removed", 3], ["restored", 4]]);
+  assert.deepEqual(
+    (await store.changes(null, 10)).entries.map((e) => [e.kind, e.version]),
+    [
+      ["created", 1],
+      ["updated", 2],
+      ["removed", 3],
+      ["restored", 4],
+    ],
+  );
 });
 
 test("a refused write appends nothing: version_conflict, invalid, unique", async () => {
@@ -30,8 +51,14 @@ test("a refused write appends nothing: version_conflict, invalid, unique", async
   const id = mintRecordId();
   await store.create("contact", id, { name: "Ann" });
   const n = host.store.count();
-  await assert.rejects(store.update("contact", id, { name: "x" }, 7), (e: unknown) => e instanceof StoreError && e.code === "version_conflict");
-  await assert.rejects(store.create("contact", mintRecordId(), { age: 1 }), (e: unknown) => e instanceof StoreError && e.code === "invalid");
+  await assert.rejects(
+    store.update("contact", id, { name: "x" }, 7),
+    (e: unknown) => e instanceof StoreError && e.code === "version_conflict",
+  );
+  await assert.rejects(
+    store.create("contact", mintRecordId(), { age: 1 }),
+    (e: unknown) => e instanceof StoreError && e.code === "invalid",
+  );
   assert.equal(host.store.count(), n);
 });
 
@@ -40,10 +67,18 @@ test("state survives a reopen, and a version bump rebuilds the rt_ tables from t
   const first = openRecordStore({ path: file, space: "sp_1" });
   await first.store.define({ add_types: [CONTACT] });
   const ids: string[] = [];
-  for (let i = 0; i < 20; i++) { const id = mintRecordId(); ids.push(id); await first.store.create("contact", id, { name: `n${i}`, age: i }); }
+  for (let i = 0; i < 20; i++) {
+    const id = mintRecordId();
+    ids.push(id);
+    await first.store.create("contact", id, { name: `n${i}`, age: i });
+  }
   await first.store.update("contact", ids[0]!, { age: 99 }, 1);
   await first.store.remove("contact", ids[1]!, 1);
-  const snap = async (s: typeof first.store) => ({ q: (await s.query("contact", { sort: [{ field: "name", dir: "asc" }], page: { limit: 50 }, include_deleted: true })).rows, c: await s.changes(null, 100) });
+  const snap = async (s: typeof first.store) => ({
+    q: (await s.query("contact", { sort: [{ field: "name", dir: "asc" }], page: { limit: 50 }, include_deleted: true }))
+      .rows,
+    c: await s.changes(null, 100),
+  });
   const before = await snap(first.store);
   first.host.close();
 

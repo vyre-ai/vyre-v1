@@ -31,20 +31,44 @@ function rng(seed: number) {
 type R = ReturnType<typeof rng>;
 
 function expr(r: R, depth: number): Expr {
-  if (depth > 0 && r.chance(0.3)) return { op: r.pick(["and", "or"] as const), args: [expr(r, depth - 1), expr(r, depth - 1)] };
+  if (depth > 0 && r.chance(0.3))
+    return { op: r.pick(["and", "or"] as const), args: [expr(r, depth - 1), expr(r, depth - 1)] };
   switch (r.int(6)) {
-    case 0: return { op: "eq", field: "stage", value: r.pick(["a", "b", "c"]) };
-    case 1: return { op: "ne", field: "stage", value: r.pick(["a", "b"]) };
-    case 2: return { op: r.pick(["lt", "lte", "gt", "gte"] as const), field: "amount", value: r.int(100) };
-    case 3: return { op: "in", field: "stage", values: r.pick([["a", "b"], ["c"], []]) };
-    case 4: return { op: r.pick(["eq", "ne"] as const), field: "region", value: r.pick([null, "eu", "us"]) };
-    default: return { op: "owner_me" };
+    case 0:
+      return { op: "eq", field: "stage", value: r.pick(["a", "b", "c"]) };
+    case 1:
+      return { op: "ne", field: "stage", value: r.pick(["a", "b"]) };
+    case 2:
+      return { op: r.pick(["lt", "lte", "gt", "gte"] as const), field: "amount", value: r.int(100) };
+    case 3:
+      return { op: "in", field: "stage", values: r.pick([["a", "b"], ["c"], []]) };
+    case 4:
+      return { op: r.pick(["eq", "ne"] as const), field: "region", value: r.pick([null, "eu", "us"]) };
+    default:
+      return { op: "owner_me" };
   }
 }
 
-function addPrincipal(store: AccessStore, id: string, kind: PKind, status: "active" | "suspended", owner?: string): void {
-  const rec: { id: string; kind: PKind; name: string; status: "active" | "suspended"; createdAt: number; owner?: string } = {
-    id, kind, name: id, status, createdAt: 1,
+function addPrincipal(
+  store: AccessStore,
+  id: string,
+  kind: PKind,
+  status: "active" | "suspended",
+  owner?: string,
+): void {
+  const rec: {
+    id: string;
+    kind: PKind;
+    name: string;
+    status: "active" | "suspended";
+    createdAt: number;
+    owner?: string;
+  } = {
+    id,
+    kind,
+    name: id,
+    status,
+    createdAt: 1,
   };
   if (owner) rec.owner = owner;
   store.principals.set(id, rec);
@@ -54,11 +78,20 @@ function addPrincipal(store: AccessStore, id: string, kind: PKind, status: "acti
 export function loadWorld(store: AccessStore, seed: number, now: number): Case[] {
   const r = rng(seed);
   store.roles.set("rol_w_edit", {
-    id: "rol_w_edit", name: "Worker", builtIn: false, clearance: "restricted", assignableToAgents: true,
+    id: "rol_w_edit",
+    name: "Worker",
+    builtIn: false,
+    clearance: "restricted",
+    assignableToAgents: true,
     permissions: ["records.edit", "records.delete"],
   });
   store.roles.set("rol_w_none", {
-    id: "rol_w_none", name: "Blank", builtIn: false, clearance: "public", assignableToAgents: true, permissions: [],
+    id: "rol_w_none",
+    name: "Blank",
+    builtIn: false,
+    clearance: "public",
+    assignableToAgents: true,
+    permissions: [],
   });
   for (const id of PEOPLE) addPrincipal(store, id, "person", r.chance(0.08) ? "suspended" : "active");
   addPrincipal(store, "a1", "agent", r.chance(0.05) ? "suspended" : "active", "p1");
@@ -70,7 +103,9 @@ export function loadWorld(store: AccessStore, seed: number, now: number): Case[]
 
   const members = [...PEOPLE, "a1"];
   for (const gid of ["grp_w1", "grp_w2"] as const) {
-    const picked = members.filter(() => r.chance(0.5)).map((id) => ({ kind: (id === "a1" ? "agent" : "person") as PKind, id }));
+    const picked = members
+      .filter(() => r.chance(0.5))
+      .map((id) => ({ kind: (id === "a1" ? "agent" : "person") as PKind, id }));
     store.groups.set(gid, { id: gid, name: gid, builtIn: false, members: picked, managers: [] });
     if (r.chance(0.5)) store.setRoles(gid, [r.pick(ROLES)]);
   }
@@ -81,9 +116,30 @@ export function loadWorld(store: AccessStore, seed: number, now: number): Case[]
     if (roles.length) store.setRoles(id, roles);
   }
 
-  store.resources.set("fld_root", { id: "fld_root", type: "folder", parentId: null, label: "public", ownerId: null, holds: 0 });
-  store.resources.set("fld_a", { id: "fld_a", type: "folder", parentId: "fld_root", label: "public", ownerId: null, holds: 0 });
-  store.resources.set("fld_b", { id: "fld_b", type: "folder", parentId: "fld_root", label: "internal", ownerId: null, holds: 0 });
+  store.resources.set("fld_root", {
+    id: "fld_root",
+    type: "folder",
+    parentId: null,
+    label: "public",
+    ownerId: null,
+    holds: 0,
+  });
+  store.resources.set("fld_a", {
+    id: "fld_a",
+    type: "folder",
+    parentId: "fld_root",
+    label: "public",
+    ownerId: null,
+    holds: 0,
+  });
+  store.resources.set("fld_b", {
+    id: "fld_b",
+    type: "folder",
+    parentId: "fld_root",
+    label: "internal",
+    ownerId: null,
+    holds: 0,
+  });
   const records: string[] = [];
   for (let i = 0; i < 6; i++) {
     const id = `rec_w${i}`;
@@ -91,16 +147,31 @@ export function loadWorld(store: AccessStore, seed: number, now: number): Case[]
     const owner = r.pick(["p1", "p2", "p3", null]);
     const label = r.pick(LABELS);
     store.resources.set(id, {
-      id, type: "record", parentId: r.pick(["fld_a", "fld_b", "fld_root"]), label, ownerId: owner, holds: r.chance(0.15) ? 1 : 0,
+      id,
+      type: "record",
+      parentId: r.pick(["fld_a", "fld_b", "fld_root"]),
+      label,
+      ownerId: owner,
+      holds: r.chance(0.15) ? 1 : 0,
       row: { stage: r.pick(["a", "b", "c"]), amount: r.int(100), region: r.pick([null, "eu", "us"]) },
     });
   }
   store.resources.set("rec_fxa", {
-    id: "rec_fxa", type: "record", parentId: "fld_root", label: "public", ownerId: null, holds: 0,
+    id: "rec_fxa",
+    type: "record",
+    parentId: "fld_root",
+    label: "public",
+    ownerId: null,
+    holds: 0,
     row: { stage: "a", amount: 1, region: "us" },
   });
   store.resources.set("rec_fxd", {
-    id: "rec_fxd", type: "record", parentId: "fld_root", label: "public", ownerId: null, holds: 0,
+    id: "rec_fxd",
+    type: "record",
+    parentId: "fld_root",
+    label: "public",
+    ownerId: null,
+    holds: 0,
     row: { stage: "a", amount: 1, region: "us" },
   });
 
@@ -119,30 +190,53 @@ export function loadWorld(store: AccessStore, seed: number, now: number): Case[]
       subjectId = r.pick(["grp_w1", "grp_w2"] as const);
     }
     const place = r.int(3);
-    const resource = place === 0
-      ? { type: "record", id: "*" }
-      : place === 1
-        ? { type: "folder", id: r.pick(["fld_root", "fld_a", "fld_b"] as const) }
-        : { type: "record", id: r.pick(records) };
+    const resource =
+      place === 0
+        ? { type: "record", id: "*" }
+        : place === 1
+          ? { type: "folder", id: r.pick(["fld_root", "fld_a", "fld_b"] as const) }
+          : { type: "record", id: r.pick(records) };
     const conditions: Cond = {};
     if (r.chance(0.4)) conditions.labelCeiling = r.pick(LABELS);
     if (r.chance(0.45)) conditions.rowFilter = expr(r, 1);
     if (r.chance(0.2)) conditions.expiresAt = r.chance(0.5) ? now - 1 : now + 50_000;
-    if (r.chance(0.15)) conditions.window = r.chance(0.5) ? { from: now + 5_000, to: now + 9_000 } : { from: now - 5_000, to: now + 5_000 };
+    if (r.chance(0.15))
+      conditions.window = r.chance(0.5)
+        ? { from: now + 5_000, to: now + 9_000 }
+        : { from: now - 5_000, to: now + 5_000 };
     if (r.chance(0.1)) conditions.hiddenFields = ["secret"];
     const id = `gnt_w${seed}_${i}`;
     store.grants.set(id, {
-      id, subject: { kind: subjectKind, id: subjectId }, resource, level: r.pick(LEVELS), conditions, by: "usr_admin", createdAt: now,
+      id,
+      subject: { kind: subjectKind, id: subjectId },
+      resource,
+      level: r.pick(LEVELS),
+      conditions,
+      by: "usr_admin",
+      createdAt: now,
     });
   }
   store.grants.set("gnt_fxa", {
-    id: "gnt_fxa", subject: { kind: "person", id: "p_allow" }, resource: { type: "record", id: "*" },
-    level: "manage", conditions: {}, by: "usr_admin", createdAt: now,
+    id: "gnt_fxa",
+    subject: { kind: "person", id: "p_allow" },
+    resource: { type: "record", id: "*" },
+    level: "manage",
+    conditions: {},
+    by: "usr_admin",
+    createdAt: now,
   });
 
   const fixed: Case[] = [
-    { principal: { kind: "person", id: "p_allow" }, action: { perm: "records.edit", level: "view" }, resource: { type: "record", id: "rec_fxa" } },
-    { principal: { kind: "person", id: "p_deny" }, action: { perm: "records.edit", level: "view" }, resource: { type: "record", id: "rec_fxd" } },
+    {
+      principal: { kind: "person", id: "p_allow" },
+      action: { perm: "records.edit", level: "view" },
+      resource: { type: "record", id: "rec_fxa" },
+    },
+    {
+      principal: { kind: "person", id: "p_deny" },
+      action: { perm: "records.edit", level: "view" },
+      resource: { type: "record", id: "rec_fxd" },
+    },
   ];
   const random: Case[] = [];
   for (let i = 0; i < 2; i++) {

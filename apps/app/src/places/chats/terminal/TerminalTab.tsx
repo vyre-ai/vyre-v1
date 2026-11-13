@@ -33,10 +33,20 @@ type Attach =
   | { status: "error"; message: string };
 
 /** What ui/Terminal is given for one session: its name and host, whether it still runs, the scrollback attach returned and the live output after it. */
-export function sessionProps(row: TerminalRow, o: { replay: string; source?: TerminalSource; starred: boolean; note?: string }): TerminalViewProps {
+export function sessionProps(
+  row: TerminalRow,
+  o: { replay: string; source?: TerminalSource; starred: boolean; note?: string },
+): TerminalViewProps {
   return {
-    sessionId: row.terminalId, title: row.name, host: uiHost(row.host), hostLabel: chipLabel(row), state: uiState(row.state), output: o.replay, starred: o.starred,
-    ...(o.source ? { source: o.source } : {}), ...(o.note !== undefined ? { note: o.note } : {}),
+    sessionId: row.terminalId,
+    title: row.name,
+    host: uiHost(row.host),
+    hostLabel: chipLabel(row),
+    state: uiState(row.state),
+    output: o.replay,
+    starred: o.starred,
+    ...(o.source ? { source: o.source } : {}),
+    ...(o.note !== undefined ? { note: o.note } : {}),
   };
 }
 
@@ -46,17 +56,31 @@ export function sessionProps(row: TerminalRow, o: { replay: string; source?: Ter
  */
 export function attachRefusal(e: unknown, host: string): { kind: "locked" } | { kind: "error"; message: string } {
   if (host === "space_server") return { kind: "locked" };
-  if (errorCode(e) === "permission.not_found" || errorCode(e) === "validation.not_found") return { kind: "error", message: "This terminal is no longer available, or it is not one you can open. Open the agent's Terminal again from its chat." };
+  if (errorCode(e) === "permission.not_found" || errorCode(e) === "validation.not_found")
+    return {
+      kind: "error",
+      message:
+        "This terminal is no longer available, or it is not one you can open. Open the agent's Terminal again from its chat.",
+    };
   return { kind: "error", message: errorWords(e, "This terminal could not be opened.") };
 }
 
 /** The key of the host a session runs on, as the host list names it. */
 export function hostKeyOf(row: Pick<TerminalRow, "host" | "deviceId" | "computerId">): string {
-  return row.host === "space_server" ? "server" : row.host === "agent_computer" ? `agent:${row.computerId ?? ""}` : `device:${row.deviceId ?? ""}`;
+  return row.host === "space_server"
+    ? "server"
+    : row.host === "agent_computer"
+      ? `agent:${row.computerId ?? ""}`
+      : `device:${row.deviceId ?? ""}`;
 }
 
 export function TerminalLoading(): ReactElement {
-  return <View testID="terminal-loading" accessibilityLabel="Loading" style={st.root}><View style={st.bar} /><View style={st.screen} /></View>;
+  return (
+    <View testID="terminal-loading" accessibilityLabel="Loading" style={st.root}>
+      <View style={st.bar} />
+      <View style={st.screen} />
+    </View>
+  );
 }
 
 export function TerminalTab({ data, terminalId }: { data: TerminalData; terminalId: string }): ReactElement {
@@ -81,19 +105,45 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
     let live = true;
     setAtt({ status: "loading" });
     void attach(deps, terminalId).then(
-      (a) => { if (live) setAtt({ status: "ready", replay: a.replay, source: a.source }); },
-      (e: unknown) => { if (live) setAtt(isRefusal(e) ? { status: "locked", error: e } : { status: "error", message: errorWords(e, "Could not attach to this terminal.") }); },
+      (a) => {
+        if (live) setAtt({ status: "ready", replay: a.replay, source: a.source });
+      },
+      (e: unknown) => {
+        if (live)
+          setAtt(
+            isRefusal(e)
+              ? { status: "locked", error: e }
+              : { status: "error", message: errorWords(e, "Could not attach to this terminal.") },
+          );
+      },
     );
-    return () => { live = false; };
+    return () => {
+      live = false;
+    };
   }, [deps, terminalId, again]);
 
   useEffect(() => {
-    if (typed.trim() === "") { setRisk(null); return undefined; }
+    if (typed.trim() === "") {
+      setRisk(null);
+      return undefined;
+    }
     let live = true;
     const t = setTimeout(() => {
-      void (data.call("terminal.risk", { command: typed.trim() }) as Promise<{ risk: "read" | "change" | "danger" }>).then((r) => { if (live) setRisk(r.risk); }, () => { if (live) setRisk(null); });
+      void (
+        data.call("terminal.risk", { command: typed.trim() }) as Promise<{ risk: "read" | "change" | "danger" }>
+      ).then(
+        (r) => {
+          if (live) setRisk(r.risk);
+        },
+        () => {
+          if (live) setRisk(null);
+        },
+      );
     }, 250);
-    return () => { live = false; clearTimeout(t); };
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
   }, [typed, data]);
 
   useEffect(() => {
@@ -103,32 +153,53 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
   }, [note]);
 
   const who = useMemo(
-    () => (data.agent ? { agentId: data.agent.agentId, ...(data.agent.computerId ? { computerId: data.agent.computerId } : {}) } : {}),
+    () =>
+      data.agent
+        ? { agentId: data.agent.agentId, ...(data.agent.computerId ? { computerId: data.agent.computerId } : {}) }
+        : {},
     [data.agent],
   );
-  const openOn = useCallback((h: TerminalHost): void => {
-    void openSession(deps, h, who).then(
-      (t) => data.nav.openTerminal(t.terminalId),
-      (e: unknown) => { if (h === "server" && isRefusal(e)) setServerLocked(true); else setNote(errorWords(e, "Could not open it.")); },
-    );
-  }, [deps, who, data.nav]);
-  const pickHost = useCallback((key: string): void => {
-    const h = hosts.find((x) => x.key === key);
-    if (!h) return;
-    const c = openHostCall(h, data.newKey());
-    void (data.call(c.cap, c.input) as Promise<{ terminal: { terminalId: string } }>).then(
-      (o) => data.nav.openTerminal(o.terminal.terminalId),
-      (e: unknown) => { if (h.kind === "server" && isRefusal(e)) setServerLocked(true); else setNote(errorWords(e, "Could not open it.")); },
-    );
-  }, [hosts, data]);
+  const openOn = useCallback(
+    (h: TerminalHost): void => {
+      void openSession(deps, h, who).then(
+        (t) => data.nav.openTerminal(t.terminalId),
+        (e: unknown) => {
+          if (h === "server" && isRefusal(e)) setServerLocked(true);
+          else setNote(errorWords(e, "Could not open it."));
+        },
+      );
+    },
+    [deps, who, data.nav],
+  );
+  const pickHost = useCallback(
+    (key: string): void => {
+      const h = hosts.find((x) => x.key === key);
+      if (!h) return;
+      const c = openHostCall(h, data.newKey());
+      void (data.call(c.cap, c.input) as Promise<{ terminal: { terminalId: string } }>).then(
+        (o) => data.nav.openTerminal(o.terminal.terminalId),
+        (e: unknown) => {
+          if (h.kind === "server" && isRefusal(e)) setServerLocked(true);
+          else setNote(errorWords(e, "Could not open it."));
+        },
+      );
+    },
+    [hosts, data],
+  );
   const onGap = useCallback((): void => setAgain((n) => n + 1), []);
 
   const failed = failureOf(q);
   if (failed) return <LoadFailed what="this terminal" failure={failed} testID="terminal-failed" />;
   if (q.status === "loading") return <TerminalLoading />;
   const row = q.data.terminal;
-  const starred = stars.status === "ready" && stars.data.stars.some((s) => s.resource.type === "terminal" && s.resource.id === row.terminalId);
-  const star = (): void => { void toggleStar(deps, row.terminalId, !starred).then((ok) => { if (!ok) setNote("Could not change the star"); }); };
+  const starred =
+    stars.status === "ready" &&
+    stars.data.stars.some((s) => s.resource.type === "terminal" && s.resource.id === row.terminalId);
+  const star = (): void => {
+    void toggleStar(deps, row.terminalId, !starred).then((ok) => {
+      if (!ok) setNote("Could not change the star");
+    });
+  };
   const host = uiHost(row.host);
 
   const items: MenuEntry[] = [
@@ -136,12 +207,22 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
     { label: "Interrupt", onSelect: () => void sender.interrupt() },
     { separator: true },
     { head: "New terminal on" },
-    ...(hosts.length > 0 ? hostChoiceMenu(hosts, hostKeyOf(row), pickHost) : [{ label: "No other computer here", disabled: true, reason: NO_HOST } as MenuEntry]),
+    ...(hosts.length > 0
+      ? hostChoiceMenu(hosts, hostKeyOf(row), pickHost)
+      : [{ label: "No other computer here", disabled: true, reason: NO_HOST } as MenuEntry]),
     { separator: true },
     { label: "All Terminals", onSelect: () => data.nav.openList() },
     { label: "Terminal Rules", onSelect: () => data.nav.openRules() },
     { separator: true },
-    { label: "Close Session", danger: true, onSelect: () => void closeSession(deps, row.terminalId).then((ok) => { if (ok) data.nav.closeTab(); else setNote("Could not close it"); }) },
+    {
+      label: "Close Session",
+      danger: true,
+      onSelect: () =>
+        void closeSession(deps, row.terminalId).then((ok) => {
+          if (ok) data.nav.closeTab();
+          else setNote("Could not close it");
+        }),
+    },
   ];
   const trigger = menuTrigger((x, y) => menu.show(items, x, y, "context", { label: "Terminal" }));
 
@@ -163,11 +244,22 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
     return (
       <View testID="terminal-tab" style={st.root} {...trigger}>
         <Terminal
-          sessionId={row.terminalId} title="" host="server" hostLabel="Space server" locked asked={asked}
+          sessionId={row.terminalId}
+          title=""
+          host="server"
+          hostLabel="Space server"
+          locked
+          asked={asked}
           {...(data.owner ? { owner: data.owner } : {})}
           {...(data.agent ? { fallbackLabel: `${data.agent.name}'s computer` } : {})}
-          onHost={openOn} onBack={() => openOn("agent")}
-          onAskAccess={() => void askServerAccess(deps, data.space.id).then((ok) => { if (ok) setAsked(true); else setNote("Could not send the request"); })}
+          onHost={openOn}
+          onBack={() => openOn("agent")}
+          onAskAccess={() =>
+            void askServerAccess(deps, data.space.id).then((ok) => {
+              if (ok) setAsked(true);
+              else setNote("Could not send the request");
+            })
+          }
         />
         {menu.element}
       </View>
@@ -190,9 +282,22 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
     <View testID="terminal-tab" style={st.root} {...trigger}>
       <Terminal
         key={`${row.terminalId}:${again}`}
-        {...sessionProps(row, { replay: att.replay, source: att.source, starred, ...(online ? (note !== undefined ? { note } : {}) : { note: "Offline" }) })}
-        onInput={(d) => { setTyped((l) => lineAfter(l, d)); void sender.input(d); }} risk={risk} onResize={(c, r) => void sender.resize(c, r)} onInterrupt={() => void sender.interrupt()}
-        onStar={star} onGap={onGap} onHost={openOn}
+        {...sessionProps(row, {
+          replay: att.replay,
+          source: att.source,
+          starred,
+          ...(online ? (note !== undefined ? { note } : {}) : { note: "Offline" }),
+        })}
+        onInput={(d) => {
+          setTyped((l) => lineAfter(l, d));
+          void sender.input(d);
+        }}
+        risk={risk}
+        onResize={(c, r) => void sender.resize(c, r)}
+        onInterrupt={() => void sender.interrupt()}
+        onStar={star}
+        onGap={onGap}
+        onHost={openOn}
         {...(hostsRead !== null ? { hosts: hostsRead, hostKey: hostKeyOf(row), onPickHost: pickHost } : {})}
       />
       {menu.element}
@@ -202,7 +307,12 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
 
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, minWidth: 0, backgroundColor: "var(--sunk)" as string },
-  bar: { height: 38, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
+  bar: {
+    height: 38,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
+    backgroundColor: "var(--win)" as string,
+  },
   screen: { flex: 1 },
   err: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, padding: 24 },
   errTitle: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },

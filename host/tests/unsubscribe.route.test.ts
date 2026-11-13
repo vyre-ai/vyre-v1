@@ -12,14 +12,21 @@ const TOKEN = "AbCdEfGhIjKlMnOpQrStUvWxYz012345";
 async function serve(unsubscribe: (t: string) => Promise<boolean>): Promise<{ url: string; close(): void }> {
   const route = createUnsubscribeRoute({ unsubscribe });
   const path = createPublicPathRoute({ forms: () => null, origin: () => null, unsubscribe: () => route });
-  const server = http.createServer((req, res) => { if (path.handle(req, res) || route.handle(req, res)) return; res.writeHead(200, { "content-type": "text/html" }); res.end("<title>the app shell</title>"); });
+  const server = http.createServer((req, res) => {
+    if (path.handle(req, res) || route.handle(req, res)) return;
+    res.writeHead(200, { "content-type": "text/html" });
+    res.end("<title>the app shell</title>");
+  });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, close: () => server.close() };
 }
 
 test("a plain fetch of the link changes nothing: a mail scanner does not unsubscribe anyone", async () => {
   const asked: string[] = [];
-  const s = await serve(async (t) => { asked.push(t); return true; });
+  const s = await serve(async (t) => {
+    asked.push(t);
+    return true;
+  });
   try {
     for (const path of [`/u/${TOKEN}`, `/p/u/${TOKEN}`]) {
       const get = await fetch(s.url + path);
@@ -31,15 +38,24 @@ test("a plain fetch of the link changes nothing: a mail scanner does not unsubsc
       assert.equal((await fetch(s.url + path, { method: "HEAD" })).status, 200);
     }
     assert.deepEqual(asked, []);
-  } finally { s.close(); }
+  } finally {
+    s.close();
+  }
 });
 
 test("POST unsubscribes at both addresses, and the confirmation is plain and says nothing of the Space", async () => {
   const asked: string[] = [];
-  const s = await serve(async (t) => { asked.push(t); return true; });
+  const s = await serve(async (t) => {
+    asked.push(t);
+    return true;
+  });
   try {
     for (const path of [`/u/${TOKEN}`, `/p/u/${TOKEN}`]) {
-      const res = await fetch(s.url + path, { method: "POST", headers: { cookie: "session=x" }, body: "List-Unsubscribe=One-Click" });
+      const res = await fetch(s.url + path, {
+        method: "POST",
+        headers: { cookie: "session=x" },
+        body: "List-Unsubscribe=One-Click",
+      });
       assert.equal(res.status, 200, path);
       const html = await res.text();
       assert.match(html, /You are unsubscribed/);
@@ -49,12 +65,16 @@ test("POST unsubscribes at both addresses, and the confirmation is plain and say
       assert.equal(res.headers.get("x-robots-tag"), "noindex");
     }
     assert.deepEqual(asked, [TOKEN, TOKEN]);
-  } finally { s.close(); }
+  } finally {
+    s.close();
+  }
 });
 
 test("a bad link says so and a failure keeps the person subscribed and says so: neither claims it worked", async () => {
   const bad = await serve(async () => false);
-  const down = await serve(async () => { throw new Error("contacts is down"); });
+  const down = await serve(async () => {
+    throw new Error("contacts is down");
+  });
   try {
     const no = await fetch(`${bad.url}/u/${TOKEN}`, { method: "POST" });
     assert.equal(no.status, 404);
@@ -62,7 +82,10 @@ test("a bad link says so and a failure keeps the person subscribed and says so: 
     const failed = await fetch(`${down.url}/u/${TOKEN}`, { method: "POST" });
     assert.equal(failed.status, 503);
     assert.match(await failed.text(), /still subscribed/);
-  } finally { bad.close(); down.close(); }
+  } finally {
+    bad.close();
+    down.close();
+  }
 });
 
 test("nothing else moves: other paths fall through, and the relay carries the address", async () => {
@@ -72,18 +95,35 @@ test("nothing else moves: other paths fall through, and the relay carries the ad
     assert.match(await (await fetch(`${s.url}/u/${TOKEN}/more`)).text(), /the app shell/);
     assert.equal((await fetch(`${s.url}/u/${TOKEN}`, { method: "DELETE" })).status, 405);
     assert.equal(publicPathOk(`/p/u/${TOKEN}`), true);
-  } finally { s.close(); }
+  } finally {
+    s.close();
+  }
 });
 
 test("a shared project link answers on the public path, as a page and only as a page", async () => {
-  const share = { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean { res.writeHead(200, { "content-type": "text/plain" }); res.end(`${req.url} ${req.headers["accept"] ?? "no accept"}`); return true; } };
+  const share = {
+    handle(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+      res.writeHead(200, { "content-type": "text/plain" });
+      res.end(`${req.url} ${req.headers["accept"] ?? "no accept"}`);
+      return true;
+    },
+  };
   const path = createPublicPathRoute({ forms: () => null, origin: () => null, share: () => share });
-  const server = http.createServer((req, res) => { if (!path.handle(req, res)) { res.writeHead(200); res.end("the app shell"); } });
+  const server = http.createServer((req, res) => {
+    if (!path.handle(req, res)) {
+      res.writeHead(200);
+      res.end("the app shell");
+    }
+  });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   try {
     const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/p/share/project/abcdef0123456789abcd`;
-    assert.equal(await (await fetch(url, { headers: { accept: "application/json" } })).text(), "/share/project/abcdef0123456789abcd no accept");
+    assert.equal(
+      await (await fetch(url, { headers: { accept: "application/json" } })).text(),
+      "/share/project/abcdef0123456789abcd no accept",
+    );
     assert.equal(publicPathOk("/p/share/project/abcdef0123456789abcd"), true);
-  } finally { server.close(); }
+  } finally {
+    server.close();
+  }
 });
-

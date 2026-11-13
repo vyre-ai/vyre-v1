@@ -3,7 +3,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { checkSlow, MAX_ENTRIES } from "./slow-check.ts";
 
-const entry = (i: number) => ({ file: `x/f${i}.test.ts`, capSec: 60, owner: "L1", reason: "100k row snapshot", heavy: i % 2 === 0 });
+const entry = (i: number) => ({
+  file: `x/f${i}.test.ts`,
+  capSec: 60,
+  owner: "L1",
+  reason: "100k row snapshot",
+  heavy: i % 2 === 0,
+});
 const list = (n: number) => Array.from({ length: n }, (_, i) => entry(i));
 
 test("the cap passes, one more fails", () => {
@@ -26,7 +32,13 @@ test("the committed test/slow.json is valid", () => {
 });
 
 test("perf entries are not counted against the cap", () => {
-  const perf = Array.from({ length: 30 }, (_, i) => ({ file: `p${i}.perf.test.ts`, capSec: 120, owner: "t", reason: "t", perf: true }));
+  const perf = Array.from({ length: 30 }, (_, i) => ({
+    file: `p${i}.perf.test.ts`,
+    capSec: 120,
+    owner: "t",
+    reason: "t",
+    perf: true,
+  }));
   assert.deepEqual(checkSlow([...list(MAX_ENTRIES), ...perf]), []);
 });
 

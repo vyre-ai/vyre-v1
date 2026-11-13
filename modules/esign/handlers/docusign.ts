@@ -6,7 +6,14 @@
 // is a hint: esign.hook confirms completed and declined with status() before it changes anything.
 
 import { ProviderPayloadError } from "./send.ts";
-import type { EnvelopeRequest, EnvelopeStatus, EsignProvider, ProviderStatus, SignedFiles, WebhookEvent } from "./send.ts";
+import type {
+  EnvelopeRequest,
+  EnvelopeStatus,
+  EsignProvider,
+  ProviderStatus,
+  SignedFiles,
+  WebhookEvent,
+} from "./send.ts";
 import type { HttpFn } from "./documenso.ts";
 
 export interface DocuSignOptions {
@@ -63,11 +70,34 @@ export function pkcs8FromPem(pem: string): Uint8Array {
 }
 
 /** A signed JWT for the grant. Exported so a test can verify the signature with the public key. */
-export async function signJwt(o: { integrationKey: string; userId: string; authHost: string; privateKey: string; nowSeconds: number }): Promise<string> {
+export async function signJwt(o: {
+  integrationKey: string;
+  userId: string;
+  authHost: string;
+  privateKey: string;
+  nowSeconds: number;
+}): Promise<string> {
   const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const claims = b64url(JSON.stringify({ iss: o.integrationKey, sub: o.userId, aud: o.authHost, iat: o.nowSeconds, exp: o.nowSeconds + 3600, scope: "signature impersonation" }));
-  const key = await globalThis.crypto.subtle.importKey("pkcs8", pkcs8FromPem(o.privateKey) as BufferSource, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
-  const sig = new Uint8Array(await globalThis.crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(`${header}.${claims}`)));
+  const claims = b64url(
+    JSON.stringify({
+      iss: o.integrationKey,
+      sub: o.userId,
+      aud: o.authHost,
+      iat: o.nowSeconds,
+      exp: o.nowSeconds + 3600,
+      scope: "signature impersonation",
+    }),
+  );
+  const key = await globalThis.crypto.subtle.importKey(
+    "pkcs8",
+    pkcs8FromPem(o.privateKey) as BufferSource,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = new Uint8Array(
+    await globalThis.crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(`${header}.${claims}`)),
+  );
   return `${header}.${claims}.${b64url(sig)}`;
 }
 
@@ -85,7 +115,11 @@ function signersOf(recipients: unknown): Obj[] {
 
 function mapStatus(env: Obj): ProviderStatus {
   const raw = signersOf(env.recipients);
-  const signers = raw.map((r) => ({ name: s(r.name), email: s(r.email).toLowerCase(), status: signerState(s(r.status)) }));
+  const signers = raw.map((r) => ({
+    name: s(r.name),
+    email: s(r.email).toLowerCase(),
+    status: signerState(s(r.status)),
+  }));
   const status = s(env.status);
   let state: EnvelopeStatus;
   if (status === "completed") state = "signed";
@@ -107,18 +141,29 @@ export function docusign(o: DocuSignOptions): EsignProvider {
 
   async function accessToken(force = false): Promise<string> {
     if (!force && token && token.expires - 60_000 > now()) return token.value;
-    const assertion = await signJwt({ integrationKey: o.integrationKey, userId: o.userId, authHost, privateKey: o.privateKey, nowSeconds: Math.floor(now() / 1000) });
+    const assertion = await signJwt({
+      integrationKey: o.integrationKey,
+      userId: o.userId,
+      authHost,
+      privateKey: o.privateKey,
+      nowSeconds: Math.floor(now() / 1000),
+    });
     const res = await o.http(`https://${authHost}/oauth/token`, {
-      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: `grant_type=${encodeURIComponent("urn:ietf:params:oauth:grant-type:jwt-bearer")}&assertion=${encodeURIComponent(assertion)}`,
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       const err = isObj(body) ? s(body.error) : "";
-      if (err === "consent_required") throw new Error("DocuSign needs the user's consent for this integration before it can send. Open the consent link once in DocuSign.");
+      if (err === "consent_required")
+        throw new Error(
+          "DocuSign needs the user's consent for this integration before it can send. Open the consent link once in DocuSign.",
+        );
       throw new Error(`DocuSign refused the sign-in (${res.status}${err ? ` ${err}` : ""})`);
     }
-    if (!isObj(body) || typeof body.access_token !== "string" || body.access_token === "") throw new Error("DocuSign returned no access token");
+    if (!isObj(body) || typeof body.access_token !== "string" || body.access_token === "")
+      throw new Error("DocuSign returned no access token");
     const ttl = typeof body.expires_in === "number" ? body.expires_in : 3600;
     token = { value: body.access_token, expires: now() + ttl * 1000 };
     return token.value;
@@ -129,7 +174,12 @@ export function docusign(o: DocuSignOptions): EsignProvider {
     for (let attempt = 0; ; attempt++) {
       const t = await accessToken(attempt > 0);
       const res = await o.http(`${base}${path}`, {
-        method, headers: { Authorization: `Bearer ${t}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        method,
+        headers: {
+          Authorization: `Bearer ${t}`,
+          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       if (res.status === 401 && attempt === 0) continue;
       if (!res.ok) throw new Error(`DocuSign answered ${res.status} for ${method} ${path.split("?")[0]}`);
@@ -145,17 +195,27 @@ export function docusign(o: DocuSignOptions): EsignProvider {
         emailSubject: `Please sign: ${req.title}`,
         status: "sent",
         documents: [{ documentBase64: btoa(bin), name: req.fileName, fileExtension: "pdf", documentId: "1" }],
-        customFields: { textCustomFields: [{ name: "vyreEnvelopeId", value: req.envelopeId, show: "false", required: "false" }] },
+        customFields: {
+          textCustomFields: [{ name: "vyreEnvelopeId", value: req.envelopeId, show: "false", required: "false" }],
+        },
         recipients: {
           signers: req.signers.map((x, i) => ({
-            email: x.email, name: x.name, recipientId: String(i + 1), routingOrder: String(x.order),
-            tabs: { signHereTabs: [{ documentId: "1", pageNumber: "1", xPosition: "60", yPosition: String(Math.max(40, 680 - i * 60)) }] },
+            email: x.email,
+            name: x.name,
+            recipientId: String(i + 1),
+            routingOrder: String(x.order),
+            tabs: {
+              signHereTabs: [
+                { documentId: "1", pageNumber: "1", xPosition: "60", yPosition: String(Math.max(40, 680 - i * 60)) },
+              ],
+            },
           })),
         },
       };
       const res = await call("POST", "/envelopes", payload);
       const json = await res.json();
-      if (!isObj(json) || typeof json.envelopeId !== "string" || json.envelopeId === "") throw new Error("DocuSign returned no envelope id");
+      if (!isObj(json) || typeof json.envelopeId !== "string" || json.envelopeId === "")
+        throw new Error("DocuSign returned no envelope id");
       return { ref: json.envelopeId };
     },
 
@@ -166,28 +226,41 @@ export function docusign(o: DocuSignOptions): EsignProvider {
     },
 
     async cancel(ref: string): Promise<void> {
-      await call("PUT", `/envelopes/${encodeURIComponent(ref)}`, { status: "voided", voidedReason: "Cancelled from Vyre" });
+      await call("PUT", `/envelopes/${encodeURIComponent(ref)}`, {
+        status: "voided",
+        voidedReason: "Cancelled from Vyre",
+      });
     },
 
     async fetchSigned(ref: string): Promise<SignedFiles> {
       const id = encodeURIComponent(ref);
       const pdf = new Uint8Array(await (await call("GET", `/envelopes/${id}/documents/combined`)).arrayBuffer());
-      const certificate = new Uint8Array(await (await call("GET", `/envelopes/${id}/documents/certificate`)).arrayBuffer());
+      const certificate = new Uint8Array(
+        await (await call("GET", `/envelopes/${id}/documents/certificate`)).arrayBuffer(),
+      );
       return { pdf, certificate };
     },
 
     webhook(payload: unknown): WebhookEvent | null {
       let body: unknown = payload;
       if (typeof body === "string") {
-        try { body = JSON.parse(body); } catch { throw new ProviderPayloadError("That is not a DocuSign Connect message."); }
+        try {
+          body = JSON.parse(body);
+        } catch {
+          throw new ProviderPayloadError("That is not a DocuSign Connect message.");
+        }
       }
-      if (!isObj(body) || typeof body.event !== "string" || !isObj(body.data)) throw new ProviderPayloadError("That is not a DocuSign Connect message.");
+      if (!isObj(body) || typeof body.event !== "string" || !isObj(body.data))
+        throw new ProviderPayloadError("That is not a DocuSign Connect message.");
       const data = body.data;
       const envelopeId = s(data.envelopeId);
       if (envelopeId === "") throw new ProviderPayloadError("The message names no envelope.");
       const kinds: Record<string, WebhookEvent["kind"]> = {
-        "recipient-delivered": "viewed", "recipient-completed": "signed", "envelope-completed": "completed",
-        "envelope-declined": "declined", "envelope-voided": "cancelled",
+        "recipient-delivered": "viewed",
+        "recipient-completed": "signed",
+        "envelope-completed": "completed",
+        "envelope-declined": "declined",
+        "envelope-voided": "cancelled",
       };
       // DocuSign sends recipient-declined and envelope-declined for one decline; only the envelope one is read, so the decline is applied once
       const kind = kinds[body.event];
@@ -196,7 +269,13 @@ export function docusign(o: DocuSignOptions): EsignProvider {
       const raw = signersOf(summary.recipients);
       const recipients = raw.map((r) => {
         const st = s(r.status);
-        return { email: s(r.email).toLowerCase(), name: s(r.name), read: st === "delivered" || st === "completed" || st === "signed", signed: st === "completed" || st === "signed", rejected: st === "declined" };
+        return {
+          email: s(r.email).toLowerCase(),
+          name: s(r.name),
+          read: st === "delivered" || st === "completed" || st === "signed",
+          signed: st === "completed" || st === "signed",
+          rejected: st === "declined",
+        };
       });
       const why = raw.find((r) => s(r.status) === "declined");
       const reason = why && s(why.declinedReason) !== "" ? s(why.declinedReason) : undefined;

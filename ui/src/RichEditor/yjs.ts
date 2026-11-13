@@ -20,7 +20,9 @@ type Node = Y.XmlElement | Y.XmlText | Y.XmlHook;
 
 function markAttrs(run: Run): Attrs {
   const attrs: Attrs = {};
-  for (const m of run.marks) attrs[m] = m === "link" ? { href: run.href ?? "", target: "_blank", rel: "noopener noreferrer nofollow", class: null } : {};
+  for (const m of run.marks)
+    attrs[m] =
+      m === "link" ? { href: run.href ?? "", target: "_blank", rel: "noopener noreferrer nofollow", class: null } : {};
   return attrs;
 }
 
@@ -55,15 +57,18 @@ function listOf(name: string, items: readonly (readonly Run[])[], attrs: Attrs):
 
 function blockNode(b: Block): Y.XmlElement {
   switch (b.type) {
-    case "paragraph": return paragraph(b.runs);
+    case "paragraph":
+      return paragraph(b.runs);
     case "heading": {
       const h = new Y.XmlElement("heading");
       h.setAttribute("level", b.level as unknown as string);
       h.insert(0, [textNode(b.runs)]);
       return h;
     }
-    case "bulletList": return listOf("bulletList", b.items, {});
-    case "orderedList": return listOf("orderedList", b.items, { start: 1 });
+    case "bulletList":
+      return listOf("bulletList", b.items, {});
+    case "orderedList":
+      return listOf("orderedList", b.items, { start: 1 });
     case "blockquote": {
       const q = new Y.XmlElement("blockquote");
       q.insert(0, [paragraph(b.runs)]);
@@ -77,13 +82,20 @@ function blockNode(b: Block): Y.XmlElement {
       c.insert(0, [t]);
       return c;
     }
-    case "horizontalRule": return new Y.XmlElement("horizontalRule");
-    default: return paragraph([]);
+    case "horizontalRule":
+      return new Y.XmlElement("horizontalRule");
+    default:
+      return paragraph([]);
   }
 }
 
 /** Replaces the document's content with these blocks, in one transaction. */
-export function blocksToFragment(doc: Y.Doc, blocks: readonly Block[], origin: unknown = "import", field: string = FRAGMENT): void {
+export function blocksToFragment(
+  doc: Y.Doc,
+  blocks: readonly Block[],
+  origin: unknown = "import",
+  field: string = FRAGMENT,
+): void {
   const fragment = doc.getXmlFragment(field);
   doc.transact(() => {
     if (fragment.length > 0) fragment.delete(0, fragment.length);
@@ -105,7 +117,8 @@ function runsOf(node: Node | undefined): Run[] {
     for (const [k, v] of Object.entries(piece.attributes ?? {})) {
       if (k === "bold" || k === "italic" || k === "strike" || k === "code" || k === "link") {
         marks.push(k);
-        if (k === "link" && v !== null && typeof v === "object" && typeof (v as { href?: unknown }).href === "string") href = (v as { href: string }).href;
+        if (k === "link" && v !== null && typeof v === "object" && typeof (v as { href?: unknown }).href === "string")
+          href = (v as { href: string }).href;
       }
     }
     runs.push({ text: piece.insert, marks, ...(href === undefined ? {} : { href }) });
@@ -137,24 +150,44 @@ function itemsOf(el: Y.XmlElement): Run[][] {
 export function fragmentToBlocks(doc: Y.Doc, field: string = FRAGMENT): Block[] {
   const blocks: Block[] = [];
   for (const node of doc.getXmlFragment(field).toArray() as Node[]) {
-    if (node instanceof Y.XmlText) { blocks.push({ type: "paragraph", runs: runsOf(node) }); continue; }
+    if (node instanceof Y.XmlText) {
+      blocks.push({ type: "paragraph", runs: runsOf(node) });
+      continue;
+    }
     if (!(node instanceof Y.XmlElement)) continue;
     switch (node.nodeName) {
       case "heading": {
         const level = Number(node.getAttribute("level") ?? 1);
-        blocks.push({ type: "heading", level: (level >= 1 && level <= 6 ? level : 1) as 1 | 2 | 3 | 4 | 5 | 6, runs: runsOf(kidsOf(node)[0]) });
+        blocks.push({
+          type: "heading",
+          level: (level >= 1 && level <= 6 ? level : 1) as 1 | 2 | 3 | 4 | 5 | 6,
+          runs: runsOf(kidsOf(node)[0]),
+        });
         break;
       }
-      case "bulletList": blocks.push({ type: "bulletList", items: itemsOf(node) }); break;
-      case "orderedList": blocks.push({ type: "orderedList", items: itemsOf(node) }); break;
-      case "blockquote": blocks.push({ type: "blockquote", runs: textRunsOf(node) }); break;
+      case "bulletList":
+        blocks.push({ type: "bulletList", items: itemsOf(node) });
+        break;
+      case "orderedList":
+        blocks.push({ type: "orderedList", items: itemsOf(node) });
+        break;
+      case "blockquote":
+        blocks.push({ type: "blockquote", runs: textRunsOf(node) });
+        break;
       case "codeBlock": {
         const t = kidsOf(node)[0];
-        blocks.push({ type: "codeBlock", lang: String(node.getAttribute("language") ?? ""), text: t instanceof Y.XmlText ? t.toString() : "" });
+        blocks.push({
+          type: "codeBlock",
+          lang: String(node.getAttribute("language") ?? ""),
+          text: t instanceof Y.XmlText ? t.toString() : "",
+        });
         break;
       }
-      case "horizontalRule": blocks.push({ type: "horizontalRule" }); break;
-      default: blocks.push({ type: "paragraph", runs: textRunsOf(node) });
+      case "horizontalRule":
+        blocks.push({ type: "horizontalRule" });
+        break;
+      default:
+        blocks.push({ type: "paragraph", runs: textRunsOf(node) });
     }
   }
   return blocks;
@@ -175,13 +208,20 @@ export function exportMarkdown(doc: Y.Doc): string {
 /** Two-way live link between two docs in the same process (tests, the WebView page's twin). Returns the unlink function. */
 export function connectDocs(a: Y.Doc, b: Y.Doc): () => void {
   const link = {};
-  const toB = (update: Uint8Array, origin: unknown): void => { if (origin !== link) Y.applyUpdate(b, update, link); };
-  const toA = (update: Uint8Array, origin: unknown): void => { if (origin !== link) Y.applyUpdate(a, update, link); };
+  const toB = (update: Uint8Array, origin: unknown): void => {
+    if (origin !== link) Y.applyUpdate(b, update, link);
+  };
+  const toA = (update: Uint8Array, origin: unknown): void => {
+    if (origin !== link) Y.applyUpdate(a, update, link);
+  };
   Y.applyUpdate(b, Y.encodeStateAsUpdate(a), link);
   Y.applyUpdate(a, Y.encodeStateAsUpdate(b), link);
   a.on("update", toB);
   b.on("update", toA);
-  return () => { a.off("update", toB); b.off("update", toA); };
+  return () => {
+    a.off("update", toB);
+    b.off("update", toA);
+  };
 }
 
 /* ---------- cursors ---------- */
@@ -199,8 +239,16 @@ export interface RemoteCursor extends CursorUser {
 }
 
 /** Announces who this editor is and where its cursor sits. */
-export function setLocalCursor(awareness: Awareness, user: CursorUser, anchor: number | null, head: number | null = anchor): void {
-  awareness.setLocalState({ user: { name: user.name, color: user.color }, cursor: anchor === null ? null : { anchor, head } });
+export function setLocalCursor(
+  awareness: Awareness,
+  user: CursorUser,
+  anchor: number | null,
+  head: number | null = anchor,
+): void {
+  awareness.setLocalState({
+    user: { name: user.name, color: user.color },
+    cursor: anchor === null ? null : { anchor, head },
+  });
 }
 
 /** Everyone else's cursors, in client id order. */
@@ -210,7 +258,13 @@ export function remoteCursors(awareness: Awareness): RemoteCursor[] {
     if (clientId === awareness.clientID) continue;
     const s = state as { user?: Partial<CursorUser>; cursor?: { anchor?: number; head?: number } | null };
     if (s.user === undefined || typeof s.user.name !== "string") continue;
-    out.push({ clientId, name: s.user.name, color: typeof s.user.color === "string" ? s.user.color : "#888888", anchor: s.cursor?.anchor ?? null, head: s.cursor?.head ?? s.cursor?.anchor ?? null });
+    out.push({
+      clientId,
+      name: s.user.name,
+      color: typeof s.user.color === "string" ? s.user.color : "#888888",
+      anchor: s.cursor?.anchor ?? null,
+      head: s.cursor?.head ?? s.cursor?.anchor ?? null,
+    });
   }
   return out.sort((x, y) => x.clientId - y.clientId);
 }

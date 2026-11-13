@@ -6,7 +6,10 @@ import { fetchWhatsNew } from "../../../../../client/src/gateway/whats-new.ts";
 
 type Invoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 type Listen = (event: string, handler: (e: { payload: unknown }) => void) => Promise<() => void>;
-interface TauriLike { core?: { invoke?: Invoke }; event?: { listen?: Listen } }
+interface TauriLike {
+  core?: { invoke?: Invoke };
+  event?: { listen?: Listen };
+}
 
 export const PROGRESS_EVENT = "vyre://update-progress";
 
@@ -26,11 +29,24 @@ const str = (v: unknown): string | null => (typeof v === "string" && v !== "" ? 
 /** The shell's answer, read strictly: anything it cannot read is a failed check. */
 export function readCheck(r: unknown): UpdateCheck {
   const o = (r ?? {}) as Record<string, unknown>;
-  const current = str(o["current"]), channel = str(o["channel"]);
+  const current = str(o["current"]),
+    channel = str(o["channel"]);
   if (!current || !channel) throw new Error("The update server gave an answer Vyre could not read.");
   const version = str(o["version"]);
-  const phase = o["phase"] === "checking" || o["phase"] === "failed" || o["phase"] === "none" || o["phase"] === "available" ? o["phase"] : version ? "available" : "none";
-  return { phase, current, channel, version, notes: str(o["notes"]), checkedAt: typeof o["checkedAt"] === "number" ? o["checkedAt"] : null };
+  const phase =
+    o["phase"] === "checking" || o["phase"] === "failed" || o["phase"] === "none" || o["phase"] === "available"
+      ? o["phase"]
+      : version
+        ? "available"
+        : "none";
+  return {
+    phase,
+    current,
+    channel,
+    version,
+    notes: str(o["notes"]),
+    checkedAt: typeof o["checkedAt"] === "number" ? o["checkedAt"] : null,
+  };
 }
 
 export function readProgress(v: unknown): Progress | null {
@@ -39,49 +55,95 @@ export function readProgress(v: unknown): Progress | null {
   const phase = phases.find((p) => p === o["phase"]);
   if (!phase) return null;
   const n = (x: unknown): number => (typeof x === "number" && Number.isFinite(x) && x >= 0 ? x : 0);
-  const chats = Array.isArray(o["chats"]) ? o["chats"].filter((c): c is string => typeof c === "string" && c.trim() !== "").slice(0, 6) : [];
+  const chats = Array.isArray(o["chats"])
+    ? o["chats"].filter((c): c is string => typeof c === "string" && c.trim() !== "").slice(0, 6)
+    : [];
   return {
-    phase, downloaded: n(o["downloaded"]), total: typeof o["total"] === "number" && o["total"] > 0 ? o["total"] : null,
-    ...(typeof o["turns"] === "number" ? { turns: o["turns"] } : {}), ...(chats.length > 0 ? { chats } : {}), ...(typeof o["left"] === "number" && o["left"] >= 0 ? { left: o["left"] } : {}), ...(typeof o["of"] === "number" && o["of"] > 0 ? { of: o["of"] } : {}),
+    phase,
+    downloaded: n(o["downloaded"]),
+    total: typeof o["total"] === "number" && o["total"] > 0 ? o["total"] : null,
+    ...(typeof o["turns"] === "number" ? { turns: o["turns"] } : {}),
+    ...(chats.length > 0 ? { chats } : {}),
+    ...(typeof o["left"] === "number" && o["left"] >= 0 ? { left: o["left"] } : {}),
+    ...(typeof o["of"] === "number" && o["of"] > 0 ? { of: o["of"] } : {}),
   };
 }
 
 /** The shell's update commands; undefined in a browser. */
-export function desktopUpdates(tauri: TauriLike | undefined = (globalThis as { __TAURI__?: TauriLike }).__TAURI__): DesktopUpdates | undefined {
+export function desktopUpdates(
+  tauri: TauriLike | undefined = (globalThis as { __TAURI__?: TauriLike }).__TAURI__,
+): DesktopUpdates | undefined {
   const invoke = tauri?.core?.invoke;
   if (!invoke) return undefined;
   const listen = tauri?.event?.listen;
   return {
-    async startup(waitMs) { return readCheck(await invoke("startup_update", { waitMs: Math.max(0, Math.min(10_000, Math.round(waitMs))) })); },
-    async check() { return readCheck(await invoke("check_desktop_update")); },
-    async stopNow() { await invoke("update_stop_now"); },
+    async startup(waitMs) {
+      return readCheck(await invoke("startup_update", { waitMs: Math.max(0, Math.min(10_000, Math.round(waitMs))) }));
+    },
+    async check() {
+      return readCheck(await invoke("check_desktop_update"));
+    },
+    async stopNow() {
+      await invoke("update_stop_now");
+    },
     async install(onProgress) {
       let off: (() => void) | undefined;
-      if (onProgress && listen) { try { off = await listen(PROGRESS_EVENT, (e) => { const p = readProgress(e.payload); if (p) onProgress(p); }); } catch { off = undefined; } }
-      try { await invoke("install_desktop_update"); } finally { off?.(); }
+      if (onProgress && listen) {
+        try {
+          off = await listen(PROGRESS_EVENT, (e) => {
+            const p = readProgress(e.payload);
+            if (p) onProgress(p);
+          });
+        } catch {
+          off = undefined;
+        }
+      }
+      try {
+        await invoke("install_desktop_update");
+      } finally {
+        off?.();
+      }
     },
   };
 }
 
 // ---- what the last check found, for Settings and the rail dot
 
-export interface UpdateState { check: UpdateCheck | null; installing: boolean }
+export interface UpdateState {
+  check: UpdateCheck | null;
+  installing: boolean;
+}
 let state: UpdateState = { check: null, installing: false };
 const listeners = new Set<() => void>();
 
 export const updateState = (): UpdateState => state;
-export function subscribeUpdates(l: () => void): () => void { listeners.add(l); return () => { listeners.delete(l); }; }
-export function setUpdateState(next: Partial<UpdateState>): void { state = { ...state, ...next }; for (const l of listeners) l(); }
+export function subscribeUpdates(l: () => void): () => void {
+  listeners.add(l);
+  return () => {
+    listeners.delete(l);
+  };
+}
+export function setUpdateState(next: Partial<UpdateState>): void {
+  state = { ...state, ...next };
+  for (const l of listeners) l();
+}
 /** Tests. */
-export function resetUpdateState(): void { state = { check: null, installing: false }; }
+export function resetUpdateState(): void {
+  state = { check: null, installing: false };
+}
 
 /** A newer version is there and not being installed: the Settings row and the dot. */
-export const updateWaiting = (s: UpdateState): boolean => !s.installing && s.check?.phase === "available" && s.check.version !== null;
+export const updateWaiting = (s: UpdateState): boolean =>
+  !s.installing && s.check?.phase === "available" && s.check.version !== null;
 
 // ---- the release's own What's new, from the build
 
 export function localStore(): Store | null {
-  try { return (globalThis as { localStorage?: Store }).localStorage ?? null; } catch { return null; }
+  try {
+    return (globalThis as { localStorage?: Store }).localStorage ?? null;
+  } catch {
+    return null;
+  }
 }
 
 let notes: Promise<WhatsNew | null> | null = null;
@@ -91,4 +153,6 @@ export function loadWhatsNew(read: () => Promise<unknown> = () => fetchWhatsNew(
   return notes;
 }
 /** Tests. */
-export function resetWhatsNew(): void { notes = null; }
+export function resetWhatsNew(): void {
+  notes = null;
+}

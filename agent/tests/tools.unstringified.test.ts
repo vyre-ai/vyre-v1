@@ -3,11 +3,23 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { unstringified } from "../src/tools/call.ts";
 
-const schema = { type: "object", properties: { goalId: { type: "string" }, children: { type: "array" }, budget: { type: "object" }, summary: { type: "string" } } };
+const schema = {
+  type: "object",
+  properties: {
+    goalId: { type: "string" },
+    children: { type: "array" },
+    budget: { type: "object" },
+    summary: { type: "string" },
+  },
+};
 
 test("a list or an object sent as JSON text is read back when the schema says so", () => {
   const kids = [{ key: "a", title: "Remind Lab 7", why: "it worked" }];
-  assert.deepEqual(unstringified(schema, { goalId: "gol_1", children: JSON.stringify(kids), budget: '{"turns":40}' }), { goalId: "gol_1", children: kids, budget: { turns: 40 } });
+  assert.deepEqual(unstringified(schema, { goalId: "gol_1", children: JSON.stringify(kids), budget: '{"turns":40}' }), {
+    goalId: "gol_1",
+    children: kids,
+    budget: { turns: 40 },
+  });
 });
 
 test("nothing else changes: a string field that holds JSON, text that is not JSON, the wrong shape, and inputs that are not objects", () => {
