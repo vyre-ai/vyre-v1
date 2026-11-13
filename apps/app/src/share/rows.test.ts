@@ -1,7 +1,8 @@
 // The item's own link and the call input the Share sheet builds: an artifact has its address on the Space, every other kind its vyre:// deep link, never the page the person is on.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { itemLink, withNotify } from "./rows.ts";
+import { copyItemLink, itemLink, linkOrigin, messageLink, setLinkOrigin, withNotify } from "./rows.ts";
+import { notices } from "../shell/noticeslot/model.ts";
 
 test("an artifact links to its own address on the Space; every other kind to the Space's /open link, never vyre://", () => {
   const o = "https://northwind.vyre.run";
@@ -25,4 +26,56 @@ test("withNotify adds notify only when the person asked to tell them, with the m
     ...base,
     notify: { message: "Take a look" },
   });
+});
+
+// 13 Nov 2026: the Share sheet's Copy link copied tauri://localhost/a/<id> from the desktop app (the link was made from the page's origin), which opens nowhere.
+test("a link is made from the Space's own address, never from the page the app runs in (tauri:// on desktop), and a Space with no public address gives words, not a dead link", () => {
+  const g = globalThis as Record<string, unknown>;
+  const had = {
+    location: Object.getOwnPropertyDescriptor(g, "location"),
+    navigator: Object.getOwnPropertyDescriptor(g, "navigator"),
+  };
+  const put = (k: string, v: unknown): void =>
+    void Object.defineProperty(g, k, { value: v, configurable: true, writable: true });
+  const copied: string[] = [];
+  put("location", { origin: "tauri://localhost" });
+  put("navigator", { clipboard: { writeText: async (t: string) => void copied.push(t) } });
+  try {
+    setLinkOrigin("https://mla.vyre.run");
+    assert.equal(itemLink("site", "sit_ab12"), "https://mla.vyre.run/a/sit_ab12");
+    assert.equal(itemLink("note", "not_1"), "https://mla.vyre.run/open/note/not_1");
+    assert.equal(messageLink("thr_1", "msg_1"), "https://mla.vyre.run/open/message/thr_1/msg_1");
+    copyItemLink("site", "sit_ab12");
+    assert.deepEqual(copied, ["https://mla.vyre.run/a/sit_ab12"], "what lands on the clipboard on desktop");
+    // Windows desktop
+    put("location", { origin: "http://tauri.localhost" });
+    assert.equal(itemLink("site", "sit_ab12"), "https://mla.vyre.run/a/sit_ab12");
+    // a web app opened at the Space itself
+    setLinkOrigin(null);
+    put("location", { origin: "https://team.example.com" });
+    assert.equal(itemLink("site", "sit_ab12"), "https://team.example.com/a/sit_ab12");
+    // a Space on this computer alone: no address anyone else can open
+    for (const local of [
+      "http://127.0.0.1:8420",
+      "http://localhost:8420",
+      "http://a.localhost:8420",
+      "tauri://localhost",
+      "",
+    ]) {
+      setLinkOrigin(local);
+      put("location", { origin: "tauri://localhost" });
+      assert.equal(linkOrigin(), "", local);
+      assert.equal(itemLink("site", "sit_ab12"), "", local);
+    }
+    copied.length = 0;
+    copyItemLink("site", "sit_ab12");
+    assert.deepEqual(copied, [], "nothing dead is copied");
+    assert.match(JSON.stringify(notices.getSnapshot()), /no public address yet, so there is no link to give/);
+  } finally {
+    setLinkOrigin(null);
+    for (const k of ["location", "navigator"] as const) {
+      if (had[k]) Object.defineProperty(g, k, had[k]!);
+      else delete g[k];
+    }
+  }
 });

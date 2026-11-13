@@ -28,7 +28,7 @@ import type {
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { swapNeeded } from "../conversation/model.ts";
-import { itemLink } from "../../../share/rows.ts";
+import { copyLinkText, itemLink } from "../../../share/rows.ts";
 import { PeoplePopover } from "../../../../../../ui/src/PeoplePopover/index.tsx";
 import type { MemberRow } from "../../../../../../ui/src/PeoplePopover/index.tsx";
 import {
@@ -637,7 +637,8 @@ export function useAddSheet(
           else if (action === "link") {
             const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } })
               .navigator?.clipboard;
-            void clip?.writeText(itemLinkOf(r));
+            if (itemLinkOf(r) === "") copyLinkText("");
+            else void clip?.writeText(itemLinkOf(r));
             setSurface(null);
           }
         }}
