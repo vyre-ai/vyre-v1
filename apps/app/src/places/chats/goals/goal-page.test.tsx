@@ -3,6 +3,7 @@ import test from "node:test";
 import { act } from "react";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
+import { Dimensions } from "react-native";
 import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
 import type { ConversationData } from "../conversation/data.tsx";
 import { Activity, GoalPage } from "./GoalPage.tsx";
@@ -42,6 +43,16 @@ test("an active goal: the number Vyre read, its source, what waits on you with o
   await press(find(p, "goal-pause"));
   assert.ok(calls.some((c) => c.cap === "goals.pause" && c.input["goalId"] === "gol_lab8"));
   assert.deepEqual(opened, []);
+});
+
+test("the goal's side pane opens on Details, with the tabs in the order Details, Activity, Files; Activity is one press away", async () => {
+  const was = Dimensions.get("window");
+  Dimensions.set({ window: { width: 1280, height: 800, scale: 1, fontScale: 1 }, screen: { width: 1280, height: 800, scale: 1, fontScale: 1 } });
+  const { root } = await page("active", true).finally(() => Dimensions.set({ window: was, screen: was }));
+  const p = find(root!, "goal-page")!;
+  assert.ok(!find(p, "goal-activity"), "Activity is not what opens");
+  assert.match(textOf(p), /Details.*Activity.*Files/s);
+  assert.ok(find(p, "goal-set-deadline"), "the Details settings are showing");
 });
 
 test("stuck, paused at the budget, missed and done each say what happened and offer what to do", async () => {

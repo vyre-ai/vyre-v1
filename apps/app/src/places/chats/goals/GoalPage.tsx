@@ -60,7 +60,7 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
   const zones = useZones();
   const width = useWindowDimensions().width;
   const phone = isPhoneWidth(width);
-  const [tab, setTab] = useState<PaneTab>("activity");
+  const [tab, setTab] = useState<PaneTab>("details");
   const [paneOpen, setPaneOpen] = useState(pane && !phone && width >= 980);
   const [line, setLine] = useState("");
   const [undo, setUndo] = useState<{ input: Record<string, unknown>; said: string } | null>(null);
@@ -130,7 +130,7 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
     <View testID="goal-page" style={st.row}>
       <View style={st.main}>{feed}</View>
       {paneOpen && !phone ? (
-        <SidePane paneKey="goal-pane" toggle={{ open: true, onPress: () => setPaneOpen(false) }} title="Goal" tabs={[{ key: "activity", title: "Activity" }, { key: "details", title: "Details" }, { key: "files", title: "Files" }]} activeTab={tab} onSelectTab={(k) => setTab(k as PaneTab)} defaultWidth={340}>
+        <SidePane paneKey="goal-pane" toggle={{ open: true, onPress: () => setPaneOpen(false) }} title="Goal" tabs={[{ key: "details", title: "Details" }, { key: "activity", title: "Activity" }, { key: "files", title: "Files" }]} activeTab={tab} onSelectTab={(k) => setTab(k as PaneTab)} defaultWidth={340}>
           {tab === "activity" ? <Activity data={data} me={me} nameOf={nameOf} now={now} zones={zones} openTask={openTask} /> : tab === "details" ? <GoalSettings g={g} nameOf={nameOf} zones={zones} canEdit={edit} patch={(i, said, back) => void run("goals.update", i, said, back)} pick={setPicker} removeHelper={(id) => saveHelpers(g.helpers.filter((h) => h.id !== id), `${nameOf(id)} is no longer a helper.`)} /> : <Files g={g} call={call} changes={changes} {...(openFolder ? { openFolder } : {})} {...(openFile ? { openFile } : {})} />}
         </SidePane>
       ) : null}
