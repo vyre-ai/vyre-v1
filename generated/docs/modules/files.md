@@ -26,7 +26,7 @@ Requires: mounts.
 - [files.comments.list](../capabilities/files.comments.list.md): List comments and numbered pins on a file; agents read pins to see what a person marked
 - [files.comments.resolve](../capabilities/files.comments.resolve.md): Resolve or reopen a comment
 - [files.copy](../capabilities/files.copy.md): Copy a file into a folder
-- [files.create](../capabilities/files.create.md): Create a file in a folder from text, base64 or an uploaded blob
+- [files.create](../capabilities/files.create.md): Create a file in a folder from text, base64 or an uploaded blob. A direct write holds at most 256 KB: split larger content into several files
 - [files.delete](../capabilities/files.delete.md): Move a file to Trash
 - [files.diff](../capabilities/files.diff.md): Compare two versions of a file, or a version with the current one: unified or split hunks, word marks, paragraph diff for docx and md, image blobs for the slider
 - [files.external_links](../capabilities/files.external_links.md): List the outside links of a file
@@ -75,7 +75,7 @@ Requires: mounts.
 - [files.versions](../capabilities/files.versions.md): List versions of a file with who and why
 - [files.versions_purge](../capabilities/files.versions_purge.md): Remove file versions older than a time except the newest of each file and any named version; files listed in skipFileIds (held ones) are left whole (retention)
 - [files.viewer_data](../capabilities/files.viewer_data.md): Everything the one viewer needs for any file type: text projection, pages, preview address, sheet info, export snapshot for Google-native files, and what the caller may do
-- [files.write](../capabilities/files.write.md): Replace the content of a file. In a Review changes folder an agent write lands in a changeset and syncs only on Approve
+- [files.write](../capabilities/files.write.md): Replace the content of a file, at most 256 KB at once. In a Review changes folder an agent write lands in a changeset and syncs only on Approve
 - [sheets.add_sheet](../capabilities/sheets.add_sheet.md): Add a sheet (tab) to a workbook
 - [sheets.append_rows](../capabilities/sheets.append_rows.md): Append rows to a sheet; each write is a version labelled with the automation and run, so parallel runs never overwrite
 - [sheets.create](../capabilities/sheets.create.md): Create a CSV or XLSX table file with a header row

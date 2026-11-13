@@ -1,6 +1,6 @@
 # files.create
 
-Create a file in a folder from text, base64 or an uploaded blob
+Create a file in a folder from text, base64 or an uploaded blob. A direct write holds at most 256 KB: split larger content into several files
 
 | | |
 |---|---|
