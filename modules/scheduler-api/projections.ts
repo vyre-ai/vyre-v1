@@ -233,11 +233,11 @@ export function allSchedules(db: Db): Schedule[] {
     db.all("SELECT * FROM scheduler_api_schedules WHERE canceled_at IS NULL ORDER BY created_at ASC, id ASC") as Raw[]
   ).map(rowToSchedule);
 }
-/** Active schedules whose next fire time has come, oldest first. */
+/** Active schedules whose next fire time has come, by time, then in the order they were made (rowid): never by id, which is random. */
 export function dueSchedules(db: Db, now: number): Schedule[] {
   return (
     db.all(
-      "SELECT * FROM scheduler_api_schedules WHERE canceled_at IS NULL AND active = 1 AND next_at IS NOT NULL AND next_at <= ? ORDER BY next_at ASC, id ASC",
+      "SELECT * FROM scheduler_api_schedules WHERE canceled_at IS NULL AND active = 1 AND next_at IS NOT NULL AND next_at <= ? ORDER BY next_at ASC, created_at ASC, rowid ASC",
       now,
     ) as Raw[]
   ).map(rowToSchedule);
@@ -426,6 +426,18 @@ export function reportFire(
       dueKey,
     ).changes === 1
   );
+}
+/** Due fires in a stable order: by due time, then the order they were made (rowid). Whoever works through them (the engine consumer) gets "first A then B" whatever the ids are. */
+export function dueFires(db: Db): { scheduleId: string; dueKey: string; scheduledFor: number }[] {
+  return (
+    db.all(
+      "SELECT schedule_id, due_key, scheduled_for FROM scheduler_api_fires WHERE state = 'due' ORDER BY scheduled_for ASC, rowid ASC",
+    ) as Raw[]
+  ).map((r) => ({
+    scheduleId: r.schedule_id as string,
+    dueKey: r.due_key as string,
+    scheduledFor: num(r.scheduled_for) ?? 0,
+  }));
 }
 /** Is a fire of this wake open (due, claimed, running or waiting)? The overlap rule asks. */
 export function openFire(db: Db, scheduleId: string): boolean {

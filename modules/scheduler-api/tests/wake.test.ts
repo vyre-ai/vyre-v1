@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { codeOf, harness } from "../fixtures/db.ts";
 import { alice, bob, host, HOUR, MINUTE, DAY, NOW, newSchedule } from "../fixtures/seed.ts";
 import { prune, tickWakes } from "../impl.ts";
-import { createFire, fireIdOf, openFire } from "../projections.ts";
+import { createFire, dueFires, fireIdOf, openFire } from "../projections.ts";
 
 const AGENT = `agt_${"a".repeat(32)}`;
 const ROOM = `chn_${"c".repeat(32)}`;
@@ -273,4 +273,26 @@ test("migration 0003 carries an old fire over as a finished fire with its time a
   ).run();
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM scheduler_api_fires").get() as { n: number }).n, 2);
   assert.ok(MINUTE > 0);
+});
+
+test("fires due at the same instant come out in the order they were made, whatever their ids are", async () => {
+  const h = harness({ now: Date.UTC(2026, 0, 5, 9, 1) });
+  const ids: string[] = [];
+  for (let i = 0; i < 6; i++)
+    ids.push(
+      (await h.call("scheduler.schedule", wake({ owner: { kind: "agent_routine", id: `rtn_${i}` } }), host)).scheduleId,
+    );
+  h.setNow(Date.UTC(2026, 0, 5, 9, 5, 30));
+  await h.consumer(host, async (ctx) => tickWakes(ctx));
+  const order = dueFires(h.db).map((f) => f.scheduleId);
+  assert.deepEqual(order, ids, "the order the wakes were made, though their ids are random");
+  assert.deepEqual(
+    h.db
+      .all(
+        "SELECT id FROM scheduler_api_schedules WHERE next_at <= ? ORDER BY next_at, created_at, rowid",
+        Date.UTC(2026, 0, 5, 9, 20),
+      )
+      .map((r) => (r as { id: string }).id),
+    ids,
+  );
 });
