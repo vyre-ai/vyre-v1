@@ -2,12 +2,20 @@
 // contacts.route_owner, contacts.address.*, records.get/create/search, tasks.create, follows.toggle, mail.message.get, mail.mailbox.list, telephony.number.list,
 // meetings.list, access.groups.list). Every call is checked against the frozen input schema of its capability, as the invoke pipeline would, and the stand-ins
 // answer in the frozen output shape. Access is open unless a test denies a resource.
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { registry } from "../../../generated/registry.ts";
+import { scopedDb } from "../../../host/src/ctx/db.ts";
+import { openDb } from "../../../host/src/daemon/sqlite.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
+import { registerStateKind } from "../../../host/src/seams/state.ts";
 import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 import type { InboxCtx } from "../projections.ts";
 import { ensure } from "../projections.ts";
-import { memoryDb } from "./memory-db.ts";
+import { conversationKind } from "../state.ts";
+
+/** The `state` module's tables, made the way the host makes them: by that module's own migration. */
+const STATE_MIGRATION = fileURLToPath(new URL("../../state/migrations/0001_state.sql", import.meta.url));
 
 export const NOW = 1_760_000_000_000;
 export const HOUR = 3_600_000;
@@ -64,6 +72,8 @@ export interface Mail {
 
 export interface HarnessOptions {
   principal?: InboxCtx["principal"];
+  /** the Space's people (access.principals.list answers them); the caller is one of them when this is left out */
+  people?: string[];
   contacts?: Contact[];
   mailboxes?: Mailbox[];
   numbers?: {
@@ -85,6 +95,8 @@ export function harness(opts: HarnessOptions = {}) {
   const mail = new Map<string, Mail>((opts.mail ?? []).map((m) => [m.id, m]));
   const added = new Map<string, { contactId: string; value: string }>();
   const denied = new Set<string>();
+  /** resources a person cannot open, for the checks made on their own grants (ctx.mayAll) */
+  const hidden = new Map<string, Set<string>>();
   const state = { conversationsUnknown: false };
   const meetings: Record<string, unknown>[] = [];
   const groups: { id: string; name: string }[] = [];
@@ -121,12 +133,23 @@ export function harness(opts: HarnessOptions = {}) {
     score,
   });
 
+  // a real SQLite behind the host's own table guard, with the state module's tables: what a booted server has, so the Inbox's per-person state runs through the same seam
+  const raw = openDb(":memory:");
+  raw.exec(readFileSync(STATE_MIGRATION, "utf8"));
+  registerStateKind(raw, conversationKind);
+  const people = opts.people ?? [(opts.principal ?? { id: "usr_maya01" }).id];
   const ctx: InboxCtx = {
     space: "spc_inbox",
     principal: opts.principal ?? { kind: "person", id: "usr_maya01" },
     trace: { traceId: "0123456789abcdef0123456789abcdef" },
     now: () => clock,
-    db: memoryDb(),
+    db: scopedDb("inbox", raw, "0123456789abcdef0123456789abcdef"),
+    // each person on their own grants (the host's mayAll): the shared inbox is open to everyone unless a test hides it from one person
+    mayAll(who: readonly string[], _action: unknown, resource: { type: string; id: string | null }) {
+      return who.every(
+        (p) => !denied.has(`${resource.type}:${resource.id}`) && !hidden.get(p)?.has(`${resource.type}:${resource.id}`),
+      );
+    },
     emit(name, subject, payload, o) {
       emitted.push({ name, subject, payload: payload as Record<string, unknown>, vis: o?.vis });
       return null;
@@ -317,6 +340,17 @@ export function harness(opts: HarnessOptions = {}) {
           if (meetingsFail) throw fail("internal.unavailable", trace);
           return { meetings };
         }
+        case "access.principals.list":
+          return {
+            principals: people.map((id) => ({
+              id,
+              kind: "person",
+              name: id,
+              status: "active",
+              roles: [],
+              groups: [],
+            })),
+          };
         case "access.groups.list":
           return {
             groups: groups
@@ -367,6 +401,12 @@ export function harness(opts: HarnessOptions = {}) {
     },
     as(principal: InboxCtx["principal"]): InboxCtx {
       return Object.assign(Object.create(ctx) as InboxCtx, { principal });
+    },
+    /** this person's own grants no longer open the resource (they lost access to it) */
+    hideFrom(person: string, resource: { type: string; id: string }): void {
+      const set = hidden.get(person) ?? new Set<string>();
+      set.add(`${resource.type}:${resource.id}`);
+      hidden.set(person, set);
     },
     rows(sql: string, ...args: unknown[]) {
       return ctx.db.all(sql, ...args) as Record<string, string | number | null>[];
