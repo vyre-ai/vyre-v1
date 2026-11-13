@@ -153,7 +153,7 @@ export interface Space {
   /** The one-time owner claim link the daemon printed (fresh installs only), or null. */ claim: string | null;
 }
 
-const stopper =
+export const stopper =
   (child: ChildProcess): (() => Promise<void>) =>
   () =>
     new Promise<void>((resolve) => {
@@ -163,7 +163,7 @@ const stopper =
     });
 
 /** Starts the daemon as a person does and reads the address it prints (and, on a fresh install, the claim link it prints right after). */
-async function startDaemon(
+export async function startDaemon(
   dir: string,
   extra: string[],
   port = 0,

@@ -82,7 +82,7 @@ test("the placer shows the page once, then only moves it; a hide takes it away a
   assert.equal(said.length, 2, "a refused first show is tried again on the next move");
 });
 
-test("the frame element renders in the test renderer, and hides the page when it unmounts or is covered", async () => {
+test("the frame element renders in the test renderer, hides the page when it is covered and closes it when it unmounts", async () => {
   const restore = installDom();
   const { act } = await import("react");
   const calls: string[] = [];
@@ -103,8 +103,39 @@ test("the frame element renders in the test renderer, and hides the page when it
     await act(async () => {
       root.unmount();
     });
-    assert.equal(calls.at(-1), "artifact_view_hide", "leaving the viewer closes the page");
+    // (changed 13 Nov: a cover only hides, so the page keeps its place; leaving the viewer closes it for good)
+    assert.equal(calls.at(-1), "artifact_view_close", "leaving the viewer closes the page");
   } finally {
     restore();
   }
+});
+
+test("the shell keeps the page while a sheet is open: hide, then the same address is shown again (the shell moves it back); a page the shell no longer has is reported once and shown again", async () => {
+  const calls: string[] = [];
+  let gone = false;
+  const invoke = async (cmd: string): Promise<unknown> => {
+    calls.push(cmd);
+    if (gone && cmd === "artifact_view_bounds") throw "The viewer is gone.";
+    return undefined;
+  };
+  let reported = 0;
+  const p = createPlacer(invoke, "https://a.team.example.com/x/" + "a".repeat(48), undefined, undefined, () => {
+    reported++;
+  });
+  const r = { x: 1, y: 2, width: 300, height: 200 };
+  p.place(r);
+  p.hide();
+  p.place(r);
+  await new Promise<void>((x) => setImmediate(x));
+  assert.deepEqual(calls, ["artifact_view_show", "artifact_view_hide", "artifact_view_show"]);
+  gone = true;
+  p.place({ ...r, width: 310 });
+  await new Promise<void>((x) => setImmediate(x));
+  assert.equal(reported, 1, "the viewer is told, so it asks for a new address");
+  p.place({ ...r, width: 320 });
+  await new Promise<void>((x) => setImmediate(x));
+  assert.equal(calls.at(-1), "artifact_view_show", "and the next place makes the page again");
+  p.close();
+  await new Promise<void>((x) => setImmediate(x));
+  assert.equal(calls.at(-1), "artifact_view_close");
 });

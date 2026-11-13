@@ -1,3 +1,4 @@
+import { setLinkOrigin } from "../../share/rows.ts";
 import { judge, needsJudging, noAccessLine } from "../reach/target.ts";
 import { MAKES_A_THREAD, noteMade, threadOfStart } from "./just-made.ts";
 import type { Judge } from "../reach/target.ts";
@@ -195,6 +196,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     for (const l of [...listeners]) l();
   };
 
+  setLinkOrigin(o.baseUrl); // links to things in this Space are made from its own address (the desktop app runs in tauri://localhost)
   const raw = createCapCaller({
     baseUrl: o.baseUrl,
     token: () => token,

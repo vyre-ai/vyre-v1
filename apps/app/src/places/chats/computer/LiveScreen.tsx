@@ -63,6 +63,10 @@ export function LiveScreen({
   children,
 }: LiveScreenProps): ReactElement {
   const [stream, setStream] = useState<{ transport: "webrtc" | "mjpeg"; url: string; ticket: string } | null>(null);
+  // A stream ticket opens one stream, once. When the picture stream fails (a dropped connection, a ticket already spent) the screen asks for a NEW ticket, never the same address again, a few times; then it
+  // leaves the stand-in showing rather than asking for ever.
+  const [round, setRound] = useState(0);
+  const tries = useRef(0);
   const box = useRef({ width: 0, height: 0 });
   const node = useRef<unknown>(null);
   const deps: PopupDeps = useMemo(() => ({ call, note: note ?? (() => undefined) }), [call, note]);
@@ -72,6 +76,7 @@ export function LiveScreen({
   useEffect(() => {
     if (!reachable) {
       setStream(null);
+      tries.current = 0;
       return;
     }
     let live = true;
@@ -81,7 +86,7 @@ export function LiveScreen({
     return () => {
       live = false;
     };
-  }, [reachable, deps, computerId]);
+  }, [reachable, deps, computerId, round]);
 
   useEffect(() => {
     if (!keys || !control) return;
@@ -176,11 +181,24 @@ export function LiveScreen({
           accessibilityLabel="Live view"
           source={{ uri: streamSrc(stream.url, stream.ticket, spaceUrl) }}
           resizeMode="contain"
+          onLoad={() => {
+            tries.current = 0; // a stream that played earns its retries back
+          }}
+          onError={() => {
+            setStream(null);
+            if (tries.current < MOST_STREAM_TRIES) {
+              tries.current += 1;
+              setRound((n) => n + 1);
+            }
+          }}
           style={st.stream}
         />
       ) : null}
     </Pressable>
   );
 }
+
+/** New tickets asked for after a stream fails, before the screen stays on its stand-in. */
+const MOST_STREAM_TRIES = 3;
 
 const st = StyleSheet.create({ stream: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0 } });

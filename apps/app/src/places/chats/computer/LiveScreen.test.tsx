@@ -5,6 +5,7 @@ import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press } from "../../../../../../ui/src/testing/dom.ts";
 import { LiveScreen } from "./LiveScreen.tsx";
 import { Text } from "react-native";
+import { act } from "react";
 
 function rig(state: string, control: boolean) {
   const calls: Array<{ cap: string; input: unknown }> = [];
@@ -70,6 +71,56 @@ test("a press reaches the desktop only in control; otherwise it is the idle pres
     );
     assert.ok(!mine.calls.some((c) => c.cap === "idle"));
   } finally {
+    restore();
+  }
+});
+
+test("a one-use stream ticket is never replayed: when the picture stream fails (a dropped connection, a spent ticket) the screen asks for a NEW ticket and draws from that, a limited number of times", async () => {
+  const restore = installDom();
+  const made: Array<{ _s?: string; onerror?: () => void }> = [];
+  const g = globalThis as { Image?: unknown };
+  const had = g.Image;
+  g.Image = class {
+    _s?: string;
+    onload?: () => void;
+    onerror?: () => void;
+    set src(v: string) {
+      this._s = v;
+      made.push(this);
+    }
+  };
+  try {
+    let n = 0;
+    const calls: string[] = [];
+    const call = async (cap: string): Promise<unknown> => {
+      calls.push(cap);
+      if (cap === "computers.stream") return { transport: "mjpeg", url: "/live/cmt_1", ticket: `tk${++n}`, expiresAt: 1 };
+      return {};
+    };
+    const root = await mount(
+      createRoot,
+      <LiveScreen computerId="cmt_1" state="working" call={call} spaceUrl="https://x.example" now={() => 1} control={false} testID="ls" label="Intake's computer" style={{ width: 100, height: 60 }}>
+        <Text>stand-in</Text>
+      </LiveScreen>,
+    );
+    await flush();
+    assert.equal(n, 1);
+    const fail = async (): Promise<void> => {
+      await act(async () => {
+        for (const m of made) m.onerror?.();
+      });
+      await flush();
+    };
+    await fail();
+    assert.equal(n, 2, "a new ticket was asked for, the first was spent");
+    assert.ok(made.some((m) => String(m._s).includes("ticket=tk2")), "and the picture is drawn from it");
+    await fail();
+    await fail();
+    await fail();
+    assert.ok(n <= 4, "a stream that keeps failing is not asked for for ever");
+    assert.ok(find(root, "ls"), "the card stays");
+  } finally {
+    g.Image = had;
     restore();
   }
 });

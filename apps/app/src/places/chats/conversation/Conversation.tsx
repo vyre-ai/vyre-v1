@@ -150,7 +150,7 @@ import {
 import type { Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf, retryLoads } from "../../../../../../ui/src/States/Loads.tsx";
 import { refusalIsPending } from "../../../shell/session/just-made.ts";
-import { itemLink, messageLink } from "../../../share/rows.ts";
+import { copyLinkText, itemLink, messageLink } from "../../../share/rows.ts";
 import { createMenuApi } from "../menus/actions.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
 import { chatHeaderEntries, isArchivedIn } from "./chat-header-menu.ts";
@@ -1053,8 +1053,12 @@ function ConversationView(): ReactElement {
                 ),
               addPeople: () => add.open({ threadId: data.threadId, name: thread.title ?? "" }),
               copyLink: () => {
-                data.copy(itemLink("chat", data.threadId));
-                say("Link copied");
+                const link = itemLink("chat", data.threadId);
+                if (link === "") copyLinkText("");
+                else {
+                  data.copy(link);
+                  say("Link copied");
+                }
               },
             },
           )
@@ -1261,8 +1265,12 @@ function ConversationView(): ReactElement {
     },
     // one message's own link, /open/message/<threadId>/<messageId>: it opens the chat on that message, through reach
     copyLink: (id) => {
-      data.copy(messageLink(data.threadId, id));
-      say("Link copied");
+      const link = messageLink(data.threadId, id);
+      if (link === "") copyLinkText("");
+      else {
+        data.copy(link);
+        say("Link copied");
+      }
     },
     edit: (id, body) => {
       // an edit that adds an @mention asks that agent once, as if it had been named when sent (owner ruling, 3 Nov); the fixed ask id keeps a second edit from asking again

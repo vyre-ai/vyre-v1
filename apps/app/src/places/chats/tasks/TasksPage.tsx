@@ -70,6 +70,7 @@ import type { Move } from "./moves.ts";
 import { useTaskPeople } from "./people.ts";
 import { giveWithCare, guestNote } from "./guest.ts";
 import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
+import { copyLinkText, itemLink } from "../../../share/rows.ts";
 
 export const TASKS_SCREEN = "tasks.my-work";
 type NeedsOut = CapMap["tasks.needs_you"]["out"];
@@ -365,11 +366,8 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
               })
               .catch((e: unknown) => say(failure(e, "It could not be followed."))),
           copyLink: () => {
-            const l = (globalThis as { location?: { origin?: string; pathname?: string } }).location;
-            const c = (globalThis as { navigator?: { clipboard?: { writeText(x: string): unknown } } }).navigator
-              ?.clipboard;
-            if (c) void c.writeText(`${l?.origin ?? ""}${l?.pathname ?? ""}#screen=tasks.page&taskId=${row.id}`);
-            say("Link copied");
+            // the Space's own address (words when there is none), never the page's: the desktop app runs in tauri://localhost
+            if (copyLinkText(itemLink("task", row.id))) say("Link copied");
           },
           snooze: () =>
             menu.show(
