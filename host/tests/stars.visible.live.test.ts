@@ -26,6 +26,17 @@ const KEYS = {
 };
 const PASSWORD = "correct horse battery staple 9";
 const SPACE = "spc_starvisible";
+const COMPANY = {
+  op: "type.create",
+  type: "rt_company",
+  def: {
+    title: "Company",
+    plural: "Companies",
+    icon: "building",
+    titleField: "name",
+    fields: [{ key: "name", type: "text", title: "Name", required: true }],
+  },
+};
 
 function bootOn(dir: string): Promise<Daemon> {
   return startDaemon({

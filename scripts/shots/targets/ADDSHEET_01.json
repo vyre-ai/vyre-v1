@@ -208,6 +208,23 @@
         ]
       ],
       "after": "[data-testid='as-pop-poke-note']"
+    },
+    {
+      "id": "ADDSHEET_01-nonowner",
+      "route": "/m/ADDSHEET_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='conversation']",
+      "note": "A member who is not the chat's owner picks someone new: Include earlier messages is offered as \"Include earlier messages you can read\" (the server gives a new member what the adder can read; widening someone already in is the owner's alone).",
+      "steps": [
+        [
+          "open"
+        ],
+        [
+          "click",
+          "[data-testid='as-row-person:usr_maya']"
+        ]
+      ],
+      "after": "[data-testid='as-earlier']"
     }
   ]
 }
