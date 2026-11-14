@@ -1072,10 +1072,11 @@ export function createBridge(o: BridgeOptions): Bridge {
       threadId,
       got: got as unknown as OpenGet,
       read,
+      // asked as the person who wrote (a private assistant or outside agent is its person's alone: the service is refused it on every turn, and so never learns its model or that it runs outside)
       agentInfo: (agentId) =>
-        ctx
-          .call("agents.get", { agentId })
-          .then((r) => (r as { agent?: { model?: string; runtime?: string } } | null)?.agent ?? null),
+        read("agents.get", { agentId }).then(
+          (r) => (r as { agent?: { model?: string; runtime?: string } } | null)?.agent ?? null,
+        ),
       saved: (agentId) => {
         try {
           return stateOf(ctx, threadId, agentId);

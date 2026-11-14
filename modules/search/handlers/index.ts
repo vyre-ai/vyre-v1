@@ -26,6 +26,35 @@ const codeOf = (e: unknown): string =>
   (e as { code?: string } | null)?.code ??
   "";
 
+/**
+ * What the service could not open, and when it asked (F52). A person's private chat or private agent is refused to the Space's own service, which is how the index stays free of it; asking again on every
+ * event of that chat is a refusal on every turn. The answer stands for PRIVATE_FOR_MS, after which one more ask settles whether it is still unreadable (a row that was only late becomes visible then).
+ */
+export const PRIVATE_FOR_MS = 10 * 60_000;
+// keyed by Space: the handle a host gives each call may be a new object every time
+const unreadable = new Map<string, Map<string, number>>();
+const WATCH_PRIVATE = new Set(["thread", "chat", "agent"]);
+
+/** An event says the thing is private (a chat or Ask pane starting, a private agent being made): it is never asked about, for as long as the server runs. */
+export function notePrivate(space: string, e: { type: string; payload: Record<string, unknown> }): void {
+  if (e.type === "agent.privacy_set" && typeof e.payload["agentId"] === "string") {
+    const m = unreadable.get(space) ?? unreadable.set(space, new Map()).get(space)!;
+    const k = `agent\u0000${e.payload["agentId"]}`;
+    if (e.payload["private"] === true) m.set(k, Infinity);
+    else m.delete(k);
+    return;
+  }
+  const entity =
+    e.type === "thread.started" && (e.payload["kind"] === "chat" || e.payload["kind"] === "ask")
+      ? "thread"
+      : e.type === "agent.created" && e.payload["private"] === true
+        ? "agent"
+        : "";
+  const id = e.payload[entity === "thread" ? "threadId" : "agentId"];
+  if (entity === "" || typeof id !== "string") return;
+  (unreadable.get(space) ?? unreadable.set(space, new Map()).get(space)!).set(`${entity}\u0000${id}`, Infinity);
+}
+
 /** Read through a capability; a missing or hidden row is `null`, any other failure is the caller's to handle. */
 async function read<T>(ctx: SearchCtx, cap: string, input: Record<string, unknown>): Promise<T | null> {
   try {
@@ -304,10 +333,18 @@ export async function indexApply(
   const seen = seenOf(ctx, entity, id);
   if (seen !== null && seq <= seen) return { indexed: false };
   if (op === "delete") {
+    unreadable.get(ctx.space)?.delete(`${entity}\u0000${id}`);
     const had = removeDoc(ctx.db, ctx.space, entity, id);
     setSeen(ctx, entity, id, seq);
     ctx.db.run("DELETE FROM search_failed WHERE entity = ? AND id = ?", entity, id);
     return { indexed: had };
+  }
+  const memo = unreadable.get(ctx.space) ?? unreadable.set(ctx.space, new Map()).get(ctx.space)!;
+  const key = `${entity}\u0000${id}`;
+  if (WATCH_PRIVATE.has(entity) && (memo.get(key) ?? 0) > ctx.now()) {
+    removeDoc(ctx.db, ctx.space, entity, id); // it may have been indexed before it turned private
+    setSeen(ctx, entity, id, seq);
+    return { indexed: false };
   }
   let r: Resolved | null;
   try {
@@ -329,6 +366,10 @@ export async function indexApply(
   setSeen(ctx, entity, id, seq);
   if ("skip" in r) {
     removeDoc(ctx.db, ctx.space, entity, id);
+    if (WATCH_PRIVATE.has(entity)) {
+      memo.set(key, ctx.now() + PRIVATE_FOR_MS);
+      if (memo.size > 5000) for (const [k, until] of memo) if (until <= ctx.now()) memo.delete(k);
+    }
     return { indexed: false };
   }
   if (r.doc.entity !== entity) r.doc.entity = entity;

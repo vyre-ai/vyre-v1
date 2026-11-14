@@ -106,14 +106,7 @@ test("subagents of a CLI engine, real app: on screen within a second, openable, 
         return ms.some((m) => m.author.kind === "agent") ? true : null;
       }, 20_000);
       await new Promise((r) => setTimeout(r, 1500));
-      // What is left is not this lane's: the Space's own service reading a person's private chat or agent (the search indexer, the engine bridge's agent lookup) and being told not_found,
-      // six times a turn (reported as a finding). Every other refusal, the settings, placement, thread and helper-note calls this lane fixed, must be absent.
-      const left = serverRefusals().slice(before.length);
-      assert.deepEqual(
-        left.filter((x) => !/^(agents|threads)\.get validation\.not_found (svc_host)?$/.test(x)),
-        [],
-        "a plain turn refuses nothing but the service's reads of private items",
-      );
+      assert.deepEqual(serverRefusals().slice(before.length), [], "a plain turn refuses no call");
     }
     for (const [skin, size, vp] of [
       ["graphite", "wide", { width: 1440, height: 900 }],
