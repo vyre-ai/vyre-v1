@@ -199,10 +199,12 @@ export type AccessConnectorBuilderGrantOut = {
 };
 export type AccessConnectorBuilderStatusIn = {
   agentId: string;
+  itemId?: string;
 };
 export type AccessConnectorBuilderStatusOut = {
   allowed: boolean;
   canGrant: boolean;
+  reaches?: boolean;
 };
 export type AccessDecidersIn = {
   resource: {
@@ -4271,6 +4273,7 @@ export type AutomationsSetOwnerOut = {
 };
 export type AutomationsStepsListIn = {
   category?: "data" | "send" | "ai" | "control" | "wait" | "code" | "sheet" | "sign" | "journey";
+  all?: boolean;
 };
 export type AutomationsStepsListOut = {
   steps: Array<{
@@ -4283,6 +4286,7 @@ export type AutomationsStepsListOut = {
       effects: "read" | "write" | "outward";
       gateAct?: string;
     }>;
+  checked?: boolean;
 };
 export type AutomationsStopIn = {
   automationId: string;
@@ -11729,7 +11733,7 @@ export type EngineCrewStatusIn = {
 };
 export type EngineCrewStatusOut = {
   members: Array<{
-      kind: "helper" | "teammate";
+      kind: "helper" | "teammate" | "subagent";
       id: string;
       jobId?: string;
       parentThreadId: string;
@@ -11739,7 +11743,9 @@ export type EngineCrewStatusOut = {
       state: "working" | "done" | "needs_you" | "failed" | "stopped";
       holdTaskId?: string;
       step?: string;
+      steps?: Array<string>;
       found?: string;
+      answer?: string;
       startedAt: number;
       endedAt?: number;
       elapsedMs: number;
@@ -34678,6 +34684,7 @@ export type SitesArtifactOpenOut = {
   path: string;
   url?: string;
   expiresAt: number;
+  checked?: boolean;
 };
 export type SitesArtifactPublishIn = {
   title: string;
