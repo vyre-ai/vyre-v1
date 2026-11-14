@@ -11,7 +11,7 @@ export function UrlSync({ hub }: { hub: ShellHub }): null {
     if (typeof window === "undefined" || !window.location) return undefined;
     const stopBridge = startHistoryBridge(hub, window as unknown as BridgeWindow);
     const desktop = (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== undefined;
-    const stopInput = startNavInput(hub, document, { desktop });
+    const stopInput = startNavInput(hub, document as unknown as Parameters<typeof startNavInput>[1], { desktop });
     return () => {
       stopBridge();
       stopInput();

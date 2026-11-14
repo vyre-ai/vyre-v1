@@ -112,7 +112,7 @@ export interface ShellHub {
   placeDrawn(epoch: number): void;
   retry(): void;
   /** Navigate: open a place (or an item in it) as a tab and show it. */
-  go(place: PlaceId, hash?: string, background?: boolean): void;
+  go(place: PlaceId, hash?: string, background?: boolean, link?: boolean): void;
   /** Back in the tab on screen: a step it took, the tab it was opened from, or one level up. False when there is nowhere to go. */
   back(): boolean;
   /** Forward in the tab on screen, after Back. */
@@ -417,7 +417,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       s.tabs.retitle(key, title, empty);
       emit();
     },
-    go(requested, hash, background = false) {
+    go(requested, hash, background = false, link = false) {
       // a place with no screen (the old Join) opens Chats instead of an empty page; Home's links land in Chats with their hash
       const gone = NO_SCREEN_PLACES.includes(requested);
       const place = gone ? "chats" : livePlace(requested);
@@ -426,7 +426,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       if (!background && (place !== s.place || (hash ?? "") !== s.hash)) holder?.();
       // an address with no item (hash "") asks for the place's landing: its own tab shows it. A place asked for with no hash at all (the rail) goes to the tab the place has.
       if (!background && hash === "") s.tabs.land(place);
-      else s.tabs.openPlace(place, hash, screenTitle(hash), background);
+      else s.tabs.openPlace(place, hash, screenTitle(hash), background, link);
       if (!background) {
         // the page shows what the selected tab shows, so a tab never names one thing over another
         const now = s.tabs.state();

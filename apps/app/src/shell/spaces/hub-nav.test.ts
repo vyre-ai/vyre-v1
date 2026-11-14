@@ -31,7 +31,7 @@ test("the hub's Back and Forward move the page, say where they go, and report wh
 
 test("a cold link's Back goes up to the place", () => {
   const h = hub();
-  h.go("chats", AGENT);
+  h.go("chats", AGENT, false, true);
   assert.equal(h.state().nav?.back !== null, true);
   assert.equal(h.back(), true);
   assert.equal(h.state().hash, "");

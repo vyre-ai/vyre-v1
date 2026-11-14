@@ -30,6 +30,8 @@ export interface TabEntry {
   fwd?: readonly Step[];
   /** The tab this one was opened from by pressing an item: Back with nowhere to go back to returns there. */
   from?: string;
+  /** The tab Back just came from (this one was selected by Back): Forward returns there. Any step of this tab forgets it. */
+  next?: string;
 }
 
 /** One place in a tab's history: the address inside the tab's place (the empty text is the place's landing) and the name the tab had there. */
@@ -118,7 +120,7 @@ function holding(state: TabsState, key: string, except?: TabEntry): TabEntry | u
 
 /** A tab that stays the tab and shows another address: a step. */
 function stepTo(t: TabEntry, hash: string): TabEntry {
-  const { fwd: _fwd, back: _back, ...rest } = t;
+  const { fwd: _fwd, back: _back, next: _next, ...rest } = t;
   return { ...rest, hash, ...pushed(t) };
 }
 
@@ -131,17 +133,18 @@ function pushed(cur: TabEntry): Pick<TabEntry, "back" | "fwd" | "from"> {
 }
 
 /** The history a tab keeps when it changes its name only. */
-function kept(cur: TabEntry): Pick<TabEntry, "back" | "fwd" | "from"> {
+function kept(cur: TabEntry): Pick<TabEntry, "back" | "fwd" | "from" | "name" | "next"> {
   return {
     ...(cur.back !== undefined && cur.back.length > 0 ? { back: cur.back } : {}),
     ...(cur.fwd !== undefined && cur.fwd.length > 0 ? { fwd: cur.fwd } : {}),
     ...(cur.from !== undefined ? { from: cur.from } : {}),
     ...(cur.name !== undefined ? { name: cur.name } : {}),
+    ...(cur.next !== undefined ? { next: cur.next } : {}),
   };
 }
 
 /** Opens a tab or selects the one already open with that key (or showing it). `background` opens it behind the current tab (Cmd-click). */
-export function openTab(state: TabsState, tab: TabEntry, background = false, exact = false): TabsState {
+export function openTab(state: TabsState, tab: TabEntry, background = false, exact = false, link = false): TabsState {
   const at = holding(state, tab.key);
   if (at !== undefined) {
     if (background) return state;
@@ -162,7 +165,12 @@ export function openTab(state: TabsState, tab: TabEntry, background = false, exa
   // an item opened by a press from the tab on screen remembers that tab: its Back goes there
   const opener = activeEntry(state);
   const opened: TabEntry =
-    !background && tab.isNew !== true && tab.hash !== undefined && tab.from === undefined && opener !== undefined
+    !background &&
+    !link &&
+    tab.isNew !== true &&
+    tab.hash !== undefined &&
+    tab.from === undefined &&
+    opener !== undefined
       ? { ...tab, from: opener.key }
       : tab;
   const tabs = [...state.tabs, opened];
@@ -368,20 +376,26 @@ export function backTarget(state: TabsState): BackTarget | null {
   };
 }
 
-/** Where Forward goes from the selected tab. */
-export function forwardTarget(state: TabsState): { index: number; title: string; hash: string } | null {
+/** Where Forward goes from the selected tab: a step Back stepped away from, or the tab Back came from. */
+export type ForwardTarget =
+  | { kind: "step"; index: number; title: string; hash: string }
+  | { kind: "tab"; key: string; title: string };
+
+export function forwardTarget(state: TabsState): ForwardTarget | null {
   const cur = activeEntry(state);
   if (cur === undefined || cur.isNew === true) return null;
   const steps = cur.fwd ?? [];
   for (let i = steps.length - 1; i >= 0; i--) {
     const s = steps[i] as Step;
-    if (free(state, cur, s.hash)) return { index: i, ...s };
+    if (free(state, cur, s.hash)) return { kind: "step", index: i, ...s };
   }
+  const next = cur.next === undefined ? undefined : findTab(state, cur.next);
+  if (next !== undefined && next !== cur) return { kind: "tab", key: next.key, title: next.name ?? next.title };
   return null;
 }
 
 function showing(cur: TabEntry, s: Step, back: readonly Step[], fwd: readonly Step[]): TabEntry {
-  const { back: _b, fwd: _f, hash: _h, name: _n, ...rest } = cur;
+  const { back: _b, fwd: _f, hash: _h, name: _n, next: _x, ...rest } = cur;
   return {
     ...rest,
     key: keyAt(cur, s.hash),
@@ -394,25 +408,32 @@ function showing(cur: TabEntry, s: Step, back: readonly Step[], fwd: readonly St
   };
 }
 
-/** Back from the selected tab. `closed` is the tab that went away when Back returned to the tab this one was opened from. */
-export function goBack(state: TabsState): { state: TabsState; closed?: string } {
+/** Leaving a tab for another that is already open (the one this was opened from, or the one that shows where Back goes): that tab is selected, this one stays, and Forward comes back to it. */
+function goTo(state: TabsState, from: TabEntry, to: string): TabsState {
+  return {
+    tabs: state.tabs.map((t) => (t.key === to ? { ...t, next: from.key } : t)),
+    active: to,
+  };
+}
+
+/** Back from the selected tab. */
+export function goBack(state: TabsState): TabsState {
   const to = backTarget(state);
   const cur = activeEntry(state);
-  if (to === null || cur === undefined) return { state };
-  if (to.kind === "opener") return leave(state, cur, to.key);
+  if (to === null || cur === undefined) return state;
+  if (to.kind === "opener") return goTo(state, cur, to.key);
   const here = stepOf(cur);
   const fwd = [...(cur.fwd ?? []), here].slice(-HISTORY_MAX);
   if (to.kind === "up") {
-    // one level up is where the place's own tab already is: focus it
-    const key = keyAt(cur, to.hash);
-    const held = key === cur.key ? undefined : holding(state, key, cur);
-    if (held !== undefined) return leave(state, cur, held.key);
+    // one level up is where another tab already is (the place's own tab): go there
+    const held = holding(state, tabKey(cur.place, to.hash === "" ? undefined : to.hash), cur);
+    if (held !== undefined) return goTo(state, cur, held.key);
     const next = showing(cur, { hash: to.hash, title: to.title }, cur.back ?? [], fwd);
-    return { state: { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: next.key } };
+    return { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: next.key };
   }
   const steps = cur.back ?? [];
   const next = showing(cur, to, steps.slice(0, to.index), fwd);
-  return { state: { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: next.key } };
+  return { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: next.key };
 }
 
 /** Forward from the selected tab. */
@@ -420,16 +441,14 @@ export function goForward(state: TabsState): TabsState {
   const to = forwardTarget(state);
   const cur = activeEntry(state);
   if (to === null || cur === undefined) return state;
+  if (to.kind === "tab") {
+    const { next: _n, ...rest } = cur;
+    return { tabs: state.tabs.map((t) => (t === cur ? rest : t)), active: to.key };
+  }
   const steps = cur.fwd ?? [];
   const back = [...(cur.back ?? []), stepOf(cur)].slice(-HISTORY_MAX);
   const next = showing(cur, to, back, steps.slice(0, to.index));
   return { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: next.key };
-}
-
-/** Leaving a tab for the tab it was opened from (or the tab that already shows where Back goes): the tab goes unless it is pinned. */
-function leave(state: TabsState, cur: TabEntry, to: string): { state: TabsState; closed?: string } {
-  if (cur.pinned === true) return { state: selectTab(state, to) };
-  return { state: { tabs: state.tabs.filter((t) => t !== cur), active: to }, closed: cur.key };
 }
 
 /** A place's own tab, or an item inside it. */
@@ -624,7 +643,7 @@ export interface TabsController {
   state(): TabsState;
   subscribe(listener: () => void): () => void;
   /** Open a place (or an item in it) as a tab, or select it. */
-  openPlace(place: PlaceId, hash?: string, title?: string, background?: boolean): void;
+  openPlace(place: PlaceId, hash?: string, title?: string, background?: boolean, link?: boolean): void;
   /** The place's landing was asked for by address: its own tab shows it (landOn). */
   land(place: PlaceId): void;
   /** The person went somewhere inside the selected tab's place: the tab follows (moveTab). */
@@ -719,9 +738,9 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
         listeners.delete(listener);
       };
     },
-    openPlace(place, hash, title, background = false) {
+    openPlace(place, hash, title, background = false, link = false) {
       if (hidden.includes(place)) return;
-      set(openTab(state, placeTab(place, hash, title), background));
+      set(openTab(state, placeTab(place, hash, title), background, false, link));
     },
     move(place, hash, title) {
       if (hidden.includes(place)) return;
@@ -772,10 +791,9 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
     },
     canReopen: () => closed.length > 0,
     back() {
-      const r = goBack(state);
-      if (r.state === state) return false;
-      if (r.closed !== undefined) remember([r.closed]);
-      set(r.state);
+      const next = goBack(state);
+      if (next === state) return false;
+      set(next);
       return true;
     },
     forward() {

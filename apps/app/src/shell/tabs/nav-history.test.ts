@@ -29,9 +29,9 @@ test("the agent's page is a step: Back returns to the chat it was opened from, F
   s = moveTab(s, "chats", AGENT, "Agent");
   assert.equal(active(s).hash, AGENT);
   assert.equal(backTarget(s)?.title, "Renewal", "the control says where it goes");
-  const back = goBack(s).state;
+  const back = goBack(s);
   assert.equal(active(back).hash, "subject=thread:thr_1");
-  assert.equal(forwardTarget(back)?.hash, AGENT);
+  assert.equal((forwardTarget(back) as { hash?: string } | null)?.hash, AGENT);
   const again = goForward(back);
   assert.equal(active(again).hash, AGENT);
   assert.equal(forwardTarget(again), null);
@@ -40,7 +40,7 @@ test("the agent's page is a step: Back returns to the chat it was opened from, F
 test("Back goes all the way to the landing and then has nowhere to go", () => {
   let s = moveTab(start(), "chats", "subject=thread:thr_1", "Renewal");
   s = moveTab(s, "chats", AGENT, "Agent");
-  s = goBack(goBack(s).state).state;
+  s = goBack(goBack(s));
   assert.equal(active(s).hash, undefined, "the place's landing");
   assert.equal(active(s).key, "chats", "the place's own tab keeps its key");
   assert.equal(backTarget(s), null);
@@ -49,10 +49,10 @@ test("Back goes all the way to the landing and then has nowhere to go", () => {
 test("a new step clears Forward", () => {
   let s = moveTab(start(), "chats", "subject=thread:thr_1", "A");
   s = moveTab(s, "chats", AGENT, "Agent");
-  s = goBack(s).state;
+  s = goBack(s);
   s = moveTab(s, "chats", "subject=thread:thr_2", "B");
   assert.equal(forwardTarget(s), null);
-  assert.equal(active(goBack(s).state).hash, "subject=thread:thr_1");
+  assert.equal(active(goBack(s)).hash, "subject=thread:thr_1");
 });
 
 test("the same address again is not a step", () => {
@@ -65,7 +65,7 @@ test("the same address again is not a step", () => {
 test("a screen opened cold has an up: an agent's page goes to its place's landing, and Forward comes back", () => {
   const cold = openTab(EMPTY_TABS, placeTab("chats", AGENT, "Agent"));
   assert.equal(backTarget(cold)?.kind, "up");
-  const up = goBack(cold).state;
+  const up = goBack(cold);
   assert.equal(active(up).hash, undefined);
   assert.equal(active(goForward(up)).hash, AGENT);
 });
@@ -78,16 +78,31 @@ test("a record goes up to its type's list, a list goes up to the place", () => {
   assert.equal(upHash(""), null);
 });
 
-test("an item opened from another tab goes back to that tab and the item's tab goes; reopening brings it back", () => {
+test("an item opened from another tab goes back to that tab, which stays; Forward returns to the item", () => {
   const c = createTabsController({ deviceId: "d", personId: "p", spaceId: "s", storage: null, start: "chats" });
   c.openPlace("chats", "subject=thread:thr_1", "Renewal");
   c.openPlace("files", FILE, "Quote.pdf");
-  assert.equal(c.state().active, `files:subject=file:fil_1`);
+  const file = "files:subject=file:fil_1";
+  assert.equal(c.state().active, file);
   assert.equal(c.state().tabs.find((t) => t.key === c.state().active)?.from, "chats:subject=thread:thr_1");
   assert.equal(c.back(), true);
   assert.equal(c.state().active, "chats:subject=thread:thr_1");
-  assert.ok(!c.state().tabs.some((t) => t.place === "files"));
-  assert.equal(c.canReopen(), true);
+  assert.ok(
+    c.state().tabs.some((t) => t.key === file),
+    "the item's tab is not closed by Back",
+  );
+  assert.equal(c.forward(), true);
+  assert.equal(c.state().active, file);
+});
+
+test("an item opened from a link has no opener: Back goes up to the place's tab, and Forward returns", () => {
+  const c = createTabsController({ deviceId: "d", personId: "p", spaceId: "s", storage: null, start: "chats" });
+  c.openPlace("files", FILE, "Quote.pdf", false, true);
+  assert.equal(c.state().tabs.find((t) => t.place === "files")?.from, undefined);
+  assert.equal(c.back(), true);
+  assert.equal(c.forward(), true);
+  const tab = c.state().tabs.find((t) => t.key === c.state().active)!;
+  assert.equal(tab.hash, FILE, "the file is on screen again");
 });
 
 test("Back skips a step another tab already shows", () => {
@@ -96,7 +111,7 @@ test("Back skips a step another tab already shows", () => {
   s = moveTab(s, "chats", AGENT, "Agent");
   // the person opens thread 2 in its own tab elsewhere: it is not ours to step back into
   s = { tabs: [...s.tabs, placeTab("chats", "subject=thread:thr_2", "B")], active: s.active };
-  const back = goBack(s).state;
+  const back = goBack(s);
   assert.equal(active(back).hash, "subject=thread:thr_1");
 });
 
@@ -107,15 +122,4 @@ test("the history is kept when tabs are saved and read, and is capped", () => {
   const read = readTabs(writeTabs(s))!;
   assert.deepEqual(active(read).back, active(s).back);
   assert.equal(backTarget(read)?.kind, "step");
-});
-
-test("a pinned tab opened from another stays when Back returns to the opener", () => {
-  const c = createTabsController({ deviceId: "d", personId: "p", spaceId: "s", storage: null, start: "chats" });
-  c.openPlace("files", FILE, "Quote.pdf");
-  c.pin(c.state().active, true);
-  assert.equal(c.back(), true);
-  assert.ok(
-    c.state().tabs.some((t) => t.place === "files"),
-    "a pinned tab is never closed by Back",
-  );
 });

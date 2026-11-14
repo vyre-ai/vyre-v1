@@ -7,9 +7,7 @@ import { SEED_DEFS } from "../spaces/model.ts";
 import { startHistoryBridge } from "./history-bridge.ts";
 import type { BridgeWindow } from "./history-bridge.ts";
 
-function fakeWindow(
-  url: string,
-): BridgeWindow & {
+function fakeWindow(url: string): BridgeWindow & {
   entries: { state: unknown; url: string }[];
   at: number;
   press(type: string): void;
