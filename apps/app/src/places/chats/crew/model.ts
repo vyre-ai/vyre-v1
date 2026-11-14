@@ -371,21 +371,27 @@ export function subagentsOfActivity(
       endedAt?: number;
     }>;
     subs?: Readonly<Record<string, ReadonlyArray<{ name: string; detail?: string }>>>;
+    titles?: Readonly<Record<string, string>>;
   },
   words: (name: string, detail?: string) => string,
   now: number,
+  /** Whether the viewer is the person the turn runs for. Anyone else gets a plain "Helper N": no task line, no steps (they never receive them either). */
+  asker = true,
 ): CrewMember[] {
+  let nth = 0;
   return snap.steps
     .filter((x) => /^(Agent|Task)$/.test(x.name))
     .map((x) => {
-      const own = (snap.subs?.[x.id] ?? []).map((y) => words(y.name, y.detail));
+      const own = asker ? (snap.subs?.[x.id] ?? []).map((y) => words(y.name, y.detail)) : [];
+      nth += 1;
+      const task = asker ? (snap.titles?.[x.id] ?? "") : "";
       const startedAt = x.at ?? now;
       return {
         kind: "subagent",
         id: subagentId(x.id),
         parentThreadId: turn.threadId,
         // the task line follows the call by up to a frame: the row is there at once and says "Starting" until it lands
-        title: x.detail && x.detail !== "" ? x.detail : "Starting",
+        title: asker ? (task !== "" ? task : "Starting") : `Helper ${nth}`,
         agentId: turn.agentId,
         state: x.state === "live" ? "working" : x.state === "done" ? "done" : "failed",
         ...(x.state === "live" && own.length > 0 ? { step: own[own.length - 1]! } : {}),

@@ -37,6 +37,8 @@ export interface ActivitySnapshot {
   steps: readonly ActivityStep[];
   /** What each subagent of the engine is on, by the id of the call that started it: its own lines, sent to the person the turn runs for alone (host/src/seams/engine.ts). */
   subs?: Readonly<Record<string, ReadonlyArray<{ name: string; detail?: string }>>>;
+  /** The task line of each subagent, by its call's id: also the asker's alone. */
+  titles?: Readonly<Record<string, string>>;
   version: number;
   /** the turn has ended: the mark settles */ done?: boolean;
 }
@@ -322,6 +324,11 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
         for (const raw of d["steps"] as Array<Record<string, unknown>>) {
           const parent = str(raw["parent"]);
           if (parent === "") continue;
+          if (raw["title"] === true) {
+            if (str(raw["detail"]) !== "")
+              touchAct(turnId, (s) => ({ ...s, titles: { ...(s.titles ?? {}), [parent]: str(raw["detail"]) } }));
+            continue;
+          }
           touchAct(turnId, (s) => {
             const list = [...(s.subs?.[parent] ?? [])];
             if (raw["phase"] === "call") list.push({ name: str(raw["name"]) });

@@ -119,7 +119,7 @@ async function read(h: ReturnType<typeof harness>, who: string, readers: string[
   return crewStatus(ctx, { threadId: "thr_1" });
 }
 
-test("who sees a subagent: every reader sees that it ran, its task, its state and clock; its answer is the asker's alone; a stranger sees nothing", async () => {
+test("who sees a subagent: the asker the whole row; every other reader only that a helper ran, its state and clock (never the task line, steps or answer); a stranger nothing", async () => {
   for (const kind of ["group chat", "private chat"]) {
     const h = harness();
     noteOwn(
@@ -139,10 +139,14 @@ test("who sees a subagent: every reader sees that it ran, its task, its state an
     if (kind === "group chat")
       for (const other of ["usr_member", "usr_guest"]) {
         const m = (await read(h, other, readers)).members[0]!;
-        assert.deepEqual([m.title, m.state, m.elapsedMs], ["Test the terminal", "done", 0], `${other} sees the row`);
+        assert.deepEqual(
+          [m.kind, m.title, m.state, m.elapsedMs],
+          ["subagent", "Helper 1", "done", 0],
+          `${other} sees that a helper ran`,
+        );
         assert.equal(m.answer, undefined, `${other}: no answer`);
         assert.equal(m.found, undefined, `${other}: no words of it`);
-        assert.doesNotMatch(JSON.stringify(m), /Secret/);
+        assert.doesNotMatch(JSON.stringify(m), /Secret|terminal/i, `${other}: no task line, no answer`);
       }
     await assert.rejects(read(h, "usr_stranger", readers), Error, `${kind}: a stranger is refused`);
   }
