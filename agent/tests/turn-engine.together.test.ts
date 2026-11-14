@@ -25,6 +25,7 @@ const says = (text: string): DriverEvent[] => [
   { type: "usage", inputTokens: 5, outputTokens: 2 },
   { type: "done" },
 ];
+const sleepMs = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const ask = (engine: ReturnType<typeof createTurnEngine>, who: string[], body = "do your part") =>
   engine.receive({ threadId: "T", author: person("dana"), mentions: who.map(agent), body });
 const replies = (engine: ReturnType<typeof createTurnEngine>): string[] =>
@@ -156,6 +157,35 @@ test("the same agent asked twice never runs two turns at once: the second waits,
   assert.equal(worst, 1, "no agent ever ran two turns at once");
   assert.equal(peakAll, 2);
   assert.ok(engine.turns("T").filter((t) => t.agentId === "dex").length >= 2);
+});
+
+test("the same agent never starts its next turn while its previous one is still ending (hooks, metering, reply post)", async () => {
+  const endHold = gate();
+  let ending = 0;
+  const p = scriptedProvider({ script: (_i, spec) => says(spec.agent.id) });
+  const engine = createTurnEngine({
+    holder: "host:s",
+    openSession: p.openSession,
+    onTurnEnd: async (t) => {
+      if (t.agentId === "dex") {
+        ending++;
+        await endHold.wait;
+      }
+    },
+  });
+  engine.openThread(thread());
+  ask(engine, ["dex", "nova"], "first");
+  await until(() => ending === 1);
+  engine.receive({ threadId: "T", author: person("dana"), mentions: [agent("dex")], body: "again" });
+  await sleepMs(80);
+  assert.equal(
+    p.sessions.filter((s) => s.spec.agent.id === "dex").length,
+    1,
+    "Dex's second turn waits until the first has fully ended",
+  );
+  endHold.open();
+  await engine.idle("T");
+  assert.equal(p.sessions.filter((s) => s.spec.agent.id === "dex").length >= 2, true);
 });
 
 test("one agent fails while the other finishes: the failure is its own and the other's reply stands", async () => {

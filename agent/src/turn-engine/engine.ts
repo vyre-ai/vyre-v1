@@ -245,6 +245,8 @@ interface ThreadState {
   starting: Map<string, Starting>;
   /** Every turn launched by the worker and not ended yet. */
   inflight: Set<Promise<void>>;
+  /** The agents with a launched turn that has not fully returned (its end work, hooks, metering and reply post included): one turn per agent means this, not only `running`. */
+  launched: Set<string>;
   /** Wakes the worker when something new can start (a message for an agent that is free) while it waits for turns to end. */
   nudge: (() => void) | null;
 }
@@ -788,7 +790,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   /** A turn of this agent runs or is starting: the agent's next queued row waits (one turn per agent per thread). */
-  const busy = (st: ThreadState, agentId: string): boolean => st.running.has(agentId) || st.starting.has(agentId);
+  const busy = (st: ThreadState, agentId: string): boolean => st.launched.has(agentId);
 
   /**
    * The scheduler of one thread. It starts every queued turn whose agent is free (in queue order), without waiting for the turns it started, and sleeps until one ends or a message arrives. The lease
@@ -862,6 +864,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   function launch(st: ThreadState, item: QueueItem): void {
     const starting: Starting = { agentId: item.agentId, qseq: item.qseq };
     st.starting.set(item.agentId, starting);
+    st.launched.add(item.agentId);
     // the chat as it is now is what this turn reads (not what other agents post while it starts): turns taken off the queue in one pass all see the same chat
     const seen = st.messages.length > 0 ? st.messages[st.messages.length - 1]!.threadSeq : 0;
     const p: Promise<void> = runTurn(st, item, seen)
@@ -875,6 +878,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       .finally(() => {
         if (st.starting.get(item.agentId) === starting) st.starting.delete(item.agentId);
         st.inflight.delete(p);
+        st.launched.delete(item.agentId);
       });
     st.inflight.add(p);
   }
@@ -1730,6 +1734,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         active: false,
         starting: new Map(),
         inflight: new Set(),
+        launched: new Set(),
         nudge: null,
       });
     },
