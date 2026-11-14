@@ -81,9 +81,9 @@ test("the sidebar runs Tasks, Recent, Channels, Agents in the prototype's order"
   );
 });
 
-test("the open chat is Rivera intake with its composer, and the pane follows its agent on shared tabs", () => {
+test("the open chat is Harbor onboarding with its composer, and the pane follows its agent on shared tabs", () => {
   const out = place();
-  assert.ok(has(out, "Rivera intake") && has(out, 'data-testid="chats-right-pane"'));
+  assert.ok(has(out, "Harbor onboarding") && has(out, 'data-testid="chats-right-pane"'));
   for (const tab of [">About<", ">Computer<", ">Chats<", ">Files<"]) assert.ok(has(out, tab), tab);
 });
 

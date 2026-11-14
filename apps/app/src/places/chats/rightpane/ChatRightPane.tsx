@@ -255,15 +255,19 @@ function PaneView({
       (mine
         ? [
             ...(longSession ? [OVERVIEW_TAB] : []),
-            ...kindTabs(kind, {
-              crew: hasCrew,
-              computer: showComputer && !noComputers,
-              kept: keptBody !== undefined,
-              people: people !== undefined,
-              terminal: data.terminal !== undefined,
-              skills: hasSkills || wanted === "skills",
-              hooks: hasHooks,
-            }),
+            ...kindTabs(
+              kind,
+              {
+                crew: hasCrew,
+                computer: showComputer && !noComputers,
+                kept: keptBody !== undefined,
+                people: people !== undefined,
+                terminal: data.terminal !== undefined,
+                skills: hasSkills || wanted === "skills",
+                hooks: hasHooks,
+              },
+              wanted,
+            ),
           ]
         : tabsOf(data.terminal !== undefined, hasCrew, hasComputer, hasSkills, hasHooks, longSession).filter(
             (t) => !(noComputers && t.key === "computer"),

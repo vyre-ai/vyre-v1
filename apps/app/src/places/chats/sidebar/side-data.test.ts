@@ -111,9 +111,10 @@ test("a goal's second line: why it waits, or its state in words, else when it ne
       row({ key: "g:c", kind: "goal", title: "C", faceIds: ["agt_docs"] }),
     ]),
   });
-  const { items } = itemsOf(o, "assistant");
+  const say = { weekday: () => "Wed", time: () => "9:00 AM" }; // the real words come from the chat's formatter (side-clock.test.tsx)
+  const { items } = itemsOf(o, "assistant", undefined, undefined, say);
   const sub = (k: string) => items.find((x) => x.key === k)!.sub;
   assert.equal(sub("g:a"), "Waiting on the owner for a key");
-  assert.match(sub("g:b")!, /^Next check-in \w+ /);
+  assert.equal(sub("g:b"), "Next check-in Wed 9:00 AM");
   assert.equal(sub("g:c"), undefined);
 });
