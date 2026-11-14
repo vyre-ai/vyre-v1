@@ -134,7 +134,6 @@ export function StoryView({
         </View>
       ))}
       <ScrollView contentContainerStyle={s.rows}>
-        {/* ui-rows-lint: not a list (sentence rows with inline data chips; a Row title is plain text) */}
         {!readOnly && !story.rows.some((r) => r.kind === "trigger") ? (
           <Pressable
             testID="sv-choose-trigger"
@@ -146,6 +145,7 @@ export function StoryView({
             <Text style={s.sentence}>Choose what starts this</Text>
           </Pressable>
         ) : null}
+        {/* ui-rows-lint: not a list (sentence rows with inline data chips; a Row title is plain text) */}
         {story.rows.map((r) => {
           if (r.kind === "label" || r.kind === "head")
             return (
