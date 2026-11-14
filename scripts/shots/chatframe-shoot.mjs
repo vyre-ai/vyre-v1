@@ -149,6 +149,10 @@ for (const skin of ["graphite", "paper"])
         .getByTestId("menu-item-Delete")
         .click({ timeout: 3000 })
         .catch(() => console.log(tag, "no Delete"));
+      // the safe button holds focus when the ask opens, so a stray Enter cancels
+      const holder = await page.evaluate(() => document.activeElement?.getAttribute("data-testid") ?? "");
+      if (holder !== "delete-ask-cancel")
+        throw new Error(`the delete ask opened with focus on "${holder}", not Cancel`);
       await shot("9-delete-ask");
       await page.keyboard.press("Escape");
     }

@@ -18,6 +18,8 @@ export interface DialogAction {
   /** An action that destroys something: filled with the danger colour in place of the accent. */
   danger?: boolean;
   disabled?: boolean;
+  /** This action takes focus when the dialog opens (a destructive ask puts it on its safe button, so Enter or Space only ever presses what the person tabbed to). */
+  initial?: boolean;
   /** Why the action is off, shown as its tooltip while it is. */
   why?: string;
   testID?: string;
@@ -68,9 +70,14 @@ function ensureCss(): void {
 
 function ActionButton({ a }: { a: DialogAction }): ReactElement {
   const fill = a.primary || a.danger;
+  const self = useRef<unknown>(null);
+  useEffect(() => {
+    if (web && a.initial === true) (self.current as { focus?: () => void } | null)?.focus?.();
+  }, []);
   return (
     <Tip help={a.disabled === true ? a.why : undefined}>
       <Pressable
+        ref={self as never}
         testID={a.testID}
         accessibilityRole="button"
         accessibilityLabel={a.label}

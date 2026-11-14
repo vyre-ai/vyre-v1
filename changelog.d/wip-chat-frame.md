@@ -16,3 +16,4 @@
 - Remember This, Add to a Page and Forget This are at the first level of the message menu (two presses from the bar), not behind More; in the phone sheet they sit in the group with Make a task.
 - A narrow window with a mouse keeps the right-click menu on a message; only a real touch screen gives it up for the long-press sheet. A chat a person named "Notes" or "Tasks" keeps its name when its tab moves. The sheet's quick reactions know which one you already gave and take it back.
 - Chat frame: the pictures script also shoots the desktop message menu on your own message (5d).
+- The "Delete this message?" ask opens with focus on Cancel and has no document-level Enter handler: Enter or Space press only the focused button, Escape cancels, and focus goes back to the composer when it closes. A stray Enter never deletes. Dialog actions take an `initial` flag for the button that starts focused.
