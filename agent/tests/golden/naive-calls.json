@@ -937,14 +937,9 @@
     "threadId": "thr_a1b2c3",
     "messageId": "msg_a1b2c3"
   },
-  "chat_round_decide": {
+  "chat_rewind": {
     "threadId": "thr_a1b2c3",
-    "messageId": "msg_a1b2c3",
-    "agentId": "agt_a1b2c3"
-  },
-  "chat_round_discuss": {
-    "threadId": "thr_a1b2c3",
-    "messageId": "msg_a1b2c3"
+    "pointId": "Quarterly planning"
   },
   "chat_screen_get": {
     "threadId": "thr_a1b2c3"
@@ -1618,6 +1613,15 @@
       "kind": "agent",
       "id": "Quarterly planning"
     }
+  },
+  "engine_rewind_points": {
+    "threadId": "thr_a1b2c3"
+  },
+  "engine_rewind_to": {
+    "threadId": "thr_a1b2c3",
+    "pointId": "Quarterly planning",
+    "afterSeq": 1,
+    "uptoSeq": 1
   },
   "engine_round_get": {
     "threadId": "thr_a1b2c3",

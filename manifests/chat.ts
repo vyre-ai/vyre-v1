@@ -1122,7 +1122,7 @@ export default defineManifest({
         on: ["thread", "/threadId"],
         level: "use",
         idem: "key",
-        tool: "chats",
+        
         offline: "online",
         risk: "low",
         agent: { planMode: "blocked" },
@@ -1139,7 +1139,7 @@ export default defineManifest({
         emits: ["agent.engaged"],
         level: "use",
         idem: "key",
-        tool: "chats",
+        
         offline: "online",
         risk: "low",
         agent: { planMode: "blocked" },

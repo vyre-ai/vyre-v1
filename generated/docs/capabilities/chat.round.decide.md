@@ -17,7 +17,7 @@ Go with one agent's answer after a message asked several: one quiet line, "Decid
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/chat/round/decide |
-| MCP tool | chat_round_decide (chats) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

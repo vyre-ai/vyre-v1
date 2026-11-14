@@ -11,7 +11,10 @@ const key = (): string => `rd-${++n}`;
 
 async function world() {
   const hn = harness({
-    calls: { "agents.get": () => ({ agent: {} }), "search.resolve": () => ({ hit: { title: "Intake Agent" } }) },
+    calls: {
+      "agents.get": () => ({ agent: {} }),
+      "search.resolve": (i: any) => ({ hit: { title: i.itemId === INTAKE ? "Intake Agent" : "Drafter Agent" } }),
+    },
   });
   const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE, DRAFTER], idempotencyKey: key() }))
     .thread.threadId as string;
@@ -120,5 +123,112 @@ test("discuss: the thread under the ask gets one message from the person with bo
     hn.rows("SELECT body FROM chat_message WHERE thread = ? AND kind = 'system'", t).map((r) => r["body"]),
     ["Discussion: Intake and Drafter are talking it over"],
     "one line in the chat says where the talk is",
+  );
+});
+
+test("only a person presses: an agent acting for the asker cannot decide or start a discussion", async () => {
+  const { hn, t, asked } = await world();
+  const agent = hn.as({ kind: "agent", id: INTAKE }, DANA);
+  assert.equal(
+    await failure(() =>
+      h["chat.round.decide"]!(agent, { threadId: t, messageId: asked, agentId: INTAKE, idempotencyKey: key() }),
+    ),
+    "permission.role_lacks_permission",
+  );
+  assert.equal(
+    await failure(() => h["chat.round.discuss"]!(agent, { threadId: t, messageId: asked, idempotencyKey: key() })),
+    "permission.role_lacks_permission",
+  );
+  assert.deepEqual(lines(hn, t), []);
+});
+
+test("one decision per round: the same agent again is quiet, the other agent replaces the line, and a round the asker has moved past cannot be decided", async () => {
+  const { hn, t, asked } = await world();
+  await h["chat.post"]!(hn.as({ kind: "agent", id: DRAFTER }, DANA), {
+    threadId: t,
+    body: "Disk.",
+    idempotencyKey: key(),
+  });
+  const first = await h["chat.round.decide"]!(hn.ctx, {
+    threadId: t,
+    messageId: asked,
+    agentId: INTAKE,
+    idempotencyKey: key(),
+  });
+  const again = await h["chat.round.decide"]!(hn.ctx, {
+    threadId: t,
+    messageId: asked,
+    agentId: INTAKE,
+    idempotencyKey: key(),
+  });
+  assert.equal(again.messageId, first.messageId, "the same press again is the same line");
+  assert.equal(lines(hn, t).length, 1);
+  const other = await h["chat.round.decide"]!(hn.ctx, {
+    threadId: t,
+    messageId: asked,
+    agentId: DRAFTER,
+    idempotencyKey: key(),
+  });
+  assert.equal(other.messageId, first.messageId, "the line is replaced, not added");
+  const now = lines(hn, t);
+  assert.equal(now.length, 1);
+  assert.match(String(now[0]!["body"]), /Drafter/);
+  // the asker asks again: the old round is over
+  await h["chat.post"]!(hn.ctx, { threadId: t, body: "Next question", idempotencyKey: key() });
+  assert.equal(
+    await failure(() =>
+      h["chat.round.decide"]!(hn.ctx, { threadId: t, messageId: asked, agentId: INTAKE, idempotencyKey: key() }),
+    ),
+    "validation.bad_input",
+  );
+  assert.equal(lines(hn, t).length, 1);
+});
+
+test("one discussion per message: a second press opens the thread that is there and starts nothing", async () => {
+  const holder: { ctx?: any } = {};
+  let seeds = 0;
+  const hn = harness({
+    calls: {
+      "agents.get": () => ({ agent: {} }),
+      "search.resolve": () => ({ hit: { title: "Intake Agent" } }),
+      "chat.thread": (i: any) => h["chat.thread"]!(holder.ctx, i),
+      "chat.post": (i: any) => {
+        seeds++;
+        return h["chat.post"]!(holder.ctx, i);
+      },
+    },
+  });
+  holder.ctx = hn.ctx;
+  const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE, DRAFTER], idempotencyKey: key() }))
+    .thread.threadId as string;
+  const asked = (
+    await h["chat.post"]!(hn.ctx, {
+      threadId: t,
+      body: "@Intake @Drafter which storage?",
+      mentions: [
+        { kind: "agent", id: INTAKE },
+        { kind: "agent", id: DRAFTER },
+      ],
+      idempotencyKey: key(),
+    })
+  ).message.messageId as string;
+  seeds = 0;
+  for (const who of [INTAKE, DRAFTER])
+    await h["chat.post"]!(hn.as({ kind: "agent", id: who }, DANA), {
+      threadId: t,
+      body: `${who} says`,
+      idempotencyKey: key(),
+    });
+  seeds = 0;
+  const one = await h["chat.round.discuss"]!(hn.ctx, { threadId: t, messageId: asked, idempotencyKey: key() });
+  const two = await h["chat.round.discuss"]!(hn.ctx, { threadId: t, messageId: asked, idempotencyKey: key() });
+  assert.equal(two.threadId, one.threadId, "the same thread");
+  assert.equal(seeds, 1, "the seed went in once");
+  assert.equal(
+    hn
+      .rows("SELECT body FROM chat_message WHERE thread = ? AND kind = 'system'", t)
+      .filter((r) => /Discussion/.test(String(r["body"]))).length,
+    1,
+    "one Discussion line",
   );
 });

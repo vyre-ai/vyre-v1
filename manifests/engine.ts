@@ -1929,7 +1929,6 @@ export default defineManifest({
                 t.obj({
                   agentId: id.agent,
                   state: t.enm("working", "waiting", "replied", "stopped"),
-                  on: t.opt(id.agent),
                 }),
               ),
             }),

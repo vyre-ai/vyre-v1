@@ -43,17 +43,35 @@ test("points list a turn each, named by what the person had just asked; going ba
   try {
     const dir = workFolder(s.data, DANA, T, AGENT);
     fs.writeFileSync(path.join(dir, "a.txt"), "one");
-    await checkpointTurn({ dataDir: s.data, person: DANA, thread: T, agent: AGENT, turnId: "trn_1", now: BASE + 2_000 });
+    await checkpointTurn({
+      dataDir: s.data,
+      person: DANA,
+      thread: T,
+      agent: AGENT,
+      turnId: "trn_1",
+      now: BASE + 2_000,
+    });
     fs.writeFileSync(path.join(dir, "a.txt"), "two");
     fs.writeFileSync(path.join(dir, "b.txt"), "new");
-    await checkpointTurn({ dataDir: s.data, person: DANA, thread: T, agent: AGENT, turnId: "trn_2", now: BASE + 3_000 });
+    await checkpointTurn({
+      dataDir: s.data,
+      person: DANA,
+      thread: T,
+      agent: AGENT,
+      turnId: "trn_2",
+      now: BASE + 3_000,
+    });
     const listed = await pointsIn(s.ctx, { threadId: T }, s.data);
     assert.equal(listed.available, true);
     assert.equal(listed.points.length, 2);
     assert.equal(listed.points[0]!.at, BASE + 3_000, "newest first");
     assert.equal(listed.points[1]!.after, "Please add the uploads folder");
     fs.writeFileSync(path.join(dir, "a.txt"), "three");
-    const done = await rewindIn(s.ctx, { threadId: T, pointId: listed.points[1]!.pointId, afterSeq: 4, uptoSeq: 9 }, s.data);
+    const done = await rewindIn(
+      s.ctx,
+      { threadId: T, pointId: listed.points[1]!.pointId, afterSeq: 4, uptoSeq: 9 },
+      s.data,
+    );
     assert.equal(fs.readFileSync(path.join(dir, "a.txt"), "utf8"), "one");
     assert.equal(fs.existsSync(path.join(dir, "b.txt")), false);
     assert.deepEqual([done.restored >= 1, done.removed], [true, 1]);
@@ -72,14 +90,24 @@ test("off in a chat with other people and outside a chat with an agent; a point 
   const chan = setup({ kind: "channel" });
   const solo = setup();
   try {
-    assert.deepEqual(await pointsIn(group.ctx, { threadId: T }, group.data), { available: false, why: "group", points: [] });
+    assert.deepEqual(await pointsIn(group.ctx, { threadId: T }, group.data), {
+      available: false,
+      why: "group",
+      points: [],
+    });
     assert.equal((await pointsIn(chan.ctx, { threadId: T }, chan.data)).why, "not_a_chat");
-    await assert.rejects(rewindIn(group.ctx, { threadId: T, pointId: `${AGENT}.${"a".repeat(40)}`, afterSeq: 0, uptoSeq: 1 }, group.data), /off in a chat/);
+    await assert.rejects(
+      rewindIn(group.ctx, { threadId: T, pointId: `${AGENT}.${"a".repeat(40)}`, afterSeq: 0, uptoSeq: 1 }, group.data),
+      /off in a chat/,
+    );
     await assert.rejects(
       rewindIn(solo.ctx, { threadId: T, pointId: `${AGENT}.${"a".repeat(40)}`, afterSeq: 0, uptoSeq: 1 }, solo.data),
       /not in this chat/,
     );
-    await assert.rejects(rewindIn(solo.ctx, { threadId: T, pointId: "../../etc", afterSeq: 0, uptoSeq: 1 }, solo.data), /not in this chat/);
+    await assert.rejects(
+      rewindIn(solo.ctx, { threadId: T, pointId: "../../etc", afterSeq: 0, uptoSeq: 1 }, solo.data),
+      /not in this chat/,
+    );
     const asAgent = { ...solo.ctx, principal: { kind: "agent" as const, id: AGENT } };
     await assert.rejects(pointsIn(asAgent, { threadId: T }, solo.data), /Only a person/);
   } finally {

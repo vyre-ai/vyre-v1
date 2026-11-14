@@ -9,7 +9,6 @@ export type RoundState = "working" | "waiting" | "replied" | "stopped";
 export interface RoundAgent {
   agentId: string;
   state: RoundState;
-  on?: string;
 }
 
 const MAX_MESSAGES = 50;
@@ -45,7 +44,32 @@ export async function roundGet(
     m.set(agentId, agent); // a later row of the same agent for the same message (a retry) is the newer state
     by.set(messageId, m);
   }
-  return {
-    rounds: wanted.filter((id) => by.has(id)).map((id) => ({ messageId: id, agents: [...by.get(id)!.values()] })),
+  // a person's private Assistant (or an outside agent they connected) works for them alone: another reader of the chat is not told it is working. An agent that cannot be read is left out too.
+  const me = ctx.principal.id;
+  const shown = new Map<string, boolean>();
+  const mayShow = async (agentId: string): Promise<boolean> => {
+    if (!shown.has(agentId)) {
+      let ok = false;
+      try {
+        const a = (
+          (await ctx.call("agents.get", { agentId })) as {
+            agent?: { kind?: string; runtime?: string; ownerId?: string };
+          } | null
+        )?.agent;
+        ok = a !== undefined && (!(a.kind === "assistant" || a.runtime === "outside") || a.ownerId === me);
+      } catch {
+        ok = false;
+      }
+      shown.set(agentId, ok);
+    }
+    return shown.get(agentId)!;
   };
+  const rounds: Array<{ messageId: string; agents: RoundAgent[] }> = [];
+  for (const id of wanted) {
+    if (!by.has(id)) continue;
+    const agents: RoundAgent[] = [];
+    for (const a of by.get(id)!.values()) if (await mayShow(a.agentId)) agents.push(a);
+    if (agents.length > 0) rounds.push({ messageId: id, agents });
+  }
+  return { rounds };
 }
