@@ -1,4 +1,4 @@
-// Ask an agent in the conversation (owner ruling, 3 Nov 2026): the quiet line under your unanswered message opens the agent picker, "Ask an Agent…" sits in every message's menu and hover
+// Ask an agent in the conversation (owner ruling, 3 Nov 2026): the quiet line under your unanswered message opens the agent picker, "Ask an agent…" sits in every message's menu and hover
 // bar in a channel, and picking an agent posts your reply to that exact message naming it. Keyboard: the line and the bar are buttons, the picker is ui/Menu. The edit path is driven in the last two tests here, the words in askagent.test.ts, and "once"
 // and the presser's account in test/chat.ask-agent.test.ts and test/chat.ask-agent.team.live.test.ts.
 import test from "node:test";
@@ -80,7 +80,7 @@ test("the quiet line under your unanswered message opens the picker, the room's 
   }
 });
 
-test("every message in a channel, yours or someone else's, has Ask an Agent… in its menu and its hover bar; a chat without the action has neither", () => {
+test("every message in a channel, yours or someone else's, has Ask an agent… in its menu and its hover bar; a chat without the action has neither", () => {
   const theirs = {
     messageId: "c1",
     threadId: "c1",
@@ -118,18 +118,18 @@ test("every message in a channel, yours or someone else's, has Ask an Agent… i
   } as unknown as MessageActions;
   const labels = (mine: boolean, acts: MessageActions) =>
     menuFor(theirs, mine, acts, () => undefined).flatMap((e) => ("label" in e ? [e.label] : []));
-  assert.ok(labels(false, a).includes("Ask an Agent…"));
-  assert.ok(labels(true, a).includes("Ask an Agent…"));
-  const entry = menuFor(theirs, false, a, () => undefined).find((e) => "label" in e && e.label === "Ask an Agent…") as {
+  assert.ok(labels(false, a).includes("Ask an agent…"));
+  assert.ok(labels(true, a).includes("Ask an agent…"));
+  const entry = menuFor(theirs, false, a, () => undefined).find((e) => "label" in e && e.label === "Ask an agent…") as {
     onSelect(): void;
   };
   entry.onSelect();
   assert.deepEqual(asked, ["c1"]);
   const { askAgent: _drop, ...without } = a as unknown as Record<string, unknown>;
-  assert.ok(!labels(false, without as unknown as MessageActions).includes("Ask an Agent…"));
+  assert.ok(!labels(false, without as unknown as MessageActions).includes("Ask an agent…"));
   const bar = renderToStaticMarkup(<HoverBar m={theirs} mine={false} a={a} onEdit={() => undefined} visible />);
   assert.ok(
-    bar.includes('data-testid="act-ask-c1"') && bar.includes('aria-label="Ask an Agent"'),
+    bar.includes('data-testid="act-ask-c1"') && bar.includes('aria-label="Ask an agent"'),
     "a button in the bar, reachable by keyboard",
   );
   assert.ok(!bar.includes("pill"));

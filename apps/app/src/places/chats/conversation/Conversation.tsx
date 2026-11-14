@@ -1027,7 +1027,7 @@ function ConversationView(): ReactElement {
           }),
         ),
         { separator: true },
-        { label: "Stop All", danger: true, onSelect: () => void act.stopAll(data).catch(fail("Could not stop.")) },
+        { label: "Stop all", danger: true, onSelect: () => void act.stopAll(data).catch(fail("Could not stop.")) },
       ],
       x,
       y,

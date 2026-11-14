@@ -212,7 +212,7 @@ test("going somewhere inside the selected tab's place moves that tab: opening co
   assert.deepEqual(
     s.tabs.map((t) => [t.key, t.title]),
     [
-      ["chats", "Chats"],
+      ["chats", "New chat"],
       ["inbox", "Inbox"],
     ],
     "one Inbox, one Chats",

@@ -627,7 +627,7 @@ test("the error row offers Report a problem, which opens the shared report sheet
   assert.ok(has(html(createSample("errors")), 'data-testid="err-more"'));
 });
 
-test("the hover bar draws Copy, Edit (yours only), Reply and More while the row is hovered or focused, and none of them before: fifty hidden bars were most of the first frame", () => {
+test("the hover bar draws Copy, Edit (yours only, with Rewind where the chat can) and More while the row is hovered or focused, and none of them before: fifty hidden bars were most of the first frame (G13)", () => {
   const s = createSample("idle");
   const m3 = msgs(s).find((m) => m.messageId === "m3")!;
   const m4 = msgs(s).find((m) => m.messageId === "m4")!;
@@ -641,8 +641,9 @@ test("the hover bar draws Copy, Edit (yours only), Reply and More while the row 
   assert.ok(
     has(mine, 'data-testid="act-copy-m3"') &&
       has(mine, 'data-testid="act-edit-m3"') &&
-      has(mine, 'data-testid="act-reply-m3"') &&
+      !has(mine, 'data-testid="act-reply-m3"') &&
       has(mine, 'data-testid="act-more-m3"'),
+    "copy, edit, more: reply in thread is in the menu",
   );
   const theirs = bar(m4, false, true);
   assert.ok(

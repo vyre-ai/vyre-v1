@@ -64,6 +64,9 @@ const OWN_TAB: Readonly<Record<string, string>> = {
 /** What a chat tab is called while the chat has no name and no message. */
 export const NEW_CHAT = "New chat";
 
+/** What a place's own tab says: its name, except Chats, whose own tab is the landing, the new chat (G7, prototype scene "new"). */
+export const placeTabTitle = (place: PlaceId): string => (place === "chats" ? NEW_CHAT : PLACE_TITLE[place]);
+
 /** The name a tab starts with when its screen has one of its own; the place's name otherwise. */
 export function screenTitle(hash: string | undefined): string | undefined {
   if (hash === undefined || !hash.includes("=")) return undefined;
@@ -139,7 +142,7 @@ export function moveTab(state: TabsState, place: PlaceId, hash: string | undefin
     title:
       own || (cur.key === tab.key && title === NEW_CHAT && cur.title !== NEW_CHAT)
         ? cur.title
-        : (title ?? PLACE_TITLE[place]),
+        : (title ?? placeTabTitle(place)),
     place,
     ...(hash === undefined || hash === "" ? {} : { hash }),
     ...(cur.pinned === true ? { pinned: true } : {}),
@@ -184,7 +187,7 @@ export function landOn(state: TabsState, place: PlaceId): TabsState {
   const cur = activeEntry(state);
   if (cur === undefined || cur.isNew === true || cur.place !== place)
     return openTab(state, placeTab(place), false, true);
-  const next: TabEntry = { key, title: PLACE_TITLE[place], place, ...(cur.pinned === true ? { pinned: true } : {}) };
+  const next: TabEntry = { key, title: placeTabTitle(place), place, ...(cur.pinned === true ? { pinned: true } : {}) };
   return { tabs: state.tabs.map((t) => (t === cur ? next : t)), active: key };
 }
 
@@ -255,7 +258,7 @@ export function reorderTabs(state: TabsState, keys: readonly string[]): TabsStat
 export function placeTab(place: PlaceId, hash?: string, title?: string): TabEntry {
   return {
     key: tabKey(place, hash),
-    title: title ?? PLACE_TITLE[place],
+    title: title ?? placeTabTitle(place),
     place,
     ...(hash === undefined || hash === "" ? {} : { hash }),
   };

@@ -112,9 +112,9 @@ test("a device that hovers and has a touch screen has both: the bar is there, an
   const { root, restore } = await rig(m);
   try {
     assert.ok(find(root, "hover-m_ans"), "the hover bar is drawn where the device hovers");
-    assert.ok(!textOf(root).includes("Make a Task"), "no sheet at rest");
+    assert.ok(!textOf(root).includes("Make a task"), "no sheet at rest");
     await longPress(root);
-    assert.ok(textOf(root).includes("Make a Task"), "the long press opened the sheet with Make a Task");
+    assert.ok(textOf(root).includes("Make a task"), "the long press opened the sheet with Make a task");
     assert.ok(find(root, "hover-m_ans"), "and the hover bar is still there");
   } finally {
     restore();
@@ -133,7 +133,7 @@ test("when the device stops being able to hover the bar goes away, and comes bac
     assert.ok(textOf(root).includes("Three invoices are paid"), "the message itself stays, not remounted into nothing");
     assert.equal(m.state.added, 1, "the same listener: the row was not mounted again");
     await longPress(root);
-    assert.ok(textOf(root).includes("Make a Task"), "and a long press opens the sheet");
+    assert.ok(textOf(root).includes("Make a task"), "and a long press opens the sheet");
     await m.set(false);
     assert.ok(find(root, "hover-m_ans"), "the bar comes back when the device can hover again");
     assert.equal(textOf(root).includes("Three invoices"), before.includes("Three invoices"));

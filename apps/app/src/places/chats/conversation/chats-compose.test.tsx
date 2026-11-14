@@ -907,7 +907,7 @@ test("a plugin command with a colon in its name is a command, and its prompt is 
   assert.deepEqual(r.flags.sent, ["Say hello to Dana"]);
 });
 
-test("an agent's answer has Make task in its hover bar, in a chat of people and in a chat of one person alike, and a person's own message never does; nothing of it is drawn at rest", async () => {
+test("an agent's answer has five buttons in its hover bar (copy, thread, fork, pin, more), Make a task is in its menu, and nothing of it is drawn at rest (G12)", async () => {
   const r = rig();
   const reply: Message = {
     messageId: "m_ans",
@@ -945,9 +945,13 @@ test("an agent's answer has Make task in its hover bar, in a chat of people and 
         />,
       ),
     );
+  const agentBar = bar(true);
+  for (const id of ["copy", "reply", "fork", "pin", "more"])
+    assert.ok(agentBar.includes(`data-testid="act-${id}-m_ans"`), `${id} is in the bar`);
+  assert.equal((agentBar.match(/data-testid="act-/g) ?? []).length, 5, "five and no more");
   assert.ok(
-    bar(true).includes('data-testid="act-make-m_ans"'),
-    "Make task sits in the bar next to Copy, Reply in Thread, Fork and Pin, whoever is in the chat",
+    !agentBar.includes("act-make-m_ans") && !agentBar.includes("act-remember-m_ans"),
+    "Make a task and Remember are in the menu",
   );
   assert.ok(!bar(true, false).includes('data-testid="act-make-m_ans"'), "never on a person's own message");
   assert.ok(!bar(false).includes("act-make-m_ans"), "at rest no action is drawn");
@@ -982,7 +986,7 @@ test("an agent's answer has Make task in its hover bar, in a chat of people and 
       .join(""),
   );
   const text = html.replace(/<[^>]+>/g, " ");
-  for (const word of ["Copy", "Reply in Thread", "Fork From Here", "Pin", "Make a Task", "Remember This"])
+  for (const word of ["Copy", "Reply in thread", "Fork from here", "Pin", "Make a task", "Remember this"])
     assert.ok(!new RegExp(`\\b${word}\\b`).test(text), `${word} is not shown at rest`);
   // and the long-press sheet on a phone has it
   const sheet = menuFor(
@@ -998,7 +1002,7 @@ test("an agent's answer has Make task in its hover bar, in a chat of people and 
     } as never,
     () => undefined,
   );
-  assert.ok(sheet.some((e) => "label" in e && e.label === "Make a Task"));
+  assert.ok(sheet.some((e) => "label" in e && e.label === "Make a task"));
 });
 
 /* ---------- what a command hands back: data, classified (CMD-RESULTS-2026-11-13) ---------- */

@@ -2,3 +2,5 @@
 - The chat's "..." menu is short and in sentence case: Plan first, Fork, Find in this chat, Export, Archive, and Stop everyone while an agent works. Rename is the title, and Star, Mute, Copy link and Delete are in the sidebar's chat menu.
 - The chat head is quiet while an agent works (no green dot, no red stop; the stop is the composer's), and the people count includes the agents that are here.
 - The composer's plus now opens a menu: Photo, File, From Files, Record, Link, Voice note, Add people and agents, and "Don't remember this chat". The unlabelled lock beside the mic and the purple dot on the settings icon are gone; the quiet line "Not remembering this chat" still shows while that switch is on.
+- A message's menu is the short list in sentence case (Copy, Reply in thread, Make a task, Share to, Fork from here, Pin, Add reaction, then Details on an agent's reply). Copy link, Edit, Retry, Mark unread, Remember this and Delete are behind its last row, More. An agent's hover bar shows copy, thread, fork, pin and more; your own message in an agent chat shows copy, edit and more.
+- The landing tab in the tab strip reads "New chat" instead of "Chats".
