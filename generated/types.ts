@@ -6857,6 +6857,7 @@ export type ChatChaptersIn = {
 export type ChatChaptersOut = {
   chapters: Array<{
       startSeq: number;
+      startMsg: string;
       endSeq: number;
       startAt: number;
       count: number;
@@ -6872,6 +6873,7 @@ export type ChatChaptersWriteIn = {
   account?: {
     ref: string;
     driver: string;
+    kind?: string;
   };
 };
 export type ChatChaptersWriteOut = {
@@ -52050,6 +52052,7 @@ export type TombstonesReappliedPayload = {
 };
 export type TranscriptsPurgedPayload = {
   removed: number;
+  messageIds?: Array<string>;
 };
 export type TurnBlockPayload = {
   turnId: string;

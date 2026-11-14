@@ -2002,6 +2002,7 @@ const b2031: string[] = []; lf(x2031, p + "/chapters" + '/' + i2030, b2031, L0);
 if (g2031 === "object") {
 if (g2031 === 'object') { const o2031 = x2031 as Record<string, unknown>;
 if (!("startSeq" in o2031)) e.push(p + "/chapters" + '/' + i2030 + "/startSeq" + ': required');
+if (!("startMsg" in o2031)) e.push(p + "/chapters" + '/' + i2030 + "/startMsg" + ': required');
 if (!("endSeq" in o2031)) e.push(p + "/chapters" + '/' + i2030 + "/endSeq" + ': required');
 if (!("startAt" in o2031)) e.push(p + "/chapters" + '/' + i2030 + "/startAt" + ': required');
 if (!("count" in o2031)) e.push(p + "/chapters" + '/' + i2030 + "/count" + ': required');
@@ -2010,6 +2011,7 @@ if (!("title" in o2031)) e.push(p + "/chapters" + '/' + i2030 + "/title" + ': re
 if (!("summary" in o2031)) e.push(p + "/chapters" + '/' + i2030 + "/summary" + ': required');
 if (!("by" in o2031)) e.push(p + "/chapters" + '/' + i2030 + "/by" + ': required');
 if ("startSeq" in o2031) lf(o2031["startSeq"], p + "/chapters" + '/' + i2030 + "/startSeq", e, L2);
+if ("startMsg" in o2031) lf(o2031["startMsg"], p + "/chapters" + '/' + i2030 + "/startMsg", e, L90);
 if ("endSeq" in o2031) lf(o2031["endSeq"], p + "/chapters" + '/' + i2030 + "/endSeq", e, L2);
 if ("startAt" in o2031) lf(o2031["startAt"], p + "/chapters" + '/' + i2030 + "/startAt", e, L17);
 if ("count" in o2031) lf(o2031["count"], p + "/chapters" + '/' + i2030 + "/count", e, L2);
@@ -2051,6 +2053,7 @@ if (!("ref" in o2033)) e.push(p + "/account" + "/ref" + ': required');
 if (!("driver" in o2033)) e.push(p + "/account" + "/driver" + ': required');
 if ("ref" in o2033) lf(o2033["ref"], p + "/account" + "/ref", e, L1);
 if ("driver" in o2033) lf(o2033["driver"], p + "/account" + "/driver", e, L1);
+if ("kind" in o2033) lf(o2033["kind"], p + "/account" + "/kind", e, L1);
 }
 }
 }
@@ -6124,6 +6127,20 @@ if (g7530 === "object") {
 if (g7530 === 'object') { const o7530 = x7530 as Record<string, unknown>;
 if (!("removed" in o7530)) e.push(p + "/removed" + ': required');
 if ("removed" in o7530) lf(o7530["removed"], p + "/removed", e, L17);
+if ("messageIds" in o7530) {
+{
+const x7531 = o7530["messageIds"];
+const g7531 = typeOf(x7531);
+const b7531: string[] = []; lf(x7531, p + "/messageIds", b7531, L4); if (b7531.length) e.push(...b7531);
+if (g7531 === "array") {
+if (g7531 === 'array') { const a7531 = x7531 as unknown[];
+for (let i7531 = 0; i7531 < a7531.length; i7531++) {
+lf(a7531[i7531], p + "/messageIds" + '/' + i7531, e, L90);
+}
+}
+}
+}
+}
 }
 }
 }
