@@ -715,37 +715,159 @@ test("14 Nov: an owner whose own Assistant asked them for a key adds it into the
   assert.equal(w2.called("vault.share").length, 1, "and the agent gets Use");
 });
 
-test("14 Nov: a key an agent is to use is never saved into a folder kept for the server alone; the refusal says so before anything is stored", async () => {
+const askFor = (w: World, name: string, key: string, as = w.as("agt_spark", "agent", "usr_dana")) =>
+  handlers["vault.request"](
+    { ...as, thread: "thr_dana" } as never,
+    {
+      name,
+      fields: ["api_key"],
+      reason: "Read the meetings",
+      idempotencyKey: key,
+    } as never,
+  );
+const fulfilInto = (w: World, requestId: string, folderId: string, extra: Record<string, unknown> = {}) =>
+  handlers["vault.requests.fulfil"](w.as("usr_owner"), {
+    requestId,
+    folderId,
+    fields: [{ key: "api_key", value: "fth_secret" }],
+    ...extra,
+  } as never);
+
+test("15 Nov: a key an agent is to use is only stored where that agent can use it: the folder's label is asked, not its name; the refusal comes before anything is stored", async () => {
+  // a renamed server folder is still refused (it is labelled above the agent), a person's own folder that merely has a server name is not
   const w = world({
     folders: [
       { id: "vfd_company_keys", name: "Company connections", scope: "shared" },
-      { id: "vfd_signin", name: "Sign-in", scope: "shared" },
+      { id: "vfd_renamed", name: "Server things (renamed)", scope: "shared" },
+      { id: "vfd_theirs", name: "Sign-in", scope: "shared" },
     ],
+    unusable: ["vfd_company_keys", "vfd_renamed"],
   });
-  for (const [n, folderId] of [
-    ["a", "vfd_company_keys"],
-    ["b", "vfd_signin"],
-  ] as const) {
-    const { request } = await handlers["vault.request"](
-      { ...w.as("agt_spark", "agent", "usr_dana"), thread: "thr_dana" } as never,
-      { name: `Fathom_${n}`, fields: ["api_key"], reason: "Read the meetings", idempotencyKey: `s-${n}` } as never,
-    );
+  for (const folderId of ["vfd_company_keys", "vfd_renamed"]) {
+    const { request } = await askFor(w, `Fathom_${folderId}`, `s-${folderId}`);
     w.calls.length = 0;
     await assert.rejects(
-      () =>
-        handlers["vault.requests.fulfil"](w.as("usr_owner"), {
-          requestId: request.id,
-          folderId,
-          fields: [{ key: "api_key", value: "fth_secret" }],
-        }),
-      /only the server uses.*Choose another folder/,
+      () => fulfilInto(w, request.id, folderId),
+      /That folder is restricted, so the agent that asked cannot use a key kept there\. Choose another folder/,
     );
     assert.deepEqual(w.called("vault.item.put"), [], "nothing was stored");
+    assert.deepEqual(w.called("vault.share"), []);
     assert.equal(
       (await handlers["vault.requests.get"](w.as("usr_owner"), { requestId: request.id })).request.state,
       "waiting",
     );
+    assert.equal(
+      (w.called("access.clears")[0]!.input["resource"] as { id: string }).id,
+      folderId,
+      "asked of the chosen folder",
+    );
   }
+  const ok = await askFor(w, "Fathom_ok", "s-ok");
+  await fulfilInto(w, ok.request.id, "vfd_theirs");
+  assert.equal(w.called("vault.item.put").at(-1)!.input["folderId"], "vfd_theirs", "a name alone refuses nothing");
+});
+
+test("15 Nov: a manager answering someone else's ask, and an owner choosing anyone, are held to the same check", async () => {
+  const w = world({
+    folders: [{ id: "vfd_hidden", name: "Finance", scope: "shared" }],
+    unusable: ["vfd_hidden"],
+  });
+  const a = await askFor(w, "Fathom_a", "m-a");
+  await assert.rejects(() => fulfilInto(w, a.request.id, "vfd_hidden"), /restricted/);
+  const b = await handlers["vault.request"](
+    { ...w.as("agt_spark", "agent", "usr_owner"), thread: "thr_owner" } as never,
+    { name: "Fathom_b", fields: ["api_key"], reason: "r", idempotencyKey: "m-b" } as never,
+  );
+  await assert.rejects(() => fulfilInto(w, b.request.id, "vfd_hidden", { audience: "anyone" }), /restricted/);
+  assert.deepEqual(w.called("vault.item.put"), []);
+});
+
+test("15 Nov: anyone who asks this agent is refused into a Mine folder, before and after storing; it is never marked fulfilled as private", async () => {
+  const w = world({
+    folders: [{ id: "vfd_mine", name: "Mine", scope: "mine" }],
+  });
+  const { request } = await handlers["vault.request"](
+    { ...w.as("agt_spark", "agent", "usr_owner"), thread: "thr_owner" } as never,
+    { name: "Fathom", fields: ["api_key"], reason: "r", idempotencyKey: "any-1" } as never,
+  );
+  await assert.rejects(
+    () => fulfilInto(w, request.id, "vfd_mine", { audience: "anyone" }),
+    /has to be kept in a shared folder.*Only the person who asked/,
+  );
+  assert.deepEqual(w.called("vault.item.put"), [], "nothing stored");
+  assert.equal(
+    (await handlers["vault.requests.get"](w.as("usr_owner"), { requestId: request.id })).request.state,
+    "waiting",
+  );
+  // the share itself failing as private after a store is a refusal for anyone, not a success
+  const w2 = world({ folders: [{ id: FOLDER, name: "Team", scope: "shared" }], fail: { "vault.share": "private" } });
+  const r2 = await askFor(w2, "Fathom", "any-2", w2.as("agt_spark", "agent", "usr_owner"));
+  await assert.rejects(() => fulfilInto(w2, r2.request.id, FOLDER, { audience: "anyone" }), /shared folder/);
+  assert.equal(
+    (await handlers["vault.requests.get"](w2.as("usr_owner"), { requestId: r2.request.id })).request.state,
+    "waiting",
+  );
+});
+
+test("15 Nov: an attached item the agent cannot use where it sits is refused; an owner-asker attaching is not treated as their own key; anyone with an item in Mine is refused", async () => {
+  const w = world({
+    items: { vit_have: ["api_key"], vit_mine: ["api_key"], vit_hidden: ["api_key"] },
+    itemScope: { vit_mine: "mine" },
+    unusable: ["vit_hidden"],
+  });
+  const a = await askFor(w, "Fathom_a", "at-a", w.as("agt_spark", "agent", "usr_owner"));
+  await assert.rejects(
+    () => handlers["vault.requests.fulfil"](w.as("usr_owner"), { requestId: a.request.id, itemId: "vit_hidden" }),
+    /cannot use that key where it is kept.*Move it to your own keys/,
+  );
+  assert.deepEqual(w.called("vault.share"), []);
+  // not own: an owner-asker attaching a team item is shared, as the owner's key for the team (their Mine rule needs it to be theirs)
+  await handlers["vault.requests.fulfil"](w.as("usr_owner"), { requestId: a.request.id, itemId: "vit_have" });
+  assert.equal(w.called("vault.share").length, 1, "attached items are never the own path");
+  const b = await askFor(w, "Fathom_b", "at-b", w.as("agt_spark", "agent", "usr_owner"));
+  await assert.rejects(
+    () =>
+      handlers["vault.requests.fulfil"](w.as("usr_owner"), {
+        requestId: b.request.id,
+        itemId: "vit_mine",
+        audience: "anyone",
+      }),
+    /shared folder/,
+  );
+});
+
+test("15 Nov: every requester kind is held to the check, except a company key and a name-only ask; an unreadable answer lets the save through", async () => {
+  // a person who asked is held to it too (M6): their clearance is what they would use the key with
+  const w = world({ folders: [{ id: "vfd_hidden", name: "Finance", scope: "shared" }], unusable: ["vfd_hidden"] });
+  const p = await ask(w, "usr_dana", { folderId: undefined, fields: ["api_key"] });
+  await assert.rejects(() => fulfilInto(w, p.request.id, "vfd_hidden"), /restricted/);
+  assert.deepEqual(w.called("vault.item.put"), []);
+  // a company key goes into its Restricted folder on purpose
+  const wc = world({ unusable: ["vfd_company"] });
+  const c = (await ask(wc, "agt_helper", { name: "Google_DWD", fields: ["key"], folderId: undefined })).request;
+  await handlers["vault.requests.fulfil"](wc.as("usr_owner"), {
+    requestId: c.id,
+    fields: [{ key: "key", value: "k" }],
+  } as never);
+  assert.equal(wc.called("vault.item.put").length, 1, "a company key is kept where no agent can use it, by design");
+  // an outside agent asking by name gets no Use, so where it is kept does not matter to it
+  const wo = world({ folders: [{ id: "vfd_hidden", name: "Finance", scope: "shared" }], unusable: ["vfd_hidden"] });
+  const o = (await ask(wo, "agt_outside", { name: "Zoom_Secret", fields: ["api_key"], handleOnly: true })).request;
+  await handlers["vault.requests.fulfil"](wo.as("usr_mira"), {
+    requestId: o.id,
+    folderId: "vfd_hidden",
+    fields: [{ key: "api_key", value: "k" }],
+  } as never);
+  assert.equal(wo.called("vault.item.put").length, 1);
+  // access.clears unreadable: fails open (vault.item.put and vault.share still enforce access)
+  const wf = world({
+    folders: [{ id: "vfd_hidden", name: "Finance", scope: "shared" }],
+    unusable: ["vfd_hidden"],
+    fail: { "access.clears": "cannot read" },
+  });
+  const f = await askFor(wf, "Fathom_f", "f-1");
+  await fulfilInto(wf, f.request.id, "vfd_hidden");
+  assert.equal(wf.called("vault.item.put").length, 1);
 });
 
 test("owner ruling 3 Nov: a key that names a Shared folder, a company key and an outside agent's name-only ask still go to the owners and admins alone", async () => {

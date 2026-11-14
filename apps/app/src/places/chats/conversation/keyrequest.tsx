@@ -11,7 +11,6 @@ import { Glyph } from "./parts.tsx";
 import { Face } from "../needsyou/parts.tsx";
 import { AUDIENCES, keyWords, requestOf } from "./keyrequest-model.ts";
 import type { KeyAudience, KeyRequest } from "./keyrequest-model.ts";
-import { isServerOnlyFolder } from "../../../../../../lib/company-keys.ts";
 
 type Data = Pick<ConversationData, "call" | "changes">;
 
@@ -52,6 +51,36 @@ export function KeyRequestCard({
   useEffect(() => {
     void load();
   }, [load]);
+  // the first shared folder the agent can use a key kept in (the access module's own answer, not a list of names): where a key for the team goes. None, and "anyone" is not offered.
+  const [shared, setShared] = useState<string | null | undefined>(undefined);
+  const waiting = req?.state === "waiting";
+  useEffect(() => {
+    if (!waiting || !canDecide) return;
+    let live = true;
+    void (async () => {
+      let found: string | null = null;
+      try {
+        const folders = ((await data.call("vault.folders.list", { scope: "shared" })) as { folders?: { id: string }[] })
+          .folders;
+        for (const f of folders ?? []) {
+          const got = (await data.call("access.clears", {
+            principal: { kind: "agent", id: agentId },
+            resource: { type: "vault_folder", id: f.id },
+          })) as { clears?: boolean };
+          if (got.clears === true) {
+            found = f.id;
+            break;
+          }
+        }
+      } catch {
+        /* none found: the key stays the asker's own */
+      }
+      if (live) setShared(found);
+    })();
+    return () => {
+      live = false;
+    };
+  }, [waiting, canDecide, agentId, data]);
   useFollow(data.changes, load, req === undefined || req === null || req.state === "waiting");
 
   if (req === undefined || req === null) return null;
@@ -69,16 +98,16 @@ export function KeyRequestCard({
     );
   }
 
+  // a team choice needs a folder the agent can use: when there is none, the choice is not offered
+  const anyoneOk = !!req.folderId || !!shared;
+  const choices = AUDIENCES.filter((a) => a.key !== "anyone" || anyoneOk);
+  const chosen: KeyAudience = anyoneOk ? audience : "asker";
   const folderFor = async (): Promise<string> => {
     if (req.folderId) return req.folderId;
-    const folders = (
-      (await data.call("vault.folders.list", {})) as { folders: { id: string; scope: string; name?: string }[] }
-    ).folders;
-    // never a folder kept for the server alone (company keys, the sign-in secret): no agent can use a key kept there
-    const pick =
-      folders.find((f) => f.scope === "shared" && !isServerOnlyFolder(f.name ?? "")) ??
-      folders.find((f) => f.scope === "mine");
-    if (pick) return pick.id;
+    if (shared) return shared;
+    const mine = ((await data.call("vault.folders.list", { scope: "mine" })) as { folders?: { id: string }[] })
+      .folders?.[0];
+    if (mine) return mine.id;
     return (
       (await data.call("vault.folders.create", {
         name: "Mine",
@@ -96,7 +125,7 @@ export function KeyRequestCard({
         requestId,
         folderId,
         fields: req.fields.map((k) => ({ key: k, value: (values[k] ?? "").trim() })),
-        audience,
+        audience: chosen,
       });
       setValues({});
       await load();
@@ -176,18 +205,18 @@ export function KeyRequestCard({
           >
             <Text style={st.ask}>{`Who can use it through ${agent}?`}</Text>
             {/* ui-rows-lint: not a list (the two choices of one question) */}
-            {AUDIENCES.map((a) => (
+            {choices.map((a) => (
               <Pressable
                 key={a.key}
                 accessibilityRole="radio"
-                accessibilityState={{ checked: audience === a.key }}
-                aria-checked={audience === a.key}
+                accessibilityState={{ checked: chosen === a.key }}
+                aria-checked={chosen === a.key}
                 accessibilityLabel={a.label}
                 testID={`keyreq-audience-${a.key}-${requestId}`}
                 onPress={() => setAudience(a.key)}
                 style={st.choice}
               >
-                <View style={[st.dot, audience === a.key && st.dotOn]} />
+                <View style={[st.dot, chosen === a.key && st.dotOn]} />
                 <Text style={st.choiceText}>{a.label}</Text>
               </Pressable>
             ))}

@@ -81,3 +81,51 @@ test("approving an agent's key asks who can use it through the agent: only the p
     restore();
   }
 });
+
+test("15 Nov: the team choice is offered only when the agent can use a shared folder, and the key goes into one it can use, never the first by name", async () => {
+  const { createRoot } = await import("test-renderer");
+  const { find, flush, installDom, mount, press, typeInto } = await import("../../../onboarding/test-dom.ts");
+  const restore = installDom();
+  try {
+    const run = async (usable: string[], pick?: "anyone") => {
+      const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+      const call = async (cap: string, input: unknown): Promise<unknown> => {
+        const i = input as Record<string, unknown>;
+        calls.push({ cap, input: i });
+        if (cap === "vault.requests.get")
+          return {
+            request: { id: "vrq_1", name: "Fathom", fields: ["api_key"], reason: "r", state: "waiting" },
+          };
+        if (cap === "vault.requests.list") return { requests: [{ id: "vrq_1" }] };
+        if (cap === "vault.folders.list")
+          return { folders: i["scope"] === "mine" ? [{ id: "vfd_mine" }] : [{ id: "vfd_hidden" }, { id: "vfd_team" }] };
+        if (cap === "access.clears") return { clears: usable.includes((i["resource"] as { id: string }).id) };
+        return {};
+      };
+      const root = await mount(
+        createRoot,
+        <KeyRequestCard requestId="vrq_1" agent="Ops" agentId="agt_1" data={{ call } as never} />,
+      );
+      await flush();
+      const offered = !!find(root, "keyreq-audience-anyone-vrq_1");
+      if (pick && offered) {
+        await press(find(root, "keyreq-audience-anyone-vrq_1"));
+        await flush();
+      }
+      await typeInto(find(root, "keyreq-field-vrq_1-api_key"), "sk_test_fathom");
+      await press(find(root, "keyreq-add-vrq_1"));
+      await flush();
+      return { offered, fulfil: calls.find((c) => c.cap === "vault.requests.fulfil")!.input };
+    };
+    const none = await run([], "anyone");
+    assert.equal(none.offered, false, "no shared folder the agent can use: the team choice is not there");
+    assert.equal(none.fulfil["audience"], "asker");
+    assert.equal(none.fulfil["folderId"], "vfd_mine");
+    const some = await run(["vfd_team"], "anyone");
+    assert.equal(some.offered, true);
+    assert.equal(some.fulfil["audience"], "anyone");
+    assert.equal(some.fulfil["folderId"], "vfd_team", "the first folder the agent can use, not the first folder");
+  } finally {
+    restore();
+  }
+});

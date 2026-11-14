@@ -190,6 +190,19 @@ export type AccessCheckOut = {
     decisionId: string;
   };
 };
+export type AccessClearsIn = {
+  principal: {
+    kind: "person" | "agent" | "actor" | "service";
+    id: string;
+  };
+  resource: {
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar" | "skill";
+    id: string;
+  };
+};
+export type AccessClearsOut = {
+  clears: boolean;
+};
 export type AccessConnectorBuilderGrantIn = {
   agentId: string;
 };
@@ -45029,6 +45042,7 @@ export interface CapMap {
   "access.audience_set": { in: AccessAudienceSetIn; out: AccessAudienceSetOut };
   "access.automation_senders": { in: AccessAutomationSendersIn; out: AccessAutomationSendersOut };
   "access.check": { in: AccessCheckIn; out: AccessCheckOut };
+  "access.clears": { in: AccessClearsIn; out: AccessClearsOut };
   "access.connector_builder.grant": { in: AccessConnectorBuilderGrantIn; out: AccessConnectorBuilderGrantOut };
   "access.connector_builder.status": { in: AccessConnectorBuilderStatusIn; out: AccessConnectorBuilderStatusOut };
   "access.deciders": { in: AccessDecidersIn; out: AccessDecidersOut };

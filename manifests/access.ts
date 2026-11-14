@@ -832,6 +832,11 @@ export default defineManifest({
       "The people who hold Manage on a resource and so may decide a request about it. Used to route a request to a person even when the caller, an agent, cannot see the resource itself; it names people and shows nothing else",
       { ...V, in: { resource: resourceRef }, out: { people: t.arr(id.user) }, tool: "meta" },
     ),
+    read(
+      "access.clears",
+      "Whether a principal's clearance reaches what a resource is labelled (its own label and every folder above it). Asked before a key is stored or shared for an agent, because a thing labelled above an agent's clearance is refused to it whatever it is granted. It answers yes or no and shows nothing else",
+      { ...V, in: { principal: principalRef, resource: resourceRef }, out: { clears: t.bool() }, tool: "meta" },
+    ),
     read("access.grants.list", "List grants by resource, subject or source (Console Grants)", {
       ...V,
       in: { resource: t.opt(resourceRef), subject: t.opt(subjectRef), source: t.opt(t.str()), ...pageIn },
