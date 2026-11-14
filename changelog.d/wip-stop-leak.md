@@ -1,0 +1,1 @@
+An agent you asked can change a goal again. Since agents began sending the version they last read, a goal change from an agent in your chat was refused as if it were your own button press ("changes the expectedUpdatedAt on the goal's page"). The version now only checks that the goal has not moved, so the change is saved, or refused as out of date.

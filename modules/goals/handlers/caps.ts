@@ -468,6 +468,8 @@ const ASKED_MAY = new Set([
   "recordIds",
   "plan",
   "idempotencyKey",
+  // the version the agent last read, filled in by the tool layer: a precondition that can only refuse a stale write, never a power over the goal
+  "expectedUpdatedAt",
 ]);
 const ASKED_WORDS: Record<string, string> = {
   owner: "owner",
