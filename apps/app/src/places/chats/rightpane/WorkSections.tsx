@@ -17,7 +17,15 @@ import { TerminalSheet } from "./TerminalSheet.tsx";
 import { PreviewImage } from "./PreviewImage.tsx";
 import { useWhenText } from "../../../../../../ui/src/Time/index.tsx";
 import { Dot, GroupHead, SectionHead } from "./WorkParts.tsx";
-import { browserHead, groupSessions, olderDesktopMenu, sessionTitle, sessionWords, sharedWait, terminalsHead } from "./work-model.ts";
+import {
+  browserHead,
+  groupSessions,
+  olderDesktopMenu,
+  sessionTitle,
+  sessionWords,
+  sharedWait,
+  terminalsHead,
+} from "./work-model.ts";
 import type { BrowserData, BrowserView, WorkspaceData, WorkspaceView } from "./work-model.ts";
 
 /** Is the new layout wanted: the browser half is bound, or the workspace is and the agent has no legacy desktop computer. An agent that still has one keeps today's Computer tab until the browser half is bound. */

@@ -319,14 +319,22 @@ test("only the holder's keys renew a hold: reads, captures and attaches never do
     await call(hn, "terminal.read", { terminalId: id });
     await call(hn, "terminal.attach", { terminalId: id });
   }
-  assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, undefined, "16 quiet minutes: back to the agent");
+  assert.equal(
+    (await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy,
+    undefined,
+    "16 quiet minutes: back to the agent",
+  );
   // keys do renew it
   await call(hn, "terminal.take_over", { terminalId: id });
   for (let i = 0; i < 3; i++) {
     hn.advance(10 * 60_000);
     await call(hn, "terminal.input", { terminalId: id, data: "x" });
   }
-  assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_dana", "30 minutes in, kept by keys");
+  assert.equal(
+    (await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy,
+    "usr_dana",
+    "30 minutes in, kept by keys",
+  );
 });
 
 test("while a person holds a terminal the agent's other doors wait too: close, resize, rename, its commands in every tab and a new tab", async () => {
@@ -402,27 +410,54 @@ test("keys with capture answer with the screen a moment after, scrubbed, in the 
 
 test("the agent's own terminal is there before anyone asks: opened once per person, the one its commands land in, and a person's call only", async () => {
   const { hn } = setup();
-  const a = await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", own: true, idempotencyKey: "own1" });
+  const a = await call(hn, "terminal.open", {
+    host: "agent_computer",
+    agentId: "agt_intake",
+    own: true,
+    idempotencyKey: "own1",
+  });
   assert.equal(a.terminal.name, "agent");
   assert.deepEqual(a.terminal.by, { kind: "agent" });
-  const again = await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", own: true, idempotencyKey: "own2" });
+  const again = await call(hn, "terminal.open", {
+    host: "agent_computer",
+    agentId: "agt_intake",
+    own: true,
+    idempotencyKey: "own2",
+  });
   assert.equal(again.terminal.terminalId, a.terminal.terminalId, "asked again it is the same one");
   // the agent's command, acting for Dana, lands in it and opens no second tab
   const before = hn.rows("SELECT terminal_id FROM terminal_sessions").length;
   await h["terminal.run"]!(hn.as(AGENT, "usr_dana"), { command: "echo hi" });
-  assert.equal(hn.rows("SELECT terminal_id FROM terminal_sessions").length, before, "its commands go to the terminal that was already there");
-  assert.equal(await rejects(() => h["terminal.open"]!(hn.as(AGENT), { host: "agent_computer", agentId: "agt_intake", own: true })), "permission.no_grant");
+  assert.equal(
+    hn.rows("SELECT terminal_id FROM terminal_sessions").length,
+    before,
+    "its commands go to the terminal that was already there",
+  );
+  assert.equal(
+    await rejects(() =>
+      h["terminal.open"]!(hn.as(AGENT), { host: "agent_computer", agentId: "agt_intake", own: true }),
+    ),
+    "permission.no_grant",
+  );
 });
 
 test("a terminal row says which chat it was opened from, and status gives the last command run in it", async () => {
   const { hn } = setup();
   const ctx = { ...hn.ctx, thread: "thr_launch" };
-  const id = (await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: "th1" }, ctx)).terminal.terminalId;
+  const id = (
+    await call(hn, "terminal.open", { host: "agent_computer", agentId: "agt_intake", idempotencyKey: "th1" }, ctx)
+  ).terminal.terminalId;
   assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.threadId, "thr_launch");
-  const listed = (await call(hn, "terminal.list", {})).terminals.find((x: { terminalId: string }) => x.terminalId === id);
+  const listed = (await call(hn, "terminal.list", {})).terminals.find(
+    (x: { terminalId: string }) => x.terminalId === id,
+  );
   assert.equal(listed.threadId, "thr_launch");
   const none = await open(hn);
-  assert.equal((await call(hn, "terminal.get", { terminalId: none })).terminal.threadId, undefined, "a terminal that belongs to no chat has none");
+  assert.equal(
+    (await call(hn, "terminal.get", { terminalId: none })).terminal.threadId,
+    undefined,
+    "a terminal that belongs to no chat has none",
+  );
   await h["terminal.run"]!(ctx, { command: "npm test", terminalId: id });
   const st = await call(hn, "terminal.status", { terminalIds: [id] });
   assert.equal(st.rows[0].lastCommand, "npm test");
@@ -442,7 +477,11 @@ test("a member who may only View the workspace is refused terminal.keys, termina
     assert.ok(code.startsWith("permission."), `${cap} refused for a viewer, got ${code}`);
   }
   hn.allowOnly(() => true);
-  assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, undefined, "nothing was taken or typed");
+  assert.equal(
+    (await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy,
+    undefined,
+    "nothing was taken or typed",
+  );
 });
 
 test("after the terminal has ended its screen is not drawn again: a capture of it is an error, never an empty or different screen", async () => {

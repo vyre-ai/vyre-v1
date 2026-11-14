@@ -155,7 +155,8 @@ export function workspaceData(d: {
               };
               const m = new Map<string, string>();
               for (const x of st.rows ?? [])
-                if (x.lastCommand && x.lastCommand.trim() !== "") m.set(x.terminalId, x.lastCommand.trim().slice(0, 160));
+                if (x.lastCommand && x.lastCommand.trim() !== "")
+                  m.set(x.terminalId, x.lastCommand.trim().slice(0, 160));
               const before = JSON.stringify([...(lastSeen.get(agentId) ?? [])]);
               lastSeen.set(agentId, m);
               if (live && mine === seq && JSON.stringify([...m]) !== before)
@@ -188,7 +189,10 @@ export function workspaceData(d: {
       const s = rowsQuery().getSnapshot();
       const has =
         s.status === "ready" && s.data
-          ? s.data.terminals.find((r) => r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited" && r.by?.kind === "agent")
+          ? s.data.terminals.find(
+              (r) =>
+                r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited" && r.by?.kind === "agent",
+            )
           : undefined;
       if (has) return has.terminalId;
       const p = open(agentId).then(

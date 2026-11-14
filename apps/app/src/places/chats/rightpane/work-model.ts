@@ -193,7 +193,8 @@ export function groupSessions(
         ? (who.nameOf?.(s.ownerId) ?? o?.name ?? "Someone")
         : (o?.name ?? "Someone");
     const yours = mine && person === "You";
-    const name = kind === "agent" ? agentName : kind === "person" ? (yours ? "Your terminals" : person) : (o?.name ?? "A helper");
+    const name =
+      kind === "agent" ? agentName : kind === "person" ? (yours ? "Your terminals" : person) : (o?.name ?? "A helper");
     const key = `${kind}:${name}`;
     let g = out.find((x) => x.key === key);
     if (!g) {
@@ -201,7 +202,15 @@ export function groupSessions(
         key,
         name,
         kind,
-        ...(kind === "helper" ? { tag: "helper" } : kind === "person" ? (yours ? {} : mine ? { tag: "your terminals" } : { tag: "terminals" }) : {}),
+        ...(kind === "helper"
+          ? { tag: "helper" }
+          : kind === "person"
+            ? yours
+              ? {}
+              : mine
+                ? { tag: "your terminals" }
+                : { tag: "terminals" }
+            : {}),
         rows: [],
       };
       out.push(g);
@@ -285,7 +294,8 @@ export function terminalBar(i: BarIn): TermBar {
   if (i.mine)
     return { title: "You have the keyboard", note: `${i.agentName}'s commands wait.`, action: "give", tone: "mine" };
   if (i.otherHolds) return { title: `${i.otherHolds} has the keyboard`, action: "ask", tone: "wait" };
-  if (i.lost) return { title: `The keyboard went back to ${i.agentName} after 15 quiet minutes.`, action: "take", tone: "wait" };
+  if (i.lost)
+    return { title: `The keyboard went back to ${i.agentName} after 15 quiet minutes.`, action: "take", tone: "wait" };
   return {
     title: i.state === "running" ? `${i.agentName} is typing` : "Nobody is typing",
     note: "Press Take over, or Return, to type.",

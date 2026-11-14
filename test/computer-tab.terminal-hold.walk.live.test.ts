@@ -22,7 +22,9 @@ test(
         terminals: Array<{ agentId?: string; heldBy?: string; state: string }>;
       };
       // the agent's own terminal is open beside the person's: whoever holds either one counts
-      return o.terminals.filter((x) => x.agentId === k.agentId && x.state !== "exited").find((x) => x.heldBy !== undefined)?.heldBy;
+      return o.terminals
+        .filter((x) => x.agentId === k.agentId && x.state !== "exited")
+        .find((x) => x.heldBy !== undefined)?.heldBy;
     };
     try {
       await k.computerTab();

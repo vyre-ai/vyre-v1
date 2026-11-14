@@ -21,7 +21,11 @@ export function nextShot(was: Capture | null, r: unknown): Capture | null {
   const c = r as Partial<Capture> | null | undefined;
   if (c === null || c === undefined || typeof c !== "object" || typeof c.text !== "string") return was;
   const n = c as Capture;
-  return was && was.text === n.text && was.hidden === n.hidden && was.cursor?.x === n.cursor?.x && was.cursor?.y === n.cursor?.y
+  return was &&
+    was.text === n.text &&
+    was.hidden === n.hidden &&
+    was.cursor?.x === n.cursor?.x &&
+    was.cursor?.y === n.cursor?.y
     ? was
     : n;
 }

@@ -137,7 +137,10 @@ test("mounted: Terminals, then Browser; the agent has no computer to set up, and
     );
     assert.ok(!/Give .* its own computer|Set up its computer/.test(t), "no setup step");
     assert.equal(find(root, "terminal-attach"), null);
-    assert.ok(!/(^|\s)(\+|\.\.\.|\u2026)(\s|$)/.test(t), "no plus or three dots drawn on a head: nothing is drawn that does nothing");
+    assert.ok(
+      !/(^|\s)(\+|\.\.\.|\u2026)(\s|$)/.test(t),
+      "no plus or three dots drawn on a head: nothing is drawn that does nothing",
+    );
     assert.equal(find(root, "browser-take"), null);
     assert.equal(find(root, "browser-give"), null);
     assert.ok(!t.includes(String.fromCharCode(0x2014)), "no em dash");
