@@ -59,6 +59,41 @@ export const DIRECTORY: Candidate[] = Object.entries(NAMES).map(([id, name]) => 
   kind: KINDS[id] ?? "person",
 }));
 
+/**
+ * The industry-neutral words for pictures (Vyre samples name no trade): Dex and Nova for the two agents, Sara and Omar for the people, a launch plan and weekly numbers for the work. Applied to a
+ * built sample's text only (bodies and block data), longest phrase first.
+ */
+const NEUTRAL: readonly (readonly [string, string])[] = [
+  ["Rivera onboarding plan", "Launch plan"],
+  ["rivera-engagement-letter.docx", "launch-plan.docx"],
+  ["Rivera engagement letter", "launch plan"],
+  ["Rivera intake", "Weekly numbers"],
+  ["Rivera matter", "Launch project"],
+  ["Rivera", "Launch"],
+  ["client-intake.pdf", "launch-plan.pdf"],
+  ["consult pricing with firms within 20 miles", "this week's numbers with last week's"],
+  ["have Docs check the letter", "have Nova check the totals"],
+  ["#intake", "#launch"],
+  ["intake form", "launch brief"],
+  ["referral on her record", "owner on the plan"],
+  ["Maya Chen", "Sara Malik"],
+  ["Maya", "Sara"],
+  ["Elena", "Omar"],
+  ["consult fee", "launch budget"],
+  ["consult times", "review slots"],
+  ["booking tool", "calendar tool"],
+  ["client visits", "team reviews"],
+  ["engagement letter", "launch plan"],
+  ["retainer", "budget"],
+  ["Intake", "Dex"],
+  ["Docs", "Nova"],
+];
+function neutralize<T>(v: T): T {
+  let t = JSON.stringify(v);
+  for (const [a, b] of NEUTRAL) t = t.split(a).join(b);
+  return JSON.parse(t) as T;
+}
+
 /** A frame scheduler the sample flushes by hand, so a streamed delta is on the page when push returns (the tests and the held screenshot need no timers). */
 let queued: ((time: number) => void) | null = null;
 const manual: FrameScheduler = {
@@ -483,6 +518,8 @@ export interface Sample {
 }
 
 export interface SampleOptions {
+  /** Industry-neutral words (Dex, Nova, a launch plan) for pictures. */
+  neutral?: boolean;
   online?: boolean;
   streamText?: string;
   /** the chat's stored title (the sample has "Rivera intake"; "" is a chat with none yet) */ title?: string;
@@ -508,7 +545,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
   let online = o.online ?? true;
   let held: (() => void)[] | null = null;
   let counter = 0;
-  const built = build(variant);
+  const built = o.neutral ? neutralize(build(variant)) : build(variant);
   const { messages, helpers } = built;
   // the files folder and record this chat is about, with names that are not the chat's own, so a shot shows which name is which
   const scope = o.scope ?? "both";

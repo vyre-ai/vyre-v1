@@ -880,6 +880,17 @@ function anchorOf(e: unknown): { x: number; y: number } {
   return { x: ev.nativeEvent?.pageX ?? 0, y: ev.nativeEvent?.pageY ?? 0 };
 }
 
+/** Just above the control that was pressed, so a menu that opens there ends over the field's line and never under the pointer (a row lit by the pointer that just pressed). */
+function aboveOf(e: unknown): { x: number; y: number } {
+  const ev = e as {
+    nativeEvent?: { pageX?: number; pageY?: number };
+    currentTarget?: { getBoundingClientRect?: () => { left: number; top: number } };
+  };
+  const box = ev.currentTarget?.getBoundingClientRect?.();
+  if (box) return { x: box.left, y: box.top - 8 };
+  return { x: ev.nativeEvent?.pageX ?? 0, y: (ev.nativeEvent?.pageY ?? 0) - 8 };
+}
+
 interface TrayChip {
   key: string;
   icon: string;
@@ -1936,7 +1947,7 @@ export function Composer(props: ComposerProps): ReactElement {
         accessibilityRole="button"
         accessibilityLabel="Stop"
         testID="composer-send"
-        onPress={(e: unknown) => props.onStop?.(anchorOf(e))}
+        onPress={(e: unknown) => props.onStop?.(aboveOf(e))}
         {...webProps({ title: "Stop" })}
         style={[styles.send, styles.sendStop]}
       >

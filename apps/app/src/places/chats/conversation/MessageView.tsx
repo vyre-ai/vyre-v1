@@ -662,31 +662,165 @@ function useHover(onLong?: () => void): {
   };
 }
 
-/** The message's actions as a bottom sheet (a long press on a phone): the same list as the menu, one row each. */
+/** What the sheet acts on, in one line: who wrote it and its first words. */
+const sheetQuote = (who: string, body: string): string => {
+  // plain words: the markup a reply is written in (**bold**, `code`, # heads, [links](...)) is not what a quote shows
+  const words = body
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/[*_`#>]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const cut = words.length > 60 ? `${words.slice(0, 60).trimEnd()}\u2026` : words;
+  return who === "" ? cut : cut === "" ? who : `${who} \u00b7 ${cut}`;
+};
+const moreReactions = (a: MessageActions, id: string): (() => void) | undefined =>
+  a.pickReaction ? () => a.pickReaction!(id, 120, 300) : undefined;
+
+/** The icon each entry of the message menu carries in the sheet (the same glyphs as the hover bar). */
+const SHEET_ICON: Readonly<Record<string, GlyphName>> = {
+  Copy: "copy",
+  "Reply in thread": "reply",
+  "Copy link": "link",
+  "Make a task": "task",
+  "Share to\u2026": "up",
+  "Fork from here": "fork",
+  Pin: "pin",
+  Unpin: "pin",
+  "Mark unread from here": "flag",
+  Edit: "edit",
+  Retry: "back",
+  Delete: "trash",
+  "Ask an agent\u2026": "spark",
+  Details: "search",
+  "Remember This": "remember",
+  "Add to a Page\u2026": "file",
+  "Forget This": "x",
+};
+/** The sheet's groups, top to bottom, split by a hairline; an entry that is in none (a memory entry, Details, a mute) joins the middle one. */
+const SHEET_GROUPS: readonly (readonly string[])[] = [
+  ["Reply in thread", "Copy", "Copy link"],
+  ["Ask an agent\u2026", "Make a task", "Share to\u2026", "Fork from here", "Pin", "Unpin", "Mark unread from here"],
+  ["Edit", "Retry"],
+];
+/** The groups kept below the scrolling list, always in view. */
+const FOOT: ReadonlySet<string> = new Set(["Edit", "Retry", "Delete"]);
+const FREQUENT = ["\u{1F44D}", "\u2764\uFE0F", "\u{1F602}", "\u{1F389}", "\u{1F440}"];
+
+/** The message's actions as a bottom sheet (a long press on a phone): what it acts on in one line, the frequent reactions, then the same entries as the menu in groups, Delete last and alone. */
 function ActionSheet({
   open,
   entries,
+  quote,
+  onReact,
+  onMoreReactions,
   onClose,
 }: {
   open: boolean;
   entries: readonly MenuEntry[];
+  quote: string;
+  onReact(emoji: string): void;
+  onMoreReactions?: (() => void) | undefined;
   onClose: () => void;
 }): ReactElement | null {
+  const [asking, setAsking] = useState(false);
+  useEffect(() => {
+    if (!open) setAsking(false);
+  }, [open]);
+  const items = entries.filter(isItem).filter((e) => e.label !== "Add reaction");
+  const named = new Set(SHEET_GROUPS.flat());
+  const take = (labels: readonly string[]): typeof items => items.filter((e) => labels.includes(e.label));
+  const rest = items.filter((e) => !named.has(e.label) && e.label !== "Delete");
+  const groups = [
+    take(SHEET_GROUPS[0]!),
+    [...take(SHEET_GROUPS[1]!), ...rest],
+    take(SHEET_GROUPS[2]!),
+    items.filter((e) => e.label === "Delete"),
+  ].filter((g) => g.length > 0);
+  const row = (e: (typeof items)[number], danger = false, onPress?: () => void): ReactElement => (
+    <Pressable
+      key={e.label}
+      accessibilityRole="button"
+      accessibilityLabel={e.label}
+      testID={`sheet-act-${e.label.toLowerCase().replace(/\s+/g, "-")}`}
+      onPress={
+        onPress ??
+        (() => {
+          onClose();
+          e.onSelect?.();
+        })
+      }
+      style={st.sheetRow}
+    >
+      <Glyph name={SHEET_ICON[e.label] ?? "more"} size={18} color={danger ? "var(--danger)" : "var(--ink-3)"} />
+      <Text style={[st.sheetRowText, danger ? { color: "var(--danger)" as string } : null]}>{e.label}</Text>
+    </Pressable>
+  );
   return (
-    <Sheet open={open} title="Message" onClose={onClose}>
-      <ScrollView style={{ maxHeight: 460 }}>
-        {entries.filter(isItem).map((e) => (
-          <Row
-            key={e.label}
-            id={`sheet-act-${e.label.toLowerCase().replace(/\s+/g, "-")}`}
-            title={e.label}
-            onPress={() => {
+    <Sheet open={open} title="" onClose={onClose}>
+      <ScrollView style={{ maxHeight: 440 }}>
+        {asking ? (
+          <View testID="sheet-delete-ask">
+            <Text style={st.sheetQuote}>Delete this message?</Text>
+            {row({ label: "Delete" }, true, () => {
               onClose();
-              e.onSelect?.();
-            }}
-          />
-        ))}
+              items.find((e) => e.label === "Delete")?.onSelect?.();
+            })}
+            {row({ label: "Cancel" }, false, () => setAsking(false))}
+          </View>
+        ) : (
+          <>
+            <Text numberOfLines={1} testID="sheet-quote" style={st.sheetQuote}>
+              {quote}
+            </Text>
+            <View style={st.sheetReacts} testID="sheet-reactions">
+              {FREQUENT.map((em) => (
+                <Pressable
+                  key={em}
+                  accessibilityRole="button"
+                  accessibilityLabel={`React ${em}`}
+                  onPress={() => {
+                    onClose();
+                    onReact(em);
+                  }}
+                  style={st.sheetReact}
+                >
+                  <Text style={{ fontSize: 22 }}>{em}</Text>
+                </Pressable>
+              ))}
+              {onMoreReactions ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="More reactions"
+                  onPress={() => {
+                    onClose();
+                    onMoreReactions();
+                  }}
+                  style={st.sheetReact}
+                >
+                  <Glyph name="smile" size={20} color="var(--ink-3)" />
+                </Pressable>
+              ) : null}
+            </View>
+            {groups
+              .filter((g) => !FOOT.has(g[0]?.label ?? ""))
+              .map((g, i) => (
+                <View key={i} style={i > 0 ? st.sheetGroup : null}>
+                  {g.map((e) => row(e))}
+                </View>
+              ))}
+          </>
+        )}
       </ScrollView>
+      {/* Edit and Retry, then Delete, stay in view whatever the list's length: Delete last, alone, in the danger colour, and it asks once */}
+      {asking
+        ? null
+        : groups
+            .filter((g) => FOOT.has(g[0]?.label ?? ""))
+            .map((g) => (
+              <View key={g[0]?.label} style={st.sheetGroup}>
+                {g.map((e) => (e.label === "Delete" ? row(e, true, () => setAsking(true)) : row(e)))}
+              </View>
+            ))}
     </Sheet>
   );
 }
@@ -759,6 +893,9 @@ function Mine({
         <ActionSheet
           open={sheet}
           entries={menuFor(m, true, actions, startEdit, { x: 0, y: 0 }, true)}
+          quote={sheetQuote("You", m.body)}
+          onReact={(em) => actions.react(m.messageId, em, false)}
+          onMoreReactions={moreReactions(actions, m.messageId)}
           onClose={() => setSheet(false)}
         />
       ) : null}
@@ -1036,6 +1173,9 @@ function Theirs({
         <ActionSheet
           open={sheet}
           entries={menuFor(m, false, actions, () => undefined, { x: 0, y: 0 }, true)}
+          quote={sheetQuote(actions.nameOf ? actions.nameOf(m.author.id) : "", m.body)}
+          onReact={(em) => actions.react(m.messageId, em, false)}
+          onMoreReactions={moreReactions(actions, m.messageId)}
           onClose={() => setSheet(false)}
         />
       ) : null}
@@ -2050,6 +2190,12 @@ export function ErrorRowView({
 }
 
 export const st = StyleSheet.create({
+  sheetQuote: { paddingHorizontal: 16, paddingBottom: 8, fontSize: 13, color: "var(--ink-3)" as string },
+  sheetReacts: { flexDirection: "row", gap: 6, paddingHorizontal: 12, paddingBottom: 8 },
+  sheetReact: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
+  sheetGroup: { borderTopWidth: 1, borderTopColor: "var(--line)" as string, marginTop: 4, paddingTop: 4 },
+  sheetRow: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 16 },
+  sheetRowText: { fontSize: 16, color: "var(--ink)" as string },
   approvalLine: {
     flexDirection: "row",
     alignItems: "center",

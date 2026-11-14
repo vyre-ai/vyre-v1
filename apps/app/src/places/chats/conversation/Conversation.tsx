@@ -2316,7 +2316,7 @@ function ConversationView(): ReactElement {
               onInterrupt={(p) => submit(p, "interrupt")}
               onStop={(at) => {
                 // two or more working: one stop per face and Stop everyone, where it was pressed (agents run together, e-parallel)
-                if (working.length > 1 && at) return stopMenu(at.x, at.y);
+                if (working.length > 1 && at) return stopMenu(at.x, at.y - ((working.length + 1) * 34 + 24));
                 void (working.length > 1 ? act.stopAll(data) : act.stopAgent(data, working[0])).catch(
                   fail("Could not stop it."),
                 );

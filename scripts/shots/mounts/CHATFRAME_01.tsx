@@ -30,10 +30,16 @@ const PORT: TalkPort = {
 };
 const busy = (): boolean => new URLSearchParams(globalThis.location?.search ?? "").get("busy") === "1";
 
+// industry-neutral names for the pictures (the shared sample names its agents for a legal intake)
+Object.assign(NAMES, { agt_intake: "Dex", agt_docs: "Nova", usr_maya: "Sara Malik" });
+
 export default function Mount(): ReactNode {
   const height = useWindowDimensions().height;
   const parts = useMemo(() => {
-    const conv = createConversationSample(busy() ? "busy" : "idle", { title: "Client portal launch" });
+    const conv = createConversationSample(busy() ? "busy" : "idle", {
+      neutral: true,
+      title: "Client portal launch",
+    });
     const pane = createPaneSample("northwind", { crew: true }).data;
     return {
       sidebar: createSampleSidebar(northwind).data,

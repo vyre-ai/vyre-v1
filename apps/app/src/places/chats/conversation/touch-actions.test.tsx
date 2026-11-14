@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { act as reactAct } from "react";
 import { createRoot } from "test-renderer";
-import { find, installDom, mount, textOf } from "../../../../../../ui/src/testing/dom.ts";
+import { find, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import type { Node } from "../../../../../../ui/src/testing/dom.ts";
 import { createSample } from "./sample.ts";
 import { MessageView } from "./MessageView.tsx";
@@ -55,11 +55,11 @@ const reply: Message = {
   pinned: false,
 } as unknown as Message;
 
-async function rig(m: ReturnType<typeof media>) {
+async function rig(m: ReturnType<typeof media>, shown: Message = reply, removed: string[] = []) {
   const restore = installDom();
   (globalThis as { matchMedia?: unknown }).matchMedia = m.mm;
   const s = createSample("idle");
-  const items = timeline([reply], {
+  const items = timeline([shown], {
     meId: s.data.me.id,
     nameOf: s.data.nameOf,
     kindOf: s.data.kindOf,
@@ -74,13 +74,13 @@ async function rig(m: ReturnType<typeof media>) {
     setPinned: () => undefined,
     fork: () => undefined,
     showMenu: () => undefined,
-    remove: () => undefined,
+    remove: (id: string) => void removed.push(id),
     react: () => undefined,
   } as never;
   const root = await mount(
     createRoot as never,
     <MessageView
-      item={items.find((i) => (i as { message?: Message }).message?.messageId === "m_ans")!}
+      item={items.find((i) => (i as { message?: Message }).message?.messageId === shown.messageId)!}
       actions={actions}
       meId={s.data.me.id}
     />,
@@ -137,6 +137,51 @@ test("when the device stops being able to hover the bar goes away, and comes bac
     await m.set(false);
     assert.ok(find(root, "hover-m_ans"), "the bar comes back when the device can hover again");
     assert.equal(textOf(root).includes("Three invoices"), before.includes("Three invoices"));
+  } finally {
+    restore();
+  }
+});
+
+test("the sheet a long press opens (G14, phone): no generic title, one line saying what it acts on, reactions on top, the entries with icons in groups, nothing lit, and a message is deleted only after it asks once", async () => {
+  const m = media(true);
+  const { root, restore } = await rig(m);
+  try {
+    await longPress(root);
+    const text = textOf(root);
+    const quote = find(root, "sheet-quote");
+    assert.ok(quote && textOf(quote).includes("Three invoices are paid"), "the quote says what the sheet acts on");
+    assert.ok(find(root, "sheet-reactions"), "frequent reactions on top");
+    assert.ok(!/Add reaction/.test(text), "reactions are a row, not a text entry");
+    for (const l of ["Reply in thread", "Copy", "Make a task", "Fork from here", "Pin"]) assert.ok(text.includes(l), l);
+    assert.ok(!/>Message</.test(text.replace(/\s+/g, ">")), "no generic title");
+    assert.equal(find(root, "sheet-act-delete"), null, "an agent's reply has no Delete");
+  } finally {
+    restore();
+  }
+});
+
+test("on your own message the sheet ends with Delete, alone and in the danger colour; it asks once (Delete this message?) and deletes only on the second press", async () => {
+  const m = media(true);
+  const removed: string[] = [];
+  const mine = {
+    ...reply,
+    messageId: "m_mine",
+    author: { kind: "person", id: "usr_irfad" },
+    kind: "text",
+    body: "Book 2pm.",
+  } as unknown as Message;
+  const { root, restore } = await rig(m, mine, removed);
+  try {
+    await longPress(root);
+    assert.ok(find(root, "sheet-act-edit"), "Edit is there on your own message");
+    await press(find(root, "sheet-act-delete"));
+    assert.deepEqual(removed, [], "the first press only asks");
+    assert.ok(textOf(find(root, "sheet-delete-ask")!).includes("Delete this message?"));
+    await press(find(root, "sheet-act-cancel"));
+    assert.deepEqual(removed, [], "Cancel keeps it");
+    await press(find(root, "sheet-act-delete"));
+    await press(find(root, "sheet-act-delete"));
+    assert.deepEqual(removed, ["m_mine"], "deleted once, after asking");
   } finally {
     restore();
   }
