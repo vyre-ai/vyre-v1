@@ -3931,7 +3931,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               sv: 1,
               trace_id: "c0".repeat(16),
               actor: "svc_host",
-              vis: "space",
+              // an event inside a private calendar is announced only to those who can view it (createResourceRegistrar visOf)
+              vis: calendar && calendar.parent_id === null && calendar.owner_id ? "participants" : "space",
               entity: "resource",
               entity_id: id,
               payload: hostOwned(place.hostOwned, {

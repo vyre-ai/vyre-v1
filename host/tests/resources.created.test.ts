@@ -739,3 +739,16 @@ test("an event already in the store is registered inside its calendar and owned 
   const gone = lateEventPlace({ calendar: undefined, spaceId: "spc_1", spaceOwner: "usr_olivia" });
   assert.deepEqual(gone, { parent_id: "spc_1", owner_id: "usr_olivia", hostOwned: true });
 });
+
+test("the log announces an event inside a private calendar to those who can view it only; every other registration stays the Space's", () => {
+  const rows: Record<string, ResourceRow> = {
+    cld_private: { id: "cld_private", type: "calendar", parent_id: null, label: 0, owner_id: "usr_noah", holds: 0 },
+    cld_team: { id: "cld_team", type: "calendar", parent_id: "spc_1", label: 0, owner_id: "usr_olivia", holds: 0 },
+  };
+  const r = createResourceRegistrar({ events: EVENTS, exists: (id) => id in rows, resource: (id) => rows[id] });
+  const ev1 = (type: string, parent: string | null): ResourceRow => ({ id: "x_1", type, parent_id: parent, label: 0, owner_id: "usr_noah", holds: 0 });
+  assert.equal(r.visOf!(ev1("calendar_event", "cld_private")), "participants");
+  assert.equal(r.visOf!(ev1("calendar_event", "cld_team")), "space");
+  assert.equal(r.visOf!(ev1("calendar_event", "cld_gone")), "space", "an unknown calendar is not a reason to hide");
+  assert.equal(r.visOf!(ev1("record", "cld_private")), "space", "only events: other kinds are unchanged by this change");
+});

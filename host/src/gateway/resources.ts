@@ -92,6 +92,11 @@ export interface RegisterArgs {
 export interface ResourceRegistrar {
   /** The resource rows to append (as `resource.created` payloads) for the objects these events bring into being. */
   register(a: RegisterArgs): ResourceRow[];
+  /**
+   * Who may read the `resource.created` event of this row in the event log. An event inside a private calendar (a calendar with no container: only its owner reaches it) is announced only to those who can view it (the event log's `participants` visibility: the call's own actor, or anyone access lets view the event), so
+   * nobody else learns the id of a private event or of the private calendar it sits in from the log. Everything else is the Space's, as before.
+   */
+  visOf?(row: ResourceRow): "space" | "participants";
 }
 
 export interface RegistrarDeps {
@@ -199,6 +204,11 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
   // `mail.received` already names its mailbox as subject; the message is a second object the same event brings into being, so it is kept apart
   const births = new Map(ENTITY_BIRTHS);
   return {
+    visOf(row) {
+      if (row.type !== "calendar_event" || row.parent_id === null) return "space";
+      const parent = deps.resource?.(row.parent_id);
+      return parent !== undefined && parent.parent_id === null && parent.type === "calendar" ? "participants" : "space";
+    },
     register(a) {
       const out: ResourceRow[] = [];
       let parentPtr: string | undefined;

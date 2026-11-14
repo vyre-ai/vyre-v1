@@ -1,6 +1,6 @@
 // Calendar events were not access resources, so calendar.get_event, update_event and delete_event answered "not found" to everyone, the person included. New events are registered when they are made; an event
 // that was already in the store (made before) is registered the first time a call names it, inside its calendar and owned by the calendar's owner. A store holding an old event, a restart, and then: the owner can get, change and
-// remove it; nobody else can reach it, the Space's owner included (it is Noah's private calendar). A stranger gets a refusal for a real id and not-found for a made-up one: the two answers differ, so this test makes no claim that a holder of an id cannot tell them apart.
+// remove it; nobody else can reach it, the Space's owner included (it is Noah's private calendar). The answer to a stranger for a real id is the answer for a made-up id, compared whole (trace id aside).
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -58,11 +58,16 @@ test(
     };
     let first = await start();
     let calendarId = "";
+    let teamCalendarId = "";
     let modules = "";
     try {
       const cals = await first.as("usr_noah", "calendar.list_calendars", {});
       assert.equal(cals.status, 200, JSON.stringify(cals.data));
       calendarId = (cals.data.calendars as Array<{ id: string; personal?: boolean }>).find((c) => c.personal)!.id;
+      // and a Space calendar, which every member shares
+      const team = await first.as("usr_olivia", "calendar.create_calendar", { title: "Team", personal: false });
+      assert.equal(team.status, 200, JSON.stringify(team.data));
+      teamCalendarId = (team.data.calendar?.id ?? team.data.id) as string;
       modules = first.d.paths.modules;
     } finally {
       await stop(first.d);
@@ -73,6 +78,9 @@ test(
       db.prepare(
         `INSERT INTO calendar_event (id, "calendarId", title, "startsAt", "endsAt", "allDay", attendees, "recordIds", status, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, 0, '[]', '[]', 'confirmed', 1, ?, NULL)`,
       ).run("cev_oldevent0001", calendarId, "Old lunch", Date.now() + 86_400_000, Date.now() + 90_000_000, Date.now());
+      db.prepare(
+        `INSERT INTO calendar_event (id, "calendarId", title, "startsAt", "endsAt", "allDay", attendees, "recordIds", status, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, 0, '[]', '[]', 'confirmed', 1, ?, NULL)`,
+      ).run("cev_oldteam0001", teamCalendarId, "Team sync", Date.now() + 86_400_000, Date.now() + 90_000_000, Date.now());
     } finally {
       db.close();
     }
@@ -92,18 +100,21 @@ test(
         const hit = (listed.data.events as Array<{ id: string }>).find((e) => e.id === "cev_oldevent0001");
         assert.ok(hit, `${what} shows the old event`);
       }
-      // strangers, before anything registered it: a member and the Space's owner. The event is in Noah's private calendar, so neither reaches it.
-      for (const who of ["usr_sana", "usr_olivia"]) {
-        const seen = await again.as(who, "calendar.get_event", { eventId: "cev_oldevent0001" });
-        assert.notEqual(seen.status, 200, `${who} cannot read it`);
-        const madeUp = await again.as(who, "calendar.get_event", { eventId: "cev_neverexisted9" });
-        assert.notEqual(madeUp.status, 200, `${who}: a made-up id is refused too`);
-      }
-      const ownerEdit = await again.as("usr_olivia", "calendar.update_event", {
-        eventId: "cev_oldevent0001",
-        title: "the Space owner's now",
-      });
-      assert.notEqual(ownerEdit.status, 200, "not even the Space's owner changes it");
+      // strangers, before anything registered it: a member and the Space's owner. The event is in Noah's private calendar, so neither reaches it, and each answer is, in every part but its trace id, the answer for an
+      // event that does not exist: nothing tells a real id from a made-up one.
+      const plain = (r: { status: number; data: unknown }): string =>
+        `${r.status} ${JSON.stringify(r.data).replace(/"traceId":"[0-9a-f]+"/g, '"traceId":"-"')}`;
+      for (const who of ["usr_sana", "usr_olivia"])
+        for (const [cap, extra] of [
+          ["calendar.get_event", {}],
+          ["calendar.update_event", { title: "mine now" }],
+          ["calendar.delete_event", {}],
+        ] as const) {
+          const real = await again.as(who, cap, { eventId: "cev_oldevent0001", ...extra });
+          const madeUp = await again.as(who, cap, { eventId: "cev_neverexisted9", ...extra });
+          assert.notEqual(real.status, 200, `${who} ${cap}: refused`);
+          assert.equal(plain(real), plain(madeUp), `${who} ${cap}: a real id reads exactly like a made-up one`);
+        }
       const stranger = await again.as("usr_sana", "calendar.get_event", { eventId: "cev_oldevent0001" });
       assert.notEqual(stranger.status, 200, "a person with no access to the calendar cannot read it");
       const got = await again.as("usr_noah", "calendar.get_event", { eventId: "cev_oldevent0001" });
@@ -121,6 +132,31 @@ test(
         title: "mine now",
       });
       assert.notEqual(strangerEdit.status, 200, "nor change it");
+      // an old event on a Space calendar is the Space's: a member opens it
+      const team = await again.as("usr_sana", "calendar.get_event", { eventId: "cev_oldteam0001" });
+      assert.equal(team.status, 200, `a member opens an old event on a Space calendar: ${JSON.stringify(team.data)}`);
+      // the event log: what announces an event inside Noah's private calendar is Noah's alone to read; a new event of his is the same
+      const made = await again.as("usr_noah", "calendar.create_event", {
+        calendarId,
+        title: "Private dentist",
+        startsAt: Date.now() + 120_000_000,
+        endsAt: Date.now() + 123_000_000,
+      });
+      assert.equal(made.status, 200, JSON.stringify(made.data));
+      const announced = async (who: string): Promise<string[]> => {
+        const l = await again.as(who, "events.list", { types: ["resource.created"], limit: 500 });
+        assert.equal(l.status, 200, JSON.stringify(l.data));
+        return (l.data.events as Array<{ payload: { id?: string } }>).map((e) => String(e.payload.id));
+      };
+      const noahSees = await announced("usr_noah");
+      const sanaSees = await announced("usr_sana");
+      const olivia = await announced("usr_olivia");
+      for (const id of [made.data.event.id as string, "cev_oldevent0001"]) {
+        assert.ok(noahSees.includes(id), `Noah reads the announcement of ${id}`);
+        assert.ok(!sanaSees.includes(id), `a member does not read the announcement of ${id}`);
+        assert.ok(!olivia.includes(id), `nor does the Space's owner: ${id}`);
+      }
+      assert.ok(sanaSees.includes("cev_oldteam0001"), "an event on a Space calendar is announced to the Space");
     } finally {
       await stop(again.d);
       fs.rmSync(dir, { recursive: true, force: true });
