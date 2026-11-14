@@ -57,7 +57,10 @@ test("node_modules and logs are not kept; the store cannot live inside the folde
     put(w.workDir, "run.log", "noise");
     const p = await snapshot({ ...w, label: "t", now: 1_000 });
     assert.equal(p.files, 1);
-    await assert.rejects(snapshot({ gitDir: path.join(w.workDir, "store"), workDir: w.workDir, label: "t", now: 1 }), /inside the folder/);
+    await assert.rejects(
+      snapshot({ gitDir: path.join(w.workDir, "store"), workDir: w.workDir, label: "t", now: 1 }),
+      /inside the folder/,
+    );
     await assert.rejects(restore({ ...w, sha: "0".repeat(40), now: 2 }), /not here/);
     await assert.rejects(restore({ ...w, sha: "--force", now: 2 }), /not a checkpoint/);
     assert.equal(read(w.workDir, "node_modules/x/index.js"), "big", "left alone");

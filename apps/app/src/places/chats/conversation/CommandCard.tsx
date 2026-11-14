@@ -1,9 +1,9 @@
 // The Command card (CMD-RESULTS-2026-11-13, kind b): the answer of /usage and /permissions, laid out, anchored above the composer in the composer's own width. It is built from the shared set: Dialog
 // (anchor="composer": no veil, no focus trap), Loadable (loading after 300 ms, a plain failure with Retry and Details, an empty answer, the answer), Group (titled blocks with their hairlines) and Row.
 // It is not a message, is never stored, and nobody else sees it. It opens at once and reads its own data, so a slow answer shows the quiet mark and a failed one shows Retry.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Dialog } from "../../../../../../ui/src/Dialog/index.tsx";
 import { Group } from "../../../../../../ui/src/Group/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
@@ -56,6 +56,10 @@ function useCardLoad<T>(read: () => Promise<T>, again = 0): Load<T> {
   }, [read, round, again]);
   return load;
 }
+
+/** The keyboard focus ring for the card's own controls: a 2 px accent line, the same one the rest of the app draws. */
+const ringed = ({ focused }: { focused?: boolean }): object | null =>
+  focused === true ? { boxShadow: "0 0 0 2px var(--accent)" } : null;
 
 const toneOf = (pct: number): "bad" | "warn" | "ok" => (pct >= 100 ? "bad" : pct >= 80 ? "warn" : "ok");
 
@@ -215,12 +219,14 @@ function UsageBody({ c, onSettings }: { c: UsageCard; onSettings(ref?: string): 
         </View>
       </Group>
       <View style={st.foot}>
-        <Text
+        <Pressable
           accessibilityRole="link"
           testID="cmd-settings"
           onPress={() => onSettings(opened?.ref)}
-          style={st.link}
-        >{`${opened ? `${opened.name} in Settings` : "AI accounts in Settings"}  ›`}</Text>
+          style={(state) => [st.linkBtn, ringed(state as { focused?: boolean })]}
+        >
+          <Text style={st.link}>{`${opened ? `${opened.name} in Settings` : "AI accounts in Settings"}  \u203a`}</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -233,9 +239,15 @@ function PermissionRow({ r, onTake }: { r: PermissionsCard["rules"][number]; onT
       title={r.text}
       note={r.until !== undefined ? `Allowed until ${when(r.until, Date.now())}` : "Always allowed"}
       trailing={
-        <Text accessibilityRole="button" testID={`cmd-take-${r.id}`} onPress={onTake} style={st.take}>
-          Take back
-        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Take back: ${r.text}`}
+          testID={`cmd-take-${r.id}`}
+          onPress={onTake}
+          style={(state) => [st.takeBtn, ringed(state as { focused?: boolean })]}
+        >
+          <Text style={st.take}>Take back</Text>
+        </Pressable>
       }
     />
   );
@@ -356,14 +368,24 @@ function PermissionsCard_({
 }: CommandCardProps & { spec: Extract<Spec, { kind: "permissions" }> }): ReactElement {
   const [again, setAgain] = useState(0);
   const load = useCardLoad(spec.read, again);
-  const take = (id: string): void =>
-    void spec.takeBack(id).then(
-      (n) => {
-        notify(n.text, n.undo ? () => void n.undo!().then(() => setAgain((x) => x + 1)) : undefined);
-        setAgain((x) => x + 1);
-      },
-      () => notify("Could not take that back."),
-    );
+  // one take-back at a time: a second press before the answer is ignored
+  const busy = useRef(false);
+  const take = (id: string): void => {
+    if (busy.current) return;
+    busy.current = true;
+    void spec
+      .takeBack(id)
+      .then(
+        (n) => {
+          notify(n.text, n.undo ? () => void n.undo!().then(() => setAgain((x) => x + 1)) : undefined);
+          setAgain((x) => x + 1);
+        },
+        () => notify("Could not take that back."),
+      )
+      .finally(() => {
+        busy.current = false;
+      });
+  };
   return (
     <Dialog
       title="Permissions"
@@ -419,6 +441,8 @@ const st = StyleSheet.create({
   hinted: { textDecorationLine: "underline", textDecorationStyle: "dotted" },
   pairV: { fontSize: 13, color: "var(--ink)" as string },
   foot: { paddingBottom: 8 },
+  linkBtn: { alignSelf: "flex-start", height: 28, justifyContent: "center", borderRadius: 8, paddingHorizontal: 4 },
   link: { fontSize: 12.5, color: "var(--accent)" as string },
-  take: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingHorizontal: 10 },
+  takeBtn: { height: 28, paddingHorizontal: 10, borderRadius: 8, justifyContent: "center" },
+  take: { fontSize: 12.5, color: "var(--ink-3)" as string },
 });

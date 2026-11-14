@@ -49,6 +49,8 @@ export interface ConnectCardProps {
   askedAt?: string | undefined;
   /** Connected: what was tested, who can use it, who connected it (an admin did, not you). */
   tested?: string | undefined;
+  /** Ask: the host a typed key is tried against, said when the connector is not built in, so Connect is an informed yes. */
+  checksWith?: string | undefined;
   usedBy?: string | undefined;
   connectedBy?: string | undefined;
   open: boolean;
@@ -326,6 +328,9 @@ export function ConnectCard(p: ConnectCardProps): ReactElement {
               autoFocus={state === "wrong" && p.focusField === f.name}
             />
           ))}
+          {p.checksWith && !working ? (
+            <Text style={st.sub} testID={`${id}-checks`}>{`Checks with ${p.checksWith}`}</Text>
+          ) : null}
           <KeptRow id={id} keptIn={p.keptIn} onOpen={working || state === "offline" ? undefined : p.onKeptIn} />
           {working ? (
             <WorkLine id={id} work={p.work!} />

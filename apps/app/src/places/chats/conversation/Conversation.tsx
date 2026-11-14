@@ -546,6 +546,14 @@ function ConversationView(): ReactElement {
     setAsides([]);
     for (const a of open) void act.dismissAside(data, a.id);
   }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a command card belongs to the chat it was asked in: leaving the chat closes it (and cleans up the side question), with the data of the chat that is being left
+  useEffect(
+    () => () => {
+      setCard(null);
+      closeAsides();
+    },
+    [data.threadId], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   // a press anywhere but the composer, the card or the notice closes the /btw card, as it does a command card
   const asideOpen = asides.length > 0;
   useEffect(() => {
@@ -571,7 +579,19 @@ function ConversationView(): ReactElement {
   const saidRef = useRef<string | null>(null);
   const speak = useCallback((text: string, action?: { label: string; run: () => void }) => {
     if (saidRef.current !== null) notices.resolve(saidRef.current);
-    const id = notices.pass(text, action, { ms: ACTION_NOTICE_MS });
+    // Undo and Retry fire once: a second press before the line has gone is ignored
+    let fired = false;
+    const once = action
+      ? {
+          label: action.label,
+          run: () => {
+            if (fired) return;
+            fired = true;
+            action.run();
+          },
+        }
+      : undefined;
+    const id = notices.pass(text, once, { ms: ACTION_NOTICE_MS });
     saidRef.current = id;
     setSaidId(id);
   }, []);
@@ -583,7 +603,7 @@ function ConversationView(): ReactElement {
     setSaidId(null);
   }, []);
   const saidLive = useNoticeLive(saidId);
-  useEscapeLayer(saidLive, unsay);
+  useEscapeLayer(saidLive, unsay, { quiet: true });
   useEffect(() => unsay, [unsay]);
   /** A rejected write: say what did not happen and that it can be tried again. The page keeps what it showed. */
   const fail =
@@ -1002,6 +1022,14 @@ function ConversationView(): ReactElement {
     openedAt: openedAt.current,
     mentionsMe: (m) => mentionsIn(m.body, [{ kind: "person", id: data.me.id, name: data.me.name }]).length > 0,
   });
+  // a message of the person's that an agent has answered since: what it taught is then one quiet mark on its row, not a line under it
+  const answered = new Set<string>();
+  let agentAfter = false;
+  for (let i = timelineMessages.length - 1; i >= 0; i--) {
+    const m = timelineMessages[i]!;
+    if (m.author.kind === "agent") agentAfter = true;
+    else if (m.author.kind === "person" && agentAfter) answered.add(m.messageId);
+  }
   const lastLive = [...timelineMessages].reverse().find((m) => data.streamOf(m.messageId) !== undefined);
   const lastStream = lastLive ? data.streamOf(lastLive.messageId) : undefined;
   const queued = queuedCount(timelineMessages, data.me.id, isWorking);
@@ -2007,6 +2035,7 @@ function ConversationView(): ReactElement {
                               ? `${notHereSig(it.message) ?? ""}${stillQ[stillQ.length - 1] === it.message.messageId ? `|queued${stillQ.length}${q}` : ""}`
                               : undefined
                           }
+                          answered={it.kind === "me" ? answered.has(it.message.messageId) : undefined}
                           mark={markOf(it, matches, activeId, finding)}
                           replies={under ? { s: under, clock: data.clock() } : undefined}
                         />

@@ -318,13 +318,14 @@ function folderOf(
  * WHO MAY ASK: the server, or a person who may put something into the resource (Edit on it). Anyone else, including a person who cannot see the resource at all, gets the answer a made-up id gets
  * (not found), so the call tells nobody that a hidden folder exists or how it is labelled.
  */
-export async function clears(ctx: ShareCtx, input: { principal: Ref; target: ResourceRef }) {
+export async function clears(ctx: AccessCtx, input: { principal: Ref; target: ResourceRef }) {
   const store = storeOf(ctx);
   const res = resourceOf(ctx, store, input.target);
   if (!isHostService(ctx.principal)) {
-    hideFrom(ctx, store, res);
-    const person = ctx.principal.kind === "person" || actingId(ctx) !== undefined;
-    if (!person || !atLeast(res.type, callerLevel(ctx, store, res), "edit"))
+    const sc = ctx as ShareCtx;
+    hideFrom(sc, store, res);
+    const person = ctx.principal.kind === "person" || actingId(sc) !== undefined;
+    if (!person || !atLeast(res.type, callerLevel(sc, store, res), "edit"))
       raise(ctx.trace.traceId, "validation.not_found", "no such resource");
   }
   const snap = store.snapshot();

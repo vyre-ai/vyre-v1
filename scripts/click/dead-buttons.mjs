@@ -222,6 +222,7 @@ async function load1(w, url) {
   w.cspSeen ??= new Set();
   await w.page.goto("about:blank").catch(() => undefined);
   await w.page.goto(url, { waitUntil: "load", timeout: 60000 }).catch(() => undefined);
+  w.clicksSinceLoad = 0;
   await settle(w);
 }
 
@@ -240,6 +241,7 @@ async function replay(w, unit) {
     if (!pt || pt.x == null) return false;
     await w.page.evaluate(P.arm, [el.i, null]);
     await w.page.mouse.click(pt.x, pt.y);
+    w.clicksSinceLoad = (w.clicksSinceLoad ?? 0) + 1;
     await sleep(350);
     await settle(w, 2500);
     await w.page.evaluate(P.markAdded);
@@ -248,9 +250,64 @@ async function replay(w, unit) {
 }
 
 /** One click, judged. */
+export const rescued = { layers: 0, waits: [] };
+
+/**
+ * An element that cannot be pressed gets one fair second look, and only for two reasons the page itself gives:
+ *  - the shell is not on screen (the app is swapping in a place): wait for the shell's own signal and say how long it took;
+ *  - a layer (dialog, menu, backdrop) covers it AND this crawl has clicked since it loaded the page, so the layer is one the checker's own click opened: press Escape, count it and print it.
+ * A layer still there after Escape, or one covering the page when nothing has been clicked since the load, is a failure of its own kind: a stuck layer is what a person hits. Anything else that covers a button stays a failure.
+ */
+export async function rescue(w, el, pt) {
+  const pg = w.page;
+  if (pt.x != null || pt.gone) return { pt };
+  if (pt.splash) {
+    // the launch frame or the Space's loading skeleton is over the page: wait for its own signal to go, and say how long it took
+    const t0 = Date.now();
+    await pg
+      .getByTestId(pt.splash)
+      .waitFor({ state: "detached", timeout: 20000 })
+      .catch(() => undefined);
+    const ms = Date.now() - t0;
+    rescued.waits.push(ms);
+    console.log(`  waited ${ms} ms for the ${pt.splash} to go before pressing "${el.label}"`);
+    const again = await pg.evaluate(P.pointFor, el.i);
+    if (again.splash) return { pt: { ...again, stuck: `the ${again.splash} never went away (20 s)` } };
+    return { pt: again };
+  }
+  if (!pt.shell) {
+    const t0 = Date.now();
+    await pg
+      .getByTestId("shell")
+      .or(pg.getByTestId("mobile-shell"))
+      .first()
+      .waitFor({ timeout: 20000 })
+      .catch(() => undefined);
+    await settle(w);
+    const ms = Date.now() - t0;
+    rescued.waits.push(ms);
+    console.log(`  waited ${ms} ms for the shell before pressing "${el.label}" (it was not on screen)`);
+    return { pt: await pg.evaluate(P.pointFor, el.i) };
+  }
+  if (!pt.layer) return { pt };
+  if ((w.clicksSinceLoad ?? 0) === 0)
+    return { pt: { ...pt, stuck: "a layer covers the page and nothing was opened: a stuck invisible layer" } };
+  rescued.layers++;
+  console.log(`  behind a layer the checker opened: "${el.label}" (${pt.cover.slice(0, 40)}); pressing Escape`);
+  await pg.keyboard.press("Escape");
+  await sleep(250);
+  const again = await pg.evaluate(P.pointFor, el.i);
+  if (again.x == null && again.layer && !again.gone) return { pt: { ...again, stuck: "the layer stays after Escape" } };
+  return { pt: again };
+}
+
 async function click(w, el, ovSel, closer) {
   const pg = w.page;
-  const pt = await pg.evaluate(P.pointFor, el.i);
+  let pt = await pg.evaluate(P.pointFor, el.i);
+  w.clicksSinceLoad ??= 0;
+  const behind = await rescue(w, el, pt);
+  pt = behind.pt;
+  w.clicksSinceLoad++;
   if (pt.gone) return { gone: true };
   if (pt.x == null)
     return {
@@ -258,7 +315,9 @@ async function click(w, el, ovSel, closer) {
       dead: !pt.kids,
       cause: pt.kids
         ? ""
-        : `covered: a person's pointer lands on ${pt.cover || "another element"}, never on the button`,
+        : pt.stuck
+          ? `stuck layer: ${pt.stuck} (${pt.cover || "an empty layer"})`
+          : `covered: a person's pointer lands on ${pt.cover || "another element"}, never on the button`,
     };
   const t0 = Date.now();
   w.net.length = 0;
@@ -847,7 +906,7 @@ export async function main(argv) {
   fs.writeFileSync(path.join(out, "report.md"), reportMd(all, { browser: engine, csp }));
   fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(all, null, 1));
   console.log(
-    `done in ${Math.round((Date.now() - t0) / 1000)} s: ${all.dead.length} dead, ${all.quiet.length} quiet, ${all.disabled.length} disabled, ${all.stats.clicks} clicks, ${all.stats.cspViolations} csp violations; report ${path.join(out, "report.md")}`,
+    `done in ${Math.round((Date.now() - t0) / 1000)} s: ${all.dead.length} dead, ${all.quiet.length} quiet, ${all.disabled.length} disabled, ${all.stats.clicks} clicks, ${all.stats.cspViolations} csp violations, ${rescued.layers} behind a layer the checker opened (Escape pressed), ${rescued.waits.length} waits for the shell (${rescued.waits.reduce((a, b) => a + b, 0)} ms); report ${path.join(out, "report.md")}`,
   );
   if (args["update-baseline"]) {
     fs.writeFileSync(

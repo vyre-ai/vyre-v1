@@ -4,6 +4,7 @@
 // passes the try but cannot be connected is taken back out of the Vault, so a refusal leaves nothing behind.
 // DECISION: the agent is told in one line what to do next and nothing else. The words handle, folder, clearance and role never reach a person from it; the card carries what a person must know.
 // DECISION: the same request answers a second ask for the same service (the same card is updated); a card the person folded with Not now is opened again by the next ask.
+import { ensureSpaceFolder } from "../../../lib/space-folder.ts";
 import { TELL } from "../../../lib/connect-tell.ts";
 import type { ConnectStatus as Status } from "../../../lib/connect-tell.ts";
 import { keptUsable, madeByService } from "../kept.ts";
@@ -24,10 +25,14 @@ interface Service {
   scope: "person" | "space";
   fields: Field[];
   site?: string;
+  host?: string;
+  builtin: boolean;
+  checks: boolean;
   connection?: { connectionId: string; owner: "mine" | "space"; state: string };
 }
 export type CardState = "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
 
+const SPACE_FOLDER = "Connections";
 const squash = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
 /** A name the Vault accepts for the item: letters, digits and underscores, starting with a letter. */
 const itemName = (title: string): string => {
@@ -52,6 +57,9 @@ async function serviceOf(ctx: VaultReqCtx, said: string): Promise<Service | null
       return { name: String(o["name"]), label: String(o["label"]), optional: o["optional"] === true };
     }),
     ...(strOf(c["site"]) ? { site: strOf(c["site"])! } : {}),
+    ...(strOf(c["host"]) ? { host: strOf(c["host"])! } : {}),
+    builtin: c["builtin"] === true,
+    checks: c["checks"] === true,
     ...(conn
       ? {
           connection: {
@@ -122,6 +130,8 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
     title: row.service,
     scope: "person" as const,
     fields: [],
+    builtin: true,
+    checks: false,
   };
   const me = personOf(ctx);
   const askerView = asRequester;
@@ -165,7 +175,7 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
     const principal = row.requester_kind === "agent" ? { kind: "agent", id: row.requester_id } : undefined;
     const id = defaultFolder(!admin, [...all.values()], await keptUsable(ctx, principal, [...all.values()]));
     const f = id ? all.get(id) : undefined;
-    keptIn = !f || f.scope === "mine" ? "Mine" : f.name;
+    keptIn = f ? (f.scope === "mine" ? "Mine" : f.name) : admin ? SPACE_FOLDER : "Mine";
   }
   if (state === "connected" && row.item_id) {
     try {
@@ -186,10 +196,20 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
     ...(have ? { have } : {}),
     ...(keptIn ? { keptIn } : {}),
     ...(row.tested ? { tested: row.tested } : {}),
+    checks: svc.checks,
+    ...(!svc.builtin && svc.host && mayFill && (state === "ask" || state === "wrong" || state === "offline")
+      ? { checksWith: svc.host }
+      : {}),
     ...(row.decided_by && row.decided_by !== row.asker_id ? { connectedBy: row.decided_by } : {}),
     ...(row.connection_id ? { connectionId: row.connection_id } : {}),
     usedBy: row.requester_kind === "agent" ? [{ kind: "agent" as const, id: row.requester_id }] : [],
   };
+}
+
+/** The card's own acts are a person's, pressed on their own screen: an agent, even one acting for the asker, is refused. */
+function personOnly(ctx: VaultReqCtx): void {
+  if (ctx.principal.kind !== "person")
+    raise(ctx.trace.traceId, "permission.no_grant", "Only a person can do this, from the card.");
 }
 
 const connectRows = (ctx: VaultReqCtx, requesterId: string): RequestRow[] =>
@@ -243,15 +263,8 @@ export async function connectService(
   const said = input.service.trim();
   if (!said) raise(trace, "validation.bad_input", "Say which service.");
   const svc = await serviceOf(ctx, said);
-  if (!svc) {
-    const near = asRow(await ctx.call("connectors.for_service", { service: said }))?.["near"];
-    const hint = Array.isArray(near) && near.length > 0 ? ` Close to it: ${(near as string[]).join(", ")}.` : "";
-    raise(
-      trace,
-      "validation.not_found",
-      `"${said}" is not a service set up in this Space.${hint} Say so in one line and ask which service they mean.`,
-    );
-  }
+  // no connector, or several of that name: the model is told the one next step, never a guess
+  if (!svc) return { status: "no_connector", tell: TELL.no_connector(said) };
   // already connected for this person, and working: nothing to ask
   if (svc.connection?.state === "active") return { status: "connected", tell: TELL.connected(svc.title) };
 
@@ -262,17 +275,10 @@ export async function connectService(
   const open = mine.find((r) => r.state === "waiting");
   const folded = mine.filter((r) => r.state === "declined").sort((a, b) => b.at - a.at)[0];
   const again = open ?? folded;
+  // a card the person (or an admin) folded stays folded: only the person's own press on the card opens it again
+  if (again && again.state === "declined")
+    return { status: "declined", requestId: again.id, tell: TELL.declined(svc.title) };
   if (again) {
-    if (again.state === "declined") {
-      // the person asked again: the card they folded opens again, the same one
-      ctx.db.run(
-        `UPDATE ${TABLE} SET state = ?, phase = ?, decided_at = ? WHERE id = ?`,
-        "waiting",
-        null,
-        null,
-        again.id,
-      );
-    }
     if (ctx.thread && ctx.thread !== again.thread_id)
       ctx.db.run(`UPDATE ${TABLE} SET thread_id = ? WHERE id = ?`, ctx.thread, again.id);
     const row = requestById(ctx, again.id)!;
@@ -333,9 +339,10 @@ export async function connectGet(ctx: VaultReqCtx, input: { requestId: string })
 /** Where a key typed on this card goes unless the person chooses: their own Mine when it is theirs to add, else (an admin connecting it for the Space) the first shared folder an agent can use. Reads only: the Mine folder is made when the key is kept. */
 function defaultFolder(own: boolean, folders: readonly FolderRef[], usable: Map<string, boolean>): string | undefined {
   if (own) return folders.find((f) => f.scope === "mine")?.id;
-  return folders
+  const open = folders
     .filter((f) => f.scope === "shared" && !madeByService(f) && usable.get(f.id) === true)
-    .sort((a, b) => a.name.localeCompare(b.name))[0]?.id;
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return (open.find((f) => f.name === SPACE_FOLDER) ?? open[0])?.id;
 }
 
 /** Where the key can be kept: Mine, the shared folders an agent can use, and those it cannot (shown, not choosable). */
@@ -374,6 +381,7 @@ export async function connectSubmit(
     audience?: KeyAudience;
   },
 ) {
+  personOnly(ctx);
   const trace = ctx.trace.traceId;
   const decided = decidable(ctx, input.requestId);
   const { row } = decided;
@@ -422,14 +430,11 @@ export async function connectSubmit(
     const all = [...(await foldersOf(ctx)).values()];
     const principal = row.requester_kind === "agent" ? { kind: "agent", id: row.requester_id } : undefined;
     folderId = defaultFolder(false, all, await keptUsable(ctx, principal, all));
-    if (!folderId)
-      raise(
-        trace,
-        "validation.precondition_failed",
-        "There is no shared folder an agent can use. Make one that is not restricted, then connect it.",
-      );
+    // the Space's own Connections folder, shared with Everyone at Use, made on first use: a Space service is never kept in one person's Mine
+    folderId ??= await ensureSpaceFolder(ctx.call, { name: SPACE_FOLDER, idem: `${row.id}:space-folder` });
   }
   // 1 Checked: the typed key is tried against the app and kept nowhere
+  let testedLine: string | null = null;
   if (!saved) {
     const checked = asRow(
       await ctx.call("connectors.check_key", { connector: svc.key, secrets: Object.fromEntries(given) }),
@@ -442,6 +447,8 @@ export async function connectSubmit(
       stay("offline");
       return done("offline");
     }
+    // "Reached X" only when a call really ran
+    if (typeof checked?.["tested"] === "string") testedLine = checked["tested"];
   }
 
   // 2 keep the key where it goes (a new item, or the saved one attached)
@@ -455,16 +462,15 @@ export async function connectSubmit(
           ...(folderId ? { folderId } : {}),
           ...(input.audience ? { audience: input.audience } : {}),
           ...(chosen?.scope === "shared" ? { shared: true } : {}),
+          attempt: nid("att").slice(4, 12),
         },
   );
+  // A key that was kept stays where the person can see it (the card then offers "Use your saved key"): the Vault has no way to erase an item for good, and a quiet move to Trash would leave it recoverable
+  // while the card said nothing. A connection made from it, and not working, is removed.
   const takeBack = async (connectionId?: string): Promise<void> => {
     if (connectionId)
       await ctx
         .call("connections.delete", { connectionId, idempotencyKey: `${row.id}:take-back-connection` })
-        .catch(() => undefined);
-    if (stored.made)
-      await ctx
-        .call("vault.item.delete", { itemId: stored.itemId, idempotencyKey: `${row.id}:take-back-key` })
         .catch(() => undefined);
   };
 
@@ -512,13 +518,14 @@ export async function connectSubmit(
   // 4 Saved: the request closes, and the agent is told to carry on
   await finishFulfil(ctx, decided, stored, {
     connectionId,
-    tested: saved ? "Used your saved key" : `Reached ${svc.title}`,
+    ...(saved ? (svc.checks ? { tested: "Used your saved key" } : {}) : testedLine ? { tested: testedLine } : {}),
   });
   return done("connected");
 }
 
 /** The person may not connect this service: ask an admin, by name. The card then says Asked and finishes by itself when the admin connects it. */
 export async function connectAskAdmin(ctx: VaultReqCtx, input: { requestId: string; admin?: string }) {
+  personOnly(ctx);
   const trace = ctx.trace.traceId;
   const { row, asRequester } = visible(ctx, input.requestId);
   const me = personOf(ctx);
@@ -561,6 +568,7 @@ export async function connectAskAdmin(ctx: VaultReqCtx, input: { requestId: stri
 
 /** Not now was pressed earlier; the person opens the card again. */
 export async function connectReopen(ctx: VaultReqCtx, input: { requestId: string }) {
+  personOnly(ctx);
   const trace = ctx.trace.traceId;
   const { row, asRequester } = visible(ctx, input.requestId);
   if (!row.service || !asRequester)
@@ -573,6 +581,7 @@ export async function connectReopen(ctx: VaultReqCtx, input: { requestId: string
 
 /** Disconnect: the connection goes, the key stays in the Vault, and the card folds to Not connected. */
 export async function connectDisconnect(ctx: VaultReqCtx, input: { requestId: string }) {
+  personOnly(ctx);
   const trace = ctx.trace.traceId;
   const { row, asRequester, asManager } = visible(ctx, input.requestId);
   if (!row.service || !(asRequester || asManager))
