@@ -2861,6 +2861,7 @@ export function stubs(ctx: CallCtx) {
       attach: call("terminal.attach"),
       close: call("terminal.close"),
       get: call("terminal.get"),
+      give_back: call("terminal.give_back"),
       health: call("terminal.health"),
       input: call("terminal.input"),
       interrupt: call("terminal.interrupt"),
@@ -2878,6 +2879,7 @@ export function stubs(ctx: CallCtx) {
       },
       run: call("terminal.run"),
       status: call("terminal.status"),
+      take_over: call("terminal.take_over"),
       workspace: call("terminal.workspace"),
     },
     threads: {

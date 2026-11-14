@@ -2861,6 +2861,7 @@ export function createClient(transport: Transport) {
       attach: call("terminal.attach", 1),
       close: call("terminal.close", 1),
       get: call("terminal.get", 1),
+      give_back: call("terminal.give_back", 1),
       health: call("terminal.health", 1),
       input: call("terminal.input", 1),
       interrupt: call("terminal.interrupt", 1),
@@ -2878,6 +2879,7 @@ export function createClient(transport: Transport) {
       },
       run: call("terminal.run", 1),
       status: call("terminal.status", 1),
+      take_over: call("terminal.take_over", 1),
       workspace: call("terminal.workspace", 1),
     },
     threads: {

@@ -41909,6 +41909,35 @@ export type TerminalGetOut = {
       kind: "agent" | "helper" | "person";
       name?: string;
     };
+    heldBy?: string;
+  };
+};
+export type TerminalGiveBackIn = {
+  terminalId: string;
+};
+export type TerminalGiveBackOut = {
+  terminal: {
+    terminalId: string;
+    name: string;
+    host: "agent_computer" | "space_server" | "device";
+    hostTitle: string;
+    agentId?: string;
+    computerId?: string;
+    deviceId?: string;
+    cwd: string;
+    state: "running" | "idle" | "exited";
+    exitCode: number | null;
+    named: boolean;
+    cols: number;
+    rows: number;
+    createdAt: number;
+    lastActiveAt: number;
+    runId?: string;
+    by?: {
+      kind: "agent" | "helper" | "person";
+      name?: string;
+    };
+    heldBy?: string;
   };
 };
 export type TerminalHealthIn = Record<string, unknown>;
@@ -41961,6 +41990,7 @@ export type TerminalListOut = {
         kind: "agent" | "helper" | "person";
         name?: string;
       };
+      heldBy?: string;
     }>;
   next?: string;
   total?: number;
@@ -41998,6 +42028,7 @@ export type TerminalOpenOut = {
       kind: "agent" | "helper" | "person";
       name?: string;
     };
+    heldBy?: string;
   };
 };
 export type TerminalOpenServerIn = {
@@ -42029,6 +42060,7 @@ export type TerminalOpenServerOut = {
       kind: "agent" | "helper" | "person";
       name?: string;
     };
+    heldBy?: string;
   };
 };
 export type TerminalReadIn = {
@@ -42066,6 +42098,7 @@ export type TerminalRenameOut = {
       kind: "agent" | "helper" | "person";
       name?: string;
     };
+    heldBy?: string;
   };
 };
 export type TerminalRequestIn = {
@@ -42149,6 +42182,34 @@ export type TerminalStatusOut = {
       lastLine?: string;
       exitCode: number | null;
     }>;
+};
+export type TerminalTakeOverIn = {
+  terminalId: string;
+};
+export type TerminalTakeOverOut = {
+  terminal: {
+    terminalId: string;
+    name: string;
+    host: "agent_computer" | "space_server" | "device";
+    hostTitle: string;
+    agentId?: string;
+    computerId?: string;
+    deviceId?: string;
+    cwd: string;
+    state: "running" | "idle" | "exited";
+    exitCode: number | null;
+    named: boolean;
+    cols: number;
+    rows: number;
+    createdAt: number;
+    lastActiveAt: number;
+    runId?: string;
+    by?: {
+      kind: "agent" | "helper" | "person";
+      name?: string;
+    };
+    heldBy?: string;
+  };
 };
 export type TerminalWorkspaceIn = {
   agentId: string;
@@ -47057,6 +47118,7 @@ export interface CapMap {
   "terminal.attach": { in: TerminalAttachIn; out: TerminalAttachOut };
   "terminal.close": { in: TerminalCloseIn; out: TerminalCloseOut };
   "terminal.get": { in: TerminalGetIn; out: TerminalGetOut };
+  "terminal.give_back": { in: TerminalGiveBackIn; out: TerminalGiveBackOut };
   "terminal.health": { in: TerminalHealthIn; out: TerminalHealthOut };
   "terminal.input": { in: TerminalInputIn; out: TerminalInputOut };
   "terminal.interrupt": { in: TerminalInterruptIn; out: TerminalInterruptOut };
@@ -47072,6 +47134,7 @@ export interface CapMap {
   "terminal.rules.set": { in: TerminalRulesSetIn; out: TerminalRulesSetOut };
   "terminal.run": { in: TerminalRunIn; out: TerminalRunOut };
   "terminal.status": { in: TerminalStatusIn; out: TerminalStatusOut };
+  "terminal.take_over": { in: TerminalTakeOverIn; out: TerminalTakeOverOut };
   "terminal.workspace": { in: TerminalWorkspaceIn; out: TerminalWorkspaceOut };
   "threads.add_agent": { in: ThreadsAddAgentIn; out: ThreadsAddAgentOut };
   "threads.agent.configure": { in: ThreadsAgentConfigureIn; out: ThreadsAgentConfigureOut };
@@ -51053,6 +51116,10 @@ export type TerminalCommandFinishedPayload = {
   by: string;
   runId?: string;
 };
+export type TerminalGivenBackPayload = {
+  terminalId: string;
+  by: string;
+};
 export type TerminalOpenedPayload = {
   terminalId: string;
   host: string;
@@ -51065,6 +51132,11 @@ export type TerminalRenamedPayload = {
 };
 export type TerminalRulesChangedPayload = {
   personId: string;
+};
+export type TerminalTakenPayload = {
+  terminalId: string;
+  by: string;
+  from?: string;
 };
 export type ThreadArchivedPayload = {
   person: string;
@@ -52160,9 +52232,11 @@ export interface EventMap {
   "template.saved": TemplateSavedPayload;
   "terminal.closed": TerminalClosedPayload;
   "terminal.command_finished": TerminalCommandFinishedPayload;
+  "terminal.given_back": TerminalGivenBackPayload;
   "terminal.opened": TerminalOpenedPayload;
   "terminal.renamed": TerminalRenamedPayload;
   "terminal.rules_changed": TerminalRulesChangedPayload;
+  "terminal.taken": TerminalTakenPayload;
   "thread.archived": ThreadArchivedPayload;
   "thread.closed": ThreadClosedPayload;
   "thread.deleted": ThreadDeletedPayload;

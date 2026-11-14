@@ -166,3 +166,12 @@ Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff
 - `automations.steps.list@1` also answers an optional `checked` (false only when the Space's connected apps could not be read, so an app missing from the list is unknown rather than unconnected; absent otherwise). Additive.
 
 Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff: optional, additive fields only; no input, output or error removed.
+
+## 14 Nov 2026: a person can take the keyboard of a terminal (lane b-pc)
+
+- What changed: two new capabilities, `terminal.take_over` and `terminal.give_back` (level use, on the terminal; people only, never an agent tool), two new events, `terminal.taken` and `terminal.given_back`, and an optional `heldBy` (the person at the keyboard) on the terminal row that `terminal.list`, `terminal.get`, `terminal.open`, `terminal.open_server`, `terminal.rename` and the new calls answer. While a person holds a terminal, `terminal.run`, `terminal.input` and `terminal.interrupt` from anyone else (the agent included) are refused with one plain sentence (`validation.precondition_failed`, reason `keyboard_held`); the holder's own keys keep the hold in use, and a hold nobody uses for 15 minutes ends by itself. Taking it from another person needs the owner of the terminal or a manager of the agent. A terminal nobody holds takes input as before.
+- Why: the owner's drawing of an agent's computer (13 Nov, AGENT-COMPUTER-2026-11-13.md B2, B3, section 11 rules 1 and 4): a person takes the keyboard with one deliberate press, the agent is told and waits, and gives it back. The Space browser already worked this way (`computers.browser.take_over`).
+- Snapshots: `docs/frozen/snapshots/terminal.json`, regenerated with `node tools/gen/src/cli.ts --snapshots`. New table `terminal_hold` (`modules/terminal/migrations/0004_hold.sql`, created on first use like the earlier ones).
+
+Signed: pending the lead (lane b-pc did not sign it).
+
