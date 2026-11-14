@@ -1,1 +1,2 @@
 - Saving an Automation now checks that every mailbox, number and connection a step names is one you may use. A step that names someone else's private mailbox is refused in words that name the step, and a stored step that can no longer use its mailbox, number or connection stops with a plain sentence.
+- An inbox or a site you set to Private is now private to you and the people you shared it with, including ones that were set before this update. A watch and a routine can name only an agent, computer, chat or channel you may use.
