@@ -208,6 +208,16 @@ test("Personal: the owner asks for Fathom, one card tries the key, keeps it in M
     });
     await agentSaid(d, (cap, input) => call(d, cap, input), thread, /Used it\./);
 
+    // a real Vault: disconnect, then type the key again. The first item already holds the name, so the second gets its own and the card connects (no raw duplicate, a fresh key per try)
+    await ok(d, "vault.connect_card.disconnect", { requestId });
+    await ok(d, "vault.connect_card.reopen", { requestId });
+    const again = await ok(d, "vault.connect_card.submit", { requestId, fields: [{ key: "api_key", value: SECRET }] });
+    assert.equal(again.result, "connected", JSON.stringify(again));
+    const names = ((await ok(d, "vault.items.list", {})).items as Array<{ name: string }>)
+      .map((i) => i.name)
+      .filter((n) => /^Fathom/.test(n));
+    assert.deepEqual(names.sort(), ["Fathom", "Fathom_2"]);
+
     // the same card, not a second one, and no "Withdrawn" anywhere
     const all = JSON.stringify((await ok(d, "chat.messages.list", { threadId: thread })).messages);
     assert.equal((all.match(/"type":"vault_request"/g) ?? []).length, 1, "one card");
@@ -344,13 +354,11 @@ test("Team: a member is sent to an admin by name, the admin connects it from her
       itemsBefore,
       "nothing was kept",
     );
-    const folder = (
-      (await olivia("vault.connect_card.options", { requestId })).data.folders as Array<{
-        name: string;
-        usable: boolean;
-      }>
-    ).find((f) => f.name === "Team keys");
-    assert.equal(folder?.usable, true, "a folder the agent can use is offered");
+    const opts = (await olivia("vault.connect_card.options", { requestId })).data.folders as Array<{ name: string }>;
+    assert.ok(
+      opts.every((f) => f.name === "Connections"),
+      "a Space service is kept in the Connections folder only: no Mine, no team folder",
+    );
     const good = await olivia("vault.connect_card.submit", { requestId, fields: [{ key: "api_key", value: SECRET }] });
     assert.equal(good.data.result, "connected", JSON.stringify(good.data));
     assert.equal(
@@ -358,6 +366,10 @@ test("Team: a member is sent to an admin by name, the admin connects it from her
       "connected",
       "Mia's card finishes by itself",
     );
+    const holder = (
+      (await olivia("vault.folders.list", { scope: "shared" })).data.folders as Array<{ name: string }>
+    ).map((f) => f.name);
+    assert.ok(holder.includes("Connections"), "the Space's Connections folder was made and holds it");
 
     // her agent carries on in her chat, and its first use of the key works for her
     await agentSaid(d, mia, threadId, /Yes, Crm app is connected\./);

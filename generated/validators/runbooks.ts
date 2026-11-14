@@ -5,14 +5,14 @@ import type { Check } from './core.ts';
 
 function d_s_2f2c8c4c69(v: unknown, p: string, e: string[]): void {
 {
-const x216 = v;
-const g216 = typeOf(x216);
-const b216: string[] = []; lf(x216, p, b216, L0); if (b216.length) e.push(...b216);
-if (g216 === "object") {
-if (g216 === 'object') { const o216 = x216 as Record<string, unknown>;
-if (!("kind" in o216)) e.push(p + "/kind" + ': required');
-if ("kind" in o216) lf(o216["kind"], p + "/kind", e, L123);
-if ("computerId" in o216) lf(o216["computerId"], p + "/computerId", e, L22);
+const x215 = v;
+const g215 = typeOf(x215);
+const b215: string[] = []; lf(x215, p, b215, L0); if (b215.length) e.push(...b215);
+if (g215 === "object") {
+if (g215 === 'object') { const o215 = x215 as Record<string, unknown>;
+if (!("kind" in o215)) e.push(p + "/kind" + ': required');
+if ("kind" in o215) lf(o215["kind"], p + "/kind", e, L123);
+if ("computerId" in o215) lf(o215["computerId"], p + "/computerId", e, L22);
 }
 }
 }

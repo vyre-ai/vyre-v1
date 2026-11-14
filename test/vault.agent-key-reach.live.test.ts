@@ -27,6 +27,8 @@ test("a key for an agent is refused in a Restricted folder of any name, before a
   const model = scriptedModel(async function* (input, run) {
     const ask = input.trigger?.body ?? "";
     if (/set up fathom/.test(ask)) {
+      // vault_request is found with tool_search, as a model finds it (vault_connect is the listed tool for a service)
+      yield* run("tool_search", { query: "vault request key" });
       const r = yield* run("vault_request", {
         name: "Fathom",
         fields: ["api_key"],

@@ -5,13 +5,13 @@ import type { Check } from './core.ts';
 
 function d_s_4208c52814(v: unknown, p: string, e: string[]): void {
 {
-const x306 = v;
-const g306 = typeOf(x306);
-const b306: string[] = []; lf(x306, p, b306, L4); if (b306.length) e.push(...b306);
-if (g306 === "array") {
-if (g306 === 'array') { const a306 = x306 as unknown[];
-for (let i306 = 0; i306 < a306.length; i306++) {
-d_s_f06b085bb9(a306[i306], p + '/' + i306, e);
+const x305 = v;
+const g305 = typeOf(x305);
+const b305: string[] = []; lf(x305, p, b305, L4); if (b305.length) e.push(...b305);
+if (g305 === "array") {
+if (g305 === 'array') { const a305 = x305 as unknown[];
+for (let i305 = 0; i305 < a305.length; i305++) {
+d_s_f06b085bb9(a305[i305], p + '/' + i305, e);
 }
 }
 }

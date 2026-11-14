@@ -79,13 +79,13 @@ if ("effective" in o131) lf(o131["effective"], p + "/kit" + "/effective", e, L70
 
 function d_s_3115d5e95d(v: unknown, p: string, e: string[]): void {
 {
-const x221 = v;
-const g221 = typeOf(x221);
-const b221: string[] = []; lf(x221, p, b221, L0); if (b221.length) e.push(...b221);
-if (g221 === "object") {
-if (g221 === 'object') { const o221 = x221 as Record<string, unknown>;
-if (!("row" in o221)) e.push(p + "/row" + ': required');
-if ("row" in o221) d_s_027fb3219c(o221["row"], p + "/row", e);
+const x220 = v;
+const g220 = typeOf(x220);
+const b220: string[] = []; lf(x220, p, b220, L0); if (b220.length) e.push(...b220);
+if (g220 === "object") {
+if (g220 === 'object') { const o220 = x220 as Record<string, unknown>;
+if (!("row" in o220)) e.push(p + "/row" + ': required');
+if ("row" in o220) d_s_027fb3219c(o220["row"], p + "/row", e);
 }
 }
 }
@@ -124,17 +124,17 @@ if ("channel" in o720) lf(o720["channel"], p + "/channel", e, L314);
 
 function d_s_cb565fe529(v: unknown, p: string, e: string[]): void {
 {
-const x994 = v;
-const g994 = typeOf(x994);
-const b994: string[] = []; lf(x994, p, b994, L0); if (b994.length) e.push(...b994);
-if (g994 === "object") {
-if (g994 === 'object') { const o994 = x994 as Record<string, unknown>;
-if (!("verified" in o994)) e.push(p + "/verified" + ': required');
-if (!("canVerify" in o994)) e.push(p + "/canVerify" + ': required');
-if (!("pending" in o994)) e.push(p + "/pending" + ': required');
-if ("verified" in o994) lf(o994["verified"], p + "/verified", e, L3);
-if ("canVerify" in o994) lf(o994["canVerify"], p + "/canVerify", e, L3);
-if ("pending" in o994) lf(o994["pending"], p + "/pending", e, L3);
+const x990 = v;
+const g990 = typeOf(x990);
+const b990: string[] = []; lf(x990, p, b990, L0); if (b990.length) e.push(...b990);
+if (g990 === "object") {
+if (g990 === 'object') { const o990 = x990 as Record<string, unknown>;
+if (!("verified" in o990)) e.push(p + "/verified" + ': required');
+if (!("canVerify" in o990)) e.push(p + "/canVerify" + ': required');
+if (!("pending" in o990)) e.push(p + "/pending" + ': required');
+if ("verified" in o990) lf(o990["verified"], p + "/verified", e, L3);
+if ("canVerify" in o990) lf(o990["canVerify"], p + "/canVerify", e, L3);
+if ("pending" in o990) lf(o990["pending"], p + "/pending", e, L3);
 }
 }
 }

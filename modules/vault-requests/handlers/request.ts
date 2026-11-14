@@ -586,10 +586,24 @@ export async function storeKey(
           input.audience === "anyone" || decided.askedForMe ? ANYONE_NEEDS_SHARED_WORDS : SOMEONE_ELSES_MINE_WORDS,
         );
     }
+    // a second key for the same service gets its own name: one already kept there (an earlier try, or the person's own) is never a raw "duplicate" on the card
+    let putName = row.name;
+    if (input.attempt !== undefined) {
+      try {
+        const have = new Set(
+          (
+            (asRow(await ctx.call("vault.items.list", { folder: folderId }))?.["items"] as { name?: string }[]) ?? []
+          ).map((i) => String(i.name ?? "").toLowerCase()),
+        );
+        for (let n = 2; have.has(putName.toLowerCase()); n++) putName = `${row.name}_${n}`;
+      } catch {
+        /* the list could not be read: the plain name, and the Vault says if it is taken */
+      }
+    }
     const made = asRow(
       await ctx.call("vault.item.put", {
         folderId,
-        name: row.name,
+        name: putName,
         kind: "api_key",
         fields: (input.fields ?? []).map((f) => ({ key: f.key, value: f.value, secret: true })),
         idempotencyKey: `${row.id}:put${input.attempt ? `:${input.attempt}` : ""}`,

@@ -35,33 +35,33 @@ if ("durationMs" in o158) lf(o158["durationMs"], p + "/durationMs", e, L2);
 
 function d_s_39569058c9(v: unknown, p: string, e: string[]): void {
 {
-const x260 = v;
-const g260 = typeOf(x260);
-const b260: string[] = []; lf(x260, p, b260, L0); if (b260.length) e.push(...b260);
-if (g260 === "object") {
-if (g260 === 'object') { const o260 = x260 as Record<string, unknown>;
-if (!("seq" in o260)) e.push(p + "/seq" + ': required');
-if (!("id" in o260)) e.push(p + "/id" + ': required');
-if (!("type" in o260)) e.push(p + "/type" + ': required');
-if (!("sv" in o260)) e.push(p + "/sv" + ': required');
-if (!("at" in o260)) e.push(p + "/at" + ': required');
-if (!("traceId" in o260)) e.push(p + "/traceId" + ': required');
-if (!("actor" in o260)) e.push(p + "/actor" + ': required');
-if (!("depth" in o260)) e.push(p + "/depth" + ': required');
-if (!("payload" in o260)) e.push(p + "/payload" + ': required');
-if ("seq" in o260) lf(o260["seq"], p + "/seq", e, L12);
-if ("id" in o260) lf(o260["id"], p + "/id", e, L103);
-if ("type" in o260) lf(o260["type"], p + "/type", e, L1);
-if ("sv" in o260) lf(o260["sv"], p + "/sv", e, L12);
-if ("at" in o260) lf(o260["at"], p + "/at", e, L17);
-if ("traceId" in o260) lf(o260["traceId"], p + "/traceId", e, L79);
-if ("actor" in o260) lf(o260["actor"], p + "/actor", e, L1);
-if ("onBehalf" in o260) lf(o260["onBehalf"], p + "/onBehalf", e, L1);
-if ("runId" in o260) lf(o260["runId"], p + "/runId", e, L34);
-if ("cause" in o260) lf(o260["cause"], p + "/cause", e, L103);
-if ("origin" in o260) lf(o260["origin"], p + "/origin", e, L1);
-if ("depth" in o260) lf(o260["depth"], p + "/depth", e, L17);
-if ("subject" in o260) d_s_f423029e33(o260["subject"], p + "/subject", e);
+const x259 = v;
+const g259 = typeOf(x259);
+const b259: string[] = []; lf(x259, p, b259, L0); if (b259.length) e.push(...b259);
+if (g259 === "object") {
+if (g259 === 'object') { const o259 = x259 as Record<string, unknown>;
+if (!("seq" in o259)) e.push(p + "/seq" + ': required');
+if (!("id" in o259)) e.push(p + "/id" + ': required');
+if (!("type" in o259)) e.push(p + "/type" + ': required');
+if (!("sv" in o259)) e.push(p + "/sv" + ': required');
+if (!("at" in o259)) e.push(p + "/at" + ': required');
+if (!("traceId" in o259)) e.push(p + "/traceId" + ': required');
+if (!("actor" in o259)) e.push(p + "/actor" + ': required');
+if (!("depth" in o259)) e.push(p + "/depth" + ': required');
+if (!("payload" in o259)) e.push(p + "/payload" + ': required');
+if ("seq" in o259) lf(o259["seq"], p + "/seq", e, L12);
+if ("id" in o259) lf(o259["id"], p + "/id", e, L103);
+if ("type" in o259) lf(o259["type"], p + "/type", e, L1);
+if ("sv" in o259) lf(o259["sv"], p + "/sv", e, L12);
+if ("at" in o259) lf(o259["at"], p + "/at", e, L17);
+if ("traceId" in o259) lf(o259["traceId"], p + "/traceId", e, L79);
+if ("actor" in o259) lf(o259["actor"], p + "/actor", e, L1);
+if ("onBehalf" in o259) lf(o259["onBehalf"], p + "/onBehalf", e, L1);
+if ("runId" in o259) lf(o259["runId"], p + "/runId", e, L34);
+if ("cause" in o259) lf(o259["cause"], p + "/cause", e, L103);
+if ("origin" in o259) lf(o259["origin"], p + "/origin", e, L1);
+if ("depth" in o259) lf(o259["depth"], p + "/depth", e, L17);
+if ("subject" in o259) d_s_f423029e33(o259["subject"], p + "/subject", e);
 }
 }
 }
@@ -142,13 +142,13 @@ d_s_39569058c9(a837[i837], p + '/' + i837, e);
 
 function d_s_d2fbc5babb(v: unknown, p: string, e: string[]): void {
 {
-const x1019 = v;
-const g1019 = typeOf(x1019);
-const b1019: string[] = []; lf(x1019, p, b1019, L0); if (b1019.length) e.push(...b1019);
-if (g1019 === "object") {
-if (g1019 === 'object') { const o1019 = x1019 as Record<string, unknown>;
-if (!("delivery" in o1019)) e.push(p + "/delivery" + ': required');
-if ("delivery" in o1019) d_s_20def9ae8f(o1019["delivery"], p + "/delivery", e);
+const x1015 = v;
+const g1015 = typeOf(x1015);
+const b1015: string[] = []; lf(x1015, p, b1015, L0); if (b1015.length) e.push(...b1015);
+if (g1015 === "object") {
+if (g1015 === 'object') { const o1015 = x1015 as Record<string, unknown>;
+if (!("delivery" in o1015)) e.push(p + "/delivery" + ': required');
+if ("delivery" in o1015) d_s_20def9ae8f(o1015["delivery"], p + "/delivery", e);
 }
 }
 }

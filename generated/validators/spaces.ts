@@ -5,24 +5,24 @@ import type { Check } from './core.ts';
 
 function d_s_47d864e64b(v: unknown, p: string, e: string[]): void {
 {
-const x335 = v;
-const g335 = typeOf(x335);
-const b335: string[] = []; lf(x335, p, b335, L4); if (b335.length) e.push(...b335);
-if (g335 === "array") {
-if (g335 === 'array') { const a335 = x335 as unknown[];
-for (let i335 = 0; i335 < a335.length; i335++) {
+const x334 = v;
+const g334 = typeOf(x334);
+const b334: string[] = []; lf(x334, p, b334, L4); if (b334.length) e.push(...b334);
+if (g334 === "array") {
+if (g334 === 'array') { const a334 = x334 as unknown[];
+for (let i334 = 0; i334 < a334.length; i334++) {
 {
-const x336 = a335[i335];
-const g336 = typeOf(x336);
-const b336: string[] = []; lf(x336, p + '/' + i335, b336, L0); if (b336.length) e.push(...b336);
-if (g336 === "object") {
-if (g336 === 'object') { const o336 = x336 as Record<string, unknown>;
-if (!("resource" in o336)) e.push(p + '/' + i335 + "/resource" + ': required');
-if (!("title" in o336)) e.push(p + '/' + i335 + "/title" + ': required');
-if (!("at" in o336)) e.push(p + '/' + i335 + "/at" + ': required');
-if ("resource" in o336) d_s_f423029e33(o336["resource"], p + '/' + i335 + "/resource", e);
-if ("title" in o336) lf(o336["title"], p + '/' + i335 + "/title", e, L1);
-if ("at" in o336) lf(o336["at"], p + '/' + i335 + "/at", e, L17);
+const x335 = a334[i334];
+const g335 = typeOf(x335);
+const b335: string[] = []; lf(x335, p + '/' + i334, b335, L0); if (b335.length) e.push(...b335);
+if (g335 === "object") {
+if (g335 === 'object') { const o335 = x335 as Record<string, unknown>;
+if (!("resource" in o335)) e.push(p + '/' + i334 + "/resource" + ': required');
+if (!("title" in o335)) e.push(p + '/' + i334 + "/title" + ': required');
+if (!("at" in o335)) e.push(p + '/' + i334 + "/at" + ': required');
+if ("resource" in o335) d_s_f423029e33(o335["resource"], p + '/' + i334 + "/resource", e);
+if ("title" in o335) lf(o335["title"], p + '/' + i334 + "/title", e, L1);
+if ("at" in o335) lf(o335["at"], p + '/' + i334 + "/at", e, L17);
 }
 }
 }
@@ -102,12 +102,12 @@ if ("deletionAt" in o717) lf(o717["deletionAt"], p + "/space" + "/deletionAt", e
 
 function d_s_d1a8b362dd(v: unknown, p: string, e: string[]): void {
 {
-const x1013 = v;
-const g1013 = typeOf(x1013);
-const b1013: string[] = []; lf(x1013, p, b1013, L0); if (b1013.length) e.push(...b1013);
-if (g1013 === "object") {
-if (g1013 === 'object') { const o1013 = x1013 as Record<string, unknown>;
-if ("type" in o1013) d_s_96787fc2f6(o1013["type"], p + "/type", e);
+const x1009 = v;
+const g1009 = typeOf(x1009);
+const b1009: string[] = []; lf(x1009, p, b1009, L0); if (b1009.length) e.push(...b1009);
+if (g1009 === "object") {
+if (g1009 === 'object') { const o1009 = x1009 as Record<string, unknown>;
+if ("type" in o1009) d_s_96787fc2f6(o1009["type"], p + "/type", e);
 }
 }
 }

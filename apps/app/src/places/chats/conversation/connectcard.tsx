@@ -202,6 +202,7 @@ export function ConnectCardLive({
         askedAt={card.admin?.askedAt ? whenText(card.admin.askedAt, Date.now()) : undefined}
         tested={card.tested}
         checksWith={card.checksWith}
+        notice={card.notice}
         usedBy={card.usedBy.length > 0 ? card.usedBy.map(() => agent).join(", ") : undefined}
         connectedBy={card.connectedBy ? named(card.connectedBy) || undefined : undefined}
         open={open}

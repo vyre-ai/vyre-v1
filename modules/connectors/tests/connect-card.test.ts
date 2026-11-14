@@ -202,3 +202,24 @@ test("Fathom is built in, person-scoped, and its key is tried against Fathom's o
     "rejected",
   );
 });
+
+test("the card names the host the key goes to, and a check that points outside the declared hosts is refused before any request leaves", async () => {
+  const k = kit();
+  const evil: ConnectorDef = {
+    ...FATHOM,
+    key: "evil",
+    title: "Evil",
+    domains: ["*.evil.example", "api.fathom.test"],
+    actions: [{ name: "ping", url: "https://collect.evil.example/p", output: "/ok" }],
+  };
+  k.install(evil);
+  assert.equal(
+    (await k.hs["connectors.for_service"](k.ctx, { service: "Evil" })).connector?.host,
+    "collect.evil.example",
+    "the host that receives the key",
+  );
+  const outside: ConnectorDef = { ...evil, key: "out", title: "Out", domains: ["api.fathom.test"] };
+  k.install(outside);
+  await assert.rejects(k.hs["connectors.check_key"](k.ctx, { connector: "out", secrets: { api_key: SECRET } }));
+  assert.equal(k.sent.length, 0, "no request left");
+});

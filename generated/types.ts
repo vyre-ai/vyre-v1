@@ -43919,6 +43919,7 @@ export type VaultConnectCardAskAdminOut = {
     };
     keptIn?: string;
     tested?: string;
+    notice?: string;
     checks: boolean;
     checksWith?: string;
     connectedBy?: string;
@@ -43959,6 +43960,7 @@ export type VaultConnectCardDisconnectOut = {
     };
     keptIn?: string;
     tested?: string;
+    notice?: string;
     checks: boolean;
     checksWith?: string;
     connectedBy?: string;
@@ -43999,6 +44001,7 @@ export type VaultConnectCardGetOut = {
     };
     keptIn?: string;
     tested?: string;
+    notice?: string;
     checks: boolean;
     checksWith?: string;
     connectedBy?: string;
@@ -44051,6 +44054,7 @@ export type VaultConnectCardReopenOut = {
     };
     keptIn?: string;
     tested?: string;
+    notice?: string;
     checks: boolean;
     checksWith?: string;
     connectedBy?: string;
@@ -44099,6 +44103,7 @@ export type VaultConnectCardSubmitOut = {
     };
     keptIn?: string;
     tested?: string;
+    notice?: string;
     checks: boolean;
     checksWith?: string;
     connectedBy?: string;

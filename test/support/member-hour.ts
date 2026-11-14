@@ -209,6 +209,8 @@ export const model: OpenSession = async (spec) => {
           text: r.ok ? "Not yet. Add its key." : `FAILED ${JSON.stringify(r.content).slice(0, 300)}`,
         };
       } else if (/set up fathom/i.test(body)) {
+        // vault_request is found with tool_search, as a model finds it (vault_connect is the listed tool for a service)
+        yield* run("tool_search", { query: "vault request key" });
         const r = yield* run("vault_request", {
           name: "Fathom",
           fields: ["api_key"],

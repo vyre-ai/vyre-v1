@@ -145,7 +145,7 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
   else if (row.state === "declined") state = "later";
   else if (row.state === "fulfilled") state = svc.connection?.state === "active" ? "connected" : "later";
   else {
-    const phase = row.phase ?? "";
+    const phase = row.phase === "kept" ? "" : (row.phase ?? "");
     // who can connect it here: a person's own service needs no permission; a Space service is for the Space's owners and admins
     const admins = svc.scope === "space" ? await adminsOf(ctx) : [];
     const mayConnect = svc.scope === "person" || (!!me && admins.includes(me)) || admin;
@@ -175,7 +175,7 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
     const principal = row.requester_kind === "agent" ? { kind: "agent", id: row.requester_id } : undefined;
     const id = defaultFolder(!admin, [...all.values()], await keptUsable(ctx, principal, [...all.values()]));
     const f = id ? all.get(id) : undefined;
-    keptIn = f ? (f.scope === "mine" ? "Mine" : f.name) : admin ? SPACE_FOLDER : "Mine";
+    keptIn = svc.scope === "space" ? SPACE_FOLDER : f ? (f.scope === "mine" ? "Mine" : f.name) : "Mine";
   }
   if (state === "connected" && row.item_id) {
     try {
@@ -196,6 +196,9 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
     ...(have ? { have } : {}),
     ...(keptIn ? { keptIn } : {}),
     ...(row.tested ? { tested: row.tested } : {}),
+    ...(row.phase === "kept" && row.state === "waiting"
+      ? { notice: `Your key is saved${svc.scope === "space" ? "" : " in Mine"}. Couldn't connect.` }
+      : {}),
     checks: svc.checks,
     ...(!svc.builtin && svc.host && mayFill && (state === "ask" || state === "wrong" || state === "offline")
       ? { checksWith: svc.host }
@@ -348,7 +351,11 @@ function defaultFolder(own: boolean, folders: readonly FolderRef[], usable: Map<
 /** Where the key can be kept: Mine, the shared folders an agent can use, and those it cannot (shown, not choosable). */
 export async function connectOptions(ctx: VaultReqCtx, input: { requestId: string }) {
   const { row, asRequester, asManager } = visible(ctx, input.requestId);
-  const folders = [...(await foldersOf(ctx)).values()].filter((f) => !madeByService(f));
+  const svcOf = row.service ? await serviceOf(ctx, row.service) : null;
+  // a Space service is kept in the Space's Connections folder and nowhere else: the menu offers that one (or nothing, when it is yet to be made)
+  const folders = [...(await foldersOf(ctx)).values()].filter(
+    (f) => !madeByService(f) && (svcOf?.scope !== "space" || (f.scope === "shared" && f.name === SPACE_FOLDER)),
+  );
   const principal = row.requester_kind === "agent" ? { kind: "agent", id: row.requester_id } : undefined;
   const usable = await keptUsable(ctx, principal, folders);
   const own = asRequester && !(asManager && !asRequester);
@@ -406,7 +413,8 @@ export async function connectSubmit(
       );
   }
   // where the key will be kept is settled first, so a refusal here comes before anything is written: a shared folder only when an agent can use a key kept there
-  const chosen = !saved && input.folderId ? (await foldersOf(ctx)).get(input.folderId) : undefined;
+  const space = svc.scope === "space";
+  const chosen = !saved && !space && input.folderId ? (await foldersOf(ctx)).get(input.folderId) : undefined;
   if (chosen?.scope === "shared") {
     const usable = await keptUsable(
       ctx,
@@ -420,17 +428,20 @@ export async function connectSubmit(
         "Agents can't use keys kept there. Keep it in Mine or another folder.",
       );
   }
-  // a key typed here goes where the person chose; else Mine for the person it was asked for, and for an admin connecting it for the Space the first shared folder an agent can use
-  let folderId = !saved ? input.folderId : undefined;
-  if (!saved && !folderId && !decided.askedForMe) {
+  // a key typed here goes where the person chose. A Space service is different: its key goes to the Space's Connections folder, shared with Everyone at Use and made on first use, never to one person's Mine
+  let folderId = !saved && !space ? input.folderId : undefined;
+  if (!saved && space)
+    folderId = await ensureSpaceFolder(ctx.call, { name: SPACE_FOLDER, idem: `${row.id}:space-folder` });
+  else if (!saved && !folderId && !decided.askedForMe) {
     const all = [...(await foldersOf(ctx)).values()];
     const principal = row.requester_kind === "agent" ? { kind: "agent", id: row.requester_id } : undefined;
     folderId = defaultFolder(false, all, await keptUsable(ctx, principal, all));
-    // the Space's own Connections folder, shared with Everyone at Use, made on first use: a Space service is never kept in one person's Mine
     folderId ??= await ensureSpaceFolder(ctx.call, { name: SPACE_FOLDER, idem: `${row.id}:space-folder` });
   }
+  // one try, one key: a Retry never replays what an earlier try did
+  const attempt = nid("att").slice(4, 12);
   const done = async (result: "connected" | "wrong" | "offline") => ({ result, card: await cardOf(ctx, row.id) });
-  const stay = (phase: "wrong" | "offline" | null) =>
+  const stay = (phase: "wrong" | "offline" | "kept" | null) =>
     ctx.db.run(`UPDATE ${TABLE} SET phase = ? WHERE id = ?`, phase, row.id);
 
   // 1 Checked: the typed key is tried against the app and kept nowhere
@@ -461,8 +472,8 @@ export async function connectSubmit(
           fields: [...given].map(([key, value]) => ({ key, value })),
           ...(folderId ? { folderId } : {}),
           ...(input.audience ? { audience: input.audience } : {}),
-          ...(chosen?.scope === "shared" ? { shared: true } : {}),
-          attempt: nid("att").slice(4, 12),
+          ...(chosen?.scope === "shared" || space ? { shared: true } : {}),
+          attempt,
         },
   );
   // A key that was kept stays where the person can see it (the card then offers "Use your saved key"): the Vault has no way to erase an item for good, and a quiet move to Trash would leave it recoverable
@@ -470,7 +481,7 @@ export async function connectSubmit(
   const takeBack = async (connectionId?: string): Promise<void> => {
     if (connectionId)
       await ctx
-        .call("connections.delete", { connectionId, idempotencyKey: `${row.id}:take-back-connection` })
+        .call("connections.delete", { connectionId, idempotencyKey: `${row.id}:take-back-connection:${attempt}` })
         .catch(() => undefined);
   };
 
@@ -488,7 +499,7 @@ export async function connectSubmit(
   try {
     const made = asRow(
       await ctx.call("connections.create", {
-        idempotencyKey: `${row.id}:connect`,
+        idempotencyKey: `${row.id}:connect:${attempt}`,
         connector: svc.key,
         title: svc.title,
         ownerKind: svc.scope === "space" ? "space" : "person",
@@ -509,10 +520,13 @@ export async function connectSubmit(
         stay(why);
         return done(why);
       }
-    } else await ctx.call("connections.mark_working", { connectionId, idempotencyKey: `${row.id}:working` });
+    } else await ctx.call("connections.mark_working", { connectionId, idempotencyKey: `${row.id}:working:${attempt}` });
   } catch (e) {
     await takeBack(connectionId);
-    throw e;
+    if (saved) throw e;
+    // the typed key passed its check and is kept (the Vault cannot erase it): say so on the card, which then offers it back as the saved key
+    stay("kept");
+    return done("offline");
   }
 
   // 4 Saved: the request closes, and the agent is told to carry on

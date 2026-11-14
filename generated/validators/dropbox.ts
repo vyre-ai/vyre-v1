@@ -49,13 +49,13 @@ d_s_9b30b1af72(a836[i836], p + '/' + i836, e);
 
 function d_s_c2f8d6cce1(v: unknown, p: string, e: string[]): void {
 {
-const x952 = v;
-const g952 = typeOf(x952);
-const b952: string[] = []; lf(x952, p, b952, L0); if (b952.length) e.push(...b952);
-if (g952 === "object") {
-if (g952 === 'object') { const o952 = x952 as Record<string, unknown>;
-if (!("entry" in o952)) e.push(p + "/entry" + ': required');
-if ("entry" in o952) d_s_9b30b1af72(o952["entry"], p + "/entry", e);
+const x948 = v;
+const g948 = typeOf(x948);
+const b948: string[] = []; lf(x948, p, b948, L0); if (b948.length) e.push(...b948);
+if (g948 === "object") {
+if (g948 === 'object') { const o948 = x948 as Record<string, unknown>;
+if (!("entry" in o948)) e.push(p + "/entry" + ': required');
+if ("entry" in o948) d_s_9b30b1af72(o948["entry"], p + "/entry", e);
 }
 }
 }
@@ -63,15 +63,15 @@ if ("entry" in o952) d_s_9b30b1af72(o952["entry"], p + "/entry", e);
 
 function d_s_cc4e1cf783(v: unknown, p: string, e: string[]): void {
 {
-const x1001 = v;
-const g1001 = typeOf(x1001);
-const b1001: string[] = []; lf(x1001, p, b1001, L0); if (b1001.length) e.push(...b1001);
-if (g1001 === "object") {
-if (g1001 === 'object') { const o1001 = x1001 as Record<string, unknown>;
-if (!("connectionId" in o1001)) e.push(p + "/connectionId" + ': required');
-if (!("path" in o1001)) e.push(p + "/path" + ': required');
-if ("connectionId" in o1001) lf(o1001["connectionId"], p + "/connectionId", e, L40);
-if ("path" in o1001) lf(o1001["path"], p + "/path", e, L1);
+const x997 = v;
+const g997 = typeOf(x997);
+const b997: string[] = []; lf(x997, p, b997, L0); if (b997.length) e.push(...b997);
+if (g997 === "object") {
+if (g997 === 'object') { const o997 = x997 as Record<string, unknown>;
+if (!("connectionId" in o997)) e.push(p + "/connectionId" + ': required');
+if (!("path" in o997)) e.push(p + "/path" + ': required');
+if ("connectionId" in o997) lf(o997["connectionId"], p + "/connectionId", e, L40);
+if ("path" in o997) lf(o997["path"], p + "/path", e, L1);
 }
 }
 }

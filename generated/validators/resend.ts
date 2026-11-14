@@ -21,24 +21,24 @@ if ("idempotencyKey" in o64) lf(o64["idempotencyKey"], p + "/idempotencyKey", e,
 
 function d_s_35e1355f03(v: unknown, p: string, e: string[]): void {
 {
-const x238 = v;
-const g238 = typeOf(x238);
-const b238: string[] = []; lf(x238, p, b238, L0); if (b238.length) e.push(...b238);
-if (g238 === "object") {
-if (g238 === 'object') { const o238 = x238 as Record<string, unknown>;
-if (!("providerDomainId" in o238)) e.push(p + "/providerDomainId" + ': required');
-if (!("name" in o238)) e.push(p + "/name" + ': required');
-if (!("status" in o238)) e.push(p + "/status" + ': required');
-if (!("spf" in o238)) e.push(p + "/spf" + ': required');
-if (!("dkim" in o238)) e.push(p + "/dkim" + ': required');
-if (!("dmarc" in o238)) e.push(p + "/dmarc" + ': required');
-if ("providerDomainId" in o238) lf(o238["providerDomainId"], p + "/providerDomainId", e, L1);
-if ("name" in o238) lf(o238["name"], p + "/name", e, L1);
-if ("status" in o238) lf(o238["status"], p + "/status", e, L133);
-if ("spf" in o238) lf(o238["spf"], p + "/spf", e, L37);
-if ("dkim" in o238) lf(o238["dkim"], p + "/dkim", e, L37);
-if ("dmarc" in o238) lf(o238["dmarc"], p + "/dmarc", e, L37);
-if ("region" in o238) lf(o238["region"], p + "/region", e, L1);
+const x237 = v;
+const g237 = typeOf(x237);
+const b237: string[] = []; lf(x237, p, b237, L0); if (b237.length) e.push(...b237);
+if (g237 === "object") {
+if (g237 === 'object') { const o237 = x237 as Record<string, unknown>;
+if (!("providerDomainId" in o237)) e.push(p + "/providerDomainId" + ': required');
+if (!("name" in o237)) e.push(p + "/name" + ': required');
+if (!("status" in o237)) e.push(p + "/status" + ': required');
+if (!("spf" in o237)) e.push(p + "/spf" + ': required');
+if (!("dkim" in o237)) e.push(p + "/dkim" + ': required');
+if (!("dmarc" in o237)) e.push(p + "/dmarc" + ': required');
+if ("providerDomainId" in o237) lf(o237["providerDomainId"], p + "/providerDomainId", e, L1);
+if ("name" in o237) lf(o237["name"], p + "/name", e, L1);
+if ("status" in o237) lf(o237["status"], p + "/status", e, L133);
+if ("spf" in o237) lf(o237["spf"], p + "/spf", e, L37);
+if ("dkim" in o237) lf(o237["dkim"], p + "/dkim", e, L37);
+if ("dmarc" in o237) lf(o237["dmarc"], p + "/dmarc", e, L37);
+if ("region" in o237) lf(o237["region"], p + "/region", e, L1);
 }
 }
 }

@@ -224,6 +224,8 @@ test("settings: an agent reads the asker's time zone and cannot change it", asyn
 test("vault: an agent's request for a key reaches a real person as a task, and approving it gives the agent Use without ever showing the value", async () => {
   const model = scriptedModel(async function* (input, run) {
     const folder = /folder (vfd_[a-z0-9]+)/.exec(input.trigger?.body ?? "")?.[1];
+    // vault_request is found with tool_search, as a model finds it (vault_connect is the listed tool for a service)
+    yield* run("tool_search", { query: "vault request key" });
     const r = yield* run("vault_request", {
       name: "Mailchimp_Key",
       reason: "Export the client list",

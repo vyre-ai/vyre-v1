@@ -5,20 +5,20 @@ import type { Check } from './core.ts';
 
 function d_s_4bcc467032(v: unknown, p: string, e: string[]): void {
 {
-const x354 = v;
-const g354 = typeOf(x354);
-const b354: string[] = []; lf(x354, p, b354, L0); if (b354.length) e.push(...b354);
-if (g354 === "object") {
-if (g354 === 'object') { const o354 = x354 as Record<string, unknown>;
-if (!("diffId" in o354)) e.push(p + "/diffId" + ': required');
-if (!("kind" in o354)) e.push(p + "/kind" + ': required');
-if (!("title" in o354)) e.push(p + "/title" + ': required');
-if (!("changes" in o354)) e.push(p + "/changes" + ': required');
-if ("diffId" in o354) lf(o354["diffId"], p + "/diffId", e, L195);
-if ("kind" in o354) lf(o354["kind"], p + "/kind", e, L196);
-if ("title" in o354) lf(o354["title"], p + "/title", e, L1);
-if ("changes" in o354) d_s_13ee309840(o354["changes"], p + "/changes", e);
-if ("affects" in o354) lf(o354["affects"], p + "/affects", e, L1);
+const x353 = v;
+const g353 = typeOf(x353);
+const b353: string[] = []; lf(x353, p, b353, L0); if (b353.length) e.push(...b353);
+if (g353 === "object") {
+if (g353 === 'object') { const o353 = x353 as Record<string, unknown>;
+if (!("diffId" in o353)) e.push(p + "/diffId" + ': required');
+if (!("kind" in o353)) e.push(p + "/kind" + ': required');
+if (!("title" in o353)) e.push(p + "/title" + ': required');
+if (!("changes" in o353)) e.push(p + "/changes" + ': required');
+if ("diffId" in o353) lf(o353["diffId"], p + "/diffId", e, L195);
+if ("kind" in o353) lf(o353["kind"], p + "/kind", e, L196);
+if ("title" in o353) lf(o353["title"], p + "/title", e, L1);
+if ("changes" in o353) d_s_13ee309840(o353["changes"], p + "/changes", e);
+if ("affects" in o353) lf(o353["affects"], p + "/affects", e, L1);
 }
 }
 }

@@ -87,6 +87,17 @@ export interface ForService {
 }
 
 /** The call that tries a key: the connector's health action, else its first GET that takes nothing from the caller. */
+/** The host a key tried by the connector's check is sent to: the host of that call's own address. */
+export const probeHost = (def: ConnectorDef): string | undefined => {
+  const name = def.health ?? probeOf(def);
+  const url = def.actions.find((a) => a.name === name)?.url;
+  try {
+    return url ? new URL(url.replace(/\{[^}]*\}/g, "x")).hostname : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const probeOf = (def: ConnectorDef): string | undefined =>
   def.health ??
   def.actions.find(
@@ -552,7 +563,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         mine.find((r) => r.state === "active" && r.owner_kind === "person") ??
         mine.find((r) => r.state === "active") ??
         mine[0];
-      const host = hit.domains.find((d) => !d.startsWith("*"));
+      const host = probeHost(hit);
       return {
         found: true,
         connector: {
@@ -567,7 +578,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
           })),
           ...(host ? { site: `https://${host.replace(/^api\./, "")}`, host } : {}),
           builtin: hit.builtin === true,
-          checks: probeOf(hit) !== undefined,
+          checks: probeHost(hit) !== undefined,
         },
         ...(best
           ? {
@@ -599,6 +610,16 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       // the connector's own health call; a connector built in one call (connectors.define) has none, so its first read that needs no input stands in. Only a connector with no such call cannot be tried at all.
       const probe = probeOf(def);
       if (!probe) return { result: "ok" as const };
+      // the key goes to the host of the call's own address, and only if the connector declares that host: refused before any request leaves
+      const probeUrl = def.actions.find((a) => a.name === probe)?.url ?? "";
+      if (!probeUrl) return { result: "ok" as const };
+      const egress = checkEgress(probeUrl.replace(/\{[^}]*\}/g, "x"), def.domains);
+      if (!egress.ok)
+        refuse(
+          ctx,
+          "validation.precondition_failed",
+          `${def.title}'s check reaches a host it does not declare, so no key was sent.`,
+        );
       try {
         await executeAction(deps, ctx, def, probe, { input: {}, secrets: input.secrets, persist: false });
       } catch (e) {
