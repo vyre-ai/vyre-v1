@@ -313,7 +313,7 @@ test("discovery options do not expose inert GitHub or SSO controls", () => {
   assert.doesNotMatch(out, /Single sign-on|GitHub|Google/);
 });
 
-test("Ask the Space in the real shell: the question goes to search.ask as typed, a source opens its place, and Continue in a chat starts a real chat with the assistant and opens it", async () => {
+test("Ask the Space in the real shell: the question goes to search.ask as typed, a source opens its place, and Continue in a chat opens the chat with the assistant on his own words at once", async () => {
   const { data, calls, went, log, opened } = setup();
   const c = new CmdKController(data, { revealMs: 0 });
   c.setRaw("what is the lease deposit");
@@ -329,13 +329,21 @@ test("Ask the Space in the real shell: the question goes to search.ask as typed,
   assert.ok(log.includes("flash:Answer copied"));
   c.continueInChat();
   await wait(20);
-  const start = calls.find((x) => x.cap === "chat.start")!.input as Record<string, unknown>;
-  assert.deepEqual([start["kind"], start["agentIds"]], ["chat", ["agt_assistant"]]);
+  // the press is answered at once: the chat opens on his own words (the question and the answer) in the Ask view with the assistant, which makes the chat
+  // behind them; nothing waits for chat.start here (shell/cmdk/continue-chat.test.ts holds the long-answer case, which still waits for its chat)
+  assert.equal(
+    calls.some((x) => x.cap === "chat.start"),
+    false,
+  );
+  assert.equal(opened.length, 1);
+  const o = opened[0] as { screen?: string; args?: Record<string, unknown> };
+  assert.equal(o.screen, "chats.ask");
+  assert.equal(o.args?.["with"], "assistant");
   assert.match(
-    String(start["first"]),
+    String(o.args?.["first"]),
     /^what is the lease deposit\n\nWhat the Space says:\nThe deposit is 4200 dollars \[1\]\./,
   );
-  assert.deepEqual(opened, [{ subject: { type: "thread", id: "thr_new" } }]);
+  assert.equal(o.args?.["heading"], "what is the lease deposit");
   void went;
 });
 

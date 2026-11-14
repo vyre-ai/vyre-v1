@@ -174,32 +174,6 @@ export function Tool({
   );
 }
 
-/** The on/off switch of a routine. */
-export function Switch({
-  on,
-  label,
-  onPress,
-  testID,
-}: {
-  on: boolean;
-  label: string;
-  onPress: () => void;
-  testID?: string;
-}): ReactElement {
-  return (
-    <Pressable
-      role="switch"
-      aria-label={label}
-      aria-checked={on}
-      onPress={onPress}
-      testID={testID}
-      style={[s.switchTrack, on && SWITCH_ON]}
-    >
-      <View style={[s.switchKnob, on && s.switchKnobOn]} />
-    </Pressable>
-  );
-}
-
 /** A small text button in a section: "Wake", "Give back", "Run now". `primary` is the one filled action. */
 export function TextButton({
   label,
@@ -263,6 +237,7 @@ export type Entry =
       key: string;
       type: "row";
       title: string;
+      /** quiet words after the title on the same line ("You") */ suffix?: string;
       note?: string;
       leading?: ReactNode;
       trailing?: ReactNode | ((over: boolean) => ReactNode);
@@ -317,6 +292,7 @@ export function PaneList({
           <Row
             id={e.testID ?? e.key}
             title={e.title}
+            {...(e.suffix ? { titleSuffix: e.suffix } : {})}
             {...(e.note ? { note: e.note } : {})}
             selected={e.selected === true}
             {...(e.onPress ? { onPress: e.onPress } : {})}
@@ -363,23 +339,12 @@ export function PaneList({
 }
 
 // A plain object (not a StyleSheet id) so the painted token is visible in the element's inline style, as ui/Row does.
-const SWITCH_ON = { backgroundColor: "var(--ok)" };
 
 export const s = StyleSheet.create({
   lead: { width: 18, height: 18, marginRight: 6, alignItems: "center", justifyContent: "center" },
   leadFace: { minWidth: 22, marginRight: 10, alignItems: "center", justifyContent: "center" },
   tool: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   toolOver: { backgroundColor: "var(--press)" as string },
-  switchTrack: {
-    width: 28,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: "var(--line-2)" as string,
-    justifyContent: "center",
-    paddingHorizontal: 2,
-  },
-  switchKnob: { width: 12, height: 12, borderRadius: 6, backgroundColor: "var(--win)" as string },
-  switchKnobOn: { alignSelf: "flex-end" },
   btn: {
     height: 26,
     paddingHorizontal: 10,

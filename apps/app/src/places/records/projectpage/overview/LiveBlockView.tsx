@@ -16,10 +16,10 @@ import {
   kindOf,
   liveDescription,
   liveReady,
+  liveRows,
   liveTitle,
   metricLine,
   planStatus,
-  stageWord,
   stateTone,
 } from "./model.ts";
 import type { LiveOut, LiveRowOut, TypeName, View as LiveView } from "./model.ts";
@@ -399,7 +399,7 @@ export function LiveBlockView({
         ) : (
           <Rows
             type={attrs.type}
-            rows={attrs.type === "status" ? out.rows.map((r) => ({ ...r, title: stageWord(r.title) })) : out.rows}
+            rows={liveRows(attrs.type, out.rows, d.nameOf)}
             view={view}
             now={d.now()}
             open={open}

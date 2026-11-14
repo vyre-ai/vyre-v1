@@ -258,7 +258,8 @@ const PREVIEW = 120;
  * The threads the asker belongs to, newest activity first, in Today / Yesterday / Earlier (UTC days).
  * Read cursors, stars and the working pulse live with other capabilities (threads.mark_read and the engine), so unread is 0, starred false and working false here.
  */
-export async function recent(ctx: ChatCtx, input: { filter?: "all" | "unread" | "people" | "agents" }) {
+/** `max` is for the sidebar read, which pages the whole list itself; the capability's own input has none, so a person or agent calling chat.recent still gets the latest RECENT_MAX. */
+export async function recent(ctx: ChatCtx, input: { filter?: "all" | "unread" | "people" | "agents"; max?: number }) {
   ensure(ctx.db);
   const asker = askerOf(ctx);
   const filter = input.filter ?? "all";
@@ -313,7 +314,7 @@ export async function recent(ctx: ChatCtx, input: { filter?: "all" | "unread" | 
     archived: [] as Row[],
   };
   // the chats I archived leave the day groups and wait in one section at the foot; the others in a group chat still see theirs where it was
-  for (const { lastAt, row, archived } of rows.slice(0, RECENT_MAX))
+  for (const { lastAt, row, archived } of rows.slice(0, input.max ?? RECENT_MAX))
     (archived ? out.archived : lastAt >= today ? out.today : lastAt >= today - DAY ? out.yesterday : out.earlier).push(
       row,
     );

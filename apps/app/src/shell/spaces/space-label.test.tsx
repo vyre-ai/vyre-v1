@@ -63,9 +63,13 @@ const RULES: { why: string; re: RegExp }[] = [
   { why: "a name falls back to a Space id", re: new RegExp(String.raw`[nN]ame\s*(?:\?\?|\|\|)\s*${ID}\b`) },
 ];
 
+/** owner, 13 Nov 2026: admins may see the Space ID on Console General. The one screen exempt from this lint; everywhere else the id stays hidden. */
+const SPACE_ID_ON_PURPOSE = ["console/pages/InfrastructureSettings.tsx"];
+
 test("lint: no screen shows a Space id where a person reads it", () => {
   const found: string[] = [];
   for (const file of sources(ROOT)) {
+    if (SPACE_ID_ON_PURPOSE.includes(path.relative(ROOT, file))) continue;
     const text = fs.readFileSync(file, "utf8");
     for (const [i, line] of text.split("\n").entries()) {
       if (/^\s*(\/\/|\*)/.test(line)) continue;
@@ -73,6 +77,14 @@ test("lint: no screen shows a Space id where a person reads it", () => {
     }
   }
   assert.deepEqual(found, [], "Show the Space's name (spaces/space-label.ts spaceLabel), never its id");
+});
+
+test("lint: the exemption list is exactly the one screen the owner named (13 Nov 2026), so it cannot grow quietly", () => {
+  assert.deepEqual(SPACE_ID_ON_PURPOSE, ["console/pages/InfrastructureSettings.tsx"]);
+  assert.ok(
+    fs.readFileSync(path.join(ROOT, "console/pages/InfrastructureSettings.tsx"), "utf8").includes("space-id-value"),
+    "the exempt screen is the Space ID row",
+  );
 });
 
 test("lint: the rule catches what it is for", () => {

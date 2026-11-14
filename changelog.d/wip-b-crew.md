@@ -1,0 +1,5 @@
+- When an agent on a command-line engine (Claude Code) starts subagents of its own, you now see them. While they work, the chat shows each one on its own row with the task it was given, "Working" and a clock, and the header and the Working pill count them. A row opens to what it is on, its face opens the Crew pane with the steps it took, and when it is done the words it returned. They clear when the reply lands and sit under the reply with their answers kept.
+- A subagent's own words are no longer mixed into the agent's reply or its steps, and its work no longer moves the chat's context meter.
+- Helpers and subagents that an agent starts mid-turn appear within about a second; before, the Crew showed them only after the reply landed.
+- Opening a helper in the Crew pane no longer makes a call that is refused every time, and an ordinary chat no longer asks for helper notes on each turn (one refused call per turn, in every chat, before).
+- In the Crew block a face no longer touches the name beside it.

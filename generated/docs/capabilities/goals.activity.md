@@ -41,6 +41,7 @@ type Out = {
       text: string;
       by?: string;
       ref?: string;
+      data?: Record<string, unknown>;
       tpl?: string;
     }>;
 };
@@ -69,6 +70,7 @@ type Out = {
       {
         "at": 1760000000000,
         "by": "example",
+        "data": {},
         "kind": "reading",
         "ref": "example",
         "text": "example",

@@ -4,8 +4,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import http from "node:http";
-import { boot, seededDir } from "./memory-live-kit.ts";
+import { boot, clock, seededDir } from "./memory-live-kit.ts";
 import { api, door, join, ok, standIn } from "./member-key-kit.ts";
+import { reachingFetch } from "../host/tests/artifact-host-kit.test.ts";
 
 const HOST = "a.team.example.test";
 
@@ -40,9 +41,13 @@ test(
   async () => {
     process.env["VYRE_ARTIFACT_HOST"] = HOST;
     const dir = seededDir();
-    const d = await boot(dir, standIn, undefined, { vault: undefined } as unknown as NonNullable<
-      Parameters<typeof boot>[3]
-    >);
+    let at = "";
+    const d = await boot(dir, standIn, undefined, {
+      vault: undefined,
+      fetch: reachingFetch(HOST, () => at),
+    } as unknown as NonNullable<Parameters<typeof boot>[3]>);
+    at = d.url;
+    clock.t += 120_000; // the start's own check ran before the stand-in knew the address
     try {
       const rubab = await join(d, "rubab");
       const sara = await join(d, "sara");
@@ -123,9 +128,13 @@ test(
   async () => {
     process.env["VYRE_ARTIFACT_HOST"] = HOST;
     const dir = seededDir();
-    const d = await boot(dir, standIn, undefined, { vault: undefined } as unknown as NonNullable<
-      Parameters<typeof boot>[3]
-    >);
+    let at = "";
+    const d = await boot(dir, standIn, undefined, {
+      vault: undefined,
+      fetch: reachingFetch(HOST, () => at),
+    } as unknown as NonNullable<Parameters<typeof boot>[3]>);
+    at = d.url;
+    clock.t += 120_000; // the start's own check ran before the stand-in knew the address
     try {
       const open = async (who: { token: string }, key: string): Promise<{ id: string; cookie: string }> => {
         const made = await ok(d, who.token, "sites.artifact_publish", {

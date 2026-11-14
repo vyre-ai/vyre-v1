@@ -4,7 +4,7 @@ import { Row } from "../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import { Help, Actions, Button, Field, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { Help, Actions, Button, TextBox, Note, ReadState, useAction, useRead } from "./shared.tsx";
 import { Choice } from "./ai-controls.tsx";
 
 type Scope = "space" | "floor" | "agent";
@@ -253,7 +253,7 @@ export function GateRules(): ReactElement {
                 }}
               />
             ) : null}
-            <Field
+            <TextBox
               label="Timeout in hours"
               value={String(current.afterHours)}
               onChange={(value) => {

@@ -203,3 +203,77 @@ New read `runs.states@1` `{ runIds }` (at most 200, `maxItems`) -> `{ states: [{
 
 Signed: (not yet signed; for the lead to sign, 14 Nov 2026)
 
+## 13 Nov 2026: computers.chrome.screenshot answers pageWidth, pageHeight and scale (lane f-computer)
+
+`computers.chrome.screenshot@1` gains three optional answer fields, added to the output only (no input and no existing field changes): `pageWidth` and `pageHeight` (integers, the page's size in page pixels) and `scale` (a number, picture pixels per page pixel). `pageHeight` is the whole page's height even when the picture shows only its top part. They are present only when the picture is not the page as it is: a screenshot over the 256 KB limit for a picture kept in Files is scaled down to fit, and a page taller than 4096 px comes back as its top part. `width` and `height` stay the picture's own size, and the existing optional `note` now says in one sentence that `chrome_click`'s x and y are in page pixels (a point on the picture is multiplied by 1 / scale). Before this, such a screenshot failed with `validation.too_large`.
+
+Signed: the lead, 13 Nov 2026
+
+## 13 Nov 2026: notifications.unseen_by_thread is added (lane b-side), for the lead to sign
+
+- What changed: one new read, `notifications.unseen_by_thread@1` (module notifications, level member, tool meta). Input `{ threadIds?: thread[] (at most 200) }`; output `{ counts: [{ threadId, mentions >= 1 }], capped: bool }`. Additive: no existing capability, event or kind changed. Snapshot: `docs/frozen/snapshots/notifications.json`, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+- Why: the Chats sidebar shows a mention count on a row, and no read carried it (a mention reached only the rail). The read answers the caller's OWN unseen mention notifications (kinds mention and mention.thread) grouped by thread, newest first, at most 500 threads (`capped` true when there were more; the oldest are left out); it never answers for another person, and it names only threads a notification was filed for the caller about. The sidebar's read joins it onto the chats it already lists, so a thread the caller cannot open is never shown.
+- Signed: ______ (lead)
+
+## 13 Nov 2026: chats.presence is added (lane b-side), for the lead to sign
+
+- What changed: one new read, `chats.presence@1` (module chat, tool chats, `team: true` like `devices.presence`). Input `{}`; output `{ people: [{ personId, state: online | away }], working: [{ agentId, threadId?, since }] }`. Additive: no existing capability, event or kind changed. Snapshot: `docs/frozen/snapshots/chat.json`, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+- Why: the Chats sidebar draws a presence dot on people and a moving ring on agents that work. Presence changes often, so it is a separate small read and stays out of the sidebar's own answer, which then stays quiet. It composes `devices.presence` and `engine.now`, which already answer as the caller: offline people are left out, a chat is named only when the asker may read it, no title leaves it, and a guest (no team) gets nobody.
+- Signed: ______ (lead)
+
+## 14 Nov 2026: chats.sidebar is added (lane b-side), for the lead to sign
+
+- What changed: one new read, `chats.sidebar@1` (module chat, level member, tool chats), also a live query (`side`) of the `chats.sidebar` screen. Input `{ filter?: str (everything, or unread, mentions, working, needs, failed, muted, goals, asks, archived; anything else is refused in plain words), more?: { section, after?, limit? (at most 100) } }`; output `{ needs: { total, items }, goals | pinned | chats | channels | team: { total, rows (first 50), next? }, rail, nextUnread? }`. Additive: no existing capability, event or kind changed. Snapshot: `docs/frozen/snapshots/chat.json`.
+- Why: the sidebar made 11 reads on open and drew marks no read carried. This is the one watched answer: per row unread, mentions, working, muted, the caller's pin order, and `failed` plus `failedLine` in words (a code or trace id never). It answers as the caller: pinned and muted are the caller's own; a caller who may not start chats (a guest) gets only the chats and channels they are in, no goals, team or agents. Presence is only in `chats.presence`; a draft is the device's own and never in it.
+- The SOURCE of pins and mutes is an internal detail: today the caller's stars (newest first is the order) and the chat module's own mutes behind one port; the per-person state module replaces it with no change of shape. `failed` is false until the engine offers one bulk read of the latest turn per thread (not asked per row).
+- Proof: modules/chat/tests/sidebar.read.test.ts pages 5,000 chats by cursor (one read per page; each read asks every neighbour the same number of times; the chat module reads only the page it carries). Speed: modules/chat/tests/sidebar.read.perf.test.ts holds the first page and a later page of a person with 5,000 chats and 200 channels under the `navigate` budget (p95 100 ms) over 50 runs: one read per page, each asking every neighbour the same number of times, none per row.
+- Signed: ______ (lead)
+
+## 14 Nov 2026: engine.thread_states is added (lane b-side), for the lead to sign
+
+- What changed: one new read, `engine.thread_states@1` (module engine, tool chats). Input `{ threadIds: thread[] (at most 200) }`; output `{ states: [{ threadId, state: running | waiting | failed | done, failedLine? }] }`. Additive: no existing capability, event or kind changed, and nothing about how turns run. Snapshot: `docs/frozen/snapshots/engine.json`.
+- Why: the Chats sidebar marks a chat whose last run stopped. No read gave the latest turn of many chats at once, and one call per row would break the sidebar's "nothing per row" rule. This reads the engine's own table with one grouped query (the turn with the highest queue number per chat). queued counts as running, completed and cancelled as done. `failedLine` is the plain message the turn failed with (or "Something went wrong."), never a code, a trace id or a next-step list.
+- Asker rule: a chat has a state only when its latest turn was asked by the caller and the caller may view it; any other chat is absent, the same answer as a chat with no turn, so the read never says a chat exists. (The kernel's view of a chat is wider than who may open it: a private chat's membership is the chat module's own rule, found on a real daemon where a member was told the state of the owner's private chat before this was narrowed.) Tested with two askers and on a booted daemon.
+- Signed: ______ (lead)
+## 13 Nov 2026: the state module, per-person state on a thing (lane b-state, contract P2 step 0)
+
+- What changed: a new manifest `manifests/state.ts` and snapshot `docs/frozen/snapshots/state.json`. Thirteen capabilities, all new at `@1`: six public (`state.get`, `state.list`, `state.counts`, `state.read`, `state.read_scope`, `state.set`) and seven the host makes itself (`state.arrive`, `state.retract`, `state.merge`, `state.gain`, `state.lose`, `state.forget`, `state.verify`; the handler refuses everyone but `svc_host`). One event, `state.changed` (`vis: owner`; payload person, thing, changed, now and `by`, so an agent's change names the agent). One person setting, `state.agents_may_triage`, default off. The six public capabilities have agent tools `state_get`, `state_list`, `state_counts`, `state_read`, `state_read_scope`, `state_set` in the `meta` toolset, all `deferred` so the default listed toolset stays at 65.
+- What did not change: no existing capability, event or entity is touched, and nothing calls the new ones yet. The 18 capabilities and 10 events the contract lists as going are removed in later steps, each with its own dated note. The synced entities `state_person` and `state_count` are declared at the replica step (7), not here.
+- Why: P2 (docs: `team/v1/CONTRACTS-2026-11-13/P2-person-state.md`). Read, done, star, follow and mute become one row per person and thing, so one person's read can never clear another's.
+- One difference from the contract text: a thing is `{ type, id }` with an open `type`, not a `resourceRef`, because the things that carry state (an Inbox conversation, a notice) are not access resources; each kind of thing says who can see it. A refused agent write answers `permission.no_grant` (the contract's "permission.denied" is not an error code).
+
+- Amended 13 Nov 2026 after the review (lead's ruling 13 Nov 2026; contract P2 section 9), still before signing: the three events are `vis: private` (the Space owner does not read them, and a mute that ended reaches the person it belongs to through a host-only `EmitOpts.onBehalf`); `state.changed` carries the new `state` and `count`; new event `state.scope_read` (one event for a whole badge) and `state.layout_changed`; two new deferred tools `state.layout.get` and `state.layout.set`; `state.set` gains `pin`; `state.list` gains the flags `pinned` and `any` and its rows carry the whole `state`; the stored value gains `pin`. The seven host calls declare `permission.no_grant`. Writes need the person's own press, or their switch `state.agents_may_triage`, on every other door (MCP, engine, service, actor, agent).
+
+Signed: (awaiting the lead)
+
+## 13 Nov 2026: access.connector_builder.status can be asked about one Vault item (lane f-auto2)
+
+- What changed: `access.connector_builder.status@1` takes an optional `itemId` and, when it is given, answers an optional `reaches` (true or false) beside `allowed` and `canGrant`. `reaches` is the access check's own answer for "may this assistant, acting for the caller, use that Vault item": false for an item labelled above the clearance of the assistant or of the person it acts for (a company key, anything Restricted): a grant does not lift a clearance (it is per subject), only a role with a higher one does, which an admin may give an agent. True also when only a share to the assistant is missing and the caller may use the item (one approval away). Nothing else in its contract changed. Snapshot: docs/frozen/snapshots/access.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+- Why: on rc.26 the Automations first page suggested setting up Google_DWD, and the assistant could not do it (above its clearance, and without the Connector builder role). A suggestion is now shown only when the assistant can finish it, and the Vault row, the first page and the setup press all ask this one question.
+- Also moved, not a contract: `modules/automations/tests/golden-replay/golden.json` holds the new words for a step that is missing an input ("Update a record: choose the record."), and `automations.steps.list` lists Google, Microsoft and GitHub steps only for apps connected on the Space that the caller may use (same input and output, fewer rows).
+
+Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff: optional, additive fields only; no input, output or error removed.
+
+## 13 Nov 2026: what a model reads when a tool fails, and `automations.steps.list` gains `all` (lane f-auto2)
+
+- Model-facing error (not a capability contract, but what agents and MCP clients receive): `error.code` is now `error.supportCode`; the object now starts with `say` (a plain sentence and what to do) and `reply` (the rule: tell the person in plain words, no codes unless asked). `message`, `retryable`, `next`, `details` stay. In MCP `structuredContent.error` a `code` twin (the same value as `supportCode`) is kept for machine clients; the text a model reads has only `supportCode`.
+- `automations.steps.list@1` takes an optional `all` (boolean): every step the server can run, including apps not connected for the caller, for the editor of an Automation that already holds such a step. Without it the list is filtered to connected apps (the picker and the Assistant). Additive.
+- `automations.steps.list@1` also answers an optional `checked` (false only when the Space's connected apps could not be read, so an app missing from the list is unknown rather than unconnected; absent otherwise). Additive.
+
+Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff: optional, additive fields only; no input, output or error removed.
+
+## 14 Nov 2026: a person can take the keyboard of a terminal (lane b-pc)
+
+- What changed: two new capabilities, `terminal.take_over` and `terminal.give_back` (level use, on the terminal; people only, never an agent tool), two new events, `terminal.taken` and `terminal.given_back`, and an optional `heldBy` (the person at the keyboard) on the terminal row that `terminal.list`, `terminal.get`, `terminal.open`, `terminal.open_server`, `terminal.rename` and the new calls answer. While a person holds a terminal, `terminal.run`, `terminal.input` and `terminal.interrupt` from anyone else (the agent included) are refused with one plain sentence (`validation.precondition_failed`, reason `keyboard_held`); the holder's own keys keep the hold in use, and a hold nobody uses for 15 minutes ends by itself. Taking it from another person needs the owner of the terminal or a manager of the agent. A terminal nobody holds takes input as before.
+- Why: the owner's drawing of an agent's computer (13 Nov, AGENT-COMPUTER-2026-11-13.md B2, B3, section 11 rules 1 and 4): a person takes the keyboard with one deliberate press, the agent is told and waits, and gives it back. The Space browser already worked this way (`computers.browser.take_over`).
+- Snapshots: `docs/frozen/snapshots/terminal.json`, regenerated with `node tools/gen/src/cli.ts --snapshots`. New table `terminal_hold` (`modules/terminal/migrations/0004_hold.sql`, created on first use like the earlier ones).
+
+Signed: pending the lead (lane b-pc did not sign it).
+
+## 14 Nov 2026: three new reads are open to every member, a guest included (lane b-side), for the lead to sign
+
+- What changed: `chats.presence`, `notifications.unseen_by_thread` and `engine.thread_states` were first added at level `view` (the Space's View grant) and are now level `member`, like `chat.recent`, `chats.sidebar` and `channels.list`. They were never released at `view`: no caller outside this branch could have used the old level. Nothing else about the three changed.
+- Who gains: a guest, who holds no View on the Space, is no longer refused (before: 403 permission.no_grant, which the sidebar would have shown as a failed section). Who loses: nobody; a principal that held `view` is a member.
+- What a guest gets from each, proved with a real guest on a booted daemon (test/chats.sidebar.asker.live.test.ts): `chats.presence` answers no people and no agents at work (it composes `devices.presence` and `engine.now`, which refuse a guest, so each half is empty); `notifications.unseen_by_thread` answers only the guest's own unseen mentions, none when they have none, and never a thread they cannot open (the query is scoped to the asker and names only threads a notification was filed for them about); `engine.thread_states` answers only chats whose latest turn the guest asked and may view, and nothing for the owner's private chat.
+- Why refusing was wrong: the sidebar is the first thing a guest sees, and it reads these three on every open; a refusal drew a failed section for the one person who has the fewest things to show.
+- Signed: ______ (lead)

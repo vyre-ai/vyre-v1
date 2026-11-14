@@ -7,7 +7,7 @@ import { shellTarget, useViewer } from "../../../shell/reach/viewer.ts";
 import { useComputersAvailable } from "../../../shell/computers-available.ts";
 import { ImportedSession } from "../imported/ImportedSession.tsx";
 import type { ImportedData } from "../imported/ImportedSession.tsx";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { PhoneProfile } from "./PhoneProfile.tsx";
@@ -24,7 +24,7 @@ import { ComputerPopup, ComputerPopupLoading } from "../computer/ComputerPopup.t
 import { NO_CAPTURE } from "../computer/model.ts";
 import { Conversation, ConversationLoading } from "../conversation/Conversation.tsx";
 import { createComposerFill } from "../conversation/data.tsx";
-import type { ComposerFill } from "../conversation/data.tsx";
+import type { ComposerFill, ConversationNav } from "../conversation/data.tsx";
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { AgentPane } from "../AgentPane.tsx";
 import { CrewProvider } from "../crew/context.tsx";
@@ -69,6 +69,8 @@ import type { CaptureCounter, Go, LineAction } from "./data.ts";
 import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
 import { START, fromHash, linkedTo, openKeyOf, personOfHash, step, workOf } from "./route.ts";
+import { PendingChat } from "../landing/PendingChat.tsx";
+import { firstWords, holdPending } from "../landing/pending.ts";
 import { Landing } from "../landing/Landing.tsx";
 import { ThreadSide } from "./ThreadSide.tsx";
 import { ArtifactsPage } from "./ArtifactsPage.tsx";
@@ -81,6 +83,8 @@ import { useDirectory } from "../../../shell/providers/automations-parts.tsx";
 import { ProfilePane, afterClose, profileTab, withTab } from "../rightpane/ProfilePane.tsx";
 import type { ProfileTab } from "../rightpane/ProfilePane.tsx";
 import type { TabKey } from "../rightpane/model.ts";
+import { ChatDetails } from "../rightpane/ChatDetails.tsx";
+import { paneAction, paneSubject } from "../rightpane/subject.ts";
 import { ReplyDetailsPane } from "../details/ReplyDetailsPane.tsx";
 import { readReplyDetails } from "../details/read.ts";
 import type { Call } from "../details/read.ts";
@@ -95,7 +99,7 @@ import { openSkills } from "../install/open.ts";
 import type { Act, Route, Shown } from "./route.ts";
 import { nameOr } from "../names.ts";
 import { viewing } from "../../../shell/noticeslot/viewing.ts";
-import { LoadFailed } from "../../../../../../ui/src/States/Loads.tsx";
+import { LoadFailed, onBackToStart } from "../../../../../../ui/src/States/Loads.tsx";
 import type { LoadFailure } from "../../../../../../ui/src/States/Loads.tsx";
 
 /** A channel id; the place shows a channel as its main thread. */
@@ -135,6 +139,8 @@ export interface ChatsMountedProps {
   }) => void;
   /** The middle is about to change: the shell keeps a still copy on screen until the next view is ready. */
   onSwitch?: () => void;
+  /** Names the selected tab for the chat that is starting, before the chat has an id. */
+  onTitle?: (title: string) => void;
   /** Closes the tab this page sits in: a page that is finished leaves no stale tab behind. */
   closeSelf?: () => void;
   /** A phone: what opens from the first screen goes on top of its history, so Back returns here. */
@@ -143,6 +149,8 @@ export interface ChatsMountedProps {
   openInNewTab?: (hash: string) => void;
   /** Where Notes starts: a sheet, a menu or the bar open (tests and screenshots). */
   notesInitial?: NotesInitial;
+  /** The chat's doors (open Skills, open Hooks, ...) as the conversation gets them: tests press them the way a card or a hook line does. */
+  onNav?: (nav: ConversationNav) => void;
 }
 
 export function ChatsMounted({
@@ -152,10 +160,12 @@ export function ChatsMounted({
   window,
   opened,
   onSwitch,
+  onTitle,
   closeSelf,
   stacked = false,
   openInNewTab,
   notesInitial,
+  onNav,
 }: ChatsMountedProps): ReactElement {
   const [shown, setShown] = useState<Shown>(() => initial ?? (hash === "" ? START : fromHash(hash)));
   const [line, setLineState] = useState<{ text: string; action?: LineAction } | null>(null);
@@ -307,13 +317,20 @@ export function ChatsMounted({
     const found =
       asking.scopeType === ""
         ? asking.first
-          ? chatOpening(rt, who, asking.first)
+          ? chatOpening(rt, who, asking.first, asking.heading)
           : chatWith(rt, who)
         : askWith(rt, who, asking.scopeType, asking.scopeId, asking.bringFrom, asking.first);
     void found.then((id) => {
       if (!live) return;
       if (id) {
         if (asking.draft) fill.set(asking.draft);
+        if (asking.first)
+          holdPending(id, {
+            title: asking.heading ?? firstWords(asking.first),
+            text: asking.first,
+            files: [],
+            lead: asking.agentId === "assistant" ? rt.assistant.name : nameOf(asking.agentId),
+          });
         act({ t: "chat", threadId: id, pane: true });
       } else {
         setLine("Could not open the Ask. You may not see that yet.");
@@ -330,23 +347,50 @@ export function ChatsMounted({
     asking?.bringFrom,
     asking?.draft,
     asking?.first,
+    asking?.heading,
     rt,
     act,
     fill,
   ]);
+  const titleTab = useRef(onTitle);
+  titleTab.current = onTitle;
+  // before the first paint of the opening message, so the tab is named in the same frame
+  useLayoutEffect(() => {
+    if (asking?.first) titleTab.current?.(asking.heading ?? firstWords(asking.first));
+  }, [asking?.first, asking?.heading]);
   const go = useMemo<Go>(() => createGo(rt, act, nameOf, setLine), [rt, act, nameOf]);
   // right tabs: what was opened from a chat, closable, after the pane's own. Pressing any face or name opens that profile here, person or agent.
   const [rightTabs, setRightTabs] = useState<readonly ProfileTab[]>([]);
   const [rightOn, setRightOn] = useState<string | null>(null);
+  // the tab the pane picked by itself (not one the person pressed), and the chat whose first choice is made
+  const autoTab = useRef<string | null>(null);
+  const selectedFor = useRef<string | null>(null);
   // a hook line in the chat opens the pane on Hooks, at that hook
   const [paneTab, setPaneTab] = useState<TabKey | undefined>(undefined);
+  // "Back to Chats" on a refusal (ui/States) shows the start, where the list is
+  const placeRef = useRef<{ getBoundingClientRect?: () => { width: number; height: number } } | null>(null);
+  // only the Chats place that is on screen hears it: a copy kept mounted behind another place has no size
+  useEffect(
+    () =>
+      onBackToStart(() => {
+        const b = placeRef.current?.getBoundingClientRect?.();
+        if (b !== undefined && (b.width === 0 || b.height === 0)) return;
+        act({ t: "new" });
+      }),
+    [act],
+  );
   const [hookSel, setHookSel] = useState<string | null>(null);
+  // each chat opens on what it is: a tab asked for in one chat (Hooks, Knows, Skills) is not carried to the next
   // the task open beside the chat it was pressed in; it closes when the chat changes
   const [sideTask, setSideTask] = useState<string | null>(null);
   const openSideTask = useCallback((id: string): void => setSideTask(id), []);
   const chatShown = shown.route.view === "chat" ? shown.route.threadId : null;
   useEffect(() => {
     setSideTask(null);
+  }, [chatShown]);
+  useEffect(() => {
+    setPaneTab(undefined);
+    setHookSel(null);
   }, [chatShown]);
   const profile = useCallback(
     (id: string, asPerson = false): void => {
@@ -630,6 +674,7 @@ export function ChatsMounted({
         openBeside,
         openSkills: (name: string) => {
           openSkills(name);
+          selectedFor.current = threadId;
           act({ t: "pane-open" });
         },
         openDetails: (tid: string, mid: string) => replyDetails(tid, mid),
@@ -637,11 +682,15 @@ export function ChatsMounted({
           setPaneTab("hooks");
           setHookSel(hookId ?? null);
           setRightOn(null);
+          selectedFor.current = threadId;
           go.openPane();
         },
       },
     };
   }, [rt, go, threadId, list, nameOf, leadId, fill, focus, focusN, profile, openSideTask, replyDetails]);
+  useEffect(() => {
+    if (conv) onNav?.(conv.nav);
+  }, [conv, onNav]);
   // the thread beside the chat: its parent box goes back to the message in the chat (on a phone the sheet steps aside first)
   const sideId = route.view === "chat" && threadId !== null ? (shown.side ?? null) : null;
   // the chat on screen (and the thread beside it) is not announced in the top bar: the person is reading it
@@ -723,6 +772,57 @@ export function ChatsMounted({
     [paneCtx, poke],
   );
   const rightTabNow = rightTabs.find((x) => x.key === rightOn);
+  // The pane opens on the thing the chat is (K9): the other person in a one-to-one chat, the channel in a channel, the group in a group chat; an agent's chat keeps the agent. Once per chat and per opening, and
+  // never over a choice the person made (a face they pressed, a hook line that asked for Hooks).
+  const subject =
+    thread.status === "ready" && threadId !== null && thread.data.thread.threadId === threadId
+      ? paneSubject(thread.data.thread, rt.me.id, rt.assistant.id)
+      : null;
+  const subjectKey =
+    subject === null
+      ? null
+      : subject.kind === "person"
+        ? `profile:${subject.id}`
+        : subject.kind === "agent"
+          ? null
+          : `chat:${threadId}`;
+  useEffect(() => {
+    const what = paneAction({
+      paneOpen: shown.pane,
+      hasSubject: subject !== null,
+      threadId,
+      settledFor: selectedFor.current,
+      rightOn,
+      autoTab: autoTab.current,
+    });
+    if (what === "clear") {
+      selectedFor.current = null;
+      if (autoTab.current !== null) {
+        const k = autoTab.current;
+        autoTab.current = null;
+        setRightOn((on) => (on === k ? null : on));
+        setRightTabs((t) => t.filter((x) => x.key !== k));
+      }
+      return;
+    }
+    if (what === "skip" || subject === null || threadId === null) return;
+    selectedFor.current = threadId;
+    const old = autoTab.current;
+    if (what === "keep") return; // the person chose something else to look at: leave it
+    if (old !== null && old !== subjectKey) setRightTabs((t) => t.filter((x) => x.key !== old)); // the last chat's person or details goes; the new one takes its place
+    if (subject.kind === "person") {
+      profile(subject.id, true);
+      autoTab.current = `profile:${subject.id}`;
+    } else if (subject.kind === "agent") {
+      setRightOn(null);
+      autoTab.current = null;
+    } else {
+      const key = `chat:${threadId}`;
+      setRightTabs((t) => withTab(t, { key, id: threadId, title: "Details", kind: "chat" }));
+      setRightOn(key);
+      autoTab.current = key;
+    }
+  }, [shown.pane, subject?.kind, subjectKey, threadId]); // eslint-disable-line react-hooks/exhaustive-deps
   const agentTabId =
     rightTabNow && (rightTabNow.kind === "agent" || rightTabNow.kind === "assistant") ? rightTabNow.id : null;
   const agentTabData = useMemo(
@@ -905,6 +1005,8 @@ export function ChatsMounted({
   else if (route.view === "new") {
     main = (
       <Landing
+        key={route.with?.agentId ?? "new"}
+        {...(route.with ? { startWith: { id: route.with.agentId, name: route.with.name } } : {})}
         rt={rt}
         nameOf={nameOf}
         kindOf={(id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person")}
@@ -915,10 +1017,23 @@ export function ChatsMounted({
         fill={(t) => fill.set(t)}
         newKey={newKey}
         say={setLine}
+        {...(onTitle ? { title: onTitle } : {})}
         {...(stacked ? { list: <ChatsSidebar data={side} open={openKey} {...(window ? { window } : {})} /> } : {})}
       />
     );
-  } else if (conv) {
+  }
+  // an Ask or a chat that opens with the person's own first message (Home's Ask, a task, a project, an agent): his words and the working mark are on screen while the thread is found or made
+  else if (asking !== null && asking.first)
+    main = (
+      <PendingChat
+        title={asking.heading ?? firstWords(asking.first)}
+        text={asking.first}
+        files={[]}
+        lead={asking.agentId === "assistant" ? rt.assistant.name : nameOf(asking.agentId)}
+        phase="sending"
+      />
+    );
+  else if (conv) {
     const work = thread.status === "ready" ? workOf(thread.data.thread) : null;
     const live = {
       ...conv,
@@ -952,19 +1067,29 @@ export function ChatsMounted({
         testID="channel-failed"
       />
     );
-  else main = <ConversationLoading />;
+  else
+    main = <ConversationLoading {...(route.view === "chat" && route.threadId ? { threadId: route.threadId } : {})} />;
 
   /* ---------- the right ---------- */
   const rightTab = rightTabs.find((t) => t.key === rightOn);
   const rightSpecs = rightTabs.map((t) => ({
     key: t.key,
     title: t.title,
-    ...(t.kind === "details"
+    ...(t.kind === "details" || t.kind === "chat"
       ? {}
       : { lead: <Avatar {...avatarOf({ id: t.id, name: nameOf(t.id), kind: t.kind })} size={16} /> }),
   }));
   const rightBody =
-    rightTab?.kind === "details" ? (
+    rightTab?.kind === "chat" ? (
+      <ChatDetails
+        key={rightTab.key}
+        threadId={rightTab.id}
+        call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
+        nameOf={nameOf}
+        meId={rt.me.id}
+        openProfile={profile}
+      />
+    ) : rightTab?.kind === "details" ? (
       <ReplyDetailsPane
         key={`details:${rightTab.id}`}
         messageId={rightTab.id}
@@ -1096,10 +1221,24 @@ export function ChatsMounted({
           data={paneFull ?? paneCtx}
           open
           onToggle={go.togglePane}
-          {...(paneTab ? { tab: paneTab, onTab: (t: TabKey) => setPaneTab(t) } : {})}
+          {...(paneTab ? { tab: paneTab } : {})}
+          onTab={(t: TabKey) => {
+            setPaneTab(t);
+            setRightOn(null);
+            selectedFor.current = threadId;
+          }}
           hookSel={hookSel}
           {...(window ? { window } : {})}
-          extra={{ tabs: rightSpecs, active: rightOn, onSelect: setRightOn, onClose: closeRight, body: rightBody }}
+          extra={{
+            tabs: rightSpecs,
+            active: rightOn,
+            onSelect: setRightOn,
+            onClose: closeRight,
+            body: rightBody,
+            ...(autoTab.current !== null && rightSpecs.some((x) => x.key === autoTab.current)
+              ? { first: autoTab.current }
+              : {}),
+          }}
         />
       </View>
     );
@@ -1111,7 +1250,7 @@ export function ChatsMounted({
         title={
           t === undefined
             ? "Profile"
-            : t.kind === "details"
+            : t.kind === "details" || t.kind === "chat"
               ? t.title
               : t.kind === "assistant"
                 ? "Assistant"
@@ -1187,7 +1326,7 @@ export function ChatsMounted({
   return (
     <CrewProvider call={rt.call as (cap: string, input: unknown) => Promise<unknown>} threadId={threadId ?? ""}>
       <SessionProvider threadId={threadId ?? ""}>
-        <View testID="chats-place" style={st.row}>
+        <View testID="chats-place" ref={placeRef as never} style={st.row}>
           <ChatsSidebarSlot data={side} open={openKey} {...(window ? { window } : {})} />
           {showMain ? (
             <View testID="chats-main" style={st.main}>

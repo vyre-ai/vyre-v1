@@ -2,6 +2,7 @@
 // Durable tables: migrations/0001_scheduler.sql. Every statement names only scheduler_* tables (ctx.db refuses anything else, ARCH B2).
 import { nextCron, parseCron } from "../../lib/clock.ts";
 import type { CronSpec } from "../../lib/clock.ts";
+import { agentStanding } from "../../lib/agent-asker.ts";
 import { isTrustedService } from "../../lib/trust.ts";
 import { validZone as validTimeZone } from "../../lib/zones.ts";
 import { fail } from "../../host/src/routes/errors.ts";
@@ -758,7 +759,6 @@ export function filterMatches(filter: unknown, payload: unknown): boolean {
 
 export const me = (ctx: SchedCtx): string => ctx.actingFor ?? ctx.principal.id;
 export const isService = (ctx: SchedCtx): boolean => isTrustedService(ctx.principal);
-/** Manage a schedule: the host (a service caller), or the principal it runs as. */
 /**
  * What a wake of each kind may name, a fixed table in code (never a free-form capability on the row), and who may make or change one. A person, an agent, a tenant service and an outside agent calling
  * scheduler.* directly cannot: only the host, or the agents module's own doors as a nested call. A plain `call` schedule is as before.
@@ -771,8 +771,14 @@ export const WAKE_DOORS: readonly string[] = [
 ];
 export const mayMakeWake = (ctx: SchedCtx): boolean =>
   isTrustedService(ctx.principal) || (ctx.callerCap !== undefined && WAKE_DOORS.includes(ctx.callerCap));
+/**
+ * Manage a schedule: the host (a service caller), or the principal it runs as. A schedule an agent made for nobody runs as the agent: that standing counts in a turn for nobody, and never for a person
+ * who merely asks the agent (lib/agent-asker.ts); a schedule made in a person's turn runs as that person, so it is theirs through the agent.
+ */
 export const mayManage = (ctx: SchedCtx, s: Pick<Schedule, "principal">): boolean =>
-  isService(ctx) || s.principal === ctx.principal.id || s.principal === ctx.actingFor;
+  isService(ctx) ||
+  (s.principal === ctx.principal.id && agentStanding(ctx, () => false)) ||
+  s.principal === ctx.actingFor;
 export function emitSched(ctx: SchedCtx, name: string, scheduleId: string, payload: Record<string, unknown>): void {
   ctx.emit(name, `entity/${scheduleId}`, clean({ scheduleId, ...payload }));
 }

@@ -46,6 +46,8 @@ export interface RecordsNav {
   openSchemaMap(): void;
   /** Bring in from your CRM: the assistant opens to bring an app's records into Records. Left out, the row is not drawn. */
   bringInCrm?(): void;
+  /** Said under the row before the press, while the press also allows the assistant to build connectors. */
+  bringInNote?: string;
   /** The Sync page of a synced type (its sync dot opens it). */
   openSync?(type: string): void;
 }

@@ -18,6 +18,8 @@
 //   rawecho      answers with the whole prompt it was given, turn context included
 //   whereami     "ran-on=<FAKE_WHERE or space> handover=<yes when the turn went on after its computer slept>"
 //   slowwhere    "first part. " at once, then after FAKE_SLOW_MS the same as whereami
+//   twosubagents  Claude Code starting two subagents of its own (Agent calls), whose own lines carry parent_tool_use_id: the first works with a shell command and says words nobody should read as the
+//                 reply, the second reads a file; each returns its answer at a different time, then the engine answers. A turn of about six seconds
 //   /compact ... compacts the way Claude Code does: a compact_boundary line (42000 tokens before, 2500 after), then an empty success result
 // Sessions are kept the way the real CLI keeps them: a file per session id under $HOME/.fake-claude/sessions, with the last line of every prompt it was sent. `--resume <id>` of a session with no file
 // says so in the real CLI's words on stderr and exits 1 before reading anything.
@@ -68,7 +70,11 @@ async function sha12(text) {
   return Buffer.from(d).toString("hex").slice(0, 12);
 }
 
+/** Which process and session served a turn, for a test that proves one warm session served several (added to the "toolfind" and goal wake-up answers only). */
+const servedBy = () => ` [pid=${process.pid} session=${session}]`;
+let lastReply = "";
 function reply(parts) {
+  lastReply = parts.join("");
   init();
   out({ type: "stream_event", event: { type: "message_start", message: { id: `m_${Date.now()}` } } });
   for (const text of parts)
@@ -220,8 +226,8 @@ async function sendMail(prompt) {
 /** The turn context an engine puts in front of the message is system context a real model reads and does not act on as a command: this fake picks its scenario from the words after it. */
 const withoutContext = (p) => p.replace(/^<vyre-context>[\s\S]*?<\/vyre-context>\s*/, "");
 
-async function callTool(prompt) {
-  const m = /^\s*tool\s+(\S+)\s*(.*)$/s.exec(prompt);
+async function callTool(prompt, search = false) {
+  const m = /^\s*tool(?:find)?\s+(\S+)\s*(.*)$/s.exec(prompt);
   if (!m) {
     reply(["mcp error: say which tool"]);
     return;
@@ -236,13 +242,15 @@ async function callTool(prompt) {
   let mcp;
   try {
     mcp = await mcpOpen();
+    // a tool that is not in the first list is found with tool_search first, as a CLI engine's model does
+    if (search) await mcp.call("tool_search", { query: m[1] });
     const r = await mcp.call(m[1], args);
     if (r?.error) {
       reply([`mcp error: ${r.error.message ?? "the call failed"}`]);
       return;
     }
     const text = (r?.result?.content ?? []).map((c) => c.text ?? "").join("\n");
-    reply([`${m[1]} ${r?.result?.isError ? "refused" : "answered"}: ${text}`]);
+    reply([`${m[1]} ${r?.result?.isError ? "refused" : "answered"}: ${text}${search ? servedBy() : ""}`]);
   } catch (e) {
     reply([`mcp error: ${e instanceof Error ? e.message : "the call failed"}`]);
   } finally {
@@ -688,6 +696,68 @@ async function run(raw) {
     });
     return;
   }
+  if (lastLine === "twosubagents") {
+    const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+    const asst = (parent, content) =>
+      out({
+        type: "assistant",
+        parent_tool_use_id: parent,
+        message: {
+          id: `m_${Math.random().toString(36).slice(2, 8)}`,
+          model: "claude-sonnet-fake",
+          content,
+          usage: { input_tokens: 9, output_tokens: 3 },
+        },
+      });
+    const done = (parent, id, text) =>
+      out({
+        type: "user",
+        parent_tool_use_id: parent,
+        message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content: text }] },
+      });
+    init();
+    asst(null, [
+      { type: "text", text: "I will start two subagents." },
+      {
+        type: "tool_use",
+        id: "toolu_a",
+        name: "Agent",
+        input: { description: "Test the terminal", prompt: "run echo hello" },
+      },
+      {
+        type: "tool_use",
+        id: "toolu_b",
+        name: "Agent",
+        input: { description: "Test the browser", prompt: "open the page" },
+      },
+    ]);
+    await sleep(1500);
+    asst("toolu_a", [
+      { type: "text", text: "SUBAGENT-CHATTER-A nobody reads this as the reply" },
+      { type: "tool_use", id: "tu_a1", name: "Bash", input: { command: "echo hello" } },
+    ]);
+    asst("toolu_b", [{ type: "tool_use", id: "tu_b1", name: "Read", input: { file_path: "/work/page.html" } }]);
+    await sleep(2500);
+    done("toolu_a", "tu_a1", "hello");
+    done(null, "toolu_a", [{ type: "text", text: "The terminal works. I ran echo and saw hello." }]);
+    await sleep(1500);
+    done("toolu_b", "tu_b1", "<html>");
+    done(null, "toolu_b", "The browser opened the page and it loaded.");
+    out({ type: "stream_event", event: { type: "message_start", message: { id: "m_fin" } } });
+    out({
+      type: "stream_event",
+      event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Both subagents finished." } },
+    });
+    out({
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      result: "Both subagents finished.",
+      session_id: session,
+      usage: { input_tokens: 20, output_tokens: 8 },
+    });
+    return;
+  }
   if (/^\/compact\b/.test(prompt.trim())) {
     out({
       type: "system",
@@ -705,6 +775,54 @@ async function run(raw) {
     });
     return;
   }
+  // a goal's wake-up (its context names the goal and why the lead was woken): the lead tries the owner's control, as a model might, so a test can prove nobody asked
+  // (a resumed session is sent only the parts of its context that changed, so the goal's id may be in an earlier turn: it is kept in the folder)
+  let woken = /goalId (gol_[a-z0-9]+)/.exec(raw);
+  const idFile = path.join(process.cwd(), "fake-goal-id.txt");
+  if (woken) {
+    try {
+      fs.writeFileSync(idFile, woken[1]);
+    } catch {
+      /* not writable */
+    }
+  } else if (/You were woken because/.test(raw)) {
+    try {
+      const id = fs.readFileSync(idFile, "utf8").trim();
+      if (id) woken = [id, id];
+    } catch {
+      /* none kept */
+    }
+  }
+  if (woken && /You were woken because/.test(raw)) {
+    // the lead tries the owner's control, then reports its check-in as a good lead does, so the next wake-up is not held back by this one
+    let said = "";
+    let mcp;
+    try {
+      mcp = await mcpOpen();
+      await mcp.call("tool_search", { query: "goals_extend" });
+      const r = await mcp.call("goals_extend", { goalId: woken[1], deadline: Date.now() + 30 * 86_400_000 });
+      said = r?.error
+        ? `mcp error: ${r.error.message ?? "the call failed"}`
+        : `goals_extend ${r?.result?.isError ? "refused" : "answered"}: ${(r?.result?.content ?? []).map((c) => c.text ?? "").join("\n")}`;
+      said = `${said}${servedBy()}`;
+      const wakeId = /wakeId (\S+)\. End this turn/.exec(raw)?.[1];
+      await mcp.call("tool_search", { query: "goals_checkin_post" });
+      await mcp.call("goals_checkin_post", { goalId: woken[1], ...(wakeId ? { wakeId } : {}), summary: "Checked in." });
+    } catch (e) {
+      said = said || `mcp error: ${e instanceof Error ? e.message : "the call failed"}`;
+    } finally {
+      mcp?.close();
+    }
+    // the lead's text is also left in the folder it works in, for a test to read
+    try {
+      fs.appendFileSync(path.join(process.cwd(), "fake-wake-result.txt"), `${said.replace(/\n/g, " ")}\n`);
+    } catch {
+      /* a folder that cannot be written is the test's to notice */
+    }
+    reply([said]);
+    return;
+  }
+  // (the wake-up is judged before any "tool" line: a wake-up turn is sent the chat's earlier lines too)
   // a "tool" line is the person's message, which comes last and may follow context or memory the engine put in front of it
   const toolLine = prompt
     .split("\n")
@@ -712,6 +830,16 @@ async function run(raw) {
     .find((l) => /^tool\s+\S+/.test(l));
   if (toolLine) {
     await callTool(toolLine);
+    return;
+  }
+  // "toolfind <name> <json>": the same, after tool_search found the tool (a goal tool is not in the first list)
+  // (a poke's line reads "<person> poked <agent>: toolfind ...", so the words may follow a prefix)
+  const findLine = prompt
+    .split("\n")
+    .reverse()
+    .find((l) => /(^|:\s)toolfind\s+\S+/.test(l));
+  if (findLine) {
+    await callTool(findLine.slice(findLine.indexOf("toolfind")), true);
     return;
   }
   if (prompt.split("\n").some((l) => l.trim() === "skillscheck")) {

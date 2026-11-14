@@ -81,7 +81,7 @@ export function VaultShareSheet({
         {...(out.mine ? { maxLevel: out.mine } : {})}
         meId={data.me.id}
         notifyPeople
-        onCopyLink={() => copyItemLink(kind, id)}
+        onCopyLink={() => copyItemLink(kind, id, true)}
         onShare={(i: ShareInput, opts) =>
           run(
             Promise.resolve(

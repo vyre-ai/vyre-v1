@@ -71,7 +71,9 @@ export interface ChatRightPaneProps {
   /** Opens one routine on the Routines tab (tests and screenshots). */
   openRoutine?: string;
   /** What was opened from the chat, after the pane's own: closable right tabs. The shown one replaces the pane's body. */
+  /** `first` names the one of these tabs that comes before the pane's own: the thing the chat is (the other person, the channel), ahead of the agent. */
   extra?: {
+    first?: string;
     tabs: readonly { key: string; title: string; lead?: ReactNode }[];
     active: string | null;
     onSelect(key: string | null): void;
@@ -364,7 +366,7 @@ function PaneView({
       paneKey={PANE_KEY}
       toggle={{ open, onPress: onToggle }}
       title={data.agent.name}
-      tabs={[openTab, ...(extra?.tabs ?? [])]}
+      tabs={orderedTabs(openTab, extra)}
       activeTab={extra?.active ?? "open"}
       onSelectTab={(key) => extra?.onSelect(key === "open" ? null : key)}
       onCloseTab={(key) => {
@@ -381,6 +383,17 @@ function PaneView({
       {inner}
     </SidePane>
   );
+}
+
+type PaneTabLike = { key: string; title: string; lead?: ReactNode };
+/** The pane's own tab, and what was opened beside it; the one named `first` leads, so a one-to-one chat reads Person, Agent and a channel reads Details, Agent. */
+export function orderedTabs(
+  open: PaneTabLike,
+  extra: { first?: string; tabs: readonly PaneTabLike[] } | undefined,
+): PaneTabLike[] {
+  const rest = extra?.tabs ?? [];
+  const lead = extra?.first === undefined ? undefined : rest.find((t) => t.key === extra.first);
+  return lead === undefined ? [open, ...rest] : [lead, open, ...rest.filter((t) => t !== lead)];
 }
 
 /** The agent's header: its face with presence, one role line, Message and what the shell can do (Poke, Share), and one "..." menu. Sleep now is in the menu; the Computer tab has no button for it. */

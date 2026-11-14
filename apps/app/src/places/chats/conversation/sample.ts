@@ -25,7 +25,12 @@ export type Variant =
   | "channel"
   | "runson"
   | "vaultkey"
-  | "lastpick";
+  | "lastpick"
+  // the Command card's states (/usage, /permissions): its answer, a slow answer, a failure, no AI connected
+  | "cmd"
+  | "cmdslow"
+  | "cmdfail"
+  | "cmdempty";
 
 export const NAMES: Record<string, string> = {
   agt_intake: "Intake",
@@ -577,7 +582,92 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
     }
   };
 
+  const rules: Array<Record<string, unknown>> = [
+    {
+      id: "rul_1",
+      kind: "always",
+      act: "send",
+      target: "Run tests in the project folder",
+      expiresAt: SAMPLE_NOW + 6 * 86_400_000,
+    },
+    {
+      id: "rul_2",
+      kind: "always",
+      act: "write",
+      target: "Edit files in the uploads folder",
+      expiresAt: SAMPLE_NOW + 3 * 86_400_000,
+    },
+    { id: "rul_3", kind: "standing", act: "approve", target: "*" },
+  ];
+  const myAi = async (): Promise<unknown> => {
+    if (variant === "cmdslow") await new Promise((r) => setTimeout(r, 4000));
+    if (variant === "cmdfail") throw new Error("engine.my_ai");
+    const use = {
+      today: { turns: 1, input: 18_000, cachedInput: 13_000, output: 200, costMicros: 0 },
+      month: { turns: 39, input: 1_500_000, cachedInput: 9_200_000, output: 176_000, costMicros: 0 },
+    };
+    if (variant === "cmdempty") return { accounts: [], use };
+    return {
+      running: {
+        model: "claude-sonnet-5-5",
+        paid: "Claude Code · your sign-in",
+        account: { name: "Claude sign-in" },
+        context: { used: 31_000, window: 1_000_000 },
+      },
+      accounts: [
+        {
+          ref: "#claude",
+          name: "Claude sign-in",
+          provider: "anthropic",
+          kind: "subscription",
+          usable: true,
+          models: ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"],
+          limits: {
+            state: "read",
+            session: { pct: 42, resetsAt: SAMPLE_NOW + 4 * 3_600_000 },
+            week: { pct: 61, resetsAt: SAMPLE_NOW + 3 * 86_400_000 },
+          },
+        },
+        {
+          ref: "#chatgpt",
+          name: "ChatGPT sign-in",
+          provider: "openai",
+          kind: "subscription",
+          usable: true,
+          models: ["gpt-5-codex", "gpt-5"],
+          limits: { state: "not_readable", note: "reports limits only with a turn" },
+        },
+        {
+          ref: "#go",
+          name: "OpenCode Go",
+          provider: "opencode_go",
+          kind: "key",
+          usable: true,
+          models: ["kimi-k2", "glm-4-6", "qwen3-coder", "deepseek-v3", "minimax-m2", "llama-4"],
+          limits: { state: "not_readable", note: "OpenCode Go does not report its quota." },
+        },
+      ],
+      use,
+    };
+  };
   const writes: Record<string, (input: any) => unknown> = {
+    "engine.my_ai": () => myAi(),
+    "gate.allow.list": () => ({ rules: [...rules] }),
+    "gate.allow.remove": (i: { id: string }) => {
+      const at = rules.findIndex((r) => r["id"] === i.id);
+      if (at >= 0) rules.splice(at, 1);
+      return { ok: true };
+    },
+    "gate.allow.set": (i: Record<string, unknown>) => {
+      const rule = {
+        id: `rul_${++counter}`,
+        kind: "always",
+        ...i,
+        expiresAt: SAMPLE_NOW + Number(i["days"] ?? 30) * 86_400_000,
+      };
+      rules.push(rule);
+      return { rule };
+    },
     "chat.post": (i: {
       threadId: string;
       body: string;

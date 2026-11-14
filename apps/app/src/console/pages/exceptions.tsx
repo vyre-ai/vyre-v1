@@ -7,7 +7,7 @@ import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { permissions as CATALOGUE } from "../../../../../generated/permissions.ts";
 import { useConsoleData } from "../shell/data.tsx";
 import { Empty, Group, Section } from "../shell/ui.tsx";
-import { Button, Field, FormSheet, Help, Note, ReadState, Segmented, Select, useAction, useRead } from "./shared.tsx";
+import { Button, TextBox, FormSheet, Help, Note, ReadState, Segmented, Select, useAction, useRead } from "./shared.tsx";
 import {
   CELL_WORD,
   EFFECT_WORD,
@@ -248,7 +248,7 @@ export function AddExceptionSheet({
         options={ENDS.map((e) => ({ key: e.key, title: e.title }))}
         onChange={setEnds}
       />
-      <Field label="Reason (optional, shown to admins)" value={why} onChange={setWhy} testID="exception-why" />
+      <TextBox label="Reason (optional, shown to admins)" value={why} onChange={setWhy} testID="exception-why" />
       <Text testID="exception-rules" style={{ fontSize: 12, color: "var(--ink-3)" as string }}>
         You can give up to what you hold yourself. The Owner is never restricted. Agents acting for them follow it too.
         When it ends, it lapses on its own and the Audit log says so.

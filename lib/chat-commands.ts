@@ -15,25 +15,20 @@ export interface ChatCommandDef {
 export const CHAT_COMMANDS: readonly ChatCommandDef[] = Object.freeze([
   { id: "btw", detail: "Ask a side question while the agent works", arg: "your question", argRequired: true },
   { id: "plan", detail: "Turn plan mode on or off for this chat", arg: "on or off" },
-  { id: "permissions", detail: "See what may go without asking, or take one back", arg: "remove and a number" },
+  { id: "permissions", detail: "See what runs without asking", arg: "remove and a number" },
   { id: "helper", detail: "Start a helper chat for a side task", arg: "what it should do", argRequired: true },
   { id: "handoff", detail: "Hand the work to another agent", arg: "@agent and a note", argRequired: true },
   { id: "pin", detail: "Pin the last message" },
-  { id: "fork", detail: "Branch this chat into a new one, from the last message" },
+  { id: "fork", detail: "Branch this chat into a new one" },
   { id: "export", detail: "Save this chat as Markdown or JSON", arg: "md or json" },
-  {
-    id: "continue",
-    detail: "Continue this chat in another Space you belong to",
-    arg: "the Space's name",
-    argRequired: true,
-  },
+  { id: "continue", detail: "Continue this chat in another Space", arg: "the Space's name", argRequired: true },
   { id: "task", detail: "Make a task from the last message", arg: "a title, if the message is not it" },
   { id: "remember", detail: "Keep a fact in your memory of this agent", arg: "the fact", argRequired: true },
   { id: "find", detail: "Find words in this chat" },
   { id: "search", detail: "Search every chat you can read", arg: "words" },
   { id: "model", detail: "Choose the model this chat answers with" },
   { id: "compact", detail: "Free up context, keeping what you name", arg: "what to keep" },
-  { id: "usage", detail: "The model and account this chat runs on, what else you can use, what is left" },
+  { id: "usage", detail: "What this chat runs on, and what is left" },
   { id: "stop", detail: "Stop what the agent is doing" },
 ] satisfies readonly ChatCommandDef[]);
 
@@ -52,6 +47,7 @@ export type ChatCommandId =
   | "search"
   | "model"
   | "compact"
+  | "usage"
   | "btw"
   | "stop";
 

@@ -18,8 +18,15 @@ const caddyFetch: FetchFn = () =>
     headers: { get: () => null },
     text: () => Promise.resolve('{"apps":{"http":{}}}'),
   });
-const OWNER = "tok-usr_olivia";
 const SECRET = "sk_live_SECRET";
+const KEYS = {
+  personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk",
+  publicKey: "cHVibGljLWtleQ==",
+  privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk",
+  spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }],
+};
+/** The token of the admin this test signs in as: an offer is shown only when the person's assistant can finish it, so the person must have one (an invited admin does). */
+let OWNER = "";
 
 function seededDir(): string {
   const core = bootCore();
@@ -30,9 +37,9 @@ function seededDir(): string {
   return dir;
 }
 
-const boot = (dir: string): Promise<Daemon> =>
-  startDaemon({
-    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+const boot = async (dir: string): Promise<Daemon> => {
+  const d = await startDaemon({
+    config: loadConfig(["--data-dir", dir, "--port", "0", "--address", "team.example.com"], {}, "1.2.3"),
     platform: fakePlatform({
       os: "linux",
       hostname: "exec-live",
@@ -45,14 +52,36 @@ const boot = (dir: string): Promise<Daemon> =>
     }),
     fetch: caddyFetch,
     seams: { vaultSinks: { env: () => undefined } },
-    session: (h) => {
-      const token = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
-      return token === OWNER
-        ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "exec-live" }
-        : null;
-    },
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
   } satisfies DaemonOptions);
+  OWNER = await joinAdmin(d);
+  return d;
+};
+
+/** Invite an admin as the Space's local owner token does, and take the session token the join gives. */
+async function joinAdmin(d: Daemon): Promise<string> {
+  const invite = await fetch(`${d.url}/v1/members/invites/create`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` },
+    body: JSON.stringify({ role: "rol_admin", idempotencyKey: "offer-invite-ada" }),
+  });
+  const link = ((await invite.json()) as { data: { link: string } }).data.link;
+  const code = decodeURIComponent(new URL(link).pathname.split("/").pop() ?? "");
+  const joined = await fetch(`${d.url}/v1/members/accept`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      code,
+      username: "ada",
+      password: "correct horse battery staple 9",
+      deviceName: "Mac",
+      deviceClass: "desktop",
+      keys: KEYS,
+    }),
+  });
+  assert.equal(joined.status, 200);
+  return ((await joined.json()) as { data: { token: string } }).data.token;
+}
 
 async function post(
   d: Daemon,
@@ -113,7 +142,8 @@ test("saving a Vault item offers a connector setup once, and declining is final"
     });
     assert.equal(put.status, 200, put.text);
     const stripe = await untilOffer(daemon, "Stripe");
-    assert.equal(stripe.text, "Set up Stripe for Automations?");
+    // an admin whose assistant may not build connectors yet is told the one thing pressing Set up also does
+    assert.equal(stripe.text, "Set up Stripe for Automations? Your assistant will be allowed to build connectors.");
     assert.equal((await offers(daemon)).filter((offer) => offer.itemId === stripe.itemId).length, 1);
 
     const declined = await post(daemon, "/v1/automations/connector_offer/decline", { itemId: stripe.itemId });
@@ -135,7 +165,7 @@ test("saving a Vault item offers a connector setup once, and declining is final"
     });
     assert.equal(second.status, 200, second.text);
     const notion = await untilOffer(daemon, "Notion");
-    assert.equal(notion.text, "Set up Notion for Automations?");
+    assert.equal(notion.text, "Set up Notion for Automations? Your assistant will be allowed to build connectors.");
     assert.equal(
       (await offers(daemon)).some((offer) => offer.itemId === stripe.itemId),
       false,

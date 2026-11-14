@@ -358,7 +358,7 @@ export function MachineList({
           icon="data"
           label="Room left"
           big={String(st.room)}
-          sub={`Average across ${plural(st.takingWork, "computer")} that take work`}
+          sub={`Average across ${st.takingWork} ${st.takingWork === 1 ? "computer that takes" : "computers that take"} work`}
         />
       </View>
       {data.waiting.length > 0 ? (
@@ -1224,7 +1224,7 @@ function Stepper({
   );
 }
 
-function Placement({
+export function Placement({
   call,
   m,
   who,
@@ -1402,13 +1402,13 @@ function Placement({
           <Row
             key={id}
             id={`pin-${id}`}
-            title={id}
+            title={who(id)}
             note={m.online ? "Always runs on this machine" : `Waits until ${displayName(m)} is back`}
             tall
             trailing={
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Unpin ${id}`}
+                accessibilityLabel={`Unpin ${who(id)}`}
                 testID={`unpin-${id}`}
                 onPress={() => {
                   void pin(id, false);

@@ -2,6 +2,7 @@
 // item's name arrives; a subject this does not know keeps the place's name. Opening the same item again finds its tab by key (tabKey = place + hash), so tabs are one per item.
 import { chatName, hasRealTitle } from "../../../../../lib/chat-name.ts";
 import { parseHash, subjectOf } from "../hash/hash.ts";
+import { isJustMade } from "../session/just-made.ts";
 
 export interface Ask {
   cap: string;
@@ -180,27 +181,68 @@ export interface TitleSession {
  * Names a tab for its item: its one name (a chat: lib/chat-name.ts), else its own name, else the next read, else the ask's own empty name ("New chat"). A chat is read again whenever it changes, so the tab follows
  * its renames. Returns the stop.
  */
+/** What a chat tab says when the chat cannot be opened: the place, nothing false about the chat. */
+export const REFUSED_CHAT_TAB = "Chats";
+/** A read the server refused (not yours or not found): permission.* or validation.not_found. */
+export const isRefusedRead = (e: unknown): boolean => {
+  const c = (e as { code?: unknown } | null)?.code;
+  return typeof c === "string" && (c.startsWith("permission.") || c === "validation.not_found");
+};
+
+/**
+ * Three links to chats the person cannot open would leave three tabs that all say "Chats". The tab that was just found refused keeps its place; an older refusal tab (an item tab named "Chats", not the place's own
+ * tab, which has no item) is the one to close, unless it is the one on screen, in which case the new one goes instead. Returns the key to close, or null.
+ */
+export function staleRefusalTab(
+  tabs: ReadonlyArray<{ key: string; title: string; hash?: string | undefined; pinned?: boolean | undefined }>,
+  justRefused: string,
+  active: string,
+): string | null {
+  const refused = (t: { title: string; hash?: string | undefined; pinned?: boolean | undefined }): boolean =>
+    t.title === REFUSED_CHAT_TAB && t.hash !== undefined && t.hash !== "" && t.pinned !== true;
+  const older = tabs.find((t) => t.key !== justRefused && refused(t));
+  if (older === undefined) return null;
+  return older.key === active ? justRefused : older.key;
+}
+
 export function followTitle(
   session: TitleSession,
   ask: Ask,
   retitle: (title: string, empty?: boolean) => void,
+  o: { retryMs?: number } = {},
 ): () => void {
   let off = false;
-  const read = (a: Ask): Promise<string | null> =>
+  // a read that failed is not an item with no name: it is "unknown yet" (undefined). A chat just made may not be readable for a moment; naming its tab "New chat" and marking it blank then made "+" select it instead of opening a new tab.
+  const read = (a: Ask): Promise<string | null | undefined> =>
     session.call(a.cap, a.input).then(
       async (out) => {
         // the item's one name first when it needs more reads (a chat: who is in it); then its own name; then the next read
         const full = a.resolve ? await a.resolve(out, session.call, session.me?.id ?? "").catch(() => null) : null;
         return full ?? a.name(out) ?? (a.next ? read(a.next) : null);
       },
-      () => null,
+      (e) => {
+        // a chat the person cannot open is not "New chat": the tab says only the place. Every other failed read is "unknown yet"
+        // (undefined): the tab keeps its name and the read is asked again. A chat just made is not refused, only not readable yet.
+        const tid = (a.input as { threadId?: unknown } | null | undefined)?.threadId;
+        const landing = typeof tid === "string" && isJustMade(tid);
+        return ask.empty === "New chat" && isRefusedRead(e) && !landing ? REFUSED_CHAT_TAB : undefined;
+      },
     );
   let latest = 0;
+  let tries = 0;
+  let timer: ReturnType<typeof setTimeout> | null = null;
   const run = (): void => {
     const mine = ++latest;
     void read(ask).then((name) => {
+      if (off || mine !== latest) return;
+      if (name === undefined) {
+        // keep the name the tab has and ask again in a moment (a few times; the live subscription asks too when the item changes)
+        if (tries++ < 8) timer = setTimeout(run, o.retryMs ?? 1500);
+        return;
+      }
+      tries = 0;
       const t = name ?? ask.empty;
-      if (!off && mine === latest && t) retitle(t, name === null);
+      if (t) retitle(t, name === null);
     });
   };
   run();
@@ -208,6 +250,7 @@ export function followTitle(
   const stop = live ? live.subscribe(run) : undefined;
   return () => {
     off = true;
+    if (timer) clearTimeout(timer);
     stop?.();
   };
 }

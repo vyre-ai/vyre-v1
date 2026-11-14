@@ -144,7 +144,6 @@ export function ConnectionsView({
   );
   const admin = conns.home?.admin === true;
   const canAddSpace = conns.home?.canAddSpace === true;
-  const origin = (globalThis as { location?: { origin?: string } }).location?.origin ?? "";
 
   const run = async (row: ConnRow, what: string, f: () => Promise<string | void>): Promise<void> => {
     setBusy(row.id);
@@ -191,7 +190,7 @@ export function ConnectionsView({
         return r.authUrl ? undefined : "Put the key back in its Vault item, then test it";
       }
       if (!row.connectionId) return;
-      const url = await signIn(data.call, row.connectionId, origin);
+      const url = await signIn(data.call, row.connectionId);
       await Linking.openURL(url);
     });
   };

@@ -64,6 +64,7 @@ import m_search from "./search.ts";
 import m_settings from "./settings.ts";
 import m_sites from "./sites.ts";
 import m_sources from "./sources.ts";
+import m_state from "./state.ts";
 import m_spaces from "./spaces.ts";
 import m_steps_core from "./steps-core.ts";
 import m_stripe from "./stripe.ts";
@@ -154,6 +155,7 @@ export const all: Manifest[] = [
   m_sites,
   m_sources,
   m_spaces,
+  m_state,
   m_steps_core,
   m_stripe,
   m_sync,

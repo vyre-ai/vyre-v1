@@ -232,11 +232,11 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
       if ((await page.getByTestId("pane-agent").count()) === 0) await page.getByTestId("pane-button").click();
       await page.getByTestId("pane-agent").waitFor({ timeout: 20_000 });
       await page.getByTestId("tab-computer").click();
-      const label = page.getByTestId("label-l-browser");
+      const label = page.getByTestId("browser-head");
       await label.waitFor({ timeout: 20_000 });
       const next = page
         .getByTestId("browser-note")
-        .or(page.getByTestId("browser-take"))
+        .or(page.getByTestId("browser-picture"))
         .or(page.getByTestId("browser-none"))
         .or(page.getByTestId("browser-open"))
         .first();

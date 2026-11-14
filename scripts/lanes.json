@@ -179,6 +179,7 @@
         "modules/members/",
         "modules/devices/",
         "modules/spaces/",
+        "modules/state/",
         "modules/settings/",
         "modules/vault/",
         "modules/vault-requests/",
@@ -193,6 +194,7 @@
         "members",
         "devices",
         "spaces",
+        "state",
         "settings",
         "vault",
         "vault-requests",
@@ -495,6 +497,7 @@
     "vault": "L7a",
     "vault-requests": "L7a",
     "talk": "L7a",
+    "state": "L7a",
     "zoom": "L5"
   }
 }

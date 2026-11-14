@@ -615,3 +615,49 @@ test("a menu with a search field opens with the caret in the search field (autoF
     restore();
   }
 });
+
+// K7 guard (13 Nov 2026): a menu entry is never cut with dots. A long label or hint wraps to a second line and the row grows with it; no row has a fixed height.
+test("a long menu label and hint wrap instead of being cut, and the row can grow", () => {
+  const html = renderToStaticMarkup(
+    <Menu
+      items={[
+        {
+          label: "Agents reply in threads",
+          checked: true,
+          hint: "Answers stay out of the main chat, and the agent writes under your message",
+        },
+        { label: "Open" },
+      ]}
+      x={0}
+      y={0}
+    />,
+  );
+  const rows = html.split('role="menuitem"').slice(1);
+  assert.equal(rows.length, 3, "two items and Report a problem");
+  for (const row of rows) {
+    assert.doesNotMatch(row, /-webkit-line-clamp:1(?!\d)/, "no row clamps to one line");
+    assert.doesNotMatch(row, /(?<![-\w])height:28px/, "no row has a fixed 28 px height");
+  }
+  assert.match(rows[0]!, /-webkit-line-clamp:2/, "a long label wraps to two lines at most");
+});
+
+// I (review, 13 Nov): a wrapped entry in a long menu stays reachable by the arrow keys, and the panel scrolls. The keys move focus onto each row (`land` calls focusNode), which brings a row into view natively.
+test("a long menu with a wrapped entry: the arrow keys reach it in order, and the panel is a scrolling, height-capped box", () => {
+  const items: MenuEntry[] = Array.from({ length: 16 }, (_, i) => ({
+    label: i === 9 ? "Agents reply in threads and keep their answers out of the main chat" : `Entry ${i}`,
+    hint: i === 9 ? "Answers stay out of the chat, whatever is said" : undefined,
+  }));
+  const entries = menuEntries({ items });
+  let at = -1;
+  const seen: number[] = [];
+  for (let i = 0; i < 12; i++) {
+    at = moveActive(entries, at, "ArrowDown");
+    seen.push(at);
+  }
+  const wrappedIndex = entries.findIndex((e) => isItem(e) && e.label.startsWith("Agents reply in threads"));
+  assert.ok(seen.includes(wrappedIndex), "arrow-down reaches the wrapped entry");
+  assert.equal(moveActive(entries, wrappedIndex, "ArrowUp"), wrappedIndex - 1, "and arrow-up leaves it");
+  const html = renderToStaticMarkup(<Menu items={items} x={0} y={0} />);
+  assert.match(html, /max-height:\d+px;overflow-y:auto/, "the panel is height-capped to the window and scrolls");
+  assert.match(html, /-webkit-line-clamp:2/, "the wrapped entry's text clamps at two lines, no more");
+});
