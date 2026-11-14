@@ -90,7 +90,10 @@ test("guest walk: sidebar, open, read, post, People list, a person row, an agent
     );
     await page.screenshot({ path: path.join(out, "1-guest-sidebar.png") });
     await side.getByText("partners", { exact: true }).click();
-    await page.getByText("Welcome to the partner channel.").waitFor({ timeout: 30_000 });
+    // a guest reads from the moment they came: what is said once they are in shows, what was said before does not
+    await call("chat.post", { threadId: ch.mainThreadId, body: "Glad you joined us.", idempotencyKey: "gw-m3" });
+    await page.getByText("Glad you joined us.").waitFor({ timeout: 30_000 });
+    assert.equal(await page.getByText("Welcome to the partner channel.").count(), 0, "and not what was said before they came");
     assert.equal(await page.getByTestId("conversation-failed").count(), 0, "the listed channel opens");
     await page.waitForTimeout(1500);
     const body = await page.locator("body").innerText();

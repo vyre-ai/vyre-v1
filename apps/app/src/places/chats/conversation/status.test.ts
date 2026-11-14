@@ -373,7 +373,8 @@ test("an engine failure never stands alone: a missing sign-in, an engine that ca
   const unusable = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_unusable" })));
   assert.match(unusable.cause ?? "", /not installed here|not signed in here|not connected/);
   const crash = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error", exit: "137" })));
-  assert.match(crash.cause ?? "", /stopped with an error \(code 137\)/);
+  assert.match(crash.cause ?? "", /stopped with an error\. Try again/);
+  assert.ok(!/137/.test(crash.cause ?? ""), "the exit code is for Details, not the card (G41)");
   const bare = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error" })));
   assert.ok((bare.cause ?? "").length > 0, "no reason: still says what to do, and Details holds the code");
   assert.ok(!/^The engine stopped with an error before it replied\.$/.test(crash.message));
@@ -529,4 +530,17 @@ test("engine.policy_model says the Space only allows certain models and opens th
   assert.equal(w.message, "This Space only allows certain AI models.");
   assert.deepEqual(w.next, [{ key: "pick_model", label: "Choose a model" }]);
   assert.equal(w.retryable, false);
+});
+
+test("a reply with no AI account offers the other way out by who reads it: a member is told to ask an admin, an admin gets the action", async () => {
+  const { spaceKeyWay } = await import("./status.ts");
+  for (const code of ["no_account", "engine.no_account"]) {
+    assert.deepEqual(spaceKeyWay(code, false), { line: "Or ask an admin to add a Space AI key." });
+    assert.deepEqual(spaceKeyWay(code, true), {
+      line: "",
+      action: { key: "set_space_key", label: "Set a Space AI key" },
+    });
+  }
+  assert.deepEqual(spaceKeyWay("host_lost", true), { line: "" });
+  assert.deepEqual(spaceKeyWay("provider.unavailable", false), { line: "" });
 });

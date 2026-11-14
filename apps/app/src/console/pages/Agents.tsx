@@ -13,7 +13,7 @@ import type { ObjectListRow } from "../objects/ObjectList.tsx";
 import {
   Actions,
   Button,
-  Field,
+  TextBox,
   FormSheet,
   ModelSelect,
   Note,
@@ -234,8 +234,8 @@ export function AgentsRegister({ initialAgentId = null }: { initialAgentId?: str
               })
           }
         >
-          <Field label="Name" testID="agent-name" value={name} onChange={setName} />
-          <Field label="Role line" value={role} onChange={setRole} />
+          <TextBox label="Name" testID="agent-name" value={name} onChange={setName} />
+          <TextBox label="Role line" value={role} onChange={setRole} />
           <ModelSelect label="Model" value={newModel} onChange={setNewModel} />
         </FormSheet>
       ) : null}
@@ -543,14 +543,14 @@ function AgentObject({
         {agent.status === "paused" ? (
           <Row id="agent-paused" title="Paused" note={agent.pausedReason ?? "No reason given"} />
         ) : (
-          <Field
+          <TextBox
             label="Reason for pausing (optional)"
             testID="agent-pause-reason"
             value={pauseReason}
             onChange={setPauseReason}
           />
         )}
-        <Row id="agent-folder" title="Home folder" note={agent.folderId} />
+        <Row id="agent-folder" title="Home folder" note="Its own folder in Files" />
         <Row id="agent-computer" title="Computer" note={agent.hasComputer ? "Attached" : "None"} />
         <Row id="agent-template" title="Version" note={String(agent.templateVersion)} />
       </ObjectSection>
@@ -581,8 +581,8 @@ function AgentObject({
       onCloseSheet={() => setEditing(false)}
       sheet={
         <View testID="agent-edit-sheet">
-          <Field label="Name" value={name} onChange={setName} />
-          <Field label="Role line" value={role} onChange={setRole} />
+          <TextBox label="Name" value={name} onChange={setName} />
+          <TextBox label="Role line" value={role} onChange={setRole} />
           <ModelSelect label="Model" value={model} onChange={setModel} />
           <ModelSelect label="Fallback model" none="None" value={fallback} onChange={setFallback} />
           <Select
@@ -595,10 +595,10 @@ function AgentObject({
             onChange={setAccountPolicy}
           />
           {accountPolicy === "key" ? (
-            <Field label="Vault key handle" testID="agent-edit-key" value={accountKey} onChange={setAccountKey} />
+            <TextBox label="Vault key handle" testID="agent-edit-key" value={accountKey} onChange={setAccountKey} />
           ) : null}
-          <Field label="Tools allowed (comma separated)" value={allowed} onChange={setAllowed} />
-          <Field label="Tools denied (comma separated)" value={denied} onChange={setDenied} />
+          <TextBox label="Tools allowed (comma separated)" value={allowed} onChange={setAllowed} />
+          <TextBox label="Tools denied (comma separated)" value={denied} onChange={setDenied} />
           <Button
             label="Save agent"
             testID="agent-save"
@@ -888,7 +888,7 @@ export function OutsideActors({ initialActorId = null }: { initialActorId?: stri
             </>
           ) : (
             <>
-              <Field label="Name" value={name} onChange={setName} />
+              <TextBox label="Name" value={name} onChange={setName} />
               <Select label="Provider" value={provider} options={PROVIDERS} onChange={setProvider} />
               {rolesForNew.data ? (
                 <Select

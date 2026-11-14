@@ -31,6 +31,12 @@ export interface InboxCtx {
     action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
     resource: { type: string; id: string | null },
   ): { effect: "allow" | "deny" | "hold"; reason: string; decisionId: string };
+  /** each person on their own grants, never the caller's (the host's ctx.mayAll); a hand-built test ctx may omit it */
+  mayAll?(
+    people: readonly string[],
+    action: { perm: string | null; level: "view" },
+    resource: { type: string; id: string | null },
+  ): boolean;
   log: {
     info(msg: string, attrs?: Record<string, unknown>): void;
     warn(msg: string, attrs?: Record<string, unknown>): void;
@@ -117,7 +123,7 @@ export const kindOfAddress = (a: string): "email" | "phone" | "handle" =>
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_inbox.sql", "0002_inbox_private.sql", "0004_inbox_party.sql"]
+const migrationSql = ["0001_inbox.sql", "0002_inbox_private.sql", "0004_inbox_party.sql", "0005_inbox_state.sql"]
   .map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8"))
   .join("\n");
 
@@ -187,9 +193,18 @@ export function getConversation(ctx: Pick<InboxCtx, "db">, id: string): Row | nu
   return first(ctx.db.all(`SELECT * FROM inbox_conversation WHERE id = ? AND deleted_at IS NULL`, id));
 }
 
+/**
+ * Whose follows and conversations the caller's reads are (lib/agent-asker.ts): the person an agent acts for, else the caller. An agent's own follows and ownership are its work in a turn for nobody; they
+ * never open a conversation for a person who merely asked that agent.
+ */
+export const holderOf = (ctx: Pick<InboxCtx, "principal" | "actingFor">): string =>
+  ctx.principal.kind === "agent" && ctx.actingFor !== undefined && ctx.actingFor.startsWith("usr_")
+    ? ctx.actingFor
+    : ctx.principal.id;
+
 /** The caller's own follow of a contact, if any. */
 export function followOf(
-  ctx: Pick<InboxCtx, "db" | "principal">,
+  ctx: Pick<InboxCtx, "db" | "principal" | "actingFor">,
   contactId: string | null,
 ): { followed: boolean; alertOnReplies: boolean } {
   if (!contactId) return { followed: false, alertOnReplies: false };
@@ -197,7 +212,7 @@ export function followOf(
     ctx.db.all(
       `SELECT * FROM inbox_follow WHERE "contactId" = ? AND "principalId" = ? AND deleted_at IS NULL`,
       contactId,
-      ctx.principal.id,
+      holderOf(ctx),
     ),
   );
   return row

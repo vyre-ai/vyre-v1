@@ -15,6 +15,11 @@ import {
   writeCollapsed,
 } from "./index.ts";
 import type { SidebarStorage } from "./index.ts";
+import { createRoot } from "test-renderer";
+import { act } from "react";
+import { find, flush, installDom } from "../../../../../ui/src/testing/dom.ts";
+import { Text } from "react-native";
+import { useSidebarSlot } from "./index.ts";
 
 const props = { deviceId: "d1", personId: "p1", spaceId: "northwind", place: "chats", epoch: 1 };
 
@@ -144,4 +149,93 @@ test("the slot's header has a spot for the place's own buttons between the title
   );
   const at = (id: string): number => html.indexOf(`data-testid="${id}"`);
   assert.ok(at("sidebar-actions") > html.indexOf(">Chats<") && at("sidebar-actions") < at("sidebar-collapse"));
+});
+
+// K9 guard (13 Nov 2026): where only one panel fits, a link to an item shows the item, Back returns to the list, and a place switch resets to the list even when the new place carries an address.
+let slotNow: ReturnType<typeof useSidebarSlot> | null = null;
+function Probe(): ReturnType<typeof Text> {
+  const slot = useSidebarSlot();
+  slotNow = slot;
+  return <Text testID="view">{slot.view}</Text>;
+}
+
+async function drawn(
+  r: ReturnType<typeof createRoot>,
+  o: { hash: string; epoch: number; compact?: boolean },
+): Promise<string> {
+  await act(async () => {
+    r.render(
+      <SidebarSlotProvider
+        {...props}
+        epoch={o.epoch}
+        compact={o.compact ?? true}
+        hash={o.hash}
+        initialEntry={{ title: "Chats", searchPlaceholder: "Search chats" }}
+      >
+        <Probe />
+      </SidebarSlotProvider>,
+    );
+  });
+  await flush();
+  return (find(r.container as unknown as Parameters<typeof find>[0], "view")?.children ?? []).join("");
+}
+
+test("a link takes a one-panel layout from the list to the item; Back (pressed) returns to the list; the same address does not reopen it", async () => {
+  const restore = installDom();
+  try {
+    const r = createRoot();
+    assert.equal(await drawn(r, { hash: "", epoch: 1 }), "list", "no item open: the list");
+    assert.equal(await drawn(r, { hash: "subject=goal:gol_1", epoch: 1 }), "body", "a link to a goal shows the goal");
+    await act(async () => {
+      slotNow!.back();
+    });
+    await flush();
+    assert.equal(
+      (find(r.container as unknown as Parameters<typeof find>[0], "view")?.children ?? []).join(""),
+      "list",
+      "Back, pressed, returns to the list",
+    );
+    assert.equal(
+      await drawn(r, { hash: "subject=goal:gol_1", epoch: 1 }),
+      "list",
+      "the same address is not a new link: the list stays",
+    );
+    assert.equal(await drawn(r, { hash: "subject=thread:t2", epoch: 1 }), "body", "another item does open");
+    assert.equal(
+      await drawn(r, { hash: "subject=thread:t2", epoch: 1, compact: false }),
+      "body",
+      "a computer-width layout always shows the body",
+    );
+  } finally {
+    restore();
+  }
+});
+
+test("a place switch to a place that already has an address shows the list, not an item; a hash back to empty keeps the view", async () => {
+  const restore = installDom();
+  try {
+    const r = createRoot();
+    assert.equal(
+      await drawn(r, { hash: "subject=goal:gol_1", epoch: 1 }),
+      "body",
+      "a link on first load shows the item",
+    );
+    assert.equal(
+      await drawn(r, { hash: "subject=thread:t9", epoch: 2 }),
+      "list",
+      "the place switched (epoch 2): the list, whatever the new address holds",
+    );
+    assert.equal(
+      await drawn(r, { hash: "subject=thread:t10", epoch: 2 }),
+      "body",
+      "then a link inside the new place opens the item",
+    );
+    assert.equal(
+      await drawn(r, { hash: "", epoch: 2 }),
+      "body",
+      "an address that clears is not a link and does not change the view",
+    );
+  } finally {
+    restore();
+  }
 });

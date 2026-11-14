@@ -5,7 +5,7 @@
 import type { ThemeController } from "../../../../../ui/src/theme/index.ts";
 import { NO_SCREEN_PLACES, PLACE_TITLE, kitById, livePlace, railFor } from "../rail/kits.ts";
 import type { KitDef, PlaceId, RailGroups } from "../rail/kits.ts";
-import { activeEntry, createTabsController, screenTitle } from "../tabs/store.ts";
+import { activeEntry, createTabsController, screenTitle, tabKey } from "../tabs/store.ts";
 import type { TabEntry, TabsController, TabsStorage } from "../tabs/store.ts";
 import type { SpaceDef } from "./model.ts";
 
@@ -108,6 +108,8 @@ export interface ShellHub {
   go(place: PlaceId, hash?: string, background?: boolean): void;
   /** The person went somewhere inside the place on screen: the selected tab follows, no tab opens (tabs/store.ts moveTab). */
   move(place: PlaceId, hash?: string): void;
+  /** The "+" tab on screen becomes this place and item (a chat started from its search): the same tab, named, no second tab (tabs/store.ts fillTab). */
+  fill(place: PlaceId, hash: string, title?: string, from?: string): void;
   /** The view is about to change: whoever draws the frame keeps a still copy until the next one is ready. */
   hold(): void;
   setHolder(fn: (() => void) | null): void;
@@ -151,7 +153,11 @@ function defaultLater(fn: () => void, ms: number): () => void {
   return () => clearTimeout(id);
 }
 
+/** How long a tab just filled with a chat keeps the name it was given against a read that calls the chat blank. */
+const FILLED_MS = 10_000;
+
 export function createShellHub(options: HubOptions): ShellHub {
+  const filled = new Map<string, number>();
   const now = options.now ?? defaultNow;
   const later = options.later ?? defaultLater;
   const skeletonMs = options.skeletonMs ?? SKELETON_MIN_MS;
@@ -375,6 +381,8 @@ export function createShellHub(options: HubOptions): ShellHub {
     retitle(key, title, empty) {
       const s = open();
       const was = s.tabs.state().tabs.find((t) => t.key === key);
+      // a tab just named for the chat it became (fill) is not called blank by a read that has not caught up with the new chat: that read says "New chat" for a moment and the tab flashed it (and "+" then went to it as a blank chat)
+      if (empty === true && was !== undefined && Date.now() - (filled.get(key) ?? 0) < FILLED_MS) return;
       if (was?.title === title && (was.empty === true) === (empty === true)) return;
       s.tabs.retitle(key, title, empty);
       emit();
@@ -405,6 +413,19 @@ export function createShellHub(options: HubOptions): ShellHub {
       s.tabs.move(livePlace(place), hash, screenTitle(hash));
       const now = s.tabs.state();
       const t = now.tabs.find((x) => x.key === now.active);
+      if (t !== undefined) {
+        s.place = t.place;
+        s.hash = t.hash ?? "";
+      }
+      emit();
+    },
+    fill(place, hash, title, from) {
+      const s = open();
+      holder?.();
+      s.tabs.fill(livePlace(place), hash, title, from);
+      const now = s.tabs.state();
+      const t = now.tabs.find((x) => x.key === now.active);
+      filled.set(tabKey(livePlace(place), hash), Date.now());
       if (t !== undefined) {
         s.place = t.place;
         s.hash = t.hash ?? "";

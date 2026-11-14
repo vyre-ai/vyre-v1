@@ -448,8 +448,13 @@ export default defineManifest({
     }),
     read(
       "access.connector_builder.status",
-      "Does this assistant hold the permission to build connectors, and may the caller give it",
-      { ...V, in: { agentId: id.agent }, out: { allowed: t.bool(), canGrant: t.bool() }, agent: false },
+      "Does this assistant hold the permission to build connectors, may the caller give it, and (when an item is named) may the assistant use that Vault item",
+      {
+        ...V,
+        in: { agentId: id.agent, itemId: t.opt(id.vaultItem) },
+        out: { allowed: t.bool(), canGrant: t.bool(), reaches: t.opt(t.bool()) },
+        agent: false,
+      },
     ),
     write(
       "access.connector_builder.grant",
@@ -827,6 +832,17 @@ export default defineManifest({
       "access.deciders",
       "The people who hold Manage on a resource and so may decide a request about it. Used to route a request to a person even when the caller, an agent, cannot see the resource itself; it names people and shows nothing else",
       { ...V, in: { resource: resourceRef }, out: { people: t.arr(id.user) }, tool: "meta" },
+    ),
+    read(
+      "access.clears",
+      "Whether a principal's clearance reaches a resource's label, asked before a key is stored or shared for an agent. Yes or no only. The server or a person with Edit on it may ask; anyone else gets not found",
+      {
+        ...V,
+        in: { principal: principalRef, target: resourceRef },
+        out: { clears: t.bool() },
+        tool: "meta",
+        errors: ["validation.not_found"],
+      },
     ),
     read("access.grants.list", "List grants by resource, subject or source (Console Grants)", {
       ...V,

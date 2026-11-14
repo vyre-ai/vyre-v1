@@ -6,7 +6,7 @@ import type { ReactElement } from "react";
 import { View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { Section } from "../../shell/ui.tsx";
-import { Actions, Button, Field, Note, ReadState, useAction, useRead } from "../shared.tsx";
+import { Actions, Button, TextBox, Note, ReadState, useAction, useRead } from "../shared.tsx";
 import {
   Banner,
   Directory,
@@ -229,9 +229,9 @@ export function Microsoft365Page(): ReactElement {
           Open Certificates and secrets, choose New client secret, and copy its Value now. Microsoft shows it only once.
           Paste the three values here; the Vault keeps them and this page will never show the secret again.
         </Para>
-        <Field label="Directory (tenant) ID" value={tenantId} onChange={setTenant} testID="ms-tenant" />
-        <Field label="Application (client) ID" value={clientId} onChange={setClientId} testID="ms-client-id" />
-        <Field label="Client secret value" value={secret} onChange={setSecret} secure testID="ms-secret" />
+        <TextBox label="Directory (tenant) ID" value={tenantId} onChange={setTenant} testID="ms-tenant" />
+        <TextBox label="Application (client) ID" value={clientId} onChange={setClientId} testID="ms-client-id" />
+        <TextBox label="Client secret value" value={secret} onChange={setSecret} secure testID="ms-secret" />
         <Actions>
           <Button
             label={stored ? "Replace credentials in the Vault" : "Save to the Vault"}
@@ -245,7 +245,7 @@ export function Microsoft365Page(): ReactElement {
       </Step>
       <Step n={4} title="Connect" state={stateOf(3)}>
         <Para>Vyre matches your members by email. Type an email domain to match only it, or leave it empty.</Para>
-        <Field label="Email domain (optional)" value={domain} onChange={setDomain} testID="ms-domain" />
+        <TextBox label="Email domain (optional)" value={domain} onChange={setDomain} testID="ms-domain" />
         <Actions>
           <Button
             label={configured ? "Connect again" : "Connect Microsoft 365"}

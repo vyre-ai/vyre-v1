@@ -406,7 +406,10 @@ export const chartsFor = (privacy: MachineOut["privacy"]): readonly ChartDef[] =
 export const PRIVATE_NOTE = (owner: string): string =>
   `This is ${owner}'s own computer. You see its name, whether it is online, its capacity and the work Vyre runs on it. Files and processes stay private to ${owner.split(" ")[0]}.`;
 
-/** The one line under "Where work runs": what the next turn does, from the order and the rooms. */
+/** What is nearly full, in the words a person says (the codes are cpu, memory and disk). */
+const BUSY_PART: Readonly<Record<string, string>> = { cpu: "processor", memory: "memory", disk: "disk" };
+
+/** The one line under "Where work runs": what the next job does, from the order and the rooms. */
 export function orderLines(
   order: readonly { name: string; label: string; roomN: number; why: string; online: boolean; drain: boolean }[],
 ): { title: string; note: string; use: boolean; room: number }[] {
@@ -415,15 +418,15 @@ export function orderLines(
     const skip = !o.online
       ? "It is offline"
       : o.drain
-        ? "It is draining"
+        ? "It is not taking new work"
         : o.roomN < 20
-          ? `Busy. ${o.why === "turn limit" ? "Its turn limit is reached" : `${o.why[0]!.toUpperCase()}${o.why.slice(1)} is nearly full`}`
+          ? `It is busy: ${o.why === "turn limit" ? "it has all the work it can take" : `its ${BUSY_PART[o.why] ?? o.why} is nearly full`}`
           : null;
     const use = !used && skip === null;
     if (use) used = true;
     return {
       title: `${o.label}: ${o.name}`,
-      note: skip ? `Skipped. ${skip}` : use ? "Next turn runs here" : "Has room, not needed",
+      note: skip ? `Skipped. ${skip}` : use ? "Work goes here next" : "Has room, not needed",
       use,
       room: o.roomN,
     };

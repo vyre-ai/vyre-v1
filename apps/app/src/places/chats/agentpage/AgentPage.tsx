@@ -167,6 +167,10 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   const paused = agent.status === "paused";
 
   const chat = (): void => {
+    if (data.nav.startChat) {
+      data.nav.startChat(agentId, name);
+      return;
+    }
     void startChat(deps, agentId, name).then((id) => {
       if (id !== null) data.nav.openChat(id);
     });

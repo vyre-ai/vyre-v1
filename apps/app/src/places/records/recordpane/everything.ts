@@ -14,6 +14,8 @@ export interface Item {
   at: number;
   /** one line */
   title: string;
+  /** the word at the left of the row when the kind's own word would be wrong ("Created", not "Change", for the row that says it was created) */
+  label?: string;
   /** a second, quieter line */
   note?: string;
   /** who did it, when the source says */
@@ -24,7 +26,7 @@ export interface Item {
 
 /** The words that name a kind at the left of a row. */
 export const KIND_LABEL: Readonly<Record<Kind, string>> = {
-  edit: "Edit",
+  edit: "Change",
   comment: "Comment",
   mail: "Email",
   text: "Text",
@@ -49,6 +51,7 @@ export const fromActivity = (
     kind: "edit",
     at: e.at,
     title: activityLine(e, def, names),
+    ...(e.kind === "created" ? { label: "Created" } : {}),
     ...(e.actor ? { actor: e.actor } : {}),
   }));
 

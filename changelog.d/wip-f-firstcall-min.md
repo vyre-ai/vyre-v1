@@ -1,0 +1,2 @@
+- An agent's first call to a tool that creates something no longer fails for a key it could not know: Vyre now makes the idempotency key itself from the turn and the call's own id when it has them, otherwise a fresh one, so a retried call makes one thing and a repeat made on purpose makes two.
+- When an agent's call is refused for its input, it is told which input is wrong and what rule it broke, with a minimal call that would work, instead of a general "something is not right"; a web address that is refused says it must start with http:// or https://.

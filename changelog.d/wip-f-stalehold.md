@@ -1,0 +1,1 @@
+- A send waiting for your approval in your private chat with an agent is no longer dropped as "the chat was closed" by the hourly clean-up of old approvals.

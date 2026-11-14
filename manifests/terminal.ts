@@ -51,6 +51,8 @@ const terminalRow = t.obj({
       },
     ),
   ),
+  // the person at the keyboard now: the agent's commands and everyone else's keys wait until they hand it back (or 15 minutes pass with nobody using it)
+  heldBy: t.opt(id.user),
 });
 const command = t.obj({
   command: t.str(),
@@ -195,6 +197,30 @@ export default defineManifest({
         rate: { n: 600, perSeconds: 60, scope: "principal" },
       },
     ),
+    write(
+      "terminal.take_over",
+      "Take the keyboard of a terminal: the agent's commands and everyone else's keys wait until you hand it back. Only the owner of the terminal or an admin can take it from another person",
+      {
+        in: target,
+        out: { terminal: terminalRow },
+        on: ["terminal", "/terminalId"],
+        level: "use",
+        emits: ["terminal.taken"],
+        idem: "natural",
+        offline: "online",
+        errors: ["permission.no_grant", "permission.role_lacks_permission"],
+      },
+    ),
+    write("terminal.give_back", "Hand the keyboard of a terminal back to the agent", {
+      in: target,
+      out: { terminal: terminalRow },
+      on: ["terminal", "/terminalId"],
+      level: "use",
+      emits: ["terminal.given_back"],
+      idem: "natural",
+      offline: "online",
+      errors: ["permission.role_lacks_permission"],
+    }),
     write("terminal.interrupt", "Send Ctrl-C to a session", {
       in: target,
       out: { ok: t.bool() },
@@ -340,6 +366,20 @@ export default defineManifest({
       subject: ["terminal", "/terminalId"],
       vis: "participants",
     }),
+    ev("terminal.taken", "A person took the keyboard of a terminal (the agent is told, its commands wait)", {
+      p: { terminalId: id.terminal, by: t.str(), from: t.opt(t.str()) },
+      subject: ["terminal", "/terminalId"],
+      vis: "participants",
+    }),
+    ev(
+      "terminal.given_back",
+      "The keyboard of a terminal went back to the agent (handed back, or nobody used it for 15 minutes)",
+      {
+        p: { terminalId: id.terminal, by: t.str() },
+        subject: ["terminal", "/terminalId"],
+        vis: "participants",
+      },
+    ),
     ev("terminal.renamed", "A terminal session was renamed", {
       p: { terminalId: id.terminal, name: t.str() },
       subject: ["terminal", "/terminalId"],

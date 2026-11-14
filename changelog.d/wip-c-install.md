@@ -1,0 +1,1 @@
+- The installer's backup and restore tests no longer read the computer's real Docker volumes, so they finish well inside the test time limit (test-only change).

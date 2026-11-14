@@ -1,0 +1,6 @@
+{
+  "targets": [
+    { "id": "REPLYCOL_01-column", "route": "/m/REPLYCOL_01", "proto": "chat,{skin}", "waitFor": "[data-testid='queue-note']", "note": "The column after chat-reply: a reply with a table and a question card, your waiting message with its note under it, the live word." },
+    { "id": "REPLYCOL_01-fold", "route": "/m/REPLYCOL_01?part=fold", "proto": "chat,{skin}", "waitFor": "[data-testid^='work-']", "note": "A finished reply folds its work into Worked 8s, 2 steps." }
+  ]
+}

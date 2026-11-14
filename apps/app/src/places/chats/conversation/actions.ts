@@ -133,31 +133,49 @@ export async function sendPending(
 }
 
 /** Stop one agent's work, or every agent's in the thread. The steps so far are kept. */
-/** /permissions: what goes without asking, numbered, and "remove 2" takes one back. It stops at the next act: the Gate reads the rule then. */
-export async function showPermissions(data: ConversationData, arg: string, say: (text: string) => void): Promise<void> {
+type AllowRule = CapMap["gate.allow.list"]["out"]["rules"][number];
+
+/** /permissions: the rules that let something go without asking, as data. Taking one back is `takeBack`. */
+export async function readPermissions(data: ConversationData): Promise<AllowRule[]> {
   const { rules } = (await data.call("gate.allow.list", {})) as CapMap["gate.allow.list"]["out"];
-  const pick = /^remove\s+(\d+)$/i.exec(arg.trim());
-  if (pick) {
-    const rule = rules[Number(pick[1]) - 1];
-    if (!rule) {
-      say(`There is no rule ${pick[1]}. Say /permissions to see the list.`);
-      return;
-    }
-    await data.call("gate.allow.remove", { id: rule.id });
-    say(`Took back: ${permissionLine(rule)}`);
-    return;
-  }
-  say(
-    rules.length === 0
-      ? "Nothing goes without asking here beyond what your chat mode allows."
-      : rules.map((r, i) => `${i + 1}. ${permissionLine(r)}`).join("\n"),
-  );
+  return rules;
 }
 
-function permissionLine(r: CapMap["gate.allow.list"]["out"]["rules"][number]): string {
+/** Take a rule back. It stops at the next act: the Gate reads the rule then. */
+export async function takeBack(data: ConversationData, rule: AllowRule): Promise<void> {
+  await data.call("gate.allow.remove", { id: rule.id });
+}
+
+const DAY_MS = 86_400_000;
+/** Whole days left on a rule, rounded DOWN: an Undo may never leave the agent with more than it had. Null: it cannot be said exactly (no expiry, or under a day left). */
+export function daysToGiveBack(r: AllowRule, now: number): number | null {
+  if (r.expiresAt === undefined) return null;
+  const days = Math.floor((r.expiresAt - now) / DAY_MS);
+  return days >= 1 ? Math.min(90, days) : null;
+}
+
+/** A person's Always allow can be given again with gate.allow.set (an automation's permission cannot), and only when the days left are expressible without rounding up. */
+export const canGiveBack = (r: AllowRule, now: number): boolean =>
+  r.kind === "always" && daysToGiveBack(r, now) !== null;
+
+/** Give an Always allow back as it was, never wider: same act, target, agent and chat; the whole days left (rounded down). */
+export async function giveBack(data: ConversationData, rule: AllowRule, now: number): Promise<void> {
+  const days = daysToGiveBack(rule, now);
+  if (rule.kind !== "always" || days === null) throw new Error("This permission cannot be given back exactly.");
+  await data.call("gate.allow.set", {
+    act: rule.act,
+    target: rule.target,
+    ...(rule.agentId !== undefined ? { agentId: rule.agentId } : {}),
+    ...(rule.threadId !== undefined ? { threadId: rule.threadId } : {}),
+    days,
+  });
+}
+
+/** One rule in words. The target is shown as a person would say it; a raw target of "*" is "whoever its step reaches". */
+export function permissionText(r: AllowRule): string {
   if (r.kind === "standing")
     return `An automation may ${r.act === "approve" ? "act" : r.act} to ${r.target === "*" ? "whoever its step reaches" : r.target}`;
-  return `Always allow ${r.target}${r.expiresAt !== undefined ? `, until ${new Date(r.expiresAt).toLocaleDateString()}` : ""}`;
+  return `Always allow ${r.target}`;
 }
 
 export async function stopAgent(data: ConversationData, agentId?: string): Promise<void> {
@@ -329,7 +347,7 @@ export async function errorAction(
   key: string,
   turnId: string | undefined,
   say: (text: string) => void,
-  open?: { pickModel?: () => void },
+  open?: { pickModel?: () => void; spaceKey?: () => void },
 ): Promise<void> {
   // "Run it on the server instead": the next turn of this chat runs on the Space, once; the chat stays where the person chose. A turn that failed for it runs again.
   if (key === "run_on_server") {
@@ -348,6 +366,12 @@ export async function errorAction(
       target: "device",
     } satisfies CapMap["engine.placement.set"]["in"]);
     if (turnId) await retryTurn(data, turnId);
+    return;
+  }
+  // "Set a Space AI key" on a reply that could not start for lack of an AI account (an owner or admin): Console, AI
+  if (key === "set_space_key") {
+    if (open?.spaceKey) open.spaceKey();
+    else say("Set the Space AI key in Console, under AI.");
     return;
   }
   // Continue on "Stopped for an update": that turn runs again, same message and account (engine.turn.retry takes a stopped turn as it takes a failed one)

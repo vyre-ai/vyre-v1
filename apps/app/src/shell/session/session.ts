@@ -1,4 +1,6 @@
+import { setLinkOrigin } from "../../share/rows.ts";
 import { judge, needsJudging, noAccessLine } from "../reach/target.ts";
+import { MAKES_A_THREAD, noteMade, threadOfStart } from "./just-made.ts";
 import type { Judge } from "../reach/target.ts";
 import { adminPages } from "../providers/settings-admin.ts";
 import { createLinkPolicy } from "../reach/policy.ts";
@@ -61,7 +63,7 @@ export interface OpenSessionOptions {
   /** Device-local cards only; never another Space token or key. */
   spaceCards?: readonly SpaceDef[];
   /** Where a click goes: the shell maps a screen or subject to a place and shows it. */
-  navigate?(place: PlaceId, hash: string, background?: boolean): void;
+  navigate?(place: PlaceId, hash: string, background?: boolean, into?: string): void;
   /** A click reach turned away: one quiet line. */
   notice?(text: string): void;
   /** A click that opens something of the shell itself (the search, a new tab, the Space switcher): screens whose place is `shell`. */
@@ -194,6 +196,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     for (const l of [...listeners]) l();
   };
 
+  setLinkOrigin(o.baseUrl); // links to things in this Space are made from its own address (the desktop app runs in tauri://localhost)
   const raw = createCapCaller({
     baseUrl: o.baseUrl,
     token: () => token,
@@ -360,8 +363,19 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     rehandKey(o.baseUrl, token ?? ""),
   );
   // one idempotency key per logical call: the gate's retry after the password, and any other send of the same call, carries the same opts and so the same key
-  const call: CapCall = (cap, input, given) =>
-    gated(cap, input, given?.idempotencyKey ? given : { ...given, idempotencyKey: attemptKey() });
+  const call: CapCall = (cap, input, given) => {
+    const sent = gated(cap, input, given?.idempotencyKey ? given : { ...given, idempotencyKey: attemptKey() });
+    // a chat this person just started is not refused while its row is still landing (shell/session/just-made.ts)
+    if (MAKES_A_THREAD.includes(cap))
+      void Promise.resolve(sent).then(
+        (out) => {
+          const id = threadOfStart(out);
+          if (id !== null) noteMade(id);
+        },
+        () => undefined,
+      );
+    return sent;
+  };
 
   const purgeListeners = new Set<(epoch: number) => void>();
   let live: LiveStatus = "offline";
@@ -552,7 +566,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     const place = railPlace(where);
     if (!place || !o.navigate) return;
     const go = (): void => {
-      o.navigate?.(place, targetHash(t), t.background === true);
+      o.navigate?.(place, targetHash(t), t.background === true, t.into);
     };
     // a tab or view of what is already open is not a new door: no read, no refusal
     if (t.local === true || !needsJudging(t)) {

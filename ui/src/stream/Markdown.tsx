@@ -304,6 +304,20 @@ function TableView({
       style={styles.tableWrap}
       accessibilityRole={Platform.OS === "web" ? ("table" as never) : undefined}
     >
+      <View style={styles.tableHead}>
+        <Text
+          style={styles.tableLabel}
+        >{`Table \u00b7 ${block.rows.length} ${block.rows.length === 1 ? "row" : "rows"}`}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Copy as CSV"
+          testID={`csv-${block.key}`}
+          onPress={copy}
+          style={styles.csvBtn}
+        >
+          <Text style={styles.csvText}>{copied ? "Copied" : "Copy as CSV"}</Text>
+        </Pressable>
+      </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator
@@ -315,17 +329,6 @@ function TableView({
           {body}
         </View>
       </ScrollView>
-      <View style={styles.tableFoot}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Copy as CSV"
-          testID={`csv-${block.key}`}
-          onPress={copy}
-          style={styles.csvBtn}
-        >
-          <Text style={styles.csvText}>{copied ? "Copied" : "Copy as CSV"}</Text>
-        </Pressable>
-      </View>
     </View>
   );
 }
@@ -553,12 +556,17 @@ const styles = StyleSheet.create({
   table: { minWidth: "100%" as unknown as number },
   tr: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   trHead: { borderTopWidth: 0 },
-  tableFoot: {
+  tableHead: {
     flexDirection: "row",
-    justifyContent: "flex-end",
-    borderTopWidth: 1,
-    borderTopColor: "var(--line)" as string,
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingLeft: 12,
+    minHeight: 32,
+    backgroundColor: "var(--sunk)" as string,
+    borderBottomWidth: 1,
+    borderBottomColor: "var(--line)" as string,
   },
+  tableLabel: { color: "var(--ink-3)" as string, fontSize: 12 },
   csvBtn: { paddingHorizontal: 10, height: 26, justifyContent: "center" },
   csvText: { color: "var(--ink-3)" as string, fontSize: 12 },
   trAlt: { backgroundColor: "var(--sunk)" as string },

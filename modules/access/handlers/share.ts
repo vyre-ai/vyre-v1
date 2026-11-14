@@ -309,6 +309,30 @@ function folderOf(
   return { rec, res };
 }
 
+/**
+ * Does this principal's clearance reach what the resource is labelled? The label half of authorize's rule 3 on its own, read from the same snapshot (the effective label: the resource's own and every
+ * folder above it, against the clearance of the principal's roles). A thing labelled above a principal's clearance is refused to them whatever it is granted (authorize answers above_clearance), so a
+ * caller asks this before it stores or shares a key for an agent. An unknown or suspended principal clears nothing.
+ * The input is called `target`, not `resource`, so the gateway does not run its own access check on it first: that check answers "restricted beyond what you can open", which would tell a person
+ * the folder is there and how it is labelled. This handler gives the one answer for "cannot see it" and "does not exist".
+ * WHO MAY ASK: the server, or a person who may put something into the resource (Edit on it). Anyone else, including a person who cannot see the resource at all, gets the answer a made-up id gets
+ * (not found), so the call tells nobody that a hidden folder exists or how it is labelled.
+ */
+export async function clears(ctx: AccessCtx, input: { principal: Ref; target: ResourceRef }) {
+  const store = storeOf(ctx);
+  const res = resourceOf(ctx, store, input.target);
+  if (!isHostService(ctx.principal)) {
+    const sc = ctx as ShareCtx;
+    hideFrom(sc, store, res);
+    const person = ctx.principal.kind === "person" || actingId(sc) !== undefined;
+    if (!person || !atLeast(res.type, callerLevel(sc, store, res), "edit"))
+      raise(ctx.trace.traceId, "validation.not_found", "no such resource");
+  }
+  const snap = store.snapshot();
+  const who = snap.info(input.principal.id);
+  return { clears: !!who && who.p.status === "active" && snap.effectiveLabel(res.id) <= who.clearance };
+}
+
 // ---- my_access ---------------------------------------------------------------------------------------------------------
 
 const live = (g: GRec, now: number): boolean => g.exp > now && now >= g.nb && now <= g.na;

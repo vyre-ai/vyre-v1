@@ -40,6 +40,8 @@ export interface NoticeSnapshot {
 }
 
 export const PASSING_MS = 3500;
+/** A line that carries an action (Undo, Retry) stays long enough to reach it (CMD-RESULTS-2026-11-13: 6 seconds). */
+export const ACTION_NOTICE_MS = 6000;
 const RECENT_MAX = 8;
 
 export interface NoticeStore {
@@ -50,7 +52,7 @@ export interface NoticeStore {
   /** The notice is no longer true (unlocked, back online, updated): it goes, and shows under recent. */
   resolve(id: string): void;
   /** Something that passed: shown briefly in place of a toast, then it fades into recent. */
-  pass(text: string, action?: NoticeAction): void;
+  pass(text: string, action?: NoticeAction, o?: { ms?: number }): string;
   /** Fade out what has run its time. Called on a timer by the slot. */
   tick(): void;
 }
@@ -99,19 +101,21 @@ export function createNoticeStore(now: () => number = Date.now): NoticeStore {
       toRecent(was);
       publish();
     },
-    pass(text, action) {
+    pass(text, action, o) {
       const at = now();
+      const id = `pass-${++seq}`;
       const n: Notice = {
-        id: `pass-${++seq}`,
+        id,
         kind: "passing",
         text,
         persist: false,
         at,
-        until: at + PASSING_MS,
+        until: at + (o?.ms ?? PASSING_MS),
         ...(action ? { action } : {}),
       };
       live = [...live, n];
       publish();
+      return id;
     },
     tick() {
       const t = now();

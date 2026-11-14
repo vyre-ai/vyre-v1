@@ -541,7 +541,7 @@ export default defineManifest({
       "A short-lived address that opens an artifact for the person asking, in a tab or the browser",
       {
         in: { artifactId: id.site },
-        out: { path: t.str(), url: t.opt(t.str()), expiresAt: t.ts() },
+        out: { path: t.str(), url: t.opt(t.str()), expiresAt: t.ts(), checked: t.opt(t.bool()) },
         on: ["site", "/artifactId"],
         level: "view",
         tool: "sites",

@@ -4,9 +4,12 @@
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { messageSummary } from "../builder/compose.ts";
 import { LOOP_CHILD, PARALLEL_JOIN, parallelLaneMark } from "../chrome.ts";
-import { NOT_SET_UP, missingFor, triggerMissing, triggerSummary } from "./form-model.ts";
+import { NOT_SET_UP, missingFor, specOf, triggerMissing, triggerSummary } from "./form-model.ts";
 import type { RefNames } from "./form-model.ts";
 import { deviceTimeZone } from "./schedule.ts";
+import { chipWords } from "./steps/edits.ts";
+import { isRawId } from "../../../../../../lib/id-shapes.ts";
+import { stepInputLabel } from "../../../../../../lib/step-input-labels.ts";
 
 export type Automation = CapMap["automations.get"]["out"]["automation"];
 export type Definition = Automation["definition"];
@@ -326,8 +329,44 @@ export function triggerCardHeight(count: number): number {
   return TRIG_HEAD + Math.max(1, count) * TRIG_ROW;
 }
 
+/** What an AI account that is no longer in the list is called (never its id). */
+export const REMOVED_KEY = "A removed AI account";
+
 /** The second line of a card: what the step does, from its inputs, in words. */
-export function subtitleOf(n: DefNode, names: { key?: (id: string) => string } = {}): string {
+export function subtitleOf(
+  n: DefNode,
+  names: {
+    key?: (id: string) => string;
+    step?: (id: string) => string;
+    thing?: (id: string) => string | undefined;
+  } = {},
+): string {
+  // a `{{ }}` reference is never the text of a card: it reads as the chip it is in the editor (owner, 13 Nov 2026)
+  return chipWords(subtitleRaw(n, names), names.step ?? (() => "an earlier step"));
+}
+
+/** What a kind of id points at, for a card that does not know the thing's name. */
+const THING: Readonly<Record<string, string>> = {
+  rec: "record",
+  fld: "folder",
+  fil: "file",
+  thr: "chat",
+  usr: "person",
+  agt: "agent",
+  cal: "calendar",
+  tsk: "task",
+  prj: "project",
+  aut: "automation",
+  mbx: "mailbox",
+  chn: "channel",
+  frm: "form",
+  jrn: "journey",
+};
+
+function subtitleRaw(
+  n: DefNode,
+  names: { key?: (id: string) => string; thing?: (id: string) => string | undefined },
+): string {
   const k = kindOfKey(n.key);
   const inp = n.input ?? {};
   const composed = messageSummary(n.key, inp);
@@ -403,8 +442,8 @@ export function subtitleOf(n: DefNode, names: { key?: (id: string) => string } =
       .replace(/\u2026[.]+$/, "\u2026")
       .replace(/[.]+$/, "");
     if (!prompt) return "Write what the AI should do";
-    const key = n.ai?.keyId ? (names.key?.(n.ai.keyId) ?? n.ai.keyId) : "";
-    const back = n.ai?.backupKeyId ? (names.key?.(n.ai.backupKeyId) ?? n.ai.backupKeyId) : "";
+    const key = n.ai?.keyId ? (names.key?.(n.ai.keyId) ?? REMOVED_KEY) : "";
+    const back = n.ai?.backupKeyId ? (names.key?.(n.ai.backupKeyId) ?? REMOVED_KEY) : "";
     const tail = n.ai?.mode === "task" ? "Agent task" : key ? (back ? `${key}, then ${back}` : key) : "";
     return `${prompt.length > 60 ? `${prompt.slice(0, 60)}...` : prompt}${tail ? `${prompt.endsWith("\u2026") ? " \u00b7 " : ". "}${tail}` : ""}`;
   }
@@ -412,7 +451,20 @@ export function subtitleOf(n: DefNode, names: { key?: (id: string) => string } =
   for (const [name, v] of Object.entries(inp)) {
     const s = str(v);
     if (!s) continue;
-    bits.push(`${name} ${s}`);
+    const label = stepInputLabel(name);
+    // a card never prints an id: it names the thing when the card's names know it, else says what kind of thing it is
+    if (isRawId(s)) {
+      const named = names.thing?.(s);
+      const kind = THING[s.split("_")[0] ?? ""] ?? "thing";
+      const noun = `${/^[aeiou]/.test(kind) ? "an" : "a"} ${kind}`;
+      bits.push(
+        named
+          ? `${label} ${named}`
+          : kind === label.toLowerCase()
+            ? noun.charAt(0).toUpperCase() + noun.slice(1)
+            : `${label} ${noun}`,
+      );
+    } else bits.push(`${label} ${s}`);
     if (bits.length === 2) break;
   }
   return bits.join(" · ") || titleOfKey(n.key);
@@ -488,7 +540,13 @@ export function layout(
 
   const put = (n: DefNode, cx: number, y: number): CardNode => {
     const k = kindOfKey(n.key);
-    const names = opts.keyName ? { key: opts.keyName } : {};
+    const names = {
+      ...(opts.keyName ? { key: opts.keyName } : {}),
+      step: (id: string): string => {
+        const x = by.get(id);
+        return x ? cardTitle(x) : "an earlier step";
+      },
+    };
     const card: CardNode = {
       id: n.id,
       type: "step",
@@ -772,6 +830,12 @@ const REQUIRED: Readonly<Record<string, readonly { field: string; label: string 
   ],
 };
 
+/** A trigger input a person has to fill in, by its label on the form, never its key. */
+const triggerFieldWords = (trigger: string, field: string): string => {
+  const label = specOf(trigger).fields.find((f) => f.name === field)?.label;
+  return label !== undefined && label.trim() !== "" ? `the ${label.toLowerCase()}` : "a detail";
+};
+
 const blank = (v: unknown): boolean => v === undefined || v === null || (typeof v === "string" && v.trim() === "");
 
 /**
@@ -801,7 +865,7 @@ export function check(def: Definition, kind: "personal" | "space" = "space", o: 
       out.push({
         nodeId: "trigger",
         severity: "warning",
-        message: `${title} needs ${miss.map((m) => (m === "type" ? "a record type" : m === "fileId" ? "a spreadsheet" : m)).join(" and ")}`,
+        message: `${title} needs ${miss.map((m) => (m === "type" ? "a record type" : m === "fileId" ? "a spreadsheet" : triggerFieldWords(t.key, m))).join(" and ")}`,
       });
   }
   if (def.nodes.length === 0) out.push({ severity: "warning", message: "Add a first step" });

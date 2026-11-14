@@ -18,6 +18,14 @@ const refsIn = (v: unknown, path: string, out: string[]): void => {
 
 test("steps.list returns every input schema with its references put in place", async () => {
   const h = harness();
+  // the whole palette: every app connected, since an app that is not connected lists no actions (steps-connected.test.ts)
+  h.callee("connections.list", () => ({
+    connections: [
+      { connector: "google", state: "active" },
+      { connector: "microsoft", state: "active" },
+    ],
+  }));
+  h.callee("github.me.status", () => ({ connected: true, needsReconnect: false }));
   const steps = (await h.call("automations.steps.list", {}, alice)).steps as {
     key: string;
     input?: { properties?: Record<string, unknown> };

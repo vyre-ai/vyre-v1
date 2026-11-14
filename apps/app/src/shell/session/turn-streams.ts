@@ -27,11 +27,16 @@ export interface ActivityStep {
   name: string;
   state: "live" | "done" | "failed";
   /** what it touches, from the host in safe words ("model.ts", "stream pacing") */ detail?: string;
+  /** when this device saw it start and end (a subagent's row keeps a clock from these) */
+  at?: number;
+  endedAt?: number;
 }
 export interface ActivitySnapshot {
   startedAt: number;
   thinking: string;
   steps: readonly ActivityStep[];
+  /** What each subagent of the engine is on, by the id of the call that started it: its own lines, sent to the person the turn runs for alone (host/src/seams/engine.ts). */
+  subs?: Readonly<Record<string, ReadonlyArray<{ name: string; detail?: string }>>>;
   version: number;
   /** the turn has ended: the mark settles */ done?: boolean;
 }
@@ -49,6 +54,11 @@ export interface TurnStreams {
   onFrame(frame: unknown): void;
   /** Turns of this chat that still show a row of their own, oldest first. The array identity changes only when the set or a state changes. */
   turnsOf(threadId: string): readonly LiveTurn[];
+  /**
+   * The turns this person asked for that began at or after `since`, whatever chat they are in: a chat that is still being made has no id to ask by, but its first reply can already be on its way. The array identity changes only when the
+   * set or a state changes.
+   */
+  askedBy(asker: string, since: number): readonly LiveTurn[];
   /** The store behind a row: a turn's own id while it writes (`turn:<id>`), or the message id it became until the row is on screen. */
   streamOf(rowId: string): StreamStore | undefined;
   /** The row of this message is on screen: the turn behind it can go. */
@@ -210,7 +220,10 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
     const list = [...turns.values()].filter((t) => t.threadId === threadId).sort((a, b) => a.startedAt - b.startedAt);
     byThread.set(threadId, list.length > 0 ? list : NONE);
   };
+  let rev = 0;
+  const asked = new Map<string, { rev: number; list: readonly LiveTurn[] }>();
   const tell = (threadId: string): void => {
+    rev += 1;
     rebuild(threadId);
     for (const l of [...listeners]) l();
   };
@@ -280,6 +293,18 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
   };
 
   return {
+    askedBy(asker, since) {
+      const key = `${asker}@${since}`;
+      const hit = asked.get(key);
+      if (hit && hit.rev === rev) return hit.list;
+      const list = [...turns.values()]
+        .filter((x) => x.asker === asker && x.startedAt >= since)
+        .sort((a, b) => a.startedAt - b.startedAt);
+      const out = list.length > 0 ? list : NONE;
+      if (asked.size > 20) asked.clear();
+      asked.set(key, { rev, list: out });
+      return out;
+    },
     onFrame(frame) {
       if (typeof frame !== "object" || frame === null) return;
       const f = frame as { t?: unknown; turn?: unknown; delta?: unknown };
@@ -290,6 +315,23 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
         kind = str(d["kind"]);
       if (threadId === "" || agentId === "") return;
       const turnId = f.turn;
+      if (kind === "substeps" && Array.isArray(d["steps"])) {
+        const t = ensure(turnId, threadId, agentId);
+        if (t.state === "ended") return;
+        arm(turnId, quietMs);
+        for (const raw of d["steps"] as Array<Record<string, unknown>>) {
+          const parent = str(raw["parent"]);
+          if (parent === "") continue;
+          touchAct(turnId, (s) => {
+            const list = [...(s.subs?.[parent] ?? [])];
+            if (raw["phase"] === "call") list.push({ name: str(raw["name"]) });
+            else if (raw["phase"] === "input" && list.length > 0 && str(raw["detail"]) !== "")
+              list[list.length - 1] = { ...list[list.length - 1]!, detail: str(raw["detail"]) };
+            return { ...s, subs: { ...(s.subs ?? {}), [parent]: list.slice(-8) } };
+          });
+        }
+        return;
+      }
       if (kind === "step" || kind === "steps" || kind === "thinking") {
         const t = ensure(turnId, threadId, agentId);
         if (t.state === "ended") return;
@@ -313,13 +355,15 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
               touchAct(turnId, (s) =>
                 s.steps.some((x) => x.id === id)
                   ? s
-                  : { ...s, steps: [...s.steps, { id, name, state: "live" as const }] },
+                  : { ...s, steps: [...s.steps, { id, name, state: "live" as const, at: now() }] },
               );
             else
               touchAct(turnId, (s) => ({
                 ...s,
                 steps: s.steps.map((x) =>
-                  x.id === id ? { ...x, state: raw["ok"] === false ? ("failed" as const) : ("done" as const) } : x,
+                  x.id === id
+                    ? { ...x, state: raw["ok"] === false ? ("failed" as const) : ("done" as const), endedAt: now() }
+                    : x,
                 ),
               }));
           }

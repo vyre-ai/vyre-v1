@@ -3,7 +3,7 @@
   "capabilities": {
     "sites.addon_add@1": "74d869dfd9ab11b6d3551c7818bc9fc24db05358b4459a2ff8126ca754c88634",
     "sites.addon_remove@1": "c0671e97ce74b86b5ef1c022bbca80abeb37c37f00a0dd3692384e11a3ee3cb0",
-    "sites.artifact_open@1": "feebfb00058f8ed296939b8cdaf5eeb2cbddb1ff1f681abae1b372a962338f21",
+    "sites.artifact_open@1": "fb076414a365e686c17a19f0b4bb8e42f95781dcbd9e523c76616d6e575bc7dc",
     "sites.artifact_publish@1": "abf262ad557991a406b7ee38df88dd2cce395d6f744afb55b4b700eea9565de6",
     "sites.artifact_thumb_set@1": "42de63f5b25c1d026afd665052c29bfee4d07b12257692084b26f28896fb1b3e",
     "sites.build@1": "accfaf3f3a832c1e168ddf7fa4411a3166ca6efdf22dc559e1df7bcfc0137a8c",

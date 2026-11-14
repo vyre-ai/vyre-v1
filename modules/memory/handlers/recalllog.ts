@@ -54,24 +54,38 @@ async function triggerOf(ctx: MemCtx, threadId: string, messageId: string): Prom
     me,
   )[0];
   if (own) return { id: messageId, at: num(own["at"]) };
-  let created = 0;
+  // An agent's reply is for the one message that caused it: the message it replies to, else the nearest person's message before it. A reply never borrows the recall of an earlier message
+  // (it used to take the latest recall at or before its time, so every later reply showed the lessons put in front of the agent for the first message of the chat).
+  type Row = { messageId?: string; threadSeq?: number; author?: { kind?: string }; replyTo?: string };
+  let msg: Row | undefined;
   try {
-    created = Number(
-      ((await ctx.call("chat.message.get", { threadId, messageId })) as { message?: { createdAt?: number } }).message
-        ?.createdAt ?? 0,
-    );
+    msg = ((await ctx.call("chat.message.get", { threadId, messageId })) as { message?: Row }).message;
   } catch {
     return null;
   }
-  if (created === 0) return null;
-  const prior = rowsOf(
+  if (!msg || msg.author?.kind === "person") return null;
+  let trigger = msg.replyTo;
+  if (!trigger && typeof msg.threadSeq === "number") {
+    try {
+      const before = (await ctx.call("chat.messages.list", { threadId, before: msg.threadSeq, limit: 30 })) as {
+        messages?: Row[];
+      };
+      trigger = (before.messages ?? [])
+        .filter((m) => m.author?.kind === "person" && typeof m.threadSeq === "number")
+        .sort((a, b) => b.threadSeq! - a.threadSeq!)[0]?.messageId;
+    } catch {
+      return null;
+    }
+  }
+  if (!trigger) return null;
+  const row = rowsOf(
     ctx.db,
-    "SELECT message_id, MAX(at) AS at FROM memory_recall_log WHERE thread_id = ? AND asker = ? AND at <= ? GROUP BY message_id ORDER BY at DESC LIMIT 1",
+    "SELECT at FROM memory_recall_log WHERE thread_id = ? AND message_id = ? AND asker = ? LIMIT 1",
     threadId,
+    trigger,
     me,
-    created,
   )[0];
-  return prior ? { id: str(prior["message_id"]), at: num(prior["at"]) } : null;
+  return row ? { id: trigger, at: num(row["at"]) } : null;
 }
 
 export async function used(ctx: MemCtx, input: { threadId: string; messageId: string }) {

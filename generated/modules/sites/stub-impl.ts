@@ -6,7 +6,7 @@ import type { Handlers } from './handlers.ts';
 export const handlers: Handlers<HandlerCtx> = {
   "sites.addon_add": async () => ({"addon":{"detail":"example","envName":"DATABASE_URL","kind":"postgres","state":"starting"}} as unknown) as never,
   "sites.addon_remove": async () => ({"removed":true} as unknown) as never,
-  "sites.artifact_open": async () => ({"expiresAt":1760000000000,"path":"example","url":"example"} as unknown) as never,
+  "sites.artifact_open": async () => ({"checked":true,"expiresAt":1760000000000,"path":"example","url":"example"} as unknown) as never,
   "sites.artifact_publish": async () => ({"artifactId":"sit_a1b2c3","opened":true,"updated":true,"url":"example"} as unknown) as never,
   "sites.artifact_thumb_set": async () => ({"set":true} as unknown) as never,
   "sites.build": async () => ({"deploymentId":"dpl_a1b2c3","runId":"run_a1b2c3"} as unknown) as never,

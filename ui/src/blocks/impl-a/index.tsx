@@ -4,6 +4,7 @@
 // `host.open(tab, input)`. Every card has a right-click menu (long press on a phone), is reachable by keyboard, and paints the quiet
 // hover; colours are skin tokens, so a skin switch repaints with no re-render.
 
+import { isRawId } from "../../../../lib/id-shapes.ts";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -12,6 +13,7 @@ import type { Block } from "../../kit/types.ts";
 import { menuTrigger, useMenu } from "../../Menu/index.tsx";
 import { Row } from "../../Row/index.tsx";
 import { ArtifactCard, linkOf } from "../../ArtifactCard/index.tsx";
+import { artifactLinkFor, copyLinkAsApp, spaceLinkOrigin } from "../../link-origin.ts";
 import type { ArtifactInfo } from "../../ArtifactCard/index.tsx";
 import type { MenuEntry } from "../../Menu/index.tsx";
 import {
@@ -499,7 +501,17 @@ export function QuestionBlock({ block, host }: BlockViewProps): ReactElement {
         key={o.key}
         id={`blk-question-${block.id}-opt-${o.key}`}
         title={o.label}
-        {...(o.detail !== undefined ? { note: o.detail } : {})}
+        trailing={
+          o.recommended || o.detail !== undefined ? (
+            <Text
+              testID={`blk-question-${block.id}-opt-${o.key}-hint`}
+              numberOfLines={1}
+              style={o.recommended ? styles.optRecommended : styles.optHint}
+            >
+              {o.recommended ? "Recommended" : o.detail}
+            </Text>
+          ) : null
+        }
         selected={on}
         leading={<Text style={styles.optMark}>{d.mode === "multi" ? (on ? "☑" : "☐") : on ? "●" : "○"}</Text>}
         onPress={() => choose(o.key)}
@@ -518,7 +530,7 @@ export function QuestionBlock({ block, host }: BlockViewProps): ReactElement {
         <StatusLine
           tone="ok"
           testID={`blk-question-${block.id}-answered`}
-          text={`${d.answeredBy !== "" ? `${d.answeredBy} answered` : "You answered"}: ${answerLine(d.options, sent)}`}
+          text={`${whoAnswered(host, d.answeredBy)}: ${answerLine(d.options, sent)}`}
         />
       ) : (
         <>
@@ -531,7 +543,7 @@ export function QuestionBlock({ block, host }: BlockViewProps): ReactElement {
             <View style={styles.free}>
               <TextInput
                 accessibilityLabel={d.mode === "free" ? "Your answer" : "Your own answer"}
-                placeholder={d.mode === "free" ? "Write your answer" : "Or write your own answer"}
+                placeholder={d.mode === "free" ? "Write your answer" : "Your own answer"}
                 placeholderTextColor="var(--ink-4)"
                 value={text}
                 onChangeText={setText}
@@ -541,13 +553,14 @@ export function QuestionBlock({ block, host }: BlockViewProps): ReactElement {
                 testID={`blk-question-${block.id}-text`}
                 style={styles.input}
               />
-              <Btn
-                id={`blk-question-${block.id}-answer`}
-                label="Answer"
-                primary
-                disabled={!canAnswer(d.mode, picked, text)}
-                onPress={() => submit(picked, text)}
-              />
+              {canAnswer(d.mode, picked, text) ? (
+                <Btn
+                  id={`blk-question-${block.id}-answer`}
+                  label="Answer"
+                  primary
+                  onPress={() => submit(picked, text)}
+                />
+              ) : null}
             </View>
           ) : d.mode === "multi" ? (
             <View style={styles.acts}>
@@ -853,7 +866,7 @@ export function ArtifactBlock({ block, host }: BlockViewProps): ReactElement {
         artifactId: id,
         idempotencyKey: `card-${id}-${Date.now()}`,
       })) as { path: string; url?: string };
-      return linkOf(o, (globalThis as { location?: { origin?: string } }).location?.origin);
+      return linkOf(o, spaceLinkOrigin() || undefined);
     } catch {
       return null;
     }
@@ -878,11 +891,7 @@ export function ArtifactBlock({ block, host }: BlockViewProps): ReactElement {
         {...(host.nameOf ? { nameOf: host.nameOf } : {})}
         testID={`blk-artifact-${block.id}-card`}
         onOpen={() => void openTab(host, "artifact", block.data)}
-        onCopyLink={() =>
-          copyText(
-            `${((globalThis as { location?: { origin?: string } }).location?.origin ?? "").replace(/\/+$/, "")}/a/${id}`,
-          )
-        }
+        onCopyLink={() => copyLinkAsApp(artifactLinkFor(id))} // the Space's own address, never the page's (tauri://localhost in the desktop app); the app says in words when there is none
         onShare={() => host.open("artifact-share", { artifactId: id })}
         onBrowser={() =>
           void address().then((u) => {
@@ -1039,6 +1048,14 @@ const SELECTED = { backgroundColor: "var(--sel)" };
 
 const textBase: TextStyle = { color: "var(--ink)" as string, fontSize: 13, lineHeight: 19 };
 
+/** "Maya answered", "You answered": the person who answered is named through the host's directory, never by the id the block stores (owner, 13 Nov 2026). A stored name that is not an id is kept as it is. */
+function whoAnswered(host: BlockHost, answeredBy: string): string {
+  if (answeredBy === "" || answeredBy === host.meId) return "You answered";
+  if (!isRawId(answeredBy)) return `${answeredBy} answered`;
+  const name = host.nameOf?.(answeredBy);
+  return `${name === undefined || isRawId(name) ? "Someone" : name} answered`;
+}
+
 const styles = StyleSheet.create({
   card: {
     marginVertical: 8,
@@ -1104,6 +1121,8 @@ const styles = StyleSheet.create({
   optMark: { color: "var(--ink-3)" as string, fontSize: 13, lineHeight: 19, width: 16 },
   why: { fontSize: 13, lineHeight: 19, color: "var(--ink-2)" as string, paddingHorizontal: 12, paddingBottom: 6 },
   optLabel: { ...textBase },
+  optHint: { fontSize: 12.5, color: "var(--ink-3)" as string, maxWidth: 180 },
+  optRecommended: { fontSize: 12.5, color: "var(--accent)" as string, fontWeight: "500" },
   free: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
   input: {
     flex: 1,

@@ -4,7 +4,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Empty, Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import { Actions, Button, Field, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
+import { Actions, Button, TextBox, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
 import { Tick } from "./ai-controls.tsx";
 
 type Finding = CapMap["governance.erase.find"]["out"];
@@ -97,7 +97,7 @@ export function ErasePerson(): ReactElement {
     <>
       <Section title="Find a person">
         <Group>
-          <Field
+          <TextBox
             label="Name"
             value={name}
             onChange={(value) => {
@@ -105,7 +105,7 @@ export function ErasePerson(): ReactElement {
               onEdit();
             }}
           />
-          <Field
+          <TextBox
             label="Email"
             value={email}
             onChange={(value) => {
@@ -113,7 +113,7 @@ export function ErasePerson(): ReactElement {
               onEdit();
             }}
           />
-          <Field
+          <TextBox
             label="Phone"
             value={phone}
             onChange={(value) => {
@@ -158,7 +158,7 @@ export function ErasePerson(): ReactElement {
             {finding.groups.some((group) => include.has(group.kind) && group.onHold > 0) ? (
               <>
                 <Note>Selected data is under a legal hold. Only the Space owner can override it.</Note>
-                <Field
+                <TextBox
                   label="Legal hold override reason"
                   value={overrideReason}
                   onChange={(value) => {

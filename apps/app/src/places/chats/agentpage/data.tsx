@@ -13,6 +13,8 @@ export type { Connection };
 export interface AgentPageNav extends RightPaneNav {
   /** A chat from the Chats tab, or the one a Chat press just started. */
   openChat(threadId: string): void;
+  /** The Chat button: the new-chat screen with this agent picked, ready to type; the chat is made when he sends. Absent where there is no new-chat screen (a sample). */
+  startChat?(agentId: string, name: string): void;
   /** The agent's folder in Files (Agents/<name>). */
   openFolder(folderId: string): void;
   /** AGENT.md or agent.toml in the agent's folder, as a tab. */

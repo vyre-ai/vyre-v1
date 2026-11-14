@@ -3,15 +3,16 @@
   "capabilities": {
     "terminal.attach@1": "67a2ce89ca8f56e796840e289d2ee3e479c71bef42192cf9a05f4343e39bbdc2",
     "terminal.close@1": "7a4fb59faa779b79ee25078610a6e844a6ef314f18c7dd863210d0d5e01c2da5",
-    "terminal.get@1": "a70b4b9284fad509a523e183ea16c3e20ac7e916aacbe7d54aec94cfc3009275",
+    "terminal.get@1": "def86c1fcec5eea3b8eb2a27a7275dc266e58cf3f34d4141c674ccfbf8e8a579",
+    "terminal.give_back@1": "8b29d9721327fe24be517cfba453c0871c823d0320ac7f0df21f43d04d24af78",
     "terminal.health@1": "7aacc600b8082edd76ebf98e6e6f26472b85e1b413d5482e8142f22ad8b96e6a",
     "terminal.input@1": "357ecc97ef7aa28eead936659cbd76c73f394b2247d5a6a2ac6895a812773725",
     "terminal.interrupt@1": "81c7a204492c89f991f1b727a42faddc3e7200fad141da26671ca3356984d79f",
-    "terminal.list@1": "7b6d586c3087d1ac9dd517ea92cb28bb9d2bcbe6a98dd4c865af6142dfa243fc",
-    "terminal.open@1": "bba1fdabc75dff3a3da7dbeb418a6a3fdcab457a3484c53bd7523a4f8c89cdbd",
-    "terminal.open_server@1": "a56d1a898bf6b51e110a06c31f8942db15963172f08b39b632a1afcb58963f98",
+    "terminal.list@1": "5998f69d32f2b8062c57e4d90651b69c896bd26e23a86b4bde1d2e6874decd21",
+    "terminal.open@1": "ed902070834901a9a49524dc788561e8b9c17532c5db607f9028e7d23b4f5d3f",
+    "terminal.open_server@1": "9616eb40d1236bdcbccaaae20a67667388880d6e9f9cdcd2db02db96fb2d7350",
     "terminal.read@1": "289b14957cc4cd0967676a7e1c578f0a3560a15eca9fb290b29c7100d52edb23",
-    "terminal.rename@1": "b44d3c1f89d2fe4ed28c786c075d89f0c6c249f4807981a69364916cbd843e37",
+    "terminal.rename@1": "2f59c6ada8c649213919332ed6ec5ce66177bde9adefc2a511ab04df385b3648",
     "terminal.request@1": "6ceaf87940eb1197bc4ed9884a0a5da6613c01fe5023a9dccc62172b4ebc146b",
     "terminal.resize@1": "2798db1ac014f9ad08e07bb4946112a75692e3d4ab004356b6711a09c1e85ea6",
     "terminal.risk@1": "a0503eb1f162e721a28a20239f966950394448e18ca8458b08b6c5e343f4f82b",
@@ -19,13 +20,16 @@
     "terminal.rules.set@1": "e0a20e7c7c00a8da22a52da7d628949298ae4ef6217a4f4217adb80c7647271f",
     "terminal.run@1": "a254052814f8ae841362d87ba60a407be554453d58c077b7313da47826b48aee",
     "terminal.status@1": "adb9fbf1c71a0ec5f8dff1b068f81f55e30c3b504fbb6a7dd4e50f132b5cf232",
+    "terminal.take_over@1": "dced3353873c0826055989867ccf53df493689a986189de1ef090f72886917e4",
     "terminal.workspace@1": "aca7a2cb0d68985222f7df7306f864e9347b782583e2aa7dfcf7c772519c397f"
   },
   "events": {
     "terminal.closed": "67298f1bb59427922e28d07dd58e80abb5799c025e30da8acbf2ffee62698e32",
     "terminal.command_finished": "27b602ce6dd90d1dceb804a39cfff314a3f5d571f1b76816d545c91bb7032eca",
+    "terminal.given_back": "2f6f226502b31f067f1bac6b743a33113a7be91e078153330c956a755215eb0f",
     "terminal.opened": "49eb24d956939e32d5c9500352df1006be1a996183f9462e1a5ae0f5c1113f51",
     "terminal.renamed": "6656b1dace132d021fc02b8a9a43b6b40bf3cfc07ff6571387b86197b26176a8",
-    "terminal.rules_changed": "2a539990365c0fdbd7bc775fec6f10243655a9722468d970793f9e03ba70de0b"
+    "terminal.rules_changed": "2a539990365c0fdbd7bc775fec6f10243655a9722468d970793f9e03ba70de0b",
+    "terminal.taken": "04228e0e31482cfc3fb1ead71ec283d0f3ef33b2ac84a83394ca591d1abce9be"
   }
 }

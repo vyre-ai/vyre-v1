@@ -39,6 +39,8 @@ async function boot(caddy: FakeCaddy, address: string | null): Promise<{ daemon:
   const daemon = await startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0", ...(address ? ["--address", address] : [])], {}, "1.2.3"),
     network,
+    // the outside world is out of reach: the Space's check of its own artifact host fails at once, and no test asks a real name
+    fetch: () => Promise.reject(new Error("no network in this test")),
     platform: fakePlatform({ os: "linux", free: 80e9 }),
     intervals: { fast: HOUR, slow: HOUR, encryption: HOUR, commands: HOUR, hooks: HOUR, tick: HOUR },
   });
@@ -134,5 +136,37 @@ test("with no address nothing is written to Caddy", async () => {
   } finally {
     await daemon.stop();
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("an own address under vyre.run gets the route for a.<address>, never for a relay-form name; a host set by hand gets its own route whatever it is under", async () => {
+  const caddy = new FakeCaddy();
+  const { daemon, dir } = await boot(caddy, "mla.vyre.run");
+  try {
+    await daemon.ensureIngress();
+    const router = new CaddyRouter({
+      admin: new CaddyAdmin({ baseUrl: ADMIN, fetch: caddy.fetch }),
+      space: "spc_core",
+    });
+    assert.deepEqual(
+      (await router.hosts()).sort(),
+      ["a.mla.vyre.run", "mla.vyre.run"],
+      "no mla-a.vyre.run: that name is the relay's",
+    );
+  } finally {
+    await daemon.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  const set = new FakeCaddy();
+  process.env["VYRE_ARTIFACT_HOST"] = "pages.example.org";
+  const again = await boot(set, HOST);
+  try {
+    await again.daemon.ensureIngress();
+    const router = new CaddyRouter({ admin: new CaddyAdmin({ baseUrl: ADMIN, fetch: set.fetch }), space: "spc_core" });
+    assert.deepEqual((await router.hosts()).sort(), [HOST, "pages.example.org"].sort());
+  } finally {
+    delete process.env["VYRE_ARTIFACT_HOST"];
+    await again.daemon.stop();
+    fs.rmSync(again.dir, { recursive: true, force: true });
   }
 });

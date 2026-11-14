@@ -1,10 +1,11 @@
 {
-  "version": "1.0.0-rc.26",
+  "version": "1.0.0-rc.27",
   "lines": [
-    "Add an OpenAI or Anthropic key and say hello: the Assistant replies without you picking a model first.",
-    "Stop means stop: the agent's command ends, your next message is answered on its own, and a stopped turn stays stopped after a restart.",
-    "An agent opens public links in a chat without asking. Sending, sharing and deleting folders still wait for your yes.",
-    "An agent made in a private chat can be reached only by the people in that chat.",
-    "A working agent's row says what it is doing, such as running a command or reading a page."
+    "Copy link gives a link that opens, from the desktop app too. Paste a Vyre link in a new tab or the command bar and it opens.",
+    "An artifact that cannot load says why and offers Retry, instead of a blank page.",
+    "An agent's first call to a tool works: no failed first try before it publishes a page or runs a command.",
+    "An agent tells the person asking only what that person may see, in a shared chat too.",
+    "Hover a message's time and its card opens right there. The reaction picker opens by its own button.",
+    "An approval waiting in a private chat is no longer dropped by the hourly clean-up."
   ]
 }

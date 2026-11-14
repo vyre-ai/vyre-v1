@@ -90,6 +90,7 @@ export class AccessSnapshot {
   changed(): void {
     this.epoch++;
     this.infoCache.clear();
+    this.spaceRootRow = undefined;
     this.infoUntil = Infinity;
     this.excRows = null;
     this.exAllowed.clear();
@@ -213,24 +214,35 @@ export class AccessSnapshot {
 
   /** Roles of a subject: its own plus its groups' roles; an agent loses owner and admin. Null for an unknown principal. */
   /**
-   * Does this person have standing in the Space: do they own it, or does a grant of theirs (their own, a group's or a role's) reach it at View or more? A guest is a person who has none. The test is what they
+   * Does this person have standing in the Space: do they own it, or does a grant of theirs (their own, a group's or a role's) reach it at View or more? (A person whose roles carry any permission has standing too: a role gets its Space grant when it carries permissions.) A guest is a person who has none. The test is what they
    * lack, never the name of a role: a role an admin cloned from Guest, or a harmless custom role beside Guest, leaves them an outsider; a role that carries permissions gets its Space grant and makes them a member.
    */
   private viewsSpace(id: string, keys: ReadonlySet<string>): boolean {
     const now = this.clock();
-    let rooted = false;
-    for (const r of this.resources.values()) {
-      if (r.type !== "space" || r.parent_id !== null) continue;
-      rooted = true;
-      if (r.owner_id === id) return true;
-      for (const g of this.grantsOn(r.id) ?? []) {
-        if (!keys.has(g.key) || g.exp <= now || now < g.nb || now > g.na) continue;
-        if (g.exp !== Infinity && g.exp < this.infoUntil) this.infoUntil = g.exp;
-        return true;
-      }
-    }
+    const root = this.spaceRoot();
     // a snapshot with no Space resource (a hand-built one in a test) cannot say who stands outside it: nobody is an outsider
-    return !rooted;
+    if (root === null) return true;
+    if (root.owner_id === id) return true;
+    for (const g of this.grantsOn(root.id) ?? []) {
+      if (!keys.has(g.key) || g.exp <= now || now < g.nb || now > g.na) continue;
+      if (g.exp !== Infinity && g.exp < this.infoUntil) this.infoUntil = g.exp;
+      return true;
+    }
+    return false;
+  }
+
+  private spaceRootRow: ResourceRow | null | undefined;
+  /** The Space's own resource, found once until the next change (a scan of every resource at each refill of a person's standing would cost a pass over the whole tree). */
+  private spaceRoot(): ResourceRow | null {
+    if (this.spaceRootRow === undefined) {
+      this.spaceRootRow = null;
+      for (const r of this.resources.values())
+        if (r.type === "space" && r.parent_id === null) {
+          this.spaceRootRow = r;
+          break;
+        }
+    }
+    return this.spaceRootRow;
   }
 
   info(id: string): SubjectInfo | null {
@@ -269,7 +281,7 @@ export class AccessSnapshot {
       for (const x of r.perms) perms.add(x);
     }
     this.applyExceptions(id, groups, roleIds, perms);
-    const guest = p.kind === "person" && !this.viewsSpace(id, keys);
+    const guest = p.kind === "person" && perms.size === 0 && !this.viewsSpace(id, keys);
     const info: SubjectInfo = { p, perms, clearance, keys, roleNames: names.join(", ") || "no role", guest };
     this.infoCache.set(id, info);
     return info;

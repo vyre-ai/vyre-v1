@@ -14,7 +14,7 @@ Mail and phone settings, Integrations, Logs and traces, Health, Updates, Backups
   Use them before you propose a change to access. `access_principals_effective` shows what one principal holds.
 - `console_overview` shows health, attention items (failing checks, expired certificates, failed runs, stuck updates) and recent admin activity.
 - `logs_query` and `logs_trace` find what happened by person, agent, place, record, run or trace id. `health_doctor` and `health_status` run the checks. `console_speed` shows the slow spans.
-- Quote the trace id of what you found. Say what you know, what you infer, and what you could not see.
+- Quote the trace id of what you found when the person asks for it or wants to report it. Say what you know, what you infer, and what you could not see.
 
 ## Propose, do not apply
 - Changes to roles, grants, schema, policy and settings go through `console_diff_propose`: it returns a diff card with the before and after.

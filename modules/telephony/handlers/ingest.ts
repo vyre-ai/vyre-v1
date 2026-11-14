@@ -142,7 +142,7 @@ export async function ingestVoice(
     const instruction: Instruction = dialer
       ? {
           action: dialer.kind === "agent" ? "agent" : "ring",
-          targets: [dialer],
+          targets: [{ kind: dialer.kind, id: dialer.id }],
           ringSeconds: route.ringSeconds,
           record: announce,
           ...(announce ? { announcement: ANNOUNCEMENT } : {}),

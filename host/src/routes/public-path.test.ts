@@ -133,6 +133,13 @@ test("an artifact's plain address opens the app, and only a token below it serve
     const r = await fetch(`${s.url}/a/sit_abc`, { redirect: "manual" });
     assert.equal(r.status, 302);
     assert.equal(r.headers.get("location"), "/#subject=artifact:sit_abc");
+    // a link that is not an artifact's is a page, never the gateway's raw JSON
+    for (const bad of ["/a/", "/a/nothing", "/a/not_a_sit_id/"]) {
+      const odd = await fetch(`${s.url}${bad}`);
+      assert.equal(odd.status, 404, bad);
+      assert.match(String(odd.headers.get("content-type")), /text\/html/, bad);
+      assert.match(await odd.text(), /This is not a page address/, bad);
+    }
     // a token in the address is gone: the public path answers nothing for it
     const miss = await fetch(`${s.url}/a/sit_abc/k/${"0".repeat(48)}/`);
     assert.ok(

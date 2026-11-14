@@ -1,0 +1,14 @@
+- When you ask an agent in any chat to change your goal (its deadline, title, brief or check-in rhythm), extend it, pause it, resume it or stop it, it now does it instead of saying only you can. The goal's activity reads "asked by" you and links your message. Saying a goal is done stays your own press, and an agent still cannot change a goal in a turn you did not start (a routine, a goal wake-up, a watcher or a hand-off from another agent).
+- An agent can start a drafted goal in the same way: when you asked in your own message, in any chat, not only the goal's own chat.
+- Goal deadlines and check-in times now reach the agent in your time zone as well as the raw number, so it stops reading them out in UTC.
+- A goal's side pane now opens on Details, with the tabs in the order Details, Activity, Files.
+- Saved email blocks, snippets and designs an agent makes for you are now yours: you see and change them, and nobody else does.
+- A shared inbox an agent creates for you is now owned by you, and the mail health check names any shared inbox that has no owner.
+- A goal's Activity now reads in plain sentences with names ("Dex could not check in: Vyre's server restarted while it was working"), never a raw code, and long summaries are no longer cut. The wake-up line no longer says "woken because ended".
+- A goal's Activity loads earlier rows when you reach the end of the list, so the start of the goal's story is always there.
+- The server is no longer credited as "Vyre" under an activity line.
+- An agent you asked can change a goal's words, deadline, check-in rhythm, time zone, stuck limit, linked records and a draft's plan; changing who owns it, what it may do on its own, its helpers, its lead, its project or raising its budget stays your own press on the goal's page.
+- Only a message you typed counts as you asking an agent: a poke, a line the server posts in your name, or a retry of a watcher's turn does not.
+- An agent can promote an Automation to the Space or rotate its webhook address only in a turn you started with your own message.
+- An agent you asked can slow a goal's check-ins freely, and speed them up only on a goal that has a budget cap and never past once an hour.
+- When an agent is refused a control because you did not ask it yourself, it carries on with the goal and mentions it once at its next check-in, instead of asking you each time.

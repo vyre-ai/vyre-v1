@@ -1031,7 +1031,7 @@ async function escalate(
     await host.call("tasks.create", {
       kind: "unblock",
       title: `An agent stopped on "${task.title}"`,
-      summary: `The ${role === "assigned" ? "doer" : role} ended its turn ${minutes} minutes ago without handing the task on. Look at the thread, then mark this done to wake it again.`,
+      summary: `The ${role === "assigned" ? "agent doing it" : role} stopped ${minutes} minutes ago without passing the task on. Read the chat to see why, then press "Done, continue" to start it again.`,
       assigned: to,
       parentTaskId: task.id,
       ...(task.recordId ? { recordId: task.recordId } : {}),

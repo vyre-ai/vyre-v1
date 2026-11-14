@@ -20,6 +20,11 @@ export const GUEST_CAPS: Readonly<Record<string, GuestWhat>> = Object.freeze({
   "channels.unarchive": "never",
   "channels.update": "never",
   "chat.answer_block": "never",
+  "engine.round.get": "never",
+  "chat.round.discuss": "never",
+  "chat.round.decide": "never",
+  "chat.chapters_write": "never",
+  "chat.chapters": "view", // the chapters of the part of the chat they may read (the handler applies their read floor); the app asks quietly and shows nothing when refused
   "chat.approve_plan": "never",
   "chat.aside": "never",
   "chat.aside_keep": "never",
@@ -141,13 +146,14 @@ export const GUEST_CAPS: Readonly<Record<string, GuestWhat>> = Object.freeze({
 });
 
 /**
- * May a guest whose strongest matching grant is `reaches` use this capability? Unknown: no. No capability named: this is not a call of one (a list, a sync filter, a check a handler makes inside a call
+ * May a guest use this capability, given a grant that already passed the capability's own level? Unknown: no. No capability named: this is not a call of one (a list, a sync filter, a check a handler makes inside a call
  * the gateway already checked by name), so the grant alone decides, as it does for every other role.
  */
-export function guestMay(cap: string | undefined, reachesUse: boolean): boolean {
+export function guestMay(cap: string | undefined): boolean {
   if (cap === undefined) return true;
   const what = GUEST_CAPS[cap];
-  return what === "view" || (what === "reply" && reachesUse);
+  // "reply" needs no level test of its own: every reply capability asks for Use, so a grant that does not reach Use never gets here (kernel/tests/authorize.guest-caps.test.ts pins that)
+  return what === "view" || what === "reply";
 }
 
 /** The resource types the table governs. */

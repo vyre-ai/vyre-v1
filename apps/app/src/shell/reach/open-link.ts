@@ -43,6 +43,9 @@ export function parseOpenPath(pathname: string): OpenItem | null {
 export function targetOfOpen(item: OpenItem): OpenTarget | null {
   const { kind, id } = item;
   switch (kind) {
+    case "artifact":
+    case "site":
+      return { subject: { type: "artifact", id } };
     case "file":
     case "folder":
     case "task":

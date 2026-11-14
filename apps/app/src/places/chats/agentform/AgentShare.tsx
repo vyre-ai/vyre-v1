@@ -70,7 +70,7 @@ export function AgentShareSheet({
         levels={["use", "edit", "manage"]}
         meId={sharing.meId}
         notifyPeople
-        onCopyLink={() => copyItemLink("agent", agentId)}
+        onCopyLink={() => copyItemLink("agent", agentId, true)}
         onMakeOwner={(s) => {
           void Promise.resolve(call("agents.set_owner", { agentId, ownerId: s.id, idempotencyKey: newKey() })).then(
             () => {

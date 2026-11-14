@@ -40,6 +40,7 @@ const html = (s: SampleSettings, props: SettingsProps = {}): string =>
     </SettingsDataProvider>,
   ).replaceAll("<!-- -->", "");
 import { MailPage } from "./MailPage.tsx";
+import { assertNoRawIds } from "../../../../../ui/src/testing/raw-ids.ts";
 const mailHtml = (s: SampleSettings): string =>
   renderToStaticMarkup(
     <SettingsDataProvider value={s.data}>
@@ -410,6 +411,25 @@ test("Your Spaces, on Sign-in: each Space with its address and role; Open for th
       !has(out, 'data-testid="leave-personal"') &&
       !has(out, 'data-testid="leave-harbor"'),
   );
+});
+
+test("a Space on a loopback address reads This computer on Sign-in, never 127.0.0.1 (owner, 13 Nov 2026)", () => {
+  const s = createSampleSettings(northwind);
+  const local = {
+    ...s,
+    data: { ...s.data, spaces: s.data.spaces.map((sp, i) => (i === 0 ? { ...sp, addr: "127.0.0.1:41471" } : sp)) },
+  } as SampleSettings;
+  const out = html(local, { initialPage: "signin" });
+  assert.ok(has(out, "This computer, Owner"), "the loopback Space is named by where it is");
+  assert.ok(!has(out, "127.0.0.1"), "no loopback address is shown");
+  assertNoRawIds(out, "Settings, Sign-in");
+  // a Space with no address reads its role alone, with no leading comma
+  const none = {
+    ...s,
+    data: { ...s.data, spaces: s.data.spaces.map((sp, i) => (i === 0 ? { ...sp, addr: "" } : sp)) },
+  } as SampleSettings;
+  const bare = html(none, { initialPage: "signin" });
+  assert.ok(has(bare, ">Owner<") && !has(bare, ">, Owner"), "no leading comma");
 });
 
 test("Copy from another Space offers only what that Space has, never the title, and applying copies it here", async () => {

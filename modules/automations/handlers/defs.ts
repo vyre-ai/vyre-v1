@@ -6,6 +6,8 @@
 // DECISION: Promote keeps the id, history and versions, makes the Automation a Space one owned by the named person and run as its own Service principal. The access it was
 // confirmed with is stored (automations_access) with the vault names it may use (automations_vault); subscription keys must be replaced by shared API keys first.
 import { isTrustedService } from "../../../lib/trust.ts";
+import { agentStanding } from "../../../lib/agent-asker.ts";
+import { ownerAsked } from "../../../lib/owner-asked.ts";
 import { registry } from "../../../generated/registry.ts";
 import {
   allAutomations,
@@ -41,6 +43,7 @@ import { publishAllowed } from "../connector-breadth.ts";
 import { storedLevel } from "../connector-level.ts";
 import { admit, contractOf } from "../val.ts";
 import { containsSecret } from "../trust.ts";
+import { missingMessage } from "../../../lib/words/step-missing.ts";
 import type { Alerts, AutoCtx, Automation, Db, Definition, Grant, Node, Policy } from "../projections.ts";
 
 type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -230,7 +233,7 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
     if (!s) continue;
     const have = { ...(n.ai ?? {}), ...n.input } as Record<string, unknown>;
     for (const k of requiredOf(s.input))
-      if (!present(have[k])) out.push(issue("error", `${s.title} needs ${k}.`, n.id));
+      if (!present(have[k])) out.push(issue("error", missingMessage(s.title, n.key, k), n.id));
     if (n.key === "send_email" && !present(have["mailboxId"]))
       out.push(issue("error", "Send an email needs a mailbox.", n.id));
     if (n.key === "send_sms" && !present(have["numberId"]))
@@ -355,10 +358,60 @@ async function supportOf(ctx: AutoCtx): Promise<Support> {
   }
 }
 
-/** The steps this server cannot run, hidden from the catalogue. A step that is here but not yet usable is not hidden: its problem shows when it is turned on. */
-async function hiddenSteps(ctx: AutoCtx): Promise<Set<string>> {
+/** The apps whose steps are listed only when the app is connected: the step key's start, the app's name in words, and how connected is read. */
+const APP_STEPS = [
+  { start: "google.", connector: "google" },
+  { start: "ms.", connector: "microsoft" },
+  { start: "github.", connector: "github" },
+] as const;
+
+/**
+ * The apps connected on this Space that the caller may use (owner, 13 Nov 2026: "it should only show me the things that I have in vault and have access to"). Google and Microsoft are connections: the
+ * list of connections is the product's own access check (a person sees the Space's connections and their own, nobody else's), and a connection still waiting to be finished is not connected. GitHub is
+ * the caller's own GitHub, or the Space's app when the caller may read it. A check that cannot be made counts as not connected: nothing is listed that could not be used.
+ */
+async function connectedApps(ctx: AutoCtx): Promise<{ apps: Set<string>; checked: boolean }> {
+  const out = new Set<string>();
+  if (!ctx.call) return { apps: out, checked: false };
+  const call = ctx.call;
+  let checked = true;
+  const rows = await call("connections.list", { whose: "all", limit: 500 }).then(
+    (r) => (r as { connections?: { connector?: unknown; state?: unknown }[] } | null)?.connections ?? [],
+    () => {
+      checked = false;
+      return [];
+    },
+  );
+  for (const c of rows) if (typeof c.connector === "string" && c.state !== "pending") out.add(c.connector);
+  const mine = await call("github.me.status", {}).then(
+    (r) => (r as { connected?: unknown } | null)?.connected === true,
+    () => false,
+  );
+  const space = mine
+    ? true
+    : await call("github.installations.list", {}).then(
+        (r) => ((r as { installations?: unknown[] } | null)?.installations ?? []).length > 0,
+        () => false,
+      );
+  if (space) out.add("github");
+  return { apps: out, checked };
+}
+
+/** The steps this server cannot run, or whose app is not connected for the caller, hidden from the catalogue. A step that is here but not yet usable is not hidden: its problem shows when it is turned on. */
+async function hiddenSteps(ctx: AutoCtx, everyApp = false): Promise<{ hidden: Set<string>; checked: boolean }> {
   const s = await supportOf(ctx);
-  return new Set([...(s.code.available ? [] : ["code"]), ...(s.ai.available ? [] : ["ai"])]);
+  // the editor of an existing Automation asks for every step (`all`): its steps keep their forms whoever opens it; only the picker is filtered
+  const seen = everyApp
+    ? { apps: new Set<string>(APP_STEPS.map((a) => a.connector)), checked: true }
+    : await connectedApps(ctx);
+  const apps = seen.apps;
+  const unconnected = registry.steps
+    .filter((st) => APP_STEPS.some((a) => st.key.startsWith(a.start) && !apps.has(a.connector)))
+    .map((st) => st.key);
+  return {
+    hidden: new Set([...(s.code.available ? [] : ["code"]), ...(s.ai.available ? [] : ["ai"]), ...unconnected]),
+    checked: seen.checked,
+  };
 }
 
 async function providersOf(ctx: AutoCtx, kind: Automation["kind"], explicit = false): Promise<AccountLite[] | null> {
@@ -683,11 +736,12 @@ export async function get(ctx: AutoCtx, input: In): Promise<unknown> {
 
 /** Who may see an Automation: the owner, a follower, a service caller, or anyone the kernel lets view it. */
 export function canView(ctx: AutoCtx, a: Automation): boolean {
+  // the agent that created it stands behind it only for the people it belongs to (lib/agent-asker.ts)
   if (
     isTrustedService(ctx.principal) ||
     isOwner(ctx, a) ||
     a.followers.includes(me(ctx)) ||
-    a.createdBy === ctx.principal.id
+    (a.createdBy === ctx.principal.id && agentStanding(ctx, (p) => p === a.ownerId || a.followers.includes(p)))
   )
     return true;
   return (
@@ -826,7 +880,7 @@ export function inlineRefs(schema: unknown, depth = 0): unknown {
 }
 
 export async function stepsList(ctx: AutoCtx, input: In): Promise<unknown> {
-  const hidden = await hiddenSteps(ctx);
+  const { hidden, checked } = await hiddenSteps(ctx, input.all === true);
   const steps = registry.steps.filter((s) => !hidden.has(s.key) && (!input.category || s.category === input.category));
   return {
     steps: steps.map((s) =>
@@ -841,6 +895,7 @@ export async function stepsList(ctx: AutoCtx, input: In): Promise<unknown> {
         gateAct: s.gateAct,
       }),
     ),
+    ...(checked ? {} : { checked: false }),
   };
 }
 
@@ -1216,8 +1271,23 @@ export async function webhookGet(ctx: AutoCtx, input: In): Promise<unknown> {
   }
   return { url: webhookUrl(ctx, a.id, secret), method: "POST" };
 }
+/**
+ * What hands out a secret or moves an Automation to the Space is not an agent's to do on its own: an agent acting for the owner does it only in a turn the owner started with their own
+ * message (lib/owner-asked.ts, read by the server). The owner's own press, and the server, are not agents and pass.
+ */
+async function mustBeAskedIfAgent(ctx: AutoCtx, a: Automation): Promise<void> {
+  if (ctx.principal.kind !== "agent") return;
+  if (await ownerAsked(ctx as never, a.ownerId)) return;
+  raise(
+    ctx,
+    "validation.precondition_failed",
+    "An agent can do that only in a turn the owner started with their own message. This needs the owner's own message. Carry on without it and mention it once at your next check-in; do not ask each time.",
+    { reason: "owner_asked_only" },
+  );
+}
 export async function webhookRotate(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
+  await mustBeAskedIfAgent(ctx, a);
   needWebhookTrigger(ctx, a);
   const secret = newSecret();
   ctx.db.run(
@@ -1361,6 +1431,7 @@ export async function previewPromote(ctx: AutoCtx, input: In): Promise<unknown> 
 
 export async function promote(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
+  await mustBeAskedIfAgent(ctx, a);
   const wasRunsAs = a.runsAs;
   if (a.kind === "space")
     raise(ctx, "validation.precondition_failed", "That automation is already a Space automation.", {

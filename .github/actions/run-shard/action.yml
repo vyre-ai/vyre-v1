@@ -26,6 +26,18 @@ runs:
         if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)" = "1" ]; then sudo -n sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || echo "could not lift kernel.apparmor_restrict_unprivileged_userns on this runner"; fi
         sysctl kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces 2>/dev/null || true
         if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib --symlink usr/lib64 /lib64 --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
+    - name: Export the web app and find Chromium (a perf file under apps/app/tests drives a real browser against the production export; without it the budget would not run)
+      if: inputs.runner == 'v1-perf' && contains(inputs.files, 'apps/app/tests/')
+      shell: bash
+      run: |
+        H="$(node -e 'import("./scripts/lib/registry-hash.mjs").then((m) => console.log(m.registryHash()))')"
+        (cd apps/app && rm -rf dist && CI=1 EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_VYRE_REGISTRY_HASH="$H" npx expo export --platform web --output-dir dist)
+        npx playwright-core install chromium
+        CHROME_BIN="$(node -e 'import("playwright-core").then((p) => console.log((p.chromium ?? p.default.chromium).executablePath()))')"
+        test -x "$CHROME_BIN"
+        echo "CHROME_BIN=$CHROME_BIN" >> "$GITHUB_ENV"
+        echo "VYRE_APP_DIST=$PWD/apps/app/dist" >> "$GITHUB_ENV"
+        echo "VYRE_REQUIRE_CHROME=1" >> "$GITHUB_ENV"
     - name: Run the shard (30 s file cap, pass cache by import hash)
       shell: bash
       env:

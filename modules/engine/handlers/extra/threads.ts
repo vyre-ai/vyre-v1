@@ -4,7 +4,7 @@
 import { LEASE_TTL_MS } from "../../../../agent/src/turn-engine/lease.ts";
 import { preview } from "../../../../agent/src/turn-engine/lead.ts";
 import type { RouteMention } from "../../../../lib/route.ts";
-import { actorOf, raise, sqlLeases } from "../../projections.ts";
+import { actorOf, ensure, raise, sqlLeases } from "../../projections.ts";
 import type { EngineCtx } from "../../projections.ts";
 import { ensureExtra } from "./schema.ts";
 import { num, optStr, rows, str } from "./util.ts";
@@ -90,6 +90,73 @@ export function queuePeek(ctx: EngineCtx, input: { threadId: string }): { messag
     input.threadId,
   );
   return { messages: r.map((x) => str(x["message_id"])) };
+}
+
+/**
+ * Who asked for the turn that is making this call (engine.turn.asked_by): the running turn of the calling agent in the calling chat, read from the queue and the message mirror the turn engine writes.
+ * System use only: a module's own nested call, never a call from outside, and the answer never depends on anything the agent sent. `askedBy` is set only when the turn is not a routine and a person's own
+ * message started it (kind message or interrupt, authored by that person) or was added while it ran (steering, consumed after it began). An agent's message, a Job line, a wake, a hand-off and a
+ * watcher's turn never count. No running turn for this agent in this chat answers "none": nobody asked.
+ */
+export function turnAskedBy(
+  ctx: EngineCtx,
+  _input: Record<string, never>,
+): {
+  kind: "message" | "interrupt" | "wake" | "handoff" | "none";
+  routine: boolean;
+  askedBy?: { person: string; messageIds: string[]; at: number };
+} {
+  ensure(ctx.db);
+  ensureExtra(ctx.db);
+  if ((ctx.depth ?? 0) < 1 || ctx.forwarded === true)
+    raise(ctx, "permission.role_lacks_permission", "Only the server asks this.", { reason: "system_only" });
+  if (ctx.principal.kind !== "agent" || !ctx.thread) return { kind: "none", routine: false };
+  const run = rows(
+    ctx,
+    "SELECT * FROM engine_thread_queue WHERE thread_id = ? AND agent_id = ? AND state IN ('running', 'stopping') ORDER BY qseq DESC LIMIT 1",
+    ctx.thread,
+    ctx.principal.id,
+  )[0];
+  if (!run) return { kind: "none", routine: false };
+  const kind = str(run["kind"]) as "message" | "interrupt" | "wake" | "handoff",
+    routine = Number(run["routine"]) === 1;
+  if (routine || (kind !== "message" && kind !== "interrupt")) return { kind, routine };
+  // the row that started the turn, then the person's steering messages that were taken into it afterwards
+  const ids = [
+    optStr(run["message_id"]),
+    ...rows(
+      ctx,
+      "SELECT message_id FROM engine_thread_queue WHERE thread_id = ? AND agent_id = ? AND state = 'consumed' AND steer = 1 AND kind = 'message' AND qseq > ? AND message_id IS NOT NULL ORDER BY qseq ASC",
+      ctx.thread,
+      ctx.principal.id,
+      num(run["qseq"]),
+    ).map((r) => optStr(r["message_id"])),
+  ];
+  const mine: Array<{ id: string; at: number }> = [];
+  let person: string | undefined;
+  for (const id of ids) {
+    if (!id) continue;
+    const m = rows(
+      ctx,
+      "SELECT author_kind, author_id, at FROM engine_messages WHERE id = ? AND thread_id = ?",
+      id,
+      ctx.thread,
+    )[0];
+    if (!m || str(m["author_kind"]) !== "person") continue;
+    // typed by the person themselves (the flag the Gate trusts); a poke, a helper's restart line or any line posted in their name is not
+    if (rows(ctx, "SELECT 1 AS x FROM engine_typed_message WHERE message_id = ?", id).length === 0) continue;
+    if (person !== undefined && person !== str(m["author_id"])) continue;
+    person = str(m["author_id"]);
+    mine.push({ id, at: num(m["at"]) });
+  }
+  // the message that started the turn must itself be a person's: a turn an agent's message started is not asked for, whoever speaks for whom
+  const first = ids[0] ? mine.find((m) => m.id === ids[0]) : undefined;
+  if (!first || person === undefined || str(run["from_principal"]) !== person) return { kind, routine };
+  return {
+    kind,
+    routine,
+    askedBy: { person, messageIds: mine.map((m) => m.id), at: Math.max(...mine.map((m) => m.at)) },
+  };
 }
 
 // ---- route preview

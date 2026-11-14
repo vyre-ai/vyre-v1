@@ -2,6 +2,7 @@
 // owner floor and the agent's own rule), the fixed summary line of a hold, and the exact preview blocks.
 // Durable tables: migrations/0001_gate_holds.sql. Every statement names only gate_* tables (ctx.db refuses anything else, ARCH B2).
 // The act kinds below mirror manifests/gate.ts gateActs (frozen, ruling 9); the contract test of this module compares them.
+import { agentStanding } from "../../lib/agent-asker.ts";
 import { holdTitle } from "../../lib/hold-words.ts";
 import { outwardOf } from "../../lib/outward.ts";
 import { isTrustedService } from "../../lib/trust.ts";
@@ -593,7 +594,13 @@ export function holdOut(h: Hold): Record<string, unknown> {
 export function mayHandle(ctx: GateCtx, h: Hold): boolean {
   const me = ctx.principal.id;
   if (isTrustedService(ctx.principal)) return true;
-  if (h.principal.id === me || h.actingFor === me || ctx.actingFor === h.principal.id) return true;
+  // the agent that asked for the hold is its requester in a turn for nobody, or for the person it asked for; a person who merely asks that agent is not (lib/agent-asker.ts)
+  if (
+    (h.principal.id === me && agentStanding(ctx, (person) => h.actingFor === person)) ||
+    h.actingFor === me ||
+    ctx.actingFor === h.principal.id
+  )
+    return true;
   if (h.approver.id === me && (h.approver.kind === "person" || h.approver.kind === "agent")) return true;
   if (h.approver.kind === "role" || h.approver.kind === "group") {
     return (

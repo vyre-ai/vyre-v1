@@ -129,7 +129,7 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
   const deps: NeedsDeps = useMemo(() => ({ call: data.call, note: (text: string) => setLine(text) }), [data.call]);
 
   const failed = failureOf(itemsQ);
-  if (failed) return <LoadFailed what="what needs you" failure={failed} testID="needs-failed" />;
+  if (failed) return <LoadFailed what="what needs you" failure={failed} testID="needs-failed" refusable={false} />;
   if (itemsQ.status === "loading") return <NeedsYouLoading />;
   const all = itemsQ.data.items;
   const live = sortItems(splitWithdrawn(all).live).filter((i) => matchesFilter(i.task, filter));
@@ -726,7 +726,13 @@ function Detail({
         </View>
       ) : null}
       {keyReq && providing ? (
-        <KeyRequestCard requestId={keyReq.requestId} agent={who} agentId={t.createdBy} data={{ call: data.call }} />
+        <KeyRequestCard
+          requestId={keyReq.requestId}
+          agent={who}
+          agentId={t.createdBy}
+          data={{ call: data.call, nameOf: data.nameOf }}
+          service={keyReq.service}
+        />
       ) : null}
       {replacing && fix === "replace_key" ? (
         <ReplaceKeySheet

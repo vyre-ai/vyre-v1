@@ -7,7 +7,8 @@
 // Shared items other people own, space is every Shared item I can see; starred and following belong to spaces and come back empty here.
 // DECISION: a Mine item cannot be shared; to share it, move it into a Shared folder (that re-encrypts it under the filler). A subscription sign-in (kind ai_subscription) stays Mine for ever.
 // DECISION: Trash keeps the sealed row; restore brings it back whole. Deleting a folder, Space policy, export and import are other packets.
-import { isCompanyKey } from "../../../lib/company-keys.ts";
+import { agentStanding } from "../../../lib/agent-asker.ts";
+import { COMPANY_FOLDER, isCompanyKey } from "../../../lib/company-keys.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
   ENC_MINE,
@@ -243,14 +244,18 @@ async function sealFor(
 export const turnFor = (ctx: VaultCtx, r: Row): boolean =>
   ctx.principal.kind === "agent" && ctx.actingFor !== undefined && str(r, "owner") === ctx.actingFor;
 
+/** Is this the caller's own item? An agent's own standing on an item it owns counts for nobody and for no one it is acting for: asked by a person who holds nothing on it, the agent does not hand it over (lib/agent-asker.ts). */
+const ownItem = (ctx: VaultCtx, r: Row): boolean =>
+  str(r, "owner") === ctx.principal.id && agentStanding(ctx, () => false);
+
 export function visible(ctx: VaultCtx, r: Row): boolean {
   if (!live(r)) return false;
   if (str(r, "scope") === "mine") return str(r, "owner") === ctx.principal.id;
-  return str(r, "owner") === ctx.principal.id || levelOn(ctx, "vault_item", str(r, "id")) !== null;
+  return ownItem(ctx, r) || levelOn(ctx, "vault_item", str(r, "id")) !== null;
 }
 
 export function levelOf(ctx: VaultCtx, r: Row) {
-  return str(r, "owner") === ctx.principal.id ? ("manage" as const) : levelOn(ctx, "vault_item", str(r, "id"));
+  return ownItem(ctx, r) ? ("manage" as const) : levelOn(ctx, "vault_item", str(r, "id"));
 }
 
 /** An item the caller can see, at least at `need`; a Mine item of someone else does not exist for them. */
@@ -499,8 +504,8 @@ export function uniqueHandle(ctx: Pick<VaultCtx, "db">, name: string, except?: s
   return h;
 }
 
-/** The folder company keys live in. */
-export const COMPANY_FOLDER = "Company connections";
+/** The folder company keys live in (lib/company-keys.ts holds the list of the server's folder names). */
+export { COMPANY_FOLDER };
 
 /** The Restricted shared folder for company keys: the one there is, else made now (through the host, so it is a resource at once), labelled Restricted before anything goes in. Labelling needs an owner or admin. */
 async function companyFolder(ctx: VaultCtx, idem: string): Promise<string> {

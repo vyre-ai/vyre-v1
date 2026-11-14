@@ -227,7 +227,9 @@ const mutations: Mutation[] = [
     "error-report",
     "error_report",
     (s) => {
-      s.trace[1] = { say: "I could not add Sam. Try again later." };
+      s.trace[1] = {
+        say: "I could not add Sam: permission.no_grant. Trace 0123456789abcdef0123456789abcdef.",
+      };
     },
   ],
   [
@@ -335,7 +337,8 @@ test("the skill teaches each thing the spec lists", () => {
     [/plan_propose/, "plan mode"],
     [/Gate/, "the Gate"],
     [/held/, "held"],
-    [/trace id/, "error shape and trace id"],
+    // owner, 13 Nov 2026: errors are told in plain words with what the person can do; the code is only for support and only on request
+    [/Do not show codes, tool names or ids unless they ask/, "plain errors, no codes"],
   ];
   for (const [re, what] of must) assert.match(SKILL, re, what);
 });

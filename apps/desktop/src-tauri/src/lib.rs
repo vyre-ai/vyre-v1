@@ -317,6 +317,7 @@ pub fn run() {
             artifact_view::artifact_view_show,
             artifact_view::artifact_view_bounds,
             artifact_view::artifact_view_hide,
+            artifact_view::artifact_view_close,
             updater::startup_update,
             updater::check_desktop_update,
             updater::install_desktop_update,

@@ -52,7 +52,7 @@ import { NoteDialog } from "./NoteDialog.tsx";
 import { TakeNote } from "./TakeNote.tsx";
 import { ActionSheet, PhoneNote } from "./NotePhone.tsx";
 import { RecordSheet, ShareSheet, TaskSheet } from "./NoteSheets.tsx";
-import { itemLink } from "../../../share/rows.ts";
+import { copyLinkText, itemLink } from "../../../share/rows.ts";
 import type { Person, RecordDone, RecordDraft, TaskDone, TaskDraft } from "./NoteSheets.tsx";
 import { Btn, IconBtn, Keycap, LinkPictures, Swatch, TickBox, dom, pressPoint, web } from "./parts.tsx";
 import { CLOSED, barStep, createInput, fromDataUri, pasteKind, takeStep } from "./take.ts";
@@ -576,10 +576,7 @@ export function NotesPage({
   }, []);
   const copyLink = useCallback(
     (id: string): void => {
-      const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator
-        ?.clipboard;
-      void clip?.writeText(itemLink("note", id));
-      say("Link copied. Only people it is shared with can open it");
+      if (copyLinkText(itemLink("note", id))) say("Link copied. Only people it is shared with can open it");
     },
     [say],
   );

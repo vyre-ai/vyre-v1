@@ -12,6 +12,7 @@ import { LiveBlockView } from "./LiveBlockView.tsx";
 import { LiveSettings } from "./Sheets.tsx";
 import { createSampleOverview, NOW } from "./sample.ts";
 import type { SampleOverview } from "./sample.ts";
+import { assertNoRawIds } from "../../../../../../../ui/src/testing/raw-ids.ts";
 import {
   agentNotice,
   countLine,
@@ -340,6 +341,33 @@ test("a live block draws the project's data as a list, a table, cards or a count
     });
     assert.match(textOf(find(metric, "live-number")), /6,250/);
     assert.match(textOf(metric), /Unpaid/);
+  } finally {
+    off();
+  }
+});
+
+test("the People and agents block names each member and never shows an id (owner, 13 Nov 2026)", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const root = await mount(
+      createRoot,
+      <ProjectPageDataProvider value={s.data}>
+        <LiveBlockView
+          projectId="prj_rivera"
+          attrs={{ blockId: "blk_p1", type: "people", spec: {}, view: "list" }}
+          readOnly={false}
+          api={{ update: () => undefined, remove: () => undefined }}
+          onSettings={() => undefined}
+        />
+      </ProjectPageDataProvider>,
+    );
+    await wait(() => find(root, "live-loading") === null);
+    const text = textOf(find(root, "live-people"));
+    assert.match(text, /Maya Chen/);
+    assert.match(text, /Docs/);
+    assert.match(text, /Someone/, "a member the directory does not know is a plain word");
+    assertNoRawIds(root, "Project Overview, People and agents");
   } finally {
     off();
   }

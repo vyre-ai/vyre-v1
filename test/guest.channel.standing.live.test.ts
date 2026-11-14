@@ -108,3 +108,39 @@ test("a role cloned from Guest, and Guest beside a harmless role, stay capped; a
     await w.stop();
   }
 });
+
+const skipsOf = (d: { sink: { flush(): void }; paths: { logs: string } }): number => {
+  d.sink.flush();
+  const rows = new DatabaseSync(d.paths.logs, { readOnly: true })
+    .prepare("SELECT attrs FROM logs WHERE msg LIKE '%did not run a turn%'")
+    .all() as Array<{ attrs: string | null }>;
+  return rows.filter((r) => String(r.attrs ?? "").includes('"reason":"guest"')).length;
+};
+
+test("a guest who floods the rate limit and then mentions an agent still starts no turn", async () => {
+  const w = await world();
+  try {
+    await connect(w.d);
+    const g = await w.invite(w.pub, "reply", "flood@example.com", "floodguest");
+    // chat.history.search is refused a guest and counted by the rate limit: well past it the pipeline answers 429 before it authorizes
+    let limited = 0;
+    for (let i = 0; i < 160; i++) if ((await g.call("chat.history.search", { q: "x" })).status === 429) limited++;
+    assert.ok(limited > 0, "the flood reached the rate limit");
+    const before = skipsOf(w.d);
+    const r = await g.call("chat.post", {
+      threadId: w.pub.mainThreadId,
+      body: "@Dex hello after the flood",
+      mentions: [{ kind: "agent", id: w.agent }],
+    });
+    assert.ok(r.status === 200 || r.status === 429, `the post answers ${r.status}`);
+    if (r.status === 200) {
+      for (let i = 0; i < 12; i++) {
+        await w.d.hooks?.pump?.();
+        await new Promise((x) => setTimeout(x, 300));
+      }
+      assert.equal(skipsOf(w.d), before + 1, "the bridge still read them as an outsider: no turn");
+    }
+  } finally {
+    await w.stop();
+  }
+});

@@ -8,6 +8,7 @@ import { useAutomationsData } from "../canvas/data.tsx";
 import { ANALYTICS_LINE, EMPTY_COMPLETED_NEXT, SPACE_ANALYTICS_LINE, SPACE_ANALYTICS_TITLE } from "../chrome.ts";
 import { TextButton } from "../canvas/parts.tsx";
 import { analyticsOf, durationWords, rateWords } from "./read.ts";
+import { describeError } from "../../../../../../lib/words/errors.ts";
 import type { Analytics } from "./read.ts";
 import { choiceMenu } from "./menus.ts";
 import { Empty, Frame, MenuButton, Row, Status, Tile, useCall, useRowMenu, v } from "./parts.tsx";
@@ -166,11 +167,11 @@ export function AnalyticsReport({
                 key={`${f.automationId}-${f.step}-${f.code}`}
                 id={`stop-${f.step}`}
                 title={`Step ${f.step}${owner ? ` in ${owner}` : ""}`}
-                note={f.code}
+                note={describeError(f.code).text}
                 trailing={<Text style={v.right}>{`${f.count}×`}</Text>}
                 {...(f.automationId ? { onPress: () => onOpen(f.automationId!) } : {})}
                 domProps={{
-                  "aria-label": `Step ${f.step} failed ${f.count} times with ${f.code}${owner ? ` in ${owner}` : ""}`,
+                  "aria-label": `Step ${f.step} failed ${f.count} times: ${describeError(f.code).text}${owner ? ` in ${owner}` : ""}`,
                 }}
               />
             );

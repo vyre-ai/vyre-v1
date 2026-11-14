@@ -2,12 +2,15 @@
 // Hover (web) or a long press shows both zones with the full date. In a private place (a DM, a chat with your own agents, a note) pass `personal`: only the viewer's zone is used and nothing extra shows.
 // The zones come from ZonesProvider, which the shell fills from the Space profile and the person's own setting. Without one, both are this computer's zone and no second reading appears.
 // Zone math is lib/zones.ts. Do not format a time by hand in a shared place: use `When`, or `whenOf` where a plain string is needed (a row note, a menu line). scripts/lint/shared-time.test.ts holds the line.
-import { createElement, createContext, useContext, useMemo, useRef, useState } from "react";
+import { createElement, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import type { StyleProp, TextStyle } from "react-native";
 import { deviceZone, dueIn, dueText, titleOf, titleParts, whenIn, whenText } from "../../../lib/zones.ts";
 import type { When as WhenParts, Zones } from "../../../lib/zones.ts";
+
+import { Overlay } from "../Overlay/index.tsx";
+import { placeNear } from "../Overlay/anchor.ts";
 
 export type { Zones } from "../../../lib/zones.ts";
 export { dueText, whenText } from "../../../lib/zones.ts";
@@ -119,6 +122,8 @@ const s = StyleSheet.create({
 interface Open {
   left: number;
   top: number;
+  right: number;
+  bottom: number;
 }
 
 /** Hover or keyboard focus on what it wraps opens a raised card with three lines: the full date, the time in the Space zone, and yours when it differs (the app's popover look: 12 px radius, a shadow). Off the web it draws the children as they are.
@@ -134,13 +139,26 @@ export function TimePop({
 }): ReactElement {
   const z = useZones(personal);
   const [open, setOpen] = useState<Open | null>(null);
+  // the card is a fixed box in the window: a scroll moves what it points at, so it goes; Esc closes it
+  useEffect(() => {
+    if (!open) return;
+    const doc = (globalThis as { document?: Document }).document;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") setOpen(null);
+    };
+    const away = (): void => setOpen(null);
+    doc?.addEventListener("keydown", onKey, true);
+    doc?.addEventListener("scroll", away, true);
+    return () => {
+      doc?.removeEventListener("keydown", onKey, true);
+      doc?.removeEventListener("scroll", away, true);
+    };
+  }, [open]);
   if (Platform.OS !== "web") return children;
   const parts = titleParts(at, z);
   const show = (e: { target?: unknown }): void => {
-    const box = (
-      e.target as { getBoundingClientRect?: () => { left: number; bottom: number } } | undefined
-    )?.getBoundingClientRect?.();
-    setOpen({ left: Math.max(8, box?.left ?? 8), top: (box?.bottom ?? 0) + 6 });
+    const box = (e.target as { getBoundingClientRect?: () => Open } | undefined)?.getBoundingClientRect?.();
+    setOpen({ left: box?.left ?? 8, top: box?.top ?? 0, right: box?.right ?? 8, bottom: box?.bottom ?? 0 });
   };
   const hide = (): void => setOpen(null);
   return createElement(
@@ -159,41 +177,62 @@ export function TimePop({
     children,
     open
       ? createElement(
-          "div",
-          {
-            role: "tooltip",
-            "data-testid": "time-pop-card",
-            style: {
-              position: "fixed",
-              left: open.left,
-              top: open.top,
-              zIndex: 2147481000,
-              background: "var(--raised)",
-              color: "var(--ink)",
-              borderRadius: 12,
-              boxShadow: "0 8px 28px rgba(0,0,0,0.18), 0 0 0 1px var(--line)",
-              padding: "10px 12px",
-              fontSize: 12.5,
-              lineHeight: "18px",
-              minWidth: 220,
-              pointerEvents: "none",
-            },
-          },
-          createElement("div", { style: { fontWeight: 600 }, "data-testid": "time-pop-date" }, parts.date),
+          Overlay,
+          null,
           createElement(
             "div",
-            { "data-testid": "time-pop-space" },
-            createElement("span", { style: { color: "var(--ink-3)", display: "inline-block", width: 44 } }, "Space"),
-            parts.space,
+            {
+              role: "tooltip",
+              "data-testid": "time-pop-card",
+              ref: (el: HTMLElement | null) => {
+                // measured once drawn, then put by the trigger: below it, above when there is no room, inside the window
+                if (!el || typeof el.getBoundingClientRect !== "function") return;
+                const win = globalThis as { innerWidth?: number; innerHeight?: number };
+                const r = el.getBoundingClientRect();
+                const p = placeNear(
+                  open,
+                  { width: r.width, height: r.height },
+                  { width: win.innerWidth ?? 1024, height: win.innerHeight ?? 768 },
+                );
+                el.style.left = `${p.left}px`;
+                el.style.top = `${p.top}px`;
+              },
+              style: {
+                position: "fixed",
+                left: open.left,
+                top: open.bottom + 6,
+                zIndex: 2147481000,
+                background: "var(--raised)",
+                color: "var(--ink)",
+                borderRadius: 12,
+                boxShadow: "0 8px 28px rgba(0,0,0,0.18), 0 0 0 1px var(--line)",
+                padding: "10px 12px",
+                fontSize: 12.5,
+                lineHeight: "18px",
+                minWidth: 220,
+                pointerEvents: "none",
+              },
+            },
+            createElement("div", { style: { fontWeight: 600 }, "data-testid": "time-pop-date" }, parts.date),
+            createElement(
+              "div",
+              { "data-testid": "time-pop-space" },
+              createElement("span", { style: { color: "var(--ink-3)", display: "inline-block", width: 44 } }, "Space"),
+              parts.space,
+            ),
+            parts.mine
+              ? createElement(
+                  "div",
+                  { "data-testid": "time-pop-mine" },
+                  createElement(
+                    "span",
+                    { style: { color: "var(--ink-3)", display: "inline-block", width: 44 } },
+                    "You",
+                  ),
+                  parts.mine,
+                )
+              : null,
           ),
-          parts.mine
-            ? createElement(
-                "div",
-                { "data-testid": "time-pop-mine" },
-                createElement("span", { style: { color: "var(--ink-3)", display: "inline-block", width: 44 } }, "You"),
-                parts.mine,
-              )
-            : null,
         )
       : null,
   );

@@ -1,6 +1,7 @@
 // Automations projections (spec 2.12, ARCH 7.7). The definition row, its versions, Groups, the webhook secret, what a promoted Automation holds, the Runs it started,
 // and the Space policy behind the three automations.* settings.
 // Durable tables: migrations/0001_automations.sql. Every statement names only automations_* tables (ctx.db refuses anything else, ARCH B2).
+import { agentStanding } from "../../lib/agent-asker.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
 import { isOwnPress } from "../../lib/trust.ts";
@@ -589,5 +590,6 @@ export function page<T>(
 // ---- who ----
 
 export const isOwner = (ctx: AutoCtx, a: Pick<Automation, "ownerId" | "createdBy">): boolean =>
-  a.ownerId === ctx.principal.id || (ctx.actingFor !== undefined && a.ownerId === ctx.actingFor);
+  (a.ownerId === ctx.principal.id && agentStanding(ctx, () => false)) ||
+  (ctx.actingFor !== undefined && a.ownerId === ctx.actingFor);
 export const me = (ctx: AutoCtx): string => ctx.actingFor ?? ctx.principal.id;

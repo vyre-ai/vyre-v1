@@ -1,0 +1,10 @@
+{
+  "note": "Recorded 13 Nov 2026 18:02 UTC: curl -si -H 'Origin: https://mla.vyre.run' https://mla-a.vyre.run/x/000000000000000000000000000000000000000000000000 . The relay's edge answer for an artifact name no connected Space holds. No access-control-allow-origin, so a browser cannot read it from the app's origin. report-to and nel headers (Cloudflare reporting endpoints) left out.",
+  "status": 404,
+  "headers": {
+    "content-length": "0",
+    "server": "cloudflare",
+    "alt-svc": "h3=\":443\"; ma=86400"
+  },
+  "body": ""
+}

@@ -1,6 +1,7 @@
 // Console > Space: General (identity, Defaults for new members, Plan and usage), Transfer or delete. Each control is pressed by its testID; the capability and its input are read from the recorded calls.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { assertNoRawIds } from "../../../../../ui/src/testing/raw-ids.ts";
 import { SpaceProfile, memberDefaults, dollars, spendLine, storageLine } from "../pages/InfrastructureSettings.tsx";
 import { createdLine } from "../pages/space-created.ts";
 import { SpaceDeletePage, deleteDate, deleteName } from "../pages/SpaceDelete.tsx";
@@ -93,6 +94,92 @@ test("General has no Save buttons: Identity rows, Defaults rows and a Details gr
     assert.doesNotMatch(t, /\bSave\b/);
   } finally {
     p.restore();
+  }
+});
+
+const SPACE_ID = "spc_01a1d27b165742ddb20032cbd182aaf9";
+const settle = async (): Promise<void> => {
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 30));
+  });
+};
+const withClipboard = async (write: (t: string) => Promise<void>, run: () => Promise<void>): Promise<void> => {
+  const g = globalThis as { navigator?: unknown };
+  const had = Object.getOwnPropertyDescriptor(g, "navigator");
+  Object.defineProperty(g, "navigator", { value: { clipboard: { writeText: write } }, configurable: true });
+  try {
+    await run();
+  } finally {
+    if (had) Object.defineProperty(g, "navigator", had);
+    else delete g.navigator;
+  }
+};
+
+test("General shows the Space name and, quietly, the Space ID in full beside Copy Space ID (owner, 13 Nov 2026: admins may see it); a loopback address reads This computer", async () => {
+  const p = await mountPage(createRoot, <SpaceProfile />, {
+    "spaces.get": SPACE("usr_sample", { id: SPACE_ID, address: { mode: "relay", host: "127.0.0.1:41471" } }),
+  });
+  try {
+    const t = p.text();
+    assert.ok(
+      t.includes("Copy Space ID") && p.has("space-id-copy") && p.has("space-id-value"),
+      "Copy Space ID and the value are there",
+    );
+    assert.ok(t.includes(SPACE_ID), "an admin can read and quote the Space ID");
+    assert.ok(t.includes("This computer"), "a loopback address reads This computer");
+    assert.doesNotMatch(t, /127\.0\.0\.1/);
+    assertNoRawIds(t.replace(SPACE_ID, ""), "Console, Space, General (the Space ID aside)");
+  } finally {
+    p.restore();
+  }
+});
+
+test("Copy says Copied only after the clipboard write resolved, and says it could not copy when the write fails", async () => {
+  const p = await mountPage(createRoot, <SpaceProfile />, { "spaces.get": SPACE("usr_sample", { id: SPACE_ID }) });
+  try {
+    let release: () => void = () => undefined;
+    const written: string[] = [];
+    await withClipboard(
+      (t) =>
+        new Promise<void>((res) => {
+          written.push(t);
+          release = res;
+        }),
+      async () => {
+        await p.press("space-id-copy");
+        assert.deepEqual(written, [SPACE_ID]);
+        assert.ok(!p.text().includes("Copied"), "not Copied while the write is still pending");
+        release();
+        await settle();
+        assert.ok(p.text().includes("Copied"), "Copied after the write resolved");
+      },
+    );
+    await withClipboard(
+      () => Promise.reject(new Error("denied")),
+      async () => {
+        await p.press("space-address-copy");
+        await settle();
+        assert.ok(p.text().includes("Could not copy"), "a failed write says so");
+      },
+    );
+  } finally {
+    p.restore();
+  }
+});
+
+test("seen from another computer, a loopback address in the Space's record is the server's own: This server", async () => {
+  const g = globalThis as { location?: unknown };
+  const had = Object.getOwnPropertyDescriptor(g, "location");
+  Object.defineProperty(g, "location", { value: { host: "northwind.vyre.run" }, configurable: true });
+  const p = await mountPage(createRoot, <SpaceProfile />, {
+    "spaces.get": SPACE("usr_sample", { address: { mode: "relay", host: "127.0.0.1:41471" } }),
+  });
+  try {
+    assert.ok(p.text().includes("This server") && !p.text().includes("This computer"));
+  } finally {
+    p.restore();
+    if (had) Object.defineProperty(g, "location", had);
+    else delete g.location;
   }
 });
 

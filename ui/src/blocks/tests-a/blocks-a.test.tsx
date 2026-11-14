@@ -239,19 +239,35 @@ test("question: a prompt with a second line shows it as the why, under the quest
   assert.ok(!html(SAMPLE_QUESTION).includes("blk-question-blk_q1-why"), "a one-line prompt has no why");
 });
 
+test("question: the person who answered is named through the directory, never by the id the block stores (owner, 13 Nov 2026)", () => {
+  const by = (answeredBy: string): Block => ({
+    ...SAMPLE_QUESTION,
+    data: { ...(SAMPLE_QUESTION.data as object), answer: { keys: ["45"] }, answeredBy },
+  });
+  const id = "usr_6c247944ef2a9503ef";
+  const known = { ...fakeHost().host, nameOf: (x: string) => (x === id ? "Maya Chen" : x), meId: "usr_me" };
+  assert.ok(html(by(id), known).includes("Maya Chen answered: 45 minutes"));
+  assert.ok(html(by("usr_me"), known).includes("You answered: 45 minutes"));
+  const unknown = html(by(id));
+  assert.ok(
+    unknown.includes("Someone answered: 45 minutes") && !unknown.includes("usr_6c24"),
+    "no directory: a plain word",
+  );
+});
+
 test("question: single choice shows each option; an answered one shows the answer and no options", () => {
   const markup = html(SAMPLE_QUESTION);
   assert.ok(markup.includes("Which consult length should the form offer?"));
   for (const label of ["30 minutes", "45 minutes", "60 minutes", "Matches the engagement letter"])
     assert.ok(markup.includes(label), label);
-  assert.ok(markup.includes("Or write your own answer"));
+  assert.ok(markup.includes("Your own answer"));
   const answered: Block = {
     ...SAMPLE_QUESTION,
     data: { ...(SAMPLE_QUESTION.data as object), answer: { keys: ["45"] }, answeredBy: "Maya" },
   };
   const done = html(answered);
   assert.ok(done.includes("Maya answered: 45 minutes"));
-  assert.ok(!done.includes("Or write your own answer"));
+  assert.ok(!done.includes("Your own answer"));
   assert.ok(!done.includes("blk-question-blk_q1-opt-30"));
 });
 
@@ -481,4 +497,15 @@ test("data readers fall back to safe values", () => {
   assert.deepEqual(deployActions("ready", true, "preview"), { promote: true, rollback: false });
   assert.deepEqual(deployActions("ready", true, "production"), { promote: false, rollback: true });
   assert.deepEqual(tailLines("a\nb\nc\nd\ne\nf\ng\nh\n", 3), ["f", "g", "h"]);
+});
+
+test("question: an option's detail sits on its right, the agent's pick says Recommended, and Answer shows only once there is something to send (G31)", () => {
+  const data = SAMPLE_QUESTION.data as { options: Array<Record<string, unknown>> };
+  const marked: Block = {
+    ...SAMPLE_QUESTION,
+    data: { ...data, options: data.options.map((o, i) => (i === 0 ? { ...o, recommended: true } : o)) },
+  };
+  const markup = html(marked);
+  assert.ok(markup.includes(">Recommended<"), "the pick is named on the row");
+  assert.ok(!markup.includes('data-testid="blk-question-blk_q1-answer"'), "no Answer button while nothing is typed");
 });

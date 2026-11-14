@@ -177,8 +177,15 @@ test("without an artifact host there is no address to open: nothing with a token
     await h["sites.publish"]!(w.ctx, { siteId: made.site.siteId });
     await assert.rejects(
       () => h["sites.artifact_open"]!(w.ctx, { artifactId: made.site.siteId }),
-      /no address for artifacts/,
+      /address for artifact pages is not answering/,
     );
+    // a host the server has not found answering is the same: asked at each open, so one that starts answering is found at once
+    configureRoutes(host({ artifactHost: () => Promise.resolve(null) }) as never);
+    await assert.rejects(
+      () => h["sites.artifact_open"]!(w.ctx, { artifactId: made.site.siteId }),
+      /address for artifact pages is not answering/,
+    );
+    configureRoutes(host() as never);
     assert.equal(
       (w.ctx.db.all("SELECT COUNT(*) AS n FROM sites_ticket") as { n: number }[])[0]!.n,
       0,

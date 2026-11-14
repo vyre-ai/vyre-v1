@@ -16,6 +16,15 @@ test("the wrapper carries the tooltip and takes no box", () => {
   assert.ok(html.includes("Public"));
 });
 
+test("a cut name is marked so the tip shows only when the text is cut", () => {
+  const html = renderToStaticMarkup(
+    <Tooltip text="A long name" cut>
+      <Text>A long…</Text>
+    </Tooltip>,
+  );
+  assert.ok(html.includes('data-tt-cut="1"'));
+});
+
 test("no text, no wrapper", () => {
   assert.ok(
     !renderToStaticMarkup(

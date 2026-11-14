@@ -70,6 +70,7 @@ export function world(
     posts: [] as Array<{ threadId: string; body: string; blocks?: Obj[]; by: string }>,
     memory: [] as Obj[],
     events: [] as Array<{ name: string; payload: Obj; key?: string }>,
+    turn: { kind: "none", routine: false } as Obj,
     calls: [] as Array<{ cap: string; input: Obj; by: string }>,
     members: [] as Array<{ threadId: string; id: string }>,
   };
@@ -78,6 +79,8 @@ export function world(
   const keyed = new Map<string, unknown>();
 
   const fake: Record<string, (i: Obj, who: Caller) => unknown> = {
+    // the server answers for the calling agent's running turn; a test sets state.turn to the turn it wants (the engine's own tests prove the answer)
+    "engine.turn.asked_by": () => state.turn,
     "agents.get": (i) => ({ agent: { agentId: i.agentId, runtime: "inside" } }),
     "settings.get": () => ({ row: { value: "Asia/Karachi" } }),
     "chat.start": (i) => ({ thread: { threadId: `thr_${String(i.scopeId ?? next("x")).replace(/^gol_/, "g")}` } }),

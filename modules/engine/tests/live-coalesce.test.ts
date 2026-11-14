@@ -90,3 +90,40 @@ test("thinking gathers too and stays addressed to the person who asked", () => {
     ],
   );
 });
+
+test("a subagent's own lines go out apart, tagged with who asked, and never in the steps everyone reads; what it returned never goes out", () => {
+  const r = rig();
+  r.push({ kind: "step", threadId: "t", turnId: "u", agentId: "a", phase: "call", id: "toolu_a", name: "Agent" });
+  r.advance(1000);
+  r.push({
+    kind: "step",
+    threadId: "t",
+    turnId: "u",
+    agentId: "a",
+    phase: "call",
+    id: "tu_1",
+    name: "Bash",
+    parent: "toolu_a",
+    asker: "usr_1",
+  });
+  r.push({
+    kind: "step",
+    threadId: "t",
+    turnId: "u",
+    agentId: "a",
+    phase: "result",
+    id: "toolu_a",
+    name: "Agent",
+    ok: true,
+    result: "secret words",
+  });
+  r.advance(1000);
+  r.push({ kind: "end", threadId: "t", turnId: "u", agentId: "a", state: "done" } as never);
+  const text = JSON.stringify(r.out);
+  assert.doesNotMatch(text, /secret words/);
+  const subs = r.out.filter((e) => e.kind === "substeps");
+  assert.equal(subs.length, 1);
+  assert.equal((subs[0] as { asker: string }).asker, "usr_1");
+  for (const e of r.out.filter((x) => x.kind === "steps"))
+    assert.ok(!JSON.stringify(e).includes("tu_1"), "no subagent line in the steps frame");
+});

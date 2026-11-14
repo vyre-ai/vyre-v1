@@ -135,11 +135,11 @@ export function AutomationsStartView({
         </View>
         {offers.length > 0 && onSetUp ? (
           <View style={s.offers} testID="automations-start-offers">
-            {/* ui-rows-lint: not a list (at most a few one-line offers under the start choices) */}
+            {/* ui-rows-lint: not a list (at most a few offers of one or two lines under the start choices) */}
             {offers.slice(0, 3).map((o) => (
               <View key={o.itemId} style={s.offer} testID={`offer-${o.itemId}`}>
                 <Glyph name="key" size={15} color="var(--accent)" />
-                <Text numberOfLines={1} style={s.offerText}>
+                <Text numberOfLines={2} style={s.offerText}>
                   {o.text}
                 </Text>
                 <Pressable
@@ -268,9 +268,10 @@ export function AutomationsStart({ onTemplates, onAsk }: { onTemplates(): void; 
         ? {
             onSetUp: (o: ConnectorOffer) =>
               void run(async () => {
+                // the session starts first: a setup that cannot start (the assistant may not open the item) keeps the offer instead of using it up
+                await data.nav.setUpConnector!(o);
                 await data.call("automations.connector_offer.accept", { itemId: o.itemId });
                 setOffers((all) => all.filter((x) => x.itemId !== o.itemId));
-                await data.nav.setUpConnector!(o);
               }),
           }
         : {})}

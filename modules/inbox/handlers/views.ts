@@ -11,6 +11,7 @@ import { fail } from "../../../host/src/routes/errors.ts";
 import {
   bad,
   codeOf,
+  holderOf,
   ensure,
   first,
   getConversation,
@@ -32,6 +33,7 @@ import {
 } from "../projections.ts";
 import type { Channel, ConversationRow, InboxCtx, Json, Row } from "../projections.ts";
 import { candidatesFor } from "./match.ts";
+import { openOnly, readSeam, stateOfMany, subjectOf, thingOf, withUnread } from "../state.ts";
 
 type Reason = "owner" | "project" | "follow" | "shared_inbox";
 const DEFAULT_LIMIT = 50;
@@ -61,9 +63,9 @@ interface Reach {
 
 function reachOf(ctx: InboxCtx): Reach {
   const follows = new Set(
-    rowsOf(
-      ctx.db.all(`SELECT * FROM inbox_follow WHERE "principalId" = ? AND deleted_at IS NULL`, ctx.principal.id),
-    ).map((r) => str(r, "contactId")),
+    rowsOf(ctx.db.all(`SELECT * FROM inbox_follow WHERE "principalId" = ? AND deleted_at IS NULL`, holderOf(ctx))).map(
+      (r) => str(r, "contactId"),
+    ),
   );
   return { follows, access: new Map() };
 }
@@ -83,7 +85,7 @@ function canSee(ctx: InboxCtx, reach: Reach, type: string, id: string): boolean 
 
 async function reasonsOf(ctx: InboxCtx, reach: Reach, row: Row): Promise<Reason[]> {
   const out: Reason[] = [];
-  if (strOrNull(row, "ownerId") === ctx.principal.id) out.push("owner");
+  if (strOrNull(row, "ownerId") === holderOf(ctx)) out.push("owner");
   const contactId = strOrNull(row, "contactId");
   if (contactId && reach.follows.has(contactId)) out.push("follow");
   if (
@@ -230,8 +232,11 @@ export async function listByContact(
       (!ids || ids.has(str(row, "id"))) &&
       (!q || has(str(row, "displayName"), q) || has(str(row, "address"), q) || has(str(row, "lastPreview"), q)),
   );
-  const p = pageOf(found, w);
-  const rows = await Promise.all(p.rows.map(({ row }) => withFlags(ctx, toConversation(ctx, row))));
+  const { open, states } = await openOnly(ctx, found);
+  const p = pageOf(open, w);
+  const rows = await Promise.all(
+    p.rows.map(({ row }) => withFlags(ctx, withUnread(ctx, toConversation(ctx, row), states))),
+  );
   return { rows, showing: showing(input, "conversations"), total: p.total, ...(p.next ? { next: p.next } : {}) };
 }
 
@@ -286,7 +291,8 @@ export async function listByThread(
   checkFilter(ctx, input);
   const w = windowOf(ctx, input);
   const q = input.query?.trim() ?? "";
-  const convs = new Map((await mine(ctx, `deleted_at IS NULL`, [])).map(({ row }) => [str(row, "id"), row]));
+  const { open, states } = await openOnly(ctx, await mine(ctx, `deleted_at IS NULL`, []));
+  const convs = new Map(open.map(({ row }) => [str(row, "id"), row]));
   const channels: Channel[] = input.channel ? (input.channel === "call" ? [] : [input.channel]) : ["email", "sms"];
   const groups = new Map<string, Row[]>();
   for (const channel of channels) {
@@ -314,7 +320,11 @@ export async function listByThread(
       channel: str(latest, "kind") === "sms" ? "sms" : "email",
       lastAt: num(latest, "at"),
       participants: people,
-      unread: sorted.filter((i) => num(i, "unread") === 1).length,
+      // the caller's own: inbound items after the place they have read up to in the conversation each sits in
+      unread: sorted.filter(
+        (i) =>
+          str(i, "direction") === "in" && num(i, "arrival") > (states.get(str(i, "conversationId"))?.readUpto ?? 0),
+      ).length,
     };
     if (subject) row.subject = subject;
     const mailboxId = strOrNull(latest, "mailboxId");
@@ -421,7 +431,7 @@ export async function thread(
     .sort(order);
   const page = window.slice(0, limit);
   const out: { conversation: ConversationRow; items: TimelineItem[]; next?: string; total?: number } = {
-    conversation: toConversation(ctx, conv),
+    conversation: withUnread(ctx, toConversation(ctx, conv)),
     items: [...page].reverse(),
     total: all.length,
   };
@@ -443,9 +453,10 @@ export async function unmatched(
   const found = (await mine(ctx, `deleted_at IS NULL AND "contactId" IS NULL AND "needsMatch" = ?`, [0]))
     .filter(({ row }) => !hidden.has(str(row, "id")))
     .filter(({ row }) => !q || has(str(row, "displayName"), q) || has(str(row, "address"), q));
-  const p = pageOf(found, w);
+  const { open, states } = await openOnly(ctx, found);
+  const p = pageOf(open, w);
   return {
-    rows: p.rows.map(({ row }) => toConversation(ctx, row)),
+    rows: p.rows.map(({ row }) => withUnread(ctx, toConversation(ctx, row), states)),
     total: p.total,
     ...(p.next ? { next: p.next } : {}),
   };
@@ -464,8 +475,11 @@ export async function needsMatch(
 }> {
   ensure(ctx);
   const w = windowOf(ctx, input);
-  const found = await mine(ctx, `deleted_at IS NULL AND "contactId" IS NULL AND "needsMatch" = ?`, [1]);
-  const p = pageOf(found, w);
+  const { open, states } = await openOnly(
+    ctx,
+    await mine(ctx, `deleted_at IS NULL AND "contactId" IS NULL AND "needsMatch" = ?`, [1]),
+  );
+  const p = pageOf(open, w);
   const why = {
     address: "Same email address",
     phone: "Same phone number",
@@ -479,7 +493,7 @@ export async function needsMatch(
     const suggestions = [...c.sure, ...c.unsure]
       .filter((x) => !seen.has(x.recordId) && seen.add(x.recordId))
       .map((x) => ({ recordId: x.recordId, type: x.type, name: x.name, score: x.score, why: why[x.via] }));
-    rows.push({ conversation: toConversation(ctx, row), suggestions });
+    rows.push({ conversation: withUnread(ctx, toConversation(ctx, row), states), suggestions });
   }
   return { rows, total: p.total, ...(p.next ? { next: p.next } : {}) };
 }
@@ -493,7 +507,10 @@ export async function counts(ctx: InboxCtx): Promise<{
 }> {
   ensure(ctx);
   const found = await mine(ctx, `deleted_at IS NULL`, []);
-  const ids = new Set(found.map(({ row }) => str(row, "id")));
+  const states = await stateOfMany(
+    ctx,
+    found.map(({ row }) => str(row, "id")),
+  );
   const byInbox = new Map<string, { kind: "mailbox" | "number"; id: string; unread: number }>();
   const bump = (kind: "mailbox" | "number", id: string | null): void => {
     if (!id) return;
@@ -502,14 +519,20 @@ export async function counts(ctx: InboxCtx): Promise<{
     have.unread += 1;
     byInbox.set(key, have);
   };
-  for (const item of rowsOf(ctx.db.all(`SELECT * FROM inbox_item WHERE unread = ?`, 1))) {
-    if (!ids.has(str(item, "conversationId"))) continue;
-    bump("mailbox", strOrNull(item, "mailboxId"));
-    bump("number", strOrNull(item, "numberId"));
+  let total = 0;
+  for (const { row } of found) {
+    // the caller's own badge: what they have not read, in what they have not marked done
+    const mine = states.get(str(row, "id"));
+    if (!mine || mine.done !== null || mine.unread === 0) continue;
+    total += mine.unread;
+    for (const item of itemsOf(ctx, row, `direction = ? AND arrival > ?`, "in", mine.readUpto)) {
+      bump("mailbox", strOrNull(item, "mailboxId"));
+      bump("number", strOrNull(item, "numberId"));
+    }
   }
   return {
     byInbox: [...byInbox.values()].sort((a, b) => b.unread - a.unread || a.id.localeCompare(b.id)),
-    total: found.reduce((n, { row }) => n + Math.max(0, Math.trunc(num(row, "unreadCount"))), 0),
+    total,
     needsMatch: found.filter(({ row }) => num(row, "needsMatch") === 1).length,
   };
 }
@@ -536,7 +559,7 @@ export async function following(
   }
   // a followed contact with no messages yet still reaches you
   for (const f of rowsOf(
-    ctx.db.all(`SELECT * FROM inbox_follow WHERE "principalId" = ? AND deleted_at IS NULL`, ctx.principal.id),
+    ctx.db.all(`SELECT * FROM inbox_follow WHERE "principalId" = ? AND deleted_at IS NULL`, holderOf(ctx)),
   )) {
     const contactId = str(f, "contactId");
     const have = byContact.get(contactId) ?? new Set<Reason>();
@@ -554,7 +577,7 @@ export async function following(
             ctx.db.all(
               `SELECT * FROM inbox_follow WHERE "contactId" = ? AND "principalId" = ? AND deleted_at IS NULL`,
               contactId,
-              ctx.principal.id,
+              holderOf(ctx),
             ),
           ),
           "alertOnReplies",
@@ -755,6 +778,7 @@ export async function threads(
       );
   if (!conv) missing(ctx, "There is no conversation with that person yet.");
   await mustSee(ctx, conv);
+  const readUpto = readSeam(ctx).stateOf(subjectOf(ctx), [thingOf(str(conv, "id"))])[0]?.readUpto ?? 0;
 
   const latest = new Map<string, number>();
   for (const item of itemsOf(ctx, conv, "kind = ?", "email")) {
@@ -776,11 +800,11 @@ export async function threads(
     const messages = list(got.messages)
       .map(obj)
       .map((m) => {
-        const unread =
-          num(
-            first(ctx.db.all(`SELECT unread FROM inbox_item WHERE id = ?`, `mail_message:${text(m.id)}`)),
-            "unread",
-          ) === 1;
+        // unread is the caller's own: an inbound message after the place they have read up to in this conversation
+        const item = first(
+          ctx.db.all(`SELECT direction, arrival FROM inbox_item WHERE id = ?`, `mail_message:${text(m.id)}`),
+        );
+        const unread = str(item, "direction") === "in" && num(item, "arrival") > readUpto;
         return { unread, message: m as ThreadMessageOut };
       });
     if (!messages.length) continue;
@@ -800,7 +824,7 @@ export async function threads(
     });
   }
   return {
-    conversation: toConversation(ctx, conv),
+    conversation: withUnread(ctx, toConversation(ctx, conv)),
     threads: out,
     total: page.total,
     ...(page.next ? { next: page.next } : {}),

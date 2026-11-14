@@ -194,6 +194,7 @@ const activity = t.obj({
   text: t.str(),
   by: t.opt(t.str()),
   ref: t.opt(t.str()),
+  data: t.opt(t.rec(t.json())),
   tpl: t.opt(
     t.str({
       description:
@@ -367,7 +368,7 @@ export default defineManifest({
     ),
     write(
       "goals.confirm",
-      "Start a drafted goal: the owner presses Start on its card, or an agent acting for the owner starts it with messageId, the message in which the owner asked for it, in the goal chat and under 15 minutes old. An agent start grants no permission. The standing permissions it names hold from this press",
+      "Start a drafted goal: the owner presses Start, or an agent acting for the owner starts it in a turn the owner began with their own message (the server checks; messageId is no longer read). An agent start grants no permission. The standing permissions it names hold from this press",
       {
         in: {
           ...target,
@@ -441,7 +442,7 @@ export default defineManifest({
     ),
     write(
       "goals.update",
-      "Change a goal: its title, finish line, deadline, lead, owner, drafted plan, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)",
+      "Change a goal: its title, finish line, deadline, lead, owner, drafted plan, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (the owner, or an agent acting for the owner in a turn the owner began with their own message; the change is logged with that message)",
       {
         in: {
           ...target,
@@ -471,14 +472,18 @@ export default defineManifest({
         errors: ["validation.precondition_failed", "validation.not_found"],
       },
     ),
-    write("goals.pause", "Pause a goal: no wake-ups and none of its tasks wake their agents until it is resumed", {
-      in: { ...target, reason: t.opt(t.str()) },
-      out: { goal: goalRow },
-      level: "member",
-      emits: EMITS,
-      tool: "tasks",
-      errors: ["validation.precondition_failed", "validation.not_found"],
-    }),
+    write(
+      "goals.pause",
+      "Pause a goal: no wake-ups and none of its tasks wake their agents until it is resumed (the owner, or an agent in a turn the owner began with their own message)",
+      {
+        in: { ...target, reason: t.opt(t.str()) },
+        out: { goal: goalRow },
+        level: "member",
+        emits: EMITS,
+        tool: "tasks",
+        errors: ["validation.precondition_failed", "validation.not_found"],
+      },
+    ),
     write("goals.resume", "Resume a paused goal", {
       in: target,
       out: { goal: goalRow },
@@ -487,14 +492,18 @@ export default defineManifest({
       tool: "tasks",
       errors: ["validation.precondition_failed", "validation.not_found"],
     }),
-    write("goals.stop", "Stop a goal for good: its open tasks are withdrawn and its permissions end", {
-      in: { ...target, reason: t.opt(t.str()) },
-      out: { goal: goalRow },
-      level: "member",
-      emits: EMITS,
-      tool: "tasks",
-      errors: ["validation.precondition_failed", "validation.not_found"],
-    }),
+    write(
+      "goals.stop",
+      "Stop a goal for good: its open tasks are withdrawn and its permissions end (the owner, or an agent in a turn the owner began with their own message)",
+      {
+        in: { ...target, reason: t.opt(t.str()) },
+        out: { goal: goalRow },
+        level: "member",
+        emits: EMITS,
+        tool: "tasks",
+        errors: ["validation.precondition_failed", "validation.not_found"],
+      },
+    ),
     write("goals.finish", "The owner says a goal is done (the finish line of an owner-says-done goal, or done early)", {
       in: { ...target, note: t.opt(t.str()) },
       out: { goal: goalRow },
@@ -503,14 +512,18 @@ export default defineManifest({
       tool: "tasks",
       errors: ["validation.precondition_failed", "validation.not_found"],
     }),
-    write("goals.extend", "Move the deadline of a goal; a missed goal starts again", {
-      in: { ...target, deadline: t.ts() },
-      out: { goal: goalRow },
-      level: "member",
-      emits: EMITS,
-      tool: "tasks",
-      errors: ["validation.precondition_failed", "validation.not_found"],
-    }),
+    write(
+      "goals.extend",
+      "Move the deadline of a goal; a missed goal starts again (the owner, or an agent acting for the owner in a turn the owner began with their own message)",
+      {
+        in: { ...target, deadline: t.ts() },
+        out: { goal: goalRow },
+        level: "member",
+        emits: EMITS,
+        tool: "tasks",
+        errors: ["validation.precondition_failed", "validation.not_found"],
+      },
+    ),
     write("goals.progress", "Where a goal stands: the number from its source, read now when asked, and its history", {
       in: { ...target, refresh: t.opt(t.bool()) },
       out: { progress, readings: t.arr(reading) },

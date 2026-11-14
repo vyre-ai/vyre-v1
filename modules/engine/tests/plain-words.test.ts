@@ -151,3 +151,16 @@ test("read_link reads as a page, not files (lead, 12 Nov)", () => {
   assert.equal(doneWords("read_link"), "Read a page");
   assert.equal(stepWords("terminal_run"), "Running a command");
 });
+
+test("a tool's server name (mcp__vyre__terminal_run) is a name a person never reads, and is put into plain words when it slips through", async () => {
+  const { plainToolWords } = await import("../../../lib/plain-words.ts");
+  assert.deepEqual(internalNames("Use the Vyre terminal tool (mcp__vyre__terminal_run), not Bash."), [
+    "mcp__vyre__terminal_run",
+  ]);
+  assert.equal(
+    plainToolWords("Use the Vyre terminal tool (mcp__vyre__terminal_run), not Bash."),
+    "Use the Vyre terminal tool (terminal run), not Bash.",
+  );
+  assert.equal(plainToolWords("It ran mcp__plugin_data_hex__authenticate once."), "It ran authenticate once.");
+  assert.equal(plainToolWords("A plain sentence with a snake_case word."), "A plain sentence with a snake_case word.");
+});

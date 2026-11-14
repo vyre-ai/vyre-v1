@@ -66,18 +66,51 @@ test("route decisions in the engine match lib route() for the whole table", asyn
   await engine.idle("T");
 });
 
-test("one turn at a time per thread, in queue order", async () => {
+test("one turn at a time per AGENT per thread, in queue order (ARCH 6.2: the same agent never overlaps itself)", async () => {
   let live = 0,
     peak = 0;
-  const order: string[] = [];
+  const order: number[] = [];
   const p = scriptedProvider({
     script: quiet,
     beforeEvent: async (i, _ev, spec) => {
       if (i === 0) {
         live++;
         peak = Math.max(peak, live);
-        order.push(spec.agent.id);
+        order.push(spec.agent.id === "intake" ? 1 : 0);
         await new Promise<void>((r) => setImmediate(r));
+        live--;
+      }
+    },
+  });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
+  engine.openThread(thread("T"));
+  engine.receive({ threadId: "T", author: person("dana"), body: "one" });
+  engine.receive({ threadId: "T", author: person("dana"), body: "two" });
+  engine.receive({ threadId: "T", author: person("dana"), body: "three" });
+  await engine.idle("T");
+  assert.equal(peak, 1, "three messages to the same agent never run together");
+  assert.deepEqual(order, [1, 1, 1]);
+  assert.deepEqual(
+    engine.turns("T").map((t) => t.state),
+    ["completed", "completed", "completed"],
+  );
+  assert.deepEqual(
+    engine.turns("T").map((t) => t.qseq),
+    [1, 2, 3],
+  );
+});
+
+test("different agents asked in different messages run together, each in its own turn (ARCH 6.2 as changed 14 Nov 2026)", async () => {
+  let live = 0,
+    peak = 0;
+  const hold = gate();
+  const p = scriptedProvider({
+    script: quiet,
+    beforeEvent: async (i) => {
+      if (i === 0) {
+        live++;
+        peak = Math.max(peak, live);
+        await hold.wait;
         live--;
       }
     },
@@ -87,16 +120,17 @@ test("one turn at a time per thread, in queue order", async () => {
   engine.receive({ threadId: "T", author: person("dana"), body: "one" });
   engine.receive({ threadId: "T", author: person("dana"), mentions: [agent("docs")], body: "two" });
   engine.receive({ threadId: "T", author: person("dana"), mentions: [agent("billing")], body: "three" });
+  await until(() => p.sessions.length === 3);
+  assert.equal(peak, 3, "three agents, three turns at once");
+  hold.open();
   await engine.idle("T");
-  assert.equal(peak, 1);
-  assert.deepEqual(order, ["intake", "docs", "billing"]);
   assert.deepEqual(
-    engine.turns("T").map((t) => t.state),
-    ["completed", "completed", "completed"],
-  );
-  assert.deepEqual(
-    engine.turns("T").map((t) => t.qseq),
-    [1, 2, 3],
+    engine.turns("T").map((t) => [t.agentId, t.state]),
+    [
+      ["intake", "completed"],
+      ["docs", "completed"],
+      ["billing", "completed"],
+    ],
   );
 });
 

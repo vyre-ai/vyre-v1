@@ -543,6 +543,8 @@ export interface LoggedEvent {
   origin?: string;
   depth?: number;
   /** written by an importer or sync backfill */ imported?: boolean;
+  /** the person who caused it has no standing in the Space (a guest) */
+  outsider?: boolean;
 }
 
 const shallowMatch = (want: unknown, have: Record<string, unknown>): boolean => {
@@ -666,9 +668,9 @@ export async function consumeEvent(
         out.push({ automationId: a.id, result: dropped(ctx, a, "filter_error", ev.id) });
         continue;
       }
-      // not run: the message was from a guest. An Automation runs under its own standing, which reaches what its owner's does; a person with no standing in the Space does not start one by posting (an opt-in on the
-      // trigger, set by the Automation's owner, would be one more condition here). Their words are never instructions to a step.
-      if (ev.type === "message.received" && (ev.payload as { outsider?: unknown } | undefined)?.outsider === true) {
+      // not run: caused by a guest. An Automation runs under its own standing, which reaches what its owner's does; a person with no standing in the Space does not start one by posting a message, changing a
+      // record, a sheet row or a Journey stage (an opt-in on the trigger, set by the Automation's owner, would be one more condition here). Their words are never instructions to a step.
+      if (ev.outsider === true) {
         out.push({ automationId: a.id, result: dropped(ctx, a, "outsider", ev.id) });
         continue;
       }

@@ -198,9 +198,9 @@ test("Where work runs: the order is kept, a busy machine is skipped and the firs
   assert.deepEqual(
     lines.map((l) => [l.use, l.note]),
     [
-      [false, "Skipped. Busy. Its turn limit is reached"],
-      [true, "Next turn runs here"],
-      [false, "Skipped. Busy. Disk is nearly full"],
+      [false, "Skipped. It is busy: it has all the work it can take"],
+      [true, "Work goes here next"],
+      [false, "Skipped. It is busy: its disk is nearly full"],
       [false, "Has room, not needed"],
     ],
   );

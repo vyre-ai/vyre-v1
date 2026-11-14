@@ -10,7 +10,9 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { FolderShareSheet } from "../../../shell/providers/files-share.tsx";
 import { nameLookup } from "../../../shell/providers/records-live.ts";
-import { artifactAddress, plainLink } from "./artifact-address.ts";
+import { States } from "../../../../../../ui/src/States/index.tsx";
+import { artifactAddress, artifactHostAnswers } from "./artifact-address.ts";
+import { copyLinkText, itemLink } from "../../../share/rows.ts";
 import { available, DesktopArtifactFrame } from "./desktop-frame.tsx";
 
 type Site = CapMap["sites.get"]["out"]["site"];
@@ -32,6 +34,19 @@ export const refused = (e: unknown): boolean => {
     (e as { error?: { code?: string }; code?: string } | null)?.error?.code ?? (e as { code?: string } | null)?.code;
   return typeof code === "string" && code.startsWith("permission.");
 };
+
+/** The address this Space opens artifact pages at did not answer the app's own check. */
+class HostSilent extends Error {
+  constructor(address: string) {
+    let host = "the artifact address";
+    try {
+      host = new URL(address).host;
+    } catch {
+      /* a relative address has no host to name */
+    }
+    super(`${host} did not answer. An owner can see what to do in Console, Health.`);
+  }
+}
 
 const msg = (e: unknown): string => {
   const x = e as { error?: { message?: string }; message?: string } | null;
@@ -76,10 +91,26 @@ export function ArtifactView({
   const nameOf = useMemo(() => nameLookup(rt), [rt]);
   const desktop = available();
   const open = useCallback(
-    (embed: boolean): Promise<string> =>
+    (embed: boolean, native = false): Promise<{ url: string; checked: boolean }> =>
       Promise.resolve(
         rt.call("sites.artifact_open", { artifactId, idempotencyKey: `open-${artifactId}-${rt.clock().now}-${++seq}` }),
-      ).then((o) => artifactAddress(o as { path: string; url?: string }, rt.baseUrl, embed)),
+      ).then((o) => ({
+        url: artifactAddress(o as { path: string; url?: string }, rt.baseUrl, embed, native),
+        // only a server that checked its own artifact host says so; an older one does not, and its address is framed as before (no probe the server could not have prepared for)
+        checked: (o as { checked?: boolean }).checked === true,
+      })),
+    [rt, artifactId],
+  );
+  /** The artifact's row (its name and the line under it): read again whenever something about it may have changed (a share). */
+  const loadSite = useCallback(
+    (live: () => boolean): void => {
+      void Promise.resolve(rt.call("sites.get", { siteId: artifactId })).then(
+        (o) => {
+          if (live()) setSite((o as CapMap["sites.get"]["out"]).site);
+        },
+        () => undefined,
+      );
+    },
     [rt, artifactId],
   );
   useEffect(() => {
@@ -88,27 +119,29 @@ export function ArtifactView({
     setFailed(null);
     setSrc(null);
     setDenied(false);
-    void Promise.resolve(rt.call("sites.get", { siteId: artifactId })).then(
-      (o) => {
-        if (live) setSite((o as CapMap["sites.get"]["out"]).site);
-      },
-      () => undefined,
-    );
-    void open(!desktop).then(
-      (u) => {
-        if (live) setSrc(u);
-      },
-      (e: unknown) => {
-        if (live) {
-          if (refused(e)) setDenied(true);
-          else setFailed(msg(e));
-        }
-      },
-    );
+    loadSite(() => live);
+    void open(!desktop, desktop)
+      .then(async (o) => {
+        // a frame says nothing across origins, so the app asks the artifact host itself before it frames anything: a host that does not answer is an error here, never a white rectangle.
+        // Only for a server that says it checked its host (checked: true); an older server's host pages carry no mark, so asking would fail a page that opens today
+        if (o.checked && !(await artifactHostAnswers(o.url))) throw new HostSilent(o.url);
+        return o.url;
+      })
+      .then(
+        (u) => {
+          if (live) setSrc(u);
+        },
+        (e: unknown) => {
+          if (live) {
+            if (refused(e)) setDenied(true);
+            else setFailed(msg(e));
+          }
+        },
+      );
     return () => {
       live = false;
     };
-  }, [rt, artifactId, open, attempt, desktop]);
+  }, [rt, artifactId, open, attempt, desktop, loadSite]);
   // a page that never says it loaded is an error too, not a spinner for ever
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -118,23 +151,25 @@ export function ArtifactView({
       if (timer.current) clearTimeout(timer.current);
     };
   }, [src, loaded, failed]);
+  // The desktop app's page is a native view. While a menu or the Share sheet is open it steps off-screen and comes back as it was (its place and state kept); only when the shell no longer has it
+  // (the view was closed, the app restarted) does it come back at a NEW one-time address, asked for then: the first address was spent by the first load ("This link has ended", 13 Nov 2026).
+  const goneTimes = useRef(0);
+  const [sure, setSure] = useState(false);
+  const cover = coveredBy({ sharing, menu: element !== null, sure });
   const name = site?.name ?? "Artifact";
   const line = site ? subline(infoOf(site, nameOf), rt.me.id, rt.clock().now, nameOf) : "";
   const browser = (): void => {
     void open(false).then(
-      (u) => rt.openUrl(u),
+      (o) => rt.openUrl(o.url),
       (e: unknown) => setFailed(msg(e)),
     );
   };
   const copy = (): void => {
-    void (
-      globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }
-    ).navigator?.clipboard?.writeText?.(plainLink(rt.baseUrl, artifactId));
+    copyLinkText(itemLink("site", artifactId)); // the Space's own address (words when there is none)
   };
   const remove = (): void => {
     void Promise.resolve(rt.call("sites.delete", { siteId: artifactId })).then(gone, (e: unknown) => setFailed(msg(e)));
   };
-  const [sure, setSure] = useState(false);
   const more = (): void => {
     const doc = (
       globalThis as {
@@ -248,21 +283,16 @@ export function ArtifactView({
           </View>
         ) : failed !== null ? (
           <View testID="artifact-error" accessibilityRole="alert" style={s.state}>
-            <Text style={s.stateTitle}>This page couldn{"’"}t load here</Text>
-            <Text style={s.stateLine}>Your browser can still open it.</Text>
-            <View style={s.row}>
-              <Pressable accessibilityRole="button" testID="artifact-error-browser" onPress={browser} style={s.primary}>
-                <Text style={s.primaryText}>Open in browser</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                testID="artifact-error-retry"
-                onPress={() => setAttempt((n) => n + 1)}
-                style={s.btn}
-              >
-                <Text style={s.btnText}>Try again</Text>
-              </Pressable>
-            </View>
+            <States
+              kind="error"
+              message="This page could not be loaded from the Space"
+              cause={failed}
+              retryable
+              onRetry={() => {
+                goneTimes.current = 0;
+                setAttempt((n) => n + 1);
+              }}
+            />
           </View>
         ) : (
           <>
@@ -270,9 +300,16 @@ export function ArtifactView({
               <DesktopArtifactFrame
                 url={src as string}
                 title={name}
-                covered={coveredBy({ sharing, menu: element !== null, sure })}
+                covered={cover}
                 onError={(m) => setFailed(m)}
                 onPlaced={() => setLoaded(true)}
+                onGone={() => {
+                  // the shell lost the page: a new address, a few times; a shell that keeps losing it is told so, not fed tickets for ever
+                  goneTimes.current += 1;
+                  if (goneTimes.current > 3)
+                    setFailed("This page keeps closing on this computer. Try again in a moment.");
+                  else setAttempt((n) => n + 1);
+                }}
               />
             ) : null}
             {frameFor(src, desktop) === "iframe"
@@ -313,7 +350,10 @@ export function ArtifactView({
           rt={rt}
           folderId={artifactId}
           resource={{ type: "site", id: artifactId, name }}
-          onClose={() => setSharing(false)}
+          onClose={() => {
+            setSharing(false);
+          }}
+          onChanged={() => loadSite(() => true)} // the line under the name says who it is shared with now, once the share has gone through
         />
       ) : null}
       {element}

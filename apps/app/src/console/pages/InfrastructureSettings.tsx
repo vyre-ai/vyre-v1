@@ -15,6 +15,7 @@ import { Actions, Button, Note, ReadState, Select, useAction, useRead } from "./
 import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import { ZonePicker } from "../../../../../ui/src/ZonePicker/index.tsx";
 import { deadlineExample, deviceZone, zoneName } from "../../../../../lib/zones.ts";
+import { addressWords } from "../../../../../lib/address-words.ts";
 import { refreshZones } from "../../shell/zones/ZonesHost.tsx";
 import { skins, system } from "../../../../../ui/src/tokens/skins.ts";
 export function Updates(): ReactElement {
@@ -346,10 +347,17 @@ const skinFace = (id: string): ReactElement => {
   );
 };
 const skinOptions = [{ key: system.id, title: system.name }, ...skins.map((k) => ({ key: k.id, title: k.name }))];
-const copyAddress = (text: string): void => {
-  void (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard
-    ?.writeText(text)
-    .catch(() => undefined);
+/** Writes to the clipboard and says whether it worked: "Copied" is only ever said after the write has resolved. */
+export const copyText = async (text: string): Promise<boolean> => {
+  try {
+    const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator
+      ?.clipboard;
+    if (!clip) return false;
+    await clip.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
 };
 export function SpaceProfile(): ReactElement {
   const result = useRead<CapMap["spaces.get"]["out"]>("spaces.get");
@@ -358,7 +366,7 @@ export function SpaceProfile(): ReactElement {
     [mode, setMode] = useState("relay"),
     [host, setHost] = useState(""),
     [confirm, setConfirm] = useState(false),
-    [copied, setCopied] = useState(false);
+    [said, setSaid] = useState<Record<string, string>>({});
   const action = useAction(result.refresh);
   // the Space's own time zone: chosen first, saved after one line says what it changes
   const [pendingZone, setPendingZone] = useState<string | null>(null);
@@ -400,7 +408,25 @@ export function SpaceProfile(): ReactElement {
       {text}
     </Text>
   );
-  const address = space.address.host ?? "This device";
+  const address = space.address.host ?? "";
+  // a loopback address is this computer only for a person on it; from another computer it is the server's own
+  const addressShown = addressWords(space.address.host, {
+    fallback: "This computer",
+    viewer: (globalThis as { location?: { host?: string } }).location?.host,
+  });
+  const copy = (key: string, text: string): void => {
+    void copyText(text).then((ok) => {
+      setSaid((cur) => ({ ...cur, [key]: ok ? "Copied" : "Could not copy" }));
+      setTimeout(
+        () =>
+          setSaid((cur) => {
+            const { [key]: _gone, ...rest } = cur;
+            return rest;
+          }),
+        1500,
+      );
+    });
+  };
   return (
     <View testID="console-space-infra">
       <Section title="Identity">
@@ -451,15 +477,11 @@ export function SpaceProfile(): ReactElement {
               title="Address"
               trailing={
                 <View style={st.inline}>
-                  {mono(address)}
+                  {mono(addressShown)}
                   <Button
-                    label={copied ? "Copied" : "Copy"}
+                    label={said["address"] ?? "Copy"}
                     testID="space-address-copy"
-                    onPress={() => {
-                      copyAddress(address);
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 1500);
-                    }}
+                    onPress={() => copy("address", address)}
                   />
                 </View>
               }
@@ -677,7 +699,22 @@ export function SpaceProfile(): ReactElement {
       <Section title="Details">
         <Group>
           <Line index={0}>
-            <Row id="space-id" title="Space ID" trailing={mono(space.id)} />
+            <Row
+              id="space-id"
+              title="Space ID"
+              trailing={
+                <View style={st.inline}>
+                  <Text selectable testID="space-id-value" style={st.mono} numberOfLines={1}>
+                    {space.id}
+                  </Text>
+                  <Button
+                    label={said["id"] ?? "Copy Space ID"}
+                    testID="space-id-copy"
+                    onPress={() => copy("id", space.id)}
+                  />
+                </View>
+              }
+            />
           </Line>
           <Line index={1}>
             <Row id="space-fingerprint" title="Key fingerprint" trailing={mono(space.fingerprint)} />

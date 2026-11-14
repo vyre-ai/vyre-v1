@@ -32,6 +32,7 @@ import { useOptionalShellRuntime } from "./runtime.tsx";
 import { ASK_SCOPE, makeAskVyre, openRecordsAsk } from "../../places/records/askpane/index.ts";
 import type { AskPaneAction } from "../../places/records/askpane/index.ts";
 import { closeAskPane, openAskPane } from "../ask/pane.ts";
+import { useAssistantBuilds } from "./builds.ts";
 import { SyncPage, editMappingOpening } from "../../places/records/sync/index.ts";
 import { RecordShareSheet } from "../../places/records/sharing/index.ts";
 import type { RecordsShare, ShareTarget } from "../../places/records/sidebar/index.ts";
@@ -142,12 +143,23 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
   typeTitle.current = (key) =>
     types.status === "ready" ? types.data.types.find((x) => x.key === key)?.plural : undefined;
   const canSync = useCanManageSync(rt);
+  const assistantBuilds = useAssistantBuilds(rt);
   const data = useMemo(() => {
     const base = recordsData(rt, target.screen, canEdit);
     const { openSync, bringInCrm, ...plainNav } = base.nav;
-    const nav = canSync ? base.nav : plainNav;
-    void openSync;
-    void bringInCrm;
+    // Bring in from your CRM hands the assistant a connector task: only when it can build connectors (or its person can allow it), and the press allows it first
+    const nav = canSync
+      ? {
+          ...plainNav,
+          ...(openSync ? { openSync } : {}),
+          ...(assistantBuilds.builds && bringInCrm
+            ? {
+                bringInCrm: () => assistantBuilds.press("records", bringInCrm),
+                ...(assistantBuilds.note ? { bringInNote: assistantBuilds.note } : {}),
+              }
+            : {}),
+        }
+      : plainNav;
     return {
       ...base,
       ...(share ? { share } : {}),
@@ -169,7 +181,7 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
         },
       },
     };
-  }, [rt, type, target.screen, canEdit, canSync, share]);
+  }, [rt, type, target.screen, canEdit, canSync, share, assistantBuilds]);
   return (
     <RecordsDataProvider value={data}>
       <View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
@@ -207,14 +219,22 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
                 dispatch({ type: "open", key: ty });
                 opened({});
               },
-              editMapping: (a) =>
-                openAskPane(
-                  {
-                    thing: { kind: ASK_SCOPE, id: `sync:${a.type}`, title: `How ${a.type} syncs` },
-                    first: editMappingOpening(a),
-                  },
-                  "records",
-                ),
+              // the assistant changes the mapping with connector tools: only when it can build connectors (or its person can allow it), and the press allows it first
+              ...(assistantBuilds.builds
+                ? {
+                    editMapping: (a: { app: string; type: string }) =>
+                      assistantBuilds.press("records", () =>
+                        openAskPane(
+                          {
+                            thing: { kind: ASK_SCOPE, id: `sync:${a.type}`, title: `How ${a.type} syncs` },
+                            first: editMappingOpening(a),
+                          },
+                          "records",
+                        ),
+                      ),
+                    ...(assistantBuilds.note ? { editMappingNote: assistantBuilds.note } : {}),
+                  }
+                : {}),
               closed: () => opened({}),
             }}
             canManage

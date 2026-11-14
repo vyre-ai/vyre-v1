@@ -255,6 +255,10 @@ export function connectorSteps(connectorsOut: unknown, connectionsOut: unknown, 
 
 export interface ProductCatalog {
   steps: CatalogStep[];
+  /** Every step the server can run, whether or not its app is connected for this person: an existing Automation's steps keep their forms from here. The menu uses `steps`. */
+  all: CatalogStep[];
+  /** False when the Space's connected apps could not be read: an app missing from `steps` is then unknown, not unconnected. */
+  checked: boolean;
   triggers: CatalogTrigger[];
 }
 
@@ -262,7 +266,7 @@ export async function loadProductCatalog(
   call: (cap: string, input: unknown) => Promise<unknown>,
 ): Promise<{ ok: true; catalog: ProductCatalog } | { ok: false; message: string }> {
   try {
-    const [stepsOut, triggersOut, built] = await Promise.all([
+    const [stepsOut, triggersOut, built, allOut] = await Promise.all([
       call("automations.steps.list", {}),
       call("automations.triggers.list", {}),
       // a person who cannot manage connectors, or a server without them, simply has no Your connectors group
@@ -271,13 +275,19 @@ export async function loadProductCatalog(
         call("connections.list", {}),
         call("automations.connector_levels", {}).catch(() => undefined),
       ]).catch(() => null),
+      call("automations.steps.list", { all: true }).catch(() => null),
     ]);
     const steps = stepsFromRuntime(stepsOut);
     const triggers = triggersFromRuntime(triggersOut);
     if (!steps || !triggers) return { ok: false, message: "The step catalog did not return a list." };
     return {
       ok: true,
-      catalog: { steps: [...steps, ...(built ? connectorSteps(built[0], built[1], built[2]) : [])], triggers },
+      catalog: {
+        steps: [...steps, ...(built ? connectorSteps(built[0], built[1], built[2]) : [])],
+        all: stepsFromRuntime(allOut) ?? steps,
+        checked: (stepsOut as { checked?: unknown } | null)?.checked !== false,
+        triggers,
+      },
     };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "The step catalog is not available." };
@@ -346,4 +356,19 @@ export function schemaFields(input: unknown): { name: string; type: string }[] {
     fields.push({ name, type });
   }
   return fields;
+}
+
+const APP_OF_KEY: readonly (readonly [string, string])[] = [
+  ["google.", "Google Workspace"],
+  ["ms.", "Microsoft 365"],
+  ["github.", "GitHub"],
+];
+
+/** The one plain line for a step whose app this person has not been given: nothing for a step the menu lists. */
+export function unlistedAppLine(stepKey: string, listed: ReadonlySet<string>, checked = true): string | null {
+  if (listed.has(stepKey)) return null;
+  const app = APP_OF_KEY.find(([start]) => stepKey.startsWith(start))?.[1];
+  if (app === undefined) return null;
+  // a failed read of the connected apps blames nothing on the person: it says it could not check
+  return checked ? `Uses ${app}, which you have not been given.` : "Could not check your apps. Try again.";
 }

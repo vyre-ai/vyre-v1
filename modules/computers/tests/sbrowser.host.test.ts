@@ -505,10 +505,21 @@ test("a container of an earlier release that is busy or held is kept until it is
   };
   const enc = (v: unknown) => new TextEncoder().encode(JSON.stringify(v));
   const http = async (r: { method: string; path: string }) => {
+    // once this release has made its container, the Engine reports that one (made from the new image, after this daemon started)
     if (r.method === "GET" && r.path === "/containers/vyre-sbrowser/json")
       return {
         status: 200,
-        body: enc({ Id: "c-old", Image: "sha256:old", HostConfig: { NetworkMode: "bridge" }, Config: { Env: [] } }),
+        body: enc(
+          e.created.length > 0
+            ? {
+                Id: "c-new",
+                Image: "sha256:new",
+                Created: new Date(Date.now() + 1000).toISOString(),
+                HostConfig: { NetworkMode: "vyre-sbrowsernet" },
+                Config: { Env: [] },
+              }
+            : { Id: "c-old", Image: "sha256:old", HostConfig: { NetworkMode: "bridge" }, Config: { Env: [] } },
+        ),
       };
     if (r.method === "GET" && r.path.startsWith("/images/"))
       return {
@@ -637,7 +648,19 @@ test("the container is replaced only one way: an error is never a difference, an
     };
     const http = async (r: { method: string; path: string }) => {
       if (r.method === "GET" && r.path === "/containers/vyre-sbrowser/json")
-        return { status: 200, body: enc(o.container) };
+        return {
+          status: 200,
+          body: enc(
+            e.created.length > 0
+              ? {
+                  Image: "sha256:ours",
+                  Created: new Date(Date.now() + 1000).toISOString(),
+                  HostConfig: { NetworkMode: "vyre-sbrowsernet" },
+                  Config: { Env: [] },
+                }
+              : o.container,
+          ),
+        };
       if (r.method === "GET" && r.path.startsWith("/images/")) {
         const id = decodeURIComponent(r.path.slice("/images/".length, -"/json".length));
         if (id === "sha256:theirs")

@@ -99,7 +99,20 @@ test("shots shards the complete visual suite and publishes release evidence thro
   assert.deepEqual(evidence.needs, [], "release evidence starts independently");
   assert.match(evidence.text, /pwa-mobile\/evidence\.json/);
   assert.match(evidence.text, /pwa-mobile\/iphone-390x844-standalone-simulated\.png/);
-  assert.deepEqual(aggregate.needs, ["shots", "release-evidence"]);
+  assert.deepEqual(aggregate.needs, ["shots", "release-evidence", "release-evidence-clicks"]);
+  // the click-through runs in exactly one job, of its own (inside release-evidence it was cancelled at the cap, run after run), once per Space kind, under the same cap
+  const clicks = shots.jobs.find((j) => j.name === "release-evidence-clicks")!;
+  assert.ok(clicks, "the no-dead-buttons click-through has its own job");
+  assert.deepEqual(clicks.needs, [], "the click-through starts independently");
+  assert.match(clicks.text, /space: \[personal, team\]/);
+  assert.match(
+    clicks.text,
+    /dead-buttons\.mjs --dist apps\/app\/dist --browser webkit --csp tauri --spaces "\$\{\{ matrix\.space \}\}"/,
+  );
+  assert.match(clicks.text, /grep -q "\^done in" dead-buttons\.out/);
+  assert.match(clicks.text, /timeout-minutes: 35/);
+  assert.equal(clicks.continueOnError, false);
+  assert.doesNotMatch(evidence.text, /dead-buttons\.mjs/, "one job runs the click-through, not two");
   assert.match(aggregate.text, /pattern: shots-part-\*/);
   assert.match(aggregate.text, /name: shots-evidence/);
   assert.match(aggregate.text, /merge-index\.mjs/);

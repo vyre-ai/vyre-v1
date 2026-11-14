@@ -14,6 +14,8 @@ export interface RowProps {
   noteLead?: string;
   /** Colour of the lead-in: the accent (default) or the warning colour ("Unsure match"). */
   noteLeadTone?: "accent" | "warning";
+  /** A quiet accent action at the end of the note line ("Can't use this while it's Restricted · Move"). It is its own button; use it on a row that is itself not pressable. Shown only with a note. */
+  noteAction?: { label: string; onPress(): void; testID?: string };
   selected?: boolean;
   hovered?: boolean;
   /** Muted text after the title on the same line (an org next to a name). Truncates before the title does. */

@@ -298,7 +298,7 @@ export async function channelsUnarchive(ctx: ChatCtx, input: { channelId: string
 
 export async function channelsMembersAdd(
   ctx: ChatCtx,
-  input: { channelId: string; personIds: string[]; level?: string; mentionedIn?: string },
+  input: { channelId: string; personIds: string[]; level?: string; mentionedIn?: string; fromStart?: boolean },
 ) {
   const ch = loadLive(ctx, input.channelId);
   // added from "Maya is not in this chat. Add" under a message in this channel (or a reply thread under it): the message must be here and mention each of them (review M2, M3)
@@ -323,6 +323,14 @@ export async function channelsMembersAdd(
   for (const personId of ids) {
     if (isMember(ctx.db, ch.mainThread, personId)) continue;
     addMember(ctx, ch.mainThread, personId);
+    // fromStart false: they read from the moment they came in (the read floor: handlers/floor.ts), never what was said before
+    if (input.fromStart === false)
+      ctx.db.run(
+        "UPDATE chat_thread_member SET fromAt = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL",
+        ctx.now(),
+        ch.mainThread,
+        personId,
+      );
     await joinThreads(ctx, ch.mainThread, personId);
     ctx.emit("channel.member_added", ch.id, { channelId: ch.id, threadId: ch.mainThread, personId, by });
     // no second "mentioned you": a channel is not private, so chat.post already told everyone its chips name (post.ts deliver), member or not

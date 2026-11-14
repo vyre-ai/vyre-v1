@@ -2,7 +2,7 @@
 // invite that joins a guest at a level through the product's own invite and accept doors.
 import fs from "node:fs";
 import assert from "node:assert/strict";
-import { boot, seededDir, waitFor } from "./memory-live-kit.ts";
+import { boot, clock, seededDir, waitFor } from "./memory-live-kit.ts";
 import { PASSWORD, api, join, ok, standIn } from "./member-key-kit.ts";
 import { makeBundle } from "../client/src/crypto/keys.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
@@ -61,6 +61,8 @@ export async function world() {
   };
   const first = { pub: await say(pub, "Welcome to partners."), priv: await say(priv, "Welcome to the deal room.") };
   await say(other, "Internal only.");
+  // time moves on before any guest comes: a guest reads from the moment they accept, and the daemon's test clock stands still unless it is moved
+  clock.t += 5_000;
   const invite = async (c: { mainThreadId: string }, level: "view" | "reply", email: string, username: string) => {
     const inv = await o("threads.invite_guest", { threadId: c.mainThreadId, email, level });
     const g = await joinGuest(d, inv.link as string, username);

@@ -27,18 +27,32 @@ const BOOT_FILE = ((): string => {
   return f;
 })();
 const SAME_ENGINE = `Ubuntu|${SAME_BOOT}`;
+// The tests never reach the host's Docker: restore walks every Docker volume of the computer it runs on, so on a computer with many leftover volumes this file passed the fast runner's 30 s cap only when it was
+// tidy (13 Nov 2026). A `docker` that answers nothing and succeeds comes after a test's own PATH entries (its fake docker, apt, gpg, dig) and before the computer's tools.
+const FAKE_BIN = ((): string => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-test-bin-"));
+  fs.writeFileSync(path.join(d, "docker"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  return d;
+})();
+/** A test's own PATH entries first (its fake apt, gpg, dig), then the fake docker, then the computer's own PATH (which a test's entry usually ends with: it is taken off and put back after the fake). */
+const pathWith = (own?: string): string => {
+  const host = process.env.PATH ?? "";
+  const mine =
+    own === undefined ? "" : (own.endsWith(host) ? own.slice(0, own.length - host.length) : own).replace(/:$/, "");
+  return [mine, FAKE_BIN, host].filter(Boolean).join(":");
+};
 type Out = { status: number | null; stdout: string; stderr: string };
 function sh(script: string, body: string, env: Record<string, string> = {}): Out {
   const r = spawnSync("sh", ["-c", `. "${script}"\n${body}`], {
     encoding: "utf8",
     env: {
-      PATH: process.env.PATH ?? "",
       VYRE_SOURCE_ONLY: "1",
       VYRE_TEST_MODE: "1",
       VYRE_TEST_ENGINE: SAME_ENGINE,
       VYRE_TEST_BOOT_ID_FILE: BOOT_FILE,
       VYRE_TEST_OS: "Linux",
       ...env,
+      PATH: pathWith(env["PATH"]),
     },
   });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };

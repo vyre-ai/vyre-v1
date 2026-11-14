@@ -30,6 +30,7 @@ import {
 import type { CompCtx, ComputerHost, ComputerRow, Probe, SessionInfo } from "../projections.ts";
 import { finishRecording } from "./record.ts";
 import { holdWhileMoving, migrateComputers, moveOf } from "../migrate.ts";
+import { isSignInSite } from "../sbrowser/sites.ts";
 import {
   bindStarter,
   checkRoom,
@@ -752,7 +753,12 @@ export async function sessionsList(ctx: CompCtx, input: { computerId: string }) 
       /* the last list stays */
     }
   }
-  const rows = rowsOf(ctx.db, "SELECT * FROM computers_sessions WHERE computer_id = ? ORDER BY site", c.computerId);
+  // the browser's own addresses are not sites it signed in to (sbrowser/sites.ts)
+  const rows = rowsOf(
+    ctx.db,
+    "SELECT * FROM computers_sessions WHERE computer_id = ? ORDER BY site",
+    c.computerId,
+  ).filter((r: Row) => isSignInSite(String(r["site"])));
   return {
     sessions: rows.map((r: Row) => ({
       site: String(r["site"]),

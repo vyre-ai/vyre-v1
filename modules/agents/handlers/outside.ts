@@ -191,13 +191,10 @@ export function usable(ctx: AgentsCtx, input: { agentId: string }) {
   // an agent a private chat made, to someone who may not see it, is one that does not exist (owner decision, 12 Nov 2026): the answer an agent that is not there gets here, above
   // ("not usable"), so a task, a hand-off or an Add for it reads exactly as one for a missing agent
   if (chatOf(a) !== undefined && !canSee(ctx, a)) return { usable: false };
-  if (
-    !isOutside(a) &&
-    a.ownerId !== who &&
-    ctx.principal.kind === "person" &&
-    !allows(ctx, null, "use", "agent", a.id) &&
-    !seesAll(ctx)
-  )
+  // an agent acting for a person is judged as that person (allows() intersects them): the agent's own standing never hands the asker work for an agent they have no Use on (lib/agent-asker.ts)
+  const bound =
+    ctx.principal.kind === "person" || (ctx.principal.kind === "agent" && ctx.actingFor?.startsWith("usr_") === true);
+  if (!isOutside(a) && a.ownerId !== who && bound && !allows(ctx, null, "use", "agent", a.id) && !seesAll(ctx))
     return { usable: false };
   return { usable: !isOutside(a) || a.ownerId === who };
 }

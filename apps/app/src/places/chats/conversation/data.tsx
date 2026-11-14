@@ -15,6 +15,8 @@ export interface ConversationNav {
   openAgent(agentId: string): void;
   /** A helper from the Helpers list, or a thread from "Open thread". With a message id the chat opens on that message and marks it. */
   openThread(threadId: string, messageId?: string): void;
+  /** The replies to a message of this chat, beside it, when the thread has just been made here (the chat.thread answer is all it needs: nothing is read again first). */
+  openSideThread?(parentId: string, messageId: string, threadId: string): void;
   /** Search every chat (the page of results). Left out where the shell has no such page. */
   openSearch?(query: string): void;
   /** A reply's Details: the right pane opens on its Details tab. Left out where the shell has no right pane. */

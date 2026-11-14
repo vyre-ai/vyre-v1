@@ -247,8 +247,8 @@ test("a crash inside the server reaches the agent as a plain sentence naming the
   });
   const out = await session.call(ctx(), "memory_search", { q: "notes" });
   const content =
-    out.kind === "error" ? (out.result.content as { error: { code: string; message: string } }).error : null;
-  assert.equal(content?.code, "internal.unexpected");
+    out.kind === "error" ? (out.result.content as { error: { supportCode: string; message: string } }).error : null;
+  assert.equal(content?.supportCode, "internal.unexpected");
   assert.match(
     content?.message ?? "",
     /memory_search could not finish on the server just now, and nothing was changed/,
@@ -394,6 +394,26 @@ test("a result of a timed capability carries <key>Local in the asker's zone; ano
     undefined,
     "agents are not a timed capability",
   );
+});
+
+// The owner's agent told him a goal's deadline as "10 Nov, 23:16 UTC": the goal tool handed it a bare epoch number.
+test("a goal's deadline reaches the agent with deadlineLocal in the asker's zone beside the epoch number", async () => {
+  const g = loadGenerated();
+  const output = { goal: { id: "gol_1", deadline: 1_793_916_000_000, nextCheckinAt: 1_793_916_000_000 } };
+  const session = createToolSession({
+    catalog: g.catalog,
+    defaults: new Set([...g.defaults, "goals_get"]),
+    levelFor: () => null,
+    canEngineer: () => false,
+    traceId: () => "t",
+    zoneOf: () => "Asia/Karachi",
+    invoke: async () => ({ status: "ok", output, traceId: "t" }),
+  });
+  const goal = ((await session.call(ctx(), "goals_get", { goalId: "gol_1" })).result.content as { data: typeof output })
+    .data.goal as Record<string, unknown>;
+  assert.equal(goal["deadline"], 1_793_916_000_000);
+  assert.match(String(goal["deadlineLocal"]), /^\w+day \d+ \w+ 2026, \d\d:\d\d \(Asia\/Karachi, UTC\+5\)$/);
+  assert.match(String(goal["nextCheckinAtLocal"]), /Asia\/Karachi/);
 });
 
 test("a model error keeps a plain reason word and drops an id-shaped one", async () => {

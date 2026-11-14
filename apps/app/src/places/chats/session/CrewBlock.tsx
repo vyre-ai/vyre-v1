@@ -120,7 +120,9 @@ function HelperRow({
   const [open, setOpen] = useState(false);
   const id = `crew-chip-${m.id}`;
   const { name, task } = whoOf(m);
-  const steps = useLastSteps(call, m, open);
+  // a subagent the engine started in its own turn has no chat to read steps from: its steps come with the row
+  const own = m.kind === "subagent";
+  const steps = useLastSteps(call, m, open && !own);
   const canRetry = (m.state === "failed" || m.state === "stopped") && onRetry !== undefined;
   const last = m.state === "working" || m.state === "needs_you" ? m.step : m.found;
   return (
@@ -135,6 +137,7 @@ function HelperRow({
             accessibilityLabel={`Open ${name}`}
             testID={`${id}-name`}
             onPress={() => onPeek(m)}
+            style={st.face}
           >
             <Avatar name={name} seedId={faceSeed(m)} kind="agent" size={20} />
           </Pressable>
@@ -167,7 +170,9 @@ function HelperRow({
       />
       {open ? (
         <View testID={`${id}-steps`} style={st.steps}>
-          {steps.length > 0 ? (
+          {own && (m.steps?.length ?? 0) > 0 ? (
+            (m.steps ?? []).slice(-3).map((x, i) => <Row key={`${i}-${x}`} id={`${id}-step-${i}`} title={x} inert />)
+          ) : steps.length > 0 ? (
             steps.map((x) => (
               <Row key={x.id} id={`${id}-step-${x.id}`} title={`${x.title}${x.sub ? ` · ${x.sub}` : ""}`} inert />
             ))
@@ -178,7 +183,7 @@ function HelperRow({
           ) : (
             <Text style={st.step}>{m.state === "working" ? "Getting started" : "No steps kept"}</Text>
           )}
-          {steps.length > 0 && m.state === "done" && m.found ? (
+          {(steps.length > 0 || own) && m.state === "done" && m.found ? (
             <Text numberOfLines={2} testID={`${id}-line`} style={[st.step, st.found]}>
               {m.found}
             </Text>
@@ -305,6 +310,7 @@ const st = StyleSheet.create({
     borderRadius: 12,
   },
   hover: { backgroundColor: "var(--hover)" as string },
+  face: { marginRight: 10 },
   name: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   task: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink-3)" as string },
   trail: { flexDirection: "row", alignItems: "center", gap: 8 },

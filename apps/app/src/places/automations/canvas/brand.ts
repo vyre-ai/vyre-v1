@@ -7,7 +7,6 @@ const BY_PREFIX: readonly (readonly [string, string])[] = [
   ["google.drive.", "gdrive"],
   ["google.sheets.", "google"],
   ["google.docs.", "googledocs"],
-  ["sheet.", "google"],
   ["ms.mail.", "microsoft"],
   ["ms.calendar.", "microsoft"],
   ["ms.drive.", "microsoftonedrive"],

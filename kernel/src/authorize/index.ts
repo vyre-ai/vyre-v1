@@ -197,7 +197,7 @@ function evalSubject(
   // lets their level do, whichever door the grant came through (a flag read, nothing more, for everyone else)
   if (s.guest && GUEST_TYPES.has(res.type)) {
     if (matched === 0) return sawExpired ? "expired" : "no_grant";
-    if (!guestMay(req.cap, max >= rankOf("use"))) return "role_lacks_permission";
+    if (!guestMay(req.cap)) return "role_lacks_permission";
   }
   const ownerOk = isOwner && label <= clearance;
   if (matched === 0 && !ownerOk) return sawExpired ? "expired" : "no_grant";

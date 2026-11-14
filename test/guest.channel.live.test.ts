@@ -22,9 +22,16 @@ for (const kind of ["public", "invite"] as const)
         assert.equal(open.status, 200, `threads.get on the listed channel: ${JSON.stringify(open.data)}`);
         const history = await g.call("chat.messages.list", { threadId: c.mainThreadId });
         assert.equal(history.status, 200, `history: ${JSON.stringify(history.data)}`);
+        // a guest reads from the moment they accepted: what was said before they came is not theirs; what is said after is
         assert.ok(
-          (history.data.messages as { body?: string }[]).some((m) => /Welcome/.test(m.body ?? "")),
-          "the guest reads what was said before they came",
+          !(history.data.messages as { body?: string }[]).some((m) => /Welcome/.test(m.body ?? "")),
+          "the guest does not read what was said before they came",
+        );
+        await w.o("chat.post", { threadId: c.mainThreadId, body: "Glad to have you here." });
+        const later = await g.call("chat.messages.list", { threadId: c.mainThreadId });
+        assert.ok(
+          (later.data.messages as { body?: string }[]).some((m) => /Glad to have you/.test(m.body ?? "")),
+          "and reads what is said once they are in",
         );
         // no other channel opens, and nothing else is listed
         for (const other of [w.other, kind === "public" ? w.priv : w.pub]) {

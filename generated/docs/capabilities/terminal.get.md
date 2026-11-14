@@ -54,6 +54,7 @@ type Out = {
       kind: "agent" | "helper" | "person";
       name?: string;
     };
+    heldBy?: string;
   };
 };
 ```
@@ -87,6 +88,7 @@ type Out = {
       "cwd": "example",
       "deviceId": "dev_a1b2c3",
       "exitCode": 1,
+      "heldBy": "usr_a1b2c3",
       "host": "agent_computer",
       "hostTitle": "Intake's computer",
       "lastActiveAt": 1760000000000,

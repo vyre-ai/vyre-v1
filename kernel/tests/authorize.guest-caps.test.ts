@@ -271,9 +271,6 @@ test("the ceiling keys on what the person lacks, not on a role's name: a role cl
     true,
     "a person whose custom role carries permissions has standing and is not capped",
   );
-  // standing comes and goes with the role's Space grant: take it away and the same person is capped at once
-  s.revokeGrant("gr_staff");
-  assert.equal(can(s, "usr_staff", stop, on), false);
 });
 
 test("a channel's own label does not cover its chat: members of a labelled channel read it as they did when the chat lived under the Space", () => {
@@ -284,4 +281,43 @@ test("a channel's own label does not cover its chat: members of a labelled chann
   assert.equal(s.effectiveLabel("thr_reply"), 0, "nor a reply thread");
   s.putResource({ id: "thr_own", type: "thread", parent_id: "thr_main", label: 1, owner_id: null, holds: 0 });
   assert.equal(s.effectiveLabel("thr_own"), 1, "a label on the thread itself still counts");
+});
+
+test("a reply capability asks for Use and a view one for View: guestMay needs no level of its own", () => {
+  for (const c of caps) {
+    const what = GUEST_CAPS[c.name];
+    if (what === "reply")
+      assert.ok(rankOf(c.level) >= rankOf("use"), `${c.name} is classed reply and asks for ${c.level}`);
+    if (what === "view") assert.equal(c.level, "view", `${c.name} is classed view and asks for ${c.level}`);
+  }
+});
+
+test("standing is for as long as the grant lives: an expired Space grant leaves a guest, a live one with an end date makes a member until it", () => {
+  const s = world();
+  s.putPrincipal({ id: "usr_temp", kind: "person", status: "active", name: "usr_temp" });
+  s.addPrincipalRole({ holder: "usr_temp", role: "rol_guest" });
+  s.putGrant({
+    id: "gt1",
+    subject_kind: "actor",
+    subject_id: "usr_temp",
+    resource_type: "channel",
+    resource_id: "chn_a",
+    level: "use",
+  });
+  s.putGrant({
+    id: "gt2",
+    subject_kind: "actor",
+    subject_id: "usr_temp",
+    resource_type: "space",
+    resource_id: "spc_x",
+    level: "edit",
+    expires_at: 5_000,
+  });
+  let now = 1_000;
+  s.clock = () => now;
+  const stop = caps.find((c) => c.name === "engine.stop_all")!;
+  const on = { type: "thread", id: "thr_main" };
+  assert.equal(can(s, "usr_temp", stop, on), true, "while the Space grant lives they have standing");
+  now = 6_000;
+  assert.equal(can(s, "usr_temp", stop, on), false, "when it has run out they are a guest again, with no change event");
 });

@@ -1,4 +1,6 @@
 // App hubs in Console > Plugins: the shared card (apps/app/src/hubs) in a section, and the Sign in button for a remote connection that uses OAuth. The same card also sits in Settings > Connections.
+import { callbackOrigin, NO_CALLBACK_WORDS } from "../../share/rows.ts";
+import { notices } from "../../shell/noticeslot/model.ts";
 import type { ReactElement } from "react";
 import { Linking } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
@@ -29,7 +31,11 @@ export function OauthSignIn({ conn, refresh }: { conn: Connection; refresh: () =
   });
   useComeBack(status.refresh);
   const signIn = (): void => {
-    const origin = (globalThis as { location?: { origin?: string } }).location?.origin ?? "";
+    const origin = callbackOrigin();
+    if (origin === "") {
+      notices.pass(NO_CALLBACK_WORDS);
+      return;
+    }
     void action.run(
       "engine.mcp.oauth_start",
       { connectionId: conn.connectionId, redirectUri: `${origin}/oauth/callback` },

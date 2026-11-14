@@ -22,7 +22,7 @@ const park = (h: ReturnType<typeof harness>, n: number, over: Record<string, unk
 
 test("an approval that waited 7 days expires as Not sent, with its task closed and the agent told; a newer one stays", async () => {
   const h = harness();
-  h.callee("threads.get", () => ({ thread: { threadId: "thr_1" } }));
+  h.callee("threads.open_state", () => ({ exists: true, closed: false }));
   h.callee("tasks.get", () => ({ task: { state: "todo" } }));
   const old = await park(h, 1, { threadId: "thr_1" });
   h.advance(6 * DAY);
@@ -47,15 +47,10 @@ test("an approval that waited 7 days expires as Not sent, with its task closed a
 
 test("an approval whose chat was closed or gone, or whose task was closed, expires at once", async () => {
   const h = harness();
-  h.callee("threads.get", (i: { threadId: string }) =>
-    i.threadId === "thr_closed"
-      ? { thread: { threadId: i.threadId, closedAt: 5 } }
-      : i.threadId === "thr_gone"
-        ? (() => {
-            throw { error: { code: "validation.not_found" } };
-          })()
-        : { thread: { threadId: i.threadId } },
-  );
+  h.callee("threads.open_state", (i: { threadId: string }) => ({
+    exists: i.threadId !== "thr_gone",
+    closed: i.threadId === "thr_closed",
+  }));
   h.callee("tasks.get", (i: { taskId: string }) => ({ task: { state: i.taskId === "tsk_x" ? "done" : "todo" } }));
   const a = await park(h, 1, { threadId: "thr_closed" });
   const b = await park(h, 2, { threadId: "thr_gone" });
@@ -77,3 +72,20 @@ test("an approval whose chat was closed or gone, or whose task was closed, expir
   );
   assert.deepEqual(await expireStaleHolds(h.ctxFor(null, svc)), { dropped: 0 }, "nothing more to expire");
 });
+
+test("a chat the system may not read (a private chat) does not end its asks: only a chat that says it is gone or closed does", async () => {
+  const h = unreadableChat();
+  const a = await park(h, 1, { threadId: "thr_private" });
+  assert.deepEqual(await expireStaleHolds(h.ctxFor(null, svc)), { dropped: 0 });
+  assert.equal(findHold(h.db, a.holdId)!.state, "held");
+});
+
+function unreadableChat(): ReturnType<typeof harness> {
+  const h = harness();
+  // the system principal is told not_found for a private chat (or the ask fails): the hold stays
+  h.callee("threads.open_state", () => {
+    throw { error: { code: "validation.not_found" } };
+  });
+  h.callee("tasks.get", () => ({ task: { state: "todo" } }));
+  return h;
+}

@@ -24,7 +24,7 @@ import type { AccountOption } from "../connect/accounts.ts";
 import { asFixture } from "../builder/fields.ts";
 import { MessageComposer } from "../builder/MessageComposer.tsx";
 import { DataShelf, MappingFix, SectionRow, advancedInputEdit, basicFieldEdit, nodeIdSet } from "../builder/marks.tsx";
-import { Choice, Field, MapTargetContext } from "./fields.tsx";
+import { Choice, TextBox, MapTargetContext } from "./fields.tsx";
 import type { MapTarget } from "./fields.tsx";
 import { frameFor } from "./frame.ts";
 import type { StudioLayout } from "./frame.ts";
@@ -34,6 +34,7 @@ import { CONNECT_LIMIT } from "../connect/trust-view.ts";
 import { Glyph } from "./icons.tsx";
 import {
   ERROR_MODES,
+  REMOVED_KEY,
   groupOfKey,
   iconOfKey,
   kindOfKey,
@@ -265,7 +266,7 @@ export function Inspector({
                 />
               ) : null}
               {trigger && advanced ? (
-                <Field
+                <TextBox
                   label="Advanced · trigger as JSON"
                   mono
                   rows={6}
@@ -341,7 +342,7 @@ export function Inspector({
     const b = branches[n]!;
     if (kind === "paths") {
       fields.push(
-        <Field
+        <TextBox
           key={`${node.id}-p${n}`}
           label={b.when === undefined ? "Otherwise" : `Path ${n + 1}, if`}
           value={b.when ?? ""}
@@ -354,7 +355,7 @@ export function Inspector({
       );
     } else if (kind === "parallel") {
       fields.push(
-        <Field
+        <TextBox
           key={`${node.id}-l${n}`}
           label={`Lane ${n + 1} name`}
           value={b.label}
@@ -396,7 +397,7 @@ export function Inspector({
   for (const k of inputKeys) {
     if (covered.has(k) || skipField(k)) continue;
     stray.push(
-      <Field
+      <TextBox
         key={`${node.id}-${k}`}
         label={humanize(k)}
         value={show(node.input[k])}
@@ -464,7 +465,7 @@ export function Inspector({
                 <Text style={i.hint}>{`${CONNECT_LIMIT} The request runs a named action on the connection.`}</Text>
               ) : null}
               <Text testID="plain-language" style={i.hint}>
-                {subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? id })}
+                {subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? REMOVED_KEY })}
               </Text>
               {headerMode ? null : (
                 <View accessibilityLabel="Builder mode" testID="inspector-mode" style={i.seg}>
@@ -486,7 +487,7 @@ export function Inspector({
                   })}
                 </View>
               )}
-              <Field
+              <TextBox
                 label="Name"
                 value={node.title ?? ""}
                 placeholder={titleOfKey(node.key)}
@@ -565,7 +566,7 @@ export function Inspector({
               ) : null}
               {live ? null : fields}
               {advanced ? (
-                <Field
+                <TextBox
                   label={VAL_LABEL}
                   value={JSON.stringify(node.input ?? {}, null, 2)}
                   testID="field-input-json"
@@ -607,7 +608,7 @@ export function Inspector({
                   onOpen={(x, y) => openMenu(errorEntries(), x, y, "other")}
                 />
                 {node.onError?.mode === "retry" ? (
-                  <Field
+                  <TextBox
                     label="Tries"
                     value={String(node.onError.max ?? 3)}
                     testID="field-retries"
@@ -621,7 +622,7 @@ export function Inspector({
                   />
                 ) : null}
                 {node.onError?.mode === "substitute" ? (
-                  <Field
+                  <TextBox
                     label="Result"
                     testID="field-substitute"
                     value={node.onError.output === undefined ? "" : JSON.stringify(node.onError.output)}
@@ -655,7 +656,7 @@ export function Inspector({
                       testID="choose-route"
                       onOpen={(x, y) => openMenu(routeEntries(), x, y, "other")}
                     />
-                    <Field
+                    <TextBox
                       label="Only these errors"
                       testID="field-error-codes"
                       value={(node.onError.codes ?? []).join(", ")}

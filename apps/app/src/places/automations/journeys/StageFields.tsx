@@ -1,6 +1,7 @@
 // A stage's fields and gates in the designer's side pane: "Fields for this stage" (they form a group named after the stage on a record's page), "Must be filled to move here" and "Must be filled to
 // move on". Each list picks from the Journey's record type or adds a field on the spot. Saved as made through the designer's own write, with Undo.
 import { useCallback, useEffect, useState } from "react";
+import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
@@ -47,6 +48,7 @@ export function StageFields({
   const { element, show } = useMenu();
   const [fields, setFields] = useState<TypeField[]>([]);
   const [making, setMaking] = useState<FieldList | null>(null);
+  useEscapeLayer(making !== null, () => setMaking(null));
   const [name, setName] = useState("");
   const [kind, setKind] = useState("text");
   const [error, setError] = useState<string | null>(null);

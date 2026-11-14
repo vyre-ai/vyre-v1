@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
-import { Button, Card, Field, Select, s } from "./editor-ui.tsx";
+import { Button, Card, TextBox, Select, s } from "./editor-ui.tsx";
 import { isObject, rulesOf, updateRules } from "./form-design.ts";
 import type { FormRule, PreviewField } from "./form-design.ts";
 export function FormDesign({
@@ -77,7 +77,7 @@ export function FormDesign({
               onChange={(op) => replace(index, { ...rule, when: { ...when, op } })}
             />
             {!["empty", "not_empty"].includes(String(when.op)) ? (
-              <Field
+              <TextBox
                 label={`Match value ${index + 1}`}
                 value={String(when.value ?? "")}
                 disabled={disabled}
@@ -127,21 +127,21 @@ export function FormDesign({
   return (
     <>
       <Card title="Design">
-        <Field
+        <TextBox
           label="Accent color"
           value={String(theme.accent ?? "")}
           placeholder="#5B5BD6"
           disabled={disabled}
           onChange={(v) => changeTheme("accent", v)}
         />
-        <Field
+        <TextBox
           label="Background color"
           value={String(theme.background ?? "")}
           placeholder="#ffffff"
           disabled={disabled}
           onChange={(v) => changeTheme("background", v)}
         />
-        <Field
+        <TextBox
           label="Text color"
           value={String(theme.text ?? "")}
           placeholder="#1a1a1c"
@@ -185,7 +185,7 @@ export function FormDesign({
           ]}
           onChange={(v) => changeTheme("maxWidth", v)}
         />
-        <Field
+        <TextBox
           label="Cover image URL"
           value={String(theme.cover ?? "")}
           placeholder="https://…"

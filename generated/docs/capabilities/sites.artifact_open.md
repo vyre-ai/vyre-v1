@@ -36,6 +36,7 @@ type Out = {
   path: string;
   url?: string;
   expiresAt: number;
+  checked?: boolean;
 };
 ```
 
@@ -56,6 +57,7 @@ type Out = {
     "artifactId": "sit_a1b2c3"
   },
   "output": {
+    "checked": true,
     "expiresAt": 1760000000000,
     "path": "example",
     "url": "example"

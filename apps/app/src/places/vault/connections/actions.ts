@@ -1,6 +1,7 @@
 // Vault > Connections, what the Add sheet and the row menu do, as plain calls so a test drives exactly what the page does. Keys go into the Vault first (a Mine folder for a Mine connection, a
 // Shared folder for a Space one, so every member's call can fill it), and the connection keeps only the handle, in its environment or a header, never in its command line. After adding, the
 // connection is checked through the person's assistant (engine.mcp.tools for that one server); the engine records the result on the connection, so the dot on the page is the same answer.
+import { callbackOrigin, NO_CALLBACK_WORDS } from "../../../share/rows.ts";
 import type { ConnectionDraft } from "../../../../../../lib/mcp-import.ts";
 import { ensureSpaceFolder } from "../../../../../../lib/space-folder.ts";
 import { healthFromTest, itemName } from "./model.ts";
@@ -166,7 +167,9 @@ export async function check(
 }
 
 /** Starts an OAuth sign-in and answers the address to open (the sign-in comes back to /oauth/callback, which finishes it). */
-export async function signIn(call: Call, connectionId: string, origin: string): Promise<string> {
+export async function signIn(call: Call, connectionId: string): Promise<string> {
+  const origin = callbackOrigin();
+  if (origin === "") throw new Error(NO_CALLBACK_WORDS);
   const out = (await call("engine.mcp.oauth_start", { connectionId, redirectUri: `${origin}/oauth/callback` })) as {
     authUrl: string;
   };

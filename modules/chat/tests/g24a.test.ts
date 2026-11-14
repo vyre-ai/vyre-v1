@@ -61,8 +61,8 @@ const channelOf = async (hn: Harness, name = "intake") =>
     })
   ).channel;
 
-test("the table holds the fourteen capabilities of this group, all frozen chat capabilities, and every example input is valid", () => {
-  assert.equal(OURS.length, 14);
+test("the table holds the fifteen capabilities of this group (the fourteen of P-L2_24a and threads.open_state), all frozen chat capabilities, and every example input is valid", () => {
+  assert.equal(OURS.length, 15);
   for (const name of OURS) {
     const cap = registry.capabilities.find((c) => c.module === "chat" && c.name === name);
     assert.ok(cap, name);

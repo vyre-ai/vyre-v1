@@ -2,7 +2,9 @@
 // door the Console's Remove this access uses), every read and every write on the channel and on the reply thread is refused, and what the channel says there afterwards cannot be read by any door.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { world } from "./guest-channel-kit.ts";
+import { api } from "./member-key-kit.ts";
+import { waitFor } from "./memory-live-kit.ts";
+import { joinGuest, world } from "./guest-channel-kit.ts";
 
 for (const kind of ["public", "invite"] as const) {
   test(`a reply guest of a ${kind} channel whose access is removed reads and writes nothing, in the channel or in the reply thread they opened`, async () => {
@@ -38,3 +40,27 @@ for (const kind of ["public", "invite"] as const) {
     } finally { await w.stop(); }
   });
 }
+
+test("the paths that make a guest: an admin's Guest-role invite that names a channel gives the chat AND the access, from the moment they come; chat membership alone gives neither", async () => {
+  const w = await world();
+  try {
+    const roles = (await w.o("access.roles.list")).roles as Array<{ id: string; name: string }>;
+    const guestRole = roles.find((r) => r.name === "Guest")!.id;
+    const inv = await w.o("members.invites.create", { role: guestRole, email: "role-guest@example.com", channels: [w.pub.channelId] });
+    const g = await joinGuest(w.d, inv.link as string, "roleguest");
+    await waitFor(async () => ((await api(w.d, g.token, "channels.get", { channelId: w.pub.channelId })).status === 200 ? true : null), 20_000);
+    const call = (cap: string, input: Record<string, unknown> = {}) => api(w.d, g.token, cap, { idempotencyKey: `rg-${Math.random()}`, ...input });
+    assert.equal((await call("threads.get", { threadId: w.pub.mainThreadId })).status, 200, "the invite gave the access along with the chat");
+    const before = JSON.stringify((await call("chat.messages.list", { threadId: w.pub.mainThreadId })).data);
+    assert.ok(!before.includes("Welcome to partners"), "and they read from the moment they came, not what was said before");
+    assert.equal((await call("chat.post", { threadId: w.pub.mainThreadId, body: "hi" })).status, 403, "at view level: a guest-role invite names no level");
+    // a person made a guest and added to a chat by membership alone (the way a guest could be made before): listed nothing, opens nothing, no error line
+    const bare = await joinGuest(w.d, ((await w.o("members.invites.create", { role: guestRole, email: "bare@example.com" })).link as string), "bareguest");
+    await w.o("channels.members.add", { channelId: w.priv.channelId, personIds: [bare.personId] });
+    const callBare = (cap: string, input: Record<string, unknown> = {}) => api(w.d, bare.token, cap, { idempotencyKey: `bg-${Math.random()}`, ...input });
+    assert.deepEqual(((await callBare("channels.list")).data.channels as unknown[]).length, 0, "membership alone lists nothing");
+    assert.equal((await callBare("threads.get", { threadId: w.priv.mainThreadId })).status, 403, "and opens nothing");
+  } finally {
+    await w.stop();
+  }
+});

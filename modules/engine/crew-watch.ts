@@ -2,6 +2,7 @@
 // the moment the reply is posted (StreamEvent); this reads those for the threads that are crew jobs and nothing else. A finished teammate has its leftovers committed, its branch summarised, and posts one
 // message in the lead's chat, as itself and mentioning the lead, with a `crew_result` block. That message is the wake: the lead's turn starts from it the ordinary way, so nobody polls and nothing new is routed.
 import { noteSteps } from "./helper-tests.ts";
+import { hangOwn, noteOwn, settleOwn } from "./own-subagents.ts";
 import type { Db } from "./projections.ts";
 import type { EngineHostSeam } from "../../host/src/seams/engine.ts";
 import { commitLeftovers, summarize } from "./crew-git.ts";
@@ -193,6 +194,16 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
     });
   }
 
+  /** Only a helper's chat has notes waiting for it: every other chat starts a turn without a call that could only be refused (F41: one refused call on each turn of every chat). */
+  async function isHelperChat(threadId: string, asker: string): Promise<boolean> {
+    try {
+      const t = (await o.host.call("threads.get", { threadId }, asker)) as { thread?: { kind?: string } };
+      return t.thread?.kind === "helper";
+    } catch {
+      return false;
+    }
+  }
+
   async function handle(e: StreamEvent): Promise<void> {
     ensure(o.db);
     // each step as it happens (the watcher is fed the raw stream, not the coalesced live line): a test run is read from its call, its command and its result
@@ -202,7 +213,31 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
       } catch {
         /* the test state is best effort */
       }
+      try {
+        noteOwn(o.db, { ...e, asker: askers.get(e.turnId) ?? askerOfTurn(e.turnId) ?? "" }, [e], o.now());
+      } catch (err) {
+        warn("a subagent step was not kept", {
+          threadId: e.threadId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
       return;
+    }
+    // the reply was posted: the engine's own subagents of that turn hang under it
+    if (e.kind === "final" && e.messageId) {
+      try {
+        hangOwn(o.db, e.turnId, e.messageId);
+      } catch {
+        /* the rows are best effort */
+      }
+    }
+    // a turn that ends takes any subagent of its own that never returned with it
+    if (e.kind === "end") {
+      try {
+        settleOwn(o.db, e.turnId, o.now());
+      } catch {
+        /* the rows are best effort */
+      }
     }
     if (e.kind === "steps") {
       try {
@@ -216,11 +251,11 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
     const job = o.db.all("SELECT * FROM engine_crew_job WHERE thread_id = ?", e.threadId)[0] as Row | undefined;
     if (!job) {
       // a helper's agent starts a turn: the notes waiting for it are read now
-      if (e.kind === "start") {
+      if (e.kind === "start" && (await isHelperChat(e.threadId, e.asker))) {
         try {
           await o.host.call("chat.helper.note_seen", { threadId: e.threadId }, e.asker);
         } catch {
-          /* not a helper chat, or nothing waiting */
+          /* nothing waiting */
         }
       }
       if (e.kind === "end") ended.set(e.turnId, e.code === "host_lost" ? "lost" : e.state);

@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
+import { act } from "react";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import { LiveCard } from "./LiveCard.tsx";
 import type { LiveCardConfig } from "./LiveCard.tsx";
@@ -215,6 +216,42 @@ test("a picture that could not be had says so in one line instead of a dark box"
     await flush();
     assert.equal(textOf(find(root, "live-card-waiting-line-b7")), "No picture of this step could be taken.");
   } finally {
+    restore();
+  }
+});
+
+test("a picture that cannot be drawn is the quiet 'No picture of this step could be taken' line, never a blank box", async () => {
+  const restore = installDom();
+  // the app draws a picture through a loader (an Image element): keep the ones made so the test can make one fail, as a bad or cut image does
+  const made: Array<{ onerror?: () => void; src?: string }> = [];
+  const g = globalThis as { Image?: unknown };
+  const had = g.Image;
+  g.Image = class {
+    onload?: () => void;
+    onerror?: () => void;
+    set src(v: string) {
+      made.push(this as never);
+      void v;
+    }
+  };
+  try {
+    const r = browserRig({ running: true, busy: false });
+    const root = await mount(
+      createRoot,
+      <LiveCard id="b5" agentId="agt_web" fileId="fil_1" caption="Opened the page" cfg={r.cfg} />,
+    );
+    await flush();
+    await flush();
+    assert.ok(find(root, "live-card-still-b5"), "the still is the card's picture first");
+    assert.ok(made.length > 0, "a picture was asked for");
+    assert.doesNotMatch(textOf(find(root, "live-card-b5")), /could not be taken/);
+    await act(async () => {
+      for (const m of made) m.onerror?.();
+    });
+    await flush();
+    assert.match(textOf(find(root, "live-card-b5")), /No picture of this step could be taken\./);
+  } finally {
+    g.Image = had;
     restore();
   }
 });

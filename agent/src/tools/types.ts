@@ -25,6 +25,8 @@ export interface ToolDef {
   local: LocalKind;
   /** The capability has a Gate rule (outward or risky acts). */
   gated: boolean;
+  /** The capability needs an idempotency key (`create`): the tool layer makes one, so the model is not shown it (agent/src/tools/fill.ts). */
+  keyed?: boolean;
   /** What the capability acts on: the resource type and the JSON pointer of its id in the input. Absent for a capability with no single target. */
   resource?: { type: string; id: string };
 }
@@ -93,6 +95,8 @@ export interface ToolCtx {
   /** AI provider of the running engine, for label vs provider. */
   provider?: string;
   turnId?: string;
+  /** What identifies this one call of a tool: the model's tool-call id (API engines), or the session and request id of the call (CLI engines over MCP). A transport retry of the call carries the same one. */
+  callId?: string;
   runId?: string;
   trace?: { traceId: string; spanId: string; parent?: string };
   /** What the people in the chat said since this agent last spoke: a value they typed themselves passes the probe guard. */

@@ -10,6 +10,10 @@ import { livePlace } from "../rail/kits.ts";
 import type { CmdKData } from "./controller.ts";
 import type { AskAnswer, CmdAction, Hit, HitKind } from "./model.ts";
 import { requestChannelSheet } from "../../places/chats/channels/request.ts";
+import { chatStartInput, lastPick, realAssistant, startFailure } from "../../places/chats/landing/model.ts";
+import type { StartChoice } from "../../places/chats/landing/model.ts";
+import { resolveSpaceLink } from "../reach/space-link.ts";
+import { firstWords, holdPending } from "../../places/chats/landing/pending.ts";
 import { offered } from "../session/private-agents.ts";
 import { activePlace, openAskPane, placeTitle, thingOfScreen } from "../ask/pane.ts";
 import { currentScreen } from "../ask/screen.ts";
@@ -25,6 +29,9 @@ export interface GateNav {
   setOnline(online: boolean, waiting: number): void;
 }
 
+/** The most words of a question and its answer that go into the link the chat opens from. */
+const CARRIED_MAX = 3000;
+
 export interface GateSearchDeps {
   runtime: ShellRuntime;
   nav: GateNav;
@@ -38,6 +45,14 @@ export interface GateSearchDeps {
   away?: (on: boolean) => void;
   /** Whether this person may open the Console (the Space card's console flag, the same one the Settings row Console follows). Left out: the Console is judged by the viewer's Console pages. */
   console?: () => boolean;
+  /** Names the tab this search is in (the new tab becomes the chat). Left out: the tab keeps its name. */
+  retitle?: (title: string) => void;
+  /** The new tab becomes this place and item, named: the same tab, no second one (hub.fill). Left out: it opens as an ordinary tab. */
+  fill?: (place: PlaceId, hash: string, title: string, from?: string) => void;
+  /** The key of the tab the search is in (read at the key press). */
+  activeTab?: () => string;
+  /** This Space's web addresses: a pasted link to one of them that names a thing opens it. */
+  origins?: () => readonly string[];
   /** Sign out of this Space on this device. Left out: no Sign out action is offered. The Space menu keeps its own Sign Out (the prototype's place); this is the same act found by typing. */
   signOut?: () => void;
 }
@@ -91,6 +106,8 @@ export function replicaHits(rt: ShellRuntime): readonly Hit[] {
     const data = recent.data as { today?: unknown[]; yesterday?: unknown[]; earlier?: unknown[]; starred?: unknown[] };
     for (const list of [data.starred, data.today, data.yesterday, data.earlier]) {
       for (const item of (list ?? []) as { threadId: string; title: string; kind: string }[]) {
+        // only a chat or a channel is a chat to find: an Ask pane on a task or a project carries that object's title, and the object is its own result (owner, 13 Nov 2026: the same task listed as a chat and as a task)
+        if (item.kind !== "chat" && item.kind !== "channel") continue;
         out.push({
           kind: item.kind === "channel" ? "channel" : "chat",
           id: item.threadId,
@@ -102,6 +119,42 @@ export function replicaHits(rt: ShellRuntime): readonly Hit[] {
     }
   }
   return out;
+}
+
+/**
+ * Marks each channel hit that is a record's own channel (a project's chat) as that record, from the channel list the sidebar holds (a channel carries the record it belongs to). The command bar then shows the
+ * record once; a channel that only shares the record's name carries no mark and stays. Decided by ids.
+ */
+export function linkedTo(
+  rt: ShellRuntime,
+  hits: readonly Hit[],
+  taskChats: ReadonlyMap<string, string> = new Map(),
+): Hit[] {
+  const snap = rt.screens.query("chats.sidebar", "channels", {}).getSnapshot();
+  const list =
+    snap.status === "ready"
+      ? ((snap.data as { channels?: { channelId: string; mainThreadId?: string; recordId?: string }[] }).channels ?? [])
+      : [];
+  const of = new Map<string, string>();
+  // a channel's main thread (search indexes it as a chat) is that channel's own, for every channel: found by id, shown once under the channel. A channel's reply threads have other ids and stay as their own rows.
+  const mainOf = new Map<string, string>();
+  for (const c of list) {
+    if (c.mainThreadId) mainOf.set(c.mainThreadId, `channel:${c.channelId}`);
+    if (c.recordId !== undefined) {
+      of.set(c.channelId, `record:${c.recordId}`);
+      if (c.mainThreadId) of.set(c.mainThreadId, `record:${c.recordId}`);
+    }
+  }
+  // a task's own chat is its own thread (tasks.get threadId, and workerThread when a worker has one; the thread it was created from is task.source, not these): that chat is the task, found by id; a chat that only shares the task's name carries no mark
+  return hits.map((h) =>
+    h.kind === "channel" && of.has(h.id)
+      ? ({ ...h, of: of.get(h.id) } as Hit)
+      : h.kind === "chat" && taskChats.has(h.id)
+        ? ({ ...h, of: taskChats.get(h.id) } as Hit)
+        : (h.kind === "chat" || h.kind === "channel") && mainOf.has(h.id)
+          ? ({ ...h, of: mainOf.get(h.id) } as Hit)
+          : h,
+  );
 }
 
 /** Where connecting email, calendars and numbers lives: Settings, Email and calendar. */
@@ -261,8 +314,13 @@ export function reachable(
   );
 }
 
+/** How long the command bar waits for the reads that say which chat is a task's own, before it shows the rows it has. */
+export const TASK_READ_WAIT_MS = 300;
+
 export function createGateSearch(d: GateSearchDeps): CmdKData {
   const { runtime: rt, nav, state } = d;
+  /** the task's own thread ids -> `task:<id>`, learned from the tasks a search returned (tasks.get), so the task's own chat is one row with the task. */
+  const taskChats = new Map<string, string>();
   const mine = (hits: readonly Hit[]): Hit[] => reachable(hits, d.viewer?.() ?? null, state, d.console?.());
   const online = (): boolean => !state.offline && rt.connection.get() === "online";
   const open = (hit: Hit, opts: { newTab: boolean }): void => {
@@ -271,8 +329,64 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     if (own) nav.go(own.place, own.hash === "" ? undefined : own.hash);
     else nav.go(placeOfHit(hit), hashOfHit(hit));
   };
+  // the model this person picked last is read when the new tab opens, so the key press that starts a chat waits for nothing (the first screen reads it when it mounts, the same way)
+  let pick: StartChoice | null = null;
+  const frozen = new Map<string, Record<string, unknown>>();
+  const callOf = rt.call as (cap: string, input: unknown) => Promise<unknown>;
   return {
     spaceName: () => rt.space.name,
+    // a pasted address of this Space that names a thing opens that thing (shell/reach/space-link.ts, the one rule); anything else is words for a chat
+    openLink: (text) => {
+      const target = resolveSpaceLink(text, d.origins?.() ?? []);
+      if (target === null) return false;
+      // the new tab this was pasted into becomes the thing (the door gets the tab's key); no second tab, no "New tab" left behind
+      const into = d.activeTab?.();
+      rt.open({ ...target, ...(into === undefined ? {} : { into }) } as never);
+      return true;
+    },
+    warm: () => {
+      void lastPick(callOf).then((p) => {
+        if (p !== null) pick = p;
+      });
+    },
+    // Enter on typed words in the new tab: a chat with those words, started as the first screen's composer starts one (the same input, the Assistant, the model last picked), in this tab. His words and the tab's name are on screen
+    // from the key press (the page draws them; the tab is named here), and the tab opens on the chat when it exists.
+    startChat: ({ key, text, title: given }) => {
+      const title = given ?? firstWords(text);
+      // the tab the press came from: the chat fills it, whichever tab is selected when the answer comes
+      const from = d.activeTab?.();
+      d.retitle?.(title);
+      const sent = (async (): Promise<void> => {
+        // the input is made once, at the first attempt, and kept under its key: a Retry sends exactly that (the model pick may have loaded since, and the same key must never meet other input)
+        let input = frozen.get(key);
+        if (input === undefined) {
+          const assistantId = await realAssistant(rt.assistant.id, (cap, i) => callOf(cap, i));
+          if (assistantId === null) throw new Error("no assistant yet");
+          input = chatStartInput(
+            {
+              picked: [{ id: rt.assistant.id, name: rt.assistant.name, kind: "assistant" }],
+              choice: pick ?? {},
+              text,
+              title,
+              hasFiles: false,
+              slash: false,
+              key,
+            },
+            assistantId,
+          );
+          frozen.set(key, input);
+        }
+        const out = (await callOf("chat.start", input)) as { thread?: { threadId?: string } } | null;
+        const id = out?.thread?.threadId;
+        if (!id) throw new Error(startFailure(null));
+        holdPending(id, { title, text, files: [], lead: rt.assistant.name });
+        // the new tab itself becomes the chat, the way a result opened from this page fills the tab (rt.open would open the thread in a tab of its own, beside this one)
+        const hash = `subject=thread:${id}`;
+        if (d.fill) d.fill("chats", hash, title, from);
+        else nav.go("chats", hash);
+      })();
+      return { title, sent };
+    },
     scope: () => (online() ? "space" : "device"),
     online,
     // Inbox and Connect email answer a typed word only; the replica's people and chats stay the whole of an empty search
@@ -280,8 +394,12 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     local: (text, types) =>
       byTitleFirst(
         mine(
-          [...replicaHits(rt), ...(text.trim() === "" ? [] : [...shellHits(state), ...settingRowHits(text)])].filter(
-            (h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text)),
+          linkedTo(
+            rt,
+            [...replicaHits(rt), ...(text.trim() === "" ? [] : [...shellHits(state), ...settingRowHits(text)])].filter(
+              (h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text)),
+            ),
+            taskChats,
           ),
         ),
         text,
@@ -290,7 +408,29 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
       const out = (await rt.call("search.query", { q: text, ...(types ? { types: [...types] } : {}), limit: 20 })) as {
         hits: Hit[];
       };
-      return mine(out.hits);
+      // the task reads run beside the search and are waited for only briefly: a slow or failed one never delays the rows, the link just lands on the next search
+      let stop: ReturnType<typeof setTimeout> | undefined;
+      const patience = new Promise<void>((done) => {
+        stop = setTimeout(done, TASK_READ_WAIT_MS);
+      });
+      await Promise.race([
+        patience,
+        Promise.all(
+          out.hits
+            .filter((h) => h.kind === "task")
+            .slice(0, 8)
+            .map((h) =>
+              Promise.resolve(rt.call("tasks.get", { taskId: h.id }))
+                .then((r) => {
+                  const t = (r as { task?: { workerThread?: string; threadId?: string } }).task;
+                  for (const th of [t?.workerThread, t?.threadId]) if (th) taskChats.set(th, `task:${h.id}`);
+                })
+                .catch(() => undefined),
+            ),
+        ),
+      ]);
+      clearTimeout(stop);
+      return mine(linkedTo(rt, out.hits, taskChats));
     },
     recent: () => mine(d.recent()),
     actions: (text) =>
@@ -353,13 +493,20 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     },
     // Continue in a chat: a real chat with the assistant that starts from the question and the answer, opened where the person is
     continueInChat: ({ question, answer }) => {
+      const first = `${question}\n\nWhat the Space says:\n${answer}`;
+      const heading = question.length > 80 ? `${question.slice(0, 77)}...` : question;
+      // the chat opens at once on the person's own words (the question and the answer he is carrying on from) and is made behind them; a very long answer cannot ride in a link, so that one waits for its chat as before
+      if (first.length <= CARRIED_MAX) {
+        rt.open({ screen: "chats.ask", args: { with: "assistant", first, heading } });
+        return;
+      }
       const key = `askchat_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
       void Promise.resolve(
         rt.call("chat.start", {
           kind: "chat",
           agentIds: [rt.assistant.id],
-          title: question.length > 80 ? `${question.slice(0, 77)}...` : question,
-          first: `${question}\n\nWhat the Space says:\n${answer}`,
+          title: heading,
+          first,
           idempotencyKey: key,
         }),
       ).then(

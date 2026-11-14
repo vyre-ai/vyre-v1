@@ -4,8 +4,10 @@ import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { act } from "react";
 import { find, flush, installDom, press, textOf, typeInto } from "../../../../../ui/src/testing/dom.ts";
-import { FolderShareSheet } from "./files-share.tsx";
+import { FolderShareSheet, shareLevelOf } from "./files-share.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
+import { notices } from "../noticeslot/model.ts";
+import fs from "node:fs";
 
 const names: Record<string, string> = { usr_ada: "Ada", usr_bea: "Bea", usr_cal: "Cal" };
 const grant = (subject: string, level: string, resource = "fld_clients") => ({
@@ -185,4 +187,66 @@ test("a folder: Make owner is access.make_owner on the folder", async () => {
   } finally {
     restore();
   }
+});
+
+const said = (): string => JSON.stringify(notices.getSnapshot());
+
+test("a share says it happened where the person still looks (a passing notice), and a share that fails says so; the same for a removal", async () => {
+  const restore = installDom();
+  try {
+    let changed = 0;
+    const s = await open(shares("manage"), { onChanged: () => void changed++ });
+    await press(find(s.tree, "as-acc-level-usr_bea"));
+    await press(find(s.tree, "menu-item-Can view"));
+    await flush();
+    assert.match(said(), /Shared with Bea/);
+    await press(find(s.tree, "as-acc-remove-usr_bea"));
+    await flush();
+    assert.match(said(), /Stopped sharing with Bea/);
+    // a capability that refuses
+    const bad = await open(shares("manage"), { onChanged: () => void changed++ });
+    const call = bad.rt.call as (cap: string, input: unknown) => Promise<unknown>;
+    (bad.rt as { call: unknown }).call = async (cap: string, input: unknown) => {
+      if (cap === "access.share") throw { error: { message: "Not allowed." } };
+      return call(cap, input);
+    };
+    await press(find(bad.tree, "as-acc-level-usr_bea"));
+    await press(find(bad.tree, "menu-item-Can view"));
+    await flush();
+    assert.match(said(), /Could not share with Bea\. Try again\./);
+    assert.equal(
+      changed,
+      1 + 1,
+      "the caller is told when a share and a removal went through (two), not when one failed",
+    );
+  } finally {
+    restore();
+  }
+});
+
+test("every place that shares a Files folder, an artifact, a note or a skill goes through this one sheet, so the confirmation is the same everywhere", () => {
+  const root = new URL("../../../../../", import.meta.url).pathname;
+  for (const f of [
+    "apps/app/src/places/chats/mounts/ArtifactView.tsx",
+    "apps/app/src/places/chats/mounts/data.ts",
+    "apps/app/src/shell/providers/apps.tsx",
+    "apps/app/src/shell/providers/file-detail.tsx",
+    "apps/app/src/shell/providers/files.tsx",
+  ])
+    assert.match(fs.readFileSync(root + f, "utf8"), /FolderShareSheet/, f);
+});
+
+test("an agent picked in the sheet has no level of its own: it is shared with view (use for a skill), never an empty level the server refuses", () => {
+  const agent = {
+    resource: { type: "site", id: "sit_1" },
+    subject: { kind: "agent", id: "agt_1" },
+    level: "",
+  } as never;
+  assert.equal(shareLevelOf(agent, "site"), "view");
+  assert.equal(shareLevelOf(agent, "skill"), "use");
+  assert.equal(
+    shareLevelOf({ ...(agent as object), level: "edit" } as never, "site"),
+    "edit",
+    "a chosen level is kept",
+  );
 });

@@ -14,7 +14,16 @@ type Doc = {
   removeEventListener?: (t: string, f: Fn, capture?: boolean) => void;
 };
 
-const stack: Array<{ run: () => void; respectHandled: boolean }> = [];
+const stack: Array<{ run: () => void; respectHandled: boolean; quiet: boolean }> = [];
+const watchers = new Set<() => void>();
+/** Hear every time a layer is added or removed (a card that must close when something opens above it). Answers how to stop. */
+export function watchEscapeLayers(f: () => void): () => void {
+  watchers.add(f);
+  return () => void watchers.delete(f);
+}
+const changed = (): void => {
+  for (const f of [...watchers]) f();
+};
 let installed: { doc: Doc } | null = null;
 
 const doc = (): Doc | undefined => (globalThis as { document?: Doc }).document;
@@ -45,15 +54,17 @@ function install(d: Doc): void {
 }
 
 /** Adds a layer (it is the top until another is added). Returns the function that removes it. */
-export function pushEscapeLayer(run: () => void, o: { respectHandled?: boolean } = {}): () => void {
-  const layer = { run, respectHandled: o.respectHandled === true };
+export function pushEscapeLayer(run: () => void, o: { respectHandled?: boolean; quiet?: boolean } = {}): () => void {
+  const layer = { run, respectHandled: o.respectHandled === true, quiet: o.quiet === true };
   stack.push(layer);
+  changed();
   const d = doc();
   // one pair of listeners on the current document (a different document object, as a test swaps in, gets them again)
   if (d?.addEventListener && installed?.doc !== d) install(d);
   return () => {
     const at = stack.indexOf(layer);
     if (at >= 0) stack.splice(at, 1);
+    changed();
     if (stack.length === 0 && installed !== null) {
       installed.doc.removeEventListener?.("keydown", onCapture, true);
       installed.doc.removeEventListener?.("keydown", onBubble);
@@ -63,15 +74,23 @@ export function pushEscapeLayer(run: () => void, o: { respectHandled?: boolean }
 }
 
 /** For a component: while `active`, Escape runs `run` when this is the topmost layer. The latest `run` is used, and the layer keeps its place across renders. */
-export function useEscapeLayer(active: boolean, run: () => void, o: { respectHandled?: boolean } = {}): void {
+export function useEscapeLayer(
+  active: boolean,
+  run: () => void,
+  o: { respectHandled?: boolean; quiet?: boolean } = {},
+): void {
   const respect = o.respectHandled === true;
+  const quiet = o.quiet === true;
   const latest = useRef(run);
   latest.current = run;
   useEffect(() => {
     if (!active || Platform.OS !== "web") return undefined;
-    return pushEscapeLayer(() => latest.current(), { respectHandled: respect });
-  }, [active, respect]);
+    return pushEscapeLayer(() => latest.current(), { respectHandled: respect, quiet });
+  }, [active, respect, quiet]);
 }
+
+/** Layers that count as something opening over a card: all but the quiet ones (a one-line notice). */
+export const loudLayers = (): number => stack.filter((l) => !l.quiet).length;
 
 /** Tests: how many layers are open. */
 export const escapeLayers = (): number => stack.length;

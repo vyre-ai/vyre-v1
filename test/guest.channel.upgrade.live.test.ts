@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { boot, seededDir, waitFor } from "./memory-live-kit.ts";
+import { boot, clock, seededDir, waitFor } from "./memory-live-kit.ts";
 import { api, ok, standIn } from "./member-key-kit.ts";
 import { joinGuest } from "./guest-channel-kit.ts";
 
@@ -19,6 +19,8 @@ function ageToRc26(dir: string): number {
   const moved = mod
     .prepare("UPDATE access_resources SET parent_id = ? WHERE type = 'thread' AND parent_id <> ?")
     .run(space, space).changes;
+  // rc.26 gave every guest the whole channel: no read floor on any member row
+  mod.prepare("UPDATE chat_thread_member SET fromAt = NULL").run();
   mod.close();
   const log = new DatabaseSync(path.join(dir, "events.db"));
   const rows = log.prepare("SELECT seq, payload FROM events WHERE type = 'resource.created'").all() as Array<{
@@ -80,6 +82,7 @@ async function make(dir: string): Promise<Ids> {
 }
 
 async function use(dir: string, ids: Ids): Promise<void> {
+  clock.t += 5_000; // the update comes later than the Space was made
   let d = await boot(dir, standIn);
   try {
     const inv = await ok(d, d.token, "threads.invite_guest", {
@@ -124,6 +127,17 @@ async function use(dir: string, ids: Ids): Promise<void> {
       (await oldCall("threads.get", { threadId: ids.a.mainThreadId })).status,
       200,
       "the old guest opens the old channel",
+    );
+    // a guest who exists today keeps what they have (the whole channel); a guest invited now reads from the moment they came
+    const oldRead = await oldCall("chat.messages.list", { threadId: ids.a.mainThreadId });
+    assert.ok(
+      (oldRead.data.messages as Array<{ body?: string }>).some((m) => (m.body ?? "").includes("Hello in partners")),
+      "the old guest still reads what was said before the update",
+    );
+    const newRead = await call("chat.messages.list", { threadId: ids.a.mainThreadId });
+    assert.ok(
+      !(newRead.data.messages as Array<{ body?: string }>).some((m) => (m.body ?? "").includes("Hello in partners")),
+      "the guest invited after it reads from their own start",
     );
     assert.equal(
       (await oldCall("chat.post", { threadId: ids.a.reply, body: "from the old guest" })).status,

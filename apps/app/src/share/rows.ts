@@ -1,4 +1,7 @@
 // The rows and the directory the one Access sheet takes, from the access data every place reads (access.shares_of, the Space directory).
+import { targetOfOpen } from "../shell/reach/open-link.ts";
+import { setSpaceLinkTools } from "../../../../ui/src/link-origin.ts";
+import { notices } from "../shell/noticeslot/model.ts";
 import type { CapMap } from "../../../../generated/types.ts";
 import type { AccessEntry, ShareRow } from "../../../../ui/src/AccessSheet/index.tsx";
 
@@ -67,30 +70,113 @@ export function withNotify<T extends Record<string, unknown>>(
   return { ...input, notify: opts.message ? { message: opts.message } : {} };
 }
 
+/** What a person is told when a link is meant for others and the Space has no address anyone else could open (a Space on this computer alone). */
+export const NO_LINK_WORDS =
+  "This Space has no public address yet, so there is no link to give. Set one under Console, Network, then copy again.";
+/** What a person is told when the copied link opens in Vyre on this computer only. */
+export const LOCAL_LINK_WORDS =
+  "Copied. This link opens in Vyre on this computer only. For a link others can open, set a public address under Console, Network, or ask an admin.";
+
+let spaceAddress: string | null = null;
+/** The Space this session is open on: set when the session opens, so a link is made from the Space's own address and not from the page the app runs in (the desktop app runs in tauri://localhost). */
+export function setLinkOrigin(address: string | null): void {
+  spaceAddress = address;
+  setSpaceLinkTools({
+    origin: linkOrigin(),
+    artifactLink: (id) => itemLink("site", id),
+    copy: (l) => void copyLinkText(l),
+  });
+}
+
+const isLocalHost = (host: string): boolean =>
+  host === "localhost" || host.endsWith(".localhost") || host === "[::1]" || /^127\./.test(host) || host === "0.0.0.0";
+
+const webOrigin = (raw: string | null | undefined): URL | null => {
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    return (u.protocol === "https:" || u.protocol === "http:") && u.hostname !== "" ? u : null;
+  } catch {
+    return null;
+  }
+};
+
 /**
- * The item's own link, one that works wherever it is pasted: the Space's web address, /open/<kind>/<id>. It opens the app when it is installed and the web app otherwise, after sign-in, through the
- * same access check as any other way in. An artifact keeps its own address (/a/<id>). Never the page the person is on, and never a vyre:// link, which only opens where the app is installed.
+ * The origin a link to this Space is made from for people on other computers: the Space's own public address, else (a web app opened at the Space) the page's origin. Never tauri:// or a loopback or local
+ * name: then "". A link made from location.origin was copied as tauri://localhost/a/<id> from the desktop app (13 Nov 2026) and opened nowhere.
  */
-export function itemLink(
-  type: string,
-  id: string,
-  origin = (globalThis as { location?: { origin?: string } }).location?.origin ?? "",
+export function linkOrigin(
+  address: string | null = spaceAddress,
+  page: string | undefined = (globalThis as { location?: { origin?: string } }).location?.origin,
 ): string {
-  if (type === "site") return `${origin}/a/${id}`;
-  const kind = type === "vault_item" || type === "vault_folder" ? "vault" : type;
-  return `${origin}/open/${kind}/${id}`;
+  for (const raw of [address, page]) {
+    const u = webOrigin(raw);
+    if (u && !isLocalHost(u.hostname.toLowerCase())) return u.origin;
+  }
+  return "";
 }
 
-/** One message's own link: /open/message/<threadId>/<messageId> on the Space's web address. It opens the chat on that message, through the same access check as the chat. */
-export function messageLink(
-  threadId: string,
-  messageId: string,
-  origin = (globalThis as { location?: { origin?: string } }).location?.origin ?? "",
-): string {
-  return `${origin}/open/message/${encodeURIComponent(threadId)}/${encodeURIComponent(messageId)}`;
+/** The page's own origin when the app runs as a web page at a local or network address: a link made from it opens for the person who copied it, on that computer or network (a Space at 127.0.0.1 or on a LAN). */
+const localWebOrigin = (): string => {
+  const u = webOrigin((globalThis as { location?: { origin?: string } }).location?.origin);
+  // the Windows desktop app is the page http://tauri.localhost: that is the app, not a web page at an address
+  return u && u.hostname.toLowerCase() !== "tauri.localhost" ? u.origin : "";
+};
+
+/** What a person is told when a sign-in needs an address the provider can send them back to and the Space has none. */
+export const NO_CALLBACK_WORDS =
+  "This Space has no public address yet, so a sign-in cannot come back to it. Set one under Console, Network, then try again.";
+
+/**
+ * The address a sign-in (an OAuth redirect) comes back to. On the web it is the page's own origin, exactly what rc.26 sent (a provider's registered redirect is an exact string, so it must not change by which address
+ * the Space is also known by). In the desktop app, whose page is tauri://localhost and cannot be returned to, it is the Space's public address; "" when that is none: the caller says NO_CALLBACK_WORDS and sends nothing.
+ * Never built from location.origin by a caller.
+ */
+export const callbackOrigin = (): string => localWebOrigin() || linkOrigin();
+
+/** The in-app form, for a Space with no public address on the desktop app: the app's own resolver opens it when pasted in the new tab or the command bar (apps/app/src/shell/reach/space-link.ts). */
+const inAppLink = (kind: string, id: string): string =>
+  // only a kind the app's own resolver (shell/reach/open-link.ts targetOfOpen) opens: a link that opens nothing is never handed out
+  spaceAddress === null || webOrigin(spaceAddress) === null || targetOfOpen({ kind, id }) === null
+    ? ""
+    : `vyre://open?address=${encodeURIComponent(spaceAddress)}&kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(id)}`;
+
+const kindOf = (type: string): string =>
+  type === "vault_item" || type === "vault_folder" ? "vault" : type === "site" ? "artifact" : type;
+
+/**
+ * The item's own link: on the Space's public address, /open/<kind>/<id> (an artifact keeps /a/<id>); it opens the app when installed and the web app otherwise, after sign-in, through the same access check
+ * as any other way in. With no public address: a web page at a local or network address copies its own origin (it opens for that person); the desktop app copies the in-app form (vyre://open?...), which opens
+ * in Vyre on this computer only. "" when there is nothing that would open. `origin` is for tests and callers that know it.
+ */
+export function itemLink(type: string, id: string, origin?: string): string {
+  const o = origin ?? (linkOrigin() || localWebOrigin());
+  if (o === "") return inAppLink(kindOf(type), id);
+  if (type === "site") return `${o}/a/${id}`;
+  return `${o}/open/${kindOf(type)}/${id}`;
 }
 
-export function copyItemLink(type: string, id: string): void {
+/** One message's own link: /open/message/<threadId>/<messageId> on the Space's address; with no public address on the desktop app, the in-app form of its chat. */
+export function messageLink(threadId: string, messageId: string, origin?: string): string {
+  const o = origin ?? (linkOrigin() || localWebOrigin());
+  if (o === "") return inAppLink("thread", threadId);
+  return `${o}/open/message/${encodeURIComponent(threadId)}/${encodeURIComponent(messageId)}`;
+}
+
+/**
+ * Put a link on the clipboard, or say in words why there is none to give. A link for other people (`forOthers`: the Share sheet's) is never the in-app form, which only opens here. True when a link was copied.
+ */
+export function copyLinkText(link: string, forOthers = false): boolean {
+  if (link === "" || (forOthers && link.startsWith("vyre://"))) {
+    notices.pass(NO_LINK_WORDS);
+    return false;
+  }
   const g = globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } };
-  void g.navigator?.clipboard?.writeText(itemLink(type, id));
+  void g.navigator?.clipboard?.writeText(link);
+  if (link.startsWith("vyre://")) notices.pass(LOCAL_LINK_WORDS);
+  return true;
+}
+
+export function copyItemLink(type: string, id: string, forOthers = false): void {
+  copyLinkText(itemLink(type, id), forOthers);
 }

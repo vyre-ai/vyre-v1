@@ -16,6 +16,7 @@ import {
   bad,
   denied,
   ensure,
+  ownRow,
   first,
   isId,
   levelOn,
@@ -64,7 +65,7 @@ function ensureG20(ctx: VaultCtx): void {
 const SUBJECT_KINDS = ["person", "agent", "actor", "service", "group", "role", "link"];
 
 function canManageFolder(ctx: VaultCtx, f: Row): boolean {
-  return str(f, "owner") === ctx.principal.id || atLeast(levelOn(ctx, "vault_folder", str(f, "id")), "manage");
+  return ownRow(ctx, f) || atLeast(levelOn(ctx, "vault_folder", str(f, "id")), "manage");
 }
 
 function manageable(ctx: VaultCtx, folderId: unknown): Row {

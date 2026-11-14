@@ -7,7 +7,9 @@ import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { Glyph } from "./icons.tsx";
 import { StepLogo } from "./StepLogo.tsx";
 import { cardLabel, moreLabel, runStateText, triggerLabel } from "../a11y.ts";
+import { chipText } from "./chip-words.ts";
 import { NOT_SET_UP } from "./form-model.ts";
+import { chipParts } from "./steps/edits.ts";
 import { CARD_H, CARD_W, TRIG_HEAD, TRIG_ROW, messages, triggerMeta } from "./model.ts";
 import type { CardNode, DefTrigger, IconKey, Issue, RunState } from "./model.ts";
 import { Face, IconButton, pointer, shadow, webOnly } from "./parts.tsx";
@@ -70,7 +72,7 @@ export function StepCard({
         title: card.title,
         sub: card.sub,
         issues: card.issues.length,
-        chip: card.chip,
+        chip: card.chip ? chipText(card.chip, card.issues, card.state) : null,
         state: card.state,
       })}
       accessibilityState={{ selected }}
@@ -121,26 +123,41 @@ export function StepCard({
         <Text numberOfLines={1} style={c.title}>
           {card.title}
         </Text>
-        <Text numberOfLines={1} testID={`card-sub-${card.id}`} style={[c.sub, card.sub === NOT_SET_UP && c.subWarn]}>
-          {card.sub}
-        </Text>
+        {/* the chip sits under the title, beside the second line, so the title keeps its room */}
+        <View style={c.subRow}>
+          <Text
+            numberOfLines={1}
+            testID={`card-sub-${card.id}`}
+            style={[c.sub, c.subFlex, card.sub === NOT_SET_UP && c.subWarn]}
+          >
+            {chipParts(card.sub).map((part, k) =>
+              part.chip ? (
+                <Text key={k} testID={`card-chip-${card.id}-${k}`} style={c.subChip}>
+                  {part.text}
+                </Text>
+              ) : (
+                part.text
+              ),
+            )}
+          </Text>
+          {card.chip ? (
+            <View
+              testID={`chip-${card.id}`}
+              style={[
+                c.status,
+                card.chip === "error" && c.statusBad,
+                card.chip === "waiting" && c.statusWait,
+                card.chip === "tested" && c.statusOk,
+              ]}
+            >
+              <Text style={c.statusText}>{chipText(card.chip, card.issues, card.state)}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
       {card.issues.length > 0 ? (
         <View testID={`issue-${card.id}`} accessibilityLabel={problem} {...webOnly({ title: problem })}>
           <Glyph name="warn" size={14} color={errors.length > 0 ? "var(--danger)" : "var(--warn)"} />
-        </View>
-      ) : null}
-      {card.chip ? (
-        <View
-          testID={`chip-${card.id}`}
-          style={[
-            c.status,
-            card.chip === "error" && c.statusBad,
-            card.chip === "waiting" && c.statusWait,
-            card.chip === "tested" && c.statusOk,
-          ]}
-        >
-          <Text style={c.statusText}>{card.chip}</Text>
         </View>
       ) : null}
       {runWord ? (
@@ -394,7 +411,16 @@ export const c = StyleSheet.create({
   text: { flex: 1, minWidth: 0, justifyContent: "center" },
   title: { fontSize: 13, lineHeight: 17, color: "var(--ink)" as string },
   sub: { fontSize: 11.5, lineHeight: 15, color: "var(--ink-3)" as string },
+  subRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  subFlex: { flexShrink: 1, minWidth: 0 },
   subWarn: { color: "var(--warn)" as string },
+  // a data reference in a card's second line, drawn as the chip the editor draws
+  subChip: {
+    backgroundColor: "var(--accent-wash)" as string,
+    color: "var(--accent)" as string,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+  },
   status: {
     borderRadius: 6,
     paddingHorizontal: 6,
@@ -402,6 +428,7 @@ export const c = StyleSheet.create({
     borderWidth: 1,
     borderColor: "var(--line)" as string,
     backgroundColor: "var(--hover)" as string,
+    flexShrink: 0,
   },
   statusOk: { borderColor: "var(--ok)" as string },
   statusWait: { borderColor: "var(--warn)" as string },

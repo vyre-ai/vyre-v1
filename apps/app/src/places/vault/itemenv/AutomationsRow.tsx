@@ -8,7 +8,16 @@ import { useOnline, useVaultData } from "../layout/data.tsx";
 import type { ItemKind } from "../layout/model.ts";
 import { Btn, Glyph, IconBtn } from "../layout/parts.tsx";
 import { TextField } from "../../../../../../ui/src/TextField/index.tsx";
-import { GATE_TEXT, blockedNote, gateFor, hiddenOf, offersAutomations, stepsLine, usedByOf } from "./automations.ts";
+import {
+  GATE_TEXT,
+  blockedNote,
+  gateFor,
+  hiddenOf,
+  offersAutomations,
+  setupOffered,
+  stepsLine,
+  usedByOf,
+} from "./automations.ts";
 import type { AiAccount, BuilderStatus, UsedBy } from "./automations.ts";
 import { PendingSecrets, pendingSlots } from "./PendingSecrets.tsx";
 import type { PendingSlot } from "./PendingSecrets.tsx";
@@ -36,7 +45,14 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
   // an AI account's API key is saved as a key item, but it is the person's AI, not an app to connect: it offers no connector
   const [aiKey, setAiKey] = useState<boolean | null>(null);
   const assistant = data.assistantId;
-  const offers = offersAutomations(item.kind) && aiKey === false;
+  // a company key is for the server alone and an item above the assistant's clearance cannot be opened by it: neither offers a setup the assistant could not finish
+  const canBe = setupOffered({ kind: item.kind, handle: item.handle, aiKey });
+  const offers = setupOffered({
+    kind: item.kind,
+    handle: item.handle,
+    aiKey,
+    ...(builder?.reaches === undefined ? {} : { reaches: builder.reaches }),
+  });
   useEffect(() => {
     if (!offersAutomations(item.kind)) return undefined;
     let live = true;
@@ -73,16 +89,15 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
     };
   }, [data, tick]);
   useEffect(() => {
-    if (!assistant || !offers) return undefined;
+    if (!assistant || !canBe) return undefined;
     let live = true;
     void (async () => {
       try {
-        let st = (await data.call("access.connector_builder.status", { agentId: assistant })) as BuilderStatus;
-        // a Personal Space is the person's own: their assistant is allowed to build connectors without a tap
-        if (!st.allowed && st.canGrant && data.personal === true) {
-          await data.call("access.connector_builder.grant", { agentId: assistant });
-          st = { allowed: true, canGrant: true };
-        }
+        // nothing is granted by opening the page: the Allow button is the press that says so
+        const st = (await data.call("access.connector_builder.status", {
+          agentId: assistant,
+          itemId: item.id,
+        })) as BuilderStatus;
         if (live) setBuilder(st);
       } catch {
         if (live) setBuilder(null);
@@ -91,7 +106,7 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
     return () => {
       live = false;
     };
-  }, [data, assistant, offers, tick]);
+  }, [data, assistant, canBe, item.id, tick]);
   useEffect(() => {
     if (!offers) return undefined;
     let live = true;

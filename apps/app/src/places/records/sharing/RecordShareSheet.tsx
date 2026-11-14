@@ -162,7 +162,7 @@ export function RecordShareSheet({
             }),
           )
         }
-        onCopyLink={() => copyItemLink(target.type, target.id)}
+        onCopyLink={() => copyItemLink(target.type, target.id, true)}
         onShare={(i: ShareInput, opts) =>
           run(data.call("access.share", withNotify(shareCall(res, i.subject, i.level), opts)))
         }

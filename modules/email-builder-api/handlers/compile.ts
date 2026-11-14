@@ -973,7 +973,7 @@ async function create(ctx: Ctx, input: unknown): Promise<{ email: EmailDoc }> {
     id,
     name,
     mode,
-    ctx.principal.id,
+    mine(ctx),
     folderId,
     null,
     doc.blocks === undefined ? null : JSON.stringify(doc.blocks),
@@ -1200,6 +1200,12 @@ async function mergeFields(ctx: Ctx, input: unknown): Promise<{ fields: { key: s
   return { fields };
 }
 
+/** Whose library and designs these are: the person an agent acts for, else the caller. What an agent makes while acting for a person belongs to that person. */
+const mine = (ctx: Ctx): string =>
+  ctx.principal.kind === "agent" && typeof ctx.actingFor === "string" && ctx.actingFor.startsWith("usr_")
+    ? ctx.actingFor
+    : ctx.principal.id;
+
 // ---- snippets -----------------------------------------------------------------------------------------------------------
 
 interface SnippetOut {
@@ -1225,7 +1231,7 @@ function snippetOut(r: Row): SnippetOut {
 
 async function snippetsList(ctx: Ctx, _input: unknown): Promise<{ snippets: SnippetOut[] }> {
   const rows = many(ctx, "SELECT * FROM email_builder_api_snippet")
-    .filter((r) => r.owner === ctx.principal.id || r.shared === 1)
+    .filter((r) => r.owner === mine(ctx) || r.shared === 1)
     .sort((a, b) => str(a.name).localeCompare(str(b.name)) || str(a.id).localeCompare(str(b.id)));
   return { snippets: rows.map(snippetOut) };
 }
@@ -1247,10 +1253,10 @@ async function snippetsSave(ctx: Ctx, input: unknown): Promise<{ snippet: Snippe
   const snippetId = optStr(ctx, o, "snippetId");
   const existing =
     snippetId === undefined ? undefined : one(ctx, "SELECT * FROM email_builder_api_snippet WHERE id = ?", snippetId);
-  if (snippetId !== undefined && (!existing || existing.owner !== ctx.principal.id))
+  if (snippetId !== undefined && (!existing || existing.owner !== mine(ctx)))
     fail(ctx, "validation.not_found", "That snippet does not exist.");
   if (shortcut !== undefined) {
-    const clash = many(ctx, "SELECT * FROM email_builder_api_snippet WHERE owner = ?", ctx.principal.id).find(
+    const clash = many(ctx, "SELECT * FROM email_builder_api_snippet WHERE owner = ?", mine(ctx)).find(
       (r) => r.shortcut === shortcut && r.id !== snippetId,
     );
     if (clash)
@@ -1273,7 +1279,7 @@ async function snippetsSave(ctx: Ctx, input: unknown): Promise<{ snippet: Snippe
     ctx.db.run(
       "INSERT INTO email_builder_api_snippet (id, owner, name, body, shortcut, shared, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
       id,
-      ctx.principal.id,
+      mine(ctx),
       name,
       body,
       shortcut ?? null,
@@ -1287,7 +1293,7 @@ async function snippetsSave(ctx: Ctx, input: unknown): Promise<{ snippet: Snippe
 async function snippetsDelete(ctx: Ctx, input: unknown): Promise<{ deleted: boolean }> {
   const o = rec(ctx, input);
   const row = one(ctx, "SELECT * FROM email_builder_api_snippet WHERE id = ?", reqStr(ctx, o, "snippetId"));
-  if (!row || row.owner !== ctx.principal.id) return { deleted: false };
+  if (!row || row.owner !== mine(ctx)) return { deleted: false };
   ctx.db.run("DELETE FROM email_builder_api_snippet WHERE id = ?", row.id);
   return { deleted: true };
 }
@@ -1321,7 +1327,7 @@ function savedOut(r: Row): SavedBlockOut {
 
 async function savedBlocksList(ctx: Ctx, _input: unknown): Promise<{ blocks: SavedBlockOut[] }> {
   const rows = many(ctx, "SELECT * FROM email_builder_api_block")
-    .filter((r) => r.owner === ctx.principal.id || r.shared === 1)
+    .filter((r) => r.owner === mine(ctx) || r.shared === 1)
     .sort((a, b) => str(a.name).localeCompare(str(b.name)) || str(a.id).localeCompare(str(b.id)));
   return { blocks: rows.map(savedOut) };
 }
@@ -1339,9 +1345,9 @@ async function savedBlocksSave(ctx: Ctx, input: unknown): Promise<{ block: Saved
   const blockId = optStr(ctx, o, "blockId");
   const existing =
     blockId === undefined ? undefined : one(ctx, "SELECT * FROM email_builder_api_block WHERE id = ?", blockId);
-  if (blockId !== undefined && (!existing || (existing.owner !== ctx.principal.id && existing.shared !== 1)))
+  if (blockId !== undefined && (!existing || (existing.owner !== mine(ctx) && existing.shared !== 1)))
     fail(ctx, "validation.not_found", "That saved block does not exist.");
-  if (existing && existing.owner !== ctx.principal.id)
+  if (existing && existing.owner !== mine(ctx))
     fail(ctx, "permission.no_grant", "Only the person who saved a block can change it.");
   const shared = sharedIn === true ? 1 : sharedIn === false ? 0 : existing ? num(existing.shared) : 0;
   const now = ctx.now();
@@ -1361,7 +1367,7 @@ async function savedBlocksSave(ctx: Ctx, input: unknown): Promise<{ block: Saved
     ctx.db.run(
       "INSERT INTO email_builder_api_block (id, owner, name, block, shared, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
       id,
-      ctx.principal.id,
+      mine(ctx),
       name,
       json,
       shared,

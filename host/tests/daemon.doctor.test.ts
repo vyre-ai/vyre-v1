@@ -8,6 +8,7 @@ import { bootCore } from "../../fixtures/seed/core/index.ts";
 import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
 import { formatDoctor, runDoctor, verifyChainReadOnly } from "../src/daemon/doctor.ts";
+import { artifactMarkerOf } from "../src/daemon/public-origin.ts";
 import { writeInfo } from "../src/daemon/config.ts";
 import { pathsFor } from "../src/daemon/config.ts";
 import { openDb } from "../src/daemon/sqlite.ts";
@@ -400,6 +401,67 @@ test("a Space with its own domain is checked for its Caddy route: missing is dow
       ),
       false,
     );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("doctor asks the Space's artifact address for this Space's marker, and says which DNS record to add when it does not answer; the quick pass never goes out to the internet", async () => {
+  const dir = deadServerDir();
+  try {
+    const modules = openDb(path.join(dir, "modules.db"));
+    modules.exec(
+      "CREATE TABLE network_config (id INTEGER PRIMARY KEY, address TEXT NOT NULL, mode TEXT NOT NULL, domain TEXT, relay_address TEXT, public_ingress INTEGER NOT NULL, ingress_detail TEXT, reported_at INTEGER NOT NULL)",
+    );
+    modules.run(
+      "INSERT INTO network_config (id, address, mode, domain, public_ingress, reported_at) VALUES (1, 'mla.vyre.run', 'own_domain', 'mla.vyre.run', 1, 1)",
+    );
+    modules.close();
+    const asked: string[] = [];
+    const answer =
+      (art: () => Promise<{ ok: boolean; status: number; body: string }>): FetchFn =>
+      async (url) => {
+        if (!url.startsWith("https://a.mla.vyre.run/"))
+          return {
+            ok: true,
+            status: 200,
+            headers: { get: () => null },
+            text: () => Promise.resolve('{"apps":{"http":{}}}'),
+          };
+        asked.push(url);
+        const r = await art();
+        return { ok: r.ok, status: r.status, headers: { get: () => null }, text: () => Promise.resolve(r.body) };
+      };
+    const run = (f: FetchFn, artifactAddress = true) =>
+      runDoctor({ dataDir: dir, platform: machine(dir), fetch: f, artifactAddress });
+    const up = by(
+      await run(answer(async () => ({ ok: true, status: 200, body: artifactMarkerOf("spc_core") }))),
+      "host.artifact_host",
+    );
+    assert.equal(up.state, "healthy");
+    assert.deepEqual(asked, ["https://a.mla.vyre.run/.well-known/vyre-artifact-host"]);
+    const silent = by(await run(answer(() => Promise.reject(new Error("ENOTFOUND")))), "host.artifact_host");
+    assert.equal(silent.state, "degraded");
+    assert.match(silent.detail, /a\.mla\.vyre\.run does not answer/);
+    assert.match(silent.next, /Add the DNS record a\.mla\.vyre\.run/);
+    const relay = by(await run(answer(async () => ({ ok: false, status: 404, body: "" }))), "host.artifact_host");
+    assert.match(relay.detail, /answered 404, not this Space/);
+    const other = by(
+      await run(answer(async () => ({ ok: true, status: 200, body: artifactMarkerOf("spc_other") }))),
+      "host.artifact_host",
+    );
+    assert.match(other.detail, /not as this Space/);
+    asked.length = 0;
+    assert.equal(
+      (
+        await run(
+          answer(async () => ({ ok: true, status: 200, body: "" })),
+          false,
+        )
+      ).findings.some((f) => f.key === "host.artifact_host"),
+      false,
+    );
+    assert.deepEqual(asked, [], "off by default: the container health check does not ask");
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

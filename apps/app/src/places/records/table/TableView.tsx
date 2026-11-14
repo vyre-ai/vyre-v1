@@ -78,6 +78,7 @@ import { NO_PICK, isPickedRow, pickCount, toggleHeader, togglePick } from "./mod
 import type { Column, FieldDef, GroupItem, RowPick, RecordRow, TableViewState, TypeDef } from "./model.ts";
 import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
 import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
+import { copyLinkText, itemLink } from "../../../share/rows.ts";
 
 type TypesOut = CapMap["schema.types.list"]["out"];
 type ViewsOut = CapMap["views.list"]["out"];
@@ -963,10 +964,10 @@ function Grid({
     return typeof t === "string" && t !== "" ? t : "Untitled";
   };
   const linkTo = (id: string): string => {
-    const l = (globalThis as { location?: { origin?: string; pathname?: string } }).location;
-    return `${l?.origin ?? ""}${l?.pathname ?? ""}#subject=record:${id}`;
+    return itemLink("record", id); // the Space's own address; "" when it has none
   };
   const copyText = (t: string): void => {
+    if (t === "") return void copyLinkText("");
     const c = (globalThis as { navigator?: { clipboard?: { writeText(x: string): unknown } } }).navigator?.clipboard;
     if (c) void c.writeText(t);
   };

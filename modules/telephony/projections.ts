@@ -1,5 +1,6 @@
 // telephony store helpers (spec 2.18, 3.3; ARCH 7.3, 8.2): the context subset the handlers use, the schema apply, the readers and mappers that turn rows into the frozen shapes, and the small
 // rules the handlers share (ids, settings, the person/agent/automation actor, send windows, hours of a number). Rows are read with `SELECT *` and sorted in code; every camelCase column is quoted.
+import { agentStanding } from "../../lib/agent-asker.ts";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fail } from "../../host/src/routes/errors.ts";
@@ -107,6 +108,8 @@ export function need(ctx: Pick<TelCtx, "trace">, id: unknown, prefix: string, wh
 export interface Party {
   kind: "person" | "agent" | "group";
   id: string;
+  /** An agent's call or hold made while it acted for this person: the call is theirs through that agent, and nobody else's who merely asks it. */
+  forPerson?: string;
 }
 
 export function pageOf<T>(
@@ -210,7 +213,9 @@ export function actorOf(ctx: Pick<TelCtx, "principal" | "origin">): Actor {
   return "person";
 }
 /** The party a call or text is handled by: a person or an agent; anything else cannot hold a call. */
-export function partyOf(ctx: Pick<TelCtx, "principal" | "trace">): Party {
+export function partyOf(ctx: Pick<TelCtx, "principal" | "trace" | "actingFor">): Party {
+  if (ctx.principal.kind === "agent" && ctx.actingFor?.startsWith("usr_"))
+    return { kind: "agent", id: ctx.principal.id, forPerson: ctx.actingFor };
   if (ctx.principal.kind === "person" || ctx.principal.kind === "agent")
     return { kind: ctx.principal.kind, id: ctx.principal.id };
   return refuse(ctx, "Only a person or an agent can take part in a call.");
@@ -368,7 +373,10 @@ export function seesNumber(ctx: TelCtx, numberId: string): boolean {
 export function seesCall(ctx: TelCtx, row: Row): boolean {
   if (seesNumber(ctx, str(row, "numberId"))) return true;
   const me = ctx.actingFor ?? ctx.principal.id;
-  const mine = (p: Party): boolean => p.id === me || p.id === ctx.principal.id;
+  // an agent's own handling of a call counts in a turn for nobody, or for the person it handled the call for (lib/agent-asker.ts); the person it acts for counts by their own id
+  const mine = (p: Party): boolean =>
+    p.id === me ||
+    (p.id === ctx.principal.id && agentStanding(ctx, (person) => p.forPerson === person || p.id === person));
   const holder = parseJson<Party | null>(row.handledBy, null);
   return (holder !== null && mine(holder)) || parseJson<Party[]>(callMeta(ctx, str(row, "id")).ringing, []).some(mine);
 }

@@ -34,21 +34,24 @@ function replacePath(path: string): void {
 }
 
 /** The last net under the whole app: a crash outside any place (sign-in, the shell itself) is one themed page with a way to start over, never a blank window. */
-class RootBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+export class RootBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   override state = { failed: false };
   static getDerivedStateFromError(): { failed: boolean } {
     return { failed: true };
   }
-  override componentDidCatch(error: Error): void {
-    console.error(`vyre root crashed: ${error.message.slice(0, 160)}`);
+  // the component stack names the screen that looped or threw (a production build gives only a React error number otherwise)
+  override componentDidCatch(error: Error, info?: { componentStack?: string | null }): void {
+    console.error(
+      `vyre root crashed: ${error.message.slice(0, 160)} ${(info?.componentStack ?? "").replace(/\s+/g, " ").slice(0, 600)}`,
+    );
   }
   override render(): ReactNode {
     if (!this.state.failed) return this.props.children;
     return (
       <States
         kind="error"
-        message="Couldn't open Vyre"
-        cause="Something went wrong while it started."
+        message="Vyre stopped working"
+        cause="Something went wrong and this window could not carry on. Retry starts it again."
         retryable
         onRetry={() => (globalThis as { location?: { assign(url: string): void } }).location?.assign("/")}
       />

@@ -70,6 +70,10 @@ export interface Go {
   imported(conversationId: string): void;
   /** The agent's own chat (chat.start returns it). */
   agentChat(agentId: string): void;
+  /** A thread just made under a message of this chat, opened beside it with no read first. */
+  sideThread(parentId: string, messageId: string, threadId: string): void;
+  /** The new-chat screen with this agent picked and the composer ready; the chat is made when he sends. */
+  newChatWith(agentId: string, name: string): void;
   computer(computerId: string, chat?: boolean): void;
   /** The computer of an agent, when it has one; the place says so when it has not. */
   computerOfAgent(agentId: string): void;
@@ -139,6 +143,7 @@ export function agentPageData(
       openRoutineFile: (agentId) => go.agent(agentId, "settings"),
       skillFromStep: (computerId, stepId) => rt.open({ screen: "chats.agent-computer", args: { computerId, stepId } }),
       openChat: (id) => go.chat(id),
+      startChat: (agentId, name) => go.newChatWith(agentId, name),
       openFolder: (folderId) => rt.open({ subject: { type: "folder", id: folderId } }),
       openAgentFile: (agentId, file) => rt.open({ subject: { type: "agent", id: agentId }, args: { file } }),
       // a server runs work for the whole Space: only those who may add one (owners and admins; anyone in a Personal Space) are offered it, the Space menu's rule (review F4)
@@ -317,6 +322,7 @@ export async function chatOpening(
   rt: Pick<ShellRuntime, "call">,
   agentId: string,
   first: string,
+  heading?: string,
 ): Promise<string | null> {
   let h = 0;
   for (const ch of first) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
@@ -325,7 +331,7 @@ export async function chatOpening(
       kind: "chat",
       agentIds: [agentId],
       first,
-      ...(openingTitle(first) ? { title: openingTitle(first) } : {}),
+      ...((heading ?? openingTitle(first)) ? { title: heading ?? openingTitle(first) } : {}),
       idempotencyKey: `open_chat_${agentId}_${h.toString(36)}`,
     })) as { thread?: { threadId?: string } } | null;
     return out?.thread?.threadId ?? null;
@@ -399,6 +405,9 @@ export function createGo(
 ): Go {
   return {
     chat: (threadId) => act({ t: "chat", threadId }),
+    sideThread: (parentId, messageId, threadId) =>
+      act({ t: "chat", threadId: parentId, focus: messageId, side: threadId }),
+    newChatWith: (agentId, name) => act({ t: "new", with: { agentId, name } }),
     message: (threadId, messageId) => act({ t: "chat", threadId, focus: messageId }),
     search: (query) => act({ t: "search", ...(query ? { q: query } : {}) }),
     closeSearch: () => act({ t: "search-close" }),
@@ -523,6 +532,7 @@ export function wireConversation(
       ...base.nav,
       openAgent: (id: string) => openFace(rt, go, o.list, id),
       openThread: (id: string, messageId?: string) => (messageId ? go.message(id, messageId) : go.thread(id)),
+      openSideThread: (p: string, m: string, t: string) => go.sideThread(p, m, t),
       openSearch: (q: string) => go.search(q),
       togglePane: () => go.togglePane(),
       openBeside: (kind: string, id: string) =>

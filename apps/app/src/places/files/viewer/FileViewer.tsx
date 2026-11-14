@@ -37,7 +37,7 @@ import { GoogleTile, WithProviderMark, googleAppOf } from "../marks.tsx";
 import type { FileComment, ViewerData } from "./model.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
-import { itemLink } from "../../../share/rows.ts";
+import { copyLinkText, itemLink } from "../../../share/rows.ts";
 import { ActivityPanel, LayerBanner, LayerTools, RedactPanel, jumpToMark, useLayer, viewerMarks } from "./redact.tsx";
 import type { Access } from "./redact.tsx";
 
@@ -288,7 +288,11 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
     accessMenu.show(
       [
         ...(d.share ? [{ label: "Share…", onSelect: () => d.share?.(fileId, name) }] : []),
-        { label: "Copy Link", onSelect: () => copyText(itemLink("file", fileId), "Link copied.") },
+        {
+          label: "Copy Link",
+          onSelect: () =>
+            itemLink("file", fileId) === "" ? copyLinkText("") : copyText(itemLink("file", fileId), "Link copied."),
+        },
         { label: "Copy name", onSelect: () => copyText(name, "Name copied.") },
       ],
       x,

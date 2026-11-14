@@ -45,7 +45,11 @@ test("a reply guest and a view guest get what the table says from the daemon, an
     const reply = await w.invite(w.pub, "reply", "lv-reply@example.com", "lvreply");
     const view = await w.invite(w.priv, "view", "lv-view@example.com", "lvview");
     const t = { reply: w.pub.mainThreadId, view: w.priv.mainThreadId },
-      m = { reply: w.first.pub, view: w.first.priv };
+      // lines said once they were in: a guest reads from the moment they came, so what is asked of "a message" is one of these
+      m = {
+        reply: await w.say(w.pub, "A line after they came."),
+        view: await w.say(w.priv, "A line after they came."),
+      };
     const rt = (await w.o("chat.thread", { threadId: t.reply, messageId: m.reply })).thread.threadId as string;
     // reads, for both
     for (const [g, id, msg, who] of [

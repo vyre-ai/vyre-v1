@@ -3,10 +3,17 @@
 
 const IDS = /\b(?:usr|agt|thr|tsk|prj|fil|rec|chn|msg|crw|trn|cmt)_[0-9a-f]{6,}\b/;
 const TOOLS =
-  /\b(?:use_tool|tool_search|load_skill|task_(?:submit|ask|block|decide|plan|assign)|crew_(?:start|list|merge|push|message|stop|wait)|message_person|people_status|[a-z]+_[a-z]+_(?:get|list|set|create|update|delete|search))\b/;
+  /\b(?:mcp__[a-z0-9_-]+?__[a-z0-9_]+|use_tool|tool_search|load_skill|task_(?:submit|ask|block|decide|plan|assign)|crew_(?:start|list|merge|push|message|stop|wait)|message_person|people_status|[a-z]+_[a-z]+_(?:get|list|set|create|update|delete|search))\b/;
 
 /** Bookkeeping a helper must not say as its answer: that it submitted the task. */
 const HANDED_IN = /\b(?:the |this |my )?task (?:is |was |has been )?(?:submitted|handed in)\b/i;
+
+/** A tool that comes through a server is named mcp__<server>__<tool> to the model. */
+const SERVER_TOOL = /\bmcp__[a-z0-9_-]+?__([a-z0-9_]+)\b/gi;
+
+/** A reply with the model's own tool names put into plain words: "mcp__vyre__terminal_run" reads "terminal run". The prompt asks the model not to say them; this is what is left when it does. */
+export const plainToolWords = (text: string): string =>
+  text.replace(SERVER_TOOL, (_m, tool: string) => tool.replace(/_+/g, " ").trim());
 
 /** What in a reply a person should never read; empty when it is clean. */
 export function internalNames(text: string): string[] {

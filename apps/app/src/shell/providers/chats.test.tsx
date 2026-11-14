@@ -6,7 +6,7 @@ import type { LiveQuery } from "../../../../../client/src/index.ts";
 import type { ScreenHooks } from "../../../../../client/src/index.ts";
 import { createSample } from "../../places/chats/conversation/sample.ts";
 import type { ReactElement } from "react";
-import { ChatsSidebarSlot } from "../../places/chats/sidebar/ChatsSidebar.tsx";
+import { LegacyChatsSidebarSlot as ChatsSidebarSlot } from "../../places/chats/sidebar/ChatsSidebar.tsx";
 import { createSampleSidebar } from "../../places/chats/sidebar/sample.ts";
 import { SidebarContent } from "../sidebar/index.ts";
 import type { SidebarSlotApi } from "../sidebar/index.ts";

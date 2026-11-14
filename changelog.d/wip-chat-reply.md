@@ -1,0 +1,8 @@
+- A reply being written now shows one calm word under the name (Thinking, Writing or Working) instead of a list of steps and a running clock. The steps are one press away, and a finished reply still folds its work into "Worked 14s, 3 steps".
+- Your own message that waits for the agent's next step carries its note ("At the next step", Edit, Stop and send) right under the bubble instead of above the composer. A failed send reads "Not sent  Try again".
+- Tables, charts, diagrams and code blocks in a reply wear one frame: a quiet bar that names the block ("Table, 4 rows", "Chart, bar", "Flowchart") with its buttons always shown. Charts fill the column.
+- A question card shows each answer's consequence on the right of its row, marks the agent's pick "Recommended", and offers "Your own answer" as the last row; the Answer button appears once something is typed.
+- A failed reply says "Try again" and no longer prints the engine exit code on the card (it stays under Details).
+- Charts fill the frame's width and both bars say "Copy as CSV". A drawn diagram no longer sits on a white canvas in the dark skin and uses the app's sans text.
+- The question that docks above the composer always shows the first answer and "Other" (the rest and a box for words), also when only two answers exist.
+- The question card in the chat itself now has the same rows: a why line, each answer with its consequence or "Recommended" on the right, and "Your own answer" as the last row.

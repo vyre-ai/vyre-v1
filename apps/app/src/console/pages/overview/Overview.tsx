@@ -6,7 +6,7 @@ import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useConsoleData, useScreenQuery } from "../../shell/data.tsx";
-import { activityTitle, ago, forHowLong, money, namedResource } from "../../shell/format.ts";
+import { activityRows, ago, forHowLong, money } from "../../shell/format.ts";
 import { Dot, Glyph } from "../../shell/glyphs.tsx";
 import type { Tone } from "../../shell/glyphs.tsx";
 import { Empty, Group, Lead, LinkButton, Section, pointer } from "../../shell/ui.tsx";
@@ -434,23 +434,25 @@ export function Overview(): ReactElement {
           {o.activity.length === 0 ? (
             <Empty testID="activity-none">No admin activity yet</Empty>
           ) : (
-            o.activity.slice(0, 5).map((e, i) => {
-              const who = data.name(e.actor);
-              return (
-                <Row
-                  key={`${e.at}-${i}`}
-                  id={`act-${i}`}
-                  title={activityTitle(who, e.action, namedResource(e.resource, data.name))}
-                  leading={
-                    <Lead>
-                      <Avatar name={who} size={22} />
-                    </Lead>
-                  }
-                  trailing={<Text style={s.time}>{ago(now, e.at)}</Text>}
-                  onPress={() => data.nav.openPage("audit")}
-                />
-              );
-            })
+            activityRows(o.activity, data.name)
+              .slice(0, 5)
+              .map((e, i) => {
+                const who = data.name(e.actor);
+                return (
+                  <Row
+                    key={`${e.at}-${i}`}
+                    id={`act-${i}`}
+                    title={e.title}
+                    leading={
+                      <Lead>
+                        <Avatar name={who} size={22} />
+                      </Lead>
+                    }
+                    trailing={<Text style={s.time}>{ago(now, e.at)}</Text>}
+                    onPress={() => data.nav.openPage("audit")}
+                  />
+                );
+              })
           )}
         </Group>
       </Section>

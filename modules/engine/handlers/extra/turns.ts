@@ -347,8 +347,13 @@ export async function turnFinish(
     str(t["thread_id"]),
     num(t["qseq"]),
   );
-  // Always release the lease this turn held, so the next turn of the thread is not kept waiting for the 20 second expiry.
-  ctx.db.run("DELETE FROM engine_thread_lease WHERE thread_id = ? AND turn_id = ?", str(t["thread_id"]), input.turnId);
+  // Release the lease this turn held, so the next turn of the thread is not kept waiting for the 20 second expiry. Agents asked together run together (one turn per agent), so the lease stays while
+  // another turn of the thread still runs: the row of this turn is already closed above.
+  ctx.db.run(
+    "DELETE FROM engine_thread_lease WHERE thread_id = ? AND NOT EXISTS (SELECT 1 FROM engine_thread_queue WHERE thread_id = ? AND state IN ('running', 'stopping'))",
+    str(t["thread_id"]),
+    str(t["thread_id"]),
+  );
 
   const threadId = str(t["thread_id"]),
     agentId = str(t["agent_id"]);
@@ -815,7 +820,7 @@ export async function turnRetry(
   if (str(old["error"]).includes("engine.cli_missing")) engines()?.forget();
   const oldQ = rows(
     ctx,
-    "SELECT kind, message_id FROM engine_thread_queue WHERE thread_id = ? AND qseq = ?",
+    "SELECT kind, message_id, routine FROM engine_thread_queue WHERE thread_id = ? AND qseq = ?",
     threadId,
     num(old["qseq"]),
   )[0];
@@ -829,7 +834,7 @@ export async function turnRetry(
     from: actorOf(ctx),
     priority: 0,
     enqueuedAt: ctx.now(),
-    routine: false,
+    routine: oldQ ? num(oldQ["routine"]) === 1 : false,
     steer: false,
   });
   const turnId = mintId("trn", ctx.now());

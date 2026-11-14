@@ -44,7 +44,7 @@ test("credit: a Space agent by its name, the reader as You, another person's pri
   assert.equal(creditOf("agt_dex", viewer("usr_omar")), "Dex");
   assert.equal(creditOf("usr_irfad", viewer("usr_irfad")), "You");
   assert.equal(creditOf("agt_omar_cc>usr_omar", viewer("usr_irfad")), "Omar Reyes (Agent)");
-  assert.equal(creditOf("svc_host", viewer("usr_irfad")), "Vyre");
+  assert.equal(creditOf("svc_host", viewer("usr_irfad")), "", "the server is never credited by name");
   assert.equal(creditOf(undefined, viewer("usr_irfad")), "");
 });
 
@@ -62,9 +62,9 @@ test("snapshot: the main goal feed lines", () => {
     [
       "Dex: Dex drafted this goal for you.",
       "You: Started. Due Wed 11 Nov, 4:16 PM.",
-      "Vyre: Dex was woken because it is time for a check-in.",
+      ": Dex was woken because it is time for a check-in.",
       "You: Omar Reyes was mentioned in the goal chat and can now open its folder.",
-      "Vyre: Moved from Planning to Active.",
+      ": Moved from Planning to Active.",
     ],
   );
 });

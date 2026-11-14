@@ -35,12 +35,12 @@ for (const scene of ["no-host", "asleep"] as const)
       const guard = guardCrashes(me.page);
       // the agent page's Computer tab, as a link opens it (Chats > Agents > Desk > Computer)
       await open(me, s, `/chat#screen=chats.agent-page&agentId=${agentId}&tab=computer`);
-      await me.page.getByTestId("terminal-card").waitFor({ timeout: 20_000 });
+      await me.page.getByTestId("terminals-head").waitFor({ timeout: 20_000 });
       await guard.check("on the Computer tab");
       await shoot(me.page, dir, "computer-tab");
-      const card = (await me.page.getByTestId("terminal-card").innerText()).replace(/\s+/g, " ");
+      const card = (await me.page.getByTestId("work-list").innerText()).replace(/\s+/g, " ");
       if (scene === "no-host") {
-        assert.match(card, /Not set up yet/);
+        assert.match(card, /Not running/);
         assert.match(
           card,
           /This Space can't run agent workspaces yet\. That needs Docker on the Space's server, or another server with Docker added in Console > Computers\./,
@@ -53,6 +53,11 @@ for (const scene of ["no-host", "asleep"] as const)
         );
       } else {
         assert.match(card, /Asleep/);
+        assert.equal(
+          await me.page.getByText("Wakes in about a second", { exact: false }).count(),
+          0,
+          "no explanation lines",
+        );
         const page = await me.page.locator("body").innerText();
         assert.equal(/\bAwake\b/.test(page), false, "no Awake beside the workspace's Asleep");
       }

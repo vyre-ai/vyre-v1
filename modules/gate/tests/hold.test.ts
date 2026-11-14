@@ -596,3 +596,15 @@ test("a hold parked from a thread is listed for the person who must approve it, 
   const other = (await h.call("gate.holds.list", { states: ["held"] }, as(dana))) as { holds: unknown[] };
   assert.equal(other.holds.length, 0, "someone who is not asked does not");
 });
+
+test("a hold an agent parked for Alice is Alice's through that agent: Bob asking the same agent lists and reads none of it", async () => {
+  const h = harness();
+  const mine = await park(h); // agent bot for alice
+  const via = (actingFor?: string) => ({ id: bot.id, kind: "agent" as const, ...(actingFor ? { actingFor } : {}) });
+  const ids = async (who: ReturnType<typeof via>): Promise<string[]> =>
+    (await h.call("gate.holds.list", {}, who)).holds.map((x: { id: string }) => x.id);
+  assert.deepEqual(await ids(via(bob.id)), [], "Bob lists none");
+  await refused(h.call("gate.holds.get", { holdId: mine.holdId }, via(bob.id)), "permission.not_found");
+  assert.deepEqual(await ids(via(alice.id)), [mine.holdId], "Alice through the agent");
+  assert.deepEqual(await ids(via()), [mine.holdId], "the agent's own turn for nobody");
+});

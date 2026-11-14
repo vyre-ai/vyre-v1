@@ -787,7 +787,7 @@
      }
     },
     {
-     "say": "I could not add Sam: permission.no_grant, you do not have edit access to the Harlow project. Trace 0123456789abcdef0123456789abcdef. You can ask for access from the project page."
+     "say": "I could not add Sam: I do not have edit access to the Harlow project. You can ask for access from the project page."
     }
    ]
   },

@@ -42,6 +42,9 @@ type Out = {
   fileId: string;
   width: number;
   height: number;
+  pageWidth?: number;
+  pageHeight?: number;
+  scale?: number;
 };
 ```
 
@@ -72,7 +75,10 @@ type Out = {
     "fileId": "fil_a1b2c3",
     "height": 1,
     "note": "example",
+    "pageHeight": 1,
+    "pageWidth": 1,
     "reopened": true,
+    "scale": 1,
     "width": 1
   }
 }

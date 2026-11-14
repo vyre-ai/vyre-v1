@@ -87,6 +87,7 @@ Counts are not written down: they change with every contract change. Run `node t
 - [sites](modules/sites.md) (L8, module)
 - [sources](modules/sources.md) (L3, module)
 - [spaces](modules/spaces.md) (L7a, module)
+- [state](modules/state.md) (L7a, module)
 - [steps-core](modules/steps-core.md) (L6, module)
 - [stripe](modules/stripe.md) (L5, connector)
 - [sync](modules/sync.md) (L1, module)

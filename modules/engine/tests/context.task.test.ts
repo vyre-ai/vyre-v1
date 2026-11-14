@@ -233,3 +233,30 @@ test("the person asking is the Assigned: their Assistant is told the task is the
   assert.doesNotMatch(stranger, /do for them|for them/);
   assert.match(taskSection(t, "agt_doer", names), /You are not a seat on this task/, "no asker, no seat");
 });
+
+test("a task named in the asked note is read as the asker only: another person's answer never reaches this turn", async () => {
+  const parent = task({
+    state: "doing",
+    workingNotes: { brief: "B", asked: JSON.stringify([{ taskId: "tsk_alice_q", question: "Probe?" }]) },
+  });
+  const seen: Array<{ cap: string; as?: string | undefined }> = [];
+  const call = fake(
+    {
+      ...BASE,
+      "tasks.get": (i: unknown, as?: string) => {
+        const id = (i as { taskId: string }).taskId;
+        if (id === "tsk_alice_q") {
+          if (as) throw new Error("not yours");
+          return { task: { id, state: "done", workingNotes: { answer: JSON.stringify("ALICE PRIVATE ANSWER") } } };
+        }
+        return { task: parent };
+      },
+    },
+    seen,
+  );
+  const ctx = await createContextBuilder({ call, skills, now: () => 1 }).build(input());
+  const text = ctx.sections.find((s) => s.id === "task")!.text;
+  assert.doesNotMatch(text, /ALICE PRIVATE ANSWER/);
+  const nobody = seen.filter((c) => c.cap === "tasks.get").some((c) => c.as === undefined);
+  assert.equal(nobody, false, "no read of any task was made as the server");
+});

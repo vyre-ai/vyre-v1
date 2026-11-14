@@ -34,6 +34,7 @@ export {
   startRun,
   triggerPayload,
 } from "./handlers/triggers.ts";
+import { isCompanyKeyName } from "../../lib/company-keys.ts";
 import { recordSavedItem } from "./offer-store.ts";
 import type { OfferDb } from "./offer-store.ts";
 import { backfillGrants } from "./grants.ts";
@@ -92,13 +93,14 @@ export const consumers = {
     on: TRIGGER_EVENTS,
     async run(
       ctx: Ctx,
-      event: { id: string; name: string; payload: Record<string, unknown>; runId?: string },
+      event: { id: string; name: string; payload: Record<string, unknown>; runId?: string; outsider?: boolean },
     ): Promise<void> {
       const parent = event.runId ? loadRunPlan(ctx as unknown as AutoCtx, event.runId) : undefined;
       await consumeEvent(ctx as unknown as AutoCtx, {
         id: event.id,
         type: event.name,
         payload: event.payload,
+        ...(event.outsider === true ? { outsider: true } : {}),
         ...(parent ? { origin: `automation:${parent.link.automationId}`, depth: (parent.link.depth ?? 0) + 1 } : {}),
       });
     },
@@ -117,6 +119,8 @@ export const consumers = {
       if (itemId === "") return;
       // a card, a note, a code, an SSH key or an AI account is not an app to connect
       if (typeof payload["kind"] === "string" && !CONNECTOR_KINDS.has(payload["kind"])) return;
+      // a company key (the Google delegation key, the sign-in apps' secrets) is for the server alone: no assistant may use it, so no setup for it can be finished
+      if (isCompanyKeyName(name)) return;
       recordSavedItem(
         ctx.db as OfferDb,
         { itemId, name, fieldKeys: [] },

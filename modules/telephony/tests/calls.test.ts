@@ -898,3 +898,21 @@ test("those a call belongs to keep it with no grant on the line: who it rings fo
   assert.equal(out(await h.callGet(t.ctx, { callId: id })).call !== undefined, true, "Rob holds it now");
   assert.equal(out(await h.callList(t.ctx, {})).total, 1);
 });
+
+test("a call an agent dialed for Alice is Alice's through that agent: Bob, with no grant on the line, asking the same agent sees nothing of it", async () => {
+  const t = harness();
+  const numberId = await number(t);
+  t.actAs("agent", AGENT);
+  t.ctx.actingFor = "usr_alice00001";
+  const placed = out(await h.dial(t.ctx, { numberId, to: CALLER, idempotencyKey: "k-alice" }));
+  const id = String(placed.callId);
+  noGrant(t);
+  t.ctx.actingFor = "usr_bob000001";
+  assert.deepEqual(out(await h.callList(t.ctx, {})).calls, [], "Bob lists none");
+  assert.equal(await refusedWith(h.callGet(t.ctx, { callId: id })), "validation.not_found");
+  t.ctx.actingFor = "usr_alice00001";
+  assert.equal(out(await h.callList(t.ctx, {})).calls.length, 1, "Alice through the agent");
+  assert.ok(await h.callGet(t.ctx, { callId: id }));
+  delete t.ctx.actingFor;
+  assert.equal(out(await h.callList(t.ctx, {})).calls.length, 1, "the agent's own turn for nobody");
+});

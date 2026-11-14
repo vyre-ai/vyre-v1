@@ -149,7 +149,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
           "The connector changed while preparing this request. Try again.",
         );
       const resource =
-        name === "connections.complete_auth"
+        name === "connections.complete_auth" || name === "connectors.check_key"
           ? { type: "space", id: ctx.space }
           : name === "connectors.run" || name === "connectors.read"
             ? { type: "connector", id: key! }
@@ -213,6 +213,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
       ...(ctx.log ? { log: ctx.log } : {}),
       ...(ctx.schedule ? { schedule: (at, cap, input) => ctx.schedule!(at, cap, input) } : {}),
       ...((ctx.actingFor ?? ctx.principal?.id) ? { actor: ctx.actingFor ?? ctx.principal!.id } : {}),
+      callerKind: ctx.principal?.kind,
       trusted: isTrustedService(ctx.principal),
       canManageSpace: () =>
         ctx.authorize({ perm: "connectors.manage", level: "edit" }, { type: "space", id: ctx.space }).effect ===
@@ -330,6 +331,8 @@ const NAMES = [
   "connectors.export",
   "connectors.remove",
   "connectors.health",
+  "connectors.for_service",
+  "connectors.check_key",
   "connections.list",
   "connections.get",
   "connections.create",

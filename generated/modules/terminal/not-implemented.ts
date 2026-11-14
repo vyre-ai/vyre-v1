@@ -8,6 +8,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "terminal.attach": async (ctx) => { throw new VyreErr(notImplemented("terminal.attach", ctx.trace)); },
   "terminal.close": async (ctx) => { throw new VyreErr(notImplemented("terminal.close", ctx.trace)); },
   "terminal.get": async (ctx) => { throw new VyreErr(notImplemented("terminal.get", ctx.trace)); },
+  "terminal.give_back": async (ctx) => { throw new VyreErr(notImplemented("terminal.give_back", ctx.trace)); },
   "terminal.health": async (ctx) => { throw new VyreErr(notImplemented("terminal.health", ctx.trace)); },
   "terminal.input": async (ctx) => { throw new VyreErr(notImplemented("terminal.input", ctx.trace)); },
   "terminal.interrupt": async (ctx) => { throw new VyreErr(notImplemented("terminal.interrupt", ctx.trace)); },
@@ -23,5 +24,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "terminal.rules.set": async (ctx) => { throw new VyreErr(notImplemented("terminal.rules.set", ctx.trace)); },
   "terminal.run": async (ctx) => { throw new VyreErr(notImplemented("terminal.run", ctx.trace)); },
   "terminal.status": async (ctx) => { throw new VyreErr(notImplemented("terminal.status", ctx.trace)); },
+  "terminal.take_over": async (ctx) => { throw new VyreErr(notImplemented("terminal.take_over", ctx.trace)); },
   "terminal.workspace": async (ctx) => { throw new VyreErr(notImplemented("terminal.workspace", ctx.trace)); },
 };

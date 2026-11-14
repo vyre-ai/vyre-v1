@@ -301,3 +301,41 @@ test("without a connector_offers answer the page is the page", async () => {
   await flush();
   assert.equal(find(root, "automations-start-offers"), null);
 });
+
+test("a setup that cannot start says why and keeps the offer: it is not accepted, so it is not lost", async () => {
+  const { data, calls } = wired();
+  const offered = {
+    ...data,
+    call: async (cap: string, input: unknown) => {
+      if (cap === "automations.connector_offers")
+        return { offers: [{ itemId: "vit_acme", appName: "Acme", text: "Set up Acme for Automations?" }] };
+      if (cap.startsWith("automations.connector_offer.")) {
+        calls.push({ cap, input });
+        return { decision: "accepted" };
+      }
+      return data.call(cap, input);
+    },
+    nav: {
+      ...data.nav,
+      setUpConnector: () => {
+        throw new Error("Your assistant cannot open that Vault item, so it cannot set it up.");
+      },
+    },
+  };
+  const root = await mount(
+    createRoot,
+    <AutomationsDataProvider value={offered}>
+      <AutomationsStart onTemplates={() => undefined} onAsk={() => undefined} />
+    </AutomationsDataProvider>,
+  );
+  await flush();
+  await press(find(root, "offer-setup-vit_acme"));
+  await flush();
+  assert.match(textOf(root), /cannot open that Vault item/);
+  assert.ok(find(root, "offer-vit_acme"), "the offer is still there");
+  assert.equal(
+    calls.some((c) => c.cap === "automations.connector_offer.accept"),
+    false,
+    "nothing was accepted",
+  );
+});

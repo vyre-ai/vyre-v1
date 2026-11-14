@@ -1,6 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { appNameOf, connectorOpening, gateFor, offersAutomations, usedByOf } from "./automations.ts";
+import {
+  appNameOf,
+  builderGateFor,
+  connectorOpening,
+  gateFor,
+  offersAutomations,
+  readyToBuild,
+  setupOffered,
+  usedByOf,
+} from "./automations.ts";
 
 test("keys, env blocks, logins and loose items offer Add to Automations; cards, notes, codes, SSH keys and AI accounts do not", () => {
   for (const k of ["api_key", "env", "login", "other"] as const) assert.equal(offersAutomations(k), true, k);
@@ -71,4 +80,70 @@ test("the app name drops a trailing key word: Notely API key is Notely", () => {
   assert.equal(appNameOf("Acme access token"), "Acme");
   assert.equal(appNameOf("Stripe webhooks"), "Stripe webhooks");
   assert.equal(appNameOf("API key"), "API key", "a name that is only the key word stays");
+});
+
+test("readyToBuild: the assistant must reach the item and hold the builder role, which a person who may give it gives with the press", async () => {
+  const run = async (st: unknown): Promise<{ error: string | null; calls: string[] }> => {
+    const calls: string[] = [];
+    try {
+      await readyToBuild(
+        async (cap) => (calls.push(cap), cap === "access.connector_builder.status" ? st : {}),
+        "agt_a",
+        "vit_x",
+      );
+      return { error: null, calls };
+    } catch (e) {
+      return { error: (e as Error).message, calls };
+    }
+  };
+  assert.deepEqual(await run({ allowed: true, canGrant: false, reaches: true }), {
+    error: null,
+    calls: ["access.connector_builder.status"],
+  });
+  assert.deepEqual(await run({ allowed: false, canGrant: true, reaches: true }), {
+    error: null,
+    calls: ["access.connector_builder.status", "access.connector_builder.grant"],
+  });
+  assert.match(
+    (await run({ allowed: true, canGrant: true, reaches: false })).error ?? "",
+    /cannot open that Vault item/,
+  );
+  const no = await run({ allowed: false, canGrant: false, reaches: true });
+  assert.match(no.error ?? "", /needs permission to build connectors/);
+  assert.deepEqual(
+    no.calls,
+    ["access.connector_builder.status"],
+    "nothing is granted for a person who may not give it",
+  );
+});
+
+test("setupOffered: no setup is offered that an assistant cannot finish: a company key, an AI account's key, an item above its clearance", () => {
+  const base = { kind: "api_key" as const, handle: "#Acme", aiKey: false };
+  assert.equal(setupOffered(base), true);
+  assert.equal(setupOffered({ ...base, reaches: true }), true);
+  assert.equal(setupOffered({ ...base, reaches: false }), false, "above the assistant's clearance");
+  for (const handle of ["#Google_DWD", "#Microsoft_App", "#SSO_Okta", "#Google_DWD.key"])
+    assert.equal(setupOffered({ ...base, handle }), false, handle);
+  assert.equal(setupOffered({ ...base, aiKey: true }), false);
+  assert.equal(setupOffered({ ...base, aiKey: null }), false, "not known yet");
+  assert.equal(setupOffered({ ...base, kind: "card" }), false);
+});
+
+test("one gate: the first page's check and the Vault row's gateFor agree for every status, and readyToBuild is gateFor's answer", async () => {
+  for (const allowed of [true, false])
+    for (const canGrant of [true, false]) {
+      const st = { allowed, canGrant, reaches: true };
+      const row = gateFor({ online: true, yourLevel: "use", accounts: [{ state: "ok" }], builder: st, asked: false });
+      assert.deepEqual(builderGateFor(st), row, JSON.stringify(st));
+      const calls: string[] = [];
+      let thrown = false;
+      try {
+        await readyToBuild(async (cap) => (calls.push(cap), st), "agt_a", "vit_x");
+      } catch {
+        thrown = true;
+      }
+      assert.equal(thrown, row.state === "ask_admin", `${JSON.stringify(st)} -> ${row.state}`);
+      assert.equal(calls.includes("access.connector_builder.grant"), row.state === "no_builder");
+    }
+  assert.equal(builderGateFor(null).state, "ask_admin");
 });

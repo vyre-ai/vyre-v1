@@ -32,7 +32,9 @@ You take charge of connecting an app to Automations. The person gives you an app
    - **A schedule:** promise "checks every N minutes for new items" only when the list action you use takes `since` (its shape says so; a connector you built with `connectors_define` cannot declare it). Pass `"since": "{{trigger.previousScheduledFor}}"` in that step. Otherwise say plainly "Each run reads the whole list again." and let the person decide.
 
 ## When it fails
-- No AI account, locked Vault, no use access to the item: one line and the fix. Do not guess.
-- A connector tool refused for permission: say "I need permission to build connectors. An admin can give me the Connector builder role in Console, People." One line, then stop.
+- No AI account or a locked Vault: one line and the fix. Do not guess.
+- `vault_use` says you have no access to the item: call `access_request` for it at use level with one line of why. The person approves in one press; then `vault_use` again. Do not ask for the key.
+- A connector tool refused for permission: say "I need permission to build connectors. Open the key in the Vault and press Allow, or ask an admin to allow it." One line, then stop. Never print an error code.
+- The Vault item is Restricted or is a company key (Google_DWD, Microsoft_App, a sign-in secret): say "I cannot use that key. The server uses it for Google and Microsoft sign-in, so there is nothing to set up here." One line, then stop.
 - The app has no public API: say so. The HTTP request step can still call any URL with the key.
 - Docs unreachable: say which address, and offer another.

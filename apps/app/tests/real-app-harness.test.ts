@@ -143,6 +143,8 @@ export function edge(
 }
 
 const ADMIN_TOKEN = "e2e-owner-bootstrap-token";
+/** The fixture Space's id. VYRE_FIXTURE_SPACE_ID gives it a minted-shaped one (spc_ and 32 hex), so a walk can prove a screen shows no real id. */
+const SPACE_ID = process.env["VYRE_FIXTURE_SPACE_ID"] ?? "spc_fresh";
 
 export interface Space {
   url: string;
@@ -153,7 +155,7 @@ export interface Space {
   /** The one-time owner claim link the daemon printed (fresh installs only), or null. */ claim: string | null;
 }
 
-const stopper =
+export const stopper =
   (child: ChildProcess): (() => Promise<void>) =>
   () =>
     new Promise<void>((resolve) => {
@@ -163,7 +165,7 @@ const stopper =
     });
 
 /** Starts the daemon as a person does and reads the address it prints (and, on a fresh install, the claim link it prints right after). */
-async function startDaemon(
+export async function startDaemon(
   dir: string,
   extra: string[],
   port = 0,
@@ -258,7 +260,7 @@ export async function bootFreshSpace(kind?: "personal", publishLocal = false, un
         dir,
         [
           "--space",
-          "spc_fresh",
+          SPACE_ID,
           ...(unnamed ? [] : ["--space-name", kind === "personal" ? "Personal" : "Fresh Co"]),
           ...(kind ? ["--space-kind", kind] : []),
           ...(address ? ["--address", address] : []),
@@ -269,7 +271,7 @@ export async function bootFreshSpace(kind?: "personal", publishLocal = false, un
         d.child.kill("SIGKILL");
         throw new Error("The fixture must publish its actual listening endpoint");
       }
-      return { url: d.url, token: ADMIN_TOKEN, space: "spc_fresh", dir, stop: stopper(d.child), claim: d.claim };
+      return { url: d.url, token: ADMIN_TOKEN, space: SPACE_ID, dir, stop: stopper(d.child), claim: d.claim };
     } catch (e) {
       if (!publishLocal || attempt >= 4) throw e;
       fs.rmSync(dir, { recursive: true, force: true });

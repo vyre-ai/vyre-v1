@@ -1,6 +1,6 @@
 # goals.pause
 
-Pause a goal: no wake-ups and none of its tasks wake their agents until it is resumed
+Pause a goal: no wake-ups and none of its tasks wake their agents until it is resumed (the owner, or an agent in a turn the owner began with their own message)
 
 | | |
 |---|---|

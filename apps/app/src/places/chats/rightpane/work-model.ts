@@ -16,6 +16,11 @@ export interface SessionOwner {
 }
 export interface WorkspaceSession {
   name: string;
+  /** the terminal's id, so a row can open it */ terminalId?: string;
+  /** running a command, waiting at a prompt, or ended */ state?: "running" | "idle" | "exited";
+  /** where it is, as the terminal says it: "~/portal" */ cwd?: string;
+  /** the person at its keyboard now, by id */ heldBy?: string;
+  /** what it last printed, one line (terminal.status) */ lastLine?: string;
   owner?: SessionOwner;
   /** left out when the host does not say */ windows?: number;
   /** people attached right now; left out when not known */ attached?: number;
@@ -43,6 +48,10 @@ export interface WorkspaceData {
   wake(agentId: string): Promise<void>;
   /** Attach the person's Terminal tab to its tmux sessions (the same sessions the agent uses). Wakes it first. Rejects with a sentence. */
   attach(agentId: string): Promise<void>;
+  /** The agent's own terminal is open before anyone asks (13 Nov: nobody presses Attach). Never wakes the computer for a person who may not enter it; resolves with the terminal's id when it is there. */
+  ensure?(agentId: string): Promise<string>;
+  /** Open one terminal full screen. */
+  open?(terminalId: string): void;
 }
 
 // ---- Browser: the agent's profile in the Space browser
@@ -61,6 +70,8 @@ export interface BrowserView {
   caption?: string;
   /** Waiting: the room line. Error: the reason. */
   line?: string;
+  /** When it last worked, for "Last seen 2:32 PM" while it sleeps. */
+  lastActiveAt?: number;
   /** Takeover: who has the controls, by name; `mine` when it is the person looking. */
   takenBy?: string;
   mine?: boolean;
@@ -79,99 +90,6 @@ export interface BrowserData {
   signOut(agentId: string, site: string): Promise<void>;
   /** The live view, drawn by the Space browser (Chrome's screencast and input). Absent: a picture of a browser window stands in. */
   renderLive?(agentId: string, o: { state: BrowserState; control: boolean }): ReactElement;
-}
-
-// ---- the words
-
-export type Tone = "ok" | "quiet" | "warn" | "bad" | "mine";
-export interface Words {
-  chip: string;
-  tone: Tone;
-  /** the one line under the chip, when there is one */ note?: string;
-}
-
-export function workspaceWords(v: WorkspaceView): Words {
-  switch (v.state) {
-    case "running":
-      return v.line !== undefined
-        ? { chip: "Running", tone: "ok", note: v.line }
-        : v.sessions.length === 0
-          ? { chip: "Running", tone: "ok", note: "No session open yet. A command starts one." }
-          : { chip: "Running", tone: "ok" };
-    case "asleep":
-      return { chip: "Asleep", tone: "quiet", note: "Wakes in about a second on the next command." };
-    case "starting":
-      return { chip: "Starting", tone: "quiet" };
-    case "waiting":
-      return {
-        chip: "Waiting for room",
-        tone: "warn",
-        note: v.line ?? "Waiting for room on the Space server. The workspace starts by itself when there is room.",
-      };
-    case "error":
-      return { chip: "Needs attention", tone: "bad", note: v.line ?? "The workspace could not start." };
-    case "unavailable":
-      return {
-        chip: "Not set up yet",
-        tone: "quiet",
-        note:
-          v.line ??
-          "This Space can't run agent workspaces yet. That needs Docker on the computer this Space runs on, or a server with Docker added in Console > Computers.",
-      };
-  }
-}
-
-export function browserWords(v: BrowserView): Words {
-  switch (v.state) {
-    case "closed":
-      return { chip: "Closed", tone: "quiet", note: "Opens when it browses." };
-    case "starting":
-      return { chip: "Starting", tone: "quiet" };
-    case "open":
-      return {
-        chip: v.tabs === undefined ? "Open" : `Open · ${v.tabs} ${v.tabs === 1 ? "tab" : "tabs"}`,
-        tone: "ok",
-        ...(v.caption ? { note: v.caption } : {}),
-      };
-    case "takeover":
-      return v.mine
-        ? { chip: "You're in control", tone: "mine" }
-        : { chip: `${v.takenBy ?? "Someone"} is in control`, tone: "mine" };
-    case "waiting":
-      return {
-        chip: "Waiting for room",
-        tone: "warn",
-        note:
-          v.line ?? "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.",
-      };
-    case "error":
-      return { chip: "Needs attention", tone: "bad", note: v.line ?? "The browser could not open." };
-  }
-}
-
-/** The one button the Terminal section offers: Attach when the person may and the workspace is usable (it wakes on attach), nothing while it waits or failed. */
-export function terminalAction(v: WorkspaceView): "attach" | null {
-  if (!v.canAttach) return null;
-  return v.state === "running" || v.state === "asleep" ? "attach" : null;
-}
-
-/** What the Browser section offers: Give back to the person at the controls, Take over to a permitted person while it is open or closed (taking over opens it), nothing otherwise. */
-export function browserAction(v: BrowserView): "take" | "give" | null {
-  if (v.state === "takeover") return v.mine ? "give" : null;
-  if (!v.canTakeOver) return null;
-  return v.state === "open" || v.state === "closed" ? "take" : null;
-}
-
-/** "2 sessions", "1 session". */
-export const sessionsLine = (n: number): string => `${n} ${n === 1 ? "session" : "sessions"}`;
-/** "Attached: you and 1 more", read from the count of people attached. */
-export function attachedNote(s: WorkspaceSession, agentName = ""): string {
-  const parts: string[] = [];
-  if (s.windows !== undefined) parts.push(`${s.windows} ${s.windows === 1 ? "window" : "windows"}`);
-  if (s.attached) parts.push(`${s.attached} attached`);
-  const base = parts.join(" · ");
-  const who = s.owner || agentName ? ownerLabel(s.owner, agentName) : "";
-  return [who, base].filter((x) => x !== "").join(" · ");
 }
 
 /** "Dex", "helper: Tess", "Maya": the owner of a session in words, the agent's own name when it is the agent. */
@@ -202,24 +120,105 @@ export function sharedWait(
 const DEFAULT_WAIT = "Waiting for room on the Space server. Add a compute server in Console > Computers to run more.";
 const workspaceWordsLine = (l: string | undefined): string => l ?? DEFAULT_WAIT;
 
-/** What the "Older desktop" row says about the move of the old desktop's sign-ins, in plain words: what will happen, what happened, or why it did not. */
-export function olderDesktopNote(
-  m: { state: "done" | "partial" | "failed"; at: number; error?: string } | undefined,
-  day: (ms: number) => string,
-): string {
-  if (!m) return "Its sign-ins move to this agent's browser when the desktop is asleep.";
-  if (m.state === "done")
-    return `Its sign-ins moved to this agent's browser on ${day(m.at)}. The old desktop is kept until you remove it.`;
-  if (m.state === "partial")
-    return `${m.error ?? "Its sign-ins did not all move."} The old desktop is kept until you remove it.`;
-  if (m.error?.startsWith("Moving its sign-ins was interrupted")) return m.error;
-  return `Moving its sign-ins did not work yet${m.error ? `: ${m.error.replace(/\.+$/, "")}` : ""}. It will be tried again.`;
-}
-
 /** The row's menu: Remove is an owner's or admin's and lives in Console > Computers, so only they, and only where the pane can open the Console, are offered it. */
 export function olderDesktopMenu(a: {
   canRemove: boolean;
   open?: (() => void) | undefined;
 }): Array<{ label: string; danger: true; onSelect: () => void }> {
   return a.canRemove && a.open ? [{ label: "Remove in Console > Computers", danger: true, onSelect: a.open }] : [];
+}
+
+// ---- the Computer tab as drawn (AGENT-COMPUTER-2026-11-13.md part A): a dot and a word, never a pill or a paragraph
+
+export type Dot = "run" | "wait" | "idle" | "zz" | "dead";
+/** The Terminals head: one dot and one state word. */
+export function terminalsHead(v: WorkspaceView): { word: string; dot: Dot } {
+  switch (v.state) {
+    case "running":
+      return v.line !== undefined || v.sessions.some((s) => s.state === "running")
+        ? { word: "Running", dot: "run" }
+        : { word: "Ready", dot: "idle" };
+    case "asleep":
+      return { word: "Asleep", dot: "zz" };
+    case "starting":
+      return { word: "Starting", dot: "wait" };
+    case "waiting":
+      return { word: "Waiting", dot: "wait" };
+    case "error":
+    case "unavailable":
+      return { word: "Not running", dot: "dead" };
+  }
+}
+/** One terminal row: its dot and the state word at the right ("running", "idle", "Ended", "Asleep"). */
+export function sessionWords(
+  s: WorkspaceSession,
+  computerAsleep: boolean,
+  keyboard?: { me?: string | undefined; nameOf?: ((id: string) => string) | undefined },
+): { word: string; dot: Dot } {
+  if (s.state === "exited") return { word: "Ended", dot: "dead" };
+  if (s.heldBy !== undefined && !computerAsleep)
+    return {
+      word:
+        s.heldBy === keyboard?.me
+          ? "You have the keyboard"
+          : `${keyboard?.nameOf?.(s.heldBy) ?? "Someone"} has the keyboard`,
+      dot: "wait",
+    };
+  if (computerAsleep) return { word: "Asleep", dot: "zz" };
+  return s.state === "running" ? { word: "Running", dot: "run" } : { word: "Idle", dot: "idle" };
+}
+export interface SessionGroup {
+  key: string;
+  /** the owner's name: the agent's own, a helper's, a person's */ name: string;
+  kind: "agent" | "helper" | "person";
+  /** the quiet word after the name */ tag?: string;
+  rows: WorkspaceSession[];
+}
+/** The terminals grouped by whose they are: the agent, then each helper, then each person. */
+export function groupSessions(list: readonly WorkspaceSession[], agentName: string): SessionGroup[] {
+  const out: SessionGroup[] = [];
+  for (const s of orderSessions(list)) {
+    const o = s.owner;
+    const kind = !o || o.kind === "agent" ? "agent" : o.kind;
+    const name = kind === "agent" ? agentName : (o?.name ?? (kind === "helper" ? "A helper" : "A person"));
+    const key = `${kind}:${name}`;
+    let g = out.find((x) => x.key === key);
+    if (!g) {
+      g = {
+        key,
+        name,
+        kind,
+        ...(kind === "helper" ? { tag: "helper" } : kind === "person" ? { tag: "own tab" } : {}),
+        rows: [],
+      };
+      out.push(g);
+    }
+    g.rows.push(s);
+  }
+  return out;
+}
+/** The browser head word and dot. */
+export function browserHead(v: BrowserView): { word: string; dot: Dot } {
+  switch (v.state) {
+    case "open":
+    case "takeover":
+      return { word: "Live", dot: "run" };
+    case "starting":
+      return { word: "Starting", dot: "wait" };
+    case "waiting":
+      return { word: "Waiting", dot: "wait" };
+    case "error":
+      return { word: "Stopped", dot: "dead" };
+    case "closed":
+      return { word: "Asleep", dot: "zz" };
+  }
+}
+
+/** The stage words of a start, by how long it has taken against its budget. */
+export function startStage(elapsedMs: number, budgetMs = 9000): string {
+  return elapsedMs < budgetMs * 0.4
+    ? "Making the computer"
+    : elapsedMs < budgetMs * 0.8
+      ? "Opening the browser"
+      : "Almost ready";
 }

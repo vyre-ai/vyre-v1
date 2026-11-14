@@ -212,7 +212,14 @@ export function computersJourney(kind: "team" | "personal"): void {
         await me.page.getByTestId("browser-note").innerText(),
         /nowhere to run a browser yet. Add a compute server/,
       );
-      for (const id of ["browser-take", "browser-give", "browser-open", "browser-loading", "terminal-loading"])
+      for (const id of [
+        "browser-picture",
+        "browser-take",
+        "browser-give",
+        "browser-open",
+        "browser-loading",
+        "terminal-loading",
+      ])
         assert.equal(await me.page.getByTestId(id).count(), 0, `${id} is not offered where nothing can run`);
       await shoot(me.page, dir, "no-host");
       bindComputers(machine); // the capable host: a Team Space has one from the start, a Personal Space once a server is added
@@ -264,10 +271,10 @@ export function computersJourney(kind: "team" | "personal"): void {
       };
       await showChat();
       await openComputerTab();
-      await me.page.getByTestId("terminal-card").waitFor({ timeout: 20_000 }); // the tab is Terminal and Browser, one card each
-      await me.page.getByTestId("browser-card").waitFor({ timeout: 20_000 });
-      await me.page.getByTestId("browser-take").waitFor({ timeout: 20_000 });
-      assert.match(await me.page.getByTestId("browser-state").innerText(), /^Open/);
+      await me.page.getByTestId("terminals-head").waitFor({ timeout: 20_000 }); // the tab is Terminals and Browser
+      await me.page.getByTestId("browser-picture").waitFor({ timeout: 20_000 });
+      assert.match(await me.page.getByTestId("browser-head").innerText(), /Live/);
+      assert.equal(await me.page.getByTestId("browser-take").count(), 0, "Take over is not in the pane");
       await shoot(me.page, dir, "pane-working");
       // who may: a team agent's browser is for an owner or an admin, so a member who is neither does not see it nor can take it over
       if (kind === "team") {
@@ -281,20 +288,24 @@ export function computersJourney(kind: "team" | "personal"): void {
         assert.equal(refused.status, 403, `a member cannot take over: ${JSON.stringify(refused)}`);
         assert.match(String(refused.data?.error?.code), /^permission\./);
       }
+      await me.page.getByTestId("browser-picture").click();
+      await me.page.getByTestId("browser-popup").waitFor({ timeout: 10_000 });
       await me.page.getByTestId("browser-take").click();
       await me.page.getByTestId("browser-give").waitFor({ timeout: 20_000 });
-      assert.match(await me.page.getByTestId("browser-state").innerText(), /in control/);
+      assert.match(await me.page.getByTestId("browser-popup-bar").innerText(), /You have the browser/);
       assert.equal(await me.page.getByTestId("browser-take").count(), 0, "while you hold it there is only Give back");
       assert.equal((await profile())?.takeoverBy, w.owner.id, "the browser service has the owner at the controls");
       await shoot(me.page, dir, "pane-in-control");
       // the state is the browser's, not the page's: it is still there after a reload
       await showChat();
       await openComputerTab();
+      await me.page.getByTestId("browser-picture").click();
       await me.page.getByTestId("browser-give").waitFor({ timeout: 20_000 });
       await me.page.getByTestId("browser-give").click();
       await me.page.getByTestId("browser-take").waitFor({ timeout: 20_000 });
       assert.equal((await profile())?.takeoverBy, undefined, "given back, nobody holds it");
-      assert.match(await me.page.getByTestId("browser-state").innerText(), /^Open/);
+      await me.page.getByTestId("browser-popup-close").click();
+      assert.match(await me.page.getByTestId("browser-head").innerText(), /Live/);
       await shoot(me.page, dir, "given-back");
 
       // 3 the live card

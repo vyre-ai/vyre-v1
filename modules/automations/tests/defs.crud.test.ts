@@ -429,3 +429,46 @@ test("set_owner hands a Space Automation to another person; a Personal one canno
   assert.deepEqual((kept?.input as { subject: unknown; level: string }).subject, { kind: "person", id: alice.id });
   assert.equal((kept?.input as { level: string }).level, "manage", "the previous owner keeps Manage");
 });
+
+// ---- an agent and the owner's secret or the Space (the owner asked, in their own turn) ----
+
+test("an agent rotates the webhook URL or promotes an Automation only in a turn the owner started with their own message", async () => {
+  const asked = (person: string): Record<string, unknown> => ({
+    kind: "message",
+    routine: false,
+    askedBy: { person, messageIds: ["msg_ask"], at: NOW },
+  });
+  let turn: Record<string, unknown> = { kind: "none", routine: false };
+  const h = harness({ calls: { "engine.turn.asked_by": () => turn, "access.share": () => ({}) } });
+  const hook = await mk(h, { definition: { triggers: [{ key: "webhook" }], nodes: [] } });
+  const mine = await mk(h, { name: "To promote" });
+  const agent = { id: "agt_dex", kind: "agent" as const, actingFor: alice.id };
+  for (const t of [
+    { kind: "none", routine: false },
+    { kind: "wake", routine: false },
+    { kind: "message", routine: true },
+    asked(bob.id),
+  ]) {
+    turn = t;
+    await refused(
+      h.call("automations.webhook_url.rotate", { automationId: hook, confirm: true }, agent),
+      "validation.precondition_failed",
+      "owner_asked_only",
+    );
+    await refused(
+      h.call("automations.promote", { automationId: mine, confirm: true }, agent),
+      "validation.precondition_failed",
+      "owner_asked_only",
+    );
+  }
+  turn = asked(alice.id);
+  assert.match(
+    (await h.call("automations.webhook_url.rotate", { automationId: hook, confirm: true }, agent)).url,
+    /\/hooks\/automation\//,
+  );
+  await h.call("automations.promote", { automationId: mine, confirm: true }, agent);
+  // the owner's own press and an edit by the same agent in any turn are not touched by the rule
+  turn = { kind: "none", routine: false };
+  assert.ok((await h.call("automations.webhook_url.rotate", { automationId: hook, confirm: true }, alice)).url);
+  await h.call("automations.update", { automationId: hook, name: "Renamed by the agent" }, agent);
+});

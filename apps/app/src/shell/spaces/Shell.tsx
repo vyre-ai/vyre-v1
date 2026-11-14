@@ -592,6 +592,7 @@ export function Shell(props: ShellProps): ReactElement {
           spaceId={ctx.spaceId}
           place={state.place}
           epoch={state.epoch}
+          hash={state.hash}
           compact={compact}
           storage={props.sidebar?.storage ?? null}
         >

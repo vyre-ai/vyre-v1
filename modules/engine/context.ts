@@ -24,7 +24,7 @@ import { CAPABILITY_MAP } from "./capability-map.ts";
 /** The titles of the chats the Vault (Add to Automations) and the step picker (Build a connector) start, and the skill they run on. */
 /** How to name a record, file, task or chat in a reply: by link, never by id. */
 export const NAMING =
-  "Name a record, file, task or chat as [[Name|id]], the name, a bar and its id, like [[Rivera Holdings|rec_01...]]. Never write a bare id (rec_..., file_..., task_...) in a reply; the reader sees the name as a link that opens it. The same form links an email thread or a calendar event, with the id a mail or calendar tool returned; for anything else write the name alone. Never name a tool, a capability or an id to the person (task_submit, use_tool, usr_...): say what you did in plain words, and name people and chats by their names.";
+  "Name a record, file, task or chat as [[Name|id]], the name, a bar and its id, like [[Rivera Holdings|rec_01...]]. Never write a bare id (rec_..., file_..., task_...) in a reply; the reader sees the name as a link that opens it. The same form links an email thread or a calendar event, with the id a mail or calendar tool returned; for anything else write the name alone. Never name a tool, a capability or an id to the person (task_submit, use_tool, usr_..., or any name that starts with mcp__ such as mcp__vyre__terminal_run): say what you did in plain words, and name people and chats by their names.";
 
 export { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL };
 
@@ -588,11 +588,13 @@ export function createContextBuilder(d: ContextDeps) {
     return parseScreen(out?.["screen"]);
   }
 
-  /** A task, as the asker when they may see it, else as the server: the agent that holds the baton must see its own task. */
-  async function taskOf(taskId: string, asker: string): Promise<Obj | undefined> {
-    const own = await read<Obj>("tasks.get", { taskId }, asker);
-    let got = own;
-    if (!got) {
+  /**
+   * A task, as the asker when they may see it. Only the thread's own task (`own`) falls back to the server, because the agent that holds the baton must see its own task. A task named by data a person
+   * can write (the `asked` note of another task) is read as the asker or not at all: nothing read from user-writable data widens what is fetched.
+   */
+  async function taskOf(taskId: string, asker: string, own = false): Promise<Obj | undefined> {
+    let got = await read<Obj>("tasks.get", { taskId }, asker);
+    if (!got && own) {
       try {
         got =
           (await Promise.race([
@@ -948,7 +950,7 @@ export function createContextBuilder(d: ContextDeps) {
     // the goal this chat or this task belongs to: the finish line, where the number stands, why the lead was woken, the plan and the rules (goals.brief, read as the owner)
     let goalTask: Obj | undefined;
     if (taskId) {
-      const t = await taskOf(taskId, asker);
+      const t = await taskOf(taskId, asker, true);
       if (t) add("task", false, taskSection(t, agentId, nameMap, await answersOf(t, asker), asker));
       goalTask = t;
     }

@@ -285,10 +285,18 @@ export default function ConsolePlace(): ReactElement {
         <States kind="empty" title="Needs a Team Space" icon="search" />
       </OutsideShell>
     );
+  // the way back is the state's own button, in the middle under the words (K5, 13 Nov 2026: it hung at the bottom edge of the window)
   if (failed && refused)
     return (
-      <OutsideShell rt={rt ?? null} testID="console-refused">
-        <States kind="empty" title="Console is for admins and owners" icon="search" />
+      <OutsideShell rt={rt ?? null} testID="console-refused" noBack>
+        <States
+          kind="empty"
+          title="Console is for admins and owners"
+          icon="search"
+          {...(rt && !onConsoleHost()
+            ? { action: { label: "Back to Vyre", onPress: () => rt.open({ screen: "home.today-starred-ask" }) } }
+            : {})}
+        />
       </OutsideShell>
     );
   if (failed)
@@ -342,10 +350,12 @@ export default function ConsolePlace(): ReactElement {
 function OutsideShell({
   rt,
   testID,
+  noBack = false,
   children,
 }: {
   rt: ShellRuntime | null;
   testID?: string;
+  noBack?: boolean;
   children: ReactElement;
 }): ReactElement {
   return (
@@ -360,7 +370,7 @@ function OutsideShell({
       }}
     >
       {children}
-      {rt && !onConsoleHost() ? (
+      {rt && !onConsoleHost() && !noBack ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Back to Vyre"

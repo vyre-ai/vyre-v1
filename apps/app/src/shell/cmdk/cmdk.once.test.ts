@@ -1,0 +1,265 @@
+// The command bar shows each thing once and never an id (owner, 13 Nov 2026). He typed "launch" and saw "Book the launch venue" under Chats and again under Tasks, "Spring launch" under Channels and Records,
+// and a project whose line under the name was the record's raw fields ("fld_..., usr_..."). Each case is a row set like the one he saw.
+import test from "node:test";
+import assert from "node:assert/strict";
+import type { Hit } from "./model.ts";
+import { groupRows, mergeHits } from "./model.ts";
+import { linkedTo, replicaHits } from "./gate.ts";
+import { rawIdsIn } from "../../../../../lib/id-shapes.ts";
+import type { ShellRuntime } from "../providers/runtime.tsx";
+
+const hit = (kind: Hit["kind"], id: string, title: string, o: Partial<Hit> = {}): Hit =>
+  ({ kind, id, title, link: `vyre://${kind}/${id}`, score: 1, ...o }) as Hit;
+const shown = (hits: readonly Hit[]): Hit[] => groupRows(hits, 50).flatMap((r) => (r.type === "hit" ? [r.hit] : []));
+const labels = (hits: readonly Hit[]): string[] => hits.map((h) => `${h.kind}:${h.title}`);
+
+test("a task's own chat (its own thread, found by id) is one row with the task; a chat that only shares the name stays", () => {
+  const rt2 = {
+    screens: { query: () => ({ getSnapshot: () => ({ status: "ready", data: { channels: [] } }) }) },
+  } as unknown as ShellRuntime;
+  const marked = linkedTo(
+    rt2,
+    [
+      hit("chat", "thr_work0001", "Book the launch venue"),
+      hit("chat", "thr_other001", "Book the launch venue"),
+      hit("task", "tsk_bbbbbbbb01", "Book the launch venue"),
+    ],
+    new Map([["thr_work0001", "task:tsk_bbbbbbbb01"]]),
+  );
+  assert.deepEqual(
+    labels(shown(marked)).sort(),
+    ["chat:Book the launch venue", "task:Book the launch venue"],
+    "the own chat went, the same-name chat and the task stayed",
+  );
+  assert.equal(shown(marked).find((h) => h.kind === "chat")!.id, "thr_other001");
+  // the mark survives the merge of the device's list with the server's
+  const merged = mergeHits(
+    [hit("chat", "thr_work0001", "Book the launch venue")],
+    marked.filter((h) => h.id === "thr_work0001" || h.kind === "task"),
+  );
+  assert.deepEqual(labels(shown(merged)), ["task:Book the launch venue"]);
+});
+
+test("a task and a chat or record that only share its name are separate rows: nothing is dropped by title across kinds", () => {
+  const rows = shown([
+    hit("chat", "thr_aaaaaaaa01", "Book the launch venue"),
+    hit("task", "tsk_bbbbbbbb01", "Book the launch venue"),
+    hit("record", "rec_cccccccc01", "Book the launch venue", { recordType: "task" }),
+  ]);
+  assert.deepEqual(labels(rows).sort(), [
+    "chat:Book the launch venue",
+    "record:Book the launch venue",
+    "task:Book the launch venue",
+  ]);
+});
+
+test("a project's own channel (linked by id) is one row with the project; a channel that only shares the name stays", () => {
+  const linked = { ...hit("channel", "chn_dddddddd01", "Spring launch"), of: "record:rec_eeeeeeee01" } as Hit;
+  const rows = shown([
+    linked,
+    hit("record", "rec_eeeeeeee01", "Spring launch", { recordType: "project" }),
+    hit("channel", "chn_dddddddd02", "Spring launch"),
+    hit("channel", "chn_dddddddd03", "launch-week"),
+  ]);
+  assert.deepEqual(
+    labels(rows).sort(),
+    ["channel:Spring launch", "channel:launch-week", "record:Spring launch"].sort(),
+    "the linked channel went; the same-named unlinked one and the other channel stayed",
+  );
+  assert.equal(rows.filter((h) => h.id === "chn_dddddddd01").length, 0);
+});
+
+test("linkedTo marks a channel with the record it belongs to, from the sidebar's channel list, and only that one", () => {
+  const rt2 = {
+    screens: {
+      query: () => ({
+        getSnapshot: () => ({
+          status: "ready",
+          data: {
+            channels: [
+              { channelId: "chn_dddddddd01", mainThreadId: "thr_main01", recordId: "rec_eeeeeeee01" },
+              { channelId: "chn_dddddddd02", mainThreadId: "thr_main02" },
+            ],
+          },
+        }),
+      }),
+    },
+  } as unknown as ShellRuntime;
+  const out = linkedTo(rt2, [
+    hit("channel", "chn_dddddddd01", "Spring launch"),
+    hit("channel", "thr_main01", "Spring launch"),
+    hit("channel", "chn_dddddddd02", "Spring launch"),
+  ]) as (Hit & { of?: string })[];
+  assert.deepEqual(
+    out.map((h) => h.of),
+    ["record:rec_eeeeeeee01", "record:rec_eeeeeeee01", undefined],
+  );
+});
+
+test("a record's raw fields are never its snippet, and a title that is an id reads Untitled", () => {
+  const rows = shown([
+    hit("record", "rec_eeeeeeee02", "Spring launch", {
+      recordType: "project",
+      snippet:
+        "…0d3e09cade33 fld_01a1d27b165742ddb20032cbd182aaf9 [Launch] on usr_5b6f9d9e0e318704d0 usr_8923b33eafc2cebd5c",
+    }),
+    hit("record", "rec_eeeeeeee03", "rec_01a1d27b165742ddb20032cbd182aaf9"),
+  ]);
+  assert.equal(rows[0]!.snippet, "…0d3e09cade33 Launch on");
+  assert.equal(rows[1]!.title, "Untitled");
+  for (const h of rows) assert.deepEqual(rawIdsIn(`${h.title} ${h.snippet ?? ""}`), [], h.title);
+  assert.equal(
+    shown([
+      hit("record", "rec_eeeeeeee04", "Plan", {
+        snippet: "fld_01a1d27b165742ddb20032cbd182aaf9 usr_5b6f9d9e0e318704d0",
+      }),
+    ])[0]!.snippet,
+    undefined,
+    "a snippet that was only ids is no snippet",
+  );
+});
+
+const rt = (recent: unknown): ShellRuntime =>
+  ({
+    principals: { getSnapshot: () => ({ status: "ready", data: [] }) },
+    screens: { query: () => ({ getSnapshot: () => ({ status: "ready", data: recent }) }) },
+  }) as unknown as ShellRuntime;
+
+test("the device lists only chats and channels as chats: an Ask pane opened on a task or a project is not one", () => {
+  const item = (kind: string, id: string, title: string) => ({ threadId: id, kind, title });
+  const hits = replicaHits(
+    rt({
+      today: [
+        item("chat", "thr_1", "Launch plan"),
+        item("ask", "thr_2", "Book the launch venue"),
+        item("channel", "chn_1", "launch-week"),
+        item("run", "thr_3", "Run 4"),
+      ],
+    }),
+  );
+  assert.deepEqual(labels(hits), ["chat:Launch plan", "channel:launch-week"]);
+});
+
+test("things are the same only when they are the same thing: the same id is one row, the same title is not", () => {
+  // two untitled records (their titles were ids): two rows, each Untitled, not one
+  const rows = shown([
+    hit("record", "rec_aaaaaaaa01", "rec_01a1d27b165742ddb20032cbd182aaf9"),
+    hit("record", "rec_aaaaaaaa02", "rec_01a1d27b165742ddb20032cbd182aaf8"),
+  ]);
+  assert.deepEqual(labels(rows), ["record:Untitled", "record:Untitled"]);
+  assert.deepEqual(
+    rows.map((h) => h.id),
+    ["rec_aaaaaaaa01", "rec_aaaaaaaa02"],
+  );
+  // a chat that shares a channel's name is its own row
+  assert.deepEqual(
+    labels(
+      shown([hit("channel", "chn_dddddddd01", "launch-week"), hit("chat", "thr_aaaaaaaa01", "launch-week")]),
+    ).sort(),
+    ["channel:launch-week", "chat:launch-week"],
+  );
+  // two tasks, two chats and two records with the same title are two rows each
+  const same = shown([
+    hit("task", "tsk_bbbbbbbb01", "Call Maya"),
+    hit("task", "tsk_bbbbbbbb02", "Call Maya"),
+    hit("chat", "thr_aaaaaaaa01", "Standup"),
+    hit("chat", "thr_aaaaaaaa02", "Standup"),
+    hit("record", "rec_cccccccc01", "Acme"),
+    hit("record", "rec_cccccccc02", "Acme"),
+  ]);
+  assert.equal(same.length, 6);
+  // the same id twice (a chat, then a message hit of it) is one row that keeps the snippet
+  const twice = shown([
+    hit("chat", "thr_aaaaaaaa03", "Standup"),
+    hit("chat", "thr_aaaaaaaa03", "Standup", { snippet: "we start at ten" }),
+  ]);
+  assert.equal(twice.length, 1);
+  assert.equal(twice[0]!.snippet, "we start at ten");
+});
+
+test("every channel shows once: its main thread (indexed as a chat) is the channel's own, and its reply threads stay as their own rows", () => {
+  const rt2 = {
+    screens: {
+      query: () => ({
+        getSnapshot: () => ({
+          status: "ready",
+          data: {
+            channels: [
+              { channelId: "chn_dddddddd01", mainThreadId: "thr_main0001" },
+              { channelId: "chn_dddddddd02", mainThreadId: "thr_main0002", recordId: "rec_eeeeeeee01" },
+            ],
+          },
+        }),
+      }),
+    },
+  } as unknown as ShellRuntime;
+  const marked = linkedTo(rt2, [
+    hit("channel", "chn_dddddddd01", "launch-week"),
+    hit("chat", "thr_main0001", "launch-week"),
+    hit("chat", "thr_reply0001", "launch-week"),
+    hit("channel", "chn_dddddddd02", "Spring launch"),
+    hit("chat", "thr_main0002", "Spring launch"),
+    hit("record", "rec_eeeeeeee01", "Spring launch", { recordType: "project" }),
+  ]);
+  assert.deepEqual(labels(shown(marked)).sort(), ["channel:launch-week", "chat:launch-week", "record:Spring launch"]);
+  assert.equal(shown(marked).find((h) => h.kind === "chat")!.id, "thr_reply0001", "the reply thread stays");
+});
+
+// the device's own list and the server can both return the same thing under different ids: one row, whichever way they arrive
+test("same thing, different ids, device and server together: one row for each pair", () => {
+  const rt2 = {
+    screens: {
+      query: () => ({
+        getSnapshot: () => ({
+          status: "ready",
+          data: {
+            channels: [
+              { channelId: "chn_dddddddd01", mainThreadId: "thr_main0001" },
+              { channelId: "chn_dddddddd02", mainThreadId: "thr_main0002", recordId: "rec_eeeeeeee01" },
+            ],
+          },
+        }),
+      }),
+    },
+  } as unknown as ShellRuntime;
+  const tasks = new Map([["thr_task0001", "task:tsk_bbbbbbbb01"]]);
+  const both = (local: Hit[], server: Hit[]): Hit[] =>
+    shown(mergeHits(linkedTo(rt2, local, tasks), linkedTo(rt2, server, tasks)));
+  const pairs: [string, Hit[], Hit[], string[]][] = [
+    // a recently used channel: the device holds it by its thread id, the server by the channel id
+    [
+      "channel in Recent",
+      [hit("channel", "thr_main0001", "launch-week")],
+      [hit("channel", "chn_dddddddd01", "launch-week")],
+      ["channel:launch-week"],
+    ],
+    // a channel's main thread, indexed by search as a chat, next to the channel
+    [
+      "channel and its main thread",
+      [hit("channel", "thr_main0001", "launch-week")],
+      [hit("channel", "chn_dddddddd01", "launch-week"), hit("chat", "thr_main0001", "launch-week")],
+      ["channel:launch-week"],
+    ],
+    // a project's channel, found three ways, beside the project
+    [
+      "project channel",
+      [hit("channel", "thr_main0002", "Spring launch")],
+      [
+        hit("channel", "chn_dddddddd02", "Spring launch"),
+        hit("chat", "thr_main0002", "Spring launch"),
+        hit("record", "rec_eeeeeeee01", "Spring launch", { recordType: "project" }),
+      ],
+      ["record:Spring launch"],
+    ],
+    // a task and its own thread
+    [
+      "task and its thread",
+      [hit("chat", "thr_task0001", "Book the venue")],
+      [hit("task", "tsk_bbbbbbbb01", "Book the venue")],
+      ["task:Book the venue"],
+    ],
+  ];
+  for (const [name, local, server, want] of pairs) assert.deepEqual(labels(both(local, server)), want, name);
+  // the offline case: the device's row alone stays, it is the only one there is
+  assert.deepEqual(labels(both([hit("channel", "thr_main0001", "launch-week")], [])), ["channel:launch-week"]);
+});

@@ -525,3 +525,16 @@ test("fire: only a schedule the host or a system service made counts as Vyre's o
   await h.call("scheduler.fire", { scheduleId: fromSystem, scheduledFor: t }, host);
   assert.equal(h.calls.at(-1)!.opts?.asCaller, undefined, "a system service's schedule is Vyre's own");
 });
+
+test("a schedule an agent made for nobody is its own: Bob asking that agent lists, reads and cancels none of it; for nobody the agent does", async () => {
+  const h = harness();
+  const nobody = { id: "agt_bot", kind: "agent" as const };
+  const made = await h.call("scheduler.schedule", newSchedule(), nobody);
+  const forBob = { id: "agt_bot", kind: "agent" as const, actingFor: bob.id };
+  assert.equal((await h.call("scheduler.list", {}, forBob)).total, 0, "Bob lists none");
+  await assert.rejects(
+    h.call("scheduler.get", { scheduleId: made.scheduleId }, forBob),
+    (e) => codeOf(e) === "permission.not_found",
+  );
+  assert.equal((await h.call("scheduler.list", {}, nobody)).total, 1, "the agent's own turn for nobody");
+});

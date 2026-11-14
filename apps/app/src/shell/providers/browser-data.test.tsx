@@ -3,7 +3,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { browserData, browserView } from "./browser-data.tsx";
 import type { BrowserRowLike } from "./browser-data.tsx";
-import { BROWSER_VIEW, keyMessages, pointOf, socketUrl, viewUrl } from "../../places/chats/rightpane/BrowserLive.tsx";
+import {
+  BROWSER_VIEW,
+  LEFT_BUTTON,
+  keyMessages,
+  pointOf,
+  pressPoint,
+  socketUrl,
+  viewUrl,
+} from "../../places/chats/rightpane/BrowserLive.tsx";
 
 const row = (o: Partial<BrowserRowLike> = {}): BrowserRowLike => ({
   agentId: "agt_dex",
@@ -227,4 +235,34 @@ test("a Space that cannot run a browser shows one plain line with nothing to pre
   ticks[0]!();
   await flush();
   assert.equal(seen[seen.length - 1]!.state, "open", "a host that appears later is picked up");
+});
+
+test("a press on the web is the browser's click: its place comes from clientX and clientY less the pressed box, and React Native's own locationX wins when there is one", () => {
+  assert.deepEqual(pressPoint({ nativeEvent: { locationX: 12, locationY: 34 } }), { x: 12, y: 34 });
+  assert.deepEqual(
+    pressPoint({
+      nativeEvent: { clientX: 500, clientY: 300 },
+      currentTarget: { getBoundingClientRect: () => ({ left: 400, top: 250 }) },
+    }),
+    { x: 100, y: 50 },
+  );
+  assert.equal(
+    pressPoint({
+      nativeEvent: { clientX: 0, clientY: 0, detail: 0 },
+      currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 0 }) },
+    }),
+    null,
+    "the click a browser makes for Space on a focused view has detail 0",
+  );
+  assert.deepEqual(pressPoint({}), { x: 0, y: 0 }, "an event with nothing to go on (a test double) keeps the corner");
+});
+
+test("the left button is browserd's button 1: its buttons are numbered from 1, and 0 does not exist", () => {
+  assert.equal(LEFT_BUTTON, 1);
+});
+
+test("Tab and Escape are never sent to the page: they are how a person leaves the live view", () => {
+  assert.deepEqual(keyMessages({ key: "Tab" }), []);
+  assert.deepEqual(keyMessages({ key: "Escape" }), []);
+  assert.equal(keyMessages({ key: "Enter" }).length, 2, "other named keys still go");
 });

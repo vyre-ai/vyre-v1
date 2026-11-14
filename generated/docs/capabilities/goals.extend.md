@@ -1,6 +1,6 @@
 # goals.extend
 
-Move the deadline of a goal; a missed goal starts again
+Move the deadline of a goal; a missed goal starts again (the owner, or an agent acting for the owner in a turn the owner began with their own message)
 
 | | |
 |---|---|

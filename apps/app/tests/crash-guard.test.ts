@@ -1,7 +1,7 @@
 // The crash guard every real-browser walk uses: an error page on screen or a React/script error in the console fails the walk (a crash must be a red test, not a screenshot).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { guardCrashes } from "./crash-guard.ts";
+import { IDS_ON_PURPOSE, guardCrashes } from "./crash-guard.ts";
 
 function fakePage(body: string) {
   const handlers: {
@@ -46,4 +46,42 @@ test("a React error or a script error in the console fails the next check; a ref
   handlers.pageerror[0]!(new Error("OpenLink is not defined"));
   await assert.rejects(() => g.check("next"), /a crash was logged/);
   assert.equal(g.crashes().length, 2);
+});
+
+test("an id shown on the page fails the check, naming the step and the id; names and words do not (owner, 13 Nov 2026: an id is never shown to a person)", async () => {
+  await guardCrashes(fakePage("Spring launch  Olivia Owner  person  Lead  Someone  Docs").page).check("a clean page");
+  const { page } = fakePage("People and agents  usr_ec028017ceefaf270b  person  Lead");
+  await assert.rejects(
+    () => guardCrashes(page).check("Overview"),
+    /Overview: an id is shown to the person \(usr_ec028017ceefaf270b\)/,
+  );
+  await assert.rejects(
+    () => guardCrashes(fakePage("Home folder fld_01a1d27b165742ddb20032cbd182aaf9").page).check("Agent"),
+    /an id is shown to the person/,
+  );
+});
+
+test("the pages that may show an id on purpose are exactly one (owner, 13 Nov 2026); naming it skips the scan, an unlisted name fails", async () => {
+  assert.deepEqual(
+    Object.keys(IDS_ON_PURPOSE),
+    ["space-id"],
+    "a new opt-out is a decision: add it here, with its reason, and tell the lead",
+  );
+  for (const reason of Object.values(IDS_ON_PURPOSE)) assert.ok(reason.length > 20 && reason.includes("13 Nov 2026"));
+  const { page } = fakePage("Space ID spc_01a1d27b165742ddb20032cbd182aaf9");
+  await guardCrashes(page).check("Console, Space", { idsOnPurpose: "space-id" });
+  await assert.rejects(() => guardCrashes(page).check("Console, Space"), /an id is shown to the person/);
+  await assert.rejects(
+    () => guardCrashes(page).check("Console, Space", { idsOnPurpose: "anything" as never }),
+    /not a listed reason/,
+  );
+});
+
+test("the scan reads the app's text, not what a person wrote: when the page can say which text is the app's, only that is scanned", async () => {
+  const { page } = fakePage("the app says usr_ec028017ceefaf270b");
+  const withEval = {
+    ...(page as object),
+    evaluate: async () => "A message from Maya\nthe app says nothing about ids",
+  } as never;
+  await guardCrashes(withEval).check("a chat where a person pasted an id");
 });

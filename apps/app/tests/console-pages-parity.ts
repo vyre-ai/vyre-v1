@@ -189,7 +189,7 @@ export async function runPagesParity(t: TestContext, opts: ParityOptions, pw: Pl
               }
               if (await p.getByText("is not implemented in this candidate yet").count())
                 problems.push(`${where}: the page is not implemented`);
-              await pg.check(where);
+              await pg.check(where, id === "space" ? { idsOnPurpose: "space-id" } : undefined); // owner, 13 Nov 2026: admins may see the Space ID on Console General
               // the place's title and one-sentence subtitle sit under the page, and the tab strip shows the place's tabs (the Home place has a single tab and no strip)
               const section = sectionOf(id)!;
               if (

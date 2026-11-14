@@ -440,3 +440,12 @@ test("the removal helper: only the fixed script on no network, sharing only its 
     "the policy and the module hold the same script",
   );
 });
+
+test("F33: the runner accepts the desktop host name `computer` (and the old container name, from an older server), and no other", async () => {
+  const { computerBody } = await import("./computers-policy.ts");
+  const ok = (h: string) => "body" in computerBody(computerName(A), { ...good(A), Hostname: h });
+  assert.equal(ok("computer"), true);
+  assert.equal(ok(computerName(A)), true);
+  assert.equal(ok(computerName(B)), false);
+  assert.equal(ok("workspace"), false);
+});

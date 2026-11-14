@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Group, Section } from "../shell/ui.tsx";
-import { Actions, Button, Field, Help, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { Actions, Button, TextBox, Help, Note, ReadState, useAction, useRead } from "./shared.tsx";
 import { Choice } from "./ai-controls.tsx";
 import { INTERNET_CHOICES, internetPolicy, internetSummary, parseHosts, WINDOWS_NOTE } from "./internet-values.ts";
 import type { InternetMode, InternetPolicy } from "./internet-values.ts";
@@ -54,7 +54,7 @@ function InternetEditor({ saved, refresh }: { saved: InternetPolicy; refresh(): 
             }}
           />
           {mode === "list" ? (
-            <Field
+            <TextBox
               label="Hosts AI tools may reach (one per line, *.example.com for every name under it)"
               value={text}
               multiline

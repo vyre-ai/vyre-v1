@@ -8,6 +8,7 @@ HTTP 404. Retryable: no.
 
 - access.agents_can_call.get
 - access.agents_can_call.set
+- access.clears
 - access.exceptions.remove
 - access.exceptions.set
 - access.make_owner
@@ -30,4 +31,3 @@ HTTP 404. Retryable: no.
 - agents.routines.list
 - agents.set_owner
 - agents.share_class
-- agents.snapshot.take

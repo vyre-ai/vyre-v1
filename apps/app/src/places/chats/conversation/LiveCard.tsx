@@ -96,6 +96,8 @@ export function LiveCard({
   const driven = state !== null && LIVE.has(state);
   const frozen = state !== null && !driven;
   const [missing, setMissing] = useState(false);
+  // a picture that arrived but cannot be drawn (a bad or cut image) is a picture that could not be had: never a blank box
+  const [undrawable, setUndrawable] = useState(false);
   useEffect(() => {
     if (!frozen || still !== null) return;
     let live = true;
@@ -118,7 +120,11 @@ export function LiveCard({
   const where = placeWord(null, computerId ? "computer" : "browser");
   // never an empty dark box: until a frame is there the card shows the page and a quiet line; a picture that could not be had says so
   const waiting = (
-    <Waiting id={id} page={caption} line={frozen && missing ? "No picture of this step could be taken." : "Opening…"} />
+    <Waiting
+      id={id}
+      page={caption}
+      line={frozen && (missing || undrawable) ? "No picture of this step could be taken." : "Opening…"}
+    />
   );
   return (
     <Card kind="progress" size="compact" flush testID={`live-card-${id}`} label={`${where}: ${caption}`}>
@@ -165,7 +171,11 @@ export function LiveCard({
           onPress={open}
           style={s.screen}
         >
-          {still ? <Image source={{ uri: still }} resizeMode="contain" style={s.fill} /> : waiting}
+          {still && !undrawable ? (
+            <Image source={{ uri: still }} resizeMode="contain" style={s.fill} onError={() => setUndrawable(true)} />
+          ) : (
+            waiting
+          )}
         </Pressable>
       )}
       <View style={s.foot}>

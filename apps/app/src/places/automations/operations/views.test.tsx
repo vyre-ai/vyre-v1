@@ -85,7 +85,9 @@ test("analytics: the Space report shows the totals, the days, the busiest automa
       html.includes("3 runs") &&
       html.includes("1 failed"),
   );
-  assert.ok(html.includes("Step note in Welcome") && html.includes("provider.network"));
+  // owner, 13 Nov 2026: a person reads what went wrong, never the code
+  assert.ok(html.includes("Step note in Welcome") && html.includes("We could not reach the service."));
+  assert.equal(html.includes("provider.network"), false, "the code is not shown");
   assert.equal([...html.matchAll(/data-testid="bar-2026-10-0\d"/g)].length, 3, "one bar per day");
   assert.ok(!html.includes("Northwind"));
 });

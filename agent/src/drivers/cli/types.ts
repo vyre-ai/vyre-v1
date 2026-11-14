@@ -95,16 +95,24 @@ export type CliEvent =
   | { type: "text"; text: string }
   | { type: "thinking"; text: string }
   /** A tool the CLI ran itself (through MCP or one of its own). Vyre's tools were already run by the MCP server; this only shows the activity. */
-  | { type: "tool"; phase: "call"; id: string; name: string }
+  | {
+      type: "tool";
+      phase: "call";
+      id: string;
+      name: string;
+      /** the subagent call this one belongs to, when a subagent made it */ parent?: string;
+    }
   | {
       type: "tool";
       phase: "result";
       id: string;
       ok: boolean;
+      parent?: string;
+      /** What a subagent returned to the engine that started it (its call's result), redacted and cut: the words of the answer, for the crew row. Only for the call that starts a subagent. */ result?: string;
       /** The end of what the tool printed, short: a test run says how many passed in its last lines. */ output?: string;
     }
   /** What a call touches, in safe words (a file name, a search query): only for the live line, never saved. */
-  | { type: "tool"; phase: "input"; id: string; detail: string }
+  | { type: "tool"; phase: "input"; id: string; detail: string; parent?: string }
   /** inputTokens counts cache reads and writes too. The split, reasoning and the engine's own dollar figure come only when the engine reported them (absent = not reported, never 0 in their place). */
   | {
       type: "usage";
