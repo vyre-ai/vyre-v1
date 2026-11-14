@@ -119,7 +119,7 @@ async function read(h: ReturnType<typeof harness>, who: string, readers: string[
   return crewStatus(ctx, { threadId: "thr_1" });
 }
 
-test("who sees a subagent: every reader sees that it ran, its task, its state and clock; its answer is the asker's alone; a stranger sees nothing", async () => {
+test("who sees a subagent: the asker the whole row; every other reader only that a helper ran, its state and clock (never the task line, steps or answer); a stranger nothing", async () => {
   for (const kind of ["group chat", "private chat"]) {
     const h = harness();
     noteOwn(
@@ -139,11 +139,61 @@ test("who sees a subagent: every reader sees that it ran, its task, its state an
     if (kind === "group chat")
       for (const other of ["usr_member", "usr_guest"]) {
         const m = (await read(h, other, readers)).members[0]!;
-        assert.deepEqual([m.title, m.state, m.elapsedMs], ["Test the terminal", "done", 0], `${other} sees the row`);
+        assert.deepEqual(
+          [m.kind, m.title, m.state, m.elapsedMs],
+          ["subagent", "Helper 1", "done", 0],
+          `${other} sees that a helper ran`,
+        );
         assert.equal(m.answer, undefined, `${other}: no answer`);
         assert.equal(m.found, undefined, `${other}: no words of it`);
-        assert.doesNotMatch(JSON.stringify(m), /Secret/);
+        assert.doesNotMatch(JSON.stringify(m), /Secret|terminal/i, `${other}: no task line, no answer`);
       }
     await assert.rejects(read(h, "usr_stranger", readers), Error, `${kind}: a stranger is refused`);
   }
+});
+
+test("the consumer erases on message.deleted and thread.erased, as chat emits them (also for each thread of an erased family)", async () => {
+  const { bridgeConsumers } = await import("../handlers/bridge.ts");
+  const run = bridgeConsumers["engine.own_subagents_erase"].run;
+  const h = harness();
+  noteOwn(h.ctx.db, e, [{ phase: "call", id: "a", name: "Agent" }], 1);
+  hangOwn(h.ctx.db, "trn_1", "msg_1");
+  noteOwn(h.ctx.db, { ...e, threadId: "thr_9", turnId: "trn_9" }, [{ phase: "call", id: "z", name: "Agent" }], 1);
+  assert.deepEqual(
+    await run(h.ctx, { name: "message.deleted", payload: { messageId: "msg_1", threadId: "thr_1" } } as never),
+    { removed: 1 },
+  );
+  assert.deepEqual(await run(h.ctx, { name: "thread.erased", payload: { threadId: "thr_9" } } as never), {
+    removed: 1,
+  });
+  assert.deepEqual(listOwn(h.ctx.db, "thr_9", new Set()), []);
+});
+
+test("retention: a purge that names the messages it removed takes their rows; a soft-deleted chat keeps them, and they go when the chat is erased for good", async () => {
+  const { bridgeConsumers } = await import("../handlers/bridge.ts");
+  const run = bridgeConsumers["engine.own_subagents_erase"].run;
+  const h = harness();
+  noteOwn(h.ctx.db, e, [{ phase: "call", id: "a", name: "Agent" }], 1);
+  noteOwn(h.ctx.db, { ...e, turnId: "trn_2" }, [{ phase: "call", id: "b", name: "Agent" }], 2);
+  hangOwn(h.ctx.db, "trn_1", "msg_1");
+  hangOwn(h.ctx.db, "trn_2", "msg_2");
+  // the chat is soft-deleted (restorable): no event, the rows stay and come back with it
+  assert.deepEqual(
+    listOwn(h.ctx.db, "thr_1", new Set()).map((x) => x.callId),
+    ["a", "b"],
+  );
+  // the retention purge removes msg_1 for good
+  assert.deepEqual(
+    await run(h.ctx, { name: "transcripts.purged", payload: { removed: 1, messageIds: ["msg_1"] } } as never),
+    { removed: 1 },
+  );
+  assert.deepEqual(
+    listOwn(h.ctx.db, "thr_1", new Set()).map((x) => x.callId),
+    ["b"],
+  );
+  // the soft-deleted chat passes its restore window: the purge erases it for good
+  assert.deepEqual(await run(h.ctx, { name: "thread.erased", payload: { threadId: "thr_1" } } as never), {
+    removed: 1,
+  });
+  assert.deepEqual(listOwn(h.ctx.db, "thr_1", new Set()), []);
 });

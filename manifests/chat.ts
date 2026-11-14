@@ -403,7 +403,7 @@ export default defineManifest({
       idem: "key",
       in: { channelId: id.channel },
       out: { erased: t.bool() },
-      emits: ["channel.erased"],
+      emits: ["channel.erased", "thread.erased"],
       audit: "always",
       risk: "high",
     }),
@@ -2430,7 +2430,7 @@ export default defineManifest({
       retention: "audit",
     }),
     ev("transcripts.purged", "Chat transcripts past their retention were removed (a count)", {
-      p: { removed: t.int({ minimum: 0 }) },
+      p: { removed: t.int({ minimum: 0 }), messageIds: t.opt(t.arr(id.message)) },
       subject: ["entity", "/removed"],
       retention: "audit",
     }),

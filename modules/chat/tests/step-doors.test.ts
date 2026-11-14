@@ -134,3 +134,34 @@ test("a notification, a chat preview and every event of a reply that carries ste
   for (const s of ["alice-private-notes", "Alice_Claude", "mybank.example"])
     assert.equal(recent.includes(s), false, `the chat list carries ${s}`);
 });
+
+test("a reply's Details tab names the kind of each step to a second member, never the tool's own name; the asker sees them", async () => {
+  const hn = baseHarness({
+    calls: {
+      "agents.get": (i) => ({ agent: { agentId: i["agentId"], name: "Checker", runtime: "vyre" } }),
+      "access.principals.get": () => ({ principal: { name: "Someone" } }),
+      "engine.turn.of_message": () => {
+        throw Object.assign(new Error("no turn"), { error: { code: "validation.not_found" } });
+      },
+      "memory.used": () => ({ facts: [], quotes: [] }),
+    },
+  });
+  const threadId = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "sd4" })).thread
+    .threadId as string;
+  await h["threads.members.add"]!(hn.ctx, { threadId, personId: MAYA });
+  const posted = await h["chat.post"]!(hn.agent(INTAKE, DANA), {
+    threadId,
+    body: "Done.",
+    blocks: [
+      { type: "tool_call", v: 1, data: { id: "x1", name: "vault_use" } },
+      { type: "tool_result", v: 1, data: { id: "x1", name: "vault_use", ok: true, secs: 1 } },
+    ],
+    idempotencyKey: "sd4-reply",
+  });
+  const messageId = posted.message.messageId as string;
+  const other = JSON.stringify(await h["chat.reply_details"]!(hn.person(MAYA), { threadId, messageId }));
+  assert.equal(other.includes("vault_use"), false, "the tool's own name reaches a second member");
+  assert.equal(other.includes("Tool"), true, "but the kind of step does");
+  const own = JSON.stringify(await h["chat.reply_details"]!(hn.ctx, { threadId, messageId }));
+  assert.equal(own.includes("vault_use"), true, "the asker sees their own steps whole");
+});

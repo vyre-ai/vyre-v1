@@ -154,6 +154,8 @@ export type StreamEvent =
       /** what the call touches, in safe words (a file name, a query): for the live line only */ detail?: string;
       /** Who the turn runs for: a subagent's own lines go to them alone (live-coalesce.ts, the host's stream). */
       asker?: string;
+      /** This line is the task line of the subagent that `parent` names (asker only). */
+      title?: boolean;
       /** The call a subagent made this step under: the id of the Agent call that started that subagent (crew rows read it; the live line does not). */
       parent?: string;
       /** What a subagent returned, on the result of the call that started it. Never sent to a screen's live line (live-coalesce.ts drops it); the crew row keeps it. */
@@ -867,25 +869,41 @@ export function createBridge(o: BridgeOptions): Bridge {
           } else if (ev.type === "block" && ev.kind === "tool_input") {
             // what a call touches goes to the live line only, over the same gated link as the words: it is never saved with the reply
             const p = (ev.payload ?? {}) as { id?: unknown; detail?: unknown };
-            if (seg.step && seg.step.id === p.id && typeof p.detail === "string" && p.detail !== "")
-              seg.step.detail = p.detail;
-            if (typeof p.id === "string" && typeof p.detail === "string" && p.detail !== "")
-              emit({
-                kind: "step",
-                threadId: input.threadId,
-                turnId: input.turnId,
-                agentId: input.agent.id,
-                phase: "input",
-                id: p.id,
-                detail: p.detail,
-              });
-            // a subagent's own one-line description is saved on its call, so the trail names it ("Working with a helper: Check the pricing page") instead of a bare "Using agent"
+            // the task line of a subagent is the asker's alone (F51): it goes out in the asker-only substeps frame, is not the live line's detail for everyone, and is not saved on the call, which every reader of the reply sees
+            const agentCall =
+              typeof p.id === "string" && /^(Agent|Task)$/.test(seg.calls?.get(p.id)?.name ?? "") ? p.id : "";
+            if (agentCall !== "") {
+              if (typeof p.detail === "string" && p.detail !== "")
+                emit({
+                  kind: "step",
+                  threadId: input.threadId,
+                  turnId: input.turnId,
+                  agentId: input.agent.id,
+                  phase: "input",
+                  id: agentCall,
+                  parent: agentCall,
+                  title: true,
+                  asker: input.asker,
+                  detail: p.detail,
+                });
+            } else {
+              if (seg.step && seg.step.id === p.id && typeof p.detail === "string" && p.detail !== "")
+                seg.step.detail = p.detail;
+              if (typeof p.id === "string" && typeof p.detail === "string" && p.detail !== "")
+                emit({
+                  kind: "step",
+                  threadId: input.threadId,
+                  turnId: input.turnId,
+                  agentId: input.agent.id,
+                  phase: "input",
+                  id: p.id,
+                  detail: p.detail,
+                });
+            }
             const call =
-              typeof p.id === "string" && typeof p.detail === "string" && p.detail !== ""
+              typeof p.id === "string" && typeof p.detail === "string" && p.detail !== "" && agentCall === ""
                 ? seg.blocks.find((x) => x.type === "tool_call" && (x.data as { id?: unknown }).id === p.id)
                 : undefined;
-            if (call && !shared && /^(Agent|Task)$/.test(String((call.data as { name?: unknown }).name)))
-              call.data = { ...(call.data as Record<string, unknown>), detail: p.detail };
             // only the file's name is kept with a file step, so a finished helper can say "Edited dark-mode.txt"; the path and the rest of the input stay on the live line
             const nm = String((call?.data as { name?: unknown } | undefined)?.name ?? "");
             if (
@@ -1085,10 +1103,11 @@ export function createBridge(o: BridgeOptions): Bridge {
       threadId,
       got: got as unknown as OpenGet,
       read,
+      // asked as the person who wrote (a private assistant or outside agent is its person's alone: the service is refused it on every turn, and so never learns its model or that it runs outside)
       agentInfo: (agentId) =>
-        ctx
-          .call("agents.get", { agentId })
-          .then((r) => (r as { agent?: { model?: string; runtime?: string } } | null)?.agent ?? null),
+        read("agents.get", { agentId }).then(
+          (r) => (r as { agent?: { model?: string; runtime?: string } } | null)?.agent ?? null,
+        ),
       saved: (agentId) => {
         try {
           return stateOf(ctx, threadId, agentId);
@@ -1579,9 +1598,16 @@ export const bridgeConsumers = {
   // a person signed in again (a Vault item was saved or changed): the turns parked on a missing sign-in run once. Whose sign-in is not in the event, and a turn whose account is still missing parks again at once.
   // a message or a whole chat was erased: the subagents of the engine that hung under it go with it (own-subagents.ts)
   "engine.own_subagents_erase": {
-    on: ["message.deleted", "thread.erased"],
+    on: ["message.deleted", "thread.erased", "transcripts.purged"],
     run: async (ctx: EngineCtx, event: BridgeEvent): Promise<{ removed: number }> => ({
       removed: eraseOwn(ctx.db, {
+        ...(event.name === "transcripts.purged"
+          ? {
+              messageIds: Array.isArray(event.payload["messageIds"])
+                ? (event.payload["messageIds"] as unknown[]).map(String)
+                : [],
+            }
+          : {}),
         ...(event.name === "message.deleted" ? { messageId: str(event.payload["messageId"]) } : {}),
         ...(event.name === "thread.erased" ? { threadId: str(event.payload["threadId"]) } : {}),
       }),

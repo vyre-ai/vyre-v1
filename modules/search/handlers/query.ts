@@ -42,6 +42,7 @@ export interface Federated {
   cap: string;
   hits(out: unknown): Omit<Hit, "score">[];
 }
+type ChatHit = { threadId?: string; snippet?: unknown; at?: unknown; thread?: { kind?: string; title?: unknown } };
 type NoteHit = { noteId?: unknown; title?: unknown; snippet?: unknown; updatedAt?: unknown };
 export const FEDERATED: readonly Federated[] = [
   {
@@ -58,6 +59,30 @@ export const FEDERATED: readonly Federated[] = [
           link: `vyre://note/${n.noteId as string}`,
           ...(typeof n.updatedAt === "number" ? { updatedAt: n.updatedAt } : {}),
         })),
+  },
+  {
+    // a private chat's words are never in the shared index (the service may not open it); its person finds them here, answered by chat.search as the asker, so exactly the people who can open it can find it
+    kind: "chat",
+    cap: "chat.search",
+    hits: (out) => {
+      const seen = new Set<string>();
+      const list: Omit<Hit, "score">[] = [];
+      for (const h of ((out as { hits?: ChatHit[] } | null)?.hits ?? []).filter(
+        (x) => (x.thread?.kind === "chat" || x.thread?.kind === "ask") && typeof x.threadId === "string",
+      )) {
+        if (seen.has(h.threadId!)) continue;
+        seen.add(h.threadId!);
+        list.push({
+          kind: "chat" as const,
+          id: h.threadId!,
+          title: typeof h.thread?.title === "string" && h.thread.title ? h.thread.title : "Chat",
+          ...(typeof h.snippet === "string" && h.snippet ? { snippet: h.snippet } : {}),
+          link: `vyre://thread/${h.threadId}`,
+          ...(typeof h.at === "number" ? { updatedAt: h.at } : {}),
+        });
+      }
+      return list;
+    },
   },
 ];
 const FEDERATED_LIMIT = 5;

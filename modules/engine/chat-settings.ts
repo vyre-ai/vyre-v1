@@ -43,6 +43,7 @@ export async function chatSettings(
   agentId: string,
   asker: string,
 ): Promise<ChatSettings> {
+  if (threadId.startsWith("oneshot_")) return {}; // a one-shot job has no chat to read settings from
   let out: ThreadOut;
   try {
     out = (await call("threads.get", { threadId }, asker)) as ThreadOut;

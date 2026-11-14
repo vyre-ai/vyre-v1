@@ -385,14 +385,9 @@ test("steps of a turn in a shared chat: what the other readers see", { timeout: 
   }
 });
 
-// engine.crew.status is lane b-crew's handler; its fix (the rows go to the asker only) is on origin/wip/b-crew and not yet on this line. Until it is merged this is EXPECTED RED and is reported as a todo, never skipped:
-// remove the `todo` the day that fix is merged into this branch.
-test(
-  "engine.crew.status serves another member of the chat none of the subagent's title, steps or answer",
-  { todo: "waiting for lane b-crew's engine.crew.status fix to be merged here" },
-  () => {
-    assert.ok(crewStatusForBob !== "", "the main test ran first and read the status as Bob");
-    for (const needle of SUB_NEEDLES)
-      assert.equal(crewStatusForBob.includes(needle), false, `engine.crew.status still hands Bob ${needle}`);
-  },
-);
+// engine.crew.status is lane b-crew's handler; its fix (the rows go to the asker only) is merged into this branch.
+test("engine.crew.status serves another member of the chat none of the subagent's title, steps or answer", () => {
+  assert.ok(crewStatusForBob !== "", "the main test ran first and read the status as Bob");
+  for (const needle of SUB_NEEDLES)
+    assert.equal(crewStatusForBob.includes(needle), false, `engine.crew.status still hands Bob ${needle}`);
+});

@@ -155,3 +155,28 @@ test("what a step touched goes to the asker's frame only; every reader gets the 
   assert.equal(others.includes("vault_use"), false, "nor the tool's own name");
   assert.equal(others.includes("Working"), true, "it says a step ran, in plain words");
 });
+
+test("F51: a subagent's task line goes only in the asker's substeps frame, never in the steps frame every reader gets", () => {
+  const r = rig();
+  r.push({ kind: "step", threadId: "t", turnId: "u", agentId: "a", phase: "call", id: "toolu_a", name: "Agent" });
+  r.advance(1000);
+  r.push({
+    kind: "step",
+    threadId: "t",
+    turnId: "u",
+    agentId: "a",
+    phase: "input",
+    id: "toolu_a",
+    parent: "toolu_a",
+    title: true,
+    asker: "usr_1",
+    detail: "Read the secret lease",
+  });
+  r.advance(1000);
+  r.push({ kind: "end", threadId: "t", turnId: "u", agentId: "a", state: "done" } as never);
+  for (const e of r.out.filter((x) => x.kind === "steps")) assert.doesNotMatch(JSON.stringify(e), /secret lease/);
+  const subs = r.out.filter((x) => x.kind === "substeps");
+  assert.equal(subs.length, 1);
+  assert.match(JSON.stringify(subs[0]), /secret lease/);
+  assert.equal((subs[0] as { asker: string }).asker, "usr_1");
+});

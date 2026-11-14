@@ -162,17 +162,19 @@ export async function crewStatus(ctx: EngineCtx, input: { threadId: string }) {
         ).turns.map((t) => t.turnId)
       : [],
   );
-  // Who sees what of a subagent (lead, 14 Nov): everyone who can read the chat sees that it ran, its task, Working or Done and its clock. The words it returned ran with the reach of the person who asked and the agent never
-  // chose to say them to the room: they are that person's alone (the step it is on rides their own live frames).
+  // Who sees what of a subagent (F51): the person the agent's turn acted for sees the whole row. Everyone else who can read the chat sees that it exists, that it is a helper, its state and its clock; never its task
+  // line, its steps or its answer, which ran with the asker's reach and which the agent never chose to say to the room. Applied here, when the row is served, so stored rows are covered.
   const me = ctx.actingFor ?? ctx.principal.id;
+  let others = 0;
   for (const x of listOwn(ctx.db, input.threadId, liveIds)) {
     const end = x.endedAt;
     const mine = x.asker === me;
+    if (!mine) others += 1;
     members.push({
       kind: "subagent",
       id: `sub_${x.callId.replace(/[^A-Za-z0-9]/g, "")}`,
       parentThreadId: input.threadId,
-      title: x.title === "" ? "Helper" : x.title,
+      title: mine ? (x.title === "" ? "Helper" : x.title) : `Helper ${others}`,
       agentId: x.agentId,
       state:
         x.state === "working" ? "working" : x.state === "done" ? "done" : x.state === "failed" ? "failed" : "stopped",

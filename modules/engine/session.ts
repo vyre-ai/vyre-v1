@@ -251,6 +251,7 @@ async function crewWorkspaceOf(
   call: OpenerHost["call"],
   spec: { asker: string; threadId: string },
 ): Promise<CrewWorkspace | null> {
+  if (spec.threadId.startsWith("oneshot_")) return null; // a one-shot job is no crew thread
   const ask = async (): Promise<CrewWorkspace | null> => {
     try {
       return (

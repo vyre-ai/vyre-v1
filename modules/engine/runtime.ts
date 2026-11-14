@@ -962,21 +962,24 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       : o;
   // where a turn runs, in words, for the turn's own context line (one placement read, only for a chat of a person)
   const placementNow = (threadId: string, agentId: string, asker: string): Promise<string | undefined> =>
-    placementOf(
-      async () => {
-        try {
-          return (
-            (await h.call("engine.placement.decide", { threadId, agentId, kind: "message" }, asker)) as {
-              placement?: string;
+    // a one-shot job (memory upkeep, the chat title) has no chat to place: asking is refused every time
+    threadId.startsWith("oneshot_")
+      ? Promise.resolve(undefined)
+      : placementOf(
+          async () => {
+            try {
+              return (
+                (await h.call("engine.placement.decide", { threadId, agentId, kind: "message" }, asker)) as {
+                  placement?: string;
+                }
+              ).placement;
+            } catch {
+              return undefined;
             }
-          ).placement;
-        } catch {
-          return undefined;
-        }
-      },
-      { threadId, agentId, asker },
-      (h.now ?? Date.now)(),
-    );
+          },
+          { threadId, agentId, asker },
+          (h.now ?? Date.now)(),
+        );
   const placeWords = async (spec: SessionSpec): Promise<string | undefined> => {
     const p = await placementNow(spec.threadId, spec.agent.id, spec.asker);
     return p === "device" ? "on the asker's own computer" : p === "host" ? "on the Space's server" : undefined;
