@@ -6,7 +6,7 @@ import { KeyRequestCard } from "./keyrequest.tsx";
 
 test("the key reads as a name, never doubled", () => {
   assert.equal(keyWords("Fathom"), "Fathom key");
-  assert.equal(keyWords("Dana_Lawmatics"), "Dana Lawmatics key");
+  assert.equal(keyWords("Dana_Northwind CRM"), "Dana Northwind CRM key");
   assert.equal(keyWords("Fathom_key"), "Fathom key");
 });
 

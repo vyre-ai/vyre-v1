@@ -343,7 +343,7 @@ test("the ... menu offers Always allow Dex to message Aliza Rizvi: one rule for 
 });
 
 const EVENT = {
-  summary: "Rivera closing prep",
+  summary: "Harbor closing prep",
   description: "Agenda\n- the deed\n- the fee",
   location: "https://us02web.zoom.us/j/123456",
   sendUpdates: "all",
@@ -363,7 +363,7 @@ test("a calendar event holds as an event card: the title, when in both zones, th
   const root = await mount(createRoot, card(w.d));
   const t = textOf(root);
   assert.match(t, /Dex wants to add a calendar event/);
-  assert.match(t, /Rivera closing prep/);
+  assert.match(t, /Harbor closing prep/);
   assert.match(t, /When/);
   assert.match(t, /Wed 4 Nov, 2:00 to 3:00 pm PST/);
   assert.match(t, /dana@client\.test/);

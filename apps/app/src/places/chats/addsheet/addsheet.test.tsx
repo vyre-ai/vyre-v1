@@ -56,7 +56,7 @@ test("the composer's + has Add people and agents under This chat, and it opens t
     await press(find(root, "row-plus-people"));
     await flush();
     assert.ok(find(root, SHEET), "the sheet is open");
-    assert.match(textOf(find(root, SHEET)), /Add people and agents\s+to Rivera intake/);
+    assert.match(textOf(find(root, SHEET)), /Add people and agents\s+to Harbor onboarding/);
   });
 });
 
@@ -70,7 +70,7 @@ test("the header + opens the same sheet (the old Add as listening menu is gone)"
     await flush();
     assert.ok(find(root, SHEET));
     assert.equal(find(root, "menu-item-Docs"), null, "no list of agents to add as listening");
-    assert.match(textOf(find(root, SHEET)), /to Rivera intake/);
+    assert.match(textOf(find(root, SHEET)), /to Harbor onboarding/);
   });
 });
 

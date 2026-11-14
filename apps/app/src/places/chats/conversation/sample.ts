@@ -1,4 +1,4 @@
-// The sample conversation behind the tests and screenshots: Northwind's "Rivera intake" chat with Intake (leads) and Docs (listens), from the prototype. A fake replica holds the thread,
+// The sample conversation behind the tests and screenshots: Northwind's "Harbor onboarding" chat with Intake (leads) and Docs (listens), from the prototype. A fake replica holds the thread,
 // its messages and its helpers; the writes the conversation makes (post, edit, stop, mode, plan) really change the replica, so a mount behaves like the app does.
 import { createFakeReplica, createScreenHooks } from "../../../../../../client/src/index.ts";
 import type { FakeReplica, Row } from "../../../../../../client/src/index.ts";
@@ -92,13 +92,13 @@ const card = (
 ): MessageBlock => ({ type, v: 1, id, data, ...(state ? { state } : {}), traceId: `tr_${id}` });
 
 const INTAKE_REPLY =
-  "Tuesday has two openings, **2:00** and **4:00**, and Thursday has **10:00**. I've sent Elena the intake form and noted Maya's referral on her record.\n\nWhich time should I book?";
+  "Tuesday has two openings, **2:00** and **4:00**, and Thursday has **10:00**. I've sent Elena the signup form and noted Maya's referral on her record.\n\nWhich time should I book?";
 
 function build(variant: Variant): { thread: Thread; messages: Message[]; helpers: Helper[] } {
   const base: Omit<Thread, "agents"> = {
     threadId: "c1",
     kind: "chat",
-    title: "Rivera intake",
+    title: "Harbor onboarding",
     listed: true,
     planMode: false,
     members: [
@@ -154,14 +154,14 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
     // a channel where agents listen until named: Maya asked without naming one, then so did you (owner ruling, 3 Nov 2026)
     thread.members = [...thread.members, { kind: "person", id: "usr_maya" }];
     messages.push(
-      m("c1", { kind: "person", id: "usr_maya" }, "Did the Rivera intake form come back?", at(9, 20)),
-      m("c2", me, "Can someone check the Rivera dates before Tuesday?", at(9, 21)),
+      m("c1", { kind: "person", id: "usr_maya" }, "Did the Harbor onboarding form come back?", at(9, 20)),
+      m("c2", me, "Can someone check the Harbor dates before Tuesday?", at(9, 21)),
     );
     return { thread, messages, helpers: [] };
   }
   if (variant === "runson") {
     // where a chat runs (lane l-runson): pinned to this computer; it went to sleep mid-turn once (the turn went on on the server), and now it is off and the next message waits for it
-    thread.title = "Rivera engagement letter";
+    thread.title = "Harbor order form";
     const status = (id: string, data: Record<string, unknown>): MessageBlock => ({
       type: "turn_status",
       v: 1,
@@ -169,7 +169,7 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
       data,
     });
     messages.push(
-      m("r1", me, "Pull this year's fee schedule and draft the Rivera engagement letter.", at(9, 40)),
+      m("r1", me, "Pull this year's price list and draft the Harbor order form.", at(9, 40)),
       m("r2", intake, "", at(9, 41), {
         blocks: [
           status("st1", { state: "note", text: "Your computer went to sleep; continuing on the Northwind server" }),
@@ -178,17 +178,17 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
       m(
         "r3",
         intake,
-        "Drafted the engagement letter from the standard template with this year's consult fee. The retainer is **$2,500**; Maya has not confirmed it yet.",
+        "Drafted the order form from the standard template with this year's setup fee. The deposit is **$2,500**; Maya has not confirmed it yet.",
         at(9, 42),
         {
           blocks: [
-            step("s1", "Read fee-schedule-2025.csv", "Projects/Rivera matter", 3),
-            step("s2", "Filled the engagement letter", "templates/engagement-letter.docx", 6),
-            card("b1", "file", { name: "rivera-engagement-letter.docx", sub: "Word · 38 KB", id: "doc1" }, "done"),
+            step("s1", "Read price-list-2025.csv", "Projects/Harbor project", 3),
+            step("s2", "Filled the order form", "templates/order-form.docx", 6),
+            card("b1", "file", { name: "harbor-order-form.docx", sub: "Word · 38 KB", id: "doc1" }, "done"),
           ],
         },
       ),
-      m("r4", me, "Now check the retainer clause against Maya's notes.", at(9, 50)),
+      m("r4", me, "Now check the deposit clause against Maya's notes.", at(9, 50)),
       m("r5", intake, "", at(9, 50, 5), {
         blocks: [
           status("st2", { state: "device_wait", text: "Your computer is off. This chat runs when it is back." }),
@@ -199,9 +199,9 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
   }
   if (variant === "vaultkey" || variant === "lastpick") {
     // lane l-chatrely (6 Nov): a turn that needs the Vault's key when the server has none says exactly what is missing; a chat with no pick of its own shows the model the person picked last
-    thread.title = "Rivera engagement letter";
+    thread.title = "Harbor order form";
     thread.agents = [{ agentId: "agt_intake", mode: "lead" }];
-    messages.push(m("v1", me, "Pull this year's fee schedule and draft the Rivera engagement letter.", at(9, 40)));
+    messages.push(m("v1", me, "Pull this year's price list and draft the Harbor order form.", at(9, 40)));
     if (variant === "vaultkey")
       messages.push(
         m("v2", intake, "", at(9, 40, 20), {
@@ -222,8 +222,8 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
       const t = at(8, 0, 0) + i * 60_000;
       messages.push(
         i % 2 === 0
-          ? m(`f${i}`, me, `Question ${i + 1}: how many consults are booked for week ${(i % 5) + 1}?`, t)
-          : m(`f${i}`, intake, `Week ${(i % 5) + 1} has **${(i % 7) + 2}** consults booked.`, t),
+          ? m(`f${i}`, me, `Question ${i + 1}: how many demos are booked for week ${(i % 5) + 1}?`, t)
+          : m(`f${i}`, intake, `Week ${(i % 5) + 1} has **${(i % 7) + 2}** demos booked.`, t),
       );
     }
   }
@@ -231,16 +231,16 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
     // 2,000 messages, one in four an agent reply with a table, a list, a section and marks: what a long working chat is made of
     for (let i = 0; i < 2000; i++) {
       const t = at(8, 0, 0) + i * 60_000;
-      const rich = `Week ${(i % 5) + 1} summary: ==${(i % 7) + 2} consults== booked, **${i % 3} no-shows**, ++one follow-up++.\n\n| Day | Booked |\n|---|---:|\n| Mon | ${i % 4} |\n| Tue | ${i % 6} |\n\n- [ ] Confirm the Tuesday slots\n- [x] Send the intake form\n\n> [!section] Detail ${i}\n> Notes for message ${i}, with \`code\` and a [link](https://example.com/${i}).`;
+      const rich = `Week ${(i % 5) + 1} summary: ==${(i % 7) + 2} demos== booked, **${i % 3} no-shows**, ++one follow-up++.\n\n| Day | Booked |\n|---|---:|\n| Mon | ${i % 4} |\n| Tue | ${i % 6} |\n\n- [ ] Confirm the Tuesday slots\n- [x] Send the signup form\n\n> [!section] Detail ${i}\n> Notes for message ${i}, with \`code\` and a [link](https://example.com/${i}).`;
       messages.push(
         i % 2 === 0
-          ? m(`h${i}`, me, `Question ${i + 1}: how many consults are booked for week ${(i % 5) + 1}?`, t)
-          : m(`h${i}`, intake, i % 4 === 1 ? rich : `Week ${(i % 5) + 1} has **${(i % 7) + 2}** consults booked.`, t),
+          ? m(`h${i}`, me, `Question ${i + 1}: how many demos are booked for week ${(i % 5) + 1}?`, t)
+          : m(`h${i}`, intake, i % 4 === 1 ? rich : `Week ${(i % 5) + 1} has **${(i % 7) + 2}** demos booked.`, t),
       );
     }
   }
   if (variant === "errors") {
-    thread.title = "Rivera engagement letter";
+    thread.title = "Harbor order form";
     thread.agents = [{ agentId: "agt_docs", mode: "lead", model: "opus" }];
     thread.members = [
       { kind: "person", id: "usr_irfad" },
@@ -250,12 +250,12 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
       m(
         "d1",
         docs,
-        "The engagement letter for Elena Rivera is drafted from the standard template with the consult fee filled in.",
+        "The order form for Elena Park is drafted from the standard template with the setup fee filled in.",
         at(8, 50),
         {
           blocks: [
-            step("s1", "Used the standard engagement letter", "templates/engagement-letter.docx", 22),
-            card("b1", "file", { name: "rivera-engagement-letter.docx", sub: "Word · 38 KB", id: "doc1" }, "done"),
+            step("s1", "Used the standard order form", "templates/order-form.docx", 22),
+            card("b1", "file", { name: "harbor-order-form.docx", sub: "Word · 38 KB", id: "doc1" }, "done"),
           ],
         },
       ),
@@ -264,7 +264,14 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
           card(
             "b2",
             "changeset",
-            { changesetId: "chg_cs2", folderName: "Rivera matter", fileCount: 1, added: 38, removed: 0, state: "open" },
+            {
+              changesetId: "chg_cs2",
+              folderName: "Harbor project",
+              fileCount: 1,
+              added: 38,
+              removed: 0,
+              state: "open",
+            },
             "waiting",
           ),
         ],
@@ -275,7 +282,7 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
       m(
         "m1",
         me,
-        "New client: Elena Rivera, referred by Maya. Can you book her a consult this week and send the intake form?",
+        "New customer: Elena Park, referred by Maya. Can you book her a demo this week and send the signup form?",
         at(9, 24),
       ),
       m("e1", intake, "Intake is on it", at(9, 24, 20), { kind: "quiet" }),
@@ -287,8 +294,8 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
             "calendar.free(maya, week)  →  Tue 14:00 · Tue 16:00 · Thu 10:00",
             5,
           ),
-          step("s2", "Found Elena Rivera in Records", "Contact · created from Maya's email · 23 Oct", 4),
-          step("s3", "Filled the intake form in Chrome", "intake form · name, email, phone", 5),
+          step("s2", "Found Elena Park in Records", "Contact · created from Maya's email · 23 Oct", 4),
+          step("s3", "Filled the signup form in Chrome", "signup form · name, email, phone", 5),
         ],
       }),
       m("m3", me, "Book 2pm.", at(9, 30)),
@@ -300,9 +307,9 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
         {
           blocks: [
             step("s4", "Booked Tue 2:00 with Maya", "calendar.book(maya, Tue 14:00)", 3),
-            step("s5", "Updated Elena's record", "Stage → Consult booked", 3),
-            card("pl1", "file", { kind: "plan", name: "Rivera onboarding plan", id: "plan1", openComments: 1 }, "done"),
-            card("b1", "file", { name: "client-intake.pdf", sub: "PDF · 207 KB", id: "pdf1" }, "done"),
+            step("s5", "Updated Elena's record", "Stage → Demo booked", 3),
+            card("pl1", "file", { kind: "plan", name: "Harbor onboarding plan", id: "plan1", openComments: 1 }, "done"),
+            card("b1", "file", { name: "customer-signup.pdf", sub: "PDF · 207 KB", id: "pdf1" }, "done"),
           ],
         },
       ),
@@ -322,12 +329,12 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
                 agent: "Intake",
                 lines: 93,
                 owner: "Maya Chen",
-                why: "Maya's calendar blocks Thursday mornings for client visits, and I offered Thursday 10:00 earlier this week. I would like to stop offering it.",
+                why: "Maya's calendar blocks Thursday mornings for customer visits, and I offered Thursday 10:00 earlier this week. I would like to stop offering it.",
                 hunks: [
                   {
                     sec: "## How you work",
-                    del: "4. Offer three consult times using the booking tool.",
-                    add: "4. Offer three consult times using the booking tool. Skip Thursday mornings.",
+                    del: "4. Offer three demo times using the booking tool.",
+                    add: "4. Offer three demo times using the booking tool. Skip Thursday mornings.",
                   },
                   { sec: "## You do not", del: "", add: "- Offer Thursday morning times. Maya blocks them." },
                 ],
@@ -342,18 +349,18 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
   const helpers: Helper[] = [];
   if (variant === "streaming") {
     messages.push(
-      m("m6", me, "Thanks. Can you also draft the engagement letter for her?", at(9, 55)),
+      m("m6", me, "Thanks. Can you also draft the order form for her?", at(9, 55)),
       m("m7", intake, "", at(9, 56), {
         blocks: [
-          step("s6", "Read the standard engagement letter", "templates/engagement-letter.docx", 4),
-          step("s7", "Filled in the consult fee", "fee-schedule.csv", 4),
+          step("s6", "Read the standard order form", "templates/order-form.docx", 4),
+          step("s7", "Filled in the setup fee", "price-list.csv", 4),
         ],
       }),
     );
   }
   if (variant === "busy") {
     messages.push(
-      m("m6", me, "Compare our consult pricing with firms within 20 miles, and have Docs check the letter.", at(9, 50)),
+      m("m6", me, "Compare our pricing with other vendors, and have Docs check the order form.", at(9, 50)),
       m("m7", intake, "", at(9, 51), {
         blocks: [
           step("s6", "Found 9 firms within 20 miles", "maps search · 9 results", 4),
@@ -361,7 +368,7 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
         ],
       }),
       m("m8", docs, "", at(9, 52), {
-        blocks: [step("s8", "Reading rivera-engagement-letter.docx", "Projects/Rivera matter", 0, "live")],
+        blocks: [step("s8", "Reading harbor-order-form.docx", "Projects/Harbor project", 0, "live")],
       }),
     );
     helpers.push(
@@ -392,7 +399,7 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
             "error",
             {
               code: "restricted",
-              message: "Docs did not read fee-schedule.csv",
+              message: "Docs did not read price-list.csv",
               cause:
                 "The file is labelled Restricted, and this chat runs on Opus, a cloud model. Restricted data only goes to a model on your computer.",
               next: [
@@ -405,12 +412,12 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
               steps: [
                 [
                   "Steps",
-                  "Opened the matter folder · 0.4s, read engagement-letter.docx · 0.2s, read fee-schedule.csv · refused",
+                  "Opened the project folder · 0.4s, read order-form.docx · 0.2s, read price-list.csv · refused",
                 ],
                 ["Machine", "irfad-macbook"],
                 ["Model", "Opus · your Claude account"],
                 ["Key used", "Your Claude subscription"],
-                ["Denials", "fee-schedule.csv: Restricted, not available to Anthropic"],
+                ["Denials", "price-list.csv: Restricted, not available to Anthropic"],
               ],
             },
             "error",
@@ -421,22 +428,22 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
   }
   if (variant === "plan") {
     messages.push(
-      m("m6", me, "Plan the onboarding for the Rivera matter before you change anything.", at(9, 55)),
+      m("m6", me, "Plan the onboarding for the Harbor project before you change anything.", at(9, 55)),
       m("m7", intake, "Here is the plan. Nothing changes until you approve it.", at(9, 56), {
         blocks: [
           card(
             "p1",
             "plan",
             {
-              title: "Rivera onboarding plan",
+              title: "Harbor onboarding plan",
               state: "proposed",
               threadId: "c1",
               planId: "plan_1",
               docFileId: "plan1",
               steps: [
-                { stepId: "a", text: "Send the engagement letter", state: "done" },
-                { stepId: "b", text: "Collect the retainer", state: "pending" },
-                { stepId: "c", text: "Open the matter folder", state: "pending" },
+                { stepId: "a", text: "Send the order form", state: "done" },
+                { stepId: "b", text: "Collect the deposit", state: "pending" },
+                { stepId: "c", text: "Open the project folder", state: "pending" },
                 { stepId: "d", text: "Schedule the kickoff", state: "pending" },
               ],
             },
@@ -446,7 +453,7 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
             "q1",
             "question",
             {
-              prompt: "Who signs the engagement letter?",
+              prompt: "Who signs the order form?",
               mode: "single",
               options: [
                 { key: "maya", label: "Maya Chen" },
@@ -485,7 +492,7 @@ export interface Sample {
 export interface SampleOptions {
   online?: boolean;
   streamText?: string;
-  /** the chat's stored title (the sample has "Rivera intake"; "" is a chat with none yet) */ title?: string;
+  /** the chat's stored title (the sample has "Harbor onboarding"; "" is a chat with none yet) */ title?: string;
   /** the chat's members, in place of the sample's (a group chat for the header faces) */ members?: Thread["members"];
   /** The signed-in person can only view this chat: they may add viewers, not members. */ viewOnly?: boolean;
   /** What the chat really has for a newcomer: both a files folder and a record (default), a folder only, or neither. */ scope?:
@@ -495,7 +502,7 @@ export interface SampleOptions {
 }
 
 const HELD_TEXT =
-  "I read the standard engagement letter and filled in the **consult fee** from the fee schedule. Two things need your eye:\n\n1. The retainer is `$2,500`, which Maya has not confirmed\n2. Elena's address is the old one from the web form";
+  "I read the standard order form and filled in the **setup fee** from the price list. Two things need your eye:\n\n1. The deposit is `$2,500`, which Maya has not confirmed\n2. Elena's address is the old one from the web form";
 
 export function createSample(variant: Variant = "idle", o: SampleOptions = {}): Sample {
   const replica = createFakeReplica("northwind");
@@ -515,7 +522,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
   const about =
     scope === "none"
       ? {}
-      : { folderId: "fld_intake_uploads", ...(scope === "both" ? { recordId: "rec_elena_rivera" } : {}) };
+      : { folderId: "fld_intake_uploads", ...(scope === "both" ? { recordId: "rec_elena_park" } : {}) };
   const thread: Thread = {
     ...built.thread,
     ...about,
@@ -757,8 +764,8 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
     "files.folder.get": (i: { folderId: string }) => ({
       folder: {
         folderId: i.folderId,
-        name: "Client intake uploads",
-        path: "/Client intake uploads",
+        name: "Customer signup uploads",
+        path: "/Customer signup uploads",
         fileCount: 3,
         folderCount: 0,
         scope: "space",
@@ -766,7 +773,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
       },
     }),
     "search.resolve": (i: { itemId: string }) => ({
-      hit: { kind: "record", id: i.itemId, title: "Elena Rivera", link: `vyre://record/${i.itemId}`, score: 1 },
+      hit: { kind: "record", id: i.itemId, title: "Elena Park", link: `vyre://record/${i.itemId}`, score: 1 },
     }),
     "access.principals.list": () => ({
       principals: [
@@ -1160,11 +1167,11 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
     lists: {
       people: [
-        { t: "Maya Chen", s: "Partner" },
+        { t: "Maya Chen", s: "Lead" },
         { t: "Omar Haddad", s: "Operations" },
       ],
       agents: [
-        { t: "Intake", s: "Books consults and gathers client details" },
+        { t: "Intake", s: "Books demos and gathers customer details" },
         { t: "Docs", s: "Drafts and reviews documents" },
         { t: "Research", s: "Finds and compares things" },
         { t: "Scout", s: "Searches records" },

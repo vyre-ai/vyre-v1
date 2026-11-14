@@ -24,8 +24,8 @@ test("ids in a reply are found once each, by kind, and never inside code", () =>
 });
 
 test("an id is written as a link by its name; unknown, it is hidden and never the id", () => {
-  const known = withNames(`Done: ${REC}.`, new Map([[REC, "Rivera Holdings"]]));
-  assert.equal(known, "Done: [Rivera Holdings](https://ref.vyre.invalid/record/" + REC + ").");
+  const known = withNames(`Done: ${REC}.`, new Map([[REC, "Harbor Holdings"]]));
+  assert.equal(known, "Done: [Harbor Holdings](https://ref.vyre.invalid/record/" + REC + ").");
   const unknown = withNames(`Done: ${REC}.`, new Map());
   assert.ok(!unknown.includes(`[${REC}`) && unknown.includes("[\u200b]"));
   assert.equal(withNames("see `" + REC + "`", new Map()), "see `" + REC + "`", "code stays as written");
@@ -34,11 +34,11 @@ test("an id is written as a link by its name; unknown, it is hidden and never th
 });
 
 test("the form agents are told to write, [[Name|id]], shows the name as a link and needs no lookup", () => {
-  const text = `Updated [[Rivera Holdings|${REC}]] today.`;
+  const text = `Updated [[Harbor Holdings|${REC}]] today.`;
   assert.deepEqual(idsIn(text), []);
   assert.equal(
     withNames(text, new Map()),
-    "Updated [Rivera Holdings](https://ref.vyre.invalid/record/" + REC + ") today.",
+    "Updated [Harbor Holdings](https://ref.vyre.invalid/record/" + REC + ") today.",
   );
 });
 
@@ -140,7 +140,7 @@ test("an unknown id leaves the Name as plain words: never the brackets, never th
     assert.equal(out, "See Claude in Chrome for Clio Grow... setup for the steps.");
     assert.ok(!out.includes("[[") && !out.includes(THREAD));
   }
-  assert.equal(withNames("[[Rivera|not an id!]]", new Map()), "Rivera");
+  assert.equal(withNames("[[Harbor|not an id!]]", new Map()), "Harbor");
   assert.equal(
     withNames("[[VY-142|Fix the thing]]", new Map()),
     "[[VY-142|Fix the thing]]",

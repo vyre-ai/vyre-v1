@@ -18,7 +18,7 @@ const TABLE = [
   "| Step | Owner | Status |",
   "|---|---|---|",
   "| Engagement letter | Maya | Sent |",
-  "| Retainer | Omar | Waiting |",
+  "| Deposit | Omar | Waiting |",
   "| Matter folder | Intake | Open |",
   "",
   "Which time should I book the kickoff?",

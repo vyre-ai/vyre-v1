@@ -103,7 +103,7 @@ test("an access request decided elsewhere flips on the tick", async () => {
   const root = await mount(
     createRoot,
     <AccessRequestCard
-      block={{ requestId: "arq_1", requester: "usr_1", resourceTitle: "Rivera", level: "view" }}
+      block={{ requestId: "arq_1", requester: "usr_1", resourceTitle: "Harbor", level: "view" }}
       data={data}
     />,
   );

@@ -12,13 +12,13 @@ test("a live reply shows one calm word: no step names, no clock, no thinking exc
     <ActivityLine
       store={store({
         startedAt: Date.now() - 20_000,
-        thinking: "I should read the engagement letter",
-        steps: [{ id: "s1", name: "Read", state: "live", detail: "rivera-engagement-letter.docx" }],
+        thinking: "I should read the order form",
+        steps: [{ id: "s1", name: "Read", state: "live", detail: "harbor-order-form.docx" }],
         version: 1,
       })}
     />,
   );
   assert.ok(out.includes("Working"), "the one word");
-  for (const gone of ["rivera-engagement-letter", "Reading", "20s", "engagement letter", "activity-elapsed"])
+  for (const gone of ["harbor-order-form", "Reading", "20s", "order form", "activity-elapsed"])
     assert.ok(!out.includes(gone), `${gone} is not on the line`);
 });

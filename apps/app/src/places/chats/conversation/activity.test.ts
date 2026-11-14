@@ -119,7 +119,7 @@ test("an ordinary underscored word in the thinking line is left as written; only
 });
 
 test("a live reply shows one calm word, never a step's name or a count (G21)", () => {
-  const step = (state: "live" | "done") => ({ id: "s1", name: "mcp__vyre__records_search", detail: "Rivera", state });
+  const step = (state: "live" | "done") => ({ id: "s1", name: "mcp__vyre__records_search", detail: "Harbor", state });
   assert.equal(calmWord(snap(), false), "Thinking");
   assert.equal(calmWord(snap({ thinking: "let me see" }), false), "Thinking");
   assert.equal(calmWord(snap({ steps: [step("live")] as never }), false), "Working");

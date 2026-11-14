@@ -35,7 +35,7 @@ const REF_ID = /ref\.vyre\.invalid\/[a-z]+\/((?:rec|file|fil|task|tsk|thr|chn|ch
 const HIDDEN = "\u200b";
 
 const HOST = "https://ref.vyre.invalid/";
-/** The form agents are told to write: [[Rivera Holdings|rec_01...]], the name, a bar, the id. The name is shown and the id never. The id is a Vyre id, or one from a tool result (a mail thread, a calendar event). */
+/** The form agents are told to write: [[Harbor Holdings|rec_01...]], the name, a bar, the id. The name is shown and the id never. The id is a Vyre id, or one from a tool result (a mail thread, a calendar event). */
 const NAMED = /\[\[([^\]|\n]+)\|([^\]|\n]+)\]\]/g;
 const VYRE_ID = /^(?:rec|file|fil|task|tsk|thr|chn|ch|usr|note|nte)_[0-9A-Za-z]{8,}$/;
 const KEY_ONLY = /^[A-Z]{2,6}-\d{1,6}$/;

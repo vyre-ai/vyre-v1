@@ -51,8 +51,8 @@ test("the cards render the page and the quote as text", () => {
   assert.match(bare, />L</, "no screenshot: the site's initial");
   assert.equal(renderToStaticMarkup(<WebPageCard id="b3" data={{ url: "nope" }} />), "");
   const q = renderToStaticMarkup(
-    <QuoteCard id="q1" data={{ text: "We doubled consults in 2025", url: "https://linkedin.com/in/priya" }} />,
+    <QuoteCard id="q1" data={{ text: "We doubled demos in 2025", url: "https://linkedin.com/in/priya" }} />,
   );
-  assert.match(q, /We doubled consults in 2025/);
+  assert.match(q, /We doubled demos in 2025/);
   assert.match(q, /Selected on linkedin\.com/);
 });

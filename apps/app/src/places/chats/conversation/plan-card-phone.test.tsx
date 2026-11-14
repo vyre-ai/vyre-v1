@@ -7,7 +7,7 @@ import { installDom, mount, find, textOf } from "../../../onboarding/test-dom.ts
 import { PlanFileCard } from "./proposal.tsx";
 
 const widen = (width: number): void => Dimensions.set({ window: { width, height: 844, scale: 1, fontScale: 1 } });
-const block = { id: "pl1", data: { kind: "plan", id: "file_1", name: "Rivera onboarding plan", openComments: 1 } };
+const block = { id: "pl1", data: { kind: "plan", id: "file_1", name: "Harbor onboarding plan", openComments: 1 } };
 
 test("the plan card line is the count alone on a phone and on a desktop", async () => {
   installDom();

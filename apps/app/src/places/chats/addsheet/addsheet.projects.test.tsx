@@ -217,7 +217,7 @@ test("a chat whose record cannot be found leaves records out of the footer, with
     await flush();
     await press(find(root, "as-row-person:usr_maya"));
     const line = textOf(find(root, "as-line-std")).replace(/\s+/g, " ").trim();
-    assert.equal(line, "They'll see this chat's messages from now on, and its files folder Client intake uploads.");
+    assert.equal(line, "They'll see this chat's messages from now on, and its files folder Customer signup uploads.");
     assert.ok(!/error|could not|not found|undefined|null/i.test(textOf(find(root, "add-sheet"))), "no error text");
   });
 });

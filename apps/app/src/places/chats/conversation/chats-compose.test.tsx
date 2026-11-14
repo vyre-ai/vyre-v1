@@ -235,8 +235,8 @@ test("/task makes a task from the last message through chat.make_task: the serve
   assert.equal(c.input.messageId, m.messageId);
   assert.equal(c.input.assigneeId, undefined, "nobody is @named: the task is the asker's, which the server decides");
   assert.deepEqual(r.opened, ["beside:task:tsk_1"]);
-  await runSlash("/task call the court", r.env);
-  assert.equal(r.last("chat.make_task")!.input.title, "call the court");
+  await runSlash("/task call the vendor", r.env);
+  assert.equal(r.last("chat.make_task")!.input.title, "call the vendor");
 });
 
 test("a message that @names a person hands the task to them; a name that is not in the chat's directory does not", async () => {
@@ -249,7 +249,7 @@ test("a message that @names a person hands the task to them; a name that is not 
   ).data.thread;
   const msg = {
     messageId: "msg_x",
-    body: "@Maya please send the Rivera letter",
+    body: "@Maya please send the Harbor letter",
     author: { kind: "person" as const, id: "usr_omar" },
     createdAt: 1,
   };
@@ -419,18 +419,18 @@ test("a name with no file behind it cannot be sent, and nothing is stored first"
 test("a send carries the file ids and the links as a refs block, and nothing extra when there are none", async () => {
   const r = rig();
   await act.sendMessage(r.data, {
-    text: "see [[Rivera Holdings]]",
+    text: "see [[Harbor Holdings]]",
     mentions: [],
     key: "k6",
     kind: "queue",
     working: false,
-    refs: [{ kind: "record", id: "rec_1", title: "Rivera Holdings" }],
+    refs: [{ kind: "record", id: "rec_1", title: "Harbor Holdings" }],
     attachments: ["fil_1"],
   });
   const post = r.last("chat.post")!.input;
   assert.deepEqual(post.attachments, ["fil_1"]);
   assert.deepEqual(post.blocks, [
-    { type: "refs", v: 1, data: { refs: [{ kind: "record", id: "rec_1", title: "Rivera Holdings" }] } },
+    { type: "refs", v: 1, data: { refs: [{ kind: "record", id: "rec_1", title: "Harbor Holdings" }] } },
   ]);
   await act.sendMessage(r.data, { text: "plain", mentions: [], key: "k7", kind: "queue", working: false });
   const plain = r.last("chat.post")!.input;
@@ -441,13 +441,13 @@ test("a send carries the file ids and the links as a refs block, and nothing ext
 /* ---------- the composer ---------- */
 
 test("a [[ pick keeps the thing's id, and only links the text still names are sent", () => {
-  const lists: ComposerLists = { records: [{ t: "Rivera Holdings", s: "Client", kind: "Record", ref: "rec_1" }] };
+  const lists: ComposerLists = { records: [{ t: "Harbor Holdings", s: "Client", kind: "Record", ref: "rec_1" }] };
   const trigger: Trigger = { ch: "[[", start: 4, end: 6, query: "" };
   const item = popupFor(trigger, lists, true).find((e): e is PopupItem => "group" in e)!;
   const done = applyPick({ ...initialState("see [["), cursor: 6 }, trigger, item);
-  assert.equal(done.next.text, "see [[Rivera Holdings]] ");
-  assert.deepEqual(done.next.refs, [{ kind: "Record", id: "rec_1", title: "Rivera Holdings" }]);
-  assert.deepEqual(sendNow(done.next, "")?.payload.refs, [{ kind: "Record", id: "rec_1", title: "Rivera Holdings" }]);
+  assert.equal(done.next.text, "see [[Harbor Holdings]] ");
+  assert.deepEqual(done.next.refs, [{ kind: "Record", id: "rec_1", title: "Harbor Holdings" }]);
+  assert.deepEqual(sendNow(done.next, "")?.payload.refs, [{ kind: "Record", id: "rec_1", title: "Harbor Holdings" }]);
   const edited = { ...done.next, text: "see it" };
   assert.deepEqual(refsIn(edited), [], "the link was deleted from the text, so it is not sent");
 });
@@ -482,7 +482,7 @@ test("the composer still draws with the new lists", () => {
     renderToStaticMarkup(
       <Composer
         whoWillAnswer="Intake will reply"
-        lists={{ commands: commandItems(), records: [{ t: "Rivera Holdings", ref: "rec_1", kind: "Record" }] }}
+        lists={{ commands: commandItems(), records: [{ t: "Harbor Holdings", ref: "rec_1", kind: "Record" }] }}
       />,
     ),
   );
@@ -492,7 +492,7 @@ test("the composer still draws with the new lists", () => {
 /* ---------- suggestions ---------- */
 
 test("# and [[ open a query; anything else does not", () => {
-  assert.deepEqual(openQuery("see [[riv"), { ch: "[[", q: "riv" });
+  assert.deepEqual(openQuery("see [[har"), { ch: "[[", q: "har" });
   assert.deepEqual(openQuery("look at #plan"), { ch: "#", q: "plan" });
   assert.deepEqual(openQuery("#"), { ch: "#", q: "" });
   assert.equal(openQuery("no trigger here"), null);
@@ -507,12 +507,12 @@ test("a # search fills records, files, folders, channels, chats, automations and
     if (cap === "search.query") {
       return {
         hits: [
-          { kind: "record", id: "rec_1", title: "Rivera Holdings", recordType: "Client", link: "x", score: 1 },
+          { kind: "record", id: "rec_1", title: "Harbor Holdings", recordType: "Client", link: "x", score: 1 },
           { kind: "file", id: "fil_1", title: "plan.md", path: "Projects/plan.md", link: "x", score: 1 },
           { kind: "channel", id: "chn_1", title: "intake", link: "x", score: 1 },
           { kind: "person", id: "usr_1", title: "Maya", link: "x", score: 1 },
-          { kind: "chat", id: "thr_9", title: "Rivera kickoff", snippet: "2 days ago", link: "x", score: 1 },
-          { kind: "automation", id: "aut_1", title: "Rivera reminders", link: "x", score: 1 },
+          { kind: "chat", id: "thr_9", title: "Harbor kickoff", snippet: "2 days ago", link: "x", score: 1 },
+          { kind: "automation", id: "aut_1", title: "Harbor reminders", link: "x", score: 1 },
         ],
         tookMs: 1,
         hasMore: false,
@@ -527,7 +527,7 @@ test("a # search fills records, files, folders, channels, chats, automations and
             projectId: "prj_1",
             recordId: "rec_p",
             type: "project",
-            title: "Rivera filing",
+            title: "Harbor filing",
             status: "active",
             channelId: "chn_p",
             folderId: "fld_p",
@@ -552,21 +552,21 @@ test("a # search fills records, files, folders, channels, chats, automations and
       };
     throw new Error(cap);
   };
-  const hash = await fetchSuggestions({ call }, "#", "riv");
+  const hash = await fetchSuggestions({ call }, "#", "har");
   assert.deepEqual(hash.records, [
-    { t: "Rivera Holdings", s: "Client", data: { type: "Client" }, kind: "Record", ref: "rec_1" },
+    { t: "Harbor Holdings", s: "Client", data: { type: "Client" }, kind: "Record", ref: "rec_1" },
   ]);
-  assert.deepEqual(hash.chats, [{ t: "Rivera kickoff", s: "2 days ago", kind: "Chat", ref: "thr_9" }]);
-  assert.deepEqual(hash.automations, [{ t: "Rivera reminders", kind: "Automation", ref: "aut_1" }]);
+  assert.deepEqual(hash.chats, [{ t: "Harbor kickoff", s: "2 days ago", kind: "Chat", ref: "thr_9" }]);
+  assert.deepEqual(hash.automations, [{ t: "Harbor reminders", kind: "Automation", ref: "aut_1" }]);
   assert.deepEqual(hash.projects, [
-    { t: "Rivera filing", s: "Project \u00b7 3 open tasks", kind: "Project", ref: "prj_1", data: { status: "active" } },
+    { t: "Harbor filing", s: "Project \u00b7 3 open tasks", kind: "Project", ref: "prj_1", data: { status: "active" } },
   ]);
   assert.deepEqual(hash.files, [{ t: "plan.md", s: "Projects/plan.md", kind: "File", ref: "fil_1" }]);
   assert.deepEqual(hash.channels, [{ t: "intake", kind: "Channel", ref: "chn_1" }]);
   assert.deepEqual(hash.folders, [{ t: "Probate", s: "Projects/Probate", kind: "Folder", ref: "fld_1" }]);
   assert.deepEqual(asked[0]!.input.types, ["record", "file", "channel", "chat", "automation"]);
   asked.length = 0;
-  const link = await fetchSuggestions({ call }, "[[", "riv");
+  const link = await fetchSuggestions({ call }, "[[", "har");
   assert.deepEqual(
     asked.map((a) => a.cap),
     ["search.query"],
@@ -623,15 +623,15 @@ test("[[Title]] marks split out of the text; a mark with a ref is drawn as a lin
   const html = clean(
     renderToStaticMarkup(
       <LinkedText
-        body="open [[Rivera Holdings]] and [[Typed by hand]]"
-        refs={[{ kind: "record", id: "rec_1", title: "Rivera Holdings" }]}
+        body="open [[Harbor Holdings]] and [[Typed by hand]]"
+        refs={[{ kind: "record", id: "rec_1", title: "Harbor Holdings" }]}
         data={{ call: s.data.call, nav: s.data.nav }}
         textStyle={{}}
       />,
     ),
   );
   assert.ok(html.includes('data-testid="link-rec_1"'));
-  assert.ok(html.includes("Rivera Holdings"));
+  assert.ok(html.includes("Harbor Holdings"));
   assert.ok(html.includes("Typed by hand") && !html.includes("[[Typed by hand]]"));
   assert.deepEqual(
     refsOf({
@@ -658,14 +658,14 @@ test("your message shows its link and its file chip; the refs block is not drawn
     threadSeq: 99,
     author: { kind: "person", id: me },
     kind: "text",
-    body: "see [[Rivera Holdings]]",
+    body: "see [[Harbor Holdings]]",
     blocks: [
       {
         id: "b1",
         type: "refs",
         v: 1,
         state: "done",
-        data: { refs: [{ kind: "record", id: "rec_1", title: "Rivera Holdings" }] },
+        data: { refs: [{ kind: "record", id: "rec_1", title: "Harbor Holdings" }] },
       },
     ] as never,
     depth: 0,
@@ -1364,7 +1364,7 @@ test("each of the 17 commands ends in the kind the table says (a hint or an erro
     fork: "/fork",
     export: "/export",
     continue: "/continue Personal",
-    task: "/task call the court",
+    task: "/task call the vendor",
     remember: "/remember I prefer short answers",
     find: "/find",
     search: "/search closing date",

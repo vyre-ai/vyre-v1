@@ -130,7 +130,7 @@ const heldBlock = {
   type: "link_card",
   v: 1,
   state: "done",
-  data: { icon: "approval", lead: "Message", title: "Your engagement letter", target: { type: "task", id: "tsk_h" } },
+  data: { icon: "approval", lead: "Message", title: "Your order form", target: { type: "task", id: "tsk_h" } },
 };
 const parkedBlock = {
   id: "blk_s",
@@ -171,7 +171,7 @@ function heldView(blocks: unknown[]) {
         {
           type: "doc_excerpt",
           v: 1,
-          data: { act: "send", cap: "mail.send", input: { subject: "Your engagement letter" } },
+          data: { act: "send", cap: "mail.send", input: { subject: "Your order form" } },
         },
       ],
       actions: [],
