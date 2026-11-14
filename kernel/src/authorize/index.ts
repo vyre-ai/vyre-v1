@@ -78,12 +78,16 @@ function collect(
   req: Req,
   res: ResourceRow,
   label: number,
+  noRoleKeys = false,
 ): void {
   const now = req.now,
     fields = req.fields;
   for (let j = 0; j < list.length; j++) {
     const g = list[j]!;
     if (g.rank < need || !s.keys.has(g.key)) continue;
+    // NOTE: kernel/src/authorize/scope.ts (scopeFor, aclIds) has no matching skip; it is not called in production (reviewer's note, 15 Nov 2026), so keep this rule in step if it ever is.
+    // an agent's reach across the whole Space is its own Space grant (made with the agent, and taken away by unsharing it), never its role's: a Member agent whose own grant is gone holds only what is shared with it
+    if (noRoleKeys && g.key.startsWith("role:")) continue;
     if (g.exp <= now) {
       sawExpired = true;
       continue;
@@ -241,7 +245,7 @@ function evalSubject(
   const reach = req.action.direct === true ? Math.min(1, chain.length) : chain.length;
   for (let i = 0; i < reach; i++) {
     const l = snap.grantsOn(chain[i]!.id);
-    if (l) collect(l, s, need, req, res, label);
+    if (l) collect(l, s, need, req, res, label, p.kind === "agent" && chain[i]!.type === "space");
   }
   const tw = req.action.direct === true ? undefined : snap.typeWide(res.type);
   if (tw) collect(tw, s, need, req, res, label);
