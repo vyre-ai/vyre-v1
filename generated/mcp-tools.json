@@ -435,7 +435,7 @@
       "blocks": [],
       "cap": "access.clears",
       "deferred": false,
-      "description": "Whether a principal's clearance reaches a resource's label, asked before a key is stored or shared for an agent. Yes or no only. The server or a person with Edit on it may ask; anyone else gets not found",
+      "description": "Whether a principal's clearance reaches a resource's label, asked before a key is stored or shared for an agent. Yes or no only. The server, a call another capability made, or a person with Edit on it may ask; anyone else gets not found",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -69061,6 +69061,32 @@
         "type": "object"
       },
       "name": "vault_item_delete",
+      "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "vault.item.discard_new",
+      "deferred": false,
+      "description": "Take back a key you saved a moment ago that could not be connected: erased for good, from the Vault and from Trash. Only your own, only within two minutes, only while nothing has used it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "name": "vault_item_discard_new",
       "planMode": "blocked",
       "toolset": "vault",
       "v": 1

@@ -36,6 +36,7 @@ export const handlers: Record<string, Handler> = {
   "vault.item.mark_rotated": (ctx, i) => h.itemMarkRotated(ctx, i),
   "vault.item.delete": (ctx, i) => h.itemDelete(ctx, i),
   "vault.item.restore": (ctx, i) => h.itemRestore(ctx, i),
+  "vault.item.discard_new": (ctx, i) => h.itemDiscardNew(ctx, i),
   "vault.share": (ctx, i) => h.share(ctx, i),
   "vault.unshare": (ctx, i) => h.unshare(ctx, i),
   "vault.folders.list": (ctx, i) => h.foldersList(ctx, i),

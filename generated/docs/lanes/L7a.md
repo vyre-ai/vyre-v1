@@ -402,7 +402,7 @@ Events:
 
 ### vault
 
-Capabilities to implement: 55. Events to emit: 21. Contract tests that must go green: `generated/tests/vault/`.
+Capabilities to implement: 56. Events to emit: 21. Contract tests that must go green: `generated/tests/vault/`.
 
 Capabilities:
 - providers.add (write, grant only, level view)
@@ -438,6 +438,7 @@ Capabilities:
 - vault.import_parse (read, vault.shared_create, level view)
 - vault.inject_env (write, grant only, level use)
 - vault.item.delete (write, grant only, level manage, gate delete)
+- vault.item.discard_new (write, grant only, level manage)
 - vault.item.get (read, grant only, level use)
 - vault.item.history (read, grant only, level edit)
 - vault.item.mark_rotated (write, grant only, level edit)

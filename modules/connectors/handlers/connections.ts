@@ -79,6 +79,7 @@ export interface ForService {
     fields: { name: string; label: string; optional: boolean }[];
     site?: string;
     host?: string;
+    hosts: string[];
     builtin: boolean;
     checks: boolean;
   };
@@ -88,6 +89,22 @@ export interface ForService {
 
 /** The call that tries a key: the connector's health action, else its first GET that takes nothing from the caller. */
 /** The host a key tried by the connector's check is sent to: the host of that call's own address. */
+/** Every host a key kept for this connector can be sent to: the check's, then each action's own address. */
+export const keyHosts = (def: ConnectorDef): string[] => {
+  const out: string[] = [];
+  const first = probeHost(def);
+  if (first) out.push(first);
+  for (const a of def.actions) {
+    try {
+      const h = a.url ? new URL(a.url.replace(/\{[^}]*\}/g, "x")).hostname : "";
+      if (h && !out.includes(h)) out.push(h);
+    } catch {
+      /* not an address */
+    }
+  }
+  return out;
+};
+
 export const probeHost = (def: ConnectorDef): string | undefined => {
   const name = def.health ?? probeOf(def);
   const url = def.actions.find((a) => a.name === name)?.url;
@@ -553,6 +570,8 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
             .slice(0, 3),
         };
       const hit = exact[0]!;
+      // a connector whose check or any action reaches a host it does not declare cannot be connected: the key would go there
+      if (keyHosts(hit).some((h) => !checkEgress(`https://${h}/`, hit.domains).ok)) return { found: false, near: [] };
       const me = actorOf(ctx);
       const mine = tx
         .all<ConnectionDb>("SELECT * FROM cn_connections WHERE connector = ? ORDER BY created_at", hit.key)
@@ -577,6 +596,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
             optional: /\boptional\b/i.test(x.description),
           })),
           ...(host ? { site: `https://${host.replace(/^api\./, "")}`, host } : {}),
+          hosts: keyHosts(hit),
           builtin: hit.builtin === true,
           checks: probeHost(hit) !== undefined,
         },

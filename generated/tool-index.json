@@ -51,7 +51,7 @@
     {
       "deferred": false,
       "name": "access_clears",
-      "summary": "Whether a principal's clearance reaches a resource's label, asked before a key is stored or shared for an agent. Yes or no only. The server or a person with Edit on it may ask; anyone else gets not found",
+      "summary": "Whether a principal's clearance reaches a resource's label, asked before a key is stored or shared for an agent. Yes or no only. The server, a call another capability made, or a person with Edit on it may ask; anyone else gets not found",
       "toolset": "meta"
     },
     {
@@ -9922,6 +9922,12 @@
       "deferred": false,
       "name": "vault_item_delete",
       "summary": "Move an item to Trash",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
+      "name": "vault_item_discard_new",
+      "summary": "Take back a key you saved a moment ago that could not be connected: erased for good, from the Vault and from Trash. Only your own, only within two minutes, only while nothing has used it",
       "toolset": "vault"
     },
     {

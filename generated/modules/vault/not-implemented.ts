@@ -38,6 +38,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "vault.import_parse": async (ctx) => { throw new VyreErr(notImplemented("vault.import_parse", ctx.trace)); },
   "vault.inject_env": async (ctx) => { throw new VyreErr(notImplemented("vault.inject_env", ctx.trace)); },
   "vault.item.delete": async (ctx) => { throw new VyreErr(notImplemented("vault.item.delete", ctx.trace)); },
+  "vault.item.discard_new": async (ctx) => { throw new VyreErr(notImplemented("vault.item.discard_new", ctx.trace)); },
   "vault.item.get": async (ctx) => { throw new VyreErr(notImplemented("vault.item.get", ctx.trace)); },
   "vault.item.history": async (ctx) => { throw new VyreErr(notImplemented("vault.item.history", ctx.trace)); },
   "vault.item.mark_rotated": async (ctx) => { throw new VyreErr(notImplemented("vault.item.mark_rotated", ctx.trace)); },

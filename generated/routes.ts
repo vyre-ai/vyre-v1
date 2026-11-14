@@ -39425,6 +39425,25 @@ const routes7: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/vault/item/discard_new",
+    "cap": "vault.item.discard_new",
+    "v": 1,
+    "module": "vault",
+    "effects": "write",
+    "permission": null,
+    "level": "manage",
+    "resource": {
+      "type": "vault_item",
+      "id": "/itemId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/vault/item/get",
     "cap": "vault.item.get",
     "v": 1,

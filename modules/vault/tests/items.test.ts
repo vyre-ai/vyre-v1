@@ -849,3 +849,28 @@ test("vault.item.usage totals turns and tokens per actor from the turns metered 
 });
 
 // Run on the final commit of this packet, after merging main, so the CI log lists this file as ok.
+
+test("discard_new erases a key saved a moment ago for good (Vault and Trash), and refuses an old one, a used one, another person's and an agent's", async () => {
+  const h = harness();
+  const mine = await folder(h, "mine");
+  const fresh = await put(h, mine, "Fathom");
+  assert.deepEqual(out(await v.itemDiscardNew(h.ctx, { itemId: fresh })), { ok: true });
+  assert.equal(await refusedWith(v.itemGet(h.ctx, { itemId: fresh })), "validation.not_found");
+  assert.equal(h.rows(`SELECT * FROM vault_meta WHERE id = ?`, fresh).length, 0, "not in Trash either");
+  assert.equal(h.rows(`SELECT * FROM vault_secret WHERE itemId = ?`, fresh).length, 0);
+  assert.equal(h.rows(`SELECT * FROM vault_history WHERE itemId = ?`, fresh).length, 0);
+
+  const old = await put(h, mine, "Old");
+  h.advance(121_000);
+  assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: old })), "older than two minutes");
+
+  const used = await put(h, mine, "Used");
+  await reveal(h, used);
+  assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: used })), "something has read it");
+
+  const theirs = await put(h, mine, "Theirs");
+  h.actAs("person", ROB);
+  assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: theirs })), "not the person who saved it");
+  h.actAs("agent", AGENT);
+  assert.ok(await refusedWith(v.itemDiscardNew(h.ctx, { itemId: theirs })), "never an agent");
+});

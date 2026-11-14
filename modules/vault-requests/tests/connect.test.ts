@@ -154,14 +154,14 @@ test("an app that cannot be reached keeps nothing either, and Retry is the same 
   assert.equal((await submit(w, requestId!)).result, "connected");
 });
 
-test("if connecting fails after the key was kept, the request stays open and the key stays where the person can see it", async () => {
+test("if connecting fails after the key was saved, the key is erased for good and the request stays open", async () => {
   const w = room({ fail: { "connections.create": "boom" } });
   const { requestId } = await ask(w);
   const out = await submit(w, requestId!);
   assert.equal(out.result, "offline");
-  assert.equal(w.called("vault.item.delete").length, 0, "nothing is moved to Trash behind the person's back");
-  assert.equal(out.card.notice, "Your key is saved in Mine. Couldn't connect.");
-  assert.equal(out.card.state, "ask");
+  assert.equal(w.called("vault.item.delete").length, 0, "nothing is moved to Trash");
+  assert.equal(w.called("vault.item.discard_new").length, 1, "the key saved in this call is erased for good");
+  assert.equal(out.card.notice, undefined);
   assert.equal(
     w.events.some((e) => e.name === "vault.request_fulfilled"),
     false,
@@ -362,6 +362,7 @@ test("a typed key that fails after it was kept is never moved to Trash behind th
   await submit(w, requestId!);
   await submit(w, requestId!);
   assert.equal(w.called("vault.item.delete").length, 0);
+  assert.equal(w.called("vault.item.discard_new").length, 2);
   for (const cap of ["vault.item.put", "connections.create"]) {
     const keys = w.called(cap).map((c) => c.input["idempotencyKey"]);
     assert.equal(keys.length, 2, cap);
@@ -381,7 +382,11 @@ test("Tested is only said when a call really ran; a connector with no check show
 test("a connector that is not built in says on Ask which host the key is tried against", async () => {
   const w = room({ thirdParty: true });
   const { requestId } = await ask(w);
-  assert.equal((await card(w, requestId!)).checksWith, "api.example.test");
+  assert.equal(
+    (await card(w, requestId!)).checksWith,
+    "api.example.test, files.example.test",
+    "every host the key can be sent to",
+  );
   const b = room();
   const r = await ask(b);
   assert.equal((await card(b, r.requestId!)).checksWith, undefined);
@@ -447,4 +452,33 @@ test("a second key for the same service gets its own item name, never a raw dupl
     fields: [{ key: "api_key", value: KEY }],
   } as never);
   assert.equal(w.called("vault.item.put")[0]!.input["name"], "Fathom_2");
+});
+
+test("if the erase itself fails the card says the key is saved, and Retry offers it back", async () => {
+  const w = room({ fail: { "connections.create": "boom", "vault.item.discard_new": "no" } });
+  const { requestId } = await ask(w);
+  const out = await submit(w, requestId!);
+  assert.equal(out.card.notice, "Your key is saved in Mine. Couldn't connect.");
+});
+
+test("a saved key is offered only when the card itself saved it for this service: a name that merely starts alike is not", async () => {
+  const w = room({
+    saved: [
+      { id: "vit_a", name: "Fathom key old", folderId: "vfd_mine", fieldKeys: ["api_key"] },
+      { id: "vit_b", name: "FathomX", folderId: "vfd_mine", fieldKeys: ["api_key"] },
+    ],
+  });
+  const { requestId } = await ask(w);
+  assert.equal((await card(w, requestId!)).state, "ask");
+  const w2 = room({ saved: [{ id: "vit_c", name: "Fathom_3", folderId: "vfd_mine", fieldKeys: ["api_key"] }] });
+  assert.equal((await card(w2, (await ask(w2)).requestId!)).state, "have");
+});
+
+test("a not built-in service shows every host on the saved-key state too", async () => {
+  const w = room({
+    thirdParty: true,
+    saved: [{ id: "vit_c", name: "Fathom", folderId: "vfd_mine", fieldKeys: ["api_key"] }],
+  });
+  const c = await card(w, (await ask(w)).requestId!);
+  assert.deepEqual([c.state, c.checksWith], ["have", "api.example.test, files.example.test"]);
 });

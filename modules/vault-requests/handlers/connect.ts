@@ -26,6 +26,7 @@ interface Service {
   fields: Field[];
   site?: string;
   host?: string;
+  hosts: string[];
   builtin: boolean;
   checks: boolean;
   connection?: { connectionId: string; owner: "mine" | "space"; state: string };
@@ -58,6 +59,7 @@ async function serviceOf(ctx: VaultReqCtx, said: string): Promise<Service | null
     }),
     ...(strOf(c["site"]) ? { site: strOf(c["site"])! } : {}),
     ...(strOf(c["host"]) ? { host: strOf(c["host"])! } : {}),
+    hosts: Array.isArray(c["hosts"]) ? (c["hosts"] as unknown[]).map(String) : [],
     builtin: c["builtin"] === true,
     checks: c["checks"] === true,
     ...(conn
@@ -92,10 +94,11 @@ async function savedKey(
     return null;
   }
   const need = svc.fields.filter((f) => !f.optional).map((f) => f.name);
-  const want = squash(svc.title);
+  const exact = new RegExp(`^${svc.title.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "")}(_\\d+)?$`, "i");
   for (const it of items) {
     const folder = folders.get(String(it["folderId"] ?? ""));
-    if (!folder || !squash(String(it["name"] ?? "")).startsWith(want)) continue;
+    // only an item the card itself saved for this service (its own name, or a numbered one), never a name that merely starts alike
+    if (!folder || !exact.test(String(it["name"] ?? ""))) continue;
     const keys = Array.isArray(it["fieldKeys"]) ? (it["fieldKeys"] as unknown[]).map(String) : [];
     if (!need.every((k) => keys.includes(k)) || usable.get(folder.id) !== true) continue;
     // only the person's own saved key is offered back to them; a key the team shares is not theirs to attach
@@ -132,6 +135,7 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
     fields: [],
     builtin: true,
     checks: false,
+    hosts: [],
   };
   const me = personOf(ctx);
   const askerView = asRequester;
@@ -200,8 +204,8 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
       ? { notice: `Your key is saved${svc.scope === "space" ? "" : " in Mine"}. Couldn't connect.` }
       : {}),
     checks: svc.checks,
-    ...(!svc.builtin && svc.host && mayFill && (state === "ask" || state === "wrong" || state === "offline")
-      ? { checksWith: svc.host }
+    ...(!svc.builtin && svc.hosts.length > 0 && mayFill && ["ask", "wrong", "offline", "have"].includes(state)
+      ? { checksWith: svc.hosts.join(", ") }
       : {}),
     ...(row.decided_by && row.decided_by !== row.asker_id ? { connectedBy: row.decided_by } : {}),
     ...(row.connection_id ? { connectionId: row.connection_id } : {}),
@@ -476,13 +480,31 @@ export async function connectSubmit(
           attempt,
         },
   );
-  // A key that was kept stays where the person can see it (the card then offers "Use your saved key"): the Vault has no way to erase an item for good, and a quiet move to Trash would leave it recoverable
-  // while the card said nothing. A connection made from it, and not working, is removed.
-  const takeBack = async (connectionId?: string): Promise<void> => {
+  // A key that was saved in this same call and could not be connected is erased for good (vault.item.discard_new: only one this person saved moments ago and nothing has used), and a connection made from it is removed.
+  // If the erase itself fails the person is told on the card that the key is saved.
+  const takeBack = async (connectionId?: string): Promise<boolean> => {
     if (connectionId)
       await ctx
         .call("connections.delete", { connectionId, idempotencyKey: `${row.id}:take-back-connection:${attempt}` })
         .catch(() => undefined);
+    if (!stored.made) return true;
+    if (row.requester_kind === "agent" && !stored.own)
+      await ctx
+        .call("vault.unshare", {
+          resource: { type: "vault_item", id: stored.itemId },
+          subject: { kind: "agent", id: row.requester_id },
+          idempotencyKey: `${row.id}:take-back-share:${attempt}`,
+        })
+        .catch(() => undefined);
+    try {
+      await ctx.call("vault.item.discard_new", {
+        itemId: stored.itemId,
+        idempotencyKey: `${row.id}:take-back-key:${attempt}`,
+      });
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   // 3 Connected: the connection names the item's fields by their handles
@@ -507,7 +529,7 @@ export async function connectSubmit(
       }),
     );
     connectionId = strOf(asRow(made?.["connection"])?.["connectionId"]);
-    if (!connectionId) raise(trace, "internal.unexpected", "The connection was not made.");
+    if (!connectionId) throw new Error("The connection was not made.");
     if (saved) {
       const probe = asRow(await ctx.call("connections.test", { connectionId }));
       if (probe?.["state"] === "down") {
@@ -522,10 +544,10 @@ export async function connectSubmit(
       }
     } else await ctx.call("connections.mark_working", { connectionId, idempotencyKey: `${row.id}:working:${attempt}` });
   } catch (e) {
-    await takeBack(connectionId);
+    const erased = await takeBack(connectionId);
     if (saved) throw e;
-    // the typed key passed its check and is kept (the Vault cannot erase it): say so on the card, which then offers it back as the saved key
-    stay("kept");
+    // the key passed its check but the service could not be connected: it is erased; if that failed too, the card says it is saved
+    stay(erased ? "offline" : "kept");
     return done("offline");
   }
 

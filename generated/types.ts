@@ -10045,6 +10045,7 @@ export type ConnectorsForServiceOut = {
     site?: string;
     builtin: boolean;
     host?: string;
+    hosts: Array<string>;
     checks: boolean;
   };
   connection?: {
@@ -44289,6 +44290,12 @@ export type VaultItemDeleteIn = {
 export type VaultItemDeleteOut = {
   ok: boolean;
 };
+export type VaultItemDiscardNewIn = {
+  itemId: string;
+};
+export type VaultItemDiscardNewOut = {
+  ok: boolean;
+};
 export type VaultItemGetIn = {
   itemId: string;
 };
@@ -47450,6 +47457,7 @@ export interface CapMap {
   "vault.import_parse": { in: VaultImportParseIn; out: VaultImportParseOut };
   "vault.inject_env": { in: VaultInjectEnvIn; out: VaultInjectEnvOut };
   "vault.item.delete": { in: VaultItemDeleteIn; out: VaultItemDeleteOut };
+  "vault.item.discard_new": { in: VaultItemDiscardNewIn; out: VaultItemDiscardNewOut };
   "vault.item.get": { in: VaultItemGetIn; out: VaultItemGetOut };
   "vault.item.history": { in: VaultItemHistoryIn; out: VaultItemHistoryOut };
   "vault.item.mark_rotated": { in: VaultItemMarkRotatedIn; out: VaultItemMarkRotatedOut };

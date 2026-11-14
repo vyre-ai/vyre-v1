@@ -2999,6 +2999,7 @@ export function createClient(transport: Transport) {
       inject_env: call("vault.inject_env", 1),
       item: {
         delete: call("vault.item.delete", 1),
+        discard_new: call("vault.item.discard_new", 1),
         get: call("vault.item.get", 1),
         history: call("vault.item.history", 1),
         mark_rotated: call("vault.item.mark_rotated", 1),
