@@ -36,6 +36,7 @@ type In = {
   spaceOnly?: boolean;
   injectIntoDeployments?: boolean;
   rotateEveryDays?: number | null;
+  expectedUpdatedAt?: number;
 };
 ```
 
@@ -72,6 +73,7 @@ type Out = {
 - permission.no_grant
 - validation.bad_input
 - validation.not_found
+- validation.version_conflict
 
 ## Example
 
@@ -79,6 +81,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "expectedUpdatedAt": 1760000000000,
     "fieldsRemove": [
       "api_key"
     ],

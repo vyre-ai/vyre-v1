@@ -31,6 +31,7 @@ import {
   threadBy,
   threadOut,
 } from "../projections.ts";
+import { messageAsMe } from "./floor.ts";
 import type { ChatCtx, Mode, PlanStep, ThreadRec } from "../projections.ts";
 import { canSpeak, deliver, isDirect } from "./post.ts";
 import { privateFork } from "./g27.ts";
@@ -262,7 +263,7 @@ export async function start(ctx: ChatCtx, input: StartInput) {
 export async function thread(ctx: ChatCtx, input: { threadId: string; messageId: string }) {
   ensure(ctx.db);
   const parent = threadBy(ctx.db, input.threadId);
-  const msg = messageBy(ctx.db, input.messageId);
+  const msg = messageAsMe(ctx, input.messageId);
   if (!parent || !msg || msg.thread !== parent.id || !canSpeak(ctx, parent))
     raise(ctx, "validation.not_found", "That message does not exist or is not yours to reply to.");
   const existing = (

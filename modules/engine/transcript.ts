@@ -1,6 +1,8 @@
 // The canonical transcript of a chat, written by the engine (ARCH 6.9): every turn becomes rows through chat.transcript.append, the person's words and what the agent said and did, so the rolling
 // summary (chat.transcript.summarize) can stand for older turns and any line stays one transcript_search away. Written as the asker; a transcript that cannot be written never holds a turn up.
 import { createTurnBuilder } from "../../agent/src/transcript/turns.ts";
+import { stepWords } from "../../lib/plain-words.ts";
+import { chatAudience, othersRead } from "../../lib/audience.ts";
 import { hasReads } from "../../host/src/seams/answer-reads.ts";
 import { answerVerdict } from "./answer-audience.ts";
 import type { Part } from "../../agent/src/transcript/types.ts";
@@ -19,12 +21,19 @@ type Row = { role: string; kind: string; content: unknown; toolName?: string; to
 export const SUMMARIZE_EVERY = 5;
 
 /** Rows for what an agent did in one turn: its words, each tool call with a one-line summary, and each result. */
-export function rowsOf(parts: readonly Part[]): Row[] {
+export function rowsOf(parts: readonly Part[], plain = false): Row[] {
   const out: Row[] = [];
   for (const p of parts) {
     if (p.kind === "text" && p.text.trim() !== "") out.push({ role: "assistant", kind: "text", content: p.text });
     else if (p.kind === "tool_call")
-      out.push({ role: "assistant", kind: "tool_call", content: p.summary, toolName: p.name, toolCallId: p.id });
+      // in a chat others read, the shared transcript says which step ran, not what it touched (F51): every reader of the chat can read, search and export it
+      out.push({
+        role: "assistant",
+        kind: "tool_call",
+        content: plain ? stepWords(p.name) : p.summary,
+        toolName: p.name,
+        toolCallId: p.id,
+      });
     else if (p.kind === "tool_result")
       out.push({ role: "tool", kind: "tool_result", content: p.output, toolCallId: p.id });
   }
@@ -132,7 +141,14 @@ export function withTranscript(open: OpenSession, call: Call, now: () => number 
             } finally {
               readSomething ||= hasReads(input.threadId, input.agent.id, input.asker);
               const parts = builder.build().parts;
-              const rows = rowsOf(parts);
+              // only a turn that made calls needs to know who else reads the chat
+              const sharedChat = parts.some((x) => x.kind === "tool_call")
+                ? await chatAudience((cap, inp) => call(cap, inp, input.asker), input.threadId).then(
+                    (a) => othersRead(a, input.asker),
+                    () => true,
+                  )
+                : true;
+              const rows = rowsOf(parts, sharedChat);
               builder = null;
               const lines = resultLines(parts);
               if (api && lines.length > 0)

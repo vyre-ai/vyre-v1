@@ -30,6 +30,10 @@ export interface MemberPerms {
   remove: boolean;
   /** A chat: an agent's row also offers Poke and How and when it responds. */
   agentControls?: boolean;
+  /** Is the footer (Add people and agents, Manage on the Overview) offered? Absent: yes. False when the viewer could not do what it opens. */
+  add?: boolean;
+  /** Does a row open the person's or the agent's page? Absent: yes. False when the viewer may not open it: the row only names them. */
+  open?: boolean;
 }
 
 export type MemberAction = "message" | "role" | "remove" | "link" | "poke" | "settings";

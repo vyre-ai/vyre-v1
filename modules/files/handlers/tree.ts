@@ -1911,7 +1911,12 @@ async function filesWrite(
   await guardAgentSettings(ctx, file);
   const mime = String(file.mime);
   const blob = await resolveBlob(ctx, content, mime);
-  const n = num(file.version) + 1;
+  // The awaits above let another write on this file land. From here to the update there is no await: read the row again, check the base against what is there now, and take the next number from it.
+  const current = liveFile(ctx, String(file.id));
+  if (base !== undefined && base !== num(current.version)) {
+    fail(ctx, "validation.version_conflict", "The file changed since it was read.");
+  }
+  const n = num(current.version) + 1;
   const now = ctx.now();
   ctx.db.run(
     "UPDATE files_file SET blob = ?, size = ?, version = ?, updated_at = ?, updated_by = ? WHERE id = ?",
@@ -2244,7 +2249,7 @@ async function filesRestoreVersion(ctx: Ctx, input: unknown): Promise<{ file: Fi
   if (!version || String(version.file_id) !== String(file.id))
     fail(ctx, "validation.not_found", "That version is not on this file.", { versionId });
   await guardAgentSettings(ctx, file);
-  const n = num(file.version) + 1;
+  const n = num(liveFile(ctx, String(file.id)).version) + 1; // read again after the await: a write may have landed
   const blobId = String(version.blob);
   const now = ctx.now();
   const blob = one(ctx, "SELECT * FROM files_blob WHERE id = ?", blobId);

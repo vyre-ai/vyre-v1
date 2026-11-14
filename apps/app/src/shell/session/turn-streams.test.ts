@@ -339,7 +339,8 @@ test("text so far (a chat opened mid-turn) is shown at once, not paced", () => {
 
 test("step and thinking frames build what the turn is doing, in order, and are gone with the turn", () => {
   const t = timers();
-  const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear });
+  let clock = 1_000_000;
+  const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear, now: () => clock });
   s.onFrame(f("trn_a", { kind: "start" }));
   const act = s.activityOf(turnRowId("trn_a"))!;
   let heard = 0;
@@ -348,10 +349,17 @@ test("step and thinking frames build what the turn is doing, in order, and are g
   s.onFrame(f("trn_a", { kind: "thinking", text: "at the file." }));
   s.onFrame(f("trn_a", { kind: "step", phase: "call", id: "t1", name: "Read" }));
   assert.equal(act.get().thinking, "Let me look at the file.");
-  assert.deepEqual(act.get().steps, [{ id: "t1", name: "Read", state: "live" }]);
+  // a live step carries when this device saw it start (a subagent's row keeps its clock from it)
+  assert.deepEqual(act.get().steps, [{ id: "t1", name: "Read", state: "live", at: 1_000_000 }]);
   s.onFrame(f("trn_a", { kind: "step", phase: "input", id: "t1", detail: "model.ts" }));
   assert.equal(act.get().steps[0]?.detail, "model.ts");
+  clock += 4_000;
   s.onFrame(f("trn_a", { kind: "step", phase: "result", id: "t1", name: "Read", ok: true }));
+  assert.deepEqual(
+    [act.get().steps[0]?.at, act.get().steps[0]?.endedAt],
+    [1_000_000, 1_004_000],
+    "and when it ended, so the row's clock stops",
+  );
   s.onFrame(f("trn_a", { kind: "step", phase: "call", id: "t2", name: "Bash" }));
   s.onFrame(f("trn_a", { kind: "step", phase: "result", id: "t2", ok: false }));
   assert.deepEqual(

@@ -64,7 +64,12 @@ export function foldEvent(snap: AccessSnapshot, e: FoldableEvent): void {
       return;
     case "grant.revoked": {
       const grantId = body<{ grantId?: unknown }>(e).grantId;
-      if (typeof grantId === "string") snap.revokeGrant(grantId);
+      // the maker's reach taken away: the resource is no longer stamped as made by that agent
+      if (typeof grantId === "string" && grantId.startsWith("gnt_made")) {
+        const named = (body<{ resource?: { id?: unknown } }>(e).resource ?? {}).id;
+        const r = typeof named === "string" ? snap.resource(named) : undefined;
+        if (r && r.made_by !== undefined) snap.putResource({ ...r, made_by: undefined, made_for: undefined });
+      } else if (typeof grantId === "string") snap.revokeGrant(grantId);
       return;
     }
     default:
@@ -116,6 +121,8 @@ export function createAccess(): {
   readonly snap: AccessSnapshot;
   fold(e: FoldableEvent): void;
   mark(ids: readonly string[]): void;
+  /** flag calendars connected to an outside service that were registered before the flag existed */
+  markOutside(ids: readonly string[]): void;
   owner(): string | null;
   adopt(s: AccessSnapshot): void;
   adopted(): boolean;
@@ -151,6 +158,12 @@ export function createAccess(): {
         const r = seeded.resource(id);
         if (r && (r as { space_owned?: unknown }).space_owned !== true)
           seeded.putResource({ ...r, space_owned: true } as ResourceRow);
+      }
+    },
+    markOutside(ids) {
+      for (const id of ids) {
+        const r = seeded.resource(id);
+        if (r && r.type === "calendar" && r.outside !== true) seeded.putResource({ ...r, outside: true });
       }
     },
     adopt(s) {

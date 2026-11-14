@@ -20,20 +20,31 @@ export const COMMAND_KINDS: Readonly<Record<ChatCommandId, CommandKind>> = Objec
   plan: "notice",
   pin: "notice",
   export: "notice",
-  continue: "notice",
   remember: "notice",
   compact: "notice",
+  copy: "notice",
   usage: "card",
+  context: "card",
   permissions: "card",
   btw: "card",
   model: "menu",
+  effort: "menu",
+  voice: "opens",
   helper: "opens",
   handoff: "opens",
+  review: "opens",
+  "security-review": "opens",
   fork: "opens",
+  new: "opens",
   task: "opens",
   find: "opens",
   search: "opens",
   stop: "opens",
+  agents: "opens",
+  memory: "opens",
+  skills: "opens",
+  hooks: "opens",
+  init: "opens",
 });
 
 /** Ids in the one list that the table above does not know (empty when the two agree). */
@@ -121,6 +132,11 @@ export interface AsideCard {
   question: string;
 }
 
+/** /context: the meters and the compact field (chapters/ContextCard). `read` says where the context stands; `compact` runs engine.compact and says so in the chat. */
+export interface ContextCardData {
+  meters: { key: string; label: string; pct: number }[];
+  keepEvery: string;
+}
 export type CommandCard = UsageCard | PermissionsCard | AsideCard;
 
 /**
@@ -134,7 +150,13 @@ export type CardSpec =
       read(): Promise<PermissionsCard>;
       takeBack(id: string): Promise<{ text: string; undo?: () => Promise<void> }>;
     }
-  | AsideCard;
+  | AsideCard
+  | {
+      kind: "context";
+      read(): Promise<ContextCardData>;
+      compact(keep: string, always: boolean): Promise<void>;
+      knows?(): void;
+    };
 
 export interface CardResult {
   kind: "card";

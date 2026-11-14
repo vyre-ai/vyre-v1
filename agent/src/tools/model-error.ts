@@ -55,6 +55,16 @@ const AGENT_WORDS: Readonly<Record<string, { what: string; next: string }>> = {
     what: "That cannot be done in the current state.",
     next: "Check where things stand before you try again.",
   },
+  // 14 Nov 2026 (F50): a write refused because the thing changed after the agent last read it. The agent is told what to do, never to write the old content back; who changed it is said only where the server's own
+  // sentence says it (a person may be told who edited a task; the agent is handed only what the server chose to put in the message).
+  "validation.version_conflict": {
+    what: "That changed after you last read it, so your change was not saved.",
+    next: "Read it again, look at what changed, and make your change on top of what is there now. Do not write the old content back, and do not retry the same call as it was.",
+  },
+  "validation.precondition_failed#stale_version": {
+    what: "That changed after you last read it, so your change was not saved.",
+    next: "Read it again, look at what changed, and make your change on top of what is there now. Do not retry the same call as it was.",
+  },
   "validation.not_found": {
     what: "I could not find that. It may have been removed.",
     next: "Look it up again, or ask the person which one they mean.",
@@ -63,6 +73,35 @@ const AGENT_WORDS: Readonly<Record<string, { what: string; next: string }>> = {
   "internal.unexpected": {
     what: "Something went wrong on Vyre's side.",
     next: "Tell the person. Try once more only if the error says it can be retried.",
+  },
+};
+
+/**
+ * The few things an agent cannot do for a person even though it made or was asked to make them (owner rule, 14 Nov 2026: an agent is never left unable to use what it made; these are the real exceptions, where
+ * the thing is not the agent's to make at all). The refusal says the true reason and the one next step, in a line, instead of the general "ask for access", which would send the model round a loop that cannot end.
+ * Keyed by the capability the refusal came from.
+ */
+const CAP_WORDS: Readonly<Record<string, { what: string; next: string }>> = {
+  "skills.add": {
+    what: "A skill for the whole Space is added by an admin.",
+    next: "For a skill that is only the person's, use the tool for their own skills instead.",
+  },
+  "connectors.init": {
+    what: "Building a connector is something an admin has to let an agent do.",
+    next: "Tell the person, say an admin can allow it for me, and stop.",
+  },
+  "connectors.define": {
+    what: "Building a connector is something an admin has to let an agent do.",
+    next: "Tell the person, say an admin can allow it for me, and stop.",
+  },
+};
+
+/** Refusals that carry their own reason word (details.reason): the sentence is that reason, not the general one for the code. */
+const REASON_WORDS: Readonly<Record<string, { what: string; next: string }>> = {
+  // an agent asking for a computer: the answer is that it has others, so the line leads with that and not with "ask for access"
+  no_new_desktop: {
+    what: "Agents no longer get a new desktop computer.",
+    next: "Use the terminal in your own workspace (terminal_run, terminal_open) and the Space browser (chrome_open, chrome_snapshot, chrome_act) instead, and the person's own Chrome only if they ask for it.",
   },
 };
 
@@ -79,7 +118,13 @@ export function modelError(error: VyreError): {
   const next = (error.next ?? [])
     .map((n) => ({ label: withoutIds(String((n as { label?: unknown }).label ?? "")) }))
     .filter((n) => n.label !== "");
-  const d = error.details as { reason?: unknown; tool?: unknown } | undefined;
+  const d = error.details as { reason?: unknown; tool?: unknown; cap?: unknown } | undefined;
+  const cap =
+    error.code.startsWith("permission.") && typeof d?.cap === "string"
+      ? CAP_WORDS[d.cap]
+      : typeof d?.reason === "string" && error.code.startsWith("permission.")
+        ? REASON_WORDS[d.reason]
+        : undefined;
   const reason = typeof d?.reason === "string" && !IS_ID.test(d.reason) ? d.reason : undefined;
   const tool = typeof d?.tool === "string" && /^[a-z][a-z0-9_]*$/.test(d.tool) ? d.tool : undefined;
   // a thing the caller named that is not there (or not open to them): the kind and the name as they wrote it, said exactly, so the agent can tell the person what it looked for
@@ -88,9 +133,15 @@ export function modelError(error: VyreError): {
   const missingName = thing !== undefined ? sayableName(dn?.name) : null;
   const message = withoutIds(error.message ?? "");
   const words = describeError(error.code, { message });
-  const own = AGENT_WORDS[error.code];
+  const own = cap ?? (reason ? AGENT_WORDS[`${error.code}#${reason}`] : undefined) ?? AGENT_WORDS[error.code];
   // a plain message the server raised for this very failure wins over the table; the table's next step follows it
-  const said = own && words.text === describeError(error.code).text ? own.what : words.text;
+  // a version conflict's own words always stand in for the server's (a record's says "at version 3, not 1"), except the tool layer's own refusal, which says when the thing changed
+  const ownWords =
+    own !== undefined &&
+    (cap !== undefined ||
+      words.text === describeError(error.code).text ||
+      (error.code === "validation.version_conflict" && reason !== "changed_since_turn"));
+  const said = ownWords ? own.what : words.text;
   const sentence =
     thing !== undefined && /not_found$/.test(error.code)
       ? `There is no ${thing} ${missingName !== null ? `called ${missingName} ` : "by that name "}that I can open.`

@@ -3,3 +3,6 @@
 - Helpers and subagents that an agent starts mid-turn appear within about a second; before, the Crew showed them only after the reply landed.
 - Opening a helper in the Crew pane no longer makes a call that is refused every time, and an ordinary chat no longer asks for helper notes on each turn (one refused call per turn, in every chat, before).
 - In the Crew block a face no longer touches the name beside it.
+- Subagents of an agent's engine are shown in full only to the person the agent was working for. Everyone else in a shared chat sees that "Helper 1", "Helper 2" ran, whether they work or are done, and how long, and never the task, the steps or the answer. The same holds in what the chat saves with the reply and in the live view.
+- When you erase a chat, or the retention purge removes its messages for good, the subagent tasks and answers go with them; a chat that is only deleted keeps them until you restore it or they are purged.
+- A private chat is found by its person in search, and only by them.

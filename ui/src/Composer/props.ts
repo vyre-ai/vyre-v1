@@ -48,7 +48,8 @@ export interface ComposerShellProps {
   /** Quiet line after an engine switch. */
   engineLine?: string;
   onSend?: (text: string) => void;
-  onStop?: () => void;
+  /** Stop was pressed; `at` is where, so a place with several agents working can offer one stop per face. */
+  onStop?: (at?: { x: number; y: number }) => void;
 }
 
 const SYMBOL_MARK: Record<ComposerSymbol, string> = {

@@ -429,6 +429,32 @@ export function moduleWhens(
   out["computers.deletes_outside_work"] = (input, seed) =>
     seed.principal.kind !== "person" &&
     !/^work\/(?!.*\.\.)/.test(String((input as { path?: unknown } | null)?.path ?? ""));
+  // An agent's calendar write waits for a person when it invites someone, and also when the calendar is connected to an outside service (Google, Outlook): the event goes out in the person's name
+  // whoever is on it. Vyre's own Personal calendar is the person's own: nothing leaves, nothing waits. A calendar this cannot read holds, it never lets the write through.
+  out["calendar.writes_outside"] = async (input, seed) => {
+    if (seed.principal.kind === "person") return false;
+    const i = (input ?? {}) as { attendees?: unknown; calendarId?: unknown; eventId?: unknown };
+    if (Array.isArray(i.attendees) && i.attendees.length > 0) return true;
+    const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
+    if (!asker || !callAs) return true;
+    try {
+      let calendarId = typeof i.calendarId === "string" ? i.calendarId : "";
+      if (!calendarId && typeof i.eventId === "string") {
+        const e = (await callAs("calendar.get_event", { eventId: i.eventId }, asker)) as {
+          event?: { calendarId?: unknown };
+        } | null;
+        calendarId = typeof e?.event?.calendarId === "string" ? e.event.calendarId : "";
+      }
+      if (!calendarId) return true;
+      const l = (await callAs("calendar.list_calendars", {}, asker)) as {
+        calendars?: { id?: unknown; provider?: unknown }[];
+      } | null;
+      const c = (l?.calendars ?? []).find((x) => x.id === calendarId);
+      return !c || c.provider !== "local";
+    } catch {
+      return true;
+    }
+  };
   const fn = exports.get("git")?.["isProtectedCall"];
   if (typeof fn === "function") {
     const isProtected = fn as (ctx: { db: ScopedDb; call: typeof call }, input: unknown) => Promise<boolean>;

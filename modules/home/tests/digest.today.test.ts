@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { harness } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { alice, bob, hex, NOW, MINUTE, HOUR } from "../fixtures/seed.ts";
+import { nextCron, parseCron } from "../../../lib/clock.ts";
 
 const MIDNIGHT = Date.UTC(2025, 9, 9); // NOW is 08:53:20 UTC on 9 October 2025
 const intake = hex("agt", 1);
@@ -126,7 +127,49 @@ test("the day is the person's own: in Karachi, the next times of the evening rou
     "a time after local midnight is tomorrow",
   );
   assert.equal(h.calls.find((c) => c.cap === "runs.list")!.input.since, Date.UTC(2025, 9, 8, 19, 0));
-  assert.equal(h.calls.find((c) => c.cap === "scheduler.next_times")!.input.tz, "Asia/Karachi");
+  assert.equal(
+    h.calls.find((c) => c.cap === "scheduler.next_times")!.input.tz,
+    "UTC",
+    "a routine's cron is saved in UTC (the agent skill says so), so its times are asked in UTC; the person's zone only draws the day",
+  );
+});
+
+test("a routine saved at 04:00 UTC reads 09:00 for a person in Karachi, today", async () => {
+  // 06:00 in Karachi on 9 October 2025. The routine is "0 4 * * *" in UTC: the scheduler answers with the instants of that cron, as the real one does.
+  const now = Date.UTC(2025, 9, 9, 1, 0);
+  const h = harness({ now });
+  world(h, { tz: "Asia/Karachi" });
+  h.callee("agents.routines.list", (i) => ({
+    routines:
+      i.agentId === intake
+        ? [
+            {
+              routineId: rtn(1),
+              agentId: intake,
+              title: "Morning inbox",
+              cron: "0 4 * * *",
+              prompt: "x",
+              enabled: true,
+            },
+          ]
+        : [],
+  }));
+  h.callee("scheduler.next_times", (i) => {
+    const times: number[] = [];
+    for (let at = now; times.length < i.count; ) {
+      const t = nextCron(parseCron(i.cron)!, i.tz, at);
+      if (t === undefined) break;
+      times.push(t);
+      at = t;
+    }
+    return { times };
+  });
+  const r = await h.call("home.routines_today", {}, alice);
+  assert.deepEqual(
+    r.routines.map((x: { title: string; at: number }) => [x.title, x.at]),
+    [["Morning inbox", Date.UTC(2025, 9, 9, 4, 0)]],
+    "04:00 UTC is 09:00 in Karachi; read in the person's zone it was 04:00 there, which is yesterday evening in UTC and tomorrow after local midnight",
+  );
 });
 
 test("an unreadable time zone setting does not stop Home: UTC is used", async () => {

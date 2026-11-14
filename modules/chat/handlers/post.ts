@@ -26,6 +26,7 @@ import {
   refuseUnseenAgents,
   threadBy,
 } from "../projections.ts";
+import { messageAsMe } from "./floor.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
 import { unarchiveForMention } from "./archive-state.ts";
@@ -90,6 +91,21 @@ export function seesSpace(ctx: ChatCtx): boolean {
     host.authorize({ perm: null, level: "view" }, { type: "space", id: ctx.space }).effect === "allow"
   );
 }
+/** May the caller see this thread or channel through a grant (a guest's access is exactly such a grant)? No authorize (module tests): yes. */
+export function mayView(ctx: ChatCtx, type: "thread" | "channel", id: string): boolean {
+  const host = ctx as ChatCtx & {
+    authorize?: (
+      action: { perm: string | null; level: string },
+      resource: { type: string; id: string | null },
+    ) => { effect?: string };
+  };
+  return (
+    typeof host.authorize !== "function" ||
+    host.authorize({ perm: null, level: "view" }, { type, id }).effect === "allow"
+  );
+}
+export const mayViewChannel = (ctx: ChatCtx, channelId: string): boolean => mayView(ctx, "channel", channelId);
+
 export function mayGovernChannel(ctx: ChatCtx, channelId: string): boolean {
   const host = ctx as ChatCtx & {
     authorize?: (
@@ -102,6 +118,18 @@ export function mayGovernChannel(ctx: ChatCtx, channelId: string): boolean {
     host.authorize({ perm: null, level: "manage" }, { type: "channel", id: channelId }).effect === "allow"
   );
 }
+
+/** The Manage check on a channel says NO to this caller. In a module test with no authorize at all nothing is denied (the pipeline's own check is not there); a real daemon always has it. */
+export function channelManageDenied(ctx: ChatCtx, channelId: string): boolean {
+  const host = ctx as ChatCtx & { authorize?: unknown };
+  return typeof host.authorize === "function" && !mayGovernChannel(ctx, channelId);
+}
+
+/**
+ * Who a chat answers to by being its starter alone: an Ask pane has no member list and is its starter's. Every other chat answers to its live member rows: a creator who left reads and posts nothing, and a
+ * starter is no access by itself (r-keyreach, 14 Nov 2026).
+ */
+export const startsAlone = (root: ThreadRec): boolean => root.kind === "ask";
 
 /**
  * An invite-only channel is for the people in it, for reading and writing alike (its threads, messages, reactions and pins follow). The pipeline's grants are role wide, so the channel's own member
@@ -119,7 +147,7 @@ function mayEnterChannel(ctx: ChatCtx, root: ThreadRec, thread: ThreadRec, asker
       agentsOf(ctx.db, thread.id).some((a) => a.agentId === ctx.principal.id))
   )
     return true;
-  return isMember(ctx.db, root.id, asker) || root.starter === asker;
+  return isMember(ctx.db, root.id, asker);
 }
 
 /** Who may speak in a thread. Channels and their threads answer to grants (the pipeline already checked them); a private chat answers to its members and the agents in it. */
@@ -128,7 +156,7 @@ export function canSpeak(ctx: ChatCtx, thread: ThreadRec): boolean {
   const asker = askerOf(ctx);
   if (root.channelId !== undefined && !mayEnterChannel(ctx, root, thread, asker)) return false;
   if (!isPrivateRoot(root)) return true;
-  if (isMember(ctx.db, root.id, asker) || root.starter === asker) return true;
+  if (isMember(ctx.db, root.id, asker) || (startsAlone(root) && root.starter === asker)) return true;
   // an agent sitting in the chat works in it for the people in it and for nobody; asked by someone who is not in the chat it brings nothing out of it (lib/agent-asker.ts)
   if (ctx.principal.kind === "agent" && agentStanding(ctx, () => false))
     return (
@@ -405,6 +433,10 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   const body = input.body;
   const blocks = cleanBlocks(ctx, input.blocks);
   const attachments = [...new Set(input.attachments ?? [])];
+  // someone with no standing in the Space (a guest) sends plain words: no cards (a forged system card would read as the server's own) and no files they have no way to name
+  const outsider = author.kind === "person" && !seesSpace(ctx);
+  if (outsider && (blocks.length > 0 || attachments.length > 0))
+    raise(ctx, "validation.bad_input", "Guests send plain text in a channel.");
   if (body.trim() === "" && blocks.length === 0 && attachments.length === 0)
     raise(ctx, "validation.bad_input", "Write something, or attach a file.");
   if (body.length > MAX_BODY) raise(ctx, "validation.bad_input", `A message can hold at most ${MAX_BODY} characters.`);
@@ -421,12 +453,12 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     const prior = messageBy(ctx.db, input.clientId);
     if (prior) {
       if (prior.thread !== thread.id) raise(ctx, "validation.bad_input", "That message id belongs to another chat.");
-      return { message: messageOut(prior, encOf(ctx.db, thread)) };
+      return { message: messageOut(prior, encOf(ctx.db, thread), askerOf(ctx)) };
     }
   }
   let replyTo: MessageRec | null = null;
   if (input.replyTo !== undefined) {
-    replyTo = messageBy(ctx.db, input.replyTo);
+    replyTo = messageAsMe(ctx, input.replyTo);
     if (!replyTo || replyTo.thread !== thread.id)
       raise(ctx, "validation.bad_input", "The message you reply to is not in this chat.");
   }
@@ -456,9 +488,11 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   // "@Billing, sum this up" in a chat of their own: a person who @mentions an agent that is not in the chat brings it in as a listener (it answers when mentioned, and the person who mentioned it pays for
   // the turn it causes). Only for a person's own chat and only for an agent they may see (refused above); a channel's agents are its managers' to add. A thread hangs off a message or a task, and anyone in it,
   // person or agent, may bring an agent into that one thread, wherever the thread hangs.
+  // A guest changes nobody's roster: a mention of an agent that is not here stays a plain mention for them.
   if (
-    (author.kind === "person" && thread.kind === "chat" && thread.channelId === undefined) ||
-    ((author.kind === "person" || author.kind === "agent") && thread.kind === "thread")
+    !outsider &&
+    ((author.kind === "person" && thread.kind === "chat" && thread.channelId === undefined) ||
+      ((author.kind === "person" || author.kind === "agent") && thread.kind === "thread"))
   ) {
     const here = new Set(agentsOf(ctx.db, thread.id).map((a) => a.agentId));
     for (const mention of mentions) {
@@ -478,6 +512,8 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     ...(input.replyTo !== undefined ? { replyTo: input.replyTo } : {}),
     ...(input.via ? { via: { routineOwner: input.via.routineOwner } } : {}),
     ...(author.kind === "agent" && ctx.actingFor !== undefined && !ctx.sharedKey ? { paidBy: ctx.actingFor } : {}),
+    // whose turn it was, whoever paid: the saved steps of the reply are theirs to read whole (F51)
+    ...(author.kind === "agent" && ctx.actingFor?.startsWith("usr_") ? { askedBy: ctx.actingFor } : {}),
     depth,
     attachments,
   });
@@ -524,5 +560,5 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     body.trim() !== ""
   )
     await approveInChat(ctx, thread.id, body);
-  return { message: messageOut(m, encOf(ctx.db, thread)) };
+  return { message: messageOut(m, encOf(ctx.db, thread), askerOf(ctx)) };
 }

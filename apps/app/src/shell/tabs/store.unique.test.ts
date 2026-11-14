@@ -212,7 +212,7 @@ test("going somewhere inside the selected tab's place moves that tab: opening co
   assert.deepEqual(
     s.tabs.map((t) => [t.key, t.title]),
     [
-      ["chats", "Chats"],
+      ["chats", "New chat"],
       ["inbox", "Inbox"],
     ],
     "one Inbox, one Chats",
@@ -284,4 +284,76 @@ test("the controller's move keeps a pinned tab pinned and never opens a hidden p
   const pinned = { tabs: [{ ...placeTab("inbox"), pinned: true }], active: "inbox" };
   const moved = moveTab(pinned, "inbox", "subject=conversation:c1");
   assert.deepEqual([moved.tabs.length, moved.tabs[0]?.pinned, moved.tabs[0]?.key], [1, true, "inbox"]);
+});
+
+test("a saved tab keeps its own title and kind: a Notes tab is not a new chat, and only a chat saved blank is marked empty; the landing is the one New chat", () => {
+  const tab = (key: string, title: string, place: string, hash?: string) => ({
+    key,
+    title,
+    place,
+    ...(hash ? { hash } : {}),
+  });
+  const raw = JSON.stringify({
+    v: 1,
+    active: "chats",
+    tabs: [
+      tab("chats", "New chat", "chats"),
+      tab("chats:screen=chats.notes", "New chat", "chats", "screen=chats.notes"),
+      tab("chats:subject=thread:t1", "New chat", "chats", "subject=thread:t1"),
+      tab("files", "Files", "files"),
+      tab("records", "Records", "records"),
+    ],
+  });
+  const got = readTabs(raw)!;
+  const by = (place: "chats" | "files" | "records", hash?: string) =>
+    got.tabs.find((t) => t.key === tabKey(place, hash))!;
+  assert.equal(by("chats").title, "New chat");
+  assert.equal(by("chats").empty, undefined, "the landing is not an empty chat");
+  assert.equal(by("chats", "screen=chats.notes").title, "Notes");
+  assert.equal(by("chats", "screen=chats.notes").empty, undefined, "a Notes tab is never folded away");
+  assert.equal(by("chats", "subject=thread:t1").title, "New chat");
+  assert.equal(by("chats", "subject=thread:t1").empty, true, "a chat saved blank is marked");
+  assert.equal(by("files").title, "Files");
+  assert.equal(by("records").title, "Records");
+  // a place opened on a screen is named for the place, not "New chat"
+  assert.equal(placeTab("chats", "screen=chats.notes").title, "Chats");
+  assert.equal(placeTab("chats").title, "New chat");
+});
+
+test("a place's own tab is named for the screen inside it while shown, and back when it is cleared; a chat's own name is never overwritten (live and restored titles agree)", () => {
+  let s = openTab(EMPTY_TABS, placeTab("chats"));
+  assert.equal(s.tabs[0]!.title, "New chat");
+  s = moveTab(s, "chats", "screen=chats.notes");
+  assert.equal(s.tabs[0]!.title, "Notes", "Notes, as a restored tab reads");
+  assert.equal(readTabs(writeTabs(s))!.tabs[0]!.title, "Notes");
+  s = moveTab(s, "chats", undefined);
+  assert.equal(s.tabs[0]!.title, "New chat", "the landing's name comes back");
+  s = { ...s, tabs: [{ ...s.tabs[0]!, title: "Weekly numbers" }] };
+  s = moveTab(s, "chats", "screen=chats.notes");
+  assert.equal(s.tabs[0]!.title, "Notes");
+  const named = { tabs: [{ key: "chats", title: "Weekly numbers", place: "chats" as const }], active: "chats" };
+  assert.equal(
+    moveTab(named, "chats", "subject=thread:t1").tabs[0]!.title,
+    "Weekly numbers",
+    "a name the tab already has stays",
+  );
+});
+
+test("a chat a person named like a screen (Notes, Tasks) keeps its name when its tab moves: the tab's kind decides, not its title text", () => {
+  for (const name of ["Notes", "Tasks", "Artifacts", "Replies"]) {
+    const s0 = {
+      tabs: [{ key: "chats", title: name, place: "chats" as const, hash: "subject=thread:t1" }],
+      active: "chats",
+    };
+    assert.equal(moveTab(s0, "chats", "subject=thread:t2").tabs[0]!.title, name, `${name}: another chat`);
+    assert.equal(moveTab(s0, "chats", undefined).tabs[0]!.title, name, `${name}: the landing`);
+  }
+  // a tab that really shows the Notes screen is named for it and gives the name back when it is left
+  const notes = moveTab(
+    { tabs: [{ key: "chats", title: "New chat", place: "chats" as const }], active: "chats" },
+    "chats",
+    "screen=chats.notes",
+  );
+  assert.equal(notes.tabs[0]!.title, "Notes");
+  assert.equal(moveTab(notes, "chats", undefined).tabs[0]!.title, "New chat");
 });

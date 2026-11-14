@@ -1,0 +1,1 @@
+- A private channel's name, a private project's title and what an agent made for someone else no longer show up in the activity log for people who may not open them: the log now follows who an agent is working for, not which agent did the work.

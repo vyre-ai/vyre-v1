@@ -464,12 +464,18 @@ export default defineManifest({
           plan: t.opt(
             t.arr(planChild, { maxItems: 50, description: "A draft goal only: the drafted plan, replaced whole" }),
           ),
+          expectedUpdatedAt: t.opt(
+            t.ts({
+              description:
+                "The updatedAt you read; a change made since then is not replaced, and the change is refused",
+            }),
+          ),
         },
         out: { goal: goalRow, seated: t.opt(t.arr(seat)) },
         level: "member",
         emits: EMITS,
         tool: "tasks",
-        errors: ["validation.precondition_failed", "validation.not_found"],
+        errors: ["validation.precondition_failed", "validation.not_found", "validation.version_conflict"],
       },
     ),
     write(

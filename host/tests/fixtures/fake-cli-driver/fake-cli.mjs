@@ -11,6 +11,7 @@
 //   send      "send <address> [mailboxId]": calls the mail_send tool over the Vyre MCP server named in --mcp-config (stdio shim or loopback URL, the same ways the real CLI would) and answers with
 //             what the tool said, "mail_send answered: <text>" or "mail_send refused: <text>" (a Gate hold, a refusal) or "mcp error: <message>". Lets a test drive the Gate path end to end.
 //   tool      "tool <name> <json arguments>": calls any tool over the Vyre MCP server and answers "<name> answered: <text>" or "<name> refused: <text>" (or "mcp error: ..."). A model that reads memory through its tools.
+//   toolslow  "toolslow <ms> <name> <json arguments>": waits <ms> (another agent's turn is made in that time), then finds the tool with tool_search and calls it, answering as "tool" does. A model that reads nothing and writes later.
 //   skillscheck  lists the skills in .claude/skills of its folder, where Claude Code looks for its own: "skills: <name>=<description>=<files>; ..." and whether Skill is an allowed tool
 //   anything else answers with the prompt it was given
 // These are picked by the prompt's last line (the person's message comes last, after the turn context and any recent messages a fresh session is given):
@@ -824,6 +825,16 @@ async function run(raw) {
   }
   // (the wake-up is judged before any "tool" line: a wake-up turn is sent the chat's earlier lines too)
   // a "tool" line is the person's message, which comes last and may follow context or memory the engine put in front of it
+  const slowLine = prompt
+    .split("\n")
+    .reverse()
+    .find((l) => /^toolslow\s+\d+\s+\S+/.test(l));
+  if (slowLine) {
+    const sm = /^toolslow\s+(\d+)\s+(.*)$/s.exec(slowLine);
+    await new Promise((r) => setTimeout(r, Number(sm[1])));
+    await callTool(`tool ${sm[2]}`, true);
+    return;
+  }
   const toolLine = prompt
     .split("\n")
     .reverse()

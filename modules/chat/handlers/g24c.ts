@@ -26,7 +26,7 @@ import {
 } from "../projections.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
 import { archivedIds } from "./archive-state.ts";
-import { canSpeak, deliver } from "./post.ts";
+import { canSpeak, deliver, mayView, seesSpace } from "./post.ts";
 
 type Row = Record<string, unknown>;
 const MAX_BODY = 100_000;
@@ -44,7 +44,9 @@ function openThread(ctx: ChatCtx, threadId: string): ThreadRec {
 
 function messageIn(ctx: ChatCtx, t: ThreadRec, messageId: string): MessageRec {
   const m = messageBy(ctx.db, messageId);
-  if (!m || m.thread !== t.id) raise(ctx, "validation.not_found", "That message is not in this chat.");
+  // a message from before the caller's reading floor is not theirs to act on or to learn about
+  if (!m || m.thread !== t.id || m.createdAt < readFloor(ctx, t))
+    raise(ctx, "validation.not_found", "That message is not in this chat.");
   return m;
 }
 
@@ -94,7 +96,10 @@ export async function messagesList(
   return {
     messages: await attachReach(
       ctx,
-      page.map((m) => ({ ...messageOut(m, enc), ...(chips.has(m.id) ? { mentions: chips.get(m.id)! } : {}) })),
+      page.map((m) => ({
+        ...messageOut(m, enc, askerOf(ctx)),
+        ...(chips.has(m.id) ? { mentions: chips.get(m.id)! } : {}),
+      })),
     ),
     hasMore,
   };
@@ -104,7 +109,7 @@ export async function messageGet(ctx: ChatCtx, input: { threadId: string; messag
   const t = openThread(ctx, input.threadId);
   const m = messageIn(ctx, t, input.messageId);
   if (m.createdAt < readFloor(ctx, t)) raise(ctx, "validation.not_found", "That message is not in this chat.");
-  return { message: (await attachReach(ctx, [messageOut(m, encOf(ctx.db, t))]))[0]! };
+  return { message: (await attachReach(ctx, [messageOut(m, encOf(ctx.db, t), askerOf(ctx))]))[0]! };
 }
 
 export async function pinsList(ctx: ChatCtx, input: { threadId: string }) {
@@ -119,7 +124,7 @@ export async function pinsList(ctx: ChatCtx, input: { threadId: string }) {
   return {
     messages: await attachReach(
       ctx,
-      rows.map((r) => messageOut(messageOf(r), enc)),
+      rows.map((r) => messageOut(messageOf(r), enc, askerOf(ctx))),
     ),
   };
 }
@@ -141,7 +146,7 @@ export async function edit(ctx: ChatCtx, input: { threadId: string; messageId: s
   if (input.body.trim() === "" && m.blocks.length === 0 && m.attachments.length === 0)
     raise(ctx, "validation.bad_input", "A message needs some text, a block or a file.");
   const enc = encOf(ctx.db, t);
-  if (input.body === m.body) return { message: messageOut(m, enc) };
+  if (input.body === m.body) return { message: messageOut(m, enc, askerOf(ctx)) };
   const now = ctx.now();
   ctx.db.run(
     "UPDATE chat_message SET body = ?, editedAt = ?, version = version + 1, updated_at = ? WHERE id = ?",
@@ -151,16 +156,18 @@ export async function edit(ctx: ChatCtx, input: { threadId: string; messageId: s
     m.id,
   );
   ctx.emit("message.edited", t.id, { messageId: m.id, threadId: t.id });
-  return { message: messageOut(messageBy(ctx.db, m.id)!, enc) };
+  return { message: messageOut(messageBy(ctx.db, m.id)!, enc, askerOf(ctx)) };
 }
 
 export async function deleteMessage(ctx: ChatCtx, input: { threadId: string; messageId: string }) {
   const t = openThread(ctx, input.threadId);
   // A repeat finds the row already marked and answers the same.
   const row = (
-    ctx.db.all("SELECT thread, author, deleted_at FROM chat_message WHERE id = ?", input.messageId) as Row[]
+    ctx.db.all("SELECT thread, author, deleted_at, createdAt FROM chat_message WHERE id = ?", input.messageId) as Row[]
   )[0];
-  if (!row || String(row["thread"]) !== t.id) raise(ctx, "validation.not_found", "That message is not in this chat.");
+  // a message from before the caller's reading floor is not found, not "yours to delete": the answer must not tell that it is there
+  if (!row || String(row["thread"]) !== t.id || Number(row["createdAt"] ?? 0) < readFloor(ctx, t))
+    raise(ctx, "validation.not_found", "That message is not in this chat.");
   if (String(row["author"]) !== ctx.principal.id)
     raise(ctx, "permission.no_grant", "You can only delete a message you wrote.");
   if (row["deleted_at"] !== null && row["deleted_at"] !== undefined) return { deleted: true };
@@ -270,9 +277,12 @@ export async function recent(ctx: ChatCtx, input: { filter?: "all" | "unread" | 
   ) as Row[];
   const rows: Array<{ lastAt: number; row: Record<string, unknown>; archived: boolean }> = [];
   const mine = archivedIds(ctx, asker);
+  const whole = seesSpace(ctx);
   for (const r of threads) {
     const t = threadBy(ctx.db, String(r["id"]));
     if (!t) continue;
+    // someone with no standing in the Space (a guest) lists a chat only while the access that let them in lasts
+    if (!whole && !mayView(ctx, "thread", t.id)) continue;
     const agents = agentsOf(ctx.db, t.id).map((a) => a.agentId);
     const people = membersOf(ctx.db, t.id).filter((p) => !p.startsWith("agt_"));
     if (filter === "unread") continue;

@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat, engine, mcp, memory, notes, runs, terminal.
 
-## Capabilities (109)
+## Capabilities (110)
 
 - [agents.assistant_of](../capabilities/agents.assistant_of.md): A person's own Assistant, for the server's modules that work for them; only the server and the person themself are answered
 - [agents.builtin_skill.get](../capabilities/agents.builtin_skill.get.md): Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer
@@ -34,6 +34,7 @@ Requires: chat, engine, mcp, memory, notes, runs, terminal.
 - [agents.role_line.set](../capabilities/agents.role_line.set.md): Edit the role line in place: saves the description of agent.toml with an inline Undo; read-only without Edit
 - [agents.routine.delegate](../capabilities/agents.routine.delegate.md): Hand a routine to another person or agent (a person becomes its owner, an agent runs it); undo (no `to`) hands it back to the previous owner and agent
 - [agents.routine.delete](../capabilities/agents.routine.delete.md): Delete a routine
+- [agents.routine.fire](../capabilities/agents.routine.fire.md): System: a routine's time has come (its wake made the fire): start its Run under its owner with the routine's key, only if the routine still exists, is on, is not paused and still agrees with the fire. Says why when it starts nothing
 - [agents.routine.run_now](../capabilities/agents.routine.run_now.md): Run a routine now. The run starts as the routine owner, never as the caller, so its reach and its "Sent by <agent> on a routine <person> set" line are the owner's
 - [agents.routine.save](../capabilities/agents.routine.save.md): Create or change a routine, a schedule (cron) or a watcher (kind watch: runs on each new message in a channel); messages it causes carry "Sent by <agent> on a routine <person> set"
 - [agents.routines.list](../capabilities/agents.routines.list.md): Routines of an agent (schedules set by the owner)

@@ -48,6 +48,7 @@ const ID_SHAPE: Readonly<Record<string, RegExp | null>> = Object.freeze({
   skill: /^sko_[a-z0-9]+$/,
   conversation: /^cnv_[a-z0-9]+$/,
   mail_message: /^eml_[a-z0-9]+$/,
+  calendar_event: /^cev_[a-z0-9]+$/,
   inbox: null,
   automation_group: null,
   connector: null,
@@ -91,6 +92,8 @@ export interface RegisterArgs {
 export interface ResourceRegistrar {
   /** The resource rows to append (as `resource.created` payloads) for the objects these events bring into being. */
   register(a: RegisterArgs): ResourceRow[];
+  /** Who may read the `resource.created` event of this row in the event log (see announcementVis). */
+  visOf?(row: ResourceRow): "space" | "participants";
 }
 
 export interface RegistrarDeps {
@@ -149,10 +152,12 @@ export function missingAgentResources(a: { space: string; events: readonly Event
  * them: a conversation, and a mail message. Their birth events register them, under the Space like any other object, so the module's own door (a private mailbox, a private message) is the only filter
  * on who reads the content and the role grants of the Space say who may act on it.
  */
-const ENTITY_BIRTHS: ReadonlyMap<string, SubjectDef["subject"]> = new Map([
+const ENTITY_BIRTHS: ReadonlyMap<string, SubjectDef["subject"] & { parent?: string }> = new Map([
   ["conversation.created", { type: "conversation", id: "/conversationId" }],
   ["mail.received", { type: "mail_message", id: "/messageId" }],
   ["message.sent", { type: "mail_message", id: "/messageId" }],
+  // an event lives in its calendar (so a private Personal calendar's privacy covers it); calendar.get_event, update_event and delete_event are bound to the event itself, and without a row access answered "not found" to everyone, the person included
+  ["calendar_event.created", { type: "calendar_event", id: "/eventId", parent: "/calendarId" }],
 ]);
 
 /**
@@ -176,12 +181,90 @@ function insideOf(deps: RegistrarDeps, from: string, home: string): boolean {
   return false;
 }
 
+/**
+ * "Made for me" (owner rule, 14 Nov 2026): the stamp `made_by` / `made_for` says an agent AUTHORED this thing for the person it acts for. The rule: the actor of the creating call is an agent, acting for a person, the
+ * thing is the product of that call (the agent made it, nothing arrived), and the creating call is one of the AUTHORING calls below. It is an allow list: a capability not named here never stamps, so a new intake of
+ * outside data (a mail sync, a calendar pull, a mount, an import, a connector or provider sync) cannot start marking what arrives as the agent's by default. Nothing is stamped for mail received, a conversation
+ * opened by incoming mail, a message sent, an event pulled from a provider, a file a mount brought in or a record an import brought in. Add a capability here only when its whole product is something the agent made.
+ */
+export const AUTHORING_CAPS: ReadonlySet<string> = new Set([
+  "agents.create",
+  "automations.create",
+  "bookings.page_create",
+  "calendar.create_calendar",
+  "calendar.create_event",
+  "calendar.duplicate_event",
+  "channels.create",
+  "chat.start",
+  "connections.create",
+  "email_builder.create",
+  "files.copy",
+  "files.create",
+  "files.folder.create",
+  "folders.create",
+  "forms.create",
+  "goals.create",
+  "projects.create",
+  "projects.from_channel",
+  "records.bulk_upsert",
+  "records.create",
+  "sheets.create",
+  "sites.artifact_publish",
+  "sites.create",
+  "skills.add",
+  "skills.mine.add",
+  "tasks.ask",
+  "tasks.create",
+  "tasks.plan",
+  "vault.folders.create",
+  "vault.item.put",
+]);
+const AUTHORED_ENTITY_BIRTHS: ReadonlySet<string> = new Set(["calendar_event.created"]);
+const madeFor = (a: RegisterArgs): { made_by?: string; made_for?: string } =>
+  a.principal?.kind === "agent" && /^usr_[a-z0-9]+$/.test(a.owner) && AUTHORING_CAPS.has(a.cap.name)
+    ? { made_by: a.principal.id, made_for: a.owner }
+    : {};
+
+/**
+ * Where a calendar event already in the store is registered the first time a call names it: inside its calendar, owned by that calendar's owner (a private Personal calendar's events are that person's alone and
+ * nobody else reaches them through the Space), and only when the calendar is unknown (a row whose calendar is gone) under the Space and the Space owner's name with the host mark.
+ */
+export function lateEventPlace(a: {
+  calendar: Pick<ResourceRow, "id" | "owner_id"> | undefined;
+  spaceId: string;
+  spaceOwner: string;
+}): { parent_id: string; owner_id: string; hostOwned: boolean } {
+  return a.calendar?.owner_id
+    ? { parent_id: a.calendar.id, owner_id: a.calendar.owner_id, hostOwned: false }
+    : { parent_id: a.calendar ? a.calendar.id : a.spaceId, owner_id: a.spaceOwner, hostOwned: true };
+}
+
+/**
+ * Who may read the log's `resource.created` for a row: births of a private root (a Personal calendar, a Personal files root, a Mine Vault folder, a private mailbox or site: a row with no container that is not the
+ * Space) and of anything under one (an event in a Personal calendar, a file in Personal files, a Vault item in Mine) are announced to `participants`: the call's own actor and anyone access lets view the row,
+ * which for a private root is its owner. Everything under the Space is the Space's, as before. A parent this cannot find is not a reason to hide. The system's own readers (the access projection, the peer
+ * sync of one person's computers) read the log without this filter.
+ */
+export function announcementVis(
+  row: ResourceRow,
+  resource: ((id: string) => ResourceRow | undefined) | undefined,
+): "space" | "participants" {
+  if (row.type === "space") return "space";
+  let at: ResourceRow | undefined = row;
+  for (let depth = 0; depth < 64 && at !== undefined; depth++) {
+    if (at.parent_id === null) return at.type === "space" ? "space" : "participants";
+    at = resource?.(at.parent_id);
+  }
+  return "space";
+}
+
 export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar {
   const subjects = new Map<string, SubjectDef["subject"]>();
   for (const e of deps.events) if (e.subject.type !== "entity" && !ENDS.test(e.name)) subjects.set(e.name, e.subject);
   // `mail.received` already names its mailbox as subject; the message is a second object the same event brings into being, so it is kept apart
   const births = new Map(ENTITY_BIRTHS);
   return {
+    visOf: (row) => announcementVis(row, deps.resource),
     register(a) {
       const out: ResourceRow[] = [];
       let parentPtr: string | undefined;
@@ -211,6 +294,8 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
               label: cur.label,
               owner_id: cur.owner_id,
               holds: cur.holds,
+              ...(cur.made_by !== undefined ? { made_by: cur.made_by } : {}),
+              ...(cur.made_for !== undefined ? { made_for: cur.made_for } : {}),
             });
           }
           continue;
@@ -220,7 +305,17 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
           const xid = pointer(ev.payload, extra.id);
           if (typeof xid === "string" && idFits(extra.type, xid) && !seen.has(xid) && !deps.exists(xid)) {
             seen.add(xid);
-            out.push({ id: xid, type: extra.type, parent_id: a.space, label: 0, owner_id: a.owner, holds: 0 });
+            const inside = extra.parent === undefined ? undefined : pointer(ev.payload, extra.parent);
+            const parent = typeof inside === "string" && (deps.exists(inside) || seen.has(inside)) ? inside : a.space;
+            out.push({
+              id: xid,
+              type: extra.type,
+              parent_id: parent,
+              label: 0,
+              owner_id: a.owner,
+              holds: 0,
+              ...(AUTHORED_ENTITY_BIRTHS.has(ev.type) ? madeFor(a) : {}),
+            });
           }
         }
         const s = subjects.get(ev.type);
@@ -234,12 +329,23 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
         seen.add(id);
         // a Vault item lives in its folder (so a Mine folder's privacy covers what is in it), whatever the call's own input names
         // and a Vault folder made inside another lives in that one, so the outer folder's label and grants cover it as Files folders do
+        // a channel's chat (its main thread) and the reply threads under its messages live in the channel, so what the channel is shared with (a guest invited to it) reaches them. Nothing else that hangs off a channel does: threadHome
         const inFolder =
           s.type === "vault_item"
             ? pointer(ev.payload, "/folderId")
             : s.type === "vault_folder"
               ? pointer(a.input, "/parentId")
-              : undefined;
+              : s.type === "thread"
+                ? threadHome(
+                    {
+                      kind: pointer(ev.payload, "/kind"),
+                      channelId: pointer(ev.payload, "/channelId"),
+                      parentThreadId: pointer(ev.payload, "/parentThreadId"),
+                      replyThread: a.cap.name === "chat.thread",
+                    },
+                    (t) => underChannel(deps, t),
+                  )
+                : undefined;
         const holder = typeof inFolder === "string" && (deps.exists(inFolder) || seen.has(inFolder)) ? inFolder : given;
         const container =
           typeof holder === "string" && holder !== id && (deps.exists(holder) || seen.has(holder)) ? holder : a.space;
@@ -258,20 +364,78 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
             ? (deps.agentHome?.(a.principal.id) ?? null)
             : null;
         const agentsOwn = home !== null && insideOf(deps, container, home);
+        const owner = agentsOwn
+          ? a.principal!.id
+          : typeof named === "string" && /^usr_[a-z0-9]+$/.test(named)
+            ? named
+            : a.owner;
         out.push({
           id,
           type: s.type,
           parent_id: s.type === "space" || privateRoot ? null : container,
           label: 0,
-          owner_id: agentsOwn
-            ? a.principal!.id
-            : typeof named === "string" && /^usr_[a-z0-9]+$/.test(named)
-              ? named
-              : a.owner,
+          owner_id: owner,
           holds: 0,
+          // a calendar connected to an outside provider is flagged: the private-root rule of made-for-me does not reach it
+          ...(s.type === "calendar" &&
+          typeof pointer(ev.payload, "/provider") === "string" &&
+          pointer(ev.payload, "/provider") !== "local"
+            ? { outside: true }
+            : {}),
+          // made for a person by an agent acting for them: the same agent keeps the person's own level on it (kernel authorize, madeForPerson)
+          ...(owner === a.owner ? madeFor(a) : {}),
         });
       }
       return out;
     },
   };
+}
+
+/** Is this resource a channel, or inside one? Walks parents in the access snapshot, bounded. */
+export function underChannelOf(resource: ((id: string) => ResourceRow | undefined) | undefined, from: string): boolean {
+  let at: string | null = from;
+  for (let depth = 0; at !== null && depth < 16; depth++) {
+    if (ID_SHAPE["channel"]!.test(at)) return true;
+    at = resource?.(at)?.parent_id ?? null;
+  }
+  return false;
+}
+const underChannel = (deps: Pick<RegistrarDeps, "resource">, from: string): boolean =>
+  underChannelOf(deps.resource, from);
+
+/**
+ * Where a chat thread lives for access, so a grant on a channel reaches the right threads and no others. Exactly two kinds of thread belong to a channel:
+ *  - its own chat (kind channel, the thread named by the channel), which lives in the channel;
+ *  - a reply thread opened under one of its messages (chat.thread), which lives in the thread it replies in, when that thread is already in a channel (a reply under a reply stays in the channel).
+ * Every other thread keeps the Space as its parent, so a channel's grant does not reach it: a person's one-to-one, an aside, a private Assistant chat, an agent's own chats, a task's or goal's chat, a Run's chat, and the
+ * helper and teammate (handoff) threads an agent starts from a message. Returns the parent's id, or null (the Space).
+ */
+export function threadHome(
+  t: { kind: unknown; channelId: unknown; parentThreadId: unknown; replyThread: boolean },
+  inChannel: (parent: string) => boolean,
+): string | null {
+  if (t.kind === "channel" && typeof t.channelId === "string" && ID_SHAPE["channel"]!.test(t.channelId))
+    return t.channelId;
+  if (
+    t.replyThread &&
+    t.kind === "thread" &&
+    typeof t.parentThreadId === "string" &&
+    ID_SHAPE["thread"]!.test(t.parentThreadId) &&
+    inChannel(t.parentThreadId)
+  )
+    return t.parentThreadId;
+  return null;
+}
+
+/**
+ * The registration that moves a thread made before channel threads lived in their channel: the same row with its home as its parent, or null when there is nothing to move (not one of the two kinds that belong to
+ * a channel, the home is not a known resource, or it is already there).
+ */
+export function threadMoveInto(
+  have: ResourceRow | undefined,
+  home: string | null | undefined,
+  homeKnown: boolean,
+): ResourceRow | null {
+  if (!have || have.type !== "thread" || !home || !homeKnown || have.parent_id === home) return null;
+  return { ...have, parent_id: home };
 }

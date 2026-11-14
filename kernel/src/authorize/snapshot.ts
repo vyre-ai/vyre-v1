@@ -30,6 +30,8 @@ export interface SubjectInfo {
   /** `actor:<id>`, `group:<id>` and `role:<id>` keys a grant's subject can match */
   readonly keys: ReadonlySet<string>;
   readonly roleNames: string;
+  /** A person with no standing in the Space (see viewsSpace): what they hold on a thread or a channel is capped by guest-caps.ts. Agents hold the Guest role as their low role and are never this. */
+  readonly guest: boolean;
 }
 
 /** A grant with its hot-path fields pre-read. */
@@ -88,6 +90,7 @@ export class AccessSnapshot {
   changed(): void {
     this.epoch++;
     this.infoCache.clear();
+    this.spaceRootRow = undefined;
     this.infoUntil = Infinity;
     this.excRows = null;
     this.exAllowed.clear();
@@ -210,6 +213,38 @@ export class AccessSnapshot {
   }
 
   /** Roles of a subject: its own plus its groups' roles; an agent loses owner and admin. Null for an unknown principal. */
+  /**
+   * Does this person have standing in the Space: do they own it, or does a grant of theirs (their own, a group's or a role's) reach it at View or more? (A person whose roles carry any permission has standing too: a role gets its Space grant when it carries permissions.) A guest is a person who has none. The test is what they
+   * lack, never the name of a role: a role an admin cloned from Guest, or a harmless custom role beside Guest, leaves them an outsider; a role that carries permissions gets its Space grant and makes them a member.
+   */
+  private viewsSpace(id: string, keys: ReadonlySet<string>): boolean {
+    const now = this.clock();
+    const root = this.spaceRoot();
+    // a snapshot with no Space resource (a hand-built one in a test) cannot say who stands outside it: nobody is an outsider
+    if (root === null) return true;
+    if (root.owner_id === id) return true;
+    for (const g of this.grantsOn(root.id) ?? []) {
+      if (!keys.has(g.key) || g.exp <= now || now < g.nb || now > g.na) continue;
+      if (g.exp !== Infinity && g.exp < this.infoUntil) this.infoUntil = g.exp;
+      return true;
+    }
+    return false;
+  }
+
+  private spaceRootRow: ResourceRow | null | undefined;
+  /** The Space's own resource, found once until the next change (a scan of every resource at each refill of a person's standing would cost a pass over the whole tree). */
+  private spaceRoot(): ResourceRow | null {
+    if (this.spaceRootRow === undefined) {
+      this.spaceRootRow = null;
+      for (const r of this.resources.values())
+        if (r.type === "space" && r.parent_id === null) {
+          this.spaceRootRow = r;
+          break;
+        }
+    }
+    return this.spaceRootRow;
+  }
+
   info(id: string): SubjectInfo | null {
     if (this.infoUntil !== Infinity && this.clock() >= this.infoUntil) {
       this.infoCache.clear();
@@ -246,7 +281,8 @@ export class AccessSnapshot {
       for (const x of r.perms) perms.add(x);
     }
     this.applyExceptions(id, groups, roleIds, perms);
-    const info: SubjectInfo = { p, perms, clearance, keys, roleNames: names.join(", ") || "no role" };
+    const guest = p.kind === "person" && perms.size === 0 && !this.viewsSpace(id, keys);
+    const info: SubjectInfo = { p, perms, clearance, keys, roleNames: names.join(", ") || "no role", guest };
     this.infoCache.set(id, info);
     return info;
   }
@@ -407,7 +443,11 @@ export class AccessSnapshot {
       if (!r) break;
       this.labelWalks++;
       path.push(r);
-      cur = r.parent_id ?? r.home ?? null;
+      const up = r.parent_id ?? r.home ?? null;
+      // a channel's chat lives in its channel for grants, but the channel's own label stays the channel's: it never covered the chat (before the chat lived in its channel it was under the Space), and members of a
+      // labelled channel keep reading it
+      const above = up === null ? undefined : this.resources.get(up);
+      cur = r.type === "thread" && above?.type === "channel" ? (above.parent_id ?? null) : up;
     }
     for (let i = path.length - 1; i >= 0; i--) {
       const r = path[i]!;

@@ -11,7 +11,7 @@ Create an event (drag in 15 minute steps) on its Google or Microsoft calendar, w
 | Grant level | edit |
 | Risk | medium |
 | Resource | calendar (/calendarId) |
-| Gate | send when actor.kind != 'person' && input.attendees != null |
+| Gate | send when calendar.writes_outside(input) |
 | Idempotency | key |
 | Offline | queue |
 | Audit | none |
@@ -55,6 +55,8 @@ type In = {
 type Out = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -176,7 +178,9 @@ type Out = {
       "seriesId": "example",
       "startsAt": 1760000000000,
       "status": "confirmed",
-      "title": "example"
+      "title": "example",
+      "updatedAt": 1760000000000,
+      "version": 1
     }
   }
 }

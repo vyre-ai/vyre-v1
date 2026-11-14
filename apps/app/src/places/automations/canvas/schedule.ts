@@ -1,85 +1,15 @@
 // The schedule picker's model: a friendly choice (every N minutes, hour, day, weekday, week, month) compiled to the one cron the scheduler stores, the cron read back into a choice,
-// the cron in words, and the next fire times in a time zone. The app cannot import modules, so the cron rules here follow modules/automations/schedule/cron.ts:
-// five fields, names and steps, a skipped local time is skipped, a repeated one fires on its first pass, and when both day fields are set either may match.
+// the cron in words, and the next fire times in a time zone. The cron rules are the clock's (lib/clock.ts), the same file the scheduler runs:
+// five fields, names and steps, a time in a spring-forward gap fires when the gap ends, a repeated one fires on its first pass, and when both day fields are set either may match.
+import { nextCron, parseCron } from "../../../../../../lib/clock.ts";
+import type { CronSpec } from "../../../../../../lib/clock.ts";
+import { partsIn } from "../../../../../../lib/zones.ts";
 
-const DAY = 86_400_000;
-const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-const DOWS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+export { parseCron };
+export type { CronSpec };
+
 export const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
 export const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-const MACROS: Record<string, string> = {
-  "@hourly": "0 * * * *",
-  "@daily": "0 0 * * *",
-  "@midnight": "0 0 * * *",
-  "@weekly": "0 0 * * 0",
-  "@monthly": "0 0 1 * *",
-  "@yearly": "0 0 1 1 *",
-  "@annually": "0 0 1 1 *",
-};
-
-interface Field {
-  set: ReadonlySet<number>;
-  star: boolean;
-}
-export interface CronSpec {
-  min: Field;
-  hour: Field;
-  dom: Field;
-  mon: Field;
-  dow: Field;
-}
-
-function parseField(text: string, lo: number, hi: number, names?: readonly string[], nameBase = 0): Field | undefined {
-  const value = (s: string): number | undefined => {
-    if (/^\d+$/.test(s)) return Number(s);
-    const i = names ? names.indexOf(s.toLowerCase()) : -1;
-    return i >= 0 ? i + nameBase : undefined;
-  };
-  const set = new Set<number>();
-  let star = false;
-  for (const part of text.split(",")) {
-    const [range, stepText, extra] = part.split("/");
-    if (extra !== undefined || range === undefined || range === "") return undefined;
-    let step = 1;
-    if (stepText !== undefined) {
-      if (!/^\d+$/.test(stepText) || Number(stepText) < 1) return undefined;
-      step = Number(stepText);
-    }
-    let a: number | undefined;
-    let b: number | undefined;
-    if (range === "*") {
-      a = lo;
-      b = hi;
-      if (stepText === undefined) star = true;
-    } else if (range.includes("-")) {
-      const [x, y, z] = range.split("-");
-      if (z !== undefined || x === undefined || y === undefined) return undefined;
-      a = value(x);
-      b = value(y);
-    } else {
-      a = value(range);
-      b = stepText !== undefined ? hi : a;
-    }
-    if (a === undefined || b === undefined || a < lo || b > hi || a > b) return undefined;
-    for (let v = a; v <= b; v += step) set.add(v);
-  }
-  return set.size > 0 ? { set, star } : undefined;
-}
-
-/** A five-field cron. Undefined when the text is not one the scheduler can read. */
-export function parseCron(text: string): CronSpec | undefined {
-  const t = text.trim().toLowerCase();
-  const parts = (MACROS[t] ?? t).split(/\s+/);
-  if (parts.length !== 5) return undefined;
-  const min = parseField(parts[0]!, 0, 59);
-  const hour = parseField(parts[1]!, 0, 23);
-  const dom = parseField(parts[2]!, 1, 31);
-  const mon = parseField(parts[3]!, 1, 12, MONTHS, 1);
-  const dowRaw = parseField(parts[4]!, 0, 7, DOWS, 0);
-  if (!min || !hour || !dom || !mon || !dowRaw) return undefined;
-  return { min, hour, dom, mon, dow: { star: dowRaw.star, set: new Set([...dowRaw.set].map((d) => d % 7)) } };
-}
-
 export function validTimeZone(tz: string): boolean {
   if (!tz) return false;
   try {
@@ -100,67 +30,6 @@ export function deviceTimeZone(): string {
   }
 }
 
-const fmts = new Map<string, Intl.DateTimeFormat>();
-interface Local {
-  y: number;
-  mo: number;
-  d: number;
-  h: number;
-  mi: number;
-}
-function localOf(ms: number, tz: string): Local {
-  let f = fmts.get(tz);
-  if (!f) {
-    f = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      hourCycle: "h23",
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-    });
-    fmts.set(tz, f);
-  }
-  const o: Record<string, number> = {};
-  for (const p of f.formatToParts(new Date(ms))) if (p.type !== "literal") o[p.type] = Number(p.value);
-  return { y: o["year"]!, mo: o["month"]!, d: o["day"]!, h: o["hour"]! % 24, mi: o["minute"]! };
-}
-const asUtc = (l: Local): number => Date.UTC(l.y, l.mo - 1, l.d, l.h, l.mi);
-function localToUtc(l: Local, tz: string): number | undefined {
-  const want = asUtc(l);
-  let guess = want - (asUtc(localOf(want, tz)) - want);
-  for (let i = 0; i < 2; i++) {
-    const got = asUtc(localOf(guess, tz));
-    if (got === want) return guess;
-    guess -= got - want;
-  }
-  return asUtc(localOf(guess, tz)) === want ? guess : undefined;
-}
-
-function nextCron(spec: CronSpec, tz: string, after: number): number | undefined {
-  const start = localOf(after, tz);
-  const hours = [...spec.hour.set].sort((a, b) => a - b);
-  const mins = [...spec.min.set].sort((a, b) => a - b);
-  const day0 = Date.UTC(start.y, start.mo - 1, start.d);
-  for (let n = 0; n < 366 * 9; n++) {
-    const dt = new Date(day0 + n * DAY);
-    const mo = dt.getUTCMonth() + 1;
-    if (!spec.mon.set.has(mo)) continue;
-    const d = dt.getUTCDate();
-    const domOk = spec.dom.set.has(d);
-    const dowOk = spec.dow.set.has(dt.getUTCDay());
-    const dayOk = spec.dom.star || spec.dow.star ? domOk && dowOk : domOk || dowOk;
-    if (!dayOk) continue;
-    for (const h of hours)
-      for (const mi of mins) {
-        const at = localToUtc({ y: dt.getUTCFullYear(), mo, d, h, mi }, tz);
-        if (at !== undefined && at > after) return at;
-      }
-  }
-  return undefined;
-}
-
 /** The next `count` fire times after `after`, in the zone. Empty when the cron or the zone is not valid. */
 export function nextRuns(cron: string, tz: string, after: number, count = 3): number[] {
   const spec = parseCron(cron);
@@ -178,12 +47,12 @@ export function nextRuns(cron: string, tz: string, after: number, count = 3): nu
 
 /** "Mon 3 Nov, 09:00" in the zone. */
 export function runWords(ms: number, tz: string): string {
-  const l = localOf(ms, tz);
-  const dow = new Date(Date.UTC(l.y, l.mo - 1, l.d)).getUTCDay();
-  const month = new Date(Date.UTC(l.y, l.mo - 1, 1)).toLocaleString("en-US", { month: "short", timeZone: "UTC" });
-  return `${DAY_SHORT[dow]} ${l.d} ${month}, ${hm(l.h, l.mi)}`;
+  const l = partsIn(ms, tz);
+  const month = new Date(Date.UTC(l.year, l.month - 1, 1)).toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+  return `${DAY_SHORT[l.dow]} ${l.day} ${month}, ${hm(l.hour, l.minute)}`;
 }
 
+type Field = CronSpec["min"];
 const sorted = (f: Field): number[] => [...f.set].sort((a, b) => a - b);
 const coversAll = (f: Field, count: number): boolean => f.star || f.set.size === count;
 const hm = (h: number, m: number): string => `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;

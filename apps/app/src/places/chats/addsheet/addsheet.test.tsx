@@ -47,12 +47,12 @@ const asLead = <T extends { call(cap: string, input: unknown): Promise<unknown> 
   },
 });
 
-test("the composer's + has Add people and agents under This chat, and it opens the sheet", async () => {
+test("the composer's + has Add people and agents, and it opens the sheet", async () => {
   await withDom(async () => {
     const s = createSample("idle");
     const root = await mount(createRoot, <Conversation data={s.data} />);
     await press(find(root, "composer-attach"));
-    assert.match(textOf(find(root, "composer-plus")), /This chat/);
+    assert.match(textOf(find(root, "composer-plus")), /Add people and agents/);
     await press(find(root, "row-plus-people"));
     await flush();
     assert.ok(find(root, SHEET), "the sheet is open");

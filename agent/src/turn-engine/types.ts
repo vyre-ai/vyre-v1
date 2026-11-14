@@ -189,6 +189,12 @@ export interface SpendRow {
   tokensOut: number;
 }
 
+/** Who stopped a turn: the principal's id and what they are. `system` is the engine itself (a limit, a lost lease, the host closing). */
+export interface StoppedBy {
+  id: string;
+  kind: "person" | "guest" | "agent" | "system";
+}
+
 export type EngineEvent =
   | { type: "message.received"; threadId: string; messageId: string; threadSeq: number; authorId: string }
   /** A message is for an outside agent. Nothing runs here; it picks the message up when it next asks. */
@@ -250,6 +256,7 @@ export type EngineEvent =
       turnId: string;
       agentId: string;
       /** why it was stopped: interrupt, stop, limit, left, moved, lease */ reason?: string;
+      /** who stopped it: a person (or guest) who pressed Stop or sent a new message, an agent, or the system (a time-out, a shutdown, a limit). Absent when it is not known (a stop a restart closed) */ stoppedBy?: StoppedBy;
       /** set on a stopped turn a dead host left (recover): who it ran for, so the agent can still say in the chat that it stopped */ asker?: string;
       /** set with asker by recover: the queue row, so the dead turn's record is closed */ qseq?: number;
     }

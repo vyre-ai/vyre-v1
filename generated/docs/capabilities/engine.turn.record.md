@@ -40,6 +40,10 @@ type In = {
   code?: string;
   message?: string;
   reason?: string;
+  stoppedBy?: {
+    id: string;
+    kind: "person" | "guest" | "agent" | "system";
+  };
   info?: {
     effort?: string;
     account?: {
@@ -106,6 +110,10 @@ type Out = {
       traceId: string;
     };
     nodeId?: string;
+    stoppedBy?: {
+      id: string;
+      kind: "person" | "guest" | "agent" | "system";
+    };
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
@@ -176,6 +184,10 @@ type Out = {
     "phase": "started",
     "qseq": 1,
     "reason": "example",
+    "stoppedBy": {
+      "id": "example",
+      "kind": "person"
+    },
     "threadId": "thr_a1b2c3",
     "tokensIn": 1,
     "tokensOut": 1,
@@ -212,6 +224,10 @@ type Out = {
       "runId": "run_a1b2c3",
       "startedAt": 1760000000000,
       "state": "queued",
+      "stoppedBy": {
+        "id": "example",
+        "kind": "person"
+      },
       "threadId": "thr_a1b2c3",
       "tokensIn": 1,
       "tokensOut": 1,

@@ -14,7 +14,9 @@ import {
   agentLevel,
   asKeptWriter,
   EVERYONE,
+  LABEL_RANK,
   changed,
+  clearMadeBy,
   kernelResource,
   labelOf,
   loadStore,
@@ -110,7 +112,31 @@ function seededGrant(store: AccessStore, p: Record<string, unknown>, at: number)
     conditions,
     by: str(p["by"]) ?? "svc_host",
     createdAt: at,
+    // a grant a call made for the thing it made (made-by:<agent>) says so, so the share list can show who made it
+    ...(typeof p["source"] === "string" && p["source"].startsWith("made-by:") ? { source: p["source"] } : {}),
   };
+}
+
+/** The made-by grants on a thing (source made-by:<agent>) go when the owner changed, or when the place it now sits in is labelled above the clearance of the agent that holds one. A move between places the owner controls leaves them. */
+export function dropMadeBy(store: AccessStore, resourceId: string, ownerChanged: boolean): void {
+  const grants = [...store.grants.entries()].filter(
+    ([, g]) => g.resource.id === resourceId && g.source?.startsWith("made-by:") === true,
+  );
+  if (grants.length === 0) return;
+  let label = 0;
+  for (let at: string | null = resourceId, hops = 0; at !== null && hops < 64; hops++) {
+    const r = store.resources.get(at);
+    if (!r) break;
+    label = Math.max(label, LABEL_RANK[r.label]);
+    at = r.parentId;
+  }
+  for (const [gid, g] of grants) {
+    const clearance = Math.max(
+      0,
+      ...store.rolesOf(g.subject.id).map((rid) => LABEL_RANK[store.roles.get(rid)?.clearance ?? "public"]),
+    );
+    if (ownerChanged || label > clearance) store.grants.delete(gid);
+  }
 }
 
 /**
@@ -239,6 +265,12 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
       const row: Record<string, unknown> = { ...(have?.row ?? {}) };
       if (p["space_owned"] === true) row["spaceOwned"] = true;
       else delete row["spaceOwned"];
+      if (p["outside"] === true) row["outside"] = true;
+      // who made it for its owner: set at the first registration, kept by every later one (a move or a label change re-registers without it)
+      if (typeof p["made_by"] === "string" && row["madeBy"] === undefined) {
+        row["madeBy"] = p["made_by"];
+        if (typeof p["made_for"] === "string") row["madeFor"] = p["made_for"];
+      }
       store.resources.set(id, {
         id,
         type,
@@ -248,6 +280,9 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
         holds: Number(p["holds"]) || 0,
         ...(Object.keys(row).length ? { row } : {}),
       });
+      // a made-by grant (what an agent was given on a thing it made for a person) does not outlive the owner, and does not follow the thing above the agent's clearance
+      if (have && (have.ownerId !== (str(p["owner_id"]) ?? null) || have.parentId !== (str(p["parent_id"]) ?? null)))
+        dropMadeBy(store, id, have.ownerId !== (str(p["owner_id"]) ?? null));
       return true;
     }
     case "grant.created": {
@@ -260,6 +295,8 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
     }
     case "grant.revoked": {
       const id = str(p["grantId"]);
+      // the maker's reach taken away (access.unshare on the row "made this for you"): the thing is no longer stamped as made by that agent; idempotent
+      if (id?.startsWith("gnt_made")) return clearMadeBy(store, str(rec(rec(p)["resource"])["id"]) ?? "");
       if (!id || !store.grants.delete(id)) return false;
       return true;
     }
@@ -303,6 +340,15 @@ function apply(
       const id = str(rec(e.payload)["id"]) ?? "",
         have = store.resources.get(id);
       // a mark only (hostOwnedMarks: a registration in the Space owner's name from before the mark): set the mark on a resource that exists, never make one
+      // a calendar connected to an outside service that was registered before the flag existed: set it, change nothing else (idempotent)
+      if (rec(e.payload)["outside_only"] === true) {
+        if (have && have.row?.["outside"] !== true) {
+          store.resources.set(id, { ...have, row: { ...(have.row ?? {}), outside: true } });
+          changed = true;
+          touched.add(id);
+        }
+        continue;
+      }
       if (rec(e.payload)["mark_only"] === true) {
         if (have && have.row?.["spaceOwned"] !== true) {
           store.resources.set(id, { ...have, row: { ...(have.row ?? {}), spaceOwned: true } });
@@ -617,6 +663,7 @@ export const hostCalls = {
         else delete r.row;
       }
       for (const [id] of held) store.grants.delete(id);
+      dropMadeBy(store, r.id, true);
     } else if (held.length > 0) {
       // not theirs, only a grant of theirs: the grant moves to the heir and the owner stays whoever it was (nobody gains ownership of what they did not own)
       const mine = heldBy(input.to);

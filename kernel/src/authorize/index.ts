@@ -7,6 +7,7 @@ import { mintId } from "../../../lib/ids.ts";
 import { evalExpr } from "./expr.ts";
 import type { AccessSnapshot, GrantRec, SubjectInfo } from "./snapshot.ts";
 import { THROUGH_AGENT, THROUGH_ANYONE } from "../../../lib/through-agent.ts";
+import { GUEST_TYPES, guestMay } from "./guest-caps.ts";
 import { LEVEL_BY_RANK, rankOf } from "./types.ts";
 import type { Decision, Expr, Obligation, ReasonCode, Req, ResourceRow, Scope, Step } from "./types.ts";
 
@@ -103,6 +104,32 @@ function collect(
     if (g.rank > max) max = g.rank;
   }
 }
+/**
+ * The only capabilities at Manage an agent may use on what it made for a person: renaming and removing its own work. Anything else at Manage (sharing, publishing, linking outside, members, who may
+ * reach it) stays with the person: the made-for-me path holds Edit there at most, and a check made without a capability name (a handler's inner check) gets nothing from this path: it fails closed. Every capability the agent needs on its own work is named at the top-level check (test/reach.made-for-me.*.live.test.ts runs each kind through the real pipeline). Removal still waits for the person's OK (Gate).
+ */
+const MADE_BY_MANAGE: ReadonlySet<string> = new Set([
+  "sites.delete",
+  "forms.delete",
+  "automations.delete",
+  "channels.archive",
+  "channels.update",
+  "projects.archive",
+]);
+/** The one thing an agent may do to a private root itself (it names the calendar to put an event on): never rename, move or delete the root. */
+const PRIVATE_ROOT_CAPS: ReadonlySet<string> = new Set(["calendar.create_event"]);
+/** Removing what it made takes the person's own permission for removing, not the agent role's (a member's agent has none of its own); the Gate still holds the removal for a yes. */
+const MADE_BY_REMOVE: ReadonlySet<string> = new Set(["records.delete", "files.delete"]);
+/** What an agent never holds as its person's own through having made it: Vault items and folders (their own rules, never the value), and the identities it would speak as. */
+export const MADE_FOR_PERSON_NOT: ReadonlySet<string> = new Set([
+  "vault_item",
+  "vault_folder",
+  "mailbox",
+  "number",
+  "domain",
+  "agent",
+  "space",
+]);
 /** Permissions a grant can carry on its own (a person is given them on one thing without a role change). */
 const GRANT_PERMS: ReadonlySet<string> = new Set(["records.export"]);
 /** What an Assistant never does as its person's hands: give access, move or end the Space's ownership, remove people or end the Space. */
@@ -130,9 +157,24 @@ function evalSubject(
   if (p.status !== "active") return "suspended";
   // rule 1: a role of its own or of its groups carries the permission. Agents never hold owner or admin (stripped when the SubjectInfo is built).
   // an agent acting for a person also holds what that person's Allow exception gives them, within what an agent may hold (agentFollows)
+  // what an agent made for the person it acts for is that person's, and the agent holds their own level on it: it follows the person's permissions there (the person is checked too, below), never the
+  // ones only a person holds (PERSON_ONLY) and never a Vault item or an identity it speaks as (MADE_FOR_PERSON_NOT)
+  const madeForPerson =
+    p.kind === "agent" &&
+    res.id !== "" &&
+    req.actingFor !== undefined &&
+    // a check that names no capability (a handler's inner check) grants nothing on this path: it fails closed
+    req.cap !== undefined &&
+    res.made_by === p.id &&
+    res.made_for === req.actingFor &&
+    (rankOf(req.action.level) <= rankOf("edit") || (req.cap !== undefined && MADE_BY_MANAGE.has(req.cap))) &&
+    res.owner_id === req.actingFor &&
+    !MADE_FOR_PERSON_NOT.has(res.type) &&
+    !(req.cap !== undefined && PERSON_ONLY.test(req.cap));
   const viaGrant =
     perm !== null &&
     !s.perms.has(perm) &&
+    !(madeForPerson && req.cap !== undefined && (MADE_BY_REMOVE.has(req.cap) || MADE_BY_MANAGE.has(req.cap))) &&
     !(p.kind === "agent" && req.actingFor !== undefined && snap.agentFollows(req.actingFor, perm));
   if (viaGrant && !GRANT_PERMS.has(perm!)) return "role_lacks_permission";
   if (steps) steps.push({ ok: true, text: `${p.name ?? p.id}: role ${s.roleNames} allows ${perm ?? "this action"}` });
@@ -151,6 +193,23 @@ function evalSubject(
     root.parent_id === null &&
     root.owner_id === req.actingFor &&
     rankOf(req.action.level) <= rankOf("use");
+  // The person's own private root outside the Space (their Personal files, their Personal calendar): an agent acting for them works in it up to Edit, which is how what it makes for them lands there.
+  // Mine in the Vault stays as above (Use). The person's own access is the ceiling, checked below.
+  const privateRoot = chain[chain.length - 1];
+  const viaPrivateRoot =
+    p.kind === "agent" &&
+    req.actingFor !== undefined &&
+    privateRoot !== undefined &&
+    privateRoot.parent_id === null &&
+    (privateRoot.type === "folder" || privateRoot.type === "calendar") &&
+    privateRoot.owner_id === req.actingFor &&
+    // a calendar connected to Google or Outlook is not a private root for this rule: writing to it reaches an outside service, an outward act with its own gate
+    privateRoot.outside !== true &&
+    // inside the root only: making things in it and editing them, never the root itself (its name, where it sits, its settings)
+    (res.id !== privateRoot.id ||
+      rankOf(req.action.level) <= rankOf("use") ||
+      (req.cap !== undefined && PRIVATE_ROOT_CAPS.has(req.cap))) &&
+    rankOf(req.action.level) <= rankOf("edit");
   const viaOwner =
     (p.kind === "agent" &&
       res.type === "mailbox" &&
@@ -171,7 +230,9 @@ function evalSubject(
     res.owner_id === req.actingFor &&
     !(req.cap !== undefined && PERSON_ONLY.test(req.cap));
   const isOwner =
-    res.id === "" ? chain.some((r) => r.owner_id === p.id) : res.owner_id === p.id || viaOwner || viaHands;
+    res.id === ""
+      ? chain.some((r) => r.owner_id === p.id) || viaPrivateRoot
+      : res.owner_id === p.id || viaOwner || viaHands || madeForPerson || viaPrivateRoot;
   // rule 2: grants on the resource, an ancestor, or the whole type
   const need = rankOf(req.action.level);
   scratch.length = 0;
@@ -192,6 +253,12 @@ function evalSubject(
     if (!carried) return "role_lacks_permission";
   }
   const clearance = s.clearance;
+  // a guest holds a thread or a channel only through a live grant (owning a reply thread they opened is not one: when the grant is gone nothing there is theirs, not even to read), and only at what guest-caps.ts
+  // lets their level do, whichever door the grant came through (a flag read, nothing more, for everyone else)
+  if (s.guest && GUEST_TYPES.has(res.type)) {
+    if (matched === 0) return sawExpired ? "expired" : "no_grant";
+    if (!guestMay(req.cap)) return "role_lacks_permission";
+  }
   const ownerOk = isOwner && label <= clearance;
   if (matched === 0 && !ownerOk) return sawExpired ? "expired" : "no_grant";
   if (steps)
@@ -205,7 +272,12 @@ function evalSubject(
     steps.push({ ok: true, text: `label ${snap.labelName(label)} within clearance ${snap.labelName(clearance)}` });
   // holds: deny wins only through clearance and holds
   if (req.action.destructive && res.holds > 0) return "on_hold";
-  if (isOwner) return viaOwner && !viaHands ? { ...ownerScope(clearance), level: "use" } : ownerScope(clearance);
+  if (isOwner) {
+    const full =
+      (res.id === "" ? chain.some((r) => r.owner_id === p.id) : res.owner_id === p.id) || viaHands || madeForPerson;
+    if (full) return ownerScope(clearance);
+    return { ...ownerScope(clearance), level: viaOwner ? "use" : "edit" };
+  }
   if (matched === 1) {
     const g = scratch[0]!;
     return {

@@ -171,3 +171,17 @@ test("a transcript file at chats/<id>/transcript.md goes with its chat: deleted 
   assert.equal(count(hn, "chat_thread"), 0);
   files.clear();
 });
+
+test("a purge names the messages it removed, and the chats it erased each get their own erase event (so what hangs under them goes too)", async () => {
+  const hn = harness();
+  const old = await chat(hn, "old words");
+  await h["chat.post"]!(hn.ctx, { threadId: old, body: "second old message", idempotencyKey: key() });
+  const ids = hn.rows("SELECT id FROM chat_message WHERE thread = ?", old).map((r) => String(r["id"]));
+  hn.advance(400 * 86_400_000);
+  const cutoff = hn.clock.t - 30 * 86_400_000;
+  hn.clear();
+  await h["chat.transcript.purge"]!(hn.ctx, { before: cutoff, idempotencyKey: key() });
+  const purged = hn.emitted.find((e) => e.name === "transcripts.purged")!;
+  assert.deepEqual([...(purged.payload["messageIds"] as string[])].sort(), [...ids].sort());
+  assert.deepEqual(assertEventsConform(hn), []);
+});

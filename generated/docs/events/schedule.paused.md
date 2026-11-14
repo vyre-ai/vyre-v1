@@ -20,7 +20,7 @@ A schedule was paused, with the visible reason
 type Payload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system" | "goal";
     id: string;
   };
   reason: string;

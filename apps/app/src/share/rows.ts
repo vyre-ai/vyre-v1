@@ -3,6 +3,7 @@ import { targetOfOpen } from "../shell/reach/open-link.ts";
 import { setSpaceLinkTools } from "../../../../ui/src/link-origin.ts";
 import { notices } from "../shell/noticeslot/model.ts";
 import type { CapMap } from "../../../../generated/types.ts";
+import { isMadeBySource } from "../../../../ui/src/AccessSheet/model.ts";
 import type { AccessEntry, ShareRow } from "../../../../ui/src/AccessSheet/index.tsx";
 
 export type SharesOut = CapMap["access.shares_of"]["out"];
@@ -34,6 +35,7 @@ export function shareRows(out: SharesOut, name: (id: string) => string, resource
       fromFolderId: s.through === "folder" ? (s.grant.source ?? null) : null,
       ...(s.grant.conditions.export === true ? { canExport: true } : {}),
       ...(s.grant.conditions.reshare === true ? { canShare: true } : {}),
+      ...(isMadeBySource(s.grant.source) ? { madeBy: true } : {}),
       through: s.through,
     };
   });

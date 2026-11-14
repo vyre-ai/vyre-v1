@@ -1069,3 +1069,40 @@ test("15 Nov: a manager answering someone else's ask is refused their own Mine, 
   await fulfilInto(w, a.request.id, "vfd_theirs");
   assert.equal(w.called("vault.item.put").length, 1);
 });
+
+test("15 Nov: a folder the caller cannot see answers fulfil with the same words as one that does not exist or one the agent cannot use", async () => {
+  const notFound = Object.assign(new Error("That folder is not in this Vault."), {
+    error: { code: "validation.not_found" },
+  });
+  const words = async (w: ReturnType<typeof world>, folderId: string, key: string) => {
+    const r = await askFor(w, `Fathom_${key}`, `o-${key}`);
+    return handlers["vault.requests.fulfil"](w.as("usr_owner"), {
+      requestId: r.request.id,
+      folderId,
+      fields: [{ key: "api_key", value: "k" }],
+    } as never).then(
+      () => "stored",
+      (e: unknown) => String((e as Error).message),
+    );
+  };
+  // access.clears answers yes for a real folder the agent could use, but the Vault will not let this caller put anything there
+  const wrapped = world({ folders: [{ id: "vfd_real", name: "Finance", scope: "shared" }] });
+  const orig = wrapped.as;
+  wrapped.as = ((...a: Parameters<typeof orig>) => {
+    const c = orig(...a);
+    return {
+      ...c,
+      call: async (cap: string, i: unknown) => (cap === "vault.item.put" ? Promise.reject(notFound) : c.call(cap, i)),
+    };
+  }) as typeof orig;
+  const real = await words(wrapped, "vfd_real", "a");
+  const madeUp = await words(
+    world({ fail: { "access.clears": "no such resource" } }),
+    "vfd_00000000000000000000000000000000",
+    "b",
+  );
+  const above = await words(world({ unusable: ["vfd_x"] }), "vfd_x", "c");
+  assert.match(real, /That folder is restricted, so the agent that asked cannot use a key kept there/);
+  assert.equal(real, madeUp);
+  assert.equal(real, above);
+});

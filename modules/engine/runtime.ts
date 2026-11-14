@@ -962,21 +962,24 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       : o;
   // where a turn runs, in words, for the turn's own context line (one placement read, only for a chat of a person)
   const placementNow = (threadId: string, agentId: string, asker: string): Promise<string | undefined> =>
-    placementOf(
-      async () => {
-        try {
-          return (
-            (await h.call("engine.placement.decide", { threadId, agentId, kind: "message" }, asker)) as {
-              placement?: string;
+    // a one-shot job (memory upkeep, the chat title) has no chat to place: asking is refused every time
+    threadId.startsWith("oneshot_")
+      ? Promise.resolve(undefined)
+      : placementOf(
+          async () => {
+            try {
+              return (
+                (await h.call("engine.placement.decide", { threadId, agentId, kind: "message" }, asker)) as {
+                  placement?: string;
+                }
+              ).placement;
+            } catch {
+              return undefined;
             }
-          ).placement;
-        } catch {
-          return undefined;
-        }
-      },
-      { threadId, agentId, asker },
-      (h.now ?? Date.now)(),
-    );
+          },
+          { threadId, agentId, asker },
+          (h.now ?? Date.now)(),
+        );
   const placeWords = async (spec: SessionSpec): Promise<string | undefined> => {
     const p = await placementNow(spec.threadId, spec.agent.id, spec.asker);
     return p === "device" ? "on the asker's own computer" : p === "host" ? "on the Space's server" : undefined;
@@ -1321,6 +1324,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           : {}),
         // why a cancelled turn was stopped travels to the kernel event, so its readers can tell a person's Stop from a daemon stopping (reason closing): the terminal interrupts only the first
         ...(ev.type === "turn.cancelled" && typeof ev.reason === "string" ? { reason: ev.reason } : {}),
+        // who stopped it travels with it: the turn's record names them (engine.turn.get), as the chat's stopped line does
+        ...(ev.type === "turn.cancelled" && ev.stoppedBy ? { stoppedBy: ev.stoppedBy } : {}),
       };
       const done = (recording.get(turnId) ?? Promise.resolve())
         .then(() => h.call("engine.turn.record", input, turn.asker))

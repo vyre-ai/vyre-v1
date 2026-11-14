@@ -77,8 +77,8 @@
     "sheets.delete_row@1": "82700e0bd3a759df96155079158f843ce5b16aee1ef21c16419f974d4d5630a8",
     "sheets.info@1": "a37feb0eaa76beabbe7dee9cffa481337570587ebd76f48a276c6c9db6266cbc",
     "sheets.read_rows@1": "d97ad5ce3de8289d47915a7d088301f31d8d21527745b33faabc7b1029c52d88",
-    "sheets.update_row@1": "c83ce47548d0e6f5abe026835ec51dcf933affcaaefb68b56e71e9007c0df4c2",
-    "sheets.upsert_row@1": "169c546ddf1954fcea470dc2d62c399751f6609daf451835766d776ba0ec8578"
+    "sheets.update_row@1": "6333bcdde6484167448cbe776e7e335ca7a0b716047abf7e7c5e7c36fba047e4",
+    "sheets.upsert_row@1": "1f7aa6e1de18630d214cea7e9d59ae262632843c8a6a3f3d94fa1f736da17ee4"
   },
   "events": {
     "changeset.approved": "471f34bef299c60cf4cf966fc303fd1bd6b80ee6a134bfaea95d498213cade69",
