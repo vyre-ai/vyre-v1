@@ -276,3 +276,27 @@ test("a bare agent reaches the turns of a helper it started, found from the help
   w.hold.open();
   await w.engine.idle(THREAD);
 });
+
+test("a thread opened under a bare agent's own message is not its helper: it reaches only its own turn there", async () => {
+  const w = await world();
+  w.h.setManager(true);
+  const inline: EngineCtx = {
+    ...w.h.ctx,
+    principal: { kind: "agent", id: DOCS },
+    call: async (cap: string, input: unknown) =>
+      cap === "threads.get" && (input as { threadId?: string }).threadId === THREAD
+        ? { thread: { kind: "thread", parentThreadId: "thr_chat", parentMessageId: "msg_by_docs" } }
+        : cap === "chat.message.get"
+          ? { message: { author: { kind: "agent", id: DOCS } } }
+          : w.h.ctx.call(cap, input),
+  };
+  assert.equal(
+    (await stop(inline, { threadId: THREAD, agentId: INTAKE })).stopped,
+    0,
+    "other people's turns are out of reach",
+  );
+  assert.equal((await stopAll(inline, { threadId: THREAD })).stopped, 1, "only its own turn stops");
+  await w.runningIs([BILLING, INTAKE]);
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});
