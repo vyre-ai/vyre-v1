@@ -82,20 +82,32 @@ test("chats sidebar pictures and click-through", async (t) => {
       };
       const agentId = ((await call("agents.list", {})).agents as { agentId: string }[])[0]!.agentId;
       const chats: string[] = [];
-      for (const title of [
-        "Pricing page copy",
-        "Renewal checklist",
-        "Launch crew",
-        "Invoice export bug",
-        "Weekly numbers",
-        "Onboarding script",
-        "Vendor comparison",
-        "Q4 plan outline",
-      ]) {
+      // a realistic mix: most chats are quiet; only one has a message (this Space has no AI account, so it ends in a failed run and carries the red mark), the rest were never written in
+      const titles = ["Pricing page copy", "Renewal checklist", "Launch crew", "Invoice export bug", "Weekly numbers", "Onboarding script", "Vendor comparison", "Q4 plan outline"];
+      for (const [i, title] of titles.entries()) {
         const c = await call("chat.start", { kind: "chat", agentIds: [agentId], title });
         chats.push(c.thread.threadId as string);
-        await call("chat.post", { threadId: c.thread.threadId, body: `Notes for ${title}` });
+        if (i === 1) await call("chat.post", { threadId: c.thread.threadId, body: `Notes for ${title}` });
       }
+      // a teammate writes to the owner: an unread direct message, and an @mention in a channel
+      const roles = (await call("access.roles.list", {})).roles as { id: string; name: string }[];
+      const accept = async (roleName: string, username: string, display: string): Promise<{ personId: string; token: string }> => {
+        const inv = await call("members.invites.create", { role: roles.find((r) => r.name === roleName)!.id });
+        const code = decodeURIComponent(new URL(inv.link).pathname.split("/").pop()!);
+        const jr = await ctx.request.post(`${web.origin}/v1/members/accept`, {
+          data: { code, username, displayName: display, password: PASSWORD, deviceName: `${display}'s laptop`, deviceClass: "desktop", keys: { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] } },
+        });
+        assert.equal(jr.status(), 200, await jr.text());
+        return (await jr.json()).data as { personId: string; token: string };
+      };
+      const maya = await accept("Member", "maya", "Maya Lin");
+      const ownerId = (await call("identity.whoami", {})).principal.id as string;
+      const callAs = async (bearer: string, cap: string, data: Record<string, unknown>): Promise<Any> => {
+        const r = await ctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${bearer}` }, data: { idempotencyKey: `sb-m-${cap}-${++n}`, ...data } });
+        return (await r.json()).data;
+      };
+      const dm = await callAs(maya.token, "chat.start", { kind: "chat", agentIds: [], personId: ownerId });
+      if (dm?.thread?.threadId) await callAs(maya.token, "chat.post", { threadId: dm.thread.threadId, body: "Can you look at the pricing page?" });
       for (const nm of ["launch", "ops", "design", "support", "finance", "hiring", "release"])
         await call("channels.create", { name: nm, visibility: "public" });
       const gen = ((await call("channels.list", {})).channels as { name: string; channelId: string; mainThreadId: string }[]).find((c) => c.name === "launch")!;
@@ -182,18 +194,23 @@ test("chats sidebar pictures and click-through", async (t) => {
         await guard.check(`open ${label}`);
       }
       // a guest: the one channel they were added to, nothing else
+      let gp: Page | null = null;
       try {
         const guest = await accept("Guest", "gus", "Gus Rowe");
         const room = (await call("channels.create", { name: "client-room", visibility: "invite" })).channel;
         await call("channels.members.add", { channelId: room.channelId, personIds: [guest.personId] });
-        const saved = await page.evaluate(() => localStorage.getItem("vyre.session.v1")!);
-        const gj = JSON.parse(saved) as Any;
-        const org = web.origin;
-        if (gj.sessions?.[org]) gj.sessions[org].token = guest.token;
+        const saved0 = await page.evaluate(() => localStorage.getItem("vyre.session.v1")!);
+        const sj = JSON.parse(saved0) as Any;
+        for (const k of Object.keys(sj.sessions ?? {})) sj.sessions[k].token = "signed-out";
+        const saved = JSON.stringify(sj);
         const gctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-        await gctx.addInitScript((v: string) => localStorage.setItem("vyre.session.v1", v), JSON.stringify(gj));
-        const gp = await gctx.newPage();
+        // the browser knows this Space (its session says so) but the owner's token is not the guest's: the app asks them to sign in, as it does a person
+        await gctx.addInitScript((v: string) => localStorage.setItem("vyre.session.v1", v), saved);
+        gp = await gctx.newPage();
         await gp.goto(`${web.origin}/`, { waitUntil: "load" });
+        await gp.getByTestId("si-user").fill("gus");
+        await gp.getByTestId("si-password").fill(PASSWORD);
+        await gp.getByRole("button", { name: "Sign in" }).click();
         await gp.getByTestId("chats-sidebar").waitFor({ timeout: 25_000 });
         await gp.waitForTimeout(800);
         for (const scheme of ["light", "dark"] as const) {
@@ -207,6 +224,7 @@ test("chats sidebar pictures and click-through", async (t) => {
         await gctx.close();
       } catch (e) {
         fs.writeFileSync(path.join(out, "guest-picture-failed.txt"), String((e as Error).message));
+        await gp?.screenshot({ path: path.join(out, "guest-failed.png") }).catch(() => undefined);
       }
       // phone width
       await page.setViewportSize({ width: 390, height: 844 });
