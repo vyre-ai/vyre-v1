@@ -34,6 +34,9 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
   // the edge listens first and keeps its port; the daemon takes any port and is told the edge's address (a port picked, given back and bound later can be taken in between)
   let daemonUrl = "";
   const web = await edge(dist, () => daemonUrl);
+  // This walk is a person on a computer that cannot run an agent's workspace (its platform answers only docker info). The daemon reads the workspace image name from the env, and a box that happens to
+  // hold the real image would start a workspace here, so the walk names an image that cannot exist: the Terminal step sees "No computer to open a terminal on" on every box, CI included.
+  process.env["VYRE_WORKSPACE_IMAGE"] = "vyre/agent-workspace:walk-no-such-image";
   const daemon = await startDaemon({
     config: loadConfig(
       [
