@@ -33,6 +33,7 @@ type In = {
   port?: number;
   computerId?: string;
   artifactId?: string;
+  expectedUpdatedAt?: number;
   thumb?: string;
   idempotencyKey: string;
 };
@@ -44,6 +45,7 @@ type In = {
 type Out = {
   artifactId: string;
   url?: string;
+  updatedAt?: number;
   updated: boolean;
   opened: boolean;
 };
@@ -65,6 +67,7 @@ type Out = {
   "input": {
     "artifactId": "sit_a1b2c3",
     "computerId": "cmt_a1b2c3",
+    "expectedUpdatedAt": 1760000000000,
     "fileId": "fil_a1b2c3",
     "folderId": "fld_a1b2c3",
     "html": "example",
@@ -78,6 +81,7 @@ type Out = {
     "artifactId": "sit_a1b2c3",
     "opened": true,
     "updated": true,
+    "updatedAt": 1760000000000,
     "url": "example"
   }
 }

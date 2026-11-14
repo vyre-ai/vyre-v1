@@ -1569,6 +1569,8 @@ export default defineManifest({
         rowId: t.opt(rowId),
         key: t.opt(t.obj({ column: t.str(), value: t.json() })),
         values: t.rec(),
+        // what the columns being changed held when the row was read; a column that holds something else now refuses the change, nothing is written
+        expect: t.opt(t.rec()),
         label: t.opt(t.str()),
       },
       out: { rowId, versionId: t.opt(id.version) },
@@ -1576,7 +1578,7 @@ export default defineManifest({
       perm: "files.write",
       emits: ["sheet.row_updated", "file.version_added"],
       tool: "files",
-      errors: ["validation.precondition_failed"],
+      errors: ["validation.precondition_failed", "validation.version_conflict"],
     }),
     write("sheets.upsert_row", "Update the row that matches the given columns, or append a new one", {
       in: {
@@ -1584,6 +1586,8 @@ export default defineManifest({
         sheet: t.opt(t.str()),
         match: t.arr(t.str(), { minItems: 1 }),
         values: t.rec(),
+        // what the columns being changed held when the row was read; a column that holds something else now refuses the change, nothing is written
+        expect: t.opt(t.rec()),
         label: t.opt(t.str()),
       },
       out: { rowId, created: t.bool(), versionId: t.opt(id.version) },
@@ -1591,6 +1595,7 @@ export default defineManifest({
       perm: "files.write",
       emits: ["sheet.row_appended", "sheet.row_updated", "file.version_added"],
       tool: "files",
+      errors: ["validation.version_conflict"],
     }),
     write("sheets.delete_row", "Remove a row from a sheet", {
       in: { fileId: id.file, sheet: t.opt(t.str()), rowId, label: t.opt(t.str()) },

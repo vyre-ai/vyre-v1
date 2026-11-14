@@ -95,6 +95,8 @@ export interface ToolCtx {
   /** AI provider of the running engine, for label vs provider. */
   provider?: string;
   turnId?: string;
+  /** When the turn began (ms), when the engine says: a file, record or task this agent never read in the turn is written on the version it had then, so a change since then refuses the write (agent/src/tools/versions.ts). */
+  turnStartedAt?: number;
   /** What identifies this one call of a tool: the model's tool-call id (API engines), or the session and request id of the call (CLI engines over MCP). A transport retry of the call carries the same one. */
   callId?: string;
   runId?: string;

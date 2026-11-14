@@ -78,6 +78,11 @@ const noteRow = t.obj({
   canEdit: t.bool(),
   createdAt: t.ts(),
   updatedAt: t.ts(),
+  version: t.int({
+    minimum: 1,
+    description:
+      "Counts the saves of the note; send it back as expectedVersion on notes.update to be told when someone else changed the note first",
+  }),
 });
 const hit = t.obj({
   noteId,
@@ -211,12 +216,18 @@ export default defineManifest({
         color: t.opt(color),
         image: t.opt(t.nullable(imageIn)),
         link: t.opt(t.nullable(t.str({ maxLength: 2000 }))),
+        expectedVersion: t.opt(
+          t.int({
+            minimum: 1,
+            description: "The version you read; a note saved since then is not replaced, and the change is refused",
+          }),
+        ),
       },
       out: { note: noteRow },
       emits: ["notes.updated"],
       offline: "patch",
       agent: { planMode: "blocked" },
-      errors: ["validation.not_found"],
+      errors: ["validation.not_found", "validation.version_conflict"],
     }),
     write("notes.pin", "Pin or unpin a note", {
       ...M,

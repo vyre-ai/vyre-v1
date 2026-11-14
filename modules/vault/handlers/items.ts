@@ -639,10 +639,16 @@ export async function itemUpdate(
     rotateEveryDays?: number | null;
     /** A sign-in saved again over an item no key can open: the new fields REPLACE the unreadable value under the current key (same item, handle, name and history). System use, not an input of the capability. */
     replaceUnopenable?: boolean;
+    expectedUpdatedAt?: number;
   },
 ) {
   ensure(ctx);
   const r = reachable(ctx, input.itemId, "edit");
+  // a caller that read the item at updatedAt N is refused when it has changed since (F50); nothing is checked without it
+  if (input.expectedUpdatedAt !== undefined && input.expectedUpdatedAt !== num(r, "updatedAt"))
+    throw fail("validation.version_conflict", ctx.trace.traceId, {
+      message: "This changed after it was read, so this change was not saved. Read it again and redo the change.",
+    });
   const changed: Record<string, string | number | null> = {};
   const settings: string[] = [];
   if (input.name !== undefined) {
@@ -700,7 +706,16 @@ export async function itemUpdate(
       next = next.some((n) => n.key === f.key) ? next.map((n) => (n.key === f.key ? f : n)) : [...next, f];
     if (next.length === 0) bad(ctx, "An item needs at least one field.");
     const rev = sealedOf(ctx, str(r, "id")).rev + 1;
-    storeSealed(ctx, str(r, "id"), await sealFor(ctx, str(r, "id"), str(r, "scope"), str(r, "owner"), next, rev));
+    const sealed = await sealFor(ctx, str(r, "id"), str(r, "scope"), str(r, "owner"), next, rev);
+    // the awaits above let another change land: the same check again, in the same step as the write
+    if (
+      input.expectedUpdatedAt !== undefined &&
+      input.expectedUpdatedAt !== num(reachable(ctx, input.itemId, "edit"), "updatedAt")
+    )
+      throw fail("validation.version_conflict", ctx.trace.traceId, {
+        message: "This changed after it was read, so this change was not saved. Read it again and redo the change.",
+      });
+    storeSealed(ctx, str(r, "id"), sealed);
     changed["fieldKeys"] = JSON.stringify(next.map((f) => f.key));
     ctx.db.run(
       `UPDATE vault_item_x SET "secrets" = ? WHERE "itemId" = ?`,

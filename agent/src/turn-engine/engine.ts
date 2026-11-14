@@ -47,6 +47,8 @@ export interface ToolContext {
   turnId: string;
   agentId: string;
   asker: string;
+  /** When the turn began (ms): a thing the agent never read in the turn is written on the version it had then. */
+  startedAt?: number;
   /** What the people in the chat said since this agent last spoke: a value a person typed themselves is theirs to ask for, however much it looks like a placeholder (lib/probe.ts). */
   said?: string;
 }
@@ -69,6 +71,7 @@ export type ToolRunner = (
 ) => Promise<ToolRunResult>;
 
 import type { HooksPort } from "../tools/hooks.ts";
+import { noteTurnStart } from "../tools/turn-start.ts";
 import { reportWindow } from "../transcript/windows.ts";
 
 const CLI_DRIVERS: ReadonlySet<string> = new Set(["claude_code", "codex", "grok"]);
@@ -1073,6 +1076,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       injected: 0,
       info: { ...(agent?.effort ? { effort: agent.effort } : {}), tools: [], switches: [] },
     };
+    noteTurnStart(st.thread.id, item.agentId, turn.startedAt);
     const info = turn.info!;
     // the provider's dollar figure stands only when every call of the turn reported one
     let usages = 0,
@@ -1298,7 +1302,13 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         const runBatch = async (
           calls: readonly { id: string; name: string; input: unknown }[],
         ): Promise<"ok" | "parked" | "cancelled"> => {
-          const toolCtx = { threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker };
+          const toolCtx = {
+            threadId: st.thread.id,
+            turnId: turn.id,
+            agentId: item.agentId,
+            asker,
+            startedAt: turn.startedAt,
+          };
           const cap = Math.max(1, opts.maxParallel ?? MAX_PARALLEL);
           const results = new Map<string, ToolRunResult>();
           const traces = new Map<string, ToolTrace | null>();
@@ -1399,6 +1409,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
                   turnId: turn.id,
                   agentId: item.agentId,
                   asker,
+                  startedAt: turn.startedAt,
                   said: saidSince(st, item.agentId),
                 },
               ).finally(() => {

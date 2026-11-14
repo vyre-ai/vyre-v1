@@ -80,6 +80,7 @@ type Out = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 ```
@@ -153,7 +154,8 @@ type Out = {
         "space": "off"
       },
       "title": "example",
-      "updatedAt": 1760000000000
+      "updatedAt": 1760000000000,
+      "version": 1
     }
   }
 }

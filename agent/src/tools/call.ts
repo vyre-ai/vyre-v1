@@ -9,6 +9,8 @@ import { PROBE_MESSAGE, probeIn } from "../../../lib/probe.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { limited, shapeOutput } from "./compact.ts";
 import { fillKey } from "./fill.ts";
+import { turnStartOf } from "./turn-start.ts";
+import { HIDDEN_FROM_MODEL, SeenVersions, changedSinceTurn, kindOfWrite, learned, learnedRows, rowKey } from "./versions.ts";
 import { rejectWords } from "./reject.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
@@ -91,6 +93,8 @@ export function createToolSession(deps: CallDeps): ToolSession {
   /** The searches each turn has made, so the same one is not run twice. */
   const searchedIn = new Map<string, Set<string>>();
   const newTrace = deps.traceId ?? ((): string => hex(16));
+  /** The versions this session's agents have seen of the files, records and tasks they read or wrote (agent/src/tools/versions.ts). */
+  const seen = new SeenVersions();
   const loadedSet = (threadId: string): Set<string> => {
     let s = loadedBy.get(threadId);
     if (!s) {
@@ -160,6 +164,11 @@ export function createToolSession(deps: CallDeps): ToolSession {
     input: unknown,
     opts: { approval?: string } = {},
   ): Promise<ToolOutcome> {
+    // a CLI engine's call comes through its long-lived MCP session with no turn of its own: the engine noted when this agent's turn began, so a read and a write of one turn meet the same memory
+    if (ctx.turnStartedAt === undefined) {
+      const began = turnStartOf(ctx.thread.threadId, ctx.agentId);
+      if (began !== undefined) ctx = { ...ctx, turnStartedAt: began };
+    }
     const traceId = ctx.trace?.traceId ?? newTrace();
     const t = deps.catalog.byName(name) ?? (await deps.dynamic?.find(ctx, name));
     if (!t)
@@ -309,14 +318,90 @@ export function createToolSession(deps: CallDeps): ToolSession {
       ...(localAsk && t.effects !== "read" ? { mustAsk: true } : {}),
       ...(t.effects !== "read" && t.planMode === "blocked" ? { askable: true } : {}),
     };
+    // a write to a file, record or task that takes a version: send the version this agent last saw when the model did not (agent/src/tools/versions.ts)
+    let given = input;
+    // a version input the model is not shown is never the model's to choose: a value it sends anyway is dropped, and the layer's takes its place
+    const hidden = isDynamic ? undefined : HIDDEN_FROM_MODEL[t.cap];
+    if (hidden && input !== null && typeof input === "object" && !Array.isArray(input)) {
+      given = Object.fromEntries(Object.entries(input as Record<string, unknown>).filter(([k]) => !hidden.includes(k)));
+    }
+    const versioned = isDynamic ? undefined : kindOfWrite(t.cap);
+    if (versioned && given !== null && typeof given === "object" && !Array.isArray(given)) {
+      const o = given as Record<string, unknown>;
+      const id = typeof o[versioned.field] === "number" ? undefined : versioned.idOf(o);
+      if (id !== undefined) {
+        const key = `${versioned.kind}:${id}`;
+        let base = seen.get(ctx, key);
+        if (base === undefined) {
+          // a thing this agent has not read in this turn: the version it had when the turn started (a change since then refuses the write); with no turn start known, the version it has now
+          const { askFirst: _a, mustAsk: _m, askable: _k, ...readSeed } = seed;
+          const look = versioned.peek(id, o);
+          try {
+            const res = await deps.invoke(look.cap as CapName, look.input, readSeed);
+            const n = res.status === "ok" ? versioned.now(res.output, ctx.turnStartedAt) : null;
+            if (n) {
+              if (versioned.kind === "file") {
+                // no version from before the turn began (older ones purged, or the file made during the turn by someone else): it counts as changed
+                if (n.atTime === undefined && ctx.turnStartedAt !== undefined)
+                  return fail("validation.version_conflict", traceId, {
+                    message: changedSinceTurn(versioned.noun),
+                    details: { tool: t.name, reason: "changed_since_turn" },
+                  });
+                base = n.atTime ?? n.version;
+              } else if (
+                ctx.turnStartedAt !== undefined &&
+                n.changedAt !== undefined &&
+                n.changedAt >= ctx.turnStartedAt
+              )
+                return fail("validation.version_conflict", traceId, {
+                  message: changedSinceTurn(versioned.noun),
+                  details: { tool: t.name, reason: "changed_since_turn" },
+                });
+              else base = n.version;
+            }
+          } catch {
+            /* a look that fails changes nothing: the write is made as the model sent it and says what is wrong itself */
+          }
+        }
+        if (base !== undefined) given = { ...o, [versioned.field]: base };
+      }
+    }
+    // a sheet row this agent read in the turn: send what the columns it changes held then, so a change made to them since refuses the write
+    if (
+      !isDynamic &&
+      t.cap === "sheets.update_row" &&
+      given !== null &&
+      typeof given === "object" &&
+      !Array.isArray(given)
+    ) {
+      const g = given as Record<string, unknown>;
+      const values = g["values"];
+      if (
+        g["expect"] === undefined &&
+        typeof g["fileId"] === "string" &&
+        typeof g["rowId"] === "string" &&
+        values !== null &&
+        typeof values === "object"
+      ) {
+        const was = seen.getCells(ctx, rowKey(g["fileId"], g["sheet"], g["rowId"]));
+        if (was) {
+          const expect: Record<string, unknown> = {};
+          for (const col of Object.keys(values as object)) if (col in was) expect[col] = was[col];
+          if (Object.keys(expect).length > 0) given = { ...g, expect };
+        }
+      }
+    }
     try {
-      const res = await deps.invoke(
-        t.cap,
+      const body =
         isDynamic && deps.dynamic
           ? deps.dynamic.input(ctx, t, input)
-          : fillKey(t, limited(t.cap, unstringified(t.inputSchema, input)), ctx),
-        seed,
-      );
+          : fillKey(t, limited(t.cap, unstringified(t.inputSchema, given)), ctx);
+      const res = await deps.invoke(t.cap, body, seed);
+      if (!isDynamic && res.status === "ok")
+        for (const l of learned(t.cap, body, res.output)) seen.set(ctx, l.key, l.version);
+      if (!isDynamic && res.status === "ok")
+        for (const r of learnedRows(t.cap, body, res.output, (k) => seen.getCells(ctx, k)))
+          seen.setCells(ctx, r.key, r.cells);
       if (res.status === "held") {
         recordWork(ctx.turnId, heldCard(t.cap, res.taskId, input));
         return {

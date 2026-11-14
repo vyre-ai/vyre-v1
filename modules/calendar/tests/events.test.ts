@@ -806,3 +806,32 @@ test("an event made here with guests joins a Meeting too, and a change to its ti
     "a local event is known to meetings by its own id",
   );
 });
+
+// F50 (14 Nov 2026): an event counts its changes; an update that names the version it read is refused when the event has changed since, and nothing is written.
+test("an event carries its version, and an update on an old expectedVersion is refused and changes nothing", async () => {
+  const h = world();
+  const { event } = await createEvent(h.ctx, {
+    calendarId: "cld_work01",
+    title: "Call",
+    startsAt: at(1, 10),
+    endsAt: at(1, 11),
+  });
+  const base = event.version as number;
+  assert.equal(typeof base, "number");
+  assert.deepEqual(contractErrors("calendar.update_event", "out", { event }), []);
+  const first = await updateEvent(h.ctx, { eventId: event.id, title: "Call (Ann)", expectedVersion: base });
+  assert.ok((first.event.version ?? 0) > base, "the change counted a version");
+  await refused(
+    updateEvent(h.ctx, { eventId: event.id, title: "Call (Bob)", expectedVersion: base }),
+    "validation.version_conflict",
+  );
+  assert.equal((await getEvent(h.ctx, { eventId: event.id })).event.title, "Call (Ann)", "the later change stands");
+  const again = await updateEvent(h.ctx, {
+    eventId: event.id,
+    title: "Call (Bob)",
+    expectedVersion: first.event.version as number,
+  });
+  assert.equal(again.event.title, "Call (Bob)");
+  const plain = await updateEvent(h.ctx, { eventId: event.id, title: "Call (plain)" });
+  assert.equal(plain.event.title, "Call (plain)", "no expectedVersion: saves as before");
+});
