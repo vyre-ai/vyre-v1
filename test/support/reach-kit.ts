@@ -1,7 +1,10 @@
 // The kit for the "made for me, usable by the maker" sweep (owner rule, 14 Nov 2026): a booted daemon with the seeded Team Space, three people (an owner, a member, a guest) and each person's own
 // Assistant, and one call, `act(person, tool, input)`, that has that person's Assistant call one agent tool through the real tool pipeline (tool_search first, then the tool) and returns what the model
 // was given back. Nothing inside the daemon is faked; the model stand-in only makes the one call a message names.
-import { appendFileSync, rmSync } from "node:fs";
+import { appendFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { loadConfig } from "../../host/src/daemon/config.ts";
 import { CORE_SPACE } from "../../fixtures/seed/core/index.ts";
 import { KEY, boot, connect, hostLog, seededDir, stop, waitFor } from "./eco-live.ts";
 import type { Daemon } from "../../host/src/daemon/daemon.ts";
@@ -40,13 +43,15 @@ export interface Reach {
   /** the person's own Assistant makes calls one after another in one turn; each is a row, kept under its key */
   chain(who: Who, steps: readonly Step[], seed?: Record<string, ToolOut>): Promise<Record<string, ToolOut>>;
   assistant(who: Who): string;
+  /** a Personal Space: one person and no one else to look */
+  personal?: boolean;
   stop(): Promise<void>;
 }
 
 let n = 0;
 const uniq = (p: string): string => `${p}-${(++n).toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
-export async function bootReach(): Promise<Reach> {
+function scripted(): { pending: Map<string, Pending>; results: Map<string, ToolOut>; model: OpenSession } {
   const pending = new Map<string, Pending>();
   const results = new Map<string, ToolOut>();
   const model: OpenSession = async () => {
@@ -131,6 +136,11 @@ export async function bootReach(): Promise<Reach> {
       async close() {},
     } as EngineSession;
   };
+  return { pending, results, model };
+}
+
+export async function bootReach(): Promise<Reach> {
+  const { pending, results, model } = scripted();
   const ids = [...(Object.values(PEOPLE) as string[]), "usr_sana", "usr_mia", "usr_adam"];
   const ownerToken = { v: "" };
   const dir = seededDir();
@@ -294,4 +304,145 @@ export async function record(
     row({ case: c.id, who: c.who, step: p.k, result: seen[p.k] });
   }
   return seen;
+}
+
+const KEYS = {
+  personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk",
+  publicKey: "cHVibGljLWtleQ==",
+  privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk",
+  spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }],
+};
+
+/** A Personal Space: one person who claimed it from a desktop, their own Assistant, and no one else. The same `chain` and `as`, with "owner" the only person. */
+export async function bootPersonal(): Promise<Reach> {
+  const { pending, results, model } = scripted();
+  const dir = mkdtempSync(join(tmpdir(), "vyre-reach-personal-"));
+  const d: Daemon = await boot(dir, model, {
+    vault: undefined,
+    workspaceRuntimeOff: true,
+    config: loadConfig(
+      [
+        "--data-dir",
+        dir,
+        "--port",
+        "0",
+        "--space",
+        "spc_reach",
+        "--space-name",
+        "Personal",
+        "--space-kind",
+        "personal",
+        "--role",
+        "space,device",
+      ],
+      {},
+      "1.2.3",
+    ),
+  });
+  const raw = async (
+    token: string | null,
+    cap: string,
+    input: Record<string, unknown>,
+  ): Promise<{ status: number; data: any }> => {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ idempotencyKey: uniq("rk"), ...input }),
+    });
+    const b = (await r.json()) as { data?: unknown };
+    return { status: r.status, data: b.data ?? b };
+  };
+  try {
+    const code = decodeURIComponent(new URL(d.claim!.url).pathname.split("/").pop() ?? "");
+    const device = { deviceName: "Dana's Mac", deviceClass: "desktop" };
+    const claimed = await raw(null, "identity.claim_owner", {
+      code,
+      spaceId: "spc_reach",
+      username: "dana",
+      displayName: "Dana Reyes",
+      password: "correct horse battery staple 9",
+      ...device,
+      keys: KEYS,
+    });
+    if (claimed.status !== 200) throw new Error(`claim: ${JSON.stringify(claimed.data).slice(0, 300)}`);
+    const signed = await raw(null, "identity.sign_in", {
+      username: "dana",
+      password: "correct horse battery staple 9",
+      ...device,
+    });
+    const token = (signed.data.session as { token: string }).token;
+    const unlock = await fetch(`${d.url}/local/vault/key/unlock`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64"),
+      }),
+    });
+    if (unlock.status !== 204) throw new Error(`unlock ${unlock.status}`);
+    const as: Reach["as"] = async (who, cap, input = {}) =>
+      who === "owner" ? raw(token, cap, input) : { status: 401, data: { error: "no such person in a Personal Space" } };
+    const must: Reach["must"] = async (who, cap, input) => {
+      const r = await as(who, cap, input);
+      if (r.status !== 200) throw new Error(`${cap} as ${who}: ${r.status} ${JSON.stringify(r.data).slice(0, 400)}`);
+      return r.data;
+    };
+    const folder = await must("owner", "vault.folders.create", { name: "Accounts", scope: "mine" });
+    const flow = await must("owner", "providers.subscription_start", { providerKey: "claude-code" });
+    await must("owner", "vault.item.put", {
+      folderId: folder.folder.id,
+      name: "Dana_Claude",
+      kind: "ai_subscription",
+      fields: [{ key: "setup_token", value: KEY, secret: true }],
+    });
+    const provider = await must("owner", "providers.subscription_complete", { flowId: flow.flowId });
+    await must("owner", "providers.set_space_use", { providerId: provider.provider.id, allow: true });
+    await d.hooks?.pump?.();
+    const me = /usr_[a-z0-9]+/.exec(JSON.stringify((await as("owner", "identity.whoami", {})).data))?.[0];
+    if (!me) throw new Error("no person id in the sign-in");
+    const a = await must("owner", "agents.assistant_of", { personId: me });
+    if (!a.agentId) throw new Error("the person has no Assistant");
+    const reach: Reach = {
+      d,
+      as,
+      must,
+      assistant: () => a.agentId as string,
+      async act(who, tool, input) {
+        return (
+          (await this.chain(who, [{ k: "x", tool, input: () => input }]))["x"] ?? {
+            ok: false,
+            text: "not run",
+            json: null,
+          }
+        );
+      },
+      async chain(who, steps, seed) {
+        const id = uniq("job");
+        const job: Pending = { steps: steps.filter((st) => st.tool !== ""), out: { ...(seed ?? {}) } };
+        pending.set(id, job);
+        const thread = (await must(who, "chat.start", { kind: "chat", agentIds: [a.agentId] })).thread
+          .threadId as string;
+        await must(who, "chat.post", {
+          threadId: thread,
+          body: `REACH-ACT ${id}`,
+          mentions: [{ kind: "agent", id: a.agentId }],
+        });
+        await waitFor(async () => {
+          await d.hooks?.pump?.();
+          return results.get(id) ?? null;
+        }, 110_000);
+        return job.out;
+      },
+      personal: true,
+      stop: async () => {
+        await stop(d);
+        rmSync(dir, { recursive: true, force: true });
+      },
+    };
+    return reach;
+  } catch (e) {
+    await stop(d);
+    rmSync(dir, { recursive: true, force: true });
+    throw e;
+  }
 }

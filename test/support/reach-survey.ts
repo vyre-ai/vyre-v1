@@ -1,7 +1,8 @@
-// The sweep, batch 2: the cases of test/support/reach-cases.ts that need no outside account. One file per few cases (a file has 120 s).
+// The sweep: every case of test/support/reach-cases.ts that needs no outside account, as owner and as member, printing a row per step (reach-kit row()). Not a test file: run it on a box with
+// `REACH_PART=note,site node test/support/reach-survey.ts` (a part keeps it under a minute); nothing runs it in CI. The assertions are test/reach.made-for-me.*.live.test.ts.
 import test from "node:test";
-import { bootReach, row } from "./support/reach-kit.ts";
-import { CASES, runBaseline, runCase } from "./support/reach-cases.ts";
+import { bootReach, row } from "./reach-kit.ts";
+import { CASES, runBaseline, runCase } from "./reach-cases.ts";
 
 const PART = (process.env["REACH_PART"] ?? "").split(",").filter(Boolean);
 test("sweep: made for me, usable by the maker", { timeout: 115_000 }, async () => {

@@ -153,6 +153,36 @@ export const CASES: Spec[] = [
     },
   },
   {
+    id: "chat",
+    what: "a chat the Assistant starts for the person, then writes in",
+    steps: (r, who) => [
+      mk("make", "chat_start", () => ({ kind: "chat", agentIds: [r.assistant(who)], title: `chat ${who}` })),
+      mk("read", "chat_messages_list", (o) => ({ threadId: g(o["make"]?.json, "thread.threadId") })),
+      mk("change", "chat_post", (o) => ({ threadId: g(o["make"]?.json, "thread.threadId"), body: "a note for later" })),
+    ],
+    look: (o) =>
+      at(o, "make", "thread.threadId")
+        ? { cap: "chat.messages.list", input: { threadId: at(o, "make", "thread.threadId")! } }
+        : null,
+  },
+  {
+    id: "watch",
+    what: "a channel the Assistant opens and sets itself to watch",
+    steps: (r, who) => [
+      mk("make", "channels_create", () => ({ name: `watch ${who}`, visibility: "invite" })),
+      mk("change", "channels_agents_add", (o) => ({
+        channelId: g(o["make"]?.json, "channel.channelId"),
+        agentId: r.assistant(who),
+        mode: "listen",
+      })),
+      mk("read", "channels_agent_watch_set", (o) => ({
+        channelId: g(o["make"]?.json, "channel.channelId"),
+        agentId: r.assistant(who),
+        watches: true,
+      })),
+    ],
+  },
+  {
     id: "form",
     what: "a form the Assistant builds",
     steps: (r, who) => [
@@ -254,8 +284,8 @@ export const CASES: Spec[] = [
       at(o, "make", "item.id") ? { cap: "vault.item.get", input: { itemId: at(o, "make", "item.id")! } } : null,
   },
   {
-    id: "connector",
-    what: "a connector the Assistant drafts, then a connection to it with a key it put in the Vault",
+    id: "connection",
+    what: "a connection the Assistant makes to a service, with a key it put in the Vault",
     steps: (r, who) => [
       mk("make key folder", "vault_folders_create", () => ({ name: `Keys ${who}`, scope: "shared" })),
       mk("make key", "vault_item_put", (o) => ({
@@ -264,6 +294,28 @@ export const CASES: Spec[] = [
         kind: "api_key",
         fields: [{ key: "api_key", value: "v-123" }],
       })),
+      mk("make", "connections_create", (o) => ({
+        connector: "docusign",
+        ownerKind: "person",
+        title: `conn ${who}`,
+        secrets: { DocuSign_Key: g(o["make key"]?.json, "item.handle") },
+      })),
+      mk("read", "connections_get", (o) => ({ connectionId: g(o["make"]?.json, "connection.connectionId") })),
+      mk("change", "connections_update", (o) => ({
+        connectionId: g(o["make"]?.json, "connection.connectionId"),
+        title: "renamed",
+      })),
+      mk("remove", "connections_delete", (o) => ({ connectionId: g(o["make"]?.json, "connection.connectionId") })),
+    ],
+    look: (o) => {
+      const id = at(o, "make", "connection.connectionId");
+      return id ? { cap: "connections.get", input: { connectionId: id } } : null;
+    },
+  },
+  {
+    id: "connector",
+    what: "a connector the Assistant drafts",
+    steps: (r, who) => [
       mk("make", "connectors_init", () => ({ key: `reach_${who}`, title: `Reach ${who}`, mode: "api" })),
       mk("define", "connectors_define", () => ({
         key: `reach_${who}`,
@@ -273,27 +325,7 @@ export const CASES: Spec[] = [
         actions: [{ name: "ping", method: "GET", url: "https://example.invalid/ping" }],
       })),
       mk("read", "connectors_get", () => ({ key: `reach_${who}` })),
-      mk("make connection", "connections_create", (o) => ({
-        connector: `reach_${who}`,
-        ownerKind: "person",
-        title: `conn ${who}`,
-        secrets: { KEY: `#${g(o["make key"]?.json, "item.handle")}` },
-      })),
-      mk("read connection", "connections_get", (o) => ({
-        connectionId: g(o["make connection"]?.json, "connection.connectionId"),
-      })),
-      mk("change", "connections_update", (o) => ({
-        connectionId: g(o["make connection"]?.json, "connection.connectionId"),
-        title: "renamed",
-      })),
-      mk("remove", "connections_delete", (o) => ({
-        connectionId: g(o["make connection"]?.json, "connection.connectionId"),
-      })),
     ],
-    look: (o) => {
-      const id = at(o, "make connection", "connection.connectionId");
-      return id ? { cap: "connections.get", input: { connectionId: id } } : null;
-    },
   },
   {
     id: "goal",
@@ -418,7 +450,7 @@ export async function runCase(r: Reach, who: Who, spec: Spec): Promise<Record<st
     spec.look
       ? [
           { k: "person sees", who, cap: look?.cap ?? "", input: look?.input ?? null },
-          { k: "other sees", who: OTHER, cap: look?.cap ?? "", input: look?.input ?? null },
+          ...(r.personal ? [] : [{ k: "other sees", who: OTHER, cap: look?.cap ?? "", input: look?.input ?? null }]),
         ]
       : [],
   );
