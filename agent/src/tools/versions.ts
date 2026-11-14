@@ -48,7 +48,7 @@ const KINDS: readonly VersionedKind[] = [
           latest = n;
           changedAt = when;
         }
-        if (at !== undefined && when !== undefined && when <= at && (atTime === undefined || n > atTime)) atTime = n;
+        if (at !== undefined && when !== undefined && when < at && (atTime === undefined || n > atTime)) atTime = n;
       }
       return latest === undefined
         ? null

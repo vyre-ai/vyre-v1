@@ -92,7 +92,7 @@ export function saveNote(ctx: NotesCtx, r: NoteRow): void {
 }
 /** What a refused save says: the note was changed by someone else after it was read. */
 export const NOTE_CHANGED =
-  "This note changed after it was read, so this change was not saved. Read the note again and redo the change.";
+  "This note changed while you were editing it. Your change was not saved. Read it again and redo the change.";
 export function blankNote(id: string, owner: string, now: number): NoteRow {
   return {
     id,

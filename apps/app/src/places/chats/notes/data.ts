@@ -80,9 +80,14 @@ export function createNotesStore(
       const out = (await call(cap, input)) as { note: Note };
       put(out.note);
       return out.note;
-    } catch {
+    } catch (e) {
       if (before) put(before);
-      say(failed);
+      // a note saved by someone else at the same moment: say so, as a task does, instead of a bare "could not save"
+      say(
+        (e as { code?: unknown } | null)?.code === "validation.version_conflict"
+          ? "This note changed while you were editing it. Your change was not saved."
+          : failed,
+      );
       return null;
     }
   };

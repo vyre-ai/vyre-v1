@@ -268,3 +268,20 @@ test("a note's menu lists what fits it with the keys that work, and Pin reaches 
     [{ noteId: "n2", pinned: true }],
   );
 });
+
+test("a save refused because the note changed meanwhile says so in the words a task uses, and the note is put back", async () => {
+  const said: string[] = [];
+  const n = note("n1", { body: "before" });
+  const store = createNotesStore(
+    async (cap) => {
+      if (cap === "notes.update") throw Object.assign(new Error("conflict"), { code: "validation.version_conflict" });
+      return { notes: [n], labels: [], total: 1 };
+    },
+    (t) => said.push(t),
+    () => T0,
+  );
+  await store.load();
+  await store.update("n1", { body: "mine" });
+  assert.deepEqual(said, ["This note changed while you were editing it. Your change was not saved."]);
+  assert.equal(store.get().notes[0]?.body, "before");
+});

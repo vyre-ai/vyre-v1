@@ -330,7 +330,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
             const n = res.status === "ok" ? versioned.now(res.output, ctx.turnStartedAt) : null;
             if (n) {
               if (versioned.kind === "file") base = n.atTime ?? n.version;
-              else if (ctx.turnStartedAt !== undefined && n.changedAt !== undefined && n.changedAt > ctx.turnStartedAt)
+              else if (ctx.turnStartedAt !== undefined && n.changedAt !== undefined && n.changedAt >= ctx.turnStartedAt)
                 return fail("validation.version_conflict", traceId, {
                   message: changedSinceTurn(versioned.noun),
                   details: { tool: t.name, reason: "changed_since_turn" },

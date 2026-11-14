@@ -10,6 +10,7 @@ import {
   personOf,
   raise,
   readable,
+  rowById,
   searchText,
   storeImage,
 } from "../projections.ts";
@@ -24,7 +25,9 @@ const firstLine = (s: string): string =>
     ?.slice(0, 200) ?? "";
 const nameOf = (r: NoteRow): string => r.title || firstLine(r.body) || "Untitled note";
 
-function link(ctx: NotesCtx, r: NoteRow, item: Linked, keep: boolean | undefined): void {
+/** Adds the link to the note as it is now: making the task or record took a moment, and a save that landed meanwhile stays. Returns the saved row. */
+function link(ctx: NotesCtx, was: NoteRow, item: Linked, keep: boolean | undefined): NoteRow {
+  const r = rowById(ctx, was.id) ?? was;
   const all = linkedOf(r);
   if (!all.some((x) => x.kind === item.kind && x.id === item.id)) all.push(item);
   r.linked_json = JSON.stringify(all);
@@ -32,6 +35,7 @@ function link(ctx: NotesCtx, r: NoteRow, item: Linked, keep: boolean | undefined
   r.updated_at = ctx.now();
   saveNote(ctx, r);
   emit(ctx, "notes.linked", r, { kind: item.kind, id: item.id });
+  return r;
 }
 
 type TaskIn = {
@@ -57,8 +61,8 @@ export async function toTask(ctx: NotesCtx, input: TaskIn) {
   })) as { task?: { id?: string } } | null;
   const taskId = out?.task?.id;
   if (!taskId) raise(ctx.trace.traceId, "internal.unexpected", "The task was not made.");
-  link(ctx, r, { kind: "task", id: taskId, title, at: ctx.now() }, input.keep);
-  return { note: noteOut(r, person), taskId };
+  const saved = link(ctx, r, { kind: "task", id: taskId, title, at: ctx.now() }, input.keep);
+  return { note: noteOut(saved, person), taskId };
 }
 
 type RecordIn = {
@@ -80,8 +84,8 @@ export async function toRecord(ctx: NotesCtx, input: RecordIn) {
   if (!recordId) raise(ctx.trace.traceId, "internal.unexpected", "The record was not made.");
   const f = input.fields;
   const title = [f["name"], f["title"]].find((v): v is string => typeof v === "string" && v.length > 0) ?? nameOf(r);
-  link(ctx, r, { kind: "record", id: recordId, title, at: ctx.now() }, input.keep);
-  return { note: noteOut(r, person), recordId };
+  const saved = link(ctx, r, { kind: "record", id: recordId, title, at: ctx.now() }, input.keep);
+  return { note: noteOut(saved, person), recordId };
 }
 
 type ClipIn = {
