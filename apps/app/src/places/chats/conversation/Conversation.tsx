@@ -1946,7 +1946,7 @@ function ConversationView(): ReactElement {
           size={hasEarlier ? Math.max(all.length, CHAPTER_MIN + 1) : all.length}
           newest={win.rows[win.rows.length - 1]?.threadSeq ?? 0}
           focusSeq={activeId ? (all.find((m) => m.messageId === activeId)?.threadSeq ?? null) : null}
-          jobs={{ agentIds: thread.agents.map((a) => a.agentId), working: isWorking }}
+          jobs={{ agentIds: thread.agents.map((a) => a.agentId), screens: data.screens, shared: sharedChat }}
           rows={rows}
           own={ownSeq}
           clock={{ ...data.clock(), ...(sharedChat ? { zones } : {}) }}

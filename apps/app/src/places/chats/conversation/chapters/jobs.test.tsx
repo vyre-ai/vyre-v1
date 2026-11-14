@@ -89,20 +89,36 @@ test("the lines draw a running job and a finished one", async () => {
   assert.equal(find(await mount(createRoot, <JobLines running={[]} finished={[]} now={0} />), "job-lines"), null);
 });
 
-test("the layer reads terminals for a chat with agents, shows a running job, and asks for nothing without agents", async () => {
-  const calls: string[] = [];
-  const call = async (cap: string): Promise<unknown> => {
-    calls.push(cap);
-    return { terminals: [T({ terminalId: "t1", createdAt: Date.now() - 3 * MIN })] };
+function feedOf(terminals: Term[]) {
+  let rows = terminals;
+  const subs = new Set<() => void>();
+  const snap = { status: "ready", data: { terminals: rows } };
+  let cur = snap;
+  return {
+    screens: {
+      query: (): unknown => ({
+        subscribe: (f: () => void) => (subs.add(f), () => void subs.delete(f)),
+        getSnapshot: () => cur,
+      }),
+    },
+    set(next: Term[]) {
+      rows = next;
+      cur = { status: "ready", data: { terminals: rows } };
+      for (const f of subs) f();
+    },
   };
+}
+
+test("the job line rides the live terminal rows: a running job shows, then leaves one finished line when the row ends; no reads", async () => {
+  const f = feedOf([T({ terminalId: "t1", createdAt: Date.now() - 3 * MIN })]);
   const el = (agents: string[]) => (
     <ChapterLayer
-      call={call}
+      call={async () => ({})}
       threadId="thr_1"
       size={5}
       newest={5}
       focusSeq={null}
-      jobs={{ agentIds: agents, working: false }}
+      jobs={{ agentIds: agents, screens: f.screens }}
       rows={[]}
       own={ownSeq}
       clock={{ now: 0, offsetMin: 0 }}
@@ -110,39 +126,78 @@ test("the layer reads terminals for a chat with agents, shows a running job, and
       {(laid) => laid.jobs}
     </ChapterLayer>
   );
-  await mount(createRoot, el([]));
-  await flush();
-  assert.deepEqual(calls, []);
+  const none = await mount(createRoot, el([]));
+  assert.equal(find(none, "job-lines"), null, "no agent in the chat, no job");
   const root = await mount(createRoot, el(["agt_a"]));
-  await act(async () => {
-    await flush();
-  });
-  assert.deepEqual(calls, ["terminal.list"]);
+  await flush();
   assert.match(textOf(find(root, "job-running-t1")), /Tests.*3 min.*Background/);
+  await act(async () => f.set([T({ terminalId: "t1", state: "exited", exitCode: 0, lastActiveAt: Date.now() })]));
+  await flush();
+  assert.equal(find(root, "job-running-t1"), null);
+  assert.match(textOf(find(root, "job-done-t1")), /Tests finished/);
 });
 
-test("the job clock redraws only the job line: the layer's rows callback does not run again", async () => {
-  const call = async (): Promise<unknown> => ({ terminals: [T({ terminalId: "t1", createdAt: Date.now() })] });
-  let runs = 0;
-  await mount(
-    createRoot,
+test("a build without the terminal screen, or a feed that fails, draws nothing and calls nothing", async () => {
+  const boom = {
+    query: (): unknown => {
+      throw new Error("no such screen");
+    },
+  };
+  const errored = { status: "error" };
+  const bad = { query: (): unknown => ({ subscribe: () => () => undefined, getSnapshot: () => errored }) };
+  for (const screens of [boom, bad, undefined]) {
+    const el = await mount(
+      createRoot,
+      <ChapterLayer
+        call={async () => {
+          throw new Error("no call expected");
+        }}
+        threadId="thr_1"
+        size={5}
+        newest={5}
+        focusSeq={null}
+        jobs={{ agentIds: ["agt_a"], screens }}
+        rows={[]}
+        own={ownSeq}
+        clock={{ now: 0, offsetMin: 0 }}
+      >
+        {(laid) => laid.jobs}
+      </ChapterLayer>,
+    );
+    await flush();
+    assert.equal(find(el, "job-lines"), null);
+  }
+});
+
+test("in a chat read by two people the line says only that work runs in the background, with the clock and no name; alone it names the job", async () => {
+  const f = feedOf([T({ terminalId: "t1", name: "unit-tests", createdAt: Date.now() - 2 * MIN })]);
+  const el = (shared: boolean) => (
     <ChapterLayer
-      call={call}
-      threadId="thr_c"
+      call={async () => ({})}
+      threadId="thr_1"
       size={5}
       newest={5}
       focusSeq={null}
-      jobs={{ agentIds: ["agt_a"], working: false }}
+      jobs={{ agentIds: ["agt_a"], screens: f.screens, shared }}
       rows={[]}
       own={ownSeq}
       clock={{ now: 0, offsetMin: 0 }}
     >
-      {(laid) => (runs++, laid.jobs)}
-    </ChapterLayer>,
+      {(laid) => laid.jobs}
+    </ChapterLayer>
+  );
+  const two = await mount(createRoot, el(true));
+  await flush();
+  const said = textOf(find(two, "job-running-t1"));
+  assert.match(said, /Working in the background.*2 min.*Background/);
+  assert.doesNotMatch(said, /Unit tests/);
+  await act(async () =>
+    f.set([T({ terminalId: "t1", name: "unit-tests", state: "exited", exitCode: 0, lastActiveAt: Date.now() })]),
   );
   await flush();
-  const after = runs;
+  assert.doesNotMatch(textOf(find(two, "job-done-t1")), /Unit tests/);
+  await act(async () => f.set([T({ terminalId: "t1", name: "unit-tests", createdAt: Date.now() - 2 * MIN })]));
+  const alone = await mount(createRoot, el(false));
   await flush();
-  await flush();
-  assert.equal(runs, after, "nothing above the job line re-renders on its own reads");
+  assert.match(textOf(find(alone, "job-done-t1")) + textOf(find(alone, "job-running-t1")), /Unit tests/);
 });
