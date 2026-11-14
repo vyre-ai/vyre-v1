@@ -10043,6 +10043,9 @@ export type ConnectorsForServiceOut = {
         optional: boolean;
       }>;
     site?: string;
+    builtin: boolean;
+    host?: string;
+    checks: boolean;
   };
   connection?: {
     connectionId: string;
@@ -43881,7 +43884,7 @@ export type VaultConnectIn = {
   idempotencyKey: string;
 };
 export type VaultConnectOut = {
-  status: "connected" | "waiting_person" | "waiting_admin" | "declined";
+  status: "connected" | "waiting_person" | "waiting_admin" | "declined" | "no_connector";
   requestId?: string;
   tell: string;
 };
@@ -43916,6 +43919,8 @@ export type VaultConnectCardAskAdminOut = {
     };
     keptIn?: string;
     tested?: string;
+    checks: boolean;
+    checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
     usedBy: Array<{
@@ -43954,6 +43959,8 @@ export type VaultConnectCardDisconnectOut = {
     };
     keptIn?: string;
     tested?: string;
+    checks: boolean;
+    checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
     usedBy: Array<{
@@ -43992,6 +43999,8 @@ export type VaultConnectCardGetOut = {
     };
     keptIn?: string;
     tested?: string;
+    checks: boolean;
+    checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
     usedBy: Array<{
@@ -44042,6 +44051,8 @@ export type VaultConnectCardReopenOut = {
     };
     keptIn?: string;
     tested?: string;
+    checks: boolean;
+    checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
     usedBy: Array<{
@@ -44088,6 +44099,8 @@ export type VaultConnectCardSubmitOut = {
     };
     keptIn?: string;
     tested?: string;
+    checks: boolean;
+    checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
     usedBy: Array<{

@@ -60,6 +60,8 @@ type Out = {
     };
     keptIn?: string;
     tested?: string;
+    checks: boolean;
+    checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
     usedBy: Array<{
@@ -94,6 +96,8 @@ type Out = {
         "id": "usr_a1b2c3"
       },
       "agentId": "agt_a1b2c3",
+      "checks": true,
+      "checksWith": "example",
       "connectedBy": "usr_a1b2c3",
       "connectionId": "con_a1b2c3",
       "fields": [

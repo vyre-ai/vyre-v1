@@ -5,15 +5,15 @@ import type { Check } from './core.ts';
 
 function d_s_2842806102(v: unknown, p: string, e: string[]): void {
 {
-const x181 = v;
-const g181 = typeOf(x181);
-const b181: string[] = []; lf(x181, p, b181, L0); if (b181.length) e.push(...b181);
-if (g181 === "object") {
-if (g181 === 'object') { const o181 = x181 as Record<string, unknown>;
-if (!("terminalId" in o181)) e.push(p + "/terminalId" + ': required');
-if (!("name" in o181)) e.push(p + "/name" + ': required');
-if ("terminalId" in o181) lf(o181["terminalId"], p + "/terminalId", e, L114);
-if ("name" in o181) lf(o181["name"], p + "/name", e, L1);
+const x180 = v;
+const g180 = typeOf(x180);
+const b180: string[] = []; lf(x180, p, b180, L0); if (b180.length) e.push(...b180);
+if (g180 === "object") {
+if (g180 === 'object') { const o180 = x180 as Record<string, unknown>;
+if (!("terminalId" in o180)) e.push(p + "/terminalId" + ': required');
+if (!("name" in o180)) e.push(p + "/name" + ': required');
+if ("terminalId" in o180) lf(o180["terminalId"], p + "/terminalId", e, L114);
+if ("name" in o180) lf(o180["name"], p + "/name", e, L1);
 }
 }
 }

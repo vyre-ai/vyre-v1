@@ -5,25 +5,25 @@ import type { Check } from './core.ts';
 
 function d_s_193ebba03a(v: unknown, p: string, e: string[]): void {
 {
-const x108 = v;
-const g108 = typeOf(x108);
-const b108: string[] = []; lf(x108, p, b108, L0); if (b108.length) e.push(...b108);
-if (g108 === "object") {
-if (g108 === 'object') { const o108 = x108 as Record<string, unknown>;
-if (!("formId" in o108)) e.push(p + "/formId" + ': required');
-if (!("name" in o108)) e.push(p + "/name" + ': required');
-if (!("recordType" in o108)) e.push(p + "/recordType" + ': required');
-if (!("kind" in o108)) e.push(p + "/kind" + ': required');
-if (!("state" in o108)) e.push(p + "/state" + ': required');
-if (!("slug" in o108)) e.push(p + "/slug" + ': required');
-if (!("submissions" in o108)) e.push(p + "/submissions" + ': required');
-if ("formId" in o108) lf(o108["formId"], p + "/formId", e, L80);
-if ("name" in o108) lf(o108["name"], p + "/name", e, L1);
-if ("recordType" in o108) lf(o108["recordType"], p + "/recordType", e, L32);
-if ("kind" in o108) lf(o108["kind"], p + "/kind", e, L81);
-if ("state" in o108) lf(o108["state"], p + "/state", e, L82);
-if ("slug" in o108) lf(o108["slug"], p + "/slug", e, L83);
-if ("submissions" in o108) lf(o108["submissions"], p + "/submissions", e, L2);
+const x107 = v;
+const g107 = typeOf(x107);
+const b107: string[] = []; lf(x107, p, b107, L0); if (b107.length) e.push(...b107);
+if (g107 === "object") {
+if (g107 === 'object') { const o107 = x107 as Record<string, unknown>;
+if (!("formId" in o107)) e.push(p + "/formId" + ': required');
+if (!("name" in o107)) e.push(p + "/name" + ': required');
+if (!("recordType" in o107)) e.push(p + "/recordType" + ': required');
+if (!("kind" in o107)) e.push(p + "/kind" + ': required');
+if (!("state" in o107)) e.push(p + "/state" + ': required');
+if (!("slug" in o107)) e.push(p + "/slug" + ': required');
+if (!("submissions" in o107)) e.push(p + "/submissions" + ': required');
+if ("formId" in o107) lf(o107["formId"], p + "/formId", e, L80);
+if ("name" in o107) lf(o107["name"], p + "/name", e, L1);
+if ("recordType" in o107) lf(o107["recordType"], p + "/recordType", e, L32);
+if ("kind" in o107) lf(o107["kind"], p + "/kind", e, L81);
+if ("state" in o107) lf(o107["state"], p + "/state", e, L82);
+if ("slug" in o107) lf(o107["slug"], p + "/slug", e, L83);
+if ("submissions" in o107) lf(o107["submissions"], p + "/submissions", e, L2);
 }
 }
 }
@@ -135,15 +135,15 @@ if ("consent" in o833) lf(o833["consent"], p + "/consent", e, L3);
 
 function d_s_a9bccf768b(v: unknown, p: string, e: string[]): void {
 {
-const x863 = v;
-const g863 = typeOf(x863);
-const b863: string[] = []; lf(x863, p, b863, L0); if (b863.length) e.push(...b863);
-if (g863 === "object") {
-if (g863 === 'object') { const o863 = x863 as Record<string, unknown>;
-if (!("formId" in o863)) e.push(p + "/formId" + ': required');
-if ("formId" in o863) lf(o863["formId"], p + "/formId", e, L80);
-if ("cursor" in o863) lf(o863["cursor"], p + "/cursor", e, L1);
-if ("limit" in o863) lf(o863["limit"], p + "/limit", e, L119);
+const x867 = v;
+const g867 = typeOf(x867);
+const b867: string[] = []; lf(x867, p, b867, L0); if (b867.length) e.push(...b867);
+if (g867 === "object") {
+if (g867 === 'object') { const o867 = x867 as Record<string, unknown>;
+if (!("formId" in o867)) e.push(p + "/formId" + ': required');
+if ("formId" in o867) lf(o867["formId"], p + "/formId", e, L80);
+if ("cursor" in o867) lf(o867["cursor"], p + "/cursor", e, L1);
+if ("limit" in o867) lf(o867["limit"], p + "/limit", e, L119);
 }
 }
 }
@@ -151,13 +151,13 @@ if ("limit" in o863) lf(o863["limit"], p + "/limit", e, L119);
 
 function d_s_b6005b0c6a(v: unknown, p: string, e: string[]): void {
 {
-const x898 = v;
-const g898 = typeOf(x898);
-const b898: string[] = []; lf(x898, p, b898, L4); if (b898.length) e.push(...b898);
-if (g898 === "array") {
-if (g898 === 'array') { const a898 = x898 as unknown[];
-for (let i898 = 0; i898 < a898.length; i898++) {
-d_s_193ebba03a(a898[i898], p + '/' + i898, e);
+const x902 = v;
+const g902 = typeOf(x902);
+const b902: string[] = []; lf(x902, p, b902, L4); if (b902.length) e.push(...b902);
+if (g902 === "array") {
+if (g902 === 'array') { const a902 = x902 as unknown[];
+for (let i902 = 0; i902 < a902.length; i902++) {
+d_s_193ebba03a(a902[i902], p + '/' + i902, e);
 }
 }
 }

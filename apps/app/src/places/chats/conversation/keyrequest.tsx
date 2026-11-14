@@ -108,6 +108,8 @@ function PlainKeyRequestCard({
   if (req === undefined || req === null) return null;
   const words = keyWords(req.name);
 
+  // a request the agent took back leaves nothing behind: no "Withdrawn" chip
+  if (req.state === "canceled") return null;
   if (req.state !== "waiting") {
     const ok = req.state === "fulfilled";
     return (
@@ -115,7 +117,7 @@ function PlainKeyRequestCard({
         testID={`keyreq-done-${requestId}`}
         ok={ok}
         glyph={<Glyph name={ok ? "check" : "x"} size={13} color={ok ? "var(--ok)" : "var(--ink-3)"} />}
-        text={ok ? `Added · ${words}` : req.state === "declined" ? `Declined · ${words}` : `Withdrawn · ${words}`}
+        text={ok ? `Added · ${words}` : `Declined · ${words}`}
       />
     );
   }

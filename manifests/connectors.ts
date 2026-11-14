@@ -93,6 +93,11 @@ const serviceRow = t.obj({
   mode,
   fields: t.arr(t.obj({ name: t.str(), label: t.str(), optional: t.bool() })),
   site: t.opt(t.str({ description: "The app's own page, where its keys are found" })),
+  builtin: t.bool(),
+  /** The host a key is tried against: the connector's first declared host */
+  host: t.opt(t.str()),
+  /** A call exists that tries a key (its health call, else its first read that needs no input) */
+  checks: t.bool(),
 });
 
 const syncedTypeRow = t.obj({

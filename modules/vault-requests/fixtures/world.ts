@@ -48,6 +48,10 @@ export interface Script {
   >;
   /** the person's own connection to a service, by connector key, as connectors.for_service reports it */
   connections?: Record<string, { connectionId: string; owner: "mine" | "space"; state: string }>;
+  /** the connector is not built in (an agent's draft made live) */
+  thirdParty?: boolean;
+  /** the connector has no call that tries a key */
+  noProbe?: boolean;
   /** what trying a typed key answers */
   check?: "ok" | "rejected" | "unreachable";
   /** what probing a connection made from a saved key answers */
@@ -162,12 +166,18 @@ export function world(over: Partial<Script> = {}) {
             mode: "api",
             fields: c.fields,
             ...(c.site ? { site: c.site } : {}),
+            builtin: script.thirdParty !== true,
+            checks: script.noProbe !== true,
+            ...(script.thirdParty ? { host: "api.example.test" } : {}),
           },
           ...(script.connections?.[key] ? { connection: script.connections[key] } : {}),
         };
       }
       case "connectors.check_key":
-        return { result: script.check ?? "ok", ...((script.check ?? "ok") === "ok" ? { tested: "Reached" } : {}) };
+        return {
+          result: script.check ?? "ok",
+          ...((script.check ?? "ok") === "ok" && script.noProbe !== true ? { tested: "Reached Fathom" } : {}),
+        };
       case "connections.create": {
         const made = {
           connectionId: "con_new",
