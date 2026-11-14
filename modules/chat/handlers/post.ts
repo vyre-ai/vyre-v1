@@ -478,6 +478,8 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     ...(input.replyTo !== undefined ? { replyTo: input.replyTo } : {}),
     ...(input.via ? { via: { routineOwner: input.via.routineOwner } } : {}),
     ...(author.kind === "agent" && ctx.actingFor !== undefined && !ctx.sharedKey ? { paidBy: ctx.actingFor } : {}),
+    // whose turn it was, whoever paid: the saved steps of the reply are theirs to read whole (F51)
+    ...(author.kind === "agent" && ctx.actingFor?.startsWith("usr_") ? { askedBy: ctx.actingFor } : {}),
     depth,
     attachments,
   });

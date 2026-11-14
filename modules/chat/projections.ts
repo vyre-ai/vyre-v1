@@ -551,6 +551,7 @@ export interface MessageRec {
   replyTo?: string;
   via?: { routineOwner: string };
   /** The person whose own account this turn ran on; absent when a key of the Space paid. */ paidBy?: string;
+  /** The person an agent's message was written for: whose turn it was, whoever paid. The saved steps of the turn are theirs to read whole (F51). Absent on messages saved before it was kept (paidBy then). */ askedBy?: string;
   depth: number;
   attachments: string[];
   reactions: Array<{ emoji: string; by: string[] }>;
@@ -583,9 +584,10 @@ export function messageOf(r: Row): MessageRec {
   };
   const replyTo = optStr(r["replyTo"]);
   if (replyTo !== undefined) o.replyTo = replyTo;
-  const via = parseJson<{ routineOwner?: string; paidBy?: string } | null>(r["via"], null);
+  const via = parseJson<{ routineOwner?: string; paidBy?: string; askedBy?: string } | null>(r["via"], null);
   if (via?.routineOwner) o.via = { routineOwner: via.routineOwner };
   if (via?.paidBy) o.paidBy = via.paidBy;
+  if (via?.askedBy) o.askedBy = via.askedBy;
   const editedAt = optNum(r["editedAt"]);
   if (editedAt !== undefined) o.editedAt = editedAt;
   return o;
@@ -645,7 +647,7 @@ export function messageOut(m: MessageRec, enc: number, viewer?: string): Record<
     author: refOf(m.author),
     kind: m.kind,
     body: m.body,
-    blocks: viewer === undefined ? m.blocks : stepsFor(m.blocks, m.paidBy !== undefined && m.paidBy === viewer),
+    blocks: viewer === undefined ? m.blocks : stepsFor(m.blocks, (m.askedBy ?? m.paidBy) === viewer),
     ...(m.replyTo !== undefined ? { replyTo: m.replyTo } : {}),
     ...(m.via !== undefined ? { via: m.via } : {}),
     ...(m.paidBy !== undefined ? { paidBy: m.paidBy } : {}),
@@ -713,6 +715,7 @@ export interface NewMessage {
   replyTo?: string | undefined;
   via?: { routineOwner: string } | undefined;
   paidBy?: string | undefined;
+  askedBy?: string | undefined;
   depth?: number;
   attachments?: string[];
 }
@@ -744,7 +747,9 @@ export function insertMessage(ctx: Pick<ChatCtx, "db" | "now">, thread: string, 
     m.body,
     JSON.stringify(m.blocks ?? []),
     m.replyTo ?? null,
-    m.via || m.paidBy ? JSON.stringify({ ...m.via, ...(m.paidBy ? { paidBy: m.paidBy } : {}) }) : null,
+    m.via || m.paidBy || m.askedBy
+      ? JSON.stringify({ ...m.via, ...(m.paidBy ? { paidBy: m.paidBy } : {}), ...(m.askedBy ? { askedBy: m.askedBy } : {}) })
+      : null,
     m.depth ?? 0,
     JSON.stringify(m.attachments ?? []),
     now,

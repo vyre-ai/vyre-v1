@@ -80,3 +80,23 @@ test("a store written by the old code is served to a second reader without the f
   }
   assert.match(JSON.stringify(doors["transcriptRead"]), /Reading files/, "the step is still said, in plain words");
 });
+
+test("the asker reads their own step details whoever paid: on a key of the Space a member still sees them, a second member does not", async () => {
+  const hn = baseHarness({
+    calls: { "agents.get": (i) => ({ agent: { agentId: i["agentId"], name: "Checker", runtime: "vyre" } }), "access.principals.get": () => ({ principal: { name: "Someone" } }) },
+  });
+  const threadId = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "sd2" })).thread.threadId as string;
+  await h["threads.members.add"]!(hn.ctx, { threadId, personId: MAYA });
+  // the agent's reply for Dana, paid by a key of the Space (no paidBy)
+  const agentForDana = { ...hn.agent(INTAKE, DANA), sharedKey: true } as Harness["ctx"];
+  await h["chat.post"]!(agentForDana, {
+    threadId,
+    body: "Done.",
+    blocks: [{ type: "tool_call", v: 1, data: { id: "x1", name: "Read", label: "alice-private-notes.txt" } }],
+    idempotencyKey: "sd2-reply",
+  });
+  const labelSeen = async (ctx: Harness["ctx"]): Promise<boolean> =>
+    JSON.stringify((await h["chat.messages.list"]!(ctx, { threadId })).messages).includes("alice-private-notes.txt");
+  assert.equal(await labelSeen(hn.ctx), true, "Dana asked: she sees her own step details");
+  assert.equal(await labelSeen(hn.person(MAYA)), false, "Maya does not");
+});

@@ -77,7 +77,7 @@ export async function replyDetails(ctx: ChatCtx, input: { threadId: string; mess
       at: m.createdAt,
       ...(turned?.turn ? { turn: turned.turn } : {}),
       ...(known ? { memory: { facts, quotes } } : {}),
-      steps: stepsOf(stepsFor(m.blocks, m.paidBy !== undefined && m.paidBy === askerOf(ctx))),
+      steps: stepsOf(stepsFor(m.blocks, (m.askedBy ?? m.paidBy) === askerOf(ctx))),
     },
   };
 }
