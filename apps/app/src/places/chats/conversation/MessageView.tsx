@@ -153,6 +153,8 @@ export interface MessageActions {
   /** In a thread: the live "Thinking" line carries the agent's own face, not the product mark. */
   faceInThread?: boolean;
   remove(messageId: string): void;
+  /** Delete from the desktop menu asks once first ("Delete this message?"); the phone sheet asks in its own list and calls `remove`. Left out: `remove` runs at once. */
+  askRemove?(messageId: string): void;
   openAgent(agentId: string): void;
   openBeside(kind: string, id: string): void;
   /** A goal's page, from a goal card in the chat. Left out where the shell has no such page. */
@@ -489,7 +491,15 @@ export function menuFor(
       label: `Mute agent messages from ${firstName(a.nameOf ? a.nameOf(ob.person) : "Them")} for today`,
       onSelect: () => a.agentMute!.mute(ob.person),
     });
-  const last: MenuEntry[] = mine ? [{ label: "Delete", danger: true, onSelect: () => a.remove(m.messageId) }] : [];
+  const last: MenuEntry[] = mine
+    ? [
+        {
+          label: "Delete",
+          danger: true,
+          onSelect: () => (flat || !a.askRemove ? a.remove(m.messageId) : a.askRemove(m.messageId)),
+        },
+      ]
+    : [];
   for (const group of [own, keep, last]) {
     if (group.length === 0) continue;
     if (rest.length > 0) rest.push({ separator: true });

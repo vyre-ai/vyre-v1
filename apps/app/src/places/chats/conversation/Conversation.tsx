@@ -109,6 +109,7 @@ import { CONTINUE_TEXT, DEFAULT_AGENT_HOPS, limitOf, parkedAtLimit, parkedLine }
 import { addedAgentMentions, askPost, pickerAgents, unansweredOwn } from "./askagent.ts";
 import { notInChatLine } from "./notinchat.ts";
 import { NotInChatBar } from "./NotInChatBar.tsx";
+import { DeleteAsk } from "./DeleteAsk.tsx";
 import { MemorySwitch, SWITCH_LABEL, chatMemory, flipChatMemory } from "./memory-switch.tsx";
 import { SWITCH_NOTE, SWITCH_TITLE, hasSwitch, repliesOf } from "../thread-replies/model.ts";
 import { useReplySwitch } from "../thread-replies/ThreadSwitch.tsx";
@@ -413,6 +414,7 @@ function ConversationView(): ReactElement {
   // the chapter the chat is in now, drawn in grey after the title (G1); the chapter layer reports it
   const [chapterNow, setChapterNow] = useState("");
   const [talkAt, setTalkAt] = useState(0);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const moreAt = useRef<{ x: number; y: number }>({ x: 8, y: 48 });
   useEffect(() => {
     let live = true;
@@ -1438,6 +1440,7 @@ function ConversationView(): ReactElement {
           fail("Could not open the replies."),
         ),
     remove: (id) => void act.deleteMessage(data, id).catch(fail("Could not delete it.")),
+    askRemove: (id) => setDeleting(id),
     ...(data.alsoSent ? { alsoSent: data.alsoSent } : {}),
     ...(thread.kind === "thread" ? { faceInThread: true } : {}),
     openAgent: openFace,
@@ -2366,6 +2369,16 @@ function ConversationView(): ReactElement {
         ) : null}
         {menu.element}
         {add.element}
+        {deleting !== null ? (
+          <DeleteAsk
+            onClose={() => setDeleting(null)}
+            onDelete={() => {
+              const id = deleting;
+              setDeleting(null);
+              void act.deleteMessage(data, id).catch(fail("Could not delete it."));
+            }}
+          />
+        ) : null}
         {renamingChat ? (
           <TextAsk
             title="Rename chat"

@@ -229,3 +229,29 @@ test("the touch sheet lists what is behind More in the same sheet (a phone has n
   for (const l of ["Copy", "Edit", "Delete", "Copy link"]) assert.ok(own.includes(l), l);
   assert.equal(own.at(-1), "Delete", "Delete stays last");
 });
+
+test("Delete asks once from the desktop menu (askRemove) and runs at once only from the phone sheet, which asks in its own list", () => {
+  const mineMsg = msg({ author: { kind: "person", id: "me" } });
+  const log: string[] = [];
+  const a = {
+    ...(acts as object),
+    remove: (id: string) => log.push(`remove:${id}`),
+    askRemove: (id: string) => log.push(`ask:${id}`),
+  } as unknown as MessageActions;
+  const pressDelete = (flat: boolean): void => {
+    let behind: MenuEntry[] = [];
+    const withShow = {
+      ...(a as object),
+      showMenu: (items: readonly MenuEntry[]) => void (behind = [...items]),
+    } as unknown as MessageActions;
+    const entries = menuFor(mineMsg, true, withShow, () => undefined, { x: 0, y: 0 }, flat);
+    if (!flat) (entries.find((e) => "label" in e && e.label === "More") as { onSelect(): void }).onSelect();
+    const list = flat ? entries : behind;
+    (list.find((e) => "label" in e && e.label === "Delete") as { onSelect(): void }).onSelect();
+  };
+  pressDelete(false);
+  assert.deepEqual(log, ["ask:m1"], "the menu asks; nothing is deleted yet");
+  log.length = 0;
+  pressDelete(true);
+  assert.deepEqual(log, ["remove:m1"], "the sheet has asked already");
+});
