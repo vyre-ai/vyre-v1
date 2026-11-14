@@ -880,6 +880,23 @@ test("an asked agent's change carries the version it read (the tool layer fills 
   );
 });
 
+test("a turn ending in the goal's chat counts itself without moving updatedAt, so an agent that read the goal before can still write; a real change still moves it", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal());
+  const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
+  w.state.turn = asking(OWNER);
+  const read = getGoal(w.db, goal.id)!.updatedAt;
+  w.tick(60_000);
+  // another turn of the chat ends and the server counts it against the budget (onTurn saves the goal)
+  await w.turn("turn.completed", { turnId: "trn_acct", threadId: goal.threadId, agentId: LEAD, costMicros: 5 });
+  const after = getGoal(w.db, goal.id)!;
+  assert.equal(after.turns, 1, "the turn was counted");
+  assert.equal(after.updatedAt, read, "accounting is not a change to the goal");
+  const ok = await w.call("goals.update", { goalId: goal.id, title: "After the count", expectedUpdatedAt: read }, agent);
+  assert.equal(ok.goal.title, "After the count", "the write on the version it read is saved");
+  assert.ok(getGoal(w.db, goal.id)!.updatedAt > read, "a real change moves updatedAt");
+});
+
 test("an asked agent may slow check-ins freely, and speed them up only on a goal with a budget cap and never past once an hour", async () => {
   const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
   const speed = async (
