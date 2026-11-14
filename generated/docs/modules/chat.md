@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine, hooks, mcp, members.
 
-## Capabilities (118)
+## Capabilities (122)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -34,6 +34,8 @@ Requires: engine, hooks, mcp, members.
 - [chat.ask_suggest](../capabilities/chat.ask_suggest.md): Suggested agent for an Ask pane: the agent that booked the event, else the contact agent, else the person last used
 - [chat.asks_of](../capabilities/chat.asks_of.md): Ask panes opened on one object (the pane history of a record, file, event, page, site or automation)
 - [chat.catch_up](../capabilities/chat.catch_up.md): What you missed in a thread since you last read it: counts, who wrote, tasks and decisions that landed, and messages with an @ in them. A plain read, kept until something new arrives
+- [chat.chapters](../capabilities/chat.chapters.md): The chapters of a long chat: where each starts (a Fresh context line, a gap of 3 hours, or 80 messages), its title and one line of what it settled. Empty for a chat of 40 messages or fewer. Worked out from the messages on every read
+- [chat.chapters_write](../capabilities/chat.chapters_write.md): Write the title and one line of up to 3 closed chapters that only have the plain words of the chat, on a cheap model of the account that ran the turn. A model that fails leaves the plain words. Never holds a post
 - [chat.composer.suggest](../capabilities/chat.composer.suggest.md): Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates
 - [chat.crew_line](../capabilities/chat.crew_line.md): The crew only: after Merge lands a teammate's branch, leave one quiet line in the chat. The text is built from the merge record ("Merged crew/ember-1 into main · +2 -0"); no words are passed in, only the job, and only the person who merged it can ask. It wakes no agent
 - [chat.delete_message](../capabilities/chat.delete_message.md): Delete a message you wrote (kept in the audit trail)
@@ -76,6 +78,8 @@ Requires: engine, hooks, mcp, members.
 - [chat.recent](../capabilities/chat.recent.md): Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)
 - [chat.remember](../capabilities/chat.remember.md): Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a "Remembered for ..." card in the thread links to the fact. A shared layer keeps its review rule
 - [chat.reply_details](../capabilities/chat.reply_details.md): How one agent reply was made, for its hover card and Details tab: its turn, what the agent knew, and its own steps when no turn was kept. Account, cost and tool arguments are for the asker and AI-spend managers only
+- [chat.round.decide](../capabilities/chat.round.decide.md): Go with one agent's answer after a message asked several: one quiet line, "Decided: going with Nova's answer", in the chat. Only the person who asked, only for an agent that answered; no agent is woken by it
+- [chat.round.discuss](../capabilities/chat.round.discuss.md): Let the agents that answered a message talk it over: the thread under the message gets the answers and a request for one short turn each, ending on one line that starts "Decided:". The engine's hand-off limits cap it at four turns. Only the person who asked
 - [chat.screen.get](../capabilities/chat.screen.get.md): The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows
 - [chat.search](../capabilities/chat.search.md): Search the messages of every chat and channel you are in, by the words and by meaning; each hit names its message so a screen can jump to it
 - [chat.share](../capabilities/chat.share.md): Share a message to another chat (a channel or a person): a card there carries it, and a card here says where it went; both open the other chat. You must be able to write in the chat it goes to

@@ -27,6 +27,7 @@ export function stubs(ctx: CallCtx) {
       audience_set: call("access.audience_set"),
       automation_senders: call("access.automation_senders"),
       check: call("access.check"),
+      clears: call("access.clears"),
       connector_builder: {
         grant: call("access.connector_builder.grant"),
         status: call("access.connector_builder.status"),
@@ -411,6 +412,8 @@ export function stubs(ctx: CallCtx) {
       ask_suggest: call("chat.ask_suggest"),
       asks_of: call("chat.asks_of"),
       catch_up: call("chat.catch_up"),
+      chapters: call("chat.chapters"),
+      chapters_write: call("chat.chapters_write"),
       composer: {
         suggest: call("chat.composer.suggest"),
       },
@@ -473,6 +476,10 @@ export function stubs(ctx: CallCtx) {
       recent: call("chat.recent"),
       remember: call("chat.remember"),
       reply_details: call("chat.reply_details"),
+      round: {
+        decide: call("chat.round.decide"),
+        discuss: call("chat.round.discuss"),
+      },
       screen: {
         get: call("chat.screen.get"),
       },
@@ -648,9 +655,11 @@ export function stubs(ctx: CallCtx) {
     },
     connectors: {
       build: call("connectors.build"),
+      check_key: call("connectors.check_key"),
       define: call("connectors.define"),
       diff: call("connectors.diff"),
       export: call("connectors.export"),
+      for_service: call("connectors.for_service"),
       get: call("connectors.get"),
       health: call("connectors.health"),
       init: call("connectors.init"),
@@ -913,6 +922,9 @@ export function stubs(ctx: CallCtx) {
       reviewer: {
         get: call("engine.reviewer.get"),
         set: call("engine.reviewer.set"),
+      },
+      round: {
+        get: call("engine.round.get"),
       },
       route: {
         preview: call("engine.route.preview"),
@@ -2995,6 +3007,15 @@ export function stubs(ctx: CallCtx) {
       status: call("updates.status"),
     },
     vault: {
+      connect: call("vault.connect"),
+      connect_card: {
+        ask_admin: call("vault.connect_card.ask_admin"),
+        disconnect: call("vault.connect_card.disconnect"),
+        get: call("vault.connect_card.get"),
+        options: call("vault.connect_card.options"),
+        reopen: call("vault.connect_card.reopen"),
+        submit: call("vault.connect_card.submit"),
+      },
       export_env: call("vault.export_env"),
       exports: {
         list: call("vault.exports.list"),
