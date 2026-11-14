@@ -5,15 +5,15 @@ import type { Check } from './core.ts';
 
 function d_s_157c2c9b95(v: unknown, p: string, e: string[]): void {
 {
-const x94 = v;
-const g94 = typeOf(x94);
-const b94: string[] = []; lf(x94, p, b94, L0); if (b94.length) e.push(...b94);
-if (g94 === "object") {
-if (g94 === 'object') { const o94 = x94 as Record<string, unknown>;
-if (!("kitId" in o94)) e.push(p + "/kitId" + ': required');
-if (!("version" in o94)) e.push(p + "/version" + ': required');
-if ("kitId" in o94) lf(o94["kitId"], p + "/kitId", e, L70);
-if ("version" in o94) lf(o94["version"], p + "/version", e, L1);
+const x93 = v;
+const g93 = typeOf(x93);
+const b93: string[] = []; lf(x93, p, b93, L0); if (b93.length) e.push(...b93);
+if (g93 === "object") {
+if (g93 === 'object') { const o93 = x93 as Record<string, unknown>;
+if (!("kitId" in o93)) e.push(p + "/kitId" + ': required');
+if (!("version" in o93)) e.push(p + "/version" + ': required');
+if ("kitId" in o93) lf(o93["kitId"], p + "/kitId", e, L70);
+if ("version" in o93) lf(o93["version"], p + "/version", e, L1);
 }
 }
 }
@@ -21,33 +21,33 @@ if ("version" in o94) lf(o94["version"], p + "/version", e, L1);
 
 function d_s_21a2f633a7(v: unknown, p: string, e: string[]): void {
 {
-const x169 = v;
-const g169 = typeOf(x169);
-const b169: string[] = []; lf(x169, p, b169, L0); if (b169.length) e.push(...b169);
-if (g169 === "object") {
-if (g169 === 'object') { const o169 = x169 as Record<string, unknown>;
-if (!("kitId" in o169)) e.push(p + "/kitId" + ': required');
-if (!("key" in o169)) e.push(p + "/key" + ': required');
-if (!("title" in o169)) e.push(p + "/title" + ': required');
-if (!("version" in o169)) e.push(p + "/version" + ': required');
-if (!("channel" in o169)) e.push(p + "/channel" + ': required');
-if (!("installed" in o169)) e.push(p + "/installed" + ': required');
-if (!("contents" in o169)) e.push(p + "/contents" + ': required');
-if ("kitId" in o169) lf(o169["kitId"], p + "/kitId", e, L70);
-if ("key" in o169) lf(o169["key"], p + "/key", e, L1);
-if ("title" in o169) lf(o169["title"], p + "/title", e, L1);
-if ("version" in o169) lf(o169["version"], p + "/version", e, L1);
-if ("channel" in o169) lf(o169["channel"], p + "/channel", e, L107);
-if ("installed" in o169) lf(o169["installed"], p + "/installed", e, L3);
-if ("contents" in o169) {
+const x168 = v;
+const g168 = typeOf(x168);
+const b168: string[] = []; lf(x168, p, b168, L0); if (b168.length) e.push(...b168);
+if (g168 === "object") {
+if (g168 === 'object') { const o168 = x168 as Record<string, unknown>;
+if (!("kitId" in o168)) e.push(p + "/kitId" + ': required');
+if (!("key" in o168)) e.push(p + "/key" + ': required');
+if (!("title" in o168)) e.push(p + "/title" + ': required');
+if (!("version" in o168)) e.push(p + "/version" + ': required');
+if (!("channel" in o168)) e.push(p + "/channel" + ': required');
+if (!("installed" in o168)) e.push(p + "/installed" + ': required');
+if (!("contents" in o168)) e.push(p + "/contents" + ': required');
+if ("kitId" in o168) lf(o168["kitId"], p + "/kitId", e, L70);
+if ("key" in o168) lf(o168["key"], p + "/key", e, L1);
+if ("title" in o168) lf(o168["title"], p + "/title", e, L1);
+if ("version" in o168) lf(o168["version"], p + "/version", e, L1);
+if ("channel" in o168) lf(o168["channel"], p + "/channel", e, L107);
+if ("installed" in o168) lf(o168["installed"], p + "/installed", e, L3);
+if ("contents" in o168) {
 {
-const x170 = o169["contents"];
-const g170 = typeOf(x170);
-const b170: string[] = []; lf(x170, p + "/contents", b170, L4); if (b170.length) e.push(...b170);
-if (g170 === "array") {
-if (g170 === 'array') { const a170 = x170 as unknown[];
-for (let i170 = 0; i170 < a170.length; i170++) {
-lf(a170[i170], p + "/contents" + '/' + i170, e, L108);
+const x169 = o168["contents"];
+const g169 = typeOf(x169);
+const b169: string[] = []; lf(x169, p + "/contents", b169, L4); if (b169.length) e.push(...b169);
+if (g169 === "array") {
+if (g169 === 'array') { const a169 = x169 as unknown[];
+for (let i169 = 0; i169 < a169.length; i169++) {
+lf(a169[i169], p + "/contents" + '/' + i169, e, L108);
 }
 }
 }
