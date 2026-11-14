@@ -22,6 +22,7 @@ import {
   waitFor,
 } from "./support/eco-live.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
+import { bootHour, messages, say, twoMembers, waitFor as hourWait } from "./support/member-hour.ts";
 
 const SECRET = "fth_card_FAKEsecretVALUE0123456789abcdef"; // secret-scan: fake
 const WHO = ["usr_olivia", "usr_adam", "usr_mia", "usr_noah"];
@@ -37,16 +38,14 @@ const network = (seen: string[]) => ({
   },
 });
 
-async function defineFathom(
-  d: Daemon,
-  who: (cap: string, input: unknown) => Promise<{ status: number; data: any }>,
-): Promise<void> {
+/** A made-up Space-wide service (an API connector made in one call is Space-scope): only an admin connects it. */
+async function defineCrm(who: (cap: string, input: unknown) => Promise<{ status: number; data: any }>): Promise<void> {
   // eslint-disable-line @typescript-eslint/no-explicit-any
   assert.equal(
     (
       await who("connectors.init", {
-        key: "fathom",
-        title: "Fathom",
+        key: "crmapp",
+        title: "Crm app",
         mode: "api",
         source: false,
         idempotencyKey: "cn-init",
@@ -55,21 +54,17 @@ async function defineFathom(
     200,
   );
   const def = await who("connectors.define", {
-    key: "fathom",
-    title: "Fathom",
-    domains: ["api.fathom.test"],
+    key: "crmapp",
+    title: "Crm app",
+    domains: ["api.fathom.ai"],
     auth: { type: "api_key", header: "X-Api-Key", prefix: "", secret: "api_key" },
-    secrets: [
-      { name: "api_key", description: "Your Fathom API key" },
-      { name: "webhook_secret", description: "Optional: the secret Fathom signs its webhooks with" },
-    ],
-    actions: [{ name: "list_meetings", method: "GET", url: "https://api.fathom.test/external/v1/meetings" }],
+    secrets: [{ name: "api_key", description: "Your Crm app API key" }],
+    actions: [{ name: "list_things", method: "GET", url: "https://api.fathom.ai/external/v1/meetings" }],
     idempotencyKey: "cn-def",
   });
   assert.equal(def.status, 200, JSON.stringify(def.data));
-  const pub = await who("connectors.publish", { key: "fathom", idempotencyKey: "cn-pub" });
+  const pub = await who("connectors.publish", { key: "crmapp", idempotencyKey: "cn-pub" });
   assert.equal(pub.data.published, true, JSON.stringify(pub.data));
-  void d;
 }
 
 const cardBlock = async (
@@ -160,7 +155,6 @@ test("Personal: the owner asks for Fathom, one card tries the key, keeps it in M
   const d = await boot(dir, model, { vault: undefined, connectorNetwork: network(seen) });
   try {
     await connect(d);
-    await defineFathom(d, (cap, input) => call(d, cap, input));
     const agentId = await makeAgent(d, "Dex");
     const thread = await startChat(d, agentId, "pc-chat");
     await ok(d, "chat.post", {
@@ -241,16 +235,16 @@ test("Team: a member is sent to an admin by name, the admin connects it from her
   const model = scriptedModel(async function* (input, run) {
     const ask = input.trigger?.body ?? "";
     if (/is fathom connected/.test(ask)) {
-      const r = yield* run("vault_connect", { service: "Fathom", idempotencyKey: `tc-${++step}` });
+      const r = yield* run("vault_connect", { service: "Crm app", idempotencyKey: `tc-${++step}` });
       told.push(JSON.stringify(r.content));
       yield {
         type: "text",
         text: r.ok ? "Not yet. An admin can connect it." : `FAILED ${JSON.stringify(r.content).slice(0, 300)}`,
       };
     } else if (/Carry on/.test(ask)) {
-      yield { type: "text", text: "Yes, Fathom is connected." };
+      yield { type: "text", text: "Yes, Crm app is connected." };
     } else if (/use fathom/.test(ask)) {
-      const r = yield* run("vault_use", { item: "Fathom", purpose: "Read the meetings" });
+      const r = yield* run("vault_use", { item: "Crm_app", purpose: "Read the meetings" });
       told.push(JSON.stringify(r.content));
       yield { type: "text", text: r.ok ? "Used it." : `FAILED ${JSON.stringify(r.content).slice(0, 300)}` };
     }
@@ -303,7 +297,7 @@ test("Team: a member is sent to an admin by name, the admin connects it from her
       idempotencyKey: "tc-upd",
     });
     await olivia("vault.folders.create", { idempotencyKey: "tc-team", name: "Team keys", scope: "shared" });
-    await defineFathom(d, olivia);
+    await defineCrm(olivia);
 
     const th = await mia("chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: "tc-chat" });
     const threadId = th.data.thread.threadId as string;
@@ -334,7 +328,7 @@ test("Team: a member is sent to an admin by name, the admin connects it from her
     assert.ok(asked.data.card.admin.askedAt > 0);
     const tasks = (await olivia("tasks.list", { scope: "all", kinds: ["unblock"], states: ["todo", "doing"] })).data
       .tasks as Array<{ title: string }>;
-    assert.equal(tasks.filter((t) => t.title === "Connect Fathom").length, 1);
+    assert.equal(tasks.filter((t) => t.title === "Connect Crm app").length, 1);
 
     // the admin connects it from her own card: a wrong key keeps nothing, the right one connects
     const theirs = (await olivia("vault.connect_card.get", { requestId })).data.card;
@@ -366,7 +360,7 @@ test("Team: a member is sent to an admin by name, the admin connects it from her
     );
 
     // her agent carries on in her chat, and its first use of the key works for her
-    await agentSaid(d, mia, threadId, /Yes, Fathom is connected\./);
+    await agentSaid(d, mia, threadId, /Yes, Crm app is connected\./);
     await mia("chat.post", {
       threadId,
       body: "use fathom",
@@ -384,5 +378,52 @@ test("Team: a member is sent to an admin by name, the admin connects it from her
   } finally {
     globalThis.fetch = realFetch;
     await stop(d);
+  }
+});
+
+test("Team: a member connects their OWN Fathom with no admin, the key in their own Mine, and their agent uses it at once", async () => {
+  const seen: string[] = [];
+  const h = await bootHour("connect", { connectorNetwork: network(seen) });
+  try {
+    const { a } = await twoMembers(h);
+    const threadId = (await a.call("chat.start", { kind: "chat", agentIds: [h.agentId] })).thread.threadId as string;
+    assert.equal(await say(h, a, threadId, "please connect fathom"), "Not yet. Add its key.");
+    const block = (await messages(h, a, threadId))
+      .flatMap((m) => m.blocks ?? [])
+      .find((x) => x.type === "vault_request");
+    assert.ok(block, "the card is in her chat");
+    assert.equal(block.data.service, "fathom");
+    const requestId = block.data.requestId as string;
+    const hers = (await a.call("vault.connect_card.get", { requestId })).card;
+    assert.deepEqual(
+      [hers.state, hers.mayFill, hers.keptIn],
+      ["ask", true, "Mine"],
+      "no admin needed for her own account",
+    );
+    assert.equal(hers.checksWith, undefined, "built in: no host line");
+    const good = await a.call("vault.connect_card.submit", { requestId, fields: [{ key: "api_key", value: SECRET }] });
+    assert.equal(good.result, "connected", JSON.stringify(good));
+    const conns = (await a.call("connections.list", { connector: "fathom" })).connections as Array<{
+      owner: { kind: string };
+    }>;
+    assert.deepEqual(
+      conns.map((c) => c.owner.kind),
+      ["person"],
+    );
+    assert.equal(seen[0], SECRET, "the key reached the stand-in app");
+    // the agent carries on and its first use works
+    const used = await hourWait(
+      async () =>
+        (await messages(h, a, threadId)).find((m) => m.author?.kind === "agent" && /^(USED|FAILED)/.test(m.body ?? ""))
+          ?.body ?? null,
+      20_000,
+      "the agent carries on",
+    );
+    assert.match(used, /^USED #Fathom/);
+    assert.ok(!JSON.stringify(await messages(h, a, threadId)).includes(SECRET));
+    const open = (await a.call("tasks.list", { scope: "all", states: ["todo", "doing"] })).tasks as unknown[];
+    assert.equal(open.length, 0, "no second approval card for the agent's first use");
+  } finally {
+    await h.stop();
   }
 });

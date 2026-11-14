@@ -1,4 +1,5 @@
 import { workspaceInTurn } from "./workspace-turns.ts";
+import { CODE_BUILTINS } from "../../../lib/builtin-connectors.ts";
 import { ownsSubject } from "./own-subject.ts";
 import { isExportItself, waitForQuiet } from "./export-quiet.ts";
 import { createChoiceSource } from "./forms-choices.ts";
@@ -3877,9 +3878,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // authorizes against its connector, and without this every built-in connector answered "not found" to everyone. A connector someone writes becomes a resource when it is created
       // (connector.created). A built-in one is registered the first time a call names it, with an id made from its key, so a restart repeats the same event and a new Space still
       // starts with exactly its bootstrap events (ruling 71).
-      const builtinConnectors = new Set(
-        ((registry as unknown as { connectors?: { key: string }[] }).connectors ?? []).map((c) => c.key),
-      );
+      const builtinConnectors = new Set([
+        ...((registry as unknown as { connectors?: { key: string }[] }).connectors ?? []).map((c) => c.key),
+        // built in as code (modules/connectors/builtin-code.ts): Fathom
+        ...CODE_BUILTINS.map((c) => c.key),
+      ]);
       const ensuringConnector = new Map<string, Promise<void>>();
       // An Inbox conversation and a mail message are resources in access (under the Space), made the first time a call names one that exists. The modules open these rows themselves, and an event whose
       // subject is an `entity` is never registered by the generic registrar, so without this every call that names one answered "not found" to everyone, the owner included. The module's own door

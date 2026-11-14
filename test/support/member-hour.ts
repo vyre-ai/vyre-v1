@@ -202,7 +202,13 @@ export const model: OpenSession = async (spec) => {
     warm: true,
     async *send(input: TurnInput): AsyncGenerator<DriverEvent> {
       const body = String(input.trigger?.body ?? "");
-      if (/set up fathom/i.test(body)) {
+      if (/connect fathom/i.test(body)) {
+        const r = yield* run("vault_connect", { service: "Fathom", idempotencyKey: `hour-connect-${++asks}` });
+        yield {
+          type: "text",
+          text: r.ok ? "Not yet. Add its key." : `FAILED ${JSON.stringify(r.content).slice(0, 300)}`,
+        };
+      } else if (/set up fathom/i.test(body)) {
         const r = yield* run("vault_request", {
           name: "Fathom",
           fields: ["api_key"],
@@ -300,7 +306,7 @@ export function plainWords(message: string): boolean {
   );
 }
 
-export async function bootHour(prefix: string): Promise<Hour> {
+export async function bootHour(prefix: string, extra: Record<string, unknown> = {}): Promise<Hour> {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), `vyre-hour-${prefix}-`)));
   const idp = createIdp({ issuer: ISSUER, clientId: SSO_CLIENT, secret: SSO_SECRET });
   const gg = google();
@@ -360,6 +366,7 @@ export async function bootHour(prefix: string): Promise<Hour> {
     } as never,
     engineOpenSession: model,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
+    ...(extra as object),
   });
 
   const edge = (seen?: Answered[]): typeof fetch =>

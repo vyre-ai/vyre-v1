@@ -405,10 +405,6 @@ export async function connectSubmit(
         `${missing.map((k) => svc.fields.find((f) => f.name === k)?.label ?? k).join(", ")} is needed.`,
       );
   }
-  const done = async (result: "connected" | "wrong" | "offline") => ({ result, card: await cardOf(ctx, row.id) });
-  const stay = (phase: "wrong" | "offline" | null) =>
-    ctx.db.run(`UPDATE ${TABLE} SET phase = ? WHERE id = ?`, phase, row.id);
-
   // where the key will be kept is settled first, so a refusal here comes before anything is written: a shared folder only when an agent can use a key kept there
   const chosen = !saved && input.folderId ? (await foldersOf(ctx)).get(input.folderId) : undefined;
   if (chosen?.scope === "shared") {
@@ -433,6 +429,10 @@ export async function connectSubmit(
     // the Space's own Connections folder, shared with Everyone at Use, made on first use: a Space service is never kept in one person's Mine
     folderId ??= await ensureSpaceFolder(ctx.call, { name: SPACE_FOLDER, idem: `${row.id}:space-folder` });
   }
+  const done = async (result: "connected" | "wrong" | "offline") => ({ result, card: await cardOf(ctx, row.id) });
+  const stay = (phase: "wrong" | "offline" | null) =>
+    ctx.db.run(`UPDATE ${TABLE} SET phase = ? WHERE id = ?`, phase, row.id);
+
   // 1 Checked: the typed key is tried against the app and kept nowhere
   let testedLine: string | null = null;
   if (!saved) {

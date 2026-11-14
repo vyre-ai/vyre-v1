@@ -174,3 +174,31 @@ test("a draft connector can be neither found nor tried", async () => {
   await assert.rejects(k.hs["connectors.check_key"](k.ctx, { connector: "drafty", secrets: { api_key: SECRET } }));
   assert.equal(k.sent.length, 0);
 });
+
+test("Fathom is built in, person-scoped, and its key is tried against Fathom's own address with its own header (a stand-in, never the real service)", async () => {
+  const k = kit();
+  const r = await k.hs["connectors.for_service"](k.ctx, { service: "Fathom" });
+  assert.deepEqual(
+    [r.found, r.connector?.scope, r.connector?.builtin, r.connector?.checks],
+    [true, "person", true, true],
+  );
+  assert.deepEqual(
+    r.connector?.fields.map((f) => [f.name, f.optional]),
+    [
+      ["api_key", false],
+      ["webhook_secret", true],
+    ],
+  );
+  k.state.reply = () => ({ status: 200, body: { items: [] } });
+  assert.equal(
+    (await k.hs["connectors.check_key"](k.ctx, { connector: "fathom", secrets: { api_key: SECRET } })).result,
+    "ok",
+  );
+  assert.equal(k.sent[0]!.url, "https://api.fathom.ai/external/v1/meetings");
+  assert.equal(k.sent[0]!.headers["X-Api-Key"], SECRET);
+  k.state.reply = () => ({ status: 401 });
+  assert.equal(
+    (await k.hs["connectors.check_key"](k.ctx, { connector: "fathom", secrets: { api_key: "bad" } })).result,
+    "rejected",
+  );
+});
