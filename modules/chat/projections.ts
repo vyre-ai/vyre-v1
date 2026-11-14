@@ -682,7 +682,7 @@ export function ensureLast(db: Db): void {
   if (lastReady.has(db)) return;
   db.run('CREATE TABLE IF NOT EXISTS "chat_thread_last" ("thread" TEXT PRIMARY KEY, "at" INTEGER NOT NULL)');
   db.run(
-    'INSERT OR IGNORE INTO chat_thread_last (thread, at) SELECT thread, MAX(createdAt) FROM chat_message WHERE deleted_at IS NULL GROUP BY thread',
+    "INSERT OR IGNORE INTO chat_thread_last (thread, at) SELECT thread, MAX(createdAt) FROM chat_message WHERE deleted_at IS NULL GROUP BY thread",
   );
   lastReady.add(db);
 }
@@ -710,7 +710,7 @@ export function insertMessage(ctx: Pick<ChatCtx, "db" | "now">, thread: string, 
     now,
   );
   ctx.db.run(
-    'INSERT INTO chat_thread_last (thread, at) VALUES (?, ?) ON CONFLICT(thread) DO UPDATE SET at = MAX(at, excluded.at)',
+    "INSERT INTO chat_thread_last (thread, at) VALUES (?, ?) ON CONFLICT(thread) DO UPDATE SET at = MAX(at, excluded.at)",
     thread,
     now,
   );

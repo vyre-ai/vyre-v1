@@ -6,8 +6,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
 import { guardCrashes } from "./crash-guard.ts";
-import { setScheme } from "../../../test/support/mail-browser.ts";
 
+/** The app follows the system scheme (skin "system"), so the picture asks the browser for each. */
+const setScheme = (p: Page, scheme: "light" | "dark"): Promise<void> => p.emulateMedia({ colorScheme: scheme });
 const PASSWORD = "fixture password 123";
 type Page = import("playwright-core").Page;
 type Any = any; // eslint-disable-line @typescript-eslint/no-explicit-any

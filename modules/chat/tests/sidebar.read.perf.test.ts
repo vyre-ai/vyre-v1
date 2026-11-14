@@ -1,9 +1,10 @@
 // The speed of the sidebar's one read: a person with 5,000 chats and 200 channels. The budget is perf/budgets.json "navigate" (a place opens: p95 100 ms), because this read is what that open waits on. The first page and a `more`
 // page are each measured over 50 runs on one box, p95 against it, plus the count of database reads per call, which must be the same for a page of 50 whatever the number of chats (not one per row).
+// @reads /perf/budgets.json
 import test from "node:test";
 import { loadavg } from "node:os";
 import assert from "node:assert/strict";
-import { loadBudgets } from "../../../perf/harness/budgets.ts";
+import { readFileSync } from "node:fs";
 import { handlers } from "../handlers/index.ts";
 import { INTAKE, MAYA, harness, openRaw } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -16,7 +17,10 @@ const RUNS = 50;
 const p95 = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.ceil(xs.length * 0.95) - 1]!;
 
 test("perf navigate: one sidebar read, first page and a later page, at 5,000 chats and 200 channels", async () => {
-  const budget = loadBudgets().find((b) => b.id === "navigate")!.p95;
+  const parsed = JSON.parse(readFileSync(new URL("../../../perf/budgets.json", import.meta.url), "utf8")) as {
+    budgets: { id: string; p95: number }[];
+  };
+  const budget = parsed.budgets.find((b) => b.id === "navigate")!.p95;
   const raw = openRaw();
   let queries = 0;
   const counted = { all: (sql: string, ...a: unknown[]) => (queries++, raw.all(sql, ...a)), run: raw.run.bind(raw) };
