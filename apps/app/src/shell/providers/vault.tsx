@@ -132,12 +132,12 @@ export function vaultData(
       openAddProvider: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),
       openConnections: () => rt.open(connectionsTarget()),
       // Google and Microsoft's cards: the company connection (Console, Connect your company); a person's own mail, calendar and files are in Settings
-      openCompany: () =>
-        rt.open(
-          rt.space.kind === "personal"
-            ? { screen: "settings.page", args: { page: "mail" } }
-            : { screen: "company.setup" },
-        ),
+      // a Personal Space's cards lead to the person's own mail settings; a team Space's lead to Connect your company, and only a person who can open that page (reach) is shown the way in
+      ...(rt.space.kind === "personal"
+        ? { openCompany: () => rt.open({ screen: "settings.page", args: { page: "mail" } }) }
+        : door("company", "company.setup")
+          ? { openCompany: () => rt.open({ screen: "company.setup" }) }
+          : {}),
     },
     clock: () => ({ now: rt.clock().now }),
     ...(browsers ? { browsers } : {}),

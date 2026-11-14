@@ -83,14 +83,16 @@ export function GoogleMicrosoftPage({
           ))}
         </View>
         <View style={{ flex: 1 }} />
-        <View style={{ flexDirection: "row" }}>
-          <Btn
-            label={on ? "Manage" : `Connect ${name}`}
-            primary={!on}
-            onPress={() => onOpenCompany?.()}
-            testID={`gm-${which}-go`}
-          />
-        </View>
+        {onOpenCompany ? (
+          <View style={{ flexDirection: "row" }}>
+            <Btn
+              label={on ? "Manage" : `Connect ${name}`}
+              primary={!on}
+              onPress={onOpenCompany}
+              testID={`gm-${which}-go`}
+            />
+          </View>
+        ) : null}
       </View>
     );
   };

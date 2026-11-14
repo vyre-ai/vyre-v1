@@ -8,3 +8,4 @@
 - Steps in the new builder can be added between two steps with a plus, the actions of an app open beside the row you pointed at, and each Needs-you card says since when.
 - On the Vault Connections page, connections your Space owns now show under Space connections instead of My connections.
 - The step picker opens an app's actions right beside its row, an email, a chat message and a text each have their own glyph, a Drive step shows the Drive mark, and a step sentence never ends on a dangling word.
+- On the Vault Google and Microsoft page, a member no longer sees a Connect button for a setup only an admin can finish.
