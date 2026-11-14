@@ -13,13 +13,13 @@ import "../../../ui/src/stream/enable-diagrams.ts";
 export const title = "Reply column";
 
 const TABLE = [
-  "Here is where the intake stands.",
+  "Here is where the onboarding stands.",
   "",
   "| Step | Owner | Status |",
   "|---|---|---|",
-  "| Engagement letter | Maya | Sent |",
-  "| Retainer | Omar | Waiting |",
-  "| Matter folder | Intake | Open |",
+  "| Order form | Maya | Sent |",
+  "| Deposit | Omar | Waiting |",
+  "| Project folder | Intake | Open |",
   "",
   "Which time should I book the kickoff?",
 ].join("\n");
