@@ -167,6 +167,8 @@ test("subagents of a CLI engine, real app: on screen within a second, openable, 
       await page.waitForSelector(T("crew-peek"), { timeout: 8_000 });
       assert.equal(await page.locator(T("crew-peek-open")).count(), 0, "no Open chat for a subagent");
       assert.equal(await page.locator(T("crew-peek-ask")).count(), 0);
+      // what it is on rides the asker's own live frames: the person who asked sees steps in the peek
+      await page.waitForSelector(T("crew-step-0"), { timeout: 8_000 });
       await shot("3-peek-working");
 
       // on a phone the pane is a screen of its own: closed, the chat is back under it

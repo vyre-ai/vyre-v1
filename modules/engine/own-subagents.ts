@@ -1,7 +1,7 @@
-// The subagents a command-line engine starts on its own (finding F41, 14 Nov 2026). Vyre's helpers are threads of their own; a CLI's subagents are not: the engine runs them inside its turn and reports each as
-// one Agent (or Task) call, the lines the subagent itself works through (tagged with that call), and the call's result. This reads those from the step stream (crew-watch.ts feeds it) and keeps one row per
-// subagent, so engine.crew.status can list it beside the helpers and one strip, one island and one pane draw both. Nothing here is guessed: a row is a call the engine really made.
-import { stepWords } from "../../lib/plain-words.ts";
+// The subagents a command-line engine starts on its own (finding F41). Vyre's helpers are threads of their own; a CLI's subagents are not: the engine runs them inside its turn and reports each as one Agent (or
+// Task) call and that call's result. This reads those from the step stream (crew-watch.ts feeds it) and keeps one row per subagent, written twice: at the start (task, who asked, time) and at the end (state, the words
+// it returned). The step each is on rides the live stream and is never written. The row hangs under the reply of its turn and goes with that message or its chat. Who may read what is in handlers/crew-status.ts.
+import { ensure } from "./projections.ts";
 import type { Db } from "./projections.ts";
 
 type Row = Record<string, unknown>;
@@ -17,99 +17,49 @@ interface Step {
 
 /** The names a CLI engine gives the call that starts a subagent. */
 export const SUBAGENT_CALL = /^(Agent|Task)$/;
-const MAX_STEPS = 8;
 
-export function ensureOwn(db: Db): void {
-  db.run(
-    "CREATE TABLE IF NOT EXISTS engine_own_subagent (thread_id TEXT NOT NULL, call_id TEXT NOT NULL, agent_id TEXT NOT NULL, turn_id TEXT NOT NULL, title TEXT NOT NULL DEFAULT '', step TEXT, steps TEXT NOT NULL DEFAULT '[]', state TEXT NOT NULL DEFAULT 'working', found TEXT, started_at INTEGER NOT NULL, ended_at INTEGER, PRIMARY KEY (thread_id, call_id))",
-  );
-  db.run("CREATE INDEX IF NOT EXISTS engine_own_subagent_turn ON engine_own_subagent (turn_id)");
-}
+/** The subagent calls of each running turn (id -> true), so an input or result line that does not repeat the name is still read. A turn's entry goes when the turn ends. */
+const running = new Map<string, Set<string>>();
 
-const names = new Map<string, string>(); // call id -> tool name, for the results that do not repeat it
-const steps = (r: Row): string[] => {
-  try {
-    const v = JSON.parse(String(r["steps"] ?? "[]")) as unknown;
-    return Array.isArray(v) ? v.map(String) : [];
-  } catch {
-    return [];
-  }
-};
-
-/** Read a batch of the turn's steps: a subagent starts, names its task, works, and returns. */
+/** Read a batch of the turn's steps: a subagent starts, names its task, and returns. Lines a subagent works through (they carry `parent`) are the live stream's and are not kept. */
 export function noteOwn(
   db: Db,
-  e: { threadId: string; turnId: string; agentId: string },
+  e: { threadId: string; turnId: string; agentId: string; asker?: string },
   list: readonly unknown[],
   now: number,
 ): void {
   for (const raw of list) {
     const s = raw as Step;
     const id = typeof s.id === "string" ? s.id : "";
-    if (id === "") continue;
-    if (s.phase === "call" && typeof s.name === "string") names.set(id, s.name);
-    const name = names.get(id) ?? s.name ?? "";
-    const parent = typeof s.parent === "string" && s.parent !== "" ? s.parent : "";
-    if (parent === "") {
-      if (!SUBAGENT_CALL.test(name)) continue;
-      ensureOwn(db);
-      if (s.phase === "call") {
-        db.run(
-          "INSERT INTO engine_own_subagent (thread_id, call_id, agent_id, turn_id, started_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(thread_id, call_id) DO NOTHING",
-          e.threadId,
-          id,
-          e.agentId,
-          e.turnId,
-          now,
-        );
-      } else if (s.phase === "input" && typeof s.detail === "string" && s.detail !== "") {
-        db.run(
-          "UPDATE engine_own_subagent SET title = ? WHERE thread_id = ? AND call_id = ?",
-          s.detail,
-          e.threadId,
-          id,
-        );
-      } else if (s.phase === "result") {
-        names.delete(id);
-        const found = typeof s.result === "string" ? s.result.trim() : "";
-        db.run(
-          "UPDATE engine_own_subagent SET state = ?, found = ?, step = NULL, ended_at = ? WHERE thread_id = ? AND call_id = ? AND state = 'working'",
-          s.ok === false ? "failed" : "done",
-          found === "" ? null : found,
-          now,
-          e.threadId,
-          id,
-        );
-      }
+    if (id === "" || (typeof s.parent === "string" && s.parent !== "")) continue;
+    if (s.phase === "call") {
+      if (typeof s.name !== "string" || !SUBAGENT_CALL.test(s.name)) continue;
+      ensure(db);
+      (running.get(e.turnId) ?? running.set(e.turnId, new Set()).get(e.turnId)!).add(id);
+      db.run(
+        "INSERT INTO engine_own_subagent (thread_id, call_id, agent_id, turn_id, asker, started_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(thread_id, call_id) DO NOTHING",
+        e.threadId,
+        id,
+        e.agentId,
+        e.turnId,
+        e.asker ?? "",
+        now,
+      );
       continue;
     }
-    // a line the subagent itself works through: what it is on now, and the few before it
-    const row = db.all(
-      "SELECT steps, state FROM engine_own_subagent WHERE thread_id = ? AND call_id = ?",
-      e.threadId,
-      parent,
-    )[0] as Row | undefined;
-    if (!row || String(row["state"]) !== "working") continue;
-    if (s.phase === "call") {
-      const words = stepWords(name);
-      const kept = [...steps(row), words].slice(-MAX_STEPS);
+    if (!running.get(e.turnId)?.has(id)) continue;
+    if (s.phase === "input" && typeof s.detail === "string" && s.detail !== "") {
+      db.run("UPDATE engine_own_subagent SET title = ? WHERE thread_id = ? AND call_id = ?", s.detail, e.threadId, id);
+    } else if (s.phase === "result") {
+      running.get(e.turnId)?.delete(id);
+      const found = typeof s.result === "string" ? s.result.trim() : "";
       db.run(
-        "UPDATE engine_own_subagent SET step = ?, steps = ? WHERE thread_id = ? AND call_id = ?",
-        words,
-        JSON.stringify(kept),
+        "UPDATE engine_own_subagent SET state = ?, found = ?, ended_at = ? WHERE thread_id = ? AND call_id = ? AND state = 'working'",
+        s.ok === false ? "failed" : "done",
+        found === "" ? null : found,
+        now,
         e.threadId,
-        parent,
-      );
-    } else if (s.phase === "input" && typeof s.detail === "string" && s.detail !== "") {
-      const words = stepWords(name, s.detail);
-      const kept = steps(row);
-      if (kept.length > 0) kept[kept.length - 1] = words;
-      db.run(
-        "UPDATE engine_own_subagent SET step = ?, steps = ? WHERE thread_id = ? AND call_id = ?",
-        words,
-        JSON.stringify(kept),
-        e.threadId,
-        parent,
+        id,
       );
     }
   }
@@ -117,20 +67,35 @@ export function noteOwn(
 
 /** The turn ended: a subagent that never returned (the turn was stopped, or the server went down under it) is stopped, not left working. */
 export function settleOwn(db: Db, turnId: string, now: number): void {
-  ensureOwn(db);
+  running.delete(turnId);
+  ensure(db);
   db.run(
-    "UPDATE engine_own_subagent SET state = 'stopped', step = NULL, ended_at = ? WHERE turn_id = ? AND state = 'working'",
+    "UPDATE engine_own_subagent SET state = 'stopped', ended_at = ? WHERE turn_id = ? AND state = 'working'",
     now,
     turnId,
   );
 }
 
+/** The reply of a turn was posted: its subagents hang under that message. */
+export function hangOwn(db: Db, turnId: string, messageId: string): void {
+  ensure(db);
+  db.run("UPDATE engine_own_subagent SET message_id = ? WHERE turn_id = ?", messageId, turnId);
+}
+
+/** A message, or a whole chat, was removed: the subagents that hung under it go with it. */
+export function eraseOwn(db: Db, o: { messageId?: string; threadId?: string }): number {
+  ensure(db);
+  const before = (db.all("SELECT COUNT(*) AS n FROM engine_own_subagent") as Row[])[0]?.["n"] as number;
+  if (o.messageId) db.run("DELETE FROM engine_own_subagent WHERE message_id = ?", o.messageId);
+  if (o.threadId) db.run("DELETE FROM engine_own_subagent WHERE thread_id = ?", o.threadId);
+  return before - Number((db.all("SELECT COUNT(*) AS n FROM engine_own_subagent") as Row[])[0]?.["n"]);
+}
+
 export interface OwnSubagent {
   callId: string;
   agentId: string;
+  asker: string;
   title: string;
-  step?: string;
-  steps: string[];
   state: "working" | "done" | "failed" | "stopped";
   found?: string;
   startedAt: number;
@@ -139,20 +104,17 @@ export interface OwnSubagent {
 
 /** The subagents of one chat, oldest first. A row left working by a server that went away is read as stopped. */
 export function listOwn(db: Db, threadId: string, liveTurnIds: ReadonlySet<string>): OwnSubagent[] {
-  ensureOwn(db);
+  ensure(db);
   return (
     db.all("SELECT * FROM engine_own_subagent WHERE thread_id = ? ORDER BY started_at, rowid", threadId) as Row[]
   ).map((r) => {
-    const working = String(r["state"]) === "working" && liveTurnIds.has(String(r["turn_id"]));
-    const state =
-      String(r["state"]) === "working" && !working ? "stopped" : (String(r["state"]) as OwnSubagent["state"]);
+    const stale = String(r["state"]) === "working" && !liveTurnIds.has(String(r["turn_id"]));
     return {
       callId: String(r["call_id"]),
       agentId: String(r["agent_id"]),
+      asker: String(r["asker"] ?? ""),
       title: String(r["title"] ?? ""),
-      ...(working && r["step"] ? { step: String(r["step"]) } : {}),
-      steps: steps(r),
-      state,
+      state: stale ? "stopped" : (String(r["state"]) as OwnSubagent["state"]),
       ...(r["found"] ? { found: String(r["found"]) } : {}),
       startedAt: Number(r["started_at"]),
       ...(r["ended_at"] !== null && r["ended_at"] !== undefined ? { endedAt: Number(r["ended_at"]) } : {}),
