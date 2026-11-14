@@ -284,6 +284,8 @@ export interface InvokeDeps {
   ownTaskReport?(c: CapabilityDef, input: unknown, seed: CtxSeed): Promise<boolean>;
   /** Why a Vault item is not this person's to see: "mine" (another person's Mine item, hidden always), "other" (the person alone may not use it), or false. */
   vaultHidden?(itemId: string, person: string): "mine" | "other" | false;
+  /** Is this connection another person's own (a person-owned one the caller is not the owner of)? Then every refusal about it reads as a connection that does not exist, whatever authorize said. */
+  connectionHidden?(connectionId: string, person: string): boolean;
   /** spend so far per meter, for the spend policies */
   spend?(principal: string): Record<string, number> | undefined;
   /** module services for the handler context: db, vault, http, schedule, seal */
@@ -919,6 +921,18 @@ export function createInvoke(deps: InvokeDeps): Invoke {
           deps.hidden?.(resource, seed.principal.id, seed.actingFor)
         )
           throw fail("validation.not_found", traceId, { message: "That agent does not exist." });
+        // another person's own connection answers exactly like a connection that does not exist: same status, code and words, and no step that tells the two apart (a real one would otherwise be a 403 here, a made-up one a 404)
+        if (
+          resource !== null &&
+          resource.type === "connection" &&
+          resource.id !== null &&
+          vaultPerson !== undefined &&
+          deps.connectionHidden?.(resource.id, vaultPerson) === true
+        )
+          throw fail("permission.not_found", traceId, {
+            message: notFoundLine("connection"),
+            details: { reason: "not_found", thing: "connection" },
+          });
         const code = codeForReason(d.reason);
         // an agent stopped at a folder or a file its person may be able to share: the refusal names the press, so the person gets it in Needs you
         const askShare =
@@ -967,9 +981,11 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         }
         throw fail(code, traceId, {
           details: {
-            cap: c.name,
+            // a not found names no capability either: a handler's own not found cannot, and the two must read alike
+            ...(d.reason === "not_found" ? {} : { cap: c.name }),
             reason: d.reason,
-            steps: d.steps.map((s) => s.text),
+            // a not found tells nothing of what was looked up, so it carries no step either (a hidden thing and a missing one answer alike)
+            ...(d.reason === "not_found" ? {} : { steps: d.steps.map((s) => s.text) }),
             ...(missing !== null
               ? { thing: missing.kind, ...(missingName !== null ? { name: missingName } : {}) }
               : {}),

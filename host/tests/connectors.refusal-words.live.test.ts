@@ -260,15 +260,38 @@ test("a refused connector or connection call says which thing was missing and wh
     });
     assert.equal(mine.status, 200, mine.text);
     const cid = String(mine.body.data.connection.connectionId);
-    for (const cap of ["connections.get", "connections.test"]) {
-      const real = await post(mel.token, cap, { connectionId: cid });
-      const fake = await post(mel.token, cap, { connectionId: "con_00000000000000000000" });
-      assert.equal(real.status, fake.status, cap);
-      assert.equal(errOf(real).code, errOf(fake).code, cap);
-      assert.equal(errOf(real).message, errOf(fake).message, cap);
-      assert.equal(errOf(real).code, "permission.not_found", cap);
-      assert.ok(!real.text.includes(cid), "the real id is not said back");
-    }
+    // every by-id door, as a person and through their agent: a real connection that is someone else's answers byte for byte like a made-up id (status, code, message, details), apart from the trace
+    const doors: Array<[string, (id: string) => object]> = [
+      ["connections.get", (id) => ({ connectionId: id })],
+      ["connections.update", (id) => ({ connectionId: id, title: "Renamed" })],
+      ["connections.set_secret", (id) => ({ connectionId: id, slot: "x", handle: "#Nope" })],
+      ["connections.pause", (id) => ({ connectionId: id })],
+      ["connections.resume", (id) => ({ connectionId: id })],
+      ["connections.reconnect", (id) => ({ connectionId: id })],
+      ["connections.test", (id) => ({ connectionId: id })],
+      ["connections.mark_working", (id) => ({ connectionId: id })],
+      ["connections.delete", (id) => ({ connectionId: id })],
+      ["connectors.run", (id) => ({ key: personConnector, action: "x", connectionId: id, input: {} })],
+      ["connectors.read", (id) => ({ key: personConnector, action: "x", connectionId: id, input: {} })],
+    ];
+    const bare = (r: { status: number; body: Json }): string =>
+      JSON.stringify([r.status, { ...r.body.error, traceId: undefined }]);
+    agentFor = { id: melAgent, person: mel.id };
+    const compared: string[] = [];
+    for (const [cap, input] of doors)
+      for (const [who, token] of [
+        ["person", mel.token],
+        ["agent", "tok-agent"],
+      ] as const) {
+        const real = await post(token, cap, input(cid));
+        const fake = await post(token, cap, input("con_00000000000000000000"));
+        compared.push(
+          `${who} ${cap}: ${real.status} ${errOf(real).code ?? "ok"} | ${fake.status} ${errOf(fake).code ?? "ok"}`,
+        );
+        assert.equal(bare(real), bare(fake), `${who} ${cap}\n${real.text}\n${fake.text}`);
+        assert.ok(!real.text.includes(cid), "the real id is not said back");
+      }
+    assert.equal(compared.length, doors.length * 2);
   } finally {
     clearInterval(pump);
     await d.stop();
