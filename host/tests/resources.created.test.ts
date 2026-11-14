@@ -7,7 +7,13 @@ import type { ResourceRow } from "../../kernel/src/authorize/index.ts";
 import { createInvoke, indexCapabilities } from "../src/invoke.ts";
 import type { CommitBatch, CtxSeed, Handler } from "../src/invoke.ts";
 import { HostError } from "../src/routes/errors.ts";
-import { createResourceRegistrar, idFits, KNOWN_TYPES, missingAgentResources } from "../src/gateway/resources.ts";
+import {
+  createResourceRegistrar,
+  idFits,
+  KNOWN_TYPES,
+  lateEventPlace,
+  missingAgentResources,
+} from "../src/gateway/resources.ts";
 import type { SubjectDef } from "../src/gateway/resources.ts";
 import { createPrincipalRegistrar } from "../src/gateway/principals.ts";
 import { foldEvent } from "../src/daemon/access.ts";
@@ -711,4 +717,25 @@ test("registrar: a calendar event is a resource inside its calendar, owned by th
   assert.deepEqual(rows, [
     { id: "cev_abc123", type: "calendar_event", parent_id: "cld_personal", label: 0, owner_id: "usr_dana", holds: 0 },
   ]);
+});
+
+test("an event already in the store is registered inside its calendar and owned by the calendar's owner, never under the Space or in the Space owner's name; only an event whose calendar is unknown falls back", () => {
+  const mine = lateEventPlace({
+    calendar: { id: "cld_noah", owner_id: "usr_noah" },
+    spaceId: "spc_1",
+    spaceOwner: "usr_olivia",
+  });
+  assert.deepEqual(mine, { parent_id: "cld_noah", owner_id: "usr_noah", hostOwned: false });
+  const shared = lateEventPlace({
+    calendar: { id: "cld_team", owner_id: null },
+    spaceId: "spc_1",
+    spaceOwner: "usr_olivia",
+  });
+  assert.deepEqual(
+    shared,
+    { parent_id: "cld_team", owner_id: "usr_olivia", hostOwned: true },
+    "a Space calendar's event is the Space owner's, with the host mark",
+  );
+  const gone = lateEventPlace({ calendar: undefined, spaceId: "spc_1", spaceOwner: "usr_olivia" });
+  assert.deepEqual(gone, { parent_id: "spc_1", owner_id: "usr_olivia", hostOwned: true });
 });

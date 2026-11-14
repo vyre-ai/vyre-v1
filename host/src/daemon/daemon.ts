@@ -314,7 +314,7 @@ import {
   touchesAccess,
 } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
-import { createResourceRegistrar, missingAgentResources } from "../gateway/resources.ts";
+import { createResourceRegistrar, lateEventPlace, missingAgentResources } from "../gateway/resources.ts";
 import {
   createPrincipalRegistrar,
   lowAgentUpgradeEvents,
@@ -3920,6 +3920,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             }
             if (!found) return;
             const calendar = inside === null ? undefined : access.snap.resource(inside);
+            const place = lateEventPlace({
+              calendar,
+              spaceId,
+              spaceOwner: access.owner() ?? cfg.owner ?? "usr_owner",
+            });
             const r = await spaceLog.appendResult({
               id: `evt_res_${id}`,
               type: "resource.created",
@@ -3929,12 +3934,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               vis: "space",
               entity: "resource",
               entity_id: id,
-              payload: hostOwned(!calendar?.owner_id, {
+              payload: hostOwned(place.hostOwned, {
                 id,
                 type,
-                parent_id: calendar ? inside : spaceId,
+                parent_id: place.parent_id,
                 label: 0,
-                owner_id: calendar?.owner_id ?? access.owner() ?? cfg.owner ?? "usr_owner",
+                owner_id: place.owner_id /* the calendar's owner, else access.owner() (lateEventPlace) */,
                 holds: 0,
               }),
             });
