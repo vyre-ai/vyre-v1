@@ -129,3 +129,33 @@ test("an anchored dialog's four ways to close are Escape, the close control, a p
     restore();
   }
 });
+
+test("an anchored dialog closes itself when a sheet or menu opens above it, and only then", async () => {
+  const { createRoot } = await import("test-renderer");
+  const { mount } = await import("../testing/dom.ts");
+  const { installDom } = await import("../testing/dom.ts");
+  const { pushEscapeLayer } = await import("../Overlay/escape.ts");
+  const { act } = await import("react");
+  const restore = installDom();
+  try {
+    const log: string[] = [];
+    await mount(
+      createRoot,
+      <Dialog title="Usage" anchor="composer" onClose={() => log.push("close")}>
+        <Text>Body</Text>
+      </Dialog>,
+    );
+    const off = (() => {
+      let f: () => void = () => undefined;
+      act(() => {
+        f = pushEscapeLayer(() => undefined);
+      });
+      return f;
+    })();
+    await act(async () => undefined);
+    assert.deepEqual(log, ["close"], "a layer opened above it: it closes");
+    off();
+  } finally {
+    restore();
+  }
+});

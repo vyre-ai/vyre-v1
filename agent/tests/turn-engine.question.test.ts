@@ -194,6 +194,29 @@ test("text that comes after a tool step is a new paragraph: A, a tool, B reads A
   );
 });
 
+test("a reply that names a tool the way the model sees it (mcp__vyre__terminal_run) is stored in plain words", async () => {
+  const p = scriptedProvider({
+    script: (input) =>
+      input.resumed
+        ? []
+        : [
+            { type: "text", text: "I used the Vyre terminal tool (mcp__vyre__terminal_run), not Bash." },
+            { type: "done" },
+          ],
+  });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
+  engine.openThread(thread());
+  engine.receive({ threadId: "T", author: person, body: "go" });
+  await engine.idle("T");
+  assert.equal(
+    engine
+      .messages("T")
+      .filter((m) => m.author.kind === "agent")
+      .at(-1)?.body,
+    "I used the Vyre terminal tool (terminal run), not Bash.",
+  );
+});
+
 test("the tool runner is told what the people said since the agent last spoke, and nothing from before its last message", async () => {
   const seen: string[] = [];
   const p = scriptedProvider({

@@ -3,6 +3,8 @@
 //   Personal: the owner of a one-person Space. The key is tried first, then kept in Mine, then connected, and the agent's first vault_use on it succeeds.
 //   Team: a member (Mia) is asked to ask an admin (Olivia), who connects it from her own card; Mia's card finishes by itself and her agent carries on. A wrong key keeps nothing.
 import test from "node:test";
+import { DatabaseSync } from "node:sqlite";
+import path from "node:path";
 import assert from "node:assert/strict";
 import { CORE_SPACE } from "../fixtures/seed/core/index.ts";
 import {
@@ -108,6 +110,16 @@ const agentSaid = async (
     () => hostLog(d),
   );
 };
+/** Every row of every table of a database, as one string: the typed key must be in none of them. */
+const dump = (file: string): string => {
+  const db = new DatabaseSync(file, { readOnly: true });
+  try {
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>;
+    return tables.map((t) => JSON.stringify(db.prepare(`SELECT * FROM "${t.name}"`).all())).join("\n");
+  } finally {
+    db.close();
+  }
+};
 const realFetch = globalThis.fetch;
 const answerVendor = (): void => {
   // memory reads the account's model list once, which asks the vendor with the key: answer that here
@@ -144,7 +156,8 @@ test("Personal: the owner asks for Fathom, one card tries the key, keeps it in M
       yield { type: "text", text: r.ok ? "Used it." : `FAILED ${JSON.stringify(r.content).slice(0, 300)}` };
     }
   });
-  const d = await boot(seededDir(), model, { vault: undefined, connectorNetwork: network(seen) });
+  const dir = seededDir();
+  const d = await boot(dir, model, { vault: undefined, connectorNetwork: network(seen) });
   try {
     await connect(d);
     await defineFathom(d, (cap, input) => call(d, cap, input));
@@ -207,6 +220,10 @@ test("Personal: the owner asks for Fathom, one card tries the key, keeps it in M
     assert.ok(!/Withdrawn/.test(all));
     assert.ok(!all.includes(SECRET) && !hostLog(d).includes(SECRET), "the key is in no message, block or log line");
     assert.ok(seen.includes(SECRET) && seen.includes("bad-key-0001"), "the key reached the app, and only the app");
+    // the value scan: the typed key is in no log row, event or table of the Space (the request row is one of them)
+    d.sink.flush();
+    assert.equal(dump(d.paths.logs).includes(SECRET), false, "not in logs.db");
+    assert.equal(dump(path.join(dir, "events.db")).includes(SECRET), false, "not in the events or any module table");
   } catch (e) {
     console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1500) : e);
     throw e;

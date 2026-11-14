@@ -49,13 +49,13 @@ d_s_9b30b1af72(a849[i849], p + '/' + i849, e);
 
 function d_s_c2f8d6cce1(v: unknown, p: string, e: string[]): void {
 {
-const x961 = v;
-const g961 = typeOf(x961);
-const b961: string[] = []; lf(x961, p, b961, L0); if (b961.length) e.push(...b961);
-if (g961 === "object") {
-if (g961 === 'object') { const o961 = x961 as Record<string, unknown>;
-if (!("entry" in o961)) e.push(p + "/entry" + ': required');
-if ("entry" in o961) d_s_9b30b1af72(o961["entry"], p + "/entry", e);
+const x965 = v;
+const g965 = typeOf(x965);
+const b965: string[] = []; lf(x965, p, b965, L0); if (b965.length) e.push(...b965);
+if (g965 === "object") {
+if (g965 === 'object') { const o965 = x965 as Record<string, unknown>;
+if (!("entry" in o965)) e.push(p + "/entry" + ': required');
+if ("entry" in o965) d_s_9b30b1af72(o965["entry"], p + "/entry", e);
 }
 }
 }
@@ -63,15 +63,15 @@ if ("entry" in o961) d_s_9b30b1af72(o961["entry"], p + "/entry", e);
 
 function d_s_cc4e1cf783(v: unknown, p: string, e: string[]): void {
 {
-const x1010 = v;
-const g1010 = typeOf(x1010);
-const b1010: string[] = []; lf(x1010, p, b1010, L0); if (b1010.length) e.push(...b1010);
-if (g1010 === "object") {
-if (g1010 === 'object') { const o1010 = x1010 as Record<string, unknown>;
-if (!("connectionId" in o1010)) e.push(p + "/connectionId" + ': required');
-if (!("path" in o1010)) e.push(p + "/path" + ': required');
-if ("connectionId" in o1010) lf(o1010["connectionId"], p + "/connectionId", e, L40);
-if ("path" in o1010) lf(o1010["path"], p + "/path", e, L1);
+const x1014 = v;
+const g1014 = typeOf(x1014);
+const b1014: string[] = []; lf(x1014, p, b1014, L0); if (b1014.length) e.push(...b1014);
+if (g1014 === "object") {
+if (g1014 === 'object') { const o1014 = x1014 as Record<string, unknown>;
+if (!("connectionId" in o1014)) e.push(p + "/connectionId" + ': required');
+if (!("path" in o1014)) e.push(p + "/path" + ': required');
+if ("connectionId" in o1014) lf(o1014["connectionId"], p + "/connectionId", e, L40);
+if ("path" in o1014) lf(o1014["path"], p + "/path", e, L1);
 }
 }
 }

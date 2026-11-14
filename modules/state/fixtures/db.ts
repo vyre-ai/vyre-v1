@@ -131,7 +131,10 @@ export interface Harness {
   emitOpts: Record<string, unknown>[];
   calls: { cap: string; input: unknown }[];
   /** a ctx for a caller; `settings` answers `settings.get` for the agent switch */
-  as(principal: StateCtx["principal"], opts?: { actingFor?: string; origin?: string; triage?: boolean | "unreadable" }): StateCtx;
+  as(
+    principal: StateCtx["principal"],
+    opts?: { actingFor?: string; origin?: string; triage?: boolean | "unreadable" },
+  ): StateCtx;
   person(id: string): StateCtx;
 }
 

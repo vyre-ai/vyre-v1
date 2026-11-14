@@ -234,7 +234,9 @@ export const LESSONS_SWITCH = "Learn from my corrections";
 export const LESSONS_OFF = "Off. Nothing is kept from what you change.";
 export const LESSONS_FOOT =
   "Lessons from a private chat stay private to you. Sharing one puts it in Proposed first, so a person accepts it.";
-export const lessonUsedLine = (text: string): string => `Used a lesson: ${text}`;
+/** What the quiet mark on a message's meta row says: "Used a lesson", "Used 3 lessons", "Learned a lesson". No lesson's words are printed in the chat. */
+export const lessonMarkLabel = (kind: "used" | "learned", n: number): string =>
+  `${kind === "used" ? "Used" : "Learned"} ${n === 1 ? "a lesson" : `${n} lessons`}`;
 
 /** The text of a message for "Remember this": its words, markup left in, trimmed and cut at 400 letters. */
 export function rememberText(body: string): string {
