@@ -14,6 +14,7 @@ import { othersNeedingYou } from "../spaces/model.ts";
 import type { Candidate } from "../../places/chats/conversation/model.ts";
 import type { ChatRightPaneData, RightPaneNav } from "../../places/chats/rightpane/data.tsx";
 import type { Principal } from "../session/runtime-data.ts";
+import { GATE, allows } from "../session/gates.ts";
 import { createMemoryStore } from "../../places/chats/memory/data.tsx";
 import type { ChatMemoryData, MemoryStore } from "../../places/chats/memory/data.tsx";
 import { KNOW_SCREEN, routeToArgs } from "../../places/files/memory/know.ts";
@@ -272,6 +273,7 @@ export function conversationData(
     lists: composerLists(principals, rt.me.id, { id: rt.assistant.id, name: rt.assistant.name }),
     directory: candidates(principals, rt.me.id, { id: rt.assistant.id, name: rt.assistant.name }),
     newKey,
+    mayChat: allows(rt, GATE.newChat),
     streamOf: (id) => rt.turns?.streamOf(id),
     activityOf: (id) => rt.turns?.activityOf(id),
     ...(rt.turns

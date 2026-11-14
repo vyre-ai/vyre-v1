@@ -2345,6 +2345,7 @@ export default defineManifest({
           personIds: t.arr(id.user, { minItems: 1 }),
           level: t.opt(level),
           mentionedIn: t.opt(id.message),
+          fromStart: t.opt(t.bool({ description: "Read the channel from its first message (the default). False: they read from now on, as a guest invited into a channel does" })),
         },
         out: { channel: channelRow },
         on: ["channel", "/channelId"],

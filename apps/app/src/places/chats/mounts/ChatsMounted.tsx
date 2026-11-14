@@ -17,7 +17,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { Principal } from "../../../shell/session/runtime-data.ts";
 import { conversationData } from "../../../shell/providers/chats-data.ts";
 import type { ChatsActions } from "../../../shell/providers/chats-data.ts";
-import { allows } from "../../../shell/providers/runtime.tsx";
+import { GATE, allows } from "../../../shell/providers/runtime.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { AgentPage, AgentPageLoading } from "../agentpage/AgentPage.tsx";
 import { ComputerPopup, ComputerPopupLoading } from "../computer/ComputerPopup.tsx";
@@ -1023,6 +1023,24 @@ export function ChatsMounted({
       >
         {page}
       </NotesArtifactsFrame>
+    );
+  } else if (route.view === "new" && !allows(rt, GATE.newChat)) {
+    // a guest of a channel or two starts no chats (chat.start is refused them): the start is a line about where to go, and on a phone the list itself
+    main = (
+      <View testID="chats-guest-start" style={{ flex: 1, minHeight: 0 }}>
+        {stacked ? (
+          <ChatsSidebar data={side} open={openKey} {...(window ? { window } : {})} />
+        ) : (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <Text style={{ fontSize: 15, fontWeight: "600", color: "var(--ink)" as string }}>
+              Pick a channel to read and reply
+            </Text>
+            <Text style={{ fontSize: 13, color: "var(--ink-3)" as string, paddingTop: 6, textAlign: "center" }}>
+              The channels you were added to are on the left.
+            </Text>
+          </View>
+        )}
+      </View>
     );
   } else if (route.view === "new") {
     main = (
