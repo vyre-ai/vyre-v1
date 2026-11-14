@@ -19390,7 +19390,7 @@
       "blocks": [],
       "cap": "engine.round.get",
       "deferred": false,
-      "description": "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting on another agent, replied, stopped). Read from the engine's queue, never stored",
+      "description": "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind an earlier turn of its own, replied, stopped; agents asked together all work at once). Read from the engine's queue, never stored",
       "effects": "read",
       "inputSchema": {
         "properties": {
