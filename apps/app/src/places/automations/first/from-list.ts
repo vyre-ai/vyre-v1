@@ -6,7 +6,7 @@ import type { NeedIn, TodayIn } from "./model.ts";
 
 /** Why a paused Automation is paused, in the words the server gave ("Needs the Twilio key"). The card and the builder head both read this, so they never differ. */
 export function pausedWhy(a: { pausedReason?: string | undefined } | undefined): string {
-  const r = a.pausedReason?.trim();
+  const r = a?.pausedReason?.trim();
   return r ?? "";
 }
 
