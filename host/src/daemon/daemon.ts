@@ -1802,6 +1802,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       access.mark(marks);
       for (const id of marks)
         accessPending.push({ seq: -1, type: "resource.created", payload: { id, space_owned: true, mark_only: true } });
+      // Calendars connected to Google or Outlook that were registered before the outside flag existed: flag them (idempotent), so an agent's write there is never taken for a write to the person's own private calendar
+      try {
+        const outside = (
+          db!.all(
+            `SELECT id FROM calendar_list WHERE provider IS NOT NULL AND provider != 'local' AND deleted_at IS NULL`,
+          ) as {
+            id: string;
+          }[]
+        ).map((r) => r.id);
+        access.markOutside(outside);
+        for (const id of outside)
+          accessPending.push({ seq: -1, type: "resource.created", payload: { id, outside_only: true } });
+      } catch {
+        /* a fresh store has no calendars yet */
+      }
       // Ruling 71: an empty log is a fresh install. The host makes the Space once, with an owner who claims it through a one-time link.
       if (!sawSpace) {
         const made = await bootstrapSpace(log, { space, name: cfg.spaceName ?? space, owner: mintOwner(cfg.owner) });

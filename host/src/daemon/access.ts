@@ -116,6 +116,8 @@ export function createAccess(): {
   readonly snap: AccessSnapshot;
   fold(e: FoldableEvent): void;
   mark(ids: readonly string[]): void;
+  /** flag calendars connected to an outside service that were registered before the flag existed */
+  markOutside(ids: readonly string[]): void;
   owner(): string | null;
   adopt(s: AccessSnapshot): void;
   adopted(): boolean;
@@ -151,6 +153,12 @@ export function createAccess(): {
         const r = seeded.resource(id);
         if (r && (r as { space_owned?: unknown }).space_owned !== true)
           seeded.putResource({ ...r, space_owned: true } as ResourceRow);
+      }
+    },
+    markOutside(ids) {
+      for (const id of ids) {
+        const r = seeded.resource(id);
+        if (r && r.type === "calendar" && r.outside !== true) seeded.putResource({ ...r, outside: true });
       }
     },
     adopt(s) {

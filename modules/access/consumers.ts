@@ -309,6 +309,15 @@ function apply(
       const id = str(rec(e.payload)["id"]) ?? "",
         have = store.resources.get(id);
       // a mark only (hostOwnedMarks: a registration in the Space owner's name from before the mark): set the mark on a resource that exists, never make one
+      // a calendar connected to an outside service that was registered before the flag existed: set it, change nothing else (idempotent)
+      if (rec(e.payload)["outside_only"] === true) {
+        if (have && have.row?.["outside"] !== true) {
+          store.resources.set(id, { ...have, row: { ...(have.row ?? {}), outside: true } });
+          changed = true;
+          touched.add(id);
+        }
+        continue;
+      }
       if (rec(e.payload)["mark_only"] === true) {
         if (have && have.row?.["spaceOwned"] !== true) {
           store.resources.set(id, { ...have, row: { ...(have.row ?? {}), spaceOwned: true } });

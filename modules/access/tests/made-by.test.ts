@@ -43,3 +43,33 @@ test("made_by on a resource is kept, survives a re-registration without it, and 
   assert.equal(snap.resource("sit_1")?.made_by, "agt_helper", "kept");
   assert.equal(fromTables(ctxOf(db)).resource("sit_1")?.made_by, "agt_helper", "the same from the tables");
 });
+
+test("a calendar registered before the outside flag existed is flagged at start by an outside_only mark: nothing else changes, and a second mark changes nothing", () => {
+  const { db } = fresh("outside");
+  const space: LogEvent = {
+    seq: 1,
+    type: "resource.created",
+    payload: { id: SPACE, type: "space", parent_id: null, label: 0, owner_id: "usr_ana", holds: 0 },
+  };
+  const cal: LogEvent = {
+    seq: 2,
+    type: "resource.created",
+    payload: { id: "cld_google", type: "calendar", parent_id: null, label: 0, owner_id: "usr_ana", holds: 0 },
+  };
+  let snap = sync(ctxOf(db), { events: [space, cal] });
+  assert.equal(snap.resource("cld_google")?.outside, undefined, "registered before the flag: not flagged");
+  const mark: LogEvent = { seq: -1, type: "resource.created", payload: { id: "cld_google", outside_only: true } };
+  snap = sync(ctxOf(db), { events: [mark] });
+  const r = snap.resource("cld_google")!;
+  assert.equal(r.outside, true);
+  assert.equal(r.parent_id, null, "its place is kept");
+  assert.equal(r.owner_id, "usr_ana", "and its owner");
+  assert.equal(fromTables(ctxOf(db)).resource("cld_google")?.outside, true, "the same from the tables");
+  snap = sync(ctxOf(db), { events: [mark] });
+  assert.equal(snap.resource("cld_google")?.outside, true, "idempotent");
+  // a mark for something not registered does nothing
+  snap = sync(ctxOf(db), {
+    events: [{ seq: -1, type: "resource.created", payload: { id: "cld_none", outside_only: true } }],
+  });
+  assert.equal(snap.resource("cld_none"), undefined);
+});
