@@ -263,7 +263,7 @@ export function find(json: unknown, want: (o: Record<string, any>) => boolean): 
 export function said(o: ToolOut | undefined): string {
   if (!o) return "skipped";
   if (o.ok) return "ok";
-  return o.text.replace(/\s+/g, " ").slice(0, 220);
+  return o.text.replace(/\s+/g, " ").slice(0, Number(process.env["REACH_WIDE"] ?? 220));
 }
 
 /** Record one case's chain: a row per step, then what a person and someone else see through `peek` (a capability as a person). */

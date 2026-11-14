@@ -116,3 +116,37 @@ test("the same shape reaches a CLI engine through the server's tool result", () 
   assert.equal(Object.keys(out.error)[0], "say");
   assert.equal(out.error.supportCode, "validation.too_large");
 });
+
+// 14 Nov 2026 (owner rule, made for me): where an agent really cannot do a thing for a person, it is told the true reason and the one next step, not the general "ask for access".
+test("a refusal that is a real exception names the reason and the one next step, in a line", () => {
+  for (const cap of ["skills.add", "connectors.init"]) {
+    const e = modelError({
+      code: "permission.no_grant",
+      message: "You do not have access to that.",
+      traceId: "t",
+      details: { cap, reason: "no_grant" },
+    } as never);
+    assert.doesNotMatch(e.say, /ask for access/i, `${cap}: the general line would loop`);
+    assert.doesNotMatch(e.say, /label|clearance|role/i, `${cap}: no words about labels or roles`);
+    assert.ok(e.say.split(/(?<=[.])\s/).length <= 3, `${cap}: a line, not a page: ${e.say}`);
+  }
+  const plain = modelError({
+    code: "permission.no_grant",
+    message: "",
+    traceId: "t",
+    details: { cap: "files.read" },
+  } as never);
+  assert.match(plain.say, /ask for access/i, "any other refusal keeps the general words");
+});
+
+test("an agent that asks for a desktop computer is told it has others, not to ask for access", () => {
+  const e = modelError({
+    code: "permission.no_grant",
+    message: "Agents no longer get a desktop computer.",
+    traceId: "t",
+    details: { reason: "no_new_desktop", tool: "computers_provision" },
+  } as never);
+  assert.doesNotMatch(e.say, /ask for access/i);
+  assert.match(e.say, /terminal/);
+  assert.equal(e.details?.reason, "no_new_desktop", "the reason word stays");
+});
