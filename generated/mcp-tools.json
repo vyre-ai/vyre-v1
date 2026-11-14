@@ -11898,6 +11898,54 @@
     },
     {
       "blocks": [],
+      "cap": "chats.sidebar",
+      "deferred": false,
+      "description": "The Chats sidebar in one answer: what needs me, my goals, pinned, chats, channels and team, each with its first rows, its total and its marks, plus the one number for the rail",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "filter": {
+            "description": "Everything (the default), or one of: unread, mentions, working, needs, failed, muted, goals, asks, archived. Anything else is refused in plain words",
+            "type": "string"
+          },
+          "more": {
+            "properties": {
+              "after": {
+                "description": "The key of the last row you have; the answer starts after it",
+                "type": "string"
+              },
+              "limit": {
+                "description": "At most 100 rows; default 50",
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "section": {
+                "enum": [
+                  "goals",
+                  "pinned",
+                  "chats",
+                  "channels",
+                  "team"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "section"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "name": "chats_sidebar",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "computers.chrome.act",
       "deferred": false,
       "description": "Act on an element or key: click, hover, press, select, scroll, check; a send, post or payment is held and returns an id",
@@ -19752,6 +19800,36 @@
       "name": "engine_subscription_share_set",
       "planMode": "blocked",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.thread_states",
+      "deferred": false,
+      "description": "The latest turn of each of up to 200 chats in one call: running, waiting, failed or done, and for a failed one the words why; a chat the asker may not open is left out",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadIds": {
+            "items": {
+              "examples": [
+                "thr_a1b2c3"
+              ],
+              "pattern": "^thr_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": "array"
+          }
+        },
+        "required": [
+          "threadIds"
+        ],
+        "type": "object"
+      },
+      "name": "engine_thread_states",
+      "planMode": "allowed",
+      "toolset": "chats",
       "v": 1
     },
     {
@@ -58756,6 +58834,389 @@
         "type": "object"
       },
       "name": "stars_toggle",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "state.counts",
+      "deferred": true,
+      "description": "My badges: for each scope how many things have something unread (not done, not muted) and how many entries that is",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "scopes": {
+            "items": {
+              "description": "A badge: `mailbox:<id>`, `number:<id>`, `chats`, `threads` or `notices:<place>`",
+              "examples": [
+                "mailbox:mbx_a1b2c3"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "name": "state_counts",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "state.get",
+      "deferred": true,
+      "description": "My state on up to 500 things: how far I read, unread, done, starred, followed, muted",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "things": {
+            "items": {
+              "properties": {
+                "id": {
+                  "examples": [
+                    "cnv_a1b2c3"
+                  ],
+                  "type": "string"
+                },
+                "type": {
+                  "examples": [
+                    "conversation"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "id"
+              ],
+              "type": "object"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "things"
+        ],
+        "type": "object"
+      },
+      "name": "state_get",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "state.layout.get",
+      "deferred": true,
+      "description": "How I arranged my screens: my layout values (all, or the named keys). A small value for each registered key, mine alone",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "name": "state_layout_get",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "state.layout.set",
+      "deferred": true,
+      "description": "Set one layout value, or clear it with null. Only registered keys, each with a small size limit; it is never a place for content",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "key": {
+            "examples": [
+              "chats.sidebar.folds"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "description": "Any JSON value"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ],
+        "type": "object"
+      },
+      "name": "state_layout_set",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "state.list",
+      "deferred": true,
+      "description": "My things by what I did with them: starred, following, done, unread, muted, pinned (in my own order) or any (everything I have set on anything: one read paints a whole screen). Each row carries the thing's whole state",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "flag": {
+            "enum": [
+              "starred",
+              "following",
+              "done",
+              "unread",
+              "muted",
+              "pinned",
+              "any"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "scope": {
+            "description": "A badge: `mailbox:<id>`, `number:<id>`, `chats`, `threads` or `notices:<place>`",
+            "examples": [
+              "mailbox:mbx_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "flag"
+        ],
+        "type": "object"
+      },
+      "name": "state_list",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "state.read",
+      "deferred": true,
+      "description": "Mark a thing read up to a position, mark it unread, or mark it unread from a position. Give exactly one of upto, unread, fromPos",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fromPos": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "thing": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "cnv_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "examples": [
+                  "conversation"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          },
+          "unread": {
+            "const": true,
+            "type": "boolean"
+          },
+          "upto": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "thing"
+        ],
+        "type": "object"
+      },
+      "name": "state_read",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "state.read_scope",
+      "deferred": true,
+      "description": "Mark everything in one badge read, or only what arrived before a time",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "before": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "scope": {
+            "description": "A badge: `mailbox:<id>`, `number:<id>`, `chats`, `threads` or `notices:<place>`",
+            "examples": [
+              "mailbox:mbx_a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope"
+        ],
+        "type": "object"
+      },
+      "name": "state_read_scope",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "state.set",
+      "deferred": true,
+      "description": "Mark a thing done or open again, star it, follow or leave it, set Alert me on replies, mute it, or pin it (`pin: {}` puts it last among my pins of this kind, `{ after: null }` first, `{ after: thing }` right below that pin; `pin: null` takes it off). Give at least one",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "alert": {
+            "type": "boolean"
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "follow": {
+            "anyOf": [
+              {
+                "enum": [
+                  "following",
+                  "left"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mute": {
+            "anyOf": [
+              {
+                "properties": {
+                  "until": {
+                    "description": "Milliseconds since the Unix epoch",
+                    "examples": [
+                      1760000000000
+                    ],
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "until"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pin": {
+            "anyOf": [
+              {
+                "properties": {
+                  "after": {
+                    "anyOf": [
+                      {
+                        "properties": {
+                          "id": {
+                            "examples": [
+                              "cnv_a1b2c3"
+                            ],
+                            "type": "string"
+                          },
+                          "type": {
+                            "examples": [
+                              "conversation"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "id"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "star": {
+            "type": "boolean"
+          },
+          "thing": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "cnv_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "examples": [
+                  "conversation"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "thing"
+        ],
+        "type": "object"
+      },
+      "name": "state_set",
       "planMode": "blocked",
       "toolset": "meta",
       "v": 1

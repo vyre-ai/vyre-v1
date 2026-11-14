@@ -79,6 +79,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.stop_all": async () => ({"stopped":1} as unknown) as never,
   "engine.subscription_share.set": async () => ({"enabled":true,"sandboxStopped":true} as unknown) as never,
   "engine.switch": async () => ({"engine":"example","handoffTurns":1,"model":"example","quietLine":"Switched to Codex, picked up from the summary and the last 20 turns"} as unknown) as never,
+  "engine.thread_states": async () => ({"states":[{"failedLine":"example","state":"running","threadId":"thr_a1b2c3"}]} as unknown) as never,
   "engine.time_convert": async () => ({"given":"example","inYourZone":"example","instant":"example","note":"example","personZone":"example","zones":[{"text":"example","zone":"example"}]} as unknown) as never,
   "engine.turn.append": async () => ({"idx":1} as unknown) as never,
   "engine.turn.asked_by": async () => ({"askedBy":{"at":1760000000000,"messageIds":["msg_a1b2c3"],"person":"usr_a1b2c3"},"kind":"message","routine":true} as unknown) as never,
