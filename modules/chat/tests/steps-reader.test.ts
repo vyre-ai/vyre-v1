@@ -43,3 +43,14 @@ test("a reader who is not named as the one who paid is served the plain steps to
   const noPayer = { ...reply, paidBy: undefined } as unknown as MessageRec;
   assert.equal(JSON.stringify(messageOut(noPayer, 0, "usr_alice")).includes("alice-private-notes"), false);
 });
+
+test("a failed turn's status names the account that failed to the asker only; others read that it failed and why", () => {
+  const failed = {
+    ...reply,
+    blocks: [{ type: "turn_status", v: 1, id: "s1", data: { state: "failed", code: "engine.signin_missing", account: "Alice_Claude", program: "claude" } }],
+  } as unknown as MessageRec;
+  assert.equal(JSON.stringify(messageOut(failed, 0, "usr_alice")).includes("Alice_Claude"), true, "the asker's button opens that account");
+  const other = JSON.stringify(messageOut(failed, 0, "usr_bob"));
+  assert.equal(other.includes("Alice_Claude"), false);
+  assert.equal(other.includes("engine.signin_missing"), true, "the plain reason stays");
+});

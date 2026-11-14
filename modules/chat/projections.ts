@@ -604,6 +604,11 @@ export function messageBy(db: Db, id: string): MessageRec | null {
 export function stepsFor(blocks: MessageRec["blocks"], mayDetail: boolean): MessageRec["blocks"] {
   if (mayDetail) return blocks;
   return blocks.map((b) => {
+    if (b["type"] === "turn_status") {
+      // the account that failed is the asker's: its Vault handle goes to them alone; the others still read that it failed and why
+      const { account: _a, ...rest } = ((b["data"] ?? {}) as Record<string, unknown>);
+      return { ...b, data: rest };
+    }
     if (b["type"] !== "tool_call" && b["type"] !== "tool_result") return b;
     const d = (b["data"] ?? {}) as Record<string, unknown>;
     const name = typeof d["name"] === "string" ? d["name"] : "";
