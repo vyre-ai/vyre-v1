@@ -4,7 +4,7 @@ import { oneLine } from "../../../lib/plain-words.ts";
 import { ensure } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 import { liveTurns } from "./bridge.ts";
-import { stop } from "./control.ts";
+import { stopRunning } from "./control.ts";
 
 type Row = Record<string, unknown>;
 const num = (v: unknown): number => Number(v ?? 0);
@@ -191,7 +191,8 @@ export async function helpersStatus(ctx: EngineCtx, input: { threadId: string })
 export async function helpersStopAll(ctx: EngineCtx, input: { threadId: string }): Promise<{ stopped: number }> {
   const { helpers } = await helpersStatus(ctx, input);
   let stopped = 0;
-  for (const h of helpers) if (h.state === "working") stopped += (await stop(ctx, { threadId: h.threadId })).stopped;
+  for (const h of helpers)
+    if (h.state === "working") stopped += (await stopRunning(ctx, { threadId: h.threadId })).stopped;
   return { stopped };
 }
 
@@ -209,7 +210,7 @@ export async function helpersChangeModel(
   );
   if (!before) throw new Error("That helper does not belong to this chat.");
   // the old turn ends first, so the new one is the only one running; a stopped turn reports nothing to the chat above
-  await stop(ctx, { threadId: input.helperId }).catch(() => ({ stopped: 0 }));
+  await stopRunning(ctx, { threadId: input.helperId }).catch(() => ({ stopped: 0 }));
   const out = (await ctx.call("chat.helper.restart", {
     threadId: input.threadId,
     helperId: input.helperId,

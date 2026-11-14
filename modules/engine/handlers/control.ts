@@ -6,7 +6,7 @@
 import { recallPick, rememberPick } from "../last-pick.ts";
 import { probePick } from "./extra/models.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
-import type { EngineAgent, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
+import type { EngineAgent, StoppedBy, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
 import { noteHandoff } from "../context.ts";
 import { engineThreadOf } from "../thread-open.ts";
 import type { ThreadGet } from "../thread-open.ts";
@@ -168,7 +168,8 @@ export async function interrupt(
   const engine = await open(ctx, input.threadId);
   let r;
   try {
-    r = await engine.interrupt(input.threadId, input.messageId);
+    const reach = stopReach(ctx, undefined, true);
+    r = await engine.interrupt(input.threadId, input.messageId, stopperOf(ctx), reach.askedBy, reach.ownOnly);
   } catch (e) {
     if (e instanceof RangeError)
       raise(ctx, "validation.not_found", "There is no such message in this conversation.", {
@@ -200,15 +201,72 @@ export async function interrupt(
   return { queued: r.queued };
 }
 
+/**
+ * Whose turns a Stop may reach (lead ruling, 14 Nov 2026). A member of the chat may stop any agent's turn in it: a shared brake, and the event records who pressed it. A guest (no View on the Space)
+ * may stop only a turn they asked for, and their Stop all stops only their own turns. An agent may stop its own turn; another agent's turn only when the person it acts for could, so an agent
+ * working for a guest reaches only that guest's turns. An agent that names nobody stops itself.
+ */
+/** Who presses: an agent, a guest (no View on the Space) or a person. Said on the stopped turn, so the chat can name them. */
+function stopperOf(ctx: EngineCtx): StoppedBy {
+  if (ctx.principal.kind === "agent") return { id: ctx.principal.id, kind: "agent" };
+  const guest = ctx.authorize({ perm: null, level: "view" }, { type: "space", id: ctx.space }).effect !== "allow";
+  return { id: actorOf(ctx), kind: guest ? "guest" : "person" };
+}
+
+/** Is this thread a helper that the calling agent started (its parent chat's helper line was posted by this agent)? Read from the helper's recorded parent, never from sharing a thread. */
+async function ownsHelper(ctx: EngineCtx, threadId: string): Promise<boolean> {
+  if (ctx.principal.kind !== "agent") return false;
+  try {
+    const t = (
+      (await ctx.call("threads.get", { threadId })) as {
+        thread?: { kind?: string; parentThreadId?: string; parentMessageId?: string };
+      }
+    ).thread;
+    if (t?.kind !== "helper" || t.parentThreadId === undefined || t.parentMessageId === undefined) return false;
+    const m = (
+      (await ctx.call("chat.message.get", { threadId: t.parentThreadId, messageId: t.parentMessageId })) as {
+        message?: { author?: { kind?: string; id?: string } };
+      }
+    ).message;
+    return m?.author?.kind === "agent" && m.author.id === ctx.principal.id;
+  } catch {
+    return false;
+  }
+}
+
+function stopReach(
+  ctx: EngineCtx,
+  agentId: string | undefined,
+  all: boolean,
+  anyAgent = false,
+  ownHelper = false,
+): { agentId?: string; askedBy?: string; none?: true; ownOnly?: string } {
+  const self = ctx.principal.kind === "agent" ? ctx.principal.id : undefined;
+  // an agent with no person behind it (a routine's or an Automation's turn) reaches only its own turn, whatever its role could see
+  if (self !== undefined && ctx.actingFor === undefined) {
+    if (ownHelper) return { ...(agentId === undefined ? {} : { agentId }) }; // the helper it started: every turn in that thread
+    if (!all && agentId !== undefined && agentId !== self) return { none: true };
+    return { agentId: self, ownOnly: self };
+  }
+  const target = all ? undefined : (agentId ?? (anyAgent ? undefined : self));
+  if (!all && self !== undefined && target === self) return { agentId: self }; // its own turn, whoever asked it
+  const guest = ctx.authorize({ perm: null, level: "view" }, { type: "space", id: ctx.space }).effect !== "allow";
+  return { ...(target === undefined ? {} : { agentId: target }), ...(guest ? { askedBy: actorOf(ctx) } : {}) };
+}
+
 async function stopWith(
   ctx: EngineCtx,
   threadId: string,
-  o: { agentId?: string; all: boolean; reason?: "update" },
+  o: { agentId?: string; all: boolean; reason?: "update"; anyAgent?: boolean },
 ): Promise<{ stopped: number }> {
   const engine = await open(ctx, threadId);
+  const own = ctx.principal.kind === "agent" && ctx.actingFor === undefined ? await ownsHelper(ctx, threadId) : false;
+  const { none, ownOnly, ...reach } = stopReach(ctx, o.agentId, o.all, o.anyAgent === true, own);
+  if (none) return { stopped: 0 }; // the same answer as nothing running
   const r = await engine.stop(threadId, {
-    ...(o.agentId === undefined ? {} : { agentId: o.agentId }),
-    clearQueue: o.all,
+    ...reach,
+    ...(o.reason ? {} : { by: stopperOf(ctx) }), // an app stopping its turns for an update is the system's
+    clearQueue: o.all && ownOnly === undefined, // Stop all from an agent with no person behind it stops that agent only
     ...(o.reason ? { reason: o.reason } : {}),
   });
   const by = actorOf(ctx);
@@ -224,6 +282,10 @@ async function stopWith(
 /** Stop one agent working in a thread (its running turn, its queued turns and its parked turns). Without an agent, the turn that is running. */
 export const stop = (ctx: EngineCtx, input: { threadId: string; agentId?: string }): Promise<{ stopped: number }> =>
   stopWith(ctx, input.threadId, { ...(input.agentId === undefined ? {} : { agentId: input.agentId }), all: false });
+
+/** Stop whatever runs in a thread whose agents are not named by the caller (a helper's own thread): the person rule decides whose turns it reaches. */
+export const stopRunning = (ctx: EngineCtx, input: { threadId: string }): Promise<{ stopped: number }> =>
+  stopWith(ctx, input.threadId, { all: false, anyAgent: true });
 
 /** Stop every agent working in the thread: the running turn, everything queued, everything parked. */
 export const stopAll = (ctx: EngineCtx, input: { threadId: string; reason?: "update" }): Promise<{ stopped: number }> =>

@@ -2,7 +2,7 @@
 //   engine.turn.enqueue/start/append/wait/finish/fallback, engine.turn.get, engine.turns.list, engine.turn.retry.
 // The worker in @vyre/agent calls these through invoke, so every turn event has an owning capability and a trace id. Each turn is one engine_turns row;
 // queue rows stay in engine_thread_queue (shared with the in-process engine). A write that repeats (same queue row, same outcome) answers with the first result.
-import { nodeOfTurn, whereOfTurn } from "../../node-turns.ts";
+import { nodeOfTurn, setTurnStop, stopOfTurn, whereOfTurn } from "../../node-turns.ts";
 import { REFUSAL_WORDS, egressOfTurn } from "../../egress-log.ts";
 import { engines } from "../../engine-install.ts";
 import { PRIORITY_INTERRUPT } from "../../../../agent/src/turn-engine/queue.ts";
@@ -32,8 +32,10 @@ function withNode(ctx: EngineCtx, r: Row): Row {
     name: w.name,
     ...(w.note ? { note: w.note } : {}),
   }));
+  const stopped = stopOfTurn(ctx.db, str(r["turn_id"]));
   return {
     ...r,
+    ...(stopped ? { stopped_by: stopped } : {}),
     ...(node === undefined || node.startsWith("device:") ? {} : { node_id: node }),
     ...(ran.length > 0 ? { ran_on: ran } : {}),
   };
@@ -421,6 +423,7 @@ export async function turnRecord(
     costMicros?: number;
     code?: string;
     message?: string;
+    stoppedBy?: { id: string; kind: "person" | "guest" | "agent" | "system" };
     info?: TurnInfo;
   },
 ): Promise<{ turn: TurnOut }> {
@@ -559,6 +562,7 @@ export async function turnRecord(
       message: error?.message ?? "The turn failed.",
     });
   } else {
+    if (input.stoppedBy) setTurnStop(ctx.db, input.turnId, input.stoppedBy);
     ctx.emit("turn.cancelled", threadId, {
       turnId: input.turnId,
       threadId,

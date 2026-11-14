@@ -38,6 +38,7 @@ import type {
   AccountQuery,
   ModelQuery,
   ResolvedAccount,
+  StoppedBy,
 } from "./types.ts";
 import type { RoutePolicy, RouteMention } from "../../../lib/route.ts";
 
@@ -225,14 +226,20 @@ interface Running {
   cancelled: boolean;
   lostLease: boolean;
   /** why it was cancelled, said in the chat */ why?: string;
+  /** who stopped it, said in the chat */ by?: StoppedBy;
 }
+/** Why a turn ends that nobody pressed: the engine's own doing, said as the system. */
+const SYSTEM_WHY: ReadonlySet<string> = new Set(["lease", "closing", "limit", "update", "left", "moved"]);
 /** Agent-to-agent hand-offs that may follow one person's message, and how many times one pair may pass it between them. */
 const MENTION_HOPS = 3;
 const MAX_PAIR_PASSES = 2;
 interface Starting {
   agentId: string;
   qseq: number;
+  /** the person whose message this turn answers */
+  from?: string;
   stop?: string;
+  by?: StoppedBy;
 }
 interface ThreadState {
   thread: OpenThread;
@@ -241,6 +248,10 @@ interface ThreadState {
   running: Map<string, Running>;
   worker: Promise<void> | null;
   active: boolean;
+  /** While a "stop and send" is dispatched: it cancels only the turns this person asked for (a guest's). Unset: every turn. */
+  reach?: string;
+  /** The same, for an agent with no person behind it: only this agent's own turn. */
+  reachAgent?: string;
   /** Turns taken off the queue that are not running yet (admit and the account are being read), one per agent. A Stop pressed now marks that agent's (`stop`), answers at once, and the turn ends
    *  cancelled the moment it starts, instead of the Stop missing it. The mark belongs to this one turn: the next turn has a starting of its own. */
   starting: Map<string, Starting>;
@@ -301,9 +312,12 @@ export interface TurnEngine {
   stop(
     threadId: string,
     opts?: {
+      /** who pressed it, said in the chat on the stopped turn */ by?: StoppedBy;
       agentId?: string;
       clearQueue?: boolean;
       /** why, in a word the chat turns into a sentence: stop (a person pressed Stop), limit, left, moved */ reason?: string;
+      /** reach only the turns this person asked for (running, starting, queued and parked): a guest's Stop */
+      askedBy?: string;
     },
   ): Promise<StopResult>;
   /** Take a message that is waiting in the queue out of it (it stays in the chat; the agent will not answer it). Returns how many queued rows were cancelled: 0 when it is not waiting, as when its turn has started. */
@@ -312,9 +326,20 @@ export interface TurnEngine {
    * Stop one turn by its queue row (a routine's Run stopped by its owner): queued, the row is cancelled; starting or running, it is stopped and its row marked stopping before this answers.
    * Answers what it found, or null when that row is not waiting or running here.
    */
-  stopTurn(threadId: string, qseq: number, reason?: string): Promise<"queued" | "starting" | "running" | null>;
+  stopTurn(
+    threadId: string,
+    qseq: number,
+    reason?: string,
+    by?: StoppedBy,
+  ): Promise<"queued" | "starting" | "running" | null>;
   /** "Stop and send" for a message that is already stored: cancel the running turn and queue the responders first. Without a message it only cancels. */
-  interrupt(threadId: string, messageId?: string): Promise<InterruptResult>;
+  interrupt(
+    threadId: string,
+    messageId?: string,
+    by?: StoppedBy,
+    askedBy?: string,
+    onlyAgent?: string,
+  ): Promise<InterruptResult>;
   /** A held tool call was answered (approved or denied): queue the wake that continues the parked turn. Null when the task is unknown or already answered. */
   resume(taskId: string, outcome: ResumeOutcome): number | null;
   /** A question the turn parked on was answered or withdrawn: the wait is over. The answer itself wakes the agent as a message (chat tellAgent), so nothing is queued here. False when no turn waits on it. */
@@ -652,7 +677,15 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     );
     if (poke) for (const q of qseqs) pokeRows.add(`${st.thread.id}:${q}`);
     // "Stop and send" stops what runs in the chat now, every agent's turn, and runs the new message first
-    if (interrupt) for (const run of [...st.running.values()]) void cancelRunning(st, run, "interrupt");
+    const presser: StoppedBy | undefined =
+      msg.author.kind === "person" ? { id: msg.author.id, kind: "person" } : undefined;
+    if (interrupt)
+      for (const run of [...st.running.values()])
+        if (
+          (st.reach === undefined || run.asker === st.reach) &&
+          (st.reachAgent === undefined || run.agentId === st.reachAgent)
+        )
+          void cancelRunning(st, run, "interrupt", presser);
     if (qseqs.length > 0) kick(st);
     return { responders, reason: r.reason, qseqs, messageId: msg.id, ...(chain && qseqs.length > 0 ? { chain } : {}) };
   }
@@ -762,8 +795,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     return out;
   }
 
-  async function cancelRunning(st: ThreadState, run: Running, why: string): Promise<void> {
+  async function cancelRunning(st: ThreadState, run: Running, why: string, by?: StoppedBy): Promise<void> {
     if (run.cancelled) return;
+    if (by) run.by = by;
     run.cancelled = true;
     run.why = why;
     // durable before anything answers: a restart before this turn has wound down finds its row stopping and closes it, rather than running it again (recover). A lost lease is not ours to write.
@@ -867,7 +901,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
 
   /** Start one turn and do not wait for it: when it ends the scheduler is woken (it may be the agent's next queued turn that can start now). */
   function launch(st: ThreadState, item: QueueItem): void {
-    const starting: Starting = { agentId: item.agentId, qseq: item.qseq };
+    const starting: Starting = { agentId: item.agentId, qseq: item.qseq, from: item.from };
     st.starting.set(item.agentId, starting);
     st.launched.add(item.agentId);
     // the chat as it is now is what this turn reads (not what other agents post while it starts): turns taken off the queue in one pass all see the same chat
@@ -1064,6 +1098,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       if (s0?.stop !== undefined) {
         run.cancelled = true;
         run.why = s0.stop;
+        if (s0.by) run.by = s0.by;
       }
     }
     leases.setTurn(st.thread.id, opts.holder, turn.id);
@@ -1668,6 +1703,12 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         turnId: turn.id,
         agentId: turn.agentId,
         ...(run.why ? { reason: run.why } : {}),
+        ...((): { stoppedBy?: StoppedBy } => {
+          const who =
+            run.by ??
+            (run.why !== undefined && SYSTEM_WHY.has(run.why) ? { id: "system", kind: "system" as const } : undefined);
+          return who ? { stoppedBy: who } : {};
+        })(),
       });
     else {
       const code = turn.error?.code ?? "engine_error";
@@ -1796,29 +1837,45 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     async stop(threadId, o) {
       const st = need(threadId);
       const only = o?.agentId;
+      // a Stop that may reach only the turns one person asked for (a guest's): every kind of turn is filtered by who asked it
+      const by = o?.askedBy;
+      const mineOnly = (who: string | undefined): boolean => by === undefined || who === by;
       // pressed in the moment between the queue and the run (the account is being read): mark that turn, so it ends cancelled as it starts. The press answers at once (lead, 12 Nov: a Stop under load)
       const early: Starting[] = [...st.starting.values()].filter(
-        (x) => !st.running.has(x.agentId) && (only === undefined || x.agentId === only),
+        (x) => !st.running.has(x.agentId) && (only === undefined || x.agentId === only) && mineOnly(x.from),
       );
       for (const x of early) {
         x.stop = o?.reason ?? "stop";
+        if (o?.by) x.by = o.by;
         // kept in the queue too, not only in memory, before the press answers: a restart before this turn starts must not hand it out again (recover requeues rows still marked running;
         // review F3). Stopping, not cancelled: the next host closes it as cancelled and says so in the chat once (recover).
         markStopping(threadId, x.qseq, x.stop);
       }
       const everything = o?.clearQueue === true;
       // one agent's Stop stops that agent's turn only; without an agent it stops every turn of the chat (agents asked together run together)
-      const hit = [...st.running.values()].filter((r) => !r.cancelled && (only === undefined || r.agentId === only));
-      const dropped = everything
-        ? queue.cancelQueued(threadId)
-        : only !== undefined
-          ? queue.cancelQueued(threadId, only)
-          : [];
+      const hit = [...st.running.values()].filter(
+        (r) => !r.cancelled && (only === undefined || r.agentId === only) && mineOnly(r.asker),
+      );
+      let dropped: QueueItem[] = [];
+      if (by !== undefined) {
+        if (everything || only !== undefined)
+          for (const r of queue.list(threadId))
+            if (r.state === "queued" && r.from === by && (only === undefined || r.agentId === only)) {
+              queue.setState(threadId, r.qseq, "cancelled");
+              dropped.push({ ...r, state: "cancelled" });
+            }
+      } else
+        dropped = everything
+          ? queue.cancelQueued(threadId)
+          : only !== undefined
+            ? queue.cancelQueued(threadId, only)
+            : [];
       const stopped = hit.map((r) => ({ turnId: r.turnId, agentId: r.agentId }));
       const released: StopResult["released"] = [];
       if (everything || only !== undefined) {
         for (const w of waits.open(threadId)) {
           if (only !== undefined && w.agentId !== only) continue;
+          if (!mineOnly(w.asker)) continue;
           waits.remove(w.taskId);
           const row = turnRows.find((t) => t.id === w.turnId);
           if (row && row.state === "waiting") {
@@ -1828,24 +1885,25 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           released.push({ turnId: w.turnId, agentId: w.agentId, taskId: w.taskId });
         }
       }
-      await Promise.all(hit.map((r) => cancelRunning(st, r, o?.reason ?? "stop")));
+      await Promise.all(hit.map((r) => cancelRunning(st, r, o?.reason ?? "stop", o?.by)));
       return { stopped, released, dropped, ...(early.length > 0 ? { starting: early.length } : {}) };
     },
     dropQueued(threadId, messageId) {
       need(threadId);
       return dropRows(threadId, messageId);
     },
-    async stopTurn(threadId, qseq, reason = "stop") {
+    async stopTurn(threadId, qseq, reason = "stop", by) {
       const st = need(threadId);
       const run = [...st.running.values()].find((r) => r.qseq === qseq);
       if (run) {
         if (run.cancelled) return "running";
-        await cancelRunning(st, run, reason);
+        await cancelRunning(st, run, reason, by);
         return "running";
       }
       const early = [...st.starting.values()].find((x) => x.qseq === qseq && !st.running.has(x.agentId));
       if (early) {
         early.stop = reason;
+        if (by) early.by = by;
         markStopping(threadId, qseq, reason);
         return "starting";
       }
@@ -1856,18 +1914,32 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       }
       return null;
     },
-    async interrupt(threadId, messageId) {
+    async interrupt(threadId, messageId, by, askedBy, onlyAgent) {
       const st = need(threadId);
-      const live = [...st.running.values()].filter((r) => !r.cancelled);
+      const live = [...st.running.values()].filter(
+        (r) =>
+          !r.cancelled &&
+          (askedBy === undefined || r.asker === askedBy) &&
+          (onlyAgent === undefined || r.agentId === onlyAgent),
+      );
       if (messageId === undefined) {
         // no message: stop and send nothing cancels every turn that runs
-        await Promise.all(live.map((r) => cancelRunning(st, r, "interrupt")));
+        await Promise.all(live.map((r) => cancelRunning(st, r, "interrupt", by)));
         return { cancelled: live.map((r) => ({ turnId: r.turnId, agentId: r.agentId })), queued: false, qseqs: [] };
       }
       const msg = findMessage(st, messageId);
       if (!msg || msg.threadId !== threadId) throw new RangeError(`no message ${messageId} in thread ${threadId}`);
       dropRows(threadId, messageId); // a message that is already waiting in the queue goes first, not twice
-      const r = dispatch(st, msg, true);
+      if (askedBy !== undefined) st.reach = askedBy;
+      if (onlyAgent !== undefined) st.reachAgent = onlyAgent;
+      let r: ReceiveResult;
+      try {
+        r = dispatch(st, msg, true);
+      } finally {
+        delete st.reach;
+        delete st.reachAgent;
+      }
+      if (by) for (const x of live) x.by = by; // the app knows a guest from a member; the engine only knows a person
       return {
         cancelled: live.map((x) => ({ turnId: x.turnId, agentId: x.agentId })),
         queued: r.qseqs.length > 0,

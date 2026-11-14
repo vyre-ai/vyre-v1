@@ -1,0 +1,302 @@
+// Whose turns a Stop reaches (lead ruling, 14 Nov 2026). A member stops any agent's turn in the chat; a guest (no View on the Space) only a turn they asked for, and their Stop all only their own; an
+// agent its own turn, and another's only when the person it acts for could. Real SQLite behind ctx.db, a fake provider that holds every turn, three people each asking one agent.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { interrupt, stop, stopAll } from "../handlers/control.ts";
+import { mintEngineId, sqlMessages } from "../projections.ts";
+import { turnGet, turnRecord } from "../handlers/extra/turns.ts";
+import { harness } from "../fixtures/harness.ts";
+import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
+import { gate, until } from "../../../agent/src/turn-engine/harness.ts";
+import type { EngineCtx } from "../projections.ts";
+
+const THREAD = "thr_reach";
+const NO_BEAT = (): (() => void) => () => {};
+const person = (id: string) => ({ kind: "person" as const, id });
+const ask = (a: string) => [{ kind: "agent" as const, id: a }];
+const INTAKE = "agt_intake"; // Dana's
+const DOCS = "agt_docs"; // Sam's
+const BILLING = "agt_billing"; // Gus's, the guest
+
+/** Three agents, each holding a turn for the person who asked it. */
+async function world() {
+  const h = harness({
+    threads: [
+      {
+        threadId: THREAD,
+        kind: "chat",
+        starter: "usr_dana",
+        agents: [
+          { agentId: INTAKE, mode: "lead", model: "claude-sonnet-5-5" },
+          { agentId: DOCS, mode: "listen" },
+          { agentId: BILLING, mode: "listen" },
+        ],
+      },
+    ],
+  });
+  const hold = gate();
+  const p = scriptedProvider({
+    script: [{ type: "text", text: "Done." }, { type: "done" }],
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
+  const engine = h.runtime({ openSession: p.openSession, schedule: NO_BEAT });
+  engine.openThread({
+    id: THREAD,
+    kind: "chat",
+    starter: "usr_dana",
+    agents: [
+      { id: INTAKE, mode: "lead", model: "claude-sonnet-5-5" },
+      { id: DOCS, mode: "listen" },
+      { id: BILLING, mode: "listen" },
+    ],
+  });
+  engine.receive({ threadId: THREAD, author: person("usr_dana"), body: "one" });
+  engine.receive({ threadId: THREAD, author: person("usr_sam"), mentions: ask(DOCS), body: "two" });
+  engine.receive({ threadId: THREAD, author: person("usr_gus"), mentions: ask(BILLING), body: "three" });
+  await until(() => engine.turns(THREAD).filter((t) => t.state === "running").length === 3);
+  const running = (): string[] =>
+    engine
+      .turns(THREAD)
+      .filter((t) => t.state === "running")
+      .map((t) => t.agentId)
+      .sort();
+  const as = (who: string, guest: boolean, agent?: string): EngineCtx => {
+    h.setManager(!guest);
+    return agent
+      ? { ...h.ctx, principal: { kind: "agent", id: agent }, actingFor: who }
+      : { ...h.ctx, principal: { kind: "person", id: who } };
+  };
+  /** The agents with a running turn, once the stopped ones have wound down. */
+  const runningIs = async (want: string[]): Promise<void> => {
+    await until(() => JSON.stringify(running()) === JSON.stringify([...want].sort()));
+  };
+  return { h, engine, hold, running, runningIs, as };
+}
+
+test("a member stops any agent's turn in the chat", async () => {
+  const w = await world();
+  const out = await stop(w.as("usr_sam", false), { threadId: THREAD, agentId: INTAKE });
+  assert.equal(out.stopped, 1);
+  await w.runningIs([BILLING, DOCS]);
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});
+
+test("a guest stops the turn they asked for and not another person's", async () => {
+  const w = await world();
+  const g = w.as("usr_gus", true);
+  assert.equal((await stop(g, { threadId: THREAD, agentId: INTAKE })).stopped, 0, "Dana's agent is out of reach");
+  assert.equal((await stop(g, { threadId: THREAD, agentId: DOCS })).stopped, 0, "so is Sam's");
+  await w.runningIs([BILLING, DOCS, INTAKE]);
+  assert.equal((await stop(g, { threadId: THREAD, agentId: BILLING })).stopped, 1, "their own turn stops");
+  await w.runningIs([DOCS, INTAKE]);
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});
+
+test("a guest's Stop all stops only their own turns, and a member's stops everything", async () => {
+  const w = await world();
+  assert.equal((await stopAll(w.as("usr_gus", true), { threadId: THREAD })).stopped, 1);
+  await w.runningIs([DOCS, INTAKE]);
+  assert.equal((await stopAll(w.as("usr_sam", false), { threadId: THREAD })).stopped, 2);
+  await w.runningIs([]);
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});
+
+test("the Stop event names who pressed it", async () => {
+  const w = await world();
+  await stop(w.as("usr_sam", false), { threadId: THREAD, agentId: INTAKE });
+  const e = w.h.emitted.filter((x) => x.name === "turn.cancelled");
+  assert.deepEqual(
+    e.map((x) => [x.payload["agentId"], x.payload["by"]]),
+    [[INTAKE, "usr_sam"]],
+  );
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});
+
+test("an agent stops its own turn, and another's only as far as the person it acts for could", async () => {
+  const w = await world();
+  // Docs works for Gus, a guest: Dana's agent is out of reach, Gus's own turn is in reach, its own turn is always its to stop
+  const forGuest = w.as("usr_gus", true, DOCS);
+  assert.equal((await stop(forGuest, { threadId: THREAD, agentId: INTAKE })).stopped, 0);
+  assert.equal((await stop(forGuest, { threadId: THREAD, agentId: BILLING })).stopped, 1, "the guest's own turn");
+  assert.equal((await stop(forGuest, { threadId: THREAD, agentId: DOCS })).stopped, 1, "its own turn");
+  await w.runningIs([INTAKE]);
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});
+
+test("an agent acting for a member reaches any turn; naming nobody it stops itself; its Stop all follows the person", async () => {
+  const w = await world();
+  const forMember = w.as("usr_sam", false, DOCS);
+  assert.equal((await stop(forMember, { threadId: THREAD })).stopped, 1, "naming nobody stops itself");
+  await w.runningIs([BILLING, INTAKE]);
+  assert.equal(
+    (await stop(forMember, { threadId: THREAD, agentId: INTAKE })).stopped,
+    1,
+    "a member's agent stops another's",
+  );
+  assert.equal(
+    (await stopAll(w.as("usr_gus", true, BILLING), { threadId: THREAD })).stopped,
+    1,
+    "an agent for a guest: Stop all reaches the guest's turns only",
+  );
+  await w.runningIs([]);
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});
+
+test("the turn says who stopped it: a person, a guest or an agent, on the engine's event and in the turn's record", async () => {
+  const w = await world();
+  await stop(w.as("usr_sam", false), { threadId: THREAD, agentId: INTAKE });
+  await stop(w.as("usr_gus", true), { threadId: THREAD, agentId: BILLING });
+  await stop(w.as("usr_sam", false, DOCS), { threadId: THREAD, agentId: DOCS });
+  await w.runningIs([]);
+  const who = (a: string) => {
+    const e = w.engine.events(THREAD).find((x) => x.type === "turn.cancelled" && x.agentId === a);
+    return e && e.type === "turn.cancelled" ? e.stoppedBy : undefined;
+  };
+  assert.deepEqual(who(INTAKE), { id: "usr_sam", kind: "person" });
+  assert.deepEqual(who(BILLING), { id: "usr_gus", kind: "guest" });
+  assert.deepEqual(who(DOCS), { id: DOCS, kind: "agent" });
+  // recorded on the turn: engine.turn.record keeps it and engine.turn.get serves it
+  const t = w.engine.turns(THREAD).find((x) => x.agentId === INTAKE)!;
+  await turnRecord(w.h.ctx as never, {
+    threadId: THREAD,
+    turnId: t.id,
+    agentId: INTAKE,
+    phase: "cancelled",
+    qseq: t.qseq,
+    asker: t.asker,
+    stoppedBy: { id: "usr_sam", kind: "person" },
+  });
+  assert.deepEqual(turnGet(w.h.ctx as never, { turnId: t.id }).what.turn.stoppedBy, { id: "usr_sam", kind: "person" });
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});
+
+test("a guest's stop and send reaches only the turns they asked for; a member's reaches every turn", async () => {
+  const w = await world();
+  // no message: only a Stop
+  await interrupt(w.as("usr_gus", true), { threadId: THREAD });
+  await w.runningIs([DOCS, INTAKE]);
+  // a message that asks Dana's agent: the guest's own turn is cancelled, Dana's is not
+  const stored = sqlMessages(w.h.db).append({
+    id: mintEngineId("m"),
+    threadId: THREAD,
+    author: person("usr_gus"),
+    mentions: ask(INTAKE),
+    depth: 0,
+    body: "stop, use the new plan",
+  });
+  await interrupt(w.as("usr_gus", true), { threadId: THREAD, messageId: stored.id });
+  await w.runningIs([DOCS, INTAKE]);
+  await interrupt(w.as("usr_sam", false), { threadId: THREAD });
+  // every turn that ran was cancelled; Dana's agent then takes the guest's waiting message
+  await w.runningIs([INTAKE]);
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});
+
+test("an agent with no person behind it (a routine's or an Automation's turn) reaches only its own turn, for stop, Stop all and stop and send", async () => {
+  const w = await world();
+  const h = w.h;
+  h.setManager(true); // its role could see the whole Space
+  const routine: EngineCtx = { ...h.ctx, principal: { kind: "agent", id: DOCS } };
+  assert.equal(
+    (await stop(routine, { threadId: THREAD, agentId: INTAKE })).stopped,
+    0,
+    "another agent's turn is out of reach",
+  );
+  assert.equal((await stop(routine, { threadId: THREAD, agentId: BILLING })).stopped, 0, "so is a guest's");
+  await w.runningIs([BILLING, DOCS, INTAKE]);
+  await interrupt(routine, { threadId: THREAD });
+  await w.runningIs([BILLING, INTAKE]);
+  assert.equal(
+    (await stopAll(routine, { threadId: THREAD })).stopped,
+    0,
+    "Stop all from it reaches its own turn only, which has ended",
+  );
+  await w.runningIs([BILLING, INTAKE]);
+  const own: EngineCtx = { ...h.ctx, principal: { kind: "agent", id: INTAKE } };
+  assert.equal((await stopAll(own, { threadId: THREAD })).stopped, 1);
+  await w.runningIs([BILLING]);
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});
+
+test("a bare agent's Stop all drops only its own queued turns", async () => {
+  const w = await world();
+  w.engine.receive({ threadId: THREAD, author: person("usr_dana"), mentions: ask(INTAKE), body: "again" }); // waits behind Dana's running turn
+  w.engine.receive({ threadId: THREAD, author: person("usr_sam"), mentions: ask(DOCS), body: "again" }); // waits behind Sam's
+  const queued = (a: string) => w.engine.queue(THREAD).filter((r) => r.agentId === a && r.state === "queued").length;
+  assert.deepEqual([queued(INTAKE), queued(DOCS)], [1, 1]);
+  w.h.setManager(true);
+  const bare: EngineCtx = { ...w.h.ctx, principal: { kind: "agent", id: DOCS } };
+  await stopAll(bare, { threadId: THREAD });
+  assert.deepEqual([queued(INTAKE), queued(DOCS)], [1, 0], "only its own waiting turn is dropped");
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});
+
+test("a bare agent reaches the turns of a helper it started, found from the helper's recorded parent, and nothing else", async () => {
+  const w = await world();
+  w.h.setManager(true);
+  const lead = (starter: string): EngineCtx => ({
+    ...w.h.ctx,
+    principal: { kind: "agent", id: DOCS },
+    call: async (cap: string, input: unknown) =>
+      cap === "threads.get" && (input as { threadId?: string }).threadId === THREAD
+        ? { thread: { kind: "helper", parentThreadId: "thr_lead", parentMessageId: "msg_helper" } }
+        : cap === "chat.message.get"
+          ? { message: { author: { kind: "agent", id: starter } } }
+          : w.h.ctx.call(cap, input),
+  });
+  assert.equal(
+    (await stop(lead(INTAKE), { threadId: THREAD, agentId: INTAKE })).stopped,
+    0,
+    "a helper another agent started is out of reach",
+  );
+  await w.runningIs([BILLING, DOCS, INTAKE]);
+  assert.equal(
+    (await stop(lead(DOCS), { threadId: THREAD, agentId: INTAKE })).stopped,
+    1,
+    "its own helper's turn stops",
+  );
+  assert.equal(
+    (await stopAll(lead(DOCS), { threadId: THREAD })).stopped,
+    2,
+    "Stop all there stops every turn in its helper",
+  );
+  await w.runningIs([]);
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});
+
+test("a thread opened under a bare agent's own message is not its helper: it reaches only its own turn there", async () => {
+  const w = await world();
+  w.h.setManager(true);
+  const inline: EngineCtx = {
+    ...w.h.ctx,
+    principal: { kind: "agent", id: DOCS },
+    call: async (cap: string, input: unknown) =>
+      cap === "threads.get" && (input as { threadId?: string }).threadId === THREAD
+        ? { thread: { kind: "thread", parentThreadId: "thr_chat", parentMessageId: "msg_by_docs" } }
+        : cap === "chat.message.get"
+          ? { message: { author: { kind: "agent", id: DOCS } } }
+          : w.h.ctx.call(cap, input),
+  };
+  assert.equal(
+    (await stop(inline, { threadId: THREAD, agentId: INTAKE })).stopped,
+    0,
+    "other people's turns are out of reach",
+  );
+  assert.equal((await stopAll(inline, { threadId: THREAD })).stopped, 1, "only its own turn stops");
+  await w.runningIs([BILLING, INTAKE]);
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});

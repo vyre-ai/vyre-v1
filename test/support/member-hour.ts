@@ -198,10 +198,28 @@ export const model: OpenSession = async (spec) => {
     yield { type: "tool_call", id, name, input };
     return answer;
   }
+  // a line with HOLD keeps its turn running until a Stop cancels it (a walk about who may stop whose turn)
+  let letGo: () => void = () => undefined;
   return {
     warm: true,
     async *send(input: TurnInput): AsyncGenerator<DriverEvent> {
       const body = String(input.trigger?.body ?? "");
+      if (/\bHOLD\b/.test(body)) {
+        await new Promise<void>((resolve) => {
+          letGo = resolve;
+        });
+        return;
+      }
+      const stopIt = /\bSTOP (agt_[A-Za-z0-9]+)/.exec(body);
+      if (stopIt) {
+        const found = yield* run("tool_search", { query: "engine stop" });
+        const r = found.ok
+          ? yield* run("engine_stop", { threadId: String(input.threadId), agentId: stopIt[1] })
+          : found;
+        yield { type: "text", text: `RESULT ${JSON.stringify(r.content).slice(0, 300)}` };
+        yield { type: "done" };
+        return;
+      }
       if (/set up fathom/i.test(body)) {
         const r = yield* run("vault_request", {
           name: "Fathom",
@@ -266,8 +284,12 @@ export const model: OpenSession = async (spec) => {
       waiting.delete(id);
     },
     inject() {},
-    async cancel() {},
-    async close() {},
+    async cancel() {
+      letGo();
+    },
+    async close() {
+      letGo();
+    },
   } as EngineSession;
 };
 

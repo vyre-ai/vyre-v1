@@ -1324,6 +1324,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           : {}),
         // why a cancelled turn was stopped travels to the kernel event, so its readers can tell a person's Stop from a daemon stopping (reason closing): the terminal interrupts only the first
         ...(ev.type === "turn.cancelled" && typeof ev.reason === "string" ? { reason: ev.reason } : {}),
+        // who stopped it travels with it: the turn's record names them (engine.turn.get), as the chat's stopped line does
+        ...(ev.type === "turn.cancelled" && ev.stoppedBy ? { stoppedBy: ev.stoppedBy } : {}),
       };
       const done = (recording.get(turnId) ?? Promise.resolve())
         .then(() => h.call("engine.turn.record", input, turn.asker))
