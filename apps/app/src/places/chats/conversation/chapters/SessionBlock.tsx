@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { useSession } from "../../session/context.tsx";
 import { ranWords } from "../../session/model.ts";
 import type { SessionSummary } from "../../session/model.ts";
 
@@ -115,3 +116,18 @@ const st = StyleSheet.create({
   label: { fontSize: 13.5, color: "var(--ink-2)" as string },
   value: { fontSize: 13.5, color: "var(--ink)" as string },
 });
+
+/** The block as the Crew tab mounts it: one line there. The session's time and steps come from the chat's own summary (the session context), the context and plan from engine.usage.get. */
+export function SessionBlockMount({
+  call,
+  threadId,
+  agentId,
+}: {
+  call: Call | undefined;
+  threadId: string;
+  agentId: string;
+}): ReactElement | null {
+  const s = useSession();
+  const usage = useUsage(s ? call : undefined, threadId, agentId);
+  return s ? <SessionBlock summary={s.summary} usage={usage} /> : null;
+}

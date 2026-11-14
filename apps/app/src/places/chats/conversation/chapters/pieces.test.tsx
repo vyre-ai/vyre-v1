@@ -1,12 +1,14 @@
 // The pieces beside the chapters: the Session block (G63), the Kept tab (G62) and the /context card (G44), rendered with the real components.
 import test from "node:test";
+import { act, useEffect } from "react";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../../ui/src/testing/dom.ts";
 import { ContextCard, metersOf } from "./ContextCard.tsx";
 import { KeptTab } from "./KeptTab.tsx";
-import { NO_USAGE, SessionBlock, pct, sessionRows } from "./SessionBlock.tsx";
-import { notesOf, summaryOf } from "../../session/model.ts";
+import { NO_USAGE, SessionBlock, SessionBlockMount, pct, sessionRows } from "./SessionBlock.tsx";
+import { SessionProvider, useSession } from "../../session/context.tsx";
+import { NO_SESSION, notesOf, summaryOf } from "../../session/model.ts";
 import type { Message } from "../model.ts";
 
 installDom();
@@ -118,4 +120,38 @@ test("the context card shows the meters, opens a field with Keep this every time
   await flush();
   assert.deepEqual(calls, [["the lease questions", true]]);
   assert.equal(find(el, "context-keep"), null, "closed again after compacting");
+});
+
+test("the mount reads the chat's session and engine.usage.get, and draws nothing without a session", async () => {
+  const seen: string[] = [];
+  const call = async (cap: string): Promise<unknown> => {
+    seen.push(cap);
+    return { context: { used: 420_000, window: 1_000_000 }, week: { pct: 60.6 } };
+  };
+  const none = await mount(createRoot, <SessionBlockMount call={call} threadId="t" agentId="agt_a" />);
+  assert.equal(find(none, "session-block"), null);
+  const Publish = (): null => {
+    const s = useSession();
+    // the conversation publishes once it has loaded, after the provider has reset for the chat
+    useEffect(() => {
+      const t = setTimeout(() => s?.publish({ ...NO_SESSION, from: 0, to: 2 * HOUR, steps: 9 }), 0);
+      return () => clearTimeout(t);
+    }, [s]);
+    return null;
+  };
+  const el = await mount(
+    createRoot,
+    <SessionProvider threadId="t">
+      <Publish />
+      <SessionBlockMount call={call} threadId="t" agentId="agt_a" />
+    </SessionProvider>,
+  );
+  await act(async () => {
+    await flush();
+  });
+  assert.match(textOf(find(el, "session-time")), /2 h/);
+  assert.match(textOf(find(el, "session-steps")), /9/);
+  assert.match(textOf(find(el, "session-context")), /42%/);
+  assert.match(textOf(find(el, "session-plan")), /61%/);
+  assert.deepEqual(seen, ["engine.usage.get"]);
 });
