@@ -4,7 +4,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { ChatMemoryContext, useRead } from "./data.tsx";
+import { ChatMemoryContext, errorLine, useRead } from "./data.tsx";
 import type { ChatMemoryData } from "./data.tsx";
 import { messageOf, subjectIndex } from "./model.ts";
 import type { LearnedRow, LessonInfo, SubjectIndex, SubjectPage } from "./model.ts";
@@ -141,7 +141,19 @@ function WithMemory({
       },
       flash: (text, undo) => {
         counter.current += 1;
-        setFlash({ id: counter.current, text, ...(undo ? { undo } : {}) });
+        const id = counter.current;
+        // an Undo that fails says so (it used to fail silently, leaving the screen as if it had worked)
+        const safe = undo
+          ? async (): Promise<void> => {
+              try {
+                await undo();
+              } catch (e) {
+                counter.current += 1;
+                setFlash({ id: counter.current, text: errorLine(e, "Could not undo it") });
+              }
+            }
+          : undefined;
+        setFlash({ id, text, ...(safe ? { undo: safe } : {}) });
       },
     }),
     [memory, threadId, index, pages, current],

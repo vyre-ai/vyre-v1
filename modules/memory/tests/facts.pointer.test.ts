@@ -2,7 +2,7 @@
 // none for a short acknowledgement or a step in the middle of a tool loop, and fast on a big memory.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { pointer } from "../handlers/facts.ts";
+import { factsList, pointer } from "../handlers/facts.ts";
 import { contractErrors, DAY, harness, NOW, seedFact, seedNote } from "../fixtures/harness.ts";
 
 const base = { agentId: "agt_intake" };
@@ -176,11 +176,11 @@ test("another agent's layer and another person's layer stay out of the block", a
   );
 });
 
-test("lessons: the three newest of the agent's lessons for this person ride the first message of a chat whatever it says, once, and are not put in front of the agent again in that chat", async () => {
+test("lessons: as many as fit (newest first) ride the first message of a chat whatever it says, once; Knows says which are not sent", async () => {
   const h = harness();
-  for (let i = 1; i <= 5; i++)
+  for (let i = 1; i <= 14; i++)
     seedFact(h, {
-      id: `fct_les${i}`,
+      id: `fct_les${String(i).padStart(2, "0")}`,
       layer: "person",
       owner: "usr_dana",
       agentId: "agt_intake",
@@ -189,14 +189,23 @@ test("lessons: the three newest of the agent's lessons for this person ride the 
       text: `Lesson ${i}: show me the draft first, and keep notes to three lines with the number first.`,
     } as never);
   const first = await pointer(h.ctx, { ...base, threadId: "thr_a", text: "Please run a few commands in the terminal" });
+  const refs = first.lines.map((l) => l.ref);
+  assert.ok(refs.length > 3 && refs.length < 14, `more than three, not all: ${refs.length}`);
   assert.deepEqual(
-    first.lines.map((l) => l.ref),
-    ["fct_les1", "fct_les2", "fct_les3"],
-    "three, newest first, though the message is about something else",
+    refs,
+    Array.from({ length: refs.length }, (_, i) => `fct_les${String(i + 1).padStart(2, "0")}`),
+    "newest first",
   );
-  assert.ok(first.tokens > 0 && first.tokens <= 150, `about ${first.tokens} tokens for the three`);
+  assert.ok(first.tokens <= 350, `${first.tokens} tokens inside the 350 cap`);
+  const list = await factsList(h.ctx, { agentId: "agt_intake", kind: "lesson" });
+  const sent = list.facts.filter((f) => f.lesson?.sent === true).map((f) => f.factId);
+  assert.deepEqual(sent.sort(), [...refs].sort(), "what Knows says is sent is what was sent");
+  assert.ok(
+    list.facts.some((f) => f.lesson?.sent === false),
+    "the rest are said not to be sent",
+  );
   const second = await pointer(h.ctx, { ...base, threadId: "thr_a", text: "Now check the disk" });
   assert.deepEqual([second.lines.length, second.tokens, second.skipped], [0, 0, "duplicate"], "not again in this chat");
   const other = await pointer(h.ctx, { ...base, threadId: "thr_b", text: "Run it again please" });
-  assert.equal(other.lines.length, 3, "a new chat gets them again");
+  assert.equal(other.lines.length, refs.length, "a new chat gets them again");
 });
