@@ -1,3 +1,4 @@
+// @tsx
 // The line under a message that has a thread (audit Threads 3): read from the threads hanging off the chat, by the message each hangs off; how many, when the last came, bold while new.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -30,9 +31,9 @@ test("one line per message with a thread anyone wrote in; helpers and empty thre
   ]);
   assert.deepEqual(replyWords(m.get("msg_1")!, c), {
     count: "3 replies",
-    when: "Last reply 14:05",
+    when: "Last reply 2:05 PM",
     bold: true,
-    label: "3 replies, 2 new, Last reply 14:05",
+    label: "3 replies, 2 new, Last reply 2:05 PM",
   });
   assert.deepEqual(
     replyWords(m.get("msg_4")!, c),

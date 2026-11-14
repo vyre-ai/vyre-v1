@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Face } from "../needsyou/parts.tsx";
-import { chatWhen } from "../rightpane/model.ts";
+import { whenLabel } from "./model.ts";
 import type { Clock } from "../rightpane/model.ts";
 
 interface Parent {
@@ -68,7 +68,7 @@ export function ThreadParent({
           <Face name={parent.who} seedId={parent.whoId} kind={kindOf?.(parent.whoId) ?? "person"} size={24} />
         ) : null}
         {parent.who ? <Text style={st.who}>{parent.who}</Text> : null}
-        {parent.at !== undefined && clock ? <Text style={st.at}>{chatWhen(parent.at, clock)}</Text> : null}
+        {parent.at !== undefined && clock ? <Text style={st.at}>{whenLabel(parent.at, clock)}</Text> : null}
       </View>
       <Text style={st.body} numberOfLines={8}>
         {parent.body}

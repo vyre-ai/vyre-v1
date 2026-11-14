@@ -2,6 +2,7 @@
 // how they group into a timeline, how an agent's work folds into "Worked 14s · 3 steps", who leads and who listens, what a send does while an agent works (queue it, or
 // interrupt), and the optimistic message that shows in the same frame as the send.
 import { stepLabel } from "./activity.ts";
+import { chatWhen } from "../rightpane/model.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { dayIn, partsIn, titleOf as zoneTitle } from "../../../../../../lib/zones.ts";
 import type { Zones } from "../../../../../../lib/zones.ts";
@@ -100,6 +101,11 @@ export function clockParts(ts: number, c: Clock): { hour: number; minute: number
 export function timeLabel(ts: number, c: Clock): string {
   const { hour, minute } = clockParts(ts, c);
   return `${hour % 12 === 0 ? 12 : hour % 12}:${String(minute).padStart(2, "0")} ${hour < 12 ? "AM" : "PM"}`;
+}
+
+/** When something happened, in a chat: a time of day today, exactly as a message row says it (the one formatter above); an earlier day as "Yesterday", the weekday or the date (the same words as the lists). */
+export function whenLabel(ts: number, c: Clock): string {
+  return dayNumber(c.now, c) - dayNumber(ts, c) <= 0 ? timeLabel(ts, c) : chatWhen(ts, c);
 }
 
 export function dayLabel(ts: number, c: Clock): string {
