@@ -542,6 +542,14 @@ function ConversationView(): ReactElement {
     setAsides([]);
     for (const a of open) void act.dismissAside(data, a.id);
   }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a command card belongs to the chat it was asked in: leaving the chat closes it (and cleans up the side question), with the data of the chat that is being left
+  useEffect(
+    () => () => {
+      setCard(null);
+      closeAsides();
+    },
+    [data.threadId], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   // a press anywhere but the composer, the card or the notice closes the /btw card, as it does a command card
   const asideOpen = asides.length > 0;
   useEffect(() => {
@@ -567,7 +575,19 @@ function ConversationView(): ReactElement {
   const saidRef = useRef<string | null>(null);
   const speak = useCallback((text: string, action?: { label: string; run: () => void }) => {
     if (saidRef.current !== null) notices.resolve(saidRef.current);
-    const id = notices.pass(text, action, { ms: ACTION_NOTICE_MS });
+    // Undo and Retry fire once: a second press before the line has gone is ignored
+    let fired = false;
+    const once = action
+      ? {
+          label: action.label,
+          run: () => {
+            if (fired) return;
+            fired = true;
+            action.run();
+          },
+        }
+      : undefined;
+    const id = notices.pass(text, once, { ms: ACTION_NOTICE_MS });
     saidRef.current = id;
     setSaidId(id);
   }, []);
@@ -579,7 +599,7 @@ function ConversationView(): ReactElement {
     setSaidId(null);
   }, []);
   const saidLive = useNoticeLive(saidId);
-  useEscapeLayer(saidLive, unsay);
+  useEscapeLayer(saidLive, unsay, { quiet: true });
   useEffect(() => unsay, [unsay]);
   /** A rejected write: say what did not happen and that it can be tried again. The page keeps what it showed. */
   const fail =
