@@ -236,7 +236,7 @@ async function drawIn(ctx: VaultReqCtx, row: RequestRow): Promise<void> {
 export async function connectService(
   ctx: VaultReqCtx,
   input: { service: string; reason?: string; idempotencyKey: string },
-) {
+): Promise<{ status: Status; requestId?: string; tell: string }> {
   const trace = ctx.trace.traceId;
   const person = ctx.actingFor ?? (ctx.principal.kind === "person" ? ctx.principal.id : undefined);
   if (!person) raise(trace, "validation.bad_input", "Nobody is asking for this, so there is nobody to connect it for.");

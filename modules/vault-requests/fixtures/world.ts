@@ -140,15 +140,6 @@ export function world(over: Partial<Script> = {}) {
             fieldKeys: (i["fields"] as { key: string }[]).map((f) => f.key),
           },
         };
-      case "access.clears": {
-        if (!script.clears) throw new Error("no access.clears");
-        return {
-          clears: (i["resources"] as { id: string }[]).map((r) => ({
-            id: r.id,
-            clears: script.clears![r.id] === true,
-          })),
-        };
-      }
       case "vault.item.delete":
         return { ok: true };
       case "vault.items.list":

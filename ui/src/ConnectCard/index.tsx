@@ -3,7 +3,7 @@
 // (`work`) the fields lock and a line of steps shows after 300 ms (the container holds that delay): Checked, Connected, Saved.
 // Where it is kept is one quiet row, "Kept in Mine", that opens a menu (the container builds it). Every control is a real button reachable by pointer and keyboard. A typed value stays in the field's own state and in the one
 // call that submits it. Colours are skin tokens only.
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Card, CardActions, CardHead, s as cardStyles } from "../Card/index.tsx";
@@ -139,7 +139,6 @@ function SecretField({
 }): ReactElement {
   const [shown, setShown] = useState(false);
   const [focus, setFocus] = useState(false);
-  const input = useRef<TextInput | null>(null);
   const paste = async (): Promise<void> => {
     let text = "";
     try {
@@ -151,7 +150,6 @@ function SecretField({
       /* the browser kept the clipboard: the person pastes with the keyboard */
     }
     if (text) onChange(text.trim());
-    input.current?.focus?.();
   };
   const bad = error !== null;
   return (
@@ -175,7 +173,6 @@ function SecretField({
       </View>
       <View style={[st.inputRow, focus && st.inputFocus, bad && st.inputBad, locked && { opacity: 0.6 }]}>
         <TextInput
-          ref={input}
           testID={`${id}-input`}
           accessibilityLabel={field.label}
           value={value}
@@ -209,7 +206,6 @@ function SecretField({
           testID={`${id}-eye`}
           onPress={() => {
             setShown(!shown);
-            input.current?.focus?.();
           }}
           style={st.inlineBtn}
         >
