@@ -15,9 +15,46 @@ import { createSample } from "../../../apps/app/src/places/chats/conversation/sa
 
 export const title = "Chapters, pieces";
 
-export default function Mount(): ReactNode {
+/** two: the chat has two people in it, so the job line names nothing. */
+export function Pieces({ two }: { two: boolean }): ReactNode {
   const sample = useMemo(() => {
-    const s = createSample("idle");
+    const s = createSample("idle", {
+      title: "Launch plan",
+      ...(two
+        ? {
+            members: [
+              { kind: "person" as const, id: "usr_irfad" },
+              { kind: "person" as const, id: "usr_maya" },
+              { kind: "agent" as const, id: "agt_intake" },
+            ],
+          }
+        : {}),
+    });
+    // neutral words: the sample's own messages are replaced
+    s.replica.remove(
+      "messages",
+      s.replica.rows("messages").map((r) => String(r["id"])),
+    );
+    const said = (id: string, seq: number, who: "person" | "agent", body: string) => ({
+      id,
+      messageId: id,
+      threadId: "c1",
+      threadSeq: seq,
+      author:
+        who === "person" ? { kind: "person" as const, id: "usr_irfad" } : { kind: "agent" as const, id: "agt_intake" },
+      kind: who === "person" ? "text" : "agent",
+      body,
+      blocks: [],
+      depth: 0,
+      attachments: [],
+      reactions: [],
+      pinned: false,
+      createdAt: Date.UTC(2025, 9, 24, 11, 40 + seq),
+    });
+    s.replica.put("messages", [
+      said("n1", 1, "person", "Can you check that the build passes before the review?"),
+      said("n2", 2, "agent", "Yes. I will run the full suite and tell you what it says."),
+    ]);
     const rows = {
       status: "ready",
       data: {
@@ -117,4 +154,8 @@ export default function Mount(): ReactNode {
       </View>
     </View>
   );
+}
+
+export default function Mount(): ReactNode {
+  return <Pieces two={false} />;
 }

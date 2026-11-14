@@ -129,6 +129,15 @@ for (const skin of ["paper", "graphite"]) {
   await page.screenshot({ path: path.join(out, `real-${skin}-w1440-pieces-open.png`) });
   await ctx.close();
 }
+{
+  const ctx = await browser.newContext({ viewport: SIZES.w1440, deviceScaleFactor: 1, reducedMotion: "reduce" });
+  const page = await ctx.newPage();
+  await page.goto(routeUrl(real.origin, "/m/CHAPTERS_04", "paper"), { waitUntil: "load", timeout: 60000 });
+  await page.waitForSelector("[data-testid='context-card']", { timeout: 30000 });
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: path.join(out, "real-paper-w1440-pieces-two.png") });
+  await ctx.close();
+}
 await browser.close();
 real.close?.();
 process.exit(0);
