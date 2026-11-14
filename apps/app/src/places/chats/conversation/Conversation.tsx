@@ -60,7 +60,8 @@ import { ChatMemoryProvider } from "../memory/thread.tsx";
 import { keepItem, weave } from "../tasks/activity.ts";
 import { useMemoryEntries } from "../memory/menu.tsx";
 import { MessageView } from "./MessageView.tsx";
-import { QueueWaiting } from "./QueueWaiting.tsx";
+import { QueueWatch } from "./QueueWaiting.tsx";
+import { QueueLine } from "./queue-line.tsx";
 import { CatchUpLine } from "./catch-up.tsx";
 import { AsideList } from "./Aside.tsx";
 import type { AsideItem } from "./Aside.tsx";
@@ -777,6 +778,7 @@ function ConversationView(): ReactElement {
     return () => clearInterval(t);
   }, [notYet]);
   // the first message this window sent is on screen from the thread's own messages now: the held copy has done its job
+  const [stillQueued, setStillQueued] = useState<string[] | null>(null); // the sends the engine still holds: the note sits under the last of them
   const loaded = threadQ.status !== "loading" && messagesQ.status !== "loading";
   useEffect(() => {
     if (loaded) releasePending(data.threadId);
@@ -996,6 +998,7 @@ function ConversationView(): ReactElement {
   const lastStream = lastLive ? data.streamOf(lastLive.messageId) : undefined;
   const queued = queuedCount(timelineMessages, data.me.id, isWorking);
   const queuedIdsNow = queuedIds(timelineMessages, data.me.id, isWorking);
+  const stillQ = stillQueued === null ? queuedIdsNow : queuedIdsNow.filter((id) => stillQueued.includes(id));
   const leadDriver = entryOf(accounts, leadNow?.accountRef)?.provider;
   // only the person whose turn it is steers it; anyone else's message goes in after it (the engine holds to this; a turn picked up mid-way names nobody until its next start)
   const runningFor = liveTurns.find((t) => t.state === "writing" && t.agentId === leadNow?.agentId)?.asker;
@@ -1258,6 +1261,28 @@ function ConversationView(): ReactElement {
       ? `${l.text}|${l.button ?? ""}|${notHereBusy === m.messageId ? "busy" : ""}|${notHereError[m.messageId] ?? ""}`
       : undefined;
   };
+  // the note for a message still waiting for the agent's next step sits under that message (the last of them when several wait)
+  const queueUnder = (m: Message): ReactElement | null => {
+    const id = stillQ[stillQ.length - 1];
+    if (!q || id === undefined || m.messageId !== id) return null;
+    return (
+      <QueueLine
+        note={queueNote(stillQ.length, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn)}
+        onEdit={() => {
+          const words = timelineMessages.find((x) => x.messageId === id)?.body ?? "";
+          void act.takeBackQueued(data, thread.threadId, id).then((ok) => {
+            if (ok) {
+              setPending((cur) => cur.filter((p) => p.messageId !== id));
+              setSeed((sd) => ({ n: sd.n + 1, value: words }));
+            } else say("It was already read, so it cannot be edited now.");
+          }, fail("Could not take it back."));
+        }}
+        onSendNow={() =>
+          void act.sendQueuedNow(data, thread.threadId, stillQ[0]!).catch(fail("Could not send it now."))
+        }
+      />
+    );
+  };
   const notHereFor = (m: Message): ReactElement | null => {
     const line = notHereLineOf(m);
     if (!line) return null;
@@ -1330,7 +1355,7 @@ function ConversationView(): ReactElement {
     );
   };
   const actions: MessageActions = {
-    belowMine: notHereFor,
+    belowMine: (m) => notHereFor(m) ?? queueUnder(m),
     host,
     copy: (t) => {
       data.copy(t);
@@ -1957,7 +1982,11 @@ function ConversationView(): ReactElement {
                       meId={data.me.id}
                       stream={stream}
                       sending={sending}
-                      below={it.kind === "me" ? notHereSig(it.message) : undefined}
+                      below={
+                        it.kind === "me"
+                          ? `${notHereSig(it.message) ?? ""}${stillQ[stillQ.length - 1] === it.message.messageId ? `|queued${stillQ.length}${q}` : ""}`
+                          : undefined
+                      }
                       mark={markOf(it, matches, activeId, finding)}
                       replies={under ? { s: under, clock: data.clock() } : undefined}
                     />
@@ -2052,45 +2081,8 @@ function ConversationView(): ReactElement {
             }}
           />
         ) : null}
+        <QueueWatch ids={queuedIdsNow} call={data.call} threadId={thread.threadId} onChange={setStillQueued} />
         <AsideList items={asides} onDismiss={(id) => setAsides((cur) => cur.filter((x) => x.id !== id))} />
-        <QueueWaiting ids={queuedIdsNow} call={data.call} threadId={thread.threadId}>
-          {(waiting) =>
-            q && waiting.length > 0 ? (
-              <View testID="queue-row" style={st.queueRow}>
-                <Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>
-                  {queueNote(waiting.length, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn)}
-                </Text>
-                {waiting.length > 0 ? (
-                  <TextButton
-                    link
-                    label="Edit"
-                    testID="queue-edit"
-                    onPress={() => {
-                      const id = waiting[waiting.length - 1]!;
-                      const words = timelineMessages.find((m) => m.messageId === id)?.body ?? "";
-                      void act.takeBackQueued(data, thread.threadId, id).then((ok) => {
-                        if (ok) {
-                          setPending((cur) => cur.filter((p) => p.messageId !== id));
-                          setSeed((s) => ({ n: s.n + 1, value: words }));
-                        } else say("It was already read, so it cannot be edited now.");
-                      }, fail("Could not take it back."));
-                    }}
-                  />
-                ) : null}
-                {waiting.length > 0 ? (
-                  <TextButton
-                    link
-                    label="Stop and send"
-                    testID="queue-send-now"
-                    onPress={() =>
-                      void act.sendQueuedNow(data, thread.threadId, waiting[0]!).catch(fail("Could not send it now."))
-                    }
-                  />
-                ) : null}
-              </View>
-            ) : null
-          }
-        </QueueWaiting>
         {unanswered ? (
           <View testID="no-agent-line" style={st.lineBox}>
             <Pressable
@@ -2536,17 +2528,6 @@ const st = StyleSheet.create({
     backgroundColor: "var(--win)" as string,
   },
   toLatestText: { fontSize: 12.5, color: "var(--ink-2)" as string },
-  queueRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    justifyContent: "center",
-    columnGap: 10,
-    rowGap: 2,
-    paddingHorizontal: 24,
-    paddingVertical: 4,
-  },
-  queue: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
   lineBox: {
     paddingHorizontal: 24,
     paddingVertical: 4,

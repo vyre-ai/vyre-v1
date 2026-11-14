@@ -826,9 +826,9 @@ function Mine({
       {!editing && sending === undefined && actions.belowMine ? actions.belowMine(m) : null}
       {sending === "failed" ? (
         <View testID={`failed-${m.messageId}`} accessibilityRole="alert" style={st.failed}>
-          <Text style={st.failedText}>Not sent.</Text>
+          <Text style={st.failedText}>Not sent</Text>
           <TextButton
-            label="Retry"
+            label="Try again"
             onPress={() => actions.retrySend(m.messageId)}
             testID={`retry-send-${m.messageId}`}
           />

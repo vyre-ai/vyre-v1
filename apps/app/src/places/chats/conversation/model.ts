@@ -878,7 +878,7 @@ export function postInput(
 export function queueNote(n: number, leadName: string, steers = false, ownTurn = true): string {
   if (n <= 0) return "";
   if (!ownTurn) return "After this: it goes in when this turn ends";
-  if (steers) return "Goes in at the next step";
+  if (steers) return "At the next step";
   return `${n} ${n === 1 ? "message" : "messages"} queued for ${leadName || "the agent"}'s next step`;
 }
 
