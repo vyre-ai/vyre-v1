@@ -71,7 +71,7 @@ test(
     const db = new DatabaseSync(modules);
     try {
       db.prepare(
-        `INSERT INTO calendar_event (id, "calendarId", title, "startsAt", "endsAt", "allDay", attendees, "recordIds", status, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, 0, '[]', '[]', 'confirmed', 1, ?, 0)`,
+        `INSERT INTO calendar_event (id, "calendarId", title, "startsAt", "endsAt", "allDay", attendees, "recordIds", status, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, 0, '[]', '[]', 'confirmed', 1, ?, NULL)`,
       ).run("cev_oldevent0001", calendarId, "Old lunch", Date.now() + 86_400_000, Date.now() + 90_000_000, Date.now());
     } finally {
       db.close();
