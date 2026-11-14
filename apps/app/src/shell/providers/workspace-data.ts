@@ -126,7 +126,7 @@ export function workspaceData(d: {
         }
       ).terminal.terminalId;
     } catch (e) {
-      throw new Error(sentence(e));
+      throw Object.assign(new Error(sentence(e)), { cause: e });
     }
   };
   type Rows = {

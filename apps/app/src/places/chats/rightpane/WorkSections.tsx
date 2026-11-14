@@ -14,6 +14,7 @@ import { Icon, LeadIcon, PaneList, TextButton } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
 import { BrowserSheet } from "./BrowserSheet.tsx";
 import { TerminalSheet } from "./TerminalSheet.tsx";
+import { NO_COMPUTER_LINE, noComputerFor } from "./TerminalPaneTab.tsx";
 import { PreviewImage } from "./PreviewImage.tsx";
 import { useWhenText } from "../../../../../../ui/src/Time/index.tsx";
 import { Dot, GroupHead, SectionHead } from "./WorkParts.tsx";
@@ -141,6 +142,13 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
   const [busy, setBusy] = useState(false);
   const [sheet, setSheet] = useState(false);
   const [termSheet, setTermSheet] = useState<string | null>(null);
+  // no computer can open a terminal here (the same fact the released Terminal tab answered with its one line), and the one line why a press did not open
+  const [noComputer, setNoComputer] = useState(false);
+  const [openLine, setOpenLine] = useState<string | null>(null);
+  const opened = async (e: unknown): Promise<void> => {
+    if (data.terminal ? await noComputerFor(data.terminal, e) : false) setNoComputer(true);
+    else setOpenLine(reasonOf(e) || "The terminal did not open. Try again.");
+  };
   const rt = useOptionalShellRuntime();
   const canManageComputers = allows(rt, GATE.provisionComputer);
   const run = (f: () => Promise<void>): void => {
@@ -158,8 +166,17 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
     !wsView.sessions.some((x) => x.owner?.kind === "agent");
   useEffect(() => {
     if (!needsOne) return;
-    void data.workspace?.ensure?.(agentId)?.catch(() => undefined);
-  }, [needsOne, data.workspace, agentId]);
+    let live = true;
+    void data.workspace
+      ?.ensure?.(agentId)
+      ?.catch(async (e: unknown) => {
+        if (live && data.terminal && (await noComputerFor(data.terminal, e))) setNoComputer(true);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [needsOne, data.workspace, data.terminal, agentId]);
 
   const entries: Entry[] = [];
   const wait = sharedWait(wsView, br.status === "ready" ? br.view : undefined);
@@ -194,10 +211,16 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
   } else {
     const v = ws.view;
     const h = terminalsHead(v);
+    // no computer can open a terminal and none is open: the head carries no state word (nothing is asleep, there is nothing)
+    const nothingHere = noComputer && v.sessions.length === 0 && (v.state === "asleep" || v.state === "running");
     entries.push({
       key: "l-terminal",
       type: "block",
-      node: <SectionHead testID="terminals-head" text="Terminals" dot={h.dot} word={h.word} />,
+      node: nothingHere ? (
+        <SectionHead testID="terminals-head" text="Terminals" />
+      ) : (
+        <SectionHead testID="terminals-head" text="Terminals" dot={h.dot} word={h.word} />
+      ),
     });
     if (!v.canAttach && v.state !== "unavailable") {
       // access none: one line, no list
@@ -293,8 +316,19 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
           });
         }
       }
+      // no computer can open one at all: the one plain line, no row that could not open and no picture that pretends to sleep
+      if (groups.length === 0 && noComputer)
+        entries.push({
+          key: "terminal-no-computer",
+          type: "block",
+          node: (
+            <Text testID="terminal-no-computer" style={[st.note, { paddingHorizontal: 24 }]}>
+              {NO_COMPUTER_LINE}
+            </Text>
+          ),
+        });
       // nothing open yet (the background open has not landed): the one row it will be, already there and pressable
-      if (groups.length === 0)
+      else if (groups.length === 0)
         entries.push({
           key: "session-ready",
           type: "row",
@@ -306,14 +340,33 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
           ),
           trailing: <Text style={st.state}>{asleep ? "Asleep" : "Ready"}</Text>,
           testID: "session-main",
-          onPress: () =>
-            run(async () => {
-              const id = (await data.workspace?.ensure?.(agentId)) ?? undefined;
-              if (id !== undefined && data.terminal) setTermSheet(id);
-              else await data.workspace!.attach(agentId);
-            }),
+          onPress: () => {
+            setOpenLine(null);
+            setBusy(true);
+            void (async () => {
+              try {
+                const id = (await data.workspace?.ensure?.(agentId)) ?? undefined;
+                if (id !== undefined && data.terminal) setTermSheet(id);
+                else await data.workspace!.attach(agentId);
+              } catch (e) {
+                await opened(e);
+              } finally {
+                setBusy(false);
+              }
+            })();
+          },
         });
-      for (const p of v.projects ?? [])
+      if (openLine !== null && groups.length === 0 && !noComputer)
+        entries.push({
+          key: "terminal-open-line",
+          type: "block",
+          node: (
+            <Text testID="terminal-open-line" style={[st.note, { paddingHorizontal: 24 }]}>
+              {openLine}
+            </Text>
+          ),
+        });
+      for (const p of nothingHere ? [] : (v.projects ?? []))
         entries.push({
           key: `project-${p}`,
           type: "row",
@@ -349,12 +402,17 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
   } else {
     const v = br.view;
     const h = browserHead(v);
-    entries.push({
-      key: "l-browser",
-      type: "block",
-      node: <SectionHead testID="browser-head" text="Browser" dot={h.dot} word={h.word} />,
-    });
-    if (!v.canTakeOver) {
+    // nothing can run a computer here: no head and no picture of a browser asleep that would open on nothing
+    const hideBrowser = noComputer && v.state === "closed" && (wsView?.sessions.length ?? 0) === 0;
+    if (!hideBrowser)
+      entries.push({
+        key: "l-browser",
+        type: "block",
+        node: <SectionHead testID="browser-head" text="Browser" dot={h.dot} word={h.word} />,
+      });
+    if (hideBrowser) {
+      // (nothing drawn)
+    } else if (!v.canTakeOver) {
       // a browser that cannot run says so in one line; a person who may not open it is told why
       const said = v.state === "error" || v.state === "waiting" ? v.line : undefined;
       entries.push({
