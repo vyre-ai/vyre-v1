@@ -589,6 +589,37 @@ export async function agentStepIssues(ctx: AutoCtx, kind: Automation["kind"], de
   return out;
 }
 
+/** The ids a step names of a thing a person owns or shares, by the field that holds them: what the saver must be able to use (Use, as for sending or calling with it). */
+const ACCOUNT_THINGS: readonly { field: "mailboxId" | "numberId" | "connectionId"; type: string; word: string; id: RegExp }[] = [
+  { field: "mailboxId", type: "mailbox", word: "mailbox", id: /^mbx_[a-z0-9]+$/ },
+  { field: "numberId", type: "number", word: "number", id: /^num_[a-z0-9]+$/ },
+  { field: "connectionId", type: "connection", word: "connection", id: /^(con|gua|mua)_[a-z0-9]+$/ },
+];
+
+/**
+ * A step may name only a mailbox, number or connection the person saving it may use (F47, 14 Nov 2026). The test is the product's own (ctx.authorize at Use, as the person), the same one a send or a call
+ * makes when it runs. Only what the saver wrote or changed is checked (`before`): an Automation that already holds such an id is left as it is, and its run still stops at the same check. Templates
+ * ({{ ... }}) are checked when they run.
+ */
+export function accountUseIssues(ctx: AutoCtx, def: Definition, before?: Definition): Issue[] {
+  if (!ctx.authorize) return [];
+  const was = new Map((before?.nodes ?? []).map((n) => [n.id, n] as const));
+  const out: Issue[] = [];
+  for (const n of def.nodes) {
+    const have = { ...(n.ai ?? {}), ...n.input } as Record<string, unknown>;
+    const old = was.get(n.id);
+    const oldHave = old ? ({ ...(old.ai ?? {}), ...old.input } as Record<string, unknown>) : {};
+    for (const t of ACCOUNT_THINGS) {
+      const id = have[t.field];
+      if (typeof id !== "string" || !t.id.test(id) || oldHave[t.field] === id) continue;
+      if (ctx.authorize({ perm: null, level: "use" }, { type: t.type, id }).effect === "allow") continue;
+      const title = n.title?.trim() || STEPS.get(n.key)?.title || n.key;
+      out.push(issue("error", `${title}: you cannot use the ${t.word} it names. Pick another, or ask for access to it.`, n.id));
+    }
+  }
+  return out;
+}
+
 /** Why this Automation may not hand work to this agent, in a plain line, or null. Used at save (as the person saving) and at run. */
 export async function agentRefusal(
   ctx: AutoCtx,
@@ -842,7 +873,8 @@ export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
   const keyBlocked = Array.isArray(def?.nodes)
     ? (await blockedKeySteps(ctx, def.nodes)).map((b) => issue("error", b.line, b.nodeId))
     : [];
-  const issues = [...validateDefinition(def, readPolicy(ctx.db)), ...keyBlocked];
+  const useBlocked = Array.isArray(def?.nodes) ? accountUseIssues(ctx, def) : [];
+  const issues = [...validateDefinition(def, readPolicy(ctx.db)), ...keyBlocked, ...useBlocked];
   return { ok: !hasErrors(issues), issues };
 }
 export async function triggersList(): Promise<unknown> {
@@ -920,6 +952,9 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
       reason: "agent_not_yours",
       issues: [agentIssue],
     });
+  const useIssue = accountUseIssues(ctx, def)[0];
+  if (useIssue)
+    raise(ctx, "validation.precondition_failed", useIssue.message, { reason: "account_not_yours", issues: [useIssue] });
   await guardKeySteps(ctx, undefined, def);
   if (input.groupId && !findGroup(ctx.db, input.groupId))
     raise(ctx, "validation.not_found", "That Group does not exist.", { reason: "no_group" });
@@ -977,6 +1012,9 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
     checkStructure(ctx, input.definition);
     refuseSecret(ctx, input.definition);
     await guardKeySteps(ctx, a.definition, input.definition);
+    const useIssue = accountUseIssues(ctx, input.definition, a.definition)[0];
+    if (useIssue)
+      raise(ctx, "validation.precondition_failed", useIssue.message, { reason: "account_not_yours", issues: [useIssue] });
     const policy = readPolicy(ctx.db);
     // an agent the saver may not give work to is refused at once, on or off: it is not a draft to finish later but someone else's (lead 12 Nov, rule 4)
     const agentIssue = (await agentStepIssues(ctx, a.kind, input.definition))[0];

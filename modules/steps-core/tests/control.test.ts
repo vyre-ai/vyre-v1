@@ -937,3 +937,38 @@ test("every step the manifest declares can be run by runStep: control, capabilit
     assert.ok(known, `${s.key} has no runner`);
   }
 });
+
+// F47: a stored step that names a mailbox, number or connection its run's person may no longer use stops in words that name the step, not "You do not have access to that."
+test("a step whose mailbox, number or connection the run's person may not use stops in plain words and sends nothing", async () => {
+  const refused = () => {
+    throw Object.assign(new Error("You do not have access to that."), {
+      error: { code: "permission.no_grant", message: "You do not have access to that.", retryable: false },
+    });
+  };
+  const h = harness({ "mail.send": refused, "telephony.send_sms": refused, "connectors.run": refused });
+  const cases: [string, ReturnType<typeof node>, RegExp][] = [
+    [
+      "mail",
+      node("mail", "send_email", { mailboxId: "mbx_x", to: ["a@b.c"], subject: "s", body: "b" }),
+      /^Send an email: the person this automation runs as can no longer use the mailbox it names\./,
+    ],
+    [
+      "sms",
+      node("sms", "send_sms", { numberId: "num_x", to: "+1555", body: "hi" }),
+      /^Send a text message: the person this automation runs as can no longer use the number it names\./,
+    ],
+    [
+      "req",
+      node("req", "connector_request", { connector: "acme", action: "ping", connectionId: "con_x" }),
+      /^Authenticated request: the person this automation runs as can no longer use the connection it names\./,
+    ],
+  ];
+  for (const [, n, words] of cases)
+    await assert.rejects(runStep(h.env, n, callOf()), (e) => {
+      const err = (e as { error?: { code?: string; message?: string } }).error;
+      assert.equal(err?.code, "permission.no_grant");
+      assert.match(err?.message ?? "", words);
+      assert.doesNotMatch(err?.message ?? "", /mbx_|num_|con_/);
+      return true;
+    });
+});

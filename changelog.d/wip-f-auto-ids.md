@@ -1,0 +1,1 @@
+- Saving an Automation now checks that every mailbox, number and connection a step names is one you may use. A step that names someone else's private mailbox is refused in words that name the step, and a stored step that can no longer use its mailbox, number or connection stops with a plain sentence.

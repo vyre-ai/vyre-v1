@@ -856,8 +856,28 @@ async function capabilityStep(env: StepEnv, node: StepNode, i: In, call: StepCal
   } catch (e) {
     const held = gateHold(e);
     if (held) return held;
-    throw e;
+    throw accountRefusal(e, def.title, input) ?? e;
   }
+}
+
+/** What a refusal of a stored mailbox, number or connection says: the step and the thing, never an id. Null for any other failure. */
+function accountRefusal(e: unknown, title: string, input: Record<string, unknown>): Error | null {
+  const code = (e as { error?: { code?: string } } | null)?.error?.code;
+  if (code !== "permission.no_grant" && code !== "permission.not_found") return null;
+  const word =
+    typeof input["mailboxId"] === "string"
+      ? "mailbox"
+      : typeof input["numberId"] === "string"
+        ? "number"
+        : typeof input["connectionId"] === "string"
+          ? "connection"
+          : null;
+  if (word === null) return null;
+  return stepError(
+    code,
+    `${title}: the person this automation runs as can no longer use the ${word} it names. Pick another, or ask for access to it.`,
+    false,
+  );
 }
 
 // ---- the runner ----
