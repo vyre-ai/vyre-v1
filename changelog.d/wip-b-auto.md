@@ -16,3 +16,4 @@
 - Cmd-K offers "New channel" only to someone who may create channels.
 - The channel menu offers "Connect an Outside Agent" only to someone who may add agents to channels.
 - Automations: the open Automation is now one page of steps as sentences with its step form beside it; the first page replaces the start page; the left list has no Needs-you group, Failed runs row or studio menu; Dependencies, Packages and the Live Event Explorer are gone from the place.
+- test: BuilderPage behaviour tests (Ask Vyre with the Automation, Test, save waits for Save on an On Automation and sends expectedVersion).
