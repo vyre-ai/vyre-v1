@@ -8,6 +8,7 @@ import type { AgentsCtx } from "./projections.ts";
 import { isSelfPaused } from "./routine-guard.ts";
 
 type Row = Record<string, unknown>;
+const MIRROR_STALE_MS = 15 * 60_000;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
 export interface WantWake {
@@ -130,7 +131,11 @@ export async function reconcileWakes(ctx: AgentsCtx): Promise<string[]> {
     // the mirror follows the wake: an active wake's next time is the routine's next time
     if (wake?.active && wake.nextAt !== undefined && want.active) {
       const r = routineBy(ctx.db, want.routineId);
-      if (r && r.nextRunAt !== wake.nextAt) {
+      // not while a fire may still be tried: the wake goes on the moment it makes a fire, so a mirror that is at or behind now is the time an open fire is for, and the fire moves it when it starts the Run.
+      // A fire's three tries end within three leases (six minutes), so a mirror left behind for longer than the quarter of an hour has no fire waiting for it.
+      const waiting =
+        r?.nextRunAt !== undefined && r.nextRunAt <= ctx.now() && ctx.now() - r.nextRunAt < MIRROR_STALE_MS;
+      if (r && r.nextRunAt !== wake.nextAt && !waiting) {
         ctx.db.run(
           "UPDATE agents_routine SET nextRunAt = ?, updatedAt = ? WHERE id = ?",
           wake.nextAt,

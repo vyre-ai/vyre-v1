@@ -233,3 +233,30 @@ test("a routine that pauses itself keeps its wake until the reconcile pauses it,
   assert.equal(wakes(hn)[0]!.active, false);
   assert.equal(NOW > 0, true);
 });
+
+test("the reconcile leaves the mirror alone while a fire may still be tried, so a retried fire still starts its Run; a mirror left behind for a quarter of an hour follows the wake", async () => {
+  const hn = harness();
+  const keys = runsWith(hn);
+  const agentId = await agentOf(hn);
+  const r = (await save(hn, agentId, { cron: "* * * * *" })).routine;
+  const due = routineBy(hn.db, r.routineId)!.nextRunAt!;
+  const run = () => periodic["agents.routines_wake_sync"].run(hn.as(svc));
+  hn.advance(MIN);
+  // the wake made the fire and went on to the next minute; the fire has not started its Run yet (its first try failed, its lease is running)
+  wakes(hn)[0]!.nextAt = due + MIN;
+  await run();
+  await run();
+  assert.equal(routineBy(hn.db, r.routineId)!.nextRunAt, due, "the mirror still says the time the fire is for");
+  hn.advance(MIN); // the lease is over: the fire is tried again, with its own time
+  assert.equal(
+    (await fire(hn, r.routineId, String(due))).started,
+    true,
+    "the retried fire still agrees with the routine",
+  );
+  assert.deepEqual(keys, [`routine:${r.routineId}:${due}`]);
+  // a mirror that is far behind and has no fire left to wait for follows the wake
+  hn.db.run("UPDATE agents_routine SET nextRunAt = ? WHERE id = ?", hn.clock.t - 20 * MIN, r.routineId);
+  wakes(hn)[0]!.nextAt = hn.clock.t + MIN;
+  await run();
+  assert.equal(routineBy(hn.db, r.routineId)!.nextRunAt, hn.clock.t + MIN, "repaired from the wake");
+});
