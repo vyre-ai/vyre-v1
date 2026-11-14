@@ -56,6 +56,10 @@ function useCardLoad<T>(read: () => Promise<T>, again = 0): Load<T> {
   return load;
 }
 
+/** The keyboard focus ring for the card's own controls: a 2 px accent line, the same one the rest of the app draws. */
+const ringed = ({ focused }: { focused?: boolean }): object | null =>
+  focused === true ? { boxShadow: "0 0 0 2px var(--accent)" } : null;
+
 const toneOf = (pct: number): "bad" | "warn" | "ok" => (pct >= 100 ? "bad" : pct >= 80 ? "warn" : "ok");
 
 /** A 6 px bar with the percent as its label. It turns warn at 80 percent and danger at 100, the rule the model menu uses. */
@@ -214,12 +218,14 @@ function UsageBody({ c, onSettings }: { c: UsageCard; onSettings(ref?: string): 
         </View>
       </Group>
       <View style={st.foot}>
-        <Text
+        <Pressable
           accessibilityRole="link"
           testID="cmd-settings"
           onPress={() => onSettings(opened?.ref)}
-          style={st.link}
-        >{`${opened ? `${opened.name} in Settings` : "AI accounts in Settings"}  ›`}</Text>
+          style={(state) => [st.linkBtn, ringed(state as { focused?: boolean })]}
+        >
+          <Text style={st.link}>{`${opened ? `${opened.name} in Settings` : "AI accounts in Settings"}  \u203a`}</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -237,7 +243,7 @@ function PermissionRow({ r, onTake }: { r: PermissionsCard["rules"][number]; onT
           accessibilityLabel={`Take back: ${r.text}`}
           testID={`cmd-take-${r.id}`}
           onPress={onTake}
-          style={st.takeBtn}
+          style={(state) => [st.takeBtn, ringed(state as { focused?: boolean })]}
         >
           <Text style={st.take}>Take back</Text>
         </Pressable>
@@ -393,6 +399,7 @@ const st = StyleSheet.create({
   hinted: { textDecorationLine: "underline", textDecorationStyle: "dotted" },
   pairV: { fontSize: 13, color: "var(--ink)" as string },
   foot: { paddingBottom: 8 },
+  linkBtn: { alignSelf: "flex-start", height: 28, justifyContent: "center", borderRadius: 8, paddingHorizontal: 4 },
   link: { fontSize: 12.5, color: "var(--accent)" as string },
   takeBtn: { height: 28, paddingHorizontal: 10, borderRadius: 8, justifyContent: "center" },
   take: { fontSize: 12.5, color: "var(--ink-3)" as string },

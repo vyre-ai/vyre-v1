@@ -132,3 +132,32 @@ test("a command card does not follow the person to another chat", async () => {
     restore();
   }
 });
+
+test("a second command of the same kind replaces the first: it reads again and shows the new answer", async () => {
+  const restore = installDom();
+  const l = listeners();
+  try {
+    clearNotices();
+    let n = 0;
+    const { root, calls } = await open({
+      "engine.my_ai": () => {
+        n += 1;
+        return { ...MY_AI, accounts: [{ ...MY_AI.accounts[0], name: n === 1 ? "First account" : "Second account" }] };
+      },
+    });
+    await command(root, "/usage");
+    assert.match(textOf(find(root, "command-card")), /First account/);
+    await press(find(root, "row-cmd-account-First account"));
+    assert.ok(find(root, "cmd-models"), "the first card has an account folded open");
+    await command(root, "/usage");
+    assert.equal(find(root, "cmd-models"), null, "the second card is a new card: nothing carried over from the first");
+    const t = textOf(find(root, "command-card"));
+    assert.match(t, /Second account/, "the new card shows the new answer");
+    assert.ok(!/First account/.test(t), "and not the old one");
+    assert.equal(calls.filter((c) => c.cap === "engine.my_ai").length, 2);
+  } finally {
+    l.restore();
+    clearNotices();
+    restore();
+  }
+});
