@@ -7,7 +7,7 @@ import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/props.ts
 import { shortcutFor } from "../../../../../../ui/src/Menu/keys.ts";
 import { FILTER_CHOICES, filterChoices } from "./layout.ts";
 import type { Item, ItemKind } from "./layout.ts";
-import { filterMenu, headMenu, newMenu, notesMenu, rowMenu, tasksMenu } from "./side-menus.ts";
+import { filterMenu, headMenu, newMenu, notesMenu, plusMenu, plusWords, rowMenu, tasksMenu } from "./side-menus.ts";
 import type { RowDo } from "./side-menus.ts";
 
 const item = (kind: ItemKind, o: Partial<Item> = {}): Item => ({
@@ -293,4 +293,20 @@ test("the filter menu: Show, Only, a tick on the one set, counts in the quiet co
   m.filter(isItem).find((e) => e.label === "Mentions")!.onSelect!();
   assert.deepEqual(picked, ["mentions"]);
   assert.equal(hints(m)["Next unread"], "⌥⇧↓");
+});
+
+test("a head's plus menu holds the section's own makes and nothing dead", () => {
+  const f = (): void => undefined;
+  const labelsOf = (m: ReturnType<typeof plusMenu>): string[] => m.flatMap((x) => ("label" in x ? [x.label] : []));
+  assert.deepEqual(labelsOf(plusMenu("chats", { newChat: f, markAllRead: f })), ["New chat"]);
+  assert.deepEqual(labelsOf(plusMenu("channels", { newChannel: f, browseChannels: f })), [
+    "New channel",
+    "Browse channels",
+  ]);
+  assert.deepEqual(labelsOf(plusMenu("channels", { browseChannels: f })), ["Browse channels"]);
+  assert.deepEqual(labelsOf(plusMenu("team", { invite: f, newAgent: f })), ["Invite someone\u2026", "New agent\u2026"]);
+  assert.deepEqual(labelsOf(plusMenu("team", { newAgent: f })), ["New agent\u2026"], "no Invite in a Personal Space");
+  assert.deepEqual(plusMenu("team", {}), [], "nothing built, no menu");
+  assert.deepEqual(plusMenu("pinned", { unpinAll: f }), []);
+  assert.equal(plusWords("team", "Agents"), "New agent");
 });

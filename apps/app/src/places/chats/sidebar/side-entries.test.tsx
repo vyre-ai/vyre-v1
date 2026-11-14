@@ -257,6 +257,43 @@ test("a folded head shows its count and the sum of its marks; an open head shows
   assert.doesNotMatch(open, /folded/);
 });
 
+test("a section head's plus: in a hover slot (hidden at rest), shown by hover, focus, the cursor and touch; its words say what it does", () => {
+  const l = layoutOf([mk("chat", "agent", { key: "c:1" })]);
+  const withPlus = { press: () => {}, plus: () => {} };
+  const head = (sec: SectionId, label: string, state = st, on2: object = withPlus): string =>
+    renderToStaticMarkup(
+      <HeadView entry={{ ...entryOf(l, "head", "chats"), section: sec, label }} state={state} on={on2 as never} />,
+    );
+  // at rest: the plus is in a slot the stylesheet hides, and nothing forces it on
+  const rest = head("team", "Team");
+  assert.match(rest, /class="vyre-hp"/);
+  assert.doesNotMatch(rest, /data-on/);
+  // hover and focus: the stylesheet shows the slot under the head's own class
+  assert.match(rest, /class="vyre-hd"/);
+  const css = (globalThis as { document?: { head?: unknown } }).document;
+  void css;
+  // the keyboard cursor on the head forces it on
+  assert.match(head("team", "Team", { ...st, cursor: true }), /data-on="1"/);
+  // words
+  assert.match(head("chats", "Chats"), /aria-label="New in Chats"/);
+  assert.match(head("channels", "Channels"), /aria-label="New in Channels"/);
+  assert.match(head("team", "Team"), /aria-label="Add to Team"/);
+  assert.match(head("team", "Agents"), /aria-label="New agent"/);
+  assert.doesNotMatch(head("team", "Team"), /More for/);
+  // nothing to add: no plus
+  assert.doesNotMatch(head("team", "Team", st, { press: () => {} }), /head-plus/);
+});
+
+test("the stylesheet hides the head plus at rest and shows it on hover, focus and touch", async () => {
+  const src = await import("node:fs").then((f) =>
+    f.readFileSync(new URL("./SideEntries.tsx", import.meta.url), "utf8"),
+  );
+  assert.match(src, /\.vyre-hp\{display:none\}/);
+  assert.match(src, /\.vyre-hd:hover \.vyre-hp/);
+  assert.match(src, /\.vyre-hd:focus-within \.vyre-hp/);
+  assert.match(src, /@media \(hover:none\)\{\.vyre-hm,\.vyre-hp\{display:flex\}\}/);
+});
+
 test('"N more" carries the marks of what it hides; "Show less" ends an open list', () => {
   const xs = Array.from({ length: 8 }, (_, n) =>
     mk("chat", "agent", {

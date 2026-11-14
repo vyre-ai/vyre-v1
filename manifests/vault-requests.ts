@@ -120,7 +120,7 @@ export default defineManifest({
     // handleOnly: fulfilled, the requester gets the key's name only, never Use on it. The MCP door sets it for an outside agent (docs/ask-the-person.md).
     write(
       "vault.request",
-      "Ask for a missing key that is not a service (a key a skill or run needs, by name): creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status. For a service the person names, use vault_connect",
+      "Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status",
       {
         ...V,
         idem: "key",
@@ -205,7 +205,7 @@ export default defineManifest({
         agent: { planMode: "allowed" },
         tool: "vault",
         offline: "online",
-        errors: ["validation.not_found", "validation.bad_input"],
+        errors: ["internal.not_implemented", "validation.not_found", "validation.bad_input"],
       },
     ),
     read(
@@ -216,6 +216,7 @@ export default defineManifest({
         in: { requestId: reqId },
         out: { card: connectCard },
         tool: "vault",
+        errors: ["internal.not_implemented"],
       },
     ),
     read(
@@ -226,6 +227,7 @@ export default defineManifest({
         in: { requestId: reqId },
         out: { folders: t.arr(keptInRow), default: t.opt(id.vaultFolder) },
         tool: "vault",
+        errors: ["internal.not_implemented"],
       },
     ),
     write(
@@ -245,7 +247,12 @@ export default defineManifest({
         audit: "always",
         tool: "vault",
         offline: "online",
-        errors: ["permission.no_grant", "validation.precondition_failed", "validation.bad_input"],
+        errors: [
+          "internal.not_implemented",
+          "permission.no_grant",
+          "validation.precondition_failed",
+          "validation.bad_input",
+        ],
       },
     ),
     write("vault.connect_card.ask_admin", "Ask an admin to connect the service when this person may not", {
@@ -255,14 +262,14 @@ export default defineManifest({
       emits: [],
       audit: "sensitive",
       tool: "vault",
-      errors: ["permission.no_grant", "validation.precondition_failed"],
+      errors: ["internal.not_implemented", "permission.no_grant", "validation.precondition_failed"],
     }),
     write("vault.connect_card.reopen", "Open a card the person folded with Not now", {
       ...V,
       in: { requestId: reqId },
       out: { card: connectCard },
       tool: "vault",
-      errors: ["permission.no_grant", "validation.precondition_failed"],
+      errors: ["internal.not_implemented", "permission.no_grant", "validation.precondition_failed"],
     }),
     write("vault.connect_card.disconnect", "Disconnect the service; the key stays in the Vault", {
       ...V,
@@ -270,7 +277,7 @@ export default defineManifest({
       out: { card: connectCard },
       audit: "always",
       tool: "vault",
-      errors: ["permission.no_grant", "validation.precondition_failed"],
+      errors: ["internal.not_implemented", "permission.no_grant", "validation.precondition_failed"],
     }),
 
     write("vault.requests.cancel", "Withdraw my own key request", {

@@ -1,4 +1,5 @@
 // Join the generated tool list with the capability registry: a tool needs its capability's level, effects and Gate flag, and nothing may be added by hand.
+import { connectCardOn, isConnectCap } from "../../../lib/connect-switch.ts";
 import { HIDDEN_FROM_MODEL } from "./versions.ts";
 import type { AgentToolRow, Catalog, Effects, LocalKind, McpToolRow, RegistryCapRow, ToolDef } from "./types.ts";
 
@@ -83,7 +84,8 @@ export function buildCatalog(
 export function offerable(catalog: Catalog, refuses: (cap: string) => boolean): Catalog {
   return {
     get all() {
-      return catalog.all.filter((t) => !refuses(t.cap));
+      // the connect card's tools too, while VYRE_CONNECT_CARD is off (lib/connect-switch.ts): not listed, not found with tool_search, and a call by name still resolves and is refused by the server
+      return catalog.all.filter((t) => !refuses(t.cap) && (connectCardOn() || !isConnectCap(t.cap)));
     },
     byName: catalog.byName,
   };
@@ -99,5 +101,7 @@ export function parseDefaultTools(markdown: string): Set<string> {
     const m = /^\| `([a-z][a-z0-9_]*)` \|/.exec(line);
     if (m?.[1]) out.add(m[1]);
   }
+  // with the connect card on, its one tool is listed from the first turn (off: the frozen list is exactly the rc.27 one)
+  if (connectCardOn()) out.add("vault_connect");
   return out;
 }

@@ -1,5 +1,5 @@
 import { workspaceInTurn } from "./workspace-turns.ts";
-import { CODE_BUILTINS } from "../../../lib/builtin-connectors.ts";
+import { activeCodeBuiltins } from "../../../lib/builtin-connectors.ts";
 import { threadHome, threadMoveInto, underChannelOf } from "../gateway/resources.ts";
 import { ownsSubject } from "./own-subject.ts";
 import { isExportItself, waitForQuiet } from "./export-quiet.ts";
@@ -1626,6 +1626,144 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   /** The last log seq the access module has been handed (in order) and folded; the next sync reads the log after it. Set after the boot read, which hands the log over up to it. */
   let accessFedTo = 0;
   let syncAccess: (force?: boolean) => Promise<void> = async () => {};
+  /** Is this the folder the server made for this artifact? (see adoptArtifactFolder) */
+  const serverMadeFolder = (
+    folderId: string,
+    siteId: string,
+    resource: { owner_id?: string | null | undefined; parent_id?: string | null | undefined },
+  ): boolean => {
+    if (!db) return false;
+    try {
+      const site = db.all(
+        "SELECT settings, target_folder FROM sites_site WHERE id = ? AND kind = 'artifact'",
+        siteId,
+      )[0] as { settings?: string | null; target_folder?: string | null } | undefined;
+      if (!site || site.target_folder !== folderId) return false;
+      // the folder is under the server's own Artifacts path for this artifact (a path alone is not enough: a person can name a folder anything)
+      const f = db.all("SELECT path FROM files_folder WHERE id = ?", folderId)[0] as { path?: string } | undefined;
+      if (!new RegExp(`^Deployments/Artifacts/[^/]+ \\(${siteId.slice(-6)}\\)$`).test(f?.path ?? "")) return false;
+      // and the server made it: either it is still registered as the server's (a service owns it), or it already sits under this artifact (adopted when it was made)
+      if (
+        resource.parent_id !== siteId &&
+        !(typeof resource.owner_id === "string" && resource.owner_id.startsWith("svc_"))
+      )
+        return false;
+      const kept: unknown = JSON.parse(site.settings ?? "{}");
+      const marked =
+        kept !== null && typeof kept === "object" && (kept as { serverFolder?: unknown }).serverFolder === folderId;
+      // an artifact made before the marker has none: the service owner and the path are what only the server can have made
+      return marked || (typeof resource.owner_id === "string" && resource.owner_id.startsWith("svc_"));
+    } catch {
+      return false;
+    }
+  };
+  /**
+   * An artifact's files are the artifact's own (F56, 14 Nov 2026): its folder sits under the site in the access tree, not under the Space, so who may read the files is who may read the artifact (the owner, what it is
+   * shared with, the Space when its access is the Space's). Without this a member found a private artifact's page by searching its words. Returns true when the folder was moved.
+   */
+  const adoptArtifactFolder = async (
+    folderId: string,
+    siteId: string,
+    ownerId: string,
+    via?: LogClient,
+  ): Promise<boolean> => {
+    const row = access.snap.resource(folderId);
+    const into = via ?? log;
+    if (!into || !row || !access.snap.resource(siteId)) return false;
+    // only the folder the server itself made for the artifact is adopted: one a caller named (artifact_publish with a folderId) belongs to its owner and stays as it is. The server marks the folder it makes
+    // in the artifact's own record (settings.serverFolder); an artifact made before the mark is recognised by what a person cannot make: a folder owned by the server (a service) at the server's own path for this artifact.
+    if (!serverMadeFolder(folderId, siteId, row)) return false;
+    // the server has just proven the folder is its own: an artifact made before the marker gets it now, so a later publish is recognised after the folder is registered to the person
+    try {
+      const at = db!.all("SELECT settings FROM sites_site WHERE id = ?", siteId)[0] as
+        | { settings?: string | null }
+        | undefined;
+      const kept: unknown = JSON.parse(at?.settings ?? "{}");
+      if (kept !== null && typeof kept === "object" && (kept as { serverFolder?: unknown }).serverFolder !== folderId)
+        db!.run(
+          "UPDATE sites_site SET settings = ? WHERE id = ?",
+          JSON.stringify({ ...kept, serverFolder: folderId }),
+          siteId,
+        );
+    } catch {
+      /* no sites table, or settings unreadable: the next start tries again */
+    }
+    let changed = false;
+    const person = /^usr_[a-z0-9]+$/.test(ownerId) ? ownerId : null;
+    if (row.parent_id !== siteId) {
+      const r = await into.appendResult({
+        id: `evt_res_artfolder_${folderId.slice(-12)}_${Date.now()}`,
+        type: "resource.created",
+        sv: 1,
+        trace_id: "c0".repeat(16),
+        actor: "svc_host",
+        vis: "space",
+        entity: "resource",
+        entity_id: folderId,
+        payload: {
+          id: folderId,
+          type: row.type,
+          parent_id: siteId,
+          label: row.label,
+          owner_id: person ?? row.owner_id,
+          holds: row.holds,
+        },
+      });
+      if (r.ok && !r.duplicate) {
+        access.fold(r.event);
+        accessPending.push(toAccessEvent(r.event));
+        changed = true;
+      }
+    }
+    // the pages are the server's files (the server wrote them), and ownership is not inherited down the tree: so its owner, who reaches the artifact and its folder by owning them, read none of its pages. Each page
+    // and sub folder of the artifact is registered as the person's, where it sits, so who reads the pages is who reads the artifact (r-auto2 re-run, F62, 14 Nov 2026).
+    if (person !== null && db) {
+      try {
+        const top = db.all("SELECT path FROM files_folder WHERE id = ?", folderId)[0] as { path?: string } | undefined;
+        const like = `${String(top?.path ?? "\u0000").replace(/[\\%_]/g, "\\$&")}/%`;
+        const folders = db.all(
+          "SELECT id FROM files_folder WHERE id = ? OR path LIKE ? ESCAPE '\\'",
+          folderId,
+          like,
+        ) as { id: string }[];
+        const mine: { id: string }[] = [...folders];
+        for (const f of folders)
+          for (const x of db.all("SELECT id FROM files_file WHERE folder_id = ?", f.id) as { id: string }[])
+            mine.push(x);
+        for (const x of mine) {
+          const have = access.snap.resource(x.id);
+          if (!have || have.owner_id === person || x.id === folderId) continue;
+          const w = await into.appendResult({
+            id: `evt_res_artpage_${x.id.slice(-12)}_${Date.now()}`,
+            type: "resource.created",
+            sv: 1,
+            trace_id: "c0".repeat(16),
+            actor: "svc_host",
+            vis: "space",
+            entity: "resource",
+            entity_id: x.id,
+            payload: {
+              id: x.id,
+              type: have.type,
+              parent_id: have.parent_id,
+              label: have.label,
+              owner_id: person,
+              holds: have.holds,
+            },
+          });
+          if (w.ok && !w.duplicate) {
+            access.fold(w.event);
+            accessPending.push(toAccessEvent(w.event));
+            changed = true;
+          }
+        }
+      } catch {
+        // no files tables yet: nothing to register
+      }
+    }
+    if (changed) await syncAccess(true);
+    return changed;
+  };
   let accessStale = false,
     kicking = false,
     noAccessModule = false;
@@ -1787,7 +1925,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             e.type === "principal.role_set" ||
             e.type === "grant.created" ||
             e.type === "grant.revoked" ||
-            e.type.startsWith("agent.")
+            e.type.startsWith("agent.") ||
+            e.type === "mailbox.privacy_changed"
           )
             agentAccessEvents.push(e);
           access.fold(e);
@@ -1885,6 +2024,113 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               attrs: { owner: row.owner_id },
             });
           }
+        }
+        // An inbox a person set to private (or to chosen people) before the setting was enforced is registered under the Space, so every member still reaches it (F48, 14 Nov 2026). Close it from the
+        // event that set it, at every start: an inbox already closed is left as it is, so this is safe to repeat and moves no data.
+        const lastPrivacy = new Map<string, { privacy: string; at: string }>();
+        for (const e of agentAccessEvents)
+          if (e.type === "mailbox.privacy_changed") {
+            const p = (
+              e.payload instanceof Uint8Array ? JSON.parse(new TextDecoder().decode(e.payload)) : e.payload
+            ) as { mailboxId?: unknown; privacy?: unknown };
+            if (typeof p.mailboxId === "string" && typeof p.privacy === "string")
+              lastPrivacy.set(p.mailboxId, { privacy: p.privacy, at: String((e as { seq?: unknown }).seq ?? "") });
+          }
+        for (const [mailboxId, { privacy, at }] of lastPrivacy) {
+          if (privacy !== "private" && privacy !== "people") continue;
+          const row = access.snap.resource(mailboxId);
+
+          if (!row || row.type !== "mailbox" || row.parent_id === null) continue;
+          const closed = await appendRepair({
+            id: `evt_res_private_${mailboxId}_${at}`,
+            type: "resource.created",
+            sv: 1,
+            trace_id: "c0".repeat(16),
+            actor: "svc_host",
+            vis: "space",
+            entity: "resource",
+            entity_id: mailboxId,
+            payload: {
+              id: mailboxId,
+              type: "mailbox",
+              parent_id: null,
+              label: row.label,
+              owner_id: row.owner_id,
+              holds: row.holds,
+            },
+          });
+          if (!closed.duplicate) {
+            access.fold(closed.event);
+            accessPending.push(toAccessEvent(closed.event));
+            sink.log({
+              space,
+              level: 20,
+              msg: "access.mailbox_privacy_reconciled",
+              place: "boot",
+              entity: "mailbox",
+              entity_id: mailboxId,
+            });
+          }
+        }
+        // A site a person set to private through sites.update, before that change was an event, is registered under the Space too: close it from the module's own row, at every start, the same way.
+        let privateSites: string[] = [];
+        try {
+          privateSites = (
+            db!.all("SELECT id FROM sites_site WHERE access = 'private' AND deleted_at IS NULL") as { id: string }[]
+          ).map((r) => r.id);
+        } catch {
+          // no sites table yet: nothing to close
+        }
+        for (const siteId of privateSites) {
+          const row = access.snap.resource(siteId);
+          if (!row || row.type !== "site" || row.parent_id === null) continue;
+          const closed = await appendRepair({
+            id: `evt_res_private_${siteId.slice(-12)}_${Date.now()}`,
+            type: "resource.created",
+            sv: 1,
+            trace_id: "c0".repeat(16),
+            actor: "svc_host",
+            vis: "space",
+            entity: "resource",
+            entity_id: siteId,
+            payload: {
+              id: siteId,
+              type: "site",
+              parent_id: null,
+              label: row.label,
+              owner_id: row.owner_id,
+              holds: row.holds,
+            },
+          });
+          if (!closed.duplicate) {
+            access.fold(closed.event);
+            accessPending.push(toAccessEvent(closed.event));
+            sink.log({
+              space,
+              level: 20,
+              msg: "access.site_privacy_reconciled",
+              place: "boot",
+              entity: "site",
+              entity_id: siteId,
+            });
+          }
+        }
+        // An artifact's folder follows the artifact (see adoptArtifactFolder): the ones made before this build, and any whose site was not yet a resource when the folder was made, are moved at every start.
+        try {
+          for (const r of db!.all(
+            "SELECT id, owner, target_folder FROM sites_site WHERE kind = 'artifact' AND target_folder IS NOT NULL AND deleted_at IS NULL",
+          ) as { id: string; owner: string; target_folder: string }[])
+            if (await adoptArtifactFolder(r.target_folder, r.id, r.owner, log))
+              sink.log({
+                space,
+                level: 20,
+                msg: "access.artifact_folder_reconciled",
+                place: "boot",
+                entity: "site",
+                entity_id: r.id,
+              });
+        } catch {
+          // no sites table yet: nothing to move
         }
         const levelOf = (person: string, scope: string): "edit" | "view" | "none" => {
           const may = (level: "edit" | "view"): boolean =>
@@ -2355,13 +2601,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 idempotencyKey: "artifacts-root",
               })) as { folder: { folderId: string } }
             ).folder.folderId;
-          return (
+          const made = (
             (await call("files.folder.create", {
               parentId: kept,
               name: `${title.replaceAll("/", "-")} (${siteId.slice(-6)})`,
               idempotencyKey: `artifact-folder-${siteId}`,
             })) as { folder: { folderId: string } }
           ).folder.folderId;
+          return made;
         },
         async put(folderId: string, name: string, base64: string, mime: string): Promise<void> {
           const call = dispatchSystem as (cap: string, input: unknown) => Promise<unknown>;
@@ -3300,6 +3547,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           }
           headSeq = Math.max(headSeq, ...out.map((e) => e.seq));
           if (stored.some((s) => touchesAccess(s.type))) await syncAccess(true);
+          // a new artifact's folder follows the artifact in the access tree, now that the artifact is a resource (see adoptArtifactFolder)
+          for (const e of b.events)
+            if (e.type === "site.created" || e.type === "site.published") {
+              const siteId = (e.payload as { siteId?: unknown }).siteId;
+              const row =
+                typeof siteId === "string"
+                  ? (db?.all(
+                      "SELECT owner, target_folder FROM sites_site WHERE id = ? AND kind = 'artifact'",
+                      siteId,
+                    )[0] as { owner?: string; target_folder?: string | null } | undefined)
+                  : undefined;
+              if (typeof siteId === "string" && row?.target_folder)
+                await adoptArtifactFolder(row.target_folder, siteId, row.owner ?? "");
+            }
           for (const e of b.events)
             if (e.type === "agent.created") await grantOwnPlaces?.((e.payload as { ownerId?: string }).ownerId ?? "");
           if (b.audit) recordAudit(b.audit);
@@ -3934,7 +4195,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const builtinConnectors = new Set([
         ...((registry as unknown as { connectors?: { key: string }[] }).connectors ?? []).map((c) => c.key),
         // built in as code (modules/connectors/builtin-code.ts): Fathom
-        ...CODE_BUILTINS.map((c) => c.key),
+        ...activeCodeBuiltins().map((c) => c.key),
       ]);
       const ensuringConnector = new Map<string, Promise<void>>();
       // An Inbox conversation and a mail message are resources in access (under the Space), made the first time a call names one that exists. The modules open these rows themselves, and an event whose

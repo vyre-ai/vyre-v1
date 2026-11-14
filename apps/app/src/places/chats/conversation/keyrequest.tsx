@@ -34,8 +34,10 @@ export function KeyRequestCard(p: {
   /** The person the agent asked for (the block's own `asker`): the plain card says their name. */
   asker?: string | undefined;
 }): ReactElement | null {
-  return p.service ? (
-    <ConnectCardLive requestId={p.requestId} agent={p.agent} data={p.data} />
+  // the connect card draws only while the server has it on; if it says no, the plain card below is the card (VYRE_CONNECT_CARD, lib/connect-switch.ts)
+  const [off, setOff] = useState(false);
+  return p.service && !off ? (
+    <ConnectCardLive requestId={p.requestId} agent={p.agent} data={p.data} onOff={() => setOff(true)} />
   ) : (
     <PlainKeyRequestCard
       requestId={p.requestId}

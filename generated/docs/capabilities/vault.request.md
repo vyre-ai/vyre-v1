@@ -1,6 +1,6 @@
 # vault.request
 
-Ask for a missing key that is not a service (a key a skill or run needs, by name): creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status. For a service the person names, use vault_connect
+Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status
 
 | | |
 |---|---|

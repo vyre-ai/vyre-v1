@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { mintUuid } from "../../lib/ids.ts";
 import { secretForms } from "../../lib/redact.ts";
 import { fail } from "../../host/src/routes/errors.ts";
-import { CODE_BUILTINS } from "../../lib/builtin-connectors.ts";
+import { activeCodeBuiltins } from "../../lib/builtin-connectors.ts";
 import type { Tx } from "../../kernel/src/store/projection.ts";
 
 export type ErrCode = Parameters<typeof fail>[0];
@@ -419,7 +419,7 @@ export function seedBuiltins(deps: ConnectorsDeps): void {
       now,
     );
   }
-  for (const def of CODE_BUILTINS as readonly ConnectorDef[]) {
+  for (const def of activeCodeBuiltins() as readonly ConnectorDef[]) {
     if (deps.tx.get("SELECT 1 AS x FROM cn_connectors WHERE key = ?", def.key)) continue;
     deps.tx.run(
       "INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, 'live', ?, ?, ?)",

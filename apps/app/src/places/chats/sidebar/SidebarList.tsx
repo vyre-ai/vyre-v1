@@ -12,7 +12,7 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/props.ts";
 import { detectPlatform } from "../../../shell/keyboard/useShellKeys.ts";
 import { ErrorView, HeadView, HintView, ItemRow, LessView, MoreView, NoneView, TasksRow } from "./SideEntries.tsx";
 import { LANDS_ON, headOf, listKey, moveKey } from "./side-keys.ts";
-import { headMenu, rowMenu, tasksMenu } from "./side-menus.ts";
+import { headMenu, plusMenu, plusWords, rowMenu, tasksMenu } from "./side-menus.ts";
 import type { FixedDo, HeadDo, RowCan, RowDo } from "./side-menus.ts";
 import type { Item, Layout, LayoutEntry, SectionId } from "./layout.ts";
 
@@ -148,6 +148,12 @@ export function SidebarList(p: SidebarListProps): ReactElement {
     return {
       press: () => press(e),
       ...(hasMenu ? { more: (x: number, y: number) => ctx.open(() => menuFor(e), x, y, { label: labelOf(e) }) } : {}),
+      ...(e.type === "head" && plusMenu(e.section, p.headDo(e.section)).length > 0
+        ? {
+            plus: (x: number, y: number) =>
+              ctx.open(() => plusMenu(e.section, p.headDo(e.section)), x, y, { label: plusWords(e.section, e.label) }),
+          }
+        : {}),
       ...(hasMenu ? { dom: ctx.on(() => menuFor(e), { label: labelOf(e) }) } : {}),
     };
   };

@@ -142,6 +142,7 @@ export function SideChats({
   const canChat = allows(rt, GATE.newChat);
   const canChannel = allows(rt, GATE.newChannel);
   const manageAgents = allows(rt, "agents.manage");
+  const canNewAgent = allows(rt, GATE.newAgent);
   const [filter, setFilter] = useState<FilterId>(startFilter ?? "all");
   const q = useScreenQuery<SideOut>(SIDE_SCREEN, SIDE_QUERY, { filter });
   const presence = usePresence();
@@ -545,10 +546,14 @@ export function SideChats({
                 : {}),
               ...(s === "team"
                 ? {
-                    newAgent: () => {
-                      (data.nav.openNewAgent ?? data.nav.openAllAgents)();
-                      leave();
-                    },
+                    ...(canNewAgent
+                      ? {
+                          newAgent: () => {
+                            (data.nav.openNewAgent ?? data.nav.openAllAgents)();
+                            leave();
+                          },
+                        }
+                      : {}),
                   }
                 : {}),
             })}

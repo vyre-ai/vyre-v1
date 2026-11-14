@@ -4,7 +4,7 @@
 // creates a request and cards. Each requester is rate-limited across real and made-up ids alike, so the limit says nothing about what exists.
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import type { Level } from "../../../kernel/src/authorize/index.ts";
-import { grantView, nid, page, raise, storeOf } from "../projections.ts";
+import { grantView, nid, page, raise, storeOf, decisionSnapshot } from "../projections.ts";
 import type { AccessCtx, AccessStore, GrantRec, ResourceRef } from "../projections.ts";
 
 /** The part of the host Ctx these handlers use besides AccessCtx. */
@@ -65,7 +65,7 @@ export function requestOut(r: RequestRow) {
 export const requestById = (ctx: AccessCtx, id: string): RequestRow | undefined =>
   ctx.db.all(`SELECT * FROM access_requests WHERE id = ?`, id)[0] as RequestRow | undefined;
 
-function allows(
+export function allows(
   ctx: AccessCtx,
   store: AccessStore,
   principal: string,
@@ -74,7 +74,8 @@ function allows(
   resource: ResourceRef,
 ): boolean {
   return (
-    authorize(store.snapshot(), { principal, action: { perm, level }, resource, now: ctx.now() }).effect === "allow"
+    authorize(decisionSnapshot(store), { principal, action: { perm, level }, resource, now: ctx.now() }).effect ===
+    "allow"
   );
 }
 
