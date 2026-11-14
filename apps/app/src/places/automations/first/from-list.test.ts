@@ -66,7 +66,7 @@ test("a paused Automation says the reason the builder head says, and offers no r
     lastRun: { runId: "run_4", status: "failed", at: now - 1000 },
   });
   const failed = row({ id: "f", failedRuns: 1, lastRun: { runId: "run_9", status: "failed", at: now - 1000 } });
-  const [a, b] = needsFromAutomations([paused, failed] as never);
+  const [a, b] = needsFromAutomations([paused, failed] as never, { p: "Needs the Twilio key" });
   assert.equal(a!.why, "Needs the Twilio key");
   assert.equal(a!.runId, undefined, "See the run only where a failed run is the reason");
   assert.equal(pausedWhy(paused as never), "Needs the Twilio key", "one source for the card and the head");

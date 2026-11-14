@@ -17,6 +17,7 @@ export function StepTest({
   samples = {},
   onUseOutput,
   readyOutput,
+  plain = false,
 }: {
   stepKey: string;
   nodeId: string;
@@ -26,6 +27,8 @@ export function StepTest({
   onUseOutput(output: unknown): void;
   /** A test that already finished. The button offers that output on first paint. */
   readyOutput?: unknown;
+  /** The page's own step form: one Test this step row, the result in a line, and no engineering notes. */
+  plain?: boolean;
 }): ReactElement {
   const data = useAutomationsData();
   const [phase, setPhase] = useState<"idle" | "running" | "done" | "error" | "unavailable">(
@@ -75,8 +78,8 @@ export function StepTest({
 
   return (
     <View testID="step-test" style={t.wrap}>
-      <Text style={t.hint}>{fixtureNote(version, stepKey)}</Text>
-      {rendered ? (
+      {plain ? null : <Text style={t.hint}>{fixtureNote(version, stepKey)}</Text>}
+      {rendered && !plain ? (
         <Text testID="rendered-message" style={t.hint}>
           {rendered}
         </Text>
@@ -90,16 +93,18 @@ export function StepTest({
       >
         <Text style={t.btnText}>{phase === "running" ? "Testing" : "Test this step"}</Text>
       </Pressable>
-      <Text testID="no-outward-effect" style={t.hint}>
-        {NO_OUTWARD_EFFECT}
-      </Text>
+      {plain ? null : (
+        <Text testID="no-outward-effect" style={t.hint}>
+          {NO_OUTWARD_EFFECT}
+        </Text>
+      )}
       {phase === "unavailable" ? (
         <Text style={t.err}>The step test did not answer. Check the connection to the server and try again.</Text>
       ) : null}
       {phase === "error" || phase === "unavailable" ? <Text style={t.err}>{error?.message ?? ""}</Text> : null}
       {phase === "done" ? (
         <View style={t.out}>
-          <Text style={t.hint}>{`Output: ${JSON.stringify(output)}`}</Text>
+          <Text style={t.hint}>{plain ? "It ran. Nothing was sent." : `Output: ${JSON.stringify(output)}`}</Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Use output from test"

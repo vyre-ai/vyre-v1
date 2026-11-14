@@ -69,3 +69,16 @@ test("a step opened from a sentence has no Basic and Advanced switch", () => {
   assert.ok(out.includes('data-testid="inspector"'), "the step form is open");
   assert.ok(!out.includes("toggle-advanced") && !out.includes("toggle-basic") && !out.includes("inspector-mode"));
 });
+
+test("the step form is one frame: its fields, Test this step, a closed Details; no tabs, no raw reference, no raw key, no engineering note", () => {
+  const out = renderToStaticMarkup(
+    <AutomationsDataProvider value={createSampleAutomations(northwind).data}>
+      <BuilderPage automationId="aut_lead" initialSelected="text" />
+    </AutomationsDataProvider>,
+  ).replaceAll("<!-- -->", "");
+  const form = out.slice(out.indexOf('data-testid="inspector"'));
+  assert.ok(form.includes("Test this step") && form.includes('data-testid="step-details"'));
+  for (const gone of ["Configure", "Number Id", "{{lead.phone}}", "Unicode segment", "fixture data", "action messages.create", "num_main"])
+    assert.ok(!form.includes(gone), `not on the form: ${gone}`);
+  assert.ok(form.includes("Lead · Phone") || form.includes("Lead · Phone"), "the recipient is a named chip");
+});

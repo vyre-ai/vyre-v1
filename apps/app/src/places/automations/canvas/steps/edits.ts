@@ -373,6 +373,14 @@ export function chipLabel(ref: string, titleOf: (stepId: string) => string): str
   if (t) return FRIENDLY_FIELD[t[1]!] ?? `Trigger \u00b7 ${fieldWords(t[1]!)}`;
   const st = /^steps\.([^.\[]+)\.out(?:\.(.+))?$/.exec(ref);
   if (st) return `${titleOf(st[1]!)}${st[2] ? ` \u00b7 ${fieldWords(st[2])}` : ""}`;
+  // any other source reads as its words: "lead.phone" is "Lead \u00b7 phone"
+  const dot = ref.indexOf(".");
+  if (dot > 0) {
+    const head = ref.slice(0, dot);
+    const known = titleOf(head);
+    const first = known !== head ? known : fieldWords(head).replace(/^\w/, (c) => c.toUpperCase());
+    return `${first} \u00b7 ${fieldWords(ref.slice(dot + 1))}`;
+  }
   return ref;
 }
 

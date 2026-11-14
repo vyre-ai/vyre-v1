@@ -179,3 +179,12 @@ test("Ask Vyre opens the assistant in a pane of the tab and does not open Chats"
   assert.deepEqual(opened, []);
   void northwind;
 });
+
+test("a paused Automation's card says the reason its builder head says, and offers no run to read", async () => {
+  const { data } = wired(northwind as never);
+  const root = await page(data);
+  for (let i = 0; i < 4; i++) await flush();
+  const card = textOf(find(root, "fp-fix-aut_lead")?.parent ?? root);
+  assert.ok(card.includes("Needs the Twilio key"), card);
+  assert.equal(find(root, "fp-run-aut_lead"), null, "no See the run for a pause with its own reason");
+});

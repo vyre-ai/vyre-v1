@@ -288,7 +288,8 @@ test("chips say what they bring in, by the step's name, and dropping one joins t
   assert.equal(chipLabel("trigger.first_name", title), "Trigger \u00b7 First name");
   assert.equal(chipLabel("steps.find.out", title), "Find rows");
   assert.equal(chipLabel("steps.find.out.count", title), "Find rows \u00b7 Count");
-  assert.equal(chipLabel("vars.x", title), "vars.x");
+  assert.equal(chipLabel("vars.x", title), "Vars \u00b7 X", "any other source reads as words, never a raw reference");
+  assert.equal(chipLabel("lead.phone", title), "Lead \u00b7 Phone");
   assert.equal(joinTemplate(dropChip(splitTemplate("a {{ trigger }} b"), 1)), "a  b");
   assert.equal(addChip("Draft it", "trigger"), "Draft it {{ trigger }}");
   assert.equal(addChip("", "trigger"), "{{ trigger }}");

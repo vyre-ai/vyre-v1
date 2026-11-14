@@ -106,7 +106,7 @@ function detailOf(n: DefNodeIn, title: string, catalogTitle: string | undefined,
   // an id is not words: a key like mailboxId or a value like mbx_1 never reaches the page
   const plain = Object.fromEntries(
     Object.entries(n.input).filter(
-      ([k, v]) => !/Ids?$/.test(k) && !(typeof v === "string" && /^[a-z]{2,6}_[A-Za-z0-9]+$/.test(v)),
+      ([k, v]) => (k in PREFIX || k === "subject") && !(typeof v === "string" && /^[a-z]{2,6}_[A-Za-z0-9]+$/.test(v)),
     ),
   );
   const s = sentenceOf("", plain, ctx);

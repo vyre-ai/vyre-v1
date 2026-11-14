@@ -668,6 +668,7 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
     return next;
   };
   const writes: Record<string, (input: any) => unknown> = {
+    "automations.get": (i: { automationId: string }) => ({ automation: autos().find((x) => x.id === i.automationId) }),
     "automations.update": (i: {
       automationId: string;
       name?: string;

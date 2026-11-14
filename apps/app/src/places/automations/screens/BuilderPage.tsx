@@ -448,6 +448,10 @@ function Body({
   const selNode = sel && sel !== "trigger" ? (def.nodes.find((n) => n.id === sel) ?? null) : null;
   const trigIndex = sel === "trigger" ? 0 : sel?.startsWith("trigger:") ? Number(sel.slice(8)) : null;
   const trigSel = trigIndex !== null;
+  const headingOf = (() => {
+    const r = model.rows.find((x) => x.kind === "step" && x.id === sel);
+    return r && r.kind === "step" ? r.sentence.text : undefined;
+  })();
   const inspect = !locked && (selNode !== null || trigSel);
   const stepSchema = selNode && catalog ? catalog.all.find((s) => s.key === selNode.key)?.input : undefined;
   const inspector = inspect ? (
@@ -460,6 +464,7 @@ function Body({
       version={a.version}
       def={def}
       node={selNode}
+      {...(headingOf ? { heading: headingOf } : {})}
       trigger={trigIndex !== null ? (def.triggers[trigIndex] ?? null) : null}
       triggerIndex={trigIndex}
       issues={issues}

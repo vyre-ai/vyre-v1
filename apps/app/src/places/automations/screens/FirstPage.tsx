@@ -36,6 +36,26 @@ export function FirstPage({
     };
   }, [data]);
   const rows = list.status === "ready" ? list.data.automations : [];
+  // the list does not say why an Automation is paused: that is read from the paused ones themselves, so the card says what the builder head says
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const pausedIds = rows
+    .filter((a) => a.status === "paused")
+    .map((a) => a.id)
+    .join(",");
+  useEffect(() => {
+    let live = true;
+    for (const id of pausedIds.split(",").filter(Boolean))
+      void data.call("automations.get", { automationId: id }).then(
+        (out) => {
+          const r = (out as { automation?: { pausedReason?: string } })?.automation?.pausedReason;
+          if (live && r) setReasons((all) => ({ ...all, [id]: r }));
+        },
+        () => undefined,
+      );
+    return () => {
+      live = false;
+    };
+  }, [pausedIds, data]);
   const now = data.clock().now;
   const page = useMemo(() => {
     // the server offers only what the person's Assistant can finish with one approval (never a company key, never one an admin must clear), so each offer is finishable as it arrives
@@ -47,8 +67,8 @@ export function FirstPage({
       knownService: true,
       assistant: "cleared",
     }));
-    return firstPage({ needs: needsFromAutomations(rows), suggestions, today: todayFromAutomations(rows, now) });
-  }, [rows, offers, now]);
+    return firstPage({ needs: needsFromAutomations(rows, reasons), suggestions, today: todayFromAutomations(rows, now) });
+  }, [rows, offers, now, reasons]);
   const offerOf = (id: string): ConnectorOffer | undefined => offers.find((o) => o.itemId === id);
   const create = (): void => {
     setNote(null);

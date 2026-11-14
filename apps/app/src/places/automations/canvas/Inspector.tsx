@@ -23,8 +23,10 @@ import { connectEntries } from "../../../shell/connect/model.ts";
 import type { AccountOption } from "../connect/accounts.ts";
 import { asFixture } from "../builder/fields.ts";
 import { MessageComposer } from "../builder/MessageComposer.tsx";
-import { DataShelf, MappingFix, SectionRow, advancedInputEdit, basicFieldEdit, nodeIdSet } from "../builder/marks.tsx";
-import { Choice, Field, MapTargetContext } from "./fields.tsx";
+import { DataShelf, MappingFix, advancedInputEdit, basicFieldEdit, nodeIdSet } from "../builder/marks.tsx";
+import { Choice, DataWordsContext, Field, MapTargetContext, More } from "./fields.tsx";
+import type { DataWords } from "./fields.tsx";
+import { mappingExpression, shelfRows, withExpression } from "../builder/fields.ts";
 import type { MapTarget } from "./fields.tsx";
 import { frameFor } from "./frame.ts";
 import type { StudioLayout } from "./frame.ts";
@@ -82,7 +84,6 @@ export function Inspector({
   mode = "basic",
   onMode,
   section = "configure",
-  onSection,
   samples = {},
   version = 0,
   onStoreSample,
@@ -94,6 +95,7 @@ export function Inspector({
   kind: automationKind = "personal",
   runId,
   runLog,
+  heading,
 }: {
   /** The Automation this panel edits: the web request trigger shows its address. */
   automationId?: string;
@@ -118,7 +120,6 @@ export function Inspector({
   mode?: BuilderMode;
   onMode?(next: BuilderMode): void;
   section?: "configure" | "data" | "test";
-  onSection?(next: "configure" | "data" | "test"): void;
   samples?: Readonly<Record<string, unknown>>;
   version?: number;
   onStoreSample?(nodeId: string, output: unknown): void;
@@ -136,11 +137,12 @@ export function Inspector({
   runId?: string;
   /** The log of that step already read, for a screen that paints before the read answers. */
   runLog?: unknown;
+  /** The step's sentence as its row on the page reads it; the form's head says the same words. */
+  heading?: string;
 }): ReactElement {
   const { element, show: openMenu } = useMenu();
   const openConnect = useOpenConnect();
   const [mapTarget, setMapTarget] = useState<MapTarget | null>(null);
-  const ordered = layout ? frameFor(layout).ordered : false;
   const zone = usePersonZone();
   useEffect(() => {
     installFocusRing();
@@ -218,6 +220,28 @@ export function Inspector({
         });
     return out;
   };
+  const titleOf = (id: string): string => {
+    const n = def.nodes.find((x) => x.id === id);
+    return n ? (n.title ?? titleOfKey(n.key)) : id;
+  };
+  // "Insert data": what an earlier step gives, by its name; a field is never typed as {{ }} by hand
+  const dataWords: DataWords = {
+    titleOf,
+    insert: (x, y, current, put) => {
+      const rows = shelfRows(samples["trigger"], prior);
+      openMenu(
+        rows.length === 0
+          ? [{ label: "Nothing yet. Test a step to see what it gives.", onSelect: () => undefined }]
+          : rows.map((r) => ({
+              label: `${r.source} · ${r.name}`,
+              onSelect: () => put(withExpression(current, mappingExpression(r.id))),
+            })),
+        x,
+        y,
+        "other",
+      );
+    },
+  };
   const mine = issues.filter((i) => (node ? i.nodeId === node.id : i.nodeId === "trigger"));
   if (!node) {
     const meta = trigger ? triggerMeta(trigger.key, trigger.config) : null;
@@ -236,25 +260,7 @@ export function Inspector({
       >
         <Head title={meta?.title ?? "Trigger"} sub="Trigger" icon={meta?.icon ?? "bolt"} onClose={onClose} />
         <ScrollView contentContainerStyle={i.body} keyboardShouldPersistTaps="handled">
-          <SectionRow section={section} ordered={ordered} onSection={(next) => onSection?.(next)} />
-          {section === "data" ? (
-            <DataShelf
-              triggerSample={samples["trigger"]}
-              steps={prior}
-              target={mapTarget}
-              onPick={(_id, _expression, next) => {
-                mapTarget?.commit(next);
-                setMapTarget(null);
-              }}
-            />
-          ) : null}
-          {section === "test" ? (
-            <Text testID="trigger-test-note" style={i.hint}>
-              A trigger is tested with the whole Automation. Press Test at the top: it runs every step with sample data,
-              and what each step returns shows on the Data tab.
-            </Text>
-          ) : null}
-          {section === "configure" ? (
+          {true ? (
             <MapTargetContext.Provider value={{ set: setMapTarget }}>
               {trigger && triggerIndex !== null ? (
                 <TriggerForm
@@ -383,7 +389,15 @@ export function Inspector({
   // Paths and Parallel keep their lanes on the step, and the fields above are where they are edited
   const onTheStep = (name: string): boolean =>
     (kind === "paths" && (name === "paths" || name === "otherwise")) || (kind === "parallel" && name === "branches");
-  const skipField = (name: string): boolean => skipAccount(name) || onTheStep(name) || (composer && hidden.has(name));
+  // an engineering line ("Twilio · action messages.create") and an id no name can be found for are not the person's to read: they stay in the step's saved settings and in Advanced
+  const nameOfId = (id: string): string | null =>
+    accounts.find((a) => a.id === id)?.title ?? keys.find((k) => k.id === id)?.name ?? null;
+  const opaqueId = (name: string): boolean => {
+    const v = node.input?.[name];
+    return /Ids?$/.test(name) && typeof v === "string" && /^[a-z]{2,6}_[A-Za-z0-9]+$/.test(v) && nameOfId(v) === null;
+  };
+  const skipField = (name: string): boolean =>
+    skipAccount(name) || onTheStep(name) || (composer && hidden.has(name)) || name === "summary" || opaqueId(name);
   const writeInput = (name: string, next: unknown): void => {
     const input = { ...node.input };
     if (next === undefined) delete input[name];
@@ -420,6 +434,7 @@ export function Inspector({
   );
   fields.push(...stray);
   return (
+    <DataWordsContext.Provider value={dataWords}>
     <MapTargetContext.Provider value={{ set: setMapTarget }}>
       <View
         style={paneStyle(embedded, layout)}
@@ -428,45 +443,17 @@ export function Inspector({
         {...webOnly({ dataSet: { vyreFocus: "1" } })}
       >
         <Head
-          title={node.title ?? titleOfKey(node.key)}
+          title={heading ?? node.title ?? titleOfKey(node.key)}
           sub={groupOfKey(node.key)}
           icon={iconOfKey(node.key)}
           onClose={onClose}
         />
         <ScrollView contentContainerStyle={i.body} keyboardShouldPersistTaps="handled">
-          <SectionRow section={section} ordered={ordered} onSection={(next) => onSection?.(next)} />
-          {section === "data" ? (
-            <DataShelf
-              triggerSample={samples["trigger"]}
-              steps={prior}
-              target={mapTarget}
-              onPick={(_id, _expression, next) => {
-                mapTarget?.commit(next);
-                setMapTarget(null);
-              }}
-            />
-          ) : null}
-          {section === "test" && runId ? (
-            <RunStepIo runId={runId} stepId={node.id} {...(runLog !== undefined ? { ready: runLog } : {})} />
-          ) : null}
-          {section === "test" ? (
-            <StepTest
-              stepKey={node.key}
-              nodeId={node.id}
-              input={node.input ?? {}}
-              version={version}
-              samples={samples}
-              onUseOutput={(output) => onStoreSample?.(node.id, asFixture(version, node.key, output))}
-            />
-          ) : null}
-          {section === "configure" ? (
+          {true ? (
             <>
               {node.key === "connector_request" ? (
                 <Text style={i.hint}>{`${CONNECT_LIMIT} The request runs a named action on the connection.`}</Text>
               ) : null}
-              <Text testID="plain-language" style={i.hint}>
-                {subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? REMOVED_KEY })}
-              </Text>
               {headerMode ? null : (
                 <View accessibilityLabel="Builder mode" testID="inspector-mode" style={i.seg}>
                   {/* ui-rows-lint: not a list (Basic and Advanced toggle) */}
@@ -565,23 +552,6 @@ export function Inspector({
                 />
               ) : null}
               {live ? null : fields}
-              {advanced ? (
-                <Field
-                  label={VAL_LABEL}
-                  value={JSON.stringify(node.input ?? {}, null, 2)}
-                  testID="field-input-json"
-                  onCommit={(t) => {
-                    const edited = advancedInputEdit(t);
-                    if (!edited.ok) {
-                      setJsonError(edited.message);
-                      return;
-                    }
-                    setJsonError(null);
-                    onChange(updateStep(def, node.id, { input: edited.input }));
-                  }}
-                />
-              ) : null}
-              {jsonError ? <Text style={i.hint}>{jsonError}</Text> : null}
               {inputKeys.length === 0 && kind === "plain" && !advanced && !accountPick ? (
                 <Text style={i.hint}>
                   Nothing is set on this step yet. Add what it needs in the fields the check names below.
@@ -599,6 +569,47 @@ export function Inspector({
                   onSet={(next) => onChange(updateStep(def, node.id, { askBeforeSending: next }))}
                 />
               ) : null}
+              <StepTest
+                plain
+                stepKey={node.key}
+                nodeId={node.id}
+                input={node.input ?? {}}
+                version={version}
+                samples={samples}
+                onUseOutput={(output) => onStoreSample?.(node.id, asFixture(version, node.key, output))}
+              />
+              <More head="Details" testID="step-details" initiallyOpen={section !== "configure" || advanced}>
+              <Text testID="plain-language" style={i.hint}>
+                {subtitleOf(node, { key: (id) => keys.find((k) => k.id === id)?.name ?? REMOVED_KEY })}
+              </Text>
+
+              {runId ? <RunStepIo runId={runId} stepId={node.id} {...(runLog !== undefined ? { ready: runLog } : {})} /> : null}
+              <DataShelf
+                triggerSample={samples["trigger"]}
+                steps={prior}
+                target={mapTarget}
+                onPick={(_id, _expression, next) => {
+                  mapTarget?.commit(next);
+                  setMapTarget(null);
+                }}
+              />
+              {advanced ? (
+                <Field
+                  label={VAL_LABEL}
+                  value={JSON.stringify(node.input ?? {}, null, 2)}
+                  testID="field-input-json"
+                  onCommit={(t) => {
+                    const edited = advancedInputEdit(t);
+                    if (!edited.ok) {
+                      setJsonError(edited.message);
+                      return;
+                    }
+                    setJsonError(null);
+                    onChange(updateStep(def, node.id, { input: edited.input }));
+                  }}
+                />
+              ) : null}
+              {jsonError ? <Text style={i.hint}>{jsonError}</Text> : null}
               <View style={i.group}>
                 <Text style={i.groupHead}>If this step fails</Text>
                 <Choice
@@ -681,6 +692,7 @@ export function Inspector({
                   </>
                 ) : null}
               </View>
+              </More>
               <MappingFix nodeIds={nodeIdSet(def)} value={node.input} />
               <Problems list={mine} />
               {mine.some((item) => item.severity === "error") ? (
@@ -711,6 +723,7 @@ export function Inspector({
         {element}
       </View>
     </MapTargetContext.Provider>
+    </DataWordsContext.Provider>
   );
 }
 

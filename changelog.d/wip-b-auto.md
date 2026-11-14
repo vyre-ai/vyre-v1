@@ -21,3 +21,7 @@
 - fix: a step row's second line says what its settings add in words and is absent when there is nothing to add; it is never the title again.
 - fix: the first page card and the builder head read one paused reason ("Needs the Twilio key"); "See the run" only where a failed run is the reason.
 - fix: a wait, a question, a text and a loop each wear their own glyph instead of one shared grey branch.
+- feat: one step form for every kind: the fields, one Test this step row, a closed Details (data shelf, run output, failure setting, JSON); no Configure, Data and Test tabs; the form's head is the step's sentence.
+- feat: a {{ reference }} in any field draws as a named chip (Lead · Phone) with an Insert data menu of what earlier steps give; a line nobody edited is not rewritten.
+- fix: no field label is a raw key (numberId reads Number); ids no name can be found for and engineering summaries stay off the form; message notes sit under a closed About this message.
+- fix: the first-page card reads a paused Automation's reason from the Automation, the same words as the builder head.

@@ -1,11 +1,13 @@
 // Email uses the shared EmailBuilder. A text uses the shared RichEditor. Neither step gets a plain body box.
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { EmailBuilder, compileEmail } from "../../../../../../ui/src/EmailBuilder/index.tsx";
 import type { EmailBlock } from "../../../../../../ui/src/EmailBuilder/props.ts";
 import { RichEditor } from "../../../../../../ui/src/RichEditor/index.tsx";
 import { useAutomationsData } from "../canvas/data.tsx";
+import { ChipText, DataWordsContext, More } from "../canvas/fields.tsx";
+import { chipLabel } from "../canvas/steps/edits.ts";
 import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
 import type { DroppedFile } from "../../../../../../ui/src/FileDrop/index.tsx";
 import { uploadAttachments, uploadDeps } from "../../chats/conversation/actions.ts";
@@ -59,11 +61,16 @@ function Line({
   onCommit(text: string): void;
 }): ReactElement {
   const [draft, setDraft] = useState<string | null>(null);
+  const words = useContext(DataWordsContext);
   const shown = draft ?? value;
   const done = (): void => {
     if (draft !== null && draft !== value) onCommit(draft);
     setDraft(null);
   };
+  // a recipient that comes from data reads as a named chip, never as {{ }}
+  if (words && /\{\{[^{}]*\}\}/.test(value))
+    return <ChipText label={label} value={value} onCommit={onCommit} chipLabel={(r) => chipLabel(r, words.titleOf)}
+        compact testID={testID} />;
   return (
     <View style={s.field}>
       <Text style={s.label}>{label}</Text>
@@ -207,8 +214,10 @@ function EmailStep({
           .filter((x) => x.length > 0)}
         onIds={(ids) => onInput(writeList(input, "fileIds", ids.join(", ")))}
       />
-      <Text style={s.note}>{EMAIL_REPLY}</Text>
-      <Text style={s.note}>{EMAIL_CONSENT}</Text>
+      <More head="About this message" testID="email-details">
+        <Text style={s.note}>{EMAIL_REPLY}</Text>
+        <Text style={s.note}>{EMAIL_CONSENT}</Text>
+      </More>
       <EmailBuilder
         id={nodeId}
         title="Email"
@@ -306,6 +315,7 @@ function SmsStep({
         onMarkdown={(markdown) => onInput(writeSms(input, { body: markdown, mediaFileIds: draft.mediaFileIds }))}
         testID="sms-body"
       />
+      <More head="About this message" testID="sms-details">
       <Text
         style={s.note}
         testID="sms-count"
@@ -321,6 +331,7 @@ function SmsStep({
       >
         <Text style={s.note}>Preview with fixture data</Text>
       </Pressable>
+      </More>
       {rendered ? <Text style={s.note}>{rendered}</Text> : null}
     </View>
   );
