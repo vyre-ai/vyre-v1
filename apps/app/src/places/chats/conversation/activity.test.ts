@@ -119,7 +119,7 @@ test("an ordinary underscored word in the thinking line is left as written; only
 });
 
 test("a live reply shows one calm word, never a step's name or a count (G21)", () => {
-  const step = (state: "live" | "done") => ({ id: "s1", name: "mcp__vyre__records_search", detail: "Rivera", state });
+  const step = (state: "live" | "done") => ({ id: "s1", name: "mcp__vyre__records_search", detail: "Harbor", state });
   assert.equal(calmWord(snap(), false), "Thinking");
   assert.equal(calmWord(snap({ thinking: "let me see" }), false), "Thinking");
   assert.equal(calmWord(snap({ steps: [step("live")] as never }), false), "Working");
@@ -139,4 +139,27 @@ test("a turn that sits a minute in one tool call keeps a true word, and one wait
   assert.equal(calmWord(long, false), "Working");
   const parked = snap({ steps: [{ id: "s2", name: "device_wait", state: "live" }] as never });
   assert.equal(calmWord(parked, false), "Waiting");
+});
+
+test("the word is true while a turn is held, setting up, or parked (review, 14 Nov)", () => {
+  const live = (name: string, id = "s") => ({ id, name, state: "live" as const });
+  assert.equal(calmWord(snap({ steps: [live("Bash")] as never }), false, true), "Waiting for you", "held for a person");
+  assert.equal(calmWord(snap({ steps: [live("AskUserQuestion")] as never }), false), "Waiting for you");
+  assert.equal(calmWord(snap({ steps: [live("engine_setup")] as never }), false), "Setting up");
+  assert.equal(calmWord(snap({ steps: [live("device_wait")] as never }), false), "Waiting");
+  assert.equal(
+    calmWord(snap({ steps: [live("device_wait", "a"), live("Bash", "b")] as never }), false),
+    "Working",
+    "one parked step among running ones is still work",
+  );
+  assert.equal(
+    calmWord(snap({ steps: [live("Bash")] as never }), true, true),
+    "Waiting for you",
+    "words streamed, then a question open: it waits",
+  );
+  assert.equal(
+    calmWord(snap({ steps: [live("Bash")] as never }), true, false),
+    "Writing",
+    "words coming, nothing held",
+  );
 });

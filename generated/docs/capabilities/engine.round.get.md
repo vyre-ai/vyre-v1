@@ -39,7 +39,6 @@ type Out = {
       agents: Array<{
           agentId: string;
           state: "working" | "waiting" | "replied" | "stopped";
-          on?: string;
         }>;
     }>;
 };
@@ -70,7 +69,6 @@ type Out = {
         "agents": [
           {
             "agentId": "agt_a1b2c3",
-            "on": "agt_a1b2c3",
             "state": "working"
           }
         ],

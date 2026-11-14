@@ -96,6 +96,8 @@ const serviceRow = t.obj({
   builtin: t.bool(),
   /** The host a key is tried against: the connector's first declared host */
   host: t.opt(t.str()),
+  /** every host a key kept for it can be sent to: the check's, then each action's */
+  hosts: t.arr(t.str()),
   /** A call exists that tries a key (its health call, else its first read that needs no input) */
   checks: t.bool(),
 });

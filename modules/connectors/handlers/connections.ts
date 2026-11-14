@@ -79,6 +79,7 @@ export interface ForService {
     fields: { name: string; label: string; optional: boolean }[];
     site?: string;
     host?: string;
+    hosts: string[];
     builtin: boolean;
     checks: boolean;
   };
@@ -87,6 +88,33 @@ export interface ForService {
 }
 
 /** The call that tries a key: the connector's health action, else its first GET that takes nothing from the caller. */
+/** The host a key tried by the connector's check is sent to: the host of that call's own address. */
+/** Every host a key kept for this connector can be sent to: the check's, then each action's own address. */
+export const keyHosts = (def: ConnectorDef): string[] => {
+  const out: string[] = [];
+  const first = probeHost(def);
+  if (first) out.push(first);
+  for (const a of def.actions) {
+    try {
+      const h = a.url ? new URL(a.url.replace(/\{[^}]*\}/g, "x")).hostname : "";
+      if (h && !out.includes(h)) out.push(h);
+    } catch {
+      /* not an address */
+    }
+  }
+  return out;
+};
+
+export const probeHost = (def: ConnectorDef): string | undefined => {
+  const name = def.health ?? probeOf(def);
+  const url = def.actions.find((a) => a.name === name)?.url;
+  try {
+    return url ? new URL(url.replace(/\{[^}]*\}/g, "x")).hostname : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const probeOf = (def: ConnectorDef): string | undefined =>
   def.health ??
   def.actions.find(
@@ -542,6 +570,8 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
             .slice(0, 3),
         };
       const hit = exact[0]!;
+      // a connector whose check or any action reaches a host it does not declare cannot be connected: the key would go there
+      if (keyHosts(hit).some((h) => !checkEgress(`https://${h}/`, hit.domains).ok)) return { found: false, near: [] };
       const me = actorOf(ctx);
       const mine = tx
         .all<ConnectionDb>("SELECT * FROM cn_connections WHERE connector = ? ORDER BY created_at", hit.key)
@@ -552,7 +582,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         mine.find((r) => r.state === "active" && r.owner_kind === "person") ??
         mine.find((r) => r.state === "active") ??
         mine[0];
-      const host = hit.domains.find((d) => !d.startsWith("*"));
+      const host = probeHost(hit);
       return {
         found: true,
         connector: {
@@ -566,8 +596,9 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
             optional: /\boptional\b/i.test(x.description),
           })),
           ...(host ? { site: `https://${host.replace(/^api\./, "")}`, host } : {}),
+          hosts: keyHosts(hit),
           builtin: hit.builtin === true,
-          checks: probeOf(hit) !== undefined,
+          checks: probeHost(hit) !== undefined,
         },
         ...(best
           ? {
@@ -599,6 +630,16 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       // the connector's own health call; a connector built in one call (connectors.define) has none, so its first read that needs no input stands in. Only a connector with no such call cannot be tried at all.
       const probe = probeOf(def);
       if (!probe) return { result: "ok" as const };
+      // the key goes to the host of the call's own address, and only if the connector declares that host: refused before any request leaves
+      const probeUrl = def.actions.find((a) => a.name === probe)?.url ?? "";
+      if (!probeUrl) return { result: "ok" as const };
+      const egress = checkEgress(probeUrl.replace(/\{[^}]*\}/g, "x"), def.domains);
+      if (!egress.ok)
+        refuse(
+          ctx,
+          "validation.precondition_failed",
+          `${def.title}'s check reaches a host it does not declare, so no key was sent.`,
+        );
       try {
         await executeAction(deps, ctx, def, probe, { input: {}, secrets: input.secrets, persist: false });
       } catch (e) {

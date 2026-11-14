@@ -435,7 +435,7 @@
       "blocks": [],
       "cap": "access.clears",
       "deferred": false,
-      "description": "Whether a principal's clearance reaches a resource's label, asked before a key is stored or shared for an agent. Yes or no only. The server or a person with Edit on it may ask; anyone else gets not found",
+      "description": "Whether a principal's clearance reaches a resource's label, asked before a key is stored or shared for an agent. Yes or no only. The server, a call another capability made, or a person with Edit on it may ask; anyone else gets not found",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -11705,98 +11705,6 @@
       },
       "name": "chat_reply_details",
       "planMode": "allowed",
-      "toolset": "chats",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "chat.round.decide",
-      "deferred": false,
-      "description": "Go with one agent's answer after a message asked several: one quiet line, \"Decided: going with Nova's answer\", in the chat. Only the person who asked, only for an agent that answered; no agent is woken by it",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "agentId": {
-            "examples": [
-              "agt_a1b2c3"
-            ],
-            "pattern": "^agt_[a-z0-9]+$",
-            "type": "string"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "messageId": {
-            "examples": [
-              "msg_a1b2c3"
-            ],
-            "pattern": "^msg_[a-z0-9]+$",
-            "type": "string"
-          },
-          "threadId": {
-            "examples": [
-              "thr_a1b2c3"
-            ],
-            "pattern": "^thr_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "threadId",
-          "messageId",
-          "agentId",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "chat_round_decide",
-      "planMode": "blocked",
-      "toolset": "chats",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "chat.round.discuss",
-      "deferred": false,
-      "description": "Let the agents that answered a message talk it over: the thread under the message gets the answers and a request for one short turn each, ending on one line that starts \"Decided:\". The engine's hand-off limits cap it at four turns. Only the person who asked",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "messageId": {
-            "examples": [
-              "msg_a1b2c3"
-            ],
-            "pattern": "^msg_[a-z0-9]+$",
-            "type": "string"
-          },
-          "threadId": {
-            "examples": [
-              "thr_a1b2c3"
-            ],
-            "pattern": "^thr_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "threadId",
-          "messageId",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "chat_round_discuss",
-      "planMode": "blocked",
       "toolset": "chats",
       "v": 1
     },
@@ -69720,6 +69628,32 @@
         "type": "object"
       },
       "name": "vault_item_delete",
+      "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "vault.item.discard_new",
+      "deferred": false,
+      "description": "Take back a key you saved a moment ago that could not be connected: erased for good, from the Vault and from Trash. Only your own, only within two minutes, only while nothing has used it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "itemId": {
+            "examples": [
+              "vit_a1b2c3"
+            ],
+            "pattern": "^vit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "name": "vault_item_discard_new",
       "planMode": "blocked",
       "toolset": "vault",
       "v": 1

@@ -24,3 +24,42 @@ test("the queue line draws on the page: After this for someone else's turn, At t
     );
   }
 });
+
+test("three queued messages: each has its own note, and Edit and Stop and send act on the message they sit under (review, 14 Nov)", async () => {
+  const { installDom, mount, press, flush } = await import("../../../../../../ui/src/testing/dom.ts");
+  const { createRoot } = await import("test-renderer");
+  type N = { props: Record<string, unknown>; children?: (N | string)[] };
+  const all = (n: N, id: string, out: N[] = []): N[] => {
+    if (n.props?.["data-testid"] === id || n.props?.testID === id) out.push(n);
+    for (const c of n.children ?? []) if (typeof c === "object") all(c, id, out);
+    return out;
+  };
+  const restore = installDom();
+  try {
+    const data = waiting(true, 3);
+    const calls: { cap: string; input: Record<string, unknown> }[] = [];
+    const call = async (cap: string, input: unknown): Promise<unknown> => {
+      calls.push({ cap, input: input as Record<string, unknown> });
+      return data.call(cap, input);
+    };
+    const root = (await mount(createRoot, <Conversation data={{ ...data, call }} />)) as unknown as N;
+    const sends = all(root, "queue-send-now");
+    assert.equal(sends.length, 3, "one note per queued message");
+    await press(sends[1] as never);
+    await flush();
+    assert.deepEqual(
+      calls.filter((c) => c.cap === "engine.interrupt").map((c) => c.input["messageId"]),
+      ["q2"],
+      "the second note stops and sends the second message, not the first",
+    );
+    await press(all(root, "queue-edit")[2] as never);
+    await flush();
+    assert.deepEqual(
+      calls.filter((c) => c.cap === "engine.drop_queued").map((c) => c.input["messageId"]),
+      ["q3"],
+      "the third note takes back the third message",
+    );
+  } finally {
+    restore();
+  }
+});

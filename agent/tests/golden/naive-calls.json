@@ -950,15 +950,6 @@
     "threadId": "thr_a1b2c3",
     "messageId": "msg_a1b2c3"
   },
-  "chat_round_decide": {
-    "threadId": "thr_a1b2c3",
-    "messageId": "msg_a1b2c3",
-    "agentId": "agt_a1b2c3"
-  },
-  "chat_round_discuss": {
-    "threadId": "thr_a1b2c3",
-    "messageId": "msg_a1b2c3"
-  },
   "chat_screen_get": {
     "threadId": "thr_a1b2c3"
   },
@@ -5772,6 +5763,9 @@
     "folderId": "vfd_a1b2c3"
   },
   "vault_item_delete": {
+    "itemId": "vit_a1b2c3"
+  },
+  "vault_item_discard_new": {
     "itemId": "vit_a1b2c3"
   },
   "vault_item_get": {

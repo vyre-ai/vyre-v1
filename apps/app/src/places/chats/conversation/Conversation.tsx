@@ -2,7 +2,7 @@
 // agent's mode menu), Helpers while any run, Stop and Stop all while any work, the pane toggle and a menu. Under it the last 50 messages (older ones stream in on request), the agent's
 // work folded into one line, and the shared composer with its who-will-reply line. A send shows on the page in the same frame, before chat.post answers; while an agent works, a plain
 // send queues for its next step and Interrupt sends it now.
-import { draftOf, setDraft } from "./drafts.ts";
+import { draftOf, scopeOf, setDraft } from "./drafts.ts";
 import { useFrameStore } from "./frame.ts";
 import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
@@ -119,7 +119,7 @@ import { offlineLine } from "../agentpage/model.ts";
 import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts";
 import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
-import { CHAPTER_MIN, ChapterHead, ChapterLayer, ChapterRail, ownSeq } from "./chapters/index.ts";
+import { CHAPTER_MIN, ChapterHead, ChapterLayer, ChapterRail, ownSeq, usedTerminal } from "./chapters/index.ts";
 import {
   WINDOW,
   beforeCursor,
@@ -156,6 +156,7 @@ import {
   workingAgents,
   withoutAnswered,
   faceDoor,
+  peopleIn,
 } from "./model.ts";
 import type { Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf, retryLoads } from "../../../../../../ui/src/States/Loads.tsx";
@@ -459,15 +460,15 @@ function ConversationView(): ReactElement {
   const [saidId, setSaidId] = useState<string | null>(null);
   // text asked for by a pane or a page ("Ask about this file"): taken when this conversation opens and whenever it is asked again, after what the person had typed
   const [seed, setSeed] = useState<{ value: string; n: number }>(() => ({
-    value: data.fill?.take() ?? draftOf(data.threadId),
+    value: data.fill?.take() ?? draftOf(data.threadId, scopeOf(data.me?.id)),
     n: 0,
   }));
   const [typed, setTyped] = useState(seed.value);
   const typedRef = useRef(seed.value);
   // the unsent line is kept on this device, per chat; a send or an empty line clears it (the sidebar draws a pencil from it)
   useEffect(() => {
-    setDraft(data.threadId, typed);
-  }, [data.threadId, typed]);
+    setDraft(data.threadId, typed, scopeOf(data.me?.id));
+  }, [data.threadId, data.me?.id, typed]);
   const emptyRef = useRef(false);
   const [atEnd, setAtEnd] = useState(true);
   const [jump, setJump] = useState(0);
@@ -1008,7 +1009,7 @@ function ConversationView(): ReactElement {
     ? weave(folded, data.activity.events).filter((m) => keepItem(m, data.activity!.show))
     : folded;
   // a channel, or a chat between people, is shared: its times read in the Space zone; a chat with only you and your agents reads in your own
-  const sharedChat = thread.kind === "channel" || thread.members.filter((p) => p.kind === "person").length >= 2;
+  const sharedChat = thread.kind === "channel" || peopleIn(thread) >= 2;
   const items = timeline(woven, {
     meId: data.me.id,
     nameOf,
@@ -1024,7 +1025,7 @@ function ConversationView(): ReactElement {
     openedAt: openedAt.current,
     mentionsMe: (m) => mentionsIn(m.body, [{ kind: "person", id: data.me.id, name: data.me.name }]).length > 0,
   });
-  // a message of the person's that an agent has answered since: what it taught is then one quiet mark on its row, not a line under it
+  // a message of the person's that an agent has answered since: the line that says what it taught is then gone (shown once)
   const answered = new Set<string>();
   let agentAfter = false;
   for (let i = timelineMessages.length - 1; i >= 0; i--) {
@@ -1307,13 +1308,14 @@ function ConversationView(): ReactElement {
   };
   // the note for a message still waiting for the agent's next step sits under that message (the last of them when several wait)
   const queueUnder = (m: Message): ReactElement | null => {
-    const id = stillQ[stillQ.length - 1];
-    if (!q || id === undefined || m.messageId !== id) return null;
+    const at = stillQ.indexOf(m.messageId);
+    if (!q || at < 0) return null;
     return (
       <QueueLine
-        note={queueNote(stillQ.length, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn)}
+        note={queueNote(1, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn)}
         onEdit={() => {
-          const words = timelineMessages.find((x) => x.messageId === id)?.body ?? "";
+          const id = m.messageId;
+          const words = m.body;
           void act.takeBackQueued(data, thread.threadId, id).then((ok) => {
             if (ok) {
               setPending((cur) => cur.filter((p) => p.messageId !== id));
@@ -1322,7 +1324,7 @@ function ConversationView(): ReactElement {
           }, fail("Could not take it back."));
         }}
         onSendNow={() =>
-          void act.sendQueuedNow(data, thread.threadId, stillQ[0]!).catch(fail("Could not send it now."))
+          void act.sendQueuedNow(data, thread.threadId, m.messageId).catch(fail("Could not send it now."))
         }
       />
     );
@@ -1398,7 +1400,11 @@ function ConversationView(): ReactElement {
       />
     );
   };
+  // a live reply is held for the person when the newest agent message still carries a question or approval waiting for them
+  const lastAgentMsg = [...all].reverse().find((x) => x.author.kind === "agent");
+  const heldForYou = lastAgentMsg?.blocks.some((b) => b.state === "waiting") === true;
   const actions: MessageActions = {
+    heldForYou,
     belowMine: (m) => notHereFor(m) ?? queueUnder(m),
     host,
     copy: (t) => {
@@ -1980,7 +1986,12 @@ function ConversationView(): ReactElement {
           size={hasEarlier ? Math.max(all.length, CHAPTER_MIN + 1) : all.length}
           newest={win.rows[win.rows.length - 1]?.threadSeq ?? 0}
           focusSeq={activeId ? (all.find((m) => m.messageId === activeId)?.threadSeq ?? null) : null}
-          jobs={{ agentIds: thread.agents.map((a) => a.agentId), working: isWorking }}
+          jobs={{
+            agentIds: thread.agents.map((a) => a.agentId),
+            screens: data.screens,
+            watch: isWorking || usedTerminal(timelineMessages),
+            shared: sharedChat,
+          }}
           rows={rows}
           own={ownSeq}
           clock={{ ...data.clock(), ...(sharedChat ? { zones } : {}) }}
@@ -2035,7 +2046,7 @@ function ConversationView(): ReactElement {
                           sending={sending}
                           below={
                             it.kind === "me"
-                              ? `${notHereSig(it.message) ?? ""}${stillQ[stillQ.length - 1] === it.message.messageId ? `|queued${stillQ.length}${q}` : ""}`
+                              ? `${notHereSig(it.message) ?? ""}${stillQ.includes(it.message.messageId) ? `|queued${stillQ.indexOf(it.message.messageId)}${q}` : ""}`
                               : undefined
                           }
                           answered={it.kind === "me" ? answered.has(it.message.messageId) : undefined}

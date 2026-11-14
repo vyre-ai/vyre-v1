@@ -174,11 +174,11 @@ test("editing your message to add an @mention asks that agent once, as you, and 
     const order = (): string[] => calls.filter((c) => c.cap === "chat.edit" || c.cap === "chat.post").map((c) => c.cap);
 
     // a plain edit names nobody: nothing is asked
-    await editMine(root, "c2", "Can someone check the Rivera dates before Wednesday?");
+    await editMine(root, "c2", "Can someone check the Harbor dates before Wednesday?");
     assert.equal(posts().length, 0, "no mention, no ask");
 
     // the edit adds @Docs: one ask, after the edit saved, as your reply to that exact message
-    await editMine(root, "c2", "@Docs Can someone check the Rivera dates before Wednesday?");
+    await editMine(root, "c2", "@Docs Can someone check the Harbor dates before Wednesday?");
     assert.deepEqual(order(), ["chat.edit", "chat.edit", "chat.post"], "the ask follows the saved edit");
     const ask = posts()[0]!.input;
     assert.deepEqual(
@@ -188,12 +188,12 @@ test("editing your message to add an @mention asks that agent once, as you, and 
     assert.match(String(ask["clientId"]), /^msg_ask[a-z0-9]+$/);
 
     // a later edit that keeps @Docs asks nobody again
-    await editMine(root, "c2", "@Docs Can someone check the Rivera dates before Thursday?");
+    await editMine(root, "c2", "@Docs Can someone check the Harbor dates before Thursday?");
     assert.equal(posts().length, 1, "already named: no second reply");
 
     // take the mention out and put it back: the fixed message id makes it the same ask, which the server answers with the first message
-    await editMine(root, "c2", "Can someone check the Rivera dates before Thursday?");
-    await editMine(root, "c2", "@Docs Can someone check the Rivera dates before Thursday?");
+    await editMine(root, "c2", "Can someone check the Harbor dates before Thursday?");
+    await editMine(root, "c2", "@Docs Can someone check the Harbor dates before Thursday?");
     assert.equal(
       new Set(posts().map((c) => c.input["clientId"])).size,
       1,
@@ -218,8 +218,8 @@ test("an edit that names someone who is not in this channel, or a person, asks n
       },
     };
     const root = await mount(createRoot, <Conversation data={data} />);
-    await editMine(root, "c2", "@Maya can you check the Rivera dates?");
-    await editMine(root, "c2", "@Billing can you check the Rivera dates?");
+    await editMine(root, "c2", "@Maya can you check the Harbor dates?");
+    await editMine(root, "c2", "@Billing can you check the Harbor dates?");
     assert.ok(
       calls.some((c) => c.cap === "chat.edit"),
       "the edits saved",

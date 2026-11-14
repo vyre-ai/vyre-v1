@@ -38,6 +38,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "vault.import_parse": Handler<"vault.import_parse", X>;
   "vault.inject_env": Handler<"vault.inject_env", X>;
   "vault.item.delete": Handler<"vault.item.delete", X>;
+  "vault.item.discard_new": Handler<"vault.item.discard_new", X>;
   "vault.item.get": Handler<"vault.item.get", X>;
   "vault.item.history": Handler<"vault.item.history", X>;
   "vault.item.mark_rotated": Handler<"vault.item.mark_rotated", X>;

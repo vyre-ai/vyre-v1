@@ -3,6 +3,7 @@
 // and the connector framework (init, build, test, publish, diff, versions, rollback, export, remove, list, health).
 import test from "node:test";
 import assert from "node:assert/strict";
+import { CODE_BUILTINS } from "../../../lib/builtin-connectors.ts";
 import { readFileSync } from "node:fs";
 import { ACME } from "../fixtures/acme.ts";
 import { NOW, kit } from "../fixtures/kit.ts";
@@ -370,8 +371,9 @@ test("list and get: built-in connectors come from the generator's registry", asy
     connectors: { key: string; title: string; domains: string[]; actions: string[]; sources?: { key: string }[] }[];
   };
   const all = await k.hs["connectors.list"](k.ctx, {});
-  assert.equal(all.total, reg.connectors.length);
-  assert.deepEqual(all.connectors.map((c) => c.key).sort(), reg.connectors.map((c) => c.key).sort());
+  const keys = [...reg.connectors.map((c) => c.key), ...CODE_BUILTINS.map((c) => c.key)].sort();
+  assert.equal(all.total, keys.length, "the registry's connectors and the ones built in as code");
+  assert.deepEqual(all.connectors.map((c) => c.key).sort(), keys);
   const stripe = (await k.hs["connectors.get"](k.ctx, { key: "stripe" })).connector;
   const want = reg.connectors.find((c) => c.key === "stripe")!;
   assert.deepEqual(
@@ -784,25 +786,25 @@ test("a mapped connector is tested and published straight from its source: no Bu
 
 test("an agent's connector: init with source false, define it in one call, publish, and it is live with its actions", async () => {
   const k = kit();
-  const made = await k.hs["connectors.init"](k.ctx, { key: "fathom", title: "Fathom", mode: "api", source: false });
+  const made = await k.hs["connectors.init"](k.ctx, { key: "minutes", title: "Minutes", mode: "api", source: false });
   assert.equal(made.folderId, undefined, "no Files folder");
   const defined = await k.hs["connectors.define"](k.ctx, {
-    key: "fathom",
-    domains: ["api.fathom.ai"],
-    auth: { type: "bearer", secret: "Fathom_Key" },
-    secrets: [{ name: "Fathom_Key", description: "Fathom API key" }],
+    key: "minutes",
+    domains: ["api.minutes.ai"],
+    auth: { type: "bearer", secret: "Minutes_Key" },
+    secrets: [{ name: "Minutes_Key", description: "Minutes API key" }],
     actions: [
-      { name: "list_meetings", url: "https://api.fathom.ai/external/v1/meetings" },
-      { name: "create_webhook", method: "POST", url: "https://api.fathom.ai/external/v1/webhooks", write: true },
+      { name: "list_meetings", url: "https://api.minutes.ai/external/v1/meetings" },
+      { name: "create_webhook", method: "POST", url: "https://api.minutes.ai/external/v1/webhooks", write: true },
     ],
   });
   assert.deepEqual(defined.actions, ["list_meetings", "create_webhook"]);
-  const published = await k.hs["connectors.publish"](k.ctx, { key: "fathom" });
+  const published = await k.hs["connectors.publish"](k.ctx, { key: "minutes" });
   assert.equal(published.published, true);
-  const got = (await k.hs["connectors.get"](k.ctx, { key: "fathom" })).connector;
+  const got = (await k.hs["connectors.get"](k.ctx, { key: "minutes" })).connector;
   assert.deepEqual(
     [got.state, got.domains, got.actions],
-    ["live", ["api.fathom.ai"], ["list_meetings", "create_webhook"]],
+    ["live", ["api.minutes.ai"], ["list_meetings", "create_webhook"]],
   );
 });
 

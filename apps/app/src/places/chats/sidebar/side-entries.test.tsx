@@ -161,7 +161,7 @@ test("a working chat's face wears the moving ring; a waiting task's face wears t
   assert.match(html, /waiting/);
 });
 
-test("a Needs you row is two lines with its verb; Blocked is amber; Goals rows are two lines; others one", () => {
+test("a Needs you row is one line with its verb; Blocked is amber; a Goals row is two lines only with words under it; others one", () => {
   const task = mk("task", "task", {
     verb: { label: "Blocked", tone: "warn" },
     sub: "Sol needs a key to continue",
@@ -169,9 +169,9 @@ test("a Needs you row is two lines with its verb; Blocked is amber; Goals rows a
   });
   const html = row(task);
   assert.match(html, /Migrate old files/);
-  assert.match(html, /Sol needs a key to continue/);
+  assert.doesNotMatch(html, /Sol needs a key to continue/, "a Tasks row is one line: the title and its verb");
   assert.match(html, /data-testid="row-verb"[^>]*>Blocked</);
-  assert.match(html, /height:44px/);
+  assert.match(html, /height:32px/, "the same pitch as every row");
   const working = mk("chat", "agent", { working: true, sub: "Editing upload.ts", title: "Client portal launch" });
   assert.match(row(working), /Editing upload\.ts/);
   assert.match(row(mk("chat", "agent")), /height:32px/);
@@ -204,14 +204,27 @@ test("an unread row is bold, a muted one is not; the open row is selected; the c
   assert.doesNotMatch(cur, /var\(--sel\)/);
 });
 
-test('a pinned row shows its Cmd digit; the "..." button is there for the menu and says whose', () => {
+test('a pinned row shows its Cmd digit only while Cmd is held; the "..." is in a hover slot (hidden at rest) and says whose', () => {
   const x = mk("chat", "agent");
   const l = layoutOf([x], { pins: [x.key] });
-  const html = renderToStaticMarkup(
-    <ItemRow entry={entryOf(l, "row")} state={st} on={{ press: () => {}, more: () => {} }} />,
-  );
-  assert.match(html, /data-testid="digit-1"/);
+  const draw = (digits: boolean): string =>
+    renderToStaticMarkup(
+      <ItemRow entry={entryOf(l, "row")} state={{ ...st, digits }} on={{ press: () => {}, more: () => {} }} />,
+    );
+  assert.doesNotMatch(draw(false), /data-testid="digit-1"/);
+  assert.match(draw(true), /data-testid="digit-1"/);
+  const html = draw(false);
   assert.match(html, /aria-label="More for Launch crew"/);
+  assert.match(html, /class="vyre-hm"/, "the button sits in the hover slot");
+  assert.doesNotMatch(draw(false), /data-on/, "and is not forced on at rest");
+  const cursorOn = renderToStaticMarkup(
+    <ItemRow
+      entry={entryOf(l, "row")}
+      state={{ selected: false, cursor: true }}
+      on={{ press: () => {}, more: () => {} }}
+    />,
+  );
+  assert.match(cursorOn, /data-on="1"/, "the keyboard cursor shows it");
 });
 
 // ---------------------------------------------------------------- the other entries

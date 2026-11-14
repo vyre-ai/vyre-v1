@@ -161,7 +161,7 @@ test("a chat with a waiting question draws the island above its composer; one wi
   const s = createSample("plan");
   const out = clean(renderToStaticMarkup(<Conversation data={s.data} />));
   assert.match(out, /data-testid="question-island"/);
-  assert.match(out, /Who signs the engagement letter\?/);
+  assert.match(out, /Who signs the order form\?/);
   assert.ok(
     out.indexOf('data-testid="question-island"') < out.indexOf('data-testid="composer"'),
     "above the composer, in its own space",

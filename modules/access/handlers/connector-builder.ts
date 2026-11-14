@@ -75,6 +75,12 @@ export async function builderGrant(
     created = true;
     changed(ctx, store, "role");
   }
+  // a Connector builder made earlier (or changed since) that no longer carries connectors.manage, or that agents may not hold, would be given and still do nothing: put back what the role is for
+  if (!created && (!role.permissions.includes(PERM) || !role.assignableToAgents)) {
+    role.permissions = [...new Set([...role.permissions, PERM])].sort();
+    role.assignableToAgents = true;
+    changed(ctx, store, "role");
+  }
   const current = store.rolesOf(agent.id);
   if (!current.includes(role.id)) {
     store.setRoles(agent.id, [...current, role.id]);

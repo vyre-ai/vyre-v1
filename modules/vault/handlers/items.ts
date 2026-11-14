@@ -806,6 +806,27 @@ export async function itemDelete(ctx: VaultCtx, input: { itemId: string }) {
   return { ok: true };
 }
 
+/**
+ * Take back a key that a card saved a moment ago and could not connect: the item, its sealed value, its history and its shares are removed for good, so nothing of it is left in the Vault or in Trash. It works only
+ * for a person's own call, only on an item that person put in the last two minutes, and only while the item has no use, reveal, edit or move on its record. Nothing older, and nothing anyone used, is ever erased here.
+ */
+export async function itemDiscardNew(ctx: VaultCtx, input: { itemId: string }) {
+  ensure(ctx);
+  if (ctx.principal.kind !== "person") refuse(ctx, "Only a person can take back a key they just saved.");
+  const r = reachable(ctx, input.itemId, "manage");
+  const id = str(r, "id");
+  const x = first(ctx.db.all(`SELECT * FROM vault_item_x WHERE "itemId" = ?`, id));
+  const history = ctx.db.all(`SELECT * FROM vault_history WHERE "itemId" = ?`, id) as Record<string, unknown>[];
+  const only = history.every((h) => ["created", "shared"].includes(String(h["action"])));
+  if (!x || ctx.now() - num(x, "createdAt") > 120_000 || !only || str(r, "owner") !== ctx.principal.id)
+    refuse(ctx, "Only a key you saved a moment ago, and nobody has used, can be taken back.");
+  ctx.db.run(`DELETE FROM vault_secret WHERE "itemId" = ?`, id);
+  ctx.db.run(`DELETE FROM vault_history WHERE "itemId" = ?`, id);
+  ctx.db.run(`DELETE FROM vault_item_x WHERE "itemId" = ?`, id);
+  ctx.db.run(`DELETE FROM vault_meta WHERE "id" = ?`, id);
+  return { ok: true };
+}
+
 export async function itemRestore(ctx: VaultCtx, input: { itemId: string }) {
   ensure(ctx);
   const r = reachable(ctx, input.itemId, "manage", { trashed: true });

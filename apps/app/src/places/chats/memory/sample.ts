@@ -265,6 +265,14 @@ export function createChatMemorySample(o: ChatMemoryOptions = {}): ChatMemorySam
         if (i["key"] !== "memory.lessons") return undefined;
         sw.on = i["value"] === true;
         return { row: { value: sw.on }, previous: !sw.on };
+      case "memory.forget":
+        for (const id of (i["factIds"] as string[] | undefined) ?? [])
+          if (lessons.some((l) => l["factId"] === id)) gone.add(id);
+        return gone.size > 0 ? { forgotten: (i["factIds"] as string[]).length } : undefined;
+      case "memory.restore":
+        if (!lessons.some((l) => l["factId"] === i["factId"])) return undefined;
+        gone.delete(String(i["factId"]));
+        return { restored: true };
       case "memory.promote": {
         const l = lessons.find((x) => x["factId"] === i["factId"])!;
         (l["lesson"] as { scope: string }).scope = "proposed";

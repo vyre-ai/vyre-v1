@@ -211,7 +211,7 @@ test("the footer names the chat's real files folder and records, never the chat'
   const line = await footerFor("both");
   assert.equal(
     line,
-    "They'll see this chat's messages from now on, its files folder Client intake uploads, and records in Elena Rivera.",
+    "They'll see this chat's messages from now on, its files folder Customer signup uploads, and records in Elena Park.",
   );
   assert.ok(!/files folder Rivera intake|records in Rivera intake/.test(line), "the chat's name is not the folder's");
 });
@@ -223,6 +223,6 @@ test("the footer for a plain group chat with no folder and no records says nothi
 test("the footer for a chat with a folder but no records names the folder and leaves records out", async () => {
   assert.equal(
     await footerFor("folder"),
-    "They'll see this chat's messages from now on, and its files folder Client intake uploads.",
+    "They'll see this chat's messages from now on, and its files folder Customer signup uploads.",
   );
 });

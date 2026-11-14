@@ -46,7 +46,10 @@ export interface Spotted {
 
 /** What a person's line says about what the agent just did, when it is a correction: the words they used, trimmed to one short lesson. Null when it is not one. */
 export function correctionOf(body: string): Spotted | null {
-  const sentences = SENTENCES(body.replace(/\s+/g, " "));
+  // a line break ends a sentence (it was collapsed to a space first, so two lines of one message read as one run-on: "...here first And you are not my agent")
+  const sentences = SENTENCES(body)
+    .map((x) => x.replace(/\s+/g, " ").trim())
+    .filter((x) => x !== "");
   for (let i = 0; i < sentences.length; i++) {
     const s = sentences[i]!;
     const bare = s
@@ -64,8 +67,10 @@ export function correctionOf(body: string): Spotted | null {
     if (how === null) continue;
     // the correction and, when it is a short one, the sentence that finishes it ("Don't send it yet. Show me first.")
     const next = sentences[i + 1];
-    const text = [bare, next !== undefined && next.length <= 80 && !next.endsWith("?") ? next : ""]
-      .filter((x) => x !== "")
+    // two sentences keep their punctuation, so they read as two ("Show me the draft first. And you are not my automation agent."): a sentence the person wrote with none gets its full stop
+    const stop = (x: string): string => (/[.!?]$/.test(x) ? x : `${x}.`);
+    const second = next !== undefined && next.length <= 80 && !next.endsWith("?") ? next : "";
+    const text = (second !== "" ? [stop(bare), stop(`${second.slice(0, 1).toUpperCase()}${second.slice(1)}`)] : [bare])
       .join(" ")
       .trim();
     if (text.length < 8) continue;
@@ -180,10 +185,29 @@ export interface LessonExtras {
   how?: How;
   used: number;
   scope: "you" | "proposed" | "space";
+  /** Whether it is put in front of the agent at the start of every chat. The newest go first and only so many fit (lessonsThatFit); the rest wait, and Knows says so. */
+  sent?: boolean;
+}
+
+/** The part of a chat's first pointer block lessons may fill, in tokens; the rest of the 350 is left for facts that match the message. */
+export const LESSON_TOKENS = 250;
+/** What one lesson costs in the pointer block: its title, its words (cut at 160 letters), its path and the line's frame, at four letters a token. The pointer and Knows both use this, so what Knows says is what is sent. */
+export const lessonCost = (text: string): number =>
+  Math.ceil(("Lesson".length + Math.min(text.length, 160) + "memory/person".length + 12) / 4);
+/** How many of these lessons (newest first) fit in the budget. */
+export function lessonsThatFit(texts: readonly string[]): number {
+  let used = 0;
+  let n = 0;
+  for (const t of texts) {
+    used += lessonCost(t);
+    if (used > LESSON_TOKENS) break;
+    n++;
+  }
+  return Math.max(n, texts.length > 0 ? 1 : 0);
 }
 
 /** How the correction was made, how many answers used the lesson, and who may read it: only the person, waiting for a person to accept sharing it, or kept for the Space. */
-export function lessonExtras(ctx: Pick<MemCtx, "db">, f: Pick<Fact, "id">): LessonExtras {
+export function lessonExtras(ctx: MemCtx, f: Pick<Fact, "id">): LessonExtras {
   const how = str(
     rowsOf(ctx.db, "SELECT ref FROM memory_fact_links WHERE fact_id = ? AND kind = 'how' LIMIT 1", f.id)[0]?.["ref"],
   );
@@ -211,5 +235,21 @@ export function lessonExtras(ctx: Pick<MemCtx, "db">, f: Pick<Fact, "id">): Less
         ? "proposed"
         : "you"
     : "you";
-  return { ...(HOWS.has(how) ? { how: how as How } : {}), used, scope };
+  // is it among the ones sent to every chat: the person's current lessons for this agent, newest first, as many as fit
+  let sent: boolean | undefined;
+  const mine = rowsOf(
+    ctx.db,
+    "SELECT * FROM memory_facts WHERE layer = 'person' AND owner_ref = (SELECT owner_ref FROM memory_facts WHERE id = ?) AND agent_id = (SELECT agent_id FROM memory_facts WHERE id = ?) AND kind = ? AND status = 'current'",
+    f.id,
+    f.id,
+    LESSON,
+  );
+  if (mine.length > 0) {
+    const live = mine
+      .map((r) => readFact(ctx, r))
+      .sort((a, b) => b.learnedAt - a.learnedAt || a.id.localeCompare(b.id));
+    const at = live.findIndex((x) => x.id === f.id);
+    if (at >= 0) sent = at < lessonsThatFit(live.map((x) => x.text));
+  }
+  return { ...(HOWS.has(how) ? { how: how as How } : {}), used, scope, ...(sent !== undefined ? { sent } : {}) };
 }
