@@ -4,7 +4,7 @@
     "sites.addon_add@1": "74d869dfd9ab11b6d3551c7818bc9fc24db05358b4459a2ff8126ca754c88634",
     "sites.addon_remove@1": "c0671e97ce74b86b5ef1c022bbca80abeb37c37f00a0dd3692384e11a3ee3cb0",
     "sites.artifact_open@1": "fb076414a365e686c17a19f0b4bb8e42f95781dcbd9e523c76616d6e575bc7dc",
-    "sites.artifact_publish@1": "abf262ad557991a406b7ee38df88dd2cce395d6f744afb55b4b700eea9565de6",
+    "sites.artifact_publish@1": "07c8d123f9014d899731bb3b5ba4996df9fb6f4e177e99900855327ce168db21",
     "sites.artifact_thumb_set@1": "42de63f5b25c1d026afd665052c29bfee4d07b12257692084b26f28896fb1b3e",
     "sites.build@1": "accfaf3f3a832c1e168ddf7fa4411a3166ca6efdf22dc559e1df7bcfc0137a8c",
     "sites.chat_viewing@1": "d7a67f07c9e141eda8ca09a5ea598bf246b4902a395636aee2682af9e79443a4",
@@ -39,7 +39,7 @@
     "sites.table_create@1": "0f862628a8aad86a73a07f7f7bc5d8149e1c3517025f40ce8cfd03858eb7c28e",
     "sites.table_promote@1": "878188ca945164c9c33bb15edfef6d96ec944ec359498f0a605c75cf70071fc3",
     "sites.tables@1": "43d9e2957b96c059719b154c1db2955de01555563f7a509bc2edeb09606f3052",
-    "sites.update@1": "831007a05645388de017e1ce2ea053182c2562e208cd375092a8705994d2cbbe"
+    "sites.update@1": "0eb86736f297d370b98e13be6f389c235b11a74cce71884c20c78c4e2338dad9"
   },
   "events": {
     "site.build_failed": "f26dbcbc009e864861c5dc080b329f59629e237d7f02be04e7f254f073b24269",

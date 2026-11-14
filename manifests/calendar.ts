@@ -52,6 +52,13 @@ const calendarRow = t.obj({
 });
 const eventRow = t.obj({
   id: cevId,
+  version: t.opt(
+    t.int({
+      minimum: 0,
+      description: "Counts the changes to the event; send it back as expectedVersion on calendar.update_event",
+    }),
+  ),
+  updatedAt: t.opt(t.ts()),
   calendarId: calId,
   title: t.str(),
   startsAt: t.ts(),
@@ -283,7 +290,14 @@ const manifest = defineManifest({
         scope: t.opt(t.enm("this", "all")),
         // Add a video call: Meet, Teams or Zoom, made through the connection and written into the event
         video: t.opt(t.enm("meet", "zoom", "teams")),
+        expectedVersion: t.opt(
+          t.int({
+            minimum: 0,
+            description: "The version you read; an event changed since then is not replaced, and the change is refused",
+          }),
+        ),
       },
+      errors: ["validation.version_conflict"],
       out: {
         event: eventRow,
         changed: t.opt(t.int()),

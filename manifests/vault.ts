@@ -460,10 +460,17 @@ export default defineManifest({
           spaceOnly: t.opt(t.bool()),
           injectIntoDeployments: t.opt(t.bool()),
           rotateEveryDays: t.opt(t.nullable(t.int({ minimum: 1 }))),
+          expectedUpdatedAt: t.opt(
+            t.ts({
+              description:
+                "The updatedAt you read; a change made since then is not replaced, and the change is refused",
+            }),
+          ),
         },
         out: { item: itemMeta },
         on: ["vault_item", "/itemId"],
         level: "edit",
+        errors: ["validation.version_conflict"],
         emits: ["vault.item_updated"],
         audit: "sensitive",
         tool: "vault",

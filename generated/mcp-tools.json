@@ -4348,6 +4348,14 @@
             "pattern": "^cmt_[a-z0-9]+$",
             "type": "string"
           },
+          "expectedUpdatedAt": {
+            "description": "The updatedAt you read; a change made since then is not replaced, and the change is refused",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
           "fileId": {
             "examples": [
               "fil_a1b2c3"
@@ -9027,6 +9035,11 @@
             ],
             "pattern": "^cev_[a-z0-9]+$",
             "type": "string"
+          },
+          "expectedVersion": {
+            "description": "The version you read; an event changed since then is not replaced, and the change is refused",
+            "minimum": 0,
+            "type": "integer"
           },
           "joinProvider": {
             "enum": [
@@ -27159,6 +27172,14 @@
           },
           "deadline": {
             "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expectedUpdatedAt": {
+            "description": "The updatedAt you read; a change made since then is not replaced, and the change is refused",
             "examples": [
               1760000000000
             ],
@@ -55420,6 +55441,10 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "expect": {
+            "additionalProperties": true,
+            "type": "object"
+          },
           "fileId": {
             "examples": [
               "fil_a1b2c3"
@@ -55479,6 +55504,10 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "expect": {
+            "additionalProperties": true,
+            "type": "object"
+          },
           "fileId": {
             "examples": [
               "fil_a1b2c3"
@@ -56883,6 +56912,14 @@
             ],
             "pattern": "^cmt_[a-z0-9]+$",
             "type": "string"
+          },
+          "expectedUpdatedAt": {
+            "description": "The updatedAt you read; a change made since then is not replaced, and the change is refused",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
           },
           "folderId": {
             "examples": [
@@ -70012,6 +70049,14 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "expectedUpdatedAt": {
+            "description": "The updatedAt you read; a change made since then is not replaced, and the change is refused",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
           "fieldsRemove": {
             "items": {
               "examples": [

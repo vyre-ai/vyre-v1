@@ -259,11 +259,18 @@ export default defineManifest({
           limits: t.opt(limits),
           autoDeploy: t.opt(t.bool()),
           ...target,
+          expectedUpdatedAt: t.opt(
+            t.ts({
+              description:
+                "The updatedAt you read; a change made since then is not replaced, and the change is refused",
+            }),
+          ),
         },
         out: { site: siteRow },
         on: ["site", "/siteId"],
         perm: "sites.deploy",
         tool: "sites",
+        errors: ["validation.version_conflict"],
       },
     ),
     write(
@@ -511,6 +518,12 @@ export default defineManifest({
           port: t.opt(t.int({ minimum: 1, maximum: 65535 })),
           computerId: t.opt(id.computer),
           artifactId: t.opt(id.site),
+          expectedUpdatedAt: t.opt(
+            t.ts({
+              description:
+                "The updatedAt you read; a change made since then is not replaced, and the change is refused",
+            }),
+          ),
           thumb: t.opt(
             t.str({
               description:
@@ -521,6 +534,12 @@ export default defineManifest({
         out: {
           artifactId: id.site,
           url: t.opt(t.str()),
+          updatedAt: t.opt(
+            t.ts({
+              description:
+                "When the page was last published; send it back as expectedUpdatedAt to be told when someone else changed it first",
+            }),
+          ),
           updated: t.bool(),
           opened: t.bool({
             description:

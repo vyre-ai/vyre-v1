@@ -22,6 +22,9 @@ function rig() {
   const tasks = new Map<string, Thing>();
   const pages = new Map<string, Thing>();
   const autos = new Map<string, Thing>();
+  const stamped = new Map<string, Thing>(); // sites, goals, vault items: told only by their updatedAt
+  const events = new Map<string, Thing>();
+  const rows = new Map<string, Record<string, unknown>>();
   const sent: Array<{ cap: string; input: Record<string, unknown> }> = [];
   let clock = 1_000;
   const bump = (m: Map<string, Thing>, id: string): Thing => {
@@ -112,6 +115,57 @@ function rig() {
         if (i["expectedVersion"] !== undefined && i["expectedVersion"] !== a.version) conflict(traceId);
         return out({ automation: { id: i["automationId"], version: bump(autos, String(i["automationId"])).version } });
       }
+      case "sites.get":
+      case "goals.get":
+      case "vault.item.get": {
+        const x = stamped.get(String(i["siteId"] ?? i["goalId"] ?? i["itemId"]))!;
+        const id = String(i["siteId"] ?? i["goalId"] ?? i["itemId"]);
+        const shape = { updatedAt: x.changedAt };
+        return out(
+          cap === "sites.get"
+            ? { site: { siteId: id, ...shape } }
+            : cap === "goals.get"
+              ? { goal: { id, ...shape } }
+              : { item: { id, ...shape } },
+        );
+      }
+      case "sites.update":
+      case "goals.update":
+      case "vault.item.update":
+      case "sites.artifact_publish": {
+        const id = String(i["siteId"] ?? i["goalId"] ?? i["itemId"] ?? i["artifactId"]);
+        const x = stamped.get(id)!;
+        if (i["expectedUpdatedAt"] !== undefined && i["expectedUpdatedAt"] !== x.changedAt) conflict(traceId);
+        bump(stamped, id);
+        const shape = { updatedAt: x.changedAt };
+        if (cap === "sites.artifact_publish") return out({ artifactId: id, ...shape, updated: true, opened: false });
+        return out(
+          cap === "sites.update"
+            ? { site: { siteId: id, ...shape } }
+            : cap === "goals.update"
+              ? { goal: { id, ...shape } }
+              : { item: { id, ...shape } },
+        );
+      }
+      case "calendar.get_event": {
+        const e = events.get(String(i["eventId"]))!;
+        return out({ event: { id: i["eventId"], version: e.version, updatedAt: e.changedAt } });
+      }
+      case "calendar.update_event": {
+        const e = events.get(String(i["eventId"]))!;
+        if (i["expectedVersion"] !== undefined && i["expectedVersion"] !== e.version) conflict(traceId);
+        bump(events, String(i["eventId"]));
+        return out({ event: { id: i["eventId"], version: e.version, updatedAt: e.changedAt } });
+      }
+      case "sheets.read_rows":
+        return out({ rows: [...rows.entries()].map(([rowId, values]) => ({ rowId, values })) });
+      case "sheets.update_row": {
+        const row = rows.get(String(i["rowId"]))!;
+        for (const [col, was] of Object.entries((i["expect"] as Record<string, unknown>) ?? {}))
+          if (String(row[col]) !== String(was)) conflict(traceId);
+        Object.assign(row, i["values"]);
+        return out({ rowId: i["rowId"] });
+      }
       default:
         return out({});
     }
@@ -131,11 +185,34 @@ function rig() {
     "records_get",
     "memory_write_page",
     "automations_update",
+    "sites_update",
+    "goals_update",
+    "vault_item_update",
+    "artifact_publish",
+    "calendar_update_event",
+    "sheets_read_rows",
+    "sheets_update_row",
   ]);
   const c = (over: Partial<ToolCtx> = {}): ToolCtx =>
     ctx({ thread: { threadId: "thr_1", kind: "chat", planMode: false }, agentId: "agt_ann", turnId: "trn_1", ...over });
   const lastWrite = (cap: string) => [...sent].reverse().find((x) => x.cap === cap)?.input;
-  return { s, c, files, records, tasks, pages, autos, make, bump, sent, lastWrite, tick: () => ++clock };
+  return {
+    s,
+    c,
+    files,
+    records,
+    tasks,
+    pages,
+    autos,
+    stamped,
+    events,
+    rows,
+    make,
+    bump,
+    sent,
+    lastWrite,
+    tick: () => ++clock,
+  };
 }
 const code = (o: { kind: string; result: { content: unknown } }): string | undefined =>
   ((o.result.content as { error?: { supportCode?: string } }).error ?? {}).supportCode;
@@ -354,4 +431,70 @@ test("what the model is shown does not change: a version is never a field a mode
     "a record's own words, with an id and numbers, never reach the model",
   );
   assert.match(rec.say, /changed after you last read it/);
+});
+
+test("a site, a published page, a goal, a Vault item and a calendar event take the version the agent last saw, or the one at the turn start", async () => {
+  const r = rig();
+  for (const id of ["sit_1", "gol_1", "vit_1"]) r.make(r.stamped, id, 1_000);
+  r.make(r.events, "cev_1", 1_000);
+  // never read, nobody changed it during the turn: written on the version now
+  const calls = [
+    ["sites_update", { siteId: "sit_1", name: "x" }, "sites.update", "expectedUpdatedAt"],
+    ["goals_update", { goalId: "gol_1", outcome: "x" }, "goals.update", "expectedUpdatedAt"],
+    ["vault_item_update", { itemId: "vit_1", name: "x" }, "vault.item.update", "expectedUpdatedAt"],
+    ["calendar_update_event", { eventId: "cev_1", title: "x" }, "calendar.update_event", "expectedVersion"],
+    [
+      "artifact_publish",
+      { title: "T", html: "<p>x</p>", artifactId: "sit_1" },
+      "sites.artifact_publish",
+      "expectedUpdatedAt",
+    ],
+  ] as const;
+  for (const [tool, input, cap, field] of calls) {
+    const out = await r.s.call(r.c({ turnStartedAt: 5_000 }), tool, input);
+    assert.equal(out.kind, "result", `${tool}: ${JSON.stringify(out.result.content).slice(0, 700)}`);
+    assert.notEqual(r.lastWrite(cap)?.[field], undefined, `${tool} carried ${field}`);
+  }
+  // someone changed each of them during the turn: refused by the tool layer, nothing sent
+  for (const id of ["sit_1", "gol_1", "vit_1"]) r.stamped.get(id)!.changedAt = 9_000;
+  r.events.get("cev_1")!.changedAt = 9_000;
+  const before = r.sent.length;
+  for (const [tool, input] of calls) {
+    const out = await r.s.call(r.c({ turnStartedAt: 5_000, agentId: "agt_bob", turnId: "trn_9" }), tool, input);
+    assert.equal(out.kind, "error", tool);
+    assert.equal(code(out), "validation.version_conflict");
+  }
+  assert.equal(
+    r.sent.slice(before).filter((x) => /update|publish/.test(x.cap)).length,
+    0,
+    "nothing was sent to the write",
+  );
+});
+
+test("a sheet row the agent read: the cells it changes are sent as what they held, so another change to them refuses the write; its own write moves what it knows", async () => {
+  const r = rig();
+  r.rows.set("r1", { name: "Dana", city: "Austin" });
+  await r.s.call(r.c(), "sheets_read_rows", { fileId: "fil_s" });
+  r.rows.get("r1")!.city = "Dallas"; // someone else
+  const refused = await r.s.call(r.c(), "sheets_update_row", {
+    fileId: "fil_s",
+    rowId: "r1",
+    values: { city: "Houston" },
+  });
+  assert.equal(refused.kind, "error");
+  assert.deepEqual(r.lastWrite("sheets.update_row")?.["expect"], { city: "Austin" });
+  assert.equal(r.rows.get("r1")!.city, "Dallas");
+  await r.s.call(r.c(), "sheets_read_rows", { fileId: "fil_s" });
+  assert.equal(
+    (await r.s.call(r.c(), "sheets_update_row", { fileId: "fil_s", rowId: "r1", values: { city: "Houston" } })).kind,
+    "result",
+  );
+  assert.equal(
+    (await r.s.call(r.c(), "sheets_update_row", { fileId: "fil_s", rowId: "r1", values: { city: "Plano" } })).kind,
+    "result",
+    "its own write moved what it knows",
+  );
+  // a column it did not read, or a row it did not read, is not held to anything
+  const free = await r.s.call(r.c(), "sheets_update_row", { fileId: "fil_s", rowId: "r1", values: { zip: "78701" } });
+  assert.equal(free.kind, "result");
 });

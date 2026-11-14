@@ -683,6 +683,30 @@ function rowCells(columns: string[], values: Record<string, unknown>, format: Fo
   return columns.map((c, i) => (c in values ? toCell(values[c], format) : (base?.[i] ?? "")));
 }
 
+/** A caller that read a row says what the columns it is changing held (`expect`); a column that holds something else now refuses the change and nothing is written (F50). Without `expect` nothing is checked. */
+function rowUnchanged(
+  ctx: Ctx,
+  columns: readonly string[],
+  cells: readonly unknown[] | undefined,
+  o: Record<string, unknown>,
+): void {
+  if (o.expect === undefined || o.expect === null) return;
+  const want = recordOf(ctx, o.expect, "expect");
+  for (const [col, was] of Object.entries(want)) {
+    const at = columns.indexOf(col);
+    const now = at < 0 ? "" : String(cells?.[at] ?? "");
+    const same =
+      now === String(was ?? "") || (/^(true|false)$/i.test(now) && now.toLowerCase() === String(was).toLowerCase());
+    if (!same)
+      fail(
+        ctx,
+        "validation.version_conflict",
+        "This row changed after it was read, so this change was not saved. Read the row again and redo the change.",
+        { column: col },
+      );
+  }
+}
+
 function findRow(ctx: Ctx, grid: Grid, ids: IdSet, o: Record<string, unknown>): number {
   const rowId = optStr(ctx, o, "rowId");
   if (rowId !== undefined) {
@@ -984,6 +1008,7 @@ async function googleHandle(ctx: Ctx, cap: string, o: Record<string, unknown>, f
         match.every((m) => String(cells[grid.columns.indexOf(m)] ?? "") === String(wantRow[m])),
       );
     }
+    if (at >= 0) rowUnchanged(ctx, grid.columns, grid.rows[at], o);
     const columns = await gEnsureHeader(ctx, spreadsheetId, sheet.title, grid, Object.keys(values));
     if (at < 0) {
       const line = columns.map((c) => (c in values ? asText(values[c]) : ""));
@@ -1089,6 +1114,7 @@ async function sheetsUpdateRow(ctx: Ctx, input: unknown): Promise<{ rowId: strin
   return edit(ctx, fileId, optStr(ctx, o, "sheet"), optStr(ctx, o, "label"), ({ book, sheet, ids, file: f }) => {
     const grid = book.grid(sheet);
     const at = findRow(ctx, grid, ids, o);
+    rowUnchanged(ctx, grid.columns, grid.rows[at], o);
     const columns = book.ensureColumns(sheet, Object.keys(values));
     const fresh = book.grid(sheet);
     book.setRow(sheet, at, rowCells(columns, values, formatOf(ctx, f), fresh.rows[at]));
@@ -1119,6 +1145,7 @@ async function sheetsUpsertRow(
         return col >= 0 && String(cells[col] ?? "") === cellText(toCell(values[m], format));
       }),
     );
+    if (at >= 0) rowUnchanged(ctx, grid.columns, grid.rows[at], o);
     const columns = book.ensureColumns(sheet, Object.keys(values));
     if (at < 0) {
       book.appendRow(sheet, rowCells(columns, values, format));

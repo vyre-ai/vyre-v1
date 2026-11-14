@@ -439,9 +439,21 @@ async function sitesList(ctx: Ctx, input: unknown): Promise<{ sites: unknown[]; 
   return out;
 }
 
+/** A caller that read the site at updatedAt N is refused when it has changed since (F50): its change is not written over someone else's. Without expectedUpdatedAt nothing is checked. */
+function unchangedSince(ctx: Ctx, site: Row, o: Record<string, unknown>): void {
+  const expected = optInt(ctx, o, "expectedUpdatedAt");
+  if (expected !== undefined && expected !== num(site.updated_at))
+    fail(
+      ctx,
+      "validation.version_conflict",
+      "This changed after it was read, so this change was not saved. Read it again and redo the change.",
+    );
+}
+
 async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }> {
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
+  unchangedSince(ctx, site, o);
   const name = optStr(ctx, o, "name");
   const deployed = !isNull(site.source) || (o.source !== undefined && o.source !== null);
   const access = accessOf(ctx, optStr(ctx, o, "access"), str(site.access) as Access, deployed);
@@ -459,6 +471,7 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
   const folderId = optStr(ctx, o, "folderId");
   mustFolder(ctx, folderId);
   const cleanedName = name === undefined ? site.name : cleanName(ctx, name);
+  unchangedSince(ctx, mustSite(ctx, str(site.id)), o); // the awaits above let another change land: check again in the same step as the first write
   if (source !== null) ctx.db.run("UPDATE sites_site SET source = ? WHERE id = ?", source, site.id);
   if (limits !== null) ctx.db.run("UPDATE sites_site SET limits = ? WHERE id = ?", limits, site.id);
   if (auto !== undefined) ctx.db.run("UPDATE sites_site SET auto_deploy = ? WHERE id = ?", auto ? 1 : 0, site.id);
@@ -654,7 +667,7 @@ const THUMB_MAX = 60_000;
 async function artifactPublish(
   ctx: Ctx,
   input: unknown,
-): Promise<{ artifactId: string; url?: string; updated: boolean; opened: boolean }> {
+): Promise<{ artifactId: string; url?: string; updatedAt: number; updated: boolean; opened: boolean }> {
   const o = rec(ctx, input);
   const title = cleanName(ctx, reqStr(ctx, o, "title"));
   const html = optStr(ctx, o, "html");
@@ -699,6 +712,7 @@ async function artifactPublish(
     ctx.authorize({ perm: null, level: "edit" }, { type: "site", id: str(row.id) }).effect !== "allow"
   )
     fail(ctx, "permission.no_grant", "You can see that artifact but cannot change it.");
+  if (row) unchangedSince(ctx, row, o); // before anything is written to the page
   const updated = row !== undefined;
   const id = row ? str(row.id) : nid(ctx, "sit");
   const now = ctx.now();
@@ -790,7 +804,13 @@ async function artifactPublish(
   const asker = askerOf(ctx);
   const openFor = asker !== null && ctx.thread && isViewing(asker, ctx.thread, ctx.now()) ? asker : undefined;
   const posted = await announce(ctx, id, title, openFor);
-  return { artifactId: id, ...(url ? { url } : {}), updated, opened: openFor !== undefined && posted };
+  return {
+    artifactId: id,
+    ...(url ? { url } : {}),
+    updatedAt: num(fresh.updated_at),
+    updated,
+    opened: openFor !== undefined && posted,
+  };
 }
 
 /** A card in the chat the work was asked in. Nothing to say it in is not a failure of the publish. */

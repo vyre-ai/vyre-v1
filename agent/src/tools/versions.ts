@@ -12,12 +12,12 @@ const int = (v: unknown): number | undefined => (typeof v === "number" && Number
 
 /** A thing an agent can change that counts its saves. */
 export interface VersionedKind {
-  kind: "file" | "record" | "task" | "page" | "automation";
+  kind: "file" | "record" | "task" | "page" | "automation" | "site" | "goal" | "event" | "item";
   /** The words for it in a refusal ("file", "record", "task"). */
   noun: string;
   /** The write tools that take a version, with the input field that carries it. */
   writes: readonly string[];
-  field: "baseVersion" | "expectedVersion";
+  field: "baseVersion" | "expectedVersion" | "expectedUpdatedAt";
   /** The key of the thing a write names, or undefined when the write names none (a new one). */
   idOf(input: Obj): string | undefined;
   /** A read that tells the version of the thing now, with when it last changed (and for a file its versions with their times). */
@@ -115,7 +115,54 @@ const KINDS: readonly VersionedKind[] = [
       return { version, ...(typeof a?.["updatedAt"] === "number" ? { changedAt: a["updatedAt"] as number } : {}) };
     },
   },
+  {
+    kind: "site",
+    noun: "site",
+    writes: ["sites.update", "sites.artifact_publish"],
+    field: "expectedUpdatedAt",
+    idOf: (i) => str(i["siteId"]) ?? str(i["artifactId"]),
+    peek: (id) => ({ cap: "sites.get", input: { siteId: id } }),
+    now: (out) => stamped(obj(obj(out)?.["site"])),
+  },
+  {
+    kind: "goal",
+    noun: "goal",
+    writes: ["goals.update"],
+    field: "expectedUpdatedAt",
+    idOf: (i) => str(i["goalId"]),
+    peek: (id) => ({ cap: "goals.get", input: { goalId: id } }),
+    now: (out) => stamped(obj(obj(out)?.["goal"])),
+  },
+  {
+    kind: "event",
+    noun: "event",
+    writes: ["calendar.update_event"],
+    field: "expectedVersion",
+    idOf: (i) => str(i["eventId"]),
+    peek: (id) => ({ cap: "calendar.get_event", input: { eventId: id } }),
+    now: (out) => {
+      const e = obj(obj(out)?.["event"]);
+      const version = int(e?.["version"]);
+      if (version === undefined) return null;
+      return { version, ...(typeof e?.["updatedAt"] === "number" ? { changedAt: e["updatedAt"] as number } : {}) };
+    },
+  },
+  {
+    kind: "item",
+    noun: "item",
+    writes: ["vault.item.update"],
+    field: "expectedUpdatedAt",
+    idOf: (i) => str(i["itemId"]),
+    peek: (id) => ({ cap: "vault.item.get", input: { itemId: id } }),
+    now: (out) => stamped(obj(obj(out)?.["item"])),
+  },
 ];
+
+/** A thing that tells only when it last changed: that time is its version and the time of its last change. */
+function stamped(o: Obj | null): { version: number; changedAt: number } | null {
+  const at = typeof o?.["updatedAt"] === "number" ? (o["updatedAt"] as number) : undefined;
+  return at === undefined ? null : { version: at, changedAt: at };
+}
 
 const BY_WRITE = new Map<string, VersionedKind>(KINDS.flatMap((k) => k.writes.map((w) => [w, k] as const)));
 
@@ -169,6 +216,35 @@ export function learned(cap: string, input: unknown, out: unknown): Array<{ key:
     const version = int(automation["version"]);
     if (id && version !== undefined) found.push({ key: `automation:${id}`, version });
   }
+  const site = obj(o["site"]);
+  if (site && cap.startsWith("sites.")) {
+    const id = str(site["siteId"]);
+    const at = int(site["updatedAt"]);
+    if (id && at !== undefined) found.push({ key: `site:${id}`, version: at });
+  }
+  if (cap === "sites.artifact_publish") {
+    const id = str(o["artifactId"]);
+    const at = int(o["updatedAt"]);
+    if (id && at !== undefined) found.push({ key: `site:${id}`, version: at });
+  }
+  const goal = obj(o["goal"]);
+  if (goal && cap.startsWith("goals.")) {
+    const id = str(goal["id"]);
+    const at = int(goal["updatedAt"]);
+    if (id && at !== undefined) found.push({ key: `goal:${id}`, version: at });
+  }
+  const event = obj(o["event"]);
+  if (event && cap.startsWith("calendar.")) {
+    const id = str(event["id"]);
+    const version = int(event["version"]);
+    if (id && version !== undefined) found.push({ key: `event:${id}`, version });
+  }
+  const item = obj(o["item"]);
+  if (item && cap.startsWith("vault.")) {
+    const id = str(item["id"]);
+    const at = int(item["updatedAt"]);
+    if (id && at !== undefined) found.push({ key: `item:${id}`, version: at });
+  }
   return found;
 }
 
@@ -181,7 +257,10 @@ interface Seen {
   version: number;
   at: number;
 }
+type Cells = Record<string, unknown>;
 interface Memory {
+  /** The cells of the sheet rows this agent read or wrote in the turn, by file, sheet and row. */
+  cells: Map<string, Cells>;
   /** The turn this memory is of (its id, else when it began); a new turn starts a new memory. */
   turnId: string | number | undefined;
   things: Map<string, Seen>;
@@ -200,7 +279,7 @@ export class SeenVersions {
     let m = this.memories.get(k);
     const turn = ctx.turnId ?? ctx.turnStartedAt;
     if (!m || (turn !== undefined && m.turnId !== turn)) {
-      m = { turnId: turn, things: new Map() };
+      m = { turnId: turn, things: new Map(), cells: new Map() };
       this.memories.delete(k);
       this.memories.set(k, m);
       if (this.memories.size > MAX_TURNS) this.memories.delete(this.memories.keys().next().value as string);
@@ -215,6 +294,17 @@ export class SeenVersions {
     return s.version;
   }
 
+  getCells(ctx: ToolCtx, key: string): Cells | undefined {
+    return this.memory(ctx).cells.get(key);
+  }
+
+  setCells(ctx: ToolCtx, key: string, cells: Cells): void {
+    const all = this.memory(ctx).cells;
+    all.delete(key);
+    all.set(key, cells);
+    if (all.size > MAX_THINGS * 4) all.delete(all.keys().next().value as string);
+  }
+
   set(ctx: ToolCtx, key: string, version: number): void {
     const things = this.memory(ctx).things;
     things.delete(key);
@@ -226,3 +316,37 @@ export class SeenVersions {
 /** The words a refusal made by the tool layer itself says: the thing changed after the turn began, and the agent had not read it since. */
 export const changedSinceTurn = (noun: string): string =>
   `This ${noun} changed after you started working, and you have not read it since, so your change was not saved. Read it again and make your change on top of what is there now.`;
+
+/** The key of a sheet row in what an agent saw of it. */
+export const rowKey = (fileId: string, sheet: unknown, rowId: string): string =>
+  `${fileId}|${typeof sheet === "string" ? sheet : ""}|${rowId}`;
+
+/** The rows a read of a sheet showed, and the row a write of one named: their cells as this agent now knows them. */
+export function learnedRows(
+  cap: string,
+  input: unknown,
+  out: unknown,
+  known: (key: string) => Record<string, unknown> | undefined,
+): Array<{ key: string; cells: Record<string, unknown> }> {
+  const i = obj(input) ?? {};
+  const o = obj(out);
+  const fileId = str(i["fileId"]);
+  if (!o || !fileId) return [];
+  if (cap === "sheets.read_rows" && Array.isArray(o["rows"])) {
+    const rows: Array<{ key: string; cells: Record<string, unknown> }> = [];
+    for (const r of o["rows"]) {
+      const id = str(obj(r)?.["rowId"]);
+      const values = obj(obj(r)?.["values"]);
+      if (id && values) rows.push({ key: rowKey(fileId, i["sheet"], id), cells: { ...values } });
+    }
+    return rows;
+  }
+  if (cap === "sheets.update_row" || cap === "sheets.upsert_row") {
+    const id = str(o["rowId"]);
+    const values = obj(i["values"]);
+    if (!id || !values) return [];
+    const key = rowKey(fileId, i["sheet"], id);
+    return [{ key, cells: { ...(known(key) ?? {}), ...values } }];
+  }
+  return [];
+}

@@ -159,3 +159,54 @@ test("two agents change one record and one task at once with no version: exactly
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("a Space the old race left with repeated version numbers boots, and its file is renumbered with every version kept", async () => {
+  const dir = seededDir();
+  // the Space as it was before 0007: no unique index, the migration not yet run, and a file with the numbers 1, 2, 2
+  const { DatabaseSync } = await import("node:sqlite");
+  const first = await boot(dir);
+  let fileId = "";
+  try {
+    await connect(first);
+    const tree = await c(first, "files.tree", {});
+    const root = (tree.data.roots as Array<{ folderId?: string }>).find((r) => r.folderId)?.folderId;
+    fileId = (await c(first, "files.create", { folderId: root, name: "old.txt", content: { text: "one" } })).data.file
+      .fileId as string;
+    await c(first, "files.write", { fileId, content: { text: "two-a" }, baseVersion: 1 });
+  } finally {
+    await first.stop();
+  }
+  const db = new DatabaseSync(`${dir}/modules.db`);
+  try {
+    const tables = (
+      db
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE '%files_file_version'")
+        .all() as Array<{ name: string }>
+    ).map((t) => t.name);
+    assert.ok(tables.length > 0, `where the versions are: ${JSON.stringify(tables)}`);
+    const table = tables.find((t) => t === "files_file_version") ?? tables[0]!;
+    db.exec(`DROP INDEX IF EXISTS files_file_version__file_n`);
+    const row = db.prepare(`SELECT * FROM ${table} WHERE file_id = ? AND n = 2`).get(fileId) as Record<string, unknown>;
+    assert.ok(row, "version 2 is there");
+    const copy = { ...row, id: `${String(row.id)}x`, blob: row.blob };
+    db.prepare(
+      `INSERT INTO ${table} (${Object.keys(copy).join(",")}) VALUES (${Object.keys(copy)
+        .map(() => "?")
+        .join(",")})`,
+    ).run(...(Object.values(copy) as never[]));
+    db.exec("DELETE FROM host_migration WHERE file LIKE '0007_version_numbers_unique%'");
+  } finally {
+    db.close();
+  }
+  const d = await boot(dir);
+  try {
+    const versions = (await c(d, "files.versions", { fileId })).data.versions as Array<{ n: number }>;
+    assert.deepEqual(versions.map((v) => v.n).sort(), [1, 2, 3], "renumbered in order, none dropped");
+    const read = await c(d, "files.read", { fileId, as: "text" });
+    assert.equal(read.data.version, 3, "the file's own number moved up with it");
+    assert.equal(read.data.text, "two-a", "the current content did not change");
+  } finally {
+    await d.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

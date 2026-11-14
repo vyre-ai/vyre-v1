@@ -33,6 +33,7 @@ type In = {
     value: unknown;
   };
   values: Record<string, unknown>;
+  expect?: Record<string, unknown>;
   label?: string;
 };
 ```
@@ -55,6 +56,7 @@ type Out = {
 - validation.bad_input
 - validation.not_found
 - validation.precondition_failed
+- validation.version_conflict
 
 ## Example
 
@@ -62,6 +64,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "expect": {},
     "fileId": "fil_a1b2c3",
     "key": {
       "column": "example",

@@ -517,6 +517,13 @@ export async function update(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
   const asked = await mustControl(ctx, g);
   if (asked) await checkAskedFields(ctx, g, input);
+  // a caller that read the goal at updatedAt N is refused when it has changed since (F50); nothing is checked without it
+  if (input.expectedUpdatedAt !== undefined && input.expectedUpdatedAt !== g.updatedAt)
+    raise(
+      ctx,
+      "validation.version_conflict",
+      "This changed after it was read, so this change was not saved. Read it again and redo the change.",
+    );
   const fields: string[] = [];
   const set = <K extends keyof Goal>(k: K, v: Goal[K] | undefined, name = String(k)): void => {
     if (v !== undefined) {

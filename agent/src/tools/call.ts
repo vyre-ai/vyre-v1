@@ -10,7 +10,7 @@ import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/
 import { limited, shapeOutput } from "./compact.ts";
 import { fillKey } from "./fill.ts";
 import { turnStartOf } from "./turn-start.ts";
-import { SeenVersions, changedSinceTurn, kindOfWrite, learned } from "./versions.ts";
+import { SeenVersions, changedSinceTurn, kindOfWrite, learned, learnedRows, rowKey } from "./versions.ts";
 import { rejectWords } from "./reject.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
@@ -350,6 +350,31 @@ export function createToolSession(deps: CallDeps): ToolSession {
         if (base !== undefined) given = { ...o, [versioned.field]: base };
       }
     }
+    // a sheet row this agent read in the turn: send what the columns it changes held then, so a change made to them since refuses the write
+    if (
+      !isDynamic &&
+      t.cap === "sheets.update_row" &&
+      given !== null &&
+      typeof given === "object" &&
+      !Array.isArray(given)
+    ) {
+      const g = given as Record<string, unknown>;
+      const values = g["values"];
+      if (
+        g["expect"] === undefined &&
+        typeof g["fileId"] === "string" &&
+        typeof g["rowId"] === "string" &&
+        values !== null &&
+        typeof values === "object"
+      ) {
+        const was = seen.getCells(ctx, rowKey(g["fileId"], g["sheet"], g["rowId"]));
+        if (was) {
+          const expect: Record<string, unknown> = {};
+          for (const col of Object.keys(values as object)) if (col in was) expect[col] = was[col];
+          if (Object.keys(expect).length > 0) given = { ...g, expect };
+        }
+      }
+    }
     try {
       const body =
         isDynamic && deps.dynamic
@@ -358,6 +383,9 @@ export function createToolSession(deps: CallDeps): ToolSession {
       const res = await deps.invoke(t.cap, body, seed);
       if (!isDynamic && res.status === "ok")
         for (const l of learned(t.cap, body, res.output)) seen.set(ctx, l.key, l.version);
+      if (!isDynamic && res.status === "ok")
+        for (const r of learnedRows(t.cap, body, res.output, (k) => seen.getCells(ctx, k)))
+          seen.setCells(ctx, r.key, r.cells);
       if (res.status === "held") {
         recordWork(ctx.turnId, heldCard(t.cap, res.taskId, input));
         return {

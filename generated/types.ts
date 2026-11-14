@@ -5382,6 +5382,8 @@ export type CalendarCreateEventIn = {
 export type CalendarCreateEventOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5439,6 +5441,8 @@ export type CalendarDuplicateEventIn = {
 export type CalendarDuplicateEventOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5496,6 +5500,8 @@ export type CalendarGetEventIn = {
 export type CalendarGetEventOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5590,6 +5596,8 @@ export type CalendarLinkRecordIn = {
 export type CalendarLinkRecordOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5654,6 +5662,8 @@ export type CalendarListEventsIn = {
 export type CalendarListEventsOut = {
   events: Array<{
       id: string;
+      version?: number;
+      updatedAt?: number;
       calendarId: string;
       title: string;
       startsAt: number;
@@ -5700,6 +5710,8 @@ export type CalendarMoveToCalendarIn = {
 export type CalendarMoveToCalendarOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5745,6 +5757,8 @@ export type CalendarRespondIn = {
 export type CalendarRespondOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5788,6 +5802,8 @@ export type CalendarRestoreEventIn = {
 export type CalendarRestoreEventOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -5868,10 +5884,13 @@ export type CalendarUpdateEventIn = {
   joinProvider?: "zoom" | "meet" | "teams" | "none";
   scope?: "this" | "all";
   video?: "meet" | "zoom" | "teams";
+  expectedVersion?: number;
 };
 export type CalendarUpdateEventOut = {
   event: {
     id: string;
+    version?: number;
+    updatedAt?: number;
     calendarId: string;
     title: string;
     startsAt: number;
@@ -18243,6 +18262,7 @@ export type GoalsUpdateIn = {
       dependsOn?: Array<string>;
       due?: number;
     }>;
+  expectedUpdatedAt?: number;
 };
 export type GoalsUpdateOut = {
   goal: {
@@ -34935,6 +34955,7 @@ export type SheetsUpdateRowIn = {
     value: unknown;
   };
   values: Record<string, unknown>;
+  expect?: Record<string, unknown>;
   label?: string;
 };
 export type SheetsUpdateRowOut = {
@@ -34946,6 +34967,7 @@ export type SheetsUpsertRowIn = {
   sheet?: string;
   match: Array<string>;
   values: Record<string, unknown>;
+  expect?: Record<string, unknown>;
   label?: string;
 };
 export type SheetsUpsertRowOut = {
@@ -34991,12 +35013,14 @@ export type SitesArtifactPublishIn = {
   port?: number;
   computerId?: string;
   artifactId?: string;
+  expectedUpdatedAt?: number;
   thumb?: string;
   idempotencyKey: string;
 };
 export type SitesArtifactPublishOut = {
   artifactId: string;
   url?: string;
+  updatedAt?: number;
   updated: boolean;
   opened: boolean;
 };
@@ -35807,6 +35831,7 @@ export type SitesUpdateIn = {
   computerId?: string;
   port?: number;
   folderId?: string;
+  expectedUpdatedAt?: number;
 };
 export type SitesUpdateOut = {
   site: {
@@ -45012,6 +45037,7 @@ export type VaultItemUpdateIn = {
   spaceOnly?: boolean;
   injectIntoDeployments?: boolean;
   rotateEveryDays?: number | null;
+  expectedUpdatedAt?: number;
 };
 export type VaultItemUpdateOut = {
   item: {
