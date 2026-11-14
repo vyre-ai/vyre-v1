@@ -395,8 +395,8 @@ test("a reader who joined in the middle of a chapter never gets its model headin
         "mem_leo",
         t,
         "usr_leo",
-        at[20] + 1,
-        at[20],
+        at[20]! + 1,
+        at[20]!,
       );
     // Leo speaks first among the people he can see in chapter 1 (message 21)
     if (i === 21) {
