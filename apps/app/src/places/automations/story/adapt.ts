@@ -143,7 +143,8 @@ export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn 
   const build = (n: DefNodeIn): StepIn => {
     const known = ctx.catalog[n.key];
     const title = n.title?.trim() || known?.title || human(n.key);
-    const s = sentenceOf(title, n.input, ctx);
+    // a step someone titled reads as that title: the title is already the sentence. An untitled one is its catalogue name and its first values
+    const s = n.title?.trim() ? { template: title, values: {} } : sentenceOf(title, n.input, ctx);
     // the mark a step wears: an app's own for its own steps (the Drive mark for a Drive step), a Vyre glyph for Vyre's
     const own = appMarkOfStep({ key: n.key, title: "" });
     const connector =

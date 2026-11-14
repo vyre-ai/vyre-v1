@@ -202,3 +202,21 @@ test("a connector step wears its connector's name and mark, not the generic requ
   const r = fromDefinition(d, ctx({ catalog: { connector_request: { title: "Authenticated request" } } }));
   assert.deepEqual([r.steps[0]!.app.id, r.steps[0]!.app.name], ["acme", "Acme"]);
 });
+
+test("a step someone titled reads as its own title, never followed by a dump of its fields", () => {
+  const d: DefIn = {
+    triggers: [{ key: "form_submit" }],
+    nodes: [
+      {
+        id: "a",
+        key: "send_email",
+        title: "Email the lead a first hello",
+        input: { to: "{{trigger.email}}", subject: "Hello", mailboxId: "mbx_1" },
+      },
+    ],
+  };
+  const r = fromDefinition(d, ctx());
+  assert.equal(r.steps[0]!.template, "Email the lead a first hello");
+  assert.deepEqual(r.steps[0]!.values, {});
+  assert.equal(r.steps[0]!.action, "Send an email");
+});

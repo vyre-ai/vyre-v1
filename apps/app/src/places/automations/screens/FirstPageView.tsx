@@ -3,6 +3,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { AppLogo } from "../../../../../../ui/src/AppLogo/index.tsx";
 import { When } from "../../../../../../ui/src/Time/index.tsx";
+import { glyphOf, tintOf } from "../picker/glyphs.ts";
 import type { FirstPage } from "../first/model.ts";
 import { look } from "./look.ts";
 
@@ -73,7 +74,13 @@ export function FirstPageView(p: FirstPageViewProps): ReactElement {
         {/* ui-rows-lint: not a list (Needs you cards, each with its own fix) */}
         {needs.map((n) => (
           <View key={n.id} style={look.card}>
-            <AppLogo app={n.app ?? "vyre:logic"} name={n.automation} size={32} />
+            <AppLogo
+              app={n.app ?? "vyre:logic"}
+              name={n.automation}
+              size={32}
+              glyph={glyphOf({ app: n.app ?? "vyre:logic", name: n.automation })}
+              tint={tintOf({ app: n.app ?? "vyre:logic", name: n.automation })}
+            />
             <View style={s.grow}>
               <Text style={look.title}>{n.automation}</Text>
               <Text style={[look.body, { color: "var(--ink-2)" }]}>{n.why}</Text>

@@ -454,6 +454,7 @@ function Body({
       automationId={a.id}
       embedded={!phone}
       mode="basic"
+      onMode={() => undefined}
       samples={{}}
       version={a.version}
       def={def}

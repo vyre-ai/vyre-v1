@@ -59,3 +59,13 @@ test("opening an Automation writes nothing: no update, no save, whatever the ste
   }
   assert.deepEqual(writes, [], "opening and leaving an Automation with no edit changes nothing on the server");
 });
+
+test("a step opened from a sentence has no Basic and Advanced switch", () => {
+  const out = renderToStaticMarkup(
+    <AutomationsDataProvider value={createSampleAutomations(northwind).data}>
+      <BuilderPage automationId="aut_lead" initialSelected="mobile" />
+    </AutomationsDataProvider>,
+  ).replaceAll("<!-- -->", "");
+  assert.ok(out.includes('data-testid="inspector"'), "the step form is open");
+  assert.ok(!out.includes("toggle-advanced") && !out.includes("toggle-basic") && !out.includes("inspector-mode"));
+});
