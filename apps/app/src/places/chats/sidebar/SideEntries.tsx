@@ -341,6 +341,7 @@ export function ItemRow({
         selected={state.selected}
         hovered={state.cursor && !state.selected}
         emphasis={un}
+        quiet={!un && !state.selected}
         onPress={on.press}
         leading={<Lead item={x} />}
         trailing={trailing}

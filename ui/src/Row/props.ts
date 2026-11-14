@@ -24,6 +24,8 @@ export interface RowProps {
   tall?: boolean;
   /** Semibold title (unread chats and channels). */
   emphasis?: boolean;
+  /** The title in the second ink: a row that is read and not selected (the Chats sidebar). Off by default: every other row keeps the full ink. */
+  quiet?: boolean;
   /** Before the title (avatar, icon, chevron). Keeps its own width; the title starts after it. */
   leading?: ReactNode;
   /** After the title, right aligned (count, level picker, controls). */

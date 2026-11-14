@@ -128,6 +128,12 @@ test("chats sidebar pictures and click-through", async (t) => {
       };
       const maya = await accept("Member", "maya", "Maya Lin");
       const ownerId = (await call("identity.whoami", {})).principal.id as string;
+      // things that need the owner: the Tasks section carries the first three, each with its one action, and its count
+      for (const [kind, title] of [
+        ["approve", "Send 12 renewal invoices"],
+        ["review", "Review the pricing page copy"],
+      ] as const)
+        await call("tasks.create", { kind, title, assigned: { kind: "person", id: ownerId } });
       const callAs = async (bearer: string, cap: string, data: Record<string, unknown>): Promise<Any> => {
         const r = await ctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, {
           headers: { authorization: `Bearer ${bearer}` },
@@ -164,6 +170,11 @@ test("chats sidebar pictures and click-through", async (t) => {
       await page.reload({ waitUntil: "load" });
       await page.getByTestId("head-chats").waitFor({ timeout: 20_000 });
       times["reload_to_sidebar_ms"] = Date.now() - t0;
+      const sideText = await page.getByTestId("chats-sidebar").innerText();
+      assert.ok(
+        sideText.includes("Send 12 renewal invoices"),
+        `Tasks carries what needs the owner: ${sideText.slice(0, 200)}`,
+      );
       await shoot("full");
       // menus
       await page.getByTestId("new-menu").click();

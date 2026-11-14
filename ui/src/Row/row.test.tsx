@@ -248,3 +248,12 @@ test("a row gets its tooltip text on hover (and into its title on focus, for a s
     restore();
   }
 });
+
+test("quiet puts the title in the second ink; a row not asked for it, and an unread (emphasis) row, keep the full ink", () => {
+  const quiet = renderToStaticMarkup(<Row id="q" title="Read chat" quiet />);
+  assert.match(quiet, /color:var\(--ink-2\)/);
+  const withSuffix = renderToStaticMarkup(<Row id="q" title="Read chat" titleSuffix="Northwind" quiet />);
+  assert.match(withSuffix, /color:var\(--ink-2\)/);
+  assert.doesNotMatch(renderToStaticMarkup(<Row id="q" title="Plain" />), /var\(--ink-2\)/);
+  assert.doesNotMatch(renderToStaticMarkup(<Row id="q" title="Unread" quiet emphasis />), /var\(--ink-2\)/);
+});
