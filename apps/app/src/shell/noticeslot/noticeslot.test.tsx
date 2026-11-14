@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { createNoticeStore, PASSING_MS, PRIORITY, slotView } from "./model.ts";
+import { ACTION_NOTICE_MS, createNoticeStore, PASSING_MS, PRIORITY, slotView } from "./model.ts";
 import { NoticeSlot } from "./NoticeSlot.tsx";
 import { PhoneNotices } from "./PhoneNotices.tsx";
 import { matchShortcut, keyboardRows } from "../keyboard/map.ts";
@@ -162,4 +162,26 @@ test("on a phone the bar says the connection in a word while that notice is the 
   const other = createNoticeStore();
   other.raise({ id: "update", kind: "update", text: "Update available" });
   assert.doesNotMatch(renderToStaticMarkup(<NoticeSlot store={other} compact />), /notice-word/);
+});
+
+test("pass answers its id, can last longer for a line with an action, and resolve closes it before its time", () => {
+  const c = clock();
+  const s = createNoticeStore(c.now);
+  const quick = s.pass("Copied");
+  const withUndo = s.pass("Pinned the last message", act("Undo"), { ms: ACTION_NOTICE_MS });
+  assert.notEqual(quick, withUndo);
+  c.advance(PASSING_MS + 10);
+  s.tick();
+  assert.deepEqual(
+    s.getSnapshot().live.map((n) => n.id),
+    [withUndo],
+    "the plain one has passed; the one with Undo is still there",
+  );
+  c.advance(ACTION_NOTICE_MS - PASSING_MS);
+  s.tick();
+  assert.equal(s.getSnapshot().live.length, 0, "and it goes at 6 seconds");
+  const again = s.pass("Plan mode is on", act("Undo"), { ms: ACTION_NOTICE_MS });
+  s.resolve(again);
+  assert.equal(s.getSnapshot().live.length, 0, "Escape resolves it at once");
+  assert.equal(s.getSnapshot().recent[0]?.text, "Plan mode is on", "and it stays under Recent");
 });

@@ -18,6 +18,8 @@ import * as act from "./actions.ts";
 import { AttachmentChips, LinkedText, refsOf, sizeLine, splitLinks } from "./attachments.tsx";
 import { commandItems, lastActionable, runSlash } from "./commands.ts";
 import type { CommandEnv } from "./commands.ts";
+import { COMMAND_KINDS, accountName, cardLines, paidWords, unclassified } from "./command-result.ts";
+import type { CommandResult } from "./command-result.ts";
 import type { ConversationData, PluginCommand } from "./data.tsx";
 import { exportAs, exportName } from "./export.ts";
 import { fetchSuggestions, openQuery } from "./suggest.ts";
@@ -74,16 +76,20 @@ function rig(answers: Record<string, (input: any) => unknown> = {}, extra: Parti
     }
   ).data.messages;
   const said: string[] = [];
+  const results: CommandResult[] = [];
   const flags = { find: 0, model: 0, search: [] as string[], sent: [] as string[] };
   const env: CommandEnv = {
     data,
     thread,
     rows,
-    say: (t) => void said.push(t),
+    show: (r) => {
+      results.push(r);
+      if (r.kind === "notice") said.push(r.text);
+      else if (r.kind === "menu") flags.model++;
+    },
     newKey: () => "key_x",
     openFind: () => void flags.find++,
     openSearch: (q) => void flags.search.push(q),
-    openModel: () => void flags.model++,
     send: (t) => void flags.sent.push(t),
   };
   return {
@@ -95,6 +101,7 @@ function rig(answers: Record<string, (input: any) => unknown> = {}, extra: Parti
     thread,
     rows,
     said,
+    results,
     flags,
     env,
     last: (cap: string) => calls.filter((c) => c.cap === cap).at(-1),
@@ -1107,4 +1114,313 @@ test("an agent's answer has Make task in its hover bar, in a chat of people and 
     () => undefined,
   );
   assert.ok(sheet.some((e) => "label" in e && e.label === "Make a Task"));
+});
+
+/* ---------- what a command hands back: data, classified (CMD-RESULTS-2026-11-13) ---------- */
+
+test("every command in the one list has exactly one kind in the table, and the table has no command the list lacks", () => {
+  assert.deepEqual(unclassified(), []);
+  const ids = CHAT_COMMANDS.map((c) => c.id).sort();
+  assert.deepEqual(Object.keys(COMMAND_KINDS).sort(), ids);
+  assert.equal(ids.length, 17);
+  for (const id of ids)
+    assert.ok(["notice", "card", "menu", "opens"].includes(COMMAND_KINDS[id as keyof typeof COMMAND_KINDS]), id);
+});
+
+const SAMPLE_MY_AI = {
+  running: {
+    model: "claude-sonnet-5-5",
+    paid: "Claude Code, CF · your sign-in",
+    account: { name: "Claude Code, CF" },
+    context: { used: 31_000, window: 1_000_000 },
+  },
+  accounts: [
+    {
+      name: "Claude Code, CF",
+      provider: "anthropic",
+      kind: "subscription",
+      usable: true,
+      models: ["claude-sonnet-5-5", "claude-opus-5-5"],
+      limits: { state: "read", session: { pct: 41.6, resetsAt: 1_700_000_000_000 }, week: { pct: 12 } },
+    },
+    {
+      name: "dana@example.org",
+      provider: "openai",
+      kind: "subscription",
+      usable: true,
+      models: ["gpt-6.1"],
+      limits: {
+        state: "not_readable",
+        note: "This sign-in's CLI reports its limits only with a turn, and none has been read here yet.",
+      },
+    },
+    {
+      name: "OpenCode Go",
+      provider: "opencode_go",
+      kind: "key",
+      usable: true,
+      models: ["glm-5.3"],
+      limits: { state: "not_readable", note: "OpenCode Go does not report its quota." },
+    },
+    {
+      name: "Codex",
+      provider: "openai",
+      kind: "subscription",
+      usable: false,
+      why: "Your Codex sign-in is locked on this server.",
+      models: [],
+      limits: { state: "not_readable", note: "x" },
+    },
+  ],
+  use: {
+    today: { turns: 1, input: 18_000, cachedInput: 13_000, output: 200, costMicros: 0 },
+    month: { turns: 39, input: 1_500_000, cachedInput: 9_200_000, output: 176_000, costMicros: 2_500_000 },
+  },
+};
+
+test("/usage hands back a usage card of data: names a person would say, no ids, no addresses, no codes, times as times", async () => {
+  const r = rig({ "engine.my_ai": () => SAMPLE_MY_AI });
+  await runSlash("/usage", r.env);
+  const res = r.results.at(-1)!;
+  assert.equal(res.kind, "card");
+  const spec = (res as Extract<CommandResult, { kind: "card" }>).card;
+  assert.equal(spec.kind, "usage");
+  if (spec.kind !== "usage") return;
+  assert.equal(
+    r.calls.filter((c) => c.cap === "engine.my_ai").length,
+    0,
+    "the card opens first and reads its own data",
+  );
+  const card = await spec.read();
+  assert.equal(card.chat.model, "Sonnet 5.5");
+  assert.equal(card.chat.paidBy, "Your Claude sign-in");
+  assert.deepEqual(card.chat.context, { used: 31_000, window: 1_000_000 });
+  assert.deepEqual(
+    card.accounts.map((a) => a.name),
+    ["Claude sign-in", "ChatGPT sign-in", "OpenCode Go", "Codex"],
+    "an address or initials is not a name",
+  );
+  assert.deepEqual(card.accounts[0]!.models, ["Sonnet 5.5", "Opus 5.5"]);
+  assert.equal(card.accounts[0]!.current, "Sonnet 5.5");
+  assert.deepEqual(card.accounts[0]!.limits, {
+    state: "read",
+    session: { pct: 42, resetsAt: 1_700_000_000_000 },
+    week: { pct: 12 },
+  });
+  assert.deepEqual(card.accounts[1]!.limits, { state: "waiting" });
+  assert.deepEqual(card.accounts[2]!.limits, { state: "silent" });
+  assert.equal(card.accounts[3]!.usable, false);
+  assert.equal(card.accounts[3]!.why, "Your Codex sign-in is locked on this server.");
+  assert.deepEqual(card.today, { count: 1, fresh: 18_000, cached: 13_000, out: 200, costMicros: 0 });
+  assert.equal(card.month.costMicros, 2_500_000);
+  const text = cardLines(card, 1_700_000_000_000 - 3_600_000).join("\n");
+  assert.ok(!/claude-sonnet|@|example\.org|\bCF\b|not_readable/.test(text), text);
+  assert.match(text, /18k new, 13k cached, 200 out/);
+  assert.match(text, /Shows after your next message/);
+});
+
+test("an account is named as the person gave it; only an address or initials is replaced", () => {
+  assert.equal(accountName({ name: "Work Claude", provider: "anthropic", kind: "subscription" }), "Work Claude");
+  assert.equal(
+    accountName({ name: "dana@example.org", provider: "anthropic", kind: "subscription" }),
+    "Claude sign-in",
+  );
+  assert.equal(accountName({ name: "CC, CF", provider: "openai", kind: "subscription" }), "ChatGPT sign-in");
+  assert.equal(accountName({ name: "", provider: "xai", kind: "key" }), "Grok key");
+  assert.equal(paidWords("Claude Code (Max) · your sign-in", "anthropic"), "Your Claude sign-in");
+  assert.equal(paidWords("the Space's key", undefined), "The Space's key");
+  assert.equal(paidWords("something odd", "anthropic"), null);
+});
+
+test("/permissions hands back the rules as data; the rule's id travels with it and is never in the words", async () => {
+  const rules = [
+    { id: "rul_1", kind: "always", act: "send", target: "Run tests in the project folder" },
+    { id: "rul_2", kind: "standing", act: "approve", target: "*", automationId: "aut_1" },
+  ];
+  const r = rig({ "gate.allow.list": () => ({ rules }) });
+  await runSlash("/permissions", r.env);
+  const res = r.results.at(-1) as Extract<CommandResult, { kind: "card" }>;
+  assert.equal(res.kind, "card");
+  assert.equal(res.card.kind, "permissions");
+  if (res.card.kind !== "permissions") return;
+  const card = await res.card.read();
+  assert.deepEqual(
+    card.rules.map((x) => [x.id, x.text, x.restorable]),
+    [
+      ["rul_1", "Always allow Run tests in the project folder", false], // no expiry on record: it cannot be given back exactly,
+      ["rul_2", "An automation may act to whoever its step reaches", false],
+    ],
+  );
+  assert.ok(!card.rules.some((x) => /rul_|aut_/.test(x.text)));
+});
+
+test("taking a permission back says so with an Undo that gives it again through gate.allow.set; an automation's permission has no Undo", async () => {
+  const NOW = rig().data.clock().now;
+  const rules = [
+    {
+      id: "rul_1",
+      kind: "always",
+      act: "send",
+      target: "Run tests",
+      agentId: "agt_a",
+      threadId: "thr_t",
+      expiresAt: NOW + 5 * 86_400_000 + 1000,
+    },
+    { id: "rul_2", kind: "standing", act: "approve", target: "*", automationId: "aut_1" },
+  ];
+  const r = rig({
+    "gate.allow.list": () => ({ rules }),
+    "gate.allow.remove": () => ({ ok: true }),
+    "gate.allow.set": () => ({}),
+  });
+  await runSlash("/permissions remove 1", r.env);
+  const n = r.results.at(-1) as Extract<CommandResult, { kind: "notice" }>;
+  assert.equal(n.kind, "notice");
+  assert.equal(n.text, "Took back: Always allow Run tests");
+  assert.deepEqual(r.last("gate.allow.remove")?.input, { id: "rul_1" });
+  assert.ok(n.undo, "a person's Always allow can be given again");
+  await n.undo!();
+  const set = r.last("gate.allow.set")!.input;
+  assert.deepEqual(
+    { act: set.act, target: set.target, agentId: set.agentId, threadId: set.threadId },
+    { act: "send", target: "Run tests", agentId: "agt_a", threadId: "thr_t" },
+  );
+  assert.ok(set.days >= 1 && set.days <= 90, `days ${set.days}`);
+  await runSlash("/permissions remove 2", r.env);
+  assert.equal(
+    (r.results.at(-1) as Extract<CommandResult, { kind: "notice" }>).undo,
+    undefined,
+    "no call gives an automation's permission back",
+  );
+  await runSlash("/permissions remove 9", r.env);
+  assert.match(r.said.at(-1)!, /There is no rule 9/);
+});
+
+test("/plan and /pin say what happened with an Undo that does the opposite; export and a plain failure have none", async () => {
+  const r = rig();
+  await runSlash("/plan on", r.env);
+  const plan = r.results.at(-1) as Extract<CommandResult, { kind: "notice" }>;
+  assert.equal(plan.text, "Plan mode is on");
+  const before = r.calls.length;
+  await plan.undo!();
+  const undone = r.calls.slice(before).find((c) => /set_mode|set_plan_mode/.test(c.cap))!;
+  assert.ok(undone.input.mode === "auto" || undone.input.planMode === false, JSON.stringify(undone.input));
+  const target = lastActionable(r.rows)!;
+  await runSlash("/pin", r.env);
+  const pin = r.results.at(-1) as Extract<CommandResult, { kind: "notice" }>;
+  assert.equal(pin.text, target.pinned ? "Unpinned the last message" : "Pinned the last message");
+  await pin.undo!();
+  assert.equal(r.last(target.pinned ? "chat.pin" : "chat.unpin")?.input.messageId, target.messageId);
+  await runSlash("/export", r.env);
+  assert.equal((r.results.at(-1) as Extract<CommandResult, { kind: "notice" }>).undo, undefined);
+});
+
+test("a command that throws becomes a failed notice in plain words with a Retry that runs the same command again", async () => {
+  let fail = true;
+  const r = rig({
+    "chat.fork": () => {
+      if (fail) throw new Error("chat.fork");
+      return { thread: { threadId: "thr_fork" }, copied: 1 };
+    },
+  });
+  await runSlash("/fork", r.env);
+  const f = r.results.at(-1) as Extract<CommandResult, { kind: "notice" }>;
+  assert.equal(f.kind, "notice");
+  assert.equal(f.text, "/fork did not work.", "a code is never shown");
+  assert.ok(f.failed, "it can be tried again");
+  fail = false;
+  await f.failed!.retry();
+  assert.deepEqual(r.opened, ["thread:thr_fork"]);
+  assert.equal(r.results.at(-1)!.kind, "opens");
+});
+
+test("each of the 17 commands ends in the kind the table says (a hint or an error is a notice)", async () => {
+  const docs = DIRECTORY.find((d) => d.kind === "agent" && d.name === "Docs")!;
+  assert.ok(docs);
+  const there = {
+    spaces: [{ id: "spc_2", name: "Personal" }],
+    call: async () => ({
+      agents: [{ agentId: "agt_assist", name: "Assistant", role: "assistant" }],
+      thread: { threadId: "thr_there" },
+    }),
+  };
+  const answers = {
+    "engine.my_ai": () => SAMPLE_MY_AI,
+    "gate.allow.list": () => ({ rules: [] }),
+    "chat.helper.start": () => ({ helper: { threadId: "thr_helper1" }, blockId: "blk_1" }),
+    "chat.handoff": () => ({ thread: { threadId: "thr_next" }, depth: 1 }),
+    "chat.fork": () => ({ thread: { threadId: "thr_fork" }, copied: 4 }),
+    "chat.make_task": () => ({ taskId: "tsk_1", messageId: "m" }),
+    "memory.propose_fact": () => ({ fact: {}, merged: true }),
+    "engine.compact": () => ({ line: "Freed 40k of context" }),
+  };
+  const lines: Record<string, string> = {
+    plan: "/plan on",
+    permissions: "/permissions",
+    btw: "/btw what is the deadline again?",
+    helper: "/helper read the lease",
+    handoff: "/handoff @Docs write the cover letter",
+    pin: "/pin",
+    fork: "/fork",
+    export: "/export",
+    continue: "/continue Personal",
+    task: "/task call the court",
+    remember: "/remember I prefer short answers",
+    find: "/find",
+    search: "/search closing date",
+    model: "/model",
+    compact: "/compact",
+    usage: "/usage",
+    stop: "/stop",
+  };
+  for (const c of CHAT_COMMANDS) {
+    const r = rig(answers, { elsewhere: there as never, spaceName: "Northwind" });
+    await runSlash(lines[c.id]!, r.env);
+    const got = r.results.at(-1);
+    // compact: the server's own line is posted in the chat, so the screen has nothing to add
+    assert.ok(got, `/${c.id} gave a result`);
+    assert.equal(
+      got.kind,
+      c.id === "compact" ? "opens" : COMMAND_KINDS[c.id as keyof typeof COMMAND_KINDS],
+      `/${c.id}: ${JSON.stringify(got).slice(0, 160)}`,
+    );
+  }
+});
+
+test("an Undo of a take-back never leaves the agent with more than it had: whole days rounded down, nothing wider", async () => {
+  const NOW = rig().data.clock().now;
+  const H = 3_600_000;
+  const base = { id: "rul_1", kind: "always", act: "send", target: "Run tests", agentId: "agt_a", threadId: "thr_t" };
+  const take = async (rule: Record<string, unknown>) => {
+    const r = rig({
+      "gate.allow.list": () => ({ rules: [rule] }),
+      "gate.allow.remove": () => ({ ok: true }),
+      "gate.allow.set": () => ({}),
+    });
+    await runSlash("/permissions remove 1", r.env);
+    return { r, n: r.results.at(-1) as Extract<CommandResult, { kind: "notice" }> };
+  };
+  // 36 hours left: one whole day goes back, not two
+  const a = await take({ ...base, expiresAt: NOW + 36 * H });
+  assert.ok(a.n.undo);
+  await a.n.undo!();
+  const set = a.r.last("gate.allow.set")!.input;
+  assert.deepEqual(set, { act: "send", target: "Run tests", agentId: "agt_a", threadId: "thr_t", days: 1 });
+  // 5 hours left: no whole day, so no Undo; the line only says it was taken back
+  const b = await take({ ...base, expiresAt: NOW + 5 * H });
+  assert.equal(b.n.text, "Took back: Always allow Run tests");
+  assert.equal(b.n.undo, undefined);
+  // no expiry on record: the call cannot say that exactly, so no Undo
+  const c = await take({ ...base });
+  assert.equal(c.n.undo, undefined);
+  // a rule with no agent or chat is given back with none: never wider
+  const d = await take({
+    id: "rul_1",
+    kind: "always",
+    act: "send",
+    target: "Run tests",
+    expiresAt: NOW + 3 * 86_400_000 + H,
+  });
+  await d.n.undo!();
+  assert.deepEqual(d.r.last("gate.allow.set")!.input, { act: "send", target: "Run tests", days: 3 });
 });

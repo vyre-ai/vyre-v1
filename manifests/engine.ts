@@ -801,6 +801,28 @@ export default defineManifest({
       on: ["thread", "/threadId"],
       tool: "chats",
     }),
+    // engine.thread_states: the latest turn of each of up to 200 chats in ONE call, for the sidebar's failed mark. It is a read of the engine's own table (one grouped query) and changes nothing about how turns run. Answered as the
+    // caller: a chat the caller may not open is simply absent, the same answer as a chat with no turn yet, so it never says that a chat exists. `failedLine` is the plain words the turn failed with, never a code or a trace id.
+    read(
+      "engine.thread_states",
+      "The latest turn of each of up to 200 chats in one call: running, waiting, failed or done, and for a failed one the words why; a chat the asker may not open is left out",
+      {
+        in: { threadIds: t.arr(id.thread, { maxItems: 200 }) },
+        out: {
+          states: t.arr(
+            t.obj({
+              threadId: id.thread,
+              state: t.enm("running", "waiting", "failed", "done"),
+              failedLine: t.opt(t.str({ description: "Words, never a code or a trace id" })),
+            }),
+          ),
+        },
+        level: "member",
+        perm: null,
+        tool: "chats",
+        label: "filter",
+      },
+    ),
     write(
       "engine.turn.retry",
       "Retry a failed turn, optionally on another model or backup key (the next step on a turn error)",
@@ -1858,8 +1880,8 @@ export default defineManifest({
         out: {
           members: t.arr(
             t.obj({
-              kind: t.enm("helper", "teammate"),
-              id: id.thread,
+              kind: t.enm("helper", "teammate", "subagent"),
+              id: t.str({ description: "A helper or teammate's chat, or a subagent's own id (it has no chat)" }),
               jobId: t.opt(t.str()),
               parentThreadId: id.thread,
               title: t.str(),
@@ -1868,7 +1890,9 @@ export default defineManifest({
               state: t.enm("working", "done", "needs_you", "failed", "stopped"),
               holdTaskId: t.opt(id.task),
               step: t.opt(t.str()),
+              steps: t.opt(t.arr(t.str())),
               found: t.opt(t.str()),
+              answer: t.opt(t.str({ description: "What a subagent returned, in full (cut at 1500 characters)" })),
               startedAt: t.ts(),
               endedAt: t.opt(t.ts()),
               elapsedMs: t.int({ minimum: 0 }),
@@ -1910,6 +1934,30 @@ export default defineManifest({
             deleted: t.int(),
             elapsedMs: t.int(),
           }),
+        },
+        on: ["thread", "/threadId"],
+        tool: "chats",
+        label: "check",
+      },
+    ),
+    read(
+      "engine.round.get",
+      "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind an earlier turn of its own, replied, stopped; agents asked together all work at once). Read from the engine's queue, never stored",
+      {
+        in: { ...threadT, messageIds: t.arr(id.message, { maxItems: 50 }) },
+        out: {
+          rounds: t.arr(
+            t.obj({
+              messageId: id.message,
+              agents: t.arr(
+                t.obj({
+                  agentId: id.agent,
+                  state: t.enm("working", "waiting", "replied", "stopped"),
+                  on: t.opt(id.agent),
+                }),
+              ),
+            }),
+          ),
         },
         on: ["thread", "/threadId"],
         tool: "chats",

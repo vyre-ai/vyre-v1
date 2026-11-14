@@ -9,6 +9,7 @@ import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import type { AvatarKind } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Btn, Glyph } from "../layout/parts.tsx";
 import type { Share } from "../layout/model.ts";
+import { CANT_USE_NOTE } from "./restricted.ts";
 
 export const LEVEL_LABEL: Readonly<Record<Share["level"], string>> = {
   use: "Use",
@@ -86,6 +87,9 @@ export interface WhoCanUseProps {
   onRemove: (share: Share) => void;
   onShare: (e?: unknown) => void;
   onMenu: (entries: MenuEntry[], x: number, y: number) => void;
+  /** Agents (by id) whose share cannot work while the item is kept where it is: the line under them says so, and Move is the way out. */
+  cannotUse?: ReadonlySet<string> | undefined;
+  onMove?: ((e?: unknown) => void) | undefined;
 }
 
 export function WhoCanUse({
@@ -98,6 +102,8 @@ export function WhoCanUse({
   onRemove,
   onShare,
   onMenu,
+  cannotUse,
+  onMove,
 }: WhoCanUseProps): ReactElement {
   const rows: ReactElement[] = [
     <Row
@@ -137,13 +143,26 @@ export function WhoCanUse({
     rows.push(
       <View
         key={key}
-        style={noteOf(sh.subject.kind, sh.through) === "" ? s.bare : undefined}
+        style={
+          noteOf(sh.subject.kind, sh.through) === "" && !(sh.subject.kind === "agent" && cannotUse?.has(sh.subject.id))
+            ? s.bare
+            : undefined
+        }
         {...(direct ? menuTrigger(open) : {})}
       >
         <Row
           id={`who:${key}`}
           title={name}
-          {...(noteOf(sh.subject.kind, sh.through) !== "" ? { note: noteOf(sh.subject.kind, sh.through) } : {})}
+          {...(sh.subject.kind === "agent" && cannotUse?.has(sh.subject.id)
+            ? {
+                note: CANT_USE_NOTE,
+                ...(onMove && canManage
+                  ? { noteAction: { label: "Move", onPress: () => onMove(), testID: `who-move-${key}` } }
+                  : {}),
+              }
+            : noteOf(sh.subject.kind, sh.through) !== ""
+              ? { note: noteOf(sh.subject.kind, sh.through) }
+              : {})}
           leading={
             <View style={s.face}>
               <Avatar name={name} seedId={sh.subject.id} kind={FACE[sh.subject.kind]} size={28} />

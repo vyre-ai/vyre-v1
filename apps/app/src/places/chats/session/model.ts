@@ -354,6 +354,12 @@ export interface Question {
   text: string;
   /** the author of the message that asked */ by: string;
 }
+export interface KeptNote {
+  messageId: string;
+  title: string;
+  body: string;
+  at: number;
+}
 export interface SessionSummary {
   /** The session is long: the right pane opens on its Overview. */
   long: boolean;
@@ -365,6 +371,10 @@ export interface SessionSummary {
   /** First and last message times, to say how long the session has run. */
   from: number;
   to: number;
+  /** Notes kept from a side question (an Aside line): what was asked and the answer, newest last. */
+  notes: KeptNote[];
+  /** How many steps the agents took in the messages loaded (a step is one line of work: read, edit, run). */
+  steps: number;
 }
 
 export const NO_SESSION: SessionSummary = {
@@ -375,6 +385,8 @@ export const NO_SESSION: SessionSummary = {
   questions: [],
   from: 0,
   to: 0,
+  notes: [],
+  steps: 0,
 };
 
 const oneLine = (s: string, max = 160): string => {
@@ -401,6 +413,24 @@ export function questionsOf(messages: readonly Message[]): Question[] {
   return out;
 }
 
+/** The notes a person kept from a side question: an Aside line holds the question and the answer. */
+export function notesOf(messages: readonly Message[]): KeptNote[] {
+  const out: KeptNote[] = [];
+  for (const m of messages) {
+    const lc = m.blocks.find((b) => b.type === "link_card");
+    if (!lc) continue;
+    const d = rec(lc.data);
+    if (text(d["lead"]) !== "Aside" || text(d["body"]) === "") continue;
+    out.push({
+      messageId: m.messageId,
+      title: short(flat(text(d["title"])), 120),
+      body: short(flat(text(d["body"])), 400),
+      at: m.createdAt,
+    });
+  }
+  return out;
+}
+
 export function summaryOf(messages: readonly Message[], meId: string): SessionSummary {
   if (messages.length === 0) return NO_SESSION;
   const jumps = jumpsOf(messages);
@@ -413,6 +443,8 @@ export function summaryOf(messages: readonly Message[], meId: string): SessionSu
     questions: questionsOf(messages),
     from: messages.reduce((n, m) => Math.min(n, m.createdAt), Infinity),
     to: messages.reduce((n, m) => Math.max(n, m.createdAt), 0),
+    notes: notesOf(messages),
+    steps: messages.reduce((n, m) => n + (workOf(m)?.steps.length ?? 0), 0),
   };
 }
 

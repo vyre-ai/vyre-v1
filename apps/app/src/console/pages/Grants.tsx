@@ -11,7 +11,7 @@ import { ResourcePicker, SubjectPicker } from "../objects/pickers.tsx";
 import type { ResourceRef } from "../objects/pickers.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Empty, Group, Section } from "../shell/ui.tsx";
-import { Help, Actions, Button, Field, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
+import { Help, Actions, Button, TextBox, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
 import { GrantConditions, conditionDraft, grantConditions } from "./GrantConditions.tsx";
 type Grant = AccessGrantsListOut["grants"][number];
 const LEVELS = [
@@ -428,7 +428,7 @@ function GrantEditor({
         }}
       />
       {expiry === "custom" ? (
-        <Field
+        <TextBox
           label="Expiry in UTC (YYYY-MM-DD HH:mm)"
           testID="grant-expiry-custom"
           value={custom}

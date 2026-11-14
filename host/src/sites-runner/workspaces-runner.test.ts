@@ -591,3 +591,12 @@ test("the list of networks (server health's count of what is left) is answered w
   );
   assert.equal((await w.call("GET", "/v1.47/networks?filters=%7B%7D")).status, 403);
 });
+
+test("F33: the runner accepts the workspace host name `workspace` (and still the old container name, from an older server), and no other", async () => {
+  const { workspaceBody } = await import("./workspaces-policy.ts");
+  const ok = (h: string) => "body" in workspaceBody(name(A), { ...good(A), Hostname: h }, () => true);
+  assert.equal(ok("workspace"), true);
+  assert.equal(ok(name(A)), true);
+  assert.equal(ok("agt_dex"), false);
+  assert.equal(ok(name(B)), false);
+});

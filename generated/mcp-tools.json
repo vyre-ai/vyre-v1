@@ -433,6 +433,98 @@
     },
     {
       "blocks": [],
+      "cap": "access.clears",
+      "deferred": false,
+      "description": "Whether a principal's clearance reaches a resource's label, asked before a key is stored or shared for an agent. Yes or no only. The server or a person with Edit on it may ask; anyone else gets not found",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "principal": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "usr_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "person",
+                  "agent",
+                  "actor",
+                  "service"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          "target": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "rec_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "space",
+                  "record_type",
+                  "record",
+                  "project",
+                  "folder",
+                  "file",
+                  "channel",
+                  "thread",
+                  "inbox",
+                  "mailbox",
+                  "vault_folder",
+                  "vault_item",
+                  "automation_group",
+                  "automation",
+                  "agent",
+                  "connector",
+                  "connection",
+                  "site",
+                  "form",
+                  "kit",
+                  "terminal",
+                  "computer",
+                  "task",
+                  "run",
+                  "number",
+                  "domain",
+                  "calendar",
+                  "skill"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "principal",
+          "target"
+        ],
+        "type": "object"
+      },
+      "name": "access_clears",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "access.deciders",
       "deferred": false,
       "description": "The people who hold Manage on a resource and so may decide a request about it. Used to route a request to a person even when the caller, an agent, cannot see the resource itself; it names people and shows nothing else",
@@ -10358,6 +10450,32 @@
     },
     {
       "blocks": [],
+      "cap": "chat.chapters",
+      "deferred": false,
+      "description": "The chapters of a long chat: where each starts (a Fresh context line, a gap of 3 hours, or 80 messages), its title and one line of what it settled. Empty for a chat of 40 messages or fewer. Worked out from the messages on every read",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "chat_chapters",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.composer.suggest",
       "deferred": false,
       "description": "Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates",
@@ -11592,6 +11710,98 @@
     },
     {
       "blocks": [],
+      "cap": "chat.round.decide",
+      "deferred": false,
+      "description": "Go with one agent's answer after a message asked several: one quiet line, \"Decided: going with Nova's answer\", in the chat. Only the person who asked, only for an agent that answered; no agent is woken by it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageId",
+          "agentId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_round_decide",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.round.discuss",
+      "deferred": false,
+      "description": "Let the agents that answered a message talk it over: the thread under the message gets the answers and a request for one short turn each, ending on one line that starts \"Decided:\". The engine's hand-off limits cap it at four turns. Only the person who asked",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_round_discuss",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.screen.get",
       "deferred": false,
       "description": "The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows",
@@ -11878,6 +12088,69 @@
       },
       "name": "chat_unpin",
       "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chats.presence",
+      "deferred": false,
+      "description": "Who is around (online or away; offline people are left out) and which agents are working now, with the chat when the asker may read it: the sidebar's dots and rings",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "chats_presence",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chats.sidebar",
+      "deferred": false,
+      "description": "The Chats sidebar in one answer: what needs me, my goals, pinned, chats, channels and team, each with its first rows, its total and its marks, plus the one number for the rail",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "filter": {
+            "description": "Everything (the default), or one of: unread, mentions, working, needs, failed, muted, goals, asks, archived. Anything else is refused in plain words",
+            "type": "string"
+          },
+          "more": {
+            "properties": {
+              "after": {
+                "description": "The key of the last row you have; the answer starts after it",
+                "type": "string"
+              },
+              "limit": {
+                "description": "At most 100 rows; default 50",
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "section": {
+                "enum": [
+                  "goals",
+                  "pinned",
+                  "chats",
+                  "channels",
+                  "team"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "section"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "name": "chats_sidebar",
+      "planMode": "allowed",
       "toolset": "chats",
       "v": 1
     },
@@ -19296,6 +19569,44 @@
     },
     {
       "blocks": [],
+      "cap": "engine.round.get",
+      "deferred": false,
+      "description": "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind an earlier turn of its own, replied, stopped; agents asked together all work at once). Read from the engine's queue, never stored",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "messageIds": {
+            "items": {
+              "examples": [
+                "msg_a1b2c3"
+              ],
+              "pattern": "^msg_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageIds"
+        ],
+        "type": "object"
+      },
+      "name": "engine_round_get",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "engine.route.preview",
       "deferred": false,
       "description": "Who will answer a draft message (\"Intake will reply\" or \"No agent will reply, type @ to ask one\"); same route() the client runs locally",
@@ -19737,6 +20048,36 @@
       "name": "engine_subscription_share_set",
       "planMode": "blocked",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.thread_states",
+      "deferred": false,
+      "description": "The latest turn of each of up to 200 chats in one call: running, waiting, failed or done, and for a failed one the words why; a chat the asker may not open is left out",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadIds": {
+            "items": {
+              "examples": [
+                "thr_a1b2c3"
+              ],
+              "pattern": "^thr_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": "array"
+          }
+        },
+        "required": [
+          "threadIds"
+        ],
+        "type": "object"
+      },
+      "name": "engine_thread_states",
+      "planMode": "allowed",
+      "toolset": "chats",
       "v": 1
     },
     {
@@ -45513,6 +45854,33 @@
       "v": 1
     },
     {
+      "blocks": [],
+      "cap": "notifications.unseen_by_thread",
+      "deferred": false,
+      "description": "My unseen mentions per chat or channel, for the sidebar's mention badge; only my own, newest first, at most 500 threads",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadIds": {
+            "items": {
+              "examples": [
+                "thr_a1b2c3"
+              ],
+              "pattern": "^thr_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "name": "notifications_unseen_by_thread",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
       "blocks": [
         "note_offer"
       ],
@@ -58720,6 +59088,389 @@
     },
     {
       "blocks": [],
+      "cap": "state.counts",
+      "deferred": true,
+      "description": "My badges: for each scope how many things have something unread (not done, not muted) and how many entries that is",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "scopes": {
+            "items": {
+              "description": "A badge: `mailbox:<id>`, `number:<id>`, `chats`, `threads` or `notices:<place>`",
+              "examples": [
+                "mailbox:mbx_a1b2c3"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "name": "state_counts",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "state.get",
+      "deferred": true,
+      "description": "My state on up to 500 things: how far I read, unread, done, starred, followed, muted",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "things": {
+            "items": {
+              "properties": {
+                "id": {
+                  "examples": [
+                    "cnv_a1b2c3"
+                  ],
+                  "type": "string"
+                },
+                "type": {
+                  "examples": [
+                    "conversation"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "id"
+              ],
+              "type": "object"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "things"
+        ],
+        "type": "object"
+      },
+      "name": "state_get",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "state.layout.get",
+      "deferred": true,
+      "description": "How I arranged my screens: my layout values (all, or the named keys). A small value for each registered key, mine alone",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "name": "state_layout_get",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "state.layout.set",
+      "deferred": true,
+      "description": "Set one layout value, or clear it with null. Only registered keys, each with a small size limit; it is never a place for content",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "key": {
+            "examples": [
+              "chats.sidebar.folds"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "description": "Any JSON value"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ],
+        "type": "object"
+      },
+      "name": "state_layout_set",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "state.list",
+      "deferred": true,
+      "description": "My things by what I did with them: starred, following, done, unread, muted, pinned (in my own order) or any (everything I have set on anything: one read paints a whole screen). Each row carries the thing's whole state",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "flag": {
+            "enum": [
+              "starred",
+              "following",
+              "done",
+              "unread",
+              "muted",
+              "pinned",
+              "any"
+            ],
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "scope": {
+            "description": "A badge: `mailbox:<id>`, `number:<id>`, `chats`, `threads` or `notices:<place>`",
+            "examples": [
+              "mailbox:mbx_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "flag"
+        ],
+        "type": "object"
+      },
+      "name": "state_list",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "state.read",
+      "deferred": true,
+      "description": "Mark a thing read up to a position, mark it unread, or mark it unread from a position. Give exactly one of upto, unread, fromPos",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fromPos": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "thing": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "cnv_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "examples": [
+                  "conversation"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          },
+          "unread": {
+            "const": true,
+            "type": "boolean"
+          },
+          "upto": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "thing"
+        ],
+        "type": "object"
+      },
+      "name": "state_read",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "state.read_scope",
+      "deferred": true,
+      "description": "Mark everything in one badge read, or only what arrived before a time",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "before": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "scope": {
+            "description": "A badge: `mailbox:<id>`, `number:<id>`, `chats`, `threads` or `notices:<place>`",
+            "examples": [
+              "mailbox:mbx_a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope"
+        ],
+        "type": "object"
+      },
+      "name": "state_read_scope",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "state.set",
+      "deferred": true,
+      "description": "Mark a thing done or open again, star it, follow or leave it, set Alert me on replies, mute it, or pin it (`pin: {}` puts it last among my pins of this kind, `{ after: null }` first, `{ after: thing }` right below that pin; `pin: null` takes it off). Give at least one",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "alert": {
+            "type": "boolean"
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "follow": {
+            "anyOf": [
+              {
+                "enum": [
+                  "following",
+                  "left"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mute": {
+            "anyOf": [
+              {
+                "properties": {
+                  "until": {
+                    "description": "Milliseconds since the Unix epoch",
+                    "examples": [
+                      1760000000000
+                    ],
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "until"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pin": {
+            "anyOf": [
+              {
+                "properties": {
+                  "after": {
+                    "anyOf": [
+                      {
+                        "properties": {
+                          "id": {
+                            "examples": [
+                              "cnv_a1b2c3"
+                            ],
+                            "type": "string"
+                          },
+                          "type": {
+                            "examples": [
+                              "conversation"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "id"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "star": {
+            "type": "boolean"
+          },
+          "thing": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "cnv_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "examples": [
+                  "conversation"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "thing"
+        ],
+        "type": "object"
+      },
+      "name": "state_set",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "steps.test",
       "deferred": false,
       "description": "Run one step in test mode with sample data: reads run for real, writes and sends are stubbed",
@@ -68210,6 +68961,245 @@
     },
     {
       "blocks": [],
+      "cap": "vault.connect",
+      "deferred": false,
+      "description": "Is X connected, connect X (Fathom, Slack), or before saying you cannot reach X. The person gets one card; you get connected, waiting or declined.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "service": {
+            "examples": [
+              "Fathom"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "vault_connect",
+      "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "vault.connect_card.ask_admin",
+      "deferred": false,
+      "description": "Ask an admin to connect the service when this person may not",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "admin": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "requestId": {
+            "examples": [
+              "vrq_a1b2c3"
+            ],
+            "pattern": "^vrq_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "vault_connect_card_ask_admin",
+      "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "vault.connect_card.disconnect",
+      "deferred": false,
+      "description": "Disconnect the service; the key stays in the Vault",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "examples": [
+              "vrq_a1b2c3"
+            ],
+            "pattern": "^vrq_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "vault_connect_card_disconnect",
+      "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "vault.connect_card.get",
+      "deferred": false,
+      "description": "The connect card of one request: its state, the fields, who can fill it, where the key is kept",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "examples": [
+              "vrq_a1b2c3"
+            ],
+            "pattern": "^vrq_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "vault_connect_card_get",
+      "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "vault.connect_card.options",
+      "deferred": false,
+      "description": "Where the key can be kept: Mine, the shared folders an agent can use, and those it cannot",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "examples": [
+              "vrq_a1b2c3"
+            ],
+            "pattern": "^vrq_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "vault_connect_card_options",
+      "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "vault.connect_card.reopen",
+      "deferred": false,
+      "description": "Open a card the person folded with Not now",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "examples": [
+              "vrq_a1b2c3"
+            ],
+            "pattern": "^vrq_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "vault_connect_card_reopen",
+      "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "vault.connect_card.submit",
+      "deferred": false,
+      "description": "Try the key, connect the service and keep the key; nothing is kept unless the key works. The values are in this call only",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "audience": {
+            "enum": [
+              "asker",
+              "anyone"
+            ],
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "properties": {
+                "key": {
+                  "examples": [
+                    "api_key"
+                  ],
+                  "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "value"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "folderId": {
+            "examples": [
+              "vfd_a1b2c3"
+            ],
+            "pattern": "^vfd_[a-z0-9]+$",
+            "type": "string"
+          },
+          "requestId": {
+            "examples": [
+              "vrq_a1b2c3"
+            ],
+            "pattern": "^vrq_[a-z0-9]+$",
+            "type": "string"
+          },
+          "useSaved": {
+            "description": "Use the key the person already has instead of a typed one",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "vault_connect_card_submit",
+      "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "vault.export_env",
       "deferred": false,
       "description": "Export a folder as a .env file: one pull link that expires after 1 hour, 1 day or 7 days; never for Restricted items; the folder owner is notified",
@@ -69318,7 +70308,7 @@
       "blocks": [],
       "cap": "vault.request",
       "deferred": false,
-      "description": "Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status",
+      "description": "Ask for a missing key that is not a service (a key a skill or run needs, by name): creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status. For a service the person names, use vault_connect",
       "effects": "write",
       "inputSchema": {
         "properties": {

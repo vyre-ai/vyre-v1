@@ -30,6 +30,34 @@ export interface Script {
   fail: Record<string, string>;
   /** the chat the request's card was drawn in, with the person who asked (read back through tasks.get) */
   card?: { threadId: string; agentId: string; asker: string };
+  /** the Vault folders the caller can list */
+  folders?: { id: string; name: string; scope: "mine" | "shared"; owner?: string }[];
+  /** the folders and items labelled above the requester's clearance (access.clears answers no for them) */
+  unusable?: string[];
+  /** where an item sits, for the items vault.item.get returns (default: shared) */
+  itemScope?: Record<string, "mine" | "shared">;
+  /** the connectors the Space has set up, by key (the connect card) */
+  connectors?: Record<
+    string,
+    {
+      title: string;
+      scope: "person" | "space";
+      fields: { name: string; label: string; optional: boolean }[];
+      site?: string;
+    }
+  >;
+  /** the person's own connection to a service, by connector key, as connectors.for_service reports it */
+  connections?: Record<string, { connectionId: string; owner: "mine" | "space"; state: string }>;
+  /** the connector is not built in (an agent's draft made live) */
+  thirdParty?: boolean;
+  /** the connector has no call that tries a key */
+  noProbe?: boolean;
+  /** what trying a typed key answers */
+  check?: "ok" | "rejected" | "unreachable";
+  /** what probing a connection made from a saved key answers */
+  probe?: "healthy" | "down";
+  /** Vault items vault.items.list answers (a key the person already saved) */
+  saved?: { id: string; name: string; folderId: string; fieldKeys: string[] }[];
 }
 
 export function world(over: Partial<Script> = {}) {
@@ -46,6 +74,7 @@ export function world(over: Partial<Script> = {}) {
     ...over,
   };
   let task = 0;
+  let put: { folderId: string; keys: string[]; by: string } | null = null;
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     const i = input as Record<string, unknown>;
     calls.push({ cap, input: i });
@@ -62,6 +91,8 @@ export function world(over: Partial<Script> = {}) {
         if (script.folderUnreadable) throw new Error("no access");
         return { people: script.managers[(i["resource"] as { id: string }).id] ?? [] };
       }
+      case "access.clears":
+        return { clears: !(script.unusable ?? []).includes((i["target"] as { id: string }).id) };
       case "tasks.create":
         return { task: { id: `tsk_${++task}` } };
       case "tasks.transition":
@@ -69,15 +100,114 @@ export function world(over: Partial<Script> = {}) {
       case "tasks.update":
         return { task: { id: i["taskId"] } };
       case "vault.item.get": {
+        if (i["itemId"] === "vit_new" && put) {
+          const f = (script.folders ?? []).find((x) => x.id === put!.folderId);
+          return {
+            item: {
+              id: "vit_new",
+              folderId: put.folderId,
+              scope: f?.scope ?? "mine",
+              owner: put.by,
+              fieldKeys: put.keys,
+            },
+          };
+        }
+        const old = (script.saved ?? []).find((x) => x.id === i["itemId"]);
+        if (old) {
+          const f = (script.folders ?? []).find((x) => x.id === old.folderId);
+          return {
+            item: {
+              id: old.id,
+              folderId: old.folderId,
+              scope: f?.scope ?? "mine",
+              owner: "usr_asker",
+              fieldKeys: old.fieldKeys,
+            },
+          };
+        }
         const keys = script.items[String(i["itemId"])];
         if (!keys) throw new Error("no such item");
         return {
-          item: { id: i["itemId"], fieldKeys: keys },
+          item: { id: i["itemId"], fieldKeys: keys, scope: script.itemScope?.[String(i["itemId"])] ?? "shared" },
           fields: keys.map((key) => ({ key, secret: true, hasValue: true })),
         };
       }
       case "vault.item.put":
-        return { item: { id: "vit_new", fieldKeys: (i["fields"] as { key: string }[]).map((f) => f.key) } };
+        put = {
+          folderId: String(i["folderId"]),
+          keys: (i["fields"] as { key: string }[]).map((f) => f.key),
+          by: "usr_asker",
+        };
+        return {
+          item: {
+            id: "vit_new",
+            fieldKeys: (i["fields"] as { key: string }[]).map((f) => f.key),
+          },
+        };
+      case "vault.item.delete":
+        return { ok: true };
+      case "vault.items.list":
+        return { items: script.saved ?? [] };
+      case "connectors.for_service": {
+        const want = String(i["service"])
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "");
+        const key = Object.keys(script.connectors ?? {}).find(
+          (k) => k === want || script.connectors![k]!.title.toLowerCase() === want,
+        );
+        if (!key) return { found: false, near: [] };
+        const c = script.connectors![key]!;
+        return {
+          found: true,
+          connector: {
+            key,
+            title: c.title,
+            scope: c.scope,
+            mode: "api",
+            fields: c.fields,
+            ...(c.site ? { site: c.site } : {}),
+            builtin: script.thirdParty !== true,
+            checks: script.noProbe !== true,
+            ...(script.thirdParty ? { host: "api.example.test" } : {}),
+          },
+          ...(script.connections?.[key] ? { connection: script.connections[key] } : {}),
+        };
+      }
+      case "connectors.check_key":
+        return {
+          result: script.check ?? "ok",
+          ...((script.check ?? "ok") === "ok" && script.noProbe !== true ? { tested: "Reached Fathom" } : {}),
+        };
+      case "connections.create": {
+        const made = {
+          connectionId: "con_new",
+          owner: (i["ownerKind"] === "space" ? "space" : "mine") as "space" | "mine",
+          state: "pending",
+        };
+        script.connections = { ...(script.connections ?? {}), [String(i["connector"])]: made };
+        return { connection: made };
+      }
+      case "connections.mark_working": {
+        const k = Object.keys(script.connections ?? {}).find(
+          (x) => script.connections![x]!.connectionId === i["connectionId"],
+        );
+        if (k) script.connections![k] = { ...script.connections![k]!, state: "active" };
+        return { state: "active", stamped: true };
+      }
+      case "connections.test": {
+        if ((script.probe ?? "healthy") === "down")
+          return { state: "down", detail: "The app rejected the key or sign-in." };
+        const k = Object.keys(script.connections ?? {}).find(
+          (x) => script.connections![x]!.connectionId === i["connectionId"],
+        );
+        if (k) script.connections![k] = { ...script.connections![k]!, state: "active" };
+        return { state: "healthy" };
+      }
+      case "connections.delete": {
+        for (const k of Object.keys(script.connections ?? {}))
+          if (script.connections![k]!.connectionId === i["connectionId"]) delete script.connections![k];
+        return { deleted: true };
+      }
       case "vault.share":
         return { granted: true };
       case "access.share":
@@ -87,7 +217,7 @@ export function world(over: Partial<Script> = {}) {
         return { task: { id: i["taskId"], blocks: [{ type: "vault_request", data: script.card }] } };
       }
       case "vault.folders.list":
-        return { folders: [] };
+        return { folders: (script.folders ?? []).filter((f) => i["scope"] === undefined || f.scope === i["scope"]) };
       case "vault.folders.create":
         return { folder: { id: "vfd_company" } };
       case "access.labels.set":

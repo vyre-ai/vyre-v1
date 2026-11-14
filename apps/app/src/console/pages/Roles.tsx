@@ -17,7 +17,7 @@ import { useConsoleData } from "../shell/data.tsx";
 import { roleRowActions } from "../objects/row-menus.ts";
 import { createMenuApiB } from "../../places/chats/menus/actions-b.ts";
 import { capital, count } from "../shell/format.ts";
-import { Help, Actions, Button, Field, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
+import { Help, Actions, Button, TextBox, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
 import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
 
 /** People and agents counted apart (owner walk, 12 Nov: "Member, 4 holders" with one member and three agents): "1 person, 3 agents". Before the split is read, the plain count. */
@@ -638,7 +638,7 @@ function RoleObject({ roleId, onBack }: { roleId: string; onBack: () => void }):
       testID="role-object"
       sheet={
         <>
-          <Field label="Role name" value={name} onChange={setName} testID="role-edit-name" />
+          <TextBox label="Role name" value={name} onChange={setName} testID="role-edit-name" />
           <Select
             label="Clearance"
             value={clearance}

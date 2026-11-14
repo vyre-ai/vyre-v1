@@ -61,7 +61,52 @@ export interface ConnectionsHandlers {
     input: { connectionId: string },
   ): Promise<{ state: ConnectionState; stamped: boolean }>;
   "connections.delete"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<{ deleted: boolean }>;
+  "connectors.for_service"(ctx: ConnectorsCtx, input: { service: string }): Promise<ForService>;
+  "connectors.check_key"(
+    ctx: ConnectorsCtx,
+    input: { connector: string; secrets: Record<string, string> },
+  ): Promise<{ result: "ok" | "rejected" | "unreachable"; tested?: string }>;
 }
+
+/** The connector a service named in words points at, for the connect card: what it needs, and whether the caller already has it. */
+export interface ForService {
+  found: boolean;
+  connector?: {
+    key: string;
+    title: string;
+    scope: "person" | "space";
+    mode: "api" | "mcp" | "dwd" | "oauth_app" | "webhook_only";
+    fields: { name: string; label: string; optional: boolean }[];
+    site?: string;
+    host?: string;
+    builtin: boolean;
+    checks: boolean;
+  };
+  connection?: { connectionId: string; owner: "mine" | "space"; state: ConnectionState };
+  near?: string[];
+}
+
+/** The call that tries a key: the connector's health action, else its first GET that takes nothing from the caller. */
+export const probeOf = (def: ConnectorDef): string | undefined =>
+  def.health ??
+  def.actions.find(
+    (a) =>
+      (a.method ?? "GET") === "GET" &&
+      a.url !== undefined &&
+      !/\{input[.}]/.test(JSON.stringify([a.url, a.query, a.headers, a.body])),
+  )?.name;
+
+/** "Fathom", "fathom.video" and "FATHOM" name one thing: lower case, letters and digits only. */
+const squash = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+/** "API key" for api_key, "Webhook secret" for webhook_secret: the connector's own slot name, said as a label. */
+export const labelOfSlot = (name: string): string => {
+  const w = name
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .toLowerCase()
+    .replace(/\bapi\b/g, "API");
+  return w ? w.charAt(0).toUpperCase() + w.slice(1) : name;
+};
 
 const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
 
@@ -473,6 +518,101 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         (r.last_sync_at === null || r.last_sync_at === undefined || now - r.last_sync_at >= 60_000);
       if (stamped) tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", now, r.connection_id);
       return { state, stamped };
+    },
+
+    "connectors.for_service": async (ctx, input) => {
+      ready();
+      const want = squash(input.service);
+      const rows = want
+        ? tx
+            .all<{ key: string; def: string; state: string }>("SELECT key, def, state FROM cn_connectors ORDER BY key")
+            .filter((r) => r.state !== "draft")
+        : [];
+      const defs = rows.map((r) => JSON.parse(r.def) as ConnectorDef);
+      // the exact name (key or title), never a prefix: "Git" is not GitHub. Several with that name is not a guess either.
+      const exact = defs.filter((d) => squash(d.key) === want || squash(d.title) === want);
+      if (exact.length !== 1)
+        return {
+          found: false,
+          near: (exact.length > 1
+            ? exact
+            : defs.filter((d) => want.length >= 3 && (squash(d.title).includes(want) || want.includes(squash(d.key))))
+          )
+            .map((d) => d.title)
+            .slice(0, 3),
+        };
+      const hit = exact[0]!;
+      const me = actorOf(ctx);
+      const mine = tx
+        .all<ConnectionDb>("SELECT * FROM cn_connections WHERE connector = ? ORDER BY created_at", hit.key)
+        .filter((r) => (r.owner_kind === "person" ? r.owner_id === me : (ctx.canViewSpace?.() ?? true)))
+        .filter((r) => r.state !== "paused");
+      // a connection that works beats one that does not; the person's own beats the Space's
+      const best =
+        mine.find((r) => r.state === "active" && r.owner_kind === "person") ??
+        mine.find((r) => r.state === "active") ??
+        mine[0];
+      const host = hit.domains.find((d) => !d.startsWith("*"));
+      return {
+        found: true,
+        connector: {
+          key: hit.key,
+          title: hit.title,
+          scope: hit.scope,
+          mode: hit.mode,
+          fields: hit.secrets.map((x) => ({
+            name: x.name,
+            label: labelOfSlot(x.name),
+            optional: /\boptional\b/i.test(x.description),
+          })),
+          ...(host ? { site: `https://${host.replace(/^api\./, "")}`, host } : {}),
+          builtin: hit.builtin === true,
+          checks: probeOf(hit) !== undefined,
+        },
+        ...(best
+          ? {
+              connection: {
+                connectionId: best.connection_id,
+                owner: best.owner_kind === "person" ? ("mine" as const) : ("space" as const),
+                state: best.state,
+              },
+            }
+          : {}),
+      };
+    },
+
+    // The typed key is tried against the app first and kept nowhere: it goes in the call, to the health action, and out with the answer's words scrubbed of it.
+    "connectors.check_key": async (ctx, input) => {
+      ready();
+      // sending a typed key to an app is a person's act, done from their own card; an agent never calls it
+      if (ctx.callerKind !== undefined && ctx.callerKind !== "person")
+        refuse(ctx, "permission.no_grant", "Only the person who types a key can have it tried.");
+      const def = defOf(ctx, input.connector);
+      const c = tx.get<{ state: string }>("SELECT state FROM cn_connectors WHERE key = ?", input.connector)!;
+      if (c.state === "draft")
+        refuse(ctx, "validation.precondition_failed", `${def.title} is not published yet, so it cannot be tried.`);
+      for (const s of def.secrets)
+        if (!/\boptional\b/i.test(s.description) && !(input.secrets[s.name] ?? "").trim())
+          refuse(ctx, "validation.bad_input", `${labelOfSlot(s.name)} is needed.`);
+      for (const k of Object.keys(input.secrets))
+        if (!def.secrets.some((s) => s.name === k)) refuse(ctx, "validation.bad_input", `${def.title} has no ${k}.`);
+      // the connector's own health call; a connector built in one call (connectors.define) has none, so its first read that needs no input stands in. Only a connector with no such call cannot be tried at all.
+      const probe = probeOf(def);
+      if (!probe) return { result: "ok" as const };
+      try {
+        await executeAction(deps, ctx, def, probe, { input: {}, secrets: input.secrets, persist: false });
+      } catch (e) {
+        const code = (e as { error?: { code?: string } }).error?.code;
+        if (code === "provider.auth_failed") return { result: "rejected" as const };
+        if (
+          code === "validation.precondition_failed" ||
+          code === "validation.bad_input" ||
+          code === "permission.no_grant"
+        )
+          throw e;
+        return { result: "unreachable" as const };
+      }
+      return { result: "ok" as const, tested: `Reached ${def.title}` };
     },
 
     "connections.delete": async (ctx, input) => {

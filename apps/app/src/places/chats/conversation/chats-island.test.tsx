@@ -115,6 +115,7 @@ test("the island: the agent's name and question, the first answer as the primary
     assert.match(textOf(find(root, "question-island")), /Question q1\?/);
     assert.equal(textOf(find(root, "island-primary")).trim(), "Yes");
     assert.equal(find(root, "island-count"), null, "one question: no 1 of 1");
+    assert.ok(find(root, "island-other"), "Other is always there beside the first answer (G32)");
     await press(find(root, "island-primary"));
     await flush();
     await press(find(root, "island-people"));

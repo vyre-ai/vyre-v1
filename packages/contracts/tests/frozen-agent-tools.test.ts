@@ -65,7 +65,7 @@ export const DEFAULT_TOOLS: Record<string, string[]> = {
     "memory_remember",
     "memory_forget",
   ],
-  vault: ["vault_use", "vault_request"],
+  vault: ["vault_use", "vault_connect"],
   automations: ["automations_list", "automations_create", "read_link", "automations_run", "journeys_start", "wait_for"],
   chats: ["chat_post", "chat_thread", "handoff", "ask_question", "plan_propose", "open_tab"],
   inbox: ["mail_message_search", "mail_draft", "mail_send", "calendar_list_events", "calendar_create_event"],

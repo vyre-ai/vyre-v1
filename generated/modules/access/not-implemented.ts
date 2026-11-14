@@ -16,6 +16,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "access.audience_set": async (ctx) => { throw new VyreErr(notImplemented("access.audience_set", ctx.trace)); },
   "access.automation_senders": async (ctx) => { throw new VyreErr(notImplemented("access.automation_senders", ctx.trace)); },
   "access.check": async (ctx) => { throw new VyreErr(notImplemented("access.check", ctx.trace)); },
+  "access.clears": async (ctx) => { throw new VyreErr(notImplemented("access.clears", ctx.trace)); },
   "access.connector_builder.grant": async (ctx) => { throw new VyreErr(notImplemented("access.connector_builder.grant", ctx.trace)); },
   "access.connector_builder.status": async (ctx) => { throw new VyreErr(notImplemented("access.connector_builder.status", ctx.trace)); },
   "access.deciders": async (ctx) => { throw new VyreErr(notImplemented("access.deciders", ctx.trace)); },

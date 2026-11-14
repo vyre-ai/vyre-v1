@@ -276,6 +276,11 @@ export interface ShareSheetProps extends CommonProps {
   onAgents?(on: boolean): void;
   /** Whether agents in the Space may call this item, when the server says (access.shares_of agentsCanCall). Left out: read from the rows. */
   agentsOn?: boolean;
+  /**
+   * Finding F35: where this item is kept an agent cannot use it, and sharing never lifts a label. These agents are listed but cannot be picked; one line above them says why and one action (Move)
+   * is the way out. The server still refuses a share that cannot work: this only says so before a person tries.
+   */
+  agentsBlocked?: { ids: readonly string[]; line: string; actionLabel: string; onAction(): void };
 }
 
 export type AccessSheetProps = AddSheetProps | ShareSheetProps;

@@ -6,7 +6,7 @@ Generated from the manifests. The lead completes it by hand (spec sections, reus
 
 ### access
 
-Capabilities to implement: 75. Events to emit: 21. Contract tests that must go green: `generated/tests/access/`.
+Capabilities to implement: 76. Events to emit: 21. Contract tests that must go green: `generated/tests/access/`.
 
 Capabilities:
 - access.actors.create (write, access.manage, level view)
@@ -20,6 +20,7 @@ Capabilities:
 - access.audience_set (write, grant only, level view)
 - access.automation_senders (write, grant only, level view)
 - access.check (read, access.manage, level view)
+- access.clears (read, grant only, level view)
 - access.connector_builder.grant (write, access.manage, level view)
 - access.connector_builder.status (read, grant only, level view)
 - access.deciders (read, grant only, level view)
@@ -375,6 +376,32 @@ Events:
 - star.added
 - star.removed
 
+### state
+
+Capabilities to implement: 15. Events to emit: 3. Contract tests that must go green: `generated/tests/state/`.
+
+Capabilities:
+- state.arrive (write, grant only, level member)
+- state.counts (read, grant only, level member)
+- state.forget (write, grant only, level member)
+- state.gain (write, grant only, level member)
+- state.get (read, grant only, level member)
+- state.layout.get (read, grant only, level member)
+- state.layout.set (write, grant only, level member)
+- state.list (read, grant only, level member)
+- state.lose (write, grant only, level member)
+- state.merge (write, grant only, level member)
+- state.read (write, grant only, level member)
+- state.read_scope (write, grant only, level member)
+- state.retract (write, grant only, level member)
+- state.set (write, grant only, level member)
+- state.verify (write, grant only, level member)
+
+Events:
+- state.changed
+- state.layout_changed
+- state.scope_read
+
 ### talk
 
 Capabilities to implement: 11. Events to emit: 5. Contract tests that must go green: `generated/tests/talk/`.
@@ -485,9 +512,16 @@ Events:
 
 ### vault-requests
 
-Capabilities to implement: 6. Events to emit: 4. Contract tests that must go green: `generated/tests/vault-requests/`.
+Capabilities to implement: 13. Events to emit: 4. Contract tests that must go green: `generated/tests/vault-requests/`.
 
 Capabilities:
+- vault.connect (write, grant only, level view)
+- vault.connect_card.ask_admin (write, grant only, level view)
+- vault.connect_card.disconnect (write, grant only, level view)
+- vault.connect_card.get (read, grant only, level view)
+- vault.connect_card.options (read, grant only, level view)
+- vault.connect_card.reopen (write, grant only, level view)
+- vault.connect_card.submit (write, grant only, level view)
 - vault.request (write, grant only, level view)
 - vault.requests.cancel (write, grant only, level view)
 - vault.requests.decline (write, grant only, level view)

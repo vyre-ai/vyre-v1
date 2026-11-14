@@ -47,6 +47,7 @@ export type ChatCommandId =
   | "search"
   | "model"
   | "compact"
+  | "usage"
   | "btw"
   | "stop";
 

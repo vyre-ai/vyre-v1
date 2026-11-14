@@ -340,6 +340,7 @@ export const consumers = keptWhileStopping({
         payload: {
           requestId: string;
           name?: string;
+          service?: string;
           handle?: string;
           note?: string;
           threadId?: string;
@@ -357,8 +358,12 @@ export const consumers = keptWhileStopping({
         .replace(/\s+key$/i, "")
         .trim();
       // the handle names this very item: another one may hold the name (a team key of the same name), and the handle is how the agent reaches it
-      const text =
-        event.name === "vault.request_fulfilled"
+      // a connect card (b-connect) is answered in the person's own few words: no key, no handle, nothing to explain back
+      const text = p.service
+        ? event.name === "vault.request_fulfilled"
+          ? `${p.service} is connected. Carry on.`
+          : `Not now. Carry on without ${p.service}.`
+        : event.name === "vault.request_fulfilled"
           ? `I added the ${key} key${p.handle ? ` as ${p.handle}` : ""}. Carry on.`
           : `I did not add the ${key} key${p.note ? `: ${p.note}` : "."}`;
       try {

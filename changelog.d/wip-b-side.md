@@ -1,0 +1,14 @@
+- The Chats sidebar has a new model behind it: needs you, now, pinned, chats, channels and team, each capped with an "N more" that shows what it hides, and one mark per row.
+- Every row in the new Chats sidebar has a right-click menu with the same items its keys reach; the word is Pin. A row says what it is by its shape (person, agent, Assistant, group, channel, project, goal) and wears one mark.
+- New keys, listed in Settings under Keyboard: Cmd-N new chat, Shift-Cmd-N new group chat, Option-Cmd-N new channel, Option-Cmd-G new goal, Option-Cmd-T new task, Option-Cmd-O new note, Option-Cmd-1 to 5 for the places, Cmd-Shift-backslash to hide the sidebar, Option-Shift-Down and Up for the next and previous unread chat.
+- The rail has one word under each place (Chats, Inbox, Records, Files, Automations), the foot button says More, and its dot is the accent colour. The rail is a little wider to fit "Automations".
+- The Chats sidebar has a Goals section again under Tasks (active goals first, with the lead's face in a progress ring, then quiet ones), and Tasks folds like every other section: the arrow folds it, the name opens Tasks, and the count stays when folded.
+- In the new sidebar Team lists the whole team, most recent first; a one-to-one chat is that person's row in Team, not a second row in Chats.
+- A chat you started typing in keeps your unsent line on this computer and comes back when you open it; the sidebar marks such a chat with a pencil. It is cleared when you send, and is not shared across your devices.
+- Keys that changed meaning in the new sidebar: Cmd-1 to Cmd-9 now open your first nine pinned rows (before: your first nine starred agents); Cmd-Backslash to hide the sidebar becomes Cmd-Shift-Backslash. Cmd-T (new tab), Cmd-D, Option-Down (Inbox next unread) are unchanged.
+- A chat's mention count can now be read on its own: a new read lists the mentions you have not seen, per chat or channel, only yours.
+- A list that fails to load in one section shows one quiet line with Retry instead of a big error card; "N more" and "Show less" under a capped list are one shared row with Enter, Right and Left keys.
+- The Chats sidebar can be read in one answer: your needs, goals, pinned, chats, channels and team with their marks, a page at a time.
+- The Chats sidebar opens fast however many chats you have: one page of 50 is read without reading every chat, and a person with 5,000 chats and 200 channels gets the first page in under 50 ms.
+- The Chats sidebar is the new one: Tasks (which folds), Goals, Pinned, Chats, Channels and Team, one mark on each row, a menu on every row, and one word under each place in the rail. It loads in one read.
+- Option-Command-1 to 5 go to the first five places of the rail.

@@ -65,6 +65,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.review.mark": Handler<"engine.review.mark", X>;
   "engine.reviewer.get": Handler<"engine.reviewer.get", X>;
   "engine.reviewer.set": Handler<"engine.reviewer.set", X>;
+  "engine.round.get": Handler<"engine.round.get", X>;
   "engine.route.preview": Handler<"engine.route.preview", X>;
   "engine.running_here": Handler<"engine.running_here", X>;
   "engine.runtime.opt_in": Handler<"engine.runtime.opt_in", X>;
@@ -80,6 +81,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.stop_all": Handler<"engine.stop_all", X>;
   "engine.subscription_share.set": Handler<"engine.subscription_share.set", X>;
   "engine.switch": Handler<"engine.switch", X>;
+  "engine.thread_states": Handler<"engine.thread_states", X>;
   "engine.time_convert": Handler<"engine.time_convert", X>;
   "engine.turn.append": Handler<"engine.turn.append", X>;
   "engine.turn.asked_by": Handler<"engine.turn.asked_by", X>;

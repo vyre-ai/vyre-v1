@@ -206,6 +206,8 @@ export interface ConnectorsCtx {
   /** The caller is one of the server's own jobs (svc_host, svc_engine...), never a service a tenant made. */
   trusted?: boolean;
   /** May the caller manage the Space's connections (connectors.manage)? A Space-owned connection needs it; a person's own does not. Absent only in module tests. */
+  /** The kind of principal that made this call (person, agent ...), when the host says; check_key is a person's act only. */
+  callerKind?: string;
   canManageSpace?(): boolean;
   /** Does the caller see the Space as a whole (View on it)? A guest does not, and so sees only their own connections. Absent only in module tests. */
   canViewSpace?(): boolean;
