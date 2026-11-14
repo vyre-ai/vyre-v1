@@ -249,3 +249,7 @@ Signed: pending the lead (lane b-pc did not sign it).
 - `computers.browser.preview` answers `state: held` with `by` (no picture) to everyone but the person who has taken the browser over; `computers.browser.stream` answers `validation.precondition_failed` to them (declared), and the stream relay cuts an older ticket of theirs. The preview never starts the browser and does not count as use (browserd `screenshot` with `quiet`).
 - Snapshots: docs/frozen/snapshots/terminal.json and computers.json.
 
+
+## 14 Nov 2026: round writes are a person's press only, engine.round.get drops `on` and hides private Assistants (lane chat-agents, review of 1fb7e786a)
+
+- What changed: `chat.round.decide` and `chat.round.discuss` are no longer agent tools (no `tool`), and their handlers refuse any caller that is not a person (`permission.role_lacks_permission`). `engine.round.get` loses the output field `on` (never set since one turn per agent) and leaves out a person's private Assistant, an outside agent they connected, and any agent that cannot be read, for every reader but its owner. Behaviour without a contract change: one Decided line per round (the same choice again is the same line, the other agent replaces it, a round the asker has since written past is refused); one discussion per message (a second press opens the thread and starts no turns). Snapshots: docs/frozen/snapshots/chat.json and engine.json.

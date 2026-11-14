@@ -127,6 +127,15 @@ test("let them discuss: the thread under the ask gets the seed, the first agent 
       ["person", "dex", "nova"],
       "the seed, then each agent once, ending on Decided",
     );
+    // the "talking it over" line in the chat has become the decision, and still points at the thread
+    const line = await waitFor(async () => {
+      const msgs = (await call(d, "chat.messages.list", { threadId })).data.messages as {
+        body: string;
+        kind?: string;
+      }[];
+      return msgs.find((m) => /^Decided: /.test(m.body)) ?? null;
+    }, 20_000);
+    assert.equal(line.body, "Decided: the server disk.");
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });

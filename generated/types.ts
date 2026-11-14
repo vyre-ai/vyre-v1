@@ -12781,7 +12781,6 @@ export type EngineRoundGetOut = {
       agents: Array<{
           agentId: string;
           state: "working" | "waiting" | "replied" | "stopped";
-          on?: string;
         }>;
     }>;
 };

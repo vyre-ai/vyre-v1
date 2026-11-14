@@ -3502,7 +3502,6 @@ if (!("agentId" in o2933)) e.push(p + "/rounds" + '/' + i2930 + "/agents" + '/' 
 if (!("state" in o2933)) e.push(p + "/rounds" + '/' + i2930 + "/agents" + '/' + i2932 + "/state" + ': required');
 if ("agentId" in o2933) lf(o2933["agentId"], p + "/rounds" + '/' + i2930 + "/agents" + '/' + i2932 + "/agentId", e, L10);
 if ("state" in o2933) lf(o2933["state"], p + "/rounds" + '/' + i2930 + "/agents" + '/' + i2932 + "/state", e, L688);
-if ("on" in o2933) lf(o2933["on"], p + "/rounds" + '/' + i2930 + "/agents" + '/' + i2932 + "/on", e, L10);
 }
 }
 }
