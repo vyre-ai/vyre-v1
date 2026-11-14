@@ -179,6 +179,22 @@ function insideOf(deps: RegistrarDeps, from: string, home: string): boolean {
   return false;
 }
 
+/**
+ * "Made for me" (owner rule, 14 Nov 2026): the stamp `made_by` / `made_for` says an agent AUTHORED this thing for the person it acts for. The rule: the actor of the creating call is an agent, acting for a person, the
+ * thing is the product of that call (the agent made it, nothing arrived), and the call is not an intake of outside data. It never marks what came in from outside or was synced: so it is not written for
+ *   - mail received (`mail.received`), a conversation opened by incoming mail (`conversation.created`), a message sent (`message.sent`);
+ *   - calendar events pulled from a provider (`calendar.ingest_event`, `calendar.sync_now`) or any call of an intake family (mail, inbox, import, mounts, connector or provider syncs, sources, meetings, telephony);
+ *   - files a mount brought in (`mounts.*`), records an import brought in (`import.commit`);
+ * and it is written only for the entity births listed in AUTHORED_ENTITY_BIRTHS (a calendar event the agent created), and for registry events whose creating call is not an intake.
+ */
+const INTAKE_CAPS =
+  /^(mail\.|inbox\.|import\.|mounts\.|sources\.|sync\.|connectors\.(sync|run|pull|outbox)|calendar\.(ingest_event|sync_now|pull)|google\.|ms\.|dropbox\.|github\.|zoom\.|telephony\.|meetings\.)/;
+const AUTHORED_ENTITY_BIRTHS: ReadonlySet<string> = new Set(["calendar_event.created"]);
+const madeFor = (a: RegisterArgs): { made_by?: string; made_for?: string } =>
+  a.principal?.kind === "agent" && /^usr_[a-z0-9]+$/.test(a.owner) && !INTAKE_CAPS.test(a.cap.name)
+    ? { made_by: a.principal.id, made_for: a.owner }
+    : {};
+
 export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar {
   const subjects = new Map<string, SubjectDef["subject"]>();
   for (const e of deps.events) if (e.subject.type !== "entity" && !ENDS.test(e.name)) subjects.set(e.name, e.subject);
@@ -234,7 +250,7 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
               label: 0,
               owner_id: a.owner,
               holds: 0,
-              ...(a.principal?.kind === "agent" && /^usr_[a-z0-9]+$/.test(a.owner) ? { made_by: a.principal.id, made_for: a.owner } : {}),
+              ...(AUTHORED_ENTITY_BIRTHS.has(ev.type) ? madeFor(a) : {}),
             });
           }
         }
@@ -286,13 +302,13 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
           owner_id: owner,
           holds: 0,
           // a calendar connected to an outside provider is flagged: the private-root rule of made-for-me does not reach it
-          ...(s.type === "calendar" && typeof pointer(ev.payload, "/provider") === "string" && pointer(ev.payload, "/provider") !== "local"
+          ...(s.type === "calendar" &&
+          typeof pointer(ev.payload, "/provider") === "string" &&
+          pointer(ev.payload, "/provider") !== "local"
             ? { outside: true }
             : {}),
           // made for a person by an agent acting for them: the same agent keeps the person's own level on it (kernel authorize, madeForPerson)
-          ...(a.principal?.kind === "agent" && /^usr_[a-z0-9]+$/.test(owner) && owner === a.owner
-            ? { made_by: a.principal.id, made_for: a.owner }
-            : {}),
+          ...(owner === a.owner ? madeFor(a) : {}),
         });
       }
       return out;

@@ -95,8 +95,8 @@ const eventFields = {
   fromBookingPage: t.opt(id.form),
   video: t.opt(video),
 };
-// Held only when the event invites someone (an outward act). The expression language has no null test: `input.attendees != null` could not be evaluated, so every event an agent made was held (made-for-me sweep, 14 Nov 2026).
-const sendGate = { act: "send", when: "actor.kind != 'person' and len(input.attendees) > 0" };
+// An agent's event waits for the person when it invites someone or when the calendar is connected to an outside service (host/src/daemon/gate-hook.ts calendar.writes_outside): an outward act in the person's name. Vyre's own Personal calendar is the person's own and nothing waits. (The expression language has no null test, so `input.attendees != null` could not be read and held every event.)
+const sendGate = { act: "send", when: "calendar.writes_outside(input)" };
 const healthOut = { state: t.enm("healthy", "degraded", "down"), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) };
 
 const manifest = defineManifest({

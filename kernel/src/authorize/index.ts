@@ -105,7 +105,7 @@ function collect(
 }
 /**
  * The only capabilities at Manage an agent may use on what it made for a person: renaming and removing its own work. Anything else at Manage (sharing, publishing, linking outside, members, who may
- * reach it) stays with the person: the made-for-me path holds Edit there, and a check made without a capability name (a handler's inner check) holds Edit too. Removal still waits for the person's OK (Gate).
+ * reach it) stays with the person: the made-for-me path holds Edit there at most, and a check made without a capability name (a handler's inner check) gets nothing from this path: it fails closed. Every capability the agent needs on its own work is named at the top-level check (test/reach.made-for-me.*.live.test.ts runs each kind through the real pipeline). Removal still waits for the person's OK (Gate).
  */
 const MADE_BY_MANAGE: ReadonlySet<string> = new Set([
   "sites.delete",

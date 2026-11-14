@@ -11,7 +11,7 @@ Create an event (drag in 15 minute steps) on its Google or Microsoft calendar, w
 | Grant level | edit |
 | Risk | medium |
 | Resource | calendar (/calendarId) |
-| Gate | send when actor.kind != 'person' and len(input.attendees) > 0 |
+| Gate | send when calendar.writes_outside(input) |
 | Idempotency | key |
 | Offline | queue |
 | Audit | none |
