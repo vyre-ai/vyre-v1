@@ -15,8 +15,9 @@ export function present(v: unknown): boolean {
   return true;
 }
 
+/** A field's name as a person reads it. No label is a raw key: "numberId" is Number, "fileIds" is Files, a lone "id" is Reference. */
 export const humanize = (k: string): string =>
-  k
+  (/^id$/i.test(k) ? "reference" : /^ids$/i.test(k) ? "references" : k.replace(/Ids$/, "s").replace(/Id$/, ""))
     .replace(/([A-Z])/g, " $1")
     .replace(/[_.]+/g, " ")
     .replace(/^./, (x) => x.toUpperCase())

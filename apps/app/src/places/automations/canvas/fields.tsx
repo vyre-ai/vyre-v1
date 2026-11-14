@@ -5,7 +5,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Glyph } from "./icons.tsx";
 import { IconButton, pointer, webOnly } from "./parts.tsx";
-import { dropChip, joinTemplate, splitTemplate } from "./steps/edits.ts";
+import { chipLabel as chipWords, dropChip, joinTemplate, splitTemplate } from "./steps/edits.ts";
 import type { Pair, Seg } from "./steps/edits.ts";
 
 /** The field a person last had in hand. The Data shelf puts the data a person picks into it, so mapping works from the keyboard and the mouse alike. */
@@ -15,6 +15,17 @@ export interface MapTarget {
   commit(next: string): void;
 }
 export const MapTargetContext = createContext<{ set(t: MapTarget | null): void } | null>(null);
+
+/**
+ * What a step form needs to draw data as named chips and to offer "Insert data": how a source is named (a step's title) and a menu of what earlier steps give. One context, so every field of every step
+ * kind reads a {{ reference }} the same way.
+ */
+export interface DataWords {
+  titleOf(stepId: string): string;
+  /** Opens the menu of data an earlier step gives; `put` receives the new text for the field. */
+  insert?(x: number, y: number, current: string, put: (next: string) => void): void;
+}
+export const DataWordsContext = createContext<DataWords | null>(null);
 
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
@@ -44,7 +55,45 @@ export function Field({
 }): ReactElement {
   const [draft, setDraft] = useState<string | null>(null);
   const map = useContext(MapTargetContext);
+  const words = useContext(DataWordsContext);
   const shown = draft ?? value;
+  const insertLink =
+    words?.insert && !mono && !readOnly && testID !== "field-title" ? (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Insert data into ${label}`}
+        testID={testID ? `${testID}-insert` : undefined}
+        onPress={(e) => {
+          const ev = e as unknown as {
+            nativeEvent?: { pageX?: number; pageY?: number };
+            currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } };
+          };
+          const r = ev.currentTarget?.getBoundingClientRect?.();
+          words.insert?.(r?.left ?? ev.nativeEvent?.pageX ?? 0, (r?.bottom ?? ev.nativeEvent?.pageY ?? 0) + 4, shown, (next) => {
+            onCommit(next);
+            setDraft(null);
+          });
+        }}
+        style={[f.insertLink, pointer]}
+      >
+        <Text style={f.insertText}>Insert data</Text>
+      </Pressable>
+    ) : null;
+  if (words && !mono && !readOnly && !rows && /\{\{[^{}]*\}\}/.test(value))
+    return (
+      <>
+        <ChipText
+          label={label}
+          value={value}
+          onCommit={onCommit}
+          chipLabel={(ref) => chipWords(ref, words.titleOf)}
+          compact={!rows}
+          {...(testID ? { testID } : {})}
+          {...(hint ? { hint } : {})}
+        />
+        {insertLink}
+      </>
+    );
   const done = (): void => {
     if (draft !== null && draft !== value) onCommit(draft);
     map?.set({ label, value: shown, commit: onCommit });
@@ -78,6 +127,7 @@ export function Field({
           invalid && { borderColor: "var(--danger)" as string },
         ]}
       />
+      {insertLink}
     </View>
   );
 }
@@ -140,10 +190,13 @@ export function ChipText({
   placeholder,
   testID,
   hint,
+  compact = false,
 }: {
   label: string;
   value: string;
   onCommit(v: string): void;
+  /** One line tall: a recipient or a short field, not a message body. */
+  compact?: boolean;
   chipLabel(ref: string): string;
   placeholder?: string;
   testID?: string;
@@ -154,7 +207,8 @@ export function ChipText({
   const done = (next: readonly Seg[]): void => {
     const text = joinTemplate(next);
     setDraft(null);
-    if (text !== value) onCommit(text);
+    // a line nobody edited is not rewritten: "{{lead.phone}}" stays as it was saved, not "{{ lead.phone }}"
+    if (text !== value && text !== joinTemplate(splitTemplate(value))) onCommit(text);
   };
   const edit = (i: number, text: string): void =>
     setDraft(segs.map((x, at) => (at === i ? { kind: "text", text } : x)));
@@ -169,6 +223,7 @@ export function ChipText({
           testID={first ? testID : testID ? `${testID}-${i}` : undefined}
           value={seg.text}
           multiline
+          numberOfLines={1}
           placeholder={first && segs.length === 1 ? placeholder : undefined}
           placeholderTextColor="var(--ink-4)"
           onChangeText={(t) => edit(i, t)}
@@ -218,7 +273,7 @@ export function ChipText({
   return (
     <View style={f.field}>
       <Text style={f.label}>{label}</Text>
-      <View style={f.chipBox}>{pieces}</View>
+      <View style={[f.chipBox, compact && { minHeight: 34 }]}>{pieces}</View>
     </View>
   );
 }
@@ -259,8 +314,18 @@ export function Segmented({
 }
 
 /** A group that starts closed: the settings most people leave alone (More). */
-export function More({ head, children, testID }: { head: string; children: ReactNode; testID?: string }): ReactElement {
-  const [open, setOpen] = useState(false);
+export function More({
+  head,
+  children,
+  testID,
+  initiallyOpen = false,
+}: {
+  head: string;
+  children: ReactNode;
+  testID?: string;
+  initiallyOpen?: boolean;
+}): ReactElement {
+  const [open, setOpen] = useState(initiallyOpen);
   return (
     <View style={f.group} testID={testID}>
       <Pressable
@@ -462,6 +527,8 @@ export function Rows({
 }
 
 export const f = StyleSheet.create({
+  insertLink: { alignSelf: "flex-start", paddingVertical: 2 },
+  insertText: { fontSize: 12, color: "var(--accent)" as string },
   field: { gap: 4 },
   label: { fontSize: 11.5, color: "var(--ink-3)" as string },
   input: {

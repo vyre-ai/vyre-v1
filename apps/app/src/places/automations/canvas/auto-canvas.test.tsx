@@ -66,7 +66,7 @@ test("a pressed step opens its form beside the page, with its fields", () => {
     "name and the path's condition",
   );
   assert.ok(has(open, "lead.phone is not empty"));
-  assert.ok(has(open, "If this step fails") && has(open, "Stop the run"));
+  assert.ok(has(open, 'data-testid="step-details"') && !has(open, "If this step fails"), "the failure setting is under a closed Details");
   const ai = html(s, "aut_lead", { initialSelected: "draft" });
   assert.ok(
     has(ai, 'data-testid="choose-key"') && has(ai, "Your Claude sign-in") && has(ai, 'data-testid="choose-backup"'),
