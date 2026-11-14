@@ -1079,6 +1079,14 @@ export async function automationSenders(
  * to are not listed, since there is none.
  */
 export const MADE_ROW_PREFIX = "gnt_made";
+/** The row's id carries the resource's id, losslessly (its bytes in hex), so it can be turned back into the one resource it names: no hash to collide and no scan of the store. */
+export const madeRowId = (resourceId: string): string =>
+  `${MADE_ROW_PREFIX}${Buffer.from(resourceId, "utf8").toString("hex")}`;
+const resourceOfMadeRow = (id: string): string | null => {
+  const hex = id.slice(MADE_ROW_PREFIX.length);
+  if (!/^(?:[0-9a-f]{2})+$/.test(hex)) return null;
+  return Buffer.from(hex, "hex").toString("utf8");
+};
 function madeRow(store: AccessStore, res: ResourceRec): GrantRec | null {
   const by = res.row?.["madeBy"],
     forWhom = res.row?.["madeFor"];
@@ -1086,7 +1094,7 @@ function madeRow(store: AccessStore, res: ResourceRec): GrantRec | null {
     return null;
   if (!store.principals.has(by)) return null;
   return {
-    id: `${MADE_ROW_PREFIX}${fnv(res.id)}`,
+    id: madeRowId(res.id),
     subject: { kind: "agent", id: by },
     resource: { type: res.type, id: res.id },
     level: "edit",
@@ -1123,14 +1131,10 @@ export async function unshare(
   // the maker's reach, listed as a row of its own: named by its id (the sheet's unshare), or by the agent on the thing
   const made: GrantRec[] = [];
   if (input.grantId?.startsWith(MADE_ROW_PREFIX)) {
-    // the id is made from the resource's (like the owner's row), so it is looked up among the things that carry a stamp
-    let row: GrantRec | null = null;
-    for (const res of store.resources.values()) {
-      if (res.row?.["madeBy"] === undefined) continue;
-      const r = madeRow(store, res);
-      if (r && r.id === input.grantId) row = r;
-    }
-    if (!row) raise(trace, "validation.not_found", "no such grant");
+    const named = resourceOfMadeRow(input.grantId);
+    const res = named === null ? undefined : store.resources.get(named);
+    const row = res ? madeRow(store, res) : null;
+    if (!row || row.id !== input.grantId) raise(trace, "validation.not_found", "no such grant");
     made.push(row!);
   }
   if (input.grantId && made.length === 0) {

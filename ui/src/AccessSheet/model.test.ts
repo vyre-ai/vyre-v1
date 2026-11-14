@@ -926,7 +926,16 @@ test("no string shown to people holds an em dash or a section sign", async () =>
 
 /* ---------- accessView: the rules behind the Dex sheet ---------- */
 
-import { accessCount, accessSubtitle, accessView, generalSub, levelHint, redundantVia, rowSub } from "./model.ts";
+import {
+  accessCount,
+  accessSubtitle,
+  accessView,
+  generalSub,
+  isMadeBySource,
+  levelHint,
+  redundantVia,
+  rowSub,
+} from "./model.ts";
 import type { ShareRow as Row } from "./props.ts";
 
 const r = (o: Partial<Row> & Pick<Row, "subjectKind" | "subjectId">): Row => ({
@@ -1144,4 +1153,32 @@ test("a project chat reads: the project's files, and its N linked records, with 
     addLines({ target: t(0, false), picks, earlier: false, ownerName: "Irfad" })[0]?.text,
     "They'll see this chat's messages from now on.",
   );
+});
+
+test('a grant the agent made for the person reads "Made this for you"; both spellings of its source are one fact', () => {
+  assert.equal(rowSub({ subjectKind: "agent", via: "grant", madeBy: true }), "Made this for you");
+  assert.equal(rowSub({ subjectKind: "agent", via: "grant" }), "Agent", "an ordinary agent row is unchanged");
+  assert.equal(isMadeBySource("made_by"), true, "the access projection's row");
+  assert.equal(isMadeBySource("made-by:agt_dex"), true, "the Vault's explicit maker's grant");
+  for (const other of [undefined, "", "audience", "project:prj_1", "chat:thr_1", "made", "made_by_x"])
+    assert.equal(isMadeBySource(other), false, String(other));
+});
+
+test("accessView lists the agent that made this among the people with access, once, and counts it once", () => {
+  const made = r({ subjectKind: "agent", subjectId: "agt_dex", name: "Dex", level: "edit", madeBy: true });
+  const other = r({ subjectKind: "agent", subjectId: "agt_docs", name: "Docs", level: "view" });
+  const v = accessView({
+    itemType: "file",
+    resourceId: "fil_1",
+    ownerId: "usr_me",
+    ownerName: "Irfad",
+    shares: [made, other],
+  });
+  assert.deepEqual(
+    v.people.map((x) => x.subjectId),
+    ["agt_dex"],
+    "the made row is listed, an ordinary agent share is not",
+  );
+  assert.equal(v.agents.specific.length, 1, "the other agent keeps its own section");
+  assert.equal(v.count, 1 + 1 + 1, "the owner, the made row, the other agent: no row twice");
 });

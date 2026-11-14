@@ -151,6 +151,8 @@ export interface ShareRow {
   canShare?: boolean;
   /** Somebody else's Assistant or private agent. The sheet never lists one by name. */
   privateAgent?: boolean;
+  /** An agent's reach on a thing it made for the person (the grant's source says so): the row reads "Made this for you". */
+  madeBy?: boolean;
 }
 
 export type Audience = "space" | "added" | "me";
