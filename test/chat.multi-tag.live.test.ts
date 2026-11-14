@@ -1,5 +1,6 @@
-// A message that tags two agents (chat gap G51, 14 Nov 2026), on a booted daemon with a scripted model: within a second the round read names both agents (one working, one waiting its turn), each agent
-// answers once, and no third turn starts (the lead does not answer the other agent's reply).
+// A message that tags two agents (chat gap G51, 14 Nov 2026), on a booted daemon with a scripted model: within a second the round read names both agents, both working (ARCH 6.2 changed 14 Nov 2026:
+// one turn per agent per chat, so agents asked together run together; this test used to expect one working and one waiting), each agent answers once, and no third turn starts (the lead does not
+// answer the other agent's reply).
 import test from "node:test";
 import fs from "node:fs";
 import assert from "node:assert/strict";
@@ -43,7 +44,7 @@ test("two tagged agents: both show within a second, each answers once, nobody el
       return r && r.length === 2 ? r : null;
     }, 10_000);
     assert.ok(Date.now() - t0 < 1000, `both showed within a second (${Date.now() - t0} ms)`);
-    assert.deepEqual(seen.map((a) => a.state).sort(), ["waiting", "working"]);
+    assert.deepEqual(seen.map((a) => a.state).sort(), ["working", "working"]);
     await waitFor(async () => {
       const msgs = (await call(d, "chat.messages.list", { threadId })).data.messages as { author: { id: string } }[];
       return [dex, nova].every((id) => msgs.some((m) => m.author.id === id)) ? true : null;
