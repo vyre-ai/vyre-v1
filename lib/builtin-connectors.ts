@@ -2,6 +2,8 @@
 // Fathom: base address, header and calls from Fathom's own API documentation (developers.fathom.ai: the OpenAPI spec says servers https://api.fathom.ai/external/v1, ApiKeyAuth in header X-Api-Key, GET /meetings,
 // GET /recordings/{recording_id}/summary and /transcript). NOT run against the real service: only against a stand-in. Scope is person: each person connects their own account, the key kept in their own Mine.
 
+import { connectCardOn } from "./connect-switch.ts";
+
 const BASE = "https://api.fathom.ai/external/v1";
 
 export const FATHOM = {
@@ -45,3 +47,6 @@ export const FATHOM = {
 
 /** Built in as code: seeded with the registry's connectors, and registered as access resources by the host. */
 export const CODE_BUILTINS = [FATHOM] as const;
+
+/** The built-ins to seed and to register as resources: Fathom only while the connect card is on (lib/connect-switch.ts). It was tested against a stand-in only, and which services are built in is the owner's decision, so rc.28 seeds none of these. */
+export const activeCodeBuiltins = (): readonly (typeof CODE_BUILTINS)[number][] => (connectCardOn() ? CODE_BUILTINS : []);

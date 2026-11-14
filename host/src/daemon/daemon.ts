@@ -1,5 +1,5 @@
 import { workspaceInTurn } from "./workspace-turns.ts";
-import { CODE_BUILTINS } from "../../../lib/builtin-connectors.ts";
+import { activeCodeBuiltins } from "../../../lib/builtin-connectors.ts";
 import { threadHome, threadMoveInto, underChannelOf } from "../gateway/resources.ts";
 import { ownsSubject } from "./own-subject.ts";
 import { isExportItself, waitForQuiet } from "./export-quiet.ts";
@@ -3934,7 +3934,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const builtinConnectors = new Set([
         ...((registry as unknown as { connectors?: { key: string }[] }).connectors ?? []).map((c) => c.key),
         // built in as code (modules/connectors/builtin-code.ts): Fathom
-        ...CODE_BUILTINS.map((c) => c.key),
+        ...activeCodeBuiltins().map((c) => c.key),
       ]);
       const ensuringConnector = new Map<string, Promise<void>>();
       // An Inbox conversation and a mail message are resources in access (under the Space), made the first time a call names one that exists. The modules open these rows themselves, and an event whose
