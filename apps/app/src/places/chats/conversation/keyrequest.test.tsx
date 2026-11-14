@@ -139,7 +139,7 @@ test("15 Nov: the team choice is offered only when the agent can use a shared fo
 
 test("15 Nov: a manager answering someone else's ask, with no shared folder the agent can use, is told so and cannot add; their own keys are never offered", async () => {
   const { createRoot } = await import("test-renderer");
-  const { find, flush, installDom, mount } = await import("../../../onboarding/test-dom.ts");
+  const { find, flush, installDom, mount, press } = await import("../../../onboarding/test-dom.ts");
   const restore = installDom();
   try {
     const calls: string[] = [];
@@ -152,6 +152,7 @@ test("15 Nov: a manager answering someone else's ask, with no shared folder the 
       if (cap === "vault.folders.list")
         return { folders: i["scope"] === "mine" ? [{ id: "vfd_mine" }] : [{ id: "vfd_hidden" }] };
       if (cap === "access.clears") return { clears: false };
+      if (cap === "vault.folders.create") return { folder: { id: "vfd_made" } };
       return {};
     };
     const root = await mount(
@@ -160,8 +161,14 @@ test("15 Nov: a manager answering someone else's ask, with no shared folder the 
     );
     await flush();
     assert.ok(find(root, "keyreq-nowhere-vrq_1"), "says there is nowhere to put it");
+    assert.ok(find(root, "keyreq-makefolder-vrq_1"), "and gives the one thing to press");
     assert.equal(find(root, "keyreq-audience-anyone-vrq_1"), null);
     assert.ok(!calls.includes("vault.requests.fulfil"));
+    // the one control makes a shared folder, and then the card can add the key
+    await press(find(root, "keyreq-makefolder-vrq_1"));
+    await flush();
+    assert.ok(calls.includes("vault.folders.create"));
+    assert.equal(find(root, "keyreq-nowhere-vrq_1"), null, "there is somewhere to put it now");
   } finally {
     restore();
   }

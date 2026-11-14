@@ -14,8 +14,7 @@ import type { KeyAudience, KeyRequest } from "./keyrequest-model.ts";
 
 type Data = Pick<ConversationData, "call" | "changes">;
 
-const NO_FOLDER =
-  "There is no shared folder this agent can use. Make one that is not restricted, or let the person who asked add the key.";
+const NO_FOLDER = "No shared folder is open to this agent yet. Make one, then add the key.";
 
 export function isKeyRequest(type: string): boolean {
   return type === "vault_request";
@@ -25,11 +24,16 @@ export function KeyRequestCard({
   requestId,
   agent,
   agentId,
+  asker,
+  nameOf,
   data,
 }: {
   requestId: string;
   agent: string;
   agentId: string;
+  /** the person the agent asked for (the card's own block says who), and how to say their name */
+  asker?: string;
+  nameOf?: (id: string) => string;
   data: Data;
 }): ReactElement | null {
   const [req, setReq] = useState<KeyRequest | null | undefined>(undefined);
@@ -123,6 +127,23 @@ export function KeyRequestCard({
       })) as { folder: { id: string } }
     ).folder.id;
   };
+  // a shared folder made here for the agent's keys: it is not restricted, so the agent can use a key kept in it
+  const makeFolder = async (): Promise<void> => {
+    setBusy(true);
+    setProblem("");
+    try {
+      const made = (await data.call("vault.folders.create", {
+        name: `${agent} keys`,
+        scope: "shared",
+        idempotencyKey: `kr-${requestId}-team`,
+      })) as { folder: { id: string } };
+      setShared(made.folder.id);
+    } catch (e) {
+      setProblem((e as { message?: string }).message ?? "That folder was not made. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
   const add = async (): Promise<void> => {
     setBusy(true);
     setProblem("");
@@ -204,30 +225,39 @@ export function KeyRequestCard({
               disabled={busy}
             />
           ))}
-          <View
-            accessibilityRole="radiogroup"
-            accessibilityLabel={`Who can use it through ${agent}`}
-            testID={`keyreq-audience-${requestId}`}
-            style={st.col}
-          >
-            <Text style={st.ask}>{`Who can use it through ${agent}?`}</Text>
-            {/* ui-rows-lint: not a list (the two choices of one question) */}
-            {choices.map((a) => (
-              <Pressable
-                key={a.key}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: chosen === a.key }}
-                aria-checked={chosen === a.key}
-                accessibilityLabel={a.label}
-                testID={`keyreq-audience-${a.key}-${requestId}`}
-                onPress={() => setAudience(a.key)}
-                style={st.choice}
-              >
-                <View style={[st.dot, chosen === a.key && st.dotOn]} />
-                <Text style={st.choiceText}>{a.label}</Text>
-              </Pressable>
-            ))}
-          </View>
+          {choices.length > 1 ? (
+            <View
+              accessibilityRole="radiogroup"
+              accessibilityLabel={`Who can use it through ${agent}`}
+              testID={`keyreq-audience-${requestId}`}
+              style={st.col}
+            >
+              <Text style={st.ask}>{`Who can use it through ${agent}?`}</Text>
+              {/* ui-rows-lint: not a list (the two choices of one question) */}
+              {choices.map((a) => (
+                <Pressable
+                  key={a.key}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: chosen === a.key }}
+                  aria-checked={chosen === a.key}
+                  accessibilityLabel={a.label}
+                  testID={`keyreq-audience-${a.key}-${requestId}`}
+                  onPress={() => setAudience(a.key)}
+                  style={st.choice}
+                >
+                  <View style={[st.dot, chosen === a.key && st.dotOn]} />
+                  <Text style={st.choiceText}>{a.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            // one way to share is a fact, not a choice: say it
+            <Text testID={`keyreq-audience-${requestId}`} style={st.reason}>
+              {`Only ${
+                req.askedYou ? "you" : asker && nameOf ? nameOf(asker) : "the person it is for"
+              } can use it through ${agent}`}
+            </Text>
+          )}
           {nowhere ? (
             <Text testID={`keyreq-nowhere-${requestId}`} style={st.reason}>
               {NO_FOLDER}
@@ -235,7 +265,18 @@ export function KeyRequestCard({
           ) : null}
           <CardActions
             busy={busy}
-            secondary={[{ label: "Deny", onPress: () => setDeclining(true), testID: `keyreq-decline-${requestId}` }]}
+            secondary={[
+              ...(nowhere
+                ? [
+                    {
+                      label: "Make a shared folder",
+                      onPress: () => void makeFolder(),
+                      testID: `keyreq-makefolder-${requestId}`,
+                    },
+                  ]
+                : []),
+              { label: "Deny", onPress: () => setDeclining(true), testID: `keyreq-decline-${requestId}` },
+            ]}
             primary={{
               label: "Add the key",
               disabled: !ready || nowhere,
