@@ -121,6 +121,17 @@ for (const skin of ["graphite", "paper"])
     await click("[data-testid=composer-send]");
     await shot("8-stop-menu");
     await page.keyboard.press("Escape");
+    // the desktop Delete ask: hover your own message, More, More, Delete
+    if (size === "w1440") {
+      await go();
+      const own = page.locator("[data-testid^=msg-]").filter({ hasText: "Book 2pm." }).first();
+      await own.hover().catch(() => undefined);
+      await own.locator("[data-testid^=act-more-]").first().click({ timeout: 3000, force: true }).catch(() => console.log(tag, "no own more"));
+      await page.getByTestId("menu-item-More").click({ timeout: 3000 }).catch(() => console.log(tag, "no More"));
+      await page.getByTestId("menu-item-Delete").click({ timeout: 3000 }).catch(() => console.log(tag, "no Delete"));
+      await shot("9-delete-ask");
+      await page.keyboard.press("Escape");
+    }
     if (size === "w1440") {
       await go("?kind=channel");
       await shot("6-pane-channel");

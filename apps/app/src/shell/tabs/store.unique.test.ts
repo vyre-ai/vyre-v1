@@ -338,3 +338,22 @@ test("a place's own tab is named for the screen inside it while shown, and back 
     "a name the tab already has stays",
   );
 });
+
+test("a chat a person named like a screen (Notes, Tasks) keeps its name when its tab moves: the tab's kind decides, not its title text", () => {
+  for (const name of ["Notes", "Tasks", "Artifacts", "Replies"]) {
+    const s0 = {
+      tabs: [{ key: "chats", title: name, place: "chats" as const, hash: "subject=thread:t1" }],
+      active: "chats",
+    };
+    assert.equal(moveTab(s0, "chats", "subject=thread:t2").tabs[0]!.title, name, `${name}: another chat`);
+    assert.equal(moveTab(s0, "chats", undefined).tabs[0]!.title, name, `${name}: the landing`);
+  }
+  // a tab that really shows the Notes screen is named for it and gives the name back when it is left
+  const notes = moveTab(
+    { tabs: [{ key: "chats", title: "New chat", place: "chats" as const }], active: "chats" },
+    "chats",
+    "screen=chats.notes",
+  );
+  assert.equal(notes.tabs[0]!.title, "Notes");
+  assert.equal(moveTab(notes, "chats", undefined).tabs[0]!.title, "New chat");
+});

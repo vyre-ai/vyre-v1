@@ -130,18 +130,22 @@ export function openTab(state: TabsState, tab: TabEntry, background = false, exa
  * tab already holds where they went, that tab is selected instead, so two tabs never show the same thing. Anywhere else (another place, a "+" tab) is an ordinary open.
  */
 /**
- * The name of a place's own tab as the screen inside it changes: Notes, Artifacts, Tasks ... take the tab's name while shown, and the landing's name comes back when the screen is cleared; anything else
- * (a chat's own name, set by hub.retitle) is kept. The same names a saved tab is restored with (readTabs), so the live tab and the restored one agree.
+ * The name of a place's own tab as the screen inside it changes: Notes, Artifacts, Tasks ... take the tab's name while shown, and the landing's name (or the chat's) comes back when it is left. The tab's
+ * KIND decides, not its title text: a title is the screen's name only while the tab's own address names that screen, so a chat a person called "Notes" or "Tasks" is never reset. The same names a saved
+ * tab is restored with (readTabs), so the live tab and the restored one agree.
  */
-function ownTitle(current: string, place: PlaceId, hash: string | undefined): string {
+function ownTitle(cur: TabEntry, place: PlaceId, hash: string | undefined): string {
   const screens = Object.values(OWN_TAB);
+  const screenOf = (h: string | undefined): string | undefined =>
+    h === undefined || !h.includes("screen=") ? undefined : screenTitle(h);
+  const named = screenOf(hash);
   // only a screen the address names (screen=chats.notes): a subject (a thread, a conversation) names no screen of its own
-  const named = hash === undefined || !hash.includes("screen=") ? undefined : screenTitle(hash);
   if (named !== undefined && screens.includes(named)) return named;
-  // leaving such a screen: the tab is named for where it is now (the landing, or a chat until its own name arrives); any other name (a chat's own) is kept
-  if (screens.includes(current) || current === PLACE_TITLE[place])
+  const showing = screenOf(cur.hash);
+  // leaving such a screen: the tab is named for where it is now (the landing, or a chat until its own name arrives); any other name (a chat's own, however it reads) is kept
+  if (showing !== undefined && screens.includes(showing))
     return (hash === undefined || hash === "" ? undefined : screenTitle(hash)) ?? placeTabTitle(place, hash);
-  return current;
+  return cur.title;
 }
 
 export function moveTab(state: TabsState, place: PlaceId, hash: string | undefined, title?: string): TabsState {
@@ -156,7 +160,7 @@ export function moveTab(state: TabsState, place: PlaceId, hash: string | undefin
     // a place's tab keeps its name; a tab that now shows another item starts from the place's name until that item's name arrives (hub.retitle)
     // the same chat the tab was just opened on (the page reporting its own address) keeps the name it has: the placeholder a chat address carries never replaces a real name
     title: own
-      ? ownTitle(cur.title, place, hash)
+      ? ownTitle(cur, place, hash)
       : cur.key === tab.key && title === NEW_CHAT && cur.title !== NEW_CHAT
         ? cur.title
         : (title ?? placeTabTitle(place, hash)),

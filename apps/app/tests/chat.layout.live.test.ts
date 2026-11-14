@@ -215,9 +215,14 @@ test("chat layout, team Space: long draft, scrolled feed, thread pane beside a l
         strip.includes(title),
         `the tab for "${title}" reads that title; the strip says: ${strip.replaceAll("\n", " | ")}`,
       );
+    // the only tab that may read "New chat" is the landing tab (key "chats"), never a chat's
+    const readers = await page
+      .locator('[data-testid^="tab-"]')
+      .filter({ hasText: "New chat" })
+      .evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? ""));
     assert.ok(
-      (strip.match(/New chat/g) ?? []).length <= 1,
-      `no chat tab still reads New chat (the landing may): ${strip.replaceAll("\n", " | ")}`,
+      readers.filter((id) => !id.startsWith("tab-strip")).every((id) => /^tab-chats(-selected)?$/.test(id)),
+      `only the landing tab reads New chat: ${JSON.stringify(readers)}; the strip says: ${strip.replaceAll("\n", " | ")}`,
     );
     assert.deepEqual(errors, []);
   } finally {

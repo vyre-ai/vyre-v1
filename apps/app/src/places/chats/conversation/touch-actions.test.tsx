@@ -55,7 +55,17 @@ const reply: Message = {
   pinned: false,
 } as unknown as Message;
 
-async function rig(m: ReturnType<typeof media>, shown: Message = reply, removed: string[] = []) {
+interface Log {
+  removed: string[];
+  made: string[];
+  reacted: string[];
+  menus: string[][];
+}
+async function rig(m: ReturnType<typeof media>, shown: Message = reply, log: Partial<Log> = {}) {
+  const removed = log.removed ?? [];
+  const made = log.made ?? [];
+  const reacted = log.reacted ?? [];
+  const menus = log.menus ?? [];
   const restore = installDom();
   (globalThis as { matchMedia?: unknown }).matchMedia = m.mm;
   const s = createSample("idle");
@@ -68,14 +78,15 @@ async function rig(m: ReturnType<typeof media>, shown: Message = reply, removed:
   const actions = {
     openBeside: () => undefined,
     nameOf: s.data.nameOf,
-    makeTask: () => undefined,
+    makeTask: (id: string) => void made.push(id),
     copy: () => undefined,
     openThread: () => undefined,
     setPinned: () => undefined,
     fork: () => undefined,
-    showMenu: () => undefined,
+    showMenu: (items: readonly { label?: string }[]) =>
+      void menus.push(items.flatMap((e) => (e.label ? [e.label] : []))),
     remove: (id: string) => void removed.push(id),
-    react: () => undefined,
+    react: (id: string, emoji: string, remove: boolean) => void reacted.push(`${id}:${emoji}:${remove}`),
   } as never;
   const root = await mount(
     createRoot as never,
@@ -170,7 +181,7 @@ test("on your own message the sheet ends with Delete, alone and in the danger co
     kind: "text",
     body: "Book 2pm.",
   } as unknown as Message;
-  const { root, restore } = await rig(m, mine, removed);
+  const { root, restore } = await rig(m, mine, { removed });
   try {
     await longPress(root);
     assert.ok(find(root, "sheet-act-edit"), "Edit is there on your own message");
@@ -214,6 +225,65 @@ test("only a held press opens the sheet: a touch that ends early, a finger that 
     assert.equal(prevented, 1, "the browser's own long-press menu is shut: the sheet is the menu");
     await hold("hold", LONG_PRESS_MS + 100);
     assert.equal(opened(), true, "a held press opens the sheet");
+  } finally {
+    restore();
+  }
+});
+
+test("a row of the sheet does what it says, on that message: Make a task calls makeTask with its id, a reaction reacts, and one already given is taken back", async () => {
+  const m = media(true);
+  const made: string[] = [];
+  const reacted: string[] = [];
+  const given = { ...reply, reactions: [{ emoji: "\u{1F44D}", by: ["usr_irfad"] }] } as unknown as Message;
+  const { root, restore } = await rig(m, given, { made, reacted });
+  try {
+    await longPress(root);
+    await press(find(root, "sheet-act-make-a-task"));
+    assert.deepEqual(made, ["m_ans"], "the task is made from THIS message");
+    await longPress(root);
+    const lit = find(root, "sheet-reactions")!;
+    assert.ok(textOf(lit).includes("\u{1F44D}"));
+    const up = find(root, "sheet-react-\u{1F44D}")!;
+    await press(up);
+    assert.deepEqual(reacted, ["m_ans:\u{1F44D}:true"], "pressing one already given takes it back");
+    await longPress(root);
+    await press(find(root, "sheet-react-\u{2764}\u{FE0F}"));
+    assert.equal(reacted.at(-1), "m_ans:\u{2764}\u{FE0F}:false", "a new one is added");
+  } finally {
+    restore();
+  }
+});
+
+test("a narrow window with a mouse keeps its right-click menu: the message menu opens on a context click at 390 px, and nothing else about the row changes", async () => {
+  const m = media(false); // a mouse: the device can hover
+  const { Dimensions } = await import("react-native");
+  const menus: string[][] = [];
+  Dimensions.set({ window: { width: 390, height: 844, scale: 1, fontScale: 1 } });
+  const { root, restore } = await rig(m, reply, { menus });
+  try {
+    const withMenu = (n: Node): Node | null => {
+      if (typeof n.props["onContextMenu"] === "function") return n;
+      for (const c of n.children ?? []) {
+        if (typeof c === "string") continue;
+        const f = withMenu(c);
+        if (f) return f;
+      }
+      return null;
+    };
+    const row = withMenu(root);
+    assert.ok(row, "the row listens for a context click at a narrow width");
+    let prevented = 0;
+    await reactAct(async () => {
+      (row.props["onContextMenu"] as (e: unknown) => void)({
+        preventDefault: () => void prevented++,
+        clientX: 20,
+        clientY: 40,
+        pageX: 20,
+        pageY: 40,
+        nativeEvent: { pageX: 20, pageY: 40 },
+      });
+    });
+    assert.ok(menus.length >= 1 && menus[0]!.includes("Make a task"), `the menu opened: ${JSON.stringify(menus)}`);
   } finally {
     restore();
   }

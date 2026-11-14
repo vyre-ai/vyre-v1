@@ -622,6 +622,8 @@ function useHover(onLong?: () => void): {
   focus: boolean;
   phone: boolean;
   touch: boolean;
+  /** A real touch screen (the device cannot hover), not a narrow window: only it gives up the right-click menu and the text selection for the long press. */
+  coarse: boolean;
   props: Record<string, unknown>;
 } {
   const [over, setOver] = useState(false);
@@ -650,8 +652,9 @@ function useHover(onLong?: () => void): {
     onTouchMove: stop,
     onTouchEnd: stop,
     onTouchCancel: stop,
-    // a long press on a touch screen also asks the browser for its own menu (Android) and its selection handles (iOS): the sheet is the menu, so neither opens
-    onContextMenu: (e: { preventDefault?: () => void }) => e.preventDefault?.(),
+    // a long press on a touch screen also asks the browser for its own menu (Android) and its selection handles (iOS): the sheet is the menu, so neither opens. Only on a real touch screen:
+    // a narrow window with a mouse keeps its right-click menu.
+    ...(noHover ? { onContextMenu: (e: { preventDefault?: () => void }) => e.preventDefault?.() } : {}),
   };
   if (touch) {
     return {
@@ -659,6 +662,7 @@ function useHover(onLong?: () => void): {
       focus: false,
       phone,
       touch,
+      coarse: noHover,
       props: webProps(press),
     };
   }
@@ -667,6 +671,7 @@ function useHover(onLong?: () => void): {
     focus,
     phone,
     touch,
+    coarse: false,
     // The row takes focus so the bar can be reached from the keyboard; the bar draws while focus is on the row or inside it.
     props: webProps({
       ...press,
@@ -692,6 +697,8 @@ const sheetQuote = (who: string, body: string): string => {
   const cut = words.length > 60 ? `${words.slice(0, 60).trimEnd()}\u2026` : words;
   return who === "" ? cut : cut === "" ? who : `${who} \u00b7 ${cut}`;
 };
+const reactedBy = (m: Message, meId: string): ReadonlySet<string> =>
+  new Set(m.reactions.filter((r) => r.by.includes(meId)).map((r) => r.emoji));
 const moreReactions = (a: MessageActions, id: string): (() => void) | undefined =>
   a.pickReaction ? () => a.pickReaction!(id, 120, 300) : undefined;
 
@@ -730,6 +737,7 @@ function ActionSheet({
   open,
   entries,
   quote,
+  reacted,
   onReact,
   onMoreReactions,
   onClose,
@@ -737,7 +745,9 @@ function ActionSheet({
   open: boolean;
   entries: readonly MenuEntry[];
   quote: string;
-  onReact(emoji: string): void;
+  /** The reactions this person has already given: they show lit and pressing one takes it back. */
+  reacted: ReadonlySet<string>;
+  onReact(emoji: string, remove: boolean): void;
   onMoreReactions?: (() => void) | undefined;
   onClose: () => void;
 }): ReactElement | null {
@@ -797,11 +807,13 @@ function ActionSheet({
                   key={em}
                   accessibilityRole="button"
                   accessibilityLabel={`React ${em}`}
+                  testID={`sheet-react-${em}`}
+                  accessibilityState={{ selected: reacted.has(em) }}
                   onPress={() => {
                     onClose();
-                    onReact(em);
+                    onReact(em, reacted.has(em));
                   }}
-                  style={st.sheetReact}
+                  style={[st.sheetReact, reacted.has(em) ? st.sheetReactOn : null]}
                 >
                   <Text style={{ fontSize: 22 }}>{em}</Text>
                 </Pressable>
@@ -900,11 +912,11 @@ function Mine({
       testID={`msg-${m.messageId}`}
       accessibilityLabel={`You, ${item.time}`}
       {...h.props}
-      {...(h.touch
+      {...(h.coarse
         ? {}
         : menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message")))}
       style={[
-        h.touch ? st.noSelect : null,
+        h.coarse ? st.noSelect : null,
         st.me,
         item.newgroup ? st.gapTop : st.gapIn,
         mark === "match" && st.found,
@@ -917,7 +929,8 @@ function Mine({
           open={sheet}
           entries={menuFor(m, true, actions, startEdit, { x: 0, y: 0 }, true)}
           quote={sheetQuote("You", m.body)}
-          onReact={(em) => actions.react(m.messageId, em, false)}
+          onReact={(em, remove) => actions.react(m.messageId, em, remove)}
+          reacted={reactedBy(m, meId)}
           onMoreReactions={moreReactions(actions, m.messageId)}
           onClose={() => setSheet(false)}
         />
@@ -1181,7 +1194,7 @@ function Theirs({
       testID={`msg-${m.messageId}`}
       accessibilityLabel={`${item.who.name}, ${item.time}`}
       {...h.props}
-      {...(h.touch
+      {...(h.coarse
         ? {}
         : menuTrigger((x, y) =>
             actions.showMenu(
@@ -1192,7 +1205,7 @@ function Theirs({
             ),
           ))}
       style={[
-        h.touch ? st.noSelect : null,
+        h.coarse ? st.noSelect : null,
         st.msg,
         item.newgroup ? st.gapTop : st.gapIn,
         mark === "match" && st.found,
@@ -1205,7 +1218,8 @@ function Theirs({
           open={sheet}
           entries={menuFor(m, false, actions, () => undefined, { x: 0, y: 0 }, true)}
           quote={sheetQuote(actions.nameOf ? actions.nameOf(m.author.id) : "", m.body)}
-          onReact={(em) => actions.react(m.messageId, em, false)}
+          onReact={(em, remove) => actions.react(m.messageId, em, remove)}
+          reacted={reactedBy(m, meId)}
           onMoreReactions={moreReactions(actions, m.messageId)}
           onClose={() => setSheet(false)}
         />
@@ -2229,6 +2243,7 @@ export const st = StyleSheet.create({
   noSelect: { userSelect: "none", WebkitTouchCallout: "none" } as object,
   sheetQuote: { paddingHorizontal: 16, paddingBottom: 8, fontSize: 13, color: "var(--ink-3)" as string },
   sheetReacts: { flexDirection: "row", gap: 6, paddingHorizontal: 12, paddingBottom: 8 },
+  sheetReactOn: { backgroundColor: "var(--accent-wash)" as string },
   sheetReact: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   sheetGroup: { borderTopWidth: 1, borderTopColor: "var(--line)" as string, marginTop: 4, paddingTop: 4 },
   sheetRow: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 16 },
