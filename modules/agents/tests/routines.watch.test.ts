@@ -237,3 +237,51 @@ test("a schedule that posts into a channel its owner cannot use is refused with 
   });
   assert.equal(fine.routine.channelId, "chn_leads");
 });
+
+test("a routine whose channel did not change is saved without asking for the channel again; a new or changed channel is asked (r-auto2, 14 Nov 2026)", async () => {
+  const { hn, id } = await setup();
+  const saved = await h["agents.routine.save"]!(hn.ctx, {
+    agentId: id,
+    title: "Daily post",
+    cron: "0 9 * * 1-5",
+    channelId: "chn_leads",
+    prompt: "Post the numbers.",
+    idempotencyKey: "ch1",
+  });
+  // the person lost the channel since
+  hn.allowOnly((_a, res) => !(res.type === "channel"));
+  const paused = await h["agents.routine.save"]!(hn.ctx, {
+    agentId: id,
+    routineId: saved.routine.routineId,
+    title: "Daily post",
+    cron: "0 9 * * 1-5",
+    channelId: "chn_leads",
+    prompt: "Post the numbers.",
+    enabled: false,
+    idempotencyKey: "ch2",
+  });
+  assert.equal(paused.routine.enabled, false, "a person who lost the channel can still pause the routine");
+  const code = await failure(() =>
+    h["agents.routine.save"]!(hn.ctx, {
+      agentId: id,
+      routineId: saved.routine.routineId,
+      title: "Daily post",
+      cron: "0 9 * * 1-5",
+      channelId: "chn_other",
+      prompt: "Post the numbers.",
+      idempotencyKey: "ch3",
+    }),
+  );
+  assert.equal(code, "permission.no_grant", "a different channel they cannot use is still refused");
+  const fresh = await failure(() =>
+    h["agents.routine.save"]!(hn.ctx, {
+      agentId: id,
+      title: "Another",
+      cron: "0 9 * * 1-5",
+      channelId: "chn_leads",
+      prompt: "Post.",
+      idempotencyKey: "ch4",
+    }),
+  );
+  assert.equal(fresh, "permission.no_grant", "a new routine naming the channel is asked");
+});

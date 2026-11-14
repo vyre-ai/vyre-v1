@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { harness, codeOf } from "../fixtures/db.ts";
-import type { Harness } from "../fixtures/db.ts";
+import type { Harness, HarnessOptions } from "../fixtures/db.ts";
 import { alice, bob, MINUTE } from "../fixtures/seed.ts";
 import { handlers } from "../impl.ts";
 import { changeWords, normalize, tick, wakeWords } from "../handlers/watches.ts";
@@ -19,8 +19,8 @@ const base = {
 let n = 0;
 const save = (h: Harness, over: Record<string, unknown> = {}, who = alice): Promise<any> =>
   h.call("automations.watches.save", { ...base, idempotencyKey: `k${++n}`, ...over }, who); // eslint-disable-line @typescript-eslint/no-explicit-any
-const world = () => {
-  const h = harness();
+const world = (opts?: HarnessOptions) => {
+  const h = harness(opts);
   const posts: any[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
   const members: any[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
   h.callee("chat.start", (i: any) => ({ thread: { threadId: `thr_${i.scopeId.slice(-6)}` } })); // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -315,4 +315,24 @@ test("a watch cannot name an agent, a computer or a chat its saver may not use; 
     alice,
   );
   assert.equal(again.watch.title, "Renamed");
+});
+
+test("a watch runs an agent and a computer, so it asks for Use: a person who may only see one is refused, in words that say use (r-auto2, 14 Nov 2026)", async () => {
+  // a viewer of agt_seeonly and cmp_seeonly: View is allowed, Use is not
+  const { h } = world({
+    authorize: (_who, action, resource) =>
+      !((resource.id === "agt_seeonly" || resource.id === "cmp_seeonly") && action.level !== "view"),
+  });
+  for (const [field, id] of [
+    ["agentId", "agt_seeonly"],
+    ["computerId", "cmp_seeonly"],
+  ] as const) {
+    const e = await save(h, { runsOn: "computer", agentId: "agt_scout", [field]: id }, alice).then(
+      () => null,
+      (x) => x,
+    );
+    assert.ok(e, `${field}: a watch on something its saver may only see was accepted`);
+    assert.equal(codeOf(e), "validation.precondition_failed");
+    assert.match(String(e.message), /You cannot use the (agent|computer) it names\./);
+  }
 });

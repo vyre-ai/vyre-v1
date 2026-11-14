@@ -12,8 +12,8 @@ export type UseKind = "agent" | "computer" | "thread" | "channel" | "record" | "
 
 /** What a person sees the thing called, and the level a saved reference to it asks for. */
 const KINDS: Readonly<Record<UseKind, { word: string; level: "view" | "use" }>> = {
-  agent: { word: "agent", level: "view" },
-  computer: { word: "computer", level: "view" },
+  agent: { word: "agent", level: "use" },
+  computer: { word: "computer", level: "use" },
   thread: { word: "chat", level: "use" },
   channel: { word: "channel", level: "use" },
   record: { word: "record", level: "view" },

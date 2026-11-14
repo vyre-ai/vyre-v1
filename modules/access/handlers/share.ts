@@ -558,7 +558,7 @@ function checkConditions(ctx: AccessCtx, c: Cond | undefined): Cond {
 const RECORDS = new Set(["record_type", "record"]);
 
 /** May this caller (and the person they act for) export what this resource holds: the role permission, or a grant that carries it. */
-function mayExport(ctx: AccessCtx, store: AccessStore, res: ResourceRec): boolean {
+export function mayExport(ctx: AccessCtx, store: AccessStore, res: ResourceRec): boolean {
   const d = authorize(decisionSnapshot(store), {
     principal: ctx.principal.id,
     ...(actingId(ctx) && actingId(ctx) !== ctx.principal.id ? { actingFor: actingId(ctx)! } : {}),

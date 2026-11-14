@@ -65,7 +65,7 @@ export function requestOut(r: RequestRow) {
 export const requestById = (ctx: AccessCtx, id: string): RequestRow | undefined =>
   ctx.db.all(`SELECT * FROM access_requests WHERE id = ?`, id)[0] as RequestRow | undefined;
 
-function allows(
+export function allows(
   ctx: AccessCtx,
   store: AccessStore,
   principal: string,
