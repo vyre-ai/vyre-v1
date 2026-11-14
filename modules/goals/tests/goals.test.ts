@@ -892,7 +892,11 @@ test("a turn ending in the goal's chat counts itself without moving updatedAt, s
   const after = getGoal(w.db, goal.id)!;
   assert.equal(after.turns, 1, "the turn was counted");
   assert.equal(after.updatedAt, read, "accounting is not a change to the goal");
-  const ok = await w.call("goals.update", { goalId: goal.id, title: "After the count", expectedUpdatedAt: read }, agent);
+  const ok = await w.call(
+    "goals.update",
+    { goalId: goal.id, title: "After the count", expectedUpdatedAt: read },
+    agent,
+  );
   assert.equal(ok.goal.title, "After the count", "the write on the version it read is saved");
   assert.ok(getGoal(w.db, goal.id)!.updatedAt > read, "a real change moves updatedAt");
 });
