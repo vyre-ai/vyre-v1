@@ -51,7 +51,15 @@ export function pullFrames(
   };
 }
 
-export function PreviewImage({ call, agentId, active }: { call: Call; agentId: string; active: boolean }): ReactElement | null {
+export function PreviewImage({
+  call,
+  agentId,
+  active,
+}: {
+  call: Call;
+  agentId: string;
+  active: boolean;
+}): ReactElement | null {
   const box = useRef<HTMLElement | null>(null);
   const front = useRef(0);
   useEffect(() => {
@@ -87,7 +95,15 @@ export function PreviewImage({ call, agentId, active }: { call: Call; agentId: s
       alt: "",
       draggable: false,
       "data-testid": `browser-preview-${i}`,
-      style: { position: "absolute", left: 0, top: 0, width: "100%", height: "100%", objectFit: "contain", visibility: "hidden" },
+      style: {
+        position: "absolute",
+        left: 0,
+        top: 0,
+        width: "100%",
+        height: "100%",
+        objectFit: "contain",
+        visibility: "hidden",
+      },
     });
   return (
     <View testID="browser-preview" style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0 }}>

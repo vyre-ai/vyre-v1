@@ -370,7 +370,13 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
             name={name}
             caption={caption}
             onOpen={() => setSheet(true)}
-            live={<PreviewImage call={data.call} agentId={agentId} active={!sheet && (v.state === "open" || v.state === "takeover")} />}
+            live={
+              <PreviewImage
+                call={data.call}
+                agentId={agentId}
+                active={!sheet && (v.state === "open" || v.state === "takeover")}
+              />
+            }
           />
         ),
       });

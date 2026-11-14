@@ -103,7 +103,14 @@ export interface TerminalHost {
   capture?(
     terminalId: string,
     o: { lines: number },
-  ): Promise<{ text: string; cols: number; rows: number; cursor: { x: number; y: number } | null; history: number; hidden: boolean }>;
+  ): Promise<{
+    text: string;
+    cols: number;
+    rows: number;
+    cursor: { x: number; y: number } | null;
+    history: number;
+    hidden: boolean;
+  }>;
   /** Keys as a person presses them: text typed, a named key (Enter, Tab, Up, C-c ...), or a paste as one write. Raw through tmux send-keys, so a program that wants a real keyboard gets one. */
   keys?(terminalId: string, keys: readonly KeyPress[]): Promise<void>;
   /** Live frames: what the session prints, as it prints it (tmux control mode). Returns the function that stops it. */

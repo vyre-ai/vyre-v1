@@ -209,7 +209,10 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     const r = await o.exec(["stty", "-a", "-F", tty]).catch(() => null);
     // a line editor (bash at its prompt) turns echo off too, and draws the line itself; it also leaves line mode. A password prompt keeps line mode: echo off and icanon on
     return (
-      r !== null && r.code === 0 && /(^|[\s;])-echo([\s;]|$)/.test(r.stdout) && /(^|[\s;])icanon([\s;]|$)/.test(r.stdout)
+      r !== null &&
+      r.code === 0 &&
+      /(^|[\s;])-echo([\s;]|$)/.test(r.stdout) &&
+      /(^|[\s;])icanon([\s;]|$)/.test(r.stdout)
     );
   }
   /** A session's shell keeps no line that starts with a space in its history (agent commands are typed that way). A tmux older than 3.0 has no -e: the session opens without it. */
@@ -514,7 +517,8 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
           for (let i = 0; i < k.text.length; i += 1000)
             await tmux(["send-keys", "-t", session, "-l", "--", tmuxLiteral(k.text.slice(i, i + 1000))]);
         } else if ("key" in k) {
-          if (!KEY_NAME.test(k.key)) throw Object.assign(new Error("That key is not one a terminal takes."), { code: "bad_input" });
+          if (!KEY_NAME.test(k.key))
+            throw Object.assign(new Error("That key is not one a terminal takes."), { code: "bad_input" });
           await tmux(["send-keys", "-t", session, k.key]);
         } else {
           // a paste is one write, whatever its size: into a tmux buffer through stdin, then into the pane, and the buffer is dropped
@@ -1160,7 +1164,8 @@ export function createLocalHost(
     capture: async (id, r) => {
       await ready(id);
       const h = await of(id);
-      if (!h.capture) throw Object.assign(new Error("This terminal has no screen to draw with colours."), { code: "unsupported" });
+      if (!h.capture)
+        throw Object.assign(new Error("This terminal has no screen to draw with colours."), { code: "unsupported" });
       return h.capture(id, r);
     },
     keys: async (id, ks) => {

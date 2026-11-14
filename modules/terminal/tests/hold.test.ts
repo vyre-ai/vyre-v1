@@ -161,17 +161,33 @@ test("capture answers the screen with its colours, the cursor and whether a prom
   const { hn } = keyed();
   const id = await open(hn);
   const r = await call(hn, "terminal.capture", { terminalId: id });
-  assert.deepEqual(r, { text: "\u001b[31mred\u001b[0m", cols: 100, rows: 30, cursor: { x: 3, y: 1 }, history: 0, hidden: true });
+  assert.deepEqual(r, {
+    text: "\u001b[31mred\u001b[0m",
+    cols: 100,
+    rows: 30,
+    cursor: { x: 3, y: 1 },
+    history: 0,
+    hidden: true,
+  });
 });
 
 test("keys reach the terminal raw; while another person holds it they are refused, and the holder's go through", async () => {
   const { hn, sent } = keyed();
   const id = await open(hn);
-  await call(hn, "terminal.keys", { terminalId: id, keys: [{ text: "gh auth login" }, { key: "Enter" }, { paste: "4F2A-91CD" }] });
+  await call(hn, "terminal.keys", {
+    terminalId: id,
+    keys: [{ text: "gh auth login" }, { key: "Enter" }, { paste: "4F2A-91CD" }],
+  });
   assert.deepEqual(sent, [[{ text: "gh auth login" }, { key: "Enter" }, { paste: "4F2A-91CD" }]]);
   await call(hn, "terminal.take_over", { terminalId: id }, hn.as(SARA));
-  assert.equal(await rejects(() => h["terminal.keys"]!(hn.ctx, { terminalId: id, keys: [{ key: "Enter" }] })), "validation.precondition_failed");
-  assert.equal(await rejects(() => h["terminal.keys"]!(hn.as(AGENT), { terminalId: id, keys: [{ key: "Enter" }] })), "validation.precondition_failed");
+  assert.equal(
+    await rejects(() => h["terminal.keys"]!(hn.ctx, { terminalId: id, keys: [{ key: "Enter" }] })),
+    "validation.precondition_failed",
+  );
+  assert.equal(
+    await rejects(() => h["terminal.keys"]!(hn.as(AGENT), { terminalId: id, keys: [{ key: "Enter" }] })),
+    "validation.precondition_failed",
+  );
   assert.equal(sent.length, 1, "nothing reached the terminal while Sara held it");
   assert.equal((await call(hn, "terminal.keys", { terminalId: id, keys: [{ key: "Up" }] }, hn.as(SARA))).ok, true);
   assert.equal(sent.length, 2);
@@ -180,8 +196,14 @@ test("keys reach the terminal raw; while another person holds it they are refuse
 test("a key entry is exactly one of text, key or paste; keys are never in the audit trail or the log", async () => {
   const { hn, sent } = keyed();
   const id = await open(hn);
-  assert.equal(await rejects(() => h["terminal.keys"]!(hn.ctx, { terminalId: id, keys: [{ text: "a", key: "Enter" }] })), "validation.bad_input");
-  assert.equal(await rejects(() => h["terminal.keys"]!(hn.ctx, { terminalId: id, keys: [{}] })), "validation.bad_input");
+  assert.equal(
+    await rejects(() => h["terminal.keys"]!(hn.ctx, { terminalId: id, keys: [{ text: "a", key: "Enter" }] })),
+    "validation.bad_input",
+  );
+  assert.equal(
+    await rejects(() => h["terminal.keys"]!(hn.ctx, { terminalId: id, keys: [{}] })),
+    "validation.bad_input",
+  );
   await call(hn, "terminal.keys", { terminalId: id, keys: [{ text: "hunter2-correct-horse" }] });
   assert.equal(sent.length, 1);
   const seen = JSON.stringify([hn.emitted, hn.logged]);
@@ -193,6 +215,12 @@ test("a terminal whose host has no screen or keys says so in one sentence", asyn
   const hn = harness();
   bindHost(fakeHost({}).host);
   const id = await open(hn);
-  assert.equal(await rejects(() => h["terminal.capture"]!(hn.ctx, { terminalId: id })), "validation.precondition_failed");
-  assert.equal(await rejects(() => h["terminal.keys"]!(hn.ctx, { terminalId: id, keys: [{ key: "Enter" }] })), "validation.precondition_failed");
+  assert.equal(
+    await rejects(() => h["terminal.capture"]!(hn.ctx, { terminalId: id })),
+    "validation.precondition_failed",
+  );
+  assert.equal(
+    await rejects(() => h["terminal.keys"]!(hn.ctx, { terminalId: id, keys: [{ key: "Enter" }] })),
+    "validation.precondition_failed",
+  );
 });

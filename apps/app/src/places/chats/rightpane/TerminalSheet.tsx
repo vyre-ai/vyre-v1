@@ -135,16 +135,20 @@ export function TerminalSheet({
       : !current || current.state === "exited"
         ? { title: current ? "This terminal ended" : "", action: null }
         : mine && hiddenPrompt
-          ? { title: "The agent cannot see what you type here", note: `${agentName} is told only that it finished.`, action: "give" }
+          ? {
+              title: "The agent cannot see what you type here",
+              note: `${agentName} is told only that it finished.`,
+              action: "give",
+            }
           : mine
-          ? { title: "You have the keyboard", note: `${agentName}'s commands wait.`, action: "give" }
-          : holder !== undefined
-            ? { title: `${hn} has the keyboard`, action: "ask" }
-            : {
-                title: current.state === "running" ? `${agentName} is typing` : "Nobody is typing",
-                note: "Press Take over, or Return, to type.",
-                action: "take",
-              };
+            ? { title: "You have the keyboard", note: `${agentName}'s commands wait.`, action: "give" }
+            : holder !== undefined
+              ? { title: `${hn} has the keyboard`, action: "ask" }
+              : {
+                  title: current.state === "running" ? `${agentName} is typing` : "Nobody is typing",
+                  note: "Press Take over, or Return, to type.",
+                  action: "take",
+                };
   return (
     <Overlay>
       <View testID="terminal-popup" role="dialog" aria-modal accessibilityLabel={owner} style={st.veil}>

@@ -25,7 +25,8 @@ test("keys: text, named keys, Ctrl and Alt chords, F keys; browser shortcuts and
   assert.deepEqual(keyToPress({ key: "D", ctrlKey: true, shiftKey: true }), { key: "C-d" });
   assert.deepEqual(keyToPress({ key: "b", altKey: true }), { key: "M-b" });
   assert.equal(keyToPress({ key: "c", metaKey: true }), null, "Cmd+C is the browser's copy");
-  for (const k of ["Shift", "Control", "Alt", "Meta", "CapsLock", "Dead", "Unidentified"]) assert.equal(keyToPress({ key: k }), null, k);
+  for (const k of ["Shift", "Control", "Alt", "Meta", "CapsLock", "Dead", "Unidentified"])
+    assert.equal(keyToPress({ key: k }), null, k);
 });
 
 test("keys go one request at a time, in order; what is pressed while one is in flight goes together when it lands, letters joined", async () => {
@@ -58,7 +59,9 @@ test("keys go one request at a time, in order; what is pressed while one is in f
 
 test("colours: basic, bright, 256 and true colour, bold, inverse; reset ends them; other escapes are dropped", () => {
   const e = "\x1b";
-  const l = parseLine(`${e}[31mred${e}[0m plain ${e}[1;38;5;196mbright${e}[0m ${e}[38;2;1;2;3mtrue${e}[0m${e}[?25l${e}[7mrev${e}[27m`);
+  const l = parseLine(
+    `${e}[31mred${e}[0m plain ${e}[1;38;5;196mbright${e}[0m ${e}[38;2;1;2;3mtrue${e}[0m${e}[?25l${e}[7mrev${e}[27m`,
+  );
   assert.deepEqual(
     l.map((s) => [s.text, s.color, s.bold, s.inverse]),
     [
@@ -70,7 +73,12 @@ test("colours: basic, bright, 256 and true colour, bold, inverse; reset ends the
       ["rev", undefined, undefined, true],
     ],
   );
-  assert.equal(parseLine("plain text").map((s) => s.text).join(""), "plain text");
+  assert.equal(
+    parseLine("plain text")
+      .map((s) => s.text)
+      .join(""),
+    "plain text",
+  );
 });
 
 test("the cursor marks the character under it, splitting a run, and stands on a space past the end of the line", () => {
@@ -91,5 +99,8 @@ test("the cursor marks the character under it, splitting a run, and stands on a 
       [" ", true],
     ],
   );
-  assert.deepEqual(withCursor([], 0).map((s) => [s.text, s.cursor === true]), [[" ", true]]);
+  assert.deepEqual(
+    withCursor([], 0).map((s) => [s.text, s.cursor === true]),
+    [[" ", true]],
+  );
 });

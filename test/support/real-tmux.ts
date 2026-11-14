@@ -9,7 +9,14 @@ import type { TerminalHost } from "../../modules/terminal/projections.ts";
 
 const SOCK = `vyre-walk-${process.pid}-${Math.random().toString(36).slice(2, 7)}`;
 const work = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-walk-tmux-")));
-const ENV: NodeJS.ProcessEnv = { PATH: process.env["PATH"] ?? "/usr/bin:/bin", HOME: work, TERM: "xterm-256color", SHELL: "/bin/bash", LANG: "C.UTF-8", PS1: "$ " };
+const ENV: NodeJS.ProcessEnv = {
+  PATH: process.env["PATH"] ?? "/usr/bin:/bin",
+  HOME: work,
+  TERM: "xterm-256color",
+  SHELL: "/bin/bash",
+  LANG: "C.UTF-8",
+  PS1: "$ ",
+};
 
 function run(cmd: string, args: readonly string[], stdin?: string): Promise<ExecResult> {
   return new Promise((resolve) => {
@@ -25,7 +32,9 @@ function run(cmd: string, args: readonly string[], stdin?: string): Promise<Exec
   });
 }
 const exec: Exec = (argv, x) =>
-  argv[0] === "tmux" ? run("tmux", ["-L", SOCK, "-f", "/dev/null", ...argv.slice(1)], x?.stdin) : run(argv[0] as string, argv.slice(1), x?.stdin);
+  argv[0] === "tmux"
+    ? run("tmux", ["-L", SOCK, "-f", "/dev/null", ...argv.slice(1)], x?.stdin)
+    : run(argv[0] as string, argv.slice(1), x?.stdin);
 
 export const walkDir = work;
 /** Every key the host was asked to press, in order, as it arrived (for a walk to compare with what was typed). */

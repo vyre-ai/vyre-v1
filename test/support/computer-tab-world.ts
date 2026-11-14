@@ -15,7 +15,10 @@ import { realTmuxHost, stopRealTmux } from "./real-tmux.ts";
 
 /** A team world with one agent, one chat, a workspace that runs with one terminal of a person's, and a Space browser that is open. The chat's right pane is on its Computer tab. */
 /** `noTerminal`: nothing is opened for the person (the pane must open the agent's terminal by itself). `realBrowser`: an image name; the Space browser is then the real one in Docker (the profile of the agent is started with a page open) instead of the stand-in. */
-export async function world(t: test.TestContext, o: { realBrowser?: string; noTerminal?: boolean; tmux?: boolean } = {}) {
+export async function world(
+  t: test.TestContext,
+  o: { realBrowser?: string; noTerminal?: boolean; tmux?: boolean } = {},
+) {
   const env = await browserOrSkip();
   if (typeof env === "string") {
     t.skip(env);

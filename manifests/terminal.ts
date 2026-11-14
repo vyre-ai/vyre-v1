@@ -246,10 +246,10 @@ export default defineManifest({
       {
         in: {
           ...target,
-          keys: t.arr(
-            t.obj({ text: t.opt(t.str()), key: t.opt(t.str()), paste: t.opt(t.str()) }),
-            { minItems: 1, maxItems: 200 },
-          ),
+          keys: t.arr(t.obj({ text: t.opt(t.str()), key: t.opt(t.str()), paste: t.opt(t.str()) }), {
+            minItems: 1,
+            maxItems: 200,
+          }),
         },
         out: { ok: t.bool() },
         on: ["terminal", "/terminalId"],

@@ -220,7 +220,9 @@ export function TmuxScreen({
   const batcher = useRef<ReturnType<typeof keyBatcher> | null>(null);
   if (batcher.current === null)
     batcher.current = keyBatcher((ks) =>
-      latest.current.call("terminal.keys", { terminalId: latest.current.terminalId, keys: ks }).finally(() => kick.current()),
+      latest.current
+        .call("terminal.keys", { terminalId: latest.current.terminalId, keys: ks })
+        .finally(() => kick.current()),
     );
   useEffect(() => {
     let live = true;
@@ -232,7 +234,15 @@ export function TmuxScreen({
       try {
         const r = (await call("terminal.capture", { terminalId, lines: 2000 })) as Capture;
         if (!live) return;
-        setShot((was) => (was && was.text === r.text && was.hidden === r.hidden && was.cursor?.x === r.cursor?.x && was.cursor?.y === r.cursor?.y ? was : r));
+        setShot((was) =>
+          was &&
+          was.text === r.text &&
+          was.hidden === r.hidden &&
+          was.cursor?.x === r.cursor?.x &&
+          was.cursor?.y === r.cursor?.y
+            ? was
+            : r,
+        );
         onHidden?.(r.hidden);
       } catch (e) {
         const code = (e as { code?: unknown } | null)?.code;
