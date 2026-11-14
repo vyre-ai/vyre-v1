@@ -13,8 +13,8 @@ import { createDockerApi, unixSocketHttp } from "../../sandbox/src/docker.ts";
 import { bindHost as bindComputers } from "../../modules/computers/projections.ts";
 
 /** A team world with one agent, one chat, a workspace that runs with one terminal of a person's, and a Space browser that is open. The chat's right pane is on its Computer tab. */
-/** `realBrowser`: an image name; the Space browser is then the real one in Docker (the profile of the agent is started with a page open) instead of the stand-in. */
-export async function world(t: test.TestContext, o: { realBrowser?: string } = {}) {
+/** `noTerminal`: nothing is opened for the person (the pane must open the agent's terminal by itself). `realBrowser`: an image name; the Space browser is then the real one in Docker (the profile of the agent is started with a page open) instead of the stand-in. */
+export async function world(t: test.TestContext, o: { realBrowser?: string; noTerminal?: boolean } = {}) {
   const env = await browserOrSkip();
   if (typeof env === "string") {
     t.skip(env);
@@ -89,7 +89,8 @@ export async function world(t: test.TestContext, o: { realBrowser?: string } = {
   const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agentId], title: "Desk work" })).thread
     .threadId as string;
   // the person's own terminal in the agent's workspace: "Terminal 1, a person"
-  await w.owner.ok("terminal.open", { host: "agent_computer", agentId, idempotencyKey: "walk-term-1" });
+  if (o.noTerminal !== true)
+    await w.owner.ok("terminal.open", { host: "agent_computer", agentId, idempotencyKey: "walk-term-1" });
   const me = await seat(s, w.owner, "Owner");
   const guard = guardCrashes(me.page);
   const computerTab = async (): Promise<void> => {
