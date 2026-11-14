@@ -99,7 +99,11 @@ test("an undo from before a real answer does not take back a change made after i
   await settle();
   hooks.patch("things.get", { id: "t1" }, (d) => ({ ...(d as object), n: 1 }));
   old();
-  assert.deepEqual(q.getSnapshot(), { status: "ready", data: { on: false, n: 1 } }, "only the newer change is on screen");
+  assert.deepEqual(
+    q.getSnapshot(),
+    { status: "ready", data: { on: false, n: 1 } },
+    "only the newer change is on screen",
+  );
 });
 
 test("a real answer clears every change shown before it: a later change starts from the real answer", async () => {
@@ -116,13 +120,16 @@ test("a failed re-read keeps the very same snapshot and says so on the side; the
   let fail = false;
   const hooks = createRemoteScreenHooks({
     screens: new Map(),
+    staleMinMs: 0,
     read: async () => {
       if (fail) throw Object.assign(new Error("down"), { code: "internal.error" });
       return { on: false };
     },
   });
   const q = hooks.capQuery<{ on: boolean }>("things.get", { id: "t1" });
-  const side = (q as unknown as { stale: { subscribe(l: () => void): () => void; getSnapshot(): { message: string } | null } }).stale;
+  const side = (
+    q as unknown as { stale: { subscribe(l: () => void): () => void; getSnapshot(): { message: string } | null } }
+  ).stale;
   let heard = 0;
   q.subscribe(() => undefined);
   side.subscribe(() => heard++);
@@ -142,4 +149,55 @@ test("a failed re-read keeps the very same snapshot and says so on the side; the
   hooks.invalidate();
   await settle();
   assert.equal(side.getSnapshot(), null);
+});
+
+// 14 Nov 2026 review (fifth look): on a flaky link the note flapped on, off, on; a failure whose text changes each poll re-notified every time.
+function flaky(script: (n: number) => "ok" | { message: string }) {
+  let n = 0;
+  const hooks = createRemoteScreenHooks({
+    screens: new Map(),
+    staleMinMs: 60,
+    read: async () => {
+      const r = script(n++);
+      if (r === "ok") return { on: false };
+      throw Object.assign(new Error(r.message), { code: "provider.unavailable" });
+    },
+  });
+  const q = hooks.capQuery<{ on: boolean }>("things.get", { id: "t1" });
+  const side = (
+    q as unknown as { stale: { subscribe(l: () => void): () => void; getSnapshot(): { message: string } | null } }
+  ).stale;
+  q.subscribe(() => undefined);
+  const heard: (string | null)[] = [];
+  side.subscribe(() => heard.push(side.getSnapshot()?.message ?? null));
+  return { hooks, side, heard };
+}
+
+test("alternating failed and good polls keep the note up: it clears only after a good answer has held for the minimum time", async () => {
+  const f = flaky((n) => (n === 0 ? "ok" : n % 2 === 1 ? { message: `down ${n}` } : "ok"));
+  await settle();
+  f.hooks.invalidate();
+  await settle();
+  assert.ok(f.side.getSnapshot(), "failed once: the note is up");
+  f.hooks.invalidate();
+  await settle(); // good answer, inside the minimum time
+  assert.ok(f.side.getSnapshot(), "a good answer straight after does not clear it");
+  f.hooks.invalidate();
+  await settle(); // fails again
+  f.hooks.invalidate();
+  await settle(); // good again
+  assert.ok(f.side.getSnapshot(), "still up across the flapping");
+  assert.equal(f.heard.filter((m) => m === null).length, 0, "it never went off and on");
+  await new Promise((r) => setTimeout(r, 120));
+  assert.equal(f.side.getSnapshot(), null, "cleared once a good answer has held the minimum time");
+});
+
+test("a failure whose text changes every poll notifies once: it is compared by code", async () => {
+  const f = flaky((n) => (n === 0 ? "ok" : { message: `Timed out after ${1000 + n} ms` }));
+  await settle();
+  for (let i = 0; i < 4; i++) {
+    f.hooks.invalidate();
+    await settle();
+  }
+  assert.equal(f.heard.length, 1);
 });

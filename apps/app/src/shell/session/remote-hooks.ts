@@ -20,6 +20,8 @@ export interface RemoteHooksOptions {
   onError?(cap: string, error: unknown): void;
   /** A failure that is not the query's own (a 401: the session ended). The query keeps what it had and nobody is told, so nothing reacts to it. */
   ignoreError?(error: unknown): boolean;
+  /** How long the "last refresh failed" note stays at least, and how long a good answer must hold before it goes (default 4000 ms): a flaky link must not make it flap. */
+  staleMinMs?: number;
 }
 
 export interface RemoteHooks extends ScreenHooks {
@@ -51,6 +53,8 @@ interface Entry {
   /** The failure of the last re-read of an answered query, kept beside the answer (never in it: the snapshot stays the same object). */
   staleFail: { message: string; code?: string; traceId?: string } | null;
   staleListeners: Set<() => void>;
+  staleSince: number;
+  staleTimer: ReturnType<typeof setTimeout> | null;
   patches: { apply: (data: unknown) => unknown }[];
   base: { snap: QueryState<unknown>; json: string } | null;
   live: LiveQuery<unknown>;
@@ -82,6 +86,7 @@ export function stableJson(v: unknown): string {
 }
 
 export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
+  const minMs = opts.staleMinMs ?? 4000;
   const entries = new Map<string, Entry>();
   const followers = new Set<() => void>();
   let closed = false;
@@ -112,9 +117,16 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
         const had = e.patches.length > 0;
         e.patches.length = 0;
         e.base = null;
-        if (e.staleFail !== null) {
-          e.staleFail = null;
-          for (const l of [...e.staleListeners]) l();
+        if (e.staleFail !== null && e.staleTimer === null) {
+          // a good answer clears the note only once it has been up for the minimum time; a failure before then keeps it, so a flaky link does not make it flap
+          const wait = Math.max(0, e.staleSince + minMs - Date.now());
+          e.staleTimer = setTimeout(() => {
+            e.staleTimer = null;
+            if (e.staleFail === null) return;
+            e.staleFail = null;
+            for (const l of [...e.staleListeners]) l();
+          }, wait);
+          (e.staleTimer as { unref?: () => void }).unref?.();
         }
         if (e.snap.status !== "ready" || json !== e.json || had) {
           e.json = json;
@@ -134,8 +146,17 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
         if (e.snap.status === "ready") {
           // the answer stays exactly as it is; one note beside it says the last re-read failed
           const f = failureOf(err);
-          if (e.staleFail?.message !== f.message || e.staleFail?.code !== f.code) {
+          // the same failure again is not news; "the same" is by code, because the text often carries a time or a count that changes each poll
+          if (e.staleTimer) {
+            clearTimeout(e.staleTimer);
+            e.staleTimer = null;
+          }
+          const same =
+            e.staleFail !== null &&
+            (f.code !== undefined ? e.staleFail.code === f.code : e.staleFail.message === f.message);
+          if (!same) {
             e.staleFail = f;
+            e.staleSince = Date.now();
             for (const l of [...e.staleListeners]) l();
           }
         }
@@ -167,6 +188,8 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
       stale: false,
       staleFail: null,
       staleListeners: new Set(),
+      staleSince: 0,
+      staleTimer: null,
       patches: [],
       base: null,
       live: {

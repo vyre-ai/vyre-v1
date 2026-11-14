@@ -277,7 +277,12 @@ test("an answer whose last re-read failed stays ready, with the failure beside i
     };
     const seen: Load<number>[] = [];
     const Probe = probe(() => useLoad<number>({ screen: ["a", "b"] }), seen);
-    await mount(createRoot, <ScreensProvider screens={hooksOf(() => f.q as LiveQuery<unknown>)}><Probe /></ScreensProvider>);
+    await mount(
+      createRoot,
+      <ScreensProvider screens={hooksOf(() => f.q as LiveQuery<unknown>)}>
+        <Probe />
+      </ScreensProvider>,
+    );
     assert.deepEqual(last(seen), { state: "ready", data: 1 });
     stale = { message: "down" };
     await act(async () => listeners.forEach((l) => l()));
@@ -285,6 +290,30 @@ test("an answer whose last re-read failed stays ready, with the failure beside i
     stale = null;
     await act(async () => listeners.forEach((l) => l()));
     assert.deepEqual(last(seen), { state: "ready", data: 1 });
+  } finally {
+    restore();
+  }
+});
+
+test("a soft read, or one that says refresh: false, never carries the failed-refresh note", async () => {
+  const restore = installDom();
+  try {
+    for (const opts of [{ soft: true }, { refresh: false }] as const) {
+      const f = fakeQuery<number>({ status: "ready", data: 1 });
+      (f.q as unknown as { stale: unknown }).stale = {
+        subscribe: () => () => undefined,
+        getSnapshot: () => ({ message: "down" }),
+      };
+      const seen: Load<number | null>[] = [];
+      const Probe = probe(() => useLoad<number>({ screen: ["a", "b"] }, opts as never), seen);
+      await mount(
+        createRoot,
+        <ScreensProvider screens={hooksOf(() => f.q as LiveQuery<unknown>)}>
+          <Probe />
+        </ScreensProvider>,
+      );
+      assert.deepEqual(last(seen), { state: "ready", data: 1 }, JSON.stringify(opts));
+    }
   } finally {
     restore();
   }

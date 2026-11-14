@@ -239,3 +239,22 @@ test("every call carries its own idempotency key", async () => {
     restore();
   }
 });
+
+test("two failures in one burst are both said: a later failure does not replace an earlier one", async () => {
+  const restore = installDom();
+  try {
+    const t = setup(async (_c, input) => {
+      throw Object.assign(new Error(`Could not change ${(input as { id: string }).id}`), { code: "internal.error" });
+    });
+    await t.ready;
+    await act(async () => {
+      const a = t.change().run({ id: "a" });
+      const b = t.change().run({ id: "b" });
+      await Promise.all([a, b]);
+    });
+    assert.match(t.change().note, /Could not change a\./);
+    assert.match(t.change().note, /Could not change b\./);
+  } finally {
+    restore();
+  }
+});
