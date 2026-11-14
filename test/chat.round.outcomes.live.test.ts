@@ -83,7 +83,7 @@ test("a discussion ends three ways, and the line in the chat says which", { time
       await until(
         async () =>
           (await me.page.getByText(words).count()) > 0 &&
-          (await me.page.getByText("are talking it over", { exact: false }).count()) === 0
+          (await me.page.getByText("are talking it over", { exact: false }).count()) <= 1
             ? true
             : null,
         `the line says how the discussion ended (${m})`,
@@ -96,11 +96,18 @@ test("a discussion ends three ways, and the line in the chat says which", { time
           `the second client sees how the discussion ended (${m}) without a reload`,
           20_000,
         );
+      // the chat's line is the outcome now; the thread beside it opens on the quiet "talking it over" line, and the agents' instruction is never drawn
       assert.equal(
         await me.page.getByText("are talking it over", { exact: false }).count(),
-        0,
-        "it is no longer 'talking it over'",
+        1,
+        "only the thread's own first line says it",
       );
+      assert.equal(
+        await me.page.getByText("Talk it over", { exact: false }).count(),
+        0,
+        "the instruction is not drawn under anyone's name",
+      );
+      assert.ok((await me.page.locator('[data-testid="catch-up"]').count()) <= 1, "the same catch-up words show once");
       await shoot(me.page, OUT, `outcome-${m}`, {
         // the phone width is shot for the decision; the other two are shot at desktop width in both skins (a 120 s file cap)
         ...(m === "decided" ? {} : { only: "desktop" as const }),

@@ -73,18 +73,15 @@ test("an agent that has not answered, and a message that is not in the chat, are
 });
 
 test("discuss: the thread under the ask gets one message from the person with both answers, tagging the first agent; one answer is too few", async () => {
-  const posted: Array<Record<string, any>> = [];
+  const holder: { ctx?: any } = {};
   const hn = harness({
     calls: {
       "agents.get": () => ({ agent: {} }),
       "search.resolve": (i: any) => ({ hit: { title: i.itemId === INTAKE ? "Intake Agent" : "Drafter Agent" } }),
-      "chat.thread": () => ({ thread: { threadId: "thr_disc" } }),
-      "chat.post": (i: any) => {
-        posted.push(i);
-        return { message: { messageId: "msg_seed" } };
-      },
+      "chat.thread": (i: any) => h["chat.thread"]!(holder.ctx, i),
     },
   });
+  holder.ctx = hn.ctx;
   const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE, DRAFTER], idempotencyKey: key() }))
     .thread.threadId as string;
   const asked = (
@@ -105,21 +102,28 @@ test("discuss: the thread under the ask gets one message from the person with bo
     "validation.bad_input",
     "one answer is not a discussion",
   );
-  assert.deepEqual(posted, []);
+  assert.deepEqual(hn.rows("SELECT id FROM chat_thread WHERE kind = 'thread'"), [], "nothing was opened");
   await h["chat.post"]!(hn.as({ kind: "agent", id: DRAFTER }, DANA), {
     threadId: t,
     body: "The server disk.",
     idempotencyKey: key(),
   });
   const out = await h["chat.round.discuss"]!(hn.ctx, { threadId: t, messageId: asked, idempotencyKey: "disc-1" });
-  assert.deepEqual(out, { threadId: "thr_disc" });
-  assert.equal(posted.length, 1);
-  assert.equal(posted[0]!["threadId"], "thr_disc");
-  assert.deepEqual(posted[0]!["mentions"], [{ kind: "agent", id: INTAKE }]);
-  assert.match(posted[0]!["body"], /Intake: Object storage\./);
-  assert.match(posted[0]!["body"], /Drafter: The server disk\./);
-  assert.match(posted[0]!["body"], /Decided:/);
-  assert.doesNotMatch(posted[0]!["body"], /you answered on your own/, "the seed is short: the answers and one request");
+  const seeds = hn.rows("SELECT body, kind, author, blocks FROM chat_message WHERE thread = ?", out.threadId);
+  assert.equal(seeds.length, 1);
+  const seed = seeds[0]!;
+  assert.equal(seed["kind"], "quiet", "a quiet line: drawn as a line, never as the person's words");
+  assert.equal(seed["author"], DANA);
+  assert.match(String(seed["blocks"]), /"type":"discussion_seed"/);
+  assert.match(String(seed["body"]), /Intake: Object storage\./);
+  assert.match(String(seed["body"]), /Drafter: The server disk\./);
+  assert.match(String(seed["body"]), /Decided:/);
+  assert.doesNotMatch(String(seed["body"]), /you answered on your own/, "the seed is short: the answers and one request");
+  assert.deepEqual(
+    hn.emitted.filter((e) => e.name === "message.received" && e.subject === out.threadId).map((e) => (e.payload as any).mentions),
+    [[{ kind: "agent", id: INTAKE }]],
+    "it wakes the first agent like a mention",
+  );
   assert.deepEqual(
     hn.rows("SELECT body FROM chat_message WHERE thread = ? AND kind = 'system'", t).map((r) => r["body"]),
     ["Discussion: Intake and Drafter are talking it over"],
@@ -224,7 +228,11 @@ test("one discussion per message: a second press opens the thread that is there 
   const one = await h["chat.round.discuss"]!(hn.ctx, { threadId: t, messageId: asked, idempotencyKey: key() });
   const two = await h["chat.round.discuss"]!(hn.ctx, { threadId: t, messageId: asked, idempotencyKey: key() });
   assert.equal(two.threadId, one.threadId, "the same thread");
-  assert.equal(seeds, 1, "the seed went in once");
+  assert.equal(
+    hn.rows("SELECT id FROM chat_message WHERE thread = ? AND kind = 'quiet'", one.threadId).length,
+    1,
+    "the seed went in once",
+  );
   assert.equal(
     hn
       .rows("SELECT body FROM chat_message WHERE thread = ? AND kind = 'system'", t)

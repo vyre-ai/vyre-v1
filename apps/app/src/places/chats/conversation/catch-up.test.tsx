@@ -133,3 +133,49 @@ test("a chat in a window that is not showing stays unread until the window is ba
     page.document.visibilityState = before as string;
   }
 });
+
+test("the same words are not shown twice: a chat and the thread opened beside it show one line, the one opened last; Got it there keeps it gone; closing the thread gives the line back", async () => {
+  installDom();
+  const main = { ...chat([], waiting), threadId: "thr_main" };
+  const pane = { ...chat([], waiting), threadId: "thr_pane" };
+  const both = (withPane: boolean) => (
+    <>
+      <ConversationDataProvider value={main as never}>
+        <CatchUpLine onJump={() => undefined} newest="m" />
+      </ConversationDataProvider>
+      {withPane ? (
+        <ConversationDataProvider value={pane as never}>
+          <CatchUpLine onJump={() => undefined} newest="m" />
+        </ConversationDataProvider>
+      ) : null}
+    </>
+  );
+  const r = createRoot();
+  const lines = (): number => countOf(r);
+  await act(async () => {
+    r.render(both(false));
+  });
+  await flush();
+  assert.equal(lines(), 1, "the chat alone shows its line");
+  await act(async () => {
+    r.render(both(true));
+  });
+  await flush();
+  assert.equal(lines(), 1, "with the thread open beside it there is still one line");
+  await act(async () => {
+    r.render(both(false));
+  });
+  await flush();
+  assert.equal(lines(), 1, "closing the thread gives the line back to the chat");
+});
+
+function countOf(r: { container: unknown }): number {
+  let n = 0;
+  const walk = (node: unknown): void => {
+    const x = node as { props?: Record<string, unknown>; children?: unknown[] };
+    if (x?.props?.["testID"] === "catch-up" || x?.props?.["data-testid"] === "catch-up") n++;
+    for (const c of x?.children ?? []) walk(c);
+  };
+  walk(r.container);
+  return n;
+}

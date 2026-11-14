@@ -1,7 +1,9 @@
 // chat.round.decide (chat gap G57): after a message asked several agents and each answered, the person goes with one answer. One quiet line is left in the chat ("Decided: going with Nova's answer"),
 // authored by the person, and no agent is woken by it. The round table card folds because a message of theirs now follows the answers. Only the person who asked decides, only for an agent that answered
 // after their message, and a replay with the same key is the same line.
-import { addAgent, agentsOf, askerOf, ensure, messageBy, raise, threadBy } from "../projections.ts";
+import { addAgent, agentsOf, askerOf, ensure, insertMessage, messageBy, mintId, raise, threadBy } from "../projections.ts";
+import { recordMentions } from "./pace.ts";
+import { deliver } from "./post.ts";
 import type { ChatCtx } from "../projections.ts";
 import { load } from "./g24a.ts";
 import { postLinkCard } from "./link-card.ts";
@@ -179,16 +181,27 @@ export async function discussRound(
     ...named.map((a) => `${a.name}: ${a.text}`),
     `${SEED_MARK}. ${first.name}, go first and tag ${next.name}. Whoever speaks last ends on one line that starts "Decided:".`,
   ].join("\n\n");
-  await ctx.call(
-    "chat.post",
-    {
-      threadId,
-      body,
-      mentions: [{ kind: "agent", id: first.agentId }],
-      idempotencyKey: `${input.idempotencyKey}:discuss`,
-    },
-    { idempotencyKey: `${input.idempotencyKey}:discuss` },
-  );
+  // The seed is a quiet line in the thread, written as the person's: it draws as "Dex and Nova are talking it over" and the instruction in it is only for the agents (the engine reads its body). It wakes the
+  // first agent like a mention, runs on the asker's account, and asks for nothing outward (it is not typed).
+  const dthread = threadBy(ctx.db, threadId);
+  if (!dthread) raise(ctx, "internal.unexpected", "The discussion could not be opened.");
+  const seed = insertMessage(ctx, threadId, {
+    author: askerOf(ctx),
+    kind: "quiet",
+    body,
+    blocks: [
+      {
+        type: "discussion_seed",
+        v: 1,
+        id: mintId("blk", ctx.now()),
+        data: { agentIds: named.map((a) => a.agentId) },
+        state: "done",
+        traceId: ctx.trace.traceId,
+      },
+    ],
+  });
+  recordMentions(ctx, seed.id, threadId, [{ kind: "agent", id: first.agentId }]);
+  deliver(ctx, dthread!, seed, [{ kind: "agent", id: first.agentId }], { kind: "person", id: askerOf(ctx) });
   // one quiet line in the chat, authored by the person: it says where the talk is, opens it, and folds the round table (the person has written since the answers)
   postLinkCard(
     ctx,

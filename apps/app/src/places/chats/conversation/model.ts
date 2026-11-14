@@ -128,7 +128,7 @@ export const isErrorBlock = (b: MessageBlock): boolean => b.type === "error";
 /** Everything else is a native card: terminal, changeset, question, plan, deploy, file, and so on. */
 /** Blocks that are data for the page, not a card: the links of a message (drawn inside its text) and the line a fork starts with (drawn as a link). */
 // on_behalf, relay and agent_dm say who an agent's message to a teammate speaks for and carry a reply back (lane l-agentdm): they shape the header and the line, never a card of their own
-const QUIET_BLOCKS = new Set(["refs", "fork_origin", "on_behalf", "relay", "agent_dm", "poke", "poked", "hook"]);
+const QUIET_BLOCKS = new Set(["refs", "fork_origin", "on_behalf", "relay", "agent_dm", "poke", "poked", "hook", "discussion_seed"]);
 
 /** The quiet line a poke leaves in the chat: "Sara poked Docs", with the note after it. The block carries the ids, so the words follow each reader's names. */
 export function pokeLine(m: Pick<Message, "blocks">, nameOf: (id: string) => string): string | null {
@@ -136,6 +136,15 @@ export function pokeLine(m: Pick<Message, "blocks">, nameOf: (id: string) => str
   const d = b?.data as { by?: unknown; agentId?: unknown; note?: unknown } | null | undefined;
   if (!d || typeof d.by !== "string" || typeof d.agentId !== "string") return null;
   return `${nameOf(d.by)} poked ${nameOf(d.agentId)}${typeof d.note === "string" && d.note !== "" ? `: ${d.note}` : ""}`;
+}
+
+/** The line a discussion starts with: "Dex and Nova are talking it over". The message holds the agents' instruction too, which is for them and never drawn under a person's name. */
+export function discussionLine(m: Pick<Message, "blocks">, nameOf: (id: string) => string): string | null {
+  const b = m.blocks.find((x) => x.type === "discussion_seed");
+  const d = b?.data as { agentIds?: unknown } | null | undefined;
+  if (!d || !Array.isArray(d.agentIds) || d.agentIds.length === 0) return null;
+  const names = d.agentIds.map((id) => nameOf(String(id)).split(" ")[0] ?? "").filter((n) => n !== "");
+  return `${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0]} ${names.length > 1 ? "are" : "is"} talking it over`;
 }
 
 /** The quiet line a hook leaves (lane l-hooks): its words, what happened to it, and the hook it is about, so the line can offer Details or Edit. */

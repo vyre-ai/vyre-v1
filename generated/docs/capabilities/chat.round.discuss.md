@@ -19,7 +19,7 @@ Let the agents that answered a message talk it over: the thread under the messag
 | HTTP | POST /v1/chat/round/discuss |
 | MCP tool | none |
 | CLI | none |
-| Emits | agent.engaged |
+| Emits | agent.engaged, message.received, message.direct, message.mentioned, thread.replied, thread.unarchived, thread.updated |
 
 ## Input
 

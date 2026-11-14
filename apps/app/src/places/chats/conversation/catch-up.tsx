@@ -1,7 +1,7 @@
 // "Catch me up" (rc.9 flow 3): one line at the top of a thread with things you have not read: who wrote, what was decided, what was made into a task, and who @named you. It reads the server's
 // plain summary (chat.catch_up) as the chat opens, and goes away with one tap. Nothing here calls a model.
 // An open chat is read: the summary is taken first, then the read cursor moves, and it follows each new message for as long as the chat is on screen in a window that is showing.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { TextButton } from "./parts.tsx";
@@ -56,6 +56,26 @@ export function catchUpLine(
     );
   return parts.join(" ");
 }
+
+/**
+ * One line at a time. A chat and a thread open beside it each read their own summary, and the same words ("Dex and 1 other replied") would show twice at once. The line that was claimed last is the one
+ * the person is looking at (they just opened it), so the others stay quiet while it is there; closing it, or its chat, gives the line back.
+ */
+const owner = { id: "", on: new Set<() => void>() };
+const claim = (id: string): void => {
+  if (owner.id === id) return;
+  owner.id = id;
+  owner.on.forEach((f) => f());
+};
+const release = (id: string): void => {
+  if (owner.id !== id) return;
+  owner.id = "";
+  owner.on.forEach((f) => f());
+};
+const watch = (f: () => void): (() => void) => {
+  owner.on.add(f);
+  return () => owner.on.delete(f);
+};
 
 /** Is the page in front of the person? Anything without a document (a test, native) counts as showing. */
 const showing = (): boolean =>
@@ -133,15 +153,22 @@ export function CatchUpLine({
       page?.removeEventListener?.("visibilitychange", back);
     };
   }, []);
-  if (!c) return null;
   const me = [{ kind: "person" as const, id: data.me.id, name: data.me.name }];
-  const mine = c.at.filter((m) => m.author !== data.me.id && mentionsIn(m.text, me).length > 0).length;
-  const line = catchUpLine(c, (id) => credit?.(id) ?? data.nameOf(id), mine, {
-    meId: data.me.id,
-    meName: data.me.name,
-    kindOf: data.kindOf,
-  });
-  if (line === "") return null;
+  const mine = c ? c.at.filter((m) => m.author !== data.me.id && mentionsIn(m.text, me).length > 0).length : 0;
+  const line = c
+    ? catchUpLine(c, (id) => credit?.(id) ?? data.nameOf(id), mine, {
+        meId: data.me.id,
+        meName: data.me.name,
+        kindOf: data.kindOf,
+      })
+    : "";
+  const own = data.threadId;
+  const holder = useSyncExternalStore(watch, () => owner.id, () => owner.id);
+  useEffect(() => {
+    if (line !== "") claim(own);
+    return () => release(own);
+  }, [line, own]);
+  if (!c || line === "" || (holder !== "" && holder !== own)) return null;
   return (
     <View testID="catch-up" accessibilityRole="summary" style={s.box}>
       <Text testID="catch-up-line" style={s.text}>
@@ -155,6 +182,7 @@ export function CatchUpLine({
         label="Got it"
         testID="catch-up-done"
         onPress={() => {
+          claim("\0done"); // dismissed where the person looks: the same words do not come back in the chat beside it
           setC(null);
         }}
       />
