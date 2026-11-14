@@ -92,10 +92,7 @@ export interface RegisterArgs {
 export interface ResourceRegistrar {
   /** The resource rows to append (as `resource.created` payloads) for the objects these events bring into being. */
   register(a: RegisterArgs): ResourceRow[];
-  /**
-   * Who may read the `resource.created` event of this row in the event log. An event inside a private calendar (a calendar with no container: only its owner reaches it) is announced only to those who can view it (the event log's `participants` visibility: the call's own actor, or anyone access lets view the event), so
-   * nobody else learns the id of a private event or of the private calendar it sits in from the log. Everything else is the Space's, as before.
-   */
+  /** Who may read the `resource.created` event of this row in the event log (see announcementVis). */
   visOf?(row: ResourceRow): "space" | "participants";
 }
 
@@ -198,17 +195,32 @@ export function lateEventPlace(a: {
     : { parent_id: a.calendar ? a.calendar.id : a.spaceId, owner_id: a.spaceOwner, hostOwned: true };
 }
 
+/**
+ * Who may read the log's `resource.created` for a row: births of a private root (a Personal calendar, a Personal files root, a Mine Vault folder, a private mailbox or site: a row with no container that is not the
+ * Space) and of anything under one (an event in a Personal calendar, a file in Personal files, a Vault item in Mine) are announced to `participants`: the call's own actor and anyone access lets view the row,
+ * which for a private root is its owner. Everything under the Space is the Space's, as before. A parent this cannot find is not a reason to hide. The system's own readers (the access projection, the peer
+ * sync of one person's computers) read the log without this filter.
+ */
+export function announcementVis(
+  row: ResourceRow,
+  resource: ((id: string) => ResourceRow | undefined) | undefined,
+): "space" | "participants" {
+  if (row.type === "space") return "space";
+  let at: ResourceRow | undefined = row;
+  for (let depth = 0; depth < 64 && at !== undefined; depth++) {
+    if (at.parent_id === null) return at.type === "space" ? "space" : "participants";
+    at = resource?.(at.parent_id);
+  }
+  return "space";
+}
+
 export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar {
   const subjects = new Map<string, SubjectDef["subject"]>();
   for (const e of deps.events) if (e.subject.type !== "entity" && !ENDS.test(e.name)) subjects.set(e.name, e.subject);
   // `mail.received` already names its mailbox as subject; the message is a second object the same event brings into being, so it is kept apart
   const births = new Map(ENTITY_BIRTHS);
   return {
-    visOf(row) {
-      if (row.type !== "calendar_event" || row.parent_id === null) return "space";
-      const parent = deps.resource?.(row.parent_id);
-      return parent !== undefined && parent.parent_id === null && parent.type === "calendar" ? "participants" : "space";
-    },
+    visOf: (row) => announcementVis(row, deps.resource),
     register(a) {
       const out: ResourceRow[] = [];
       let parentPtr: string | undefined;

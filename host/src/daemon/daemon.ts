@@ -314,7 +314,12 @@ import {
   touchesAccess,
 } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
-import { createResourceRegistrar, lateEventPlace, missingAgentResources } from "../gateway/resources.ts";
+import {
+  announcementVis,
+  createResourceRegistrar,
+  lateEventPlace,
+  missingAgentResources,
+} from "../gateway/resources.ts";
 import {
   createPrincipalRegistrar,
   lowAgentUpgradeEvents,
@@ -3931,8 +3936,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               sv: 1,
               trace_id: "c0".repeat(16),
               actor: "svc_host",
-              // an event inside a private calendar is announced only to those who can view it (createResourceRegistrar visOf)
-              vis: calendar && calendar.parent_id === null && calendar.owner_id ? "participants" : "space",
+              // an event inside a private calendar is announced only to those who can view it (announcementVis)
+              vis: announcementVis(
+                { id, type, parent_id: place.parent_id, label: 0, owner_id: place.owner_id, holds: 0 },
+                (rid) => access.snap.resource(rid),
+              ),
               entity: "resource",
               entity_id: id,
               payload: hostOwned(place.hostOwned, {
@@ -4070,7 +4078,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           sv: 1,
           trace_id: "c0".repeat(16),
           actor: "svc_host",
-          vis: "space",
+          // a private root (a Personal files root) is announced to its owner alone
+          vis: privateOwner ? "participants" : "space",
           entity: "resource",
           entity_id: f.id,
           payload: hostOwned(!privateOwner && !old && f.ownerId === undefined, {
@@ -4107,7 +4116,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           sv: 1,
           trace_id: "c0".repeat(16),
           actor: "svc_host",
-          vis: "space",
+          // a Mine folder is a private root: announced to its owner alone
+          vis: mine && owner ? "participants" : "space",
           entity: "resource",
           entity_id: id,
           payload: hostOwned(!mine && !old && spaceFolder, {

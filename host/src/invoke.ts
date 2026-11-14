@@ -910,13 +910,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
           deps.hidden?.(resource, seed.principal.id, seed.actingFor)
         )
           throw fail("validation.not_found", traceId, { message: "That agent does not exist." });
-        // a calendar event the caller may not see reads, in every part of the answer, exactly like an event that does not exist: the same code, words, reason and steps (the verdict for an id that is not there)
-        const seen =
-          resource !== null && resource.type === "calendar_event" && resource.id !== null && d.reason !== "not_found"
-            ? deps.authorize({ ...req, resource: { type: "calendar_event", id: "cev_00000000000000000000000000000000" } })
-            : d;
-        if (seen !== d) await deps.audit?.(audit("deny", "calendar_event_hidden"));
-        const code = codeForReason(seen.reason);
+        const code = codeForReason(d.reason);
         // an agent stopped at a folder or a file its person may be able to share: the refusal names the press, so the person gets it in Needs you
         const askShare =
           d.reason === "no_grant" &&
@@ -935,7 +929,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
             ? roleLine(c.name)
             : null;
         throw fail(code, traceId, {
-          details: { cap: c.name, reason: seen.reason, steps: seen.steps.map((s) => s.text) },
+          details: { cap: c.name, reason: d.reason, steps: d.steps.map((s) => s.text) },
           ...(plain ? { message: plain } : {}),
           ...(askShare
             ? {
