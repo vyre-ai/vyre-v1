@@ -360,6 +360,21 @@ test("steps of a turn in a shared chat: what the other readers see", { timeout: 
       dump[`crew.status bob ${th.slice(-4)}`] = `${cs.status} ${JSON.stringify(cs.data).slice(0, 1200)}`;
       crewStatusForBob += JSON.stringify(cs.data);
     }
+    // one source for who asked: the turn's recorded asker is the person the reply's saved steps are served whole to, and nobody else
+    const finalFrame = finals[0]!;
+    const turnAsker = (await ok(alice.token, "engine.turn.get", { turnId: String(finalFrame["turn"]) })).what.turn
+      .asker as string;
+    assert.equal(turnAsker, alice.personId, "the engine recorded Alice as the asker of the turn");
+    const repliesIn = async (token: string): Promise<string> => {
+      const got = await api(d, token, "chat.messages.list", { threadId: String(finalFrame["delta"].threadId) });
+      return JSON.stringify(got.data);
+    };
+    assert.equal(
+      (await repliesIn(alice.token)).includes("Grep"),
+      true,
+      "the reply is served whole (the tool's own name, Grep, which others are told is a read) to the engine's recorded asker",
+    );
+    assert.equal((await repliesIn(bob.token)).includes("Grep"), false, "and not to anyone else");
     const aliceKeys = Object.keys(dump).filter((k) => k.startsWith("alice "));
     const aliceText = JSON.stringify(aliceKeys.map((k) => dump[k]));
     for (const k of aliceKeys) delete dump[k];
