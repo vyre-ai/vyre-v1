@@ -5,17 +5,14 @@ import { Pressable, Text, TextInput, View } from "react-native";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useAutomationsData } from "../canvas/data.tsx";
 import { TextButton } from "../canvas/parts.tsx";
-import { ALL_RUNS_LINE, ALL_RUNS_SEARCH, EMPTY_NEEDS_NEXT, NEEDS_LINE } from "../chrome.ts";
+import { ALL_RUNS_LINE, ALL_RUNS_SEARCH } from "../chrome.ts";
 import { choiceStartsRuns, readChoiceResult, scheduleRequestFromTask } from "./recovery.ts";
 import type { ScheduleChoiceKey } from "./recovery.ts";
 import { countBy } from "./read.ts";
 import { filterLabel, filterMenu } from "./menus.ts";
 import { Empty, Frame, MenuButton, Row, Status, useCall, useRowMenu, v } from "./parts.tsx";
 
-export { SpaceAnalytics, AnalyticsPanel } from "./AnalyticsView.tsx";
-export { Dependencies } from "./DependenciesView.tsx";
-export { LiveEvents } from "./EventsView.tsx";
-export { Packages } from "./PackagesView.tsx";
+export { AnalyticsPanel } from "./AnalyticsView.tsx";
 export { TemplateGallery } from "./TemplateGallery.tsx";
 export { Watching } from "./WatchingView.tsx";
 
@@ -121,40 +118,30 @@ function ScheduleChoices({ task }: { task: unknown }): ReactElement | null {
   );
 }
 
-export function NeedsYou(): ReactElement {
+/** Schedule recovery requests (runs missed while the server was off), each with its own choices. They sit with the Needs-you cards on the first page. */
+export function RecoveryRequests(): ReactElement | null {
   const state = useCall("tasks.needs_you", {}, (out) => {
     if (!out || typeof out !== "object" || !Array.isArray((out as { items?: unknown }).items)) return null;
     const items: NeedsRow[] = [];
     for (const row of (out as { items: unknown[] }).items) {
       if (!row || typeof row !== "object") continue;
       const rec = row as { task?: { id?: unknown; title?: unknown }; reason?: unknown };
-      if (
-        !rec.task ||
-        typeof rec.task.id !== "string" ||
-        typeof rec.task.title !== "string" ||
-        typeof rec.reason !== "string"
-      )
-        continue;
+      if (!rec.task || typeof rec.task.id !== "string" || typeof rec.task.title !== "string" || typeof rec.reason !== "string") continue;
       items.push({ id: rec.task.id, title: rec.task.title, reason: rec.reason, task: rec.task });
     }
     return items;
   });
+  if (state.phase !== "ready" || state.value.length === 0) return null;
   return (
-    <Frame testID="needs-you" title="Needs you" line={NEEDS_LINE}>
-      <Status state={state} />
-      {state.phase === "ready" && state.value.length === 0 ? (
-        <Empty testID="needs-empty" title="Nothing needs you" next={EMPTY_NEEDS_NEXT} />
-      ) : null}
+    <View style={v.stack} testID="recovery-requests">
       {/* ui-rows-lint: not a list (each item is a title plus its own choice buttons) */}
-      {state.phase === "ready"
-        ? state.value.map((item) => (
-            <View key={item.id} style={v.stack}>
-              <Text style={v.row}>{`${item.title} · ${item.reason}`}</Text>
-              <ScheduleChoices task={item.task} />
-            </View>
-          ))
-        : null}
-    </Frame>
+      {state.value.map((item) => (
+        <View key={item.id} style={v.stack}>
+          <Text style={v.row}>{`${item.title} · ${item.reason}`}</Text>
+          <ScheduleChoices task={item.task} />
+        </View>
+      ))}
+    </View>
   );
 }
 

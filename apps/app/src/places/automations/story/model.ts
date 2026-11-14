@@ -85,6 +85,8 @@ export interface StoryIn {
   name: string;
   on: boolean;
   trigger: TriggerIn | null;
+  /** The other triggers of an Automation that several things start: each its own row, Or. */
+  moreTriggers?: readonly TriggerIn[];
   steps: readonly StepIn[];
   /** The Assistant's draft is on the page and not accepted. */
   proposed: boolean;
@@ -96,7 +98,7 @@ export interface StoryIn {
 }
 
 export type StoryRow =
-  | { kind: "trigger"; id: string; app: { id: string; name: string }; sentence: Sentence }
+  | { kind: "trigger"; id: string; label: "When" | "Or"; app: { id: string; name: string }; sentence: Sentence }
   | { kind: "label"; label: "If yes" | "Otherwise"; depth: number }
   | { kind: "head"; text: string; depth: number }
   | {
@@ -201,7 +203,8 @@ export function story(i: StoryIn): Story {
   flatten(i.steps, 0, flat);
   const all = flat.filter((f) => !f.label && !f.head).map((f) => f.s);
   const rows: StoryRow[] = [];
-  if (i.trigger) rows.push({ kind: "trigger", id: i.trigger.id, app: i.trigger.app, sentence: sentence(i.trigger) });
+  if (i.trigger) rows.push({ kind: "trigger", id: i.trigger.id, label: "When", app: i.trigger.app, sentence: sentence(i.trigger) });
+  for (const t of i.moreTriggers ?? []) rows.push({ kind: "trigger", id: t.id, label: "Or", app: t.app, sentence: sentence(t) });
   let n = 0;
   for (const f of flat) {
     if (f.label) {
@@ -280,7 +283,8 @@ export function story(i: StoryIn): Story {
       text: `Test with ${i.test.caseName}. The test sent nothing.`,
       actions: ["Run again", "Done"],
     });
-  const ids = rows.flatMap((r) => (r.kind === "trigger" || r.kind === "step" ? [r.id] : []));
+  const lastTrigger = rows.map((r) => r.kind).lastIndexOf("trigger");
+  const ids = rows.flatMap((r, at) => (r.kind === "step" || (r.kind === "trigger" && at === lastTrigger) ? [r.id] : []));
   return {
     head: { name: i.name, state, primary, secondary, test: hasContent },
     bars,

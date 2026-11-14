@@ -5,9 +5,8 @@ import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { SidePane } from "../../../ui/src/SidePane/index.tsx";
-import { AutomationCanvas } from "../../../apps/app/src/places/automations/canvas/AutomationCanvas.tsx";
+import { BuilderPage } from "../../../apps/app/src/places/automations/screens/BuilderPage.tsx";
 import { AutomationsDataProvider } from "../../../apps/app/src/places/automations/canvas/data.tsx";
-import { runStates } from "../../../apps/app/src/places/automations/canvas/model.ts";
 import { createConfigSample, northwind } from "../../../apps/app/src/places/automations/config/sample.ts";
 import { RunsDataProvider } from "../../../apps/app/src/places/automations/runs/data.tsx";
 import { RunChat } from "../../../apps/app/src/places/automations/runs/RunChat.tsx";
@@ -35,16 +34,6 @@ export default function Mount(): ReactNode {
   const [side, setSide] = useState(true);
   const autoId = view === "waiting" ? "aut_invoice" : "aut_lead";
   const runId = view === "waiting" ? "ri1" : "rl1";
-  const states = useMemo(
-    () =>
-      runStates(
-        runs.replica
-          .rows("steps")
-          .filter((s) => s["runId"] === runId)
-          .map((s) => ({ nodeId: String(s["step"]), status: String(s["state"]) })),
-      ),
-    [runs, runId],
-  );
   const history = (
     <RunHistory
       subject={{ type: "automation", id: autoId }}
@@ -52,16 +41,7 @@ export default function Mount(): ReactNode {
       selectedRunId={runId}
     />
   );
-  const canvas = (
-    <AutomationCanvas
-      automationId={autoId}
-      initialTab="runs"
-      tabBodies={{ runs: history }}
-      run={{ id: runId, label: "this run", states }}
-      paneOpen={side}
-      onTogglePane={() => setSide(!side)}
-    />
-  );
+  const canvas = <BuilderPage automationId={autoId} initialTab="runs" runsBody={history} />;
   const chat = <RunChat runId={runId} />;
   return (
     <AutomationsDataProvider value={config.data}>

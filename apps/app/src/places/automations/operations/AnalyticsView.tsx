@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import { Text, View } from "react-native";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useAutomationsData } from "../canvas/data.tsx";
-import { ANALYTICS_LINE, EMPTY_COMPLETED_NEXT, SPACE_ANALYTICS_LINE, SPACE_ANALYTICS_TITLE } from "../chrome.ts";
+import { ANALYTICS_LINE, EMPTY_COMPLETED_NEXT } from "../chrome.ts";
 import { TextButton } from "../canvas/parts.tsx";
 import { analyticsOf, durationWords, rateWords } from "./read.ts";
 import { describeError } from "../../../../../../lib/words/errors.ts";
@@ -194,47 +194,6 @@ function RangeMenu({ days, onDays }: { days: number; onDays(n: number): void }):
 
 function useReport(automationId: string | undefined, days: number, again: number) {
   return useCall("automations.analytics", { days, ...(automationId ? { automationId } : {}) }, analyticsOf, again);
-}
-
-/** Space home. The shell's Analytics view. */
-export function SpaceAnalytics(): ReactElement {
-  const data = useAutomationsData();
-  const [days, setDays] = useState(30);
-  const [again, setAgain] = useState(0);
-  const state = useReport(undefined, days, again);
-  const empty = state.phase === "ready" && state.value.totals.runs === 0;
-  return (
-    <Frame
-      testID="space-analytics"
-      title={SPACE_ANALYTICS_TITLE}
-      line={SPACE_ANALYTICS_LINE}
-      actions={
-        <>
-          <RangeMenu days={days} onDays={setDays} />
-          <TextButton label="Refresh" icon="loop" onPress={() => setAgain((n) => n + 1)} testID="analytics-refresh" />
-        </>
-      }
-    >
-      <Status state={state} />
-      {empty ? (
-        <Empty
-          testID="analytics-empty"
-          title={`No runs in the last ${days} days`}
-          next={EMPTY_COMPLETED_NEXT}
-          {...(days < 90 ? { action: "Look at 90 days", onAction: () => setDays(90) } : {})}
-        />
-      ) : null}
-      {state.phase === "ready" && !empty ? (
-        <AnalyticsReport
-          report={state.value}
-          scope="space"
-          onOpen={data.nav.openAutomation}
-          onFailed={data.nav.openFailedRuns}
-          onAsk={(id, message) => data.nav.ask(id, { resource: id, message })}
-        />
-      ) : null}
-    </Frame>
-  );
 }
 
 /** The Analytics tab on one automation. */

@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
-import { AutomationCanvas } from "../../../apps/app/src/places/automations/canvas/AutomationCanvas.tsx";
+import { BuilderPage } from "../../../apps/app/src/places/automations/screens/BuilderPage.tsx";
 import { AutomationsDataProvider } from "../../../apps/app/src/places/automations/canvas/data.tsx";
 import { createSampleAutomations, northwind } from "../../../apps/app/src/places/automations/sidebar/sample.ts";
 
@@ -45,7 +45,7 @@ export default function Mount(): ReactNode {
   return (
     <AutomationsDataProvider value={data}>
       <View style={{ height, flexDirection: "row", backgroundColor: "var(--win)" as string }}>
-        <AutomationCanvas automationId="aut_lead" initialSelected="draft" initialPanel />
+        <BuilderPage automationId="aut_lead" initialSelected="draft" />
       </View>
     </AutomationsDataProvider>
   );

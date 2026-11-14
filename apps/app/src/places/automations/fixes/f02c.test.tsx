@@ -5,7 +5,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
-import { AutomationCanvas } from "../canvas/AutomationCanvas.tsx";
 import { AutomationsDataProvider } from "../canvas/data.tsx";
 import { createConfigSample, northwind as configNorthwind } from "../config/sample.ts";
 import { RunsDataProvider } from "../runs/data.tsx";
@@ -30,29 +29,6 @@ const runOf = (s: SampleRuns, id: string): Run =>
   (s.replica.rows("runs") as unknown as Run[]).find((r) => r.id === id)!;
 const step = (name: string, state: RunStep["state"]): RunStep =>
   ({ step: name, attempt: 1, state }) as unknown as RunStep;
-
-test("the Runs tab shows the step graph column beside the run list, and no graph without a run list body", () => {
-  const config = createConfigSample(configNorthwind);
-  const runs = createSampleRuns(northwind);
-  const withList = renderToStaticMarkup(
-    <AutomationsDataProvider value={config.data}>
-      <RunsDataProvider value={runs.data}>
-        <AutomationCanvas
-          automationId="aut_lead"
-          initialTab="runs"
-          tabBodies={{ runs: <RunHistory subject={{ type: "automation", id: "aut_lead" }} currentVersion={5} /> }}
-          run={{ id: "rl1", label: "this run", states: { find: "done", text: "failed" } }}
-        />
-      </RunsDataProvider>
-    </AutomationsDataProvider>,
-  ).replaceAll("<!-- -->", "");
-  assert.ok(has(withList, 'data-testid="run-history"') && has(withList, 'data-testid="run-graph"'), "list and graph");
-  assert.ok(
-    at(withList, 'data-testid="run-history"') < at(withList, 'data-testid="run-graph"'),
-    "the graph is to the right of the list",
-  );
-  assert.ok(has(withList, 'aria-selected="true"') && has(withList, ">Runs<"), "the Runs tab is the selected one");
-});
 
 test("the failed run's error row has Retry step, Skip step and Stop, and under it the trace id, Copy trace id, Edit step and Replay", () => {
   const out = page(createSampleRuns(northwind), <RunChat runId="rl1" />);

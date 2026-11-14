@@ -69,6 +69,41 @@
       "proto": "automations,{skin}",
       "waitFor": "body",
       "note": "The left list"
+    },
+    {
+      "id": "AUTO13_01-place-home",
+      "route": "/m/AUTO13_01?part=place-home",
+      "proto": "automations,{skin}",
+      "waitFor": "body",
+      "note": "The real place: first page"
+    },
+    {
+      "id": "AUTO13_01-place-builder",
+      "route": "/m/AUTO13_01?part=place-builder",
+      "proto": "automations,{skin}",
+      "waitFor": "body",
+      "note": "The real place: an open Automation"
+    },
+    {
+      "id": "AUTO13_01-step-paths",
+      "route": "/m/AUTO13_01?part=step-paths",
+      "proto": "automations,{skin}",
+      "waitFor": "body",
+      "note": "A step form: Paths"
+    },
+    {
+      "id": "AUTO13_01-step-ai",
+      "route": "/m/AUTO13_01?part=step-ai",
+      "proto": "automations,{skin}",
+      "waitFor": "body",
+      "note": "A step form: AI"
+    },
+    {
+      "id": "AUTO13_01-step-sms",
+      "route": "/m/AUTO13_01?part=step-sms",
+      "proto": "automations,{skin}",
+      "waitFor": "body",
+      "note": "A step form: text message"
     }
   ]
 }

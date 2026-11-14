@@ -153,7 +153,7 @@ export function StoryView({
                 ]}
               >
                 <Text style={[s.no, r.kind === "trigger" ? s.when : null]}>
-                  {r.kind === "trigger" ? "When" : String(r.number)}
+                  {r.kind === "trigger" ? r.label : String(r.number)}
                 </Text>
                 <AppLogo
                   app={r.app.id}

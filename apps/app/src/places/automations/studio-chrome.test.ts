@@ -10,24 +10,12 @@ import type { Definition } from "./canvas/model.ts";
 import {
   ABSENCE,
   ALL_RUNS_SEARCH,
-  ANALYTICS_LINE,
   BUILDER_MODES,
   DATA_SHELF_NAME,
-  DEPS_LINE,
   DRAFT_HAS_EDITS,
-  EMPTY_COMPLETED,
-  EMPTY_DEPENDENCIES,
-  EMPTY_EVENTS,
-  EMPTY_PACKAGES,
   INSPECTOR_TABS,
-  LISTENING,
   LOOP_CHILD,
-  NEEDS_LINE,
-  PACKAGES_LINE,
   PARALLEL_JOIN,
-  SPACE_ANALYTICS_LINE,
-  SPACE_ANALYTICS_TITLE,
-  STUDIO_NAV,
   VAL_LABEL,
   accountFixedLine,
   definitionCrumb,
@@ -40,24 +28,11 @@ import { definitionLabel } from "./versions/cohorts.ts";
 
 const source = (path: string): string => readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("place nav follows the prototype order", () => {
-  assert.deepEqual(
-    STUDIO_NAV.map((item) => item.label),
-    [
-      "Automations",
-      "Templates",
-      "Needs you",
-      "Watching",
-      "All runs",
-      "Live Event Explorer",
-      "Analytics",
-      "Dependencies",
-      "Packages",
-    ],
-  );
+test("the list is one list: its head returns to the first page and carries the count of what needs him; no studio menu under it", () => {
   const slot = source("./sidebar/AutomationsSidebarSlot.tsx");
-  assert.match(slot, /STUDIO_NAV/);
   assert.match(slot, /Search automations/);
+  assert.match(slot, /ListHead/);
+  assert.doesNotMatch(slot, /STUDIO_NAV|StudioNav/);
   assert.equal(needsBadge(undefined), null);
   assert.equal(needsBadge(0), null);
   assert.equal(needsBadge(1.5), null);
@@ -65,27 +40,19 @@ test("place nav follows the prototype order", () => {
   assert.doesNotMatch(slot, /Folders/);
 });
 
-test("the builder header segment and inspector tabs are the prototype labels", () => {
-  assert.deepEqual([...BUILDER_MODES], ["Basic", "Advanced"]);
+test("the inspector tabs are the prototype labels, and the builder page has no Basic and Advanced", () => {
   assert.deepEqual([...INSPECTOR_TABS], ["Configure", "Data", "Test"]);
   assert.equal(DATA_SHELF_NAME, "Data");
   assert.equal(VAL_LABEL, "Advanced · VAL representation");
-  const canvas = source("./canvas/AutomationCanvas.tsx");
+  const page = source("./screens/BuilderPage.tsx");
   const inspector = source("./canvas/Inspector.tsx");
   const marks = source("./builder/marks.tsx");
-  assert.match(canvas, /BUILDER_MODES/);
-  assert.match(canvas, /"mode-basic"/);
-  assert.match(canvas, /"mode-advanced"/);
-  assert.match(canvas, /DATA_SHELF_NAME/);
-  assert.match(canvas, /testID="open-data-shelf"/);
+  assert.doesNotMatch(page, /BUILDER_MODES|mode-basic|mode-advanced/);
   assert.match(inspector, /onMode/);
   assert.match(marks, /INSPECTOR_TABS/);
   assert.match(marks, /DATA_SHELF_NAME/);
-  assert.doesNotMatch(canvas, />Publish</);
-  assert.match(canvas, /key: "ask"/);
-  assert.match(canvas, /setTab\("ask"\)/);
-  assert.match(canvas, /<AskTab/);
-  assert.doesNotMatch(canvas, /3 edits/);
+  assert.doesNotMatch(page, />Publish</);
+  assert.doesNotMatch(page, /3 edits/);
 });
 
 test("a parallel card marks each lane as a child Run and joins them", () => {
@@ -188,21 +155,8 @@ test("a run timeline shows an attempt and a child Run only from real fields", ()
 });
 
 test("operations copy stays empty instead of demonstration rows", () => {
-  assert.equal(NEEDS_LINE, "Only decisions and missing human input.");
   assert.equal(ALL_RUNS_SEARCH, "Search runs");
-  assert.equal(LISTENING, "Listening");
-  assert.match(EMPTY_EVENTS, /None have arrived/);
-  assert.equal(ANALYTICS_LINE, "Outcomes for this Automation.");
-  assert.equal(SPACE_ANALYTICS_TITLE, "Automation analytics");
-  assert.match(SPACE_ANALYTICS_LINE, /every Automation in this Space/);
-  assert.equal(EMPTY_COMPLETED, "No completed Runs yet");
-  assert.match(EMPTY_DEPENDENCIES, /Nothing is named yet/);
-  assert.match(EMPTY_PACKAGES, /No packages/);
-  assert.match(DEPS_LINE, /connection/);
-  assert.match(PACKAGES_LINE, /without secrets/);
   const views = source("./operations/StudioViews.tsx");
-  assert.match(views, /NEEDS_LINE/);
-  assert.match(views, /SpaceAnalytics/);
   assert.doesNotMatch(views, /Northwind/);
   assert.doesNotMatch(views, /Elena/);
   assert.doesNotMatch(views, /working days/);

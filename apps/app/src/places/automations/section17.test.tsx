@@ -2,6 +2,7 @@
 // Each control is drawn inside light Paper, dark Graphite, desktop 1280, and compact 390.
 // A static render does not press buttons and does not open a browser.
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import type { ReactNode } from "react";
@@ -11,15 +12,15 @@ import { tokensOf } from "../../../../../ui/src/tokens/skins.ts";
 import { asFixture } from "./builder/fields.ts";
 import { DataShelf, MappingFix, advancedInputEdit, basicFieldEdit } from "./builder/marks.tsx";
 import { StepTest } from "./builder/StepTest.tsx";
-import { AutomationCanvas } from "./canvas/AutomationCanvas.tsx";
-import { StepCard } from "./canvas/Cards.tsx";
-import type { CardHandlers } from "./canvas/Cards.tsx";
+import { BuilderPage } from "./screens/BuilderPage.tsx";
+import { StoryView } from "./screens/StoryView.tsx";
+import { story as buildStory } from "./story/model.ts";
 import { AutomationsDataProvider } from "./canvas/data.tsx";
 import { frameFor } from "./canvas/frame.ts";
 import type { StudioLayout } from "./canvas/frame.ts";
 import { Inspector } from "./canvas/Inspector.tsx";
 import { check, layout, liveBlockerStep, neighbour } from "./canvas/model.ts";
-import type { CardNode, Definition } from "./canvas/model.ts";
+import type { Definition } from "./canvas/model.ts";
 import { RunLineage } from "./runs/RunLineage.tsx";
 import { RunLines } from "./runs/RunLines.tsx";
 import type { Run, RunLine } from "./runs/model.ts";
@@ -77,25 +78,17 @@ const samples = {
   trigger: asFixture(4, "manual", { email: "ada@example.com" }),
   lookup: asFixture(4, "transform", { id: "rec_1" }),
 };
-const focusCard: CardNode = {
-  id: "focus-step",
-  type: "step",
-  x: 0,
-  y: 0,
-  w: 260,
-  h: 52,
-  title: "Find the person",
-  sub: "type contact",
-  issues: [],
-};
-const quietCard: CardNode = { ...focusCard, id: "quiet-step", title: "Quiet step" };
-const handlers: CardHandlers = {
-  onSelect: () => undefined,
-  onOpen: () => undefined,
-  onMenu: () => undefined,
-  onAdd: () => undefined,
-  onKey: () => undefined,
-};
+const pageStory = buildStory({
+  name: "Section 17",
+  on: false,
+  proposed: false,
+  dirty: false,
+  test: null,
+  trigger: null,
+  steps: [
+    { id: "focus-step", app: { id: "vyre:records", name: "Vyre" }, action: "Find the person", template: "Find the person", values: {} },
+  ],
+});
 const run = {
   id: "run_row",
   kind: "automation",
@@ -268,7 +261,7 @@ test("section 17 controls render in light, dark, desktop, and compact", () => {
               readyOutput={{ id: "rec_1" }}
               onUseOutput={() => undefined}
             />
-            <AutomationCanvas automationId="aut_lead" />
+            <BuilderPage automationId="aut_lead" />
             <RunLineage
               parentRun="run_parent"
               steps={[{ attempt: 2 }]}
@@ -277,15 +270,7 @@ test("section 17 controls render in light, dark, desktop, and compact", () => {
             />
             <RunLineage testID="lineage-empty" />
             <CohortGroups currentVersion={13} groups={groups} />
-            <StepCard
-              card={focusCard}
-              selected={false}
-              hovered={false}
-              focused
-              handlers={handlers}
-              onHover={() => undefined}
-            />
-            <StepCard card={quietCard} selected={false} hovered={false} handlers={handlers} onHover={() => undefined} />
+            <StoryView story={pageStory} on={() => undefined} />
             <RunLines run={run} lines={[row]} name={() => "Ada"} me="me" actions={lineActions} canRetry={false} />
           </View>
         </AutomationsDataProvider>,
@@ -298,7 +283,12 @@ test("section 17 controls render in light, dark, desktop, and compact", () => {
       assert.match(frameTag, new RegExp(`width:${frame.width}px`));
       assert.match(frameTag, cssColor(tokens["--win"]));
       assert.match(tag(out, "skin-ink"), cssColor(tokens["--ink"]));
-      assert.ok(has(out, "var(--ink)"), "controls keep the skin token");
+      // the page's controls take their colours from skin tokens, never a literal (the styles compile to classes, so the proof is the source)
+      for (const file of ["./screens/look.ts", "./screens/StoryView.tsx"]) {
+        const src = readFileSync(new URL(file, import.meta.url), "utf8");
+        assert.match(src, /var\(--ink\)/, `${file} uses the skin token`);
+        assert.doesNotMatch(src.replace(/"#fff"/g, ""), /#[0-9A-Fa-f]{3,8}\b/, `${file} has no literal colour`);
+      }
 
       const basicAt = out.indexOf('data-testid="inspector-basic"');
       const advancedAt = out.indexOf('data-testid="inspector-advanced"');
@@ -332,10 +322,7 @@ test("section 17 controls render in light, dark, desktop, and compact", () => {
       assert.ok(has(out, "Safe group, version 12, pinned"));
       assert.ok(has(out, "Ambiguous group, version 12, pinned"));
       assert.ok(has(out, "run_safe") && has(out, "run_amb"));
-      assert.match(tag(out, "card-focus-step"), /tabindex="0"/);
-      assert.match(tag(out, "card-focus-step"), /data-card="focus-step"/);
-      assert.ok(has(out, 'data-testid="more-focus-step"'));
-      assert.equal(has(out, 'data-testid="more-quiet-step"'), false);
+      assert.match(tag(out, "sv-step-focus-step"), /tabindex="0"/);
       assert.match(compactRow.css, /\.r-minHeight-[^{]+\{min-height:26px;\}/);
       assert.match(tag(out, "line-found"), new RegExp(compactRow.className));
       assert.ok(has(out, "Found the person"));

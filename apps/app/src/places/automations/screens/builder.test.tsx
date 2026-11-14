@@ -33,3 +33,29 @@ test("When, then every step numbered from 1, each a sentence; no step id or fiel
 test("an Automation that is not there says so instead of an empty page", () => {
   assert.ok(html("aut_nope").includes("not available") || html("aut_nope").includes("builder-loading"));
 });
+
+test("opening an Automation writes nothing: no update, no save, whatever the step kinds", async () => {
+  const { createRoot } = await import("test-renderer");
+  const { flush, installDom, mount } = await import("../../../../../../ui/src/testing/dom.ts");
+  installDom();
+  const s = createSampleAutomations(northwind);
+  const writes: string[] = [];
+  const data = {
+    ...s.data,
+    call: async (cap: string, input: unknown) => {
+      if (/^automations\.(update|create|set_enabled|delete|restore_version|run|test)$/.test(cap)) writes.push(cap);
+      return s.data.call(cap, input);
+    },
+  };
+  for (const id of ["aut_lead", "aut_invoice", "aut_meeting"]) {
+    await mount(
+      createRoot,
+      <AutomationsDataProvider value={data}>
+        <BuilderPage automationId={id} />
+      </AutomationsDataProvider>,
+    );
+    await flush();
+    await new Promise((r) => setTimeout(r, 1200));
+  }
+  assert.deepEqual(writes, [], "opening and leaving an Automation with no edit changes nothing on the server");
+});

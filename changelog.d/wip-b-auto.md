@@ -15,3 +15,4 @@
 - Prepared for the new Automations screens: the open Automation as one page with its steps as sentences, the first page from the real list, and the pieces behind them, ready to replace the old canvas.
 - Cmd-K offers "New channel" only to someone who may create channels.
 - The channel menu offers "Connect an Outside Agent" only to someone who may add agents to channels.
+- Automations: the open Automation is now one page of steps as sentences with its step form beside it; the first page replaces the start page; the left list has no Needs-you group, Failed runs row or studio menu; Dependencies, Packages and the Live Event Explorer are gone from the place.

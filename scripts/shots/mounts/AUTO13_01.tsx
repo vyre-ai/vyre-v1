@@ -12,6 +12,13 @@ import { runView } from "../../../apps/app/src/places/automations/run/model.ts";
 import { story } from "../../../apps/app/src/places/automations/story/model.ts";
 import type { StepIn } from "../../../apps/app/src/places/automations/story/model.ts";
 import { StepPicker } from "../../../apps/app/src/places/automations/picker/StepPicker.tsx";
+import { AutomationsDataProvider } from "../../../apps/app/src/places/automations/canvas/data.tsx";
+import { BuilderPage } from "../../../apps/app/src/places/automations/screens/BuilderPage.tsx";
+import { createSampleAutomations, northwind } from "../../../apps/app/src/places/automations/sidebar/sample.ts";
+import { PlaceHashProvider } from "../../../apps/app/src/shell/hash/context.tsx";
+import { ShellRuntimeProvider } from "../../../apps/app/src/shell/providers/runtime.tsx";
+import { sampleRuntime } from "../../../apps/app/src/shell/providers/misc-test-runtime.tsx";
+import AutomationsPlace from "../../../apps/app/src/shell/providers/automations.tsx";
 import { ConnectSheet } from "../../../apps/app/src/places/automations/picker/ConnectSheet.tsx";
 import type { PickApp, PickStep } from "../../../apps/app/src/places/automations/picker/model.ts";
 import {
@@ -136,6 +143,35 @@ export default function Mount(): ReactNode {
     [],
   );
   if (part === null) return null;
+  if (part === "place-home" || part === "place-builder") {
+    const sample = createSampleAutomations(northwind);
+    const rt = sampleRuntime({ screens: sample.data.screens, call: sample.data.call });
+    const people = {
+      status: "ready",
+      data:
+        rt.principals.getSnapshot().status === "ready" ? (rt.principals.getSnapshot() as { data: unknown[] }).data : [],
+    };
+    (rt as { principals: unknown }).principals = { subscribe: () => () => undefined, getSnapshot: () => people };
+    return (
+      <ShellRuntimeProvider value={rt}>
+        <PlaceHashProvider hash={part === "place-builder" ? "automationId=aut_lead" : ""} opened={noop}>
+          <AutomationsPlace place="automations" />
+        </PlaceHashProvider>
+      </ShellRuntimeProvider>
+    );
+  }
+  if (part.startsWith("step-")) {
+    const sample = createSampleAutomations(northwind);
+    const id =
+      ({ "step-paths": "mobile", "step-ai": "draft", "step-sms": "text" } as Record<string, string>)[part] ?? "mobile";
+    return (
+      <AutomationsDataProvider value={sample.data}>
+        <View style={{ flex: 1, width: "100%", maxWidth: 1180, alignSelf: "center" }}>
+          <BuilderPage automationId="aut_lead" initialSelected={id} />
+        </View>
+      </AutomationsDataProvider>
+    );
+  }
   if (part === "home")
     return (
       <Frame>

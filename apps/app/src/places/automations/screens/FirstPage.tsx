@@ -8,6 +8,7 @@ import { needsFromAutomations, summaryLine, todayFromAutomations } from "../firs
 import type { AutoRow } from "../sidebar/model.ts";
 import { offersOf } from "../first/offers.ts";
 import type { ConnectorOffer } from "../first/offers.ts";
+import { RecoveryRequests } from "../operations/StudioViews.tsx";
 import { FirstPageView } from "./FirstPageView.tsx";
 
 export function FirstPage({
@@ -22,6 +23,8 @@ export function FirstPage({
   const data = useAutomationsData();
   const list = useScreenQuery<{ automations: readonly AutoRow[] }>(SIDEBAR, "automations", {});
   const [offers, setOffers] = useState<ConnectorOffer[]>([]);
+  const [note, setNote] = useState<string | null>(null);
+  const fail = (e: unknown): void => setNote(e instanceof Error ? e.message : "That did not work.");
   useEffect(() => {
     let live = true;
     void data.call("automations.connector_offers", {}).then(
@@ -48,10 +51,11 @@ export function FirstPage({
   }, [rows, offers, now]);
   const offerOf = (id: string): ConnectorOffer | undefined => offers.find((o) => o.itemId === id);
   const create = (): void => {
+    setNote(null);
     void data.call("automations.create", { name: "New automation" }).then((out) => {
       const id = (out as { automation?: { id?: string } })?.automation?.id;
       if (id) data.nav.openAutomation(id);
-    });
+    }, fail);
   };
   return (
     <FirstPageView
@@ -63,20 +67,29 @@ export function FirstPage({
       onSetUp={(id) => {
         const o = offerOf(id);
         if (!o || !data.nav.setUpConnector) return;
-        void Promise.resolve(data.nav.setUpConnector(o)).then(async () => {
-          await data.call("automations.connector_offer.accept", { itemId: o.itemId });
-          setOffers((all) => all.filter((x) => x.itemId !== o.itemId));
-        });
+        setNote(null);
+        // the session starts first: a setup that cannot start keeps the offer instead of using it up
+        void (async () => {
+          try {
+            await data.nav.setUpConnector!(o);
+            await data.call("automations.connector_offer.accept", { itemId: o.itemId });
+            setOffers((all) => all.filter((x) => x.itemId !== o.itemId));
+          } catch (e) {
+            fail(e);
+          }
+        })();
       }}
       onNotNow={(id) =>
         void data
           .call("automations.connector_offer.decline", { itemId: id })
-          .then(() => setOffers((all) => all.filter((x) => x.itemId !== id)))
+          .then(() => setOffers((all) => all.filter((x) => x.itemId !== id)), fail)
       }
       onNew={create}
       onExamples={onExamples}
       onAllRuns={onAllRuns}
       onAsk={onAsk}
+      note={note}
+      extra={<RecoveryRequests />}
     />
   );
 }

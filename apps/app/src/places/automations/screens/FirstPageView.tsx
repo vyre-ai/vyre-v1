@@ -1,5 +1,5 @@
 // The first page of Automations (design 2.3), drawn from firstPage()'s model: the head, Needs you cards with their fix, at most one suggestion, one Today line, then the ways in. No line explains the page.
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { AppLogo } from "../../../../../../ui/src/AppLogo/index.tsx";
 import { When } from "../../../../../../ui/src/Time/index.tsx";
@@ -20,6 +20,10 @@ export interface FirstPageViewProps {
   onExamples(): void;
   onAllRuns(): void;
   onAsk?(): void;
+  /** One plain line when something the person pressed did not work. */
+  note?: string | null;
+  /** More things that need him, drawn under the cards (schedule recovery requests). */
+  extra?: ReactNode;
 }
 
 function Btn({
@@ -60,6 +64,11 @@ export function FirstPageView(p: FirstPageViewProps): ReactElement {
         <Btn id="fp-new" label="New automation" kind="primary" onPress={p.onNew} />
       </View>
       <ScrollView contentContainerStyle={s.col}>
+        {p.note ? (
+          <Text testID="fp-note" style={look.warn}>
+            {p.note}
+          </Text>
+        ) : null}
         {needs.length > 0 ? <Text style={look.heading}>Needs you</Text> : null}
         {/* ui-rows-lint: not a list (Needs you cards, each with its own fix) */}
         {needs.map((n) => (
@@ -81,6 +90,7 @@ export function FirstPageView(p: FirstPageViewProps): ReactElement {
             <Btn id={`fp-fix-${n.id}`} label={n.fix.label} kind="primary" onPress={() => p.onFix(n.id)} />
           </View>
         ))}
+        {p.extra}
         {suggestion ? (
           <>
             <Text style={[look.heading, s.gap]}>Suggested</Text>

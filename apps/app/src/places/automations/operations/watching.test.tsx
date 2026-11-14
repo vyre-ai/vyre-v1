@@ -1,11 +1,11 @@
 // Watching in Automations: the list is read from automations.watches.list and drawn as it came; a row's menu makes the real calls; an opened row shows what a page was and what it is.
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { MenuEntry, MenuItem } from "../../../../../../ui/src/Menu/index.tsx";
 import { everyShort, everyWords, lastWords, tellWords, watchItems, watchNote } from "./read.ts";
 import { WatchDetail, watchMenu } from "./WatchingView.tsx";
-import { STUDIO_NAV } from "../chrome.ts";
 
 const NOW = 1_762_000_000_000;
 const raw = (over: Record<string, unknown> = {}) => ({
@@ -126,7 +126,8 @@ test("an opened watch shows what the page was and what it is, who checks it and 
   );
 });
 
-test("Watching is a place view of its own, after Needs you", () => {
-  const ids = STUDIO_NAV.map((n) => n.id);
-  assert.equal(ids[ids.indexOf("needs") + 1], "watching");
+test("Watching is a view of its own that Chrome's link opens, and it is no longer a row in a menu", () => {
+  const provider = readFileSync(new URL("../../../shell/providers/automations.tsx", import.meta.url), "utf8");
+  assert.match(provider, /watchingHash/);
+  assert.match(provider, /<Watching \/>/);
 });

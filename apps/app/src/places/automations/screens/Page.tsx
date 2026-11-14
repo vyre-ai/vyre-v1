@@ -51,7 +51,7 @@ export function Page(p: PageProps): ReactElement {
               key={t.id}
               testID={`page-tab-${t.id}`}
               accessibilityRole="tab"
-              accessibilityState={{ selected: p.tab === t.id }}
+              aria-selected={p.tab === t.id}
               onPress={() => p.onTab?.(t.id)}
               style={[s.tab, p.tab === t.id ? s.tabOn : null]}
             >

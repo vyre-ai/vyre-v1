@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AutomationsSidebar } from "./AutomationsSidebar.tsx";
-import { StudioNav } from "./AutomationsSidebarSlot.tsx";
+import { ListHead } from "./AutomationsSidebarSlot.tsx";
 import type { SidebarProps } from "./AutomationsSidebar.tsx";
 import { AutomationsDataProvider } from "../canvas/data.tsx";
 import {
@@ -46,15 +46,15 @@ const sections = (s: SampleAutomations, q = "") => {
   return sectionsOf(l.autos, l.groups, { me: s.space.me.id, q, shared: s.shared, reasons: s.space.reasons });
 };
 
-test("sections come in the order Needs you, Personal, Shared with me, Space, Running, with the prototype's counts", () => {
+test("sections come in the order Personal, Shared with me, Space, Running, with the prototype's counts; there is no Needs you group", () => {
   const sec = sections(createSampleAutomations(northwind));
   assert.deepEqual(
     sec.map((x) => x.key),
-    ["needs", "personal", "shared", "space", "running"],
+    ["personal", "shared", "space", "running"],
   );
   assert.deepEqual(
     sec.map((x) => x.count),
-    [3, 2, 1, 12, 1],
+    [2, 1, 12, 1],
   );
   assert.deepEqual(
     sec.find((x) => x.key === "personal")!.groups.map((g) => g.name),
@@ -72,10 +72,6 @@ test("sections come in the order Needs you, Personal, Shared with me, Space, Run
     sec.find((x) => x.key === "space")!.loose.map((a) => a.name),
     ["Weekly backup check"],
     "an Automation with no group is listed directly",
-  );
-  assert.deepEqual(
-    sec.find((x) => x.key === "needs")!.loose.map((a) => a.name),
-    ["Flag invoices over $5k to me", "New lead follow-up", "Invoice reminders"],
   );
   assert.deepEqual(
     sec.find((x) => x.key === "running")!.loose.map((a) => a.name),
@@ -100,7 +96,7 @@ test("search keeps the Automations whose name matches, drops empty Groups and op
   const sec = sections(s, "invoice");
   assert.deepEqual(
     sec.map((x) => x.key),
-    ["needs", "personal", "space"],
+    ["personal", "space"],
     "Shared with me goes when nothing in it matches",
   );
   assert.deepEqual(
@@ -134,26 +130,19 @@ test("the arrow keys walk the rows on screen; a closed Group hides its rows and 
   assert.equal(nextId([], "a", 1), null);
 });
 
-test("the sidebar draws the tabs, search, Failed runs and each section with its rows", () => {
+test("the sidebar draws the tabs, search and each section with its rows; no Failed runs row and no Needs you group", () => {
   const out = html(createSampleAutomations(northwind), { selectedId: "aut_lead" });
   assert.ok(has(out, 'data-testid="automations-sidebar"'));
   assert.ok(has(out, "Automations") && has(out, "Journeys") && has(out, ">15<"), "tab names and the total");
   assert.ok(has(out, 'aria-label="Search Automations"') && has(out, 'placeholder="Search"'));
-  assert.ok(has(out, "Failed runs") && has(out, 'data-testid="failed-count"'));
-  const order = ["Needs you", "Personal", "Shared with me", "Space", "Running"].map((t) =>
-    at(out, `aria-label="${t}"`),
-  );
+  assert.ok(!has(out, "Failed runs") && !has(out, 'data-testid="failed-count"') && !has(out, 'aria-label="Needs you"'));
+  const order = ["Personal", "Shared with me", "Space", "Running"].map((t) => at(out, `aria-label="${t}"`));
   assert.deepEqual(
     [...order].sort((x, y) => x - y),
     order,
     "sections in order",
   );
   for (const t of [
-    "New lead follow-up",
-    "Needs the Twilio key",
-    "Invoice reminders",
-    "Waiting for Maya to approve",
-    "Flag invoices over $5k to me",
     "Daily",
     "Money",
     "Maya&#x27;s reports",
@@ -163,23 +152,24 @@ test("the sidebar draws the tabs, search, Failed runs and each section with its 
     "Meeting transcript to tasks",
   ])
     assert.ok(has(out, t), t);
-  assert.ok(has(out, 'data-testid="row-auto-needs:aut_lead"'));
+  assert.ok(!has(out, 'data-testid="row-auto-needs:aut_lead"'), "no row sits in a Needs you group");
 });
 
 test("the selected Automation's row is marked and Groups start closed", () => {
   const out = html(createSampleAutomations(northwind), { selectedId: "aut_lead" });
+  const selected = html(createSampleAutomations(northwind), {
+    selectedId: "aut_lead",
+    initialOpen: ["space:agr_sales"],
+  });
   assert.match(
-    out.match(/<[^>]*data-testid="row-auto-needs:aut_lead"[^>]*>/)![0],
+    selected.match(/<[^>]*data-testid="row-auto-space:aut_lead"[^>]*>/)![0],
     /var\(--sel\)/,
     "the shared Row paints the selection token",
   );
   assert.ok(!has(out, 'data-testid="row-auto-space:aut_score"'), "Lead scoring is inside the closed Sales Group");
   const open = html(createSampleAutomations(northwind), { initialOpen: ["space:agr_sales"] });
   assert.ok(has(open, 'data-testid="row-auto-space:aut_score"') && has(open, "Hot lead alert"));
-  assert.ok(
-    has(open, 'data-testid="row-auto-space:aut_lead"'),
-    "the Automation shows under its Group as well as in Needs you",
-  );
+  assert.ok(has(open, 'data-testid="row-auto-space:aut_lead"'), "the Automation shows under its Group");
 });
 
 test("a failed run counts beside its Group, and the Group's count is its rows", () => {
@@ -303,16 +293,13 @@ test("a failed write says so in a sentence and leaves the list as it was", async
   assert.equal(lists(s).autos.find((a) => a.id === "aut_score")!.groupId, "agr_sales");
 });
 
-test("the studio nav marks the selected item as the current page, and only that one", () => {
+test("the list head returns to the first page and carries the count of what needs him", () => {
   const s = createSampleAutomations(northwind);
   const out = renderToStaticMarkup(
     <AutomationsDataProvider value={s.data}>
-      <StudioNav view="automations" onView={() => undefined} />
+      <ListHead onHome={() => undefined} />
     </AutomationsDataProvider>,
   );
-  assert.equal((out.match(/aria-current="page"/g) ?? []).length, 1, "exactly one nav item is current");
-  assert.match(
-    out,
-    /aria-current="page"[^>]*data-testid="nav-automations"|data-testid="nav-automations"[^>]*aria-current="page"/,
-  );
+  assert.ok(has(out, 'data-testid="automations-home"') && has(out, "Automations"));
+  assert.match(out.replaceAll("<!-- -->", ""), /data-testid="nav-needs-count"[^>]*>3</);
 });

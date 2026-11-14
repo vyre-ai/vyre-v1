@@ -484,46 +484,24 @@ test("at most four tabs stay open; the oldest closes first; removing a trigger m
 
 // ---------------------------------------------------------------- the canvas
 
-import { AutomationCanvas } from "./AutomationCanvas.tsx";
+import { BuilderPage } from "../screens/BuilderPage.tsx";
 import { AutomationsDataProvider } from "./data.tsx";
 import { Inspector } from "./Inspector.tsx";
 import { createSampleAutomations, northwind } from "../sidebar/sample.ts";
 
-const canvas = (props: Partial<Parameters<typeof AutomationCanvas>[0]> = {}): string =>
+const canvas = (props: Partial<Parameters<typeof BuilderPage>[0]> = {}): string =>
   renderToStaticMarkup(
     <AutomationsDataProvider value={createSampleAutomations(northwind).data}>
-      <AutomationCanvas automationId="aut_lead" {...props} />
+      <BuilderPage automationId="aut_lead" {...props} />
     </AutomationsDataProvider>,
   ).replaceAll("<!-- -->", "");
 
-test("the trigger rows read as what they do, not as Every time", () => {
+test("the trigger rows read as what they do, not as Every time: When, then Or for each other trigger", () => {
   const out = canvas();
   assert.ok(out.includes("A lead is created"), "a record trigger names its type and event");
   assert.ok(out.includes("Any form is submitted"));
+  assert.ok(out.includes("When") && out.includes("Or"));
   assert.equal(out.includes("Every time"), false);
-});
-
-test("the bar under the tabs has something on it: what to do next, Undo and Data; Events is under More", () => {
-  const out = canvas();
-  assert.ok(out.includes('data-testid="build-hint"'));
-  assert.match(
-    out,
-    /data-testid="undo-edit"[^>]*disabled|disabled[^>]*data-testid="undo-edit"|aria-disabled="true"[^>]*data-testid="undo-edit"|data-testid="undo-edit"[^>]*aria-disabled="true"/,
-    "nothing to undo yet",
-  );
-  assert.ok(out.includes('data-testid="open-data-shelf"'));
-  assert.equal(out.includes('data-testid="events"'), false, "the Events button is gone from the header");
-});
-
-test("a trigger opened in the panel is a tab with its own name and icon", () => {
-  const out = canvas({ initialPanel: true, initialSelected: "trigger" });
-  assert.ok(
-    out.includes("A new lead is created settings") || out.includes('data-testid="inspector"'),
-    "the panel is open on the first trigger",
-  );
-  assert.match(out, /aria-label="A new lead is created" role="tab"/, "the tab carries the trigger's name");
-  assert.match(out, /data-testid="tab-trigger:0-selected"[^>]*><div[^>]*><span[^>]*><svg/, "and the trigger's icon");
-  assert.equal(/aria-label="Trigger" role="tab"/.test(out), false, "no tab is just called Trigger");
 });
 
 const noop = (): void => undefined;

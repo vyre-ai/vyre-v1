@@ -29,3 +29,8 @@ test("a step whose app he may not use carries the one plain line, first, and an 
 test("an issue with no step belongs to the page, not to a step", () => {
   assert.deepEqual(needsFromIssues(issues, "trigger", new Set()), []);
 });
+
+test("a missing account is fixed where it is missing: the button says what to connect", () => {
+  const n = needsFromIssues(issues, "b", new Set(), "Connect a mailbox");
+  assert.deepEqual(n, [{ kind: "value", line: "Send for signature: choose the file.", button: "Connect a mailbox" }]);
+});

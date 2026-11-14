@@ -79,14 +79,11 @@ export function sectionsOf(
       groups: [...blocks.values()].filter((b) => b.rows.length > 0 || (showEmpty && b.empty && q === "")),
     };
   };
-  const needs = rows.filter(needsYou);
   const personal = rows.filter((a) => a.kind === "personal" && a.ownerId === opts.me);
   const shared = rows.filter((a) => sharedIds.has(a.id));
   const space = rows.filter((a) => a.kind === "space" && !sharedIds.has(a.id));
   const running = rows.filter(isRunning);
   const out: Section[] = [];
-  if (needs.length > 0)
-    out.push({ key: "needs", title: "Needs you", count: needs.length, loose: needs, groups: [], canAdd: false });
   const p = byGroup(personal);
   out.push({ key: "personal", title: "Personal", count: personal.length, ...p, canAdd: true });
   if (shared.length > 0 || q === "") {

@@ -5,7 +5,7 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
-import { AutomationCanvas } from "../../../apps/app/src/places/automations/canvas/AutomationCanvas.tsx";
+import { BuilderPage } from "../../../apps/app/src/places/automations/screens/BuilderPage.tsx";
 import { AutomationsDataProvider } from "../../../apps/app/src/places/automations/canvas/data.tsx";
 import { AutomationConfig } from "../../../apps/app/src/places/automations/config/AutomationConfig.tsx";
 import { ConfigExtrasProvider } from "../../../apps/app/src/places/automations/config/data.tsx";
@@ -72,7 +72,7 @@ export default function Mount(): ReactNode {
   ) : (
     <>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <AutomationCanvas automationId={autoId} />
+        <BuilderPage automationId={autoId} />
       </View>
       <View style={{ width: 380, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string }}>
         <AutomationConfig

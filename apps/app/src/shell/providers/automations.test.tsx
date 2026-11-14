@@ -18,10 +18,9 @@ test("the Automations place draws the sidebar through the shell runtime", () => 
     </ShellRuntimeProvider>,
   );
   assert.ok(out.includes("automations-place"));
-  assert.ok(out.includes("Pick an automation") && out.includes("Start from a template"));
+  assert.ok(out.includes("first-page") && out.includes("New automation") && out.includes("Start from an example"));
   const el = AutomationsSidebarSlot({
     selectedId: null,
-    view: "automations",
     onView: () => undefined,
   }) as ReactElement<{ title: string }>;
   assert.equal(el.type, SidebarContent, "the place registers its sidebar in the shared slot");

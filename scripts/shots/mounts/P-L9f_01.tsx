@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
-import { AutomationCanvas } from "../../../apps/app/src/places/automations/canvas/AutomationCanvas.tsx";
+import { BuilderPage } from "../../../apps/app/src/places/automations/screens/BuilderPage.tsx";
 import { AutomationsDataProvider } from "../../../apps/app/src/places/automations/canvas/data.tsx";
 import { AutomationsSidebar } from "../../../apps/app/src/places/automations/sidebar/AutomationsSidebar.tsx";
 import { createSampleAutomations, harbor, northwind } from "../../../apps/app/src/places/automations/sidebar/sample.ts";
@@ -28,11 +28,7 @@ export default function Mount(): ReactNode {
     />
   );
   const canvas = (
-    <AutomationCanvas
-      automationId={id}
-      initialSelected={space.id === "harbor" ? null : "mobile"}
-      initialPanel={view === "panel"}
-    />
+    <BuilderPage automationId={id} initialSelected={space.id === "harbor" || view !== "panel" ? null : "mobile"} />
   );
   return (
     <AutomationsDataProvider value={sample.data}>

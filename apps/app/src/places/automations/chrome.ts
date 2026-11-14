@@ -1,18 +1,7 @@
 // Labels the Automation Studio screens share. The UI imports these. Empty screens stay empty.
 
-export const STUDIO_NAV = [
-  { id: "automations", label: "Automations" },
-  { id: "templates", label: "Templates" },
-  { id: "needs", label: "Needs you" },
-  { id: "watching", label: "Watching" },
-  { id: "runs", label: "All runs" },
-  { id: "events", label: "Live Event Explorer" },
-  { id: "analytics", label: "Analytics" },
-  { id: "dependencies", label: "Dependencies" },
-  { id: "packages", label: "Packages" },
-] as const;
-
-export type StudioView = (typeof STUDIO_NAV)[number]["id"];
+/** The places the body can show besides an open Automation: the first page, the examples, All runs, and the watched pages Chrome links to. */
+export type StudioView = "automations" | "templates" | "runs" | "watching";
 
 export const BUILDER_MODES = ["Basic", "Advanced"] as const;
 export type BuilderMode = "basic" | "advanced";
@@ -30,30 +19,8 @@ export const PINNED_ENROLLMENTS = "New enrollments only";
 export const PARALLEL_JOIN = "Join after child Runs complete";
 export const LOOP_CHILD = "Each iteration is a child Run";
 
-export const NEEDS_LINE = "Only decisions and missing human input.";
 export const ALL_RUNS_LINE = "Every enrollment across the Space, searchable by subject, automation, or status.";
 export const ALL_RUNS_SEARCH = "Search runs";
-export const EVENTS_LINE = "Watch real events and their typed payloads.";
-export const LISTENING = "Listening";
-export const EMPTY_EVENTS = "Listening for events. None have arrived yet.";
-export const EMPTY_EVENTS_NEXT =
-  "Run an automation by hand, change a record or submit a form, and the event shows here within a few seconds.";
-export const ANALYTICS_LINE = "Outcomes for this Automation.";
-export const SPACE_ANALYTICS_TITLE = "Automation analytics";
-export const SPACE_ANALYTICS_LINE = "The operational home for every Automation in this Space.";
-export const EMPTY_COMPLETED = "No completed Runs yet";
-export const EMPTY_COMPLETED_NEXT =
-  "Open an automation and choose Run, or turn one on. Its outcomes show here once it has run.";
-export const DEPS_LINE = "See what breaks before changing a field, connection, template, sub-Automation or capability.";
-export const EMPTY_DEPENDENCIES = "Nothing is named yet.";
-export const EMPTY_DEPENDENCIES_NEXT =
-  "This fills when an automation calls another automation, or a step picks a connection, mailbox, number or form. Add one of those steps and it shows here.";
-export const PACKAGES_LINE = "Save a copy of an automation's steps without secrets, and import one as your own draft.";
-export const EMPTY_PACKAGES = "No packages yet.";
-export const EMPTY_PACKAGES_NEXT =
-  "Use Export an automation above to save one. It holds the steps only, so you can import it as a draft here or hand it to someone.";
-export const EMPTY_NEEDS_NEXT =
-  "A run that waits for an approval, an answer or a choice after missed schedule ticks shows here until you act.";
 export const WATCHING_LINE =
   "Pages and parts of pages that an agent or your Chrome checks, and tells you about when they change.";
 export const EMPTY_WATCHING_NEXT =
@@ -96,3 +63,7 @@ export function enrollmentsPinned(runs: readonly { status?: string }[] | undefin
   if (!ready || !runs) return false;
   return runs.some((run) => typeof run.status === "string" && ACTIVE_RUN.has(run.status));
 }
+
+export const ANALYTICS_LINE = "Outcomes for this Automation.";
+export const EMPTY_COMPLETED_NEXT =
+  "Open an automation and choose Run, or turn one on. Its outcomes show here once it has run.";

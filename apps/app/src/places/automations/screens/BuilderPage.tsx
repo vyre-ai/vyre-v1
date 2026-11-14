@@ -13,8 +13,21 @@ import { loadProductCatalog, unlistedAppLine } from "../catalog/model.ts";
 import type { CatalogStep, CatalogTrigger } from "../catalog/model.ts";
 import { CANVAS, CONFIG, useAutomationsData, useScreenOrRead, useScreenQuery } from "../canvas/data.tsx";
 import { Inspector } from "../canvas/Inspector.tsx";
-import { addAfter, check, removeStep, sortedIssues, startsByHand, withPreset } from "../canvas/model.ts";
+import {
+  addAfter,
+  check,
+  describeTrigger,
+  removeStep,
+  sortedIssues,
+  startsByHand,
+  updateStep,
+  withPreset,
+} from "../canvas/model.ts";
+import { applyAccount, connectedOption } from "../connect/accounts.ts";
+import { useOpenConnect } from "../../../shell/connect/context.ts";
+import { connectLabel, connectThen, stepNeed } from "../../../shell/connect/model.ts";
 import type { Definition, Issue } from "../canvas/model.ts";
+import { AnalyticsPanel } from "../operations/StudioViews.tsx";
 import { AutomationConfig } from "../config/AutomationConfig.tsx";
 import { Overlay } from "../config/Overlay.tsx";
 import { PromoteSheet } from "../config/PromoteSheet.tsx";
@@ -39,9 +52,19 @@ export interface BuilderPageProps {
   /** The Runs body the shell owns (the run list with its side pane). */
   runsBody?: ReactNode;
   initialSelected?: string | null;
+  /** Open with the Promote sheet showing. */
+  initialPromote?: boolean;
+  /** Open on this tab. */
+  initialTab?: "steps" | "runs" | "settings" | "history";
 }
 
-export function BuilderPage({ automationId, runsBody, initialSelected = null }: BuilderPageProps): ReactElement {
+export function BuilderPage({
+  automationId,
+  runsBody,
+  initialSelected = null,
+  initialPromote = false,
+  initialTab = "steps",
+}: BuilderPageProps): ReactElement {
   const data = useAutomationsData();
   const q = useScreenQuery<GetOut>(CANVAS, "automation", { automationId, route: { automationId } });
   const versions = useScreenOrRead<VersionsOut>(
@@ -74,6 +97,8 @@ export function BuilderPage({ automationId, runsBody, initialSelected = null }: 
       versions={versions.status === "ready" ? versions.data.versions : []}
       runsBody={runsBody}
       initialSelected={initialSelected}
+      initialPromote={initialPromote}
+      initialTab={initialTab}
     />
   );
 }
@@ -84,19 +109,23 @@ function Body({
   versions,
   runsBody,
   initialSelected,
+  initialPromote,
+  initialTab,
 }: {
   a: GetOut["automation"];
   canEdit?: boolean;
   versions: VersionsOut["versions"];
   runsBody: ReactNode;
   initialSelected: string | null;
+  initialPromote: boolean;
+  initialTab: Tab;
 }): ReactElement {
   const data = useAutomationsData();
   const winW = useWindowDimensions().width;
   const phone = isPhoneWidth(winW);
   const { element, show } = useMenu();
   const locked = a.kind === "space" && (canEdit === undefined ? data.canSpace === false : !canEdit);
-  const [tab, setTab] = useState<Tab>("steps");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [draft, setDraft] = useState<Definition | null>(null);
   const undo = useRef<Definition[]>([]);
   const def: Definition = draft ?? a.definition;
@@ -105,7 +134,7 @@ function Body({
   const [saving, setSaving] = useState(false);
   const [picker, setPicker] = useState<{ after: string | null; x: number; y: number } | null>(null);
   const [connectOpen, setConnectOpen] = useState(false);
-  const [promoteOpen, setPromoteOpen] = useState(false);
+  const [promoteOpen, setPromoteOpen] = useState(initialPromote);
   const [serverIssues, setServerIssues] = useState<Issue[]>([]);
   const [catalog, setCatalog] = useState<{
     steps: CatalogStep[];
@@ -194,6 +223,20 @@ function Body({
   }, [draft, a.status, locked, save]);
 
   const pickIn = useMemo(() => (catalog ? pickInFromCatalog(catalog.steps) : null), [catalog]);
+  const openConnect = useOpenConnect();
+  // a step missing an account is fixed where it is missing: its one button connects it and puts the new account on the step
+  const connectNeeds = useMemo(() => {
+    const out = new Map<string, ReturnType<typeof stepNeed>>();
+    if (!openConnect) return out;
+    for (const issue of errors) {
+      const node = issue.nodeId ? def.nodes.find((n) => n.id === issue.nodeId) : undefined;
+      if (!node || out.has(node.id)) continue;
+      const schema = catalog?.all.find((st) => st.key === node.key)?.input;
+      const need = stepNeed(node, schema, a.kind);
+      if (need) out.set(node.id, need);
+    }
+    return out;
+  }, [errors, def, catalog, openConnect, a.kind]);
   const view = useMemo(() => {
     const full = Object.fromEntries(
       (catalog?.all ?? []).map((s) => [s.key, { title: s.title.replace(/^[^:·]{1,40}\s*[:·]\s+/, ""), ...appOf(s) }]),
@@ -216,17 +259,39 @@ function Body({
           id === "trigger" ? "the start" : (full[def.nodes.find((n) => n.id === id)?.key ?? ""]?.title ?? id),
         canUse: (app) => usable.has(app) || !isGatedApp(app),
         noAccess: (name) => ({ line: `You cannot use ${name}.`, button: "Ask an admin" }),
-        needsOf: (id) => needsFromIssues(issues, id, noAccess),
+        needsOf: (id) =>
+          needsFromIssues(
+            issues,
+            id,
+            noAccess,
+            connectNeeds.has(id) ? connectLabel(connectNeeds.get(id)!, true) : undefined,
+          ),
         writes: (k) => outward.has(k),
       },
     );
-  }, [def, catalog, pickIn, issues, noAccess]);
+  }, [def, catalog, pickIn, issues, noAccess, connectNeeds]);
+  // each trigger is its own row: When, then Or. The first is "trigger", the others "trigger:1", "trigger:2"
+  const triggerRows = useMemo(
+    () =>
+      def.triggers.map((t, i) => {
+        const title = catalog?.triggers.find((x) => x.key === t.key)?.title;
+        return {
+          id: i === 0 ? "trigger" : `trigger:${i}`,
+          app: { id: "vyre:forms", name: "Trigger" },
+          template: "{t}",
+          values: { t: { text: describeTrigger(t, {}) || title || t.key } },
+          hand: false,
+        };
+      }),
+    [def, catalog],
+  );
   const model = useMemo(
     () =>
       buildStory({
         name: a.name,
         on: a.status === "on",
-        trigger: view.trigger ? { ...view.trigger, hand: startsByHand(def) } : null,
+        trigger: triggerRows[0] ? { ...triggerRows[0], hand: startsByHand(def) } : null,
+        moreTriggers: triggerRows.slice(1),
         steps: view.steps,
         proposed: false,
         dirty: draft !== null,
@@ -303,7 +368,25 @@ function Body({
     else if (action === "need" && id) {
       const step = model.rows.find((r) => r.kind === "step" && r.id === id);
       if (step && step.kind === "step" && step.need?.kind === "no_access") askAdmin();
-      else setSel(id);
+      else if (id && connectNeeds.get(id) && openConnect) {
+        const node = def.nodes.find((n) => n.id === id);
+        const need = connectNeeds.get(id)!;
+        if (node)
+          void connectThen(openConnect, need, (made) => {
+            if (need.kind === "mailbox")
+              edit(
+                updateStep(def, node.id, { input: applyAccount(node.input ?? {}, "mailboxId", connectedOption(made)) }),
+              );
+            else if (need.kind === "connector")
+              edit(
+                updateStep(def, node.id, {
+                  input: applyAccount(node.input ?? {}, "connectionId", connectedOption(made)),
+                }),
+              );
+            else if (need.kind === "ai") edit(updateStep(def, node.id, { ai: { ...(node.ai ?? {}), keyId: made.id } }));
+            else flash("Connected. Pick it on the step.");
+          });
+      } else setSel(id);
     } else if (action === "add" || action === "insert") {
       const p = pos(e);
       setPicker({ after: action === "insert" && id ? id : (def.nodes.at(-1)?.id ?? null), x: p.x, y: p.y });
@@ -362,7 +445,8 @@ function Body({
   };
 
   const selNode = sel && sel !== "trigger" ? (def.nodes.find((n) => n.id === sel) ?? null) : null;
-  const trigSel = sel === "trigger";
+  const trigIndex = sel === "trigger" ? 0 : sel?.startsWith("trigger:") ? Number(sel.slice(8)) : null;
+  const trigSel = trigIndex !== null;
   const inspect = !locked && (selNode !== null || trigSel);
   const stepSchema = selNode && catalog ? catalog.all.find((s) => s.key === selNode.key)?.input : undefined;
   const inspector = inspect ? (
@@ -374,8 +458,8 @@ function Body({
       version={a.version}
       def={def}
       node={selNode}
-      trigger={trigSel ? (def.triggers[0] ?? null) : null}
-      triggerIndex={trigSel ? 0 : null}
+      trigger={trigIndex !== null ? (def.triggers[trigIndex] ?? null) : null}
+      triggerIndex={trigIndex}
       issues={issues}
       keys={data.keys}
       kind={a.kind}
@@ -404,7 +488,7 @@ function Body({
   return (
     <Page
       title={a.name}
-      subtitle={model.head.state}
+      subtitle={a.status === "paused" && a.pausedReason ? `Paused. ${a.pausedReason}` : model.head.state}
       tabs={tabs}
       tab={tab}
       onTab={(t) => setTab(t as Tab)}
@@ -424,7 +508,12 @@ function Body({
           {inspector ? <View style={phone ? s.fill : s.side}>{inspector}</View> : null}
         </View>
       ) : null}
-      {tab === "runs" ? <View style={s.pane}>{runsBody}</View> : null}
+      {tab === "runs" ? (
+        <View style={s.pane}>
+          <AnalyticsPanel automationId={a.id} />
+          {runsBody}
+        </View>
+      ) : null}
       {tab === "settings" ? (
         <View style={s.pane}>
           <AutomationConfig automationId={a.id} embedded />

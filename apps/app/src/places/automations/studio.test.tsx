@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AskVyre } from "./ask/AskVyre.tsx";
 import { scrubAskContext } from "./ask/bundle.ts";
-import { AutomationCanvas } from "./canvas/AutomationCanvas.tsx";
+import { BuilderPage } from "./screens/BuilderPage.tsx";
 import { AutomationsDataProvider } from "./canvas/data.tsx";
 import { availabilityFor, menuGroups, stepsFromRuntime } from "./catalog/model.ts";
 import { SAMPLE_CATALOG } from "./catalog/sample.ts";
@@ -23,7 +23,6 @@ const has = (s: string, needle: string): boolean => s.includes(needle);
 test("the sidebar registers through SidebarContent", () => {
   const el = AutomationsSidebarSlot({
     selectedId: null,
-    view: "automations",
     onView: () => undefined,
   }) as ReactElement<{ title: string; searchPlaceholder?: string }>;
   assert.equal(el.type, SidebarContent);
@@ -34,7 +33,7 @@ test("Promote opens the sheet", () => {
   const s = createSampleAutomations(northwind);
   const out = renderToStaticMarkup(
     <AutomationsDataProvider value={s.data}>
-      <AutomationCanvas automationId="aut_digest" initialPromote />
+      <BuilderPage automationId="aut_digest" initialPromote />
     </AutomationsDataProvider>,
   );
   assert.ok(has(out, 'data-testid="promote-sheet"'));
