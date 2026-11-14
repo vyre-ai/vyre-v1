@@ -6,7 +6,7 @@ import { ObjectSection } from "../../../../../../ui/src/ObjectPage/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Group } from "../../shell/ui.tsx";
 import { useConsoleData } from "../../shell/data.tsx";
-import { Help, Actions, Button, Field, Note, ReadState, Select, attempt, useAction, useRead } from "../shared.tsx";
+import { Help, Actions, Button, TextBox, Note, ReadState, Select, attempt, useAction, useRead } from "../shared.tsx";
 import { CommsObject, LongField } from "./common.tsx";
 import { COUNTRY_OPTIONS, draftProblem, registrationDraft, registrationInput, registrationMissing } from "./model.ts";
 import type { RegistrationDraft } from "./model.ts";
@@ -60,31 +60,31 @@ export function TextingPage(): ReactElement {
         {editable ? (
           <>
             <ObjectSection title="Business">
-              <Field
+              <TextBox
                 label="Legal name"
                 testID="registration-legal-name"
                 value={draft.legalName}
                 onChange={(value) => change("legalName", value)}
               />
-              <Field
+              <TextBox
                 label="EIN"
                 testID="registration-ein"
                 value={draft.ein}
                 onChange={(value) => change("ein", value)}
               />
-              <Field
+              <TextBox
                 label="Website"
                 testID="registration-website"
                 value={draft.website}
                 onChange={(value) => change("website", value)}
               />
-              <Field
+              <TextBox
                 label="Contact name"
                 testID="registration-contact-name"
                 value={draft.contactName}
                 onChange={(value) => change("contactName", value)}
               />
-              <Field
+              <TextBox
                 label="Contact email"
                 testID="registration-contact-email"
                 value={draft.contactEmail}
@@ -92,25 +92,25 @@ export function TextingPage(): ReactElement {
               />
             </ObjectSection>
             <ObjectSection title="Business address">
-              <Field
+              <TextBox
                 label="Street address"
                 testID="registration-street"
                 value={draft.line1}
                 onChange={(value) => change("line1", value)}
               />
-              <Field
+              <TextBox
                 label="City"
                 testID="registration-city"
                 value={draft.city}
                 onChange={(value) => change("city", value)}
               />
-              <Field
+              <TextBox
                 label="State or region"
                 testID="registration-region"
                 value={draft.region}
                 onChange={(value) => change("region", value)}
               />
-              <Field
+              <TextBox
                 label="Postal code"
                 testID="registration-postal"
                 value={draft.postal}

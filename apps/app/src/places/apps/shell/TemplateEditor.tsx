@@ -5,7 +5,7 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useAppsData } from "./data.tsx";
 import { actionKey, errorMessage, mutate } from "./mutations.ts";
-import { Button, Card, Field, Frame, Select, s, useOnline, useRead } from "./editor-ui.tsx";
+import { Button, Card, TextBox, Frame, Select, s, useOnline, useRead } from "./editor-ui.tsx";
 import type { AppsRoute } from "./routes.ts";
 export function TemplateEditor({ route, back }: { route: AppsRoute; back(): void }): ReactElement {
   const d = useAppsData(),
@@ -117,7 +117,7 @@ export function TemplateEditor({ route, back }: { route: AppsRoute; back(): void
         ) : null
       ) : (
         <Card title="Save a record type or automation">
-          <Field label="Template title" value={title} onChange={setTitle} disabled={busy} />
+          <TextBox label="Template title" value={title} onChange={setTitle} disabled={busy} />
           <Select
             label="Source kind"
             value={kind}

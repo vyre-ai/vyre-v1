@@ -9,7 +9,7 @@ import type { EmailBlock, EmailMode } from "../../../../../../ui/src/EmailBuilde
 import { serverBlock, visibleBlock } from "./email-design.ts";
 import { useAppsData } from "./data.tsx";
 import { actionKey, errorMessage, mutate } from "./mutations.ts";
-import { Field, s, useOnline, useRead } from "./editor-ui.tsx";
+import { TextBox, s, useOnline, useRead } from "./editor-ui.tsx";
 import type { AskAgent } from "../../../../../../ui/src/AskButton/types.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 interface Step {
@@ -252,7 +252,7 @@ export function EmailDesignEditor({
   return (
     <View style={{ gap: 12 }}>
       <Text style={s.text}>{intro}</Text>
-      <Field label="Your email address for test sends" value={testTo} onChange={setTestTo} />
+      <TextBox label="Your email address for test sends" value={testTo} onChange={setTestTo} />
       <View style={{ minHeight: 620 }}>
         <EmailBuilder
           id={emailId ?? step.key}

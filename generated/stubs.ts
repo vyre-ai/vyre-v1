@@ -492,6 +492,9 @@ export function stubs(ctx: CallCtx) {
       },
       unpin: call("chat.unpin"),
     },
+    chats: {
+      presence: call("chats.presence"),
+    },
     ci: {
       cost: {
         month: call("ci.cost.month"),
@@ -2099,6 +2102,7 @@ export function stubs(ctx: CallCtx) {
         set: call("notifications.rules.set"),
       },
       send: call("notifications.send"),
+      unseen_by_thread: call("notifications.unseen_by_thread"),
     },
     plugins: {
       agent_template: {

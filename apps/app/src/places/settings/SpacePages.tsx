@@ -11,7 +11,7 @@ import { subOf } from "./rows.tsx";
 import { SavedBar, SavedProvider, useSaved } from "./saved.tsx";
 import { MemoryKeys } from "./MemoryKeys.tsx";
 import { MemoryLearningLimits } from "./MemoryLearning.tsx";
-import { Choice, pickerStacks, Field, Section, SettingsRow, SmallButton, Stepper, Switch, Value } from "./ui.tsx";
+import { Choice, pickerStacks, TextBox, Section, SettingsRow, SmallButton, Stepper, Switch, Value } from "./ui.tsx";
 
 type ListOut = CapMap["settings.list"]["out"];
 
@@ -47,7 +47,7 @@ function TextValue({
   const [editing, setEditing] = useState(false);
   if (editing)
     return (
-      <Field
+      <TextBox
         value={value}
         label={def.label}
         placeholder="Not set"
@@ -129,7 +129,7 @@ function SpaceControlFor({
       );
     case "list":
       return (
-        <Field
+        <TextBox
           value={Array.isArray(v) ? v.join(", ") : ""}
           label={def.label}
           width={220}

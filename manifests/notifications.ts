@@ -377,6 +377,21 @@ export default defineManifest({
         tool: "meta",
       },
     ),
+    // unseen_by_thread: always MY OWN unseen mentions, never another person's. With no threadIds: every thread I have one in, newest first, at most 500 (`capped` says there were more; the oldest are left out).
+    // With threadIds: those only (at most 200; a thread with none is left out). It names only threads a notification was filed for me about, and the sidebar joins it onto the chats it already lists,
+    // so a thread the asker cannot open is never shown.
+    read(
+      "notifications.unseen_by_thread",
+      "My unseen mentions per chat or channel, for the sidebar's mention badge; only my own, newest first, at most 500 threads",
+      {
+        in: { threadIds: t.opt(t.arr(id.thread, { maxItems: 200 })) },
+        out: {
+          counts: t.arr(t.obj({ threadId: id.thread, mentions: t.int({ minimum: 1 }) })),
+          capped: t.bool({ description: "More than 500 threads had an unseen mention; the oldest are left out" }),
+        },
+        tool: "meta",
+      },
+    ),
     write("notifications.mark_seen", "Mark notifications seen by ids or for a whole place", {
       in: { notificationIds: t.opt(t.arr(id.notification)), place: t.opt(place) },
       out: { marked: t.int() },

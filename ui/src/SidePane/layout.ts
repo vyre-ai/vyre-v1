@@ -2,14 +2,14 @@
 // for the current band go in; the mode and width of every panel come out. The shell draws exactly this, so panels never overlap except in the overlay modes, main never drops under MAIN_MIN,
 // and a window resize only has to call it again.
 //
-//   [8][rail 56][8][sidebar][8][main][8][side pane][8]     (wide and mid)
+//   [8][rail 68][8][sidebar][8][main][8][side pane][8]     (wide and mid)
 //
 // Rules: sidebar default 272 (drag 220 to 360); main at least 480, reading width capped at 720; one side pane, default 40% of the room right of the sidebar clamped 360 to 560, drag 320 to 640;
 // 1280 and up everything side by side; 1024 to 1279 an open pane folds the sidebar to the rail (it returns when the pane closes); 768 to 1023 the sidebar and the pane are overlay sheets;
 // under 768 one panel at a time. When room is short the pane yields first (down to 320), then a drag stops.
 
 export const GUTTER = 8;
-export const RAIL_WIDTH = 56;
+export const RAIL_WIDTH = 68;
 export const MAIN_MIN = 480;
 export const READING_MAX = 720;
 
