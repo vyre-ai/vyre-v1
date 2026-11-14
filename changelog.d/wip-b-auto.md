@@ -13,3 +13,4 @@
 - Space accounts on the Vault Connections page can be removed or reconnected only by an admin.
 - An Automation's account picker no longer offers another person's connection or mailbox.
 - Prepared for the new Automations screens: the open Automation as one page with its steps as sentences, the first page from the real list, and the pieces behind them, ready to replace the old canvas.
+- Cmd-K offers "New channel" only to someone who may create channels.
