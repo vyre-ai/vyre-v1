@@ -40,8 +40,11 @@ export interface Hit {
 export interface Federated {
   kind: Kind;
   cap: string;
-  hits(out: unknown): Omit<Hit, "score">[];
+  /** What to send the capability, when it is not `{ q, limit }`. */
+  input?(q: string): Record<string, unknown>;
+  hits(out: unknown, q: string): Omit<Hit, "score">[];
 }
+type AgentHit = { agentId?: string; name?: unknown; role?: unknown; updatedAt?: unknown };
 type ChatHit = { threadId?: string; snippet?: unknown; at?: unknown; thread?: { kind?: string; title?: unknown } };
 type NoteHit = { noteId?: unknown; title?: unknown; snippet?: unknown; updatedAt?: unknown };
 export const FEDERATED: readonly Federated[] = [
@@ -59,6 +62,31 @@ export const FEDERATED: readonly Federated[] = [
           link: `vyre://note/${n.noteId as string}`,
           ...(typeof n.updatedAt === "number" ? { updatedAt: n.updatedAt } : {}),
         })),
+  },
+  {
+    // the agents the SEARCHER can see: their own (even unshared or private: the service may not read those, so the index never holds them) and the ones shared with them. agents.list is that person's own read, so
+    // exactly what they may open is what they find. An agent that is also in the index is shown once (federated() drops the repeat).
+    kind: "agent",
+    cap: "agents.list",
+    input: () => ({ limit: 200 }),
+    hits: (out, q) => {
+      const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+      return ((out as { agents?: AgentHit[] } | null)?.agents ?? [])
+        .filter((a) => typeof a.agentId === "string")
+        .filter((a) => {
+          const hay =
+            `${typeof a.name === "string" ? a.name : ""} ${typeof a.role === "string" ? a.role : ""}`.toLowerCase();
+          return words.length > 0 && words.every((w) => hay.includes(w));
+        })
+        .map((a) => ({
+          kind: "agent" as const,
+          id: a.agentId as string,
+          title: typeof a.name === "string" && a.name ? a.name : "Agent",
+          ...(typeof a.role === "string" && a.role ? { snippet: a.role } : {}),
+          link: `vyre://agent/${a.agentId as string}`,
+          ...(typeof a.updatedAt === "number" ? { updatedAt: a.updatedAt } : {}),
+        }));
+    },
   },
   {
     // a private chat's words are never in the shared index (the service may not open it); its person finds them here, answered by chat.search as the asker, so exactly the people who can open it can find it
@@ -87,14 +115,17 @@ export const FEDERATED: readonly Federated[] = [
 ];
 const FEDERATED_LIMIT = 5;
 
-async function federated(ctx: SearchCtx, input: QueryInput): Promise<Hit[]> {
+async function federated(ctx: SearchCtx, input: QueryInput, have: ReadonlySet<string>): Promise<Hit[]> {
   if (input.cursor !== undefined && input.cursor !== "0") return [];
   if (input.recordType || input.folderId || !input.q.trim()) return [];
   const out: Hit[] = [];
   for (const p of FEDERATED) {
     if (input.types && input.types.length > 0 && !input.types.includes(p.kind)) continue;
     try {
-      const got = p.hits(await ctx.call(p.cap, { q: input.q, limit: FEDERATED_LIMIT })).slice(0, FEDERATED_LIMIT);
+      const got = p
+        .hits(await ctx.call(p.cap, p.input ? p.input(input.q) : { q: input.q, limit: FEDERATED_LIMIT }), input.q)
+        .filter((h) => !have.has(`${h.kind}:${h.id}`))
+        .slice(0, FEDERATED_LIMIT);
       got.forEach((h, i) => out.push({ ...h, score: 1 / (RRF + i) }));
     } catch {
       ctx.log.warn("search provider did not answer", { cap: p.cap });
@@ -405,7 +436,8 @@ export async function query(
     }
     hits.push(hitOf(d, e.score, words));
   }
-  const page = [...hits.slice(offset, offset + limit), ...(await federated(ctx, input))];
+  const shown = hits.slice(offset, offset + limit);
+  const page = [...shown, ...(await federated(ctx, input, new Set(shown.map((h) => `${h.kind}:${h.id}`))))];
   return {
     hits: page,
     tookMs: Math.max(0, Math.round(performance.now() - t0)),
