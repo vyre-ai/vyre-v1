@@ -133,7 +133,7 @@ const REPLIES_SCHEMA = readFileSync(new URL("./migrations/0007_replies_in.sql", 
   .split(";")
   .map((s) => s.trim())
   .filter((s) => s.length > 0);
-const ASKED_SCHEMA = readFileSync(new URL("./migrations/0010_asked_by.sql", import.meta.url), "utf8")
+const ASKED_SCHEMA = readFileSync(new URL("./migrations/0011_asked_by.sql", import.meta.url), "utf8")
   .split("\n")
   .filter((l) => !l.trimStart().startsWith("--"))
   .join("\n")

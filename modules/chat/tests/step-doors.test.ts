@@ -104,3 +104,33 @@ test("the asker reads their own step details whoever paid: on a key of the Space
   assert.equal(await labelSeen(hn.ctx), true, "Dana asked: she sees her own step details");
   assert.equal(await labelSeen(hn.person(MAYA)), false, "Maya does not");
 });
+
+test("a notification, a chat preview and every event of a reply that carries step blocks hold no file name, site or handle", async () => {
+  const hn = baseHarness({
+    calls: {
+      "agents.get": (i) => ({ agent: { agentId: i["agentId"], name: "Checker", runtime: "vyre" } }),
+      "access.principals.get": () => ({ principal: { name: "Someone" } }),
+    },
+  });
+  const threadId = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "sd3" })).thread
+    .threadId as string;
+  await h["threads.members.add"]!(hn.ctx, { threadId, personId: MAYA });
+  hn.clear();
+  await h["chat.post"]!(hn.agent(INTAKE, DANA), {
+    threadId,
+    body: "Done.",
+    mentions: [{ kind: "person", id: MAYA }],
+    blocks: [
+      { type: "tool_call", v: 1, data: { id: "x1", name: "Read", label: "alice-private-notes.txt" } },
+      { type: "turn_status", v: 1, data: { state: "failed", code: "engine.signin_missing", account: "Alice_Claude" } },
+      { type: "chrome_step", v: 1, data: { agentId: INTAKE, site: "mybank.example", state: "using" } },
+    ],
+    idempotencyKey: "sd3-reply",
+  });
+  const text = JSON.stringify([hn.emitted, hn.callLog.filter((c) => c.cap.startsWith("notifications."))]);
+  for (const s of ["alice-private-notes", "Alice_Claude", "mybank.example"])
+    assert.equal(text.includes(s), false, `an event or notification carries ${s}`);
+  const recent = JSON.stringify(await h["chat.recent"]!(hn.person(MAYA), { filter: "all" }));
+  for (const s of ["alice-private-notes", "Alice_Claude", "mybank.example"])
+    assert.equal(recent.includes(s), false, `the chat list carries ${s}`);
+});

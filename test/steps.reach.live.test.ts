@@ -13,6 +13,7 @@ import type { DriverEvent, EngineSession, OpenSession, TurnInput } from "../agen
 const SECRET_NAME = "alice-private-notes.txt";
 const SECRET_TEXT = "OLIVIA-ONLY-CONTENT-7731";
 const VAULT_NAME = "Alice Bank Key";
+let crewStatusForBob = "";
 const SUB_NEEDLES = ["bank-statement-page.html", "BANK-ANSWER-4410", "Alice's bank page"];
 
 test("steps of a turn in a shared chat: what the other readers see", { timeout: 240_000 }, async () => {
@@ -357,6 +358,7 @@ test("steps of a turn in a shared chat: what the other readers see", { timeout: 
     for (const th of crewThreads.slice(0, 2)) {
       const cs = await api(d, tok["bob"]!, "engine.crew.status", { threadId: th });
       dump[`crew.status bob ${th.slice(-4)}`] = `${cs.status} ${JSON.stringify(cs.data).slice(0, 1200)}`;
+      crewStatusForBob += JSON.stringify(cs.data);
     }
     const aliceKeys = Object.keys(dump).filter((k) => k.startsWith("alice "));
     const aliceText = JSON.stringify(aliceKeys.map((k) => dump[k]));
@@ -382,3 +384,15 @@ test("steps of a turn in a shared chat: what the other readers see", { timeout: 
     await d.stop();
   }
 });
+
+// engine.crew.status is lane b-crew's handler; its fix (the rows go to the asker only) is on origin/wip/b-crew and not yet on this line. Until it is merged this is EXPECTED RED and is reported as a todo, never skipped:
+// remove the `todo` the day that fix is merged into this branch.
+test(
+  "engine.crew.status serves another member of the chat none of the subagent's title, steps or answer",
+  { todo: "waiting for lane b-crew's engine.crew.status fix to be merged here" },
+  () => {
+    assert.ok(crewStatusForBob !== "", "the main test ran first and read the status as Bob");
+    for (const needle of SUB_NEEDLES)
+      assert.equal(crewStatusForBob.includes(needle), false, `engine.crew.status still hands Bob ${needle}`);
+  },
+);
