@@ -9,6 +9,18 @@ import { Text } from "react-native";
 import { find, installDom, mount, press } from "../testing/dom.ts";
 import { LiveSurface, createFrameSwapper, watchVisibility } from "./index.tsx";
 
+/** The tree as text, tolerant of a node that points back at its parent (a ref a component keeps on itself). */
+function dump(x: unknown): string {
+  const seen = new WeakSet<object>();
+  return JSON.stringify(x, (_k, v: unknown) => {
+    if (typeof v === "object" && v !== null) {
+      if (seen.has(v)) return undefined;
+      seen.add(v);
+    }
+    return v;
+  });
+}
+
 test("the last good frame stays until the next one has loaded; a slow older frame never replaces a newer one", async () => {
   const shown: string[] = [];
   const release = new Map<string, () => void>();
@@ -172,7 +184,7 @@ function withImage(run: (load: (uri: string) => void) => Promise<void>): Promise
   });
 }
 const srcOf = (root: { children?: unknown }): string[] =>
-  [...JSON.stringify(root).matchAll(/"uri":"([^"]+)"|src":"([^"]+)"/g)].map((m) => m[1] ?? m[2] ?? "");
+  [...dump(root).matchAll(/"uri":"([^"]+)"|src":"([^"]+)"/g)].map((m) => m[1] ?? m[2] ?? "");
 function pushable() {
   let on: ((f: { uri: string; width: number; height: number }) => void) | null = null;
   return {
@@ -210,11 +222,11 @@ test("a new source never shows the old source's frame, and the surface says it i
       await draw(a.source);
       await act(async () => a.push("a-frame.png"));
       await act(settleFrames);
-      assert.ok(JSON.stringify(tree.container).includes("a-frame.png"), "the live frame shows");
-      assert.ok(!JSON.stringify(tree.container).includes("Not live"));
+      assert.ok(dump(tree.container).includes("a-frame.png"), "the live frame shows");
+      assert.ok(!dump(tree.container).includes("Not live"));
       await draw(b.source);
       await act(settleFrames);
-      const after = JSON.stringify(tree.container);
+      const after = dump(tree.container);
       assert.ok(!after.includes("a-frame.png"), "the old source's frame is gone");
       assert.ok(after.includes("Not live"), "and what is shown says it is not live");
     });
@@ -248,7 +260,7 @@ test("hidden, asleep or failed drops the frame; a frame that was still loading n
     await act(async () => release?.());
     await draw(true);
     await act(settleFrames);
-    assert.ok(!JSON.stringify(tree.container).includes("slow.png"), "a frame that loaded after hiding did not appear");
+    assert.ok(!dump(tree.container).includes("slow.png"), "a frame that loaded after hiding did not appear");
     g.Image = had;
   } finally {
     restore();
@@ -266,12 +278,12 @@ test("a live surface with no frame for the bound stops looking live", async () =
       );
       await act(async () => a.push("f.png"));
       await act(settleFrames);
-      assert.ok(!JSON.stringify(tree.container).includes("Not live"));
+      assert.ok(!dump(tree.container).includes("Not live"));
       await act(async () => new Promise((r) => setTimeout(r, 90)));
-      assert.ok(JSON.stringify(tree.container).includes("Not live"), "no frame for the bound: greyed and marked");
+      assert.ok(dump(tree.container).includes("Not live"), "no frame for the bound: greyed and marked");
       await act(async () => a.push("g.png"));
       await act(settleFrames);
-      assert.ok(!JSON.stringify(tree.container).includes("Not live"), "a new frame makes it live again");
+      assert.ok(!dump(tree.container).includes("Not live"), "a new frame makes it live again");
     });
   } finally {
     restore();
@@ -305,7 +317,7 @@ test("sixty frames swap without the picture ever being empty", async () => {
       for (let i = 1; i < 60; i++) {
         await act(async () => a.push(`f${i}.png`));
         await act(async () => Promise.resolve());
-        assert.ok(/f\d+\.png/.test(JSON.stringify(tree.container)), `frame ${i}: a picture is on screen`);
+        assert.ok(/f\d+\.png/.test(dump(tree.container)), `frame ${i}: a picture is on screen`);
       }
     });
   } finally {

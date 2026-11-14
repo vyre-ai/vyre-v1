@@ -6,7 +6,7 @@ import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
-import { LoadFailed } from "../../../../../../ui/src/States/Loads.tsx";
+import { BACK_TO_CHATS, LoadFailed } from "../../../../../../ui/src/States/Loads.tsx";
 import type { LoadFailure } from "../../../../../../ui/src/States/Loads.tsx";
 import { PaneList } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";

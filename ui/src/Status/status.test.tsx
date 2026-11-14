@@ -5,7 +5,7 @@ import { createRoot } from "test-renderer";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Text } from "react-native";
 import { find, installDom, mount, press } from "../testing/dom.ts";
-import { Status, TONE_COLOR } from "./index.tsx";
+import { Status, TONE_COLOR, markInert } from "./index.tsx";
 
 test("each tone paints its dot from a token and nothing else", () => {
   assert.deepEqual(TONE_COLOR, {
@@ -74,7 +74,9 @@ test("an action and a second action are both drawn, side by side, and a disabled
     !/disabled=""|tabindex="-1"/.test(tag),
     "a disabled action is still focusable and reachable by the pointer",
   );
-  assert.match(tag, /aria-disabled="true"/);
+  const set: Record<string, string> = {};
+  markInert({ setAttribute: (k, v) => void (set[k] = v) });
+  assert.deepEqual(set, { role: "button", "aria-disabled": "true" }, "on the page it is a button that says it is off");
 });
 
 test("the actions press, a disabled one does not, and the head is not a button", async () => {

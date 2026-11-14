@@ -300,9 +300,10 @@ test("a soft read, or one that says refresh: false, never carries the failed-ref
   try {
     for (const opts of [{ soft: true }, { refresh: false }] as const) {
       const f = fakeQuery<number>({ status: "ready", data: 1 });
+      const down = { message: "down" }; // one object: a store that answers with a new one every time never settles
       (f.q as unknown as { stale: unknown }).stale = {
         subscribe: () => () => undefined,
-        getSnapshot: () => ({ message: "down" }),
+        getSnapshot: () => down,
       };
       const seen: Load<number | null>[] = [];
       const Probe = probe(() => useLoad<number>({ screen: ["a", "b"] }, opts as never), seen);

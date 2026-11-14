@@ -232,8 +232,8 @@ test("the stale line floats over the content (it moves nothing), is announced po
     );
     assert.match(html, /role="status"/, "a polite live region");
     assert.match(
-      html.slice(html.indexOf("load-stale") - 400, html.indexOf("load-stale") + 100),
-      /position:absolute/,
+      html.match(/<div[^>]*role="status"[^>]*>/)![0],
+      /position:absolute|r-position-u8s1d/, // react-native-web writes position absolute as this atomic class
       "out of the flow: nothing under it moves",
     );
     const root = await mount(

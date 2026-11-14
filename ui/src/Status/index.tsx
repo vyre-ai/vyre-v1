@@ -45,26 +45,41 @@ function Dot({ tone }: { tone: Tone }): ReactElement {
   return <View style={[st.dot, { backgroundColor: TONE_COLOR[tone] }]} />;
 }
 
+/** The page element of an action that is off: still in the tab and pointer order, said to be disabled, a button to a screen reader. */
+export function markInert(n: { setAttribute?: (k: string, v: string) => void } | null): void {
+  n?.setAttribute?.("role", "button");
+  n?.setAttribute?.("aria-disabled", "true");
+}
+
 function ActionButton({ a, id }: { a: StatusAction; id: string }): ReactElement {
   const off = a.disabled === true;
-  // a disabled action must still be reachable, so it can say why: it is not `disabled` (that takes it out of the pointer and tab order) but aria-disabled, and presses do nothing
+  // a disabled action must still be reachable, so it can say why. Pressable turns `disabled` into tabindex -1 and no pointer, and react-native-web turns aria-disabled on a button into the native
+  // `disabled`, so an action that is off is a plain box that becomes a button-role, aria-disabled, focusable element when it reaches the page: a press does nothing
+  const inert = (
+    <View
+      testID={id}
+      ref={markInert as never}
+      style={[st.action, st.dim]}
+      {...(web ? ({ tabIndex: 0, dataSet: { label: a.label } } as object) : {})}
+    >
+      <Text style={st.actionText}>{a.label}</Text>
+    </View>
+  );
   return (
     <Tooltip text={off && a.why ? a.why : ""}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={a.label}
-        accessibilityState={{ disabled: off }}
-        aria-disabled={off}
-        testID={id}
-        onPress={off ? undefined : a.onPress}
-        style={({ hovered }: { hovered?: boolean }) => [
-          st.action,
-          hovered === true && !off && st.actionOver,
-          off && st.dim,
-        ]}
-      >
-        <Text style={st.actionText}>{a.label}</Text>
-      </Pressable>
+      {off ? (
+        inert
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={a.label}
+          testID={id}
+          onPress={a.onPress}
+          style={({ hovered }: { hovered?: boolean }) => [st.action, hovered === true && st.actionOver]}
+        >
+          <Text style={st.actionText}>{a.label}</Text>
+        </Pressable>
+      )}
     </Tooltip>
   );
 }

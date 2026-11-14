@@ -273,8 +273,9 @@ test("the check sees a copy under a shared name, a read hook, a hand-made Load m
 test("a copy hidden in memo or forwardRef, as a class, behind an alias or re-exported from elsewhere is still counted", () => {
   const at = "apps/app/src/zz/x.tsx";
   assert.deepEqual(countFile(at, "export default memo(function Switch() { return null; });"), { declared: 1 });
+  // the const and the function inside forwardRef are one component by one name: one copy
   assert.deepEqual(countFile(at, "export const Field = forwardRef(function Field() { return null; });"), {
-    declared: 2,
+    declared: 1,
   });
   assert.deepEqual(countFile(at, "export class Segmented {}"), { declared: 1 });
   assert.deepEqual(countFile(at, "const Toggle = () => null;\nexport { Toggle as Select };"), { declared: 1 });
