@@ -23,7 +23,12 @@ test("every gated capability exists and declares the refusal it answers with", (
 
 test("no connect capability is missing from the switch's list", () => {
   const connectish = [...caps.keys()].filter(
-    (n) => n === "vault.connect" || n.startsWith("vault.connect_card.") || n === "connectors.for_service" || n === "connectors.check_key" || n === "vault.item.discard_new",
+    (n) =>
+      n === "vault.connect" ||
+      n.startsWith("vault.connect_card.") ||
+      n === "connectors.for_service" ||
+      n === "connectors.check_key" ||
+      n === "vault.item.discard_new",
   );
   assert.deepEqual(connectish.sort(), [...CONNECT_CAPS].sort());
 });
@@ -31,6 +36,13 @@ test("no connect capability is missing from the switch's list", () => {
 test("vault.item.discard_new is not an agent tool: no MCP surface, never visible to agents", () => {
   const c = caps.get("vault.item.discard_new")!;
   assert.equal(c.surfaces.mcp, undefined);
-  const tools = (JSON.parse(readFileSync(new URL("../../../generated/mcp-tools.json", import.meta.url), "utf8")) as { tools: { cap: string | null }[] }).tools;
-  assert.equal(tools.some((t) => t.cap === "vault.item.discard_new"), false);
+  const tools = (
+    JSON.parse(readFileSync(new URL("../../../generated/mcp-tools.json", import.meta.url), "utf8")) as {
+      tools: { cap: string | null }[];
+    }
+  ).tools;
+  assert.equal(
+    tools.some((t) => t.cap === "vault.item.discard_new"),
+    false,
+  );
 });

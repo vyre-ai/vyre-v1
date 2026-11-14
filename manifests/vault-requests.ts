@@ -247,7 +247,12 @@ export default defineManifest({
         audit: "always",
         tool: "vault",
         offline: "online",
-        errors: ["internal.not_implemented", "permission.no_grant", "validation.precondition_failed", "validation.bad_input"],
+        errors: [
+          "internal.not_implemented",
+          "permission.no_grant",
+          "validation.precondition_failed",
+          "validation.bad_input",
+        ],
       },
     ),
     write("vault.connect_card.ask_admin", "Ask an admin to connect the service when this person may not", {
