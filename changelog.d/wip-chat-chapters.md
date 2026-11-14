@@ -1,0 +1,1 @@
+- A long chat now has chapters. A chat of more than 40 messages is split where a Fresh context line falls, after a gap of 3 hours, or after 80 messages. Each chapter has a short title and one line of what it settled, written by a cheap model on your own AI account, or from the plain words of the chat when none is at hand. A short chat is unchanged and pays nothing for this.

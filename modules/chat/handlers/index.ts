@@ -3,6 +3,7 @@
 import { archiveHandlers } from "./archive.ts";
 import { messagePerson, mute as agentDmMute, peopleStatus } from "./agent-dm.ts";
 import { catchUp } from "./catch-up.ts";
+import { chaptersRead, chaptersWrite } from "./chapters.ts";
 import { paceOfPerson } from "./pace.ts";
 import { replyDetails } from "./reply-details.ts";
 import { aside, asideKeep } from "./aside.ts";
@@ -50,6 +51,8 @@ export const handlers = {
   "chat.aside_keep": asideKeep,
   "chat.flow_card": flowCard,
   "chat.catch_up": catchUp,
+  "chat.chapters": chaptersRead,
+  "chat.chapters_write": chaptersWrite,
   "chat.pace_of": paceOfPerson,
   "chat.remember": remember,
   "chat.noted": noted,
