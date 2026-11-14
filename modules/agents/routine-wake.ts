@@ -158,3 +158,20 @@ export async function reconcileWakes(ctx: AgentsCtx): Promise<string[]> {
   }
   return touched;
 }
+
+/** A fire came for a routine that does not exist: every wake owned by that routine id is cancelled, mapped or not. A failure is only logged; the next fire tries again. */
+export async function dropOrphanWake(ctx: AgentsCtx, routineId: string): Promise<void> {
+  if (!ctx.call) return;
+  try {
+    const found = (await ctx.call("scheduler.list", { owner: { kind: "agent_routine", id: routineId } })) as {
+      schedules?: { id: string }[];
+    };
+    for (const sch of found.schedules ?? []) await ctx.call("scheduler.cancel", { scheduleId: sch.id });
+    unmapWake(ctx, routineId);
+  } catch (e) {
+    ctx.log.warn("a wake with no routine could not be cancelled", {
+      routineId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+}

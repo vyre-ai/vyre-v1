@@ -40,6 +40,7 @@ function world(loseFirstAnswer: boolean) {
     "scheduler.resume",
     "scheduler.cancel",
     "scheduler.get",
+    "scheduler.list",
     "scheduler.can_hold",
   ])
     hn.world.answer(cap, (input) => sched.call(cap, input, host));
@@ -111,4 +112,21 @@ test("a first try that starts the Run and loses its answer: a reconcile in betwe
   assert.equal(retry.started + retry.skipped, 1, "the retry after the lease is answered");
   assert.equal(w.runCount(), 1, "one Run for the time");
   assert.equal(w.hn.named("agent.routine_run_started").length, 1, "and told once");
+});
+
+test("a wake with no routine and no mapping (a crash between making the wake and writing its mapping, then a delete) ends at its first fire and never fires again", async () => {
+  const w = world(false);
+  const r = await saved(w);
+  const due = routineBy(w.hn.db, r.routineId)!.nextRunAt!;
+  w.hn.db.run("DELETE FROM agents_routine_wake WHERE routineId = ?", r.routineId);
+  w.hn.db.run("DELETE FROM agents_routine WHERE id = ?", r.routineId);
+  w.advance(due - NOW + 30_000);
+  assert.deepEqual(await w.pass(), { started: 0, skipped: 1, failed: 0 }, "the one fire finds nothing");
+  const wake = w.sched.db.all("SELECT canceled_at FROM scheduler_api_schedules WHERE owner_id = ?", r.routineId)[0] as {
+    canceled_at: number | null;
+  };
+  assert.ok(wake.canceled_at, "and the wake is cancelled");
+  w.advance(30 * MINUTE);
+  assert.deepEqual(await w.pass(), { started: 0, skipped: 0, failed: 0 }, "nothing fires again");
+  assert.equal(w.runCount(), 0);
 });

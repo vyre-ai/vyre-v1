@@ -50,7 +50,7 @@ import {
   walkFolder,
 } from "../projections.ts";
 import type { AgentRec, AgentsCtx, FolderOut, RoutineRec, SuggestionRec } from "../projections.ts";
-import { applyWake, dropWake } from "../routine-wake.ts";
+import { applyWake, dropOrphanWake, dropWake } from "../routine-wake.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 
 type Row = Record<string, unknown>;
@@ -244,7 +244,11 @@ export async function routineFire(ctx: AgentsCtx, input: { routineId: string; du
     raise(ctx, "permission.no_grant", "Only the server starts a routine from its schedule.");
   ensure(ctx.db);
   const r = routineBy(ctx.db, input.routineId);
-  if (!r) return { started: false, why: "That routine is gone." };
+  if (!r) {
+    // a wake nobody owns (the routine was deleted between the wake being made and its mapping being written): the first fire that finds nothing ends it, so it never fires for ever
+    await dropOrphanWake(ctx, input.routineId);
+    return { started: false, why: "That routine is gone." };
+  }
   if (!r.enabled) return { started: false, why: "The routine is off." };
   if (isSelfPaused(ctx.db, r.id)) return { started: false, why: "The routine paused itself." };
   const watcher = (ctx.db.all("SELECT 1 AS x FROM agents_routine_watch WHERE routineId = ?", r.id) as Row[]).length > 0;
