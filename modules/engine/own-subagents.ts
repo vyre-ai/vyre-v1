@@ -43,13 +43,16 @@ export function noteOwn(
   list: readonly unknown[],
   now: number,
 ): void {
+  const finished: string[] = [];
   for (const raw of list) {
     const s = raw as Step;
     const id = typeof s.id === "string" ? s.id : "";
     if (id === "") continue;
-    if (s.phase === "call" && typeof s.name === "string") names.set(id, s.name);
-    const name = names.get(id) ?? s.name ?? "";
     const parent = typeof s.parent === "string" && s.parent !== "" ? s.parent : "";
+    // a call is known by name until its result: its input line does not repeat the name
+    if (s.phase === "call" && typeof s.name === "string") names.set(id, s.name);
+    if (s.phase === "result") finished.push(id);
+    const name = names.get(id) ?? s.name ?? "";
     if (parent === "") {
       if (!SUBAGENT_CALL.test(name)) continue;
       ensureOwn(db);
@@ -70,7 +73,6 @@ export function noteOwn(
           id,
         );
       } else if (s.phase === "result") {
-        names.delete(id);
         const found = typeof s.result === "string" ? s.result.trim() : "";
         db.run(
           "UPDATE engine_own_subagent SET state = ?, found = ?, step = NULL, ended_at = ? WHERE thread_id = ? AND call_id = ? AND state = 'working'",
@@ -113,6 +115,7 @@ export function noteOwn(
       );
     }
   }
+  for (const id of finished) names.delete(id);
 }
 
 /** The turn ended: a subagent that never returned (the turn was stopped, or the server went down under it) is stopped, not left working. */
