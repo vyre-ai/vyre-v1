@@ -33,6 +33,7 @@ type In = {
   cwd?: string;
   cols?: number;
   rows?: number;
+  own?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -64,6 +65,7 @@ type Out = {
     };
     heldBy?: string;
     ownerId?: string;
+    threadId?: string;
   };
 };
 ```
@@ -92,6 +94,7 @@ type Out = {
     "host": "agent_computer",
     "idempotencyKey": "idem_1",
     "name": "example",
+    "own": true,
     "rows": 5
   },
   "output": {
@@ -117,7 +120,8 @@ type Out = {
       "rows": 1,
       "runId": "run_a1b2c3",
       "state": "running",
-      "terminalId": "trm_a1b2c3"
+      "terminalId": "trm_a1b2c3",
+      "threadId": "thr_a1b2c3"
     }
   }
 }

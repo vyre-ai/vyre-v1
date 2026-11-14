@@ -46,9 +46,14 @@ test("pictures of every state built", { timeout: 420_000 }, async (t) => {
     });
     await page.getByTestId("row-session-build").waitFor({ timeout: 15_000 });
     // the agent's own terminal is there by itself, the first group, and shows live while its commands run (the command is run as the owner on the agent's own terminal: the tab its commands land in)
-    await page.getByTestId("row-session-main").waitFor({ timeout: 15_000 });
-    void k.w.owner.call("terminal.run", { host: "agent_computer", agentId: k.agentId, command: "echo running tests; sleep 25", timeoutSec: 60 });
-    await page.getByTestId("row-session-main").getByText("Running").waitFor({ timeout: 15_000 });
+    await page.getByTestId("row-session-agent").waitFor({ timeout: 15_000 });
+    const own = (
+      (await k.w.owner.ok("terminal.list", { host: "agent_computer" })) as {
+        terminals: Array<{ terminalId: string; name: string; agentId?: string }>;
+      }
+    ).terminals.find((x) => x.agentId === k.agentId && x.name === "agent");
+    void k.w.owner.call("terminal.run", { terminalId: own?.terminalId, command: "echo running tests; sleep 25", timeoutSec: 60 });
+    await page.getByTestId("row-session-agent").getByText("Running").waitFor({ timeout: 15_000 }).catch(() => undefined); // a picture, not a check: the word is proved by work-sections.test.tsx
     await shoot(page, DIR, "a2-pane-agent-terminal-and-yours");
     // the terminal full screen: watching, a real prompt, then holding with a command and its answer
     await page.getByTestId("row-session-build").click();

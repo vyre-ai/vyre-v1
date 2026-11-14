@@ -21,7 +21,8 @@ test(
       const o = (await k.w.owner.ok("terminal.list", { host: "agent_computer" })) as {
         terminals: Array<{ agentId?: string; heldBy?: string; state: string }>;
       };
-      return o.terminals.find((x) => x.agentId === k.agentId && x.state !== "exited")?.heldBy;
+      // the agent's own terminal is open beside the person's: whoever holds either one counts
+      return o.terminals.filter((x) => x.agentId === k.agentId && x.state !== "exited").find((x) => x.heldBy !== undefined)?.heldBy;
     };
     try {
       await k.computerTab();

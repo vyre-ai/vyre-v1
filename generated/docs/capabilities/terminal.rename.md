@@ -57,6 +57,7 @@ type Out = {
     };
     heldBy?: string;
     ownerId?: string;
+    threadId?: string;
   };
 };
 ```
@@ -102,7 +103,8 @@ type Out = {
       "rows": 1,
       "runId": "run_a1b2c3",
       "state": "running",
-      "terminalId": "trm_a1b2c3"
+      "terminalId": "trm_a1b2c3",
+      "threadId": "thr_a1b2c3"
     }
   }
 }

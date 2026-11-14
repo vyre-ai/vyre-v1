@@ -446,7 +446,7 @@ test("a member who may only View the workspace is refused terminal.keys, termina
 });
 
 test("after the terminal has ended its screen is not drawn again: a capture of it is an error, never an empty or different screen", async () => {
-  const { hn } = setup();
+  const { hn } = keyed();
   const id = await open(hn);
   const before = await call(hn, "terminal.capture", { terminalId: id });
   assert.equal(typeof before.text, "string");
