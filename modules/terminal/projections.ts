@@ -727,7 +727,9 @@ export function hideRunLine(text: string): string {
       .slice(i, j + 1)
       .map((r) => r.replace(ANSI, ""))
       .join("");
-    const body = /; (?:cd '[^']*' && )?\{ ([\s\S]*?)\n?(?:> ?)?\}; __vyre_rc=/.exec(joined) ?? /eval "\$__vyre_env"; unset __vyre_env; ([\s\S]*?)\n?\); __vyre_rc=/.exec(joined);
+    const body =
+      /; (?:cd '[^']*' && )?\{ ([\s\S]*?)\n?(?:> ?)?\}; __vyre_rc=/.exec(joined) ??
+      /eval "\$__vyre_env"; unset __vyre_env; ([\s\S]*?)\n?\); __vyre_rc=/.exec(joined);
     out.push(`${plain.slice(0, at).trimEnd()} ${body ? body[1]!.trim() : ""}`.trimEnd());
     i = j;
   }
