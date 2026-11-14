@@ -3,7 +3,15 @@
 //   1 resolve  2 validate  3 idempotency  4 rate limit  5 authorize (+ Gate)  6 handler  7 commit (events, audit)  8 publish
 // Everything the pipeline needs from outside is a port in InvokeDeps, so the same code runs against the real kernel (authorize, LogClient idempotency, tx) and against fakes in tests.
 // Errors leave as HostError (a shaped VyreError with its HTTP status); nothing here throws a raw exception to a caller.
-import { PERSON_LACKS_ROLE_LINE, roleLine } from "../../lib/vault-lines.ts";
+import { notFoundLine, sayableName } from "../../lib/words/errors.ts";
+import {
+  AGENT_AND_PERSON_LACK_ROLE_LINE,
+  AGENT_LACKS_CONNECTORS_LINE,
+  AGENT_LACKS_ROLE_LINE,
+  PERSON_LACKS_ONLY_ROLE_LINE,
+  PERSON_LACKS_ROLE_LINE,
+  roleLine,
+} from "../../lib/vault-lines.ts";
 import { formatHlc, tickHlc } from "../../lib/hlc.ts";
 import type { Hlc } from "../../lib/hlc.ts";
 import { mintId } from "../../lib/ids.ts";
@@ -20,6 +28,7 @@ import {
   OUTSIDE_AGENT_LINE,
   SELF_BINDING_LINE,
   isSelfBound,
+  missingThing,
   resolveResource,
   selfAuditNote,
   selfTarget,
@@ -928,9 +937,46 @@ export function createInvoke(deps: InvokeDeps): Invoke {
               (resource?.type === "space" || (resource?.type === "connection" && resource.id === null))))
             ? roleLine(c.name)
             : null;
+        // a thing the caller named that is not there reads the same as one they may not see, and says which kind of thing and the name they gave (never an id), so an agent can tell the person what to look for
+        const missing = d.reason === "not_found" && resource !== null ? missingThing(c, input, resource) : null;
+        const missingName = missing === null ? null : sayableName(missing.name);
+        // an agent refused for a role: say whose role is short. The agent's roles and its person's are separate (an agent never does more than its person may), and the fix differs.
+        let agentLine: string | null = null;
+        if (
+          d.reason === "role_lacks_permission" &&
+          seed.principal.kind === "agent" &&
+          seed.actingFor?.startsWith("usr_") &&
+          c.permission !== null
+        ) {
+          const person = deps.authorize({ ...req, principal: seed.actingFor, actingFor: undefined, approved: false });
+          // authorize judges the agent first and the person only when the agent passed, and its last step names who it refused: the same words in both verdicts mean the person is the one short
+          const personIsShort =
+            person.effect === "deny" &&
+            d.steps.length > 0 &&
+            d.steps[d.steps.length - 1]!.text === person.steps[person.steps.length - 1]?.text;
+          agentLine =
+            person.effect !== "deny"
+              ? c.permission === "connectors.manage"
+                ? AGENT_LACKS_CONNECTORS_LINE
+                : AGENT_LACKS_ROLE_LINE
+              : person.reason !== "role_lacks_permission"
+                ? null
+                : personIsShort
+                  ? PERSON_LACKS_ONLY_ROLE_LINE
+                  : AGENT_AND_PERSON_LACK_ROLE_LINE;
+        }
         throw fail(code, traceId, {
-          details: { cap: c.name, reason: d.reason, steps: d.steps.map((s) => s.text) },
+          details: {
+            cap: c.name,
+            reason: d.reason,
+            steps: d.steps.map((s) => s.text),
+            ...(missing !== null
+              ? { thing: missing.kind, ...(missingName !== null ? { name: missingName } : {}) }
+              : {}),
+          },
           ...(plain ? { message: plain } : {}),
+          ...(plain === null && agentLine !== null ? { message: agentLine } : {}),
+          ...(missing !== null ? { message: notFoundLine(missing.kind, missing.name) } : {}),
           ...(askShare
             ? {
                 message:

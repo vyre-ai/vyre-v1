@@ -67,6 +67,37 @@ export function resolveResource(
   return { type: b.type, id: raw };
 }
 
+const GENERIC_SEGMENT = new Set(["id", "key", "name", "ref", "item", "handle", "parent", "container", "target"]);
+const typeWords = (t: string): string => (t.startsWith("vault_") ? `Vault ${t.slice(6)}` : t.replace(/_/g, " "));
+const segmentWords = (seg: string): string =>
+  seg
+    .replace(/Id$/, "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .trim();
+
+/**
+ * What a call named that authorize could not find: the kind of thing in plain words and the name as the caller gave it (their own input at the binding's pointer, so nothing is revealed that they did not
+ * already write). A create names its container, so the kind comes from the input field that holds it ("/connector" is a connector); the other bindings name the thing itself, so it comes from the type.
+ * `name` is whatever the caller wrote there, untrimmed: the words layer decides whether it can be said back.
+ */
+export function missingThing(
+  cap: Pick<CapabilityDef, "resource">,
+  input: unknown,
+  resource: { type: string },
+): { kind: string; name: unknown } {
+  const b = cap.resource as { type: string; create?: true; parent?: string; id?: string; ref?: string };
+  if (b.create === true && b.parent) {
+    const seg = b.parent.split("/").pop() ?? "";
+    const w = segmentWords(seg);
+    return { kind: GENERIC_SEGMENT.has(seg) || w === "" ? "place" : w, name: pointer(input, b.parent) };
+  }
+  if (b.type === "dynamic" && b.ref)
+    return { kind: typeWords(resource.type), name: (pointer(input, b.ref) as { id?: unknown } | undefined)?.id };
+  return { kind: typeWords(resource.type), name: b.id ? pointer(input, b.id) : undefined };
+}
+
 /** Did an agent leave the id out of a self binding (the call is about its own computer or Space browser, bound to the Space)? */
 export function isSelfBound(cap: Pick<CapabilityDef, "resource">, input: unknown, caller?: { kind: string }): boolean {
   const b = cap.resource as { id?: string; self?: string };

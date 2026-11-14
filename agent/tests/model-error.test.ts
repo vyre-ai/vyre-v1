@@ -123,3 +123,32 @@ test("the same shape reaches a CLI engine through the server's tool result", () 
   assert.equal(Object.keys(out.error)[0], "say");
   assert.equal(out.error.supportCode, "validation.too_large");
 });
+
+test("a thing the caller named that is not there is said by kind and by the name they gave, never by an id", () => {
+  const named = modelError({
+    code: "permission.not_found",
+    message: "There is no connector called google ads that you can see.",
+    traceId: "t",
+    details: { cap: "connections.create", reason: "not_found", thing: "connector", name: "google_ads" },
+  } as never);
+  assert.match(named.say, /^There is no connector called google_ads that I can open\./);
+  assert.deepEqual(named.details, { reason: "not_found", thing: "connector", name: "google_ads" });
+  // a name that is an id is not said back, only the kind
+  const byId = modelError({
+    code: "permission.not_found",
+    message: "x",
+    traceId: "t",
+    details: { thing: "connection", name: "con_a1b2c3d4e5f6a7b8" },
+  } as never);
+  assert.match(byId.say, /^There is no connection by that name that I can open\./);
+  assert.equal(byId.details?.name, undefined);
+  assert.ok(!/con_a1b2/.test(JSON.stringify(byId)));
+  // a code that is not a not-found never takes the sentence
+  const other = modelError({
+    code: "permission.no_grant",
+    message: "No.",
+    traceId: "t",
+    details: { thing: "connector", name: "fathom" },
+  } as never);
+  assert.ok(!/There is no connector/.test(other.say), other.say);
+});
