@@ -18,7 +18,7 @@ import { matchShortcut } from "../../../shell/keyboard/map.ts";
 import { detectPlatform } from "../../../shell/keyboard/useShellKeys.ts";
 import { importedRows } from "../imported/model.ts";
 import type { ImportedRow } from "../imported/model.ts";
-import { lastNotesTab, loadNotesTab, retireOldNotesTabKey } from "../notes/notes-tab.ts";
+import { forgetNotesTab, lastNotesTab, loadNotesTab, retireOldNotesTabKey } from "../notes/notes-tab.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
 import { askedCall } from "../goals/goal-menu.ts";
 import { useAddSheet } from "../addsheet/index.ts";
@@ -151,6 +151,7 @@ export function SideChats({
   // the Notes tab this person used last: read with the sidebar's own read, held for the foot row's press (the old browser-wide key is deleted)
   useEffect(() => {
     retireOldNotesTabKey();
+    forgetNotesTab(); // another Space or person: what is held is not theirs until their read answers
     void loadNotesTab(data.call as never);
   }, [data]);
   const [draftTick, setDraftTick] = useState(0);

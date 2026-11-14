@@ -40,3 +40,12 @@ for (const [shape, origin] of [
     delete (globalThis as { location?: unknown }).location;
   });
 }
+
+test("sign-out forgets the Notes tab held for the person, so the next person starts on Notes", async () => {
+  const { lastNotesTab, rememberNotesTab } = await import("../../places/chats/notes/notes-tab.ts");
+  const st = store();
+  rememberNotesTab("artifacts");
+  assert.equal(lastNotesTab(), "artifacts");
+  clearStored(st);
+  assert.equal(lastNotesTab(), "notes");
+});

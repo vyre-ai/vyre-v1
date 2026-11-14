@@ -16,7 +16,7 @@ export const forgetNotesTab = (): void => {
   held = null;
 };
 
-/** Read the person's tab from their state. A person with no value opens on Notes; a read that fails leaves what is held. */
+/** Read the person's tab from their state. A person with no value opens on Notes, and so does a read that fails. */
 export async function loadNotesTab(call: Call): Promise<NotesTab> {
   try {
     const out = (await call("state.layout.get", { keys: [NOTES_TAB_KEY] })) as {
@@ -25,15 +25,17 @@ export async function loadNotesTab(call: Call): Promise<NotesTab> {
     const v = out.values?.find((x) => x.key === NOTES_TAB_KEY)?.value;
     held = v === "artifacts" ? "artifacts" : "notes";
   } catch {
-    /* keep what is held */
+    // a read that fails must not leave another person's tab behind: Notes until it answers
+    held = null;
   }
   return lastNotesTab();
 }
 
 /** The page is on this tab now: hold it and, when asked, keep it in the person's state. */
 export function rememberNotesTab(tab: NotesTab, call?: Call): void {
+  const changed = held !== tab;
   held = tab;
-  if (!call) return;
+  if (!call || !changed) return; // written only when it changed: a page opening on the tab already kept costs no write
   try {
     void Promise.resolve(call("state.layout.set", { key: NOTES_TAB_KEY, value: tab })).catch(() => undefined);
   } catch {

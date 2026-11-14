@@ -28,3 +28,4 @@
 - A stuck goal made before this version still shows once: its Unblock task names no goal, so it is matched to the goal by its title.
 - Hide on the Finish setup entry is kept in your own state on the Space, not in the browser: it stays hidden on every device you sign in on, and the next person on the same computer does not inherit it. The old browser-wide setting is deleted when the app opens, not moved.
 - The Notes or Artifacts tab you used last is kept in your own state on the Space: the sidebar's foot row opens on it on every device you sign in on, and the next person on the same computer starts on Notes. The old browser-wide setting is deleted, not moved.
+- The Notes tab held for a person is forgotten at sign-out and when the Space changes, and it is written to your state only when it changes.

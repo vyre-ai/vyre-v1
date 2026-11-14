@@ -89,3 +89,29 @@ test("the old browser-wide key is deleted, never moved", async () => {
     delete (globalThis as { localStorage?: unknown }).localStorage;
   }
 });
+
+test("a read that fails does not leave the person before's tab: Notes until it answers", async () => {
+  forgetNotesTab();
+  rememberNotesTab("artifacts");
+  assert.equal(
+    await loadNotesTab((async () => {
+      throw new Error("offline");
+    }) as never),
+    "notes",
+  );
+});
+
+test("the tab is written only when it changed", async () => {
+  const writes: unknown[] = [];
+  const call = (async (cap: string, input: Record<string, unknown>) => {
+    if (cap === "state.layout.set") writes.push(input["value"]);
+    return {};
+  }) as never;
+  forgetNotesTab();
+  rememberNotesTab("artifacts", call);
+  rememberNotesTab("artifacts", call);
+  rememberNotesTab("notes", call);
+  rememberNotesTab("notes", call);
+  assert.deepEqual(writes, ["artifacts", "notes"]);
+  forgetNotesTab();
+});
