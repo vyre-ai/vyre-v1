@@ -168,7 +168,12 @@ export async function interrupt(
   const engine = await open(ctx, input.threadId);
   let r;
   try {
-    r = await engine.interrupt(input.threadId, input.messageId, stopperOf(ctx));
+    r = await engine.interrupt(
+      input.threadId,
+      input.messageId,
+      stopperOf(ctx),
+      stopReach(ctx, undefined, true).askedBy,
+    );
   } catch (e) {
     if (e instanceof RangeError)
       raise(ctx, "validation.not_found", "There is no such message in this conversation.", {
@@ -212,9 +217,14 @@ function stopperOf(ctx: EngineCtx): StoppedBy {
   return { id: actorOf(ctx), kind: guest ? "guest" : "person" };
 }
 
-function stopReach(ctx: EngineCtx, agentId: string | undefined, all: boolean): { agentId?: string; askedBy?: string } {
+function stopReach(
+  ctx: EngineCtx,
+  agentId: string | undefined,
+  all: boolean,
+  anyAgent = false,
+): { agentId?: string; askedBy?: string } {
   const self = ctx.principal.kind === "agent" ? ctx.principal.id : undefined;
-  const target = all ? undefined : (agentId ?? self);
+  const target = all ? undefined : (agentId ?? (anyAgent ? undefined : self));
   if (!all && self !== undefined && target === self) return { agentId: self }; // its own turn, whoever asked it
   const guest = ctx.authorize({ perm: null, level: "view" }, { type: "space", id: ctx.space }).effect !== "allow";
   return { ...(target === undefined ? {} : { agentId: target }), ...(guest ? { askedBy: actorOf(ctx) } : {}) };
@@ -223,10 +233,10 @@ function stopReach(ctx: EngineCtx, agentId: string | undefined, all: boolean): {
 async function stopWith(
   ctx: EngineCtx,
   threadId: string,
-  o: { agentId?: string; all: boolean; reason?: "update" },
+  o: { agentId?: string; all: boolean; reason?: "update"; anyAgent?: boolean },
 ): Promise<{ stopped: number }> {
   const engine = await open(ctx, threadId);
-  const reach = stopReach(ctx, o.agentId, o.all);
+  const reach = stopReach(ctx, o.agentId, o.all, o.anyAgent === true);
   const r = await engine.stop(threadId, {
     ...reach,
     ...(o.reason ? {} : { by: stopperOf(ctx) }), // an app stopping its turns for an update is the system's
@@ -246,6 +256,10 @@ async function stopWith(
 /** Stop one agent working in a thread (its running turn, its queued turns and its parked turns). Without an agent, the turn that is running. */
 export const stop = (ctx: EngineCtx, input: { threadId: string; agentId?: string }): Promise<{ stopped: number }> =>
   stopWith(ctx, input.threadId, { ...(input.agentId === undefined ? {} : { agentId: input.agentId }), all: false });
+
+/** Stop whatever runs in a thread whose agents are not named by the caller (a helper's own thread): the person rule decides whose turns it reaches. */
+export const stopRunning = (ctx: EngineCtx, input: { threadId: string }): Promise<{ stopped: number }> =>
+  stopWith(ctx, input.threadId, { all: false, anyAgent: true });
 
 /** Stop every agent working in the thread: the running turn, everything queued, everything parked. */
 export const stopAll = (ctx: EngineCtx, input: { threadId: string; reason?: "update" }): Promise<{ stopped: number }> =>

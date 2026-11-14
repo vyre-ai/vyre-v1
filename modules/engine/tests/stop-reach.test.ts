@@ -2,7 +2,8 @@
 // agent its own turn, and another's only when the person it acts for could. Real SQLite behind ctx.db, a fake provider that holds every turn, three people each asking one agent.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { stop, stopAll } from "../handlers/control.ts";
+import { interrupt, stop, stopAll } from "../handlers/control.ts";
+import { mintEngineId, sqlMessages } from "../projections.ts";
 import { turnGet, turnRecord } from "../handlers/extra/turns.ts";
 import { harness } from "../fixtures/harness.ts";
 import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
@@ -174,6 +175,29 @@ test("the turn says who stopped it: a person, a guest or an agent, on the engine
     stoppedBy: { id: "usr_sam", kind: "person" },
   });
   assert.deepEqual(turnGet(w.h.ctx as never, { turnId: t.id }).what.turn.stoppedBy, { id: "usr_sam", kind: "person" });
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});
+
+test("a guest's stop and send reaches only the turns they asked for; a member's reaches every turn", async () => {
+  const w = await world();
+  // no message: only a Stop
+  await interrupt(w.as("usr_gus", true), { threadId: THREAD });
+  await w.runningIs([DOCS, INTAKE]);
+  // a message that asks Dana's agent: the guest's own turn is cancelled, Dana's is not
+  const stored = sqlMessages(w.h.db).append({
+    id: mintEngineId("m"),
+    threadId: THREAD,
+    author: person("usr_gus"),
+    mentions: ask(INTAKE),
+    depth: 0,
+    body: "stop, use the new plan",
+  });
+  await interrupt(w.as("usr_gus", true), { threadId: THREAD, messageId: stored.id });
+  await w.runningIs([DOCS, INTAKE]);
+  await interrupt(w.as("usr_sam", false), { threadId: THREAD });
+  // every turn that ran was cancelled; Dana's agent then takes the guest's waiting message
+  await w.runningIs([INTAKE]);
   w.hold.open();
   await w.engine.idle(THREAD);
 });
