@@ -509,20 +509,6 @@ if ("total" in o6809) lf(o6809["total"], p + "/total", e, L2);
 
 function e742_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7560 = v;
-const g7560 = typeOf(x7560);
-const b7560: string[] = []; lf(x7560, p, b7560, L0); if (b7560.length) e.push(...b7560);
-if (g7560 === "object") {
-if (g7560 === 'object') { const o7560 = x7560 as Record<string, unknown>;
-if (!("requestId" in o7560)) e.push(p + "/requestId" + ': required');
-if ("requestId" in o7560) lf(o7560["requestId"], p + "/requestId", e, L448);
-}
-}
-}
-}
-
-function e743_payload(v: unknown, p: string, e: string[]): void {
-{
 const x7561 = v;
 const g7561 = typeOf(x7561);
 const b7561: string[] = []; lf(x7561, p, b7561, L0); if (b7561.length) e.push(...b7561);
@@ -530,19 +516,12 @@ if (g7561 === "object") {
 if (g7561 === 'object') { const o7561 = x7561 as Record<string, unknown>;
 if (!("requestId" in o7561)) e.push(p + "/requestId" + ': required');
 if ("requestId" in o7561) lf(o7561["requestId"], p + "/requestId", e, L448);
-if ("forRun" in o7561) lf(o7561["forRun"], p + "/forRun", e, L34);
-if ("note" in o7561) lf(o7561["note"], p + "/note", e, L1);
-if ("name" in o7561) lf(o7561["name"], p + "/name", e, L1);
-if ("service" in o7561) lf(o7561["service"], p + "/service", e, L1);
-if ("threadId" in o7561) lf(o7561["threadId"], p + "/threadId", e, L13);
-if ("agentId" in o7561) lf(o7561["agentId"], p + "/agentId", e, L10);
-if ("asker" in o7561) lf(o7561["asker"], p + "/asker", e, L1);
 }
 }
 }
 }
 
-function e744_payload(v: unknown, p: string, e: string[]): void {
+function e743_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7562 = v;
 const g7562 = typeOf(x7562);
@@ -550,12 +529,11 @@ const b7562: string[] = []; lf(x7562, p, b7562, L0); if (b7562.length) e.push(..
 if (g7562 === "object") {
 if (g7562 === 'object') { const o7562 = x7562 as Record<string, unknown>;
 if (!("requestId" in o7562)) e.push(p + "/requestId" + ': required');
-if (!("itemId" in o7562)) e.push(p + "/itemId" + ': required');
 if ("requestId" in o7562) lf(o7562["requestId"], p + "/requestId", e, L448);
-if ("itemId" in o7562) lf(o7562["itemId"], p + "/itemId", e, L91);
-if ("handle" in o7562) lf(o7562["handle"], p + "/handle", e, L7);
 if ("forRun" in o7562) lf(o7562["forRun"], p + "/forRun", e, L34);
+if ("note" in o7562) lf(o7562["note"], p + "/note", e, L1);
 if ("name" in o7562) lf(o7562["name"], p + "/name", e, L1);
+if ("service" in o7562) lf(o7562["service"], p + "/service", e, L1);
 if ("threadId" in o7562) lf(o7562["threadId"], p + "/threadId", e, L13);
 if ("agentId" in o7562) lf(o7562["agentId"], p + "/agentId", e, L10);
 if ("asker" in o7562) lf(o7562["asker"], p + "/asker", e, L1);
@@ -564,7 +542,7 @@ if ("asker" in o7562) lf(o7562["asker"], p + "/asker", e, L1);
 }
 }
 
-function e745_payload(v: unknown, p: string, e: string[]): void {
+function e744_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7563 = v;
 const g7563 = typeOf(x7563);
@@ -572,29 +550,51 @@ const b7563: string[] = []; lf(x7563, p, b7563, L0); if (b7563.length) e.push(..
 if (g7563 === "object") {
 if (g7563 === 'object') { const o7563 = x7563 as Record<string, unknown>;
 if (!("requestId" in o7563)) e.push(p + "/requestId" + ': required');
-if (!("name" in o7563)) e.push(p + "/name" + ': required');
-if (!("fields" in o7563)) e.push(p + "/fields" + ': required');
-if (!("requester" in o7563)) e.push(p + "/requester" + ': required');
-if (!("taskId" in o7563)) e.push(p + "/taskId" + ': required');
+if (!("itemId" in o7563)) e.push(p + "/itemId" + ': required');
 if ("requestId" in o7563) lf(o7563["requestId"], p + "/requestId", e, L448);
-if ("name" in o7563) lf(o7563["name"], p + "/name", e, L1);
-if ("fields" in o7563) {
-{
-const x7564 = o7563["fields"];
-const g7564 = typeOf(x7564);
-const b7564: string[] = []; lf(x7564, p + "/fields", b7564, L4); if (b7564.length) e.push(...b7564);
-if (g7564 === "array") {
-if (g7564 === 'array') { const a7564 = x7564 as unknown[];
-for (let i7564 = 0; i7564 < a7564.length; i7564++) {
-lf(a7564[i7564], p + "/fields" + '/' + i7564, e, L29);
-}
-}
-}
-}
-}
-if ("requester" in o7563) d_s_6c1eb10d98(o7563["requester"], p + "/requester", e);
+if ("itemId" in o7563) lf(o7563["itemId"], p + "/itemId", e, L91);
+if ("handle" in o7563) lf(o7563["handle"], p + "/handle", e, L7);
 if ("forRun" in o7563) lf(o7563["forRun"], p + "/forRun", e, L34);
-if ("taskId" in o7563) lf(o7563["taskId"], p + "/taskId", e, L61);
+if ("name" in o7563) lf(o7563["name"], p + "/name", e, L1);
+if ("threadId" in o7563) lf(o7563["threadId"], p + "/threadId", e, L13);
+if ("agentId" in o7563) lf(o7563["agentId"], p + "/agentId", e, L10);
+if ("asker" in o7563) lf(o7563["asker"], p + "/asker", e, L1);
+}
+}
+}
+}
+
+function e745_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7564 = v;
+const g7564 = typeOf(x7564);
+const b7564: string[] = []; lf(x7564, p, b7564, L0); if (b7564.length) e.push(...b7564);
+if (g7564 === "object") {
+if (g7564 === 'object') { const o7564 = x7564 as Record<string, unknown>;
+if (!("requestId" in o7564)) e.push(p + "/requestId" + ': required');
+if (!("name" in o7564)) e.push(p + "/name" + ': required');
+if (!("fields" in o7564)) e.push(p + "/fields" + ': required');
+if (!("requester" in o7564)) e.push(p + "/requester" + ': required');
+if (!("taskId" in o7564)) e.push(p + "/taskId" + ': required');
+if ("requestId" in o7564) lf(o7564["requestId"], p + "/requestId", e, L448);
+if ("name" in o7564) lf(o7564["name"], p + "/name", e, L1);
+if ("fields" in o7564) {
+{
+const x7565 = o7564["fields"];
+const g7565 = typeOf(x7565);
+const b7565: string[] = []; lf(x7565, p + "/fields", b7565, L4); if (b7565.length) e.push(...b7565);
+if (g7565 === "array") {
+if (g7565 === 'array') { const a7565 = x7565 as unknown[];
+for (let i7565 = 0; i7565 < a7565.length; i7565++) {
+lf(a7565[i7565], p + "/fields" + '/' + i7565, e, L29);
+}
+}
+}
+}
+}
+if ("requester" in o7564) d_s_6c1eb10d98(o7564["requester"], p + "/requester", e);
+if ("forRun" in o7564) lf(o7564["forRun"], p + "/forRun", e, L34);
+if ("taskId" in o7564) lf(o7564["taskId"], p + "/taskId", e, L61);
 }
 }
 }

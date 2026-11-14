@@ -3675,15 +3675,15 @@ if ("by" in o7528) lf(o7528["by"], p + "/by", e, L1);
 
 function e754_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7571 = v;
-const g7571 = typeOf(x7571);
-const b7571: string[] = []; lf(x7571, p, b7571, L0); if (b7571.length) e.push(...b7571);
-if (g7571 === "object") {
-if (g7571 === 'object') { const o7571 = x7571 as Record<string, unknown>;
-if (!("target" in o7571)) e.push(p + "/target" + ': required');
-if (!("expiresAt" in o7571)) e.push(p + "/expiresAt" + ': required');
-if ("target" in o7571) lf(o7571["target"], p + "/target", e, L351);
-if ("expiresAt" in o7571) lf(o7571["expiresAt"], p + "/expiresAt", e, L17);
+const x7572 = v;
+const g7572 = typeOf(x7572);
+const b7572: string[] = []; lf(x7572, p, b7572, L0); if (b7572.length) e.push(...b7572);
+if (g7572 === "object") {
+if (g7572 === 'object') { const o7572 = x7572 as Record<string, unknown>;
+if (!("target" in o7572)) e.push(p + "/target" + ': required');
+if (!("expiresAt" in o7572)) e.push(p + "/expiresAt" + ': required');
+if ("target" in o7572) lf(o7572["target"], p + "/target", e, L351);
+if ("expiresAt" in o7572) lf(o7572["expiresAt"], p + "/expiresAt", e, L17);
 }
 }
 }

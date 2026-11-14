@@ -1,6 +1,6 @@
 # chat.chapters_write
 
-Write the title and one line of up to 3 closed chapters that only have the plain words of the chat, on a cheap model of the account that ran the turn. A model that fails leaves the plain words. Never holds a post
+Head closed chapters of a long chat, each at most once ever: a cheap model on the asker's own api_key account (never a subscription, never someone else's), only for a chapter the asker opened, at most about 750 tokens in and 40 out. Anything else keeps the plain words. Never holds a post
 
 | | |
 |---|---|
@@ -29,6 +29,7 @@ type In = {
   account?: {
     ref: string;
     driver: string;
+    kind?: string;
   };
 };
 ```
@@ -57,6 +58,7 @@ type Out = {
   "input": {
     "account": {
       "driver": "example",
+      "kind": "example",
       "ref": "example"
     },
     "threadId": "thr_a1b2c3"
