@@ -1,0 +1,1 @@
+- Tag two agents in one message ("@Dex @Nova") and each answers on its own. Before, the chat's lead could also answer the other agent's reply, so one tag could set off an extra turn.

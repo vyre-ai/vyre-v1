@@ -1355,3 +1355,20 @@ test("two people's turns of two agents in one chat do not overlap, and each repl
   assert.deepEqual(who(LEAD), ["usr_dana"]);
   assert.deepEqual(who(WATCHER), ["usr_mia"]);
 });
+
+test("a message that tags two agents reaches both, and each answers once (chat gap G51)", async () => {
+  const agents: Array<{ agentId: string; mode: "lead" | "listen" }> = [
+    { agentId: LEAD, mode: "lead" },
+    { agentId: WATCHER, mode: "listen" },
+  ];
+  const s = setup({ script: reply("On it."), agents });
+  const { result } = await s.say("@Intake @Watch look at this", [
+    { kind: "agent", id: LEAD },
+    { kind: "agent", id: WATCHER },
+  ]);
+  assert.deepEqual(result, { receivedAs: [LEAD, WATCHER] });
+  const done = s.engine.turns(T).filter((t) => t.state === "completed");
+  assert.deepEqual(done.map((t) => t.agentId).sort(), [LEAD, WATCHER].sort());
+  const replies = s.chat.filter((r) => r.author.kind === "agent");
+  assert.equal(replies.length, 2, "both agents posted a reply");
+});

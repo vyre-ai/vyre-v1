@@ -532,9 +532,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       opts.policy,
     );
     let responders = r.responders;
-    // a round where a person spoke to all the agents: each answers alone, and no answer sets off another agent (the lead posts no summary) unless it @mentions one or the person asks again
+    // a round where a person spoke to all the agents, or tagged more than one: each answers alone, and no answer sets off another agent (the lead posts no summary) unless it @mentions one or the person asks again
     if (msg.author.kind === "person") {
-      if (r.reason === "all") askedAll.set(st.thread.id, new Set(responders));
+      if (r.reason === "all" || (r.reason === "mention" && responders.length > 1)) askedAll.set(st.thread.id, new Set(responders));
       else askedAll.delete(st.thread.id);
     } else if (askedAll.get(st.thread.id)?.has(msg.author.id) && r.reason !== "mention") {
       askedAll.get(st.thread.id)!.delete(msg.author.id);
