@@ -48,6 +48,7 @@ const ID_SHAPE: Readonly<Record<string, RegExp | null>> = Object.freeze({
   skill: /^sko_[a-z0-9]+$/,
   conversation: /^cnv_[a-z0-9]+$/,
   mail_message: /^eml_[a-z0-9]+$/,
+  calendar_event: /^cev_[a-z0-9]+$/,
   inbox: null,
   automation_group: null,
   connector: null,
@@ -91,6 +92,8 @@ export interface RegisterArgs {
 export interface ResourceRegistrar {
   /** The resource rows to append (as `resource.created` payloads) for the objects these events bring into being. */
   register(a: RegisterArgs): ResourceRow[];
+  /** Who may read the `resource.created` event of this row in the event log (see announcementVis). */
+  visOf?(row: ResourceRow): "space" | "participants";
 }
 
 export interface RegistrarDeps {
@@ -149,10 +152,12 @@ export function missingAgentResources(a: { space: string; events: readonly Event
  * them: a conversation, and a mail message. Their birth events register them, under the Space like any other object, so the module's own door (a private mailbox, a private message) is the only filter
  * on who reads the content and the role grants of the Space say who may act on it.
  */
-const ENTITY_BIRTHS: ReadonlyMap<string, SubjectDef["subject"]> = new Map([
+const ENTITY_BIRTHS: ReadonlyMap<string, SubjectDef["subject"] & { parent?: string }> = new Map([
   ["conversation.created", { type: "conversation", id: "/conversationId" }],
   ["mail.received", { type: "mail_message", id: "/messageId" }],
   ["message.sent", { type: "mail_message", id: "/messageId" }],
+  // an event lives in its calendar (so a private Personal calendar's privacy covers it); calendar.get_event, update_event and delete_event are bound to the event itself, and without a row access answered "not found" to everyone, the person included
+  ["calendar_event.created", { type: "calendar_event", id: "/eventId", parent: "/calendarId" }],
 ]);
 
 /**
@@ -176,12 +181,46 @@ function insideOf(deps: RegistrarDeps, from: string, home: string): boolean {
   return false;
 }
 
+/**
+ * Where a calendar event already in the store is registered the first time a call names it: inside its calendar, owned by that calendar's owner (a private Personal calendar's events are that person's alone and
+ * nobody else reaches them through the Space), and only when the calendar is unknown (a row whose calendar is gone) under the Space and the Space owner's name with the host mark.
+ */
+export function lateEventPlace(a: {
+  calendar: Pick<ResourceRow, "id" | "owner_id"> | undefined;
+  spaceId: string;
+  spaceOwner: string;
+}): { parent_id: string; owner_id: string; hostOwned: boolean } {
+  return a.calendar?.owner_id
+    ? { parent_id: a.calendar.id, owner_id: a.calendar.owner_id, hostOwned: false }
+    : { parent_id: a.calendar ? a.calendar.id : a.spaceId, owner_id: a.spaceOwner, hostOwned: true };
+}
+
+/**
+ * Who may read the log's `resource.created` for a row: births of a private root (a Personal calendar, a Personal files root, a Mine Vault folder, a private mailbox or site: a row with no container that is not the
+ * Space) and of anything under one (an event in a Personal calendar, a file in Personal files, a Vault item in Mine) are announced to `participants`: the call's own actor and anyone access lets view the row,
+ * which for a private root is its owner. Everything under the Space is the Space's, as before. A parent this cannot find is not a reason to hide. The system's own readers (the access projection, the peer
+ * sync of one person's computers) read the log without this filter.
+ */
+export function announcementVis(
+  row: ResourceRow,
+  resource: ((id: string) => ResourceRow | undefined) | undefined,
+): "space" | "participants" {
+  if (row.type === "space") return "space";
+  let at: ResourceRow | undefined = row;
+  for (let depth = 0; depth < 64 && at !== undefined; depth++) {
+    if (at.parent_id === null) return at.type === "space" ? "space" : "participants";
+    at = resource?.(at.parent_id);
+  }
+  return "space";
+}
+
 export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar {
   const subjects = new Map<string, SubjectDef["subject"]>();
   for (const e of deps.events) if (e.subject.type !== "entity" && !ENDS.test(e.name)) subjects.set(e.name, e.subject);
   // `mail.received` already names its mailbox as subject; the message is a second object the same event brings into being, so it is kept apart
   const births = new Map(ENTITY_BIRTHS);
   return {
+    visOf: (row) => announcementVis(row, deps.resource),
     register(a) {
       const out: ResourceRow[] = [];
       let parentPtr: string | undefined;
@@ -220,7 +259,9 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
           const xid = pointer(ev.payload, extra.id);
           if (typeof xid === "string" && idFits(extra.type, xid) && !seen.has(xid) && !deps.exists(xid)) {
             seen.add(xid);
-            out.push({ id: xid, type: extra.type, parent_id: a.space, label: 0, owner_id: a.owner, holds: 0 });
+            const inside = extra.parent === undefined ? undefined : pointer(ev.payload, extra.parent);
+            const parent = typeof inside === "string" && (deps.exists(inside) || seen.has(inside)) ? inside : a.space;
+            out.push({ id: xid, type: extra.type, parent_id: parent, label: 0, owner_id: a.owner, holds: 0 });
           }
         }
         const s = subjects.get(ev.type);

@@ -1069,7 +1069,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         events,
       })) {
         events.push(
-          envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth) as EventEnvelope,
+          envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth, {
+            vis: deps.resources.visOf?.(row) ?? "space",
+          }) as EventEnvelope,
         );
         // An agent that makes a record type for the person it acts for holds Manage on it (the person owns it): it needs to set who the type is open to as part of the same work. Only a record type, only
         // an agent acting for a person. This adds no power beyond the person: every call the agent makes still takes the lower of its grants and its asker's access.

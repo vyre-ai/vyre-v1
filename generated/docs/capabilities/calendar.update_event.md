@@ -11,7 +11,7 @@ Change, move or resize an event
 | Grant level | edit |
 | Risk | medium |
 | Resource | entity (/eventId) |
-| Gate | send when actor.kind != 'person' && input.attendees != null |
+| Gate | send when calendar.writes_outside(input) |
 | Idempotency | natural |
 | Offline | patch |
 | Audit | none |

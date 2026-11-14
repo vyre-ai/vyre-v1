@@ -7,7 +7,14 @@ import type { ResourceRow } from "../../kernel/src/authorize/index.ts";
 import { createInvoke, indexCapabilities } from "../src/invoke.ts";
 import type { CommitBatch, CtxSeed, Handler } from "../src/invoke.ts";
 import { HostError } from "../src/routes/errors.ts";
-import { createResourceRegistrar, idFits, KNOWN_TYPES, missingAgentResources } from "../src/gateway/resources.ts";
+import {
+  announcementVis,
+  createResourceRegistrar,
+  idFits,
+  KNOWN_TYPES,
+  lateEventPlace,
+  missingAgentResources,
+} from "../src/gateway/resources.ts";
 import type { SubjectDef } from "../src/gateway/resources.ts";
 import { createPrincipalRegistrar } from "../src/gateway/principals.ts";
 import { foldEvent } from "../src/daemon/access.ts";
@@ -695,4 +702,68 @@ test("registrar: a new skill is registered from its birth event, owned by the pe
     events: [ev("skill.mine_changed", { skillId: "sko_a1b2c4", op: "added", ownerId: "usr_dana" })],
   });
   assert.equal(agents[0]?.owner_id, "usr_dana", "an agent's skill is its owner's");
+});
+
+test("registrar: a calendar event is a resource inside its calendar, owned by the person the call acts for", () => {
+  const known = new Set(["spc_1", "cld_personal"]);
+  const r = createResourceRegistrar({ events: EVENTS, exists: (id) => known.has(id) });
+  const rows = r.register({
+    cap: { name: "calendar.create_event", resource: { type: "calendar", id: "/calendarId" } },
+    input: { calendarId: "cld_personal" },
+    space: "spc_1",
+    owner: "usr_dana",
+    principal: { kind: "person", id: "usr_dana" },
+    events: [ev("calendar_event.created", { eventId: "cev_abc123", calendarId: "cld_personal" })],
+  });
+  assert.deepEqual(rows, [
+    { id: "cev_abc123", type: "calendar_event", parent_id: "cld_personal", label: 0, owner_id: "usr_dana", holds: 0 },
+  ]);
+});
+
+test("an event already in the store is registered inside its calendar and owned by the calendar's owner, never under the Space or in the Space owner's name; only an event whose calendar is unknown falls back", () => {
+  const mine = lateEventPlace({
+    calendar: { id: "cld_noah", owner_id: "usr_noah" },
+    spaceId: "spc_1",
+    spaceOwner: "usr_olivia",
+  });
+  assert.deepEqual(mine, { parent_id: "cld_noah", owner_id: "usr_noah", hostOwned: false });
+  const shared = lateEventPlace({
+    calendar: { id: "cld_team", owner_id: null },
+    spaceId: "spc_1",
+    spaceOwner: "usr_olivia",
+  });
+  assert.deepEqual(
+    shared,
+    { parent_id: "cld_team", owner_id: "usr_olivia", hostOwned: true },
+    "a Space calendar's event is the Space owner's, with the host mark",
+  );
+  const gone = lateEventPlace({ calendar: undefined, spaceId: "spc_1", spaceOwner: "usr_olivia" });
+  assert.deepEqual(gone, { parent_id: "spc_1", owner_id: "usr_olivia", hostOwned: true });
+});
+
+test("announcementVis: births of a private root and of anything under one are announced to participants only; everything under the Space stays the Space's", () => {
+  const R = (id: string, type: string, parent: string | null): ResourceRow => ({ id, type, parent_id: parent, label: 0, owner_id: "usr_noah", holds: 0 });
+  const rows: Record<string, ResourceRow> = Object.fromEntries(
+    [
+      R("spc_1", "space", null),
+      R("cld_private", "calendar", null),
+      R("cld_team", "calendar", "spc_1"),
+      R("fld_personal", "folder", null),
+      R("fld_sub", "folder", "fld_personal"),
+      R("vfd_mine", "vault_folder", null),
+      R("fld_space", "folder", "spc_1"),
+    ].map((x) => [x.id, x]),
+  );
+  const at = (row: ResourceRow) => announcementVis(row, (id) => rows[id]);
+  assert.equal(at(rows["spc_1"]!), "space", "the Space itself");
+  for (const id of ["cld_private", "fld_personal", "vfd_mine"]) assert.equal(at(rows[id]!), "participants", `${id}: a private root`);
+  assert.equal(at(R("cev_1", "calendar_event", "cld_private")), "participants", "an event in a Personal calendar");
+  assert.equal(at(R("fil_1", "file", "fld_sub")), "participants", "a file two levels down in Personal files");
+  assert.equal(at(R("vit_1", "vault_item", "vfd_mine")), "participants", "a Vault item in Mine");
+  assert.equal(at(R("cev_2", "calendar_event", "cld_team")), "space", "an event on a Space calendar");
+  assert.equal(at(R("fil_2", "file", "fld_space")), "space", "a file in a Space folder");
+  assert.equal(at(R("rec_1", "record", "spc_1")), "space", "a record");
+  assert.equal(at(R("cev_3", "calendar_event", "cld_gone")), "space", "a parent it cannot find is not a reason to hide");
+  const r = createResourceRegistrar({ events: EVENTS, exists: (id) => id in rows, resource: (id) => rows[id] });
+  assert.equal(r.visOf!(R("cev_1", "calendar_event", "cld_private")), "participants", "the registrar uses it");
 });
