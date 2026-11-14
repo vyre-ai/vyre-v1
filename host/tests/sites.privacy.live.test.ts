@@ -523,3 +523,29 @@ test("an artifact's folder cannot be moved or renamed from Files, nor the Artifa
     await d.stop();
   }
 });
+
+test("deleting an artifact takes its pages out of reach and out of search for everyone, the person it was shared with included (F62)", async () => {
+  const d = await boot(seededDir());
+  try {
+    const r = await raw(d, "/v1/sites/artifact_publish", { title: "Lemur artifact", html: "<p>LEMURWORD</p>", idempotencyKey: "lm1" });
+    assert.equal(r.status, 200, r.text);
+    const siteId = (JSON.parse(r.text) as { data: { artifactId: string } }).data.artifactId;
+    const folder = (d.db!.all("SELECT target_folder AS f FROM sites_site WHERE id = ?", siteId)[0] as { f: string }).f;
+    const fileId = (d.db!.all("SELECT id FROM files_file WHERE folder_id = ?", folder)[0] as { id: string }).id;
+    assert.equal((await raw(d, "/v1/access/share", { idempotencyKey: "lm-share", resource: { type: "site", id: siteId }, subject: { kind: "person", id: "usr_noah" }, level: "view" })).status, 200);
+    await new Promise((x) => setTimeout(x, 2000));
+    const finds = async (who: string): Promise<boolean> => /LEMURWORD/.test((await raw(d, "/v1/search/query", { q: "LEMURWORD" }, who)).text);
+    const folderReach = async (who: string): Promise<string> =>
+      (JSON.parse((await raw(d, "/v1/access/reach", { items: [{ type: "folder", id: folder }] }, who)).text) as { data: { items: { level: string }[] } }).data.items[0]!.level;
+    assert.equal(await finds(NOAH), true, "the person it was shared with reads the page");
+    assert.notEqual(await folderReach(NOAH), "none");
+    const del = await raw(d, "/v1/sites/delete", { siteId, idempotencyKey: "lm-del" });
+    assert.equal(del.status, 200, del.text);
+    await new Promise((x) => setTimeout(x, 1500));
+    for (const who of [NOAH, OWNER]) assert.equal(await finds(who), false, `${who} still finds a deleted artifact's page`);
+    assert.notEqual((await raw(d, "/v1/files/read", { fileId, as: "base64" }, NOAH)).status, 200, "the share holder still reads the page");
+    assert.notEqual((await raw(d, "/v1/files/read", { fileId, as: "base64" })).status, 200, "the owner reads it outside Trash");
+  } finally {
+    await d.stop();
+  }
+});

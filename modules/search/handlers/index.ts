@@ -295,6 +295,34 @@ const setSeen = (ctx: SearchCtx, entity: string, id: string, seq: number): void 
 };
 
 /** Apply one changed entity row. Safe to repeat and to receive late: a sequence at or below the last one applied for the row changes nothing. */
+/**
+ * A folder that goes to Trash takes its files out of the index with it (F62, 14 Nov 2026): the files are not events of their own, so without this a deleted artifact's page stayed findable to whoever it was shared with.
+ * The files of the folder itself, and those below it (found by the folder's path, taken from one of its own files), leave.
+ */
+export function indexDropFolder(ctx: SearchCtx, folderId: string, seq: number): number {
+  ensure(ctx.db);
+  const direct = ctx.db.all("SELECT entity, id, path FROM search_docs WHERE folder_id = ? AND res_type = 'file'", folderId) as {
+    entity: string;
+    id: string;
+    path: string | null;
+  }[];
+  const base = direct.map((r) => String(r.path ?? "")).find((p) => p.includes("/"));
+  const prefix = base === undefined ? null : base.slice(0, base.lastIndexOf("/") + 1);
+  const below =
+    prefix === null
+      ? []
+      : (ctx.db.all("SELECT entity, id FROM search_docs WHERE res_type = 'file' AND path LIKE ? ESCAPE '\\'", `${prefix.replace(/[\\%_]/g, "\\$&")}%`) as {
+          entity: string;
+          id: string;
+        }[]);
+  let n = 0;
+  for (const r of [...direct, ...below]) {
+    if (removeDoc(ctx.db, ctx.space, r.entity, r.id)) n++;
+    setSeen(ctx, r.entity, r.id, seq);
+  }
+  return n;
+}
+
 export async function indexApply(
   ctx: SearchCtx,
   input: { entity: string; id: string; op: "upsert" | "delete"; seq: number },

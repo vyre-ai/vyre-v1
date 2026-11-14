@@ -498,6 +498,10 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
 async function sitesDelete(ctx: Ctx, input: unknown): Promise<{ deleted: boolean }> {
   const site = mustSite(ctx, reqStr(ctx, rec(ctx, input), "siteId"));
   const now = ctx.now();
+  // an artifact's pages are files in a folder: deleting the artifact takes the folder, and so every page in it, out of reach and out of search for everyone, the person it was shared with included (F62). It goes to the
+  // owner's Trash like any deleted folder. It is done first, so a failure leaves the artifact as it was rather than half deleted.
+  if (site.kind === "artifact" && !isNull(site.target_folder))
+    await ctx.call("files.folder.delete", { folderId: str(site.target_folder) });
   await routeDomains(ctx, site, false);
   await host?.hostRoute?.(str(site.id), false).catch(() => undefined);
   await stopDeployed(ctx, site, true);
