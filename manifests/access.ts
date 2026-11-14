@@ -832,6 +832,17 @@ export default defineManifest({
       "The people who hold Manage on a resource and so may decide a request about it. Used to route a request to a person even when the caller, an agent, cannot see the resource itself; it names people and shows nothing else",
       { ...V, in: { resource: resourceRef }, out: { people: t.arr(id.user) }, tool: "meta" },
     ),
+    read(
+      "access.clears",
+      "Whether a principal's clearance reaches a resource's label, asked before a key is stored or shared for an agent. Yes or no only. The server or a person with Edit on it may ask; anyone else gets not found",
+      {
+        ...V,
+        in: { principal: principalRef, target: resourceRef },
+        out: { clears: t.bool() },
+        tool: "meta",
+        errors: ["validation.not_found"],
+      },
+    ),
     read("access.grants.list", "List grants by resource, subject or source (Console Grants)", {
       ...V,
       in: { resource: t.opt(resourceRef), subject: t.opt(subjectRef), source: t.opt(t.str()), ...pageIn },

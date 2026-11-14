@@ -5,6 +5,13 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "vault.connect": Handler<"vault.connect", X>;
+  "vault.connect_card.ask_admin": Handler<"vault.connect_card.ask_admin", X>;
+  "vault.connect_card.disconnect": Handler<"vault.connect_card.disconnect", X>;
+  "vault.connect_card.get": Handler<"vault.connect_card.get", X>;
+  "vault.connect_card.options": Handler<"vault.connect_card.options", X>;
+  "vault.connect_card.reopen": Handler<"vault.connect_card.reopen", X>;
+  "vault.connect_card.submit": Handler<"vault.connect_card.submit", X>;
   "vault.request": Handler<"vault.request", X>;
   "vault.requests.cancel": Handler<"vault.requests.cancel", X>;
   "vault.requests.decline": Handler<"vault.requests.decline", X>;

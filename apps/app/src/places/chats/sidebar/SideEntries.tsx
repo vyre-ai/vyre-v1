@@ -131,8 +131,11 @@ function GroupFaces({ item }: { item: Item }): ReactElement {
   );
 }
 
-/** The leading look of a row by its shape (design 2.3). */
+/** The leading look of a row by its shape (design 2.3), with the gap before the title. */
 export function Lead({ item }: { item: Item }): ReactElement {
+  return <View style={s.leadGap as never}>{leadOf(item)}</View>;
+}
+function leadOf(item: Item): ReactElement {
   switch (item.shape) {
     case "goal":
       return <GoalRing item={item} />;
@@ -548,7 +551,8 @@ const s = StyleSheet.create({
     borderWidth: 2,
     borderColor: "var(--warn)" as string,
   },
-  tasksLead: { flexDirection: "row", alignItems: "center", gap: 4 },
+  tasksLead: { flexDirection: "row", alignItems: "center", gap: 4, marginRight: 8 },
+  leadGap: { marginRight: 8 },
   chevHit: { width: 16, height: 22, alignItems: "center", justifyContent: "center" },
   lead: { width: BOX, height: BOX, alignItems: "center", justifyContent: "center" },
   marks: { flexDirection: "row", alignItems: "center", gap: 4 },

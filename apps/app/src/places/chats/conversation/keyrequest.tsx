@@ -11,14 +11,36 @@ import { Glyph } from "./parts.tsx";
 import { Face } from "../needsyou/parts.tsx";
 import { AUDIENCES, keyWords, requestOf } from "./keyrequest-model.ts";
 import type { KeyAudience, KeyRequest } from "./keyrequest-model.ts";
+import { ConnectCardLive } from "./connectcard.tsx";
 
-type Data = Pick<ConversationData, "call" | "changes">;
+type Data = Pick<ConversationData, "call" | "changes"> & { nameOf?: (id: string) => string };
+
+const NO_FOLDER =
+  "There is no shared folder this agent can use. Make one that is not restricted, or let the person who asked add the key.";
 
 export function isKeyRequest(type: string): boolean {
   return type === "vault_request";
 }
 
-export function KeyRequestCard({
+/**
+ * The card of a request an agent made: a request for a service (the block names it) is the connect card, one card for the whole of connecting it; a request for a key by name is the secure field below.
+ */
+export function KeyRequestCard(p: {
+  requestId: string;
+  agent: string;
+  agentId: string;
+  data: Data;
+  /** The connector the request is for, when it is for a service (the block's own `service`). */
+  service?: string | undefined;
+}): ReactElement | null {
+  return p.service ? (
+    <ConnectCardLive requestId={p.requestId} agent={p.agent} data={p.data} />
+  ) : (
+    <PlainKeyRequestCard requestId={p.requestId} agent={p.agent} agentId={p.agentId} data={p.data} />
+  );
+}
+
+function PlainKeyRequestCard({
   requestId,
   agent,
   agentId,
@@ -51,6 +73,36 @@ export function KeyRequestCard({
   useEffect(() => {
     void load();
   }, [load]);
+  // the first shared folder the agent can use a key kept in (the access module's own answer, not a list of names): where a key for the team goes. None, and "anyone" is not offered.
+  const [shared, setShared] = useState<string | null | undefined>(undefined);
+  const waiting = req?.state === "waiting";
+  useEffect(() => {
+    if (!waiting || !canDecide) return;
+    let live = true;
+    void (async () => {
+      let found: string | null = null;
+      try {
+        const folders = ((await data.call("vault.folders.list", { scope: "shared" })) as { folders?: { id: string }[] })
+          .folders;
+        for (const f of folders ?? []) {
+          const got = (await data.call("access.clears", {
+            principal: { kind: "agent", id: agentId },
+            target: { type: "vault_folder", id: f.id },
+          })) as { clears?: boolean };
+          if (got.clears === true) {
+            found = f.id;
+            break;
+          }
+        }
+      } catch {
+        /* none found: the key stays the asker's own */
+      }
+      if (live) setShared(found);
+    })();
+    return () => {
+      live = false;
+    };
+  }, [waiting, canDecide, agentId, data]);
   useFollow(data.changes, load, req === undefined || req === null || req.state === "waiting");
 
   if (req === undefined || req === null) return null;
@@ -68,12 +120,20 @@ export function KeyRequestCard({
     );
   }
 
+  // a team choice needs a folder the agent can use: when there is none, the choice is not offered
+  const anyoneOk = !!req.folderId || !!shared;
+  // nowhere the agent could use the key: not a shared folder it can use, and not the person's own keys (a manager's Mine is not an option)
+  const nowhere = !req.folderId && shared === null && !req.askedYou;
+  const choices = AUDIENCES.filter((a) => a.key !== "anyone" || anyoneOk);
+  const chosen: KeyAudience = anyoneOk ? audience : "asker";
   const folderFor = async (): Promise<string> => {
     if (req.folderId) return req.folderId;
-    const folders = ((await data.call("vault.folders.list", {})) as { folders: { id: string; scope: string }[] })
-      .folders;
-    const pick = folders.find((f) => f.scope === "shared") ?? folders.find((f) => f.scope === "mine");
-    if (pick) return pick.id;
+    if (shared) return shared;
+    // a manager answering someone else's ask has no folder of their own the agent can use: never their Mine
+    if (!req.askedYou) throw new Error(NO_FOLDER);
+    const mine = ((await data.call("vault.folders.list", { scope: "mine" })) as { folders?: { id: string }[] })
+      .folders?.[0];
+    if (mine) return mine.id;
     return (
       (await data.call("vault.folders.create", {
         name: "Mine",
@@ -91,7 +151,7 @@ export function KeyRequestCard({
         requestId,
         folderId,
         fields: req.fields.map((k) => ({ key: k, value: (values[k] ?? "").trim() })),
-        audience,
+        audience: chosen,
       });
       setValues({});
       await load();
@@ -123,7 +183,7 @@ export function KeyRequestCard({
       testID={`keyreq-${requestId}`}
       label={`${agent} needs the ${words}`}
       onCancel={declining ? () => setDeclining(false) : undefined}
-      {...(canDecide && !declining && ready && !busy ? { onEnter: () => void add() } : {})}
+      {...(canDecide && !declining && ready && !nowhere && !busy ? { onEnter: () => void add() } : {})}
     >
       <CardHead
         title={`${agent} needs the ${words}`}
@@ -171,28 +231,33 @@ export function KeyRequestCard({
           >
             <Text style={st.ask}>{`Who can use it through ${agent}?`}</Text>
             {/* ui-rows-lint: not a list (the two choices of one question) */}
-            {AUDIENCES.map((a) => (
+            {choices.map((a) => (
               <Pressable
                 key={a.key}
                 accessibilityRole="radio"
-                accessibilityState={{ checked: audience === a.key }}
-                aria-checked={audience === a.key}
+                accessibilityState={{ checked: chosen === a.key }}
+                aria-checked={chosen === a.key}
                 accessibilityLabel={a.label}
                 testID={`keyreq-audience-${a.key}-${requestId}`}
                 onPress={() => setAudience(a.key)}
                 style={st.choice}
               >
-                <View style={[st.dot, audience === a.key && st.dotOn]} />
+                <View style={[st.dot, chosen === a.key && st.dotOn]} />
                 <Text style={st.choiceText}>{a.label}</Text>
               </Pressable>
             ))}
           </View>
+          {nowhere ? (
+            <Text testID={`keyreq-nowhere-${requestId}`} style={st.reason}>
+              {NO_FOLDER}
+            </Text>
+          ) : null}
           <CardActions
             busy={busy}
             secondary={[{ label: "Deny", onPress: () => setDeclining(true), testID: `keyreq-decline-${requestId}` }]}
             primary={{
               label: "Add the key",
-              disabled: !ready,
+              disabled: !ready || nowhere,
               onPress: () => void add(),
               testID: `keyreq-add-${requestId}`,
             }}

@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { SidebarContent } from "../../../shell/sidebar/index.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
-import { ChatsSidebar, ChatsSidebarSlot } from "./ChatsSidebar.tsx";
+import { LegacyChatsSidebar as ChatsSidebar, LegacyChatsSidebarSlot as ChatsSidebarSlot } from "./ChatsSidebar.tsx";
 import { SectionHead, Tool } from "./parts.tsx";
 import { createSidebarApi } from "./actions.ts";
 import { validateInput } from "../../../../tests/validators.support.ts";

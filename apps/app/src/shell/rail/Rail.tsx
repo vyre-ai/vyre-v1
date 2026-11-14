@@ -10,7 +10,9 @@ import { SHEET_GAP, SHEET_RADIUS, sq } from "../../../../../ui/src/SidePane/host
 import { RAIL_WIDTH as MODEL_RAIL_WIDTH } from "../../../../../ui/src/SidePane/layout.ts";
 import { Tooltip } from "../../../../../ui/src/Tooltip/index.tsx";
 import { ShellIcon, iconMarkup } from "./icons.tsx";
-import { PHONE_BAR, phoneMore } from "./kits.ts";
+import { PHONE_BAR, phoneMore, placeForDigit } from "./kits.ts";
+import { matchShortcut } from "../keyboard/map.ts";
+import { detectPlatform } from "../keyboard/useShellKeys.ts";
 import type { PlaceId, RailEntry, RailGroups } from "./kits.ts";
 import { RADIUS } from "../../../../../ui/src/tokens/radius.ts";
 
@@ -56,6 +58,32 @@ export function Rail({
   onSettle,
 }: RailProps): ReactElement {
   const { element, show } = useMenu();
+  // Option-Cmd-1 to 5: the places, by the shell's one key table
+  const goRef = useRef<(n: number) => void>(() => undefined);
+  goRef.current = (n) => {
+    const p = placeForDigit(groups, n);
+    if (p !== null) onSelect(p);
+  };
+  useEffect(() => {
+    if (Platform.OS !== "web") return undefined;
+    const doc = (
+      globalThis as {
+        document?: {
+          addEventListener(t: string, f: (e: KeyboardEvent) => void): void;
+          removeEventListener(t: string, f: (e: KeyboardEvent) => void): void;
+        };
+      }
+    ).document;
+    if (!doc) return undefined;
+    const on = (e: KeyboardEvent): void => {
+      const m = matchShortcut(e, detectPlatform());
+      if (m?.id !== "place.go" || m.arg === undefined) return;
+      e.preventDefault();
+      goRef.current(m.arg);
+    };
+    doc.addEventListener("keydown", on);
+    return () => doc.removeEventListener("keydown", on);
+  }, []);
   const plain = (e: RailEntry): ReactElement => (
     <RailButton
       key={e.place}

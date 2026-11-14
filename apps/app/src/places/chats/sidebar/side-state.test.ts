@@ -74,3 +74,21 @@ test("the layout draws what the port holds: Pinned in the person's order with di
   const head = l.entries.find((e) => e.type === "head" && e.section === "chats");
   assert.ok(head && head.type === "head" && head.folded);
 });
+
+test("the device source keeps folds and the notes tab per Space and survives a reload; broken or absent storage is the double", async () => {
+  const { deviceSideState } = await import("./side-state.ts");
+  const m = new Map<string, string>();
+  const store = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };
+  const a = deviceSideState("sp1", store);
+  a.setFold("chats", true);
+  a.setNotesTab("artifacts");
+  const b = deviceSideState("sp1", store);
+  assert.deepEqual([...b.folds()], ["chats"]);
+  assert.equal(b.notesTab(), "artifacts");
+  assert.deepEqual([...deviceSideState("sp2", store).folds()], [], "another Space has its own");
+  m.set("vyre.sidebar.v2.sp3", "{not json");
+  assert.deepEqual([...deviceSideState("sp3", store).folds()], []);
+  const none = deviceSideState("sp", null);
+  none.setFold("team", true);
+  assert.deepEqual([...none.folds()], ["team"]);
+});

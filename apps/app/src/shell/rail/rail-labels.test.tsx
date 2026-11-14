@@ -44,3 +44,14 @@ test("the dot is the accent, never the live coral; the count keeps its badge", (
   assert.match(out, /data-testid="rail-count-chats"/);
   assert.match(out, /aria-label="Chats, 3 waiting"/);
 });
+
+test("Option-Cmd-1 to 5 go to the first five places in the order the rail draws them; no sixth", async () => {
+  const { placeForDigit } = await import("./kits.ts");
+  const g = railFor({ kit: kitById(NORTHWIND.kit), console: true, counts: {}, dots: {}, active: "chats" });
+  assert.deepEqual(
+    [1, 2, 3, 4, 5].map((n) => placeForDigit(g, n)),
+    ["chats", "inbox", "records", "files", "automations"],
+  );
+  assert.equal(placeForDigit(g, 6), null);
+  assert.equal(placeForDigit(g, 0), null);
+});

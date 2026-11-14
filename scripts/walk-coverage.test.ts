@@ -20,6 +20,8 @@ const workflows = fs
 export const PENDING: Readonly<Record<string, string>> = {
   "apps/app/tests/chat.newchat-open.perf.test.ts":
     "a speed budget: a perf file in test/slow.json, run on the v1-perf host by perf.yml and affected-perf (which export the app first)",
+  "apps/app/tests/chats-sidebar-shots.live.test.ts":
+    "pictures and the no-dead-buttons click-through of the Chats sidebar: needs the exported app and a Chrome, run by hand on a box before ready (lane b-side); the lead may name it in a job",
   "test/cut-proof.heavy.test.ts":
     "needs a running server from compose.server.yml, its claim link and VYRE_HEAVY_DOCKER; run by hand at the cut",
 };
