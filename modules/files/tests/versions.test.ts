@@ -505,3 +505,47 @@ test("text and Google-native writes keep the version_conflict refusal", async ()
   );
   assert.equal(events.filter((e) => e.name === "file.conflict_kept").length, 0);
 });
+
+test("two text writes at once on the same base: one lands, the other is refused, and no version number repeats", async () => {
+  const { ctx, folderId } = await setup();
+  const made = await handlers["files.create"](ctx, { folderId, name: "race.txt", content: { text: "v1" } });
+  const fileId = made.file.fileId;
+  const results = await Promise.allSettled([
+    handlers["files.write"](ctx, { fileId, content: { text: "ANN" }, baseVersion: 1 }),
+    handlers["files.write"](ctx, { fileId, content: { text: "BOB" }, baseVersion: 1 }),
+  ]);
+  const won = results.filter((r) => r.status === "fulfilled");
+  const lost = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+  assert.equal(won.length, 1);
+  assert.equal(lost.length, 1);
+  assert.ok(lost[0]!.reason instanceof VyreErr);
+  assert.equal((lost[0]!.reason as VyreErr).error.code, "validation.version_conflict");
+  const { versions } = await handlers["files.versions"](ctx, { fileId });
+  assert.deepEqual(versions.map((v) => v.n).sort(), [1, 2]);
+});
+
+test("two writes at once with no base never share a version number and both are kept in History", async () => {
+  const { ctx, folderId } = await setup();
+  const made = await handlers["files.create"](ctx, { folderId, name: "free.txt", content: { text: "v1" } });
+  const fileId = made.file.fileId;
+  await Promise.all([
+    handlers["files.write"](ctx, { fileId, content: { text: "ANN" } }),
+    handlers["files.write"](ctx, { fileId, content: { text: "BOB" } }),
+  ]);
+  const { versions } = await handlers["files.versions"](ctx, { fileId });
+  assert.deepEqual(versions.map((v) => v.n).sort(), [1, 2, 3]);
+});
+
+test("a restore racing a write on the same file takes the next number, not the same one", async () => {
+  const { ctx, folderId } = await setup();
+  const made = await handlers["files.create"](ctx, { folderId, name: "rr.txt", content: { text: "v1" } });
+  const fileId = made.file.fileId;
+  await handlers["files.write"](ctx, { fileId, content: { text: "v2" }, baseVersion: 1 });
+  const first = (await handlers["files.versions"](ctx, { fileId })).versions.find((v) => v.n === 1)!;
+  await Promise.all([
+    handlers["files.restore_version"](ctx, { fileId, versionId: first.versionId }),
+    handlers["files.write"](ctx, { fileId, content: { text: "v3" } }),
+  ]);
+  const { versions } = await handlers["files.versions"](ctx, { fileId });
+  assert.deepEqual(versions.map((v) => v.n).sort(), [1, 2, 3, 4]);
+});

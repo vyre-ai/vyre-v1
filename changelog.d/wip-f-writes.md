@@ -1,0 +1,1 @@
+- Two writes to the same file at the same moment no longer collide. Before, both could report success, the second one's text won, and History showed two versions with the same number. Now one lands on the version it read and the other is told the file changed, so it reads again and re-applies. Writes with no version still go through, each on its own version number.
