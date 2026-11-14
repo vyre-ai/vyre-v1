@@ -213,15 +213,38 @@ function stopperOf(ctx: EngineCtx): StoppedBy {
   return { id: actorOf(ctx), kind: guest ? "guest" : "person" };
 }
 
+/** Is this thread a helper that the calling agent started (its parent chat's helper line was posted by this agent)? Read from the helper's recorded parent, never from sharing a thread. */
+async function ownsHelper(ctx: EngineCtx, threadId: string): Promise<boolean> {
+  if (ctx.principal.kind !== "agent") return false;
+  try {
+    const t = (
+      (await ctx.call("threads.get", { threadId })) as {
+        thread?: { kind?: string; parentThreadId?: string; parentMessageId?: string };
+      }
+    ).thread;
+    if (t?.kind !== "helper" || t.parentThreadId === undefined || t.parentMessageId === undefined) return false;
+    const m = (
+      (await ctx.call("chat.message.get", { threadId: t.parentThreadId, messageId: t.parentMessageId })) as {
+        message?: { author?: { kind?: string; id?: string } };
+      }
+    ).message;
+    return m?.author?.kind === "agent" && m.author.id === ctx.principal.id;
+  } catch {
+    return false;
+  }
+}
+
 function stopReach(
   ctx: EngineCtx,
   agentId: string | undefined,
   all: boolean,
   anyAgent = false,
+  ownHelper = false,
 ): { agentId?: string; askedBy?: string; none?: true; ownOnly?: string } {
   const self = ctx.principal.kind === "agent" ? ctx.principal.id : undefined;
   // an agent with no person behind it (a routine's or an Automation's turn) reaches only its own turn, whatever its role could see
   if (self !== undefined && ctx.actingFor === undefined) {
+    if (ownHelper) return { ...(agentId === undefined ? {} : { agentId }) }; // the helper it started: every turn in that thread
     if (!all && agentId !== undefined && agentId !== self) return { none: true };
     return { agentId: self, ownOnly: self };
   }
@@ -237,7 +260,8 @@ async function stopWith(
   o: { agentId?: string; all: boolean; reason?: "update"; anyAgent?: boolean },
 ): Promise<{ stopped: number }> {
   const engine = await open(ctx, threadId);
-  const { none, ownOnly, ...reach } = stopReach(ctx, o.agentId, o.all, o.anyAgent === true);
+  const own = ctx.principal.kind === "agent" && ctx.actingFor === undefined ? await ownsHelper(ctx, threadId) : false;
+  const { none, ownOnly, ...reach } = stopReach(ctx, o.agentId, o.all, o.anyAgent === true, own);
   if (none) return { stopped: 0 }; // the same answer as nothing running
   const r = await engine.stop(threadId, {
     ...reach,

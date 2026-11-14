@@ -228,3 +228,51 @@ test("an agent with no person behind it (a routine's or an Automation's turn) re
   w.hold.open();
   await w.engine.idle(THREAD);
 });
+
+test("a bare agent's Stop all drops only its own queued turns", async () => {
+  const w = await world();
+  w.engine.receive({ threadId: THREAD, author: person("usr_dana"), mentions: ask(INTAKE), body: "again" }); // waits behind Dana's running turn
+  w.engine.receive({ threadId: THREAD, author: person("usr_sam"), mentions: ask(DOCS), body: "again" }); // waits behind Sam's
+  const queued = (a: string) => w.engine.queue(THREAD).filter((r) => r.agentId === a && r.state === "queued").length;
+  assert.deepEqual([queued(INTAKE), queued(DOCS)], [1, 1]);
+  w.h.setManager(true);
+  const bare: EngineCtx = { ...w.h.ctx, principal: { kind: "agent", id: DOCS } };
+  await stopAll(bare, { threadId: THREAD });
+  assert.deepEqual([queued(INTAKE), queued(DOCS)], [1, 0], "only its own waiting turn is dropped");
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});
+
+test("a bare agent reaches the turns of a helper it started, found from the helper's recorded parent, and nothing else", async () => {
+  const w = await world();
+  w.h.setManager(true);
+  const lead = (starter: string): EngineCtx => ({
+    ...w.h.ctx,
+    principal: { kind: "agent", id: DOCS },
+    call: async (cap: string, input: unknown) =>
+      cap === "threads.get" && (input as { threadId?: string }).threadId === THREAD
+        ? { thread: { kind: "helper", parentThreadId: "thr_lead", parentMessageId: "msg_helper" } }
+        : cap === "chat.message.get"
+          ? { message: { author: { kind: "agent", id: starter } } }
+          : w.h.ctx.call(cap, input),
+  });
+  assert.equal(
+    (await stop(lead(INTAKE), { threadId: THREAD, agentId: INTAKE })).stopped,
+    0,
+    "a helper another agent started is out of reach",
+  );
+  await w.runningIs([BILLING, DOCS, INTAKE]);
+  assert.equal(
+    (await stop(lead(DOCS), { threadId: THREAD, agentId: INTAKE })).stopped,
+    1,
+    "its own helper's turn stops",
+  );
+  assert.equal(
+    (await stopAll(lead(DOCS), { threadId: THREAD })).stopped,
+    2,
+    "Stop all there stops every turn in its helper",
+  );
+  await w.runningIs([]);
+  w.hold.open();
+  await w.engine.idle(THREAD);
+});

@@ -179,3 +179,41 @@ test("askedBy: a parked turn (waiting on an approval) is released only by the pe
     "Dana's approval is still waiting",
   );
 });
+
+test("stop and send with a message cancels only what the caller may reach: a guest's own turns, a bare agent's own turn", async () => {
+  for (const reach of [{ askedBy: "sam" }, { onlyAgent: "nova" }]) {
+    const hold = gate();
+    const p = scriptedProvider({
+      script: says,
+      beforeEvent: async (i) => {
+        if (i === 0) await hold.wait;
+      },
+    });
+    const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
+    engine.openThread(thread());
+    engine.receive({ threadId: "T", author: person("dana"), mentions: [agent("dex")], body: "a" });
+    engine.receive({ threadId: "T", author: person("sam"), mentions: [agent("nova")], body: "b" });
+    await until(() => p.sessions.length === 2);
+    const again = engine.receive({
+      threadId: "T",
+      author: person("sam"),
+      mentions: [agent("nova")],
+      body: "stop, do this",
+    });
+    const out = await engine.interrupt(
+      "T",
+      again.messageId,
+      undefined,
+      "askedBy" in reach ? reach.askedBy : undefined,
+      "onlyAgent" in reach ? reach.onlyAgent : undefined,
+    );
+    assert.deepEqual(
+      out.cancelled.map((x) => x.agentId),
+      ["nova"],
+    );
+    hold.open();
+    await engine.idle("T");
+    assert.equal(state(engine, "dex"), "completed", "Dana's turn was not cancelled");
+    assert.equal(engine.turns("T").find((t) => t.agentId === "nova")?.state, "cancelled");
+  }
+});
