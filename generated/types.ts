@@ -51141,6 +51141,7 @@ export type TombstonesReappliedPayload = {
 };
 export type TranscriptsPurgedPayload = {
   removed: number;
+  messageIds?: Array<string>;
 };
 export type TurnBlockPayload = {
   turnId: string;

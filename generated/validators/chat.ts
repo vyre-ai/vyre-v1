@@ -5668,6 +5668,20 @@ if (g7383 === "object") {
 if (g7383 === 'object') { const o7383 = x7383 as Record<string, unknown>;
 if (!("removed" in o7383)) e.push(p + "/removed" + ': required');
 if ("removed" in o7383) lf(o7383["removed"], p + "/removed", e, L17);
+if ("messageIds" in o7383) {
+{
+const x7384 = o7383["messageIds"];
+const g7384 = typeOf(x7384);
+const b7384: string[] = []; lf(x7384, p + "/messageIds", b7384, L4); if (b7384.length) e.push(...b7384);
+if (g7384 === "array") {
+if (g7384 === 'array') { const a7384 = x7384 as unknown[];
+for (let i7384 = 0; i7384 < a7384.length; i7384++) {
+lf(a7384[i7384], p + "/messageIds" + '/' + i7384, e, L88);
+}
+}
+}
+}
+}
 }
 }
 }
