@@ -5,8 +5,7 @@ import { railOf, withChapters } from "./model.ts";
 import type { ChapterInfo, ChapterRow, Dot } from "./model.ts";
 import { useEffect } from "react";
 import { setCurrentChapter } from "./current-chapter.ts";
-import { JobLines } from "./JobLines.tsx";
-import { useJobs } from "./jobs.ts";
+import { JobsLine } from "./JobsLine.tsx";
 import { useChapters } from "./use-chapters.ts";
 import type { Clock } from "../model.ts";
 
@@ -36,12 +35,6 @@ export function ChapterLayer<R extends { kind: string }>(p: {
   children: (laid: Laid<R>) => ReactNode;
 }): ReactElement {
   const s = useChapters(p);
-  const j = useJobs({
-    call: p.call,
-    agentIds: p.jobs?.agentIds ?? [],
-    working: p.jobs?.working ?? false,
-    now: Date.now,
-  });
   const chapters: readonly ChapterInfo[] = s.chapters;
   const now = chapters.find((c) => c.current)?.title ?? "";
   useEffect(() => {
@@ -53,7 +46,7 @@ export function ChapterLayer<R extends { kind: string }>(p: {
       {p.children({
         rows: withChapters(p.rows, p.own, chapters, s.flipped, p.clock, s.reveal),
         dots: railOf(chapters),
-        jobs: <JobLines running={j.running} finished={j.finished} now={Date.now()} />,
+        jobs: p.jobs ? <JobsLine call={p.call} agentIds={p.jobs.agentIds} working={p.jobs.working} /> : null,
         flip: s.flip,
         jump: s.jump,
       })}

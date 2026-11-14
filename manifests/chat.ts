@@ -1299,6 +1299,7 @@ export default defineManifest({
           chapters: t.arr(
             t.obj({
               startSeq: t.int(),
+              startMsg: id.message,
               endSeq: t.int(),
               startAt: t.ts(),
               count: t.int(),

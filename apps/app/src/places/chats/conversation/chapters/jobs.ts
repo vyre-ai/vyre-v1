@@ -81,6 +81,9 @@ export function settle(
   return { running, finished };
 }
 
+/** The finished lines kept in a chat window: the newest few. */
+export const MAX_FINISHED = 5;
+
 /** The words "2 min" are redrawn this often while a job runs: a clock on this computer, never a read. */
 export const JOB_CLOCK_MS = 30_000;
 
@@ -107,7 +110,10 @@ export function useJobs(o: {
         const terms = ((r as { terminals?: Term[] } | null)?.terminals ?? []) as Term[];
         const next = settle(before.current, terms, new Set(ids.split(",")), nowRef.current());
         before.current = next.running;
-        setState((cur) => ({ running: next.running, finished: [...cur.finished, ...next.finished] }));
+        setState((cur) => ({
+          running: next.running,
+          finished: [...cur.finished, ...next.finished].slice(-MAX_FINISHED),
+        }));
       },
       () => undefined,
     );

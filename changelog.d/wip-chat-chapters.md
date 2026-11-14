@@ -2,3 +2,4 @@
 - A long chat shows a rail of dots on the right edge, one for each chapter. Hover names the chapter, a press goes to it, and Alt with the up or down arrow steps between chapters.
 - A long command an agent runs in a terminal of its computer shows as one quiet line at the foot of the chat ("Tests  2 min  Background") and leaves one line when it ends.
 - Chapter titles are written by a model at most once per chapter, only after the chapter has closed, only on your own API-key account (never a subscription, never someone else's) and only for a chapter you opened. Otherwise the plain words of the chat stay.
+- Chapters of a long chat are stored once when they close, so a chapter never moves when messages arrive and a link to it keeps working. Deleting or editing a message in a closed chapter drops its written heading. A person who joined later never sees a heading written from messages before they joined. A failed heading is tried once more an hour later, then never.

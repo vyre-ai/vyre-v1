@@ -188,7 +188,16 @@ test("the layer publishes the current chapter's title for the head's subtitle", 
     createRoot,
     <>
       <Probe />
-      <ChapterLayer call={call} threadId="thr_sub" size={90} newest={90} focusSeq={null} rows={rows(90)} own={ownSeq} clock={clock}>
+      <ChapterLayer
+        call={call}
+        threadId="thr_sub"
+        size={90}
+        newest={90}
+        focusSeq={null}
+        rows={rows(90)}
+        own={ownSeq}
+        clock={clock}
+      >
         {() => null}
       </ChapterLayer>
     </>,
