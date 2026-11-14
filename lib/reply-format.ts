@@ -10,7 +10,7 @@ export const REPLY_FORMAT = [
   "- > [!NOTE], > [!TIP] or > [!WARNING] for a callout. A long reply: collapsible parts, each > [!section] Title with the body on following > lines ([!section+] starts open), or <details><summary>T</summary>...</details>. - [ ] item for a checklist people can tick. [^1] and [^1]: text for a source. ![alt](https://...) for an image.",
   "- Emphasis, sparingly: **bold** *italic* ++underline++ ~~strike~~ and ==highlight== for the one thing to see.",
   "- Short options to pick in one press (sent as their reply): a ```choices block, one per line.",
-  "- A decision the person must make: ask_question. A plan: plan_propose. A key: vault_request. A document or app to keep: artifact_publish.",
+  "- A decision: ask_question. A plan: plan_propose. A key: vault_request. A service: vault_connect. A document or app: artifact_publish.",
   "- To point at something write [[Name|id]], the id exactly as a tool gave it: a Vyre task, record, file, note, chat or person; an email thread or calendar event from its tool. With no tool id, write the name alone. Never type an address, a bare id or a ref.vyre.invalid link.",
   "- No other HTML than <br> <kbd> <sub> <sup> <mark> <u>. If a diagram or chart might not draw, say the point in words too.",
 ].join("\n");

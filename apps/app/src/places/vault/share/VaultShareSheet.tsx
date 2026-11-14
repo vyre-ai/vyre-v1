@@ -8,6 +8,7 @@ import type { ShareInput, UnshareInput } from "../../../../../../ui/src/AccessSh
 import { copyItemLink, shareRows, sheetDirectory, withNotify } from "../../../share/rows.ts";
 import type { SharesOut } from "../../../share/rows.ts";
 import { useVaultData, usePrincipals } from "../layout/data.tsx";
+import { AGENTS_CANT_USE_LINE, useAgentsThatCannot } from "../itemenv/restricted.ts";
 import { messageOf } from "../connections/actions.ts";
 
 export type VaultShareKind = "vault_item" | "vault_folder";
@@ -18,17 +19,30 @@ export function VaultShareSheet({
   name,
   onClose,
   onChanged,
+  onMove,
 }: {
   kind: VaultShareKind;
   id: string;
   name: string;
   onClose(): void;
   onChanged?(): void;
+  /** F35: Move, from the line that says agents cannot use this item where it is kept. */
+  onMove?(agentIds: string[]): void;
 }): ReactElement | null {
   const data = useVaultData();
   const names = usePrincipals();
   const [out, setOut] = useState<SharesOut | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  // F35: agents that cannot use an item where it is kept are listed but not pickable (sharing never lifts a label)
+  const agentSubjects = names.all
+    .filter((p) => p.kind === "agent" && (p as { private?: boolean }).private !== true)
+    .map((p) => ({ kind: "agent", id: p.id }));
+  const cannotUse = useAgentsThatCannot(
+    data.call,
+    kind === "vault_item" ? { type: "vault_item", id } : null,
+    kind === "vault_item" ? agentSubjects : [],
+    0,
+  );
   const load = useCallback((): void => {
     void Promise.resolve(data.call("access.shares_of", { resource: { type: kind, id } })).then(
       (o) => setOut(o as SharesOut),
@@ -79,6 +93,16 @@ export function VaultShareSheet({
         density="regular"
         directory={sheetDirectory({ people, groups: [], roles: [], agents, loading: names.loading })}
         {...(out.mine ? { maxLevel: out.mine } : {})}
+        {...(cannotUse.size > 0 && onMove
+          ? {
+              agentsBlocked: {
+                ids: [...cannotUse],
+                line: AGENTS_CANT_USE_LINE,
+                actionLabel: "Move",
+                onAction: () => onMove([...cannotUse]),
+              },
+            }
+          : {})}
         meId={data.me.id}
         notifyPeople
         onCopyLink={() => copyItemLink(kind, id, true)}

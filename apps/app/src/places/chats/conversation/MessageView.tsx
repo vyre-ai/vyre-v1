@@ -1281,7 +1281,12 @@ function Theirs({
               requestId={String((b.data as { requestId?: unknown }).requestId ?? "")}
               agent={item.who.name}
               agentId={item.who.id}
-              data={actions.files}
+              data={{ ...actions.files, nameOf: actions.nameOf ?? ((x: string) => x) }}
+              service={
+                typeof (b.data as { service?: unknown }).service === "string"
+                  ? String((b.data as { service?: unknown }).service)
+                  : undefined
+              }
             />
           );
         if (isChecklist(b.type)) return <ChecklistCard key={b.id} id={b.id} data={b.data} />;
