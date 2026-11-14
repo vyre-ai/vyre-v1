@@ -44,7 +44,9 @@ function openThread(ctx: ChatCtx, threadId: string): ThreadRec {
 
 function messageIn(ctx: ChatCtx, t: ThreadRec, messageId: string): MessageRec {
   const m = messageBy(ctx.db, messageId);
-  if (!m || m.thread !== t.id) raise(ctx, "validation.not_found", "That message is not in this chat.");
+  // a message from before the caller's reading floor is not theirs to act on or to learn about
+  if (!m || m.thread !== t.id || m.createdAt < readFloor(ctx, t))
+    raise(ctx, "validation.not_found", "That message is not in this chat.");
   return m;
 }
 

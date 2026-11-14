@@ -141,3 +141,21 @@ test("stars and follows need a signed-in person", async () => {
     await assert.rejects(call, (e) => codeOf(e) === "auth.unauthenticated");
   assert.equal(h.db.all(`SELECT id FROM spaces_star`).length, 0);
 });
+
+test("a thing the caller cannot see is not found: starring or following it answers the same as a made-up id, and nothing is stored", async () => {
+  const h = harness();
+  const hidden = { type: "thread", id: "thr_hidden" };
+  const ctx = { ...h.as(MAYA), visible: async (_p: string, r: { id: string }) => r.id !== "thr_hidden" };
+  for (const cap of ["stars.toggle", "follows.toggle"] as const) {
+    const failure = await handlers[cap](ctx, { resource: hidden, on: true }).then(
+      () => "none",
+      (e: { error?: { code?: string } }) => e.error?.code ?? "unknown",
+    );
+    assert.equal(failure, "validation.not_found", cap);
+  }
+  assert.deepEqual((await handlers["stars.list"](h.as(MAYA), {})).stars, []);
+  assert.equal(
+    (await handlers["stars.toggle"](ctx, { resource: { type: "thread", id: "thr_mine" }, on: true })).starred,
+    true,
+  );
+});

@@ -8,7 +8,7 @@
 import { askerOf, ensure, membersOf, refOf, threadBy } from "../projections.ts";
 import type { ChatCtx, ThreadRec } from "../projections.ts";
 import { ensureTranscript, seenRows } from "./g24d.ts";
-import { rootOf } from "./post.ts";
+import { rootOf, startsAlone } from "./post.ts";
 import { readFloor } from "./floor.ts";
 
 type Row = Record<string, unknown>;
@@ -131,7 +131,7 @@ export function termsOf(q: string): string[] {
 export function mayRecall(ctx: Pick<ChatCtx, "db" | "principal" | "actingFor">, t: ThreadRec): boolean {
   const asker = askerOf(ctx);
   const root = rootOf(ctx, t);
-  if (root.starter === asker || t.starter === asker) return true;
+  if (startsAlone(root) && (root.starter === asker || t.starter === asker)) return true;
   if (membersOf(ctx.db, root.id).includes(asker)) return true;
   return membersOf(ctx.db, t.id).includes(asker);
 }

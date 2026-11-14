@@ -103,6 +103,18 @@ export function mayGovernChannel(ctx: ChatCtx, channelId: string): boolean {
   );
 }
 
+/** The Manage check on a channel says NO to this caller. In a module test with no authorize at all nothing is denied (the pipeline's own check is not there); a real daemon always has it. */
+export function channelManageDenied(ctx: ChatCtx, channelId: string): boolean {
+  const host = ctx as ChatCtx & { authorize?: unknown };
+  return typeof host.authorize === "function" && !mayGovernChannel(ctx, channelId);
+}
+
+/**
+ * Who a chat answers to by being its starter alone: an Ask pane has no member list and is its starter's. Every other chat answers to its live member rows: a creator who left reads and posts nothing, and a
+ * starter is no access by itself (r-keyreach, 14 Nov 2026).
+ */
+export const startsAlone = (root: ThreadRec): boolean => root.kind === "ask";
+
 /**
  * An invite-only channel is for the people in it, for reading and writing alike (its threads, messages, reactions and pins follow). The pipeline's grants are role wide, so the channel's own member
  * list is the check: its members, the person who started it, the agents added to it, and the Space's trusted services (a tenant service such as a public form is not one). A public channel is open to the Space.
@@ -119,7 +131,7 @@ function mayEnterChannel(ctx: ChatCtx, root: ThreadRec, thread: ThreadRec, asker
       agentsOf(ctx.db, thread.id).some((a) => a.agentId === ctx.principal.id))
   )
     return true;
-  return isMember(ctx.db, root.id, asker) || root.starter === asker;
+  return isMember(ctx.db, root.id, asker);
 }
 
 /** Who may speak in a thread. Channels and their threads answer to grants (the pipeline already checked them); a private chat answers to its members and the agents in it. */
@@ -128,7 +140,7 @@ export function canSpeak(ctx: ChatCtx, thread: ThreadRec): boolean {
   const asker = askerOf(ctx);
   if (root.channelId !== undefined && !mayEnterChannel(ctx, root, thread, asker)) return false;
   if (!isPrivateRoot(root)) return true;
-  if (isMember(ctx.db, root.id, asker) || root.starter === asker) return true;
+  if (isMember(ctx.db, root.id, asker) || (startsAlone(root) && root.starter === asker)) return true;
   // an agent sitting in the chat works in it for the people in it and for nobody; asked by someone who is not in the chat it brings nothing out of it (lib/agent-asker.ts)
   if (ctx.principal.kind === "agent" && agentStanding(ctx, () => false))
     return (

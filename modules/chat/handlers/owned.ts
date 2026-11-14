@@ -3,7 +3,7 @@
 //             back with threads.restore. A person who may not delete it cannot move it: the call is tolerated, never swallowed (a warning says so).
 //   grants    chat_thread_agent.grants: the resources threads.outside_agent.add shared with the agent, each with the source tag chat:<threadId>. Removing the agent takes them back at once.
 import { channelBy, ensure, isMember, membersOf, threadBy } from "../projections.ts";
-import { canSpeak, rootOf } from "./post.ts";
+import { canSpeak, rootOf, startsAlone } from "./post.ts";
 import type { ChatCtx } from "../projections.ts";
 import { oneAtATime } from "../../../lib/one-at-a-time.ts";
 
@@ -305,7 +305,7 @@ export async function convergeAgent(ctx: ChatCtx, threadId: string, agentId: str
     // grants again (a grant of the same subject, resource and source is updated in place) and sets the same audience
     const readers = [
       ...new Set([
-        ...(root.starter?.startsWith("usr_") ? [root.starter] : []),
+        ...(startsAlone(root) && root.starter?.startsWith("usr_") ? [root.starter] : []),
         ...membersOf(ctx.db, root.id).filter((p) => p.startsWith("usr_")),
       ]),
     ];

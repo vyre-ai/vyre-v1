@@ -1,0 +1,4 @@
+- A person added to a chat without its earlier messages can no longer give themselves access to them, and someone who is added with "Include earlier messages" by a person who cannot read them gets only what that person can read.
+- An invite-only channel can only be opened to new people by its managers, through any door, not only through the channel's own Add people.
+- A person who left a chat they started no longer reads or writes in it.
+- Starring or following a chat you cannot see answers "not found", the same as for a chat that does not exist.

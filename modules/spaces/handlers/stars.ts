@@ -1,10 +1,15 @@
 // Stars and follows: independent per-person toggles on anything (spec 2.23). Starring a person or company offers Also follow, on by default.
 import type { ResourceRef, SpacesCtx } from "../projections.ts";
-import { PERSON_KINDS, listMarks, markOf, me, setMark } from "../projections.ts";
+import { PERSON_KINDS, listMarks, markOf, me, raise, setMark } from "../projections.ts";
 
 function live(ctx: SpacesCtx, table: "spaces_star" | "spaces_follow", person: string, r: ResourceRef): boolean {
   const m = markOf(ctx, table, person, r);
   return !!m && m.deleted_at === null;
+}
+/** A thing the caller cannot see is "not found", the same answer a made-up id gets: starring or following is no way to learn that it exists. Turning a mark off is always allowed. */
+async function mustSee(ctx: SpacesCtx, person: string, r: ResourceRef): Promise<void> {
+  if (ctx.visible && !(await ctx.visible(person, r)))
+    raise(ctx.trace.traceId, "validation.not_found", "That does not exist or is not yours.");
 }
 function addFollow(ctx: SpacesCtx, person: string, r: ResourceRef): void {
   if (setMark(ctx, "spaces_follow", person, r, true)) ctx.emit("follow.added", r.id, { person, resource: r });
@@ -13,6 +18,7 @@ function addFollow(ctx: SpacesCtx, person: string, r: ResourceRef): void {
 export async function starsToggle(ctx: SpacesCtx, input: { resource: ResourceRef; on: boolean; alsoFollow?: boolean }) {
   const person = me(ctx);
   const r = { type: input.resource.type, id: input.resource.id };
+  if (input.on) await mustSee(ctx, person, r);
   if (setMark(ctx, "spaces_star", person, r, input.on))
     ctx.emit(input.on ? "star.added" : "star.removed", r.id, { person, resource: r });
   if (input.on) {
@@ -30,6 +36,7 @@ export async function starsList(ctx: SpacesCtx, input: { type?: string }) {
 export async function followsToggle(ctx: SpacesCtx, input: { resource: ResourceRef; on: boolean }) {
   const person = me(ctx);
   const r = { type: input.resource.type, id: input.resource.id };
+  if (input.on) await mustSee(ctx, person, r);
   if (setMark(ctx, "spaces_follow", person, r, input.on))
     ctx.emit(input.on ? "follow.added" : "follow.removed", r.id, { person, resource: r });
   return { following: live(ctx, "spaces_follow", person, r) };

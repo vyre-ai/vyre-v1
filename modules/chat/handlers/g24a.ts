@@ -18,7 +18,8 @@ import {
 } from "../projections.ts";
 import type { ChatCtx, Mode, ThreadKind, ThreadRec } from "../projections.ts";
 import { isHostService } from "../../../lib/trust.ts";
-import { canSpeak, mayGovernChannel, rootOf } from "./post.ts";
+import { canSpeak, channelManageDenied, mayGovernChannel, rootOf } from "./post.ts";
+import { floorOfPerson } from "./floor.ts";
 import { mentions } from "./pace.ts";
 import { applyMode } from "./modes.ts";
 import { followMode, placeOf } from "./follow.ts";
@@ -358,6 +359,18 @@ export async function removeAgent(ctx: ChatCtx, input: { threadId: string; agent
 
 // ---- members ----------------------------------------------------------------------------------------------------------------------------------------
 
+/** Is this person the owner of the chat (the member with role owner)? */
+function isOwnerOf(ctx: ChatCtx, thread: string, person: string): boolean {
+  const row = (
+    ctx.db.all(
+      "SELECT role FROM chat_thread_member WHERE thread = ? AND principal = ? AND deleted_at IS NULL",
+      thread,
+      person,
+    ) as Row[]
+  )[0];
+  return String(row?.["role"]) === "owner";
+}
+
 export async function membersAdd(
   ctx: ChatCtx,
   input: { threadId: string; personId: string; fromStart?: boolean; mentionedIn?: string },
@@ -366,19 +379,29 @@ export async function membersAdd(
   if (!input.personId.startsWith("usr_"))
     raise(ctx, "validation.bad_input", "That is not a person.", { personId: input.personId });
   const root = rootOf(ctx, t);
+  // a channel's main thread takes people only through the channel's rules: the same Manage check as channels.members.add, whatever door is used
+  if (t.kind === "channel" && t.channelId !== undefined && channelManageDenied(ctx, t.channelId))
+    raise(ctx, "permission.role_lacks_permission", "Only a channel manager adds people to a channel.");
+  const asker = askerOf(ctx);
   // Owner ruling (4 Nov 2026): a private chat gains people, and becomes a group chat. The newcomer reads from now on unless the adder says "Include earlier messages"; a goal chat shows its history.
   // A channel's own people keep reading everything it holds.
   const fromStart = input.fromStart ?? (!isPrivateRoot(root) || root.scopeType === "goal");
+  // nobody grants more than they read themselves: "earlier messages" means from the adder's own floor (0 when the adder reads all of it)
+  const adderFloor = floorOfPerson(ctx, root.id, asker);
   const known = isMember(ctx.db, t.id, input.personId);
   if (known) {
-    // asked again with earlier messages on, the person's reading widens to the start
-    if (input.fromStart === true)
-      ctx.db.run(
-        "UPDATE chat_thread_member SET fromAt = NULL, version = version + 1, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL",
-        ctx.now(),
-        t.id,
-        input.personId,
-      );
+    // asked again with earlier messages on, the owner widens a person's reading, never beyond the owner's own floor. A member who is not the owner changes nobody's floor, their own included.
+    if (input.fromStart === true && isOwnerOf(ctx, t.id, asker)) {
+      const current = floorOfPerson(ctx, t.id, input.personId);
+      if (current > 0 && (adderFloor === 0 || adderFloor < current))
+        ctx.db.run(
+          "UPDATE chat_thread_member SET fromAt = ?, version = version + 1, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL",
+          adderFloor > 0 ? adderFloor : null,
+          ctx.now(),
+          t.id,
+          input.personId,
+        );
+    }
     return out(ctx, t.id);
   }
   // added from "Maya is not in this chat. Add" under the message that mentioned them: they read from that message on, and are told about it like any mention (owner, 12 Nov)
@@ -392,10 +415,12 @@ export async function membersAdd(
       personId: input.personId,
     });
   addMember(ctx, t.id, input.personId);
-  if (!fromStart)
+  // the newcomer's floor: now (or the mentioning message) unless earlier messages were asked for, and then the adder's own floor; never earlier than what the adder reads
+  const from = !fromStart ? (mentioned ? mentioned.createdAt : ctx.now()) : adderFloor;
+  if (from > 0)
     ctx.db.run(
       "UPDATE chat_thread_member SET fromAt = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL",
-      mentioned ? mentioned.createdAt : ctx.now(),
+      !fromStart ? Math.max(from, adderFloor) : from,
       t.id,
       input.personId,
     );
