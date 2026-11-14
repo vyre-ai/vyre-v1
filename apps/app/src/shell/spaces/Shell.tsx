@@ -620,6 +620,9 @@ export function Shell(props: ShellProps): ReactElement {
         }
         onSearch={() => props.onSearch?.()}
         compact={compact}
+        nav={state.nav ?? { back: null, forward: null }}
+        onBack={() => void hub.back()}
+        onForward={() => void hub.forward()}
         call={
           props.phone ? (
             <Suspense fallback={null}>

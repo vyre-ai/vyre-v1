@@ -82,6 +82,9 @@ export function entryFor(place: PlaceId, hash: string): Entry {
   // an Ask link (chats.conversation or chats.ask with an agent): the hash is the whole route, so it is kept as it is
   if (place === "chats" && (t.screen === "chats.conversation" || t.screen === "chats.ask") && !t.subject)
     return { tab: "chats", screen: `ask:${encodeURIComponent(hash)}`, title: "Assistant" };
+  // an agent's page is a screen of its own on the Chats tab, so it has the shell's Back bar like every other opened thing (the owner: "no place to go back from when you open agent details")
+  if (place === "chats" && t.screen === "chats.agent-page" && t.args.agentId)
+    return { tab: "chats", screen: `agent:${t.args.agentId}`, title: "Agent" };
   // Tasks lives in Chats: the list and every task sit on the Chats tab's history
   if (t.screen === "tasks.my-work") return { tab: "chats", screen: "tasks:list", title: "Tasks" };
   if (t.screen === "tasks.page" && t.args.taskId) return { tab: "chats", screen: `task:${t.args.taskId}` };
@@ -129,6 +132,11 @@ export function placeOf(e: Entry): { place: PlaceId; hash: string } | null {
       return null;
     }
   }
+  if (kind === "agent")
+    return {
+      place: "chats",
+      hash: formatHash({ screen: "chats.agent-page", args: { agentId: e.screen.slice(i + 1) } }),
+    };
   if (kind === "tasks") return { place: "chats", hash: formatHash({ screen: "tasks.my-work", args: {} }) };
   if (kind === "replies" || kind === "threads")
     return { place: "inbox", hash: formatHash({ screen: "inbox.replies", args: {} }) };
