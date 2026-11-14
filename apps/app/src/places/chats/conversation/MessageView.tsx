@@ -1299,6 +1299,11 @@ function Theirs({
                   ? String((b.data as { service?: unknown }).service)
                   : undefined
               }
+              asker={
+                typeof (b.data as { asker?: unknown }).asker === "string"
+                  ? String((b.data as { asker?: unknown }).asker)
+                  : undefined
+              }
             />
           );
         if (isChecklist(b.type)) return <ChecklistCard key={b.id} id={b.id} data={b.data} />;
