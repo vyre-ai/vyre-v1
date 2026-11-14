@@ -1,6 +1,6 @@
 // Under an agent's reply: "Used 3 memories" (a chevron) that opens into the facts and quotes recalled for that reply, and a card for every exact quote. A fact row has its words, a source chip (a
 // press jumps to that moment in the old chat), who and how long ago, Open <page> and a small Forget. A quote row and a quote card show the author, the date, the words in a quote style and
-// "Jump to the message". Right-click a row for Open Source, Open Page and Forget This Fact; right-click the line for Show or Hide Memories and Open Knowledge. A reply that used nothing, or a
+// "Jump to the message". A lesson is not printed here (LessonMark.tsx). Right-click a row for Open Source, Open Page and Forget This Fact; right-click the line for Show or Hide Memories and Open Knowledge. A reply that used nothing, or a
 // server that cannot say, draws nothing at all.
 import { useState } from "react";
 import type { ReactElement } from "react";
@@ -47,44 +47,22 @@ export function ReplyMemory({
   if (!mem || read.status !== "ready") return null;
   // what an older reply recorded may include a greeting or an imported session's preamble matched as a quote: those say nothing and are not shown or counted
   // and a fact is shown only when the reply carries it (most replies match some memory a little and are not shaped by it); quotes are only recalled when the person asked to find words
-  // a lesson is a rule the agent follows, not a fact its words repeat: it is shown whenever it was put in front of the agent, on a line of its own ("Used a lesson"), outside the fold of the work so it is seen
+  // a lesson is a rule the agent follows, not a fact its words repeat: it is never printed here. A reply that used one carries the quiet mark in its meta row (LessonMark.tsx)
   // memory.used rows say `learnedAt`; the rows here say `at`
   const facts = read.data.facts.map((f) => ({ ...f, at: f.at ?? (f as { learnedAt?: number }).learnedAt ?? 0 }));
-  const lessons = facts.filter(isLesson);
   const used = {
     ...read.data,
     quotes: read.data.quotes.filter((q) => recallable(q.text)),
     facts: facts.filter((f) => !isLesson(f) && (reply === "" || shapedReply(factLine(f), reply))),
   };
-  if (usedCount(used) === 0 && lessons.length === 0) return null;
+  if (usedCount(used) === 0) return null;
   return (
     <View testID={`used-${messageId}`} style={st.root}>
       {part !== "cards" && usedCount(used) > 0 ? (
         <UsedLine messageId={messageId} used={used} startOpen={startOpen} />
       ) : null}
-      {part !== "line" ? each(lessons, (l) => <LessonUsed key={l.factId} lesson={l} />) : null}
       {part !== "line" ? each(used.quotes, (q) => <QuoteCard key={q.ref} quote={q} />) : null}
     </View>
-  );
-}
-
-/** "Used a lesson: Notes to Sara, three lines, the number first." A press opens Knows, where the lesson can be edited or forgotten. */
-function LessonUsed({ lesson }: { lesson: ChatFact }): ReactElement {
-  const mem = useChatMemory()!;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Used a lesson: ${lesson.text}. See what the agent has learned`}
-      testID={`mused-lesson-${lesson.factId}`}
-      onPress={() => mem.showKnows?.()}
-      style={({ hovered }: { hovered?: boolean }) => [st.lessonLine, hovered === true && st.headOver]}
-    >
-      <Icon name="bulb" size={13} color="var(--ink-3)" />
-      <Text style={st.lessonText} numberOfLines={2}>
-        <Text style={st.lessonBold}>Used a lesson</Text>
-        {`  ${lesson.text}`}
-      </Text>
-    </Pressable>
   );
 }
 
@@ -352,20 +330,6 @@ const st = StyleSheet.create({
   headOver: { backgroundColor: "var(--hover)" as string },
   headText: { fontSize: 12, fontWeight: "500", color: "var(--ink-3)" as string },
   flip: { transform: [{ rotate: "180deg" }] },
-  lessonLine: {
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    minHeight: 24,
-    marginTop: 6,
-    paddingLeft: 4,
-    paddingRight: 6,
-    marginLeft: -4,
-    borderRadius: 6,
-  },
-  lessonText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
-  lessonBold: { fontWeight: "500", color: "var(--ink-2)" as string },
   line: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10 },
   cite: {
     flexDirection: "row",

@@ -5,6 +5,7 @@ import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { canSend } from "./model.ts";
+import { ScreensProvider } from "../../../load/screens.tsx";
 
 export interface Connection {
   get(): "online" | "offline";
@@ -74,7 +75,11 @@ export interface InboxData {
 const DataCtx = createContext<InboxData | null>(null);
 
 export function InboxDataProvider({ value, children }: { value: InboxData; children: ReactNode }): ReactElement {
-  return <DataCtx.Provider value={value}>{children}</DataCtx.Provider>;
+  return (
+    <DataCtx.Provider value={value}>
+      <ScreensProvider screens={value.screens}>{children}</ScreensProvider>
+    </DataCtx.Provider>
+  );
 }
 
 /** The data the shell provided, or null before it has (the Inbox then draws its loading frame). */

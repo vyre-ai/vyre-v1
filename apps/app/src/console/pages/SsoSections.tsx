@@ -11,7 +11,7 @@ import { ObjectSection } from "../../../../../ui/src/ObjectPage/index.tsx";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Group } from "../shell/ui.tsx";
-import { Actions, Button, Field, Note, ReadState, Select, useAction, useRead } from "./shared.tsx";
+import { Actions, Button, TextBox, Note, ReadState, Select, useAction, useRead } from "./shared.tsx";
 
 export {
   GOOGLE_ISSUER,
@@ -102,13 +102,13 @@ export function SsoProviderView({
       <Note>{`Register this redirect URL in your ${title} app, then paste its Client ID and a secret.`}</Note>
       {editing ? (
         <>
-          <Field
+          <TextBox
             label={`${title} Client ID`}
             value={clientId}
             onChange={setClientId}
             testID={`sso-${kind}-client-id`}
           />
-          <Field
+          <TextBox
             label={
               provider?.clientSecretHandle ? "New Client secret (leave empty to keep the saved one)" : "Client secret"
             }
@@ -117,7 +117,7 @@ export function SsoProviderView({
             secure
             testID={`sso-${kind}-client-secret`}
           />
-          <Field
+          <TextBox
             label="Firm domain (for example firm.com)"
             value={domain}
             onChange={setDomain}
@@ -125,7 +125,7 @@ export function SsoProviderView({
           />
           {kind === "microsoft" ? (
             <>
-              <Field label={TENANT_LABEL} value={tenant} onChange={setTenant} testID="sso-microsoft-tenant" />
+              <TextBox label={TENANT_LABEL} value={tenant} onChange={setTenant} testID="sso-microsoft-tenant" />
               <Note>{TENANT_HINT}</Note>
             </>
           ) : null}

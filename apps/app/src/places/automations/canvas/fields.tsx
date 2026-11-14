@@ -19,7 +19,7 @@ export const MapTargetContext = createContext<{ set(t: MapTarget | null): void }
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 /** A labelled text field. The value commits on blur and on Enter (one line); Escape puts the old value back. `rows` makes it a box of several lines. */
-export function Field({
+export function TextBox({
   label,
   value,
   onCommit,

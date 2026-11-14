@@ -86,6 +86,8 @@ export interface QuestionOption {
   key: string;
   label: string;
   detail?: string;
+  /** The agent's own pick: the row says "Recommended" on the right in place of its detail. */
+  recommended?: boolean;
 }
 
 export interface QuestionData {
@@ -102,7 +104,12 @@ export function questionData(data: unknown): QuestionData {
   const options = list(d["options"]).map((o): QuestionOption => {
     const r = rec(o);
     const detail = r["detail"];
-    return { key: str(r["key"]), label: str(r["label"]), ...(typeof detail === "string" ? { detail } : {}) };
+    return {
+      key: str(r["key"]),
+      label: str(r["label"]),
+      ...(typeof detail === "string" ? { detail } : {}),
+      ...(r["recommended"] === true ? { recommended: true } : {}),
+    };
   });
   return {
     prompt: str(d["prompt"]),

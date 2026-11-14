@@ -22,6 +22,7 @@ type Payload = {
   forRun?: string;
   note?: string;
   name?: string;
+  service?: string;
   threadId?: string;
   agentId?: string;
   asker?: string;

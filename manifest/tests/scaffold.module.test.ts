@@ -73,7 +73,7 @@ test("registering: a row joins host/modules.json in id order with status stub; a
   const text = fs.readFileSync(path.join(REPO, "host/modules.json"), "utf8");
   const next = registerModule(text, { id: "widgets", owner: "L1", status: "stub" });
   const rows = (JSON.parse(next) as ModulesFile).modules;
-  assert.equal(rows.length, 80); // the 79 modules (goals, notes, browser, machines, talk, ci and hooks among them) and widgets
+  assert.equal(rows.length, 81); // the 80 modules (goals, notes, browser, machines, talk, ci, hooks and state among them) and widgets
   assert.deepEqual(
     rows.map((r) => r.id),
     [...rows.map((r) => r.id)].sort(),
@@ -111,7 +111,7 @@ test("a scaffolded module builds: it is written, registered, and its generated t
     modulesOf(root).modules.find((m) => m.id === "widgets"),
     { id: "widgets", owner: "L1", status: "stub" },
   );
-  assert.equal(modulesOf(root).modules.length, 80);
+  assert.equal(modulesOf(root).modules.length, 81);
   const run = nodeTest(root, [
     "modules/widgets/tests/widgets.contract.test.ts",
     "modules/widgets/tests/widgets.space.test.ts",

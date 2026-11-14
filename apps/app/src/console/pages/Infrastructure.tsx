@@ -12,7 +12,7 @@ import {
   Actions,
   Button,
   Download,
-  Field,
+  TextBox,
   FormSheet,
   Note,
   Segmented,
@@ -271,9 +271,9 @@ export function Server(): ReactElement {
                 setFiltering(false);
               }}
             >
-              <Field label="Action" value={cap} onChange={setCap} />
-              <Field label="Person or agent" value={person} onChange={setPerson} />
-              <Field label="Error id" value={trace} onChange={setTrace} />
+              <TextBox label="Action" value={cap} onChange={setCap} />
+              <TextBox label="Person or agent" value={person} onChange={setPerson} />
+              <TextBox label="Error id" value={trace} onChange={setTrace} />
             </FormSheet>
           ) : null}
           <Section title="Results" count={logs.data?.rows.length ?? ""}>
@@ -448,7 +448,7 @@ export function DiagnosticsDetails(): ReactElement {
       <Section title="Look up an error">
         <Group>
           <Help>Paste the id an error message shows to see what happened.</Help>
-          <Field label="Error id" testID="diagnostics-lookup-id" value={id} onChange={setId} />
+          <TextBox label="Error id" testID="diagnostics-lookup-id" value={id} onChange={setId} />
           <Actions>
             <Button label="Look up" testID="diagnostics-lookup" disabled={!id.trim()} onPress={find} />
           </Actions>
@@ -563,7 +563,7 @@ export function Support(): ReactElement {
       <Section title="Support bundle">
         <Group>
           <Help>Versions, diagnostics and error details. No secrets or message content.</Help>
-          <Field label="Error ids (optional)" testID="infra-support-ids" value={traces} onChange={setTraces} />
+          <TextBox label="Error ids (optional)" testID="infra-support-ids" value={traces} onChange={setTraces} />
           <Actions>
             <Button
               label="Create support bundle"

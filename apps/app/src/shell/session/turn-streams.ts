@@ -27,11 +27,16 @@ export interface ActivityStep {
   name: string;
   state: "live" | "done" | "failed";
   /** what it touches, from the host in safe words ("model.ts", "stream pacing") */ detail?: string;
+  /** when this device saw it start and end (a subagent's row keeps a clock from these) */
+  at?: number;
+  endedAt?: number;
 }
 export interface ActivitySnapshot {
   startedAt: number;
   thinking: string;
   steps: readonly ActivityStep[];
+  /** What each subagent of the engine is on, by the id of the call that started it: its own lines, sent to the person the turn runs for alone (host/src/seams/engine.ts). */
+  subs?: Readonly<Record<string, ReadonlyArray<{ name: string; detail?: string }>>>;
   version: number;
   /** the turn has ended: the mark settles */ done?: boolean;
 }
@@ -310,6 +315,23 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
         kind = str(d["kind"]);
       if (threadId === "" || agentId === "") return;
       const turnId = f.turn;
+      if (kind === "substeps" && Array.isArray(d["steps"])) {
+        const t = ensure(turnId, threadId, agentId);
+        if (t.state === "ended") return;
+        arm(turnId, quietMs);
+        for (const raw of d["steps"] as Array<Record<string, unknown>>) {
+          const parent = str(raw["parent"]);
+          if (parent === "") continue;
+          touchAct(turnId, (s) => {
+            const list = [...(s.subs?.[parent] ?? [])];
+            if (raw["phase"] === "call") list.push({ name: str(raw["name"]) });
+            else if (raw["phase"] === "input" && list.length > 0 && str(raw["detail"]) !== "")
+              list[list.length - 1] = { ...list[list.length - 1]!, detail: str(raw["detail"]) };
+            return { ...s, subs: { ...(s.subs ?? {}), [parent]: list.slice(-8) } };
+          });
+        }
+        return;
+      }
       if (kind === "step" || kind === "steps" || kind === "thinking") {
         const t = ensure(turnId, threadId, agentId);
         if (t.state === "ended") return;
@@ -333,13 +355,15 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
               touchAct(turnId, (s) =>
                 s.steps.some((x) => x.id === id)
                   ? s
-                  : { ...s, steps: [...s.steps, { id, name, state: "live" as const }] },
+                  : { ...s, steps: [...s.steps, { id, name, state: "live" as const, at: now() }] },
               );
             else
               touchAct(turnId, (s) => ({
                 ...s,
                 steps: s.steps.map((x) =>
-                  x.id === id ? { ...x, state: raw["ok"] === false ? ("failed" as const) : ("done" as const) } : x,
+                  x.id === id
+                    ? { ...x, state: raw["ok"] === false ? ("failed" as const) : ("done" as const), endedAt: now() }
+                    : x,
                 ),
               }));
           }

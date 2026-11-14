@@ -9,7 +9,7 @@ import { AwayRow, HourMark, JumpRow } from "../session/rows.tsx";
 import type { SessionItem } from "../session/model.ts";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
 import { spaceKeyWay } from "./status.ts";
-import { mergeStateOf, withTeammates } from "../crew/model.ts";
+import { mergeStateOf, subagentIdsOf, totalsOf, withTeammates } from "../crew/model.ts";
 import { FROM_THREAD_LINE } from "../crew/also.tsx";
 import { barShows, citable, citeBody, citeRender } from "../crew/cite.tsx";
 import type { CrewMember, CrewStatusOut } from "../crew/model.ts";
@@ -49,6 +49,7 @@ import type { ReplyDetailsActions } from "../details/ReplyCard.tsx";
 import { LearnedLines } from "../memory/Learned.tsx";
 import type { MenuMessage, ShowMenu } from "../memory/menu.tsx";
 import { SubjectText, useSubjectBlocks } from "../memory/Subjects.tsx";
+import { ReplyLessonsMark } from "../memory/LessonMark.tsx";
 import { ReplyMemory } from "../memory/Used.tsx";
 import { AgentFileProposal, PlanFileCard, isPlanFile, isProposal } from "./proposal.tsx";
 import { Fold, Glyph, IconButton, TextButton, anchorOf } from "./parts.tsx";
@@ -107,6 +108,8 @@ import { MARK } from "./marks.ts";
 import type { ReplySummary } from "./replies.ts";
 import { ThreadFooter } from "../thread-replies/ThreadFooter.tsx";
 import { AlsoSentMark } from "../thread-replies/AlsoSentMark.tsx";
+import { RoundRow } from "../thread-replies/RoundRow.tsx";
+import { RoundTable } from "../thread-replies/RoundTable.tsx";
 import type { Clock } from "../rightpane/model.ts";
 import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
 import {
@@ -249,6 +252,8 @@ export interface MessageViewProps {
   mark?: "match" | "active" | "selected" | undefined;
   /** The thread under this message, when anyone has replied in it: the line that opens it. */
   replies?: { s: ReplySummary; clock: Clock } | undefined;
+  /** A reply has come since this message of yours: a lesson it taught is no longer a line under it but the quiet mark on its row. */
+  answered?: boolean | undefined;
   /** What the quiet line under your own message says now (actions.belowMine draws it): the row draws again when it changes, so Add, a dismiss or someone else adding the person shows at once. */
   below?: string | undefined;
 }
@@ -300,6 +305,7 @@ export function sameRow(a: MessageViewProps, b: MessageViewProps): boolean {
     a.openWork === b.openWork &&
     a.mark === b.mark &&
     a.below === b.below &&
+    a.answered === b.answered &&
     sameData(a.item, b.item, 6) &&
     sameData(a.actions, b.actions, 5) &&
     sameData(a.replies, b.replies, 3)
@@ -718,6 +724,7 @@ function Mine({
   mark,
   replies,
   meId,
+  answered,
 }: MessageViewProps & { item: Extract<Item, { kind: "me" }> }): ReactElement {
   const m = item.message;
   const [sheet, setSheet] = useState(false);
@@ -826,9 +833,9 @@ function Mine({
       {!editing && sending === undefined && actions.belowMine ? actions.belowMine(m) : null}
       {sending === "failed" ? (
         <View testID={`failed-${m.messageId}`} accessibilityRole="alert" style={st.failed}>
-          <Text style={st.failedText}>Not sent.</Text>
+          <Text style={st.failedText}>Not sent</Text>
           <TextButton
-            label="Retry"
+            label="Try again"
             onPress={() => actions.retrySend(m.messageId)}
             testID={`retry-send-${m.messageId}`}
           />
@@ -859,7 +866,15 @@ function Mine({
       <Reactions m={m} a={actions} mine meId={meId} />
       {actions.alsoSent?.has(m.messageId) ? <AlsoSentMark messageId={m.messageId} mine /> : null}
       <Replies m={m} replies={replies} actions={actions} mine />
-      <LearnedLines messageId={m.messageId} />
+      <RoundRow
+        messageId={m.messageId}
+        threadId={m.threadId}
+        body={m.body}
+        mentions={m.mentions}
+        createdAt={m.createdAt}
+        nameOf={actions.nameOf ?? unnamed}
+      />
+      <LearnedLines messageId={m.messageId} settled={answered === true} />
     </View>
   );
 }
@@ -982,6 +997,9 @@ function Theirs({
     [runCfg],
   );
   const subjects = useSubjectBlocks(blocks);
+  // a reply that used lessons says so by one quiet mark on its meta row: nothing of a lesson is printed in the column
+  const lessonMark =
+    person || stream || m.body === "" ? null : <ReplyLessonsMark messageId={m.messageId} threadId={m.threadId} />;
   // an agent's reply: hovering its face or name shows how it was made (model, account, asker, where, cost, tokens, time)
   const withCard = (kids: ReactElement): ReactElement =>
     !person && actions.details && !stream && !h.phone && !isSystemLine(m) ? (
@@ -1075,11 +1093,15 @@ function Theirs({
               <Text style={st.time}>{work.summary}</Text>
             </Pressable>
           ) : null}
+          {lessonMark}
         </View>
       ) : (
-        <TimeTip item={item}>
-          <Text style={[gutter ? st.whenLeft : st.whenIn, h.over && st.whenOn]}>{item.time}</Text>
-        </TimeTip>
+        <>
+          <TimeTip item={item}>
+            <Text style={[gutter ? st.whenLeft : st.whenIn, h.over && st.whenOn]}>{item.time}</Text>
+          </TimeTip>
+          {lessonMark ? <View style={st.markIn}>{lessonMark}</View> : null}
+        </>
       )}
       {pokedBy(m, actions.nameOf ?? unnamed) ? (
         <Text testID={`poked-${m.messageId}`} style={st.via}>
@@ -1097,11 +1119,13 @@ function Theirs({
           style={st.via}
         >{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text>
       ) : null}
-      {work && (!work.short || !item.newgroup || workOpen) ? (
+      {work &&
+      (!work.live || !(stream && actions.activityOf?.(m.messageId))) &&
+      (!work.short || !item.newgroup || workOpen) ? (
         <Fold
           testID={`work-${m.messageId}`}
-          label={work.live ? `Working${work.now ? ` · ${work.now}` : ""}` : work.summary}
-          open={work.live || workOpen}
+          label={work.live ? "Working" : work.summary}
+          open={workOpen}
           live={work.live}
           onToggle={() => setWorkOpen((o) => !o)}
         >
@@ -1269,7 +1293,12 @@ function Theirs({
               requestId={String((b.data as { requestId?: unknown }).requestId ?? "")}
               agent={item.who.name}
               agentId={item.who.id}
-              data={actions.files}
+              data={{ ...actions.files, nameOf: actions.nameOf ?? ((x: string) => x) }}
+              service={
+                typeof (b.data as { service?: unknown }).service === "string"
+                  ? String((b.data as { service?: unknown }).service)
+                  : undefined
+              }
             />
           );
         if (isChecklist(b.type)) return <ChecklistCard key={b.id} id={b.id} data={b.data} />;
@@ -1458,6 +1487,22 @@ function Theirs({
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
       })}
+      {(() => {
+        // the subagents this reply's engine started in its own turn: one block under the reply, the same rows as the helpers', each opens in the pane, the answer kept
+        const ids = subagentIdsOf(m.blocks);
+        const mine = ids.length === 0 ? [] : (actions.crew?.status?.members ?? []).filter((x) => ids.includes(x.id));
+        if (mine.length === 0) return null;
+        const c = actions.crew!;
+        return (
+          <CrewBlock
+            members={mine}
+            totals={totalsOf(mine)}
+            selectedId={c.selected}
+            onPeek={(x) => c.peek(x.id)}
+            onOpenPane={c.openPane}
+          />
+        );
+      })()}
       {collect(errors, (b) => (
         <ErrorRowView key={b.id} block={b} actions={actions} />
       ))}
@@ -1509,6 +1554,14 @@ function Theirs({
       <Reactions m={m} a={actions} mine={false} meId={meId} />
       {actions.alsoSent?.has(m.messageId) ? <AlsoSentMark messageId={m.messageId} /> : null}
       <Replies m={m} replies={replies} actions={actions} mine={false} />
+      <RoundTable
+        messageId={m.messageId}
+        threadId={m.threadId}
+        authorKind={m.author.kind}
+        createdAt={m.createdAt}
+        nameOf={actions.nameOf ?? unnamed}
+        onOpen={(askId) => actions.openThread(askId)}
+      />
       <LearnedLines messageId={m.messageId} />
       {m.pinned ? (
         <Text testID={`pinned-${m.messageId}`} style={st.edited}>
@@ -1916,7 +1969,7 @@ export function ErrorRowView({
     ...(e.retryable && e.turnId && !retried
       ? [
           {
-            label: "Retry",
+            label: "Try again",
             testID: "err-retry",
             run: () => {
               setRetried(true);
@@ -2085,6 +2138,8 @@ export const st = StyleSheet.create({
   by: { flexDirection: "row", alignItems: "center", gap: 8, height: 22 },
   who: { fontSize: NAME_PX, fontWeight: "600", color: "var(--ink)" as string },
   time: { fontSize: META_PX, color: "var(--ink-3)" as string },
+  /** the lesson mark of a reply that continues a run of the same agent's lines: no byline, so the mark has a row of its own */
+  markIn: { alignSelf: "flex-start", height: 22 },
   via: { fontSize: META_PX, color: "var(--ink-3)" as string },
   /** under an agent's message for its person, read by the teammate it went to (lane l-agentdm) */
   muteLine: { marginTop: 4 },

@@ -8,7 +8,7 @@ import { ObjectList } from "../objects/ObjectList.tsx";
 import { useIdentityName } from "../objects/names.ts";
 import { useConsoleData } from "../shell/data.tsx";
 import { Empty, Group, Section } from "../shell/ui.tsx";
-import { Help, Button, Field, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
+import { Help, Button, TextBox, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
 import { safeProviderUrl, useIntegrationRows } from "./integration-data.ts";
 import { scopeTokens, selectedVaultHandles } from "./integration-model.ts";
 import { IntegrationObject } from "./integration-object.tsx";
@@ -94,7 +94,7 @@ function VaultReference({
   ]);
   return (
     <View>
-      <Field
+      <TextBox
         label={"Find Vault item for " + name}
         testID={"connection-vault-" + name + "-search"}
         value={q}
@@ -220,7 +220,7 @@ export function NewConnection({
             {list.pagination.next ? (
               <Button label="Load more connectors" disabled={list.pagination.busy} onPress={list.pagination.onMore} />
             ) : null}
-            <Field label="Account name" testID="connection-title" value={title} onChange={setTitle} />
+            <TextBox label="Account name" testID="connection-title" value={title} onChange={setTitle} />
             {row ? (
               <>
                 <Select
@@ -246,7 +246,7 @@ export function NewConnection({
                     />
                   ))
                 }
-                <Field
+                <TextBox
                   label="Provider scopes (comma separated)"
                   testID="connection-scopes"
                   value={scopes}
@@ -379,7 +379,7 @@ export function ConnectionObject({ id, onBack }: { id: string; onBack(): void })
         </ObjectSection>
         {mutable ? (
           <ObjectSection title="Account settings">
-            <Field
+            <TextBox
               label="Account name"
               testID="connection-edit-title"
               value={name}
@@ -388,7 +388,7 @@ export function ConnectionObject({ id, onBack }: { id: string; onBack(): void })
                 setName(value);
               }}
             />
-            <Field
+            <TextBox
               label="Provider scopes (comma separated)"
               testID="connection-edit-scopes"
               value={scopes}

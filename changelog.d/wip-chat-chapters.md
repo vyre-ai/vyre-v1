@@ -1,0 +1,3 @@
+- A long chat now has chapters. A chat of more than 40 messages is split where a Fresh context line falls, after a gap of 3 hours, or after 80 messages. Each chapter has a short title and one line of what it settled, written by a cheap model on your own AI account, or from the plain words of the chat when none is at hand. A short chat is unchanged and pays nothing for this.
+- A long chat shows a rail of dots on the right edge, one for each chapter. Hover names the chapter, a press goes to it, and Alt with the up or down arrow steps between chapters.
+- A long command an agent runs in a terminal of its computer shows as one quiet line at the foot of the chat ("Tests  2 min  Background") and leaves one line when it ends.

@@ -5,7 +5,9 @@ import type { CrewMember, CrewStatusOut } from "./model.ts";
 
 export type Call = (cap: string, input: unknown) => Promise<unknown>;
 
-const live = (s: CrewStatusOut | null): boolean => s !== null && s.totals.working + s.totals.needsYou > 0;
+// the helpers and teammates are polled while they work; the engine's own subagents are not (their start and end come over the live stream the chat already has)
+const live = (s: CrewStatusOut | null): boolean =>
+  s !== null && s.members.some((m) => m.kind !== "subagent" && (m.state === "working" || m.state === "needs_you"));
 
 export function useCrewStatus(
   call: Call | undefined,
