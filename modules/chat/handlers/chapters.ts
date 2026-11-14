@@ -26,6 +26,7 @@ export const CHAPTERS = Object.freeze({
 });
 
 export interface Msg {
+  author: string;
   seq: number;
   at: number;
   kind: string;
@@ -103,7 +104,7 @@ export function chaptersOf(
       current: k === at.length - 1,
       title: saved?.title ?? ex!.title,
       summary: saved?.summary ?? ex!.summary,
-      by: saved ? (saved.writer === "person" ? "person" : "model") : "extract",
+      by: saved ? (saved.writer === "person" ? "person" : saved.writer === "model" ? "model" : "extract") : "extract",
     };
   });
 }
@@ -140,6 +141,7 @@ function messagesOf(ctx: ChatCtx, threadId: string): { msgs: Msg[]; total: numbe
   return {
     total,
     msgs: rows.map((r) => ({
+      author: String(r["author"] ?? ""),
       seq: Number(r["threadSeq"]),
       at: Number(r["createdAt"]),
       kind: String(r["kind"] ?? "text"),
@@ -176,6 +178,7 @@ export async function chaptersRead(ctx: ChatCtx, input: { threadId: string }) {
 interface Account {
   ref: string;
   driver: string;
+  kind?: string | undefined;
 }
 
 const SYSTEM =
@@ -212,6 +215,7 @@ async function askModel(
       prompt: sample.slice(0, 3_000),
     })) as { text?: string };
     const [a, b] = String(out.text ?? "")
+      .slice(0, 200)
       .split("\n")
       .map((x) => x.trim())
       .filter((x) => x !== "");
@@ -224,12 +228,22 @@ async function askModel(
   }
 }
 
-/** Writes the heading of up to 3 closed chapters that still have only the plain words, on the asker's own account. Never raises for a model that fails: the plain words stay. */
+/**
+ * Heads closed chapters that have no heading yet. The rules (lead, 14 Nov): a model is asked at most ONCE per chapter, when the chapter has closed (a later one has started), never for a chat
+ * under the threshold, never for a chapter that already has a row (a model's, a person's, or the plain words kept after a try), and only on an api_key account: a subscription has limits and is
+ * never spent on this, and neither is a Space's or another person's account. In a shared chat the account is the asker's and the chapter must have been opened by the asker (its first
+ * person message is theirs); otherwise nothing is called and the chapter waits for its own person's next turn. What is sent: up to 12 lines of the chapter (6 first, 6 last), each cut to 220
+ * characters, at most 3,000 characters (about 750 tokens in); the answer is two short lines (about 40 tokens), cut to 200 characters. A try that gives nothing (no cheap model, a failing call)
+ * keeps the plain words as the chapter's row, so it is never tried again.
+ * A stored heading belongs to the chapter that starts at the same first message. A reader whose view starts later (they joined mid-chapter) has a different first message, so they never see a
+ * title written from messages before they joined.
+ */
 export async function chaptersWrite(ctx: ChatCtx, input: { threadId: string; account?: Account | undefined }) {
-  if (!askerOf(ctx).startsWith("usr_"))
-    raise(ctx, "permission.no_grant", "Chapters are written for the person who asked.");
+  const me = askerOf(ctx);
+  if (!me.startsWith("usr_")) raise(ctx, "permission.no_grant", "Chapters are written for the person who asked.");
   const { msgs } = messagesOf(ctx, input.threadId);
-  if (msgs.length === 0 || !input.account?.ref || !input.account.driver) return { written: 0 };
+  if (msgs.length === 0 || !input.account?.ref || !input.account.driver || input.account.kind !== "api_key")
+    return { written: 0 };
   ensureTable(ctx);
   const kept = keptOf(ctx, input.threadId);
   const at = boundaries(msgs);
@@ -238,17 +252,19 @@ export async function chaptersWrite(ctx: ChatCtx, input: { threadId: string; acc
     const start = msgs[at[k]!]!.seq;
     if (kept.has(start)) continue;
     const part = msgs.slice(at[k]!, at[k + 1]!);
+    if (part.find((m) => m.person && m.kind !== "system")?.author !== me) continue;
     const made = await askModel(ctx, input.account, part);
-    if (!made) continue;
+    const row = made ?? { ...extractOf(part), writer: "extract" };
     ctx.db.run(
-      'INSERT INTO chat_chapter ("thread", "startSeq", "title", "summary", "writer", "at") VALUES (?, ?, ?, ?, \'model\', ?) ON CONFLICT("thread", "startSeq") DO NOTHING',
+      'INSERT INTO chat_chapter ("thread", "startSeq", "title", "summary", "writer", "at") VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT("thread", "startSeq") DO NOTHING',
       input.threadId,
       start,
-      made.title,
-      made.summary,
+      row.title,
+      row.summary,
+      made ? "model" : "extract",
       ctx.now(),
     );
-    written++;
+    if (made) written++;
   }
   return { written };
 }

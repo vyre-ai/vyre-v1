@@ -6,6 +6,7 @@ import { act } from "react";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../../ui/src/testing/dom.ts";
 import { ChapterHead } from "./ChapterHead.tsx";
 import { ChapterLayer } from "./ChapterLayer.tsx";
+import { useCurrentChapter } from "./current-chapter.ts";
 import { ChapterRail } from "./ChapterRail.tsx";
 import { chapterAt, isOpen, ownSeq, railOf, withChapters } from "./model.ts";
 import type { ChapterInfo, ChapterRow } from "./model.ts";
@@ -174,4 +175,24 @@ test("the layer asks the server only for a long chat, lays the rows out in chapt
   assert.equal(seen.filter((r) => r.kind === "other").length, 30);
   await act(async () => flip(31));
   assert.equal(seen.filter((r) => r.kind === "other").length, 60);
+});
+
+test("the layer publishes the current chapter's title for the head's subtitle", async () => {
+  const call = async (): Promise<unknown> => ({ chapters: three, wanted: 0 });
+  let seen = "";
+  const Probe = (): null => {
+    seen = useCurrentChapter("thr_sub");
+    return null;
+  };
+  await mount(
+    createRoot,
+    <>
+      <Probe />
+      <ChapterLayer call={call} threadId="thr_sub" size={90} newest={90} focusSeq={null} rows={rows(90)} own={ownSeq} clock={clock}>
+        {() => null}
+      </ChapterLayer>
+    </>,
+  );
+  await flush();
+  assert.equal(seen, "Launch");
 });

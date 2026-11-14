@@ -1,6 +1,6 @@
 // Background jobs in a chat (G45, prototype scene bgjob): a long command an agent runs in a terminal tab of its computer is a Job. While it runs the chat shows one quiet line, "Tests  2 min  Background",
 // and when it ends one line says how it ended. The jobs are read from the terminals of the agents in the chat (terminal.list), so nothing new is stored: the terminal and its log belong to the host and
-// outlive the chat. Pure here; the hook that reads is below.
+// outlive the chat. Pure here; the hook that reads is below. It reads once when the chat opens and once when work ends; the terminal feed of lane b-pc will replace the reads.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { durationWords } from "../../../../../../../lib/duration.ts";
 
@@ -81,8 +81,8 @@ export function settle(
   return { running, finished };
 }
 
-/** Poll this often while a job runs or an agent works; otherwise only when the chat opens and when work ends. */
-export const JOB_POLL_MS = 5_000;
+/** The words "2 min" are redrawn this often while a job runs: a clock on this computer, never a read. */
+export const JOB_CLOCK_MS = 30_000;
 
 export function useJobs(o: {
   call: Call | undefined;
@@ -117,19 +117,18 @@ export function useJobs(o: {
     setState({ running: [], finished: [] });
     read();
   }, [ids, read]);
-  const busy = o.working || state.running.length > 0;
+  // no polling (P7): one read when the chat opens, one when an agent's work ends (the turn's own end), and a clock for the words only
   const was = useRef(false);
   useEffect(() => {
-    // work just ended: one more read to see what finished
-    if (!busy && was.current) read();
-    was.current = busy;
-    if (!busy) return;
-    const t = setInterval(() => {
-      read();
-      setTick((n) => n + 1);
-    }, JOB_POLL_MS);
+    if (!o.working && was.current) read();
+    was.current = o.working;
+  }, [o.working, read]);
+  const running = state.running.length > 0;
+  useEffect(() => {
+    if (!running) return;
+    const t = setInterval(() => setTick((n) => n + 1), JOB_CLOCK_MS);
     (t as { unref?: () => void }).unref?.();
     return () => clearInterval(t);
-  }, [busy, read]);
+  }, [running]);
   return { ...state, tick };
 }

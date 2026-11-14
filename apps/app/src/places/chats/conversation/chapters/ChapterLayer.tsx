@@ -3,6 +3,8 @@
 import type { ReactElement, ReactNode } from "react";
 import { railOf, withChapters } from "./model.ts";
 import type { ChapterInfo, ChapterRow, Dot } from "./model.ts";
+import { useEffect } from "react";
+import { setCurrentChapter } from "./current-chapter.ts";
 import { JobLines } from "./JobLines.tsx";
 import { useJobs } from "./jobs.ts";
 import { useChapters } from "./use-chapters.ts";
@@ -41,6 +43,11 @@ export function ChapterLayer<R extends { kind: string }>(p: {
     now: Date.now,
   });
   const chapters: readonly ChapterInfo[] = s.chapters;
+  const now = chapters.find((c) => c.current)?.title ?? "";
+  useEffect(() => {
+    setCurrentChapter(p.threadId, now);
+    return () => setCurrentChapter(p.threadId, "");
+  }, [p.threadId, now]);
   return (
     <>
       {p.children({

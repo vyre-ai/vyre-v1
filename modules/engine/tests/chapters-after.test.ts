@@ -35,7 +35,7 @@ test("a completed turn hands the chat to chat.chapters_write once, as the asker,
   assert.equal(seen.length, 1);
   assert.deepEqual(seen[0], {
     cap: "chat.chapters_write",
-    input: { threadId: "thr_1", account: { ref: "#Dana", driver: "claude_code" } },
+    input: { threadId: "thr_1", account: { ref: "#Dana", driver: "claude_code", kind: "subscription" } },
     as: "usr_dana",
   });
 });

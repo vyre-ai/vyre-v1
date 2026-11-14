@@ -13,6 +13,7 @@ const key = (): string => `ch-${++n}`;
 const HOUR = 3_600_000;
 
 const msg = (seq: number, at: number, o: Partial<Msg> = {}): Msg => ({
+  author: seq % 2 === 1 ? "usr_dana" : "agt_x",
   seq,
   at,
   kind: "text",
@@ -90,7 +91,10 @@ test("the read costs nothing on a short chat and lists chapters on a long one; t
   const a = await h["chat.chapters"]!(hn.ctx, { threadId: t });
   assert.equal(a.chapters.length, 2);
   assert.equal(a.wanted, 1, "the open chapter is never written");
-  const w = await h["chat.chapters_write"]!(hn.ctx, { threadId: t, account: { ref: "acc_1", driver: "claude" } });
+  const w = await h["chat.chapters_write"]!(hn.ctx, {
+    threadId: t,
+    account: { ref: "acc_1", driver: "claude", kind: "api_key" },
+  });
   assert.equal(w.written, 1);
   assert.equal(calls.length, 1);
   const b = await h["chat.chapters"]!(hn.ctx, { threadId: t });
@@ -99,7 +103,12 @@ test("the read costs nothing on a short chat and lists chapters on a long one; t
   assert.equal(b.chapters[0].by, "model");
   assert.equal(b.wanted, 0);
   assert.equal(
-    (await h["chat.chapters_write"]!(hn.ctx, { threadId: t, account: { ref: "acc_1", driver: "claude" } })).written,
+    (
+      await h["chat.chapters_write"]!(hn.ctx, {
+        threadId: t,
+        account: { ref: "acc_1", driver: "claude", kind: "api_key" },
+      })
+    ).written,
     0,
   );
   void DANA;
@@ -116,10 +125,67 @@ test("a model that fails leaves the plain words and the post path is not touched
   });
   const t = await longChat(hn, 60, 30);
   assert.equal(
-    (await h["chat.chapters_write"]!(hn.ctx, { threadId: t, account: { ref: "a", driver: "claude" } })).written,
+    (await h["chat.chapters_write"]!(hn.ctx, { threadId: t, account: { ref: "a", driver: "claude", kind: "api_key" } }))
+      .written,
     0,
   );
   const a = await h["chat.chapters"]!(hn.ctx, { threadId: t });
   assert.equal(a.chapters[0].by, "extract");
   assert.equal(a.chapters[0].title, "Plan item 1");
+});
+
+test("a 200-message chat makes no more model calls than it has closed chapters, and never asks twice for one chapter", async () => {
+  let calls = 0;
+  const hn = harness({
+    calls: {
+      "engine.models.list": () => ({ models: [{ model: "claude-haiku-4-5", allowed: true }] }),
+      "engine.complete": () => {
+        calls++;
+        return { text: "Plan\nSettled it" };
+      },
+    },
+  });
+  const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() }))
+    .thread.threadId as string;
+  const account = { ref: "acc_1", driver: "claude", kind: "api_key" };
+  for (let i = 1; i <= 200; i++) {
+    hn.advance(i % 50 === 0 ? 4 * HOUR : 60_000);
+    await h["chat.post"]!(hn.ctx, { threadId: t, body: `Plan item ${i} for the portal`, idempotencyKey: key() });
+    if (i % 2 === 0) await h["chat.chapters_write"]!(hn.ctx, { threadId: t, account });
+  }
+  const done = await h["chat.chapters"]!(hn.ctx, { threadId: t });
+  const closed = done.chapters.filter((c: any) => !c.current).length;
+  assert.equal(closed, 4, "gaps before messages 50, 100, 150 and 200 start five chapters; the last is open");
+  assert.ok(calls <= closed, `${calls} calls for ${closed} closed chapters`);
+  assert.equal(calls, closed);
+  const before = calls;
+  for (let i = 0; i < 5; i++) await h["chat.chapters_write"]!(hn.ctx, { threadId: t, account });
+  assert.equal(calls, before, "nothing is asked again");
+});
+
+test("a subscription, an account with no kind, and a chapter another person opened cost no call", async () => {
+  let calls = 0;
+  const hn = harness({
+    calls: {
+      "engine.models.list": () => ({ models: [{ model: "claude-haiku-4-5", allowed: true }] }),
+      "engine.complete": () => {
+        calls++;
+        return { text: "Plan\nSettled it" };
+      },
+    },
+  });
+  const t = await longChat(hn, 60, 30);
+  for (const kind of ["subscription", undefined])
+    await h["chat.chapters_write"]!(hn.ctx, {
+      threadId: t,
+      account: { ref: "a", driver: "claude", ...(kind ? { kind } : {}) },
+    });
+  assert.equal(calls, 0);
+  // the same chat read as Maya: the chapter was opened by Dana, so Maya's account is not spent on it
+  await h["chat.chapters_write"]!(hn.person(MAYA), {
+    threadId: t,
+    account: { ref: "m", driver: "claude", kind: "api_key" },
+  });
+  assert.equal(calls, 0);
+  assert.equal((await h["chat.chapters"]!(hn.ctx, { threadId: t })).chapters[0].by, "extract");
 });
