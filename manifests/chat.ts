@@ -162,6 +162,8 @@ const sidebarRow = t.obj({
   personId: t.opt(t.str()),
   agentId: t.opt(t.str()),
   progress: t.opt(t.obj({ done: t.int({ minimum: 0 }), total: t.int({ minimum: 0 }) })),
+  line: t.opt(t.str({ description: "A goal's second line in words: why it waits, or that it is paused or stuck" })),
+  nextCheckinAt: t.opt(t.ts()),
   quiet: t.opt(t.bool()),
   ended: t.opt(t.bool()),
   archived: t.opt(t.bool()),

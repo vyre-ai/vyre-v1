@@ -300,3 +300,44 @@ test("the chat kind for the state module: the audience and the rule of who may s
   assert.equal(chatKind.entries(raw as never, t).length, 2);
   assert.equal(chatKind.heads(raw as never).find((x) => x.thing === t)!.head, 2);
 });
+
+test("a goal that is not moving says why in words; a moving one has no line", async () => {
+  const hn = harness({
+    calls: world({
+      goals: [
+        {
+          id: "gol_p",
+          title: "Paused one",
+          status: "paused",
+          leadAgentId: INTAKE,
+          updatedAt: 5,
+          progress: { tasksDone: 0, tasks: 2 },
+        },
+        {
+          id: "gol_w",
+          title: "Waiting one",
+          status: "waiting",
+          statusReason: "Needs the Q3 numbers",
+          leadAgentId: INTAKE,
+          updatedAt: 6,
+          progress: { tasksDone: 0, tasks: 2 },
+        },
+        {
+          id: "gol_a",
+          title: "Moving one",
+          status: "active",
+          leadAgentId: INTAKE,
+          updatedAt: 7,
+          progress: { tasksDone: 1, tasks: 2 },
+        },
+      ],
+    }),
+  });
+  await agentChat(hn);
+  const out = await h["chats.sidebar"]!(hn.ctx, {});
+  const line = (id: string) => out.goals.rows.find((r: { key: string }) => r.key === `g:${id}`).line;
+  assert.equal(line("gol_p"), "Paused");
+  assert.equal(line("gol_w"), "Needs the Q3 numbers");
+  assert.equal(line("gol_a"), undefined);
+  assert.deepEqual(contractErrors("chats.sidebar", "out", out), []);
+});

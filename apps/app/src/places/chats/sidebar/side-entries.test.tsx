@@ -204,14 +204,27 @@ test("an unread row is bold, a muted one is not; the open row is selected; the c
   assert.doesNotMatch(cur, /var\(--sel\)/);
 });
 
-test('a pinned row shows its Cmd digit; the "..." button is there for the menu and says whose', () => {
+test('a pinned row shows its Cmd digit only while Cmd is held; the "..." is in a hover slot (hidden at rest) and says whose', () => {
   const x = mk("chat", "agent");
   const l = layoutOf([x], { pins: [x.key] });
-  const html = renderToStaticMarkup(
-    <ItemRow entry={entryOf(l, "row")} state={st} on={{ press: () => {}, more: () => {} }} />,
-  );
-  assert.match(html, /data-testid="digit-1"/);
+  const draw = (digits: boolean): string =>
+    renderToStaticMarkup(
+      <ItemRow entry={entryOf(l, "row")} state={{ ...st, digits }} on={{ press: () => {}, more: () => {} }} />,
+    );
+  assert.doesNotMatch(draw(false), /data-testid="digit-1"/);
+  assert.match(draw(true), /data-testid="digit-1"/);
+  const html = draw(false);
   assert.match(html, /aria-label="More for Launch crew"/);
+  assert.match(html, /class="vyre-hm"/, "the button sits in the hover slot");
+  assert.doesNotMatch(draw(false), /data-on/, "and is not forced on at rest");
+  const cursorOn = renderToStaticMarkup(
+    <ItemRow
+      entry={entryOf(l, "row")}
+      state={{ selected: false, cursor: true }}
+      on={{ press: () => {}, more: () => {} }}
+    />,
+  );
+  assert.match(cursorOn, /data-on="1"/, "the keyboard cursor shows it");
 });
 
 // ---------------------------------------------------------------- the other entries

@@ -76,6 +76,7 @@ import { ThreadSide } from "./ThreadSide.tsx";
 import { ArtifactsPage } from "./ArtifactsPage.tsx";
 import { ArtifactView } from "./ArtifactView.tsx";
 import { NotesPage } from "../notes/NotesPage.tsx";
+import { NotesArtifactsFrame } from "./NotesArtifactsFrame.tsx";
 import type { NotesInitial } from "../notes/NotesPage.tsx";
 import { AgentForm } from "../agentform/AgentForm.tsx";
 import { setAgentFaces } from "../../../../../../ui/src/Avatar/assistant.ts";
@@ -980,7 +981,12 @@ export function ChatsMounted({
           : { sharing: { directory, meName: rt.me.name, meId: rt.me.id, nameOf, spaceName: rt.space.name } })}
       />
     );
-  else if (route.view === "artifacts") main = <ArtifactsPage rt={rt} />;
+  else if (route.view === "artifacts")
+    main = (
+      <NotesArtifactsFrame tab="artifacts" onTab={() => act({ t: "notes" })}>
+        <ArtifactsPage rt={rt} />
+      </NotesArtifactsFrame>
+    );
   else if (route.view === "artifact")
     main = (
       <ArtifactView
@@ -992,8 +998,8 @@ export function ChatsMounted({
         gone={() => act({ t: "artifacts" })}
       />
     );
-  else if (route.view === "notes")
-    main = (
+  else if (route.view === "notes") {
+    const page = (
       <NotesPage
         rt={rt}
         nameOf={nameOf}
@@ -1002,7 +1008,14 @@ export function ChatsMounted({
         {...(notesInitial ? { initial: notesInitial } : {})}
       />
     );
-  else if (route.view === "new") {
+    main = route.noteId ? (
+      page
+    ) : (
+      <NotesArtifactsFrame tab="notes" onTab={() => act({ t: "artifacts" })}>
+        {page}
+      </NotesArtifactsFrame>
+    );
+  } else if (route.view === "new") {
     main = (
       <Landing
         key={route.with?.agentId ?? "new"}

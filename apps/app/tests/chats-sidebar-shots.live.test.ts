@@ -98,6 +98,9 @@ test("chats sidebar pictures and click-through", async (t) => {
       }
       for (const nm of ["launch", "ops", "design", "support", "finance", "hiring", "release"])
         await call("channels.create", { name: nm, visibility: "public" });
+      const gen = ((await call("channels.list", {})).channels as { name: string; channelId: string; mainThreadId: string }[]).find((c) => c.name === "launch")!;
+      await callAs(maya.token, "channels.join", { channelId: gen.channelId });
+      await callAs(maya.token, "chat.post", { threadId: gen.mainThreadId, body: "@Olivia the launch checklist is ready", mentions: [{ kind: "person", id: ownerId }] });
       await call("stars.toggle", { resource: { type: "thread", id: chats[0]! }, on: true });
       await call("notifications.mute.set", { target: { kind: "thread", id: chats[3]! }, minutes: 600 });
       await call("goals.create", {
@@ -177,6 +180,33 @@ test("chats sidebar pictures and click-through", async (t) => {
             .catch(() => ""));
         assert.notEqual(after, before, `pressing "${label}" did something`);
         await guard.check(`open ${label}`);
+      }
+      // a guest: the one channel they were added to, nothing else
+      try {
+        const guest = await accept("Guest", "gus", "Gus Rowe");
+        const room = (await call("channels.create", { name: "client-room", visibility: "invite" })).channel;
+        await call("channels.members.add", { channelId: room.channelId, personIds: [guest.personId] });
+        const saved = await page.evaluate(() => localStorage.getItem("vyre.session.v1")!);
+        const gj = JSON.parse(saved) as Any;
+        const org = web.origin;
+        if (gj.sessions?.[org]) gj.sessions[org].token = guest.token;
+        const gctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+        await gctx.addInitScript((v: string) => localStorage.setItem("vyre.session.v1", v), JSON.stringify(gj));
+        const gp = await gctx.newPage();
+        await gp.goto(`${web.origin}/`, { waitUntil: "load" });
+        await gp.getByTestId("chats-sidebar").waitFor({ timeout: 25_000 });
+        await gp.waitForTimeout(800);
+        for (const scheme of ["light", "dark"] as const) {
+          await setScheme(gp, scheme);
+          await gp.waitForTimeout(200);
+          await gp.screenshot({ path: path.join(out, `guest-full-${scheme}-1440.png`), animations: "disabled" });
+        }
+        const gtext = await gp.getByTestId("chats-sidebar").innerText();
+        assert.ok(gtext.includes("client-room"), "the guest sees their channel");
+        assert.ok(!gtext.includes("Team") && !gtext.includes("Goals") && !gtext.includes("launch\n"), "no Team, no Goals, no public channel");
+        await gctx.close();
+      } catch (e) {
+        fs.writeFileSync(path.join(out, "guest-picture-failed.txt"), String((e as Error).message));
       }
       // phone width
       await page.setViewportSize({ width: 390, height: 844 });

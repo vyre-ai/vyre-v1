@@ -172,7 +172,6 @@ test("the list draws every kind of entry at its fixed height inside one window",
     "row-verb",
     "section-error-channels",
     "head-chats",
-    "digit-1",
   ])
     assert.match(html, new RegExp(`data-testid="${t}"`), t);
   for (const h of new Set(l.entries.map((e) => e.h))) assert.match(html, new RegExp(`height:${h}px`), `a ${h}px entry`);

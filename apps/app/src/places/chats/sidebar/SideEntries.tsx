@@ -10,6 +10,7 @@ import { LoadFailed } from "../../../../../../ui/src/States/Loads.tsx";
 import { MoreRow } from "../../../../../../ui/src/MoreRow/index.tsx";
 import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
 import { Glyph } from "./parts.tsx";
+import { injectCss } from "../../../../../../ui/src/theme/css.ts";
 import { aggMarks } from "./layout.ts";
 import type { Item, LayoutEntry, Mark, Shape } from "./layout.ts";
 
@@ -226,11 +227,37 @@ const marksOf = (marks: readonly Mark[], onHead = false): ReactElement => (
 
 // ---------------------------------------------------------------- the entries
 
+// A row at rest shows its name and at most its one mark; the "..." comes with the pointer or the keyboard (and always on a touch screen, where there is no hover). Class on a plain element, because the sheet is what can say :hover.
+let hoverCss = false;
+function ensureHoverCss(): void {
+  if (hoverCss) return;
+  const d = (globalThis as { document?: Parameters<typeof injectCss>[0] }).document;
+  if (!d || !d.head) return;
+  injectCss(
+    d,
+    "vyre-side-hover",
+    ".vyre-hm{display:none}.vyre-row:hover .vyre-hm,.vyre-row:focus-within .vyre-hm,.vyre-hm[data-on]{display:flex}@media (hover:none){.vyre-hm{display:flex}}",
+  );
+  hoverCss = true;
+}
+ensureHoverCss();
+/** The wrapper of a row's "...": hidden at rest, shown on hover, on focus, when the keyboard cursor is on the row (`on`) and on touch. */
+function HoverSlot({ on = false, children }: { on?: boolean; children: ReactNode }): ReactElement {
+  ensureHoverCss();
+  return createElement(
+    "div",
+    { className: "vyre-hm", style: { alignItems: "center" }, ...(on ? { "data-on": "1" } : {}) },
+    children,
+  );
+}
+
 export interface EntryState {
   /** The row the middle shows. */
   selected: boolean;
   /** The keyboard cursor is on it (drawn as a hover, never as the selection). */
   cursor: boolean;
+  /** Cmd (or Ctrl) is held: a pinned row shows its digit. */
+  digits?: boolean;
 }
 export interface EntryHandlers {
   press(): void;
@@ -294,13 +321,13 @@ export function ItemRow({
     </Text>
   ) : (
     <View style={s.trail as never}>
-      {entry.digit !== undefined ? (
+      {entry.digit !== undefined && state.digits === true ? (
         <Text testID={`digit-${entry.digit}`} style={s.digit as never}>{`⌘${entry.digit}`}</Text>
       ) : null}
       {entry.mark ? <MarkView mark={entry.mark} /> : null}
-      <View style={s.hoverMore as never}>
+      <HoverSlot on={state.cursor}>
         <MoreButton label={x.title} {...(on.more ? { onPress: on.more } : {})} />
-      </View>
+      </HoverSlot>
     </View>
   );
   return wrap(
@@ -367,9 +394,9 @@ export function TasksRow({
       trailing={
         <View style={s.trail as never}>
           {entry.count > 0 ? <MarkView mark={{ kind: "mention", count: entry.count }} /> : null}
-          <View style={s.hoverMore as never}>
+          <HoverSlot on={state.cursor}>
             <MoreButton label="Tasks" {...(on.more ? { onPress: on.more } : {})} />
-          </View>
+          </HoverSlot>
         </View>
       }
       domProps={{

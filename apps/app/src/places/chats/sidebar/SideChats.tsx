@@ -9,11 +9,18 @@ import { Quiet } from "../../../../../../ui/src/States/Quiet.tsx";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
+import { useResume } from "../../../onboarding/resume-context.ts";
+import { claimResumeFoot } from "../../../onboarding/resume-place.ts";
 import { portalInto } from "../../../shell/sidebar/portal.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { matchShortcut } from "../../../shell/keyboard/map.ts";
 import { detectPlatform } from "../../../shell/keyboard/useShellKeys.ts";
+import { lastNotesTab } from "../notes/notes-tab.ts";
+import { TextAsk } from "../menus/TextAsk.tsx";
+import { askedCall } from "../goals/goal-menu.ts";
+import { useAddSheet } from "../addsheet/index.ts";
+import { nameOr } from "../names.ts";
 import { ChannelSheets } from "../channels/Sheets.tsx";
 import { onChannelRequest, takeChannelRequest } from "../channels/request.ts";
 import type { ChannelSheetKind } from "../channels/request.ts";
@@ -23,7 +30,7 @@ import { itemLink } from "../../../share/rows.ts";
 import { createSidebarApi } from "./actions.ts";
 import { useScreenQuery, useSidebarData } from "./data.tsx";
 import { Glyph, Tool } from "./parts.tsx";
-import { NO_PRESENCE, itemsOf, openKeyFor, pinsOf } from "./side-data.ts";
+import { NO_PRESENCE, itemsOf, namesOf, openKeyFor, pinsOf } from "./side-data.ts";
 import type { Presence, SideOut, SideRow } from "./side-data.ts";
 import { buildLayout, filterChoices, FILTER_CHOICES } from "./layout.ts";
 import type { FilterId, Item, SectionId } from "./layout.ts";
@@ -34,6 +41,7 @@ import type { RowDo } from "./side-menus.ts";
 import { refetch } from "./model.ts";
 import { MoreRow } from "../../../../../../ui/src/MoreRow/index.tsx";
 
+const SECTIONS_PAGED = ["goals", "pinned", "chats", "channels", "team"] as const;
 export const SIDE_SCREEN = "chats.sidebar";
 export const SIDE_QUERY = "side";
 const MUTE_MINUTES = 525_600;
@@ -116,9 +124,13 @@ export function SideChats({
   const port = useMemo(() => deviceSideState(data.space.name, store()), [data.space.name]);
   const [, tick] = useState(0);
   useEffect(() => port.subscribe(() => tick((n) => n + 1)), [port]);
+  const [pages, setPages] = useState<Partial<Record<(typeof SECTIONS_PAGED)[number], SideRow[]>>>({});
   const [more, setMore] = useState<ReadonlySet<SectionId>>(new Set());
   const [sheet, setSheet] = useState<ChannelSheetKind | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [ask, setAsk] = useState<
+    { kind: "rename"; threadId: string; title: string } | { kind: "stuck" | "report"; goalId: string } | null
+  >(null);
   const api = useMemo(
     () =>
       createSidebarApi(
@@ -129,6 +141,8 @@ export function SideChats({
     [data],
   );
   const menuApi = useMemo(() => createMenuApi(data), [data]);
+  const resume = useResume();
+  useEffect(() => claimResumeFoot(), []);
   const personal = data.space.personal === true;
   const leave = (): void => slot?.openBody();
   useEffect(() => {
@@ -140,7 +154,52 @@ export function SideChats({
     });
   }, [personal]);
 
-  const out = q.status === "ready" ? q.data : null;
+  const first = q.status === "ready" ? q.data : null;
+  // the rows past the first page, fetched when a section is opened with "N more" (the answer carries 50 of each and says how many there are)
+  const out = useMemo(() => {
+    if (!first) return null;
+    const o = { ...first } as SideOut;
+    for (const k of SECTIONS_PAGED) {
+      const extra = pages[k];
+      if (extra?.length)
+        o[k] = {
+          ...first[k],
+          rows: [...first[k].rows, ...extra.filter((r) => !first[k].rows.some((x) => x.key === r.key))],
+        };
+    }
+    return o;
+  }, [first, pages]);
+  useEffect(() => setPages({}), [filter, first]);
+  const loadRest = (s: (typeof SECTIONS_PAGED)[number]): void => {
+    if (!first || first[s].next === undefined) return;
+    void (async () => {
+      let after: string | undefined = first[s].next;
+      const got: SideRow[] = [];
+      for (let n = 0; after !== undefined && n < 20; n++) {
+        const r = (await data.call("chats.sidebar", {
+          ...(filter === "all" ? {} : { filter }),
+          more: { section: s, after, limit: 100 },
+        })) as SideOut;
+        got.push(...r[s].rows);
+        after = r[s].next;
+      }
+      setPages((p) => ({ ...p, [s]: got }));
+    })().catch(() => say("Could not load the rest. Try again."));
+  };
+  const names = useMemo(() => (out ? namesOf(out) : new Map<string, string>()), [out]);
+  const agentName = useCallback((id: string) => nameOr(names.get(id), "Someone"), [names]);
+  const seq = useRef(0);
+  const add = useAddSheet(
+    {
+      call: data.call,
+      me: { id: data.me?.id ?? "me", name: "You" },
+      nameOf: agentName,
+      newKey: () => `sb2-add-${++seq.current}`,
+      toast: (t: string) => say(t),
+      ...(allows(rt, "console.access") ? { admin: true } : {}),
+    },
+    { copy: (t: string) => copyToClipboard(t) },
+  );
   const assistantId = data.space.assistant.agentId;
   const built = useMemo(() => (out ? itemsOf(out, assistantId, presence) : null), [out, assistantId, presence]);
   const pins = useMemo(() => (out ? pinsOf(out) : []), [out]);
@@ -154,6 +213,15 @@ export function SideChats({
         folded: port.folds(),
         more,
         open: openKey,
+        totals: out
+          ? {
+              goals: out.goals.total,
+              pinned: out.pinned.total,
+              chats: out.chats.total,
+              channels: out.channels.total,
+              team: out.team.total,
+            }
+          : {},
         personal,
         guest: !canChat,
         loading: q.status === "loading" && failureOf(q) === undefined,
@@ -222,6 +290,18 @@ export function SideChats({
           : { deleteChat: () => guard(api.deleteChat(t)) }
         : {}),
       ...(r.kind === "channel" ? { leave: () => guard(menuApi.leaveChannel(x.key.slice(3))) } : {}),
+      ...(r.kind === "chat" && t ? { rename: () => setAsk({ kind: "rename", threadId: t, title: x.title }) } : {}),
+      ...(t && (r.kind === "chat" || r.kind === "person")
+        ? { addPeople: () => add.open({ threadId: t, name: x.title }) }
+        : {}),
+      ...(r.kind === "channel" && t ? { invite: () => add.open({ threadId: t, name: x.title }) } : {}),
+      ...(r.kind === "goal"
+        ? {
+            reportProgress: () => setAsk({ kind: "report", goalId: x.key.slice(2) }),
+            markStuck: () => setAsk({ kind: "stuck", goalId: x.key.slice(2) }),
+            pauseGoal: () => guard(data.call("goals.pause", { goalId: x.key.slice(2) })),
+          }
+        : {}),
       ...(r.kind === "agent" && data.nav.openAgent ? { viewProfile: () => data.nav.openAgent!(r.agentId!) } : {}),
       ...(r.kind === "agent" && !x.assistant ? { pause: () => guard(menuApi.pause(r.agentId!)) } : {}),
       copyLink: () =>
@@ -380,7 +460,10 @@ export function SideChats({
               leave();
             }}
             fold={(s) => port.setFold(s, !port.folds().has(s))}
-            toggleMore={(s) => setMore((m) => new Set(m.has(s) ? [...m].filter((x) => x !== s) : [...m, s]))}
+            toggleMore={(s) => {
+              if (!more.has(s) && s !== "needs") loadRest(s as (typeof SECTIONS_PAGED)[number]);
+              setMore((m) => new Set(m.has(s) ? [...m].filter((x) => x !== s) : [...m, s]));
+            }}
             retry={reread}
             showAll={showAll}
             newGoal={() => data.nav.openGoal?.("new")}
@@ -411,9 +494,15 @@ export function SideChats({
             id="notes"
             title="Notes & artifacts"
             selected={open === "notes" || open === "artifacts"}
-            leading={<Glyph name="note" size={16} color="var(--ink-2)" />}
+            leading={
+              <View style={{ width: 20, marginRight: 8, alignItems: "center" }}>
+                <Glyph name="note" size={16} color="var(--ink-2)" />
+              </View>
+            }
             onPress={() => {
-              (data.nav.openNotes ?? data.nav.openArtifacts)?.();
+              (lastNotesTab() === "artifacts" && data.nav.openArtifacts
+                ? data.nav.openArtifacts
+                : (data.nav.openNotes ?? data.nav.openArtifacts))?.();
               leave();
             }}
             domProps={ctx.on(
@@ -428,12 +517,44 @@ export function SideChats({
           />
         </View>
       ) : null}
+      {resume?.pill ? (
+        <View testID="sidebar-setup" style={st.setup}>
+          {resume.pill}
+        </View>
+      ) : null}
       {note ? (
         <Text accessibilityRole="alert" style={st.note}>
           {note}
         </Text>
       ) : null}
       {menu.element}
+      {add.element}
+      {ask ? (
+        <TextAsk
+          title={
+            ask.kind === "rename" ? "Rename chat" : ask.kind === "stuck" ? "Why is this goal stuck?" : "Report progress"
+          }
+          label={
+            ask.kind === "rename"
+              ? "Name"
+              : ask.kind === "stuck"
+                ? "What is in the way"
+                : "What changed and what is next"
+          }
+          action={ask.kind === "rename" ? "Rename" : ask.kind === "stuck" ? "Mark stuck" : "Report"}
+          {...(ask.kind === "rename" ? { initial: ask.title } : { multiline: true })}
+          onClose={() => setAsk(null)}
+          onDone={(text) => {
+            const a = ask;
+            setAsk(null);
+            if (a.kind === "rename") guard(menuApi.renameThread(a.threadId, text.trim()));
+            else {
+              const c = askedCall(a.kind, text);
+              guard(data.call(c.cap, { goalId: a.goalId, ...c.input }).then(() => say(c.done)));
+            }
+          }}
+        />
+      ) : null}
       {sheet ? <SheetHost kind={sheet} onSwitch={setSheet} onClose={() => setSheet(null)} /> : null}
     </View>
   );
@@ -492,6 +613,7 @@ const st = StyleSheet.create({
   },
   list: { flex: 1, minHeight: 0 },
   foot: { paddingHorizontal: 0, paddingTop: 4, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
+  setup: { paddingHorizontal: 8, paddingTop: 6, paddingBottom: 4, alignItems: "flex-start" },
   showing: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, height: 26 },
   showingText: { flex: 1, fontSize: 12, color: "var(--ink-3)" as string },
   showAll: { fontSize: 12, fontWeight: "600", color: "var(--accent)" as string },

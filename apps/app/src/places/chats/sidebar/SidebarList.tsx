@@ -1,7 +1,7 @@
 // The new Chats sidebar's list: the layout's entries in one window (fixed heights, nothing measured), each drawn by SideEntries, every one with a defined click and a menu (right-click, the Menu key, a long press and the "..."
 // button reach the same items), and the keyboard of design 2.6 (arrows, Home and End, Enter, Left and Right on heads, Space, F, Option-Shift-arrows, Cmd-1..9, a letter into the command bar). It draws what it is
 // given and does what it is told through callbacks; it reads nothing and keeps nothing but the cursor. Switched in at one place by the Chats sidebar (step 3).
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { View } from "react-native";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
@@ -96,6 +96,30 @@ export function SidebarList(p: SidebarListProps): ReactElement {
     () => new Set(entries.flatMap((e) => (e.type === "row" && e.section === "pinned" ? [e.key] : []))),
     [entries],
   );
+  // Cmd or Ctrl held: the pinned rows show their digit (Cmd-1 to Cmd-9)
+  const [modHeld, setModHeld] = useState(false);
+  useEffect(() => {
+    const doc = (
+      globalThis as {
+        document?: {
+          addEventListener(t: string, f: (e: { key?: string; metaKey?: boolean; ctrlKey?: boolean }) => void): void;
+          removeEventListener(t: string, f: (e: { key?: string; metaKey?: boolean; ctrlKey?: boolean }) => void): void;
+        };
+      }
+    ).document;
+    if (!doc) return undefined;
+    const f = (e: { metaKey?: boolean; ctrlKey?: boolean }): void =>
+      setModHeld(e.metaKey === true || e.ctrlKey === true);
+    const off = (): void => setModHeld(false);
+    doc.addEventListener("keydown", f);
+    doc.addEventListener("keyup", f);
+    (globalThis as { addEventListener?: (t: string, f: () => void) => void }).addEventListener?.("blur", off);
+    return () => {
+      doc.removeEventListener("keydown", f);
+      doc.removeEventListener("keyup", f);
+      (globalThis as { removeEventListener?: (t: string, f: () => void) => void }).removeEventListener?.("blur", off);
+    };
+  }, []);
   const cur = useRef(cursor);
   cur.current = cursor;
 
@@ -184,7 +208,7 @@ export function SidebarList(p: SidebarListProps): ReactElement {
   };
 
   const render = (e: LayoutEntry): ReactElement => {
-    const state = { selected: p.selected === e.key, cursor: cursor === e.key };
+    const state = { selected: p.selected === e.key, cursor: cursor === e.key, digits: modHeld };
     const on = handlersOf(e);
     switch (e.type) {
       case "tasks":

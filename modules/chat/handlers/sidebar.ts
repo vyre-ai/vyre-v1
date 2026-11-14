@@ -144,6 +144,22 @@ const VERB: Record<string, "Allow" | "Review" | "Answer" | "Blocked" | "Sign"> =
   signature: "Sign",
   unblock: "Blocked",
 };
+/** The words under a goal that is not simply moving: the reason it gives, else what its state means. */
+function goalLine(status: string, reason: unknown): string | undefined {
+  if (typeof reason === "string" && reason.trim() !== "" && status !== "active") return reason.trim().slice(0, 120);
+  return (
+    {
+      waiting: "Waiting on you",
+      stuck: "Stuck",
+      paused: "Paused",
+      planning: "Planning",
+      draft: "Draft",
+      done: "Done",
+      missed: "Missed",
+      stopped: "Stopped",
+    } as Record<string, string>
+  )[status];
+}
 const ENDED = new Set(["done", "missed", "stopped"]);
 
 interface RowOut {
@@ -163,6 +179,8 @@ interface RowOut {
   personId?: string;
   agentId?: string;
   progress?: { done: number; total: number };
+  line?: string;
+  nextCheckinAt?: number;
   quiet?: boolean;
   ended?: boolean;
   archived?: boolean;
@@ -626,6 +644,8 @@ export async function chatsSidebar(
       },
       {
         kind: "goal",
+        ...(goalLine(status, g["statusReason"]) ? { line: goalLine(status, g["statusReason"])! } : {}),
+        ...(g["nextCheckinAt"] ? { nextCheckinAt: Number(g["nextCheckinAt"]) } : {}),
         progress: { done: Number(pr.tasksDone ?? 0), total: Number(pr.tasks ?? 0) },
         ...(status !== "active" && !ENDED.has(status) ? { quiet: true } : {}),
         ...(ENDED.has(status) ? { ended: true } : {}),

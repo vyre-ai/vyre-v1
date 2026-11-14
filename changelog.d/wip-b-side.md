@@ -12,3 +12,7 @@
 - The Chats sidebar opens fast however many chats you have: one page of 50 is read without reading every chat, and a person with 5,000 chats and 200 channels gets the first page in under 50 ms.
 - The Chats sidebar is the new one: Tasks (which folds), Goals, Pinned, Chats, Channels and Team, one mark on each row, a menu on every row, and one word under each place in the rail. It loads in one read.
 - Option-Command-1 to 5 go to the first five places of the rail.
+- Sidebar rows show only their name and one mark at rest; the three dots appear on hover or keyboard focus. A row is bold only when something is new in it, and the pinned rows show their Cmd digit only while you hold Cmd.
+- You can rename a chat and add people to it from its row in the sidebar; a goal's row says why it waits or when it next checks in, and Report progress and Mark stuck work from it.
+- Open "N more" in the sidebar to reach every chat, not only the first 50. Finish setup now sits at the foot of the sidebar, Notes & artifacts is one page with a Notes and Artifacts switch that remembers the tab, and the Chats number on the rail is the same number the sidebar adds up.
+- All text in the app uses one font family; on computers without Inter the rail words and the list titles were two different fonts.

@@ -95,3 +95,25 @@ test("the answer draws as the design says: Tasks, Goals, Pinned, Chats, Channels
   const keys = l.entries.flatMap((e) => (e.type === "row" ? [e.key] : []));
   assert.equal(new Set(keys).size, keys.length);
 });
+
+test("a goal's second line: why it waits, or its state in words, else when it next checks in", () => {
+  const o = out({
+    goals: sec([
+      row({
+        key: "g:a",
+        kind: "goal",
+        title: "A",
+        faceIds: ["agt_docs"],
+        line: "Waiting on the owner for a key",
+        quiet: true,
+      }),
+      row({ key: "g:b", kind: "goal", title: "B", faceIds: ["agt_docs"], nextCheckinAt: Date.UTC(2026, 10, 18, 9, 0) }),
+      row({ key: "g:c", kind: "goal", title: "C", faceIds: ["agt_docs"] }),
+    ]),
+  });
+  const { items } = itemsOf(o, "assistant");
+  const sub = (k: string) => items.find((x) => x.key === k)!.sub;
+  assert.equal(sub("g:a"), "Waiting on the owner for a key");
+  assert.match(sub("g:b")!, /^Next check-in \w+ /);
+  assert.equal(sub("g:c"), undefined);
+});

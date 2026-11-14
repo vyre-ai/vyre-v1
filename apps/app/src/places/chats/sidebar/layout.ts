@@ -48,6 +48,8 @@ export interface LayoutInput {
   more: ReadonlySet<SectionId>;
   /** The key of the row the middle shows: it is always drawn, swapping in for the last. */
   open: string | null;
+  /** What each section holds in all, when the answer carried only its first page: a head and "N more" count the rows not loaded yet. */
+  totals?: Partial<Record<SectionId, number>>;
   /** Sections whose read failed: a row says so with Retry and the other sections still draw. */
   failed?: ReadonlySet<SectionId>;
   /** The first read has not answered. */
@@ -163,7 +165,16 @@ export function buildLayout(i: LayoutInput): Layout {
     const label = s === "team" && i.personal === true ? "Agents" : SECTION_LABEL[s];
     const agg = aggOf(list);
     push(
-      { key: `h:${s}`, type: "head", section: s, label, count: list.length, folded, agg, marks: aggMarks(agg) },
+      {
+        key: `h:${s}`,
+        type: "head",
+        section: s,
+        label,
+        count: Math.max(list.length, i.totals?.[s] ?? 0),
+        folded,
+        agg,
+        marks: aggMarks(agg),
+      },
       H.head,
     );
     if (folded) continue;
@@ -178,14 +189,23 @@ export function buildLayout(i: LayoutInput): Layout {
     const h = s === "goals" ? H.two : H.row;
     const expanded = filtered || i.more.has(s);
     const { shown, hidden } = expanded ? { shown: list, hidden: [] } : capList(list, CAPS[s], i.open);
+    const unloaded = Math.max(0, (i.totals?.[s] ?? 0) - list.length);
     for (const x of shown) {
       const d = s === "pinned" ? digits.get(x.key) : undefined;
       push({ key: x.key, type: "row", section: s, item: x, mark: markOf(x), ...(d ? { digit: d } : {}) }, h);
     }
-    if (hidden.length > 0) {
+    if (hidden.length + unloaded > 0) {
       const a = aggOf(hidden);
       push(
-        { key: `m:${s}`, type: "more", section: s, hidden: hidden.length, agg: a, marks: aggMarks(a), opens: "place" },
+        {
+          key: `m:${s}`,
+          type: "more",
+          section: s,
+          hidden: hidden.length + unloaded,
+          agg: a,
+          marks: aggMarks(a),
+          opens: "place",
+        },
         H.more,
       );
     } else if (i.more.has(s) && list.length > CAPS[s] && !filtered)

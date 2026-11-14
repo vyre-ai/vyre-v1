@@ -678,3 +678,17 @@ test("needsVerb: Allow, Review, Answer, Blocked, Sign", () => {
   assert.equal(needsVerb(need("a", "work", true)).label, "Blocked");
   assert.equal(needsVerb(need("a", "signature")).label, "Sign");
 });
+
+test("a section whose answer carried only its first page counts the rows not loaded yet in its head and its N more", () => {
+  const items = many(6, "chat");
+  const l = buildLayout(input(items, { totals: { chats: 60 } }));
+  assert.equal(entry(l.entries, "head", "chats")!.count, 60);
+  assert.equal(rows(l.entries, "chats").length, 6);
+  assert.equal(
+    entry(l.entries, "more", "chats")!.hidden,
+    54,
+    "all six loaded show; the 54 not loaded are behind N more",
+  );
+  const l2 = buildLayout(input(many(8, "chat"), { totals: { chats: 60 } }));
+  assert.equal(entry(l2.entries, "more", "chats")!.hidden, 2 + 52, "two behind the cap plus the 52 not loaded");
+});
