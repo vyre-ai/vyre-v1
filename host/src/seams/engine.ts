@@ -49,6 +49,8 @@ export type EngineStreamEvent =
       asker?: string;
       audience?: "asker" | "others";
     }
+  /** What a subagent of the engine is on: for the person the turn runs for alone */
+  | { kind: "substeps"; threadId: string; turnId: string; agentId: string; asker: string; steps: unknown[] }
   | { kind: "thinking"; threadId: string; turnId: string; agentId: string; text: string; asker?: string }
   | {
       kind: "end";
@@ -267,7 +269,10 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
     }
     // what the model thought may rest on what only the person who asked can read: in a shared chat it goes to them and nobody else (hole 8)
     // so may the text of a turn that read something, until its answer is checked against everyone who reads the chat (gap 6): the checked answer is posted for all
-    const onlyAsker = kind === "thinking" || (kind === "delta" && e.privately === true) ? (e.asker ?? "") : null;
+    const onlyAsker =
+      kind === "thinking" || kind === "substeps" || (kind === "delta" && e.privately === true)
+        ? ((e as { asker?: string }).asker ?? "")
+        : null;
     pub({ t: "turn", turn: turnId, delta: { kind, ...rest } }, (person) =>
       onlyAsker !== null ? person === onlyAsker : mayRead(e.threadId, person),
     );

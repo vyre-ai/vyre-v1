@@ -91,32 +91,56 @@ test("thinking gathers too and stays addressed to the person who asked", () => {
   );
 });
 
-test("what a step touched goes to the asker's frame only; every reader gets the same steps without it", () => {
+test("a subagent's own lines go out apart, tagged with who asked, and never in the steps everyone reads; what it returned never goes out", () => {
   const r = rig();
-  r.push({ kind: "start", threadId: "t", turnId: "u", agentId: "a", asker: "usr_alice" });
-  r.push(r.step("c1"));
+  r.push({ kind: "step", threadId: "t", turnId: "u", agentId: "a", phase: "call", id: "toolu_a", name: "Agent" });
+  r.advance(1000);
   r.push({
     kind: "step",
     threadId: "t",
     turnId: "u",
     agentId: "a",
-    phase: "input",
-    id: "c1",
-    detail: "/work/alice/notes.txt",
+    phase: "call",
+    id: "tu_1",
+    name: "Bash",
+    parent: "toolu_a",
+    asker: "usr_1",
   });
+  r.push({
+    kind: "step",
+    threadId: "t",
+    turnId: "u",
+    agentId: "a",
+    phase: "result",
+    id: "toolu_a",
+    name: "Agent",
+    ok: true,
+    result: "secret words",
+  });
+  r.advance(1000);
+  r.push({ kind: "end", threadId: "t", turnId: "u", agentId: "a", state: "done" } as never);
+  const text = JSON.stringify(r.out);
+  assert.doesNotMatch(text, /secret words/);
+  const subs = r.out.filter((e) => e.kind === "substeps");
+  assert.equal(subs.length, 1);
+  assert.equal((subs[0] as { asker: string }).asker, "usr_1");
+  for (const e of r.out.filter((x) => x.kind === "steps"))
+    assert.ok(!JSON.stringify(e).includes("tu_1"), "no subagent line in the steps frame");
+});
+
+test("what a step touched goes to the asker's frame only; every reader gets the same steps without it, in plain classes", () => {
+  const r = rig();
+  r.push({ kind: "start", threadId: "t", turnId: "u", agentId: "a", asker: "usr_alice" });
+  r.push({ kind: "step", threadId: "t", turnId: "u", agentId: "a", phase: "call", id: "c1", name: "vault_use" });
+  r.push({ kind: "step", threadId: "t", turnId: "u", agentId: "a", phase: "input", id: "c1", detail: "/work/alice/notes.txt" });
   r.push({ kind: "end", threadId: "t", turnId: "u", agentId: "a", state: "done" });
   const frames = r.out.filter((e) => e.kind === "steps") as Array<Extract<StreamEvent, { kind: "steps" }>>;
   const forAsker = frames.filter((f) => f.audience === "asker");
   const forOthers = frames.filter((f) => f.audience === "others");
   assert.equal(JSON.stringify(forAsker).includes("notes.txt"), true, "the asker's frame names what the step touched");
-  assert.equal(
-    forAsker.every((f) => f.asker === "usr_alice"),
-    true,
-  );
-  assert.equal(JSON.stringify(forOthers).includes("notes.txt"), false, "the others' frame does not");
-  assert.equal(
-    forOthers.some((f) => f.steps.some((s) => s.id === "c1")),
-    true,
-    "but it says the step happened",
-  );
+  assert.equal(forAsker.every((f) => f.asker === "usr_alice"), true);
+  const others = JSON.stringify(forOthers);
+  assert.equal(others.includes("notes.txt"), false, "the others' frame does not");
+  assert.equal(others.includes("vault_use"), false, "nor the tool's own name");
+  assert.equal(others.includes("Working"), true, "it says a step ran, in plain words");
 });

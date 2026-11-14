@@ -1,7 +1,8 @@
 // The crew of the open chat, shared by the strip in the conversation and the Crew pane beside it: one read (engine.crew.status), one selection (the row whose peek is open), one request to show the pane.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import type { CrewStatusOut } from "./model.ts";
+import { withLive } from "./model.ts";
+import type { CrewMember, CrewStatusOut } from "./model.ts";
 import { useCrewStatus } from "./status.ts";
 import type { Call } from "./status.ts";
 
@@ -9,6 +10,8 @@ export interface CrewCtx {
   status: CrewStatusOut | null;
   /** Read again now (a helper started, a note went). */
   refresh(): void;
+  /** The subagents of a running turn, from its live frames (no read): the strip, island, chip and pane draw them beside the read. */
+  setLive(members: readonly CrewMember[]): void;
   /** The helper whose peek is open in the pane; null: the overview. */
   selected: string | null;
   /** Show the Crew pane, on one helper's peek or on the overview, and open the pane when it is shut. */
@@ -25,6 +28,9 @@ export interface CrewCtx {
 const Ctx = createContext<CrewCtx | null>(null);
 export const useCrew = (): CrewCtx | null => useContext(Ctx);
 
+const same = (a: readonly CrewMember[], b: readonly CrewMember[]): boolean =>
+  a.length === b.length && a.every((x, i) => JSON.stringify(x) === JSON.stringify(b[i]));
+
 export function CrewProvider({
   call,
   threadId,
@@ -39,7 +45,10 @@ export function CrewProvider({
   const [signal, setSignal] = useState(0);
   // one function for the life of the provider: a timer that reads again must not be torn down by each read it causes
   const refresh = useCallback(() => setSignal((n) => n + 1), []);
-  const { status } = useCrewStatus(call, threadId, signal);
+  const [live, setLiveState] = useState<readonly CrewMember[]>([]);
+  const setLive = useCallback((m: readonly CrewMember[]) => setLiveState((cur) => (same(cur, m) ? cur : m)), []);
+  const { status: read } = useCrewStatus(call, threadId, signal);
+  const status = useMemo(() => withLive(read, live), [read, live]);
   const [selected, setSelected] = useState<string | null>(null);
   const [seq, setSeq] = useState(0);
   const [open, setOpen] = useState(false);
@@ -47,6 +56,7 @@ export function CrewProvider({
     () => ({
       status,
       refresh,
+      setLive,
       selected,
       seq,
       call,
@@ -63,24 +73,7 @@ export function CrewProvider({
         onShow?.();
       },
     }),
-    [status, selected, seq, call, threadId, onShow, open, refresh],
+    [status, selected, seq, call, threadId, onShow, open, refresh, setLive],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
-}
-
-/** How often the crew is read while an agent of the chat is at work: a subagent its engine starts is on screen within about a second (F41), not when the reply lands. */
-export const CREW_WORKING_MS = 1000;
-
-/** Draws nothing. While `working`, it has the crew read again every second, so what an agent starts mid-turn (helpers, subagents) shows at once. */
-export function CrewWhileWorking({ working }: { working: boolean }): null {
-  const crew = useCrew();
-  const refresh = crew?.refresh;
-  useEffect(() => {
-    if (!working || !refresh) return undefined;
-    refresh();
-    const t = setInterval(refresh, CREW_WORKING_MS);
-    (t as { unref?: () => void }).unref?.();
-    return () => clearInterval(t);
-  }, [working, refresh]);
-  return null;
 }

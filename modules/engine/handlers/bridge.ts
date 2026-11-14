@@ -15,6 +15,7 @@ import { redact } from "../../../agent/src/transcript/sanitize.ts";
 import { sessionWorkKey, workBlocks } from "../../../agent/src/tools/work-cards.ts";
 import { ALL_AGENTS, route as routeOf } from "../../../lib/route.ts";
 import { localClock, readPublicTime } from "../../../lib/presence.ts";
+import { eraseOwn } from "../own-subagents.ts";
 import { hasReads } from "../../../host/src/seams/answer-reads.ts";
 import { chatAudience, othersRead } from "../../../lib/audience.ts";
 import { findProgram } from "../cli-programs.ts";
@@ -151,6 +152,8 @@ export type StreamEvent =
       name?: string;
       ok?: boolean;
       /** what the call touches, in safe words (a file name, a query): for the live line only */ detail?: string;
+      /** Who the turn runs for: a subagent's own lines go to them alone (live-coalesce.ts, the host's stream). */
+      asker?: string;
       /** The call a subagent made this step under: the id of the Agent call that started that subagent (crew rows read it; the live line does not). */
       parent?: string;
       /** What a subagent returned, on the result of the call that started it. Never sent to a screen's live line (live-coalesce.ts drops it); the crew row keeps it. */
@@ -173,6 +176,22 @@ export type StreamEvent =
       /** Who the frame is for when it is split: the asker's frame carries what each step touched, the others' frame the same steps without it (live-coalesce.ts, F51). */
       asker?: string;
       audience?: "asker" | "others";
+    }
+  /** What a subagent of the engine is on, from its own lines: for the person the turn runs for alone. */
+  | {
+      kind: "substeps";
+      threadId: string;
+      turnId: string;
+      agentId: string;
+      asker: string;
+      steps: Array<{
+        phase: "call" | "result" | "input";
+        id: string;
+        name?: string;
+        ok?: boolean;
+        detail?: string;
+        parent: string;
+      }>;
     }
   /** A piece of the thinking the provider sent. It goes only to the person whose turn it is (hole 8), over the live link; it is never logged and never saved. */
   | { kind: "thinking"; threadId: string; turnId: string; agentId: string; text: string; asker?: string }
@@ -782,6 +801,7 @@ export function createBridge(o: BridgeOptions): Bridge {
                 phase: ev.kind === "tool_call" ? "call" : ev.kind === "tool_input" ? "input" : "result",
                 id,
                 parent: p.parent,
+                asker: input.asker,
                 ...(name ? { name } : {}),
                 ...(typeof p.detail === "string" && ev.kind === "tool_input" ? { detail: p.detail } : {}),
                 ...(ev.kind === "tool_result" && typeof p.ok === "boolean" ? { ok: p.ok } : {}),
@@ -1557,6 +1577,16 @@ export const bridgeConsumers = {
     },
   },
   // a person signed in again (a Vault item was saved or changed): the turns parked on a missing sign-in run once. Whose sign-in is not in the event, and a turn whose account is still missing parks again at once.
+  // a message or a whole chat was erased: the subagents of the engine that hung under it go with it (own-subagents.ts)
+  "engine.own_subagents_erase": {
+    on: ["message.deleted", "thread.erased"],
+    run: async (ctx: EngineCtx, event: BridgeEvent): Promise<{ removed: number }> => ({
+      removed: eraseOwn(ctx.db, {
+        ...(event.name === "message.deleted" ? { messageId: str(event.payload["messageId"]) } : {}),
+        ...(event.name === "thread.erased" ? { threadId: str(event.payload["threadId"]) } : {}),
+      }),
+    }),
+  },
   "engine.signin_resume": {
     on: ["vault.item_updated", "vault.item_created"],
     run: async (): Promise<{ skipped?: string; resumed?: number }> => {

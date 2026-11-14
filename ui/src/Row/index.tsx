@@ -156,6 +156,7 @@ function WebRow({
   titleMarks,
   noteLead,
   noteLeadTone = "accent",
+  noteAction,
   tall = false,
   emphasis = false,
   note,
@@ -260,6 +261,30 @@ function WebRow({
               : null,
             noteLead ? " \u00b7 " : null,
             note,
+            noteAction ? " \u00b7 " : null,
+            noteAction
+              ? h(
+                  "span",
+                  {
+                    role: "button",
+                    tabIndex: 0,
+                    "data-testid": noteAction.testID,
+                    "aria-label": noteAction.label,
+                    style: { ...NOTE_LEAD, cursor: "pointer" },
+                    onClick: (e: { stopPropagation(): void }) => {
+                      e.stopPropagation();
+                      noteAction.onPress();
+                    },
+                    onKeyDown: (e: { key: string; preventDefault(): void; stopPropagation(): void }) => {
+                      if (e.key !== "Enter" && e.key !== " ") return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      noteAction.onPress();
+                    },
+                  },
+                  noteAction.label,
+                )
+              : null,
           )
         : null,
     ),
@@ -305,6 +330,7 @@ const NativeRow = memo(function NativeRow({
   titleMarks,
   noteLead,
   noteLeadTone = "accent",
+  noteAction,
   tall = false,
   emphasis = false,
   note,
@@ -369,6 +395,16 @@ const NativeRow = memo(function NativeRow({
               </>
             ) : null}
             {note}
+            {noteAction ? (
+              <Text
+                accessibilityRole="button"
+                testID={noteAction.testID}
+                onPress={noteAction.onPress}
+                style={NOTE_LEAD}
+              >
+                {` \u00b7 ${noteAction.label}`}
+              </Text>
+            ) : null}
           </Text>
         ) : null}
       </View>
