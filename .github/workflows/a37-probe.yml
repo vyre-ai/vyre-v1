@@ -1,0 +1,33 @@
+name: a37-probe
+# Proof run: the same shard step the real checks use, on a runner hosted at Agent37 (label a37). Lives only on this branch.
+on:
+  push:
+    branches: ['wip/a37-probe']
+jobs:
+  fast:
+    runs-on: [self-hosted, linux, a37]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - id: pick
+        shell: bash
+        run: echo "files=$(git ls-files 'host/src/*.test.ts' 'scripts/*.test.ts' | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/run-shard
+        with:
+          files: ${{ steps.pick.outputs.files }}
+          slow: 'false'
+          runner: v1
+  slow:
+    needs: fast
+    runs-on: [self-hosted, linux, a37]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - id: pick
+        shell: bash
+        run: echo "files=$(git ls-files 'host/tests/*.live.test.ts' | head -40 | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/run-shard
+        with:
+          files: ${{ steps.pick.outputs.files }}
+          slow: 'true'
+          runner: v1
