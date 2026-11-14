@@ -133,6 +133,13 @@ const REPLIES_SCHEMA = readFileSync(new URL("./migrations/0007_replies_in.sql", 
   .split(";")
   .map((s) => s.trim())
   .filter((s) => s.length > 0);
+const ASKED_SCHEMA = readFileSync(new URL("./migrations/0010_asked_by.sql", import.meta.url), "utf8")
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
 
 /** Make sure the chat tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. The per-chat agent settings (0005) are added the same way when their columns are missing. */
@@ -158,6 +165,17 @@ export function ensure(db: Db): void {
     db.all("SELECT fromAt FROM chat_thread_member WHERE id = ?", "probe");
   } catch {
     for (const stmt of HISTORY_SCHEMA) {
+      try {
+        db.run(stmt);
+      } catch {
+        /* the column is already there */
+      }
+    }
+  }
+  try {
+    db.all("SELECT askedBy FROM chat_message WHERE id = ?", "probe");
+  } catch {
+    for (const stmt of ASKED_SCHEMA) {
       try {
         db.run(stmt);
       } catch {
@@ -584,10 +602,11 @@ export function messageOf(r: Row): MessageRec {
   };
   const replyTo = optStr(r["replyTo"]);
   if (replyTo !== undefined) o.replyTo = replyTo;
-  const via = parseJson<{ routineOwner?: string; paidBy?: string; askedBy?: string } | null>(r["via"], null);
+  const via = parseJson<{ routineOwner?: string; paidBy?: string } | null>(r["via"], null);
   if (via?.routineOwner) o.via = { routineOwner: via.routineOwner };
   if (via?.paidBy) o.paidBy = via.paidBy;
-  if (via?.askedBy) o.askedBy = via.askedBy;
+  const askedBy = optStr(r["askedBy"]);
+  if (askedBy !== undefined) o.askedBy = askedBy;
   const editedAt = optNum(r["editedAt"]);
   if (editedAt !== undefined) o.editedAt = editedAt;
   return o;
@@ -737,8 +756,8 @@ export function insertMessage(ctx: Pick<ChatCtx, "db" | "now">, thread: string, 
   const id = m.id ?? mintId("msg", now);
   const seq = nextSeq(ctx.db, thread);
   ctx.db.run(
-    `INSERT INTO chat_message (id, thread, threadSeq, author, kind, body, blocks, replyTo, via, depth, attachments, pinned, reactions, editedAt, createdAt, version, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '[]', NULL, ?, 0, ?, NULL)`,
+    `INSERT INTO chat_message (id, thread, threadSeq, author, kind, body, blocks, replyTo, via, depth, attachments, pinned, reactions, editedAt, createdAt, version, updated_at, deleted_at, askedBy)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '[]', NULL, ?, 0, ?, NULL, ?)`,
     id,
     thread,
     seq,
@@ -747,17 +766,12 @@ export function insertMessage(ctx: Pick<ChatCtx, "db" | "now">, thread: string, 
     m.body,
     JSON.stringify(m.blocks ?? []),
     m.replyTo ?? null,
-    m.via || m.paidBy || m.askedBy
-      ? JSON.stringify({
-          ...m.via,
-          ...(m.paidBy ? { paidBy: m.paidBy } : {}),
-          ...(m.askedBy ? { askedBy: m.askedBy } : {}),
-        })
-      : null,
+    m.via || m.paidBy ? JSON.stringify({ ...m.via, ...(m.paidBy ? { paidBy: m.paidBy } : {}) }) : null,
     m.depth ?? 0,
     JSON.stringify(m.attachments ?? []),
     now,
     now,
+    m.askedBy ?? null,
   );
   ctx.db.run(
     "INSERT INTO chat_thread_last (thread, at) VALUES (?, ?) ON CONFLICT(thread) DO UPDATE SET at = MAX(at, excluded.at)",
