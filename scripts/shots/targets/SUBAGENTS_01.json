@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "SUBAGENTS_01-both",
+      "route": "/m/SUBAGENTS_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='as-other']",
+      "note": "The subagents of an agent's engine as the person who asked sees them, and as another member of the chat sees them: Helper 1 and Helper 2 with state and clock, no task, steps or answer."
+    }
+  ]
+}
