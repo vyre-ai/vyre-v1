@@ -44,6 +44,7 @@ import {
   updateTask,
 } from "./model.ts";
 import type { Journey, Ref, Slot, Stage, StageCounts, Task } from "./model.ts";
+import { REMOVED_KEY } from "../canvas/model.ts";
 
 export interface JourneyPaneProps {
   journeyId: string;
@@ -423,7 +424,7 @@ function TaskPane({
   const agents = agentSeats(t);
   const agentNames = seatNames(t, data.name);
   const keyName = (id: string | undefined): string =>
-    id ? (data.keys.find((k) => k.id === id)?.name ?? data.name(id)) : "None";
+    id ? (data.keys.find((k) => k.id === id)?.name ?? REMOVED_KEY) : "None";
   const commitTitle = (): void => {
     const v = title.trim();
     if (!v || v === t.title) {

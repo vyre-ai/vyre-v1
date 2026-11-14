@@ -20,6 +20,8 @@ export interface ShellTarget {
   local?: boolean;
   /** Open it in a tab behind the one the person is in (Cmd-click, middle click). */
   background?: boolean;
+  /** The "+" tab this was opened from: it becomes what opens (a link pasted into a new tab), instead of a second tab opening beside it. */
+  into?: string;
 }
 
 export type SpaceKind = "team" | "personal";

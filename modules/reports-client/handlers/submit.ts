@@ -356,6 +356,10 @@ export function findReport(ctx: ReportsCtx, reportId: string): ReportRow | null 
   return rowOf(ctx.db.all("SELECT * FROM reports_client_report WHERE report_id = ?", reportId)[0]);
 }
 
+/** Whose reports the caller reads and files: the person an agent acts for, else the caller (an agent's own standing never opens a person's report to someone who merely asked that agent: lib/agent-asker.ts). */
+const reporterOf = (ctx: ReportsCtx): string =>
+  ctx.principal.kind === "agent" && ctx.actingFor?.startsWith("usr_") ? ctx.actingFor : ctx.principal.id;
+
 const isAdmin = (ctx: ReportsCtx): boolean =>
   ctx.authorize({ perm: "policy.manage", level: "view" }, { type: "space", id: null }).effect === "allow";
 
@@ -444,7 +448,7 @@ export async function submit(ctx: ReportsCtx, input: { bundle: unknown }) {
     reportId,
     title,
     "new",
-    ctx.principal.id,
+    reporterOf(ctx),
     ctx.now(),
     JSON.stringify(bundle.traceIds),
     JSON.stringify(bundle),
@@ -536,7 +540,7 @@ export async function list(ctx: ReportsCtx, input: { cursor?: string; limit?: nu
     ? ctx.db.all("SELECT * FROM reports_client_report ORDER BY at DESC LIMIT ? OFFSET ?", size, offset)
     : ctx.db.all(
         "SELECT * FROM reports_client_report WHERE reporter = ? ORDER BY at DESC LIMIT ? OFFSET ?",
-        ctx.principal.id,
+        reporterOf(ctx),
         size,
         offset,
       );
@@ -544,7 +548,7 @@ export async function list(ctx: ReportsCtx, input: { cursor?: string; limit?: nu
     asRow(
       admin
         ? ctx.db.all("SELECT COUNT(*) AS n FROM reports_client_report")[0]
-        : ctx.db.all("SELECT COUNT(*) AS n FROM reports_client_report WHERE reporter = ?", ctx.principal.id)[0],
+        : ctx.db.all("SELECT COUNT(*) AS n FROM reports_client_report WHERE reporter = ?", reporterOf(ctx))[0],
     )?.["n"],
   );
   const reports = rows
@@ -563,7 +567,7 @@ export async function list(ctx: ReportsCtx, input: { cursor?: string; limit?: nu
 export async function get(ctx: ReportsCtx, input: { reportId: string }) {
   const report = findReport(ctx, input.reportId);
   // someone else's report does not exist as far as a non-admin can tell
-  if (!report || (report.reporter !== ctx.principal.id && !isAdmin(ctx)))
+  if (!report || (report.reporter !== reporterOf(ctx) && !isAdmin(ctx)))
     return failWith(ctx.trace.traceId, "permission.not_found", "Not found or not visible.", {
       reportId: input.reportId,
     });

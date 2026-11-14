@@ -206,3 +206,34 @@ test("a chat is one tab whichever way it was opened: the subject hash, the conve
     tabKey("chats", "screen=chats.conversation&threadId=thr_2"),
   );
 });
+
+test("a read that fails (a chat just made that is not readable yet, a dropped answer) never names the tab New chat or marks it blank: the tab keeps its name, and the read is asked again", async () => {
+  let readable = false;
+  let calls = 0;
+  const session: TitleSession = {
+    me: { id: "usr_me" },
+    call: async (cap) => {
+      calls += 1;
+      if (cap === "threads.get") {
+        if (!readable) throw new Error("not found");
+        return { thread: { kind: "chat", title: "Heyy", agents: [], members: [{ kind: "person", id: "usr_me" }] } };
+      }
+      return { agents: [], principals: [], messages: [] };
+    },
+    hooks: { capQuery: () => ({ subscribe: () => () => undefined }) },
+  };
+  const shown: { t: string; empty: boolean | undefined }[] = [];
+  const stop = followTitle(
+    session,
+    titleAsk({ type: "thread", id: "thr_1" })!,
+    (t, empty) => shown.push({ t, empty }),
+    { retryMs: 5 },
+  );
+  await new Promise((r) => setTimeout(r, 30));
+  assert.deepEqual(shown, [], "a failed read changes nothing: no New chat, no blank mark");
+  assert.ok(calls > 1, "and it is asked again");
+  readable = true;
+  await new Promise((r) => setTimeout(r, 30));
+  assert.deepEqual(shown.at(-1), { t: "Heyy", empty: false }, "once it can be read, the tab takes its name");
+  stop();
+});

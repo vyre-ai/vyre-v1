@@ -129,7 +129,7 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
   const deps: NeedsDeps = useMemo(() => ({ call: data.call, note: (text: string) => setLine(text) }), [data.call]);
 
   const failed = failureOf(itemsQ);
-  if (failed) return <LoadFailed what="what needs you" failure={failed} testID="needs-failed" />;
+  if (failed) return <LoadFailed what="what needs you" failure={failed} testID="needs-failed" refusable={false} />;
   if (itemsQ.status === "loading") return <NeedsYouLoading />;
   const all = itemsQ.data.items;
   const live = sortItems(splitWithdrawn(all).live).filter((i) => matchesFilter(i.task, filter));

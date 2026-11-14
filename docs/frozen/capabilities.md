@@ -144,3 +144,25 @@ Signed: lead, 12 Nov 2026
 The description of the optional `blocked` line on `automations.vault_usage` steps now reads "a host not allowed for it" instead of "a host no longer allowed for it". The line itself (key-run.ts) is now one neutral sentence for a host that was removed and one never approved: "#Key is not allowed to go to <host>. Allow it on the key's page, or change this step." Description only: no field, type or error changes.
 
 Signed: lead, 12 Nov 2026
+
+## 13 Nov 2026: computers.chrome.screenshot answers pageWidth, pageHeight and scale (lane f-computer)
+
+`computers.chrome.screenshot@1` gains three optional answer fields, added to the output only (no input and no existing field changes): `pageWidth` and `pageHeight` (integers, the page's size in page pixels) and `scale` (a number, picture pixels per page pixel). `pageHeight` is the whole page's height even when the picture shows only its top part. They are present only when the picture is not the page as it is: a screenshot over the 256 KB limit for a picture kept in Files is scaled down to fit, and a page taller than 4096 px comes back as its top part. `width` and `height` stay the picture's own size, and the existing optional `note` now says in one sentence that `chrome_click`'s x and y are in page pixels (a point on the picture is multiplied by 1 / scale). Before this, such a screenshot failed with `validation.too_large`.
+
+Signed: the lead, 13 Nov 2026
+
+## 13 Nov 2026: access.connector_builder.status can be asked about one Vault item (lane f-auto2)
+
+- What changed: `access.connector_builder.status@1` takes an optional `itemId` and, when it is given, answers an optional `reaches` (true or false) beside `allowed` and `canGrant`. `reaches` is the access check's own answer for "may this assistant, acting for the caller, use that Vault item": false for an item labelled above the clearance of the assistant or of the person it acts for (a company key, anything Restricted): a grant does not lift a clearance (it is per subject), only a role with a higher one does, which an admin may give an agent. True also when only a share to the assistant is missing and the caller may use the item (one approval away). Nothing else in its contract changed. Snapshot: docs/frozen/snapshots/access.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+- Why: on rc.26 the Automations first page suggested setting up Google_DWD, and the assistant could not do it (above its clearance, and without the Connector builder role). A suggestion is now shown only when the assistant can finish it, and the Vault row, the first page and the setup press all ask this one question.
+- Also moved, not a contract: `modules/automations/tests/golden-replay/golden.json` holds the new words for a step that is missing an input ("Update a record: choose the record."), and `automations.steps.list` lists Google, Microsoft and GitHub steps only for apps connected on the Space that the caller may use (same input and output, fewer rows).
+
+Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff: optional, additive fields only; no input, output or error removed.
+
+## 13 Nov 2026: what a model reads when a tool fails, and `automations.steps.list` gains `all` (lane f-auto2)
+
+- Model-facing error (not a capability contract, but what agents and MCP clients receive): `error.code` is now `error.supportCode`; the object now starts with `say` (a plain sentence and what to do) and `reply` (the rule: tell the person in plain words, no codes unless asked). `message`, `retryable`, `next`, `details` stay. In MCP `structuredContent.error` a `code` twin (the same value as `supportCode`) is kept for machine clients; the text a model reads has only `supportCode`.
+- `automations.steps.list@1` takes an optional `all` (boolean): every step the server can run, including apps not connected for the caller, for the editor of an Automation that already holds such a step. Without it the list is filtered to connected apps (the picker and the Assistant). Additive.
+- `automations.steps.list@1` also answers an optional `checked` (false only when the Space's connected apps could not be read, so an app missing from the list is unknown rather than unconnected; absent otherwise). Additive.
+
+Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff: optional, additive fields only; no input, output or error removed.

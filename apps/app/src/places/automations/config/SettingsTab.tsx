@@ -492,7 +492,7 @@ export function SettingsTab({
                   },
                 }
               : {})}
-            onCopyLink={() => copyItemLink("automation", a.id)}
+            onCopyLink={() => copyItemLink("automation", a.id, true)}
             onShare={(i: ShareInput, opts) => {
               void saved.run("Access changed", async () => {
                 await data.call("access.share", withNotify(i, opts));

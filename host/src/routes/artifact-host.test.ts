@@ -17,6 +17,7 @@ function rig() {
   let now = 1_000;
   const route = createArtifactHostRoute({
     host: () => HOST,
+    marker: () => "mark-1",
     appOrigin: () => APP,
     appOrigins: () => [APP, "tauri://localhost", "http://tauri.localhost", "https://tauri.localhost"],
     exchange: async (code) => {
@@ -167,6 +168,62 @@ test("another host is not ours: the app's origin falls through untouched, with i
   try {
     const r = await raw(s.url, "/a/sit_one/", { host: "mla.vyre.run", cookie: `${ARTIFACT_COOKIE}=${"c".repeat(48)}` });
     assert.equal(await r.text(), "the app");
+  } finally {
+    await s.close();
+  }
+});
+
+test("the host check answers this Space's marker with no cookie and no code, on this host only", async () => {
+  const s = await rig();
+  try {
+    const r = await s.get("/.well-known/vyre-artifact-host");
+    assert.equal(r.status, 200);
+    assert.equal(await r.text(), "vyre-artifact-host mark-1");
+    assert.equal(r.headers.get("cache-control"), "no-store");
+    assert.equal(r.headers.get("set-cookie"), null);
+    // another host name is not this route's: it falls through to the app
+    assert.equal(await (await s.get("/.well-known/vyre-artifact-host", { host: "mla.vyre.run" })).text(), "the app");
+  } finally {
+    await s.close();
+  }
+});
+
+test("the app may read this host's plain pages to check it answers: its own origins only, and the page says whose it is", async () => {
+  const s = await rig();
+  try {
+    const gone = "/x/" + "0".repeat(48);
+    const ok = await s.get(gone, { origin: APP });
+    assert.equal(ok.status, 404);
+    assert.equal(ok.headers.get("access-control-allow-origin"), APP);
+    assert.equal(ok.headers.get("vary"), "origin");
+    assert.match(await ok.text(), /<meta name="vyre-artifact-host" content="1">/);
+    const desktop = await s.get(gone, { origin: "tauri://localhost" });
+    assert.equal(desktop.headers.get("access-control-allow-origin"), "tauri://localhost");
+    for (const o of ["https://evil.example", "null"]) {
+      const no = await s.get(gone, { origin: o });
+      assert.equal(no.headers.get("access-control-allow-origin"), null, o);
+    }
+    assert.equal((await s.get(gone)).headers.get("access-control-allow-origin"), null, "no Origin, no header");
+    assert.equal(ok.headers.get("access-control-allow-credentials"), null, "never a credentialed read");
+  } finally {
+    await s.close();
+  }
+});
+
+test("a spent one-time link inside the app's frame has no 'Open Vyre' link (it would open the app inside itself); on its own it keeps it", async () => {
+  const s = await rig();
+  try {
+    const spent = "/x/" + "b".repeat(48);
+    assert.match(await (await s.get(spent)).text(), /Open Vyre/);
+    assert.doesNotMatch(await (await s.get(`${spent}?embed=1`)).text(), /Open Vyre|href=/);
+    assert.doesNotMatch(await (await s.get(`${spent}?app=1`)).text(), /Open Vyre|href=/, "the desktop app's own page");
+    const dead = await s.get(spent, { "sec-fetch-dest": "iframe" });
+    assert.equal(dead.status, 404);
+    assert.doesNotMatch(await dead.text(), /Open Vyre/);
+    const noAccess = await s.get("/sit_one/", { "sec-fetch-dest": "iframe" });
+    assert.equal(noAccess.status, 403);
+    assert.doesNotMatch(await noAccess.text(), /Open it in Vyre/);
+    assert.match(await (await s.get("/sit_one/")).text(), /Open it in Vyre/);
   } finally {
     await s.close();
   }

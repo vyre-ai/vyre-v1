@@ -20,6 +20,8 @@ export const CONNECTOR_TOOLS: readonly string[] = [
   "connections_list",
   "connections_create",
   "agents_builtin_skill_get",
+  // a Vault item the assistant may be given with one approval from its person
+  "access_request",
   // the app's own events: an Automation with a web request trigger, and its address for the person to paste into the app
   "automations_create",
   "automations_webhook_url_get",

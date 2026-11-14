@@ -30,10 +30,12 @@ import {
   signalOf,
   threadsOf,
   when,
+  said,
+  andList,
 } from "../projections.ts";
 import type { Ended, Goal, GoalsCtx, Who } from "../projections.ts";
 import { readSource, sourceWords } from "../sources.ts";
-import { atToken } from "../../../lib/words/time.ts";
+import { atToken, whoToken } from "../../../lib/words/time.ts";
 
 type Obj = Record<string, unknown>;
 const why = (e: unknown): string => {
@@ -201,7 +203,7 @@ export async function seat(ctx: GoalsCtx, g: Goal): Promise<Seat[]> {
       if (p !== g.owner) results.push({ kind: "person", id: p, inChat: true });
     } catch (e) {
       const error = why(e);
-      note(ctx, g.id, "error", `Could not add ${p === g.owner ? "the owner" : p} to the goal chat: ${error}`);
+      note(ctx, g.id, "error", `Could not add ${whoToken(p)} to the goal chat.`, undefined, { error });
       if (p !== g.owner) results.push({ kind: "person", id: p, inChat: false, error });
     }
   }
@@ -212,7 +214,7 @@ export async function seat(ctx: GoalsCtx, g: Goal): Promise<Seat[]> {
       results.push({ kind: "agent", id: h.id, inChat: true });
     } catch (e) {
       const error = why(e);
-      note(ctx, g.id, "error", `Could not add ${h.id} to the goal chat: ${error}`);
+      note(ctx, g.id, "error", `Could not add ${whoToken(h.id)} to the goal chat.`, undefined, { error });
       results.push({ kind: "agent", id: h.id, inChat: false, error });
     }
   }
@@ -238,7 +240,7 @@ export async function ensureRoot(ctx: GoalsCtx, g: Goal): Promise<string | undef
     idempotencyKey: `goal-root:${g.id}`,
   });
   if (!r?.task?.id) {
-    note(ctx, g.id, "error", "The plan's parent task could not be made yet; trying again at the next check.");
+    note(ctx, g.id, "error", "Vyre could not make the plan's task list yet. It tries again at the next check-in.");
     return undefined;
   }
   g.rootTaskId = r.task.id;
@@ -273,7 +275,12 @@ export async function ensureFolder(ctx: GoalsCtx, g: Goal, sub?: (typeof SUBS)[n
         await tryCall<{ roots?: Array<{ key: string; folderId?: string }> }>(ctx, "files.tree", {})
       )?.roots?.find((r) => r.key === "personal")?.folderId;
     if (!parent) {
-      note(ctx, g.id, "error", "The goal's Files folder could not be made yet; trying again at the next check.");
+      note(
+        ctx,
+        g.id,
+        "error",
+        "Vyre could not make the goal's folder in Files yet. It tries again at the next check-in.",
+      );
       return undefined;
     }
     const goals = await childFolder(ctx, parent, "Goals", `goal-folder-root:${parent}`);
@@ -340,7 +347,14 @@ export async function readNow(ctx: GoalsCtx, g: Goal, why: string): Promise<bool
     g.readFails += 1;
     if (fresh) {
       emit(ctx, g, "goal.progress", { ok: false, error: r.error });
-      note(ctx, g.id, "reading", `Could not read ${sourceWords(g.finish.source)}. The next check-in tries again.`);
+      note(
+        ctx,
+        g.id,
+        "reading",
+        `Could not read ${sourceWords(g.finish.source)}. It tries again at the next check-in.`,
+        undefined,
+        { error: r.error },
+      );
     }
     return false;
   }
@@ -356,7 +370,7 @@ export async function readNow(ctx: GoalsCtx, g: Goal, why: string): Promise<bool
       ctx,
       g.id,
       "reading",
-      `${sourceWords(g.finish.source)}: ${r.value}${prev !== undefined ? ` (${(r.value ?? 0) - prev >= 0 ? "+" : ""}${(r.value ?? 0) - prev} since ${why === "checkin" ? "the last check-in" : "the last read"})` : ""}`,
+      `${sourceWords(g.finish.source)}: ${r.value}${prev !== undefined && r.value !== undefined ? `, ${r.value - prev >= 0 ? "up" : "down"} ${Math.abs(r.value - prev)} since ${why === "checkin" ? "the last check-in" : "the last read"}` : ""}`,
     );
   }
   if (LIVE.has(g.status) && reached(g)) {
@@ -371,7 +385,7 @@ export async function readNow(ctx: GoalsCtx, g: Goal, why: string): Promise<bool
     r.value !== undefined &&
     better(g, r.value, g.lastSignal)
   )
-    await unstick(ctx, g, "The number moved again.");
+    await unstick(ctx, g, "The number moved. Active again.");
   if (moved && LIVE.has(g.status) && prev !== undefined)
     queueWake(
       ctx,
@@ -391,7 +405,7 @@ export async function tickFromTask(ctx: GoalsCtx, g: Goal, taskId: string): Prom
     if (i.taskId === taskId && i.done !== true) {
       i.done = true;
       changed = true;
-      note(ctx, g.id, "checklist", `Done: ${i.text} (its task finished)`);
+      note(ctx, g.id, "checklist", `Condition met: ${i.text}. Its task finished.`);
     }
   if (changed) {
     emit(ctx, g, "goal.progress", {
@@ -423,7 +437,7 @@ export async function checkin(ctx: GoalsCtx, g: Goal): Promise<void> {
     ctx,
     g.id,
     "checkin",
-    `Check-in ${g.checkins}: ${numberLine(g)}${g.flatCheckins > 0 ? `, no progress for ${g.flatCheckins} check-in${g.flatCheckins === 1 ? "" : "s"}` : ""}.`,
+    `Check-in: ${numberLine(g)}${g.flatCheckins > 0 ? `. No progress for ${g.flatCheckins} check-in${g.flatCheckins === 1 ? "" : "s"}` : ""}.`,
   );
   if (g.flatCheckins >= g.stuckAfter && g.status !== "stuck")
     await stuck(ctx, g, stuckReason(ctx, g), ["Change the plan", "Extend the deadline"]);
@@ -437,13 +451,7 @@ export function stuckReason(ctx: GoalsCtx, g: Goal): string {
       `No progress in ${g.flatCheckins} check-ins; ${numberLine(g)}${g.valueAt ? ` since ${when(g.valueAt, g.zone)}` : ""}.`,
     );
   const w = waits(ctx, g.id);
-  if (w.length > 0)
-    parts.push(
-      `Waiting on: ${w
-        .slice(0, 3)
-        .map((x) => x.title)
-        .join("; ")}.`,
-    );
+  if (w.length > 0) parts.push(`Waiting on: ${andList(w.slice(0, 3).map((x) => x.title))}.`);
   return parts.join(" ");
 }
 /** Stuck: the status says why, and the owner hears once (one Unblock task in Needs you, held until their quiet hours end). */
@@ -502,7 +510,13 @@ export function addWait(
       ctx.now(),
     ).changes > 0;
   if (made) {
-    note(ctx, g.id, "waiting", `Waiting: ${t.title}`, t.id);
+    note(
+      ctx,
+      g.id,
+      "waiting",
+      `${whoToken(g.leadAgentId)} asked ${whoToken(g.owner)}: ${t.title}${/[?.!]$/.test(t.title) ? "" : "?"}`,
+      t.id,
+    );
     if (g.status === "active" || g.status === "planning") setStatus(ctx, g, "waiting", t.title);
   }
   return made;
@@ -514,7 +528,13 @@ export function dropWait(ctx: GoalsCtx, g: Goal, taskId: string, how: string): b
     | undefined;
   if (!row) return false;
   ctx.db.run("DELETE FROM goals_wait WHERE goal_id = ? AND task_id = ?", g.id, taskId);
-  note(ctx, g.id, "answered", `${how}: ${String(row["title"])}`, taskId);
+  note(
+    ctx,
+    g.id,
+    "answered",
+    `${how === "Answered" ? `${whoToken(g.owner)} answered` : how}: ${String(row["title"])}`,
+    taskId,
+  );
   if (g.status === "waiting" && waits(ctx, g.id).length === 0) setStatus(ctx, g, "active");
   return true;
 }
@@ -548,7 +568,7 @@ export async function spend(ctx: GoalsCtx, g: Goal, micros: number, turns: numbe
   } else if (used >= 0.8 && !g.budgetWarned) {
     g.budgetWarned = true;
     emit(ctx, g, "goal.budget_warned", { spentMicros: g.spentMicros, turns: g.turns, budget: g.budget });
-    note(ctx, g.id, "budget", `80% of the budget used: ${budgetLine(g)}.`);
+    note(ctx, g.id, "budget", `80% of the budget is used: ${budgetLine(g)}.`);
     await post(ctx, g, `80% of the budget is used: ${budgetLine(g)}.`, `budget-80:${g.version}`);
   }
 }
@@ -556,7 +576,7 @@ export function budgetLine(g: Goal): string {
   const parts: string[] = [];
   parts.push(g.budget.spendMicros ? `${money(g.spentMicros)} of ${money(g.budget.spendMicros)}` : money(g.spentMicros));
   parts.push(g.budget.turns ? `${g.turns} of ${g.budget.turns} turns` : `${g.turns} turns`);
-  return parts.join(", ");
+  return parts.join(" and ");
 }
 
 // ---- the end ----
@@ -574,14 +594,7 @@ export function summaryOf(ctx: GoalsCtx, g: Goal, outcome: Ended, extra?: string
   else if (f.kind === "checklist") lines.push(`${p.itemsDone ?? 0} of ${p.items ?? 0} conditions met.`);
   const open = planTasks(ctx, g.id).filter((t) => t.state !== "done" && t.state !== "canceled");
   lines.push(
-    `${p.tasksDone} of ${p.tasks} tasks done.${
-      open.length
-        ? ` Still open: ${open
-            .slice(0, 4)
-            .map((t) => t.title)
-            .join("; ")}.`
-        : ""
-    }`,
+    `${p.tasksDone} of ${p.tasks} tasks done.${open.length ? ` Still open: ${andList(open.slice(0, 4).map((t) => t.title))}.` : ""}`,
   );
   const w = waits(ctx, g.id);
   if (w.length)
@@ -674,7 +687,7 @@ export async function startGoal(ctx: GoalsCtx, g: Goal, opts: { press: boolean; 
   await ensureThread(ctx, g);
   setStatus(ctx, g, "planning");
   emit(ctx, g, "goal.started", { by: ctx.principal.id });
-  note(ctx, g.id, "started", `Started. Due ${atToken(g.deadline)}.`);
+  note(ctx, g.id, "started", said(ctx, `started the goal. Due ${atToken(g.deadline)}.`));
   if (!opts.press) for (const p of g.permissions) p.granted = false;
   await ensureRoot(ctx, g);
   await ensureFolder(ctx, g);
@@ -766,7 +779,10 @@ export async function addPlan(
         ctx,
         g.id,
         "plan",
-        `Planned ${c.shortKey ? `${c.shortKey} ` : ""}${src?.title ?? ""}. Why: ${src?.why ?? ""}${src?.impact ? `. Expected: ${src.impact}` : ""}`,
+        said(
+          ctx,
+          `planned ${c.shortKey ? `${c.shortKey} ` : ""}${src?.title ?? ""}. Why: ${src?.why ?? ""}${src?.impact ? `. Expected: ${src.impact}` : ""}`,
+        ),
         c.taskId,
       );
   }
@@ -823,7 +839,7 @@ async function retryUnanswered(ctx: GoalsCtx, g: Goal): Promise<void> {
         now,
         id,
       );
-      note(ctx, g.id, "wake", "The last wake-up got no check-in; asking once more.", id);
+      note(ctx, g.id, "wake", `${whoToken(g.leadAgentId)} was asked to check in and did not. Asking once more.`, id);
     } else {
       ctx.db.run("UPDATE goals_wake SET state = 'dropped' WHERE id = ?", id);
       if (g.status !== "stuck")

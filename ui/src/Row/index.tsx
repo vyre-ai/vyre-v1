@@ -120,6 +120,32 @@ const TITLE_IN_LINE_WRAP_S = { ...TITLE_WRAP_S, flex: "0 1 auto", minWidth: 0 } 
 export const RowWrapContext = createContext(false);
 
 const h = createElement;
+
+type Measured = { scrollWidth: number; clientWidth: number; scrollHeight: number; clientHeight: number };
+type RowEl = { querySelectorAll(q: string): ArrayLike<Measured> };
+/** Is any text inside this row cut off, with dots or by a line clamp? */
+export function isCut(row: RowEl | null | undefined): boolean {
+  return row
+    ? Array.from(row.querySelectorAll("span,div")).some(
+        (n) => n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1,
+      )
+    : false;
+}
+/**
+ * A row that cuts its text with dots gives the whole text in the app's one tooltip (the title attribute, as ui/Tooltip and ui/Tip do) when the pointer reaches it, and only then: a row whose text fits has no
+ * tooltip repeating what is on the screen. The tooltip is React state, so a redraw of the row never drops it. The browser draws a title tooltip for the pointer only, never on keyboard focus: the screen-set work
+ * (contract P3) needs one real tooltip that also opens on focus. Focus still fills the title, which a screen reader reads as the row's description.
+ */
+export function useCutTip(full: string): {
+  title: string | undefined;
+  onMouseEnter(e: { currentTarget?: unknown }): void;
+  onFocus(e: { currentTarget?: unknown }): void;
+} {
+  const [cut, setCut] = useState(false);
+  const check = (e: { currentTarget?: unknown }): void => setCut(isCut(e.currentTarget as RowEl | null));
+  return { title: cut ? full : undefined, onMouseEnter: check, onFocus: check };
+}
+
 function WebRow({
   inert = false,
   hint,
@@ -148,6 +174,18 @@ function WebRow({
   const { style: extra, ...dom } = (domProps ?? {}) as { style?: Record<string, unknown> } & Record<string, unknown>;
   const wrapTitle = useContext(RowWrapContext);
   const titleBase = wrapTitle ? TITLE_WRAP_S : TITLE_S;
+  const full = [titleSuffix ? `${title} ${titleSuffix}` : title, [noteLead, note].filter((x) => x).join(" \u00b7 ")]
+    .filter((x) => x !== "")
+    .join("\n");
+  const tip = useCutTip(full);
+  const mine =
+    hint === undefined
+      ? (name: "onMouseEnter" | "onFocus") =>
+          (e: { currentTarget?: unknown }): void => {
+            tip[name](e);
+            (dom[name] as ((e: unknown) => void) | undefined)?.(e);
+          }
+      : null;
   const titleEl = h("span", { style: { ...(emphasis ? { ...titleBase, ...BOLD } : titleBase), ...inkOn } }, title);
   return h(
     "div",
@@ -159,7 +197,7 @@ function WebRow({
       "aria-label": title,
       "data-testid": tid(""),
       className: inert ? "vyre-row-plain" : "vyre-row",
-      ...(hint !== undefined ? { title: hint } : {}),
+      ...(hint !== undefined ? { title: hint } : tip.title !== undefined ? { title: tip.title } : {}),
       style: {
         ...ROW_S,
         minHeight: rowHeight(note, tall),
@@ -179,6 +217,7 @@ function WebRow({
           }
         : {}),
       ...dom,
+      ...(mine ? { onMouseEnter: mine("onMouseEnter"), onFocus: mine("onFocus") } : {}),
     },
     leading ? h("div", { style: LEAD_S, "data-testid": tid("-leading") }, leading) : null,
     h(

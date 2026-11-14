@@ -1,7 +1,7 @@
 // The picture of an artifact: taken once, at load plus about a second, from the tab the person is looking at, small and masked; sent through the bridge as artifact.thumb; never for a page that is not an artifact.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { artifactHostOf, artifactOfTab, createArtifacts, THUMB_MAX } from "../src/worker/artifacts.js";
+import { artifactHostOf, artifactHostsOf, artifactOfTab, createArtifacts, THUMB_MAX } from "../src/worker/artifacts.js";
 import { BRIDGE_OPS } from "../src/worker/protocol.js";
 
 function world(o: { active?: boolean; sizes?: number[]; opResult?: unknown; tabUrl?: string } = {}) {
@@ -107,6 +107,7 @@ test("the Space keeping or declining the picture is told back, and the bridge li
 
 test("the artifact host of a Space: <name>-a.vyre.run through the relay, a.<address> served directly, a.localhost on this computer", () => {
   assert.equal(artifactHostOf("https://harbor.vyre.run"), "harbor-a.vyre.run");
+  assert.deepEqual(artifactHostsOf("https://harbor.vyre.run"), ["harbor-a.vyre.run", "a.harbor.vyre.run"]);
   assert.equal(artifactHostOf("https://space.example.org"), "a.space.example.org");
   assert.equal(artifactHostOf("http://localhost:7421"), "a.localhost:7421");
   assert.equal(artifactHostOf("not an address"), null);
@@ -156,4 +157,24 @@ test("a tab that is not an artifact is left alone", async () => {
   for (let i = 0; i < 8; i++) await new Promise((r) => setImmediate(r));
   assert.equal(w.ops.length, 0);
   assert.equal(w.paints.length, 0);
+});
+
+test("a Space whose address is under vyre.run but reached directly (its own DNS and certificate) has its artifact tab recognised at a.<address>, and the relay-form name for a relay Space", () => {
+  const spaces = ["https://mla.vyre.run"];
+  assert.equal(
+    artifactOfTab("https://a.mla.vyre.run/sit_abc123/", spaces),
+    "sit_abc123",
+    "a.<address> of a direct Space",
+  );
+  assert.equal(
+    artifactOfTab("https://mla-a.vyre.run/sit_abc123/", spaces),
+    "sit_abc123",
+    "<name>-a.vyre.run of a relay Space",
+  );
+  assert.equal(
+    artifactOfTab("https://other-a.vyre.run/sit_abc123/", spaces),
+    null,
+    "another name's artifact host is not this Space's",
+  );
+  assert.equal(artifactOfTab("https://a.other.vyre.run/sit_abc123/", spaces), null);
 });

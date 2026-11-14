@@ -719,6 +719,8 @@ export interface ComposerProps extends ComposerShellProps {
   /** The thread's folder chip. Picking a folder with # sets it; removing the chip clears it. */
   folder?: string | null;
   onFolder?: (folder: string | null) => void;
+  /** Ready to type into the moment it is drawn (a new chat that was asked for). */
+  autoFocus?: boolean;
   /** Called with everything sent: text, chips, files, folder, linked records, mode. */
   /** A caller whose send can fail returns its promise: if it rejects the draft comes back, with the reason and Try again under it. A plain return is a send that cannot fail. */
   onSubmit?: (payload: ComposerSend) => void | Promise<unknown>;
@@ -1093,7 +1095,7 @@ export function Composer(props: ComposerProps): ReactElement {
   const panelNarrow = narrow || panelFitsInline(boxW);
   // a composer opened with words in it (Ask about this file, New message) is ready to type after them
   useEffect(() => {
-    if ((props.value ?? "") !== "") input.current?.focus?.();
+    if ((props.value ?? "") !== "" || props.autoFocus === true) input.current?.focus?.();
   }, []);
 
   useEffect(() => {

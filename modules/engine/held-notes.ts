@@ -5,20 +5,28 @@
 import type { DriverEvent, EngineSession, OpenSession, TurnInput } from "../../agent/src/turn-engine/types.ts";
 
 const pending = new Map<string, string[]>();
-const key = (threadId: string, agentId: string): string => `${threadId}\u0000${agentId}`;
+// A note is for the turn of the person whose held call or review it answers (lib/agent-asker.ts): another person who writes to the same agent in the same chat must not receive what the first one's held
+// call gave back. A routine's or a watcher's note belongs to nobody and goes to whoever's turn is next.
+const key = (threadId: string, agentId: string, person: string): string => `${threadId}\u0000${agentId}\u0000${person}`;
 
-/** A note for the agent's next turn in this chat. */
-export function queueHeldNote(threadId: string, agentId: string, text: string): void {
-  const k = key(threadId, agentId);
+/** A note for the agent's next turn in this chat, for `person`'s turn (omitted: for any turn). */
+export function queueHeldNote(threadId: string, agentId: string, text: string, person = ""): void {
+  const k = key(threadId, agentId, person);
   pending.set(k, [...(pending.get(k) ?? []), text].slice(-10));
 }
 
-/** The notes waiting for this agent in this chat, taken (each is given once). */
-export function takeHeldNotes(threadId: string, agentId: string): string[] {
-  const k = key(threadId, agentId);
-  const v = pending.get(k) ?? [];
-  pending.delete(k);
-  return v;
+/** The notes waiting for this agent in this chat for this asker, and the ones for nobody, taken (each is given once). With no asker (the server waking the agent): every note. */
+export function takeHeldNotes(threadId: string, agentId: string, asker?: string): string[] {
+  const out: string[] = [];
+  const prefix = `${threadId}\u0000${agentId}\u0000`;
+  for (const [k, v] of [...pending]) {
+    if (!k.startsWith(prefix)) continue;
+    const who = k.slice(prefix.length);
+    if (asker !== undefined && who !== "" && who !== asker) continue;
+    out.push(...v);
+    pending.delete(k);
+  }
+  return out;
 }
 
 /** The opener with the notes put on the next turn's input. */
@@ -26,7 +34,7 @@ export function withHeldNotes(open: OpenSession): OpenSession {
   return async (spec) => {
     const s = await open(spec);
     const send = (input: TurnInput): AsyncIterable<DriverEvent> => {
-      const notes = takeHeldNotes(input.threadId, input.agent.id);
+      const notes = takeHeldNotes(input.threadId, input.agent.id, input.asker);
       return s.send(
         notes.length === 0
           ? input

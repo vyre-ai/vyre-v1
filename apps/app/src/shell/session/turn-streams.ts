@@ -49,6 +49,11 @@ export interface TurnStreams {
   onFrame(frame: unknown): void;
   /** Turns of this chat that still show a row of their own, oldest first. The array identity changes only when the set or a state changes. */
   turnsOf(threadId: string): readonly LiveTurn[];
+  /**
+   * The turns this person asked for that began at or after `since`, whatever chat they are in: a chat that is still being made has no id to ask by, but its first reply can already be on its way. The array identity changes only when the
+   * set or a state changes.
+   */
+  askedBy(asker: string, since: number): readonly LiveTurn[];
   /** The store behind a row: a turn's own id while it writes (`turn:<id>`), or the message id it became until the row is on screen. */
   streamOf(rowId: string): StreamStore | undefined;
   /** The row of this message is on screen: the turn behind it can go. */
@@ -210,7 +215,10 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
     const list = [...turns.values()].filter((t) => t.threadId === threadId).sort((a, b) => a.startedAt - b.startedAt);
     byThread.set(threadId, list.length > 0 ? list : NONE);
   };
+  let rev = 0;
+  const asked = new Map<string, { rev: number; list: readonly LiveTurn[] }>();
   const tell = (threadId: string): void => {
+    rev += 1;
     rebuild(threadId);
     for (const l of [...listeners]) l();
   };
@@ -280,6 +288,18 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
   };
 
   return {
+    askedBy(asker, since) {
+      const key = `${asker}@${since}`;
+      const hit = asked.get(key);
+      if (hit && hit.rev === rev) return hit.list;
+      const list = [...turns.values()]
+        .filter((x) => x.asker === asker && x.startedAt >= since)
+        .sort((a, b) => a.startedAt - b.startedAt);
+      const out = list.length > 0 ? list : NONE;
+      if (asked.size > 20) asked.clear();
+      asked.set(key, { rev, list: out });
+      return out;
+    },
     onFrame(frame) {
       if (typeof frame !== "object" || frame === null) return;
       const f = frame as { t?: unknown; turn?: unknown; delta?: unknown };

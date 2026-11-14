@@ -329,7 +329,7 @@ export async function errorAction(
   key: string,
   turnId: string | undefined,
   say: (text: string) => void,
-  open?: { pickModel?: () => void },
+  open?: { pickModel?: () => void; spaceKey?: () => void },
 ): Promise<void> {
   // "Run it on the server instead": the next turn of this chat runs on the Space, once; the chat stays where the person chose. A turn that failed for it runs again.
   if (key === "run_on_server") {
@@ -348,6 +348,12 @@ export async function errorAction(
       target: "device",
     } satisfies CapMap["engine.placement.set"]["in"]);
     if (turnId) await retryTurn(data, turnId);
+    return;
+  }
+  // "Set a Space AI key" on a reply that could not start for lack of an AI account (an owner or admin): Console, AI
+  if (key === "set_space_key") {
+    if (open?.spaceKey) open.spaceKey();
+    else say("Set the Space AI key in Console, under AI.");
     return;
   }
   // Continue on "Stopped for an update": that turn runs again, same message and account (engine.turn.retry takes a stopped turn as it takes a failed one)

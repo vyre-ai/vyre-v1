@@ -1,0 +1,21 @@
+- The first message of a new chat now shows the moment you press Enter: your words, the tab named for them and the "thinking" mark are on screen at once, however slow the connection to the Space is. Before, nothing showed until the Space had made the chat and the chat had loaded, which took several seconds on a Space reached over the internet.
+- If a new chat cannot be made, your message stays on screen with Retry and Discard. Retry sends the same message again and never makes a second chat or a second copy of the message.
+- A chat opened from an Ask, a task or a project with a first message of its own now opens on that message at once, in the same way.
+- If Vyre ever stops working after it has started, the page now says so ("Vyre stopped working", with Retry) instead of saying it could not start.
+- The agent's first words now appear in a new chat the moment they reach your computer, before the chat has finished loading, instead of seconds later on a slow connection.
+- Opening a chat sends far fewer requests at once: the same read is no longer sent three or four times, and the chat's own messages go first, so they show sooner.
+- "Continue in a chat" from the search bar now opens the chat on your question and the answer at once.
+- The Chat button on an agent's page opens a new chat with that agent already picked and ready to type. The chat is made when you send, so closing it leaves no empty chat behind.
+- "Reply in Thread" opens the replies beside the chat after one request, not two.
+- A chat that is slow to open no longer holds back the rest of the app: the other screens wait for it for a fraction of a second at most, and a quick chat holds nothing back.
+- Typing in a new tab and pressing Enter starts a chat with your words as the first message, in that same tab. A one-word message such as "Heyy" starts a chat too; before, it showed "No results" and Enter did nothing.
+- In a new tab nothing is selected until you press an arrow key or move the pointer onto a result. Then Enter opens that result, as before. Cmd+Enter (Ctrl+Enter elsewhere) still opens it in a new tab.
+- "Ask the Space" is now a row at the top of a new tab's results with its own shortcut, shown on the row: Option+Enter on a Mac, Alt+Enter elsewhere. "Continue in a chat" after an Ask also opens the chat in the same tab instead of leaving a "New tab" behind.
+- A new chat's tab keeps the name of your first words from the first moment. It no longer flashes "New chat" while the chat is being made, and a chat that cannot be read for a moment is no longer taken for a blank chat that "+" jumps to.
+- Pasting a link to a chat, file, record or other thing in this Space into a new tab and pressing Enter opens that thing. Any other pasted text starts a chat.
+- In a new tab, pressing Enter to confirm a word in an input method (Japanese, Chinese, Korean, Urdu and others) no longer starts a chat.
+- If you press Enter in a new tab and switch to another tab while the chat is being made, the chat appears in the tab you pressed Enter in, and you stay where you went.
+- Retry after a failed start in a new tab sends exactly the same message and settings as the first try.
+- A link pasted into a new tab also works in the forms the app itself copies: a chat or file address, an artifact address, a "#subject=..." address, and the old desktop addresses that began with tauri://localhost. It opens in that same tab.
+- A pasted link now opens its thing whichever way the app wrote it: from a menu or search ("vyre://chat/...", "vyre://record/..."), from a tab ("vyre://chats/..."), a Settings page link, or an old desktop address.
+- A copied link to a knowledge page now opens that page when pasted into a new tab, and a copied link to a computer opens the Console Computers page.

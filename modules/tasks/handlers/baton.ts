@@ -22,6 +22,7 @@ import {
   touch,
   visibleTo,
   whoIs,
+  whoOn,
 } from "../projections.ts";
 import type { Assignee, Task, TaskState, TasksCtx } from "../projections.ts";
 import { afterReview, checkMove, commitMove, create, dependenciesAdd, label, submitTarget } from "./state.ts";
@@ -227,7 +228,7 @@ export async function ask(ctx: TasksCtx, input: In): Promise<unknown> {
   const question = text(input.question);
   if (!question) raise(ctx, "validation.bad_input", "Write the question.", { errors: ["/question: required"] });
   if (t.state !== "todo" && t.state !== "doing") notYourTurn(ctx, t, "asking");
-  if (!holds(t, "assigned", whoIs(ctx)))
+  if (!holds(t, "assigned", whoOn(ctx, t, "act")))
     raise(ctx, "validation.precondition_failed", "Only the person this step belongs to can do that.", {
       reason: "wrong_actor",
       action: "ask",
@@ -263,7 +264,7 @@ export async function block(ctx: TasksCtx, input: In): Promise<unknown> {
   const reason = text(input.reason);
   if (!reason) raise(ctx, "validation.bad_input", "Say what is in the way.", { errors: ["/reason: required"] });
   if (t.state !== "todo" && t.state !== "doing") notYourTurn(ctx, t, "reporting a block");
-  if (!holds(t, "assigned", whoIs(ctx)))
+  if (!holds(t, "assigned", whoOn(ctx, t, "act")))
     raise(ctx, "validation.precondition_failed", "Only the person this step belongs to can do that.", {
       reason: "wrong_actor",
       action: "block",
@@ -317,7 +318,11 @@ export async function review(ctx: TasksCtx, input: In): Promise<unknown> {
     });
   // an agent reviewer that has sent the work back as often as the Space allows hands the decision to a person, who is not held to the limit
   const policy = readPolicy(ctx.db);
-  if (ctx.principal.kind !== "person" && t.reviewLoops >= policy.reviewLoopLimit && holds(t, "reviewer", whoIs(ctx))) {
+  if (
+    ctx.principal.kind !== "person" &&
+    t.reviewLoops >= policy.reviewLoopLimit &&
+    holds(t, "reviewer", whoOn(ctx, t, "act"))
+  ) {
     const person = fallbackPerson(t);
     if (!person)
       raise(

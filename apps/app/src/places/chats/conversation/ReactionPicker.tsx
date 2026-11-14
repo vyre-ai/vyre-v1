@@ -3,6 +3,7 @@ import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
 import { findEmoji } from "../../../../../../ui/src/Composer/emoji.ts";
 import { each } from "../../../shell/sidebar/model.ts";
 
@@ -49,38 +50,45 @@ export function ReactionPicker({
   }, [onClose]);
   useEscapeLayer(true, onClose);
   return (
-    <View
-      ref={box as never}
-      testID="reaction-picker"
-      accessibilityRole="menu"
-      style={[st.pop, { left: Math.min(x, win.width - 300), top: Math.min(y + 6, win.height - 170) }]}
-    >
-      <View style={st.grid}>
-        {each(list, (e) => (
-          <Pressable
-            key={e.char}
-            role="button"
-            aria-label={e.name ?? e.char}
-            testID={`react-${e.char}`}
-            onPress={() => onPick(e.char)}
-            style={(({ hovered }: { hovered?: boolean }) => [st.cell, hovered === true && st.over]) as never}
-          >
-            <Text style={st.emoji}>{e.char}</Text>
-          </Pressable>
-        ))}
-        {list.length === 0 ? <Text style={st.none}>Nothing by that name</Text> : null}
+    <Overlay>
+      <View
+        ref={box as never}
+        testID="reaction-picker"
+        accessibilityRole="menu"
+        style={[
+          st.pop,
+          { left: Math.max(8, Math.min(x, win.width - 300)) },
+          // under where it was pressed; above it when the 170 px it may grow to do not fit below (it never covers what opened it: y is the button's bottom edge plus 4, and the button is about 24 high)
+          y + 6 + 170 <= win.height - 8 ? { top: y + 6 } : { bottom: win.height - y + 34 },
+        ]}
+      >
+        <View style={st.grid}>
+          {each(list, (e) => (
+            <Pressable
+              key={e.char}
+              role="button"
+              aria-label={e.name ?? e.char}
+              testID={`react-${e.char}`}
+              onPress={() => onPick(e.char)}
+              style={(({ hovered }: { hovered?: boolean }) => [st.cell, hovered === true && st.over]) as never}
+            >
+              <Text style={st.emoji}>{e.char}</Text>
+            </Pressable>
+          ))}
+          {list.length === 0 ? <Text style={st.none}>Nothing by that name</Text> : null}
+        </View>
+        <TextInput
+          autoFocus
+          testID="reaction-search"
+          accessibilityLabel="Search emoji"
+          placeholder="Search emoji"
+          placeholderTextColor="var(--ink-3)"
+          value={q}
+          onChangeText={setQ}
+          style={st.field}
+        />
       </View>
-      <TextInput
-        autoFocus
-        testID="reaction-search"
-        accessibilityLabel="Search emoji"
-        placeholder="Search emoji"
-        placeholderTextColor="var(--ink-3)"
-        value={q}
-        onChangeText={setQ}
-        style={st.field}
-      />
-    </View>
+    </Overlay>
   );
 }
 

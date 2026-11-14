@@ -3,6 +3,7 @@ import { sessionTheme } from "./space-theme.ts";
 import { sessionCatalogue } from "./space-catalog.ts";
 // The authenticated application shell. Kept behind SessionGate's lazy boundary so a signed-out
 // first paint does not parse the screen registry, virtual lists, command surface, or place chrome.
+import { REFUSED_CHAT_TAB, staleRefusalTab } from "../tabs/titles.ts";
 import { osShell } from "../notifications/os-shell.ts";
 import { windowFocused } from "../notifications/os-banner.ts";
 import { OpenLink } from "../reach/OpenLink.tsx";
@@ -16,6 +17,7 @@ import { States } from "../../../../../ui/src/States/index.tsx";
 import { forgetKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { dropKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { CmdK, NewTabSearch } from "../cmdk/CmdK.tsx";
+import { PendingChat } from "../../places/chats/landing/PendingChat.tsx";
 import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
 import type { Hit } from "../cmdk/model.ts";
 import { formatHash } from "../hash/hash.ts";
@@ -201,8 +203,9 @@ export function ShellHost({
       notice: (text) => {
         navRef.current?.flash(text);
       },
-      navigate: (p, hash, background) => {
-        navRef.current?.go(p, hash, background);
+      navigate: (p, hash, background, into) => {
+        if (into !== undefined) navRef.current?.fill(p, hash, undefined, into);
+        else navRef.current?.go(p, hash, background);
         if (phoneGo.current && background !== true) phoneGo.current(p, hash);
       },
       shell: (screen, args) => {
@@ -351,6 +354,14 @@ export function ShellHost({
             }),
             console: () => session.def.console === true,
             ...(team ? { away: setAway } : {}),
+            retitle: (title) => hub.retitle(hub.session().tabs.state().active, title),
+            fill: (place, hash, title, from) => hub.fill(place, hash, title, from),
+            activeTab: () => hub.session().tabs.state().active,
+            // the Space's own address, and the page's address when it differs (a Space reached by two names): itemLink writes the page's address on the web
+            origins: () => {
+              const here = (globalThis as { location?: { origin?: string } }).location?.origin;
+              return here && /^https?:/.test(here) ? [stored.baseUrl, here] : [stored.baseUrl];
+            },
             signOut: () => signOutRef.current(),
           }))
         : null,
@@ -432,7 +443,15 @@ export function ShellHost({
     return followAllTabs(
       session,
       { tabs: () => hub.session().tabs.state().tabs, subscribe: (l) => hub.subscribe(l) },
-      (key, t, empty) => hub.retitle(key, t, empty),
+      (key, t, empty) => {
+        hub.retitle(key, t, empty);
+        // a refused link reuses the one refusal tab instead of adding another
+        if (t === REFUSED_CHAT_TAB) {
+          const now = hub.session().tabs.state();
+          const drop = staleRefusalTab(now.tabs, key, now.active);
+          if (drop !== null) hub.session().tabs.close(drop);
+        }
+      },
     );
   }, [session, hub]);
 
@@ -628,7 +647,28 @@ export function ShellHost({
   };
   const renderNewTab = (): ReactElement =>
     search ? (
-      <NewTabSearch data={search} />
+      <NewTabSearch
+        data={search}
+        {...(session
+          ? {
+              chatView: (c, a) => (
+                <PendingChat
+                  title={c.title}
+                  text={c.text}
+                  files={[]}
+                  lead={session.runtime.assistant.name}
+                  phase={c.phase}
+                  {...(session.runtime.turns
+                    ? { live: { turns: session.runtime.turns, asker: session.runtime.me.id, since: c.since } }
+                    : {})}
+                  {...(c.note ? { note: c.note } : {})}
+                  onRetry={a.retry}
+                  onDiscard={a.discard}
+                />
+              ),
+            }
+          : {})}
+      />
     ) : (
       <States kind="empty" title="Open anything, or start something" icon="search" />
     );

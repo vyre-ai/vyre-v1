@@ -9,13 +9,13 @@ test("the public origin: a given address wins, a claimed phone name stands in fo
     relay: false,
   });
   assert.deepEqual(publicOriginOf(null, "harbor"), { origin: "https://harbor.vyre.run", relay: true });
-  assert.deepEqual(publicOriginOf("harbor.vyre.run", null), { origin: "https://harbor.vyre.run", relay: true });
+  assert.deepEqual(publicOriginOf("harbor.vyre.run", "harbor"), { origin: "https://harbor.vyre.run", relay: true });
   assert.equal(publicOriginOf(null, null), null);
 });
 
 test("the artifact host: <name>-a.vyre.run for a relay name, a.<domain> for an own domain, none where there is no public address", () => {
   assert.equal(artifactHostOf(null, "harbor"), "harbor-a.vyre.run");
-  assert.equal(artifactHostOf("harbor.vyre.run", null), "harbor-a.vyre.run");
+  assert.equal(artifactHostOf("harbor.vyre.run", "harbor"), "harbor-a.vyre.run");
   assert.equal(
     artifactHostOf("team.example.com", "harbor"),
     "a.team.example.com",
@@ -32,4 +32,22 @@ test("the artifact host: <name>-a.vyre.run for a relay name, a.<domain> for an o
     assert.equal(artifactHostOf(none, null), null, none);
   assert.equal(artifactHostOf(null, null), null);
   assert.equal(artifactHostOf(null, "team-a"), null, "no one holds a name that ends in -a");
+});
+
+test("reached through the relay is a fact (the Space holds that phone name), never a guess from a .vyre.run ending", () => {
+  // the owner's Space on rc.26: address mla.vyre.run, DNS straight at its own server, no phone name held at the relay
+  assert.deepEqual(publicOriginOf("mla.vyre.run", null), { origin: "https://mla.vyre.run", relay: false });
+  assert.deepEqual(publicOriginOf("https://mla.vyre.run/", null), { origin: "https://mla.vyre.run", relay: false });
+  assert.equal(
+    artifactHostOf("mla.vyre.run", null),
+    "a.mla.vyre.run",
+    "its own server answers a.<address>, the relay answers nothing for it",
+  );
+  // a phone name held for another label does not make this address a relay address
+  assert.equal(publicOriginOf("mla.vyre.run", "harbor")?.relay, false);
+  assert.equal(artifactHostOf("mla.vyre.run", "harbor"), "a.mla.vyre.run");
+  // the Space that does hold the name its address carries is reached through the relay
+  assert.equal(publicOriginOf("harbor.vyre.run", "harbor")?.relay, true);
+  assert.equal(artifactHostOf("harbor.vyre.run", "harbor"), "harbor-a.vyre.run");
+  assert.equal(artifactHostOf("harbor.vyre.run", "HARBOR"), "harbor-a.vyre.run", "names compare without case");
 });

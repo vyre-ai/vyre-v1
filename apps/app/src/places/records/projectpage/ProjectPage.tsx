@@ -42,7 +42,7 @@ import { TeammatesTab } from "./TeammatesTab.tsx";
 import { useAddSheet } from "../../chats/addsheet/index.ts";
 import { PeoplePopover } from "../../../../../../ui/src/PeoplePopover/index.tsx";
 import type { MemberAction, MemberRow } from "../../../../../../ui/src/PeoplePopover/index.tsx";
-import { itemLink } from "../../../share/rows.ts";
+import { copyLinkText, itemLink } from "../../../share/rows.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
 import { stageWord } from "./overview/model.ts";
 
@@ -593,9 +593,7 @@ function ProjectPeople({
   };
   const act = (action: MemberAction, r: MemberRow, beside?: { x: number; y: number }): void => {
     if (action === "link") {
-      const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator
-        ?.clipboard;
-      void clip?.writeText(itemLink(r.kind === "person" ? "person" : "agent", r.id));
+      copyLinkText(itemLink(r.kind === "person" ? "person" : "agent", r.id));
       return;
     }
     if (action === "remove") {
@@ -783,6 +781,10 @@ export function FilesTab({ o }: { o: Overview }): ReactElement {
   );
 }
 
+/** The list under "This project has one chat" is the threads started under that chat's messages. The app calls those threads (the Thread sheet, "Reply in thread", "Agents reply in threads"), never a second set of chats. */
+export const THREADS_HEAD = "Threads";
+export const NO_THREADS = "No threads yet.";
+
 export function ChatTab({
   o,
   channelName,
@@ -832,8 +834,8 @@ export function ChatTab({
       >
         <Text style={s.openText}>{`Open ${channelName} in Chats`}</Text>
       </Pressable>
-      <Section title="Chats" count={o.recentThreads.length} id="project-threads">
-        {rows.length ? rows : <Text style={s.dim}>No chats yet.</Text>}
+      <Section title={THREADS_HEAD} count={o.recentThreads.length} id="project-threads">
+        {rows.length ? rows : <Text style={s.dim}>{NO_THREADS}</Text>}
       </Section>
       {projectId ? <ImportedHistory projectId={projectId} /> : null}
     </ScrollView>

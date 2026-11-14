@@ -125,6 +125,13 @@ const SECRETS: RegExp[] = [
   /\b[A-Za-z0-9+\/]{40,}={0,2}\b/g,
   /\b[0-9a-f]{32,}\b/gi,
   /((?:password|secret|token|api[_-]?key)\s*[:=]\s*)\S+/gi,
+  // a login in a link (postgres://user:pass@host, https://user:pass@host), a secret in a query string, a JWT, a webhook secret, an AWS key id, an Authorization header
+  /(?<=:\/\/)[^\s\/@:]+:[^\s\/@]+(?=@)/g,
+  /(?<=[?&](?:key|token|sig|signature|secret|api_?key|access_token|auth|password)=)[^&\s"')]+/gi,
+  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/g,
+  /\bwhsec_[A-Za-z0-9+\/=]{8,}/g,
+  /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g,
+  /((?:Authorization|Proxy-Authorization)\s*:\s*)(?:Token|Basic|Bearer|Digest)\s+\S+/gi,
 ];
 /** No secret rides in a hook's words: a key-shaped string is cut out before a reason, a note or a log line is kept or shown. */
 export function redact(text: string, max = 300): string {

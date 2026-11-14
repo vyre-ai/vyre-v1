@@ -815,7 +815,7 @@ export async function turnRetry(
   if (str(old["error"]).includes("engine.cli_missing")) engines()?.forget();
   const oldQ = rows(
     ctx,
-    "SELECT kind, message_id FROM engine_thread_queue WHERE thread_id = ? AND qseq = ?",
+    "SELECT kind, message_id, routine FROM engine_thread_queue WHERE thread_id = ? AND qseq = ?",
     threadId,
     num(old["qseq"]),
   )[0];
@@ -829,7 +829,7 @@ export async function turnRetry(
     from: actorOf(ctx),
     priority: 0,
     enqueuedAt: ctx.now(),
-    routine: false,
+    routine: oldQ ? num(oldQ["routine"]) === 1 : false,
     steer: false,
   });
   const turnId = mintId("trn", ctx.now());

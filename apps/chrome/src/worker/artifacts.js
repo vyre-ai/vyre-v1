@@ -6,18 +6,30 @@
 import { pageOf } from "./match.js";
 import { maskedShot } from "./shot.js";
 
-/** The artifact host a Space serves its artifacts from: <name>-a.vyre.run for one reached through the relay, a.<address> for one served directly (a.localhost on this computer). @param {string} webUrl */
+/**
+ * The artifact host a Space serves its artifacts from: <name>-a.vyre.run for one reached through the relay, a.<address> for one served directly (a.localhost on this computer). A name under vyre.run can be either:
+ * the extension cannot tell which from the address (the Space's server knows whether it holds that name at the relay), so for such a name both are the Space's (artifactHostsOf), and this answers the relay form.
+ * @param {string} webUrl
+ */
 export function artifactHostOf(webUrl) {
+  return artifactHostsOf(webUrl)[0] ?? null;
+}
+
+/** Every host a Space may serve its artifacts from, by its address. @param {string} webUrl @returns {string[]} */
+export function artifactHostsOf(webUrl) {
   let u;
   try {
     u = new URL(webUrl);
   } catch {
-    return null;
+    return [];
   }
-  if (u.hostname.endsWith(".vyre.run")) return `${u.hostname.slice(0, -".vyre.run".length)}-a.vyre.run`;
   if (u.hostname === "localhost" || u.hostname.endsWith(".localhost"))
-    return `a.localhost${u.port ? `:${u.port}` : ""}`;
-  return `a.${u.host}`;
+    return [`a.localhost${u.port ? `:${u.port}` : ""}`];
+  if (u.hostname.endsWith(".vyre.run")) {
+    const label = u.hostname.slice(0, -".vyre.run".length);
+    return [...(label.includes(".") ? [] : [`${label}-a.vyre.run`]), `a.${u.host}`];
+  }
+  return [`a.${u.host}`];
 }
 
 /** The artifact a tab is showing, when its address is on the artifact host of a Space the person is signed in to: https://<artifact host>/<sit_id>/... @param {string} href @param {string[]} spaces the Spaces' web addresses */
@@ -28,7 +40,7 @@ export function artifactOfTab(href, spaces) {
   } catch {
     return null;
   }
-  if (!spaces.some((w) => artifactHostOf(w) === u.host)) return null;
+  if (!spaces.some((w) => artifactHostsOf(w).includes(u.host))) return null;
   const m = /^\/(sit_[a-z0-9]{1,64})(\/|$)/.exec(u.pathname);
   return m ? (m[1] ?? null) : null;
 }
