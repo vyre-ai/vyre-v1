@@ -14,6 +14,28 @@ export function handleOf(value: string): { item: string; field: string } | null 
   return m ? { item: m[1]!, field: m[2]! } : null;
 }
 
+/** Whether this person may replace the key a connection points at: the Vault item must be theirs to edit. false for a view-only holder or a gone item; the card offers Replace key only on true. */
+export async function mayReplaceKey(call: Call, connectionId: string): Promise<boolean> {
+  try {
+    const list = (await call("plugins.connections.list", {})) as {
+      connections: { connectionId: string; headers: Record<string, string> }[];
+    };
+    const c = list.connections.find((x) => x.connectionId === connectionId);
+    const handle =
+      Object.values(c?.headers ?? {})
+        .map(handleOf)
+        .find((h) => h !== null) ?? null;
+    if (!handle) return false;
+    const items = (await call("vault.items.list", { q: handle.item })) as {
+      items: { id: string; name: string; yourLevel?: string }[];
+    };
+    const item = items.items.find((i) => i.name === handle.item);
+    return item?.yourLevel === "edit" || item?.yourLevel === "manage";
+  } catch {
+    return false;
+  }
+}
+
 export function ReplaceKeySheet({
   call,
   connectionId,
