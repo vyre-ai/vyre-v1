@@ -775,8 +775,7 @@ export function AiForm({
         label="Run as"
         value={
           ai.agentId
-            ? (agentList.find((a) => a.id === ai.agentId)?.name ??
-              (agents.state === "ready" ? "An agent that is no longer here" : "Loading"))
+            ? (agentList.find((a) => a.id === ai.agentId)?.name ?? ai.agentId)
             : (sentence(agents, "Your agents could not be loaded") ?? "No agent")
         }
         testID="choose-agent"
