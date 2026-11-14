@@ -8015,6 +8015,17 @@ export type ChatReplyDetailsOut = {
       }>;
   };
 };
+export type ChatRewindIn = {
+  threadId: string;
+  pointId: string;
+  idempotencyKey: string;
+};
+export type ChatRewindOut = {
+  restored: number;
+  removed: number;
+  at: number;
+  undid: boolean;
+};
 export type ChatRoundDecideIn = {
   threadId: string;
   messageId: string;
@@ -12766,6 +12777,36 @@ export type EngineReviewerSetOut = {
     kind: "agent" | "person";
     id: string;
   }) | null;
+};
+export type EngineRewindPointsIn = {
+  threadId: string;
+};
+export type EngineRewindPointsOut = {
+  available: boolean;
+  why?: string;
+  points: Array<{
+      pointId: string;
+      agentId: string;
+      at: number;
+      files: number;
+      after?: string;
+      messageId?: string;
+      undo?: boolean;
+    }>;
+};
+export type EngineRewindToIn = {
+  threadId: string;
+  pointId: string;
+  afterSeq: number;
+  uptoSeq: number;
+};
+export type EngineRewindToOut = {
+  agentId: string;
+  at: number;
+  restored: number;
+  removed: number;
+  undoPointId: string;
+  undid: boolean;
 };
 export type EngineRoundGetIn = {
   threadId: string;
@@ -46156,6 +46197,7 @@ export interface CapMap {
   "chat.recent": { in: ChatRecentIn; out: ChatRecentOut };
   "chat.remember": { in: ChatRememberIn; out: ChatRememberOut };
   "chat.reply_details": { in: ChatReplyDetailsIn; out: ChatReplyDetailsOut };
+  "chat.rewind": { in: ChatRewindIn; out: ChatRewindOut };
   "chat.round.decide": { in: ChatRoundDecideIn; out: ChatRoundDecideOut };
   "chat.round.discuss": { in: ChatRoundDiscussIn; out: ChatRoundDiscussOut };
   "chat.screen.get": { in: ChatScreenGetIn; out: ChatScreenGetOut };
@@ -46469,6 +46511,8 @@ export interface CapMap {
   "engine.review.mark": { in: EngineReviewMarkIn; out: EngineReviewMarkOut };
   "engine.reviewer.get": { in: EngineReviewerGetIn; out: EngineReviewerGetOut };
   "engine.reviewer.set": { in: EngineReviewerSetIn; out: EngineReviewerSetOut };
+  "engine.rewind.points": { in: EngineRewindPointsIn; out: EngineRewindPointsOut };
+  "engine.rewind.to": { in: EngineRewindToIn; out: EngineRewindToOut };
   "engine.round.get": { in: EngineRoundGetIn; out: EngineRoundGetOut };
   "engine.route.preview": { in: EngineRoutePreviewIn; out: EngineRoutePreviewOut };
   "engine.running_here": { in: EngineRunningHereIn; out: EngineRunningHereOut };

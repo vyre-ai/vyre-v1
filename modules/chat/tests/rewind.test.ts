@@ -16,7 +16,12 @@ async function world() {
       "agents.get": () => ({ agent: {} }),
       "engine.rewind.points": (i: any) => {
         engineCalls.push({ cap: "engine.rewind.points", input: i });
-        return { available: true, points: [{ pointId: `${INTAKE}.${"a".repeat(40)}`, at: Date.now(), files: 3, after: "Add the uploads folder" }] };
+        return {
+          available: true,
+          points: [
+            { pointId: `${INTAKE}.${"a".repeat(40)}`, at: Date.now(), files: 3, after: "Add the uploads folder" },
+          ],
+        };
       },
       "engine.rewind.to": (i: any) => {
         engineCalls.push({ cap: "engine.rewind.to", input: i });
@@ -24,7 +29,8 @@ async function world() {
       },
     },
   });
-  const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() })).thread.threadId as string;
+  const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() })).thread
+    .threadId as string;
   await h["chat.post"]!(hn.ctx, { threadId: t, body: "Add the uploads folder", idempotencyKey: key() });
   return { hn, t, engineCalls };
 }
@@ -47,16 +53,26 @@ test("going back asks the engine for the point, hides from before the person's m
 test("an agent cannot go back for the person; a chat with another person in it refuses; an unknown point is not found", async () => {
   const { hn, t } = await world();
   assert.equal(
-    await failure(() => h["chat.rewind"]!(hn.as({ kind: "agent", id: INTAKE }, DANA), { threadId: t, pointId: `${INTAKE}.${"a".repeat(40)}`, idempotencyKey: key() })),
+    await failure(() =>
+      h["chat.rewind"]!(hn.as({ kind: "agent", id: INTAKE }, DANA), {
+        threadId: t,
+        pointId: `${INTAKE}.${"a".repeat(40)}`,
+        idempotencyKey: key(),
+      }),
+    ),
     "permission.role_lacks_permission",
   );
   assert.equal(
-    await failure(() => h["chat.rewind"]!(hn.ctx, { threadId: t, pointId: `${INTAKE}.${"b".repeat(40)}`, idempotencyKey: key() })),
+    await failure(() =>
+      h["chat.rewind"]!(hn.ctx, { threadId: t, pointId: `${INTAKE}.${"b".repeat(40)}`, idempotencyKey: key() }),
+    ),
     "validation.not_found",
   );
   await h["threads.members.add"]!(hn.ctx, { threadId: t, personId: MAYA });
   assert.equal(
-    await failure(() => h["chat.rewind"]!(hn.ctx, { threadId: t, pointId: `${INTAKE}.${"a".repeat(40)}`, idempotencyKey: key() })),
+    await failure(() =>
+      h["chat.rewind"]!(hn.ctx, { threadId: t, pointId: `${INTAKE}.${"a".repeat(40)}`, idempotencyKey: key() }),
+    ),
     "validation.precondition_failed",
   );
   assert.equal(lines(hn, t).length, 0, "no line when nothing went back");

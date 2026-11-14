@@ -10,7 +10,6 @@ import type { EngineCtx } from "../projections.ts";
 import { dropWarmSessions, engineHost } from "../runtime.ts";
 import { workFolder } from "../sandbox.ts";
 
-
 export interface RewindPoint {
   pointId: string;
   agentId: string;
@@ -36,9 +35,12 @@ interface ThreadOut {
 function undoable(ctx: EngineCtx, threadId: string): Set<string> {
   try {
     return new Set(
-      (ctx.db.all("SELECT undo_sha FROM engine_rewind WHERE thread_id = ? AND undo_sha IS NOT NULL", threadId) as Array<Record<string, unknown>>).map(
-        (r) => String(r["undo_sha"]),
-      ),
+      (
+        ctx.db.all(
+          "SELECT undo_sha FROM engine_rewind WHERE thread_id = ? AND undo_sha IS NOT NULL",
+          threadId,
+        ) as Array<Record<string, unknown>>
+      ).map((r) => String(r["undo_sha"])),
     );
   } catch {
     return new Set();
@@ -115,7 +117,10 @@ export async function pointsIn(
   return { available: true, points: out.sort((a, b) => b.at - a.at).slice(0, MAX_POINTS) };
 }
 
-export async function rewind(ctx: EngineCtx, input: { threadId: string; pointId: string; afterSeq: number; uptoSeq: number }) {
+export async function rewind(
+  ctx: EngineCtx,
+  input: { threadId: string; pointId: string; afterSeq: number; uptoSeq: number },
+) {
   return rewindIn(ctx, input, engineHost()?.dataDir);
 }
 

@@ -476,6 +476,7 @@ export function stubs(ctx: CallCtx) {
       recent: call("chat.recent"),
       remember: call("chat.remember"),
       reply_details: call("chat.reply_details"),
+      rewind: call("chat.rewind"),
       round: {
         decide: call("chat.round.decide"),
         discuss: call("chat.round.discuss"),
@@ -922,6 +923,10 @@ export function stubs(ctx: CallCtx) {
       reviewer: {
         get: call("engine.reviewer.get"),
         set: call("engine.reviewer.set"),
+      },
+      rewind: {
+        points: call("engine.rewind.points"),
+        to: call("engine.rewind.to"),
       },
       round: {
         get: call("engine.round.get"),

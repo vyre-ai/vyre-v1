@@ -11710,6 +11710,45 @@
     },
     {
       "blocks": [],
+      "cap": "chat.rewind",
+      "deferred": false,
+      "description": "Go back in a private chat with an agent to a point: the agent's work folder is put back as it was, the agents stop reading the messages after it, and one line says so. Every message stays; anything already sent stays sent. Off in a chat with other people. Only the person themselves",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "pointId": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "pointId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_rewind",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.screen.get",
       "deferred": false,
       "description": "The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows",
@@ -19471,6 +19510,73 @@
         "type": "object"
       },
       "name": "engine_reviewer_set",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.rewind.points",
+      "deferred": false,
+      "description": "The points a person can go back to in a private chat with an agent: one per turn of an agent that worked in a folder on this computer for them, newest first, with when, how many files and what they had just asked. Not available in a chat with other people",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_rewind_points",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.rewind.to",
+      "deferred": false,
+      "description": "Put an agent's work folder back as it was at a point and have the agents stop reading the chat's messages from afterSeq to uptoSeq; the engine's own session starts again. The chat's messages are untouched. A person's own folder only; use chat.rewind, which also leaves the line in the chat",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "afterSeq": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "pointId": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "uptoSeq": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "threadId",
+          "pointId",
+          "afterSeq",
+          "uptoSeq"
+        ],
+        "type": "object"
+      },
+      "name": "engine_rewind_to",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1

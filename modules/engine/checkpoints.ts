@@ -11,6 +11,7 @@
 // Retention: at most KEEP_POINTS per folder and KEEP_MS old; a store over STORE_CAP or the Space's checkpoints over SPACE_CAP lose their oldest points; the disk is never filled by this (MIN_FREE).
 import fs from "node:fs";
 import path from "node:path";
+import { createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
 import { git, GitError } from "./crew-git.ts";
 import { layoutRoots, segmentOf, workFolder } from "./sandbox.ts";
 
@@ -29,6 +30,10 @@ export const SPACE_CAP = 10 * 1024 ** 3;
 export const MIN_FREE = 1024 ** 3;
 /** How long a turn waits for its point before it goes on and the point finishes in the background. */
 export const WAIT_MS = 100;
+/** A folder with more files or bytes than this is not kept (a point is a copy on the server's disk), and the look that decides it stops after WALK_MS. All of it runs in the background. */
+export const MAX_FILES = 150_000;
+export const MAX_BYTES = 8 * 1024 ** 3;
+export const WALK_MS = 3_000;
 
 const IDENTITY = ["-c", "user.name=Vyre", "-c", "user.email=checkpoints@vyre.invalid", "-c", "commit.gpgsign=false"];
 const EXCLUDES = [
@@ -49,7 +54,13 @@ const EXCLUDES = [
   ".netrc",
 ];
 
-async function run(gitDir: string, workDir: string, args: readonly string[], what: string, env: Record<string, string> = {}): Promise<string> {
+async function run(
+  gitDir: string,
+  workDir: string,
+  args: readonly string[],
+  what: string,
+  env: Record<string, string> = {},
+): Promise<string> {
   const r = await git(["--git-dir", gitDir, "--work-tree", workDir, ...IDENTITY, ...args], workDir, env);
   if (r.code !== 0)
     throw new GitError(
@@ -104,8 +115,15 @@ export function snapshot(o: { gitDir: string; workDir: string; label: string; no
       .filter(Boolean).length;
     const label = o.label.replace(/[\r\n]+/g, " ").slice(0, 200);
     // the time of a point is in its name (refs/points/<ms>-<files>-<n>), not in git's dates
-    const sha = (await run(o.gitDir, o.workDir, ["commit-tree", tree, "-m", label], "The point could not be saved")).trim();
-    await run(o.gitDir, o.workDir, ["update-ref", refName(o.now, files, counter++ % 10_000), sha], "The point could not be named");
+    const sha = (
+      await run(o.gitDir, o.workDir, ["commit-tree", tree, "-m", label], "The point could not be saved")
+    ).trim();
+    await run(
+      o.gitDir,
+      o.workDir,
+      ["update-ref", refName(o.now, files, counter++ % 10_000), sha],
+      "The point could not be named",
+    );
     return { sha, at: o.now, label, files };
   });
 }
@@ -116,7 +134,13 @@ export async function points(o: { gitDir: string; workDir: string; limit?: numbe
   const out = await run(
     o.gitDir,
     o.workDir,
-    ["for-each-ref", "--sort=-refname", `--count=${o.limit ?? 50}`, "--format=%(objectname)\t%(refname)\t%(subject)", REF],
+    [
+      "for-each-ref",
+      "--sort=-refname",
+      `--count=${o.limit ?? 50}`,
+      "--format=%(objectname)\t%(refname)\t%(subject)",
+      REF,
+    ],
     "The points could not be listed",
   ).catch(() => "");
   const list: Point[] = [];
@@ -147,29 +171,114 @@ export async function restore(o: { gitDir: string; workDir: string; sha: string;
     throw new GitError("validation.bad_input", "That point is not here any more.");
   const undoPoint = await snapshot({ gitDir: o.gitDir, workDir: o.workDir, label: "Before going back", now: o.now });
   return inOrder(o.gitDir, async () => {
-    const diff = (
-      await run(o.gitDir, o.workDir, ["diff", "--name-status", "-z", o.sha, undoPoint.sha], "The change could not be read")
+    // what turns the folder as it is now (the point just taken) into the folder at `sha`: one line per path, ":<mode1> <mode2> <blob1> <blob2> <status>\0<path>\0"
+    const raw = (
+      await run(
+        o.gitDir,
+        o.workDir,
+        ["diff-tree", "-r", "-z", "--raw", "--no-renames", "--no-abbrev", undoPoint.sha, o.sha],
+        "The change could not be read",
+      )
     ).split("\0");
+    const changes: Array<{ status: string; mode: string; blob: string; file: string }> = [];
+    for (let i = 0; i + 1 < raw.length; i += 2) {
+      const meta = /^:(\d+) (\d+) ([0-9a-f]+) ([0-9a-f]+) ([A-Z])/.exec(raw[i] ?? "");
+      if (meta && raw[i + 1]) changes.push({ status: meta[5]!, mode: meta[2]!, blob: meta[4]!, file: raw[i + 1]! });
+    }
+    // Every path below is the work folder's own: nothing is written, replaced or removed through a link. The paths come from git, but the folder is the agent's to arrange as it likes, so each one is
+    // walked from the real work folder, one component at a time, and a component that is a link is never entered.
+    const base = fs.realpathSync(o.workDir);
     let restored = 0;
     let removed = 0;
-    const gone: string[] = [];
-    for (let i = 0; i + 1 < diff.length; i += 2) {
-      if (diff[i] === "A") gone.push(diff[i + 1]!); // added since the point: it was not there then
-      else restored++;
-    }
-    await run(o.gitDir, o.workDir, ["checkout", "--force", o.sha, "--", "."], "The files could not be put back");
-    for (const file of gone) {
-      const abs = path.resolve(o.workDir, file);
-      if (path.relative(o.workDir, abs).startsWith("..")) continue;
-      try {
-        fs.rmSync(abs, { force: true });
-        removed++;
-      } catch {
-        /* a file that cannot be removed stays: the rewind says how many it removed */
-      }
+    // removals first (a path that is not in the point), so a folder that is about to become a file or a link is empty of them
+    for (const c of changes.filter((x) => x.status === "D")) if (removeIn(base, c.file)) removed++;
+    for (const c of changes.filter((x) => x.status !== "D")) {
+      await writeIn(o.gitDir, o.workDir, base, c.file, c.mode, c.blob);
+      restored++;
     }
     return { undoPoint, restored, removed };
   });
+}
+
+/** The folder part of a path inside `base`, walked without following links: the real folder it is, or null when a component is a link or not a folder (nothing is removed through it). */
+function walkDirs(base: string, rel: string, make: boolean): string | null {
+  let at = base;
+  const parts = rel.split("/").filter((x) => x !== "" && x !== ".");
+  if (parts.some((x) => x === "..")) return null;
+  for (const part of parts.slice(0, -1)) {
+    const next = path.join(at, part);
+    let st: fs.Stats | null = null;
+    try {
+      st = fs.lstatSync(next);
+    } catch {
+      st = null;
+    }
+    if (st?.isDirectory() === true && !st.isSymbolicLink()) {
+      at = next;
+      continue;
+    }
+    if (!make) return null; // a link, a file or nothing where a folder should be: nothing is there to remove
+    // writing: a link or a file in the way is replaced by a real folder (the link itself is removed, never what it points at)
+    if (st !== null) fs.rmSync(next, { recursive: true, force: true });
+    fs.mkdirSync(next);
+    at = next;
+  }
+  return path.join(at, parts[parts.length - 1] ?? "");
+}
+
+/** Remove one path of the work folder (a file, a link, or a folder of them: a link inside is removed, not followed). True when something was removed. */
+function removeIn(base: string, rel: string): boolean {
+  const target = walkDirs(base, rel, false);
+  if (target === null) return false;
+  try {
+    fs.lstatSync(target);
+  } catch {
+    return false;
+  }
+  try {
+    fs.rmSync(target, { recursive: true, force: true }); // rmSync never follows a link it meets
+    return true;
+  } catch {
+    return false; // a path that cannot be removed stays: the rewind says how many it removed
+  }
+}
+
+/** Put one path back as the point had it: a file with its bytes and its executable bit, or a link as a link. */
+async function writeIn(
+  gitDir: string,
+  workDir: string,
+  base: string,
+  rel: string,
+  mode: string,
+  blob: string,
+): Promise<void> {
+  const target = walkDirs(base, rel, true);
+  if (target === null) return;
+  const bytes = await blobOf(gitDir, workDir, blob);
+  try {
+    if (fs.lstatSync(target) !== undefined) fs.rmSync(target, { recursive: true, force: true }); // a folder, file or link where this one goes: gone first, so the write never lands through it
+  } catch {
+    /* nothing there */
+  }
+  if (mode === "120000") fs.symlinkSync(bytes.toString("utf8"), target);
+  else fs.writeFileSync(target, bytes, { mode: mode === "100755" ? 0o755 : 0o644 });
+  if (mode === "100755") fs.chmodSync(target, 0o755);
+}
+
+/** The exact bytes of one object (git's own output as a string would lose binary content). */
+async function blobOf(gitDir: string, workDir: string, blob: string): Promise<Buffer> {
+  if (!/^[0-9a-f]{40,64}$/.test(blob)) throw new GitError("validation.bad_input", "That is not a file of a point.");
+  const p = await createLocalLauncher().spawn({
+    argv: ["git", "--git-dir", gitDir, "cat-file", "blob", blob],
+    cwd: workDir,
+    env: { GIT_TERMINAL_PROMPT: "0", LC_ALL: "C" },
+  });
+  p.endInput();
+  const chunks: Buffer[] = [];
+  for await (const c of p.stdout) chunks.push(typeof c === "string" ? Buffer.from(c, "binary") : Buffer.from(c));
+  const exit = await p.exited;
+  if ((exit.code ?? -1) !== 0) throw new GitError("engine.git_failed", "A file of the point could not be read.");
+  return Buffer.concat(chunks);
 }
 
 // ---- retention ------------------------------------------------------------------------------------------------------------------------------------
@@ -208,11 +317,17 @@ export async function prune(o: {
     }
     const cap = o.cap ?? STORE_CAP;
     // over the cap: the older half of what is left goes (the next turn looks again), and the newest stays
-    if (left.length > 1 && bytesOf(o.gitDir) > cap) for (let n = Math.ceil((left.length - 1) / 2); n > 0; n--) drop.push(left.pop()!);
+    if (left.length > 1 && bytesOf(o.gitDir) > cap)
+      for (let n = Math.ceil((left.length - 1) / 2); n > 0; n--) drop.push(left.pop()!);
     if (drop.length === 0) return 0;
     for (const p of drop) {
       const ref = (
-        await run(o.gitDir, o.workDir, ["for-each-ref", "--format=%(refname)", "--points-at", p.sha, REF], "The point could not be read")
+        await run(
+          o.gitDir,
+          o.workDir,
+          ["for-each-ref", "--format=%(refname)", "--points-at", p.sha, REF],
+          "The point could not be read",
+        )
       ).trim();
       for (const r of ref.split("\n").filter(Boolean))
         await run(o.gitDir, o.workDir, ["update-ref", "-d", r], "The point could not be removed");
@@ -222,6 +337,46 @@ export async function prune(o: {
   } catch {
     return 0;
   }
+}
+
+/** Why a folder is not kept, or null: counted without following links, skipping what a point never holds (node_modules, .git), and cut short after `ms`. */
+export async function tooBig(
+  workDir: string,
+  o: { maxFiles?: number; maxBytes?: number; ms?: number } = {},
+): Promise<string | null> {
+  const maxFiles = o.maxFiles ?? MAX_FILES;
+  const maxBytes = o.maxBytes ?? MAX_BYTES;
+  const until = Date.now() + (o.ms ?? WALK_MS);
+  let files = 0;
+  let bytes = 0;
+  const stack = [workDir];
+  while (stack.length > 0) {
+    if (Date.now() > until) return "The folder is too slow to read: no point was saved.";
+    const d = stack.pop()!;
+    let es: fs.Dirent[] = [];
+    try {
+      es = await fs.promises.readdir(d, { withFileTypes: true }); // asynchronous: a big folder never holds the thread a turn runs on
+    } catch {
+      continue;
+    }
+    for (const e of es) {
+      if (e.isDirectory()) {
+        if (e.name !== "node_modules" && e.name !== ".git") stack.push(path.join(d, e.name));
+        continue;
+      }
+      files++;
+      if (e.isFile()) {
+        try {
+          bytes += (await fs.promises.lstat(path.join(d, e.name))).size;
+        } catch {
+          /* gone while counting */
+        }
+      }
+      if (files > maxFiles) return "The folder has too many files to keep: no point was saved.";
+      if (bytes > maxBytes) return "The folder is too big to keep: no point was saved.";
+    }
+  }
+  return null;
 }
 
 /** The Space's checkpoints folder. */
@@ -327,6 +482,8 @@ export async function checkpointTurn(o: {
   messageId?: string;
   now: number;
   waitMs?: number;
+  maxFiles?: number;
+  maxBytes?: number;
 }): Promise<{ point: Point | null; why?: string; background?: boolean }> {
   try {
     const workDir = workFolder(o.dataDir, o.person, o.thread, o.agent);
@@ -337,11 +494,22 @@ export async function checkpointTurn(o: {
     } catch {
       /* free space unknown: go on */
     }
-    const work = snapshot({ gitDir, workDir, label: `turn ${o.turnId}${o.messageId ? ` ${o.messageId}` : ""}`, now: o.now }).then(async (p) => {
-      await prune({ gitDir, workDir, now: o.now });
-      pruneSpace(o.dataDir);
-      return p;
-    });
+    const work = Promise.resolve()
+      .then(async () => {
+        const why = await tooBig(workDir, {
+          ...(o.maxFiles !== undefined ? { maxFiles: o.maxFiles } : {}),
+          ...(o.maxBytes !== undefined ? { maxBytes: o.maxBytes } : {}),
+        });
+        if (why !== null) throw new GitError("validation.bad_input", why);
+      })
+      .then(() =>
+        snapshot({ gitDir, workDir, label: `turn ${o.turnId}${o.messageId ? ` ${o.messageId}` : ""}`, now: o.now }),
+      )
+      .then(async (p) => {
+        await prune({ gitDir, workDir, now: o.now });
+        pruneSpace(o.dataDir);
+        return p;
+      });
     const slow = Symbol("slow");
     const got = await Promise.race([
       work,

@@ -1133,7 +1133,13 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       // a checkpoint of the agent's work folder as each CLI turn starts, for Rewind (checkpoints.ts)
       ...(h.dataDir
         ? {
-            onTurnStart: async (i: { threadId: string; turnId: string; agentId: string; asker: string; messageId: string | null }): Promise<void> => {
+            onTurnStart: async (i: {
+              threadId: string;
+              turnId: string;
+              agentId: string;
+              asker: string;
+              messageId: string | null;
+            }): Promise<void> => {
               await checkpointTurn({
                 dataDir: h.dataDir!,
                 person: i.asker,

@@ -20,15 +20,23 @@ const buf = randomBytes(Math.max(size, 1));
 for (let i = 0; i < files; i++) {
   const d = path.join(work, `d${i % 200}`, `s${i % 37}`);
   fs.mkdirSync(d, { recursive: true });
-  fs.writeFileSync(path.join(d, `f${i}.bin`), size > 0 ? Buffer.concat([Buffer.from(`file ${i}\n`), buf.subarray(0, size - (i % 7))]) : "");
+  fs.writeFileSync(
+    path.join(d, `f${i}.bin`),
+    size > 0 ? Buffer.concat([Buffer.from(`file ${i}\n`), buf.subarray(0, size - (i % 7))]) : "",
+  );
 }
 const gitDir = path.join(root, "store.git");
-const du = (p: string): number => Number(spawnSync("du", ["-sk", p], { encoding: "utf8" }).stdout.split("\t")[0]) * 1024;
+const du = (p: string): number =>
+  Number(spawnSync("du", ["-sk", p], { encoding: "utf8" }).stdout.split("\t")[0]) * 1024;
 const ms: number[] = [];
 let firstBytes = 0;
 for (let t = 0; t < turns; t++) {
   // each turn the agent changes a few files and adds one
-  for (let k = 0; k < 5; k++) fs.writeFileSync(path.join(work, `d${k}`, `s${k}`, `f${k}.bin`), randomBytes(Math.max(size, 100)).subarray(0, Math.max(size, 100)));
+  for (let k = 0; k < 5; k++)
+    fs.writeFileSync(
+      path.join(work, `d${k}`, `s${k}`, `f${k}.bin`),
+      randomBytes(Math.max(size, 100)).subarray(0, Math.max(size, 100)),
+    );
   fs.writeFileSync(path.join(work, `new-${t}.txt`), `turn ${t}\n`);
   const t0 = process.hrtime.bigint();
   await snapshot({ gitDir, workDir: work, label: `turn t${t}`, now: 1_700_000_000_000 + t });

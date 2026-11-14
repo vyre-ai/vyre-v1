@@ -77,6 +77,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.recent": Handler<"chat.recent", X>;
   "chat.remember": Handler<"chat.remember", X>;
   "chat.reply_details": Handler<"chat.reply_details", X>;
+  "chat.rewind": Handler<"chat.rewind", X>;
   "chat.round.decide": Handler<"chat.round.decide", X>;
   "chat.round.discuss": Handler<"chat.round.discuss", X>;
   "chat.screen.get": Handler<"chat.screen.get", X>;
