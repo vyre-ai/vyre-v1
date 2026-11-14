@@ -53,3 +53,25 @@ test("agents asked together are told to open with an Answer line; an agent asked
   const last = p.sessions.flatMap((s) => s.inputs).at(-1)!;
   assert.equal(last.notice ?? "", "", "one agent asked alone gets no round note");
 });
+
+test("rewind: messages the person went back over are not read as history by the next turn, and the chat still holds them", async () => {
+  const p = scriptedProvider({ script: quiet });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
+  engine.openThread({ id: "T", kind: "chat", starter: "dana", agents: [{ id: "dex", name: "Dex", mode: "lead" }] });
+  const dana = { kind: "person" as const, id: "dana" };
+  const first = engine.receive({ threadId: "T", author: dana, mentions: [], body: "first ask" });
+  await engine.idle("T");
+  const second = engine.receive({ threadId: "T", author: dana, mentions: [], body: "second ask" });
+  await engine.idle("T");
+  // go back to before the second ask: everything after the first ask's turn is hidden
+  const seqOf = (id: string): number => engine.messages("T").find((m) => m.id === id)!.threadSeq;
+  engine.hide("T", seqOf(second.messageId) - 1, 1000);
+  engine.receive({ threadId: "T", author: dana, mentions: [], body: "third ask" });
+  await engine.idle("T");
+  const last = p.sessions.flatMap((s) => s.inputs).at(-1)!;
+  const read = last.history.map((m) => m.body);
+  assert.ok(read.includes("first ask"));
+  assert.ok(!read.includes("second ask"), "hidden from the agent");
+  assert.ok(engine.messages("T").some((m) => m.body === "second ask"), "still in the chat");
+  void first;
+});

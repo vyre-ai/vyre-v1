@@ -156,6 +156,7 @@ const SCHEMA = [
   "0014_queue_stop_reason.sql",
   "0015_typed_message.sql",
   "0016_own_subagent.sql",
+  "0017_rewind.sql",
 ]
   .map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8"))
   .join("\n")

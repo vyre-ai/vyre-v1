@@ -1107,6 +1107,16 @@ export function createBridge(o: BridgeOptions): Bridge {
     }
     try {
       engine.openThread(built);
+      // Rewind: what a person went back over stays hidden from the agents after a restart
+      for (const r of ctx.db.all(
+        "SELECT after_seq, upto_seq FROM engine_rewind WHERE thread_id = ? ORDER BY at",
+        threadId,
+      ) as Row[])
+        engine.hide(
+          threadId,
+          Number((r as Record<string, unknown>)["after_seq"]),
+          Number((r as Record<string, unknown>)["upto_seq"]),
+        );
     } catch (e) {
       if (!(e instanceof RangeError) || !/already open/.test(e.message)) throw e;
     }
