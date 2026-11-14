@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintId as mint } from "../../lib/ids.ts";
+import { stepClass, stepWords } from "../../lib/plain-words.ts";
 import type { ErrorCode, EventName } from "../../packages/contracts/src/types.ts";
 
 export interface Db {
@@ -132,6 +133,13 @@ const REPLIES_SCHEMA = readFileSync(new URL("./migrations/0007_replies_in.sql", 
   .split(";")
   .map((s) => s.trim())
   .filter((s) => s.length > 0);
+const ASKED_SCHEMA = readFileSync(new URL("./migrations/0011_asked_by.sql", import.meta.url), "utf8")
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
 
 /** Make sure the chat tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. The per-chat agent settings (0005) are added the same way when their columns are missing. */
@@ -157,6 +165,17 @@ export function ensure(db: Db): void {
     db.all("SELECT fromAt FROM chat_thread_member WHERE id = ?", "probe");
   } catch {
     for (const stmt of HISTORY_SCHEMA) {
+      try {
+        db.run(stmt);
+      } catch {
+        /* the column is already there */
+      }
+    }
+  }
+  try {
+    db.all("SELECT askedBy FROM chat_message WHERE id = ?", "probe");
+  } catch {
+    for (const stmt of ASKED_SCHEMA) {
       try {
         db.run(stmt);
       } catch {
@@ -550,6 +569,7 @@ export interface MessageRec {
   replyTo?: string;
   via?: { routineOwner: string };
   /** The person whose own account this turn ran on; absent when a key of the Space paid. */ paidBy?: string;
+  /** The person an agent's message was written for: whose turn it was, whoever paid. The saved steps of the turn are theirs to read whole (F51). Absent on messages saved before it was kept (paidBy then). */ askedBy?: string;
   depth: number;
   attachments: string[];
   reactions: Array<{ emoji: string; by: string[] }>;
@@ -585,6 +605,8 @@ export function messageOf(r: Row): MessageRec {
   const via = parseJson<{ routineOwner?: string; paidBy?: string } | null>(r["via"], null);
   if (via?.routineOwner) o.via = { routineOwner: via.routineOwner };
   if (via?.paidBy) o.paidBy = via.paidBy;
+  const askedBy = optStr(r["askedBy"]);
+  if (askedBy !== undefined) o.askedBy = askedBy;
   const editedAt = optNum(r["editedAt"]);
   if (editedAt !== undefined) o.editedAt = editedAt;
   return o;
@@ -596,7 +618,47 @@ export function messageBy(db: Db, id: string): MessageRec | null {
 }
 
 /** The message row of the contract. */
-export function messageOut(m: MessageRec, enc: number): Record<string, unknown> {
+/**
+ * What an agent's saved steps tell a reader (F51). The person whose turn wrote the message sees them whole; every other reader sees which kind of step ran, how it went and how long it took: never a file's
+ * name (`label`), the counts of a command's output (`ran`), a helper's description (`detail`) or the tool's own name. Applied when the message is served, so turns saved before this rule are covered too.
+ */
+export function stepsFor(blocks: MessageRec["blocks"], mayDetail: boolean): MessageRec["blocks"] {
+  if (mayDetail) return blocks;
+  return blocks.map((b) => {
+    // the agent's browser: the picture of the page, its site and what a held send says belong to the person whose turn it is; others read that a browser was used (F51)
+    if (
+      b["type"] === "chrome_step" ||
+      b["type"] === "browser_screenshot" ||
+      (b["type"] === "screenshot" && (b["data"] as { live?: unknown } | undefined)?.live === true)
+    )
+      return {
+        type: "turn_status",
+        v: 1,
+        id: b["id"],
+        data: { state: "note", text: "Using a browser" },
+      } as (typeof blocks)[number];
+    if (b["type"] === "chrome_held")
+      return {
+        type: "turn_status",
+        v: 1,
+        id: b["id"],
+        data: { state: "note", text: "Waiting for the person's OK" },
+      } as (typeof blocks)[number];
+    if (b["type"] === "turn_status") {
+      // the account that failed is the asker's: its Vault handle goes to them alone; the others still read that it failed and why
+      const { account: _a, ...rest } = (b["data"] ?? {}) as Record<string, unknown>;
+      return { ...b, data: rest };
+    }
+    if (b["type"] !== "tool_call" && b["type"] !== "tool_result") return b;
+    const d = (b["data"] ?? {}) as Record<string, unknown>;
+    const name = typeof d["name"] === "string" ? d["name"] : "";
+    const keep: Record<string, unknown> = {};
+    for (const k of ["id", "ok", "secs", "turnSecs"]) if (d[k] !== undefined) keep[k] = d[k];
+    return { ...b, data: { ...keep, ...(name ? { name: stepClass(name), words: stepWords(name) } : {}) } };
+  });
+}
+
+export function messageOut(m: MessageRec, enc: number, viewer?: string): Record<string, unknown> {
   return {
     messageId: m.id,
     threadId: m.thread,
@@ -604,7 +666,7 @@ export function messageOut(m: MessageRec, enc: number): Record<string, unknown> 
     author: refOf(m.author),
     kind: m.kind,
     body: m.body,
-    blocks: m.blocks,
+    blocks: viewer === undefined ? m.blocks : stepsFor(m.blocks, (m.askedBy ?? m.paidBy) === viewer),
     ...(m.replyTo !== undefined ? { replyTo: m.replyTo } : {}),
     ...(m.via !== undefined ? { via: m.via } : {}),
     ...(m.paidBy !== undefined ? { paidBy: m.paidBy } : {}),
@@ -672,6 +734,7 @@ export interface NewMessage {
   replyTo?: string | undefined;
   via?: { routineOwner: string } | undefined;
   paidBy?: string | undefined;
+  askedBy?: string | undefined;
   depth?: number;
   attachments?: string[];
 }
@@ -693,8 +756,8 @@ export function insertMessage(ctx: Pick<ChatCtx, "db" | "now">, thread: string, 
   const id = m.id ?? mintId("msg", now);
   const seq = nextSeq(ctx.db, thread);
   ctx.db.run(
-    `INSERT INTO chat_message (id, thread, threadSeq, author, kind, body, blocks, replyTo, via, depth, attachments, pinned, reactions, editedAt, createdAt, version, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '[]', NULL, ?, 0, ?, NULL)`,
+    `INSERT INTO chat_message (id, thread, threadSeq, author, kind, body, blocks, replyTo, via, depth, attachments, pinned, reactions, editedAt, createdAt, version, updated_at, deleted_at, askedBy)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '[]', NULL, ?, 0, ?, NULL, ?)`,
     id,
     thread,
     seq,
@@ -708,6 +771,7 @@ export function insertMessage(ctx: Pick<ChatCtx, "db" | "now">, thread: string, 
     JSON.stringify(m.attachments ?? []),
     now,
     now,
+    m.askedBy ?? null,
   );
   ctx.db.run(
     "INSERT INTO chat_thread_last (thread, at) VALUES (?, ?) ON CONFLICT(thread) DO UPDATE SET at = MAX(at, excluded.at)",

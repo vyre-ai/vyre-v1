@@ -213,6 +213,33 @@ export const model: OpenSession = async (spec) => {
           type: "text",
           text: r.ok ? "I asked for the Fathom key." : `FAILED ${JSON.stringify(r.content).slice(0, 300)}`,
         };
+      } else if (/two subagents/i.test(body)) {
+        // what the CLI driver yields for a Claude Code turn that starts two subagents of its own (agent/src/drivers/cli/session.ts): Agent calls as blocks, the lines each subagent works through tagged
+        // with the call that started it, and each call's result with the words it returned
+        const call = (id: string, name: string, parent?: string): DriverEvent => ({
+          type: "block",
+          kind: "tool_call",
+          payload: { id, name, ...(parent ? { parent } : {}) },
+        });
+        yield call("toolu_a", "Agent");
+        yield { type: "block", kind: "tool_input", payload: { id: "toolu_a", detail: "Read the SECRETLEASE file" } };
+        yield call("toolu_b", "Agent");
+        yield { type: "block", kind: "tool_input", payload: { id: "toolu_b", detail: "Check the harbor invoice" } };
+        yield call("tu_1", "Read", "toolu_a");
+        yield {
+          type: "block",
+          kind: "tool_input",
+          payload: { id: "tu_1", detail: "lease-2026.pdf", parent: "toolu_a" },
+        };
+        await new Promise((r) => setTimeout(r, 1500));
+        yield { type: "block", kind: "tool_result", payload: { id: "tu_1", ok: true, parent: "toolu_a" } };
+        yield {
+          type: "block",
+          kind: "tool_result",
+          payload: { id: "toolu_a", ok: true, result: "ANSWERSECRET the lease ends in June." },
+        };
+        yield { type: "block", kind: "tool_result", payload: { id: "toolu_b", ok: true, result: "Paid in full." } };
+        yield { type: "text", text: "Both subagents finished." };
       } else if (/Carry on/.test(body)) {
         const found = yield* run("tool_search", { query: "vault use" });
         // as a model would: the handle the person's line names (another item may hold the name), else the name it asked for

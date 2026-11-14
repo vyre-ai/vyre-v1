@@ -95,3 +95,19 @@ export function plainStep(line: { title: string; sub: string }): { title: string
   const sub = line.sub !== "" && !ENGINE.test(line.sub) && internalNames(line.sub).length === 0 ? line.sub : "";
   return { title, sub };
 }
+
+/**
+ * The class of a step, for readers who are not the person whose turn it is: a plain family name the screen already turns into words ("Read" is "Reading", "Bash" is "Running a command"), never the tool's own
+ * name ("vault_use", "records_query", "mcp__vyre__mail_search"), which says what the person's turn reached into. Anything that is not a plain file, command, web or helper step is just "Tool" ("Working").
+ */
+export function stepClass(tool: string): string {
+  tool = tool.replace(/^mcp__.+?__/, "");
+  if (/^(WebFetch|read_link)/i.test(tool)) return "WebFetch";
+  if (/^(Read|Glob|Grep|files_read|files_tree|files_list)/i.test(tool)) return "Read";
+  if (/^(Write|Edit|MultiEdit|NotebookEdit|files_create|files_write)/i.test(tool)) return "Edit";
+  if (/^(Bash|terminal_run)/i.test(tool)) return "Bash";
+  if (/^(WebSearch|web_search)/i.test(tool)) return "WebSearch";
+  if (/^(Agent|Task)$/.test(tool) || /^sub_task/.test(tool)) return "Agent";
+  if (/^tool_search/i.test(tool)) return "tool_search";
+  return "Tool";
+}

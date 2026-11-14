@@ -120,3 +120,29 @@ test("the layer reads terminals for a chat with agents, shows a running job, and
   assert.deepEqual(calls, ["terminal.list"]);
   assert.match(textOf(find(root, "job-running-t1")), /Tests.*3 min.*Background/);
 });
+
+test("the job clock redraws only the job line: the layer's rows callback does not run again", async () => {
+  const call = async (): Promise<unknown> => ({ terminals: [T({ terminalId: "t1", createdAt: Date.now() })] });
+  let runs = 0;
+  await mount(
+    createRoot,
+    <ChapterLayer
+      call={call}
+      threadId="thr_c"
+      size={5}
+      newest={5}
+      focusSeq={null}
+      jobs={{ agentIds: ["agt_a"], working: false }}
+      rows={[]}
+      own={ownSeq}
+      clock={{ now: 0, offsetMin: 0 }}
+    >
+      {(laid) => (runs++, laid.jobs)}
+    </ChapterLayer>,
+  );
+  await flush();
+  const after = runs;
+  await flush();
+  await flush();
+  assert.equal(runs, after, "nothing above the job line re-renders on its own reads");
+});

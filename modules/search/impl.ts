@@ -3,7 +3,7 @@
 // what it does with one; the host runs them after commit, at least once, so each is safe to repeat. `search.fts` keeps the full text index current, `search.vectors` computes
 // the vectors of what changed. Seams the host fills: the embedding model (`setEmbedder`), a source for an entity the module cannot read itself (`setSource`), and a lister for a rebuild (`setLister`).
 import type { Handler } from "../../host/src/invoke.ts";
-import { embedRun, handlers as table, indexApply, setLister, DEFAULT_SOURCES } from "./handlers/index.ts";
+import { embedRun, handlers as table, indexApply, notePrivate, setLister, DEFAULT_SOURCES } from "./handlers/index.ts";
 import { forgetVectors, setEmbedder, setSource } from "./projections.ts";
 import type { Embedder, Source, SearchCtx } from "./projections.ts";
 
@@ -81,6 +81,8 @@ export const WATCHED: Readonly<
   "message.edited": { entity: "thread", idKey: "threadId" },
   "message.deleted": { entity: "thread", idKey: "threadId" },
   "agent.created": { entity: "agent", idKey: "agentId" },
+  // an agent that became private leaves the index; one that stopped being so is read again
+  "agent.privacy_set": { entity: "agent", idKey: "agentId" },
   "agent.config_changed": { entity: "agent", idKey: "agentId" },
   "agent.restored": { entity: "agent", idKey: "agentId" },
   "agent.deleted": { entity: "agent", idKey: "agentId", remove: true },
@@ -135,6 +137,7 @@ export const consumers = {
   "search.fts": {
     on: Object.keys(WATCHED),
     run: async (ctx: SearchCtx, event: IndexEvent | HostEvent): Promise<void> => {
+      notePrivate(ctx.space, indexEventOf(event));
       for (const t of targetsOf(indexEventOf(event))) await indexApply(ctx, t);
     },
   },

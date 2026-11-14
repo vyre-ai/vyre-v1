@@ -2,7 +2,7 @@
 // The turn comes from the engine (engine.turn.of_message, which keeps the account, the cost and the tool arguments for the asker and the AI-spend managers), what the agent knew from
 // memory (memory.used, which shows each person only what they may read). Both are asked as the caller, so their own rules apply. When no turn was recorded for the reply (a reply from
 // before the engine kept them, or one whose turn could not be linked), the tool steps saved on the reply itself are what is left, and the Details say the rest was not recorded.
-import { messageBy, raise, threadBy } from "../projections.ts";
+import { askerOf, messageBy, raise, stepsFor, threadBy } from "../projections.ts";
 import type { ChatCtx } from "../projections.ts";
 import { canSpeak } from "./post.ts";
 
@@ -79,7 +79,7 @@ export async function replyDetails(ctx: ChatCtx, input: { threadId: string; mess
       at: m.createdAt,
       ...(turned?.turn ? { turn: turned.turn } : {}),
       ...(known ? { memory: { facts, quotes } } : {}),
-      steps: stepsOf(m.blocks),
+      steps: stepsOf(stepsFor(m.blocks, (m.askedBy ?? m.paidBy) === askerOf(ctx))),
     },
   };
 }

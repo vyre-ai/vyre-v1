@@ -102,6 +102,8 @@ export async function threadErase(ctx: ChatCtx, input: { threadId: string; idemp
   for (const id of ids) dropThread(ctx, id);
   await trashOwned(ctx, made);
   ctx.emit("thread.erased", `entity/${input.threadId}`, { threadId: input.threadId });
+  // the threads of its family went too (threads under it, helpers): those who keep data by thread hear of each
+  for (const id of ids) if (id !== input.threadId) ctx.emit("thread.erased", `entity/${id}`, { threadId: id });
   return { erased: true };
 }
 
@@ -121,6 +123,8 @@ export async function channelErase(ctx: ChatCtx, input: { channelId: string; ide
   await trashOwned(ctx, made);
   ctx.db.run(`DELETE FROM chat_channel WHERE id = ?`, input.channelId);
   ctx.emit("channel.erased", `entity/${input.channelId}`, { channelId: input.channelId });
+  // and each of its threads, so the modules that keep data by thread drop it too
+  for (const id of seen) ctx.emit("thread.erased", `entity/${id}`, { threadId: id });
   return { erased: true };
 }
 
@@ -138,7 +142,8 @@ export async function transcriptPurge(
     for (const t of ids) await dropTranscriptFile(ctx, t);
     for (const t of ids) dropThread(ctx, t);
     forgetDeleted(ctx, id);
-    ctx.emit("thread.erased", `entity/${id}`, { threadId: id });
+    // every thread of the family went, so the modules that keep data by thread drop it for each
+    for (const t of ids) ctx.emit("thread.erased", `entity/${t}`, { threadId: t });
     erasedChats++;
   }
   // the canonical transcript rows first (they hold the turns' words, oldest first), then the messages; both count against the one batch limit
@@ -166,6 +171,7 @@ export async function transcriptPurge(
     ctx.db.run(`DELETE FROM chat_message WHERE id = ?`, id);
   }
   const removed = batch.length + turnBatch.length + erasedChats;
-  ctx.emit("transcripts.purged", `entity/${removed}`, { removed });
+  // the ids of the messages removed, so what hangs under a message (the engine's subagent rows) goes in the same pass
+  ctx.emit("transcripts.purged", `entity/${removed}`, { removed, messageIds: batch.map((m) => String(m["id"])) });
   return { removed, more: turns.length > turnBatch.length || due.length > batch.length || erasedChats >= limit };
 }

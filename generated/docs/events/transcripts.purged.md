@@ -19,5 +19,6 @@ Chat transcripts past their retention were removed (a count)
 ```ts
 type Payload = {
   removed: number;
+  messageIds?: Array<string>;
 };
 ```

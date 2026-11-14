@@ -2288,6 +2288,7 @@ export default defineManifest({
   ],
   settings: [
     // 8 agent turns since a person wrote, helpers and teammates counted, then a Continue card (owner ruling, 3 Nov 2026; was 4)
+    setting("engine.space_runs", "space", "Policies", "The Space's own server may run members' turns", t.bool(), true),
     setting(
       "engine.agent_hops",
       "space",

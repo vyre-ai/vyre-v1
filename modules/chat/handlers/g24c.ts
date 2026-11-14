@@ -94,7 +94,10 @@ export async function messagesList(
   return {
     messages: await attachReach(
       ctx,
-      page.map((m) => ({ ...messageOut(m, enc), ...(chips.has(m.id) ? { mentions: chips.get(m.id)! } : {}) })),
+      page.map((m) => ({
+        ...messageOut(m, enc, askerOf(ctx)),
+        ...(chips.has(m.id) ? { mentions: chips.get(m.id)! } : {}),
+      })),
     ),
     hasMore,
   };
@@ -104,7 +107,7 @@ export async function messageGet(ctx: ChatCtx, input: { threadId: string; messag
   const t = openThread(ctx, input.threadId);
   const m = messageIn(ctx, t, input.messageId);
   if (m.createdAt < readFloor(ctx, t)) raise(ctx, "validation.not_found", "That message is not in this chat.");
-  return { message: (await attachReach(ctx, [messageOut(m, encOf(ctx.db, t))]))[0]! };
+  return { message: (await attachReach(ctx, [messageOut(m, encOf(ctx.db, t), askerOf(ctx))]))[0]! };
 }
 
 export async function pinsList(ctx: ChatCtx, input: { threadId: string }) {
@@ -119,7 +122,7 @@ export async function pinsList(ctx: ChatCtx, input: { threadId: string }) {
   return {
     messages: await attachReach(
       ctx,
-      rows.map((r) => messageOut(messageOf(r), enc)),
+      rows.map((r) => messageOut(messageOf(r), enc, askerOf(ctx))),
     ),
   };
 }
@@ -141,7 +144,7 @@ export async function edit(ctx: ChatCtx, input: { threadId: string; messageId: s
   if (input.body.trim() === "" && m.blocks.length === 0 && m.attachments.length === 0)
     raise(ctx, "validation.bad_input", "A message needs some text, a block or a file.");
   const enc = encOf(ctx.db, t);
-  if (input.body === m.body) return { message: messageOut(m, enc) };
+  if (input.body === m.body) return { message: messageOut(m, enc, askerOf(ctx)) };
   const now = ctx.now();
   ctx.db.run(
     "UPDATE chat_message SET body = ?, editedAt = ?, version = version + 1, updated_at = ? WHERE id = ?",
@@ -151,7 +154,7 @@ export async function edit(ctx: ChatCtx, input: { threadId: string; messageId: s
     m.id,
   );
   ctx.emit("message.edited", t.id, { messageId: m.id, threadId: t.id });
-  return { message: messageOut(messageBy(ctx.db, m.id)!, enc) };
+  return { message: messageOut(messageBy(ctx.db, m.id)!, enc, askerOf(ctx)) };
 }
 
 export async function deleteMessage(ctx: ChatCtx, input: { threadId: string; messageId: string }) {

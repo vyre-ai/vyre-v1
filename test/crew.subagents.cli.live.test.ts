@@ -130,10 +130,6 @@ test(
       };
       const withRows = await p95(threadId),
         without = await p95(quiet);
-      fs.writeFileSync(
-        process.env["VYRE_CREW_P95"] ?? path.join(dir, "p95.json"),
-        JSON.stringify({ withRowsMs: withRows, withoutMs: without }),
-      );
       assert.ok(
         withRows < 100 && without < 100,
         `p95 with rows ${withRows.toFixed(1)} ms, without ${without.toFixed(1)} ms (budget 100)`,
@@ -177,14 +173,7 @@ test(
       const turnRefused = [...afterTurn]
         .map(([k, n]) => [k, n - (beforeTurn.get(k) ?? 0)] as const)
         .filter(([, n]) => n > 0);
-      fs.writeFileSync(
-        process.env["VYRE_CREW_P95"]?.replace("p95", "refused") ?? path.join(dir, "refused.json"),
-        JSON.stringify(turnRefused),
-      );
-      assert.deepEqual(
-        turnRefused.filter(([k]) => /note_seen|crew\/workspace|crew.workspace/.test(k)),
-        [],
-      );
+      assert.deepEqual(turnRefused, [], "an ordinary turn refuses no call");
 
       // no call refused on every turn: a chat that is not a helper's never asks for helper notes
       const ro = new DatabaseSync(d.paths.logs, { readOnly: true });
@@ -193,17 +182,6 @@ test(
           .prepare("SELECT cap, msg, attrs FROM logs WHERE cap = 'chat.helper.note_seen'")
           .all() as Array<{ cap: string; msg: string; attrs: string | null }>;
         assert.deepEqual(refused, [], "chat.helper.note_seen is not called for an ordinary chat");
-        // every other refusal of the walk, by capability and answer
-        const all = ro.prepare("SELECT cap, attrs FROM logs WHERE msg = 'invoke'").all() as Array<{
-          cap: string;
-          attrs: string;
-        }>;
-        const bad = new Map<string, number>();
-        for (const r of all) {
-          const st = (JSON.parse(r.attrs) as { status?: string }).status ?? "";
-          if (st !== "ok" && st !== "") bad.set(`${r.cap} ${st}`, (bad.get(`${r.cap} ${st}`) ?? 0) + 1);
-        }
-        fs.writeFileSync("/root/wt/tmp-b-crew/refused.json", JSON.stringify([...bad]));
       } finally {
         ro.close();
       }

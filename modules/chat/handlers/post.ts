@@ -421,7 +421,7 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     const prior = messageBy(ctx.db, input.clientId);
     if (prior) {
       if (prior.thread !== thread.id) raise(ctx, "validation.bad_input", "That message id belongs to another chat.");
-      return { message: messageOut(prior, encOf(ctx.db, thread)) };
+      return { message: messageOut(prior, encOf(ctx.db, thread), askerOf(ctx)) };
     }
   }
   let replyTo: MessageRec | null = null;
@@ -478,6 +478,8 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     ...(input.replyTo !== undefined ? { replyTo: input.replyTo } : {}),
     ...(input.via ? { via: { routineOwner: input.via.routineOwner } } : {}),
     ...(author.kind === "agent" && ctx.actingFor !== undefined && !ctx.sharedKey ? { paidBy: ctx.actingFor } : {}),
+    // whose turn it was, whoever paid: the saved steps of the reply are theirs to read whole (F51)
+    ...(author.kind === "agent" && ctx.actingFor?.startsWith("usr_") ? { askedBy: ctx.actingFor } : {}),
     depth,
     attachments,
   });
@@ -524,5 +526,5 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     body.trim() !== ""
   )
     await approveInChat(ctx, thread.id, body);
-  return { message: messageOut(m, encOf(ctx.db, thread)) };
+  return { message: messageOut(m, encOf(ctx.db, thread), askerOf(ctx)) };
 }

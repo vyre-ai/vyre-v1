@@ -439,7 +439,11 @@ export async function historyPage(ctx: ChatCtx, input: { threadId: string; befor
       ) as Row[]
     ).length > 0;
   const enc = encOf(ctx.db, t);
-  return { messages: page.map((m) => messageOut(m, enc)), hasMore, ...(hasMore && first ? { next: first.seq } : {}) };
+  return {
+    messages: page.map((m) => messageOut(m, enc, askerOf(ctx))),
+    hasMore,
+    ...(hasMore && first ? { next: first.seq } : {}),
+  };
 }
 
 /** Where the caller's reading of this chat starts, so the engine can tell an agent not to quote what the person never saw. */

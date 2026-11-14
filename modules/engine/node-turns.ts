@@ -226,6 +226,7 @@ async function decide(
   call: (cap: string, input: unknown, as?: string) => Promise<unknown>,
   spec: SessionSpec,
 ): Promise<Decided | undefined> {
+  if (spec.threadId.startsWith("oneshot_")) return undefined; // a one-shot job has no chat to place
   try {
     return (await call(
       "engine.placement.decide",

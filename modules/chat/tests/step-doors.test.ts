@@ -1,0 +1,167 @@
+// F51, door by door, on a store written by the code before the rule: a turn of Dana's, saved with a file name, a file id and a Vault item name in its steps and its transcript, in a chat Maya also reads.
+// Maya's list, message fetch, transcript read and fetch, transcript search, history search and chat search find none of it; Dana's own transcript view does not carry it either.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { handlers } from "../impl.ts";
+import { DANA, INTAKE, MAYA, harness as baseHarness } from "../fixtures/harness.ts";
+import type { Harness } from "../fixtures/harness.ts";
+import { ensureTranscript } from "../handlers/g24d.ts";
+import { insertMessage } from "../projections.ts";
+
+type Fn = (ctx: Harness["ctx"], input: any) => Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+const h = handlers as unknown as Record<string, Fn>;
+const SECRETS = ["alice-private-notes.txt", "fil_private_notes_77", "Alice Bank Key"];
+
+test("a store written by the old code is served to a second reader without the file names, ids and Vault item names, through every read door", async () => {
+  const hn = baseHarness({
+    calls: {
+      "agents.get": (i) => ({ agent: { agentId: i["agentId"], name: "Checker", runtime: "vyre" } }),
+      "access.principals.get": () => ({ principal: { name: "Someone" } }),
+    },
+  });
+  const threadId = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "sd1" })).thread
+    .threadId as string;
+  await h["threads.members.add"]!(hn.ctx, { threadId, personId: MAYA });
+  ensureTranscript(hn.ctx.db);
+  // the old code's rows: each call kept with the one-line summary of what it touched
+  const old = [
+    {
+      role: "assistant",
+      kind: "tool_call",
+      content: "files_read fil_private_notes_77 (alice-private-notes.txt)",
+      toolName: "files_read",
+      toolCallId: "t1",
+    },
+    {
+      role: "assistant",
+      kind: "tool_call",
+      content: "vault_use Alice Bank Key",
+      toolName: "vault_use",
+      toolCallId: "t2",
+    },
+    { role: "assistant", kind: "text", content: "Done." },
+  ];
+  await h["chat.transcript.append"]!(hn.ctx, { threadId, turnId: "trn_aold", rows: old });
+  // the old code's reply: the saved steps carry the file's name as a label
+  insertMessage(hn.ctx, threadId, {
+    author: INTAKE,
+    kind: "agent",
+    body: "Done.",
+    blocks: [
+      {
+        type: "tool_call",
+        v: 1,
+        id: "blk_old1",
+        data: { id: "x1", name: "Read", label: "alice-private-notes.txt" },
+        state: "done",
+        traceId: "t",
+      },
+    ],
+    depth: 0,
+    attachments: [],
+    paidBy: DANA,
+  } as never);
+  const maya = hn.person(MAYA);
+  const doors: Record<string, unknown> = {
+    list: (await h["chat.messages.list"]!(maya, { threadId })).messages,
+    transcriptRead: await h["chat.transcript.read"]!(maya, { threadId }),
+    transcriptGet: await h["chat.transcript.get"]!(maya, { threadId, turnId: "trn_aold" }),
+    historySearch: await h["chat.history.search"]!(maya, { q: "alice private notes bank key files_read" }),
+    chatSearch: await h["chat.search"]!(maya, { q: "alice-private-notes" }),
+    transcriptSearch: await h["chat.transcript.search"]!(maya, {
+      threadId,
+      q: "alice-private-notes fil_private_notes_77 Alice Bank Key",
+    }).catch(() => ({})),
+    danaTranscript: await h["chat.transcript.read"]!(hn.ctx, { threadId }),
+  };
+  for (const [door, got] of Object.entries(doors)) {
+    const text = JSON.stringify(got);
+    for (const s of SECRETS) assert.equal(text.includes(s), false, `${door} still carries ${s}`);
+  }
+  assert.match(JSON.stringify(doors["transcriptRead"]), /Reading files/, "the step is still said, in plain words");
+});
+
+test("the asker reads their own step details whoever paid: on a key of the Space a member still sees them, a second member does not", async () => {
+  const hn = baseHarness({
+    calls: {
+      "agents.get": (i) => ({ agent: { agentId: i["agentId"], name: "Checker", runtime: "vyre" } }),
+      "access.principals.get": () => ({ principal: { name: "Someone" } }),
+    },
+  });
+  const threadId = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "sd2" })).thread
+    .threadId as string;
+  await h["threads.members.add"]!(hn.ctx, { threadId, personId: MAYA });
+  // the agent's reply for Dana, paid by a key of the Space (no paidBy)
+  const agentForDana = { ...hn.agent(INTAKE, DANA), sharedKey: true } as Harness["ctx"];
+  await h["chat.post"]!(agentForDana, {
+    threadId,
+    body: "Done.",
+    blocks: [{ type: "tool_call", v: 1, data: { id: "x1", name: "Read", label: "alice-private-notes.txt" } }],
+    idempotencyKey: "sd2-reply",
+  });
+  const labelSeen = async (ctx: Harness["ctx"]): Promise<boolean> =>
+    JSON.stringify((await h["chat.messages.list"]!(ctx, { threadId })).messages).includes("alice-private-notes.txt");
+  assert.equal(await labelSeen(hn.ctx), true, "Dana asked: she sees her own step details");
+  assert.equal(await labelSeen(hn.person(MAYA)), false, "Maya does not");
+});
+
+test("a notification, a chat preview and every event of a reply that carries step blocks hold no file name, site or handle", async () => {
+  const hn = baseHarness({
+    calls: {
+      "agents.get": (i) => ({ agent: { agentId: i["agentId"], name: "Checker", runtime: "vyre" } }),
+      "access.principals.get": () => ({ principal: { name: "Someone" } }),
+    },
+  });
+  const threadId = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "sd3" })).thread
+    .threadId as string;
+  await h["threads.members.add"]!(hn.ctx, { threadId, personId: MAYA });
+  hn.clear();
+  await h["chat.post"]!(hn.agent(INTAKE, DANA), {
+    threadId,
+    body: "Done.",
+    mentions: [{ kind: "person", id: MAYA }],
+    blocks: [
+      { type: "tool_call", v: 1, data: { id: "x1", name: "Read", label: "alice-private-notes.txt" } },
+      { type: "turn_status", v: 1, data: { state: "failed", code: "engine.signin_missing", account: "Alice_Claude" } },
+      { type: "chrome_step", v: 1, data: { agentId: INTAKE, site: "mybank.example", state: "using" } },
+    ],
+    idempotencyKey: "sd3-reply",
+  });
+  const text = JSON.stringify([hn.emitted, hn.callLog.filter((c) => c.cap.startsWith("notifications."))]);
+  for (const s of ["alice-private-notes", "Alice_Claude", "mybank.example"])
+    assert.equal(text.includes(s), false, `an event or notification carries ${s}`);
+  const recent = JSON.stringify(await h["chat.recent"]!(hn.person(MAYA), { filter: "all" }));
+  for (const s of ["alice-private-notes", "Alice_Claude", "mybank.example"])
+    assert.equal(recent.includes(s), false, `the chat list carries ${s}`);
+});
+
+test("a reply's Details tab names the kind of each step to a second member, never the tool's own name; the asker sees them", async () => {
+  const hn = baseHarness({
+    calls: {
+      "agents.get": (i) => ({ agent: { agentId: i["agentId"], name: "Checker", runtime: "vyre" } }),
+      "access.principals.get": () => ({ principal: { name: "Someone" } }),
+      "engine.turn.of_message": () => {
+        throw Object.assign(new Error("no turn"), { error: { code: "validation.not_found" } });
+      },
+      "memory.used": () => ({ facts: [], quotes: [] }),
+    },
+  });
+  const threadId = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: "sd4" })).thread
+    .threadId as string;
+  await h["threads.members.add"]!(hn.ctx, { threadId, personId: MAYA });
+  const posted = await h["chat.post"]!(hn.agent(INTAKE, DANA), {
+    threadId,
+    body: "Done.",
+    blocks: [
+      { type: "tool_call", v: 1, data: { id: "x1", name: "vault_use" } },
+      { type: "tool_result", v: 1, data: { id: "x1", name: "vault_use", ok: true, secs: 1 } },
+    ],
+    idempotencyKey: "sd4-reply",
+  });
+  const messageId = posted.message.messageId as string;
+  const other = JSON.stringify(await h["chat.reply_details"]!(hn.person(MAYA), { threadId, messageId }));
+  assert.equal(other.includes("vault_use"), false, "the tool's own name reaches a second member");
+  assert.equal(other.includes("Tool"), true, "but the kind of step does");
+  const own = JSON.stringify(await h["chat.reply_details"]!(hn.ctx, { threadId, messageId }));
+  assert.equal(own.includes("vault_use"), true, "the asker sees their own steps whole");
+});
