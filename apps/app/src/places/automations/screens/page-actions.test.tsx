@@ -89,3 +89,30 @@ test("the page is operable by keyboard and screen reader: tabs are tabs with one
   assert.ok((out.match(/data-testid="sv-step-/g) ?? []).length > 3);
   assert.ok(!/<(div|span)[^>]*onclick/i.test(out), "no unnamed click handlers");
 });
+
+test("while the step catalogue has not answered, Add a step says so; when it failed, it says why and offers Retry", async () => {
+  installDom();
+  const s = createSampleAutomations(northwind);
+  const failing = {
+    ...s.data,
+    call: async (cap: string, i: unknown) => {
+      if (cap === "automations.steps.list") throw new Error("The steps could not be read.");
+      return s.data.call(cap, i);
+    },
+  };
+  const root = await mount(
+    createRoot,
+    <AutomationsDataProvider value={failing as never}>
+      <BuilderPage automationId="aut_lead" />
+    </AutomationsDataProvider>,
+  );
+  for (let i = 0; i < 3; i++) {
+    await new Promise((r) => setTimeout(r, 100));
+    await flush();
+  }
+  await press(find(root, "sv-add"));
+  await flush();
+  const text = textOf(root);
+  assert.ok(text.includes("The steps could not be read."), text.slice(-300));
+  assert.ok(find(root, "menu-item-Retry"), "Retry is offered");
+});

@@ -32,3 +32,4 @@
 - feat: the head says the version, the failed run count (Runs, 1 failed) and what the Automation sends from; a step nothing leads to is shown after the rest; a step kind this version does not know is its own row, kind named, settings untouched.
 - feat: Event log and Automation usage are Console pages (Security, Audit log tab), listed by the server only to a person with audit.read; the old Live Event Explorer and Analytics views are mounted there.
 - test: page-level tests for Undo, Move to Trash, Promote, personal copy, History, the copies panel, the Runs and Settings tabs, and the keyboard surface.
+- fix: Add a step while the step catalogue is loading or failed says so and offers Retry instead of doing nothing.

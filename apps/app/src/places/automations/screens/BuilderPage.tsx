@@ -162,7 +162,11 @@ function Body({
     };
   }, [data, a.id, a.version, a.status]);
   const sendsFrom = sendsFromLine(senders);
-  const list = useScreenQuery<{ automations: readonly { id: string; failedRuns?: number }[] }>(SIDEBAR, "automations", {});
+  const list = useScreenQuery<{ automations: readonly { id: string; failedRuns?: number }[] }>(
+    SIDEBAR,
+    "automations",
+    {},
+  );
   const failedRuns = list.status === "ready" ? (list.data.automations.find((x) => x.id === a.id)?.failedRuns ?? 0) : 0;
   const [serverIssues, setServerIssues] = useState<Issue[]>([]);
   const [catalog, setCatalog] = useState<{
@@ -172,9 +176,14 @@ function Body({
     checked: boolean;
   } | null>(null);
 
+  // the catalogue read can fail or be slow: the page says so and offers Retry, never a silent press
+  const [catalogFail, setCatalogFail] = useState<string | null>(null);
+  const [catalogTick, setCatalogTick] = useState(0);
   useEffect(() => {
     let live = true;
+    setCatalogFail(null);
     void loadProductCatalog((cap, input) => data.call(cap, input)).then((res) => {
+      if (live && !res.ok) setCatalogFail(res.message);
       if (live && res.ok)
         setCatalog({
           steps: res.catalog.steps,
@@ -186,7 +195,7 @@ function Body({
     return () => {
       live = false;
     };
-  }, [data]);
+  }, [data, catalogTick]);
   useEffect(() => {
     let live = true;
     const t = setTimeout(() => {
@@ -237,13 +246,20 @@ function Body({
     if (!draft || saving || conflict || locked) return;
     setSaving(true);
     try {
-      await data.call("automations.update", { automationId: a.id, definition: draft, expectedVersion: base.current ?? a.version });
+      await data.call("automations.update", {
+        automationId: a.id,
+        definition: draft,
+        expectedVersion: base.current ?? a.version,
+      });
       setDraft(null);
       base.current = null;
       undo.current = [];
     } catch (e) {
       const code = (e as { code?: string } | null)?.code;
-      if (code === "validation.version_conflict" || /newer version|version_conflict/i.test(String((e as Error)?.message ?? ""))) {
+      if (
+        code === "validation.version_conflict" ||
+        /newer version|version_conflict/i.test(String((e as Error)?.message ?? ""))
+      ) {
         // nothing was overwritten and nothing is retried on the new version: the person chooses
         setConflict(true);
       } else setNote(e instanceof Error ? e.message : "That did not save. Your edits are still here.");
@@ -293,7 +309,9 @@ function Body({
         nameOfNode: (id) =>
           id === "trigger" ? "the start" : (full[def.nodes.find((n) => n.id === id)?.key ?? ""]?.title ?? id),
         canUse: (app) => usable.has(app) || !isGatedApp(app),
-        ...(catalog?.checked ? { isKnown: (key: string) => full[key] !== undefined || kindOfKey(key) !== "plain" } : {}),
+        ...(catalog?.checked
+          ? { isKnown: (key: string) => full[key] !== undefined || kindOfKey(key) !== "plain" }
+          : {}),
         noAccess: (name) => ({ line: `You cannot use ${name}.`, button: "Ask an admin" }),
         needsOf: (id) =>
           needsFromIssues(
@@ -451,7 +469,9 @@ function Body({
             ? [{ label: "Nothing is available to start this", onSelect: () => undefined }]
             : triggers
                 // a Personal Space has no web request trigger, and a trigger nobody can use is not offered
-                .filter((t) => t.availability !== "unavailable" && !(data.personalSpace === true && t.key === "webhook"))
+                .filter(
+                  (t) => t.availability !== "unavailable" && !(data.personalSpace === true && t.key === "webhook"),
+                )
                 .map((t) => ({
                   label: t.availability === "preview" ? `${t.title} (Preview)` : t.title,
                   onSelect: () => {
@@ -462,6 +482,20 @@ function Body({
       show(entries, p.x, p.y, "other");
     } else if (action === "add" || action === "insert") {
       const p = pos(e);
+      if (pickIn === null) {
+        show(
+          catalogFail
+            ? [
+                { label: `${catalogFail}`, onSelect: () => undefined },
+                { label: "Retry", onSelect: () => setCatalogTick((n) => n + 1) },
+              ]
+            : [{ label: "Loading the steps you can add", onSelect: () => undefined }],
+          p.x,
+          p.y,
+          "other",
+        );
+        return;
+      }
       setPicker({ after: action === "insert" && id ? id : (def.nodes.at(-1)?.id ?? null), x: p.x, y: p.y });
     }
   };
@@ -581,7 +615,9 @@ function Body({
     >
       {conflict ? (
         <View style={s.conflict} testID="save-conflict" accessibilityRole="alert">
-          <Text style={look.body}>Someone else changed this while you were editing. Nothing of theirs was overwritten.</Text>
+          <Text style={look.body}>
+            Someone else changed this while you were editing. Nothing of theirs was overwritten.
+          </Text>
           {confirmTheirs ? (
             <View style={s.conflictRow}>
               <Text style={look.quiet}>Seeing theirs discards your changes.</Text>
@@ -737,7 +773,14 @@ function pos(e: unknown): { x: number; y: number } {
 }
 
 const s = StyleSheet.create({
-  conflict: { gap: 8, padding: 12, marginHorizontal: 16, marginBottom: 8, borderRadius: 10, backgroundColor: "var(--hover)" as string },
+  conflict: {
+    gap: 8,
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 10,
+    backgroundColor: "var(--hover)" as string,
+  },
   conflictRow: { flexDirection: "row", gap: 16, alignItems: "center" },
   split: { flex: 1, flexDirection: "row", minHeight: 0 },
   main: { flex: 1, minWidth: 0 },
