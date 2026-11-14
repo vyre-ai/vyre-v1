@@ -256,7 +256,11 @@ export function pointFor(idx) {
     cover,
     kids,
     layer,
-    splash: document.querySelector("[data-testid=shell-skeleton]") ? "shell-skeleton" : document.querySelector("[data-testid=first-frame]") ? "first-frame" : "",
+    splash: document.querySelector("[data-testid=shell-skeleton]")
+      ? "shell-skeleton"
+      : document.querySelector("[data-testid=first-frame]")
+        ? "first-frame"
+        : "",
     shell: !!document.querySelector("[data-testid=shell],[data-testid=mobile-shell]"),
   };
 }
