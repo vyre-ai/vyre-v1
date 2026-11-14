@@ -389,6 +389,7 @@ export default defineManifest({
           counts: t.arr(t.obj({ threadId: id.thread, mentions: t.int({ minimum: 1 }) })),
           capped: t.bool({ description: "More than 500 threads had an unseen mention; the oldest are left out" }),
         },
+        level: "member",
         tool: "meta",
       },
     ),

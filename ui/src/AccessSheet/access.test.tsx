@@ -1498,3 +1498,38 @@ test("Poke is on an agent's Here now row and not on a person's", async () => {
     assert.deepEqual(poked, ["agt_mira"]);
   });
 });
+
+test("F35: an item kept where an agent cannot use it lists the agent but cannot pick it, says why in one line and offers Move", async () => {
+  await withDom(async () => {
+    let moved = 0;
+    let picked = 0;
+    const props = share({
+      directory: sharePeople,
+      agentsBlocked: {
+        ids: ["agt_docs"],
+        line: "Agents can't use Restricted items.",
+        actionLabel: "Move",
+        onAction: () => void moved++,
+      },
+      onShare: () => void picked++,
+    });
+    const root = await mount(createRoot, <AccessSheet {...props} />);
+    const text = textOf(root);
+    assert.ok(text.includes("Docs"), "the agent is still listed");
+    assert.ok(text.includes("Agents can't use Restricted items."), text);
+    const row = find(root, "as-row-agent:agt_docs");
+    assert.ok(row, "the row is there");
+    assert.equal(row?.props["onClick"], undefined, "but nothing in it can be pressed");
+    assert.ok(find(root, "as-row-person:usr_sara")?.props["onClick"], "other rows still can");
+    await press(find(root, "as-agents-move"));
+    assert.equal(moved, 1);
+    assert.equal(picked, 0);
+  });
+});
+
+test("F35: a sheet whose agents can use the item has no such line", async () => {
+  await withDom(async () => {
+    const root = await mount(createRoot, <AccessSheet {...share({ directory: sharePeople })} />);
+    assert.equal(find(root, "as-agents-blocked"), null);
+  });
+});

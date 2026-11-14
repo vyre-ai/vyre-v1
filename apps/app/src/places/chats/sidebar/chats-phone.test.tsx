@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { Dimensions } from "react-native";
 import { createRoot } from "test-renderer";
 import { installDom, mount, press, find } from "../../../onboarding/test-dom.ts";
-import { ChatsSidebar } from "./ChatsSidebar.tsx";
+import { LegacyChatsSidebar as ChatsSidebar } from "./ChatsSidebar.tsx";
 import { createSampleSidebar, northwind } from "./sample.ts";
 import { Conversation } from "../conversation/Conversation.tsx";
 import { createSample } from "../conversation/sample.ts";

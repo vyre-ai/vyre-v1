@@ -1304,7 +1304,7 @@ Events (all `<primitive>.<verb>`): `message.received`, `message.edited`, `thread
 
 ### 6.2 Turn engine: queue per thread over the log
 
-Invariant: at most one turn runs per thread at a time; everything else waits in `thread_queue`. A turn's state is entirely in events plus the `turns` row; any host can resume after a crash from the last `turn.block`.
+Invariant: at most one turn runs per agent per thread at a time (changed 14 Nov 2026, RULINGS "One turn per agent per thread"; it was one per thread). Agents asked together, by one message that tags several or by a message to all, run together, each answering alone; a second turn of the same agent, and everything else, waits in `thread_queue`. A turn's state is entirely in events plus the `turns` row; any host can resume after a crash from the last `turn.block`.
 
 ```
 onEvent message.received (thread T, message m):
@@ -1315,14 +1315,15 @@ onEvent message.received (thread T, message m):
 onEvent wake (background wait fired) : enqueue(T, {kind:'wake', ...})
 interrupt (Interrupt button / "stop and send"): enqueue(T, {kind:'interrupt', priority:10}); cancel current turn via driver.cancel()
 
-worker(T):   // runs on whoever holds the lease
+worker(T):   // runs on whoever holds the lease; one lease per thread, held while any turn of the thread runs
   loop:
      lease = acquire(T, holder)                          // CAS on thread_lease; heartbeat every 5 s; expires 20 s
-     item = dequeue(T)                                   // highest priority, then qseq
-     if !item: release; return
-     placement = placeTurn(T, item)                      // 6.3
-     if placement != me: handoff lease; return
-     runTurn(T, item)
+     while item = dequeue(T, agent not running or starting) // highest priority, then qseq; a row whose agent is busy is skipped, never reordered
+         placement = placeTurn(T, item)                  // 6.3
+         if placement != me: leave the row queued for its host; continue
+         start runTurn(T, item) without waiting for it
+     if no turn is in flight: release; return
+     wait until a turn ends or a message arrives
 
 runTurn(T, item):
   turn = startTurn()                                     // emit turn.started, trace span "turn"

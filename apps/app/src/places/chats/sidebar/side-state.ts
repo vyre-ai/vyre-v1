@@ -85,3 +85,35 @@ export function memorySideState(
     },
   };
 }
+
+interface Store {
+  getItem(k: string): string | null;
+  setItem(k: string, v: string): void;
+}
+const FOLD_KEY = (space: string): string => `vyre.sidebar.v2.${space}`;
+
+/**
+ * Today's source behind the port: folds and the notes tab are kept on this device, per Space (the per-person state module replaces this one line when it is on main). Pins are not here: they are the server's answer (the caller's own
+ * pins in order, read through chats.sidebar) and a pin is written through the sidebar's actions. Without storage it is the in-memory double.
+ */
+export function deviceSideState(space: string, store: Store | null): SideStatePort {
+  if (!store) return memorySideState();
+  let raw: { folds?: string[]; tab?: string } = {};
+  try {
+    raw = JSON.parse(store.getItem(FOLD_KEY(space)) ?? "{}") as typeof raw;
+  } catch {
+    raw = {};
+  }
+  const inner = memorySideState({
+    folds: (raw.folds ?? []).filter((x): x is SectionId => (FOLDABLE as readonly string[]).includes(x)),
+    notesTab: raw.tab === "artifacts" ? "artifacts" : "notes",
+  });
+  inner.subscribe(() => {
+    try {
+      store.setItem(FOLD_KEY(space), JSON.stringify({ folds: [...inner.folds()], tab: inner.notesTab() }));
+    } catch {
+      /* a full or blocked store keeps the in-memory state */
+    }
+  });
+  return inner;
+}

@@ -6,14 +6,21 @@ import React from "react";
 import { Conversation } from "./Conversation.tsx";
 import { waiting } from "./waiting-sample.ts";
 
-test("the queue line draws on the page: After this for someone else's turn, Goes in at the next step for your own", async () => {
+test("the queue line draws on the page: After this for someone else's turn, At the next step for your own", async () => {
   for (const own of [false, true]) {
     const out = renderToStaticMarkup(<Conversation data={waiting(own)} />);
     // the waiting list is asked of the engine after mount, so the first frame holds the message ids: the line is there from the start
     assert.ok(out.includes('data-testid="queue-note"'), "the line is drawn");
     assert.ok(
-      out.includes(own ? "Goes in at the next step" : "After this: it goes in when this turn ends"),
+      out.includes(own ? "At the next step" : "After this: it goes in when this turn ends"),
       own ? "your own turn" : "someone else's turn",
+    );
+    // under the message it waits for (G11), after its words, not a centred line above the composer
+    const at = out.indexOf('data-testid="queue-row"');
+    assert.ok(at > out.indexOf('data-testid="body-'), "the note comes after the message's own words");
+    assert.ok(
+      out.indexOf('data-testid="composer') < 0 || out.indexOf('data-testid="composer') > at,
+      "and before the composer",
     );
   }
 });

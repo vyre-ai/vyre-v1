@@ -44,7 +44,7 @@ test("the agent page: Terminal and Browser in its Computer tab, no host says so 
     await shoot(page, OUT, "page-no-host");
     await page.getByTestId("browser-note").waitFor({ timeout: 20_000 });
     assert.match(await page.getByTestId("browser-note").innerText(), /nowhere to run a browser yet/);
-    for (const id of ["browser-take", "browser-give", "browser-open", "browser-loading"])
+    for (const id of ["browser-picture", "browser-take", "browser-give", "browser-open", "browser-loading"])
       assert.equal(await page.getByTestId(id).count(), 0, `${id} is not offered where nothing can run`);
 
     // a Space browser: the page's Computer tab is Terminal and Browser, and Take over and Give back work from it
@@ -64,21 +64,27 @@ test("the agent page: Terminal and Browser in its Computer tab, no host says so 
     await open(me, s, agentPage);
     await page.getByTestId("agent-page").waitFor({ timeout: 30_000 });
     await shoot(page, OUT, "page-computer-tab");
-    await page.getByTestId("terminal-card").waitFor({ timeout: 20_000 });
-    await page.getByTestId("browser-take").waitFor({ timeout: 20_000 });
+    await page.getByTestId("terminals-head").waitFor({ timeout: 20_000 });
+    await page.getByTestId("browser-picture").waitFor({ timeout: 20_000 });
     assert.equal(await page.getByTestId("computer-screen").count(), 0, "the old desktop screen is not drawn");
+    assert.equal(await page.getByTestId("browser-take").count(), 0, "Take over is not in the pane");
+    // the picture is the door: it opens the browser large, and Take over and Give back are there
+    await page.getByTestId("browser-picture").click();
+    await page.getByTestId("browser-popup").waitFor({ timeout: 10_000 });
     await page.getByTestId("browser-take").click();
     await page.getByTestId("browser-give").waitFor({ timeout: 20_000 });
     assert.equal(browserd.rows.get(agentId)?.takeoverBy, w.owner.id);
     await page.getByTestId("browser-give").click();
     await page.getByTestId("browser-take").waitFor({ timeout: 20_000 });
     assert.equal(browserd.rows.get(agentId)?.takeoverBy, undefined);
+    await page.getByTestId("browser-popup-close").click();
+    await page.getByTestId("browser-popup").waitFor({ state: "detached", timeout: 10_000 });
 
     // the door the old computer popup had: a link or route that names the computer lands on the agent's Computer tab
     await open(me, s, `/chat#screen=chats.agent-computer&computerId=${computerId}`);
     await shoot(page, OUT, "door-computer-route");
     await page.getByTestId("agent-page").waitFor({ timeout: 30_000 });
-    await page.getByTestId("browser-card").waitFor({ timeout: 20_000 });
+    await page.getByTestId("browser-head").waitFor({ timeout: 20_000 });
     assert.equal(await page.getByTestId("computer-screen").count(), 0);
     assert.deepEqual(me.errors, [], "no page errors");
   } finally {

@@ -134,6 +134,8 @@ export function createClaudeDecoder(): CliDecoder {
   function onStream(ev: Json, parent: string): CliEvent[] {
     switch (str(ev["type"])) {
       case "message_start": {
+        // a subagent's message is not the one the main text is streaming: `current` stays the main agent's
+        if (parent !== "") return [];
         const m = obj(ev["message"]);
         current = str(m?.["id"]);
         return [];
@@ -183,7 +185,7 @@ export function createClaudeDecoder(): CliDecoder {
     const tally = tallyOf(obj(m["usage"]));
     // the size of the main agent's context is its own: a subagent's request is a different, smaller context
     if (tally.input > 0 && parent === "") lastContext = tally.input;
-    perMessage.set(id, tally);
+    if (parent === "") perMessage.set(id, tally); // a subagent's usage is not the main reply's
     const out: CliEvent[] = [];
     for (const raw of arr(m["content"])) {
       const b = obj(raw);

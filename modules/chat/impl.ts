@@ -13,6 +13,9 @@ import type { NotifyEvent } from "./handlers/notify.ts";
 
 import { convergeAllHomes } from "./handlers/owned.ts";
 
+import { stateKinds } from "./state.ts";
+export { stateKinds };
+
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 
 /** Every Team Space has #vyre (owner D22): made at the first start, and in an older Space that has neither #vyre nor #general. Hourly after that, which costs one read when it exists. */
