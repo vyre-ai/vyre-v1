@@ -7985,7 +7985,6 @@ export type ChatRewindOut = {
   restored: number;
   removed: number;
   at: number;
-  undid: boolean;
 };
 export type ChatRoundDecideIn = {
   threadId: string;
@@ -12534,8 +12533,6 @@ export type EngineRewindPointsOut = {
       at: number;
       files: number;
       after?: string;
-      messageId?: string;
-      undo?: boolean;
     }>;
 };
 export type EngineRewindToIn = {
@@ -12550,7 +12547,6 @@ export type EngineRewindToOut = {
   restored: number;
   removed: number;
   undoPointId: string;
-  undid: boolean;
 };
 export type EngineRoundGetIn = {
   threadId: string;

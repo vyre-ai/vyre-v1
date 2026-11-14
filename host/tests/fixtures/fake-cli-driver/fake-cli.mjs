@@ -16,8 +16,6 @@
 // These are picked by the prompt's last line (the person's message comes last, after the turn context and any recent messages a fresh session is given):
 //   resumecheck  "resumed=<the --resume id or none> session=<this session's id>"
 //   rawecho      answers with the whole prompt it was given, turn context included
-//   histcheck    "a=yes b=no c=no": whether the thread so far it was given holds the asks "writefile a.txt", "writefile b.txt", "writefile c.txt"
-//   writefile <name> <words> / rmfile <name>  change a file in the engine's own folder, answering "wrote <name>" / "removed <name>"
 //   whereami     "ran-on=<FAKE_WHERE or space> handover=<yes when the turn went on after its computer slept>"
 //   slowwhere    "first part. " at once, then after FAKE_SLOW_MS the same as whereami
 //   /compact ... compacts the way Claude Code does: a compact_boundary line (42000 tokens before, 2500 after), then an empty success result
@@ -654,25 +652,6 @@ async function run(raw) {
   keep(lastLine);
   if (lastLine === "resumecheck") {
     reply([`resumed=${resumed ?? "none"} session=${session}`]);
-    return;
-  }
-  // "writefile <name> <words>" writes the file in the engine's own folder; "rmfile <name>" removes it (a stand-in agent that changes its work folder; Rewind's proof)
-  const wf = /^writefile\s+(\S+)\s*(.*)$/.exec(lastLine);
-  if (wf) {
-    fs.mkdirSync(path.dirname(path.join(process.cwd(), wf[1])), { recursive: true });
-    fs.writeFileSync(path.join(process.cwd(), wf[1]), `${wf[2]}\n`);
-    reply([`wrote ${wf[1]}`]);
-    return;
-  }
-  if (/^rmfile\s+\S+$/.test(lastLine)) {
-    fs.rmSync(path.join(process.cwd(), lastLine.split(/\s+/)[1]), { force: true });
-    reply([`removed ${lastLine.split(/\s+/)[1]}`]);
-    return;
-  }
-  // "histcheck": which of the earlier asks of the Rewind proof it was given as the thread so far, in a short answer (a whole-prompt echo grows the history it is checked against)
-  if (lastLine === "histcheck") {
-    const seen = raw.slice(Math.max(0, raw.indexOf("</vyre-context>")));
-    reply([["a", "b", "c"].map((k) => `${k}=${seen.includes(`writefile ${k}.txt`) ? "yes" : "no"}`).join(" ")]);
     return;
   }
   if (lastLine === "rawecho") {

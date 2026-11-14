@@ -91,11 +91,6 @@ export type ResumeOutcome = { approved: boolean; result?: ToolResult };
 export interface EngineOptions {
   /** The one hooks layer (modules/hooks): asked around every turn of every driver (session.start, prompt.submit, helper.start, turn.end, helper.end). A block stops the turn with code hook_blocked. */
   hooks?: HooksPort;
-  /**
-   * Asked as each turn of a CLI engine starts, before its session is sent anything: the host takes a checkpoint of the agent's work folder (Rewind). Never stops a turn: a throw is ignored. It is expected to
-   * return at once (the host waits a moment for a point and lets a slow one finish in the background).
-   */
-  onTurnStart?: (info: { threadId: string; turnId: string; agentId: string; asker: string; messageId: string | null }) => Promise<void>;
   /** 'host:<space>' or 'device:<id>'. */
   holder: string;
   openSession: OpenSession;
@@ -330,8 +325,6 @@ export interface TurnEngine {
   engage(threadId: string, agent: EngineAgent): void;
   /** Rewind: from the next turn the agents read no message after `afterSeq` up to `upToSeq`. Kept ranges are the host's to reload when a thread is opened again. */
   hide(threadId: string, afterSeq: number, upToSeq: number): void;
-  /** Undo a rewind: the agents read that range again. */
-  unhide(threadId: string, afterSeq: number, upToSeq: number): void;
   /** Who a wake on this thread runs for (and whose account pays) when the thread was opened for someone else: a task thread is worked for the person who asked for the task. */
   setStarter(threadId: string, starter: string): void;
   /** Change the model, engine or paying account an agent runs on in this thread, from its next turn. */
@@ -1202,16 +1195,6 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             stop(await ask({ ...base, event: "helper.start", ...(agent.name ? { title: agent.name } : {}) }));
           stop(await ask({ ...base, event: "prompt.submit", prompt: trigger?.body ?? "" }));
         }
-        if (opts.onTurnStart && !wait && CLI_DRIVERS.has(paying?.driver ?? ""))
-          await opts
-            .onTurnStart({
-              threadId: st.thread.id,
-              turnId: turn.id,
-              agentId: item.agentId,
-              asker,
-              messageId: item.messageId ?? null,
-            })
-            .catch(() => undefined);
         let switchTo: ResolvedAccount | null = null;
         const stoppedTurn = stoppedBefore(st, item);
         const upTo = st.messages.filter(
@@ -1906,11 +1889,6 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         .map((w) => ({ turnId: w.turnId, agentId: w.agentId, taskId: w.taskId })),
     setStarter(threadId, starter) {
       need(threadId).thread.starter = starter;
-    },
-    unhide(threadId, afterSeq, upToSeq) {
-      const st = threads.get(threadId);
-      if (!st?.hidden) return;
-      st.hidden = st.hidden.filter((h) => !(h.afterSeq === afterSeq && h.upToSeq === upToSeq));
     },
     hide(threadId, afterSeq, upToSeq) {
       const st = threads.get(threadId);

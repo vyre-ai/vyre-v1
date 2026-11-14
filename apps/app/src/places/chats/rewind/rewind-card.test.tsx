@@ -49,8 +49,6 @@ test("it says what it undoes and never touches before anything is pressed; the n
   await flush();
   assert.match(textOf(find(root, "rewind-leaves")), /Anything already sent stays sent/);
   assert.match(textOf(find(root, "rewind-undoes")), /files back as they were/);
-  assert.match(textOf(find(root, "rewind-not-kept")), /\.gitignore.*secret files.*git repository/);
-  assert.match(textOf(find(root, "rewind-card")), /14 days/);
   assert.equal(find(root, "rewind-point-agt_dex.b")!.props["aria-checked"], true, "the newest is picked");
   assert.match(textOf(find(root, "rewind-point-agt_dex.b")), /14 files/);
   await press(find(root, "rewind-point-agt_dex.a")!);
@@ -62,19 +60,6 @@ test("it says what it undoes and never touches before anything is pressed; the n
     idempotencyKey: "rewind-c1-agt_dex.a",
   });
   assert.equal(closed, 1);
-});
-
-test("no points says why: only an agent that works in a folder on the Space's computer has them", async () => {
-  installDom();
-  const s = createSample("channel");
-  const root = await mount(
-    createRoot,
-    <ConversationDataProvider value={withCall(s, { available: true, points: [] })}>
-      <RewindCard threadId="c1" onClose={() => undefined} />
-    </ConversationDataProvider>,
-  );
-  await flush();
-  assert.match(textOf(find(root, "rewind-card")), /No points yet.*agent with no folder/);
 });
 
 test("in a chat with other people it says so and Go back is not pressable", async () => {

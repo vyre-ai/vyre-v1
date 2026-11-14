@@ -1,7 +1,0 @@
-{
-  "targets": [
-    { "id": "REWIND_01-points", "route": "/m/REWIND_01?part=points", "proto": "chat,{skin}", "waitFor": "[data-testid='rewind-go']", "note": "The Rewind card: Go back to, three points with time, what you had asked and file count, what going back undoes and never touches, and how long points last." },
-    { "id": "REWIND_01-off", "route": "/m/REWIND_01?part=off", "proto": "chat,{skin}", "waitFor": "[data-testid='rewind-go']", "note": "In a chat with other people the card says going back is off." },
-    { "id": "REWIND_01-none", "route": "/m/REWIND_01?part=none", "proto": "chat,{skin}", "waitFor": "[data-testid='rewind-go']", "note": "An agent with no folder has no points, and the card says why." }
-  ]
-}

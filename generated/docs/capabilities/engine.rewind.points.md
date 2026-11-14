@@ -41,8 +41,6 @@ type Out = {
       at: number;
       files: number;
       after?: string;
-      messageId?: string;
-      undo?: boolean;
     }>;
 };
 ```
@@ -71,9 +69,7 @@ type Out = {
         "agentId": "agt_a1b2c3",
         "at": 1760000000000,
         "files": 1,
-        "messageId": "msg_a1b2c3",
-        "pointId": "example",
-        "undo": true
+        "pointId": "example"
       }
     ],
     "why": "example"

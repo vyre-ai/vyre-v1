@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { checkpointTurn, erase, points, prune, pruneSpace, restore, snapshot, storeOf } from "../checkpoints.ts";
+import { checkpointTurn, points, restore, snapshot, storeOf } from "../checkpoints.ts";
 import { workFolder } from "../sandbox.ts";
 
 function world() {
@@ -50,14 +50,12 @@ test("a point per turn; going back restores an edit and a deleted file and remov
   }
 });
 
-test("node_modules, logs and secret files (.env, keys) are not kept; the store cannot live inside the folder; a made-up checkpoint is refused", async () => {
+test("node_modules and logs are not kept; the store cannot live inside the folder; a made-up checkpoint is refused", async () => {
   const w = world();
   try {
     put(w.workDir, "keep.txt", "k");
     put(w.workDir, "node_modules/x/index.js", "big");
     put(w.workDir, "run.log", "noise");
-    put(w.workDir, ".env", "TOKEN=abc");
-    put(w.workDir, "keys/server.pem", "-----BEGIN");
     const p = await snapshot({ ...w, label: "t", now: 1_000 });
     assert.equal(p.files, 1);
     await assert.rejects(
@@ -87,7 +85,6 @@ test("a turn's checkpoint lives beside the work folders, never inside one, and i
       agent: "agt_dex",
       turnId: "trn_1",
       now: 5_000,
-      waitMs: 5000,
     });
     assert.equal(r.point?.label, "turn trn_1");
     assert.equal(r.point?.files >= 1, true);
@@ -105,92 +102,6 @@ test("a turn's checkpoint lives beside the work folders, never inside one, and i
     });
     assert.equal(none.point, null);
     assert.ok(none.why);
-  } finally {
-    fs.rmSync(data, { recursive: true, force: true });
-  }
-});
-
-test("retention: older than the count or the age are dropped, the space is freed, the newest is always kept, and a pruned point is not here any more", async () => {
-  const w = world();
-  try {
-    put(w.workDir, "a.txt", "1");
-    const made = [];
-    for (let i = 0; i < 6; i++) {
-      put(w.workDir, "a.txt", `v${i}`);
-      made.push(await snapshot({ ...w, label: `turn ${i}`, now: 1_000_000 + i * 1000 }));
-    }
-    const dropped = await prune({ ...w, now: 1_010_000, keep: 4 });
-    assert.equal(dropped, 2);
-    const left = await points(w);
-    assert.deepEqual(left.map((p) => p.label), ["turn 5", "turn 4", "turn 3", "turn 2"]);
-    await assert.rejects(restore({ ...w, sha: made[0]!.sha, now: 2_000_000 }), /not here any more/);
-    // by age: everything is older than the limit, but the newest stays
-    assert.equal(await prune({ ...w, now: 9_000_000_000, maxAgeMs: 1000 }), 3);
-    assert.equal((await points(w)).length, 1);
-    // over the store's cap: the oldest go, the newest stays
-    put(w.workDir, "b.txt", "x".repeat(50_000));
-    await snapshot({ ...w, label: "turn 6", now: 9_000_001_000 });
-    await snapshot({ ...w, label: "turn 7", now: 9_000_002_000 });
-    await prune({ ...w, now: 9_000_002_500, cap: 1 });
-    assert.deepEqual((await points(w)).map((p) => p.label), ["turn 7"]);
-  } finally {
-    fs.rmSync(w.root, { recursive: true, force: true });
-  }
-});
-
-test("a turn waits only a moment for its point: a slow one finishes in the background; a store that cannot be written never stops the turn", async () => {
-  const data = fs.mkdtempSync(path.join(os.tmpdir(), "ckpt-bg-"));
-  try {
-    const dir = workFolder(data, "usr_dana", "thr_bg", "agt_dex");
-    fs.writeFileSync(path.join(dir, "f.txt"), "x");
-    const t0 = Date.now();
-    const r = await checkpointTurn({ dataDir: data, person: "usr_dana", thread: "thr_bg", agent: "agt_dex", turnId: "trn_1", now: 1, waitMs: 0 });
-    assert.equal(r.point, null);
-    assert.equal(r.background, true);
-    assert.ok(Date.now() - t0 < 100, "the turn did not wait");
-    const store = storeOf(data, dir);
-    for (let i = 0; i < 100 && (await points({ gitDir: store, workDir: dir })).length === 0; i++)
-      await new Promise((res) => setTimeout(res, 30));
-    assert.equal((await points({ gitDir: store, workDir: dir })).length, 1, "the point was saved in the background");
-    // the checkpoints folder cannot be written: reported, not thrown
-    fs.rmSync(path.join(data, "checkpoints"), { recursive: true, force: true });
-    fs.writeFileSync(path.join(data, "checkpoints"), "a file where the folder should be");
-    const bad = await checkpointTurn({ dataDir: data, person: "usr_dana", thread: "thr_bg", agent: "agt_dex", turnId: "trn_2", now: 2 });
-    assert.equal(bad.point, null);
-    assert.ok(bad.why, "the reason is kept");
-  } finally {
-    fs.rmSync(data, { recursive: true, force: true });
-  }
-});
-
-test("a Space over its cap loses the store touched longest ago; erasing a thread, an agent or a person removes their points", async () => {
-  const data = fs.mkdtempSync(path.join(os.tmpdir(), "ckpt-space-"));
-  try {
-    const take = async (person: string, thread: string, agent: string, now: number) => {
-      const dir = workFolder(data, person, thread, agent);
-      fs.writeFileSync(path.join(dir, "f.txt"), "x".repeat(20_000));
-      await checkpointTurn({ dataDir: data, person, thread, agent, turnId: `t${now}`, now, waitMs: 5000 });
-      return storeOf(data, dir);
-    };
-    const a = await take("usr_dana", "thr_1", "agt_dex", 1);
-    await new Promise((r) => setTimeout(r, 20));
-    const b = await take("usr_dana", "thr_2", "agt_dex", 2);
-    const c = await take("usr_maya", "thr_1", "agt_nova", 3);
-    assert.ok([a, b, c].every((s) => fs.existsSync(s)));
-    assert.equal(pruneSpace(data, 1), 3, "over the cap: stores go, oldest first");
-    for (const s of [a, b, c]) assert.equal(fs.existsSync(s), false);
-    const a2 = await take("usr_dana", "thr_1", "agt_dex", 4);
-    const b2 = await take("usr_dana", "thr_2", "agt_dex", 5);
-    const c2 = await take("usr_maya", "thr_1", "agt_nova", 6);
-    erase(data, { threadId: "thr_1" });
-    assert.deepEqual([a2, b2, c2].map((s) => fs.existsSync(s)), [false, true, false], "a thread's points go for every person");
-    const a3 = await take("usr_dana", "thr_3", "agt_dex", 7);
-    erase(data, { agentId: "agt_dex" });
-    assert.deepEqual([a3, b2].map((s) => fs.existsSync(s)), [false, false], "an agent's points go in every chat");
-    const c3 = await take("usr_maya", "thr_9", "agt_nova", 8);
-    const d3 = await take("usr_dana", "thr_9", "agt_nova", 9);
-    erase(data, { personId: "usr_maya" });
-    assert.deepEqual([c3, d3].map((s) => fs.existsSync(s)), [false, true], "a person's points go with the person");
   } finally {
     fs.rmSync(data, { recursive: true, force: true });
   }
