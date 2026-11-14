@@ -9,7 +9,7 @@ import { AwayRow, HourMark, JumpRow } from "../session/rows.tsx";
 import type { SessionItem } from "../session/model.ts";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
 import { spaceKeyWay } from "./status.ts";
-import { mergeStateOf, withTeammates } from "../crew/model.ts";
+import { mergeStateOf, subagentIdsOf, totalsOf, withTeammates } from "../crew/model.ts";
 import { FROM_THREAD_LINE } from "../crew/also.tsx";
 import { barShows, citable, citeBody, citeRender } from "../crew/cite.tsx";
 import type { CrewMember, CrewStatusOut } from "../crew/model.ts";
@@ -1458,6 +1458,22 @@ function Theirs({
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
       })}
+      {(() => {
+        // the subagents this reply's engine started in its own turn: one block under the reply, the same rows as the helpers', each opens in the pane, the answer kept
+        const ids = subagentIdsOf(m.blocks);
+        const mine = ids.length === 0 ? [] : (actions.crew?.status?.members ?? []).filter((x) => ids.includes(x.id));
+        if (mine.length === 0) return null;
+        const c = actions.crew!;
+        return (
+          <CrewBlock
+            members={mine}
+            totals={totalsOf(mine)}
+            selectedId={c.selected}
+            onPeek={(x) => c.peek(x.id)}
+            onOpenPane={c.openPane}
+          />
+        );
+      })()}
       {collect(errors, (b) => (
         <ErrorRowView key={b.id} block={b} actions={actions} />
       ))}

@@ -7,8 +7,9 @@ import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
 import { isLong, sessionItems } from "../session/model.ts";
 import { SessionPublisher } from "../session/Publisher.tsx";
-import { useCrew } from "../crew/context.tsx";
-import { crewChipOf } from "../crew/model.ts";
+import { CrewWhileWorking, useCrew } from "../crew/context.tsx";
+import { crewChipOf, liveSubagents, subagentIdsOf, totalsOf } from "../crew/model.ts";
+import { CrewBlock } from "../session/CrewBlock.tsx";
 import { CrewIsland } from "../crew/island.tsx";
 import { AlsoToChat } from "../crew/also.tsx";
 import { readReplyDetails } from "../details/read.ts";
@@ -2069,6 +2070,24 @@ function ConversationView(): ReactElement {
                 onPeople={(x, y) => peopleMenu(x, y)}
               />
             ) : null}
+            <CrewWhileWorking working={isWorking} />
+            {(() => {
+              // while an agent's engine has subagents of its own at work, they are on screen here (no reply carries them yet); when the reply lands, the same rows sit under it
+              const shown = new Set(timelineMessages.flatMap((m) => subagentIdsOf(m.blocks)));
+              const subs = liveSubagents(crew?.status ?? null, shown);
+              if (!crew || subs.length === 0) return null;
+              return (
+                <View testID="subagents-live" style={st.subagentsLive}>
+                  <CrewBlock
+                    members={subs}
+                    totals={totalsOf(subs)}
+                    selectedId={crew.selected}
+                    onPeek={(x) => crew.show(x.id)}
+                    onOpenPane={() => crew.show(null)}
+                  />
+                </View>
+              );
+            })()}
             {!longChat && crew?.status && crew.status.members.length > 0 ? (
               <CrewIsland status={crew.status} onPress={() => crew.show(null)} />
             ) : null}
@@ -2462,6 +2481,7 @@ const st = StyleSheet.create({
   },
   typingRow: { height: 20, justifyContent: "center", paddingLeft: 6 },
   typingText: { fontSize: 12, color: "var(--ink-3)" as string },
+  subagentsLive: { alignSelf: "stretch", maxHeight: 220, overflow: "scroll" },
   composerBox: { alignSelf: "center", width: "100%", maxWidth: COLUMN + 48, paddingHorizontal: 24, paddingBottom: 16 },
 });
 

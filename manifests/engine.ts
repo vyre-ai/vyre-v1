@@ -1858,8 +1858,8 @@ export default defineManifest({
         out: {
           members: t.arr(
             t.obj({
-              kind: t.enm("helper", "teammate"),
-              id: id.thread,
+              kind: t.enm("helper", "teammate", "subagent"),
+              id: t.str({ description: "A helper or teammate's chat, or a subagent's own id (it has no chat)" }),
               jobId: t.opt(t.str()),
               parentThreadId: id.thread,
               title: t.str(),
@@ -1868,7 +1868,9 @@ export default defineManifest({
               state: t.enm("working", "done", "needs_you", "failed", "stopped"),
               holdTaskId: t.opt(id.task),
               step: t.opt(t.str()),
+              steps: t.opt(t.arr(t.str())),
               found: t.opt(t.str()),
+              answer: t.opt(t.str({ description: "What a subagent returned, in full (cut at 1500 characters)" })),
               startedAt: t.ts(),
               endedAt: t.opt(t.ts()),
               elapsedMs: t.int({ minimum: 0 }),

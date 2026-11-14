@@ -1953,9 +1953,11 @@ function noteBlock(info: TurnInfo, kind: string, payload: unknown, at: number): 
     name?: unknown;
     detail?: unknown;
     ok?: unknown;
+    parent?: unknown;
   };
   const id = typeof p.id === "string" ? p.id : "";
   if (id === "") return;
+  if (typeof p.parent === "string" && p.parent !== "") return; // a subagent's own call is not a step of this turn's trail
   const known = info.tools.find((t) => t.id === id);
   if (kind === "tool_call") {
     if (!known) traceTool(info, { id, name: typeof p.name === "string" ? p.name : "", startedAt: at });

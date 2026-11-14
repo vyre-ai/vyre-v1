@@ -11721,7 +11721,7 @@ export type EngineCrewStatusIn = {
 };
 export type EngineCrewStatusOut = {
   members: Array<{
-      kind: "helper" | "teammate";
+      kind: "helper" | "teammate" | "subagent";
       id: string;
       jobId?: string;
       parentThreadId: string;
@@ -11731,7 +11731,9 @@ export type EngineCrewStatusOut = {
       state: "working" | "done" | "needs_you" | "failed" | "stopped";
       holdTaskId?: string;
       step?: string;
+      steps?: Array<string>;
       found?: string;
+      answer?: string;
       startedAt: number;
       endedAt?: number;
       elapsedMs: number;

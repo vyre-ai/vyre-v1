@@ -362,13 +362,27 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
           case "tool":
             said = true;
             yield item.phase === "call"
-              ? { type: "block", kind: "tool_call", payload: { id: item.id, name: item.name } }
+              ? {
+                  type: "block",
+                  kind: "tool_call",
+                  payload: { id: item.id, name: item.name, ...(item.parent ? { parent: item.parent } : {}) },
+                }
               : item.phase === "input"
-                ? { type: "block", kind: "tool_input", payload: { id: item.id, detail: item.detail } }
+                ? {
+                    type: "block",
+                    kind: "tool_input",
+                    payload: { id: item.id, detail: item.detail, ...(item.parent ? { parent: item.parent } : {}) },
+                  }
                 : {
                     type: "block",
                     kind: "tool_result",
-                    payload: { id: item.id, ok: item.ok, ...(item.output ? { detail: item.output } : {}) },
+                    payload: {
+                      id: item.id,
+                      ok: item.ok,
+                      ...(item.output ? { detail: item.output } : {}),
+                      ...(item.parent ? { parent: item.parent } : {}),
+                      ...(item.result ? { result: item.result } : {}),
+                    },
                   };
             break;
           case "usage":

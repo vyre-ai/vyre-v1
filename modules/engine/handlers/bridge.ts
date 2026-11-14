@@ -150,6 +150,10 @@ export type StreamEvent =
       name?: string;
       ok?: boolean;
       /** what the call touches, in safe words (a file name, a query): for the live line only */ detail?: string;
+      /** The call a subagent made this step under: the id of the Agent call that started that subagent (crew rows read it; the live line does not). */
+      parent?: string;
+      /** What a subagent returned, on the result of the call that started it. Never sent to a screen's live line (live-coalesce.ts drops it); the crew row keeps it. */
+      result?: string;
     }
   /** Steps gathered to about one frame a second for the screens (live-coalesce.ts): what the fan-out sends instead of each `step`. */
   | {
@@ -157,7 +161,14 @@ export type StreamEvent =
       threadId: string;
       turnId: string;
       agentId: string;
-      steps: Array<{ phase: "call" | "result" | "input"; id: string; name?: string; ok?: boolean; detail?: string }>;
+      steps: Array<{
+        phase: "call" | "result" | "input";
+        id: string;
+        name?: string;
+        ok?: boolean;
+        detail?: string;
+        parent?: string;
+      }>;
     }
   /** A piece of the thinking the provider sent. It goes only to the person whose turn it is (hole 8), over the live link; it is never logged and never saved. */
   | { kind: "thinking"; threadId: string; turnId: string; agentId: string; text: string; asker?: string }
@@ -725,7 +736,49 @@ export function createBridge(o: BridgeOptions): Bridge {
         const seg: Segment = { blocks: [], text: "", mentions: 0, t0: (o.now ?? Date.now)(), calls: new Map() };
         let afterBlock = false;
         live.set(input.turnId, seg);
+        const subCalls = new Map<string, string>(); // a subagent's own calls: id -> tool name
         for await (const ev of s.send(input)) {
+          // a line a subagent of the engine works through (its call carries the id of the Agent call that started it): told to the crew rows and the live line, never kept in the reply's own trail
+          if (
+            ev.type === "block" &&
+            (ev.kind === "tool_call" || ev.kind === "tool_input" || ev.kind === "tool_result") &&
+            typeof (ev.payload as { parent?: unknown } | null)?.parent === "string" &&
+            (ev.payload as { parent: string }).parent !== ""
+          ) {
+            const p = ev.payload as { id?: unknown; name?: unknown; detail?: unknown; ok?: unknown; parent: string };
+            const id = typeof p.id === "string" ? p.id : "";
+            if (id !== "") {
+              if (ev.kind === "tool_call" && typeof p.name === "string") {
+                subCalls.set(id, p.name);
+                if (NATIVE_OUTSIDE.has(p.name)) {
+                  try {
+                    await o.callAs?.("gate.taint.mark", { threads: [input.threadId], source: p.name }, input.asker);
+                  } catch (e) {
+                    warn("a web read was not marked", {
+                      threadId: input.threadId,
+                      error: e instanceof Error ? e.message : String(e),
+                    });
+                  }
+                }
+              }
+              const name = subCalls.get(id);
+              emit({
+                kind: "step",
+                threadId: input.threadId,
+                turnId: input.turnId,
+                agentId: input.agent.id,
+                phase: ev.kind === "tool_call" ? "call" : ev.kind === "tool_input" ? "input" : "result",
+                id,
+                parent: p.parent,
+                ...(name ? { name } : {}),
+                ...(typeof p.detail === "string" && ev.kind === "tool_input" ? { detail: p.detail } : {}),
+                ...(ev.kind === "tool_result" && typeof p.ok === "boolean" ? { ok: p.ok } : {}),
+              });
+              if (ev.kind === "tool_result") subCalls.delete(id);
+            }
+            yield ev;
+            continue;
+          }
           if (ev.type === "text") {
             // words that come after a tool call are a new paragraph, not a continuation of the sentence before it
             const t =
@@ -857,7 +910,15 @@ export function createBridge(o: BridgeOptions): Bridge {
                 ...(call?.name ? { name: call.name } : {}),
                 ...(typeof p.ok === "boolean" ? { ok: p.ok } : {}),
                 ...(said !== "" ? { detail: said } : {}),
+                // what a subagent returned is for its crew row; the reply keeps only that it ran
+                ...(call && /^(Agent|Task)$/.test(call.name) && typeof (p as { result?: unknown }).result === "string"
+                  ? { result: (p as { result: string }).result }
+                  : {}),
               });
+              if (typeof (p as { result?: unknown }).result === "string") {
+                const { result: _gone, ...rest } = data as Record<string, unknown>;
+                data = rest;
+              }
               if (typeof (p as { detail?: unknown }).detail === "string") {
                 const { detail: _drop, ...rest } = data as Record<string, unknown>;
                 data = rest;
