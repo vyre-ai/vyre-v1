@@ -372,9 +372,21 @@ function values(g: Goal): unknown[] {
     g.version,
   ];
 }
+/** Columns the server's own accounting moves (a turn counted against the budget). A save that changes only these is not a change to the goal: it leaves `updatedAt` alone. */
+const BOOKKEEPING = new Set(["spent_micros", "turns", "updated_at", "version"]);
+/** Does the stored row differ from this goal in anything but accounting? True when there is no stored row. */
+function changedBeyondAccounting(db: Db, g: Goal): boolean {
+  const row = db.all("SELECT * FROM goals_goal WHERE id = ?", g.id)[0] as Record<string, unknown> | undefined;
+  if (!row) return true;
+  const next = values(g);
+  return COLS.some((c, i) => !BOOKKEEPING.has(c) && !sameCell(row[c], next[i]));
+}
+const sameCell = (a: unknown, b: unknown): boolean => (a ?? null) === (b ?? null);
 export function saveGoal(ctx: Pick<GoalsCtx, "db" | "now">, g: Goal): void {
   ensure(ctx.db);
-  g.updatedAt = ctx.now();
+  // An agent's write carries the `updatedAt` it last read (the tool layer, F50). A turn ending in the goal's chat counts itself against the budget and saves the goal: that is accounting, not a change a
+  // writer could have overwritten, so it must not make the write that is about to land look stale. Any other change moves `updatedAt` as before; `version` always counts the save.
+  if (changedBeyondAccounting(ctx.db, g)) g.updatedAt = ctx.now();
   g.version += 1;
   ctx.db.run(
     `INSERT OR REPLACE INTO goals_goal (${COLS.join(", ")}) VALUES (${COLS.map(() => "?").join(", ")})`,
