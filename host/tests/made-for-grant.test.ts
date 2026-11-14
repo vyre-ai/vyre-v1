@@ -74,3 +74,22 @@ test("skipped when the agent already holds that level through the Space or a rol
     "a record type is unchanged",
   );
 });
+
+test("a record type is held to the same owner and clearance checks as every other kind", () => {
+  assert.equal(
+    madeForGrant(row("record_type", { owner_id: "usr_other" }), [], agent, facts()),
+    null,
+    "not the person's it acts for",
+  );
+  assert.equal(
+    madeForGrant(row("record_type"), [], agent, facts({ clears: false })),
+    null,
+    "above the agent's clearance",
+  );
+  assert.equal(
+    madeForGrant(row("record_type"), [], { principal: agent.principal }, facts()),
+    null,
+    "nobody behind the agent",
+  );
+  assert.deepEqual(madeForGrant(row("record_type"), [], agent, facts()), { level: "manage", source: false });
+});

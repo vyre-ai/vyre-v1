@@ -501,7 +501,8 @@ export interface MadeForFacts {
  * same commit as the birth (invoke adds the grant to the events of the call that made the thing), so there is no moment when the person owns it and the agent that made it is refused, and no grant for a
  * thing that was never made. Only the agent that made it, only at its birth, never at a later move, never to another agent. The grant is the person's (`by`), can be removed by them like any grant, and adds no
  * power beyond the person: every call the agent makes still takes the lower of its grants and its asker's access.
- *   record type  Manage, no source (it sets who the type is open to as part of the same work)
+ *   record type  Manage, no source (it sets who the type is open to as part of the same work). Until this change the old record-type block granted without the owner and clearance checks; the registrar
+ *                makes the person the owner of what an agent makes for them, so the owner check changes nothing in practice, and a record type in a place above the agent's clearance now gets no grant
  *   site         Edit, only the site this call created
  *   vault folder Edit, vault key Use; both carry the source made-by:<agent> so the share list shows who made it
  * Skipped, not failed (the call still succeeds, the thing is the person's), when: the place is labelled above the agent's clearance (`facts.clears`); the thing is inside a person's Mine (the agent reaches it only
@@ -516,9 +517,10 @@ export function madeForGrant(
   facts?: MadeForFacts,
 ): { level: "manage" | "edit" | "use"; source: boolean } | null {
   if (seed.principal.kind !== "agent" || !seed.actingFor?.startsWith("usr_")) return null;
-  if (row.type === "record_type") return { level: "manage", source: false };
-  let level: "edit" | "use";
-  if (row.type === "site") {
+  // one order of checks for every kind: what it is and at what level, whose it is, whether the place is within the agent's clearance, then the kind's own skips
+  let level: "manage" | "edit" | "use";
+  if (row.type === "record_type") level = "manage";
+  else if (row.type === "site") {
     const born = events.some(
       (e) => e.type === "site.created" && (e.payload as { siteId?: unknown } | undefined)?.siteId === row.id,
     );
@@ -528,14 +530,12 @@ export function madeForGrant(
   else if (row.type === "vault_item") level = "use";
   else return null;
   if (row.owner_id !== seed.actingFor) return null;
-  if (row.type === "vault_folder" || row.type === "vault_item") {
-    // a thing inside a person's Mine gets nothing: the agent reaches it while acting for the owner (Use), which is all a key needs. The Mine FOLDER itself (a private root, no parent) does get Edit: the gateway
-    // asks Edit on a folder before the agent may put a key in it, and the kernel gives an agent acting for the owner only Use there. The grant is the person's, and it holds only while the agent acts for them: for
-    // anyone else the call takes the lower of the agent's grants and that person's access, which in someone's Mine is none.
-    if (facts && row.parent_id != null && facts.inMine(row.parent_id)) return null;
-  }
-  const above = row.parent_id ?? row.id;
-  if (facts && !facts.clears(seed.principal.id, above)) return null;
+  if (facts && !facts.clears(seed.principal.id, row.parent_id ?? row.id)) return null;
+  if (level === "manage") return { level, source: false };
+  // a thing inside a person's Mine gets nothing: the agent reaches it while acting for the owner (Use), which is all a key needs. The Mine FOLDER itself (a private root, no parent) does get Edit: the gateway
+  // asks Edit on a folder before the agent may put a key in it, and the kernel gives an agent acting for the owner only Use there. The grant is the person's, and it holds only while the agent acts for them: for
+  // anyone else the call takes the lower of the agent's grants and that person's access, which in someone's Mine is none.
+  if (facts && row.parent_id != null && facts.inMine(row.parent_id)) return null;
   if (facts && row.parent_id != null && facts.holds(seed.principal.id, seed.actingFor, row.parent_id, level))
     return null;
   return { level, source: true };
