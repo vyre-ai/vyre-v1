@@ -24,6 +24,47 @@ export function watchEscapeLayers(f: () => void): () => void {
 const changed = (): void => {
   for (const f of [...watchers]) f();
 };
+
+// Focus goes back to the control that opened a layer (NAV-2026-11-14 rule 4). The opener is the control last pressed (a press focuses it, or the key that pressed it), noted before the layer
+// draws; when the layer goes and nothing else has taken focus, the opener gets it back.
+type El = {
+  isConnected?: boolean;
+  closest?: (s: string) => El | null;
+  focus?: (o?: { preventScroll?: boolean }) => void;
+};
+type FocusDoc = {
+  activeElement?: El | null;
+  body?: unknown;
+  addEventListener?: (t: string, f: (e: { target?: unknown; key?: string }) => void, c?: boolean) => void;
+};
+const FOCUSABLE = 'button,a[href],input,textarea,select,[role="button"],[role="menuitem"],[role="tab"],[tabindex]';
+let trigger: El | null = null;
+const fdoc = (): FocusDoc | undefined => (globalThis as { document?: FocusDoc }).document;
+function note(e: { target?: unknown; key?: string }): void {
+  if (e.key !== undefined && e.key !== "Enter" && e.key !== " ") return;
+  const t = e.target as El | null | undefined;
+  trigger = typeof t?.closest === "function" ? t.closest(FOCUSABLE) : null;
+}
+if (Platform.OS === "web" && fdoc()?.addEventListener) {
+  fdoc()!.addEventListener!("pointerdown", note, true);
+  fdoc()!.addEventListener!("keydown", note, true);
+}
+function opener(): El | null {
+  const d = fdoc();
+  const active = d?.activeElement ?? null;
+  const pick = trigger?.isConnected === true ? trigger : active !== null && active !== d?.body ? active : null;
+  return pick;
+}
+function giveBack(el: El | null): void {
+  if (el === null) return;
+  setTimeout(() => {
+    const d = fdoc();
+    const now = d?.activeElement ?? null;
+    // something else holds focus on purpose (a field in the page, another layer): leave it
+    if (el.isConnected !== true || (now !== null && now !== d?.body && now.isConnected === true)) return;
+    el.focus?.({ preventScroll: true });
+  }, 0);
+}
 let installed: { doc: Doc } | null = null;
 
 const doc = (): Doc | undefined => (globalThis as { document?: Doc }).document;
@@ -58,6 +99,7 @@ export function pushEscapeLayer(run: () => void, o: { respectHandled?: boolean; 
   const layer = { run, respectHandled: o.respectHandled === true, quiet: o.quiet === true };
   stack.push(layer);
   changed();
+  const from = opener();
   const d = doc();
   // one pair of listeners on the current document (a different document object, as a test swaps in, gets them again)
   if (d?.addEventListener && installed?.doc !== d) install(d);
@@ -65,6 +107,7 @@ export function pushEscapeLayer(run: () => void, o: { respectHandled?: boolean; 
     const at = stack.indexOf(layer);
     if (at >= 0) stack.splice(at, 1);
     changed();
+    giveBack(from);
     if (stack.length === 0 && installed !== null) {
       installed.doc.removeEventListener?.("keydown", onCapture, true);
       installed.doc.removeEventListener?.("keydown", onBubble);

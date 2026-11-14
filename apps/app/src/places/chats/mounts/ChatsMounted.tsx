@@ -217,6 +217,7 @@ export function ChatsMounted({
   routeNow.current = shown.route.view;
   const act = useCallback(
     (a: Act): void => {
+      routeFrom.current = null;
       if (stacked && a.t === "chat" && routeNow.current === "new" && a.threadId !== "") {
         opened?.({ subject: { type: "thread", id: a.threadId } });
         return;
@@ -242,13 +243,22 @@ export function ChatsMounted({
   // an agent form that came in on a link of its own (a tab opened for it) closes that tab when it is done; one opened in this tab from the sidebar's New agent leaves the tab and goes on to the chat in it
   const formTab = useRef(hash !== "" && fromHash(hash).route.view === "agent-form");
   const linked = useRef(hash);
+  // The address the page on screen came from when it followed the tab (a Back, a tab switch, a link), null when the person's own press made it. A page that followed an address the tab has
+  // since left is out of date: it must not write itself back into the tab (two quick Backs made the page and the tab undo each other until React gave up, #185).
+  const routeFrom = useRef<string | null>(null);
+  const hashNow = useRef(hash);
+  hashNow.current = hash;
   useEffect(() => {
     if (hash === linked.current) return;
     linked.current = hash;
     // a person's profile opens beside what is on screen (the right pane), so the page itself stays
     if (personOfHash(hash) !== null) return;
     // a tab switch or a link: the same thing already on screen keeps its pane and its place
-    setShown((s) => linkedTo(s, hash));
+    setShown((s) => {
+      const next = linkedTo(s, hash);
+      if (next !== s) routeFrom.current = hash;
+      return next;
+    });
     forgetLayerLink(hash);
   }, [hash]);
   // A popover or sheet a link opened (the terminal list, All agents, the rules) is not a place: if it stayed in the tab's address, closing it and coming back, or a reload, opened it again, and the landing address
@@ -292,6 +302,8 @@ export function ChatsMounted({
   useEffect(() => {
     const report = openedRef.current;
     if (!report || routeKey === "") return;
+    // this page followed an address the tab has left: the tab is the newer word, and the page is about to follow it
+    if (routeFrom.current !== null && routeFrom.current !== hashNow.current) return;
     if (routeKey === "new") report({});
     else if (routeKey === "tasks") report({ screen: "tasks.my-work" });
     else if (routeKey === "artifacts") report({ screen: "chats.artifacts" });
