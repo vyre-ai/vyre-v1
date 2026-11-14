@@ -126,7 +126,7 @@ test("a key the catalogue does not know still gets a sentence from its stored ti
   };
   const r = fromDefinition(d, ctx());
   assert.equal(r.steps[0]!.template, "Tidy the inbox");
-  assert.equal(r.steps[0]!.action, "Tidy the inbox");
+  assert.equal(r.steps[0]!.action, "", "nothing to add, so no second line");
 });
 
 test("the missing line for a step comes from the server's words, one per step, and writes steps are marked", () => {
@@ -218,5 +218,32 @@ test("a step someone titled reads as its own title, never followed by a dump of 
   const r = fromDefinition(d, ctx());
   assert.equal(r.steps[0]!.template, "Email the lead a first hello");
   assert.deepEqual(r.steps[0]!.values, {});
-  assert.equal(r.steps[0]!.action, "Send an email");
+  assert.equal(r.steps[0]!.action, "to Email, Hello", "the second line says what the settings add, in words");
+});
+
+test("no step shows its title twice: the second line is absent or different from the first", () => {
+  const d: DefIn = {
+    triggers: [{ key: "form_submit" }],
+    nodes: [
+      { id: "a", key: "send_email", title: "Send an email", input: {}, next: ["b"] },
+      { id: "b", key: "send_email", title: "Email the lead", input: { to: "{{trigger.email}}" }, next: ["c"] },
+      { id: "c", key: "zzz.unknown", title: "Tidy", input: {} },
+    ],
+  };
+  for (const st of fromDefinition(d, ctx()).steps) {
+    const first = story({
+      name: "x",
+      on: false,
+      trigger: null,
+      moreTriggers: [],
+      steps: [st],
+      proposed: false,
+      dirty: false,
+      saveMode: "local",
+      test: null,
+    }).rows;
+    const row = first.find((r) => r.kind === "step");
+    assert.ok(row && row.kind === "step");
+    assert.notEqual(row.action, row.sentence.text, `${st.id}: two equal lines`);
+  }
 });

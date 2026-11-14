@@ -39,6 +39,7 @@ import { fromDefinition } from "../story/adapt.ts";
 import { needsFromIssues } from "../story/issues.ts";
 import { story as buildStory } from "../story/model.ts";
 import { look } from "./look.ts";
+import { pausedWhy } from "../first/from-list.ts";
 import { Page } from "./Page.tsx";
 import { StoryActions, StoryView } from "./StoryView.tsx";
 import type { StoryAction } from "./StoryView.tsx";
@@ -489,7 +490,7 @@ function Body({
   return (
     <Page
       title={a.name}
-      subtitle={a.status === "paused" && a.pausedReason ? `Paused. ${a.pausedReason}` : model.head.state}
+      subtitle={a.status === "paused" && pausedWhy(a) ? `Paused. ${pausedWhy(a)}` : model.head.state}
       tabs={tabs}
       tab={tab}
       onTab={(t) => setTab(t as Tab)}

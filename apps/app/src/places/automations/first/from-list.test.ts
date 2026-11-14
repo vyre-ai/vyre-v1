@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { needsFromAutomations, todayFromAutomations, summaryLine } from "./from-list.ts";
+import { needsFromAutomations, pausedWhy, todayFromAutomations, summaryLine } from "./from-list.ts";
 
 const row = (o: object) => ({
   id: "aut_1",
@@ -54,4 +54,21 @@ test("the line under the title says how many are on and how many need him", () =
   assert.equal(summaryLine(rows as never), "2 on, 1 needs you");
   assert.equal(summaryLine([row({ status: "off" })] as never), "None on");
   assert.equal(summaryLine([] as never), "");
+});
+
+test("a paused Automation says the reason the builder head says, and offers no run to read; a failed one still offers its run", () => {
+  const paused = row({
+    id: "p",
+    name: "New lead follow-up",
+    status: "paused",
+    pausedReason: "Needs the Twilio key",
+    failedRuns: 1,
+    lastRun: { runId: "run_4", status: "failed", at: now - 1000 },
+  });
+  const failed = row({ id: "f", failedRuns: 1, lastRun: { runId: "run_9", status: "failed", at: now - 1000 } });
+  const [a, b] = needsFromAutomations([paused, failed] as never);
+  assert.equal(a!.why, "Needs the Twilio key");
+  assert.equal(a!.runId, undefined, "See the run only where a failed run is the reason");
+  assert.equal(pausedWhy(paused as never), "Needs the Twilio key", "one source for the card and the head");
+  assert.equal(b!.runId, "run_9");
 });

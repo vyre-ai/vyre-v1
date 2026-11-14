@@ -181,8 +181,10 @@ export function StoryView({
                         onPress={() => on("need", r.id)}
                       />
                     </View>
-                  ) : r.kind === "step" ? (
-                    <Text style={look.quiet}>{r.proposed ? `${r.action} · proposed` : r.action}</Text>
+                  ) : r.kind === "step" && (r.action !== "" || r.proposed) ? (
+                    <Text style={look.quiet}>
+                      {r.proposed ? [r.action, "proposed"].filter(Boolean).join(" · ") : r.action}
+                    </Text>
                   ) : null}
                 </View>
               </Pressable>

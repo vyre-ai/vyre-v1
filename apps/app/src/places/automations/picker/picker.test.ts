@@ -278,7 +278,7 @@ test("Add an app: known apps by name, any other name as Add 'Name'", () => {
 test("an email, a chat message and a text each wear their own glyph, and the Messages group wears the product's chat bubble", () => {
   assert.equal(glyphKeyOf("send_email"), "mail");
   assert.equal(glyphKeyOf("post_message"), "chat");
-  assert.equal(glyphKeyOf("send_sms"), "phone");
+  assert.equal(glyphKeyOf("send_sms"), "sms");
   assert.equal(glyphKeyOf("create_task"), "tasks");
   const rows = pickerRows(model, "");
   const marks = Object.fromEntries(rows.flatMap((r) => (r.kind === "step" ? [[r.stepKey, r.mark.app]] : [])));
@@ -293,4 +293,10 @@ test("an app's own steps wear the app's own mark: a Drive step the Drive mark, a
   assert.equal(appMarkOfStep({ key: "google.sheets.append_values", title: "x" }), "gsheets");
   assert.equal(appMarkOfStep({ key: "google.calendar.create_event", title: "x" }), "gcal");
   assert.equal(appMarkOfStep({ key: "stripe.thing", title: "x" }), null);
+});
+
+test("a branch, a wait, a question and a text each wear their own glyph, never one shared grey one", () => {
+  const keys = ["paths", "wait", "approval", "send_sms", "send_email", "post_message", "loop"].map(glyphKeyOf);
+  assert.equal(new Set(keys).size, keys.length, `distinct: ${keys.join(",")}`);
+  assert.deepEqual([glyphKeyOf("wait"), glyphKeyOf("approval"), glyphKeyOf("send_sms")], ["wait", "ask", "sms"]);
 });

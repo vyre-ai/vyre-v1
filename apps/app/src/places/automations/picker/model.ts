@@ -147,7 +147,10 @@ function view(m: PickIn): View {
 export function glyphKeyOf(key: string): string {
   if (key === "send_email") return "mail";
   if (key === "post_message") return "chat";
-  if (key === "send_sms") return "phone";
+  if (key === "send_sms") return "sms";
+  if (key === "wait" || key === "wait_stage") return "wait";
+  if (key === "approval" || key === "ask" || key.startsWith("ask_")) return "ask";
+  if (key === "loop") return "loop";
   return intentOfKey(key);
 }
 

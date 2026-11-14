@@ -2,6 +2,7 @@
 // never a field key. Pure. The words about what is missing, who may not use an app and which steps send come in through `ctx`, from the server's own tables (lib/words/step-missing.ts, the full catalogue read).
 // A step whose app this person may not use is kept whole with one plain line: an Automation someone else built always opens whole.
 import { appMarkOfStep, glyphKeyOf } from "../picker/model.ts";
+import { sentence } from "./model.ts";
 import type { Need, StepIn, TriggerIn, Value } from "./model.ts";
 
 export interface DefNodeIn {
@@ -99,6 +100,21 @@ function sentenceOf(
   return { template: bits.length === 0 ? title : `${title}: ${bits.join(", ")}`, values };
 }
 
+/** The quiet second line of a step: what its settings add to the sentence, in words ("to Phone, Message"). Absent when the first line already says it, never the title again. */
+function detailOf(n: DefNodeIn, title: string, catalogTitle: string | undefined, ctx: AdaptCtx): string {
+  if (!n.title?.trim()) return "";
+  // an id is not words: a key like mailboxId or a value like mbx_1 never reaches the page
+  const plain = Object.fromEntries(
+    Object.entries(n.input).filter(
+      ([k, v]) => !/Ids?$/.test(k) && !(typeof v === "string" && /^[a-z]{2,6}_[A-Za-z0-9]+$/.test(v)),
+    ),
+  );
+  const s = sentenceOf("", plain, ctx);
+  const bits = sentence({ template: s.template.replace(/^: /, ""), values: s.values }).text.trim();
+  if (bits !== "" && bits !== title) return bits;
+  return catalogTitle && catalogTitle !== title ? catalogTitle : "";
+}
+
 function loopHead(n: DefNodeIn, ctx: AdaptCtx): string {
   const v = valueOf(n.input["items"], ctx);
   const what = !v ? "" : "chip" in v ? v.chip.label : v.text;
@@ -163,7 +179,7 @@ export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn 
     return {
       id: n.id,
       app,
-      action: known?.title ?? title,
+      action: detailOf(n, title, known?.title, ctx),
       template: s.template,
       values: s.values,
       ...(needs.length > 0 ? { needs } : {}),

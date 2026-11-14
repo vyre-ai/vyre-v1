@@ -4,16 +4,24 @@ import type { AutoRow } from "../sidebar/model.ts";
 import { needsYou } from "../sidebar/model.ts";
 import type { NeedIn, TodayIn } from "./model.ts";
 
+/** Why a paused Automation is paused, in the words the server gave ("Needs the Twilio key"). The card and the builder head both read this, so they never differ. */
+export function pausedWhy(a: { pausedReason?: string | undefined }): string {
+  const r = a.pausedReason?.trim();
+  return r ?? "";
+}
+
 export function needsFromAutomations(rows: readonly AutoRow[]): NeedIn[] {
   return rows.filter(needsYou).map((a) => {
     const failed = a.lastRun?.status === "failed" || a.failedRuns > 0;
-    const runId = failed ? a.lastRun?.runId : undefined;
+    const reason = a.status === "paused" ? pausedWhy(a) : "";
+    // "See the run" only where there is a run, it failed, and that failure is the reason; a pause with its own reason is fixed, not read
+    const runId = failed && !reason ? a.lastRun?.runId : undefined;
     return {
       id: a.id,
       automation: a.name,
       why:
         a.status === "paused"
-          ? "It is paused."
+          ? reason || "It is paused."
           : a.failedRuns > 1
             ? `${a.failedRuns} runs failed.`
             : "Its last run failed.",
