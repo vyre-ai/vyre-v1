@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import type { Node } from "../../../../../../ui/src/testing/dom.ts";
+import { pushEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import { LessonMark } from "./LessonMark.tsx";
 import { LESSON_IDS, createChatMemorySample } from "./sample.ts";
 import { ChatMemoryProvider } from "./thread.tsx";
@@ -121,6 +122,50 @@ test("Escape closes the list and a press outside it closes it", async () => {
     await press(find(root, "lesson-list-away-m1")!);
     await flush();
     assert.equal(find(root, "lesson-list-m1"), null, "a press outside closes it");
+  } finally {
+    off();
+  }
+});
+
+test("with a layer drawn over the list, one Escape closes that layer and leaves the list; the next closes the list", async () => {
+  const off = installDom();
+  const doc = (globalThis as { document: { addEventListener: unknown; removeEventListener: unknown } }).document;
+  const handlers = new Set<(e: { key: string; stopPropagation?: () => void; defaultPrevented?: boolean }) => void>();
+  doc.addEventListener = (t: string, f: never) => {
+    if (t === "keydown") handlers.add(f);
+  };
+  doc.removeEventListener = (t: string, f: never) => {
+    if (t === "keydown") handlers.delete(f);
+  };
+  try {
+    const { memory, lessons } = setup();
+    const root = await mount(
+      createRoot,
+      <ChatMemoryProvider memory={memory} threadId="c1">
+        <LessonMark id="m1" kind="used" lessons={lessons} />
+      </ChatMemoryProvider>,
+    );
+    await flush();
+    await press(find(root, "lesson-mark-m1")!);
+    await flush();
+    let over = 0;
+    const drop = pushEscapeLayer(() => {
+      over++;
+      drop();
+    });
+    const { act } = await import("react");
+    const esc = async (): Promise<void> => {
+      await act(async () => {
+        let stopped = false;
+        for (const h of [...handlers]) if (!stopped) h({ key: "Escape", stopPropagation: () => (stopped = true) });
+      });
+      await flush();
+    };
+    await esc();
+    assert.equal(over, 1, "the layer over the list took the first Escape");
+    assert.ok(find(root, "lesson-list-m1"), "the list is still open");
+    await esc();
+    assert.equal(find(root, "lesson-list-m1"), null, "the second Escape closes the list");
   } finally {
     off();
   }

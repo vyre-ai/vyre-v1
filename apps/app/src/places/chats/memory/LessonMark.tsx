@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
+import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import { placeNear } from "../../../../../../ui/src/Overlay/anchor.ts";
 import { Icon } from "../../files/memory/parts.tsx";
 import { forgetFacts } from "./actions.ts";
@@ -124,21 +125,10 @@ function LessonList({
   const [whole, setWhole] = useState<string | null>(null);
   useEffect(() => {
     (card.current as { focus?: () => void } | null)?.focus?.();
-    const doc = (
-      globalThis as {
-        document?: {
-          addEventListener(t: string, f: (e: { key: string }) => void): void;
-          removeEventListener(t: string, f: (e: { key: string }) => void): void;
-        };
-      }
-    ).document;
-    if (!doc) return undefined;
-    const key = (e: { key: string }): void => {
-      if (e.key === "Escape") onClose();
-    };
-    doc.addEventListener("keydown", key);
-    return () => doc.removeEventListener("keydown", key);
+    return undefined;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // one Escape closes the topmost layer only: this list, or whatever is drawn over it, never both
+  useEscapeLayer(true, onClose);
   const say = (text: string, undo?: () => void | Promise<unknown>): void => thread?.flash(text, undo);
   return (
     <Overlay>
