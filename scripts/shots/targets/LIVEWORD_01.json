@@ -1,0 +1,5 @@
+{
+  "targets": [
+    { "id": "LIVEWORD_01-start", "route": "/m/LIVEWORD_01", "proto": "chat,{skin}", "waitFor": "[data-testid='activity-line']", "note": "A turn at its first beat: the one word, Thinking, with the Vyre mark. After 2 s a tool call starts and the word is Working; a minute into the same call it is still Working." }
+  ]
+}

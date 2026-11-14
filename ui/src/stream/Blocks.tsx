@@ -6,7 +6,7 @@ import { createContext, createElement, useContext, useEffect, useState } from "r
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { Block, ChartSpec } from "./markdown.ts";
-import { CHART_MAX, CODE_TINT, RADIUS } from "../tokens/calm.ts";
+import { CODE_TINT, RADIUS } from "../tokens/calm.ts";
 import { chartGeometry, chartTable } from "./charts.ts";
 import type { Geo } from "./charts.ts";
 import { highlight } from "./highlight.ts";
@@ -516,8 +516,9 @@ export function currentTheme(): DiagramTheme {
   };
 }
 
+// The frame's own page says which scheme it is in: a light page inside a dark one gets an opaque white canvas from the browser, which hid a dark diagram on white (looked at, 14 Nov). Its text is the app's sans.
 const frameDoc = (svg: string): string =>
-  `<!doctype html><html><body style="margin:0;background:transparent;display:flex;justify-content:center">${svg}</body></html>`;
+  `<!doctype html><html style="color-scheme:${currentTheme().dark ? "dark" : "light"}"><body style="margin:0;background:transparent;display:flex;justify-content:center;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif">${svg}</body></html>`;
 const aspectOf = (svg: string): number => {
   const vb = /viewBox="[\d.\-]+\s+[\d.\-]+\s+([\d.]+)\s+([\d.]+)"/.exec(svg);
   return vb ? Number(vb[1]) / Number(vb[2]) : 2;
@@ -733,7 +734,7 @@ function svgChart(g: Geo, spec: ChartSpec): ReactNode {
       viewBox: `0 0 ${g.box.w} ${g.box.h}`,
       role: "img",
       "aria-label": spec.title ?? `${spec.type} chart`,
-      style: { width: "100%", height: "auto", maxWidth: 640, maxHeight: CHART_MAX * 1.6, display: "block" },
+      style: { width: "100%", height: "auto", display: "block" },
     },
     ...kids,
   );
@@ -788,7 +789,7 @@ export function ChartBlock({
             <SmallBtn label="Chart" on={!table} onPress={() => setTable(false)} testID={`chart-tab-${id}`} />
           ) : null}
           <SmallBtn label="Table" on={table} onPress={() => setTable(true)} testID={`table-tab-${id}`} />
-          <SmallBtn label="Copy CSV" onPress={() => copyText(csv)} testID={`chart-csv-${id}`} />
+          <SmallBtn label="Copy as CSV" onPress={() => copyText(csv)} testID={`chart-csv-${id}`} />
         </>
       }
     >

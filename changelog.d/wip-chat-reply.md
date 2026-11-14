@@ -3,3 +3,4 @@
 - Tables, charts, diagrams and code blocks in a reply wear one frame: a quiet bar that names the block ("Table, 4 rows", "Chart, bar", "Flowchart") with its buttons always shown. Charts fill the column.
 - A question card shows each answer's consequence on the right of its row, marks the agent's pick "Recommended", and offers "Your own answer" as the last row; the Answer button appears once something is typed.
 - A failed reply says "Try again" and no longer prints the engine exit code on the card (it stays under Details).
+- Charts fill the frame's width and both bars say "Copy as CSV". A drawn diagram no longer sits on a white canvas in the dark skin and uses the app's sans text.
