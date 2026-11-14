@@ -5,6 +5,7 @@
 // A turn shows the index (name and one line) and load_skill returns the full text. Reads run as the asker, so the agent folder is only read when the asker may see it.
 // Two skills with one name are both listed: the nearer one is used and says what it wins over, the other says what it loses to. A row that cannot be read is listed as broken and left out of
 // every turn; the rest of the list still answers. A Kit never replaces a skill it did not install, and undoing a Kit removes only its own.
+import { skillTextFor } from "../../../lib/connect-switch.ts";
 import { sha256b64 } from "../../../kernel/src/seal/wire.ts";
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { parseSkill, SKILL_MAX_BYTES } from "../../../lib/skill-md.ts";
@@ -92,7 +93,7 @@ function readBuiltins(root: URL): Found[] {
     const dir = new URL(`${d.name}/`, root);
     let text: string;
     try {
-      text = readFileSync(new URL("SKILL.md", dir), "utf8");
+      text = skillTextFor(d.name, readFileSync(new URL("SKILL.md", dir), "utf8"));
     } catch {
       continue;
     }

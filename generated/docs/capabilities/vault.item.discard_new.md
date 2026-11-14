@@ -17,7 +17,7 @@ Take back a key you saved a moment ago that could not be connected: erased for g
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/vault/item/discard_new |
-| MCP tool | vault_item_discard_new (vault) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 
@@ -39,6 +39,7 @@ type Out = {
 
 ## Errors
 
+- internal.not_implemented
 - internal.unexpected
 - permission.above_clearance
 - permission.no_grant

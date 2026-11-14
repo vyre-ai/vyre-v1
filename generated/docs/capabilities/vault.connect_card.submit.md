@@ -82,6 +82,7 @@ type Out = {
 
 ## Errors
 
+- internal.not_implemented
 - internal.unexpected
 - permission.above_clearance
 - permission.no_grant

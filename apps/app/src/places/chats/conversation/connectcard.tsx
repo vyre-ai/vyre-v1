@@ -22,15 +22,24 @@ export const WORK_DELAY_MS = 300;
 /** After a good answer each step ticks in turn, so the three words read as three things done. */
 export const TICK_MS = 140;
 
+/** Did the server refuse because connecting a service this way is off? (internal.not_implemented, its one plain message) */
+export const isOff = (e: unknown): boolean => {
+  const x = e as { code?: unknown; message?: unknown } | null;
+  return x?.code === "internal.not_implemented" || x?.message === "Connecting a service this way is not available yet.";
+};
+
 export function ConnectCardLive({
   requestId,
   agent,
   data,
+  onOff,
 }: {
   requestId: string;
   /** The agent's name, for "Dex will use it for you." */
   agent: string;
   data: Data;
+  /** The server says connecting this way is off (VYRE_CONNECT_CARD, lib/connect-switch.ts): the caller draws the plain key request card instead. */
+  onOff?: () => void;
 }): ReactElement | null {
   const [card, setCard] = useState<ConnectCardData | null | undefined>(undefined);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -56,10 +65,11 @@ export function ConnectCardLive({
     try {
       const got = cardOf(await data.call("vault.connect_card.get", { requestId }));
       if (live.current) setCard(got);
-    } catch {
+    } catch (e) {
+      if (isOff(e)) onOff?.();
       if (live.current) setCard((cur) => (cur === undefined ? null : cur));
     }
-  }, [data, requestId]);
+  }, [data, requestId, onOff]);
   useEffect(() => {
     void load();
   }, [load]);

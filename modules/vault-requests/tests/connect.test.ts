@@ -6,6 +6,9 @@ import { handlers } from "../impl.ts";
 import { world } from "../fixtures/world.ts";
 import type { World } from "../fixtures/world.ts";
 
+// the connect card is off by default (lib/connect-switch.ts); this file tests it, so it turns it on for itself
+process.env["VYRE_CONNECT_CARD"] = "1";
+
 const KEY = "fk_live_TYPED_KEY_0001";
 const FATHOM = {
   fathom: {
