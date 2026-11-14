@@ -5765,9 +5765,6 @@
   "vault_item_delete": {
     "itemId": "vit_a1b2c3"
   },
-  "vault_item_discard_new": {
-    "itemId": "vit_a1b2c3"
-  },
   "vault_item_get": {
     "itemId": "vit_a1b2c3"
   },

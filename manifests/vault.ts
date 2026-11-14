@@ -518,8 +518,10 @@ export default defineManifest({
         on: ["vault_item", "/itemId"],
         level: "manage",
         audit: "always",
-        tool: "vault",
+        // never an agent tool: a general erase has no place in an agent's list (review r-keyreach-9-b-connect, item C2); the connect card calls it
+        agent: false,
         offline: "online",
+        errors: ["internal.not_implemented"],
       },
     ),
     write("vault.item.restore", "Bring an item back from Trash", {

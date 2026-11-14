@@ -10010,12 +10010,6 @@
     },
     {
       "deferred": false,
-      "name": "vault_item_discard_new",
-      "summary": "Take back a key you saved a moment ago that could not be connected: erased for good, from the Vault and from Trash. Only your own, only within two minutes, only while nothing has used it",
-      "toolset": "vault"
-    },
-    {
-      "deferred": false,
       "name": "vault_item_get",
       "summary": "One item: metadata and field keys, never values",
       "toolset": "vault"
@@ -10101,7 +10095,7 @@
     {
       "deferred": false,
       "name": "vault_request",
-      "summary": "Ask for a missing key that is not a service (a key a skill or run needs, by name): creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status. For a service the person names, use vault_connect",
+      "summary": "Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status",
       "toolset": "vault"
     },
     {

@@ -683,6 +683,7 @@ export default defineManifest({
           ),
           near: t.opt(t.arr(t.str(), { description: "Names of the connectors that came closest, when none matched" })),
         },
+        errors: ["internal.not_implemented"],
       },
     ),
     write(
@@ -698,7 +699,7 @@ export default defineManifest({
         audit: "none",
         // the connector's call can end in a refused key; with no connection behind it nothing is marked, but the framework's path is shared with connections.test
         emits: ["connection.needs_reconnect"],
-        errors: ["validation.not_found", "validation.precondition_failed"],
+        errors: ["internal.not_implemented", "validation.not_found", "validation.precondition_failed"],
       },
     ),
     write("connections.update", "Rename a connection or change its scopes", {

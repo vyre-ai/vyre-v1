@@ -227,3 +227,41 @@ test("an admin the Space cannot name is never shown as an id: the card says an a
     restore();
   }
 });
+
+test("with connecting off on the server, a request that names a service draws the plain key request card, never the connect card", async () => {
+  const { createRoot } = await import("test-renderer");
+  const { flush, installDom, mount, textOf } = await import("../../../onboarding/test-dom.ts");
+  const restore = installDom();
+  try {
+    const h = harness({
+      "vault.connect_card.get": () => {
+        throw Object.assign(new Error("Connecting a service this way is not available yet."), {
+          code: "internal.not_implemented",
+        });
+      },
+      "vault.requests.get": () => ({
+        request: { id: "vrq_1", name: "Fathom", fields: ["api_key"], reason: "To read meetings.", state: "waiting" },
+      }),
+      "vault.requests.list": () => ({ requests: [{ id: "vrq_1" }] }),
+      "vault.connect_card.options": () => {
+        throw new Error("the connect card's reads are never made twice");
+      },
+      "vault.folders.list": () => ({ folders: [] }),
+    });
+    const root = await mount(
+      createRoot,
+      <KeyRequestCard requestId="vrq_1" agent="Dex" agentId="agt_dex" data={h.data} service="fathom" />,
+    );
+    await flush();
+    await flush();
+    const said = textOf(root);
+    assert.ok(!said.includes("Connect Fathom"), said);
+    assert.ok(
+      h.calls.some((c) => c.cap === "vault.requests.get"),
+      "the plain card read the request",
+    );
+    assert.ok(said.includes("Fathom"), said);
+  } finally {
+    restore();
+  }
+});

@@ -12,6 +12,9 @@ import { parseDefaultTools } from "../src/tools/catalog.ts";
 import { estimateTokens } from "../../lib/reply-format.ts";
 import { TELL } from "../../lib/connect-tell.ts";
 
+// the connect card is off by default (lib/connect-switch.ts); this file tests it, so it turns it on for itself
+process.env["VYRE_CONNECT_CARD"] = "1";
+
 const g = loadGenerated();
 const driver: McpCaller = {
   kind: "driver",

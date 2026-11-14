@@ -24,6 +24,9 @@ import {
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 import { bootHour, messages, say, twoMembers, waitFor as hourWait } from "./support/member-hour.ts";
 
+// the connect card is off by default (lib/connect-switch.ts); this file tests it, so it turns it on for itself
+process.env["VYRE_CONNECT_CARD"] = "1";
+
 const SECRET = "fth_card_FAKEsecretVALUE0123456789abcdef"; // secret-scan: fake
 const WHO = ["usr_olivia", "usr_adam", "usr_mia", "usr_noah"];
 const BANNED = /handle|clearance|restricted|your role|folder/i;

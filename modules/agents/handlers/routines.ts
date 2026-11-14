@@ -4,6 +4,7 @@
 //   suggestions.list / suggestion.propose / .accept / .dismiss   changes to AGENT.md as diffs; accepted ones are applied through files.save as a version; ones that widen access need an admin
 //   template.get / .preview / .apply                the Agent template: add, never remove, never overwrite; changed files become suggestions; try one agent first
 //   guide.get / builtin_skills.list                 Vyre's own text, rewritten by app updates
+import { skillTextFor } from "../../../lib/connect-switch.ts";
 import { readFileSync } from "node:fs";
 import { forgetSelfPause, isSelfPaused, noteRun } from "../routine-guard.ts";
 import { cannotUse } from "../../../lib/may-use.ts";
@@ -903,7 +904,10 @@ export async function builtinSkillGet(ctx: AgentsCtx, input: { name: string }) {
     raise(ctx, "validation.not_found", "There is no such built-in skill.", { name: input.name });
   let text: string;
   try {
-    text = readFileSync(new URL(`../../../agent/skills/${input.name}/SKILL.md`, import.meta.url), "utf8");
+    text = skillTextFor(
+      input.name,
+      readFileSync(new URL(`../../../agent/skills/${input.name}/SKILL.md`, import.meta.url), "utf8"),
+    );
   } catch {
     raise(ctx, "validation.not_found", "There is no such built-in skill.", { name: input.name });
   }

@@ -3,7 +3,7 @@
 // and the connector framework (init, build, test, publish, diff, versions, rollback, export, remove, list, health).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CODE_BUILTINS } from "../../../lib/builtin-connectors.ts";
+import { activeCodeBuiltins } from "../../../lib/builtin-connectors.ts";
 import { readFileSync } from "node:fs";
 import { ACME } from "../fixtures/acme.ts";
 import { NOW, kit } from "../fixtures/kit.ts";
@@ -371,8 +371,12 @@ test("list and get: built-in connectors come from the generator's registry", asy
     connectors: { key: string; title: string; domains: string[]; actions: string[]; sources?: { key: string }[] }[];
   };
   const all = await k.hs["connectors.list"](k.ctx, {});
-  const keys = [...reg.connectors.map((c) => c.key), ...CODE_BUILTINS.map((c) => c.key)].sort();
-  assert.equal(all.total, keys.length, "the registry's connectors and the ones built in as code");
+  const keys = [...reg.connectors.map((c) => c.key), ...activeCodeBuiltins().map((c) => c.key)].sort();
+  assert.equal(
+    all.total,
+    keys.length,
+    "the registry's connectors, and the ones built in as code only when the connect card is on",
+  );
   assert.deepEqual(all.connectors.map((c) => c.key).sort(), keys);
   const stripe = (await k.hs["connectors.get"](k.ctx, { key: "stripe" })).connector;
   const want = reg.connectors.find((c) => c.key === "stripe")!;
