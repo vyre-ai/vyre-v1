@@ -237,7 +237,7 @@ Signed: pending the lead (lane b-pc did not sign it).
 
 ## 14 Nov 2026: engine.round.get added (lane chat-agents)
 
-- What changed: one new read, `engine.round.get@1` (input: threadId, up to 50 messageIds; output: per message, each agent asked with its state working, waiting (with the agent in front), replied or stopped). Read from the engine's queue, never stored. Thread scope like `engine.live_turns`: only people who may read the chat reach it. Snapshot: docs/frozen/snapshots/engine.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+- What changed: one new read, `engine.round.get@1` (input: threadId, up to 50 messageIds; output: per message, each agent asked with its state working, waiting behind an earlier turn of its own, replied or stopped). Read from the engine's queue, never stored. Thread scope like `engine.live_turns`: only people who may read the chat reach it. Snapshot: docs/frozen/snapshots/engine.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
 - Why: the row under a message that asked more than one agent (who is working, who waits on whom) needs one read that survives a restart; the prototype's round row and the Threads tab (G56, G61) draw from it.
 
 ## 14 Nov 2026: chat.round.decide added (lane chat-agents)
@@ -279,3 +279,11 @@ All additive: every new input is optional, no input, output or error was removed
 - A page republish that never settles holds that page's claim until the process ends (it is not bounded by a timeout), and an unversioned republish racing a versioned one is not protected, as before.
 - Tokens: none. These seven version inputs are hidden from the model's tool schema (the tool layer fills them; a value a model sends for one is dropped); they stay in the capability contract for people's clients.
 - Signed: ______ (lead)
+
+## 14 Nov 2026: the outcome line says whose words it is (lane chat-agents, review)
+
+- `chat.round.decide` now also declares `emits: ["message.edited"]` (it edits its one line when the other agent is chosen, and an open chat must see that). No input or output changed. The discussion outcome, edited in place by the consumer `chat.discussion_outcome`, reads "Agents decided: ..." when an agent wrote the Decided line (lead "Agents decided"), "Discussion ended" with "They did not settle it" or the four-turn words otherwise; "Decided" is only a person's own press. Both edits bump the row's version and emit `message.edited`.
+
+## 14 Nov 2026: chat.round.discuss declares the delivery events of its seed (lane chat-agents, review of c31a5c9e9)
+
+- What changed: the contract of `chat.round.discuss@1` now lists `emits: agent.engaged, message.received, message.direct, message.mentioned, thread.replied, thread.unarchived, thread.updated` (it was `agent.engaged`). No input, output, level or error changed. Why: the discussion's seed is now a quiet line written as the person in the thread under their message, delivered the way `threads.poke` delivers its line (the same seven events), so the first agent is woken by its mention and the chat's notices and counts follow. The seed is `kind quiet` with a `discussion_seed` block (drawn as "Dex and Nova are talking it over", never as the person's words), it runs on the asker's own account and asks for nothing outward (it is not typed). Snapshot: docs/frozen/snapshots/chat.json.
