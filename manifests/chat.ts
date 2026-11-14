@@ -1114,6 +1114,22 @@ export default defineManifest({
       },
     ),
     write(
+      "chat.round.decide",
+      "Go with one agent's answer after a message asked several: one quiet line, \"Decided: going with Nova's answer\", in the chat. Only the person who asked, only for an agent that answered; no agent is woken by it",
+      {
+        in: { ...threadT, messageId: id.message, agentId: id.agent },
+        out: { messageId: id.message },
+        on: ["thread", "/threadId"],
+        level: "use",
+        idem: "key",
+        tool: "chats",
+        offline: "online",
+        risk: "low",
+        agent: { planMode: "blocked" },
+        errors: ["validation.bad_input", "validation.not_found"],
+      },
+    ),
+    write(
       "chat.share",
       "Share a message to another chat (a channel or a person): a card there carries it, and a card here says where it went; both open the other chat. You must be able to write in the chat it goes to",
       {

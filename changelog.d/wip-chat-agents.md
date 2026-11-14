@@ -1,3 +1,4 @@
 - Tag two agents in one message ("@Dex @Nova") and each answers on its own. Before, the chat's lead could also answer the other agent's reply, so one tag could set off an extra turn.
 - A chat can now ask who is on a message that asked more than one agent: each agent working, waiting on another, replied or stopped (a new read, engine.round.get). It reads the engine's own queue, so nothing stays stuck after a restart. The row under a message in the chat will draw from it.
 - Tag two or more agents, or say "both of you", and a slim row under your message shows each agent and what it is doing within a second ("Dex  Working", "Nova  Next after Dex"), so a tagged agent that waits its turn no longer looks ignored. The row folds away when every agent has replied.
+- After a message asked several agents and each answered, "Go with Nova" leaves one quiet line in the chat, "Decided: going with Nova's answer" (a new write, chat.round.decide). No agent is woken by it.

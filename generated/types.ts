@@ -7976,6 +7976,15 @@ export type ChatReplyDetailsOut = {
       }>;
   };
 };
+export type ChatRoundDecideIn = {
+  threadId: string;
+  messageId: string;
+  agentId: string;
+  idempotencyKey: string;
+};
+export type ChatRoundDecideOut = {
+  messageId: string;
+};
 export type ChatScreenGetIn = {
   threadId: string;
   messageId?: string;
@@ -45351,6 +45360,7 @@ export interface CapMap {
   "chat.recent": { in: ChatRecentIn; out: ChatRecentOut };
   "chat.remember": { in: ChatRememberIn; out: ChatRememberOut };
   "chat.reply_details": { in: ChatReplyDetailsIn; out: ChatReplyDetailsOut };
+  "chat.round.decide": { in: ChatRoundDecideIn; out: ChatRoundDecideOut };
   "chat.screen.get": { in: ChatScreenGetIn; out: ChatScreenGetOut };
   "chat.search": { in: ChatSearchIn; out: ChatSearchOut };
   "chat.share": { in: ChatShareIn; out: ChatShareOut };
