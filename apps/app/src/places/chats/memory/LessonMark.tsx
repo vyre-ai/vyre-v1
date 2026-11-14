@@ -89,7 +89,7 @@ export function LessonMark({
         accessibilityState={{ expanded: at !== null }}
         testID={`lesson-mark-${id}`}
         onPress={(e) => (at ? close() : open((e as unknown as { currentTarget: unknown }).currentTarget))}
-        {...webProps({ title: label })}
+        {...webProps({ dataSet: { tt: label } })}
         style={({ hovered }: { hovered?: boolean }) => [
           st.mark,
           hovered === true && st.markOver,

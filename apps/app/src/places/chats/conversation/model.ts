@@ -97,6 +97,12 @@ export function clockParts(ts: number, c: Clock): { hour: number; minute: number
   return { hour: d.getUTCHours(), minute: d.getUTCMinutes() };
 }
 
+/** The weekday of a moment in the clock the chat reads in, short: "Wed". Works for a moment ahead as well as behind. */
+export function weekdayShort(ts: number, c: Clock): string {
+  const dow = c.zones ? partsIn(ts, c.zones.space).dow : new Date(local(ts, c)).getUTCDay();
+  return (WEEKDAYS[dow] ?? "").slice(0, 3);
+}
+
 /** A time of day the way a person says it: "10:28 PM". One format in every chat (owner, 7 Nov 2026). */
 export function timeLabel(ts: number, c: Clock): string {
   const { hour, minute } = clockParts(ts, c);
