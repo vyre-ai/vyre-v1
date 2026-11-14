@@ -64,20 +64,11 @@ test("someone else's message: the short list in sentence case, and More only whe
   for (const l of shape(msg(), false).split(",")) assert.ok(l === "|" || !/\b[A-Z][a-z]+ [A-Z][a-z]+/.test(l), l);
 });
 
-test("an agent's reply ends in Details, after the eight; Rewind to here is drawn only where the chat can rewind", () => {
+test("an agent's reply ends in Details, after the eight; nothing in the menu names Rewind (it is not built on this line)", () => {
   assert.equal(
     shape(agentMsg(), false, { ...(acts as object), details: { open: () => calls.push("details") } } as never),
     "Copy,Reply in thread,Make a task,Share to\u2026,Fork from here,Pin,Add reaction,|,Details",
   );
-  const rw = { ...(acts as object), rewind: (id: string) => calls.push(`rewind:${id}`) } as unknown as MessageActions;
-  assert.ok(shape(msg(), false, rw).includes("Fork from here,Rewind to here,Pin"));
-  calls.length = 0;
-  (
-    menuFor(msg(), false, rw, () => undefined).find((e) => "label" in e && e.label === "Rewind to here") as {
-      onSelect(): void;
-    }
-  ).onSelect();
-  assert.deepEqual(calls, ["rewind:m1"]);
   assert.ok(!shape(msg(), false).includes("Rewind"));
 });
 

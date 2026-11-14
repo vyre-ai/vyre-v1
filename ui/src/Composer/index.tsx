@@ -798,6 +798,8 @@ export interface ComposerProps extends ComposerShellProps {
   openPanelAt?: number;
   /** The place asked for the mic (/voice): the same press the mic button takes, once per ask. */
   talkAt?: number;
+  /** /voice was asked and there is no microphone (the shell gave none, or Talk is off): the place says so. */
+  onTalkUnavailable?: () => void;
   /** Where the chat runs, when it is not this computer: "On Northwind" in the pill. */
   runsChip?: string;
   /** The chat's mode; with onMode the chip shows and Shift+Tab cycles it. */
@@ -1289,6 +1291,7 @@ export function Composer(props: ComposerProps): ReactElement {
     if (n <= talkAsked.current) return;
     talkAsked.current = n;
     if (talk.port?.on === true) talk.tapped();
+    else props.onTalkUnavailable?.();
   }, [props.talkAt]);
 
   const submit = useCallback(

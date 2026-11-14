@@ -1,7 +1,7 @@
-// The chat header's "..." (G4, prototype c-render.js popup "menu"): a short list in sentence case. An agent chat reads Plan first, Fork, Rewind, Find in this chat, Kept, Export, Archive,
+// The chat header's "..." (G4, prototype c-render.js popup "menu"): a short list in sentence case. An agent chat reads Plan first, Fork, Find in this chat, Kept, Export, Archive,
 // and Stop everyone while it works; a chat with one other person reads Find, Kept, Export, Mute, Archive. The chat's own housekeeping (Rename, Star, Mute, Add people, Copy link, Delete)
 // lives where the prototype keeps it: the title renames, the sidebar row menu (menus/chat.ts) stars, mutes, copies the link and deletes, and the plus menu in the composer adds people.
-// Pure: facts in, what each item does in, entries out. An entry whose action the caller cannot do yet (Rewind, Kept) is left out, never drawn dead.
+// Pure: facts in, what each item does in, entries out. An entry whose action the caller cannot do yet (Kept) is left out, never drawn dead.
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { item, sep, tidy } from "../menus/shared.ts";
 
@@ -21,8 +21,6 @@ export interface HeaderMenuFacts {
 export interface HeaderMenuDo {
   plan(): void;
   fork(): void;
-  /** Left out until the chat can rewind (a restore point per turn). */
-  rewind?: (() => void) | undefined;
   find(): void;
   /** Left out until the pane has its Kept tab. */
   kept?: (() => void) | undefined;
@@ -41,7 +39,6 @@ export function chatHeaderEntries(f: HeaderMenuFacts, d: HeaderMenuDo): MenuEntr
   return tidy([
     f.withAgent ? item("Plan first", d.plan, { checked: f.planOn }) : null,
     f.withAgent ? item("Fork", d.fork) : null,
-    f.withAgent && d.rewind ? item("Rewind", d.rewind) : null,
     item("Find in this chat", d.find, { hint: "\u2318F" }),
     d.kept ? item("Kept", d.kept) : null,
     sep,

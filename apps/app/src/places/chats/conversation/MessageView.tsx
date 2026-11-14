@@ -183,8 +183,6 @@ export interface MessageActions {
   memoryEntries?: (m: MenuMessage, x: number, y: number, show: ShowMenu) => MenuEntry[];
   /** Branch the chat into a new one at this message. */
   fork?(messageId: string): void;
-  /** Go back to this message, files too ("Rewind to here"). Left out until the chat can rewind. */
-  rewind?(messageId: string): void;
   /** Make a task from this message, linked back to it. */
   makeTask?(messageId: string): void;
   /** Ask an agent to answer this message, as if it had been named (owner ruling, 3 Nov 2026): opens the channel's agent picker where you pressed. Left out where no agent can be asked. */
@@ -453,8 +451,6 @@ export function menuFor(
   if (a.makeTask && talk) first.push({ label: "Make a task", onSelect: () => a.makeTask!(m.messageId) });
   if (a.share && talk) first.push({ label: "Share to\u2026", onSelect: () => a.share!(m.messageId, at.x, at.y) });
   if (a.fork && talk) first.push({ label: "Fork from here", onSelect: () => a.fork!(m.messageId) });
-  if (a.rewind && talk && !m.messageId.startsWith("pending:"))
-    first.push({ label: "Rewind to here", onSelect: () => a.rewind!(m.messageId) });
   first.push(
     { label: m.pinned ? "Unpin" : "Pin", onSelect: () => a.setPinned(m.messageId, !m.pinned) },
     {
@@ -532,8 +528,6 @@ export function HoverBar({
   } else if (mine && a.humanChat !== true) {
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
     if (m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
-    if (a.rewind && talk && !m.messageId.startsWith("pending:"))
-      bar.push({ icon: "back", label: "Rewind to here", run: () => a.rewind!(m.messageId) });
   } else {
     if (a.pickReaction && talk)
       bar.push({ icon: "smile", label: "Add reaction", run: (x, y) => a.pickReaction!(m.messageId, x, y) });

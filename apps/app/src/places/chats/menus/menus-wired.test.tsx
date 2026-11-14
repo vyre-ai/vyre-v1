@@ -75,19 +75,9 @@ test("the chat header menu is short and in sentence case: an agent chat reads Pl
   const working = chatHeaderEntries({ ...facts, working: true }, d);
   assert.deepEqual(labels(working).slice(-2), ["Archive", "Stop everyone"]);
   assert.equal(rows(working).at(-1)!.danger, true);
-  // Rewind and Kept are drawn only where the chat can do them
-  const more = chatHeaderEntries(facts, { ...d, rewind: () => calls.push("rewind"), kept: () => calls.push("kept") });
-  assert.deepEqual(labels(more), [
-    "Plan first",
-    "Fork",
-    "Rewind",
-    "Find in this chat",
-    "Kept",
-    "-",
-    "Export",
-    "-",
-    "Archive",
-  ]);
+  // Kept is drawn only where the chat can do it; nothing names Rewind (not built on this line)
+  const more = chatHeaderEntries(facts, { ...d, kept: () => calls.push("kept") });
+  assert.deepEqual(labels(more), ["Plan first", "Fork", "Find in this chat", "Kept", "-", "Export", "-", "Archive"]);
   // a chat with one other person: Find, Export, Mute, Archive; no Plan first, no Fork, nothing about an agent
   const dm = chatHeaderEntries({ ...facts, withAgent: false, withPeople: true }, d);
   assert.deepEqual(labels(dm), ["Find in this chat", "-", "Export", "-", "Mute", "Archive"]);

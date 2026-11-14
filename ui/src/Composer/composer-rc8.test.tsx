@@ -966,3 +966,23 @@ test("the plus opens a menu: Photo, File, Record, Link, Add people and agents, t
     assert.deepEqual(calls, ["people", "memory"]);
   });
 });
+
+test("/voice asks the composer for its mic: with a mic it starts, with none it says so once (never nothing)", async () => {
+  await withDom(async () => {
+    const said: string[] = [];
+    let setAt: (n: number) => void = () => undefined;
+    const Wrap = (): ReactElement => {
+      const [n, set] = useState(0);
+      setAt = set;
+      return <Composer whoWillAnswer="" talkAt={n} onTalkUnavailable={() => said.push("no mic")} />;
+    };
+    await mount(createRoot, <Wrap />);
+    assert.deepEqual(said, [], "nothing asked yet");
+    setAt(1);
+    await flush();
+    assert.deepEqual(said, ["no mic"], "no port in the tree: the place is told");
+    setAt(2);
+    await flush();
+    assert.deepEqual(said, ["no mic", "no mic"]);
+  });
+});

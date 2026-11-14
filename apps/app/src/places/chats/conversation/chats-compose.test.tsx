@@ -1474,3 +1474,10 @@ test("/voice starts the mic; /agents, /memory, /skills and /hooks are not offere
   await runSlash("/skills", dm);
   assert.match(r.said.at(-1) ?? "", /is for a chat with an agent/);
 });
+
+test("every command in the list has a handler and nothing is listed that does not run: no /rewind, no /jobs, /bg, /loop, /resume, /diff, /mcp, /plugins (they come with the lanes that build them)", () => {
+  const ids = CHAT_COMMANDS.map((c) => c.id);
+  for (const gone of ["rewind", "jobs", "bg", "loop", "resume", "diff", "mcp", "plugins"])
+    assert.ok(!ids.includes(gone), gone);
+  assert.deepEqual(unclassified(), [], "every listed command has a kind, and the sweep above runs each");
+});

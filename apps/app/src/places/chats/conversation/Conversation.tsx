@@ -2278,6 +2278,7 @@ function ConversationView(): ReactElement {
               preview={(item) => previewOf(data, item)}
               openPanelAt={panelAt}
               talkAt={talkAt}
+              onTalkUnavailable={() => say("Talking needs a microphone, and this view has none")}
               renderPanel={(agent, close, narrowPanel) => (
                 <ChatBrain
                   data={data}
