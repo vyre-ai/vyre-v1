@@ -1,5 +1,5 @@
 // The quiet lesson mark on a message's meta row and the small list it opens (owner, 14 Nov 2026): one lesson per line cut with an ellipsis, a press on the words shows all of it, See opens Knows,
-// Remove forgets it (Undo on the flash line), Escape and a press outside close it. Pressed for real in a rendered tree.
+// Remove forgets it (Undo on its row), Escape and a press outside close it. Pressed for real in a rendered tree.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
@@ -54,7 +54,7 @@ test("the mark says how many lessons, holds none of their words, and a press ope
   }
 });
 
-test("a line is cut to one row and a press on its words shows all of it; See opens Knows; Remove forgets it and the flash has Undo", async () => {
+test("a line is cut to two rows and a press on its words shows all of it; See opens Knows; Remove turns the row into 'Removed. Undo' and Undo puts it back", async () => {
   const off = installDom();
   try {
     const { s, knows, memory, lessons } = setup();
@@ -69,7 +69,7 @@ test("a line is cut to one row and a press on its words shows all of it; See ope
     await flush();
     const words = (): Node | null => find(root, `lesson-text-${LESSON_IDS.sara}`);
     const says = (): string => String(words()!.props["aria-label"]);
-    assert.match(says(), /Show all of it\.?$/, "cut to one row until pressed");
+    assert.match(says(), /Show all of it\.?$/, "cut to two rows until pressed");
     await press(words()!);
     await flush();
     assert.match(says(), /Show less\.?$/, "the whole lesson shows");
@@ -85,7 +85,20 @@ test("a line is cut to one row and a press on its words shows all of it; See ope
       s.calls.filter((c) => c.cap === "memory.forget").map((c) => c.input),
       [{ factIds: [LESSON_IDS.dollars] }],
     );
-    assert.equal(find(root, "lesson-list-m1"), null, "Remove closes the list");
+    assert.ok(find(root, "lesson-list-m1"), "Remove leaves the list open");
+    assert.ok(find(root, `lesson-removed-${LESSON_IDS.dollars}`), "the row says it was removed");
+    assert.equal(find(root, `lesson-remove-${LESSON_IDS.dollars}`), null);
+    assert.ok(find(root, `lesson-row-${LESSON_IDS.sara}`), "the other lesson is untouched");
+    await flush();
+    await flush();
+    await press(find(root, `lesson-undo-${LESSON_IDS.dollars}`)!);
+    await flush();
+    assert.deepEqual(
+      s.calls.filter((c) => c.cap === "memory.restore").map((c) => c.input),
+      [{ factId: LESSON_IDS.dollars }],
+      "Undo puts it back",
+    );
+    assert.ok(find(root, `lesson-remove-${LESSON_IDS.dollars}`), "and the row is a lesson again");
   } finally {
     off();
   }

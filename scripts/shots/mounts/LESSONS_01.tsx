@@ -24,7 +24,7 @@ const L2 = "fct_les_first";
 const LESSONS = [
   {
     factId: L1,
-    text: "Make it interactive and really good to look at and understand. Less text heavy and more interactive.",
+    text: "Make it interactive and really good to look at and understand. Less text heavy and more interactive, and it should just look and feel awesome.",
     learnedAt: T(8, 0),
     sourceLink: `/chats/${KNOW_THREAD}#msg_L_p1`,
   },
@@ -109,20 +109,23 @@ function Chat({ part }: { part: string }): ReactNode {
       if (cap === "memory.used" && i.messageId === "msg_L_a0")
         return { messageId: i.messageId, at: T(9, 0), facts: LESSONS, quotes: [] };
       if (cap === "memory.used") return { messageId: i.messageId, facts: [], quotes: [] };
-      // the first message of the chat taught a lesson, the one after it another
+      // only the "fresh" chat taught a lesson: a correction ("Show me your draft text here first"), on its last message
       if (cap === "memory.learned")
         return {
-          items: LESSONS.slice(part === "fresh" ? 1 : 0).map((f) => ({
-            fact: f,
-            at: f.learnedAt,
-            what: "learned",
-            actor: ASSISTANT,
-            actorKind: "agent",
-            sourceKind: "chat",
-            sourceRef: KNOW_THREAD,
-            undone: false,
-          })),
-          total: 2,
+          items:
+            part === "fresh"
+              ? [LESSONS[1]!].map((f) => ({
+                  fact: { ...f, sourceLink: `/chats/${KNOW_THREAD}#msg_L_p0` },
+                  at: f.learnedAt,
+                  what: "learned",
+                  actor: ASSISTANT,
+                  actorKind: "agent",
+                  sourceKind: "chat",
+                  sourceRef: KNOW_THREAD,
+                  undone: false,
+                }))
+              : [],
+          total: part === "fresh" ? 1 : 0,
         };
       return s.memory.store.call(cap, input);
     };

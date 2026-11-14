@@ -1,4 +1,4 @@
-// Learn from every correction, in the chat (owner approval 3 Nov 2026): the quiet "Learned a lesson" line under the message that taught one (Undo, See), the quiet mark on the meta row of the reply that
+// Learn from every correction, in the chat (owner approval 3 Nov 2026): the quiet "Learned: <lesson>" line under the message that taught one (Undo, See), shown once, the quiet mark on the meta row of the reply that
 // used one (no lesson's words are printed in the column, owner 14 Nov 2026), the lesson list in the Knows tab (Edit, Where it came from, Share with the Space, Make it an instruction, Forget, and the switch), and the writes behind each. Rendered from the Brooks
 // weekly update sample with the Assistant's lessons added; every write goes through the store and the next read shows it.
 import test from "node:test";
@@ -97,24 +97,20 @@ test("the pure rules: a lesson is a fact of kind lesson, its message is the line
     assert.ok(!/—|§/.test(t), t);
 });
 
-test("the message that taught a lesson has one quiet line 'Learned a lesson · Undo · See', and none of the lesson's words", async () => {
+test("the message that taught a lesson has one quiet line 'Learned: <the lesson, one line> · Undo · See', and no bulb", async () => {
   const s = await withWarm();
   const out = chat(s);
   assert.ok(has(out, `data-testid="learned-line-${LESSON_IDS.sara}"`));
   for (const needle of [
-    "Learned a lesson",
+    "Learned:",
+    "Notes to Sara: three lines, the number first.",
     `data-testid="learned-undo-${LESSON_IDS.sara}"`,
     `data-testid="learned-see-${LESSON_IDS.sara}"`,
   ])
     assert.ok(has(out, needle), needle);
-  // only what a sighted person reads: a button's spoken label may name the lesson, the line itself does not
-  assert.ok(
-    !visible(out).includes("Notes to Sara: three lines, the number first."),
-    "the lesson's words open on See, not in the chat",
-  );
   for (const gone of ["Only you", `learned-scope-${LESSON_IDS.sara}`, `learned-when-${LESSON_IDS.sara}`])
     assert.ok(!has(out, gone), `${gone} is not on the line`);
-  assert.ok(!has(out, `Learned: Notes to Sara`), "the line does not say what was learned");
+  assert.ok(!has(out, "Learned a lesson"), "the line says what was learned, not just that something was");
   assert.ok(
     !has(out, `data-testid="learned-edit-btn-${LESSON_IDS.sara}"`),
     "a lesson is edited in Knows, so the line says See",
@@ -171,14 +167,23 @@ test("the whole conversation prints no lesson words and no 'Used a lesson' line,
   const s = await withWarm();
   const out = chat(s);
   assert.ok(!has(out, "Used a lesson: ") && !has(out, "mused-lesson-"));
-  assert.ok(!visible(out).includes("Notes to Sara: three lines, the number first."), "no lesson words in the column");
+  // the words are printed once: on the one-line "Learned:" of the message that taught it, and under no reply
+  assert.equal(
+    visible(out).split("Notes to Sara: three lines, the number first.").length - 1,
+    1,
+    "the lesson is in the column once, on its Learned line",
+  );
+  assert.ok(
+    !visible(out).includes("Round money in notes to whole dollars."),
+    "a lesson a reply kept in mind is not printed",
+  );
   assert.ok(
     has(out, `data-testid="lesson-mark-${MESSAGE_IDS.reply}"`),
     "the reply that used a lesson carries the mark",
   );
 });
 
-test("a message that taught a lesson: the line while no reply has come, the mark on its row once one has", async () => {
+test("a message that taught a lesson: the line while no reply has come, nothing once one has", async () => {
   const s = await withWarm();
   const html = (settled: boolean): string =>
     clean(
@@ -191,12 +196,11 @@ test("a message that taught a lesson: the line while no reply has come, the mark
   // the thread's read of what was learned lands once the provider has mounted
   await s.warm(KNOWS_READS());
   const fresh = html(false);
-  assert.ok(has(fresh, `data-testid="learned-line-${LESSON_IDS.sara}"`) && has(fresh, "Learned a lesson"));
-  assert.ok(!has(fresh, `data-testid="lesson-mark-${MESSAGE_IDS.held}"`));
+  assert.ok(has(fresh, `data-testid="learned-line-${LESSON_IDS.sara}"`) && has(fresh, "Learned:"));
+  assert.ok(!has(fresh, `data-testid="lesson-mark-`), "no bulb: that glyph means Kept in mind");
   const folded = html(true);
-  assert.ok(!has(folded, `data-testid="learned-line-${LESSON_IDS.sara}"`), "the line folds away");
-  assert.ok(has(folded, `data-testid="lesson-mark-${MESSAGE_IDS.held}"`), "into the mark of the message's row");
-  assert.ok(!visible(folded).includes("Notes to Sara"), "the mark holds no words of the lesson");
+  assert.ok(!has(folded, `data-testid="learned-line-${LESSON_IDS.sara}"`), "shown once: gone after the next reply");
+  assert.ok(!has(folded, `data-testid="lesson-mark-`), "and not turned into a second mark");
 });
 
 test("Knows: the lessons the agent kept, each with how it was caught, when, how often it was used and who may read it, and the switch", async () => {
