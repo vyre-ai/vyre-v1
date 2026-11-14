@@ -9,12 +9,14 @@ import { helpersStatus } from "./helpers.ts";
 import { jobOut } from "./crew.ts";
 import { liveTurns } from "./bridge.ts";
 import { agentDisplay } from "../agent-names.ts";
+import { listOwn } from "../own-subagents.ts";
 
 type Row = Record<string, unknown>;
 const num = (v: unknown): number => Number(v ?? 0);
 export type MemberState = "working" | "done" | "needs_you" | "failed" | "stopped";
 export interface Member {
-  kind: "helper" | "teammate";
+  /** A subagent is one the engine started inside its own turn (own-subagents.ts): it has no chat of its own, so it has an id of its own too. */
+  kind: "helper" | "teammate" | "subagent";
   id: string;
   parentThreadId: string;
   title: string;
@@ -22,7 +24,11 @@ export interface Member {
   agentId: string;
   state: MemberState;
   step?: string;
+  /** The last few things a subagent did, in plain words. */
+  steps?: string[];
   found?: string;
+  /** What a subagent returned, in full (cut). */
+  answer?: string;
   startedAt: number;
   endedAt?: number;
   elapsedMs: number;
@@ -144,7 +150,35 @@ export async function crewStatus(ctx: EngineCtx, input: { threadId: string }) {
       costMicros: turns.reduce((n, t) => n + num(t["cost_micros"]), 0),
     });
   }
+  // the subagents a command-line engine started in its own turns: one row each, read as the helpers are
+  const liveIds = new Set(
+    (
+      await liveTurns(ctx, { threadId: input.threadId }).catch(() => ({ turns: [] as Array<{ turnId: string }> }))
+    ).turns.map((t) => t.turnId),
+  );
+  for (const x of listOwn(ctx.db, input.threadId, liveIds)) {
+    const end = x.endedAt;
+    members.push({
+      kind: "subagent",
+      id: `sub_${x.callId.replace(/[^A-Za-z0-9]/g, "")}`,
+      parentThreadId: input.threadId,
+      title: x.title === "" ? "Helper" : x.title,
+      agentId: x.agentId,
+      state:
+        x.state === "working" ? "working" : x.state === "done" ? "done" : x.state === "failed" ? "failed" : "stopped",
+      ...(x.step ? { step: x.step } : {}),
+      ...(x.steps.length > 0 ? { steps: x.steps } : {}),
+      ...(x.found ? { found: oneLine(x.found), answer: x.found } : {}),
+      startedAt: x.startedAt,
+      ...(end !== undefined ? { endedAt: end } : {}),
+      elapsedMs: Math.max(0, (end ?? now) - x.startedAt),
+      tokensIn: 0,
+      tokensOut: 0,
+      costMicros: 0,
+    });
+  }
   for (const m of members) {
+    if (m.kind === "subagent") continue;
     const t = testsOf(ctx.db, m.id);
     if (t) m.tests = t;
   }

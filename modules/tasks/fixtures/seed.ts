@@ -18,6 +18,7 @@ export interface Caller {
   kind?: "person" | "agent" | "actor" | "service";
   actingFor?: string;
   device?: string;
+  thread?: string;
 }
 export const as = (a: Assignee, extra: Partial<Caller> = {}): Caller => ({
   id: a.id,

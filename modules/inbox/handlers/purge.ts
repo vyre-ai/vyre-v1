@@ -3,6 +3,7 @@
 // DECISION: a conversation left with no items is deleted with its match task and undo rows: it holds only the sender's address and name, the words of the person the erase is about. A new message opens a new one. Erasing an item that has no entry answers `erased: false`.
 import { conversationsShowing, ensure, first, itemsOf, rowsOf, str } from "../projections.ts";
 import type { InboxCtx } from "../projections.ts";
+import { noteErased } from "../state.ts";
 import { refresh } from "./match.ts";
 
 export async function itemErase(ctx: InboxCtx, input: { refId: string; idempotencyKey: string }) {
@@ -26,12 +27,14 @@ export async function itemErase(ctx: InboxCtx, input: { refId: string; idempoten
     const conv = first(ctx.db.all(`SELECT * FROM inbox_conversation WHERE id = ?`, id));
     if (conv && itemsOf(ctx, conv).length) {
       refresh(ctx, id);
+      await noteErased(ctx, id, false);
       continue;
     }
     ctx.db.run(`DELETE FROM inbox_match_task WHERE "conversationId" = ?`, id);
     ctx.db.run(`DELETE FROM inbox_undo WHERE "sourceId" = ?`, id);
     ctx.db.run(`DELETE FROM inbox_undo WHERE "targetId" = ?`, id);
     ctx.db.run(`DELETE FROM inbox_conversation WHERE id = ?`, id);
+    await noteErased(ctx, id, true);
   }
   ctx.emit("inbox.item_erased", `entity/${input.refId}`, { refId: input.refId, removed: rows.length });
   return { erased: true };

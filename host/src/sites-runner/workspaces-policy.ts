@@ -123,8 +123,8 @@ export function workspaceBody(
       return { why: `a workspace container may not carry the label ${k}` };
   if (name !== `vyre-ws-${agent}`) return { why: "a workspace container is named vyre-ws-<its agent>" };
   if (!isWorkspaceImage(String(body["Image"] ?? ""))) return { why: "a workspace runs the agent workspace image" };
-  if (body["Hostname"] !== undefined && body["Hostname"] !== name)
-    return { why: "a workspace's hostname is its container name" };
+  if (body["Hostname"] !== undefined && body["Hostname"] !== name && body["Hostname"] !== "workspace")
+    return { why: "a workspace's hostname is the word workspace (or, from an older server, its container name)" };
   if (body["User"] !== "10001:10001") return { why: "a workspace runs as 10001:10001" };
   const cmd = Array.isArray(body["Cmd"]) ? (body["Cmd"] as unknown[]) : [];
   if (cmd.length > 0 && !(cmd.length === 2 && cmd[0] === "sleep" && cmd[1] === "infinity"))

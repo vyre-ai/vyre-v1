@@ -193,7 +193,8 @@ export function computerContainerConfig(
   const files = o.runner ? null : (o.filesRoot?.(agentId) ?? null);
   return {
     Image: o.image ?? DEFAULT_COMPUTER_IMAGE,
-    Hostname: name,
+    // what a person reads in the shell prompt: a word, never the container name, which carries the agent's id (F33)
+    Hostname: "computer",
     User: "",
     WorkingDir: "/home/agent",
     Cmd: [...(o.cmd ?? [])],

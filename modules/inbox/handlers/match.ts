@@ -8,6 +8,7 @@
 // DECISION: the Needs you task is assigned to the person route_owner names, else to the admin role; closing it when the sender is matched is the task module's job.
 import {
   conversationsShowing,
+  holderOf,
   itemsOf,
   newId,
   bad,
@@ -36,6 +37,17 @@ import {
   codeOf,
 } from "../projections.ts";
 import type { Channel, ConversationRow, InboxCtx, Json, RecordLite, Row } from "../projections.ts";
+import {
+  maxPos,
+  nextArrival,
+  noteItem,
+  noteMerge,
+  noteSplit,
+  readSeam,
+  subjectOf,
+  thingOf,
+  withUnread,
+} from "../state.ts";
 
 const REF_KIND: Record<Channel, string> = { email: "mail_message", sms: "sms", call: "call" };
 const CHUNK = 400;
@@ -224,6 +236,7 @@ async function attach(
       sourceId,
     );
     refresh(ctx, survivor);
+    await noteMerge(ctx, sourceId, survivor);
     ctx.db.run(
       `INSERT INTO inbox_undo (token, mode, "sourceId", "targetId", "recordId", snapshot, "itemIds", at, undone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       token,
@@ -365,9 +378,10 @@ async function linkPrivate(
               : [address],
         }
       : { threadId: `${input.channel}:private:${address}`, subject: "", participants: [address] };
+  const arrival = nextArrival(ctx);
   ctx.db.run(
-    `INSERT INTO inbox_item (id, "conversationId", kind, "refId", address, direction, at, "mailboxId", "numberId", "threadId", subject, preview, participants, unread)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO inbox_item (id, "conversationId", kind, "refId", address, direction, at, "mailboxId", "numberId", "threadId", subject, preview, participants, unread, arrival)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     itemId,
     id,
     input.channel,
@@ -382,8 +396,10 @@ async function linkPrivate(
     input.preview ?? given.subject,
     JSON.stringify(given.participants),
     input.direction === "in" ? 1 : 0,
+    arrival,
   );
   refresh(ctx, id);
+  await noteItem(ctx, { conversationId: id, direction: input.direction, arrival, at: input.at });
   return { conversationId: id, linked: "none" };
 }
 
@@ -503,9 +519,10 @@ export async function linkMessage(
       : { threadId: `${input.channel}:${input.numberId ?? "-"}:${address}`, subject: "", participants: [address] };
   const priorOut =
     first(ctx.db.all(`SELECT id FROM inbox_item WHERE "conversationId" = ? AND direction = ?`, id, "out")) !== null;
+  const arrival = nextArrival(ctx);
   ctx.db.run(
-    `INSERT INTO inbox_item (id, "conversationId", kind, "refId", address, direction, at, "mailboxId", "numberId", "threadId", subject, preview, participants, unread)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO inbox_item (id, "conversationId", kind, "refId", address, direction, at, "mailboxId", "numberId", "threadId", subject, preview, participants, unread, arrival)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     itemId,
     id,
     input.channel,
@@ -520,6 +537,7 @@ export async function linkMessage(
     input.preview ?? facts.subject,
     JSON.stringify(facts.participants),
     input.direction === "in" ? 1 : 0,
+    arrival,
   );
 
   if (ruleMatched) {
@@ -554,12 +572,14 @@ export async function linkMessage(
     );
   }
   const taskId = await ensureTask(ctx, id);
+  // the item reaches everyone who can see the conversation, each on their own (the new item itself is not in any count until this)
+  await noteItem(ctx, { conversationId: id, direction: input.direction, arrival, at: input.at });
 
   // replies reach the people who follow
   conv = getConversation(ctx, id) as Row;
   const cid = strOrNull(conv, "contactId");
   if (input.channel === "email" && facts.participants.length > 1)
-    await linkOthers(ctx, input, itemId, facts.participants, address, cid);
+    await linkOthers(ctx, input, itemId, facts.participants, address, cid, arrival);
   if (cid && input.direction === "in") {
     if (first(ctx.db.all(`SELECT id FROM inbox_follow WHERE "contactId" = ? AND deleted_at IS NULL`, cid))) {
       ctx.emit(
@@ -587,6 +607,7 @@ async function linkOthers(
   participants: string[],
   address: string,
   primary: string | null,
+  arrival: number,
 ): Promise<void> {
   const others = [...new Set(participants.map((p) => normAddress(p)).filter((p) => p && p !== address))].slice(
     0,
@@ -625,6 +646,7 @@ async function linkOthers(
       }
       ctx.db.run(`INSERT OR IGNORE INTO inbox_party ("itemId", "contactId") VALUES (?, ?)`, itemId, sure.recordId);
       refresh(ctx, str(conv, "id"));
+      await noteItem(ctx, { conversationId: str(conv, "id"), direction: input.direction, arrival, at: input.at });
     } catch (e) {
       ctx.log.warn("inbox: another contact on the email was not linked", { code: codeOf(e) });
     }
@@ -710,7 +732,7 @@ export async function match(
       ? undefined
       : await remember(ctx, rec.id, str(conv, "address"), input.conversationId);
   const out = await attach(ctx, conv, rec, byOf(ctx), added);
-  return { conversation: toConversation(ctx, out.conversation), undoToken: out.token };
+  return { conversation: withUnread(ctx, toConversation(ctx, out.conversation)), undoToken: out.token };
 }
 
 /** Teach the record the sender's address, so the next message matches by itself. A record that already has it is fine. Returns the address row to take back on Undo. */
@@ -776,6 +798,7 @@ export async function unmatch(
     moveItems(ctx, itemIds, sourceId);
     refresh(ctx, sourceId);
     refresh(ctx, targetId);
+    await noteSplit(ctx, targetId, sourceId);
   } else {
     const cur = getConversation(ctx, sourceId) ?? missing(ctx, "The sender's conversation is gone.");
     ctx.db.run(
@@ -802,7 +825,7 @@ export async function unmatch(
     conversationId: sourceId,
     recordId: str(row, "recordId"),
   });
-  return { conversation: toConversation(ctx, getConversation(ctx, sourceId) as Row) };
+  return { conversation: withUnread(ctx, toConversation(ctx, getConversation(ctx, sourceId) as Row)) };
 }
 
 /**
@@ -951,7 +974,7 @@ export async function matchNew(
           task: input.replyTask === true,
         })
       : {};
-  return { recordId, conversation: toConversation(ctx, out.conversation), ...more };
+  return { recordId, conversation: withUnread(ctx, toConversation(ctx, out.conversation)), ...more };
 }
 
 export async function matchSuggestions(
@@ -1010,7 +1033,20 @@ export function markRead(
     );
   }
   for (const other of conversationsShowing(ctx, changed)) if (other !== input.conversationId) refresh(ctx, other);
-  return { conversation: toConversation(ctx, getConversation(ctx, input.conversationId) as Row) };
+  // the caller's own place in the conversation: read up to its newest entry, or unread again from its newest
+  const store = readSeam(ctx);
+  const me = subjectOf(ctx);
+  store.read(me, thingOf(input.conversationId), read ? { upto: maxPos } : { unread: true }, { trusted: true });
+  // read state is the item's: an email read under one contact is read under every contact on it, for the same person
+  for (const other of conversationsShowing(ctx, changed)) {
+    if (other === input.conversationId) continue;
+    const at = changed
+      .filter((id) => conversationsShowing(ctx, [id]).includes(other))
+      .map((id) => num(first(ctx.db.all(`SELECT arrival FROM inbox_item WHERE id = ?`, id)), "arrival"));
+    if (at.length === 0) continue;
+    store.read(me, thingOf(other), read ? { upto: Math.max(...at) } : { fromPos: Math.min(...at) }, { trusted: true });
+  }
+  return { conversation: withUnread(ctx, toConversation(ctx, getConversation(ctx, input.conversationId) as Row)) };
 }
 
 export async function followSet(
@@ -1026,7 +1062,7 @@ export async function followSet(
     ctx.db.all(
       `SELECT * FROM inbox_follow WHERE "contactId" = ? AND "principalId" = ? AND deleted_at IS NULL`,
       input.contactId,
-      ctx.principal.id,
+      holderOf(ctx),
     ),
   );
   const had = followOf(ctx, input.contactId);
@@ -1045,7 +1081,7 @@ export async function followSet(
         `INSERT INTO inbox_follow (id, "contactId", "principalId", "alertOnReplies", version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         newId("fol", now),
         input.contactId,
-        ctx.principal.id,
+        holderOf(ctx),
         alert ? 1 : 0,
         1,
         now,
@@ -1066,7 +1102,7 @@ export async function followSet(
     ctx.emit(
       "conversation.follow_changed",
       `record/${input.contactId}`,
-      { contactId: input.contactId, principalId: ctx.principal.id, following: input.follow, alertOnReplies: alert },
+      { contactId: input.contactId, principalId: holderOf(ctx), following: input.follow, alertOnReplies: alert },
       { vis: "participants" },
     );
   }

@@ -2,13 +2,15 @@
 // agent's mode menu), Helpers while any run, Stop and Stop all while any work, the pane toggle and a menu. Under it the last 50 messages (older ones stream in on request), the agent's
 // work folded into one line, and the shared composer with its who-will-reply line. A send shows on the page in the same frame, before chat.post answers; while an agent works, a plain
 // send queues for its next step and Interrupt sends it now.
+import { draftOf, setDraft } from "./drafts.ts";
 import { useFrameStore } from "./frame.ts";
 import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
 import { isLong, sessionItems } from "../session/model.ts";
 import { SessionPublisher } from "../session/Publisher.tsx";
-import { useCrew } from "../crew/context.tsx";
-import { crewChipOf } from "../crew/model.ts";
+import { CrewWhileWorking, useCrew } from "../crew/context.tsx";
+import { crewChipOf, liveSubagents, subagentIdsOf, totalsOf } from "../crew/model.ts";
+import { CrewBlock } from "../session/CrewBlock.tsx";
 import { CrewIsland } from "../crew/island.tsx";
 import { AlsoToChat } from "../crew/also.tsx";
 import { readReplyDetails } from "../details/read.ts";
@@ -63,6 +65,11 @@ import { CatchUpLine } from "./catch-up.tsx";
 import { AsideList } from "./Aside.tsx";
 import type { AsideItem } from "./Aside.tsx";
 import { commandItems, lastActionable, runSlash } from "./commands.ts";
+import type { CardSpec, CommandResult } from "./command-result.ts";
+import { CommandCard } from "./CommandCard.tsx";
+import { ACTION_NOTICE_MS, notices } from "../../../shell/noticeslot/model.ts";
+import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
+import { useNoticeLive } from "../../../shell/noticeslot/use-notice.ts";
 import type { CommandEnv } from "./commands.ts";
 import { parseSlash } from "../../../../../../lib/chat-commands.ts";
 import { agentForPerson } from "../../../../../../lib/words/agent-name.ts";
@@ -125,7 +132,6 @@ import {
   matchLine,
   mentionsIn,
   mergePages,
-  modelLabel,
   pendingMessage,
   placeholderFor,
   queueNote,
@@ -150,11 +156,13 @@ import {
 import type { Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf, retryLoads } from "../../../../../../ui/src/States/Loads.tsx";
 import { refusalIsPending } from "../../../shell/session/just-made.ts";
-import { itemLink, messageLink } from "../../../share/rows.ts";
+import { copyLinkText, itemLink, messageLink } from "../../../share/rows.ts";
 import { createMenuApi } from "../menus/actions.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
 import { chatHeaderEntries, isArchivedIn } from "./chat-header-menu.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
+import { OpeningGuard, PendingOpening } from "../landing/PendingChat.tsx";
+import { pendingFor, releasePending } from "../landing/pending.ts";
 import { offsetMinAt, zoneName } from "../../../../../../lib/zones.ts";
 
 type ThreadOut = CapMap["threads.get"]["out"];
@@ -187,6 +195,16 @@ function useReplies(threadId: string): Map<string, ReplySummary> {
 
 /** `compact` is for a conversation inside another screen (the onboarding Assistant): just the messages and the composer, no title bar with members, search and side-panel buttons. */
 const CompactContext = createContext(false);
+/** A press in the composer (or its menus) or on the notice does not close the card: the person is about to type, or press Undo. */
+function insideComposer(target: unknown): boolean {
+  const t = target as { closest?: (q: string) => unknown } | null;
+  return (
+    t?.closest?.(
+      '[data-testid="composer"],[data-testid="composer-panel"],[data-testid="notice-slot"],[role="menu"],[data-testid="notice-popover"]',
+    ) != null
+  );
+}
+
 const NO_IDS: readonly string[] = [];
 /** The mute lines a teammate has been shown, by message (lane l-agentdm): kept on this device so the line does not come back once seen. */
 const MUTE_SEEN = "vyre.agentdm.mute-seen.v1";
@@ -233,8 +251,9 @@ export function headerTier(width: number): "full" | "lead" | "bare" {
   return width <= 0 || width >= 720 ? "full" : width >= 420 ? "lead" : "bare";
 }
 
-/** The frame before data: a header bar, messages the size of real ones and a composer box, so nothing moves when the thread arrives. */
-export function ConversationLoading(): ReactElement {
+/** The frame before data: a header bar, messages the size of real ones and a composer box, so nothing moves when the thread arrives. A chat this window has just started opens on the person's own first message. */
+export function ConversationLoading({ threadId }: { threadId?: string } = {}): ReactElement {
+  if (threadId !== undefined && pendingFor(threadId) !== undefined) return <PendingOpening threadId={threadId} />;
   return (
     <View testID="conversation-loading" accessibilityLabel="Loading" style={st.root}>
       <View style={st.head} />
@@ -424,16 +443,22 @@ function ConversationView(): ReactElement {
   const [olderMore, setOlderMore] = useState<boolean | null>(null);
   const [cursor, setCursor] = useState<number | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
-  const [line, setLine] = useState("");
   // the question island: put-away questions (this session) and the one the person stepped to
   const [putAway, setPutAway] = useState<ReadonlySet<string>>(() => new Set());
   const [islandAt, setIslandAt] = useState<string | null>(null);
-  /** A line with an Undo (a drop that shared something): the taking-back runs when it is pressed. */
-  const [undo, setUndo] = useState<(() => void) | null>(null);
+  /** The notice this chat last raised in the title bar's slot, so the next one replaces it and Escape can close it. */
+  const [saidId, setSaidId] = useState<string | null>(null);
   // text asked for by a pane or a page ("Ask about this file"): taken when this conversation opens and whenever it is asked again, after what the person had typed
-  const [seed, setSeed] = useState<{ value: string; n: number }>(() => ({ value: data.fill?.take() ?? "", n: 0 }));
+  const [seed, setSeed] = useState<{ value: string; n: number }>(() => ({
+    value: data.fill?.take() ?? draftOf(data.threadId),
+    n: 0,
+  }));
   const [typed, setTyped] = useState(seed.value);
   const typedRef = useRef(seed.value);
+  // the unsent line is kept on this device, per chat; a send or an empty line clears it (the sidebar draws a pencil from it)
+  useEffect(() => {
+    setDraft(data.threadId, typed);
+  }, [data.threadId, typed]);
   const emptyRef = useRef(false);
   const [atEnd, setAtEnd] = useState(true);
   const [jump, setJump] = useState(0);
@@ -442,6 +467,8 @@ function ConversationView(): ReactElement {
   const [query, setQuery] = useState("");
   const [matchAt, setMatchAt] = useState(0);
   const [asides, setAsides] = useState<AsideItem[]>([]);
+  const asidesRef = useRef<AsideItem[]>([]);
+  asidesRef.current = asides;
   const [focusId, setFocusId] = useState<string | null>(data.focus ?? null);
   /** Messages read around a marked one that is older than the page holds: shown instead of the newest, until "Jump to latest". */
   const [around, setAround] = useState<Message[] | null>(null);
@@ -500,10 +527,57 @@ function ConversationView(): ReactElement {
     [data.fill],
   );
 
-  const say = useCallback((text: string) => {
-    setLine(text);
-    setUndo(null);
+  /** One quiet line in the title bar's notice slot (it clears itself after 6 seconds), with one action where there is one (Undo, Retry). A new line replaces the last. Nothing stays above the composer. */
+  /** The Command card (/usage, /permissions): one at a time, never stored, closed by Escape, its close control, a press outside or the next send. */
+  const [card, setCard] = useState<{ n: number; spec: Exclude<CardSpec, { kind: "aside" }> } | null>(null);
+  const cardN = useRef(1);
+  /** Close the /btw card the way every command card closes: it leaves, and its side thread is cleaned up. */
+  const closeAsides = useCallback(() => {
+    const open = asidesRef.current;
+    if (open.length === 0) return;
+    asidesRef.current = [];
+    setAsides([]);
+    for (const a of open) void act.dismissAside(data, a.id);
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a press anywhere but the composer, the card or the notice closes the /btw card, as it does a command card
+  const asideOpen = asides.length > 0;
+  useEffect(() => {
+    if (!asideOpen) return undefined;
+    const d = (
+      globalThis as {
+        document?: {
+          addEventListener?: (t: string, f: (e: { target?: unknown }) => void, c?: boolean) => void;
+          removeEventListener?: (t: string, f: (e: { target?: unknown }) => void, c?: boolean) => void;
+        };
+      }
+    ).document;
+    const hear = (e: { target?: unknown }): void => {
+      const t = e.target as { closest?: (q: string) => unknown } | null;
+      if (t?.closest?.('[data-testid="asides"]') != null) return;
+      if (!insideComposer(e.target)) closeAsides();
+    };
+    d?.addEventListener?.("pointerdown", hear, true);
+    return () => d?.removeEventListener?.("pointerdown", hear, true);
+  }, [asideOpen, closeAsides]);
+  /** /model: raised to open the composer's own model menu. */
+  const [panelAt, setPanelAt] = useState(0);
+  const saidRef = useRef<string | null>(null);
+  const speak = useCallback((text: string, action?: { label: string; run: () => void }) => {
+    if (saidRef.current !== null) notices.resolve(saidRef.current);
+    const id = notices.pass(text, action, { ms: ACTION_NOTICE_MS });
+    saidRef.current = id;
+    setSaidId(id);
   }, []);
+  const say = useCallback((text: string) => speak(text), [speak]);
+  const unsay = useCallback(() => {
+    if (saidRef.current === null) return;
+    notices.resolve(saidRef.current);
+    saidRef.current = null;
+    setSaidId(null);
+  }, []);
+  const saidLive = useNoticeLive(saidId);
+  useEscapeLayer(saidLive, unsay);
+  useEffect(() => unsay, [unsay]);
   /** A rejected write: say what did not happen and that it can be tried again. The page keeps what it showed. */
   const fail =
     (what: string) =>
@@ -680,6 +754,21 @@ function ConversationView(): ReactElement {
       ? NO_IDS
       : openQuestions(mergePages(around ?? messagesQ.data.messages, older)).map((x) => x.id),
   );
+  // an owner or admin (with a Console to open) is offered "Set a Space AI key" on a reply that had no account; anyone else is told to ask an admin
+  const [spaceKeyAdmin, setSpaceKeyAdmin] = useState(false);
+  useEffect(() => {
+    if (!data.nav.openSpaceAiKey) return undefined;
+    let live = true;
+    void new Promise<unknown>((r) => r(data.call("providers.space_key.get", {}))).then(
+      (k) => {
+        if (live) setSpaceKeyAdmin((k as { mayManage?: boolean } | null)?.mayManage === true);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [data.call, data.nav.openSpaceAiKey]);
   // a chat this person started a moment ago is not readable yet: that is not a refusal, so the loading mark stays and the read is asked again
   const notYet = failed !== undefined && refusalIsPending(failed, data.threadId);
   useEffect(() => {
@@ -687,8 +776,19 @@ function ConversationView(): ReactElement {
     const t = setInterval(retryLoads, 1500);
     return () => clearInterval(t);
   }, [notYet]);
-  if (failed && !notYet) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
-  if (threadQ.status === "loading" || messagesQ.status === "loading") return <ConversationLoading />;
+  // the first message this window sent is on screen from the thread's own messages now: the held copy has done its job
+  const loaded = threadQ.status !== "loading" && messagesQ.status !== "loading";
+  useEffect(() => {
+    if (loaded) releasePending(data.threadId);
+  }, [loaded, data.threadId]);
+  if (failed && !notYet)
+    return (
+      <OpeningGuard threadId={data.threadId}>
+        <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />
+      </OpeningGuard>
+    );
+  if (threadQ.status === "loading" || messagesQ.status === "loading")
+    return <ConversationLoading threadId={data.threadId} />;
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;
   const all = mergePages(around ?? live, older);
@@ -759,31 +859,57 @@ function ConversationView(): ReactElement {
     );
   };
 
+  /** Where a command's result goes, by its kind (command-result.ts). */
+  const showResult = (r: CommandResult): void => {
+    if (r.kind === "notice") {
+      const { undo: back, failed } = r;
+      const again = back ?? failed?.retry;
+      speak(
+        r.text,
+        again
+          ? {
+              label: back ? "Undo" : "Retry",
+              run: () => {
+                unsay();
+                void Promise.resolve(again()).catch(fail(back ? "Could not undo that." : "Could not do that."));
+              },
+            }
+          : undefined,
+      );
+    } else if (r.kind === "card") {
+      closeAsides();
+      if (r.card.kind === "aside") {
+        setCard(null);
+        const question = r.card.question;
+        void act
+          .startAside(data, thread.threadId, question, data.newKey())
+          .then((a) => setAsides((cur) => [...cur, { id: a.asideThreadId, question }]), fail("Could not ask that."));
+      } else setCard({ n: cardN.current++, spec: r.card });
+    } else if (r.kind === "menu") {
+      if (lead) setPanelAt((n) => n + 1);
+      else add.open({ threadId: data.threadId, name: thread.title ?? "" });
+    }
+  };
+
   const commandEnv = (): CommandEnv => ({
     data,
     thread,
     rows: win.rows,
-    say,
+    show: showResult,
     newKey: data.newKey,
     openFind: () => setFinding(true),
     openSearch: (q) => data.nav.openSearch?.(q),
-    openModel: () => {
-      if (lead) modelMenu(8, 120);
-      else add.open({ threadId: data.threadId, name: thread.title ?? "" });
-    },
     openAdd: () => add.open({ threadId: data.threadId, name: thread.title ?? "" }),
-    aside: (question) =>
-      void act
-        .startAside(data, thread.threadId, question, data.newKey())
-        .then((r) => setAsides((cur) => [...cur, { id: r.asideThreadId, question }]), fail("Could not ask that.")),
     send: (text) =>
       submit({ text, chips: [], files: [], folder: null, links: [], refs: [], mode: "queue", answers: "" }, "queue"),
   });
 
   const submit = (payload: ComposerSend, kind: SendKind): void => {
     // a slash command is not a message: it runs, and nothing is posted (a name that is not a command is an ordinary message)
+    setCard(null); // the next send closes the card; a new command opens its own
+    closeAsides();
     if (payload.files.length === 0 && parseSlash(payload.text, pluginNames(data.pluginCommands?.())) !== null) {
-      setLine("");
+      unsay();
       setTyped("");
       void runSlash(payload.text, commandEnv());
       return;
@@ -816,7 +942,7 @@ function ConversationView(): ReactElement {
       setAlso(false);
     }
     setPending((cur) => [...cur, p]);
-    setLine("");
+    unsay();
     setTyped("");
     typedRef.current = "";
     setSeed((x) => (x.value === "" ? x : { value: "", n: x.n }));
@@ -941,44 +1067,6 @@ function ConversationView(): ReactElement {
     else data.nav.openAgent(id);
   };
   const peopleMenu = (x: number, y: number): void => add.showPeople({ thread, x, y, onOpenAgent: openFace });
-  const modelMenu = (x: number, y: number): void => {
-    if (!lead) return;
-    void act.listModels(data).then(
-      (models) =>
-        menu.show(
-          [
-            { head: `Model for ${nameOf(lead.agentId)}` } as MenuEntry,
-            ...collect(
-              models,
-              (m): MenuEntry => ({
-                label: m.title,
-                checked:
-                  m.model === lead.model ||
-                  (m.alias !== undefined && m.alias === lead.model) ||
-                  modelLabel(lead.model ?? "") === m.title,
-                onSelect: () => {
-                  if (!m.allowed) {
-                    say(`${m.title} is not allowed here. Ask an admin for access.`);
-                    return;
-                  }
-                  void act
-                    .setModel(data, lead.agentId, m)
-                    .then(
-                      () => say(`${nameOf(lead.agentId)} now answers with ${m.title}`),
-                      fail("Could not switch the model."),
-                    );
-                },
-              }),
-            ),
-          ],
-          x,
-          y,
-          "other",
-          { label: "Model" },
-        ),
-      fail("Could not list the models."),
-    );
-  };
   const moreEntries = (): MenuEntry[] => {
     const mine: MenuEntry[] =
       thread.kind === "chat"
@@ -1038,8 +1126,12 @@ function ConversationView(): ReactElement {
                 ),
               addPeople: () => add.open({ threadId: data.threadId, name: thread.title ?? "" }),
               copyLink: () => {
-                data.copy(itemLink("chat", data.threadId));
-                say("Link copied");
+                const link = itemLink("chat", data.threadId);
+                if (link === "") copyLinkText("");
+                else {
+                  data.copy(link);
+                  say("Link copied");
+                }
               },
             },
           )
@@ -1246,8 +1338,12 @@ function ConversationView(): ReactElement {
     },
     // one message's own link, /open/message/<threadId>/<messageId>: it opens the chat on that message, through reach
     copyLink: (id) => {
-      data.copy(messageLink(data.threadId, id));
-      say("Link copied");
+      const link = messageLink(data.threadId, id);
+      if (link === "") copyLinkText("");
+      else {
+        data.copy(link);
+        say("Link copied");
+      }
     },
     edit: (id, body) => {
       // an edit that adds an @mention asks that agent once, as if it had been named when sent (owner ruling, 3 Nov); the fixed ask id keeps a second edit from asking again
@@ -1265,7 +1361,15 @@ function ConversationView(): ReactElement {
     setPinned: (id, pinned) => void act.setPinned(data, id, pinned).catch(fail("Could not pin it.")),
     react: (id, emoji, remove) => void act.react(data, id, emoji, remove).catch(fail("Could not react.")),
     openThread: (id) =>
-      void act.openMessageThread(data, id).then((tid) => data.nav.openThread(tid), fail("Could not open the replies.")),
+      void act
+        .openMessageThread(data, id)
+        .then(
+          (tid) =>
+            data.nav.openSideThread && thread.kind !== "thread"
+              ? data.nav.openSideThread(data.threadId, id, tid)
+              : data.nav.openThread(tid),
+          fail("Could not open the replies."),
+        ),
     remove: (id) => void act.deleteMessage(data, id).catch(fail("Could not delete it.")),
     ...(data.alsoSent ? { alsoSent: data.alsoSent } : {}),
     ...(thread.kind === "thread" ? { faceInThread: true } : {}),
@@ -1287,18 +1391,28 @@ function ConversationView(): ReactElement {
         .then(() => say("Marked unread from that message."), fail("Could not mark it unread.")),
     turnDetail: (turnId) => act.turnDetail(data, turnId),
     accountReady: () => act.hasWorkingAccount(data),
-    errorNext: (key, turnId) => void act.errorAction(data, key, turnId, say).catch(fail("Could not do that.")),
+    errorNext: (key, turnId) =>
+      void act
+        .errorAction(
+          data,
+          key,
+          turnId,
+          say,
+          data.nav.openSpaceAiKey ? { spaceKey: data.nav.openSpaceAiKey } : undefined,
+        )
+        .catch(fail("Could not do that.")),
+    canSetSpaceKey: spaceKeyAdmin,
     retrySend: (id) => {
       const p = pending.find((x) => `pending:${x.key}` === id);
       if (p) {
         setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "sending" as const } : x)));
-        setLine("");
+        unsay();
         run(p);
       }
     },
     discardSend: (id) => {
       setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id));
-      setLine("");
+      unsay();
     },
     showMenu: (entries, x, y, label) => menu.show(entries, x, y, "context", { label }),
     ...(lead
@@ -1551,9 +1665,12 @@ function ConversationView(): ReactElement {
       return;
     }
     void shareWithAgents(data, items, agents, data.newKey()).then((done) => {
-      setLine(sharedLine(done));
-      setUndo(() => () => {
-        void undoShare(data, done.grants).then(() => say("Taken back."), fail("Could not take it back."));
+      speak(sharedLine(done), {
+        label: "Undo",
+        run: () => {
+          unsay();
+          void undoShare(data, done.grants).then(() => say("Taken back."), fail("Could not take it back."));
+        },
       });
     }, fail("Could not share that."));
   };
@@ -1902,6 +2019,39 @@ function ConversationView(): ReactElement {
         ) : null}
 
         {data.waitingLine ?? null}
+        {card ? (
+          <CommandCard
+            key={card.n}
+            spec={card.spec}
+            onClose={() => setCard(null)}
+            onPressOutside={(t) => {
+              if (!insideComposer(t)) setCard(null);
+            }}
+            notify={(text, back) =>
+              speak(
+                text,
+                back
+                  ? {
+                      label: "Undo",
+                      run: () => {
+                        unsay();
+                        back();
+                      },
+                    }
+                  : undefined,
+              )
+            }
+            onSettings={(ref) => {
+              setCard(null);
+              if (ref !== undefined && data.nav.openAiAccount) data.nav.openAiAccount(ref);
+              else data.nav.openAiSetup?.();
+            }}
+            onConnect={() => {
+              setCard(null);
+              data.nav.openAiSetup?.();
+            }}
+          />
+        ) : null}
         <AsideList items={asides} onDismiss={(id) => setAsides((cur) => cur.filter((x) => x.id !== id))} />
         <QueueWaiting ids={queuedIdsNow} call={data.call} threadId={thread.threadId}>
           {(waiting) =>
@@ -1966,12 +2116,6 @@ function ConversationView(): ReactElement {
             <TextButton label="Continue" testID="hop-continue" onPress={() => commandEnv().send(CONTINUE_TEXT)} />
           </View>
         ) : null}
-        {line ? (
-          <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}>
-            <Text style={st.lineText}>{line}</Text>
-            {undo ? <TextButton link label="Undo" testID="conversation-undo" onPress={undo} /> : null}
-          </View>
-        ) : null}
         {outsideOffline && !closed ? (
           <Text testID="outside-offline" style={st.outsideOffline}>
             {outsideOffline}
@@ -2014,6 +2158,24 @@ function ConversationView(): ReactElement {
                 onPeople={(x, y) => peopleMenu(x, y)}
               />
             ) : null}
+            <CrewWhileWorking working={isWorking} />
+            {(() => {
+              // while an agent's engine has subagents of its own at work, they are on screen here (no reply carries them yet); when the reply lands, the same rows sit under it
+              const shown = new Set(timelineMessages.flatMap((m) => subagentIdsOf(m.blocks)));
+              const subs = liveSubagents(crew?.status ?? null, shown);
+              if (!crew || subs.length === 0) return null;
+              return (
+                <View testID="subagents-live" style={st.subagentsLive}>
+                  <CrewBlock
+                    members={subs}
+                    totals={totalsOf(subs)}
+                    selectedId={crew.selected}
+                    onPeek={(x) => crew.show(x.id)}
+                    onOpenPane={() => crew.show(null)}
+                  />
+                </View>
+              );
+            })()}
             {!longChat && crew?.status && crew.status.members.length > 0 ? (
               <CrewIsland status={crew.status} onPress={() => crew.show(null)} />
             ) : null}
@@ -2089,6 +2251,7 @@ function ConversationView(): ReactElement {
               barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}
               suggest={composerSuggest(data)}
               preview={(item) => previewOf(data, item)}
+              openPanelAt={panelAt}
               renderPanel={(agent, close, narrowPanel) => (
                 <ChatBrain
                   data={data}
@@ -2407,6 +2570,7 @@ const st = StyleSheet.create({
   },
   typingRow: { height: 20, justifyContent: "center", paddingLeft: 6 },
   typingText: { fontSize: 12, color: "var(--ink-3)" as string },
+  subagentsLive: { alignSelf: "stretch", maxHeight: 220, overflow: "scroll" },
   composerBox: { alignSelf: "center", width: "100%", maxWidth: COLUMN + 48, paddingHorizontal: 24, paddingBottom: 16 },
 });
 

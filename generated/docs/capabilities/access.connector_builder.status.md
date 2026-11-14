@@ -1,6 +1,6 @@
 # access.connector_builder.status
 
-Does this assistant hold the permission to build connectors, and may the caller give it
+Does this assistant hold the permission to build connectors, may the caller give it, and (when an item is named) may the assistant use that Vault item
 
 | | |
 |---|---|
@@ -26,6 +26,7 @@ Does this assistant hold the permission to build connectors, and may the caller 
 ```ts
 type In = {
   agentId: string;
+  itemId?: string;
 };
 ```
 
@@ -35,6 +36,7 @@ type In = {
 type Out = {
   allowed: boolean;
   canGrant: boolean;
+  reaches?: boolean;
 };
 ```
 
@@ -51,11 +53,13 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "agentId": "agt_a1b2c3"
+    "agentId": "agt_a1b2c3",
+    "itemId": "vit_a1b2c3"
   },
   "output": {
     "allowed": true,
-    "canGrant": true
+    "canGrant": true,
+    "reaches": true
   }
 }
 ```

@@ -1,6 +1,7 @@
 // The index side of the search module (spec b11; ARCH 4.3 consumers search.fts and search.vectors): the sources that turn an entity row into a document, search.index.apply, the embeddings
 // consumer, the rebuild, the stats and the health probe, and the two small writes Recent needs. The handler table at the bottom holds all ten capabilities of manifests/search.ts.
 // Private content never reaches the index: a source answers `e2e` (the name of the row's encryption label, not a claim about the chat) for a private chat, a Restricted row or a sealed message, and apply then removes whatever was there.
+import { isRawId } from "../../../lib/id-shapes.ts";
 import {
   askerOf,
   embed,
@@ -42,14 +43,15 @@ const gone: Resolved = { skip: "gone" };
 const e2e: Resolved = { skip: "e2e" };
 const SECRET = /pass(word|phrase)?|secret|token|api.?key|credential/i;
 
-/** The words of a record's fields: strings, numbers and lists of strings; nothing that looks like a credential. */
+/** The words of a record's fields: strings, numbers and lists of strings; nothing that looks like a credential, and no id (a field that holds a person, a folder or another record holds its id, which is no word of the record and is shown to a person as its snippet). */
 function fieldWords(fields: Record<string, unknown>, skip: string): string {
   const out: string[] = [];
   for (const [k, v] of Object.entries(fields)) {
     if (k === skip || SECRET.test(k)) continue;
-    if (typeof v === "string") out.push(v);
-    else if (typeof v === "number") out.push(String(v));
-    else if (Array.isArray(v)) for (const x of v) if (typeof x === "string") out.push(x);
+    if (typeof v === "string") {
+      if (!isRawId(v)) out.push(v);
+    } else if (typeof v === "number") out.push(String(v));
+    else if (Array.isArray(v)) for (const x of v) if (typeof x === "string" && !isRawId(x)) out.push(x);
   }
   return out.join(" ");
 }

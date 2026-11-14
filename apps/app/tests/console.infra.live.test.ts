@@ -21,8 +21,8 @@ test("production Console Server Diagnostics and Support mount actual routes and 
     context = await browser.newContext({ viewport: { width: 1360, height: 960 }, acceptDownloads: true }),
     page = await context.newPage();
   const guard = guardCrashes(page);
-  const shot = async (name: string) => {
-    await guard.check("before screenshot " + name);
+  const shot = async (name: string, ids?: "space-id") => {
+    await guard.check("before screenshot " + name, ids ? { idsOnPurpose: ids } : undefined);
     const out = process.env.VYRE_CONSOLE_SHOTS;
     if (out) {
       fs.mkdirSync(out, { recursive: true });
@@ -97,19 +97,19 @@ test("production Console Server Diagnostics and Support mount actual routes and 
     assert.ok(body.parts);
     await shot("console-support-desktop.png");
     await openConsolePage(page, "space");
-    await guard.check("after opening space");
+    await guard.check("after opening space", { idsOnPurpose: "space-id" }); // owner, 13 Nov 2026: admins may see the Space ID on Console General
     await page.getByTestId("console-space-infra").waitFor();
     await page.getByTestId("infra-space-name").fill("Console verified Space");
     await page.getByTestId("infra-space-name").press("Enter");
     await page.getByText("Name saved.", { exact: true }).waitFor();
-    await guard.check("after saving the name");
+    await guard.check("after saving the name", { idsOnPurpose: "space-id" });
     await page.reload({ waitUntil: "load" });
     await page.getByTestId("console").waitFor();
     await openConsolePage(page, "space");
-    await guard.check("after opening space");
+    await guard.check("after opening space", { idsOnPurpose: "space-id" }); // owner, 13 Nov 2026: admins may see the Space ID on Console General
     await page.getByTestId("infra-space-name").waitFor();
     assert.equal(await page.getByTestId("infra-space-name").inputValue(), "Console verified Space");
-    await shot("console-space-desktop.png");
+    await shot("console-space-desktop.png", "space-id");
     await openConsolePage(page, "backups");
     await guard.check("after opening backups");
     await page.getByTestId("console-backups").waitFor();

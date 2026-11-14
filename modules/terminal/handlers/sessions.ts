@@ -42,6 +42,11 @@ import {
   scopeOf,
   uidOf,
   burnUid,
+  dropHold,
+  holderOf,
+  setHold,
+  sweepHolds,
+  touchHold,
 } from "../projections.ts";
 import { classify, QuotedHereDoc, referHandles, UnsurePlace } from "../fill.ts";
 import type { HandleRef } from "../fill.ts";
@@ -98,6 +103,7 @@ export function terminalRow(x: SessionRow) {
     lastActiveAt: x.lastActiveAt,
     ...(x.runId === undefined ? {} : { runId: x.runId }),
     ...(x.by === undefined ? {} : { by: x.by }),
+    ...(x.heldBy === undefined ? {} : { heldBy: x.heldBy }),
   };
 }
 
@@ -646,6 +652,7 @@ export function list(
   },
 ) {
   ensure(ctx.db);
+  endIdleHolds(ctx);
   const me = actorOf(ctx);
   const all = (
     ctx.db.all(
@@ -677,6 +684,7 @@ export function list(
 
 export function get(ctx: TermCtx, input: { terminalId: string }) {
   ensure(ctx.db);
+  endIdleHolds(ctx);
   const x = sessionBy(ctx.db, input.terminalId);
   if (!x) raise(ctx, "validation.not_found", "There is no such terminal.", { terminalId: input.terminalId });
   return { terminal: terminalRow(x) };
@@ -778,6 +786,106 @@ export async function attach(ctx: TermCtx, input: { terminalId: string }) {
   return { ticket, expiresAt, replay };
 }
 
+// ---- the keyboard ---------------------------------------------------------------------------------------------------------------------------------------
+
+/** Ends the holds nobody used for 15 minutes, and tells the people looking that the keyboard went back. */
+function endIdleHolds(ctx: TermCtx): void {
+  for (const id of sweepHolds(ctx.db, ctx.now())) ctx.emit("terminal.given_back", id, { terminalId: id, by: "idle" });
+}
+
+/**
+ * A terminal in a person's own place on a shared agent's computer (their own Unix user) takes keys, commands and the keyboard from that person alone, or from an agent acting for them, whoever else may
+ * watch it or manage the agent: what is typed there runs as them and reads what is theirs. A hold on the keyboard never widens this (F30, lead 14 Nov: an agent acts for the asker of the call and holds
+ * nothing of anyone else's). Fails closed: if who owns the agent cannot be read, nothing is typed.
+ */
+/** The variables a person's place sets or that point the shell, tmux, ssh or git at another place. */
+const PLACE_ENV = /^(HOME|HISTFILE|HISTSIZE|XDG_.*|TMPDIR|TMUX.*|GIT_SSH.*|GIT_CONFIG.*|SSH_.*|GNUPGHOME|PATH|LD_.*|SHELL|USER|LOGNAME)$/;
+export const OTHERS_PLACE = "That terminal is in someone else's own space on this computer. Only they can type in it.";
+async function needOwnPlace(ctx: TermCtx, x: SessionRow): Promise<void> {
+  if (x.host !== "agent_computer" || x.agentId === undefined) return;
+  const place = await askerPlaceFor(ctx, x.agentId, x.owner);
+  if (place === undefined) return;
+  if (actorOf(ctx) !== x.owner)
+    raise(ctx, "permission.role_lacks_permission", OTHERS_PLACE, { reason: "others_place", terminalId: x.terminalId });
+}
+
+/** What the agent, or anyone else who is not the holder, is told while a person has the keyboard. */
+export const KEYBOARD_HELD =
+  "A person has the keyboard on this terminal. Commands wait until they hand it back; if nobody uses it for 15 minutes it comes back to you by itself.";
+
+/**
+ * A terminal a person holds takes input and commands from that person alone: the agent's run, another person's keys and Ctrl-C are refused with one plain sentence. The holder's own keys keep the hold in use.
+ * (A terminal nobody holds takes input as before: the pane and the sheet make the take a deliberate press, the server only guards what is held.)
+ */
+function needKeyboard(ctx: TermCtx, x: SessionRow): void {
+  endIdleHolds(ctx);
+  const h = holderOf(ctx.db, x.terminalId);
+  if (h === null) return;
+  const me = ctx.principal.kind === "agent" ? undefined : actorOf(ctx);
+  if (me !== undefined && h === me) {
+    touchHold(ctx.db, x.terminalId, me, ctx.now());
+    return;
+  }
+  raise(ctx, "validation.precondition_failed", KEYBOARD_HELD, { reason: "keyboard_held", terminalId: x.terminalId });
+}
+
+/** May this caller take the keyboard from another person: the person whose terminal it is, or someone who manages the agent whose computer it is. */
+function mayTakeFromOther(ctx: TermCtx, x: SessionRow): boolean {
+  if (x.owner === actorOf(ctx)) return true;
+  return (
+    x.agentId !== undefined &&
+    ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: x.agentId }).effect === "allow"
+  );
+}
+
+export async function takeOver(ctx: TermCtx, input: { terminalId: string }) {
+  ensure(ctx.db);
+  endIdleHolds(ctx);
+  if (ctx.principal.kind === "agent")
+    raise(ctx, "permission.no_grant", "An agent types in its own terminal; taking the keyboard is for people.");
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
+  await needOwnPlace(ctx, x);
+  const me = actorOf(ctx);
+  const h = holderOf(ctx.db, x.terminalId);
+  if (h !== null && h !== me && !mayTakeFromOther(ctx, x))
+    raise(
+      ctx,
+      "permission.role_lacks_permission",
+      "Someone else has the keyboard. Only the owner of the terminal or an admin can take it from them.",
+      {
+        reason: "keyboard_held",
+      },
+    );
+  if (h !== me) {
+    setHold(ctx.db, x.terminalId, me, ctx.now());
+    ctx.emit("terminal.taken", x.terminalId, { terminalId: x.terminalId, by: me, ...(h === null ? {} : { from: h }) });
+  } else touchHold(ctx.db, x.terminalId, me, ctx.now());
+  return { terminal: terminalRow({ ...x, heldBy: me }) };
+}
+
+export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
+  ensure(ctx.db);
+  endIdleHolds(ctx);
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
+  const h = holderOf(ctx.db, x.terminalId);
+  if (h === null) return { terminal: terminalRow(x) };
+  const me = ctx.principal.kind === "agent" ? undefined : actorOf(ctx);
+  if (h !== me && !mayTakeFromOther(ctx, x))
+    raise(
+      ctx,
+      "permission.role_lacks_permission",
+      "Someone else has the keyboard. Only they, the owner of the terminal or an admin can hand it back.",
+      {
+        reason: "keyboard_held",
+      },
+    );
+  dropHold(ctx.db, x.terminalId);
+  ctx.emit("terminal.given_back", x.terminalId, { terminalId: x.terminalId, by: me ?? "agent" });
+  const { heldBy: _gone, ...rest } = x;
+  void _gone;
+  return { terminal: terminalRow(rest) };
+}
+
 // ---- acting in a session ------------------------------------------------------------------------------------------------------------------------------
 
 export function rename(ctx: TermCtx, input: { terminalId: string; name: string }) {
@@ -823,6 +931,8 @@ export async function input(ctx: TermCtx, a: { terminalId: string; data: string 
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, a.terminalId));
   if (a.data === "") raise(ctx, "validation.bad_input", "There is nothing to send.");
+  await needOwnPlace(ctx, x);
+  needKeyboard(ctx, x);
   // an agent's keystrokes get the same friendly words as its commands (a person typing in their own tab is free); the wall is the Unix user of the session, not these words
   if (ctx.principal.kind === "agent" && x.host === "agent_computer" && x.agentId !== undefined) {
     const place = await askerPlaceFor(ctx, x.agentId, actorOf(ctx));
@@ -841,6 +951,8 @@ export async function input(ctx: TermCtx, a: { terminalId: string; data: string 
 export async function interrupt(ctx: TermCtx, a: { terminalId: string }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, a.terminalId));
+  await needOwnPlace(ctx, x);
+  needKeyboard(ctx, x);
   try {
     await (await hostFor(ctx, x)).interrupt(a.terminalId);
   } catch (e) {
@@ -1104,6 +1216,8 @@ export async function run(ctx: TermCtx, a: RunInput) {
     });
 
   const s = await sessionForRun(ctx, a);
+  await needOwnPlace(ctx, s);
+  needKeyboard(ctx, s);
   // a person who uses a shared agent without owning it: the command and its folder may not name another person's folder (asker.ts)
   if (s.host === "agent_computer" && s.agentId !== undefined) {
     const place = await askerPlaceFor(ctx, s.agentId, owner);
@@ -1142,6 +1256,13 @@ export async function run(ctx: TermCtx, a: RunInput) {
   // A handle in the command line never becomes its value in the line (W6): the line names a variable, quoted for where it stands, and the value goes in that variable's environment for this one
   // command. A handle the Vault does not know is left as the text it is (a hashtag, an issue number).
   const env: Record<string, string> = { ...(a.env ?? {}) };
+  // a turn in a person's own place may not set what makes the shell look elsewhere (its home, history, settings, tmux, ssh agent, git settings): the wall is the Unix user, this is the plain word in front of it
+  if (s.host === "agent_computer" && s.agentId !== undefined && Object.keys(env).length > 0) {
+    const mine = await askerPlaceFor(ctx, s.agentId, owner);
+    const bad = Object.keys(env).find((k) => PLACE_ENV.test(k));
+    if (mine !== undefined && bad !== undefined)
+      raise(ctx, "validation.bad_input", `${bad} is set for you already; it cannot be changed.`, { reason: "place_env" });
+  }
   const refs: HandleRef[] = [];
   let line = command;
   if (base) {

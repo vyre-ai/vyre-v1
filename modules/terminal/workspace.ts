@@ -44,6 +44,8 @@ const SHELLS: ReadonlySet<string> = new Set(["bash", "zsh", "sh", "dash", "fish"
 
 export const workspaceName = (agentId: string): string => `${WORKSPACE_PREFIX}${agentId}`;
 export const workspaceNetworkName = (agentId: string): string => `vyre-wsnet-${sha256Hex(agentId).slice(0, 16)}`;
+/** The host name inside every agent workspace: a word, never an id. */
+export const WORKSPACE_HOSTNAME = "workspace";
 export const homeVolume = (agentId: string): string => `${workspaceName(agentId)}-home`;
 export const filesVolume = (agentId: string): string => `${workspaceName(agentId)}-files`;
 /** The homes of the people who use the agent without owning it, each a Unix user of their own (asker.ts): mounted at /people. */
@@ -278,8 +280,11 @@ export interface MountSpec {
 
 /** The label that says what a container was made with: its project folders, and the shared network when it is on it (a workspace made on the default bridge before 12 Nov is made again once, when quiet). */
 const stable = (m: MountSpec, net?: string): string =>
-  // `u`: the people volume (14 Nov): a workspace made before it is made again once, when quiet, so it gets /people
-  sha256Hex(JSON.stringify({ p: [...m.projects].sort(), u: 1, ...(net === SHARED_NETWORK ? { n: net } : {}) })).slice(0, 16);
+  sha256Hex(JSON.stringify({ p: [...m.projects].sort(), h: 1, u: 1, ...(net === SHARED_NETWORK ? { n: net } : {}) })).slice(
+    0,
+    16,
+  );
+// `u`: the people volume: a workspace made before it is made again once, when quiet, so it gets /people
 
 /**
  * Where workspaces live on an engine with no runner in front (a Personal Space with Docker Desktop, a Team server on the computers socket option): one network for all of them with traffic between
@@ -315,7 +320,8 @@ export function workspaceContainerConfig(
   const name = workspaceName(agentId);
   return {
     Image: image,
-    Hostname: name,
+    // what a person reads in the shell prompt (`agent@workspace`): never the container name, which carries the agent's id (F33)
+    Hostname: WORKSPACE_HOSTNAME,
     User: `${WORKSPACE_UID}:${WORKSPACE_UID}`,
     WorkingDir: WORKSPACE_HOME,
     Cmd: ["sleep", "infinity"],
@@ -382,7 +388,7 @@ export function reviewWorkspaceConfig(c: ContainerConfig, agentId: string): stri
   if (h.MemorySwap !== h.Memory) bad.push("swap is not pinned to memory");
   const user = /^(\d+):(\d+)$/.exec(c.User);
   if (!user || Number(user[1]) === 0 || Number(user[2]) === 0) bad.push(`runs as ${c.User || "the image's user"}`);
-  if (c.Hostname !== workspaceName(agentId) || c.Labels["vyre.workspace"] !== agentId)
+  if (c.Hostname !== WORKSPACE_HOSTNAME || c.Labels["vyre.workspace"] !== agentId)
     bad.push("is not this agent's workspace");
   const SYSTEM = new Set([
     "/",
@@ -442,8 +448,12 @@ export const NOT_PRIVATE =
 /** What a workspace session runs: a bash with a private umask (files the agent makes outside its own folder, in /tmp, are not readable by the other people of the computer). */
 export const SESSION_SHELL: readonly string[] = ["sh", "-c", "umask 077; exec bash"];
 
+// the message reaches a person (the chat, the Terminal tab): Docker names a container in its own errors, and that name carries the agent's id
 const wsError = (message: string, code = "unavailable"): Error =>
-  Object.assign(new Error(message), { code, workspace: true });
+  Object.assign(new Error(message.replace(/vyre-(?:ws|wsproj|wsnet)-[A-Za-z0-9_-]+/g, "the workspace")), {
+    code,
+    workspace: true,
+  });
 
 export const IMAGE_MISSING_LINE = "This server can't start agent workspaces yet.";
 /** A command run before the workspace's copy of Files caught up (it took longer than a few seconds): its first line. */

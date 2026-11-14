@@ -38,6 +38,8 @@ function setup(opts: {
   addressAsker?: (threadId: string, agentId: string) => boolean;
   refuse?: (p: AgentPost) => boolean;
   agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>;
+  /** Hold an agent's turn until this promise is settled, so two turns of two agents would overlap if the engine let them. */
+  gate?: (agentId: string) => Promise<void> | undefined;
   script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]);
 }) {
   const h = harness();
@@ -108,7 +110,25 @@ function setup(opts: {
   const provider = scriptedProvider({ script: opts.script });
   const open = bridge.tap(provider.openSession);
   const engine = h.runtime({
-    openSession: (spec) => open(opts.account ? { ...spec, account: opts.account() } : spec),
+    openSession: async (spec) => {
+      const s = await open(opts.account ? { ...spec, account: opts.account() } : spec);
+      if (!opts.gate) return s;
+      return {
+        ...s,
+        send: (input: TurnInput) => {
+          const wait = opts.gate!(input.agent.id);
+          if (!wait) return s.send(input);
+          return (async function* () {
+            await wait;
+            yield* s.send(input);
+          })();
+        },
+        sendToolResult: (id: string, r: { ok: boolean; content: unknown }) => s.sendToolResult(id, r),
+        inject: (m: unknown) => (s as unknown as { inject(m: unknown): void }).inject(m),
+        cancel: () => s.cancel(),
+        close: () => s.close(),
+      } as typeof s;
+    },
     schedule: () => () => {},
   });
   bridge.attach(engine);
@@ -117,13 +137,14 @@ function setup(opts: {
     body: string,
     mentions: Array<{ kind: "agent" | "person"; id: string }> = [],
     id = `msg_p${chat.length + 1}`,
-    extra: { attachments?: string[]; blocks?: unknown[]; typed?: boolean } = {},
+    extra: { attachments?: string[]; blocks?: unknown[]; typed?: boolean; as?: string; wait?: boolean } = {},
   ) {
+    const author = extra.as ?? "usr_dana";
     chat.push({
       messageId: id,
       threadId: T,
       threadSeq: chat.length + 1,
-      author: { kind: "person", id: "usr_dana" },
+      author: { kind: "person", id: author },
       body,
       blocks: extra.blocks ?? [],
       mentions,
@@ -135,12 +156,13 @@ function setup(opts: {
       payload: {
         messageId: id,
         threadId: T,
-        author: { kind: "person", id: "usr_dana" },
+        author: { kind: "person", id: author },
         mentions,
         depth: 0,
         ...(extra.typed ? { typed: true } : {}),
       },
     });
+    if (extra.wait === false) return { id, result };
     if (result.receivedAs) await engine.idle(T); // a skipped message opened no thread
     await bridge.flush();
     return { id, result };
@@ -1294,4 +1316,42 @@ test("only a message chat marked typed is kept as one the person typed: a poke, 
   await s.say("Poked line", [], "msg_not_typed");
   const typed = s.h.rows("SELECT message_id FROM engine_typed_message").map((r) => r["message_id"]);
   assert.deepEqual(typed, ["msg_typed_one"]);
+});
+
+test("the typed-message rows are bounded: a new typed message drops the rows older than a week", async () => {
+  const s = setup({ script: reply("Done.") });
+  s.h.ctx.db.run("INSERT INTO engine_typed_message (message_id, thread_id, at) VALUES (?, ?, ?)", "msg_old", T, 1);
+  await s.say("Please move the deadline", [], "msg_typed_two", { typed: true });
+  const kept = s.h.rows("SELECT message_id FROM engine_typed_message").map((r) => r["message_id"]);
+  assert.deepEqual(kept, ["msg_typed_two"]);
+});
+
+test("two people's turns of two agents in one chat do not overlap, and each reply speaks for the person whose turn it was", async () => {
+  let release!: () => void;
+  const held = new Promise<void>((r) => (release = r));
+  const seen: AgentPost[] = [];
+  const s = setup({
+    agents: [
+      { agentId: LEAD, mode: "listen" },
+      { agentId: WATCHER, mode: "listen" },
+    ],
+    gate: (agentId) => (agentId === LEAD ? held : undefined),
+    refuse: (p) => {
+      if (p.body === "Done.") seen.push(p);
+      return false;
+    },
+    script: reply("Done."),
+  });
+  await s.say("for the first", [{ kind: "agent", id: LEAD }], "msg_dana1", { wait: false });
+  await s.say("for the second", [{ kind: "agent", id: WATCHER }], "msg_mia1", { as: "usr_mia", wait: false });
+  await new Promise((r) => setTimeout(r, 50));
+  // the engine runs one turn at a time in a chat: the second agent has not replied while the first is held, so no reply can be stamped with the other person's turn
+  assert.equal(seen.length, 0, "the second turn waits for the first");
+  release();
+  await s.engine.idle(T);
+  await s.bridge.flush();
+  const who = (agent: string) =>
+    seen.filter((p) => s.chat.some((r) => r.messageId === p.clientId && r.author.id === agent)).map((p) => p.actingFor);
+  assert.deepEqual(who(LEAD), ["usr_dana"]);
+  assert.deepEqual(who(WATCHER), ["usr_mia"]);
 });

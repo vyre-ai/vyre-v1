@@ -809,3 +809,28 @@ test("a request addressed to one teammate goes to that person alone, never to th
     "validation.bad_input",
   );
 });
+
+test("an agent's key request for Alice is Alice's: Bob asking the same agent lists, reads and cancels nothing of it; Alice and the agent for nobody do", async () => {
+  const w = world();
+  const made = await handlers["vault.request"](w.as("agt_helper", "agent", "usr_alice"), {
+    name: "Northwind_Docusign",
+    reason: "Alice's filing needs the DocuSign key",
+    folderId: FOLDER,
+    idempotencyKey: "k_alice",
+  } as never);
+  const id = made.request.id as string;
+  const forBob = w.as("agt_helper", "agent", "usr_bob");
+  const forAlice = w.as("agt_helper", "agent", "usr_alice");
+  const forNobody = w.as("agt_helper", "agent");
+  assert.deepEqual((await handlers["vault.requests.list"](forBob, {})).requests, [], "Bob lists none");
+  assert.equal(await failed(handlers["vault.requests.get"](forBob, { requestId: id })), "validation.not_found");
+  assert.equal(await failed(handlers["vault.requests.cancel"](forBob, { requestId: id })), "validation.not_found");
+  assert.equal((await handlers["vault.requests.list"](forAlice, {})).requests.length, 1, "Alice through the agent");
+  assert.equal((await handlers["vault.requests.get"](forAlice, { requestId: id })).request.id, id);
+  assert.equal(
+    (await handlers["vault.requests.list"](forNobody, {})).requests.length,
+    1,
+    "the agent's own turn for nobody",
+  );
+  assert.deepEqual(await handlers["vault.requests.cancel"](forAlice, { requestId: id }), { ok: true });
+});

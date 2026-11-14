@@ -20,6 +20,7 @@ import { noteOfferHandlers } from "./note-offer.ts";
 import { crewLineHandlers, hookLineHandlers } from "./hook-line.ts";
 import { titleMake } from "./title.ts";
 import { g26Handlers } from "./g26.ts";
+import { sidebarHandlers } from "./sidebar.ts";
 import { historySearch } from "./history.ts";
 import { g27Handlers } from "./g27.ts";
 import { followHandlers } from "./follow.ts";
@@ -85,4 +86,5 @@ export const handlers = {
   ...g26Handlers,
   ...g27Handlers,
   ...followHandlers,
+  ...sidebarHandlers,
 };

@@ -1580,6 +1580,18 @@
     },
     {
       "deferred": false,
+      "name": "chats_presence",
+      "summary": "Who is around (online or away; offline people are left out) and which agents are working now, with the chat when the asker may read it: the sidebar's dots and rings",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chats_sidebar",
+      "summary": "The Chats sidebar in one answer: what needs me, my goals, pinned, chats, channels and team, each with its first rows, its total and its marks, plus the one number for the rail",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chrome_act",
       "summary": "Act on an element or key: click, hover, press, select, scroll, check; a send, post or payment is held and returns an id",
       "toolset": "computer"
@@ -2945,6 +2957,12 @@
       "name": "engine_subscription_share_set",
       "summary": "Let the Space run work on my subscription (server runs for my chats, routines and personal automations); off kills my sandbox",
       "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "engine_thread_states",
+      "summary": "The latest turn of each of up to 200 chats in one call: running, waiting, failed or done, and for a failed one the words why; a chat the asker may not open is left out",
+      "toolset": "chats"
     },
     {
       "deferred": false,
@@ -6692,6 +6710,12 @@
     },
     {
       "deferred": false,
+      "name": "notifications_unseen_by_thread",
+      "summary": "My unseen mentions per chat or channel, for the sidebar's mention badge; only my own, newest first, at most 500 threads",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "offer_note",
       "summary": "Offer to save something from this chat as a note: a small card with a preview of the note, Save and Not now. At most once per topic and rarely; says offered false with a reason when the person has it off or it is too soon",
       "toolset": "chats"
@@ -8698,6 +8722,54 @@
       "deferred": false,
       "name": "stars_toggle",
       "summary": "Star or unstar anything; starring a person or company offers Also follow",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_counts",
+      "summary": "My badges: for each scope how many things have something unread (not done, not muted) and how many entries that is",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_get",
+      "summary": "My state on up to 500 things: how far I read, unread, done, starred, followed, muted",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_layout_get",
+      "summary": "How I arranged my screens: my layout values (all, or the named keys). A small value for each registered key, mine alone",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_layout_set",
+      "summary": "Set one layout value, or clear it with null. Only registered keys, each with a small size limit; it is never a place for content",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_list",
+      "summary": "My things by what I did with them: starred, following, done, unread, muted, pinned (in my own order) or any (everything I have set on anything: one read paints a whole screen). Each row carries the thing's whole state",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_read",
+      "summary": "Mark a thing read up to a position, mark it unread, or mark it unread from a position. Give exactly one of upto, unread, fromPos",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_read_scope",
+      "summary": "Mark everything in one badge read, or only what arrived before a time",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "state_set",
+      "summary": "Mark a thing done or open again, star it, follow or leave it, set Alert me on replies, mute it, or pin it (`pin: {}` puts it last among my pins of this kind, `{ after: null }` first, `{ after: thing }` right below that pin; `pin: null` takes it off). Give at least one",
       "toolset": "meta"
     },
     {

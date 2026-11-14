@@ -18,7 +18,7 @@ import { artifactMenu } from "../menus/artifact.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
 import { nameLookup } from "../../../shell/providers/records-live.ts";
 import { infoOf } from "./ArtifactView.tsx";
-import { plainLink } from "./artifact-address.ts";
+import { copyLinkText, itemLink } from "../../../share/rows.ts";
 import { LIST_PAGE } from "./RepliesPage.tsx";
 
 type Row = CapMap["sites.list"]["out"]["sites"][number];
@@ -71,9 +71,7 @@ export function ArtifactsPage({ rt }: { rt: ShellRuntime }): ReactElement {
     );
   };
   const copy = (id: string): void => {
-    void (
-      globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }
-    ).navigator?.clipboard?.writeText?.(plainLink(rt.baseUrl, id));
+    copyLinkText(itemLink("site", id)); // the Space's own address (words when there is none)
   };
   const empty = rows !== null && shown.length === 0;
   return (

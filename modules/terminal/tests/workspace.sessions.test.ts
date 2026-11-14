@@ -212,7 +212,10 @@ test("attach, read, type, interrupt, resize and close on a workspace session are
   assert.equal(host.calls.length, before, "nothing reached the machine");
   const att = await call(admin, "terminal.attach", { terminalId: run.terminalId });
   assert.match(att.replay, /\$ echo hi\nhi/, "an admin attaches to a team agent's workspace and sees the same screen");
-  assert.equal((await call(admin, "terminal.input", { terminalId: run.terminalId, data: "ls\n" })).ok, true);
+  // F30 (14 Nov): this session is in Dana's own space on Dex's computer (Dex is Lee's, Dana is not its owner), so an admin watches it but does not type in it; Dana does
+  const typed = await failure(() => h["terminal.input"]!(admin, { terminalId: run.terminalId, data: "ls\n" }));
+  assert.equal(typed.reason, "others_place", "an admin may watch a person's own space, not type in it");
+  assert.equal((await call(agent, "terminal.input", { terminalId: run.terminalId, data: "ls\n" })).ok, true, "Dana's own turn types in it");
 });
 
 test("a person attaches to their own Assistant's session and types in it", async () => {

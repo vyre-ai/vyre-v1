@@ -92,6 +92,7 @@ function fresh(ctx: TasksCtx, title: string, assigned: Assignee, notes: Record<s
     fields: {},
     reviewLoops: 0,
     createdBy: ctx.principal.id,
+    ...(ctx.principal.kind === "agent" && ctx.actingFor?.startsWith("usr_") ? { createdFor: ctx.actingFor } : {}),
     createdAt: now,
     updatedAt: now,
     version: 0,

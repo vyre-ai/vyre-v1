@@ -46,8 +46,8 @@ test("missing inputs are named per step", async () => {
   assert.equal(r.ok, false);
   const msgs = r.issues.filter((i) => i.severity === "error").map((i) => `${i.nodeId}: ${i.message}`);
   assert.deepEqual(msgs.sort(), [
-    "a: Update a record needs patch.",
-    "a: Update a record needs recordId.",
+    "a: Update a record: add the changes to make.",
+    "a: Update a record: choose the record.",
     "b: Send an email needs a mailbox.",
   ]);
   assert.ok(
@@ -546,7 +546,7 @@ test("an AI step needs a prompt; a Personal Space cannot use a webhook trigger",
   const bare = await validate(h, { triggers: trig, nodes: [node("a", "ai", { prompt: "Summarise" })] });
   assert.equal(bare.ok, true, "a Personal AI step runs on its owner's account and needs neither");
   const noPrompt = await validate(h, { triggers: trig, nodes: [node("a", "ai", {})] });
-  assert.equal(noPrompt.issues[0]!.message, "AI step needs prompt.");
+  assert.equal(noPrompt.issues[0]!.message, "AI step: say what to ask.");
   const withAgent = await validate(h, {
     triggers: trig,
     nodes: [node("a", "ai", { prompt: "Summarise" }, { ai: { agentId: "agt_helper" } })],

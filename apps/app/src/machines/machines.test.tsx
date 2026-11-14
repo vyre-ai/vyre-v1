@@ -3,7 +3,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Chart } from "./Chart.tsx";
-import { MachineDetail, MachineList, placementOrder, removeMessage } from "./MachinesView.tsx";
+import { MachineDetail, MachineList, Placement, placementOrder, removeMessage } from "./MachinesView.tsx";
+import { assertNoRawIds } from "../../../../ui/src/testing/raw-ids.ts";
 import { CHARTS } from "./model.ts";
 import type { MachineOut, MachineRow, MachinesOut, Point } from "./model.ts";
 
@@ -368,4 +369,21 @@ test("the doctor line names vyre-server only on a server: a person's own compute
     "the Space server says where its check also runs",
   );
   assert.ok(!page(mine, detail(mine), { tab: "health" }).includes("vyre-server doctor"), "my own computer does not");
+});
+
+test("Pinned agents are named, never listed by their id (owner, 13 Nov 2026)", () => {
+  const pinned = row({
+    serverId: "srv_box",
+    name: "Berlin box",
+    mine: true,
+    pins: ["agt_01a1d244cc8f49678f4eeecfb5b1c309", "agt_docs"],
+  });
+  const names = (id: string): string =>
+    ({ agt_docs: "Docs", agt_01a1d244cc8f49678f4eeecfb5b1c309: "Scout" })[id] ?? "An agent";
+  const out = html(
+    <Placement call={(() => Promise.resolve({})) as never} scope="space" who={names} m={pinned} onChanged={noop} />,
+  );
+  assert.ok(out.includes("Scout") && out.includes("Docs"), "each pinned agent is named");
+  assert.ok(out.includes("Unpin Scout"), "the Unpin button is named too");
+  assertNoRawIds(out, "Machine, Pinned agents");
 });

@@ -719,6 +719,8 @@ export interface ComposerProps extends ComposerShellProps {
   /** The thread's folder chip. Picking a folder with # sets it; removing the chip clears it. */
   folder?: string | null;
   onFolder?: (folder: string | null) => void;
+  /** Ready to type into the moment it is drawn (a new chat that was asked for). */
+  autoFocus?: boolean;
   /** Called with everything sent: text, chips, files, folder, linked records, mode. */
   /** A caller whose send can fail returns its promise: if it rejects the draft comes back, with the reason and Try again under it. A plain return is a send that cannot fail. */
   onSubmit?: (payload: ComposerSend) => void | Promise<unknown>;
@@ -752,6 +754,8 @@ export interface ComposerProps extends ComposerShellProps {
   renderPanel?: (agent: ComposerAgent, close: () => void, narrow: boolean) => ReactNode;
   /** The model menu opens under the composer instead of over it (the first screen, where the composer sits high). */
   panelBelow?: boolean;
+  /** A count the place raises to open the model menu itself (the /model command): each increase opens it, where the strip's own press would. */
+  openPanelAt?: number;
   /** Where the chat runs, when it is not this computer: "On Northwind" in the pill. */
   runsChip?: string;
   /** The chat's mode; with onMode the chip shows and Shift+Tab cycles it. */
@@ -1067,6 +1071,15 @@ export function Composer(props: ComposerProps): ReactElement {
   const [sendError, setSendError] = useState<{ reason: string; mode: SendMode } | null>(null);
   const [plusOpen, setPlusOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  // the place asked for the menu (/model): the same menu the strip opens, never a second picker
+  const panelAsked = useRef(props.openPanelAt ?? 0);
+  useEffect(() => {
+    const n = props.openPanelAt ?? 0;
+    if (n <= panelAsked.current) return;
+    panelAsked.current = n;
+    setPlusOpen(false);
+    setPanelOpen(true);
+  }, [props.openPanelAt]);
   const [scope, setScope] = useState<HashScope>("All");
   const [attachMode, setAttachMode] = useState(false);
   const [found, setFound] = useState<{ key: string; lists: ComposerLists } | null>(null);
@@ -1093,7 +1106,7 @@ export function Composer(props: ComposerProps): ReactElement {
   const panelNarrow = narrow || panelFitsInline(boxW);
   // a composer opened with words in it (Ask about this file, New message) is ready to type after them
   useEffect(() => {
-    if ((props.value ?? "") !== "") input.current?.focus?.();
+    if ((props.value ?? "") !== "" || props.autoFocus === true) input.current?.focus?.();
   }, []);
 
   useEffect(() => {

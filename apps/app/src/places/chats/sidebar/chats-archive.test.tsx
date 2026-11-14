@@ -6,7 +6,7 @@ import { act } from "react";
 import { createRoot } from "test-renderer";
 import { installDom, mount, press, find, flush } from "../../../onboarding/test-dom.ts";
 import type { Node } from "../../../onboarding/test-dom.ts";
-import { ChatsSidebar, UNDO_MS } from "./ChatsSidebar.tsx";
+import { LegacyChatsSidebar as ChatsSidebar, UNDO_MS } from "./ChatsSidebar.tsx";
 import { chatMenuEntries } from "./chat-menu.ts";
 import { archivedRows, buildEntries, groupRecent, rowOf } from "./model.ts";
 import type { ChatRow, SidebarInput } from "./model.ts";

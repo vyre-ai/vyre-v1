@@ -1,6 +1,7 @@
 // Runs projections (ARCH 4.7, 7.7). The Run row (runs_items), its durable step log (runs_steps), waits, facts the row has no column for (runs_extra)
 // and the read queries behind runs.list, runs.get, runs.steps, runs.count and runs.status.
 // Durable tables: generated/modules/runs/schema.sql plus migrations/0001_runs_engine.sql. Every statement names only runs_* tables (ctx.db refuses anything else, ARCH B2).
+import { agentStanding } from "../../lib/agent-asker.ts";
 import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { makeId } from "../../packages/contracts/src/ids.ts";
@@ -507,8 +508,13 @@ export function allWaits(db: Db): WaitRow[] {
 // ---- who may see and manage ----
 
 const isService = (ctx: RunsCtx): boolean => isTrustedService(ctx.principal);
+/** An agent's own standing (a Run it owns, or started) counts for the person it acts for only when that person owns the Run too (lib/agent-asker.ts). */
+const ownStanding = (ctx: RunsCtx, r: Pick<Run, "owner">): boolean => agentStanding(ctx, (p) => p === r.owner);
 export function isOwner(ctx: RunsCtx, r: Pick<Run, "owner">): boolean {
-  return r.owner === ctx.principal.id || (ctx.actingFor !== undefined && r.owner === ctx.actingFor);
+  return (
+    (r.owner === ctx.principal.id && agentStanding(ctx, () => false)) ||
+    (ctx.actingFor !== undefined && r.owner === ctx.actingFor)
+  );
 }
 /** Manage on a Run: its owner, a service caller (engine, Gate), or a holder of the `runs.manage` role permission. */
 export function mayManage(ctx: RunsCtx, r: Pick<Run, "id" | "owner">): boolean {
@@ -524,7 +530,7 @@ export function canSee(
   r: Pick<Run, "id" | "owner" | "startedBy"> & Partial<Pick<Run, "kind" | "subject">>,
 ): boolean {
   if (foldedFor(ctx, r as Pick<Run, "id" | "owner" | "startedBy" | "kind" | "subject">)) return false;
-  if (mayManage(ctx, r) || r.startedBy === ctx.principal.id) return true;
+  if (mayManage(ctx, r) || (r.startedBy === ctx.principal.id && ownStanding(ctx, r))) return true;
   return !!ctx.authorize && ctx.authorize({ perm: null, level: "view" }, { type: "run", id: r.id }).effect === "allow";
 }
 export function seeRun(ctx: RunsCtx, id: string): Run {
@@ -595,8 +601,7 @@ export function foldedFor(
   ctx: RunsCtx,
   r: Pick<Run, "id" | "owner" | "startedBy"> & Partial<Pick<Run, "kind" | "subject">>,
 ): boolean {
-  if (isService(ctx) || r.owner === ctx.principal.id || r.owner === ctx.actingFor || r.startedBy === ctx.principal.id)
-    return false;
+  if (isService(ctx) || isOwner(ctx, r) || (r.startedBy === ctx.principal.id && ownStanding(ctx, r))) return false;
   if (r.kind !== "routine" && r.subject?.type !== "agent") return false;
   return !(
     !!ctx.authorize && ctx.authorize({ perm: null, level: "view" }, { type: "run", id: r.id }).effect === "allow"
@@ -621,7 +626,8 @@ export function listRuns(ctx: RunsCtx, f: ListFilter): Run[] {
   const rows = (
     ctx.db.all(`SELECT * FROM runs_items WHERE ${where} ORDER BY started_at DESC, id DESC`, ...args) as Raw[]
   ).map(rowToRun);
-  const me = (id: string): boolean => id === ctx.principal.id || id === ctx.actingFor;
+  const me = (id: string): boolean =>
+    (id === ctx.principal.id && agentStanding(ctx, () => false)) || id === ctx.actingFor;
   switch (f.scope) {
     case "mine":
       return rows.filter((r) => me(r.owner));

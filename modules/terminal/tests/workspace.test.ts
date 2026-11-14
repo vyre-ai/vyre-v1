@@ -3,6 +3,7 @@
 // real DockerApi; tmux in a container is the stand-in tmux, lost when the container stops.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 import { createDockerApi } from "../../../sandbox/src/docker.ts";
 import {
   createWorkspaceManager,
@@ -13,6 +14,7 @@ import {
   reviewWorkspaceConfig,
   workspaceContainerConfig,
   workspaceName,
+  SHARED_NETWORK,
   PROJECT_INIT_SCRIPT,
   IMAGE_MISSING_LINE,
 } from "../workspace.ts";
@@ -1018,4 +1020,44 @@ test("third look: after a restart, the first use of a workspace removes what a r
   } finally {
     box.exec = exec0;
   }
+});
+
+test("F33: the host name a person reads in the shell prompt is a word, never the container name that carries the agent's id; the label that makes an old workspace be made again includes it", () => {
+  const good = workspaceContainerConfig(AGENT, "vyre/agent-workspace:1", { projects: [] }, {});
+  assert.equal(good.Hostname, "workspace");
+  assert.ok(!/agt_/.test(good.Hostname), good.Hostname);
+  assert.deepEqual(reviewWorkspaceConfig(good, AGENT), []);
+  assert.deepEqual(reviewWorkspaceConfig({ ...good, Hostname: NAME }, AGENT), ["is not this agent's workspace"]);
+  // the label an unchanged workspace carries (made before the host name was part of it) differs from the new one, so such a workspace is made again once, when quiet
+  const old = sha256Hex(JSON.stringify({ p: [], n: SHARED_NETWORK })).slice(0, 16);
+  const now = sha256Hex(JSON.stringify({ p: [], h: 1, u: 1, n: SHARED_NETWORK })).slice(0, 16);
+  assert.equal(good.Labels["vyre.mounts"], now);
+  assert.notEqual(good.Labels["vyre.mounts"], old);
+});
+
+test("F33: an error from Docker that names the container never shows the agent's id to a person", async () => {
+  const dk = fakeDocker({ tmux: { scripts: {} } });
+  const http: typeof dk.http = async (req) =>
+    req.method === "GET" && /\/containers\/vyre-ws-agt_dex\/json/.test(req.path)
+      ? {
+          status: 500,
+          headers: {},
+          body: new TextEncoder().encode('{"message":"error on container vyre-ws-agt_dex: driver failed"}'),
+        }
+      : dk.http(req);
+  const mgr = createWorkspaceManager({
+    api: createDockerApi(http),
+    http,
+    now: () => 1_000_000,
+    sleep: async () => {},
+    idleMs: 600_000,
+  });
+  let said = "";
+  try {
+    await mgr.exec(AGENT, ["echo", "hi"]);
+  } catch (e) {
+    said = String((e as Error).message);
+  }
+  assert.ok(said.length > 0, "the command failed");
+  assert.ok(!/vyre-ws-|agt_/.test(said), said);
 });

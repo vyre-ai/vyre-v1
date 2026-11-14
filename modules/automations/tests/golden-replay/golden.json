@@ -223,8 +223,8 @@
     },
     "missing": {
       "issues": [
-        "error:a:Update a record needs recordId.",
-        "error:a:Update a record needs patch."
+        "error:a:Update a record: choose the record.",
+        "error:a:Update a record: add the changes to make."
       ],
       "ok": false
     },

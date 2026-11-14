@@ -22,6 +22,8 @@ services:
       VYRE_SPACE: ${VYRE_SPACE:-}
       VYRE_ADDRESS: ${VYRE_ADDRESS:-}
       VYRE_RELAY_URL: ${VYRE_RELAY_URL:-}
+      # the host artifact pages are served from, when it must differ from the default (a.<address>); empty uses the default
+      VYRE_ARTIFACT_HOST: ${VYRE_ARTIFACT_HOST:-}
       # what the installer recorded: when the address or relay was last changed (the Space applies a change once), and the disk choice (the Console's health page shows it)
       VYRE_NETWORK_REV: ${VYRE_NETWORK_REV:-}
       VYRE_DISK_ENCRYPTION: ${VYRE_DISK_ENCRYPTION:-}

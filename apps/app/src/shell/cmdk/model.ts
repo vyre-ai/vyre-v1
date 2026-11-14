@@ -1,6 +1,7 @@
 // Cmd-K model (spec 3.0, ARCH 7.0): query parsing, type filters, the local plus server merge and the row list. Pure functions, no React.
 // The device searches its own replica first and never waits for the server; server hits merge in as they arrive and never move a local row.
 import type { CapMap } from "../../../../../generated/types.ts";
+import { isRawId, withoutRawIds } from "../../../../../lib/id-shapes.ts";
 
 export type Hit = CapMap["search.query"]["out"]["hits"][number];
 export type HitKind = Hit["kind"];
@@ -93,7 +94,18 @@ export function mergeHits(local: readonly Hit[], server: readonly Hit[]): Hit[] 
     const at = seen.get(k);
     if (at !== undefined) {
       const mine = out[at];
-      if (mine && mine.snippet === undefined && h.snippet !== undefined) out[at] = { ...mine, snippet: h.snippet };
+      if (
+        mine &&
+        ((mine.snippet === undefined && h.snippet !== undefined) ||
+          ((mine as LinkedHit).of === undefined && (h as LinkedHit).of !== undefined))
+      )
+        out[at] = {
+          ...mine,
+          ...(mine.snippet === undefined && h.snippet !== undefined ? { snippet: h.snippet } : {}),
+          ...((mine as LinkedHit).of === undefined && (h as LinkedHit).of !== undefined
+            ? { of: (h as LinkedHit).of }
+            : {}),
+        } as Hit;
       continue;
     }
     seen.set(k, -1);
@@ -143,17 +155,31 @@ export const plainMarks = (text: string): string => text.replace(/\[([^\[\]]+)\]
 /** The second line of a row is dropped when it only repeats the title (case and outer spaces do not count). */
 export const sameText = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
 
-/** One row per thing: the same title twice in a group (and a channel's own thread beside the channel) (a chat's title, then a message hit of that chat) is one row that keeps the first hit and takes a snippet from the later one when it has none. */
+/** A snippet as a person reads it: no [ ] marks, and no id from a record's raw fields (owner, 13 Nov 2026: the hit for a project read "fld_... usr_..."). Nothing left means no snippet. */
+const readable = (snippet: string | undefined): string | undefined => {
+  if (snippet === undefined) return undefined;
+  const t = withoutRawIds(plainMarks(snippet)).replace(/^[\s…]+$/, "");
+  return t === "" ? undefined : t;
+};
+
+/** A hit that is only another way to the same thing: `of` is the `kind:id` of the hit it is the own chat, own channel or own record of. Set from what the device knows (gate.ts `linkedTo`), never from a title. */
+export type LinkedHit = Hit & { of?: string };
+
+/**
+ * One row per thing: the same id twice is one row that keeps the first hit and takes a snippet from the later one when it has none. Things that only share a title are separate rows.
+ * A hit that says it is another hit's own (a project's own channel) goes when that other hit is in the list, decided by ids, never by what the two are called: a channel that only shares a project's name stays.
+ * No row is titled by an id, and no snippet carries one.
+ */
 export function oneEach(hits: readonly Hit[]): Hit[] {
   const at = new Map<string, number>(),
     out: Hit[] = [];
   for (const h of hits) {
-    const t = {
-      ...h,
-      title: plainMarks(h.title),
-      ...(h.snippet !== undefined ? { snippet: plainMarks(h.snippet) } : {}),
-    } as Hit;
-    const k = `${t.kind}:${t.title.trim().toLowerCase()}`,
+    const title = plainMarks(h.title);
+    const snippet = readable(h.snippet);
+    const t = { ...h, title: isRawId(title) ? "Untitled" : title } as LinkedHit;
+    if (snippet !== undefined) t.snippet = snippet;
+    else delete t.snippet;
+    const k = `${t.kind}:${t.id}`,
       seen = at.get(k);
     if (seen === undefined) {
       at.set(k, out.length);
@@ -163,14 +189,21 @@ export function oneEach(hits: readonly Hit[]): Hit[] {
     const mine = out[seen]!;
     if (mine.snippet === undefined && t.snippet !== undefined) out[seen] = { ...mine, snippet: t.snippet };
   }
-  // a channel's own thread is found as a chat too: the channel row is the one that stays, and takes the snippet
-  const chan = new Map(out.filter((h) => h.kind === "channel").map((h) => [h.title.trim().toLowerCase(), h] as const));
-  return out.filter((h) => {
-    const c = h.kind === "chat" ? chan.get(h.title.trim().toLowerCase()) : undefined;
-    if (!c) return true;
-    if (c.snippet === undefined && h.snippet !== undefined) out[out.indexOf(c)] = { ...c, snippet: h.snippet };
-    return false;
-  });
+  const present = new Set(out.map((h) => keyOf(h)));
+  // a channel's own chat is about to go: the words it was found by stay, on the channel's row, when that row has none of its own
+  for (const h of out) {
+    const of = (h as LinkedHit).of;
+    if (h.kind !== "chat" || h.snippet === undefined || of === undefined || !of.startsWith("channel:")) continue;
+    const to = out.findIndex((x) => keyOf(x) === of);
+    if (to !== -1 && out[to]!.snippet === undefined) out[to] = { ...out[to]!, snippet: h.snippet };
+  }
+  return out
+    .filter((h) => {
+      // only a hit that says it IS another hit's own (by id) goes; two things that share a title are two rows, told apart by their second line
+      const of = (h as LinkedHit).of;
+      return !(of !== undefined && present.has(of));
+    })
+    .filter((h, i, all) => all.findIndex((x) => x.kind === h.kind && x.id === h.id) === i);
 }
 
 export function groupRows(hits: readonly Hit[], cap: number): RowModel[] {

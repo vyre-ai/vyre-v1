@@ -1,6 +1,7 @@
 // @reads /modules/terminal/migrations/0001_init.sql
 // @reads /modules/terminal/migrations/0003_gone.sql
-// @reads /modules/terminal/migrations/0004_people.sql
+// @reads /modules/terminal/migrations/0004_hold.sql
+// @reads /modules/terminal/migrations/0005_people.sql
 // Durable rows of the terminal module (sessions, commands, rules, attach tickets), the port to the machine a session lives on, the rule matcher and the per-session secret scrubbers.
 // Every statement names a terminal_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";
@@ -229,7 +230,14 @@ const GONE_SCHEMA = readFileSync(new URL("./migrations/0003_gone.sql", import.me
   .split(";")
   .map((x) => x.trim())
   .filter((x) => x.length > 0);
-const PEOPLE_SCHEMA = readFileSync(new URL("./migrations/0004_people.sql", import.meta.url), "utf8")
+const HOLD_SCHEMA = readFileSync(new URL("./migrations/0004_hold.sql", import.meta.url), "utf8")
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((x) => x.trim())
+  .filter((x) => x.length > 0);
+const PEOPLE_SCHEMA = readFileSync(new URL("./migrations/0005_people.sql", import.meta.url), "utf8")
   .split("\n")
   .filter((l) => !l.trimStart().startsWith("--"))
   .join("\n")
@@ -256,6 +264,12 @@ export function ensure(db: Db): void {
     db.all("SELECT agent_id FROM terminal_workspace_gone WHERE agent_id = ?", "probe");
   } catch {
     for (const stmt of GONE_SCHEMA) db.run(stmt);
+  }
+  // and before a person could take the keyboard
+  try {
+    db.all("SELECT terminal_id FROM terminal_hold WHERE terminal_id = ?", "probe");
+  } catch {
+    for (const stmt of HOLD_SCHEMA) db.run(stmt);
   }
   // and before the Unix users of the people who use a shared agent
   try {
@@ -338,6 +352,8 @@ export interface SessionRow {
   createdAt: number;
   lastActiveAt: number;
   closedAt?: number;
+  /** The person at the keyboard now (terminal_hold), when one is. */
+  heldBy?: string;
 }
 
 export function sessionOf(r: Row): SessionRow {
@@ -374,6 +390,8 @@ export function sessionOf(r: Row): SessionRow {
   const u = opt(r["run_id"]);
   if (u !== undefined) out.runId = u;
   if (r["closed_at"] !== null && r["closed_at"] !== undefined) out.closedAt = Number(r["closed_at"]);
+  const h = opt(r["hold_person"]);
+  if (h !== undefined) out.heldBy = h;
   return out;
 }
 
@@ -384,7 +402,7 @@ export function sessionBy(db: Db, terminalId: string): SessionRow | null {
 
 /** A session with its tab: who made it. */
 export const SESSION_SELECT =
-  "SELECT s.*, t.kind AS tab_kind, t.name AS tab_name, t.actor AS tab_actor FROM terminal_sessions s LEFT JOIN terminal_tabs t ON t.terminal_id = s.terminal_id";
+  "SELECT s.*, t.kind AS tab_kind, t.name AS tab_name, t.actor AS tab_actor, h.person_id AS hold_person FROM terminal_sessions s LEFT JOIN terminal_tabs t ON t.terminal_id = s.terminal_id LEFT JOIN terminal_hold h ON h.terminal_id = s.terminal_id";
 
 export function insertTab(db: Db, terminalId: string, by: TabBy, actor: string, threadId?: string): void {
   db.run(
@@ -697,4 +715,43 @@ export const forgetAllSecrets = (): void => {
 export function clean(scope: string, text: string): string {
   const sc = scrubberFor(scope);
   return sc ? sc.scrub(text) : text;
+}
+
+// ---- the keyboard ---------------------------------------------------------------------------------------------------------------------------------------
+
+/** How long a hold lasts with its holder neither typing nor looking before the keyboard goes back to the agent. */
+export const HOLD_IDLE_MS = 15 * 60_000;
+
+/** Ends every hold nobody used for HOLD_IDLE_MS; returns the terminals whose keyboard went back (the caller tells the people looking). */
+export function sweepHolds(db: Db, now: number): string[] {
+  const gone = (db.all("SELECT terminal_id FROM terminal_hold WHERE seen < ?", now - HOLD_IDLE_MS) as Row[]).map((r) =>
+    s(r["terminal_id"]),
+  );
+  if (gone.length > 0) db.run("DELETE FROM terminal_hold WHERE seen < ?", now - HOLD_IDLE_MS);
+  return gone;
+}
+
+export function holderOf(db: Db, terminalId: string): string | null {
+  const r = (db.all("SELECT person_id FROM terminal_hold WHERE terminal_id = ?", terminalId) as Row[])[0];
+  return r ? s(r["person_id"]) : null;
+}
+
+export function setHold(db: Db, terminalId: string, personId: string, now: number): void {
+  db.run("DELETE FROM terminal_hold WHERE terminal_id = ?", terminalId);
+  db.run(
+    "INSERT INTO terminal_hold (terminal_id, person_id, since, seen) VALUES (?, ?, ?, ?)",
+    terminalId,
+    personId,
+    now,
+    now,
+  );
+}
+
+export function dropHold(db: Db, terminalId: string): void {
+  db.run("DELETE FROM terminal_hold WHERE terminal_id = ?", terminalId);
+}
+
+/** The holder typed or looked: the hold is in use. */
+export function touchHold(db: Db, terminalId: string, personId: string, now: number): void {
+  db.run("UPDATE terminal_hold SET seen = ? WHERE terminal_id = ? AND person_id = ?", now, terminalId, personId);
 }

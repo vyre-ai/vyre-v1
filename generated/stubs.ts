@@ -492,6 +492,10 @@ export function stubs(ctx: CallCtx) {
       },
       unpin: call("chat.unpin"),
     },
+    chats: {
+      presence: call("chats.presence"),
+      sidebar: call("chats.sidebar"),
+    },
     ci: {
       cost: {
         month: call("ci.cost.month"),
@@ -936,6 +940,7 @@ export function stubs(ctx: CallCtx) {
         set: call("engine.subscription_share.set"),
       },
       switch: call("engine.switch"),
+      thread_states: call("engine.thread_states"),
       time_convert: call("engine.time_convert"),
       turn: {
         append: call("engine.turn.append"),
@@ -2100,6 +2105,7 @@ export function stubs(ctx: CallCtx) {
         set: call("notifications.rules.set"),
       },
       send: call("notifications.send"),
+      unseen_by_thread: call("notifications.unseen_by_thread"),
     },
     plugins: {
       agent_template: {
@@ -2637,6 +2643,25 @@ export function stubs(ctx: CallCtx) {
       list: call("stars.list"),
       toggle: call("stars.toggle"),
     },
+    state: {
+      arrive: call("state.arrive"),
+      counts: call("state.counts"),
+      forget: call("state.forget"),
+      gain: call("state.gain"),
+      get: call("state.get"),
+      layout: {
+        get: call("state.layout.get"),
+        set: call("state.layout.set"),
+      },
+      list: call("state.list"),
+      lose: call("state.lose"),
+      merge: call("state.merge"),
+      read: call("state.read"),
+      read_scope: call("state.read_scope"),
+      retract: call("state.retract"),
+      set: call("state.set"),
+      verify: call("state.verify"),
+    },
     steps: {
       support: call("steps.support"),
       test: call("steps.test"),
@@ -2862,6 +2887,7 @@ export function stubs(ctx: CallCtx) {
       attach: call("terminal.attach"),
       close: call("terminal.close"),
       get: call("terminal.get"),
+      give_back: call("terminal.give_back"),
       health: call("terminal.health"),
       input: call("terminal.input"),
       interrupt: call("terminal.interrupt"),
@@ -2879,6 +2905,7 @@ export function stubs(ctx: CallCtx) {
       },
       run: call("terminal.run"),
       status: call("terminal.status"),
+      take_over: call("terminal.take_over"),
       workspace: call("terminal.workspace"),
     },
     threads: {

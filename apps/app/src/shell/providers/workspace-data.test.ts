@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { workspaceData, workspaceView } from "./workspace-data.ts";
-import { workspaceWords } from "../../places/chats/rightpane/work-model.ts";
+import { terminalsHead } from "../../places/chats/rightpane/work-model.ts";
 import type { TerminalRowLike, WorkspaceRead } from "./workspace-data.ts";
 
 const row = (o: Partial<TerminalRowLike> & { terminalId: string; name: string }): TerminalRowLike => ({
@@ -68,7 +68,12 @@ test("who may attach is the server's answer, with its sentence", () => {
 
 function wire(
   rows: TerminalRowLike[],
-  o: { fail?: string; ws?: WorkspaceRead; projects?: Record<string, string> } = {},
+  o: {
+    fail?: string;
+    ws?: WorkspaceRead;
+    projects?: Record<string, string>;
+    status?: Array<{ terminalId: string; lastLine?: string }>;
+  } = {},
 ) {
   const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
   const opened: string[] = [];
@@ -108,6 +113,7 @@ function wire(
         if (!t) throw new Error("no such project");
         return { project: { title: t } };
       }
+      if (cap === "terminal.status") return { rows: o.status ?? [] };
       if (o.fail) throw new Error(o.fail);
       return { terminal: { terminalId: "t_new" } };
     },
@@ -183,11 +189,10 @@ test("a workspace kept awake by running work shows what runs in its line (12 Nov
     [],
   );
   assert.equal(v.line, "running: tail -f app.log");
-  assert.deepEqual(workspaceWords(v), { chip: "Running", tone: "ok", note: "running: tail -f app.log" });
+  assert.deepEqual(terminalsHead(v), { word: "Running", dot: "run" });
 });
 
-test("owner walk: a workspace nothing can run is 'Not set up yet' in quiet words with the line, and offers no Attach", async () => {
-  const { terminalAction } = await import("../../places/chats/rightpane/work-model.ts");
+test("owner walk: a workspace nothing can run is 'Not running' with the line, and nothing to open", async () => {
   const v = workspaceView(
     "agt_dex",
     {
@@ -199,10 +204,65 @@ test("owner walk: a workspace nothing can run is 'Not set up yet' in quiet words
     [],
   );
   assert.equal(v.state, "unavailable");
-  assert.deepEqual(workspaceWords(v), {
-    chip: "Not set up yet",
-    tone: "quiet",
-    note: "This Space can't run agent workspaces yet. That needs Docker on the Space's server, or another server with Docker added in Console > Computers.",
+  assert.deepEqual(terminalsHead(v), { word: "Not running", dot: "dead" });
+  assert.equal(v.canAttach, false, "nothing to open");
+});
+
+test("the agent's terminal is opened in the background once when it has none, never twice at the same time, never when it already has one", async () => {
+  const a = wire([]);
+  await Promise.all([a.data.ensure!("agt_dex"), a.data.ensure!("agt_dex")]);
+  assert.equal(a.calls.filter((c) => c.cap === "terminal.open").length, 1, "two panes, one terminal");
+  assert.deepEqual(a.opened, [], "no layer opens over the chat");
+  const b = wire([row({ terminalId: "t_own", name: "main", by: { kind: "agent" } })]);
+  await b.data.ensure!("agt_dex");
+  assert.deepEqual(b.calls, [], "it has one");
+  const c = wire([], { fail: LINE });
+  await assert.rejects(() => c.data.ensure!("agt_dex"), /Waiting for room/);
+});
+
+test("a terminal row opens that terminal, and the view carries each row's id, state and folder", () => {
+  const a = wire([row({ terminalId: "t_1", name: "main", cwd: "~/portal", state: "idle", by: { kind: "agent" } })]);
+  a.data.open!("t_1");
+  assert.deepEqual(a.opened, ["t_1"]);
+  const v = workspaceView("agt_dex", read(), [
+    row({ terminalId: "t_1", name: "main", cwd: "~/portal", state: "idle" }),
+  ]);
+  assert.deepEqual(
+    v.sessions.map((s) => [s.terminalId, s.state, s.cwd]),
+    [["t_1", "idle", "~/portal"]],
+  );
+});
+
+test("a row carries who has the keyboard and what it last printed", () => {
+  const v = workspaceView(
+    "agt_dex",
+    read(),
+    [row({ terminalId: "t_1", name: "main", heldBy: "usr_sara" }), row({ terminalId: "t_2", name: "build" })],
+    [],
+    new Map([["t_1", "$ npm test"]]),
+  );
+  assert.deepEqual(
+    v.sessions.map((s) => [s.terminalId, s.heldBy, s.lastLine]),
+    [
+      ["t_1", "usr_sara", "$ npm test"],
+      ["t_2", undefined, undefined],
+    ],
+  );
+});
+
+test("the last line of each terminal comes from terminal.status after the first paint; the same lines do not paint again", async () => {
+  const w = wire([row({ terminalId: "t1", name: "main", cwd: "~/portal" })], {
+    status: [{ terminalId: "t1", lastLine: "  ✓ accepts a file (41 ms)  " }],
   });
-  assert.equal(terminalAction(v), null, "no Attach");
+  const seen: Array<string | undefined> = [];
+  const off = w.data.watch("agt_dex", (v) => seen.push(v.sessions[0]?.lastLine));
+  await flush();
+  await flush();
+  assert.deepEqual(seen, [undefined, "✓ accepts a file (41 ms)"], "first paint without it, then the line, trimmed");
+  w.ticks[0]!();
+  await flush();
+  await flush();
+  assert.equal(seen.length, 3, "a tick repaints from the workspace read, but the status answer was the same");
+  assert.ok(w.calls.some((c) => c.cap === "terminal.status"));
+  off();
 });

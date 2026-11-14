@@ -123,7 +123,7 @@ test("a tab opened on an artifact is named for the artifact", () => {
   assert.equal(ask.name({ site: {} }), null);
 });
 
-test("a chat tab whose chat the person cannot open says Chats, not New chat; a transient failure keeps the blank-chat name", async () => {
+test("a chat tab whose chat the person cannot open says Chats, not New chat; a transient failure renames nothing and is asked again", async () => {
   const { followTitle, askForHash, REFUSED_CHAT_TAB } = await import("./titles.ts");
   const ask = askForHash("chats", "subject=thread:thr_x")!;
   const run = async (err: unknown): Promise<string> => {
@@ -142,7 +142,8 @@ test("a chat tab whose chat the person cannot open says Chats, not New chat; a t
   assert.equal(REFUSED_CHAT_TAB, "Chats");
   assert.equal(await run(Object.assign(new Error("x"), { code: "validation.not_found" })), "Chats");
   assert.equal(await run(Object.assign(new Error("x"), { code: "permission.no_grant" })), "Chats");
-  assert.equal(await run(Object.assign(new Error("x"), { code: "timeout" })), "New chat");
+  // a read that only failed is "unknown yet": the tab keeps the name it has (never "Chats", never a blank "New chat") and the read is asked again
+  assert.equal(await run(Object.assign(new Error("x"), { code: "timeout" })), "");
 });
 
 test("a second refused chat reuses the one refusal tab; the place's own Chats tab is never taken for one", async () => {
