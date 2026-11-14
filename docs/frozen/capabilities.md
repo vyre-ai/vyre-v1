@@ -171,3 +171,8 @@ Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff
 
 - What changed: one new read, `engine.round.get@1` (input: threadId, up to 50 messageIds; output: per message, each agent asked with its state working, waiting (with the agent in front), replied or stopped). Read from the engine's queue, never stored. Thread scope like `engine.live_turns`: only people who may read the chat reach it. Snapshot: docs/frozen/snapshots/engine.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
 - Why: the row under a message that asked more than one agent (who is working, who waits on whom) needs one read that survives a restart; the prototype's round row and the Threads tab (G56, G61) draw from it.
+
+## 14 Nov 2026: chat.round.decide added (lane chat-agents)
+
+- What changed: one new write, `chat.round.decide@1` (input: threadId, messageId, agentId, idempotencyKey; output: the id of the line it leaves). After a message asked several agents and each answered, the person who asked goes with one answer: one quiet "Decided: going with Nova's answer" line (a link card authored by the person), no agent woken. Refused unless the caller is the author of the message and the agent answered after it. Snapshot: docs/frozen/snapshots/chat.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+- Why: the round table card's "Go with Nova" (G57); the answer line is the record that the round ended.

@@ -473,6 +473,9 @@ export function stubs(ctx: CallCtx) {
       recent: call("chat.recent"),
       remember: call("chat.remember"),
       reply_details: call("chat.reply_details"),
+      round: {
+        decide: call("chat.round.decide"),
+      },
       screen: {
         get: call("chat.screen.get"),
       },

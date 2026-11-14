@@ -1,0 +1,49 @@
+// The round table (chat gap G57, DESIGN-chat-system "Discussions"): when a message asked several agents and each answered on its own, the answers sit on one card, a tab per agent, and the person
+// goes with one. Pure: the answers are read from the chat's own messages (each agent's first message after the ask), so nothing is stored and a reload shows the same card.
+export interface RoundMessage {
+  messageId: string;
+  threadSeq: number;
+  author: { kind: string; id: string };
+  body: string;
+  kind?: string;
+}
+export interface RoundAnswer {
+  agentId: string;
+  messageId: string;
+  text: string;
+}
+
+const TEXT_LIMIT = 400;
+
+/**
+ * The answers to the message `askId` from the agents named (or from any agent, for words to all of them): each agent's first plain message after it, in the order they came. `null` when the card should not show: fewer than two agents have answered, or the person has
+ * written anything since the first answer (a Decided line is theirs too), so a decided or moved-on round folds away by itself.
+ */
+export function roundAnswers(
+  messages: readonly RoundMessage[],
+  askId: string,
+  meId: string,
+  agents: readonly string[] | null,
+): RoundAnswer[] | null {
+  const ask = messages.find((m) => m.messageId === askId);
+  if (!ask) return null;
+  const after = messages.filter((m) => m.threadSeq > ask.threadSeq).sort((a, b) => a.threadSeq - b.threadSeq);
+  const wanted = agents === null ? null : new Set(agents);
+  const out: RoundAnswer[] = [];
+  const seen = new Set<string>();
+  for (const m of after) {
+    if (m.author.kind !== "agent" || (wanted !== null && !wanted.has(m.author.id)) || seen.has(m.author.id)) continue;
+    if (m.body.trim() === "") continue;
+    seen.add(m.author.id);
+    const text = m.body.trim();
+    out.push({
+      agentId: m.author.id,
+      messageId: m.messageId,
+      text: text.length > TEXT_LIMIT ? `${text.slice(0, TEXT_LIMIT - 1)}…` : text,
+    });
+  }
+  if (out.length < 2) return null;
+  const first = Math.min(...out.map((a) => after.find((m) => m.messageId === a.messageId)!.threadSeq));
+  if (after.some((m) => m.author.id === meId && m.threadSeq > first)) return null;
+  return out;
+}
