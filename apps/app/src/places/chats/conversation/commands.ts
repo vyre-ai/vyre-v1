@@ -27,6 +27,8 @@ export interface CommandEnv {
   openAdd?(): void;
   /** Send a message as if typed (a plugin's prompt command). */
   send(text: string): void;
+  /** Opens the pane beside the chat on one tab (crew, memory, skills, hooks). Left out where the shell has no pane. */
+  openPane?(tab: "crew" | "memory" | "skills" | "hooks"): void;
 }
 
 /** The list the composer offers after "/": ours first, then each plugin's that does not clash with a name already in use. */
@@ -35,6 +37,7 @@ export function commandItems(plugins: readonly PluginCommand[] = []): ListItem[]
     t: c.id,
     s: c.detail,
     kind: "Command",
+    group: c.group,
     body: c.id,
     ...(c.arg !== undefined ? { arg: c.arg } : {}),
   }));
@@ -161,7 +164,7 @@ async function run(
     }
     case "btw":
       return { kind: "card", card: { kind: "aside", question: arg } };
-    case "usage": {
+    case "context": {
       // the words come from engine.my_ai (the one place that knows), never from the model
       const lead = thread.agents.find((a) => a.mode === "lead");
       return {
@@ -237,17 +240,6 @@ async function run(
       data.copy(file.content);
       return notice(`Copied the chat as ${format === "json" ? "JSON" : "Markdown"}: ${n}`);
     }
-    case "continue": {
-      if (!act.onlyMeHere(thread, data.me.id)) return notice(act.OTHERS_LINE);
-      const spaces = data.elsewhere?.spaces ?? [];
-      if (spaces.length === 0) return notice("You are in no other Space on this device");
-      const want = arg.trim().toLowerCase();
-      const hit =
-        spaces.find((x) => x.name.toLowerCase() === want) ?? spaces.find((x) => x.name.toLowerCase().startsWith(want));
-      if (!hit) return notice(`No Space named "${arg}". You can continue in: ${spaces.map((x) => x.name).join(", ")}`);
-      await act.continueElsewhere(data, thread, hit, data.spaceName ?? "another Space", env.newKey());
-      return notice(`Continued in ${hit.name}. Open that Space and it is in your chats there.`);
-    }
     case "task": {
       const m = lastActionable(rows);
       if (!m && arg === "") return notice("Nothing to make a task from yet. Say what it is: /task call the court");
@@ -277,6 +269,61 @@ async function run(
           : `Sent to ${data.nameOf(lead.agentId)} to confirm before it is kept`,
       );
     }
+    case "review":
+    case "security-review": {
+      const lead = thread.agents.find((a) => a.mode === "lead");
+      const what =
+        id === "security-review"
+          ? "Review the work done in this chat for security problems: secrets in files, unsafe input, open access. List what you find and how to fix each."
+          : arg !== ""
+            ? `Review the work done in this chat, looking at: ${arg}. Say what is wrong and what is missing.`
+            : "Review the work done in this chat. Say what is wrong and what is missing.";
+      const helperId = await act.startHelper(data, thread, what, lead?.agentId);
+      data.nav.openThread(helperId);
+      return opens();
+    }
+    case "agents":
+    case "memory":
+    case "skills":
+    case "hooks": {
+      if (id === "hooks" && data.nav.openHooks) {
+        data.nav.openHooks(thread.threadId);
+        return opens();
+      }
+      if (!env.openPane) return notice("The pane is not open in this view");
+      env.openPane(id === "agents" ? "crew" : id);
+      return opens();
+    }
+    case "effort":
+      return { kind: "menu", menu: "model" };
+    case "new": {
+      const lead = thread.agents.find((a) => a.mode === "lead") ?? thread.agents[0];
+      if (!lead) {
+        if (env.openAdd) {
+          env.openAdd();
+          return opens();
+        }
+        return notice("Add an agent to this chat first");
+      }
+      const out = (await data.call("chat.start", {
+        kind: "chat",
+        agentIds: [lead.agentId],
+        idempotencyKey: env.newKey(),
+      })) as { thread: { threadId: string } };
+      data.nav.openThread(out.thread.threadId);
+      return opens();
+    }
+    case "copy": {
+      const m = [...rows].reverse().find((x) => x.kind === "agent" && x.body.trim() !== "");
+      if (!m) return notice("No reply to copy yet");
+      data.copy(m.body);
+      return notice("Copied the last reply");
+    }
+    case "init":
+      env.send(
+        "Write AGENT.md for this project: what it is, how it is laid out, how to build and test it, and the rules to follow when changing it.",
+      );
+      return opens();
     case "find":
       env.openFind();
       return opens();

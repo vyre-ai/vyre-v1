@@ -900,6 +900,7 @@ function ConversationView(): ReactElement {
     openFind: () => setFinding(true),
     openSearch: (q) => data.nav.openSearch?.(q),
     openAdd: () => add.open({ threadId: data.threadId, name: thread.title ?? "" }),
+    ...(data.nav.openPaneTab ? { openPane: data.nav.openPaneTab } : {}),
     send: (text) =>
       submit({ text, chips: [], files: [], folder: null, links: [], refs: [], mode: "queue", answers: "" }, "queue"),
   });

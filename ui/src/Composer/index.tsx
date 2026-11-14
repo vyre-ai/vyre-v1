@@ -306,8 +306,11 @@ export function popupFor(
     const skill = (x: ListItem): boolean => typeof x !== "string" && (x.kind === "Plugin" || x.kind === "Skill");
     const commands = (lists.commands ?? []).filter((x) => !skill(x));
     const skills = (lists.commands ?? []).filter(skill);
+    // the whole command set is offered, in the headings the design gives it (While it works, Bring in help ...); the list scrolls, nothing is cut at eight
+    const grouped = ranked(commands, q, "Commands", "Command", Number.MAX_SAFE_INTEGER);
+    const heads = [...new Set(grouped.map((x) => x.group))];
+    for (const h of heads) out.push({ head: h }, ...grouped.filter((x) => x.group === h));
     for (const [name, items, kind] of [
-      ["Commands", commands, "Command"],
       ["Skills", skills, "Skill"],
       ["Templates", lists.templates, "Template"],
       ["Snippets", lists.snippets, "Snippet"],

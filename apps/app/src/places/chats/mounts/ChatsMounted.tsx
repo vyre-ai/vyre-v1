@@ -678,6 +678,12 @@ export function ChatsMounted({
           act({ t: "pane-open" });
         },
         openDetails: (tid: string, mid: string) => replyDetails(tid, mid),
+        openPaneTab: (tab: "crew" | "memory" | "skills" | "hooks") => {
+          setPaneTab(tab);
+          setRightOn(null);
+          selectedFor.current = threadId;
+          go.openPane();
+        },
         openHooks: (_tid: string, hookId?: string) => {
           setPaneTab("hooks");
           setHookSel(hookId ?? null);
