@@ -231,7 +231,11 @@ test("what an agent makes for a person is theirs: private, the person opens and 
     await new Promise((r) => setTimeout(r, 2000));
     assert.equal((await raw(d, "/v1/sites/get", { siteId: id })).status, 200, "after restart: the person opens it");
     assert.equal(await reachOf(d, id, NOAH), "none");
-    assert.equal((await raw(d, "/v1/sites/update", { siteId: id, name: "Agent made" }, AG)).status, 200, "after restart: the agent can update");
+    assert.equal(
+      (await raw(d, "/v1/sites/update", { siteId: id, name: "Agent made" }, AG)).status,
+      200,
+      "after restart: the agent can update",
+    );
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });
@@ -314,13 +318,36 @@ test("an artifact an agent publishes for a person: the agent can publish again a
   const d = await boot(seededDir());
   try {
     const AG = "tok-agent-olivia";
-    const a = await raw(d, "/v1/sites/artifact_publish", { title: "Mine", html: "<p>one</p>", idempotencyKey: "k1" }, AG);
+    const a = await raw(
+      d,
+      "/v1/sites/artifact_publish",
+      { title: "Mine", html: "<p>one</p>", idempotencyKey: "k1" },
+      AG,
+    );
     assert.equal(a.status, 200, a.text);
     const id = (JSON.parse(a.text) as { data: { artifactId: string } }).data.artifactId;
-    assert.equal((await raw(d, "/v1/sites/artifact_publish", { title: "Mine", html: "<p>two</p>", artifactId: id, idempotencyKey: "k2" }, AG)).status, 200);
-    assert.equal((await raw(d, "/v1/sites/update", { siteId: id, name: "Mine" }, AG)).status, 200, "the agent updates what it made");
+    assert.equal(
+      (
+        await raw(
+          d,
+          "/v1/sites/artifact_publish",
+          { title: "Mine", html: "<p>two</p>", artifactId: id, idempotencyKey: "k2" },
+          AG,
+        )
+      ).status,
+      200,
+    );
+    assert.equal(
+      (await raw(d, "/v1/sites/update", { siteId: id, name: "Mine" }, AG)).status,
+      200,
+      "the agent updates what it made",
+    );
     assert.equal((await raw(d, "/v1/sites/update", { siteId: id, name: "Mine" })).status, 200, "the person does too");
-    assert.notEqual((await raw(d, "/v1/sites/update", { siteId: id, name: "Mine" }, "tok-agent-noah")).status, 200, "an agent working for another member cannot");
+    assert.notEqual(
+      (await raw(d, "/v1/sites/update", { siteId: id, name: "Mine" }, "tok-agent-noah")).status,
+      200,
+      "an agent working for another member cannot",
+    );
     assert.equal(await reachOf(d, id, NOAH), "none");
   } finally {
     await d.stop();
@@ -330,7 +357,11 @@ test("an artifact an agent publishes for a person: the agent can publish again a
 test("the other readers give a member neither the name nor the content of a private artifact: search by name and by content, the folder search, the Sites list", async () => {
   const d = await boot(seededDir());
   try {
-    const r = await raw(d, "/v1/sites/artifact_publish", { title: "Zebra artifact", html: "<p>UNIQUEARTIFACTWORD</p>", idempotencyKey: "z1" });
+    const r = await raw(d, "/v1/sites/artifact_publish", {
+      title: "Zebra artifact",
+      html: "<p>UNIQUEARTIFACTWORD</p>",
+      idempotencyKey: "z1",
+    });
     assert.equal(r.status, 200, r.text);
     await new Promise((x) => setTimeout(x, 2500));
     const probes: Record<string, string> = {
@@ -341,7 +372,11 @@ test("the other readers give a member neither the name nor the content of a priv
       "sites list (artifacts)": (await raw(d, "/v1/sites/list", { kind: "artifact" }, NOAH)).text,
     };
     for (const [what, text] of Object.entries(probes))
-      assert.equal(/Zebra|UNIQUEARTIFACTWORD/.test(text), false, `${what} gave a member the private artifact: ${text.slice(0, 200)}`);
+      assert.equal(
+        /Zebra|UNIQUEARTIFACTWORD/.test(text),
+        false,
+        `${what} gave a member the private artifact: ${text.slice(0, 200)}`,
+      );
     // and the owner does get it from the list, so the probe can see it
     assert.match((await raw(d, "/v1/sites/list", {})).text, /Zebra artifact/);
   } finally {
@@ -354,25 +389,50 @@ test("an artifact made before this build, whose folder is still under the Space,
   let d = await boot(dir);
   let folderId = "";
   const folderReach = async (): Promise<string> =>
-    (JSON.parse((await raw(d, "/v1/access/reach", { items: [{ type: "folder", id: folderId }] }, NOAH)).text) as { data: { items: { level: string }[] } }).data.items[0]!.level;
+    (
+      JSON.parse((await raw(d, "/v1/access/reach", { items: [{ type: "folder", id: folderId }] }, NOAH)).text) as {
+        data: { items: { level: string }[] };
+      }
+    ).data.items[0]!.level;
   try {
     let f = { id: "", parent_id: "" };
-    const r = await raw(d, "/v1/sites/artifact_publish", { title: "Giraffe artifact", html: "<p>OLDSTATEWORD</p>", idempotencyKey: "g1" });
+    const r = await raw(d, "/v1/sites/artifact_publish", {
+      title: "Giraffe artifact",
+      html: "<p>OLDSTATEWORD</p>",
+      idempotencyKey: "g1",
+    });
     assert.equal(r.status, 200, r.text);
     const siteId = (JSON.parse(r.text) as { data: { artifactId: string } }).data.artifactId;
-    f = d.db!.all("SELECT id, parent_id FROM files_folder WHERE id = (SELECT target_folder FROM sites_site WHERE id = ?)", siteId)[0] as { id: string; parent_id: string };
+    f = d.db!.all(
+      "SELECT id, parent_id FROM files_folder WHERE id = (SELECT target_folder FROM sites_site WHERE id = ?)",
+      siteId,
+    )[0] as { id: string; parent_id: string };
     folderId = f.id;
     await new Promise((x) => setTimeout(x, 2500));
     assert.equal(await folderReach(), "none", "closed when made");
     // the old state: the folder registered under the folder it sits in, as before this build
-    await d.log!.append({ id: "evt_old_artfolder", type: "resource.created", sv: 1, trace_id: "1".repeat(32), actor: "svc_seed", vis: "space", entity: "resource", entity_id: f.id, payload: { id: f.id, type: "folder", parent_id: f.parent_id, label: 0, owner_id: "usr_olivia", holds: 0 } } as never);
+    await d.log!.append({
+      id: "evt_old_artfolder",
+      type: "resource.created",
+      sv: 1,
+      trace_id: "1".repeat(32),
+      actor: "svc_seed",
+      vis: "space",
+      entity: "resource",
+      entity_id: f.id,
+      payload: { id: f.id, type: "folder", parent_id: f.parent_id, label: 0, owner_id: "usr_olivia", holds: 0 },
+    } as never);
   } finally {
     await d.stop();
   }
   d = await boot(dir);
   try {
     await new Promise((x) => setTimeout(x, 2500));
-    assert.equal(await folderReach(), "none", "a member still reaches a private artifact's folder after the start-up pass");
+    assert.equal(
+      await folderReach(),
+      "none",
+      "a member still reaches a private artifact's folder after the start-up pass",
+    );
     assert.equal(/OLDSTATEWORD/.test((await raw(d, "/v1/search/query", { q: "OLDSTATEWORD" }, NOAH)).text), false);
   } finally {
     await d.stop();

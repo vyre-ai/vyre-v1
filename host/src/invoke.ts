@@ -1077,7 +1077,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         // gets Edit on that one thing at its birth; a grant is listed in its sharing and the person can remove it. Only the agent that made it, and only at birth, never at a later move.
         const bornHere =
           row.type === "site" &&
-          events.some((e) => e.type === ("site.created" as EventName) && (e.payload as { siteId?: unknown }).siteId === row.id);
+          events.some(
+            (e) => e.type === ("site.created" as EventName) && (e.payload as { siteId?: unknown }).siteId === row.id,
+          );
         if (
           (row.type === "record_type" || bornHere) &&
           seed.principal.kind === "agent" &&
