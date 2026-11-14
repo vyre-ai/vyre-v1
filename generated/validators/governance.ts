@@ -798,15 +798,15 @@ if ("skippedOnHold" in o7398) lf(o7398["skippedOnHold"], p + "/skippedOnHold", e
 }
 }
 
-function e710_payload(v: unknown, p: string, e: string[]): void {
+function e711_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7560 = v;
-const g7560 = typeOf(x7560);
-const b7560: string[] = []; lf(x7560, p, b7560, L0); if (b7560.length) e.push(...b7560);
-if (g7560 === "object") {
-if (g7560 === 'object') { const o7560 = x7560 as Record<string, unknown>;
-if (!("count" in o7560)) e.push(p + "/count" + ': required');
-if ("count" in o7560) lf(o7560["count"], p + "/count", e, L17);
+const x7561 = v;
+const g7561 = typeOf(x7561);
+const b7561: string[] = []; lf(x7561, p, b7561, L0); if (b7561.length) e.push(...b7561);
+if (g7561 === "object") {
+if (g7561 === 'object') { const o7561 = x7561 as Record<string, unknown>;
+if (!("count" in o7561)) e.push(p + "/count" + ': required');
+if ("count" in o7561) lf(o7561["count"], p + "/count", e, L17);
 }
 }
 }
@@ -836,7 +836,7 @@ export const eventValidators: Record<string, Check> = {
   "hold.placed": e287_payload,
   "hold.released": e288_payload,
   "retention.purged": e531_payload,
-  "tombstones.reapplied": e710_payload,
+  "tombstones.reapplied": e711_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

@@ -262,17 +262,17 @@ if ("lastResult" in o6743) lf(o6743["lastResult"], p + "/lastResult", e, L1019);
 }
 }
 
-function e727_payload(v: unknown, p: string, e: string[]): void {
+function e728_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7577 = v;
-const g7577 = typeOf(x7577);
-const b7577: string[] = []; lf(x7577, p, b7577, L0); if (b7577.length) e.push(...b7577);
-if (g7577 === "object") {
-if (g7577 === 'object') { const o7577 = x7577 as Record<string, unknown>;
-if (!("to" in o7577)) e.push(p + "/to" + ': required');
-if (!("reason" in o7577)) e.push(p + "/reason" + ': required');
-if ("to" in o7577) lf(o7577["to"], p + "/to", e, L382);
-if ("reason" in o7577) lf(o7577["reason"], p + "/reason", e, L1);
+const x7578 = v;
+const g7578 = typeOf(x7578);
+const b7578: string[] = []; lf(x7578, p, b7578, L0); if (b7578.length) e.push(...b7578);
+if (g7578 === "object") {
+if (g7578 === 'object') { const o7578 = x7578 as Record<string, unknown>;
+if (!("to" in o7578)) e.push(p + "/to" + ': required');
+if (!("reason" in o7578)) e.push(p + "/reason" + ': required');
+if ("to" in o7578) lf(o7578["to"], p + "/to", e, L382);
+if ("reason" in o7578) lf(o7578["reason"], p + "/reason", e, L1);
 }
 }
 }
@@ -291,7 +291,7 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 
 export const eventValidators: Record<string, Check> = {
   "update.completed": d_s_c0084dac30,
-  "update.failed": e727_payload,
+  "update.failed": e728_payload,
   "update.rolled_back": d_s_c0084dac30,
   "update.started": d_s_c0084dac30,
 };

@@ -454,18 +454,18 @@ if ("accountId" in o6916) lf(o6916["accountId"], p + "/accountId", e, L1);
 }
 }
 
-function e769_payload(v: unknown, p: string, e: string[]): void {
+function e770_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7622 = v;
-const g7622 = typeOf(x7622);
-const b7622: string[] = []; lf(x7622, p, b7622, L0); if (b7622.length) e.push(...b7622);
-if (g7622 === "object") {
-if (g7622 === 'object') { const o7622 = x7622 as Record<string, unknown>;
-if (!("eventId" in o7622)) e.push(p + "/eventId" + ': required');
-if (!("type" in o7622)) e.push(p + "/type" + ': required');
-if ("eventId" in o7622) lf(o7622["eventId"], p + "/eventId", e, L1);
-if ("type" in o7622) lf(o7622["type"], p + "/type", e, L1035);
-if ("meetingId" in o7622) lf(o7622["meetingId"], p + "/meetingId", e, L1);
+const x7623 = v;
+const g7623 = typeOf(x7623);
+const b7623: string[] = []; lf(x7623, p, b7623, L0); if (b7623.length) e.push(...b7623);
+if (g7623 === "object") {
+if (g7623 === 'object') { const o7623 = x7623 as Record<string, unknown>;
+if (!("eventId" in o7623)) e.push(p + "/eventId" + ': required');
+if (!("type" in o7623)) e.push(p + "/type" + ': required');
+if ("eventId" in o7623) lf(o7623["eventId"], p + "/eventId", e, L1);
+if ("type" in o7623) lf(o7623["type"], p + "/type", e, L1035);
+if ("meetingId" in o7623) lf(o7623["meetingId"], p + "/meetingId", e, L1);
 }
 }
 }
@@ -487,7 +487,7 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "zoom.event_received": e769_payload,
+  "zoom.event_received": e770_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);
