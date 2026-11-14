@@ -22,7 +22,7 @@ const caddyFetch: FetchFn = () =>
   });
 const OWNER = "tok-usr_olivia";
 const NOAH = "tok-usr_noah";
-const CONNECTION = "con_revoked";
+let CONNECTION = "con_revoked";
 const TOKEN = "ya29.revoked-google-fixture";
 const TRACE = "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0";
 const seen: string[] = [];
@@ -191,6 +191,14 @@ test("a revoked Google account fails the step, the token stays out, and retry us
 
   d = await boot(dir);
   try {
+    // the account is the Space's: the save asks the connection whether the saver may use it, so it is a real Space connection
+    const conn = await ok(d, "/v1/connections/create", {
+      idempotencyKey: "g-conn",
+      connector: "stripe",
+      title: "Google",
+      ownerKind: "space",
+    });
+    CONNECTION = String((conn["connection"] as { connectionId?: string }).connectionId);
     seedGoogle(d);
     const made = await ok(d, "/v1/automations/create", { idempotencyKey: "google-revoked", name: "List revoked mail" });
     const id = String((made["automation"] as { id?: string } | undefined)?.id ?? made["automationId"]);

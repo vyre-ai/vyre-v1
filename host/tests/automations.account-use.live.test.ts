@@ -36,7 +36,14 @@ function seededDir(): string {
       vis: "space",
       entity: "resource",
       entity_id: "num_privatenum0001",
-      payload: { id: "num_privatenum0001", type: "number", parent_id: null, label: 0, owner_id: "usr_olivia", holds: 0 },
+      payload: {
+        id: "num_privatenum0001",
+        type: "number",
+        parent_id: null,
+        label: 0,
+        owner_id: "usr_olivia",
+        holds: 0,
+      },
     } as never,
     {
       id: "evt_f47_box",
@@ -47,7 +54,14 @@ function seededDir(): string {
       vis: "space",
       entity: "resource",
       entity_id: "mbx_privatebox0001",
-      payload: { id: "mbx_privatebox0001", type: "mailbox", parent_id: null, label: 0, owner_id: "usr_olivia", holds: 0 },
+      payload: {
+        id: "mbx_privatebox0001",
+        type: "mailbox",
+        parent_id: null,
+        label: 0,
+        owner_id: "usr_olivia",
+        holds: 0,
+      },
     } as never,
   ]);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-grant-"));
@@ -157,7 +171,6 @@ async function outcome(d: Daemon, id: string, key: string, who = NOAH): Promise<
   });
 }
 
-
 const raw = async (d: Daemon, p: string, body: unknown, token: string): Promise<{ status: number; text: string }> => {
   const r = await fetch(`${d.url}${p}`, {
     method: "POST",
@@ -168,10 +181,14 @@ const raw = async (d: Daemon, p: string, body: unknown, token: string): Promise<
   return { status: r.status, text: await r.text() };
 };
 
-
-const named = async (d: Daemon, body: unknown, token: string): Promise<{ status: number; text: string; id?: string }> => {
+const named = async (
+  d: Daemon,
+  body: unknown,
+  token: string,
+): Promise<{ status: number; text: string; id?: string }> => {
   const r = await raw(d, "/v1/automations/create", body, token);
-  return { ...r, id: (JSON.parse(r.text) as { data?: { automation?: { id?: string } } }).data?.automation?.id };
+  const id = (JSON.parse(r.text) as { data?: { automation?: { id?: string } } }).data?.automation?.id;
+  return id === undefined ? r : { ...r, id };
 };
 
 test("a private mailbox cannot be named by another person; a shared inbox and their own can; a stored step stops in words", async () => {
@@ -185,7 +202,11 @@ test("a private mailbox cannot be named by another person; a shared inbox and th
       "olivia",
     );
     // another person's private mailbox: refused at save, nothing stored
-    const refused = await named(d, { name: "Steal", idempotencyKey: "steal", definition: sendStep("mbx_privatebox0001", "real@person.test") }, NOAH);
+    const refused = await named(
+      d,
+      { name: "Steal", idempotencyKey: "steal", definition: sendStep("mbx_privatebox0001", "real@person.test") },
+      NOAH,
+    );
     assert.equal(refused.status, 422, refused.text);
     assert.match(refused.text, /Send an email: you cannot use the mailbox it names/);
     assert.equal(refused.text.includes("mbx_privatebox0001"), false, "no id in the words");
@@ -194,15 +215,30 @@ test("a private mailbox cannot be named by another person; a shared inbox and th
     const banner = await raw(d, "/v1/automations/validate", { definition: sendStep("mbx_privatebox0001") }, NOAH);
     assert.match(banner.text, /you cannot use the mailbox it names/);
     // a shared inbox every member may use still saves, and so does the owner's own private mailbox
-    assert.equal((await named(d, { name: "Shared", idempotencyKey: "sh", definition: sendStep(shared) }, NOAH)).status, 200);
-    assert.equal((await named(d, { name: "Own", idempotencyKey: "own", definition: sendStep("mbx_privatebox0001") }, OWNER)).status, 200);
+    assert.equal(
+      (await named(d, { name: "Shared", idempotencyKey: "sh", definition: sendStep(shared) }, NOAH)).status,
+      200,
+    );
+    assert.equal(
+      (await named(d, { name: "Own", idempotencyKey: "own", definition: sendStep("mbx_privatebox0001") }, OWNER))
+        .status,
+      200,
+    );
     // an Automation that already holds the id (saved by its owner) and is run by someone without use stops at the send, in words, and sends nothing
-    const own = await named(d, { name: "Own2", idempotencyKey: "own2", definition: sendStep("mbx_privatebox0001", "real@person.test") }, OWNER);
+    const own = await named(
+      d,
+      { name: "Own2", idempotencyKey: "own2", definition: sendStep("mbx_privatebox0001", "real@person.test") },
+      OWNER,
+    );
     const before = (d.db!.all(`SELECT COUNT(*) AS n FROM mail_message`) as { n: number }[])[0]!.n;
     const run = await raw(d, "/v1/automations/run", { automationId: own.id, idempotencyKey: "rr" }, NOAH);
     assert.match(run.text, /runs only as its owner/, "a Personal automation is run by its owner alone");
     await new Promise((r) => setTimeout(r, 3000));
-    assert.equal((d.db!.all(`SELECT COUNT(*) AS n FROM mail_message`) as { n: number }[])[0]!.n, before, "nothing was sent");
+    assert.equal(
+      (d.db!.all(`SELECT COUNT(*) AS n FROM mail_message`) as { n: number }[])[0]!.n,
+      before,
+      "nothing was sent",
+    );
   } finally {
     await d.stop();
   }
@@ -219,11 +255,168 @@ test("a real private number of someone else cannot be named by a member; its own
       "Olivia",
       '["sms"]',
     );
-    const smsStep = { triggers: [{ key: "manual" }], nodes: [{ id: "t", key: "send_sms", input: { numberId: "num_privatenum0001", to: "+15550111", body: "Hi" } }] };
-    const refused = await raw(d, "/v1/automations/create", { name: "Text", idempotencyKey: "t1", definition: smsStep }, NOAH);
+    const smsStep = {
+      triggers: [{ key: "manual" }],
+      nodes: [{ id: "t", key: "send_sms", input: { numberId: "num_privatenum0001", to: "+15550111", body: "Hi" } }],
+    };
+    const refused = await raw(
+      d,
+      "/v1/automations/create",
+      { name: "Text", idempotencyKey: "t1", definition: smsStep },
+      NOAH,
+    );
     assert.equal(refused.status, 422, refused.text);
     assert.match(refused.text, /Send a text message: you cannot use the number it names/);
-    assert.equal((await raw(d, "/v1/automations/create", { name: "Text", idempotencyKey: "t2", definition: smsStep }, OWNER)).status, 200);
+    assert.equal(
+      (await raw(d, "/v1/automations/create", { name: "Text", idempotencyKey: "t2", definition: smsStep }, OWNER))
+        .status,
+      200,
+    );
+  } finally {
+    await d.stop();
+  }
+});
+
+test("a templated id cannot be checked when it is saved, so the run refuses it in the same words, naming the step (mailbox and number)", async () => {
+  const d = await boot(seededDir());
+  try {
+    await mailbox(d, "setup", false);
+    d.db!.run(
+      `INSERT INTO mail_mailbox (id, kind, address, title, "ownerId", "agentId", provider, privacy, state, "connectionId", "lastSyncAt", paused, version, updated_at, deleted_at) VALUES (?, 'personal', ?, ?, 'usr_olivia', NULL, 'inbound_only', 'private', 'connected', NULL, NULL, 0, 1, 1, NULL)`,
+      "mbx_tmplprivate01",
+      "olivia2@example.com",
+      "olivia2",
+    );
+    const def = (key: string, input: Record<string, unknown>, title: string) => ({
+      triggers: [{ key: "manual" }],
+      nodes: [{ id: "s", key, input, title }],
+    });
+    const mail = await named(
+      d,
+      {
+        name: "Templated mail",
+        idempotencyKey: "tm",
+        definition: def(
+          "send_email",
+          { mailboxId: "{{trigger.input.box}}", to: [TO], subject: "Hello", body: "Body." },
+          "x",
+        ),
+      },
+      NOAH,
+    );
+    assert.equal(mail.status, 200, `a templated id saves (it cannot be known yet): ${mail.text}`);
+    const before = (d.db!.all(`SELECT COUNT(*) AS n FROM mail_message`) as { n: number }[])[0]!.n;
+    const started = await raw(
+      d,
+      "/v1/automations/run",
+      { automationId: mail.id, payload: { box: "mbx_tmplprivate01" }, idempotencyKey: "tmr" },
+      NOAH,
+    );
+    assert.equal(started.status, 200, started.text);
+    const runId = String((JSON.parse(started.text) as { data: { runId: string } }).data.runId);
+    let last = "";
+    const steps = await until(`the templated step to be refused (last: ${"${last}"})`, 15_000, async () => {
+      const t = (await raw(d, "/v1/runs/steps", { runId }, NOAH)).text;
+      last = t.slice(0, 600) + (await raw(d, "/v1/runs/get", { runId }, NOAH)).text.slice(0, 300);
+      return /can no longer use the mailbox it names/.test(t) ? t : undefined;
+    }).catch((e: Error) => assert.fail(`${e.message} LAST: ${last}`));
+    assert.match(steps, /Send an email: the person this automation runs as can no longer use the mailbox it names/);
+    assert.equal(steps.includes("mbx_tmplprivate01"), false, "no id in the words");
+    assert.equal(
+      (d.db!.all(`SELECT COUNT(*) AS n FROM mail_message`) as { n: number }[])[0]!.n,
+      before,
+      "nothing was sent",
+    );
+    d.db!.run(
+      `INSERT INTO telephony_number ("id", "e164", "title", "capabilities", "assigneeKind", "assigneeId", "route", "hours", "recording", "a2p", "state", "twilioSid", "version", "updated_at") VALUES (?, ?, ?, ?, 'person', 'usr_olivia', '{}', '{}', 0, 'none', 'active', 'PN_fixture', 1, 1)`,
+      "num_tmplprivate01",
+      "+15550102",
+      "Olivia",
+      '["sms"]',
+    );
+    const sms = await named(
+      d,
+      {
+        name: "Templated text",
+        idempotencyKey: "tt",
+        definition: {
+          triggers: [{ key: "manual" }],
+          nodes: [
+            { id: "s", key: "send_sms", input: { numberId: "{{trigger.input.num}}", to: "+15550111", body: "Hi" } },
+          ],
+        },
+      },
+      NOAH,
+    );
+    assert.equal(sms.status, 200, sms.text);
+    const sr = String(
+      (
+        JSON.parse(
+          (
+            await raw(
+              d,
+              "/v1/automations/run",
+              { automationId: sms.id, payload: { num: "num_tmplprivate01" }, idempotencyKey: "ttr" },
+              NOAH,
+            )
+          ).text,
+        ) as { data: { runId: string } }
+      ).data.runId,
+    );
+    const smsSteps = await until("the templated text step to be refused", 15_000, async () => {
+      const t = (await raw(d, "/v1/runs/steps", { runId: sr }, NOAH)).text;
+      return /can no longer use the number it names|"state":"failed"/.test(t) ? t : undefined;
+    });
+    assert.match(
+      smsSteps,
+      /Send a text message: the person this automation runs as can no longer use the number it names/,
+    );
+    assert.equal(smsSteps.includes("num_tmplprivate01"), false, "no id in the words");
+  } finally {
+    await d.stop();
+  }
+});
+
+test("a Space automation acts only on what its promoter handed to it, and the preview says so: their own private mailbox is listed and used; another person's is never saved", async () => {
+  const d = await boot(seededDir());
+  try {
+    await mailbox(d, "setup", false);
+    d.db!.run(
+      `INSERT INTO mail_mailbox (id, kind, address, title, "ownerId", "agentId", provider, privacy, state, "connectionId", "lastSyncAt", paused, version, updated_at, deleted_at) VALUES (?, 'personal', ?, ?, 'usr_olivia', NULL, 'inbound_only', 'private', 'syncing', NULL, NULL, 0, 1, 1, NULL)`,
+      "mbx_privatebox0001",
+      "olivia@example.com",
+      "olivia",
+    );
+    const own = await named(
+      d,
+      { name: "Svc probe", idempotencyKey: "svc1", definition: sendStep("mbx_privatebox0001", "real@person.test") },
+      OWNER,
+    );
+    assert.equal(own.status, 200, own.text);
+    // the promote preview names the access the Automation itself receives, and from where
+    const promoted = await raw(d, "/v1/automations/promote", { automationId: own.id, confirm: true }, OWNER);
+    assert.equal(promoted.status, 200, promoted.text);
+    assert.match(
+      promoted.text,
+      /"resource":"mailbox\/mbx_privatebox0001","level":"use","via":"owner_access"/,
+      "the grant is listed in the preview",
+    );
+    // it runs as its own service and uses exactly that grant: the step is not refused for the mailbox (it stops only at the provider, which this test has no key for)
+    const run = await raw(d, "/v1/automations/run", { automationId: own.id, idempotencyKey: "svr" }, OWNER);
+    const runId = (JSON.parse(run.text) as { data: { runId: string } }).data.runId;
+    const steps = await until("the step to finish", 15_000, async () => {
+      const t = (await raw(d, "/v1/runs/steps", { runId }, OWNER)).text;
+      return /"state":"(failed|succeeded)"/.test(t) ? t : undefined;
+    });
+    assert.equal(/can no longer use the mailbox|cannot use the mailbox/.test(steps), false, steps);
+    // another member cannot hand it Olivia's mailbox by editing the Space automation
+    const edit = await raw(
+      d,
+      "/v1/automations/update",
+      { automationId: own.id, definition: sendStep("mbx_privatebox0001", "other@person.test") },
+      NOAH,
+    );
+    assert.notEqual(edit.status, 200, "a member rewrote a Space automation to send from someone's private mailbox");
   } finally {
     await d.stop();
   }

@@ -277,7 +277,7 @@ test("an inbox set private BEFORE the setting was enforced is closed when the da
   const d = await boot(dir);
   try {
     await new Promise((r) => setTimeout(r, 2000));
-    const levelFor = async (who: typeof NOAH): Promise<string> => {
+    const levelFor = async (who: string): Promise<string> => {
       const r = await raw(d, "/v1/access/reach", { items: [{ type: "mailbox", id: ids.box }] }, who);
       return (JSON.parse(r.text) as { data: { items: { level: string }[] } }).data.items[0]!.level;
     };

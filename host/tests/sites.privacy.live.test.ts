@@ -72,6 +72,8 @@ const boot = (dir: string): Promise<Daemon> =>
       if (t === OWNER)
         return { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "grant-live" };
       if (t === NOAH) return { space: "spc_core", principal: { kind: "person", id: "usr_noah" }, device: "grant-live" };
+      if (t === "tok-agent-olivia")
+        return { space: "spc_core", principal: { kind: "agent", id: "agt_scout" }, actingFor: "usr_olivia" };
       if (t === AGENT)
         return { space: "spc_core", principal: { kind: "agent", id: "agt_scout" }, actingFor: "usr_noah" };
       return null;
@@ -100,7 +102,6 @@ async function until<T>(what: string, ms: number, look: () => Promise<T | undefi
   }
 }
 
-
 const raw = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<{ status: number; text: string }> => {
   const r = await fetch(`${d.url}${p}`, {
     method: "POST",
@@ -112,7 +113,11 @@ const raw = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<
 };
 
 const reachOf = async (d: Daemon, id: string, who: string): Promise<string> =>
-  (JSON.parse((await raw(d, "/v1/access/reach", { items: [{ type: "site", id }] }, who)).text) as { data: { items: { level: string }[] } }).data.items[0]!.level;
+  (
+    JSON.parse((await raw(d, "/v1/access/reach", { items: [{ type: "site", id }] }, who)).text) as {
+      data: { items: { level: string }[] };
+    }
+  ).data.items[0]!.level;
 const make = async (d: Daemon, key: string): Promise<string> => {
   const r = await raw(d, "/v1/sites/create", { name: key, kind: "artifact", access: "space", idempotencyKey: key });
   assert.equal(r.status, 200, r.text);
@@ -126,12 +131,20 @@ test("a site set private is private: a member is refused and cannot reach it, it
     assert.equal((await raw(d, "/v1/sites/get", { siteId: id }, NOAH)).status, 200, "a Space site is open to members");
     assert.equal((await raw(d, "/v1/sites/update", { siteId: id, access: "private" })).status, 200);
     await new Promise((r) => setTimeout(r, 1500));
-    assert.notEqual((await raw(d, "/v1/sites/get", { siteId: id }, NOAH)).status, 200, "a member still reads a private site");
+    assert.notEqual(
+      (await raw(d, "/v1/sites/get", { siteId: id }, NOAH)).status,
+      200,
+      "a member still reads a private site",
+    );
     assert.equal(await reachOf(d, id, NOAH), "none");
     assert.equal((await raw(d, "/v1/sites/get", { siteId: id })).status, 200, "its owner still does");
     assert.equal((await raw(d, "/v1/sites/update", { siteId: id, access: "space" })).status, 200);
     await new Promise((r) => setTimeout(r, 1500));
-    assert.equal((await raw(d, "/v1/sites/get", { siteId: id }, NOAH)).status, 200, "back to the Space, a member reads it again");
+    assert.equal(
+      (await raw(d, "/v1/sites/get", { siteId: id }, NOAH)).status,
+      200,
+      "back to the Space, a member reads it again",
+    );
   } finally {
     await d.stop();
   }
@@ -157,5 +170,136 @@ test("a site already private in the store before this build is closed when the d
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+const names = async (d: Daemon, who: string, name: string): Promise<{ list: boolean; search: boolean }> => {
+  const l = await raw(d, "/v1/sites/list", {}, who);
+  const q = await raw(d, "/v1/search/query", { q: name }, who);
+  return { list: l.text.includes(name), search: q.text.includes(name) };
+};
+
+test("what an agent makes for a person is theirs: private, the person opens and edits it, another member has none, and it stays so after a restart", async () => {
+  const dir = seededDir();
+  let d = await boot(dir);
+  const AG = "tok-agent-olivia";
+  let id = "";
+  try {
+    const r = await raw(
+      d,
+      "/v1/sites/create",
+      { name: "Agent made", kind: "artifact", access: "space", idempotencyKey: "ag1" },
+      AG,
+    );
+    assert.equal(r.status, 200, r.text);
+    const site = (JSON.parse(r.text) as { data: { site: { siteId: string; owner: string } } }).data.site;
+    id = site.siteId;
+    assert.equal(site.owner, "usr_olivia", "the person the agent acted for owns it");
+    assert.equal(
+      (await raw(d, "/v1/sites/update", { siteId: id, access: "private" }, AG)).status,
+      200,
+      "the agent can set it private",
+    );
+    await new Promise((r) => setTimeout(r, 1500));
+    const check = async (when: string): Promise<void> => {
+      assert.equal((await raw(d, "/v1/sites/get", { siteId: id })).status, 200, `${when}: the person opens it`);
+      assert.equal(
+        (await raw(d, "/v1/sites/update", { siteId: id, name: "Agent made" })).status,
+        200,
+        `${when}: the person edits it`,
+      );
+      // not asserted: the agent itself. A private site's agent has no access of its own (the same as a site born private on rc.27: the agent's update answers 403), which is the lead's ruling to make.
+      assert.notEqual(
+        (await raw(d, "/v1/sites/get", { siteId: id }, NOAH)).status,
+        200,
+        `${when}: another member is refused`,
+      );
+      assert.equal(await reachOf(d, id, NOAH), "none", `${when}: another member's reach`);
+    };
+    await check("after setting it");
+    d.db!.run("UPDATE sites_site SET access = 'private' WHERE id = ?", id);
+  } finally {
+    await d.stop();
+  }
+  d = await boot(dir);
+  try {
+    await new Promise((r) => setTimeout(r, 2000));
+    assert.equal((await raw(d, "/v1/sites/get", { siteId: id })).status, 200, "after restart: the person opens it");
+    assert.equal(await reachOf(d, id, NOAH), "none");
+  } finally {
+    await d.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a private site shared with a named person keeps the share after the move out of the Space and after a restart; the other readers do not give a member its name", async () => {
+  const dir = seededDir();
+  let d = await boot(dir);
+  let id = "";
+  try {
+    id = await make(d, "Shared one");
+    const sh = await raw(d, "/v1/access/share", {
+      idempotencyKey: "sh-noah",
+      resource: { type: "site", id },
+      subject: { kind: "person", id: "usr_noah" },
+      level: "view",
+    });
+    assert.equal(sh.status, 200, sh.text);
+    assert.equal((await raw(d, "/v1/sites/update", { siteId: id, access: "private" })).status, 200);
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.equal(await reachOf(d, id, NOAH), "view", "the named person keeps view");
+    assert.equal((await raw(d, "/v1/sites/get", { siteId: id }, NOAH)).status, 200);
+    d.db!.run("UPDATE sites_site SET access = 'private' WHERE id = ?", id);
+  } finally {
+    await d.stop();
+  }
+  d = await boot(dir);
+  try {
+    await new Promise((r) => setTimeout(r, 2000));
+    assert.equal(await reachOf(d, id, NOAH), "view", "after restart the share is still there");
+    // and a private site with no share: the name does not reach a member through the list or the search
+    const lone = await make(d, "Lonely site");
+    assert.equal((await raw(d, "/v1/sites/update", { siteId: lone, access: "private" })).status, 200);
+    await new Promise((r) => setTimeout(r, 2500));
+    const seen = await names(d, NOAH, "Lonely site");
+    assert.deepEqual(
+      seen,
+      { list: false, search: false },
+      "a member gets the name of a private site from the list or the search",
+    );
+    assert.equal((await names(d, OWNER, "Lonely site")).list, true, "its owner still lists it");
+  } finally {
+    await d.stop();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a calendar born personal is private: a second member has no reach and does not get it listed", async () => {
+  const d = await boot(seededDir());
+  try {
+    const r = await raw(d, "/v1/calendar/create_calendar", {
+      title: "Olivia private",
+      personal: true,
+      idempotencyKey: "cal1",
+    });
+    assert.equal(r.status, 200, r.text);
+    const id = (JSON.parse(r.text) as { data: { calendar: { id?: string; calendarId?: string } } }).data.calendar;
+    const cid = id.calendarId ?? id.id ?? "";
+    await new Promise((x) => setTimeout(x, 1500));
+    const reach = async (who: string): Promise<string> =>
+      (
+        JSON.parse((await raw(d, "/v1/access/reach", { items: [{ type: "calendar", id: cid }] }, who)).text) as {
+          data: { items: { level: string }[] };
+        }
+      ).data.items[0]!.level;
+    assert.equal(await reach(NOAH), "none", "a second member reaches a personal calendar");
+    assert.notEqual(await reach(OWNER), "none");
+    assert.equal(
+      (await raw(d, "/v1/calendar/list_calendars", {}, NOAH)).text.includes("Olivia private"),
+      false,
+      "a second member sees it listed",
+    );
+  } finally {
+    await d.stop();
   }
 });

@@ -58,7 +58,12 @@ function bindings(): Map<string, Bound> {
     const c = st.kind === "capability" && st.cap ? caps.get(st.cap) : undefined;
     const field = typeof c?.resource?.id === "string" && c.resource.id.startsWith("/") ? c.resource.id.slice(1) : "";
     if (!c || c.resource?.create === true || field === "" || !(field in propertiesOf(st.input))) continue;
-    if (c.resource?.type !== undefined && c.resource.type in THING_WORDS && c.level !== undefined && c.level !== "member")
+    if (
+      c.resource?.type !== undefined &&
+      c.resource.type in THING_WORDS &&
+      c.level !== undefined &&
+      c.level !== "member"
+    )
       out.set(st.key, { field, type: c.resource.type, level: c.level });
   }
   // a connector request names the connector in its manifest binding and the account in `connectionId`
@@ -83,6 +88,7 @@ async function mayUse(ctx: AutoCtx, b: Bound, id: string): Promise<boolean> {
     }
   }
   if (!ctx.authorize) return false;
+  // a "hold" counts as allowed here: the Gate holds the same act again when the step runs, so saving it gives nothing away
   return ctx.authorize({ perm: null, level: b.level }, { type: b.type, id }).effect !== "deny";
 }
 
