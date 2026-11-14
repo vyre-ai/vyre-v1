@@ -321,3 +321,26 @@ test("standing is for as long as the grant lives: an expired Space grant leaves 
   now = 6_000;
   assert.equal(can(s, "usr_temp", stop, on), false, "when it has run out they are a guest again, with no change event");
 });
+
+test("a role that carries any permission gives standing, with or without a Space grant of its own: a copy of Guest given one permission is not held to the guest limits", () => {
+  const s = world();
+  s.putRole({ id: "rol_client_plus", clearance: 0, perms: ["records.read"], name: "Client plus" }); // cloned from Guest, then given one permission, and no Space grant at all
+  s.putRole({ id: "rol_client_bare", clearance: 0, perms: [], name: "Client bare" }); // the same copy before it was given anything
+  for (const id of ["usr_plus", "usr_bare"]) {
+    s.putPrincipal({ id, kind: "person", status: "active", name: id });
+    s.putGrant({
+      id: `gp_${id}`,
+      subject_kind: "actor",
+      subject_id: id,
+      resource_type: "channel",
+      resource_id: "chn_a",
+      level: "use",
+    });
+  }
+  s.addPrincipalRole({ holder: "usr_plus", role: "rol_client_plus" });
+  s.addPrincipalRole({ holder: "usr_bare", role: "rol_client_bare" });
+  const stop = caps.find((c) => c.name === "engine.stop_all")!;
+  const on = { type: "thread", id: "thr_main" };
+  assert.equal(can(s, "usr_bare", stop, on), false, "a copy of Guest with nothing is held to the limits");
+  assert.equal(can(s, "usr_plus", stop, on), true, "one permission is standing: not held");
+});
