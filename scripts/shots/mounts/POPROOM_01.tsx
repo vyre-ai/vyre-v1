@@ -8,12 +8,14 @@ export const title = "Composer popover room";
 export default function Mount(): ReactNode {
   const pos =
     new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("pos") ?? "top";
+  const pane =
+    new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("pane") !== "0";
   return (
     <View
       style={{
         flex: 1,
         backgroundColor: "var(--win)" as string,
-        overflow: "hidden",
+        ...(pane ? { overflow: "hidden" as const } : {}),
         justifyContent: pos === "top" ? "flex-start" : "flex-end",
         padding: 24,
       }}

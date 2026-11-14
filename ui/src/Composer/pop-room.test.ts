@@ -23,3 +23,18 @@ test("a window with no clipping ancestor: the window", () => {
     bottom: 0,
   });
 });
+test("three window heights, composer at the top and at the foot: the popover never has less than the room it is given", () => {
+  const height = 190;
+  for (const win of [160, 260, 420]) {
+    for (const anchorTop of [8, win - 60]) {
+      const r = popPlacement({ height, anchorTop, anchorBottom: anchorTop + 50, paneTop: 0, paneBottom: win });
+      const room = r.side === "above" ? anchorTop : win - (anchorTop + 50);
+      const shown = Math.min(height, r.maxHeight ?? height);
+      assert.ok(
+        shown <= room - POP_GAP + 0.001 || room - POP_GAP <= 0,
+        `win ${win} anchor ${anchorTop}: ${shown} in ${room}`,
+      );
+      if (r.maxHeight === undefined) assert.ok(height <= room - POP_GAP, "unlimited only when it fits");
+    }
+  }
+});

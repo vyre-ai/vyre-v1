@@ -264,14 +264,15 @@ export function Pop({
   const [place, setPlace] = useState<{ side: "above" | "below"; maxHeight?: number } | null>(null);
   useLayoutEffect(() => {
     const n = mine.current as {
-      offsetHeight?: number;
+      scrollHeight?: number;
       parentElement?: { getBoundingClientRect(): { top: number; bottom: number } };
     } | null;
     const anchor = n?.parentElement?.getBoundingClientRect();
-    if (!n || !anchor || n.offsetHeight === undefined) return;
+    if (!n || !anchor || n.scrollHeight === undefined) return;
     const pane = clipBox(n);
     const next = popPlacement({
-      height: n.offsetHeight,
+      // the content's own height (layout size, not the animated box, and not the height limit set below), so the answer cannot flip back and forth
+      height: n.scrollHeight,
       anchorTop: anchor.top,
       anchorBottom: anchor.bottom,
       paneTop: pane.top,
