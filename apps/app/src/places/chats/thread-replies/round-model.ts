@@ -33,16 +33,10 @@ export function stateWords(a: RoundAgent, nameOf: (id: string) => string): strin
     case "working":
       return "Working";
     case "waiting":
-      return a.on ? `Next after ${nameOf(a.on)}` : "Next";
+      return a.on ? `Waiting on ${nameOf(a.on)}` : "Waiting";
     case "replied":
       return "Replied";
     case "stopped":
       return "Stopped";
   }
-}
-
-/** Should the row keep reading: the message is recent and either no round has been seen yet or someone has not finished. */
-export function keepReading(age: number, agents: readonly RoundAgent[]): boolean {
-  if (age > ROUND_WINDOW_MS) return false;
-  return agents.length === 0 || agents.some((a) => a.state === "working" || a.state === "waiting");
 }
