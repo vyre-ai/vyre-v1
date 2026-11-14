@@ -48,7 +48,9 @@ test("while the read is only waiting there is no error and no word Loading", () 
 });
 
 test("a search over settings that could not load says so, not that nothing matches", () => {
-  const out = html(settingsWith({ status: "loading", error: { message: "The server did not answer." } }), { initialQuery: "time" });
+  const out = html(settingsWith({ status: "loading", error: { message: "The server did not answer." } }), {
+    initialQuery: "time",
+  });
   assert.match(out, /data-testid="load-failed"/);
   assert.doesNotMatch(out, /search-none|Nothing matches/);
 });

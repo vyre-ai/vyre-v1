@@ -151,7 +151,10 @@ export async function layoutGet(ctx: StateCtx, input: { keys?: string[] }): Prom
   return guarded(ctx, () => ({ values: storeOf(ctx).layoutGet(subjectOf(ctx), input.keys) }));
 }
 
-export async function layoutSet(ctx: StateCtx, input: { key: string; value: unknown }): Promise<{ value: LayoutValue }> {
+export async function layoutSet(
+  ctx: StateCtx,
+  input: { key: string; value: unknown },
+): Promise<{ value: LayoutValue }> {
   await mayWrite(ctx);
   return guarded(ctx, () => {
     const me = subjectOf(ctx);
