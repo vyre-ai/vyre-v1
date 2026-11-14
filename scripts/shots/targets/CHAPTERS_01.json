@@ -1,5 +1,18 @@
 {
   "targets": [
-    { "id": "CHAPTERS_01-long", "route": "/m/CHAPTERS_01", "proto": "long,{skin}", "waitFor": "[data-testid='chapter-rail']", "note": "A long chat in chapters: folded earlier chapters, the current one open, the rail on the right, the Noted line and the open question." }
+    {
+      "id": "CHAPTERS_01-long",
+      "route": "/m/CHAPTERS_01",
+      "proto": "long,{skin}",
+      "waitFor": "[data-testid='chapter-rail']",
+      "note": "A long chat in chapters: folded earlier chapters, the current one open, the rail on the right, the Noted line and the open question."
+    },
+    {
+      "id": "CHAPTERS_02-pieces",
+      "route": "/m/CHAPTERS_02",
+      "proto": "live,{skin}",
+      "waitFor": "[data-testid='context-card']",
+      "note": "The Session block, the Kept tab, the context card and a background job line."
+    }
   ]
 }

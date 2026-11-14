@@ -11,7 +11,11 @@ const args = process.argv.slice(2);
 const out = args.find((a) => !a.startsWith("--"));
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync((await import(path.join(REPO, "scripts/shots/expo-cmd.mjs"))).exportCmd(REPO), { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync((await import(path.join(REPO, "scripts/shots/expo-cmd.mjs"))).exportCmd(REPO), {
+    cwd: appDir,
+    stdio: "inherit",
+    env: exportEnv(),
+  });
 }
 fs.mkdirSync(out, { recursive: true });
 const real = await serve(path.join(appDir, "dist"), { spa: true });
@@ -21,7 +25,12 @@ const browser = await chromium.launch({ args: ["--no-sandbox"] });
 const SIZES = { w1440: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
 for (const skin of ["paper", "graphite"])
   for (const [size, vp] of Object.entries(SIZES)) {
-    const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
+    const ctx = await browser.newContext({
+      viewport: vp,
+      deviceScaleFactor: 1,
+      colorScheme: skin === "graphite" ? "dark" : "light",
+      reducedMotion: "reduce",
+    });
     const page = await ctx.newPage();
     const errs = [];
     page.on("pageerror", (e) => errs.push(String(e)));
@@ -50,6 +59,23 @@ for (const skin of ["paper", "graphite"])
     console.log(skin, size, errs.length ? `errors: ${errs.join(" | ")}` : "no page errors");
     await ctx.close();
   }
+for (const skin of ["paper", "graphite"]) {
+  const ctx = await browser.newContext({
+    viewport: SIZES.w1440,
+    deviceScaleFactor: 1,
+    colorScheme: skin === "graphite" ? "dark" : "light",
+    reducedMotion: "reduce",
+  });
+  const page = await ctx.newPage();
+  await page.goto(routeUrl(real.origin, "/m/CHAPTERS_02", skin), { waitUntil: "load", timeout: 60000 });
+  await page.waitForSelector("[data-testid='context-card']", { timeout: 30000 });
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: path.join(out, `real-${skin}-w1440-pieces.png`) });
+  await page.click("[data-testid='context-open']");
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: path.join(out, `real-${skin}-w1440-pieces-open.png`) });
+  await ctx.close();
+}
 await browser.close();
 real.close?.();
 process.exit(0);
