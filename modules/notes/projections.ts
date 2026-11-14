@@ -100,6 +100,7 @@ export interface NoteRow {
   updated_at: number;
   deleted_at: number | null;
   archived_at: number | null;
+  version: number;
 }
 
 export const TABLE = "notes_notes";
@@ -262,6 +263,7 @@ export function noteOut(r: NoteRow, viewer: string | null) {
     canEdit: viewer !== null && personEdits(r, viewer),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    version: r.version,
   };
 }
 

@@ -1,1 +1,2 @@
 - Two writes to the same file at the same moment no longer collide. Before, both could report success, the second one's text won, and History showed two versions with the same number. Now one lands on the version it read and the other is told the file changed, so it reads again and re-applies. Writes with no version still go through, each on its own version number.
+- A note now counts its saves, like a task. A save made on an older version is refused with one plain sentence instead of replacing a later change, and a pin and a label made at the same moment both stay.

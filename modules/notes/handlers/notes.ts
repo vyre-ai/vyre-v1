@@ -26,11 +26,11 @@ import type { ImageIn, NoteRow, NotesCtx, Unfurled } from "../projections.ts";
 
 type Color = "" | "rose" | "sand" | "sage" | "sky" | "lilac" | "slate";
 const COLS =
-  "id, owner, title, body, color, pinned, labels_json, image_blob, image_type, link_json, clip_json, shot_blob, link_blob, link_blob_type, from_json, linked_json, share_people_json, share_space, search_text, idem_key, created_at, updated_at, deleted_at, archived_at";
+  "id, owner, title, body, color, pinned, labels_json, image_blob, image_type, link_json, clip_json, shot_blob, link_blob, link_blob_type, from_json, linked_json, share_people_json, share_space, search_text, idem_key, created_at, updated_at, deleted_at, archived_at, version";
 
 export function insertNote(ctx: NotesCtx, r: NoteRow): void {
   ctx.db.run(
-    `INSERT INTO ${TABLE} (${COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO ${TABLE} (${COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     r.id,
     r.owner,
     r.title,
@@ -55,13 +55,17 @@ export function insertNote(ctx: NotesCtx, r: NoteRow): void {
     r.updated_at,
     r.deleted_at,
     r.archived_at,
+    r.version,
   );
 }
-/** Write every changeable column of a row back, with its search text. */
+/**
+ * Write every changeable column of a row back, with its search text, and count the save. The row is written only if it is still on the version it was read at: a handler that waited (for an image, a link, the
+ * audience of the chat) after reading the row would otherwise write its stale copy over a save that landed in between. Then the save is refused and the caller reads the note again.
+ */
 export function saveNote(ctx: NotesCtx, r: NoteRow): void {
   r.search_text = searchText(r);
-  ctx.db.run(
-    `UPDATE ${TABLE} SET title = ?, body = ?, color = ?, pinned = ?, labels_json = ?, image_blob = ?, image_type = ?, link_json = ?, link_blob = ?, link_blob_type = ?, linked_json = ?, share_people_json = ?, share_space = ?, search_text = ?, updated_at = ?, deleted_at = ?, archived_at = ? WHERE id = ?`,
+  const done = ctx.db.run(
+    `UPDATE ${TABLE} SET title = ?, body = ?, color = ?, pinned = ?, labels_json = ?, image_blob = ?, image_type = ?, link_json = ?, link_blob = ?, link_blob_type = ?, linked_json = ?, share_people_json = ?, share_space = ?, search_text = ?, updated_at = ?, deleted_at = ?, archived_at = ?, version = ? WHERE id = ? AND version = ?`,
     r.title,
     r.body,
     r.color,
@@ -79,9 +83,15 @@ export function saveNote(ctx: NotesCtx, r: NoteRow): void {
     r.updated_at,
     r.deleted_at,
     r.archived_at,
+    r.version + 1,
     r.id,
+    r.version,
   );
+  if (done.changes === 0) raise(ctx.trace.traceId, "validation.version_conflict", NOTE_CHANGED);
+  r.version += 1;
 }
+/** What a refused save says: the note was changed by someone else after it was read. */
+export const NOTE_CHANGED = "This note changed after it was read, so this change was not saved. Read the note again and redo the change.";
 export function blankNote(id: string, owner: string, now: number): NoteRow {
   return {
     id,
@@ -108,6 +118,7 @@ export function blankNote(id: string, owner: string, now: number): NoteRow {
     updated_at: now,
     deleted_at: null,
     archived_at: null,
+    version: 1,
   };
 }
 export function priorByKey(ctx: NotesCtx, owner: string, key: string | undefined): NoteRow | undefined {
@@ -294,9 +305,13 @@ type UpdateIn = {
   color?: Color;
   image?: ImageIn | null;
   link?: string | null;
+  expectedVersion?: number;
 };
 export async function updateNote(ctx: NotesCtx, input: UpdateIn) {
   const r = await editable(ctx, input.noteId);
+  // the caller read version N: a note saved since then is not replaced
+  if (input.expectedVersion !== undefined && input.expectedVersion !== r.version)
+    raise(ctx.trace.traceId, "validation.version_conflict", NOTE_CHANGED);
   const url = typeof input.link === "string" ? checkUrl(ctx, input.link) : null;
   const bytes = input.image ? decodeImage(ctx, input.image) : null;
   const before = r.body;
@@ -323,23 +338,34 @@ export async function updateNote(ctx: NotesCtx, input: UpdateIn) {
   return { note: noteOut(r, personOf(ctx)) };
 }
 
+/** A small change (pin, label) that says what it wants, not what the note was: when another save lands between the read and the write it is made again on the newer note, so neither is lost. */
+async function change(ctx: NotesCtx, noteId: string, apply: (r: NoteRow) => void) {
+  for (let tries = 0; ; tries++) {
+    const r = await editable(ctx, noteId);
+    apply(r);
+    r.updated_at = ctx.now();
+    try {
+      saveNote(ctx, r);
+    } catch (e) {
+      if (tries < 3 && (e as { error?: { code?: string } } | null)?.error?.code === "validation.version_conflict") continue;
+      throw e;
+    }
+    emit(ctx, "notes.updated", r, { by: ctx.principal.id });
+    return { note: noteOut(r, personOf(ctx)) };
+  }
+}
+
 export async function pinNote(ctx: NotesCtx, input: { noteId: string; pinned: boolean }) {
-  const r = await editable(ctx, input.noteId);
-  r.pinned = input.pinned ? 1 : 0;
-  r.updated_at = ctx.now();
-  saveNote(ctx, r);
-  emit(ctx, "notes.updated", r, { by: ctx.principal.id });
-  return { note: noteOut(r, personOf(ctx)) };
+  return change(ctx, input.noteId, (r) => {
+    r.pinned = input.pinned ? 1 : 0;
+  });
 }
 
 export async function labelNote(ctx: NotesCtx, input: { noteId: string; add?: string[]; remove?: string[] }) {
-  const r = await editable(ctx, input.noteId);
   const gone = new Set((input.remove ?? []).map((x) => x.trim().toLowerCase()));
-  r.labels_json = JSON.stringify(
-    cleanLabels([...labelsOf(r).filter((l) => !gone.has(l.toLowerCase())), ...(input.add ?? [])]),
-  );
-  r.updated_at = ctx.now();
-  saveNote(ctx, r);
-  emit(ctx, "notes.updated", r, { by: ctx.principal.id });
-  return { note: noteOut(r, personOf(ctx)) };
+  return change(ctx, input.noteId, (r) => {
+    r.labels_json = JSON.stringify(
+      cleanLabels([...labelsOf(r).filter((l) => !gone.has(l.toLowerCase())), ...(input.add ?? [])]),
+    );
+  });
 }

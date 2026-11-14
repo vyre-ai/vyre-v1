@@ -28823,6 +28823,7 @@ export type NotesClipOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesCreateIn = {
@@ -28890,6 +28891,7 @@ export type NotesCreateOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesDeleteIn = {
@@ -28952,6 +28954,7 @@ export type NotesGetOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesImageIn = {
@@ -29015,6 +29018,7 @@ export type NotesLabelOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesListIn = {
@@ -29072,6 +29076,7 @@ export type NotesListOut = {
       canEdit: boolean;
       createdAt: number;
       updatedAt: number;
+      version: number;
     }>;
   labels: Array<{
       name: string;
@@ -29132,6 +29137,7 @@ export type NotesPinOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesRestoreIn = {
@@ -29185,6 +29191,7 @@ export type NotesRestoreOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesSearchIn = {
@@ -29253,6 +29260,7 @@ export type NotesSetOwnerOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesShareIn = {
@@ -29314,6 +29322,7 @@ export type NotesShareOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotesToRecordIn = {
@@ -29371,6 +29380,7 @@ export type NotesToRecordOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
   recordId: string;
 };
@@ -29433,6 +29443,7 @@ export type NotesToTaskOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
   taskId: string;
 };
@@ -29446,6 +29457,7 @@ export type NotesUpdateIn = {
     contentType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
   }) | null;
   link?: string | null;
+  expectedVersion?: number;
 };
 export type NotesUpdateOut = {
   note: {
@@ -29495,6 +29507,7 @@ export type NotesUpdateOut = {
     canEdit: boolean;
     createdAt: number;
     updatedAt: number;
+    version: number;
   };
 };
 export type NotificationsAwayClearIn = Record<string, unknown>;

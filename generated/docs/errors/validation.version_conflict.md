@@ -15,5 +15,6 @@ HTTP 409. Retryable: yes.
 - google.docs.insert_text
 - journeys.design
 - mounts.doc_insert_text
+- notes.update
 - records.update
 - sync.push
