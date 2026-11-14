@@ -4,7 +4,7 @@
     "calendar.availability@1": "5033567176638de283346d7657e5703301726176d2b56b625670b7769774842f",
     "calendar.connect_provider@1": "0774ee06a8cecacd5685214eded57bbe45b7ee887931110286890308e226e97d",
     "calendar.create_calendar@1": "6b251ac17ccd0bce9c3a74e0b51042ba7ad31437e2615d248d1f79d54fd783a5",
-    "calendar.create_event@1": "58245049eb79da070b2c096c4b91b4b949dc88819291ceb21ddf8f707be1c1bf",
+    "calendar.create_event@1": "b2a1cff75c46f7bf2b28900652877f357f6621feaf748d1c938d837347a1c5d3",
     "calendar.delete_calendar@1": "2600090eb9f3dad9e2e346cac74aab8aa7dfc74504e78eeccf11120f19bd74e7",
     "calendar.delete_event@1": "1330f9ca30527415a2941222ef0759d385af9e0d6ca0431688b97a57e171903f",
     "calendar.duplicate_event@1": "76ded8e2d1482bb2af57377059e6d74c842d043eb4eb9b6ace5213f8b27db9b0",
@@ -20,7 +20,7 @@
     "calendar.restore_event@1": "28147502b61ececfebf45e11b1f6e5382ffbe0609bc03ba3caf3a1eb4f55afe7",
     "calendar.sync_now@1": "587d66140abaf1b5c522f37748025300d127c7341f1f0ba0c8404e97149c8de6",
     "calendar.update_calendar@1": "8f74492482344787d74ea452edf2cf46b8d751b7b02835f8c4451260398d7fca",
-    "calendar.update_event@1": "755a11fb953843e609ddc67b2fa773ee4e63d8b601b954b8f133864b3bd57fea"
+    "calendar.update_event@1": "071fb585a5e5291d82cb417ad05b9f93e0601f65232e45ac4fa66b12850bf07b"
   },
   "events": {
     "calendar.created": "87828b54915acd9ae0c580807880b54bdd1cec994dfddffe9c8be9f6a1eaf1e3",
