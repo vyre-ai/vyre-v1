@@ -3219,10 +3219,6 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           resource: (id) => access.snap.resource(id),
           agentHome: (id) => homeScopeOf(db!, id)?.homeFolder ?? null,
         }),
-        agentClears: (agentId, resourceId) => {
-          const who = access.snap.info(agentId);
-          return !!who && who.p.status === "active" && access.snap.effectiveLabel(resourceId) <= who.clearance;
-        },
         principals: createPrincipalRegistrar({
           exists: (id) => access.snap.info(id) !== null,
           levelOf: (person, space) => {
