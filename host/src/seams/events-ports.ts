@@ -19,6 +19,7 @@ import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 import type { ReadQuery, StoredEvent } from "../../../kernel/src/log/types.ts";
 import { hostAllowed } from "../ctx/http.ts";
 import { fail } from "../routes/errors.ts";
+import { pointer } from "../routes/resource.ts";
 
 // ---------------------------------------------------------------- HMAC
 
@@ -70,11 +71,23 @@ export interface EventReaderDeps {
   now: () => number;
   /** most events looked at for one call, default 20 000 */
   maxScan?: number;
+  /**
+   * The subject each event type names in the registry: a resource type and a JSON pointer to its id in the payload. With it an event is also judged by the thing it is about (see `reaches`);
+   * without it only the subject stored with the event is used.
+   */
+  subjects?: (eventType: string) => { type: string; id: string } | undefined;
+  /**
+   * Things whose privacy a module decides, not the kernel's grants (a chat's readers, an agent that is someone's Assistant): the answer of that module's own read for this person, or undefined when
+   * the type has no such rule. Asked after the kernel allows, once per thing per call.
+   */
+  moduleView?: (person: string, type: string, id: string) => Promise<boolean | undefined>;
 }
 
 export interface EventCaller {
   principal: string;
   actingFor?: string | undefined;
+  /** the host itself (svc_host: the scheduler matching a wait, a hook): it reads what it builds state from, so the rule about what a person may view does not apply to it */
+  system?: boolean | undefined;
 }
 
 export interface EventRow {
@@ -237,8 +250,75 @@ function visible(
   }
 }
 
+/** A birth record, a grant, a calendar's event and an agent's principal name the thing they are about in their payload, not as a registry subject of a resource type. */
+const str = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
+function payloadOf(e: StoredEvent): Record<string, unknown> {
+  if (e.enc > 0) return {};
+  try {
+    const v = JSON.parse(new TextDecoder().decode(e.payload)) as unknown;
+    return v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+/** The things an event is about, as [type, id] pairs: none (it then keeps the visibility it was written with), one, or two (a grant is about what it is on and about whom it is to). */
+function aboutOf(deps: EventReaderDeps, e: StoredEvent): Array<[string, string]> {
+  const one = (a: [string, string] | null): Array<[string, string]> => (a ? [a] : []);
+  if (e.type.startsWith("grant.")) {
+    const p = payloadOf(e);
+    const type = str(p["resource_type"]), id = str(p["resource_id"]), to = str(p["subject_id"]);
+    return [...(type && id ? [[type, id] as [string, string]] : []), ...(to !== undefined && to.startsWith("agt_") ? [["agent", to] as [string, string]] : [])];
+  }
+  return one(aboutOne(deps, e));
+}
+function aboutOne(deps: EventReaderDeps, e: StoredEvent): [string, string] | null {
+  if (e.type === "resource.created") {
+    const p = payloadOf(e);
+    const type = str(p["type"]), id = str(p["id"]);
+    return type && id ? [type, id] : null;
+  }
+  const def = deps.subjects?.(e.type);
+  if (def && def.type !== "entity") {
+    const id = e.entity === def.type && e.entity_id !== undefined ? e.entity_id : str(pointer(payloadOf(e), def.id));
+    return id ? [def.type, id] : null;
+  }
+  if (e.type.startsWith("calendar_event.")) {
+    const id = str(payloadOf(e)["calendarId"]);
+    return id ? ["calendar", id] : null;
+  }
+  if (e.type.startsWith("principal.")) {
+    const id = str(payloadOf(e)["id"] ?? payloadOf(e)["holder"]);
+    return id !== undefined && id.startsWith("agt_") ? ["agent", id] : null;
+  }
+  if (e.entity !== undefined && e.entity_id !== undefined && e.entity !== "entity") return [e.entity, e.entity_id];
+  return null;
+}
+
 export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
   const maxScan = deps.maxScan ?? DEFAULT_SCAN;
+
+  /**
+   * An event about a thing is readable only by someone who may view that thing (F61): a "space" event used to reach every member whatever it was about. Judged at read time, so history already
+   * stored is covered. The one who made it, or whom it was made for, keeps it. A thing that is not in the access snapshot cannot be judged and keeps the event's own visibility. The verdict per
+   * thing is kept for the call, so a page of thousands of events asks the kernel once per thing.
+   */
+  async function reaches(snap: AccessSnapshot, r: Reader, c: EventCaller, e: StoredEvent, now: number, cache: Map<string, boolean>): Promise<boolean> {
+    if (c.system === true || e.actor === r.person || e.actor === c.principal || e.on_behalf === r.person) return true;
+    for (const [type, id] of aboutOf(deps, e)) if (!(await mayViewThing(snap, r, c, now, cache, type, id))) return false;
+    return true;
+  }
+  async function mayViewThing(snap: AccessSnapshot, r: Reader, c: EventCaller, now: number, cache: Map<string, boolean>, type: string, id: string): Promise<boolean> {
+    if (snap.resource(id) === undefined) return true;
+    const key = `${type}\u0000${id}`;
+    let ok = cache.get(key);
+    if (ok === undefined) {
+      ok =
+        authorize(snap, { principal: c.principal, actingFor: c.actingFor, action: { perm: null, level: "view" }, resource: { type, id }, now }).effect === "allow";
+      if (ok && deps.moduleView) ok = (await deps.moduleView(r.person, type, id).catch(() => false)) !== false;
+      cache.set(key, ok);
+    }
+    return ok;
+  }
 
   async function scan(
     c: EventCaller,
@@ -260,6 +340,7 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
     // a single exact name or `noun.*` goes to the indexed column; several are filtered here
     const single = a.types && a.types.length === 1 ? a.types[0] : undefined;
     const events: EventRow[] = [];
+    const verdicts = new Map<string, boolean>();
     let cursor = a.after,
       scanned = 0,
       more = false;
@@ -279,7 +360,7 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
         }
         cursor = e.seq;
         scanned++;
-        if (!match(e.type) || (a.keep && !a.keep(e)) || !visible(snap, owner, reader, c, e, now)) continue;
+        if (!match(e.type) || (a.keep && !a.keep(e)) || !visible(snap, owner, reader, c, e, now) || !(await reaches(snap, reader, c, e, now, verdicts))) continue;
         events.push(toRow(e));
       }
       if (more) break;
@@ -334,7 +415,7 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
           scanned += rows.length;
         }
       }
-      return found && visible(snap, deps.owner(), reader, c, found, deps.now()) ? toRow(found) : null;
+      return found && visible(snap, deps.owner(), reader, c, found, deps.now()) && (await reaches(snap, reader, c, found, deps.now(), new Map())) ? toRow(found) : null;
     },
   };
 }

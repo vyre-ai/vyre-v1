@@ -368,9 +368,18 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
  */
 export const HOOKS_STOP_MS = 15_000;
 export const CODE_ROOT = path.resolve(HERE, "../../..");
+/** the subject each event type names (a resource type and a pointer to its id in the payload), for the event log's read rule: an event about a thing is read only by someone who may view the thing */
+const eventSubjects: ReadonlyMap<string, { type: string; id: string }> = new Map(
+  (registry as unknown as { events: Array<{ name: string; subject?: { type: string; id: string } }> }).events.flatMap((e) =>
+    e.subject ? [[e.name, e.subject] as const] : [],
+  ),
+);
 /** What a device compares its registry with at hello (sync): the hash of registry.json, which the generated module no longer exports (ci: no global hash). */
 const registryHash = sha256Hex(fs.readFileSync(new URL("../../../generated/registry.json", import.meta.url)));
 const ZERO_TRACE = "0".repeat(32);
+/** How long a module's answer to "may this person read this chat or agent" is kept for the event log's read rule. */
+const EVENT_VIEW_TTL_MS = 10_000;
+const eventViewVerdicts = new Map<string, { at: number; ok: boolean }>();
 const RING = 5000;
 /** A probe whose state and detail are unchanged is written again after this long (health calls a scheduler report older than 90 s stale). */
 const PROBE_REFRESH_MS = 60_000;
@@ -5403,6 +5412,30 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               access: () => access.snap,
               owner: () => access.owner() ?? cfg.owner ?? null,
               now,
+              subjects: (name) => eventSubjects.get(name),
+              // a chat's readers and an agent's visibility (a person's Assistant) are decided by their modules, the same reads the person's own screen makes
+              moduleView: async (person, type, id) => {
+                const cap = type === "thread" ? "threads.get" : type === "agent" ? "agents.get" : undefined;
+                if (cap === undefined) return undefined;
+                // kept for a few seconds so a feed read over thousands of events asks each chat once, not once per page; a person removed from a chat stops reading its events within that time
+                const k = `${spaceId}\u0000${person}\u0000${id}`, t = now();
+                const hit = eventViewVerdicts.get(k);
+                if (hit && t - hit.at < EVENT_VIEW_TTL_MS) return hit.ok;
+                let ok: boolean;
+                try {
+                  const r = await invoke(cap, type === "thread" ? { threadId: id } : { agentId: id }, {
+                    space: spaceId,
+                    principal: { kind: "person", id: person },
+                    origin: "engine",
+                  });
+                  ok = r.status === "ok";
+                } catch {
+                  ok = false;
+                }
+                if (eventViewVerdicts.size > 5000) for (const [key, v] of eventViewVerdicts) if (t - v.at >= EVENT_VIEW_TTL_MS) eventViewVerdicts.delete(key);
+                eventViewVerdicts.set(k, { at: t, ok });
+                return ok;
+              },
             },
             post: {
               allow: o.seams?.webhookAllow ?? (() => []),
