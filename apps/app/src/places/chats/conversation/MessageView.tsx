@@ -1097,11 +1097,13 @@ function Theirs({
           style={st.via}
         >{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text>
       ) : null}
-      {work && (!work.short || !item.newgroup || workOpen) ? (
+      {work &&
+      (!work.live || !(stream && actions.activityOf?.(m.messageId))) &&
+      (!work.short || !item.newgroup || workOpen) ? (
         <Fold
           testID={`work-${m.messageId}`}
-          label={work.live ? `Working${work.now ? ` · ${work.now}` : ""}` : work.summary}
-          open={work.live || workOpen}
+          label={work.live ? "Working" : work.summary}
+          open={workOpen}
           live={work.live}
           onToggle={() => setWorkOpen((o) => !o)}
         >

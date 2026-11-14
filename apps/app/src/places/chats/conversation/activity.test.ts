@@ -1,7 +1,7 @@
 // @tsx
 import test from "node:test";
 import assert from "node:assert/strict";
-import { activityLine, elapsedWords, stepWords, thinkingExcerpt } from "./activity.ts";
+import { activityLine, calmWord, elapsedWords, stepWords, thinkingExcerpt } from "./activity.ts";
 import { workOf } from "./model.ts";
 import type { Message } from "./model.ts";
 
@@ -116,4 +116,17 @@ test("the API model's tools read as what they do, and no tool name leaks through
 test("an ordinary underscored word in the thinking line is left as written; only a known tool's name is said as what it does (review)", () => {
   assert.equal(thinkingExcerpt("Checking the user_id on the record", 200), "Checking the user_id on the record");
   assert.match(thinkingExcerpt("Then terminal_run with the user_id", 200), /^Then running a command with the user_id$/);
+});
+
+test("a live reply shows one calm word, never a step's name or a count (G21)", () => {
+  const step = (state: "live" | "done") => ({ id: "s1", name: "mcp__vyre__records_search", detail: "Rivera", state });
+  assert.equal(calmWord(snap(), false), "Thinking");
+  assert.equal(calmWord(snap({ thinking: "let me see" }), false), "Thinking");
+  assert.equal(calmWord(snap({ steps: [step("live")] as never }), false), "Working");
+  assert.equal(
+    calmWord(snap({ steps: [step("done")] as never }), false),
+    "Thinking",
+    "a finished step is not live work",
+  );
+  assert.equal(calmWord(snap({ steps: [step("live")] as never }), true), "Writing", "words coming win");
 });

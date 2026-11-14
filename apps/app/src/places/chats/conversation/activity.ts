@@ -114,3 +114,9 @@ export function activityLine(s: ActivitySnapshot): ActivityLine {
 
 export const elapsedWords = (secs: number): string =>
   secs < 3 ? "" : secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, "0")}s`;
+
+/** The one calm word a live reply shows (the prototype's islb): Writing once words are coming, Working while a step runs, else Thinking. Never a step's name, never a count. */
+export function calmWord(s: ActivitySnapshot, writing: boolean): "Thinking" | "Writing" | "Working" {
+  if (writing) return "Writing";
+  return s.steps.some((x) => x.state === "live") ? "Working" : "Thinking";
+}

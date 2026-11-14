@@ -1,0 +1,1 @@
+- A reply being written now shows one calm word under the name (Thinking, Writing or Working) instead of a list of steps and a running clock. The steps are one press away, and a finished reply still folds its work into "Worked 14s, 3 steps".
