@@ -25,5 +25,6 @@
   "modules/engine/mcp-oauth.ts#createMcpOauth": "single-use sign-in state: it is spent on a decline, a lost verifier or the token exchange so a leaked link can never be replayed",
   "modules/settings/handlers/contact.ts#contactVerifyStart": "the send counter (settings_contact_sent) counts the attempt it refuses; a code that could not be sent is deleted before the refusal",
   "modules/settings/handlers/contact.ts#contactVerifyConfirm": "the wrong-code count must survive the refusal (it ends the code after the tries run out); a changed, expired or used-up code is dropped before its refusal, and every refusal emits settings.contact_code_failed",
-  "modules/github/handlers/me.ts#again": "marks the person's GitHub connection as needing a reconnect and then refuses with provider.auth_failed; the mark must survive the refusal, it is how Settings knows to ask them to connect again. The one-line layout hid this until the 13 Nov format."
+  "modules/github/handlers/me.ts#again": "marks the person's GitHub connection as needing a reconnect and then refuses with provider.auth_failed; the mark must survive the refusal, it is how Settings knows to ask them to connect again. The one-line layout hid this until the 13 Nov format.",
+  "modules/vault-requests/handlers/connect.ts#connectSubmit": "a typed key that was kept stays kept when connecting then fails: the Vault cannot erase an item, so the card offers it back as a saved key; the ask stays open"
 }
