@@ -1,1 +1,2 @@
-- The prompt in an agent's terminal now reads `agent@workspace` instead of showing the agent's id, and an error from the computer no longer names it.
+- The prompt in an agent's terminal and in its desktop now shows a plain word instead of the agent's id, and an error from the computer no longer names it.
+- After this update an idle terminal tab starts empty the first time it is used, because the workspace is made again with the new name; the files and the home folder are kept.

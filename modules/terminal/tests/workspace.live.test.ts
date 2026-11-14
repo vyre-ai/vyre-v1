@@ -10,7 +10,8 @@ import { CODE_ROOT } from "../../../host/src/daemon/daemon.ts";
 import { createLocalHost, handlers } from "../impl.ts";
 import { bindHost, bindPlace, bindTeam, bindValues, bindWorkspaces } from "../projections.ts";
 import type { TermCtx } from "../projections.ts";
-import { buildWorkspaceManager, workspaceName } from "../workspace.ts";
+import { buildWorkspaceManager, SHARED_NETWORK, workspaceName } from "../workspace.ts";
+import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 import { unixSocketHttp } from "../../../sandbox/src/docker.ts";
 import { fakeValues, harness, reset } from "../fixtures/harness.ts";
 
@@ -134,7 +135,7 @@ test(
             "--label",
             `vyre.workspace=${AGENT}`,
             "--label",
-            "vyre.mounts=0000000000000000",
+            `vyre.mounts=${sha256Hex(JSON.stringify({ p: [PROJECT], n: SHARED_NETWORK })).slice(0, 16)}`,
             "--user",
             "10001:10001",
             "-v",
