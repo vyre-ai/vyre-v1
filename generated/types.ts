@@ -9958,6 +9958,14 @@ export type ConnectorsBuildOut = {
   runId: string;
   draftId: string;
 };
+export type ConnectorsCheckKeyIn = {
+  connector: string;
+  secrets: Record<string, string>;
+};
+export type ConnectorsCheckKeyOut = {
+  result: "ok" | "rejected" | "unreachable";
+  tested?: string;
+};
 export type ConnectorsDefineIn = {
   key: string;
   title?: string;
@@ -10005,6 +10013,30 @@ export type ConnectorsExportIn = {
 };
 export type ConnectorsExportOut = {
   folderId: string;
+};
+export type ConnectorsForServiceIn = {
+  service: string;
+};
+export type ConnectorsForServiceOut = {
+  found: boolean;
+  connector?: {
+    key: string;
+    title: string;
+    scope: "person" | "space";
+    mode: "api" | "mcp" | "dwd" | "oauth_app" | "webhook_only";
+    fields: Array<{
+        name: string;
+        label: string;
+        optional: boolean;
+      }>;
+    site?: string;
+  };
+  connection?: {
+    connectionId: string;
+    owner: "mine" | "space";
+    state: "pending" | "active" | "paused" | "needs_reconnect" | "failing";
+  };
+  near?: Array<string>;
 };
 export type ConnectorsGetIn = {
   key: string;
@@ -45462,9 +45494,11 @@ export interface CapMap {
   "connections.test": { in: ConnectionsTestIn; out: ConnectionsTestOut };
   "connections.update": { in: ConnectionsUpdateIn; out: ConnectionsUpdateOut };
   "connectors.build": { in: ConnectorsBuildIn; out: ConnectorsBuildOut };
+  "connectors.check_key": { in: ConnectorsCheckKeyIn; out: ConnectorsCheckKeyOut };
   "connectors.define": { in: ConnectorsDefineIn; out: ConnectorsDefineOut };
   "connectors.diff": { in: ConnectorsDiffIn; out: ConnectorsDiffOut };
   "connectors.export": { in: ConnectorsExportIn; out: ConnectorsExportOut };
+  "connectors.for_service": { in: ConnectorsForServiceIn; out: ConnectorsForServiceOut };
   "connectors.get": { in: ConnectorsGetIn; out: ConnectorsGetOut };
   "connectors.health": { in: ConnectorsHealthIn; out: ConnectorsHealthOut };
   "connectors.init": { in: ConnectorsInitIn; out: ConnectorsInitOut };

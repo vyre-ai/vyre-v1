@@ -644,9 +644,11 @@ export function createClient(transport: Transport) {
     },
     connectors: {
       build: call("connectors.build", 1),
+      check_key: call("connectors.check_key", 1),
       define: call("connectors.define", 1),
       diff: call("connectors.diff", 1),
       export: call("connectors.export", 1),
+      for_service: call("connectors.for_service", 1),
       get: call("connectors.get", 1),
       health: call("connectors.health", 1),
       init: call("connectors.init", 1),

@@ -1,0 +1,1 @@
+- Asking the Assistant "do you have Fathom connected?" or to connect a service is now one card. It asks for the key the service needs, tries it, then connects and saves it, and the Assistant says at most a line before it and a line after.

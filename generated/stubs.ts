@@ -644,9 +644,11 @@ export function stubs(ctx: CallCtx) {
     },
     connectors: {
       build: call("connectors.build"),
+      check_key: call("connectors.check_key"),
       define: call("connectors.define"),
       diff: call("connectors.diff"),
       export: call("connectors.export"),
+      for_service: call("connectors.for_service"),
       get: call("connectors.get"),
       health: call("connectors.health"),
       init: call("connectors.init"),
