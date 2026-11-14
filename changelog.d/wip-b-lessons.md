@@ -4,3 +4,4 @@
 - A reply's Details have a "Lessons used" section with one line for each lesson.
 - A reply that continues after a helper finishes now starts a new paragraph. Before, two answers could run together with no space ("kernel.The terminal").
 - An agent that writes the name of a tool the way it sees it (a name beginning mcp__) now reads in plain words to you.
+- The name of a tool the way the model sees it (mcp__...) no longer shows for a moment while a reply is being written: it reads in plain words from the first frame.
