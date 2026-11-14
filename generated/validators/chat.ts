@@ -1230,6 +1230,7 @@ lf(a1978[i1978], p + "/personIds" + '/' + i1978, e, L16);
 }
 if ("level" in o1977) lf(o1977["level"], p + "/level", e, L51);
 if ("mentionedIn" in o1977) lf(o1977["mentionedIn"], p + "/mentionedIn", e, L97);
+if ("fromStart" in o1977) lf(o1977["fromStart"], p + "/fromStart", e, L3);
 }
 }
 }

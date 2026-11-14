@@ -9924,6 +9924,10 @@
             "pattern": "^chn_[a-z0-9]+$",
             "type": "string"
           },
+          "fromStart": {
+            "description": "Read the channel from its first message (the default). False: they read from now on, as a guest invited into a channel does",
+            "type": "boolean"
+          },
           "level": {
             "enum": [
               "view",

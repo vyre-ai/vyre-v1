@@ -6513,6 +6513,7 @@ export type ChannelsMembersAddIn = {
   personIds: Array<string>;
   level?: "view" | "use" | "edit" | "manage";
   mentionedIn?: string;
+  fromStart?: boolean;
 };
 export type ChannelsMembersAddOut = {
   channel: {
@@ -48578,7 +48579,7 @@ export type AutomationRunsMigratedPayload = {
 export type AutomationTriggerDroppedPayload = {
   automationId: string;
   eventId: string;
-  reason: "self_trigger" | "depth_limit" | "paused" | "filter_error";
+  reason: "self_trigger" | "depth_limit" | "paused" | "filter_error" | "outsider";
 };
 export type AutomationUpdatedPayload = {
   automationId: string;
