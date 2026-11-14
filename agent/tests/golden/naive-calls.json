@@ -846,6 +846,9 @@
   "chat_catch_up": {
     "threadId": "thr_a1b2c3"
   },
+  "chat_chapters": {
+    "threadId": "thr_a1b2c3"
+  },
   "chat_composer_suggest": {
     "symbol": "@",
     "q": "quarterly plan"
@@ -947,15 +950,6 @@
     "threadId": "thr_a1b2c3",
     "messageId": "msg_a1b2c3"
   },
-  "chat_round_decide": {
-    "threadId": "thr_a1b2c3",
-    "messageId": "msg_a1b2c3",
-    "agentId": "agt_a1b2c3"
-  },
-  "chat_round_discuss": {
-    "threadId": "thr_a1b2c3",
-    "messageId": "msg_a1b2c3"
-  },
   "chat_screen_get": {
     "threadId": "thr_a1b2c3"
   },
@@ -981,6 +975,8 @@
     "messageId": "msg_a1b2c3",
     "threadId": "thr_a1b2c3"
   },
+  "chats_presence": {},
+  "chats_sidebar": {},
   "chrome_act": {
     "action": "click"
   },
@@ -1673,6 +1669,11 @@
   },
   "engine_subscription_share_set": {
     "enabled": false
+  },
+  "engine_thread_states": {
+    "threadIds": [
+      "thr_a1b2c3"
+    ]
   },
   "engine_turn_get": {
     "turnId": "trn_a1b2c3"
@@ -3731,6 +3732,7 @@
     "to": "dana@acme.test",
     "kind": "dm"
   },
+  "notifications_unseen_by_thread": {},
   "offer_note": {
     "threadId": "thr_a1b2c3",
     "title": "Quarterly planning",
@@ -4881,6 +4883,38 @@
       "id": "Quarterly planning"
     },
     "on": false
+  },
+  "state_counts": {},
+  "state_get": {
+    "things": [
+      {
+        "type": "Quarterly planning",
+        "id": "Quarterly planning"
+      }
+    ]
+  },
+  "state_layout_get": {},
+  "state_layout_set": {
+    "key": "Plan_Key",
+    "value": "Quarterly planning"
+  },
+  "state_list": {
+    "flag": "starred"
+  },
+  "state_read": {
+    "thing": {
+      "type": "Quarterly planning",
+      "id": "Quarterly planning"
+    }
+  },
+  "state_read_scope": {
+    "scope": "Quarterly planning"
+  },
+  "state_set": {
+    "thing": {
+      "type": "Quarterly planning",
+      "id": "Quarterly planning"
+    }
   },
   "steps_test": {
     "key": "Plan_Key",
