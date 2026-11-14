@@ -1268,6 +1268,7 @@ test("each of the commands ends in the kind the table says (a hint or an error i
     compact: "/compact",
     fork: "/fork",
     export: "/export",
+    search: "/search closing date",
     continue: "/continue Personal",
     task: "/task call the vendor",
     remember: "/remember I prefer short answers",
