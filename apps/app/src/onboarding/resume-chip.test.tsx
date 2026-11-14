@@ -58,3 +58,39 @@ test("the entry goes when every step is done, and when every step is done or put
   const mixed: Progress = Object.fromEntries(stepsOf("team").map((s, i) => [s.key, i % 2 ? "later" : "done"]));
   assert.equal(draw("team", mixed), "");
 });
+
+test("a flow the person hid (read from their state) draws nothing; Hide tells the host, once", async () => {
+  const { act } = await import("react");
+  const { createRoot } = await import("test-renderer");
+  const { installDom, find, press } = await import("../../../../ui/src/testing/dom.ts");
+  installDom();
+  const progress = { ai: "done" } as const;
+  const hid = createRoot();
+  await act(async () => {
+    hid.render(
+      <ResumeChip flow="personal" progress={progress} device="mac" compact={false} hidden onOpen={() => undefined} />,
+    );
+  });
+  assert.equal(
+    find(hid.container as never, "resume-chip"),
+    null,
+    "hidden on this device because the person hid it on another",
+  );
+  let hidden = 0;
+  const shown = createRoot();
+  await act(async () => {
+    shown.render(
+      <ResumeChip
+        flow="personal"
+        progress={progress}
+        device="mac"
+        compact={false}
+        onHide={() => hidden++}
+        onOpen={() => undefined}
+      />,
+    );
+  });
+  await press(find(shown.container as never, "resume-hide"));
+  assert.equal(hidden, 1);
+  assert.equal(find(shown.container as never, "resume-chip"), null);
+});

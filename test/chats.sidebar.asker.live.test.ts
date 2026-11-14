@@ -310,3 +310,11 @@ test("a goal that goes stuck is said once: the real Unblock task is in Tasks and
   const task = await h.owner.call("tasks.get", { taskId: need!.taskId });
   assert.deepEqual(task.task.source, { kind: "goal", id: ownerGoal });
 });
+
+test("the hidden Finish setup flag is the person's own on the Space: another person never reads it, and the same person reads it from any device", async () => {
+  await m.call("state.layout.set", { key: "onboarding.setup_hidden", value: { team: true } });
+  const mine = await m.call("state.layout.get", { keys: ["onboarding.setup_hidden"] });
+  assert.deepEqual(mine.values[0].value, { team: true });
+  const bens = await b.call("state.layout.get", { keys: ["onboarding.setup_hidden"] });
+  assert.deepEqual(bens.values, [], "Ben has nothing hidden");
+});

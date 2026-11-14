@@ -23,6 +23,48 @@ export async function markSeen(call: CapCall, flow: FlowKind): Promise<void> {
   await call("spaces.onboarding.seen", { flow });
 }
 
+/** The layout key (state.layout.*) that keeps which flows' "Finish setup" entry this person hid: `{ "<flow>": true }`. It is the person's own, on every device. */
+export const SETUP_HIDDEN_KEY = "onboarding.setup_hidden";
+
+/** The flows this person hid. A read that fails says none are hidden: the entry shows, which is the safe side. */
+export async function loadHidden(call: CapCall): Promise<Readonly<Record<string, true>>> {
+  try {
+    const out = (await call("state.layout.get", { keys: [SETUP_HIDDEN_KEY] })) as {
+      values?: { key: string; value: unknown }[];
+    };
+    const v = out.values?.find((x) => x.key === SETUP_HIDDEN_KEY)?.value;
+    return v !== null && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(
+          Object.entries(v as Record<string, unknown>)
+            .filter(([, on]) => on === true)
+            .map(([k]) => [k, true as const]),
+        )
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function hideSetup(call: CapCall, flow: FlowKind, current: Readonly<Record<string, true>>): Promise<void> {
+  await call("state.layout.set", { key: SETUP_HIDDEN_KEY, value: { ...current, [flow]: true } });
+}
+
+/** Earlier versions kept the hidden flag in one browser-wide key, which the next person on that browser inherited and a second device never saw. It cannot be attributed, so it is deleted, never moved. */
+export function retireOldHiddenKeys(): void {
+  try {
+    const st = (globalThis as { localStorage?: Storage }).localStorage;
+    if (!st) return;
+    const old: string[] = [];
+    for (let i = 0; i < st.length; i++) {
+      const k = st.key(i);
+      if (k !== null && k.startsWith("vyre.setup.hidden")) old.push(k);
+    }
+    for (const k of old) st.removeItem(k);
+  } catch {
+    /* blocked storage */
+  }
+}
+
 /** A person who already used the first-run checklist (finished a step or hid it) has been here before: the screen must not open over their work. */
 export async function usedChecklistBefore(call: CapCall): Promise<boolean> {
   const out = (await call("spaces.onboarding.get", {})) as { dismissed: boolean; steps: { done: boolean }[] };

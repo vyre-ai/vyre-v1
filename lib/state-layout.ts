@@ -10,6 +10,8 @@ export const LAYOUT_KEYS: Readonly<Record<string, LayoutKey>> = {
   "chats.sidebar.folds": { max: 2_000 },
   /** the tab the Notes place was last on */
   "chats.notes_tab": { max: 200 },
+  /** the setup flows whose "Finish setup" entry this person put away with Hide: `{ "<flow>": true }` */
+  "onboarding.setup_hidden": { max: 200 },
   /** which sections of the Files sidebar are folded */
   "files.sidebar.folds": { max: 2_000 },
 };

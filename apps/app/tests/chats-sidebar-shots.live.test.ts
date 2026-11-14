@@ -77,7 +77,34 @@ test("chats sidebar pictures and click-through", async (t) => {
           await page.getByTestId("onboarding").waitFor({ state: "detached", timeout: 8_000 });
           await page.getByTestId("sidebar-setup").waitFor({ timeout: 8_000 });
           await shoot("finish-setup");
+          // Hide is the person's own state on the Space: gone after a reload, and gone on a second device that signs in as the same person
+          await page.getByTestId("resume-hide").click({ timeout: 8_000 });
+          await page.waitForTimeout(500);
+          assert.equal(await page.getByTestId("sidebar-setup").count(), 0, "Hide puts it away");
+          await page.goto(`${web.origin}/`, { waitUntil: "load" });
+          await page.getByTestId("chats-sidebar").waitFor({ timeout: 20_000 });
+          await page.waitForTimeout(1500);
+          assert.equal(await page.getByTestId("sidebar-setup").count(), 0, "still gone after a reload");
+          const saved0 = await page.evaluate(() => localStorage.getItem("vyre.session.v1")!);
+          const sj = JSON.parse(saved0) as Any;
+          for (const k of Object.keys(sj.sessions ?? {})) sj.sessions[k].token = "signed-out";
+          const dctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+          await dctx.addInitScript((v: string) => localStorage.setItem("vyre.session.v1", v), JSON.stringify(sj));
+          const dev = await dctx.newPage();
+          await dev.goto(`${web.origin}/`, { waitUntil: "load" });
+          await dev.getByTestId("si-user").fill("olivia");
+          await dev.getByTestId("si-password").fill(PASSWORD);
+          await dev.getByRole("button", { name: "Sign in" }).click();
+          await dev.getByTestId("chats-sidebar").waitFor({ timeout: 25_000 });
+          await dev.waitForTimeout(1500);
+          assert.equal(
+            await dev.getByTestId("sidebar-setup").count(),
+            0,
+            "a second device of the same person: still hidden",
+          );
+          await dctx.close();
         } catch (e) {
+          if (e instanceof assert.AssertionError) throw e;
           fs.writeFileSync(path.join(out, "finish-setup-failed.txt"), String((e as Error).message));
           await page.screenshot({ path: path.join(out, "finish-setup-failed.png") }).catch(() => undefined);
         }
