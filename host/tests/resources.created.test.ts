@@ -234,6 +234,12 @@ test("registrar: a birth event that names an ownerId makes that person the owner
       events: [ev("agent.created", payload)],
     });
   assert.equal(call({ agentId: "agt_a1b2c3", ownerId: "usr_mia" })[0]?.owner_id, "usr_mia");
+  // an agent is registered with no parent: a Member's Space-wide Edit does not reach it, only its owner and what is shared with it (team-day-one: Bea may not use Ada's unshared agent)
+  assert.equal(
+    call({ agentId: "agt_a1b2c6", ownerId: "usr_mia" })[0]?.parent_id,
+    null,
+    "an agent does not sit under the Space",
+  );
   assert.equal(call({ agentId: "agt_a1b2c4" })[0]?.owner_id, "usr_admin", "no ownerId: the caller");
   assert.equal(
     call({ agentId: "agt_a1b2c5", ownerId: "not a person" })[0]?.owner_id,

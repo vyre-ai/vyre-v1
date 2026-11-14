@@ -395,7 +395,10 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
         const privateRoot =
           ((s.type === "calendar" || s.type === "mailbox" || s.type === "site") &&
             pointer(ev.payload, "/private") === true) ||
-          (s.type === "vault_folder" && pointer(ev.payload, "/scope") === "mine");
+          (s.type === "vault_folder" && pointer(ev.payload, "/scope") === "mine") ||
+          // an agent is its person's until they share it: it does not take the Space's access, so a Member's Space-wide Edit is not a way to use, see or open another person's agent. Only its owner and what is shared
+          // with it (Everyone, a group, a person from the invite) reach it. access.check told "none" for it only because it left the role's Space grant out (F49 made it tell what the server does).
+          s.type === "agent";
         // a file or folder an agent makes in its own home folder (or below it) is the agent's: its manager manages it through the folder, and a person the agent worked for keeps it only while
         // they may read the folder (review, 12 Nov 2026: a reader who left a closed chat kept Manage on the agent's notes they had asked for)
         const home =
