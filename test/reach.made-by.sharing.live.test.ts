@@ -24,14 +24,24 @@ test(
       const agent = r.assistant("owner");
       const resource = { type: "site", id: siteId };
       const listed = await r.must("owner", "access.shares_of", { resource });
-      const row = (
-        listed.shares as Array<{ grant: { id: string; level: string; source?: string; subject: { id: string } } }>
-      ).find((s) => s.grant.subject.id === agent);
-      assert.ok(row, `the sharing list shows the maker: ${JSON.stringify(listed.shares).slice(0, 300)}`);
-      assert.equal(row!.grant.source, "made_by");
-      assert.equal(row!.grant.level, "edit");
+      type Share = { grant: { id: string; level: string; source?: string; subject: { id: string } } };
+      const rows = (listed.shares as Share[]).filter((s) => s.grant.subject.id === agent);
+      // one row for the maker, whichever way it was written: the access projection's "made_by" or the maker's explicit grant "made-by:<agent>" (the sheet's isMadeBySource treats both as "Made this for you")
+      assert.equal(
+        rows.length,
+        1,
+        `the sharing list shows the maker once: ${JSON.stringify(listed.shares).slice(0, 300)}`,
+      );
+      const row = rows[0];
+      assert.ok(row, "the sharing list shows the maker");
+      const source = row.grant.source;
+      assert.ok(
+        source === "made_by" || (source !== undefined && source.startsWith("made-by:")),
+        `the row says the agent made it for her: ${String(source)}`,
+      );
+      assert.equal(row.grant.level, "edit");
       // she removes it, as the sheet does: unshare by the row's id
-      await r.must("owner", "access.unshare", { grantId: row!.grant.id });
+      await r.must("owner", "access.unshare", { grantId: row.grant.id });
       const after = await r.chain("owner", [{ k: "read", tool: "sites_get", input: () => ({ siteId }) }]);
       assert.equal(after["read"]?.ok, false, "the agent is refused like any other agent");
       const gone = await r.must("owner", "access.shares_of", { resource });
