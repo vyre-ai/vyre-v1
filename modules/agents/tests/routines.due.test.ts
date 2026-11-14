@@ -1,11 +1,12 @@
-// agents: scheduled routines fire (owner report, rc.16: "Hi every minute" never ran; markRoutineRan had no caller). The periodic job agents.routines_due starts each due routine once, under its
+// agents: scheduled routines fire (owner report, rc.16: "Hi every minute" never ran; markRoutineRan had no caller). Since P1 step 4 a routine's time is a wake in the scheduler, and the scheduler asks
+// agents.routine.fire for each fire; the tick below stands in for it. Each due routine starts once, under its
 // owner, with the key routine:<id>:<nextRunAt>; a second tick, or a restart that runs the same tick again, starts nothing more; after downtime a missed routine runs once, not once per missed time;
-// a paused routine, a watcher and a paused agent's routine do not run. The job is periodic, so the host runs it only where the scheduled-work lease is held.
+// a paused routine, a watcher and a paused agent's routine do not run. The scheduler's wake job is periodic, so the host runs it only where the scheduled-work lease is held.
 // @reads /modules/agents/migrations/0001_agents.sql
 // @reads /modules/agents/migrations/0002_routine_watch.sql
 import test from "node:test";
 import assert from "node:assert/strict";
-import { consumers, handlers, periodic } from "../impl.ts";
+import { consumers, handlers } from "../impl.ts";
 import { NOW, assertEventsConform, contractErrors, harness, openRaw } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -25,7 +26,23 @@ function runsWith(hn: Harness): { keys: string[]; runs: Map<string, string> } {
   });
   return { keys, runs };
 }
-const tick = (hn: Harness): Promise<string[]> => periodic["agents.routines_due"].run(hn.as(svc));
+/** The scheduler's part: every routine that is on, has a clock and whose time has come is one fire for its stored time. Returns the Runs that started. */
+async function tick(hn: Harness): Promise<string[]> {
+  const due = hn.db.all(
+    `SELECT r.id AS id, r.nextRunAt AS at FROM agents_routine r WHERE r.enabled = 1 AND r.nextRunAt IS NOT NULL AND r.nextRunAt <= ?
+       AND NOT EXISTS (SELECT 1 FROM agents_routine_watch w WHERE w.routineId = r.id) ORDER BY r.nextRunAt, r.id`,
+    hn.clock.t,
+  ) as { id: string; at: number }[];
+  const out: string[] = [];
+  for (const d of due) {
+    const r = (await h["agents.routine.fire"]!(hn.as(svc), { routineId: d.id, dueKey: String(d.at) })) as {
+      started: boolean;
+      runId?: string;
+    };
+    if (r.started) out.push(r.runId!);
+  }
+  return out;
+}
 async function withRoutine(hn: Harness, cron = "* * * * *", over: Record<string, unknown> = {}) {
   const agent = (await h["agents.create"]!(hn.ctx, { name: `Pinger${++n}`, role: "Says hi.", idempotencyKey: `c${n}` }))
     .agent;
