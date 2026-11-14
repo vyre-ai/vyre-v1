@@ -10,7 +10,8 @@ import {
 } from "../modules/agents/impl.ts";
 import { NOW, harness as agentsHarness } from "../modules/agents/fixtures/harness.ts";
 import { routineBy } from "../modules/agents/projections.ts";
-import { noteRun } from "../modules/agents/routine-guard.ts";
+import { noteRun, resumeSelfPaused } from "../modules/agents/routine-guard.ts";
+import { nextRun } from "../modules/agents/projections.ts";
 import { harness as runsHarness } from "../modules/runs/fixtures/db.ts";
 import { engine } from "../modules/runs/fixtures/seed.ts";
 import { harness as schedHarness } from "../modules/scheduler-api/fixtures/db.ts";
@@ -232,3 +233,20 @@ test("a routine whose row is AHEAD of its wake (rc.27 started that time): the fi
   assert.equal(out.runs, 19);
   assert.equal(w.hn.named("agent.routine_run_started").length, 19, "told once per Run");
 });
+
+for (const second of [10, 30, 45, 59]) {
+  test(`equal clocks: the row resumed at second ${second} and the wake resumed by the reconcile 25 s later (the gap r-clock found) skips no fire`, async () => {
+    const w = world(false, 0);
+    const r = await everyMinute(w);
+    for (let i = 0; i < 3; i++) noteRun(w.hn.db, r.routineId, false, "provider.rate_limited", "limit", w.hn.clock.t);
+    await w.reconcile(); // wake paused with the row
+    w.advance(5 * MINUTE + (second - (Math.floor(w.hn.clock.t / 1000) % 60)) * 1000);
+    // the row comes back on its own, with its own time; the wake is resumed only by the next reconcile
+    resumeSelfPaused(w.hn.db, w.hn.clock.t, nextRun);
+    w.advance(25_000);
+    await w.reconcile();
+    const out = await twentyMinutes(w, second);
+    assert.equal(out.skipped, 0);
+    assert.ok(out.runs >= 19, `${out.runs} Runs`);
+  });
+}
