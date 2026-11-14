@@ -48,6 +48,10 @@ export function holdView(el: unknown, host: unknown): Swap | null {
   const from = el as El | null,
     on = host as El | null;
   if (!from || !on || typeof from.cloneNode !== "function") return null;
+  // A copy still fading from the last swap goes now: the new copy would otherwise contain it, and each quick Back or Forward would copy every copy before it (the cost doubled with each step
+  // until the page stopped answering). What the old copy was covering is on screen under it already, so removing it only finishes the reveal.
+  for (const old of Array.from(on.querySelectorAll("[data-swap]") as unknown as ArrayLike<{ remove(): void }>))
+    old.remove();
   const copy = from.cloneNode(true);
   const a = from.querySelectorAll("*"),
     b = copy.querySelectorAll("*");
