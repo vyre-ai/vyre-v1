@@ -7,7 +7,7 @@
 import { agentBound } from "../../../lib/redact.ts";
 import { IMPORTED_PREAMBLE } from "../../../lib/recall-intent.ts";
 import { extrasFor, factRows } from "../enrich.ts";
-import { LESSON } from "../lessons.ts";
+import { LESSON, lessonsThatFit } from "../lessons.ts";
 import { meaningScores } from "../meaning.ts";
 import { carryPlace } from "../profile.ts";
 import { postNoted, writeShared } from "../shared.ts";
@@ -1124,7 +1124,6 @@ export const POINTER_MIN_MASS_HERE = 0.35;
 /** How alike (character trigrams) a place's fact must be to a question that shares none of its words to still be offered. */
 export const POINTER_NEAR_FLOOR = 0.1;
 export const POINTER_MAX_LINES = 5;
-export const POINTER_MAX_LESSONS = 3;
 export const POINTER_MAX_TOKENS = 350;
 
 export interface PointerLine {
@@ -1207,11 +1206,10 @@ export async function pointer(
     )
     .sort((a, b) => b.r.score - a.r.score || a.d.id.localeCompare(b.d.id));
   // the asker's lessons for this agent come first, newest first, whatever the question says (a switch turned off keeps none of them out: they stop being made, and Forget removes them)
-  const lessons = docs
-    .filter(isLesson)
-    .sort((a, b) => b.learnedAt - a.learnedAt || a.id.localeCompare(b.id))
-    .slice(0, POINTER_MAX_LESSONS)
-    .map((d) => ({ d }));
+  // as many as fit in LESSON_TOKENS (newest first): a rule the person gave is not dropped because this message does not echo its words; the ones that do not fit are said in Knows (lessonExtras.sent)
+  const mineSorted = docs.filter(isLesson).sort((a, b) => b.learnedAt - a.learnedAt || a.id.localeCompare(b.id));
+  const lessons = mineSorted.slice(0, lessonsThatFit(mineSorted.map((d) => d.text))).map((d) => ({ d }));
+  const lessonIds = new Set(lessons.map((x) => x.d.id));
   // When no word of the question lines up with anything (a "carrier" asked of a decision about "shipping"), the room's own settled things are still the first place to look: the two nearest by spelling and word forms,
   // when they are near at all. Only what was learned here or in a place linked to it; a question about nothing in particular gets nothing.
   if (matched.length === 0) {
@@ -1231,7 +1229,9 @@ export async function pointer(
   const lines: PointerLine[] = [];
   let tokenCount = 0;
   for (const { d } of order) {
-    if (lines.length >= POINTER_MAX_LINES) break;
+    // lessons are not counted in the lines: only the facts that match the message are
+    if (lines.filter((l) => !(l.ref && lessonIds.has(l.ref))).length >= POINTER_MAX_LINES && !lessonIds.has(d.id))
+      break;
     const ref = `${d.kind}:${d.id}`;
     if (shown.has(ref)) continue;
     // a question that matched a replaced statement is answered with what replaced it, once

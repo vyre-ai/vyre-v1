@@ -1016,7 +1016,7 @@ function ConversationView(): ReactElement {
     openedAt: openedAt.current,
     mentionsMe: (m) => mentionsIn(m.body, [{ kind: "person", id: data.me.id, name: data.me.name }]).length > 0,
   });
-  // a message of the person's that an agent has answered since: what it taught is then one quiet mark on its row, not a line under it
+  // a message of the person's that an agent has answered since: the line that says what it taught is then gone (shown once)
   const answered = new Set<string>();
   let agentAfter = false;
   for (let i = timelineMessages.length - 1; i >= 0; i--) {

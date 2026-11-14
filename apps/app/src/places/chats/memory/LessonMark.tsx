@@ -6,14 +6,14 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
+import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import { placeNear } from "../../../../../../ui/src/Overlay/anchor.ts";
 import { Icon } from "../../files/memory/parts.tsx";
 import { forgetFacts } from "./actions.ts";
-import { useChatMemory, useRead } from "./data.tsx";
+import { errorLine, useChatMemory, useRead } from "./data.tsx";
 import { isLesson, lessonMarkLabel } from "./model.ts";
 import type { UsedOut } from "./model.ts";
 import { LinkButton, webProps } from "./parts.tsx";
-import { useThreadMemory } from "./thread.tsx";
 
 export interface MarkLesson {
   factId: string;
@@ -58,11 +58,14 @@ export function LessonMark({
 }): ReactElement | null {
   const mem = useChatMemory();
   const [at, setAt] = useState<{ left: number; top: number } | null>(null);
+  // the lessons as they were when the list opened: one that is removed stays in it as "Removed. Undo" while it is open
+  const [snap, setSnap] = useState<readonly MarkLesson[] | null>(null);
   const trigger = useRef<unknown>(null);
-  if (!mem || lessons.length === 0) return null;
+  if (!mem || (lessons.length === 0 && at === null)) return null;
   const label = lessonMarkLabel(kind, lessons.length);
   const close = (): void => {
     setAt(null);
+    setSnap(null);
     (trigger.current as { focus?: () => void } | null)?.focus?.();
   };
   const open = (el: unknown): void => {
@@ -71,7 +74,8 @@ export function LessonMark({
     )?.getBoundingClientRect?.();
     const g = globalThis as { innerWidth?: number; innerHeight?: number };
     const win = { width: g.innerWidth ?? 1200, height: g.innerHeight ?? 800 };
-    const height = 44 + lessons.length * 40;
+    const height = 44 + lessons.length * 76;
+    setSnap(lessons);
     setAt(box ? placeNear(box, { width: Math.min(MARK_W, win.width - 16), height }, win) : { left: 8, top: 8 });
   };
   return (
@@ -99,7 +103,7 @@ export function LessonMark({
           </Text>
         ) : null}
       </Pressable>
-      {at ? <LessonList id={id} kind={kind} lessons={lessons} at={at} onClose={close} /> : null}
+      {at ? <LessonList id={id} kind={kind} lessons={snap ?? lessons} at={at} onClose={close} /> : null}
     </>
   );
 }
@@ -119,27 +123,23 @@ function LessonList({
   onClose: () => void;
 }): ReactElement {
   const mem = useChatMemory()!;
-  const thread = useThreadMemory();
   const card = useRef<unknown>(null);
   const [whole, setWhole] = useState<string | null>(null);
+  // lessons removed from this list, with what puts each back
+  // a row says "Removed" only once the server has said so: while it waits it says "Removing", and a failed call puts the row back with the reason
+  type Gone = { phase: "pending" } | { phase: "done"; undo: () => void | Promise<unknown> };
+  const [removed, setRemoved] = useState<Record<string, Gone>>({});
+  const [failed, setFailed] = useState<Record<string, string>>({});
+  const without = <T,>(r: Record<string, T>, id: string): Record<string, T> => {
+    const { [id]: _gone, ...rest } = r;
+    return rest;
+  };
   useEffect(() => {
     (card.current as { focus?: () => void } | null)?.focus?.();
-    const doc = (
-      globalThis as {
-        document?: {
-          addEventListener(t: string, f: (e: { key: string }) => void): void;
-          removeEventListener(t: string, f: (e: { key: string }) => void): void;
-        };
-      }
-    ).document;
-    if (!doc) return undefined;
-    const key = (e: { key: string }): void => {
-      if (e.key === "Escape") onClose();
-    };
-    doc.addEventListener("keydown", key);
-    return () => doc.removeEventListener("keydown", key);
+    return undefined;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const say = (text: string, undo?: () => void | Promise<unknown>): void => thread?.flash(text, undo);
+  // one Escape closes the topmost layer only: this list, or whatever is drawn over it, never both
+  useEscapeLayer(true, onClose);
   return (
     <Overlay>
       <Pressable
@@ -155,49 +155,94 @@ function LessonList({
           card.current = r;
         }}
         testID={`lesson-list-${id}`}
-        accessibilityLabel={kind === "used" ? "Lessons this reply used" : "Lessons learned from this message"}
+        accessibilityLabel={kind === "used" ? "Kept in mind" : "Lessons learned from this message"}
         {...webProps({ role: "dialog", tabIndex: -1 })}
         style={[st.card, { left: at.left, top: at.top } as object]}
       >
-        <Text style={st.head}>{kind === "used" ? "Lessons this reply used" : "Lessons learned from this message"}</Text>
+        <Text style={st.head}>{kind === "used" ? "Kept in mind" : "Lessons learned from this message"}</Text>
         {lessons.map((l) => (
           // ui-rows-lint: not a list (a handful of rows of one popover, each with its own two buttons)
           <View key={l.factId} testID={`lesson-row-${l.factId}`} style={st.row}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ expanded: whole === l.factId }}
-              accessibilityLabel={`${l.text}. ${whole === l.factId ? "Show less" : "Show all of it"}`}
-              testID={`lesson-text-${l.factId}`}
-              onPress={() => setWhole((w) => (w === l.factId ? null : l.factId))}
-              style={st.words}
-            >
-              <Text numberOfLines={whole === l.factId ? undefined : 1} style={st.text}>
-                {l.text}
-              </Text>
-            </Pressable>
-            <View style={st.acts}>
-              {mem.showKnows ? (
-                <LinkButton
-                  label="See"
-                  testID={`lesson-see-${l.factId}`}
-                  a11y={`See what the agent has learned: ${l.text}`}
-                  onPress={() => {
-                    onClose();
-                    mem.showKnows?.();
-                  }}
-                />
-              ) : null}
-              <LinkButton
-                label="Remove"
-                quiet
-                testID={`lesson-remove-${l.factId}`}
-                a11y={`Remove this lesson: ${l.text}`}
-                onPress={() => {
-                  onClose();
-                  void forgetFacts(mem, [l.factId], say, "Removed the lesson. It stays in Trash for 60 days.");
-                }}
-              />
-            </View>
+            {l.factId in removed ? (
+              <View style={st.gone}>
+                {removed[l.factId]!.phase === "pending" ? (
+                  <Text testID={`lesson-removing-${l.factId}`} style={st.goneText}>
+                    Removing
+                  </Text>
+                ) : (
+                  <>
+                    <Text testID={`lesson-removed-${l.factId}`} style={st.goneText}>
+                      Removed. It stays in Trash for 60 days.
+                    </Text>
+                    <LinkButton
+                      label="Undo"
+                      testID={`lesson-undo-${l.factId}`}
+                      a11y={`Undo: put the lesson back: ${l.text}`}
+                      onPress={() => {
+                        const g = removed[l.factId];
+                        setRemoved((r) => without(r, l.factId));
+                        if (g?.phase === "done")
+                          void Promise.resolve(g.undo()).catch((e: unknown) =>
+                            setFailed((f) => ({ ...f, [l.factId]: errorLine(e, "Could not put it back") })),
+                          );
+                      }}
+                    />
+                  </>
+                )}
+              </View>
+            ) : (
+              <>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: whole === l.factId }}
+                  accessibilityLabel={`${l.text}. ${whole === l.factId ? "Show less" : "Show all of it"}`}
+                  testID={`lesson-text-${l.factId}`}
+                  onPress={() => setWhole((w) => (w === l.factId ? null : l.factId))}
+                  style={st.words}
+                >
+                  <Text numberOfLines={whole === l.factId ? undefined : 2} style={st.text}>
+                    {l.text}
+                  </Text>
+                </Pressable>
+                <View style={st.acts}>
+                  {mem.showKnows ? (
+                    <LinkButton
+                      label="See"
+                      testID={`lesson-see-${l.factId}`}
+                      a11y={`See what the agent has learned: ${l.text}`}
+                      onPress={() => {
+                        onClose();
+                        mem.showKnows?.();
+                      }}
+                    />
+                  ) : null}
+                  <LinkButton
+                    label="Remove"
+                    quiet
+                    testID={`lesson-remove-${l.factId}`}
+                    a11y={`Remove this lesson: ${l.text}`}
+                    onPress={() => {
+                      setFailed((f) => without(f, l.factId));
+                      setRemoved((r) => ({ ...r, [l.factId]: { phase: "pending" } }));
+                      void forgetFacts(mem, [l.factId], (text, undo) => {
+                        if (undo)
+                          setRemoved((r) => (l.factId in r ? { ...r, [l.factId]: { phase: "done", undo } } : r));
+                        else {
+                          // the call failed: the row is a lesson again, and says why
+                          setRemoved((r) => without(r, l.factId));
+                          setFailed((f) => ({ ...f, [l.factId]: text }));
+                        }
+                      });
+                    }}
+                  />
+                </View>
+                {failed[l.factId] ? (
+                  <Text testID={`lesson-error-${l.factId}`} accessibilityRole="alert" style={st.error}>
+                    {failed[l.factId]}
+                  </Text>
+                ) : null}
+              </>
+            )}
           </View>
         ))}
       </View>
@@ -232,14 +277,14 @@ const st = StyleSheet.create({
   } as object,
   head: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string, marginBottom: 4 },
   row: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    columnGap: 8,
     paddingVertical: 6,
     borderTopWidth: 1,
     borderTopColor: "var(--line)" as string,
   },
-  words: { flex: 1, minWidth: 0, paddingVertical: 2 },
+  words: { alignSelf: "stretch", paddingVertical: 2 },
+  gone: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", columnGap: 8, minHeight: 28 },
+  error: { fontSize: 12, color: "var(--danger)" as string, paddingTop: 2 },
+  goneText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
   text: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
-  acts: { flexDirection: "row", alignItems: "center", gap: 2 },
+  acts: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 2 },
 });

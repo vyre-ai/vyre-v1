@@ -38,6 +38,7 @@ const factExtras = {
         how: t.opt(lessonHow),
         used: t.int({ minimum: 0, description: "How many of the agent's answers used it" }),
         scope: t.enm("you", "proposed", "space"),
+        sent: t.opt(t.bool()),
       },
       {
         description:

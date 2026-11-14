@@ -10,7 +10,6 @@ import { each } from "../../files/memory/model.ts";
 import { correctFact, restoreLearned, undoLearned } from "./actions.ts";
 import { LAYER_SCOPE, learnedExact, learnedWhen } from "./model.ts";
 import type { LearnedRow } from "./model.ts";
-import { LessonMark } from "./LessonMark.tsx";
 import { LinkButton, webProps, ownMenu } from "./parts.tsx";
 import { useThreadMemory } from "./thread.tsx";
 
@@ -29,15 +28,11 @@ export function LearnedLines({
   if (!thread) return null;
   const rows = thread.learnedFrom(messageId);
   if (rows.length === 0) return null;
-  const folded = settled ? rows.filter((r) => r.lesson !== undefined && r.current) : [];
-  const shown = rows.filter((r) => !folded.includes(r));
+  // a lesson's line is shown once: after the next reply it is gone from here (Knows keeps it, with Undo and Edit)
+  const shown = settled ? rows.filter((r) => r.lesson === undefined) : rows;
+  if (shown.length === 0) return null;
   return (
-    <View testID={`learned-${messageId}`} style={folded.length > 0 && shown.length === 0 ? st.markOnly : undefined}>
-      {folded.length > 0 ? (
-        <View style={st.markRow}>
-          <LessonMark id={messageId} kind="learned" lessons={folded.map((r) => ({ factId: r.factId, text: r.text }))} />
-        </View>
-      ) : null}
+    <View testID={`learned-${messageId}`}>
       {each(shown, (r) => (
         <LearnedLine key={r.factId} row={r} />
       ))}
@@ -164,22 +159,16 @@ function LearnedLine({ row }: { row: LearnedRow & { current: boolean } }): React
   return (
     <View
       testID={`learned-line-${row.factId}`}
-      accessibilityLabel={lesson ? "Learned a lesson" : `Learned: ${row.text}`}
+      accessibilityLabel={`Learned: ${row.text}`}
       {...webProps({ tabIndex: 0 })}
       {...ownMenu(items)}
       style={st.line}
     >
       <View style={st.dot} />
-      {lesson ? (
-        <Text style={st.text}>
-          <Text style={st.bold}>Learned a lesson</Text>
-        </Text>
-      ) : (
-        <Text style={st.text}>
-          <Text style={st.bold}>Learned:</Text>
-          {` ${row.subjectTitle ? `${row.subjectTitle}: ` : ""}${row.text}`}
-        </Text>
-      )}
+      <Text numberOfLines={lesson ? 1 : undefined} style={st.text}>
+        <Text style={st.bold}>Learned:</Text>
+        {` ${row.subjectTitle ? `${row.subjectTitle}: ` : ""}${row.text}`}
+      </Text>
       {scopeWords ? (
         <>
           <Text style={st.sep}>·</Text>
@@ -228,8 +217,6 @@ function LearnedLine({ row }: { row: LearnedRow & { current: boolean } }): React
 }
 
 const st = StyleSheet.create({
-  markOnly: { alignSelf: "flex-end" },
-  markRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 2 },
   line: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 8, marginBottom: 2 },
   dot: { width: 5, height: 5, borderRadius: 3, marginRight: 2, backgroundColor: "var(--ok)" as string },
   dotOff: { backgroundColor: "var(--ink-4)" as string },

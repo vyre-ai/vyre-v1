@@ -59,6 +59,7 @@ type Out = {
       how?: "edit" | "refuse" | "reverse" | "rewrite";
       used: number;
       scope: "you" | "proposed" | "space";
+      sent?: boolean;
     };
     subject?: {
       pageId: string;
@@ -107,6 +108,7 @@ type Out = {
       "lesson": {
         "how": "edit",
         "scope": "you",
+        "sent": true,
         "used": 1
       },
       "lineLink": "vyre://thread/thr_a1b2c3?m=msg_a1b2c3",
