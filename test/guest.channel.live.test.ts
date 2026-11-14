@@ -51,7 +51,7 @@ for (const kind of ["public", "invite"] as const)
         const post = await g.call("chat.post", { threadId: c.mainThreadId, body: "Hello from the guest" });
         const threaded = await g.call("chat.thread", {
           threadId: c.mainThreadId,
-          messageId: kind === "public" ? w.first.pub : w.first.priv,
+          messageId: g.fresh,
         });
         if (level === "reply") {
           assert.equal(post.status, 200, `a reply guest posts: ${JSON.stringify(post.data)}`);

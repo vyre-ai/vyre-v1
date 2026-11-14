@@ -95,7 +95,7 @@ test("a guest changes nobody's roster and starts no turn by any door: an agent o
     await connect(w.d);
     const g = await w.invite(w.pub, "reply", "doors@example.com", "doorsguest");
     const thread = w.pub.mainThreadId;
-    const reply = (await g.call("chat.thread", { threadId: thread, messageId: w.first.pub })).data.thread
+    const reply = (await g.call("chat.thread", { threadId: thread, messageId: g.fresh })).data.thread
       .threadId as string;
     const agentsOf = async (id: string): Promise<string[]> =>
       ((await w.o("threads.get", { threadId: id })).thread.agents as Array<{ agentId: string }>)
