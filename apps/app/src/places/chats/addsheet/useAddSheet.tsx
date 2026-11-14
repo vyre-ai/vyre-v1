@@ -59,6 +59,8 @@ interface Loaded {
   agentSettings: Record<string, AgentSettings>;
   maxLevel?: ShareLevel;
   link?: LinkInfo;
+  /** Who may give earlier messages to whom (a chat or a thread): the owner widens members who are in; anyone else gives a new member what they can read themselves. */
+  earlierRule?: { owner: boolean; members: readonly string[] };
 }
 
 const MODELS: readonly string[] = ["Opus 5.5", "Sonnet 5.5", "Haiku 5.5", "GPT-5 Codex"];
@@ -85,6 +87,7 @@ export async function loadAdd(
   let resource: { type: "thread" | "channel" | "project"; id: string };
   let hereRows: { kind: "person" | "agent" | "outside"; id: string }[] = [];
   let agentRows: ThreadAgentRow[] = [];
+  let earlierRule: { owner: boolean; members: readonly string[] } | undefined;
   let projectId: string | undefined;
   // the files folder and the records scope the newcomer really gets: read, never taken from the chat's name
   let folderId: string | undefined;
@@ -117,6 +120,7 @@ export async function loadAdd(
       name = open.name ?? t.title ?? (kind === "thread" ? "this thread" : "this chat");
       resource = { type: "thread", id: t.threadId };
       hereRows = t.members.filter((m) => m.kind === "person").map((m) => ({ kind: "person", id: m.id }));
+      earlierRule = { owner: t.starter === me, members: hereRows.map((m) => m.id) };
     }
   } else {
     projectId = open.projectId;
@@ -239,6 +243,7 @@ export async function loadAdd(
     agentSettings,
     ...(maxLevel !== undefined ? { maxLevel } : {}),
     ...(info ? { link: info } : {}),
+    ...(earlierRule !== undefined ? { earlierRule } : {}),
   };
 }
 
@@ -524,6 +529,7 @@ export function useAddSheet(
         agentSettings={r.agentSettings}
         models={MODELS}
         earlierMessages={r.target.kind === "chat" || r.target.kind === "thread"}
+        {...(r.earlierRule !== undefined ? { earlierRule: r.earlierRule } : {})}
         {...(r.maxLevel !== undefined ? { maxLevel: r.maxLevel } : {})}
         {...(r.link ? { link: r.link } : {})}
         testID="add-sheet"

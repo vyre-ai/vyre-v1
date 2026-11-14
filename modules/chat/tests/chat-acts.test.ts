@@ -48,7 +48,11 @@ test("a late joiner cannot raise their own floor: adding themselves with fromSta
   const { hn, id } = await lateJoiner();
   const maya = hn.person(MAYA);
   assert.equal(await reads(maya, id, "OLDSECRET"), false, "before");
-  await h["threads.members.add"]!(maya, { threadId: id, personId: MAYA, fromStart: true });
+  assert.equal(
+    await failure(h["threads.members.add"]!(maya, { threadId: id, personId: MAYA, fromStart: true })),
+    "permission.no_grant",
+    "a plain refusal, not a quiet no-op",
+  );
   assert.equal(await reads(maya, id, "OLDSECRET"), false, "after: still hidden");
   assert.equal(await reads(maya, id, "NEWWORD"), true);
 });
@@ -65,7 +69,10 @@ test("only the owner widens a member who is already in: a late joiner asking aga
   const { hn, id } = await lateJoiner();
   hn.advance(1_000);
   await h["threads.members.add"]!(hn.ctx, { threadId: id, personId: LEO });
-  await h["threads.members.add"]!(hn.person(MAYA), { threadId: id, personId: LEO, fromStart: true });
+  assert.equal(
+    await failure(h["threads.members.add"]!(hn.person(MAYA), { threadId: id, personId: LEO, fromStart: true })),
+    "permission.no_grant",
+  );
   assert.equal(
     await reads(hn.person(LEO), id, "NEWWORD"),
     false,
@@ -144,4 +151,30 @@ test("a late joiner cannot pin, unpin or learn about a message from before their
     true,
     "what she reads she may pin",
   );
+});
+
+test("an agent acting for a person adds and widens only as that person: for Maya it grants from Maya's floor, and it cannot raise Maya's own", async () => {
+  const { hn, id } = await lateJoiner();
+  hn.advance(1_000);
+  const forMaya = hn.agent(INTAKE, MAYA);
+  await h["threads.members.add"]!(forMaya, { threadId: id, personId: LEO, fromStart: true });
+  assert.equal(
+    await reads(hn.person(LEO), id, "OLDSECRET"),
+    false,
+    "an agent for Maya gives Leo nothing Maya cannot read",
+  );
+  assert.equal(await reads(hn.person(LEO), id, "NEWWORD"), true, "what the room read since Maya came in");
+  assert.equal(
+    await failure(h["threads.members.add"]!(forMaya, { threadId: id, personId: MAYA, fromStart: true })),
+    "permission.no_grant",
+    "and it cannot raise Maya's own floor",
+  );
+  assert.equal(await reads(hn.person(MAYA), id, "OLDSECRET"), false);
+});
+
+test("an agent acting for the owner grants only from where the whole room reads: what was said before the latest person came in is not handed on", async () => {
+  const { hn, id } = await lateJoiner();
+  hn.advance(1_000);
+  await h["threads.members.add"]!(hn.agent(INTAKE, DANA), { threadId: id, personId: LEO, fromStart: true });
+  assert.equal(await reads(hn.person(LEO), id, "OLDSECRET"), false);
 });

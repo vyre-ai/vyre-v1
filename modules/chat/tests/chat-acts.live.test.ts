@@ -61,7 +61,10 @@ test("a late joiner cannot raise their own floor, and an adder grants history on
     await ana.call("threads.members.add", { threadId: id, personId: "usr_bo" });
     s.clock.advance(1_000);
     await ana.call("chat.post", { threadId: id, body: "NEWWORD", idempotencyKey: "ca-3" });
-    await bo.call("threads.members.add", { threadId: id, personId: "usr_bo", fromStart: true });
+    assert.equal(
+      await code(bo.call("threads.members.add", { threadId: id, personId: "usr_bo", fromStart: true })),
+      "permission.no_grant",
+    );
     assert.ok(!(await bodies(bo, id)).some((b) => b.includes("OLDSECRET")), "Bo cannot raise their own floor");
     await bo.call("threads.members.add", { threadId: id, personId: "usr_dev", fromStart: true });
     const cy = s.api("usr_dev");
@@ -128,6 +131,28 @@ test("a member who is not a manager cannot open an invite-only channel through i
     );
     const through = await code(bo.call("threads.members.add", { threadId: ch.mainThreadId, personId: "usr_dev" }));
     assert.notEqual(through, "none", "the main thread is no way around the channel's rules");
+  } finally {
+    await s.close();
+  }
+});
+
+test("a guest in a chat adds nobody and cannot open a channel", async () => {
+  const s = await space();
+  try {
+    const ana = s.api("usr_ana");
+    const guest = s.api("usr_guest");
+    const id = (
+      (await ana.call("chat.start", { kind: "chat", agentIds: ["agt_intake"], idempotencyKey: "ca-7" })) as {
+        thread: { threadId: string };
+      }
+    ).thread.threadId;
+    s.access.putResource({ id, type: "thread", parent_id: s.space, label: 0, owner_id: "usr_ana", holds: 0 });
+    await ana.call("threads.members.add", { threadId: id, personId: "usr_guest" });
+    const through = await code(
+      guest.call("threads.members.add", { threadId: id, personId: "usr_dev", fromStart: true }),
+    );
+    console.log("GUEST ADD:", through);
+    assert.notEqual(through, "none", "a guest does not add people to a chat");
   } finally {
     await s.close();
   }

@@ -19,7 +19,7 @@ import {
 import type { ChatCtx, Mode, ThreadKind, ThreadRec } from "../projections.ts";
 import { isHostService } from "../../../lib/trust.ts";
 import { canSpeak, channelManageDenied, mayGovernChannel, rootOf } from "./post.ts";
-import { floorOfPerson } from "./floor.ts";
+import { floorOfPerson, readFloor } from "./floor.ts";
 import { mentions } from "./pace.ts";
 import { applyMode } from "./modes.ts";
 import { followMode, placeOf } from "./follow.ts";
@@ -387,20 +387,29 @@ export async function membersAdd(
   // A channel's own people keep reading everything it holds.
   const fromStart = input.fromStart ?? (!isPrivateRoot(root) || root.scopeType === "goal");
   // nobody grants more than they read themselves: "earlier messages" means from the adder's own floor (0 when the adder reads all of it)
-  const adderFloor = floorOfPerson(ctx, root.id, asker);
+  const adderFloor = readFloor(ctx, root);
   const known = isMember(ctx.db, t.id, input.personId);
   if (known) {
     // asked again with earlier messages on, the owner widens a person's reading, never beyond the owner's own floor. A member who is not the owner changes nobody's floor, their own included.
-    if (input.fromStart === true && isOwnerOf(ctx, t.id, asker)) {
+    if (input.fromStart === true) {
       const current = floorOfPerson(ctx, t.id, input.personId);
-      if (current > 0 && (adderFloor === 0 || adderFloor < current))
-        ctx.db.run(
-          "UPDATE chat_thread_member SET fromAt = ?, version = version + 1, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL",
-          adderFloor > 0 ? adderFloor : null,
-          ctx.now(),
-          t.id,
-          input.personId,
-        );
+      if (current > 0) {
+        // widening someone who is already in is the owner's alone: a plain refusal, never a quiet no-op (a client shows it)
+        if (!isOwnerOf(ctx, t.id, asker))
+          raise(
+            ctx,
+            "permission.no_grant",
+            "Only the owner of this chat gives earlier messages to someone who is already in it.",
+          );
+        if (adderFloor === 0 || adderFloor < current)
+          ctx.db.run(
+            "UPDATE chat_thread_member SET fromAt = ?, version = version + 1, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL",
+            adderFloor > 0 ? adderFloor : null,
+            ctx.now(),
+            t.id,
+            input.personId,
+          );
+      }
     }
     return out(ctx, t.id);
   }

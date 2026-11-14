@@ -2,3 +2,5 @@
 - An invite-only channel can only be opened to new people by its managers, through any door, not only through the channel's own Add people.
 - A person who left a chat they started no longer reads or writes in it.
 - Starring or following a chat you cannot see answers "not found", the same as for a chat that does not exist.
+- In Add people, "Include earlier messages" is shown only where it works: only a chat's owner can give earlier messages to someone who is already in it, and everyone else is offered it for new people only, worded "Include earlier messages you can read". If a request for it is refused you get a plain message instead of nothing.
+- An assistant adding people for someone hands on only what the room has read since that person came in.
