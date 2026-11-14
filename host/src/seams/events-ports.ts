@@ -77,7 +77,7 @@ export interface EventReaderDeps {
    */
   subjects?: (eventType: string) => { type: string; id: string } | undefined;
   /**
-   * Things whose privacy a module decides, not the kernel's grants (a chat's readers, an agent that is someone's Assistant): the answer of that module's own read for this person, or undefined when
+   * Things whose privacy a module decides, not the kernel's grants (a chat's readers, an agent that is someone's Assistant, an invite-only channel and the channel of a private project): the answer of that module's own read for this person, or undefined when
    * the type has no such rule. Asked after the kernel allows, once per thing per call.
    */
   moduleView?: (person: string, type: string, id: string) => Promise<boolean | undefined>;
@@ -215,6 +215,14 @@ function readerOf(snap: AccessSnapshot, c: EventCaller): Reader | null {
   return { person, clearance };
 }
 
+/**
+ * "Mine" is decided by the PERSON the reader is (or acts for), never by the principal that called: an event is the reader's when its actor is that person or it was made on that person's behalf.
+ * An agent that acts for Mia is not the maker of what the same agent made for Olivia (F61: the shared agent).
+ */
+function madeBy(r: Reader, e: StoredEvent): boolean {
+  return e.actor === r.person || e.on_behalf === r.person;
+}
+
 function visible(
   snap: AccessSnapshot,
   ownerId: string | null,
@@ -224,7 +232,7 @@ function visible(
   now: number,
 ): boolean {
   if (e.label > r.clearance) return false;
-  const mine = e.actor === r.person || e.actor === c.principal || e.on_behalf === r.person;
+  const mine = madeBy(r, e);
   switch (e.vis) {
     case "space":
       return true;
@@ -299,11 +307,11 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
 
   /**
    * An event about a thing is readable only by someone who may view that thing (F61): a "space" event used to reach every member whatever it was about. Judged at read time, so history already
-   * stored is covered. The one who made it, or whom it was made for, keeps it. A thing that is not in the access snapshot cannot be judged and keeps the event's own visibility. The verdict per
+   * stored is covered. The person who made it, or whom it was made for, keeps it (the person, not the agent that did the work: see madeBy). A thing that is not in the access snapshot cannot be judged and keeps the event's own visibility. The verdict per
    * thing is kept for the call, so a page of thousands of events asks the kernel once per thing.
    */
   async function reaches(snap: AccessSnapshot, r: Reader, c: EventCaller, e: StoredEvent, now: number, cache: Map<string, boolean>): Promise<boolean> {
-    if (c.system === true || e.actor === r.person || e.actor === c.principal || e.on_behalf === r.person) return true;
+    if (c.system === true || madeBy(r, e)) return true;
     for (const [type, id] of aboutOf(deps, e)) if (!(await mayViewThing(snap, r, c, now, cache, type, id))) return false;
     return true;
   }

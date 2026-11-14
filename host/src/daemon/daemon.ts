@@ -5415,20 +5415,28 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               subjects: (name) => eventSubjects.get(name),
               // a chat's readers and an agent's visibility (a person's Assistant) are decided by their modules, the same reads the person's own screen makes
               moduleView: async (person, type, id) => {
-                const cap = type === "thread" ? "threads.get" : type === "agent" ? "agents.get" : undefined;
-                if (cap === undefined) return undefined;
+                if (type !== "thread" && type !== "agent" && type !== "channel") return undefined;
                 // kept for a few seconds so a feed read over thousands of events asks each chat once, not once per page; a person removed from a chat stops reading its events within that time
                 const k = `${spaceId}\u0000${person}\u0000${id}`, t = now();
                 const hit = eventViewVerdicts.get(k);
                 if (hit && t - hit.at < EVENT_VIEW_TTL_MS) return hit.ok;
                 let ok: boolean;
                 try {
-                  const r = await invoke(cap, type === "thread" ? { threadId: id } : { agentId: id }, {
-                    space: spaceId,
-                    principal: { kind: "person", id: person },
-                    origin: "engine",
-                  });
-                  ok = r.status === "ok";
+                  const as = { space: spaceId, principal: { kind: "person" as const, id: person }, origin: "engine" as const };
+                  if (type === "channel") {
+                    // the chat module's own read, as channels.list answers it (not the Console's governance view, which lets an admin see that an invite-only channel exists): a public channel is read
+                    // by whoever channels.get lets in; an invite-only one only by someone who reads its main thread (a member)
+                    const r = await invoke("channels.get", { channelId: id }, as);
+                    const ch = (r.status === "ok" ? (r.output as { channel?: { visibility?: string; mainThreadId?: string } }).channel : undefined);
+                    ok = ch !== undefined;
+                    if (ok && ch!.visibility !== "public") {
+                      const m = ch!.mainThreadId === undefined ? undefined : await invoke("threads.get", { threadId: ch!.mainThreadId }, as);
+                      ok = m?.status === "ok";
+                    }
+                  } else {
+                    const r = await invoke(type === "thread" ? "threads.get" : "agents.get", type === "thread" ? { threadId: id } : { agentId: id }, as);
+                    ok = r.status === "ok";
+                  }
                 } catch {
                   ok = false;
                 }

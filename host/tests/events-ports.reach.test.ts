@@ -18,6 +18,7 @@ const SUBJECTS: Record<string, { type: string; id: string }> = {
   "message.received": { type: "thread", id: "/threadId" },
   "access.changed": { type: "entity", id: "/epoch" },
   "notes.created": { type: "entity", id: "/noteId" },
+  "channel.created": { type: "channel", id: "/channelId" },
 };
 
 function snapshot(): AccessSnapshot {
@@ -154,4 +155,55 @@ test("reach: the host itself (a scheduler matching a wait, a hook) reads what it
   assert.match(asHost, /T-private[\s\S]*C-secret[\s\S]*cev_1[\s\S]*msg_1/);
   const notHost = names(await w.port.list({ principal: "svc_host" })).join("\n");
   assert.doesNotMatch(notHost, /T-private|C-secret/, "a service that is not marked the host reads as its owner would");
+});
+
+test("reach: an agent acting for Mia does not keep what the same agent made for Olivia (F61, the shared agent); the person it was made for does, and a person keeps what they made", async () => {
+  // aina is Olivia, ben is Mia; agt_helper is the one agent both of them ask
+  const made = [
+    ev({ type: "file.created", actor: "agt_helper", on_behalf: "usr_aina", entity: "file", entity_id: "fil_priv", payload: { fileId: "fil_priv", name: "T-by-agent.txt" } }),
+    ev({ type: "resource.created", actor: "agt_helper", on_behalf: "usr_aina", payload: { id: "cal_priv", type: "calendar", owner_id: "usr_aina", parent_id: null, label: 0, holds: 0 } }),
+    ev({ type: "message.received", actor: "agt_helper", on_behalf: "usr_aina", vis: "private", payload: { threadId: "thr_priv", messageId: "msg_agent" } }),
+    ev({ type: "file.created", actor: "usr_ben", entity: "file", entity_id: "fil_benmade", payload: { fileId: "fil_benmade", name: "Ben-made.txt" } }),
+  ];
+  const w = world(made);
+  w.snap.putResource({ id: "fil_benmade", type: "file", parent_id: null, label: 0, owner_id: "usr_ben", holds: 0, home: "spc_1" });
+  const text = async (c: { principal: string; actingFor?: string }): Promise<string> =>
+    [...names(await w.port.list(c)), ...names(await w.port.since(c, 0))].join("\n");
+  const miaViaAgent = await text({ principal: "agt_helper", actingFor: "usr_ben" });
+  assert.doesNotMatch(miaViaAgent, /T-by-agent|cal_priv|fil_priv|thr_priv|msg_agent/, `Mia's agent reads nothing the agent made for Olivia: ${miaViaAgent}`);
+  assert.match(miaViaAgent, /Ben-made/, "what Mia herself made she keeps, through her agent too");
+  const oliviaViaAgent = await text({ principal: "agt_helper", actingFor: "usr_aina" });
+  assert.match(oliviaViaAgent, /T-by-agent[\s\S]*cal_priv[\s\S]*msg_agent/, "Olivia's own turn with the agent still gets hers");
+  assert.match(await text({ principal: "usr_aina" }), /T-by-agent/, "Olivia herself reads what was made for her");
+  assert.match(await text({ principal: "usr_ben" }), /Ben-made/, "a person keeps the events of what they made themselves");
+  assert.equal((await w.port.get({ principal: "agt_helper", actingFor: "usr_ben" }, (await w.port.list({ principal: "usr_aina" })).events[0]!.id)), null);
+});
+
+test("reach: a private channel's name (and a private project's, its channel carries the title) is read only by someone the chat module lets read it", async () => {
+  const store = new LogStore({ db: new DatabaseSync(":memory:"), space: "spc_1", clock: () => NOW });
+  const snap = snapshot();
+  // the kernel lets every member view the channel; the chat module decides who reads an invite-only one
+  snap.putResource({ id: "chn_priv", type: "channel", parent_id: "spc_1", label: 0, owner_id: "usr_aina", holds: 0 });
+  store.appendBatch([
+    ev({ type: "channel.created", entity: "channel", entity_id: "chn_priv", payload: { channelId: "chn_priv", name: "T-privchan", visibility: "invite" } }),
+    ev({ type: "resource.created", payload: { id: "chn_priv", type: "channel", owner_id: "usr_aina", parent_id: "spc_1", label: 0, holds: 0 } }),
+  ]);
+  const asked: string[] = [];
+  const port = createEventLogPort({
+    source: { read: (q) => store.read(q), head: () => store.head.seq },
+    access: () => snap,
+    owner: () => "usr_zed",
+    now: () => NOW,
+    subjects: (t) => SUBJECTS[t],
+    moduleView: async (person, type, id) => {
+      asked.push(`${person}:${type}:${id}`);
+      return type === "channel" ? person === "usr_aina" || person === "usr_cal" : undefined;
+    },
+  });
+  for (const who of ["usr_ben", "usr_zed"]) {
+    const r = names(await port.since({ principal: who }, 0)).join("\n");
+    assert.doesNotMatch(r, /T-privchan|chn_priv/, `${who} reads neither the name nor the id of a channel they are not in: ${r}`);
+  }
+  assert.match(names(await port.since({ principal: "usr_aina" }, 0)).join("\n"), /T-privchan/);
+  assert.ok(asked.includes("usr_ben:channel:chn_priv"), "the chat module was asked as the reader");
 });
