@@ -9,6 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createTmuxHost } from "../impl.ts";
+import { hideRunLine } from "../projections.ts";
 import type { Exec, ExecResult } from "../impl.ts";
 
 const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
@@ -223,4 +224,19 @@ test("key to screen: the delay from sending a key to seeing it on tmux's screen,
     `KEY_TO_SCREEN median ${med.toFixed(0)} ms, p90 ${times[Math.floor(times.length * 0.9)]!.toFixed(0)} ms, max ${times.at(-1)!.toFixed(0)} ms (send-keys then capture-pane, one process each)`,
   );
   assert.ok(med < 150, `median ${med.toFixed(0)} ms is over 150 ms`);
+});
+
+test("an agent's terminal.run shows the bare command and its output to a person, and no marker, session id or exit-code store on the screen, the scrollback or a read", { skip }, async () => {
+  await open("r1");
+  const r = await host.run("r1", { command: "echo running tests; sh -c 'exit 4'", env: {}, timeoutMs: 8000 });
+  assert.equal(r.exitCode, 4, "the exit code is still recorded and answered");
+  const shown = [
+    hideRunLine(await screen("r1")),
+    hideRunLine((await host.capture!("r1", { lines: 5000 })).text),
+    hideRunLine((await host.read("r1", { lines: 200 })).text),
+  ];
+  for (const t of shown) {
+    assert.ok(!/vyre-trm_|@vyre_rc_|__VYRE_|__vyre_rc|printf '%s/.test(t), `internal text on a surface: ${t}`);
+    assert.ok(/[$#] echo running tests; sh -c 'exit 4'$/m.test(t) && t.includes("running tests"), `the command and its output: ${t}`);
+  }
 });

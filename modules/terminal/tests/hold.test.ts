@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
-import { bindHost, rememberSecrets, scopeOfId } from "../projections.ts";
+import { bindHost, hideRunLine, rememberSecrets, scopeOfId } from "../projections.ts";
 import { registry } from "../../../generated/registry.ts";
 import { assertEventsConform, codeOf, contractErrors, fakeHost, harness, reset } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -519,4 +519,37 @@ test("a terminal the person ended with exit reads as exited in status and gives 
     undefined,
     "an ended terminal holds nobody",
   );
+});
+
+test("a person watching sees the command an agent ran, never the line that types it: no marker, session id or exit-code store on any surface", async () => {
+  reset();
+  const hn = harness();
+  const base = fakeHost({}).host;
+  const typed =
+    "root@host:~# printf '%s\\n' '__VYRE_BEG_ab12cd__'; { echo running tests; sleep 25\n}; __vyre_rc=$?; 'tmux' set-option -q -t 'vyre-trm_01a1dbc4358945eea07c60dbb198b89d' @vyre_rc_ab12cd \"$__vyre_rc\" 2>/dev/null; printf '\\n%s:%d\\n' '__VYRE_END_ab12cd__' \"$__vyre_rc\"; unset __vyre_rc";
+  // the screen wraps the typed line at 40 columns
+  const wrapped = typed.replace(/\n/g, "").match(/.{1,40}/g)!.join("\n");
+  const screen = `${wrapped}\n__VYRE_BEG_ab12cd__\nrunning tests\nroot@host:~# `;
+  bindHost({
+    ...base,
+    async capture() {
+      return { text: screen, cols: 40, rows: 10, cursor: { x: 13, y: 8 }, history: 0, hidden: false };
+    },
+    async read() {
+      return { text: screen, next: 0 };
+    },
+  });
+  const id = await open(hn);
+  const seen = [
+    (await call(hn, "terminal.capture", { terminalId: id })).text,
+    (await call(hn, "terminal.read", { terminalId: id })).text,
+    (await call(hn, "terminal.attach", { terminalId: id })).replay ?? "",
+  ];
+  for (const t of seen) {
+    assert.ok(!/vyre-trm_|@vyre_rc_|__VYRE_|__vyre_rc|printf '%s/.test(t), `no internal text in: ${t}`);
+    assert.ok(t.includes("root@host:~# echo running tests; sleep 25") && t.includes("running tests"), "the command and its output are there");
+  }
+  // a person's own printf is left alone
+  const own = "$ printf '%s' hello";
+  assert.equal(hideRunLine(own), own);
 });

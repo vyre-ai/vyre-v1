@@ -691,10 +691,53 @@ export const forgetAllSecrets = (): void => {
   secretsByScope.clear();
 };
 
-/** Text from a screen, with every value used in the scope removed. */
+/**
+ * What `terminal.run` types is one long line (markers, the exit-code store, the tmux session id): a person watching the terminal sees the command and its output, never that line. The typed line, wrapped over
+ * as many rows as the screen needs, is replaced by the bare command after the prompt. The markers the shell prints are the run's own and are dropped too. Every surface that returns a screen, a read, a
+ * replay or a last line goes through `clean`, so this is the one place.
+ */
+// eslint-disable-next-line no-control-regex
+const ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
+const MARKER_ROW = /^__VYRE_(?:BEG|END)_[0-9a-f]+__(?::\d+)?$/;
+export function hideRunLine(text: string): string {
+  if (!text.includes("printf '%s") && !text.includes("__VYRE_")) return text;
+  const rows = text.split("\n");
+  const out: string[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const plain = rows[i]!.replace(ANSI, "");
+    if (MARKER_ROW.test(plain.trim())) continue;
+    const at = plain.indexOf(" printf '%s");
+    const head = rows
+      .slice(i, i + 4)
+      .map((r) => r.replace(ANSI, ""))
+      .join("");
+    if (at < 0 || !/^ printf '%s\\n' '__VYRE_BEG_[0-9a-f]+__'; /.test(head.slice(at))) {
+      out.push(rows[i]!);
+      continue;
+    }
+    // the typed line ends at its own `unset __vyre_rc`, some rows on
+    let j = i;
+    while (j < rows.length && j < i + 200 && !rows[j]!.replace(ANSI, "").includes("unset __vyre_rc")) j++;
+    if (j >= rows.length || j >= i + 200) {
+      // still being typed or drawn: the part so far is hidden too
+      out.push(plain.slice(0, at));
+      break;
+    }
+    const joined = rows
+      .slice(i, j + 1)
+      .map((r) => r.replace(ANSI, ""))
+      .join("");
+    const body = /; (?:cd '[^']*' && )?\{ ([\s\S]*?)\n?(?:> ?)?\}; __vyre_rc=/.exec(joined) ?? /eval "\$__vyre_env"; unset __vyre_env; ([\s\S]*?)\n?\); __vyre_rc=/.exec(joined);
+    out.push(`${plain.slice(0, at).trimEnd()} ${body ? body[1]!.trim() : ""}`.trimEnd());
+    i = j;
+  }
+  return out.join("\n");
+}
+
+/** Text from a screen, with every value used in the scope removed and the run's typed line hidden. */
 export function clean(scope: string, text: string): string {
   const sc = scrubberFor(scope);
-  return sc ? sc.scrub(text) : text;
+  return hideRunLine(sc ? sc.scrub(text) : text);
 }
 
 // ---- the keyboard ---------------------------------------------------------------------------------------------------------------------------------------

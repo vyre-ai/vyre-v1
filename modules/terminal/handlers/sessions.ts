@@ -878,6 +878,19 @@ export async function input(ctx: TermCtx, a: { terminalId: string; data: string 
   return { ok: true };
 }
 
+/** A screen with its text changed: when rows were taken out (the run's typed line, hidden) the screen keeps its height and the cursor, which sits below them, moves up by as many. */
+function screenOf<T extends { text: string; cursor: { x: number; y: number } | null }>(r: T, text: string): T {
+  const before = r.text.split("\n").length;
+  const after = text.split("\n").length;
+  if (after >= before) return { ...r, text };
+  const k = before - after;
+  return {
+    ...r,
+    text: text + "\n".repeat(k),
+    cursor: r.cursor === null ? null : { x: r.cursor.x, y: Math.max(0, r.cursor.y - k) },
+  };
+}
+
 export async function capture(ctx: TermCtx, input: { terminalId: string; lines?: number }) {
   ensure(ctx.db);
   const x = await needAccess(ctx, live(ctx, input.terminalId));
@@ -887,7 +900,7 @@ export async function capture(ctx: TermCtx, input: { terminalId: string; lines?:
   try {
     const r = await host.capture(input.terminalId, { lines: input.lines ?? 2000 });
     // the screen has its colours; a Vault value filled into a command is removed from it as from every other reading
-    return { ...r, text: clean(scopeOf(x), r.text) };
+    return screenOf(r, clean(scopeOf(x), r.text));
   } catch (e) {
     return unexpected(ctx, "draw the screen", e);
   }
@@ -928,7 +941,7 @@ export async function keys(
   await new Promise<void>((r) => setTimeout(r, SETTLE_MS));
   try {
     const r = await host.capture(input.terminalId, { lines: 2000 });
-    return { ok: true, screen: { ...r, text: clean(scopeOf(x), r.text) } };
+    return { ok: true, screen: screenOf(r, clean(scopeOf(x), r.text)) };
   } catch {
     return { ok: true };
   }
