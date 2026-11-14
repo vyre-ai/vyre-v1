@@ -304,13 +304,13 @@ test("a reader who joined later never gets a heading written from messages befor
 
 test("past the read window, with no gaps and no Fresh lines, one new message moves no chapter start (reviewer's case)", async () => {
   const hn = harness();
-  const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() })).thread
-    .threadId as string;
+  const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() }))
+    .thread.threadId as string;
   const N = 6_100;
   for (let i = 1; i <= N; i++) {
     // seqs continue after the two the chat started with, 10 s apart: no gaps, no Fresh lines
     hn.db.run(
-      'INSERT INTO chat_message (id, "thread", "threadSeq", author, kind, body, blocks, depth, attachments, pinned, reactions, "createdAt", version) VALUES (?, ?, ?, ?, \'text\', ?, \'[]\', 0, \'[]\', 0, \'[]\', ?, 0)',
+      "INSERT INTO chat_message (id, \"thread\", \"threadSeq\", author, kind, body, blocks, depth, attachments, pinned, reactions, \"createdAt\", version) VALUES (?, ?, ?, ?, 'text', ?, '[]', 0, '[]', 0, '[]', ?, 0)",
       `bulk${i}`,
       t,
       1_000 + i,
@@ -320,11 +320,13 @@ test("past the read window, with no gaps and no Fresh lines, one new message mov
     );
   }
   const starts = async (): Promise<number[]> =>
-    (await h["chat.chapters"]!(hn.ctx, { threadId: t })).chapters.filter((c: any) => !c.current).map((c: any) => c.startSeq);
+    (await h["chat.chapters"]!(hn.ctx, { threadId: t })).chapters
+      .filter((c: any) => !c.current)
+      .map((c: any) => c.startSeq);
   const before = await starts();
   assert.ok(before.length >= 70, `${before.length} closed chapters`);
   hn.db.run(
-    'INSERT INTO chat_message (id, "thread", "threadSeq", author, kind, body, blocks, depth, attachments, pinned, reactions, "createdAt", version) VALUES (?, ?, ?, ?, \'text\', ?, \'[]\', 0, \'[]\', 0, \'[]\', ?, 0)',
+    "INSERT INTO chat_message (id, \"thread\", \"threadSeq\", author, kind, body, blocks, depth, attachments, pinned, reactions, \"createdAt\", version) VALUES (?, ?, ?, ?, 'text', ?, '[]', 0, '[]', 0, '[]', ?, 0)",
     "bulk-new",
     t,
     1_000 + N + 1,
@@ -336,4 +338,37 @@ test("past the read window, with no gaps and no Fresh lines, one new message mov
   const kept = before.filter((s) => after.includes(s)).length;
   console.log(`CHAPTER-STARTS ${JSON.stringify({ closed: before.length, kept })}`);
   assert.equal(kept, before.length, "every closed chapter start kept its place");
+});
+
+test("a guest of a channel (a member from a later moment) gets no model heading for messages before it joined", async () => {
+  const hn = harness({ calls: { ...lister, "engine.complete": () => ({ text: "Secret plan\nSettled it" }) } });
+  const ch = (await h["channels.create"]!(hn.ctx, { name: "deal", visibility: "invite", idempotencyKey: key() }))
+    .channel;
+  const t = ch.mainThreadId as string;
+  for (let i = 1; i <= 200; i++) {
+    hn.advance(10_000);
+    await h["chat.post"]!(hn.ctx, { threadId: t, body: `Plan item ${i} for the deal`, idempotencyKey: key() });
+    await h["chat.chapters_write"]!(hn.ctx, { threadId: t, account: API });
+  }
+  const mine = (await h["chat.chapters"]!(hn.ctx, { threadId: t })).chapters;
+  assert.ok(
+    mine.some((c: any) => c.by === "model"),
+    "the owner sees the written headings",
+  );
+  const joined = hn.clock.t + 1;
+  hn.raw.run(
+    "INSERT INTO chat_thread_member (id, thread, principal, role, fromAt, version, updated_at) VALUES (?, ?, ?, 'guest', ?, 0, ?)",
+    "mem_guest",
+    t,
+    "usr_guest",
+    joined,
+    hn.clock.t,
+  );
+  hn.advance(60_000);
+  const guest = (await h["chat.chapters"]!(hn.person("usr_guest"), { threadId: t })).chapters;
+  assert.ok(guest.every((c: any) => c.by !== "model" && c.title !== "Secret plan"));
+  assert.ok(
+    guest.every((c: any) => c.startAt >= joined),
+    "nothing from before the guest joined",
+  );
 });

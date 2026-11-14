@@ -77,6 +77,41 @@ for (const skin of ["paper", "graphite"])
   await page.screenshot({ path: path.join(out, "real-paper-w1440-find-folded.png") });
   await ctx.close();
 }
+{
+  const ctx = await browser.newContext({ viewport: SIZES.w1440, deviceScaleFactor: 1, reducedMotion: "reduce" });
+  const page = await ctx.newPage();
+  await page.goto(routeUrl(real.origin, "/m/CHAPTERS_03", "paper"), { waitUntil: "load", timeout: 60000 });
+  const t0 = Date.now();
+  await page.waitForSelector("[data-testid='chapter-4901']", { timeout: 60000 });
+  const ready = Date.now() - t0;
+  await page.waitForTimeout(1500);
+  const scroller = () =>
+    page.evaluate(() => {
+      const f = document.querySelector("[data-testid='conversation-feed']");
+      let n = f;
+      while (n && n.scrollHeight <= n.clientHeight + 4) n = n.parentElement;
+      return n ? { top: n.scrollTop, height: n.scrollHeight } : null;
+    });
+  const dom = await page.locator("[data-testid^='msg-']").count();
+  const heads = await page.locator("[data-testid^='chapter-']").count();
+  await page.evaluate(() => {
+    const f = document.querySelector("[data-testid='conversation-feed']");
+    let n = f;
+    while (n && n.scrollHeight <= n.clientHeight + 4) n = n.parentElement;
+    if (n) n.scrollTop = Math.max(0, n.scrollTop - 300);
+  });
+  await page.waitForTimeout(400);
+  const a = await scroller();
+  await page.evaluate(() => document.querySelector("[data-testid='chapter-4801']")?.click());
+  await page.waitForTimeout(600);
+  const b = await scroller();
+  await page.evaluate(() => document.querySelector("[data-testid='chapter-4701']")?.click());
+  await page.waitForTimeout(600);
+  const c = await scroller();
+  console.log("BIG", JSON.stringify({ readyMs: ready, domMessages: dom, chapterHeads: heads, scroll: [a, b, c] }));
+  await page.screenshot({ path: path.join(out, "real-paper-w1440-5000.png") });
+  await ctx.close();
+}
 for (const skin of ["paper", "graphite"]) {
   const ctx = await browser.newContext({
     viewport: SIZES.w1440,
