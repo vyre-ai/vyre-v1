@@ -25,3 +25,4 @@
 - feat: a {{ reference }} in any field draws as a named chip (Lead · Phone) with an Insert data menu of what earlier steps give; a line nobody edited is not rewritten.
 - fix: no field label is a raw key (numberId reads Number); ids no name can be found for and engineering summaries stay off the form; message notes sit under a closed About this message.
 - fix: the first-page card reads a paused Automation's reason from the Automation, the same words as the builder head.
+- test: the walk, an Automation of every manifest step kind opens with its step form and writes nothing (four files; the text step is drawn statically, the editor needs a browser DOM).
