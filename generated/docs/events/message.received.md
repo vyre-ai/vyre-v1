@@ -37,6 +37,7 @@ type Payload = {
   job?: boolean;
   copy?: boolean;
   typed?: boolean;
+  outsider?: boolean;
   poke?: {
     agentId: string;
     by: string;

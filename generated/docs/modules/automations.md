@@ -99,7 +99,7 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automation.run_started](../events/automation.run_started.md): An Automation run started from a trigger, by hand or in test mode
 - [automation.runs_as_changed](../events/automation.runs_as_changed.md): The person a Space Automation runs as changed: someone turned it on, published a change, restored a version or put it on the Space; or nobody, after a change no person pressed
 - [automation.runs_migrated](../events/automation.runs_migrated.md): Active runs moved to a later definition version without replaying finished steps
-- [automation.trigger_dropped](../events/automation.trigger_dropped.md): A trigger event was ignored: self-trigger, chain depth 8 or paused
+- [automation.trigger_dropped](../events/automation.trigger_dropped.md): A trigger event was ignored: self-trigger, chain depth 8, paused, or the message was from a guest (not run)
 - [automation.updated](../events/automation.updated.md): An Automation definition or settings changed; a definition change saves a version
 - [automation.version_restored](../events/automation.version_restored.md): An earlier version was restored as the newest version
 - [automations.watch_changed](../events/automations.watch_changed.md): A watched page changed since its last reading

@@ -47518,7 +47518,7 @@ export type AutomationRunsMigratedPayload = {
 export type AutomationTriggerDroppedPayload = {
   automationId: string;
   eventId: string;
-  reason: "self_trigger" | "depth_limit" | "paused" | "filter_error";
+  reason: "self_trigger" | "depth_limit" | "paused" | "filter_error" | "outsider";
 };
 export type AutomationUpdatedPayload = {
   automationId: string;
@@ -49429,6 +49429,7 @@ export type MessageReceivedPayload = {
   job?: boolean;
   copy?: boolean;
   typed?: boolean;
+  outsider?: boolean;
   poke?: {
     agentId: string;
     by: string;

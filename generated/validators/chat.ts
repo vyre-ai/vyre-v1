@@ -5345,6 +5345,7 @@ if ("actingFor" in o7105) lf(o7105["actingFor"], p + "/actingFor", e, L16);
 if ("job" in o7105) lf(o7105["job"], p + "/job", e, L3);
 if ("copy" in o7105) lf(o7105["copy"], p + "/copy", e, L3);
 if ("typed" in o7105) lf(o7105["typed"], p + "/typed", e, L3);
+if ("outsider" in o7105) lf(o7105["outsider"], p + "/outsider", e, L3);
 if ("poke" in o7105) {
 {
 const x7106 = o7105["poke"];
