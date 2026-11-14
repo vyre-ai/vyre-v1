@@ -33,13 +33,9 @@ export type ShellIconName =
   | "monitor"
   | "cloud"
   | "server"
-  | "back"
-  | "forward"
   | "bell";
 
 export const SHELL_ICONS: Readonly<Record<ShellIconName, readonly string[]>> = {
-  back: ["M10 3.5L5.5 8l4.5 4.5"],
-  forward: ["M6 3.5L10.5 8 6 12.5"],
   bell: [
     "M8 2.5a3.5 3.5 0 00-3.5 3.5c0 3.5-1.5 4.5-1.5 4.5h10s-1.5-1-1.5-4.5A3.5 3.5 0 008 2.5z",
     "M6.8 13a1.3 1.3 0 002.4 0",

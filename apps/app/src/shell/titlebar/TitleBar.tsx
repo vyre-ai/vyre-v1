@@ -9,7 +9,6 @@ import { syncLabel, reconnectingNow } from "./model.ts";
 import { NoticeSlot } from "../noticeslot/NoticeSlot.tsx";
 import { notices } from "../noticeslot/model.ts";
 import { RADIUS } from "../../../../../ui/src/tokens/radius.ts";
-import { Tip } from "../../../../../ui/src/Tip/index.tsx";
 
 export const TITLE_BAR_HEIGHT = 38;
 
@@ -22,10 +21,6 @@ export interface TitleBarProps {
   onSearch: () => void;
   /** A phone-width window keeps the icon and drops the words. */
   compact?: boolean;
-  /** Where Back and Forward would go (the name of the place), or null when nowhere: the controls are always drawn, dim when there is nowhere to go. */
-  nav?: { back: string | null; forward: string | null };
-  onBack?: () => void;
-  onForward?: () => void;
   /** The running call as a pill (the Inbox's CallTitlePill); nothing when there is no call. */
   call?: ReactNode;
 }
@@ -50,22 +45,6 @@ export function TitleBar(props: TitleBarProps): ReactElement {
   return (
     <View testID="shell-titlebar" accessibilityRole="header" accessibilityLabel={title} style={styles.bar}>
       <View style={styles.side}>
-        {props.onBack !== undefined && props.onForward !== undefined ? (
-          <View testID="title-nav" style={styles.nav}>
-            <NavButton
-              id="back"
-              label={props.nav?.back != null ? `Back to ${props.nav.back}` : "Back"}
-              on={props.nav?.back != null}
-              onPress={props.onBack}
-            />
-            <NavButton
-              id="forward"
-              label={props.nav?.forward != null ? `Forward to ${props.nav.forward}` : "Forward"}
-              on={props.nav?.forward != null}
-              onPress={props.onForward}
-            />
-          </View>
-        ) : null}
         {resume?.pill ? (
           <View testID="title-setup" style={styles.setup}>
             {resume.pill}
@@ -101,31 +80,7 @@ export function TitleBar(props: TitleBarProps): ReactElement {
   );
 }
 
-/** One of the two arrows at the start of the title bar. Dim when there is nowhere to go; it is never missing, because the desktop window has no browser bar to fall back on. */
-function NavButton(p: { id: "back" | "forward"; label: string; on: boolean; onPress: () => void }): ReactElement {
-  const [over, setOver] = useState(false);
-  return (
-    <Tip help={p.label}>
-      <Pressable
-        role="button"
-        aria-label={p.label}
-        disabled={!p.on}
-        testID={`nav-${p.id}`}
-        onPress={p.on ? p.onPress : undefined}
-        onHoverIn={() => setOver(true)}
-        onHoverOut={() => setOver(false)}
-        style={[styles.navBtn, over && p.on ? styles.navOver : null]}
-      >
-        <ShellIcon name={p.id} size={15} color={p.on ? "var(--ink-2)" : "var(--ink-4)"} />
-      </Pressable>
-    </Tip>
-  );
-}
-
 const styles = StyleSheet.create({
-  nav: { flexDirection: "row", alignItems: "center", gap: 2, marginRight: 4 },
-  navBtn: { width: 26, height: 26, borderRadius: RADIUS, alignItems: "center", justifyContent: "center" },
-  navOver: { backgroundColor: "var(--sunk)" as string },
   // above the place below it, so the notifications popover opens over the page instead of under it
   bar: {
     height: TITLE_BAR_HEIGHT,
