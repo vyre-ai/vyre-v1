@@ -227,6 +227,7 @@ test("stuck after N flat check-ins: the reason in plain words, the owner hears o
   assert.match(g.statusReason!, /No progress in 3 check-ins; 212 of 300 registrations since/);
   const notices = [...w.state.tasks.values()].filter((t) => t.kind === "unblock" && t.title.startsWith("Stuck:"));
   assert.equal(notices.length, 1, "one notice, however many flat check-ins follow");
+  assert.deepEqual(notices[0]!.source, { kind: "goal", id: goal.id }, "the notice says which goal it is about");
   w.state.count = 230;
   w.tick(20 * 60_000);
   await w.sweep();

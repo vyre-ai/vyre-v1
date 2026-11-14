@@ -463,6 +463,7 @@ export async function stuck(ctx: GoalsCtx, g: Goal, reason: string, options: str
       title: `Stuck: ${g.title}`,
       summary: `${reason}${options.length ? `\nOptions: ${options.map((o, i) => `${i + 1}. ${o}`).join(" ")}` : ""}`,
       assigned: { kind: "person", id: g.owner },
+      source: { kind: "goal", id: g.id }, // what the task is about: the sidebar shows a waiting goal once, by this id
       notes: { "goal.id": g.id, "goal.title": g.title },
       idempotencyKey: `goal-stuck:${g.id}:${g.checkins}:${g.version}`,
     });

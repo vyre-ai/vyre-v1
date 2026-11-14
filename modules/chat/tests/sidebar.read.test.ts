@@ -497,33 +497,27 @@ test("a channel with several people in it counts its unread once, and a channel 
   assert.ok(!JSON.stringify(left).includes(ch.channelId), "a channel she left is nowhere in her answer");
 });
 
-test("a goal that waits on the person lives in Tasks: its Goals row carries no second line saying the same", async () => {
+test("a goal that waits on the person lives in Tasks, matched by the goal's id: its Goals row carries no second line, and a goal with the same title is not hidden", async () => {
   const w = world({
     goals: [
-      {
-        id: "gol_s",
-        title: "Close onboarding",
-        status: "stuck",
-        statusReason: "The lead did not check in",
-        leadAgentId: INTAKE,
-        updatedAt: 5,
-        nextCheckinAt: 99,
-        progress: { tasksDone: 0, tasks: 2 },
-      },
-      {
-        id: "gol_p",
-        title: "Other goal",
-        status: "paused",
-        leadAgentId: INTAKE,
-        updatedAt: 4,
-        progress: { tasksDone: 0, tasks: 2 },
-      },
+      { id: "gol_s", title: "Close onboarding", status: "stuck", statusReason: "The lead did not check in", leadAgentId: INTAKE, updatedAt: 5, nextCheckinAt: 99, progress: { tasksDone: 0, tasks: 2 } },
+      { id: "gol_t", title: "Close onboarding", status: "stuck", statusReason: "Waiting on the legal team", leadAgentId: INTAKE, updatedAt: 4, nextCheckinAt: 98, progress: { tasksDone: 0, tasks: 2 } },
+      { id: "gol_p", title: "Other goal", status: "paused", leadAgentId: INTAKE, updatedAt: 3, progress: { tasksDone: 0, tasks: 2 } },
     ],
   });
   (w as Record<string, unknown>)["tasks.needs_you"] = () => ({
     total: 1,
     items: [
-      { task: { id: "tsk_s", title: "Stuck: Close onboarding", kind: "unblock", blocked: true, createdBy: INTAKE } },
+      {
+        task: {
+          id: "tsk_s",
+          title: "Stuck: Close onboarding",
+          kind: "unblock",
+          blocked: true,
+          createdBy: INTAKE,
+          source: { kind: "goal", id: "gol_s" },
+        },
+      },
     ],
   });
   const hn = harness({ calls: w });
@@ -532,6 +526,8 @@ test("a goal that waits on the person lives in Tasks: its Goals row carries no s
   const row = (id: string) => out.goals.rows.find((r: { key: string }) => r.key === `g:${id}`);
   assert.equal(row("gol_s").line, undefined);
   assert.equal(row("gol_s").nextCheckinAt, undefined);
+  assert.equal(row("gol_t").line, "Waiting on the legal team", "same title, another goal: its line stays");
+  assert.equal(row("gol_t").nextCheckinAt, 98);
   assert.equal(row("gol_p").line, "Paused", "a goal not waiting in Tasks keeps its line");
   assert.equal(out.needs.items[0].verb, "Blocked");
 });

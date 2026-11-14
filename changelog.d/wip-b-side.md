@@ -24,3 +24,4 @@
 - The unsent-text store of earlier versions (one shared key for everyone on a computer) is deleted the first time this version opens; its text is not moved into anyone's chats. Unsent text is kept per person, and signing out of a Space clears that person's lines wherever the app runs, in a browser or the desktop app.
 - Read rows in the Chats sidebar have their title in the second ink, and only unread rows (bold) and the selected row keep the full ink. The compact Couldn't load line with Retry now draws in a section of a list.
 - In the Chats sidebar a goal that waits on you shows once, in Tasks, and its Goals row has no second line. Tasks rows have the same height as chat rows, and a row cut by the Notes and artifacts foot fades out.
+- A goal waiting on you is matched to its Tasks row by the goal itself, not by title, so a second goal with the same name keeps its line. The Unblock task a stuck goal makes now says which goal it is about.

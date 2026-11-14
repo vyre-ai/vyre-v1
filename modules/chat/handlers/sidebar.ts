@@ -513,7 +513,15 @@ export async function chatsSidebar(
     src.pins(),
     safe<{ counts?: { threadId: string; mentions: number }[] }>("notifications.unseen_by_thread", {}),
     safe<{
-      items?: { task: { id: string; title: string; kind: string; blocked?: boolean; createdBy?: string } }[];
+      items?: { task: {
+          id: string;
+          title: string;
+          kind: string;
+          blocked?: boolean;
+          createdBy?: string;
+          source?: { kind: string; id: string };
+        };
+      }[];
       total?: number;
     }>("tasks.needs_you", { limit: 50 }),
     member ? safe<{ goals?: Record<string, any>[] }>("goals.list", { scope: "mine" }) : Promise.resolve(null), // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -650,7 +658,9 @@ export async function chatsSidebar(
       { kind: "project" },
     );
   }
-  const inTasks = new Set((needsOut?.items ?? []).map((n) => n.task.title));
+  const inTasks = new Set(
+    (needsOut?.items ?? []).flatMap((n) => (n.task.source?.kind === "goal" ? [n.task.source.id] : [])),
+  );
   for (const g of goalsOut?.goals ?? []) {
     const status = String(g["status"]);
     const pr = (g["progress"] as { tasksDone?: number; tasks?: number } | undefined) ?? {};
@@ -673,10 +683,10 @@ export async function chatsSidebar(
       {
         kind: "goal",
         // a goal waiting on the person lives in Tasks (its Unblock task is there): its Goals row then says nothing a second time
-        ...(!inTasks.has(`Stuck: ${g["title"]}`) && goalLine(status, g["statusReason"])
+        ...(!inTasks.has(String(g["id"])) && goalLine(status, g["statusReason"])
           ? { line: goalLine(status, g["statusReason"])! }
           : {}),
-        ...(g["nextCheckinAt"] && !inTasks.has(`Stuck: ${g["title"]}`)
+        ...(g["nextCheckinAt"] && !inTasks.has(String(g["id"]))
           ? { nextCheckinAt: Number(g["nextCheckinAt"]) }
           : {}),
         progress: { done: Number(pr.tasksDone ?? 0), total: Number(pr.tasks ?? 0) },
