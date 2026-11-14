@@ -9,7 +9,8 @@ export interface TerminalFeed {
   subscribe(f: () => void): () => void;
   getSnapshot(): { status: string; data?: { terminals: readonly Term[] } };
 }
-const NONE: TerminalFeed = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "idle" }) };
+const IDLE = { status: "idle" };
+const NONE: TerminalFeed = { subscribe: () => () => undefined, getSnapshot: () => IDLE };
 
 /** The part of a terminal row a job needs. */
 export interface Term {

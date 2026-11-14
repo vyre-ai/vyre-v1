@@ -10,11 +10,21 @@ export interface Screens {
   query(screen: string, name: string, state: Record<string, unknown>): unknown;
 }
 
-export function JobsLine(p: { screens: Screens | undefined; agentIds: readonly string[] }): ReactElement {
-  const feed = useMemo(
-    () => p.screens?.query("chats.terminal-list", "terminals", { host: "agent_computer" }) as TerminalFeed | undefined,
-    [p.screens],
-  );
+export function JobsLine(p: {
+  screens: Screens | undefined;
+  agentIds: readonly string[];
+  shared?: boolean;
+}): ReactElement {
+  // a build without the screen, or a query that fails, draws nothing and makes no call
+  const feed = useMemo(() => {
+    try {
+      return p.screens?.query("chats.terminal-list", "terminals", { host: "agent_computer" }) as
+        | TerminalFeed
+        | undefined;
+    } catch {
+      return undefined;
+    }
+  }, [p.screens]);
   const j = useJobs({ feed, agentIds: p.agentIds, now: Date.now });
-  return <JobLines running={j.running} finished={j.finished} now={Date.now()} />;
+  return <JobLines running={j.running} finished={j.finished} now={Date.now()} plain={p.shared === true} />;
 }

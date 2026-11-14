@@ -18,27 +18,38 @@ export const title = "Chapters, pieces";
 export default function Mount(): ReactNode {
   const sample = useMemo(() => {
     const s = createSample("idle");
+    const rows = {
+      status: "ready",
+      data: {
+        terminals: [
+          {
+            terminalId: "term_1",
+            name: "full-test-suite",
+            agentId: "agt_intake",
+            state: "running",
+            exitCode: null,
+            createdAt: Date.now() - (2 * 60 + 14) * 1000,
+            lastActiveAt: Date.now(),
+          },
+        ],
+      },
+    };
     const base = s.data;
     return {
       ...s,
       data: {
         ...base,
-        call: async (cap: string, input: unknown) =>
-          cap === "terminal.list"
-            ? {
-                terminals: [
-                  {
-                    terminalId: "term_1",
-                    name: "full-test-suite",
-                    agentId: "agt_intake",
-                    state: "running",
-                    exitCode: null,
-                    createdAt: Date.now() - (2 * 60 + 14) * 1000,
-                    lastActiveAt: Date.now(),
-                  },
-                ],
-              }
-            : base.call(cap, input),
+        // the live terminal rows the job line subscribes to (screen chats.terminal-list)
+        screens: {
+          ...base.screens,
+          query: (screen: string, name: string, state: Record<string, unknown>) =>
+            screen === "chats.terminal-list"
+              ? {
+                  subscribe: () => () => undefined,
+                  getSnapshot: () => rows,
+                }
+              : base.screens.query(screen, name, state),
+        },
       },
     };
   }, []);

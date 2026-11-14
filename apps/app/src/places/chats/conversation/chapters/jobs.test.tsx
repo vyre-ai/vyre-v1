@@ -136,3 +136,68 @@ test("the job line rides the live terminal rows: a running job shows, then leave
   assert.equal(find(root, "job-running-t1"), null);
   assert.match(textOf(find(root, "job-done-t1")), /Tests finished/);
 });
+
+test("a build without the terminal screen, or a feed that fails, draws nothing and calls nothing", async () => {
+  const boom = {
+    query: (): unknown => {
+      throw new Error("no such screen");
+    },
+  };
+  const errored = { status: "error" };
+  const bad = { query: (): unknown => ({ subscribe: () => () => undefined, getSnapshot: () => errored }) };
+  for (const screens of [boom, bad, undefined]) {
+    const el = await mount(
+      createRoot,
+      <ChapterLayer
+        call={async () => {
+          throw new Error("no call expected");
+        }}
+        threadId="thr_1"
+        size={5}
+        newest={5}
+        focusSeq={null}
+        jobs={{ agentIds: ["agt_a"], screens }}
+        rows={[]}
+        own={ownSeq}
+        clock={{ now: 0, offsetMin: 0 }}
+      >
+        {(laid) => laid.jobs}
+      </ChapterLayer>,
+    );
+    await flush();
+    assert.equal(find(el, "job-lines"), null);
+  }
+});
+
+test("in a chat read by two people the line says only that work runs in the background, with the clock and no name; alone it names the job", async () => {
+  const f = feedOf([T({ terminalId: "t1", name: "unit-tests", createdAt: Date.now() - 2 * MIN })]);
+  const el = (shared: boolean) => (
+    <ChapterLayer
+      call={async () => ({})}
+      threadId="thr_1"
+      size={5}
+      newest={5}
+      focusSeq={null}
+      jobs={{ agentIds: ["agt_a"], screens: f.screens, shared }}
+      rows={[]}
+      own={ownSeq}
+      clock={{ now: 0, offsetMin: 0 }}
+    >
+      {(laid) => laid.jobs}
+    </ChapterLayer>
+  );
+  const two = await mount(createRoot, el(true));
+  await flush();
+  const said = textOf(find(two, "job-running-t1"));
+  assert.match(said, /Working in the background.*2 min.*Background/);
+  assert.doesNotMatch(said, /Unit tests/);
+  await act(async () =>
+    f.set([T({ terminalId: "t1", name: "unit-tests", state: "exited", exitCode: 0, lastActiveAt: Date.now() })]),
+  );
+  await flush();
+  assert.doesNotMatch(textOf(find(two, "job-done-t1")), /Unit tests/);
+  await act(async () => f.set([T({ terminalId: "t1", name: "unit-tests", createdAt: Date.now() - 2 * MIN })]));
+  const alone = await mount(createRoot, el(false));
+  await flush();
+  assert.match(textOf(find(alone, "job-done-t1")) + textOf(find(alone, "job-running-t1")), /Unit tests/);
+});
