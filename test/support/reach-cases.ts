@@ -94,6 +94,7 @@ export const CASES: Spec[] = [
     steps: (r, who) => [
       mk("make", "artifact_publish", () => ({ title: `page ${who}`, html: "<!doctype html><h1>hi</h1>" })),
       mk("read", "sites_get", (o) => ({ siteId: g(o["make"]?.json, "artifactId") })),
+      mk("list", "sites_list", () => ({})),
       mk("change", "artifact_publish", (o) => ({
         artifactId: g(o["make"]?.json, "artifactId"),
         title: `page ${who} 2`,
@@ -383,6 +384,9 @@ export const CASES: Spec[] = [
                 : g(o["home"]?.json, "agent.folderId"),
           name: `made ${who} ${where}`,
         })),
+        mk("list", "files_list", (o) =>
+          where === "personal" ? { section: "personal", folder: g(o["make folder"]?.json, "folder.folderId") } : null,
+        ),
         mk("make", "files_create", (o) => ({
           folderId: g(o["make folder"]?.json, "folder.folderId"),
           name: "a.md",
