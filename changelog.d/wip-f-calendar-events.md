@@ -1,0 +1,1 @@
+- You can open, change and delete a calendar event again. Before, every event answered not found, even to the person who made it. An event made earlier works the first time you open it. An agent's event is held for your OK only when it invites someone or sits on a Google or Outlook calendar, not for every event.

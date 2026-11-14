@@ -2970,7 +2970,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           }
         },
         ensureResource: async (r) => {
-          if ((r.type === "conversation" || r.type === "mail_message") && r.id !== null) {
+          if (
+            (r.type === "conversation" || r.type === "mail_message" || r.type === "calendar_event") &&
+            r.id !== null
+          ) {
             await ensureRow(r.type, r.id);
             return;
           }
@@ -3887,7 +3890,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // An Inbox conversation and a mail message are resources in access (under the Space), made the first time a call names one that exists. The modules open these rows themselves, and an event whose
       // subject is an `entity` is never registered by the generic registrar, so without this every call that names one answered "not found" to everyone, the owner included. The module's own door
       // (a private mailbox, a private message) still decides who sees the content; this only makes the row nameable for the role grants of the Space.
-      const ROW_TABLES: Record<string, string> = { conversation: "inbox_conversation", mail_message: "mail_message" };
+      const ROW_TABLES: Record<string, string> = {
+        conversation: "inbox_conversation",
+        mail_message: "mail_message",
+        calendar_event: "calendar_event",
+      };
       const ensuringRow = new Map<string, Promise<void>>();
       const ensureRow = (type: string, id: string): Promise<void> => {
         if (access.snap.resource(id)) return Promise.resolve();
@@ -3895,14 +3902,24 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (!p) {
           p = (async () => {
             let found = false;
+            // an event lives in its calendar, and is the calendar's owner's (a private Personal calendar's events are that person's alone); a deleted one is still named by Undo
+            let inside: string | null = null;
             try {
-              found =
-                (db!.all(`SELECT id FROM ${ROW_TABLES[type]} WHERE id = ? AND deleted_at IS NULL`, id) as unknown[])
-                  .length > 0;
+              if (type === "calendar_event") {
+                const rows = db!.all(`SELECT "calendarId" AS cal FROM calendar_event WHERE id = ?`, id) as {
+                  cal?: unknown;
+                }[];
+                found = rows.length > 0;
+                inside = typeof rows[0]?.cal === "string" ? rows[0].cal : null;
+              } else
+                found =
+                  (db!.all(`SELECT id FROM ${ROW_TABLES[type]} WHERE id = ? AND deleted_at IS NULL`, id) as unknown[])
+                    .length > 0;
             } catch {
               return;
             }
             if (!found) return;
+            const calendar = inside === null ? undefined : access.snap.resource(inside);
             const r = await spaceLog.appendResult({
               id: `evt_res_${id}`,
               type: "resource.created",
@@ -3912,12 +3929,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               vis: "space",
               entity: "resource",
               entity_id: id,
-              payload: spaceOwned({
+              payload: hostOwned(!calendar?.owner_id, {
                 id,
                 type,
-                parent_id: spaceId,
+                parent_id: calendar ? inside : spaceId,
                 label: 0,
-                owner_id: access.owner() ?? cfg.owner ?? "usr_owner",
+                owner_id: calendar?.owner_id ?? access.owner() ?? cfg.owner ?? "usr_owner",
                 holds: 0,
               }),
             });

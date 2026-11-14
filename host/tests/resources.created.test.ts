@@ -696,3 +696,19 @@ test("registrar: a new skill is registered from its birth event, owned by the pe
   });
   assert.equal(agents[0]?.owner_id, "usr_dana", "an agent's skill is its owner's");
 });
+
+test("registrar: a calendar event is a resource inside its calendar, owned by the person the call acts for", () => {
+  const known = new Set(["spc_1", "cld_personal"]);
+  const r = createResourceRegistrar({ events: EVENTS, exists: (id) => known.has(id) });
+  const rows = r.register({
+    cap: { name: "calendar.create_event", resource: { type: "calendar", id: "/calendarId" } },
+    input: { calendarId: "cld_personal" },
+    space: "spc_1",
+    owner: "usr_dana",
+    principal: { kind: "person", id: "usr_dana" },
+    events: [ev("calendar_event.created", { eventId: "cev_abc123", calendarId: "cld_personal" })],
+  });
+  assert.deepEqual(rows, [
+    { id: "cev_abc123", type: "calendar_event", parent_id: "cld_personal", label: 0, owner_id: "usr_dana", holds: 0 },
+  ]);
+});
