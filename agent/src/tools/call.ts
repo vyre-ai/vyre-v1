@@ -10,7 +10,7 @@ import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/
 import { limited, shapeOutput } from "./compact.ts";
 import { fillKey } from "./fill.ts";
 import { turnStartOf } from "./turn-start.ts";
-import { SeenVersions, changedSinceTurn, kindOfWrite, learned, learnedRows, rowKey } from "./versions.ts";
+import { HIDDEN_FROM_MODEL, SeenVersions, changedSinceTurn, kindOfWrite, learned, learnedRows, rowKey } from "./versions.ts";
 import { rejectWords } from "./reject.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
@@ -320,9 +320,14 @@ export function createToolSession(deps: CallDeps): ToolSession {
     };
     // a write to a file, record or task that takes a version: send the version this agent last saw when the model did not (agent/src/tools/versions.ts)
     let given = input;
+    // a version input the model is not shown is never the model's to choose: a value it sends anyway is dropped, and the layer's takes its place
+    const hidden = isDynamic ? undefined : HIDDEN_FROM_MODEL[t.cap];
+    if (hidden && input !== null && typeof input === "object" && !Array.isArray(input)) {
+      given = Object.fromEntries(Object.entries(input as Record<string, unknown>).filter(([k]) => !hidden.includes(k)));
+    }
     const versioned = isDynamic ? undefined : kindOfWrite(t.cap);
-    if (versioned && input !== null && typeof input === "object" && !Array.isArray(input)) {
-      const o = input as Record<string, unknown>;
+    if (versioned && given !== null && typeof given === "object" && !Array.isArray(given)) {
+      const o = given as Record<string, unknown>;
       const id = typeof o[versioned.field] === "number" ? undefined : versioned.idOf(o);
       if (id !== undefined) {
         const key = `${versioned.kind}:${id}`;

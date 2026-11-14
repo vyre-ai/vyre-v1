@@ -2,6 +2,7 @@
 // as the base version when the model did not; a thing never read in the turn is written on the version it had when the turn started. The store here models what the capabilities do: a write on an older version is
 // refused, a write with no version is not. Nothing is added to a tool's input, description or result.
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { createToolSession } from "../src/tools/index.ts";
 import { ctx, loadGenerated } from "../src/tools/harness.ts";
@@ -553,4 +554,29 @@ test("no agent tool can change a note's text, title, pin, labels or links today 
   );
   const { kindOfWrite } = await import("../src/tools/versions.ts");
   assert.equal(kindOfWrite("notes.update")?.field, "expectedVersion");
+});
+
+test("the version inputs of the seven tools are not in the model's schema (it did not grow), stay in the contract, and a value a model sends anyway is dropped for the layer's", async () => {
+  const { catalog } = loadGenerated();
+  const { HIDDEN_FROM_MODEL } = await import("../src/tools/versions.ts");
+  const reg = JSON.parse(readFileSync(new URL("../../generated/mcp-tools.json", import.meta.url), "utf8")) as {
+    tools: Array<{ cap: string | null; inputSchema: { properties?: Record<string, unknown> } }>;
+  };
+  assert.equal(Object.keys(HIDDEN_FROM_MODEL).length, 7);
+  for (const [cap, fields] of Object.entries(HIDDEN_FROM_MODEL)) {
+    const tool = catalog.all.find((t) => t.cap === cap)!;
+    const shown = (tool.inputSchema as { properties: Record<string, unknown> }).properties;
+    const contract = reg.tools.find((t) => t.cap === cap)!.inputSchema.properties!;
+    for (const f of fields) {
+      assert.ok(f in contract, `${cap}: ${f} stays in the capability's contract, for people's clients`);
+      assert.ok(!(f in shown), `${cap}: ${f} is not shown to a model`);
+    }
+    assert.equal(Object.keys(shown).length, Object.keys(contract).length - fields.length - (("idempotencyKey" in contract) ? 1 : 0));
+  }
+  // a model that sends its own value: it is dropped, and the layer's (the thing's updatedAt now) is sent
+  const r = rig();
+  r.make(r.stamped, "gol_1", 1_000);
+  const out = await r.s.call(r.c({ turnStartedAt: 5_000 }), "goals_update", { goalId: "gol_1", outcome: "x", expectedUpdatedAt: 42 });
+  assert.equal(out.kind, "result");
+  assert.equal(r.lastWrite("goals.update")?.["expectedUpdatedAt"], 1_000);
 });

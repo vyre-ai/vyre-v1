@@ -370,3 +370,17 @@ export function learnedRows(
   }
   return [];
 }
+
+/**
+ * The version inputs a model is never shown, and never chooses (lead's ruling 14 Nov 2026): the tool layer fills them, and a value a model sends for one of these is dropped in favour of the layer's. They stay in the capability's contract
+ * for people's clients. Tools whose version field was already shown to models before F50 (files_write baseVersion, tasks_update expectedVersion, records_update, memory pages, automations) keep it as it was.
+ */
+export const HIDDEN_FROM_MODEL: Readonly<Record<string, readonly string[]>> = {
+  "sites.update": ["expectedUpdatedAt"],
+  "sites.artifact_publish": ["expectedUpdatedAt"],
+  "goals.update": ["expectedUpdatedAt"],
+  "vault.item.update": ["expectedUpdatedAt"],
+  "calendar.update_event": ["expectedVersion"],
+  "sheets.update_row": ["expect"],
+  "sheets.upsert_row": ["expect"],
+};
