@@ -80,7 +80,9 @@ test("owner walk fixes: one Settings tab, Add a Space alone, the composer's word
         { timeout: 15_000 },
       );
       await page.locator("[data-testid=composer-send][aria-label=Stop]").click();
-      await page.locator("[data-testid=composer-send][aria-label=Stop]").waitFor({ state: "detached", timeout: 30_000 });
+      await page
+        .locator("[data-testid=composer-send][aria-label=Stop]")
+        .waitFor({ state: "detached", timeout: 30_000 });
       const field = page.locator('[data-testid="composer-field"]').first();
       await page
         .waitForFunction(
