@@ -826,9 +826,9 @@ function Mine({
       {!editing && sending === undefined && actions.belowMine ? actions.belowMine(m) : null}
       {sending === "failed" ? (
         <View testID={`failed-${m.messageId}`} accessibilityRole="alert" style={st.failed}>
-          <Text style={st.failedText}>Not sent.</Text>
+          <Text style={st.failedText}>Not sent</Text>
           <TextButton
-            label="Retry"
+            label="Try again"
             onPress={() => actions.retrySend(m.messageId)}
             testID={`retry-send-${m.messageId}`}
           />
@@ -1097,11 +1097,13 @@ function Theirs({
           style={st.via}
         >{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text>
       ) : null}
-      {work && (!work.short || !item.newgroup || workOpen) ? (
+      {work &&
+      (!work.live || !(stream && actions.activityOf?.(m.messageId))) &&
+      (!work.short || !item.newgroup || workOpen) ? (
         <Fold
           testID={`work-${m.messageId}`}
-          label={work.live ? `Working${work.now ? ` · ${work.now}` : ""}` : work.summary}
-          open={work.live || workOpen}
+          label={work.live ? "Working" : work.summary}
+          open={workOpen}
           live={work.live}
           onToggle={() => setWorkOpen((o) => !o)}
         >
@@ -1932,7 +1934,7 @@ export function ErrorRowView({
     ...(e.retryable && e.turnId && !retried
       ? [
           {
-            label: "Retry",
+            label: "Try again",
             testID: "err-retry",
             run: () => {
               setRetried(true);
