@@ -380,6 +380,9 @@ test("steps of a turn in a shared chat: what the other readers see", { timeout: 
     for (const k of aliceKeys) delete dump[k];
     const aliceFrames = JSON.stringify(frames["alice"]!.filter((f) => f["t"] === "turn"));
     assert.ok(aliceFrames.includes(SECRET_NAME), "the asker still sees what each step touched, live");
+    // the guest case means something only when the guest can open the chat (lane f-guest's fix): they are told a turn ran, and read only plain steps
+    assert.ok(String(dump["guest threads.get"]).startsWith("200"), "the guest can open the channel's chat");
+    assert.ok((dump["gwen live frames"] as unknown[]).length > 0, "the guest is sent the turn's live frames");
     const text = JSON.stringify(dump);
     console.log(`STEPS EVIDENCE ${text}`);
     if (process.env["STEPS_EVIDENCE"]) fs.writeFileSync(process.env["STEPS_EVIDENCE"], JSON.stringify(dump, null, 1));
