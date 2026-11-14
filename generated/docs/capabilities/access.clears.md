@@ -1,6 +1,6 @@
 # access.clears
 
-Whether a principal's clearance reaches a resource's label, asked before a key is stored or shared for an agent. Yes or no only. The server or a person with Edit on it may ask; anyone else gets not found
+Whether a principal's clearance reaches a resource's label, asked before a key is stored or shared for an agent. Yes or no only. The server, a call another capability made, or a person with Edit on it may ask; anyone else gets not found
 
 | | |
 |---|---|

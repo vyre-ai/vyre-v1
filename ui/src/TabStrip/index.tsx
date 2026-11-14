@@ -424,7 +424,7 @@ function IconButton({
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
       style={[styles.iconButton, over ? HOVER : null]}
-      {...webProps({ title: label })}
+      {...webProps({ dataSet: { tt: label } })}
     >
       <MenuIcon icon={name} color={over ? "var(--ink)" : "var(--ink-3)"} size={16} />
     </Pressable>
@@ -501,7 +501,7 @@ function TabItem({
       ]}
       {...trigger}
       {...webProps({
-        title: name,
+        dataSet: { tt: name },
         tabIndex: on ? 0 : -1,
         onKeyDown: (event: EventLike) => {
           onKeyDown(event);
@@ -545,7 +545,7 @@ function TabItem({
             showClose ? null : HIDDEN,
             showClose ? null : ({ pointerEvents: "none" } as object),
           ]}
-          {...webProps({ title: "Close" })}
+          {...webProps({ dataSet: { tt: "Close" } })}
         >
           <MenuIcon icon="x" color={ink} size={12} />
         </Pressable>

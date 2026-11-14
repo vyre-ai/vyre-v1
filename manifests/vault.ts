@@ -502,6 +502,19 @@ export default defineManifest({
       tool: "vault",
       offline: "online",
     }),
+    write(
+      "vault.item.discard_new",
+      "Take back a key you saved a moment ago that could not be connected: erased for good, from the Vault and from Trash. Only your own, only within two minutes, only while nothing has used it",
+      {
+        in: { itemId: id.vaultItem },
+        out: ok,
+        on: ["vault_item", "/itemId"],
+        level: "manage",
+        audit: "always",
+        tool: "vault",
+        offline: "online",
+      },
+    ),
     write("vault.item.restore", "Bring an item back from Trash", {
       in: { itemId: id.vaultItem },
       out: { item: itemMeta },

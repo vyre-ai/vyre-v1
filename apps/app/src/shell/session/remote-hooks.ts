@@ -20,6 +20,13 @@ export interface RemoteHooksOptions {
   onError?(cap: string, error: unknown): void;
   /** A failure that is not the query's own (a 401: the session ended). The query keeps what it had and nobody is told, so nothing reacts to it. */
   ignoreError?(error: unknown): boolean;
+  /**
+   * The least time between two re-reads of one capability that a change in the Space asks for (by capability name). A change that arrives sooner is held and read once, when the time is up: a busy Space
+   * costs one read per capability per period, however many changes it makes. The first read and an action of the person's own (`invalidate({ now: true })`) are never held. Absent: every change re-reads (what each query did before).
+   */
+  quietMs?: Readonly<Record<string, number>>;
+  /** The clock, for tests. */
+  now?: () => number;
 }
 
 export interface RemoteHooks extends ScreenHooks {
@@ -27,8 +34,8 @@ export interface RemoteHooks extends ScreenHooks {
   capQuery<T>(cap: string, input?: Record<string, unknown>): LiveQuery<T>;
   /** Used only by useChange (apps/app/src/load), which tests it. Show a changed answer for a watched read at once (an optimistic change); each patch can be taken back alone and the answer is always the last real one with the rest applied. Answers how to undo it; the next real answer replaces the patch either way. A read nobody has answered is left alone. */
   patch(cap: string, input: Record<string, unknown>, apply: (data: unknown) => unknown): () => void;
-  /** Re-read every query that is being watched. */
-  invalidate(): void;
+  /** Re-read every query that is being watched. `now` is the person's own action (a retry, a pin, a rename): it is read at once, never held for the quiet time. */
+  invalidate(o?: { now?: boolean }): void;
   /** Hear each invalidate: what a card that reads by capability follows, on the same tick as the queries. */
   onInvalidate(listener: () => void): () => void;
   /** Warm a screen query: read it now with nobody watching, so the first draw of the place finds the answer. */
@@ -54,6 +61,9 @@ interface Entry {
   patches: { apply: (data: unknown) => unknown }[];
   base: { snap: QueryState<unknown>; json: string } | null;
   live: LiveQuery<unknown>;
+  /** When the last read began, and the wait for the one a change asked for inside the quiet time. */
+  lastAt: number;
+  held: ReturnType<typeof setTimeout> | null;
 }
 
 function failureOf(err: unknown): { message: string; code?: string; traceId?: string } {
@@ -85,6 +95,7 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
   const entries = new Map<string, Entry>();
   const followers = new Set<() => void>();
   let closed = false;
+  const now = opts.now ?? Date.now;
 
   const notify = (e: Entry): void => {
     for (const l of [...e.listeners]) l();
@@ -97,6 +108,7 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
       return;
     }
     e.inflight = true;
+    e.lastAt = now();
     e.stale = false;
     const done = (): void => {
       e.inflight = false;
@@ -169,6 +181,8 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
       staleListeners: new Set(),
       patches: [],
       base: null,
+      lastAt: -Infinity,
+      held: null,
       live: {
         subscribe(l) {
           made.listeners.add(l);
@@ -234,10 +248,29 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
         show();
       };
     },
-    invalidate() {
+    invalidate(o) {
       for (const e of entries.values()) {
-        if (e.listeners.size > 0) fetchEntry(e);
-        else e.stale = true;
+        if (e.listeners.size === 0) {
+          e.stale = true;
+          continue;
+        }
+        const wait = (opts.quietMs?.[e.cap] ?? 0) - (now() - e.lastAt);
+        if (wait > 0 && o?.now !== true) {
+          // inside the quiet time: one read when it is up, whatever number of changes came meanwhile
+          if (e.held === null)
+            e.held = setTimeout(() => {
+              e.held = null;
+              if (closed) return;
+              if (e.listeners.size > 0) fetchEntry(e);
+              else e.stale = true;
+            }, wait);
+          continue;
+        }
+        if (e.held !== null) {
+          clearTimeout(e.held);
+          e.held = null;
+        }
+        fetchEntry(e);
       }
       for (const l of [...followers]) l();
     },
@@ -262,7 +295,10 @@ export function createRemoteScreenHooks(opts: RemoteHooksOptions): RemoteHooks {
     close() {
       closed = true;
       followers.clear();
-      for (const e of entries.values()) e.listeners.clear();
+      for (const e of entries.values()) {
+        e.listeners.clear();
+        if (e.held !== null) clearTimeout(e.held);
+      }
       entries.clear();
     },
   };

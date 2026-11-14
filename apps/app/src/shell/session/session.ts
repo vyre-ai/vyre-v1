@@ -47,6 +47,7 @@ import { directoryOf, standInsOf } from "./private-agents.ts";
 import { setAgentFaces, setAgentStatuses, setStandIns } from "../../../../../ui/src/Avatar/assistant.ts";
 import { setFaceImageLoader } from "../../../../../ui/src/Avatar/faceimages.ts";
 import { createRemoteScreenHooks } from "./remote-hooks.ts";
+const SIDEBAR_QUIET_MS = 1_000;
 import type { RemoteHooks } from "./remote-hooks.ts";
 import { onRetryLoads } from "../../../../../ui/src/States/retry.ts";
 import { speed } from "../../speed/recorder.ts";
@@ -286,14 +287,16 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     screens,
     read: (cap, input) => reach(cap, input),
     ignoreError: (e) => e instanceof CapError && e.status === 401,
+    // a busy Space asks for the sidebar again and again; once a second is as fresh as a person can tell (their own actions are read at once)
+    quietMs: { "chats.sidebar": SIDEBAR_QUIET_MS },
   });
   const stopPerms = livePerms ? hooks.onInvalidate(rereadPerms) : (): void => undefined;
   // While the window is hidden a change re-reads the screen at most every HIDDEN_REFRESH_MS; showing it again re-reads at once whatever is waiting.
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-  const reread = (): void => {
+  const reread = (urgent = false): void => {
     if (refreshTimer !== null) clearTimeout(refreshTimer);
     refreshTimer = null;
-    if (!closed) hooks.invalidate();
+    if (!closed) hooks.invalidate(urgent ? { now: true } : undefined);
   };
   const refresh = (): void => {
     if (closed || refreshTimer !== null) return;
@@ -311,7 +314,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   let touchShown = (): void => undefined;
   const shown = (): void => {
     if (hidden()) return;
-    if (refreshTimer !== null) reread();
+    if (refreshTimer !== null) reread(true);
     touchShown();
   };
   page?.addEventListener?.("visibilitychange", shown);

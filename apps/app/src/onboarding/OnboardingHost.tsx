@@ -31,7 +31,10 @@ import type { CardContext } from "./OnboardingScreen.tsx";
 import { desktopSessionImporter } from "../../../../client/src/session-import/desktop.ts";
 import {
   flowOfSession,
+  hideSetup,
   loadFlow,
+  loadHidden,
+  retireOldHiddenKeys,
   markSeen,
   markStep,
   publishProgress,
@@ -80,6 +83,8 @@ export function OnboardingHost({
   const home = runtime?.aiHome ?? "here";
   const [flow, setFlow] = useState<FlowKind | null>(null);
   const [progress, setProgress] = useState<Progress>({});
+  // the flows this person put away with Hide: their own state on the Space, read with the flow below, so it holds on every device
+  const [hiddenFlows, setHiddenFlows] = useState<Readonly<Record<string, true>>>({});
   const [shown, setShown] = useState(false);
   const [step, setStep] = useState<string | null>(null);
   const [aiProvider, setAiProvider] = useState<string | null>(null);
@@ -107,8 +112,10 @@ export function OnboardingHost({
     void (async () => {
       try {
         const f = await flowOfSession(call, space.kind);
-        const state = await loadFlow(call, f);
+        retireOldHiddenKeys();
+        const [state, hid] = await Promise.all([loadFlow(call, f), loadHidden(call)]);
         if (off) return;
+        setHiddenFlows(hid);
         setFlow(f);
         setProgress(state.progress);
         publishProgress({ flow: f, progress: state.progress });
@@ -356,20 +363,27 @@ export function OnboardingHost({
               setShown(true);
             },
             // the entry itself, for the title bar to draw: it is never a floating pill over the rail or the page
-            pill: startedSetup(flow, progress, device) ? (
-              <ResumeChip
-                flow={flow}
-                progress={progress}
-                device={device}
-                onOpen={(k) => {
-                  setStep(k);
-                  setShown(true);
-                }}
-              />
-            ) : null,
+            pill:
+              startedSetup(flow, progress, device) && hiddenFlows[flow] !== true ? (
+                <ResumeChip
+                  flow={flow}
+                  progress={progress}
+                  device={device}
+                  hidden={hiddenFlows[flow] === true}
+                  onHide={() => {
+                    const next = { ...hiddenFlows, [flow]: true as const };
+                    setHiddenFlows(next);
+                    if (call) void hideSetup(call, flow, hiddenFlows).catch(() => undefined);
+                  }}
+                  onOpen={(k) => {
+                    setStep(k);
+                    setShown(true);
+                  }}
+                />
+              ) : null,
           }
         : null,
-    [info?.done, info?.total, info?.step, flow, progress, device],
+    [info?.done, info?.total, info?.step, flow, progress, device, hiddenFlows, call],
   );
 
   // the shell stays mounted underneath, so closing the screen returns to exactly where the person was

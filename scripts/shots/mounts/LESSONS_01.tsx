@@ -24,7 +24,7 @@ const L2 = "fct_les_first";
 const LESSONS = [
   {
     factId: L1,
-    text: "Make it interactive and really good to look at and understand. Less text heavy and more interactive.",
+    text: "Make it interactive and really good to look at and understand. Less text heavy and more interactive, and it should just look and feel awesome.",
     learnedAt: T(8, 0),
     sourceLink: `/chats/${KNOW_THREAD}#msg_L_p1`,
   },
@@ -50,6 +50,8 @@ const LESSONS = [
   lesson: { how: "refuse", used: 6, scope: "you" },
 }));
 
+// the person correcting the agent: the message the one learned lesson came from
+const FRESH_ASK = "Show me your draft text here first. You are the team's automation agent, not mine.";
 const ASKS = [
   "Can you test the terminal for me? Run a few commands and tell me what you see.",
   "Now check the disk, and say it in plain words.",
@@ -79,7 +81,7 @@ function rows(part: string): Row[] {
       threadSeq: seq++,
       author: { kind: "person", id: ME },
       kind: "text",
-      body: ASKS[i],
+      body: part === "fresh" ? FRESH_ASK : ASKS[i],
       createdAt: T(9, i * 4),
     });
     if (part === "fresh") break;
@@ -104,24 +106,28 @@ function Chat({ part }: { part: string }): ReactNode {
     s.conv.replica.put("messages", rows(part));
     const call = async (cap: string, input: unknown): Promise<unknown> => {
       const i = (input ?? {}) as { messageId?: string };
-      // every reply of this chat is read as having used both lessons, whatever it said
-      if (cap === "memory.used" && String(i.messageId ?? "").startsWith("msg_L_a"))
+      //
+      // the lessons were sent with the first message of the chat only, so only the reply to it carries the mark
+      if (cap === "memory.used" && i.messageId === "msg_L_a0")
         return { messageId: i.messageId, at: T(9, 0), facts: LESSONS, quotes: [] };
       if (cap === "memory.used") return { messageId: i.messageId, facts: [], quotes: [] };
-      // the first message of the chat taught a lesson, the one after it another
+      // only the "fresh" chat taught a lesson: a correction ("Show me your draft text here first"), on its last message
       if (cap === "memory.learned")
         return {
-          items: LESSONS.slice(part === "fresh" ? 1 : 0).map((f) => ({
-            fact: f,
-            at: f.learnedAt,
-            what: "learned",
-            actor: ASSISTANT,
-            actorKind: "agent",
-            sourceKind: "chat",
-            sourceRef: KNOW_THREAD,
-            undone: false,
-          })),
-          total: 2,
+          items:
+            part === "fresh"
+              ? [LESSONS[1]!].map((f) => ({
+                  fact: { ...f, sourceLink: `/chats/${KNOW_THREAD}#msg_L_p0` },
+                  at: f.learnedAt,
+                  what: "learned",
+                  actor: ASSISTANT,
+                  actorKind: "agent",
+                  sourceKind: "chat",
+                  sourceRef: KNOW_THREAD,
+                  undone: false,
+                }))
+              : [],
+          total: part === "fresh" ? 1 : 0,
         };
       return s.memory.store.call(cap, input);
     };

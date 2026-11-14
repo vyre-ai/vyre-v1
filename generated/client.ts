@@ -27,6 +27,7 @@ export function createClient(transport: Transport) {
       audience_set: call("access.audience_set", 1),
       automation_senders: call("access.automation_senders", 1),
       check: call("access.check", 1),
+      clears: call("access.clears", 1),
       connector_builder: {
         grant: call("access.connector_builder.grant", 1),
         status: call("access.connector_builder.status", 1),
@@ -411,6 +412,8 @@ export function createClient(transport: Transport) {
       ask_suggest: call("chat.ask_suggest", 1),
       asks_of: call("chat.asks_of", 1),
       catch_up: call("chat.catch_up", 1),
+      chapters: call("chat.chapters", 1),
+      chapters_write: call("chat.chapters_write", 1),
       composer: {
         suggest: call("chat.composer.suggest", 1),
       },
@@ -473,6 +476,10 @@ export function createClient(transport: Transport) {
       recent: call("chat.recent", 1),
       remember: call("chat.remember", 1),
       reply_details: call("chat.reply_details", 1),
+      round: {
+        decide: call("chat.round.decide", 1),
+        discuss: call("chat.round.discuss", 1),
+      },
       screen: {
         get: call("chat.screen.get", 1),
       },
@@ -491,6 +498,10 @@ export function createClient(transport: Transport) {
         summary: call("chat.transcript.summary", 1),
       },
       unpin: call("chat.unpin", 1),
+    },
+    chats: {
+      presence: call("chats.presence", 1),
+      sidebar: call("chats.sidebar", 1),
     },
     ci: {
       cost: {
@@ -645,9 +656,11 @@ export function createClient(transport: Transport) {
     },
     connectors: {
       build: call("connectors.build", 1),
+      check_key: call("connectors.check_key", 1),
       define: call("connectors.define", 1),
       diff: call("connectors.diff", 1),
       export: call("connectors.export", 1),
+      for_service: call("connectors.for_service", 1),
       get: call("connectors.get", 1),
       health: call("connectors.health", 1),
       init: call("connectors.init", 1),
@@ -911,6 +924,9 @@ export function createClient(transport: Transport) {
         get: call("engine.reviewer.get", 1),
         set: call("engine.reviewer.set", 1),
       },
+      round: {
+        get: call("engine.round.get", 1),
+      },
       route: {
         preview: call("engine.route.preview", 1),
       },
@@ -936,6 +952,7 @@ export function createClient(transport: Transport) {
         set: call("engine.subscription_share.set", 1),
       },
       switch: call("engine.switch", 1),
+      thread_states: call("engine.thread_states", 1),
       time_convert: call("engine.time_convert", 1),
       turn: {
         append: call("engine.turn.append", 1),
@@ -2100,6 +2117,7 @@ export function createClient(transport: Transport) {
         set: call("notifications.rules.set", 1),
       },
       send: call("notifications.send", 1),
+      unseen_by_thread: call("notifications.unseen_by_thread", 1),
     },
     plugins: {
       agent_template: {
@@ -2637,6 +2655,25 @@ export function createClient(transport: Transport) {
       list: call("stars.list", 1),
       toggle: call("stars.toggle", 1),
     },
+    state: {
+      arrive: call("state.arrive", 1),
+      counts: call("state.counts", 1),
+      forget: call("state.forget", 1),
+      gain: call("state.gain", 1),
+      get: call("state.get", 1),
+      layout: {
+        get: call("state.layout.get", 1),
+        set: call("state.layout.set", 1),
+      },
+      list: call("state.list", 1),
+      lose: call("state.lose", 1),
+      merge: call("state.merge", 1),
+      read: call("state.read", 1),
+      read_scope: call("state.read_scope", 1),
+      retract: call("state.retract", 1),
+      set: call("state.set", 1),
+      verify: call("state.verify", 1),
+    },
     steps: {
       support: call("steps.support", 1),
       test: call("steps.test", 1),
@@ -2973,6 +3010,15 @@ export function createClient(transport: Transport) {
       status: call("updates.status", 1),
     },
     vault: {
+      connect: call("vault.connect", 1),
+      connect_card: {
+        ask_admin: call("vault.connect_card.ask_admin", 1),
+        disconnect: call("vault.connect_card.disconnect", 1),
+        get: call("vault.connect_card.get", 1),
+        options: call("vault.connect_card.options", 1),
+        reopen: call("vault.connect_card.reopen", 1),
+        submit: call("vault.connect_card.submit", 1),
+      },
       export_env: call("vault.export_env", 1),
       exports: {
         list: call("vault.exports.list", 1),
@@ -2992,6 +3038,7 @@ export function createClient(transport: Transport) {
       inject_env: call("vault.inject_env", 1),
       item: {
         delete: call("vault.item.delete", 1),
+        discard_new: call("vault.item.discard_new", 1),
         get: call("vault.item.get", 1),
         history: call("vault.item.history", 1),
         mark_rotated: call("vault.item.mark_rotated", 1),

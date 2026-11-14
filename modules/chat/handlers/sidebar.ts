@@ -25,13 +25,25 @@ export async function chatsPresence(ctx: ChatCtx): Promise<{
     }
   };
   const [p, w] = await Promise.all([ask<PresenceOut>("devices.presence"), ask<NowOut>("engine.now")]);
+  // a chat id leaves this read only for a chat the asker is in: the dot of an agent at work stays, the id of someone else's chat does not
+  const asked = (w?.working ?? []).flatMap((x) => (x.threadId ? [x.threadId] : []));
+  const mine = new Set<string>();
+  if (asked.length > 0) {
+    const ids = [...new Set(asked)];
+    for (const r of ctx.db.all(
+      `SELECT thread FROM chat_thread_member WHERE principal = ? AND deleted_at IS NULL AND thread IN (${ids.map(() => "?").join(", ")})`,
+      askerOf(ctx),
+      ...ids,
+    ) as Record<string, unknown>[])
+      mine.add(String(r["thread"]));
+  }
   return {
     people: (p?.people ?? []).flatMap((x) =>
       x.state === "online" || x.state === "away" ? [{ personId: x.personId, state: x.state }] : [],
     ),
     working: (w?.working ?? []).map((x) => ({
       agentId: x.agentId,
-      ...(x.threadId ? { threadId: x.threadId } : {}),
+      ...(x.threadId && mine.has(x.threadId) ? { threadId: x.threadId } : {}),
       since: x.since,
     })),
   };
@@ -132,10 +144,10 @@ const safeOf =
     }
   };
 
-/** Can this caller start chats? A guest cannot (their role holds no permission): they get only the chats and channels they are in. This is the app's own rule (it hides Team and the new-chat items when whoami lacks chats.private). A hand-built test context with no whoami is a member. */
+/** Can this caller start chats? A guest cannot (their role holds no permission): they get only the chats and channels they are in. This is the app's own rule (it hides Team and the new-chat items when whoami lacks chats.private). If whoami cannot be read the caller is treated as a guest: the read fails closed, never open. */
 async function canChat(safe: Safe): Promise<boolean> {
   const who = await safe<{ permissions?: string[] }>("identity.whoami", {});
-  return who === null ? true : (who.permissions ?? []).includes("chats.private");
+  return who !== null && (who.permissions ?? []).includes("chats.private");
 }
 
 const VERB: Record<string, "Allow" | "Review" | "Answer" | "Blocked" | "Sign"> = {
@@ -144,6 +156,22 @@ const VERB: Record<string, "Allow" | "Review" | "Answer" | "Blocked" | "Sign"> =
   signature: "Sign",
   unblock: "Blocked",
 };
+/** The words under a goal that is not simply moving: the reason it gives, else what its state means. */
+function goalLine(status: string, reason: unknown): string | undefined {
+  if (typeof reason === "string" && reason.trim() !== "" && status !== "active") return reason.trim().slice(0, 120);
+  return (
+    {
+      waiting: "Waiting on you",
+      stuck: "Stuck",
+      paused: "Paused",
+      planning: "Planning",
+      draft: "Draft",
+      done: "Done",
+      missed: "Missed",
+      stopped: "Stopped",
+    } as Record<string, string>
+  )[status];
+}
 const ENDED = new Set(["done", "missed", "stopped"]);
 
 interface RowOut {
@@ -163,6 +191,8 @@ interface RowOut {
   personId?: string;
   agentId?: string;
   progress?: { done: number; total: number };
+  line?: string;
+  nextCheckinAt?: number;
   quiet?: boolean;
   ended?: boolean;
   archived?: boolean;
@@ -440,13 +470,17 @@ async function wantedChats(
   if (more?.section !== "chats" || more.after === undefined) return limit;
   // where the cursor's chat stands in the newest-first list: how many chats are newer, plus its tie-break
   const id = more.after.startsWith("c:") ? more.after.slice(2) : undefined;
-  if (id === undefined) return 1_000_000;
+  if (id === undefined) return limit;
   ensureLast(ctx.db);
+  // a cursor that is not one of the caller's own chats is no cursor: the read answers the first page (it never walks the whole list for a key the caller does not hold)
   const at = ctx.db.all(
-    "SELECT COALESCE(l.at, t.createdAt) AS at FROM chat_thread t LEFT JOIN chat_thread_last l ON l.thread = t.id WHERE t.id = ?",
+    `SELECT COALESCE(l.at, t.createdAt) AS at FROM chat_thread t
+       JOIN chat_thread_member me ON me.thread = t.id AND me.principal = ? AND me.deleted_at IS NULL
+       LEFT JOIN chat_thread_last l ON l.thread = t.id WHERE t.id = ? AND t.deleted_at IS NULL`,
+    asker,
     id,
   ) as Record<string, unknown>[];
-  if (at.length === 0) return 1_000_000;
+  if (at.length === 0) return limit;
   const n = ctx.db.all(
     `SELECT COUNT(*) AS n FROM chat_thread t JOIN chat_thread_member me ON me.thread = t.id AND me.principal = ? AND me.deleted_at IS NULL
        LEFT JOIN chat_thread_last l ON l.thread = t.id
@@ -479,24 +513,44 @@ export async function chatsSidebar(
     src.pins(),
     safe<{ counts?: { threadId: string; mentions: number }[] }>("notifications.unseen_by_thread", {}),
     safe<{
-      items?: { task: { id: string; title: string; kind: string; blocked?: boolean; createdBy?: string } }[];
+      items?: {
+        task: {
+          id: string;
+          title: string;
+          kind: string;
+          blocked?: boolean;
+          createdBy?: string;
+          source?: { kind: string; id: string };
+        };
+      }[];
       total?: number;
     }>("tasks.needs_you", { limit: 50 }),
     member ? safe<{ goals?: Record<string, any>[] }>("goals.list", { scope: "mine" }) : Promise.resolve(null), // eslint-disable-line @typescript-eslint/no-explicit-any
     member ? safe<{ projects?: Record<string, any>[] }>("projects.list", {}) : Promise.resolve(null), // eslint-disable-line @typescript-eslint/no-explicit-any
     member ? safe<{ agents?: { agentId: string; name: string }[] }>("agents.list", {}) : Promise.resolve(null),
     member
-      ? safe<{ principals?: { id: string; name: string; kind?: string; status?: string }[] }>(
+      ? safe<{ principals?: { id: string; name: string; kind?: string; status?: string }[]; next?: string }>(
           "access.principals.list",
           {
             kind: "person",
             status: "active",
-            limit: 200,
+            limit: 500,
           },
         )
       : Promise.resolve(null),
     safe<{ working?: { agentId: string; threadId?: string }[] }>("engine.now", {}),
   ]);
+  // people past the first 500: the rest of the directory by its cursor (a handful of extra reads only in a Space that big)
+  for (let page = 0; peopleOut?.next !== undefined && page < 20; page++) {
+    const more = await safe<{
+      principals?: { id: string; name: string; kind?: string; status?: string }[];
+      next?: string;
+    }>("access.principals.list", { kind: "person", status: "active", limit: 500, cursor: peopleOut.next });
+    if (!more) break;
+    peopleOut.principals = [...(peopleOut.principals ?? []), ...(more.principals ?? [])];
+    if (more.next === undefined) delete peopleOut.next;
+    else peopleOut.next = more.next;
+  }
   const mentions = new Map((mentionsOut?.counts ?? []).map((c) => [c.threadId, c.mentions]));
   const muted = await src.mutedThreads();
   const me = askerOf(ctx);
@@ -605,6 +659,15 @@ export async function chatsSidebar(
       { kind: "project" },
     );
   }
+  // a goal that waits on the person has its Unblock task in Needs you: matched by the goal's id (the task's source); a task made before this version names no goal, and is matched by its title
+  const waitingIds = new Set<string>();
+  const waitingTitles = new Set<string>();
+  for (const n of needsOut?.items ?? []) {
+    if (n.task.source?.kind === "goal") waitingIds.add(n.task.source.id);
+    else if (n.task.kind === "unblock" && n.task.title.startsWith("Stuck: ")) waitingTitles.add(n.task.title);
+  }
+  const waitsInTasks = (g: Record<string, unknown>): boolean =>
+    waitingIds.has(String(g["id"])) || waitingTitles.has(`Stuck: ${g["title"]}`);
   for (const g of goalsOut?.goals ?? []) {
     const status = String(g["status"]);
     const pr = (g["progress"] as { tasksDone?: number; tasks?: number } | undefined) ?? {};
@@ -626,6 +689,11 @@ export async function chatsSidebar(
       },
       {
         kind: "goal",
+        // a goal waiting on the person lives in Tasks (its Unblock task is there): its Goals row then says nothing a second time
+        ...(!waitsInTasks(g) && goalLine(status, g["statusReason"])
+          ? { line: goalLine(status, g["statusReason"])! }
+          : {}),
+        ...(g["nextCheckinAt"] && !waitsInTasks(g) ? { nextCheckinAt: Number(g["nextCheckinAt"]) } : {}),
         progress: { done: Number(pr.tasksDone ?? 0), total: Number(pr.tasks ?? 0) },
         ...(status !== "active" && !ENDED.has(status) ? { quiet: true } : {}),
         ...(ENDED.has(status) ? { ended: true } : {}),

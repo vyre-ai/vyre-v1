@@ -121,3 +121,36 @@ test("asked about an item, the status says whether the assistant can use it: not
   );
   dropStore(h.db);
 });
+
+test("the Connector builder role and its holder survive a restart: the agent still holds connectors.manage when the store is read back, with Guest and Member beside it", async () => {
+  const h = harness();
+  putPrincipal(storeOf(h.ctx), { id: "agt_a", kind: "agent", name: "Assistant" });
+  storeOf(h.ctx).setRoles("agt_a", ["rol_guest", "rol_member"]);
+  await builderGrant(h.ctx, { agentId: "agt_a" });
+  dropStore(h.db); // the next storeOf reads the tables back, as a restarted server does
+  const back = storeOf(h.ctx);
+  const info = back.snapshot().info("agt_a")!;
+  assert.ok(info.perms.has("connectors.manage"), "holds connectors.manage after the read back");
+  assert.ok(info.perms.has("records.edit"), "and what a Member holds");
+  assert.deepEqual(info.roleNames.split(", ").sort(), ["Connector builder", "Guest", "Member"]);
+  assert.equal((await builderStatus(h.ctx, { agentId: "agt_a" })).allowed, true);
+  dropStore(h.db);
+});
+
+test("a Connector builder role that lost connectors.manage, or that agents may no longer hold, is made whole when it is given again", async () => {
+  const h = harness();
+  const store = storeOf(h.ctx);
+  putPrincipal(store, { id: "agt_a", kind: "agent", name: "Assistant" });
+  const first = await builderGrant(h.ctx, { agentId: "agt_a" });
+  const role = store.roles.get(first.roleId)!;
+  role.permissions = role.permissions.filter((k) => k !== "connectors.manage");
+  role.assignableToAgents = false;
+  store.bump();
+  assert.equal((await builderStatus(h.ctx, { agentId: "agt_a" })).allowed, false, "the role no longer does anything");
+  const again = await builderGrant(h.ctx, { agentId: "agt_a" });
+  assert.deepEqual([again.created, again.roleId], [false, first.roleId]);
+  assert.equal((await builderStatus(h.ctx, { agentId: "agt_a" })).allowed, true);
+  assert.ok(store.roles.get(first.roleId)!.assignableToAgents);
+  assert.ok(!store.roles.get(first.roleId)!.permissions.includes("access.manage"), "nothing more than before");
+  dropStore(h.db);
+});

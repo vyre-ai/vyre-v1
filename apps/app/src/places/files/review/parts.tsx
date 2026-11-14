@@ -70,7 +70,7 @@ export function Btn({
         primary && over && s.btnPriOver,
         disabled && s.dim,
       ]}
-      {...webProps({ title: disabled && hint ? hint : label, ...(menu ? { "aria-haspopup": "menu" } : {}) })}
+      {...webProps({ dataSet: { tt: disabled && hint ? hint : label }, ...(menu ? { "aria-haspopup": "menu" } : {}) })}
     >
       <Text style={[s.btnText, primary && s.btnTextPri, danger && s.btnDanger]}>{label}</Text>
     </Pressable>
@@ -105,7 +105,7 @@ export function IconBtn({
       onHoverOut={() => setOver(false)}
       testID={testID}
       style={[s.ib, over && s.btnOver, disabled && s.dim]}
-      {...webProps({ title: label, ...(menu ? { "aria-haspopup": "menu" } : {}) })}
+      {...webProps({ dataSet: { tt: label }, ...(menu ? { "aria-haspopup": "menu" } : {}) })}
     >
       {children}
     </Pressable>

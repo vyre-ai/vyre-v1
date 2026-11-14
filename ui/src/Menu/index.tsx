@@ -520,8 +520,11 @@ function MenuRow({
       testID={report ? "menu-item-report" : `menu-item-${entry.label}`}
       style={[styles.item, wash, entry.disabled === true ? { opacity: 0.45 } : null]}
       {...webProps({
-        ...(report ? { dataSet: { report: "true" } } : {}),
-        ...(entry.disabled === true && entry.reason !== undefined ? { title: entry.reason } : {}),
+        // react-native-web drops a title prop on a Pressable, so the reason a disabled item gives goes to the one tooltip as data-tt
+        dataSet: {
+          ...(report ? { report: "true" } : {}),
+          ...(entry.disabled === true && entry.reason !== undefined ? { tt: entry.reason } : {}),
+        },
       })}
     >
       {entry.leading !== undefined ? (

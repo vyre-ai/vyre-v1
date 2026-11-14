@@ -8,10 +8,13 @@ export function JobLines({
   running,
   finished,
   now,
+  plain = false,
 }: {
   running: readonly Job[];
   finished: readonly Finished[];
   now: number;
+  /** A shared chat: no name of what runs, only that something does. */
+  plain?: boolean;
 }): ReactElement | null {
   if (running.length === 0 && finished.length === 0) return null;
   return (
@@ -19,11 +22,11 @@ export function JobLines({
       {finished.map((f) => (
         <View key={`f-${f.id}`} testID={`job-done-${f.id}`} accessibilityRole="text" style={st.line}>
           <View style={[st.dot, f.ok ? st.ok : st.bad]} />
-          <Text style={st.words}>{finishedWords(f)}</Text>
+          <Text style={st.words}>{plain ? finishedWords({ ...f, title: "Background work" }) : finishedWords(f)}</Text>
         </View>
       ))}
       {running.map((j) => {
-        const w = runningWords(j, now);
+        const w = plain ? { ...runningWords(j, now), title: "Working in the background" } : runningWords(j, now);
         return (
           <View
             key={`r-${j.id}`}

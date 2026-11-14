@@ -38,7 +38,8 @@ export function sessionRows(
   return rows;
 }
 
-export function useUsage(call: Call | undefined, threadId: string, agentId: string): Usage {
+/** Reads engine.usage.get when the block shows and again when a new message arrives (`at` changes): the numbers move with the chat, so no clock polls. */
+export function useUsage(call: Call | undefined, threadId: string, agentId: string, at = 0): Usage {
   const [u, setU] = useState<Usage>(NO_USAGE);
   useEffect(() => {
     if (!call) return;
@@ -67,13 +68,10 @@ export function useUsage(call: Call | undefined, threadId: string, agentId: stri
       );
     };
     read();
-    const t = setInterval(read, 20_000);
-    (t as { unref?: () => void }).unref?.();
     return () => {
       dead = true;
-      clearInterval(t);
     };
-  }, [call, threadId, agentId]);
+  }, [call, threadId, agentId, at]);
   return u;
 }
 
@@ -125,9 +123,12 @@ export function SessionBlockMount({
 }: {
   call: Call | undefined;
   threadId: string;
-  agentId: string;
+  /** Left out: the agent that spoke last in the chat. */
+  agentId?: string;
 }): ReactElement | null {
   const s = useSession();
-  const usage = useUsage(s ? call : undefined, threadId, agentId);
-  return s ? <SessionBlock summary={s.summary} usage={usage} /> : null;
+  const lead = agentId ?? s?.summary.lead ?? "";
+  const usage = useUsage(s && lead !== "" ? call : undefined, threadId, lead, s?.summary.to ?? 0);
+  // nothing for a chat with no session, and nothing for a subagent or helper row: the block is the chat's own
+  return s && lead !== "" ? <SessionBlock summary={s.summary} usage={usage} /> : null;
 }
