@@ -347,3 +347,114 @@ for (const [label, token] of [
     }
   });
 }
+
+for (const [label, token] of [
+  ["its owner", OWNER],
+  ["an agent acting for its owner", AGENT_OLIVIA],
+] as const) {
+  test(`a legacy artifact (no marker, folder registered to the server) through its life: adopted at start, ${label} publishes a new page, restarts change nothing`, async () => {
+    const dir = seededDir();
+    let d = await boot(dir);
+    let siteId = "";
+    let folder = "";
+    const adoptEvents = async (): Promise<number> =>
+      (await d.log!.read({ type: "resource.created" } as never)).filter((e) => /^evt_res_art/.test(String(e.id)))
+        .length;
+    const pageIds = (): string[] =>
+      (
+        d.db!.all("SELECT id FROM files_file WHERE folder_id = ? AND deleted_at IS NULL", folder) as { id: string }[]
+      ).map((r) => r.id);
+    const publish = async (html: string, key: string): Promise<void> => {
+      const r = await raw(
+        d,
+        "/v1/sites/artifact_publish",
+        { title: "Legacy", artifactId: siteId, html, idempotencyKey: key },
+        token,
+      );
+      assert.equal(r.status, 200, r.text);
+    };
+    const finds = async (w: string, who: string): Promise<boolean> =>
+      new RegExp(w).test((await raw(d, "/v1/search/query", { q: w }, who)).text);
+    const owns = async (when: string, word: string): Promise<void> => {
+      for (const id of pageIds()) {
+        assert.equal(
+          (await raw(d, "/v1/files/read", { fileId: id, as: "text" })).status,
+          200,
+          `${when}: owner reads ${id}`,
+        );
+        assert.notEqual(
+          (await raw(d, "/v1/files/read", { fileId: id, as: "text" }, NOAH)).status,
+          200,
+          `${when}: member refused`,
+        );
+      }
+      assert.equal(await finds(word, OWNER), true, `${when}: owner finds ${word}`);
+      assert.equal(await finds(word, NOAH), false, `${when}: member does not find ${word}`);
+    };
+    try {
+      const p = await raw(d, "/v1/sites/artifact_publish", {
+        title: "Legacy",
+        html: "<p>OLDPAGE</p>",
+        idempotencyKey: "lg1",
+      });
+      assert.equal(p.status, 200, p.text);
+      siteId = J(p.text).data.artifactId as string;
+      const row = d.db!.all(
+        "SELECT target_folder, (SELECT parent_id FROM files_folder WHERE id = target_folder) AS up FROM sites_site WHERE id = ?",
+        siteId,
+      )[0] as { target_folder: string; up: string };
+      folder = row.target_folder;
+      // the state before this build: no marker, the folder registered to the server under the Artifacts folder
+      d.db!.run("UPDATE sites_site SET settings = '{}' WHERE id = ?", siteId);
+      await d.log!.append({
+        id: "evt_legacy_artfolder",
+        type: "resource.created",
+        sv: 1,
+        trace_id: "1".repeat(32),
+        actor: "svc_seed",
+        vis: "space",
+        entity: "resource",
+        entity_id: folder,
+        payload: { id: folder, type: "folder", parent_id: row.up, label: 0, owner_id: "svc_host", holds: 0 },
+      } as never);
+    } finally {
+      await d.stop();
+    }
+    d = await boot(dir);
+    try {
+      await settle(3000);
+      await owns("after the start", "OLDPAGE");
+      // the start-up pass has just proven the folder is the server's: it records that, so a later publish needs no guess
+      assert.match(
+        (d.db!.all("SELECT settings FROM sites_site WHERE id = ?", siteId)[0] as { settings: string }).settings,
+        /serverFolder/,
+        "a legacy artifact is marked when it is adopted",
+      );
+      // a publish again: the page changes (the server writes a new version of the page it already holds)
+      await publish("<p>NEWPAGE</p>", `lg-new-${Date.now()}`);
+      await settle(3000);
+      assert.equal(pageIds().length, 1);
+      await owns("after the republish", "NEWPAGE");
+    } finally {
+      await d.stop();
+    }
+    d = await boot(dir);
+    let n = 0;
+    try {
+      await settle(3000);
+      await owns("after a restart", "NEWPAGE");
+      n = await adoptEvents();
+    } finally {
+      await d.stop();
+    }
+    d = await boot(dir);
+    try {
+      await settle(3000);
+      await owns("after a second restart", "NEWPAGE");
+      assert.equal(await adoptEvents(), n, "the second restart emitted no adoption event");
+    } finally {
+      await d.stop();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+}

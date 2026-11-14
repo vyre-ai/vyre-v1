@@ -1673,6 +1673,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     // only the folder the server itself made for the artifact is adopted: one a caller named (artifact_publish with a folderId) belongs to its owner and stays as it is. The server marks the folder it makes
     // in the artifact's own record (settings.serverFolder); an artifact made before the mark is recognised by what a person cannot make: a folder owned by the server (a service) at the server's own path for this artifact.
     if (!serverMadeFolder(folderId, siteId, row)) return false;
+    // the server has just proven the folder is its own: an artifact made before the marker gets it now, so a later publish is recognised after the folder is registered to the person
+    try {
+      const at = db!.all("SELECT settings FROM sites_site WHERE id = ?", siteId)[0] as
+        | { settings?: string | null }
+        | undefined;
+      const kept: unknown = JSON.parse(at?.settings ?? "{}");
+      if (kept !== null && typeof kept === "object" && (kept as { serverFolder?: unknown }).serverFolder !== folderId)
+        db!.run(
+          "UPDATE sites_site SET settings = ? WHERE id = ?",
+          JSON.stringify({ ...kept, serverFolder: folderId }),
+          siteId,
+        );
+    } catch {
+      /* no sites table, or settings unreadable: the next start tries again */
+    }
     let changed = false;
     const person = /^usr_[a-z0-9]+$/.test(ownerId) ? ownerId : null;
     if (row.parent_id !== siteId) {
