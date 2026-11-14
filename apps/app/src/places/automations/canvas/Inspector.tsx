@@ -359,7 +359,7 @@ export function Inspector({
           value={b.when ?? ""}
           mono
           readOnly={b.when === undefined}
-          placeholder="lead.phone is not empty"
+          placeholder={b.when === undefined ? "Everything else" : "lead.phone is not empty"}
           testID={`field-path-${n}`}
           onCommit={(t) => onChange(updateStep(def, node.id, { branches: setBranch(node, n, { when: t }) }))}
         />,
