@@ -587,11 +587,14 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await tab.waitFor({ timeout: 15_000 });
       await tab.click({ timeout: 10_000 });
       await page.getByTestId("pane-body-computer").waitFor({ timeout: 15_000 });
-      // a plain line, not a dead button: no Open terminal, and the line says what would give this Space a machine
-      await page
-        .getByText(/runs commands on this computer for now|No computer to open a terminal on/)
-        .waitFor({ timeout: 15_000 });
+      // the Assistant's own terminal is already there as a row (nothing to open, no Open terminal button), and pressing it shows the terminal
+      const row = page.locator('[data-testid^="row-session-"]').first();
+      await row.waitFor({ timeout: 15_000 });
       assert.equal(await page.getByText("Open terminal", { exact: true }).count(), 0, "no dead button");
+      await row.click({ timeout: 10_000 });
+      await page.getByTestId("terminal-popup").waitFor({ timeout: 20_000 });
+      await page.getByTestId("terminal-popup-close").click({ timeout: 10_000 });
+      await page.getByTestId("terminal-popup").waitFor({ state: "detached", timeout: 10_000 });
     });
   } finally {
     if (failures.length) {

@@ -33,14 +33,27 @@ test(
       await page.waitForTimeout(300);
       assert.equal(await page.getByText("Press Take over to type.").count(), 0);
       await shoot(page, DIR, "b-sheet-watching");
-      // at phone width the sheet is a watching view too
+      // at phone width the sheet is a watching view too: close it, go to the phone's pane, open the row again
+      await page.getByTestId("terminal-popup-close").click();
+      await page.getByTestId("terminal-popup").waitFor({ state: "detached", timeout: 10_000 });
       await page.setViewportSize({ width: 390, height: 844 });
+      await page.waitForTimeout(800);
+      await page
+        .getByTestId("pane-button")
+        .click()
+        .catch(() => undefined);
+      await page
+        .getByTestId("tab-computer")
+        .or(page.getByTestId("tab-computer-selected"))
+        .first()
+        .click({ timeout: 15_000 })
+        .catch(() => undefined);
+      await page.locator(ROW).first().click({ timeout: 20_000 });
+      await page.getByTestId("terminal-popup").waitFor({ timeout: 20_000 });
       await page.waitForTimeout(800);
       assert.equal(await page.getByTestId("terminal-take").count(), 0, "no Take over at phone width");
       await shoot(page, DIR, "d-phone-sheet-watching");
-      await page.setViewportSize({ width: 1440, height: 900 });
-      await page.waitForTimeout(500);
-      // the ended state stays: its terminal is closed from outside
+      // the ended state stays (at phone width, the sheet still open): its terminal is closed from outside
       const rows = (await k.w.owner.ok("terminal.list", { host: "agent_computer" })) as {
         terminals: Array<{ terminalId: string; agentId?: string; state: string }>;
       };
