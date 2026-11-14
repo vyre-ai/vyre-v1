@@ -115,6 +115,16 @@ for (const skin of ["graphite", "paper"])
         .catch(() => console.log(tag, "no message more"));
       await shot("5-message-menu");
       await page.keyboard.press("Escape");
+      // the same menu on your own message
+      const mine = page.locator("[data-testid^=msg-]").filter({ hasText: "Book 2pm." }).first();
+      await mine.hover().catch(() => undefined);
+      await mine
+        .locator("[data-testid^=act-more-]")
+        .first()
+        .click({ timeout: 3000, force: true })
+        .catch(() => console.log(tag, "no own message more"));
+      await shot("5d-own-message-menu");
+      await page.keyboard.press("Escape");
     }
     // two agents working: the composer's stop offers one per face and Stop everyone
     await go("?busy=1");

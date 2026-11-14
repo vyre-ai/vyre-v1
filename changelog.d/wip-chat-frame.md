@@ -15,3 +15,4 @@
 - Deleting a message from the desktop menu asks once, "Delete this message?" with Delete and Cancel (Return confirms, Escape cancels), as the phone sheet does.
 - Remember This, Add to a Page and Forget This are at the first level of the message menu (two presses from the bar), not behind More; in the phone sheet they sit in the group with Make a task.
 - A narrow window with a mouse keeps the right-click menu on a message; only a real touch screen gives it up for the long-press sheet. A chat a person named "Notes" or "Tasks" keeps its name when its tab moves. The sheet's quick reactions know which one you already gave and take it back.
+- Chat frame: the pictures script also shoots the desktop message menu on your own message (5d).
