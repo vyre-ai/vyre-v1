@@ -209,7 +209,14 @@ const MAX_TURNS = 4;
  */
 export function onDiscussionMessage(
   ctx: ChatCtx,
-  event: { payload: { threadId: string; messageId: string; author: { kind: string; id: string }; mentions?: Array<{ kind: string; id: string }> } },
+  event: {
+    payload: {
+      threadId: string;
+      messageId: string;
+      author: { kind: string; id: string };
+      mentions?: Array<{ kind: string; id: string }>;
+    };
+  },
 ): void {
   const p = event.payload;
   if (p.author.kind !== "agent") return;
@@ -217,14 +224,21 @@ export function onDiscussionMessage(
   const t = threadBy(ctx.db, p.threadId);
   if (!t || t.kind !== "thread" || t.parentThreadId === undefined) return;
   const seeded = (
-    ctx.db.all("SELECT 1 AS x FROM chat_message WHERE thread = ? AND body LIKE ? AND deleted_at IS NULL LIMIT 1", t.id, `%${SEED_MARK}%`) as unknown[]
+    ctx.db.all(
+      "SELECT 1 AS x FROM chat_message WHERE thread = ? AND body LIKE ? AND deleted_at IS NULL LIMIT 1",
+      t.id,
+      `%${SEED_MARK}%`,
+    ) as unknown[]
   ).length;
   if (seeded === 0) return;
   const m = messageBy(ctx.db, p.messageId);
   if (!m) return;
   const decided = /^\s*Decided:\s*(.+)$/s.exec(m.body);
   const turns = (
-    ctx.db.all("SELECT COUNT(*) AS n FROM chat_message WHERE thread = ? AND kind = 'agent' AND deleted_at IS NULL", t.id) as Array<Record<string, unknown>>
+    ctx.db.all(
+      "SELECT COUNT(*) AS n FROM chat_message WHERE thread = ? AND kind = 'agent' AND deleted_at IS NULL",
+      t.id,
+    ) as Array<Record<string, unknown>>
   )[0]?.["n"];
   const handedOn = (p.mentions ?? []).some((x) => x.kind === "agent");
   if (!decided && handedOn && Number(turns) < MAX_TURNS) return; // the talk goes on
@@ -236,7 +250,13 @@ export function onDiscussionMessage(
   ) as Array<Record<string, unknown>>;
   const row = card[0];
   if (!row) return;
-  const text = decided ? decided[1]!.trim().replace(/\s+/g, " ").slice(0, 140) : "They did not settle it";
+  // the cap is said as the cap, so a person knows to ask again; a talk that just stopped is said as that
+  const capped = !decided && handedOn && Number(turns) >= MAX_TURNS;
+  const text = decided
+    ? decided[1]!.trim().replace(/\s+/g, " ").slice(0, 140)
+    : capped
+      ? `They used their ${MAX_TURNS} turns without settling it. Ask again to go on.`
+      : "They did not settle it";
   const blocks = (JSON.parse(String(row["blocks"])) as Array<Record<string, unknown>>).map((b) => ({
     ...b,
     data: { ...((b["data"] as object) ?? {}), lead: decided ? "Decided" : "Discussion ended", title: text },
