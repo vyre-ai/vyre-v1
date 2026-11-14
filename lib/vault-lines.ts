@@ -31,3 +31,16 @@ export const CONNECTION_KEY_LINE =
 /** An outside agent asked its person to do something their own role does not allow either. */
 export const PERSON_LACKS_ROLE_LINE =
   "The person you act for cannot do this either. Someone whose role allows it, an owner or an admin of this Space, has to do it or give them that role.";
+
+/** An agent was refused for a role it does not hold, while the person it acts for does hold it: only the agent is short, and a person who manages access can fix that. */
+export const AGENT_LACKS_ROLE_LINE =
+  "This agent's own roles do not include this, though the person it works for may do it. An owner or admin can give the agent a role that does.";
+/** The same for building connectors: the one role that fixes it is Connector builder, which a person gives with one press on the key's page in the Vault. */
+export const AGENT_LACKS_CONNECTORS_LINE =
+  "This agent may not build connectors yet. An owner or admin can allow it: on the key's page in the Vault, press Allow, or give the agent the Connector builder role.";
+/** Neither the agent nor the person it acts for holds the role. */
+export const AGENT_AND_PERSON_LACK_ROLE_LINE =
+  "Neither this agent nor the person it works for may do this. Someone whose role allows it, an owner or admin of this Space, has to do it or give that person the role.";
+/** The agent holds the role and the person it acts for does not: an agent never does more than its person may. */
+export const PERSON_LACKS_ONLY_ROLE_LINE =
+  "The person this agent works for may not do this, and an agent never does more than its person may. Someone whose role allows it has to do it.";
