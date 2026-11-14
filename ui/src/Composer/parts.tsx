@@ -285,6 +285,11 @@ export function GroupHead({ label }: { label: string }): ReactElement {
   );
 }
 
+/** A thin line between two groups of rows in a menu. */
+export function Sep(): ReactElement {
+  return <View style={s.sepLine} accessibilityElementsHidden />;
+}
+
 /** A small square tile with a line icon, for menu rows (Upload files, a command, a record). */
 export function IconTile({ icon, tint, size = 26 }: { icon: string; tint?: string; size?: number }): ReactElement {
   // a hex tint gets a soft wash of itself (#rrggbb + alpha); anything else sits on the sunk ground
@@ -322,6 +327,12 @@ export const I = {
   mic: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.500 11.500a6.500 6.500 0 0 0 13 0M12 18v3"/>'),
   up: svg('<path d="M12 19V5M6 11l6-6 6 6"/>'),
   file: svg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>'),
+  image: svg(
+    '<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.800"/><path d="m21 16-5-5-8 8"/>',
+  ),
+  link: svg(
+    '<path d="M10 14a4 4 0 0 0 5.700 0l3-3a4 4 0 0 0-5.700-5.700l-1 1M14 10a4 4 0 0 0-5.700 0l-3 3a4 4 0 0 0 5.700 5.700l1-1"/>',
+  ),
   folder: svg('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
   record: svg('<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 10h18M9 10v10"/>'),
   chat: svg('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>'),
@@ -375,6 +386,7 @@ const s = StyleSheet.create({
     borderColor: "var(--line-2)" as string,
     borderRadius: RADIUS,
   },
+  sepLine: { height: 1, marginVertical: 5, marginHorizontal: 8, backgroundColor: "var(--line)" as string },
   grp: {
     fontSize: 11,
     fontWeight: "600",

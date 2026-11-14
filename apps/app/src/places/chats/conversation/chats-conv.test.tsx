@@ -215,15 +215,14 @@ test("one chat.post gives one message and one bubble on the page, never two", as
   assert.equal(html(s).split(body).length - 1, 1, "one bubble on the page");
 });
 
-test("stop and stop all: the header says which, and each calls its capability; the steps are kept", async () => {
+test("stop and stop all: the head stays quiet while agents work (the stop is the composer's), and each stop calls its capability; the steps are kept", async () => {
   const s = createSample("busy");
   const out = html(s);
   assert.ok(
-    has(out, 'data-testid="stop-button"') &&
-      has(out, "Working") &&
-      has(out, 'data-testid="helpers-button"') &&
-      has(out, "2 helpers running"),
+    !has(out, 'data-testid="stop-button"') && !has(out, 'data-testid="conversation-live"'),
+    "no stop and no marker in the head (G3)",
   );
+  assert.ok(has(out, "Working") && has(out, 'data-testid="helpers-button"') && has(out, "2 helpers running"));
   const working = workingAgents(msgs(s));
   assert.deepEqual(working.sort(), ["agt_docs", "agt_intake"]);
   assert.equal(stopLabel(working, s.data.nameOf), "Stop all");
@@ -266,8 +265,8 @@ test("streaming: text is on the page up to the last delta, with the work folded 
   assert.ok(has(out, 'data-testid="body-m7"') && has(out, "consult fee") && has(out, "retainer is"));
   assert.ok(
     has(out, "Worked 8s · 2 steps") &&
-      has(out, 'data-testid="conversation-live"') &&
-      has(out, 'data-testid="stop-button"'),
+      !has(out, 'data-testid="conversation-live"') &&
+      !has(out, 'data-testid="stop-button"'),
   );
   s.push(" Shall I send it to Maya?");
   assert.ok(has(html(s), "Shall I send it to Maya?"));

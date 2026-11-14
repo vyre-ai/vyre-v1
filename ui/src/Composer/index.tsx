@@ -23,7 +23,7 @@ import { Row } from "../Row/index.tsx";
 import { answering, deleteToken, modeInfo, nextMode, sendControl, sizeLabel, stripName, tokenRanges } from "./brain.ts";
 import type { ChatMode, ComposerAgent, TokenRange } from "./brain.ts";
 import { ChatField, canMountChatField } from "./ChatField.tsx";
-import { GroupHead, I, IconTile, Kbd, Pop, STOP, ensureComposerCss, useDismiss } from "./parts.tsx";
+import { GroupHead, I, IconTile, Kbd, Pop, STOP, Sep, ensureComposerCss, useDismiss } from "./parts.tsx";
 import { composerSymbols } from "./props.ts";
 import { closeEmoji, findEmoji } from "./emoji.ts";
 import type { ComposerAttachment, ComposerChip, ComposerRef, ComposerShellProps, ComposerSymbol } from "./props.ts";
@@ -738,6 +738,10 @@ export interface ComposerProps extends ComposerShellProps {
   onAttach?: () => void;
   /** Opens the one Add people and agents sheet for this chat: the "Add people and agents" row under This chat. Left out where the place has no such sheet. */
   onAddPeople?: () => void;
+  /** Rows a place adds to the plus menu under "This chat" (a switch such as Don't remember this chat); read each time the menu is drawn. */
+  plusExtra?: () => readonly { id: string; title: string; icon: "lock"; checked: boolean; onPress: () => void }[];
+  /** The plus menu's "Connect a folder": the place opens its mount sheet. Left out where there is none, and the row with it. */
+  onConnectFolder?: () => void;
   /** Recipients for a composer that sends outside. Mounted above the field. */
   recipients?: ReactNode;
   banner?: ReactNode;
@@ -977,7 +981,6 @@ function AgentStrip({
   const body = (
     <>
       <Glyph icon={I.tune} native="≡" size={16} color={open ? "var(--ink)" : "var(--ink-3)"} />
-      {dot ? <View style={styles.setDot} testID="composer-settings-dot" /> : null}
     </>
   );
   if (!onPress)
@@ -1332,14 +1335,18 @@ export function Composer(props: ComposerProps): ReactElement {
   const dropZone = useFileDrop(takeFiles, { drop: !routed, enabled: takesFiles });
 
   /** Upload: the system picker on the web; a place's own sheet elsewhere. */
-  const upload = useCallback(() => {
-    const node = picker.current as { click?: () => void } | null;
-    if (node?.click) {
-      node.click();
-      return;
-    }
-    props.onAttach?.();
-  }, [props.onAttach]);
+  const upload = useCallback(
+    (accept = "") => {
+      const node = picker.current as { click?: () => void; accept?: string } | null;
+      if (node?.click) {
+        node.accept = accept;
+        node.click();
+        return;
+      }
+      props.onAttach?.();
+    },
+    [props.onAttach],
+  );
 
   const typeSymbol = (mark: string): void => {
     const cur = stateRef.current;
@@ -1478,7 +1485,7 @@ export function Composer(props: ComposerProps): ReactElement {
 
   const menuItems = (): MenuEntry[] =>
     composerMenu({
-      attach: upload,
+      attach: () => upload(),
       paste: () => void paste(),
       clear: () => {
         setState((s) => ({ ...initialState("", s.folder), cursor: 0 }));
@@ -1545,11 +1552,17 @@ export function Composer(props: ComposerProps): ReactElement {
       />,
     );
   };
+  // the plus menu, as the prototype draws it: what you can put in this message, then voice and a folder, then who is in the chat
   if (plusOpen) {
+    if (takesFiles)
+      plusRow("plus-photo", "Photo", I.image, () => {
+        setPlusOpen(false);
+        upload("image/*");
+      });
     if (takesFiles)
       plusRow(
         "plus-upload",
-        "Upload files",
+        "File",
         I.file,
         () => {
           setPlusOpen(false);
@@ -1557,57 +1570,50 @@ export function Composer(props: ComposerProps): ReactElement {
         },
         <Text style={styles.rowNote}>or drop</Text>,
       );
+    // a file that is already kept in Files goes in by its id, not uploaded again
     if (takesFiles && (props.onAttach || (props.suggest && symbols.includes("hash"))))
       plusRow("plus-files", "From Files", I.folder, fromFiles);
     if (symbols.includes("hash"))
-      plusRow(
-        "composer-symbol-hash",
-        "Link something",
-        I.hash,
-        () => {
-          setPlusOpen(false);
-          typeSymbol("#");
-        },
-        <Kbd k="#" />,
-      );
-    if (symbols.includes("at"))
-      plusRow(
-        "composer-symbol-at",
-        "Mention",
-        I.at,
-        () => {
-          setPlusOpen(false);
-          typeSymbol("@");
-        },
-        <Kbd k="@" />,
-      );
-    if (symbols.includes("slash"))
-      plusRow(
-        "composer-symbol-slash",
-        "Commands",
-        I.slash,
-        () => {
-          setPlusOpen(false);
-          typeSymbol("/");
-        },
-        <Kbd k="/" />,
-      );
-    if ((showMode && props.mode) || props.onAddPeople) plusRows.push(<GroupHead key="g-chat" label="This chat" />);
+      plusRow("plus-record", "Record", I.record, () => {
+        setPlusOpen(false);
+        setScope("Records");
+        typeSymbol("#");
+      });
+    if (symbols.includes("hash"))
+      plusRow("plus-link", "Link", I.link, () => {
+        setPlusOpen(false);
+        typeSymbol("https://");
+      });
+    const voice = talk.port?.on === true;
+    const folder = props.onConnectFolder !== undefined;
+    if (voice || folder) plusRows.push(<Sep key="s-more" />);
+    if (voice)
+      plusRow("plus-voice", "Voice note", I.mic, () => {
+        setPlusOpen(false);
+        talk.tapped();
+      });
+    if (folder)
+      plusRow("plus-folder", "Connect a folder", I.folder, () => {
+        setPlusOpen(false);
+        props.onConnectFolder?.();
+      });
+    const extra = props.plusExtra?.() ?? [];
+    if (props.onAddPeople || extra.length > 0) plusRows.push(<Sep key="s-people" />);
     if (props.onAddPeople)
       plusRow("plus-people", "Add people and agents", I.people, () => {
         setPlusOpen(false);
         props.onAddPeople?.();
       });
-    if (showMode && props.mode)
+    for (const x of extra)
       plusRow(
-        "plus-mode",
-        `Mode: ${modeInfo(props.mode).label}`,
-        MODE_ICON[props.mode],
+        x.id,
+        x.title,
+        I[x.icon],
         () => {
           setPlusOpen(false);
-          cycleMode();
+          x.onPress();
         },
-        <Kbd k={"⇧⇥"} />,
+        x.checked ? <Glyph icon={I.check} native="✓" size={14} color="var(--ink-2)" /> : undefined,
       );
   }
 
@@ -1910,7 +1916,7 @@ export function Composer(props: ComposerProps): ReactElement {
     <View ref={plusBtn as never}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Attach a file"
+        accessibilityLabel="Add to this message"
         accessibilityState={{ expanded: plusOpen }}
         testID="composer-attach"
         onPress={() => {
@@ -2269,16 +2275,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexShrink: 0,
   },
-  setDot: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "var(--accent)" as string,
-    boxShadow: "0 0 0 2px var(--raised)",
-  } as object,
   spacer: { flex: 1 },
   send: {
     width: CTRL,
