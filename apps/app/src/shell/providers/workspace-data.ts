@@ -12,6 +12,7 @@ export interface TerminalRowLike {
   state: "running" | "idle" | "exited";
   cwd?: string | undefined;
   heldBy?: string | undefined;
+  ownerId?: string | undefined;
   lastActiveAt?: number | undefined;
   by?: { kind: "agent" | "helper" | "person"; name?: string | undefined } | undefined;
 }
@@ -45,6 +46,7 @@ export function workspaceView(
     state: r.state,
     ...(r.cwd ? { cwd: r.cwd } : {}),
     ...(r.heldBy ? { heldBy: r.heldBy } : {}),
+    ...(r.ownerId ? { ownerId: r.ownerId } : {}),
     ...(lastLines.get(r.terminalId) ? { lastLine: lastLines.get(r.terminalId) as string } : {}),
     owner: r.by ?? { kind: "agent" },
     ...(r.lastActiveAt !== undefined ? { lastActiveAt: r.lastActiveAt } : {}),

@@ -20,6 +20,7 @@ export interface WorkspaceSession {
   /** running a command, waiting at a prompt, or ended */ state?: "running" | "idle" | "exited";
   /** where it is, as the terminal says it: "~/portal" */ cwd?: string;
   /** the person at its keyboard now, by id */ heldBy?: string;
+  /** the person whose own tab it is, by id */ ownerId?: string;
   /** what it last printed, one line (terminal.status) */ lastLine?: string;
   owner?: SessionOwner;
   /** left out when the host does not say */ windows?: number;
@@ -175,12 +176,23 @@ export interface SessionGroup {
   rows: WorkspaceSession[];
 }
 /** The terminals grouped by whose they are: the agent, then each helper, then each person. */
-export function groupSessions(list: readonly WorkspaceSession[], agentName: string): SessionGroup[] {
+export function groupSessions(
+  list: readonly WorkspaceSession[],
+  agentName: string,
+  who: { me?: string | undefined; nameOf?: ((id: string) => string) | undefined } = {},
+): SessionGroup[] {
   const out: SessionGroup[] = [];
   for (const s of orderSessions(list)) {
     const o = s.owner;
     const kind = !o || o.kind === "agent" ? "agent" : o.kind;
-    const name = kind === "agent" ? agentName : (o?.name ?? (kind === "helper" ? "A helper" : "A person"));
+    // a person's own tab is named for the person: "You" to themselves, their name to everyone else, never a generic
+    const person =
+      s.ownerId !== undefined
+        ? s.ownerId === who.me
+          ? "You"
+          : (who.nameOf?.(s.ownerId) ?? o?.name ?? "Someone")
+        : (o?.name ?? "Someone");
+    const name = kind === "agent" ? agentName : kind === "person" ? person : (o?.name ?? "A helper");
     const key = `${kind}:${name}`;
     let g = out.find((x) => x.key === key);
     if (!g) {

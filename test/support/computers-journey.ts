@@ -5,6 +5,7 @@
 //   1 Run this: the agent shows a command, the bar offers Run on the agent's computer, a read-only command runs and its output is shown under the block.
 //   2 The Computer tab (owner ruling 6 Nov 2026, DESIGN-agent-workspaces.md): Terminal and Browser; Take over and Give back act on the agent's Space browser profile, who may is the server's rule, and the state survives a reload.
 //   3 The live card: the agent starts working on its computer for the chat, the message holds the live view, and it freezes to the last picture when the computer sleeps.
+import { encodePng } from "../../lib/png.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { connectClaude, makeAgent, unlockVault, until } from "./mail-world.ts";
@@ -39,10 +40,43 @@ export const modelWithCommand: OpenSession = async (spec) => {
   } as ReturnType<OpenSession> extends Promise<infer S> ? S : never;
 };
 
-const PIXEL = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
-  "base64",
-);
+/** A page the picture can show: a header bar, a title, three text lines, a drop box with a file in it and a blue button, 640 by 400. Not a 1x1 skeleton. */
+function mockPage(): Uint8Array {
+  const w = 640,
+    h = 400;
+  const data = new Uint8Array(w * h * 4);
+  const fill = (x0: number, y0: number, x1: number, y1: number, c: [number, number, number]): void => {
+    for (let y = y0; y < y1; y++)
+      for (let x = x0; x < x1; x++) {
+        const i = (y * w + x) * 4;
+        data[i] = c[0];
+        data[i + 1] = c[1];
+        data[i + 2] = c[2];
+        data[i + 3] = 255;
+      }
+  };
+  fill(0, 0, w, h, [246, 247, 250]);
+  fill(0, 0, w, 44, [255, 255, 255]);
+  fill(0, 44, w, 45, [227, 229, 234]);
+  fill(24, 14, 36, 26, [86, 70, 236]);
+  fill(44, 16, 120, 24, [40, 44, 56]);
+  fill(500, 12, 616, 32, [86, 70, 236]);
+  fill(40, 80, 260, 98, [30, 34, 46]);
+  fill(40, 112, 420, 122, [150, 156, 170]);
+  fill(40, 130, 360, 140, [190, 194, 204]);
+  fill(40, 170, 600, 300, [255, 255, 255]);
+  fill(40, 170, 600, 172, [200, 204, 214]);
+  fill(40, 298, 600, 300, [200, 204, 214]);
+  fill(40, 170, 42, 300, [200, 204, 214]);
+  fill(598, 170, 600, 300, [200, 204, 214]);
+  fill(60, 190, 580, 232, [238, 240, 246]);
+  fill(72, 206, 220, 216, [60, 64, 80]);
+  fill(60, 250, 440, 258, [86, 70, 236]);
+  fill(60, 262, 580, 270, [226, 228, 236]);
+  fill(40, 330, 150, 362, [86, 70, 236]);
+  return encodePng({ width: w, height: h, data });
+}
+const PIXEL = mockPage();
 
 export function scriptedTerminal(): TerminalHost {
   const screens = new Map<string, string>();
@@ -112,7 +146,7 @@ export function fakeSpaceBrowser(): { sb: SpaceBrowser; rows: Map<string, Profil
     },
     async screenshot() {
       // a real one-pixel picture; every call differs a little so the pane has a new frame each time
-      return { bytes: new Uint8Array(PIXEL), width: 1, height: 1 };
+      return { bytes: new Uint8Array(PIXEL), width: 640, height: 400 };
     },
     async stream(a) {
       return {

@@ -239,7 +239,7 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
         });
     } else {
       const asleep = v.state === "asleep";
-      const groups = groupSessions(v.sessions, name);
+      const groups = groupSessions(v.sessions, name, { me: data.me?.id, nameOf: data.nameOf });
       for (const g of groups) {
         entries.push({
           key: `g-${g.key}`,

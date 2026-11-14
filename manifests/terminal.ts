@@ -53,6 +53,8 @@ const terminalRow = t.obj({
   ),
   // the person at the keyboard now: the agent's commands and everyone else's keys wait until they hand it back (or 15 minutes pass with nobody using it)
   heldBy: t.opt(id.user),
+  // the person who opened it: a person's own tab says whose it is
+  ownerId: t.opt(id.user),
 });
 const command = t.obj({
   command: t.str(),
@@ -171,6 +173,7 @@ export default defineManifest({
       emits: ["terminal.renamed"],
       tool: "terminal",
       offline: "patch",
+      errors: ["validation.precondition_failed"],
     }),
     write("terminal.close", "Close a session and kill its tmux session", {
       in: target,
@@ -181,6 +184,7 @@ export default defineManifest({
       tool: "terminal",
       idem: "natural",
       offline: "online",
+      errors: ["validation.precondition_failed"],
     }),
     write(
       "terminal.input",
@@ -194,6 +198,7 @@ export default defineManifest({
         idem: "none",
         offline: "online",
         risk: "medium",
+        errors: ["validation.precondition_failed"],
         rate: { n: 600, perSeconds: 60, scope: "principal" },
       },
     ),
@@ -270,6 +275,7 @@ export default defineManifest({
       idem: "none",
       offline: "online",
       risk: "low",
+      errors: ["validation.precondition_failed"],
     }),
     write("terminal.resize", "Resize the terminal window", {
       in: { ...target, cols: t.int({ minimum: 20, maximum: 500 }), rows: t.int({ minimum: 5, maximum: 200 }) },
@@ -279,6 +285,7 @@ export default defineManifest({
       idem: "natural",
       offline: "online",
       risk: "low",
+      errors: ["validation.precondition_failed"],
       tool: "terminal",
     }),
     read("terminal.read", "Read the scrollback of a session (secrets already scrubbed)", {
@@ -337,7 +344,13 @@ export default defineManifest({
         audit: "sensitive",
         risk: "high",
         offline: "online",
-        errors: ["permission.needs_approval", "timeout.deadline", "provider.unavailable", "validation.not_found"],
+        errors: [
+          "permission.needs_approval",
+          "timeout.deadline",
+          "provider.unavailable",
+          "validation.not_found",
+          "validation.precondition_failed",
+        ],
       },
     ),
     write(

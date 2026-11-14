@@ -199,6 +199,7 @@ export function TmuxScreen({
   call,
   terminalId,
   keys,
+  taking,
   onHidden,
   onUnsupported,
 }: {
@@ -206,6 +207,8 @@ export function TmuxScreen({
   terminalId: string;
   /** a person holds the keyboard: keys and pastes go to the terminal */
   keys: boolean;
+  /** Take over was just pressed and the server has not answered: keys pressed now are kept and sent, in order, the moment the keyboard is yours (dropped if the take fails) */
+  taking?: { current: boolean } | undefined;
   onHidden?(hidden: boolean): void;
   onUnsupported?(): void;
 }): ReactElement | null {
@@ -312,20 +315,33 @@ export function TmuxScreen({
       ),
     );
   });
+  // kept keys older than 5 seconds belong to a take that failed: they are dropped, never sent later
+  const early = useRef<Array<{ k: KeyPress; at: number }>>([]);
+  useEffect(() => {
+    if (keys) {
+      const now = Date.now();
+      for (const e of early.current) if (now - e.at < 5000) batcher.current?.push(e.k);
+    }
+    early.current = [];
+  }, [keys]);
+  const press = (k: KeyPress): void => {
+    if (keys) batcher.current?.push(k);
+    else if (taking?.current === true) early.current.push({ k, at: Date.now() });
+  };
   const onKeyDown = (e: KeyboardEvent): void => {
-    if (!keys) return;
+    if (!keys && taking?.current !== true) return;
     const k = keyToPress(e);
     if (k === null) return;
     e.preventDefault();
     e.stopPropagation();
-    batcher.current?.push(k);
+    press(k);
   };
   const onPaste = (e: ClipboardEvent): void => {
-    if (!keys) return;
+    if (!keys && taking?.current !== true) return;
     const text = e.clipboardData?.getData("text") ?? "";
     if (text === "") return;
     e.preventDefault();
-    batcher.current?.push({ paste: text });
+    press({ paste: text });
   };
   return (
     <View testID="terminal-popup-screen-inner" style={st.fill}>

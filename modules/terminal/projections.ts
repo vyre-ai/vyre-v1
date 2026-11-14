@@ -327,6 +327,7 @@ export interface SessionRow {
   closedAt?: number;
   /** The person at the keyboard now (terminal_hold), when one is. */
   heldBy?: string;
+  heldSeen?: number;
 }
 
 export function sessionOf(r: Row): SessionRow {
@@ -364,7 +365,10 @@ export function sessionOf(r: Row): SessionRow {
   if (u !== undefined) out.runId = u;
   if (r["closed_at"] !== null && r["closed_at"] !== undefined) out.closedAt = Number(r["closed_at"]);
   const h = opt(r["hold_person"]);
-  if (h !== undefined) out.heldBy = h;
+  if (h !== undefined) {
+    out.heldBy = h;
+    out.heldSeen = Number(r["hold_seen"]);
+  }
   return out;
 }
 
@@ -375,7 +379,7 @@ export function sessionBy(db: Db, terminalId: string): SessionRow | null {
 
 /** A session with its tab: who made it. */
 export const SESSION_SELECT =
-  "SELECT s.*, t.kind AS tab_kind, t.name AS tab_name, t.actor AS tab_actor, h.person_id AS hold_person FROM terminal_sessions s LEFT JOIN terminal_tabs t ON t.terminal_id = s.terminal_id LEFT JOIN terminal_hold h ON h.terminal_id = s.terminal_id";
+  "SELECT s.*, t.kind AS tab_kind, t.name AS tab_name, t.actor AS tab_actor, h.person_id AS hold_person, h.seen AS hold_seen FROM terminal_sessions s LEFT JOIN terminal_tabs t ON t.terminal_id = s.terminal_id LEFT JOIN terminal_hold h ON h.terminal_id = s.terminal_id";
 
 export function insertTab(db: Db, terminalId: string, by: TabBy, actor: string, threadId?: string): void {
   db.run(
@@ -695,17 +699,30 @@ export function clean(scope: string, text: string): string {
 /** How long a hold lasts with its holder neither typing nor looking before the keyboard goes back to the agent. */
 export const HOLD_IDLE_MS = 15 * 60_000;
 
-/** Ends every hold nobody used for HOLD_IDLE_MS; returns the terminals whose keyboard went back (the caller tells the people looking). */
-export function sweepHolds(db: Db, now: number): string[] {
-  const gone = (db.all("SELECT terminal_id FROM terminal_hold WHERE seen < ?", now - HOLD_IDLE_MS) as Row[]).map((r) =>
-    s(r["terminal_id"]),
-  );
-  if (gone.length > 0) db.run("DELETE FROM terminal_hold WHERE seen < ?", now - HOLD_IDLE_MS);
-  return gone;
+/**
+ * The person at the keyboard of a terminal now, or null. A hold nobody used for HOLD_IDLE_MS is over: it is read as not there (nothing a read does writes or emits; the stale row is replaced by the next
+ * take and removed by the next give back).
+ */
+export function holderOf(db: Db, terminalId: string, now: number): string | null {
+  const r = (
+    db.all(
+      "SELECT person_id FROM terminal_hold WHERE terminal_id = ? AND seen >= ?",
+      terminalId,
+      now - HOLD_IDLE_MS,
+    ) as Row[]
+  )[0];
+  return r ? s(r["person_id"]) : null;
 }
 
-export function holderOf(db: Db, terminalId: string): string | null {
-  const r = (db.all("SELECT person_id FROM terminal_hold WHERE terminal_id = ?", terminalId) as Row[])[0];
+/** Does a person hold any terminal of this agent's workspace now? Who, or null. */
+export function workspaceHolder(db: Db, agentId: string, now: number): string | null {
+  const r = (
+    db.all(
+      "SELECT h.person_id FROM terminal_hold h JOIN terminal_sessions t ON t.terminal_id = h.terminal_id WHERE t.agent_id = ? AND t.closed_at IS NULL AND h.seen >= ? LIMIT 1",
+      agentId,
+      now - HOLD_IDLE_MS,
+    ) as Row[]
+  )[0];
   return r ? s(r["person_id"]) : null;
 }
 

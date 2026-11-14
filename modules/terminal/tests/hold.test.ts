@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
 import { bindHost } from "../projections.ts";
+import { registry } from "../../../generated/registry.ts";
 import { assertEventsConform, codeOf, contractErrors, fakeHost, harness, reset } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -25,6 +26,12 @@ const rejects = async (f: () => unknown): Promise<string> => {
 let keys = 0;
 const SARA = { kind: "person" as const, id: "usr_sara" };
 const AGENT = { kind: "agent" as const, id: "agt_intake" };
+const OMAR = { kind: "person" as const, id: "usr_omar" };
+/** Omar owns the agent (so he may enter its workspace) but, in these tests, manages nothing and owns no terminal: only the take and give-back rules can refuse him. */
+const omarCtx = (hn: Harness): Harness["ctx"] => ({
+  ...hn.as(OMAR),
+  call: async (cap: string) => (cap === "agents.get" ? { agent: { ownerId: "usr_omar", kind: "agent" } } : {}),
+});
 
 function setup(): { hn: Harness; id: string } {
   reset();
@@ -111,7 +118,39 @@ test("a hold nobody uses for 15 minutes ends by itself; typing keeps it in use",
     undefined,
     "15 quiet minutes: back to the agent",
   );
-  assert.equal(hn.named("terminal.given_back").at(-1)?.payload["by"], "idle");
+  assert.equal(hn.named("terminal.given_back").length, 0, "a read never emits: the hold simply reads as over");
+});
+
+/** Every event a call raised is one its manifest entry declares (the host refuses any other: host/src/invoke.ts). */
+async function checked(hn: Harness, cap: string, input: unknown, ctx: Harness["ctx"] = hn.ctx): Promise<any> {
+  const before = hn.emitted.length;
+  const out = await h[cap]!(ctx, input);
+  const declared = new Set(registry.capabilities.find((c) => c.name === cap)!.emits as readonly string[]);
+  for (const e of hn.emitted.slice(before))
+    assert.ok(declared.has(e.name), `${cap} emitted ${e.name}, which it does not declare`);
+  return out;
+}
+
+test("a hold that went stale writes and emits nothing from any call, and the calls that read or act work as before", async () => {
+  const { hn } = setup();
+  const id = await open(hn);
+  await call(hn, "terminal.take_over", { terminalId: id });
+  hn.advance(16 * 60_000);
+  const rows = hn.rows("SELECT * FROM terminal_hold");
+  await checked(hn, "terminal.get", { terminalId: id });
+  await checked(hn, "terminal.list", {});
+  await checked(hn, "terminal.input", { terminalId: id, data: "x" });
+  await checked(hn, "terminal.interrupt", { terminalId: id });
+  await checked(hn, "terminal.run", { command: "ls", terminalId: id }, hn.ctx).catch(() => undefined);
+  assert.equal(hn.emitted.filter((e) => e.name === "terminal.given_back").length, 0);
+  assert.deepEqual(
+    hn.rows("SELECT * FROM terminal_hold"),
+    rows.map((r) => ({ ...r })),
+    "reads left the row alone",
+  );
+  // the next take replaces the stale row
+  await checked(hn, "terminal.take_over", { terminalId: id }, hn.as(SARA));
+  assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_sara");
 });
 
 test("taking the keyboard from another person: the owner of the terminal or an admin only; anyone else is refused and nothing changes", async () => {
@@ -222,5 +261,102 @@ test("a terminal whose host has no screen or keys says so in one sentence", asyn
   assert.equal(
     await rejects(() => h["terminal.keys"]!(hn.ctx, { terminalId: id, keys: [{ key: "Enter" }] })),
     "validation.precondition_failed",
+  );
+});
+
+// ---- mutation guards (r-pc, 14 Nov): each check below is killed by a test
+
+test("an agent acting for the holder is still the agent: refused while the person holds", async () => {
+  const { hn } = setup();
+  const id = await open(hn);
+  await call(hn, "terminal.take_over", { terminalId: id });
+  const agentForHolder = hn.as(AGENT, "usr_dana");
+  assert.equal(
+    await rejects(() => h["terminal.input"]!(agentForHolder, { terminalId: id, data: "x" })),
+    "validation.precondition_failed",
+  );
+  assert.equal(
+    await rejects(() => h["terminal.run"]!(agentForHolder, { command: "ls", terminalId: id })),
+    "validation.precondition_failed",
+  );
+});
+
+test("give back: only the holder, the terminal's owner or an admin; someone else who may enter the workspace is refused and nothing changes", async () => {
+  const { hn } = setup();
+  const id = await open(hn); // owned by usr_dana
+  await call(hn, "terminal.take_over", { terminalId: id }, hn.as(SARA));
+  hn.allowOnly((a) => a.level !== "manage");
+  assert.equal(
+    await rejects(() => h["terminal.give_back"]!(omarCtx(hn), { terminalId: id })),
+    "permission.role_lacks_permission",
+  );
+  assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_sara");
+  // the owner of the terminal may
+  hn.allowOnly(() => true);
+  assert.equal((await call(hn, "terminal.give_back", { terminalId: id })).terminal.heldBy, undefined);
+});
+
+test("taking from another person: someone who may enter the workspace but neither owns the terminal nor manages the agent is refused by the take rule itself", async () => {
+  const { hn } = setup();
+  const id = await open(hn); // owner usr_dana
+  await call(hn, "terminal.take_over", { terminalId: id }, hn.as(SARA));
+  hn.allowOnly((a) => a.level !== "manage");
+  // omar passes the workspace check (use level is allowed) and fails only the take rule
+  assert.equal(
+    await rejects(() => h["terminal.take_over"]!(omarCtx(hn), { terminalId: id })),
+    "permission.role_lacks_permission",
+  );
+  assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_sara");
+});
+
+test("the holder looking renews the hold: reading and attaching keep it past 15 minutes; someone else looking does not", async () => {
+  const { hn } = setup();
+  const id = await open(hn);
+  await call(hn, "terminal.take_over", { terminalId: id });
+  for (let i = 0; i < 3; i++) {
+    hn.advance(10 * 60_000);
+    await call(hn, "terminal.read", { terminalId: id });
+  }
+  assert.equal(
+    (await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy,
+    "usr_dana",
+    "30 minutes in, kept by reads",
+  );
+  hn.advance(10 * 60_000);
+  await call(hn, "terminal.read", { terminalId: id }, hn.as(SARA));
+  hn.advance(6 * 60_000);
+  assert.equal(
+    (await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy,
+    undefined,
+    "another person's read keeps nothing",
+  );
+});
+
+test("while a person holds a terminal the agent's other doors wait too: close, resize, rename, its commands in every tab and a new tab", async () => {
+  const { hn } = setup();
+  const held = await open(hn);
+  const other = await open(hn);
+  await call(hn, "terminal.take_over", { terminalId: held });
+  const agent = hn.as(AGENT);
+  const pf = "validation.precondition_failed";
+  assert.equal(await rejects(() => h["terminal.close"]!(agent, { terminalId: held })), pf);
+  assert.equal(await rejects(() => h["terminal.resize"]!(agent, { terminalId: held, cols: 80, rows: 24 })), pf);
+  assert.equal(await rejects(() => h["terminal.rename"]!(agent, { terminalId: held, name: "x" })), pf);
+  assert.equal(
+    await rejects(() => h["terminal.input"]!(agent, { terminalId: other, data: "x" })),
+    pf,
+    "another tab of the same workspace",
+  );
+  assert.equal(
+    await rejects(() => h["terminal.run"]!(agent, { command: "ls", host: "agent_computer", agentId: "agt_intake" })),
+    pf,
+    "no new tab to get around it",
+  );
+  // the holder may close it; the hold row goes with it
+  assert.equal((await call(hn, "terminal.close", { terminalId: held })).closed, true);
+  assert.equal(
+    await rejects(() => h["terminal.input"]!(agent, { terminalId: other, data: "x" })),
+    "no error",
+    "the workspace is free again",
   );
 });
