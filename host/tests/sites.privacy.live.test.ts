@@ -197,10 +197,16 @@ test("what an agent makes for a person is theirs: private, the person opens and 
     const site = (JSON.parse(r.text) as { data: { site: { siteId: string; owner: string } } }).data.site;
     id = site.siteId;
     assert.equal(site.owner, "usr_olivia", "the person the agent acted for owns it");
+    // who may reach it is the person's to say (R1): the agent is refused, the person sets it
     assert.equal(
       (await raw(d, "/v1/sites/update", { siteId: id, access: "private" }, AG)).status,
+      403,
+      "an agent cannot change who may reach it",
+    );
+    assert.equal(
+      (await raw(d, "/v1/sites/update", { siteId: id, access: "private" })).status,
       200,
-      "the agent can set it private",
+      "the person sets it private",
     );
     await new Promise((r) => setTimeout(r, 1500));
     const check = async (when: string): Promise<void> => {
@@ -437,5 +443,52 @@ test("an artifact made before this build, whose folder is still under the Space,
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("changing who may reach a site needs its owner or someone who manages it, for every value, and an agent never does it (F56 R1)", async () => {
+  const d = await boot(seededDir());
+  try {
+    const id = await make(d, "Olivia's site");
+    const get = async (): Promise<{ access: string; live: boolean }> =>
+      (
+        JSON.parse((await raw(d, "/v1/sites/get", { siteId: id })).text) as {
+          data: { site: { access: string; live: boolean } };
+        }
+      ).data.site;
+    const before = await get();
+    // the site is the Space's: "space" would change nothing, so it is the three that change it
+    for (const access of ["public", "password", "private"]) {
+      const r = await raw(d, "/v1/sites/update", { siteId: id, access }, NOAH);
+      assert.equal(r.status, 403, `a plain member set ${access}: ${r.text.slice(0, 160)}`);
+      assert.match(r.text, /Only the owner of this site, or someone who manages it/);
+      const a = await raw(d, "/v1/sites/update", { siteId: id, access }, "tok-agent-olivia");
+      assert.equal(a.status, 403, `an agent acting for the owner set ${access}: ${a.text.slice(0, 160)}`);
+    }
+    assert.deepEqual(await get(), before, "a refused change changed nothing");
+    assert.equal(await reachOf(d, id, NOAH), "edit", "and nothing moved the site in the kernel");
+    // the owner may, and a member the owner gave Manage may
+    assert.equal((await raw(d, "/v1/sites/update", { siteId: id, access: "private" })).status, 200);
+    await new Promise((r) => setTimeout(r, 1200));
+    assert.equal(
+      (
+        await raw(d, "/v1/access/share", {
+          idempotencyKey: "mgr",
+          resource: { type: "site", id },
+          subject: { kind: "person", id: "usr_noah" },
+          level: "manage",
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (await raw(d, "/v1/sites/update", { siteId: id, access: "space" }, NOAH)).status,
+      200,
+      "a manager sets it back",
+    );
+    // a rename is not an access change: a member who may edit still renames
+    assert.equal((await raw(d, "/v1/sites/update", { siteId: id, name: "Renamed" }, NOAH)).status, 200);
+  } finally {
+    await d.stop();
   }
 });

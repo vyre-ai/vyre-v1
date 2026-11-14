@@ -444,6 +444,19 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
   const name = optStr(ctx, o, "name");
   const deployed = !isNull(site.source) || (o.source !== undefined && o.source !== null);
+  // who may reach a site is the owner's to say, or whoever manages it (F56 R1, 14 Nov 2026): not a member who may only edit, and not an agent, whose Edit never reaches this (no Gate-held path for an agent exists)
+  if (optStr(ctx, o, "access") !== undefined && o.access !== site.access) {
+    if (
+      ctx.principal.kind !== "person" ||
+      ctx.authorize({ perm: null, level: "manage" }, { type: "site", id: str(site.id) }).effect !== "allow"
+    )
+      fail(
+        ctx,
+        "permission.no_grant",
+        "Only the owner of this site, or someone who manages it, can change who may reach it.",
+        { field: "access" },
+      );
+  }
   const access = accessOf(ctx, optStr(ctx, o, "access"), str(site.access) as Access, deployed);
   // every refusal comes before the first write (ruling 90): the checks, then the source, limits and auto-deploy, then the rest
   const source = o.source !== undefined && o.source !== null ? JSON.stringify(cleanSource(ctx, o.source)) : null;
