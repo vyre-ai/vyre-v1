@@ -179,7 +179,9 @@ test("chats sidebar pictures and click-through", async (t) => {
       }
       // phone width
       await page.setViewportSize({ width: 390, height: 844 });
-      await page.waitForTimeout(600);
+      await page.goto(`${web.origin}/`, { waitUntil: "load" });
+      await page.getByTestId("mobile-shell").waitFor({ timeout: 20_000 });
+      await page.waitForTimeout(1200);
       await shoot("phone-full");
       fs.writeFileSync(path.join(out, "times.json"), JSON.stringify(times, null, 1));
       await ctx.close();
