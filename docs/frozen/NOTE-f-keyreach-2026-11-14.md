@@ -3,7 +3,7 @@
 ## What is added
 - One new capability, `access.clears@1`, in `manifests/access.ts`, handler `clears` in `modules/access/handlers/share.ts`.
 - One new optional output field, `askedYou` (boolean, only on `vault.requests.get`), on the `vault.request` row in `manifests/vault-requests.ts`. The `vault.requests.list`, `get` and `fulfil` rows carry the same optional field in their shared row type.
-- A behaviour change in the Vault, no contract change: an agent acting for a person (`ctx.actingFor`, set by the server, never from input) now makes shared folders and keys OWNED BY THAT PERSON (`modules/vault/handlers/items.ts` `makerOwner`), and may make a folder in that person's Mine (never for nobody, never another person's Mine). Before, the agent owned them and a Mine folder was refused. The `owner` shown in Vault list rows for such a folder or key is now the person. The agent is recorded as the maker by the registrar stamp `made_by` (host/src/gateway/resources.ts, lane f-reach), not by a new column here. An agent acting for nobody still owns what it makes. Nothing widens who else can read or use anything.
+- The Vault ownership change (an agent acting for a person making folders and keys owned by that person, and Mine folders for that person) is NOT in this branch: it is on `wip/f-keyreach-own`, because it needs lane f-reach's made_by rule to work. This branch changes no Vault ownership.
 - Nothing is removed, renamed or made required in the contracts. Both contract changes are additive.
 
 ## What it does

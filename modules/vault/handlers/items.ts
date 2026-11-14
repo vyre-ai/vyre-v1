@@ -244,15 +244,6 @@ async function sealFor(
 export const turnFor = (ctx: VaultCtx, r: Row): boolean =>
   ctx.principal.kind === "agent" && ctx.actingFor !== undefined && str(r, "owner") === ctx.actingFor;
 
-/**
- * Who a new folder or item belongs to: the caller, except an agent working for a person (ctx.actingFor comes from the server-side seed, never from input), which makes it for that person. Anything an
- * agent adds for someone is theirs (owner ruling, 14 Nov 2026); the agent is recorded as the maker by the registrar (made_by, host/src/gateway/resources.ts) and works with it through the access check.
- */
-const makerOwner = (ctx: VaultCtx): string =>
-  ctx.principal.kind === "agent" && typeof ctx.actingFor === "string" && ctx.actingFor !== ""
-    ? ctx.actingFor
-    : ctx.principal.id;
-
 /** Is this the caller's own item? An agent's own standing on an item it owns counts for nobody and for no one it is acting for: asked by a person who holds nothing on it, the agent does not hand it over (lib/agent-asker.ts). */
 const ownItem = (ctx: VaultCtx, r: Row): boolean =>
   str(r, "owner") === ctx.principal.id && agentStanding(ctx, () => false);
@@ -603,14 +594,13 @@ export async function itemPut(
   const id = newId("vit", now);
   const sealed = await sealFor(ctx, id, scope, ctx.principal.id, fields, 1);
   storeSealed(ctx, id, sealed);
-  const itemOwner = scope === "shared" ? makerOwner(ctx) : ctx.principal.id;
   ctx.db.run(
     `INSERT INTO vault_meta ("id", "name", "kind", "folderId", "owner", "scope", "fieldKeys", "handle", "spaceOnly", "injectIntoDeployments", "rotateEveryDays", "version", "updated_at", "updatedAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     name,
     input.kind,
     str(folder, "id"),
-    itemOwner,
+    ctx.principal.id,
     scope,
     JSON.stringify(fields.map((f) => f.key)),
     uniqueHandle(ctx, name),
@@ -948,13 +938,12 @@ export async function foldersCreate(
   keyOf(ctx, input);
   const name = nameOf(ctx, input.name);
   if (input.scope !== "mine" && input.scope !== "shared") bad(ctx, "Scope is mine or shared.");
-  const owner = makerOwner(ctx);
   if (input.parentId !== undefined) {
     if (!isId("vfd", input.parentId)) bad(ctx, "Parent folder id is not valid.");
     const parent = liveFolder(ctx, input.parentId);
     if (str(parent, "scope") !== input.scope)
       refuse(ctx, "A folder lives in a folder of the same kind, Mine or Shared.");
-    if (input.scope === "mine" && str(parent, "owner") !== owner)
+    if (input.scope === "mine" && str(parent, "owner") !== ctx.principal.id)
       throw fail("validation.not_found", ctx.trace.traceId, { message: "That folder is not in this Vault." });
     if (
       input.scope === "shared" &&
@@ -963,14 +952,13 @@ export async function foldersCreate(
     )
       return denied(ctx, "Adding to this folder needs edit access.");
   }
-  // an agent may make a Mine folder only for the person it is working for in this call, never for anyone else
-  if (ctx.principal.kind === "agent" && input.scope === "mine" && owner === ctx.principal.id)
-    return denied(ctx, "An agent can make a Mine folder only for the person it is working for.");
+  if (ctx.principal.kind === "agent" && input.scope === "mine")
+    return denied(ctx, "An agent cannot make Mine folders for someone.");
   const dup = rowsOf(ctx.db.all(`SELECT * FROM vault_folder`)).some(
     (f) =>
       live(f) &&
       str(f, "scope") === input.scope &&
-      (input.scope === "shared" || str(f, "owner") === owner) &&
+      (input.scope === "shared" || str(f, "owner") === ctx.principal.id) &&
       (strOrNull(f, "parentId") ?? "") === (input.parentId ?? "") &&
       str(f, "name").toLowerCase() === name.toLowerCase(),
   );
@@ -985,7 +973,7 @@ export async function foldersCreate(
     name,
     input.parentId ?? null,
     input.scope,
-    owner,
+    ctx.principal.id,
     "[]",
     ctx.now(),
   );
