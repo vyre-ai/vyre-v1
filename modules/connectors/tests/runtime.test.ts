@@ -372,7 +372,11 @@ test("list and get: built-in connectors come from the generator's registry", asy
   };
   const all = await k.hs["connectors.list"](k.ctx, {});
   const keys = [...reg.connectors.map((c) => c.key), ...activeCodeBuiltins().map((c) => c.key)].sort();
-  assert.equal(all.total, keys.length, "the registry's connectors, and the ones built in as code only when the connect card is on");
+  assert.equal(
+    all.total,
+    keys.length,
+    "the registry's connectors, and the ones built in as code only when the connect card is on",
+  );
   assert.deepEqual(all.connectors.map((c) => c.key).sort(), keys);
   const stripe = (await k.hs["connectors.get"](k.ctx, { key: "stripe" })).connector;
   const want = reg.connectors.find((c) => c.key === "stripe")!;

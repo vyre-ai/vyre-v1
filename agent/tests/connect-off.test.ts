@@ -30,7 +30,13 @@ test("vault_request is listed on the first turn; no connect tool is listed or se
   assert.ok(names(set.listed).includes("vault_request"));
   for (const t of [...set.listed, ...set.searchable]) assert.equal(CONNECT_CAPS.has(t.cap), false, t.name);
   assert.equal(names(set.listed).includes("vault_connect"), false);
-  for (const q of ["vault connect", "connect service card", "fathom connect", "discard new key", "check key for service"])
+  for (const q of [
+    "vault connect",
+    "connect service card",
+    "fathom connect",
+    "discard new key",
+    "check key for service",
+  ])
     for (const t of searchTools(set.searchable, q, 50))
       assert.equal(CONNECT_CAPS.has(t.cap), false, `${q} found ${t.name}`);
 });

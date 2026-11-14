@@ -6,6 +6,9 @@ import { ACME } from "../fixtures/acme.ts";
 import { kit } from "../fixtures/kit.ts";
 import type { ConnectorDef } from "../projections.ts";
 
+// the connect card (and the built-in Fathom with it) is off by default (lib/connect-switch.ts); this file tests it, so it turns it on for itself
+process.env["VYRE_CONNECT_CARD"] = "1";
+
 const FATHOM: ConnectorDef = {
   ...ACME,
   key: "fathom",

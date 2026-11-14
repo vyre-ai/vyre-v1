@@ -35,7 +35,10 @@ test("with the switch off, an agent asking for a Fathom key gets the plain key r
       // and the connect tool, called by name, is not an offered tool: the tool layer refuses it before the server is asked (it was never found with tool_search), so no card is made
       const c = yield* run("vault_connect", { service: "Fathom", idempotencyKey: "off-connect" });
       seen.push(`connect:${c.ok}`);
-      yield { type: "text", text: r.ok ? "I asked for the Fathom key." : `FAILED ${JSON.stringify(r.content).slice(0, 200)}` };
+      yield {
+        type: "text",
+        text: r.ok ? "I asked for the Fathom key." : `FAILED ${JSON.stringify(r.content).slice(0, 200)}`,
+      };
     }
   });
   const d = await boot(seededDir(), model, { vault: undefined });
@@ -64,9 +67,14 @@ test("with the switch off, an agent asking for a Fathom key gets the plain key r
     assert.equal(card.data.service, undefined, "the plain key request card: the block names no service");
     const open = (await ok(d, "tasks.list", { scope: "all", kinds: ["unblock"], states: ["todo", "doing"] }))
       .tasks as Array<{ title: string }>;
-    assert.ok(open.some((t) => t.title === "Fathom key needed"), JSON.stringify(open.map((t) => t.title)));
+    assert.ok(
+      open.some((t) => t.title === "Fathom key needed"),
+      JSON.stringify(open.map((t) => t.title)),
+    );
     // no connect card: the one block that came is the plain one, and the card's own reads and writes are refused for the person too
-    const ms = (await ok(d, "chat.messages.list", { threadId: thread })).messages as Array<{ blocks: Array<{ type: string }> }>;
+    const ms = (await ok(d, "chat.messages.list", { threadId: thread })).messages as Array<{
+      blocks: Array<{ type: string }>;
+    }>;
     assert.equal(ms.flatMap((m) => m.blocks).filter((b) => b.type === "vault_request").length, 1);
     for (const [cap, input] of [
       ["vault.connect", { service: "Fathom", idempotencyKey: "off-person-connect" }],
@@ -78,7 +86,11 @@ test("with the switch off, an agent asking for a Fathom key gets the plain key r
       assert.notEqual(r.status, 200, cap);
       assert.ok(JSON.stringify(r.data).includes(CONNECT_OFF_MESSAGE), `${cap}: ${JSON.stringify(r.data)}`);
     }
-    await waitFor(async () => (seen.some((s) => s.startsWith("connect:")) ? true : null), 40_000, () => hostLog(d));
+    await waitFor(
+      async () => (seen.some((s) => s.startsWith("connect:")) ? true : null),
+      40_000,
+      () => hostLog(d),
+    );
     assert.deepEqual(seen, ["request:true", "connect:false"]);
   } catch (e) {
     console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1500) : e);

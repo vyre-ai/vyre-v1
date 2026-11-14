@@ -27,7 +27,10 @@ test("off: a fresh Space lists exactly the registry's built-ins, and Fathom is n
   const k = kit();
   const all = await k.hs["connectors.list"](k.ctx, {});
   assert.deepEqual(all.connectors.map((c) => c.key).sort(), registry());
-  assert.equal(all.connectors.some((c) => c.key === "fathom"), false);
+  assert.equal(
+    all.connectors.some((c) => c.key === "fathom"),
+    false,
+  );
   assert.deepEqual((await k.hs["connectors.for_service"](k.ctx, { service: "Fathom" })).found, false);
 });
 

@@ -49,4 +49,5 @@ export const FATHOM = {
 export const CODE_BUILTINS = [FATHOM] as const;
 
 /** The built-ins to seed and to register as resources: Fathom only while the connect card is on (lib/connect-switch.ts). It was tested against a stand-in only, and which services are built in is the owner's decision, so rc.28 seeds none of these. */
-export const activeCodeBuiltins = (): readonly (typeof CODE_BUILTINS)[number][] => (connectCardOn() ? CODE_BUILTINS : []);
+export const activeCodeBuiltins = (): readonly (typeof CODE_BUILTINS)[number][] =>
+  connectCardOn() ? CODE_BUILTINS : [];
