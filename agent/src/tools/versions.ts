@@ -12,7 +12,7 @@ const int = (v: unknown): number | undefined => (typeof v === "number" && Number
 
 /** A thing an agent can change that counts its saves. */
 export interface VersionedKind {
-  kind: "file" | "record" | "task";
+  kind: "file" | "record" | "task" | "page" | "automation";
   /** The words for it in a refusal ("file", "record", "task"). */
   noun: string;
   /** The write tools that take a version, with the input field that carries it. */
@@ -87,6 +87,33 @@ const KINDS: readonly VersionedKind[] = [
       return { version, ...(typeof t?.["updatedAt"] === "number" ? { changedAt: t["updatedAt"] as number } : {}) };
     },
   },
+  {
+    kind: "page",
+    noun: "page",
+    writes: ["memory.page.put"],
+    field: "baseVersion",
+    idOf: (i) => str(i["pageId"]),
+    peek: (id) => ({ cap: "memory.page.get", input: { pageId: id } }),
+    now: (out) => {
+      const p = obj(obj(out)?.["page"]);
+      const version = int(p?.["version"]);
+      if (version === undefined) return null;
+      return { version, ...(typeof p?.["updatedAt"] === "number" ? { changedAt: p["updatedAt"] as number } : {}) };
+    },
+  },
+  {
+    kind: "automation",
+    noun: "automation",
+    writes: ["automations.update"],
+    field: "expectedVersion",
+    idOf: (i) => str(i["automationId"]),
+    peek: (id) => ({ cap: "automations.get", input: { automationId: id } }),
+    now: (out) => {
+      const a = obj(obj(out)?.["automation"]);
+      const version = int(a?.["version"]);
+      return version === undefined ? null : { version };
+    },
+  },
 ];
 
 const BY_WRITE = new Map<string, VersionedKind>(KINDS.flatMap((k) => k.writes.map((w) => [w, k] as const)));
@@ -128,6 +155,18 @@ export function learned(cap: string, input: unknown, out: unknown): Array<{ key:
     const id = str(task["id"]);
     const version = int(task["version"]);
     if (id && version !== undefined) found.push({ key: `task:${id}`, version });
+  }
+  const page = obj(o["page"]);
+  if (page && cap.startsWith("memory.page.")) {
+    const id = str(page["pageId"]);
+    const version = int(page["version"]);
+    if (id && version !== undefined) found.push({ key: `page:${id}`, version });
+  }
+  const automation = obj(o["automation"]);
+  if (automation && cap.startsWith("automations.")) {
+    const id = str(automation["id"]);
+    const version = int(automation["version"]);
+    if (id && version !== undefined) found.push({ key: `automation:${id}`, version });
   }
   return found;
 }

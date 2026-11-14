@@ -20,6 +20,8 @@ function rig() {
   const files = new Map<string, Thing>();
   const records = new Map<string, Thing>();
   const tasks = new Map<string, Thing>();
+  const pages = new Map<string, Thing>();
+  const autos = new Map<string, Thing>();
   const sent: Array<{ cap: string; input: Record<string, unknown> }> = [];
   let clock = 1_000;
   const bump = (m: Map<string, Thing>, id: string): Thing => {
@@ -90,6 +92,26 @@ function rig() {
           );
         return out({ task: { id: i["taskId"], version: bump(tasks, String(i["taskId"])).version } });
       }
+      case "memory.page.get":
+        return out({
+          page: {
+            pageId: i["pageId"],
+            version: pages.get(String(i["pageId"]))!.version,
+            updatedAt: pages.get(String(i["pageId"]))!.changedAt,
+          },
+        });
+      case "memory.page.put": {
+        const p = pages.get(String(i["pageId"]))!;
+        if (i["baseVersion"] !== undefined && i["baseVersion"] !== p.version) conflict(traceId);
+        return out({ page: { pageId: i["pageId"], version: bump(pages, String(i["pageId"])).version } });
+      }
+      case "automations.get":
+        return out({ automation: { id: i["automationId"], version: autos.get(String(i["automationId"]))!.version } });
+      case "automations.update": {
+        const a = autos.get(String(i["automationId"]))!;
+        if (i["expectedVersion"] !== undefined && i["expectedVersion"] !== a.version) conflict(traceId);
+        return out({ automation: { id: i["automationId"], version: bump(autos, String(i["automationId"])).version } });
+      }
       default:
         return out({});
     }
@@ -102,11 +124,18 @@ function rig() {
     canEngineer: () => false,
     traceId: () => "trace_fixed",
   });
-  s.preload("thr_1", ["files_save", "tasks_get", "files_versions", "records_get"]);
+  s.preload("thr_1", [
+    "files_save",
+    "tasks_get",
+    "files_versions",
+    "records_get",
+    "memory_write_page",
+    "automations_update",
+  ]);
   const c = (over: Partial<ToolCtx> = {}): ToolCtx =>
     ctx({ thread: { threadId: "thr_1", kind: "chat", planMode: false }, agentId: "agt_ann", turnId: "trn_1", ...over });
   const lastWrite = (cap: string) => [...sent].reverse().find((x) => x.cap === cap)?.input;
-  return { s, c, files, records, tasks, make, bump, sent, lastWrite, tick: () => ++clock };
+  return { s, c, files, records, tasks, pages, autos, make, bump, sent, lastWrite, tick: () => ++clock };
 }
 const code = (o: { kind: string; result: { content: unknown } }): string | undefined =>
   ((o.result.content as { error?: { supportCode?: string } }).error ?? {}).supportCode;
@@ -240,6 +269,25 @@ test("a record or task never read that changed after the turn began is refused b
   assert.equal(code(loud), "validation.version_conflict");
   assert.match((loud.result.content as { error: { say: string } }).error.say, /changed after you started working/);
   assert.equal(r.sent.filter((x) => x.cap === "tasks.update").length, 0, "nothing was sent to the task");
+});
+
+test("a memory page and an automation carry their version too, read in the turn or not", async () => {
+  const r = rig();
+  r.make(r.pages, "pge_1");
+  r.make(r.autos, "aut_1");
+  r.bump(r.autos, "aut_1");
+  const unread = await r.s.call(r.c(), "memory_write_page", { pageId: "pge_1", notes: "ANN" });
+  assert.equal(unread.kind, "result");
+  assert.equal(r.lastWrite("memory.page.put")?.["baseVersion"], 1);
+  r.bump(r.pages, "pge_1"); // Bob
+  const stale = await r.s.call(r.c(), "memory_write_page", { pageId: "pge_1", notes: "ANN again" });
+  assert.equal(
+    stale.kind,
+    "error",
+    "its own write moved what it saw to 2; Bob made it 3, so the next write is refused",
+  );
+  await r.s.call(r.c(), "automations_update", { automationId: "aut_1", name: "x" });
+  assert.equal(r.lastWrite("automations.update")?.["expectedVersion"], 2);
 });
 
 test("something the agent just created needs no version and none is invented; one it did not make is not touched when the version cannot be looked up", async () => {
