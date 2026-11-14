@@ -3,7 +3,7 @@
 // is told apart from one the caller cannot see by nothing: both answer "none".
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import type { Level } from "../../../kernel/src/authorize/index.ts";
-import { storeOf } from "../projections.ts";
+import { decisionSnapshot, storeOf } from "../projections.ts";
 import type { AccessCtx, ResourceRef } from "../projections.ts";
 import { toReq } from "./check.ts";
 import { personOf } from "./request.ts";
@@ -25,7 +25,7 @@ export async function reachBatch(ctx: AskCtx & AccessCtx, input: { items: Resour
       if (known !== undefined && known.type !== it.type) return { type: it.type, id: it.id, level: "none" as const };
       for (const level of LADDER) {
         const d = authorize(
-          store.snapshot(),
+          decisionSnapshot(store),
           toReq(ctx, {
             principal: { kind: "person", id: me },
             action: { level },

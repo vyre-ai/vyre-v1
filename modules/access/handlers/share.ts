@@ -37,6 +37,7 @@ import {
   pkey,
   raise,
   storeOf,
+  decisionSnapshot,
 } from "../projections.ts";
 import { isHostService, isSystemCall } from "../../../lib/trust.ts";
 
@@ -558,8 +559,8 @@ function checkConditions(ctx: AccessCtx, c: Cond | undefined): Cond {
 const RECORDS = new Set(["record_type", "record"]);
 
 /** May this caller (and the person they act for) export what this resource holds: the role permission, or a grant that carries it. */
-function mayExport(ctx: AccessCtx, store: AccessStore, res: ResourceRec): boolean {
-  const d = authorize(store.snapshot(), {
+export function mayExport(ctx: AccessCtx, store: AccessStore, res: ResourceRec): boolean {
+  const d = authorize(decisionSnapshot(store), {
     principal: ctx.principal.id,
     ...(actingId(ctx) && actingId(ctx) !== ctx.principal.id ? { actingFor: actingId(ctx)! } : {}),
     action: { perm: "records.export", level: "view" },

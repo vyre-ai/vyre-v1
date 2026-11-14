@@ -857,24 +857,6 @@ if ("nextPageToken" in o6226) lf(o6226["nextPageToken"], p + "/nextPageToken", e
 }
 }
 
-function e633_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7497 = v;
-const g7497 = typeOf(x7497);
-const b7497: string[] = []; lf(x7497, p, b7497, L0); if (b7497.length) e.push(...b7497);
-if (g7497 === "object") {
-if (g7497 === 'object') { const o7497 = x7497 as Record<string, unknown>;
-if (!("eventId" in o7497)) e.push(p + "/eventId" + ': required');
-if (!("type" in o7497)) e.push(p + "/type" + ': required');
-if (!("objectId" in o7497)) e.push(p + "/objectId" + ': required');
-if ("eventId" in o7497) lf(o7497["eventId"], p + "/eventId", e, L1);
-if ("type" in o7497) lf(o7497["type"], p + "/type", e, L1);
-if ("objectId" in o7497) lf(o7497["objectId"], p + "/objectId", e, L1);
-}
-}
-}
-}
-
 function e634_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7498 = v;
@@ -883,12 +865,11 @@ const b7498: string[] = []; lf(x7498, p, b7498, L0); if (b7498.length) e.push(..
 if (g7498 === "object") {
 if (g7498 === 'object') { const o7498 = x7498 as Record<string, unknown>;
 if (!("eventId" in o7498)) e.push(p + "/eventId" + ': required');
-if (!("subscriptionId" in o7498)) e.push(p + "/subscriptionId" + ': required');
+if (!("type" in o7498)) e.push(p + "/type" + ': required');
+if (!("objectId" in o7498)) e.push(p + "/objectId" + ': required');
 if ("eventId" in o7498) lf(o7498["eventId"], p + "/eventId", e, L1);
-if ("customerId" in o7498) lf(o7498["customerId"], p + "/customerId", e, L1);
-if ("recordId" in o7498) lf(o7498["recordId"], p + "/recordId", e, L28);
-if ("siteId" in o7498) lf(o7498["siteId"], p + "/siteId", e, L49);
-if ("subscriptionId" in o7498) lf(o7498["subscriptionId"], p + "/subscriptionId", e, L1);
+if ("type" in o7498) lf(o7498["type"], p + "/type", e, L1);
+if ("objectId" in o7498) lf(o7498["objectId"], p + "/objectId", e, L1);
 }
 }
 }
@@ -908,7 +889,6 @@ if ("customerId" in o7499) lf(o7499["customerId"], p + "/customerId", e, L1);
 if ("recordId" in o7499) lf(o7499["recordId"], p + "/recordId", e, L28);
 if ("siteId" in o7499) lf(o7499["siteId"], p + "/siteId", e, L49);
 if ("subscriptionId" in o7499) lf(o7499["subscriptionId"], p + "/subscriptionId", e, L1);
-if ("priceId" in o7499) lf(o7499["priceId"], p + "/priceId", e, L1);
 }
 }
 }
@@ -923,13 +903,33 @@ if (g7500 === "object") {
 if (g7500 === 'object') { const o7500 = x7500 as Record<string, unknown>;
 if (!("eventId" in o7500)) e.push(p + "/eventId" + ': required');
 if (!("subscriptionId" in o7500)) e.push(p + "/subscriptionId" + ': required');
-if (!("status" in o7500)) e.push(p + "/status" + ': required');
 if ("eventId" in o7500) lf(o7500["eventId"], p + "/eventId", e, L1);
 if ("customerId" in o7500) lf(o7500["customerId"], p + "/customerId", e, L1);
 if ("recordId" in o7500) lf(o7500["recordId"], p + "/recordId", e, L28);
 if ("siteId" in o7500) lf(o7500["siteId"], p + "/siteId", e, L49);
 if ("subscriptionId" in o7500) lf(o7500["subscriptionId"], p + "/subscriptionId", e, L1);
-if ("status" in o7500) lf(o7500["status"], p + "/status", e, L1);
+if ("priceId" in o7500) lf(o7500["priceId"], p + "/priceId", e, L1);
+}
+}
+}
+}
+
+function e637_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7501 = v;
+const g7501 = typeOf(x7501);
+const b7501: string[] = []; lf(x7501, p, b7501, L0); if (b7501.length) e.push(...b7501);
+if (g7501 === "object") {
+if (g7501 === 'object') { const o7501 = x7501 as Record<string, unknown>;
+if (!("eventId" in o7501)) e.push(p + "/eventId" + ': required');
+if (!("subscriptionId" in o7501)) e.push(p + "/subscriptionId" + ': required');
+if (!("status" in o7501)) e.push(p + "/status" + ': required');
+if ("eventId" in o7501) lf(o7501["eventId"], p + "/eventId", e, L1);
+if ("customerId" in o7501) lf(o7501["customerId"], p + "/customerId", e, L1);
+if ("recordId" in o7501) lf(o7501["recordId"], p + "/recordId", e, L28);
+if ("siteId" in o7501) lf(o7501["siteId"], p + "/siteId", e, L49);
+if ("subscriptionId" in o7501) lf(o7501["subscriptionId"], p + "/subscriptionId", e, L1);
+if ("status" in o7501) lf(o7501["status"], p + "/status", e, L1);
 }
 }
 }
@@ -965,10 +965,10 @@ export const eventValidators: Record<string, Check> = {
   "payment.failed": d_s_0c4c35954e,
   "payment.succeeded": d_s_0c4c35954e,
   "refund.created": d_s_0c4c35954e,
-  "stripe.event_received": e633_payload,
-  "subscription.canceled": e634_payload,
-  "subscription.created": e635_payload,
-  "subscription.updated": e636_payload,
+  "stripe.event_received": e634_payload,
+  "subscription.canceled": e635_payload,
+  "subscription.created": e636_payload,
+  "subscription.updated": e637_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

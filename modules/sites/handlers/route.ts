@@ -455,7 +455,29 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
   unchangedSince(ctx, site, o);
   const name = optStr(ctx, o, "name");
+  if (
+    o.settings !== null &&
+    typeof o.settings === "object" &&
+    !Array.isArray(o.settings) &&
+    Object.hasOwn(o.settings, "serverFolder")
+  )
+    fail(ctx, "validation.bad_input", "serverFolder is kept by the server and cannot be set.", {
+      field: "settings.serverFolder",
+    });
   const deployed = !isNull(site.source) || (o.source !== undefined && o.source !== null);
+  // who may reach a site is the owner's to say, or whoever manages it (F56 R1, 14 Nov 2026): not a member who may only edit, and not an agent, whose Edit never reaches this (no Gate-held path for an agent exists)
+  if (optStr(ctx, o, "access") !== undefined && o.access !== site.access) {
+    if (
+      ctx.principal.kind !== "person" ||
+      ctx.authorize({ perm: null, level: "manage" }, { type: "site", id: str(site.id) }).effect !== "allow"
+    )
+      fail(
+        ctx,
+        "permission.no_grant",
+        "Only the owner of this site, or someone who manages it, can change who may reach it.",
+        { field: "access" },
+      );
+  }
   const access = accessOf(ctx, optStr(ctx, o, "access"), str(site.access) as Access, deployed);
   // every refusal comes before the first write (ruling 90): the checks, then the source, limits and auto-deploy, then the rest
   const source = o.source !== undefined && o.source !== null ? JSON.stringify(cleanSource(ctx, o.source)) : null;
@@ -490,12 +512,21 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
     ctx.now(),
     site.id,
   );
+  // who may reach a site is a decision the kernel makes too (F48, 14 Nov 2026): the change is an event, so the site's registration follows it
+  if (access !== site.access) ctx.emit("site.access_changed", `site/${site.id}`, { siteId: str(site.id), access });
   return { site: siteOut(ctx, mustSite(ctx, str(site.id))) };
 }
 
 async function sitesDelete(ctx: Ctx, input: unknown): Promise<{ deleted: boolean }> {
   const site = mustSite(ctx, reqStr(ctx, rec(ctx, input), "siteId"));
   const now = ctx.now();
+  // an artifact's pages are files in a folder: deleting the artifact takes the folder, and so every page in it, out of reach and out of search for everyone, the person it was shared with included (F62). It goes to the
+  // owner's Trash like any deleted folder. It is done first, so a failure leaves the artifact as it was rather than half deleted.
+  if (site.kind === "artifact" && !isNull(site.target_folder)) {
+    await ctx.call("files.folder.delete", { folderId: str(site.target_folder) });
+    // and what it was shared with goes too: a file in Trash still reads for whoever reaches it, and its pages are reached through the artifact, so the artifact's shares end with it
+    await ctx.call("access.unshare", { resource: { type: "site", id: str(site.id) } });
+  }
   await routeDomains(ctx, site, false);
   await host?.hostRoute?.(str(site.id), false).catch(() => undefined);
   await stopDeployed(ctx, site, true);
@@ -787,9 +818,12 @@ async function artifactPublish(ctx: Ctx, input: unknown): Promise<Published> {
     row = mustSite(ctx, id);
   }
   let folderId: string | null = folderIn ?? null;
+  // set when the server itself makes the artifact's folder: only such a folder may be moved under the artifact in the access tree (never one a caller named)
+  let madeFolder = false;
   if (html !== undefined || fileId !== undefined || localPath !== undefined) {
     const store = host?.artifacts as NonNullable<NonNullable<typeof host>["artifacts"]>; // a server with none was refused above, before anything was written
-    folderId = isNull(row.target_folder) ? await store.folder(id, title) : str(row.target_folder);
+    madeFolder = isNull(row.target_folder);
+    folderId = madeFolder ? await store.folder(id, title) : str(row.target_folder);
     const put = (name: string, base64: string, mime: string): Promise<void> =>
       store.put(folderId as string, name, base64, mime);
     if (html !== undefined) await put("index.html", Buffer.from(html, "utf8").toString("base64"), "text/html");
@@ -823,6 +857,7 @@ async function artifactPublish(ctx: Ctx, input: unknown): Promise<Published> {
     kept["thumbAt"] = now;
   }
   if (ctx.thread && kept["chatId"] === undefined) kept["chatId"] = ctx.thread;
+  if (madeFolder && folderId !== null) kept["serverFolder"] = folderId;
   ctx.db.run("UPDATE sites_site SET settings = ? WHERE id = ?", JSON.stringify(kept), id);
   touchActivity(ctx.db, id, "site.published", now);
   const fresh = mustSite(ctx, id);
