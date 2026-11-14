@@ -1,7 +1,8 @@
 // Small pieces of the composer (rc.8): the brand mark of a provider, effort bars, the context ring, the working light, the popover frame and its group heads, and the stylesheet
 // the few animations need. Colours are skin tokens, so light and dark (and every skin) repaint with no re-render.
 import { useEscapeLayer } from "../Overlay/escape.ts";
-import { createElement, useEffect, useRef } from "react";
+import { createElement, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { clipBox, popPlacement } from "./pop-room.ts";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
@@ -240,6 +241,8 @@ export function WorkingLight(): ReactElement {
 const POP_SHADOW = { boxShadow: "var(--sh-pop)" } as unknown as ViewStyle;
 
 /** The frame every composer popover sits in: raised, rounded, a soft long shadow, arriving with a short rise. */
+const FLIPPED = { bottom: "auto", top: "100%", marginBottom: 0, marginTop: 8 } as unknown as ViewStyle;
+
 export function Pop({
   children,
   style,
@@ -256,12 +259,43 @@ export function Pop({
   nodeRef?: (n: unknown) => void;
 }): ReactElement {
   ensureComposerCss();
+  // every popover of the composer opens upward; with no room above (a composer high in a short pane) it opens below, or on the larger side with a height limit, so its first rows are never cut off (F32)
+  const mine = useRef<unknown>(null);
+  const [place, setPlace] = useState<{ side: "above" | "below"; maxHeight?: number } | null>(null);
+  useLayoutEffect(() => {
+    const n = mine.current as {
+      scrollHeight?: number;
+      parentElement?: { getBoundingClientRect(): { top: number; bottom: number } };
+    } | null;
+    const anchor = n?.parentElement?.getBoundingClientRect();
+    if (!n || !anchor || n.scrollHeight === undefined) return;
+    const pane = clipBox(n);
+    const next = popPlacement({
+      // the content's own height (layout size, not the animated box, and not the height limit set below), so the answer cannot flip back and forth
+      height: n.scrollHeight,
+      anchorTop: anchor.top,
+      anchorBottom: anchor.bottom,
+      paneTop: pane.top,
+      paneBottom: pane.bottom,
+    });
+    setPlace((cur) => (cur && cur.side === next.side && cur.maxHeight === next.maxHeight ? cur : next));
+  });
+  const below = place?.side === "below";
+  const limited =
+    place?.maxHeight !== undefined
+      ? ({ maxHeight: place.maxHeight, overflow: "scroll" } as unknown as ViewStyle)
+      : null;
   return (
     <View
       testID={testID}
       accessibilityLabel={label}
-      style={[s.pop, POP_SHADOW, style]}
-      {...(nodeRef ? { ref: nodeRef as never } : {})}
+      style={[s.pop, POP_SHADOW, style, below ? FLIPPED : null, limited]}
+      ref={
+        ((n: unknown) => {
+          mine.current = n;
+          nodeRef?.(n);
+        }) as never
+      }
       {...webOnly({
         dataSet: { cmpPop: "1" },
         role: "dialog",

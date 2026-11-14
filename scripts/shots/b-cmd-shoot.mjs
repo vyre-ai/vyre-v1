@@ -108,6 +108,49 @@ for (const skin of ["graphite", "paper"])
       await page.evaluate(() => document.activeElement?.getAttribute?.("data-testid")),
     );
     await shot("3-after-esc");
+    // focus: in the composer while the card is open, and back in it after Esc
+    const focusId = () =>
+      page.evaluate(
+        () =>
+          document.activeElement?.closest?.("[data-testid]")?.getAttribute("data-testid") ??
+          document.activeElement?.getAttribute?.("data-testid") ??
+          "none",
+      );
+    await page.locator("[data-testid=composer-field]").first().click();
+    await run("/usage");
+    await page
+      .waitForSelector("[data-testid=command-card]", { timeout: 8000 })
+      .catch(() => say(tag, "no card for focus walk"));
+    say(tag, "focus with the card open:", await focusId());
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+    say(
+      tag,
+      "focus after Esc closes it:",
+      await focusId(),
+      "card:",
+      await page.locator("[data-testid=command-card]").count(),
+    );
+    // a menu opening above the card closes it: open the composer's own model menu while the card is up
+    await run("/usage");
+    await page
+      .waitForSelector("[data-testid=command-card]", { timeout: 8000 })
+      .catch(() => say(tag, "no card for layer walk"));
+    await page
+      .locator("[data-testid=composer-strip]")
+      .first()
+      .click()
+      .catch(() => undefined);
+    await page.waitForTimeout(400);
+    say(
+      tag,
+      "card after the model menu opened above it:",
+      await page.locator("[data-testid=command-card]").count(),
+      "menu:",
+      await page.locator("[data-testid=composer-panel]").count(),
+    );
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
     // press outside closes it; a press in the composer does not
     await run("/usage");
     await page
