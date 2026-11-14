@@ -1148,6 +1148,7 @@ export default defineManifest({
         in: { ...threadT, messageId: id.message, agentId: id.agent },
         out: { messageId: id.message },
         on: ["thread", "/threadId"],
+        emits: ["message.edited"],
         level: "use",
         idem: "key",
 

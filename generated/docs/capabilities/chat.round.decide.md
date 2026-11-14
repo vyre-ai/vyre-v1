@@ -19,7 +19,7 @@ Go with one agent's answer after a message asked several: one quiet line, "Decid
 | HTTP | POST /v1/chat/round/decide |
 | MCP tool | none |
 | CLI | none |
-| Emits | none |
+| Emits | message.edited |
 
 ## Input
 

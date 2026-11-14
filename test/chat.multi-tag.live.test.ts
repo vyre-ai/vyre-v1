@@ -133,9 +133,9 @@ test("let them discuss: the thread under the ask gets the seed, the first agent 
         body: string;
         kind?: string;
       }[];
-      return msgs.find((m) => /^Decided: /.test(m.body)) ?? null;
+      return msgs.find((m) => /^Agents decided: /.test(m.body)) ?? null;
     }, 20_000);
-    assert.equal(line.body, "Decided: the server disk.");
+    assert.equal(line.body, "Agents decided: the server disk.");
   } finally {
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });

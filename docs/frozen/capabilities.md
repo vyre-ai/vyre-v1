@@ -221,7 +221,7 @@ Signed: pending the lead (lane b-pc did not sign it).
 - Signed: ______ (lead)
 ## 14 Nov 2026: engine.round.get added (lane chat-agents)
 
-- What changed: one new read, `engine.round.get@1` (input: threadId, up to 50 messageIds; output: per message, each agent asked with its state working, waiting (with the agent in front), replied or stopped). Read from the engine's queue, never stored. Thread scope like `engine.live_turns`: only people who may read the chat reach it. Snapshot: docs/frozen/snapshots/engine.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
+- What changed: one new read, `engine.round.get@1` (input: threadId, up to 50 messageIds; output: per message, each agent asked with its state working, waiting behind an earlier turn of its own, replied or stopped). Read from the engine's queue, never stored. Thread scope like `engine.live_turns`: only people who may read the chat reach it. Snapshot: docs/frozen/snapshots/engine.json, regenerated with `node tools/gen/src/cli.ts --snapshots`.
 - Why: the row under a message that asked more than one agent (who is working, who waits on whom) needs one read that survives a restart; the prototype's round row and the Threads tab (G56, G61) draw from it.
 
 ## 14 Nov 2026: chat.round.decide added (lane chat-agents)
@@ -237,3 +237,7 @@ Signed: pending the lead (lane b-pc did not sign it).
 ## 14 Nov 2026: round writes are a person's press only, engine.round.get drops `on` and hides private Assistants (lane chat-agents, review of 1fb7e786a)
 
 - What changed: `chat.round.decide` and `chat.round.discuss` are no longer agent tools (no `tool`), and their handlers refuse any caller that is not a person (`permission.role_lacks_permission`). `engine.round.get` loses the output field `on` (never set since one turn per agent) and leaves out a person's private Assistant, an outside agent they connected, and any agent that cannot be read, for every reader but its owner. Behaviour without a contract change: one Decided line per round (the same choice again is the same line, the other agent replaces it, a round the asker has since written past is refused); one discussion per message (a second press opens the thread and starts no turns). Snapshots: docs/frozen/snapshots/chat.json and engine.json.
+
+## 14 Nov 2026: the outcome line says whose words it is (lane chat-agents, review)
+
+- `chat.round.decide` now also declares `emits: ["message.edited"]` (it edits its one line when the other agent is chosen, and an open chat must see that). No input or output changed. The discussion outcome, edited in place by the consumer `chat.discussion_outcome`, reads "Agents decided: ..." when an agent wrote the Decided line (lead "Agents decided"), "Discussion ended" with "They did not settle it" or the four-turn words otherwise; "Decided" is only a person's own press. Both edits bump the row's version and emit `message.edited`.
