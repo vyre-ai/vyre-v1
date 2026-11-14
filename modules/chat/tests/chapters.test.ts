@@ -64,8 +64,8 @@ test("a chapter's heading is the first request, its line is the last answer; a s
 });
 
 async function longChat(hn: ReturnType<typeof harness>, count: number, gapAt: number) {
-  const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() })).thread
-    .threadId as string;
+  const t = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() }))
+    .thread.threadId as string;
   for (let i = 1; i <= count; i++) {
     hn.advance(i === gapAt ? 4 * HOUR : 60_000);
     await h["chat.post"]!(hn.ctx, { threadId: t, body: `Plan item ${i} for the portal`, idempotencyKey: key() });
