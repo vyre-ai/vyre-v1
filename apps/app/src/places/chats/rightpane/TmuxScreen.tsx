@@ -337,6 +337,21 @@ export function TmuxScreen({
     const e = el.current;
     if (e && stuck.current) e.scrollTop = e.scrollHeight;
   }, [shot]);
+  // kept keys older than 5 seconds belong to a take that failed: they are dropped, never sent later
+  const early = useRef<Array<{ k: KeyPress; at: number }>>([]);
+  /** Keys kept while the take was in flight go first, in the order they were pressed, before anything pressed since; older than 5 seconds they belong to a take that failed and are dropped. */
+  const drainEarly = (): void => {
+    const now = Date.now();
+    const kept = early.current;
+    early.current = [];
+    for (const e of kept) if (now - e.at < 5000) batcher.current?.push(e.k);
+  };
+  useEffect(() => {
+    if (keys) drainEarly();
+    else early.current = [];
+    // drainEarly reads only refs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keys]);
   if (Platform.OS !== "web") return null;
   const lines = (shot?.text ?? "").split("\n");
   const cur = shot?.cursor ?? null;
@@ -367,21 +382,6 @@ export function TmuxScreen({
       ),
     );
   });
-  // kept keys older than 5 seconds belong to a take that failed: they are dropped, never sent later
-  const early = useRef<Array<{ k: KeyPress; at: number }>>([]);
-  /** Keys kept while the take was in flight go first, in the order they were pressed, before anything pressed since; older than 5 seconds they belong to a take that failed and are dropped. */
-  const drainEarly = (): void => {
-    const now = Date.now();
-    const kept = early.current;
-    early.current = [];
-    for (const e of kept) if (now - e.at < 5000) batcher.current?.push(e.k);
-  };
-  useEffect(() => {
-    if (keys) drainEarly();
-    else early.current = [];
-    // drainEarly reads only refs
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [keys]);
   const press = (k: KeyPress): void => {
     if (keys) {
       drainEarly();

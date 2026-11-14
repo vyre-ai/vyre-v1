@@ -36,10 +36,14 @@ const OURS = [
   "computers.skill_from_step",
 ];
 
-test("the handler table holds the lifecycle capabilities, the 35 tools and the seven of the Space browser (list, live view, take over, give back, timeline, sites, sign out): all 67 computers capabilities, nothing else", () => {
+test("the handler table holds the lifecycle capabilities, the 35 tools and the eight of the Space browser (list, live view, a still picture, take over, give back, timeline, sites, sign out): all 67 computers capabilities, nothing else", () => {
   assert.equal(mine.length, 67);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const name of OURS) assert.ok(h[name], name);
+  // the eighth of the Space browser: the still picture is a read that never writes and never wakes the browser (its handler answers "asleep" for a sleeping one), at the watch permission
+  const still = mine.find((c) => c.name === "computers.browser.preview");
+  assert.ok(still, "computers.browser.preview is a computers capability");
+  assert.deepEqual([still.effects, still.permission], ["read", "computers.watch"]);
 });
 
 test("each example input is a valid input", () => {
