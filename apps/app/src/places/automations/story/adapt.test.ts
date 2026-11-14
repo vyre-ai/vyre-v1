@@ -247,3 +247,33 @@ test("no step shows its title twice: the second line is absent or different from
     assert.notEqual(row.action, row.sentence.text, `${st.id}: two equal lines`);
   }
 });
+
+test("a step nothing leads to is still shown, after the rest", () => {
+  const d: DefIn = {
+    triggers: [{ key: "form_submit" }],
+    start: ["a"],
+    nodes: [
+      { id: "a", key: "send_email", title: "First", input: {} },
+      { id: "orphan", key: "send_email", title: "Left over", input: {} },
+    ],
+  };
+  assert.deepEqual(
+    fromDefinition(d, ctx()).steps.map((s) => s.id),
+    ["a", "orphan"],
+  );
+});
+
+test("a step kind this version does not know is its own row, with the kind named, and its settings are not read", () => {
+  const d: DefIn = {
+    triggers: [{ key: "form_submit" }],
+    nodes: [{ id: "f", key: "zzz.future_step", title: "Do the thing", input: { secret: "x" } }],
+  };
+  const r = fromDefinition(d, ctx({ isKnown: (k) => k !== "zzz.future_step" }));
+  assert.equal(r.steps[0]!.template, "A step this version can't edit (zzz.future_step)");
+  assert.deepEqual(r.steps[0]!.values, {});
+  assert.equal(
+    fromDefinition(d, ctx()).steps[0]!.template,
+    "Do the thing",
+    "while the catalogue loads nothing is marked",
+  );
+});

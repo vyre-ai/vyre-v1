@@ -32,3 +32,4 @@
 - fix: a person who may not edit sees no Turn on or off, no Run now, no + and no Add a step, no step form, and one line saying why.
 - feat: a trigger can be added by hand: an empty Automation shows one row, Choose what starts this, and Or adds another from the list of what this person can use; a trigger can be removed from its form.
 - feat: doors back after the switch-in: Apply for runs pinned to an older version in History; Make a copy to share and Import a copy in the ... menu and Settings (the Packages panel); This Automation uses in Settings (Dependencies).
+- feat: the head says the version, the failed run count (Runs, 1 failed) and what the Automation sends from; a step nothing leads to is shown after the rest; a step kind this version does not know is its own row, kind named, settings untouched.

@@ -11,10 +11,11 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 import { loadProductCatalog, unlistedAppLine } from "../catalog/model.ts";
 import type { CatalogStep, CatalogTrigger } from "../catalog/model.ts";
-import { CANVAS, CONFIG, useAutomationsData, useScreenOrRead, useScreenQuery } from "../canvas/data.tsx";
+import { CANVAS, CONFIG, SIDEBAR, useAutomationsData, useScreenOrRead, useScreenQuery } from "../canvas/data.tsx";
 import { Inspector } from "../canvas/Inspector.tsx";
 import {
   addAfter,
+  kindOfKey,
   addTrigger,
   removeTrigger,
   check,
@@ -44,6 +45,8 @@ import { look } from "./look.ts";
 import { Packages } from "../operations/PackagesView.tsx";
 import { Dependencies } from "../operations/DependenciesView.tsx";
 import { CohortMigration } from "../versions/CohortMigration.tsx";
+import { sendsFromLine } from "../canvas/senders.ts";
+import type { SenderLine } from "../canvas/senders.ts";
 import { pausedWhy } from "../first/from-list.ts";
 import { Page } from "./Page.tsx";
 import { StoryActions, StoryView } from "./StoryView.tsx";
@@ -146,6 +149,21 @@ function Body({
   const [connectOpen, setConnectOpen] = useState(false);
   const [promoteOpen, setPromoteOpen] = useState(initialPromote);
   const [packagesOpen, setPackagesOpen] = useState(false);
+  // what this Automation sends from, and how many of its runs failed: both were on the old page's head
+  const [senders, setSenders] = useState<readonly SenderLine[]>([]);
+  useEffect(() => {
+    let live = true;
+    void data.call("automations.senders", { automationId: a.id }).then(
+      (o) => live && setSenders((o as { senders?: SenderLine[] })?.senders ?? []),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [data, a.id, a.version, a.status]);
+  const sendsFrom = sendsFromLine(senders);
+  const list = useScreenQuery<{ automations: readonly { id: string; failedRuns?: number }[] }>(SIDEBAR, "automations", {});
+  const failedRuns = list.status === "ready" ? (list.data.automations.find((x) => x.id === a.id)?.failedRuns ?? 0) : 0;
   const [serverIssues, setServerIssues] = useState<Issue[]>([]);
   const [catalog, setCatalog] = useState<{
     steps: CatalogStep[];
@@ -275,6 +293,7 @@ function Body({
         nameOfNode: (id) =>
           id === "trigger" ? "the start" : (full[def.nodes.find((n) => n.id === id)?.key ?? ""]?.title ?? id),
         canUse: (app) => usable.has(app) || !isGatedApp(app),
+        ...(catalog?.checked ? { isKnown: (key: string) => full[key] !== undefined || kindOfKey(key) !== "plain" } : {}),
         noAccess: (name) => ({ line: `You cannot use ${name}.`, button: "Ask an admin" }),
         needsOf: (id) =>
           needsFromIssues(
@@ -551,14 +570,14 @@ function Body({
 
   const tabs = [
     { id: "steps", label: "Steps" },
-    { id: "runs", label: "Runs" },
+    { id: "runs", label: failedRuns > 0 ? `Runs, ${failedRuns} failed` : "Runs" },
     { id: "settings", label: "Settings" },
     ...(tab === "history" ? [{ id: "history", label: "History" }] : []),
   ];
   return (
     <Page
       title={a.name}
-      subtitle={a.status === "paused" && pausedWhy(a) ? `Paused. ${pausedWhy(a)}` : model.head.state}
+      subtitle={`${a.status === "paused" && pausedWhy(a) ? `Paused. ${pausedWhy(a)}` : model.head.state} · Version ${a.version}`}
       tabs={tabs}
       tab={tab}
       onTab={(t) => setTab(t as Tab)}
@@ -586,6 +605,11 @@ function Body({
             </View>
           )}
         </View>
+      ) : null}
+      {sendsFrom ? (
+        <Text style={[look.quiet, s.note, !sendsFrom.ok && look.warn]} testID="sends-from">
+          {sendsFrom.text}
+        </Text>
       ) : null}
       {locked ? (
         <Text style={[look.quiet, s.note]} testID="read-only-note">

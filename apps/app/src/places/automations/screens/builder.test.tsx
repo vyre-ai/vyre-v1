@@ -78,7 +78,15 @@ test("the step form is one frame: its fields, Test this step, a closed Details; 
   ).replaceAll("<!-- -->", "");
   const form = out.slice(out.indexOf('data-testid="inspector"'));
   assert.ok(form.includes("Test this step") && form.includes('data-testid="step-details"'));
-  for (const gone of ["Configure", "Number Id", "{{lead.phone}}", "Unicode segment", "fixture data", "action messages.create", "num_main"])
+  for (const gone of [
+    "Configure",
+    "Number Id",
+    "{{lead.phone}}",
+    "Unicode segment",
+    "fixture data",
+    "action messages.create",
+    "num_main",
+  ])
     assert.ok(!form.includes(gone), `not on the form: ${gone}`);
   assert.ok(form.includes("Lead · Phone") || form.includes("Lead · Phone"), "the recipient is a named chip");
 });
@@ -91,8 +99,46 @@ test("the doors the old canvas had still open: History carries the run migration
       </AutomationsDataProvider>,
     ).replaceAll("<!-- -->", "");
   const history = draw("history");
-  assert.ok(history.includes("Loading pinned runs") || history.includes("pinned"), "runs pinned to a version can be moved");
+  assert.ok(
+    history.includes("Loading pinned runs") || history.includes("pinned"),
+    "runs pinned to a version can be moved",
+  );
   const settings = draw("settings");
   assert.ok(settings.includes("This Automation uses"), "dependencies are in Settings");
   assert.ok(settings.includes('data-testid="settings-copies"'), "copy and import are in Settings");
+});
+
+test("the head still says the version, the failed count and what the Automation sends from; a step nothing leads to is still a row", async () => {
+  const { createRoot } = await import("test-renderer");
+  const { flush, installDom, mount, textOf } = await import("../../../../../../ui/src/testing/dom.ts");
+  installDom();
+  const s = createSampleAutomations(northwind);
+  const row = s.replica.rows("automations").find((r) => r["id"] === "aut_digest")!;
+  const def = row["definition"] as { triggers: unknown[]; nodes: unknown[] };
+  s.replica.put("automations", [
+    { ...row, definition: { ...def, nodes: [...def.nodes, { id: "zz", key: "zzz.future_step", input: { x: 1 } }] } },
+  ]);
+  const root = await mount(
+    createRoot,
+    <AutomationsDataProvider value={s.data}>
+      <BuilderPage automationId="aut_digest" />
+    </AutomationsDataProvider>,
+  );
+  for (let i = 0; i < 4; i++) {
+    await new Promise((r) => setTimeout(r, 150));
+    await flush();
+  }
+  const text = textOf(root);
+  assert.ok(/Version \d+/.test(text), "the version");
+  assert.ok(text.includes("Sends from"), "what it sends from");
+  assert.ok(text.includes("Future step"), "an unlisted step is still a row on the page");
+  const failing = s.replica.rows("automations").find((r) => Number(r["failedRuns"]) > 0)!;
+  const root2 = await mount(
+    createRoot,
+    <AutomationsDataProvider value={s.data}>
+      <BuilderPage automationId={String(failing["id"])} />
+    </AutomationsDataProvider>,
+  );
+  for (let i = 0; i < 4; i++) await flush();
+  assert.ok(/Runs, \d+ failed/.test(textOf(root2)), "the failed count");
 });

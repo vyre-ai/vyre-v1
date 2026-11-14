@@ -31,6 +31,8 @@ export interface AdaptCtx {
   noAccess?(appName: string): { line: string; button: string };
   /** The server's missing-thing words for a step, most important first. */
   needsOf(nodeId: string): Need[];
+  /** False for a step kind this version does not know (read once the full catalogue is in). Omitted while the catalogue loads. */
+  isKnown?(key: string): boolean;
   writes?(key: string): boolean;
 }
 
@@ -160,7 +162,13 @@ export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn 
     const known = ctx.catalog[n.key];
     const title = n.title?.trim() || known?.title || human(n.key);
     // a step someone titled reads as that title: the title is already the sentence. An untitled one is its catalogue name and its first values
-    const s = n.title?.trim() ? { template: title, values: {} } : sentenceOf(title, n.input, ctx);
+    // a kind this version does not know is shown as its own row, named, and is left exactly as saved
+    const foreign = ctx.isKnown ? !ctx.isKnown(n.key) : false;
+    const s = foreign
+      ? { template: `A step this version can't edit (${n.key})`, values: {} }
+      : n.title?.trim()
+        ? { template: title, values: {} }
+        : sentenceOf(title, n.input, ctx);
     // the mark a step wears: an app's own for its own steps (the Drive mark for a Drive step), a Vyre glyph for Vyre's
     const own = appMarkOfStep({ key: n.key, title: "" });
     const connector =
@@ -214,5 +222,8 @@ export function fromDefinition(def: DefIn, ctx: AdaptCtx): { trigger: TriggerIn 
     return out;
   };
   const roots = def.start && def.start.length > 0 ? def.start : def.nodes[0] ? [def.nodes[0].id] : [];
-  return { trigger, steps: roots.flatMap((r) => chain(r, null)) };
+  const steps = roots.flatMap((r) => chain(r, null));
+  // a step nothing leads to is still the person's: it is shown after the rest, never hidden
+  for (const n of def.nodes) if (!seen.has(n.id)) steps.push(...chain(n.id, null));
+  return { trigger, steps };
 }
