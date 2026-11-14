@@ -133,5 +133,8 @@ test("check_key: a connector built in one call has no health action, so its firs
   assert.equal(k.sent[0]!.url, "https://api.fathom.test/v1/meetings", "the call that needs no input");
   const none: ConnectorDef = { ...built, key: "blind", actions: [built.actions[0]!] };
   k.install(none);
-  assert.equal((await k.hs["connectors.check_key"](k.ctx, { connector: "blind", secrets: { api_key: SECRET } })).result, "ok");
+  assert.equal(
+    (await k.hs["connectors.check_key"](k.ctx, { connector: "blind", secrets: { api_key: SECRET } })).result,
+    "ok",
+  );
 });

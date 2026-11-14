@@ -214,7 +214,8 @@ test("an admin the Space cannot name is never shown as an id: the card says an a
   const restore = installDom();
   try {
     const h = harness({
-      "vault.connect_card.get": () => card("admin", { mayFill: false, admin: { id: "usr_0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d" } }),
+      "vault.connect_card.get": () =>
+        card("admin", { mayFill: false, admin: { id: "usr_0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d" } }),
     });
     const data = { ...h.data, nameOf: (id: string) => id } as never;
     const root = await mount(createRoot, <ConnectCardLive requestId="vrq_1" agent="Dex" data={data} />);
