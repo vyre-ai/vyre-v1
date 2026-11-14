@@ -34,7 +34,7 @@ test("the server's own work around a guest and a channel (join steps, bridge, co
         .status,
       200,
     );
-    const reply = (await g.call("chat.thread", { threadId: thread, messageId: w.first.pub })).data.thread
+    const reply = (await g.call("chat.thread", { threadId: thread, messageId: g.fresh })).data.thread
       .threadId as string;
     assert.equal((await g.call("chat.post", { threadId: reply, body: "in the thread" })).status, 200);
     // the owner asks the agent in the same channel: the bridge reads the channel, the thread under the message, the people

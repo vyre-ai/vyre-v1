@@ -71,8 +71,11 @@ export async function world() {
       async () => ((await api(d, g.token, "channels.get", { channelId: c.channelId })).status === 200 ? true : null),
       20_000,
     );
+    // a line the owner says once the guest is in: the guest reads from the moment they accepted, so this is a message they may open a thread under (w.first is from before they came, and is theirs to read no more)
+    const fresh = await say(c, "You are in.");
     return {
       ...g,
+      fresh,
       personId: g.personId,
       call: (cap: string, input: Record<string, unknown> = {}) =>
         api(d, g.token, cap, { idempotencyKey: `g-${Math.random()}`, ...input }),
