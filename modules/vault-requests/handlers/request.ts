@@ -8,7 +8,7 @@
 // for them reach it (no Use is shared). The owners and admins it went to may still add it for the team. A request that names a Shared or team folder, a company key, or a key an outside agent
 // asked for by name only goes to the owners and admins alone.
 import { agentStanding } from "../../../lib/agent-asker.ts";
-import { COMPANY_FOLDER, isCompanyKey, isServerOnlyFolder } from "../../../lib/company-keys.ts";
+import { COMPANY_FOLDER, isCompanyKey } from "../../../lib/company-keys.ts";
 import { THROUGH_AGENT, THROUGH_ANYONE } from "../../../lib/through-agent.ts";
 import { TABLE, asRow, idsOf, nid, page, raise, requestById, requestOut, strOf } from "../projections.ts";
 import type { Ref, RequestRow, State, VaultReqCtx } from "../projections.ts";
@@ -353,7 +353,9 @@ export async function requestsList(
 }
 
 export async function requestsGet(ctx: VaultReqCtx, input: { requestId: string }) {
-  return { request: requestOut(visible(ctx, input.requestId).row) };
+  const { row } = visible(ctx, input.requestId);
+  // askedYou: the caller is the person the agent asked and may add the key into their own keys, so the card can tell them from a manager answering someone else's ask
+  return { request: { ...requestOut(row), ...(askerDecides(row, personOf(ctx)) ? { askedYou: true } : {}) } };
 }
 
 /** A card that cannot close is logged; the decision stands. */
@@ -395,18 +397,63 @@ export function decidable(
   return { row, me, own, askedForMe };
 }
 
-/** Is this one of the shared folders kept for the server alone (lib/company-keys.ts)? They are Restricted, above every agent's clearance. A list that cannot be read answers no. */
-async function serverOnlyFolder(ctx: VaultReqCtx, folderId: string): Promise<boolean> {
+/**
+ * Can whoever asked use a key kept at this folder or item? The real rule, asked of the access module: the effective label (the thing's own and every folder above it) against the requester's
+ * clearance. A thing labelled above it is refused to the requester whatever it is shared at, so a key stored there can never be used (the server's own folders are Restricted for that reason).
+ * It fails OPEN when the answer cannot be read: access is still enforced by vault.item.put and vault.share, which refuse on their own, and failing closed would stop a legitimate save for a read error.
+ */
+async function requesterClears(ctx: VaultReqCtx, row: RequestRow, resource: { type: string; id: string }) {
+  try {
+    const got = asRow(
+      await ctx.call("access.clears", {
+        principal: { kind: row.requester_kind, id: row.requester_id },
+        target: resource,
+      }),
+    );
+    return got?.["clears"] !== false;
+  } catch {
+    return true;
+  }
+}
+
+/** Is this folder one of the caller's own Mine folders? A list that cannot be read answers no. */
+async function isMineFolder(ctx: VaultReqCtx, folderId: string): Promise<boolean> {
   try {
     const folders =
-      (asRow(await ctx.call("vault.folders.list", { scope: "shared" }))?.["folders"] as
-        | { id?: string; name?: string }[]
-        | undefined) ?? [];
-    return folders.some((f) => f.id === folderId && isServerOnlyFolder(String(f.name ?? "")));
+      (asRow(await ctx.call("vault.folders.list", { scope: "mine" }))?.["folders"] as { id?: string }[] | undefined) ??
+      [];
+    return folders.some((f) => f.id === folderId);
   } catch {
     return false;
   }
 }
+
+/**
+ * Is this a shared root folder a service made (the host keeps "Sealed fields" this way: owner svc_host)? The folder row records who made it, so that is the marker, not the name. Such a folder is the
+ * server's, even when it is not labelled Restricted (it must not be, or the people who reveal sealed fields could not), so no key for an agent is kept there. A list that cannot be read answers no.
+ */
+async function serviceMadeFolder(ctx: VaultReqCtx, folderId: string): Promise<boolean> {
+  try {
+    const folders =
+      (asRow(await ctx.call("vault.folders.list", { scope: "shared" }))?.["folders"] as
+        | { id?: string; owner?: string; parentId?: string }[]
+        | undefined) ?? [];
+    return folders.some((f) => f.id === folderId && !f.parentId && String(f.owner ?? "").startsWith("svc_"));
+  } catch {
+    return false;
+  }
+}
+
+const RESTRICTED_FOLDER_WORDS =
+  "That folder is restricted, so the agent that asked cannot use a key kept there. Choose another folder, or keep the key in your own keys.";
+const RESTRICTED_ITEM_WORDS =
+  "The agent that asked cannot use that key where it is kept, because the folder is restricted. Move it to your own keys, or choose another key.";
+const SERVER_FOLDER_WORDS =
+  "That folder is kept by Vyre for its own use, so the agent that asked cannot use a key kept there. Choose another folder, or keep the key in your own keys.";
+const SOMEONE_ELSES_MINE_WORDS =
+  "That is your own keys, and the agent that asked works for someone else, so it cannot use a key kept there. Choose a shared folder agents can use, or let the person who asked add it.";
+const ANYONE_NEEDS_SHARED_WORDS =
+  "A key for anyone who asks this agent has to be kept in a shared folder, and this one is in your own keys. Choose a shared folder, or pick Only the person who asked.";
 
 /** The person's own Mine folder for a key they add for themselves: the one they named when it is theirs, else their first, else a new one. */
 export async function ownMine(
@@ -486,6 +533,8 @@ export async function storeKey(
   if (!input.itemId === !hasFields)
     raise(trace, "validation.bad_input", "Attach an item, or give the fields for a new one, not both and not neither.");
   const wanted = idsOf(row.fields_json);
+  // a company key is kept from every agent on purpose, and a name-only ask gets no Use: neither is a key the requester is to use
+  const forAgent = row.handle_only !== 1 && !isCompanyKey(`#${row.name}`);
   let itemId = input.itemId;
   // the item's handle: the agent is told it, because a name another item already holds gets a numbered handle (#Fathom_2), and the name alone would find that other item
   let handle: string | undefined;
@@ -500,6 +549,14 @@ export async function storeKey(
       raise(trace, "validation.precondition_failed", `That item has no ${missing.join(", ")} field.`);
     const it = asRow(got?.["item"]);
     handle = strOf(it?.["handle"]);
+    if (forAgent) {
+      if (!(await requesterClears(ctx, row, { type: "vault_item", id: itemId })))
+        raise(trace, "validation.precondition_failed", RESTRICTED_ITEM_WORDS);
+      if (!own && input.audience === "anyone" && it?.["scope"] === "mine")
+        raise(trace, "validation.precondition_failed", ANYONE_NEEDS_SHARED_WORDS);
+      if (!own && !decided.askedForMe && it?.["scope"] === "mine")
+        raise(trace, "validation.precondition_failed", SOMEONE_ELSES_MINE_WORDS);
+    }
     if (own && (it?.["scope"] !== "mine" || it?.["owner"] !== me))
       raise(
         trace,
@@ -515,18 +572,18 @@ export async function storeKey(
       ? await ownMine(ctx, row, input.folderId)
       : (input.folderId ?? row.folder_id ?? (isCompanyKey(`#${row.name}`) ? await companyFolder(ctx) : undefined));
     if (!folderId) raise(trace, "validation.precondition_failed", "Choose the folder the new item goes in.");
-    // a key an agent is to use never goes into a folder kept for the server alone: nothing there is usable by an agent, shared or not
-    if (
-      !own &&
-      row.requester_kind === "agent" &&
-      !isCompanyKey(`#${row.name}`) &&
-      (await serverOnlyFolder(ctx, folderId))
-    )
-      raise(
-        trace,
-        "validation.precondition_failed",
-        "That folder holds keys only the server uses, so no agent can use a key kept there. Choose another folder.",
-      );
+    // a key someone is to use is only stored where they can use it: refused before anything is stored, whoever asked and whoever is answering
+    if (forAgent) {
+      if (!(await requesterClears(ctx, row, { type: "vault_folder", id: folderId })))
+        raise(trace, "validation.precondition_failed", RESTRICTED_FOLDER_WORDS);
+      if (await serviceMadeFolder(ctx, folderId)) raise(trace, "validation.precondition_failed", SERVER_FOLDER_WORDS);
+      if (!own && (await isMineFolder(ctx, folderId)))
+        raise(
+          trace,
+          "validation.precondition_failed",
+          input.audience === "anyone" || decided.askedForMe ? ANYONE_NEEDS_SHARED_WORDS : SOMEONE_ELSES_MINE_WORDS,
+        );
+    }
     const made = asRow(
       await ctx.call("vault.item.put", {
         folderId,
@@ -563,6 +620,8 @@ export async function storeKey(
     } catch (e) {
       // a Mine item is private to its owner: an agent acting for that person already works as them, so there is nothing to share. Any other refusal stands.
       if (!/private/i.test(e instanceof Error ? e.message : "")) throw e;
+      // for anyone who asks, "private" is a failure to do what was chosen, never a success
+      if (input.audience === "anyone") raise(trace, "validation.precondition_failed", ANYONE_NEEDS_SHARED_WORDS);
       shared = false;
     }
     // who may use it through the agent: the person who asked (default), or anyone who asks this agent

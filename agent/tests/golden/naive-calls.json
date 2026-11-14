@@ -36,6 +36,16 @@
       "id": "Quarterly planning"
     }
   },
+  "access_clears": {
+    "principal": {
+      "kind": "person",
+      "id": "Quarterly planning"
+    },
+    "target": {
+      "type": "space",
+      "id": "Quarterly planning"
+    }
+  },
   "access_deciders": {
     "resource": {
       "type": "space",

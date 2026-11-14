@@ -189,6 +189,7 @@ import { loopLag } from "../scheduler/looplag.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
 import { createGateHook, moduleFetches, moduleOutward, moduleWhens, ownAddress, payloadHash } from "./gate-hook.ts";
+import { SIGN_IN_FOLDER } from "../../../lib/company-keys.ts";
 import { bindPayloadHash } from "../../../lib/payload-hasher.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { FILL_PATH, createComputersFillHost, createFillRoute } from "../seams/computers.ts";
@@ -3705,7 +3706,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               return r.output;
             };
             const NAME = "GitHub sign-in client secret",
-              FOLDER = "Sign-in",
+              FOLDER = SIGN_IN_FOLDER,
               field = { key: "client_secret", value: secret, secret: true };
             // Owner and Admin only: a Member's role carries Edit over the whole Space, so the folder and the item are labelled Restricted (above a Member's, a Developer's and every agent's clearance) before and after the value goes in
             const restrict = (type: "vault_folder" | "vault_item", id: string): Promise<unknown> =>

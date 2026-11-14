@@ -183,7 +183,7 @@ test("a key the person already saved is offered back, and Use it connects withou
 });
 
 test("a person who may not connect services is sent to an admin by name; the ask finishes when the admin connects", async () => {
-  const w = room();
+  const w = room({ unusable: ["vfd_fin"] });
   const { requestId, status, tell } = await ask(w, "HubSpot");
   assert.equal(status, "waiting_admin");
   assert.equal(BANNED.test(tell), false, tell);
@@ -205,6 +205,11 @@ test("a person who may not connect services is sent to an admin by name; the ask
   // the admin sees the form and connects it for the Space
   const theirs = await card(w, requestId!, "usr_admin");
   assert.deepEqual([theirs.state, theirs.mayFill], ["ask", true]);
+  assert.equal(
+    theirs.keptIn,
+    "Marketing",
+    "an admin connecting it for the Space keeps it in a folder agents can use, said on the card",
+  );
   const out = await submit(w, requestId!, [{ key: "token", value: KEY }], "usr_admin");
   assert.equal(out.result, "connected");
   assert.equal(w.called("connections.create")[0]!.input["ownerKind"], "space");
@@ -238,7 +243,7 @@ test("Disconnect removes the connection, keeps the key and folds the card to Not
 });
 
 test("Kept in: Mine first, the folders an agent can use next, the others listed but not usable", async () => {
-  const w = room({ clears: { vfd_team: true, vfd_fin: false } });
+  const w = room({ unusable: ["vfd_fin"] });
   const { requestId } = await ask(w);
   const { folders } = await handlers["vault.connect_card.options"](person(w), { requestId } as never);
   assert.deepEqual(
@@ -249,7 +254,14 @@ test("Kept in: Mine first, the folders an agent can use next, the others listed 
       ["Finance", false],
     ],
   );
-  const s = room({ folders: [MINE, { id: "vfd_co", name: "Company connections", scope: "shared" }] });
+  assert.equal(
+    (await handlers["vault.connect_card.options"](person(w), { requestId } as never)).default,
+    "vfd_mine",
+    "the person it was asked for keeps it in Mine unless they choose",
+  );
+  const s = room({
+    folders: [MINE, { id: "vfd_co", name: "Company connections", scope: "shared", owner: "svc_host" }],
+  });
   const r2 = await ask(s);
   assert.deepEqual(
     (await handlers["vault.connect_card.options"](person(s), { requestId: r2.requestId } as never)).folders.map(
@@ -261,7 +273,7 @@ test("Kept in: Mine first, the folders an agent can use next, the others listed 
 });
 
 test("a key kept in a team folder reaches the agent as the asker's own unless the person says anyone", async () => {
-  const w = room({ clears: { vfd_team: true } });
+  const w = room({ unusable: ["vfd_fin"] });
   const { requestId } = await ask(w);
   await submit(w, requestId!, undefined, "usr_asker", { folderId: "vfd_team" });
   assert.equal(w.called("vault.item.put")[0]!.input["folderId"], "vfd_team");

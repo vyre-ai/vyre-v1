@@ -1,7 +1,6 @@
-// "Can an agent working for this person use a key kept here?" asked of a list of Vault folders, for the connect card's Kept in menu and the Vault's share sheet.
-// This is the one seam to the shared label-against-clearance check (lane f-keyreach2, `access.clears`). Until that capability answers, a folder the server alone uses is the one folder known not
-// to be usable; when it answers, its word is the only word. Nothing here decides access: the Vault and the access module still do, on every use.
-import { isServerOnlyFolder } from "../../lib/company-keys.ts";
+// "Can an agent working for this person use a key kept here?" asked of a list of Vault folders, for the connect card's Kept in menu and the Vault's share sheet. It asks the one shared check (access.clears, label
+// against clearance) and never answers for it: this file only asks it once per folder and adds the folders the server made for itself, which are not the person's to choose at all. Nothing here decides access:
+// the Vault and the access module still do, on every use.
 import type { VaultReqCtx } from "./projections.ts";
 import { asRow } from "./projections.ts";
 
@@ -9,37 +8,33 @@ export interface FolderRef {
   id: string;
   name: string;
   scope: "mine" | "shared";
+  owner?: string;
+  parentId?: string;
 }
 
-/** For each folder: may the agent use a key kept there? A person's own Mine always is: the agent works as them. */
+/** A folder a service made for itself (a company key, the sign-in secret): the server's, never offered as a place to keep a key. */
+export const madeByService = (f: FolderRef): boolean =>
+  f.scope === "shared" && !f.parentId && String(f.owner ?? "").startsWith("svc_");
+
+/** For each folder: may the principal use a key kept there? A person's own Mine always is: the agent works as them. A question the access module cannot answer reads as yes: storing is refused again where it cannot work. */
 export async function keptUsable(
   ctx: VaultReqCtx,
-  agentId: string | undefined,
+  principal: { kind: string; id: string } | undefined,
   folders: readonly FolderRef[],
 ): Promise<Map<string, boolean>> {
   const out = new Map<string, boolean>();
-  const shared = folders.filter((f) => f.scope === "shared");
-  for (const f of folders) if (f.scope === "mine") out.set(f.id, true);
-  let answered: Map<string, boolean> | null = null;
-  if (agentId && shared.length > 0) {
-    try {
-      const got = asRow(
-        await ctx.call("access.clears", {
-          agent: agentId,
-          resources: shared.map((f) => ({ type: "vault_folder", id: f.id })),
-        }),
-      );
-      const rows = Array.isArray(got?.["clears"]) ? (got["clears"] as unknown[]) : [];
-      answered = new Map(
-        rows.map((r) => {
-          const o = asRow(r);
-          return [String(o?.["id"] ?? ""), o?.["clears"] === true] as const;
-        }),
-      );
-    } catch {
-      answered = null;
-    }
-  }
-  for (const f of shared) out.set(f.id, answered?.has(f.id) ? answered.get(f.id)! : !isServerOnlyFolder(f.name));
+  await Promise.all(
+    folders.map(async (f) => {
+      if (f.scope === "mine") return void out.set(f.id, true);
+      if (madeByService(f)) return void out.set(f.id, false);
+      if (!principal) return void out.set(f.id, true);
+      try {
+        const got = asRow(await ctx.call("access.clears", { principal, target: { type: "vault_folder", id: f.id } }));
+        out.set(f.id, got?.["clears"] !== false);
+      } catch {
+        out.set(f.id, true);
+      }
+    }),
+  );
   return out;
 }

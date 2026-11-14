@@ -190,6 +190,19 @@ export type AccessCheckOut = {
     decisionId: string;
   };
 };
+export type AccessClearsIn = {
+  principal: {
+    kind: "person" | "agent" | "actor" | "service";
+    id: string;
+  };
+  target: {
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar" | "skill";
+    id: string;
+  };
+};
+export type AccessClearsOut = {
+  clears: boolean;
+};
 export type AccessConnectorBuilderGrantIn = {
   agentId: string;
 };
@@ -43997,6 +44010,7 @@ export type VaultConnectCardOptionsOut = {
       scope: "mine" | "shared";
       usable: boolean;
     }>;
+  default?: string;
 };
 export type VaultConnectCardReopenIn = {
   requestId: string;
@@ -44613,6 +44627,7 @@ export type VaultRequestOut = {
     taskId: string;
     at: number;
     decidedAt?: number;
+    askedYou?: boolean;
   };
 };
 export type VaultRequestsCancelIn = {
@@ -44657,6 +44672,7 @@ export type VaultRequestsFulfilOut = {
     taskId: string;
     at: number;
     decidedAt?: number;
+    askedYou?: boolean;
   };
 };
 export type VaultRequestsGetIn = {
@@ -44681,6 +44697,7 @@ export type VaultRequestsGetOut = {
     taskId: string;
     at: number;
     decidedAt?: number;
+    askedYou?: boolean;
   };
 };
 export type VaultRequestsListIn = {
@@ -44708,6 +44725,7 @@ export type VaultRequestsListOut = {
       taskId: string;
       at: number;
       decidedAt?: number;
+      askedYou?: boolean;
     }>;
   next?: string;
   total?: number;
@@ -45285,6 +45303,7 @@ export interface CapMap {
   "access.audience_set": { in: AccessAudienceSetIn; out: AccessAudienceSetOut };
   "access.automation_senders": { in: AccessAutomationSendersIn; out: AccessAutomationSendersOut };
   "access.check": { in: AccessCheckIn; out: AccessCheckOut };
+  "access.clears": { in: AccessClearsIn; out: AccessClearsOut };
   "access.connector_builder.grant": { in: AccessConnectorBuilderGrantIn; out: AccessConnectorBuilderGrantOut };
   "access.connector_builder.status": { in: AccessConnectorBuilderStatusIn; out: AccessConnectorBuilderStatusOut };
   "access.deciders": { in: AccessDecidersIn; out: AccessDecidersOut };

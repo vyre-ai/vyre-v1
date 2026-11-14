@@ -31,7 +31,11 @@ export interface Script {
   /** the chat the request's card was drawn in, with the person who asked (read back through tasks.get) */
   card?: { threadId: string; agentId: string; asker: string };
   /** the Vault folders the caller can list */
-  folders?: { id: string; name: string; scope: "mine" | "shared" }[];
+  folders?: { id: string; name: string; scope: "mine" | "shared"; owner?: string }[];
+  /** the folders and items labelled above the requester's clearance (access.clears answers no for them) */
+  unusable?: string[];
+  /** where an item sits, for the items vault.item.get returns (default: shared) */
+  itemScope?: Record<string, "mine" | "shared">;
   /** the connectors the Space has set up, by key (the connect card) */
   connectors?: Record<
     string,
@@ -48,8 +52,6 @@ export interface Script {
   check?: "ok" | "rejected" | "unreachable";
   /** what probing a connection made from a saved key answers */
   probe?: "healthy" | "down";
-  /** which shared folders an agent can use a key kept in (access.clears); unset: the capability does not answer yet */
-  clears?: Record<string, boolean>;
   /** Vault items vault.items.list answers (a key the person already saved) */
   saved?: { id: string; name: string; folderId: string; fieldKeys: string[] }[];
 }
@@ -85,6 +87,8 @@ export function world(over: Partial<Script> = {}) {
         if (script.folderUnreadable) throw new Error("no access");
         return { people: script.managers[(i["resource"] as { id: string }).id] ?? [] };
       }
+      case "access.clears":
+        return { clears: !(script.unusable ?? []).includes((i["target"] as { id: string }).id) };
       case "tasks.create":
         return { task: { id: `tsk_${++task}` } };
       case "tasks.transition":
@@ -120,7 +124,7 @@ export function world(over: Partial<Script> = {}) {
         const keys = script.items[String(i["itemId"])];
         if (!keys) throw new Error("no such item");
         return {
-          item: { id: i["itemId"], fieldKeys: keys },
+          item: { id: i["itemId"], fieldKeys: keys, scope: script.itemScope?.[String(i["itemId"])] ?? "shared" },
           fields: keys.map((key) => ({ key, secret: true, hasValue: true })),
         };
       }

@@ -4,14 +4,13 @@
 // passes the try but cannot be connected is taken back out of the Vault, so a refusal leaves nothing behind.
 // DECISION: the agent is told in one line what to do next and nothing else. The words handle, folder, clearance and role never reach a person from it; the card carries what a person must know.
 // DECISION: the same request answers a second ask for the same service (the same card is updated); a card the person folded with Not now is opened again by the next ask.
-import { isServerOnlyFolder } from "../../../lib/company-keys.ts";
 import { TELL } from "../../../lib/connect-tell.ts";
 import type { ConnectStatus as Status } from "../../../lib/connect-tell.ts";
-import { keptUsable } from "../kept.ts";
+import { keptUsable, madeByService } from "../kept.ts";
 import type { FolderRef } from "../kept.ts";
 import { TABLE, asRow, nid, raise, requestById, strOf } from "../projections.ts";
 import type { RequestRow, VaultReqCtx } from "../projections.ts";
-import { decidable, finishFulfil, managersFor, ownMine, personOf, storeKey, visible } from "./request.ts";
+import { decidable, finishFulfil, managersFor, personOf, storeKey, visible } from "./request.ts";
 import type { KeyAudience } from "./request.ts";
 
 interface Field {
@@ -107,6 +106,8 @@ async function foldersOf(ctx: VaultReqCtx): Promise<Map<string, FolderRef>> {
       id: String(f["id"]),
       name: String(f["name"] ?? ""),
       scope: f["scope"] === "mine" ? "mine" : "shared",
+      ...(typeof f["owner"] === "string" ? { owner: f["owner"] } : {}),
+      ...(typeof f["parentId"] === "string" ? { parentId: f["parentId"] } : {}),
     });
   }
   return out;
@@ -148,13 +149,23 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
       state = "ask";
       if (askerView && svc.scope === "person") {
         const folders = await foldersOf(ctx);
-        const usable = await keptUsable(ctx, row.requester_kind === "agent" ? row.requester_id : undefined, [
-          ...folders.values(),
-        ]);
+        const usable = await keptUsable(
+          ctx,
+          row.requester_kind === "agent" ? { kind: "agent", id: row.requester_id } : undefined,
+          [...folders.values()],
+        );
         have = await savedKey(ctx, row, svc, folders, usable);
         if (have) state = "have";
       }
     }
+  }
+  if (mayFill && (state === "ask" || state === "wrong" || state === "offline" || state === "have")) {
+    // where a typed key goes unless the person chooses: said on the card before they press anything
+    const all = await foldersOf(ctx);
+    const principal = row.requester_kind === "agent" ? { kind: "agent", id: row.requester_id } : undefined;
+    const id = defaultFolder(!admin, [...all.values()], await keptUsable(ctx, principal, [...all.values()]));
+    const f = id ? all.get(id) : undefined;
+    keptIn = !f || f.scope === "mine" ? "Mine" : f.name;
   }
   if (state === "connected" && row.item_id) {
     try {
@@ -319,13 +330,22 @@ export async function connectGet(ctx: VaultReqCtx, input: { requestId: string })
   return { card: await cardOf(ctx, input.requestId) };
 }
 
+/** Where a key typed on this card goes unless the person chooses: their own Mine when it is theirs to add, else (an admin connecting it for the Space) the first shared folder an agent can use. Reads only: the Mine folder is made when the key is kept. */
+function defaultFolder(own: boolean, folders: readonly FolderRef[], usable: Map<string, boolean>): string | undefined {
+  if (own) return folders.find((f) => f.scope === "mine")?.id;
+  return folders
+    .filter((f) => f.scope === "shared" && !madeByService(f) && usable.get(f.id) === true)
+    .sort((a, b) => a.name.localeCompare(b.name))[0]?.id;
+}
+
 /** Where the key can be kept: Mine, the shared folders an agent can use, and those it cannot (shown, not choosable). */
 export async function connectOptions(ctx: VaultReqCtx, input: { requestId: string }) {
-  const { row } = visible(ctx, input.requestId);
-  const folders = [...(await foldersOf(ctx)).values()].filter(
-    (f) => !(f.scope === "shared" && isServerOnlyFolderName(f)),
-  );
-  const usable = await keptUsable(ctx, row.requester_kind === "agent" ? row.requester_id : undefined, folders);
+  const { row, asRequester, asManager } = visible(ctx, input.requestId);
+  const folders = [...(await foldersOf(ctx)).values()].filter((f) => !madeByService(f));
+  const principal = row.requester_kind === "agent" ? { kind: "agent", id: row.requester_id } : undefined;
+  const usable = await keptUsable(ctx, principal, folders);
+  const own = asRequester && !(asManager && !asRequester);
+  const def = defaultFolder(own, folders, usable);
   return {
     folders: folders
       .map((f) => ({
@@ -339,9 +359,9 @@ export async function connectOptions(ctx: VaultReqCtx, input: { requestId: strin
           Number(b.usable) - Number(a.usable) ||
           (a.scope === b.scope ? a.name.localeCompare(b.name) : a.scope === "mine" ? -1 : 1),
       ),
+    ...(def ? { default: def } : {}),
   };
 }
-const isServerOnlyFolderName = (f: FolderRef): boolean => isServerOnlyFolder(f.name);
 
 /** Try the key, connect the service, keep the key. Nothing is kept unless the key works; a refusal at any step leaves the Vault as it was. */
 export async function connectSubmit(
@@ -399,7 +419,11 @@ export async function connectSubmit(
   // 2 keep the key where it goes (a new item, or the saved one attached); a shared folder only when an agent can use a key kept there
   const chosen = !saved && input.folderId ? (await foldersOf(ctx)).get(input.folderId) : undefined;
   if (chosen?.scope === "shared") {
-    const usable = await keptUsable(ctx, row.requester_kind === "agent" ? row.requester_id : undefined, [chosen]);
+    const usable = await keptUsable(
+      ctx,
+      row.requester_kind === "agent" ? { kind: "agent", id: row.requester_id } : undefined,
+      [chosen],
+    );
     if (usable.get(chosen.id) !== true)
       raise(
         trace,
@@ -407,10 +431,19 @@ export async function connectSubmit(
         "Agents can't use keys kept there. Keep it in Mine or another folder.",
       );
   }
-  // an admin connecting it for the Space keeps it in their own Mine unless they chose another place
-  const folderId = !saved
-    ? (input.folderId ?? (decided.own ? undefined : await ownMine(ctx, row, undefined)))
-    : undefined;
+  // a key typed here goes where the person chose; else Mine for the person it was asked for, and for an admin connecting it for the Space the first shared folder an agent can use
+  let folderId = !saved ? input.folderId : undefined;
+  if (!saved && !folderId && !decided.own) {
+    const all = [...(await foldersOf(ctx)).values()];
+    const principal = row.requester_kind === "agent" ? { kind: "agent", id: row.requester_id } : undefined;
+    folderId = defaultFolder(false, all, await keptUsable(ctx, principal, all));
+    if (!folderId)
+      raise(
+        trace,
+        "validation.precondition_failed",
+        "There is no shared folder an agent can use. Make one that is not restricted, then connect it.",
+      );
+  }
   const stored = await storeKey(
     ctx,
     decided,

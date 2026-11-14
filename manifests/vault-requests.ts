@@ -23,6 +23,8 @@ const requestRow = t.obj({
   taskId: id.task,
   at: t.ts(),
   decidedAt: t.opt(t.ts()),
+  /** true when the caller is the person the agent asked and may add the key into their own keys (vault.requests.get only) */
+  askedYou: t.opt(t.bool()),
 });
 
 /** One connect card (b-connect, 14 Nov 2026): the whole of its state, read from the server, never guessed on the screen. Names, never a value. */
@@ -216,7 +218,7 @@ export default defineManifest({
       {
         ...V,
         in: { requestId: reqId },
-        out: { folders: t.arr(keptInRow) },
+        out: { folders: t.arr(keptInRow), default: t.opt(id.vaultFolder) },
         tool: "vault",
       },
     ),

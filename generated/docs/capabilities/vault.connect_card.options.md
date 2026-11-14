@@ -39,6 +39,7 @@ type Out = {
       scope: "mine" | "shared";
       usable: boolean;
     }>;
+  default?: string;
 };
 ```
 
@@ -58,6 +59,7 @@ type Out = {
     "requestId": "vrq_a1b2c3"
   },
   "output": {
+    "default": "vfd_a1b2c3",
     "folders": [
       {
         "id": "vfd_a1b2c3",

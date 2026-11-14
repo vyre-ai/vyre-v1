@@ -17,6 +17,7 @@ HTTP 422. Retryable: no.
 - access.audience_set
 - access.automation_senders
 - access.check
+- access.clears
 - access.connector_builder.grant
 - access.connector_builder.status
 - access.deciders
@@ -30,4 +31,3 @@ HTTP 422. Retryable: no.
 - access.groups.add_member
 - access.groups.create
 - access.groups.defaults_get
-- access.groups.defaults_set

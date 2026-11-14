@@ -131,9 +131,14 @@ export function ConnectCardLive({
 
   const openKept = async (at: { x: number; y: number }): Promise<void> => {
     let folders: KeptInFolder[] = [];
+    let fallback: string | undefined;
     try {
-      const out = (await data.call("vault.connect_card.options", { requestId })) as { folders?: KeptInFolder[] };
+      const out = (await data.call("vault.connect_card.options", { requestId })) as {
+        folders?: KeptInFolder[];
+        default?: string;
+      };
       folders = out.folders ?? [];
+      fallback = out.default;
     } catch {
       folders = [];
     }
@@ -145,12 +150,17 @@ export function ConnectCardLive({
     for (const f of mine)
       items.push({
         label: "Mine",
-        checked: (kept?.id ?? mine[0]?.id) === f.id,
+        checked: (kept?.id ?? fallback) === f.id,
         hint: "You and agents working for you",
         onSelect: pick(f),
       });
     for (const f of shared)
-      items.push({ label: f.name, checked: kept?.id === f.id, hint: "The team and its agents", onSelect: pick(f) });
+      items.push({
+        label: f.name,
+        checked: (kept?.id ?? fallback) === f.id,
+        hint: "The team and its agents",
+        onSelect: pick(f),
+      });
     if (barred.length > 0) {
       items.push({ head: "Restricted" });
       for (const f of barred)
