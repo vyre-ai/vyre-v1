@@ -75,6 +75,7 @@ test("steps of a turn in a shared chat: what the other readers see", { timeout: 
     assert.equal(r.status, 200, `${cap}: ${JSON.stringify(r.data).slice(0, 300)}`);
     return r.data;
   };
+  let guestAdd = "";
   const tok: Record<string, string> = {};
   const frames: Record<string, Array<Record<string, any>>> = {}; // eslint-disable-line @typescript-eslint/no-explicit-any
   const sockets: WebSocket[] = [];
@@ -165,8 +166,25 @@ test("steps of a turn in a shared chat: what the other readers see", { timeout: 
       }),
     });
     assert.equal(acc.status, 200, await acc.clone().text());
-    tok["gwen"] = ((await acc.json()) as { data: { token: string } }).data.token;
-    await d.hooks?.pump?.();
+    const accepted = ((await acc.json()) as { data: { token: string; personId: string } }).data;
+    tok["gwen"] = accepted.token;
+    const gid = accepted.personId;
+    const addg = await api(d, alice.token, "channels.members.add", {
+      channelId: ch.channel.channelId,
+      personIds: [gid],
+      level: "view",
+      idempotencyKey: "sr-add-guest",
+    });
+    guestAdd = `${addg.status} ${JSON.stringify(addg.data).slice(0, 300)}`;
+    // the guest becomes a member of the channel's chat when the join is handled: wait until they can open it, so what they are (not) sent means something
+    await waitFor(
+      async () => {
+        await d.hooks?.pump?.();
+        return (await api(d, tok["gwen"]!, "threads.get", { threadId })).status === 200 ? true : null;
+      },
+      30_000,
+      () => hostLog(d),
+    ).catch(() => undefined);
     const gl = await api(d, tok["gwen"]!, "channels.list", {});
     console.log(`GUEST channels.list ${gl.status} ${JSON.stringify(gl.data).slice(0, 300)}`);
     for (const who of ["alice", "bob", "gwen"]) await listen(who);
@@ -242,7 +260,8 @@ test("steps of a turn in a shared chat: what the other readers see", { timeout: 
       const g = await api(d, tok["gwen"]!, cap, inp);
       dump[`guest ${cap}`] = `${g.status} ${JSON.stringify(g.data).slice(0, 6000)}`;
     }
-    dump["guest threads.get"] = `${gt.status} ${JSON.stringify(gt.data).slice(0, 160)}`;
+    dump["guest add as channel member"] = guestAdd;
+    dump["guest threads.get"] = `${gt.status} ${JSON.stringify(gt.data).slice(0, 900)}`;
     for (const who of ["bob", "gwen"]) {
       const turn = frames[who]!.filter((f) => f["t"] === "turn");
       dump[`${who} live frames`] = turn.map((f) => f["delta"]);
