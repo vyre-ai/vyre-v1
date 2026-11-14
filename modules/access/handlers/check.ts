@@ -71,7 +71,7 @@ export async function providerCheck(ctx: AccessCtx, input: { resources: Resource
     };
     if (who !== ctx.principal.id) req.actingFor = who;
     if (row) req.row = row;
-    const d = authorize(store.snapshot(), req);
+    const d = authorize(decisionSnapshot(store), req);
     if (d.effect === "deny" && /provider/i.test(d.reason))
       blocked.push({
         id: r.id,

@@ -2,7 +2,7 @@
 // carries much more). So the grant is a custom role made on first use: the Member permissions plus connectors.manage, assignable to agents. One call makes it if it is missing and gives it to the agent.
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import type { AccessCtx } from "../projections.ts";
-import { changed, nid, raise, storeOf } from "../projections.ts";
+import { changed, nid, raise, storeOf, decisionSnapshot } from "../projections.ts";
 
 export const BUILDER_ROLE = "Connector builder";
 const PERM = "connectors.manage";
@@ -21,7 +21,7 @@ function reaches(
   itemId: string,
 ): boolean {
   const req = (principal: string, actingFor?: string) =>
-    authorize(store.snapshot(), {
+    authorize(decisionSnapshot(store), {
       principal,
       ...(actingFor !== undefined && actingFor !== principal ? { actingFor } : {}),
       action: { perm: null, level: "use" },
