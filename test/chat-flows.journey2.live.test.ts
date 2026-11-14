@@ -68,13 +68,18 @@ test("journey 2, Team: @mention an agent in a chat between people; it joins and 
       );
     }, "the answer is on the server");
     await me.page.getByTestId(`msg-${reply}`).hover();
-    await me.page.getByTestId(`act-make-${reply}`).click();
+    // Make a task is in the message menu now (the bar is copy, thread, fork, pin, more)
+    await me.page.getByTestId(`act-more-${reply}`).click();
+    await me.page.getByTestId("menu-item-Make a task").click();
     await me.page
       .getByText(/Task created/)
       .first()
       .waitFor({ timeout: 20_000 });
     await me.page.getByTestId(`msg-${reply}`).hover();
-    await me.page.getByTestId(`act-remember-${reply}`).click();
+    // Remember This is behind the menu's More
+    await me.page.getByTestId(`act-more-${reply}`).click();
+    await me.page.getByTestId("menu-item-More").click();
+    await me.page.getByTestId("menu-item-Remember This").click();
     await me.page
       .getByText(/Remembered/)
       .first()

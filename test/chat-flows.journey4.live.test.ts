@@ -42,13 +42,16 @@ test("journey 4, Personal: an assistant's answer becomes a task for yourself and
     // two actions: open the bar (hover), press Make task; the bar carries it in a chat with one person too
     await shootHere(me.page, dir, "bar-showing");
     await me.page.getByTestId(`msg-${reply}`).hover();
-    await me.page.getByTestId(`act-make-${reply}`).click();
+    await me.page.getByTestId(`act-more-${reply}`).click();
+    await me.page.getByTestId("menu-item-Make a task").click();
     await me.page
       .getByText(/Task created/)
       .first()
       .waitFor({ timeout: 20_000 });
     await me.page.getByTestId(`msg-${reply}`).hover();
-    await me.page.getByTestId(`act-remember-${reply}`).click();
+    await me.page.getByTestId(`act-more-${reply}`).click();
+    await me.page.getByTestId("menu-item-More").click();
+    await me.page.getByTestId("menu-item-Remember This").click();
     await me.page
       .getByText(/Remembered/)
       .first()

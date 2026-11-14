@@ -55,7 +55,7 @@ test("/btw: the slash menu lists it, the aside answers on the side while the mai
     // a long main reply starts
     await field.fill("slow 14 700");
     await me.page.getByTestId("composer-send").click();
-    await me.page.getByTestId("stop-button").waitFor({ timeout: 5_000 });
+    await me.page.locator("[data-testid=composer-send][aria-label=Stop]").waitFor({ timeout: 5_000 });
     await me.page.getByText(/word2/).first().waitFor({ timeout: 15_000 });
 
     // /btw while it writes
@@ -87,7 +87,7 @@ test("/btw: the slash menu lists it, the aside answers on the side while the mai
     // the main reply goes on to the end, once, and the aside is not in the conversation
     await me.page.waitForTimeout(500);
     const feed = async (): Promise<string> => me.page.getByTestId("conversation-feed").innerText();
-    for (const end = Date.now() + 25_000; Date.now() < end && (await me.page.getByTestId("stop-button").count()) > 0; )
+    for (const end = Date.now() + 25_000; Date.now() < end && (await me.page.locator("[data-testid=composer-send][aria-label=Stop]").count()) > 0; )
       await me.page.waitForTimeout(300);
     const main = await feed();
     assert.equal((main.match(/word\d+/g) ?? []).length, 14, "the main reply finished, every word once");

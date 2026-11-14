@@ -203,7 +203,7 @@ test("chat layout, team Space: long draft, scrolled feed, thread pane beside a l
       .innerText()
       .catch(() => "");
     fs.writeFileSync(path.join(shots, "19-tab-text.txt"), tabs + "\n");
-    // a tab has no title of its own: each of the chats opened above reads as that chat's real title, and "New chat" shows nowhere
+    // a tab has no title of its own: each of the chats opened above reads as that chat's real title; "New chat" is only the landing tab (G7), once at most
     const strip = await page.getByTestId("tab-strip").first().innerText();
     for (const title of [
       "Create a landing page",
@@ -215,7 +215,10 @@ test("chat layout, team Space: long draft, scrolled feed, thread pane beside a l
         strip.includes(title),
         `the tab for "${title}" reads that title; the strip says: ${strip.replaceAll("\n", " | ")}`,
       );
-    assert.ok(!/New chat/.test(strip), `no tab still reads New chat: ${strip.replaceAll("\n", " | ")}`);
+    assert.ok(
+      (strip.match(/New chat/g) ?? []).length <= 1,
+      `no chat tab still reads New chat (the landing may): ${strip.replaceAll("\n", " | ")}`,
+    );
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

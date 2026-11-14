@@ -56,7 +56,7 @@ export const CHAT_COMMANDS: readonly ChatCommandDef[] = Object.freeze([
   { id: "voice", group: "How it runs", detail: "Talk instead of type" },
   { id: "model", group: "How it runs", detail: "Choose the model this chat answers with" },
   { id: "effort", group: "How it runs", detail: "How hard it thinks" },
-  { id: "plan", group: "How it runs", detail: "Plan first: turn plan mode on or off", arg: "on or off" },
+  { id: "plan", group: "How it runs", detail: "Turn plan mode on or off for this chat", arg: "on or off" },
   { id: "permissions", group: "How it runs", detail: "See what runs without asking", arg: "remove and a number" },
   // This session
   { id: "new", group: "This session", detail: "Start a fresh chat with this agent" },
