@@ -26,6 +26,7 @@ import type {
   TurnEvent,
 } from "./handlers/crud.ts";
 import { agentOf, nextRun, noteRoutineOutcome } from "./projections.ts";
+import { reconcileWakes } from "./routine-wake.ts";
 import { noteRun, resumeSelfPaused } from "./routine-guard.ts";
 import type { AgentsCtx } from "./projections.ts";
 import { setPluginsHost } from "./handlers/plugins.ts";
@@ -59,6 +60,12 @@ export const periodic = {
     run: (ctx: AgentsCtx): Promise<string[]> => upgradeStarterAgentMd(ctx),
   },
   /** The schedule of routines: every 10 seconds, each routine whose time has come starts once (handlers/routines.ts runDueRoutines). Runs only where the scheduled-work lease is held. */
+  /** The wake table's net: every routine's wake is brought to what the routine row wants (a routine saved before the table gets one at its stored next time, exactly), and a wake whose routine is gone is cancelled. */
+  "agents.routines_wake_sync": {
+    everyMs: 30_000,
+    immediate: true,
+    run: (ctx: AgentsCtx): Promise<string[]> => reconcileWakes(ctx),
+  },
   "agents.routines_due": {
     everyMs: ROUTINES_DUE_EVERY_MS,
     immediate: true,

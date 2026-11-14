@@ -153,6 +153,7 @@ export function stubs(ctx: CallCtx) {
       routine: {
         delegate: call("agents.routine.delegate"),
         delete: call("agents.routine.delete"),
+        fire: call("agents.routine.fire"),
         run_now: call("agents.routine.run_now"),
         save: call("agents.routine.save"),
       },

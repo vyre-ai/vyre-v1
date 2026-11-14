@@ -1987,6 +1987,15 @@ export type AgentsRoutineDeleteIn = {
 export type AgentsRoutineDeleteOut = {
   deleted: boolean;
 };
+export type AgentsRoutineFireIn = {
+  routineId: string;
+  dueKey: string;
+};
+export type AgentsRoutineFireOut = {
+  started: boolean;
+  runId?: string;
+  why?: string;
+};
 export type AgentsRoutineRunNowIn = {
   agentId: string;
   routineId: string;
@@ -45668,6 +45677,7 @@ export interface CapMap {
   "agents.role_line.set": { in: AgentsRoleLineSetIn; out: AgentsRoleLineSetOut };
   "agents.routine.delegate": { in: AgentsRoutineDelegateIn; out: AgentsRoutineDelegateOut };
   "agents.routine.delete": { in: AgentsRoutineDeleteIn; out: AgentsRoutineDeleteOut };
+  "agents.routine.fire": { in: AgentsRoutineFireIn; out: AgentsRoutineFireOut };
   "agents.routine.run_now": { in: AgentsRoutineRunNowIn; out: AgentsRoutineRunNowOut };
   "agents.routine.save": { in: AgentsRoutineSaveIn; out: AgentsRoutineSaveOut };
   "agents.routines.list": { in: AgentsRoutinesListIn; out: AgentsRoutinesListOut };

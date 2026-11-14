@@ -5,7 +5,7 @@
 //   template.get / .preview / .apply                the Agent template: add, never remove, never overwrite; changed files become suggestions; try one agent first
 //   guide.get / builtin_skills.list                 Vyre's own text, rewritten by app updates
 import { readFileSync } from "node:fs";
-import { forgetSelfPause } from "../routine-guard.ts";
+import { forgetSelfPause, isSelfPaused } from "../routine-guard.ts";
 import {
   BUILTIN_SKILLS,
   GUIDE_MD,
@@ -49,6 +49,8 @@ import {
   walkFolder,
 } from "../projections.ts";
 import type { AgentRec, AgentsCtx, FolderOut, RoutineRec, SuggestionRec } from "../projections.ts";
+import { applyWake, dropWake } from "../routine-wake.ts";
+import { isTrustedService } from "../../../lib/trust.ts";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown): string => (typeof v === "string" ? v : String(v ?? ""));
@@ -121,6 +123,16 @@ export async function routineSave(
   const cron = watcher ? "" : (input.cron as string).trim();
   const next = enabled && !watcher ? nextRun(cron, now) : null; // a watcher has no next time: it runs when a message arrives
   let id: string;
+  // the wake is built only from the routine ROW the asker has just been checked to own, never from what was sent: someone else's routine, or a routine of another agent, is answered like one that does not exist
+  if (input.routineId !== undefined) {
+    const mine = routineBy(ctx.db, input.routineId);
+    if (!mine || mine.ownerId !== owner || mine.agentId !== agent.id)
+      raise(ctx, "validation.bad_input", "That routine does not exist.");
+  }
+  const wakeOn = enabled && !watcher && next !== null;
+  const routineId = input.routineId ?? mintId("rtn", now);
+  // starting follows the wake (the wake first); stopping leads it (the row first, below)
+  if (wakeOn) await applyWake(ctx, { routineId, agentId: agent.id, ownerId: owner, cron, active: true });
   if (input.routineId !== undefined) {
     // Someone else's routine is answered like one that does not exist.
     const old = routineBy(ctx.db, input.routineId);
@@ -140,7 +152,7 @@ export async function routineSave(
     id = old.id;
     forgetSelfPause(ctx.db, old.id); // a person's own save puts it back in their hands
   } else {
-    id = mintId("rtn", now);
+    id = routineId;
     ctx.db.run(
       "INSERT INTO agents_routine (id, agentId, ownerId, title, cron, prompt, channelId, enabled, nextRunAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       id,
@@ -156,6 +168,7 @@ export async function routineSave(
       now,
     );
   }
+  if (!wakeOn) await applyWake(ctx, { routineId: id, agentId: agent.id, ownerId: owner, cron, active: false });
   ctx.db.run("DELETE FROM agents_routine_watch WHERE routineId = ?", id);
   if (watcher)
     ctx.db.run("INSERT INTO agents_routine_watch (routineId, channelId) VALUES (?, ?)", id, input.watch!.channelId);
@@ -181,6 +194,7 @@ export async function routineDelete(ctx: AgentsCtx, input: { agentId: string; ro
   ctx.db.run("DELETE FROM agents_routine_watch WHERE routineId = ?", r.id);
   ctx.db.run("DELETE FROM agents_routine_by WHERE routineId = ?", r.id);
   ctx.db.run("DELETE FROM agents_routine_last WHERE routineId = ?", r.id);
+  await dropWake(ctx, r.id); // the row went first: nothing new fires even if this is lost (the reconcile cancels the wake)
   ctx.emit("agent.routine_changed", agent.id, { agentId: agent.id, routineId: r.id, op: "deleted" });
   return { deleted: true };
 }
@@ -219,6 +233,48 @@ export async function routineRunNow(
 }
 
 /** How often the server looks for routines that are due. A routine every minute starts within this long after its minute. */
+/**
+ * A routine's wake made its fire (agents.routine.fire, the server's alone): start the Run, under the routine's owner, with the key the routine has always had (`routine:<id>:<due ms>`, so a retry, a lost
+ * answer or an rc.26 build ticking in the same minute makes one Run). It starts nothing, and says why, unless the routine still exists, is on, is not paused or self-paused, belongs to a live agent, and its
+ * mirrored next time is the fire's: a wake and a routine that disagree are left for the reconcile to repair, never fired.
+ */
+export async function routineFire(ctx: AgentsCtx, input: { routineId: string; dueKey: string }) {
+  if (!isTrustedService(ctx.principal))
+    raise(ctx, "permission.no_grant", "Only the server starts a routine from its schedule.");
+  ensure(ctx.db);
+  const r = routineBy(ctx.db, input.routineId);
+  if (!r) return { started: false, why: "That routine is gone." };
+  if (!r.enabled) return { started: false, why: "The routine is off." };
+  if (isSelfPaused(ctx.db, r.id)) return { started: false, why: "The routine paused itself." };
+  const watcher = (ctx.db.all("SELECT 1 AS x FROM agents_routine_watch WHERE routineId = ?", r.id) as Row[]).length > 0;
+  if (watcher) return { started: false, why: "A watcher runs on messages, not on a clock." };
+  if (r.nextRunAt === undefined || String(r.nextRunAt) !== input.dueKey)
+    return { started: false, why: "The routine and its schedule do not agree on the time." };
+  const now = ctx.now();
+  const agent = agentBy(ctx.db, r.agentId);
+  if (!agent || agent.paused) {
+    markRoutineRan(ctx.db, r.id, now, false); // a paused agent's routine waits for its next time, as it always did
+    return { started: false, why: "The agent is paused or gone." };
+  }
+  const key = `routine:${r.id}:${r.nextRunAt}`;
+  const started = await call<{ runId: string }>(
+    ctx,
+    "runs.start",
+    { idempotencyKey: key, kind: "routine", name: r.title, owner: r.ownerId },
+    { idempotencyKey: key },
+  );
+  markRoutineRan(ctx.db, r.id, now);
+  noteRoutineRun(ctx.db, r.id, started.runId, now);
+  ctx.emit("agent.routine_run_started", agent.id, {
+    agentId: agent.id,
+    routineId: r.id,
+    runId: started.runId,
+    ownerId: r.ownerId,
+    requestedBy: "schedule",
+  });
+  return { started: true, runId: started.runId };
+}
+
 export const ROUTINES_DUE_EVERY_MS = 10_000;
 
 /**

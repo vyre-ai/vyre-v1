@@ -1,6 +1,7 @@
 // @reads /modules/agents/migrations/0001_agents.sql
 // @reads /modules/agents/migrations/0012_install.sql
 // @reads /modules/agents/migrations/0013_skill_rev_version.sql
+// @reads /modules/agents/migrations/0014_routine_wake.sql
 // Rows of the agents module (the agent, its routines, suggestions, snapshots and the template state), the agent.toml reader and writer, the checks a configuration must pass, the ports to Files
 // (every file of an agent is a file in Agents/<name>), and the small pure helpers the handlers share (status, cron, unified diffs).
 // Every statement names an agents_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
@@ -93,6 +94,7 @@ const SCHEMA = [
   "0011_chat_owned.sql",
   "0012_install.sql",
   "0013_skill_rev_version.sql",
+  "0014_routine_wake.sql",
 ]
   .map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8"))
   .join("\n")

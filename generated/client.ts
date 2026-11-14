@@ -153,6 +153,7 @@ export function createClient(transport: Transport) {
       routine: {
         delegate: call("agents.routine.delegate", 1),
         delete: call("agents.routine.delete", 1),
+        fire: call("agents.routine.fire", 1),
         run_now: call("agents.routine.run_now", 1),
         save: call("agents.routine.save", 1),
       },

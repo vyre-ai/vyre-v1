@@ -29,6 +29,7 @@
     "agents.role_line.set@1": "b897716b97d4a77ed90219131075588871ce1b715939ff9accc47b1140293e0d",
     "agents.routine.delegate@1": "8583c6be4417234b92897ee7c02ff0aec74a0557581d03b7e3c2cf9535f7c1b1",
     "agents.routine.delete@1": "78f4344fb6bf77b4d3d7f64d8446ea2116c51b8ea458c57739b9581264ff1422",
+    "agents.routine.fire@1": "2c3dd4d331658eba687924c3d9aa5da927af8dfe10e5e51b205604f54bb6f41f",
     "agents.routine.run_now@1": "55c73e0ee7278a89fce3e369787246b6f409ff29ebee723d7daa57e547a790de",
     "agents.routine.save@1": "cc48ee1a68af34f2afc4e5d73224f803fa3c06562aa601acfb71de0de6a4049c",
     "agents.routines.list@1": "bd185c5431d7db14ee54be4b1052b0c597093de4497a3c5ed81090123e2d2384",

@@ -9,3 +9,4 @@
 - Handing a routine to a colleague is now refused, with the reason, when they are not in the Space, cannot use the agent or cannot read the channel it posts to. Before, it went to anyone.
 - Scheduled work now has one table ready for routines and goals to share, with one rule that makes sure each time runs once (nothing you can see changes yet).
 - A repeating task whose holder's profile time zone is misspelled still comes back, on UTC, instead of stopping.
+- Your routines now run from the scheduler's one table of times. They fire at exactly the times they did before, once each; nothing about how you set a routine up changes.

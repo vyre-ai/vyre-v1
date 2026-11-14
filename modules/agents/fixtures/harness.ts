@@ -68,6 +68,18 @@ export function fakeFiles(clock: { t: number }) {
     status: "active" | "removed";
   }> = [];
   const calls: Array<{ cap: string; input: unknown; opts?: { idempotencyKey?: string } }> = [];
+  const wakes = new Map<
+    string,
+    {
+      id: string;
+      owner: { id: string };
+      when: { cron: string; tz: string };
+      active: boolean;
+      cancelled: boolean;
+      nextAt?: number | undefined;
+      input: Record<string, unknown>;
+    }
+  >();
   const settings: Record<string, unknown> = {};
   let n = 0;
   const next = (prefix: string): string => `${prefix}_${(++n).toString(36).padStart(6, "0")}`;
@@ -127,6 +139,47 @@ export function fakeFiles(clock: { t: number }) {
     },
     // scheduler.can_hold: everyone may hold work unless a test answers otherwise (world.answer)
     "scheduler.can_hold": () => ({ ok: true, reasons: [] }),
+    // the scheduler's wake table, as far as agents uses it: one wake per routine, in the order the calls came
+    "scheduler.schedule": (i) => {
+      const owner = i["owner"] as { id: string };
+      if ([...wakes.values()].some((w) => w.owner.id === owner.id && !w.cancelled))
+        throw Object.assign(new Error("exists"), { error: { code: "validation.precondition_failed" } });
+      const id = `sch_${(wakes.size + 1).toString(36).padStart(8, "0")}`;
+      wakes.set(id, {
+        id,
+        owner,
+        when: i["when"] as { cron: string; tz: string },
+        active: true,
+        cancelled: false,
+        nextAt: i["nextAt"] as number | undefined,
+        input: i,
+      });
+      return { scheduleId: id, nextAt: i["nextAt"] };
+    },
+    "scheduler.get": (i) => {
+      const w = wakes.get(String(i["scheduleId"]));
+      if (!w || w.cancelled) throw Object.assign(new Error("none"), { error: { code: "validation.not_found" } });
+      return {
+        schedule: { id: w.id, when: w.when, active: w.active, ...(w.nextAt !== undefined ? { nextAt: w.nextAt } : {}) },
+      };
+    },
+    "scheduler.reschedule": (i) => {
+      const w = wakes.get(String(i["scheduleId"]))!;
+      w.when = i["when"] as { cron: string; tz: string };
+      return { schedule: { id: w.id } };
+    },
+    "scheduler.pause": (i) => {
+      wakes.get(String(i["scheduleId"]))!.active = false;
+      return { schedule: { id: String(i["scheduleId"]) } };
+    },
+    "scheduler.resume": (i) => {
+      wakes.get(String(i["scheduleId"]))!.active = true;
+      return { schedule: { id: String(i["scheduleId"]) } };
+    },
+    "scheduler.cancel": (i) => {
+      wakes.get(String(i["scheduleId"]))!.cancelled = true;
+      return { canceled: true };
+    },
     "access.transfer_ownership": () => true,
     "access.share": (i) => ({
       grant: { id: "gnt_fake", subject: i["subject"], resource: i["resource"], level: i["level"] },
@@ -297,6 +350,7 @@ export function fakeFiles(clock: { t: number }) {
     files,
     calls,
     handlers,
+    wakes,
     principals,
     homeGrants,
     answer(cap: string, f: Handler) {
