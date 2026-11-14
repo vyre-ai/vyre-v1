@@ -95,7 +95,8 @@ const eventFields = {
   fromBookingPage: t.opt(id.form),
   video: t.opt(video),
 };
-const sendGate = { act: "send", when: "actor.kind != 'person' && input.attendees != null" };
+// Held only when the event invites someone (an outward act). The expression language has no null test: `input.attendees != null` could not be evaluated, so every event an agent made was held (made-for-me sweep, 14 Nov 2026).
+const sendGate = { act: "send", when: "actor.kind != 'person' and len(input.attendees) > 0" };
 const healthOut = { state: t.enm("healthy", "degraded", "down"), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) };
 
 const manifest = defineManifest({

@@ -2118,6 +2118,8 @@ export default defineManifest({
       on: ["channel", "/channelId"],
       level: "manage",
       emits: ["channel.archived"],
+      // an agent's archive waits for the person's OK like its other deletes; the server's own archive (a project or Journey channel when its record completes) is not an agent's
+      gate: { act: "delete", when: "actor.kind == 'agent'" },
       tool: "chats",
     }),
     write("channels.unarchive", "Bring an archived channel back", {

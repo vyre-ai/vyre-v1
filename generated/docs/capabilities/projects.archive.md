@@ -11,7 +11,7 @@ Archive a project: it leaves the lists and stays readable, with its record, chan
 | Grant level | manage |
 | Risk | medium |
 | Resource | project (/projectId) |
-| Gate | none |
+| Gate | delete when actor.kind == 'agent' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

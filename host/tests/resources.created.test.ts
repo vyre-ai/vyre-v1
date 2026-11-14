@@ -717,3 +717,21 @@ test("registrar: what an agent makes for the person it acts for is stamped with 
   assert.equal(made({ kind: "person", id: "usr_dana" }, "usr_dana")[0]?.made_by, undefined, "a person's own");
   assert.equal(made({ kind: "agent", id: "agt_helper" }, "agt_helper")[0]?.made_by, undefined, "an agent for no one");
 });
+
+test("registrar: a calendar event is a resource inside its calendar, owned by the person the call acts for and stamped with the agent that made it", () => {
+  const known = new Set(["spc_1", "cld_personal"]);
+  const r = createResourceRegistrar({ events: EVENTS, exists: (id) => known.has(id) });
+  const made = (principal: { kind: string; id: string }) =>
+    r.register({
+      cap: { name: "calendar.create_event", resource: { type: "calendar", id: "/calendarId" } },
+      input: { calendarId: "cld_personal" },
+      space: "spc_1",
+      owner: "usr_dana",
+      principal,
+      events: [ev("calendar_event.created", { eventId: "cev_abc123", calendarId: "cld_personal" })],
+    });
+  assert.deepEqual(made({ kind: "person", id: "usr_dana" }), [
+    { id: "cev_abc123", type: "calendar_event", parent_id: "cld_personal", label: 0, owner_id: "usr_dana", holds: 0 },
+  ]);
+  assert.equal(made({ kind: "agent", id: "agt_helper" })[0]?.made_by, "agt_helper");
+});

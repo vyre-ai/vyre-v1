@@ -124,3 +124,34 @@ test("an agent works in its person's own private roots (Personal files, Personal
   }
   assert.ok(worlds >= 20, `worlds exercised: ${worlds}`);
 });
+
+test("one agent, two askers: the agent holds a person's level only while it acts for that person, never for another asker, and never because it made something yesterday", () => {
+  let worlds = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    const { snap } = buildWorld(seed);
+    if (
+      snap.info("p1")?.p.status !== "active" ||
+      snap.info("p2")?.p.status !== "active" ||
+      snap.info(AGENT)?.p.status !== "active"
+    )
+      continue;
+    worlds++;
+    // made for p1 and for p2 by the same (shared) agent, each in a private root
+    snap.putResource({ id: "site_p1", type: "site", parent_id: null, label: 0, owner_id: "p1", holds: 0, made_by: AGENT });
+    snap.putResource({ id: "site_p2", type: "site", parent_id: null, label: 0, owner_id: "p2", holds: 0, made_by: AGENT });
+    const may = (acting: string | undefined, id: string) =>
+      authorize(snap, {
+        principal: AGENT,
+        ...(acting ? { actingFor: acting } : {}),
+        action: act("manage"),
+        resource: { type: "site", id },
+        now: NOW,
+      }).effect;
+    assert.equal(may("p1", "site_p1"), "allow", `seed ${seed}: asked by p1, p1's thing`);
+    assert.equal(may("p2", "site_p2"), "allow", `seed ${seed}: asked by p2, p2's thing`);
+    assert.equal(may("p2", "site_p1"), "deny", `seed ${seed}: asked by p2, nothing of p1's`);
+    assert.equal(may("p1", "site_p2"), "deny", `seed ${seed}: asked by p1, nothing of p2's`);
+    assert.equal(may(undefined, "site_p1"), "deny", `seed ${seed}: no asker (a wake), nothing of anyone's`);
+  }
+  assert.ok(worlds >= 20, `worlds exercised: ${worlds}`);
+});

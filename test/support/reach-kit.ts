@@ -94,7 +94,7 @@ function scripted(): { pending: Map<string, Pending>; results: Map<string, ToolO
             const r = await Promise.race([
               s2.p,
               new Promise<{ ok: boolean; content: unknown }>((res) =>
-                setTimeout(() => res({ ok: false, content: "NO ANSWER in 8 s (held for approval, or stuck)" }), 8_000),
+                setTimeout(() => res({ ok: false, content: "NO ANSWER in 8 s (held for approval, or stuck)" }), Number(process.env["REACH_WAIT"] ?? 8000)),
               ),
             ]);
             if (typeof r.content === "string" && r.content.startsWith("NO ANSWER")) {

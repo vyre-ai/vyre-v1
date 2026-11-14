@@ -37,7 +37,9 @@ export function madeForMe(who: Who): void {
             for (const [k, v] of Object.entries(seen)) {
               // a member's own role does not carry deleting a record, so the person cannot do it themself and the agent acting for them cannot either: the person is the ceiling
               if (who === "member" && c.id === "record" && k === "remove") continue;
-              if (k !== "other sees" && !FIT(v)) refused.push(`${who} ${c.id} ${k}: ${v.slice(0, 120)}`);
+              // an event with nobody invited is the person's own business, not an outward act: it is made, not held
+            if (c.id === "calendar" && k === "make" && v !== "ok") refused.push(`${who} calendar make is held or refused: ${v.slice(0, 80)}`);
+            if (k !== "other sees" && !FIT(v)) refused.push(`${who} ${c.id} ${k}: ${v.slice(0, 120)}`);
             }
           if (PRIVATE.includes(c.id) && seen["other sees"] === "ok") leaked.push(`${who} ${c.id}`);
         }

@@ -48,6 +48,7 @@ const ID_SHAPE: Readonly<Record<string, RegExp | null>> = Object.freeze({
   skill: /^sko_[a-z0-9]+$/,
   conversation: /^cnv_[a-z0-9]+$/,
   mail_message: /^eml_[a-z0-9]+$/,
+  calendar_event: /^cev_[a-z0-9]+$/,
   inbox: null,
   automation_group: null,
   connector: null,
@@ -149,10 +150,12 @@ export function missingAgentResources(a: { space: string; events: readonly Event
  * them: a conversation, and a mail message. Their birth events register them, under the Space like any other object, so the module's own door (a private mailbox, a private message) is the only filter
  * on who reads the content and the role grants of the Space say who may act on it.
  */
-const ENTITY_BIRTHS: ReadonlyMap<string, SubjectDef["subject"]> = new Map([
+const ENTITY_BIRTHS: ReadonlyMap<string, SubjectDef["subject"] & { parent?: string }> = new Map([
   ["conversation.created", { type: "conversation", id: "/conversationId" }],
   ["mail.received", { type: "mail_message", id: "/messageId" }],
   ["message.sent", { type: "mail_message", id: "/messageId" }],
+  // an event lives in its calendar (so a private Personal calendar's privacy covers it); calendar.get_event, update_event and delete_event are bound to the event itself, and without a row access answered "not found" to everyone, the person included
+  ["calendar_event.created", { type: "calendar_event", id: "/eventId", parent: "/calendarId" }],
 ]);
 
 /**
@@ -221,7 +224,17 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
           const xid = pointer(ev.payload, extra.id);
           if (typeof xid === "string" && idFits(extra.type, xid) && !seen.has(xid) && !deps.exists(xid)) {
             seen.add(xid);
-            out.push({ id: xid, type: extra.type, parent_id: a.space, label: 0, owner_id: a.owner, holds: 0 });
+            const inside = extra.parent === undefined ? undefined : pointer(ev.payload, extra.parent);
+            const parent = typeof inside === "string" && (deps.exists(inside) || seen.has(inside)) ? inside : a.space;
+            out.push({
+              id: xid,
+              type: extra.type,
+              parent_id: parent,
+              label: 0,
+              owner_id: a.owner,
+              holds: 0,
+              ...(a.principal?.kind === "agent" && /^usr_[a-z0-9]+$/.test(a.owner) ? { made_by: a.principal.id } : {}),
+            });
           }
         }
         const s = subjects.get(ev.type);
