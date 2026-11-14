@@ -7,11 +7,13 @@ import assert from "node:assert/strict";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import type { LogEvent } from "../consumers.ts";
 import { madeRowId, share, sharesOf, unshare } from "../handlers/share.ts";
+import type { ShareCtx } from "../handlers/share.ts";
 import { fnv } from "../projections.ts";
 import { NOW, SPACE, ctxOf as ctxBase, fresh, fromTables, sync } from "../fixtures/incremental.ts";
 
 /** Ana by default: she owns the Space and the thing. */
-const ctxOf = (db: Parameters<typeof ctxBase>[0], who = "usr_ana") => ctxBase(db, who);
+// a ShareCtx is the AccessCtx the fixture builds; exactOptionalPropertyTypes tells them apart (type only)
+const ctxOf = (db: Parameters<typeof ctxBase>[0], who = "usr_ana") => ctxBase(db, who) as unknown as ShareCtx;
 
 const person = (seq: number, id: string): LogEvent => ({
   seq,

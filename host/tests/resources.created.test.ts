@@ -757,7 +757,7 @@ test("registrar: the made-for-me stamp is written for what an agent authored, an
   const agent = { kind: "agent", id: "agt_helper" };
   const run = (cap: string, event: ReturnType<typeof ev>, input: unknown = {}, principal = agent) =>
     r.register({
-      cap: { name: cap, resource: { type: "space" } },
+      cap: { name: cap as `${string}.${string}`, resource: { type: "space" } },
       input,
       space: "spc_1",
       owner: "usr_dana",
@@ -823,7 +823,7 @@ test("the made-for-me stamp is an allow list of authoring calls: a capability no
     "records.create_from_feed",
   ]) {
     const rows = r.register({
-      cap: { name: cap, resource: { type: "space" } },
+      cap: { name: cap as `${string}.${string}`, resource: { type: "space" } },
       input: {},
       space: "spc_1",
       owner: "usr_dana",
@@ -837,7 +837,7 @@ test("the made-for-me stamp is an allow list of authoring calls: a capability no
   }
   const names = new Set(registry.capabilities.map((c) => c.name));
   for (const cap of AUTHORING_CAPS)
-    assert.ok(names.has(cap), `${cap} is on the authoring list but is not a capability`);
+    assert.ok(names.has(cap as `${string}.${string}`), `${cap} is on the authoring list but is not a capability`);
 });
 
 test("registrar: a calendar event is a resource inside its calendar, owned by the person the call acts for", () => {
