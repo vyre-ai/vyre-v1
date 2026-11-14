@@ -16,7 +16,7 @@ import {
   retire,
   upgradeStarterAgentMd,
 } from "./handlers/crud.ts";
-import { ROUTINES_DUE_EVERY_MS, onMessageReceived, runDueRoutines } from "./handlers/routines.ts";
+import { onMessageReceived } from "./handlers/routines.ts";
 import { memoryGuideConsumers } from "./memory-guide.ts";
 import type {
   FileVersionEvent,
@@ -60,17 +60,11 @@ export const periodic = {
     immediate: true,
     run: (ctx: AgentsCtx): Promise<string[]> => upgradeStarterAgentMd(ctx),
   },
-  /** The schedule of routines: every 10 seconds, each routine whose time has come starts once (handlers/routines.ts runDueRoutines). Runs only where the scheduled-work lease is held. */
   /** The wake table's net: every routine's wake is brought to what the routine row wants (a routine saved before the table gets one at its stored next time, exactly), and a wake whose routine is gone is cancelled. */
   "agents.routines_wake_sync": {
     everyMs: 30_000,
     immediate: true,
     run: (ctx: AgentsCtx): Promise<string[]> => reconcileWakes(ctx),
-  },
-  "agents.routines_due": {
-    everyMs: ROUTINES_DUE_EVERY_MS,
-    immediate: true,
-    run: (ctx: AgentsCtx): Promise<string[]> => runDueRoutines(ctx),
   },
 };
 

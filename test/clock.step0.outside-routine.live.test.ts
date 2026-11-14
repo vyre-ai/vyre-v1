@@ -62,7 +62,7 @@ test("RECORDS TODAY: a routine of an outside agent, started by Run Now and by it
       // its time: the routine runs every minute, so within about 70 seconds the scheduler job starts it
       const end = Date.now() + 75_000;
       while (Date.now() < end) {
-        await s.d.hooks!.runPeriodic("agents.routines_due");
+        await s.d.hooks!.runPeriodic("scheduler.wakes");
         await poll(2_000);
       }
       console.log(

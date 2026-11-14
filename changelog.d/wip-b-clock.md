@@ -12,3 +12,4 @@
 - Your routines now run from the scheduler's one table of times. They fire at exactly the times they did before, once each; nothing about how you set a routine up changes.
 
 - A routine that cannot run says so once, in plain words (P1 step 4): three failed tries to start it, or three failed Runs in a row for one cause, pause it and make one Needs-you item for its owner ("<routine> paused: <why>") and one line in its chat; a trouble that clears on a retry tells nobody; a Run that goes well withdraws the item. A server that was off across several times starts the routine once and its chat says how many runs came due.
+- The routine tick that ran every ten seconds is gone: the scheduler's wake table is the only clock for a routine (P1 step 4). Revert this one commit to bring the old tick back.

@@ -1,6 +1,6 @@
 // P1 step 0 (CONTRACTS-2026-11-13/P1-clock-wake.md, section 4): a characterisation test. It RECORDS what the engine does today, before the clock and the wake table change anything; it does not say what is right.
 // Question (a): while a routine's turn is parked at the Gate (a held send), does the next scheduled run of the same routine start a second turn?
-// A booted daemon, its real scheduler job (agents.routines_due, run by hand) on a clock the test moves, and a scripted model that tries to send an email on every routine turn.
+// A booted daemon, its real scheduler job (scheduler.wakes, run by hand; the routine tick of rc.26 became a wake in P1 step 4) on a clock the test moves, and a scripted model that tries to send an email on every routine turn.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -96,7 +96,7 @@ test("RECORDS TODAY: a routine's next run while its first turn waits at the Gate
     for (const label of ["run 1", "run 2", "run 3"]) {
       const next = (await row()).nextRunAt!;
       at = next + 1_000;
-      await d.hooks!.runPeriodic("agents.routines_due");
+      await d.hooks!.runPeriodic("scheduler.wakes");
       if (label === "run 1")
         await waitFor(
           async () => ((await holdsAll()).length > 0 ? true : null),

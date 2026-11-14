@@ -295,61 +295,6 @@ export async function routineFire(ctx: AgentsCtx, input: { routineId: string; du
   return { started: true, runId: started.runId };
 }
 
-export const ROUTINES_DUE_EVERY_MS = 10_000;
-
-/**
- * The schedule: every routine that is on and whose next run has come starts one run, under its owner, the way Run Now does, and its next run is worked out from now.
- *   once      the run's key is the routine and the minute it was due (`routine:<id>:<nextRunAt>`), so a tick that runs twice, or a restart halfway through, starts the same run, not a second.
- *   missed    after the server was off, a routine that missed several minutes runs once, now, never a burst: the next run is counted from now, not from the missed time.
- *   lease     this is a periodic job, and the host runs periodic jobs only on the computer that holds the scheduled-work lease (host/src/peers/service.ts mayRun), so two computers never both fire it.
- *   skipped   a paused routine, a watcher (it runs on messages, not a clock) and a routine of a paused or deleted agent do not run; a paused agent's routine waits for its next time.
- */
-export async function runDueRoutines(ctx: AgentsCtx): Promise<string[]> {
-  ensure(ctx.db);
-  const now = ctx.now();
-  const due = ctx.db.all(
-    `SELECT r.id AS id FROM agents_routine r WHERE r.enabled = 1 AND r.nextRunAt IS NOT NULL AND r.nextRunAt <= ?
-       AND NOT EXISTS (SELECT 1 FROM agents_routine_watch w WHERE w.routineId = r.id) ORDER BY r.nextRunAt, r.id LIMIT 200`,
-    now,
-  ) as Row[];
-  const fired: string[] = [];
-  for (const row of due) {
-    const r = routineBy(ctx.db, str(row["id"]));
-    if (!r || !r.enabled || r.nextRunAt === undefined) continue;
-    const agent = agentBy(ctx.db, r.agentId);
-    if (!agent || agent.paused) {
-      markRoutineRan(ctx.db, r.id, now, false);
-      continue;
-    }
-    const key = `routine:${r.id}:${r.nextRunAt}`;
-    try {
-      const started = await call<{ runId: string }>(
-        ctx,
-        "runs.start",
-        { idempotencyKey: key, kind: "routine", name: r.title, owner: r.ownerId },
-        { idempotencyKey: key },
-      );
-      markRoutineRan(ctx.db, r.id, now);
-      noteRoutineRun(ctx.db, r.id, started.runId, now);
-      ctx.emit("agent.routine_run_started", agent.id, {
-        agentId: agent.id,
-        routineId: r.id,
-        runId: started.runId,
-        ownerId: r.ownerId,
-        requestedBy: "schedule",
-      });
-      fired.push(started.runId);
-    } catch (e) {
-      // the run could not start (the runs module is not there yet): it is tried again on the next tick, with the same key
-      ctx.log.warn("agents: a due routine did not start", {
-        routineId: r.id,
-        error: e instanceof Error ? e.message.slice(0, 200) : "error",
-      });
-    }
-  }
-  return fired;
-}
-
 const WHY: Record<string, string> = {
   cannot_use_agent: "cannot use this agent",
   cannot_read_channel: "cannot read the channel it posts to",
