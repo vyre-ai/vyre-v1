@@ -335,8 +335,19 @@ export function createToolSession(deps: CallDeps): ToolSession {
             const res = await deps.invoke(look.cap as CapName, look.input, readSeed);
             const n = res.status === "ok" ? versioned.now(res.output, ctx.turnStartedAt) : null;
             if (n) {
-              if (versioned.kind === "file") base = n.atTime ?? n.version;
-              else if (ctx.turnStartedAt !== undefined && n.changedAt !== undefined && n.changedAt >= ctx.turnStartedAt)
+              if (versioned.kind === "file") {
+                // no version from before the turn began (older ones purged, or the file made during the turn by someone else): it counts as changed
+                if (n.atTime === undefined && ctx.turnStartedAt !== undefined)
+                  return fail("validation.version_conflict", traceId, {
+                    message: changedSinceTurn(versioned.noun),
+                    details: { tool: t.name, reason: "changed_since_turn" },
+                  });
+                base = n.atTime ?? n.version;
+              } else if (
+                ctx.turnStartedAt !== undefined &&
+                n.changedAt !== undefined &&
+                n.changedAt >= ctx.turnStartedAt
+              )
                 return fail("validation.version_conflict", traceId, {
                   message: changedSinceTurn(versioned.noun),
                   details: { tool: t.name, reason: "changed_since_turn" },

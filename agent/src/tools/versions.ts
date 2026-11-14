@@ -12,7 +12,7 @@ const int = (v: unknown): number | undefined => (typeof v === "number" && Number
 
 /** A thing an agent can change that counts its saves. */
 export interface VersionedKind {
-  kind: "file" | "record" | "task" | "page" | "automation" | "site" | "goal" | "event" | "item";
+  kind: "file" | "record" | "task" | "page" | "automation" | "site" | "goal" | "event" | "item" | "note";
   /** The words for it in a refusal ("file", "record", "task"). */
   noun: string;
   /** The write tools that take a version, with the input field that carries it. */
@@ -116,6 +116,20 @@ const KINDS: readonly VersionedKind[] = [
     },
   },
   {
+    kind: "note",
+    noun: "note",
+    writes: ["notes.update"],
+    field: "expectedVersion",
+    idOf: (i) => str(i["noteId"]),
+    peek: (id) => ({ cap: "notes.get", input: { noteId: id } }),
+    now: (out) => {
+      const n = obj(obj(out)?.["note"]);
+      const version = int(n?.["version"]);
+      if (version === undefined) return null;
+      return { version, ...(typeof n?.["updatedAt"] === "number" ? { changedAt: n["updatedAt"] as number } : {}) };
+    },
+  },
+  {
     kind: "site",
     noun: "site",
     writes: ["sites.update", "sites.artifact_publish"],
@@ -215,6 +229,12 @@ export function learned(cap: string, input: unknown, out: unknown): Array<{ key:
     const id = str(automation["id"]);
     const version = int(automation["version"]);
     if (id && version !== undefined) found.push({ key: `automation:${id}`, version });
+  }
+  const note = obj(o["note"]);
+  if (note && cap.startsWith("notes.")) {
+    const id = str(note["noteId"]);
+    const version = int(note["version"]);
+    if (id && version !== undefined) found.push({ key: `note:${id}`, version });
   }
   const site = obj(o["site"]);
   if (site && cap.startsWith("sites.")) {

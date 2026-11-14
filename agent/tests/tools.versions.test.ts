@@ -498,3 +498,59 @@ test("a sheet row the agent read: the cells it changes are sent as what they hel
   const free = await r.s.call(r.c(), "sheets_update_row", { fileId: "fil_s", rowId: "r1", values: { zip: "78701" } });
   assert.equal(free.kind, "result");
 });
+
+test("a change made at exactly the turn's start counts as after it: refused for a record, and for a file whose earlier version is the one the turn began on", async () => {
+  const r = rig();
+  r.make(r.records, "rec_1", 2_000); // changed at 2000
+  const refused = await r.s.call(r.c({ turnStartedAt: 2_000 }), "records_update", {
+    type: "contact",
+    recordId: "rec_1",
+    patch: { a: 1 },
+  });
+  assert.equal(refused.kind, "error", "a change at the very millisecond the turn began is not yet seen");
+  assert.equal(code(refused), "validation.version_conflict");
+  assert.equal(r.sent.filter((x) => x.cap === "records.update").length, 0);
+  const next = await r.s.call(r.c({ turnStartedAt: 2_001, agentId: "agt_bob", turnId: "trn_2" }), "records_update", {
+    type: "contact",
+    recordId: "rec_1",
+    patch: { a: 1 },
+  });
+  assert.equal(next.kind, "result", "one millisecond later it is before the turn");
+  r.make(r.files, "fil_1", 1_000);
+  r.bump(r.files, "fil_1");
+  r.files.get("fil_1")!.history[1]!.at = 2_000; // version 2 at exactly the start
+  await r.s.call(r.c({ turnStartedAt: 2_000, agentId: "agt_cat", turnId: "trn_3" }), "files_write", {
+    fileId: "fil_1",
+    content: { text: "a" },
+  });
+  assert.equal(
+    r.lastWrite("files.write")?.["baseVersion"],
+    1,
+    "the turn began on version 1; version 2 at the same instant is after it",
+  );
+});
+
+test("a file with no version from before the turn began (older ones purged, or made during the turn by someone else) counts as changed and is not written", async () => {
+  const r = rig();
+  r.make(r.files, "fil_1", 3_000); // its only version is after the turn began at 2000
+  const out = await r.s.call(r.c({ turnStartedAt: 2_000 }), "files_write", { fileId: "fil_1", content: { text: "a" } });
+  assert.equal(out.kind, "error");
+  assert.equal(code(out), "validation.version_conflict");
+  assert.match((out.result.content as { error: { say: string } }).error.say, /changed after you started working/);
+  assert.equal(r.sent.filter((x) => x.cap === "files.write").length, 0, "nothing was written");
+});
+
+test("no agent tool can change a note's text, title, pin, labels or links today (only notes_create reads or writes one); the tool layer already carries the version for the day one does", async () => {
+  const { catalog } = loadGenerated();
+  const tools = catalog.all
+    .filter((t) => t.cap.startsWith("notes."))
+    .map((t) => t.name)
+    .sort();
+  assert.deepEqual(
+    tools,
+    ["notes_create", "notes_get", "notes_search"],
+    "a new note tool must be added to the kinds in agent/src/tools/versions.ts",
+  );
+  const { kindOfWrite } = await import("../src/tools/versions.ts");
+  assert.equal(kindOfWrite("notes.update")?.field, "expectedVersion");
+});
