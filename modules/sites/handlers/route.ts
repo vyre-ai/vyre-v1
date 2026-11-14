@@ -477,6 +477,8 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
     ctx.now(),
     site.id,
   );
+  // who may reach a site is a decision the kernel makes too (F48, 14 Nov 2026): the change is an event, so the site's registration follows it
+  if (access !== site.access) ctx.emit("site.access_changed", `site/${site.id}`, { siteId: str(site.id), access });
   return { site: siteOut(ctx, mustSite(ctx, str(site.id))) };
 }
 

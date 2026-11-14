@@ -166,3 +166,7 @@ Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff
 - `automations.steps.list@1` also answers an optional `checked` (false only when the Space's connected apps could not be read, so an app missing from the list is unknown rather than unconnected; absent otherwise). Additive.
 
 Signed: the lead (Simba), 14 Nov 2026 02:34 PKT, after reading the manifest diff: optional, additive fields only; no input, output or error removed.
+
+## 14 Nov 2026: `sites.update` emits the new event `site.access_changed` (lane f-auto-ids)
+
+`sites.update` changed who may reach a site (public, password, the Space, private) and said so nowhere the kernel could see, so a site set private stayed open to every member. It now emits `site.access_changed` ({ siteId, access }) when the access changes, and the site's registration follows it. No version moved: a new event and an event a write may now also emit. Snapshot `sites.json` carries the new hash for `sites.update@1` and the new event.

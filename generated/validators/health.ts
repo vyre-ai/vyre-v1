@@ -596,17 +596,17 @@ if ("service" in o7255) lf(o7255["service"], p + "/service", e, L1);
 }
 }
 
-function e634_payload(v: unknown, p: string, e: string[]): void {
+function e635_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7322 = v;
-const g7322 = typeOf(x7322);
-const b7322: string[] = []; lf(x7322, p, b7322, L0); if (b7322.length) e.push(...b7322);
-if (g7322 === "object") {
-if (g7322 === 'object') { const o7322 = x7322 as Record<string, unknown>;
-if (!("bundleId" in o7322)) e.push(p + "/bundleId" + ': required');
-if (!("sizeBytes" in o7322)) e.push(p + "/sizeBytes" + ': required');
-if ("bundleId" in o7322) lf(o7322["bundleId"], p + "/bundleId", e, L748);
-if ("sizeBytes" in o7322) lf(o7322["sizeBytes"], p + "/sizeBytes", e, L2);
+const x7323 = v;
+const g7323 = typeOf(x7323);
+const b7323: string[] = []; lf(x7323, p, b7323, L0); if (b7323.length) e.push(...b7323);
+if (g7323 === "object") {
+if (g7323 === 'object') { const o7323 = x7323 as Record<string, unknown>;
+if (!("bundleId" in o7323)) e.push(p + "/bundleId" + ': required');
+if (!("sizeBytes" in o7323)) e.push(p + "/sizeBytes" + ': required');
+if ("bundleId" in o7323) lf(o7323["bundleId"], p + "/bundleId", e, L748);
+if ("sizeBytes" in o7323) lf(o7323["sizeBytes"], p + "/sizeBytes", e, L2);
 }
 }
 }
@@ -637,7 +637,7 @@ export const eventValidators: Record<string, Check> = {
   "health.paused": e283_payload,
   "health.resumed": e284_payload,
   "service.restarted": e563_payload,
-  "support_bundle.created": e634_payload,
+  "support_bundle.created": e635_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

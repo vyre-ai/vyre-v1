@@ -3627,33 +3627,33 @@ if ("reason" in o7175) lf(o7175["reason"], p + "/reason", e, L1);
 }
 }
 
-function e704_payload(v: unknown, p: string, e: string[]): void {
+function e705_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7380 = v;
-const g7380 = typeOf(x7380);
-const b7380: string[] = []; lf(x7380, p, b7380, L0); if (b7380.length) e.push(...b7380);
-if (g7380 === "object") {
-if (g7380 === 'object') { const o7380 = x7380 as Record<string, unknown>;
-if (!("actorId" in o7380)) e.push(p + "/actorId" + ': required');
-if (!("by" in o7380)) e.push(p + "/by" + ': required');
-if ("actorId" in o7380) lf(o7380["actorId"], p + "/actorId", e, L69);
-if ("by" in o7380) lf(o7380["by"], p + "/by", e, L1);
+const x7381 = v;
+const g7381 = typeOf(x7381);
+const b7381: string[] = []; lf(x7381, p, b7381, L0); if (b7381.length) e.push(...b7381);
+if (g7381 === "object") {
+if (g7381 === 'object') { const o7381 = x7381 as Record<string, unknown>;
+if (!("actorId" in o7381)) e.push(p + "/actorId" + ': required');
+if (!("by" in o7381)) e.push(p + "/by" + ': required');
+if ("actorId" in o7381) lf(o7381["actorId"], p + "/actorId", e, L69);
+if ("by" in o7381) lf(o7381["by"], p + "/by", e, L1);
 }
 }
 }
 }
 
-function e749_payload(v: unknown, p: string, e: string[]): void {
+function e750_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7423 = v;
-const g7423 = typeOf(x7423);
-const b7423: string[] = []; lf(x7423, p, b7423, L0); if (b7423.length) e.push(...b7423);
-if (g7423 === "object") {
-if (g7423 === 'object') { const o7423 = x7423 as Record<string, unknown>;
-if (!("target" in o7423)) e.push(p + "/target" + ': required');
-if (!("expiresAt" in o7423)) e.push(p + "/expiresAt" + ': required');
-if ("target" in o7423) lf(o7423["target"], p + "/target", e, L355);
-if ("expiresAt" in o7423) lf(o7423["expiresAt"], p + "/expiresAt", e, L17);
+const x7424 = v;
+const g7424 = typeOf(x7424);
+const b7424: string[] = []; lf(x7424, p, b7424, L0); if (b7424.length) e.push(...b7424);
+if (g7424 === "object") {
+if (g7424 === 'object') { const o7424 = x7424 as Record<string, unknown>;
+if (!("target" in o7424)) e.push(p + "/target" + ': required');
+if (!("expiresAt" in o7424)) e.push(p + "/expiresAt" + ': required');
+if ("target" in o7424) lf(o7424["target"], p + "/target", e, L355);
+if ("expiresAt" in o7424) lf(o7424["expiresAt"], p + "/expiresAt", e, L17);
 }
 }
 }
@@ -3757,8 +3757,8 @@ export const eventValidators: Record<string, Check> = {
   "principal.created": e469_payload,
   "principal.reactivated": e470_payload,
   "principal.suspended": e471_payload,
-  "token.revoked": e704_payload,
-  "view_as.started": e749_payload,
+  "token.revoked": e705_payload,
+  "view_as.started": e750_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

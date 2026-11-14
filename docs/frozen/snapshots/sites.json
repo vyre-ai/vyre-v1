@@ -39,9 +39,10 @@
     "sites.table_create@1": "0f862628a8aad86a73a07f7f7bc5d8149e1c3517025f40ce8cfd03858eb7c28e",
     "sites.table_promote@1": "878188ca945164c9c33bb15edfef6d96ec944ec359498f0a605c75cf70071fc3",
     "sites.tables@1": "43d9e2957b96c059719b154c1db2955de01555563f7a509bc2edeb09606f3052",
-    "sites.update@1": "831007a05645388de017e1ce2ea053182c2562e208cd375092a8705994d2cbbe"
+    "sites.update@1": "eade4e43c82fbe9750950e009e3e0de174256e21ce7034093ee4634d04d5b9b5"
   },
   "events": {
+    "site.access_changed": "20aa17b535006c4a9c5d54bec6b9f72df7bc93dd5567e62167778e0d05c5ef57",
     "site.build_failed": "f26dbcbc009e864861c5dc080b329f59629e237d7f02be04e7f254f073b24269",
     "site.created": "0c67c9c239e6a4d8c1bd91f56e2055a28a711dd971d2c792e8c42921fef412e3",
     "site.deployed": "2189059db8e9d71c42fe04c29267d95bfd0c6b0ac34e639f5fbdd7b337b1b33c",

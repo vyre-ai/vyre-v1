@@ -1539,20 +1539,6 @@ if ("registrationId" in o7215) lf(o7215["registrationId"], p + "/registrationId"
 }
 }
 
-function e605_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7292 = v;
-const g7292 = typeOf(x7292);
-const b7292: string[] = []; lf(x7292, p, b7292, L0); if (b7292.length) e.push(...b7292);
-if (g7292 === "object") {
-if (g7292 === 'object') { const o7292 = x7292 as Record<string, unknown>;
-if (!("smsId" in o7292)) e.push(p + "/smsId" + ': required');
-if ("smsId" in o7292) lf(o7292["smsId"], p + "/smsId", e, L977);
-}
-}
-}
-}
-
 function e606_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7293 = v;
@@ -1561,14 +1547,28 @@ const b7293: string[] = []; lf(x7293, p, b7293, L0); if (b7293.length) e.push(..
 if (g7293 === "object") {
 if (g7293 === 'object') { const o7293 = x7293 as Record<string, unknown>;
 if (!("smsId" in o7293)) e.push(p + "/smsId" + ': required');
-if (!("numberId" in o7293)) e.push(p + "/numberId" + ': required');
-if (!("from" in o7293)) e.push(p + "/from" + ': required');
-if (!("optOut" in o7293)) e.push(p + "/optOut" + ': required');
 if ("smsId" in o7293) lf(o7293["smsId"], p + "/smsId", e, L977);
-if ("numberId" in o7293) lf(o7293["numberId"], p + "/numberId", e, L164);
-if ("from" in o7293) lf(o7293["from"], p + "/from", e, L215);
-if ("contactId" in o7293) lf(o7293["contactId"], p + "/contactId", e, L28);
-if ("optOut" in o7293) lf(o7293["optOut"], p + "/optOut", e, L3);
+}
+}
+}
+}
+
+function e607_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7294 = v;
+const g7294 = typeOf(x7294);
+const b7294: string[] = []; lf(x7294, p, b7294, L0); if (b7294.length) e.push(...b7294);
+if (g7294 === "object") {
+if (g7294 === 'object') { const o7294 = x7294 as Record<string, unknown>;
+if (!("smsId" in o7294)) e.push(p + "/smsId" + ': required');
+if (!("numberId" in o7294)) e.push(p + "/numberId" + ': required');
+if (!("from" in o7294)) e.push(p + "/from" + ': required');
+if (!("optOut" in o7294)) e.push(p + "/optOut" + ': required');
+if ("smsId" in o7294) lf(o7294["smsId"], p + "/smsId", e, L977);
+if ("numberId" in o7294) lf(o7294["numberId"], p + "/numberId", e, L164);
+if ("from" in o7294) lf(o7294["from"], p + "/from", e, L215);
+if ("contactId" in o7294) lf(o7294["contactId"], p + "/contactId", e, L28);
+if ("optOut" in o7294) lf(o7294["optOut"], p + "/optOut", e, L3);
 }
 }
 }
@@ -1628,8 +1628,8 @@ export const eventValidators: Record<string, Check> = {
   "number.route_changed": e439_payload,
   "registration.status_changed": e521_payload,
   "registration.submitted": e522_payload,
-  "sms.erased": e605_payload,
-  "sms.received": e606_payload,
+  "sms.erased": e606_payload,
+  "sms.received": e607_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

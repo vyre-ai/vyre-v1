@@ -707,22 +707,6 @@ if ("appSid" in o6565) lf(o6565["appSid"], p + "/appSid", e, L1);
 }
 }
 
-function e717_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7393 = v;
-const g7393 = typeOf(x7393);
-const b7393: string[] = []; lf(x7393, p, b7393, L0); if (b7393.length) e.push(...b7393);
-if (g7393 === "object") {
-if (g7393 === 'object') { const o7393 = x7393 as Record<string, unknown>;
-if (!("dedupeKey" in o7393)) e.push(p + "/dedupeKey" + ': required');
-if (!("sid" in o7393)) e.push(p + "/sid" + ': required');
-if ("dedupeKey" in o7393) lf(o7393["dedupeKey"], p + "/dedupeKey", e, L1);
-if ("sid" in o7393) lf(o7393["sid"], p + "/sid", e, L1);
-}
-}
-}
-}
-
 function e718_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7394 = v;
@@ -771,6 +755,22 @@ if ("sid" in o7396) lf(o7396["sid"], p + "/sid", e, L1);
 }
 }
 
+function e721_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7397 = v;
+const g7397 = typeOf(x7397);
+const b7397: string[] = []; lf(x7397, p, b7397, L0); if (b7397.length) e.push(...b7397);
+if (g7397 === "object") {
+if (g7397 === 'object') { const o7397 = x7397 as Record<string, unknown>;
+if (!("dedupeKey" in o7397)) e.push(p + "/dedupeKey" + ': required');
+if (!("sid" in o7397)) e.push(p + "/sid" + ': required');
+if ("dedupeKey" in o7397) lf(o7397["dedupeKey"], p + "/dedupeKey", e, L1);
+if ("sid" in o7397) lf(o7397["sid"], p + "/sid", e, L1);
+}
+}
+}
+}
+
 export const validators: Record<string, { in: Check; out: Check }> = {
   "twilio.a2p.attach_number@1": { in: c2087_in, out: c2087_out },
   "twilio.a2p.create_brand@1": { in: c2088_in, out: c2088_out },
@@ -796,10 +796,10 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "twilio.recording_received": e717_payload,
-  "twilio.sms_received": e718_payload,
-  "twilio.status_received": e719_payload,
-  "twilio.voice_received": e720_payload,
+  "twilio.recording_received": e718_payload,
+  "twilio.sms_received": e719_payload,
+  "twilio.status_received": e720_payload,
+  "twilio.voice_received": e721_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

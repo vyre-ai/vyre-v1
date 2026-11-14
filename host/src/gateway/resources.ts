@@ -228,6 +228,18 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
           }
           continue;
         }
+        // a site set to private leaves the Space's access the same way; any other access puts it back under the Space (F48)
+        if (ev.type === "site.access_changed" && deps.resource) {
+          const id = pointer(ev.payload, "/siteId"),
+            access = pointer(ev.payload, "/access");
+          const cur = typeof id === "string" ? deps.resource(id) : undefined;
+          if (cur && cur.type === "site" && typeof access === "string") {
+            const parent = access === "private" ? null : a.space;
+            if (cur.parent_id !== parent)
+              out.push({ id: cur.id, type: cur.type, parent_id: parent, label: cur.label, owner_id: cur.owner_id, holds: cur.holds });
+          }
+          continue;
+        }
         const extra = births.get(ev.type);
         if (extra) {
           const xid = pointer(ev.payload, extra.id);

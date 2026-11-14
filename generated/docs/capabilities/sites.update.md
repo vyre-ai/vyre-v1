@@ -19,7 +19,7 @@ Rename a site, change its settings, its source, its CPU and memory, auto deploy 
 | HTTP | POST /v1/sites/update |
 | MCP tool | sites_update (sites) |
 | CLI | none |
-| Emits | none |
+| Emits | site.access_changed |
 
 ## Input
 

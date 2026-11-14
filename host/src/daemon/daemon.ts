@@ -1901,6 +1901,35 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             });
           }
         }
+        // A site a person set to private through sites.update, before that change was an event, is registered under the Space too: close it from the module's own row, at every start, the same way.
+        let privateSites: string[] = [];
+        try {
+          privateSites = (
+            db!.all("SELECT id FROM sites_site WHERE access = 'private' AND deleted_at IS NULL") as { id: string }[]
+          ).map((r) => r.id);
+        } catch {
+          // no sites table yet: nothing to close
+        }
+        for (const siteId of privateSites) {
+          const row = access.snap.resource(siteId);
+          if (!row || row.type !== "site" || row.parent_id === null) continue;
+          const closed = await appendRepair({
+            id: `evt_res_private_${siteId}`,
+            type: "resource.created",
+            sv: 1,
+            trace_id: "c0".repeat(16),
+            actor: "svc_host",
+            vis: "space",
+            entity: "resource",
+            entity_id: siteId,
+            payload: { id: siteId, type: "site", parent_id: null, label: row.label, owner_id: row.owner_id, holds: row.holds },
+          });
+          if (!closed.duplicate) {
+            access.fold(closed.event);
+            accessPending.push(toAccessEvent(closed.event));
+            sink.log({ space, level: 20, msg: "access.site_privacy_reconciled", place: "boot", entity: "site", entity_id: siteId });
+          }
+        }
         const levelOf = (person: string, scope: string): "edit" | "view" | "none" => {
           const may = (level: "edit" | "view"): boolean =>
             authorize(access.snap, {

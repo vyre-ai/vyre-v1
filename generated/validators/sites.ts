@@ -1537,11 +1537,9 @@ const b7275: string[] = []; lf(x7275, p, b7275, L0); if (b7275.length) e.push(..
 if (g7275 === "object") {
 if (g7275 === 'object') { const o7275 = x7275 as Record<string, unknown>;
 if (!("siteId" in o7275)) e.push(p + "/siteId" + ': required');
-if (!("deploymentId" in o7275)) e.push(p + "/deploymentId" + ': required');
-if (!("reason" in o7275)) e.push(p + "/reason" + ': required');
+if (!("access" in o7275)) e.push(p + "/access" + ': required');
 if ("siteId" in o7275) lf(o7275["siteId"], p + "/siteId", e, L49);
-if ("deploymentId" in o7275) lf(o7275["deploymentId"], p + "/deploymentId", e, L176);
-if ("reason" in o7275) lf(o7275["reason"], p + "/reason", e, L1);
+if ("access" in o7275) lf(o7275["access"], p + "/access", e, L453);
 }
 }
 }
@@ -1555,10 +1553,11 @@ const b7276: string[] = []; lf(x7276, p, b7276, L0); if (b7276.length) e.push(..
 if (g7276 === "object") {
 if (g7276 === 'object') { const o7276 = x7276 as Record<string, unknown>;
 if (!("siteId" in o7276)) e.push(p + "/siteId" + ': required');
-if (!("name" in o7276)) e.push(p + "/name" + ': required');
+if (!("deploymentId" in o7276)) e.push(p + "/deploymentId" + ': required');
+if (!("reason" in o7276)) e.push(p + "/reason" + ': required');
 if ("siteId" in o7276) lf(o7276["siteId"], p + "/siteId", e, L49);
-if ("name" in o7276) lf(o7276["name"], p + "/name", e, L1);
-if ("private" in o7276) lf(o7276["private"], p + "/private", e, L3);
+if ("deploymentId" in o7276) lf(o7276["deploymentId"], p + "/deploymentId", e, L176);
+if ("reason" in o7276) lf(o7276["reason"], p + "/reason", e, L1);
 }
 }
 }
@@ -1572,17 +1571,16 @@ const b7277: string[] = []; lf(x7277, p, b7277, L0); if (b7277.length) e.push(..
 if (g7277 === "object") {
 if (g7277 === 'object') { const o7277 = x7277 as Record<string, unknown>;
 if (!("siteId" in o7277)) e.push(p + "/siteId" + ': required');
-if (!("deploymentId" in o7277)) e.push(p + "/deploymentId" + ': required');
-if (!("env" in o7277)) e.push(p + "/env" + ': required');
+if (!("name" in o7277)) e.push(p + "/name" + ': required');
 if ("siteId" in o7277) lf(o7277["siteId"], p + "/siteId", e, L49);
-if ("deploymentId" in o7277) lf(o7277["deploymentId"], p + "/deploymentId", e, L176);
-if ("env" in o7277) lf(o7277["env"], p + "/env", e, L1043);
+if ("name" in o7277) lf(o7277["name"], p + "/name", e, L1);
+if ("private" in o7277) lf(o7277["private"], p + "/private", e, L3);
 }
 }
 }
 }
 
-function e590_payload(v: unknown, p: string, e: string[]): void {
+function e589_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7278 = v;
 const g7278 = typeOf(x7278);
@@ -1590,17 +1588,17 @@ const b7278: string[] = []; lf(x7278, p, b7278, L0); if (b7278.length) e.push(..
 if (g7278 === "object") {
 if (g7278 === 'object') { const o7278 = x7278 as Record<string, unknown>;
 if (!("siteId" in o7278)) e.push(p + "/siteId" + ': required');
-if (!("branch" in o7278)) e.push(p + "/branch" + ': required');
-if (!("url" in o7278)) e.push(p + "/url" + ': required');
+if (!("deploymentId" in o7278)) e.push(p + "/deploymentId" + ': required');
+if (!("env" in o7278)) e.push(p + "/env" + ': required');
 if ("siteId" in o7278) lf(o7278["siteId"], p + "/siteId", e, L49);
-if ("branch" in o7278) lf(o7278["branch"], p + "/branch", e, L1);
-if ("url" in o7278) lf(o7278["url"], p + "/url", e, L1);
+if ("deploymentId" in o7278) lf(o7278["deploymentId"], p + "/deploymentId", e, L176);
+if ("env" in o7278) lf(o7278["env"], p + "/env", e, L1043);
 }
 }
 }
 }
 
-function e592_payload(v: unknown, p: string, e: string[]): void {
+function e591_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7279 = v;
 const g7279 = typeOf(x7279);
@@ -1608,9 +1606,11 @@ const b7279: string[] = []; lf(x7279, p, b7279, L0); if (b7279.length) e.push(..
 if (g7279 === "object") {
 if (g7279 === 'object') { const o7279 = x7279 as Record<string, unknown>;
 if (!("siteId" in o7279)) e.push(p + "/siteId" + ': required');
-if (!("deploymentId" in o7279)) e.push(p + "/deploymentId" + ': required');
+if (!("branch" in o7279)) e.push(p + "/branch" + ': required');
+if (!("url" in o7279)) e.push(p + "/url" + ': required');
 if ("siteId" in o7279) lf(o7279["siteId"], p + "/siteId", e, L49);
-if ("deploymentId" in o7279) lf(o7279["deploymentId"], p + "/deploymentId", e, L176);
+if ("branch" in o7279) lf(o7279["branch"], p + "/branch", e, L1);
+if ("url" in o7279) lf(o7279["url"], p + "/url", e, L1);
 }
 }
 }
@@ -1624,10 +1624,9 @@ const b7280: string[] = []; lf(x7280, p, b7280, L0); if (b7280.length) e.push(..
 if (g7280 === "object") {
 if (g7280 === 'object') { const o7280 = x7280 as Record<string, unknown>;
 if (!("siteId" in o7280)) e.push(p + "/siteId" + ': required');
-if (!("access" in o7280)) e.push(p + "/access" + ': required');
+if (!("deploymentId" in o7280)) e.push(p + "/deploymentId" + ': required');
 if ("siteId" in o7280) lf(o7280["siteId"], p + "/siteId", e, L49);
-if ("url" in o7280) lf(o7280["url"], p + "/url", e, L1);
-if ("access" in o7280) lf(o7280["access"], p + "/access", e, L453);
+if ("deploymentId" in o7280) lf(o7280["deploymentId"], p + "/deploymentId", e, L176);
 }
 }
 }
@@ -1641,9 +1640,10 @@ const b7281: string[] = []; lf(x7281, p, b7281, L0); if (b7281.length) e.push(..
 if (g7281 === "object") {
 if (g7281 === 'object') { const o7281 = x7281 as Record<string, unknown>;
 if (!("siteId" in o7281)) e.push(p + "/siteId" + ': required');
-if (!("toDeploymentId" in o7281)) e.push(p + "/toDeploymentId" + ': required');
+if (!("access" in o7281)) e.push(p + "/access" + ': required');
 if ("siteId" in o7281) lf(o7281["siteId"], p + "/siteId", e, L49);
-if ("toDeploymentId" in o7281) lf(o7281["toDeploymentId"], p + "/toDeploymentId", e, L176);
+if ("url" in o7281) lf(o7281["url"], p + "/url", e, L1);
+if ("access" in o7281) lf(o7281["access"], p + "/access", e, L453);
 }
 }
 }
@@ -1657,7 +1657,9 @@ const b7282: string[] = []; lf(x7282, p, b7282, L0); if (b7282.length) e.push(..
 if (g7282 === "object") {
 if (g7282 === 'object') { const o7282 = x7282 as Record<string, unknown>;
 if (!("siteId" in o7282)) e.push(p + "/siteId" + ': required');
+if (!("toDeploymentId" in o7282)) e.push(p + "/toDeploymentId" + ': required');
 if ("siteId" in o7282) lf(o7282["siteId"], p + "/siteId", e, L49);
+if ("toDeploymentId" in o7282) lf(o7282["toDeploymentId"], p + "/toDeploymentId", e, L176);
 }
 }
 }
@@ -1671,10 +1673,24 @@ const b7283: string[] = []; lf(x7283, p, b7283, L0); if (b7283.length) e.push(..
 if (g7283 === "object") {
 if (g7283 === 'object') { const o7283 = x7283 as Record<string, unknown>;
 if (!("siteId" in o7283)) e.push(p + "/siteId" + ': required');
-if (!("type" in o7283)) e.push(p + "/type" + ': required');
 if ("siteId" in o7283) lf(o7283["siteId"], p + "/siteId", e, L49);
-if ("type" in o7283) lf(o7283["type"], p + "/type", e, L1);
-if ("fields" in o7283) d_s_3550bb561b(o7283["fields"], p + "/fields", e);
+}
+}
+}
+}
+
+function e597_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7284 = v;
+const g7284 = typeOf(x7284);
+const b7284: string[] = []; lf(x7284, p, b7284, L0); if (b7284.length) e.push(...b7284);
+if (g7284 === "object") {
+if (g7284 === 'object') { const o7284 = x7284 as Record<string, unknown>;
+if (!("siteId" in o7284)) e.push(p + "/siteId" + ': required');
+if (!("type" in o7284)) e.push(p + "/type" + ': required');
+if ("siteId" in o7284) lf(o7284["siteId"], p + "/siteId", e, L49);
+if ("type" in o7284) lf(o7284["type"], p + "/type", e, L1);
+if ("fields" in o7284) d_s_3550bb561b(o7284["fields"], p + "/fields", e);
 }
 }
 }
@@ -1723,17 +1739,18 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "site.build_failed": e586_payload,
-  "site.created": e587_payload,
-  "site.deployed": e588_payload,
+  "site.access_changed": e586_payload,
+  "site.build_failed": e587_payload,
+  "site.created": e588_payload,
+  "site.deployed": e589_payload,
   "site.domain_changed": d_s_8bbe145173,
-  "site.preview_created": e590_payload,
+  "site.preview_created": e591_payload,
   "site.preview_removed": d_s_288af83338,
-  "site.promoted": e592_payload,
-  "site.published": e593_payload,
-  "site.rolled_back": e594_payload,
-  "site.stopped": e595_payload,
-  "site.table_created": e596_payload,
+  "site.promoted": e593_payload,
+  "site.published": e594_payload,
+  "site.rolled_back": e595_payload,
+  "site.stopped": e596_payload,
+  "site.table_created": e597_payload,
   "site.table_promoted": d_s_1385ca21a0,
 };
 

@@ -118,6 +118,10 @@ export default defineManifest({
       p: { siteId: id.site, name: t.str(), private: t.opt(t.bool()) },
       subject: ["site", "/siteId"],
     }),
+    ev("site.access_changed", "Who may reach a site was changed (public, password, the Space, or private)", {
+      p: { siteId: id.site, access },
+      subject: ["site", "/siteId"],
+    }),
     ev("site.published", "A site or artifact went live at its address", {
       p: { siteId: id.site, url: t.opt(t.str()), access },
       subject: ["site", "/siteId"],
@@ -263,6 +267,7 @@ export default defineManifest({
         out: { site: siteRow },
         on: ["site", "/siteId"],
         perm: "sites.deploy",
+        emits: ["site.access_changed"],
         tool: "sites",
       },
     ),
