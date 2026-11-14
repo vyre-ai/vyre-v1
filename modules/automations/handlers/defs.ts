@@ -589,33 +589,91 @@ export async function agentStepIssues(ctx: AutoCtx, kind: Automation["kind"], de
   return out;
 }
 
-/** The ids a step names of a thing a person owns or shares, by the field that holds them: what the saver must be able to use (Use, as for sending or calling with it). */
-const ACCOUNT_THINGS: readonly { field: "mailboxId" | "numberId" | "connectionId"; type: string; word: string; id: RegExp }[] = [
-  { field: "mailboxId", type: "mailbox", word: "mailbox", id: /^mbx_[a-z0-9]+$/ },
-  { field: "numberId", type: "number", word: "number", id: /^num_[a-z0-9]+$/ },
-  { field: "connectionId", type: "connection", word: "connection", id: /^(con|gua|mua)_[a-z0-9]+$/ },
-];
+const THING_WORDS: Readonly<Record<string, string>> = {
+  mailbox: "mailbox",
+  number: "number",
+  connection: "connection",
+  file: "file",
+  record: "record",
+  calendar: "calendar",
+  form: "form",
+  thread: "chat",
+};
+const SLOT = /^con_slot[0-9]+$/;
+const TEMPLATE = /\{\{/;
 
 /**
- * A step may name only a mailbox, number or connection the person saving it may use (F47, 14 Nov 2026). The test is the product's own (ctx.authorize at Use, as the person), the same one a send or a call
- * makes when it runs. Only what the saver wrote or changed is checked (`before`): an Automation that already holds such an id is left as it is, and its run still stops at the same check. Templates
- * ({{ ... }}) are checked when they run.
+ * Where each step names a thing a person owns or shares: the input field its capability is bound to (the manifest's own `resource`, so a new step is covered without a list here) and the level the capability
+ * asks. Only a step that names an existing thing is listed (a create names its container, which the capability checks as it runs); a bare Space-wide capability names nothing.
+ */
+let namesAThing: Map<string, { field: string; type: string; level: string }> | undefined;
+const NAMES_A_THING = (): Map<string, { field: string; type: string; level: string }> => {
+  if (namesAThing) return namesAThing;
+  const caps = new Map(
+    (
+      registry.capabilities as unknown as {
+        name: string;
+        level?: string;
+        resource?: { id?: string; type?: string; create?: boolean };
+      }[]
+    ).map((c) => [c.name, c] as const),
+  );
+  const out = new Map<string, { field: string; type: string; level: string }>();
+  for (const st of registry.steps as unknown as {
+    key: string;
+    kind: string;
+    cap?: string;
+    input?: { properties?: Record<string, unknown> };
+  }[]) {
+    const c = st.kind === "capability" && st.cap ? caps.get(st.cap) : undefined;
+    const field = typeof c?.resource?.id === "string" && c.resource.id.startsWith("/") ? c.resource.id.slice(1) : "";
+    if (
+      !c ||
+      c.resource?.create === true ||
+      field === "" ||
+      !(field in ((inlineRefs(st.input) as { properties?: Record<string, unknown> } | undefined)?.properties ?? {}))
+    )
+      continue;
+    if (
+      c.resource?.type !== undefined &&
+      c.resource.type in THING_WORDS &&
+      c.level !== undefined &&
+      c.level !== "member"
+    )
+      out.set(st.key, { field, type: c.resource.type, level: c.level });
+  }
+  // a connector request names the connector in its manifest binding and the account in `connectionId`
+  out.set("connector_request", { field: "connectionId", type: "connection", level: "use" });
+  namesAThing = out;
+  return out;
+};
+
+/**
+ * A step may name only a thing the person saving it may use: a mailbox, number, connection, file, record, calendar, form or chat (F47, 14 Nov 2026). The test is the product's own (ctx.authorize, at the level
+ * the step's capability asks, as the person), the same one the step makes when it runs. Only what the saver wrote or changed is checked (`before`): an Automation that already holds such an id is left as it is,
+ * and its run still stops at the same check. A template ({{ ... }}) is checked when it runs.
  */
 export function accountUseIssues(ctx: AutoCtx, def: Definition, before?: Definition): Issue[] {
   if (!ctx.authorize) return [];
   const was = new Map((before?.nodes ?? []).map((n) => [n.id, n] as const));
   const out: Issue[] = [];
   for (const n of def.nodes) {
-    const have = { ...(n.ai ?? {}), ...n.input } as Record<string, unknown>;
+    const bound = NAMES_A_THING().get(n.key);
+    if (!bound) continue;
+    const id = ({ ...(n.ai ?? {}), ...n.input } as Record<string, unknown>)[bound.field];
     const old = was.get(n.id);
-    const oldHave = old ? ({ ...(old.ai ?? {}), ...old.input } as Record<string, unknown>) : {};
-    for (const t of ACCOUNT_THINGS) {
-      const id = have[t.field];
-      if (typeof id !== "string" || !t.id.test(id) || oldHave[t.field] === id) continue;
-      if (ctx.authorize({ perm: null, level: "use" }, { type: t.type, id }).effect === "allow") continue;
-      const title = n.title?.trim() || STEPS.get(n.key)?.title || n.key;
-      out.push(issue("error", `${title}: you cannot use the ${t.word} it names. Pick another, or ask for access to it.`, n.id));
-    }
+    const oldId = old ? ({ ...(old.ai ?? {}), ...old.input } as Record<string, unknown>)[bound.field] : undefined;
+    // a numbered slot of a shared package (con_slot1) is a blank to fill, not a connection
+    if (typeof id !== "string" || id === "" || TEMPLATE.test(id) || SLOT.test(id) || oldId === id) continue;
+    if (ctx.authorize({ perm: null, level: bound.level }, { type: bound.type, id }).effect !== "deny") continue;
+    const title = n.title?.trim() || STEPS.get(n.key)?.title || n.key;
+    out.push(
+      issue(
+        "error",
+        `${title}: you cannot use the ${THING_WORDS[bound.type]} it names. Pick another, or ask for access to it.`,
+        n.id,
+      ),
+    );
   }
   return out;
 }
@@ -1014,7 +1072,10 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
     await guardKeySteps(ctx, a.definition, input.definition);
     const useIssue = accountUseIssues(ctx, input.definition, a.definition)[0];
     if (useIssue)
-      raise(ctx, "validation.precondition_failed", useIssue.message, { reason: "account_not_yours", issues: [useIssue] });
+      raise(ctx, "validation.precondition_failed", useIssue.message, {
+        reason: "account_not_yours",
+        issues: [useIssue],
+      });
     const policy = readPolicy(ctx.db);
     // an agent the saver may not give work to is refused at once, on or off: it is not a draft to finish later but someone else's (lead 12 Nov, rule 4)
     const agentIssue = (await agentStepIssues(ctx, a.kind, input.definition))[0];

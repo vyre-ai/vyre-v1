@@ -77,7 +77,7 @@ test("create refuses a blank name, a broken graph and a Group that is not there"
 });
 
 test("an Automation is seen by its owner and followers, not by others", async () => {
-  const h = harness({ authorize: (who, a) => who.id === "usr_viewer" && a.level === "view" });
+  const h = harness({ authorize: (who, a, r) => (who.id === "usr_viewer" && a.level === "view") || r.type === "record" });
   const id = await mk(h);
   assert.equal((await get(h, id)).id, id);
   await refused(h.call("automations.get", { automationId: id }, bob), "permission.not_found");
@@ -223,7 +223,7 @@ test("delete moves an Automation to Trash; undelete brings it back off", async (
 // ---- list ----
 
 test("list: sections, Group, status and search, newest first, with run counts from the runs module", async () => {
-  const h = harness({ authorize: (who, a) => who.id === bob.id && a.level === "view" });
+  const h = harness({ authorize: (who, a, r) => (who.id === bob.id && a.level === "view") || r.type === "record" });
   const g = (await h.call("automations.groups.create", { name: "Intake" }, alice)).group.id as string;
   const a1 = await mk(h, { name: "Alpha" });
   h.advance(MINUTE);

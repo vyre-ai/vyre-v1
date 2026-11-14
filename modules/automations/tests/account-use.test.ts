@@ -69,3 +69,24 @@ test("validate says the same thing for an unsaved definition", async () => {
   const out = await h.call("automations.validate", { definition: def([mail(MINE)]) }, bob);
   assert.ok(out.issues.some((i: { severity: string; message: string; nodeId?: string }) => i.severity === "error" && /you cannot use the mailbox it names/.test(i.message) && i.nodeId === "n1"));
 });
+
+test("the class: every step that names an existing file, record, calendar, form or chat is checked at the level its capability asks, from the manifest", async () => {
+  const h = harness({ authorize: (_who, a, r) => !(r.id ?? "").startsWith("x_") && a.level !== "never" });
+  const cases: [string, Record<string, unknown>, string][] = [
+    ["files.move", { fileId: "x_file", toFolderId: "fld_1" }, "file"],
+    ["sheet.add_rows", { fileId: "x_sheet", rows: [[1]] }, "file"],
+    ["records.update", { type: "contact", recordId: "x_rec", patch: { a: 1 } }, "record"],
+    ["calendar.create_event", { calendarId: "x_cal", title: "T", startsAt: 1, endsAt: 2 }, "calendar"],
+    ["forms.publish", { formId: "x_form" }, "form"],
+    ["sign", { fileId: "x_doc", signers: [{ email: "a@b.c" }] }, "file"],
+  ];
+  for (const [key, input, word] of cases) {
+    const r = await refusal(h, [{ id: "n1", key, input }], alice);
+    assert.ok(r, `${key}: the save passed`);
+    assert.match(r!.message, new RegExp(`you cannot use the ${word} it names`), `${key}: ${r!.message}`);
+    assert.doesNotMatch(r!.message, /x_/);
+  }
+  // a template, and a thing the person may use, are not refused
+  assert.equal(await refusal(h, [{ id: "n1", key: "files.move", input: { fileId: "{{ trigger.fileId }}", toFolderId: "fld_1" } }], alice), null);
+  assert.equal(await refusal(h, [{ id: "n1", key: "files.move", input: { fileId: "fil_ok", toFolderId: "fld_1" } }], alice), null);
+});

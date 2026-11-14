@@ -654,7 +654,7 @@ test("Promote shows what the Space Automation will hold, and which subscription 
   const h = harness({
     authorize: (_who, a, r) =>
       (a.level === "edit" && r.id === "rec_abc") ||
-      (savingNow && a.level === "use" && ["mailbox", "number", "connection"].includes(r.type)),
+      (savingNow && ["mailbox", "number", "connection", "file", "record", "calendar", "form", "thread"].includes(r.type)),
   });
   // the Vault as the creator sees it: the subscription promote must replace, and the key the send step uses
   h.callee("vault.items.list", (i) => ({
@@ -684,7 +684,7 @@ test("Promote shows what the Space Automation will hold, and which subscription 
 });
 
 test("Promote refuses until the subscription keys are replaced, then makes a Space Automation owned by the named person", async () => {
-  const h = harness({ authorize: (_who, a, r) => a.level === "use" && ["mailbox", "number", "connection"].includes(r.type) });
+  const h = harness({ authorize: (_who, a, r) => ["mailbox", "number", "connection", "file", "record", "calendar", "form", "thread"].includes(r.type) });
   // the Vault as the creator sees it: the subscription promote must replace, and the key the send step uses
   h.callee("vault.items.list", (i) => ({
     items:
@@ -769,7 +769,7 @@ test("a promoted Automation runs as its own Service principal with only the vaul
 });
 
 test("a Personal copy of a Space Automation runs with only the copier's access", async () => {
-  const h = harness({ authorize: (who, a) => who.id === bob.id && a.level === "view" });
+  const h = harness({ authorize: (who, a, r) => (who.id === bob.id && a.level === "view") || r.type === "record" });
   const id = (await h.call("automations.create", create(), alice)).automation.id as string;
   await h.call("automations.promote", { automationId: id, confirm: true }, alice);
   const r = await h.call("automations.make_personal_copy", { automationId: id }, bob);
@@ -859,7 +859,7 @@ test("a Space automation's AI account: Automatic needs a Space account kept for 
 });
 
 test("an agent's press on a live Space automation clears whom it runs as, and its accountable owner is told, once (review 12 Nov, pass 2)", async () => {
-  const h = harness({ authorize: (_who, a, r) => a.level === "use" && ["mailbox", "number", "connection"].includes(r.type) });
+  const h = harness({ authorize: (_who, a, r) => ["mailbox", "number", "connection", "file", "record", "calendar", "form", "thread"].includes(r.type) });
   // the Vault as the creator sees it, as in the Promote tests above: the subscription, and the key the send step uses (a step may only name a key its saver can use)
   h.callee("vault.items.list", (i) => ({
     items:

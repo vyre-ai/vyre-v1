@@ -92,9 +92,9 @@ export function harness(o: HarnessOptions = {}) {
     }
     if (v && typeof v === "object") for (const x of Object.values(v)) nameHandles(x);
   };
-  // by default the caller may use the mailboxes, numbers and connections the steps under test name (F47 checks them at save); everything else is denied unless a test says otherwise
-  const ownAccounts = (action: { level: string }, resource: { type: string }): boolean =>
-    action.level === "use" && ["mailbox", "number", "connection"].includes(resource.type);
+  // by default the caller may use the mailboxes, numbers, connections, files, records, calendars, forms and chats the steps under test name (F47 checks them at save); everything else is denied unless a test says otherwise
+  const ownAccounts = (_action: { level: string }, resource: { type: string }): boolean =>
+    ["mailbox", "number", "connection", "file", "record", "calendar", "form", "thread"].includes(resource.type);
   const authorize: Authorize = o.authorize ?? ((_who, action, resource) => ownAccounts(action, resource));
   const emitsOf = (cap: string | null): Set<string> =>
     cap === null
